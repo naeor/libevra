@@ -22,13 +22,55 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { currentBookId, subscribeCurrentBook } from "../currentBook.js";
 import { useAccountOffline } from "./connectivity.js";
 
-let sharedLedger = false;
+/**
+ * ⚠️ **Remembered per ledger, because "which ledger am I in" survives a reload while offline
+ * and the membership count does not.** The server is the authority, but a cold offline start
+ * cannot ask it; without a remembered flag a shared ledger would look personal after reload and
+ * a new offline write would be queued — the exact "permanent red row the server refuses forever"
+ * the policy exists to prevent.
+ *
+ * Keyed by book id (globally unique), so opening another ledger never inherits this one's answer.
+ * `localStorage` rather than IndexedDB because the write layer needs a **synchronous** answer at
+ * the moment a write is attempted; the async read at startup would be too late.
+ */
+const STORAGE_PREFIX = "libellum:shared-ledger:";
+
+let sharedLedger: boolean | null = null;
 const listeners = new Set<() => void>();
 
+function storageKey(bookId: string): string {
+  return `${STORAGE_PREFIX}${bookId}`;
+}
+
+function readStoredShared(bookId: string | null): boolean | null {
+  if (bookId === null || typeof localStorage === "undefined") return null;
+
+  try {
+    const value = localStorage.getItem(storageKey(bookId));
+    return value === null ? null : value === "1";
+  } catch {
+    return null;
+  }
+}
+
+function persistShared(bookId: string | null, value: boolean): void {
+  if (bookId === null || typeof localStorage === "undefined") return;
+
+  try {
+    if (value) localStorage.setItem(storageKey(bookId), "1");
+    else localStorage.removeItem(storageKey(bookId));
+  } catch {
+    /** Storage may be unavailable (private mode/quota); the in-memory answer still stands. */
+  }
+}
+
 /** Called by `useLedger` after it learns the current ledger's member count. */
-export function setSharedLedger(value: boolean): void {
+export function setSharedLedger(value: boolean, bookId: string | null = currentBookId()): void {
+  persistShared(bookId, value);
+
   if (sharedLedger === value) return;
 
   sharedLedger = value;
@@ -36,11 +78,15 @@ export function setSharedLedger(value: boolean): void {
 }
 
 export function isSharedLedger(): boolean {
+  if (sharedLedger === null) {
+    sharedLedger = readStoredShared(currentBookId()) ?? false;
+  }
+
   return sharedLedger;
 }
 
 export function sharedLedgerSnapshot(): boolean {
-  return sharedLedger;
+  return isSharedLedger();
 }
 
 export function subscribeSharedLedger(listener: () => void): () => void {
@@ -49,6 +95,15 @@ export function subscribeSharedLedger(listener: () => void): () => void {
     listeners.delete(listener);
   };
 }
+
+/**
+ * A different current ledger has a different answer; forget the old one and let the lazy read
+ * pick up that ledger's remembered flag. This also runs on sign-out (`forgetCurrentBook`), so a
+ * shared answer cannot leak into the next account's session.
+ */
+subscribeCurrentBook(() => {
+  sharedLedger = null;
+});
 
 /**
  * The pure rule, kept separate so tests can cover it without a DOM.
@@ -62,7 +117,7 @@ export function isSharedLedgerOfflineReadOnly(shared: boolean, offline: boolean)
 
 /** Test-only reset; module-level state leaks between cases otherwise. */
 export function resetSharedLedgerForTest(): void {
-  sharedLedger = false;
+  sharedLedger = null;
   listeners.clear();
 }
 
