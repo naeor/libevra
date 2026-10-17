@@ -150,7 +150,17 @@ export function BookSwitcherSheet({
           startY.current = null;
         }}
         style={dragY === 0 ? undefined : { transform: `translateY(${String(dragY)}px)` }}
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
+        /**
+         * ⚠️ **A stable, usable height, not a height decided by how many ledgers exist.**
+         *
+         * With two ledgers the content-driven sheet collapsed to a narrow strip; on a phone that
+         * meant aiming at a small target near the bottom edge. The owner asked for roughly
+         * 45–55% of the visible viewport. `clamp(18rem, 52dvh, 34rem)` gives that on phones,
+         * keeps a 288px floor on very short screens, and caps itself on a tall desktop.
+         * The list gets its own scroll area (`min-h-0 flex-1 overflow-y-auto`) so growth never
+         * pushes the title or the safe-area padding off screen.
+         */
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[clamp(18rem,52dvh,34rem)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
           dragY === 0 ? "sheet-in" : ""
         }`}
       >
@@ -175,9 +185,15 @@ export function BookSwitcherSheet({
         </div>
 
         {/* ⚠️ The grey sentence: what this list does *not* do. */}
-        <p className="px-5 pb-3 text-helper-relaxed text-muted">{HINTS[purpose]}</p>
+        <p className="shrink-0 px-5 pb-3 text-helper-relaxed text-muted">{HINTS[purpose]}</p>
 
-        {books.isPending ? <SkeletonRows rows={3} /> : null}
+        {/**
+          * ⚠️ **Only this region scrolls.** The drag handle, title, close button and grey sentence
+          * stay put while the list moves — that is what keeps the sheet usable when it holds many
+          * ledgers, and what stops a long list from turning the close button into a moving target.
+          */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {books.isPending ? <SkeletonRows rows={3} /> : null}
 
         {books.isError ? (
           <div className="flex flex-col gap-3 px-5 py-4">
@@ -237,6 +253,7 @@ export function BookSwitcherSheet({
             ))}
           </ul>
         ) : null}
+        </div>
       </div>
     </>
   );

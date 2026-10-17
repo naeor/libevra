@@ -446,15 +446,11 @@ function BookCardSplit({
 
         <Link
           to="/start"
-          className="flex min-h-14 shrink-0 flex-col justify-center gap-1 border-t border-line p-4 transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft sm:min-w-[9rem] sm:border-t-0 sm:border-l"
+          aria-label={`切换账本${countLabel}`}
+          className="group flex min-h-24 shrink-0 flex-col items-center justify-center gap-2 border-t border-line px-4 py-3 text-center transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft active:bg-brand-soft/40 sm:min-h-32 sm:w-40 sm:border-t-0 sm:border-l"
         >
-          <span className="flex items-center gap-1.5 text-helper font-medium text-brand">
-            <SwitchIcon />
-            切换账本
-          </span>
-          <span className="text-helper text-muted">
-            {countLabel === "" ? "选择另一本账" : countLabel}
-          </span>
+          <SwitchIcon className="size-11 text-brand transition group-hover:scale-105 group-active:scale-95 sm:size-12" />
+          <span className="text-helper font-medium text-brand">切换账本</span>
         </Link>
       </div>
     </div>
@@ -565,10 +561,10 @@ function Fact({ label, value }: { readonly label: string; readonly value: string
 }
 
 /** The switch glyph — arrows pointing both ways, so the word 切换账本 has a visual anchor. */
-function SwitchIcon(): React.JSX.Element {
+function SwitchIcon({ className = "size-4" }: { readonly className?: string }): React.JSX.Element {
   return (
     <svg
-      className="size-4 shrink-0"
+      className={`${className} shrink-0`}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

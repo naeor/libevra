@@ -94,30 +94,45 @@ describe("非管理员直达 /admin 不会白屏", () => {
 describe("设置页的「系统管理」入口", () => {
   const settings = source("./SettingsPage.tsx");
 
-  it("用 useAdminEntry 判断，且只看得到这一组的人才渲染", () => {
+  it("用 useAdminEntry 判断，且只看得到这张卡片的人才渲染", () => {
     /**
      * ⚠️ **两个便宜的条件都在 hook 里**：账号编号不在首批号段就**不发请求**（普通账号连
-     * 这组的存在都看不到），在号段里也还要服务器确认一次。这里断言的是设置页**确实问了**，
-     * 并且把结果当作渲染条件，而不是无条件列出五个入口。
+     * 这张卡片的存在都看不到），在号段里也还要服务器确认一次。这里断言的是设置页**确实问了**，
+     * 并且把结果当作渲染条件，而不是无条件列出管理入口。
      */
     expect(settings).toContain("useAdminEntry(user?.accountNumber)");
     expect(settings).toContain("{isAdmin ? (");
   });
 
-  it("五个入口都指向真实存在的路由，且分组在「关于」之前", () => {
-    for (const [path] of ADMIN_ROUTES) {
-      expect(settings, path).toContain(`to: "${path}"`);
-    }
+  it("指向管理台，并且排在「关于」之前", () => {
+    /**
+     * ⚠️ **S13-E 之后「系统管理」是一张分类卡片**，打开 `/admin`；概览、邀请码、管理员、
+     * 账号、操作记录五个子页由管理台自己列出。设置首页不再把它们摊成五行。
+     */
+    expect(settings).toContain('to="/admin"');
 
     const gate = settings.indexOf("{isAdmin ? (");
-    /** ⚠️ 匹配 JSX 标题本身（`>系统管理<`），而不是注释里出现的同一串字。 */
-    const section = settings.indexOf(">系统管理<");
-    const about = settings.indexOf(">关于<");
+    /** ⚠️ 匹配 JSX 属性本身，而不是注释里出现的同一串字。 */
+    const section = settings.indexOf('title="系统管理"');
+    const about = settings.indexOf('title="关于 Libevra"');
 
     expect(gate).toBeGreaterThan(-1);
-    /** 条件在分组之前：否则「系统管理」标题会被无条件渲染出来。 */
+    /** 条件在卡片之前：否则「系统管理」卡片会被无条件渲染出来。 */
     expect(section).toBeGreaterThan(gate);
-    /** 「关于」保持最后一组，和改动前一致。 */
+    /** 「关于」保持最后一张，和改动前一致。 */
     expect(about).toBeGreaterThan(section);
+  });
+
+  it("五个管理子页仍可从管理台进入，没有变成孤儿页面", () => {
+    /**
+     * ⚠️ **这是把五个入口从设置页收走的前提**：管理台必须自己列出去处，否则那些路由
+     * 仍然存在、却没有任何一条路能走到——正是本文件开头记录的失败。
+     */
+    const console = source("./AdminPages.tsx");
+
+    for (const [path] of ADMIN_ROUTES) {
+      if (path === "/admin") continue;
+      expect(console, path).toContain(`onNavigate("${path}")`);
+    }
   });
 });

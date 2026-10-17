@@ -1,223 +1,155 @@
-import { CURRENCIES, type Currency } from "@libellum/shared";
-import { useState } from "react";
 import { useNavigate } from "react-router";
 
-import { Alert } from "../components/Alert.js";
-import { InnerPage } from "../components/Layouts.js";
 import { useAuth } from "../auth/AuthProvider.js";
-import { errorMessage } from "../lib/api.js";
-import { currencyName } from "../lib/format.js";
-import { useUpdatePreferences } from "../lib/queries.js";
+import { InnerPage } from "../components/Layouts.js";
+import {
+  CurrencyQuickPick,
+  SettingsCategoryCard,
+  useDefaultCurrency,
+  type DefaultCurrency,
+} from "../components/SettingsCard.js";
 import { useAdminEntry } from "../lib/admin.js";
+import { currencyName } from "../lib/format.js";
 
-interface Row {
-  readonly label: string;
-  readonly hint?: string;
-  readonly to?: string;
-}
-
-/** Section of tappable rows; `to` absent means "not available yet". */
-function RowList({ rows, onNavigate }: { readonly rows: readonly Row[]; readonly onNavigate: (to: string) => void }): React.JSX.Element {
+/**
+ * **The settings home — five categories, and one quick action.**
+ *
+ * ⚠️ **This screen used to be the whole of 设置**, with every group expanded: the
+ * default-currency card, ten 「后续开放」 rows, the account rows, the administrator
+ * group and 关于. The owner's instruction for this round was a **设置首页 + 分类子页面**
+ * structure, so each category now has one card that opens its own short screen and
+ * **the home itself fits on a phone without scrolling to the bottom**.
+ *
+ * ⚠️ **The default currency is the one exception: it stays on the home as a quick
+ * control**, because it is the setting people actually come here to change. It sits
+ * **below the 记账偏好 card, not inside it** — see `SettingsCategoryCard` for why that
+ * is a structural requirement rather than a layout preference.
+ *
+ * ⚠️ **What is deliberately absent.** 显示与数据 and 账号安全 have **no quick buttons
+ * here**: a fake language toggle or a "theme" switch would be a control that does
+ * nothing, which is the class of defect the account/settings audit was written
+ * about. Their cards are honest — they open a page that says what is available.
+ *
+ * ⚠️ **导出数据 / 导入历史账 are not on this screen and must not come back (S13-E).**
+ * They operate on **one ledger**, not on this account, so their entries live in
+ * 账本设置 → 数据管理; `/export` and `/import` themselves are unchanged.
+ *
+ * The component is presentational on purpose: the flags and callbacks are passed
+ * in, so the card order, the descriptions and the administrator gate can be
+ * asserted in a test without a DOM or a network.
+ */
+export function SettingsHome({
+  isAdmin,
+  currency,
+  onOpen,
+}: {
+  readonly isAdmin: boolean;
+  readonly currency: DefaultCurrency;
+  readonly onOpen: (to: string) => void;
+}): React.JSX.Element {
   return (
-    <ul className="overflow-hidden rounded-card border border-line bg-surface">
-      {rows.map((row) => (
-        <li key={row.label}>
-          <button
-            type="button"
-            disabled={row.to === undefined}
-            onClick={() => {
-              if (row.to !== undefined) onNavigate(row.to);
-            }}
-            className="flex w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition last:border-b-0 enabled:hover:bg-canvas disabled:cursor-default"
-          >
-            <span className="flex flex-col gap-0.5">
-              <span className={`text-sm ${row.to === undefined ? "text-muted" : "text-ink"}`}>
-                {row.label}
-              </span>
-              {row.hint ? <span className="text-helper text-muted">{row.hint}</span> : null}
-            </span>
-            <span className="shrink-0 text-helper text-muted">
-              {row.to === undefined ? "后续开放" : "›"}
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-3">
+      {/**
+       * ⚠️ **记账偏好 的卡片，以及卡片下方的默认币种快捷控件。**
+       *
+       * 卡片本身**整卡可点**，打开 `/settings/preferences`；币种控件是它**下方**的
+       * 独立元素，不在卡片的 `<button>` 里——所以点币种永远不会触发卡片导航，也不需要
+       * `stopPropagation`。这是本轮明确要求的结构（"不要嵌套 button，用并列元素"）。
+       */}
+      <div className="flex flex-col gap-2">
+        <SettingsCategoryCard
+          title="记账偏好"
+          description="默认币种、录入习惯与记账界面"
+          to="/settings/preferences"
+          onOpen={onOpen}
+        />
+
+        <div className="flex flex-col gap-2.5 rounded-card border border-line bg-surface px-5 py-3.5">
+          {/**
+           * The current value is written out as well as highlighted: the pills are
+           * the control, this line is the answer to "what is it now?".
+           */}
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-helper text-muted">默认币种</span>
+            <span className="text-body text-ink">{currencyName(currency.current)}</span>
+          </div>
+          <CurrencyQuickPick value={currency} />
+        </div>
+      </div>
+
+      <SettingsCategoryCard
+        title="显示与数据"
+        description="语言、主题与汇率显示"
+        to="/settings/appearance"
+        onOpen={onOpen}
+      />
+
+      <SettingsCategoryCard
+        title="账号安全"
+        description="密码、恢复码与邀请码"
+        to="/settings/security"
+        onOpen={onOpen}
+      />
+
+      {/**
+       * ⚠️ **「系统管理」只在 `useAdminEntry` 说是的时候渲染（S13-C）。**
+       *
+       * 所有者 2026-10-17：*"如果不是管理员用户的话，直接隐藏管理入口就行，或者说压根不渲染."*
+       * 所以这里没有"灰着的入口"、没有"无权访问"的占位——**普通账号看到的就是没有这一张卡片**。
+       * 卡片打开管理台 `/admin`，五个子页（邀请码、管理员、账号、操作记录）由管理台自己列出，
+       * 每一页打开时仍会向服务器确认一次。
+       *
+       * ⚠️ **放在「账号安全」之后、「关于」之前**：它是关于**整个系统**的一张，既不属于
+       * 记账偏好，也不属于某一个人的账号安全，而「关于」按惯例留在最后。
+       */}
+      {isAdmin ? (
+        <SettingsCategoryCard
+          title="系统管理"
+          description="平台概览、账号、邀请码与操作记录"
+          to="/admin"
+          onOpen={onOpen}
+        />
+      ) : null}
+
+      <SettingsCategoryCard
+        title="关于 Libevra"
+        description="版本信息、开源协议与隐私说明"
+        to="/about"
+        onOpen={onOpen}
+      />
+    </div>
   );
 }
 
 /**
- * Settings.
+ * `/settings` — the settings home.
  *
- * Rows without a `to` are genuinely not built yet, and say "后续开放" rather than
- * disappearing — their absence is a stated fact instead of something the user has
- * to wonder about.
+ * ⚠️ **The administrator gate is `useAdminEntry`, the cheap two-layer check** (account
+ * number in the first batch, then one `/admin/self` answer). It decides whether a
+ * card is **rendered**; it is not a permission. The server still authorises every
+ * administrator call, and nothing in this file may ever be trusted by it.
  *
- * ⚠️ **导出数据 / 导入历史账 已从这一屏移走（S13-E）。** 它们操作的是**当前账本**，不是这个
- * 账号的全局设置，所以入口归入账本设置页的「数据管理」组；`/export`、`/import` 两条路由与
- * 页面本身不动。曾经这里是两行「后续开放」，而对应的页面早已存在——那条教训仍然成立：
- * **设置页列出来的入口，必须真的能走到。**
+ * ⚠️ **The default currency comes from `useDefaultCurrency`**, the same hook the
+ * 记账偏好 sub-page uses. There is no second currency state on this screen: the
+ * selected pill and the written value both come from the PATCH's own answer, and
+ * `reload()` keeps `AuthProvider` — and therefore 明细／分析／导出 — in step.
  */
 export function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const { user, reload } = useAuth();
-  const preferences = useUpdatePreferences();
+  const { user } = useAuth();
+  const currency = useDefaultCurrency();
 
-  const go = (to: string): void => void navigate(to);
-  const [saved, setSaved] = useState(false);
-
-  /**
-   * **默认币种：选中态优先读这次 PATCH 的答案（S13-E 修复 8.4）。**
-   *
-   * ⚠️ **`useAuth().user` 是 React state，不是查询缓存。** 它只在启动、窗口重新聚焦或 60 秒
-   * 轮询时刷新（`AuthProvider`），而 `useUpdatePreferences` 写的是 `["me"]` 查询缓存——
-   * **没有任何界面订阅它**。所以保存成功后曾出现「已保存。」与**旧币种**仍高亮同屏。
-   *
-   * `preferences.data` 是服务器对刚才那次 PATCH 的回答，用于**立即**更新这一格的选中态；
-   * `reload()` 再把同一个回答写进唯一的 `user` state，让明细／分析／导出也同时看到新币种，
-   * 而不是等到一次轮询。**这里不存第二份 user**：没有的话就回落到 `user`。
-   */
-  const current: Currency =
-    preferences.data?.user.defaultCurrency ?? user?.defaultCurrency ?? "CNY";
-
-  /**
-   * **「系统管理」分组的显示条件（S13-C）。**
-   *
-   * ⚠️ **`useAdminEntry` 是两层里便宜的那一层，不是权限。** 它先看账号编号是否在首批号段
-   * （10000000–10000099）——不在就**一个请求都不发**、直接返回 `false`，普通账号因此
-   * 连这个分组的存在都看不到；在首批号段也只是**再问一次服务器**，问到 `false` 仍然不渲染。
-   * 真正的授权永远是服务端 `requireAdmin`，入口显示与否不参与任何判断。
-   *
-   * ⚠️ **默认 `false`（未知时不显示）**，否则每个普通用户都会先看到一行管理入口再看着它消失。
-   */
   const isAdmin = useAdminEntry(user?.accountNumber);
 
   return (
     <InnerPage title="设置" backTo="/me">
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-helper text-muted">记账偏好</h2>
-
-        <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
-          <div className="flex flex-col gap-1">
-            <span className="text-body text-ink">默认币种</span>
-            <span className="text-helper-relaxed text-muted">
-              该币种将排在所有币种列表的最前。汇率折算功能开放后，其它币种默认折算为该币种。
-            </span>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {CURRENCIES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                disabled={preferences.isPending}
-                onClick={() => {
-                  setSaved(false);
-                  preferences.mutate(
-                    { defaultCurrency: option },
-                    {
-                      onSuccess: () => {
-                        setSaved(true);
-                        // 让唯一的 user state 跟上——见 `current` 上面的说明。
-                        void reload();
-                      },
-                    },
-                  );
-                }}
-                className={`rounded-full px-4 py-2 text-sm transition disabled:opacity-45 ${
-                  current === option ? "bg-brand text-white" : "bg-canvas text-muted hover:text-ink"
-                }`}
-              >
-                {currencyName(option)}
-              </button>
-            ))}
-          </div>
-
-          {preferences.isError ? <Alert tone="error">{errorMessage(preferences.error)}</Alert> : null}
-          {saved && !preferences.isPending ? (
-            <p className="text-helper text-brand-dark">已保存。</p>
-          ) : null}
-        </div>
-
-        <RowList
-          rows={[
-            { label: "大键盘输入金额", hint: "使用应用内的大号数字键盘" },
-            { label: "沿用上一笔", hint: "新建记录时自动填入上次使用的分类等信息" },
-            { label: "登录后直接开始记账", hint: "跳过明细页，直接进入记账界面" },
-            { label: "币种显示顺序", hint: "默认币种固定排在最前" },
-            { label: "主界面按钮位置", hint: "左手 / 右手" },
-          ]}
-          onNavigate={go}
-        />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-helper text-muted">显示与数据</h2>
-        <RowList
-          rows={[
-            { label: "语言", hint: "中文 / English" },
-            { label: "主题色" },
-            { label: "汇率折算", hint: "将各币种折算为一种货币后统计" },
-          ]}
-          onNavigate={go}
-        />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-helper text-muted">账号安全</h2>
-        <RowList
-          rows={[
-            { label: "更改密码", hint: "修改后，其它设备上的登录状态将失效", to: "/settings/password" },
-            { label: "生成新的恢复码", hint: "生成后，原有恢复码将立即失效", to: "/settings/recovery-code" },
-            /**
-             * ⚠️ **The owner asked for the referral code to become an entry of its own here**
-             * (2026-10-13): *"账户里边生成邀请码单独包装成一个入口，放到设置-账号安全里面."*
-             *
-             * ⚠️ **It belongs in this section rather than under 显示与数据 or 记账偏好**, because it
-             * is about **the account** — like 密码 and 恢复码 — and about no ledger and no preference.
-             * The hint keeps the distinction the owner drew visible at the point of choice: a code
-             * **注册账号**, it does not put anybody into a ledger.
-             */
-            {
-              label: "邀请码",
-              hint: "让别人注册 Libevra 账号，与你的账本无关",
-              to: "/settings/referral-codes",
-            },
-          ]}
-          onNavigate={go}
-        />
-      </section>
-
-      {/**
-        * ⚠️ **「系统管理」只在 `useAdminEntry` 说是的时候渲染（S13-C）。**
-        *
-        * 所有者 2026-10-17：*"如果不是管理员用户的话，直接隐藏管理入口就行，或者说压根不渲染."*
-        * 所以这里没有"灰着的入口"、没有"无权访问"的占位——**普通账号看到的就是没有这一组**。
-        * 五个链接各自对应一条 `/admin` 路由，页面打开时自己再向服务器确认一次。
-        *
-        * ⚠️ **放在「账号安全」之后、「关于」之前**：它是关于**整个系统**的一组，既不属于
-        * 记账偏好，也不属于某一个人的账号安全，而「关于」按惯例留在最后。
-        */}
-      {isAdmin ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="px-1 text-helper text-muted">系统管理</h2>
-          <RowList
-            rows={[
-              { label: "概览", hint: "账号、账本、邀请码与备份的总体情况", to: "/admin" },
-              { label: "邀请码管理", hint: "创建、查看与作废注册邀请码", to: "/admin/invites" },
-              { label: "管理员", hint: "谁在管理、谁只满足一半（只读）", to: "/admin/admins" },
-              { label: "查找账号", hint: "按完整编号或用户名停用、恢复账号", to: "/admin/users" },
-              { label: "操作记录", hint: "管理操作的永久记录", to: "/admin/audit" },
-            ]}
-            onNavigate={go}
-          />
-        </section>
-      ) : null}
-
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-helper text-muted">关于</h2>
-        <RowList rows={[{ label: "关于 Libevra", hint: "开源协议与隐私说明", to: "/about" }]} onNavigate={go} />
-      </section>
+      <SettingsHome
+        isAdmin={isAdmin}
+        currency={currency}
+        onOpen={(to) => {
+          void navigate(to);
+        }}
+      />
     </InnerPage>
   );
 }

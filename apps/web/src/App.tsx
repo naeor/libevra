@@ -56,6 +56,7 @@ import { RecordPage } from "./pages/RecordPage.js";
 import { ScanPage } from "./pages/ScanPage.js";
 import { VoiceReviewPage } from "./pages/VoiceReviewPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
+import { AppearancePage, PreferencesPage, SecurityPage } from "./pages/SettingsSubPages.js";
 
 /**
  * The chart foundation's development harness.
@@ -231,6 +232,14 @@ function AppRoutes(): React.JSX.Element {
         <Route path="/update" element={<RequireAuth><SoftwareUpdatePage /></RequireAuth>} />
         <Route path="/downloads/:month" element={<RequireAuth><MonthDownloadPage /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+      {/**
+        * ⚠️ **设置首页的三张分类子页（S13-E）。** 首页只列分类，每张卡片打开自己的短页面；
+        * 这三条路由就是那些卡片的目的地。**必须是真实地址**：刷新、深链、浏览器返回都能重新回答
+        * "这是哪一页"，而不是靠首页的本地状态。它们排在下面的通配路由之前，否则会被送回首页。
+        */}
+      <Route path="/settings/preferences" element={<RequireAuth><PreferencesPage /></RequireAuth>} />
+      <Route path="/settings/appearance" element={<RequireAuth><AppearancePage /></RequireAuth>} />
+      <Route path="/settings/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
       <Route path="/settings/password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
       {/**
         * ⚠️ **邀请码现在是一页，入口在设置-账号安全。** 所有者 2026-10-13：
