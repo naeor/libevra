@@ -177,13 +177,25 @@ export function BookManageSheet({
    */
   const canWrite = book.role === "owner" || book.role === "editor";
 
+  /**
+   * ⚠️ **The paths changed with S13-E: the ledger's pages now carry its id in the URL** (`/books/:id`,
+   * `/books/:id/settings`). The old `/start/book/:id` addresses are kept as redirects so a bookmark
+   * or a screen opened before the upgrade still lands somewhere real — see `BookRedirects.tsx`.
+   *
+   * ⚠️ **The panel still opens what it opened before**, only at the new address: 账本详情 (read-only),
+   * 重命名 (`?rename=1` makes the settings page open the field), 账本设置 (the full screen that now
+   * owns 分类/标签/支付方式/导出/导入), 成员与邀请 and 分享链接 unchanged.
+   *
+   * ⚠️ **Nothing here enters the ledger.** Every item is a URL that names this book, and not one of
+   * them calls `useActivateBook` — the owner's rule, restated at the top of this file.
+   */
   const items: SheetItem[] = [
     {
       key: "info",
       label: "账本详情",
 
       onSelect: () => {
-        go(`/start/book/${book.id}`);
+        go(`/books/${book.id}`);
       },
     },
     ...(canWrite
@@ -193,11 +205,19 @@ export function BookManageSheet({
             label: "重命名",
 
             onSelect: () => {
-              go(`/start/book/${book.id}?rename=1`);
+              go(`/books/${book.id}/settings?rename=1`);
             },
           },
         ]
       : []),
+    {
+      key: "settings",
+      label: "账本设置",
+
+      onSelect: () => {
+        go(`/books/${book.id}/settings`);
+      },
+    },
     {
       key: "members",
       label: "成员与邀请",
@@ -405,6 +425,9 @@ function SheetIcon({ kind }: { readonly kind: string }): React.JSX.Element {
     rename: "m4 16-1 5 5-1L20 8l-4-4Z M14 6l4 4",
     members: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
     share: "m10 13 4-4m-6 7-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m4 0 2-2a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0",
+    /** ⚠️ The full settings screen (S13-E). One gear, drawn as the gear it is. */
+    settings:
+      "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z",
     chevron: "m9 6 6 6-6 6",
     close: "m6 6 12 12M18 6 6 18",
     archive: "M4 8v12h16V8M3 4h18v4H3Zm6 8h6",

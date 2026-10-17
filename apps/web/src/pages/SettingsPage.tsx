@@ -53,21 +53,32 @@ function RowList({ rows, onNavigate }: { readonly rows: readonly Row[]; readonly
  * disappearing — their absence is a stated fact instead of something the user has
  * to wonder about.
  *
- * ⚠️ **导出／导入 are built and must not be listed among them.** They used to be two
- * disabled rows here (marked 后续开放) while the real screens already existed at
- * `/export` and `/import`; the settings screen was the place people looked, and it
- * said the opposite of the truth. They now navigate to those screens, which operate
- * on **the current ledger** — the hint says so, because "导出数据" alone does not.
+ * ⚠️ **导出数据 / 导入历史账 已从这一屏移走（S13-E）。** 它们操作的是**当前账本**，不是这个
+ * 账号的全局设置，所以入口归入账本设置页的「数据管理」组；`/export`、`/import` 两条路由与
+ * 页面本身不动。曾经这里是两行「后续开放」，而对应的页面早已存在——那条教训仍然成立：
+ * **设置页列出来的入口，必须真的能走到。**
  */
 export function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, reload } = useAuth();
   const preferences = useUpdatePreferences();
 
   const go = (to: string): void => void navigate(to);
   const [saved, setSaved] = useState(false);
 
-  const current: Currency = user?.defaultCurrency ?? "CNY";
+  /**
+   * **默认币种：选中态优先读这次 PATCH 的答案（S13-E 修复 8.4）。**
+   *
+   * ⚠️ **`useAuth().user` 是 React state，不是查询缓存。** 它只在启动、窗口重新聚焦或 60 秒
+   * 轮询时刷新（`AuthProvider`），而 `useUpdatePreferences` 写的是 `["me"]` 查询缓存——
+   * **没有任何界面订阅它**。所以保存成功后曾出现「已保存。」与**旧币种**仍高亮同屏。
+   *
+   * `preferences.data` 是服务器对刚才那次 PATCH 的回答，用于**立即**更新这一格的选中态；
+   * `reload()` 再把同一个回答写进唯一的 `user` state，让明细／分析／导出也同时看到新币种，
+   * 而不是等到一次轮询。**这里不存第二份 user**：没有的话就回落到 `user`。
+   */
+  const current: Currency =
+    preferences.data?.user.defaultCurrency ?? user?.defaultCurrency ?? "CNY";
 
   /**
    * **「系统管理」分组的显示条件（S13-C）。**
@@ -104,7 +115,13 @@ export function SettingsPage(): React.JSX.Element {
                   setSaved(false);
                   preferences.mutate(
                     { defaultCurrency: option },
-                    { onSuccess: () => { setSaved(true); } },
+                    {
+                      onSuccess: () => {
+                        setSaved(true);
+                        // 让唯一的 user state 跟上——见 `current` 上面的说明。
+                        void reload();
+                      },
+                    },
                   );
                 }}
                 className={`rounded-full px-4 py-2 text-sm transition disabled:opacity-45 ${
@@ -141,13 +158,6 @@ export function SettingsPage(): React.JSX.Element {
             { label: "语言", hint: "中文 / English" },
             { label: "主题色" },
             { label: "汇率折算", hint: "将各币种折算为一种货币后统计" },
-            /**
-             * ⚠️ **These two are real pages, not promises.** They live at `/export` and
-             * `/import` and work on **the ledger currently open**; the hint names that so
-             * nobody expects them to export every ledger at once.
-             */
-            { label: "导出数据", hint: "把当前账本导出为 CSV / Excel", to: "/export" },
-            { label: "导入历史账", hint: "从 CSV 批量导入当前账本", to: "/import" },
           ]}
           onNavigate={go}
         />

@@ -15,6 +15,7 @@ import { ErrorState, SkeletonRows } from "../components/States.js";
 import { useUndo } from "../components/UndoProvider.js";
 import { errorMessage } from "../lib/api.js";
 import { deleteEntry, updateEntry } from "../lib/offline/write.js";
+import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
   formatDateTimeInZone,
   fromDateTimeLocalValue,
@@ -50,6 +51,7 @@ export function EntryDetailPage(): React.JSX.Element {
   const update = useUpdateTransaction(id);
   const remove = useDeleteTransaction();
   const restore = useRestoreTransaction();
+  const { readOnly: sharedOfflineReadOnly } = useSharedLedgerOfflineReadOnly();
 
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -270,7 +272,7 @@ export function EntryDetailPage(): React.JSX.Element {
         else void navigate("/");
       }}
       actions={
-        editing ? null : (
+        editing || sharedOfflineReadOnly ? null : (
           <button
             type="button"
             onClick={() => {
@@ -284,6 +286,11 @@ export function EntryDetailPage(): React.JSX.Element {
       }
     >
       {error ? <Alert>{error}</Alert> : null}
+      {sharedOfflineReadOnly ? (
+        <Alert>
+          当前离线，共享账本暂时只能查看。恢复网络后可以修改或删除这笔记录；之前尚未同步的改动会保留。
+        </Alert>
+      ) : null}
 
       <section className="rounded-card border border-line bg-surface p-5">
         <p className="text-xs text-muted">{data.kind === "expense" ? "支出" : "收入"}</p>
@@ -429,11 +436,10 @@ export function EntryDetailPage(): React.JSX.Element {
 
           <button
             type="button"
-            disabled={update.isPending}
+            disabled={sharedOfflineReadOnly || update.isPending}
             onClick={() => void save()}
             className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
-          >
-            {update.isPending ? "保存中…" : "保存修改"}
+          >            {update.isPending ? "保存中…" : "保存修改"}
           </button>
         </>
       ) : (
@@ -511,10 +517,11 @@ export function EntryDetailPage(): React.JSX.Element {
 
           <button
             type="button"
+            disabled={sharedOfflineReadOnly}
             onClick={() => {
               setConfirmDelete(true);
             }}
-            className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-white transition hover:bg-danger-dark"
+            className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-white transition hover:bg-danger-dark disabled:opacity-45"
           >
             删除这笔记账
           </button>

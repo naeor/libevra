@@ -388,7 +388,7 @@ function AccountButton({ enabled }: { readonly enabled: boolean }): React.JSX.El
         * on a button nobody can see yet.**
         */
       style={{ pointerEvents: enabled ? "auto" : "none" }}
-      aria-label="账户"
+      aria-label="我的"
       className="space-account"
     >
       {/**

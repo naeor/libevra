@@ -1,4 +1,5 @@
 import { useAccountOffline } from "../lib/offline/connectivity.js";
+import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 
 /**
  * The offline warning.
@@ -25,6 +26,7 @@ import { useAccountOffline } from "../lib/offline/connectivity.js";
  */
 export function SyncBanner(): React.JSX.Element | null {
   const { offline, reason } = useAccountOffline();
+  const { readOnly } = useSharedLedgerOfflineReadOnly();
 
   if (!offline) return null;
 
@@ -33,10 +35,19 @@ export function SyncBanner(): React.JSX.Element | null {
       role="status"
       className="sticky top-0 z-30 bg-danger px-5 py-2.5 text-center text-helper-relaxed font-medium text-white"
     >
-      {reason === "unreachable"
-        ? "连不上服务器：下面的数据来自本机，离线时也能查看。"
-        : "当前处于离线状态：下面的数据来自本机，离线时也能查看。"}{" "}
-      网络恢复后会自动同步。
+      {readOnly
+        ? /**
+           * ⚠️ **Shared ledgers are read-only offline, and the banner must say that rather than
+           * promise a sync that cannot happen.** A personal ledger's banner says its local data is
+           * real and anything recorded now will be sent later; that sentence would be false here,
+           * because a new shared write is refused before it is recorded.
+           */
+          "当前离线，共享账本暂时只能查看。恢复网络后可以继续修改；之前尚未同步的改动会保留。"
+        : `${
+            reason === "unreachable"
+              ? "连不上服务器：下面的数据来自本机，离线时也能查看。"
+              : "当前处于离线状态：下面的数据来自本机，离线时也能查看。"
+          } 网络恢复后会自动同步。`}
     </div>
   );
 }

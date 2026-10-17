@@ -21,6 +21,9 @@ import {
 } from "./pages/AdminPages.js";
 import { AboutPage } from "./pages/AboutPage.js";
 import { AddEntryPage } from "./pages/AddEntryPage.js";
+import { BookDetailPage } from "./pages/BookDetailPage.js";
+import { CurrentBookRedirect, StartBookRedirect } from "./pages/BookRedirects.js";
+import { BookSettingsPage } from "./pages/BookSettingsPage.js";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage.js";
 import { DetailPage } from "./pages/DetailPage.js";
 import { DownloadManagerPage } from "./pages/DownloadManagerPage.js";
@@ -38,7 +41,7 @@ import { LedgerInvitePage } from "./pages/LedgerInvitePage.js";
 import { MessageBoardPage } from "./pages/MessageBoardPage.js";
 import { JoinPage } from "./pages/JoinPage.js";
 import { LedgerHistoryPage } from "./pages/LedgerHistoryPage.js";
-import { LedgerInfoPage, LedgerMembersPage } from "./pages/LedgerSubPages.js";
+import { LedgerMembersPage } from "./pages/LedgerSubPages.js";
 import { LedgerPage } from "./pages/LedgerPage.js";
 import { ProfilePage } from "./pages/ProfilePage.js";
 import { LedgerSpacePage } from "./pages/LedgerSpacePage.js";
@@ -46,7 +49,7 @@ import { StatsPage } from "./pages/StatsPage.js";
 import { RecoverPage } from "./pages/RecoverPage.js";
 import { RegisterPage } from "./pages/RegisterPage.js";
 import { LegalPage } from "./pages/LegalPage.js";
-import { StartBookInfoPage, StartBookMembersPage, StartBookSharePage } from "./pages/StartBookPages.js";
+import { StartBookMembersPage, StartBookSharePage } from "./pages/StartBookPages.js";
 import { ReferralCodePage } from "./pages/ReferralCodePage.js";
 import { RegenerateRecoveryCodePage } from "./pages/RegenerateRecoveryCodePage.js";
 import { RecordPage } from "./pages/RecordPage.js";
@@ -243,18 +246,47 @@ function AppRoutes(): React.JSX.Element {
           </RequireAuth>
         }
       />
-      <Route path="/categories" element={<RequireAuth><CategoriesPage /></RequireAuth>} />
-      <Route path="/payment-methods" element={<RequireAuth><PaymentMethodsPage /></RequireAuth>} />
-      <Route path="/tags" element={<RequireAuth><TagsPage /></RequireAuth>} />
+      <Route path="/categories" element={<RequireAuth><CurrentBookRedirect tail="/settings/categories" /></RequireAuth>} />
+      <Route path="/payment-methods" element={<RequireAuth><CurrentBookRedirect tail="/settings/payment-methods" /></RequireAuth>} />
+      <Route path="/tags" element={<RequireAuth><CurrentBookRedirect tail="/settings/tags" /></RequireAuth>} />
             {/* ⚠️ 账本空间现在只有一个地址。`/books` 保留为重定向，因为旧链接与书签里还有它。 */}
       <Route path="/books" element={<Navigate to="/start" replace />} />
+      {/**
+        * ⚠️ **账本详情与账本设置 —— S13-E 把「账本」从"当前账本"变成一个地址（`bookId` 在 URL 里）。**
+        *
+        * 所有者 2026-10-17 的决定：*"账本详情顶部可以切换查看目标；账本设置里也可以切换管理目标"*，
+        * 而同一句话永远带着限制：**切换只更新 URL 的 `bookId`，不调用 `enterLedger`、不改全局当前账本。**
+        *
+        * ⚠️ **这五条子路由都属于一本账，所以每一条都带 `bookId`**：刷新、深链、浏览器返回都能重新
+        * 回答"这是哪一本账"，而不是靠一个可变的全局值。
+        *
+        * ⚠️ **它们必须排在下面的通配路由之前**，否则会被送回首页。
+        */}
+      <Route path="/books/:bookId" element={<RequireAuth><BookDetailPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings" element={<RequireAuth><BookSettingsPage /></RequireAuth>} />
+      {/**
+        * ⚠️ **The three organisers and the two data screens now have a per-ledger address.** The same
+        * components serve the old current-ledger routes below (`/categories`, `/export`, …), which
+        * **redirect here for the organisers and keep working as-is for export/import** — see
+        * `BookRedirects.tsx` for why those two families differ.
+        */}
+      <Route path="/books/:bookId/settings/categories" element={<RequireAuth><CategoriesPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/tags" element={<RequireAuth><TagsPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/payment-methods" element={<RequireAuth><PaymentMethodsPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
       {/* ⚠️ 账本空间：目前是占位页，见 `档案/账本与协作页-设计决定.md` §2.4 与 §8。 */}
       {/* ⚠️ 账本空间：展示态与常规态是**同一个页面的两个状态**，不是两个路由。 */}
       <Route path="/start" element={<RequireAuth><LedgerSpacePage /></RequireAuth>} />
       {/* ⚠️ 账本 / 协作：底部第四项。名称由成员数决定，但**只有一个路由**。 */}
       <Route path="/ledger" element={<RequireAuth><LedgerPage /></RequireAuth>} />
       <Route path="/ledger/history" element={<RequireAuth><LedgerHistoryPage /></RequireAuth>} />
-      <Route path="/ledger/info" element={<RequireAuth><LedgerInfoPage /></RequireAuth>} />
+      {/**
+        * ⚠️ **`/ledger/info` 现在是一条重定向，不是页面。** 「账本信息」（当前账本）与「账本详情」
+        * （任意账本）本来就是同一件事的两份实现（审计 §5 第 1 条），S13-E 把它们合并成
+        * `/books/:bookId`。旧地址问出当前账本是哪一本，然后 `replace` 过去。
+        */}
+      <Route path="/ledger/info" element={<RequireAuth><CurrentBookRedirect /></RequireAuth>} />
       <Route path="/ledger/members" element={<RequireAuth><LedgerMembersPage /></RequireAuth>} />
       <Route path="/ledger/invite" element={<RequireAuth><LedgerInvitePage /></RequireAuth>} />
       {/**
@@ -271,8 +303,12 @@ function AppRoutes(): React.JSX.Element {
         * 页内所有请求都把那个 id 放进请求头（用 `apiFetch` 已有的单次覆盖机制），
         * **所以全局「当前账本」一动不动**——所有者明确禁止静默切换：
         * *"不允许通过静默修改全局当前账本来实现这一点."*
+        *
+        * ⚠️ **S13-E 之后，`/start/book/:bookId` 只是旧地址**：详情与设置搬到了 `/books/:bookId`。
+        * 重定向保留 `?rename=1`（齿轮面板的「重命名」靠它打开输入框），见 `BookRedirects.tsx`。
+        * 成员与分享仍在这两个地址上，因为它们本来就是"在这本账里做一件事"。
         */}
-      <Route path="/start/book/:bookId" element={<RequireAuth><StartBookInfoPage /></RequireAuth>} />
+      <Route path="/start/book/:bookId" element={<RequireAuth><StartBookRedirect /></RequireAuth>} />
       <Route path="/start/book/:bookId/members" element={<RequireAuth><StartBookMembersPage /></RequireAuth>} />
       <Route path="/start/book/:bookId/share" element={<RequireAuth><StartBookSharePage /></RequireAuth>} />
       {/**

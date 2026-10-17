@@ -91,7 +91,32 @@ export function LedgerPage(): React.JSX.Element {
       <TabPageHeader
         title={shared ? "协作" : "账本"}
         subtitle={shared ? "这本账由几个人一起记。" : "这本账目前只有你一个人在用。"}
-        action={<NotificationBell showHeading={false} />}
+        action={
+          /**
+           * ⚠️ **Two actions, one action row.** The bell opens notifications; the gear opens the
+           * **current ledger's** full settings page. Both share NotificationBell's row so they get
+           * one size, one outline and one focus treatment — the owner asked for a single button
+           * language on this green header, not a new button style per action.
+           */
+          <NotificationBell
+            showHeading={false}
+            extraAction={
+              <button
+                type="button"
+                onClick={() => {
+                  const bookId = ledger.data?.book.id;
+                  // No current ledger yet: the honest destination is the ledger space, not a
+                  // guessed settings page for a book we cannot name.
+                  navigate(bookId === undefined ? "/start" : `/books/${bookId}/settings`);
+                }}
+                aria-label="账本设置"
+                className="relative flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-ink transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+              >
+                <GearIcon />
+              </button>
+            }
+          />
+        }
       />
 
       {ledger.isPending ? (
@@ -115,6 +140,7 @@ export function LedgerPage(): React.JSX.Element {
           {shared ? (
             <section className="grid grid-cols-2 items-stretch gap-3 px-6 pt-6">
               <CurrentBookCard
+                bookId={ledger.data.book.id}
                 name={ledger.data.book.name}
                 bookNumber={ledger.data.book.bookNumber}
                 bookCount={books.isSuccess ? books.data.books.length : null}
@@ -128,6 +154,7 @@ export function LedgerPage(): React.JSX.Element {
           ) : (
             <section className="px-6 pt-6">
               <SoloBookCard
+                bookId={ledger.data.book.id}
                 name={ledger.data.book.name}
                 bookNumber={ledger.data.book.bookNumber}
                 bookCount={books.isSuccess ? books.data.books.length : null}
@@ -220,7 +247,7 @@ export function LedgerPage(): React.JSX.Element {
              */
             <Section
               title="账本信息"
-              action={{ to: "/ledger/info", label: "详情" }}
+              action={{ to: `/books/${ledger.data.book.id}`, label: "详情" }}
             >
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <Fact label="创建于" value={stats.createdAt.slice(0, 10)} />
@@ -357,35 +384,77 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
  * rather than one inside the other.
  */
 function CurrentBookCard({
+  bookId,
   name,
   bookNumber,
   bookCount,
 }: {
+  readonly bookId: string;
   readonly name: string;
   readonly bookNumber: string | null;
   readonly bookCount: number | null;
 }): React.JSX.Element {
-  return (
-    <div className="flex h-full min-h-0 flex-col justify-between gap-3 rounded-card border border-line bg-surface p-4">
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-helper text-muted">当前账本</span>
-        <Link
-          to="/ledger/info"
-          className="truncate text-base font-medium text-ink transition hover:text-brand-dark"
-        >
-          {name}
-        </Link>
-        <span className="truncate font-mono text-helper text-muted">
-          {bookNumber ?? "（未分配编号）"}
-        </span>
-      </div>
+  return <BookCardSplit bookId={bookId} name={name} bookNumber={bookNumber} bookCount={bookCount} />;
+}
 
-      <div className="flex flex-col gap-1.5">
-        <Link to="/ledger/info" className="text-helper text-brand transition hover:text-brand-dark">
-          账本详情 ›
+/**
+ * **One card, two large independent tap targets.**
+ *
+ * ⚠️ **The owner's requirement is about target size, not just labels**: *"将「切换账本」整合在卡片内，
+ * 但应与「查看账本详情」形成清楚的独立点击目标."* The previous version had two small text links at
+ * the bottom; on a phone they were the smallest things in the card. Now the left side is one large
+ * **查看详情** area and the right side is one large **切换账本** area, each at least 44×44 CSS px.
+ *
+ * ⚠️ **The split must not depend on the card being wide.** Shared ledgers put this card in a
+ * half-width grid cell, so the two areas stack vertically below `sm` (`flex-col sm:flex-row`).
+ * **The words 切换账本 stay complete in both layouts** — an icon-only switch is the thing this
+ * change exists to avoid.
+ */
+function BookCardSplit({
+  bookId,
+  name,
+  bookNumber,
+  bookCount,
+  tinted = false,
+}: {
+  readonly bookId: string;
+  readonly name: string;
+  readonly bookNumber: string | null;
+  readonly bookCount: number | null;
+  readonly tinted?: boolean;
+}): React.JSX.Element {
+  const countLabel = bookCount === null ? "" : `（共 ${String(bookCount)} 本）`;
+
+  return (
+    <div
+      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-card border ${
+        tinted ? "border-brand/30 bg-brand-soft/50" : "border-line bg-surface"
+      }`}
+    >
+      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+        <Link
+          to={`/books/${bookId}`}
+          className="flex min-h-20 min-w-0 flex-1 flex-col justify-between gap-1.5 p-4 text-left transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+        >
+          <span className="text-helper text-muted">当前账本</span>
+          <span className="truncate text-base font-medium text-ink">{name}</span>
+          <span className="truncate font-mono text-helper text-muted">
+            {bookNumber ?? "（未分配编号）"}
+          </span>
+          <span className="text-helper font-medium text-brand">查看详情 ›</span>
         </Link>
-        <Link to="/start" className="text-helper text-brand transition hover:text-brand-dark">
-          切换账本{bookCount === null ? "" : `（共 ${String(bookCount)} 本）`} ›
+
+        <Link
+          to="/start"
+          className="flex min-h-14 shrink-0 flex-col justify-center gap-1 border-t border-line p-4 transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft sm:min-w-[9rem] sm:border-t-0 sm:border-l"
+        >
+          <span className="flex items-center gap-1.5 text-helper font-medium text-brand">
+            <SwitchIcon />
+            切换账本
+          </span>
+          <span className="text-helper text-muted">
+            {countLabel === "" ? "选择另一本账" : countLabel}
+          </span>
         </Link>
       </div>
     </div>
@@ -464,38 +533,24 @@ function MemberSummaryCard({
  * ledgers rather than another item *in* this one, which was the reason for it before this change.
  */
 function SoloBookCard({
+  bookId,
   name,
   bookNumber,
   bookCount,
 }: {
+  readonly bookId: string;
   readonly name: string;
   readonly bookNumber: string | null;
   readonly bookCount: number | null;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-3 rounded-card border border-brand/30 bg-brand-soft/50 p-5">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-helper text-muted">当前账本</span>
-        <Link
-          to="/ledger/info"
-          className="truncate text-base font-medium text-brand-dark transition hover:underline"
-        >
-          {name}
-        </Link>
-        <span className="truncate font-mono text-helper text-muted">
-          {bookNumber ?? "（未分配编号）"}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <Link to="/start" className="text-helper text-brand-dark transition hover:underline">
-          切换账本{bookCount === null ? "" : `（共 ${String(bookCount)} 本）`} ›
-        </Link>
-        <Link to="/ledger/info" className="text-helper text-brand-dark transition hover:underline">
-          账本详情 ›
-        </Link>
-      </div>
-    </div>
+    <BookCardSplit
+      bookId={bookId}
+      name={name}
+      bookNumber={bookNumber}
+      bookCount={bookCount}
+      tinted
+    />
   );
 }
 
@@ -506,6 +561,43 @@ function Fact({ label, value }: { readonly label: string; readonly value: string
       <dt className="text-helper text-muted">{label}</dt>
       <dd className="text-ink">{value}</dd>
     </div>
+  );
+}
+
+/** The switch glyph — arrows pointing both ways, so the word 切换账本 has a visual anchor. */
+function SwitchIcon(): React.JSX.Element {
+  return (
+    <svg
+      className="size-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 8h13l-3-3m6 11H7l3 3" />
+    </svg>
+  );
+}
+
+/** The gear used in the 账本/协作 header action row. */
+function GearIcon(): React.JSX.Element {
+  return (
+    <svg
+      className="size-[18px]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z" />
+    </svg>
   );
 }
 

@@ -135,7 +135,7 @@ export function OfflineStatus(): React.JSX.Element | null {
           <p>
             正在把历史记录存到本机，离线时也能查看（{fill?.done ?? 0}/{fill?.total ?? 0} 个月）…
           </p>
-          <p>可以在「账户 → 下载管理」里查看和调整。</p>
+          <p>可以在「我的 → 下载管理」里查看和调整。</p>
         </>
       ) : null}
 
@@ -144,7 +144,7 @@ export function OfflineStatus(): React.JSX.Element | null {
           <p>
             历史记录已存到本机（{fill?.total ?? 0} 个月），离线时也能查看。
           </p>
-          <p>可以在「账户 → 下载管理」里查看和调整。</p>
+          <p>可以在「我的 → 下载管理」里查看和调整。</p>
         </>
       ) : null}
 

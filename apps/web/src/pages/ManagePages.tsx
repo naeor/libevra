@@ -1,5 +1,11 @@
+import type {
+  Category,
+  ClassificationUsageResponse,
+  PaymentMethod,
+  Tag,
+} from "@libellum/shared";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
@@ -9,7 +15,9 @@ import { errorMessage } from "../lib/api.js";
 import { CATEGORICAL_COLORS } from "../lib/chart/theme.js";
 import {
   useCategoryMutations,
+  useClassificationUsage,
   useLedger,
+  useLedgerMeta,
   usePaymentMethodMutations,
   useTagMutations,
 } from "../lib/queries.js";
@@ -29,12 +37,37 @@ import {
  *
  * Every destructive control asks first, and the safe option holds focus.
  *
- * ⚠️ **All three are opened from 账户 (`MePage`), so that is their declared parent.**
- * They used to say `backTo="/settings"`, which is a screen that does not link to any
- * of them — normal taps returned correctly through history, but a deep link or a
- * reload fell back to a page the reader had never visited. `InnerPage` still prefers
- * history first (`useGoBack`); `/me` is only the fallback, and now it is the truth.
+ * ⚠️ **S13-E 之后这三页属于"账本"，不再属于"账户"**，所以每条路由都可以带 **可选** `bookId`
+ * （`/books/:bookId/settings/categories` 等）。两种模式的区别只有三处，其余完全一样：
+ *
+ * | | 当前账本（旧地址 `/categories` 等） | 目标账本（`/books/:bookId/settings/...`） |
+ * |---|---|---|
+ * | 列表数据 | `useLedger()` | `useLedgerMeta(bookId)` |
+ * | mutations | 不带 `bookId` | 带 `bookId` |
+ * | 返回兜底 | `/me`（历史优先） | `/books/:bookId/settings` |
+ *
+ * ⚠️ **目标模式绝不能调用 `useLedger()`。** 它会把设备搬进那本账（`setCurrentBook` /
+ * `setOfflineBook`），而"在账本设置里管理一本别人给的账"不应该改变你正在记的账。
+ *
+ * ⚠️ **这里只做"能管理目标账本"，不做删除影响提示 / 替换**（那是下一批）。所以创建、改名、
+ * 归档、恢复、删除的现有交互一个字都没改——只是请求多了 `bookId`。
  */
+
+/** 旧的 `/categories` 等地址从账户页进来，所以声明的父级仍是它（深链兜底）。 */
+const CURRENT_BACK_TO = "/me";
+
+/**
+ * ⚠️ **The exact wording is pinned by `copy.test.ts`** ("归档后不再出现在记账选项中"), and the same
+ * sentence is used for both modes — the target screen must not describe archiving differently.
+ */
+const CATEGORIES_HINT = "归档后不再出现在记账选项中。已有记录仍会显示该分类的名称，可随时恢复。";
+const PAYMENT_METHODS_HINT = "记录款项的支付渠道。归档后不再出现在记账选项中，已有记录不受影响。";
+const TAGS_HINT = "标签用于跨分类标注，例如「出差」「可报销」。每条记录最多添加 10 个标签。";
+
+/** `名称（编号）` — the two facts that tell two similarly named ledgers apart. */
+function describeBook(book: { readonly name: string; readonly bookNumber: string | null }): string {
+  return book.bookNumber === null ? book.name : `${book.name}（${book.bookNumber}）`;
+}
 
 function AddRow({
   placeholder,
@@ -92,12 +125,19 @@ function ArchivableList({
   busyId,
   onArchive,
   onRestore,
+  onDelete,
   lockedIds = [],
 }: {
   readonly items: readonly Archivable[];
   readonly busyId: string | null;
   readonly onArchive: (item: Archivable) => void;
   readonly onRestore: (item: Archivable) => void;
+  /**
+   * **Permanent delete is a second action, not a stronger archive.** It asks again with the
+   * affected-entry count and a replacement choice; see the dialogs below. `undefined` keeps a
+   * screen read-only with respect to deletion (not used today, but the prop stays optional).
+   */
+  readonly onDelete?: ((item: Archivable) => void) | undefined;
   readonly lockedIds?: readonly string[];
 }): React.JSX.Element {
   return (
@@ -124,29 +164,44 @@ function ArchivableList({
                 ) : null}
               </span>
 
-              {locked ? null : item.isArchived ? (
-                <button
-                  type="button"
-                  disabled={busyId === item.id}
-                  onClick={() => {
-                    onRestore(item);
-                  }}
-                  className="shrink-0 text-body text-brand-dark transition hover:underline disabled:opacity-45"
-                >
-                  恢复
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={busyId === item.id}
-                  onClick={() => {
-                    onArchive(item);
-                  }}
-                  className="shrink-0 text-body text-muted transition hover:text-ink disabled:opacity-45"
-                >
-                  归档
-                </button>
-              )}
+              <span className="flex shrink-0 items-center gap-3">
+                {locked ? null : item.isArchived ? (
+                  <button
+                    type="button"
+                    disabled={busyId === item.id}
+                    onClick={() => {
+                      onRestore(item);
+                    }}
+                    className="text-body text-brand-dark transition hover:underline disabled:opacity-45"
+                  >
+                    恢复
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busyId === item.id}
+                    onClick={() => {
+                      onArchive(item);
+                    }}
+                    className="text-body text-muted transition hover:text-ink disabled:opacity-45"
+                  >
+                    归档
+                  </button>
+                )}
+
+                {locked || onDelete === undefined ? null : (
+                  <button
+                    type="button"
+                    disabled={busyId === item.id}
+                    onClick={() => {
+                      onDelete(item);
+                    }}
+                    className="text-helper text-danger transition hover:underline disabled:opacity-45"
+                  >
+                    永久删除
+                  </button>
+                )}
+              </span>
             </div>
           </li>
         );
@@ -155,27 +210,154 @@ function ArchivableList({
   );
 }
 
+/** The replacement chooser shared by the category and payment-method delete dialogs. */
+function ReplacementSelect({
+  label,
+  value,
+  onChange,
+  options,
+  fallbackLabel,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly options: readonly { readonly id: string; readonly name: string }[];
+  readonly fallbackLabel: string;
+}): React.JSX.Element {
+  return (
+    <label className="mt-4 flex flex-col gap-1.5">
+      <span className="text-helper text-muted">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        className="rounded-field border border-line bg-surface px-3.5 py-2.5 text-body text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+      >
+        <option value="">{fallbackLabel}</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 分类
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️ **The route decides the mode.** `/books/:bookId/settings/categories` has the parameter;
+ * `/categories` does not — and the old address keeps working exactly as it did.
+ */
 export function CategoriesPage(): React.JSX.Element {
-  const navigate = useNavigate();
+  const { bookId } = useParams<{ bookId?: string }>();
+
+  return bookId === undefined ? <CategoriesForCurrentLedger /> : <CategoriesForBook bookId={bookId} />;
+}
+
+function CategoriesForCurrentLedger(): React.JSX.Element {
   const ledger = useLedger();
-  const { create, update, archive } = useCategoryMutations();
+  const mutations = useCategoryMutations();
+  const usage = useClassificationUsage();
+
+  return (
+    <CategoriesView
+      categories={ledger.data?.categories ?? []}
+      pending={ledger.isPending}
+      isSuccess={ledger.isSuccess}
+      backTo={CURRENT_BACK_TO}
+      subtitle={CATEGORIES_HINT}
+      shared={(ledger.data?.book.memberCount ?? 1) >= 2}
+      usage={usage.data}
+      mutations={mutations}
+    />
+  );
+}
+
+function CategoriesForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const meta = useLedgerMeta(bookId);
+  const mutations = useCategoryMutations(bookId);
+  const usage = useClassificationUsage(bookId);
+
+  return (
+    <CategoriesView
+      categories={meta.data?.categories ?? []}
+      pending={meta.isPending}
+      isSuccess={meta.isSuccess}
+      backTo={`/books/${bookId}/settings`}
+      subtitle={
+        meta.isSuccess
+          ? `正在管理「${describeBook(meta.data.book)}」。${CATEGORIES_HINT}`
+          : meta.isError
+            ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
+            : "正在读取账本……"
+      }
+      failure={meta.isError ? errorMessage(meta.error) : null}
+      shared={(meta.data?.book.memberCount ?? 1) >= 2}
+      usage={usage.data}
+      mutations={mutations}
+    />
+  );
+}
+
+function CategoriesView({
+  categories: allCategories,
+  pending,
+  isSuccess,
+  backTo,
+  subtitle,
+  failure = null,
+  shared,
+  usage,
+  mutations,
+}: {
+  readonly categories: readonly Category[];
+  readonly pending: boolean;
+  readonly isSuccess: boolean;
+  readonly backTo: string;
+  readonly subtitle: string;
+  /** A target ledger that could not be read — stated, never silently replaced. */
+  readonly failure?: string | null;
+  /** A shared ledger must say that a delete/re-point affects every collaborator. */
+  readonly shared: boolean;
+  readonly usage: ClassificationUsageResponse | undefined;
+  readonly mutations: ReturnType<typeof useCategoryMutations>;
+}): React.JSX.Element {
+  const { create, update, archive, permanentDelete } = mutations;
 
   const [kind, setKind] = useState<"expense" | "income">("expense");
-  const [pending, setPending] = useState<Archivable | null>(null);
+  const [pendingArchive, setPendingArchive] = useState<Archivable | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
+  const [replacementId, setReplacementId] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = (ledger.data?.categories ?? []).filter((item) => item.kind === kind);
+  const categories = allCategories.filter((item) => item.kind === kind);
   const active = categories.filter((item) => !item.isArchived);
   const archived = categories.filter((item) => item.isArchived);
   const systemIds = categories.filter((item) => item.isSystem).map((item) => item.id);
 
+  const deleteCount = pendingDelete === null ? 0 : (usage?.categories[pendingDelete.id] ?? 0);
+  const replacementOptions =
+    pendingDelete === null
+      ? []
+      : allCategories.filter(
+          (item) =>
+            item.kind === pendingDelete.kind &&
+            !item.isArchived &&
+            !item.isSystem &&
+            item.id !== pendingDelete.id,
+        );
+
   return (
-    <InnerPage
-      title="分类管理"
-      subtitle="归档后不再出现在记账选项中。已有记录仍会显示该分类的名称，可随时恢复。"
-      backTo="/me"
-    >
+    <InnerPage title="分类管理" subtitle={subtitle} backTo={backTo}>
       {error ? <Alert>{error}</Alert> : null}
+      {notice === null ? null : <Alert tone="success">{notice}</Alert>}
+      {failure === null ? null : <Alert>{failure}</Alert>}
 
       <div className="flex gap-2">
         {(["expense", "income"] as const).map((option) => (
@@ -194,9 +376,9 @@ export function CategoriesPage(): React.JSX.Element {
         ))}
       </div>
 
-      {ledger.isPending ? <SkeletonRows rows={4} /> : null}
+      {pending ? <SkeletonRows rows={4} /> : null}
 
-      {ledger.isSuccess ? (
+      {isSuccess ? (
         <>
           <AddRow
             placeholder="新分类名称"
@@ -213,15 +395,20 @@ export function CategoriesPage(): React.JSX.Element {
 
           <ArchivableList
             items={active}
-            busyId={archive.isPending ? (pending?.id ?? null) : null}
+            busyId={archive.isPending ? (pendingArchive?.id ?? null) : null}
             lockedIds={systemIds}
             onArchive={(item) => {
-              setPending(item);
+              setPendingArchive(item);
             }}
             onRestore={(item) => {
               void update.mutateAsync({ id: item.id, isArchived: false }).catch((caught: unknown) => {
                 setError(errorMessage(caught));
               });
+            }}
+            onDelete={(item) => {
+              setNotice(null);
+              setReplacementId("");
+              setPendingDelete(item as Category);
             }}
           />
 
@@ -230,12 +417,17 @@ export function CategoriesPage(): React.JSX.Element {
               <h2 className="px-1 text-helper text-muted">已归档（{String(archived.length)}）</h2>
               <ArchivableList
                 items={archived}
-                busyId={update.isPending ? (pending?.id ?? null) : null}
+                busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
                 onRestore={(item) => {
                   void update.mutateAsync({ id: item.id, isArchived: false }).catch((caught: unknown) => {
                     setError(errorMessage(caught));
                   });
+                }}
+                onDelete={(item) => {
+                  setNotice(null);
+                  setReplacementId("");
+                  setPendingDelete(item as Category);
                 }}
               />
             </section>
@@ -244,10 +436,10 @@ export function CategoriesPage(): React.JSX.Element {
       ) : null}
 
       <ConfirmDialog
-        open={pending !== null}
+        open={pendingArchive !== null}
         busy={archive.isPending}
         tone="default"
-        title={`归档「${pending?.name ?? ""}」？`}
+        title={`归档「${pendingArchive?.name ?? ""}」？`}
         description="归档不会删除任何数据。"
         consequences={[
           "它会从记账时的分类选项中消失",
@@ -256,41 +448,180 @@ export function CategoriesPage(): React.JSX.Element {
         ]}
         confirmLabel="归档"
         onCancel={() => {
-          setPending(null);
+          setPendingArchive(null);
         }}
         onConfirm={() => {
-          const target = pending;
-          setPending(null);
+          const target = pendingArchive;
+          setPendingArchive(null);
           if (target) void archive.mutateAsync(target.id);
         }}
       />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        busy={permanentDelete.isPending}
+        title={`永久删除「${pendingDelete?.name ?? ""}」？`}
+        description={
+          usage === undefined
+            ? "正在统计受影响的记录……"
+            : deleteCount === 0
+              ? "目前没有在用这个分类的账目。删除后不可恢复。"
+              : `有 ${String(deleteCount)} 笔记账正在使用这个分类。删除前请选择这些记录的处理方式。`
+        }
+        consequences={[
+          "账目本身、金额与日期都不会改变",
+          "这些记录会改用下方选择的分类（不选则使用「暂无分类」）",
+          "删除后无法恢复这个分类",
+          ...(shared ? ["这是共享账本，删除与替换会影响所有协作者看到的历史记录"] : []),
+        ]}
+        confirmLabel={permanentDelete.isPending ? "正在删除…" : "永久删除"}
+        onCancel={() => {
+          setPendingDelete(null);
+        }}
+        onConfirm={() => {
+          const target = pendingDelete;
+          if (target === null) return;
+          setError(null);
+
+          void permanentDelete
+            .mutateAsync({
+              id: target.id,
+              ...(replacementId === "" ? {} : { replacementCategoryId: replacementId }),
+            })
+            .then((result) => {
+              setPendingDelete(null);
+              setReplacementId("");
+              setNotice(
+                `已删除「${target.name}」。${
+                  result.affectedEntries === 0
+                    ? "没有账目需要转移。"
+                    : `${String(result.affectedEntries)} 笔记录已转入「${result.replacementName ?? "暂无分类"}」。`
+                }`,
+              );
+            })
+            .catch((caught: unknown) => {
+              setError(errorMessage(caught));
+            });
+        }}
+      >
+        <ReplacementSelect
+          label="这些历史记录改用哪个分类？"
+          value={replacementId}
+          onChange={setReplacementId}
+          options={replacementOptions}
+          fallbackLabel="使用「暂无分类」（推荐）"
+        />
+      </ConfirmDialog>
     </InnerPage>
   );
 }
 
+// ---------------------------------------------------------------------------
+// 支付方式
+// ---------------------------------------------------------------------------
+
 export function PaymentMethodsPage(): React.JSX.Element {
-  const navigate = useNavigate();
+  const { bookId } = useParams<{ bookId?: string }>();
+
+  return bookId === undefined ? (
+    <PaymentMethodsForCurrentLedger />
+  ) : (
+    <PaymentMethodsForBook bookId={bookId} />
+  );
+}
+
+function PaymentMethodsForCurrentLedger(): React.JSX.Element {
   const ledger = useLedger();
-  const { create, update, archive } = usePaymentMethodMutations();
-
-  const [pending, setPending] = useState<Archivable | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const methods = ledger.data?.paymentMethods ?? [];
-  const active = methods.filter((item) => !item.isArchived);
-  const archived = methods.filter((item) => item.isArchived);
+  const mutations = usePaymentMethodMutations();
+  const usage = useClassificationUsage();
 
   return (
-    <InnerPage
-      title="支付方式"
-      subtitle="记录款项的支付渠道。归档后不再出现在记账选项中，已有记录不受影响。"
-      backTo="/me"
-    >
+    <PaymentMethodsView
+      methods={ledger.data?.paymentMethods ?? []}
+      pending={ledger.isPending}
+      isSuccess={ledger.isSuccess}
+      backTo={CURRENT_BACK_TO}
+      subtitle={PAYMENT_METHODS_HINT}
+      shared={(ledger.data?.book.memberCount ?? 1) >= 2}
+      usage={usage.data}
+      mutations={mutations}
+    />
+  );
+}
+
+function PaymentMethodsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const meta = useLedgerMeta(bookId);
+  const mutations = usePaymentMethodMutations(bookId);
+  const usage = useClassificationUsage(bookId);
+
+  return (
+    <PaymentMethodsView
+      methods={meta.data?.paymentMethods ?? []}
+      pending={meta.isPending}
+      isSuccess={meta.isSuccess}
+      backTo={`/books/${bookId}/settings`}
+      subtitle={
+        meta.isSuccess
+          ? `正在管理「${describeBook(meta.data.book)}」。${PAYMENT_METHODS_HINT}`
+          : meta.isError
+            ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
+            : "正在读取账本……"
+      }
+      failure={meta.isError ? errorMessage(meta.error) : null}
+      shared={(meta.data?.book.memberCount ?? 1) >= 2}
+      usage={usage.data}
+      mutations={mutations}
+    />
+  );
+}
+
+function PaymentMethodsView({
+  methods: allMethods,
+  pending,
+  isSuccess,
+  backTo,
+  subtitle,
+  failure = null,
+  shared,
+  usage,
+  mutations,
+}: {
+  readonly methods: readonly PaymentMethod[];
+  readonly pending: boolean;
+  readonly isSuccess: boolean;
+  readonly backTo: string;
+  readonly subtitle: string;
+  readonly failure?: string | null;
+  readonly shared: boolean;
+  readonly usage: ClassificationUsageResponse | undefined;
+  readonly mutations: ReturnType<typeof usePaymentMethodMutations>;
+}): React.JSX.Element {
+  const { create, update, archive, permanentDelete } = mutations;
+
+  const [pendingArchive, setPendingArchive] = useState<Archivable | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PaymentMethod | null>(null);
+  const [replacementId, setReplacementId] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const active = allMethods.filter((item) => !item.isArchived);
+  const archived = allMethods.filter((item) => item.isArchived);
+
+  const deleteCount = pendingDelete === null ? 0 : (usage?.paymentMethods[pendingDelete.id] ?? 0);
+  const replacementOptions =
+    pendingDelete === null
+      ? []
+      : allMethods.filter((item) => !item.isArchived && item.id !== pendingDelete.id);
+
+  return (
+    <InnerPage title="支付方式" subtitle={subtitle} backTo={backTo}>
       {error ? <Alert>{error}</Alert> : null}
+      {notice === null ? null : <Alert tone="success">{notice}</Alert>}
+      {failure === null ? null : <Alert>{failure}</Alert>}
 
-      {ledger.isPending ? <SkeletonRows rows={3} /> : null}
+      {pending ? <SkeletonRows rows={3} /> : null}
 
-      {ledger.isSuccess ? (
+      {isSuccess ? (
         <>
           <AddRow
             placeholder="新支付方式"
@@ -307,14 +638,19 @@ export function PaymentMethodsPage(): React.JSX.Element {
 
           <ArchivableList
             items={active}
-            busyId={archive.isPending ? (pending?.id ?? null) : null}
+            busyId={archive.isPending ? (pendingArchive?.id ?? null) : null}
             onArchive={(item) => {
-              setPending(item);
+              setPendingArchive(item);
             }}
             onRestore={(item) => {
               void update.mutateAsync({ id: item.id, isArchived: false }).catch((caught: unknown) => {
                 setError(errorMessage(caught));
               });
+            }}
+            onDelete={(item) => {
+              setNotice(null);
+              setReplacementId("");
+              setPendingDelete(item as PaymentMethod);
             }}
           />
 
@@ -323,12 +659,17 @@ export function PaymentMethodsPage(): React.JSX.Element {
               <h2 className="px-1 text-helper text-muted">已归档（{String(archived.length)}）</h2>
               <ArchivableList
                 items={archived}
-                busyId={update.isPending ? (pending?.id ?? null) : null}
+                busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
                 onRestore={(item) => {
                   void update.mutateAsync({ id: item.id, isArchived: false }).catch((caught: unknown) => {
                     setError(errorMessage(caught));
                   });
+                }}
+                onDelete={(item) => {
+                  setNotice(null);
+                  setReplacementId("");
+                  setPendingDelete(item as PaymentMethod);
                 }}
               />
             </section>
@@ -337,10 +678,10 @@ export function PaymentMethodsPage(): React.JSX.Element {
       ) : null}
 
       <ConfirmDialog
-        open={pending !== null}
+        open={pendingArchive !== null}
         busy={archive.isPending}
         tone="default"
-        title={`归档「${pending?.name ?? ""}」？`}
+        title={`归档「${pendingArchive?.name ?? ""}」？`}
         description="归档不会删除任何数据。"
         consequences={[
           "它会从记账时的支付方式选项中消失",
@@ -349,17 +690,79 @@ export function PaymentMethodsPage(): React.JSX.Element {
         ]}
         confirmLabel="归档"
         onCancel={() => {
-          setPending(null);
+          setPendingArchive(null);
         }}
         onConfirm={() => {
-          const target = pending;
-          setPending(null);
+          const target = pendingArchive;
+          setPendingArchive(null);
           if (target) void archive.mutateAsync(target.id);
         }}
       />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        busy={permanentDelete.isPending}
+        title={`永久删除「${pendingDelete?.name ?? ""}」？`}
+        description={
+          usage === undefined
+            ? "正在统计受影响的记录……"
+            : deleteCount === 0
+              ? "目前没有在用这个支付方式的账目。删除后不可恢复。"
+              : `有 ${String(deleteCount)} 笔记账正在使用这个支付方式。删除前请选择这些记录的处理方式。`
+        }
+        consequences={[
+          "账目本身、金额与日期都不会改变",
+          "这些记录会改用下方选择的支付方式；不选则显示为「未指定」",
+          "删除后无法恢复这个支付方式",
+          ...(shared ? ["这是共享账本，删除与替换会影响所有协作者看到的历史记录"] : []),
+        ]}
+        confirmLabel={permanentDelete.isPending ? "正在删除…" : "永久删除"}
+        onCancel={() => {
+          setPendingDelete(null);
+        }}
+        onConfirm={() => {
+          const target = pendingDelete;
+          if (target === null) return;
+          setError(null);
+
+          void permanentDelete
+            .mutateAsync({
+              id: target.id,
+              ...(replacementId === "" ? { replacementPaymentMethodId: null } : { replacementPaymentMethodId: replacementId }),
+            })
+            .then((result) => {
+              setPendingDelete(null);
+              setReplacementId("");
+              setNotice(
+                `已删除「${target.name}」。${
+                  result.affectedEntries === 0
+                    ? "没有账目需要转移。"
+                    : result.replacementName === null
+                      ? `${String(result.affectedEntries)} 笔记录已改为「未指定」。`
+                      : `${String(result.affectedEntries)} 笔记录已改为「${result.replacementName}」。`
+                }`,
+              );
+            })
+            .catch((caught: unknown) => {
+              setError(errorMessage(caught));
+            });
+        }}
+      >
+        <ReplacementSelect
+          label="这些历史记录改用哪个支付方式？"
+          value={replacementId}
+          onChange={setReplacementId}
+          options={replacementOptions}
+          fallbackLabel="改为「未指定」"
+        />
+      </ConfirmDialog>
     </InnerPage>
   );
 }
+
+// ---------------------------------------------------------------------------
+// 标签
+// ---------------------------------------------------------------------------
 
 /**
  * The swatches offered when creating a tag.
@@ -384,24 +787,88 @@ const TAG_COLORS = CATEGORICAL_COLORS;
 const DEFAULT_TAG_COLOR = CATEGORICAL_COLORS[0] as string;
 
 export function TagsPage(): React.JSX.Element {
-  const navigate = useNavigate();
+  const { bookId } = useParams<{ bookId?: string }>();
+
+  return bookId === undefined ? <TagsForCurrentLedger /> : <TagsForBook bookId={bookId} />;
+}
+
+function TagsForCurrentLedger(): React.JSX.Element {
   const ledger = useLedger();
-  const { create, remove } = useTagMutations();
+  const mutations = useTagMutations();
+  const usage = useClassificationUsage();
+
+  return (
+    <TagsView
+      tags={ledger.data?.tags ?? []}
+      pending={ledger.isPending}
+      backTo={CURRENT_BACK_TO}
+      subtitle={TAGS_HINT}
+      shared={(ledger.data?.book.memberCount ?? 1) >= 2}
+      usage={usage.data}
+      mutations={mutations}
+    />
+  );
+}
+
+function TagsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const meta = useLedgerMeta(bookId);
+  const mutations = useTagMutations(bookId);
+  const usage = useClassificationUsage(bookId);
+
+  return (
+    <TagsView
+      tags={meta.data?.tags ?? []}
+      pending={meta.isPending}
+      backTo={`/books/${bookId}/settings`}
+      subtitle={
+        meta.isSuccess
+          ? `正在管理「${describeBook(meta.data.book)}」。${TAGS_HINT}`
+          : meta.isError
+            ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
+            : "正在读取账本……"
+      }
+      failure={meta.isError ? errorMessage(meta.error) : null}
+      shared={(meta.data?.book.memberCount ?? 1) >= 2}
+      usage={usage.data}
+      mutations={mutations}
+    />
+  );
+}
+
+function TagsView({
+  tags,
+  pending,
+  backTo,
+  subtitle,
+  failure = null,
+  shared,
+  usage,
+  mutations,
+}: {
+  readonly tags: readonly Tag[];
+  readonly pending: boolean;
+  readonly backTo: string;
+  readonly subtitle: string;
+  readonly failure?: string | null;
+  readonly shared: boolean;
+  readonly usage: ClassificationUsageResponse | undefined;
+  readonly mutations: ReturnType<typeof useTagMutations>;
+}): React.JSX.Element {
+  const { create, remove } = mutations;
 
   const [name, setName] = useState("");
   const [color, setColor] = useState(DEFAULT_TAG_COLOR);
-  const [pending, setPending] = useState<{ id: string; name: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const tags = ledger.data?.tags ?? [];
+  const deleteCount = pendingDelete === null ? 0 : (usage?.tags[pendingDelete.id] ?? 0);
 
   return (
-    <InnerPage
-      title="标签"
-      subtitle="标签用于跨分类标注，例如「出差」「可报销」。每条记录最多添加 10 个标签。"
-      backTo="/me"
-    >
+    <InnerPage title="标签" subtitle={subtitle} backTo={backTo}>
       {error ? <Alert>{error}</Alert> : null}
+      {notice === null ? null : <Alert tone="success">{notice}</Alert>}
+      {failure === null ? null : <Alert>{failure}</Alert>}
 
       <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         <input
@@ -451,7 +918,7 @@ export function TagsPage(): React.JSX.Element {
         </button>
       </section>
 
-      {ledger.isPending ? <SkeletonRows rows={3} /> : null}
+      {pending ? <SkeletonRows rows={3} /> : null}
 
       {tags.length > 0 ? (
         <ul className="overflow-hidden rounded-card border border-line bg-surface">
@@ -465,7 +932,7 @@ export function TagsPage(): React.JSX.Element {
                 <button
                   type="button"
                   onClick={() => {
-                    setPending({ id: tag.id, name: tag.name });
+                    setPendingDelete({ id: tag.id, name: tag.name });
                   }}
                   className="shrink-0 text-body text-muted transition hover:text-danger"
                 >
@@ -478,23 +945,45 @@ export function TagsPage(): React.JSX.Element {
       ) : null}
 
       <ConfirmDialog
-        open={pending !== null}
+        open={pendingDelete !== null}
         busy={remove.isPending}
-        title={`删除标签「${pending?.name ?? ""}」？`}
-        description="删除标签不会影响任何一笔账的金额。"
+        title={`删除标签「${pendingDelete?.name ?? ""}」？`}
+        description={
+          usage === undefined
+            ? "正在统计受影响的记录……"
+            : deleteCount === 0
+              ? "目前没有在用这个标签的账目。删除后不可恢复。"
+              : `有 ${String(deleteCount)} 笔记账正在使用这个标签，删除后会解除这些关联。`
+        }
         consequences={[
           "使用过这个标签的记账会失去该标签，账目本身完整保留",
           "删除后，你无法在应用里自行恢复这个标签",
           "如果需要，之后可以重新创建一个同名标签，但不会自动贴回原来的记账",
+          ...(shared ? ["这是共享账本，删除会影响所有协作者看到的历史记录"] : []),
         ]}
         confirmLabel="确认删除"
         onCancel={() => {
-          setPending(null);
+          setPendingDelete(null);
         }}
         onConfirm={() => {
-          const target = pending;
-          setPending(null);
-          if (target) void remove.mutateAsync(target.id);
+          const target = pendingDelete;
+          if (target === null) return;
+          setError(null);
+          setPendingDelete(null);
+          void remove
+            .mutateAsync(target.id)
+            .then((result) => {
+              setNotice(
+                `已删除标签「${target.name}」。${
+                  result.affectedEntries === 0
+                    ? "没有账目使用它。"
+                    : `${String(result.affectedEntries)} 笔记录已解除该标签。`
+                }`,
+              );
+            })
+            .catch((caught: unknown) => {
+              setError(errorMessage(caught));
+            });
         }}
       />
     </InnerPage>

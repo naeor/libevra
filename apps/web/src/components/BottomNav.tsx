@@ -104,7 +104,7 @@ export const TABS: readonly Tab[] = [
   { to: "/add", label: "记账", icon: PlusIcon, primary: true },
   /** ⚠️ The fourth slot is the ledger itself — *"账本"* alone, *"协作"* with others. */
   { to: "/ledger", label: "账本", icon: PeopleIcon, labelFromMembers: true },
-  { to: "/me", label: "账户", icon: PersonIcon },
+  { to: "/me", label: "我的", icon: PersonIcon },
 ];
 
 /**

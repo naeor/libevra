@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { errorMessage } from "../lib/api.js";
 import {
@@ -26,7 +26,21 @@ import {
  * things read (the dot clears), but a notification stays in the pending list until it is answered —
  * **clearing a dot must never look like answering a question.**
  */
-export function NotificationBell({ showHeading = true }: { readonly showHeading?: boolean } = {}): React.JSX.Element {
+export function NotificationBell({
+  showHeading = true,
+  extraAction,
+}: {
+  readonly showHeading?: boolean;
+  /**
+   * ⚠️ **One button next to the bell, not a second bell.**
+   *
+   * The 账本/协作 header now carries two actions (通知 + 账本设置). They must share one size, one
+   * outline and one focus treatment, so the second one rides *inside* this component's action row
+   * rather than being positioned beside it by the page. The page still owns where it goes and what
+   * it does; this component only owns the row it sits in.
+   */
+  readonly extraAction?: ReactNode;
+} = {}): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const inbox = useNotifications();
   const markRead = useMarkNotificationsRead();
@@ -52,7 +66,8 @@ export function NotificationBell({ showHeading = true }: { readonly showHeading?
       >
         {showHeading ? <h2 className="text-body text-muted">提醒</h2> : null}
 
-        <button
+        <div className="flex items-center gap-2">
+          <button
           type="button"
           onClick={() => {
             setOpen((was) => {
@@ -77,7 +92,9 @@ export function NotificationBell({ showHeading = true }: { readonly showHeading?
               className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-surface"
             />
           ) : null}
-        </button>
+          </button>
+          {extraAction}
+        </div>
       </div>
 
       {open ? <NotificationPanel /> : null}

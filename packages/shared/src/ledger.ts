@@ -220,6 +220,150 @@ export const updateTagSchema = z.object({
 export type UpdateTagInput = z.infer<typeof updateTagSchema>;
 
 // ---------------------------------------------------------------------------
+// 永久删除一个组织器对象，并把历史重新记到别处
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️ **`DELETE` 的语义没有变：分类与支付方式仍然是"归档"**，因为历史账目还要靠它们渲染
+ * （`routes/classification.ts` 顶上那段注释就是理由）。真正把它们从数据库里删掉是一个
+ * **独立的、破坏性的动作**，所以它有自己的端点（`POST …/permanent-delete`）和自己的请求体 ——
+ * **一个会让几十笔历史换分类的操作，不该由"和以前一样的 DELETE"顺手完成。**
+ *
+ * 一个空值（省略 / `null` / `""`）在这里是**合法输入，意思是"你替我选"**：
+ * 分类 → 同 `kind` 的系统分类 `暂无分类`；支付方式 → `null`（未指定）；标签 → 解除关联。
+ * 这是所有者 S13-E Q5 的默认规则 —— *"不选才按默认"*。
+ */
+const optionalReplacementId = z
+  .union([uuidSchema, z.literal(""), z.null()])
+  .transform((value) => (value === "" || value === null ? null : value))
+  /**
+   * ⚠️ **`optional()` on the outside, after the transform**, so the *output* type keeps the key
+   * optional. A `POST` with no body at all is a legitimate "you choose" — and with
+   * `exactOptionalPropertyTypes` on (this repo), a type where the key was required would force
+   * every caller to write `{ replacementCategoryId: null }` for the most common case.
+   */
+  .optional();
+
+export const permanentDeleteCategorySchema = z.object({
+  /**
+   * 把历史账目换成哪个分类。省略 → 服务器选同 `kind` 的 `暂无分类`。
+   * 必须是**同一本账**、**同一个 `kind`**，且不能是它自己。
+   */
+  replacementCategoryId: optionalReplacementId,
+});
+export type PermanentDeleteCategoryInput = z.infer<typeof permanentDeleteCategorySchema>;
+
+export const permanentDeletePaymentMethodSchema = z.object({
+  /**
+   * 把历史账目换成哪个支付方式。省略 / `null` → 历史记录变成**未指定**（`payment_method_id = NULL`）。
+   * ⚠️ 支付方式没有"其他"这一行，所以"不选"在这里就是一个明确的答案，而不是兜底。
+   */
+  replacementPaymentMethodId: optionalReplacementId,
+});
+export type PermanentDeletePaymentMethodInput = z.infer<
+  typeof permanentDeletePaymentMethodSchema
+>;
+
+/**
+ * 一次"删除 + 历史重关联"的结果。
+ *
+ * ⚠️ **`affectedEntries` 只统计未删除的账目**（`deleted_at IS NULL`）—— 和列表、`/ledger` 的
+ * `transactionCount` 同一口径。**它是用户在确认框里看到的那个数，服务器不夸大也不缩小它。**
+ * 被重连的墓碑行数不在这里（它们不是"账目"，用户也看不见），但确实也会被重连：
+ * `transactions.category_id` 是 `ON DELETE RESTRICT`，不清干净就删不掉。
+ */
+export const classificationDeleteResponseSchema = z.object({
+  affectedEntries: z.number().int().nonnegative(),
+  /** 历史被重连到哪个对象。标签（解绑）、支付方式（未指定）、没有历史可改时都是 `null`。 */
+  replacementId: z.string().nullable(),
+  replacementName: z.string().nullable(),
+  /**
+   * ⚠️ **这次批量操作摘要的 id —— "只写一条记录"的凭据。**
+   * 一次重关联只产生一行 `ledger_operation_logs`，不逐笔写 `transaction_events`（Q4）。
+   */
+  operationId: z.string(),
+});
+export type ClassificationDeleteResponse = z.infer<
+  typeof classificationDeleteResponseSchema
+>;
+
+/**
+ * 分类 / 支付方式 / 标签各自「被多少笔账目用着」—— 删除确认框里那句
+ * *"有 N 笔历史记录使用它"* 的数字来源。
+ *
+ * ⚠️ **只读预览，不是删除的依据。** 真正永久删除时服务器会在事务里重新统计一次
+ * （`routes/classification.ts` 的 `permanent-delete` 注释说明了理由：确认框打开之后可能又有
+ * 新账目用了它）。这个接口回答的是"此刻"的数字，用途是让用户在按下去之前知道会发生什么。
+ *
+ * ⚠️ **只算未删除的账目**（`transactions.deleted_at IS NULL`）—— 和账目列表、
+ * `classificationDeleteResponseSchema.affectedEntries`、`/ledger` 的 `transactionCount`
+ * 同一口径。墓碑不算"一笔账目"，用户数不到它。
+ *
+ * ⚠️ **键是对象 id，值是未删除账目数；没有用过的对象不出现在结果里**（而不是出现为 0）。
+ * 所以空对象 `{}` 是合法答案：这本账的这部分还没有任何账目使用。
+ */
+export const classificationUsageResponseSchema = z.object({
+  /** 分类 id → 未删除账目数。 */
+  categories: z.record(z.string(), z.number().int().nonnegative()),
+  /** 支付方式 id → 未删除账目数。`未指定`（NULL）不是对象，不会出现。 */
+  paymentMethods: z.record(z.string(), z.number().int().nonnegative()),
+  /** 标签 id → 挂着它的未删除账目数。 */
+  tags: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type ClassificationUsageResponse = z.infer<
+  typeof classificationUsageResponseSchema
+>;
+
+// ---------------------------------------------------------------------------
+// 批量操作摘要（读）
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️ **动作名是稳定的标识符，不是一句中文** —— 句子由界面决定，数据库里存的是
+ * `category.permanent_delete` 这样的值（与 `AdminAuditLog.action` 同一个规矩）。
+ *
+ * ⚠️ **这份列表与迁移里的 CHECK 约束是同一份事实的两处写法**，所以有一条测试
+ * （`classification.test.ts` 的 "the action list agrees with the database"）
+ * 会把 `pg_get_constraintdef` 和它对比 —— 没有测试的第二份副本迟早会不一致（`教训.md` §8.7）。
+ */
+export const LEDGER_OPERATION_ACTIONS = [
+  "category.permanent_delete",
+  "payment_method.permanent_delete",
+  "tag.permanent_delete",
+] as const;
+export const ledgerOperationActionSchema = z.enum(LEDGER_OPERATION_ACTIONS);
+export type LedgerOperationAction = z.infer<typeof ledgerOperationActionSchema>;
+
+export const LEDGER_OPERATION_OBJECT_TYPES = ["category", "payment_method", "tag"] as const;
+export const ledgerOperationObjectTypeSchema = z.enum(LEDGER_OPERATION_OBJECT_TYPES);
+export type LedgerOperationObjectType = z.infer<typeof ledgerOperationObjectTypeSchema>;
+
+export const ledgerOperationSchema = z.object({
+  id: z.string(),
+  action: ledgerOperationActionSchema,
+  objectType: ledgerOperationObjectTypeSchema,
+  /** ⚠️ 可能指向一个已经不存在的对象 —— 它已经被删掉了。`objectName` 是可读快照。 */
+  objectId: z.string(),
+  objectName: z.string(),
+  /** 未删除的账目数，与 `classificationDeleteResponseSchema.affectedEntries` 同一个数。 */
+  affectedCount: z.number().int().nonnegative(),
+  /** 当时是谁做的。账号注销后仍留名（`actorName` 是快照）。 */
+  actorName: z.string().nullable(),
+  /** 何时。ISO 时间串；"今天/昨天"由界面按读者时区决定。 */
+  at: z.string(),
+  /** 历史去了哪里、怎么去的 —— 形状随动作变化，所以不在这里收紧。 */
+  detail: z.unknown(),
+});
+export type LedgerOperation = z.infer<typeof ledgerOperationSchema>;
+
+export const ledgerOperationListResponseSchema = z.object({
+  entries: z.array(ledgerOperationSchema),
+  /** 这本账一共记了多少次批量操作。 */
+  total: z.number().int().nonnegative(),
+});
+export type LedgerOperationListResponse = z.infer<typeof ledgerOperationListResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Entries
 // ---------------------------------------------------------------------------
 

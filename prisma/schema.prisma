@@ -139,6 +139,8 @@ model User {
   /// ⚠️ Actions this account took, as recorded in the ledger history. `SetNull` on delete — a
   /// closed account does not un-happen what it did.
   transactionEvents     TransactionEvent[]
+  /// ⚠️ 他做过的批量操作摘要（删分类/支付方式/标签）。同样 `SetNull`，同样由 `actor_name` 留名。
+  ledgerOperations      LedgerOperationLog[]
   /// ⚠️ 他在这本账里说过的话。`SetNull` 不适用——留言带 `senderName` 快照，
   /// 所以账号注销时用 `Cascade` 删掉是安全的：署名早已存在每一条留言上。
   bookMessages          BookMessage[]
@@ -493,6 +495,75 @@ model TransactionEvent {
   @@map("transaction_events")
 }
 
+/// **一次批量操作只留一行 —— 分类 / 支付方式 / 标签的「删除 + 历史重关联」摘要。**
+///
+/// ⚠️ **The owner's rule is the whole design** (S13-E Q4, 2026-10-17): 删掉一个已经被用过的分类，
+/// 会一次改动几十上百笔账目 —— *"要记录一次批量操作及操作者；但不必为每一笔交易制造大量独立事件"*。
+/// 所以是**一张表、一行、一次写入**，而不是 `transaction_events` 里的一百行。
+///
+/// ⚠️ **A separate table from `transaction_events`, for the reason that separated that table from
+/// `transactions.value_history`** (`教训.md` §8.12): 编辑历史页渲染的是 *"naeor 删除了 #000103
+/// 出租车记录"*，一行一笔账；这张表回答的是另一个问题 —— *"谁在什么时候，把哪个分类下的
+/// N 笔历史记到了哪里"*。把两者塞进同一个 `kind` 枚举，等于让历史页面为"批量"这一种事件写例外，
+/// 而**历史的读者是人，一条批量记录不该混在几百条账目变更中间。**
+///
+/// ⚠️ **`object_id` 故意没有外键。** 它指向的对象**刚刚被删掉**，那正是这次操作的内容；一个外键
+/// 要么拦住删除，要么把列置空、丢掉"这条摘要是关于谁的"。旁边的 `object_name` 是可读的快照。
+///
+/// ⚠️ **`actor_id` 可空 + `SetNull`，`actor_name` 是快照** —— 与 `TransactionEvent` 完全同一个理由：
+/// 账号注销不该抹掉"他做过这次批量操作"这个事实。
+///
+/// ⚠️ **没有保留期限，也不打算有。** 与 `transaction_events` 一样，批量操作是账本的历史，
+/// 而不是可以过期的日志；`book_id` 为 `Cascade`，所以删除整本账会一起带走它。
+model LedgerOperationLog {
+  id     String @id @default(uuid()) @db.Uuid
+  /// Which ledger. Required: an operation always belongs to one ledger.
+  bookId String @map("book_id") @db.Uuid
+
+  /// Who did it. Nullable so the row survives the account being closed; `actorName` is the snapshot
+  /// that keeps it readable then.
+  actorId   String? @map("actor_id") @db.Uuid
+  /// ⚠️ Bounded: a display name is at most 40 characters (`DISPLAY_NAME_MAX_LENGTH`), and this is a
+  /// snapshot rather than a join.
+  actorName String  @map("actor_name") @db.VarChar(64)
+
+  /// What was done, as a stable identifier rather than a sentence: `category.permanent_delete`,
+  /// `payment_method.permanent_delete`, `tag.permanent_delete`. The UI owns the wording.
+  ///
+  /// ⚠️ **The database enforces this list** (`ledger_operation_logs_action_known`, a CHECK
+  /// constraint), exactly as it does for `transaction_events.kind`: a typo would otherwise be a row
+  /// a later screen cannot name, discovered long after the line that wrote it. Adding an action is
+  /// therefore a migration — that cost is the point.
+  action String @db.VarChar(48)
+
+  /// `category` / `payment_method` / `tag`. Also CHECK-constrained.
+  objectType String @map("object_type") @db.VarChar(24)
+  /// ⚠️ **No foreign key** — see the note above. The object is gone by the time this is read.
+  objectId   String @map("object_id") @db.Uuid
+  /// Its name at the time, so the summary still reads after the row is gone.
+  objectName String @map("object_name") @db.VarChar(64)
+
+  /// **How many *live* entries the user was told about** — `deleted_at IS NULL`, the same rule the
+  /// entry list uses. Tombstones are re-pointed too (the foreign key requires it) and their number
+  /// is in `detail.movedRows`; **the number here is the one the confirmation dialog showed.**
+  affectedCount Int @map("affected_count")
+
+  /// Where the history went and how: `{ "mode": "replacement" | "default" | "unspecified" |
+  /// "none" | "unlink", "replacementCategoryId": …, "replacementCategoryName": …, "movedRows": … }`.
+  /// JSONB because the shape differs per action and will grow.
+  detail Json
+
+  /// When it happened. One ordering field and no more.
+  at DateTime @default(now()) @db.Timestamptz(6)
+
+  book  Book  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  /// ⚠️ The only query this table serves today: *"this ledger's recent batch operations"*.
+  @@index([bookId, at(sort: Desc)])
+  @@map("ledger_operation_logs")
+}
+
 /// **账本内的公共留言 —— 围绕这本账的讨论，不是聊天。**
 ///
 /// ⚠️ **The owner drew the boundary and it is narrow**: *"它只属于当前账本，类似一个**小型群聊或留言板**：
@@ -645,6 +716,9 @@ model Book {
 
   /// ⚠️ 这本账的公共留言 —— 属于账本，不属于任何两个人之间的会话。
   messages BookMessage[]
+
+  /// ⚠️ 这本账的批量操作摘要：一次"删除 + 历史重关联"只写一行。
+  operationLogs LedgerOperationLog[]
 
   @@map("books")
 }

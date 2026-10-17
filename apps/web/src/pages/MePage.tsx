@@ -30,12 +30,13 @@ export function MePage(): React.JSX.Element {
   /**
    * One list, in the order somebody would look for things: who I am, then
    * what I manage, then settings.
+   *
+   * ⚠️ **分类管理 / 支付方式 / 标签 不再列在这里（S13-E）。** 这三样属于**某本账**——
+   * 同一个账号在不同账本里可以有不同分类——所以入口迁往账本设置页。页面与路由
+   * （`/categories`、`/payment-methods`、`/tags`）本轮不动，只删这一屏的入口。
    */
   const links: { to: string; label: string; hint?: string }[] = [
     { to: "/profile", label: "个人资料", hint: "昵称、用户名、账号编号" },
-    { to: "/categories", label: "分类管理", hint: "新增、改名、排序、归档" },
-    { to: "/payment-methods", label: "支付方式", hint: "微信、支付宝、银行卡、现金等" },
-    { to: "/tags", label: "标签", hint: "出差、可报销等跨分类标记" },
     { to: "/start", label: "我的账本", hint: user.username },
     { to: "/downloads", label: "下载管理", hint: "离线能看哪些月份，以及占用多少空间" },
     /**

@@ -1,13 +1,13 @@
 import type { ImportReport } from "@libellum/shared";
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
-import { fetchTemplate, useImportEntries } from "../lib/queries.js";
+import { fetchTemplate, useImportEntries, useLedgerMeta } from "../lib/queries.js";
 import { deliverFile } from "../lib/share.js";
 
 /**
@@ -23,6 +23,16 @@ import { deliverFile } from "../lib/share.js";
  * rather than left in a log: a rejected file names **which line** and **which
  * column**, and a file that has already been imported is recognised instead of
  * being imported twice.
+ *
+ * ⚠️ **S13-E 之后这一页也能从账本设置进入：`/books/:bookId/settings/import`。**
+ * 导入是**写**操作，写错账本的代价最大且最不明显（文件看起来完全正常），所以目标模式：
+ *
+ *  * 用 `useLedgerMeta(bookId)` 把**目标账本的名字和编号**显示在页面上，并且写进确认对话框；
+ *  * `useImportEntries(bookId)` 让整个请求点名那本账；
+ *  * 「下载模板」也带 `bookId`（模板按账本生成表头，不是同一个文件）；
+ *  * 导出 / 返回都回 `/books/:bookId/settings`。
+ *
+ * ⚠️ **当前账本模式（旧的 `/export` → `/import`）行为一个字都没改。**
  */
 
 type Step =
@@ -30,19 +40,99 @@ type Step =
   | { readonly name: "confirm"; readonly file: File }
   | { readonly name: "report"; readonly report: ImportReport };
 
+/** The target ledger, when the route names one — **the whole point of the banner**. */
+interface ImportTarget {
+  /** ⚠️ `名称（编号）`, because two ledgers can share a name. */
+  readonly label: string;
+  readonly failure: string | null;
+}
+
 export function ImportPage(): React.JSX.Element {
-  const navigate = useNavigate();
+  const { bookId } = useParams<{ bookId?: string }>();
+
+  return bookId === undefined ? <ImportForCurrentLedger /> : <ImportForBook bookId={bookId} />;
+}
+
+function ImportForCurrentLedger(): React.JSX.Element {
   const importEntries = useImportEntries();
+
+  return (
+    <ImportView
+      importEntries={importEntries}
+      backTo="/export"
+      exportTo="/export"
+      doneTo="/"
+      doneLabel="回到明细"
+    />
+  );
+}
+
+function ImportForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const meta = useLedgerMeta(bookId);
+  const importEntries = useImportEntries(bookId);
+
+  const name = meta.data?.book.name ?? null;
+  const bookNumber = meta.data?.book.bookNumber ?? null;
+  const label = name === null ? "正在读取账本……" : bookNumber === null ? name : `${name}（${bookNumber}）`;
+
+  return (
+    /**
+     * ⚠️ **Keyed by the ledger**: a half-finished step (or a file already chosen) must not carry over
+     * if the address is edited to another ledger — the whole risk this screen guards against is
+     * writing the right file into the wrong book.
+     */
+    <ImportView
+      key={bookId}
+      importEntries={importEntries}
+      backTo={`/books/${bookId}/settings`}
+      exportTo={`/books/${bookId}/settings/export`}
+      doneTo={`/books/${bookId}/settings`}
+      doneLabel="回到账本设置"
+      bookId={bookId}
+      target={{ label, failure: meta.isError ? errorMessage(meta.error) : null }}
+    />
+  );
+}
+
+function ImportView({
+  importEntries,
+  backTo,
+  exportTo,
+  doneTo,
+  doneLabel,
+  bookId,
+  target,
+}: {
+  readonly importEntries: ReturnType<typeof useImportEntries>;
+  /**
+   * The frame's back fallback for a deep link. **Target mode lands on 账本设置**, which is the parent
+   * this screen was opened from; the current-ledger screen keeps `/export`, exactly as before.
+   */
+  readonly backTo: string;
+  /** Where 「← 返回导出」 goes — the export screen of the same ledger. */
+  readonly exportTo: string;
+  /** Where the report's 「完成」 button goes. */
+  readonly doneTo: string;
+  readonly doneLabel: string;
+  /** ⚠️ Named only in target mode — the template download carries it too. */
+  readonly bookId?: string;
+  /** ⚠️ Present only when the address names a ledger; its name **and** number are shown. */
+  readonly target?: ImportTarget;
+}): React.JSX.Element {
+  const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>({ name: "choose" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const failure = target?.failure ?? null;
+
   async function downloadTemplate(): Promise<void> {
     setError(null);
     try {
-      const file = await fetchTemplate();
+      /** ⚠️ The template is per ledger: headings are the same, but the request names the target. */
+      const file = await fetchTemplate(bookId);
       await deliverFile(file.fileName, file.mimeType, file.bytes);
     } catch (caught) {
       setError(errorMessage(caught));
@@ -68,9 +158,22 @@ export function ImportPage(): React.JSX.Element {
     <InnerPage
       title="导入历史账"
       subtitle="用导出的文件或模板填写，逐行校验通过后才会写入。任何一行有问题，整批都不会写入。"
-      backTo="/export"
+      backTo={backTo}
     >
       {error === null ? null : <Alert>{error}</Alert>}
+      {failure === null ? null : <Alert>{failure}</Alert>}
+
+      {/**
+        * ⚠️ **The target is stated before anything is chosen, not after.** A person who opened the
+        * wrong ledger's settings must be able to notice it here — with the number, not only the
+        * name, because two ledgers can be called the same thing.
+        */}
+      {target === undefined ? null : (
+        <div className="flex flex-col gap-1 rounded-field bg-brand-soft px-4 py-3 text-brand-dark">
+          <p className="text-body font-medium">导入到「{target.label}」</p>
+          <p className="text-helper-relaxed">请先确认这是你要写入的账本。下面的文件会整批写进这本账。</p>
+        </div>
+      )}
 
       {step.name === "choose" ? (
         <section className="flex flex-col gap-4">
@@ -94,12 +197,12 @@ export function ImportPage(): React.JSX.Element {
             onClick={() => {
               fileInput.current?.click();
             }}
-            disabled={busy}
+            disabled={busy || failure !== null}
           >
             选择 CSV 文件
           </Button>
 
-          <Button variant="secondary" onClick={() => void downloadTemplate()}>
+          <Button variant="secondary" onClick={() => void downloadTemplate()} disabled={failure !== null}>
             下载模板
           </Button>
 
@@ -117,7 +220,7 @@ export function ImportPage(): React.JSX.Element {
           <Button
             variant="ghost"
             onClick={() => {
-              void navigate("/export");
+              void navigate(exportTo);
             }}
           >
             ← 返回导出
@@ -128,9 +231,10 @@ export function ImportPage(): React.JSX.Element {
       {step.name === "report" ? (
         <Report
           report={step.report}
+          doneLabel={doneLabel}
           onDone={() => {
             setStep({ name: "choose" });
-            void navigate("/");
+            void navigate(doneTo);
           }}
           onAgain={() => {
             setStep({ name: "choose" });
@@ -158,6 +262,8 @@ export function ImportPage(): React.JSX.Element {
         }}
         consequences={[
           `文件：${step.name === "confirm" ? step.file.name : ""}`,
+          /** ⚠️ Named again at the moment it matters most. */
+          ...(target === undefined ? [] : [`导入到：「${target.label}」`]),
           "逐行校验通过后才会写入；任何一行有问题，整批都不会写入。",
           "已经在账本里的记录会被跳过，不会重复。",
         ]}
@@ -175,10 +281,12 @@ export function ImportPage(): React.JSX.Element {
  */
 function Report({
   report,
+  doneLabel,
   onDone,
   onAgain,
 }: {
   readonly report: ImportReport;
+  readonly doneLabel: string;
   readonly onDone: () => void;
   readonly onAgain: () => void;
 }): React.JSX.Element {
@@ -238,7 +346,7 @@ function Report({
         导入编号是这次导入的标识，写进了这批每一笔记录里，日后可以据此追溯它们是从哪个文件来的。
       </p>
 
-      <Button onClick={onDone}>回到明细</Button>
+      <Button onClick={onDone}>{doneLabel}</Button>
       <Button variant="secondary" onClick={onAgain}>
         再导入一个文件
       </Button>

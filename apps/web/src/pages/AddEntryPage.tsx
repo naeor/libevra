@@ -23,6 +23,7 @@ import {
 } from "../lib/datetime.js";
 import { amountPlaceholder, currencyName, minorToInput, parseAmountInput } from "../lib/format.js";
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
+import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import { useCreateTransaction, useLedger, useQuickAmounts, useTransactions } from "../lib/queries.js";
 import { uuidV7 } from "../lib/uuid.js";
 
@@ -55,6 +56,11 @@ export function AddEntryPage(): React.JSX.Element {
   const quickAmounts = useQuickAmounts();
   const recent = useTransactions({});
   const createEntry = useCreateTransaction();
+  /**
+   * ⚠️ **Shared ledger + offline = read-only**, the owner's S13-E rule. The write layer refuses it
+   * anyway; this hook is what lets the form say why *before* the user types a whole entry.
+   */
+  const { readOnly: sharedOfflineReadOnly } = useSharedLedgerOfflineReadOnly();
 
   /** Set by "复制这一笔" on the detail screen. */
   const copyFrom = (location.state as { copyFrom?: Transaction } | null)?.copyFrom;
@@ -138,6 +144,11 @@ export function AddEntryPage(): React.JSX.Element {
 
   async function save(): Promise<void> {
     setError(null);
+
+    if (sharedOfflineReadOnly) {
+      setError("当前离线，共享账本暂时只能查看。恢复网络后可以继续记账。");
+      return;
+    }
 
     let amountCents: number;
     try {
@@ -579,9 +590,14 @@ export function AddEntryPage(): React.JSX.Element {
         ) : null}
 
         <div className="flex flex-col gap-3 px-6 py-6">
+          {sharedOfflineReadOnly ? (
+            <Alert>
+              当前离线，共享账本暂时只能查看。恢复网络后可以继续记账；之前尚未同步的改动会保留。
+            </Alert>
+          ) : null}
           <button
             type="submit"
-            disabled={createEntry.isPending || amountText.trim() === ""}
+            disabled={sharedOfflineReadOnly || createEntry.isPending || amountText.trim() === ""}
             className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
           >
             {createEntry.isPending ? "保存中…" : "保存"}

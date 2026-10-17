@@ -4,6 +4,7 @@ import { ApiRequestError, apiFetch } from "../api.js";
 import { isAccountOffline } from "./connectivity.js";
 import { logOffline } from "./diagnostics.js";
 import { syncAll } from "./sync.js";
+import { isSharedLedger, isSharedLedgerOfflineReadOnly } from "./writePolicy.js";
 import {
   clearInFlight,
   publishLedger,
@@ -35,6 +36,35 @@ import {
  * row the user will assume is safe. **The colour is not decoration; it is the only thing standing between
  * "I recorded it" and "I think I recorded it".**
  */
+
+/**
+ * **A shared ledger is read-only while offline — refuse *before* any local write.**
+ *
+ * ⚠️ **The refusal must happen here, not only in a screen.** If a button is missed, a keyboard
+ * shortcut is used, or a page keeps an editor open across a disconnect, this is the one place every
+ * transaction write passes through. A check in the UI alone would be a suggestion.
+ *
+ * ⚠️ **Nothing is written before this throws** — no local row, no mark, no "permanent red" row that
+ * the server will refuse forever. The owner's instruction was to *not create new offline marks* for
+ * shared ledgers, and the old behaviour (write locally, let the server 403) is exactly what left
+ * entries that could never be delivered.
+ *
+ * Personal ledgers never reach this branch, so their offline writes are unchanged.
+ */
+export class SharedLedgerOfflineReadOnlyError extends Error {
+  readonly code = "shared_ledger_offline_read_only";
+
+  constructor() {
+    super("当前离线，共享账本暂时只能查看。恢复网络后可以继续修改。");
+    this.name = "SharedLedgerOfflineReadOnlyError";
+  }
+}
+
+function assertWriteAllowedNow(): void {
+  if (isSharedLedgerOfflineReadOnly(isSharedLedger(), isAccountOffline())) {
+    throw new SharedLedgerOfflineReadOnlyError();
+  }
+}
 
 /** What a write produced, so the screen can say something true about it. */
 export interface WriteOutcome {
@@ -246,6 +276,7 @@ async function afterWrite(): Promise<void> {
  * and the online path produce the same result rather than two shapes that have to be reconciled.
  */
 export async function createEntry(input: CreateTransactionInput, entry: Transaction): Promise<WriteOutcome> {
+  assertWriteAllowedNow();
   await upsertEntry(entry);
 
   /**
@@ -290,6 +321,7 @@ export async function updateEntry(
   input: UpdateTransactionInput,
   apply: (current: Transaction) => Transaction,
 ): Promise<WriteOutcome | null> {
+  assertWriteAllowedNow();
   const previousMark = (await readMarks())[id];
   const current = await findStoredEntry(id);
 
@@ -394,6 +426,7 @@ export async function updateEntry(
  * done**, which `syncOne` now treats as success rather than a permanent failure to retry for ever.
  */
 export async function deleteEntry(id: string): Promise<void> {
+  assertWriteAllowedNow();
   const current = await findStoredEntry(id);
 
   /** ⚠️ Queued first, so the mark and the work cannot disagree about whether anything is pending. */
@@ -424,6 +457,7 @@ export async function resolveConflict(
   /** What the server held when the choice was offered — **the base the write must be built on.** */
   serverCopy: Transaction,
 ): Promise<void> {
+  assertWriteAllowedNow();
   /**
    * ⚠️ **The version the write carries is the server's, and this is the whole of the second bug.**
    *

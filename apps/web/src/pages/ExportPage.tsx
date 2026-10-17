@@ -1,6 +1,6 @@
-import { CURRENCIES, type Currency, type ExportFormat } from "@libellum/shared";
+import { CURRENCIES, type Category, type Currency, type ExportFormat } from "@libellum/shared";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
@@ -9,8 +9,8 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { errorMessage } from "../lib/api.js";
 import { currentMonth, formatMonthLabel, shiftMonth } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
-import { fetchExport, fetchTemplate, useLedger } from "../lib/queries.js";
-import { canShareFiles, deliverFile, toFile } from "../lib/share.js";
+import { fetchExport, fetchTemplate, useLedger, useLedgerMeta } from "../lib/queries.js";
+import { canShareFiles, deliverFile } from "../lib/share.js";
 
 /**
  * Export the ledger.
@@ -24,6 +24,15 @@ import { canShareFiles, deliverFile, toFile } from "../lib/share.js";
  * The screen is deliberately one page with no sub-dialogs: filters, format,
  * button. Everything on it is optional — pressing 导出 with the defaults exports
  * the whole ledger, which is the common case.
+ *
+ * ⚠️ **S13-E 之后这一页有第二个入口：`/books/:bookId/settings/export`。**
+ * 它导出的是**地址里那本账**，不是"当前账本"——所以这条路由把 `bookId` 一路带到
+ * `fetchExport(filters, bookId)` / `fetchTemplate(bookId)`，而屏幕上先用
+ * `useLedgerMeta(bookId)` 把**目标账本的名字与编号**写在标题下面。**导错账本是不可接受的**：
+ * 文件看起来完全正常，只是里面的账不是用户以为的那一本。
+ *
+ * ⚠️ **两条路径的区别只有"数据从哪来 / 给谁"**：`/export` 与明细页的工具按钮保持原样
+ * （当前账本、`useLedger()`、返回 `/`），目标模式不调用 `useLedger()`。
  */
 
 type RangePreset = "all" | "thisMonth" | "lastMonth" | "last3" | "custom";
@@ -34,6 +43,9 @@ const RANGE_LABELS: Record<Exclude<RangePreset, "custom">, string> = {
   lastMonth: "上月",
   last3: "近三个月",
 };
+
+/** The sentence the current-ledger entry and 账本设置's export entry share. */
+const EXPORT_HINT = "选择要导出的范围与格式。导出的文件会带一个编号，日后可以对照。";
 
 function rangeForPreset(preset: RangePreset, customFrom: string, customTo: string): {
   monthFrom?: string;
@@ -65,10 +77,77 @@ function defaultMonth(offset: number): string {
   return shiftMonth(currentMonth(), offset);
 }
 
+/**
+ * ⚠️ **The route decides the mode**, and the two wrappers exist for one reason:
+ * **the current-ledger branch is the only one allowed to call `useLedger()`** (it sets this device's
+ * ledger). Both then render the same screen, so the export itself cannot behave differently.
+ */
 export function ExportPage(): React.JSX.Element {
+  const { bookId } = useParams<{ bookId?: string }>();
+
+  return bookId === undefined ? <ExportForCurrentLedger /> : <ExportForBook bookId={bookId} />;
+}
+
+function ExportForCurrentLedger(): React.JSX.Element {
+  const ledger = useLedger();
+
+  return (
+    <ExportView
+      categories={ledger.data?.categories ?? []}
+      loading={ledger.isLoading}
+      backTo="/"
+      subtitle={EXPORT_HINT}
+      importTo="/import"
+    />
+  );
+}
+
+function ExportForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const meta = useLedgerMeta(bookId);
+
+  const name = meta.data?.book.name ?? null;
+  const bookNumber = meta.data?.book.bookNumber ?? null;
+  const label = name === null ? "正在读取账本……" : bookNumber === null ? name : `${name}（${bookNumber}）`;
+
+  return (
+    /**
+     * ⚠️ **Keyed by the ledger**, so the filter state (and especially a `categoryId` picked from
+     * another ledger's list) cannot survive a change of target.
+     */
+    <ExportView
+      key={bookId}
+      categories={meta.data?.categories ?? []}
+      loading={meta.isLoading}
+      backTo={`/books/${bookId}/settings`}
+      subtitle={`正在导出「${label}」。${EXPORT_HINT}`}
+      importTo={`/books/${bookId}/settings/import`}
+      bookId={bookId}
+      failure={meta.isError ? errorMessage(meta.error) : null}
+    />
+  );
+}
+
+function ExportView({
+  categories: allCategories,
+  loading,
+  backTo,
+  subtitle,
+  importTo,
+  bookId,
+  failure = null,
+}: {
+  readonly categories: readonly Category[];
+  readonly loading: boolean;
+  readonly backTo: string;
+  readonly subtitle: string;
+  /** Where the 导入 button goes: `/import` for the current ledger, the book's own page otherwise. */
+  readonly importTo: string;
+  /** ⚠️ Named only in target mode — and then every request below carries it. */
+  readonly bookId?: string;
+  readonly failure?: string | null;
+}): React.JSX.Element {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const ledger = useLedger();
 
   const [format, setFormat] = useState<ExportFormat>("csv");
   const [range, setRange] = useState<RangePreset>("all");
@@ -82,8 +161,8 @@ export function ExportPage(): React.JSX.Element {
   const [done, setDone] = useState<string | null>(null);
 
   const categories = useMemo(
-    () => (ledger.data?.categories ?? []).filter((category) => !category.isSystem),
-    [ledger.data],
+    () => allCategories.filter((category) => !category.isSystem),
+    [allCategories],
   );
   const [categoryId, setCategoryId] = useState<string>("all");
 
@@ -110,13 +189,16 @@ export function ExportPage(): React.JSX.Element {
     try {
       const bounds = rangeForPreset(range, customFrom, customTo);
 
-      const file = await fetchExport({
-        format,
-        ...bounds,
-        ...(kind === "all" ? {} : { kind }),
-        ...(currency === "all" ? {} : { currency }),
-        ...(categoryId === "all" ? {} : { categoryId }),
-      });
+      const file = await fetchExport(
+        {
+          format,
+          ...bounds,
+          ...(kind === "all" ? {} : { kind }),
+          ...(currency === "all" ? {} : { currency }),
+          ...(categoryId === "all" ? {} : { categoryId }),
+        },
+        bookId,
+      );
 
       const outcome = await deliverFile(file.fileName, file.mimeType, file.bytes);
 
@@ -143,7 +225,7 @@ export function ExportPage(): React.JSX.Element {
     setDone(null);
 
     try {
-      const file = await fetchTemplate();
+      const file = await fetchTemplate(bookId);
       const outcome = await deliverFile(file.fileName, file.mimeType, file.bytes);
       if (!outcome.cancelled) setDone("模板已导出，可在表头下逐行填写。");
     } catch (caught) {
@@ -154,12 +236,9 @@ export function ExportPage(): React.JSX.Element {
   }
 
   return (
-    <InnerPage
-      title="导出账目"
-      subtitle="选择要导出的范围与格式。导出的文件会带一个编号，日后可以对照。"
-      backTo="/"
-    >
+    <InnerPage title="导出账目" subtitle={subtitle} backTo={backTo}>
       {error === null ? null : <Alert>{error}</Alert>}
+      {failure === null ? null : <Alert>{failure}</Alert>}
       {done === null ? null : <Alert tone="success">{done}</Alert>}
 
       {/* ------------------------------------------------------------------ */}
@@ -327,7 +406,11 @@ export function ExportPage(): React.JSX.Element {
           onClick={() => {
             void run();
           }}
-          disabled={busy || ledger.isLoading}
+          /**
+           * ⚠️ **A target ledger that cannot be read cannot be exported either** — the server would
+           * refuse, and pressing a button that is certain to fail is worse than seeing why it will not.
+           */
+          disabled={busy || loading || failure !== null}
         >
           {busy ? "正在准备…" : "导出"}
         </Button>
@@ -350,7 +433,7 @@ export function ExportPage(): React.JSX.Element {
         <Button
           variant="ghost"
           onClick={() => {
-            void navigate("/import");
+            void navigate(importTo);
           }}
         >
           导入历史账 →

@@ -1,9 +1,14 @@
-import { ledgerMetaResponseSchema } from "@libellum/shared";
+import {
+  classificationUsageResponseSchema,
+  ledgerMetaResponseSchema,
+  ledgerOperationListResponseSchema,
+} from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import type { PrismaClient } from "../db.js";
 import { readHistory } from "../ledger/history.js";
+import { readOperations } from "../ledger/operations.js";
 
 export interface LedgerRouteOptions {
   readonly prisma: PrismaClient;
@@ -143,4 +148,113 @@ export function registerLedgerRoutes(app: FastifyInstance, options: LedgerRouteO
 
     return { entries, total };
   });
+
+  // ---------------------------------------------------------------------------
+  // GET /api/v1/ledger/operations — 批量操作摘要（删除 + 历史重关联）
+  // ---------------------------------------------------------------------------
+  /**
+   * ⚠️ **Read-only, and a viewer may call it** — for the same reason as the history above: "这个分类
+   * 是谁删的、那几十笔记到哪去了" is part of seeing the ledger, not part of editing it.
+   *
+   * ⚠️ **It exists because the writer alone would leave the table unread** (AGENTS.md §5: 一个没有
+   * 读取者的表会腐烂，而且看起来像"已完成"). S13-E 的批量操作记录就是为了回答用户"历史去哪了"，
+   * 没有这条读路径，答案只能从数据库里手工查。
+   *
+   * ⚠️ **The limit is capped here rather than trusted**, the same rule as `/ledger/history`: an
+   * uncapped `limit` from a client is a request that reads the whole ledger.
+   */
+  app.get("/api/v1/ledger/operations", { preHandler: requireRead }, async (request) => {
+    const bookId = request.book!.bookId;
+
+    const query = z
+      .object({ limit: z.coerce.number().int().min(1).max(200).optional() })
+      .parse(request.query ?? {});
+
+    const { entries, total } = await readOperations(prisma, bookId, query.limit ?? 20);
+
+    return ledgerOperationListResponseSchema.parse({ entries, total });
+  });
+
+  // ---------------------------------------------------------------------------
+  // GET /api/v1/ledger/classification-usage — 删除确认框的「有 N 笔历史使用它」
+  // ---------------------------------------------------------------------------
+  /**
+   * ⚠️ **Read-only, so a viewer may call it** — the same rule as the history and the batch
+   * summaries above: "这个分类后面有多少笔账" is part of seeing the ledger, not part of editing it.
+   *
+   * ⚠️ **The dialog cannot count this for itself.** The client holds only the entries it has paged
+   * in, so a local count would silently under-report — and the number that decides a permanent
+   * delete is exactly the one the server re-checks inside the transaction
+   * (`routes/classification.ts`). This is the preview of that number, taken *now*; the delete may
+   * see a larger one if entries arrive in between, which is why the server recounts rather than
+   * trusting this response.
+   *
+   * ⚠️ **`deletedAt: null` on every count**, the same rule as the entry list: a tombstone is not an
+   * entry the person can open. A dialog saying *"有 N 笔历史记录使用它"* must agree with the list.
+   *
+   * ⚠️ **No `limit`**, unlike the two routes above: the answer is bounded by the number of
+   * categories / payment methods / tags in one ledger — a handful — **not by the number of
+   * entries**, so there is nothing here to page. A truncated map would answer "0 笔" for something
+   * that is in use, which is the one wrong answer this endpoint must never give.
+   */
+  app.get(
+    "/api/v1/ledger/classification-usage",
+    { preHandler: requireRead },
+    async (request) => {
+      const bookId = request.book!.bookId;
+
+      /**
+       * ⚠️ **Grouped in the database, not fetched and counted here**: one row comes back per
+       * classification object rather than one row per entry — the same rule the export pagination
+       * follows: never read the whole ledger for one click.
+       */
+      const [categoryRows, paymentMethodRows, tagRows] = await Promise.all([
+        prisma.transaction.groupBy({
+          by: ["categoryId"],
+          where: { bookId, deletedAt: null },
+          _count: { _all: true },
+        }),
+        prisma.transaction.groupBy({
+          by: ["paymentMethodId"],
+          where: { bookId, deletedAt: null, paymentMethodId: { not: null } },
+          _count: { _all: true },
+        }),
+        prisma.transactionTag.groupBy({
+          by: ["tagId"],
+          /**
+           * ⚠️ **Both sides are pinned to the ledger**, not just the transaction.
+           * `transaction_tags` carries no `book_id` of its own, and attaching another ledger's tag
+           * is already refused at write time (`resolveTagIds`) — but a read that trusted only one
+           * side would surface a foreign tag id the day that invariant is ever broken, and **a
+           * count must not be the way a cross-ledger id becomes visible.**
+           */
+          where: {
+            transaction: { bookId, deletedAt: null },
+            tag: { bookId },
+          },
+          _count: { _all: true },
+        }),
+      ]);
+
+      const categories: Record<string, number> = {};
+      for (const row of categoryRows) categories[row.categoryId] = row._count._all;
+
+      const paymentMethods: Record<string, number> = {};
+      for (const row of paymentMethodRows) {
+        /** 未指定 (`NULL`) is not an object: it has no id and no delete button, so it is not a key. */
+        if (row.paymentMethodId !== null) {
+          paymentMethods[row.paymentMethodId] = row._count._all;
+        }
+      }
+
+      const tags: Record<string, number> = {};
+      for (const row of tagRows) tags[row.tagId] = row._count._all;
+
+      /**
+       * ⚠️ Parsed through the shared schema: the shape the client reads is the shape this module
+       * promised, and **an empty object stays a legal answer** (`{}` = nothing uses it yet).
+       */
+      return classificationUsageResponseSchema.parse({ categories, paymentMethods, tags });
+    },
+  );
 }

@@ -1,4 +1,6 @@
 import {
+  type ClassificationDeleteResponse,
+  type ClassificationUsageResponse,
   type CreateCategoryInput,
   type CreatePaymentMethodInput,
   type CreateTagInput,
@@ -9,6 +11,8 @@ import {
   type ImportReport,
   type LedgerMetaResponse,
   type MeResponse,
+  type PermanentDeleteCategoryInput,
+  type PermanentDeletePaymentMethodInput,
   type RecognizeResponse,
   type StatsQuery,
   type StatsResponse,
@@ -34,8 +38,8 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { updateTransactionViews } from "./ledgerView.js";
 import { useAuth } from "../auth/AuthProvider.js";
-import { ApiRequestError, apiFetch, apiFetchFile } from "./api.js";
-import { setCurrentBook } from "./currentBook.js";
+import { ApiRequestError, apiFetch, apiFetchFile, currentBookIdHeader } from "./api.js";
+import { currentBookId, setCurrentBook, subscribeCurrentBook } from "./currentBook.js";
 import { CACHE_KEY } from "./offline/cache.js";
 import { migrateUnscopedKeys, setOfflineBook } from "./offline/scope.js";
 import {
@@ -51,6 +55,7 @@ import {
 } from "./offline/localLedger.js";
 import { readSnapshot } from "./offline/storage.js";
 import { installQueryNotifier, refreshPending } from "./offline/write.js";
+import { setSharedLedger } from "./offline/writePolicy.js";
 import { syncAll } from "./offline/sync.js";
 import { withLocalFallback } from "./offline/fallback.js";
 import { computeStats, monthRange, summaryFor } from "./offline/localStats.js";
@@ -731,6 +736,13 @@ export function useRenameBook() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.books });
       void queryClient.invalidateQueries({ queryKey: queryKeys.ledger });
       /**
+       * ⚠️ **The target ledger's own metadata too (S13-E).** 账本详情 and 账本设置 read
+       * `ledgerMeta(bookId)` for a ledger the reader may not be in — and that entry holds the
+       * name this call just changed. Without this, renaming from 账本设置 would leave the page
+       * behind it showing the old name until a reload.
+       */
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.ledgerMeta, input.bookId] });
+      /**
        * ⚠️ **The history prefix, not one limit.** `ledgerHistory` is keyed by limit — the start page
        * shows 2, the history screen 200 — so invalidating a single limit would refresh one screen and
        * leave the other showing a name the ledger no longer has. **Prefix matching is what makes
@@ -859,6 +871,26 @@ export function useLedgerMeta(bookId: string) {
   });
 }
 
+/**
+ * **Which ledger this device is in — as a value, without asking anybody.**
+ *
+ * ⚠️ **The target-ledger screens need this, and they must not call `useLedger()` to get it.**
+ * A screen showing 「账本详情」 or 「账本设置」 for a ledger the reader has not entered has to say
+ * *which* ledger is the current one **only as a neutral label** (「当前记账账本」), and
+ * `useLedger()` would move that label — and the request header, and the offline scope — onto the
+ * ledger merely being looked at. That is the one thing 1.10.08 forbade by name.
+ *
+ * ⚠️ **So this reads the device's own memory of the ledger** (`lib/currentBook.ts`), which is
+ * what already feeds the request header (`main.tsx` joins the two). It is **not** a second source
+ * of truth: it is the same value the server is told on every request.
+ *
+ * ⚠️ **Subscribed, not read once**, because a deep link can mount before the stored id has been
+ * restored — and a label that never updates would simply stay wrong.
+ */
+export function useCurrentBookId(): string | null {
+  return useSyncExternalStore(subscribeCurrentBook, currentBookId, currentBookId);
+}
+
 export function useLedger() {  return useQuery({
     queryKey: queryKeys.ledger,
     queryFn: async () => {
@@ -889,6 +921,14 @@ export function useLedger() {  return useQuery({
        * precisely the failure `档案/离线与同步-设计决定.md` is about.
        */
       setOfflineBook(ledger.book.id);
+      /**
+       * ⚠️ **Record whether the *current* ledger is shared**, for the offline write policy.
+       *
+       * The owner's S13-E rule: personal ledgers keep offline writes; shared ledgers are read-only
+       * while offline. `write.ts` cannot call a hook, so the one place that already knows the
+       * ledger's member count records it where the write layer can read it synchronously.
+       */
+      setSharedLedger((ledger.book.memberCount ?? 1) >= 2);
       /**
        * ⚠️ **All three of the device's own keys move together, including the query cache.**
        *
@@ -1388,10 +1428,25 @@ export function useQuickAmounts(): number[] {
 // ---------------------------------------------------------------------------
 
 /** Anything that changes money must refresh the list *and* the totals. */
-function useMoneyInvalidator(): () => Promise<void> {
+function useMoneyInvalidator(bookId?: string): () => Promise<void> {
   const client = useQueryClient();
 
   return async () => {
+    /**
+     * ⚠️ **A write against another ledger cannot change anything on this screen.**
+     *
+     * 账本设置 manages a ledger the reader may not be in (`/books/:bookId/settings`), and the money
+     * keys (`transactions` / `summary` / `transaction`) are the **current** ledger's. Refetching them
+     * after a target write would not leak data — the header still names the current ledger — but it
+     * would ask a question nobody asked, and worse, it would look like the two ledgers were related.
+     *
+     * ⚠️ **The comparison is against the request header**, which is the only synchronous answer to
+     * "which ledger is this device in" (`currentBookIdHeader`). When the target *is* the current
+     * ledger — the old `/categories` route, or settings for the ledger you are in — the refresh
+     * happens exactly as before.
+     */
+    if (bookId !== undefined && bookId !== currentBookIdHeader()) return;
+
     await Promise.all([
       client.invalidateQueries({ queryKey: ["transactions"] }),
       client.invalidateQueries({ queryKey: ["summary"] }),
@@ -1508,81 +1563,210 @@ export function useRestoreTransaction(): UseMutationResult<Transaction, Error, s
 // Managing the three organisers
 // ---------------------------------------------------------------------------
 
-function useLedgerInvalidator(): () => Promise<void> {
+/**
+ * **Which metadata a write to the three organisers has to refresh.**
+ *
+ * ⚠️ **A target write refreshes the *target's* metadata, never the current ledger's by default.**
+ * The three organisers (分类 / 支付方式 / 标签) travel inside the two ledger-metadata answers:
+ * `queryKeys.ledger` for the ledger the device is in, and `queryKeys.ledgerMeta(bookId)` for one it
+ * is only looking at. Invalidating `ledger` after a write against another ledger would refetch the
+ * current ledger's metadata — harmless but meaningless — while **the target's own screen would keep
+ * showing the row the reader just archived.** Two questions, two keys (see `ledgerMeta`).
+ *
+ * ⚠️ **Except when the target *is* the current ledger** — the old `/categories` route is exactly
+ * that — where the current ledger's answer is the same answer and has to be refreshed too.
+ */
+function useLedgerInvalidator(bookId?: string): () => Promise<void> {
   const client = useQueryClient();
+
   return async () => {
-    await client.invalidateQueries({ queryKey: queryKeys.ledger });
+    if (bookId === undefined) {
+      await client.invalidateQueries({ queryKey: queryKeys.ledger });
+      return;
+    }
+
+    await client.invalidateQueries({ queryKey: [...queryKeys.ledgerMeta, bookId] });
+
+    if (bookId === currentBookIdHeader()) {
+      await client.invalidateQueries({ queryKey: queryKeys.ledger });
+    }
   };
 }
 
-export function useCategoryMutations() {
-  const invalidate = useLedgerInvalidator();
-  const invalidateMoney = useMoneyInvalidator();
+/**
+ * **How many live entries reference each organiser** — the number the delete confirmation shows
+ * *before* anything is changed.
+ *
+ * ⚠️ **A read, not a trick.** The delete endpoints also return `affectedEntries`, but that is the
+ * count *after* the write; a dialog that only learned the number on success could not warn anyone.
+ * Counts use the same "live entries only" rule as the lists (tombstones are moved by the server but
+ * are not counted here — see `classification.ts`).
+ */
+const classificationUsageKey = (bookId?: string): readonly unknown[] => [
+  "classification-usage",
+  bookId ?? "current",
+];
+
+export function useClassificationUsage(bookId?: string) {
+  return useQuery({
+    queryKey: classificationUsageKey(bookId),
+    queryFn: () =>
+      apiFetch<ClassificationUsageResponse>("/ledger/classification-usage", {
+        ...(bookId === undefined ? {} : { bookId }),
+      }),
+    staleTime: 15_000,
+  });
+}
+
+function useClassificationUsageInvalidator(bookId?: string): () => Promise<void> {
+  const client = useQueryClient();
+  return async () => {
+    await client.invalidateQueries({ queryKey: classificationUsageKey(bookId) });
+  };
+}
+
+/**
+ * ⚠️ **`bookId` is optional and names the ledger for this call only**, exactly like
+ * `useBookMembers` — `apiFetch`'s existing per-call header override carries it, so the global
+ * "当前账本" is not touched. Omitting it keeps the original behaviour: the ledger the reader is in.
+ */
+export function useCategoryMutations(bookId?: string) {
+  const invalidate = useLedgerInvalidator(bookId);
+  const invalidateMoney = useMoneyInvalidator(bookId);
+  const invalidateUsage = useClassificationUsageInvalidator(bookId);
 
   const create = useMutation({
     mutationFn: (input: CreateCategoryInput) =>
-      apiFetch("/categories", { method: "POST", body: input }),
+      apiFetch("/categories", {
+        method: "POST",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
     onSuccess: () => void invalidate(),
   });
 
   const update = useMutation({
     mutationFn: ({ id, ...input }: UpdateCategoryInput & { id: string }) =>
-      apiFetch(`/categories/${id}`, { method: "PATCH", body: input }),
+      apiFetch(`/categories/${id}`, {
+        method: "PATCH",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
     // Renaming or archiving changes how entries render, so the lists refresh too.
-    onSuccess: () => void Promise.all([invalidate(), invalidateMoney()]),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => apiFetch(`/categories/${id}`, { method: "DELETE" }),
-    onSuccess: () => void Promise.all([invalidate(), invalidateMoney()]),
+    mutationFn: (id: string) =>
+      apiFetch(`/categories/${id}`, {
+        method: "DELETE",
+        ...(bookId === undefined ? {} : { bookId }),
+      }),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
-  return { create, update, archive };
+  /**
+   * **Archive and permanent delete are deliberately two actions.** 归档 hides the category from
+   * new entries and keeps every reference; permanent delete re-points the history and removes the
+   * category. One endpoint cannot mean both without a flag that someone will eventually forget.
+   */
+  const permanentDelete = useMutation({
+    mutationFn: ({ id, ...input }: PermanentDeleteCategoryInput & { id: string }) =>
+      apiFetch<ClassificationDeleteResponse>(`/categories/${id}/permanent-delete`, {
+        method: "POST",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
+  });
+
+  return { create, update, archive, permanentDelete };
 }
 
-export function usePaymentMethodMutations() {
-  const invalidate = useLedgerInvalidator();
-  const invalidateMoney = useMoneyInvalidator();
+export function usePaymentMethodMutations(bookId?: string) {
+  const invalidate = useLedgerInvalidator(bookId);
+  const invalidateMoney = useMoneyInvalidator(bookId);
+  const invalidateUsage = useClassificationUsageInvalidator(bookId);
 
   const create = useMutation({
     mutationFn: (input: CreatePaymentMethodInput) =>
-      apiFetch("/payment-methods", { method: "POST", body: input }),
+      apiFetch("/payment-methods", {
+        method: "POST",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
     onSuccess: () => void invalidate(),
   });
 
   const update = useMutation({
     mutationFn: ({ id, ...input }: UpdatePaymentMethodInput & { id: string }) =>
-      apiFetch(`/payment-methods/${id}`, { method: "PATCH", body: input }),
-    onSuccess: () => void Promise.all([invalidate(), invalidateMoney()]),
+      apiFetch(`/payment-methods/${id}`, {
+        method: "PATCH",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => apiFetch(`/payment-methods/${id}`, { method: "DELETE" }),
-    onSuccess: () => void Promise.all([invalidate(), invalidateMoney()]),
+    mutationFn: (id: string) =>
+      apiFetch(`/payment-methods/${id}`, {
+        method: "DELETE",
+        ...(bookId === undefined ? {} : { bookId }),
+      }),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
-  return { create, update, archive };
+  /**
+   * **"未指定" is a real choice, not a failure to choose.** Sending `replacementPaymentMethodId:
+   * null` (or omitting it) asks the server to clear the historical references; choosing another
+   * method re-points them. The two are distinct and both are valid.
+   */
+  const permanentDelete = useMutation({
+    mutationFn: ({ id, ...input }: PermanentDeletePaymentMethodInput & { id: string }) =>
+      apiFetch<ClassificationDeleteResponse>(`/payment-methods/${id}/permanent-delete`, {
+        method: "POST",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
+  });
+
+  return { create, update, archive, permanentDelete };
 }
 
-export function useTagMutations() {
-  const invalidate = useLedgerInvalidator();
-  const invalidateMoney = useMoneyInvalidator();
+export function useTagMutations(bookId?: string) {
+  const invalidate = useLedgerInvalidator(bookId);
+  const invalidateMoney = useMoneyInvalidator(bookId);
+  const invalidateUsage = useClassificationUsageInvalidator(bookId);
 
   const create = useMutation({
-    mutationFn: (input: CreateTagInput) => apiFetch("/tags", { method: "POST", body: input }),
+    mutationFn: (input: CreateTagInput) =>
+      apiFetch("/tags", {
+        method: "POST",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
     onSuccess: () => void invalidate(),
   });
 
   const update = useMutation({
     mutationFn: ({ id, ...input }: UpdateTagInput & { id: string }) =>
-      apiFetch(`/tags/${id}`, { method: "PATCH", body: input }),
-    onSuccess: () => void Promise.all([invalidate(), invalidateMoney()]),
+      apiFetch(`/tags/${id}`, {
+        method: "PATCH",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: input,
+      }),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) =>
-      apiFetch<{ affectedEntries: number }>(`/tags/${id}`, { method: "DELETE" }),
-    onSuccess: () => void Promise.all([invalidate(), invalidateMoney()]),
+      apiFetch<ClassificationDeleteResponse>(`/tags/${id}`, {
+        method: "DELETE",
+        ...(bookId === undefined ? {} : { bookId }),
+      }),
+    onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
   return { create, update, remove };
@@ -1635,15 +1819,31 @@ function describe(filters: ExportFilters, now: Date): string {
   return `账目-${range}-${stamp}`;
 }
 
-export async function fetchExport(filters: ExportFilters): Promise<ExportedFile> {
-  const file = await apiFetchFile("/export", {
-    format: filters.format,
-    monthFrom: filters.monthFrom,
-    monthTo: filters.monthTo,
-    kind: filters.kind,
-    categoryId: filters.categoryId,
-    currency: filters.currency,
-  });
+/**
+ * ⚠️ **`bookId` is optional and names the ledger for this export only**, using `apiFetchFile`'s
+ * existing per-call header override — the same mechanism every other target-ledger call uses.
+ * Omitting it exports **the ledger the reader is in**, which is what `/export` and 明细's toolbar
+ * have always meant.
+ *
+ * ⚠️ **It must travel to the file request too, not only to the screen.** The export route reads the
+ * ledger from the header; a 账本设置 export that forgot the argument would hand the reader a file of
+ * a different ledger with the right file name on it — the least noticeable wrong answer there is.
+ */
+export async function fetchExport(filters: ExportFilters, bookId?: string): Promise<ExportedFile> {
+  const file = await apiFetchFile(
+    "/export",
+    {
+      format: filters.format,
+      monthFrom: filters.monthFrom,
+      monthTo: filters.monthTo,
+      kind: filters.kind,
+      categoryId: filters.categoryId,
+      currency: filters.currency,
+    },
+    // The file request's own default deadline; named here only because `bookId` sits after it.
+    undefined,
+    bookId,
+  );
 
   return {
     fileName: `${describe(filters, new Date())}.${filters.format}`,
@@ -1656,8 +1856,13 @@ export async function fetchExport(filters: ExportFilters): Promise<ExportedFile>
 }
 
 /** The template: headings only, no rows, no traceability columns. */
-export async function fetchTemplate(): Promise<ExportedFile> {
-  const file = await apiFetchFile("/export", { format: "csv", template: "true" });
+export async function fetchTemplate(bookId?: string): Promise<ExportedFile> {
+  const file = await apiFetchFile(
+    "/export",
+    { format: "csv", template: "true" },
+    undefined,
+    bookId,
+  );
 
   return {
     fileName: "记账导入模板.csv",
@@ -1669,9 +1874,15 @@ export async function fetchTemplate(): Promise<ExportedFile> {
   };
 }
 
-export function useExportLog() {
+/**
+ * ⚠️ **Keyed by the ledger when one is named**, for the same reason every other target-ledger read
+ * is: two ledgers' export histories are two different answers and must not share a cache entry.
+ * The bare key stays for the current ledger, so existing invalidation (`["export-log"]`) still
+ * matches both through prefix matching.
+ */
+export function useExportLog(bookId?: string) {
   return useQuery({
-    queryKey: ["export-log"],
+    queryKey: bookId === undefined ? ["export-log"] : ["export-log", bookId],
     queryFn: () =>
       apiFetch<{
         entries: {
@@ -1681,12 +1892,13 @@ export function useExportLog() {
           createdAt: string;
           by: string;
         }[];
-      }>("/export-log"),
+      }>("/export-log", { ...(bookId === undefined ? {} : { bookId }) }),
   });
 }
 
-export function useImportEntries() {
-  const invalidateMoney = useMoneyInvalidator();
+export function useImportEntries(bookId?: string) {
+  const invalidateMoney = useMoneyInvalidator(bookId);
+  const invalidateLedger = useLedgerInvalidator(bookId);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -1694,9 +1906,20 @@ export function useImportEntries() {
       const form = new FormData();
       form.append("fileId", uuidV7());
       form.append("file", file, file.name === "" ? "import.csv" : file.name);
-      return apiFetch<ImportReport>("/import", { method: "POST", formData: form, timeoutMs: 120_000 });
+      return apiFetch<ImportReport>("/import", {
+        method: "POST",
+        ...(bookId === undefined ? {} : { bookId }),
+        formData: form,
+        timeoutMs: 120_000,
+      });
     },
     onSuccess: () => {
+      /**
+       * ⚠️ **An import changes the *counts* as well as the money.** 账本详情 shows 账目数量 and
+       * 编辑记录 from the ledger metadata, so the metadata of the ledger that received the rows has
+       * to be refreshed — the target's when one is named, the current ledger's otherwise.
+       */
+      void invalidateLedger();
       void invalidateMoney();
       void queryClient.invalidateQueries({ queryKey: ["export-log"] });
     },
