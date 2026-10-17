@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../db.js";
+import { recordEvent } from "../ledger/events.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -247,6 +248,7 @@ export async function joinViaShareLink(
   prisma: PrismaClient,
   token: string,
   userId: string,
+  actorName: string,
   now: Date = new Date(),
 ): Promise<{ readonly bookId: string; readonly joined: boolean; readonly role: "editor" | "viewer" }> {
   const preview = await previewShareLink(prisma, token, userId, now);
@@ -293,11 +295,33 @@ export async function joinViaShareLink(
         data: { leftAt: null, role: preview.role },
       });
 
+      /**
+       * ⚠️ **Joining through a link is a membership change and must appear in the ledger's
+       * history**, exactly like accepting an invitation. The history already records the fact
+       * that somebody joined — a route that silently inserted a member would leave the audit
+       * trail answering "how did they get here?" with nothing.
+       */
+      await recordEvent(tx, {
+        bookId: preview.bookId,
+        actorId: userId,
+        actorName,
+        kind: "member_changed",
+        changes: { joined: { from: "曾经退出", to: "通过分享链接重新加入" } },
+      });
+
       return;
     }
 
     await tx.bookMember.create({
       data: { bookId: preview.bookId, userId, role: preview.role },
+    });
+
+    await recordEvent(tx, {
+      bookId: preview.bookId,
+      actorId: userId,
+      actorName,
+      kind: "member_changed",
+      changes: { joined: { from: null, to: "通过分享链接加入" } },
     });
   });
 

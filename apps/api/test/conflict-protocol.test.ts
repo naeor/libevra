@@ -76,6 +76,9 @@ describe("two-device conflict HTTP protocol", () => {
     registerTransactionRoutes(app, { prisma: prisma as unknown as PrismaClient, requireAuth: async request => {
       request.currentUser = { id: "user" } as NonNullable<typeof request.currentUser>;
       request.book = { bookId: "book", role: "editor" };
+    }, requireRead: async request => {
+      request.currentUser = { id: "user" } as NonNullable<typeof request.currentUser>;
+      request.book = { bookId: "book", role: "editor" };
     } });
     try {
       const patch = (device: string, amount: number, base: number, settlesConflict = false) => app.inject({

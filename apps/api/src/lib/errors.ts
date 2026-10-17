@@ -86,6 +86,24 @@ export function registerErrorHandlers(app: FastifyInstance): void {
       return;
     }
 
+    /**
+     * ⚠️ **A foreign-key failure is a race, not an internal fault.**
+     *
+     * A transaction can be created while the category/payment method/tag it names is being
+     * permanently deleted (or a tag is unlinked). PostgreSQL then refuses the insert with
+     * `P2003`. Answering 500 told the client "the server is broken" for a condition it can fix by
+     * refreshing and choosing again; 409 says exactly that. **No write happened**, so retrying is
+     * safe and idempotent for the client's generated ids.
+     */
+    if (typeof error === "object" && error !== null && (error as { code?: unknown }).code === "P2003") {
+      request.log.warn({ err: error }, "foreign key reference disappeared during write");
+      void reply.status(409).send({
+        code: "reference_missing",
+        message: "用到的分类、支付方式或标签刚刚被删除，请刷新后重试。",
+      });
+      return;
+    }
+
     // Fastify's own errors (body parse failures, rate limiting, ...) already
     // carry a status code; anything >= 500 is ours and must not leak details.
     const statusCode = typeof error.statusCode === "number" ? error.statusCode : 500;

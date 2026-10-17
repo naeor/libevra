@@ -107,6 +107,22 @@ describe("share links", () => {
       select: { role: true },
     });
     expect(membership.role).toBe("viewer");
+
+    /**
+     * ⚠️ **Joining through a link is a membership change, so it belongs in the ledger's history.**
+     * Accepting an invitation already wrote `member_changed`; the share-link path inserted the
+     * member silently, which made the audit trail unable to answer "how did they get here?".
+     */
+    const history = await app.inject({
+      method: "GET",
+      url: "/api/v1/ledger/history?limit=5",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    expect(history.statusCode).toBe(200);
+    const entries = (history.json() as {
+      entries: { kind: string; changes: { label: string }[] }[];
+    }).entries;
+    expect(entries.some((entry) => entry.kind === "member_changed" && entry.changes.some((change) => change.label === "joined"))).toBe(true);
   });
 
   it("stops working the moment it is revoked", async () => {

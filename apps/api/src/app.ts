@@ -273,7 +273,17 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
        */
       requireRead: requireBookRead,
     });
-    registerTransactionRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
+    registerTransactionRoutes(app, {
+      prisma: options.prisma,
+      requireAuth: requireBookWrite,
+      /**
+       * ⚠️ **Read versus write is decided per route, not per module.** Registering this whole module
+       * with the write guard made a viewer's `GET /transactions`, `GET /summary` and
+       * `GET /transactions/:id` answer 403 — reading is exactly what the viewer role is for, and
+       * `/stats` already used the read guard. The module now takes both.
+       */
+      requireRead: requireBookRead,
+    });
     registerStatsRoutes(app, { prisma: options.prisma, requireAuth: requireBookRead });
     registerClassificationRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
     registerRecognizeRoutes(app, { requireAuth: requireBookRead, ocr });

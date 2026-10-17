@@ -14,6 +14,7 @@ import { SkeletonRows } from "../components/States.js";
 import { errorMessage } from "../lib/api.js";
 import { CATEGORICAL_COLORS } from "../lib/chart/theme.js";
 import {
+  useBookMembers,
   useCategoryMutations,
   useClassificationUsage,
   useLedger,
@@ -127,6 +128,7 @@ function ArchivableList({
   onRestore,
   onDelete,
   lockedIds = [],
+  readOnly = false,
 }: {
   readonly items: readonly Archivable[];
   readonly busyId: string | null;
@@ -135,10 +137,12 @@ function ArchivableList({
   /**
    * **Permanent delete is a second action, not a stronger archive.** It asks again with the
    * affected-entry count and a replacement choice; see the dialogs below. `undefined` keeps a
-   * screen read-only with respect to deletion (not used today, but the prop stays optional).
+   * screen read-only with respect to deletion.
    */
   readonly onDelete?: ((item: Archivable) => void) | undefined;
   readonly lockedIds?: readonly string[];
+  /** ⚠️ Viewer: the server would 403 every write, so the controls are not offered at all. */
+  readonly readOnly?: boolean;
 }): React.JSX.Element {
   return (
     <ul className="overflow-hidden rounded-card border border-line bg-surface">
@@ -164,7 +168,8 @@ function ArchivableList({
                 ) : null}
               </span>
 
-              <span className="flex shrink-0 items-center gap-3">
+              {readOnly ? null : (
+                <span className="flex shrink-0 items-center gap-3">
                 {locked ? null : item.isArchived ? (
                   <button
                     type="button"
@@ -201,7 +206,8 @@ function ArchivableList({
                     永久删除
                   </button>
                 )}
-              </span>
+                </span>
+              )}
             </div>
           </li>
         );
@@ -261,6 +267,7 @@ export function CategoriesPage(): React.JSX.Element {
 
 function CategoriesForCurrentLedger(): React.JSX.Element {
   const ledger = useLedger();
+  const members = useBookMembers();
   const mutations = useCategoryMutations();
   const usage = useClassificationUsage();
 
@@ -272,6 +279,7 @@ function CategoriesForCurrentLedger(): React.JSX.Element {
       backTo={CURRENT_BACK_TO}
       subtitle={CATEGORIES_HINT}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
+      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
       mutations={mutations}
     />
@@ -280,6 +288,7 @@ function CategoriesForCurrentLedger(): React.JSX.Element {
 
 function CategoriesForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
   const meta = useLedgerMeta(bookId);
+  const members = useBookMembers(bookId);
   const mutations = useCategoryMutations(bookId);
   const usage = useClassificationUsage(bookId);
 
@@ -298,6 +307,7 @@ function CategoriesForBook({ bookId }: { readonly bookId: string }): React.JSX.E
       }
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
+      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
       mutations={mutations}
     />
@@ -312,6 +322,7 @@ function CategoriesView({
   subtitle,
   failure = null,
   shared,
+  canWrite,
   usage,
   mutations,
 }: {
@@ -324,6 +335,7 @@ function CategoriesView({
   readonly failure?: string | null;
   /** A shared ledger must say that a delete/re-point affects every collaborator. */
   readonly shared: boolean;
+  readonly canWrite: boolean;
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof useCategoryMutations>;
 }): React.JSX.Element {
@@ -355,6 +367,7 @@ function CategoriesView({
 
   return (
     <InnerPage title="分类管理" subtitle={subtitle} backTo={backTo}>
+      {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看分类，不能新增、改名、归档或删除。</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -380,7 +393,7 @@ function CategoriesView({
 
       {isSuccess ? (
         <>
-          <AddRow
+          {canWrite ? <AddRow
             placeholder="新分类名称"
             busy={create.isPending}
             onAdd={async (name) => {
@@ -391,10 +404,11 @@ function CategoriesView({
                 setError(errorMessage(caught));
               }
             }}
-          />
+          /> : null}
 
           <ArchivableList
             items={active}
+            readOnly={!canWrite}
             busyId={archive.isPending ? (pendingArchive?.id ?? null) : null}
             lockedIds={systemIds}
             onArchive={(item) => {
@@ -417,6 +431,7 @@ function CategoriesView({
               <h2 className="px-1 text-helper text-muted">已归档（{String(archived.length)}）</h2>
               <ArchivableList
                 items={archived}
+                readOnly={!canWrite}
                 busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
                 onRestore={(item) => {
@@ -532,6 +547,7 @@ export function PaymentMethodsPage(): React.JSX.Element {
 
 function PaymentMethodsForCurrentLedger(): React.JSX.Element {
   const ledger = useLedger();
+  const members = useBookMembers();
   const mutations = usePaymentMethodMutations();
   const usage = useClassificationUsage();
 
@@ -543,6 +559,7 @@ function PaymentMethodsForCurrentLedger(): React.JSX.Element {
       backTo={CURRENT_BACK_TO}
       subtitle={PAYMENT_METHODS_HINT}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
+      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
       mutations={mutations}
     />
@@ -551,6 +568,7 @@ function PaymentMethodsForCurrentLedger(): React.JSX.Element {
 
 function PaymentMethodsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
   const meta = useLedgerMeta(bookId);
+  const members = useBookMembers(bookId);
   const mutations = usePaymentMethodMutations(bookId);
   const usage = useClassificationUsage(bookId);
 
@@ -569,6 +587,7 @@ function PaymentMethodsForBook({ bookId }: { readonly bookId: string }): React.J
       }
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
+      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
       mutations={mutations}
     />
@@ -583,6 +602,7 @@ function PaymentMethodsView({
   subtitle,
   failure = null,
   shared,
+  canWrite,
   usage,
   mutations,
 }: {
@@ -593,6 +613,7 @@ function PaymentMethodsView({
   readonly subtitle: string;
   readonly failure?: string | null;
   readonly shared: boolean;
+  readonly canWrite: boolean;
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof usePaymentMethodMutations>;
 }): React.JSX.Element {
@@ -615,6 +636,7 @@ function PaymentMethodsView({
 
   return (
     <InnerPage title="支付方式" subtitle={subtitle} backTo={backTo}>
+      {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看支付方式，不能新增、改名、归档或删除。</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -623,7 +645,7 @@ function PaymentMethodsView({
 
       {isSuccess ? (
         <>
-          <AddRow
+          {canWrite ? <AddRow
             placeholder="新支付方式"
             busy={create.isPending}
             onAdd={async (name) => {
@@ -634,10 +656,11 @@ function PaymentMethodsView({
                 setError(errorMessage(caught));
               }
             }}
-          />
+          /> : null}
 
           <ArchivableList
             items={active}
+            readOnly={!canWrite}
             busyId={archive.isPending ? (pendingArchive?.id ?? null) : null}
             onArchive={(item) => {
               setPendingArchive(item);
@@ -659,6 +682,7 @@ function PaymentMethodsView({
               <h2 className="px-1 text-helper text-muted">已归档（{String(archived.length)}）</h2>
               <ArchivableList
                 items={archived}
+                readOnly={!canWrite}
                 busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
                 onRestore={(item) => {
@@ -794,6 +818,7 @@ export function TagsPage(): React.JSX.Element {
 
 function TagsForCurrentLedger(): React.JSX.Element {
   const ledger = useLedger();
+  const members = useBookMembers();
   const mutations = useTagMutations();
   const usage = useClassificationUsage();
 
@@ -804,6 +829,7 @@ function TagsForCurrentLedger(): React.JSX.Element {
       backTo={CURRENT_BACK_TO}
       subtitle={TAGS_HINT}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
+      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
       mutations={mutations}
     />
@@ -812,6 +838,7 @@ function TagsForCurrentLedger(): React.JSX.Element {
 
 function TagsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
   const meta = useLedgerMeta(bookId);
+  const members = useBookMembers(bookId);
   const mutations = useTagMutations(bookId);
   const usage = useClassificationUsage(bookId);
 
@@ -829,6 +856,7 @@ function TagsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element
       }
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
+      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
       mutations={mutations}
     />
@@ -842,6 +870,7 @@ function TagsView({
   subtitle,
   failure = null,
   shared,
+  canWrite,
   usage,
   mutations,
 }: {
@@ -851,6 +880,7 @@ function TagsView({
   readonly subtitle: string;
   readonly failure?: string | null;
   readonly shared: boolean;
+  readonly canWrite: boolean;
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof useTagMutations>;
 }): React.JSX.Element {
@@ -866,11 +896,13 @@ function TagsView({
 
   return (
     <InnerPage title="标签" subtitle={subtitle} backTo={backTo}>
+      {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看标签，不能新增或删除。</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
 
-      <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+      {canWrite ? (
+        <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         <input
           value={name}
           maxLength={12}
@@ -917,6 +949,7 @@ function TagsView({
           添加标签
         </button>
       </section>
+      ) : null}
 
       {pending ? <SkeletonRows rows={3} /> : null}
 
@@ -929,15 +962,17 @@ function TagsView({
                   <span style={{ backgroundColor: tag.color }} className="size-3 rounded-full" />
                   <span className="text-body text-ink">{tag.name}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingDelete({ id: tag.id, name: tag.name });
-                  }}
-                  className="shrink-0 text-body text-muted transition hover:text-danger"
-                >
-                  删除
-                </button>
+                {canWrite ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingDelete({ id: tag.id, name: tag.name });
+                    }}
+                    className="shrink-0 text-body text-muted transition hover:text-danger"
+                  >
+                    删除
+                  </button>
+                ) : null}
               </div>
             </li>
           ))}

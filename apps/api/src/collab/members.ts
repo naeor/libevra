@@ -69,7 +69,7 @@ export async function changeMemberRole(
   bookId: string,
   targetUserId: string,
   role: "editor" | "viewer",
-): Promise<{ readonly changed: boolean }> {
+): Promise<{ readonly changed: boolean; readonly previousRole: "owner" | "editor" | "viewer" }> {
   const book = await prisma.book.findUnique({ where: { id: bookId }, select: { createdBy: true } });
   if (!book) throw notFound("book_missing", "找不到这本账。");
 
@@ -86,14 +86,14 @@ export async function changeMemberRole(
     throw notFound("member_missing", "这个人不在这本账里。");
   }
 
-  if (membership.role === role) return { changed: false };
+  if (membership.role === role) return { changed: false, previousRole: membership.role };
 
   await prisma.bookMember.update({
     where: { bookId_userId: { bookId, userId: targetUserId } },
     data: { role },
   });
 
-  return { changed: true };
+  return { changed: true, previousRole: membership.role };
 }
 
 /**

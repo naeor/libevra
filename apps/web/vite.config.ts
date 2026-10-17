@@ -21,6 +21,16 @@ import { defineConfig } from "vite";
 const LAN = process.env["LIBELLUM_LAN"] === "1";
 
 /**
+ * Which local API this dev server proxies `/api` to.
+ *
+ * ⚠️ **Default unchanged** (`127.0.0.1:3000`, the normal local stack). The override exists so a
+ * separate E2E stack — isolated API port and isolated database schema — can run beside the normal
+ * dev server **without touching the owner's localhost database**. Same-origin proxy stays, so the
+ * API still needs no CORS and the browser sees one origin.
+ */
+const API_TARGET = process.env["LIBELLUM_API_TARGET"] ?? "http://127.0.0.1:3000";
+
+/**
  * ⚠️ **The LAN server is HTTPS, and it has to be.**
  *
  * `getUserMedia`, `MediaRecorder`, `crypto.randomUUID` and service workers are
@@ -91,7 +101,7 @@ function serverOptions(): Record<string, unknown> {
     // the client actually used.
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:3000",
+        target: API_TARGET,
       },
     },
   };

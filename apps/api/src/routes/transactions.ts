@@ -38,7 +38,15 @@ const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export interface TransactionRouteOptions {
   readonly prisma: PrismaClient;
+  /** Write strength — POST/PATCH/DELETE/restore/conflict resolution. */
   readonly requireAuth: (request: FastifyRequest) => Promise<void>;
+  /**
+   * ⚠️ **Read strength, separate from write.** Every transaction route used to take the write
+   * guard, so a **viewer could not read the ledger's entries or summary at all** (403
+   * `book_read_only`) even though the product rule is "a viewer sees everything, cannot edit it".
+   * `/stats` already used the read guard; that inconsistency was the clue.
+   */
+  readonly requireRead: (request: FastifyRequest) => Promise<void>;
 }
 
 /** Everything the list and detail views render, in one shape. */
@@ -269,7 +277,7 @@ export function registerTransactionRoutes(
   app: FastifyInstance,
   options: TransactionRouteOptions,
 ): void {
-  const { prisma, requireAuth } = options;
+  const { prisma, requireAuth, requireRead } = options;
 
   // -------------------------------------------------------------------------
   // POST /api/v1/transactions
@@ -395,7 +403,7 @@ export function registerTransactionRoutes(
    * interface has to *show* them: "要删掉旧的" is one of the choices, and nobody
    * can sensibly choose which of two entries to delete without seeing both.
    */
-  app.post("/api/v1/transactions/duplicates", { preHandler: requireAuth }, async (request) => {
+  app.post("/api/v1/transactions/duplicates", { preHandler: requireRead }, async (request) => {
     const body = duplicateCheckSchema.parse(request.body);
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
@@ -442,7 +450,7 @@ export function registerTransactionRoutes(
   // -------------------------------------------------------------------------
   // GET /api/v1/transactions
   // -------------------------------------------------------------------------
-  app.get("/api/v1/transactions", { preHandler: requireAuth }, async (request) => {
+  app.get("/api/v1/transactions", { preHandler: requireRead }, async (request) => {
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
 
@@ -513,7 +521,7 @@ export function registerTransactionRoutes(
   // -------------------------------------------------------------------------
   // GET /api/v1/summary
   // -------------------------------------------------------------------------
-  app.get("/api/v1/summary", { preHandler: requireAuth }, async (request) => {
+  app.get("/api/v1/summary", { preHandler: requireRead }, async (request) => {
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
 
@@ -577,7 +585,7 @@ export function registerTransactionRoutes(
   // -------------------------------------------------------------------------
   // GET /api/v1/transactions/:id
   // -------------------------------------------------------------------------
-  app.get("/api/v1/transactions/:id", { preHandler: requireAuth }, async (request) => {
+  app.get("/api/v1/transactions/:id", { preHandler: requireRead }, async (request) => {
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
     const { id } = request.params as { id: string };
@@ -920,7 +928,7 @@ export function registerTransactionRoutes(
    * ⚠️ **Raised conflicts live on the server, so a device that was offline when the decision was made simply
    * finds nothing here** — "如果用户已经对这个冲突做了一次确认…此时没必要让用户在别的设备上再肯定一次."
    */
-  app.get("/api/v1/conflicts", { preHandler: requireAuth }, async (request) => {
+  app.get("/api/v1/conflicts", { preHandler: requireRead }, async (request) => {
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
 

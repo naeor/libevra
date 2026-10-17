@@ -21,6 +21,7 @@
  * (`test/setup.ts` points `DATABASE_URL` at it and `resetDatabase` refuses to run against
  * anything else), and every account here is made by the suite.
  */
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -909,6 +910,29 @@ describe("12–13. ledger permissions are untouched", () => {
       (await app.inject({ method: "GET", url: "/api/v1/ledger", headers: viewerHeaders }))
         .statusCode,
     ).toBe(200);
+    /**
+     * ⚠️ **Reading is the viewer's whole purpose.** These three routes were accidentally
+     * registered with the *write* guard, so a viewer got 403 `book_read_only` for the entry list,
+     * the monthly summary and one entry. `/stats` had always been a read route, which is what made
+     * the inconsistency visible.
+     */
+    expect(
+      (await app.inject({ method: "GET", url: "/api/v1/transactions", headers: viewerHeaders }))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (await app.inject({ method: "GET", url: "/api/v1/summary", headers: viewerHeaders }))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/api/v1/transactions/${randomUUID()}`,
+          headers: viewerHeaders,
+        })
+      ).statusCode,
+    ).toBe(404);
     expect(
       (
         await app.inject({

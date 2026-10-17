@@ -86,7 +86,13 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
               bookNumber: true,
               createdBy: true,
               disposedAt: true,
-              _count: { select: { members: true } },
+              /**
+               * ⚠️ **Only current members count.** `_count.members` counted rows whose `leftAt`
+               * was set, so a ledger somebody had left reported one member too many. The row is
+               * kept on purpose (it records that the person was once here), so the count must
+               * filter it instead of relying on the relation's raw length.
+               */
+              members: { where: { leftAt: null }, select: { userId: true } },
             },
           },
         },
@@ -100,7 +106,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
           bookNumber: true,
           createdBy: true,
           disposedAt: true,
-          _count: { select: { members: true } },
+          members: { where: { leftAt: null }, select: { userId: true } },
         },
       }),
     ]);
@@ -120,7 +126,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
         role: entry.role,
         isCreator: book.createdBy === userId,
         disposedByMe: false,
-        memberCount: book._count.members,
+        memberCount: book.members.length,
       });
     }
 
@@ -133,7 +139,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
         role: mine.get(book.id)?.role ?? "editor",
         isCreator: true,
         disposedByMe: true,
-        memberCount: book._count.members,
+        memberCount: book.members.length,
       });
     }
 

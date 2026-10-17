@@ -177,7 +177,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const userId = request.currentUser!.id;
     const { token } = request.params as { token: string };
 
-    const result = await joinViaShareLink(prisma, token, userId);
+    const result = await joinViaShareLink(prisma, token, userId, request.currentUser!.displayName);
     return { ok: true, ...result };
   });
 
@@ -228,7 +228,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
         actorName: request.currentUser!.displayName,
         kind: "member_changed",
         changes: {
-          role: { from: book.role, to: `${target?.displayName ?? "成员"}：${body.role === "editor" ? "可编辑" : "仅查看"}` },
+          role: { from: result.previousRole, to: `${target?.displayName ?? "成员"}：${body.role === "editor" ? "可编辑" : "仅查看"}` },
         },
       });
     }

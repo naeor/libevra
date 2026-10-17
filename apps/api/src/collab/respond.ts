@@ -1,4 +1,4 @@
-﻿import type { PrismaClient } from "../db.js";
+import type { PrismaClient } from "../db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { recordEvent } from "../ledger/events.js";
 import { dayOf } from "./notify.js";
@@ -158,7 +158,13 @@ export async function decideNotification(
          */
         await tx.bookMember.update({
           where: { bookId_userId: { bookId: notification.bookId, userId: recipientId } },
-          data: { leftAt: null },
+          /**
+           * ⚠️ **The new invitation's role wins.** Keeping the old role meant re-inviting a person
+           * as viewer silently restored whatever role they had before they left — the inviter's
+           * request was ignored, and the response said "joined" while the role was not the one on
+           * the invitation. The notification payload is the current request; apply it.
+           */
+          data: { leftAt: null, role: roleFrom(notification.payload) },
         });
 
         /**
