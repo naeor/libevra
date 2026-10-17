@@ -449,7 +449,7 @@ function BookCardSplit({
           aria-label={`切换账本${countLabel}`}
           className="group flex min-h-24 shrink-0 flex-col items-center justify-center gap-2 border-t border-line px-4 py-3 text-center transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft active:bg-brand-soft/40 sm:min-h-32 sm:w-40 sm:border-t-0 sm:border-l"
         >
-          <SwitchIcon className="size-11 text-brand transition group-hover:scale-105 group-active:scale-95 sm:size-12" />
+          <SwitchIcon className="size-8 text-brand transition group-hover:scale-105 group-active:scale-95 sm:size-9" />
           <span className="text-helper font-medium text-brand">切换账本</span>
         </Link>
       </div>
