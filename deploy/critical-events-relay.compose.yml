@@ -25,3 +25,8 @@ services:
     # Must join the same internal network as `db`; otherwise "db" is not resolvable and the
     # relay crash-loops with EAI_AGAIN before it can write its heartbeat.
     networks: [internal]
+    # The API image's HTTP healthcheck does not apply: this process has no HTTP listener.
+    # Its real health is the heartbeat in critical_events_relay_heartbeat, observed by
+    # critical:status and the critical-events-health timer.
+    healthcheck:
+      disable: true
