@@ -399,7 +399,8 @@ sudo systemctl enable --now libevra-critical-backup.timer
 
 `critical-events-backup-all.sh` 使用独立锁 `.critical-events-backup.lock`；**不要**和 S12-C
 `backup-all.sh` 的 `.backup.lock` 共用。**普通 S12-C dump 不能用于安全恢复**；只有带
-dump+sidecar 的检查点备份可以。
+dump+sidecar 的检查点备份可以。`critical-events-fetch.sh` 只从正式前缀的 `events/` 和
+`manifests/` 两棵子树取回，并使用 `rclone --fast-list`，避免验收/测试子目录被当作真实事件。
 
 真实 COS + Docker 隔离验收的测试策略、CAM 控制台步骤和演练计划在
 [`tencent-cos/README.md`](tencent-cos/README.md)；当前只有准备文件，**尚未创建任何云资源**。
@@ -413,7 +414,7 @@ chmod 600 deploy/.critical-events-relay.env
 docker compose -f docker-compose.prod.yml -f critical-events-relay.compose.yml up -d critical-relay
 ```
 
-- API 使用 `CRITICAL_EVENTS_MODE=relay`，P0 操作等到 `acked` 才返回成功，否则 503；
+- API 使用 `CRITICAL_EVENTS_MODE=relay`；**业务事务成功后立即返回**，独立 relay 异步上传并在失败时重试/告警；COS/relay 故障不会让已完成的业务返回 503；
 - relay 只有 `critical-events/v1/` 的 PutObject/HeadObject，没有 Get/List/Delete；
 - 恢复只读身份放在离线介质，用 `deploy/critical-events-fetch.sh` 取回；
 - 原始备份直恢复仍独立：见 `deploy/emergency-raw-restore.sh` 与 S13-I 操作手册；
