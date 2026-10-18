@@ -300,6 +300,30 @@ fi
 
 # ---------------------------------------------------------------------------
 echo
+echo "=== 8. systemd unit 与脚本不得对同一把锁重复加锁 ==="
+# ⚠️ 2026-10-18 首次定时备份故障：unit 的 ExecStart 外层加了 flock，backup-all.sh
+#    内部又对同一个 .backup.lock 加锁，内层把外层当成"另一个备份"直接退出 0，
+#    systemd 记录 SUCCESS，但完整备份从未开始，Healthchecks 正确 DOWN。
+UNIT="$DEPLOY/systemd/libevra-backup.service"
+EXEC_LINE="$(grep -E '^ExecStart=' "$UNIT" | head -1)"
+if printf '%s' "$EXEC_LINE" | grep -q 'flock'; then
+  bad "unit ExecStart 仍包含 flock（会与脚本内部锁重复）" "$EXEC_LINE"
+else
+  ok "unit ExecStart 没有外层 flock"
+fi
+if [ "$EXEC_LINE" = "ExecStart=/srv/libevra/deploy/backup-all.sh" ]; then
+  ok "unit 直接执行 backup-all.sh（锁由脚本自己管理）"
+else
+  bad "unit ExecStart 不是预期的直接执行" "$EXEC_LINE"
+fi
+if grep -q 'flock -n 9' "$DEPLOY/backup-all.sh"; then
+  ok "backup-all.sh 保留内部 flock 防并发"
+else
+  bad "backup-all.sh 丢失内部 flock"
+fi
+
+# ---------------------------------------------------------------------------
+echo
 echo "================================"
 echo "  通过 $PASS 项，失败 $FAIL 项"
 echo "================================"
