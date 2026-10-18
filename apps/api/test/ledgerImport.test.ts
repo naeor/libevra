@@ -479,7 +479,7 @@ describe("guest ledger import (D2)", () => {
       headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
     });
     expect(detail.statusCode).toBe(200);
-    expect(detail.json()).toMatchObject({ id: original.id, deletedAt: expect.any(String) as string });
+    expect(detail.json()).toMatchObject({ id: original.id, deletedAt: expect.any(String) as string, deletedByImportId: importId });
 
     const restored = await app.inject({
       method: "POST",

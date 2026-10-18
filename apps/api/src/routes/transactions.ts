@@ -599,7 +599,21 @@ export function registerTransactionRoutes(
 
     if (!row) throw notFound("transaction_missing", "找不到这笔记账。");
 
-    return toDto(row);
+    const dto = toDto(row);
+    if (row.deletedAt === null) return dto;
+
+    /**
+     * D3：通过导入删除的记录要能说明“这不是普通删除，而是账本导入移除的”，
+     * 并给出可核对的导入任务编号；普通删除没有这条事件，因此不显示。
+     */
+    const deletion = await prisma.transactionEvent.findFirst({
+      where: { bookId, transactionId: id, kind: "deleted" },
+      orderBy: { occurredAt: "desc" },
+      select: { changes: true },
+    });
+    const changes = deletion?.changes as Record<string, { to?: unknown }> | null | undefined;
+    const importId = changes?.["importId"]?.to;
+    return typeof importId === "string" ? { ...dto, deletedByImportId: importId } : dto;
   });
 
   // -------------------------------------------------------------------------

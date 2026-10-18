@@ -515,8 +515,10 @@ export const transactionSchema = z.object({
   note: z.string().nullable(),
   tags: z.array(tagSchema),
   version: z.number(),
-  /** D3: present only on a deleted entry fetched by id for history/restore. */ 
+  /** D3: present only on a deleted entry fetched by id for history/restore. */
   deletedAt: z.string().nullable().optional(),
+  /** D3: the import receipt that removed this entry, when the removal came from ledger import. */
+  deletedByImportId: z.string().optional(),
 });
 export type Transaction = z.infer<typeof transactionSchema>;
 

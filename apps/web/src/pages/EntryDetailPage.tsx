@@ -134,6 +134,17 @@ export function EntryDetailPage(): React.JSX.Element {
           <p className="mt-3 text-helper text-muted">
             删除时间：{formatDateTimeInZone(data.deletedAt, data.occurredTz)}
           </p>
+          {data.deletedByImportId === undefined ? null : (
+            <div className="mt-3 border-t border-line pt-3">
+              <p className="text-helper-relaxed text-muted">通过账本导入移除</p>
+              <details className="mt-1">
+                <summary className="cursor-pointer text-helper text-ink">查看导入任务编号</summary>
+                <p className="mt-1 break-all rounded-field bg-canvas px-3 py-2 font-mono text-helper text-muted">
+                  {data.deletedByImportId}
+                </p>
+              </details>
+            </div>
+          )}
           <p className="mt-1 text-helper-relaxed text-muted">
             删除只是把这条记录移入历史；恢复后它仍使用原来的编号，不会变成一笔新账。
           </p>

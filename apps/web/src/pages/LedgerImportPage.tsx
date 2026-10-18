@@ -1120,7 +1120,6 @@ function ReviewStep({
   const sourceRecords = group.records.filter((record) => record.side === "source");
   const targetRecords = group.records.filter((record) => record.side === "target");
   const decision = decisions.get(group.id);
-  const oneToOne = isOneToOne(group);
   const skipped = sourceRecords.filter((record) => sourceHandling(decision, record.transaction.id) === "skip").length;
   const removed = targetRecords.filter((record) => targetHandling(decision, record.transaction.id) === "remove").length;
   const resolved = decisions.has(group.id);
@@ -1159,143 +1158,103 @@ function ReviewStep({
         </div>
       </div>
 
-      {oneToOne ? (
-        <>
-          <div className="rounded-card border border-line bg-surface px-5 py-4">
-            <RecordSection side="source" label="来源 B" records={sourceRecords} />
-            <div className="my-4 h-px bg-line" />
-            <RecordSection side="target" label="目标 A" records={targetRecords} />
+      {isOneToOne(group) ? null : (
+        <div className="rounded-card border border-line bg-surface px-5 py-4">
+          <p className="text-body font-medium text-ink">快捷建议</p>
+          <p className="mt-1 text-helper-relaxed text-muted">
+            这里只填充下面的逐条选择，不会直接删除任何记录；请核对每一笔 A 的去留。
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {(
+              [
+                ["keep_a", "保留 A", "B 全跳过，A 全保留"],
+                ["keep_b", "保留 B", "B 全导入，A 全移除"],
+                ["keep_both", "两边都保留", "B 全导入，A 全保留"],
+                ["keep_neither", "两边都不保留", "B 全跳过，A 全移除"],
+              ] as const
+            ).map(([action, label, hint]) => (
+              <button
+                key={action}
+                type="button"
+                onClick={() => onPreset(group.id, action)}
+                className={`rounded-field border px-3 py-2 text-left text-helper transition ${
+                  decision?.action === action
+                    ? "border-brand bg-brand-soft text-brand-dark"
+                    : "border-line bg-canvas text-muted hover:border-brand/40"
+                }`}
+              >
+                <span className="block font-medium text-ink">{label}</span>
+                <span className="mt-0.5 block">{hint}</span>
+              </button>
+            ))}
           </div>
-
-          <div className="rounded-card border border-line bg-surface px-5 py-4">
-            <p className="text-body font-medium text-ink">这一组怎么处理？</p>
-            <p className="mt-1 text-helper-relaxed text-muted">四条路径都会明确显示是否删除目标 A 的这 1 条记录。</p>
-            <div className="mt-3 flex flex-col gap-2">
-              <DecisionOption
-                selected={decision?.action === "keep_a"}
-                title="保留 A，跳过来源"
-                description="导入 0 条 · 跳过 1 条 · 保留 A 1 条 · 软删除 A 0 条"
-                onClick={() => onPreset(group.id, "keep_a")}
-              />
-              <DecisionOption
-                selected={decision?.action === "keep_b"}
-                title="保留 B，移除 A"
-                description="导入 1 条 · 跳过 0 条 · 保留 A 0 条 · 软删除 A 1 条"
-                onClick={() => onPreset(group.id, "keep_b")}
-              />
-              <DecisionOption
-                selected={decision?.action === "keep_both"}
-                title="两边都保留"
-                description="导入 1 条 · 跳过 0 条 · 保留 A 1 条 · 软删除 A 0 条"
-                onClick={() => onPreset(group.id, "keep_both")}
-              />
-              <DecisionOption
-                selected={decision?.action === "keep_neither"}
-                title="两边都不保留"
-                description="导入 0 条 · 跳过 1 条 · 保留 A 0 条 · 软删除 A 1 条"
-                onClick={() => onPreset(group.id, "keep_neither")}
-              />
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="rounded-card border border-line bg-surface px-5 py-4">
-            <p className="text-body font-medium text-ink">这一组有多条记录，需要逐条确认</p>
-            <p className="mt-1 text-helper-relaxed text-muted">
-              快捷建议只会填入下面的逐条选择；不会直接删除 A。请在下方核对每一笔「导入 / 跳过」和「保留 / 移除」。
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {(
-                [
-                  ["keep_a", "保留 A", "B 全跳过，A 全保留"],
-                  ["keep_b", "保留 B", "B 全导入，A 全移除"],
-                  ["keep_both", "两边都保留", "B 全导入，A 全保留"],
-                  ["keep_neither", "两边都不保留", "B 全跳过，A 全移除"],
-                ] as const
-              ).map(([action, label, hint]) => (
-                <button
-                  key={action}
-                  type="button"
-                  onClick={() => onPreset(group.id, action)}
-                  className={`rounded-field border px-3 py-2 text-left text-helper transition ${
-                    decision?.action === action
-                      ? "border-brand bg-brand-soft text-brand-dark"
-                      : "border-line bg-canvas text-muted hover:border-brand/40"
-                  }`}
-                >
-                  <span className="block font-medium text-ink">{label}</span>
-                  <span className="mt-0.5 block">{hint}</span>
-                </button>
-              ))}
-            </div>
-            <p className="mt-3 text-helper-relaxed text-muted">
-              {resolved
-                ? `本组目前：导入 ${String(sourceRecords.length - skipped)} 条 · 跳过 ${String(skipped)} 条 · 保留 A ${String(targetRecords.length - removed)} 条 · 软删除 A ${String(removed)} 条`
-                : "本组尚未确认；点任一快捷建议或逐条调整后生效。"}
-            </p>
-          </div>
-
-          <div className="rounded-card border border-line bg-surface px-5 py-4">
-            <p className="text-body font-medium text-ink">来源 B：哪些要导入？</p>
-            <ul className="mt-2 divide-y divide-line">
-              {sourceRecords.map((record) => {
-                const handling = sourceHandling(decision, record.transaction.id);
-                return (
-                  <li key={record.transaction.id} className="py-3">
-                    <RecordFacts record={record} />
-                    <div className="mt-2 flex gap-2">
-                      <HandlingButton
-                        selected={handling === "import"}
-                        label="导入"
-                        onClick={() => onSource(group.id, record.transaction.id, "import")}
-                      />
-                      <HandlingButton
-                        selected={handling === "skip"}
-                        label="跳过"
-                        onClick={() => onSource(group.id, record.transaction.id, "skip")}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          <div className="rounded-card border border-line bg-surface px-5 py-4">
-            <p className="text-body font-medium text-ink">目标 A：哪些保留，哪些软删除？</p>
-            <ul className="mt-2 divide-y divide-line">
-              {targetRecords.map((record) => {
-                const handling = targetHandling(decision, record.transaction.id);
-                return (
-                  <li key={record.transaction.id} className="py-3">
-                    <RecordFacts record={record} />
-                    <div className="mt-2 flex gap-2">
-                      <HandlingButton
-                        selected={handling === "keep"}
-                        label="保留"
-                        onClick={() => onTarget(group.id, record.transaction.id, "keep")}
-                      />
-                      <HandlingButton
-                        selected={handling === "remove"}
-                        label="移除（软删除）"
-                        tone="danger"
-                        onClick={() => onTarget(group.id, record.transaction.id, "remove")}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          {removed > 0 ? (
-            <p className="text-helper-relaxed text-muted">
-              本组将软删除 A 的 {String(removed)} 条记录。最终确认前还会再列出具体记录并单独确认一次。
-            </p>
-          ) : null}
-        </>
+        </div>
       )}
+
+      <div className="rounded-card border border-line bg-surface px-5 py-4">
+        <p className="text-body font-medium text-ink">
+          来源 B
+          <span className="ml-2 text-helper font-normal text-muted">导入 / 跳过</span>
+        </p>
+        <ul className="mt-1 divide-y divide-line">
+          {sourceRecords.map((record) => {
+            const handling = sourceHandling(decision, record.transaction.id);
+            return (
+              <li key={record.transaction.id} className="py-3">
+                <RecordFacts record={record} />
+                <SegmentedChoice
+                  label={`来源记录处理：${record.transaction.note ?? record.categoryLabel}`}
+                  value={handling}
+                  options={[
+                    { value: "import", label: "导入" },
+                    { value: "skip", label: "跳过" },
+                  ]}
+                  onChange={(next) => onSource(group.id, record.transaction.id, next as SourceHandling)}
+                />
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="my-4 h-px bg-line" />
+
+        <p className="text-body font-medium text-ink">
+          目标 A
+          <span className="ml-2 text-helper font-normal text-muted">保留 / 移除（软删除）</span>
+        </p>
+        <ul className="mt-1 divide-y divide-line">
+          {targetRecords.map((record) => {
+            const handling = targetHandling(decision, record.transaction.id);
+            return (
+              <li
+                key={record.transaction.id}
+                className={`py-3 ${handling === "remove" ? "rounded-field bg-danger/5 px-3" : ""}`}
+              >
+                <RecordFacts record={record} />
+                <SegmentedChoice
+                  label={`目标记录处理：${record.transaction.note ?? record.categoryLabel}`}
+                  value={handling}
+                  options={[
+                    { value: "keep", label: "保留" },
+                    { value: "remove", label: "移除（软删除）", tone: "danger" },
+                  ]}
+                  onChange={(next) => onTarget(group.id, record.transaction.id, next as TargetHandling)}
+                />
+              </li>
+            );
+          })}
+        </ul>
+
+        <p className="mt-3 text-helper-relaxed text-muted">
+          {resolved ? decisionSummary(sourceRecords.length - skipped, skipped, targetRecords.length - removed, removed, group) : "请为每笔来源和目标记录选择处理方式，之后才能继续。"}
+        </p>
+      </div>
+
+      {removed > 0 ? (
+        <p className="text-helper-relaxed text-muted">
+          最终确认时会再次列出这 {String(removed)} 笔将被软删除的 A 记录，并要求明确确认。
+        </p>
+      ) : null}
 
       <div className="border-t border-line pt-3">
         <div className="flex items-center gap-3">
@@ -1331,31 +1290,63 @@ function ReviewStep({
   );
 }
 
-function HandlingButton({
-  selected,
+/**
+ * 一对一的两笔记录也使用同样的逐条控件：
+ * 「导入 / 跳过」×「保留 / 移除」自然构成四种组合，不再渲染四张重复统计的大卡片。
+ */
+function decisionSummary(
+  imported: number,
+  skipped: number,
+  kept: number,
+  removed: number,
+  group: ImportPreview["duplicateGroups"][number],
+): string {
+  if (imported === group.sourceCount && skipped === 0 && removed === 0) {
+    return "将导入全部来源记录，目标记录全部保留。";
+  }
+  if (imported === 0 && kept === 0 && removed === group.targetCount) {
+    return "将跳过全部来源记录，并移除全部目标记录。";
+  }
+  if (imported === 0 && skipped === group.sourceCount && removed === 0) {
+    return "将跳过全部来源记录，目标记录全部保留。";
+  }
+  return `将导入 ${String(imported)} 笔来源记录、跳过 ${String(skipped)} 笔；目标 A 保留 ${String(kept)} 笔、软删除 ${String(removed)} 笔。`;
+}
+
+function SegmentedChoice({
   label,
-  tone = "default",
-  onClick,
+  value,
+  options,
+  onChange,
 }: {
-  readonly selected: boolean;
   readonly label: string;
-  readonly tone?: "default" | "danger";
-  readonly onClick: () => void;
+  readonly value: string;
+  readonly options: readonly { readonly value: string; readonly label: string; readonly tone?: "danger" }[];
+  readonly onChange: (value: string) => void;
 }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex-1 rounded-field border px-3 py-2 text-helper transition ${
-        selected
-          ? tone === "danger"
-            ? "border-danger bg-danger/10 text-danger-dark"
-            : "border-brand bg-brand-soft text-brand-dark"
-          : "border-line bg-surface text-muted hover:border-brand/40"
-      }`}
-    >
-      {label}
-    </button>
+    <div role="group" aria-label={label} className="mt-2 grid grid-cols-2 gap-1 rounded-field bg-canvas p-1">
+      {options.map((option) => {
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            className={`rounded-field px-3 py-2 text-helper font-medium transition ${
+              selected
+                ? option.tone === "danger"
+                  ? "bg-danger/10 text-danger-dark"
+                  : "bg-brand-soft text-brand-dark"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1379,97 +1370,6 @@ function RecordFacts({ record }: { readonly record: DuplicateRecord }): React.JS
         <p className="mt-0.5 text-helper text-muted">{transaction.note}</p>
       )}
     </div>
-  );
-}
-
-function DecisionOption({
-  selected,
-  title,
-  description,
-  onClick,
-}: {
-  readonly selected: boolean;
-  readonly title: string;
-  readonly description: string;
-  readonly onClick: () => void;
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-field border px-4 py-3 text-left transition ${
-        selected ? "border-brand bg-brand-soft" : "border-line bg-surface hover:border-brand/40"
-      }`}
-    >
-      <span className="flex items-center gap-2 text-body font-medium text-ink">
-        <span
-          aria-hidden="true"
-          className={`flex size-4 items-center justify-center rounded-full border ${
-            selected ? "border-brand bg-brand text-white" : "border-line"
-          }`}
-        >
-          {selected ? "✓" : ""}
-        </span>
-        {title}
-      </span>
-      <span className="mt-1 block pl-6 text-helper-relaxed text-muted">{description}</span>
-    </button>
-  );
-}
-
-function RecordSection({
-  side,
-  label,
-  records,
-}: {
-  readonly side: DuplicateRecord["side"];
-  readonly label: string;
-  readonly records: readonly DuplicateRecord[];
-}): React.JSX.Element {
-  return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-helper ${
-            side === "source" ? "bg-brand-soft text-brand-dark" : "bg-canvas text-muted"
-          }`}
-        >
-          {label}
-        </span>
-        <span className="text-helper text-muted">{records.length} 条</span>
-      </div>
-      <ul className="divide-y divide-line">
-        {records.map((record) => (
-          <DuplicateRecordView key={record.transaction.id} record={record} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function DuplicateRecordView({ record }: { readonly record: DuplicateRecord }): React.JSX.Element {
-  const transaction = record.transaction;
-  return (
-    <li className="py-3 first:pt-1 last:pb-1">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-lg font-semibold tabular-nums text-ink">
-          {formatMoney(transaction.amountCents, transaction.currency)}
-        </span>
-        <span className="shrink-0 text-helper text-muted">
-          {transaction.occurredLocalDate} · {formatTimeWithZone(transaction.occurredAt, transaction.occurredTz)}
-        </span>
-      </div>
-      <p className="mt-1 text-body text-ink">
-        {record.categoryLabel}
-        {transaction.paymentMethodName === null ? "" : ` · ${transaction.paymentMethodName}`}
-      </p>
-      {record.tagLabels.length === 0 ? null : (
-        <p className="mt-1 text-helper text-muted">标签：{record.tagLabels.join("、")}</p>
-      )}
-      {transaction.note === null || transaction.note === "" ? null : (
-        <p className="mt-1 text-helper-relaxed text-muted">{transaction.note}</p>
-      )}
-    </li>
   );
 }
 
