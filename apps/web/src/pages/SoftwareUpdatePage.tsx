@@ -102,7 +102,7 @@ export function SoftwareUpdatePage(): React.JSX.Element {
           </p>
         ) : (
           <Link
-            to="/update/announcements"
+            to={`/update/announcements/${latest.version}`}
             className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-3.5 transition hover:border-brand/40 hover:bg-brand-soft/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

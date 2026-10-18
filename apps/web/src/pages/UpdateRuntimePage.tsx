@@ -54,14 +54,6 @@ export function UpdateRuntimePage(): React.JSX.Element {
 
       {snapshot === null ? null : (
         <>
-          <CopyButton
-            text={formatRuntimeReport(snapshot)}
-            label="复制诊断信息"
-            copiedLabel="已复制诊断信息"
-            rows={10}
-            hint="如果遇到问题，可以把这些内容复制给开发者。"
-          />
-
           <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
             <h2 className="text-sm font-semibold text-ink">应用与构建</h2>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-body">
@@ -107,6 +99,17 @@ export function UpdateRuntimePage(): React.JSX.Element {
             <Button variant="secondary" onClick={() => void load()} disabled={loading}>
               重新读取
             </Button>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <h2 className="text-sm font-semibold text-ink">诊断信息</h2>
+            <CopyButton
+              text={formatRuntimeReport(snapshot)}
+              label="复制诊断信息"
+              copiedLabel="已复制诊断信息"
+              rows={10}
+              hint="如果遇到问题，可以把这些内容复制给开发者。"
+            />
           </section>
         </>
       )}
