@@ -134,8 +134,9 @@ export function LedgerPage(): React.JSX.Element {
             *
             * ⚠️ **The two cards must stay the same height.** His instruction: *"两张卡片应保持一致的高度
             * 与布局节奏。较长的账本名称、较多的成员数量和窄屏幕不应导致文字溢出或布局错乱."* The grid
-            * gives them the same row; `h-full` and `min-h-0` with `truncate`/`line-clamp` keep a long
-            * name or a crowd from changing that.
+            * gives them the same row; `h-full` and `min-h-0` keep that. The book name **wraps**
+            * (rather than being ellipsed) so a long name grows the shared row instead of losing text;
+            * the member card stretches with it, and the switch stays a compact bar.
             */}
           {shared ? (
             <section className="grid grid-cols-2 items-stretch gap-3 px-6 pt-6">
@@ -437,7 +438,7 @@ function BookCardSplit({
           className="flex min-h-20 min-w-0 flex-1 flex-col justify-between gap-1.5 p-4 text-left transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
         >
           <span className="text-helper text-muted">当前账本</span>
-          <span className="truncate text-base font-medium text-ink">{name}</span>
+          <span className="break-words text-base font-medium text-ink">{name}</span>
           <span className="truncate font-mono text-helper text-muted">
             {bookNumber ?? "（未分配编号）"}
           </span>
