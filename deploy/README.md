@@ -390,12 +390,13 @@ systemctl list-timers libevra-lifecycle.timer --no-pager
 # 64 hex（32 字节）或 base64 32 字节均可；初始 keyId 用 v1。
 umask 077
 openssl rand -hex 32 > /tmp/libevra-event-key.v1
-# 由所有者把值写入 .critical-events-relay.env 的 CRITICAL_EVENT_KEY，然后删除临时文件。
+# 由所有者把值写入 deploy/.critical-events-key.env 的 CRITICAL_EVENT_KEY（600），
+# 然后删除临时文件。该文件只被 relay 与 checkpoint timer 加载，API 不加载。
 
-# 首次空链 checkpoint（API 必须尚未启动；先加载 relay env 取得事件密钥）：
-set -a; . ./.critical-events-relay.env; set +a
+# 首次空链 checkpoint（API 必须尚未启动；先加载事件密钥文件）：
+set -a; . ./.critical-events-key.env; set +a
 CRITICAL_BACKUP_OFFSITE=cos ./critical-events-backup-all.sh "initial-empty-seq0"
-# 自动调度：timer 服务显式设置 CRITICAL_BACKUP_OFFSITE=cos
+# 自动调度：timer 服务显式设置 CRITICAL_BACKUP_OFFSITE=cos，并加载 key env。
 # 恢复机从异地取回并校验（需只读 COS_RESTORE_*）：
 ./critical-events-fetch-backup.sh --latest --out /tmp/recovery
 # 安装 timer（仓库副本；先手动跑一次验收）：

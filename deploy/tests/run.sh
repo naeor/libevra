@@ -296,6 +296,18 @@ if grep -q 'libevra-critical-health.timer' "$DEPLOY/README.md"; then
 else
   bad "README 未记录 critical-health timer 安装"
 fi
+if [ -f "$DEPLOY/.critical-events-key.env.example" ] \
+   && grep -q '^EnvironmentFile=/srv/libevra/deploy/.critical-events-key.env$' "$DEPLOY/systemd/libevra-critical-backup.service" \
+   && grep -q '^[[:space:]]*- .critical-events-key.env$' "$DEPLOY/critical-events-relay.compose.yml"; then
+  ok "事件密钥由独立 key env 提供，仅 relay 与 checkpoint timer 加载"
+else
+  bad "事件密钥隔离配置不完整"
+fi
+if grep -q '^CRITICAL_EVENT_KEY=' "$DEPLOY/.critical-events-relay.env.example"; then
+  bad "relay env 示例仍重复存放事件密钥"
+else
+  ok "relay env 示例不重复存放事件密钥"
+fi
 
 # ---------------------------------------------------------------------------
 echo

@@ -11,6 +11,8 @@ WorkingDirectory=/srv/libevra/deploy
 # The timer must always produce the independent COS copy, not merely a local checkpoint.
 # `.env` also contains this for manual runs; keep both consistent.
 Environment=CRITICAL_BACKUP_OFFSITE=cos
+# Event key for the checkpoint sidecar HMAC. This file is not loaded by the API container.
+EnvironmentFile=/srv/libevra/deploy/.critical-events-key.env
 ExecStart=/srv/libevra/deploy/critical-events-backup-all.sh
 TimeoutStartSec=2h
 Nice=10

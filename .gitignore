@@ -131,6 +131,7 @@ deploy/.backup-heartbeat.env
 deploy/.backup-notify.env
 # S13-I 独立事件登记簿：API 不持有 COS 凭据；只有 relay 服务读这个文件。
 deploy/.critical-events-relay.env
+deploy/.critical-events-key.env
 deploy/.critical-events-restore.env
 deploy/critical-backups/
 deploy/.critical-events-backup.lock
