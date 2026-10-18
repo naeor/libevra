@@ -32,6 +32,7 @@ _backups/
 
 # Local backup/runtime data
 deploy/backups/
+deploy/.critical-events-health-alert/
 **/*.dump
 **/*.dump.gpg
 **/*.gpg

@@ -135,6 +135,7 @@ deploy/.critical-events-restore.env
 deploy/critical-backups/
 deploy/.critical-events-backup.lock
 deploy/.critical-events-backup.lock.d/
+deploy/.critical-events-health-alert/
 deploy/.s13i-test.env
 deploy/.s13i-test.api.env
 deploy/.s13i-test.relay.env

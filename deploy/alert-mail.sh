@@ -35,8 +35,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 BACKUP_DIR="$SCRIPT_DIR/backups"
-STATE_FILE="$BACKUP_DIR/alert-state.json"
-mkdir -p "$BACKUP_DIR"
+ALERT_STATE_DIR="${ALERT_STATE_DIR:-$BACKUP_DIR}"
+STATE_FILE="$ALERT_STATE_DIR/alert-state.json"
+mkdir -p "$BACKUP_DIR" "$ALERT_STATE_DIR"
 
 STAGE="unknown"
 ERROR_MSG=""
