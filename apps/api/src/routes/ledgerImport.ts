@@ -15,6 +15,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "../db.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { createDefaultLedger } from "../ledger/bootstrap.js";
+import { recordEvent } from "../ledger/events.js";
 import { loadExistingImportTarget, loadTargetSnapshot } from "../ledger/importTarget.js";
 import { allocateTransactionSeq } from "../ledger/transactionSeq.js";
 import { badRequest, conflict, forbidden } from "../lib/errors.js";
@@ -325,6 +326,7 @@ function buildTotals(rows: readonly { kind: "expense" | "income"; amountCents: n
 async function executeImport(
   prisma: PrismaClient,
   userId: string,
+  actorName: string | null,
   body: ReturnType<typeof ledgerImportRequestSchema.parse>,
 ): Promise<LedgerImportResult> {
   assertSourceIsSelfConsistent(body.source);
@@ -350,16 +352,10 @@ async function executeImport(
   }
 
   assertTaxonomyCoverage(body.source, body.taxonomy);
-  assertDuplicateDecisions(body, initialTarget?.snapshot ?? null, targetIsNew);
+  const plan = buildDecisionPlan(body, initialTarget?.snapshot ?? null, targetIsNew);
 
-  const selectedSourceIds = new Set(body.source.transactions.map((item) => item.id));
-  const skippedIds = new Set<string>();
-  for (const group of body.duplicateGroups) {
-    for (const sourceId of group.sourceIds) {
-      if (!selectedSourceIds.has(sourceId)) throw badRequest("decision_source_missing", "重复决定引用了不存在的来源账目。");
-      if (group.action === "keep_a") skippedIds.add(sourceId);
-    }
-  }
+  const skippedIds = plan.skippedSourceIds;
+  const removedTargetIds = plan.removedTargetIds;
 
   const importSource = body.source.transactions
     .filter((item) => !skippedIds.has(item.id))
@@ -401,10 +397,47 @@ async function executeImport(
         targetIsNew,
       );
 
+      const removedTargets: NonNullable<LedgerImportResult["removedTargets"]> = [];
+      if (removedTargetIds.size > 0) {
+        const deletedAt = new Date();
+        for (const targetId of removedTargetIds) {
+          const row = await tx.transaction.findFirst({
+            where: { id: targetId, bookId: targetBookId, deletedAt: null },
+            select: { id: true, seq: true, version: true },
+          });
+          if (row === null) {
+            throw conflict("target_changed", "要移除的目标账目已经被删除或修改，请重新预览。");
+          }
+          await tx.transaction.update({
+            where: { id: row.id },
+            data: { deletedAt, version: row.version + 1 },
+          });
+          const groupId = plan.groupOfTarget.get(targetId) ?? "";
+          await recordEvent(tx, {
+            bookId: targetBookId,
+            transactionId: row.id,
+            transactionSeq: row.seq,
+            actorId: userId,
+            actorName,
+            kind: "deleted",
+            changes: {
+              importId: { from: null, to: receiptId },
+              importSource: { from: null, to: "guest" },
+              importGroupId: { from: null, to: groupId },
+            },
+          });
+          removedTargets.push({ targetTransactionId: row.id, targetSeq: row.seq, groupId });
+        }
+      }
+
       // Avoid silently importing the same guest row twice into the same target. The unique
       // (bookId, sourceRef) index is the final backstop; this check gives a useful error.
       const existingRefs = await tx.transaction.findMany({
-        where: { bookId: targetBookId, sourceRef: { in: importSource.map((item) => item.id) } },
+        where: {
+          bookId: targetBookId,
+          deletedAt: null,
+          sourceRef: { in: importSource.map((item) => item.id) },
+        },
         select: { sourceRef: true },
       });
       if (existingRefs.length > 0) {
@@ -455,7 +488,8 @@ async function executeImport(
       }
 
       const targetCountAfter = await tx.transaction.count({ where: { bookId: targetBookId, deletedAt: null } });
-      const expectedAfter = targetSnapshot.transactions.length + importSource.length;
+      const expectedAfter =
+        targetSnapshot.transactions.length - removedTargetIds.size + importSource.length;
       if (targetCountAfter !== expectedAfter) {
         throw new Error(`导入后目标账目数量不一致：expected ${String(expectedAfter)}, got ${String(targetCountAfter)}`);
       }
@@ -487,8 +521,10 @@ async function executeImport(
         sourceCount: body.source.transactions.length,
         importedCount: importSource.length,
         skippedCount: skippedIds.size,
+        removedCount: removedTargets.length,
         targetExistingBefore: targetSnapshot.transactions.length,
         targetCountAfter,
+        removedTargets,
         totals: actualTotals,
         imported,
         taxonomy: {
@@ -512,8 +548,7 @@ async function executeImport(
           targetFingerprint,
           importedCount: importSource.length,
           skippedCount: skippedIds.size,
-          result: receipt,
-        },
+          result: receipt,        },
       });
 
       return receipt;
@@ -545,30 +580,112 @@ async function executeImport(
   }
 }
 
-function assertDuplicateDecisions(
+interface ImportDecisionPlan {
+  readonly skippedSourceIds: ReadonlySet<string>;
+  readonly removedTargetIds: ReadonlySet<string>;
+  readonly groupOfTarget: ReadonlyMap<string, string>;
+}
+
+function buildDecisionPlan(
   body: ReturnType<typeof ledgerImportRequestSchema.parse>,
   target: ImportTargetSnapshot | null,
   targetIsNew: boolean,
-): void {
+): ImportDecisionPlan {
   if (targetIsNew && body.duplicateGroups.length > 0) {
     throw badRequest("duplicate_new_target", "新目标账本不应有重复组决定。");
   }
+
   const sourceIds = new Set(body.source.transactions.map((item) => item.id));
   const targetIds = new Set(target?.transactions.map((item) => item.id) ?? []);
   const seenSource = new Set<string>();
   const seenTarget = new Set<string>();
+  const skippedSourceIds = new Set<string>();
+  const removedTargetIds = new Set<string>();
+  const groupOfTarget = new Map<string, string>();
+
   for (const group of body.duplicateGroups) {
+    const groupSources = new Set<string>();
+    const groupTargets = new Set<string>();
     for (const sourceId of group.sourceIds) {
       if (!sourceIds.has(sourceId)) throw badRequest("decision_source_missing", "重复决定引用了不存在的来源账目。");
       if (seenSource.has(sourceId)) throw badRequest("decision_duplicate_source", "同一来源账目被放进了多个重复组。");
+      if (groupSources.has(sourceId)) throw badRequest("decision_duplicate_source", "同一来源账目在组内重复。");
       seenSource.add(sourceId);
+      groupSources.add(sourceId);
     }
     for (const targetId of group.targetIds) {
-      if (!targetIds.has(targetId)) throw badRequest("decision_target_missing", "重复决定引用了不存在的目标账目，请重新预览。");
+      if (!targetIds.has(targetId)) {
+        throw badRequest("decision_target_missing", "重复决定引用了不存在的目标账目，请重新预览。");
+      }
       if (seenTarget.has(targetId)) throw badRequest("decision_duplicate_target", "同一目标账目被放进了多个重复组。");
+      if (groupTargets.has(targetId)) throw badRequest("decision_duplicate_target", "同一目标账目在组内重复。");
       seenTarget.add(targetId);
+      groupTargets.add(targetId);
+    }
+
+    const sourceActions = new Map<string, "import" | "skip">();
+    const targetActions = new Map<string, "keep" | "remove">();
+
+    if (group.sourceActions !== undefined) {
+      if (group.sourceActions.length !== group.sourceIds.length) {
+        throw badRequest("decision_source_incomplete", "逐条核对必须覆盖本组全部来源账目。");
+      }
+      for (const item of group.sourceActions) {
+        if (!groupSources.has(item.sourceTransactionId)) {
+          throw badRequest("decision_source_missing", "逐条决定引用了不属于本组的来源账目。");
+        }
+        if (sourceActions.has(item.sourceTransactionId)) {
+          throw badRequest("decision_duplicate_source", "同一来源账目的处理被重复提交。");
+        }
+        sourceActions.set(item.sourceTransactionId, item.action);
+      }
+    } else {
+      if (group.action === undefined) {
+        throw badRequest("decision_action_missing", "请为每个重复组选择处理方式。");
+      }
+      const skip = group.action === "keep_a" || group.action === "keep_neither";
+      for (const sourceId of group.sourceIds) sourceActions.set(sourceId, skip ? "skip" : "import");
+    }
+
+    if (group.targetActions !== undefined) {
+      if (group.targetActions.length !== group.targetIds.length) {
+        throw badRequest("decision_target_incomplete", "逐条核对必须覆盖本组全部目标账目。");
+      }
+      for (const item of group.targetActions) {
+        if (!groupTargets.has(item.targetTransactionId)) {
+          throw badRequest("decision_target_missing", "逐条决定引用了不属于本组的目标账目。");
+        }
+        if (targetActions.has(item.targetTransactionId)) {
+          throw badRequest("decision_duplicate_target", "同一目标账目的处理被重复提交。");
+        }
+        targetActions.set(item.targetTransactionId, item.action);
+      }
+    } else {
+      if (group.action === undefined || group.action === "custom") {
+        throw badRequest("decision_target_missing", "逐条核对必须明确每笔目标记录是保留还是移除。");
+      }
+      const remove = group.action === "keep_b" || group.action === "keep_neither";
+      if (remove && (group.sourceIds.length > 1 || group.targetIds.length > 1)) {
+        throw badRequest(
+          "group_removal_not_explicit",
+          "一对多/多对多组不能用一个组级选择批量删除 A 记录，请逐条确认删除范围。",
+        );
+      }
+      for (const targetId of group.targetIds) targetActions.set(targetId, remove ? "remove" : "keep");
+    }
+
+    for (const sourceId of group.sourceIds) {
+      if (sourceActions.get(sourceId) === "skip") skippedSourceIds.add(sourceId);
+    }
+    for (const targetId of group.targetIds) {
+      if (targetActions.get(targetId) === "remove") {
+        removedTargetIds.add(targetId);
+        groupOfTarget.set(targetId, group.groupId);
+      }
     }
   }
+
+  return { skippedSourceIds, removedTargetIds, groupOfTarget };
 }
 
 export function registerLedgerImportRoutes(app: FastifyInstance, options: LedgerImportRouteOptions): void {
@@ -587,7 +704,12 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
       throw badRequest("target_required", "请选择目标账本。");
     }
 
-    const result = await executeImport(options.prisma, userId, body);
+    const result = await executeImport(
+      options.prisma,
+      userId,
+      request.currentUser?.displayName ?? null,
+      body,
+    );
     return reply.send(result);
   });
 }

@@ -9,13 +9,14 @@ import {
 import { useAuth } from "../auth/AuthProvider.js";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { apiFetch, ApiRequestError, errorMessage } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
 import { formatTimeWithZone } from "../lib/datetime.js";
 import { DEFAULT_BOOK_NAME } from "@libellum/shared";
-import { useBooks } from "../lib/queries.js";
+import { useActivateBook, useBooks } from "../lib/queries.js";
 import {
   buildNewImportTarget,
   hasLocalGuestIdentity,
@@ -33,9 +34,24 @@ import {
   buildLedgerImportRequest,
   unresolvedConflicts,
   unresolvedDuplicateGroups,
-  type DuplicateAction,
-  type DuplicateDecisionMap,
 } from "../lib/ledgerImport/submit.js";
+import {
+  importedSourceCount,
+  isOneToOne,
+  presetDecision,
+  removedTargets,
+  skippedSourceIds,
+  sourceHandling,
+  targetHandling,
+  unresolvedGroupCount,
+  withSourceHandling,
+  withTargetHandling,
+  type GroupDecisionDraft,
+  type GroupDecisionMap,
+  type GroupPresetAction,
+  type SourceHandling,
+  type TargetHandling,
+} from "../lib/ledgerImport/decisions.js";
 import {
   loadPendingTasks,
   removePendingTask,
@@ -95,17 +111,6 @@ function totalsOf(transactions: readonly { kind: "expense" | "income"; amountCen
     .map(([currency, value]) => ({ currency, ...value }));
 }
 
-function skippedSourceIds(preview: ImportPreview, decisions: DuplicateDecisionMap): ReadonlySet<string> {
-  const ids = new Set<string>();
-  for (const group of preview.duplicateGroups) {
-    if (decisions.get(group.id) !== "keep_a") continue;
-    for (const record of group.records) {
-      if (record.side === "source") ids.add(record.transaction.id);
-    }
-  }
-  return ids;
-}
-
 export function LedgerImportPage(): React.JSX.Element {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -118,11 +123,13 @@ export function LedgerImportPage(): React.JSX.Element {
   const requestedGroup = parseGroup(search.get("group"));
 
   const books = useBooks();
+  const activateBook = useActivateBook();
   const [snapshots, setSnapshots] = useState<{ source: ImportSource; target: ImportTarget } | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolutions, setResolutions] = useState<Map<string, TaxonomyResolutionAction>>(new Map());
-  const [decisions, setDecisions] = useState<Map<string, DuplicateAction>>(new Map());
+  const [decisions, setDecisions] = useState<Map<string, GroupDecisionDraft>>(new Map());
+  const [removalConfirmOpen, setRemovalConfirmOpen] = useState(false);
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<LedgerImportResult | null>(null);
@@ -285,10 +292,36 @@ export function LedgerImportPage(): React.JSX.Element {
     setSubmitError(null);
   }
 
-  function chooseDecision(groupId: string, action: DuplicateAction): void {
+  function setGroupPreset(groupId: string, action: GroupPresetAction): void {
+    const group = preview?.duplicateGroups.find((item) => item.id === groupId);
+    if (group === undefined) return;
     setDecisions((previous) => {
       const next = new Map(previous);
-      next.set(groupId, action);
+      next.set(groupId, presetDecision(group, action));
+      return next;
+    });
+    setSubmitError(null);
+  }
+
+  function setGroupSource(groupId: string, sourceId: string, handling: SourceHandling): void {
+    const group = preview?.duplicateGroups.find((item) => item.id === groupId);
+    if (group === undefined) return;
+    setDecisions((previous) => {
+      const base = previous.get(groupId) ?? presetDecision(group, "keep_both");
+      const next = new Map(previous);
+      next.set(groupId, withSourceHandling(base, sourceId, handling));
+      return next;
+    });
+    setSubmitError(null);
+  }
+
+  function setGroupTarget(groupId: string, targetId: string, handling: TargetHandling): void {
+    const group = preview?.duplicateGroups.find((item) => item.id === groupId);
+    if (group === undefined) return;
+    setDecisions((previous) => {
+      const base = previous.get(groupId) ?? presetDecision(group, "keep_both");
+      const next = new Map(previous);
+      next.set(groupId, withTargetHandling(base, targetId, handling));
       return next;
     });
     setSubmitError(null);
@@ -320,10 +353,19 @@ export function LedgerImportPage(): React.JSX.Element {
       const parsed = ledgerImportResultSchema.parse(raw);
       if (!mounted.current) return;
       const requestSkipped = new Set(
-        request.duplicateGroups
-          .filter((group) => group.action === "keep_a")
-          .flatMap((group) => group.sourceIds),
+        request.duplicateGroups.flatMap((group) => {
+          if (group.sourceActions !== undefined) {
+            return group.sourceActions.filter((item) => item.action === "skip").map((item) => item.sourceTransactionId);
+          }
+          return group.action === "keep_a" || group.action === "keep_neither" ? group.sourceIds : [];
+        }),
       );
+      const requestRemovedCount = request.duplicateGroups.reduce((total, group) => {
+        if (group.targetActions !== undefined) {
+          return total + group.targetActions.filter((item) => item.action === "remove").length;
+        }
+        return total + (group.action === "keep_b" || group.action === "keep_neither" ? group.targetIds.length : 0);
+      }, 0);
       const expectedSkipped = requestSkipped.size;
       const expectedImported = request.source.transactions.length - expectedSkipped;
       const expectedTotals = totalsOf(
@@ -332,7 +374,10 @@ export function LedgerImportPage(): React.JSX.Element {
       if (
         parsed.importedCount !== expectedImported ||
         parsed.skippedCount !== expectedSkipped ||
-        parsed.targetCountAfter !== parsed.targetExistingBefore + parsed.importedCount ||
+        parsed.removedCount !== requestRemovedCount ||
+        parsed.removedTargets.length !== requestRemovedCount ||
+        parsed.targetCountAfter !==
+          parsed.targetExistingBefore - requestRemovedCount + parsed.importedCount ||
         JSON.stringify(parsed.totals) !== JSON.stringify(expectedTotals)
       ) {
         setSubmitError("服务器已完成提交，但回执与本地预期不一致。请先截图保留本页，然后打开目标账本核对；不要重复提交。");
@@ -519,7 +564,9 @@ export function LedgerImportPage(): React.JSX.Element {
           preview={preview}
           groupIndex={groupIndex}
           decisions={decisions}
-          onChoose={chooseDecision}
+          onPreset={setGroupPreset}
+          onSource={setGroupSource}
+          onTarget={setGroupTarget}
           onPrevious={() => {
             if (groupIndex > 0) patchSearch({ group: String(groupIndex - 1) }, true);
           }}
@@ -540,7 +587,11 @@ export function LedgerImportPage(): React.JSX.Element {
           canConfirm={canConfirm}
           submitState={submitState}
           result={result}
-          onStart={() => void handleSubmit()}
+          onStart={() => {
+            const removals = preview === null ? [] : removedTargets(preview, decisions);
+            if (removals.length > 0) setRemovalConfirmOpen(true);
+            else void handleSubmit();
+          }}
           onRetry={() => {
             const request = lastRequest.current ?? loadPendingTasks().find((item) => item.userId === user?.id)?.request;
             if (request === undefined) {
@@ -559,12 +610,58 @@ export function LedgerImportPage(): React.JSX.Element {
           }}
           onOpenTarget={(bookId) => {
             if (result !== null) dropTask(result.importId);
-            void navigate(`/books/${bookId}`);
+            void (async () => {
+              try {
+                await activateBook.mutateAsync(bookId);
+                void navigate("/");
+              } catch (caught) {
+                setSubmitError(errorMessage(caught));
+              }
+            })();
           }}
         />
       ) : null}
 
       {step === "confirm" && (preview === null || loading) ? <SkeletonRows rows={4} /> : null}
+
+      <ConfirmDialog
+        open={removalConfirmOpen}
+        title="确认软删除目标账目？"
+        description={
+          preview === null
+            ? "本次导入会软删除目标账本中的记录。"
+            : `本次将软删除 ${String(removedTargets(preview, decisions).length)} 笔目标 A 记录，并导入 ${String(importedSourceCount(preview, decisions))} 笔来源 B 记录。`
+        }
+        consequences={[
+          "只会软删除你在核对页明确标记为「移除」的目标记录",
+          "被移除的记录会进入现有账目删除/恢复机制，编号不变",
+          "来源游客数据不会因此被删除",
+          "提交在同一事务中完成；失败会整体回滚，不会出现 A 已删而 B 未写入",
+        ]}
+        confirmLabel="确认删除并导入"
+        busy={submitState === "submitting"}
+        onCancel={() => {
+          if (submitState !== "submitting") setRemovalConfirmOpen(false);
+        }}
+        onConfirm={() => {
+          setRemovalConfirmOpen(false);
+          void handleSubmit();
+        }}
+      >
+        {preview === null ? null : (
+          <ul className="max-h-40 overflow-auto rounded-field bg-canvas px-3 py-2 text-helper text-ink">
+            {removedTargets(preview, decisions).map((item) => (
+              <li key={item.transactionId} className="flex justify-between gap-3 border-b border-line py-1 last:border-b-0">
+                <span className="min-w-0 truncate">
+                  {item.occurredLocalDate} · {item.categoryLabel}
+                  {item.note === null ? "" : ` · ${item.note}`}
+                </span>
+                <span className="shrink-0 tabular-nums">{formatMoney(item.amountCents, item.currency)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </ConfirmDialog>
     </InnerPage>
   );
 }
@@ -762,13 +859,15 @@ function PreviewStep({
     <section data-testid="import-preview" className="flex flex-col gap-5">
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <p className="text-helper text-muted">导入方向</p>
-        <div className="mt-2 flex flex-col gap-2">
-          <BookLine label="来源 B" book={preview.source.identity} />
-          <div className="flex items-center gap-2 px-1 text-muted" aria-hidden="true">
-            <span className="h-px w-6 bg-line" />
-            <span>↓</span>
-          </div>
-          <BookLine label="目标 A" book={preview.target.identity} />
+        <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2">
+          <span className="text-helper text-muted">来源 B</span>
+          <BookIdentity book={preview.source.identity} />
+          <span className="justify-self-center text-muted" aria-hidden="true">
+            ↓
+          </span>
+          <span className="h-px w-full bg-line" aria-hidden="true" />
+          <span className="text-helper text-muted">目标 A</span>
+          <BookIdentity book={preview.target.identity} />
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">来源是本机游客账本；导入后本机数据仍会保留。</p>
       </div>
@@ -886,21 +985,16 @@ function PreviewStep({
   );
 }
 
-function BookLine({
-  label,
+function BookIdentity({
   book,
 }: {
-  readonly label: string;
   readonly book: ImportPreview["source"]["identity"];
 }): React.JSX.Element {
   return (
-    <div className="flex items-baseline justify-between gap-4">
-      <span className="shrink-0 text-helper text-muted">{label}</span>
-      <span className="min-w-0 text-right">
-        <span className="block truncate text-body font-medium text-ink">{book.name}</span>
-        {book.bookNumber === null ? null : <span className="block text-helper text-muted">编号 {book.bookNumber}</span>}
-      </span>
-    </div>
+    <span className="min-w-0 text-right">
+      <span className="block truncate text-body font-medium text-ink">{book.name}</span>
+      {book.bookNumber === null ? null : <span className="block text-helper text-muted">编号 {book.bookNumber}</span>}
+    </span>
   );
 }
 
@@ -986,7 +1080,9 @@ function ReviewStep({
   preview,
   groupIndex,
   decisions,
-  onChoose,
+  onPreset,
+  onSource,
+  onTarget,
   onPrevious,
   onNext,
   onBack,
@@ -995,8 +1091,10 @@ function ReviewStep({
 }: {
   readonly preview: ImportPreview;
   readonly groupIndex: number;
-  readonly decisions: DuplicateDecisionMap;
-  readonly onChoose: (groupId: string, action: DuplicateAction) => void;
+  readonly decisions: GroupDecisionMap;
+  readonly onPreset: (groupId: string, action: GroupPresetAction) => void;
+  readonly onSource: (groupId: string, sourceId: string, handling: SourceHandling) => void;
+  readonly onTarget: (groupId: string, targetId: string, handling: TargetHandling) => void;
   readonly onPrevious: () => void;
   readonly onNext: () => void;
   readonly onBack: () => void;
@@ -1018,9 +1116,15 @@ function ReviewStep({
       </section>
     );
   }
+
   const sourceRecords = group.records.filter((record) => record.side === "source");
   const targetRecords = group.records.filter((record) => record.side === "target");
-  const choice = decisions.get(group.id);
+  const decision = decisions.get(group.id);
+  const oneToOne = isOneToOne(group);
+  const skipped = sourceRecords.filter((record) => sourceHandling(decision, record.transaction.id) === "skip").length;
+  const removed = targetRecords.filter((record) => targetHandling(decision, record.transaction.id) === "remove").length;
+  const resolved = decisions.has(group.id);
+
   return (
     <section data-testid="import-review" className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
@@ -1055,34 +1159,143 @@ function ReviewStep({
         </div>
       </div>
 
-      <div className="rounded-card border border-line bg-surface px-5 py-4">
-        <RecordSection side="source" label="来源 B" records={sourceRecords} />
-        <div className="my-4 h-px bg-line" />
-        <RecordSection side="target" label="目标 A" records={targetRecords} />
-      </div>
+      {oneToOne ? (
+        <>
+          <div className="rounded-card border border-line bg-surface px-5 py-4">
+            <RecordSection side="source" label="来源 B" records={sourceRecords} />
+            <div className="my-4 h-px bg-line" />
+            <RecordSection side="target" label="目标 A" records={targetRecords} />
+          </div>
 
-      <div className="rounded-card border border-line bg-surface px-5 py-4">
-        <p className="text-body font-medium text-ink">这一组怎么处理？</p>
-        <p className="mt-1 text-helper-relaxed text-muted">本轮两种选择都不会删除 A 里的任何记录。</p>
-        <div className="mt-3 flex flex-col gap-2">
-          <DecisionOption
-            selected={choice === "keep_a"}
-            title="保留 A，跳过来源"
-            description={`目标 A 不变；这组的 ${String(group.sourceCount)} 条来源记录不会导入。`}
-            onClick={() => onChoose(group.id, "keep_a")}
-          />
-          <DecisionOption
-            selected={choice === "keep_both"}
-            title="两边都保留"
-            description={`目标 A 不变；这组的 ${String(group.sourceCount)} 条来源记录会追加导入。`}
-            onClick={() => onChoose(group.id, "keep_both")}
-          />
-        </div>
-      </div>
+          <div className="rounded-card border border-line bg-surface px-5 py-4">
+            <p className="text-body font-medium text-ink">这一组怎么处理？</p>
+            <p className="mt-1 text-helper-relaxed text-muted">四条路径都会明确显示是否删除目标 A 的这 1 条记录。</p>
+            <div className="mt-3 flex flex-col gap-2">
+              <DecisionOption
+                selected={decision?.action === "keep_a"}
+                title="保留 A，跳过来源"
+                description="导入 0 条 · 跳过 1 条 · 保留 A 1 条 · 软删除 A 0 条"
+                onClick={() => onPreset(group.id, "keep_a")}
+              />
+              <DecisionOption
+                selected={decision?.action === "keep_b"}
+                title="保留 B，移除 A"
+                description="导入 1 条 · 跳过 0 条 · 保留 A 0 条 · 软删除 A 1 条"
+                onClick={() => onPreset(group.id, "keep_b")}
+              />
+              <DecisionOption
+                selected={decision?.action === "keep_both"}
+                title="两边都保留"
+                description="导入 1 条 · 跳过 0 条 · 保留 A 1 条 · 软删除 A 0 条"
+                onClick={() => onPreset(group.id, "keep_both")}
+              />
+              <DecisionOption
+                selected={decision?.action === "keep_neither"}
+                title="两边都不保留"
+                description="导入 0 条 · 跳过 1 条 · 保留 A 0 条 · 软删除 A 1 条"
+                onClick={() => onPreset(group.id, "keep_neither")}
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="rounded-card border border-line bg-surface px-5 py-4">
+            <p className="text-body font-medium text-ink">这一组有多条记录，需要逐条确认</p>
+            <p className="mt-1 text-helper-relaxed text-muted">
+              快捷建议只会填入下面的逐条选择；不会直接删除 A。请在下方核对每一笔「导入 / 跳过」和「保留 / 移除」。
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["keep_a", "保留 A", "B 全跳过，A 全保留"],
+                  ["keep_b", "保留 B", "B 全导入，A 全移除"],
+                  ["keep_both", "两边都保留", "B 全导入，A 全保留"],
+                  ["keep_neither", "两边都不保留", "B 全跳过，A 全移除"],
+                ] as const
+              ).map(([action, label, hint]) => (
+                <button
+                  key={action}
+                  type="button"
+                  onClick={() => onPreset(group.id, action)}
+                  className={`rounded-field border px-3 py-2 text-left text-helper transition ${
+                    decision?.action === action
+                      ? "border-brand bg-brand-soft text-brand-dark"
+                      : "border-line bg-canvas text-muted hover:border-brand/40"
+                  }`}
+                >
+                  <span className="block font-medium text-ink">{label}</span>
+                  <span className="mt-0.5 block">{hint}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-helper-relaxed text-muted">
+              {resolved
+                ? `本组目前：导入 ${String(sourceRecords.length - skipped)} 条 · 跳过 ${String(skipped)} 条 · 保留 A ${String(targetRecords.length - removed)} 条 · 软删除 A ${String(removed)} 条`
+                : "本组尚未确认；点任一快捷建议或逐条调整后生效。"}
+            </p>
+          </div>
 
-      <p className="text-helper-relaxed text-muted">
-        当前只支持「保留 A / 两边都保留」；删除 A 记录的选择留到后续阶段，本轮不会提供。
-      </p>
+          <div className="rounded-card border border-line bg-surface px-5 py-4">
+            <p className="text-body font-medium text-ink">来源 B：哪些要导入？</p>
+            <ul className="mt-2 divide-y divide-line">
+              {sourceRecords.map((record) => {
+                const handling = sourceHandling(decision, record.transaction.id);
+                return (
+                  <li key={record.transaction.id} className="py-3">
+                    <RecordFacts record={record} />
+                    <div className="mt-2 flex gap-2">
+                      <HandlingButton
+                        selected={handling === "import"}
+                        label="导入"
+                        onClick={() => onSource(group.id, record.transaction.id, "import")}
+                      />
+                      <HandlingButton
+                        selected={handling === "skip"}
+                        label="跳过"
+                        onClick={() => onSource(group.id, record.transaction.id, "skip")}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <div className="rounded-card border border-line bg-surface px-5 py-4">
+            <p className="text-body font-medium text-ink">目标 A：哪些保留，哪些软删除？</p>
+            <ul className="mt-2 divide-y divide-line">
+              {targetRecords.map((record) => {
+                const handling = targetHandling(decision, record.transaction.id);
+                return (
+                  <li key={record.transaction.id} className="py-3">
+                    <RecordFacts record={record} />
+                    <div className="mt-2 flex gap-2">
+                      <HandlingButton
+                        selected={handling === "keep"}
+                        label="保留"
+                        onClick={() => onTarget(group.id, record.transaction.id, "keep")}
+                      />
+                      <HandlingButton
+                        selected={handling === "remove"}
+                        label="移除（软删除）"
+                        tone="danger"
+                        onClick={() => onTarget(group.id, record.transaction.id, "remove")}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {removed > 0 ? (
+            <p className="text-helper-relaxed text-muted">
+              本组将软删除 A 的 {String(removed)} 条记录。最终确认前还会再列出具体记录并单独确认一次。
+            </p>
+          ) : null}
+        </>
+      )}
 
       <div className="border-t border-line pt-3">
         <div className="flex items-center gap-3">
@@ -1105,7 +1318,7 @@ function ReviewStep({
         </div>
         <div className="mt-2">
           <Button onClick={onConfirm} disabled={!canConfirm}>
-            {canConfirm ? "继续确认" : `还有 ${String(groups.length - decisions.size)} 组未决定`}
+            {canConfirm ? "继续确认" : `还有 ${String(groups.filter((item) => !decisions.has(item.id)).length)} 组未决定`}
           </Button>
         </div>
         <div className="mt-2">
@@ -1115,6 +1328,57 @@ function ReviewStep({
         </div>
       </div>
     </section>
+  );
+}
+
+function HandlingButton({
+  selected,
+  label,
+  tone = "default",
+  onClick,
+}: {
+  readonly selected: boolean;
+  readonly label: string;
+  readonly tone?: "default" | "danger";
+  readonly onClick: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 rounded-field border px-3 py-2 text-helper transition ${
+        selected
+          ? tone === "danger"
+            ? "border-danger bg-danger/10 text-danger-dark"
+            : "border-brand bg-brand-soft text-brand-dark"
+          : "border-line bg-surface text-muted hover:border-brand/40"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function RecordFacts({ record }: { readonly record: DuplicateRecord }): React.JSX.Element {
+  const transaction = record.transaction;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-body font-semibold tabular-nums text-ink">
+          {formatMoney(transaction.amountCents, transaction.currency)}
+        </span>
+        <span className="shrink-0 text-helper text-muted">
+          {transaction.occurredLocalDate} · {formatTimeWithZone(transaction.occurredAt, transaction.occurredTz)}
+        </span>
+      </div>
+      <p className="mt-1 text-helper text-ink">
+        {record.categoryLabel}
+        {transaction.paymentMethodName === null ? "" : ` · ${transaction.paymentMethodName}`}
+      </p>
+      {transaction.note === null || transaction.note === "" ? null : (
+        <p className="mt-0.5 text-helper text-muted">{transaction.note}</p>
+      )}
+    </div>
   );
 }
 
@@ -1224,7 +1488,7 @@ function ConfirmStep({
 }: {
   readonly preview: ImportPreview;
   readonly targetIsNew: boolean;
-  readonly decisions: DuplicateDecisionMap;
+  readonly decisions: GroupDecisionMap;
   readonly canConfirm: boolean;
   readonly submitState: SubmitState;
   readonly result: LedgerImportResult | null;
@@ -1235,6 +1499,7 @@ function ConfirmStep({
   readonly onOpenTarget: (bookId: string) => void;
 }): React.JSX.Element {
   const skipped = skippedSourceIds(preview, decisions);
+  const removals = removedTargets(preview, decisions);
   const importedTransactions = preview.source.transactions.filter((item) => !skipped.has(item.id));
   const totals = totalsOf(importedTransactions);
   const categories = preview.mapping.categories;
@@ -1256,6 +1521,11 @@ function ConfirmStep({
           {result.skippedCount > 0 ? (
             <p className="mt-1 text-helper-relaxed text-muted">按你的核对选择，跳过了 {String(result.skippedCount)} 笔来源记录。</p>
           ) : null}
+          {result.removedCount > 0 ? (
+            <p className="mt-1 text-helper-relaxed text-muted">
+              按你的核对选择，软删除了 {String(result.removedCount)} 笔目标账目；它们可在原账目的历史/恢复入口恢复。
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-card border border-line bg-surface px-5 py-4">
@@ -1272,6 +1542,10 @@ function ConfirmStep({
             <li className="flex justify-between gap-3">
               <span className="text-muted">跳过</span>
               <span className="text-ink">{String(result.skippedCount)} 笔</span>
+            </li>
+            <li className="flex justify-between gap-3">
+              <span className="text-muted">软删除 A</span>
+              <span className="text-ink">{String(result.removedCount)} 笔</span>
             </li>
             <li className="flex justify-between gap-3">
               <span className="text-muted">目标账目</span>
@@ -1359,7 +1633,7 @@ function ConfirmStep({
         <div className="mt-4 grid grid-cols-3 divide-x divide-line">
           <Metric label="将导入" value={`${String(importedTransactions.length)} 笔`} />
           <Metric label="跳过" value={`${String(skipped.size)} 笔`} />
-          <Metric label="复用对象" value={`${String(reuse)} 个`} />
+          <Metric label="将软删除" value={`${String(removals.length)} 笔`} />
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
           分类/支付/标签：复用 {String(reuse)} 个 · 新建 {String(create)} 个。同名属性冲突已按你的选择处理。
@@ -1382,14 +1656,36 @@ function ConfirmStep({
             ))}
           </ul>
         )}
-        <p className="mt-3 text-helper-relaxed text-muted">
-          本轮不会删除目标账本 A 的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除游客数据。
-        </p>
+        {removals.length === 0 ? (
+          <p className="mt-3 text-helper-relaxed text-muted">
+            本轮不会删除目标账本 A 的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除游客数据。
+          </p>
+        ) : (
+          <details className="mt-3 rounded-field border border-line bg-canvas px-3 py-2">
+            <summary className="cursor-pointer text-helper font-medium text-ink">
+              将软删除 A 的 {String(removals.length)} 笔记录（展开核对）
+            </summary>
+            <ul className="mt-2 max-h-48 divide-y divide-line overflow-auto">
+              {removals.map((item) => (
+                <li key={item.transactionId} className="flex justify-between gap-3 py-2 text-helper">
+                  <span className="min-w-0 truncate">
+                    {item.occurredLocalDate} · {item.categoryLabel}
+                    {item.note === null ? "" : ` · ${item.note}`}
+                  </span>
+                  <span className="shrink-0 tabular-nums">{formatMoney(item.amountCents, item.currency)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-helper-relaxed text-muted">
+              只会软删除上面这些记录；它们会进入现有删除/恢复入口，不会变成永久删除。来源游客数据不受影响。
+            </p>
+          </details>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
         <Button onClick={onStart} disabled={!canConfirm}>
-          开始导入
+          {removals.length > 0 ? "确认删除并导入" : "开始导入"}
         </Button>
         <Button variant="secondary" onClick={onBack}>
           返回核对

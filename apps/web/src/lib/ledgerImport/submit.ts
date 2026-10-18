@@ -17,9 +17,13 @@ import {
 import type { ImportPreview } from "./types.js";
 import type { TaxonomyResolutionAction, TaxonomyResolutionMap } from "./mapping.js";
 import { taxonomyResolutionKey } from "./mapping.js";
-
-export type DuplicateAction = "keep_a" | "keep_both";
-export type DuplicateDecisionMap = ReadonlyMap<string, DuplicateAction>;
+import {
+  isOneToOne,
+  sourceHandling,
+  targetHandling,
+  unresolvedGroupCount,
+  type GroupDecisionMap,
+} from "./decisions.js";
 
 export function guestSourceOf(preview: ImportPreview): GuestImportSource {
   const source = preview.source;
@@ -131,7 +135,7 @@ export async function buildLedgerImportRequest(input: {
   readonly preview: ImportPreview;
   readonly targetIsNew: boolean;
   readonly resolutions: TaxonomyResolutionMap;
-  readonly decisions: DuplicateDecisionMap;
+  readonly decisions: GroupDecisionMap;
 }): Promise<LedgerImportRequest> {
   const { preview, targetIsNew, resolutions, decisions } = input;
   const source = guestSourceOf(preview);
@@ -146,13 +150,35 @@ export async function buildLedgerImportRequest(input: {
   ];
 
   const duplicateGroups: DuplicateDecision[] = preview.duplicateGroups.map((group) => {
-    const action = decisions.get(group.id);
-    if (action === undefined) throw new Error("还有重复组没有处理。");
+    const decision = decisions.get(group.id);
+    if (decision === undefined) throw new Error("还有重复组没有处理。");
+    const sourceIds = group.records
+      .filter((record) => record.side === "source")
+      .map((record) => record.transaction.id);
+    const targetIds = group.records
+      .filter((record) => record.side === "target")
+      .map((record) => record.transaction.id);
+
+    /**
+     * 一对一允许四个快捷动作；多对多必须把每一笔 B/A 的逐条决定发给服务端，
+     * 这样服务端能验证删除范围严格等于用户看到的清单。
+     */
+    if (isOneToOne(group) && decision.action !== "custom") {
+      return { groupId: group.id, action: decision.action, sourceIds, targetIds };
+    }
     return {
       groupId: group.id,
-      action,
-      sourceIds: group.records.filter((record) => record.side === "source").map((record) => record.transaction.id),
-      targetIds: group.records.filter((record) => record.side === "target").map((record) => record.transaction.id),
+      action: "custom",
+      sourceIds,
+      targetIds,
+      sourceActions: sourceIds.map((sourceTransactionId) => ({
+        sourceTransactionId,
+        action: sourceHandling(decision, sourceTransactionId),
+      })),
+      targetActions: targetIds.map((targetTransactionId) => ({
+        targetTransactionId,
+        action: targetHandling(decision, targetTransactionId),
+      })),
     };
   });
 
@@ -190,8 +216,8 @@ export function unresolvedConflicts(preview: ImportPreview, resolutions: Taxonom
   ).length;
 }
 
-export function unresolvedDuplicateGroups(preview: ImportPreview, decisions: DuplicateDecisionMap): number {
-  return preview.duplicateGroups.filter((group) => !decisions.has(group.id)).length;
+export function unresolvedDuplicateGroups(preview: ImportPreview, decisions: GroupDecisionMap): number {
+  return unresolvedGroupCount(preview, decisions);
 }
 
 export type { TaxonomyResolutionAction };

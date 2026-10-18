@@ -113,6 +113,10 @@ const TRACKED_FIELDS: readonly { readonly key: string; readonly label: string }[
    * `after`, and a transaction has no `name` field, so no entry edit can ever produce it.
    */
   { key: "name", label: "名称" },
+  /** D3 imported-removal audit context; these keys never appear in a normal entry edit. */
+  { key: "importId", label: "导入任务" },
+  { key: "importSource", label: "导入来源" },
+  { key: "importGroupId", label: "重复组" },
 ];
 
 export function trackedFieldLabel(key: string): string | null {

@@ -69,6 +69,7 @@ interface TransactionRow {
   occurredTz: string;
   note: string | null;
   version: number;
+  deletedAt: Date | null;
   category: { id: string; name: string; isSystem: boolean };
   paymentMethod: { id: string; name: string } | null;
   tags: { tag: { id: string; name: string; color: string } }[];
@@ -227,6 +228,7 @@ function toDto(row: TransactionRow): TransactionDto {
     note: row.note,
     tags: row.tags.map((link) => link.tag),
     version: row.version,
+    ...(row.deletedAt === null || row.deletedAt === undefined ? {} : { deletedAt: row.deletedAt.toISOString() }),
   };
 }
 
@@ -591,7 +593,7 @@ export function registerTransactionRoutes(
     const { id } = request.params as { id: string };
 
     const row = await prisma.transaction.findFirst({
-      where: { id, bookId, deletedAt: null },
+      where: { id, bookId },
       include: TRANSACTION_INCLUDE,
     });
 

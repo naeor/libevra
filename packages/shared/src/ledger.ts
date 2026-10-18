@@ -515,6 +515,8 @@ export const transactionSchema = z.object({
   note: z.string().nullable(),
   tags: z.array(tagSchema),
   version: z.number(),
+  /** D3: present only on a deleted entry fetched by id for history/restore. */ 
+  deletedAt: z.string().nullable().optional(),
 });
 export type Transaction = z.infer<typeof transactionSchema>;
 

@@ -84,11 +84,33 @@ export const taxonomyResolutionSchema = z.object({
 });
 export type TaxonomyResolution = z.infer<typeof taxonomyResolutionSchema>;
 
+export const duplicateGroupSourceActionSchema = z.object({
+  sourceTransactionId: uuid,
+  action: z.enum(["import", "skip"]),
+});
+export type DuplicateGroupSourceAction = z.infer<typeof duplicateGroupSourceActionSchema>;
+
+export const duplicateGroupTargetActionSchema = z.object({
+  targetTransactionId: uuid,
+  action: z.enum(["keep", "remove"]),
+});
+export type DuplicateGroupTargetAction = z.infer<typeof duplicateGroupTargetActionSchema>;
+
 export const duplicateDecisionSchema = z.object({
   groupId: z.string().min(1).max(200),
-  action: z.enum(["keep_a", "keep_both"]),
+  /**
+   * D2 的四个快捷选择在 D3 变成四种；`custom` 表示多对多逐条决定。
+   * 一对多/多对多如果使用 keep_b/keep_neither 删除多条 A，必须同时给出完整 targetActions。
+   */
+  action: z.enum(["keep_a", "keep_b", "keep_both", "keep_neither", "custom"]).optional(),
   sourceIds: z.array(uuid).min(1).max(MAX_IMPORT_TRANSACTIONS),
   targetIds: z.array(uuid).min(1).max(MAX_IMPORT_TRANSACTIONS),
+  /**
+   * 一旦给出，必须覆盖本组全部来源/目标记录，且 id 不重复。
+   * 服务端只用这些显式动作决定导入/跳过/软删除，不自行扩大范围。
+   */
+  sourceActions: z.array(duplicateGroupSourceActionSchema).max(MAX_IMPORT_TRANSACTIONS).optional(),
+  targetActions: z.array(duplicateGroupTargetActionSchema).max(MAX_IMPORT_TRANSACTIONS).optional(),
 });
 export type DuplicateDecision = z.infer<typeof duplicateDecisionSchema>;
 
@@ -160,8 +182,19 @@ export const ledgerImportResultSchema = z.object({
   sourceCount: z.number().int().nonnegative(),
   importedCount: z.number().int().nonnegative(),
   skippedCount: z.number().int().nonnegative(),
+  /** D3：被软删除的目标记录数量；旧 D2 回执没有该字段，按 0 处理。 */
+  removedCount: z.number().int().nonnegative().default(0),
   targetExistingBefore: z.number().int().nonnegative(),
   targetCountAfter: z.number().int().nonnegative(),
+  removedTargets: z
+    .array(
+      z.object({
+        targetTransactionId: uuid,
+        targetSeq: z.number().int().positive(),
+        groupId: z.string(),
+      }),
+    )
+    .default([]),
   totals: z.array(
     z.object({
       currency: z.string(),

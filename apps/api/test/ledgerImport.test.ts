@@ -418,6 +418,274 @@ describe("guest ledger import (D2)", () => {
     expect(newBookLedger.paymentMethods.find((item) => item.name === "旧支付")?.isArchived).toBe(true);
   });
 
+  it("D3 one-to-one keep-B soft-deletes the chosen A, imports B, and restores through the existing entry route", async () => {
+    const owner = await account("d3_keep_b");
+    const meta = await ledger(owner.cookie, owner.bookId);
+    const food = meta.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const original = await createTargetTransaction(owner.cookie, owner.bookId, food.id, 2500);
+    const { source, taxonomy } = sourceFor(meta, "KB");
+    const duplicateSourceId = randomUUID();
+    source.transactions.push({
+      id: duplicateSourceId,
+      kind: "expense",
+      amountCents: 2500,
+      currency: "CNY",
+      categoryId: source.categories[0]!.id,
+      paymentMethodId: null,
+      occurredAt: "2026-10-18T09:00:20+08:00",
+      occurredLocalDate: "2026-10-18",
+      occurredTz: "Asia/Shanghai",
+      note: "来源替代目标",
+      tagIds: [],
+    });
+    const importId = randomUUID();
+    const body = await requestForExisting(importId, owner.bookId, source, taxonomy, [
+      { groupId: "one", action: "keep_b", sourceIds: [duplicateSourceId], targetIds: [original.id] },
+    ]);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/ledger-imports",
+      headers: { cookie: owner.cookie },
+      payload: body,
+    });
+    expect(response.statusCode).toBe(200);
+    const result = response.json() as {
+      importedCount: number;
+      skippedCount: number;
+      removedCount: number;
+      targetCountAfter: number;
+      removedTargets: { targetTransactionId: string; targetSeq: number; groupId: string }[];
+    };
+    expect(result).toMatchObject({ importedCount: 4, skippedCount: 0, removedCount: 1, targetCountAfter: 4 });
+    expect(result.removedTargets).toEqual([
+      { targetTransactionId: original.id, targetSeq: original.seq, groupId: "one" },
+    ]);
+
+    const deletedRow = await prisma.transaction.findUniqueOrThrow({
+      where: { id: original.id },
+      select: { deletedAt: true, seq: true, version: true },
+    });
+    expect(deletedRow.deletedAt).not.toBeNull();
+    expect(deletedRow.seq).toBe(original.seq);
+    const event = await prisma.transactionEvent.findFirstOrThrow({
+      where: { transactionId: original.id, kind: "deleted" },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(event.changes).toMatchObject({ importId: { to: importId }, importSource: { to: "guest" } });
+
+    const detail = await app.inject({
+      method: "GET",
+      url: `/api/v1/transactions/${original.id}`,
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toMatchObject({ id: original.id, deletedAt: expect.any(String) as string });
+
+    const restored = await app.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${original.id}/restore`,
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json()).toMatchObject({ id: original.id, seq: original.seq });
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(5);
+
+    const retry = await app.inject({
+      method: "POST",
+      url: "/api/v1/ledger-imports",
+      headers: { cookie: owner.cookie },
+      payload: body,
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json()).toMatchObject({ importId, removedCount: 1, importedCount: 4 });
+    // A retry returns the receipt; it must not soft-delete the restored row again.
+    expect(
+      await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } }),
+    ).toBe(5);
+  });
+
+  it("D3 one-to-one supports all four choices in one confirmed import", async () => {
+    const owner = await account("d3_four_choices");
+    const meta = await ledger(owner.cookie, owner.bookId);
+    const food = meta.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const targetRows: { id: string; seq: number }[] = [];
+    for (const amount of [1001, 1002, 1003, 1004]) {
+      targetRows.push(await createTargetTransaction(owner.cookie, owner.bookId, food.id, amount));
+    }
+    const { source, taxonomy } = sourceFor(meta, "FOUR");
+    const sourceCategoryId = source.categories[0]!.id;
+    const sourceIds: string[] = [];
+    for (const amount of [1001, 1002, 1003, 1004]) {
+      const id = randomUUID();
+      sourceIds.push(id);
+      source.transactions.push({
+        id,
+        kind: "expense",
+        amountCents: amount,
+        currency: "CNY",
+        categoryId: sourceCategoryId,
+        paymentMethodId: null,
+        occurredAt: "2026-10-18T09:00:20+08:00",
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: "四种选择",
+        tagIds: [],
+      });
+    }
+    const actions = ["keep_a", "keep_b", "keep_both", "keep_neither"] as const;
+    const groups = actions.map((action, index) => ({
+      groupId: `choice-${action}`,
+      action,
+      sourceIds: [sourceIds[index]!],
+      targetIds: [targetRows[index]!.id],
+    }));
+    const body = await requestForExisting(randomUUID(), owner.bookId, source, taxonomy, groups);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/ledger-imports",
+      headers: { cookie: owner.cookie },
+      payload: body,
+    });
+    expect(response.statusCode).toBe(200);
+    const result = response.json() as {
+      importedCount: number;
+      skippedCount: number;
+      removedCount: number;
+      targetCountAfter: number;
+      removedTargets: { targetTransactionId: string; groupId: string }[];
+    };
+    expect(result).toMatchObject({ importedCount: 5, skippedCount: 2, removedCount: 2, targetCountAfter: 7 });
+    expect(result.removedTargets.map((item) => item.targetTransactionId).sort()).toEqual(
+      [targetRows[1]!.id, targetRows[3]!.id].sort(),
+    );
+    expect(result.removedTargets.map((item) => item.groupId).sort()).toEqual(["choice-keep_b", "choice-keep_neither"]);
+    const live = await prisma.transaction.findMany({
+      where: { bookId: owner.bookId, deletedAt: null },
+      select: { id: true },
+    });
+    expect(live.some((row) => row.id === targetRows[0]!.id)).toBe(true);
+    expect(live.some((row) => row.id === targetRows[1]!.id)).toBe(false);
+    expect(live.some((row) => row.id === targetRows[2]!.id)).toBe(true);
+    expect(live.some((row) => row.id === targetRows[3]!.id)).toBe(false);
+  });
+  it("D3 multi-record group removes only the explicitly selected A records", async () => {
+    const owner = await account("d3_multi_remove");
+    const meta = await ledger(owner.cookie, owner.bookId);
+    const food = meta.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const first = await createTargetTransaction(owner.cookie, owner.bookId, food.id, 1000);
+    const second = await createTargetTransaction(owner.cookie, owner.bookId, food.id, 2000);
+    const { source, taxonomy } = sourceFor(meta, "MR");
+    const sourceCategoryId = source.categories[0]!.id;
+    const s1 = randomUUID();
+    const s2 = randomUUID();
+    for (const [id, amountCents] of [
+      [s1, 1000],
+      [s2, 2000],
+    ] as const) {
+      source.transactions.push({
+        id,
+        kind: "expense",
+        amountCents,
+        currency: "CNY",
+        categoryId: sourceCategoryId,
+        paymentMethodId: null,
+        occurredAt: "2026-10-18T09:00:20+08:00",
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: "多对多来源",
+        tagIds: [],
+      });
+    }
+
+    // A multi-record group must not get a shortcut that deletes more than one A row.
+    const shortcut = await requestForExisting(randomUUID(), owner.bookId, source, taxonomy, [
+      { groupId: "multi", action: "keep_b", sourceIds: [s1, s2], targetIds: [first.id, second.id] },
+    ]);
+    const rejected = await app.inject({
+      method: "POST",
+      url: "/api/v1/ledger-imports",
+      headers: { cookie: owner.cookie },
+      payload: shortcut,
+    });
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json()).toMatchObject({ code: "group_removal_not_explicit" });
+
+    const body = await requestForExisting(randomUUID(), owner.bookId, source, taxonomy, [
+      {
+        groupId: "multi",
+        action: "custom",
+        sourceIds: [s1, s2],
+        targetIds: [first.id, second.id],
+        sourceActions: [
+          { sourceTransactionId: s1, action: "import" },
+          { sourceTransactionId: s2, action: "skip" },
+        ],
+        targetActions: [
+          { targetTransactionId: first.id, action: "remove" },
+          { targetTransactionId: second.id, action: "keep" },
+        ],
+      },
+    ]);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/ledger-imports",
+      headers: { cookie: owner.cookie },
+      payload: body,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ importedCount: 4, skippedCount: 1, removedCount: 1, targetCountAfter: 5 });
+    expect(
+      await prisma.transaction.findUniqueOrThrow({ where: { id: first.id }, select: { deletedAt: true } }),
+    ).toMatchObject({ deletedAt: expect.any(Date) as Date });
+    expect(
+      await prisma.transaction.findUniqueOrThrow({ where: { id: second.id }, select: { deletedAt: true } }),
+    ).toMatchObject({ deletedAt: null });
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(5);
+  });
+
+  it("D3 rolls back soft deletions when the rest of the import fails", async () => {
+    const owner = await account("d3_rollback");
+    const meta = await ledger(owner.cookie, owner.bookId);
+    const food = meta.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const original = await createTargetTransaction(owner.cookie, owner.bookId, food.id, 2500);
+    const { source, taxonomy } = sourceFor(meta, "RB");
+    const duplicateSourceId = randomUUID();
+    source.transactions.push({
+      id: duplicateSourceId,
+      kind: "expense",
+      amountCents: 2500,
+      currency: "CNY",
+      categoryId: source.categories[0]!.id,
+      paymentMethodId: null,
+      occurredAt: "2026-10-18T09:00:20+08:00",
+      occurredLocalDate: "2026-10-18",
+      occurredTz: "Asia/Shanghai",
+      note: "会触发回滚",
+      tagIds: [],
+    });
+    // Make a second target row claim one source ref. The insert then fails after the soft delete,
+    // proving the whole D3 transaction rolls back rather than leaving A removed and B unwritten.
+    const blocker = await createTargetTransaction(owner.cookie, owner.bookId, food.id, 999);
+    await prisma.transaction.update({
+      where: { id: blocker.id },
+      data: { sourceRef: duplicateSourceId },
+    });
+    const body = await requestForExisting(randomUUID(), owner.bookId, source, taxonomy, [
+      { groupId: "one", action: "keep_b", sourceIds: [duplicateSourceId], targetIds: [original.id] },
+    ]);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/ledger-imports",
+      headers: { cookie: owner.cookie },
+      payload: body,
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: "already_imported" });
+    expect(
+      await prisma.transaction.findUniqueOrThrow({ where: { id: original.id }, select: { deletedAt: true } }),
+    ).toMatchObject({ deletedAt: null });
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(2);
+  });
   it("keeps one-to-many and many-to-many group decisions consistent without deleting A", async () => {
     const owner = await account("import_groups");
     const meta = await ledger(owner.cookie, owner.bookId);

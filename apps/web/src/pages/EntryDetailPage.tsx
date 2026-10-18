@@ -117,6 +117,59 @@ export function EntryDetailPage(): React.JSX.Element {
   );
   const ownPaymentMethods = (ledger.data?.paymentMethods ?? []).filter((method) => !method.isArchived);
 
+  if (data.deletedAt !== null && data.deletedAt !== undefined) {
+    return (
+      <InnerPage title="记账详情" subtitle="这笔账目已删除" backTo="/ledger/history">
+        <section className="rounded-card border border-line bg-surface px-5 py-5">
+          <p className="text-helper text-muted">{data.kind === "expense" ? "支出" : "收入"} · 已删除</p>
+          <p className="mt-1 text-3xl font-semibold text-ink">
+            {formatMoney(data.amountCents, data.currency, { withCode: true })}
+          </p>
+          <p className="mt-2 text-body text-ink">
+            {data.categoryName}
+            {data.paymentMethodName === null ? "" : ` · ${data.paymentMethodName}`}
+          </p>
+          <p className="mt-3 text-body text-muted">{data.occurredLocalDate} 的记录</p>
+          {data.note === null ? null : <p className="mt-1 text-body-relaxed text-muted">{data.note}</p>}
+          <p className="mt-3 text-helper text-muted">
+            删除时间：{formatDateTimeInZone(data.deletedAt, data.occurredTz)}
+          </p>
+          <p className="mt-1 text-helper-relaxed text-muted">
+            删除只是把这条记录移入历史；恢复后它仍使用原来的编号，不会变成一笔新账。
+          </p>
+        </section>
+
+        {error === null ? null : <Alert>{error}</Alert>}
+
+        <button
+          type="button"
+          disabled={restore.isPending}
+          onClick={() => {
+            setError(null);
+            void (async () => {
+              try {
+                await restore.mutateAsync(id);
+                await entry.refetch();
+              } catch (caught) {
+                setError(errorMessage(caught));
+              }
+            })();
+          }}
+          className="w-full rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {restore.isPending ? "正在恢复…" : "恢复这笔记账"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void navigate("/ledger/history")}
+          className="w-full rounded-field border border-line bg-surface px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-canvas"
+        >
+          返回历史记录
+        </button>
+      </InnerPage>
+    );
+  }
+
   async function save(): Promise<void> {
     /**
      * ⚠️ **The entry's time is required, and the guard is the point.** See the note on `occurredAt`: writing "now"
