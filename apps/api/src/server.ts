@@ -19,6 +19,7 @@ const app = buildApp({
   prisma,
   webOrigin: env.webOrigin,
   cookieSecure: env.cookieSecure,
+  registrationMode: env.registrationMode,
   loginThrottleOptions: {
     maxFailures: env.loginMaxFailures,
     lockoutMs: env.loginLockoutMs,

@@ -6,6 +6,8 @@
  * process must fail loudly rather than start in a half-configured state.
  */
 
+import type { RegistrationMode } from "@libellum/shared";
+
 function readString(name: string, fallback?: string): string {
   const raw = process.env[name];
 
@@ -41,6 +43,24 @@ function readPositiveInt(name: string, fallback: number): number {
   return value;
 }
 
+/**
+ * How new accounts may be created (S14-A).
+ *
+ * ⚠️ **The default is `invite`, and that is deliberate.** This variable exists so the *interface*
+ * can be built and tested against both registration states without the production rule silently
+ * changing: unless a deployment explicitly sets `REGISTRATION_MODE=open`, the server keeps
+ * requiring an invite code exactly as before. Opening public registration still needs the quotas
+ * and abuse controls planned for S14-D and an explicit owner decision.
+ */
+function readRegistrationMode(): RegistrationMode {
+  const raw = process.env["REGISTRATION_MODE"];
+
+  if (raw === undefined || raw === "") return "invite";
+  if (raw === "invite" || raw === "open") return raw;
+
+  throw new Error(`REGISTRATION_MODE must be invite or open, received: ${raw}`);
+}
+
 export interface Env {
   readonly nodeEnv: "development" | "production" | "test";
   readonly apiHost: string;
@@ -52,6 +72,8 @@ export interface Env {
   readonly loginMaxFailures: number;
   readonly loginLockoutMs: number;
   readonly loginWindowMs: number;
+  /** Whether signup requires an invite code right now (`invite` by default). */
+  readonly registrationMode: RegistrationMode;
 }
 
 export function loadEnv(): Env {
@@ -75,5 +97,6 @@ export function loadEnv(): Env {
     loginMaxFailures: readPositiveInt("LOGIN_MAX_FAILURES", 5),
     loginLockoutMs: readPositiveInt("LOGIN_LOCKOUT_MS", 60_000),
     loginWindowMs: readPositiveInt("LOGIN_WINDOW_MS", 15 * 60_000),
+    registrationMode: readRegistrationMode(),
   };
 }

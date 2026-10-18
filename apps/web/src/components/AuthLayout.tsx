@@ -1,36 +1,102 @@
 import { Card } from "./Card.js";
+import { GuestEntry } from "./GuestEntry.js";
 
 /**
- * Shared frame for the sign-in / sign-up / recovery screens: the wordmark, one
- * focused card, and a quiet footer link.
+ * The shared frame for every account-entry screen.
+ *
+ * ⚠️ **One frame, three forms.** Signing in, creating an account, and the restricted (invite-only)
+ * variant are the same decision approached from different directions; giving them one wordmark,
+ * one card, one place for the switch and one quiet guest entry is what makes the trio read as one
+ * product instead of three unrelated screens. The pages still own their own fields and copy — this
+ * component owns the rhythm: brand, entry switch, card, footer, guest way out.
+ *
+ * ⚠️ **The entrance is a 6px rise plus a fade, not a welcome sequence.** The animation exists so a
+ * navigation between `/login` and `/register` feels like the same page settling into a new state.
+ * It must not become a gate before the form — the first input is present from the first frame, and
+ * `prefers-reduced-motion` removes the movement entirely (see the `.auth-enter` note in `index.css`).
+ *
+ * This is deliberately **not** the ledger-space wave. That animation belongs to arriving in a
+ * ledger, not to signing in, and the two must not be conflated (S14-A instruction).
  */
 export function AuthLayout({
   title,
   subtitle,
   children,
   footer,
+  navigation,
+  guestEntry = true,
 }: {
   readonly title: string;
   readonly subtitle?: string;
   readonly children: React.ReactNode;
   readonly footer?: React.ReactNode;
+  /** The login/register switch, when the screen is one of those two. */
+  readonly navigation?: React.ReactNode;
+  /** The guest entry is on by default; the guest placeholder page turns it off (it is the destination). */
+  readonly guestEntry?: boolean;
 }): React.JSX.Element {
   return (
-    <main className="flex min-h-full items-center justify-center px-5 py-10">
-      <div className="w-full max-w-sm">
-        <header className="mb-8 text-center">
+    <main className="min-h-dvh bg-canvas">
+      <div className="mx-auto flex w-full max-w-[26rem] flex-col px-5 pt-12 pb-10 sm:pt-16">
+        <header className="auth-enter flex flex-col items-center text-center">
+          <span
+            aria-hidden="true"
+            className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-brand text-white shadow-card"
+          >
+            <BrandMark />
+          </span>
           <p className="text-2xl font-semibold tracking-tight text-ink">Libevra</p>
-          <p className="mt-1 text-sm text-muted">the free, open ledger</p>
+          <p className="mt-1.5 text-helper text-muted">the free, open ledger</p>
         </header>
 
-        <Card>
-          <h1 className="text-lg font-semibold text-ink">{title}</h1>
-          {subtitle ? <p className="mt-1.5 text-sm leading-relaxed text-muted">{subtitle}</p> : null}
+        {navigation === undefined ? null : (
+          <div className="auth-enter auth-enter-delayed mt-8">{navigation}</div>
+        )}
+
+        <Card
+          className={`auth-enter auth-enter-delayed sm:p-7 ${
+            navigation === undefined ? "mt-10" : "mt-6"
+          }`}
+        >
+          <h1 className="text-page-title text-ink">{title}</h1>
+          {subtitle === undefined ? null : (
+            <p className="mt-2 text-body-relaxed text-muted">{subtitle}</p>
+          )}
           <div className="mt-6 flex flex-col gap-5">{children}</div>
         </Card>
 
-        {footer ? <div className="mt-6 text-center text-sm text-muted">{footer}</div> : null}
+        {footer === undefined ? null : (
+          <div className="mt-5 text-center text-helper text-muted">{footer}</div>
+        )}
+
+        {guestEntry ? <GuestEntry /> : null}
       </div>
     </main>
+  );
+}
+
+/**
+ * A small stroke mark: a ledger page with a wave along its lower edge.
+ *
+ * ⚠️ **Stroke, not fill** — the same rule the gear icon learned at 16px (1.10.09): filled shapes
+ * blur into blobs when small, thin lines stay legible. It is decorative (`aria-hidden` on the
+ * wrapper); the product name is right below it, so the mark does not need its own label.
+ */
+function BrandMark(): React.JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-7"
+    >
+      <path d="M5 5.5h9.5A3.5 3.5 0 0 1 18 9v9.5H8.5A3.5 3.5 0 0 1 5 15V5.5Z" />
+      <path d="M5 15a3.5 3.5 0 0 1 3.5-3.5H18" />
+      <path d="M9 8.5h5" />
+    </svg>
   );
 }

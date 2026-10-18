@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { buildApp } from "../src/app.js";
+import { buildApp, type BuildAppOptions } from "../src/app.js";
 import { createPrismaClient } from "../src/db.js";
 import { resetDatabase as resetAllTables } from "./support.js";
 
@@ -18,7 +18,7 @@ const REGISTER_BODY = {
   password: PASSWORD,
 };
 
-function makeApp(): FastifyInstance {
+function makeApp(overrides: Partial<BuildAppOptions> = {}): FastifyInstance {
   return buildApp({
     version: "0.1.0-test",
     checkDatabase: async () => true,
@@ -27,6 +27,7 @@ function makeApp(): FastifyInstance {
     cookieSecure: false,
     // Small numbers so the lockout behaviour can be tested quickly.
     loginThrottleOptions: { maxFailures: 3, lockoutMs: 60_000, windowMs: 60_000 },
+    ...overrides,
   });
 }
 
@@ -154,6 +155,102 @@ describe("POST /api/v1/auth/register", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: "validation_failed" });
+  });
+
+  /**
+   * S14-A: the registration rule is a server-side decision.
+   *
+   * ⚠️ **What these tests are for**: the interface now shows an invite field only when the server
+   * says it is required. That would be a lie unless the server enforces the same answer — a client
+   * that omits the field must be refused in `invite` mode, and an account must be creatable without
+   * one in `open` mode. Both halves are asserted here rather than trusted to the page.
+   */
+  it("tells the page that an invite code is required (default mode)", async () => {
+    const response = await app.inject({ method: "GET", url: "/api/v1/auth/registration-config" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ mode: "invite", inviteRequired: true });
+  });
+
+  it("refuses a signup that omits the code while the mode requires one", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/register",
+      payload: { username: USERNAME, displayName: "妈妈", password: PASSWORD },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: "invite_required" });
+    await expect(prisma.user.count()).resolves.toBe(0);
+  });
+});
+
+describe("registration mode (S14-A)", () => {
+  function openApp(): FastifyInstance {
+    return makeApp({ registrationMode: "open" });
+  }
+
+  it("reports the open mode to the page", async () => {
+    const open = openApp();
+    try {
+      const response = await open.inject({
+        method: "GET",
+        url: "/api/v1/auth/registration-config",
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ mode: "open", inviteRequired: false });
+    } finally {
+      await open.close();
+    }
+  });
+
+  it("creates an account without an invite code when the mode is open", async () => {
+    const open = openApp();
+    try {
+      const response = await open.inject({
+        method: "POST",
+        url: "/api/v1/auth/register",
+        payload: {
+          username: USERNAME,
+          displayName: "妈妈",
+          password: PASSWORD,
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = response.json() as { user: { accountNumber: string } };
+      /**
+       * Accounts without a code draw from the direct series, which starts above the block reserved
+       * for the owner's first invitation codes (`10000101`). **It must not fall into the reserved
+       * block**: that block belongs to codes that were written down months in advance.
+       */
+      expect(body.user.accountNumber).toBe("10000101");
+      await expect(prisma.registrationInvite.count()).resolves.toBe(0);
+    } finally {
+      await open.close();
+    }
+  });
+
+  it("ignores, rather than consumes, a code supplied while the mode is open", async () => {
+    await seedInvite();
+    const open = openApp();
+    try {
+      const response = await open.inject({
+        method: "POST",
+        url: "/api/v1/auth/register",
+        payload: { ...REGISTER_BODY },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const invite = await prisma.registrationInvite.findUniqueOrThrow({
+        where: { code: INVITE_CODE },
+      });
+      expect(invite.usedAt).toBeNull();
+      expect(invite.usedByUserId).toBeNull();
+    } finally {
+      await open.close();
+    }
   });
 });
 

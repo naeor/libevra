@@ -206,6 +206,25 @@
     }
   }
 
+  /*
+    ⚠️ **The account entry's arrival — S14-A.**
+
+    The owner asked for "轻量自然的动画，不要过度设计" between the login and registration forms.
+    This is the smallest move that reads as a transition: 6px and a fade, under 300ms, the same
+    distance and feel as `.section-in`. **It must never become a gate before the form** — the first
+    input exists from the first frame, and the reduced-motion rule below removes the movement.
+  */
+  @keyframes libellum-auth-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   /* ---- Shape ---------------------------------------------------------- */
   --radius-card: 1.25rem;
   --radius-field: 0.875rem;
@@ -379,12 +398,35 @@
 }
 
 /*
+  ⚠️ **The account-entry frame's arrival (S14-A).** `.auth-enter` is applied by `AuthLayout` to the
+  wordmark, the switch, the card and the guest entry; the delayed variant gives the card a 60ms
+  head start so the screen assembles rather than appearing all at once.
+
+  ⚠️ **Same 6px / short-duration rule as `.section-in`**, and for the same reason: this is a
+  settling, not an entrance sequence. It exists so moving between `/login` and `/register` feels
+  like one surface changing form, and it is gone entirely under reduced motion.
+*/
+.auth-enter {
+  animation: libellum-auth-enter 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.auth-enter-delayed {
+  animation-delay: 60ms;
+}
+
+/*
   ⚠️ **Honouring `prefers-reduced-motion` is not a nicety here.** A short vertical movement is the
   kind of motion that triggers nausea for some people, and the system setting exists precisely so they
   can say so once. **The elements still appear — they just appear.**
 */
 @media (prefers-reduced-motion: reduce) {
   .section-in {
+    animation: none;
+  }
+
+  /* ⚠️ The account entry's settling motion — same rule, same reason (S14-A). */
+  .auth-enter,
+  .auth-enter-delayed {
     animation: none;
   }
 

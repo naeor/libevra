@@ -170,6 +170,8 @@ export {
   recoveryCodeResponseSchema,
   regenerateRecoveryCodeRequestSchema,
   registerRequestSchema,
+  registrationConfigResponseSchema,
+  registrationModeSchema,
   sessionUserSchema,
   updatePreferencesRequestSchema,
   usernameSchema,
@@ -177,6 +179,8 @@ export {
   type AuthResponse,
   type MeResponse,
   type RecoveryCodeResponse,
+  type RegistrationConfigResponse,
+  type RegistrationMode,
   type SessionUser,
   type UpdatePreferencesRequest,
 } from "./auth.js";

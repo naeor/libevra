@@ -31,6 +31,15 @@ const LAN = process.env["LIBELLUM_LAN"] === "1";
 const API_TARGET = process.env["LIBELLUM_API_TARGET"] ?? "http://127.0.0.1:3000";
 
 /**
+ * Which port the dev server listens on.
+ *
+ * ⚠️ **Default unchanged (`5173`).** The override exists for the same reason as `LIBELLUM_API_TARGET`:
+ * an isolated verification stack can run beside the normal dev server instead of stopping it. The
+ * owner usually has a dev server open, and killing it to take screenshots would be a poor trade.
+ */
+const WEB_PORT = Number(process.env["LIBELLUM_WEB_PORT"] ?? "5173");
+
+/**
  * ⚠️ **The LAN server is HTTPS, and it has to be.**
  *
  * `getUserMedia`, `MediaRecorder`, `crypto.randomUUID` and service workers are
@@ -89,7 +98,8 @@ function serverOptions(): Record<string, unknown> {
     // Bind IPv4 explicitly: the default ("localhost") resolves to ::1 only on
     // some Windows setups, which makes http://127.0.0.1:5173 unreachable.
     host: LAN ? "0.0.0.0" : "127.0.0.1",
-    port: 5173,
+    port: WEB_PORT,
+    strictPort: process.env["LIBELLUM_WEB_PORT"] !== undefined,
     // Proxy API calls to the local API server so the browser sees one origin.
     // This is why the API needs no CORS configuration at all, and why exposing
     // this port is enough to use the whole application from a phone.

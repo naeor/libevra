@@ -47,6 +47,7 @@ import { MePage } from "./pages/MePage.js";
 import { LedgerInvitePage } from "./pages/LedgerInvitePage.js";
 import { MessageBoardPage } from "./pages/MessageBoardPage.js";
 import { JoinPage } from "./pages/JoinPage.js";
+import { GuestPlaceholderPage } from "./pages/GuestPlaceholderPage.js";
 import { LedgerHistoryPage } from "./pages/LedgerHistoryPage.js";
 import { LedgerMembersPage } from "./pages/LedgerSubPages.js";
 import { LedgerPage } from "./pages/LedgerPage.js";
@@ -184,6 +185,8 @@ function AppRoutes(): React.JSX.Element {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* ⚠️ S14-A: a real destination for the guest entry. S14-B replaces its body with the guest workspace. */}
+      <Route path="/guest" element={<GuestPlaceholderPage />} />
       <Route path="/recover" element={<RecoverPage />} />
       <Route path="/recover-archive" element={<ArchiveRecoveryPage />} />
 

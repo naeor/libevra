@@ -5,7 +5,9 @@ import { Link, Navigate, useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider.js";
 import { Alert } from "../components/Alert.js";
 import { AuthLayout } from "../components/AuthLayout.js";
+import { AuthSwitcher } from "../components/AuthSwitcher.js";
 import { Button } from "../components/Button.js";
+import { PasswordField } from "../components/PasswordField.js";
 import { TextField } from "../components/TextField.js";
 import { errorMessage } from "../lib/api.js";
 
@@ -22,6 +24,7 @@ export function LoginPage(): React.JSX.Element {
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
+    if (busy) return;
     setError(null);
 
     const parsed = loginRequestSchema.safeParse({ username, password });
@@ -54,13 +57,17 @@ export function LoginPage(): React.JSX.Element {
   return (
     <AuthLayout
       title="登录"
+      subtitle="使用用户名和密码继续。"
+      navigation={<AuthSwitcher active="login" />}
       footer={
-        <>
-          还没有账号？{" "}
-          <Link className="font-medium text-brand-dark hover:underline" to="/register">
-            使用邀请码注册
+        <div className="flex flex-col items-center gap-2">
+          <Link className="text-muted transition hover:text-ink" to="/recover">
+            忘记密码
           </Link>
-        </>
+          <Link className="text-helper text-muted/80 transition hover:text-ink" to="/recover-archive">
+            恢复已注销账号的归档账本
+          </Link>
+        </div>
       }
     >
       {sessionRevoked ? (
@@ -74,7 +81,7 @@ export function LoginPage(): React.JSX.Element {
       ) : null}
 
       <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
-        {error ? <Alert>{error}</Alert> : null}
+        {error === null ? null : <Alert>{error}</Alert>}
 
         <TextField
           label="用户名"
@@ -86,9 +93,8 @@ export function LoginPage(): React.JSX.Element {
           }}
         />
 
-        <TextField
+        <PasswordField
           label="密码"
-          type="password"
           autoComplete="current-password"
           value={password}
           onChange={(event) => {
@@ -100,15 +106,6 @@ export function LoginPage(): React.JSX.Element {
           {busy ? "登录中…" : "登录"}
         </Button>
       </form>
-
-      <div className="flex flex-col gap-2 text-center text-sm">
-        <Link className="text-muted transition hover:text-ink" to="/recover">
-          忘记密码
-        </Link>
-        <Link className="text-muted transition hover:text-ink" to="/recover-archive">
-          恢复已注销账号的归档账本
-        </Link>
-      </div>
     </AuthLayout>
   );
 }

@@ -1,6 +1,6 @@
 import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
-import { MAX_RECOGNIZE_BYTES, MAX_RECOGNIZE_IMAGES } from "@libellum/shared";
+import { MAX_RECOGNIZE_BYTES, MAX_RECOGNIZE_IMAGES, type RegistrationMode } from "@libellum/shared";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 
@@ -48,6 +48,14 @@ export interface BuildAppOptions extends HealthDeps {
   readonly webOrigin?: string;
   readonly cookieSecure?: boolean;
   readonly loginThrottleOptions?: LoginThrottleOptions;
+  /**
+   * Whether signup requires an invite code (S14-A).
+   *
+   * Defaults to `invite`, which is the rule the project has operated under since S2. A deployment
+   * that wants public registration sets `REGISTRATION_MODE=open` explicitly; tests can inject the
+   * mode to exercise both states without touching process environment.
+   */
+  readonly registrationMode?: RegistrationMode;
   /**
    * Screenshot recogniser. Supplied by tests as a stub; the real one spawns a
    * Python process, which is not something a unit test should depend on.
@@ -219,6 +227,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       throttle: new LoginThrottle(options.loginThrottleOptions ?? DEFAULT_THROTTLE),
       cookieSecure: options.cookieSecure ?? false,
       consentPolicy,
+      registrationMode: options.registrationMode ?? "invite",
     });
 
     registerAccountConsentRoutes(app, {

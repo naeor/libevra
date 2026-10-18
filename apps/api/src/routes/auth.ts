@@ -10,7 +10,9 @@ import {
   recoveryCodeResponseSchema,
   regenerateRecoveryCodeRequestSchema,
   registerRequestSchema,
+  registrationConfigResponseSchema,
   rejectInvite,
+  type RegistrationMode,
   type SessionUser,
   updatePreferencesRequestSchema,
 } from "@libellum/shared";
@@ -46,6 +48,14 @@ export interface AuthRouteOptions {
   readonly cookieSecure: boolean;
   /** Current agreement policy; it is empty in production until real documents are published. */
   readonly consentPolicy: ConsentPolicy;
+  /**
+   * Whether signup requires an invite code (S14-A).
+   *
+   * ⚠️ **The server is the judge, not the page.** The public config endpoint below exists so the
+   * interface can show the right form; the register handler re-checks this value and refuses a
+   * body without a code when the mode is `invite`, so hiding the field can never relax the rule.
+   */
+  readonly registrationMode: RegistrationMode;
 }
 
 interface RequestMeta {
@@ -106,7 +116,8 @@ function metaFrom(request: FastifyRequest): RequestMeta {
 }
 
 export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptions): void {
-  const { prisma, throttle, cookieSecure, consentPolicy } = options;
+  const { prisma, throttle, cookieSecure, consentPolicy, registrationMode } = options;
+  const inviteRequired = registrationMode === "invite";
 
   /**
    * Sign one device in, without touching any other device's session.
@@ -147,6 +158,25 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
 
   const requireAuth = createRequireAuth(prisma);
 
+  // ---------------------------------------------------------------------------
+  // GET /api/v1/auth/registration-config
+  // ---------------------------------------------------------------------------
+  /**
+   * What the signup page needs to know before showing a form: **does creating an account need an
+   * invite code right now?**
+   *
+   * ⚠️ **Deliberately only the mode.** No quota numbers, no counters, no server configuration —
+   * the answer is the same for every anonymous visitor and reveals nothing that the registration
+   * form would not reveal by existing.
+   *
+   * ⚠️ **Public, because the page that needs it is the one page a visitor can reach without an
+   * account.** It sits in the auth module beside the register handler so the two cannot disagree:
+   * the same `inviteRequired` decides both what this endpoint answers and what the handler enforces.
+   */
+  app.get("/api/v1/auth/registration-config", async () =>
+    registrationConfigResponseSchema.parse({ mode: registrationMode, inviteRequired }),
+  );
+
   async function assertNotThrottled(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -165,7 +195,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
   // ---------------------------------------------------------------------------
   app.post("/api/v1/auth/register", async (request, reply) => {
     const body = registerRequestSchema.parse(request.body);
-    const inviteCode = body.inviteCode.toUpperCase();
+    const inviteCode = body.inviteCode?.toUpperCase() ?? "";
 
     /**
      * Registration must carry an affirmative acceptance of every currently required document.
@@ -191,22 +221,40 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
       );
     }
 
-    const invite = await prisma.registrationInvite.findUnique({ where: { code: inviteCode } });
-
-    if (!invite) throw badRequest("invite_invalid", "邀请码无效。");
-
     /**
-     * Why this code cannot be used, if it cannot.
+     * ⚠️ **The registration mode decides whether a code is required, and this is the only place the
+     * decision is enforced.** The public config endpoint tells the page what to show, but the page
+     * is not the boundary: a body that omits the field while the mode is `invite` is refused here,
+     * so hiding the input can never make registration easier than the rule.
      *
-     * The rule lives in `shared` (`rejectInvite`) because the invite list has to
-     * label a code the same way registration rejects it — a code that reads
-     * "已过期" in one place and "可用" in another is a support ticket. `used` is
-     * checked first there, so a code that was both used and has since expired
-     * says "used", which is the fact that ends the story.
+     * ⚠️ **In `open` mode a supplied code is deliberately ignored, not consumed.** An old client or
+     * a hand-made request may still send one; redeeming it would burn a credential that the person
+     * who owns it never expected to spend, and the account is not being created *because* of it.
      */
-    const rejection = rejectInvite(invite);
-    if (rejection !== null) {
-      throw badRequest(INVITE_REJECTION_CODE[rejection], INVITE_REJECTION_MESSAGE[rejection]);
+    if (inviteRequired && inviteCode === "") {
+      throw badRequest("invite_required", "请填写邀请码。");
+    }
+
+    const invite = inviteRequired
+      ? await prisma.registrationInvite.findUnique({ where: { code: inviteCode } })
+      : null;
+
+    if (inviteRequired && invite === null) throw badRequest("invite_invalid", "邀请码无效。");
+
+    if (invite !== null) {
+      /**
+       * Why this code cannot be used, if it cannot.
+       *
+       * The rule lives in `shared` (`rejectInvite`) because the invite list has to
+       * label a code the same way registration rejects it — a code that reads
+       * "已过期" in one place and "可用" in another is a support ticket. `used` is
+       * checked first there, so a code that was both used and has since expired
+       * says "used", which is the fact that ends the story.
+       */
+      const rejection = rejectInvite(invite);
+      if (rejection !== null) {
+        throw badRequest(INVITE_REJECTION_CODE[rejection], INVITE_REJECTION_MESSAGE[rejection]);
+      }
     }
 
     const taken = await prisma.user.findUnique({ where: { username: body.username } });
@@ -228,7 +276,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
        * `users.account_number` still fails the insert if that reasoning is ever
        * wrong, which is the point of having it.
        */
-      const accountNumber = invite.accountNumber ?? (await takeNextAccountNumber(tx));
+      const accountNumber = invite?.accountNumber ?? (await takeNextAccountNumber(tx));
 
       const created = await tx.user.create({
         data: {
@@ -283,48 +331,55 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
       }
 
       /**
-       * Claim the invite inside the same transaction: `usedAt: null` in the
-       * filter means two simultaneous registrations cannot both consume it.
-       *
-       * `revokedAt: null` is checked again here, not only above, because a code
-       * revoked between that check and this line must not register anybody. The
-       * window is small and the guard is one extra condition.
+       * The invite is claimed only when there is one. In `open` mode there is nothing to claim,
+       * and writing an "invite used" event for a code nobody presented would make the audit trail
+       * say something that did not happen.
        */
-      const claimed = await tx.registrationInvite.updateMany({
-        where: { id: invite.id, usedAt: null, revokedAt: null },
-        data: { usedByUserId: created.id, usedAt: new Date() },
-      });
-
-      if (claimed.count !== 1) {
-        throw badRequest("invite_used", "该邀请码已被使用。");
-      }
-
-      /**
-       * ⚠️ **A referral code leaves two traces, and both are written here, in the same transaction.**
-       *
-       * `referredByUserId` on the new account is *who invited me*; the reminder is what the newcomer
-       * actually sees for seven days.
-       *
-       * ⚠️ **Inside the transaction, because a half-recorded referral cannot be repaired**: an
-       * account created without its `referredByUserId`, or with one but no invitation marked used,
-       * is a state where "who invited whom" has two different answers depending on which table you
-       * ask. **`教训.md` §8.7 is about exactly that.**
-       *
-       * ⚠️ **A plain invitation leaves neither** — `createdByUserId` is what distinguishes a referral
-       * code from a batch-minted ticket, and this is where that distinction pays off.
-       */
-      if (invite.createdByUserId !== null) {
-        const generator = await tx.user.findUnique({
-          where: { id: invite.createdByUserId },
-          select: { displayName: true },
+      if (invite !== null) {
+        /**
+         * Claim the invite inside the same transaction: `usedAt: null` in the
+         * filter means two simultaneous registrations cannot both consume it.
+         *
+         * `revokedAt: null` is checked again here, not only above, because a code
+         * revoked between that check and this line must not register anybody. The
+         * window is small and the guard is one extra condition.
+         */
+        const claimed = await tx.registrationInvite.updateMany({
+          where: { id: invite.id, usedAt: null, revokedAt: null },
+          data: { usedByUserId: created.id, usedAt: new Date() },
         });
 
-        if (generator) {
-          await recordReferral(tx, {
-            newUserId: created.id,
-            generatorId: invite.createdByUserId,
-            generatorDisplayName: generator.displayName,
+        if (claimed.count !== 1) {
+          throw badRequest("invite_used", "该邀请码已被使用。");
+        }
+
+        /**
+         * ⚠️ **A referral code leaves two traces, and both are written here, in the same transaction.**
+         *
+         * `referredByUserId` on the new account is *who invited me*; the reminder is what the newcomer
+         * actually sees for seven days.
+         *
+         * ⚠️ **Inside the transaction, because a half-recorded referral cannot be repaired**: an
+         * account created without its `referredByUserId`, or with one but no invitation marked used,
+         * is a state where "who invited whom" has two different answers depending on which table you
+         * ask. **`教训.md` §8.7 is about exactly that.**
+         *
+         * ⚠️ **A plain invitation leaves neither** — `createdByUserId` is what distinguishes a referral
+         * code from a batch-minted ticket, and this is where that distinction pays off.
+         */
+        if (invite.createdByUserId !== null) {
+          const generator = await tx.user.findUnique({
+            where: { id: invite.createdByUserId },
+            select: { displayName: true },
           });
+
+          if (generator) {
+            await recordReferral(tx, {
+              newUserId: created.id,
+              generatorId: invite.createdByUserId,
+              generatorDisplayName: generator.displayName,
+            });
+          }
         }
       }
 
@@ -357,17 +412,19 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
           },
         });
       }
-      await recordCriticalEvent(tx, {
-        type: "invite.used",
-        actor: { userId: created.id, accountNumber: created.accountNumber },
-        subjectType: "invite",
-        subjectId: invite.id,
-        afterState: {
-          inviteId: invite.id,
-          usedByUserId: created.id,
-          usedAtIso: new Date().toISOString(),
-        },
-      });
+      if (invite !== null) {
+        await recordCriticalEvent(tx, {
+          type: "invite.used",
+          actor: { userId: created.id, accountNumber: created.accountNumber },
+          subjectType: "invite",
+          subjectId: invite.id,
+          afterState: {
+            inviteId: invite.id,
+            usedByUserId: created.id,
+            usedAtIso: new Date().toISOString(),
+          },
+        });
+      }
 
       return created;
     });

@@ -152,3 +152,46 @@ describe("register", () => {
     }
   });
 });
+
+describe("account entry copy (S14-A)", () => {
+  /**
+   * ⚠️ **The restricted-registration copy is a product decision, not a placeholder.** The owner
+   * ruled out shortage/marketing language ("注册额度已耗尽 / 服务器资源不足 / 名额用完了") and asked
+   * for a calm statement of the rule. This test is what keeps a future edit from "improving" it
+   * back into scarcity marketing — the file may *quote* the rejected wording in a comment, which is
+   * why the check runs on `visibleText`.
+   */
+  const register = visibleText("../pages/RegisterPage.tsx");
+  const login = visibleText("../pages/LoginPage.tsx");
+  const guestEntry = visibleText("../components/GuestEntry.tsx");
+  const passwordField = visibleText("../components/PasswordField.tsx");
+
+  it("states the invite rule plainly and without manufactured scarcity", () => {
+    expect(register).toContain("为了保持稳定的使用体验，目前新账号通过邀请开放。");
+
+    for (const rejected of ["注册额度已耗尽", "服务器资源不足", "名额用完了", "当前没有额度"]) {
+      expect(register, `RegisterPage shows 「${rejected}」`).not.toContain(rejected);
+    }
+  });
+
+  it("asks only for username, password and its confirmation (plus the invite code when required)", () => {
+    expect(register).toContain("确认密码");
+    expect(register).toContain("两次输入的密码不一致。");
+    // The reveal control is shared by both password inputs; its label lives in one component.
+    expect(passwordField).toContain("显示密码");
+    // The nickname/email/phone/code fields the owner ruled out must not appear as inputs.
+    for (const rejected of ['label="昵称"', 'label="邮箱"', 'label="手机号"', 'label="验证码"']) {
+      expect(register, `RegisterPage shows ${rejected}`).not.toContain(rejected);
+    }
+  });
+
+  it("keeps the guest entry on the account screens and out of the guest destination", () => {
+    // The entry itself is a shared component; its label lives in one place.
+    expect(guestEntry).toContain("以游客身份继续");
+    expect(guestEntry).toContain('to="/guest"');
+
+    // Login no longer hard-codes "invite registration" as the only way to create an account —
+    // with S14-A the register page decides that from the server's mode.
+    expect(login).not.toContain("使用邀请码注册");
+  });
+});

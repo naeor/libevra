@@ -32,6 +32,27 @@ export const displayNameSchema = z
 
 export const inviteCodeSchema = z.string().trim().min(4, "请填写邀请码");
 
+/**
+ * How a new account may be created.
+ *
+ * ⚠️ **This is a server-side rule, and the interface only mirrors it.** `invite` means the current
+ * registration rule requires a code; `open` means accounts may be created directly (S14-A; the
+ * owner has not enabled it in production, and the server default stays `invite`).
+ *
+ * The browser asks the server which mode is in force so the page can be accurate without the
+ * invite field being a client-side-only illusion: **the register endpoint re-checks the mode and
+ * rejects a missing code when the mode requires one**, so hiding the field can never relax the rule.
+ */
+export const registrationModeSchema = z.enum(["invite", "open"]);
+export type RegistrationMode = z.infer<typeof registrationModeSchema>;
+
+/** The public answer to "does registration need an invite code right now?". */
+export const registrationConfigResponseSchema = z.object({
+  mode: registrationModeSchema,
+  inviteRequired: z.boolean(),
+});
+export type RegistrationConfigResponse = z.infer<typeof registrationConfigResponseSchema>;
+
 /** One affirmative acceptance supplied during registration (the server re-verifies the hash). */
 export const acceptedAgreementSchema = z.object({
   documentId: z.string().min(1),
@@ -40,7 +61,13 @@ export const acceptedAgreementSchema = z.object({
 });
 
 export const registerRequestSchema = z.object({
-  inviteCode: inviteCodeSchema,
+  /**
+   * ⚠️ **Optional in the contract, required by the rule in force.** Whether it is needed is decided
+   * by `registrationMode` on the server, not by this schema: an `open` server must accept a body
+   * without it, and an `invite` server must reject one. The interface shows the field only when the
+   * server says it is required.
+   */
+  inviteCode: inviteCodeSchema.optional(),
   username: usernameSchema,
   displayName: displayNameSchema,
   password: passwordSchema,

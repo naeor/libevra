@@ -9,7 +9,15 @@ import { forgetCurrentBook } from "../lib/currentBook.js";
 import { setOfflineAccount } from "../lib/offline/scope.js";
 
 interface RegisterInput {
-  readonly inviteCode: string;
+  /**
+   * Required only when the server's current registration mode is `invite`.
+   *
+   * ⚠️ **Optional here because the server decides.** The registration page asks
+   * `GET /auth/registration-config` before rendering the field, and the API refuses a body without
+   * a code when the mode requires one — so leaving it out is only possible when the server allows
+   * it, never because the browser chose to hide something.
+   */
+  readonly inviteCode?: string;
   readonly username: string;
   readonly displayName: string;
   readonly password: string;
@@ -155,19 +163,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
          */
         const remembered = await readRememberedUser();
         await forgetLocalState();
-        setSessionRevoked(true);
-        const reason =
-          error instanceof ApiRequestError && error.code === "account_closed"
-            ? "account_closed"
-            : error instanceof ApiRequestError && error.code === "account_disabled"
-              ? "account_disabled"
-              : error instanceof ApiRequestError && error.code === "session_revoked"
-                ? "session_revoked"
-                : "session_expired";
-        if (reason === "account_closed" && remembered !== null) {
-          await clearAccountLocalData(remembered.id);
+        /**
+         * ⚠️ **"Nobody is signed in" and "your session ended" are different facts**, and a 401
+         * answers both. Only the second one deserves the notice the login screen shows: a first
+         * visitor has no remembered account, and telling them 「登录状态已失效，请重新登录」 invents
+         * an expiry that never happened. The notice is therefore tied to there having been a
+         * remembered user, not to the status code alone (S14-A).
+         */
+        if (remembered !== null) {
+          setSessionRevoked(true);
+          const reason =
+            error instanceof ApiRequestError && error.code === "account_closed"
+              ? "account_closed"
+              : error instanceof ApiRequestError && error.code === "account_disabled"
+                ? "account_disabled"
+                : error instanceof ApiRequestError && error.code === "session_revoked"
+                  ? "session_revoked"
+                  : "session_expired";
+          if (reason === "account_closed") {
+            await clearAccountLocalData(remembered.id);
+          }
+          setSessionEndReason((current) => (current === "account_closed" ? current : reason));
         }
-        setSessionEndReason((current) => (current === "account_closed" ? current : reason));
         setUser(null);
       } else {
         setUser(await readRememberedUser());
