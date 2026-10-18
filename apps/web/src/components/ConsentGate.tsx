@@ -276,22 +276,41 @@ export function ConsentDialog({
   eyebrow,
   closeAction,
   footer,
+  onDismiss,
   children,
 }: {
   readonly title: string;
   readonly eyebrow?: string | undefined;
   readonly closeAction?: React.ReactNode;
   readonly footer: React.ReactNode;
+  /** When set, clicking the grey backdrop calls this (same as a cancel button). */
+  readonly onDismiss?: (() => void) | undefined;
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-overlay-soft p-3 backdrop-in sm:items-center">
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-overlay-soft backdrop-in sm:items-center sm:p-3"
+      onClick={(event) => {
+        /**
+         * ⚠️ Only the backdrop itself dismisses. Clicks inside the sheet bubble up to this
+         * container with a different target; treating every bubble as "outside" would make a
+         * submit button close the dialog instead of running its action.
+         */
+        if (event.target === event.currentTarget && onDismiss !== undefined) {
+          onDismiss();
+        }
+      }}
+    >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="consent-dialog-title"
-        className="consent-dialog flex w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface shadow-sheet sheet-in"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+        className="consent-dialog flex w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface shadow-sheet sheet-in sm:rounded-card"
       >
+
         <header className="shrink-0 border-b border-line px-5 pb-3 pt-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

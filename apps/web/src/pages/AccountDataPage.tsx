@@ -112,6 +112,13 @@ export function AccountDataPage(): React.JSX.Element {
     setDialog("close");
   }
 
+  function cancelClose(): void {
+    setDialog(null);
+    setPassword("");
+    setConfirmation("");
+    setError(null);
+  }
+
   async function onExport(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -500,9 +507,10 @@ export function AccountDataPage(): React.JSX.Element {
         <ConsentDialog
           title="注销账号"
           eyebrow="不可恢复"
+          onDismiss={busy ? undefined : cancelClose}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setDialog(null)} disabled={busy}>
+              <Button variant="secondary" onClick={cancelClose} disabled={busy}>
                 取消
               </Button>
               <Button
