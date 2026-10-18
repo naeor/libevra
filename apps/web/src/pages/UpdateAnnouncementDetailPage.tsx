@@ -1,7 +1,12 @@
 import { Link, useParams } from "react-router";
+import { TEST_MAJOR_ANNOUNCEMENT } from "@libellum/shared";
 
 import { InnerPage } from "../components/Layouts.js";
-import { formatReleaseDate, releasedAnnouncementByVersion } from "../lib/updateAnnouncements.js";
+import {
+  formatReleaseDate,
+  releasedAnnouncementByVersion,
+  type UpdateAnnouncement,
+} from "../lib/updateAnnouncements.js";
 
 /**
  * One release's full announcement.
@@ -11,7 +16,26 @@ import { formatReleaseDate, releasedAnnouncementByVersion } from "../lib/updateA
  */
 export function UpdateAnnouncementDetailPage(): React.JSX.Element {
   const { version } = useParams<{ readonly version: string }>();
-  const announcement = version === undefined ? null : releasedAnnouncementByVersion(version);
+
+  /**
+   * The local major-announcement test has a synthetic version and is not part of the real release
+   * history. It still gets the same full-detail page during the local flow test; a production build
+   * (`import.meta.env.DEV === false`) never falls through to it.
+   */
+  const testMajor: UpdateAnnouncement | null =
+    import.meta.env.DEV && version === TEST_MAJOR_ANNOUNCEMENT.version
+      ? {
+          version: TEST_MAJOR_ANNOUNCEMENT.version,
+          releasedAt: TEST_MAJOR_ANNOUNCEMENT.publishedAt.slice(0, 10),
+          status: "released",
+          title: TEST_MAJOR_ANNOUNCEMENT.title,
+          summary: TEST_MAJOR_ANNOUNCEMENT.summary,
+          sections: TEST_MAJOR_ANNOUNCEMENT.sections,
+          major: true,
+        }
+      : null;
+
+  const announcement = (version === undefined ? null : releasedAnnouncementByVersion(version)) ?? testMajor;
 
   if (announcement === null) {
     return (

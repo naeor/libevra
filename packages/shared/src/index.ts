@@ -158,6 +158,7 @@ export {
   PASSWORD_MIN_LENGTH,
   USERNAME_PATTERN,
   apiErrorSchema,
+  acceptedAgreementSchema,
   authResponseSchema,
   changePasswordRequestSchema,
   displayNameSchema,
@@ -300,3 +301,14 @@ export {
 } from "./admin.js";
 
 export { APP_VERSION } from "./version.js";
+
+export {
+  TEST_LEGAL_DOCUMENT,
+  TEST_MAJOR_ANNOUNCEMENT,
+  activeLegalDocuments,
+  activeMajorAnnouncements,
+  legalDocumentById,
+  majorAnnouncementById,
+  type LegalDocument,
+  type MajorAnnouncement,
+} from "./consent.js";

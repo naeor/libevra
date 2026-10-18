@@ -32,11 +32,20 @@ export const displayNameSchema = z
 
 export const inviteCodeSchema = z.string().trim().min(4, "请填写邀请码");
 
+/** One affirmative acceptance supplied during registration (the server re-verifies the hash). */
+export const acceptedAgreementSchema = z.object({
+  documentId: z.string().min(1),
+  documentVersion: z.string().min(1),
+  contentHash: z.string().regex(/^[a-f0-9]{64}$/, "协议内容标识格式不正确"),
+});
+
 export const registerRequestSchema = z.object({
   inviteCode: inviteCodeSchema,
   username: usernameSchema,
   displayName: displayNameSchema,
   password: passwordSchema,
+  /** Required only when the server currently requires one or more documents. */
+  agreements: z.array(acceptedAgreementSchema).optional(),
 });
 
 export const loginRequestSchema = z.object({

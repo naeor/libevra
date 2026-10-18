@@ -7,6 +7,12 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastif
 import { createRequireAdmin } from "./admin/guard.js";
 import { createRequireAuth, createRequireBook } from "./auth/guard.js";
 import { LoginThrottle, type LoginThrottleOptions } from "./auth/login-throttle.js";
+import { createRequireConsent } from "./consent/guard.js";
+import {
+  createConsentPolicy,
+  requiredDocuments,
+  type ConsentPolicy,
+} from "./consent/policy.js";
 import type { PrismaClient } from "./db.js";
 import { forbidden, registerErrorHandlers } from "./lib/errors.js";
 import { OcrService } from "./ocr/client.js";
@@ -16,6 +22,10 @@ import { registerBooksRoutes } from "./routes/books.js";
 import { registerClassificationRoutes } from "./routes/classification.js";
 import { registerDirectoryRoutes } from "./routes/directory.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
+import {
+  registerAccountConsentRoutes,
+  registerLegalRoutes,
+} from "./routes/consent.js";
 import { registerShareRoutes } from "./routes/share.js";
 import { registerExportRoutes } from "./routes/export.js";
 import { registerHealthRoute, type HealthDeps } from "./routes/health.js";
@@ -45,6 +55,11 @@ export interface BuildAppOptions extends HealthDeps {
    * have a 147 MB model on disk.
    */
   readonly voice?: Pick<VoiceService, "transcribe" | "stop">;
+  /**
+   * Local development includes a clearly marked test agreement and test major announcement.
+   * Tests and production exclude them unless a caller passes a policy explicitly.
+   */
+  readonly consentPolicy?: ConsentPolicy;
 }
 
 const DEFAULT_THROTTLE: LoginThrottleOptions = {
@@ -88,6 +103,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   const webOrigin = options.webOrigin ?? "http://localhost:5173";
+  const consentPolicy =
+    options.consentPolicy ?? createConsentPolicy(process.env["NODE_ENV"] === "development");
+
+  // Public legal documents are readable before login (and before an account exists).
+  registerLegalRoutes(app, consentPolicy);
 
   /**
    * Defence in depth against CSRF.
@@ -142,17 +162,25 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   registerHealthRoute(app, options);
 
   if (options.prisma) {
-    const requireAuth = createRequireAuth(options.prisma);
+    const prisma = options.prisma;
+    const requireSession = createRequireAuth(prisma);
+    const requireAuth = createRequireConsent(
+      prisma,
+      requireSession,
+      consentPolicy,
+      () => requiredDocuments(consentPolicy),
+    );
 
     /**
-     * **The administration guard, built once and shared.**
+     * ⚠️ **`requireAuth` below means "signed in AND current agreements accepted".** The raw
+     * session guard is deliberately not passed to business modules. Account/consent/export
+     * routes receive `requireSession` instead because a restricted account must still be able
+     * to inspect its status, export its data, and sign out.
      *
-     * ⚠️ **One instance for the whole app**, because a second `createRequireAdmin` call would be
-     * a second place the admin decision is made — which is the shape this project records as
-     * *"how a hole appears"* (`admin/guard.ts`, `auth/guard.ts`). The console's routes receive
-     * this function; none of them decides for itself.
+     * The admin console is also behind the agreement guard: it is an online service. The
+     * owner can add real documents to the shared policy when they are reviewed.
      */
-    const requireAdmin = createRequireAdmin(options.prisma, requireAuth);
+    const requireAdmin = createRequireAdmin(prisma, requireAuth);
 
     /**
      * Started on first use, not here.
@@ -180,6 +208,13 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       prisma: options.prisma,
       throttle: new LoginThrottle(options.loginThrottleOptions ?? DEFAULT_THROTTLE),
       cookieSecure: options.cookieSecure ?? false,
+      consentPolicy,
+    });
+
+    registerAccountConsentRoutes(app, {
+      prisma: options.prisma,
+      requireSession,
+      policy: consentPolicy,
     });
 
     /**

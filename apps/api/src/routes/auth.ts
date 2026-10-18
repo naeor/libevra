@@ -24,6 +24,7 @@ import {
   takeNextAccountNumber,
   normalizeRecoveryCode,
 } from "../auth/recovery-code.js";
+import { requiredDocuments, type ConsentPolicy } from "../consent/policy.js";
 import {
   SESSION_COOKIE_NAME,
   SESSION_TTL_MS,
@@ -41,6 +42,8 @@ export interface AuthRouteOptions {
   readonly throttle: LoginThrottle;
   /** Set the cookie's Secure flag (true in production, false on http://localhost). */
   readonly cookieSecure: boolean;
+  /** Current agreement policy; it is empty in production until real documents are published. */
+  readonly consentPolicy: ConsentPolicy;
 }
 
 interface RequestMeta {
@@ -101,7 +104,7 @@ function metaFrom(request: FastifyRequest): RequestMeta {
 }
 
 export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptions): void {
-  const { prisma, throttle, cookieSecure } = options;
+  const { prisma, throttle, cookieSecure, consentPolicy } = options;
 
   /**
    * Sign one device in, without touching any other device's session.
@@ -161,6 +164,30 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
   app.post("/api/v1/auth/register", async (request, reply) => {
     const body = registerRequestSchema.parse(request.body);
     const inviteCode = body.inviteCode.toUpperCase();
+
+    /**
+     * Registration must carry an affirmative acceptance of every currently required document.
+     * The hashes were issued by the public legal-document endpoint and are re-verified here; the
+     * client cannot accept a stale or invented version.
+     */
+    const requiredAgreements = requiredDocuments(consentPolicy);
+    const suppliedAgreements = body.agreements ?? [];
+    const missingAgreements = requiredAgreements.filter(
+      (required) =>
+        !suppliedAgreements.some(
+          (supplied) =>
+            supplied.documentId === required.id &&
+            supplied.documentVersion === required.version &&
+            supplied.contentHash === required.contentHash,
+        ),
+    );
+    if (missingAgreements.length > 0) {
+      throw badRequest(
+        "agreement_required",
+        "注册前需要先阅读并同意当前适用的协议。",
+        { documentIds: missingAgreements.map((document) => document.id) },
+      );
+    }
 
     const invite = await prisma.registrationInvite.findUnique({ where: { code: inviteCode } });
 
@@ -236,6 +263,22 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
       // the same transaction: book, membership, preset categories and payment
       // methods all exist, or the signup does not happen at all.
       await createDefaultLedger(tx, created.id);
+
+      /**
+       * The acceptance evidence is written in the same transaction as the account. A failed
+       * signup must not leave either half behind.
+       */
+      if (requiredAgreements.length > 0) {
+        await tx.agreementAcceptance.createMany({
+          data: requiredAgreements.map((document) => ({
+            userId: created.id,
+            documentId: document.id,
+            documentVersion: document.version,
+            contentHash: document.contentHash,
+            action: "accept",
+          })),
+        });
+      }
 
       /**
        * Claim the invite inside the same transaction: `usedAt: null` in the

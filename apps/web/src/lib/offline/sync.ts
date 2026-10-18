@@ -273,7 +273,15 @@ async function deliver(intent: Intent): Promise<boolean> {
     failures.set(entry.id, {
       attempts: (previous?.attempts ?? 0) + 1,
       message,
-      permanent: status >= 400 && status < 500,
+      /**
+       * ⚠️ **A consent gate is not a permanent content failure.** The 403 is an instruction to
+       * accept a document, not evidence that the queued entry is invalid. Treating it as permanent
+       * would turn every queued write into a red row and stop retrying even after acceptance.
+       */
+      permanent:
+        status >= 400 &&
+        status < 500 &&
+        !(error instanceof ApiRequestError && error.code === "agreement_required"),
     });
 
     return false;

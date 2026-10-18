@@ -177,7 +177,58 @@ model User {
   /// second check. See `docs/管理员与权限边界-设计决定.md` §4.
   adminAllowEntry AdminAllowEntry?
 
+  /// Which versions of which legal/consent documents this account has accepted.
+  agreementAcceptances AgreementAcceptance[]
+  /// Major announcements this account has already seen/acknowledged. At most one row per announcement.
+  majorAnnouncementAcks MajorAnnouncementAck[]
+
   @@map("users")
+}
+
+/// **Reliable evidence that one account accepted one immutable document version.**
+///
+/// ⚠️ **An acceptance is not a boolean and is never updated in place.** A new document version gets
+/// a new row; editing the text without changing the version is refused by the server, because the
+/// content hash would not match. Existing acceptances therefore continue to describe exactly what
+/// was accepted, even after a later revision.
+model AgreementAcceptance {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  documentId      String   @map("document_id") @db.VarChar(64)
+  documentVersion String   @map("document_version") @db.VarChar(64)
+  /// SHA-256 of the canonical document text. Evidence of exactly what was accepted.
+  contentHash     String   @map("content_hash") @db.VarChar(64)
+  /// "accept" for an explicit affirmative action.
+  action          String   @default("accept") @db.VarChar(16)
+  acceptedAt      DateTime @default(now()) @map("accepted_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The same account version is accepted once; retrying is idempotent.
+  @@unique([userId, documentId, documentVersion])
+  @@index([userId, documentId])
+  @@map("agreement_acceptances")
+}
+
+/// **A major-announcement acknowledgement, one per account and announcement.**
+///
+/// ⚠️ **This is deliberately separate from `notifications.read_at`.** A notification being read is
+/// not an affirmative acknowledgement, and a major announcement may have no notification row at
+/// all. The unique key is what makes "one reminder per account, across devices" true.
+model MajorAnnouncementAck {
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  announcementId      String   @map("announcement_id") @db.VarChar(64)
+  announcementVersion String   @map("announcement_version") @db.VarChar(64)
+  /// "acknowledged" / "opened_details" / "dismissed"; records the actual action.
+  action              String   @default("acknowledged") @db.VarChar(16)
+  acknowledgedAt      DateTime @default(now()) @map("acknowledged_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, announcementId])
+  @@index([userId])
+  @@map("major_announcement_acknowledgements")
 }
 
 /// **One message waiting for one person to decide.**

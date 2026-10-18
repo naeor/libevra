@@ -6,6 +6,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AuthProvider, useAuth } from "./auth/AuthProvider.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { AppShell } from "./components/Layouts.js";
+import { ConsentGate } from "./components/ConsentGate.js";
 import { OfflineFillProvider } from "./components/OfflineFillProvider.js";
 import { UndoProvider } from "./components/UndoProvider.js";
 import { CACHE_MAX_AGE_MS, cachePersister, shouldPersistQuery } from "./lib/offline/cache.js";
@@ -52,6 +53,7 @@ import { StatsPage } from "./pages/StatsPage.js";
 import { RecoverPage } from "./pages/RecoverPage.js";
 import { RegisterPage } from "./pages/RegisterPage.js";
 import { LegalPage } from "./pages/LegalPage.js";
+import { LegalDocumentPage } from "./pages/LegalDocumentPage.js";
 import { StartBookMembersPage, StartBookSharePage } from "./pages/StartBookPages.js";
 import { ReferralCodePage } from "./pages/ReferralCodePage.js";
 import { RegenerateRecoveryCodePage } from "./pages/RegenerateRecoveryCodePage.js";
@@ -346,6 +348,11 @@ function AppRoutes(): React.JSX.Element {
         */}
       <Route path="/legal/privacy" element={<RequireAuth><LegalPage kind="privacy" /></RequireAuth>} />
       <Route path="/legal/terms" element={<RequireAuth><LegalPage kind="terms" /></RequireAuth>} />
+      {/**
+        * ⚠️ **A required document must be readable before login.** This route is deliberately
+        * outside `RequireAuth`; test-only content is hidden from production by the page itself.
+        */}
+      <Route path="/legal/:documentId" element={<LegalDocumentPage />} />
 
       {/**
         * ⚠️ **系统管理的五个地址（S13-B/C）—— 在此之前它们一条路由都没有。**
@@ -429,7 +436,9 @@ export default function App(): React.JSX.Element {
                 from the location.
               */}
               <AppShell>
-                <AppRoutes />
+                <ConsentGate>
+                  <AppRoutes />
+                </ConsentGate>
               </AppShell>
             </BrowserRouter>
             </UndoProvider>

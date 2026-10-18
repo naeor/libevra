@@ -12,6 +12,11 @@ interface RegisterInput {
   readonly username: string;
   readonly displayName: string;
   readonly password: string;
+  readonly agreements?: readonly {
+    readonly documentId: string;
+    readonly documentVersion: string;
+    readonly contentHash: string;
+  }[];
 }
 
 interface AuthContextValue {
@@ -25,7 +30,8 @@ interface AuthContextValue {
   readonly sessionRevoked: boolean;
   login(username: string, password: string): Promise<void>;
   register(input: RegisterInput): Promise<string | undefined>;
-  logout(): Promise<void>;
+  /** `preserveOfflineData` keeps the downloaded ledger cache when signing out from the consent gate. */
+  logout(options?: { readonly preserveOfflineData?: boolean }): Promise<void>;
   reload(): Promise<void>;
 }
 
@@ -109,14 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
    * it after the scope had been emptied would delete the *unscoped* key and leave this account's
    * cached responses behind under the scoped one — the opposite of the intent.
    */
-  const forgetLocalState = useCallback(async () => {
+  const forgetLocalState = useCallback(async (options?: { readonly preserveOfflineData?: boolean }) => {
     await forgetUser();
-    await clearQueryCache();
     /**
-     * ⚠️ **The remembered ledger goes with the account.** Inheriting it would aim the next
-     * person's requests at somebody else's book: the server would refuse, but the client should
-     * not ask, and it should not show the wrong ledger's cached copy on the way there.
+     * ⚠️ **The restricted-consent sign-out must not delete the downloaded ledger.**
+     * `clearQueryCache` removes the persisted query cache, which is the offline copy of months
+     * the account saved. The owner explicitly asked that refusing a new agreement must not erase
+     * local history or unsynced records. The normal sign-out keeps the old cleanup; the consent
+     * screen uses `preserveOfflineData`.
      */
+    if (options?.preserveOfflineData !== true) await clearQueryCache();
     forgetCurrentBook();
     setOfflineAccount(null);
   }, []);
@@ -249,7 +257,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     return response.recoveryCode;
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (options?: { readonly preserveOfflineData?: boolean }) => {
     /**
      * ⚠️ **The order matters, and the second step matters more.**
      *
@@ -265,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
      * calls as well.** Leaving it inline here is what let that path sign the user out without
      * letting go of their ledger — see the long note on `forgetLocalState`.
      */
-    await forgetLocalState();
+    await forgetLocalState(options);
 
     try {
       await apiFetch<unknown>("/auth/logout", { method: "POST" });
