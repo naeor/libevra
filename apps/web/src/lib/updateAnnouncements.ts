@@ -26,10 +26,46 @@ export interface UpdateAnnouncement {
 }
 
 /**
- * 1.13.09 is the S13-F release; 1.13.08 was a production patch (card layout) and 1.13.07 was the
- * full S13-E release. All are production releases on 2026-10-18.
+ * 1.13.15 is the S13-G/H/I release (2026-10-19). 1.13.09 is the S13-F release;
+ * 1.13.08 was a production patch (card layout) and 1.13.07 was the full S13-E release.
+ * All are production releases.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.13.15",
+    releasedAt: "2026-10-19",
+    status: "released",
+    title: "软件更新与版本公告",
+    summary:
+      "本次更新重点完善了账号和账本的安全管理，同时增强了数据备份、恢复及异常监测能力，让记账数据获得更可靠的保护。",
+    sections: [
+      {
+        heading: "数据保护与恢复",
+        items: [
+          "新增关键操作记录机制，降低恢复历史备份时已删除账本、账号状态或权限变更意外失效的风险。",
+          "增强数据库备份与校验能力，提高重要数据的可恢复性。",
+          "改进后台异常监测，在关键数据保护机制出现问题时及时发出告警。",
+        ],
+      },
+      {
+        heading: "账号与账本安全",
+        items: [
+          "完善账号及账本生命周期管理，强化关闭、删除及相关状态变化的安全检查。",
+          "加强账本成员与访问权限校验，减少不符合当前权限状态的操作。",
+          "优化重要操作的保护机制，降低异常情况下的数据不一致风险。",
+        ],
+      },
+      {
+        heading: "稳定性改进",
+        items: [
+          "完善后台服务之间的健康检查机制。",
+          "改进数据恢复过程中的完整性验证。",
+          "修复部分运行配置问题，提升服务稳定性。",
+        ],
+      },
+    ],
+    major: false,
+  },
   {
     version: "1.13.09",
     releasedAt: "2026-10-18",
@@ -106,7 +142,10 @@ function compareVersionParts(left: string, right: string): number {
   return 0;
 }
 
-/** Released announcements, newest first, capped to the history's ten rows. */
+/** The history page shows this many releases before offering the older ones. */
+export const ANNOUNCEMENT_PAGE_SIZE = 20;
+
+/** Released announcements, newest first. The page owns how many are initially shown. */
 export function releasedAnnouncements(
   all: readonly UpdateAnnouncement[] = ALL_ANNOUNCEMENTS,
 ): readonly UpdateAnnouncement[] {
@@ -119,8 +158,7 @@ export function releasedAnnouncements(
     .sort((left, right) => {
       const byDate = right.releasedAt.localeCompare(left.releasedAt);
       return byDate === 0 ? compareVersionParts(right.version, left.version) : byDate;
-    })
-    .slice(0, 10);
+    });
 }
 
 export function latestReleasedAnnouncement(): UpdateAnnouncement | null {
@@ -150,6 +188,30 @@ export function releasedAnnouncementByVersion(
   return (
     releasedAnnouncements(all).find((announcement) => announcement.version === version) ?? null
   );
+}
+
+/**
+ * Neighbours for the detail page's version navigation.
+ *
+ * "older" is the previous release in time; "newer" is the next one. Both are
+ * released announcements only, so the links can never lead to a development
+ * placeholder or invent a version that users have not received.
+ */
+export function adjacentReleasedAnnouncements(
+  version: string,
+  all: readonly UpdateAnnouncement[] = ALL_ANNOUNCEMENTS,
+): {
+  readonly older: UpdateAnnouncement | null;
+  readonly newer: UpdateAnnouncement | null;
+} {
+  const releases = releasedAnnouncements(all);
+  const index = releases.findIndex((announcement) => announcement.version === version);
+  if (index < 0) return { older: null, newer: null };
+
+  return {
+    older: releases[index + 1] ?? null,
+    newer: index > 0 ? releases[index - 1]! : null,
+  };
 }
 
 /** Stable for a Chinese reader, without inventing a time or timezone. */

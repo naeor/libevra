@@ -1,16 +1,29 @@
+import { useState } from "react";
 import { Link } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
-import { formatReleaseDate, releasedAnnouncements } from "../lib/updateAnnouncements.js";
+import {
+  ANNOUNCEMENT_PAGE_SIZE,
+  formatReleaseDate,
+  releasedAnnouncements,
+} from "../lib/updateAnnouncements.js";
 
 /**
- * The announcement archive: only actual releases, newest first, at most ten.
+ * The announcement archive: actual releases, newest first.
  *
- * ⚠️ **No placeholders for older versions.** The owner's rule is ten *actual releases*, not ten
- * rows produced to fill a screen; if only two releases exist, two rows is the honest answer.
+ * The first 20 rows are the default view. If history grows beyond that, the
+ * remaining releases stay reachable through the "显示更早公告" control rather
+ * than being dropped from the bundled data or silently truncated.
+ *
+ * ⚠️ **No placeholders for older versions.** The owner's rule is actual
+ * releases, not rows produced to fill a screen; if only two releases exist, two
+ * rows is the honest answer.
  */
 export function UpdateAnnouncementsPage(): React.JSX.Element {
   const announcements = releasedAnnouncements();
+  const [visibleCount, setVisibleCount] = useState(ANNOUNCEMENT_PAGE_SIZE);
+  const visible = announcements.slice(0, visibleCount);
+  const olderCount = announcements.length - visible.length;
 
   return (
     <InnerPage
@@ -24,7 +37,7 @@ export function UpdateAnnouncementsPage(): React.JSX.Element {
         </p>
       ) : (
         <ul className="overflow-hidden rounded-card border border-line bg-surface">
-          {announcements.map((announcement) => (
+          {visible.map((announcement) => (
             <li key={announcement.version} className="border-b border-line last:border-b-0">
               <Link
                 to={`/update/announcements/${announcement.version}`}
@@ -50,6 +63,16 @@ export function UpdateAnnouncementsPage(): React.JSX.Element {
           ))}
         </ul>
       )}
+
+      {olderCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setVisibleCount((current) => current + ANNOUNCEMENT_PAGE_SIZE)}
+          className="self-start text-body font-medium text-brand"
+        >
+          显示更早公告（还有 {olderCount} 条）
+        </button>
+      ) : null}
     </InnerPage>
   );
 }

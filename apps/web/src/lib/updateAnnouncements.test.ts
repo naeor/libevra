@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ANNOUNCEMENT_PAGE_SIZE,
+  adjacentReleasedAnnouncements,
   formatReleaseDate,
   hasNewerReleasedVersion,
   latestApplicableAnnouncement,
@@ -24,8 +26,24 @@ function announcement(version: string, releasedAt: string | null): UpdateAnnounc
 describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
-    expect(released.map((entry) => entry.version)).toEqual(["1.13.09", "1.13.08", "1.13.07"]);
+    expect(released.map((entry) => entry.version)).toEqual([
+      "1.13.15",
+      "1.13.09",
+      "1.13.08",
+      "1.13.07",
+    ]);
     expect(released.every((entry) => entry.status === "released" && entry.releasedAt !== null)).toBe(true);
+  });
+
+  it("exposes the 1.13.15 release with its three user-facing groups", () => {
+    const announcement = releasedAnnouncementByVersion("1.13.15");
+    expect(announcement?.title).toBe("软件更新与版本公告");
+    expect(announcement?.releasedAt).toBe("2026-10-19");
+    expect(announcement?.sections.map((section) => section.heading)).toEqual([
+      "数据保护与恢复",
+      "账号与账本安全",
+      "稳定性改进",
+    ]);
   });
 
   it("exposes the 1.13.09 announcement as released", () => {
@@ -34,10 +52,12 @@ describe("version announcements", () => {
   });
 
   it("does not invent an announcement for a future development build", () => {
-    expect(releasedAnnouncementByVersion("1.13.10")).toBeNull();
+    expect(releasedAnnouncementByVersion("1.13.16")).toBeNull();
   });
 
   it("answers with the latest applicable release for a running version", () => {
+    expect(latestApplicableAnnouncement("1.13.15")?.version).toBe("1.13.15");
+    expect(latestApplicableAnnouncement("1.13.14")?.version).toBe("1.13.09");
     expect(latestApplicableAnnouncement("1.13.10")?.version).toBe("1.13.09");
     expect(latestApplicableAnnouncement("1.13.09")?.version).toBe("1.13.09");
     expect(latestApplicableAnnouncement("1.13.08")?.version).toBe("1.13.08");
@@ -48,24 +68,38 @@ describe("version announcements", () => {
   it("detects a newer released version without claiming the running build is current", () => {
     expect(hasNewerReleasedVersion("1.13.07")).toBe(true);
     expect(hasNewerReleasedVersion("1.13.08")).toBe(true);
-    expect(hasNewerReleasedVersion("1.13.09")).toBe(false);
-    expect(hasNewerReleasedVersion("1.13.10")).toBe(false);
+    expect(hasNewerReleasedVersion("1.13.09")).toBe(true);
+    expect(hasNewerReleasedVersion("1.13.10")).toBe(true);
+    expect(hasNewerReleasedVersion("1.13.15")).toBe(false);
   });
 
-  it("caps history at ten actual releases and skips development-only entries", () => {
+  it("returns all actual releases and leaves the first page to the UI", () => {
     const entries: UpdateAnnouncement[] = [
       announcement("1.13.30", null),
-      ...Array.from({ length: 12 }, (_, index) => {
-        const day = String(12 - index).padStart(2, "0");
-        return announcement(`1.13.${String(20 - index)}`, `2026-10-${day}`);
+      ...Array.from({ length: 25 }, (_, index) => {
+        const day = String(25 - index).padStart(2, "0");
+        return announcement(`1.13.${String(20 - index)}`, `2026-09-${day}`);
       }),
     ];
     const released = releasedAnnouncements(entries);
-    expect(released).toHaveLength(10);
+    expect(ANNOUNCEMENT_PAGE_SIZE).toBe(20);
+    expect(released).toHaveLength(25);
     expect(released.some((entry) => entry.version === "1.13.30")).toBe(false);
+    expect(released.slice(0, ANNOUNCEMENT_PAGE_SIZE)).toHaveLength(20);
+    expect(released.slice(ANNOUNCEMENT_PAGE_SIZE)).toHaveLength(5);
+  });
+
+  it("offers older/newer release navigation without development placeholders", () => {
+    expect(adjacentReleasedAnnouncements("1.13.15").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.13.15").older?.version).toBe("1.13.09");
+    expect(adjacentReleasedAnnouncements("1.13.08").newer?.version).toBe("1.13.09");
+    expect(adjacentReleasedAnnouncements("1.13.08").older?.version).toBe("1.13.07");
+    expect(adjacentReleasedAnnouncements("1.13.07").older).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.13.07").newer?.version).toBe("1.13.08");
   });
 
   it("formats the publication date without inventing a time or timezone", () => {
+    expect(formatReleaseDate("2026-10-19")).toBe("2026年10月19日");
     expect(formatReleaseDate("2026-10-18")).toBe("2026年10月18日");
   });
 });
