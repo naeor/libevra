@@ -274,6 +274,31 @@ fi
 
 # ---------------------------------------------------------------------------
 echo
+echo "=== 5d. S13-I 生产配置模板与 timer 一致 ==="
+if grep -q '^CRITICAL_EVENT_COS_BUCKET=libevra-critical-1505362843$' "$DEPLOY/.critical-events-relay.env.example" \
+   && grep -q '^CRITICAL_EVENT_COS_BUCKET=libevra-critical-1505362843$' "$DEPLOY/.critical-events-restore.env.example"; then
+  ok "S13-I relay/restore env 示例指向正式事件桶"
+else
+  bad "S13-I env 示例仍指向错误桶"
+fi
+if grep -q '^CRITICAL_BACKUP_OFFSITE=cos$' "$DEPLOY/.env.production.example"; then
+  ok "生产 .env 示例启用 checkpoint COS 异地保存"
+else
+  bad "生产 .env 示例缺少 CRITICAL_BACKUP_OFFSITE=cos"
+fi
+if grep -q '^Environment=CRITICAL_BACKUP_OFFSITE=cos$' "$DEPLOY/systemd/libevra-critical-backup.service"; then
+  ok "critical-backup.service 显式设置 COS 异地保存"
+else
+  bad "critical-backup.service 未显式设置 CRITICAL_BACKUP_OFFSITE=cos"
+fi
+if grep -q 'libevra-critical-health.timer' "$DEPLOY/README.md"; then
+  ok "README 记录 critical-health timer 安装"
+else
+  bad "README 未记录 critical-health timer 安装"
+fi
+
+# ---------------------------------------------------------------------------
+echo
 echo "=== 6. 状态文件结构（schemaVersion 2 的三态分离） ==="
 if grep -q 'remoteMetaOk' "$DEPLOY/backup-all.sh" \
    && grep -q '"contentVerified": false' "$DEPLOY/backup-all.sh" \

@@ -380,27 +380,36 @@ systemctl list-timers libevra-lifecycle.timer --no-pager
 “预计自动清理日”，实际可在到期后 24 小时内完成；失败会留在 `purge_last_error` 并让 unit 失败，
 下一次 timer 重试，不会静默无限保留。
 
-### S13-I 关键状态登记簿（未部署，需所有者批准云权限）
+### S13-I 关键状态登记簿（已通过隔离验收，生产启用需所有者批准）
 
 **精确检查点备份（安全恢复的唯一合法输入）**：使用 db 容器自带 PostgreSQL 工具，生成
 `critical-backups/<name>.dump` + `.checkpoint.json`；它不会修改 S12-C 的 `backup.sh`/COS 生命周期。
 
 ```bash
-./critical-events-backup.sh "pre-flight"
-# 或自动调度 + 独立异地保存（COS 需 COS_UPLOAD_* 写身份）：
-CRITICAL_BACKUP_OFFSITE=cos ./critical-events-backup-all.sh
+# 事件密钥只在本机安全终端生成一次；不要打印、不要进 shell 历史/日志。
+# 64 hex（32 字节）或 base64 32 字节均可；初始 keyId 用 v1。
+umask 077
+openssl rand -hex 32 > /tmp/libevra-event-key.v1
+# 由所有者把值写入 .critical-events-relay.env 的 CRITICAL_EVENT_KEY，然后删除临时文件。
+
+# 首次空链 checkpoint（API 必须尚未启动；先加载 relay env 取得事件密钥）：
+set -a; . ./.critical-events-relay.env; set +a
+CRITICAL_BACKUP_OFFSITE=cos ./critical-events-backup-all.sh "initial-empty-seq0"
+# 自动调度：timer 服务显式设置 CRITICAL_BACKUP_OFFSITE=cos
 # 恢复机从异地取回并校验（需只读 COS_RESTORE_*）：
 ./critical-events-fetch-backup.sh --latest --out /tmp/recovery
 # 安装 timer（仓库副本；先手动跑一次验收）：
-sudo cp systemd/libevra-critical-backup.service systemd/libevra-critical-backup.timer /etc/systemd/system/
+sudo cp systemd/libevra-critical-backup.service systemd/libevra-critical-backup.timer \
+  systemd/libevra-critical-health.service systemd/libevra-critical-health.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now libevra-critical-backup.timer
+sudo systemctl enable --now libevra-critical-backup.timer libevra-critical-health.timer
 ```
 
 `critical-events-backup-all.sh` 使用独立锁 `.critical-events-backup.lock`；**不要**和 S12-C
 `backup-all.sh` 的 `.backup.lock` 共用。**普通 S12-C dump 不能用于安全恢复**；只有带
 dump+sidecar 的检查点备份可以。`critical-events-fetch.sh` 只从正式前缀的 `events/` 和
 `manifests/` 两棵子树取回，并使用 `rclone --fast-list`，避免验收/测试子目录被当作真实事件。
+首个 checkpoint 必须在 API 尚未接受写入时创建；顺序不能反过来。
 
 真实 COS + Docker 隔离验收的测试策略、CAM 控制台步骤和演练计划在
 [`tencent-cos/README.md`](tencent-cos/README.md)；当前只有准备文件，**尚未创建任何云资源**。

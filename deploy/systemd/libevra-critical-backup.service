@@ -8,6 +8,9 @@ Wants=network-online.target
 Type=oneshot
 User=root
 WorkingDirectory=/srv/libevra/deploy
+# The timer must always produce the independent COS copy, not merely a local checkpoint.
+# `.env` also contains this for manual runs; keep both consistent.
+Environment=CRITICAL_BACKUP_OFFSITE=cos
 ExecStart=/srv/libevra/deploy/critical-events-backup-all.sh
 TimeoutStartSec=2h
 Nice=10
