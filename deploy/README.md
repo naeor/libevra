@@ -242,7 +242,9 @@ journalctl -u libevra-backup.service --since today --no-pager | tail -50
 ```
 
 单元在 `deploy/systemd/`：`OnCalendar=*-*-* 03:00:00 Asia/Hong_Kong`、`Persistent=true`、
-`flock` 防并发、`TimeoutStartSec=1h`。**首次无人值守运行仍待验收**（journal + 产物 + Healthchecks 心跳）。
+`TimeoutStartSec=1h`。**并发锁只由 `backup-all.sh` 内部持有，unit 的 `ExecStart` 直接执行脚本，不能再外包 `flock`**
+（2026-10-18 首次定时运行因外层/内层重复锁自锁失败，后已修复；详见
+`docs/开发过程记录/S12-C-首次定时备份故障与修复记录.md`）。**首次由 timer 自动触发的运行仍待验收**（journal + 产物 + Healthchecks 心跳）。
 
 **⚠️ 本地备份不是备份策略。** 同一台机器上的备份和机器一起消失。
 **异地备份由 `./backup-all.sh` 落地**（S12-C：GPG 加密 → COS daily/monthly → 远端元数据校验；

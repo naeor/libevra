@@ -394,7 +394,7 @@ systemctl list-timers libevra-backup.timer --no-pager
 
 - 时间：**每天 03:00 Asia/Hong_Kong**（`OnCalendar` 带时区，**不改系统时区**）
 - `Persistent=true`：关机错过会在开机后补跑一次
-- `flock`：防手动与定时重叠
+- `flock`：防手动与定时重叠；**只由 `backup-all.sh` 内部持有**，service 的 `ExecStart` 直接执行脚本，禁止外层再包 flock（2026-10-18 自锁故障修复）
 - 超时 `TimeoutStartSec=1h`
 - 低优先级 IO（不影响网站）
 
