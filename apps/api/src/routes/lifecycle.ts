@@ -16,7 +16,9 @@ import {
 import {
   closeAccount,
   createClosedAccountRecoveryRequest,
+  deleteAccountData,
   getAccountLifecycle,
+  getDataDeletionPreview,
   type BookDecisionAction,
 } from "../lifecycle/account.js";
 
@@ -26,7 +28,6 @@ export interface LifecycleRouteOptions {
 }
 
 const bookActionSchema = z.enum(["leave", "archive", "delete"]);
-const closeMethodSchema = z.enum(["close_account", "delete_data"]);
 const decisionSchema = z.object({
   bookId: z.string().uuid(),
   action: z.enum(["leave", "archive", "delete", "keep_archived"]),
@@ -159,12 +160,12 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       .object({
         password: z.string().min(1),
         confirmation: z.string(),
-        method: closeMethodSchema.default("close_account"),
+        method: z.literal("close_account").default("close_account"),
         decisions: z.array(decisionSchema).default([]),
       })
       .parse(request.body);
 
-    const expected = body.method === "delete_data" ? "删除服务器数据" : "注销账号";
+    const expected = "注销账号";
     if (body.confirmation !== expected) {
       throw badRequest("confirmation_mismatch", `请输入「${expected}」确认这次操作。`);
     }
@@ -172,7 +173,7 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
 
     return closeAccount(prisma, {
       userId,
-      method: body.method,
+      method: "close_account",
       decisions: body.decisions.map((decision) => ({
         bookId: decision.bookId,
         action: decision.action as BookDecisionAction,
@@ -181,20 +182,35 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
     });
   });
 
-  // Convenience endpoint for the "删除服务器数据" action: no per-book choices are needed.
+  // -------------------------------------------------------------------------
+  // Delete server-side ledger data without closing the account
+  // -------------------------------------------------------------------------
+  app.get(
+    "/api/v1/account/data-deletion/preview",
+    { preHandler: requireSession },
+    async (request) => {
+      return getDataDeletionPreview(prisma, request.currentUser!.id);
+    },
+  );
+
   app.post("/api/v1/account/delete-data", { preHandler: requireSession }, async (request) => {
     const userId = request.currentUser!.id;
     const body = z
-      .object({ password: z.string().min(1), confirmation: z.string() })
+      .object({
+        password: z.string().min(1),
+        confirmation: z.string(),
+        all: z.boolean().default(false),
+        bookIds: z.array(z.string().uuid()).default([]),
+      })
       .parse(request.body);
     if (body.confirmation !== "删除服务器数据") {
       throw badRequest("confirmation_mismatch", "请输入「删除服务器数据」确认这次操作。");
     }
     await verifyOwnPassword(userId, body.password, "account-delete-data");
-    return closeAccount(prisma, {
+    return deleteAccountData(prisma, {
       userId,
-      method: "delete_data",
-      decisions: [],
+      all: body.all,
+      bookIds: body.bookIds,
       requestId: request.id,
     });
   });

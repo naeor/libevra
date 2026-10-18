@@ -1,7 +1,32 @@
 import { apiFetch } from "./api.js";
 
 export type BookDecisionAction = "leave" | "archive" | "delete" | "keep_archived";
-export type CloseMethod = "close_account" | "delete_data";
+export type CloseMethod = "close_account";
+
+export interface DataDeletionBook {
+  readonly bookId: string;
+  readonly name: string;
+  readonly bookNumber: string | null;
+  readonly memberCount: number;
+  readonly archived: boolean;
+  readonly action: "leave" | "delete";
+  readonly blockedReason: string | null;
+}
+
+export interface DataDeletionPreview {
+  readonly books: readonly DataDeletionBook[];
+  readonly counts: { readonly total: number; readonly leave: number; readonly delete: number };
+  readonly blockers: readonly string[];
+}
+
+export interface DataDeletionResult {
+  readonly accountKept: true;
+  readonly processed: readonly {
+    readonly bookId: string;
+    readonly action: "left" | "deleted" | "already_left" | "already_deleted";
+  }[];
+  readonly remainingBookCount: number;
+}
 
 export interface AccountBookOption {
   readonly bookId: string;
@@ -109,11 +134,17 @@ export async function closeAccount(input: {
   });
 }
 
+export async function fetchDataDeletionPreview(): Promise<DataDeletionPreview> {
+  return apiFetch<DataDeletionPreview>("/account/data-deletion/preview");
+}
+
 export async function deleteServerData(input: {
   readonly password: string;
   readonly confirmation: string;
-}): Promise<CloseAccountResult> {
-  return apiFetch<CloseAccountResult>("/account/delete-data", {
+  readonly all: boolean;
+  readonly bookIds: readonly string[];
+}): Promise<DataDeletionResult> {
+  return apiFetch<DataDeletionResult>("/account/delete-data", {
     method: "POST",
     body: input,
   });

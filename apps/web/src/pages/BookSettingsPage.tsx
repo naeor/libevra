@@ -330,7 +330,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                       setError(null);
                       setConfirming("leave");
                     }}
-                    className="flex w-full items-center justify-center rounded-field border border-danger/40 px-4 py-3 text-button-lg font-medium text-danger transition hover:bg-danger-soft disabled:opacity-45"
+                    className="flex w-full items-center justify-center rounded-field border border-line px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-canvas disabled:opacity-45"
                   >
                     退出这本账
                   </button>
@@ -483,6 +483,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
           "其他成员的数据与成员关系不受影响",
         ]}
         confirmLabel="退出这本账"
+        tone="default"
         busy={lifecycleBusy}
         onCancel={() => {
           setConfirming(null);

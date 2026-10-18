@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import type { Prisma } from "../generated/prisma/client.js";
+import type { Book, Prisma } from "../generated/prisma/client.js";
 import type { PrismaClient } from "../db.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { hashPassword } from "../auth/password.js";
@@ -60,6 +60,32 @@ export interface CloseAccountResult {
   readonly deletedBookIds: readonly string[];
   readonly leftBookIds: readonly string[];
   readonly keptArchivedBookIds: readonly string[];
+}
+
+export interface DataDeletionBookPreview {
+  readonly bookId: string;
+  readonly name: string;
+  readonly bookNumber: string | null;
+  readonly memberCount: number;
+  readonly archived: boolean;
+  readonly action: "leave" | "delete";
+  readonly blockedReason: string | null;
+}
+
+export interface AccountDataDeletionPreview {
+  readonly books: readonly DataDeletionBookPreview[];
+  readonly counts: { readonly total: number; readonly leave: number; readonly delete: number };
+  readonly blockers: readonly string[];
+}
+
+export interface AccountDataDeletionResult {
+  /** The account is deliberately untouched: no password, session, recovery code or closure change. */
+  readonly accountKept: true;
+  readonly processed: readonly {
+    readonly bookId: string;
+    readonly action: "left" | "deleted" | "already_left" | "already_deleted";
+  }[];
+  readonly remainingBookCount: number;
 }
 
 const LOCKED_BOOK = `SELECT "id" FROM "books" WHERE "id" = $1::uuid FOR UPDATE`;
@@ -160,6 +186,237 @@ export async function getAccountLifecycle(
         single: books.filter((book) => !book.archived && book.memberCount <= 1).length,
         archived: books.filter((book) => book.archived).length,
       },
+    };
+  });
+}
+
+/**
+ * Preview what "delete server data" would do to every ledger currently attached to this account.
+ *
+ * ⚠️ **This is not account closure.** A shared ledger is left; a private or archived one is
+ * permanently deleted. The account itself, its password, sessions and recovery code are untouched.
+ */
+export async function getDataDeletionPreview(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<AccountDataDeletionPreview> {
+  return prisma.$transaction(async (tx) => {
+    const memberships = await tx.bookMember.findMany({
+      where: { userId, leftAt: null },
+      include: { book: true },
+      orderBy: { joinedAt: "asc" },
+    });
+    const books: DataDeletionBookPreview[] = [];
+    for (const membership of memberships) {
+      const book = membership.book;
+      const memberCount = await activeMemberCount(tx, book.id);
+      const archived = book.archivedAt !== null;
+      const pending = await tx.bookRecoveryRequest.findFirst({
+        where: { bookId: book.id, status: "pending", deadlineAt: { gt: new Date() } },
+        select: { id: true },
+      });
+      let action: "leave" | "delete";
+      let blockedReason: string | null = null;
+
+      if (archived) {
+        action = "delete";
+        if (book.purgeStartedAt !== null) blockedReason = "这本账正在清理。";
+        else if (pending !== null) blockedReason = "这本归档账本还有待处理的恢复申请。";
+      } else if (memberCount > 1) {
+        action = "leave";
+        if (book.managedByUserId === userId && (await successorCandidate(tx, book.id, userId)) === null) {
+          blockedReason = "你是这本共享账本的管理者，但还没有其他编辑者可以接手。";
+        }
+      } else {
+        action = "delete";
+      }
+
+      books.push({
+        bookId: book.id,
+        name: book.name,
+        bookNumber: book.bookNumber,
+        memberCount,
+        archived,
+        action,
+        blockedReason,
+      });
+    }
+    return {
+      books,
+      counts: {
+        total: books.length,
+        leave: books.filter((book) => book.action === "leave").length,
+        delete: books.filter((book) => book.action === "delete").length,
+      },
+      blockers: books.filter((book) => book.blockedReason !== null).map((book) => book.bookId),
+    };
+  });
+}
+
+/**
+ * Delete the current account's ledger data without closing the account.
+ *
+ * All selected books are handled in one transaction. A shared ledger is only left; a private /
+ * last-member / archived ledger is purged. There is no session deletion, no password change, no
+ * recovery-code change and no account tombstone.
+ */
+export async function deleteAccountData(
+  prisma: PrismaClient,
+  input: {
+    readonly userId: string;
+    readonly all: boolean;
+    readonly bookIds?: readonly string[];
+    readonly now?: Date;
+    readonly requestId?: string | null;
+  },
+): Promise<AccountDataDeletionResult> {
+  const now = input.now ?? new Date();
+  const requestedIds = input.all ? [] : [...new Set(input.bookIds ?? [])];
+  if (!input.all && requestedIds.length === 0) {
+    throw badRequest("book_selection_required", "请选择要删除数据的账本。");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe(`SELECT "id" FROM "users" WHERE "id" = $1::uuid FOR UPDATE`, input.userId);
+    const user = await tx.user.findUnique({
+      where: { id: input.userId },
+      select: { id: true, accountNumber: true, closedAt: true, lastBookId: true },
+    });
+    if (user === null) throw notFound("account_not_found", "找不到这个账号。");
+    if (user.closedAt !== null) throw conflict("account_closed", "这个账号已经注销。");
+
+    const memberships = await tx.bookMember.findMany({
+      where: { userId: input.userId, leftAt: null },
+      include: { book: true },
+      orderBy: { joinedAt: "asc" },
+    });
+    const currentById = new Map(memberships.map((membership) => [membership.book.id, membership.book]));
+
+    const selected: Book[] = [];
+    const alreadyHandled: { bookId: string; action: "already_left" | "already_deleted" }[] = [];
+    if (input.all) {
+      selected.push(...memberships.map((membership) => membership.book));
+    } else {
+      for (const bookId of requestedIds) {
+        const book = currentById.get(bookId);
+        if (book !== undefined) {
+          selected.push(book);
+          continue;
+        }
+        const tombstone = await tx.bookTombstone.findUnique({ where: { bookId }, select: { bookId: true } });
+        if (tombstone !== null) {
+          alreadyHandled.push({ bookId, action: "already_deleted" });
+          continue;
+        }
+        const previous = await tx.bookMember.findUnique({
+          where: { bookId_userId: { bookId, userId: input.userId } },
+          select: { leftAt: true },
+        });
+        if (previous !== null && previous.leftAt !== null) {
+          alreadyHandled.push({ bookId, action: "already_left" });
+          continue;
+        }
+        throw badRequest("book_not_in_account", "选中的账本不属于这个账号。");
+      }
+    }
+
+    for (const book of [...selected].sort((left, right) => left.id.localeCompare(right.id))) {
+      await tx.$queryRawUnsafe(`SELECT "id" FROM "books" WHERE "id" = $1::uuid FOR UPDATE`, book.id);
+    }
+
+    const blockers: string[] = [];
+    const plans = new Map<string, "leave" | "delete">();
+    for (const book of selected) {
+      const memberCount = await activeMemberCount(tx, book.id);
+      const archived = book.archivedAt !== null;
+      if (archived) {
+        const pending = await tx.bookRecoveryRequest.findFirst({
+          where: { bookId: book.id, status: "pending", deadlineAt: { gt: now } },
+          select: { id: true },
+        });
+        if (book.purgeStartedAt !== null || pending !== null) {
+          blockers.push(book.id);
+          continue;
+        }
+        plans.set(book.id, "delete");
+      } else if (memberCount > 1) {
+        if (
+          book.managedByUserId === input.userId &&
+          (await successorCandidate(tx, book.id, input.userId)) === null
+        ) {
+          blockers.push(book.id);
+          continue;
+        }
+        plans.set(book.id, "leave");
+      } else {
+        plans.set(book.id, "delete");
+      }
+    }
+    if (blockers.length > 0) {
+      throw conflict(
+        "data_deletion_blocked",
+        "有账本暂时不能删除数据，整个操作没有执行。请先处理管理者交接或待处理的恢复申请。",
+        { bookIds: blockers },
+      );
+    }
+
+    const processed: {
+      bookId: string;
+      action: "left" | "deleted";
+    }[] = [];
+    for (const book of selected) {
+      const action = plans.get(book.id);
+      if (action === "leave") {
+        if (book.managedByUserId === input.userId) {
+          const successor = await successorCandidate(tx, book.id, input.userId);
+          if (successor === null) {
+            throw conflict("book_needs_successor", "共享账本缺少可接手的编辑者。");
+          }
+          await tx.book.update({
+            where: { id: book.id },
+            data: { managedByUserId: successor.userId },
+          });
+          await recordLifecycleEvent(tx, {
+            bookId: book.id,
+            kind: "manager_transferred",
+            actor: { userId: input.userId, accountNumber: user.accountNumber },
+            detail: { toUserId: successor.userId },
+            at: now,
+          });
+        }
+        await tx.bookMember.update({
+          where: { bookId_userId: { bookId: book.id, userId: input.userId } },
+          data: { leftAt: now },
+        });
+        await recordLifecycleEvent(tx, {
+          bookId: book.id,
+          kind: "left",
+          actor: { userId: input.userId, accountNumber: user.accountNumber },
+          detail: { via: "delete_server_data" },
+          at: now,
+        });
+        processed.push({ bookId: book.id, action: "left" });
+      } else if (action === "delete") {
+        await purgeBookInTransaction(tx, {
+          bookId: book.id,
+          actorUserId: input.userId,
+          actorAccountNumber: user.accountNumber,
+          deletionMethod: "self_delete",
+          deletionReason: "delete_server_data",
+          now,
+        });
+        processed.push({ bookId: book.id, action: "deleted" });
+      }
+    }
+
+    if (user.lastBookId !== null && selected.some((book) => book.id === user.lastBookId)) {
+      await tx.user.update({ where: { id: input.userId }, data: { lastBookId: null } });
+    }
+    const remaining = await tx.bookMember.count({ where: { userId: input.userId, leftAt: null } });
+    return {
+      accountKept: true as const,
+      processed: [...alreadyHandled, ...processed],
+      remainingBookCount: remaining,
     };
   });
 }

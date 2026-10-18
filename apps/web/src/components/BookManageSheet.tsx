@@ -284,7 +284,7 @@ export function BookManageSheet({
             onClick={() => {
               go(`/books/${book.id}/settings`);
             }}
-            className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-danger transition hover:bg-danger-soft"
+            className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-ink transition hover:bg-canvas"
           >
             <SheetIcon kind="archive" />
             退出、归档或删除这本账

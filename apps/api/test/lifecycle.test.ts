@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { makeApp, prisma, resetDatabase, signUp } from "./support.js";
+import { cookieFrom, makeApp, prisma, resetDatabase, signUp } from "./support.js";
 import {
   approveRecoveryRequest,
   archiveBook,
@@ -283,9 +283,13 @@ describe("S13-H ledger lifecycle", () => {
     const oldCookie = await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie: owner.cookie } });
     expect(oldCookie.statusCode).toBe(401);
     expect(oldCookie.json()).toMatchObject({ code: "account_closed" });
+    // A second call must keep the same explanation, not degrade to a generic expired session.
+    const oldCookieAgain = await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie: owner.cookie } });
+    expect(oldCookieAgain.statusCode).toBe(401);
+    expect(oldCookieAgain.json()).toMatchObject({ code: "account_closed" });
   });
 
-  it("delete-data removes private ledgers and records no recovery credential", async () => {
+  it("delete-data removes private ledgers but keeps the account usable", async () => {
     const owner = await createAccount("data_owner");
     const guest = await createAccount("data_guest");
     await addMember(owner.bookId, guest.userId, "editor");
@@ -297,15 +301,23 @@ describe("S13-H ledger lifecycle", () => {
     });
     const privateBookId = (second.json() as { id: string }).id;
     await addEntry(owner.cookie, privateBookId);
+    const beforeUser = await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } });
+    const beforeSessions = await prisma.session.count({ where: { userId: owner.userId, revokedAt: null } });
 
     const response = await app.inject({
       method: "POST",
       url: "/api/v1/account/delete-data",
       headers: { cookie: owner.cookie },
-      payload: { password: "correct-horse-battery", confirmation: "删除服务器数据" },
+      payload: {
+        password: "correct-horse-battery",
+        confirmation: "删除服务器数据",
+        all: true,
+      },
     });
     expect(response.statusCode).toBe(200);
-    expect((response.json() as { recoveryCredential: string | null }).recoveryCredential).toBeNull();
+    const result = response.json() as { accountKept: boolean; processed: { bookId: string; action: string }[] };
+    expect(result.accountKept).toBe(true);
+    expect(result.processed.some((entry) => entry.bookId === privateBookId && entry.action === "deleted")).toBe(true);
     expect(await prisma.book.findUnique({ where: { id: privateBookId } })).toBeNull();
     expect(await prisma.bookTombstone.findUnique({ where: { bookId: privateBookId } })).not.toBeNull();
     expect(
@@ -314,6 +326,157 @@ describe("S13-H ledger lifecycle", () => {
         select: { leftAt: true },
       }),
     ).toMatchObject({ leftAt: expect.any(Date) });
+
+    // The account itself is untouched: still logged in, still able to read the session.
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } });
+    expect(user.closedAt).toBeNull();
+    expect(user.disabledAt).toBeNull();
+    expect(user.passwordHash).toBe(beforeUser.passwordHash);
+    expect(user.recoveryCodeHash).toBe(beforeUser.recoveryCodeHash);
+    expect(await prisma.session.count({ where: { userId: owner.userId, revokedAt: null } })).toBe(beforeSessions);
+    expect(await prisma.accountTombstone.findFirst({ where: { userId: owner.userId } })).toBeNull();
+    expect((await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie: owner.cookie } })).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/api/v1/account/lifecycle", headers: { cookie: owner.cookie } })).statusCode).toBe(200);
+  });
+
+  it("deletes one selected ledger and leaves the others untouched", async () => {
+    const owner = await createAccount("selected_owner");
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/v1/books",
+      headers: { cookie: owner.cookie },
+      payload: { name: "保留本" },
+    });
+    const keptBookId = (second.json() as { id: string }).id;
+
+    const preview = await app.inject({
+      method: "GET",
+      url: "/api/v1/account/data-deletion/preview",
+      headers: { cookie: owner.cookie },
+    });
+    expect(preview.statusCode).toBe(200);
+    expect((preview.json() as { counts: { total: number } }).counts.total).toBe(2);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: "correct-horse-battery",
+        confirmation: "删除服务器数据",
+        bookIds: [owner.bookId],
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(await prisma.book.findUnique({ where: { id: owner.bookId } })).toBeNull();
+    expect(await prisma.book.findUnique({ where: { id: keptBookId } })).not.toBeNull();
+    expect((await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie: owner.cookie } })).statusCode).toBe(200);
+  });
+
+  it("is idempotent when the same ledger data is requested twice", async () => {
+    const owner = await createAccount("repeat_owner");
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: "correct-horse-battery",
+        confirmation: "删除服务器数据",
+        bookIds: [owner.bookId],
+      },
+    });
+    expect(first.statusCode).toBe(200);
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: "correct-horse-battery",
+        confirmation: "删除服务器数据",
+        bookIds: [owner.bookId],
+      },
+    });
+    expect(second.statusCode).toBe(200);
+    expect((second.json() as { processed: { bookId: string; action: string }[] }).processed).toContainEqual({
+      bookId: owner.bookId,
+      action: "already_deleted",
+    });
+    expect((await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie: owner.cookie } })).statusCode).toBe(200);
+  });
+
+  it("refuses delete-data all-or-nothing when a shared manager has no successor", async () => {
+    const owner = await createAccount("block_delete_owner");
+    const viewer = await createAccount("block_delete_viewer");
+    await addMember(owner.bookId, viewer.userId, "viewer");
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: "correct-horse-battery",
+        confirmation: "删除服务器数据",
+        bookIds: [owner.bookId],
+      },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: "data_deletion_blocked" });
+    expect(
+      await prisma.bookMember.findUniqueOrThrow({
+        where: { bookId_userId: { bookId: owner.bookId, userId: owner.userId } },
+        select: { leftAt: true },
+      }),
+    ).toMatchObject({ leftAt: null });
+  });
+
+  it("deletes an archived ledger directly instead of archiving it again", async () => {
+    const owner = await createAccount("arc_delete_owner");
+    await archiveBook(prisma, { bookId: owner.bookId, userId: owner.userId, now: BASE });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: "correct-horse-battery",
+        confirmation: "删除服务器数据",
+        all: true,
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(await prisma.book.findUnique({ where: { id: owner.bookId } })).toBeNull();
+    expect(await prisma.bookTombstone.findUnique({ where: { bookId: owner.bookId } })).not.toBeNull();
+    expect((await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie: owner.cookie } })).statusCode).toBe(200);
+  });
+
+  it("after deleting every ledger the account can still sign in and create a new one", async () => {
+    const owner = await createAccount("empty_owner");
+    const deleted = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: "correct-horse-battery",
+        confirmation: "删除服务器数据",
+        all: true,
+      },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(await prisma.bookMember.count({ where: { userId: owner.userId, leftAt: null } })).toBe(0);
+
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { username: "empty_owner", password: "correct-horse-battery" },
+    });
+    expect(login.statusCode).toBe(200);
+    const cookie = cookieFrom(login.headers);
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/books",
+      headers: { cookie },
+      payload: { name: "重新开始" },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(await prisma.bookMember.count({ where: { userId: owner.userId, leftAt: null } })).toBe(1);
   });
 
   it("purges exactly at 365 days and expires a pending request rather than holding forever", async () => {

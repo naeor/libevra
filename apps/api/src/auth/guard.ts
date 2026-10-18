@@ -38,10 +38,16 @@ export function createRequireAuth(
      * delivering that answer, so it does not become a permanent identity link.
      */
     if (session.revokedAt !== null || session.user.closedAt !== null) {
-      await prisma.session.deleteMany({ where: { id: session.id } });
       if (session.user.closedAt !== null) {
+        /**
+         * ⚠️ **Do not delete this row yet.** A dev build can call `/auth/me` twice, and deleting
+         * the row on the first call makes the second answer a generic "session expired" — which is
+         * exactly the wrong explanation for a closed account. The row stays revoked and harmless
+         * until it expires or the person clears it; every request keeps answering `account_closed`.
+         */
         throw unauthorized("account_closed", "这个账号已经注销。");
       }
+      await prisma.session.deleteMany({ where: { id: session.id } });
       throw unauthorized("session_expired", "登录状态已过期，请重新登录。");
     }
 

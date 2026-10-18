@@ -66,10 +66,10 @@ export function LoginPage(): React.JSX.Element {
       {sessionRevoked ? (
         <Alert tone="info">
           {sessionEndReason === "account_closed"
-            ? "这个账号已经注销，本设备的登录状态已结束。"
+            ? "这个账号已注销，无法继续使用。"
             : sessionEndReason === "account_disabled"
               ? "该账号目前已停用，本设备的登录状态已结束。"
-              : "登录状态已失效，请重新登录。若账号已经注销，将无法再次登录。"}
+              : "登录状态已失效，请重新登录。"}
         </Alert>
       ) : null}
 

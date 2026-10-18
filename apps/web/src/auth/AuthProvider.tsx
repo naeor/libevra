@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         if (reason === "account_closed" && remembered !== null) {
           await clearAccountLocalData(remembered.id);
         }
-        setSessionEndReason(reason);
+        setSessionEndReason((current) => (current === "account_closed" ? current : reason));
         setUser(null);
       } else {
         setUser(await readRememberedUser());
@@ -226,7 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           if (reason === "account_closed" && remembered !== null) {
             await clearAccountLocalData(remembered.id);
           }
-          setSessionEndReason(reason);
+          setSessionEndReason((current) => (current === "account_closed" ? current : reason));
           setUser(null);
         }
       }

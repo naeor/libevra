@@ -252,11 +252,24 @@ export function LedgerSpacePage(): React.JSX.Element {
               </div>
 
               {list.length === 0 ? (
-                <EmptyState
-                  onCreate={() => {
-                    setCreating(true);
-                  }}
-                />
+                creating ? (
+                  <NewBookForm
+                    name={name}
+                    onName={setName}
+                    busy={createBook.isPending}
+                    onSubmit={() => void submitCreate()}
+                    onCancel={() => {
+                      setCreating(false);
+                      setName("");
+                    }}
+                  />
+                ) : (
+                  <EmptyState
+                    onCreate={() => {
+                      setCreating(true);
+                    }}
+                  />
+                )
               ) : (
                 /**
                   * ⚠️ **One container, rows separated by hairlines, no card per ledger.** The owner:
