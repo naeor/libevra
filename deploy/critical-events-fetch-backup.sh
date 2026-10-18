@@ -63,7 +63,9 @@ acl = private
 RCLONE
   chmod 600 "$RCLONE_CONF"
   if [ "$LATEST" = true ]; then
-    REF="$(rclone --config "$RCLONE_CONF" lsf -R --files-only "cos:${COS_BUCKET}/${OFFSITE_PREFIX}/" 2>/dev/null | grep '\.dump\.gpg$' | sort -r | head -1 || true)"
+    # --fast-list: one ListObjects request for the checkpoint prefix. Without it rclone probes
+    # year/month child prefixes, which a single exact cos:prefix CAM condition would deny.
+    REF="$(rclone --config "$RCLONE_CONF" lsf -R --files-only --fast-list "cos:${COS_BUCKET}/${OFFSITE_PREFIX}/" 2>/dev/null | grep '\.dump\.gpg$' | sort -r | head -1 || true)"
     [ -n "$REF" ] || { echo "no checkpoint backup found in COS" >&2; exit 1; }
     REF="${OFFSITE_PREFIX}/${REF}"
   fi

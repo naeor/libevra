@@ -265,6 +265,15 @@ unset RCLONE_LOG
 
 # ---------------------------------------------------------------------------
 echo
+echo "=== 5c. S13-I checkpoint fetch 的 List 不使用深层前缀探测 ==="
+if grep -q 'lsf -R --files-only --fast-list' "$DEPLOY/critical-events-fetch-backup.sh"; then
+  ok "checkpoint fetch 的 --latest 使用 --fast-list（兼容精确 cos:prefix 条件）"
+else
+  bad "checkpoint fetch 未使用 --fast-list，可能探测 year/month 深层前缀"
+fi
+
+# ---------------------------------------------------------------------------
+echo
 echo "=== 6. 状态文件结构（schemaVersion 2 的三态分离） ==="
 if grep -q 'remoteMetaOk' "$DEPLOY/backup-all.sh" \
    && grep -q '"contentVerified": false' "$DEPLOY/backup-all.sh" \
