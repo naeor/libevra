@@ -27,6 +27,9 @@
  */
 import { createPrismaClient } from "../db.js";
 import { loadEnv } from "../env.js";
+import { recordCriticalEvent } from "../critical/store.js";
+import { configureCriticalEvents, confirmCriticalEvents } from "../critical/runtime.js";
+import { createRuntimeFromEnv } from "../critical/runtime-config.js";
 
 const args = process.argv.slice(2);
 
@@ -91,6 +94,19 @@ const outcome = await prisma.$transaction(async (tx) => {
    * authorization is a lie the next reader has no way to catch.
    */
   await tx.user.update({ where: { id: user.id }, data: { isAdmin: false } });
+  await recordCriticalEvent(tx, {
+    type: "admin.revoked",
+    actor: { userId: null },
+    subjectType: "admin_grant",
+    subjectId: user.id,
+    beforeState: { isAdmin: true, revokedAt: null },
+    afterState: {
+      isAdmin: false,
+      revokedAt: new Date().toISOString(),
+      revokedBy,
+      reason: why ?? null,
+    },
+  });
 
   return { kind: "revoked" as const, user, grant: updated };
 });
@@ -130,6 +146,15 @@ switch (outcome.kind) {
     break;
 
   case "revoked":
+    configureCriticalEvents(createRuntimeFromEnv());
+    try {
+      await confirmCriticalEvents(prisma);
+    } catch (error) {
+      fail(
+        `已本地撤销管理员授权，但异地安全登记簿未确认：${String(error)}\n` +
+          "在人工核验并重试前，请勿继续把该账号当作普通账号。",
+      );
+    }
     process.stdout.write(
       [
         "",

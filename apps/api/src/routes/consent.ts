@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import type { PrismaClient } from "../db.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import {
   documentWithHash,
   legalContentHash,
@@ -133,22 +134,37 @@ export function registerAccountConsentRoutes(
     }
 
     const userId = request.currentUser!.id;
-    await prisma.agreementAcceptance.upsert({
-      where: {
-        userId_documentId_documentVersion: {
+    await prisma.$transaction(async (tx) => {
+      await tx.agreementAcceptance.upsert({
+        where: {
+          userId_documentId_documentVersion: {
+            userId,
+            documentId: document.id,
+            documentVersion: document.version,
+          },
+        },
+        create: {
           userId,
           documentId: document.id,
           documentVersion: document.version,
+          contentHash: legalContentHash(document),
+          action: "accept",
         },
-      },
-      create: {
-        userId,
-        documentId: document.id,
-        documentVersion: document.version,
-        contentHash: legalContentHash(document),
-        action: "accept",
-      },
-      update: {},
+        update: {},
+      });
+      await recordCriticalEvent(tx, {
+        type: "agreement.accepted",
+        actor: { userId, accountNumber: request.currentUser!.accountNumber },
+        subjectType: "agreement",
+        subjectId: `${userId}:${document.id}`,
+        afterState: {
+          documentId: document.id,
+          documentVersion: document.version,
+          contentHash: legalContentHash(document),
+          action: "accept",
+        },
+        requestId: request.id,
+      });
     });
 
     return { ok: true, documentId: document.id, documentVersion: document.version };

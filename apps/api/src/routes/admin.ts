@@ -27,6 +27,8 @@ import {
   toAdminInvite,
 } from "../admin/invites.js";
 import { createReauthVerifier } from "../admin/reauth.js";
+import { confirmP0 } from "../critical/confirm.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import { countActiveAdmins, loadAdminRoster } from "../admin/roster.js";
 import { createOrdinaryInvite, createReservedInvite } from "../auth/invites.js";
 import type { PrismaClient } from "../db.js";
@@ -273,6 +275,18 @@ export function registerAdminRoutes(app: FastifyInstance, options: AdminRouteOpt
         },
         requestId: request.id,
       });
+      await recordCriticalEvent(tx, {
+        type: "invite.created",
+        actor: { userId: actor.userId, accountNumber: actor.accountNumber },
+        subjectType: "invite",
+        subjectId: invite.id,
+        afterState: {
+          shape: body.shape,
+          accountNumber: invite.accountNumber,
+          expiresAt: invite.expiresAt?.toISOString() ?? null,
+        },
+        requestId: request.id,
+      });
 
       return row;
     });
@@ -317,10 +331,20 @@ export function registerAdminRoutes(app: FastifyInstance, options: AdminRouteOpt
         },
         requestId: request.id,
       });
+      await recordCriticalEvent(tx, {
+        type: "invite.revoked",
+        actor: { userId: actor.userId, accountNumber: actor.accountNumber },
+        subjectType: "invite",
+        subjectId: invite.id,
+        beforeState: { status: statusBefore },
+        afterState: { revokedAt: new Date().toISOString(), reason: body.reason },
+        requestId: request.id,
+      });
 
       return tx.registrationInvite.findUniqueOrThrow({ where: { id: invite.id } });
     });
 
+    await confirmP0(prisma);
     return adminInviteListResponseSchema.parse({
       invites: [toAdminInvite(revoked, invite.usedByUsername)],
     });
@@ -440,10 +464,25 @@ export function registerAdminRoutes(app: FastifyInstance, options: AdminRouteOpt
           detail: { reason: body.reason, sessionsRemoved: outcome.sessionsRemoved },
           requestId: request.id,
         });
+        await recordCriticalEvent(tx, {
+          type: "account.disabled",
+          actor: { userId: actor.userId, accountNumber: actor.accountNumber },
+          subjectType: "account",
+          subjectId: userId,
+          beforeState: { disabledAt: null },
+          afterState: {
+            disabledAt: new Date().toISOString(),
+            disabledBy: "admin_console",
+            sessionsRemoved: outcome.sessionsRemoved,
+            reason: body.reason,
+          },
+          requestId: request.id,
+        });
 
         return outcome;
       });
 
+      await confirmP0(prisma);
       return adminAccountActionResponseSchema.parse({
         ok: true,
         username: result.username,
@@ -487,10 +526,20 @@ export function registerAdminRoutes(app: FastifyInstance, options: AdminRouteOpt
           detail: { reason: body.reason },
           requestId: request.id,
         });
+        await recordCriticalEvent(tx, {
+          type: "account.enabled",
+          actor: { userId: actor.userId, accountNumber: actor.accountNumber },
+          subjectType: "account",
+          subjectId: userId,
+          beforeState: { disabledAt: "set" },
+          afterState: { disabledAt: null, reason: body.reason },
+          requestId: request.id,
+        });
 
         return outcome;
       });
 
+      await confirmP0(prisma);
       return adminAccountActionResponseSchema.parse({
         ok: true,
         username: result.username,

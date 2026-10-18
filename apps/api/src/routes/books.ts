@@ -9,6 +9,7 @@ import { sendNotification } from "../collab/notify.js";
 import { requireBookForWrite } from "../ledger/access.js";
 import { createDefaultLedger } from "../ledger/bootstrap.js";
 import { recordEvent } from "../ledger/events.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import { DEFAULT_BOOK_NAME } from "../ledger/presets.js";
 
 /**
@@ -268,7 +269,19 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
      * **Ordinary users can no longer see it; an administrator still can** (that view is a later
      * stage, but the data being intact is what makes it possible at all).
      */
-    await prisma.book.update({ where: { id: bookId }, data: { disposedAt: new Date() } });
+    await prisma.$transaction(async (tx) => {
+      await tx.book.update({ where: { id: bookId }, data: { disposedAt: new Date() } });
+      await recordCriticalEvent(tx, {
+        type: "book.disposed",
+        actor: { userId, accountNumber: request.currentUser!.accountNumber },
+        subjectType: "book",
+        subjectId: bookId,
+        bookId,
+        beforeState: { disposedAt: null },
+        afterState: { disposedAt: new Date().toISOString() },
+        requestId: request.id,
+      });
+    });
 
     return { ok: true, alreadyDisposed: false };
   });
@@ -300,7 +313,19 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
      * update and nothing has to be rebuilt — which is the whole reason disposing one does not
      * delete anything.
      */
-    await prisma.book.update({ where: { id: bookId }, data: { disposedAt: null } });
+    await prisma.$transaction(async (tx) => {
+      await tx.book.update({ where: { id: bookId }, data: { disposedAt: null } });
+      await recordCriticalEvent(tx, {
+        type: "book.undisposed",
+        actor: { userId, accountNumber: request.currentUser!.accountNumber },
+        subjectType: "book",
+        subjectId: bookId,
+        bookId,
+        beforeState: { disposedAt: "set" },
+        afterState: { disposedAt: null },
+        requestId: request.id,
+      });
+    });
 
     return { ok: true, alreadyOpen: false };
   });
@@ -481,6 +506,21 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
     });
 
     void reply.code(201);
+    await recordCriticalEvent(prisma, {
+      type: "invite.created",
+      actor: { userId, accountNumber: request.currentUser!.accountNumber },
+      subjectType: "invite",
+      subjectId: sent.id,
+      bookId: book.bookId,
+      afterState: {
+        notificationId: sent.id,
+        kind: "book_invite",
+        recipientId: target.id,
+        role,
+        refreshed: sent.refreshed,
+      },
+      requestId: request.id,
+    });
     return {
       ok: true,
       notificationId: sent.id,

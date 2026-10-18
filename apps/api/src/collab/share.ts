@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../db.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import { recordEvent } from "../ledger/events.js";
 import { leaveBookSafely } from "../lifecycle/book.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
@@ -123,7 +124,7 @@ export function expiresAtOf(createdAt: Date, days: number): Date {
  * closes the door for everybody who has not walked through it yet.
  */
 export async function revokeShareLink(
-  prisma: PrismaClient,
+  prisma: Pick<PrismaClient, "bookShareLink">,
   bookId: string,
   linkId: string,
   revokedBy: string,
@@ -324,6 +325,15 @@ export async function joinViaShareLink(
         kind: "member_changed",
         changes: { joined: { from: "曾经退出", to: "通过分享链接重新加入" } },
       });
+      await recordCriticalEvent(tx, {
+        type: "member.rejoined",
+        actor: { userId },
+        subjectType: "membership",
+        subjectId: `${preview.bookId}:${userId}`,
+        bookId: preview.bookId,
+        beforeState: { leftAt: "set" },
+        afterState: { leftAt: null, role: preview.role, via: "share_link" },
+      });
 
       return;
     }
@@ -338,6 +348,14 @@ export async function joinViaShareLink(
       actorName,
       kind: "member_changed",
       changes: { joined: { from: null, to: "通过分享链接加入" } },
+    });
+    await recordCriticalEvent(tx, {
+      type: "member.joined",
+      actor: { userId },
+      subjectType: "membership",
+      subjectId: `${preview.bookId}:${userId}`,
+      bookId: preview.bookId,
+      afterState: { role: preview.role, via: "share_link" },
     });
   });
 
@@ -354,3 +372,4 @@ export async function leaveBook(
   const result = await leaveBookSafely(prisma, bookId, userId, now);
   return { left: result.left };
 }
+

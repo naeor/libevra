@@ -1,6 +1,7 @@
 import type { Prisma } from "../generated/prisma/client.js";
 
 import { takeNextBookNumber } from "../auth/recovery-code.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import {
   DEFAULT_BOOK_NAME,
   PAYMENT_METHOD_NAMES,
@@ -79,6 +80,19 @@ export async function createDefaultLedger(
       name,
       sortOrder: index,
     })),
+  });
+
+  const actor = await client.user.findUnique({
+    where: { id: userId },
+    select: { accountNumber: true },
+  });
+  await recordCriticalEvent(client, {
+    type: "book.created",
+    actor: { userId, accountNumber: actor?.accountNumber ?? null },
+    subjectType: "book",
+    subjectId: book.id,
+    bookId: book.id,
+    afterState: { createdBy: userId, managedByUserId: userId, name },
   });
 
   return book.id;

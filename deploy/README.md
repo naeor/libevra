@@ -380,6 +380,23 @@ systemctl list-timers libevra-lifecycle.timer --no-pager
 “预计自动清理日”，实际可在到期后 24 小时内完成；失败会留在 `purge_last_error` 并让 unit 失败，
 下一次 timer 重试，不会静默无限保留。
 
+### S13-I 关键状态登记簿（未部署，需所有者批准云权限）
+
+API **不直接访问 COS**。生产启用时另起一个无端口的 relay 服务（同一 API 镜像）：
+
+```bash
+# 先按 S13-I 操作手册申请独立前缀、写身份、恢复身份与生命周期；不要改 daily/monthly。
+cp deploy/.critical-events-relay.env.example deploy/.critical-events-relay.env  # 再填真实值
+chmod 600 deploy/.critical-events-relay.env
+docker compose -f docker-compose.prod.yml -f critical-events-relay.compose.yml up -d critical-relay
+```
+
+- API 使用 `CRITICAL_EVENTS_MODE=relay`，P0 操作等到 `acked` 才返回成功，否则 503；
+- relay 只有 `critical-events/v1/` 的 PutObject/HeadObject，没有 Get/List/Delete；
+- 恢复只读身份放在离线介质，用 `deploy/critical-events-fetch.sh` 取回；
+- 原始备份直恢复仍独立：见 `deploy/emergency-raw-restore.sh` 与 S13-I 操作手册；
+- **未批准前不要设置真实 COS 凭据、不要建前缀、不要启用 relay。**
+
 ### 查看与暂停
 
 ```bash

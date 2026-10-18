@@ -1558,3 +1558,73 @@ model BookLifecycleEvent {
   @@index([bookId, at])
   @@map("book_lifecycle_events")
 }
+
+/// **S13-I 的本地关键事件登记簿。**
+///
+/// 一行对应一次安全/生命周期变化，和它所描述的状态变更是同一个事务写下的。之后才把加密副本
+/// 写去 COS；交付列只是本地 outbox 状态，不是“已异地持久化”的证明。没有外键：它必须比账号/
+/// 账本活得更久，也必须能从旧快照恢复。绝不包含密码、密码哈希、恢复码、分享令牌、会话令牌、
+/// 邀请码明文或交易正文。
+model CriticalEvent {
+  eventId String @id @map("event_id") @db.Uuid
+
+  /// 本地链位置，追加时持有 `critical_chain` 行锁。
+  seq Int @unique
+  prevHash String? @map("prev_hash") @db.VarChar(64)
+  eventHash String @map("event_hash") @db.VarChar(64)
+
+  eventType String @map("event_type") @db.VarChar(64)
+  schemaVersion Int @default(1) @map("schema_version")
+  /// P0 表示：异地确认之前，不能给客户端最终成功响应。
+  severity String @db.VarChar(4)
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  actorUserId String? @map("actor_user_id") @db.Uuid
+  actorAccountNumber String? @map("actor_account_number") @db.VarChar(8)
+  subjectType String @map("subject_type") @db.VarChar(32)
+  /// 有 UUID 用 UUID；成员关系等复合键用稳定拼接串。
+  subjectId String? @map("subject_id") @db.VarChar(128)
+  bookId String? @map("book_id") @db.Uuid
+  batchId String? @map("batch_id") @db.VarChar(64)
+
+  beforeState Json? @map("before_state")
+  afterState Json? @map("after_state")
+  result String @default("success") @db.VarChar(16)
+  resourceVersion Int? @map("resource_version")
+  requestId String? @map("request_id") @db.VarChar(64)
+
+  /// `pending` -> 远端对象已写 -> `acked`；失败仍可重试。
+  deliveryState String @default("pending") @map("delivery_state") @db.VarChar(16)
+  remoteKey String? @map("remote_key") @db.VarChar(300)
+  remoteEtag String? @map("remote_etag") @db.VarChar(128)
+  uploadedAt DateTime? @map("uploaded_at") @db.Timestamptz(6)
+  ackedAt DateTime? @map("acked_at") @db.Timestamptz(6)
+  attempts Int @default(0)
+  lastError String? @map("last_error") @db.VarChar(500)
+
+  @@index([deliveryState, seq])
+  @@index([subjectType, subjectId])
+  @@index([bookId, seq])
+  @@index([occurredAt])
+  @@map("critical_events")
+}
+
+/// 本地哈希链头。只有一行，追加事件时会锁它。
+model CriticalChain {
+  id String @id @default("global") @db.VarChar(16)
+  lastSeq Int @default(0) @map("last_seq")
+  lastHash String? @map("last_hash") @db.VarChar(64)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("critical_chain")
+}
+
+/// 安全恢复重放的幂等记录；不保存事件副本。
+model CriticalEventApplied {
+  eventId String @id @map("event_id") @db.Uuid
+  appliedAt DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
+  note String? @db.VarChar(500)
+
+  @@map("critical_event_applied")
+}

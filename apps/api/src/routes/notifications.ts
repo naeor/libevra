@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import type { PrismaClient } from "../db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
+import { confirmP0 } from "../critical/confirm.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import { withdrawNotification } from "../collab/notify.js";
 import { PER_SUBJECT_DAILY_LIMIT, TOTAL_DAILY_LIMIT } from "../collab/quota.js";
 import { decideNotification } from "../collab/respond.js";
@@ -160,7 +162,24 @@ export function registerNotificationRoutes(app: FastifyInstance, options: Notifi
     const userId = request.currentUser!.id;
     const { id } = request.params as { id: string };
 
+    const notification = await prisma.notification.findUnique({
+      where: { id },
+      select: { id: true, kind: true, bookId: true, senderId: true, recipientId: true },
+    });
     await withdrawNotification(prisma, userId, id);
+    if (notification !== null) {
+      await recordCriticalEvent(prisma, {
+        type: "invite.revoked",
+        actor: { userId, accountNumber: request.currentUser!.accountNumber },
+        subjectType: "invite",
+        subjectId: notification.id,
+        bookId: notification.bookId,
+        beforeState: { status: "pending", senderId: notification.senderId, recipientId: notification.recipientId },
+        afterState: { status: "withdrawn", kind: notification.kind },
+        requestId: request.id,
+      });
+      await confirmP0(prisma);
+    }
 
     void reply.code(204);
     return null;

@@ -4,6 +4,8 @@ import { z } from "zod";
 import type { AdminActor } from "../admin/guard.js";
 import { recordAudit, recordRefusal } from "../admin/audit.js";
 import { createReauthVerifier } from "../admin/reauth.js";
+import { confirmP0 } from "../critical/confirm.js";
+import { getCriticalRuntime } from "../critical/runtime.js";
 import type { PrismaClient } from "../db.js";
 import { badRequest, notFound } from "../lib/errors.js";
 import { approveRecoveryRequest, rejectRecoveryRequest } from "../lifecycle/book.js";
@@ -131,6 +133,7 @@ export function registerAdminLifecycleRoutes(
           outcome: "success",
           detail: { requestId: id, targetUserId: result.targetUserId },
         });
+        await confirmP0(prisma);
         return { ok: true, ...result };
       }
 
@@ -152,6 +155,39 @@ export function registerAdminLifecycleRoutes(
     },
   );
 
+  app.get(
+    "/api/v1/admin/lifecycle/critical-events/status",
+    { preHandler: requireAdmin },
+    async () => {
+      const [chain, pending, failed, last] = await Promise.all([
+        prisma.criticalChain.findUnique({ where: { id: "global" } }),
+        prisma.criticalEvent.count({ where: { deliveryState: "pending" } }),
+        prisma.criticalEvent.count({ where: { deliveryState: "failed" } }),
+        prisma.criticalEvent.findFirst({
+          orderBy: { seq: "desc" },
+          select: { seq: true, eventType: true, occurredAt: true, ackedAt: true, lastError: true },
+        }),
+      ]);
+      return {
+        runtime: getCriticalRuntime().kind,
+        lastSeq: chain?.lastSeq ?? 0,
+        lastHash: chain?.lastHash ?? null,
+        pending,
+        failed,
+        lastEvent:
+          last === null
+            ? null
+            : {
+                seq: last.seq,
+                type: last.eventType,
+                occurredAt: last.occurredAt.toISOString(),
+                ackedAt: last.ackedAt?.toISOString() ?? null,
+                lastError: last.lastError,
+              },
+      };
+    },
+  );
+
   app.post("/api/v1/admin/lifecycle/purge", { preHandler: requireAdmin }, async (request) => {
     const actor = request.adminActor!;
     const body = z.object({ password: z.string().min(1) }).parse(request.body);
@@ -165,6 +201,7 @@ export function registerAdminLifecycleRoutes(
       outcome: result.failed === 0 ? "success" : "failed",
       detail: result,
     });
+    if (result.purged > 0) await confirmP0(prisma);
     return result;
   });
 }

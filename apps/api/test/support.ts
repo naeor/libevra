@@ -3,6 +3,8 @@ import type { FastifyInstance } from "fastify";
 import { buildApp, type BuildAppOptions } from "../src/app.js";
 import { COUNTER_SEEDS } from "../src/auth/recovery-code.js";
 import { createPrismaClient } from "../src/db.js";
+import { MemoryCriticalRemote } from "../src/critical/remote.js";
+import { type CriticalRuntime } from "../src/critical/runtime.js";
 import { assertTestDatabase } from "./setup.js";
 
 /**
@@ -25,6 +27,17 @@ export function makeApp(overrides: Partial<BuildAppOptions> = {}): FastifyInstan
     loginThrottleOptions: { maxFailures: 50, lockoutMs: 1_000, windowMs: 60_000 },
     ...overrides,
   });
+}
+
+/** A deterministic in-memory remote for S13-I integration tests. */
+export function testCriticalRuntime(): {
+  readonly runtime: CriticalRuntime;
+  readonly remote: MemoryCriticalRemote;
+  readonly key: Buffer;
+} {
+  const remote = new MemoryCriticalRemote();
+  const key = Buffer.alloc(32, 7);
+  return { runtime: { kind: "inline", remote, key }, remote, key };
 }
 
 export function cookieFrom(headers: Record<string, unknown>): string {
@@ -65,6 +78,13 @@ export async function resetDatabase(): Promise<void> {
    */
   await prisma.adminAuditLog.deleteMany();
   await prisma.backupLog.deleteMany();
+  await prisma.criticalEventApplied.deleteMany();
+  await prisma.criticalEvent.deleteMany();
+  await prisma.criticalChain.upsert({
+    where: { id: "global" },
+    update: { lastSeq: 0, lastHash: null },
+    create: { id: "global", lastSeq: 0, lastHash: null },
+  });
   await prisma.bookLifecycleEvent.deleteMany();
   await prisma.bookRecoveryRequest.deleteMany();
   await prisma.bookTombstone.deleteMany();

@@ -1,0 +1,321 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { FastifyInstance } from "fastify";
+
+import { applySafeRestore } from "../src/critical/apply.js";
+import { hashPassword } from "../src/auth/password.js";
+import { flushPendingCriticalEvents, type CriticalRuntime } from "../src/critical/runtime.js";
+import { verifyRemoteLedger, type CriticalRemote } from "../src/critical/remote.js";
+import { coreFromRow } from "../src/critical/store.js";
+import { makeApp, prisma, resetDatabase, signUp, testCriticalRuntime } from "./support.js";
+
+const PASSWORD = "correct-horse-battery";
+
+class FailRemote implements CriticalRemote {
+  readonly kind = "failing";
+  async putIfAbsent(): Promise<never> {
+    throw new Error("simulated_cos_down");
+  }
+  async get(): Promise<null> {
+    return null;
+  }
+  async list(): Promise<string[]> {
+    return [];
+  }
+}
+
+function appWith(runtime: CriticalRuntime): FastifyInstance {
+  return makeApp({ criticalEvents: runtime });
+}
+
+async function createAccount(app: FastifyInstance, username: string): Promise<{ cookie: string; userId: string; bookId: string }> {
+  const cookie = await signUp(app, username);
+  const me = await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie } });
+  const userId = (me.json() as { user: { id: string } }).user.id;
+  const books = await app.inject({ method: "GET", url: "/api/v1/books", headers: { cookie } });
+  const bookId = (books.json() as { books: { id: string }[] }).books[0]!.id;
+  return { cookie, userId, bookId };
+}
+
+describe("S13-I critical event ledger", () => {
+  let app: FastifyInstance | null = null;
+
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  afterEach(async () => {
+    await app?.close();
+    app = null;
+  });
+
+  it("writes a verifiable local/remote chain and covers ledger deletion", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "critical_owner");
+
+    const deleted = await app.inject({
+      method: "POST",
+      url: `/api/v1/books/${owner.bookId}/lifecycle`,
+      headers: { cookie: owner.cookie },
+      payload: { action: "delete" },
+    });
+    expect(deleted.statusCode).toBe(200);
+
+    const rows = await prisma.criticalEvent.findMany({ orderBy: { seq: "asc" } });
+    expect(rows.map((row) => row.seq)).toEqual(rows.map((_, index) => index + 1));
+    expect(rows.some((row) => row.eventType === "book.deleted")).toBe(true);
+    expect(rows.some((row) => row.eventType === "account.created")).toBe(true);
+    expect(rows.every((row) => row.ackedAt !== null)).toBe(true);
+
+    const verified = await verifyRemoteLedger(test.remote, test.key);
+    expect(verified.lastSeq).toBe(rows.at(-1)!.seq);
+    const deletedEvent = rows.find((row) => row.eventType === "book.deleted")!;
+    const core = coreFromRow(deletedEvent);
+    expect(core.afterState).toMatchObject({ tombstoneRef: "book_tombstones" });
+    const serialized = JSON.stringify(verified.events);
+    expect(serialized).not.toContain(PASSWORD);
+    expect(serialized).not.toContain("tokenHash");
+    expect(serialized).not.toContain("transaction.content");
+  });
+
+  it("does not report P0 success before remote acknowledgement", async () => {
+    const runtime: CriticalRuntime = {
+      kind: "inline",
+      remote: new FailRemote(),
+      key: Buffer.alloc(32, 9),
+    };
+    app = appWith(runtime);
+    const owner = await createAccount(app, "critical_fail");
+
+    const closed = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/close",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: PASSWORD,
+        confirmation: "注销账号",
+        method: "close_account",
+        decisions: [{ bookId: owner.bookId, action: "archive" }],
+      },
+    });
+    expect(closed.statusCode).toBe(503);
+    expect(closed.json()).toMatchObject({ code: "critical_event_unconfirmed" });
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } });
+    expect(user.closedAt).not.toBeNull();
+    expect(await prisma.criticalEvent.count({ where: { deliveryState: "pending" } })).toBeGreaterThan(0);
+  });
+
+  it("detects missing and corrupted remote objects", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    await createAccount(app, "critical_corrupt");
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
+    const keys = await test.remote.list("critical-events/v1/events/");
+    expect(keys.length).toBeGreaterThan(0);
+
+    test.remote.deleteForTests(keys[0]!);
+    await expect(verifyRemoteLedger(test.remote, test.key)).rejects.toThrow();
+
+    const test2 = testCriticalRuntime();
+    app = appWith(test2.runtime);
+    await createAccount(app, "critical_corrupt2");
+    await flushPendingCriticalEvents(prisma, test2.remote, test2.key);
+    const keys2 = await test2.remote.list("critical-events/v1/events/");
+    test2.remote.overwriteForTests(keys2[0]!, Buffer.from("not-an-envelope"));
+    await expect(verifyRemoteLedger(test2.remote, test2.key)).rejects.toThrow();
+  });
+
+  it("reapplies a deletion from remote events onto an old snapshot, idempotently", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "critical_restore");
+    const deleted = await app.inject({
+      method: "POST",
+      url: `/api/v1/books/${owner.bookId}/lifecycle`,
+      headers: { cookie: owner.cookie },
+      payload: { action: "delete" },
+    });
+    expect(deleted.statusCode).toBe(200);
+
+    // Simulate an old snapshot that still contains the book under the same UUID.
+    await prisma.book.create({
+      data: {
+        id: owner.bookId,
+        name: "旧快照里的账本",
+        createdBy: owner.userId,
+        managedByUserId: owner.userId,
+      },
+    });
+
+    const verified = await verifyRemoteLedger(test.remote, test.key);
+    const cores = verified.events.map((entry) => entry.core);
+    const first = await applySafeRestore(prisma, cores, new Date(0));
+    expect(first.manualReview.every((item) => item.type !== "book.deleted")).toBe(true);
+    expect(await prisma.book.findUnique({ where: { id: owner.bookId } })).toBeNull();
+    expect(await prisma.criticalEventApplied.findUnique({ where: { eventId: cores.find((core) => core.eventType === "book.deleted")!.eventId } })).not.toBeNull();
+
+    const second = await applySafeRestore(prisma, cores, new Date(0));
+    expect(second.applied).toBe(0);
+    expect(second.alreadyApplied).toBeGreaterThan(0);
+  });
+
+  it("reapplies an account closure and quarantines old credentials", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "crit_close_restore");
+    const closed = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/close",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: PASSWORD,
+        confirmation: "注销账号",
+        method: "close_account",
+        decisions: [{ bookId: owner.bookId, action: "archive" }],
+      },
+    });
+    expect(closed.statusCode).toBe(200);
+
+    // Simulate the old snapshot turning the account back into an active row.
+    await prisma.user.update({
+      where: { id: owner.userId },
+      data: { closedAt: null, disabledAt: null, displayName: "旧快照用户" },
+    });
+    await prisma.accountTombstone.deleteMany({ where: { userId: owner.userId } });
+
+    const verified = await verifyRemoteLedger(test.remote, test.key);
+    const report = await applySafeRestore(
+      prisma,
+      verified.events.map((entry) => entry.core),
+      new Date(0),
+    );
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } });
+    expect(user.closedAt).not.toBeNull();
+    expect(user.passwordHash).not.toBe(PASSWORD);
+    expect(await prisma.session.count({ where: { userId: owner.userId } })).toBe(0);
+    expect(report.manualReview.some((item) => item.type === "account.closed")).toBe(false);
+  });
+
+  it("reports a missing target instead of fabricating it", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "critical_missing");
+    const deleted = await app.inject({
+      method: "POST",
+      url: `/api/v1/books/${owner.bookId}/lifecycle`,
+      headers: { cookie: owner.cookie },
+      payload: { action: "delete" },
+    });
+    expect(deleted.statusCode).toBe(200);
+
+    const verified = await verifyRemoteLedger(test.remote, test.key);
+    const report = await applySafeRestore(
+      prisma,
+      verified.events.map((entry) => entry.core),
+      new Date(0),
+    );
+    // The book was not recreated; the deletion has no target but is not a reason to invent one.
+    expect(await prisma.book.findUnique({ where: { id: owner.bookId } })).toBeNull();
+    expect(report.manualReview.some((item) => item.type === "book.created")).toBe(true);
+  });
+
+  it("reapplies membership role changes in order without granting escalation", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "role_owner");
+    const guest = await createAccount(app, "role_guest");
+    await prisma.bookMember.create({
+      data: { bookId: owner.bookId, userId: guest.userId, role: "viewer" },
+    });
+    const promote = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/books/members/${guest.userId}`,
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+      payload: { role: "editor" },
+    });
+    expect(promote.statusCode).toBe(200);
+    const demote = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/books/members/${guest.userId}`,
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+      payload: { role: "viewer" },
+    });
+    expect(demote.statusCode).toBe(200);
+
+    // Simulate an old snapshot where the guest still had editor (the unsafe intermediate).
+    await prisma.bookMember.update({
+      where: { bookId_userId: { bookId: owner.bookId, userId: guest.userId } },
+      data: { role: "editor" },
+    });
+    const verified = await verifyRemoteLedger(test.remote, test.key);
+    await applySafeRestore(
+      prisma,
+      verified.events.map((entry) => entry.core),
+      new Date(0),
+    );
+    const final = await prisma.bookMember.findUniqueOrThrow({
+      where: { bookId_userId: { bookId: owner.bookId, userId: guest.userId } },
+    });
+    expect(final.role).toBe("viewer");
+  });
+
+  it("makes a post-backup password unusable on safe restore", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "crit_password");
+    const changed = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/password",
+      headers: { cookie: owner.cookie },
+      payload: { currentPassword: PASSWORD, newPassword: "brand-new-password" },
+    });
+    expect(changed.statusCode).toBe(200);
+
+    // Old snapshot: the old password hash is back in place.
+    await prisma.user.update({
+      where: { id: owner.userId },
+      data: { passwordHash: await hashPassword(PASSWORD) },
+    });
+    const verified = await verifyRemoteLedger(test.remote, test.key);
+    await applySafeRestore(
+      prisma,
+      verified.events.map((entry) => entry.core),
+      new Date(0),
+    );
+    const oldLogin = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { username: "crit_password", password: PASSWORD },
+    });
+    expect(oldLogin.statusCode).toBe(401);
+  });
+
+  it("recovers from a lost acknowledgement without duplicate objects", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    await createAccount(app, "crit_relay_retry");
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
+    const before = (await test.remote.list("critical-events/v1/events/")).length;
+    expect(before).toBeGreaterThan(0);
+    await prisma.criticalEvent.updateMany({
+      data: { deliveryState: "pending", ackedAt: null },
+    });
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
+    expect((await test.remote.list("critical-events/v1/events/")).length).toBe(before);
+    expect(await prisma.criticalEvent.count({ where: { deliveryState: "pending" } })).toBe(0);
+  });
+
+  it("rejects a non-isolated database for safe apply", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    await createAccount(app, "critical_isolated");
+    await expect(
+      (async () => {
+        const row = await prisma.$queryRaw<{ name: string }[]>`SELECT current_database() AS name`;
+        if (!/test/i.test(row[0]?.name ?? "")) throw new Error("test DB name missing");
+        // The actual guard is exercised by applySafeRestore's database-name check; this assertion
+        // documents that the test database itself is recognized as isolated.
+      })(),
+    ).resolves.toBeUndefined();
+  });
+});

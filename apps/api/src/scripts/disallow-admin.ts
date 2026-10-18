@@ -27,6 +27,9 @@
  */
 import { createPrismaClient } from "../db.js";
 import { loadEnv } from "../env.js";
+import { recordCriticalEvent } from "../critical/store.js";
+import { configureCriticalEvents, confirmCriticalEvents } from "../critical/runtime.js";
+import { createRuntimeFromEnv } from "../critical/runtime-config.js";
 
 const args = process.argv.slice(2);
 
@@ -80,6 +83,14 @@ const outcome = await prisma.$transaction(async (tx) => {
     where: { userId: user.id },
     data: { revokedAt: new Date(), revokedBy, note: why ?? "移出允许名单（一次性脚本）" },
   });
+  await recordCriticalEvent(tx, {
+    type: "admin.allowlist_changed",
+    actor: { userId: null },
+    subjectType: "admin_grant",
+    subjectId: user.id,
+    beforeState: { allowlisted: true },
+    afterState: { allowlisted: false, revokedBy, accountNumber: user.accountNumber },
+  });
 
   return { kind: "removed" as const, user, entry: updated };
 });
@@ -119,6 +130,12 @@ switch (outcome.kind) {
     break;
 
   case "removed":
+    configureCriticalEvents(createRuntimeFromEnv());
+    try {
+      await confirmCriticalEvents(prisma);
+    } catch (error) {
+      fail(`已本地移出允许名单，但异地安全登记簿未确认：${String(error)}`);
+    }
     process.stdout.write(
       [
         "",

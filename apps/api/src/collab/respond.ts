@@ -1,5 +1,6 @@
-import type { PrismaClient } from "../db.js";
+﻿import type { PrismaClient } from "../db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import { recordEvent } from "../ledger/events.js";
 import { dayOf } from "./notify.js";
 import { releaseNotificationQuota } from "./quota.js";
@@ -147,7 +148,7 @@ export async function decideNotification(
 
       const membership = await tx.bookMember.findUnique({
         where: { bookId_userId: { bookId: notification.bookId, userId: recipientId } },
-        select: { leftAt: true },
+        select: { leftAt: true, role: true },
       });
 
       if (membership) {
@@ -179,6 +180,16 @@ export async function decideNotification(
           kind: "member_changed",
           changes: { joined: { from: "曾经退出", to: "重新加入" } },
         });
+        await recordCriticalEvent(tx, {
+          type: "member.rejoined",
+          actor: { userId: recipientId },
+          subjectType: "membership",
+          subjectId: `${notification.bookId}:${recipientId}`,
+          bookId: notification.bookId,
+          beforeState: { leftAt: "set", role: membership.role },
+          afterState: { leftAt: null, role: roleFrom(notification.payload) },
+          requestId: null,
+        });
 
         return { bookId: notification.bookId, joined: membership.leftAt !== null };
       }
@@ -202,6 +213,15 @@ export async function decideNotification(
         kind: "member_changed",
         changes: { joined: { from: null, to: "加入" } },
       });
+      await recordCriticalEvent(tx, {
+        type: "member.joined",
+        actor: { userId: recipientId },
+        subjectType: "membership",
+        subjectId: `${notification.bookId}:${recipientId}`,
+        bookId: notification.bookId,
+
+        afterState: { role: roleFrom(notification.payload) },
+      });
 
       return { bookId: notification.bookId, joined: true };
     }
@@ -216,3 +236,4 @@ export async function decideNotification(
 
   return result;
 }
+

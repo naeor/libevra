@@ -129,6 +129,11 @@ deploy/.backup-mail.env
 deploy/.backup-heartbeat.env
 # 旧 Telegram 方案已弃用（文件若还在，也不该进仓库）
 deploy/.backup-notify.env
+# S13-I 独立事件登记簿：API 不持有 COS 凭据；只有 relay 服务读这个文件。
+deploy/.critical-events-relay.env
+deploy/.critical-events-restore.env
+critical-events-data/
+critical-events-fetched/
 # 运行期状态文件：不含秘密，但也不该进仓库（每天都变）
 deploy/backups/last-run.json
 deploy/backups/last-local.json

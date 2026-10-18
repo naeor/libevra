@@ -15,6 +15,7 @@ import {
   recordLifecycleEvent,
 } from "./events.js";
 import { purgeBookInTransaction } from "./book.js";
+import { recordCriticalEvent } from "../critical/store.js";
 
 type Tx = Prisma.TransactionClient;
 
@@ -383,6 +384,16 @@ export async function deleteAccountData(
             detail: { toUserId: successor.userId },
             at: now,
           });
+          await recordCriticalEvent(tx, {
+            type: "book.manager_changed",
+            actor: { userId: input.userId, accountNumber: user.accountNumber },
+            subjectType: "book",
+            subjectId: book.id,
+            bookId: book.id,
+            beforeState: { managedByUserId: input.userId },
+            afterState: { managedByUserId: successor.userId },
+            occurredAt: now,
+          });
         }
         await tx.bookMember.update({
           where: { bookId_userId: { bookId: book.id, userId: input.userId } },
@@ -394,6 +405,16 @@ export async function deleteAccountData(
           actor: { userId: input.userId, accountNumber: user.accountNumber },
           detail: { via: "delete_server_data" },
           at: now,
+        });
+        await recordCriticalEvent(tx, {
+          type: "member.left",
+          actor: { userId: input.userId, accountNumber: user.accountNumber },
+          subjectType: "membership",
+          subjectId: `${book.id}:${input.userId}`,
+          bookId: book.id,
+          beforeState: { leftAt: null },
+          afterState: { leftAt: now.toISOString(), via: "delete_server_data" },
+          occurredAt: now,
         });
         processed.push({ bookId: book.id, action: "left" });
       } else if (action === "delete") {
@@ -412,6 +433,19 @@ export async function deleteAccountData(
     if (user.lastBookId !== null && selected.some((book) => book.id === user.lastBookId)) {
       await tx.user.update({ where: { id: input.userId }, data: { lastBookId: null } });
     }
+    await recordCriticalEvent(tx, {
+      type: "account.data_deleted",
+      actor: { userId: input.userId, accountNumber: user.accountNumber },
+      subjectType: "account",
+      subjectId: input.userId,
+      batchId: input.requestId ?? null,
+      beforeState: { selectedBookIds: selected.map((book) => book.id) },
+      afterState: {
+        processed,
+        remainingBookCount: await tx.bookMember.count({ where: { userId: input.userId, leftAt: null } }),
+      },
+      occurredAt: now,
+    });
     const remaining = await tx.bookMember.count({ where: { userId: input.userId, leftAt: null } });
     return {
       accountKept: true as const,
@@ -554,6 +588,16 @@ export async function closeAccount(
             detail: { toUserId: successor.userId },
             at: now,
           });
+          await recordCriticalEvent(tx, {
+            type: "book.manager_changed",
+            actor: { userId: input.userId, accountNumber: user.accountNumber },
+            subjectType: "book",
+            subjectId: book.id,
+            bookId: book.id,
+            beforeState: { managedByUserId: input.userId },
+            afterState: { managedByUserId: successor.userId },
+            occurredAt: now,
+          });
         }
         await tx.bookMember.update({
           where: { bookId_userId: { bookId: book.id, userId: input.userId } },
@@ -565,6 +609,16 @@ export async function closeAccount(
           actor: { userId: input.userId, accountNumber: user.accountNumber },
           detail: { via: "account_closure" },
           at: now,
+        });
+        await recordCriticalEvent(tx, {
+          type: "member.left",
+          actor: { userId: input.userId, accountNumber: user.accountNumber },
+          subjectType: "membership",
+          subjectId: `${book.id}:${input.userId}`,
+          bookId: book.id,
+          beforeState: { leftAt: null },
+          afterState: { leftAt: now.toISOString(), via: "account_closure" },
+          occurredAt: now,
         });
         leftBookIds.push(book.id);
         continue;
@@ -592,6 +646,21 @@ export async function closeAccount(
           actor: { userId: input.userId, accountNumber: user.accountNumber },
           detail: { reason: "account_closure", scheduledPurgeAt: deadlines.scheduledPurgeAt.toISOString() },
           at: now,
+        });
+        await recordCriticalEvent(tx, {
+          type: "book.archived",
+          actor: { userId: input.userId, accountNumber: user.accountNumber },
+          subjectType: "book",
+          subjectId: book.id,
+          bookId: book.id,
+          beforeState: { archivedAt: null },
+          afterState: {
+            archivedAt: deadlines.archivedAt.toISOString(),
+            selfRestoreUntil: deadlines.selfRestoreUntil.toISOString(),
+            scheduledPurgeAt: deadlines.scheduledPurgeAt.toISOString(),
+            archiveReason: "account_closure",
+          },
+          occurredAt: now,
         });
         archivedBookIds.push(book.id);
         continue;
@@ -681,6 +750,35 @@ export async function closeAccount(
         recoveryCredentialCreatedAt: recoverableArchiveCount > 0 ? now : null,
         requestId: input.requestId ?? null,
       },
+    });
+
+    await recordCriticalEvent(tx, {
+      type: "account.closed",
+      actor: { userId: input.userId, accountNumber: user.accountNumber },
+      subjectType: "account",
+      subjectId: input.userId,
+      batchId: input.requestId ?? null,
+      beforeState: {
+        accountNumber: user.accountNumber,
+        isAdmin: user.isAdmin,
+        bookCount: leftBookIds.length + archivedBookIds.length + keptArchivedBookIds.length + deletedBookIds.length,
+      },
+      afterState: {
+        ...summary,
+        tombstoneRef: "account_tombstones",
+        recoverableArchiveCount,
+      },
+      occurredAt: now,
+    });
+    await recordCriticalEvent(tx, {
+      type: "auth.sessions_revoked",
+      actor: { userId: input.userId, accountNumber: user.accountNumber },
+      subjectType: "account",
+      subjectId: input.userId,
+      batchId: input.requestId ?? null,
+      beforeState: { reason: "account_closure" },
+      afterState: { revokedAt: now.toISOString() },
+      occurredAt: now,
     });
 
     return {
@@ -789,6 +887,20 @@ export async function createClosedAccountRecoveryRequest(
         deadlineAt: deadlineAt.toISOString(),
       },
       at: now,
+    });
+    await recordCriticalEvent(tx, {
+      type: "account.recovery_requested",
+      actor: { userId: tombstone.userId, accountNumber: tombstone.accountNumber },
+      subjectType: "account",
+      subjectId: tombstone.userId,
+      bookId: book.id,
+      beforeState: { archivedAt: book.archivedAt?.toISOString() ?? null },
+      afterState: {
+        requestId: request.id,
+        deadlineAt: deadlineAt.toISOString(),
+        targetAccountNumber: targetAccountNumber ?? null,
+      },
+      occurredAt: now,
     });
     return { requestId: request.id, deadlineAt: deadlineAt.toISOString() };
   });

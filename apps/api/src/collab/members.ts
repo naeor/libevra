@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../db.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 
 /**
@@ -88,12 +89,22 @@ export async function changeMemberRole(
 
   if (membership.role === role) return { changed: false, previousRole: membership.role };
 
-  await prisma.bookMember.update({
-    where: { bookId_userId: { bookId, userId: targetUserId } },
-    data: { role },
+  return prisma.$transaction(async (tx) => {
+    await tx.bookMember.update({
+      where: { bookId_userId: { bookId, userId: targetUserId } },
+      data: { role },
+    });
+    await recordCriticalEvent(tx, {
+      type: "member.role_changed",
+      actor: { userId: null },
+      subjectType: "membership",
+      subjectId: `${bookId}:${targetUserId}`,
+      bookId,
+      beforeState: { role: membership.role },
+      afterState: { role },
+    });
+    return { changed: true, previousRole: membership.role };
   });
-
-  return { changed: true, previousRole: membership.role };
 }
 
 /**
@@ -137,9 +148,20 @@ export async function removeMember(
     throw forbidden("member_missing", "这个人不在这本账里。");
   }
 
-  await prisma.bookMember.update({
-    where: { bookId_userId: { bookId, userId: targetUserId } },
-    data: { leftAt: now },
+  await prisma.$transaction(async (tx) => {
+    await tx.bookMember.update({
+      where: { bookId_userId: { bookId, userId: targetUserId } },
+      data: { leftAt: now },
+    });
+    await recordCriticalEvent(tx, {
+      type: "member.removed",
+      actor: { userId: actorId },
+      subjectType: "membership",
+      subjectId: `${bookId}:${targetUserId}`,
+      bookId,
+      beforeState: { leftAt: null },
+      afterState: { leftAt: now.toISOString(), removedBy: actorId },
+    });
   });
 
   return { removed: true };

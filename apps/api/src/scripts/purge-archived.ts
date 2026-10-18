@@ -1,5 +1,7 @@
 import { createPrismaClient } from "../db.js";
 import { runDuePurges } from "../lifecycle/book.js";
+import { configureCriticalEvents, confirmCriticalEvents } from "../critical/runtime.js";
+import { createRuntimeFromEnv } from "../critical/runtime-config.js";
 
 /**
  * The 365-day archive cleanup job.
@@ -26,6 +28,10 @@ try {
           error: (obj, message) => console.error(message ?? "purge failed", obj),
         },
       });
+      if (result.purged > 0) {
+        configureCriticalEvents(createRuntimeFromEnv());
+        await confirmCriticalEvents(prisma);
+      }
       console.log(JSON.stringify({ ok: result.failed === 0, ...result }));
       process.exitCode = result.failed === 0 ? 0 : 1;
     } finally {

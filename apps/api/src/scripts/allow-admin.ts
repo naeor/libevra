@@ -28,6 +28,9 @@
 import { createPrismaClient } from "../db.js";
 import { loadEnv } from "../env.js";
 import { isFirstBatchAccountNumber } from "../admin/rules.js";
+import { recordCriticalEvent } from "../critical/store.js";
+import { configureCriticalEvents, confirmCriticalEvents } from "../critical/runtime.js";
+import { createRuntimeFromEnv } from "../critical/runtime-config.js";
 
 const args = process.argv.slice(2);
 
@@ -84,6 +87,15 @@ const outcome = await prisma.$transaction(async (tx) => {
     update: { listedAt: new Date(), listedBy, revokedAt: null, revokedBy: null, note: "重新列入" },
   });
 
+  await recordCriticalEvent(tx, {
+    type: "admin.allowlist_changed",
+    actor: { userId: null },
+    subjectType: "admin_grant",
+    subjectId: user.id,
+    beforeState: { allowlisted: false },
+    afterState: { allowlisted: true, listedBy, accountNumber: user.accountNumber },
+  });
+
   /**
    * ⚠️ **The grant table is not touched here, and the reader should be able to see that
    * from this function.** If this script also wrote `admin_grants`, "grant" and "list" would
@@ -125,6 +137,12 @@ switch (outcome.kind) {
     break;
 
   case "listed":
+    configureCriticalEvents(createRuntimeFromEnv());
+    try {
+      await confirmCriticalEvents(prisma);
+    } catch (error) {
+      fail(`已本地写入允许名单，但异地安全登记簿未确认：${String(error)}`);
+    }
     process.stdout.write(
       [
         "",

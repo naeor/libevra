@@ -1,6 +1,7 @@
 import type { Book, Prisma, User } from "../generated/prisma/client.js";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
 import type { PrismaClient } from "../db.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import {
   archiveDeadlines,
   RECOVERY_REQUEST_DAYS,
@@ -264,6 +265,16 @@ export async function leaveBookSafely(
         detail: { toUserId: successor.userId },
         at: now,
       });
+      await recordCriticalEvent(tx, {
+        type: "book.manager_changed",
+        actor,
+        subjectType: "book",
+        subjectId: bookId,
+        bookId,
+        beforeState: { managedByUserId: userId },
+        afterState: { managedByUserId: successor.userId },
+        occurredAt: now,
+      });
     }
 
     await tx.bookMember.update({
@@ -280,6 +291,16 @@ export async function leaveBookSafely(
       actor,
       detail: { managerTransferredTo },
       at: now,
+    });
+    await recordCriticalEvent(tx, {
+      type: "member.left",
+      actor,
+      subjectType: "membership",
+      subjectId: `${bookId}:${userId}`,
+      bookId,
+      beforeState: { leftAt: null },
+      afterState: { leftAt: now.toISOString(), managerTransferredTo },
+      occurredAt: now,
     });
     return { left: true, managerTransferredTo };
   });
@@ -361,6 +382,21 @@ export async function archiveBook(
       },
       at: now,
     });
+    await recordCriticalEvent(tx, {
+      type: "book.archived",
+      actor: await actorOf(tx, input.userId),
+      subjectType: "book",
+      subjectId: input.bookId,
+      bookId: input.bookId,
+      beforeState: { archivedAt: null },
+      afterState: {
+        archivedAt: deadlines.archivedAt.toISOString(),
+        selfRestoreUntil: deadlines.selfRestoreUntil.toISOString(),
+        scheduledPurgeAt: deadlines.scheduledPurgeAt.toISOString(),
+        archiveReason: input.reason ?? "user_archive",
+      },
+      occurredAt: now,
+    });
 
     const updated = await tx.book.findUniqueOrThrow({ where: { id: input.bookId } });
     return {
@@ -432,6 +468,16 @@ export async function restoreArchivedBook(
       actor: await actorOf(tx, userId),
       at: now,
     });
+    await recordCriticalEvent(tx, {
+      type: "book.restored",
+      actor: await actorOf(tx, userId),
+      subjectType: "book",
+      subjectId: bookId,
+      bookId,
+      beforeState: { archivedAt: book.archivedAt.toISOString() },
+      afterState: { archivedAt: null },
+      occurredAt: now,
+    });
     const restored = await tx.book.findUniqueOrThrow({ where: { id: bookId } });
     return toSummary(tx, restored, userId, 1, null, now);
   });
@@ -499,6 +545,20 @@ export async function requestManualRecoveryForActiveAccount(
       actor: { userId, accountNumber: user.accountNumber },
       detail: { requestId: request.id, deadlineAt: deadlineAt.toISOString() },
       at: now,
+    });
+    await recordCriticalEvent(tx, {
+      type: "book.recovery_requested",
+      actor: { userId, accountNumber: user.accountNumber },
+      subjectType: "book",
+      subjectId: bookId,
+      bookId,
+      beforeState: { archivedAt: book.archivedAt?.toISOString() ?? null },
+      afterState: {
+        requestId: request.id,
+        deadlineAt: deadlineAt.toISOString(),
+        kind: "active_account",
+      },
+      occurredAt: now,
     });
     return { requestId: request.id, deadlineAt: deadlineAt.toISOString() };
   });
@@ -611,6 +671,28 @@ export async function approveRecoveryRequest(
       detail: { requestId: request.id, targetUserId: target.id },
       at: now,
     });
+    await recordCriticalEvent(tx, {
+      type: "book.recovery_approved",
+      actor: { userId: input.adminUserId },
+      subjectType: "book",
+      subjectId: request.bookId,
+      bookId: request.bookId,
+      beforeState: { archivedAt: book.archivedAt.toISOString(), manager: book.managedByUserId },
+      afterState: { archivedAt: null, manager: target.id, targetUserId: target.id, requestId: request.id },
+      occurredAt: now,
+    });
+    if (request.kind === "closed_account") {
+      await recordCriticalEvent(tx, {
+        type: "account.recovery_claimed",
+        actor: { userId: input.adminUserId },
+        subjectType: "account",
+        subjectId: target.id,
+        bookId: request.bookId,
+        beforeState: { bookArchived: true, requesterUserId: request.requesterUserId },
+        afterState: { bookId: request.bookId, targetUserId: target.id, requestId: request.id },
+        occurredAt: now,
+      });
+    }
     return { bookId: request.bookId, targetUserId: target.id };
   });
 }
@@ -648,6 +730,16 @@ export async function rejectRecoveryRequest(
       actor: { userId: input.adminUserId, accountNumber: null },
       detail: { requestId: request.id, reason: input.note ?? null },
       at: now,
+    });
+    await recordCriticalEvent(tx, {
+      type: "book.recovery_rejected",
+      actor: { userId: input.adminUserId },
+      subjectType: "book",
+      subjectId: request.bookId,
+      bookId: request.bookId,
+      beforeState: { status: "pending" },
+      afterState: { status: "rejected", requestId: request.id },
+      occurredAt: now,
     });
   });
 }
@@ -715,6 +807,28 @@ async function purgeLockedBook(
       memberCount,
     },
     at: input.now,
+  });
+  await recordCriticalEvent(tx, {
+    type: "book.deleted",
+    actor: { userId: input.actorUserId, accountNumber: input.actorAccountNumber },
+    subjectType: "book",
+    subjectId: book.id,
+    bookId: book.id,
+    beforeState: {
+      bookNumber: book.bookNumber,
+      createdAt: book.createdAt.toISOString(),
+      createdByUserId: book.createdBy,
+      archivedAt: book.archivedAt?.toISOString() ?? null,
+      memberCount,
+      transactionCount,
+    },
+    afterState: {
+      tombstoneRef: "book_tombstones",
+      deletionMethod: input.deletionMethod,
+      deletionReason: input.deletionReason ?? null,
+      purgedAt: input.now.toISOString(),
+    },
+    occurredAt: input.now,
   });
   return {
     bookId: book.id,

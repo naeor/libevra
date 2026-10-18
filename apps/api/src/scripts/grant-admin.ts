@@ -48,6 +48,9 @@
 import { createPrismaClient } from "../db.js";
 import { loadEnv } from "../env.js";
 import { isFirstBatchAccountNumber } from "../admin/rules.js";
+import { recordCriticalEvent } from "../critical/store.js";
+import { configureCriticalEvents, confirmCriticalEvents } from "../critical/runtime.js";
+import { createRuntimeFromEnv } from "../critical/runtime-config.js";
 
 const args = process.argv.slice(2);
 
@@ -114,6 +117,19 @@ const outcome = await prisma.$transaction(async (tx) => {
    * next person to read the row would believe it.
    */
   await tx.user.update({ where: { id: user.id }, data: { isAdmin: true } });
+  await recordCriticalEvent(tx, {
+    type: "admin.granted",
+    actor: { userId: null },
+    subjectType: "admin_grant",
+    subjectId: user.id,
+    afterState: {
+      userId: user.id,
+      accountNumber: user.accountNumber,
+      grantedBy,
+      markerIsAdmin: true,
+      grantId: grant.userId,
+    },
+  });
 
   return { kind: "granted" as const, user, grant, revived: existing !== null };
 });
@@ -151,6 +167,15 @@ switch (outcome.kind) {
     break;
 
   case "granted":
+    configureCriticalEvents(createRuntimeFromEnv());
+    try {
+      await confirmCriticalEvents(prisma);
+    } catch (error) {
+      fail(
+        `已本地写入管理员授权，但异地安全登记簿未确认：${String(error)}\n` +
+          "请保持该授权未启用/人工核验后再重试。",
+      );
+    }
     process.stdout.write(
       [
         "",

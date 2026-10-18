@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import type { PrismaClient } from "../db.js";
+import { confirmP0 } from "../critical/confirm.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import {
   SHARE_LINK_MAX_DAYS,
   SHARE_LINK_MAX_USES,
@@ -138,6 +140,20 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     });
 
     void reply.code(201);
+    await recordCriticalEvent(prisma, {
+      type: "share_link.created",
+      actor: { userId, accountNumber: request.currentUser!.accountNumber },
+      subjectType: "share_link",
+      subjectId: created.id,
+      bookId: book.bookId,
+      afterState: {
+        role: body.role ?? "viewer",
+        days: body.days ?? SHARE_LINK_MAX_DAYS,
+        maxUses: body.maxUses ?? SHARE_LINK_MAX_USES,
+        expiresAt: created.expiresAt.toISOString(),
+      },
+      requestId: request.id,
+    });
     /**
      * ⚠️ **The token is in this response and nowhere else, ever again.** The client must show it
      * now; a caller that loses it generates another link, which is why regeneration is a normal
@@ -154,7 +170,21 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const { linkId } = request.params as { linkId: string };
 
     const book = await requireBookForWrite(prisma, request, userId);
-    const result = await revokeShareLink(prisma, book.bookId, linkId, userId);
+    const result = await prisma.$transaction(async (tx) => {
+      const revoked = await revokeShareLink(tx, book.bookId, linkId, userId);
+      await recordCriticalEvent(tx, {
+        type: "share_link.revoked",
+        actor: { userId, accountNumber: request.currentUser!.accountNumber },
+        subjectType: "share_link",
+        subjectId: linkId,
+        bookId: book.bookId,
+        beforeState: { revokedAt: null },
+        afterState: { revokedAt: new Date().toISOString(), alreadyRevoked: revoked.alreadyRevoked },
+        requestId: request.id,
+      });
+      return revoked;
+    });
+    await confirmP0(prisma);
 
     return { ok: true, alreadyRevoked: result.alreadyRevoked };
   });
@@ -231,6 +261,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
           role: { from: result.previousRole, to: `${target?.displayName ?? "成员"}：${body.role === "editor" ? "可编辑" : "仅查看"}` },
         },
       });
+      await confirmP0(prisma);
     }
 
     return { ok: true, changed: result.changed };
@@ -260,6 +291,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
       kind: "member_changed",
       changes: { removed: { from: null, to: null } },
     });
+    await confirmP0(prisma);
 
     void reply.code(204);
     return null;
@@ -355,6 +387,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
       kind: "member_changed",
       changes: { left: { from: null, to: null } },
     });
+    await confirmP0(prisma);
 
     return { ok: true, ...result };
   });

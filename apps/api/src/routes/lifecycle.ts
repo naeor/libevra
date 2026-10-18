@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { verifyPassword } from "../auth/password.js";
 import { LoginThrottle } from "../auth/login-throttle.js";
+import { confirmP0 } from "../critical/confirm.js";
 import type { PrismaClient } from "../db.js";
 import { badRequest, forbidden, tooManyRequests } from "../lib/errors.js";
 import {
@@ -98,7 +99,9 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
             : "这是账本的最后一位成员。请选择归档或永久删除。",
         );
       }
-      return leaveBookSafely(prisma, bookId, userId);
+      const result = await leaveBookSafely(prisma, bookId, userId);
+      await confirmP0(prisma);
+      return result;
     }
 
     if (body.action === "archive") {
@@ -124,6 +127,7 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       deletionMethod: "self_delete",
       deletionReason: "user_delete",
     });
+    await confirmP0(prisma);
     return { ok: true, ...result };
   });
 
@@ -171,7 +175,7 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
     }
     await verifyOwnPassword(userId, body.password, "account-close");
 
-    return closeAccount(prisma, {
+    const result = await closeAccount(prisma, {
       userId,
       method: "close_account",
       decisions: body.decisions.map((decision) => ({
@@ -180,6 +184,8 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       })),
       requestId: request.id,
     });
+    await confirmP0(prisma);
+    return result;
   });
 
   // -------------------------------------------------------------------------
@@ -207,12 +213,14 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       throw badRequest("confirmation_mismatch", "请输入「删除服务器数据」确认这次操作。");
     }
     await verifyOwnPassword(userId, body.password, "account-delete-data");
-    return deleteAccountData(prisma, {
+    const result = await deleteAccountData(prisma, {
       userId,
       all: body.all,
       bookIds: body.bookIds,
       requestId: request.id,
     });
+    await confirmP0(prisma);
+    return result;
   });
 
   // -------------------------------------------------------------------------

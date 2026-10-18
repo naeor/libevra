@@ -1,0 +1,23 @@
+# S13-I critical-event relay (write-only COS sidecar)
+#
+# Use together with the existing compose file:
+#   docker compose -f docker-compose.prod.yml -f critical-events-relay.compose.yml ...
+#
+# The API process has no COS credentials. This service shares the database, holds the *write*
+# identity, and only PUTs encrypted immutable objects. The restore identity is kept off-server.
+services:
+  critical-relay:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    env_file:
+      - .env
+      - .critical-events-relay.env
+    command: ["pnpm", "--filter", "@libellum/api", "critical:relay"]
+    depends_on:
+      db:
+        condition: service_healthy
+    # No ports: this process must not be reachable from the network.
+    security_opt:
+      - no-new-privileges:true

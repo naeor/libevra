@@ -6,6 +6,8 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastif
 
 import { createRequireAdmin } from "./admin/guard.js";
 import { createRequireAuth, createRequireBook } from "./auth/guard.js";
+import { createRuntimeFromEnv } from "./critical/runtime-config.js";
+import { configureCriticalEvents, type CriticalRuntime } from "./critical/runtime.js";
 import { LoginThrottle, type LoginThrottleOptions } from "./auth/login-throttle.js";
 import { createRequireConsent } from "./consent/guard.js";
 import {
@@ -62,6 +64,11 @@ export interface BuildAppOptions extends HealthDeps {
    * Tests and production exclude them unless a caller passes a policy explicitly.
    */
   readonly consentPolicy?: ConsentPolicy;
+  /**
+   * Tests/special deployments can inject the in-process event runtime. The normal server uses
+   * `createRuntimeFromEnv()`: the API never holds COS credentials.
+   */
+  readonly criticalEvents?: CriticalRuntime;
 }
 
 const DEFAULT_THROTTLE: LoginThrottleOptions = {
@@ -83,6 +90,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   registerErrorHandlers(app);
+  configureCriticalEvents(options.criticalEvents ?? createRuntimeFromEnv());
 
   void app.register(cookie);
   // Screenshots are read into memory; the limits are declared here as well so

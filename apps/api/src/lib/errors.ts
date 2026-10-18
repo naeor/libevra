@@ -61,6 +61,14 @@ export function tooManyRequests(code: string, message: string): AppError {
   return new AppError(429, code, message);
 }
 
+/**
+ * The operation may have committed locally, but the off-site critical-event copy is not yet
+ * acknowledged. This is deliberately never a 2xx: P0 callers must not treat it as final success.
+ */
+export function serviceUnavailable(code: string, message: string, details?: unknown): AppError {
+  return new AppError(503, code, message, details);
+}
+
 export function registerErrorHandlers(app: FastifyInstance): void {
   app.setNotFoundHandler((request, reply) => {
     void reply.status(404).send(

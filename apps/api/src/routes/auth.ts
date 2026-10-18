@@ -19,6 +19,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { createRequireAuth } from "../auth/guard.js";
 import { LoginThrottle } from "../auth/login-throttle.js";
 import { getDummyHash, hashPassword, verifyPassword } from "../auth/password.js";
+import { confirmP0 } from "../critical/confirm.js";
+import { recordCriticalEvent } from "../critical/store.js";
 import {
   generateRecoveryCode,
   takeNextAccountNumber,
@@ -326,6 +328,47 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
         }
       }
 
+      await recordCriticalEvent(tx, {
+        type: "account.created",
+        actor: { userId: created.id, accountNumber: created.accountNumber },
+        subjectType: "account",
+        subjectId: created.id,
+        afterState: {
+          accountNumber: created.accountNumber,
+          username: created.username,
+          isAdmin: false,
+        },
+        occurredAt: created.createdAt,
+      });
+      if (requiredAgreements.length > 0) {
+        await recordCriticalEvent(tx, {
+          type: "agreement.accepted",
+          actor: { userId: created.id, accountNumber: created.accountNumber },
+          subjectType: "agreement",
+          subjectId: created.id,
+          afterState: {
+            documents: requiredAgreements.map((document) => ({
+              documentId: document.id,
+              documentVersion: document.version,
+              contentHash: document.contentHash,
+            })),
+            action: "accept",
+            source: "registration",
+          },
+        });
+      }
+      await recordCriticalEvent(tx, {
+        type: "invite.used",
+        actor: { userId: created.id, accountNumber: created.accountNumber },
+        subjectType: "invite",
+        subjectId: invite.id,
+        afterState: {
+          inviteId: invite.id,
+          usedByUserId: created.id,
+          usedAtIso: new Date().toISOString(),
+        },
+      });
+
       return created;
     });
 
@@ -445,14 +488,27 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
       throw unauthorized("invalid_password", "当前密码不正确");
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash: await hashPassword(body.newPassword) },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await hashPassword(body.newPassword) },
+      });
+      // A password change is a credential invalidation: old devices must not survive it.
+      await tx.session.deleteMany({ where: { userId: user.id } });
+      await recordCriticalEvent(tx, {
+        type: "auth.password_changed",
+        actor: { userId: user.id, accountNumber: user.accountNumber },
+        subjectType: "account",
+        subjectId: user.id,
+        beforeState: { credential: "password" },
+        afterState: { credential: "password_changed", sessionsRevoked: true },
+        requestId: request.id,
+      });
     });
 
-    // Rotate the session token: a password change invalidates anything that
-    // was signed in before.
+    // Rotate the session token after the old credentials/sessions have been invalidated.
     await issueSession(reply, user.id, metaFrom(request));
+    await confirmP0(prisma);
 
     return { ok: true };
   });
@@ -487,17 +543,28 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
     // never left without a way back in.
     const newRecoveryCode = generateRecoveryCode();
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash: await hashPassword(body.newPassword),
-        recoveryCodeHash: await hashPassword(normalizeRecoveryCode(newRecoveryCode)),
-        recoveryCodeUsedAt: null,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: await hashPassword(body.newPassword),
+          recoveryCodeHash: await hashPassword(normalizeRecoveryCode(newRecoveryCode)),
+          recoveryCodeUsedAt: null,
+        },
+      });
+      await tx.session.deleteMany({ where: { userId: user.id } });
+      await recordCriticalEvent(tx, {
+        type: "auth.password_reset",
+        actor: { userId: user.id, accountNumber: user.accountNumber },
+        subjectType: "account",
+        subjectId: user.id,
+        beforeState: { credential: "password+recovery_code" },
+        afterState: { credential: "password_reset", sessionsRevoked: true },
+        requestId: request.id,
+      });
     });
-
-    await prisma.session.deleteMany({ where: { userId: user.id } });
     clearSessionCookie(reply);
+    await confirmP0(prisma);
 
     return recoveryCodeResponseSchema.parse({ recoveryCode: newRecoveryCode });
   });
@@ -517,13 +584,25 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
 
     const recoveryCode = generateRecoveryCode();
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        recoveryCodeHash: await hashPassword(normalizeRecoveryCode(recoveryCode)),
-        recoveryCodeUsedAt: null,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          recoveryCodeHash: await hashPassword(normalizeRecoveryCode(recoveryCode)),
+          recoveryCodeUsedAt: null,
+        },
+      });
+      await recordCriticalEvent(tx, {
+        type: "auth.recovery_code_rotated",
+        actor: { userId: user.id, accountNumber: user.accountNumber },
+        subjectType: "account",
+        subjectId: user.id,
+        beforeState: { recoveryCodeRotated: false },
+        afterState: { recoveryCodeRotated: true, oldRecoveryCodeInvalidated: true },
+        requestId: request.id,
+      });
     });
+    await confirmP0(prisma);
 
     return recoveryCodeResponseSchema.parse({ recoveryCode });
   });
