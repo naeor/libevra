@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createPrismaClient } from "../src/db.js";
+import { recordCriticalEvent } from "../src/critical/store.js";
 import { makeApp, prisma, resetDatabase, signUp, testCriticalRuntime } from "./support.js";
 
 const PASSWORD = "correct-horse-battery";
@@ -129,6 +130,22 @@ describe.skipIf(!available)("S13-I critical-events-backup.sh (isolated local Pos
         payload: { action: "delete" },
       });
       expect(deleted.statusCode).toBe(200);
+      // Additional critical writes while pg_dump is still sleeping must remain responsive; the
+      // checkpoint lock is only held briefly around the exported snapshot.
+      const loadStart = performance.now();
+      for (let index = 0; index < 20; index += 1) {
+        await prisma.$transaction((tx) =>
+          recordCriticalEvent(tx, {
+            type: "book.created",
+            subjectType: "system",
+            subjectId: `during-backup-${String(index)}`,
+            afterState: { index },
+          }),
+        );
+      }
+      const loadElapsed = performance.now() - loadStart;
+      expect(loadElapsed).toBeLessThan(3_000);
+      console.log(`S13I_BACKUP_WRITE_LOAD_20_EVENTS_MS=${loadElapsed.toFixed(1)}`);
       const exitCode = await Promise.race([
         new Promise<number>((resolve) => child.on("exit", (code) => resolve(code ?? 1))),
         new Promise<never>((_, reject) =>

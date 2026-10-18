@@ -447,6 +447,47 @@ describe("S13-I critical event ledger", () => {
     expect(status.json()).toMatchObject({ status: "completed", kind: "account.delete_data" });
   });
 
+  it("does not notify for rolled-back events and notifies only after commit", async () => {
+    const listener = new Client({ connectionString: process.env["DATABASE_URL"]! });
+    await listener.connect();
+    let count = 0;
+    listener.on("notification", (message) => {
+      if (message.channel === "critical_events_new") count += 1;
+    });
+    await listener.query("LISTEN critical_events_new");
+    try {
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await recordCriticalEvent(tx, {
+            type: "book.created",
+            subjectType: "system",
+            subjectId: "rollback-notify-test",
+            afterState: { rollback: true },
+          });
+          throw new Error("rollback");
+        }),
+      ).rejects.toThrow();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(count).toBe(0);
+      expect(await prisma.criticalEvent.count({ where: { subjectId: "rollback-notify-test" } })).toBe(0);
+
+      await prisma.$transaction((tx) =>
+        recordCriticalEvent(tx, {
+          type: "book.created",
+          subjectType: "system",
+          subjectId: "commit-notify-test",
+          afterState: { commit: true },
+        }),
+      );
+      for (let attempt = 0; attempt < 50 && count === 0; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(count).toBe(1);
+    } finally {
+      await listener.end();
+    }
+  });
+
   it("notifies the relay at commit and persists exponential retry backoff", async () => {
     const listener = new Client({ connectionString: process.env["DATABASE_URL"]! });
     await listener.connect();
@@ -522,6 +563,61 @@ describe("S13-I critical event ledger", () => {
       headers: { "x-operation-receipt": receipt.operationReceipt },
     });
     expect(expired.statusCode).toBe(404);
+  });
+
+  it("retries transient HTTP/network failures in strict sequence after backoff", async () => {
+    const memory = new MemoryCriticalRemote();
+    const testFailures: Error[] = [
+      Object.assign(new Error("simulated_http_429"), { status: 429 }),
+      Object.assign(new Error("simulated_http_500"), { status: 500 }),
+      Object.assign(new Error("simulated_network_timeout"), { code: "ETIMEDOUT" }),
+    ];
+    const flaky: CriticalRemote = {
+      kind: "flaky",
+      async putIfAbsent(key, bytes) {
+        const failure = testFailures.shift();
+        if (failure !== undefined) throw failure;
+        return memory.putIfAbsent(key, bytes);
+      },
+      get: (key) => memory.get(key),
+      list: (prefix) => memory.list(prefix),
+    };
+    for (const marker of ["order-1", "order-2", "order-3"]) {
+      await prisma.$transaction((tx) =>
+        recordCriticalEvent(tx, {
+          type: "book.created",
+          subjectType: "system",
+          subjectId: marker,
+          afterState: { marker },
+        }),
+      );
+    }
+    await expect(flushPendingCriticalEvents(prisma, flaky, Buffer.alloc(32, 3))).rejects.toThrow();
+    const first = await prisma.criticalEvent.findFirstOrThrow({ orderBy: { seq: "asc" } });
+    expect(first.deliveryState).toBe("failed");
+    expect(first.nextAttemptAt).not.toBeNull();
+    expect(await prisma.criticalEvent.count({ where: { deliveryState: "acked" } })).toBe(0);
+    expect(await memory.list("critical-events/v1/events/")).toHaveLength(0);
+
+    // 500 and a network timeout go through the same persisted retry state.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await prisma.criticalEvent.updateMany({
+        where: { deliveryState: { in: ["pending", "failed"] } },
+        data: { nextAttemptAt: new Date(Date.now() - 1_000) },
+      });
+      await expect(flushPendingCriticalEvents(prisma, flaky, Buffer.alloc(32, 3))).rejects.toThrow();
+    }
+
+    await prisma.criticalEvent.updateMany({
+      where: { deliveryState: { in: ["pending", "failed"] } },
+      data: { nextAttemptAt: new Date(Date.now() - 1_000) },
+    });
+    const recovered = await flushPendingCriticalEvents(prisma, flaky, Buffer.alloc(32, 3));
+    expect(recovered.uploaded).toBe(3);
+    const keys = await memory.list("critical-events/v1/events/");
+    const seqs = keys.map((key) => Number(key.split("/").pop()!.slice(0, 12))).sort((a, b) => a - b);
+    expect(seqs).toEqual([1, 2, 3]);
+    expect((await prisma.criticalEvent.findMany({ orderBy: { seq: "asc" } })).every((row) => row.deliveryState === "acked")).toBe(true);
   });
 
   it("blocks event append while the backup checkpoint lock is held", async () => {

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { getProtectionStatus } from "../src/critical/status.js";
+import { recordCriticalEvent } from "../src/critical/store.js";
 import { makeApp, prisma, resetDatabase, signUp, testCriticalRuntime } from "./support.js";
 
 const PASSWORD = "correct-horse-battery";
@@ -40,6 +41,7 @@ describe("S13-I immediate relay wake-up and backlog recovery (local PostgreSQL)"
         CRITICAL_EVENT_KEY: test.key.toString("base64"),
         CRITICAL_EVENTS_RELAY_POLL_MS: String(pollMs),
         CRITICAL_EVENTS_RELAY_RECONNECT_MS: "100",
+        PGAPPNAME: "libevra_relay_latency_test",
       },
       stdio: "pipe",
     });
@@ -102,6 +104,31 @@ describe("S13-I immediate relay wake-up and backlog recovery (local PostgreSQL)"
     // With a 10-second polling interval, an ack within a few seconds proves the NOTIFY path, not
     // the fallback timer.
     expect(Date.now() - start).toBeLessThan(5_000);
+  }, 30_000);
+
+  it("reconnects LISTEN after the listener connection is dropped", async () => {
+    await waitFor(async () => (await prisma.criticalEvent.count({ where: { deliveryState: { in: ["pending", "failed"] } } })) === 0);
+    const listeners = await prisma.$queryRaw<{ pid: number }[]>`
+      SELECT pid FROM pg_stat_activity
+      WHERE application_name = 'libevra_relay_latency_test' AND query LIKE 'LISTEN%'
+    `;
+    expect(listeners.length).toBeGreaterThan(0);
+    for (const row of listeners) {
+      await prisma.$queryRawUnsafe("SELECT pg_terminate_backend($1)", row.pid);
+    }
+    await sleep(300);
+    const appended = await prisma.$transaction((tx) =>
+      recordCriticalEvent(tx, {
+        type: "book.created",
+        subjectType: "system",
+        subjectId: "listen-reconnect-test",
+        afterState: { reconnect: true },
+      }),
+    );
+    await waitFor(async () => {
+      const row = await prisma.criticalEvent.findUniqueOrThrow({ where: { eventId: appended.eventId } });
+      return row.deliveryState === "acked";
+    }, 8_000);
   }, 30_000);
 
   it("returns business success while relay is stopped, then drains the backlog on restart", async () => {

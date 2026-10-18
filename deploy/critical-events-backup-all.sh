@@ -125,3 +125,13 @@ RCLONE
 esac
 
 echo "$LOG_PREFIX 完成"
+
+# The offsite copy is the durable one. Keep only a short local window so daily plaintext dumps
+# cannot silently fill the server disk. This never touches deploy/backups (S12-C).
+KEEP_DAYS="${CRITICAL_BACKUP_LOCAL_KEEP_DAYS:-7}"
+if [ "$MODE" != "none" ] && [ "$KEEP_DAYS" -gt 0 ]; then
+  LOCAL_DIR="$(dirname "$DUMP")"
+  find "$LOCAL_DIR" -maxdepth 1 -type f \
+    \( -name '*.dump' -o -name '*.dump.checkpoint.json' \) \
+    -mtime +"$KEEP_DAYS" -delete 2>/dev/null || true
+fi

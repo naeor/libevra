@@ -120,11 +120,13 @@ if (once) {
       console.error("critical-events relay LISTEN connection error", error);
       listenerReady = false;
       if (listener === client) listener = null;
+      signalWake();
       void client.end().catch(() => undefined);
     });
     client.on("end", () => {
       listenerReady = false;
       if (listener === client) listener = null;
+      signalWake();
     });
     try {
       await client.connect();
@@ -150,7 +152,11 @@ if (once) {
 
   while (!stopping) {
     await ensureListener();
-    const reason = await waitForWake(pollMs);
+    // A lost LISTEN connection must not turn the compensation path into a full poll interval
+    // delay before reconnecting. While disconnected, check/reconnect frequently; while connected,
+    // fall back to the configured poll interval for missed notifications.
+    const waitMs = listenerReady ? pollMs : Math.min(pollMs, Math.max(100, reconnectMs));
+    const reason = await waitForWake(waitMs);
     if (stopping) break;
     try {
       const result = await pass();
