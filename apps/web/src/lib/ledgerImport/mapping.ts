@@ -273,7 +273,7 @@ function mapTag(
       source,
       sameName,
       "tag_color_mismatch",
-      `来源标签「${source.name}」颜色为 ${source.color}，目标同名标签颜色为 ${sameName.color}；复用会丢失来源颜色。`,
+      `来源标签「${source.name}」与目标同名标签颜色不同；复用目标会丢失来源颜色。`,
     );
     return {
       mapping: {
