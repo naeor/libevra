@@ -1,0 +1,67 @@
+{
+  "version": "2.0",
+  "statement": [
+    {
+      "sid": "allow-read-and-head-test-objects",
+      "effect": "allow",
+      "action": [
+        "cos:GetObject",
+        "cos:HeadObject"
+      ],
+      "resource": [
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events-test/v1/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups-test/checkpoints/*"
+      ]
+    },
+    {
+      "sid": "allow-list-only-under-test-prefixes",
+      "effect": "allow",
+      "action": [
+        "cos:GetBucket"
+      ],
+      "resource": [
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
+      ],
+      "condition": {
+        "string_equal": {
+          "cos:prefix": [
+            "critical-events-test/v1/",
+            "critical-events-test/v1",
+            "critical-backups-test/checkpoints/",
+            "critical-backups-test/checkpoints"
+          ]
+        }
+      }
+    },
+    {
+      "sid": "deny-write-and-delete-on-bucket",
+      "effect": "deny",
+      "action": [
+        "cos:PutObject",
+        "cos:PostObject",
+        "cos:DeleteObject",
+        "cos:DeleteObjectVersion",
+        "cos:PutObjectAcl",
+        "cos:PutBucketAcl",
+        "cos:PutBucketPolicy",
+        "cos:DeleteBucket"
+      ],
+      "resource": [
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
+      ]
+    },
+    {
+      "sid": "deny-production-prefixes-defense-in-depth",
+      "effect": "deny",
+      "action": [
+        "cos:*"
+      ],
+      "resource": [
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/daily/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/monthly/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events/v1/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups/*"
+      ]
+    }
+  ]
+}

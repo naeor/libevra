@@ -1,0 +1,30 @@
+{
+  "version": "2.0",
+  "statement": [
+    {
+      "sid": "allow-test-upload-and-head-only",
+      "effect": "allow",
+      "action": [
+        "cos:PutObject",
+        "cos:HeadObject"
+      ],
+      "resource": [
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events-test/v1/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups-test/checkpoints/*"
+      ]
+    },
+    {
+      "sid": "deny-production-prefixes-defense-in-depth",
+      "effect": "deny",
+      "action": [
+        "cos:*"
+      ],
+      "resource": [
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/daily/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/monthly/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events/v1/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups/*"
+      ]
+    }
+  ]
+}

@@ -401,6 +401,9 @@ sudo systemctl enable --now libevra-critical-backup.timer
 `backup-all.sh` 的 `.backup.lock` 共用。**普通 S12-C dump 不能用于安全恢复**；只有带
 dump+sidecar 的检查点备份可以。
 
+真实 COS + Docker 隔离验收的测试策略、CAM 控制台步骤和演练计划在
+[`tencent-cos/README.md`](tencent-cos/README.md)；当前只有准备文件，**尚未创建任何云资源**。
+
 API **不直接访问 COS**。生产启用时另起一个无端口的 relay 服务（同一 API 镜像）：
 
 ```bash

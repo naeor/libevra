@@ -24,6 +24,10 @@ deploy/.backup-mail.env
 deploy/.backup.key
 deploy/.backup.lock
 deploy/.last-deployed
+deploy/.s13i-test.env
+deploy/.s13i-test.api.env
+deploy/.s13i-test.relay.env
+deploy/.s13i-test.db.env
 _backups/
 
 # Local backup/runtime data
