@@ -5,7 +5,22 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { DefaultAvatar } from "../components/DefaultAvatar.js";
 import { TabPage } from "../components/Layouts.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { APP_VERSION } from "../lib/version.js";
+import { GuestMePage } from "./GuestMePage.js";
+
+/**
+ * `/me` for either identity.
+ *
+ * ⚠️ **One page, two data sources — the same rule as the ledger screens.** A guest gets a variant
+ * of the same account page (same frame, same row rhythm, same dialogs) containing only what can
+ * actually work without an account: local settings, switching to a formal account, and data cleanup.
+ * The account implementation below is unchanged.
+ */
+export function MePage(): React.JSX.Element {
+  const guest = useGuestMode();
+  return guest ? <GuestMePage /> : <AccountMePage />;
+}
 
 /**
  * The account screen.
@@ -20,7 +35,7 @@ import { APP_VERSION } from "../lib/version.js";
  * own, in the warning colour, behind a confirmation like any other action that
  * cannot be trivially undone.
  */
-export function MePage(): React.JSX.Element {
+function AccountMePage(): React.JSX.Element {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [confirmSignOut, setConfirmSignOut] = useState(false);

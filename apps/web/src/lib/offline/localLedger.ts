@@ -1,5 +1,7 @@
 import type { Transaction, TransactionListResponse } from "@libellum/shared";
 
+import { ensureGuestData, guestDeletedIds, guestTransactions } from "../guest/data.js";
+import { guestRuntimeId } from "../guest/runtime.js";
 import { logOffline } from "./diagnostics.js";
 import { scopedKey } from "./scope.js";
 import { readSnapshot, readValue, writeValue } from "./storage.js";
@@ -164,6 +166,27 @@ export function transactionsFromCacheCached(raw: string | null): readonly Transa
  * one layer down.
  */
 export async function readLocalTransactions(): Promise<readonly Transaction[]> {
+  /**
+   * ⚠️ **S14-C: in guest mode this store is the guest ledger, not the account's offline copy.**
+   *
+   * The account screen's local read is a merge of downloaded months, the persisted query cache and
+   * the live cache. The guest has no downloaded months and no server cache — its entries are the
+   * source of truth — so the branch returns them and publishes them into the same in-memory stores
+   * the screens already subscribe to. **The stores are the shared UI layer; only what fills them
+   * differs.**
+   */
+  const guestId = guestRuntimeId();
+  if (guestId !== null) {
+    const data = await ensureGuestData(guestId);
+    if (data === null) return [];
+
+    const list = guestTransactions();
+    publishLedger(list);
+    publishDeleted(guestDeletedIds(data));
+    publishPending(new Set());
+    return list;
+  }
+
   /**
    * ⚠️ **A read that is already in flight is joined rather than repeated.**
    *

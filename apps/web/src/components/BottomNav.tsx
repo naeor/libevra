@@ -1,4 +1,5 @@
 import { useLedger } from "../lib/queries.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useRef, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -224,6 +225,7 @@ export function BottomNav({
   readonly onPickImages?: ((files: File[]) => void) | undefined;
 }): React.JSX.Element {
   const open = cards.expanded;
+  const guest = useGuestMode();
   const pickerRef = useRef<HTMLInputElement | null>(null);
   /**
    * ⚠️ **Read here so the fourth slot can name itself.** Shared with whatever screen is open through
@@ -296,6 +298,30 @@ export function BottomNav({
                 "flex w-[4.5rem] flex-col items-center gap-0.5 rounded-2xl bg-brand-soft py-2 text-brand-dark shadow-sm transition";
 
               /**
+               * ⚠️ **S14-C: 语音 and 拍照 are server-side capabilities** (transcription and screenshot
+               * recognition run on the API). A guest has no account to send them with, so the cards
+               * are disabled with a natural reason instead of leading to a login screen or, worse,
+               * pretending to work. 手动 stays live — it is the local form and the whole point of
+               * guest mode.
+               */
+              if (guest && action.label !== "手动") {
+                return (
+                  <li key={action.label}>
+                    <button
+                      type="button"
+                      disabled
+                      tabIndex={open ? 0 : -1}
+                      aria-label={`${action.label}记账，需要正式账号`}
+                      className={`${shape} opacity-55`}
+                    >
+                      {action.icon}
+                      <span className="text-micro">{action.label}</span>
+                    </button>
+                  </li>
+                );
+              }
+
+              /**
                * The camera card: opens the picker, then hands the pictures over.
                *
                * ⚠️ **The click is made from inside the tap handler, and that is
@@ -366,6 +392,13 @@ export function BottomNav({
       <ul className="mx-auto flex w-full max-w-md items-end justify-around px-2">
         {TABS.map((tab) => {
           const isActive = tab.to === active;
+          /**
+           * ⚠️ **S14-C: the fourth tab is the guest's own ledger, not the collaboration page.**
+           * `/ledger` is account-only (members, invitations, history) and sending a guest there
+           * would dump them on the login screen from a tab they can always see. The local ledger
+           * space is the honest destination: it is where a guest's one ledger lives.
+           */
+          const destination = guest && tab.to === "/ledger" ? "/start" : tab.to;
           const Icon = tab.icon;
           /**
            * ⚠️ **The fourth label is resolved here, from the ledger already in the query cache.**
@@ -407,7 +440,7 @@ export function BottomNav({
               <button
                 type="button"
                 onClick={() => {
-                  onNavigate(tab.to);
+                  onNavigate(destination);
                 }}
                 aria-current={isActive ? "page" : undefined}
                 className={`flex w-full flex-col items-center gap-1 py-2.5 text-micro transition ${

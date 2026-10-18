@@ -42,23 +42,24 @@ describe("AuthLayout", () => {
     expect(html).toContain("以游客身份继续");
   });
 
-  it("can drop the guest entry where the guest entry is the destination", () => {
+  it("can drop the guest entry where the destination handles the identity itself", () => {
     const html = render(
       <AuthLayout title="游客模式" guestEntry={false}>
-        <p>游客模式还在准备中，尚未开放。</p>
+        <p>这台浏览器没有允许保存游客身份。</p>
       </AuthLayout>,
     );
 
     expect(html).not.toContain("以游客身份继续");
-    expect(html).toContain("游客模式还在准备中");
+    expect(html).toContain("没有允许保存游客身份");
   });
 });
 
 describe("GuestEntry", () => {
-  it("is a real link to the honest placeholder, not a dead button", () => {
+  it("is a real link into the shared app, not a dead button", () => {
     const html = render(<GuestEntry />);
 
-    expect(html).toContain('href="/guest"');
+    // S14-C: guest mode uses the real routes; the identity is what makes `/` a guest session.
+    expect(html).toContain('href="/"');
     expect(html).toContain("以游客身份继续");
   });
 });

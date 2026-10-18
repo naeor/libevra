@@ -1,3 +1,5 @@
+import { resetEverything } from "../offline/reset.js";
+import { resetGuestDataCache } from "./data.js";
 import { clearGuestIdentity } from "./identity.js";
 import { clearGuestDatabase } from "./storage.js";
 
@@ -21,6 +23,9 @@ export interface ClearGuestDataResult {
 
 export async function clearGuestData(): Promise<ClearGuestDataResult> {
   const identityCleared = clearGuestIdentity();
+  // Drop the in-memory copy with the identity, so a later guest cannot read the previous one's data
+  // through a stale module snapshot.
+  resetGuestDataCache();
 
   /**
    * Delete the database *after* the identity: if the browser blocks the delete, the identity is
@@ -29,4 +34,39 @@ export async function clearGuestData(): Promise<ClearGuestDataResult> {
   const databaseCleared = await clearGuestDatabase();
 
   return { identityCleared, databaseCleared };
+}
+
+/**
+ * **Clear everything this device holds for Libevra — both identities, both databases, caches, the
+ * service worker and the app's own `localStorage` flags.**
+ *
+ * ⚠️ **A separate action from both "clear this account's offline copy" and "clear guest data".** The
+ * owner asked for the three to be distinguishable, and this is the largest of them: it is only
+ * reachable behind **two** confirmations that state the scope, and it still does not touch the
+ * server. The session cookie is deliberately left alone (the existing `resetEverything` rule: a
+ * data-cleanup button that signs somebody out is a different consent); a reload is expected.
+ */
+export async function clearAllDeviceData(): Promise<void> {
+  clearGuestIdentity();
+  await clearGuestDatabase();
+  resetGuestDataCache();
+
+  await resetEverything();
+
+  try {
+    const storage = globalThis.localStorage;
+    if (storage !== undefined) {
+      const keys: string[] = [];
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (key === null) continue;
+        // The historical `libellum-` prefix is part of the app's own keys (identity, presentation
+        // flags, message-read marks, shared-ledger hints); `current-book` predates the brand.
+        if (key.startsWith("libellum") || key === "current-book") keys.push(key);
+      }
+      for (const key of keys) storage.removeItem(key);
+    }
+  } catch {
+    // Storage may be unavailable; the databases are already gone, and the caller reloads.
+  }
 }

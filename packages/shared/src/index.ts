@@ -7,6 +7,16 @@ export {
 } from "./money.js";
 
 export {
+  DEFAULT_BOOK_NAME,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  PAYMENT_METHOD_NAMES,
+  UNCATEGORISED,
+  categoriesFor,
+  type CategoryPreset,
+} from "./presets.js";
+
+export {
   MAX_RECOGNIZE_BYTES,
   MAX_RECOGNIZE_IMAGES,
   OCR_CHANNELS,

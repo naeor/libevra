@@ -5,10 +5,12 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { Button } from "../components/Button.js";
 import { BookManageSheet } from "../components/BookManageSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { GuestModeBadge } from "../components/GuestModeBadge.js";
 import { AvatarIcon } from "../components/Icons.js";
 import { GearIcon, PlusIcon } from "../components/Icons.js";
 import { OceanBackdrop } from "../components/OceanBackdrop.js";
 import { SkeletonRows } from "../components/States.js";
+import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { APP_VERSION } from "../lib/version.js";
 import { errorMessage } from "../lib/api.js";
 import { markPresentationSeen, readSeenPresentation, useSpaceTransition } from "../lib/spaceTransition.js";
@@ -44,8 +46,17 @@ import {
 export function LedgerSpacePage(): React.JSX.Element {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const guest = useGuestMode();
+  const guestIdentity = useGuestIdentity();
+  /**
+   * ⚠️ **The "have I seen the wave's expanded state" memory is per identity.** A guest has no
+   * server account, so `user?.id` would be `undefined` for every visitor and the first-run welcome
+   * would be shared by every guest (and by the signed-out state). The guest identity id is the
+   * right key.
+   */
+  const presentationOwnerId = guestIdentity?.id ?? user?.id;
 
-  const [initial] = useState(() => (readSeenPresentation(user?.id) ? 1 : 0));
+  const [initial] = useState(() => (readSeenPresentation(presentationOwnerId) ? 1 : 0));
   const space = useSpaceTransition(initial);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -82,8 +93,8 @@ export function LedgerSpacePage(): React.JSX.Element {
    * is made once, in `useState`'s initialiser, from a per-account `localStorage` flag.
    */
   useEffect(() => {
-    if (space.atList) markPresentationSeen(user?.id);
-  }, [space.atList, user?.id]);
+    if (space.atList) markPresentationSeen(presentationOwnerId);
+  }, [space.atList, presentationOwnerId]);
 
   const books = useBooks();
   /**
@@ -107,6 +118,17 @@ export function LedgerSpacePage(): React.JSX.Element {
   const list = books.data?.books ?? [];
 
   async function enterLedger(bookId: string): Promise<void> {
+    /**
+     * ⚠️ **A guest has one local ledger and nothing to activate.** Entering it is a normal route
+     * change; the account path's server activation + full reload exists to swap the request header
+     * and offline scope, neither of which a guest has. Doing the account dance here would be a
+     * request without a session and a reload that changes nothing.
+     */
+    if (guest) {
+      navigate("/");
+      return;
+    }
+
     /**
      * ⚠️ **Clicking the ledger you are already in still enters it.** The owner: *"即使点击已经处于当前
      * 状态的账本，也可以直接进入明细."* So this is an early exit to the entries screen, not a no-op —
@@ -247,12 +269,15 @@ export function LedgerSpacePage(): React.JSX.Element {
                 * below the brand's `2.1rem`.
                 */}
               <div className="mb-2.5 flex items-baseline justify-between gap-3">
-                <h1 className="text-base font-medium text-ink">我的账本</h1>
+                <h1 className="flex items-center gap-2 text-base font-medium text-ink">
+                  我的账本
+                  <GuestModeBadge />
+                </h1>
                 <span className="shrink-0 text-helper text-muted">共 {String(list.length)} 本</span>
               </div>
 
               {list.length === 0 ? (
-                creating ? (
+                guest ? null : creating ? (
                   <NewBookForm
                     name={name}
                     onName={setName}
@@ -284,16 +309,21 @@ export function LedgerSpacePage(): React.JSX.Element {
                         isCurrent={book.id === currentBookId}
                         busy={switching}
                         onEnter={() => void enterLedger(book.id)}
-                        onManage={() => {
-                          setManaging(book);
-                        }}
+                        onManage={
+                          guest
+                            ? undefined
+                            : () => {
+                                setManaging(book);
+                              }
+                        }
+                        local={guest}
                       />
                     </li>
                   ))}
                 </ul>
               )}
 
-              {list.length === 0 ? null : (
+              {guest || list.length === 0 ? null : (
                 <div className="mt-3">
                   {creating ? (
                     <NewBookForm
@@ -341,8 +371,9 @@ export function LedgerSpacePage(): React.JSX.Element {
               ) : null}
 
               <p className="mt-5 text-helper-relaxed text-muted">
-                账本编号用于两个人核对"看的是不是同一本账"。它不能用来搜索账本——
-                加入别人的账本只能通过邀请。
+                {guest
+                  ? "这本游客账本只保存在当前设备；创建正式账号不会上传或合并它，迁移会在后续版本单独提供。"
+                  : '账本编号用于两个人核对"看的是不是同一本账"。它不能用来搜索账本——加入别人的账本只能通过邀请。'}
               </p>
 
               {/**
@@ -362,7 +393,7 @@ export function LedgerSpacePage(): React.JSX.Element {
         * page reads the current ledger to build it — see `BookManageSheet` for why that is the whole
         * point.
         */}
-      {managing === null ? null : (
+      {managing === null || guest ? null : (
         <BookManageSheet
           book={managing}
           isCurrent={managing.id === currentBookId}
@@ -435,12 +466,15 @@ function BookRow({
   busy,
   onEnter,
   onManage,
+  local = false,
 }: {
   readonly book: BookSummary;
   readonly isCurrent: boolean;
   readonly busy: boolean;
   readonly onEnter: () => void;
-  readonly onManage: () => void;
+  /** Absent for a guest: there is no per-ledger server management to open. */
+  readonly onManage?: (() => void) | undefined;
+  readonly local?: boolean;
 }): React.JSX.Element {
   return (
     <div className="flex items-stretch">
@@ -469,9 +503,15 @@ function BookRow({
         </span>
 
         <span className="flex flex-wrap items-center gap-x-2 text-helper text-muted">
-          <span className="font-mono">{book.bookNumber ?? "（未分配编号）"}</span>
-          <span>·</span>
-          <span>{String(book.memberCount)} 人</span>
+          {local ? (
+            <span>仅本机 · 游客本地账本</span>
+          ) : (
+            <>
+              <span className="font-mono">{book.bookNumber ?? "（未分配编号）"}</span>
+              <span>·</span>
+              <span>{String(book.memberCount)} 人</span>
+            </>
+          )}
         </span>
       </button>
 
@@ -480,14 +520,16 @@ function BookRow({
         但视觉图标保持小巧"* and *"所有账本的齿轮位置一致."* `w-12` with a 18px glyph gives a thumb
         something to hit without the icon becoming the loudest thing on the row.
         */}
-      <button
-        type="button"
-        onClick={onManage}
-        aria-label={`管理「${book.name}」`}
-        className="flex min-h-11 w-12 shrink-0 items-center justify-center text-muted transition hover:bg-canvas hover:text-ink"
-      >
-        <GearIcon className="size-[18px]" />
-      </button>
+      {onManage === undefined ? null : (
+        <button
+          type="button"
+          onClick={onManage}
+          aria-label={`管理「${book.name}」`}
+          className="flex min-h-11 w-12 shrink-0 items-center justify-center text-muted transition hover:bg-canvas hover:text-ink"
+        >
+          <GearIcon className="size-[18px]" />
+        </button>
+      )}
     </div>
   );
 }

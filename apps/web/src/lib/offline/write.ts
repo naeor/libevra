@@ -1,6 +1,13 @@
 import type { CreateTransactionInput, Transaction, UpdateTransactionInput } from "@libellum/shared";
 
 import { ApiRequestError, apiFetch } from "../api.js";
+import { publishGuestSnapshot } from "../guest/bridge.js";
+import {
+  createGuestTransaction,
+  deleteGuestTransaction,
+  updateGuestTransaction,
+} from "../guest/data.js";
+import { guestRuntimeId, notifyGuestWrite } from "../guest/runtime.js";
 import { isAccountOffline } from "./connectivity.js";
 import { logOffline } from "./diagnostics.js";
 import { syncAll } from "./sync.js";
@@ -220,6 +227,11 @@ export function installQueryNotifier(notify: (changed: readonly Transaction[]) =
  * having to write anything first \u2014 the queue is on disk, and the colour comes from it.
  */
 export async function refreshPending(): Promise<void> {
+  if (guestRuntimeId() !== null) {
+    publishPending(new Set());
+    return;
+  }
+
   /**
    * ⚠️ **The invariant is enforced here, on every refresh**, so a device that is already in the broken state
    * repairs itself the next time anything reads or writes — see `repairMissingQueueRows`.
@@ -276,6 +288,21 @@ async function afterWrite(): Promise<void> {
  * and the online path produce the same result rather than two shapes that have to be reconciled.
  */
 export async function createEntry(input: CreateTransactionInput, entry: Transaction): Promise<WriteOutcome> {
+  /**
+   * ⚠️ **S14-C: guest writes go to the guest store, never to the account's queue.**
+   *
+   * The screens call this same function for both identities. The branch is here — the single place
+   * every create passes through — so a guest page cannot accidentally write a mark, a month blob or
+   * a sync intent into the account's local database. The guest write is local by definition:
+   * `pending: false`, because there is no server that owes this entry a copy.
+   */
+  if (guestRuntimeId() !== null) {
+    const created = await createGuestTransaction(input);
+    publishGuestSnapshot();
+    notifyGuestWrite();
+    return { entry: created, pending: false };
+  }
+
   assertWriteAllowedNow();
   await upsertEntry(entry);
 
@@ -321,6 +348,14 @@ export async function updateEntry(
   input: UpdateTransactionInput,
   apply: (current: Transaction) => Transaction,
 ): Promise<WriteOutcome | null> {
+  if (guestRuntimeId() !== null) {
+    const updated = await updateGuestTransaction(id, input, apply);
+    if (updated === null) return null;
+    publishGuestSnapshot();
+    notifyGuestWrite();
+    return { entry: updated, pending: false };
+  }
+
   assertWriteAllowedNow();
   const previousMark = (await readMarks())[id];
   const current = await findStoredEntry(id);
@@ -426,6 +461,13 @@ export async function updateEntry(
  * done**, which `syncOne` now treats as success rather than a permanent failure to retry for ever.
  */
 export async function deleteEntry(id: string): Promise<void> {
+  if (guestRuntimeId() !== null) {
+    await deleteGuestTransaction(id);
+    publishGuestSnapshot();
+    notifyGuestWrite();
+    return;
+  }
+
   assertWriteAllowedNow();
   const current = await findStoredEntry(id);
 
@@ -457,6 +499,8 @@ export async function resolveConflict(
   /** What the server held when the choice was offered — **the base the write must be built on.** */
   serverCopy: Transaction,
 ): Promise<void> {
+  if (guestRuntimeId() !== null) return;
+
   assertWriteAllowedNow();
   /**
    * ⚠️ **The version the write carries is the server's, and this is the whole of the second bug.**
@@ -586,6 +630,8 @@ async function findStoredEntry(id: string): Promise<Transaction | null> {
 }
 
 export async function pendingIds(): Promise<ReadonlySet<string>> {
+  if (guestRuntimeId() !== null) return new Set();
+
   /**
    * ⚠️ **Read from the marks, not from a queue.** One record, two readings: **the colour of a row and the work a
    * sync performs are the same fact**, so a row cannot be painted green and then have nothing to send.

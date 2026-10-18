@@ -23,6 +23,7 @@
 import { useSyncExternalStore } from "react";
 
 import { currentBookId, subscribeCurrentBook } from "../currentBook.js";
+import { useGuestMode } from "../guest/session.js";
 import { useAccountOffline } from "./connectivity.js";
 
 /**
@@ -134,8 +135,16 @@ export function useSharedLedgerOfflineReadOnly(): {
   readonly shared: boolean;
   readonly offline: boolean;
 } {
+  const guest = useGuestMode();
   const shared = useSyncExternalStore(subscribeSharedLedger, sharedLedgerSnapshot, () => false);
   const { offline } = useAccountOffline();
+
+  /**
+   * ⚠️ **A guest ledger is personal by construction**, so the shared-ledger offline rule cannot
+   * apply to it. The account path is unchanged; this only prevents a stale account flag from
+   * disabling the guest's own write buttons.
+   */
+  if (guest) return { readOnly: false, shared: false, offline: false };
 
   return { readOnly: isSharedLedgerOfflineReadOnly(shared, offline), shared, offline };
 }

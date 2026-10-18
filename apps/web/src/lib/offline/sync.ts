@@ -1,6 +1,8 @@
 import type { CreateTransactionInput, Transaction } from "@libellum/shared";
 
 import { ApiRequestError, apiFetch } from "../api.js";
+import { reloadGuestData } from "../guest/data.js";
+import { guestRuntimeId, notifyGuestWrite } from "../guest/runtime.js";
 import { readMarks, readStoredMonths, setConflict, setMark, storeMonth, upsertEntry, type ConflictFieldRecord, type EntryMark } from "./localLedger.js";
 import { logOffline } from "./diagnostics.js";
 import { republishLedger } from "./write.js";
@@ -127,6 +129,15 @@ export interface SyncReport {
  */
 let syncing: Promise<SyncReport> | null = null;
 export function syncAll(): Promise<SyncReport> {
+  /**
+   * ⚠️ **S14-C: the guest has nothing to sync.** There is no server copy of a guest ledger and no
+   * session that could deliver one. Returning an empty report keeps every caller (the ledger's
+   * refresh, the write path, the triggers) correct without branching at each call site.
+   */
+  if (guestRuntimeId() !== null) {
+    return Promise.resolve({ delivered: 0, waiting: 0, refused: 0 });
+  }
+
   if (syncing !== null) return syncing;
   syncing = runSync().finally(() => { syncing = null; });
   return syncing;
@@ -480,6 +491,18 @@ export async function deferConflictsToServer(): Promise<boolean> {
 }
 /** Download the complete month, preserving local edits and unresolved conflict candidates. */
 export async function syncMonth(month: string): Promise<number> {
+  /**
+   * ⚠️ **No month download for a guest** — all of its entries are already local. The refresh path
+   * calls this, so the honest answer is "re-read what we have", not "fetch a month that has no
+   * server". The count returned stays 0 because nothing was downloaded.
+   */
+  const guestId = guestRuntimeId();
+  if (guestId !== null) {
+    await reloadGuestData(guestId);
+    notifyGuestWrite();
+    return 0;
+  }
+
   const entries: Transaction[] = [];
   let cursor: string | undefined;
   do {
@@ -504,6 +527,8 @@ export async function syncMonth(month: string): Promise<number> {
   return entries.length;
 }
 export async function pullConflicts(): Promise<number> {
+  if (guestRuntimeId() !== null) return 0;
+
   const answer = await apiFetch<{
     readonly conflicts: readonly {
       readonly transactionId: string;

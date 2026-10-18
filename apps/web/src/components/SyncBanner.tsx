@@ -1,3 +1,4 @@
+import { useGuestMode } from "../lib/guest/session.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 
@@ -25,10 +26,16 @@ import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
  * recorded now is kept until it can be sent.
  */
 export function SyncBanner(): React.JSX.Element | null {
+  const guest = useGuestMode();
   const { offline, reason } = useAccountOffline();
   const { readOnly } = useSharedLedgerOfflineReadOnly();
 
-  if (!offline) return null;
+  /**
+   * ⚠️ **S14-C: a guest has no server copy to be offline from.** "Offline" here would describe a
+   * sync risk that does not exist — every guest entry is permanently local — so the banner is
+   * absent in guest mode instead of alarming someone about a queue that is not there.
+   */
+  if (guest || !offline) return null;
 
   return (
     <div

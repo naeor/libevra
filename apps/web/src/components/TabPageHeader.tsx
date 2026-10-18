@@ -1,3 +1,5 @@
+import { GuestModeBadge } from "./GuestModeBadge.js";
+
 /**
  * **A first-level page's green heading area — one component, so two screens cannot disagree.**
  *
@@ -44,7 +46,10 @@ export function TabPageHeader({
             * `text-white`, so the title inherits it. **Adding `text-white` here would be a second place
             * saying the same thing**, and the day the header changes colour the title would not follow.
             */}
-          <h1 className="text-page-title">{title}</h1>
+          <h1 className="flex items-center gap-2 text-page-title">
+            {title}
+            <GuestModeBadge className="translate-y-0.5" />
+          </h1>
           {/**
             * ⚠️ **`mt-1.5 text-body-relaxed text-white/80`** — the exact gap and weight both
             * screens already used. **`leading-relaxed` matters more than it looks**: the subtitle is

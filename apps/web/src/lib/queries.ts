@@ -40,6 +40,34 @@ import { updateTransactionViews } from "./ledgerView.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { ApiRequestError, apiFetch, apiFetchFile, currentBookIdHeader } from "./api.js";
 import { currentBookId, setCurrentBook, subscribeCurrentBook } from "./currentBook.js";
+import { publishGuestSnapshot, requireGuestId } from "./guest/bridge.js";
+import {
+  archiveGuestCategory,
+  archiveGuestPaymentMethod,
+  createGuestCategory,
+  createGuestPaymentMethod,
+  createGuestTag,
+  createGuestTransaction,
+  deleteGuestCategory,
+  deleteGuestPaymentMethod,
+  deleteGuestTag,
+  deleteGuestTransaction,
+  ensureGuestData,
+  guestClassificationUsage,
+  guestDataValue,
+  guestLedgerMeta,
+  guestTransactions,
+  restoreGuestTransaction,
+  sortedTransactions,
+  subscribeGuestData,
+  updateGuestCategory,
+  updateGuestPaymentMethod,
+  updateGuestTag,
+  updateGuestTransaction,
+  type GuestData,
+} from "./guest/data.js";
+import { installGuestWriteListener, isGuestRuntime } from "./guest/runtime.js";
+import { useGuestMode } from "./guest/session.js";
 import { CACHE_KEY } from "./offline/cache.js";
 import { migrateUnscopedKeys, setOfflineBook } from "./offline/scope.js";
 import {
@@ -129,6 +157,60 @@ export const queryKeys = {
   transaction: (id: string) => ["transaction", id] as const,
   stats: (query: StatsQuery) => ["stats", query] as const,
 };
+
+/**
+ * Guest query keys — **a separate namespace on purpose.**
+ *
+ * ⚠️ The account's keys must never receive guest data and vice versa. A guest query that reused
+ * `["transactions", …]` would be served the account's cached pages on the very first render after
+ * sign-out (the query cache is still in memory), which is exactly the "one browser, two ledgers"
+ * leak S14 exists to prevent. The top-level `"guest"` segment is also what invalidation targets:
+ * one local write invalidates every guest view and nothing else.
+ */
+export const guestQueryKeys = {
+  ledger: () => ["guest", "ledger"] as const,
+  books: () => ["guest", "books"] as const,
+  summary: (month: string) => ["guest", "summary", month] as const,
+  transactions: (filters: TransactionFilters) => ["guest", "transactions", filters] as const,
+  transaction: (id: string) => ["guest", "transaction", id] as const,
+  stats: (query: StatsQuery) => ["guest", "stats", query] as const,
+  quickAmounts: () => ["guest", "quick-amounts"] as const,
+  classificationUsage: () => ["guest", "classification-usage"] as const,
+  ledgerMeta: (bookId: string) => ["guest", "ledger-meta", bookId] as const,
+};
+
+/**
+ * Turns "the guest store changed" (a module notification from the write path) into invalidation.
+ *
+ * ⚠️ Rendered once inside the query provider. It exists because `offline/write.ts` cannot import
+ * React Query — the guest branch writes through the same function the account path uses, so the
+ * notification is the only channel that keeps both sides decoupled.
+ */
+export function GuestQueryNotifier(): null {
+  const client = useQueryClient();
+
+  useEffect(() => {
+    installGuestWriteListener(() => {
+      void client.invalidateQueries({ queryKey: ["guest"] });
+    });
+    return () => {
+      installGuestWriteListener(null);
+    };
+  }, [client]);
+
+  return null;
+}
+
+/** The reactive guest snapshot; `null` while the store has not loaded yet. */
+function useGuestData(): GuestData | null {
+  return useSyncExternalStore(subscribeGuestData, guestDataValue, guestDataValue);
+}
+
+async function loadGuestData(): Promise<GuestData> {
+  const data = await ensureGuestData(requireGuestId());
+  if (data === null) throw new Error("游客账本暂时打不开。");
+  return data;
+}
 
 export interface TransactionFilters {
   readonly month?: string | undefined;
@@ -240,9 +322,31 @@ interface BooksResponse {
  * guard for the same reason — see `routes/books.ts`.
  */
 export function useBooks() {
+  const guest = useGuestMode();
+
   return useQuery({
-    queryKey: queryKeys.books,
-    queryFn: () => apiFetch<BooksResponse>("/books"),
+    queryKey: guest ? guestQueryKeys.books() : queryKeys.books,
+    queryFn: async () => {
+      if (guest) {
+        const data = await loadGuestData();
+        return {
+          books: [
+            {
+              id: data.book.id,
+              name: data.book.name,
+              bookNumber: null,
+              role: "owner" as const,
+              isCreator: true,
+              disposedByMe: false,
+              memberCount: 1,
+            },
+          ],
+          disposed: [],
+        } satisfies BooksResponse;
+      }
+
+      return apiFetch<BooksResponse>("/books");
+    },
     /**
      * ⚠️ **Always refetched when the screen is opened.** Roles and membership change from the
      * other side — somebody adds you, or changes what you may do — and a cached list would keep
@@ -700,12 +804,42 @@ export interface BookMemberView {
  * served from the first ledger's cache — the cross-ledger leak this project treats as the worst kind.
  */
 export function useBookMembers(bookId?: string) {
+  const guest = useGuestMode();
+
   return useQuery({
-    queryKey: bookId === undefined ? queryKeys.bookMembers : [...queryKeys.bookMembers, bookId],
-    queryFn: () =>
-      apiFetch<{ members: readonly BookMemberView[]; myRole: string }>("/books/members", {
+    queryKey: guest
+      ? ["guest", "book-members"]
+      : bookId === undefined
+        ? queryKeys.bookMembers
+        : [...queryKeys.bookMembers, bookId],
+    queryFn: async () => {
+      /**
+       * ⚠️ **The guest is the only member of the local ledger, and its role is `owner`.** The
+       * classification screens (and only they, among guest-reachable pages) ask this to decide
+       * whether to offer their controls; without the branch the request would 401 and every local
+       * category screen would render read-only with a wrong "你是查看者" notice.
+       */
+      if (guest) {
+        const identity = requireGuestId();
+        return {
+          members: [
+            {
+              userId: identity,
+              displayName: "游客",
+              username: "guest",
+              accountNumber: "",
+              role: "owner" as const,
+              isCreator: true,
+            },
+          ],
+          myRole: "owner",
+        };
+      }
+
+      return apiFetch<{ members: readonly BookMemberView[]; myRole: string }>("/books/members", {
         ...(bookId === undefined ? {} : { bookId }),
-      }),
+      });
+    },
     /** ⚠️ Fresh: membership changes from the other side, on their device. */
     staleTime: 0,
   });
@@ -861,12 +995,22 @@ export function useSendBookMessage() {
  * in the shape that is hardest to notice: a correct-looking screen showing the wrong ledger.
  */
 export function useLedgerMeta(bookId: string) {
+  /**
+   * ⚠️ **A guest has exactly one ledger, so the "target ledger" read is the current one.** The
+   * classification screens are the only callers that reach this in guest mode; returning the same
+   * guest metadata (instead of an API call) keeps the pages' target/current distinction harmless
+   * without creating a second code path in the screens.
+   */
+  const guest = useGuestMode();
+
   return useQuery({
-    queryKey: [...queryKeys.ledgerMeta, bookId],
-    queryFn: () =>
-      apiFetch<LedgerMetaResponse>("/ledger", {
+    queryKey: guest ? guestQueryKeys.ledgerMeta(bookId) : [...queryKeys.ledgerMeta, bookId],
+    queryFn: async () => {
+      if (guest) return guestLedgerMeta(await loadGuestData());
+      return apiFetch<LedgerMetaResponse>("/ledger", {
         ...(bookId === "" ? {} : { bookId }),
-      }),
+      });
+    },
     staleTime: 0,
   });
 }
@@ -888,12 +1032,35 @@ export function useLedgerMeta(bookId: string) {
  * restored — and a label that never updates would simply stay wrong.
  */
 export function useCurrentBookId(): string | null {
-  return useSyncExternalStore(subscribeCurrentBook, currentBookId, currentBookId);
+  const guest = useGuestMode();
+  const guestData = useGuestData();
+  // Hook order: both subscriptions are always called; only the returned value is chosen.
+  useSyncExternalStore(subscribeCurrentBook, currentBookId, currentBookId);
+
+  /**
+   * ⚠️ **The guest's book id never touches `currentBook`.** That module feeds the account request
+   * header and the account offline scope; putting a guest id there would be exactly the leak this
+   * stage is designed to avoid. The guest equivalent is read from the guest store instead.
+   */
+  return guest ? (guestData?.book.id ?? null) : currentBookId();
 }
 
-export function useLedger() {  return useQuery({
-    queryKey: queryKeys.ledger,
+export function useLedger() {
+  /**
+   * ⚠️ **S14-C: the same hook, the same `LedgerMetaResponse` shape, two sources.**
+   *
+   * The guest branch returns the synthetic metadata of the local ledger and deliberately does not
+   * run the account path's bookkeeping: no `setCurrentBook`, no `setOfflineBook`, no unscoped-key
+   * migration. A guest book id in the request header or in the account's offline scope is exactly
+   * the cross-identity leak this branch exists to avoid.
+   */
+  const guest = useGuestMode();
+
+  return useQuery({
+    queryKey: guest ? guestQueryKeys.ledger() : queryKeys.ledger,
     queryFn: async () => {
+      if (guest) return guestLedgerMeta(await loadGuestData());
+
       const ledger = await apiFetch<LedgerMetaResponse>("/ledger");
 
       /**
@@ -994,28 +1161,23 @@ export function transactionsIn(queryClient: QueryClient): readonly Transaction[]
  */
 
 export function useSummary(month: string) {
+  const guest = useGuestMode();
+
   return useQuery({
-    queryKey: queryKeys.summary(month),
-    queryFn: () =>
-      /**
-       * ⚠️ **Network first, device second — not "device if the browser says offline".**
-       *
-       * The owner put the rule better than the code did: "先去读网络数据，被拒绝/超过两秒
-       * 没有收到数据然后直接改成用本地数据就可以了吧？" The old version asked
-       * `navigator.onLine`, which is a phone's *guess*: it says online in a lift, on a
-       * train, and on a Wi-Fi network whose router stopped forwarding. In all of those the
-       * app waited, failed, and showed nothing while a good copy of the month sat on the
-       * device.
-       *
-       * The question is not "does the browser think we are online" but "did the answer
-       * arrive".
-       */
-      withLocalFallback({
+    queryKey: guest ? guestQueryKeys.summary(month) : queryKeys.summary(month),
+    queryFn: async () => {
+      if (guest) {
+        const data = await loadGuestData();
+        return summaryFor(sortedTransactions(data), month, monthRange(month));
+      }
+
+      return withLocalFallback({
         label: `summary ${month}`,
         network: (timeoutMs) =>
           apiFetch<SummaryResponse>("/summary", { query: { month }, timeoutMs }),
         local: async () => summaryFor(await readLocalTransactions(), month, monthRange(month)),
-      }),
+      });
+    },
   });
 }
 
@@ -1039,6 +1201,15 @@ export function useSummary(month: string) {
  * app display stale data or skip a fetch.
  */
 export function hasLocalTransactions(filters: TransactionFilters): boolean {
+  /**
+   * ⚠️ **Guest entries are never in the account query cache**, so the account's synchronous gate
+   * would say "nothing stored" on the first guest render and leave the skeleton up. The guest
+   * equivalent answers from the published guest store.
+   */
+  if (isGuestRuntime()) {
+    return filterLocally(ledgerSnapshotValue(), filters).length > 0;
+  }
+
   const raw = readSnapshot<string>(CACHE_KEY);
   if (raw === null) return false;
 
@@ -1052,6 +1223,7 @@ export function hasLocalTransactions(filters: TransactionFilters): boolean {
 }
 
 export function useTransactions(given: TransactionFilters) {
+  const guest = useGuestMode();
   /**
    * ⚠️ **Normalised here, at the boundary**, so every caller gets the same key
    * whether they passed three fields or four. See `transactionFilters`.
@@ -1140,31 +1312,31 @@ export function useTransactions(given: TransactionFilters) {
      * ⚠️ **The queue is republished alongside the read**, so the pending colour survives a reload without
      * anything having to be written first. **The colour comes from the queue, and the queue is on disk.**
      */
+    if (guest) {
+      // Guest entries are local by definition; there is no queue to republish, only the store to load.
+      void loadGuestData();
+      return;
+    }
+
     void (async () => {
       await readLocalTransactions();
       await refreshPending();
     })();
-  }, [viewMonth, viewKind, viewCategory, viewCurrency]);
+  }, [guest, viewMonth, viewKind, viewCategory, viewCurrency]);
 
   return useInfiniteQuery({
-    queryKey: queryKeys.transactions(filters),
-    queryFn: ({ pageParam }) =>
+    queryKey: guest ? guestQueryKeys.transactions(filters) : queryKeys.transactions(filters),
+    queryFn: async ({ pageParam }) => {
       /**
-       * ⚠️ **Filtered views are answered from the device too — and the network is tried
-       * first, whatever the browser claims.**
-       *
-       * The spending tab, the income tab and any category filter are *different queries
-       * with different keys*, so even with every month downloaded, switching to 收入 asked
-       * something the cache had never been asked and got nothing — "切换到收入界面……什么都
-       * 看不到". The stored copy is not per-view, so the answer does not have to be either:
-       * filter it here and hand back one page, with no cursor, because everything the
-       * device has is already in hand.
-       *
-       * The local page keeps `nextCursor: null` deliberately: there is no server to page
-       * through, and offering a cursor would put a "载入更多" button on screen that fetches
-       * nothing.
+       * ⚠️ **S14-C: a guest list is answered from `libellum-guest`, never from the network.**
+       * The same filter rules as the offline account list are applied — `filterLocally` is the
+       * shared pure function — so 支出/收入/分类筛选 behave identically in both modes.
        */
-      withLocalFallback({
+      if (guest) {
+        return asLocalPage(filterLocally(sortedTransactions(await loadGuestData()), filters));
+      }
+
+      return withLocalFallback({
         label: `transactions ${filters.month ?? "?"}${filters.kind === undefined ? "" : ` ${filters.kind}`}`,
         network: (timeoutMs) =>
           apiFetch<TransactionListResponse>("/transactions", {
@@ -1189,7 +1361,8 @@ export function useTransactions(given: TransactionFilters) {
         }
 
         return answer;
-      }),
+      });
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
@@ -1218,6 +1391,7 @@ export function useTransactions(given: TransactionFilters) {
  */
 
 export function useTransaction(id: string) {
+  const guest = useGuestMode();
   /**
    * ⚠️ **The device's snapshot, so this screen cannot be held hostage by the query.**
    *
@@ -1229,18 +1403,15 @@ export function useTransaction(id: string) {
    */
   const local = useSyncExternalStore(subscribeLedger, ledgerSnapshotValue, ledgerSnapshotValue);
   const query = useQuery({
-    queryKey: queryKeys.transaction(id),
-    queryFn: () =>
-      /**
-       * Looked up among the entries already stored when the network does not answer.
-       *
-       * A stored month is not a summary: `transactionSchema` carries the category name,
-       * the payment method and the tags, which is everything this screen displays.
-       * **Throwing when it is genuinely absent is deliberate** — an entry the device has
-       * never seen cannot be shown without a network, and pretending otherwise would
-       * produce a blank screen with no explanation.
-       */
-      withLocalFallback({
+    queryKey: guest ? guestQueryKeys.transaction(id) : queryKeys.transaction(id),
+    queryFn: async () => {
+      if (guest) {
+        const found = sortedTransactions(await loadGuestData()).find((entry) => entry.id === id);
+        if (found === undefined) throw new Error("这一笔不在游客账本里。");
+        return found;
+      }
+
+      return withLocalFallback({
         label: `transaction ${id.slice(0, 8)}`,
         network: (timeoutMs) => apiFetch<Transaction>(`/transactions/${id}`, { timeoutMs }),
         local: async () => {
@@ -1254,7 +1425,8 @@ export function useTransaction(id: string) {
             "这一笔还没有存到本机，离线时看不到。联网后会自动补上。",
           );
         },
-      }),
+      });
+    },
     enabled: id !== "",
   });
 
@@ -1292,6 +1464,7 @@ export function useTransaction(id: string) {
 const STATS_COMPUTE_DELAY_MS = 1_000;
 
 export function useStats(query: StatsQuery) {
+  const guest = useGuestMode();
   /**
    * ⚠️ **The ledger store, not a second store of our own.**
    *
@@ -1315,16 +1488,36 @@ export function useStats(query: StatsQuery) {
    * inside a `queryFn` is a store that stays empty whenever the query does not run.
    */
   useEffect(() => {
+    if (guest) {
+      void loadGuestData().then((data) => {
+        publishGuestSnapshot(data);
+      });
+      return;
+    }
+
     void (async () => {
       await readLocalTransactions();
       await refreshPending();
     })();
-  }, []);
+  }, [guest]);
 
   const result = useQuery({
-    queryKey: queryKeys.stats(query),
-    queryFn: () =>
-      withLocalFallback({
+    queryKey: guest ? guestQueryKeys.stats(query) : queryKeys.stats(query),
+    queryFn: async () => {
+      if (guest) {
+        const data = await loadGuestData();
+        publishGuestSnapshot(data);
+        return computeStats(sortedTransactions(data), {
+          from: query.from,
+          to: query.to,
+          bucket: query.bucket,
+          currency: query.currency,
+          compareFrom: query.compareFrom,
+          compareTo: query.compareTo,
+        });
+      }
+
+      return withLocalFallback({
         label: `stats ${query.from}..${query.to}`,
         network: (timeoutMs) =>
           apiFetch<StatsResponse>("/stats", {
@@ -1347,7 +1540,8 @@ export function useStats(query: StatsQuery) {
             compareFrom: query.compareFrom,
             compareTo: query.compareTo,
           }),
-      }),
+      });
+    },
     // A statistic is derived from entries; when none change, it cannot change.
     staleTime: 60_000,
   });
@@ -1396,9 +1590,13 @@ const QUICK_AMOUNT_WINDOW_DAYS = 30;
  * shortcuts that change every time.
  */
 export function useQuickAmounts(): number[] {
+  const guest = useGuestMode();
   const query = useQuery({
-    queryKey: ["quick-amounts"],
-    queryFn: () => apiFetch<TransactionListResponse>("/transactions", { query: { limit: 100 } }),
+    queryKey: guest ? guestQueryKeys.quickAmounts() : ["quick-amounts"],
+    queryFn: async (): Promise<TransactionListResponse> => {
+      if (guest) return { items: [...sortedTransactions(await loadGuestData())], nextCursor: null };
+      return apiFetch<TransactionListResponse>("/transactions", { query: { limit: 100 } });
+    },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -1433,6 +1631,16 @@ function useMoneyInvalidator(bookId?: string): () => Promise<void> {
 
   return async () => {
     /**
+     * ⚠️ **S14-C: a guest write invalidates guest views only.** The account keys are untouched —
+     * they belong to another identity, and invalidating them here would invite a refetch that could
+     * contact the server from guest mode.
+     */
+    if (isGuestRuntime()) {
+      await client.invalidateQueries({ queryKey: ["guest"] });
+      return;
+    }
+
+    /**
      * ⚠️ **A write against another ledger cannot change anything on this screen.**
      *
      * 账本设置 manages a ledger the reader may not be in (`/books/:bookId/settings`), and the money
@@ -1456,11 +1664,19 @@ function useMoneyInvalidator(bookId?: string): () => Promise<void> {
 }
 
 export function useCreateTransaction(): UseMutationResult<Transaction, Error, CreateTransactionInput> {
+  const guest = useGuestMode();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
-    mutationFn: (input: CreateTransactionInput) =>
-      apiFetch<Transaction>("/transactions", { method: "POST", body: input }),
+    mutationFn: async (input: CreateTransactionInput) => {
+      if (guest) {
+        const entry = await createGuestTransaction(input);
+        publishGuestSnapshot();
+        return entry;
+      }
+
+      return apiFetch<Transaction>("/transactions", { method: "POST", body: input });
+    },
     onSuccess: () => void invalidate(),
   });
 }
@@ -1468,20 +1684,38 @@ export function useCreateTransaction(): UseMutationResult<Transaction, Error, Cr
 export function useUpdateTransaction(
   id: string,
 ): UseMutationResult<Transaction, Error, UpdateTransactionInput> {
+  const guest = useGuestMode();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
-    mutationFn: (input: UpdateTransactionInput) =>
-      apiFetch<Transaction>(`/transactions/${id}`, { method: "PATCH", body: input }),
+    mutationFn: async (input: UpdateTransactionInput) => {
+      if (guest) {
+        const entry = await updateGuestTransaction(id, input, (current) => current);
+        if (entry === null) throw new Error("这一笔不在游客账本里。");
+        publishGuestSnapshot();
+        return entry;
+      }
+
+      return apiFetch<Transaction>(`/transactions/${id}`, { method: "PATCH", body: input });
+    },
     onSuccess: () => void invalidate(),
   });
 }
 
 export function useDeleteTransaction(): UseMutationResult<unknown, Error, string> {
+  const guest = useGuestMode();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
-    mutationFn: (id: string) => apiFetch<unknown>(`/transactions/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: string) => {
+      if (guest) {
+        await deleteGuestTransaction(id);
+        publishGuestSnapshot();
+        return { ok: true };
+      }
+
+      return apiFetch<unknown>(`/transactions/${id}`, { method: "DELETE" });
+    },
     onSuccess: () => void invalidate(),
   });
 }
@@ -1502,8 +1736,25 @@ export function useCheckDuplicates(): UseMutationResult<
   Error,
   DuplicateCheckInput
 > {
+  const guest = useGuestMode();
+
   return useMutation({
     mutationFn: async (input: DuplicateCheckInput) => {
+      /**
+       * ⚠️ **A local duplicate check, not a server one.** Asking the server from guest mode would be
+       * a business request without an account, and its answer could include account entries. The
+       * guest check is deliberately conservative: same amount, same kind, same local date.
+       */
+      if (guest) {
+        const data = await loadGuestData();
+        const duplicates = sortedTransactions(data).filter((entry) => {
+          if (entry.amountCents !== input.amountCents) return false;
+          if (entry.kind !== input.kind) return false;
+          return entry.occurredLocalDate === input.occurredLocalDate;
+        });
+        return duplicates.slice(0, 5);
+      }
+
       const response = await apiFetch<DuplicateCheckResponse>("/transactions/duplicates", {
         method: "POST",
         body: input,
@@ -1550,11 +1801,20 @@ export function useTranscribe(): UseMutationResult<TranscribeResponse, Error, Bl
 
 /** Undo for a delete: restores the same row, not a copy of it. */
 export function useRestoreTransaction(): UseMutationResult<Transaction, Error, string> {
+  const guest = useGuestMode();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<Transaction>(`/transactions/${id}/restore`, { method: "POST" }),
+    mutationFn: async (id: string) => {
+      if (guest) {
+        const entry = await restoreGuestTransaction(id);
+        if (entry === null) throw new Error("这一笔已经无法恢复。");
+        publishGuestSnapshot();
+        return entry;
+      }
+
+      return apiFetch<Transaction>(`/transactions/${id}/restore`, { method: "POST" });
+    },
     onSuccess: () => void invalidate(),
   });
 }
@@ -1578,8 +1838,14 @@ export function useRestoreTransaction(): UseMutationResult<Transaction, Error, s
  */
 function useLedgerInvalidator(bookId?: string): () => Promise<void> {
   const client = useQueryClient();
+  const guest = useGuestMode();
 
   return async () => {
+    if (guest) {
+      await client.invalidateQueries({ queryKey: ["guest"] });
+      return;
+    }
+
     if (bookId === undefined) {
       await client.invalidateQueries({ queryKey: queryKeys.ledger });
       return;
@@ -1608,19 +1874,34 @@ const classificationUsageKey = (bookId?: string): readonly unknown[] => [
 ];
 
 export function useClassificationUsage(bookId?: string) {
+  const guest = useGuestMode();
+
   return useQuery({
-    queryKey: classificationUsageKey(bookId),
-    queryFn: () =>
-      apiFetch<ClassificationUsageResponse>("/ledger/classification-usage", {
+    queryKey: guest ? guestQueryKeys.classificationUsage() : classificationUsageKey(bookId),
+    queryFn: async () => {
+      if (guest) {
+        await loadGuestData();
+        return guestClassificationUsage();
+      }
+
+      return apiFetch<ClassificationUsageResponse>("/ledger/classification-usage", {
         ...(bookId === undefined ? {} : { bookId }),
-      }),
+      });
+    },
     staleTime: 15_000,
   });
 }
 
 function useClassificationUsageInvalidator(bookId?: string): () => Promise<void> {
   const client = useQueryClient();
+  const guest = useGuestMode();
+
   return async () => {
+    if (guest) {
+      await client.invalidateQueries({ queryKey: guestQueryKeys.classificationUsage() });
+      return;
+    }
+
     await client.invalidateQueries({ queryKey: classificationUsageKey(bookId) });
   };
 }
@@ -1631,37 +1912,59 @@ function useClassificationUsageInvalidator(bookId?: string): () => Promise<void>
  * "当前账本" is not touched. Omitting it keeps the original behaviour: the ledger the reader is in.
  */
 export function useCategoryMutations(bookId?: string) {
+  const guest = useGuestMode();
   const invalidate = useLedgerInvalidator(bookId);
   const invalidateMoney = useMoneyInvalidator(bookId);
   const invalidateUsage = useClassificationUsageInvalidator(bookId);
 
   const create = useMutation({
-    mutationFn: (input: CreateCategoryInput) =>
-      apiFetch("/categories", {
+    mutationFn: async (input: CreateCategoryInput) => {
+      if (guest) {
+        const category = await createGuestCategory(input);
+        publishGuestSnapshot();
+        return category;
+      }
+
+      return apiFetch("/categories", {
         method: "POST",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     onSuccess: () => void invalidate(),
   });
 
   const update = useMutation({
-    mutationFn: ({ id, ...input }: UpdateCategoryInput & { id: string }) =>
-      apiFetch(`/categories/${id}`, {
+    mutationFn: async ({ id, ...input }: UpdateCategoryInput & { id: string }) => {
+      if (guest) {
+        const category = await updateGuestCategory(id, input);
+        publishGuestSnapshot();
+        return category;
+      }
+
+      return apiFetch(`/categories/${id}`, {
         method: "PATCH",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     // Renaming or archiving changes how entries render, so the lists refresh too.
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/categories/${id}`, {
+    mutationFn: async (id: string) => {
+      if (guest) {
+        const category = await archiveGuestCategory(id);
+        publishGuestSnapshot();
+        return category;
+      }
+
+      return apiFetch(`/categories/${id}`, {
         method: "DELETE",
         ...(bookId === undefined ? {} : { bookId }),
-      }),
+      });
+    },
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
@@ -1671,12 +1974,19 @@ export function useCategoryMutations(bookId?: string) {
    * category. One endpoint cannot mean both without a flag that someone will eventually forget.
    */
   const permanentDelete = useMutation({
-    mutationFn: ({ id, ...input }: PermanentDeleteCategoryInput & { id: string }) =>
-      apiFetch<ClassificationDeleteResponse>(`/categories/${id}/permanent-delete`, {
+    mutationFn: async ({ id, ...input }: PermanentDeleteCategoryInput & { id: string }) => {
+      if (guest) {
+        const report = await deleteGuestCategory(id, input.replacementCategoryId);
+        publishGuestSnapshot();
+        return report;
+      }
+
+      return apiFetch<ClassificationDeleteResponse>(`/categories/${id}/permanent-delete`, {
         method: "POST",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
@@ -1684,36 +1994,58 @@ export function useCategoryMutations(bookId?: string) {
 }
 
 export function usePaymentMethodMutations(bookId?: string) {
+  const guest = useGuestMode();
   const invalidate = useLedgerInvalidator(bookId);
   const invalidateMoney = useMoneyInvalidator(bookId);
   const invalidateUsage = useClassificationUsageInvalidator(bookId);
 
   const create = useMutation({
-    mutationFn: (input: CreatePaymentMethodInput) =>
-      apiFetch("/payment-methods", {
+    mutationFn: async (input: CreatePaymentMethodInput) => {
+      if (guest) {
+        const method = await createGuestPaymentMethod(input);
+        publishGuestSnapshot();
+        return method;
+      }
+
+      return apiFetch("/payment-methods", {
         method: "POST",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     onSuccess: () => void invalidate(),
   });
 
   const update = useMutation({
-    mutationFn: ({ id, ...input }: UpdatePaymentMethodInput & { id: string }) =>
-      apiFetch(`/payment-methods/${id}`, {
+    mutationFn: async ({ id, ...input }: UpdatePaymentMethodInput & { id: string }) => {
+      if (guest) {
+        const method = await updateGuestPaymentMethod(id, input);
+        publishGuestSnapshot();
+        return method;
+      }
+
+      return apiFetch(`/payment-methods/${id}`, {
         method: "PATCH",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/payment-methods/${id}`, {
+    mutationFn: async (id: string) => {
+      if (guest) {
+        const method = await archiveGuestPaymentMethod(id);
+        publishGuestSnapshot();
+        return method;
+      }
+
+      return apiFetch(`/payment-methods/${id}`, {
         method: "DELETE",
         ...(bookId === undefined ? {} : { bookId }),
-      }),
+      });
+    },
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
@@ -1723,12 +2055,19 @@ export function usePaymentMethodMutations(bookId?: string) {
    * method re-points them. The two are distinct and both are valid.
    */
   const permanentDelete = useMutation({
-    mutationFn: ({ id, ...input }: PermanentDeletePaymentMethodInput & { id: string }) =>
-      apiFetch<ClassificationDeleteResponse>(`/payment-methods/${id}/permanent-delete`, {
+    mutationFn: async ({ id, ...input }: PermanentDeletePaymentMethodInput & { id: string }) => {
+      if (guest) {
+        const report = await deleteGuestPaymentMethod(id, input.replacementPaymentMethodId);
+        publishGuestSnapshot();
+        return report;
+      }
+
+      return apiFetch<ClassificationDeleteResponse>(`/payment-methods/${id}/permanent-delete`, {
         method: "POST",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
@@ -1736,36 +2075,58 @@ export function usePaymentMethodMutations(bookId?: string) {
 }
 
 export function useTagMutations(bookId?: string) {
+  const guest = useGuestMode();
   const invalidate = useLedgerInvalidator(bookId);
   const invalidateMoney = useMoneyInvalidator(bookId);
   const invalidateUsage = useClassificationUsageInvalidator(bookId);
 
   const create = useMutation({
-    mutationFn: (input: CreateTagInput) =>
-      apiFetch("/tags", {
+    mutationFn: async (input: CreateTagInput) => {
+      if (guest) {
+        const tag = await createGuestTag(input);
+        publishGuestSnapshot();
+        return tag;
+      }
+
+      return apiFetch("/tags", {
         method: "POST",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     onSuccess: () => void invalidate(),
   });
 
   const update = useMutation({
-    mutationFn: ({ id, ...input }: UpdateTagInput & { id: string }) =>
-      apiFetch(`/tags/${id}`, {
+    mutationFn: async ({ id, ...input }: UpdateTagInput & { id: string }) => {
+      if (guest) {
+        const tag = await updateGuestTag(id, input);
+        publishGuestSnapshot();
+        return tag;
+      }
+
+      return apiFetch(`/tags/${id}`, {
         method: "PATCH",
         ...(bookId === undefined ? {} : { bookId }),
         body: input,
-      }),
+      });
+    },
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<ClassificationDeleteResponse>(`/tags/${id}`, {
+    mutationFn: async (id: string) => {
+      if (guest) {
+        const report = await deleteGuestTag(id);
+        publishGuestSnapshot();
+        return report;
+      }
+
+      return apiFetch<ClassificationDeleteResponse>(`/tags/${id}`, {
         method: "DELETE",
         ...(bookId === undefined ? {} : { bookId }),
-      }),
+      });
+    },
     onSuccess: () => void Promise.all([invalidate(), invalidateMoney(), invalidateUsage()]),
   });
 

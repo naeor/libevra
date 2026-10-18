@@ -9,11 +9,13 @@ import { AppShell } from "./components/Layouts.js";
 import { ConsentGate } from "./components/ConsentGate.js";
 import { OfflineFillProvider } from "./components/OfflineFillProvider.js";
 import { UndoProvider } from "./components/UndoProvider.js";
-import { guestOrLoginPath, readGuestIdentity } from "./lib/guest/identity.js";
+import { readGuestIdentity } from "./lib/guest/identity.js";
+import { DataModeSync } from "./lib/guest/session.js";
 import { CACHE_MAX_AGE_MS, cachePersister, shouldPersistQuery } from "./lib/offline/cache.js";
 import { primeDeviceId } from "./lib/api.js";
 import { deviceId } from "./lib/offline/device.js";
 import { startSyncTriggers } from "./lib/offline/syncController.js";
+import { GuestQueryNotifier } from "./lib/queries.js";
 import {
   AdminAdminsPage,
   AdminAuditPage,
@@ -48,7 +50,6 @@ import { MePage } from "./pages/MePage.js";
 import { LedgerInvitePage } from "./pages/LedgerInvitePage.js";
 import { MessageBoardPage } from "./pages/MessageBoardPage.js";
 import { JoinPage } from "./pages/JoinPage.js";
-import { GuestWorkspacePage } from "./pages/GuestWorkspacePage.js";
 import { LedgerHistoryPage } from "./pages/LedgerHistoryPage.js";
 import { LedgerMembersPage } from "./pages/LedgerSubPages.js";
 import { LedgerPage } from "./pages/LedgerPage.js";
@@ -123,21 +124,44 @@ function Splash(): React.JSX.Element {
   );
 }
 
+/**
+ * **The account-only gate.** A guest is a real local session, not an account, so server-backed
+ * screens (协作、邀请、账号安全、管理员、导入导出、更新中心…) use this: no formal session means the
+ * login screen. Guest-supported screens use `RequireSession` instead.
+ */
 function RequireAuth({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
   const { user, status } = useAuth();
 
   if (status === "loading") return <Splash />;
-  if (!user) {
-    /**
-     * ⚠️ **S14-B: a returning guest goes back to the guest workspace, not to the login screen.**
-     * The identity is a synchronous `localStorage` read, so this decision adds no frame in which
-     * the wrong page could appear. `guestOrLoginPath` returns `/login` when there is no identity,
-     * which keeps the pre-S14-B behaviour for a brand-new visitor.
-     */
-    return <Navigate to={guestOrLoginPath(readGuestIdentity())} replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
 
   return <>{children}</>;
+}
+
+/**
+ * **S14-C's shared gate — the same routes, the same pages, either identity.**
+ *
+ * A signed-out visitor with a persisted guest identity is a guest session: `/`, `/add`, `/stats`,
+ * `/start`, `/me`, entry details and the classification screens render the *real* screens. No
+ * separate guest route tree exists, which is what makes the UI identical by construction rather
+ * than by two implementations that have to be kept in step.
+ */
+function RequireSession({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
+  const { user, status } = useAuth();
+
+  if (status === "loading") return <Splash />;
+  if (user === null && readGuestIdentity() === null) return <Navigate to="/login" replace />;
+
+  return <>{children}</>;
+}
+
+/**
+ * `/guest` survives as a redirect for S14-A/S14-B bookmarks: guest mode now *is* the app.
+ */
+function GuestRedirect(): React.JSX.Element {
+  const { user } = useAuth();
+  if (user !== null && readGuestIdentity() === null) return <Navigate to="/" replace />;
+  return <Navigate to={readGuestIdentity() === null && user === null ? "/login" : "/"} replace />;
 }
 
 /**
@@ -209,50 +233,50 @@ function AppRoutes(): React.JSX.Element {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      {/* ⚠️ S14-B: the real guest workspace. It owns a persistent local identity and an empty local ledger. */}
-      <Route path="/guest" element={<GuestWorkspacePage />} />
+      {/* S14-C: guest mode uses the real routes; `/guest` only redirects old links into them. */}
+      <Route path="/guest" element={<GuestRedirect />} />
       <Route path="/recover" element={<RecoverPage />} />
       <Route path="/recover-archive" element={<ArchiveRecoveryPage />} />
 
       <Route
         path="/"
         element={
-          <RequireAuth>
+          <RequireSession>
             <DetailPage />
-          </RequireAuth>
+          </RequireSession>
         }
       />
       <Route
         path="/add"
         element={
-          <RequireAuth>
+          <RequireSession>
             <AddEntryPage />
-          </RequireAuth>
+          </RequireSession>
         }
       />
       <Route
         path="/stats"
         element={
-          <RequireAuth>
+          <RequireSession>
             <StatsPage />
-          </RequireAuth>
+          </RequireSession>
         }
       />
       <Route
         path="/me"
         element={
-          <RequireAuth>
+          <RequireSession>
             <MePage />
-          </RequireAuth>
+          </RequireSession>
         }
       />
 
       <Route
         path="/transactions/:id"
         element={
-          <RequireAuth>
+          <RequireSession>
             <EntryDetailPage />
-          </RequireAuth>
+          </RequireSession>
         }
       />
 
@@ -295,9 +319,9 @@ function AppRoutes(): React.JSX.Element {
           </RequireAuth>
         }
       />
-      <Route path="/categories" element={<RequireAuth><CurrentBookRedirect tail="/settings/categories" /></RequireAuth>} />
-      <Route path="/payment-methods" element={<RequireAuth><CurrentBookRedirect tail="/settings/payment-methods" /></RequireAuth>} />
-      <Route path="/tags" element={<RequireAuth><CurrentBookRedirect tail="/settings/tags" /></RequireAuth>} />
+      <Route path="/categories" element={<RequireSession><CurrentBookRedirect tail="/settings/categories" /></RequireSession>} />
+      <Route path="/payment-methods" element={<RequireSession><CurrentBookRedirect tail="/settings/payment-methods" /></RequireSession>} />
+      <Route path="/tags" element={<RequireSession><CurrentBookRedirect tail="/settings/tags" /></RequireSession>} />
             {/* ⚠️ 账本空间现在只有一个地址。`/books` 保留为重定向，因为旧链接与书签里还有它。 */}
       <Route path="/books" element={<Navigate to="/start" replace />} />
       {/**
@@ -319,14 +343,14 @@ function AppRoutes(): React.JSX.Element {
         * **redirect here for the organisers and keep working as-is for export/import** — see
         * `BookRedirects.tsx` for why those two families differ.
         */}
-      <Route path="/books/:bookId/settings/categories" element={<RequireAuth><CategoriesPage /></RequireAuth>} />
-      <Route path="/books/:bookId/settings/tags" element={<RequireAuth><TagsPage /></RequireAuth>} />
-      <Route path="/books/:bookId/settings/payment-methods" element={<RequireAuth><PaymentMethodsPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/categories" element={<RequireSession><CategoriesPage /></RequireSession>} />
+      <Route path="/books/:bookId/settings/tags" element={<RequireSession><TagsPage /></RequireSession>} />
+      <Route path="/books/:bookId/settings/payment-methods" element={<RequireSession><PaymentMethodsPage /></RequireSession>} />
       <Route path="/books/:bookId/settings/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
       <Route path="/books/:bookId/settings/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
       {/* ⚠️ 账本空间：目前是占位页，见 `档案/账本与协作页-设计决定.md` §2.4 与 §8。 */}
       {/* ⚠️ 账本空间：展示态与常规态是**同一个页面的两个状态**，不是两个路由。 */}
-      <Route path="/start" element={<RequireAuth><LedgerSpacePage /></RequireAuth>} />
+      <Route path="/start" element={<RequireSession><LedgerSpacePage /></RequireSession>} />
       {/* ⚠️ 账本 / 协作：底部第四项。名称由成员数决定，但**只有一个路由**。 */}
       <Route path="/ledger" element={<RequireAuth><LedgerPage /></RequireAuth>} />
       <Route path="/ledger/history" element={<RequireAuth><LedgerHistoryPage /></RequireAuth>} />
@@ -455,6 +479,17 @@ export default function App(): React.JSX.Element {
         }}
       >
         <AuthProvider>
+          {/**
+           * ⚠️ **The guest data source is chosen before any page renders.**
+           *
+           * `DataModeSync` decides, from the same two facts the route guard uses (a signed-out
+           * session plus a persisted guest identity), whether the non-React write path is in guest
+           * mode. It is rendered first so the decision exists before a page can write.
+           * `GuestQueryNotifier` turns a guest write into query invalidation without the write layer
+           * importing React Query.
+           */}
+          <DataModeSync />
+          <GuestQueryNotifier />
           {/*
             Inside AuthProvider, because there is nothing to fetch until we know
             who is signed in — and outside the router, because it must not restart

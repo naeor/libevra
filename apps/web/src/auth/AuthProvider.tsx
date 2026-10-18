@@ -354,3 +354,16 @@ export function useAuth(): AuthContextValue {
 
   return context;
 }
+
+/**
+ * The same context, but `null` outside the provider.
+ *
+ * ⚠️ **Added for the guest-mode badge (S14-C), not as a relaxation of `useAuth`.** `useAuth`'s
+ * throw is a real safety net: a screen that thinks it knows the signed-in user must not silently
+ * get `null`. A purely decorative badge, however, is rendered by shared headers whose component
+ * tests deliberately render without the provider — and making those tests mount the whole auth
+ * layer just to prove a heading exists would weaken both. New call sites use `useAuth`, as before.
+ */
+export function useAuthOptional(): AuthContextValue | null {
+  return useContext(AuthContext);
+}

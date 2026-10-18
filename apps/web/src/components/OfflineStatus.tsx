@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { lastLocalRead } from "../lib/offline/localLedger.js";
 
@@ -40,6 +41,7 @@ const LINGER_MS = 10_000;
 const OFFLINE_NOTICE_MS = 4_000;
 
 export function OfflineStatus(): React.JSX.Element | null {
+  const guest = useGuestMode();
   const { fill, ready } = useOfflineFillStatus();
   const { offline } = useAccountOffline();
 
@@ -109,6 +111,14 @@ export function OfflineStatus(): React.JSX.Element | null {
   }, [offline, offlineSince, now]);
 
   if (!ready) return null;
+
+  /**
+   * ⚠️ **S14-C: the download/offline strip describes account sync state.** A guest has no
+   * download queue and no server copy, so every sentence this strip could say would be about
+   * something that does not exist. Rendered after all hooks so the component's hook order cannot
+   * change between modes.
+   */
+  if (guest) return null;
 
   /**
    * ⚠️ **Derived, not stored.** A `lingering` boolean would be a second copy of the same fact, and it

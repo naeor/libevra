@@ -3,6 +3,8 @@ import { useLocation } from "react-router";
 
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
 import { BottomNav, type EntryCards } from "./BottomNav.js";
+import { GuestModeBadge } from "./GuestModeBadge.js";
+import { GuestWelcome } from "./GuestWelcome.js";
 import { OfflineStatus } from "./OfflineStatus.js";
 import { SyncBanner } from "./SyncBanner.js";
 import { useGoBack } from "../lib/connectivity.js";
@@ -106,7 +108,12 @@ export function AppShell({ children }: { readonly children: React.ReactNode }): 
     [open],
   );
 
-  return <EntryMenuContext.Provider value={value}>{children}</EntryMenuContext.Provider>;
+  return (
+    <EntryMenuContext.Provider value={value}>
+      {children}
+      <GuestWelcome />
+    </EntryMenuContext.Provider>
+  );
 }
 
 /**
@@ -251,7 +258,10 @@ export function InnerPage({
         </div>
 
         <header>
-          <h1 className="text-page-title text-ink">{title}</h1>
+          <h1 className="flex items-center gap-2 text-page-title text-ink">
+            {title}
+            <GuestModeBadge />
+          </h1>
           {subtitle ? <p className="mt-1.5 text-body-relaxed text-muted">{subtitle}</p> : null}
         </header>
 

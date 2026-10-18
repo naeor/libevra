@@ -47,7 +47,13 @@ describe("一级页面顶部绿色区域", () => {
       * tracking** from one place. **The test still pins the spec — it pins the token now.**
       */
     expect(header).toContain('className="bg-brand px-6 pt-8 pb-6 text-white"');
-    expect(header).toContain('className="text-page-title"');
+    /**
+     * ⚠️ **The title class now also lays out the small guest badge (S14-C).** The size/weight/
+     * tracking still come from the same token; `flex items-center gap-2` is the only addition, and
+     * the badge is the component that decides whether it shows at all (it is a no-op for accounts).
+     */
+    expect(header).toContain('className="flex items-center gap-2 text-page-title"');
+    expect(header).toContain("GuestModeBadge");
     /**
       * ⚠️ **Full white, not `/80`.** See the comment in the component: white at 80% over the brand
       * green is 2.74:1, full white is 3.37:1, and **neither reaches AA** because pure white on

@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { CurrentBookCaption } from "../components/CurrentBookCaption.js";
 import { BottomNav } from "../components/BottomNav.js";
 import { useEntryMenu } from "../components/Layouts.js";
+import { GuestModeBadge } from "../components/GuestModeBadge.js";
 import { MonthPicker } from "../components/MonthPicker.js";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/States.js";
 import { OfflineStatus } from "../components/OfflineStatus.js";
@@ -44,6 +45,7 @@ import {
   type TransactionFilters,
 } from "../lib/queries.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
+import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 
 /**
  * The ledger screen, in one of two shapes.
@@ -63,6 +65,14 @@ export function DetailPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const guest = useGuestMode();
+  const guestIdentity = useGuestIdentity();
+  /**
+   * ⚠️ **S14-C: the presentation flag is keyed by identity, not by account.** A guest has no
+   * `user.id`; without this it would share the signed-out key with every other guest on the
+   * browser, and the wave's first-run state would be wrong in both directions.
+   */
+  const presentationOwnerId = guestIdentity?.id ?? user?.id;
 
   // Read once, on the first render. The session outlives a tab switch but not
   // a reload, which is exactly what the owner asked for: leaving the ledger and
@@ -366,7 +376,7 @@ export function DetailPage(): React.JSX.Element {
    * sheet would lose the connection between the row they touched and the decision they are making**, and this is
    * the one screen in the app where losing that connection means choosing the wrong version of the wrong entry.
    */
-  if (settling !== null) {
+  if (settling !== null && !guest) {
     return (
       <div className="detail-root flex h-dvh flex-col overflow-hidden">
         <div className="flex items-center px-6 pt-6 pb-2">
@@ -433,34 +443,20 @@ export function DetailPage(): React.JSX.Element {
             data-pinned={atList}
           >
             <div className="flex h-9 items-center justify-between">
-              {/**
-                * ⚠️ **The wordmark is the way back to the ledger space** (owner, 2026-10-13):
-                * *"直接点击明细页的logo（左上角的 libellum）也可以进入开始页（默认海浪为收缩态）."*
-                *
-                * ⚠️ **A real navigation, not a router link**, for the same reason entering a ledger
-                * is one: the ledger screen owns a hero animation and a scroll position, and leaving it
-                * must reset the whole frame rather than unmount one component inside it. **A half-torn
-                * -down ledger over the start page is the mixture the reload rule exists to prevent.**
-                *
-                * ⚠️ **`markPresentationSeen` before navigating, because the owner said "默认海浪为
-                * 收缩态".** The wave's first-run welcome is stored per account; without this, a new
-                * account tapping the wordmark would land on a **fully expanded sea with no list** —
-                * which is the opposite of what a tap labelled "go to the start page" should do.
-                * **It does not disable the welcome elsewhere**: this is the same flag the page sets
-                * once it has been seen, so the presentation still happens on the first visit, and the
-                * reader can still pull the wave open by hand.
-                */}
-              <button
-                type="button"
-                onClick={() => {
-                  markPresentationSeen(user?.id);
-                  window.location.assign("/start");
-                }}
-                aria-label="前往账本空间"
-                className="detail-title -ml-1 rounded-field px-1 text-2xl font-semibold tracking-tight transition hover:opacity-80"
-              >
-                Libevra
-              </button>
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    markPresentationSeen(presentationOwnerId);
+                    window.location.assign("/start");
+                  }}
+                  aria-label="前往账本空间"
+                  className="detail-title -ml-1 rounded-field px-1 text-2xl font-semibold tracking-tight transition hover:opacity-80"
+                >
+                  Libevra
+                </button>
+                <GuestModeBadge />
+              </div>
 
               <div className="detail-tools flex gap-2">
                 <ToolButton
@@ -479,31 +475,26 @@ export function DetailPage(): React.JSX.Element {
                     void refresh();
                   }}
                 />
-                <ToolButton
-                  icon={<ShareIcon />}
-                  label="导出"
-                  hint="导出账目"
-                  onClick={() => {
-                    void navigate("/export");
-                  }}
-                />
-                <ToolButton
-                  icon={<MoreIcon />}
-                  label="更多"
-                  hint="本机存放与待同步印记"
-                  onClick={() => {
-                    /**
-                     * ⚠️ **This button was disabled from the day it was drawn** — "更多操作即将开放" — and the
-                     * owner pointed out that the screen it should open already had somewhere to go:
-                     * **"明细页面不是还有一个'更多'键没用吗？"**
-                     *
-                     * ⚠️ **And it is the right home for the clear-marks action**, which had been sitting under
-                     * 下载管理: **clearing a "not yet synced" mark is a statement about entries, not about
-                     * downloads**, and nobody looking for it would look there.
-                     */
-                    void navigate("/ledger/more");
-                  }}
-                />
+                {guest ? null : (
+                  <>
+                    <ToolButton
+                      icon={<ShareIcon />}
+                      label="导出"
+                      hint="导出账目"
+                      onClick={() => {
+                        void navigate("/export");
+                      }}
+                    />
+                    <ToolButton
+                      icon={<MoreIcon />}
+                      label="更多"
+                      hint="本机存放与待同步印记"
+                      onClick={() => {
+                        void navigate("/ledger/more");
+                      }}
+                    />
+                  </>
+                )}
               </div>
             </div>
 

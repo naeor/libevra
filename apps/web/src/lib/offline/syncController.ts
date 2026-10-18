@@ -1,3 +1,5 @@
+import { reloadGuestData } from "../guest/data.js";
+import { guestRuntimeId, notifyGuestWrite } from "../guest/runtime.js";
 import { logOffline } from "./diagnostics.js";
 import { pendingIds, refreshPending } from "./write.js";
 import { pullConflicts, syncAll } from "./sync.js";
@@ -29,6 +31,18 @@ import { pullConflicts, syncAll } from "./sync.js";
  * one moment where retrying a rejected change is free of doubt.**
  */
 export async function syncNow(): Promise<number> {
+  /**
+   * ⚠️ **S14-C: the refresh button in guest mode re-reads the guest store.** There is nothing to
+   * deliver and no conflicts to pull; the honest local equivalent of "sync now" is "reload what this
+   * device holds", and it keeps the button from doing nothing at all.
+   */
+  const guestId = guestRuntimeId();
+  if (guestId !== null) {
+    await reloadGuestData(guestId);
+    notifyGuestWrite();
+    return 0;
+  }
+
   /**
    * ⚠️ **The server is asked what is still in dispute on every trigger**, because there is no push channel and
    * this is how a conflict raised on one device reaches the others — the owner's own description of the loop:
