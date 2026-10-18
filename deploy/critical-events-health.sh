@@ -15,7 +15,8 @@ HEALTH_ALERT_STATE_DIR="${CRITICAL_EVENTS_ALERT_STATE_DIR:-.critical-events-heal
 mkdir -p "$HEALTH_ALERT_STATE_DIR"
 trap 'rm -f "$OUT"' EXIT
 
-if docker compose -f docker-compose.prod.yml exec -T api \
+# Use a one-off container, not `exec`: an intentionally stopped API must not hide protection health.
+if docker compose -f docker-compose.prod.yml run --rm --no-deps -T api \
   pnpm --filter @libellum/api critical:status >"$OUT" 2>&1; then
   echo "critical-events protection healthy"
   # Recovery notification must use an alert state isolated from S12-C's backup alerts.
