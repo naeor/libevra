@@ -136,17 +136,22 @@ export async function buildLedgerImportRequest(input: {
   readonly targetIsNew: boolean;
   readonly resolutions: TaxonomyResolutionMap;
   readonly decisions: GroupDecisionMap;
+  /** D4：服务器预览返回的来源/目标指纹；正式来源必须使用服务器指纹。 */
+  readonly serverSourceFingerprint?: string | undefined;
+  readonly serverTargetFingerprint?: string | undefined;
 }): Promise<LedgerImportRequest> {
   const { preview, targetIsNew, resolutions, decisions } = input;
-  const source = guestSourceOf(preview);
-  const sourceFingerprint = await fingerprintGuestSource(source);
+  const source = preview.source.kind === "guest" ? guestSourceOf(preview) : null;
+  const sourceFingerprint =
+    source === null ? input.serverSourceFingerprint : await fingerprintGuestSource(source);
+  if (sourceFingerprint === undefined) throw new Error("正式来源缺少服务器指纹，请重新预览。");
 
   const taxonomy: TaxonomyResolution[] = [
-    ...source.categories.map((item) => resolutionFor(preview, "category", item.id, resolutions, targetIsNew)),
-    ...source.paymentMethods.map((item) =>
+    ...preview.source.categories.map((item) => resolutionFor(preview, "category", item.id, resolutions, targetIsNew)),
+    ...preview.source.paymentMethods.map((item) =>
       resolutionFor(preview, "paymentMethod", item.id, resolutions, targetIsNew),
     ),
-    ...source.tags.map((item) => resolutionFor(preview, "tag", item.id, resolutions, targetIsNew)),
+    ...preview.source.tags.map((item) => resolutionFor(preview, "tag", item.id, resolutions, targetIsNew)),
   ];
 
   const duplicateGroups: DuplicateDecision[] = preview.duplicateGroups.map((group) => {
@@ -182,7 +187,24 @@ export async function buildLedgerImportRequest(input: {
     };
   });
 
-  if (preview.source.kind !== "guest") throw new Error("D2 只支持游客账本作为来源。");
+  if (preview.source.kind === "book") {
+    if (targetIsNew) throw new Error("正式账本来源不能导入新账本。");
+    if (input.serverTargetFingerprint === undefined) throw new Error("正式来源缺少目标指纹，请重新预览。");
+    return {
+      importId: input.importId,
+      target: {
+        kind: "existing",
+        bookId: preview.target.bookId,
+        expectedTargetFingerprint: input.serverTargetFingerprint,
+      },
+      sourceBookId: preview.source.bookId,
+      sourceFingerprint,
+      taxonomy,
+      duplicateGroups,
+    };
+  }
+
+  if (source === null) throw new Error("缺少游客来源快照。");
 
   if (targetIsNew) {
     return {

@@ -158,21 +158,83 @@ export const ledgerImportRequestSchema = z
         name: shortText,
       }),
     ]),
-    source: guestImportSourceSchema,
+    /**
+     * D2/D3：游客来源快照随请求上传。D4 正式来源不上传快照，只给 sourceBookId；
+     * 服务器重新读取 B 并计算指纹。两者必须且只能出现一个。
+     */
+    source: guestImportSourceSchema.optional(),
+    sourceBookId: uuid.optional(),
     sourceFingerprint: sha256,
     taxonomy: z.array(taxonomyResolutionSchema).max(400),
     duplicateGroups: z.array(duplicateDecisionSchema).max(500),
   })
   .superRefine((value, ctx) => {
-    const transactionIds = value.source.transactions.map((item) => item.id);
-    if (new Set(transactionIds).size !== transactionIds.length) {
-      ctx.addIssue({ code: "custom", message: "来源账目 id 重复", path: ["source", "transactions"] });
+    const hasSnapshot = value.source !== undefined;
+    const hasBook = value.sourceBookId !== undefined;
+
+    if (hasSnapshot === hasBook) {
+      ctx.addIssue({
+        code: "custom",
+        message: "来源必须且只能是游客快照或正式账本 id 之一。",
+        path: ["source"],
+      });
+      return;
+    }
+
+    if (hasBook && value.target.kind === "new") {
+      ctx.addIssue({
+        code: "custom",
+        message: "正式账本来源不能把新账本作为目标。",
+        path: ["target"],
+      });
+    }
+
+    if (hasBook && value.target.kind === "existing" && value.sourceBookId === value.target.bookId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "来源账本和目标账本不能相同。",
+        path: ["sourceBookId"],
+      });
+    }
+
+    if (value.source !== undefined) {
+      const transactionIds = value.source.transactions.map((item) => item.id);
+      if (new Set(transactionIds).size !== transactionIds.length) {
+        ctx.addIssue({ code: "custom", message: "来源账目 id 重复", path: ["source", "transactions"] });
+      }
     }
   });
 export type LedgerImportRequest = z.infer<typeof ledgerImportRequestSchema>;
 
+/** D4 预览请求：只给两本正式账本的 id，服务器负责读取并校验，不信任浏览器旧快照。 */
+export const formalImportPreviewRequestSchema = z.object({
+  sourceBookId: uuid,
+  targetBookId: uuid,
+});
+export type FormalImportPreviewRequest = z.infer<typeof formalImportPreviewRequestSchema>;
+
+export const formalImportPreviewResponseSchema = z.object({
+  sourceBook: z.object({
+    id: uuid,
+    name: z.string(),
+    bookNumber: z.string().nullable(),
+  }),
+  targetBook: z.object({
+    id: uuid,
+    name: z.string(),
+    bookNumber: z.string().nullable(),
+  }),
+  source: guestImportSourceSchema,
+  sourceFingerprint: sha256,
+  target: importTargetSnapshotSchema,
+  targetFingerprint: sha256,
+});
+export type FormalImportPreviewResponse = z.infer<typeof formalImportPreviewResponseSchema>;
+
 export const ledgerImportResultSchema = z.object({
   importId: uuid,
+  /** D4：正式来源账本；游客导入没有该字段。 */
+  sourceBookId: uuid.optional(),
   targetBook: z.object({
     id: uuid,
     name: z.string(),

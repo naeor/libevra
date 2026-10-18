@@ -24,6 +24,13 @@ import {
   loadBookImportTarget,
   loadGuestImportSource,
 } from "../lib/ledgerImport/sources.js";
+import { loadFormalImportPreview } from "../lib/ledgerImport/formal.js";
+import {
+  recoverGroupDecisions,
+  recoverTaxonomyResolutions,
+  summarizeDraftRecovery,
+  type DraftRecoverySummary,
+} from "../lib/ledgerImport/recovery.js";
 import { buildImportPreview } from "../lib/ledgerImport/preview.js";
 import {
   taxonomyResolutionKey,
@@ -125,6 +132,8 @@ export function LedgerImportPage(): React.JSX.Element {
   const books = useBooks();
   const activateBook = useActivateBook();
   const [snapshots, setSnapshots] = useState<{ source: ImportSource; target: ImportTarget } | null>(null);
+  const [fingerprints, setFingerprints] = useState<{ source: string; target: string } | null>(null);
+  const [recovery, setRecovery] = useState<DraftRecoverySummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolutions, setResolutions] = useState<Map<string, TaxonomyResolutionAction>>(new Map());
@@ -153,6 +162,9 @@ export function LedgerImportPage(): React.JSX.Element {
   }, [books.data]);
 
   const target = soloBooks.find((book) => book.id === targetId) ?? null;
+  const sourceBook = soloBooks.find((book) => book.id === sourceKey) ?? null;
+  const sourceIsGuest = sourceKey === "guest";
+  const sourceIsFormal = sourceBook !== null;
   const accountLabel = user === null ? "正式账号" : user.displayName.trim() === "" ? user.username : user.displayName;
   const guestAvailable = useMemo(() => hasLocalGuestIdentity(), []);
   const backTo = target === null ? "/start" : `/books/${target.id}/settings`;
@@ -184,7 +196,10 @@ export function LedgerImportPage(): React.JSX.Element {
   }
 
   function changeTarget(next: string): void {
+    if (sourceIsFormal && next === "new") return;
     setSnapshots(null);
+    setFingerprints(null);
+    setRecovery(null);
     setLoadError(null);
     setSubmitError(null);
     patchSearch({
@@ -198,39 +213,60 @@ export function LedgerImportPage(): React.JSX.Element {
 
   function changeSource(next: string): void {
     setSnapshots(null);
+    setFingerprints(null);
+    setRecovery(null);
     setLoadError(null);
+    setSubmitError(null);
+    const nextTarget = next !== "guest" && targetIsNew ? "" : targetId;
     patchSearch({
-      target: targetId === "" ? undefined : targetId,
+      target: nextTarget === "" ? undefined : nextTarget,
       source: next === "" ? undefined : next,
       step: "select",
       group: undefined,
+      newName: nextTarget === "new" ? currentNewName : undefined,
     }, true);
   }
 
-  /** 读取预览；新目标账本使用与服务器默认账本一致的合成快照。 */
+  /** 读取预览；游客来源由本机读取，正式来源必须由服务器读取并返回指纹。 */
   useEffect(() => {
     if (step === "select" || user === null) return;
-    if (sourceKey !== "guest" || !guestAvailable) return;
     if (targetId === "" || (targetIsNew && currentNewName.trim() === "")) return;
+    if (sourceIsGuest && !guestAvailable) return;
+    if (!sourceIsGuest && !sourceIsFormal) return;
+    if (sourceIsFormal && (targetIsNew || targetId === sourceKey)) return;
+
     const alreadyLoaded =
       snapshots !== null &&
-      snapshots.source.kind === "guest" &&
-      (targetIsNew
-        ? snapshots.target.bookId === "new" && snapshots.target.identity.name === currentNewName.trim()
-        : snapshots.target.bookId === targetId);
+      (sourceIsGuest
+        ? snapshots.source.kind === "guest" &&
+          (targetIsNew
+            ? snapshots.target.bookId === "new" && snapshots.target.identity.name === currentNewName.trim()
+            : snapshots.target.bookId === targetId)
+        : snapshots.source.kind === "book" &&
+          snapshots.source.bookId === sourceKey &&
+          snapshots.target.bookId === targetId);
     if (alreadyLoaded) return;
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
     void (async () => {
       try {
-        const source = await loadGuestImportSource();
-        if (source === null) throw new Error("本机没有可用的游客账本。");
-        const targetSnapshot = targetIsNew
-          ? buildNewImportTarget(currentNewName)
-          : await loadBookImportTarget(targetId);
-        if (cancelled) return;
-        setSnapshots({ source, target: targetSnapshot });
+        if (sourceIsGuest) {
+          const source = await loadGuestImportSource();
+          if (source === null) throw new Error("本机没有可用的游客账本。");
+          const targetSnapshot = targetIsNew
+            ? buildNewImportTarget(currentNewName)
+            : await loadBookImportTarget(targetId);
+          if (cancelled) return;
+          setSnapshots({ source, target: targetSnapshot });
+          setFingerprints(null);
+        } else {
+          const formal = await loadFormalImportPreview(sourceKey, targetId);
+          if (cancelled) return;
+          setSnapshots({ source: formal.source, target: formal.target });
+          setFingerprints({ source: formal.sourceFingerprint, target: formal.targetFingerprint });
+        }
+        setRecovery(null);
         setResolutions(new Map());
         setDecisions(new Map());
       } catch (caught) {
@@ -242,15 +278,41 @@ export function LedgerImportPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [step, user, sourceKey, guestAvailable, targetId, targetIsNew, currentNewName, snapshots]);
+  }, [
+    step,
+    user,
+    sourceKey,
+    sourceIsGuest,
+    sourceIsFormal,
+    guestAvailable,
+    targetId,
+    targetIsNew,
+    currentNewName,
+    snapshots,
+  ]);
 
   /** 指向不完整步骤的地址回到选择，避免空白页。 */
   useEffect(() => {
-    if (step !== "select" && (sourceKey !== "guest" || targetId === "" || user === null)) {
+    if (!books.isSuccess) return;
+    const validSource = sourceIsGuest ? guestAvailable : sourceIsFormal;
+    const validTarget =
+      targetId !== "" &&
+      !(sourceIsFormal && (targetIsNew || targetId === sourceKey));
+    if (step !== "select" && (sourceKey === "" || !validSource || !validTarget || user === null)) {
       patchSearch({ step: "select", group: undefined }, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, sourceKey, targetId, user]);
+  }, [
+    books.isSuccess,
+    step,
+    sourceKey,
+    sourceIsGuest,
+    sourceIsFormal,
+    guestAvailable,
+    targetId,
+    targetIsNew,
+    user,
+  ]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -327,9 +389,47 @@ export function LedgerImportPage(): React.JSX.Element {
     setSubmitError(null);
   }
 
+  /**
+   * D4：提交被服务器判定来源/目标已变化后，重新从服务器读取 B/A，并只恢复仍完全安全的草稿。
+   * 先恢复 taxonomy 冲突选择，再用恢复后的映射重建预览，最后按组签名恢复逐条决定。
+   */
+  async function reloadFormalPreviewWithRecovery(): Promise<boolean> {
+    if (preview === null || !sourceIsFormal || targetIsNew) return false;
+    const next = await loadFormalImportPreview(sourceKey, targetId);
+    const basePreview = buildImportPreview(
+      next.source,
+      next.target,
+      resolutions as TaxonomyResolutionMap,
+    );
+    const recoveredResolutions = recoverTaxonomyResolutions(
+      preview,
+      basePreview,
+      resolutions as TaxonomyResolutionMap,
+    );
+    const finalPreview = buildImportPreview(
+      next.source,
+      next.target,
+      recoveredResolutions as TaxonomyResolutionMap,
+    );
+    const groupRecovery = recoverGroupDecisions(preview, finalPreview, decisions);
+    const summary = summarizeDraftRecovery(decisions, resolutions, groupRecovery, recoveredResolutions);
+
+    setSnapshots({ source: next.source, target: next.target });
+    setFingerprints({ source: next.sourceFingerprint, target: next.targetFingerprint });
+    setResolutions(new Map(recoveredResolutions));
+    setDecisions(groupRecovery.decisions);
+    setRecovery(summary);
+    setSubmitState("idle");
+    setSubmitError(null);
+    setResult(null);
+    patchSearch({ step: "preview", group: undefined }, true);
+    return true;
+  }
+
   async function runSubmit(
     request: LedgerImportRequest,
     labels: { targetLabel: string; sourceLabel: string },
+    sourceForReconcile: ImportSource | null = null,
   ): Promise<void> {
     setSubmitState("submitting");
     setSubmitError(null);
@@ -366,29 +466,30 @@ export function LedgerImportPage(): React.JSX.Element {
         }
         return total + (group.action === "keep_b" || group.action === "keep_neither" ? group.targetIds.length : 0);
       }, 0);
-      const expectedSkipped = requestSkipped.size;
-      const expectedImported = request.source.transactions.length - expectedSkipped;
-      const expectedTotals = totalsOf(
-        request.source.transactions.filter((item) => !requestSkipped.has(item.id)),
-      );
-      if (
-        parsed.importedCount !== expectedImported ||
-        parsed.skippedCount !== expectedSkipped ||
-        parsed.removedCount !== requestRemovedCount ||
-        parsed.removedTargets.length !== requestRemovedCount ||
-        parsed.targetCountAfter !==
-          parsed.targetExistingBefore - requestRemovedCount + parsed.importedCount ||
-        JSON.stringify(parsed.totals) !== JSON.stringify(expectedTotals)
-      ) {
-        setSubmitError("服务器已完成提交，但回执与本地预期不一致。请先截图保留本页，然后打开目标账本核对；不要重复提交。");
-        setResult(parsed);
-        setSubmitState("error");
-        return;
+      const sourceTransactions = sourceForReconcile?.transactions ?? request.source?.transactions ?? null;
+      if (sourceTransactions !== null) {
+        const expectedSkipped = requestSkipped.size;
+        const expectedImported = sourceTransactions.length - expectedSkipped;
+        const expectedTotals = totalsOf(
+          sourceTransactions.filter((item) => !requestSkipped.has(item.id)),
+        );
+        if (
+          parsed.importedCount !== expectedImported ||
+          parsed.skippedCount !== expectedSkipped ||
+          parsed.removedCount !== requestRemovedCount ||
+          parsed.removedTargets.length !== requestRemovedCount ||
+          parsed.targetCountAfter !==
+            parsed.targetExistingBefore - requestRemovedCount + parsed.importedCount ||
+          JSON.stringify(parsed.totals) !== JSON.stringify(expectedTotals)
+        ) {
+          setSubmitError("服务器已完成提交，但回执与本地预期不一致。请先截图保留本页，然后打开目标账本核对；不要重复提交。");
+          setResult(parsed);
+          setSubmitState("error");
+          return;
+        }
       }
       setResult(parsed);
       setSubmitState("success");
-      const task = loadPendingTasks().find((item) => item.request.importId === request.importId);
-      if (task !== undefined) setPendingTasks([task, ...pendingTasks.filter((item) => item.request.importId !== task.request.importId)]);
       // 保留本地任务日志直到用户明确完成/离开，刷新后还能凭同一 importId 找回回执。
       savePendingTask({
         userId: user?.id ?? "",
@@ -397,10 +498,37 @@ export function LedgerImportPage(): React.JSX.Element {
         sourceLabel: labels.sourceLabel,
         createdAt: new Date().toISOString(),
       });
+      setPendingTasks(user === null ? [] : loadPendingTasks().filter((item) => item.userId === user.id));
     } catch (caught) {
       if (!mounted.current) return;
       const message = errorMessage(caught);
       const code = caught instanceof ApiRequestError ? caught.code : "";
+
+      /**
+       * D4：正式来源/目标在预览后变化时，不把用户赶回空白选择页。先清除旧任务，再重新从
+       * 服务器读取并恢复仍然安全的草稿；无法恢复的部分保持未决定并在核对页高亮。
+       */
+      if (
+        (code === "source_changed" || code === "target_changed") &&
+        request.sourceBookId !== undefined &&
+        sourceIsFormal
+      ) {
+        removePendingTask(request.importId);
+        setPendingTasks(user === null ? [] : loadPendingTasks().filter((item) => item.userId === user.id));
+        try {
+          const reloaded = await reloadFormalPreviewWithRecovery();
+          if (reloaded) {
+            setPendingTasks(user === null ? [] : loadPendingTasks().filter((item) => item.userId === user.id));
+            return;
+          }
+        } catch (recoveryError) {
+          if (!mounted.current) return;
+          setSubmitError(errorMessage(recoveryError));
+          setSubmitState("error");
+          return;
+        }
+      }
+
       if (
         code === "source_changed" ||
         code === "target_changed" ||
@@ -410,13 +538,14 @@ export function LedgerImportPage(): React.JSX.Element {
         code === "duplicate_"
       ) {
         removePendingTask(request.importId);
-        setPendingTasks((previous) => previous.filter((item) => item.request.importId !== request.importId));
+        setPendingTasks(user === null ? [] : loadPendingTasks().filter((item) => item.userId === user.id));
         setSubmitError(message);
         setSubmitState("error");
         return;
       }
       setSubmitError(message);
       setSubmitState("paused");
+      setPendingTasks(user === null ? [] : loadPendingTasks().filter((item) => item.userId === user.id));
     }
   }
 
@@ -433,6 +562,8 @@ export function LedgerImportPage(): React.JSX.Element {
         targetIsNew,
         resolutions,
         decisions,
+        serverSourceFingerprint: fingerprints?.source,
+        serverTargetFingerprint: fingerprints?.target,
       });
       savePendingTask({
         userId: user?.id ?? "",
@@ -441,11 +572,7 @@ export function LedgerImportPage(): React.JSX.Element {
         sourceLabel,
         createdAt: new Date().toISOString(),
       });
-      setPendingTasks((previous) => [
-        { userId: user?.id ?? "", request, targetLabel, sourceLabel, createdAt: new Date().toISOString() },
-        ...previous,
-      ]);
-      await runSubmit(request, { targetLabel, sourceLabel });
+      await runSubmit(request, { targetLabel, sourceLabel }, preview.source);
     } catch (caught) {
       setSubmitError(errorMessage(caught));
       setSubmitState("error");
@@ -466,7 +593,7 @@ export function LedgerImportPage(): React.JSX.Element {
       patchSearch({
         step: "confirm",
         target: requestTarget.kind === "new" ? "new" : requestTarget.bookId,
-        source: "guest",
+        source: task.request.sourceBookId ?? "guest",
         newName: requestTarget.kind === "new" ? requestTarget.name : undefined,
       });
       await runSubmit(task.request, { targetLabel: task.targetLabel, sourceLabel: task.sourceLabel });
@@ -482,12 +609,12 @@ export function LedgerImportPage(): React.JSX.Element {
 
   const subtitle =
     step === "select"
-      ? "把本机游客账本导入到正式账号的账本。先确认来源和目标。"
+      ? "把本机游客账本或另一本正式单人账本导入目标账本。先确认来源和目标。"
       : step === "preview"
         ? "确认方向、映射和重复候选。预览和核对都不会修改任何账本。"
         : step === "review"
-          ? "逐组决定如何处理可能重复的账目。本轮不会删除目标账本里的任何记录。"
-          : "确认最终摘要后才会真正写入。来源游客数据会保留。";
+          ? "逐组决定如何处理可能重复的账目；只有你明确选择移除的 A 记录才会被软删除。"
+          : "确认最终摘要后才会真正写入。来源账本数据会保留。";
 
   return (
     <InnerPage
@@ -497,13 +624,13 @@ export function LedgerImportPage(): React.JSX.Element {
       onBack={onBack}
       actions={
         <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
-          {submitState === "success" ? "已完成" : "游客来源"}
+          {submitState === "success" ? "已完成" : sourceIsGuest ? "游客来源" : sourceIsFormal ? "正式账本来源" : "选择来源"}
         </span>
       }
     >
       <StepRail step={step} />
 
-      {pendingTasks.length === 0 || submitState === "success" ? null : (
+      {pendingTasks.length === 0 || submitState === "success" || recovery !== null ? null : (
         <PendingTaskBanner
           tasks={pendingTasks}
           busy={resumeBusy}
@@ -516,6 +643,9 @@ export function LedgerImportPage(): React.JSX.Element {
       {books.isError ? <Alert>{errorMessage(books.error)}</Alert> : null}
       {loadError === null ? null : <Alert>{loadError}</Alert>}
       {submitError === null ? null : <Alert>{submitError}</Alert>}
+      {recovery === null || recovery.message === null ? null : (
+        <DraftRecoveryNotice summary={recovery} />
+      )}
 
       {books.isSuccess && step === "select" ? (
         <SelectionStep
@@ -524,6 +654,8 @@ export function LedgerImportPage(): React.JSX.Element {
           targetIsNew={targetIsNew}
           newName={currentNewName}
           soloBooks={soloBooks}
+          sourceBooks={soloBooks.filter((book) => book.id !== targetId)}
+          sourceBook={sourceBook}
           guestAvailable={guestAvailable}
           sourceKey={sourceKey}
           accountLabel={accountLabel}
@@ -531,8 +663,20 @@ export function LedgerImportPage(): React.JSX.Element {
           onChangeSource={changeSource}
           onChangeNewName={(name) => patchSearch({ newName: name }, true)}
           onContinue={() => {
-            if (targetId === "" || sourceKey !== "guest" || !guestAvailable) {
-              setLoadError("请选择目标账本，并把本机游客账本作为来源。");
+            if (sourceKey === "") {
+              setLoadError("请选择来源账本。");
+              return;
+            }
+            if (sourceIsGuest && !guestAvailable) {
+              setLoadError("本机没有可用的游客账本。");
+              return;
+            }
+            if (sourceIsFormal && (targetId === "" || targetIsNew || targetId === sourceKey)) {
+              setLoadError("正式账本来源需要选择另一本现有正式账本作为目标。");
+              return;
+            }
+            if (targetId === "") {
+              setLoadError("请选择目标账本。");
               return;
             }
             if (targetIsNew && currentNewName.trim() === "") {
@@ -576,6 +720,7 @@ export function LedgerImportPage(): React.JSX.Element {
           onBack={() => goStep("preview")}
           onConfirm={() => goStep("confirm")}
           canConfirm={canConfirm}
+          needsReviewGroupIds={recovery?.needsReviewGroupIds ?? []}
         />
       ) : null}
 
@@ -598,10 +743,14 @@ export function LedgerImportPage(): React.JSX.Element {
               setSubmitState("idle");
               return;
             }
-            void runSubmit(request, {
-              targetLabel: preview.target.identity.name,
-              sourceLabel: preview.source.identity.name,
-            });
+            void runSubmit(
+              request,
+              {
+                targetLabel: preview.target.identity.name,
+                sourceLabel: preview.source.identity.name,
+              },
+              preview.source,
+            );
           }}
           onBack={() => goStep(groups.length > 0 ? "review" : "preview")}
           onFinish={() => {
@@ -635,7 +784,7 @@ export function LedgerImportPage(): React.JSX.Element {
         consequences={[
           "只会软删除你在核对页明确标记为「移除」的目标记录",
           "被移除的记录会进入现有账目删除/恢复机制，编号不变",
-          "来源游客数据不会因此被删除",
+          "来源账本数据不会因此被删除",
           "提交在同一事务中完成；失败会整体回滚，不会出现 A 已删而 B 未写入",
         ]}
         confirmLabel="确认删除并导入"
@@ -731,12 +880,31 @@ function PendingTaskBanner({
   );
 }
 
+function DraftRecoveryNotice({ summary }: { readonly summary: DraftRecoverySummary }): React.JSX.Element {
+  return (
+    <section className="rounded-card border border-brand/30 bg-brand-soft px-4 py-3">
+      <p className="text-body font-medium text-brand-dark">{summary.message}</p>
+      <p className="mt-1 text-helper-relaxed text-brand-dark/80">
+        已恢复 {String(summary.restoredGroups)} 组重复决定
+        {summary.resetGroups > 0 ? `，${String(summary.resetGroups)} 组需要重新核对` : ""}
+        {summary.restoredConflicts > 0 ? `；已恢复 ${String(summary.restoredConflicts)} 个映射选择` : ""}
+        {summary.resetConflicts > 0 ? `，${String(summary.resetConflicts)} 个映射需要重新选择` : ""}。
+      </p>
+      {summary.needsReviewGroupIds.length === 0 ? null : (
+        <p className="mt-1 text-helper text-brand-dark/80">受影响的冲突组已在核对页高亮。</p>
+      )}
+    </section>
+  );
+}
+
 function SelectionStep({
   targetId,
   target,
   targetIsNew,
   newName,
   soloBooks,
+  sourceBooks,
+  sourceBook,
   guestAvailable,
   sourceKey,
   accountLabel,
@@ -750,6 +918,8 @@ function SelectionStep({
   readonly targetIsNew: boolean;
   readonly newName: string;
   readonly soloBooks: readonly ImportBookOption[];
+  readonly sourceBooks: readonly ImportBookOption[];
+  readonly sourceBook: ImportBookOption | null;
   readonly guestAvailable: boolean;
   readonly sourceKey: string;
   readonly accountLabel: string;
@@ -758,10 +928,16 @@ function SelectionStep({
   readonly onChangeNewName: (next: string) => void;
   readonly onContinue: () => void;
 }): React.JSX.Element {
+  const formalSource = sourceBook !== null;
+  const canContinue =
+    sourceKey !== "" &&
+    (formalSource ? targetId !== "" && !targetIsNew && targetId !== sourceKey : guestAvailable && targetId !== "");
   return (
     <section className="flex flex-col gap-5">
       <p className="text-body-relaxed text-muted">
-        本轮只支持把本机游客账本导入正式账号。来源游客数据在上传前不会被读取或发送；导入后也不会自动删除。
+        来源 B 可以是本机游客账本，也可以是当前账号的另一本正式单人账本。正式账本来源只允许
+        B、A 都只有当前账号一个有效成员、且没有待接受邀请或可用分享链接；预览和提交都会重新校验。
+        导入后来源 B 的数据不会被删除或清空。
       </p>
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
@@ -775,11 +951,27 @@ function SelectionStep({
           >
             <option value="">选择来源账本</option>
             {guestAvailable ? <option value="guest">本机游客账本</option> : null}
+            {sourceBooks.map((book) => (
+              <option key={book.id} value={book.id}>
+                正式账本 · {book.name}
+              </option>
+            ))}
           </select>
         </label>
-        {guestAvailable ? null : (
-          <p className="mt-2 text-helper-relaxed text-muted">本机没有游客账本；请先在游客模式记几笔。</p>
+        {guestAvailable || sourceBooks.length > 0 ? null : (
+          <p className="mt-2 text-helper-relaxed text-muted">
+            本机没有游客账本，也没有可作为来源的其他单人账本。
+          </p>
         )}
+        {formalSource ? (
+          <p className="mt-2 text-helper-relaxed text-muted">
+            正式来源只会导入你在预览中确认的记录；不会删除来源 B 的账目，也不会关闭来源账本。
+          </p>
+        ) : guestAvailable ? (
+          <p className="mt-2 text-helper-relaxed text-muted">
+            来源游客数据在上传前不会被读取或发送；导入后也不会自动删除。
+          </p>
+        ) : null}
 
         <div className="my-4 flex items-center gap-3" aria-hidden="true">
           <span className="h-px flex-1 bg-line" />
@@ -797,13 +989,19 @@ function SelectionStep({
           >
             <option value="">选择目标账本</option>
             {soloBooks.map((book) => (
-              <option key={book.id} value={book.id}>
+              <option key={book.id} value={book.id} disabled={book.id === sourceKey}>
                 {book.name}
               </option>
             ))}
-            <option value="new">＋ 新建正式账本</option>
+            {formalSource ? null : <option value="new">＋ 新建正式账本</option>}
           </select>
         </label>
+
+        {formalSource ? (
+          <p className="mt-3 text-helper-relaxed text-muted">
+            正式来源只能导入另一本现有正式单人账本；不能新建目标账本，也不能选来源自己。
+          </p>
+        ) : null}
 
         {targetIsNew ? (
           <label className="mt-3 flex flex-col gap-1.5">
@@ -830,7 +1028,7 @@ function SelectionStep({
         )}
       </div>
 
-      <Button onClick={onContinue} disabled={!guestAvailable}>
+      <Button onClick={onContinue} disabled={!canContinue}>
         查看预览
       </Button>
     </section>
@@ -869,7 +1067,11 @@ function PreviewStep({
           <span className="text-helper text-muted">目标 A</span>
           <BookIdentity book={preview.target.identity} />
         </div>
-        <p className="mt-3 text-helper-relaxed text-muted">来源是本机游客账本；导入后本机数据仍会保留。</p>
+        <p className="mt-3 text-helper-relaxed text-muted">
+          {preview.source.kind === "guest"
+            ? "来源是本机游客账本；导入后本机数据仍会保留。"
+            : "来源是正式单人账本；导入后来源 B 的数据仍会保留，不会自动删除或关闭。"}
+        </p>
       </div>
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
@@ -1088,6 +1290,7 @@ function ReviewStep({
   onBack,
   onConfirm,
   canConfirm,
+  needsReviewGroupIds,
 }: {
   readonly preview: ImportPreview;
   readonly groupIndex: number;
@@ -1100,6 +1303,7 @@ function ReviewStep({
   readonly onBack: () => void;
   readonly onConfirm: () => void;
   readonly canConfirm: boolean;
+  readonly needsReviewGroupIds: readonly string[];
 }): React.JSX.Element {
   const groups = preview.duplicateGroups;
   const group = groups[groupIndex];
@@ -1123,6 +1327,7 @@ function ReviewStep({
   const skipped = sourceRecords.filter((record) => sourceHandling(decision, record.transaction.id) === "skip").length;
   const removed = targetRecords.filter((record) => targetHandling(decision, record.transaction.id) === "remove").length;
   const resolved = decisions.has(group.id);
+  const needsReview = needsReviewGroupIds.includes(group.id);
 
   return (
     <section data-testid="import-review" className="flex flex-col gap-4">
@@ -1157,6 +1362,12 @@ function ReviewStep({
           </button>
         </div>
       </div>
+
+      {needsReview ? (
+        <p className="rounded-field border border-danger/30 bg-danger/5 px-3 py-2 text-helper text-danger-dark">
+          这一组在重新预览后发生了变化，需要重新核对。
+        </p>
+      ) : null}
 
       {isOneToOne(group) ? null : (
         <div className="rounded-card border border-line bg-surface px-5 py-4">
@@ -1466,7 +1677,7 @@ function ConfirmStep({
             </div>
           )}
           <p className="mt-3 text-helper-relaxed text-muted">
-            服务器已按实际写入结果核对；本机游客数据仍然保留，不会自动删除。
+            服务器已按实际写入结果核对；来源账本数据仍然保留，不会自动删除。
           </p>
         </div>
 
@@ -1558,7 +1769,7 @@ function ConfirmStep({
         )}
         {removals.length === 0 ? (
           <p className="mt-3 text-helper-relaxed text-muted">
-            本轮不会删除目标账本 A 的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除游客数据。
+            本轮不会删除目标账本 A 的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除来源账本的数据。
           </p>
         ) : (
           <details className="mt-3 rounded-field border border-line bg-canvas px-3 py-2">
@@ -1577,7 +1788,7 @@ function ConfirmStep({
               ))}
             </ul>
             <p className="mt-2 text-helper-relaxed text-muted">
-              只会软删除上面这些记录；它们会进入现有删除/恢复入口，不会变成永久删除。来源游客数据不受影响。
+              只会软删除上面这些记录；它们会进入现有删除/恢复入口，不会变成永久删除。来源账本数据不受影响。
             </p>
           </details>
         )}

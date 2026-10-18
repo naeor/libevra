@@ -3,6 +3,8 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   fingerprintGuestSource,
   fingerprintTargetSnapshot,
+  formalImportPreviewRequestSchema,
+  formalImportPreviewResponseSchema,
   ledgerImportRequestSchema,
   ledgerImportResultSchema,
   type GuestImportSource,
@@ -16,6 +18,11 @@ import type { PrismaClient } from "../db.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { createDefaultLedger } from "../ledger/bootstrap.js";
 import { recordEvent } from "../ledger/events.js";
+import {
+  loadFormalImportPair,
+  loadFormalImportPreview,
+  lockFormalImportPair,
+} from "../ledger/importSolo.js";
 import { loadExistingImportTarget, loadTargetSnapshot } from "../ledger/importTarget.js";
 import { allocateTransactionSeq } from "../ledger/transactionSeq.js";
 import { badRequest, conflict, forbidden } from "../lib/errors.js";
@@ -329,39 +336,67 @@ async function executeImport(
   actorName: string | null,
   body: ReturnType<typeof ledgerImportRequestSchema.parse>,
 ): Promise<LedgerImportResult> {
-  assertSourceIsSelfConsistent(body.source);
-  const sourceFingerprint = await fingerprintGuestSource(body.source);
-  if (sourceFingerprint !== body.sourceFingerprint) {
-    throw conflict("source_changed", "游客账本在预览后发生了变化，请重新预览并确认。");
-  }
-
   const targetIsNew = body.target.kind === "new";
   const receiptId = body.importId;
+  const sourceBookId = body.sourceBookId;
+  const expectedTargetFingerprint =
+    body.target.kind === "existing" ? body.target.expectedTargetFingerprint : "";
+  let effectiveSource: GuestImportSource;
+  let sourceFingerprint: string;
+  let initialTargetSnapshot: ImportTargetSnapshot | null = null;
 
-  // Existing-target preliminary validation: the fingerprint is checked again inside the
-  // transaction, so a change between these two reads is still caught.
-  const initialTarget =
-    body.target.kind === "existing"
-      ? await loadExistingImportTarget(prisma, userId, body.target.bookId)
-      : null;
-  if (initialTarget !== null && body.target.kind === "existing") {
-    const targetFingerprint = await fingerprintTargetSnapshot(initialTarget.snapshot);
-    if (targetFingerprint !== body.target.expectedTargetFingerprint) {
+  if (sourceBookId !== undefined) {
+    /**
+     * D4：正式来源。服务端自己读取 B 和目标 A，浏览器只提供 id 与预期指纹。
+     * 预览后 B/A 任一发生变化都拒绝；真正的并发资格复查在下面的事务里。
+     */
+    if (body.target.kind !== "existing") {
+      throw badRequest("formal_source_target_required", "正式账本来源只能导入现有正式账本。");
+    }
+    const pair = await loadFormalImportPair(prisma, userId, sourceBookId, body.target.bookId);
+    if (pair.sourceFingerprint !== body.sourceFingerprint) {
+      throw conflict("source_changed", "来源账本在预览后发生了变化，请重新预览并确认。");
+    }
+    if (pair.targetFingerprint !== expectedTargetFingerprint) {
       throw conflict("target_changed", "目标账本在预览后发生了变化，请重新预览并确认。");
+    }
+    effectiveSource = pair.source;
+    sourceFingerprint = pair.sourceFingerprint;
+    initialTargetSnapshot = pair.target;
+  } else {
+    if (body.source === undefined) {
+      throw badRequest("source_required", "缺少来源账本或游客快照。");
+    }
+    assertSourceIsSelfConsistent(body.source);
+    effectiveSource = body.source;
+    sourceFingerprint = await fingerprintGuestSource(body.source);
+    if (sourceFingerprint !== body.sourceFingerprint) {
+      throw conflict("source_changed", "游客账本在预览后发生了变化，请重新预览并确认。");
+    }
+
+    // Existing-target preliminary validation: the fingerprint is checked again inside the
+    // transaction, so a change between these two reads is still caught.
+    if (body.target.kind === "existing") {
+      const initialTarget = await loadExistingImportTarget(prisma, userId, body.target.bookId);
+      const targetFingerprint = await fingerprintTargetSnapshot(initialTarget.snapshot);
+      if (targetFingerprint !== body.target.expectedTargetFingerprint) {
+        throw conflict("target_changed", "目标账本在预览后发生了变化，请重新预览并确认。");
+      }
+      initialTargetSnapshot = initialTarget.snapshot;
     }
   }
 
-  assertTaxonomyCoverage(body.source, body.taxonomy);
-  const plan = buildDecisionPlan(body, initialTarget?.snapshot ?? null, targetIsNew);
+  assertTaxonomyCoverage(effectiveSource, body.taxonomy);
+  const plan = buildDecisionPlan(body, effectiveSource, initialTargetSnapshot, targetIsNew);
 
   const skippedIds = plan.skippedSourceIds;
   const removedTargetIds = plan.removedTargetIds;
 
-  const importSource = body.source.transactions
+  const importSource = effectiveSource.transactions
     .filter((item) => !skippedIds.has(item.id))
     .sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt) || left.id.localeCompare(right.id));
-  const sourceCategoryById = new Map(body.source.categories.map((item) => [item.id, item]));
-  const sourcePaymentById = new Map(body.source.paymentMethods.map((item) => [item.id, item]));
+  const sourceCategoryById = new Map(effectiveSource.categories.map((item) => [item.id, item]));
+  const sourcePaymentById = new Map(effectiveSource.paymentMethods.map((item) => [item.id, item]));
   const importRef = importRefFor(receiptId);
   const expectedTotals = buildTotals(importSource);
 
@@ -372,26 +407,49 @@ async function executeImport(
         : body.target.kind === "existing"
           ? body.target.bookId
           : "";
-      const targetSnapshot = targetIsNew
-        ? await loadTargetSnapshot(tx, targetBookId)
-        : (await loadExistingImportTarget(tx, userId, targetBookId)).snapshot;
-      const targetFingerprint = await fingerprintTargetSnapshot(targetSnapshot);
-      if (body.target.kind === "existing") {
-        // Re-check the exact target state inside the same transaction as the writes.
-        if (targetFingerprint !== body.target.expectedTargetFingerprint) {
+      let targetSnapshot: ImportTargetSnapshot;
+      if (sourceBookId !== undefined) {
+        /**
+         * D4 的资格 TOCTOU 防护：先锁成员/邀请/分享表与两本账本行，再重新读取并计算指纹。
+         * 锁释放前，任何接受邀请、加入成员、生成分享链接的事务都会排队；因此这里看到的是
+         * 稳定的单人状态。锁不改变既有邀请/权限判断，只是让并发写等待。
+         */
+        await lockFormalImportPair(tx, sourceBookId, targetBookId);
+        const pair = await loadFormalImportPair(tx, userId, sourceBookId, targetBookId);
+        if (pair.sourceFingerprint !== body.sourceFingerprint) {
+          throw conflict("source_changed", "来源账本在预览后发生了变化，请重新预览并确认。");
+        }
+        if (pair.targetFingerprint !== expectedTargetFingerprint) {
           throw conflict("target_changed", "目标账本在预览后发生了变化，请重新预览并确认。");
         }
+        targetSnapshot = pair.target;
+        if (pair.sourceFingerprint !== sourceFingerprint) {
+          throw conflict("source_changed", "来源账本在提交过程中发生了变化，请重新预览并确认。");
+        }
       } else {
-        // A new book must not already contain entries.
-        if (targetSnapshot.transactions.length !== 0) {
-          throw conflict("target_changed", "新目标账本出现了未预期数据，请重新预览。");
+        targetSnapshot = targetIsNew
+          ? await loadTargetSnapshot(tx, targetBookId)
+          : (await loadExistingImportTarget(tx, userId, targetBookId)).snapshot;
+        const targetFingerprint = await fingerprintTargetSnapshot(targetSnapshot);
+        if (body.target.kind === "existing") {
+          // Re-check the exact target state inside the same transaction as the writes.
+          if (targetFingerprint !== body.target.expectedTargetFingerprint) {
+            throw conflict("target_changed", "目标账本在预览后发生了变化，请重新预览并确认。");
+          }
+        } else {
+          // A new book must not already contain entries.
+          if (targetSnapshot.transactions.length !== 0) {
+            throw conflict("target_changed", "新目标账本出现了未预期数据，请重新预览。");
+          }
         }
       }
+
+      const targetFingerprint = await fingerprintTargetSnapshot(targetSnapshot);
 
       const taxonomy = await resolveTaxonomy(
         tx,
         targetBookId,
-        body.source,
+        effectiveSource,
         targetSnapshot,
         body.taxonomy,
         targetIsNew,
@@ -422,7 +480,7 @@ async function executeImport(
             kind: "deleted",
             changes: {
               importId: { from: null, to: receiptId },
-              importSource: { from: null, to: "guest" },
+              importSource: { from: null, to: sourceBookId === undefined ? "guest" : "book" },
               importGroupId: { from: null, to: groupId },
             },
           });
@@ -441,7 +499,7 @@ async function executeImport(
         select: { sourceRef: true },
       });
       if (existingRefs.length > 0) {
-        throw conflict("already_imported", "这些游客账目已经导入过这本账本，不会重复导入。");
+        throw conflict("already_imported", "这些来源账目已经导入过这本账本，不会重复导入。");
       }
 
       const imported: LedgerImportResult["imported"] = [];
@@ -518,7 +576,8 @@ async function executeImport(
           bookNumber: targetSnapshot.bookNumber,
           created: targetIsNew,
         },
-        sourceCount: body.source.transactions.length,
+        sourceBookId,
+        sourceCount: effectiveSource.transactions.length,
         importedCount: importSource.length,
         skippedCount: skippedIds.size,
         removedCount: removedTargets.length,
@@ -565,16 +624,14 @@ async function executeImport(
 
     return result;
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: unknown }).code === "P2002"
-    ) {
-      const existing = await prisma.ledgerImport.findUnique({ where: { id: receiptId } });
-      if (existing !== null && existing.userId === userId) {
-        return ledgerImportResultSchema.parse(existing.result);
-      }
+    /**
+     * 并发提交同一个 importId 时，另一个请求可能已经写好了回执；不论本次失败原因是什么，
+     * 只要回执属于当前账号，就返回原回执。这是幂等回执的最终兜底，避免把“并发重复提交”
+     * 变成 409 或重复写入。
+     */
+    const existing = await prisma.ledgerImport.findUnique({ where: { id: receiptId } });
+    if (existing !== null && existing.userId === userId) {
+      return ledgerImportResultSchema.parse(existing.result);
     }
     throw error;
   }
@@ -588,6 +645,7 @@ interface ImportDecisionPlan {
 
 function buildDecisionPlan(
   body: ReturnType<typeof ledgerImportRequestSchema.parse>,
+  source: GuestImportSource,
   target: ImportTargetSnapshot | null,
   targetIsNew: boolean,
 ): ImportDecisionPlan {
@@ -595,7 +653,7 @@ function buildDecisionPlan(
     throw badRequest("duplicate_new_target", "新目标账本不应有重复组决定。");
   }
 
-  const sourceIds = new Set(body.source.transactions.map((item) => item.id));
+  const sourceIds = new Set(source.transactions.map((item) => item.id));
   const targetIds = new Set(target?.transactions.map((item) => item.id) ?? []);
   const seenSource = new Set<string>();
   const seenTarget = new Set<string>();
@@ -689,6 +747,29 @@ function buildDecisionPlan(
 }
 
 export function registerLedgerImportRoutes(app: FastifyInstance, options: LedgerImportRouteOptions): void {
+  /**
+   * D4 正式来源预览。
+   *
+   * ⚠️ 客户端不读取 B 的旧快照后直接提交；预览也由服务器读取 B/A，返回 canonical 来源、目标快照
+   * 和指纹。这样成员/邀请/权限变化在预览阶段就能明确拒绝；提交时仍会重新读取并锁定复查。
+   */
+  app.post(
+    "/api/v1/ledger-imports/preview",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const body = formalImportPreviewRequestSchema.parse(request.body ?? {});
+      const preview = await loadFormalImportPreview(
+        options.prisma,
+        userId,
+        body.sourceBookId,
+        body.targetBookId,
+      );
+      return formalImportPreviewResponseSchema.parse(preview);
+    },
+  );
+
   app.post("/api/v1/ledger-imports", { preHandler: options.requireAuth }, async (request, reply) => {
     const userId = request.currentUser?.id;
     if (userId === undefined) throw forbidden("auth_required", "请先登录。");
