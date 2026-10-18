@@ -427,11 +427,11 @@ function BookCardSplit({
 
   return (
     <div
-      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-card border ${
+      className={`book-card flex h-full min-h-0 flex-col overflow-hidden rounded-card border ${
         tinted ? "border-brand/30 bg-brand-soft/50" : "border-line bg-surface"
       }`}
     >
-      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+      <div className="book-card-body">
         <Link
           to={`/books/${bookId}`}
           className="flex min-h-20 min-w-0 flex-1 flex-col justify-between gap-1.5 p-4 text-left transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
@@ -447,10 +447,10 @@ function BookCardSplit({
         <Link
           to="/start"
           aria-label={`切换账本${countLabel}`}
-          className="group flex min-h-24 shrink-0 flex-col items-center justify-center gap-2 border-t border-line px-4 py-3 text-center transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft active:bg-brand-soft/40 sm:min-h-32 sm:w-40 sm:border-t-0 sm:border-l"
+          className="book-card-switch group border-line text-center transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft active:bg-brand-soft/40"
         >
-          <SwitchIcon className="size-8 text-brand transition group-hover:scale-105 group-active:scale-95 sm:size-9" />
-          <span className="text-helper font-medium text-brand">切换账本</span>
+          <SwitchIcon className="book-card-switch-icon text-brand transition group-hover:scale-105 group-active:scale-95" />
+          <span className="book-card-switch-label text-helper font-medium text-brand">切换账本</span>
         </Link>
       </div>
     </div>

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./detail-motion.css";
+@import "./book-card.css";
 
 /*
  * No rubber-banding on the ledger's scrolling region.
