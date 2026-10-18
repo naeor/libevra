@@ -4,8 +4,17 @@ import { z } from "zod";
 import { verifyPassword } from "../auth/password.js";
 import { LoginThrottle } from "../auth/login-throttle.js";
 import { confirmP0 } from "../critical/confirm.js";
+import {
+  getPublicOperation,
+  markOperation,
+  OperationAlreadyStartedError,
+  operationResponseFields,
+  startCriticalOperation,
+  unconfirmedOperationError,
+  type StartedOperation,
+} from "../critical/operations.js";
 import type { PrismaClient } from "../db.js";
-import { badRequest, forbidden, tooManyRequests } from "../lib/errors.js";
+import { AppError, badRequest, conflict, forbidden, notFound, tooManyRequests } from "../lib/errors.js";
 import {
   archiveBook,
   getBookLifecycle,
@@ -33,6 +42,44 @@ const decisionSchema = z.object({
   bookId: z.string().uuid(),
   action: z.enum(["leave", "archive", "delete", "keep_archived"]),
 });
+
+function idempotencyKeyOf(request: FastifyRequest): string | undefined {
+  const raw = request.headers["idempotency-key"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value === undefined) return undefined;
+  const key = value.trim();
+  if (key.length < 16 || key.length > 128) {
+    throw badRequest("idempotency_key_invalid", "幂等键长度必须为 16–128 个字符。");
+  }
+  return key;
+}
+
+async function startOperation(
+  prisma: PrismaClient,
+  request: FastifyRequest,
+  input: {
+    readonly kind: string;
+    readonly actorUserId: string;
+    readonly subjectUserId?: string;
+    readonly detail?: Record<string, unknown>;
+  },
+): Promise<StartedOperation> {
+  try {
+    return await startCriticalOperation(prisma, {
+      ...input,
+      idempotencyKey: idempotencyKeyOf(request),
+    });
+  } catch (error) {
+    if (error instanceof OperationAlreadyStartedError) {
+      throw conflict("operation_already_started", "这个操作已经受理，请查询原操作结果，不要重复执行。", {
+        operationId: error.operationId,
+        operationStatusPath: `/api/v1/operations/${error.operationId}`,
+        idempotencyKeyUsed: true,
+      });
+    }
+    throw error;
+  }
+}
 
 /**
  * Account data rights routes intentionally use the raw session guard, not the agreement guard.
@@ -71,6 +118,19 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
   // -------------------------------------------------------------------------
   app.get("/api/v1/account/lifecycle", { preHandler: requireSession }, async (request) => {
     return getAccountLifecycle(prisma, request.currentUser!.id);
+  });
+
+  // -------------------------------------------------------------------------
+  // Public, token-protected operation receipt. Deliberately does not require a session:
+  // account closure revokes the only session that could otherwise ask whether it committed.
+  // -------------------------------------------------------------------------
+  app.get("/api/v1/operations/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const query = z.object({ token: z.string().min(16).max(128) }).parse(request.query);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw badRequest("operation_invalid", "操作编号不合法。");
+    const operation = await getPublicOperation(prisma, id, query.token);
+    if (operation === null) throw notFound("operation_not_found", "找不到这条操作。");
+    return operation;
   });
 
   // -------------------------------------------------------------------------
@@ -120,15 +180,35 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       );
     }
 
-    const result = await purgeBook(prisma, {
-      bookId,
+    const operation = await startOperation(prisma, request, {
+      kind: "book.delete",
       actorUserId: userId,
-      actorAccountNumber: request.currentUser!.accountNumber,
-      deletionMethod: "self_delete",
-      deletionReason: "user_delete",
+      subjectUserId: userId,
+      detail: { bookId },
     });
-    await confirmP0(prisma);
-    return { ok: true, ...result };
+    let result;
+    try {
+      result = await purgeBook(prisma, {
+        bookId,
+        actorUserId: userId,
+        actorAccountNumber: request.currentUser!.accountNumber,
+        deletionMethod: "self_delete",
+        deletionReason: "user_delete",
+        requestId: operation.id,
+      });
+    } catch (error) {
+      await markOperation(prisma, operation.id, "failed");
+      throw error;
+    }
+    await markOperation(prisma, operation.id, "committed_unconfirmed");
+    try {
+      await confirmP0(prisma);
+    } catch (error) {
+      if (error instanceof AppError) throw unconfirmedOperationError(operation, error);
+      throw error;
+    }
+    await markOperation(prisma, operation.id, "confirmed");
+    return { ok: true, ...result, ...operationResponseFields(operation) };
   });
 
   // -------------------------------------------------------------------------
@@ -174,18 +254,36 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       throw badRequest("confirmation_mismatch", `请输入「${expected}」确认这次操作。`);
     }
     await verifyOwnPassword(userId, body.password, "account-close");
-
-    const result = await closeAccount(prisma, {
-      userId,
-      method: "close_account",
-      decisions: body.decisions.map((decision) => ({
-        bookId: decision.bookId,
-        action: decision.action as BookDecisionAction,
-      })),
-      requestId: request.id,
+    const operation = await startOperation(prisma, request, {
+      kind: "account.close",
+      actorUserId: userId,
+      subjectUserId: userId,
+      detail: { decisions: body.decisions },
     });
-    await confirmP0(prisma);
-    return result;
+    let result;
+    try {
+      result = await closeAccount(prisma, {
+        userId,
+        method: "close_account",
+        decisions: body.decisions.map((decision) => ({
+          bookId: decision.bookId,
+          action: decision.action as BookDecisionAction,
+        })),
+        requestId: operation.id,
+      });
+    } catch (error) {
+      await markOperation(prisma, operation.id, "failed");
+      throw error;
+    }
+    await markOperation(prisma, operation.id, "committed_unconfirmed");
+    try {
+      await confirmP0(prisma);
+    } catch (error) {
+      if (error instanceof AppError) throw unconfirmedOperationError(operation, error);
+      throw error;
+    }
+    await markOperation(prisma, operation.id, "confirmed");
+    return { ...result, ...operationResponseFields(operation) };
   });
 
   // -------------------------------------------------------------------------
@@ -213,14 +311,33 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       throw badRequest("confirmation_mismatch", "请输入「删除服务器数据」确认这次操作。");
     }
     await verifyOwnPassword(userId, body.password, "account-delete-data");
-    const result = await deleteAccountData(prisma, {
-      userId,
-      all: body.all,
-      bookIds: body.bookIds,
-      requestId: request.id,
+    const operation = await startOperation(prisma, request, {
+      kind: "account.delete_data",
+      actorUserId: userId,
+      subjectUserId: userId,
+      detail: { all: body.all, bookIds: body.bookIds },
     });
-    await confirmP0(prisma);
-    return result;
+    let result;
+    try {
+      result = await deleteAccountData(prisma, {
+        userId,
+        all: body.all,
+        bookIds: body.bookIds,
+        requestId: operation.id,
+      });
+    } catch (error) {
+      await markOperation(prisma, operation.id, "failed");
+      throw error;
+    }
+    await markOperation(prisma, operation.id, "committed_unconfirmed");
+    try {
+      await confirmP0(prisma);
+    } catch (error) {
+      if (error instanceof AppError) throw unconfirmedOperationError(operation, error);
+      throw error;
+    }
+    await markOperation(prisma, operation.id, "confirmed");
+    return { ...result, ...operationResponseFields(operation) };
   });
 
   // -------------------------------------------------------------------------

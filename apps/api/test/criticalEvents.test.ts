@@ -1,11 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { Client } from "pg";
 
 import { applySafeRestore } from "../src/critical/apply.js";
 import { hashPassword } from "../src/auth/password.js";
 import { flushPendingCriticalEvents, type CriticalRuntime } from "../src/critical/runtime.js";
-import { verifyRemoteLedger, type CriticalRemote } from "../src/critical/remote.js";
+import {
+  verifyRemoteLedger,
+  MemoryCriticalRemote,
+  type CriticalRemote,
+} from "../src/critical/remote.js";
 import { coreFromRow } from "../src/critical/store.js";
+import { recordCriticalEvent } from "../src/critical/store.js";
 import { makeApp, prisma, resetDatabase, signUp, testCriticalRuntime } from "./support.js";
 
 const PASSWORD = "correct-horse-battery";
@@ -303,6 +309,136 @@ describe("S13-I critical event ledger", () => {
     await flushPendingCriticalEvents(prisma, test.remote, test.key);
     expect((await test.remote.list("critical-events/v1/events/")).length).toBe(before);
     expect(await prisma.criticalEvent.count({ where: { deliveryState: "pending" } })).toBe(0);
+  });
+
+  it("offers a public receipt after P0 success and after an unconfirmed operation is relayed", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "op_receipt");
+    const deleted = await app.inject({
+      method: "POST",
+      url: `/api/v1/books/${owner.bookId}/lifecycle`,
+      headers: { cookie: owner.cookie },
+      payload: { action: "delete" },
+    });
+    expect(deleted.statusCode).toBe(200);
+    const receipt = deleted.json() as {
+      operationId: string;
+      operationReceipt: string;
+      operationStatusPath: string;
+    };
+    expect(receipt.operationId).toBeTruthy();
+    const status = await app.inject({
+      method: "GET",
+      url: `${receipt.operationStatusPath}?token=${encodeURIComponent(receipt.operationReceipt)}`,
+    });
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toMatchObject({ status: "confirmed", kind: "book.delete" });
+  });
+
+  it("reports a committed-but-unconfirmed operation and finalizes the receipt after relay", async () => {
+    const test = testCriticalRuntime();
+    const failing: CriticalRuntime = {
+      kind: "inline",
+      remote: new FailRemote(),
+      key: test.key,
+    };
+    app = appWith(failing);
+    const owner = await createAccount(app, "op_unconfirmed");
+    const closed = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/close",
+      headers: { cookie: owner.cookie },
+      payload: {
+        password: PASSWORD,
+        confirmation: "注销账号",
+        method: "close_account",
+        decisions: [{ bookId: owner.bookId, action: "archive" }],
+      },
+    });
+    expect(closed.statusCode).toBe(503);
+    const details = (closed.json() as { details: { operationId: string; operationReceipt: string } }).details;
+    const before = await app.inject({
+      method: "GET",
+      url: `/api/v1/operations/${details.operationId}?token=${encodeURIComponent(details.operationReceipt)}`,
+    });
+    expect(before.statusCode).toBe(200);
+    expect(before.json()).toMatchObject({ status: "committed_unconfirmed" });
+
+    // The relay recovers later; the public receipt must become confirmed without restoring login.
+    const memory = new MemoryCriticalRemote();
+    await flushPendingCriticalEvents(prisma, memory, test.key);
+    const after = await app.inject({
+      method: "GET",
+      url: `/api/v1/operations/${details.operationId}?token=${encodeURIComponent(details.operationReceipt)}`,
+    });
+    expect(after.statusCode).toBe(200);
+    expect(after.json()).toMatchObject({ status: "confirmed" });
+    expect(await prisma.session.count({ where: { userId: owner.userId, revokedAt: null } })).toBe(0);
+  });
+
+  it("uses an idempotency key to stop a repeated irreversible P0 request", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "op_idem");
+    const key = "idem-" + "x".repeat(24);
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie, "idempotency-key": key },
+      payload: { password: PASSWORD, confirmation: "删除服务器数据", all: true },
+    });
+    expect(first.statusCode).toBe(200);
+    const operationId = (first.json() as { operationId: string }).operationId;
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie, "idempotency-key": key },
+      payload: { password: PASSWORD, confirmation: "删除服务器数据", all: true },
+    });
+    expect(second.statusCode).toBe(409);
+    expect(second.json()).toMatchObject({
+      code: "operation_already_started",
+      details: { operationId },
+    });
+    const status = await app.inject({
+      method: "GET",
+      url: `/api/v1/operations/${operationId}?token=${encodeURIComponent(key)}`,
+    });
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toMatchObject({ status: "confirmed", kind: "account.delete_data" });
+  });
+
+  it("blocks event append while the backup checkpoint lock is held", async () => {
+    const client = new Client({ connectionString: process.env["DATABASE_URL"]! });
+    await client.connect();
+    try {
+      await client.query(
+        `SELECT pg_advisory_lock(hashtext('libevra_critical_backup_checkpoint'))`,
+      );
+      let settled = false;
+      const append = prisma
+        .$transaction((tx) =>
+          recordCriticalEvent(tx, {
+            type: "book.created",
+            subjectType: "system",
+            subjectId: "checkpoint-lock-test",
+            afterState: { test: true },
+          }),
+        )
+        .finally(() => {
+          settled = true;
+        });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(settled).toBe(false);
+      await client.query(
+        `SELECT pg_advisory_unlock(hashtext('libevra_critical_backup_checkpoint'))`,
+      );
+      await append;
+      expect(await prisma.criticalEvent.count({ where: { subjectId: "checkpoint-lock-test" } })).toBe(1);
+    } finally {
+      await client.end();
+    }
   });
 
   it("rejects a non-isolated database for safe apply", async () => {

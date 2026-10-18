@@ -74,7 +74,7 @@ export function hashShareToken(token: string): string {
  * supported operation rather than an emergency.
  */
 export async function createShareLink(
-  prisma: PrismaClient,
+  prisma: Pick<PrismaClient, "bookShareLink">,
   input: {
     readonly bookId: string;
     readonly createdBy: string;

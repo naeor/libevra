@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { applySafeRestore } from "../src/critical/apply.js";
+import { createCheckpointedBackup, verifyRestoredCheckpoint } from "../src/critical/checkpoint.js";
+import { previewSafeRestore } from "../src/critical/preview.js";
 import { flushPendingCriticalEvents } from "../src/critical/runtime.js";
 import { verifyRemoteLedger } from "../src/critical/remote.js";
 import { createPrismaClient } from "../src/db.js";
@@ -76,11 +78,20 @@ describe.skipIf(!available)("S13-I full dump/restore safety (local PostgreSQL)",
       const bookId = (books.json() as { books: { id: string }[] }).books[0]!.id;
 
       // This is the old full-database snapshot, taken before the destructive operations.
-      cli(pgDump, [
-        "-h", parts.host, "-p", parts.port, "-U", parts.user,
-        "-d", parts.name, "-Fc", "--file", dumpFile,
-      ]);
-      const backupAt = new Date();
+      const dir = mkdtempSync(join(tmpdir(), "libevra-s13i-restore-"));
+      const dumpFile = join(dir, "old.dump");
+      // The checkpoint is inserted while holding the exclusive lock, then pg_dump receives the
+      // exported snapshot. The dump therefore contains the checkpoint row and the exact chain
+      // head; no wall-clock approximation is involved.
+      const checkpointed = await createCheckpointedBackup({
+        databaseUrl: process.env["DATABASE_URL"]!,
+        dumpPath: dumpFile,
+        pgDumpPath: pgDump,
+        eventKey: test.key,
+        label: "s13i-full-restore-test",
+      });
+      const checkpoint = checkpointed.checkpoint;
+      expect(checkpoint.chainSeq).toBeGreaterThan(0);
 
       const deleted = await app.inject({
         method: "POST",
@@ -109,12 +120,27 @@ describe.skipIf(!available)("S13-I full dump/restore safety (local PostgreSQL)",
         "-d", restoreName, "--exit-on-error", dumpFile,
       ]);
       restored = createPrismaClient(restoreUrl.toString());
+      const verifiedCheckpoint = await verifyRestoredCheckpoint(
+        restored,
+        checkpointed.checkpointFile,
+        dumpFile,
+        test.key,
+      );
+      expect(verifiedCheckpoint.checkpointId).toBe(checkpoint.checkpointId);
       // The raw restored snapshot still contains both objects; that is exactly the danger.
       expect(await restored.book.findUnique({ where: { id: bookId } })).not.toBeNull();
+      const preview = await previewSafeRestore(restored, verified.events.map((entry) => entry.core));
+      expect(preview.checkpoint.chainSeq).toBe(verifiedCheckpoint.chainSeq);
+      expect(preview.counts.total).toBeGreaterThan(0);
+      expect(preview.counts.manual).toBe(0);
+      expect(preview.counts.missingTarget).toBe(0);
+      // Preview is read-only: it did not delete the book or close the account.
+      expect(await restored.book.findUnique({ where: { id: bookId } })).not.toBeNull();
+      expect((await restored.user.findUniqueOrThrow({ where: { id: userId } })).closedAt).toBeNull();
       const report = await applySafeRestore(
         restored,
         verified.events.map((entry) => entry.core),
-        backupAt,
+        { afterSeq: verifiedCheckpoint.chainSeq },
       );
       expect(report.manualReview.length).toBe(0);
       expect(await restored.book.findUnique({ where: { id: bookId } })).toBeNull();

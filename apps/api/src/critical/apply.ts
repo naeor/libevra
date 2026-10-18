@@ -15,16 +15,21 @@ export interface SafeRestoreReport {
   readonly notes: string[];
 }
 
+export type SafeRestoreBoundary = Date | { readonly afterSeq: number };
+
 /**
  * Apply only the events whose target already exists in the restored snapshot. Missing targets are
  * reported, never fabricated. Password/credential changes are conservative: the old credentials
  * are made unusable and the account needs an administrator reset, because the event ledger has no
  * right to contain (and does not contain) the new password hash.
+ *
+ * A `{afterSeq}` boundary comes from the exact backup checkpoint. A `Date` form exists only for
+ * tests/legacy callers; the CLI requires a checkpoint sidecar.
  */
 export async function applySafeRestore(
   prisma: PrismaClient,
   events: readonly CriticalEventCore[],
-  backupAt: Date,
+  boundary: SafeRestoreBoundary,
 ): Promise<SafeRestoreReport> {
   const database = await prisma.$queryRaw<{ name: string }[]>`SELECT current_database() AS name`;
   const name = database[0]?.name ?? "";
@@ -46,7 +51,7 @@ export async function applySafeRestore(
   let applied = 0;
   let alreadyApplied = 0;
 
-  for (const event of events.filter((entry) => new Date(entry.occurredAt).getTime() > backupAt.getTime())) {
+  for (const event of events.filter((entry) => afterBoundary(entry, boundary))) {
     const existing = await prisma.criticalEventApplied.findUnique({ where: { eventId: event.eventId } });
     if (existing !== null) {
       alreadyApplied += 1;
@@ -82,13 +87,19 @@ export async function applySafeRestore(
   notes.push("所有恢复快照中的会话已撤销；凭据变更的账号需管理员重置密码。");
   return {
     generatedAt: new Date().toISOString(),
-    backupAt: backupAt.toISOString(),
-    selected: events.filter((entry) => new Date(entry.occurredAt).getTime() > backupAt.getTime()).length,
+    backupAt: boundary instanceof Date ? boundary.toISOString() : `afterSeq:${String(boundary.afterSeq)}`,
+    selected: events.filter((entry) => afterBoundary(entry, boundary)).length,
     applied,
     alreadyApplied,
     manualReview,
     notes,
   };
+}
+
+function afterBoundary(event: CriticalEventCore, boundary: SafeRestoreBoundary): boolean {
+  return boundary instanceof Date
+    ? new Date(event.occurredAt).getTime() > boundary.getTime()
+    : event.seq > boundary.afterSeq;
 }
 
 /**

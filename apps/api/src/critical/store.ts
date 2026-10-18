@@ -28,6 +28,15 @@ export async function recordCriticalEvent(
   tx: Prisma.TransactionClient,
   input: CriticalEventInput,
 ): Promise<AppendedCriticalEvent> {
+  /**
+   * The backup checkpoint takes the matching exclusive session lock, inserts its marker and
+   * exports the dump snapshot while holding it. Event writers take a transaction-scoped shared
+   * lock, so an event can be in neither "before the checkpoint head but missing from the dump"
+   * nor "after the checkpoint head but included in the dump".
+   */
+  await tx.$queryRawUnsafe(
+    `SELECT pg_advisory_xact_lock_shared(hashtext('libevra_critical_backup_checkpoint'))::text AS locked`,
+  );
   const chainRows = await tx.$queryRaw<{ lastSeq: number; lastHash: string | null }[]>`
     SELECT "last_seq" AS "lastSeq", "last_hash" AS "lastHash"
     FROM "critical_chain"

@@ -14,7 +14,7 @@ export async function confirmP0(prisma: PrismaClient): Promise<void> {
     const detail = error instanceof CriticalEventPersistenceError ? error.message : "unknown";
     throw serviceUnavailable(
       "critical_event_unconfirmed",
-      "本地变更可能已提交，但安全状态登记簿尚未收到异地确认；请稍后重试并核对操作结果。",
+      "本地变更可能已经提交，但异地安全确认尚未完成；请勿直接重复执行不可逆操作，请稍后核对操作结果或联系管理员。",
       { reason: detail, operationCommitted: "unknown_or_yes" },
     );
   }

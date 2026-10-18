@@ -130,30 +130,32 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
      */
     const book = await requireBookForWrite(prisma, request, userId);
 
-    const created = await createShareLink(prisma, {
-      bookId: book.bookId,
-      createdBy: userId,
-      role: body.role ?? "viewer",
-      /** ⚠️ Defaults sit at the permissive end, so a caller that says nothing gets a usable link. */
-      days: body.days ?? SHARE_LINK_MAX_DAYS,
-      maxUses: body.maxUses ?? SHARE_LINK_MAX_USES,
-    });
-
-    void reply.code(201);
-    await recordCriticalEvent(prisma, {
-      type: "share_link.created",
-      actor: { userId, accountNumber: request.currentUser!.accountNumber },
-      subjectType: "share_link",
-      subjectId: created.id,
-      bookId: book.bookId,
-      afterState: {
+    const created = await prisma.$transaction(async (tx) => {
+      const link = await createShareLink(tx, {
+        bookId: book.bookId,
+        createdBy: userId,
         role: body.role ?? "viewer",
         days: body.days ?? SHARE_LINK_MAX_DAYS,
         maxUses: body.maxUses ?? SHARE_LINK_MAX_USES,
-        expiresAt: created.expiresAt.toISOString(),
-      },
-      requestId: request.id,
+      });
+      await recordCriticalEvent(tx, {
+        type: "share_link.created",
+        actor: { userId, accountNumber: request.currentUser!.accountNumber },
+        subjectType: "share_link",
+        subjectId: link.id,
+        bookId: book.bookId,
+        afterState: {
+          role: body.role ?? "viewer",
+          days: body.days ?? SHARE_LINK_MAX_DAYS,
+          maxUses: body.maxUses ?? SHARE_LINK_MAX_USES,
+          expiresAt: link.expiresAt.toISOString(),
+        },
+        requestId: request.id,
+      });
+      return link;
     });
+
+    void reply.code(201);
     /**
      * ⚠️ **The token is in this response and nowhere else, ever again.** The client must show it
      * now; a caller that loses it generates another link, which is why regeneration is a normal

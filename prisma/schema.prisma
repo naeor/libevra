@@ -1628,3 +1628,47 @@ model CriticalEventApplied {
 
   @@map("critical_event_applied")
 }
+
+/// **The exact event-chain head included in one database backup.**
+///
+/// A checkpoint row is committed while holding the exclusive checkpoint advisory lock, then a
+/// REPEATABLE READ transaction exports a PostgreSQL snapshot and `pg_dump --snapshot=...` dumps
+/// that snapshot. Because event writers take the corresponding shared lock in the same
+/// transaction as their event append, no event can slip between the checkpoint head and the dump.
+///
+/// The row is part of the dump itself: a restore contains the checkpoints that were committed at
+/// that snapshot, so the newest checkpoint row in the restored database identifies the exact
+/// boundary. No wall-clock approximation is used.
+model CriticalBackupCheckpoint {
+  id String @id @db.Uuid
+  backupLabel String? @map("backup_label") @db.VarChar(200)
+  chainSeq Int @map("chain_seq")
+  chainHash String? @map("chain_hash") @db.VarChar(64)
+  databaseName String @map("database_name") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("critical_backup_checkpoints")
+}
+
+/// A user-visible P0 operation receipt. It survives account closure and session revocation, so a
+/// person whose session was revoked can still learn whether the irreversible operation committed.
+/// The plaintext receipt token is shown once; only its SHA-256 hash is stored.
+model CriticalOperation {
+  id String @id @db.Uuid
+  kind String @db.VarChar(48)
+  /// pending | committed_unconfirmed | confirmed | failed | manual_review
+  status String @default("pending") @db.VarChar(24)
+  actorUserId String? @map("actor_user_id") @db.Uuid
+  subjectUserId String? @map("subject_user_id") @db.Uuid
+  /// Optional caller-supplied idempotency key, hashed. A repeated P0 request with the same key
+  /// gets the existing operation receipt instead of executing again.
+  idempotencyKeyHash String? @unique @map("idempotency_key_hash") @db.VarChar(64)
+  tokenHash String @map("token_hash") @db.VarChar(64)
+  detail Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("critical_operations")
+}

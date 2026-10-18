@@ -382,6 +382,14 @@ systemctl list-timers libevra-lifecycle.timer --no-pager
 
 ### S13-I 关键状态登记簿（未部署，需所有者批准云权限）
 
+**精确检查点备份（安全恢复的唯一合法输入）**：使用 db 容器自带 PostgreSQL 工具，生成
+`critical-backups/<name>.dump` + `.checkpoint.json`；它不会修改 S12-C 的 `backup.sh`/COS 生命周期。
+
+```bash
+./critical-events-backup.sh "pre-flight"
+# 把 dump 与 sidecar 一起复制到灾备介质；普通 S12-C dump 不能用于安全恢复
+```
+
 API **不直接访问 COS**。生产启用时另起一个无端口的 relay 服务（同一 API 镜像）：
 
 ```bash
