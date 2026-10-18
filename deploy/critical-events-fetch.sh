@@ -27,6 +27,7 @@ set +a
 : "${CRITICAL_EVENT_COS_REGION:?missing region}"
 
 PREFIX="${CRITICAL_EVENT_PREFIX:-critical-events/v1}"
+PREFIX="${PREFIX%/}"
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 DEST="${1:-critical-events-fetched/$STAMP}"
 mkdir -p "$DEST"
@@ -48,9 +49,23 @@ endpoint = ${CRITICAL_EVENT_COS_ENDPOINT:-cos.${CRITICAL_EVENT_COS_REGION}.myqcl
 region = ${CRITICAL_EVENT_COS_REGION}
 EOF
 
-echo "→ 只读取回 s3:${CRITICAL_EVENT_COS_BUCKET}/${PREFIX} → ${DEST}/"
-rclone --config "$TMP_CONF" copy "cos-restore:${CRITICAL_EVENT_COS_BUCKET}/${PREFIX}" \
-  "$DEST/${PREFIX}" --retries 3 --checkers 4
+# Download only the two real data subtrees. `--fast-list` makes rclone issue one ListObjects
+# request per subtree instead of probing every discovered child prefix. This is required when the
+# Reader policy allows listing only critical-events/v1/, /events/ and /manifests/.
+#
+# Trade-off: --fast-list keeps all object metadata for one subtree in memory. Event objects are
+# tiny and the current event rate is low; at very large histories (hundreds of thousands of
+# objects) this memory could become material and should be revisited with pagination outside
+# rclone. The alternative (no --fast-list) would make recovery fail on any unapproved extra
+# child prefix, including test/acceptance directories.
+for SUB in events manifests; do
+  TARGET="$DEST/${PREFIX}/${SUB}"
+  mkdir -p "$TARGET"
+  echo "→ 只读取回 s3:${CRITICAL_EVENT_COS_BUCKET}/${PREFIX}/${SUB} → ${TARGET}/"
+  rclone --config "$TMP_CONF" copy --fast-list \
+    "cos-restore:${CRITICAL_EVENT_COS_BUCKET}/${PREFIX}/${SUB}" \
+    "$TARGET" --retries 3 --checkers 4
+done
 
-echo "✅ 取回完成。下一步（不在此脚本中执行）:"
+echo "✅ 取回完成（events/ 与 manifests/ 两个真实子树；未下载验收/测试目录）。下一步（不在此脚本中执行）:"
 echo "   CRITICAL_EVENT_KEY=... pnpm --filter @libellum/api critical:verify --dir '$DEST'"

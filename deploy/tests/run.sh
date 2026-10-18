@@ -215,6 +215,56 @@ fi
 
 # ---------------------------------------------------------------------------
 echo
+echo "=== 5b. S13-I 恢复取回：只拉 events/manifests，使用 --fast-list ==="
+FETCH_S13I="$WORK/fetch-s13i"
+mkdir -p "$FETCH_S13I"
+cp "$DEPLOY/critical-events-fetch.sh" "$FETCH_S13I/"
+cat > "$FETCH_S13I/.critical-events-restore.env" <<'ENV'
+CRITICAL_EVENT_COS_RESTORE_ID=test-reader-id
+CRITICAL_EVENT_COS_RESTORE_KEY=test-reader-key
+CRITICAL_EVENT_COS_BUCKET=test-bucket-1505362843
+CRITICAL_EVENT_COS_REGION=ap-hongkong
+ENV
+cat > "$WORK/bin/rclone" <<'SH'
+#!/usr/bin/env bash
+echo "RCLONE: $*" >> "$RCLONE_LOG"
+exit 0
+SH
+chmod +x "$WORK/bin/rclone"
+export RCLONE_LOG="$WORK/rclone.log"
+: > "$RCLONE_LOG"
+if (cd "$FETCH_S13I" && PATH="$WORK/bin:$PATH" bash critical-events-fetch.sh "$FETCH_S13I/out" >"$WORK/fetch-s13i.out" 2>&1); then
+  RCLONE_CALLS="$(grep -c '^RCLONE:' "$RCLONE_LOG" 2>/dev/null || true)"
+  FASTLIST_CALLS="$(grep -c -- '--fast-list' "$RCLONE_LOG" 2>/dev/null || true)"
+  if [ "$RCLONE_CALLS" -eq 2 ] && [ "$FASTLIST_CALLS" -eq 2 ]; then
+    ok "S13-I 取回只发起 2 次 events/manifests 调用，均带 --fast-list"
+  else
+    bad "S13-I 取回 rclone 调用数/参数不对" "$(cat "$RCLONE_LOG")"
+  fi
+  if grep -q 'cos-restore:test-bucket-1505362843/critical-events/v1/events ' "$RCLONE_LOG" \
+     && grep -q 'cos-restore:test-bucket-1505362843/critical-events/v1/manifests ' "$RCLONE_LOG"; then
+    ok "S13-I 取回源前缀为 events/ 与 manifests/"
+  else
+    bad "S13-I 取回源前缀不对" "$(cat "$RCLONE_LOG")"
+  fi
+  if grep -q 'cos-restore:test-bucket-1505362843/critical-events/v1 ' "$RCLONE_LOG"; then
+    bad "S13-I 取回仍直接拉取根前缀（会碰验收/测试子目录）"
+  else
+    ok "S13-I 取回不直接拉取根前缀"
+  fi
+  if [ -d "$FETCH_S13I/out/critical-events/v1/events" ] \
+     && [ -d "$FETCH_S13I/out/critical-events/v1/manifests" ]; then
+    ok "S13-I 取回目标目录结构为 events/ 与 manifests/"
+  else
+    bad "S13-I 取回目标目录结构不完整"
+  fi
+else
+  bad "S13-I 取回脚本在 mock rclone 下执行失败" "$(cat "$WORK/fetch-s13i.out" 2>/dev/null || true)"
+fi
+unset RCLONE_LOG
+
+# ---------------------------------------------------------------------------
+echo
 echo "=== 6. 状态文件结构（schemaVersion 2 的三态分离） ==="
 if grep -q 'remoteMetaOk' "$DEPLOY/backup-all.sh" \
    && grep -q '"contentVerified": false' "$DEPLOY/backup-all.sh" \
