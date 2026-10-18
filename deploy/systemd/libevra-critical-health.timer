@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Libevra S13-I protection health check
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=false
+Unit=libevra-critical-health.service
+
+[Install]
+WantedBy=timers.target

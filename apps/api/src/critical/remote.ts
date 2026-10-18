@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+﻿import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { mkdir, open, readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -144,15 +144,70 @@ export function parseKey(data: string): Buffer {
   return decoded;
 }
 
-export function encryptJson(value: unknown, key: Buffer): Buffer {
+export interface CriticalKeyRing {
+  readonly activeKeyId: string;
+  readonly activeKey: Buffer;
+  /** Includes the active key and every previous key still needed to read historical objects. */
+  readonly decryptionKeys: ReadonlyMap<string, Buffer>;
+}
+
+/**
+ * Key material accepted by the event codec. Tests and old callers may keep passing a Buffer;
+ * production should pass a ring so a key rotation can still decrypt older envelopes.
+ */
+export type CriticalKey = Buffer | CriticalKeyRing;
+
+export function normalizeKeyRing(key: CriticalKey): CriticalKeyRing {
+  if (Buffer.isBuffer(key)) {
+    return { activeKeyId: "v1", activeKey: key, decryptionKeys: new Map([["v1", key]]) };
+  }
+  return key;
+}
+
+/**
+ * Parse the active key plus previous keys:
+ *   CRITICAL_EVENT_KEY=v2-key
+ *   CRITICAL_EVENT_KEY_ID=v2
+ *   CRITICAL_EVENT_PREVIOUS_KEYS=v1:<old-key>,v0:<older-key>
+ *
+ * Envelopes written before key IDs existed (`v:1`) have no keyId; decryption tries the active key
+ * and every previous key so old COS objects remain readable after a rotation.
+ */
+export function parseKeyRing(
+  activeValue: string,
+  activeKeyIdValue?: string,
+  previousValue?: string,
+): CriticalKeyRing {
+  const activeKeyId = activeKeyIdValue?.trim() || "v1";
+  if (!/^[A-Za-z0-9._-]{1,32}$/.test(activeKeyId)) {
+    throw new Error("critical_event_key_id_invalid");
+  }
+  const activeKey = parseKey(activeValue);
+  const decryptionKeys = new Map<string, Buffer>([[activeKeyId, activeKey]]);
+  if (previousValue !== undefined && previousValue.trim() !== "") {
+    for (const item of previousValue.split(",")) {
+      const separator = item.indexOf(":");
+      if (separator <= 0) throw new Error("critical_event_previous_key_invalid");
+      const id = item.slice(0, separator).trim();
+      const value = item.slice(separator + 1).trim();
+      if (!/^[A-Za-z0-9._-]{1,32}$/.test(id)) throw new Error("critical_event_previous_key_id_invalid");
+      decryptionKeys.set(id, parseKey(value));
+    }
+  }
+  return { activeKeyId, activeKey, decryptionKeys };
+}
+
+export function encryptJson(value: unknown, key: CriticalKey): Buffer {
+  const ring = normalizeKeyRing(key);
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const cipher = createCipheriv("aes-256-gcm", ring.activeKey, iv);
   const plaintext = Buffer.from(canonicalJson(value), "utf8");
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.from(
     JSON.stringify({
-      v: 1,
+      v: 2,
+      keyId: ring.activeKeyId,
       iv: iv.toString("base64"),
       tag: tag.toString("base64"),
       data: ciphertext.toString("base64"),
@@ -161,23 +216,44 @@ export function encryptJson(value: unknown, key: Buffer): Buffer {
   );
 }
 
-export function decryptJson(bytes: Buffer, key: Buffer): unknown {
+export function decryptJson(bytes: Buffer, key: CriticalKey): unknown {
+  const ring = normalizeKeyRing(key);
   const envelope = JSON.parse(bytes.toString("utf8")) as {
     v?: number;
+    keyId?: string;
     iv?: string;
     tag?: string;
     data?: string;
   };
-  if (envelope.v !== 1 || !envelope.iv || !envelope.tag || !envelope.data) {
+  if ((envelope.v !== 1 && envelope.v !== 2) || !envelope.iv || !envelope.tag || !envelope.data) {
     throw new Error("critical_event_envelope_invalid");
   }
-  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(envelope.data, "base64")),
-    decipher.final(),
-  ]);
-  return JSON.parse(plaintext.toString("utf8")) as unknown;
+  const candidates: Buffer[] = [];
+  if (envelope.v === 2) {
+    if (envelope.keyId === undefined) throw new Error("critical_event_envelope_key_id_missing");
+    const selected = ring.decryptionKeys.get(envelope.keyId);
+    if (selected === undefined) throw new Error(`critical_event_key_unknown:${envelope.keyId}`);
+    candidates.push(selected);
+  } else {
+    // Legacy envelope: no keyId. Try active then previous keys; GCM authentication makes a wrong
+    // key fail cleanly instead of returning garbage.
+    candidates.push(ring.activeKey, ...ring.decryptionKeys.values());
+  }
+  let lastError: unknown = null;
+  for (const candidate of candidates) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", candidate, Buffer.from(envelope.iv, "base64"));
+      decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+      const plaintext = Buffer.concat([
+        decipher.update(Buffer.from(envelope.data, "base64")),
+        decipher.final(),
+      ]);
+      return JSON.parse(plaintext.toString("utf8")) as unknown;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error("critical_event_decryption_failed", { cause: lastError });
 }
 
 export interface RemoteManifest {
@@ -191,7 +267,7 @@ export interface RemoteManifest {
 
 export async function writeManifest(
   remote: CriticalRemote,
-  key: Buffer,
+  key: CriticalKey,
   events: readonly CriticalEventCore[],
 ): Promise<void> {
   if (events.length === 0) return;
@@ -228,7 +304,7 @@ export interface RemoteVerification {
  */
 export async function verifyRemoteLedger(
   remote: CriticalRemote,
-  key: Buffer,
+  key: CriticalKey,
   options: { readonly allowPrunedBefore?: number } = {},
 ): Promise<RemoteVerification> {
   const keys = await remote.list(EVENT_PREFIX);

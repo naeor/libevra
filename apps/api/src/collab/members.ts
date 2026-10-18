@@ -70,6 +70,7 @@ export async function changeMemberRole(
   bookId: string,
   targetUserId: string,
   role: "editor" | "viewer",
+  options: { readonly requestId?: string | null } = {},
 ): Promise<{ readonly changed: boolean; readonly previousRole: "owner" | "editor" | "viewer" }> {
   const book = await prisma.book.findUnique({ where: { id: bookId }, select: { createdBy: true } });
   if (!book) throw notFound("book_missing", "找不到这本账。");
@@ -102,6 +103,7 @@ export async function changeMemberRole(
       bookId,
       beforeState: { role: membership.role },
       afterState: { role },
+      requestId: options.requestId ?? null,
     });
     return { changed: true, previousRole: membership.role };
   });
@@ -127,6 +129,7 @@ export async function removeMember(
   targetUserId: string,
   actorId: string,
   now: Date = new Date(),
+  requestId?: string | null,
 ): Promise<{ readonly removed: boolean }> {
   const book = await prisma.book.findUnique({ where: { id: bookId }, select: { createdBy: true } });
   if (!book) throw notFound("book_missing", "找不到这本账。");
@@ -161,6 +164,7 @@ export async function removeMember(
       bookId,
       beforeState: { leftAt: null },
       afterState: { leftAt: now.toISOString(), removedBy: actorId },
+      requestId: requestId ?? null,
     });
   });
 

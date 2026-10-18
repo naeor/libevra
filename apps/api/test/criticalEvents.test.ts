@@ -4,7 +4,7 @@ import { Client } from "pg";
 
 import { applySafeRestore } from "../src/critical/apply.js";
 import { hashPassword } from "../src/auth/password.js";
-import { flushPendingCriticalEvents, type CriticalRuntime } from "../src/critical/runtime.js";
+import { flushPendingCriticalEvents, retryDelayMs, type CriticalRuntime } from "../src/critical/runtime.js";
 import {
   verifyRemoteLedger,
   MemoryCriticalRemote,
@@ -71,8 +71,13 @@ describe("S13-I critical event ledger", () => {
     expect(rows.map((row) => row.seq)).toEqual(rows.map((_, index) => index + 1));
     expect(rows.some((row) => row.eventType === "book.deleted")).toBe(true);
     expect(rows.some((row) => row.eventType === "account.created")).toBe(true);
-    expect(rows.every((row) => row.ackedAt !== null)).toBe(true);
 
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
+    expect(
+      (await prisma.criticalEvent.findMany({ orderBy: { seq: "asc" } })).every(
+        (row) => row.ackedAt !== null,
+      ),
+    ).toBe(true);
     const verified = await verifyRemoteLedger(test.remote, test.key);
     expect(verified.lastSeq).toBe(rows.at(-1)!.seq);
     const deletedEvent = rows.find((row) => row.eventType === "book.deleted")!;
@@ -84,7 +89,7 @@ describe("S13-I critical event ledger", () => {
     expect(serialized).not.toContain("transaction.content");
   });
 
-  it("does not report P0 success before remote acknowledgement", async () => {
+  it("returns business success even when the relay/COS is unavailable", async () => {
     const runtime: CriticalRuntime = {
       kind: "inline",
       remote: new FailRemote(),
@@ -104,11 +109,13 @@ describe("S13-I critical event ledger", () => {
         decisions: [{ bookId: owner.bookId, action: "archive" }],
       },
     });
-    expect(closed.statusCode).toBe(503);
-    expect(closed.json()).toMatchObject({ code: "critical_event_unconfirmed" });
+    // The P0 business transaction committed. A broken protection layer must NOT turn this into a
+    // 503; the event stays pending and retries asynchronously.
+    expect(closed.statusCode).toBe(200);
     const user = await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } });
     expect(user.closedAt).not.toBeNull();
     expect(await prisma.criticalEvent.count({ where: { deliveryState: "pending" } })).toBeGreaterThan(0);
+    expect(await prisma.criticalEvent.count({ where: { deliveryState: "acked" } })).toBe(0);
   });
 
   it("detects missing and corrupted remote objects", async () => {
@@ -153,6 +160,7 @@ describe("S13-I critical event ledger", () => {
       },
     });
 
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
     const verified = await verifyRemoteLedger(test.remote, test.key);
     const cores = verified.events.map((entry) => entry.core);
     const first = await applySafeRestore(prisma, cores, new Date(0));
@@ -189,6 +197,7 @@ describe("S13-I critical event ledger", () => {
     });
     await prisma.accountTombstone.deleteMany({ where: { userId: owner.userId } });
 
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
     const verified = await verifyRemoteLedger(test.remote, test.key);
     const report = await applySafeRestore(
       prisma,
@@ -214,6 +223,7 @@ describe("S13-I critical event ledger", () => {
     });
     expect(deleted.statusCode).toBe(200);
 
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
     const verified = await verifyRemoteLedger(test.remote, test.key);
     const report = await applySafeRestore(
       prisma,
@@ -253,6 +263,7 @@ describe("S13-I critical event ledger", () => {
       where: { bookId_userId: { bookId: owner.bookId, userId: guest.userId } },
       data: { role: "editor" },
     });
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
     const verified = await verifyRemoteLedger(test.remote, test.key);
     await applySafeRestore(
       prisma,
@@ -282,6 +293,7 @@ describe("S13-I critical event ledger", () => {
       where: { id: owner.userId },
       data: { passwordHash: await hashPassword(PASSWORD) },
     });
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
     const verified = await verifyRemoteLedger(test.remote, test.key);
     await applySafeRestore(
       prisma,
@@ -311,7 +323,7 @@ describe("S13-I critical event ledger", () => {
     expect(await prisma.criticalEvent.count({ where: { deliveryState: "pending" } })).toBe(0);
   });
 
-  it("offers a public receipt after P0 success and after an unconfirmed operation is relayed", async () => {
+  it("offers a public receipt after P0 success and exposes protection separately", async () => {
     const test = testCriticalRuntime();
     app = appWith(test.runtime);
     const owner = await createAccount(app, "op_receipt");
@@ -330,13 +342,32 @@ describe("S13-I critical event ledger", () => {
     expect(receipt.operationId).toBeTruthy();
     const status = await app.inject({
       method: "GET",
-      url: `${receipt.operationStatusPath}?token=${encodeURIComponent(receipt.operationReceipt)}`,
+      url: receipt.operationStatusPath,
+      headers: { "x-operation-receipt": receipt.operationReceipt },
     });
     expect(status.statusCode).toBe(200);
-    expect(status.json()).toMatchObject({ status: "confirmed", kind: "book.delete" });
+    expect(status.json()).toMatchObject({
+      status: "completed",
+      businessStatus: "completed",
+      kind: "book.delete",
+      protection: { state: "pending" },
+    });
+
+    // Protection catches up later; the business status must not change to something that suggests
+    // the delete failed.
+    await flushPendingCriticalEvents(prisma, test.remote, test.key);
+    const after = await app.inject({
+      method: "GET",
+      url: receipt.operationStatusPath,
+      headers: { "x-operation-receipt": receipt.operationReceipt },
+    });
+    expect(after.json()).toMatchObject({
+      status: "completed",
+      protection: { state: "protected" },
+    });
   });
 
-  it("reports a committed-but-unconfirmed operation and finalizes the receipt after relay", async () => {
+  it("returns account-closure success even when protection is unconfirmed, then finalizes it", async () => {
     const test = testCriticalRuntime();
     const failing: CriticalRuntime = {
       kind: "inline",
@@ -356,24 +387,30 @@ describe("S13-I critical event ledger", () => {
         decisions: [{ bookId: owner.bookId, action: "archive" }],
       },
     });
-    expect(closed.statusCode).toBe(503);
-    const details = (closed.json() as { details: { operationId: string; operationReceipt: string } }).details;
+    expect(closed.statusCode).toBe(200);
+    const receipt = closed.json() as { operationId: string; operationReceipt: string };
     const before = await app.inject({
       method: "GET",
-      url: `/api/v1/operations/${details.operationId}?token=${encodeURIComponent(details.operationReceipt)}`,
+      url: `/api/v1/operations/${receipt.operationId}`,
+      headers: { "x-operation-receipt": receipt.operationReceipt },
     });
     expect(before.statusCode).toBe(200);
-    expect(before.json()).toMatchObject({ status: "committed_unconfirmed" });
+    expect(before.json()).toMatchObject({
+      status: "completed",
+      protection: { state: "pending" },
+    });
 
-    // The relay recovers later; the public receipt must become confirmed without restoring login.
+    // The relay recovers later; the public receipt reports protection delivered without restoring
+    // login permissions.
     const memory = new MemoryCriticalRemote();
     await flushPendingCriticalEvents(prisma, memory, test.key);
     const after = await app.inject({
       method: "GET",
-      url: `/api/v1/operations/${details.operationId}?token=${encodeURIComponent(details.operationReceipt)}`,
+      url: `/api/v1/operations/${receipt.operationId}`,
+      headers: { "x-operation-receipt": receipt.operationReceipt },
     });
     expect(after.statusCode).toBe(200);
-    expect(after.json()).toMatchObject({ status: "confirmed" });
+    expect(after.json()).toMatchObject({ status: "completed", protection: { state: "protected" } });
     expect(await prisma.session.count({ where: { userId: owner.userId, revokedAt: null } })).toBe(0);
   });
 
@@ -403,10 +440,88 @@ describe("S13-I critical event ledger", () => {
     });
     const status = await app.inject({
       method: "GET",
-      url: `/api/v1/operations/${operationId}?token=${encodeURIComponent(key)}`,
+      url: `/api/v1/operations/${operationId}`,
+      headers: { "x-operation-receipt": key },
     });
     expect(status.statusCode).toBe(200);
-    expect(status.json()).toMatchObject({ status: "confirmed", kind: "account.delete_data" });
+    expect(status.json()).toMatchObject({ status: "completed", kind: "account.delete_data" });
+  });
+
+  it("notifies the relay at commit and persists exponential retry backoff", async () => {
+    const listener = new Client({ connectionString: process.env["DATABASE_URL"]! });
+    await listener.connect();
+    let notified: string | null = null;
+    listener.on("notification", (message) => {
+      if (message.channel === "critical_events_new") notified = message.payload ?? null;
+    });
+    await listener.query("LISTEN critical_events_new");
+    try {
+      const appended = await prisma.$transaction((tx) =>
+        recordCriticalEvent(tx, {
+          type: "book.created",
+          subjectType: "system",
+          subjectId: "notify-test",
+          afterState: { test: true },
+        }),
+      );
+      for (let attempt = 0; attempt < 50 && notified === null; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(notified).toBe(`${appended.eventId}:${String(appended.seq)}`);
+
+      await expect(flushPendingCriticalEvents(prisma, new FailRemote(), Buffer.alloc(32, 9))).rejects.toThrow();
+      const failed = await prisma.criticalEvent.findUniqueOrThrow({ where: { eventId: appended.eventId } });
+      expect(failed.deliveryState).toBe("failed");
+      expect(failed.attempts).toBe(1);
+      expect(failed.nextAttemptAt).not.toBeNull();
+      expect(failed.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
+      expect(failed.nextAttemptAt!.getTime() - Date.now()).toBeLessThanOrEqual(retryDelayMs(1) + 1_000);
+
+      // Not due yet: a later event may not jump the queue.
+      const early = await flushPendingCriticalEvents(prisma, new MemoryCriticalRemote(), Buffer.alloc(32, 9));
+      expect(early.uploaded).toBe(0);
+
+      // Simulate the retry timer becoming due; the pending event is uploaded exactly once.
+      await prisma.criticalEvent.update({
+        where: { eventId: appended.eventId },
+        data: { nextAttemptAt: new Date(Date.now() - 1_000) },
+      });
+      const memory = new MemoryCriticalRemote();
+      const recovered = await flushPendingCriticalEvents(prisma, memory, Buffer.alloc(32, 9));
+      expect(recovered.uploaded).toBe(1);
+      expect((await prisma.criticalEvent.findUniqueOrThrow({ where: { eventId: appended.eventId } })).deliveryState).toBe("acked");
+    } finally {
+      await listener.end();
+    }
+  });
+
+  it("expires operation receipts and never requires them in the URL", async () => {
+    const test = testCriticalRuntime();
+    app = appWith(test.runtime);
+    const owner = await createAccount(app, "op_expiry");
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/v1/account/delete-data",
+      headers: { cookie: owner.cookie },
+      payload: { password: PASSWORD, confirmation: "删除服务器数据", all: true },
+    });
+    expect(first.statusCode).toBe(200);
+    const receipt = first.json() as { operationId: string; operationReceipt: string };
+    const missingHeader = await app.inject({
+      method: "GET",
+      url: `/api/v1/operations/${receipt.operationId}?token=${encodeURIComponent(receipt.operationReceipt)}`,
+    });
+    expect(missingHeader.statusCode).toBe(400);
+    await prisma.criticalOperation.update({
+      where: { id: receipt.operationId },
+      data: { receiptExpiresAt: new Date(Date.now() - 1_000) },
+    });
+    const expired = await app.inject({
+      method: "GET",
+      url: `/api/v1/operations/${receipt.operationId}`,
+      headers: { "x-operation-receipt": receipt.operationReceipt },
+    });
+    expect(expired.statusCode).toBe(404);
   });
 
   it("blocks event append while the backup checkpoint lock is held", async () => {

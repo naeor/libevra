@@ -387,8 +387,19 @@ systemctl list-timers libevra-lifecycle.timer --no-pager
 
 ```bash
 ./critical-events-backup.sh "pre-flight"
-# 把 dump 与 sidecar 一起复制到灾备介质；普通 S12-C dump 不能用于安全恢复
+# 或自动调度 + 独立异地保存（COS 需 COS_UPLOAD_* 写身份）：
+CRITICAL_BACKUP_OFFSITE=cos ./critical-events-backup-all.sh
+# 恢复机从异地取回并校验（需只读 COS_RESTORE_*）：
+./critical-events-fetch-backup.sh --latest --out /tmp/recovery
+# 安装 timer（仓库副本；先手动跑一次验收）：
+sudo cp systemd/libevra-critical-backup.service systemd/libevra-critical-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now libevra-critical-backup.timer
 ```
+
+`critical-events-backup-all.sh` 使用独立锁 `.critical-events-backup.lock`；**不要**和 S12-C
+`backup-all.sh` 的 `.backup.lock` 共用。**普通 S12-C dump 不能用于安全恢复**；只有带
+dump+sidecar 的检查点备份可以。
 
 API **不直接访问 COS**。生产启用时另起一个无端口的 relay 服务（同一 API 镜像）：
 

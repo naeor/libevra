@@ -1,0 +1,16 @@
+[Unit]
+Description=Libevra S13-I checkpointed backup + independent offsite copy
+Documentation=file:/srv/libevra/docs/开发过程记录/S13-I-生产接入清单与未来管理接口.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/srv/libevra/deploy
+ExecStart=/srv/libevra/deploy/critical-events-backup-all.sh
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# Do not add an outer flock: the script itself owns .critical-events-backup.lock.

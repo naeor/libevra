@@ -368,8 +368,9 @@ export async function leaveBook(
   bookId: string,
   userId: string,
   now: Date = new Date(),
+  requestId?: string | null,
 ): Promise<{ readonly left: boolean }> {
-  const result = await leaveBookSafely(prisma, bookId, userId, now);
+  const result = await leaveBookSafely(prisma, bookId, userId, now, requestId);
   return { left: result.left };
 }
 

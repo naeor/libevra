@@ -1,0 +1,10 @@
+[Unit]
+Description=Libevra S13-I protection health (does not affect business/S12-C backups)
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/srv/libevra/deploy
+ExecStart=/srv/libevra/deploy/critical-events-health.sh
+TimeoutStartSec=2min
+Nice=10

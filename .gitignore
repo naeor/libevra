@@ -133,6 +133,8 @@ deploy/.backup-notify.env
 deploy/.critical-events-relay.env
 deploy/.critical-events-restore.env
 deploy/critical-backups/
+deploy/.critical-events-backup.lock
+deploy/.critical-events-backup.lock.d/
 critical-events-data/
 critical-events-fetched/
 # 运行期状态文件：不含秘密，但也不该进仓库（每天都变）

@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AdminActor } from "../admin/guard.js";
 import { recordAudit, recordRefusal } from "../admin/audit.js";
 import { createReauthVerifier } from "../admin/reauth.js";
+import { getProtectionStatus } from "../critical/status.js";
 import { confirmP0 } from "../critical/confirm.js";
 import { getCriticalRuntime } from "../critical/runtime.js";
 import type { PrismaClient } from "../db.js";
@@ -159,32 +160,7 @@ export function registerAdminLifecycleRoutes(
     "/api/v1/admin/lifecycle/critical-events/status",
     { preHandler: requireAdmin },
     async () => {
-      const [chain, pending, failed, last] = await Promise.all([
-        prisma.criticalChain.findUnique({ where: { id: "global" } }),
-        prisma.criticalEvent.count({ where: { deliveryState: "pending" } }),
-        prisma.criticalEvent.count({ where: { deliveryState: "failed" } }),
-        prisma.criticalEvent.findFirst({
-          orderBy: { seq: "desc" },
-          select: { seq: true, eventType: true, occurredAt: true, ackedAt: true, lastError: true },
-        }),
-      ]);
-      return {
-        runtime: getCriticalRuntime().kind,
-        lastSeq: chain?.lastSeq ?? 0,
-        lastHash: chain?.lastHash ?? null,
-        pending,
-        failed,
-        lastEvent:
-          last === null
-            ? null
-            : {
-                seq: last.seq,
-                type: last.eventType,
-                occurredAt: last.occurredAt.toISOString(),
-                ackedAt: last.ackedAt?.toISOString() ?? null,
-                lastError: last.lastError,
-              },
-      };
+      return getProtectionStatus(prisma, getCriticalRuntime().kind);
     },
   );
 

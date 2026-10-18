@@ -2,18 +2,27 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { CosCriticalRemote } from "./remote-cos.js";
-import { FileSystemCriticalRemote, parseKey, type CriticalRemote } from "./remote.js";
+import {
+  FileSystemCriticalRemote,
+  parseKeyRing,
+  type CriticalKeyRing,
+  type CriticalRemote,
+} from "./remote.js";
 
 /**
  * The relay is the only process that holds COS **write** credentials. It shares the database with
  * the API but has no public listener. The API's P0 routes wait for this process to set acked_at.
  */
-export function createRelayRemoteFromEnv(): { remote: CriticalRemote; key: Buffer } {
+export function createRelayRemoteFromEnv(): { remote: CriticalRemote; key: CriticalKeyRing } {
   const keyValue = process.env["CRITICAL_EVENT_KEY"];
   if (keyValue === undefined || keyValue === "") {
     throw new Error("CRITICAL_EVENT_KEY is required for the critical-events relay");
   }
-  const key = parseKey(keyValue);
+  const key = parseKeyRing(
+    keyValue,
+    process.env["CRITICAL_EVENT_KEY_ID"],
+    process.env["CRITICAL_EVENT_PREVIOUS_KEYS"],
+  );
   const mode = process.env["CRITICAL_EVENT_REMOTE"] ?? "fs";
 
   if (mode === "cos") {

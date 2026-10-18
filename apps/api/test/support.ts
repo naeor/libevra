@@ -82,6 +82,7 @@ export async function resetDatabase(): Promise<void> {
   await prisma.criticalEvent.deleteMany();
   await prisma.criticalBackupCheckpoint.deleteMany();
   await prisma.criticalOperation.deleteMany();
+  await prisma.criticalRelayStatus.deleteMany();
   await prisma.criticalChain.upsert({
     where: { id: "global" },
     update: { lastSeq: 0, lastHash: null },

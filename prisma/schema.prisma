@@ -1602,8 +1602,11 @@ model CriticalEvent {
   ackedAt DateTime? @map("acked_at") @db.Timestamptz(6)
   attempts Int @default(0)
   lastError String? @map("last_error") @db.VarChar(500)
+  lastAttemptAt DateTime? @map("last_attempt_at") @db.Timestamptz(6)
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz(6)
 
   @@index([deliveryState, seq])
+  @@index([deliveryState, nextAttemptAt, seq])
   @@index([subjectType, subjectId])
   @@index([bookId, seq])
   @@index([occurredAt])
@@ -1618,6 +1621,20 @@ model CriticalChain {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("critical_chain")
+}
+
+/// Last heartbeat and recent failure state of the credential-isolated relay.
+/// This is a separate row so the API can tell admins "the relay is not running" without holding
+/// relay/COS credentials itself.
+model CriticalRelayStatus {
+  id String @id @default("global") @db.VarChar(16)
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  lastUploadAt DateTime? @map("last_upload_at") @db.Timestamptz(6)
+  consecutiveFailures Int @default(0) @map("consecutive_failures")
+  lastError String? @map("last_error") @db.VarChar(500)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("critical_relay_status")
 }
 
 /// 安全恢复重放的幂等记录；不保存事件副本。
@@ -1665,6 +1682,7 @@ model CriticalOperation {
   /// gets the existing operation receipt instead of executing again.
   idempotencyKeyHash String? @unique @map("idempotency_key_hash") @db.VarChar(64)
   tokenHash String @map("token_hash") @db.VarChar(64)
+  receiptExpiresAt DateTime @map("receipt_expires_at") @db.Timestamptz(6)
   detail Json?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
