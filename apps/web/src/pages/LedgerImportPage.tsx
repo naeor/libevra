@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   ledgerImportResultSchema,
+  IMPORT_BATCH_THRESHOLD,
+  type ImportJobStatus,
   type LedgerImportRequest,
   type LedgerImportResult,
 } from "@libellum/shared";
@@ -31,6 +33,7 @@ import {
   summarizeDraftRecovery,
   type DraftRecoverySummary,
 } from "../lib/ledgerImport/recovery.js";
+import { createImportJob, getImportJob, resumeImportJob } from "../lib/ledgerImport/job.js";
 import { buildImportPreview } from "../lib/ledgerImport/preview.js";
 import {
   taxonomyResolutionKey,
@@ -128,6 +131,7 @@ export function LedgerImportPage(): React.JSX.Element {
   const targetIsNew = targetId === "new";
   const currentNewName = search.get("newName") ?? DEFAULT_BOOK_NAME;
   const requestedGroup = parseGroup(search.get("group"));
+  const jobIdParam = search.get("job") ?? "";
 
   const books = useBooks();
   const activateBook = useActivateBook();
@@ -144,6 +148,8 @@ export function LedgerImportPage(): React.JSX.Element {
   const [result, setResult] = useState<LedgerImportResult | null>(null);
   const [pendingTasks, setPendingTasks] = useState<readonly PendingImportTask[]>([]);
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [job, setJob] = useState<ImportJobStatus | null>(null);
+  const [jobBusy, setJobBusy] = useState(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -156,6 +162,60 @@ export function LedgerImportPage(): React.JSX.Element {
   useEffect(() => {
     setPendingTasks(user === null ? [] : loadPendingTasks().filter((task) => task.userId === user.id));
   }, [user]);
+
+  /**
+   * D5 任务轮询。进度和最终结果都来自服务端任务表；刷新页面后靠 URL 里的 job id 重新接上。
+   */
+  useEffect(() => {
+    if (jobIdParam === "") {
+      setJob(null);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const next = await getImportJob(jobIdParam);
+        if (cancelled) return;
+        setJob(next);
+        if (next.status === "completed" && next.result !== null) {
+          setResult(next.result);
+          setSubmitState("success");
+          setSubmitError(null);
+          setStepConfirmFromJob();
+          return;
+        }
+        if (next.status === "paused") {
+          setSubmitState("paused");
+          setSubmitError(next.lastErrorMessage);
+        } else if (next.status === "failed" || next.status === "cancelled") {
+          setSubmitState("error");
+          setSubmitError(next.lastErrorMessage);
+        } else {
+          setSubmitState("submitting");
+        }
+        timer = setTimeout(() => void poll(), 1_000);
+      } catch (caught) {
+        if (cancelled) return;
+        setSubmitError(errorMessage(caught));
+        setSubmitState("error");
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobIdParam]);
+
+  function setStepConfirmFromJob(): void {
+    if (search.get("step") !== "confirm") {
+      const next = new URLSearchParams(search);
+      next.set("step", "confirm");
+      setSearch(next, { replace: true });
+    }
+  }
 
   const soloBooks = useMemo<readonly ImportBookOption[]>(() => {
     return (books.data?.books ?? []).filter((book) => isSoloImportBook(book)).map((book) => ({ ...book }));
@@ -200,6 +260,7 @@ export function LedgerImportPage(): React.JSX.Element {
     setSnapshots(null);
     setFingerprints(null);
     setRecovery(null);
+    setJob(null);
     setLoadError(null);
     setSubmitError(null);
     patchSearch({
@@ -207,6 +268,7 @@ export function LedgerImportPage(): React.JSX.Element {
       source: sourceKey === "" ? undefined : sourceKey,
       step: "select",
       group: undefined,
+      job: undefined,
       newName: next === "new" ? currentNewName : undefined,
     }, true);
   }
@@ -215,6 +277,7 @@ export function LedgerImportPage(): React.JSX.Element {
     setSnapshots(null);
     setFingerprints(null);
     setRecovery(null);
+    setJob(null);
     setLoadError(null);
     setSubmitError(null);
     const nextTarget = next !== "guest" && targetIsNew ? "" : targetId;
@@ -223,6 +286,7 @@ export function LedgerImportPage(): React.JSX.Element {
       source: next === "" ? undefined : next,
       step: "select",
       group: undefined,
+      job: undefined,
       newName: nextTarget === "new" ? currentNewName : undefined,
     }, true);
   }
@@ -565,6 +629,22 @@ export function LedgerImportPage(): React.JSX.Element {
         serverSourceFingerprint: fingerprints?.source,
         serverTargetFingerprint: fingerprints?.target,
       });
+
+      /**
+       * D5：超过初始批次阈值的导入走服务端持久化任务；小导入继续走 D2-D4 的单事务路径。
+       * 任务创建后页面只轮询服务端进度，不依赖保持本页打开。
+       */
+      if (preview.source.transactions.length > IMPORT_BATCH_THRESHOLD) {
+        if (targetIsNew) {
+          throw new Error("大账本分批导入需要先创建目标账本；请先在账本空间新建目标后再导入。");
+        }
+        const created = await createImportJob(request);
+        setJob(created);
+        setSubmitState("submitting");
+        patchSearch({ step: "confirm", job: created.id }, true);
+        return;
+      }
+
       savePendingTask({
         userId: user?.id ?? "",
         request,
@@ -607,6 +687,23 @@ export function LedgerImportPage(): React.JSX.Element {
     setPendingTasks((previous) => previous.filter((item) => item.request.importId !== importId));
   }
 
+  async function resumeJob(): Promise<void> {
+    if (job === null) return;
+    setJobBusy(true);
+    setSubmitError(null);
+    try {
+      const next = await resumeImportJob(job.id);
+      setJob(next);
+      setSubmitState("submitting");
+    } catch (caught) {
+      setSubmitError(errorMessage(caught));
+    } finally {
+      setJobBusy(false);
+    }
+  }
+
+  const jobActive = job !== null && submitState !== "success";
+
   const subtitle =
     step === "select"
       ? "把本机游客账本或另一本正式单人账本导入目标账本。先确认来源和目标。"
@@ -614,7 +711,9 @@ export function LedgerImportPage(): React.JSX.Element {
         ? "确认方向、映射和重复候选。预览和核对都不会修改任何账本。"
         : step === "review"
           ? "逐组决定如何处理可能重复的账目；只有你明确选择移除的 A 记录才会被软删除。"
-          : "确认最终摘要后才会真正写入。来源账本数据会保留。";
+          : jobActive
+            ? "导入任务已在服务器执行；关闭页面不会中断，重新打开可继续查看真实进度。"
+            : "确认最终摘要后才会真正写入。来源账本数据会保留。";
 
   return (
     <InnerPage
@@ -646,6 +745,20 @@ export function LedgerImportPage(): React.JSX.Element {
       {recovery === null || recovery.message === null ? null : (
         <DraftRecoveryNotice summary={recovery} />
       )}
+      {jobActive && job !== null ? (
+        <BatchJobPanel
+          job={job}
+          busy={jobBusy}
+          onResume={() => void resumeJob()}
+          onRefresh={() => {
+            if (jobIdParam !== "") {
+              void getImportJob(jobIdParam)
+                .then((next) => setJob(next))
+                .catch((caught: unknown) => setSubmitError(errorMessage(caught)));
+            }
+          }}
+        />
+      ) : null}
 
       {books.isSuccess && step === "select" ? (
         <SelectionStep
@@ -691,7 +804,7 @@ export function LedgerImportPage(): React.JSX.Element {
 
       {step !== "select" && loading ? <SkeletonRows rows={5} /> : null}
 
-      {step === "preview" && !loading && loadError === null && preview !== null ? (
+      {step === "preview" && !jobActive && !loading && loadError === null && preview !== null ? (
         <PreviewStep
           preview={preview}
           conflictCount={conflictCount}
@@ -703,7 +816,7 @@ export function LedgerImportPage(): React.JSX.Element {
         />
       ) : null}
 
-      {step === "review" && !loading && loadError === null && preview !== null ? (
+      {step === "review" && !jobActive && !loading && loadError === null && preview !== null ? (
         <ReviewStep
           preview={preview}
           groupIndex={groupIndex}
@@ -724,7 +837,7 @@ export function LedgerImportPage(): React.JSX.Element {
         />
       ) : null}
 
-      {step === "confirm" && preview !== null && !loading && loadError === null ? (
+      {step === "confirm" && !jobActive && preview !== null && !loading && loadError === null ? (
         <ConfirmStep
           preview={preview}
           targetIsNew={targetIsNew}
@@ -837,6 +950,79 @@ function StepRail({ step }: { readonly step: Step }): React.JSX.Element {
         );
       })}
     </ol>
+  );
+}
+
+function BatchJobPanel({
+  job,
+  busy,
+  onResume,
+  onRefresh,
+}: {
+  readonly job: ImportJobStatus;
+  readonly busy: boolean;
+  readonly onResume: () => void;
+  readonly onRefresh: () => void;
+}): React.JSX.Element {
+  const labels: Record<ImportJobStatus["status"], string> = {
+    queued: "排队中",
+    running: "正在导入",
+    finalizing: "最终对账中",
+    paused: "已暂停",
+    failed: "需要处理",
+    completed: "已完成",
+    cancelled: "已取消",
+  };
+  const percent = job.sourceCount === 0 ? 100 : Math.min(100, Math.round((job.importedCount / job.sourceCount) * 100));
+  const canResume = job.status === "paused" || job.status === "failed";
+  return (
+    <section data-testid="import-job-progress" className="flex flex-col gap-4">
+      <div className="rounded-card border border-line bg-surface px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-helper text-muted">分批导入任务</p>
+            <p className="mt-1 text-body font-medium text-ink">{labels[job.status]}</p>
+          </div>
+          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
+            {job.nextBatch} / {job.totalBatches} 批
+          </span>
+        </div>
+        <p className="mt-3 text-helper-relaxed text-muted">
+          已完成 {String(job.importedCount)} / 总计 {String(job.sourceCount)} 笔来源记录
+        </p>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-canvas">
+          <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${String(percent)}%` }} />
+        </div>
+        <p className="mt-3 text-helper-relaxed text-muted">
+          进度来自服务器已提交的批次；关闭页面不会中断任务。来源账本数据会保留，最终对账完成前不会显示整体成功。
+        </p>
+        {job.nextBatch > 0 && (job.status === "paused" || job.status === "failed") ? (
+          <p className="mt-2 text-helper-relaxed text-muted">
+            已提交的 {String(job.nextBatch)} 个批次会保留，不会整体回滚；A 记录的最终删除尚未执行。
+          </p>
+        ) : null}
+        {job.lastErrorMessage === null ? null : <Alert>{job.lastErrorMessage}</Alert>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="rounded-field border border-line px-3 py-2 text-button text-muted"
+          >
+            刷新进度
+          </button>
+          {canResume ? (
+            <button
+              type="button"
+              onClick={onResume}
+              disabled={busy}
+              className="rounded-field bg-brand px-3 py-2 text-button text-white disabled:opacity-50"
+            >
+              {busy ? "正在恢复…" : "继续任务"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 

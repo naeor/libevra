@@ -261,6 +261,30 @@ export async function lockFormalImportPair(
   `;
 }
 
+/** D5 游客来源批量任务只锁目标 A；成员/邀请/分享和账目行使用与 D4 相同的短锁。 */
+export async function lockSoloImportTarget(
+  tx: Prisma.TransactionClient,
+  targetBookId: string,
+): Promise<void> {
+  await tx.$executeRawUnsafe(
+    'LOCK TABLE "book_members", "notifications", "book_share_links" IN SHARE ROW EXCLUSIVE MODE',
+  );
+  await tx.$queryRaw`
+    SELECT "id"
+    FROM "books"
+    WHERE "id" = ${targetBookId}::uuid
+    FOR UPDATE
+  `;
+  await tx.$queryRaw`
+    SELECT "id"
+    FROM "transactions"
+    WHERE "book_id" = ${targetBookId}::uuid
+      AND "deleted_at" IS NULL
+    ORDER BY "id"
+    FOR SHARE
+  `;
+}
+
 /** D4 的预览响应；不写任何数据。 */
 export async function loadFormalImportPreview(
   client: ImportDbClient,

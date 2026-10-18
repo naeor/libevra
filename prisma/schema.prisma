@@ -1250,6 +1250,41 @@ model LedgerImport {
   @@index([targetBookId])
   @@map("ledger_imports")
 }
+
+/// S14-D D5：可断点恢复的分批导入任务。
+///
+/// 与 `ledger_imports` 一样，刻意不加外键：任务回执必须在账本/账号生命周期变化后仍能
+/// 回答“哪些批次已经提交”。真正的权限仍由路由按当前 session 校验。
+model LedgerImportJob {
+  id                  String   @id @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  sourceKind          String   @map("source_kind") @db.VarChar(8)
+  sourceBookId        String?  @map("source_book_id") @db.Uuid
+  targetBookId        String   @map("target_book_id") @db.Uuid
+  status              String   @db.VarChar(24)
+  batchSize           Int      @map("batch_size")
+  nextBatch           Int      @default(0) @map("next_batch")
+  totalBatches        Int      @map("total_batches")
+  sourceCount         Int      @map("source_count")
+  importedCount       Int      @default(0) @map("imported_count")
+  skippedCount        Int      @default(0) @map("skipped_count")
+  removedCount        Int      @default(0) @map("removed_count")
+  targetBaselineCount Int      @map("target_baseline_count")
+  targetExpectedCount Int      @map("target_expected_count")
+  sourceFingerprint   String   @map("source_fingerprint") @db.VarChar(64)
+  targetFingerprint   String   @map("target_fingerprint") @db.VarChar(64)
+  payload             Json
+  result              Json?
+  lastErrorCode       String?  @map("last_error_code") @db.VarChar(64)
+  lastErrorMessage    String?  @map("last_error_message") @db.VarChar(500)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt])
+  @@index([status, updatedAt])
+  @@map("ledger_import_jobs")
+}
+
 model ImportLog {
   id     String @id @default(uuid()) @db.Uuid
   bookId String @map("book_id") @db.Uuid

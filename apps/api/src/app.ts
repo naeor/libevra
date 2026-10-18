@@ -35,6 +35,7 @@ import { registerExportRoutes } from "./routes/export.js";
 import { registerHealthRoute, type HealthDeps } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
 import { registerLedgerImportRoutes } from "./routes/ledgerImport.js";
+import { registerLedgerImportJobRoutes } from "./routes/ledgerImportJobs.js";
 import { registerLedgerRoutes } from "./routes/ledger.js";
 import { registerRecognizeRoutes } from "./routes/recognize.js";
 import { registerStatsRoutes } from "./routes/stats.js";
@@ -357,6 +358,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      * checks before writing. No existing S13 permission helper is changed.
      */
     registerLedgerImportRoutes(app, { prisma: options.prisma, requireAuth: requireAuth });
+    registerLedgerImportJobRoutes(app, { prisma: options.prisma, requireAuth: requireAuth });
   }
 
   return app;

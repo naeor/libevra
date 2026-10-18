@@ -22,7 +22,14 @@ const shortText = z.string().trim().min(1).max(40);
 const objectName = z.string().trim().min(1).max(20);
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 
-export const MAX_IMPORT_TRANSACTIONS = 500;
+export const MAX_IMPORT_TRANSACTIONS = 5000;
+/** Initial D5 batch size; UI/server may tune after tests. Not a permanent product limit. */
+export const DEFAULT_IMPORT_BATCH_SIZE = 200;
+export const MAX_IMPORT_BATCH_SIZE = 500;
+/** D5：超过该笔数走服务端分批任务；小导入仍走单事务路径。 */
+export const IMPORT_BATCH_THRESHOLD = 200;
+
+
 
 export const guestImportCategorySchema = z.object({
   id: uuid,
@@ -283,6 +290,54 @@ export const ledgerImportResultSchema = z.object({
   reconciled: z.literal(true),
 });
 export type LedgerImportResult = z.infer<typeof ledgerImportResultSchema>;
+
+export const importJobRequestSchema = ledgerImportRequestSchema.and(
+  z.object({
+    batchSize: z.number().int().min(1).max(MAX_IMPORT_BATCH_SIZE).optional(),
+  }),
+);
+export type ImportJobRequest = z.infer<typeof importJobRequestSchema>;
+
+export const importJobStatusSchema = z.object({
+  id: uuid,
+  status: z.enum([
+    "queued",
+    "running",
+    "paused",
+    "finalizing",
+    "completed",
+    "failed",
+    "cancelled",
+  ]),
+  sourceKind: z.enum(["guest", "book"]),
+  sourceBookId: uuid.nullable(),
+  targetBookId: uuid,
+  batchSize: z.number().int().positive(),
+  nextBatch: z.number().int().nonnegative(),
+  totalBatches: z.number().int().nonnegative(),
+  sourceCount: z.number().int().nonnegative(),
+  importedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  removedCount: z.number().int().nonnegative(),
+  /** 服务端已提交的批次摘要；用于证明进度不是前端动画。 */
+  batches: z
+    .array(
+      z.object({
+        index: z.number().int().nonnegative(),
+        importedCount: z.number().int().nonnegative(),
+      }),
+    )
+    .default([]),
+  targetBaselineCount: z.number().int().nonnegative(),
+  targetExpectedCount: z.number().int().nonnegative(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  lastErrorCode: z.string().nullable(),
+  lastErrorMessage: z.string().nullable(),
+  result: ledgerImportResultSchema.nullable(),
+});
+export type ImportJobStatus = z.infer<typeof importJobStatusSchema>;
+
 
 function sortedById<T extends { id: string }>(items: readonly T[]): T[] {
   return [...items].sort((left, right) => left.id.localeCompare(right.id, "en"));

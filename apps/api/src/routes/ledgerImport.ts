@@ -34,7 +34,7 @@ interface LedgerImportRouteOptions {
   readonly requireAuth: (request: FastifyRequest) => Promise<void>;
 }
 
-interface ResolvedTaxonomy {
+export interface ResolvedTaxonomy {
   readonly categoryIds: ReadonlyMap<string, string>;
   readonly paymentMethodIds: ReadonlyMap<string, string>;
   readonly tagIds: ReadonlyMap<string, string>;
@@ -54,7 +54,7 @@ function normalizeName(value: string): string {
   return value.normalize("NFKC").replace(/\s+/g, " ").trim();
 }
 
-function importRefFor(importId: string): string {
+export function importRefFor(importId: string): string {
   const digest = createHash("sha256").update(importId).digest("hex");
   const now = new Date();
   const date = now.toISOString().slice(0, 10).replaceAll("-", "");
@@ -79,7 +79,7 @@ function resolutionKey(type: TaxonomyResolution["type"], sourceId: string): stri
   return `${type}:${sourceId}`;
 }
 
-function assertSourceIsSelfConsistent(source: GuestImportSource): void {
+export function assertSourceIsSelfConsistent(source: GuestImportSource): void {
   const categoryIds = new Set(source.categories.map((item) => item.id));
   const paymentIds = new Set(source.paymentMethods.map((item) => item.id));
   const tagIds = new Set(source.tags.map((item) => item.id));
@@ -107,7 +107,7 @@ function assertSourceIsSelfConsistent(source: GuestImportSource): void {
   }
 }
 
-function assertTaxonomyCoverage(source: GuestImportSource, resolutions: readonly TaxonomyResolution[]): void {
+export function assertTaxonomyCoverage(source: GuestImportSource, resolutions: readonly TaxonomyResolution[]): void {
   const expected = new Set<string>([
     ...source.categories.map((item) => resolutionKey("category", item.id)),
     ...source.paymentMethods.map((item) => resolutionKey("paymentMethod", item.id)),
@@ -142,7 +142,7 @@ function findResolution(
  * creates the rest. Existing targets must not use `auto` — the browser preview has already shown
  * the user a concrete target object, and silently re-deciding on the server would hide a change.
  */
-async function resolveTaxonomy(
+export async function resolveTaxonomy(
   tx: Client,
   targetBookId: string,
   source: GuestImportSource,
@@ -316,7 +316,7 @@ async function resolveTaxonomy(
   return { categoryIds, paymentMethodIds, tagIds, created, reused };
 }
 
-function buildTotals(rows: readonly { kind: "expense" | "income"; amountCents: number; currency: string }[]): LedgerImportResult["totals"] {
+export function buildTotals(rows: readonly { kind: "expense" | "income"; amountCents: number; currency: string }[]): LedgerImportResult["totals"] {
   const map = new Map<string, { expenseCents: number; incomeCents: number; count: number }>();
   for (const row of rows) {
     const current = map.get(row.currency) ?? { expenseCents: 0, incomeCents: 0, count: 0 };
@@ -637,13 +637,13 @@ async function executeImport(
   }
 }
 
-interface ImportDecisionPlan {
+export interface ImportDecisionPlan {
   readonly skippedSourceIds: ReadonlySet<string>;
   readonly removedTargetIds: ReadonlySet<string>;
   readonly groupOfTarget: ReadonlyMap<string, string>;
 }
 
-function buildDecisionPlan(
+export function buildDecisionPlan(
   body: ReturnType<typeof ledgerImportRequestSchema.parse>,
   source: GuestImportSource,
   target: ImportTargetSnapshot | null,
