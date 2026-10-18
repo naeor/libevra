@@ -125,9 +125,17 @@ for i in $(seq 1 30); do
 done
 
 # ⚠️ 顺带确认 80/443 也在应答：API 健康但 Caddy 起不来，对用户而言仍然是全站不可用。
+#
+# ⚠️ **不能直接请求 `http://127.0.0.1/healthz`**：Caddy 会把 HTTP 308 重定向到 HTTPS，
+# 而 `https://127.0.0.1` 的 SNI 是 IP，证书是给真实域名的，TLS 握手会失败。生产实测
+# 旧检查一直返回 1，健康检查因此会把一次正常发布误判为失败。这里在容器内把真实域名
+# `--resolve` 到本机回环、用 `-k` 只接受容器内 Caddy 的证书；不经过公网 DNS，也不放宽
+# 任何对外 TLS 校验。
 WEB_OK=0
 for i in $(seq 1 15); do
-  if "${COMPOSE[@]}" exec -T web wget -q --spider http://127.0.0.1/healthz >/dev/null 2>&1; then
+  if "${COMPOSE[@]}" exec -T web sh -c \
+      'code="$(curl -ksS -o /dev/null -w "%{http_code}" --resolve "$LIBEVRA_DOMAIN:443:127.0.0.1" "https://$LIBEVRA_DOMAIN/healthz")"; [ "$code" = "200" ]' \
+      >/dev/null 2>&1; then
     WEB_OK=1
     break
   fi

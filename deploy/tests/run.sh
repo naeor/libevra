@@ -324,6 +324,23 @@ fi
 
 # ---------------------------------------------------------------------------
 echo
+echo "=== 9. deploy.sh 的 Web 健康检查必须走真实域名的 HTTPS ==="
+# ⚠️ 生产 Caddy 对 HTTP 返回 308 → HTTPS；请求 https://127.0.0.1 会因 SNI=IP 证书不匹配而 TLS 失败。
+#   旧检查 `wget http://127.0.0.1/healthz` 在生产恒定失败，会把成功发布误判为回滚。
+DEPLOY_SH="$DEPLOY/deploy.sh"
+if grep -qE '^[[:space:]]*[^#].*http://127\.0\.0\.1/healthz' "$DEPLOY_SH"; then
+  bad "deploy.sh 仍用 http://127.0.0.1/healthz 做 Web 健康检查"
+else
+  ok "deploy.sh 不再请求 http://127.0.0.1/healthz"
+fi
+if grep -q -- '--resolve' "$DEPLOY_SH" && grep -q 'https://\$LIBEVRA_DOMAIN/healthz' "$DEPLOY_SH"; then
+  ok "deploy.sh 用真实域名 + --resolve 检查 HTTPS 健康端点"
+else
+  bad "deploy.sh 的 Web 健康检查没有使用真实域名 HTTPS"
+fi
+
+# ---------------------------------------------------------------------------
+echo
 echo "================================"
 echo "  通过 $PASS 项，失败 $FAIL 项"
 echo "================================"
