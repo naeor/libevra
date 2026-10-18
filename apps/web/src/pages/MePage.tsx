@@ -152,12 +152,17 @@ export function MePage(): React.JSX.Element {
            * through them, `RequireAuth` bounces each one to `/login`, and the user is thrown
            * forward again. **The history is the bug, not any single screen.**
            *
-           * `navigate("/login", { replace: true })` moves the current entry rather than pushing
-           * a new one, so signing out leaves one entry behind instead of a trail — and there is
-           * nothing to bounce between because there is nothing behind to reach.
+           * `replace` moves the current entry rather than pushing a new one, so signing out leaves
+           * one entry behind instead of a trail — and there is nothing to bounce between.
+           *
+           * ⚠️ **S14-B: the destination is `/`, not `/login`.** With a persistent guest identity
+           * on this browser, "signed out" means "no formal session, but a guest may still be here";
+           * the startup routing decides between the guest workspace and the account entry. Sending
+           * `/login` would race with the now-stale user state and bounce through the guest
+           * redirect anyway — and without a guest it still lands on `/login`.
            */
           void logout().then(() => {
-            void navigate("/login", { replace: true });
+            void navigate("/", { replace: true });
           });
         }}
       />

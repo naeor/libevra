@@ -225,6 +225,25 @@
     }
   }
 
+  /*
+    ⚠️ **The guest welcome (S14-B) — once per identity, never again.**
+
+    The owner allowed one light brand transition on the first guest visit. It is an opaque brand
+    screen that fades away over the already-rendered workspace, so it never gates content and never
+    needs a timer to reveal it. The identity flag (`welcomePending`) decides whether it renders at
+    all; a reload, a reopened browser or returning from a formal account shows nothing.
+  */
+  @keyframes libellum-guest-welcome {
+    0%,
+    55% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+
   /* ---- Shape ---------------------------------------------------------- */
   --radius-card: 1.25rem;
   --radius-field: 0.875rem;
@@ -415,6 +434,20 @@
 }
 
 /*
+  ⚠️ **The one-time guest welcome (S14-B).** Fixed and opaque so the workspace never flashes
+  through it; it fades out after a short hold. `pointer-events: none` means it cannot block the page
+  even while visible, and under reduced motion it is not rendered at all (see the media query).
+*/
+.guest-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background-color: var(--color-brand);
+  animation: libellum-guest-welcome 1400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+/*
   ⚠️ **Honouring `prefers-reduced-motion` is not a nicety here.** A short vertical movement is the
   kind of motion that triggers nausea for some people, and the system setting exists precisely so they
   can say so once. **The elements still appear — they just appear.**
@@ -428,6 +461,11 @@
   .auth-enter,
   .auth-enter-delayed {
     animation: none;
+  }
+
+  /* ⚠️ The guest welcome's fade — reduced motion removes the transition entirely (S14-B). */
+  .guest-welcome {
+    display: none;
   }
 
   /* ⚠️ The bottom sheet is the other short vertical movement in the app — same rule, same reason. */

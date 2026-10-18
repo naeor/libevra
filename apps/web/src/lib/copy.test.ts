@@ -188,10 +188,37 @@ describe("account entry copy (S14-A)", () => {
   it("keeps the guest entry on the account screens and out of the guest destination", () => {
     // The entry itself is a shared component; its label lives in one place.
     expect(guestEntry).toContain("以游客身份继续");
-    expect(guestEntry).toContain('to="/guest"');
+    // S14-B: the destination is computed from the persistent identity (resume last guest page).
+    expect(guestEntry).toContain("guestEntryPath");
+    expect(guestEntry).toContain("createGuestIdentity");
 
     // Login no longer hard-codes "invite registration" as the only way to create an account —
     // with S14-A the register page decides that from the server's mode.
     expect(login).not.toContain("使用邀请码注册");
+  });
+});
+
+describe("guest workspace copy (S14-B)", () => {
+  const workspace = visibleText("../pages/GuestWorkspacePage.tsx");
+
+  it("states the identity and the local-only storage rule in the owner's words", () => {
+    expect(workspace).toContain("游客模式");
+    expect(workspace).toContain("游客数据仅保存在当前设备。清除浏览器数据或更换设备后，可能无法找回。");
+    expect(workspace).toContain("本机游客身份"); // sanity: the id line is labelled
+  });
+
+  it("does not pretend bookkeeping already works or exists", () => {
+    expect(workspace).toContain("这里还没有任何账目");
+    expect(workspace).toContain("不会显示假数据");
+    expect(workspace).toContain("记一笔（即将开放）");
+
+    for (const fake of ["示例账目", "样例数据", "已记录"]) {
+      expect(workspace, `guest workspace shows 「${fake}」`).not.toContain(fake);
+    }
+  });
+
+  it("promises that guest and formal-account data stay separate", () => {
+    expect(workspace).toContain("不会上传、覆盖或删除游客数据");
+    expect(workspace).toContain("不影响同一浏览器中的正式账号数据");
   });
 });

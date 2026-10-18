@@ -1,3 +1,4 @@
+import { BrandMark } from "./BrandMark.js";
 import { Card } from "./Card.js";
 import { GuestEntry } from "./GuestEntry.js";
 
@@ -43,7 +44,7 @@ export function AuthLayout({
             aria-hidden="true"
             className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-brand text-white shadow-card"
           >
-            <BrandMark />
+            <BrandMark className="size-7" />
           </span>
           <p className="text-2xl font-semibold tracking-tight text-ink">Libevra</p>
           <p className="mt-1.5 text-helper text-muted">the free, open ledger</p>
@@ -72,31 +73,5 @@ export function AuthLayout({
         {guestEntry ? <GuestEntry /> : null}
       </div>
     </main>
-  );
-}
-
-/**
- * A small stroke mark: a ledger page with a wave along its lower edge.
- *
- * ⚠️ **Stroke, not fill** — the same rule the gear icon learned at 16px (1.10.09): filled shapes
- * blur into blobs when small, thin lines stay legible. It is decorative (`aria-hidden` on the
- * wrapper); the product name is right below it, so the mark does not need its own label.
- */
-function BrandMark(): React.JSX.Element {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-7"
-    >
-      <path d="M5 5.5h9.5A3.5 3.5 0 0 1 18 9v9.5H8.5A3.5 3.5 0 0 1 5 15V5.5Z" />
-      <path d="M5 15a3.5 3.5 0 0 1 3.5-3.5H18" />
-      <path d="M9 8.5h5" />
-    </svg>
   );
 }

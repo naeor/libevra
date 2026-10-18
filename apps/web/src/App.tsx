@@ -9,6 +9,7 @@ import { AppShell } from "./components/Layouts.js";
 import { ConsentGate } from "./components/ConsentGate.js";
 import { OfflineFillProvider } from "./components/OfflineFillProvider.js";
 import { UndoProvider } from "./components/UndoProvider.js";
+import { guestOrLoginPath, readGuestIdentity } from "./lib/guest/identity.js";
 import { CACHE_MAX_AGE_MS, cachePersister, shouldPersistQuery } from "./lib/offline/cache.js";
 import { primeDeviceId } from "./lib/api.js";
 import { deviceId } from "./lib/offline/device.js";
@@ -47,7 +48,7 @@ import { MePage } from "./pages/MePage.js";
 import { LedgerInvitePage } from "./pages/LedgerInvitePage.js";
 import { MessageBoardPage } from "./pages/MessageBoardPage.js";
 import { JoinPage } from "./pages/JoinPage.js";
-import { GuestPlaceholderPage } from "./pages/GuestPlaceholderPage.js";
+import { GuestWorkspacePage } from "./pages/GuestWorkspacePage.js";
 import { LedgerHistoryPage } from "./pages/LedgerHistoryPage.js";
 import { LedgerMembersPage } from "./pages/LedgerSubPages.js";
 import { LedgerPage } from "./pages/LedgerPage.js";
@@ -126,7 +127,15 @@ function RequireAuth({ children }: { readonly children: React.ReactNode }): Reac
   const { user, status } = useAuth();
 
   if (status === "loading") return <Splash />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    /**
+     * ⚠️ **S14-B: a returning guest goes back to the guest workspace, not to the login screen.**
+     * The identity is a synchronous `localStorage` read, so this decision adds no frame in which
+     * the wrong page could appear. `guestOrLoginPath` returns `/login` when there is no identity,
+     * which keeps the pre-S14-B behaviour for a brand-new visitor.
+     */
+    return <Navigate to={guestOrLoginPath(readGuestIdentity())} replace />;
+  }
 
   return <>{children}</>;
 }
@@ -152,7 +161,7 @@ function RequireAuthKeepingPath({ children }: { readonly children: React.ReactNo
 }
 
 function AppRoutes(): React.JSX.Element {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
 
   /**
    * ⚠️ **The queue needs something to drain it, and until now nothing did.**
@@ -175,7 +184,22 @@ function AppRoutes(): React.JSX.Element {
     void deviceId().then(primeDeviceId);
   }, []);
 
-  useEffect(() => startSyncTriggers(), []);
+  /**
+   * ⚠️ **S14-B: sync belongs to a formal account, so its triggers start only while one is signed in.**
+   *
+   * The guest workspace never writes to the account store or the sync queue, and a guest has no
+   * session for the server to accept — starting the drain for a guest would at best make requests
+   * with no identity and at worst read a scope left over from a previous account. Tying the
+   * triggers to `user` makes "guest traffic never reaches the business API" structural instead of
+   * something every guest screen has to remember.
+   *
+   * The offline-first rule is untouched: a remembered user (including one restored without a
+   * network) is still `user`, so the queue drains exactly as before.
+   */
+  useEffect(() => {
+    if (status !== "ready" || user === null) return;
+    return startSyncTriggers();
+  }, [status, user]);
 
   // Wait for the first /auth/me before deciding where to send the visitor,
   // otherwise a signed-in user would flash the login screen on every reload.
@@ -185,8 +209,8 @@ function AppRoutes(): React.JSX.Element {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      {/* ⚠️ S14-A: a real destination for the guest entry. S14-B replaces its body with the guest workspace. */}
-      <Route path="/guest" element={<GuestPlaceholderPage />} />
+      {/* ⚠️ S14-B: the real guest workspace. It owns a persistent local identity and an empty local ledger. */}
+      <Route path="/guest" element={<GuestWorkspacePage />} />
       <Route path="/recover" element={<RecoverPage />} />
       <Route path="/recover-archive" element={<ArchiveRecoveryPage />} />
 

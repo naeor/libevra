@@ -242,6 +242,8 @@
 | object store **`"kv"`** | 同上 `:39` | 与品牌无关，不动 |
 | `localStorage` 键 **`libellum-presentation-seen`** | `lib/spaceTransition.ts:58` | 改了 = **每个老账号重新经历一次海浪首展**（与"后续默认收缩"的既有行为相反） |
 | `localStorage` 键 **`libellum-messages-seen:`** | `components/MessageBoard.tsx:76` | 改了 = 留言板的"新消息 N 条"未读状态清零 |
+| `localStorage` 键 **`libellum-guest-identity`**（S14-B 新增） | `lib/guest/identity.ts` | 改了 = **这台设备上的游客身份读不到**：游客工作台会当成新游客并新建身份，**原有游客账本被孤立**（数据仍在 `libellum-guest`，但新身份不会读取它）。该键是**新键**，有意沿用历史品牌前缀，避免品牌改名被误当成技术改名 |
+| IndexedDB 数据库名 **`"libellum-guest"`**（S14-B 新增） | `lib/guest/storage.ts` | 改了 = **游客本地账本读不到**；且它是与正式账号 `libellum` **刻意分开**的库，换名/合并都必须伴随游客数据迁移 |
 | `localStorage` 键 `current-book` / `device-id` / IndexedDB 键 `ledger-months` `ledger-marks` `query-cache` `offline-log` `offline-scope` `auth-user` | `lib/currentBook.ts`、`lib/offline/*` | **本来就不带品牌**，无需改动 |
 
 ### 5.2 协议与会话（**改了会打断前后端或把人登出**）

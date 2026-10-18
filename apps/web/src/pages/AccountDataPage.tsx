@@ -225,7 +225,12 @@ export function AccountDataPage(): React.JSX.Element {
 
   async function finishClose(): Promise<void> {
     await logout();
-    void navigate("/login", { replace: true });
+    /**
+     * ⚠️ **S14-B: `/` rather than `/login`, for the same reason as the ordinary sign-out.**
+     * A closed formal account does not erase the browser's guest identity; startup routing should
+     * decide between the guest workspace and the account entry instead of forcing the login screen.
+     */
+    void navigate("/", { replace: true });
   }
 
   function finishDelete(): void {
