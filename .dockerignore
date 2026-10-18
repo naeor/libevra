@@ -1,0 +1,48 @@
+# Docker build context is the repository root (`deploy/docker-compose.prod.yml` uses `context: ..`).
+#
+# ⚠️ **Purpose: never send production secrets or local runtime data to the Docker daemon.**
+# Docker only COPYs selected paths in the Dockerfiles, but the *context* is sent first — a
+# secret that is merely present in the context has already left the repo directory. These
+# patterns keep `.env`, backup keys/passphrases, database dumps, GPG files and local build
+# output out of the build context entirely.
+#
+# ⚠️ **Do not exclude anything a Dockerfile COPYs.**
+# `Dockerfile.api` needs package manifests, apps/api, apps/web/package.json, packages/shared,
+# prisma.config.ts, prisma/, tsconfig.base.json and the npmrc/workspace files.
+# `Dockerfile.web` needs package manifests, apps/web, apps/api/package.json,
+# packages/shared, prisma? (no), tsconfig.base.json and the build sources.
+# `deploy/` itself stays visible because the compose file points at its Dockerfiles.
+
+# Secrets and runtime configuration
+.env
+.env.*
+deploy/.env
+deploy/.env.*
+deploy/.backup.env
+deploy/.backup-heartbeat.env
+deploy/.backup-mail.env
+deploy/.backup.key
+deploy/.backup.lock
+deploy/.last-deployed
+_backups/
+
+# Local backup/runtime data
+deploy/backups/
+**/*.dump
+**/*.dump.gpg
+**/*.gpg
+**/*.tar
+**/*.tar.gz
+**/*.zip
+
+# Local dependencies and build output
+**/node_modules/
+**/dist/
+**/.vite/
+**/.certs/
+
+# VCS / docs / tooling not needed by a production image
+.git/
+.github/
+docs/
+tools/

@@ -341,6 +341,37 @@ fi
 
 # ---------------------------------------------------------------------------
 echo
+echo "=== 10. Docker build context 不得包含生产秘密/备份/本地数据 ==="
+# Docker build context 是仓库根目录（compose 中 context: ..）。.env / .backup* / backups
+# 即使不被 COPY 进镜像，也会先被发送给 Docker daemon；必须靠 .dockerignore 排除。
+DOCKERIGNORE="$ROOT/.dockerignore"
+if [ -f "$DOCKERIGNORE" ]; then
+  ok "仓库根目录存在 .dockerignore"
+else
+  bad "仓库根目录缺少 .dockerignore"
+fi
+for pattern in '.env' 'deploy/.backup.env' 'deploy/backups/' '.git/' '**/node_modules/'; do
+  if grep -qxF "$pattern" "$DOCKERIGNORE" 2>/dev/null; then
+    ok ".dockerignore 排除了 $pattern"
+  else
+    bad ".dockerignore 没有排除 $pattern"
+  fi
+done
+for required in 'apps/' 'packages/' 'prisma/' 'package.json' 'pnpm-lock.yaml' 'tsconfig.base.json'; do
+  if grep -qxF "$required" "$DOCKERIGNORE" 2>/dev/null; then
+    bad ".dockerignore 错误排除了 Dockerfile 需要的 $required"
+  else
+    ok ".dockerignore 保留了 Dockerfile 需要的 $required"
+  fi
+done
+if grep -q 'context: \.\.' "$DEPLOY/docker-compose.prod.yml"; then
+  ok "compose 确认 build context 是仓库根目录"
+else
+  bad "compose 的 build context 不是预期的仓库根目录"
+fi
+
+# ---------------------------------------------------------------------------
+echo
 echo "================================"
 echo "  通过 $PASS 项，失败 $FAIL 项"
 echo "================================"
