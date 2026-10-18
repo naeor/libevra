@@ -11,7 +11,6 @@ import { useLocation, useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { EntrySaved } from "../components/EntrySaved.js";
-import { GuestModeBadge } from "../components/GuestModeBadge.js";
 import { InfoIcon } from "../components/InfoHint.js";
 import { TabPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
@@ -315,25 +314,29 @@ export function AddEntryPage(): React.JSX.Element {
         }}
       >
         <header className="flex flex-col gap-4 bg-brand px-6 pt-8 pb-6 text-white">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-1 gap-2">
-              {(["expense", "income"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    setKind(option);
-                    setCategoryId(null);
-                  }}
-                  className={`flex-1 rounded-field py-2 text-sm font-medium transition ${
-                    kind === option ? "bg-white text-brand-dark" : "bg-white/15 text-white/90"
-                  }`}
-                >
-                  {option === "expense" ? "支出" : "收入"}
-                </button>
-              ))}
-            </div>
-            <GuestModeBadge />
+          {/**
+            * ⚠️ **The guest identity is deliberately not shown on this screen** (S14-C UI fix,
+            * 1.14.05). It shared this row with the 支出/收入 switch and broke its balance; the owner
+            * asked for it removed here rather than moved, and for the two buttons to keep their
+            * original full-width proportions. It remains in the header of 明细 / 分析 / 账本空间 /
+            * 我的.
+            */}
+          <div className="flex gap-2">
+            {(["expense", "income"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  setKind(option);
+                  setCategoryId(null);
+                }}
+                className={`flex-1 rounded-field py-2 text-sm font-medium transition ${
+                  kind === option ? "bg-white text-brand-dark" : "bg-white/15 text-white/90"
+                }`}
+              >
+                {option === "expense" ? "支出" : "收入"}
+              </button>
+            ))}
           </div>
         </header>
 

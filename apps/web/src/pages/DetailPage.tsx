@@ -455,7 +455,21 @@ export function DetailPage(): React.JSX.Element {
                 >
                   Libevra
                 </button>
-                <GuestModeBadge />
+                {/**
+                  * ⚠️ **The guest badge leaves on the same clock as the wordmark** (S14-C UI fix,
+                  * 1.14.05). It used to stay in the header row while the title faded and the month
+                  * rose into that space, so at the end of the collapse it sat on top of the month.
+                  *
+                  * The wrapper fades with `--p-title` — the existing progress variable, already
+                  * written by the transition loop — rather than a new timer or a React state update
+                  * per frame. `pointer-events: none` keeps an invisible badge from intercepting a
+                  * tap, and `aria-hidden` is set once the screen has settled into the list, where it
+                  * is fully transparent. It is never unmounted, so re-expanding fades it back in
+                  * instead of popping.
+                  */}
+                <span className="detail-guest-badge" aria-hidden={atList ? true : undefined}>
+                  <GuestModeBadge />
+                </span>
               </div>
 
               <div className="detail-tools flex gap-2">

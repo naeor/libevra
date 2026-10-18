@@ -132,6 +132,31 @@
 }
 
 /*
+ * The guest badge rides the same progress as the wordmark (S14-C UI fix, 1.14.05).
+ *
+ * ⚠️ **Not a second animation.** `--p-title` is derived from `--p`, which the one existing
+ * transition loop writes every frame; this rule only reads it. The badge is fully visible at
+ * the display state, fades exactly over the stretch in which the title leaves (0 → 0.35 of
+ * `--p`), and is fully transparent before the month rises into that row — which is what stops
+ * the overlap the owner saw. Re-expanding plays it backwards along the same clock.
+ *
+ * ⚠️ **A faded badge is not a tappable area**: `pointer-events: none` is unconditional, and the
+ * page sets `aria-hidden` once the list state has settled. The element is never unmounted, so
+ * nothing pops back in.
+ */
+.detail-guest-badge {
+  opacity: calc(1 - var(--p-title));
+  pointer-events: none;
+  user-select: none;
+  will-change: opacity;
+}
+
+/* A formal account renders no badge; the empty wrapper must not leave a flex gap. */
+.detail-guest-badge:empty {
+  display: none;
+}
+
+/*
  * C. The month.
  *
  * In the display state it sits on its own line under the wordmark; in the list

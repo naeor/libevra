@@ -436,14 +436,14 @@ function AccountButton({ enabled }: { readonly enabled: boolean }): React.JSX.El
       className="space-account"
     >
       {/**
-        * ⚠️ **A portrait silhouette, in the muted grey, not the six-petal flower.** The owner asked
-        * for the conventional account placeholder — *"一个灰色的默认头像半身像"* — and `DefaultAvatar`
-        * (the project's own flower) stays where a person's own picture would go. See `AvatarIcon`.
+        * ⚠️ **White, in both identities** (S14-C UI fix, 1.14.05). The owner reported that the
+        * muted grey sat too close to the deep-green band to be recognisable; white is the same
+        * colour the wordmark and the note beneath it already use. **Only this icon changes** — the
+        * other account avatars (`DefaultAvatar` on 我的/成员) keep their existing colours.
         *
-        * ⚠️ **No ring.** A white ring on the green band made a bright dot of the corner; the portrait's
-        * own tinted disc is enough to lift it off the water.
+        * Still no ring: the portrait's own tinted disc lifts it off the water.
         */}
-      <AvatarIcon className="size-[26px] text-muted" />
+      <AvatarIcon className="size-[26px] text-white" />
     </a>
   );
 }
