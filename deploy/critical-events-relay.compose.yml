@@ -22,3 +22,6 @@ services:
     # No ports: this process must not be reachable from the network.
     security_opt:
       - no-new-privileges:true
+    # Must join the same internal network as `db`; otherwise "db" is not resolvable and the
+    # relay crash-loops with EAI_AGAIN before it can write its heartbeat.
+    networks: [internal]
