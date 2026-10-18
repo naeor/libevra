@@ -1,0 +1,18 @@
+/*
+ * Consent dialogs: one fixed-height shell for agreements, major announcements and the
+ * "not now" account/data screen.
+ *
+ * `dvh` tracks the iOS Safari address bar. The default is 70% of the viewport; below 640px of
+ * viewport height the dialog may use almost the whole viewport so the header is never squeezed
+ * and the fixed footer stays operable. The footer carries the safe-area inset.
+ */
+.consent-dialog {
+  height: 70dvh;
+  max-height: calc(100dvh - 1.5rem - env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-height: 640px) {
+  .consent-dialog {
+    height: calc(100dvh - 1.5rem - env(safe-area-inset-bottom, 0px));
+  }
+}

@@ -152,118 +152,172 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
   return (
     <>
       {children}
-      <div className="fixed inset-0 z-[80] flex items-end justify-center bg-overlay-soft p-3 backdrop-in sm:items-center">
-        <section
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="consent-dialog-title"
-          className="max-h-[calc(100dvh-24px)] w-full max-w-md overflow-y-auto rounded-t-sheet border border-line bg-surface p-5 shadow-sheet sm:rounded-card"
-        >
-          {mode === "data-help" ? (
-            <AccountDataHelp
-              busy={busy}
-              notice={notice}
-              error={error}
-              onBack={() => {
+
+      {mode === "data-help" ? (
+        <ConsentDialog
+          title="如果你暂时不同意"
+          eyebrow="账户与数据处理"
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => void onLogout()} disabled={busy}>
+                退出登录
+              </Button>
+              <Button variant="secondary" onClick={() => {
                 setMode("agreement");
                 setNotice(null);
                 setError(null);
-              }}
-              onExport={() => void onExport()}
-              onLogout={() => void onLogout()}
-            />
-          ) : showAgreement ? (
-            <>
-              <p className="text-helper text-muted">
-                {currentDocument.version ? `文件版本 ${currentDocument.version}` : null}
-              </p>
-              <h2 id="consent-dialog-title" className="mt-1 text-page-title text-ink">
-                {currentDocument.title}
-              </h2>
-              <p className="mt-3 text-body-relaxed text-ink">{currentDocument.summary}</p>
-
-              <a
-                href={`/legal/${currentDocument.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-block text-body font-medium text-brand hover:underline"
-              >
-                查看完整文件
-              </a>
-
-              {error === null ? null : (
-                <p role="alert" className="mt-3 rounded-field bg-danger-soft px-3 py-2 text-helper-relaxed text-danger">
-                  {error}
-                </p>
-              )}
-
-              <label className="mt-5 flex items-start gap-3 rounded-field border border-line p-3 text-body text-ink">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(event) => {
-                    setChecked(event.target.checked);
-                  }}
-                  className="mt-1 size-4 shrink-0"
-                />
-                <span>我已阅读并同意这份文件。</span>
-              </label>
-
-              <div className="mt-4 flex flex-col gap-2">
-                <Button onClick={() => void onAccept()} disabled={!checked || busy}>
-                  {busy ? "处理中…" : "同意并继续"}
-                </Button>
-                <Button variant="secondary" onClick={() => setMode("data-help")} disabled={busy}>
-                  暂不同意
-                </Button>
-              </div>
+              }} disabled={busy}>
+                返回协议确认
+              </Button>
             </>
-          ) : (
-            <MajorAnnouncementCard
-              announcement={pendingMajor!}
-              busy={busy}
-              error={error}
-              onAck={(action) => void onAckMajor(action)}
-            />
+          }
+        >
+          <AccountDataHelp
+            busy={busy}
+            notice={notice}
+            error={error}
+            onExport={() => void onExport()}
+          />
+        </ConsentDialog>
+      ) : showAgreement ? (
+        <ConsentDialog
+          title={currentDocument.title}
+          eyebrow={currentDocument.version ? `文件版本 ${currentDocument.version}` : undefined}
+          footer={
+            <>
+              <Button onClick={() => void onAccept()} disabled={!checked || busy}>
+                {busy ? "处理中…" : "同意并继续"}
+              </Button>
+              <Button variant="secondary" onClick={() => setMode("data-help")} disabled={busy}>
+                暂不同意
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body-relaxed text-ink">{currentDocument.summary}</p>
+
+          <a
+            href={`/legal/${currentDocument.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-block text-body font-medium text-brand hover:underline"
+          >
+            查看完整文件
+          </a>
+
+          {error === null ? null : (
+            <p role="alert" className="mt-3 rounded-field bg-danger-soft px-3 py-2 text-helper-relaxed text-danger">
+              {error}
+            </p>
           )}
-        </section>
-      </div>
+
+          <label className="mt-5 flex items-start gap-3 rounded-field border border-line p-3 text-body text-ink">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(event) => {
+                setChecked(event.target.checked);
+              }}
+              className="mt-1 size-4 shrink-0"
+            />
+            <span>我已阅读并同意这份文件。</span>
+          </label>
+        </ConsentDialog>
+      ) : (
+        <ConsentDialog
+          title={pendingMajor!.title}
+          eyebrow={`重要更新 · ${pendingMajor!.version}`}
+          closeAction={
+            <button
+              type="button"
+              aria-label="关闭重要更新"
+              disabled={busy}
+              onClick={() => void onAckMajor("dismissed")}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft"
+            >
+              ×
+            </button>
+          }
+          footer={
+            <>
+              <Button onClick={() => void onAckMajor("acknowledged")} disabled={busy}>
+                {busy ? "处理中…" : "知道了"}
+              </Button>
+              <Button variant="secondary" onClick={() => void onAckMajor("opened_details")} disabled={busy}>
+                查看详情
+              </Button>
+            </>
+          }
+        >
+          <MajorAnnouncementBody announcement={pendingMajor!} error={error} />
+        </ConsentDialog>
+      )}
     </>
   );
 }
 
-function MajorAnnouncementCard({
+/**
+ * One shared shell for all three dialogs.
+ *
+ * The header and footer are outside the scroll container, so the actions never move off-screen
+ * when the body gets long. Height comes from one CSS class rather than three per-dialog heights;
+ * `dvh` follows the iOS address bar and the media query gives very short viewports more room.
+ */
+function ConsentDialog({
+  title,
+  eyebrow,
+  closeAction,
+  footer,
+  children,
+}: {
+  readonly title: string;
+  readonly eyebrow?: string | undefined;
+  readonly closeAction?: React.ReactNode;
+  readonly footer: React.ReactNode;
+  readonly children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-overlay-soft p-3 backdrop-in sm:items-center">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="consent-dialog-title"
+        className="consent-dialog flex w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface shadow-sheet sheet-in"
+      >
+        <header className="shrink-0 border-b border-line px-5 pb-3 pt-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {eyebrow === undefined ? null : <p className="text-helper text-muted">{eyebrow}</p>}
+              <h2 id="consent-dialog-title" className="mt-1 text-page-title text-ink">
+                {title}
+              </h2>
+            </div>
+            {closeAction}
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+          {children}
+        </div>
+
+        <footer className="shrink-0 border-t border-line px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-3">
+          <div className="flex flex-col gap-2">{footer}</div>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function MajorAnnouncementBody({
   announcement,
-  busy,
   error,
-  onAck,
 }: {
   readonly announcement: MajorAnnouncementView;
-  readonly busy: boolean;
   readonly error: string | null;
-  readonly onAck: (action: "acknowledged" | "opened_details" | "dismissed") => void;
 }): React.JSX.Element {
   return (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-helper text-muted">重要更新 · {announcement.version}</p>
-          <h2 id="consent-dialog-title" className="mt-1 text-page-title text-ink">
-            {announcement.title}
-          </h2>
-        </div>
-        <button
-          type="button"
-          aria-label="关闭重要更新"
-          disabled={busy}
-          onClick={() => onAck("dismissed")}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft"
-        >
-          ×
-        </button>
-      </div>
-
-      <p className="mt-3 text-body-relaxed text-ink">{announcement.summary}</p>
+      <p className="text-body-relaxed text-ink">{announcement.summary}</p>
 
       {announcement.sections.map((section) => (
         <div key={section.heading} className="mt-4">
@@ -281,15 +335,6 @@ function MajorAnnouncementCard({
           {error}
         </p>
       )}
-
-      <div className="mt-5 flex flex-col gap-2">
-        <Button onClick={() => onAck("acknowledged")} disabled={busy}>
-          {busy ? "处理中…" : "知道了"}
-        </Button>
-        <Button variant="secondary" onClick={() => onAck("opened_details")} disabled={busy}>
-          查看详情
-        </Button>
-      </div>
     </>
   );
 }
@@ -298,27 +343,22 @@ function AccountDataHelp({
   busy,
   notice,
   error,
-  onBack,
   onExport,
-  onLogout,
 }: {
   readonly busy: boolean;
   readonly notice: string | null;
   readonly error: string | null;
-  readonly onBack: () => void;
   readonly onExport: () => void;
-  readonly onLogout: () => void;
 }): React.JSX.Element {
   return (
     <>
-      <h2 id="consent-dialog-title" className="text-page-title text-ink">
-        如果你暂时不同意
-      </h2>
-      <p className="mt-2 text-body-relaxed text-muted">
-        你可以先导出或处理账号中的数据，也可以退出登录，稍后再决定。
+      <p className="text-body-relaxed text-muted">
+        你可以先导出或处理账号中的数据，稍后再决定。
       </p>
 
-      {notice === null ? null : <p className="mt-3 rounded-field bg-brand-soft px-3 py-2 text-helper-relaxed text-brand-dark">{notice}</p>}
+      {notice === null ? null : (
+        <p className="mt-3 rounded-field bg-brand-soft px-3 py-2 text-helper-relaxed text-brand-dark">{notice}</p>
+      )}
       {error === null ? null : (
         <p role="alert" className="mt-3 rounded-field bg-danger-soft px-3 py-2 text-helper-relaxed text-danger">
           {error}
@@ -346,12 +386,6 @@ function AccountDataHelp({
             需要所有者先决定共享账本和保留数据的处理规则。
           </p>
         </details>
-        <Button variant="ghost" onClick={onLogout} disabled={busy}>
-          退出登录
-        </Button>
-        <Button variant="secondary" onClick={onBack} disabled={busy}>
-          返回协议确认
-        </Button>
       </div>
 
       <p className="mt-4 text-helper text-muted">
