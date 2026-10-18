@@ -1,12 +1,11 @@
-{
+﻿{
   "version": "2.0",
   "statement": [
     {
-      "sid": "allow-test-upload-and-head-only",
       "effect": "allow",
       "action": [
-        "cos:PutObject",
-        "cos:HeadObject"
+        "name/cos:PutObject",
+        "name/cos:HeadObject"
       ],
       "resource": [
         "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events-test/v1/*",
@@ -14,10 +13,15 @@
       ]
     },
     {
-      "sid": "deny-production-prefixes-defense-in-depth",
       "effect": "deny",
       "action": [
-        "cos:*"
+        "name/cos:GetObject",
+        "name/cos:GetBucket",
+        "name/cos:DeleteObject",
+        "name/cos:PutObjectACL",
+        "name/cos:PutBucketACL",
+        "name/cos:PutBucketPolicy",
+        "name/cos:DeleteBucket"
       ],
       "resource": [
         "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/daily/*",
@@ -28,3 +32,4 @@
     }
   ]
 }
+

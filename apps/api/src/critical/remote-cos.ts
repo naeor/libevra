@@ -74,6 +74,16 @@ export class CosCriticalRemote implements CriticalRemote {
     bytes: Buffer,
     metadata: Record<string, string> = {},
   ): Promise<RemotePutResult> {
+    /**
+     * Real COS behavior (verified 2026-10-18 against the production bucket): a same-key PUT is
+     * accepted and overwrites the current object; `x-cos-forbid-overwrite` alone is not a
+     * substitute for versioning/object lock. At minimum, never blindly overwrite a key that already
+     * exists: HEAD first and let the caller's hash-checking recovery path decide. A race between
+     * HEAD and PUT still exists; production immutability must be proven separately with versioning /
+     * object lock, not assumed from the header.
+     */
+    const existing = await this.head(key);
+    if (existing !== null) throw new RemoteObjectExistsError(key);
     const path = this.objectPath(key);
     const cosMeta = Object.fromEntries(
       Object.entries(metadata).map(([name, value]) => [`x-cos-meta-${name}`, value]),

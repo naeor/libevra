@@ -1,12 +1,11 @@
-{
+﻿{
   "version": "2.0",
   "statement": [
     {
-      "sid": "allow-read-and-head-test-objects",
       "effect": "allow",
       "action": [
-        "cos:GetObject",
-        "cos:HeadObject"
+        "name/cos:GetObject",
+        "name/cos:HeadObject"
       ],
       "resource": [
         "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events-test/v1/*",
@@ -14,10 +13,9 @@
       ]
     },
     {
-      "sid": "allow-list-only-under-test-prefixes",
       "effect": "allow",
       "action": [
-        "cos:GetBucket"
+        "name/cos:GetBucket"
       ],
       "resource": [
         "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
@@ -34,27 +32,33 @@
       }
     },
     {
-      "sid": "deny-write-and-delete-on-bucket",
       "effect": "deny",
       "action": [
-        "cos:PutObject",
-        "cos:PostObject",
-        "cos:DeleteObject",
-        "cos:DeleteObjectVersion",
-        "cos:PutObjectAcl",
-        "cos:PutBucketAcl",
-        "cos:PutBucketPolicy",
-        "cos:DeleteBucket"
+        "name/cos:PutObject",
+        "name/cos:PostObject",
+        "name/cos:DeleteObject",
+        "name/cos:PutObjectACL",
+        "name/cos:PutBucketACL",
+        "name/cos:PutBucketPolicy",
+        "name/cos:DeleteBucket"
       ],
       "resource": [
         "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
       ]
     },
     {
-      "sid": "deny-production-prefixes-defense-in-depth",
       "effect": "deny",
       "action": [
-        "cos:*"
+        "name/cos:GetObject",
+        "name/cos:HeadObject",
+        "name/cos:GetBucket",
+        "name/cos:PutObject",
+        "name/cos:PostObject",
+        "name/cos:DeleteObject",
+        "name/cos:PutObjectACL",
+        "name/cos:PutBucketACL",
+        "name/cos:PutBucketPolicy",
+        "name/cos:DeleteBucket"
       ],
       "resource": [
         "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/daily/*",
@@ -65,3 +69,4 @@
     }
   ]
 }
+
