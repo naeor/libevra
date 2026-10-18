@@ -26,11 +26,28 @@ export interface UpdateAnnouncement {
 }
 
 /**
- * 1.13.08 was a production patch (card layout); 1.13.07 was the full S13-E release.
- * Both were released on 2026-10-18. The S13-F update center itself is a later local build and is
- * intentionally not announced until it is actually released.
+ * 1.13.09 is the S13-F release; 1.13.08 was a production patch (card layout) and 1.13.07 was the
+ * full S13-E release. All are production releases on 2026-10-18.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.13.09",
+    releasedAt: "2026-10-18",
+    status: "released",
+    title: "软件更新与版本公告",
+    summary: "重新设计了软件更新页面，并新增版本公告历史与运行信息入口。",
+    sections: [
+      {
+        heading: "软件更新",
+        items: [
+          "软件更新首页现在显示当前运行版本和最近一次更新公告。",
+          "新增更新公告列表与单个版本详情，支持返回和直接刷新。",
+          "右上角「更多」可以复制版本信息或查看运行信息。",
+        ],
+      },
+    ],
+    major: false,
+  },
   {
     version: "1.13.08",
     releasedAt: "2026-10-18",

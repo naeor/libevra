@@ -22,18 +22,24 @@ function announcement(version: string, releasedAt: string | null): UpdateAnnounc
 }
 
 describe("version announcements", () => {
-  it("contains only the two actual releases, newest first", () => {
+  it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
-    expect(released.map((entry) => entry.version)).toEqual(["1.13.08", "1.13.07"]);
+    expect(released.map((entry) => entry.version)).toEqual(["1.13.09", "1.13.08", "1.13.07"]);
     expect(released.every((entry) => entry.status === "released" && entry.releasedAt !== null)).toBe(true);
   });
 
-  it("does not invent an announcement for the current development build", () => {
-    expect(releasedAnnouncementByVersion("1.13.09")).toBeNull();
+  it("exposes the 1.13.09 announcement as released", () => {
+    expect(releasedAnnouncementByVersion("1.13.09")?.title).toBe("软件更新与版本公告");
+    expect(releasedAnnouncementByVersion("1.13.09")?.releasedAt).toBe("2026-10-18");
+  });
+
+  it("does not invent an announcement for a future development build", () => {
+    expect(releasedAnnouncementByVersion("1.13.10")).toBeNull();
   });
 
   it("answers with the latest applicable release for a running version", () => {
-    expect(latestApplicableAnnouncement("1.13.09")?.version).toBe("1.13.08");
+    expect(latestApplicableAnnouncement("1.13.10")?.version).toBe("1.13.09");
+    expect(latestApplicableAnnouncement("1.13.09")?.version).toBe("1.13.09");
     expect(latestApplicableAnnouncement("1.13.08")?.version).toBe("1.13.08");
     expect(latestApplicableAnnouncement("1.13.07")?.version).toBe("1.13.07");
     expect(latestApplicableAnnouncement("1.13.06")).toBeNull();
@@ -41,8 +47,9 @@ describe("version announcements", () => {
 
   it("detects a newer released version without claiming the running build is current", () => {
     expect(hasNewerReleasedVersion("1.13.07")).toBe(true);
-    expect(hasNewerReleasedVersion("1.13.08")).toBe(false);
+    expect(hasNewerReleasedVersion("1.13.08")).toBe(true);
     expect(hasNewerReleasedVersion("1.13.09")).toBe(false);
+    expect(hasNewerReleasedVersion("1.13.10")).toBe(false);
   });
 
   it("caps history at ten actual releases and skips development-only entries", () => {
