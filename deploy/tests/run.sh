@@ -446,7 +446,9 @@ if [ -f "$DOCKERIGNORE" ]; then
 else
   bad "仓库根目录缺少 .dockerignore"
 fi
-for pattern in '.env' 'deploy/.backup.env' 'deploy/backups/' '.git/' '**/node_modules/'; do
+for pattern in '.env' 'deploy/.backup.env' 'deploy/backups/' 'deploy/critical-backups/' \
+  'deploy/.critical-events-key.env' 'deploy/.critical-events-relay.env' \
+  'deploy/.critical-events-restore.env' '.git/' '**/node_modules/'; do
   if grep -qxF "$pattern" "$DOCKERIGNORE" 2>/dev/null; then
     ok ".dockerignore 排除了 $pattern"
   else
