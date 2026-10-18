@@ -302,6 +302,14 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                 hint="从 CSV 批量导入这本账"
                 to={`/books/${bookId}/settings/import`}
               />
+              {/* ⚠️ S14-D D1：只对本人拥有的单人账本显示。多人账本导入要等单独设计。 */}
+              {row?.isCreator === true && memberCount === 1 ? (
+                <NavRow
+                  label="导入账本"
+                  hint="从本机游客账本或你的另一本单人账本导入（先预览）"
+                  to={`/import-ledger?target=${bookId}`}
+                />
+              ) : null}
             </ul>
           </section>
 

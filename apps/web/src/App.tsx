@@ -44,6 +44,7 @@ import { AdminLifecyclePage } from "./pages/AdminLifecyclePage.js";
 import { ArchiveRecoveryPage } from "./pages/ArchiveRecoveryPage.js";
 import { LedgerMorePage } from "./pages/LedgerMorePage.js";
 import { ImportPage } from "./pages/ImportPage.js";
+import { LedgerImportPage } from "./pages/LedgerImportPage.js";
 import { LoginPage } from "./pages/LoginPage.js";
 import { CategoriesPage, PaymentMethodsPage, TagsPage } from "./pages/ManagePages.js";
 import { MePage } from "./pages/MePage.js";
@@ -286,6 +287,7 @@ function AppRoutes(): React.JSX.Element {
         <Route path="/voice/review" element={<RequireAuth><VoiceReviewPage /></RequireAuth>} />
       <Route path="/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
       <Route path="/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
+      <Route path="/import-ledger" element={<RequireAuth><LedgerImportPage /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
       <Route path="/downloads" element={<RequireAuth><DownloadManagerPage /></RequireAuth>} />
         <Route path="/downloads/more" element={<RequireAuth><DownloadMorePage /></RequireAuth>} />
