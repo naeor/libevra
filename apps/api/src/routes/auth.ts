@@ -370,6 +370,11 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
      * ⚠️ It counts as a failed attempt, so a suspended person guessing passwords is throttled
      * exactly like anybody else.
      */
+    if (user.closedAt !== null) {
+      throttle.recordFailure(keys);
+      throw unauthorized("account_closed", "这个账号已经注销。");
+    }
+
     if (user.disabledAt !== null) {
       throttle.recordFailure(keys);
       throw unauthorized("account_disabled", "该账户目前已停用或不存在。");

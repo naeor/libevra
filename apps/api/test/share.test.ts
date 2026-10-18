@@ -230,17 +230,17 @@ describe("share links", () => {
     expect(refused.statusCode).toBe(403);
 
     /**
-     * ⚠️ **The creator may not leave their own ledger.** Doing so would produce a ledger with no
-     * member who can write in it — nobody able to edit, invite or dispose of it. The owner's answer
-     * for that case is the other meaning he asked to keep apart: **整本弃置**.
+     * ⚠️ **The creator may not leave when they are the last member.** S13-H keeps the ledger under a
+     * single lifecycle rule: a last member must archive or permanently delete it, never create an
+     * unreachable book by simply leaving.
      */
     const ownerRefused = await app.inject({
       method: "POST",
       url: `/api/v1/books/${owner.bookId}/leave`,
       headers: { cookie: owner.cookie },
     });
-    expect(ownerRefused.statusCode).toBe(400);
-    expect(ownerRefused.json().code).toBe("creator_cannot_leave");
+    expect(ownerRefused.statusCode).toBe(409);
+    expect(ownerRefused.json().code).toBe("book_last_member");
   });
 
   it("refuses the eleventh person once a ten-person link is full", async () => {

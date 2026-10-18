@@ -300,6 +300,9 @@ function OverviewBody({
         <Button variant="secondary" onClick={() => { onNavigate("/admin/users"); }}>
           查找账号
         </Button>
+        <Button variant="secondary" onClick={() => { onNavigate("/admin/lifecycle"); }}>
+          账本恢复申请
+        </Button>
       </div>
     </>
   );

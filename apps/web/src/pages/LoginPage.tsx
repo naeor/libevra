@@ -10,7 +10,7 @@ import { TextField } from "../components/TextField.js";
 import { errorMessage } from "../lib/api.js";
 
 export function LoginPage(): React.JSX.Element {
-  const { user, login, sessionRevoked } = useAuth();
+  const { user, login, sessionRevoked, sessionEndReason } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -64,7 +64,13 @@ export function LoginPage(): React.JSX.Element {
       }
     >
       {sessionRevoked ? (
-        <Alert tone="info">该账号已在其它设备上登录，本设备的登录状态已失效。</Alert>
+        <Alert tone="info">
+          {sessionEndReason === "account_closed"
+            ? "这个账号已经注销，本设备的登录状态已结束。"
+            : sessionEndReason === "account_disabled"
+              ? "该账号目前已停用，本设备的登录状态已结束。"
+              : "登录状态已失效，请重新登录。若账号已经注销，将无法再次登录。"}
+        </Alert>
       ) : null}
 
       <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
@@ -95,9 +101,12 @@ export function LoginPage(): React.JSX.Element {
         </Button>
       </form>
 
-      <div className="text-center text-sm">
+      <div className="flex flex-col gap-2 text-center text-sm">
         <Link className="text-muted transition hover:text-ink" to="/recover">
           忘记密码
+        </Link>
+        <Link className="text-muted transition hover:text-ink" to="/recover-archive">
+          恢复已注销账号的归档账本
         </Link>
       </div>
     </AuthLayout>

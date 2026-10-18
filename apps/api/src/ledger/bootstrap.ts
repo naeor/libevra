@@ -32,6 +32,7 @@ export async function createDefaultLedger(
     data: {
       name,
       createdBy: userId,
+      managedByUserId: userId,
       bookNumber: await takeNextBookNumber(client),
     },
     select: { id: true },

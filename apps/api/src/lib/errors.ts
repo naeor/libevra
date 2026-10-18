@@ -52,6 +52,11 @@ export function notFound(code: string, message: string): AppError {
   return new AppError(404, code, message);
 }
 
+/** The resource existed and is deliberately gone; clients must stop retrying, not refresh forever. */
+export function gone(code: string, message: string): AppError {
+  return new AppError(410, code, message);
+}
+
 export function tooManyRequests(code: string, message: string): AppError {
   return new AppError(429, code, message);
 }

@@ -36,6 +36,9 @@ import { UpdateRuntimePage } from "./pages/UpdateRuntimePage.js";
 import { MonthDownloadPage } from "./pages/MonthDownloadPage.js";
 import { EntryDetailPage } from "./pages/EntryDetailPage.js";
 import { ExportPage } from "./pages/ExportPage.js";
+import { AccountDataPage } from "./pages/AccountDataPage.js";
+import { AdminLifecyclePage } from "./pages/AdminLifecyclePage.js";
+import { ArchiveRecoveryPage } from "./pages/ArchiveRecoveryPage.js";
 import { LedgerMorePage } from "./pages/LedgerMorePage.js";
 import { ImportPage } from "./pages/ImportPage.js";
 import { LoginPage } from "./pages/LoginPage.js";
@@ -182,6 +185,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/recover" element={<RecoverPage />} />
+      <Route path="/recover-archive" element={<ArchiveRecoveryPage />} />
 
       <Route
         path="/"
@@ -248,6 +252,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/settings/preferences" element={<RequireAuth><PreferencesPage /></RequireAuth>} />
       <Route path="/settings/appearance" element={<RequireAuth><AppearancePage /></RequireAuth>} />
       <Route path="/settings/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
+      <Route path="/settings/account-data" element={<RequireAuth><AccountDataPage /></RequireAuth>} />
       <Route path="/settings/password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
       {/**
         * ⚠️ **邀请码现在是一页，入口在设置-账号安全。** 所有者 2026-10-13：
@@ -374,6 +379,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/admin/admins" element={<RequireAuth><AdminAdminsPage /></RequireAuth>} />
       <Route path="/admin/users" element={<RequireAuth><AdminUsersPage /></RequireAuth>} />
       <Route path="/admin/audit" element={<RequireAuth><AdminAuditPage /></RequireAuth>} />
+      <Route path="/admin/lifecycle" element={<RequireAuth><AdminLifecyclePage /></RequireAuth>} />
 
       {ChartLabPage === null ? null : (
         <Route

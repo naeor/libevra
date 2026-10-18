@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../db.js";
 import { recordEvent } from "../ledger/events.js";
+import { leaveBookSafely } from "../lifecycle/book.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -181,12 +182,27 @@ export async function previewShareLink(
       maxUses: true,
       useCount: true,
       createdAt: true,
-      book: { select: { id: true, name: true, bookNumber: true, disposedAt: true } },
+      book: {
+        select: {
+          id: true,
+          name: true,
+          bookNumber: true,
+          disposedAt: true,
+          archivedAt: true,
+          purgeStartedAt: true,
+        },
+      },
       creator: { select: { displayName: true } },
     },
   });
 
-  if (!link || link.revokedAt !== null || link.book.disposedAt !== null) {
+  if (
+    !link ||
+    link.revokedAt !== null ||
+    link.book.disposedAt !== null ||
+    link.book.archivedAt !== null ||
+    link.book.purgeStartedAt !== null
+  ) {
     throw notFound("share_link_invalid", "这个分享链接无效或已失效。");
   }
 
@@ -328,42 +344,13 @@ export async function joinViaShareLink(
   return { bookId: preview.bookId, joined: !preview.alreadyMember, role: preview.role };
 }
 
-/** Leave a ledger — the "我不想再显示这本账" half of the owner's two separate meanings. */
+/** Leave a ledger — now guarded by the S13-H lifecycle rules. */
 export async function leaveBook(
   prisma: PrismaClient,
   bookId: string,
   userId: string,
   now: Date = new Date(),
 ): Promise<{ readonly left: boolean }> {
-  const book = await prisma.book.findUnique({ where: { id: bookId }, select: { createdBy: true } });
-  if (!book) throw notFound("book_missing", "找不到这本账。");
-
-  /**
-   * ⚠️ **The creator cannot leave their own ledger**, and that is not arbitrary: leaving would make
-   * a ledger with no member who may write in it — nobody could edit it, invite into it, or dispose
-   * of it. **The owner's answer for that case is "整本弃置"**, which is the other of the two
-   * meanings he asked to keep apart.
-   */
-  if (book.createdBy === userId) {
-    throw badRequest("creator_cannot_leave", "这是你自己的账本。如果你不想再看到它，请用「弃置」。");
-  }
-
-  const membership = await prisma.bookMember.findUnique({
-    where: { bookId_userId: { bookId, userId } },
-    select: { leftAt: true },
-  });
-
-  if (!membership || membership.leftAt !== null) throw forbidden("not_a_member", "你不在这本账里。");
-
-  /**
-   * ⚠️ **A timestamp, not a deleted row.** The row is what the guard checks (`leftAt: null`), and it
-   * is also the record that this person was once here — which matters when somebody asks why their
-   * old entries are still in the ledger.
-   */
-  await prisma.bookMember.update({
-    where: { bookId_userId: { bookId, userId } },
-    data: { leftAt: now },
-  });
-
-  return { left: true };
+  const result = await leaveBookSafely(prisma, bookId, userId, now);
+  return { left: result.left };
 }

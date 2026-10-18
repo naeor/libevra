@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { ApiRequestError, apiFetch } from "../lib/api.js";
 import { clearQueryCache } from "../lib/offline/cache.js";
+import { clearAccountLocalData } from "../lib/offline/localCleanup.js";
 import { forgetUser, readRememberedUser, rememberUser } from "../lib/offline/storage.js";
 import { forgetCurrentBook } from "../lib/currentBook.js";
 import { setOfflineAccount } from "../lib/offline/scope.js";
@@ -28,6 +29,8 @@ interface AuthContextValue {
    * somewhere else. The login screen uses it to explain why.
    */
   readonly sessionRevoked: boolean;
+  /** Why the last session ended; used to distinguish a closed account from an ordinary expiry. */
+  readonly sessionEndReason: "session_expired" | "account_closed" | "account_disabled" | "session_revoked" | null;
   login(username: string, password: string): Promise<void>;
   register(input: RegisterInput): Promise<string | undefined>;
   /** `preserveOfflineData` keeps the downloaded ledger cache when signing out from the consent gate. */
@@ -86,6 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const [user, setUser] = useState<SessionUser | null>(null);
   const [status, setStatus] = useState<"loading" | "ready">("loading");
   const [sessionRevoked, setSessionRevoked] = useState(false);
+  const [sessionEndReason, setSessionEndReason] = useState<
+    "session_expired" | "account_closed" | "account_disabled" | "session_revoked" | null
+  >(null);
 
   /**
    * Drop everything on this device that belongs to the account being left behind.
@@ -147,8 +153,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
          * ⚠️ **This is a sign-out, so it has to clean up like one.** Treating it as "just
          * forget the user" is the defect described on `forgetLocalState`.
          */
+        const remembered = await readRememberedUser();
         await forgetLocalState();
         setSessionRevoked(true);
+        const reason =
+          error instanceof ApiRequestError && error.code === "account_closed"
+            ? "account_closed"
+            : error instanceof ApiRequestError && error.code === "account_disabled"
+              ? "account_disabled"
+              : error instanceof ApiRequestError && error.code === "session_revoked"
+                ? "session_revoked"
+                : "session_expired";
+        if (reason === "account_closed" && remembered !== null) {
+          await clearAccountLocalData(remembered.id);
+        }
+        setSessionEndReason(reason);
         setUser(null);
       } else {
         setUser(await readRememberedUser());
@@ -193,7 +212,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       } catch (error) {
         if (cancelled) return;
         if (error instanceof ApiRequestError && error.status === 401) {
+          const remembered = await readRememberedUser();
+          await forgetLocalState();
           setSessionRevoked(true);
+          const reason =
+            error.code === "account_closed"
+              ? "account_closed"
+              : error.code === "account_disabled"
+                ? "account_disabled"
+                : error.code === "session_revoked"
+                  ? "session_revoked"
+                  : "session_expired";
+          if (reason === "account_closed" && remembered !== null) {
+            await clearAccountLocalData(remembered.id);
+          }
+          setSessionEndReason(reason);
           setUser(null);
         }
       }
@@ -241,6 +274,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       }
 
       setSessionRevoked(false);
+      setSessionEndReason(null);
       setUser(response.user);
       await rememberUser(response.user);
     },
@@ -252,6 +286,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       await apiFetch<unknown>("/auth/register", { method: "POST", body: input }),
     );
     setSessionRevoked(false);
+    setSessionEndReason(null);
     setUser(response.user);
     await rememberUser(response.user);
     return response.recoveryCode;
@@ -282,11 +317,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
 
     setUser(null);
+    setSessionEndReason(null);
   }, [forgetLocalState]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, status, sessionRevoked, login, register, logout, reload }),
-    [user, status, sessionRevoked, login, register, logout, reload],
+    () => ({ user, status, sessionRevoked, sessionEndReason, login, register, logout, reload }),
+    [user, status, sessionRevoked, sessionEndReason, login, register, logout, reload],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

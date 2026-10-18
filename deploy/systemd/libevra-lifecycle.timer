@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily Libevra archived-ledger cleanup at 03:30 Asia/Hong_Kong
+
+[Timer]
+# Deliberately not exactly 365*24h after each archive: the cleanup job runs once a day.
+# The UI therefore says "到期后 24 小时内执行", which matches this real scheduling error.
+OnCalendar=*-*-* 03:30:00 Asia/Hong_Kong
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=libevra-lifecycle.service
+
+[Install]
+WantedBy=timers.target

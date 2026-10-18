@@ -18,6 +18,9 @@ export const AUDIT_ACTIONS = [
   "invite.revoke",
   "account.suspend",
   "account.restore",
+  "book.recovery.approve",
+  "book.recovery.reject",
+  "book.purge",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

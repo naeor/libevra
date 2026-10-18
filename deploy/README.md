@@ -228,7 +228,7 @@ curl -s https://<域名>/ | grep -o '<title>[^<]*</title>'
 | 看日志 | `docker compose -f docker-compose.prod.yml logs -f api` |
 | 备份 + 演练 | `./backup.sh` |
 | **发布新版本** | `./deploy.sh --version 1.10.24` |
-| 从备份恢复 | `./restore.sh backups/<文件>.dump` |
+| 从备份恢复 | `./restore.sh backups/<文件>.dump`，然后**必须**运行 `lifecycle:replay-tombstones`，防止已删除账本/已注销账号复活 |
 | 管理员名单 | `docker compose … exec api pnpm admin:list` |
 
 ### 定时备份（每日）
@@ -346,7 +346,7 @@ git push ──────────────────▶
 | `deploy/.backup-restore.env` | **恢复身份**（`COS_RESTORE_*`）——**不放在生产服务器** |
 
 **⚠️ 上传身份只给"写 + HeadObject"；恢复身份（只读）不放在服务器上。权限清单与实测依据见 `docs/开发过程记录/S12-C-B-实施与配置指南.md` §1。**
-30 天过期由**桶的生命周期规则**在服务端执行 —— 即使服务器被入侵，历史备份也删不掉。
+实际 COS 生命周期（控制台维护，2026-10-17 所有者确认）：`daily/` 保留 **70 天**（历史版本 42 天、未完成分片 14 天），`monthly/` 保留 **365 天**（历史版本 63 天、未完成分片 21 天）。由**桶的生命周期规则**在服务端执行——即使服务器被入侵，历史备份也删不掉；仓库中不存在 `baseline/` 前缀的额外保留。S13-H 的删除墓碑重放依赖此真实期限，文档不得再写 30/35 天。
 
 ### 安装定时任务（**先手动跑通，再 `enable`**）
 
@@ -362,6 +362,23 @@ cd /srv/libevra/deploy && ./backup-all.sh
 sudo systemctl enable --now libevra-backup.timer
 systemctl list-timers libevra-backup.timer --no-pager
 ```
+
+### 归档清理任务（S13-H）
+
+```bash
+sudo cp deploy/systemd/libevra-lifecycle.service /etc/systemd/system/
+sudo cp deploy/systemd/libevra-lifecycle.timer   /etc/systemd/system/
+sudo systemctl daemon-reload
+# 先手动跑一次；脚本内部有 advisory lock，重复运行不会重复清理
+docker compose -f deploy/docker-compose.prod.yml run --rm api \
+  pnpm --filter @libellum/api lifecycle:purge
+sudo systemctl enable --now libevra-lifecycle.timer
+systemctl list-timers libevra-lifecycle.timer --no-pager
+```
+
+**每天 03:30 香港时间执行；清理的是到期归档账本，不是交易软删除。** 用户界面展示的是
+“预计自动清理日”，实际可在到期后 24 小时内完成；失败会留在 `purge_last_error` 并让 unit 失败，
+下一次 timer 重试，不会静默无限保留。
 
 ### 查看与暂停
 

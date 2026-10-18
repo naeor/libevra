@@ -30,6 +30,10 @@ function isPublicLegalPage(pathname: string): boolean {
   return pathname.startsWith("/legal/");
 }
 
+function isAccountDataPage(pathname: string): boolean {
+  return pathname === "/settings/account-data";
+}
+
 /**
  * The application-wide consent and major-announcement gate.
  *
@@ -82,6 +86,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
   const missing = (status?.missingDocumentIds.length ?? 0) > 0;
   const pendingMajor = status?.majorAnnouncement ?? null;
   const legalPage = isPublicLegalPage(location.pathname);
+  const accountDataPage = isAccountDataPage(location.pathname);
   const safeForMajor = !isInputFlow(location.pathname);
 
   async function onAccept(): Promise<void> {
@@ -138,7 +143,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
     await logout({ preserveOfflineData: true });
   }
 
-  if (user === null || legalPage || status === null) {
+  if (user === null || legalPage || accountDataPage || status === null) {
     return <>{children}</>;
   }
 
@@ -177,6 +182,9 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
             notice={notice}
             error={error}
             onExport={() => void onExport()}
+            onOpenAccountData={() => {
+              void navigate("/settings/account-data");
+            }}
           />
         </ConsentDialog>
       ) : showAgreement ? (
@@ -263,7 +271,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
  * when the body gets long. Height comes from one CSS class rather than three per-dialog heights;
  * `dvh` follows the iOS address bar and the media query gives very short viewports more room.
  */
-function ConsentDialog({
+export function ConsentDialog({
   title,
   eyebrow,
   closeAction,
@@ -344,11 +352,13 @@ function AccountDataHelp({
   notice,
   error,
   onExport,
+  onOpenAccountData,
 }: {
   readonly busy: boolean;
   readonly notice: string | null;
   readonly error: string | null;
   readonly onExport: () => void;
+  readonly onOpenAccountData: () => void;
 }): React.JSX.Element {
   return (
     <>
@@ -371,25 +381,27 @@ function AccountDataHelp({
         </Button>
         <details className="rounded-field border border-line px-3 py-2.5 text-helper-relaxed text-muted">
           <summary className="cursor-pointer font-medium text-ink">
-            删除服务器储存的数据（暂不执行）
+            删除服务器储存的数据
           </summary>
           <p className="mt-1">
-            这个入口需要先确定共享账本、历史记录和备份的保留范围；目前不会执行删除，也不会伪装成已清除全部服务器数据。
+            需要先退出协作、处理或归档每一本账本。打开「账号与数据」逐本查看影响范围并确认。
           </p>
         </details>
         <details className="rounded-field border border-line px-3 py-2.5 text-helper-relaxed text-muted">
           <summary className="cursor-pointer font-medium text-ink">
-            注销账号（暂不执行）
+            注销账号
           </summary>
           <p className="mt-1">
-            这是与删除数据不同的操作。现有架构还没有安全的所有权转让/级联方案，因此暂不执行不可逆注销；
-            需要所有者先决定共享账本和保留数据的处理规则。
+            注销会撤销会话、阻止重新登录，并按每本账本的归档/删除规则处理数据；已归档账本可保留期限并提供一次性恢复凭证。
           </p>
         </details>
+        <Button variant="secondary" onClick={onOpenAccountData} disabled={busy}>
+          打开账号与数据
+        </Button>
       </div>
 
       <p className="mt-4 text-helper text-muted">
-        这些未执行的入口不会删除本机 IndexedDB、历史账目或未同步记录。
+        删除或注销会处理服务器数据；本机离线副本会在账号处理完成后清理，尚未同步的记录不会在没有提示的情况下被当作已删除。
       </p>
       <Link to="/legal/local-test-terms" target="_blank" className="mt-3 inline-block text-helper font-medium text-brand">
         查看协议文件

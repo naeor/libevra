@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { ConfirmDialog } from "./ConfirmDialog.js";
-import { errorMessage } from "../lib/api.js";
-import { useDisposeBook, useLeaveBook, type BookSummary } from "../lib/queries.js";
+import { type BookSummary } from "../lib/queries.js";
 
 /**
  * **每本账本的齿轮面板 —— 底部弹出的 Bottom Sheet.**
@@ -47,11 +45,7 @@ export function BookManageSheet({
   readonly onClose: () => void;
 }): React.JSX.Element {
   const navigate = useNavigate();
-  const dispose = useDisposeBook();
-  const leave = useLeaveBook();
 
-  const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<null | "leave" | "dispose">(null);
   /** ⚠️ Live drag offset, so the sheet follows the finger rather than only reacting at the end. */
   const [dragY, setDragY] = useState(0);
   const startY = useRef<number | null>(null);
@@ -63,17 +57,13 @@ export function BookManageSheet({
     return () => previous?.focus();
   }, []);
 
-  useEffect(() => {
-    if (confirming === null) sheetRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-  }, [confirming]);
-
   /**
    * ⚠️ **`Escape` closes it.** A sheet that traps a keyboard user is worse than no sheet — and on
    * desktop this is the only way out that does not involve the mouse.
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented || confirming !== null) return;
+      if (event.defaultPrevented) return;
       if (event.key === "Escape") onClose();
       if (event.key === "Tab") {
         const buttons = [...(sheetRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
@@ -86,7 +76,7 @@ export function BookManageSheet({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose, confirming]);
+  }, [onClose]);
 
   /**
    * ⚠️ **The page behind is frozen while the sheet is open.** Without this, a drag that starts on the
@@ -104,58 +94,12 @@ export function BookManageSheet({
     };
   }, []);
 
-  function guarded(action: () => Promise<unknown>): void {
-    setError(null);
-    void action().catch((caught: unknown) => {
-      setError(errorMessage(caught));
-    });
-  }
-
   /**
-   * ⚠️ **Leaving the ledger you are *in* has to reload.** Leaving changes which ledger every later
-   * request addresses and which slice of the offline copy is read, and **a screen showing one
-   * ledger's header over another's entries is the failure the isolation exists to prevent.** A
-   * reload cannot be half-done — so it is used here for the same stated reason as entering.
-   *
-   * ⚠️ **Leaving a ledger you are *not* in just refreshes the list**, because nothing about the
-   * current session changed.
+   * ⚠️ **Lifecycle decisions now live on the ledger settings page**, because a single "leave"
+   * button cannot express the S13-H rules: a shared ledger only allows leaving, while the last
+   * member must choose archive or permanent deletion. The sheet sends the reader to the page that
+   * can actually show those choices.
    */
-  function leaveThisBook(): void {
-    setError(null);
-    void leave
-      .mutateAsync(book.id)
-      .then(() => {
-        if (isCurrent) {
-          window.location.assign("/");
-          return;
-        }
-        onClose();
-      })
-      .catch((caught: unknown) => {
-        setError(errorMessage(caught));
-        setConfirming(null);
-      });
-  }
-
-  function disposeThisBook(): void {
-    setError(null);
-    void dispose
-      .mutateAsync(book.id)
-      .then(() => {
-        /** ⚠️ Disposing the ledger you are in also has to move the session off it. */
-        if (isCurrent) {
-          window.location.assign("/");
-          return;
-        }
-        onClose();
-      })
-      .catch((caught: unknown) => {
-        setError(errorMessage(caught));
-        setConfirming(null);
-      });
-  }
-
-  /** ⚠️ Close, then navigate — a sheet left open over the next screen is a ghost. */
   function go(to: string): void {
     onClose();
     navigate(to);
@@ -318,12 +262,6 @@ export function BookManageSheet({
           </button>
         </div>
 
-        {error === null ? null : (
-          <p role="alert" className="mx-5 mb-3 rounded-field bg-danger-soft px-4 py-3 text-body text-danger">
-            {error}
-          </p>
-        )}
-
         <ul className="border-t border-line">
           {items.map((item) => (
             <li key={item.key}>
@@ -340,80 +278,19 @@ export function BookManageSheet({
           ))}
         </ul>
 
-        {/**
-          * ⚠️ **Danger sits below, separated, and only for the relationship that may do it.**
-          *
-          * ⚠️ **The creator sees 弃置 and not 退出**, and the server agrees (`creator_cannot_leave`):
-          * removing the last writer would leave a ledger nobody can edit, invite into or dispose of.
-          * A member who is not the creator sees 退出 and not 弃置 — *"两者遵守现有业务语义和权限边界."*
-          */}
         <div className="flex flex-col border-t-4 border-canvas px-5 py-2">
-          {book.isCreator ? (
-            <button
-              type="button"
-              disabled={dispose.isPending}
-              onClick={() => {
-                setConfirming("dispose");
-              }}
-              className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-danger transition hover:bg-danger-soft disabled:opacity-45"
-            >
-              <SheetIcon kind="archive" />
-              弃置这本账
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={leave.isPending}
-              onClick={() => {
-                setConfirming("leave");
-              }}
-              className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-danger transition hover:bg-danger-soft disabled:opacity-45"
-            >
-              <SheetIcon kind="leave" />
-              退出账本
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              go(`/books/${book.id}/settings`);
+            }}
+            className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-danger transition hover:bg-danger-soft"
+          >
+            <SheetIcon kind="archive" />
+            退出、归档或删除这本账
+          </button>
         </div>
       </div>
-
-      {/**
-        * ⚠️ **Both confirmations name the ledger.** The owner: *"确认内容必须明确账本名称，并说明退出后的
-        * 影响."* — and it is the sheet's own reason for showing the name at the top, repeated at the
-        * moment it matters most.
-        */}
-      <ConfirmDialog
-        open={confirming === "leave"}
-        title={`退出「${book.name}」？`}
-        description="退出后这本账不再出现在你的列表里，你也就看不到它的账目了。"
-        consequences={[
-          "不再拥有这本账的访问权限",
-          "你记过的账目与历史都会保留",
-          "你加入的其他账本不受影响",
-        ]}
-        confirmLabel="退出账本"
-        busy={leave.isPending}
-        onCancel={() => {
-          setConfirming(null);
-        }}
-        onConfirm={leaveThisBook}
-      />
-
-      <ConfirmDialog
-        open={confirming === "dispose"}
-        title={`弃置「${book.name}」？`}
-        description="弃置是整本账对所有人搁置起来，它不再出现在任何成员的列表里。数据不会删除。"
-        consequences={[
-          "对这本账的所有成员都不再显示",
-          "账目、成员、留言全部保留，不是删除",
-          "你作为创建者随时可以恢复",
-        ]}
-        confirmLabel="弃置这本账"
-        busy={dispose.isPending}
-        onCancel={() => {
-          setConfirming(null);
-        }}
-        onConfirm={disposeThisBook}
-      />
     </>
   );
 }

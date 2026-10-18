@@ -33,6 +33,19 @@ export function createRequireAuth(
     }
 
     /**
+     * A closed account's session row is revoked rather than deleted for one short window: the
+     * old device still has to be told *why* it was signed out. The guard consumes the row after
+     * delivering that answer, so it does not become a permanent identity link.
+     */
+    if (session.revokedAt !== null || session.user.closedAt !== null) {
+      await prisma.session.deleteMany({ where: { id: session.id } });
+      if (session.user.closedAt !== null) {
+        throw unauthorized("account_closed", "这个账号已经注销。");
+      }
+      throw unauthorized("session_expired", "登录状态已过期，请重新登录。");
+    }
+
+    /**
      * ⚠️ **A suspended account cannot use a session even if one somehow still exists.**
      *
      * Suspending deletes every session in the same transaction (`admin/accounts.ts`), so this is
@@ -43,6 +56,11 @@ export function createRequireAuth(
      * ⚠️ **The row is deleted as well**, so the dead cookie stops being retried on every request.
      * The message is the same one login gives, deliberately: *"该账户目前已停用或不存在"*.
      */
+    if (session.user.closedAt !== null) {
+      await prisma.session.deleteMany({ where: { id: session.id } });
+      throw unauthorized("account_closed", "这个账号已经注销。");
+    }
+
     if (session.user.disabledAt !== null) {
       await prisma.session.deleteMany({ where: { id: session.id } });
       throw unauthorized("account_disabled", "该账户目前已停用或不存在。");

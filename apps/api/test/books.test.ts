@@ -238,7 +238,7 @@ describe("ledgers", () => {
     });
 
     expect(response.statusCode).toBe(403);
-    expect(response.json().code).toBe("book_not_creator");
+    expect(response.json().code).toBe("book_not_manager");
   });
 
   it("keeps two ledgers' entries apart, in both directions", async () => {

@@ -91,6 +91,13 @@ export function SettingsHome({
         onOpen={onOpen}
       />
 
+      <SettingsCategoryCard
+        title="账号与数据"
+        description="导出、删除数据与注销账号"
+        to="/settings/account-data"
+        onOpen={onOpen}
+      />
+
       {/**
        * ⚠️ **「系统管理」只在 `useAdminEntry` 说是的时候渲染（S13-C）。**
        *

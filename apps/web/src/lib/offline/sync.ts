@@ -4,6 +4,8 @@ import { ApiRequestError, apiFetch } from "../api.js";
 import { readMarks, readStoredMonths, setConflict, setMark, storeMonth, upsertEntry, type ConflictFieldRecord, type EntryMark } from "./localLedger.js";
 import { logOffline } from "./diagnostics.js";
 import { republishLedger } from "./write.js";
+import { offlineScope } from "./scope.js";
+import { clearBookLocalData } from "./localCleanup.js";
 
 /**
  * Delivering the device's intentions to the server.
@@ -232,6 +234,26 @@ async function deliver(intent: Intent): Promise<boolean> {
       "DIAGNOSTIC:sync-failed",
       `${op} ${short} — ${status === 0 ? "无响应" : String(status)} ${message}`,
     );
+
+    /**
+     * A live device may still be holding the local copy of a ledger that was archived or deleted
+     * elsewhere. The server's explicit lifecycle codes mean "stop retrying and remove this
+     * ledger's local copy"; they are not ordinary content failures.
+     */
+    if (
+      error instanceof ApiRequestError &&
+      (error.code === "book_deleted" ||
+        error.code === "book_deleting" ||
+        error.code === "book_archived")
+    ) {
+      const [accountId, bookId] = offlineScope().split(":");
+      if (accountId !== undefined && accountId !== "" && bookId !== undefined && bookId !== "") {
+        await clearBookLocalData(accountId, bookId);
+      }
+      failures.delete(entry.id);
+      await logOffline("DIAGNOSTIC:sync-book-gone", `${op} ${short} — ${error.code}`);
+      return false;
+    }
 
     /**
      * ⚠️ **A conflict is not a failure, and it is not retried either — it is a question waiting to be asked.**

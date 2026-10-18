@@ -3,7 +3,7 @@ import type { FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
 import type { BookRole } from "../generated/prisma/enums.js";
-import { forbidden, notFound } from "../lib/errors.js";
+import { forbidden, gone, notFound } from "../lib/errors.js";
 
 /**
  * Authorization for ledger data.
@@ -22,10 +22,10 @@ export async function requireBookAccess(
 ): Promise<void> {
   const membership = await prisma.bookMember.findUnique({
     where: { bookId_userId: { bookId, userId } },
-    select: { role: true },
+    select: { role: true, leftAt: true },
   });
 
-  if (!membership) {
+  if (!membership || membership.leftAt !== null) {
     // 403, not 404: the caller is authenticated and simply has no business
     // here. Returning 404 would leak which book ids exist.
     throw forbidden("book_forbidden", "无权访问该账本。");
@@ -74,15 +74,40 @@ export async function requireBook(
 
   const membership = await prisma.bookMember.findUnique({
     where: { bookId_userId: { bookId: declared, userId } },
-    select: { role: true, leftAt: true },
+    select: {
+      role: true,
+      leftAt: true,
+      book: {
+        select: { archivedAt: true, purgeStartedAt: true },
+      },
+    },
   });
 
   /**
    * 403 and not 404, for the reason the old guard already gave: the caller is authenticated and
    * simply has no business here, and answering 404 would tell them which book ids exist.
+   *
+   * A deleted ledger is deliberately different: 410 `book_deleted` lets an old device stop
+   * retrying a queued write and clear that ledger's local copy. The tombstone is the only reason
+   * this question can be answered after the book row is gone.
    */
   if (!membership || membership.leftAt !== null) {
+    const tombstone = await prisma.bookTombstone.findUnique({
+      where: { bookId: declared },
+      select: { bookId: true },
+    });
+    if (tombstone !== null) {
+      throw gone("book_deleted", "这本账已经被永久删除。");
+    }
     throw forbidden("book_forbidden", "无权访问该账本。");
+  }
+
+  if (membership.book.purgeStartedAt !== null) {
+    throw gone("book_deleting", "这本账正在永久删除，不能继续同步。");
+  }
+
+  if (membership.book.archivedAt !== null) {
+    throw forbidden("book_archived", "这本账已经归档，普通账目访问已关闭。");
   }
 
   return { bookId: declared, role: membership.role };
@@ -140,7 +165,11 @@ function readDeclaredBookId(request: FastifyRequest): string | null {
  */
 async function fallbackBook(prisma: PrismaClient, userId: string): Promise<BookContext> {
   const membership = await prisma.bookMember.findFirst({
-    where: { userId, leftAt: null },
+    where: {
+      userId,
+      leftAt: null,
+      book: { is: { archivedAt: null, purgeStartedAt: null } },
+    },
     orderBy: { joinedAt: "asc" },
     select: { bookId: true, role: true },
   });

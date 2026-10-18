@@ -17,6 +17,7 @@ import type { PrismaClient } from "./db.js";
 import { forbidden, registerErrorHandlers } from "./lib/errors.js";
 import { OcrService } from "./ocr/client.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerAdminLifecycleRoutes } from "./routes/adminLifecycle.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerBooksRoutes } from "./routes/books.js";
 import { registerClassificationRoutes } from "./routes/classification.js";
@@ -26,6 +27,7 @@ import {
   registerAccountConsentRoutes,
   registerLegalRoutes,
 } from "./routes/consent.js";
+import { registerLifecycleRoutes } from "./routes/lifecycle.js";
 import { registerShareRoutes } from "./routes/share.js";
 import { registerExportRoutes } from "./routes/export.js";
 import { registerHealthRoute, type HealthDeps } from "./routes/health.js";
@@ -217,6 +219,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       policy: consentPolicy,
     });
 
+    registerLifecycleRoutes(app, {
+      prisma: options.prisma,
+      requireSession,
+    });
+
     /**
      * **The admin console's API (S13).**
      *
@@ -226,6 +233,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      * nobody knowing the address.
      */
     registerAdminRoutes(app, { prisma: options.prisma, requireAdmin });
+    registerAdminLifecycleRoutes(app, { prisma: options.prisma, requireAdmin });
 
     /**
      * ⚠️ **Ledgers themselves are registered with plain auth, and that is not a weaker check.**

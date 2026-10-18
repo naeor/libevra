@@ -19,6 +19,8 @@
     "admin:allow": "node --env-file-if-exists=../../.env --import tsx src/scripts/allow-admin.ts",
     "admin:disallow": "node --env-file-if-exists=../../.env --import tsx src/scripts/disallow-admin.ts",
     "set:password": "node --env-file-if-exists=../../.env --import tsx src/scripts/set-password.ts",
+    "lifecycle:purge": "node --env-file-if-exists=../../.env --import tsx src/scripts/purge-archived.ts",
+    "lifecycle:replay-tombstones": "node --env-file-if-exists=../../.env --import tsx src/scripts/replay-tombstones.ts",
     "check:db": "node --import tsx src/scripts/check-db-parity.ts"
   },
   "dependencies": {

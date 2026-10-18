@@ -101,11 +101,12 @@ const CATEGORIES = [
   ["记账偏好", "默认币种、录入习惯与记账界面"],
   ["显示与数据", "语言、主题与汇率显示"],
   ["账号安全", "密码、恢复码与邀请码"],
+  ["账号与数据", "导出、删除数据与注销账号"],
   ["关于 Libevra", "版本信息、开源协议与隐私说明"],
 ] as const;
 
 describe("设置首页的分类", () => {
-  it("lists the four ordinary categories in order, with their descriptions", () => {
+  it("lists the five ordinary categories in order, with their descriptions", () => {
     const html = homeHtml();
     let previous = -1;
 
@@ -121,15 +122,15 @@ describe("设置首页的分类", () => {
   it("keeps 关于 Libevra last and opens it as a whole card", () => {
     const html = homeHtml();
 
-    expect(html.indexOf("关于 Libevra")).toBeGreaterThan(html.indexOf("账号安全"));
+    expect(html.indexOf("关于 Libevra")).toBeGreaterThan(html.indexOf("账号与数据"));
   });
 
   it("offers no fake quick buttons for 显示与数据 or 账号安全", () => {
-    // Four card buttons + the six currency pills. Any extra button here would be a
-    // control for something that is not built yet — the defect the audit recorded.
-    expect(homeHtml()).not.toContain("导出");
+    // Five category cards + the six currency pills. The account-data card is a real page, not a
+    // quick action; any quick 导出/导入 control here would duplicate a page that already exists.
+    expect(homeHtml()).not.toContain("导出数据");
     expect(homeHtml()).not.toContain("导入");
-    expect((homeHtml().match(/<button\b/g) ?? []).length).toBe(4 + 6);
+    expect((homeHtml().match(/<button\b/g) ?? []).length).toBe(5 + 6);
   });
 });
 
@@ -146,9 +147,9 @@ describe("系统管理入口", () => {
     const html = homeHtml({ isAdmin: true });
 
     expect(html).toContain("平台概览、账号、邀请码与操作记录");
-    expect(html.indexOf("账号安全")).toBeLessThan(html.indexOf("系统管理"));
+    expect(html.indexOf("账号与数据")).toBeLessThan(html.indexOf("系统管理"));
     expect(html.indexOf("系统管理")).toBeLessThan(html.indexOf("关于 Libevra"));
-    expect((html.match(/<button\b/g) ?? []).length).toBe(5 + 6);
+    expect((html.match(/<button\b/g) ?? []).length).toBe(6 + 6);
   });
 });
 

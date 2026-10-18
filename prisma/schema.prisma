@@ -82,6 +82,14 @@ model User {
   disabledAt DateTime? @map("disabled_at") @db.Timestamptz(6)
   disabledBy String? @map("disabled_by") @db.VarChar(200)
 
+  /// **When the account was closed by its owner.** S13-H.
+  ///
+  /// This is deliberately separate from `disabledAt`: suspension is an administrator action and
+  /// must never be conflated with a person's own decision to close the account. The guard and
+  /// login both refuse a closed account; old devices receive `account_closed` so they can explain
+  /// the sign-out instead of claiming another device logged them in.
+  closedAt DateTime? @map("closed_at") @db.Timestamptz(6)
+
   /// The ledger this account looked at last, so signing in returns to it.
   ///
   /// ⚠️ **This is a preference about the account, not about a device**, which is
@@ -118,6 +126,8 @@ model User {
   invite  RegistrationInvite?
 
   createdBooks    Book[]        @relation("BookCreator")
+  /// Ledgers this account currently manages. Separate from the historical creator fact.
+  managedBooks    Book[]        @relation("BookManager")
   bookMemberships BookMember[]
   transactions    Transaction[]
   exportLogs      ExportLog[]
@@ -324,6 +334,9 @@ model Session {
   ipAddress  String?  @map("ip_address")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  /// Set when the account is closed. The row is kept briefly so an old device can distinguish
+  /// "your account was closed" from a generic expired session; the guard deletes it after use.
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -741,7 +754,32 @@ model Book {
   /// apart, and they are kept apart here.
   disposedAt DateTime? @map("disposed_at") @db.Timestamptz(6)
 
+  /// **Who currently manages lifecycle decisions for this ledger.** S13-H.
+  ///
+  /// `createdBy` is a historical fact and must not be rewritten when the creator leaves. This
+  /// field is the movable management role: it is backfilled from `createdBy` for existing books,
+  /// set explicitly on creation, and transferred when its holder leaves while other members stay.
+  managedByUserId String? @map("managed_by_user_id") @db.Uuid
+
+  /// **When the ledger entered its archive window.** S13-H. Archived ledgers keep their rows, but
+  /// ordinary business access is refused; only the archive summary and the owner's restore path
+  /// are available.
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  archivedByUserId String? @map("archived_by_user_id") @db.Uuid
+  archiveReason String? @map("archive_reason") @db.VarChar(32)
+  /// `archivedAt + 60 days`.
+  selfRestoreUntil DateTime? @map("self_restore_until") @db.Timestamptz(6)
+  /// `archivedAt + 365 days`; the cleanup job may run up to 24 hours after this instant.
+  scheduledPurgeAt DateTime? @map("scheduled_purge_at") @db.Timestamptz(6)
+
+  /// Set before the destructive purge transaction starts. Restore and purge both check it so a
+  /// restore cannot race a purge that has already claimed the book.
+  purgeStartedAt DateTime? @map("purge_started_at") @db.Timestamptz(6)
+  purgeAttempts Int @default(0) @map("purge_attempts")
+  purgeLastError String? @map("purge_last_error") @db.VarChar(500)
+
   creator        User            @relation("BookCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  manager        User?           @relation("BookManager", fields: [managedByUserId], references: [id], onDelete: SetNull)
   members        BookMember[]
   categories     Category[]
   paymentMethods PaymentMethod[]
@@ -1413,4 +1451,110 @@ model BackupLog {
 
   @@index([startedAt(sort: Desc)])
   @@map("backup_logs")
+}
+
+/// **The permanent, privacy-minimal tombstone of a purged ledger.** S13-H.
+///
+/// No foreign keys on purpose: every book row and its contents are deleted in the purge
+/// transaction, while this row has to survive. `bookId` keeps the original UUID so it can never
+/// be mistaken for a live book and cannot be reused by the API's creation path.
+///
+/// No transaction amounts, notes, names or member identities are copied here. Counts and
+/// identifiers are enough to prove that a ledger existed and how it left the system.
+model BookTombstone {
+  bookId String @id @map("book_id") @db.Uuid
+  bookNumber String? @map("book_number") @db.VarChar(8)
+  originalCreatedAt DateTime @map("original_created_at") @db.Timestamptz(6)
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+  createdByAccountNumber String? @map("created_by_account_number") @db.VarChar(8)
+
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  selfRestoreUntil DateTime? @map("self_restore_until") @db.Timestamptz(6)
+  scheduledPurgeAt DateTime? @map("scheduled_purge_at") @db.Timestamptz(6)
+  purgedAt DateTime @default(now()) @map("purged_at") @db.Timestamptz(6)
+  deletionMethod String @map("deletion_method") @db.VarChar(32)
+  deletionReason String? @map("deletion_reason") @db.VarChar(300)
+  deletedByUserId String? @map("deleted_by_user_id") @db.Uuid
+  deletedByAccountNumber String? @map("deleted_by_account_number") @db.VarChar(8)
+
+  memberCount Int @map("member_count")
+  transactionCount Int @map("transaction_count")
+  detail Json?
+  requestId String? @map("request_id") @db.VarChar(64)
+
+  @@index([purgedAt(sort: Desc)])
+  @@map("book_tombstones")
+}
+
+/// **The account tombstone written when a person closes their account.** S13-H.
+///
+/// The `users` row is retained but anonymized; it is not physically deleted because
+/// `transactions.user_id`, `book_members.user_id` and `books.created_by` still point at it and
+/// deleting it would cascade into other people's shared ledgers. This table is the stable,
+/// privacy-minimal record that the account existed and what happened to its resources.
+model AccountTombstone {
+  userId String @id @map("user_id") @db.Uuid
+  accountNumber String @map("account_number") @db.VarChar(8)
+  originalCreatedAt DateTime @map("original_created_at") @db.Timestamptz(6)
+  closedAt DateTime @default(now()) @map("closed_at") @db.Timestamptz(6)
+  closureMethod String @map("closure_method") @db.VarChar(32)
+  summary Json?
+  /// One-time recovery credential for kept archives. Only its SHA-256 hash is stored.
+  recoveryCredentialHash String? @map("recovery_credential_hash") @db.VarChar(64)
+  recoveryCredentialCreatedAt DateTime? @map("recovery_credential_created_at") @db.Timestamptz(6)
+  recoveryCredentialUsedAt DateTime? @map("recovery_credential_used_at") @db.Timestamptz(6)
+  requestId String? @map("request_id") @db.VarChar(64)
+
+  @@index([closedAt(sort: Desc)])
+  @@map("account_tombstones")
+}
+
+/// **A recovery request for an archived ledger.** S13-H.
+///
+/// No FK: the book may be purged, and the requesting account may be closed/anonymized. Every
+/// decision that matters is snapshotted here. A pending request stops a purge only until its
+/// deadline; an approval restores the book in the same transaction, so there is no approved
+/// request waiting for cleanup to overtake it.
+model BookRecoveryRequest {
+  id String @id @default(uuid()) @db.Uuid
+  bookId String @map("book_id") @db.Uuid
+  bookNumber String? @map("book_number") @db.VarChar(8)
+  requesterUserId String? @map("requester_user_id") @db.Uuid
+  requesterAccountNumber String @map("requester_account_number") @db.VarChar(8)
+  /// `active_account` or `closed_account`.
+  kind String @db.VarChar(24)
+  status String @default("pending") @db.VarChar(16)
+  requestedAt DateTime @default(now()) @map("requested_at") @db.Timestamptz(6)
+  /// The latest moment this pending request can hold cleanup; never later than scheduled purge.
+  deadlineAt DateTime @map("deadline_at") @db.Timestamptz(6)
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(6)
+  decidedByUserId String? @map("decided_by_user_id") @db.Uuid
+  decidedByName String? @map("decided_by_name") @db.VarChar(64)
+  decisionNote String? @map("decision_note") @db.VarChar(500)
+  targetUserId String? @map("target_user_id") @db.Uuid
+  targetAccountNumber String? @map("target_account_number") @db.VarChar(8)
+  credentialVerifiedAt DateTime? @map("credential_verified_at") @db.Timestamptz(6)
+
+  @@index([status, deadlineAt])
+  @@index([bookId, status])
+  @@map("book_recovery_requests")
+}
+
+/// **A small, user-visible lifecycle history per ledger.** S13-H.
+///
+/// Separate from `TransactionEvent` because that table's `kind` CHECK belongs to entries, and
+/// separate from the admin audit because this must remain readable after the book is purged.
+/// No FK to `books` on purpose: a purge deletes the book but must not delete the record that it
+/// was archived, restored or deleted.
+model BookLifecycleEvent {
+  id String @id @default(uuid()) @db.Uuid
+  bookId String @map("book_id") @db.Uuid
+  kind String @db.VarChar(32)
+  actorUserId String? @map("actor_user_id") @db.Uuid
+  actorAccountNumber String? @map("actor_account_number") @db.VarChar(8)
+  detail Json?
+  at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([bookId, at])
+  @@map("book_lifecycle_events")
 }

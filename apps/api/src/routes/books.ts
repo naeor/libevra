@@ -85,7 +85,10 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
               name: true,
               bookNumber: true,
               createdBy: true,
+              managedByUserId: true,
               disposedAt: true,
+              archivedAt: true,
+              purgeStartedAt: true,
               /**
                * ⚠️ **Only current members count.** `_count.members` counted rows whose `leftAt`
                * was set, so a ledger somebody had left reported one member too many. The row is
@@ -105,7 +108,10 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
           name: true,
           bookNumber: true,
           createdBy: true,
+          managedByUserId: true,
           disposedAt: true,
+          archivedAt: true,
+          purgeStartedAt: true,
           members: { where: { leftAt: null }, select: { userId: true } },
         },
       }),
@@ -118,6 +124,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
     for (const entry of memberships) {
       const book = entry.book;
       if (book.disposedAt !== null) continue;
+      if (book.archivedAt !== null || book.purgeStartedAt !== null) continue;
 
       open.push({
         id: book.id,
@@ -190,7 +197,10 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
 
     const membership = await prisma.bookMember.findUnique({
       where: { bookId_userId: { bookId, userId } },
-      select: { leftAt: true, book: { select: { disposedAt: true } } },
+      select: {
+        leftAt: true,
+        book: { select: { disposedAt: true, archivedAt: true, purgeStartedAt: true } },
+      },
     });
 
     /**
@@ -199,6 +209,14 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
      */
     if (!membership || membership.leftAt !== null) {
       throw forbidden("book_forbidden", "无权访问该账本。");
+    }
+
+    if (membership.book.purgeStartedAt !== null) {
+      throw badRequest("book_deleted", "这本账正在永久删除。");
+    }
+
+    if (membership.book.archivedAt !== null) {
+      throw badRequest("book_archived", "这本账已经归档，请从账号与数据页恢复或申请恢复。");
     }
 
     if (membership.book.disposedAt !== null) {
@@ -225,7 +243,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
 
     const book = await prisma.book.findUnique({
       where: { id: bookId },
-      select: { createdBy: true, disposedAt: true },
+      select: { createdBy: true, managedByUserId: true, disposedAt: true, archivedAt: true },
     });
 
     if (!book) throw notFound("book_missing", "找不到这本账。");
@@ -236,8 +254,8 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
      * not an edit to the contents — it is a decision about the ledger's existence. One editor
      * should not be able to do that to another's book.
      */
-    if (book.createdBy !== userId) {
-      throw forbidden("book_not_creator", "只有创建者能弃置这本账。");
+    if (book.managedByUserId !== userId) {
+      throw forbidden("book_not_manager", "只有当前管理者能弃置这本账。");
     }
 
     if (book.disposedAt !== null) {
@@ -264,13 +282,13 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
 
     const book = await prisma.book.findUnique({
       where: { id: bookId },
-      select: { createdBy: true, disposedAt: true },
+      select: { createdBy: true, managedByUserId: true, disposedAt: true, archivedAt: true },
     });
 
     if (!book) throw notFound("book_missing", "找不到这本账。");
 
-    if (book.createdBy !== userId) {
-      throw forbidden("book_not_creator", "只有创建者能恢复这本账。");
+    if (book.managedByUserId !== userId) {
+      throw forbidden("book_not_manager", "只有当前管理者能恢复这本账。");
     }
 
     if (book.disposedAt === null) {

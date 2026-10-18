@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
+import { useAuth } from "../auth/AuthProvider.js";
 import { Alert } from "../components/Alert.js";
 import { BookIdentityCard, BookSwitcherSheet } from "../components/BookSwitcherSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
@@ -8,13 +9,13 @@ import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { TextField } from "../components/TextField.js";
 import { errorMessage } from "../lib/api.js";
+import { bookLifecycleAction, fetchBookLifecycle, type BookLifecycleSummary } from "../lib/lifecycle.js";
+import { clearBookLocalData } from "../lib/offline/localCleanup.js";
 import {
   useBookMembers,
   useBooks,
   useCurrentBookId,
-  useDisposeBook,
   useLedgerMeta,
-  useLeaveBook,
   useRenameBook,
 } from "../lib/queries.js";
 
@@ -60,15 +61,16 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
   const [search, setSearch] = useSearchParams();
 
   const rename = useRenameBook();
-  const dispose = useDisposeBook();
-  const leave = useLeaveBook();
+  const { user } = useAuth();
 
   const [switcher, setSwitcher] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<null | "dispose" | "leave">(null);
+  const [confirming, setConfirming] = useState<null | "archive" | "delete" | "leave">(null);
+  const [lifecycle, setLifecycle] = useState<BookLifecycleSummary | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   /** A target chosen while a rename draft was unsaved — the question, not the navigation. */
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
 
@@ -79,13 +81,21 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
   const role = row?.role ?? members.data?.myRole;
   const canWrite = role === "owner" || role === "editor";
-  /**
-   * ⚠️ **`useBooks()` is the source for 弃置/退出**, because `isCreator` is the flag the server's
-   * rules are written against (`createdBy`) and the management sheet already reads it there.
-   * **Unknown is not the same as false**: until the list answers, neither danger action is shown —
-   * offering 「退出」 to the creator only produces `creator_cannot_leave`.
-   */
-  const isCreator = row?.isCreator;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLifecycle(null);
+    void fetchBookLifecycle(bookId)
+      .then((next) => {
+        if (!cancelled) setLifecycle(next);
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) setError(errorMessage(caught));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId]);
 
   /**
    * ⚠️ **The deep link that opens the rename field** (`?rename=1`). It waits for the name, seeds it
@@ -189,29 +199,20 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
     void navigate("/start");
   }
 
-  function runDispose(): void {
+  function runLifecycle(action: "leave" | "archive" | "delete"): void {
     setError(null);
-    void dispose
-      .mutateAsync(bookId)
-      .then(() => {
+    setLifecycleBusy(true);
+    void bookLifecycleAction(bookId, action)
+      .then(async () => {
+        if (user !== null) await clearBookLocalData(user.id, bookId);
         afterRemoval();
       })
       .catch((caught: unknown) => {
         setError(errorMessage(caught));
         setConfirming(null);
-      });
-  }
-
-  function runLeave(): void {
-    setError(null);
-    void leave
-      .mutateAsync(bookId)
-      .then(() => {
-        afterRemoval();
       })
-      .catch((caught: unknown) => {
-        setError(errorMessage(caught));
-        setConfirming(null);
+      .finally(() => {
+        setLifecycleBusy(false);
       });
   }
 
@@ -305,57 +306,66 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
           </section>
 
           {/* ---------------------------------------------------------------- */}
-          {/**
-            * ⚠️ **Danger sits at the bottom, apart from everything else, and it is the creator's or
-            * the member's own action.** 弃置 and 退出 are different things and are never merged:
-            * 弃置 sets the whole ledger aside for everybody (creator only); 退出 is one person
-            * leaving somebody else's ledger (and the creator has no 退出 — the server refuses it).
-            */}
-          {isCreator === undefined ? null : (
-            <section className="flex flex-col gap-2">
-              <h2 className="px-1 text-helper text-muted">危险操作</h2>
+          <section className="flex flex-col gap-2">
+            <h2 className="px-1 text-helper text-muted">危险操作</h2>
 
-              <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
-                {error === null ? null : <Alert>{error}</Alert>}
-
-                {isCreator ? (
-                  <>
-                    <p className="text-body-relaxed text-muted">
-                      弃置后这本账对所有人都不再显示，数据保留，你作为创建者随时可以恢复。
+            <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+              {error === null ? null : <Alert>{error}</Alert>}
+              {lifecycle === null ? (
+                <p className="text-body-relaxed text-muted">正在读取账本状态…</p>
+              ) : lifecycle.memberCount > 1 ? (
+                <>
+                  <p className="text-body-relaxed text-muted">
+                    这本账还有其他成员。退出协作只会撤销你的访问权限，你的账目与历史会保留，其他成员的数据不受影响。
+                  </p>
+                  {lifecycle.needsSuccessor ? (
+                    <p className="text-helper text-danger">
+                      你是这本账的管理者，但还没有其他编辑者可以接手。请先在成员设置中增加编辑者，或让其他成员成为编辑者。
                     </p>
-                    <button
-                      type="button"
-                      disabled={dispose.isPending}
-                      onClick={() => {
-                        setError(null);
-                        setConfirming("dispose");
-                      }}
-                      className="flex w-full items-center justify-center rounded-field border border-danger/40 px-4 py-3 text-button-lg font-medium text-danger transition hover:bg-danger-soft disabled:opacity-45"
-                    >
-                      弃置这本账
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-body-relaxed text-muted">
-                      退出后这本账不再出现在你的列表里，你也就看不到它的账目了。已经记过的账目会保留。
-                    </p>
-                    <button
-                      type="button"
-                      disabled={leave.isPending}
-                      onClick={() => {
-                        setError(null);
-                        setConfirming("leave");
-                      }}
-                      className="flex w-full items-center justify-center rounded-field border border-danger/40 px-4 py-3 text-button-lg font-medium text-danger transition hover:bg-danger-soft disabled:opacity-45"
-                    >
-                      退出账本
-                    </button>
-                  </>
-                )}
-              </div>
-            </section>
-          )}
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={lifecycleBusy || !lifecycle.canLeave}
+                    onClick={() => {
+                      setError(null);
+                      setConfirming("leave");
+                    }}
+                    className="flex w-full items-center justify-center rounded-field border border-danger/40 px-4 py-3 text-button-lg font-medium text-danger transition hover:bg-danger-soft disabled:opacity-45"
+                  >
+                    退出这本账
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-body-relaxed text-muted">
+                    你是这本账的最后一位有效成员。可以归档并在 60 天内自行恢复；超过 60 天只能申请人工恢复；归档满 365 天后清理。永久删除会立即进入清理流程。
+                  </p>
+                  <button
+                    type="button"
+                    disabled={lifecycleBusy || !lifecycle.canArchive}
+                    onClick={() => {
+                      setError(null);
+                      setConfirming("archive");
+                    }}
+                    className="flex w-full items-center justify-center rounded-field border border-line px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-canvas disabled:opacity-45"
+                  >
+                    归档这本账
+                  </button>
+                  <button
+                    type="button"
+                    disabled={lifecycleBusy || !lifecycle.canDelete}
+                    onClick={() => {
+                      setError(null);
+                      setConfirming("delete");
+                    }}
+                    className="flex w-full items-center justify-center rounded-field border border-danger/40 px-4 py-3 text-button-lg font-medium text-danger transition hover:bg-danger-soft disabled:opacity-45"
+                  >
+                    永久删除这本账
+                  </button>
+                </>
+              )}
+            </div>
+          </section>
 
           <p className="text-helper-relaxed text-muted">
             成员与邀请、分享链接在账本空间的齿轮面板里，和以前一样。
@@ -464,33 +474,56 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
       />
 
       <ConfirmDialog
-        open={confirming === "dispose"}
-        title={`弃置「${name ?? "这本账"}」？`}
-        description="弃置是整本账对所有人搁置起来，它不再出现在任何成员的列表里。数据不会删除。"
-        consequences={[
-          "对这本账的所有成员都不再显示",
-          "账目、成员、留言全部保留，不是删除",
-          "创建者随时可以恢复",
-        ]}
-        confirmLabel="弃置这本账"
-        busy={dispose.isPending}
-        onCancel={() => {
-          setConfirming(null);
-        }}
-        onConfirm={runDispose}
-      />
-
-      <ConfirmDialog
         open={confirming === "leave"}
         title={`退出「${name ?? "这本账"}」？`}
         description="退出后这本账不再出现在你的列表里，你也就看不到它的账目了。"
-        consequences={["不再拥有这本账的访问权限", "你记过的账目与历史都会保留", "你加入的其他账本不受影响"]}
-        confirmLabel="退出账本"
-        busy={leave.isPending}
+        consequences={[
+          "仅撤销你在这本账的访问与同步权限",
+          "你记过的账目与历史会保留",
+          "其他成员的数据与成员关系不受影响",
+        ]}
+        confirmLabel="退出这本账"
+        busy={lifecycleBusy}
         onCancel={() => {
           setConfirming(null);
         }}
-        onConfirm={runLeave}
+        onConfirm={() => runLifecycle("leave")}
+      />
+
+      <ConfirmDialog
+        open={confirming === "archive"}
+        title={`归档「${name ?? "这本账"}」？`}
+        description="归档后这本账暂时离开普通账本列表，数据保留。你可以在 60 天内自行恢复。"
+        consequences={[
+          "归档日期以服务器 UTC 时间为准",
+          "60 天内可自行恢复",
+          "满 365 天后由服务器清理并留下删除墓碑",
+        ]}
+        confirmLabel="归档这本账"
+        tone="default"
+        busy={lifecycleBusy}
+        onCancel={() => {
+          setConfirming(null);
+        }}
+        onConfirm={() => runLifecycle("archive")}
+      />
+
+      <ConfirmDialog
+        open={confirming === "delete"}
+        title={`永久删除「${name ?? "这本账"}」？`}
+        description="这本账的账目、分类、标签、留言和关联数据会立即进入永久删除流程，不能由你恢复。"
+        consequences={[
+          "服务器会清理这本账的内容",
+          "保留不含账目正文的删除墓碑",
+          "其他账本与其他成员的数据不受影响",
+          "旧设备恢复联网后会收到账本已删除状态并停止同步",
+        ]}
+        confirmLabel="永久删除"
+        busy={lifecycleBusy}
+        onCancel={() => {
+          setConfirming(null);
+        }}
+        onConfirm={() => runLifecycle("delete")}
       />
 
       <BookSwitcherSheet
