@@ -1,4 +1,4 @@
-﻿import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { mkdir, open, readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -126,15 +126,30 @@ export class MemoryCriticalRemote implements CriticalRemote {
 }
 
 export const REMOTE_PREFIX = "critical-events/v1";
-export const EVENT_PREFIX = `${REMOTE_PREFIX}/events/`;
-export const MANIFEST_PREFIX = `${REMOTE_PREFIX}/manifests/`;
+
+/**
+ * Production default is `critical-events/v1`. Tests use a dedicated test bucket and an isolated
+ * prefix (`critical-events-test/v1`) so their CAM policy never has to touch production prefixes.
+ */
+export function remotePrefix(): string {
+  const configured = process.env["CRITICAL_EVENT_REMOTE_PREFIX"]?.trim();
+  return configured === undefined || configured === "" ? REMOTE_PREFIX : configured.replace(/\/+$/, "");
+}
+
+export function eventPrefix(): string {
+  return `${remotePrefix()}/events/`;
+}
+
+export function manifestPrefix(): string {
+  return `${remotePrefix()}/manifests/`;
+}
 
 export function eventObjectKey(seq: number, eventId: string): string {
-  return `${EVENT_PREFIX}${String(seq).padStart(12, "0")}-${eventId}.json.enc`;
+  return `${eventPrefix()}${String(seq).padStart(12, "0")}-${eventId}.json.enc`;
 }
 
 export function manifestObjectKey(seq: number, hash: string): string {
-  return `${MANIFEST_PREFIX}${String(seq).padStart(12, "0")}-${hash}.json.enc`;
+  return `${manifestPrefix()}${String(seq).padStart(12, "0")}-${hash}.json.enc`;
 }
 
 export function parseKey(data: string): Buffer {
@@ -307,7 +322,7 @@ export async function verifyRemoteLedger(
   key: CriticalKey,
   options: { readonly allowPrunedBefore?: number } = {},
 ): Promise<RemoteVerification> {
-  const keys = await remote.list(EVENT_PREFIX);
+  const keys = await remote.list(eventPrefix());
   if (keys.length === 0) throw new Error("critical_event_remote_empty");
   const events: { key: string; core: CriticalEventCore }[] = [];
   for (const objectKey of keys) {
@@ -339,7 +354,7 @@ export async function verifyRemoteLedger(
     }
   }
 
-  const manifestKeys = await remote.list(MANIFEST_PREFIX);
+  const manifestKeys = await remote.list(manifestPrefix());
   const manifests: RemoteManifest[] = [];
   for (const objectKey of manifestKeys) {
     const bytes = await remote.get(objectKey);

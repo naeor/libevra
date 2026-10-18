@@ -92,7 +92,8 @@ case "$MODE" in
       echo "$LOG_PREFIX ❌ 缺少 gpg 或 .backup.key；检查点备份未上传" >&2; exit 1
     fi
     YEAR="$(date -u +%Y)"
-    REF="critical-backups/checkpoints/${YEAR}/$(basename "$DUMP").gpg"
+    OFFSITE_PREFIX="${CRITICAL_BACKUP_OFFSITE_PREFIX:-critical-backups/checkpoints}"
+    REF="${OFFSITE_PREFIX}/${YEAR}/$(basename "$DUMP").gpg"
     SIDECAR_REF="${REF}.checkpoint.json"
     ENCRYPTED="${DUMP}.gpg"
     RCLONE_CONF="$(mktemp)"

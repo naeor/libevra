@@ -29,6 +29,7 @@ done
 mkdir -p "$OUT"; chmod 700 "$OUT"
 
 MODE="${CRITICAL_BACKUP_OFFSITE:-cos}"
+OFFSITE_PREFIX="${CRITICAL_BACKUP_OFFSITE_PREFIX:-critical-backups/checkpoints}"
 if [ "$MODE" = "fs" ]; then
   : "${CRITICAL_BACKUP_REMOTE_DIR:?fs mode needs CRITICAL_BACKUP_REMOTE_DIR}"
   if [ "$LATEST" = true ]; then
@@ -62,9 +63,9 @@ acl = private
 RCLONE
   chmod 600 "$RCLONE_CONF"
   if [ "$LATEST" = true ]; then
-    REF="$(rclone --config "$RCLONE_CONF" lsf -R --files-only "cos:${COS_BUCKET}/critical-backups/checkpoints/" 2>/dev/null | grep '\.dump\.gpg$' | sort -r | head -1 || true)"
+    REF="$(rclone --config "$RCLONE_CONF" lsf -R --files-only "cos:${COS_BUCKET}/${OFFSITE_PREFIX}/" 2>/dev/null | grep '\.dump\.gpg$' | sort -r | head -1 || true)"
     [ -n "$REF" ] || { echo "no checkpoint backup found in COS" >&2; exit 1; }
-    REF="critical-backups/checkpoints/${REF}"
+    REF="${OFFSITE_PREFIX}/${REF}"
   fi
   [ -n "$REF" ] || { echo "--ref or --latest is required" >&2; exit 2; }
   ENCRYPTED="$OUT/$(basename "$REF")"

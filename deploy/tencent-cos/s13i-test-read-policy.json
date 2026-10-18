@@ -1,4 +1,4 @@
-﻿{
+{
   "version": "2.0",
   "statement": [
     {
@@ -8,8 +8,7 @@
         "name/cos:HeadObject"
       ],
       "resource": [
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events-test/v1/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups-test/checkpoints/*"
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-s13i-test-1505362843/*"
       ]
     },
     {
@@ -18,18 +17,8 @@
         "name/cos:GetBucket"
       ],
       "resource": [
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
-      ],
-      "condition": {
-        "string_equal": {
-          "cos:prefix": [
-            "critical-events-test/v1/",
-            "critical-events-test/v1",
-            "critical-backups-test/checkpoints/",
-            "critical-backups-test/checkpoints"
-          ]
-        }
-      }
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-s13i-test-1505362843/*"
+      ]
     },
     {
       "effect": "deny",
@@ -43,7 +32,7 @@
         "name/cos:DeleteBucket"
       ],
       "resource": [
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-s13i-test-1505362843/*"
       ]
     },
     {
@@ -61,12 +50,8 @@
         "name/cos:DeleteBucket"
       ],
       "resource": [
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/daily/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/monthly/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events/v1/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups/*"
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
       ]
     }
   ]
 }
-

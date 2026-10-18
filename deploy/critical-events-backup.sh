@@ -43,7 +43,7 @@ if [ "$MODE" = "local" ]; then
   PGHOST="${PGHOST:-127.0.0.1}"
   PGPORT="${PGPORT:-5432}"
 else
-  COMPOSE=(docker compose -f docker-compose.prod.yml)
+  COMPOSE=(docker compose -f "${CRITICAL_COMPOSE_FILE:-docker-compose.prod.yml}")
 fi
 
 STAMP="$(date -u +%Y%m%d-%H%M%S)"

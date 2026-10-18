@@ -1,4 +1,4 @@
-﻿{
+{
   "version": "2.0",
   "statement": [
     {
@@ -8,15 +8,18 @@
         "name/cos:HeadObject"
       ],
       "resource": [
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events-test/v1/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups-test/checkpoints/*"
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-s13i-test-1505362843/critical-events-test/v1/*",
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-s13i-test-1505362843/critical-backups-test/checkpoints/*"
       ]
     },
     {
       "effect": "deny",
       "action": [
         "name/cos:GetObject",
+        "name/cos:HeadObject",
         "name/cos:GetBucket",
+        "name/cos:PutObject",
+        "name/cos:PostObject",
         "name/cos:DeleteObject",
         "name/cos:PutObjectACL",
         "name/cos:PutBucketACL",
@@ -24,12 +27,8 @@
         "name/cos:DeleteBucket"
       ],
       "resource": [
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/daily/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/monthly/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-events/v1/*",
-        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/critical-backups/*"
+        "qcs::cos:ap-hongkong:uid/1505362843:libevra-backup-1505362843/*"
       ]
     }
   ]
 }
-
