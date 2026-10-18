@@ -5,6 +5,7 @@
  * 读取。这里绝不创建账本、分类、交易或迁移日志。
  */
 import type { LedgerMetaResponse, TransactionListResponse } from "@libellum/shared";
+import { PAYMENT_METHOD_NAMES, UNCATEGORISED, categoriesFor } from "@libellum/shared";
 
 import { apiFetch } from "../api.js";
 import { readGuestIdentity } from "../guest/identity.js";
@@ -92,6 +93,41 @@ export async function loadBookImportTarget(bookId: string): Promise<ImportTarget
 /** 本机是否还有游客身份；只读 localStorage，不创建任何东西。 */
 export function hasLocalGuestIdentity(): boolean {
   return readGuestIdentity() !== null;
+}
+
+/**
+ * D2 新目标账本的**预览用**快照。
+ *
+ * ⚠️ 它不是服务器账本，只在预览里模拟“服务器创建新账本后会有哪些默认分类/支付方式/标签”。真正的
+ * 创建发生在提交事务内；ID 只用于浏览器展示和 `auto` 映射，不会被发送为目标 ID。
+ */
+export function buildNewImportTarget(name: string): ImportTarget {
+  const categories = (["expense", "income"] as const).flatMap((kind) => {
+    const presets = [...categoriesFor(kind), UNCATEGORISED];
+    return presets.map((preset, index) => ({
+      id: `new-${kind}-${String(index)}`,
+      name: preset.name,
+      kind,
+      description: preset.name === UNCATEGORISED.name ? null : preset.description,
+      sortOrder: index,
+      isArchived: false,
+      isSystem: preset.name === UNCATEGORISED.name,
+    }));
+  });
+  return {
+    bookId: "new",
+    identity: { name: name.trim(), bookNumber: null },
+    categories,
+    paymentMethods: PAYMENT_METHOD_NAMES.map((item, index) => ({
+      id: `new-payment-${String(index)}`,
+      name: item,
+      sortOrder: index,
+      isArchived: false,
+    })),
+    tags: [],
+    transactions: [],
+    hiddenDeletedCount: 0,
+  };
 }
 
 /**

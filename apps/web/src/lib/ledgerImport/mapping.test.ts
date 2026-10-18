@@ -1,8 +1,8 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { Category, PaymentMethod, Tag } from "@libellum/shared";
 
-import { buildTaxonomyMappingPlan, normalizeObjectName } from "./mapping.js";
+import { buildTaxonomyMappingPlan, normalizeObjectName, taxonomyResolutionKey } from "./mapping.js";
 
 function category(
   id: string,
@@ -73,7 +73,25 @@ describe("buildTaxonomyMappingPlan", () => {
     expect(plan.categories.find((item) => item.source.id === "s-food")?.matchKey).toBe("target:t-food");
   });
 
-  it("系统分类按目标账本的系统分类匹配，不靠名字或 id", () => {
+  it("D2：用户为同名属性冲突选择新建时，映射改为保留来源属性的新对象", () => {
+    const resolutions = new Map([
+      [taxonomyResolutionKey("category", "s-shop-arch"), "create" as const],
+      [taxonomyResolutionKey("tag", "s-reimb"), "create" as const],
+    ]);
+    const plan = buildTaxonomyMappingPlan(SOURCE, TARGET, resolutions);
+    const shop = plan.categories.find((item) => item.source.id === "s-shop-arch");
+    expect(shop?.targetId).toBeNull();
+    expect(shop?.matchKey).toBe("new:s-shop-arch");
+    expect(shop?.createArchived).toBe(true);
+    expect(shop?.createName).toBe("购物（2）");
+
+    const reimbursed = plan.tags.find((item) => item.source.id === "s-reimb");
+    expect(reimbursed?.targetId).toBeNull();
+    expect(reimbursed?.matchKey).toBe("new:s-reimb");
+    expect(reimbursed?.createColor).toBe("#999999");
+    // A conflict that the user did not choose stays on the provisional target mapping.
+    expect(plan.paymentMethods.find((item) => item.source.id === "s-card-arch")?.targetId).toBe("t-card-arch");
+  });  it("系统分类按目标账本的系统分类匹配，不靠名字或 id", () => {
     const plan = buildTaxonomyMappingPlan(SOURCE, TARGET);
     expect(plan.categories.find((item) => item.source.id === "s-sys-exp")?.targetId).toBe("t-sys-exp");
     expect(plan.categories.find((item) => item.source.id === "s-sys-inc")?.targetId).toBe("t-sys-inc");

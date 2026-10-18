@@ -17,6 +17,14 @@ import type {
   TaxonomyObjectKind,
 } from "./types.js";
 
+/** D2：用户对同名属性冲突的选择；reuse 保留目标对象，create 在目标新建来源副本。 */
+export type TaxonomyResolutionAction = "reuse" | "create";
+export type TaxonomyResolutionMap = ReadonlyMap<string, TaxonomyResolutionAction>;
+
+export function taxonomyResolutionKey(type: TaxonomyObjectKind, sourceId: string): string {
+  return `${type}:${sourceId}`;
+}
+
 const MAX_OBJECT_NAME = 20;
 
 /** 名称比较用：全半角统一、去掉首尾空白、连续空白压成一个。大小写保留，中文名称不受影响。 */
@@ -58,6 +66,18 @@ function conflict(
     reason,
     message,
   };
+}
+
+/**
+ * D2：冲突项若选择“新建来源副本”，把暂定复用改为新建；这里不直接写库，只改预览键。
+ * 未决定时保持 D1 的暂定复用，让页面仍能显示冲突和影响。
+ */
+function applyResolution<T extends { readonly id: string }, U>(
+  mapping: TaxonomyMapping<T, U>,
+  resolution: TaxonomyResolutionAction | undefined,
+): TaxonomyMapping<T, U> {
+  if (mapping.conflict === null || resolution !== "create") return mapping;
+  return { ...mapping, targetId: null, matchKey: `new:${mapping.source.id}` };
 }
 
 /**
@@ -320,6 +340,7 @@ export function buildTaxonomyMappingPlan(
     readonly paymentMethods: readonly PaymentMethod[];
     readonly tags: readonly Tag[];
   },
+  resolutions?: TaxonomyResolutionMap,
 ): TaxonomyMappingPlan {
   const reservedCategoryNames = new Set(
     target.categories.filter((item) => item.kind === "expense").map((item) => normalizeObjectName(item.name)),
@@ -338,21 +359,25 @@ export function buildTaxonomyMappingPlan(
       target.categories,
       item.kind === "income" ? reservedIncomeNames : reservedCategoryNames,
     );
-    categories.push(result.mapping);
+    categories.push(
+      applyResolution(result.mapping, resolutions?.get(taxonomyResolutionKey("category", item.id))),
+    );
     conflicts.push(...result.conflicts);
   }
 
   const paymentMethods: TaxonomyMapping<PaymentMethod, PaymentMethod>[] = [];
   for (const item of source.paymentMethods) {
     const result = mapPaymentMethod(item, target.paymentMethods, reservedPaymentNames);
-    paymentMethods.push(result.mapping);
+    paymentMethods.push(
+      applyResolution(result.mapping, resolutions?.get(taxonomyResolutionKey("paymentMethod", item.id))),
+    );
     conflicts.push(...result.conflicts);
   }
 
   const tags: TaxonomyMapping<Tag, Tag>[] = [];
   for (const item of source.tags) {
     const result = mapTag(item, target.tags, reservedTagNames);
-    tags.push(result.mapping);
+    tags.push(applyResolution(result.mapping, resolutions?.get(taxonomyResolutionKey("tag", item.id))));
     conflicts.push(...result.conflicts);
   }
 
@@ -374,4 +399,5 @@ export function buildTaxonomyMappingPlan(
     },
   };
 }
+
 

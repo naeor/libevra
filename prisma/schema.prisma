@@ -1222,6 +1222,34 @@ model ExportLog {
 /// an error — it is the de-duplication rule doing its job — but it must be
 /// countable, because "the file said 200 rows and my ledger grew by 187" is
 /// exactly the question this table has to answer.
+/// D2 guest-ledger import receipt. One row per client importId; this is the
+/// idempotency anchor for retries and for the "server committed, client did not
+/// receive the response" recovery path.
+///
+/// No foreign keys on purpose: the receipt is an audit/recovery record, and a
+/// later book lifecycle action must not erase the evidence needed to answer
+/// "did this import already run?". Access is always scoped by userId in the
+/// route; the targetBookId is returned to the user only when they own it.
+model LedgerImport {
+  /// Client-generated UUID; also the request idempotency key.
+  id                 String   @id @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  targetBookId       String   @map("target_book_id") @db.Uuid
+  /// True when this import created the target book; survives retries so a
+  /// crash after commit cannot create a second ledger.
+  targetCreated      Boolean  @map("target_created") @default(false)
+  sourceFingerprint  String   @map("source_fingerprint") @db.VarChar(64)
+  targetFingerprint  String?  @map("target_fingerprint") @db.VarChar(64)
+  importedCount      Int      @map("imported_count")
+  skippedCount       Int      @map("skipped_count")
+  /// Full validated response, returned verbatim on idempotent retries.
+  result             Json
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt])
+  @@index([targetBookId])
+  @@map("ledger_imports")
+}
 model ImportLog {
   id     String @id @default(uuid()) @db.Uuid
   bookId String @map("book_id") @db.Uuid

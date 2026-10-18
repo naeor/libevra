@@ -211,7 +211,8 @@ describe("guest mode copy (S14-C)", () => {
   });
 
   it("separates guest data from a formal account and warns about no cloud backup", () => {
-    expect(guestMe).toContain("创建正式账号后，游客账本不会自动上传或合并");
+    expect(guestMe).toContain("创建或登录正式账号后");
+    expect(guestMe).toContain("游客账本不会自动上传、合并或删除");
     expect(guestMe).toContain("游客数据没有云端备份");
     expect(guestMe).toContain("清除游客数据");
     expect(guestMe).toContain("清除此设备全部 Libevra 本地数据");

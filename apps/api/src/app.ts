@@ -34,6 +34,7 @@ import { registerShareRoutes } from "./routes/share.js";
 import { registerExportRoutes } from "./routes/export.js";
 import { registerHealthRoute, type HealthDeps } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
+import { registerLedgerImportRoutes } from "./routes/ledgerImport.js";
 import { registerLedgerRoutes } from "./routes/ledger.js";
 import { registerRecognizeRoutes } from "./routes/recognize.js";
 import { registerStatsRoutes } from "./routes/stats.js";
@@ -350,6 +351,12 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     registerVoiceRoutes(app, { requireAuth: requireBookWrite, prisma: options.prisma, voice });
     registerExportRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
     registerImportRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
+    /**
+     * D2 guest-ledger import. Deliberately plain auth, not a ledger-header guard: a new target book
+     * does not exist yet, and the existing-target path performs its own solo-book + membership
+     * checks before writing. No existing S13 permission helper is changed.
+     */
+    registerLedgerImportRoutes(app, { prisma: options.prisma, requireAuth: requireAuth });
   }
 
   return app;

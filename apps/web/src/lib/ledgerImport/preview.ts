@@ -6,7 +6,7 @@
  */
 import type { ImportPreview, ImportSource, ImportTarget, ImportTotals } from "./types.js";
 import { detectDuplicateGroups } from "./duplicates.js";
-import { buildTaxonomyMappingPlan } from "./mapping.js";
+import { buildTaxonomyMappingPlan, type TaxonomyResolutionMap } from "./mapping.js";
 
 function compareCurrency(left: string, right: string): number {
   return left.localeCompare(right, "en");
@@ -44,11 +44,15 @@ function dateRangeOf(source: ImportSource): { from: string | null; to: string | 
 /**
  * 生成一份完整预览。
  *
- * ⚠️ **冲突项暂按“复用目标对象”计算重复检测**，所以预览会说“若保留目标同名对象，可能重复这些”。
- * D3 让用户改选“新建同名副本”后必须重新运行；这也是为什么本函数不产生最终写入数据。
+ * ⚠️ **冲突项在用户选择前按“复用目标对象”计算重复检测**，所以预览会说“若保留目标同名对象，可能重复这些”。
+ * D2 让用户改选“新建同名副本”后必须重新运行；这也是为什么本函数不产生最终写入数据。
  */
-export function buildImportPreview(source: ImportSource, target: ImportTarget): ImportPreview {
-  const mapping = buildTaxonomyMappingPlan(source, target);
+export function buildImportPreview(
+  source: ImportSource,
+  target: ImportTarget,
+  resolutions?: TaxonomyResolutionMap,
+): ImportPreview {
+  const mapping = buildTaxonomyMappingPlan(source, target, resolutions);
   const duplicates = detectDuplicateGroups(source, target, mapping);
   const totals = buildTotals(source);
   const dateRange = dateRangeOf(source);
@@ -61,7 +65,7 @@ export function buildImportPreview(source: ImportSource, target: ImportTarget): 
   }
   if (mapping.conflicts.length > 0) {
     warnings.push(
-      `分类、支付方式或标签有 ${String(mapping.conflicts.length)} 项同名但属性不同，导入前需要逐项确认；预览中的重复检测暂按“复用目标对象”估算。`,
+      `分类、支付方式或标签有 ${String(mapping.conflicts.length)} 项同名但属性不同，导入前需要逐项确认；冲突项在你选择前按“复用目标对象”估算。`,
     );
   }
   if (duplicates.groups.length > 0) {
