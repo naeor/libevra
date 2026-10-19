@@ -72,7 +72,33 @@ MAX_SECONDS = 60
 # and named in the startup line so a log says which one is actually loaded rather
 # than which one was intended.
 MODEL_NAME = os.environ.get("LIBELLUM_WHISPER_MODEL", "small")
-THREADS = int(os.environ.get("LIBELLUM_WHISPER_THREADS", "4"))
+# A model spec may be a local path. Keeping this separate from MODEL_NAME lets a
+# deployment switch models without changing the name written to logs.
+MODEL_SPEC = os.environ.get("LIBELLUM_WHISPER_MODEL_PATH") or MODEL_NAME
+
+# On the 2-vCPU production host two threads match the available cores. The old
+# fallback of four was only used when the deployment forgot to set the env var;
+# more threads than cores makes a CPU-only decoder compete with itself.
+DEFAULT_THREADS = max(1, min(2, os.cpu_count() or 1))
+
+
+def _thread_count(value: str | None) -> int:
+    try:
+        configured = int(value) if value is not None and value.strip() != "" else DEFAULT_THREADS
+    except ValueError:
+        configured = DEFAULT_THREADS
+    return max(1, min(configured, os.cpu_count() or configured))
+
+
+THREADS = _thread_count(os.environ.get("LIBELLUM_WHISPER_THREADS"))
+
+# VAD is deliberately conservative: it only skips clips with almost no energy,
+# where Whisper would otherwise spend a full inference pass and often invent
+# text. Normal speech still goes through the model unchanged.
+VAD_ENABLED = os.environ.get("LIBELLUM_WHISPER_VAD", "1").strip().lower() not in {"0", "false", "no", "off"}
+VAD_FRAME_SECONDS = 0.02
+VAD_MIN_SPEECH_SECONDS = 0.20
+VAD_PEAK_FLOOR = 0.002
 
 # ---------------------------------------------------------------------------
 # The hint that steers recognition towards bookkeeping.
@@ -137,7 +163,7 @@ def decode_audio(payload: str) -> np.ndarray:
 
     try:
         container = av.open(io.BytesIO(raw))
-    except av.AVError as error:
+    except Exception as error:  # PyAV's exception base class differs by release
         raise ValueError("audio_undecodable") from error
 
     try:
@@ -186,37 +212,129 @@ def decode_audio(payload: str) -> np.ndarray:
     return audio
 
 
+def detect_speech(audio: np.ndarray) -> tuple[bool, float]:
+    """Conservatively decide whether a clip contains any speech at all.
+
+    This is intentionally an energy gate, not a full VAD: it must never discard
+    normal speech. A clip is skipped only when its frame RMS never rises meaningfully
+    above its own noise floor and the absolute floor. The caller still uses Whisper
+    for every clip that passes, so recognition quality is unchanged.
+
+    Returns ``(has_speech, active_seconds)``.
+    """
+    if audio.size == 0:
+        return False, 0.0
+
+    frame_size = max(1, int(TARGET_RATE * VAD_FRAME_SECONDS))
+    usable = audio[: audio.size - (audio.size % frame_size)]
+    if usable.size < frame_size:
+        return False, 0.0
+
+    frames = usable.reshape(-1, frame_size).astype(np.float64)
+    rms = np.sqrt(np.mean(frames * frames, axis=1))
+    peak = float(rms.max())
+    if peak < VAD_PEAK_FLOOR:
+        return False, 0.0
+
+    # A relative-to-peak gate follows both a quiet recording and a loud one.
+    # Using the 20th percentile alone would reject a perfectly steady tone:
+    # with no pauses, the "noise floor" is the speech itself.
+    threshold = max(VAD_PEAK_FLOOR, peak * 0.08)
+    active = rms >= threshold
+    active_seconds = float(active.sum()) * VAD_FRAME_SECONDS
+
+    if active_seconds < VAD_MIN_SPEECH_SECONDS:
+        return False, active_seconds
+    return True, active_seconds
+
+
 def main() -> int:
     # Imported here, not at module scope, so `decode_audio` can be imported and
-    # tested without loading a 147 MB model.
+    # tested without loading a model.
     from pywhispercpp.model import Model
 
     print(json.dumps({"ready": False, "loading": True}), flush=True)
 
+    model_started = time.perf_counter()
     model = Model(
-        MODEL_NAME,
+        MODEL_SPEC,
         n_threads=THREADS,
         print_realtime=False,
         print_progress=False,
     )
+    model_load_ms = round((time.perf_counter() - model_started) * 1000, 1)
 
-    print(json.dumps({"ready": True, "model": MODEL_NAME}), flush=True)
+    print(
+        json.dumps(
+            {
+                "ready": True,
+                "model": MODEL_SPEC,
+                "threads": THREADS,
+                "vad": VAD_ENABLED,
+                "modelLoadMs": model_load_ms,
+            }
+        ),
+        flush=True,
+    )
 
     for line in sys.stdin:
         line = line.strip()
         if line == "":
             continue
 
-        started = time.time()
+        started = time.perf_counter()
         request_id = None
+        decode_ms = 0.0
+        vad_ms = 0.0
+        infer_ms = 0.0
 
         try:
             request = json.loads(line)
             request_id = request.get("id")
             language = request.get("language")
 
+            decode_started = time.perf_counter()
             audio = decode_audio(request["audio"])
+            decode_ms = round((time.perf_counter() - decode_started) * 1000, 1)
 
+            speech_present = True
+            active_seconds = 0.0
+            if VAD_ENABLED:
+                vad_started = time.perf_counter()
+                speech_present, active_seconds = detect_speech(audio)
+                vad_ms = round((time.perf_counter() - vad_started) * 1000, 1)
+
+            timings = {
+                "decodeMs": decode_ms,
+                "vadMs": vad_ms,
+                "inferMs": 0.0,
+                "totalMs": 0.0,
+            }
+
+            if not speech_present:
+                # Do not feed a silent clip to Whisper: it costs a full decode
+                # pass and can hallucinate text into the gap.
+                total_ms = round((time.perf_counter() - started) * 1000, 1)
+                timings["totalMs"] = total_ms
+                print(
+                    json.dumps(
+                        {
+                            "id": request_id,
+                            "ok": True,
+                            "text": "",
+                            "speechless": True,
+                            "seconds": round(total_ms / 1000, 2),
+                            "audioSeconds": round(audio.size / TARGET_RATE, 2),
+                            "activeSeconds": round(active_seconds, 2),
+                            "timings": timings,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    flush=True,
+                )
+                continue
+
+            infer_started = time.perf_counter()
             segments = model.transcribe(
                 audio,
                 language=language,
@@ -228,8 +346,12 @@ def main() -> int:
                 # and, more importantly, what is deliberately not.
                 initial_prompt=INITIAL_PROMPT,
             )
+            infer_ms = round((time.perf_counter() - infer_started) * 1000, 1)
+            timings["inferMs"] = infer_ms
 
             text = "".join(getattr(segment, "text", "") for segment in segments).strip()
+            total_ms = round((time.perf_counter() - started) * 1000, 1)
+            timings["totalMs"] = total_ms
 
             print(
                 json.dumps(
@@ -237,8 +359,10 @@ def main() -> int:
                         "id": request_id,
                         "ok": True,
                         "text": text,
-                        "seconds": round(time.time() - started, 2),
+                        "seconds": round(total_ms / 1000, 2),
                         "audioSeconds": round(audio.size / TARGET_RATE, 2),
+                        "activeSeconds": round(active_seconds, 2) if VAD_ENABLED else None,
+                        "timings": timings,
                     },
                     ensure_ascii=False,
                 ),

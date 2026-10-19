@@ -7,7 +7,7 @@ import {
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
-import { badRequest, tooManyRequests } from "../lib/errors.js";
+import { badRequest, serviceUnavailable, tooManyRequests } from "../lib/errors.js";
 import { TranscriptionRejected, type VoiceService } from "../voice/client.js";
 
 interface VoiceRouteOptions {
@@ -89,6 +89,17 @@ export function registerVoiceRoutes(app: FastifyInstance, options: VoiceRouteOpt
     try {
       const result = await voice.transcribe(audio);
 
+      // Operational timing belongs in the server log, not in the user response.
+      request.log.info(
+        {
+          audioSeconds: result.audioSeconds,
+          serviceSeconds: result.seconds,
+          speechless: result.speechless === true,
+          timings: result.timings ?? null,
+        },
+        "voice transcription timing",
+      );
+
       /**
        * Silence is reported as a success with empty fields, not as an error.
        *
@@ -158,7 +169,14 @@ export function registerVoiceRoutes(app: FastifyInstance, options: VoiceRouteOpt
         throw badRequest(error.reason, error.message);
       }
 
-      throw error;
+      // A failed child process is an availability problem, not a recording
+      // problem. Keep the technical detail in the log and give the user one
+      // short, actionable sentence. The audio was never written to disk.
+      request.log.error({ err: error }, "voice transcription service failed");
+      throw serviceUnavailable(
+        "voice_unavailable",
+        "语音识别服务暂时不可用，请稍后再试。你的录音没有被保存。",
+      );
     }
   });
 }

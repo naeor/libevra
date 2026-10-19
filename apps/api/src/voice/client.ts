@@ -69,12 +69,24 @@ interface RawResponse {
   readonly text?: string;
   readonly seconds?: number;
   readonly audioSeconds?: number;
+  readonly speechless?: boolean;
+  readonly activeSeconds?: number | null;
+  readonly timings?: VoiceTimings;
+}
+
+export interface VoiceTimings {
+  readonly decodeMs: number;
+  readonly vadMs: number;
+  readonly inferMs: number;
+  readonly totalMs: number;
 }
 
 export interface Transcription {
   readonly text: string;
   readonly audioSeconds: number;
   readonly seconds: number;
+  readonly speechless?: boolean;
+  readonly timings?: VoiceTimings;
 }
 
 /** Raised when the audio itself is the problem, with a message worth showing. */
@@ -93,17 +105,33 @@ interface Pending {
   readonly reject: (error: Error) => void;
 }
 
+/** A failure of the transcriber itself, as opposed to a bad recording. */
+export class VoiceServiceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VoiceServiceError";
+  }
+}
+
+/** Test/deployment seams; production uses the defaults. */
+export interface VoiceServiceOptions {
+  readonly pythonPath?: string;
+  readonly serviceDirectory?: string;
+  readonly serviceFile?: string;
+  readonly startupTimeoutMs?: number;
+  readonly transcribeTimeoutMs?: number;
+}
+
 /**
  * How long to wait for one recording.
  *
- * Generous on purpose, and then made more so when the model grew: the first
- * request in a fresh deployment **downloads the model** (466 MB for `small`)
- * before it can transcribe anything, and a timeout that gave up during the
- * download would look like a broken recogniser rather than a slow first run.
+ * The normal warm request is a few seconds of audio plus model inference; a
+ * ceiling of two minutes still leaves room for a slow first model load but no
+ * longer lets a dead sidecar hang a request for five minutes.
  */
-const TRANSCRIBE_TIMEOUT_MS = 300_000;
+const TRANSCRIBE_TIMEOUT_MS = 120_000;
 /** How long to wait for the model to load, or to arrive, on first use. */
-const STARTUP_TIMEOUT_MS = 600_000;
+const STARTUP_TIMEOUT_MS = 120_000;
 
 export class VoiceService {
   private child: ChildProcessWithoutNullStreams | null = null;
@@ -111,37 +139,78 @@ export class VoiceService {
   private buffer = "";
   private nextId = 1;
   private readyPromise: Promise<void> | null = null;
+  private startupTimer: ReturnType<typeof setTimeout> | null = null;
   private onReady: (() => void) | null = null;
+
+  constructor(private readonly options: VoiceServiceOptions = {}) {}
 
   private async ensureStarted(): Promise<void> {
     if (this.child !== null) return;
     if (this.readyPromise !== null) return this.readyPromise;
 
-    this.readyPromise = new Promise<void>((resolve, reject) => {
-      const directory = serviceDirectory();
-      const python = interpreterPath(directory);
+    const directory = this.options.serviceDirectory ?? serviceDirectory();
+    const python = this.options.pythonPath ?? interpreterPath(directory);
+    const serviceFile = this.options.serviceFile ?? "service.py";
 
-      if (!existsSync(python)) {
-        this.readyPromise = null;
+    if (!existsSync(python)) {
+      throw new VoiceServiceError(
+        `找不到语音识别的 Python 环境（${python}）。请先运行 apps/ocr 里的安装步骤，并安装 pywhispercpp 与 av。`,
+      );
+    }
+
+    let child: ChildProcessWithoutNullStreams | null = null;
+    const readyPromise = new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const fail = (error: VoiceServiceError): void => {
+        if (settled) return;
+        settled = true;
+        if (this.startupTimer !== null) {
+          clearTimeout(this.startupTimer);
+          this.startupTimer = null;
+        }
+        if (this.readyPromise === readyPromise) this.readyPromise = null;
+        if (this.onReady === ready) this.onReady = null;
+        if (this.child === child) this.child = null;
+        reject(error);
+      };
+
+      const ready = (): void => {
+        if (settled) return;
+        settled = true;
+        if (this.startupTimer !== null) {
+          clearTimeout(this.startupTimer);
+          this.startupTimer = null;
+        }
+        resolve();
+      };
+
+      this.onReady = ready;
+
+      try {
+        child = spawn(python, [serviceFile], {
+          cwd: directory,
+          stdio: ["pipe", "pipe", "pipe"],
+          env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
+        });
+      } catch (error) {
         reject(
-          new Error(
-            `找不到语音识别的 Python 环境（${python}）。请先运行 apps/ocr 里的安装步骤，并安装 pywhispercpp 与 av。`,
+          new VoiceServiceError(
+            `语音识别服务无法启动：${error instanceof Error ? error.message : String(error)}`,
           ),
         );
         return;
       }
 
-      const child = spawn(python, ["service.py"], {
-        cwd: directory,
-        stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
-      });
-
       this.child = child;
-
-      const startupTimer = setTimeout(() => {
-        reject(new Error("语音识别服务启动超时。"));
-      }, STARTUP_TIMEOUT_MS);
+      this.startupTimer = setTimeout(() => {
+        fail(new VoiceServiceError("语音识别服务启动超时。"));
+        try {
+          child?.kill();
+        } catch {
+          // Already gone; nothing else to clean up.
+        }
+      }, this.options.startupTimeoutMs ?? STARTUP_TIMEOUT_MS);
 
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
@@ -157,30 +226,30 @@ export class VoiceService {
       });
 
       child.on("exit", (code) => {
-        this.child = null;
-        this.readyPromise = null;
-        clearTimeout(startupTimer);
+        if (this.child === child) this.child = null;
+        if (this.readyPromise === readyPromise) this.readyPromise = null;
+        fail(new VoiceServiceError(`语音识别服务在就绪前退出（code ${String(code)}）。`));
 
         for (const [, pending] of this.pending) {
-          pending.reject(new Error(`语音识别服务已退出（code ${String(code)}）。`));
+          pending.reject(new VoiceServiceError(`语音识别服务已退出（code ${String(code)}）。`));
         }
         this.pending.clear();
       });
 
       child.on("error", (error) => {
-        this.child = null;
-        this.readyPromise = null;
-        clearTimeout(startupTimer);
-        reject(error);
+        if (this.child === child) this.child = null;
+        if (this.readyPromise === readyPromise) this.readyPromise = null;
+        fail(new VoiceServiceError(`语音识别服务启动失败：${error.message}`));
       });
-
-      this.onReady = () => {
-        clearTimeout(startupTimer);
-        resolve();
-      };
     });
 
-    return this.readyPromise;
+    this.readyPromise = readyPromise;
+    // A failed startup must not poison every later request: the next call gets
+    // a fresh child. The catch is attached so no rejected promise is unhandled.
+    readyPromise.catch(() => {
+      if (this.readyPromise === readyPromise) this.readyPromise = null;
+    });
+    return readyPromise;
   }
 
   private consume(chunk: string): void {
@@ -238,13 +307,13 @@ export class VoiceService {
 
     const id = String(this.nextId++);
     const child = this.child;
-    if (child === null) throw new Error("语音识别服务未运行。");
+    if (child === null) throw new VoiceServiceError("语音识别服务未运行。");
 
     const response = await new Promise<RawResponse>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error("语音识别超时。"));
-      }, TRANSCRIBE_TIMEOUT_MS);
+        reject(new VoiceServiceError("语音识别超时。"));
+      }, this.options.transcribeTimeoutMs ?? TRANSCRIBE_TIMEOUT_MS);
 
       this.pending.set(id, {
         resolve: (value) => {
@@ -271,13 +340,21 @@ export class VoiceService {
       text: response.text ?? "",
       audioSeconds: response.audioSeconds ?? 0,
       seconds: response.seconds ?? 0,
+      ...(response.speechless === undefined ? {} : { speechless: response.speechless }),
+      ...(response.timings === undefined ? {} : { timings: response.timings }),
     };
   }
 
   /** Stop the transcriber so the process does not outlive the server. */
   stop(): void {
-    this.child?.kill();
+    if (this.startupTimer !== null) {
+      clearTimeout(this.startupTimer);
+      this.startupTimer = null;
+    }
+    this.onReady = null;
+    const child = this.child;
     this.child = null;
     this.readyPromise = null;
+    child?.kill();
   }
 }
