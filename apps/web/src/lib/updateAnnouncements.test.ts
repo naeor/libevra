@@ -27,12 +27,29 @@ describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.14.18",
       "1.13.15",
       "1.13.09",
       "1.13.08",
       "1.13.07",
     ]);
     expect(released.every((entry) => entry.status === "released" && entry.releasedAt !== null)).toBe(true);
+  });
+
+  it("keeps the exact 1.14.18 user-facing announcement", () => {
+    const announcement = releasedAnnouncementByVersion("1.14.18");
+    expect(announcement?.title).toBe("Libevra 1.14.18");
+    expect(announcement?.summary).toBe("让账目流动，也让每一步更安心。");
+    expect(announcement?.releasedAt).toBe("2026-10-19");
+    expect(announcement?.major).toBe(true);
+    expect(announcement?.intro?.[0]).toContain("重新设计了账本导入体验");
+    expect(announcement?.sections.map((section) => section.heading)).toEqual([
+      "账本之间，自由整理",
+      "导入前，先确认",
+      "更清楚地处理重复记录",
+      "其他改进",
+    ]);
+    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
   });
 
   it("exposes the 1.13.15 release with its three user-facing groups", () => {
@@ -52,10 +69,12 @@ describe("version announcements", () => {
   });
 
   it("does not invent an announcement for a future development build", () => {
-    expect(releasedAnnouncementByVersion("1.13.16")).toBeNull();
+    expect(releasedAnnouncementByVersion("1.14.19")).toBeNull();
   });
 
   it("answers with the latest applicable release for a running version", () => {
+    expect(latestApplicableAnnouncement("1.14.19")?.version).toBe("1.14.18");
+    expect(latestApplicableAnnouncement("1.14.18")?.version).toBe("1.14.18");
     expect(latestApplicableAnnouncement("1.13.15")?.version).toBe("1.13.15");
     expect(latestApplicableAnnouncement("1.13.14")?.version).toBe("1.13.09");
     expect(latestApplicableAnnouncement("1.13.10")?.version).toBe("1.13.09");
@@ -70,7 +89,9 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.13.08")).toBe(true);
     expect(hasNewerReleasedVersion("1.13.09")).toBe(true);
     expect(hasNewerReleasedVersion("1.13.10")).toBe(true);
-    expect(hasNewerReleasedVersion("1.13.15")).toBe(false);
+    expect(hasNewerReleasedVersion("1.13.15")).toBe(true);
+    expect(hasNewerReleasedVersion("1.14.18")).toBe(false);
+    expect(hasNewerReleasedVersion("1.14.19")).toBe(false);
   });
 
   it("returns all actual releases and leaves the first page to the UI", () => {
@@ -90,7 +111,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.13.15").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.14.18").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.14.18").older?.version).toBe("1.13.15");
+    expect(adjacentReleasedAnnouncements("1.13.15").newer?.version).toBe("1.14.18");
     expect(adjacentReleasedAnnouncements("1.13.15").older?.version).toBe("1.13.09");
     expect(adjacentReleasedAnnouncements("1.13.08").newer?.version).toBe("1.13.09");
     expect(adjacentReleasedAnnouncements("1.13.08").older?.version).toBe("1.13.07");

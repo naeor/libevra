@@ -322,14 +322,17 @@ async function pendingMajorAnnouncement(
 
   if (applicable.length === 0) return null;
 
-  const acknowledged = await prisma.majorAnnouncementAck.findMany({
-    where: {
-      userId,
-      announcementId: { in: applicable.map((announcement) => announcement.id) },
-    },
+  /**
+   * Only the newest applicable announcement is offered. Older unacknowledged announcements are
+   * deliberately not shown afterwards: a user who crosses several releases should see one current
+   * notice, not a queue of historical popups. Older full text remains available from the update
+   * history page.
+   */
+  const latest = applicable[0]!;
+  const acknowledged = await prisma.majorAnnouncementAck.findUnique({
+    where: { userId_announcementId: { userId, announcementId: latest.id } },
     select: { announcementId: true },
   });
-  const acknowledgedIds = new Set(acknowledged.map((row) => row.announcementId));
 
-  return applicable.find((announcement) => !acknowledgedIds.has(announcement.id)) ?? null;
+  return acknowledged === null ? latest : null;
 }

@@ -67,6 +67,14 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
         <p className="text-helper-relaxed text-muted">{announcement.summary}</p>
       </section>
 
+      {announcement.intro === undefined ? null : (
+        <section className="flex flex-col gap-3 px-1 text-body-relaxed text-ink">
+          {announcement.intro.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </section>
+      )}
+
       {announcement.sections.map((section) => (
         <section key={section.heading} className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-3.5">
           <h2 className="text-sm font-semibold text-ink">{section.heading}</h2>
@@ -77,6 +85,14 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
           </ul>
         </section>
       ))}
+
+      {announcement.closing === undefined ? null : (
+        <section className="flex flex-col gap-3 px-1 text-body-relaxed text-ink">
+          {announcement.closing.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </section>
+      )}
 
       {older === null && newer === null ? null : (
         <nav aria-label="版本导航" className="grid gap-3 sm:grid-cols-2">

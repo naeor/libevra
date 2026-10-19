@@ -3,9 +3,10 @@
  *
  * ⚠️ **Only actual production releases belong here.** A version that is still being developed
  * must not appear as released, and a release date must never be guessed. The list is deliberately
- * local and static for now: there is no server-side announcement service, no database table, and
- * no auto-popup. A future major-update reminder can build on `major`, but nothing in this file
- * marks a reminder as shown or read.
+ * local and static for now: there is no server-side announcement service or CMS. The major-update
+ * popup itself is driven by the separate server policy (`packages/shared/src/consent.ts`) and the
+ * existing account-level acknowledgement table; this file only provides the full history/detail
+ * pages, so the two sources must keep the same user-visible facts.
  */
 export interface UpdateAnnouncement {
   /** The exact version users saw in production, e.g. "1.13.07". */
@@ -16,21 +17,73 @@ export interface UpdateAnnouncement {
   readonly title: string;
   /** One or two sentences for the home card and the history row. */
   readonly summary: string;
+  /** Opening paragraphs shown verbatim above the grouped sections. */
+  readonly intro?: readonly string[];
   /** Full announcement, grouped under short headings. */
   readonly sections: readonly {
     readonly heading: string;
     readonly items: readonly string[];
   }[];
-  /** Reserved for a future, dismissible once-per-device major-update notice. */
+  /** Closing paragraphs shown verbatim after the grouped sections. */
+  readonly closing?: readonly string[];
+  /** Marks a large release whose popup is configured separately by the server policy. */
   readonly major: boolean;
 }
 
 /**
- * 1.13.15 is the S13-G/H/I release (2026-10-19). 1.13.09 is the S13-F release;
- * 1.13.08 was a production patch (card layout) and 1.13.07 was the full S13-E release.
- * All are production releases.
+ * 1.14.18 is the S14 production release (2026-10-19). 1.13.15 is the S13-G/H/I release;
+ * 1.13.09 is the S13-F release; 1.13.08 was a production patch (card layout) and 1.13.07
+ * was the full S13-E release. All are production releases.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.14.18",
+    releasedAt: "2026-10-19",
+    status: "released",
+    title: "Libevra 1.14.18",
+    summary: "让账目流动，也让每一步更安心。",
+    intro: [
+      "这次更新，我们重新设计了账本导入体验。无论是将游客账本中的记录转入正式账本，还是整理已有的单人账本，现在都可以更清楚地预览结果、处理重复记录，并在确认前撤销导入。",
+    ],
+    sections: [
+      {
+        heading: "账本之间，自由整理",
+        items: [
+          "现在可以将游客账本中的记录导入正式账本，也可以将符合条件的正式单人账本导入另一本单人账本。",
+          "导入前，你可以选择目标账本、检查记录差异，并决定如何处理冲突。原始账本不会因为导入而自动删除。",
+        ],
+      },
+      {
+        heading: "导入前，先确认",
+        items: [
+          "大量记录可以分批处理，导入任务也能在中断后恢复。",
+          "导入完成后，你将有 10 分钟决定是否确认。如果取消导入，或超过确认时间，系统会尝试撤销本次任务带来的变更。",
+          "在最终确认前，相关账本会暂时受到保护，避免其他操作干扰导入和撤销过程。",
+        ],
+      },
+      {
+        heading: "更清楚地处理重复记录",
+        items: [
+          "再次导入曾经处理过的数据时，Libevra 可以识别已有来源记录，减少重复添加。",
+          "当来源记录发生变化，你也可以在导入预览中选择保留已有内容，或按新的内容更新。",
+        ],
+      },
+      {
+        heading: "其他改进",
+        items: [
+          "优化了导入过程中的状态提示、错误处理和恢复能力。",
+          "完善了账本及交易数据的保护措施。",
+          "改进了 CSV 导入失败时的回滚处理，避免部分记录残留。",
+          "保持邀请制注册，新账号仍需邀请码。",
+        ],
+      },
+    ],
+    closing: [
+      "感谢你使用 Libevra。",
+      "我们会继续改善记录与整理账目的体验，让记账变得更简单，也更可靠。",
+    ],
+    major: true,
+  },
   {
     version: "1.13.15",
     releasedAt: "2026-10-19",

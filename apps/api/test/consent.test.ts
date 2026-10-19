@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { TEST_MAJOR_ANNOUNCEMENT } from "@libellum/shared";
+import {
+  RELEASE_MAJOR_ANNOUNCEMENT_1_14_18,
+  TEST_MAJOR_ANNOUNCEMENT,
+} from "@libellum/shared";
 
 import { createConsentPolicy } from "../src/consent/policy.js";
 import { makeApp, prisma, resetDatabase } from "./support.js";
@@ -43,7 +46,10 @@ describe("consent and major announcements", () => {
 
   beforeEach(async () => {
     await resetDatabase();
-    app = makeApp({ consentPolicy: createConsentPolicy(true) });
+    const testPolicy = createConsentPolicy(true);
+    app = makeApp({
+      consentPolicy: { ...testPolicy, majorAnnouncements: [TEST_MAJOR_ANNOUNCEMENT] },
+    });
   });
 
   afterEach(async () => {
@@ -166,6 +172,88 @@ describe("consent and major announcements", () => {
     const newCookie = await makeAccountWithAgreements(app, "new_user");
     const newStatus = await app.inject({ method: "GET", url: "/api/v1/account/consent", headers: { cookie: newCookie } });
     expect((newStatus.json() as { majorAnnouncement: unknown }).majorAnnouncement).toBeNull();
+  });
+
+  it("offers the real 1.14.18 major announcement once per account and skips accounts created after it", async () => {
+    const plainApp = makeApp();
+    const cookie = await makeAccountWithAgreements(plainApp, "real_major_user");
+    const user = await prisma.user.findUniqueOrThrow({ where: { username: "real_major_user" } });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { createdAt: new Date("2026-10-19T08:00:00.000Z") },
+    });
+
+    const before = await plainApp.inject({
+      method: "GET",
+      url: "/api/v1/account/consent",
+      headers: { cookie },
+    });
+    expect((before.json() as { majorAnnouncement: { id: string } | null }).majorAnnouncement).toMatchObject({
+      id: RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.id,
+      version: RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.version,
+    });
+
+    const ack = await plainApp.inject({
+      method: "POST",
+      url: `/api/v1/account/major-announcements/${RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.id}/ack`,
+      headers: { cookie },
+      payload: { version: RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.version, action: "acknowledged" },
+    });
+    expect(ack.statusCode).toBe(200);
+    const after = await plainApp.inject({
+      method: "GET",
+      url: "/api/v1/account/consent",
+      headers: { cookie },
+    });
+    expect((after.json() as { majorAnnouncement: unknown }).majorAnnouncement).toBeNull();
+
+    const newCookie = await makeAccountWithAgreements(plainApp, "real_new_user");
+    const newStatus = await plainApp.inject({
+      method: "GET",
+      url: "/api/v1/account/consent",
+      headers: { cookie: newCookie },
+    });
+    expect((newStatus.json() as { majorAnnouncement: unknown }).majorAnnouncement).toBeNull();
+    await plainApp.close();
+  });
+
+  it("does not queue older unacknowledged announcements after the latest one is acknowledged", async () => {
+    const policy = createConsentPolicy(true);
+    const multiApp = makeApp({
+      consentPolicy: {
+        ...policy,
+        majorAnnouncements: [TEST_MAJOR_ANNOUNCEMENT, RELEASE_MAJOR_ANNOUNCEMENT_1_14_18],
+      },
+    });
+    const cookie = await makeAccountWithAgreements(multiApp, "multi_major_user");
+    const user = await prisma.user.findUniqueOrThrow({ where: { username: "multi_major_user" } });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { createdAt: new Date("2026-10-18T05:00:00.000Z") },
+    });
+
+    const before = await multiApp.inject({
+      method: "GET",
+      url: "/api/v1/account/consent",
+      headers: { cookie },
+    });
+    expect((before.json() as { majorAnnouncement: { id: string } | null }).majorAnnouncement).toMatchObject({
+      id: RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.id,
+    });
+
+    await multiApp.inject({
+      method: "POST",
+      url: `/api/v1/account/major-announcements/${RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.id}/ack`,
+      headers: { cookie },
+      payload: { version: RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.version, action: "acknowledged" },
+    });
+    const after = await multiApp.inject({
+      method: "GET",
+      url: "/api/v1/account/consent",
+      headers: { cookie },
+    });
+    expect((after.json() as { majorAnnouncement: unknown }).majorAnnouncement).toBeNull();
+    await multiApp.close();
   });
 
   it("publishes no required documents in the normal (production-like) policy", async () => {

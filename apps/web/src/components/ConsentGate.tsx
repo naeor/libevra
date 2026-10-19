@@ -15,13 +15,15 @@ import {
 import { deliverFile } from "../lib/share.js";
 import { errorMessage } from "../lib/api.js";
 
-/** Pages where a gentle announcement must not interrupt an active input flow. */
-function isInputFlow(pathname: string): boolean {
+/** Pages where a gentle announcement must not interrupt an active input/import flow. */
+export function isInputFlow(pathname: string): boolean {
   return (
     pathname === "/add" ||
     pathname === "/record" ||
     pathname === "/scan" ||
     pathname === "/voice/review" ||
+    pathname.startsWith("/import") ||
+    pathname.endsWith("/settings/import") ||
     pathname.startsWith("/transactions/")
   );
 }

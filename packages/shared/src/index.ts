@@ -317,6 +317,7 @@ export {
 export { APP_VERSION } from "./version.js";
 
 export {
+  RELEASE_MAJOR_ANNOUNCEMENT_1_14_18,
   TEST_LEGAL_DOCUMENT,
   TEST_MAJOR_ANNOUNCEMENT,
   activeLegalDocuments,
