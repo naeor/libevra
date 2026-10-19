@@ -10,6 +10,12 @@ import type { FastifyInstance } from "fastify";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { loadTargetSnapshot } from "../src/ledger/importTarget.js";
+import {
+  createImportJob,
+  finalizeImportJobForTest,
+  processImportJob,
+  runImportJobBatchForTest,
+} from "../src/ledger/importJob.js";
 import { makeApp, prisma, resetDatabase, signUp } from "./support.js";
 
 describe("batched ledger import (D5 phase 1)", () => {
@@ -390,5 +396,336 @@ describe("batched ledger import (D5 phase 1)", () => {
     const receipt = await prisma.ledgerImport.findUniqueOrThrow({ where: { id: job.id } });
     expect(receipt.result).toMatchObject({ sourceBookId, importedCount: 5, reconciled: true });
   }, 40_000);
+
+  it("pauses after committed batches when the target changes concurrently", async () => {
+    const owner = await account("d5_fault_target");
+    const ledgerResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/ledger",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    const ledger = ledgerResponse.json() as {
+      categories: { id: string; name: string; kind: "expense" | "income" }[];
+    };
+    const food = ledger.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const sourceCategoryId = randomUUID();
+    const source: GuestImportSource = {
+      name: "D5故障目标变化",
+      categories: [
+        {
+          id: sourceCategoryId,
+          name: food.name,
+          kind: food.kind,
+          description: null,
+          sortOrder: 0,
+          isArchived: false,
+          isSystem: false,
+        },
+      ],
+      paymentMethods: [],
+      tags: [],
+      transactions: Array.from({ length: 5 }, (_, index) => ({
+        id: randomUUID(),
+        kind: "expense" as const,
+        amountCents: 500 + index,
+        currency: "CNY" as const,
+        categoryId: sourceCategoryId,
+        paymentMethodId: null,
+        occurredAt: new Date(Date.UTC(2026, 9, 18, 0, index, 0)).toISOString(),
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: `故障来源${String(index)}`,
+        tagIds: [],
+      })),
+    };
+    const target = await loadTargetSnapshot(prisma, owner.bookId);
+    const request = importJobRequestSchema.parse({
+      importId: randomUUID(),
+      target: { kind: "existing", bookId: owner.bookId, expectedTargetFingerprint: await fingerprintTargetSnapshot(target) },
+      source,
+      sourceFingerprint: await fingerprintGuestSource(source),
+      taxonomy: [{ type: "category", sourceId: sourceCategoryId, action: "reuse", targetId: food.id }],
+      duplicateGroups: [],
+      batchSize: 2,
+    });
+    const created = await createImportJob(prisma, owner.userId, request, { startImmediately: false });
+
+    await runImportJobBatchForTest(prisma, created.id);
+    const afterFirst = await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id } });
+    expect(afterFirst.importedCount).toBe(2);
+    expect(afterFirst.nextBatch).toBe(1);
+
+    const concurrent = await app.inject({
+      method: "POST",
+      url: "/api/v1/transactions",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+      payload: {
+        id: randomUUID(),
+        idempotencyKey: randomUUID(),
+        kind: "expense",
+        amountCents: 9999,
+        currency: "CNY",
+        categoryId: food.id,
+        paymentMethodId: null,
+        occurredAt: "2026-10-18T01:00:00.000Z",
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: "并发新增目标账目",
+        tagIds: [],
+      },
+    });
+    expect(concurrent.statusCode).toBe(201);
+
+    await processImportJob(prisma, created.id);
+    const paused = await app.inject({
+      method: "GET",
+      url: `/api/v1/ledger-imports/jobs/${created.id}`,
+      headers: { cookie: owner.cookie },
+    });
+    expect(paused.statusCode).toBe(200);
+    expect(paused.json()).toMatchObject({
+      status: "paused",
+      lastErrorCode: "target_changed",
+      importedCount: 2,
+      nextBatch: 1,
+    });
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(3);
+    expect(await prisma.ledgerImport.findUnique({ where: { id: created.id } })).toBeNull();
+  }, 30_000);
+
+  it("fails the final A deletion safely when an A row changed, then retries after reconciliation", async () => {
+    const owner = await account("d5_fault_final");
+    const ledgerResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/ledger",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    const ledger = ledgerResponse.json() as {
+      categories: { id: string; name: string; kind: "expense" | "income" }[];
+    };
+    const food = ledger.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const targetResponse = await app.inject({
+      method: "POST",
+      url: "/api/v1/transactions",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+      payload: {
+        id: randomUUID(),
+        idempotencyKey: randomUUID(),
+        kind: "expense",
+        amountCents: 7000,
+        currency: "CNY",
+        categoryId: food.id,
+        paymentMethodId: null,
+        occurredAt: "2026-10-18T00:00:30.000Z",
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: "最终删除故障目标",
+        tagIds: [],
+      },
+    });
+    const targetRow = targetResponse.json() as { id: string; version: number };
+    const sourceCategoryId = randomUUID();
+    const source: GuestImportSource = {
+      name: "D5最终删除故障",
+      categories: [
+        {
+          id: sourceCategoryId,
+          name: food.name,
+          kind: food.kind,
+          description: null,
+          sortOrder: 0,
+          isArchived: false,
+          isSystem: false,
+        },
+      ],
+      paymentMethods: [],
+      tags: [],
+      transactions: Array.from({ length: 3 }, (_, index) => ({
+        id: randomUUID(),
+        kind: "expense" as const,
+        amountCents: 7000,
+        currency: "CNY" as const,
+        categoryId: sourceCategoryId,
+        paymentMethodId: null,
+        occurredAt: new Date(Date.UTC(2026, 9, 18, 0, index % 30, 0)).toISOString(),
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: `最终故障来源${String(index)}`,
+        tagIds: [],
+      })),
+    };
+    const target = await loadTargetSnapshot(prisma, owner.bookId);
+    const request = importJobRequestSchema.parse({
+      importId: randomUUID(),
+      target: { kind: "existing", bookId: owner.bookId, expectedTargetFingerprint: await fingerprintTargetSnapshot(target) },
+      source,
+      sourceFingerprint: await fingerprintGuestSource(source),
+      taxonomy: [{ type: "category", sourceId: sourceCategoryId, action: "reuse", targetId: food.id }],
+      duplicateGroups: [
+        {
+          groupId: "d5-final-failure-group",
+          action: "keep_b",
+          sourceIds: [source.transactions[0]!.id],
+          targetIds: [targetRow.id],
+        },
+      ],
+    });
+    const created = await createImportJob(prisma, owner.userId, request, { startImmediately: false });
+    await runImportJobBatchForTest(prisma, created.id);
+    const afterBatch = await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id } });
+    expect(afterBatch.nextBatch).toBe(1);
+    expect(afterBatch.importedCount).toBe(3);
+
+    // Simulate another device changing/restoring the A row version between batches and finalization.
+    await prisma.transaction.update({
+      where: { id: targetRow.id },
+      data: { version: targetRow.version + 1 },
+    });
+    await expect(finalizeImportJobForTest(prisma, created.id)).rejects.toThrow();
+    expect(await prisma.transaction.findUnique({ where: { id: targetRow.id }, select: { deletedAt: true } })).toMatchObject({ deletedAt: null });
+    expect(await prisma.ledgerImport.findUnique({ where: { id: created.id } })).toBeNull();
+
+    await prisma.transaction.update({
+      where: { id: targetRow.id },
+      data: { version: targetRow.version },
+    });
+    await finalizeImportJobForTest(prisma, created.id);
+    const completed = await app.inject({
+      method: "GET",
+      url: `/api/v1/ledger-imports/jobs/${created.id}`,
+      headers: { cookie: owner.cookie },
+    });
+    expect(completed.json()).toMatchObject({
+      status: "completed",
+      importedCount: 3,
+      removedCount: 1,
+      result: { importedCount: 3, removedCount: 1, reconciled: true },
+    });
+    expect(await prisma.transaction.findUnique({ where: { id: targetRow.id }, select: { deletedAt: true } })).not.toMatchObject({ deletedAt: null });
+  }, 30_000);
+
+  it("stops background writes when the owning account is disabled", async () => {
+    const owner = await account("d5_fault_disabled");
+    const ledgerResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/ledger",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    const ledger = ledgerResponse.json() as {
+      categories: { id: string; name: string; kind: "expense" | "income" }[];
+    };
+    const food = ledger.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const sourceCategoryId = randomUUID();
+    const source: GuestImportSource = {
+      name: "D5停用账号",
+      categories: [
+        {
+          id: sourceCategoryId,
+          name: food.name,
+          kind: food.kind,
+          description: null,
+          sortOrder: 0,
+          isArchived: false,
+          isSystem: false,
+        },
+      ],
+      paymentMethods: [],
+      tags: [],
+      transactions: [
+        {
+          id: randomUUID(),
+          kind: "expense",
+          amountCents: 800,
+          currency: "CNY",
+          categoryId: sourceCategoryId,
+          paymentMethodId: null,
+          occurredAt: "2026-10-18T00:00:00.000Z",
+          occurredLocalDate: "2026-10-18",
+          occurredTz: "Asia/Shanghai",
+          note: "停用账号来源",
+          tagIds: [],
+        },
+      ],
+    };
+    const target = await loadTargetSnapshot(prisma, owner.bookId);
+    const request = importJobRequestSchema.parse({
+      importId: randomUUID(),
+      target: { kind: "existing", bookId: owner.bookId, expectedTargetFingerprint: await fingerprintTargetSnapshot(target) },
+      source,
+      sourceFingerprint: await fingerprintGuestSource(source),
+      taxonomy: [{ type: "category", sourceId: sourceCategoryId, action: "reuse", targetId: food.id }],
+      duplicateGroups: [],
+    });
+    const created = await createImportJob(prisma, owner.userId, request, { startImmediately: false });
+    await prisma.user.update({ where: { id: owner.userId }, data: { disabledAt: new Date() } });
+    await processImportJob(prisma, created.id);
+    const status = await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id } });
+    expect(status.status).toBe("paused");
+    expect(status.lastErrorCode).toBe("account_disabled");
+    expect(status.importedCount).toBe(0);
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
+  }, 30_000);
+
+  it("does not bypass S13 book lifecycle: an archived target pauses the job", async () => {
+    const owner = await account("d5_fault_archived");
+    const ledgerResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/ledger",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    const ledger = ledgerResponse.json() as {
+      categories: { id: string; name: string; kind: "expense" | "income" }[];
+    };
+    const food = ledger.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const sourceCategoryId = randomUUID();
+    const source: GuestImportSource = {
+      name: "D5归档目标",
+      categories: [
+        {
+          id: sourceCategoryId,
+          name: food.name,
+          kind: food.kind,
+          description: null,
+          sortOrder: 0,
+          isArchived: false,
+          isSystem: false,
+        },
+      ],
+      paymentMethods: [],
+      tags: [],
+      transactions: [
+        {
+          id: randomUUID(),
+          kind: "expense",
+          amountCents: 900,
+          currency: "CNY",
+          categoryId: sourceCategoryId,
+          paymentMethodId: null,
+          occurredAt: "2026-10-18T00:00:00.000Z",
+          occurredLocalDate: "2026-10-18",
+          occurredTz: "Asia/Shanghai",
+          note: "归档目标来源",
+          tagIds: [],
+        },
+      ],
+    };
+    const target = await loadTargetSnapshot(prisma, owner.bookId);
+    const request = importJobRequestSchema.parse({
+      importId: randomUUID(),
+      target: { kind: "existing", bookId: owner.bookId, expectedTargetFingerprint: await fingerprintTargetSnapshot(target) },
+      source,
+      sourceFingerprint: await fingerprintGuestSource(source),
+      taxonomy: [{ type: "category", sourceId: sourceCategoryId, action: "reuse", targetId: food.id }],
+      duplicateGroups: [],
+    });
+    const created = await createImportJob(prisma, owner.userId, request, { startImmediately: false });
+    await prisma.book.update({ where: { id: owner.bookId }, data: { archivedAt: new Date() } });
+    await processImportJob(prisma, created.id);
+    const status = await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id } });
+    expect(status.status).toBe("paused");
+    expect(status.lastErrorCode).toBe("book_archived");
+    expect(status.importedCount).toBe(0);
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
+  }, 30_000);
 
 });

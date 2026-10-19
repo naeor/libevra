@@ -107,8 +107,30 @@ function isPermanentPause(code: string): boolean {
     code === "book_read_only" ||
     code === "book_deleted" ||
     code === "book_archived" ||
-    code === "already_imported"
+    code === "already_imported" ||
+    code === "account_closed" ||
+    code === "account_disabled"
   );
+}
+
+/**
+ * S13 的 HTTP guard 会在每次请求检查账号状态，但后台 worker 不经过 HTTP。
+ * 因此每一批和最终删除前必须显式复查：注销/停用账号不能再推进任何导入写入。
+ */
+async function assertJobUserActive(
+  client: Prisma.TransactionClient | PrismaClient,
+  userId: string,
+): Promise<void> {
+  const user = await client.user.findUnique({
+    where: { id: userId },
+    select: { closedAt: true, disabledAt: true },
+  });
+  if (user === null || user.closedAt !== null) {
+    throw forbidden("account_closed", "账号已注销，导入任务已暂停。");
+  }
+  if (user.disabledAt !== null) {
+    throw forbidden("account_disabled", "账号已停用，导入任务已暂停。");
+  }
 }
 
 /** 正在由本进程处理的任务；DB 行锁仍是跨进程/重启的最终防线。 */
@@ -165,6 +187,7 @@ export async function createImportJob(
   prisma: PrismaClient,
   userId: string,
   body: ImportJobRequest,
+  options?: { readonly startImmediately?: boolean },
 ): Promise<ImportJobStatus> {
   if (body.target.kind !== "existing") {
     throw badRequest("batch_target_required", "分批导入只能导入现有正式账本；请先创建目标账本。");
@@ -263,7 +286,11 @@ export async function createImportJob(
     },
   });
 
-  kickImportJob(prisma, body.importId);
+  if (options?.startImmediately === false) {
+    // test-only control: caller will drive batches itself to inject failures.
+  } else {
+    kickImportJob(prisma, body.importId);
+  }
   const status = await jobStatus(prisma, body.importId);
   if (status === null) throw notFound("import_job_missing", "找不到这个导入任务。");
   return status;
@@ -278,6 +305,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
       if (job.status !== "queued" && job.status !== "running") return;
       const payload = readPayload(job);
       if (job.nextBatch >= job.totalBatches) return;
+      await assertJobUserActive(tx, job.userId);
 
       let targetSnapshot: ImportTargetSnapshot;
       if (job.sourceKind === "book") {
@@ -401,6 +429,7 @@ async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
       if (job.status === "completed") return;
       if (job.status !== "queued" && job.status !== "running" && job.status !== "finalizing") return;
       const payload = readPayload(job);
+      await assertJobUserActive(tx, job.userId);
 
       let targetSnapshot: ImportTargetSnapshot;
       if (job.sourceKind === "book") {
@@ -584,6 +613,15 @@ export function kickImportJob(prisma: PrismaClient, jobId: string): void {
   setImmediate(() => {
     void processImportJob(prisma, jobId).catch(() => undefined);
   });
+}
+
+/** Test-only entry points for deterministic fault injection; production uses `processImportJob`. */
+export async function runImportJobBatchForTest(prisma: PrismaClient, jobId: string): Promise<void> {
+  await runBatch(prisma, jobId);
+}
+
+export async function finalizeImportJobForTest(prisma: PrismaClient, jobId: string): Promise<void> {
+  await finalizeJob(prisma, jobId);
 }
 
 /**

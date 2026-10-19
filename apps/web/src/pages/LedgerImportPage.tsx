@@ -199,6 +199,8 @@ export function LedgerImportPage(): React.JSX.Element {
         if (cancelled) return;
         setSubmitError(errorMessage(caught));
         setSubmitState("error");
+        // API 重启/断线是暂时状态：继续轮询，恢复后不需要用户手动刷新。
+        timer = setTimeout(() => void poll(), 2_000);
       }
     };
     void poll();
