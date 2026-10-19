@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Libevra S14 import/undo_failed health check
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=false
+Unit=libevra-import-health.service
+
+[Install]
+WantedBy=timers.target

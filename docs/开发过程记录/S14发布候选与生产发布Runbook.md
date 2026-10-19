@@ -367,7 +367,7 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 - critical_chain `last_hash` 在迁移前后不变（之后新业务事件可以正常追加）；
 - 新 Web 可登录、记一笔、编辑、删除/恢复测试数据；
 - PWA 两台设备可同步，离线队列清零；
-- CSV/XLSX 导入：锁定期返回 409、失败无标签/交易残留；UI 不承诺撤销；
+- CSV 导入（当前只支持 CSV，不支持 XLSX）：锁定期返回 409、失败无标签/交易残留；UI 不承诺撤销；
 - phase-4 导入（测试账本）：锁定、确认、撤销、超时自动撤销至少各执行一次；
 - 旧 PWA/旧接口：直接调用旧 `/api/v1/ledger-imports` 返回 409，不产生写入；
 - other ledgers unaffected by locks.
@@ -454,6 +454,28 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ---
 
+### 3.13.1 实际巡检工具与责任人
+
+已准备（本地源码，待发布时安装/启用）：
+
+- `deploy/import-health.sh`：只读检查，不重试、不确认、不解锁、不写数据；检查 `undoing`/`undo_failed` 超时、`confirming` 超时、active lock 超时；异常退出码 1，数据库检查失败退出码 2；迁移前 S14 表不存在时安全返回 0。
+- `deploy/systemd/libevra-import-health.service`
+- `deploy/systemd/libevra-import-health.timer`：每 15 分钟运行一次。
+- 异常可接入现有 `alert-mail.sh --stage import-health`；不发送恢复邮件，避免每次巡检产生噪音。
+
+发布时安装命令（需正式发布授权后才能在生产执行）：
+
+```bash
+cp deploy/systemd/libevra-import-health.* /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now libevra-import-health.timer
+systemctl list-timers --all | grep import-health
+```
+
+**责任人**：所有者本人（当前唯一生产维护者）。发布后 24 小时内每 2 小时由所有者查看一次 timer/邮件；之后按日常巡检执行。若委托他人，必须在发布授权时明确姓名/联系方式。任何人看到 timer 失败或 `undo_failed` 报警，按 §3.13 人工恢复步骤处理，不强制解锁。
+
+---
+
 ## 3.14 邀请制注册发布检查（所有者 2026-10-19 决定）
 
 **现状核对（只读）：**
@@ -508,6 +530,52 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ---
 
+## 3.15 维护窗口、停机范围与通知（等待所有者确认）
+
+建议窗口（尚未执行、未通知用户）：
+
+- **2026-10-20 04:30–05:10 Asia/Shanghai**（避开每日 03:00 备份与 04:08 关键备份任务；低峰时段）
+- 预计**停机范围**：Web、API、Critical Relay；PostgreSQL 保持运行用于备份/恢复校验。DB 数据本身在备份期间不停止。
+- 预计用户不可用时间：**20–30 分钟**；完整维护窗口预留 40 分钟。
+- 不把生产 80/443 映射到测试容器；不发任意测试邀请码或测试账号。
+
+停机前通知模板（由所有者发送给现有用户）：
+
+> Libevra 将于 2026-10-20 04:30–05:10（香港时间）进行短时维护，期间无法登录或记账。请在维护前打开应用，等待待同步内容完成；维护结束后刷新页面即可。请不要在维护期间重复提交。
+
+**PWA 待同步队列**：队列保存在浏览器本地，服务器无法读取。所有者必须在两台设备上打开 Libevra，确认页面没有待同步/待重试记录后才开始停机；这是人工门禁，不能用服务端 SQL 替代。
+
+## 3.16 发布停止条件（任一命中即停止）
+
+**迁移前（尚未改 schema）：**
+
+- 生产 API/Web/DB/Relay 任一不健康，或最近定时备份/恢复演练失败；
+- 最新 S12-C 备份未生成、COS 上传/远端元数据校验失败，或独立恢复演练未通过；
+- S13-I Critical Chain/Checkpoint/Relay 状态与记录不一致、relay 持续异常；
+- 当前 `_prisma_migrations` 不是 45，或生产数据/S13 状态与预检记录不符；
+- 镜像 Image ID/归档 SHA 与已验证候选不一致；
+- `deploy/restore.sh` 不含预校验修复，或 `deploy` 组合/relay overlay 与预期不一致；
+- 生产 `.env` 未显式 `REGISTRATION_MODE=invite`，或注册入口行为异常；
+- 磁盘/内存低于安全余量、维护窗口未获所有者确认、PWA 队列未确认清空；
+- 任何未解释的迁移前 SQL/备份/链异常。
+
+**迁移中（45→51，一旦执行即修改数据库结构）：**
+
+- migration 报错、超时、锁等待异常、迁移数量不是 51；
+- 任何既有业务/S13 表数量或摘要异常，critical chain 行被意外改写；
+- 任何日志出现 `PANIC`/不可解释错误。
+
+命中时：停止后续步骤，API/Web 保持停止，不执行 down migration、不删除数据、不自动恢复旧备份；保留现场并报告所有者。
+
+**迁移后/开放前：**
+
+- API 不健康、Web 不健康、Relay 不健康；
+- 导入/锁/撤销/注册冒烟失败；
+- 历史数据计数或 Critical Chain 异常；
+- 用户通知/维护窗口超出。
+
+---
+
 ## 5. 当前结论
 
 - **源码候选：Go**（`5dc2d54`；应用镜像已从该 commit 构建，测试/构建/文档/DB 检查通过）。
@@ -523,6 +591,8 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 4. 使用本记录的**同一镜像归档/Image ID**，不要在生产重新构建未经测试的镜像；
 5. 迁移 45→51 后按 §3.8 验证；Critical Chain 只追加，不 reset；
 6. 10 分钟撤销失败没有独立外部告警，发布后必须按 §3.13 人工巡检/监控；
-7. 不执行 down migration、旧库自动覆盖或全局 Docker prune。
+7. 不执行 down migration、旧库自动覆盖或全局 Docker prune；执行 §3.15 前需要所有者确认维护窗口和停机范围。
+
+**涉及生产 schema 变更的操作**：`45→51` 的 `migrate deploy`（创建 S14 表/列/索引/触发器）一旦开始即不可逆；之后的 API 启动/切换容器不会回退 schema。`restore.sh` 整库恢复、down migration 和旧备份覆盖均不属于本次发布计划，只有所有者另行明确授权时才可考虑。
 
 本轮未 push、未部署、未生产 migration、未修改生产服务/COS/CAM/密钥。

@@ -1,0 +1,10 @@
+[Unit]
+Description=Libevra S14 import/undo_failed health (read-only, never mutates data)
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/srv/libevra/deploy
+ExecStart=/srv/libevra/deploy/import-health.sh
+TimeoutStartSec=2min
+Nice=10
