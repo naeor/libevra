@@ -8,6 +8,9 @@ import {
   formalImportPreviewResponseSchema,
   incrementalPreviewRequestSchema,
   incrementalPreviewResponseSchema,
+  guestCleanupPreviewRequestSchema,
+  guestCleanupPreviewResponseSchema,
+  formalSourceDispositionSchema,
   ledgerImportRequestSchema,
   ledgerImportResultSchema,
   type GuestImportSource,
@@ -27,8 +30,10 @@ import {
   lockFormalImportPair,
 } from "../ledger/importSolo.js";
 import { loadExistingImportTarget, loadTargetSnapshot } from "../ledger/importTarget.js";
-import { analyzeIncremental } from "../ledger/importIncremental.js";
+import { analyzeIncremental, sourceNamespaceOf } from "../ledger/importIncremental.js";
 import { writeSourceState } from "../ledger/importIncremental.js";
+import { previewGuestCleanup } from "../ledger/importCleanup.js";
+import { getFormalSourceDispositionByReceipt } from "../ledger/importCleanup.js";
 import { allocateTransactionSeq } from "../ledger/transactionSeq.js";
 import { badRequest, conflict, forbidden } from "../lib/errors.js";
 
@@ -392,6 +397,8 @@ async function executeImport(
   }
 
   assertTaxonomyCoverage(effectiveSource, body.taxonomy);
+  const guestBookId = body.source?.guestBookId ?? null;
+  const sourceNamespace = sourceNamespaceOf(sourceBookId ?? null, guestBookId);
   const plan = buildDecisionPlan(body, effectiveSource, initialTargetSnapshot, targetIsNew);
 
   const skippedIds = plan.skippedSourceIds;
@@ -500,6 +507,7 @@ async function executeImport(
           bookId: targetBookId,
           deletedAt: null,
           sourceRef: { in: importSource.map((item) => item.id) },
+          sourceNamespace: { in: sourceNamespace === "" ? [""] : [sourceNamespace, ""] },
         },
         select: { sourceRef: true },
       });
@@ -537,6 +545,7 @@ async function executeImport(
             note: item.note,
             idempotencyKey: randomUUID(),
             sourceRef: item.id,
+            sourceNamespace,
             importRef,
             tags: {
               create: item.tagIds
@@ -560,6 +569,7 @@ async function executeImport(
           targetBookId,
           sourceKind: sourceBookId === undefined ? "guest" : "book",
           sourceBookId: sourceBookId ?? null,
+          guestBookId,
           operation: {
             sourceTransactionId: item.id,
             action: targetTransactionId === null ? "skip" : "create",
@@ -826,6 +836,7 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
           pair.source,
           body.sourceBookId,
           pair.target,
+          pair.source.guestBookId ?? null,
         );
         return incrementalPreviewResponseSchema.parse(analysis.response);
       }
@@ -838,8 +849,36 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
         body.source,
         null,
         target.snapshot,
+        body.source.guestBookId ?? null,
       );
       return incrementalPreviewResponseSchema.parse(analysis.response);
+    },
+  );
+
+  app.post(
+    "/api/v1/ledger-imports/guest-cleanup-preview",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const body = guestCleanupPreviewRequestSchema.parse(request.body ?? {});
+      assertSourceIsSelfConsistent(body.source);
+      return guestCleanupPreviewResponseSchema.parse(
+        await previewGuestCleanup(options.prisma, userId, body),
+      );
+    },
+  );
+
+  app.get(
+    "/api/v1/ledger-imports/:receiptId/source-disposition",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const { receiptId } = request.params as { receiptId: string };
+      return formalSourceDispositionSchema.parse(
+        await getFormalSourceDispositionByReceipt(options.prisma, userId, receiptId),
+      );
     },
   );
 

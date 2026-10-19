@@ -37,8 +37,20 @@ export interface IncrementalPlan {
   readonly skippedIds: ReadonlySet<string>;
 }
 
-export function sourceBookKeyOf(sourceBookId: string | null): string {
-  return sourceBookId ?? "guest";
+/** `target.transactions.source_namespace`: formal book id, or `guest:<guestBookId>`; legacy is "". */
+export function sourceNamespaceOf(sourceBookId: string | null, guestBookId?: string | null): string {
+  if (sourceBookId !== null) return sourceBookId;
+  return guestBookId === undefined || guestBookId === null || guestBookId === ""
+    ? ""
+    : `guest:${guestBookId}`;
+}
+
+/** State table key: formal source book id, or `guest:<guestBookId>`; old rows use "guest". */
+export function sourceBookKeyOf(sourceBookId: string | null, guestBookId?: string | null): string {
+  if (sourceBookId !== null) return sourceBookId;
+  return guestBookId === undefined || guestBookId === null || guestBookId === ""
+    ? "guest"
+    : `guest:${guestBookId}`;
 }
 
 function sourceKindOf(sourceBookId: string | null): "guest" | "book" {
@@ -98,28 +110,49 @@ export async function analyzeIncremental(
   source: GuestImportSource,
   sourceBookId: string | null,
   target: ImportTargetSnapshot,
+  guestBookId?: string | null,
 ): Promise<IncrementalAnalysis> {
   const sourceIds = source.transactions.map((item) => item.id);
-  const key = sourceBookKeyOf(sourceBookId);
+  const key = sourceBookKeyOf(sourceBookId, guestBookId);
+  const namespace = sourceNamespaceOf(sourceBookId, guestBookId);
+  const stateKeys = key === "guest" ? [key] : [key, "guest"];
   const states =
     sourceIds.length === 0
       ? []
       : await client.ledgerImportSourceState.findMany({
           where: {
             targetBookId,
-            sourceBookKey: key,
+            sourceBookKey: { in: stateKeys },
             sourceTransactionId: { in: sourceIds },
           },
         });
-  const stateById = new Map(states.map((state) => [state.sourceTransactionId, state]));
+  const currentStateById = new Map(
+    states.filter((state) => state.sourceBookKey === key).map((state) => [state.sourceTransactionId, state]),
+  );
+  const legacyStateById = new Map(
+    states.filter((state) => state.sourceBookKey !== key).map((state) => [state.sourceTransactionId, state]),
+  );
   const targetRows =
     sourceIds.length === 0
       ? []
       : await client.transaction.findMany({
-          where: { bookId: targetBookId, sourceRef: { in: sourceIds } },
-          select: { id: true, version: true, sourceRef: true, deletedAt: true },
+          where: {
+            bookId: targetBookId,
+            sourceRef: { in: sourceIds },
+            sourceNamespace: { in: namespace === "" ? [""] : [namespace, ""] },
+          },
+          select: { id: true, version: true, sourceRef: true, sourceNamespace: true, deletedAt: true },
         });
-  const targetRowByIdentity = new Map(targetRows.map((row) => [row.sourceRef ?? "", row]));
+  const exactRowByIdentity = new Map(
+    targetRows
+      .filter((row) => row.sourceNamespace === namespace)
+      .map((row) => [row.sourceRef ?? "", row]),
+  );
+  const legacyRowByIdentity = new Map(
+    targetRows
+      .filter((row) => row.sourceNamespace === "")
+      .map((row) => [row.sourceRef ?? "", row]),
+  );
   const targetById = new Map(target.transactions.map((row) => [row.id, row]));
   const statesForTarget = await client.ledgerImportSourceState.count({
     where: { targetBookId, sourceBookKey: key },
@@ -127,15 +160,23 @@ export async function analyzeIncremental(
   const targetLive = target.transactions.length;
 
   const statuses: IncrementalSourceStatus[] = [];
+  const hasStableGuestIdentity = sourceBookId === null && guestBookId !== undefined && guestBookId !== null;
   for (const sourceTransaction of source.transactions) {
-    const state = stateById.get(sourceTransaction.id);
-    const row = targetRowByIdentity.get(sourceTransaction.id);
-    const targetChanged = row !== undefined && state?.targetVersion !== null && state?.targetVersion !== undefined
-      ? row.version !== state.targetVersion
-      : false;
+    const currentState = currentStateById.get(sourceTransaction.id);
+    const legacyState = legacyStateById.get(sourceTransaction.id);
+    const state = currentState ?? legacyState;
+    const exactRow = exactRowByIdentity.get(sourceTransaction.id);
+    const legacyRow = legacyRowByIdentity.get(sourceTransaction.id);
+    const row = exactRow ?? legacyRow;
+    const legacy =
+      currentState === undefined ||
+      (hasStableGuestIdentity && row !== undefined && row.sourceNamespace === "");
+    const targetChanged =
+      row !== undefined && state?.targetVersion !== null && state?.targetVersion !== undefined
+        ? row.version !== state.targetVersion
+        : false;
     const fingerprint = await fingerprintImportSourceRecord(source, sourceTransaction.id);
     let status: IncrementalSourceStatusValue;
-    let legacy = state === undefined;
     if (row !== undefined && row.deletedAt !== null) {
       status = "target_deleted";
     } else if (state !== undefined) {
@@ -156,13 +197,12 @@ export async function analyzeIncremental(
         targetTransaction !== undefined && matchesTarget(source, sourceTransaction.id, row.id, target)
           ? "unchanged"
           : "modified";
-    } else if (statesForTarget === 0 && targetRows.length > 0) {
-      // 旧版本导入没有状态行；来源里也没有对应目标。我们无法证明它曾被跳过，
-      // 因此不当作普通新增记录自动导入，交给用户逐条确认。
+    } else if (legacyState !== undefined || (statesForTarget === 0 && targetRows.length > 0)) {
+      // An old state row or target row has no stable guest book identity. We cannot silently
+      // assign it to this guest book; require an explicit user decision.
       status = "needs_review";
     } else {
       status = "new";
-      legacy = false;
     }
     statuses.push({
       sourceTransactionId: sourceTransaction.id,
@@ -313,13 +353,14 @@ export async function writeSourceState(
     readonly targetBookId: string;
     readonly sourceKind: "guest" | "book";
     readonly sourceBookId: string | null;
+    readonly guestBookId: string | null;
     readonly operation: IncrementalOperation;
     readonly targetTransactionId: string | null;
     readonly targetVersion: number | null;
     readonly jobId: string | null;
   },
 ): Promise<void> {
-  const key = sourceBookKeyOf(input.sourceBookId);
+  const key = sourceBookKeyOf(input.sourceBookId, input.guestBookId);
   await tx.ledgerImportSourceState.upsert({
     where: {
       targetBookId_sourceBookKey_sourceTransactionId: {

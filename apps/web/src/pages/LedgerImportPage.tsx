@@ -7,6 +7,8 @@ import {
   type IncrementalDecisionAction,
   type IncrementalPreviewResponse,
   type IncrementalSourceStatus,
+  type FormalSourceDisposition,
+  type GuestCleanupPreviewResponse,
   type LedgerImportRequest,
   type LedgerImportResult,
 } from "@libellum/shared";
@@ -36,13 +38,26 @@ import {
   summarizeDraftRecovery,
   type DraftRecoverySummary,
 } from "../lib/ledgerImport/recovery.js";
-import { createImportJob, getImportJob, resumeImportJob } from "../lib/ledgerImport/job.js";
+import { cancelImportJob, createImportJob, getImportJob, resumeImportJob } from "../lib/ledgerImport/job.js";
 import {
   decisionsForRequest,
   incrementalExclusions,
   loadIncrementalPreview,
   defaultIncrementalAction,
 } from "../lib/ledgerImport/incremental.js";
+import {
+  getFormalSourceDisposition,
+  getFormalSourceDispositionByReceipt,
+  previewGuestCleanup,
+} from "../lib/ledgerImport/cleanup.js";
+import {
+  cleanupMigratedGuestTransactions,
+  guestCleanupTransactions,
+  guestDataValue,
+  restoreGuestCleanup,
+} from "../lib/guest/data.js";
+import { bookLifecycleAction } from "../lib/lifecycle.js";
+import { guestSourceOfSource } from "../lib/ledgerImport/submit.js";
 import { buildImportPreview } from "../lib/ledgerImport/preview.js";
 import {
   taxonomyResolutionKey,
@@ -159,6 +174,7 @@ export function LedgerImportPage(): React.JSX.Element {
   const [resumeBusy, setResumeBusy] = useState(false);
   const [job, setJob] = useState<ImportJobStatus | null>(null);
   const [jobBusy, setJobBusy] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [incremental, setIncremental] = useState<IncrementalPreviewResponse | null>(null);
   const [incrementalBusy, setIncrementalBusy] = useState(false);
   const [incrementalError, setIncrementalError] = useState<string | null>(null);
@@ -203,9 +219,10 @@ export function LedgerImportPage(): React.JSX.Element {
         if (next.status === "paused") {
           setSubmitState("paused");
           setSubmitError(next.lastErrorMessage);
-        } else if (next.status === "failed" || next.status === "cancelled") {
+        } else if (next.status === "failed" || next.status === "cancelled" || next.status === "expired") {
           setSubmitState("error");
           setSubmitError(next.lastErrorMessage);
+          return;
         } else {
           setSubmitState("submitting");
         }
@@ -771,6 +788,22 @@ export function LedgerImportPage(): React.JSX.Element {
     }
   }
 
+  async function cancelJob(): Promise<void> {
+    if (job === null) return;
+    setJobBusy(true);
+    setSubmitError(null);
+    try {
+      const next = await cancelImportJob(job.id);
+      setJob(next);
+      setSubmitState("idle");
+      setSubmitError("任务已取消；已经提交的批次保留，未提交的记录没有写入。");
+    } catch (caught) {
+      setSubmitError(errorMessage(caught));
+    } finally {
+      setJobBusy(false);
+    }
+  }
+
   const jobActive = job !== null && submitState !== "success";
 
   const subtitle =
@@ -820,6 +853,7 @@ export function LedgerImportPage(): React.JSX.Element {
           job={job}
           busy={jobBusy}
           onResume={() => void resumeJob()}
+          onCancel={() => setCancelConfirmOpen(true)}
           onRefresh={() => {
             if (jobIdParam !== "") {
               void getImportJob(jobIdParam)
@@ -972,6 +1006,15 @@ export function LedgerImportPage(): React.JSX.Element {
         />
       ) : null}
 
+      {step === "confirm" && submitState === "success" && result !== null && preview !== null ? (
+        <SourceRetentionCard
+          result={result}
+          preview={preview}
+          jobId={job?.id ?? null}
+          onError={setSubmitError}
+        />
+      ) : null}
+
       {step === "confirm" && (preview === null || loading) ? <SkeletonRows rows={4} /> : null}
 
       <ConfirmDialog
@@ -1012,6 +1055,32 @@ export function LedgerImportPage(): React.JSX.Element {
           </ul>
         )}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        title="取消这个导入任务？"
+        description="取消不是撤销已经提交的批次。"
+        consequences={[
+          "已经提交的批次及其账目会保留，不会回滚",
+          "剩余未提交的记录不会继续写入",
+          "任务来源快照会被清理；之后无法继续该任务",
+          "不会把部分完成误报为整体成功，也不会删除已经导入的账目",
+        ]}
+        confirmLabel="取消任务（保留已提交部分）"
+        busy={jobBusy}
+        onCancel={() => {
+          if (!jobBusy) setCancelConfirmOpen(false);
+        }}
+        onConfirm={() => {
+          setCancelConfirmOpen(false);
+          void cancelJob();
+        }}
+      >
+        <p className="text-helper-relaxed text-muted">
+          已提交 {String(job?.nextBatch ?? 0)} 批，新增 {String(job?.importedCount ?? 0)} 笔、更新{" "}
+          {String(job?.updatedCount ?? 0)} 笔；这些记录会保留。
+        </p>
+      </ConfirmDialog>
     </InnerPage>
   );
 }
@@ -1045,11 +1114,13 @@ function BatchJobPanel({
   job,
   busy,
   onResume,
+  onCancel,
   onRefresh,
 }: {
   readonly job: ImportJobStatus;
   readonly busy: boolean;
   readonly onResume: () => void;
+  readonly onCancel: () => void;
   readonly onRefresh: () => void;
 }): React.JSX.Element {
   const labels: Record<ImportJobStatus["status"], string> = {
@@ -1060,12 +1131,15 @@ function BatchJobPanel({
     failed: "需要处理",
     completed: "已完成",
     cancelled: "已取消",
+    expired: "已过期，来源快照已清理",
   };
   const percent =
     job.totalBatches === 0
       ? 100
       : Math.min(100, Math.round((job.nextBatch / job.totalBatches) * 100));
   const canResume = job.status === "paused" || job.status === "failed";
+  const canCancel =
+    job.status === "queued" || job.status === "running" || job.status === "paused" || job.status === "finalizing";
   return (
     <section data-testid="import-job-progress" className="flex flex-col gap-4">
       <div className="rounded-card border border-line bg-surface px-5 py-4">
@@ -1113,7 +1187,22 @@ function BatchJobPanel({
               {busy ? "正在恢复…" : "继续任务"}
             </button>
           ) : null}
+          {canCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              className="rounded-field border border-danger/40 px-3 py-2 text-button text-danger-dark disabled:opacity-50"
+            >
+              取消任务
+            </button>
+          ) : null}
         </div>
+        {job.status === "expired" ? (
+          <p className="mt-2 text-helper-relaxed text-muted">
+            暂停超过恢复期限，未提交部分的游客来源快照已清理，无法继续此任务；已经导入的账目仍保留，需要时可重新预览并新建任务。
+          </p>
+        ) : null}
       </div>
     </section>
   );
@@ -1598,6 +1687,7 @@ function IncrementalReview({
       status.status === "previously_skipped_modified" ||
       status.status === "needs_review",
   );
+  const legacyCount = statuses.filter((status) => status.legacy).length;
   const categoryName = (id: string) => source.categories.find((item) => item.id === id)?.name ?? "未知分类";
   const targetCategoryName = (id: string) => target.categories.find((item) => item.id === id)?.name ?? "未知分类";
   const facts = (item: ImportSource["transactions"][number] | ImportTarget["transactions"][number], category: string) =>
@@ -1619,6 +1709,12 @@ function IncrementalReview({
         {summary.previouslySkippedCount > 0 ? <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">此前跳过 {String(summary.previouslySkippedCount)}</span> : null}
         {summary.needsReviewCount > 0 ? <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">需确认 {String(summary.needsReviewCount)}</span> : null}
       </div>
+      {legacyCount > 0 ? (
+        <p className="text-helper-relaxed text-muted">
+          有 {String(legacyCount)} 笔旧版本导入没有稳定的来源账本身份，不能确认是否属于当前游客账本；
+          默认只保留目标，不会静默覆盖或建立删除关系。
+        </p>
+      ) : null}
       {actionable.length === 0 ? (
         <p className="text-helper-relaxed text-muted">没有需要逐条处理的来源变化。</p>
       ) : (
@@ -1652,7 +1748,7 @@ function IncrementalReview({
                     </button>
                     <button
                       type="button"
-                      disabled={status.targetChanged}
+                      disabled={status.targetChanged || status.legacy}
                       onClick={() => onDecision(status.sourceTransactionId, "update_target")}
                       className={`rounded-field border px-3 py-2 text-button disabled:cursor-not-allowed disabled:opacity-40 ${chosen === "update_target" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
                     >
@@ -1660,6 +1756,9 @@ function IncrementalReview({
                     </button>
                     {status.targetChanged ? (
                       <span className="self-center text-helper text-warning-dark">目标已变化，禁止直接覆盖</span>
+                    ) : null}
+                    {status.legacy ? (
+                      <span className="self-center text-helper text-muted">旧记录身份未确认，禁止直接覆盖</span>
                     ) : null}
                   </div>
                 ) : null}
@@ -1693,6 +1792,264 @@ function IncrementalReview({
           })}
         </ul>
       )}
+    </section>
+  );
+}
+
+function SourceRetentionCard({
+  result,
+  preview,
+  jobId,
+  onError,
+}: {
+  readonly result: LedgerImportResult;
+  readonly preview: ImportPreview;
+  readonly jobId: string | null;
+  readonly onError: (message: string) => void;
+}): React.JSX.Element {
+  const guestBookId = preview.source.kind === "guest" ? preview.source.bookId : null;
+  const [guestPreview, setGuestPreview] = useState<GuestCleanupPreviewResponse | null>(null);
+  const [guestConfirmOpen, setGuestConfirmOpen] = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
+  const [guestMessage, setGuestMessage] = useState<string | null>(null);
+  const [guestArchiveCount, setGuestArchiveCount] = useState(0);
+  const [disposition, setDisposition] = useState<FormalSourceDisposition | null>(null);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archived, setArchived] = useState<string | null>(null);
+
+  async function checkGuestCleanup(): Promise<void> {
+    if (guestBookId === null) return;
+    setGuestBusy(true);
+    setGuestMessage(null);
+    try {
+      const next = await previewGuestCleanup({
+        targetBookId: result.targetBook.id,
+        guestBookId,
+        receiptId: result.importId,
+        source: guestSourceOfSource(preview.source),
+      });
+      setGuestPreview(next);
+      setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
+      if (next.cleanableCount === 0) {
+        setGuestMessage("没有可安全清理的记录；未迁入记录默认保留。");
+      }
+    } catch (caught) {
+      onError(errorMessage(caught));
+    } finally {
+      setGuestBusy(false);
+    }
+  }
+
+  async function cleanupGuest(): Promise<void> {
+    if (guestPreview === null || guestPreview.cleanableCount === 0) return;
+    setGuestBusy(true);
+    setGuestMessage(null);
+    try {
+      const resultOfCleanup = await cleanupMigratedGuestTransactions(guestPreview.cleanableSourceIds);
+      setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
+      setGuestMessage(
+        `已清理 ${String(resultOfCleanup.removed)} 笔已确认迁入的游客记录；来源仍保留 ${String(resultOfCleanup.remaining)} 笔。清理记录保存在本机，可恢复。`,
+      );
+      setGuestConfirmOpen(false);
+      setGuestPreview(null);
+    } catch (caught) {
+      onError(errorMessage(caught));
+    } finally {
+      setGuestBusy(false);
+    }
+  }
+
+  async function restoreGuest(): Promise<void> {
+    const archivedTransactions = guestCleanupTransactions(guestDataValue());
+    if (archivedTransactions.length === 0) return;
+    setGuestBusy(true);
+    try {
+      const restored = await restoreGuestCleanup(archivedTransactions.map((item) => item.id));
+      setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
+      setGuestMessage(`已恢复 ${String(restored)} 笔清理记录到游客账本。`);
+    } catch (caught) {
+      onError(errorMessage(caught));
+    } finally {
+      setGuestBusy(false);
+    }
+  }
+
+  async function checkFormalDisposition(): Promise<void> {
+    if (result.sourceBookId === undefined) return;
+    setArchiveBusy(true);
+    try {
+      const next =
+        jobId !== null && jobId === result.importId
+          ? await getFormalSourceDisposition(jobId)
+          : await getFormalSourceDispositionByReceipt(result.importId);
+      setDisposition(next);
+    } catch (caught) {
+      onError(errorMessage(caught));
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
+
+  async function archiveFormalSource(): Promise<void> {
+    if (disposition === null) return;
+    setArchiveBusy(true);
+    try {
+      await bookLifecycleAction(disposition.sourceBookId, "archive");
+      setArchived("来源账本已通过 S13 生命周期弃置；可在归档恢复页面按恢复期限恢复。");
+      setArchiveConfirmOpen(false);
+      setDisposition(null);
+    } catch (caught) {
+      onError(errorMessage(caught));
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
+
+  if (guestBookId === null && result.sourceBookId === undefined) return <></>;
+
+  return (
+    <section data-testid="source-retention" className="flex flex-col gap-3 rounded-card border border-line bg-surface px-5 py-4">
+      <div>
+        <p className="text-body font-medium text-ink">来源安全与清理</p>
+        <p className="mt-1 text-helper-relaxed text-muted">
+          导入成功不等于可以自动清理来源。这里的所有操作都是独立、手动、默认保留；未迁移记录不会被清理或弃置。
+        </p>
+      </div>
+      {guestBookId === null ? null : (
+        <div className="rounded-field border border-line bg-canvas px-4 py-3">
+          <p className="text-body text-ink">游客来源账本仍在本机</p>
+          <p className="mt-1 text-helper-relaxed text-muted">
+            导入不会自动删除游客数据。可以检查哪些记录已确认迁入目标；未迁移、已跳过、已变化或目标校验不通过的记录会保留。
+          </p>
+          {guestMessage === null ? null : <p className="mt-2 text-helper-relaxed text-warning-dark">{guestMessage}</p>}
+          {guestPreview === null ? null : (
+            <p className="mt-2 text-helper-relaxed text-muted">
+              可清理 {String(guestPreview.cleanableCount)} 笔，保留 {String(guestPreview.retainedCount)} 笔（总来源{" "}
+              {String(guestPreview.sourceCount)} 笔）。
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void checkGuestCleanup()}
+              disabled={guestBusy}
+              className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
+            >
+              {guestBusy ? "正在检查…" : "检查可清理的游客记录"}
+            </button>
+            {guestPreview !== null && guestPreview.cleanableCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setGuestConfirmOpen(true)}
+                disabled={guestBusy}
+                className="rounded-field bg-brand px-3 py-2 text-button text-white disabled:opacity-50"
+              >
+                清理这 {String(guestPreview.cleanableCount)} 笔
+              </button>
+            ) : null}
+            {guestArchiveCount === 0 ? null : (
+              <button
+                type="button"
+                onClick={() => void restoreGuest()}
+                disabled={guestBusy}
+                className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
+              >
+                恢复本机清理记录（{String(guestArchiveCount)}）
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {result.sourceBookId === undefined ? null : (
+        <div className="rounded-field border border-line bg-canvas px-4 py-3">
+          <p className="text-body text-ink">正式来源账本默认完整保留</p>
+          <p className="mt-1 text-helper-relaxed text-muted">
+            只有在导入完成后，你才可以选择是否弃置来源 B。弃置使用 S13 现有归档/恢复/墓碑流程，不会直接删除数据。
+          </p>
+          {archived === null ? null : <p className="mt-2 text-helper-relaxed text-brand-dark">{archived}</p>}
+          {disposition === null ? null : (
+            <div className="mt-2 text-helper-relaxed text-muted">
+              <p>
+                来源 {disposition.sourceBookName}：已确认在目标中的账目 {String(disposition.migratedCount)} 笔，
+                未确认迁入 {String(disposition.unmigratedCount)} 笔（总来源 {String(disposition.sourceCount)} 笔）。
+              </p>
+              <p className="mt-1">{disposition.reason}</p>
+              {disposition.archivedAt === null ? null : (
+                <p className="mt-1">已归档；自动恢复截止：{disposition.selfRestoreUntil ?? "无"}；计划永久删除：{disposition.scheduledPurgeAt ?? "无"}。</p>
+              )}
+              {disposition.unmigratedCount > 0 ? (
+                <p className="mt-1 text-warning-dark">
+                  仍有未确认迁入的来源账目。弃置不会删除它们，但弃置后需要走恢复流程才能查看来源。
+                </p>
+              ) : null}
+            </div>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void checkFormalDisposition()}
+              disabled={archiveBusy}
+              className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
+            >
+              {archiveBusy ? "正在检查…" : "检查来源账本处置"}
+            </button>
+            {disposition !== null && disposition.canArchive && archived === null ? (
+              <button
+                type="button"
+                onClick={() => setArchiveConfirmOpen(true)}
+                disabled={archiveBusy}
+                className="rounded-field border border-danger/40 px-3 py-2 text-button text-danger-dark disabled:opacity-50"
+              >
+                弃置来源账本（不删除数据）
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={guestConfirmOpen}
+        title="清理已迁入的游客记录？"
+        description="只清理服务端确认已安全迁入目标的记录；不会清空 IndexedDB，也不会删除未迁移记录。"
+        consequences={[
+          "本机游客账本中已确认迁入的指定记录会移入本机清理记录，可恢复",
+          "未迁移、已跳过、已变化或目标校验不通过的记录会保留",
+          "其他游客账本、离线队列、分类/设置不会被清空",
+          "重复点击是幂等的；已经清理的记录不会再次处理",
+        ]}
+        confirmLabel="确认清理已迁入记录"
+        busy={guestBusy}
+        onCancel={() => {
+          if (!guestBusy) setGuestConfirmOpen(false);
+        }}
+        onConfirm={() => void cleanupGuest()}
+      />
+
+      <ConfirmDialog
+        open={archiveConfirmOpen}
+        title={
+          (disposition?.unmigratedCount ?? 0) > 0
+            ? "仍有未确认迁入的来源账目，仍要弃置来源？"
+            : "弃置来源账本？"
+        }
+        description="弃置走 S13 生命周期，不是直接删除数据库记录。"
+        consequences={[
+          (disposition?.unmigratedCount ?? 0) > 0
+            ? `来源中仍有 ${String(disposition?.unmigratedCount ?? 0)} 笔账目没有确认迁入目标；弃置不会删除它们，但之后需要恢复来源才能查看`
+            : "来源账本中的账目都能在目标账本中找到",
+          "弃置后来源账本仍保留服务端数据，可在 S13 恢复期限内恢复",
+          "不会执行永久删除，也不会删除备份",
+          "超过恢复期限后，来源会按 S13 生命周期进入计划永久删除；届时不再可恢复",
+        ]}
+        confirmLabel={(disposition?.unmigratedCount ?? 0) > 0 ? "我确认仍有未迁入记录，弃置来源" : "确认弃置来源"}
+        busy={archiveBusy}
+        onCancel={() => {
+          if (!archiveBusy) setArchiveConfirmOpen(false);
+        }}
+        onConfirm={() => void archiveFormalSource()}
+      />
     </section>
   );
 }

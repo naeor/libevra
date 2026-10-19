@@ -18,7 +18,7 @@ import type { PrismaClient } from "../db.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { allocateTransactionSeq } from "./transactionSeq.js";
 import { diffEntry, recordEvent } from "./events.js";
-import { analyzeIncremental, resolveIncrementalPlan, writeSourceState, type IncrementalOperation } from "./importIncremental.js";
+import { analyzeIncremental, resolveIncrementalPlan, sourceNamespaceOf, writeSourceState, type IncrementalOperation } from "./importIncremental.js";
 import { loadFormalImportPair, loadSoloImportBook, lockFormalImportPair, lockSoloImportTarget } from "./importSolo.js";
 import { loadTargetSnapshot } from "./importTarget.js";
 import {
@@ -269,7 +269,14 @@ export async function createImportJob(
 
   assertTaxonomyCoverage(source, body.taxonomy);
   const plan = buildDecisionPlan(body, source, targetSnapshot, false);
-  const analysis = await analyzeIncremental(prisma, body.target.bookId, source, sourceBookId, targetSnapshot);
+  const analysis = await analyzeIncremental(
+    prisma,
+    body.target.bookId,
+    source,
+    sourceBookId,
+    targetSnapshot,
+    source.guestBookId ?? null,
+  );
   const incremental = resolveIncrementalPlan(analysis, body.incrementalDecisions, plan.skippedSourceIds);
   const operationOrder = new Map(
     [...source.transactions]
@@ -375,6 +382,8 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
 
       const source = payload.source;
       if (source === null) throw badRequest("source_missing", "任务来源快照已被清理，不能继续执行。");
+      const guestBookId = source.guestBookId ?? null;
+      const sourceNamespace = sourceNamespaceOf(job.sourceBookId, guestBookId);
       let taxonomy = payload.taxonomyResolved === null ? null : fromStoredTaxonomy(payload.taxonomyResolved);
       if (taxonomy === null) {
         taxonomy = await resolveTaxonomy(tx, job.targetBookId, source, targetSnapshot, payload.taxonomy, false);
@@ -392,7 +401,12 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
         .map((operation) => operation.sourceTransactionId);
       if (createIds.length > 0) {
         const existingRefs = await tx.transaction.findMany({
-          where: { bookId: job.targetBookId, deletedAt: null, sourceRef: { in: createIds } },
+          where: {
+            bookId: job.targetBookId,
+            deletedAt: null,
+            sourceRef: { in: createIds },
+            sourceNamespace: { in: sourceNamespace === "" ? [""] : [sourceNamespace, ""] },
+          },
           select: { sourceRef: true },
         });
         if (existingRefs.length > 0) {
@@ -442,6 +456,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
               note: item.note,
               idempotencyKey: randomUUID(),
               sourceRef: item.id,
+              sourceNamespace,
               importRef: payload.importRef,
               tags: { create: tagIds.map((tagId) => ({ tagId })) },
             },
@@ -451,6 +466,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             targetBookId: job.targetBookId,
             sourceKind: job.sourceKind as "guest" | "book",
             sourceBookId: job.sourceBookId,
+            guestBookId,
             operation,
             targetTransactionId,
             targetVersion: 1,
@@ -499,6 +515,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
               occurredTz: item.occurredTz,
               note: item.note,
               version: row.version + 1,
+              sourceNamespace,
               tags: { deleteMany: {}, create: tagIds.map((tagId) => ({ tagId })) },
             },
             select: {
@@ -561,6 +578,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             targetBookId: job.targetBookId,
             sourceKind: job.sourceKind as "guest" | "book",
             sourceBookId: job.sourceBookId,
+            guestBookId,
             operation,
             targetTransactionId: row.id,
             targetVersion: row.version + 1,
@@ -571,6 +589,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             targetBookId: job.targetBookId,
             sourceKind: job.sourceKind as "guest" | "book",
             sourceBookId: job.sourceBookId,
+            guestBookId,
             operation,
             targetTransactionId: operation.targetTransactionId,
             targetVersion: operation.targetVersion,
@@ -842,7 +861,9 @@ export async function resumeImportJob(
   if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
   if (job.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
   if (job.status === "completed") return getImportJob(prisma, userId, jobId);
-  if (job.status === "cancelled") throw badRequest("import_job_cancelled", "这个导入任务已取消。");
+  if (job.status === "cancelled" || job.status === "expired") {
+    throw badRequest("import_job_cancelled", "这个导入任务已取消或恢复快照已过期，不能继续。");
+  }
   await prisma.ledgerImportJob.update({
     where: { id: jobId },
     data: { status: "queued", lastErrorCode: null, lastErrorMessage: null },
@@ -851,12 +872,98 @@ export async function resumeImportJob(
   return getImportJob(prisma, userId, jobId);
 }
 
+/**
+ * D5 phase 3: cancel a job without rolling back already committed batches.
+ * The row lock serializes cancellation against the batch transaction: whichever gets the lock
+ * first wins; if a batch commits first, it is retained, and no later batch is allowed to start.
+ */
+export async function cancelImportJob(
+  prisma: PrismaClient,
+  userId: string,
+  jobId: string,
+): Promise<ImportJobStatus> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+    const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+    if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
+    if (job.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
+    if (job.status === "completed") throw conflict("import_job_completed", "任务已经完成，不能取消。");
+    if (job.status === "cancelled" || job.status === "expired") return;
+    if (job.status !== "queued" && job.status !== "running" && job.status !== "paused" && job.status !== "finalizing") {
+      throw badRequest("import_job_not_cancellable", "当前任务状态不能取消。");
+    }
+    const payload = readPayload(job);
+    await tx.ledgerImportJob.update({
+      where: { id: jobId },
+      data: {
+        status: "cancelled",
+        // Keep counts/batches so the user knows which part was committed; drop guest source data.
+        payload: { ...payload, source: null, operations: [] } as unknown as Prisma.InputJsonValue,
+        lastErrorCode: "job_cancelled",
+        lastErrorMessage: "任务已取消；已经提交的批次保留，未提交的记录没有写入。",
+      },
+    });
+  });
+  return getImportJob(prisma, userId, jobId);
+}
+
+/**
+ * Pauses/failed tasks retain their guest snapshot so they can be resumed. After the TTL,
+ * remove only that snapshot and mark the job expired; imported rows and receipts are untouched.
+ */
+export async function expireStaleImportJobs(
+  prisma: PrismaClient,
+  now: Date = new Date(),
+  ttlDays = Number(process.env["IMPORT_JOB_TTL_DAYS"] ?? "7"),
+): Promise<number> {
+  const days = Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 7;
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const jobs = await prisma.ledgerImportJob.findMany({
+    where: {
+      status: { in: ["paused", "failed"] },
+      updatedAt: { lt: cutoff },
+    },
+    select: { id: true, payload: true },
+  });
+  let expired = 0;
+  for (const job of jobs) {
+    const payload = readPayload(job);
+    if (payload.source === null && payload.operations.length === 0) {
+      // Still mark it expired so the UI stops offering resume.
+      await prisma.ledgerImportJob.update({
+        where: { id: job.id },
+        data: {
+          status: "expired",
+          lastErrorCode: "job_expired",
+          lastErrorMessage: "任务暂停超过可恢复期限，来源快照已清理；已导入账目不会删除。",
+        },
+      });
+      expired += 1;
+      continue;
+    }
+    await prisma.ledgerImportJob.update({
+      where: { id: job.id },
+      data: {
+        status: "expired",
+        payload: { ...payload, source: null, operations: [] } as unknown as Prisma.InputJsonValue,
+        lastErrorCode: "job_expired",
+        lastErrorMessage: "任务暂停超过可恢复期限，来源快照已清理；已导入账目不会删除，但无法继续该任务。",
+      },
+    });
+    expired += 1;
+  }
+  return expired;
+}
+
 /** 注册到 app.onReady：把 prisma 放进 kick 使用的全局槽，并恢复中断任务。 */
 export function prepareImportJobWorker(prisma: PrismaClient): () => void {
   let stopped = false;
+  let ticks = 0;
   const timer = setInterval(() => {
     if (stopped) return;
+    ticks += 1;
     void recoverImportJobs(prisma).catch(() => undefined);
+    if (ticks % 12 === 0) void expireStaleImportJobs(prisma).catch(() => undefined);
   }, 5_000);
   timer.unref?.();
   void recoverImportJobs(prisma).catch(() => undefined);

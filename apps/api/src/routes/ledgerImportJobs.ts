@@ -1,14 +1,16 @@
-import { importJobRequestSchema, importJobStatusSchema } from "@libellum/shared";
+import { importJobRequestSchema, importJobStatusSchema, formalSourceDispositionSchema } from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
 import {
+  cancelImportJob,
   createImportJob,
   getImportJob,
   prepareImportJobWorker,
   resumeImportJob,
 } from "../ledger/importJob.js";
 import { forbidden } from "../lib/errors.js";
+import { getFormalSourceDisposition } from "../ledger/importCleanup.js";
 
 export interface LedgerImportJobRouteOptions {
   readonly prisma: PrismaClient;
@@ -69,6 +71,30 @@ export function registerLedgerImportJobRoutes(
       if (userId === undefined) throw forbidden("auth_required", "请先登录。");
       const { jobId } = request.params as { jobId: string };
       return importJobStatusSchema.parse(await resumeImportJob(options.prisma, userId, jobId));
+    },
+  );
+
+  app.post(
+    "/api/v1/ledger-imports/jobs/:jobId/cancel",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const { jobId } = request.params as { jobId: string };
+      return importJobStatusSchema.parse(await cancelImportJob(options.prisma, userId, jobId));
+    },
+  );
+
+  app.get(
+    "/api/v1/ledger-imports/jobs/:jobId/source-disposition",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const { jobId } = request.params as { jobId: string };
+      return formalSourceDispositionSchema.parse(
+        await getFormalSourceDisposition(options.prisma, userId, jobId),
+      );
     },
   );
 }

@@ -1005,6 +1005,14 @@ model Transaction {
   /// typed in by hand.
   sourceRef String? @map("source_ref") @db.VarChar(64)
 
+  /// S14-D D5 phase 3: the source ledger whose transaction id is in `sourceRef`.
+  ///
+  /// Empty for manual/importer rows written before this column and for the CSV importer;
+  /// a formal source uses its bookId, a guest source uses `guest:<guestBookId>`.
+  /// The unique constraint must include this namespace: two different guest devices can
+  /// legitimately carry the same transaction id after copying/restoring a guest backup.
+  sourceNamespace String @default("") @map("source_namespace") @db.VarChar(80)
+
   /// The `In-…` reference of the import batch that created this row, if any.
   ///
   /// `source_ref` says *which row of a file* this came from, and can be a value
@@ -1076,7 +1084,7 @@ model Transaction {
   /// twice into one book changes nothing, while importing it into a second
   /// book is not blocked. Nullable, and PostgreSQL treats NULLs as distinct, so
   /// any number of hand-typed rows can share the null.
-  @@unique([bookId, sourceRef])
+  @@unique([bookId, sourceNamespace, sourceRef])
   /// "Show me everything the 20261010-153012 import brought in."
   @@index([bookId, importRef])
   @@map("transactions")

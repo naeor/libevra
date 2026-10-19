@@ -74,6 +74,21 @@ export type GuestImportTransaction = z.infer<typeof guestImportTransactionSchema
 
 export const guestImportSourceSchema = z.object({
   name: shortText,
+  /**
+   * Stable identity of the guest ledger this snapshot came from. It is generated with the
+   * guest ledger (`guest-book-<uuid>`), not with the browser identity, so copies restored on
+   * another device keep the same logical source while independent guest ledgers do not
+   * share a state namespace.
+   */
+  guestBookId: z
+    .string()
+    .trim()
+    .min(4)
+    // `guest:<guestBookId>` must fit both the state key VARCHAR(64) and target namespace
+    // VARCHAR(80); the generated `guest-book-<uuid>` is ~47 characters.
+    .max(58)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   categories: z.array(guestImportCategorySchema).max(200),
   paymentMethods: z.array(guestImportPaymentMethodSchema).max(100),
   tags: z.array(guestImportTagSchema).max(200),
@@ -397,6 +412,7 @@ export const importJobStatusSchema = z.object({
     "completed",
     "failed",
     "cancelled",
+    "expired",
   ]),
   sourceKind: z.enum(["guest", "book"]),
   sourceBookId: uuid.nullable(),
@@ -428,6 +444,43 @@ export const importJobStatusSchema = z.object({
 });
 export type ImportJobStatus = z.infer<typeof importJobStatusSchema>;
 
+/** D5 phase 3: completed formal job's source-ledger disposition information. */
+export const formalSourceDispositionSchema = z.object({
+  jobId: uuid,
+  sourceBookId: uuid,
+  sourceBookName: z.string(),
+  targetBookId: uuid,
+  sourceCount: z.number().int().nonnegative(),
+  migratedCount: z.number().int().nonnegative(),
+  unmigratedCount: z.number().int().nonnegative(),
+  canArchive: z.boolean(),
+  archivedAt: z.string().nullable(),
+  selfRestoreUntil: z.string().nullable(),
+  scheduledPurgeAt: z.string().nullable(),
+  pendingRecovery: z.boolean(),
+  reason: z.string(),
+});
+export type FormalSourceDisposition = z.infer<typeof formalSourceDispositionSchema>;
+
+/** D5 phase 3: local guest cleanup preview. Server only reports safe candidate ids. */
+export const guestCleanupPreviewRequestSchema = z.object({
+  targetBookId: uuid,
+  guestBookId: z.string().trim().min(4).max(58).regex(/^[A-Za-z0-9_-]+$/),
+  receiptId: uuid,
+  source: guestImportSourceSchema,
+});
+export type GuestCleanupPreviewRequest = z.infer<typeof guestCleanupPreviewRequestSchema>;
+
+export const guestCleanupPreviewResponseSchema = z.object({
+  targetBookId: uuid,
+  guestBookId: z.string(),
+  cleanableSourceIds: z.array(uuid),
+  cleanableCount: z.number().int().nonnegative(),
+  retainedCount: z.number().int().nonnegative(),
+  sourceCount: z.number().int().nonnegative(),
+});
+export type GuestCleanupPreviewResponse = z.infer<typeof guestCleanupPreviewResponseSchema>;
+
 
 function sortedById<T extends { id: string }>(items: readonly T[]): T[] {
   return [...items].sort((left, right) => left.id.localeCompare(right.id, "en"));
@@ -435,7 +488,9 @@ function sortedById<T extends { id: string }>(items: readonly T[]): T[] {
 
 function canonicalSource(source: GuestImportSource): string {
   return JSON.stringify({
-    version: 1,
+    // Keep the historical v1 canonical string for old clients/snapshots that have no guestBookId;
+    // only sources that carry a stable guest book identity move to v2.
+    ...(source.guestBookId === undefined ? { version: 1 } : { version: 2, guestBookId: source.guestBookId }),
     name: source.name,
     categories: sortedById(source.categories).map((item) => ({
       id: item.id,

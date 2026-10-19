@@ -29,6 +29,7 @@ import {
 export function guestSourceOfSource(source: ImportPreview["source"]): GuestImportSource {
   return {
     name: source.identity.name,
+    ...(source.kind === "guest" ? { guestBookId: source.bookId } : {}),
     categories: source.categories.map((item) => ({
       id: item.id,
       name: item.name,

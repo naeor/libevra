@@ -94,8 +94,10 @@ describe("incremental ledger import (D5 phase 2)", () => {
     targetCategoryId: string,
     duplicateGroups: unknown[] = [],
     sourceIds: string[] = [],
+    guestBookId?: string,
   ) {
     const target = await loadTargetSnapshot(prisma, bookId);
+    const sourceForRequest = guestBookId === undefined ? source : { ...source, guestBookId };
     const request = {
       importId: randomUUID(),
       target: {
@@ -103,8 +105,8 @@ describe("incremental ledger import (D5 phase 2)", () => {
         bookId,
         expectedTargetFingerprint: await fingerprintTargetSnapshot(target),
       },
-      source,
-      sourceFingerprint: await fingerprintGuestSource(source),
+      source: sourceForRequest,
+      sourceFingerprint: await fingerprintGuestSource(sourceForRequest),
       taxonomy: [{ type: "category", sourceId: categoryId, action: "reuse", targetId: targetCategoryId }],
       duplicateGroups,
       incrementalDecisions: sourceIds.map((sourceTransactionId) => ({
@@ -187,7 +189,7 @@ describe("incremental ledger import (D5 phase 2)", () => {
         incrementalDecisions: decisions,
       },
     });
-    expect(response.statusCode).toBe(202);
+    expect(response.statusCode, response.body).toBe(202);
     return response.json() as { id: string };
   }
 
@@ -427,5 +429,107 @@ describe("incremental ledger import (D5 phase 2)", () => {
     await processImportJob(prisma, first.id);
     expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(1);
   }, 30_000);
+
+  it("scopes guest source identity by guest book, including a copied transaction id from another guest book", async () => {
+    const owner = await account("inc_guest_identity");
+    const category = await categoryOf(owner.cookie, owner.bookId);
+    const categoryA = randomUUID();
+    const categoryB = randomUUID();
+    const sharedTransactionId = randomUUID();
+    const sourceA = sourceWith("游客账本A", categoryA, category.name, [
+      { id: sharedTransactionId, amountCents: 1111, note: "A账本记录" },
+    ]);
+    const sourceB = sourceWith("游客账本B", categoryB, category.name, [
+      { id: sharedTransactionId, amountCents: 2222, note: "B账本记录" },
+    ]);
+    await importSmall(owner.cookie, owner.userId, owner.bookId, sourceA, categoryA, category.id, [], [], "guest-book-alpha");
+    await importSmall(owner.cookie, owner.userId, owner.bookId, sourceB, categoryB, category.id, [], [], "guest-book-beta");
+
+    const rows = await prisma.transaction.findMany({
+      where: { bookId: owner.bookId, sourceRef: sharedTransactionId },
+      orderBy: { amountCents: "asc" },
+      select: { amountCents: true, sourceNamespace: true },
+    });
+    expect(rows.map((row) => Number(row.amountCents))).toEqual([1111, 2222]);
+    expect(rows.map((row) => row.sourceNamespace)).toEqual(["guest:guest-book-alpha", "guest:guest-book-beta"]);
+    expect(await prisma.ledgerImportSourceState.count({ where: { targetBookId: owner.bookId } })).toBe(2);
+    expect(
+      await prisma.ledgerImportSourceState.count({
+        where: { targetBookId: owner.bookId, sourceBookKey: "guest:guest-book-alpha" },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.ledgerImportSourceState.count({
+        where: { targetBookId: owner.bookId, sourceBookKey: "guest:guest-book-beta" },
+      }),
+    ).toBe(1);
+  }, 40_000);
+
+  it("does not silently adopt an old target row that has no stable guest book identity", async () => {
+    const owner = await account("inc_legacy_identity");
+    const category = await categoryOf(owner.cookie, owner.bookId);
+    const sourceCategoryId = randomUUID();
+    const transactionId = randomUUID();
+    const targetResponse = await app.inject({
+      method: "POST",
+      url: "/api/v1/transactions",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+      payload: {
+        id: randomUUID(),
+        idempotencyKey: randomUUID(),
+        kind: "expense",
+        amountCents: 1234,
+        currency: "CNY",
+        categoryId: category.id,
+        paymentMethodId: null,
+        occurredAt: "2026-10-18T00:00:00.000Z",
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: "旧导入目标记录",
+        tagIds: [],
+      },
+    });
+    const targetId = (targetResponse.json() as { id: string }).id;
+    // Simulate a target row written before source namespaces existed.
+    await prisma.transaction.update({
+      where: { id: targetId },
+      data: { sourceRef: transactionId, sourceNamespace: "" },
+    });
+    const source = sourceWith("旧来源", sourceCategoryId, category.name, [
+      { id: transactionId, amountCents: 1234, note: "旧导入目标记录" },
+    ]);
+    const preview = await incrementalPreview(owner.cookie, owner.bookId, source);
+    expect(preview.statuses[0]).toMatchObject({ status: "unchanged", legacy: true });
+    const target = await loadTargetSnapshot(prisma, owner.bookId);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/ledger-imports/jobs",
+      headers: { cookie: owner.cookie },
+      payload: {
+        importId: randomUUID(),
+        target: {
+          kind: "existing",
+          bookId: owner.bookId,
+          expectedTargetFingerprint: await fingerprintTargetSnapshot(target),
+        },
+        source: { ...source, guestBookId: "guest-book-legacy-copy" },
+        sourceFingerprint: await fingerprintGuestSource({ ...source, guestBookId: "guest-book-legacy-copy" }),
+        taxonomy: [{ type: "category", sourceId: sourceCategoryId, action: "reuse", targetId: category.id }],
+        duplicateGroups: [],
+        incrementalDecisions: [],
+      },
+    });
+    expect(response.statusCode).toBe(202);
+    const job = response.json() as { id: string };
+    const done = await waitJob(owner.cookie, job.id);
+    expect(done).toMatchObject({ importedCount: 0, updatedCount: 0, status: "completed" });
+    const row = await prisma.transaction.findUniqueOrThrow({
+      where: { id: targetId },
+      select: { amountCents: true, sourceNamespace: true, version: true },
+    });
+    expect(Number(row.amountCents)).toBe(1234);
+    expect(row.sourceNamespace).toBe("");
+    expect(row.version).toBe(1);
+  }, 40_000);
 
 });

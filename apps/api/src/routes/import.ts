@@ -357,7 +357,7 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
     const existingByRef = new Set(
       (
         await prisma.transaction.findMany({
-          where: { bookId, sourceRef: { in: incomingRefs } },
+          where: { bookId, sourceRef: { in: incomingRefs }, sourceNamespace: "" },
           select: { sourceRef: true },
         })
       ).map((row) => row.sourceRef ?? ""),

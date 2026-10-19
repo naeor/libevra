@@ -52,6 +52,8 @@ export interface GuestData {
   readonly transactions: readonly Transaction[];
   /** Entries the guest deleted, kept so the undo button can restore them. */
   readonly deleted: readonly Transaction[];
+  /** D5 phase 3: imported guest rows removed after a verified cleanup, kept for local recovery. */
+  readonly cleanup?: readonly Transaction[];
   readonly nextSeq: number;
 }
 
@@ -170,6 +172,7 @@ function seedData(book: GuestLedger): GuestData {
     tags: [],
     transactions: [],
     deleted: [],
+    cleanup: [],
     nextSeq: 1,
   };
 }
@@ -193,6 +196,9 @@ function normalizeData(value: unknown, book: GuestLedger): GuestData | null {
   const deleted = Array.isArray(candidate["deleted"])
     ? candidate["deleted"].filter(validTransaction)
     : [];
+  const cleanup = Array.isArray(candidate["cleanup"])
+    ? candidate["cleanup"].filter(validTransaction)
+    : [];
   const storedBook =
     typeof candidate["book"] === "object" && candidate["book"] !== null
       ? (candidate["book"] as GuestLedger)
@@ -206,6 +212,7 @@ function normalizeData(value: unknown, book: GuestLedger): GuestData | null {
     tags,
     transactions,
     deleted,
+    cleanup,
     nextSeq:
       typeof candidate["nextSeq"] === "number" && candidate["nextSeq"] > 0
         ? candidate["nextSeq"]
@@ -524,6 +531,53 @@ export async function restoreGuestTransaction(id: string): Promise<Transaction |
 
   await persist(next);
   return restored;
+}
+
+/**
+ * D5 phase 3: remove only guest rows that the server confirmed are safely present in the
+ * target. The removed copies are kept in the same local blob (`cleanup`) so they can be
+ * restored from this device; no other guest data is touched.
+ */
+export async function cleanupMigratedGuestTransactions(ids: readonly string[]): Promise<{
+  readonly removed: number;
+  readonly remaining: number;
+}> {
+  const data = await requireData();
+  const wanted = new Set(ids);
+  const removed = data.transactions.filter((entry) => wanted.has(entry.id));
+  if (removed.length === 0) {
+    return { removed: 0, remaining: data.transactions.length };
+  }
+  const next: GuestData = {
+    ...data,
+    book: { ...data.book, updatedAt: nowIso() },
+    transactions: data.transactions.filter((entry) => !wanted.has(entry.id)),
+    cleanup: [
+      ...((data.cleanup ?? []).filter((entry) => !removed.some((item) => item.id === entry.id))),
+      ...removed,
+    ],
+  };
+  await persist(next);
+  return { removed: removed.length, remaining: next.transactions.length };
+}
+
+export async function restoreGuestCleanup(ids: readonly string[]): Promise<number> {
+  const data = await requireData();
+  const wanted = new Set(ids);
+  const restored = (data.cleanup ?? []).filter((entry) => wanted.has(entry.id));
+  if (restored.length === 0) return 0;
+  const next: GuestData = {
+    ...data,
+    book: { ...data.book, updatedAt: nowIso() },
+    transactions: [...data.transactions, ...restored],
+    cleanup: (data.cleanup ?? []).filter((entry) => !wanted.has(entry.id)),
+  };
+  await persist(next);
+  return restored.length;
+}
+
+export function guestCleanupTransactions(data: GuestData | null): readonly Transaction[] {
+  return data?.cleanup ?? [];
 }
 
 /* ------------------------------------------------------------------ */

@@ -30,3 +30,11 @@ export async function resumeImportJob(jobId: string): Promise<ImportJobStatus> {
   });
   return importJobStatusSchema.parse(raw);
 }
+
+export async function cancelImportJob(jobId: string): Promise<ImportJobStatus> {
+  const raw = await apiFetch<unknown>(`/ledger-imports/jobs/${jobId}/cancel`, {
+    method: "POST",
+    timeoutMs: 15_000,
+  });
+  return importJobStatusSchema.parse(raw);
+}
