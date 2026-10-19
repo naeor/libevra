@@ -137,6 +137,7 @@ set +e
 docker compose -f docker-compose.prod.yml exec -T db \
   env PGPASSWORD="$POSTGRES_PASSWORD" \
   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc \
+    --exclude-table-data=ledger_write_locks \
   > "$DUMP"
 DUMP_CODE=$?
 set -e
@@ -215,9 +216,15 @@ else
   MISMATCH=0
   for T in $TABLES; do
     TABLES_COMPARED=$((TABLES_COMPARED + 1))
-    SRC=$(docker compose -f docker-compose.prod.yml exec -T db \
-      env PGPASSWORD="$POSTGRES_PASSWORD" \
-      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from \"$T\"" 2>/dev/null || echo "missing")
+    # Phase-4 transient import locks are deliberately excluded from the dump; an active import
+    # must be re-acquired by the API startup reconciler after restore. Compare this table as 0.
+    if [ "$T" = "ledger_write_locks" ]; then
+      SRC=0
+    else
+      SRC=$(docker compose -f docker-compose.prod.yml exec -T db \
+        env PGPASSWORD="$POSTGRES_PASSWORD" \
+        psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from \"$T\"" 2>/dev/null || echo "missing")
+    fi
     DST=$(docker compose -f docker-compose.prod.yml exec -T db \
       env PGPASSWORD="$POSTGRES_PASSWORD" \
       psql -U "$POSTGRES_USER" -d "$VERIFY_DB" -tAc "select count(*) from \"$T\"" 2>/dev/null || echo "missing")

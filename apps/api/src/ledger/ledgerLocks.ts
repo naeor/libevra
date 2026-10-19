@@ -141,3 +141,115 @@ export async function assertBookReadableForExport(
     );
   }
 }
+
+/**
+ * Startup/backup-restore reconciliation.
+ *
+ * A normal server restart already has both the job and its lock rows. A restored backup is the
+ * tricky case: transient lock rows may be absent or may survive without a matching active job.
+ * This function releases orphan/terminal locks and reacquires missing locks for still-active
+ * phase-4 jobs, so a restore cannot silently leave a ledger unlocked under an import or locked
+ * forever without an owner.
+ */
+export async function reconcileLedgerLocks(
+  prisma: PrismaClient,
+): Promise<{ readonly released: number; readonly reclaimed: number }> {
+  let released = 0;
+  let reclaimed = 0;
+  const terminal = new Set([
+    "confirmed",
+    "completed",
+    "undone",
+    "cancelled",
+    "expired",
+    "failed",
+  ]);
+  const active = await prisma.ledgerWriteLock.findMany({
+    where: { releasedAt: null },
+    select: { id: true, bookId: true, ownerId: true },
+  });
+  for (const lock of active) {
+    if (!lock.ownerId.startsWith(IMPORT_LOCK_OWNER_PREFIX)) {
+      // Export/special locks are not part of the import lifecycle; leave them to their owner.
+      continue;
+    }
+    const jobId = lock.ownerId.slice(IMPORT_LOCK_OWNER_PREFIX.length);
+    const job = await prisma.ledgerImportJob.findUnique({
+      where: { id: jobId },
+      select: { phase: true, status: true, targetBookId: true, sourceBookId: true },
+    });
+    if (job === null || job.phase < 4 || terminal.has(job.status)) {
+      const updated = await prisma.ledgerWriteLock.updateMany({
+        where: { id: lock.id, releasedAt: null },
+        data: { releasedAt: new Date() },
+      });
+      released += updated.count;
+    }
+  }
+
+  const activeJobs = await prisma.ledgerImportJob.findMany({
+    where: {
+      phase: { gte: 4 },
+      status: {
+        in: [
+          "queued",
+          "running",
+          "finalizing",
+          "awaiting_confirmation",
+          "confirming",
+          "paused",
+          "undoing",
+          "undo_failed",
+        ],
+      },
+    },
+    select: { id: true, targetBookId: true, sourceBookId: true },
+  });
+  for (const job of activeJobs) {
+    const expected = job.sourceBookId === null
+      ? [job.targetBookId]
+      : [job.targetBookId, job.sourceBookId];
+    const existing = await prisma.ledgerWriteLock.findMany({
+      where: {
+        bookId: { in: expected },
+        ownerId: importLockOwnerId(job.id),
+        releasedAt: null,
+      },
+      select: { bookId: true },
+    });
+    const have = new Set(existing.map((lock) => lock.bookId));
+    const missing = expected.filter((bookId) => !have.has(bookId));
+    if (missing.length === 0) continue;
+    try {
+      await prisma.$transaction(async (tx) => {
+        await acquireLedgerLocks(tx, job.id, missing);
+      });
+      reclaimed += missing.length;
+    } catch {
+      // Another live lock exists on one of the books. Surface the state instead of stealing it;
+      // the timeout sweep will auto-undo the job once its deadline passes.
+      await prisma.ledgerImportJob.updateMany({
+        where: {
+          id: job.id,
+          status: {
+            in: [
+              "queued",
+              "running",
+              "finalizing",
+              "awaiting_confirmation",
+              "confirming",
+              "undo_failed",
+            ],
+          },
+        },
+        data: {
+          status: "paused",
+          lastErrorCode: "book_lock_conflict",
+          lastErrorMessage: "恢复后发现账本锁归属冲突，已暂停；超时后会安全撤销。",
+          confirmationDeadline: new Date(Date.now() + 600_000),
+        },
+      });
+    }
+  }
+  return { released, reclaimed };
+}

@@ -17,6 +17,7 @@ import {
   sweepStaleImportJobs,
 } from "../src/ledger/importJob.js";
 import { loadTargetSnapshot } from "../src/ledger/importTarget.js";
+import { reconcileLedgerLocks } from "../src/ledger/ledgerLocks.js";
 import { asImportLockOwner, makeApp, prisma, resetDatabase, signUp } from "./support.js";
 
 describe("reversible import and business locks (D5 phase 4)", () => {
@@ -160,6 +161,12 @@ describe("reversible import and business locks (D5 phase 4)", () => {
     expect(undone["status"]).toBe("undone");
     expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
     expect(await prisma.ledgerImportSourceState.count({ where: { targetBookId: owner.bookId } })).toBe(0);
+    const undoEvents = await prisma.transactionEvent.findMany({
+      where: { bookId: owner.bookId, kind: "deleted" },
+      select: { changes: true },
+    });
+    expect(undoEvents).toHaveLength(3);
+    expect(JSON.stringify(undoEvents[0]?.changes)).toContain("importUndo");
     expect(await prisma.category.count({ where: { bookId: owner.bookId, name: "撤销测试分类" } })).toBe(0);
     expect(await prisma.ledgerWriteLock.count({ where: { bookId: owner.bookId, releasedAt: null } })).toBe(0);
     // The ledger is usable again after the safe undo.
@@ -274,6 +281,11 @@ describe("reversible import and business locks (D5 phase 4)", () => {
     expect(restored.note).toBe(targetRow.note);
     expect(await prisma.ledgerImport.findUnique({ where: { id: job.id } })).toBeNull();
     expect(await prisma.ledgerWriteLock.count({ where: { bookId: owner.bookId, releasedAt: null } })).toBe(0);
+    const restoreEvents = await prisma.transactionEvent.findMany({
+      where: { bookId: owner.bookId, kind: "updated" },
+      select: { changes: true },
+    });
+    expect(restoreEvents.some((event) => JSON.stringify(event.changes).includes("importUndo"))).toBe(true);
   }, 40_000);
 
   it("auto-undoes an awaiting job after the server-side deadline and recovers the baseline", async () => {
@@ -331,6 +343,39 @@ describe("reversible import and business locks (D5 phase 4)", () => {
     });
     expect(targetWrite.statusCode).toBe(409);
     expect(targetWrite.json()).toMatchObject({ code: "ledger_locked" });
+    // The guard is enforced by the database trigger, not only by API pre-checks.
+    await expect(
+      prisma.category.update({ where: { id: category.id }, data: { name: "锁定期间改名" } }),
+    ).rejects.toThrow(/ledger_locked/);
+    const directWrites = await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        prisma.transaction
+          .create({
+            data: {
+              id: randomUUID(),
+              seq: 900_000 + index,
+              bookId: owner.bookId,
+              userId: owner.userId,
+              categoryId: category.id,
+              paymentMethodId: null,
+              kind: "expense",
+              amountCents: BigInt(1),
+              currency: "CNY",
+              occurredAt: new Date("2026-10-18T05:00:00.000Z"),
+              occurredLocalDate: new Date("2026-10-18T00:00:00.000Z"),
+              occurredTz: "Asia/Shanghai",
+              note: "真实数据库并发写入",
+              idempotencyKey: randomUUID(),
+              sourceRef: null,
+              sourceNamespace: "",
+              importRef: null,
+            },
+          })
+          .then(() => "unexpected-success")
+          .catch((error: unknown) => (error instanceof Error ? error.message : String(error))),
+      ),
+    );
+    expect(directWrites.every((result) => result.includes("ledger_locked"))).toBe(true);
 
     const exportBlocked = await app.inject({
       method: "GET",
@@ -474,6 +519,115 @@ describe("reversible import and business locks (D5 phase 4)", () => {
     expect(undone["status"]).toBe("undone");
     expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
     expect(await prisma.ledgerWriteLock.count({ where: { bookId: owner.bookId, releasedAt: null } })).toBe(0);
+  }, 40_000);
+
+  it("resolves confirm vs timeout/undo and multi-device races to exactly one terminal state", async () => {
+    for (let round = 0; round < 3; round += 1) {
+      const owner = await account(`p4_race_${String(round)}`);
+      const category = await categoryOf(owner.cookie, owner.bookId);
+      const sourceCategoryId = randomUUID();
+      const source = sourceOf(sourceCategoryId, category.name, 2);
+      const request = await jobRequest(owner.bookId, source, sourceCategoryId, category.id);
+      const job = await createImportJob(prisma, owner.userId, request, {
+        startImmediately: false,
+        timeoutSeconds: 60,
+      });
+      while ((await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: job.id } })).nextBatch < 1) {
+        await runImportJobBatchForTest(prisma, job.id);
+      }
+      await finalizeImportJobForTest(prisma, job.id);
+      await awaitStatus(owner.cookie, job.id, ["awaiting_confirmation"]);
+      await prisma.ledgerImportJob.update({
+        where: { id: job.id },
+        data: { confirmationDeadline: new Date(Date.now() - 1_000) },
+      });
+      await Promise.all([
+        app.inject({
+          method: "POST",
+          url: `/api/v1/ledger-imports/jobs/${job.id}/confirm`,
+          headers: { cookie: owner.cookie },
+        }),
+        sweepStaleImportJobs(prisma, new Date()),
+      ]);
+      const terminal = await awaitStatus(owner.cookie, job.id, ["confirmed", "undone", "undo_failed"]);
+      expect(["confirmed", "undone"]).toContain(terminal["status"]);
+      const receipt = await prisma.ledgerImport.findUnique({ where: { id: job.id } });
+      const locks = await prisma.ledgerWriteLock.count({ where: { bookId: owner.bookId, releasedAt: null } });
+      expect(locks).toBe(0);
+      if (terminal["status"] === "confirmed") {
+        expect(receipt).not.toBeNull();
+        expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(2);
+      } else {
+        expect(receipt).toBeNull();
+        expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
+      }
+    }
+  }, 60_000);
+
+  it("resolves two-device confirm and undo races without mixed terminal state", async () => {
+    const owner = await account("p4_two_device");
+    const category = await categoryOf(owner.cookie, owner.bookId);
+    const sourceCategoryId = randomUUID();
+    const source = sourceOf(sourceCategoryId, category.name, 2);
+    const request = await jobRequest(owner.bookId, source, sourceCategoryId, category.id);
+    const job = await createImportJob(prisma, owner.userId, request, {
+      startImmediately: false,
+      timeoutSeconds: 60,
+    });
+    while ((await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: job.id } })).nextBatch < 1) {
+      await runImportJobBatchForTest(prisma, job.id);
+    }
+    await finalizeImportJobForTest(prisma, job.id);
+    await awaitStatus(owner.cookie, job.id, ["awaiting_confirmation"]);
+    await Promise.all([
+      app.inject({ method: "POST", url: `/api/v1/ledger-imports/jobs/${job.id}/confirm`, headers: { cookie: owner.cookie } }),
+      app.inject({ method: "POST", url: `/api/v1/ledger-imports/jobs/${job.id}/undo`, headers: { cookie: owner.cookie } }),
+    ]);
+    const terminal = await awaitStatus(owner.cookie, job.id, ["confirmed", "undone", "undo_failed"]);
+    expect(["confirmed", "undone"]).toContain(terminal["status"]);
+    const receipt = await prisma.ledgerImport.findUnique({ where: { id: job.id } });
+    if (terminal["status"] === "confirmed") expect(receipt).not.toBeNull();
+    else expect(receipt).toBeNull();
+    expect(await prisma.ledgerWriteLock.count({ where: { bookId: owner.bookId, releasedAt: null } })).toBe(0);
+  }, 40_000);
+
+  it("reconciles locks after a backup restore: releases orphans and reclaims missing active locks", async () => {
+    const owner = await account("p4_reconcile");
+    const category = await categoryOf(owner.cookie, owner.bookId);
+    const sourceCategoryId = randomUUID();
+    const source = sourceOf(sourceCategoryId, category.name, 1);
+    const request = await jobRequest(owner.bookId, source, sourceCategoryId, category.id);
+    const job = await createImportJob(prisma, owner.userId, request, {
+      startImmediately: false,
+      timeoutSeconds: 60,
+    });
+    // Simulate a dump that omitted transient lock rows: the active job is restored without locks.
+    await prisma.ledgerWriteLock.deleteMany({ where: { bookId: owner.bookId } });
+    await reconcileLedgerLocks(prisma);
+    expect(await prisma.ledgerWriteLock.count({ where: { bookId: owner.bookId, releasedAt: null } })).toBe(1);
+
+    // Simulate an orphan lock on an unrelated book, with no owning job (e.g. an old snapshot).
+    const orphanBook = await app.inject({
+      method: "POST",
+      url: "/api/v1/books",
+      headers: { cookie: owner.cookie },
+      payload: { name: "锁恢复孤儿账本" },
+    });
+    const orphanBookId = (orphanBook.json() as { id: string }).id;
+    await prisma.ledgerWriteLock.create({
+      data: {
+        bookId: orphanBookId,
+        ownerKind: "import",
+        ownerId: "import:00000000-0000-4000-8000-000000000000",
+      },
+    });
+    await reconcileLedgerLocks(prisma);
+    expect(await prisma.ledgerWriteLock.count({ where: { bookId: orphanBookId, releasedAt: null } })).toBe(0);
+    const active = await prisma.ledgerWriteLock.findMany({
+      where: { bookId: owner.bookId, releasedAt: null },
+      select: { ownerId: true },
+    });
+    expect(active).toEqual([{ ownerId: `import:${job.id}` }]);
   }, 40_000);
 
   it("releases only after a confirmed job and keeps the receipt open for source cleanup", async () => {

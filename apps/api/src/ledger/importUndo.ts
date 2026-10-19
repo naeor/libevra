@@ -1,5 +1,6 @@
 import type { Prisma } from "../generated/prisma/client.js";
 import { conflict } from "../lib/errors.js";
+import { recordEvent } from "./events.js";
 
 type Tx = Prisma.TransactionClient;
 
@@ -169,12 +170,23 @@ export async function applyUndoOps(
     if (op.kind === "delete_created_transaction") {
       const row = await tx.transaction.findUnique({
         where: { id: op.transactionId },
-        select: { bookId: true, importRef: true, sourceRef: true },
+        select: { bookId: true, importRef: true, sourceRef: true, seq: true },
       });
       if (row === null) continue;
       if (row.bookId !== job.targetBookId || row.importRef !== job.importRef) {
         throw conflict("undo_target_mismatch", "撤销时发现目标账目已不属于本任务，已停止并保留锁。");
       }
+      // Audit survives the hard delete: transaction_id becomes null and the immutable seq snapshot
+      // keeps the history row meaningful after the temporary imported entry is gone.
+      await recordEvent(tx, {
+        bookId: job.targetBookId,
+        transactionId: null,
+        transactionSeq: row.seq,
+        actorId: job.userId,
+        actorName: null,
+        kind: "deleted",
+        changes: { importUndo: { from: null, to: job.id } },
+      });
       // This row did not exist before the task. A hard delete is exact because the persistent
       // lock has prevented any other editor from touching it while the task was reversible.
       await tx.transaction.delete({ where: { id: op.transactionId } });
@@ -193,6 +205,8 @@ export async function applyUndoOps(
         throw conflict("undo_target_changed", "目标账目在等待确认期间被改动，撤销已停止并保留锁。");
       }
       const before = op.before;
+      const currentValues = await readTransactionBefore(tx, op.transactionId);
+      if (currentValues === null) throw new Error("撤销目标快照缺失。");
       await tx.transaction.update({
         where: { id: op.transactionId },
         data: {
@@ -212,6 +226,24 @@ export async function applyUndoOps(
             deleteMany: {},
             create: before.tagIds.map((tagId) => ({ tagId })),
           },
+        },
+      });
+      await recordEvent(tx, {
+        bookId: job.targetBookId,
+        transactionId: op.transactionId,
+        transactionSeq: before.seq,
+        actorId: job.userId,
+        actorName: null,
+        kind: "updated",
+        changes: {
+          amountCents: { from: currentValues.amountCents, to: before.amountCents },
+          kind: { from: currentValues.kind, to: before.kind },
+          categoryId: { from: currentValues.categoryId, to: before.categoryId },
+          paymentMethodId: { from: currentValues.paymentMethodId, to: before.paymentMethodId },
+          occurredAt: { from: currentValues.occurredAt, to: before.occurredAt },
+          occurredTz: { from: currentValues.occurredTz, to: before.occurredTz },
+          note: { from: currentValues.note, to: before.note },
+          importUndo: { from: null, to: job.id },
         },
       });
       continue;

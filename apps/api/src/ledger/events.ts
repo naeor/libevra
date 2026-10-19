@@ -117,6 +117,7 @@ const TRACKED_FIELDS: readonly { readonly key: string; readonly label: string }[
   { key: "importId", label: "导入任务" },
   { key: "importSource", label: "导入来源" },
   { key: "importGroupId", label: "重复组" },
+  { key: "importUndo", label: "导入撤销" },
 ];
 
 export function trackedFieldLabel(key: string): string | null {

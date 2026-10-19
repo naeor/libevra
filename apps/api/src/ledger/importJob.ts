@@ -24,6 +24,7 @@ import {
   acquireLedgerLocks,
   assertJobLocks,
   confirmTimeoutSeconds,
+  reconcileLedgerLocks,
   releaseJobLocks,
   setLedgerLockOwner,
 } from "./ledgerLocks.js";
@@ -168,6 +169,16 @@ const activeJobs = new Set<string>();
 
 function readPayload(job: { payload: unknown }): JobPayload {
   return job.payload as JobPayload;
+}
+
+
+/** Test-only crash-window delay; ignored outside NODE_ENV=test. Never called in production behavior. */
+async function testOnlyDelay(kind: "UNDO" | "CONFIRM_BEFORE" | "CONFIRM_AFTER"): Promise<void> {
+  if (process.env["NODE_ENV"] !== "test") return;
+  const value = Number(process.env[`IMPORT_TEST_${kind}_DELAY_MS`] ?? "");
+  if (Number.isFinite(value) && value > 0) {
+    await new Promise((resolve) => setTimeout(resolve, value));
+  }
 }
 
 async function recordJobEvent(
@@ -1142,7 +1153,9 @@ async function processConfirmJob(prisma: PrismaClient, jobId: string): Promise<v
   if (activeConfirmJobs.has(jobId)) return;
   activeConfirmJobs.add(jobId);
   try {
+    await testOnlyDelay("CONFIRM_BEFORE");
     await confirmJobTransaction(prisma, jobId);
+    await testOnlyDelay("CONFIRM_AFTER");
   } catch (error) {
     const code = errorCode(error);
     const message = errorMessage(error);
@@ -1650,7 +1663,9 @@ export function prepareImportJobWorker(prisma: PrismaClient): () => void {
     if (ticks % 12 === 0) void expireStaleImportJobs(prisma).catch(() => undefined);
   }, 5_000);
   timer.unref?.();
-  void recoverImportJobs(prisma).catch(() => undefined);
+  void reconcileLedgerLocks(prisma)
+    .then(() => recoverImportJobs(prisma))
+    .catch(() => undefined);
   void sweepStaleImportJobs(prisma).catch(() => undefined);
   return () => {
     stopped = true;
