@@ -19,15 +19,25 @@
 deploy/.env
 deploy/.env.*
 deploy/.backup.env
+deploy/.backup-restore.env
 deploy/.backup-heartbeat.env
 deploy/.backup-mail.env
 deploy/.backup.key
 deploy/.backup.lock
+deploy/.critical-events-key.env
+deploy/.critical-events-relay.env
+deploy/.critical-events-restore.env
 deploy/.last-deployed
+deploy/.s13i-test.env
+deploy/.s13i-test.api.env
+deploy/.s13i-test.relay.env
+deploy/.s13i-test.db.env
 _backups/
 
 # Local backup/runtime data
 deploy/backups/
+deploy/critical-backups/
+deploy/.critical-events-health-alert/
 **/*.dump
 **/*.dump.gpg
 **/*.gpg

@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
 import { verifyRemoteLedger } from "../critical/remote.js";
-import { FileSystemCriticalRemote, parseKey } from "../critical/remote.js";
+import { FileSystemCriticalRemote, parseKeyRing } from "../critical/remote.js";
 
 /**
  * Read-only verifier. Point `--dir` at a directory fetched from the dedicated COS prefix with the
@@ -19,10 +19,15 @@ if (keyValue === undefined || keyValue === "") {
   process.exit(2);
 }
 
+const key = parseKeyRing(
+  keyValue,
+  process.env["CRITICAL_EVENT_KEY_ID"],
+  process.env["CRITICAL_EVENT_PREVIOUS_KEYS"],
+);
 try {
   const result = await verifyRemoteLedger(
     new FileSystemCriticalRemote(resolve(dir)),
-    parseKey(keyValue),
+    key,
   );
   console.log(
     JSON.stringify(

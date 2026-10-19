@@ -220,6 +220,7 @@ export async function leaveBookSafely(
   bookId: string,
   userId: string,
   now: Date = new Date(),
+  requestId?: string | null,
 ): Promise<{ readonly left: boolean; readonly managerTransferredTo: string | null }> {
   return prisma.$transaction(async (tx) => {
     await lockBook(tx, bookId);
@@ -273,6 +274,7 @@ export async function leaveBookSafely(
         bookId,
         beforeState: { managedByUserId: userId },
         afterState: { managedByUserId: successor.userId },
+        requestId: requestId ?? null,
         occurredAt: now,
       });
     }
@@ -300,6 +302,7 @@ export async function leaveBookSafely(
       bookId,
       beforeState: { leftAt: null },
       afterState: { leftAt: now.toISOString(), managerTransferredTo },
+      requestId: requestId ?? null,
       occurredAt: now,
     });
     return { left: true, managerTransferredTo };
@@ -828,6 +831,7 @@ async function purgeLockedBook(
       deletionReason: input.deletionReason ?? null,
       purgedAt: input.now.toISOString(),
     },
+    requestId: input.requestId ?? null,
     occurredAt: input.now,
   });
   return {

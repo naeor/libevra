@@ -25,6 +25,7 @@
     "critical:backup-checkpoint": "node --env-file-if-exists=../../.env --import tsx src/scripts/critical-events-backup.ts",
     "critical:verify": "node --env-file-if-exists=../../.env --import tsx src/scripts/critical-events-verify.ts",
     "critical:preview": "node --env-file-if-exists=../../.env --import tsx src/scripts/critical-events-preview.ts",
+    "critical:status": "node --env-file-if-exists=../../.env --import tsx src/scripts/critical-events-status.ts",
     "critical:apply-safe": "node --env-file-if-exists=../../.env --import tsx src/scripts/critical-events-apply-safe.ts",
     "check:db": "node --import tsx src/scripts/check-db-parity.ts"
   },

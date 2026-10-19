@@ -1,0 +1,110 @@
+# S13-I isolated Docker drill stack (preparation only; NOT the production stack).
+#
+# This file deliberately has NO published ports, NO Caddy, NO production volumes, and a distinct
+# compose project name. Do not merge it with docker-compose.prod.yml.
+#
+#   cp .s13i-test.api.env.example .s13i-test.api.env
+#   cp .s13i-test.relay.env.example .s13i-test.relay.env
+#   docker compose -p s13i-test -f docker-compose.s13i-test.yml up -d --build db migrate
+#   docker compose -p s13i-test -f docker-compose.s13i-test.yml up -d api critical-relay
+#
+# Use only test DB/test COS prefix/test CAM identities. Never mount deploy_db-data or
+# /srv/libevra/deploy/backups here.
+name: s13i-test
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${S13I_TEST_DB_USER:?set test DB user}
+      POSTGRES_PASSWORD: ${S13I_TEST_DB_PASSWORD:?set test DB password}
+      POSTGRES_DB: ${S13I_TEST_DB_NAME:-libevra_s13i_test}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - s13i-test-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [s13i-test-internal]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: "no"
+    environment:
+      DATABASE_URL: ${S13I_TEST_DATABASE_URL:?set test DATABASE_URL with db host}
+    command: ["pnpm", "db:deploy"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [s13i-test-internal]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "0.5"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    env_file:
+      - .s13i-test.api.env
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: "3000"
+      DATABASE_URL: ${S13I_TEST_DATABASE_URL:?set test DATABASE_URL with db host}
+      WEB_ORIGIN: http://s13i-test.invalid
+      UPLOAD_DIR: /data/uploads
+      CRITICAL_EVENTS_MODE: relay
+    volumes:
+      - s13i-test-api-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [s13i-test-internal]
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1.0"
+
+  critical-relay:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    env_file:
+      - .s13i-test.relay.env
+    command: ["pnpm", "--filter", "@libellum/api", "critical:relay"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [s13i-test-internal]
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+
+volumes:
+  s13i-test-db-data:
+  s13i-test-api-data:
+
+networks:
+  s13i-test-internal:
+    driver: bridge

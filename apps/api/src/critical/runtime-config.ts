@@ -2,8 +2,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { parseKey } from "./remote.js";
-import { MemoryCriticalRemote, FileSystemCriticalRemote } from "./remote.js";
+import { parseKeyRing, MemoryCriticalRemote, FileSystemCriticalRemote } from "./remote.js";
 import { configureCriticalEvents, type CriticalRuntime } from "./runtime.js";
 
 function positiveInt(raw: string | undefined, fallback: number): number {
@@ -35,7 +34,11 @@ export function createRuntimeFromEnv(): CriticalRuntime {
   const keyValue =
     process.env["CRITICAL_EVENT_KEY"] ??
     Buffer.from("libellum-development-only-critical-events!!").subarray(0, 32).toString("base64");
-  const key = parseKey(keyValue);
+  const key = parseKeyRing(
+    keyValue,
+    process.env["CRITICAL_EVENT_KEY_ID"],
+    process.env["CRITICAL_EVENT_PREVIOUS_KEYS"],
+  );
   if (nodeEnv === "test") {
     return { kind: "inline", remote: new MemoryCriticalRemote(), key };
   }

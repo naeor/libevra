@@ -67,7 +67,7 @@ export async function recordCriticalEvent(
     subjectType: input.subjectType,
     subjectId: input.subjectId ?? null,
     bookId: input.bookId ?? null,
-    batchId: input.batchId ?? null,
+    batchId: input.batchId ?? input.requestId ?? null,
     beforeState: input.beforeState ?? null,
     afterState: input.afterState ?? null,
     result: input.result ?? "success",
@@ -124,6 +124,17 @@ export async function recordCriticalEvent(
     where: { id: "global" },
     data: { lastSeq: seq, lastHash: eventHash },
   });
+
+  /**
+   * Wake a PostgreSQL LISTEN-ing relay immediately. `pg_notify` is transactional: a rolled-back
+   * event never produces a notification, and a committed event produces exactly one at commit.
+   * Polling remains only a compensation path for a missed connection, restarting relay or lost
+   * notification.
+   */
+  await tx.$queryRawUnsafe(
+    `SELECT pg_notify('critical_events_new', $1)::text AS notified`,
+    `${eventId}:${String(seq)}`,
+  );
 
   return { eventId, seq };
 }

@@ -131,8 +131,16 @@ deploy/.backup-heartbeat.env
 deploy/.backup-notify.env
 # S13-I 独立事件登记簿：API 不持有 COS 凭据；只有 relay 服务读这个文件。
 deploy/.critical-events-relay.env
+deploy/.critical-events-key.env
 deploy/.critical-events-restore.env
 deploy/critical-backups/
+deploy/.critical-events-backup.lock
+deploy/.critical-events-backup.lock.d/
+deploy/.critical-events-health-alert/
+deploy/.s13i-test.env
+deploy/.s13i-test.api.env
+deploy/.s13i-test.relay.env
+deploy/.s13i-test.db.env
 critical-events-data/
 critical-events-fetched/
 # 运行期状态文件：不含秘密，但也不该进仓库（每天都变）

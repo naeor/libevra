@@ -29,6 +29,7 @@ import {
 import { createReauthVerifier } from "../admin/reauth.js";
 import { confirmP0 } from "../critical/confirm.js";
 import { recordCriticalEvent } from "../critical/store.js";
+import { runP0Operation } from "./p0-operation.js";
 import { countActiveAdmins, loadAdminRoster } from "../admin/roster.js";
 import { createOrdinaryInvite, createReservedInvite } from "../auth/invites.js";
 import type { PrismaClient } from "../db.js";
@@ -314,40 +315,56 @@ export function registerAdminRoutes(app: FastifyInstance, options: AdminRouteOpt
 
     const statusBefore = inviteStatus(invite);
 
-    const revoked = await prisma.$transaction(async (tx) => {
-      await revokeInvite(tx, invite, body.acknowledgeUsed === true);
+    const result = await runP0Operation(
+      prisma,
+      request,
+      {
+        kind: "admin.invite_revoke",
+        actorUserId: actor.userId,
+        detail: { inviteId: invite.id },
+      },
+      async (operationId) => {
+        const revoked = await prisma.$transaction(async (tx) => {
+          await revokeInvite(tx, invite, body.acknowledgeUsed === true);
 
-      await recordAudit(tx, {
-        adminUserId: actor.userId,
-        adminUsername: actor.username,
-        action: "invite.revoke",
-        target,
-        outcome: "success",
-        detail: {
-          reason: body.reason,
-          statusBefore,
-          /** ⚠️ Revoking a code never closes the account it created — see `revokeInvite`. */
-          redeemedBy: invite.usedByUsername,
-        },
-        requestId: request.id,
-      });
-      await recordCriticalEvent(tx, {
-        type: "invite.revoked",
-        actor: { userId: actor.userId, accountNumber: actor.accountNumber },
-        subjectType: "invite",
-        subjectId: invite.id,
-        beforeState: { status: statusBefore },
-        afterState: { revokedAt: new Date().toISOString(), reason: body.reason },
-        requestId: request.id,
-      });
+          await recordAudit(tx, {
+            adminUserId: actor.userId,
+            adminUsername: actor.username,
+            action: "invite.revoke",
+            target,
+            outcome: "success",
+            detail: {
+              reason: body.reason,
+              statusBefore,
+              /** ⚠️ Revoking a code never closes the account it created — see `revokeInvite`. */
+              redeemedBy: invite.usedByUsername,
+            },
+            requestId: request.id,
+          });
+          await recordCriticalEvent(tx, {
+            type: "invite.revoked",
+            actor: { userId: actor.userId, accountNumber: actor.accountNumber },
+            subjectType: "invite",
+            subjectId: invite.id,
+            beforeState: { status: statusBefore },
+            afterState: { revokedAt: new Date().toISOString(), reason: body.reason },
+            requestId: operationId,
+          });
 
-      return tx.registrationInvite.findUniqueOrThrow({ where: { id: invite.id } });
-    });
+          return tx.registrationInvite.findUniqueOrThrow({ where: { id: invite.id } });
+        });
+        return revoked;
+      },
+    );
 
-    await confirmP0(prisma);
-    return adminInviteListResponseSchema.parse({
-      invites: [toAdminInvite(revoked, invite.usedByUsername)],
-    });
+    return {
+      ...adminInviteListResponseSchema.parse({
+        invites: [toAdminInvite(result, invite.usedByUsername)],
+      }),
+      operationId: result.operationId,
+      operationReceipt: result.operationReceipt,
+      operationStatusPath: result.operationStatusPath,
+    };
   });
 
   // ---------------------------------------------------------------------------
@@ -448,46 +465,56 @@ export function registerAdminRoutes(app: FastifyInstance, options: AdminRouteOpt
 
       await requirePassword(request, actor, body.password, "account.suspend", looked.username);
 
-      const result = await prisma.$transaction(async (tx) => {
-        const outcome = await suspendAccount(tx, {
-          targetUserId: userId,
-          actorUserId: actor.userId,
-          actorLabel: `${actor.username} (console)`,
-        });
+      const result = await runP0Operation(
+        prisma,
+        request,
+        { kind: "admin.account_suspend", actorUserId: actor.userId, subjectUserId: userId, detail: { reason: body.reason } },
+        async (operationId) =>
+          prisma.$transaction(async (tx) => {
+            const outcome = await suspendAccount(tx, {
+              targetUserId: userId,
+              actorUserId: actor.userId,
+              actorLabel: `${actor.username} (console)`,
+            });
 
-        await recordAudit(tx, {
-          adminUserId: actor.userId,
-          adminUsername: actor.username,
-          action: "account.suspend",
-          target: outcome.username,
-          outcome: "success",
-          detail: { reason: body.reason, sessionsRemoved: outcome.sessionsRemoved },
-          requestId: request.id,
-        });
-        await recordCriticalEvent(tx, {
-          type: "account.disabled",
-          actor: { userId: actor.userId, accountNumber: actor.accountNumber },
-          subjectType: "account",
-          subjectId: userId,
-          beforeState: { disabledAt: null },
-          afterState: {
-            disabledAt: new Date().toISOString(),
-            disabledBy: "admin_console",
-            sessionsRemoved: outcome.sessionsRemoved,
-            reason: body.reason,
-          },
-          requestId: request.id,
-        });
+            await recordAudit(tx, {
+              adminUserId: actor.userId,
+              adminUsername: actor.username,
+              action: "account.suspend",
+              target: outcome.username,
+              outcome: "success",
+              detail: { reason: body.reason, sessionsRemoved: outcome.sessionsRemoved },
+              requestId: request.id,
+            });
+            await recordCriticalEvent(tx, {
+              type: "account.disabled",
+              actor: { userId: actor.userId, accountNumber: actor.accountNumber },
+              subjectType: "account",
+              subjectId: userId,
+              beforeState: { disabledAt: null },
+              afterState: {
+                disabledAt: new Date().toISOString(),
+                disabledBy: "admin_console",
+                sessionsRemoved: outcome.sessionsRemoved,
+                reason: body.reason,
+              },
+              requestId: operationId,
+            });
 
-        return outcome;
-      });
+            return outcome;
+          }),
+      );
 
-      await confirmP0(prisma);
-      return adminAccountActionResponseSchema.parse({
-        ok: true,
-        username: result.username,
-        sessionsRemoved: result.sessionsRemoved,
-      });
+      return {
+        ...adminAccountActionResponseSchema.parse({
+          ok: true,
+          username: result.username,
+          sessionsRemoved: result.sessionsRemoved,
+        }),
+        operationId: result.operationId,
+        operationReceipt: result.operationReceipt,
+        operationStatusPath: result.operationStatusPath,
+      };
     },
   );
 
@@ -510,41 +537,51 @@ export function registerAdminRoutes(app: FastifyInstance, options: AdminRouteOpt
 
       await requirePassword(request, actor, body.password, "account.restore", looked.username);
 
-      const result = await prisma.$transaction(async (tx) => {
-        const outcome = await restoreAccount(tx, {
-          targetUserId: userId,
-          actorUserId: actor.userId,
-          actorLabel: `${actor.username} (console)`,
-        });
+      const result = await runP0Operation(
+        prisma,
+        request,
+        { kind: "admin.account_restore", actorUserId: actor.userId, subjectUserId: userId, detail: { reason: body.reason } },
+        async (operationId) =>
+          prisma.$transaction(async (tx) => {
+            const outcome = await restoreAccount(tx, {
+              targetUserId: userId,
+              actorUserId: actor.userId,
+              actorLabel: `${actor.username} (console)`,
+            });
 
-        await recordAudit(tx, {
-          adminUserId: actor.userId,
-          adminUsername: actor.username,
-          action: "account.restore",
-          target: outcome.username,
-          outcome: "success",
-          detail: { reason: body.reason },
-          requestId: request.id,
-        });
-        await recordCriticalEvent(tx, {
-          type: "account.enabled",
-          actor: { userId: actor.userId, accountNumber: actor.accountNumber },
-          subjectType: "account",
-          subjectId: userId,
-          beforeState: { disabledAt: "set" },
-          afterState: { disabledAt: null, reason: body.reason },
-          requestId: request.id,
-        });
+            await recordAudit(tx, {
+              adminUserId: actor.userId,
+              adminUsername: actor.username,
+              action: "account.restore",
+              target: outcome.username,
+              outcome: "success",
+              detail: { reason: body.reason },
+              requestId: request.id,
+            });
+            await recordCriticalEvent(tx, {
+              type: "account.enabled",
+              actor: { userId: actor.userId, accountNumber: actor.accountNumber },
+              subjectType: "account",
+              subjectId: userId,
+              beforeState: { disabledAt: "set" },
+              afterState: { disabledAt: null, reason: body.reason },
+              requestId: operationId,
+            });
 
-        return outcome;
-      });
+            return outcome;
+          }),
+      );
 
-      await confirmP0(prisma);
-      return adminAccountActionResponseSchema.parse({
-        ok: true,
-        username: result.username,
-        sessionsRemoved: 0,
-      });
+      return {
+        ...adminAccountActionResponseSchema.parse({
+          ok: true,
+          username: result.username,
+          sessionsRemoved: 0,
+        }),
+        operationId: result.operationId,
+        operationReceipt: result.operationReceipt,
+        operationStatusPath: result.operationStatusPath,
+      };
     },
   );
 

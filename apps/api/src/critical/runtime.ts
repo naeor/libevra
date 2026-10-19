@@ -7,6 +7,7 @@ import {
   encryptJson,
   eventObjectKey,
   writeManifest,
+  type CriticalKey,
   type CriticalRemote,
 } from "./remote.js";
 import type { CriticalEventCore } from "./types.js";
@@ -25,7 +26,7 @@ export type CriticalRuntime =
   | {
       readonly kind: "inline";
       readonly remote: CriticalRemote;
-      readonly key: Buffer;
+      readonly key: CriticalKey;
     }
   | {
       readonly kind: "relay";
@@ -53,15 +54,34 @@ export function getCriticalRuntime(): CriticalRuntime {
 export async function flushPendingCriticalEvents(
   prisma: PrismaClient,
   remote: CriticalRemote,
-  key: Buffer,
+  key: CriticalKey,
   limit = 100,
-): Promise<{ uploaded: number; pending: number }> {
-  const rows = await prisma.criticalEvent.findMany({
+): Promise<{ uploaded: number; pending: number; nextAttemptAt: string | null }> {
+  /**
+   * Preserve chain order: if the oldest pending/failed event is waiting for its retry time, do not
+   * upload a later event. Uploading seq N+1 before N would make the remote chain unverifiable.
+   */
+  const first = await prisma.criticalEvent.findFirst({
     where: { deliveryState: { in: ["pending", "failed"] } },
+    orderBy: { seq: "asc" },
+    select: { seq: true, nextAttemptAt: true },
+  });
+  if (first === null) return { uploaded: 0, pending: 0, nextAttemptAt: null };
+  if (first.nextAttemptAt !== null && first.nextAttemptAt.getTime() > Date.now()) {
+    return {
+      uploaded: 0,
+      pending: await prisma.criticalEvent.count({
+        where: { deliveryState: { in: ["pending", "failed"] } },
+      }),
+      nextAttemptAt: first.nextAttemptAt.toISOString(),
+    };
+  }
+  const rows = await prisma.criticalEvent.findMany({
+    where: { deliveryState: { in: ["pending", "failed"] }, seq: { gte: first.seq } },
     orderBy: { seq: "asc" },
     take: limit,
   });
-  if (rows.length === 0) return { uploaded: 0, pending: 0 };
+  if (rows.length === 0) return { uploaded: 0, pending: 0, nextAttemptAt: null };
 
   const uploaded: CriticalEventCore[] = [];
   let currentEventId: string | null = null;
@@ -123,12 +143,32 @@ export async function flushPendingCriticalEvents(
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 480) : String(error).slice(0, 480);
     if (currentEventId !== null) {
-      await prisma.criticalEvent
-        .update({
-          where: { eventId: currentEventId },
-          data: { deliveryState: "failed", attempts: { increment: 1 }, lastError: message },
-        })
-        .catch(() => undefined);
+      const current = await prisma.criticalEvent.findUnique({
+        where: { eventId: currentEventId },
+        select: { attempts: true, seq: true },
+      });
+      if (current !== null) {
+        const attempts = current.attempts + 1;
+        const nextAttemptAt = new Date(Date.now() + retryDelayMs(attempts));
+        await prisma.criticalEvent
+          .update({
+            where: { eventId: currentEventId },
+            data: {
+              deliveryState: "failed",
+              attempts: { increment: 1 },
+              lastError: message,
+              lastAttemptAt: new Date(),
+              nextAttemptAt,
+            },
+          })
+          .catch(() => undefined);
+        // Keep the error attached for the relay log, but this is a protection-layer failure, not a
+        // business failure. No API request is waiting for it.
+        throw Object.assign(error instanceof Error ? error : new Error(message), {
+          criticalNextAttemptAt: nextAttemptAt.toISOString(),
+          criticalSeq: current.seq,
+        });
+      }
     }
     throw error;
   }
@@ -140,13 +180,24 @@ export async function flushPendingCriticalEvents(
   const now = new Date();
   await prisma.criticalEvent.updateMany({
     where: { eventId: { in: uploaded.map((event) => event.eventId) } },
-    data: { deliveryState: "acked", ackedAt: now },
+    data: {
+      deliveryState: "acked",
+      ackedAt: now,
+      nextAttemptAt: null,
+      lastAttemptAt: now,
+    },
   });
 
   const pending = await prisma.criticalEvent.count({
     where: { deliveryState: { in: ["pending", "failed"] } },
   });
-  return { uploaded: uploaded.length, pending };
+  return { uploaded: uploaded.length, pending, nextAttemptAt: null };
+}
+
+/** Exponential retry for the protection layer: 1s, 2s, 4s … capped at 5 minutes. */
+export function retryDelayMs(attempts: number): number {
+  const exponent = Math.max(0, Math.min(attempts - 1, 8));
+  return Math.min(1_000 * 2 ** exponent, 5 * 60 * 1000);
 }
 
 export async function waitForRelayAcks(
@@ -167,24 +218,10 @@ export async function waitForRelayAcks(
 }
 
 /**
- * Called by P0 routes before their final success response.
- *
- * Inline mode (tests/dev) performs the upload here. Relay mode only waits for the separate,
- * credential-isolated relay to acknowledge rows. Neither mode can turn an unknown remote state
- * into a success.
+ * @deprecated Business success no longer waits for the remote ledger. Kept as a no-op for old CLI
+ * scripts; they should print the business result and let the relay retry asynchronously. Do not
+ * reintroduce waitForRelayAcks in request paths.
  */
-export async function confirmCriticalEvents(prisma: PrismaClient): Promise<void> {
-  try {
-    if (runtime.kind === "disabled") {
-      throw new CriticalEventPersistenceError("critical_event_remote_not_configured");
-    }
-    if (runtime.kind === "inline") {
-      await flushPendingCriticalEvents(prisma, runtime.remote, runtime.key);
-      return;
-    }
-    await waitForRelayAcks(prisma, runtime.timeoutMs);
-  } catch (error) {
-    if (error instanceof CriticalEventPersistenceError) throw error;
-    throw new CriticalEventPersistenceError("critical_event_remote_unconfirmed", error);
-  }
+export async function confirmCriticalEvents(_prisma: PrismaClient): Promise<void> {
+  // Intentionally does not upload, block, or throw.
 }

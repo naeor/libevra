@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily Libevra S13-I checkpointed backup
+Documentation=file:/srv/libevra/docs/开发过程记录/S13-I-生产接入清单与未来管理接口.md
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Asia/Hong_Kong
+Persistent=true
+RandomizedDelaySec=10m
+Unit=libevra-critical-backup.service
+
+[Install]
+WantedBy=timers.target

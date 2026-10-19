@@ -13,6 +13,7 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      - .critical-events-key.env
       - .critical-events-relay.env
     command: ["pnpm", "--filter", "@libellum/api", "critical:relay"]
     depends_on:
@@ -21,3 +22,11 @@ services:
     # No ports: this process must not be reachable from the network.
     security_opt:
       - no-new-privileges:true
+    # Must join the same internal network as `db`; otherwise "db" is not resolvable and the
+    # relay crash-loops with EAI_AGAIN before it can write its heartbeat.
+    networks: [internal]
+    # The API image's HTTP healthcheck does not apply: this process has no HTTP listener.
+    # Its real health is the heartbeat in critical_events_relay_heartbeat, observed by
+    # critical:status and the critical-events-health timer.
+    healthcheck:
+      disable: true

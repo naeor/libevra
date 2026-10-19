@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { verifyRestoredCheckpoint } from "../critical/checkpoint.js";
 import { previewSafeRestore } from "../critical/preview.js";
 import { verifyRemoteLedger } from "../critical/remote.js";
-import { FileSystemCriticalRemote, parseKey } from "../critical/remote.js";
+import { FileSystemCriticalRemote, parseKeyRing } from "../critical/remote.js";
 import { createPrismaClient } from "../db.js";
 
 /**
@@ -33,10 +33,14 @@ if (keyValue === undefined || keyValue === "") {
   console.error("CRITICAL_EVENT_KEY is required");
   process.exit(2);
 }
-const key = parseKey(keyValue);
+const key = parseKeyRing(
+  keyValue,
+  process.env["CRITICAL_EVENT_KEY_ID"],
+  process.env["CRITICAL_EVENT_PREVIOUS_KEYS"],
+);
 const prisma = createPrismaClient(process.env["DATABASE_URL"] ?? "");
 try {
-  const checkpoint = await verifyRestoredCheckpoint(prisma, resolve(checkpointFile), resolve(dumpPath), key);
+  const checkpoint = await verifyRestoredCheckpoint(prisma, resolve(checkpointFile), resolve(dumpPath), key.activeKey);
   const verified = await verifyRemoteLedger(new FileSystemCriticalRemote(resolve(dir)), key);
   const preview = await previewSafeRestore(
     prisma,

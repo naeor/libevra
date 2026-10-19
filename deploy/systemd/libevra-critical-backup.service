@@ -1,0 +1,21 @@
+[Unit]
+Description=Libevra S13-I checkpointed backup + independent offsite copy
+Documentation=file:/srv/libevra/docs/开发过程记录/S13-I-生产接入清单与未来管理接口.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/srv/libevra/deploy
+# The timer must always produce the independent COS copy, not merely a local checkpoint.
+# `.env` also contains this for manual runs; keep both consistent.
+Environment=CRITICAL_BACKUP_OFFSITE=cos
+# Event key for the checkpoint sidecar HMAC. This file is not loaded by the API container.
+EnvironmentFile=/srv/libevra/deploy/.critical-events-key.env
+ExecStart=/srv/libevra/deploy/critical-events-backup-all.sh
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# Do not add an outer flock: the script itself owns .critical-events-backup.lock.

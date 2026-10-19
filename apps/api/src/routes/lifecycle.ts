@@ -10,11 +10,10 @@ import {
   OperationAlreadyStartedError,
   operationResponseFields,
   startCriticalOperation,
-  unconfirmedOperationError,
   type StartedOperation,
 } from "../critical/operations.js";
 import type { PrismaClient } from "../db.js";
-import { AppError, badRequest, conflict, forbidden, notFound, tooManyRequests } from "../lib/errors.js";
+import { badRequest, conflict, forbidden, notFound, tooManyRequests } from "../lib/errors.js";
 import {
   archiveBook,
   getBookLifecycle,
@@ -126,10 +125,14 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
   // -------------------------------------------------------------------------
   app.get("/api/v1/operations/:id", async (request) => {
     const { id } = request.params as { id: string };
-    const query = z.object({ token: z.string().min(16).max(128) }).parse(request.query);
+    const raw = request.headers["x-operation-receipt"];
+    const token = Array.isArray(raw) ? raw[0] : raw;
+    if (token === undefined || token.length < 16 || token.length > 128) {
+      throw badRequest("operation_receipt_required", "缺少操作凭证；请在请求头 X-Operation-Receipt 中提供，勿放入 URL。");
+    }
     if (!/^[0-9a-f-]{36}$/i.test(id)) throw badRequest("operation_invalid", "操作编号不合法。");
-    const operation = await getPublicOperation(prisma, id, query.token);
-    if (operation === null) throw notFound("operation_not_found", "找不到这条操作。");
+    const operation = await getPublicOperation(prisma, id, token);
+    if (operation === null) throw notFound("operation_not_found", "找不到这条操作，或操作凭证已过期。");
     return operation;
   });
 
@@ -200,14 +203,7 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       await markOperation(prisma, operation.id, "failed");
       throw error;
     }
-    await markOperation(prisma, operation.id, "committed_unconfirmed");
-    try {
-      await confirmP0(prisma);
-    } catch (error) {
-      if (error instanceof AppError) throw unconfirmedOperationError(operation, error);
-      throw error;
-    }
-    await markOperation(prisma, operation.id, "confirmed");
+    await markOperation(prisma, operation.id, "completed");
     return { ok: true, ...result, ...operationResponseFields(operation) };
   });
 
@@ -275,14 +271,7 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       await markOperation(prisma, operation.id, "failed");
       throw error;
     }
-    await markOperation(prisma, operation.id, "committed_unconfirmed");
-    try {
-      await confirmP0(prisma);
-    } catch (error) {
-      if (error instanceof AppError) throw unconfirmedOperationError(operation, error);
-      throw error;
-    }
-    await markOperation(prisma, operation.id, "confirmed");
+    await markOperation(prisma, operation.id, "completed");
     return { ...result, ...operationResponseFields(operation) };
   });
 
@@ -329,14 +318,7 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       await markOperation(prisma, operation.id, "failed");
       throw error;
     }
-    await markOperation(prisma, operation.id, "committed_unconfirmed");
-    try {
-      await confirmP0(prisma);
-    } catch (error) {
-      if (error instanceof AppError) throw unconfirmedOperationError(operation, error);
-      throw error;
-    }
-    await markOperation(prisma, operation.id, "confirmed");
+    await markOperation(prisma, operation.id, "completed");
     return { ...result, ...operationResponseFields(operation) };
   });
 

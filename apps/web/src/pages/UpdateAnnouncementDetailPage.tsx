@@ -3,6 +3,7 @@ import { TEST_MAJOR_ANNOUNCEMENT } from "@libellum/shared";
 
 import { InnerPage } from "../components/Layouts.js";
 import {
+  adjacentReleasedAnnouncements,
   formatReleaseDate,
   releasedAnnouncementByVersion,
   type UpdateAnnouncement,
@@ -50,6 +51,8 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
     );
   }
 
+  const { older, newer } = adjacentReleasedAnnouncements(announcement.version);
+
   return (
     <InnerPage
       title={announcement.title}
@@ -74,6 +77,33 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
           </ul>
         </section>
       ))}
+
+      {older === null && newer === null ? null : (
+        <nav aria-label="版本导航" className="grid gap-3 sm:grid-cols-2">
+          {older === null ? null : (
+            <Link
+              to={`/update/announcements/${older.version}`}
+              className="flex min-w-0 flex-col gap-1 rounded-card border border-line bg-surface px-4 py-3 transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+            >
+              <span className="text-helper text-muted">上一版本</span>
+              <span className="truncate text-sm font-medium text-ink">
+                {older.version} · {older.title}
+              </span>
+            </Link>
+          )}
+          {newer === null ? null : (
+            <Link
+              to={`/update/announcements/${newer.version}`}
+              className="flex min-w-0 flex-col gap-1 rounded-card border border-line bg-surface px-4 py-3 text-right transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft sm:col-start-2"
+            >
+              <span className="text-helper text-muted">下一版本</span>
+              <span className="truncate text-sm font-medium text-ink">
+                {newer.version} · {newer.title}
+              </span>
+            </Link>
+          )}
+        </nav>
+      )}
 
       <Link to="/update/announcements" className="text-body font-medium text-brand">
         返回更新公告

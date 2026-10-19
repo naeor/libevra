@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { PrismaClient } from "../db.js";
 import { confirmP0 } from "../critical/confirm.js";
+import { runP0Operation } from "./p0-operation.js";
 import { recordCriticalEvent } from "../critical/store.js";
 import {
   SHARE_LINK_MAX_DAYS,
@@ -172,23 +173,39 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const { linkId } = request.params as { linkId: string };
 
     const book = await requireBookForWrite(prisma, request, userId);
-    const result = await prisma.$transaction(async (tx) => {
-      const revoked = await revokeShareLink(tx, book.bookId, linkId, userId);
-      await recordCriticalEvent(tx, {
-        type: "share_link.revoked",
-        actor: { userId, accountNumber: request.currentUser!.accountNumber },
-        subjectType: "share_link",
-        subjectId: linkId,
-        bookId: book.bookId,
-        beforeState: { revokedAt: null },
-        afterState: { revokedAt: new Date().toISOString(), alreadyRevoked: revoked.alreadyRevoked },
-        requestId: request.id,
-      });
-      return revoked;
-    });
-    await confirmP0(prisma);
+    const result = await runP0Operation(
+      prisma,
+      request,
+      {
+        kind: "share_link.revoke",
+        actorUserId: userId,
+        detail: { bookId: book.bookId, linkId },
+      },
+      async (operationId) => {
+        return prisma.$transaction(async (tx) => {
+          const revoked = await revokeShareLink(tx, book.bookId, linkId, userId);
+          await recordCriticalEvent(tx, {
+            type: "share_link.revoked",
+            actor: { userId, accountNumber: request.currentUser!.accountNumber },
+            subjectType: "share_link",
+            subjectId: linkId,
+            bookId: book.bookId,
+            beforeState: { revokedAt: null },
+            afterState: { revokedAt: new Date().toISOString(), alreadyRevoked: revoked.alreadyRevoked },
+            requestId: operationId,
+          });
+          return revoked;
+        });
+      },
+    );
 
-    return { ok: true, alreadyRevoked: result.alreadyRevoked };
+    return {
+      ok: true,
+      alreadyRevoked: result.alreadyRevoked,
+      operationId: result.operationId,
+      operationReceipt: result.operationReceipt,
+      operationStatusPath: result.operationStatusPath,
+    };
   });
 
   // ---------------------------------------------------------------------------
@@ -242,31 +259,45 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
      * *"编辑者：可以查看并编辑账目，也可以按照既有权限规则参与成员管理."*
      */
     const book = await requireBookForWrite(prisma, request, userId);
-    const result = await changeMemberRole(prisma, book.bookId, memberId, body.role);
+    const result = await runP0Operation(
+      prisma,
+      request,
+      {
+        kind: "member.role_change",
+        actorUserId: userId,
+        subjectUserId: memberId,
+        detail: { bookId: book.bookId, role: body.role },
+      },
+      async (operationId) => {
+        const changed = await changeMemberRole(prisma, book.bookId, memberId, body.role, {
+          requestId: operationId,
+        });
+        if (changed.changed) {
+          const target = await prisma.user.findUnique({
+            where: { id: memberId },
+            select: { displayName: true },
+          });
+          await recordEvent(prisma, {
+            bookId: book.bookId,
+            actorId: userId,
+            actorName: request.currentUser!.displayName,
+            kind: "member_changed",
+            changes: {
+              role: { from: changed.previousRole, to: `${target?.displayName ?? "成员"}：${body.role === "editor" ? "可编辑" : "仅查看"}` },
+            },
+          });
+        }
+        return changed;
+      },
+    );
 
-    /**
-     * ⚠️ **Recorded as an event**, because the owner asked for member changes to be visible in the
-     * history: *"此外，也可以适当展示成员加入、退出或权限变动等重要协作事件."*
-     */
-    if (result.changed) {
-      const target = await prisma.user.findUnique({
-        where: { id: memberId },
-        select: { displayName: true },
-      });
-
-      await recordEvent(prisma, {
-        bookId: book.bookId,
-        actorId: userId,
-        actorName: request.currentUser!.displayName,
-        kind: "member_changed",
-        changes: {
-          role: { from: result.previousRole, to: `${target?.displayName ?? "成员"}：${body.role === "editor" ? "可编辑" : "仅查看"}` },
-        },
-      });
-      await confirmP0(prisma);
-    }
-
-    return { ok: true, changed: result.changed };
+    return {
+      ok: true,
+      changed: result.changed,
+      operationId: result.operationId,
+      operationReceipt: result.operationReceipt,
+      operationStatusPath: result.operationStatusPath,
+    };
   });
 
   // ---------------------------------------------------------------------------
@@ -277,25 +308,38 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const { memberId } = request.params as { memberId: string };
 
     const book = await requireBookForWrite(prisma, request, userId);
-    await removeMember(prisma, book.bookId, memberId, userId);
-
-    /**
-     * ⚠️ **Two events for one removal, and they say different things.**
-     *
-     * `member_changed` records **the fact that somebody left** — that is what the owner wants the
-     * history to show. A `leftAt` on the membership row is invisible to the history screen, so
-     * **without this the ledger would silently lose a member and the record would show nothing.**
-     */
-    await recordEvent(prisma, {
-      bookId: book.bookId,
-      actorId: userId,
-      actorName: request.currentUser!.displayName,
-      kind: "member_changed",
-      changes: { removed: { from: null, to: null } },
-    });
-    await confirmP0(prisma);
+    const result = await runP0Operation(
+      prisma,
+      request,
+      {
+        kind: "member.remove",
+        actorUserId: userId,
+        subjectUserId: memberId,
+        detail: { bookId: book.bookId },
+      },
+      async (operationId) => {
+        await removeMember(prisma, book.bookId, memberId, userId, new Date(), operationId);
+        /**
+         * ⚠️ **Two events for one removal, and they say different things.**
+         * `member_changed` records the human-visible history fact; the critical event carries the
+         * security-ledger fact and is written inside `removeMember`.
+         */
+        await recordEvent(prisma, {
+          bookId: book.bookId,
+          actorId: userId,
+          actorName: request.currentUser!.displayName,
+          kind: "member_changed",
+          changes: { removed: { from: null, to: null } },
+        });
+        return { ok: true };
+      },
+    );
 
     void reply.code(204);
+    // A 204 cannot carry a body; the receipt is exposed in headers for clients that need it.
+    void reply.header("x-operation-id", result.operationId);
+    void reply.header("x-operation-receipt", result.operationReceipt);
+    void reply.header("x-operation-status-path", result.operationStatusPath);
     return null;
   });
 
@@ -375,22 +419,33 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const userId = request.currentUser!.id;
     const { bookId } = request.params as { bookId: string };
 
-    const result = await leaveBook(prisma, bookId, userId);
+    const result = await runP0Operation(
+      prisma,
+      request,
+      {
+        kind: "book.leave",
+        actorUserId: userId,
+        detail: { bookId },
+      },
+      async (operationId) => {
+        const left = await leaveBook(prisma, bookId, userId, new Date(), operationId);
+        await recordEvent(prisma, {
+          bookId,
+          actorId: userId,
+          actorName: request.currentUser!.displayName,
+          kind: "member_changed",
+          changes: { left: { from: null, to: null } },
+        });
+        return left;
+      },
+    );
 
-    /**
-     * ⚠️ **Leaving is recorded too.** The owner's sentence covers it: *"成员加入、退出……等重要协作事件."*
-     * And it is the case where the record matters most — **the person who left cannot tell you why
-     * the ledger changed under them.**
-     */
-    await recordEvent(prisma, {
-      bookId,
-      actorId: userId,
-      actorName: request.currentUser!.displayName,
-      kind: "member_changed",
-      changes: { left: { from: null, to: null } },
-    });
-    await confirmP0(prisma);
-
-    return { ok: true, ...result };
+    return {
+      ok: true,
+      left: result.left,
+      operationId: result.operationId,
+      operationReceipt: result.operationReceipt,
+      operationStatusPath: result.operationStatusPath,
+    };
   });
 }
