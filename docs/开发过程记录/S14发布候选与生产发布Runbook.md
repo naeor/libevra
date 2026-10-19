@@ -288,7 +288,8 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 1. 把 commit `5dc2d54` 的源码发布包（`git archive`，SHA-256 已记录）放到服务器 `/srv/libevra`，不要覆盖 `.env`、备份、关键事件密钥；
 2. 保留当前 deploy 配置副本/记录当前镜像 ID，便于回退；
 3. 构建候选镜像并记录实际 **Image ID/归档 SHA/平台**（见 §1）；服务器构建必须使用同一 commit；
-4. **Compose 组合必须按实际生产项目核对**：
+4. **注册模式必须显式保持邀请制**：发布前在 `deploy/.env` 增加/确认 `REGISTRATION_MODE=invite`（生产当前 `.env` 尚未设置该键；旧 1.13.15 代码本身始终要求邀请码）。不要使用 `open` 或任何 quota 模式；`quota` 不是已实现模式，服务端会拒绝启动。发布后必须通过 `/api/v1/auth/registration-config` 和容器 `printenv REGISTRATION_MODE` 复核。
+5. **Compose 组合必须按实际生产项目核对**：
    - 基础文件：`docker-compose.prod.yml`
    - 生产当前还有 relay overlay：`critical-events-relay.compose.yml`
    - 生产项目 `deploy` 的配置是 **两个文件组合**；`deploy.sh`、`backup.sh`、`restore.sh` 内部只引用基础文件，不能假设 relay 已被自动重建/停止/启动；
@@ -296,11 +297,8 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
    - `docker-compose.s13i-test.yml` 是 S13 测试项目，不是生产组合；
    - `deploy/.env` 自动读取；relay 额外读取 `.critical-events-key.env`/`.critical-events-relay.env`；恢复只读身份不放在服务器；
    - 任何命令前先打印 `docker compose ls` 项目名和 `docker compose ... config --services`（不打印 secret），确认目标是 `deploy` 项目。
-4. 确认 `deploy/.env` 变更：
-   - 1.14.18 没有新增必需密钥；
-   - 新增 `REGISTRATION_MODE` 是可选变量，默认 `invite`；发布时建议显式写 `REGISTRATION_MODE=invite`，**不要意外开放注册**；
-   - 不修改 COS/CAM、critical event key、relay 配置；
-5. Compose 配置改动需先 `docker compose config` 校验；不得改变数据库卷。
+6. 确认 `deploy/.env` 其余变更：1.14.18 没有新增必需密钥；不修改 COS/CAM、critical event key、relay 配置；
+7. Compose 配置改动需先 `docker compose config` 校验；不得改变数据库卷。
 
 ### 3.6 受控执行 45→51 migration
 
@@ -363,6 +361,7 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 再检查：
 
+- `/api/v1/auth/registration-config` 返回 `mode=invite`、`inviteRequired=true`；容器内 `printenv REGISTRATION_MODE` 必须是 `invite`；公开注册页面只显示邀请码注册，不出现无需邀请码的创建入口；
 - 生产版本显示 1.14.18；
 - users/books/members/transactions 等发布前后计数差异仅来自预定的测试/业务操作，迁移本身不改历史数据；
 - critical_chain `last_hash` 在迁移前后不变（之后新业务事件可以正常追加）；
@@ -455,6 +454,38 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ---
 
+## 3.14 邀请制注册发布检查（所有者 2026-10-19 决定）
+
+**现状核对（只读）：**
+
+- 生产 1.13.15 API 的 `registerRequestSchema` 强制 `inviteCode`，旧版 UI 也始终显示邀请码字段；当前生产**没有** `/api/v1/auth/registration-config`（旧版无此端点，返回 404）；
+- 生产 `deploy/.env` 当前没有 `REGISTRATION_MODE` 键；旧 1.13.15 不读取该键，行为仍为邀请制；升级到 1.14.18 后，**必须显式写入 `REGISTRATION_MODE=invite`**，不能依赖默认值；
+- 候选服务端：`REGISTRATION_MODE` 只接受 `invite`/`open`，其他值拒绝启动；默认 invite；`auth.register` 在 invite 模式下强制校验邀请码；
+- 候选 Web：`RegisterPage` 读取 `/auth/registration-config`；`inviteRequired=true` 时显示邀请码字段和“目前新账号通过邀请开放”，没有无需邀请码的开放注册表单；
+- 邀请码为**单次使用**：`usedAt`、`revokedAt`、`expiresAt` 分别拒绝 used/revoked/expired；不存在无需邀请码的注册按钮或旧 API 绕过；
+- 已测试：API auth/invite 22 项、Shared invite rejection 10 项、Web auth surfaces 6 项通过；全量 API/Web 测试此前通过。
+
+**发布时必须做：**
+
+1. 在 `deploy/.env` 中显式设置：
+   ```dotenv
+   REGISTRATION_MODE=invite
+   ```
+   不允许 `open`；`quota` 不是已实现模式；
+2. 重建/重启 API 容器后，确认：
+   ```bash
+   $DC exec -T api printenv REGISTRATION_MODE   # 必须输出 invite
+   curl -fsS https://libevra.com/api/v1/auth/registration-config
+   # {"mode":"invite","inviteRequired":true}
+   ```
+3. 验证登录入口对既有账号正常；注册页只提供邀请码注册；直接 `POST /api/v1/auth/register` 不带邀请码返回 400 `invite_required`，无效/已用/过期/撤销分别安全拒绝；
+4. 不创建真实测试账号，除非使用所有者指定的测试邀请码和测试身份；不在生产上批量造邀请码；
+5. 若注册配置或 UI 需要任何代码改动，必须重新构建镜像并重新执行候选验证，不能复用当前镜像。
+
+当前本轮**未修改生产注册配置**，等待正式发布授权。
+
+---
+
 ## 4. 风险核对（针对发布候选）
 
 1. **触发器与后台任务**：新触发器只对受影响账本的业务表在 active lock 时拒绝写；检查/释放逻辑由锁行和 API worker 负责。S13 critical/relay/checkpoint 表不在业务锁触发器范围；S12-C 备份/恢复通过过滤锁表数据和启动协调器处理。**S13-I checkpoint 备份如果包含活动锁行，恢复时也必须采用同类过滤；建议 checkpoint 前确认 active lock=0**。生产启用前需在隔离 Docker 中验证 backup/restore/relay/checkpoint 兼容。
@@ -462,7 +493,7 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 3. **旧 PWA / API 顺序**：先停旧 Web/API，迁移后先启动新 API，再启动新 Web；旧 PWA 缓存请求只能安全拒绝旧导入，不应绕过锁；离线队列在新 API 恢复后同步。不要在迁移前让旧 API 连 51。
 4. **Critical Chain seq>0**：发布前记录 `last_seq/last_hash` 和 checkpoint；用只读恢复身份核对远端 manifest；不 reset/重建/改链；迁移不改 critical 表；发布后验证迁移前后 hash 不变，新事件只追加。
 5. **非破坏性故障处置**：禁止 down migration、旧库覆盖自动回滚；采用冻结写入、保留现场、发布前备份和整库人工恢复（所有者批准）或 forward-fix。
-6. **配置/权限遗漏**：1.14.18 无新增必需密钥；`REGISTRATION_MODE` 可选且默认 invite，发布时显式维持 invite；数据库用户/卷/COS/CAM/relay 配置不变；备份/恢复脚本更新已包含锁过滤和启动协调器；Compose 服务结构未改变。
+6. **配置/权限遗漏**：1.14.18 无新增必需密钥；`REGISTRATION_MODE` 必须显式设置为 `invite`，不能依赖默认值；数据库用户/卷/COS/CAM/relay 配置不变；备份/恢复脚本更新已包含锁过滤和启动协调器；Compose 服务结构未改变。
 
 ---
 
@@ -487,10 +518,11 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 正式发布前必须完成且不能再依赖假设：
 
 1. 发布当天重新取得最新 S12-C 备份并完成 COS 上传/恢复演练；不得沿用 2026-10-19 03:56 或当前 4 用户/5 账本/164 交易；
-2. 按 Runbook §3.2 停写并处理 PWA 队列；按 §3.5 使用基础 + relay 两个 Compose 文件；不要把旧 1.13.15 API 接到 51 数据库；
-3. 使用本记录的**同一镜像归档/Image ID**，不要在生产重新构建未经测试的镜像；
-4. 迁移 45→51 后按 §3.8 验证；Critical Chain 只追加，不 reset；
-5. 10 分钟撤销失败没有独立外部告警，发布后必须按 §3.13 人工巡检/监控；
-6. 不执行 down migration、旧库自动覆盖或全局 Docker prune。
+2. 在 `deploy/.env` 显式设置并验证 `REGISTRATION_MODE=invite`（当前生产未设置；旧版 1.13.15 行为仍为邀请制）；
+3. 按 Runbook §3.2 停写并处理 PWA 队列；按 §3.5 使用基础 + relay 两个 Compose 文件；不要把旧 1.13.15 API 接到 51 数据库；
+4. 使用本记录的**同一镜像归档/Image ID**，不要在生产重新构建未经测试的镜像；
+5. 迁移 45→51 后按 §3.8 验证；Critical Chain 只追加，不 reset；
+6. 10 分钟撤销失败没有独立外部告警，发布后必须按 §3.13 人工巡检/监控；
+7. 不执行 down migration、旧库自动覆盖或全局 Docker prune。
 
 本轮未 push、未部署、未生产 migration、未修改生产服务/COS/CAM/密钥。
