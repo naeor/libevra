@@ -42,11 +42,36 @@
 
 需要在具备 Docker Engine 的隔离机器/CI 上完成：
 
-1. 按 §1 构建候选镜像并记录 image ID、RepoDigest、source commit、build 时间；
+1. 按 §1 构建候选镜像并记录 Image ID、平台、归档 SHA、source commit、build 时间；本地无 registry 时 RepoDigest 可空；
 2. 按 §2 在完全隔离的 Compose 项目执行 `restore.sh` 的四个场景；
-3. 把实际 tag/digest 和执行结果补入本文件后，才能签发生产发布 Go。
+3. 把实际 tag/digest/archive 和执行结果补入本文件后，才能签发生产发布 Go。
 
----
+### 0.4 可用 Docker 环境只读核查（2026-10-19 15:02）
+
+本机没有 Docker；仅能访问既有腾讯云生产服务器，**没有独立临时 Docker 主机**。对生产服务器只做了以下只读检查，未构建、未启动测试容器、未执行 restore：
+
+| 项目 | 当前值 |
+|---|---|
+| Docker / Compose | Docker 29.9.1 / Compose v5.6.0 |
+| CPU | 2 vCPU |
+| 内存 | 7.5 GiB total，约 5.5 GiB available |
+| 磁盘 | 79G total，46G available |
+| 现有 Compose 项目 | `deploy`（4 个服务，含 relay）、`s13i-test`（3）、`s13i-recovery`（1） |
+| 现有运行容器 | 9 个 |
+| 生产版本/数据点 | 1.13.15；45 migrations；users=4、books=5、members=7、transactions=164；critical_events=0、chain seq=0、checkpoints=3；relay last_seen 07:04 UTC |
+| 最新生产备份 | 2026-10-19 03:56（Asia/Shanghai），local/restore/encrypt/upload/remoteMeta 均 true；发布时必须重新备份 |
+
+**结论**：现有生产服务器具备 Docker 和一定资源余量，但 2 vCPU/5.5 GiB 可用内存需要与生产服务共享；在其上构建镜像并运行隔离 Compose **属于占用生产服务器资源**，按要求必须先报告方案并经所有者确认，不能自行执行。
+
+建议方案（等待确认）：
+
+- 在 `/tmp/libevra-rc-1.14.18-eval` 建立临时目录，独立 Compose project `libevra-rc-1.14.18-eval`，独立 network/volumes；
+- 构建 API/Web/Relay 候选镜像（约 2.6GB API + 100MB Web + build cache），测试 runtime 加一个临时 Postgres；预计 **磁盘 4–6GB、内存峰值 2–4GiB、CPU 2 核共享**；
+- 测试容器不发布公网端口（仅 127.0.0.1 临时端口）；使用合成测试数据库/dump，不挂载生产 volume、不读取生产 `.env`、不连接生产网络；
+- 测试完成后删除临时 project/volumes/images 和 build cache；全程不影响 `deploy` 项目；
+- 建议在低峰时段执行，预计 30–60 分钟；如果构建/测试造成生产延迟或内存压力，立即停止并清理。
+
+替代方案：所有者提供独立临时 Docker 主机/CI Runner，或新建临时云实例（需另行批准费用/资源）。
 
 ## 1. 候选镜像构建规格（待 Docker 环境执行）
 
@@ -70,30 +95,31 @@ docker tag libevra-api:1.14.18 libevra-relay:1.14.18
 docker build -f deploy/Dockerfile.web -t libevra-web:1.14.18 .
 ```
 
-记录：
+记录 **Image ID、平台/架构、构建时间、源码 commit、镜像归档 SHA-256**；不要求本地构建产生 RepoDigest：
 
 ```bash
-docker image inspect libevra-api:1.14.18 \
-  --format '{{.Id}} {{index .RepoDigests 0}}'
-docker image inspect libevra-web:1.14.18 \
-  --format '{{.Id}} {{index .RepoDigests 0}}'
-docker image inspect libevra-migrate:1.14.18 \
-  --format '{{.Id}} {{index .RepoDigests 0}}'
-docker image inspect libevra-relay:1.14.18 \
-  --format '{{.Id}} {{index .RepoDigests 0}}'
-# 运行数据库基线镜像也要固定 digest
-docker image inspect postgres:17 --format '{{.Id}} {{index .RepoDigests 0}}'
+# Image ID / platform / created
+for image in libevra-api:1.14.18 libevra-web:1.14.18 libevra-migrate:1.14.18 libevra-relay:1.14.18; do
+  docker image inspect "$image" \
+    --format '{{.Id}} {{.Os}}/{{.Architecture}} {{.Created}} {{index .RepoTags 0}} {{index .RepoDigests 0}}'
+done
+# 镜像归档（不包含 .env/密钥/备份）
+docker save libevra-api:1.14.18 > /tmp/libevra-api-1.14.18.tar
+sha256sum /tmp/libevra-api-1.14.18.tar
+# 服务器部署前：docker load -i，确认 Image ID 与本地记录完全一致
 ```
+
+如果构建环境没有 registry/RepoDigest，记录 `RepoDigests=[]`，以 **Image ID + 归档 SHA-256 + source commit** 作为可验证身份；生产部署必须加载同一归档或同一 Image ID 的镜像，**不得在发布时重新构建出未经验证的镜像**。
 
 ### 1.3 需填写的镜像记录
 
-| 组件 | 约定 tag | image ID | RepoDigest | 对应 commit | 版本 |
-|---|---|---|---|---|---|
-| API | `libevra-api:1.14.18` | **未生成（Docker 环境缺失）** | **未生成** | `5dc2d54` | 1.14.18 |
-| Web/Caddy | `libevra-web:1.14.18` | **未生成** | **未生成** | `5dc2d54` | 1.14.18 |
-| Migration | `libevra-migrate:1.14.18` | **未生成** | **未生成** | `5dc2d54` | 1.14.18 |
-| Relay | `libevra-relay:1.14.18` | **未生成** | **未生成** | `5dc2d54` | 1.14.18 |
-| PostgreSQL | `postgres:17`（建议 pin digest） | 待记录 | 待记录 | 基础镜像 | — |
+| 组件 | tag | Image ID | 平台/架构 | 构建时间 | 归档 SHA-256 | RepoDigest | 对应 commit | 版本 |
+|---|---|---|---|---|---|---|---|---|
+| API | `libevra-api:1.14.18` | **未生成（Docker 环境缺失）** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
+| Web/Caddy | `libevra-web:1.14.18` | **未生成** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
+| Migration | `libevra-migrate:1.14.18` | **未生成** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
+| Relay | `libevra-relay:1.14.18` | **未生成** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
+| PostgreSQL | `postgres:17`（建议 pin digest） | 待记录 | linux/amd64 | — | — | 待记录 | 基础镜像 | — |
 
 > 生产 Compose 的服务镜像由 compose build 生成；上表是本地验证用约定 tag。正式发布必须使用**同一镜像 ID/digest**，不能在服务器上重新 resolve 依赖。
 
@@ -120,6 +146,25 @@ docker image inspect postgres:17 --format '{{.Id}} {{index .RepoDigests 0}}'
 ### 2.2 执行方式
 
 `restore.sh` 的完整逻辑必须在临时目录执行：复制候选 `deploy/`，用**测试版 `docker-compose.prod.yml`**（同一文件中定义 `db`、`api` 服务，project name 唯一），由于脚本硬编码该文件名，不能直接在生产目录执行。临时目录中的 `restore.sh` 应与候选源码逐字节一致。
+
+**数据库目标选择审计**：`restore.sh` 使用当前目录的 `.env` 中的 `POSTGRES_USER/POSTGRES_DB`，并通过 `docker compose -f docker-compose.prod.yml` 的**当前 Compose project** 执行 `dropdb/createdb`。脚本本身不接收数据库 host 参数，所以隔离性完全取决于 **运行目录 + `COMPOSE_PROJECT_NAME` + compose 文件**。
+
+隔离执行必须：
+
+```bash
+TMP="$(mktemp -d /tmp/libevra-rc-restore.XXXXXX)"
+cp -a deploy/. "$TMP/"          # 候选脚本 + 测试 compose 文件
+cd "$TMP"
+export COMPOSE_PROJECT_NAME="libevra-rc-restore-20261019"
+export POSTGRES_DB="libevra_rc_restore"   # 测试库，不是 libevra_prod
+# 测试用 .env 只包含临时 POSTGRES_USER/PASSWORD/DB；不得复制生产 .env
+docker compose ls | grep "$COMPOSE_PROJECT_NAME"
+docker compose -p "$COMPOSE_PROJECT_NAME" ps
+# 执行前再次打印并人工确认 POSTGRES_DB 是隔离测试库
+./restore.sh <test-backup.dump> --yes
+```
+
+**禁止**在 `/srv/libevra/deploy`、生产项目名 `deploy` 或生产 `.env` 下执行本测试；`restore.sh` 的 `dropdb` 是不可逆动作，不能靠脚本外的“以为选对了”。
 
 ### 2.3 必测场景
 
@@ -167,7 +212,7 @@ curl -fsS https://libevra.com/api/v1/health
   notifications、critical_events、critical_chain、critical_backup_checkpoints 等**当前**数量；
 - 备份磁盘空间、数据库大小、磁盘余量；
 - 最近一次成功备份时间、S12-C `last-local.json`/`last-run.json`；
-- 当前 `ledger_write_locks` active 数、`ledger_import_jobs` 非终态数——必须为 0 或有明确处理方案。
+- **不要查询 `ledger_write_locks`、`ledger_import_jobs`、`ledger_imports`、`ledger_import_source_states`、`ledger_import_undo_batches`、`ledger_import_job_events`：1.13.15/45 库尚不存在这些 S14 表。** 这些表只能在 45→51 迁移成功后检查（§3.8）。发布前的锁/任务检查以“45 库没有 S14 表”为事实，不要用不存在的表做门禁。
 
 > 不要用旧演练的 4 用户/5 账本/164 交易当作发布时数字。
 
@@ -182,16 +227,7 @@ $DC stop -t 30 api
 ```
 
 3. 确认没有新的业务写入；若 S13 relay 正在上传，先看 `critical-events-health.sh`/relay backlog，等本地事件持久化后停止 relay（按实际 compose）。
-4. 检查数据库无活动导入锁/非终态任务：
-
-```bash
-$DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-  "select count(*) from ledger_write_locks where released_at is null;"
-$DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-  "select id,status from ledger_import_jobs where status not in ('confirmed','undone','completed','cancelled','expired') limit 20;"
-```
-
-有活动任务时，发布前按正常流程处理（确认/等待/撤销），不得直接杀进程或强删锁；无法安全处理就终止发布。
+4. 45 库没有 S14 锁/任务表，**不做**这些表的发布前查询。1.13.15 不存在 phase-4 任务；迁移成功后才检查 S14 表（§3.8）。旧版 1.13.15 导入任务使用旧表/旧路径，发布前按旧流程确认没有未完成导入。
 
 > PWA 队列存在浏览器本地。维护窗口内用户打开旧缓存页面仍可能写入本地队列；停 Web/API 后服务端不会接收；新 API 上线后客户端恢复网络再同步。发布前要明确告知用户维护期间不要记账。
 
@@ -240,7 +276,15 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 1. 把 commit `5dc2d54` 的源码发布包（`git archive`，SHA-256 已记录）放到服务器 `/srv/libevra`，不要覆盖 `.env`、备份、关键事件密钥；
 2. 保留当前 deploy 配置副本/记录当前镜像 ID，便于回退；
-3. 构建候选镜像并记录实际 digest（见 §1）；服务器构建必须使用同一 commit；
+3. 构建候选镜像并记录实际 **Image ID/归档 SHA/平台**（见 §1）；服务器构建必须使用同一 commit；
+4. **Compose 组合必须按实际生产项目核对**：
+   - 基础文件：`docker-compose.prod.yml`
+   - 生产当前还有 relay overlay：`critical-events-relay.compose.yml`
+   - 生产项目 `deploy` 的配置是 **两个文件组合**；`deploy.sh`、`backup.sh`、`restore.sh` 内部只引用基础文件，不能假设 relay 已被自动重建/停止/启动；
+   - 构建/启动/停止/健康检查涉及 relay 时必须显式加 `-f critical-events-relay.compose.yml`；只用基础文件执行 `up --remove-orphans` 有移除 relay 的风险；
+   - `docker-compose.s13i-test.yml` 是 S13 测试项目，不是生产组合；
+   - `deploy/.env` 自动读取；relay 额外读取 `.critical-events-key.env`/`.critical-events-relay.env`；恢复只读身份不放在服务器；
+   - 任何命令前先打印 `docker compose ls` 项目名和 `docker compose ... config --services`（不打印 secret），确认目标是 `deploy` 项目。
 4. 确认 `deploy/.env` 变更：
    - 1.14.18 没有新增必需密钥；
    - 新增 `REGISTRATION_MODE` 是可选变量，默认 `invite`；发布时建议显式写 `REGISTRATION_MODE=invite`，**不要意外开放注册**；
@@ -263,6 +307,13 @@ $DC run --rm migrate
 - 记录完整输出；
 - 验证 `_prisma_migrations=51`；
 - 验证 6 张 S14 表、`transactions.source_namespace`、唯一索引、59 个触发器；
+- 迁移后再检查新表，绝不能在 45 库提前查：
+  ```bash
+  $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+    "select count(*) from ledger_write_locks where released_at is null;"
+  $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+    "select id,status from ledger_import_jobs where status not in ('confirmed','undone','completed','cancelled','expired') limit 20;"
+  ```
 - 不得用 `migrate dev`/`migrate reset`；
 - 迁移失败：停止，不启动 API，不执行 down/旧库覆盖；保留现场，按 §3.10 处理。
 
@@ -277,8 +328,9 @@ $DC run --rm migrate
    ```
 2. S13 relay（若生产启用）：
    - 确认 API 事件已可写；
-   - 按现有 `critical-events-relay.compose.yml` 启动/恢复；
-   - 检查 relay health/backlog，不修改 COS 前缀/身份。
+   - 用 **基础 + relay overlay** 构建/启动，确保 relay 使用同一候选 API 镜像；
+   - 检查 relay health/backlog，不修改 COS 前缀/身份；
+   - 若基础 compose 的 `up --remove-orphans` 已移除 relay，用 overlay 重新启动，不能让它缺失。
 3. Web（新镜像/Caddy）：
    ```bash
    $DC up -d web
@@ -332,7 +384,7 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 - 迁移后 API 失败：
   - 保持 API 停止/不开放 Web；
   - 记录 migration 状态和错误；
-  - 如果需要回退，只能在所有者确认数据丢失窗口后，用发布前最新备份做**整库恢复**；恢复前先保存当前库安全副本，按 `restore.sh` 和 S13-I 流程执行，恢复后必须重放墓碑、验证 critical chain；
+  - 如果需要回退，只能在所有者确认数据丢失窗口后，用发布前最新备份做**整库恢复**；恢复前先保存当前库安全副本，按 `restore.sh` 和 S13-I 流程执行；**恢复前停止 API、relay、web 等所有数据库写入方**（restore.sh 只负责停 API，不能假设 relay 已停）；恢复后必须重放墓碑、验证 critical chain；
   - 应用代码问题优先 forward-fix，不以旧 schema 回滚。
 - Critical Chain 不一致：立即停止，保留本地链/DB/COS 对象，不做 reset/重建；按 S13-I 灾难恢复手册处理。
 - 锁泄漏：不强制解锁；保留 `undo_failed`/锁，使用恢复/人工流程。
@@ -352,7 +404,7 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 ### 3.12 发布门禁清单
 
 - [ ] 候选源码工作区干净、commit 固定；
-- [ ] 实际 Docker 镜像已构建并记录 image ID/RepoDigest；
+- [ ] 实际 Docker 镜像已构建并记录 Image ID、平台、归档 SHA-256（有 registry 时再记 RepoDigest）；
 - [ ] 隔离 Docker `restore.sh` 四个场景通过（含失败退出）；
 - [ ] 最新生产备份 + COS 上传 + 独立恢复验证通过；
 - [ ] 当日生产数据/S13-I 数量与链状态已记录；
@@ -362,10 +414,40 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ---
 
+## 3.13 10 分钟自动撤销失败：告警、重试与人工恢复
+
+当前实现（需在发布前确认生产监控仍有效）：
+
+- worker 每 5 秒清扫 `awaiting_confirmation`/`paused`，超过 deadline 自动 `undoing`；
+- `undoing`/`undo_failed` 在 30 秒后会自动重试，但 `undoAttempts` 达到 3 后**停止自动重试**；
+- `undo_failed` **保留业务锁**，直到人工修复后重试；不会自动确认、不会强删锁；
+- 当前没有面向 `undo_failed` 的独立外部告警通道；必须在发布 Runbook 的 24 小时监控中主动查询，或由所有者接受人工巡检。
+
+发布期间/上线后必须监控：
+
+```bash
+$DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "select id,user_id,target_book_id,status,undo_attempts,last_error_code,updated_at from ledger_import_jobs where status in ('undoing','undo_failed') and updated_at < now()-interval '2 minutes';"
+$DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "select book_id,owner_id,created_at from ledger_write_locks where released_at is null and created_at < now()-interval '15 minutes';"
+```
+
+人工恢复步骤：
+
+1. 先停止对该账本的进一步用户操作/导入，保留锁和现场；
+2. 查 `last_error_code`/`last_error_message`、job events、undo batches；
+3. 修复可解释原因（来源/目标引用、数据库约束、代码 bug）；**不手工删锁、不直接改账目**；
+4. 再次调用撤销接口（允许 `undo_failed` 重试）；
+5. 若连续失败/原因不明，保留数据库和相关日志，升级到代码修复；在隔离副本复核后再动生产。
+
+如果连续活动锁超过 10 分钟并影响正常记账，应视为发布后事故信号，执行停止写入/保留现场流程，而不是强制解锁。
+
+---
+
 ## 4. 风险核对（针对发布候选）
 
 1. **触发器与后台任务**：新触发器只对受影响账本的业务表在 active lock 时拒绝写；检查/释放逻辑由锁行和 API worker 负责。S13 critical/relay/checkpoint 表不在业务锁触发器范围；S12-C 备份/恢复通过过滤锁表数据和启动协调器处理。**S13-I checkpoint 备份如果包含活动锁行，恢复时也必须采用同类过滤；建议 checkpoint 前确认 active lock=0**。生产启用前需在隔离 Docker 中验证 backup/restore/relay/checkpoint 兼容。
-2. **10 分钟超时与业务锁**：锁定只影响导入目标/来源两本账，其他账本正常；worker 每 5 秒清扫，超时自动撤销；`undo_failed` 可能保留锁直到重试/人工处理，是已知风险；正常用户可显式确认/撤销。发布观察 active lock 和 409。
+2. **10 分钟超时与业务锁**：锁定只影响导入目标/来源两本账，其他账本正常；worker 每 5 秒清扫，超时自动撤销；`undo_failed` 可能保留锁到重试/人工处理，是已知风险；当前无独立外部告警，发布后必须监控/巡检（§3.13）。正常用户可显式确认/撤销。
 3. **旧 PWA / API 顺序**：先停旧 Web/API，迁移后先启动新 API，再启动新 Web；旧 PWA 缓存请求只能安全拒绝旧导入，不应绕过锁；离线队列在新 API 恢复后同步。不要在迁移前让旧 API 连 51。
 4. **Critical Chain seq>0**：发布前记录 `last_seq/last_hash` 和 checkpoint；用只读恢复身份核对远端 manifest；不 reset/重建/改链；迁移不改 critical 表；发布后验证迁移前后 hash 不变，新事件只追加。
 5. **非破坏性故障处置**：禁止 down migration、旧库覆盖自动回滚；采用冻结写入、保留现场、发布前备份和整库人工恢复（所有者批准）或 forward-fix。
@@ -376,8 +458,14 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 ## 5. 当前结论
 
 - **源码候选：Go**（工作区干净，commit/tag/版本固定，测试/构建/文档/DB 检查通过，源码实际 health smoke 通过）。
-- **镜像候选：No-Go**（本机无 Docker，无法生成真实 image tag/digest；不得伪造）。
-- **隔离 Docker restore：No-Go**（无法启动隔离 Compose；本地等价恢复已通过但不能替代）。
-- **生产发布：No-Go**，直到上述两项在 Docker 环境补做、记录实际 digest、完成发布前最新备份与所有者审批。
+- **镜像候选：No-Go**（本机无 Docker；未生成真实 Image ID、镜像归档或 digest，不得伪造）。
+- **隔离 Docker restore：No-Go**（无法启动隔离 Compose；此前本地等价恢复已通过但不能替代）。
+- **生产发布：No-Go**，直到上述两项在经批准的 Docker 环境补做、记录实际 Image ID/归档 SHA、完成发布前最新备份与所有者审批。
+
+### 等待所有者决定的环境方案
+
+1. **优先**：提供独立临时 Docker 主机/CI Runner（不占用生产服务器）。
+2. **次选**：授权在现有腾讯云生产服务器上按 §0.4 方案执行低峰期隔离构建/测试：预计磁盘 4–6GB、内存峰值 2–4GiB、2 vCPU 共享，30–60 分钟；仅临时 project/network/volumes，不碰生产项目；有生产延迟/资源风险。
+3. 新建临时云实例（需另行批准费用）。
 
 本轮未 push、未部署、未生产 migration、未修改生产服务/COS/CAM/密钥。
