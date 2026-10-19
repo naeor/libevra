@@ -128,7 +128,7 @@ docker image inspect postgres:17 --format '{{.Id}} {{index .RepoDigests 0}}'
 | A. S13 1.13.15 旧格式备份 | 恢复成功；45 migrations；users/books/members/transactions 计数与备份一致 |
 | B. S14 带活动锁旧格式备份 | 过滤 `TABLE DATA public ledger_write_locks`；恢复成功；51 migrations；业务数据完整；锁表 0 行 |
 | C. 恢复后锁协调 | 启动新版 API；活动任务/缺失锁/孤儿锁按 `reconcileLedgerLocks` 安全处理；不自动确认任务；不强解无法安全恢复的锁 |
-| D. 失败退出 | 不存在文件/损坏 dump/错误参数：非零退出；不得先 drop 生产目标库；错误信息明确 |
+| D. 失败退出 | 不存在文件/损坏 dump/错误参数：非零退出；不得先 drop 生产目标库；错误信息明确；恢复失败后使用 `pre-restore-*.dump` 安全副本人工处置，脚本不会自动覆盖回退 |
 | E. S13-I 兼容 | critical_events/critical_chain/checkpoint 表行数与摘要可恢复；不重置/重写链；restore 不绕过 critical 保护 |
 
 ### 2.4 当前状态
@@ -364,7 +364,7 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ## 4. 风险核对（针对发布候选）
 
-1. **触发器与后台任务**：新触发器只对受影响账本的业务表在 active lock 时拒绝写；检查/释放逻辑由锁行和 API worker 负责。S13 critical/relay/checkpoint 表不在业务锁触发器范围；备份/恢复时通过过滤锁表数据和启动协调器处理。生产启用前需在隔离 Docker 中验证 backup/restore/relay/checkpoint 兼容。
+1. **触发器与后台任务**：新触发器只对受影响账本的业务表在 active lock 时拒绝写；检查/释放逻辑由锁行和 API worker 负责。S13 critical/relay/checkpoint 表不在业务锁触发器范围；S12-C 备份/恢复通过过滤锁表数据和启动协调器处理。**S13-I checkpoint 备份如果包含活动锁行，恢复时也必须采用同类过滤；建议 checkpoint 前确认 active lock=0**。生产启用前需在隔离 Docker 中验证 backup/restore/relay/checkpoint 兼容。
 2. **10 分钟超时与业务锁**：锁定只影响导入目标/来源两本账，其他账本正常；worker 每 5 秒清扫，超时自动撤销；`undo_failed` 可能保留锁直到重试/人工处理，是已知风险；正常用户可显式确认/撤销。发布观察 active lock 和 409。
 3. **旧 PWA / API 顺序**：先停旧 Web/API，迁移后先启动新 API，再启动新 Web；旧 PWA 缓存请求只能安全拒绝旧导入，不应绕过锁；离线队列在新 API 恢复后同步。不要在迁移前让旧 API 连 51。
 4. **Critical Chain seq>0**：发布前记录 `last_seq/last_hash` 和 checkpoint；用只读恢复身份核对远端 manifest；不 reset/重建/改链；迁移不改 critical 表；发布后验证迁移前后 hash 不变，新事件只追加。
