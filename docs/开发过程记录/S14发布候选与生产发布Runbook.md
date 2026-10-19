@@ -3,8 +3,8 @@
 > 候选源码：commit `5dc2d54` / tag `s14-rc-1.14.18` / `APP_VERSION = 1.14.18`
 > 生产现状：`1.13.15` / commit `cc14725` / 45 个 migration
 > 候选：51 个 migration
-> 本文档是发布计划，不是已执行的生产发布记录。
-> **本轮未 push、未部署、未执行生产 migration、未修改生产服务/COS/CAM/密钥。**
+> **2026-10-19 已按本 Runbook 完成 1.14.18 生产发布**（16:21–16:31 CST，45→51 成功，生产 1.14.18）。本文保留为发布步骤与回滚/运维依据；实际结果见 [`版本记录（1.14）`](版本记录（1.14）.md) §1.14.18 和服务器 `/srv/libevra/.s14-release-1.14.18.json`。
+> 发布后未 push。
 
 ---
 
@@ -456,7 +456,7 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ### 3.13.1 实际巡检工具与责任人
 
-已准备（本地源码，待发布时安装/启用）：
+已安装并启用（2026-10-19 发布时安装，实测 16:30 成功执行）：
 
 - `deploy/import-health.sh`：只读检查，不重试、不确认、不解锁、不写数据；检查 `undoing`/`undo_failed` 超时、`confirming` 超时、active lock 超时；异常退出码 1，数据库检查失败退出码 2；迁移前 S14 表不存在时安全返回 0。
 - `deploy/systemd/libevra-import-health.service`
@@ -504,7 +504,7 @@ systemctl list-timers --all | grep import-health
 4. 不创建真实测试账号，除非使用所有者指定的测试邀请码和测试身份；不在生产上批量造邀请码；
 5. 若注册配置或 UI 需要任何代码改动，必须重新构建镜像并重新执行候选验证，不能复用当前镜像。
 
-当前本轮**未修改生产注册配置**，等待正式发布授权。
+**已按所有者授权在生产设置 `REGISTRATION_MODE=invite`，并通过容器环境与公开配置接口验证。**
 
 ---
 
@@ -530,11 +530,11 @@ systemctl list-timers --all | grep import-health
 
 ---
 
-## 3.15 维护窗口、停机范围与通知（等待所有者确认）
+## 3.15 维护窗口、停机范围与通知（已按所有者即时授权执行）
 
-建议窗口（尚未执行、未通知用户）：
+原建议窗口（最终未使用；所有者 2026-10-19 授权收到指令后立即维护）：
 
-- **2026-10-20 04:30–05:10 Asia/Shanghai**（避开每日 03:00 备份与 04:08 关键备份任务；低峰时段）
+- 原建议：**2026-10-20 04:30–05:10 Asia/Shanghai**；实际于 **2026-10-19 16:21:21 CST** 立即开始维护。
 - 预计**停机范围**：Web、API、Critical Relay；PostgreSQL 保持运行用于备份/恢复校验。DB 数据本身在备份期间不停止。
 - 预计用户不可用时间：**20–30 分钟**；完整维护窗口预留 40 分钟。
 - 不把生产 80/443 映射到测试容器；不发任意测试邀请码或测试账号。
@@ -581,7 +581,7 @@ systemctl list-timers --all | grep import-health
 - **源码候选：Go**（`5dc2d54`；应用镜像已从该 commit 构建，测试/构建/文档/DB 检查通过）。
 - **候选镜像：Go**（API/Web/Migrate/Relay 实际镜像身份已记录，归档已保留；镜像冒烟通过）。
 - **隔离 Docker restore：Go**（S13 旧备份、S14 活动锁/活动任务、失败/损坏退出均通过；restore.sh 预校验安全修复已加入部署脚本）。
-- **生产发布：Go（条件性，等待所有者正式授权）**。
+- **生产发布：Production Go / Release Complete（2026-10-19 16:21–16:31 CST 已执行完成）**。
 
 正式发布前必须完成且不能再依赖假设：
 
@@ -591,8 +591,12 @@ systemctl list-timers --all | grep import-health
 4. 使用本记录的**同一镜像归档/Image ID**，不要在生产重新构建未经测试的镜像；
 5. 迁移 45→51 后按 §3.8 验证；Critical Chain 只追加，不 reset；
 6. 10 分钟撤销失败没有独立外部告警，发布后必须按 §3.13 人工巡检/监控；
-7. 不执行 down migration、旧库自动覆盖或全局 Docker prune；执行 §3.15 前需要所有者确认维护窗口和停机范围。
+7. 不执行 down migration、旧库自动覆盖或全局 Docker prune；2026-10-19 发布已获所有者即时授权并完成。
+
+**发布已完成**：生产 1.14.18 / 51 migration，使用已验证 Image ID + `4e5bc0c` 部署基线 + `a2d79e3` 巡检补充；最新备份 `libevra_prod-20261019-162230.dump` 已本地/独立恢复/COS 验证；邀请制注册、真实业务冒烟和 watchdog timer 已验收。
+
+**本次 release 的 Compose 镜像覆盖文件**：`deploy/docker-compose.release-1.14.18.yml`（固定已验证 Image tag，`pull_policy: never`），已保留在服务器；后续任何 `up` 必须带 base + relay overlay + 此 release override，并禁止 `--build`。
 
 **涉及生产 schema 变更的操作**：`45→51` 的 `migrate deploy`（创建 S14 表/列/索引/触发器）一旦开始即不可逆；之后的 API 启动/切换容器不会回退 schema。`restore.sh` 整库恢复、down migration 和旧备份覆盖均不属于本次发布计划，只有所有者另行明确授权时才可考虑。
 
-本轮未 push、未部署、未生产 migration、未修改生产服务/COS/CAM/密钥。
+**2026-10-19 已完成生产发布**（未 push）；未执行整库恢复、down migration、旧备份覆盖或数据卷删除。
