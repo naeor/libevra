@@ -42,6 +42,8 @@ type Client = Prisma.TransactionClient;
 interface LedgerImportRouteOptions {
   readonly prisma: PrismaClient;
   readonly requireAuth: (request: FastifyRequest) => Promise<void>;
+  /** Test-only compatibility; absent in production. */
+  readonly allowLegacyDirectImport?: boolean;
 }
 
 export interface ResolvedTaxonomy {
@@ -900,7 +902,15 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
     const existing = await options.prisma.ledgerImport.findUnique({ where: { id: body.importId } });
     if (existing !== null) {
       if (existing.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
+      // Read-only legacy replay is deliberately still allowed: it changes nothing and preserves
+      // historical receipt queries for old clients. It is not a write path.
       return reply.send(ledgerImportResultSchema.parse(existing.result));
+    }
+    if (options.allowLegacyDirectImport !== true) {
+      throw conflict(
+        "legacy_import_disabled",
+        "同步导入入口已停用。请先在账本空间正常创建空账本，再使用可撤销的分批导入任务；旧客户端不能绕过最终确认、时间锁或撤销。",
+      );
     }
 
     if (body.target.kind === "existing" && body.target.bookId === "") {

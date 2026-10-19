@@ -24,6 +24,7 @@ export function makeApp(overrides: Partial<BuildAppOptions> = {}): FastifyInstan
     prisma,
     webOrigin: "http://localhost:5173",
     cookieSecure: false,
+    allowLegacyDirectImport: true,
     // High enough that unrelated tests never trip the lockout.
     loginThrottleOptions: { maxFailures: 50, lockoutMs: 1_000, windowMs: 60_000 },
     ...overrides,

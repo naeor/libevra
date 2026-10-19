@@ -156,9 +156,13 @@ export function LedgerImportPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
   const step = parseStep(search.get("step"));
-  const targetId = search.get("target") ?? "";
+  const requestedTargetId = search.get("target") ?? "";
+  // Decision B (owner 2026-10-19): imports no longer create a target ledger. Old links that
+  // still carry target=new are redirected to "no target selected"; the server also refuses the
+  // legacy direct-write endpoint even if a cached client bypasses this UI.
+  const targetId = requestedTargetId === "new" ? "" : requestedTargetId;
   const sourceKey = search.get("source") ?? "";
-  const targetIsNew = targetId === "new";
+  const targetIsNew = false;
   const currentNewName = search.get("newName") ?? DEFAULT_BOOK_NAME;
   const requestedGroup = parseGroup(search.get("group"));
   const jobIdParam = search.get("job") ?? "";
@@ -737,33 +741,19 @@ export function LedgerImportPage(): React.JSX.Element {
       });
 
       /**
-       * D5：超过初始批次阈值的导入走服务端持久化任务；小导入继续走 D2-D4 的单事务路径。
-       * 增量导入（有历史状态）始终走服务端任务，确保状态推进、更新目标和断点恢复走同一条路径。
+       * Phase 4: every import goes through the reversible server job. There is no synchronous
+       * direct-write fallback in the web UI; target ledgers must already exist.
        */
       const hasIncrementalHistory =
         incremental !== null && incremental.summary.newCount < preview.source.transactions.length;
-      // Phase 4: every import into an existing target uses the reversible job flow, even when it
-      // is below the old batch threshold. Creating a brand-new target remains a synchronous
-      // bootstrap path because there is no pre-existing ledger to lock.
-      if (!targetIsNew) {
-        if (incrementalError !== null && hasIncrementalHistory) {
-          throw new Error("无法读取增量历史，暂不开始导入；请刷新后重试。");
-        }
-        const created = await createImportJob(request);
-        setJob(created);
-        setSubmitState("submitting");
-        patchSearch({ step: "confirm", job: created.id }, true);
-        return;
+      if (incrementalError !== null && hasIncrementalHistory) {
+        throw new Error("无法读取增量历史，暂不开始导入；请刷新后重试。");
       }
-
-      savePendingTask({
-        userId: user?.id ?? "",
-        request,
-        targetLabel,
-        sourceLabel,
-        createdAt: new Date().toISOString(),
-      });
-      await runSubmit(request, { targetLabel, sourceLabel }, preview.source);
+      const created = await createImportJob(request);
+      setJob(created);
+      setSubmitState("submitting");
+      patchSearch({ step: "confirm", job: created.id }, true);
+      return;
     } catch (caught) {
       const message = errorMessage(caught);
       const code = caught instanceof ApiRequestError ? caught.code : "";
@@ -1546,7 +1536,6 @@ function SelectionStep({
                 {book.name}
               </option>
             ))}
-            {formalSource ? null : <option value="new">＋ 新建正式账本</option>}
           </select>
         </label>
 
@@ -1554,26 +1543,17 @@ function SelectionStep({
           <p className="mt-3 text-helper-relaxed text-muted">
             正式来源只能导入另一本现有正式单人账本；不能新建目标账本，也不能选来源自己。
           </p>
-        ) : null}
-
-        {targetIsNew ? (
-          <label className="mt-3 flex flex-col gap-1.5">
-            <span className="text-helper text-muted">新账本名称</span>
-            <input
-              data-testid="import-new-name"
-              value={newName}
-              onChange={(event) => onChangeNewName(event.target.value)}
-              maxLength={40}
-              className="rounded-field border border-line bg-surface px-4 py-3 text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
-            />
-          </label>
-        ) : null}
-
-        {targetIsNew ? (
+        ) : (
           <p className="mt-3 text-helper-relaxed text-muted">
-            新账本会和导入一起创建；如果中途失败，不会留下半本账。
+            导入不会新建目标账本。请先在
+            <a href="/" className="mx-1 text-brand-dark underline-offset-2 hover:underline">
+              账本空间
+            </a>
+            正常创建一个空账本，再回到这里选择它作为目标。
           </p>
-        ) : target === null ? null : (
+        )}
+
+        {target === null ? null : (
           <p className="mt-3 text-helper-relaxed text-muted">
             导入到「{target.name}」 · {accountLabel}
             {target.bookNumber === null ? "" : ` · 编号 ${target.bookNumber}`}

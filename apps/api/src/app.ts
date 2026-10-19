@@ -58,6 +58,8 @@ export interface BuildAppOptions extends HealthDeps {
    * mode to exercise both states without touching process environment.
    */
   readonly registrationMode?: RegistrationMode;
+  /** Test-only compatibility; production build never sets this. */
+  readonly allowLegacyDirectImport?: boolean;
   /**
    * Screenshot recogniser. Supplied by tests as a stub; the real one spawns a
    * Python process, which is not something a unit test should depend on.
@@ -357,7 +359,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      * does not exist yet, and the existing-target path performs its own solo-book + membership
      * checks before writing. No existing S13 permission helper is changed.
      */
-    registerLedgerImportRoutes(app, { prisma: options.prisma, requireAuth: requireAuth });
+    registerLedgerImportRoutes(app, {
+    prisma: options.prisma,
+    requireAuth: requireAuth,
+    allowLegacyDirectImport: options.allowLegacyDirectImport === true,
+  });
     registerLedgerImportJobRoutes(app, { prisma: options.prisma, requireAuth: requireAuth });
   }
 

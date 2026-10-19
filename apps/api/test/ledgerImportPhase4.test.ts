@@ -591,6 +591,42 @@ describe("reversible import and business locks (D5 phase 4)", () => {
     expect(await prisma.ledgerWriteLock.count({ where: { bookId: owner.bookId, releasedAt: null } })).toBe(0);
   }, 40_000);
 
+  it("keeps a normally-created empty target ledger after undoing an import (decision B)", async () => {
+    const owner = await account("p4_empty_target");
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/books",
+      headers: { cookie: owner.cookie },
+      payload: { name: "先创建的空目标账本" },
+    });
+    expect(created.statusCode).toBe(201);
+    const targetBookId = (created.json() as { id: string }).id;
+    const category = await categoryOf(owner.cookie, targetBookId);
+    const sourceCategoryId = randomUUID();
+    const source = sourceOf(sourceCategoryId, category.name, 2);
+    const request = await jobRequest(targetBookId, source, sourceCategoryId, category.id);
+    const job = await createImportJob(prisma, owner.userId, request, {
+      startImmediately: false,
+      timeoutSeconds: 60,
+    });
+    while ((await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: job.id } })).nextBatch < 1) {
+      await runImportJobBatchForTest(prisma, job.id);
+    }
+    await finalizeImportJobForTest(prisma, job.id);
+    await awaitStatus(owner.cookie, job.id, ["awaiting_confirmation"]);
+    expect(await prisma.transaction.count({ where: { bookId: targetBookId, deletedAt: null } })).toBe(2);
+    await app.inject({
+      method: "POST",
+      url: `/api/v1/ledger-imports/jobs/${job.id}/undo`,
+      headers: { cookie: owner.cookie },
+    });
+    expect((await awaitStatus(owner.cookie, job.id, ["undone", "undo_failed"]))["status"]).toBe("undone");
+    expect(await prisma.transaction.count({ where: { bookId: targetBookId, deletedAt: null } })).toBe(0);
+    const book = await prisma.book.findUnique({ where: { id: targetBookId }, select: { archivedAt: true, disposedAt: true } });
+    expect(book).toMatchObject({ archivedAt: null, disposedAt: null });
+    expect(await prisma.ledgerWriteLock.count({ where: { bookId: targetBookId, releasedAt: null } })).toBe(0);
+  }, 40_000);
+
   it("reconciles locks after a backup restore: releases orphans and reclaims missing active locks", async () => {
     const owner = await account("p4_reconcile");
     const category = await categoryOf(owner.cookie, owner.bookId);

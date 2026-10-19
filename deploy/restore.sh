@@ -84,9 +84,23 @@ echo "→ 重建数据库…"
   createdb -U "$POSTGRES_USER" "$POSTGRES_DB"
 
 echo "→ 恢复…"
+# Phase-4 locks are transient and excluded from new dumps. Older backups may still contain
+# `TABLE DATA public."ledger_write_locks"`; restoring that data before transaction data would
+# make the write triggers refuse the restore (or lock rows would become orphans). Filter only
+# that data TOC entry from the archive list; schema/indexes remain. The API startup reconciler
+# rebuilds locks for any active import after restore.
+TOC_FILE="$(mktemp)"
+TOC_FILTERED="$(mktemp)"
+trap 'rm -f "$TOC_FILE" "$TOC_FILTERED"' EXIT
+"${COMPOSE[@]}" exec -T db pg_restore --list < "$DUMP" > "$TOC_FILE"
+grep -v 'TABLE DATA public ledger_write_locks' "$TOC_FILE" > "$TOC_FILTERED" || true
+"${COMPOSE[@]}" cp "$DUMP" db:/tmp/libevra-restore.dump
+"${COMPOSE[@]}" exec -T db sh -c 'cat > /tmp/libevra-restore.toc' < "$TOC_FILTERED"
 "${COMPOSE[@]}" exec -T db \
   env PGPASSWORD="$POSTGRES_PASSWORD" \
-  pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --exit-on-error < "$DUMP"
+  pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --exit-on-error \
+    --use-list=/tmp/libevra-restore.toc /tmp/libevra-restore.dump
+"${COMPOSE[@]}" exec -T db rm -f /tmp/libevra-restore.dump /tmp/libevra-restore.toc || true
 echo "✅ 已恢复"
 
 echo "→ 重启 API…"
