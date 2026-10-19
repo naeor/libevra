@@ -81,8 +81,15 @@ FROM node:24-bookworm-slim
 
 # Python for the sidecars. `python3-venv` is a separate package on Debian, and its absence is
 # the classic "works on my machine" failure for this kind of image.
+#
+# `libxcb1`, `libgl1` and `libglib2.0-0` are runtime dependencies of the OpenCV wheel imported by
+# `rapidocr_onnxruntime`. They are not installed by pip; without them the OCR child dies during
+# `import cv2` with `libxcb.so.1: cannot open shared object file`, before it can read an image.
+# The image must prove `ldd .../cv2.abi3.so` has no `not found` entries after a build (1.14.20).
 RUN apt-get update \
- && apt-get install --no-install-recommends -y python3 python3-venv python3-pip ca-certificates \
+ && apt-get install --no-install-recommends -y \
+      python3 python3-venv python3-pip ca-certificates \
+      libxcb1 libgl1 libglib2.0-0 \
  && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@12.10.1 --activate

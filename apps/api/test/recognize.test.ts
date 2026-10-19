@@ -247,4 +247,35 @@ describe("POST /recognize", () => {
     expect(response.statusCode).toBe(401);
     expect(calls).toHaveLength(0);
   });
+
+  it("returns a short availability error, not the Python traceback, when the OCR child fails", async () => {
+    const failing = makeApp({
+      ocr: {
+        recognize: async () => {
+          throw new Error("ImportError: libxcb.so.1: cannot open shared object file");
+        },
+        stop: () => undefined,
+      },
+    });
+    await failing.ready();
+    try {
+      const cookie = await signUp(failing, "ocr_failure");
+      const form = multipart([{ field: "file", filename: "shot.png", type: "image/png", body: PNG_BYTES }]);
+      const response = await failing.inject({
+        method: "POST",
+        url: "/api/v1/recognize",
+        headers: { ...form.headers, cookie },
+        payload: form.payload,
+      });
+      expect(response.statusCode).toBe(503);
+      const body = response.json() as { code: string; message: string };
+      expect(body.code).toBe("ocr_unavailable");
+      expect(body.message).toContain("暂时不可用");
+      expect(body.message).not.toContain("libxcb");
+      expect(body.message).not.toContain("ImportError");
+      expect(body.message).not.toContain("Traceback");
+    } finally {
+      await failing.close();
+    }
+  });
 });

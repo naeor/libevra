@@ -73,6 +73,23 @@ interface Pending {
   readonly reject: (error: Error) => void;
 }
 
+/** A failure of the OCR service itself, as opposed to a bad image. */
+export class OcrServiceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OcrServiceError";
+  }
+}
+
+/** Test/deployment seams; production uses the defaults. */
+export interface OcrServiceOptions {
+  readonly pythonPath?: string;
+  readonly serviceDirectory?: string;
+  readonly serviceFile?: string;
+  readonly startupTimeoutMs?: number;
+  readonly recognizeTimeoutMs?: number;
+}
+
 /** How long to wait for one screenshot before giving up on it. */
 const RECOGNIZE_TIMEOUT_MS = 20_000;
 /** How long to wait for the models to load on first use. */
@@ -84,39 +101,102 @@ export class OcrService {
   private buffer = "";
   private nextId = 1;
   private readyPromise: Promise<void> | null = null;
+  private startupTimer: ReturnType<typeof setTimeout> | null = null;
+  private onReady: (() => void) | null = null;
+
+  constructor(private readonly options: OcrServiceOptions = {}) {}
+
+  private serviceDirectory(): string {
+    if (this.options.serviceDirectory !== undefined) return this.options.serviceDirectory;
+
+    const file = this.options.serviceFile ?? "service.py";
+    const candidates = [
+      path.resolve(process.cwd(), "apps/ocr"),
+      path.resolve(process.cwd(), "../ocr"),
+      path.resolve(process.cwd(), "../../apps/ocr"),
+    ];
+    return candidates.find((candidate) => existsSync(path.join(candidate, file))) ?? candidates[0]!;
+  }
+
+  private interpreterPath(directory: string): string {
+    if (this.options.pythonPath !== undefined && this.options.pythonPath !== "") {
+      return this.options.pythonPath;
+    }
+
+    const override = process.env["LIBELLUM_OCR_PYTHON"];
+    if (override !== undefined && override !== "") return override;
+
+    return process.platform === "win32"
+      ? path.join(directory, ".venv", "Scripts", "python.exe")
+      : path.join(directory, ".venv", "bin", "python");
+  }
 
   /** Start the recogniser if it is not already running. */
   private async ensureStarted(): Promise<void> {
     if (this.child !== null) return;
     if (this.readyPromise !== null) return this.readyPromise;
 
-    this.readyPromise = new Promise<void>((resolve, reject) => {
-      const directory = serviceDirectory();
-      const python = interpreterPath(directory);
+    const directory = this.serviceDirectory();
+    const python = this.interpreterPath(directory);
+    const serviceFile = this.options.serviceFile ?? "service.py";
 
-      if (!existsSync(python)) {
-        this.readyPromise = null;
-        reject(
-          new Error(
-            `找不到 OCR 的 Python 环境（${python}）。请先运行 apps/ocr 里的安装步骤。`,
-          ),
-        );
+    if (!existsSync(python)) {
+      throw new OcrServiceError(
+        `找不到 OCR 的 Python 环境（${python}）。请先运行 apps/ocr 里的安装步骤。`,
+      );
+    }
+
+    let child: ChildProcessWithoutNullStreams | null = null;
+    const readyPromise = new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const fail = (error: OcrServiceError): void => {
+        if (settled) return;
+        settled = true;
+        if (this.startupTimer !== null) {
+          clearTimeout(this.startupTimer);
+          this.startupTimer = null;
+        }
+        if (this.readyPromise === readyPromise) this.readyPromise = null;
+        if (this.onReady === ready) this.onReady = null;
+        if (this.child === child) this.child = null;
+        reject(error);
+      };
+
+      const ready = (): void => {
+        if (settled) return;
+        settled = true;
+        if (this.startupTimer !== null) {
+          clearTimeout(this.startupTimer);
+          this.startupTimer = null;
+        }
+        resolve();
+      };
+
+      this.onReady = ready;
+
+      try {
+        child = spawn(python, [serviceFile], {
+          cwd: directory,
+          stdio: ["pipe", "pipe", "pipe"],
+          // Keep the output as text: the protocol is JSON lines, and decoding
+          // buffers by hand would only add a way to get it wrong.
+          env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
+        });
+      } catch (error) {
+        reject(new OcrServiceError(`OCR 服务无法启动：${error instanceof Error ? error.message : String(error)}`));
         return;
       }
 
-      const child = spawn(python, ["service.py"], {
-        cwd: directory,
-        stdio: ["pipe", "pipe", "pipe"],
-        // Keep the output as text: the protocol is JSON lines, and decoding
-        // buffers by hand would only add a way to get it wrong.
-        env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
-      });
-
       this.child = child;
-
-      const startupTimer = setTimeout(() => {
-        reject(new Error("OCR 服务启动超时。"));
-      }, STARTUP_TIMEOUT_MS);
+      this.startupTimer = setTimeout(() => {
+        fail(new OcrServiceError("OCR 服务启动超时。"));
+        try {
+          child?.kill();
+        } catch {
+          // The child may already be gone; there is nothing else to clean up.
+        }
+      }, this.options.startupTimeoutMs ?? STARTUP_TIMEOUT_MS);
 
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
@@ -125,38 +205,37 @@ export class OcrService {
 
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", (chunk: string) => {
-        // Not fatal, but worth seeing: model loading warnings land here.
+        // Technical detail belongs in the server log, never in a user response.
         console.warn("[ocr]", chunk.trim());
       });
 
       child.on("exit", (code) => {
-        this.child = null;
-        this.readyPromise = null;
-        clearTimeout(startupTimer);
+        if (this.child === child) this.child = null;
+        if (this.readyPromise === readyPromise) this.readyPromise = null;
+        fail(new OcrServiceError(`OCR 服务在就绪前退出（code ${String(code)}）。`));
 
         for (const [, pending] of this.pending) {
-          pending.reject(new Error(`OCR 服务已退出（code ${String(code)}）。`));
+          pending.reject(new OcrServiceError(`OCR 服务已退出（code ${String(code)}）。`));
         }
         this.pending.clear();
       });
 
       child.on("error", (error) => {
-        this.child = null;
-        this.readyPromise = null;
-        clearTimeout(startupTimer);
-        reject(error);
+        if (this.child === child) this.child = null;
+        if (this.readyPromise === readyPromise) this.readyPromise = null;
+        fail(new OcrServiceError(`OCR 服务启动失败：${error.message}`));
       });
-
-      this.onReady = () => {
-        clearTimeout(startupTimer);
-        resolve();
-      };
     });
 
-    return this.readyPromise;
+    this.readyPromise = readyPromise;
+    // A failed startup must not poison every later request: the next call gets
+    // a fresh child. The catch is attached here so no rejected promise is left
+    // unhandled when the caller is already gone.
+    readyPromise.catch(() => {
+      if (this.readyPromise === readyPromise) this.readyPromise = null;
+    });
+    return readyPromise;
   }
-
-  private onReady: (() => void) | null = null;
 
   /** Split incoming text into lines; each complete line is one response. */
   private consume(chunk: string): void {
@@ -215,8 +294,8 @@ export class OcrService {
     const response = await new Promise<RawResponse>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error("OCR 识别超时。"));
-      }, RECOGNIZE_TIMEOUT_MS);
+        reject(new OcrServiceError("OCR 识别超时。"));
+      }, this.options.recognizeTimeoutMs ?? RECOGNIZE_TIMEOUT_MS);
 
       this.pending.set(id, {
         resolve: (value) => {
@@ -237,9 +316,15 @@ export class OcrService {
 
   /** Stop the recogniser. Used on shutdown so the process does not linger. */
   stop(): void {
-    this.child?.kill();
+    if (this.startupTimer !== null) {
+      clearTimeout(this.startupTimer);
+      this.startupTimer = null;
+    }
+    this.onReady = null;
+    const child = this.child;
     this.child = null;
     this.readyPromise = null;
+    child?.kill();
   }
 }
 

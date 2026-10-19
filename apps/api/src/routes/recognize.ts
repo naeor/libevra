@@ -6,7 +6,7 @@ import {
 } from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import { badRequest } from "../lib/errors.js";
+import { badRequest, serviceUnavailable } from "../lib/errors.js";
 import type { OcrService } from "../ocr/client.js";
 
 interface RecognizeRouteOptions {
@@ -124,7 +124,21 @@ export function registerRecognizeRoutes(app: FastifyInstance, options: Recognize
     // slower without finishing the batch any sooner.
     const items: OcrItemResult[] = [];
     for (const [index, image] of images.entries()) {
-      items.push(await ocr.recognize(image.buffer, index));
+      try {
+        items.push(await ocr.recognize(image.buffer, index));
+      } catch (error) {
+        /**
+         * A failed child process is an availability problem, not a problem with the image.
+         * Keep the stack in the server log and give the user one short, actionable sentence.
+         * This is also what makes a missing system library fail quickly after the child exits;
+         * it must never expose the Python traceback to the browser.
+         */
+        request.log.error({ err: error }, "OCR service failed");
+        throw serviceUnavailable(
+          "ocr_unavailable",
+          "图片识别服务暂时不可用，请稍后再试。你的图片没有被保存。",
+        );
+      }
     }
 
     return recognizeResponseSchema.parse({

@@ -31,11 +31,49 @@ export interface UpdateAnnouncement {
 }
 
 /**
- * 1.14.18 is the S14 production release (2026-10-19). 1.13.15 is the S13-G/H/I release;
- * 1.13.09 is the S13-F release; 1.13.08 was a production patch (card layout) and 1.13.07
- * was the full S13-E release. All are production releases.
+ * 1.14.20 is the OCR production patch (2026-10-20). 1.14.18 is the S14 production release
+ * (2026-10-19). 1.13.15 is the S13-G/H/I release; 1.13.09 is the S13-F release; 1.13.08 was a
+ * production patch (card layout) and 1.13.07 was the full S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.14.20",
+    releasedAt: "2026-10-20",
+    status: "released",
+    title: "Libevra 1.14.20",
+    summary: "让每一次识别，都更可靠。",
+    intro: [
+      "本次更新主要改善了图片识别功能的稳定性，并优化了识别服务出现异常时的处理方式。",
+    ],
+    sections: [
+      {
+        heading: "图片识别恢复正常",
+        items: [
+          "修复了服务器环境中部分必要组件缺失，导致付款截图无法识别的问题。",
+          "现在，图片识别服务可以正常启动并处理截图，帮助你更方便地提取交易信息。",
+        ],
+      },
+      {
+        heading: "更及时的错误反馈",
+        items: [
+          "当识别服务无法启动时，Libevra 现在能够更快发现问题并提示你，而不再一直停留在识别中。",
+        ],
+      },
+      {
+        heading: "其他改进",
+        items: [
+          "完善了识别服务的启动检查与错误处理。",
+          "改进了识别异常时的稳定性。",
+          "保持现有记账、账本协作及数据管理功能不变。",
+        ],
+      },
+    ],
+    closing: [
+      "感谢你使用 Libevra。",
+      "我们会继续改善图片与语音记账的体验，让记录每一笔收支变得更轻松。",
+    ],
+    major: false,
+  },
   {
     version: "1.14.18",
     releasedAt: "2026-10-19",

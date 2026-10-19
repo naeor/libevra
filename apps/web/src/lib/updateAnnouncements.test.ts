@@ -27,6 +27,7 @@ describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.14.20",
       "1.14.18",
       "1.13.15",
       "1.13.09",
@@ -34,6 +35,20 @@ describe("version announcements", () => {
       "1.13.07",
     ]);
     expect(released.every((entry) => entry.status === "released" && entry.releasedAt !== null)).toBe(true);
+  });
+
+  it("keeps the 1.14.20 OCR patch announcement as a non-major release", () => {
+    const announcement = releasedAnnouncementByVersion("1.14.20");
+    expect(announcement?.title).toBe("Libevra 1.14.20");
+    expect(announcement?.summary).toBe("让每一次识别，都更可靠。");
+    expect(announcement?.releasedAt).toBe("2026-10-20");
+    expect(announcement?.major).toBe(false);
+    expect(announcement?.sections.map((section) => section.heading)).toEqual([
+      "图片识别恢复正常",
+      "更及时的错误反馈",
+      "其他改进",
+    ]);
+    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
   });
 
   it("keeps the exact 1.14.18 user-facing announcement", () => {
@@ -69,10 +84,11 @@ describe("version announcements", () => {
   });
 
   it("does not invent an announcement for a future development build", () => {
-    expect(releasedAnnouncementByVersion("1.14.19")).toBeNull();
+    expect(releasedAnnouncementByVersion("1.14.21")).toBeNull();
   });
 
   it("answers with the latest applicable release for a running version", () => {
+    expect(latestApplicableAnnouncement("1.14.20")?.version).toBe("1.14.20");
     expect(latestApplicableAnnouncement("1.14.19")?.version).toBe("1.14.18");
     expect(latestApplicableAnnouncement("1.14.18")?.version).toBe("1.14.18");
     expect(latestApplicableAnnouncement("1.13.15")?.version).toBe("1.13.15");
@@ -90,8 +106,9 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.13.09")).toBe(true);
     expect(hasNewerReleasedVersion("1.13.10")).toBe(true);
     expect(hasNewerReleasedVersion("1.13.15")).toBe(true);
-    expect(hasNewerReleasedVersion("1.14.18")).toBe(false);
-    expect(hasNewerReleasedVersion("1.14.19")).toBe(false);
+    expect(hasNewerReleasedVersion("1.14.18")).toBe(true);
+    expect(hasNewerReleasedVersion("1.14.19")).toBe(true);
+    expect(hasNewerReleasedVersion("1.14.20")).toBe(false);
   });
 
   it("returns all actual releases and leaves the first page to the UI", () => {
@@ -111,7 +128,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.14.18").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.14.20").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.14.20").older?.version).toBe("1.14.18");
+    expect(adjacentReleasedAnnouncements("1.14.18").newer?.version).toBe("1.14.20");
     expect(adjacentReleasedAnnouncements("1.14.18").older?.version).toBe("1.13.15");
     expect(adjacentReleasedAnnouncements("1.13.15").newer?.version).toBe("1.14.18");
     expect(adjacentReleasedAnnouncements("1.13.15").older?.version).toBe("1.13.09");
