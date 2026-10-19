@@ -8,7 +8,7 @@
 
 ---
 
-## 0. 当前 RC 状态与容器环境阻断
+## 0. 当前 RC 状态与容器执行结果
 
 ### 0.1 已固定的源码基线
 
@@ -20,7 +20,7 @@
 | 工作区 | 干净 |
 | 生产基线 | `cc14725` / 1.13.15 / 45 migrations |
 | 候选 migration | 51 |
-| 源码归档 SHA-256（本地 `git archive` 验证，不含密钥） | `a195cc9e146e9e52629b091f1152526730602e87c18aeff0bd0fb020a287dc1d` |
+| 源码归档 SHA-256（实际 build context，`git archive` 5dc2d54） | `23e52c55118a382b381645ffe25fc2a87ca4165dfaa3f55ddf247d751ab683fb` |
 
 ### 0.2 已完成的候选验证
 
@@ -34,21 +34,18 @@
 - 1.14.18 源码进程实际启动：`/api/v1/health` 返回 `version=1.14.18`、`database=up`
 - 生产备份副本隔离升级演练已完成（见 [`S14-D5生产备份隔离升级演练`](S14-D5生产备份隔离升级演练.md)）
 
-### 0.3 ⚠️ 当前阻断：本机没有 Docker/容器运行时
+### 0.3 Docker 环境与执行结果（已执行）
 
-本执行环境没有 `docker`、`docker compose`、Podman、nerdctl 或 WSL 发行版；因此本轮**无法实际构建 API/Web/Migration/Relay 镜像，也无法执行隔离 Docker Compose 的 `restore.sh`**。
+本机没有 Docker/WSL；经所有者批准，使用现有腾讯云生产服务器 Docker Engine，在**独立 Compose project/network/volume/容器名**下完成候选镜像构建和隔离 Docker 验证。生产 Compose 项目从未作为测试或恢复目标。
 
-未擅自安装 Docker、WSL 或修改系统。**不得用伪造的 tag/digest 代替实际构建结果。**
-
-需要在具备 Docker Engine 的隔离机器/CI 上完成：
-
-1. 按 §1 构建候选镜像并记录 Image ID、平台、归档 SHA、source commit、build 时间；本地无 registry 时 RepoDigest 可空；
-2. 按 §2 在完全隔离的 Compose 项目执行 `restore.sh` 的四个场景；
-3. 把实际 tag/digest/archive 和执行结果补入本文件后，才能签发生产发布 Go。
+- 生产 Docker：29.9.1 / Compose v5.6.0
+- 生产资源：2 vCPU，7.5 GiB RAM，测试前后健康检查均为 `1.13.15 / database up`
+- 构建限制：`docker buildx build --resource memory=3g`（API）/`2g`（Web），`--resource cpu-quota=50000`（0.5 CPU）；构建串行执行
+- 测试 Compose 资源上限：db 0.5 CPU/512M、API 0.75 CPU/1G、Web 0.25 CPU/256M
 
 ### 0.4 可用 Docker 环境只读核查（2026-10-19 15:02）
 
-本机没有 Docker；仅能访问既有腾讯云生产服务器，**没有独立临时 Docker 主机**。对生产服务器只做了以下只读检查，未构建、未启动测试容器、未执行 restore：
+本机没有 Docker，唯一可用 Docker Engine 是现有腾讯云生产服务器；没有独立临时 Docker 主机。已获所有者批准使用方案 2（生产服务器上的完全隔离 project），但**未使用生产 Compose 项目、生产 volume/network、生产 `.env` 或生产数据写入端口**。
 
 | 项目 | 当前值 |
 |---|---|
@@ -58,22 +55,10 @@
 | 磁盘 | 79G total，46G available |
 | 现有 Compose 项目 | `deploy`（4 个服务，含 relay）、`s13i-test`（3）、`s13i-recovery`（1） |
 | 现有运行容器 | 9 个 |
-| 生产版本/数据点 | 1.13.15；45 migrations；users=4、books=5、members=7、transactions=164；critical_events=0、chain seq=0、checkpoints=3；relay last_seen 07:04 UTC |
-| 最新生产备份 | 2026-10-19 03:56（Asia/Shanghai），local/restore/encrypt/upload/remoteMeta 均 true；发布时必须重新备份 |
+| 生产版本/数据点 | 1.13.15；45 migrations；users=4、books=5、members=7、transactions=164；critical_events=0、chain seq=0、checkpoints=3；relay last_seen 正常 |
+| 最新生产备份 | 2026-10-19 03:56（Asia/Shanghai），local/restore/encrypt/upload/remoteMeta 均 true；发布时仍必须重新备份 |
 
-**结论**：现有生产服务器具备 Docker 和一定资源余量，但 2 vCPU/5.5 GiB 可用内存需要与生产服务共享；在其上构建镜像并运行隔离 Compose **属于占用生产服务器资源**，按要求必须先报告方案并经所有者确认，不能自行执行。
-
-建议方案（等待确认）：
-
-- 在 `/tmp/libevra-rc-1.14.18-eval` 建立临时目录，独立 Compose project `libevra-rc-1.14.18-eval`，独立 network/volumes；
-- 构建 API/Web/Relay 候选镜像（约 2.6GB API + 100MB Web + build cache），测试 runtime 加一个临时 Postgres；预计 **磁盘 4–6GB、内存峰值 2–4GiB、CPU 2 核共享**；
-- 测试容器不发布公网端口（仅 127.0.0.1 临时端口）；使用合成测试数据库/dump，不挂载生产 volume、不读取生产 `.env`、不连接生产网络；
-- 测试完成后删除临时 project/volumes/images 和 build cache；全程不影响 `deploy` 项目；
-- 建议在低峰时段执行，预计 30–60 分钟；如果构建/测试造成生产延迟或内存压力，立即停止并清理。
-
-替代方案：所有者提供独立临时 Docker 主机/CI Runner，或新建临时云实例（需另行批准费用/资源）。
-
-## 1. 候选镜像构建规格（待 Docker 环境执行）
+实际测试期间生产 API 健康持续正常，未重启/替换生产容器，未发生 OOM 或磁盘不足。
 
 ### 1.1 构建来源
 
@@ -115,24 +100,39 @@ sha256sum /tmp/libevra-api-1.14.18.tar
 
 | 组件 | tag | Image ID | 平台/架构 | 构建时间 | 归档 SHA-256 | RepoDigest | 对应 commit | 版本 |
 |---|---|---|---|---|---|---|---|---|
-| API | `libevra-api:1.14.18` | **未生成（Docker 环境缺失）** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
-| Web/Caddy | `libevra-web:1.14.18` | **未生成** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
-| Migration | `libevra-migrate:1.14.18` | **未生成** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
-| Relay | `libevra-relay:1.14.18` | **未生成** | linux/amd64 | — | **未生成** | 可空 | `5dc2d54` | 1.14.18 |
-| PostgreSQL | `postgres:17`（建议 pin digest） | 待记录 | linux/amd64 | — | — | 待记录 | 基础镜像 | — |
+| API | `libevra-rc-api:1.14.18-20261019` | `sha256:675b7855e6a19a1e027d7c0b764fd57d7242c25a94f4d3277c1215620b36a818` | linux/amd64 | 2026-10-19T07:21:19Z → 07:23:05Z | `0d27122bb90b8d2a730c135ec6116e8a8c753cf23d9188253ff7b704eb69f6be` | `libevra-rc-api@sha256:675b…b818` | `5dc2d54` | 1.14.18 |
+| Web/Caddy | `libevra-rc-web:1.14.18-20261019` | `sha256:5d11ae9b268f99c39ce57ca8dd02083a48e494150afae2bc957abc202fa49fe4` | linux/amd64 | 2026-10-19T07:23:11Z → 07:23:32Z | `00c7003bac8fe8b54debf8c036f62876db7d9ba8dc43e9cb61fb742b5c00c213` | `libevra-rc-web@sha256:5d11…fe4` | `5dc2d54` | 1.14.18 |
+| Migration | `libevra-rc-migrate:1.14.18-20261019` | `sha256:675b7855e6a19a1e027d7c0b764fd57d7242c25a94f4d3277c1215620b36a818` | linux/amd64 | 同 API | 同 API 归档 | 同 API | `5dc2d54` | 1.14.18 |
+| Relay | `libevra-rc-relay:1.14.18-20261019` | `sha256:675b7855e6a19a1e027d7c0b764fd57d7242c25a94f4d3277c1215620b36a818` | linux/amd64 | 同 API | 同 API 归档 | 同 API | `5dc2d54` | 1.14.18 |
+| PostgreSQL | `postgres:17`（建议 pin digest） | 运行测试使用既有 `postgres:17` | linux/amd64 | — | — | 本地基础镜像 | — | — |
+
+构建源码归档（`git archive` 5dc2d54，build context）SHA-256：`23e52c55118a382b381645ffe25fc2a87ca4165dfaa3f55ddf247d751ab683fb`。
+
+镜像归档与 metadata 保留在：`/home/ubuntu/libevra-rc-artifacts/1.14.18/`（api/web tar + SHA256SUMS + image metadata + build logs）。
+
+> 生产部署必须 `docker load` 同一归档并核对 Image ID；不得在发布时重建出未经测试的镜像。
 
 > 生产 Compose 的服务镜像由 compose build 生成；上表是本地验证用约定 tag。正式发布必须使用**同一镜像 ID/digest**，不能在服务器上重新 resolve 依赖。
 
-### 1.4 镜像冒烟（Docker 环境执行）
+### 1.4 镜像冒烟（已执行）
 
-- 启动 API 容器，连接一次性 51 迁移数据库；
-- `/api/v1/health` 返回 `version=1.14.18`、`database=up`；
-- 执行 CSV 原子性、phase-4 锁、导入确认、撤销 smoke（可用 API 测试账号/测试账本；不得用生产账本）；
-- Web 容器 `/healthz` 200，页面显示 1.14.18。
+隔离 smoke project（`libevra-rc-smoke-20261019`）使用候选镜像启动：
+
+- API `/api/v1/health`：`version=1.14.18`、`database=up`；
+- Web 容器：healthy，容器内 `/healthz` 返回 200；
+- 业务 smoke：
+  - 目标账本锁：外部写入 409 `ledger_locked`；
+  - CSV 导入受锁拒绝 409，标签/交易无残留；
+  - phase-4 导入最终确认：目标 2 行；
+  - 手动撤销：目标 0 行、锁释放；
+  - 自动撤销（测试环境 timeout=60s，同 worker 路径）：`undone`、0 行；
+  - API 容器重启后恢复：遗留 awaiting 任务恢复/撤销，0 行；
+  - 来源清理 disposition：`canArchive=true`（2/2 migrated）。
+- S13-I 基本兼容：迁移后 6 张 S14 表存在；`critical_chain` 本地完整（`critical:status` 后续显示 complete=true），测试环境未配置 relay，因此 `relay:never_seen` 告警是测试环境预期，不是生产异常。
 
 ---
 
-## 2. 隔离 Docker Compose `restore.sh` 验证（待执行）
+## 2. 隔离 Docker Compose `restore.sh` 验证（已完成）
 
 ### 2.1 隔离要求
 
@@ -176,9 +176,20 @@ docker compose -p "$COMPOSE_PROJECT_NAME" ps
 | D. 失败退出 | 不存在文件/损坏 dump/错误参数：非零退出；不得先 drop 生产目标库；错误信息明确；恢复失败后使用 `pre-restore-*.dump` 安全副本人工处置，脚本不会自动覆盖回退 |
 | E. S13-I 兼容 | critical_events/critical_chain/checkpoint 表行数与摘要可恢复；不重置/重写链；restore 不绕过 critical 保护 |
 
-### 2.4 当前状态
+### 2.4 实际执行结果（已完成）
 
-**未执行**：本机无 Docker/WSL，无法建立隔离 Compose。此前已在本地 PostgreSQL 上完成等价 `pg_restore -L` 演练和 45→51 恢复演练，但这**不能替代**本轮 Docker 环境验证。
+| 场景 | 结果 |
+|---|---|
+| A. S13 旧格式备份 | 使用 S13 测试环境的 45-migration dump（合成/测试数据）；实际 `restore.sh` 成功；45/5 users/3 books/3 members/1 transaction/12 critical events/chain hash/5 checkpoints 与源完全一致；API health 正常 |
+| B. S14 带活动锁备份 | 从隔离 smoke DB 生成的 51-migration 旧格式 dump（含 active lock）；恢复过滤锁表数据成功；51/10 transactions/10 critical events/chain hash 一致；**locks=0**；4 个 terminal jobs；API health 正常 |
+| B2. 活动任务 + 缺失锁 | 活动 awaiting job 的锁数据在恢复时被过滤；API 启动协调器重新取得 **2 个锁**，任务保持 `awaiting_confirmation`（timeout=600），没有自动确认；API health 正常 |
+| C. 损坏/缺失备份 | 缺失文件退出 **2**；损坏归档退出 **1**；数据库标记行保留（预校验在停 API/drop 之前） |
+| D. 错误目标 | 所有测试均显式 `-p libevra-rc-*`，独立 volume/network/container；生产 `deploy` 项目未被操作；测试后生产容器未变 |
+| E. S13-I 兼容 | critical_events/critical_chain/checkpoints 计数和 chain hash 一致；API 启动未重置/改写链 |
+
+> 测试 S13 dump 来自既有 S13 测试库，对象 owner 是 `s13i_test`；隔离测试库预先创建同名角色后恢复。生产 S12-C dump 的 owner 与生产 `POSTGRES_USER` 一致，不涉及该测试适配。
+
+**restore.sh 修复**：测试发现原脚本在损坏归档时先 drop 数据库再校验。已本地加固为**在停 API/drop 之前预校验 `pg_restore --list` 并生成过滤列表**；损坏 backup 现在不会改动数据库。该修复不影响已有 S13/S14 成功恢复路径。
 
 ---
 
@@ -403,14 +414,14 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ### 3.12 发布门禁清单
 
-- [ ] 候选源码工作区干净、commit 固定；
-- [ ] 实际 Docker 镜像已构建并记录 Image ID、平台、归档 SHA-256（有 registry 时再记 RepoDigest）；
-- [ ] 隔离 Docker `restore.sh` 四个场景通过（含失败退出）；
-- [ ] 最新生产备份 + COS 上传 + 独立恢复验证通过；
-- [ ] 当日生产数据/S13-I 数量与链状态已记录；
+- [x] 候选源码工作区干净、commit 固定；
+- [x] 实际 Docker 镜像已构建并记录 Image ID、平台、归档 SHA-256；
+- [x] 隔离 Docker `restore.sh` 场景通过（含失败退出/预校验修复）；
+- [ ] 发布日最新生产备份 + COS 上传 + 独立恢复验证（发布时执行）；
+- [x] 当日生产数据/S13-I 数量与链状态已记录（发布时重新取）；
 - [ ] 发布窗口、回滚备份、负责人明确；
-- [ ] 旧版本兼容限制已确认，不执行自动降级；
-- [ ] Go 由所有者明确批准。
+- [x] 旧版本兼容限制已确认，不执行自动降级；
+- [ ] Go 由所有者明确批准正式发布。
 
 ---
 
@@ -455,17 +466,31 @@ $DC exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 
 ---
 
+## 4.1 实际资源/清理记录（2026-10-19）
+
+- 构建：API 07:21:19–07:23:05Z（约 1m46s），Web 07:23:11–07:23:32Z（约 21s），均串行、受 0.5 CPU/内存资源限制；
+- 测试 Compose 同时运行 10 个左右测试容器，设置 db 512M/0.5 CPU、API 1G/0.75 CPU、Web 256M/0.25 CPU；实测 API 约 170–254MiB、db 35–42MiB；
+- 生产 API 健康在整个构建/测试期间持续为 `1.13.15 / database up`；无 OOM、无生产容器重启、无生产卷/网络操作；
+- 测试结束后已删除全部 `libevra-rc-*` 容器、volume、network 和临时 `/tmp/libevra-rc-eval-*` 目录；
+- **保留**候选镜像和 `/home/ubuntu/libevra-rc-artifacts/1.14.18/` 镜像归档/metadata/build logs；
+- 未执行全局 `docker system prune`，未删除生产或 S13 测试资源；生产备份/健康监控未改动。
+
+---
+
 ## 5. 当前结论
 
-- **源码候选：Go**（工作区干净，commit/tag/版本固定，测试/构建/文档/DB 检查通过，源码实际 health smoke 通过）。
-- **镜像候选：No-Go**（本机无 Docker；未生成真实 Image ID、镜像归档或 digest，不得伪造）。
-- **隔离 Docker restore：No-Go**（无法启动隔离 Compose；此前本地等价恢复已通过但不能替代）。
-- **生产发布：No-Go**，直到上述两项在经批准的 Docker 环境补做、记录实际 Image ID/归档 SHA、完成发布前最新备份与所有者审批。
+- **源码候选：Go**（`5dc2d54`；应用镜像已从该 commit 构建，测试/构建/文档/DB 检查通过）。
+- **候选镜像：Go**（API/Web/Migrate/Relay 实际镜像身份已记录，归档已保留；镜像冒烟通过）。
+- **隔离 Docker restore：Go**（S13 旧备份、S14 活动锁/活动任务、失败/损坏退出均通过；restore.sh 预校验安全修复已加入部署脚本）。
+- **生产发布：Go（条件性，等待所有者正式授权）**。
 
-### 等待所有者决定的环境方案
+正式发布前必须完成且不能再依赖假设：
 
-1. **优先**：提供独立临时 Docker 主机/CI Runner（不占用生产服务器）。
-2. **次选**：授权在现有腾讯云生产服务器上按 §0.4 方案执行低峰期隔离构建/测试：预计磁盘 4–6GB、内存峰值 2–4GiB、2 vCPU 共享，30–60 分钟；仅临时 project/network/volumes，不碰生产项目；有生产延迟/资源风险。
-3. 新建临时云实例（需另行批准费用）。
+1. 发布当天重新取得最新 S12-C 备份并完成 COS 上传/恢复演练；不得沿用 2026-10-19 03:56 或当前 4 用户/5 账本/164 交易；
+2. 按 Runbook §3.2 停写并处理 PWA 队列；按 §3.5 使用基础 + relay 两个 Compose 文件；不要把旧 1.13.15 API 接到 51 数据库；
+3. 使用本记录的**同一镜像归档/Image ID**，不要在生产重新构建未经测试的镜像；
+4. 迁移 45→51 后按 §3.8 验证；Critical Chain 只追加，不 reset；
+5. 10 分钟撤销失败没有独立外部告警，发布后必须按 §3.13 人工巡检/监控；
+6. 不执行 down migration、旧库自动覆盖或全局 Docker prune。
 
 本轮未 push、未部署、未生产 migration、未修改生产服务/COS/CAM/密钥。

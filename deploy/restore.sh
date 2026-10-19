@@ -61,6 +61,20 @@ if [ "$CONFIRMED" -ne 1 ]; then
   [ "$REPLY" = "yes" ] || { echo "已取消。"; exit 1; }
 fi
 
+# Validate the archive BEFORE stopping the API or dropping the target database. A corrupt or
+# truncated backup must fail while the current database is still intact; the pre-restore safety
+# dump is a recovery aid, not a reason to accept a destructive first failure.
+TOC_FILE="$(mktemp)"
+TOC_FILTERED="$(mktemp)"
+trap 'rm -f "$TOC_FILE" "$TOC_FILTERED"' EXIT
+echo
+echo "→ 预校验备份归档（在停 API/重建数据库之前）…"
+if ! "${COMPOSE[@]}" exec -T db pg_restore --list < "$DUMP" > "$TOC_FILE"; then
+  echo "❌ 备份归档无法解析；数据库尚未修改。" >&2
+  exit 1
+fi
+grep -v 'TABLE DATA public ledger_write_locks' "$TOC_FILE" > "$TOC_FILTERED" || true
+echo "✅ 归档可解析"
 echo
 echo "→ 安全副本：先把当前库导出…"
 SAFETY="backups/pre-restore-$(date +%Y%m%d-%H%M%S).dump"
@@ -89,11 +103,6 @@ echo "→ 恢复…"
 # make the write triggers refuse the restore (or lock rows would become orphans). Filter only
 # that data TOC entry from the archive list; schema/indexes remain. The API startup reconciler
 # rebuilds locks for any active import after restore.
-TOC_FILE="$(mktemp)"
-TOC_FILTERED="$(mktemp)"
-trap 'rm -f "$TOC_FILE" "$TOC_FILTERED"' EXIT
-"${COMPOSE[@]}" exec -T db pg_restore --list < "$DUMP" > "$TOC_FILE"
-grep -v 'TABLE DATA public ledger_write_locks' "$TOC_FILE" > "$TOC_FILTERED" || true
 "${COMPOSE[@]}" cp "$DUMP" db:/tmp/libevra-restore.dump
 "${COMPOSE[@]}" exec -T db sh -c 'cat > /tmp/libevra-restore.toc' < "$TOC_FILTERED"
 "${COMPOSE[@]}" exec -T db \
