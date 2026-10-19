@@ -133,6 +133,7 @@ const TITLES = {
   "开发过程记录/S14-1.14.20-OCR生产修复报告.md": "Libevra · S14 1.14.20 OCR 生产修复报告",
   "开发过程记录/S14-1.14.20-ProductionReleaseComplete.md": "Libevra · S14 1.14.20 Production Release Complete",
   "开发过程记录/S14-V-语音性能优化阶段报告.md": "Libevra · S14-V 语音性能优化阶段报告",
+  "开发过程记录/S15-B-OCR多笔交易与概览页面-设计方向.md": "Libevra · S15-B OCR 多笔交易与概览页面设计方向",
   "开发过程记录/S14-1.14.20-Whisper语音性能研究.md": "Libevra · S14 1.14.20 Whisper 语音性能研究",
   "开发过程记录/Libevra未来功能构想与产品方向.md": "Libevra · 未来功能构想与产品方向",
   "开发过程记录/理解驱动开发-学习记录.md": "Libevra · 理解驱动开发 · 学习记录",
