@@ -151,6 +151,16 @@ export const importTargetSnapshotSchema = z.object({
 });
 export type ImportTargetSnapshot = z.infer<typeof importTargetSnapshotSchema>;
 
+/** D5 phase 2 · 用户在增量核对中的显式处理决定。 */
+export const incrementalDecisionActionValues = ["keep_target", "update_target", "import", "skip"] as const;
+export type IncrementalDecisionAction = (typeof incrementalDecisionActionValues)[number];
+
+export const incrementalDecisionSchema = z.object({
+  sourceTransactionId: uuid,
+  action: z.enum(incrementalDecisionActionValues),
+});
+export type IncrementalDecision = z.infer<typeof incrementalDecisionSchema>;
+
 export const ledgerImportRequestSchema = z
   .object({
     importId: uuid,
@@ -174,6 +184,8 @@ export const ledgerImportRequestSchema = z
     sourceFingerprint: sha256,
     taxonomy: z.array(taxonomyResolutionSchema).max(400),
     duplicateGroups: z.array(duplicateDecisionSchema).max(500),
+    /** D5 phase 2: explicit decisions for previously imported/changed/skipped source records. */
+    incrementalDecisions: z.array(incrementalDecisionSchema).max(MAX_IMPORT_TRANSACTIONS).default([]),
   })
   .superRefine((value, ctx) => {
     const hasSnapshot = value.source !== undefined;
@@ -238,6 +250,73 @@ export const formalImportPreviewResponseSchema = z.object({
 });
 export type FormalImportPreviewResponse = z.infer<typeof formalImportPreviewResponseSchema>;
 
+/**
+ * D5 phase 2 · 增量预览只读结果。
+ *
+ * 身份关联以目标账目的 `sourceRef` 和持久化 `LedgerImportSourceState` 为准；
+ * 真正的状态推进只在用户确认后的导入事务内发生。
+ */
+export const incrementalSourceStatusValues = [
+  "new",
+  "unchanged",
+  "modified",
+  "target_changed",
+  "target_deleted",
+  "previously_skipped",
+  "previously_skipped_modified",
+  "needs_review",
+] as const;
+export type IncrementalSourceStatusValue = (typeof incrementalSourceStatusValues)[number];
+
+export const incrementalSourceStatusSchema = z.object({
+  sourceTransactionId: uuid,
+  status: z.enum(incrementalSourceStatusValues),
+  previousDecision: z.enum(["imported", "skipped", "kept_target", "target_deleted"]).nullable(),
+  targetTransactionId: uuid.nullable(),
+  targetVersion: z.number().int().positive().nullable(),
+  /**
+   * 目标版本是否已经不同于上次确认的版本。为 true 时 UI 不允许直接覆盖目标，
+   * 服务端也会把它作为 update_target 的硬校验条件。
+   */
+  targetChanged: z.boolean(),
+  /** 旧版本导入没有状态行；这是推断结果，不是已存决策。 */
+  legacy: z.boolean(),
+  sourceFingerprint: sha256,
+  previousSourceFingerprint: sha256.nullable(),
+});
+export type IncrementalSourceStatus = z.infer<typeof incrementalSourceStatusSchema>;
+
+export const incrementalPreviewRequestSchema = z
+  .object({
+    targetBookId: uuid,
+    sourceBookId: uuid.optional(),
+    source: guestImportSourceSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if ((value.sourceBookId === undefined) === (value.source === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "增量预览必须且只能给出正式来源 id 或游客来源快照之一。",
+        path: ["source"],
+      });
+    }
+  });
+export type IncrementalPreviewRequest = z.infer<typeof incrementalPreviewRequestSchema>;
+
+export const incrementalPreviewResponseSchema = z.object({
+  statuses: z.array(incrementalSourceStatusSchema).max(MAX_IMPORT_TRANSACTIONS),
+  summary: z.object({
+    newCount: z.number().int().nonnegative(),
+    unchangedCount: z.number().int().nonnegative(),
+    modifiedCount: z.number().int().nonnegative(),
+    targetChangedCount: z.number().int().nonnegative(),
+    targetDeletedCount: z.number().int().nonnegative(),
+    previouslySkippedCount: z.number().int().nonnegative(),
+    needsReviewCount: z.number().int().nonnegative(),
+  }),
+});
+export type IncrementalPreviewResponse = z.infer<typeof incrementalPreviewResponseSchema>;
+
 export const ledgerImportResultSchema = z.object({
   importId: uuid,
   /** D4：正式来源账本；游客导入没有该字段。 */
@@ -250,6 +329,7 @@ export const ledgerImportResultSchema = z.object({
   }),
   sourceCount: z.number().int().nonnegative(),
   importedCount: z.number().int().nonnegative(),
+  updatedCount: z.number().int().nonnegative().default(0),
   skippedCount: z.number().int().nonnegative(),
   /** D3：被软删除的目标记录数量；旧 D2 回执没有该字段，按 0 处理。 */
   removedCount: z.number().int().nonnegative().default(0),
@@ -279,6 +359,15 @@ export const ledgerImportResultSchema = z.object({
       targetSeq: z.number().int().positive(),
     }),
   ),
+  updated: z
+    .array(
+      z.object({
+        sourceTransactionId: uuid,
+        targetTransactionId: uuid,
+        targetSeq: z.number().int().positive(),
+      }),
+    )
+    .default([]),
   taxonomy: z.object({
     categoriesCreated: z.number().int().nonnegative(),
     paymentMethodsCreated: z.number().int().nonnegative(),
@@ -317,6 +406,7 @@ export const importJobStatusSchema = z.object({
   totalBatches: z.number().int().nonnegative(),
   sourceCount: z.number().int().nonnegative(),
   importedCount: z.number().int().nonnegative(),
+  updatedCount: z.number().int().nonnegative().default(0),
   skippedCount: z.number().int().nonnegative(),
   removedCount: z.number().int().nonnegative(),
   /** 服务端已提交的批次摘要；用于证明进度不是前端动画。 */
@@ -438,6 +528,66 @@ export async function fingerprintGuestSource(source: GuestImportSource): Promise
 
 export async function fingerprintTargetSnapshot(target: ImportTargetSnapshot): Promise<string> {
   return sha256Hex(canonicalTarget(target));
+}
+
+/**
+ * 单条来源记录的 canonical 指纹。把来源分类/支付方式/标签的名称与属性纳入，
+ * 这样“来源改名”也会被识别为内容变化，而不是静默沿用旧结果。
+ */
+export async function fingerprintImportSourceRecord(
+  source: GuestImportSource,
+  transactionId: string,
+): Promise<string> {
+  const transaction = source.transactions.find((item) => item.id === transactionId);
+  if (transaction === undefined) throw new Error("source_transaction_missing");
+  const category = source.categories.find((item) => item.id === transaction.categoryId);
+  const paymentMethod =
+    transaction.paymentMethodId === null
+      ? null
+      : source.paymentMethods.find((item) => item.id === transaction.paymentMethodId);
+  const tags = transaction.tagIds
+    .map((tagId) => source.tags.find((tag) => tag.id === tagId))
+    .filter((tag): tag is GuestImportTag => tag !== undefined)
+    .sort((left, right) => left.id.localeCompare(right.id, "en"));
+  return sha256Hex(
+    JSON.stringify({
+      version: 1,
+      transaction: {
+        kind: transaction.kind,
+        amountCents: transaction.amountCents,
+        currency: transaction.currency,
+        categoryId: transaction.categoryId,
+        paymentMethodId: transaction.paymentMethodId ?? null,
+        occurredAt: transaction.occurredAt,
+        occurredLocalDate: transaction.occurredLocalDate,
+        occurredTz: transaction.occurredTz,
+        note: transaction.note ?? null,
+        tagIds: [...transaction.tagIds].sort((left, right) => left.localeCompare(right, "en")),
+      },
+      category:
+        category === undefined
+          ? null
+          : {
+              id: category.id,
+              name: category.name,
+              kind: category.kind,
+              description: category.description ?? null,
+              sortOrder: category.sortOrder,
+              isArchived: category.isArchived,
+              isSystem: category.isSystem,
+            },
+      paymentMethod:
+        paymentMethod === undefined || paymentMethod === null
+          ? null
+          : {
+              id: paymentMethod.id,
+              name: paymentMethod.name,
+              sortOrder: paymentMethod.sortOrder,
+              isArchived: paymentMethod.isArchived,
+            },
+      tags: tags.map((tag) => ({ id: tag.id, name: tag.name, color: tag.color })),
+    }),
+  );
 }
 
 /** 指纹规范串只用于调试和测试；正常调用方使用上面的异步指纹函数。 */

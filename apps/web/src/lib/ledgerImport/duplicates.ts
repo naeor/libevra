@@ -99,6 +99,8 @@ function sourceCandidates(
   source: ImportSource,
   target: ImportTarget,
   mapping: TaxonomyMappingPlan,
+  excludeSourceIds: ReadonlySet<string>,
+  excludeTargetIds: ReadonlySet<string>,
 ): {
   sourceRecords: Map<string, CandidateRecord>;
   targetRecords: Map<string, CandidateRecord>;
@@ -108,6 +110,7 @@ function sourceCandidates(
 
   const sourceRecords = new Map<string, CandidateRecord>();
   for (const transaction of source.transactions) {
+    if (excludeSourceIds.has(transaction.id)) continue;
     const categoryKey = sourceIndexes.categoryKeyById.get(transaction.categoryId);
     const categoryLabel = sourceIndexes.categoryLabelById.get(transaction.categoryId) ?? transaction.categoryName;
     if (categoryKey === undefined) {
@@ -132,6 +135,7 @@ function sourceCandidates(
 
   const targetRecords = new Map<string, CandidateRecord>();
   for (const transaction of target.transactions) {
+    if (excludeTargetIds.has(transaction.id)) continue;
     const categoryKey = `target:${transaction.categoryId}`;
     targetRecords.set(transaction.id, {
       transaction,
@@ -177,8 +181,16 @@ export function detectDuplicateGroups(
   source: ImportSource,
   target: ImportTarget,
   mapping: TaxonomyMappingPlan,
+  excludeSourceIds: ReadonlySet<string> = new Set<string>(),
+  excludeTargetIds: ReadonlySet<string> = new Set<string>(),
 ): DuplicateDetectionResult {
-  const { sourceRecords, targetRecords, targetIndex } = sourceCandidates(source, target, mapping);
+  const { sourceRecords, targetRecords, targetIndex } = sourceCandidates(
+    source,
+    target,
+    mapping,
+    excludeSourceIds,
+    excludeTargetIds,
+  );
 
   const edges: GroupEdge[] = [];
   const sourceById = new Map<string, CandidateRecord>();

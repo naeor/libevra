@@ -2,9 +2,12 @@ import { createHash, randomUUID } from "node:crypto";
 
 import {
   fingerprintGuestSource,
+  fingerprintImportSourceRecord,
   fingerprintTargetSnapshot,
   formalImportPreviewRequestSchema,
   formalImportPreviewResponseSchema,
+  incrementalPreviewRequestSchema,
+  incrementalPreviewResponseSchema,
   ledgerImportRequestSchema,
   ledgerImportResultSchema,
   type GuestImportSource,
@@ -24,6 +27,8 @@ import {
   lockFormalImportPair,
 } from "../ledger/importSolo.js";
 import { loadExistingImportTarget, loadTargetSnapshot } from "../ledger/importTarget.js";
+import { analyzeIncremental } from "../ledger/importIncremental.js";
+import { writeSourceState } from "../ledger/importIncremental.js";
 import { allocateTransactionSeq } from "../ledger/transactionSeq.js";
 import { badRequest, conflict, forbidden } from "../lib/errors.js";
 
@@ -504,8 +509,7 @@ async function executeImport(
 
       const imported: LedgerImportResult["imported"] = [];
       for (const item of importSource) {
-        const seq = await allocateTransactionSeq(tx, targetBookId);
-        const targetTransactionId = randomUUID();
+        const seq = await allocateTransactionSeq(tx, targetBookId);        const targetTransactionId = randomUUID();
         const categoryId = taxonomy.categoryIds.get(item.categoryId);
         const paymentMethodId =
           item.paymentMethodId === null ? null : taxonomy.paymentMethodIds.get(item.paymentMethodId);
@@ -543,6 +547,31 @@ async function executeImport(
           },
         });
         imported.push({ sourceTransactionId: item.id, targetTransactionId, targetSeq: seq });
+      }
+
+      /**
+       * D5 phase 2：新导入/被跳过的来源记录都要落下持久决策历史，供下一次增量导入识别。
+       * 这里只处理 D2–D4 单事务路径；增量已有目标的路径走服务端分批任务。
+       */
+      const importedById = new Map(imported.map((item) => [item.sourceTransactionId, item.targetTransactionId]));
+      for (const item of effectiveSource.transactions) {
+        const targetTransactionId = importedById.get(item.id) ?? null;
+        await writeSourceState(tx, {
+          targetBookId,
+          sourceKind: sourceBookId === undefined ? "guest" : "book",
+          sourceBookId: sourceBookId ?? null,
+          operation: {
+            sourceTransactionId: item.id,
+            action: targetTransactionId === null ? "skip" : "create",
+            targetTransactionId,
+            targetVersion: targetTransactionId === null ? null : 1,
+            sourceFingerprint: await fingerprintImportSourceRecord(effectiveSource, item.id),
+            stateDecision: targetTransactionId === null ? "skipped" : "imported",
+          },
+          targetTransactionId,
+          targetVersion: targetTransactionId === null ? null : 1,
+          jobId: receiptId,
+        });
       }
 
       const targetCountAfter = await tx.transaction.count({ where: { bookId: targetBookId, deletedAt: null } });
@@ -626,12 +655,15 @@ async function executeImport(
   } catch (error) {
     /**
      * 并发提交同一个 importId 时，另一个请求可能已经写好了回执；不论本次失败原因是什么，
-     * 只要回执属于当前账号，就返回原回执。这是幂等回执的最终兜底，避免把“并发重复提交”
-     * 变成 409 或重复写入。
+     * 只要回执属于当前账号，就返回原回执。两个事务可能恰好同时结束，因此短暂等待对方提交，
+     * 而不是在“自己先失败、对方尚未提交”的窗口里错误返回 409。
      */
-    const existing = await prisma.ledgerImport.findUnique({ where: { id: receiptId } });
-    if (existing !== null && existing.userId === userId) {
-      return ledgerImportResultSchema.parse(existing.result);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const existing = await prisma.ledgerImport.findUnique({ where: { id: receiptId } });
+      if (existing !== null && existing.userId === userId) {
+        return ledgerImportResultSchema.parse(existing.result);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
     }
     throw error;
   }
@@ -767,6 +799,47 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
         body.targetBookId,
       );
       return formalImportPreviewResponseSchema.parse(preview);
+    },
+  );
+
+  /**
+   * D5 phase 2：只读增量预览。正式来源由服务器重新读取；游客来源只上传快照，
+   * 状态推断仍以目标账本的 sourceRef/状态表为准，不修改任何记录。
+   */
+  app.post(
+    "/api/v1/ledger-imports/incremental-preview",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const body = incrementalPreviewRequestSchema.parse(request.body ?? {});
+      if (body.sourceBookId !== undefined) {
+        const pair = await loadFormalImportPair(
+          options.prisma,
+          userId,
+          body.sourceBookId,
+          body.targetBookId,
+        );
+        const analysis = await analyzeIncremental(
+          options.prisma,
+          body.targetBookId,
+          pair.source,
+          body.sourceBookId,
+          pair.target,
+        );
+        return incrementalPreviewResponseSchema.parse(analysis.response);
+      }
+      if (body.source === undefined) throw badRequest("source_required", "缺少游客来源快照。");
+      assertSourceIsSelfConsistent(body.source);
+      const target = await loadExistingImportTarget(options.prisma, userId, body.targetBookId);
+      const analysis = await analyzeIncremental(
+        options.prisma,
+        body.targetBookId,
+        body.source,
+        null,
+        target.snapshot,
+      );
+      return incrementalPreviewResponseSchema.parse(analysis.response);
     },
   );
 

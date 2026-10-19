@@ -728,4 +728,105 @@ describe("batched ledger import (D5 phase 1)", () => {
     expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
   }, 30_000);
 
+  it("resumes a paused partial job without duplicating already committed batches", async () => {
+    const owner = await account("d5_resume_partial");
+    const ledgerResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/ledger",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    const ledger = ledgerResponse.json() as {
+      categories: { id: string; name: string; kind: "expense" | "income" }[];
+    };
+    const food = ledger.categories.find((item) => item.name === "餐饮" && item.kind === "expense")!;
+    const sourceCategoryId = randomUUID();
+    const source: GuestImportSource = {
+      name: "D5暂停恢复",
+      categories: [
+        {
+          id: sourceCategoryId,
+          name: food.name,
+          kind: food.kind,
+          description: null,
+          sortOrder: 0,
+          isArchived: false,
+          isSystem: false,
+        },
+      ],
+      paymentMethods: [],
+      tags: [],
+      transactions: Array.from({ length: 5 }, (_, index) => ({
+        id: randomUUID(),
+        kind: "expense" as const,
+        amountCents: 600 + index,
+        currency: "CNY" as const,
+        categoryId: sourceCategoryId,
+        paymentMethodId: null,
+        occurredAt: new Date(Date.UTC(2026, 9, 18, 0, index, 0)).toISOString(),
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: `暂停恢复来源${String(index)}`,
+        tagIds: [],
+      })),
+    };
+    const target = await loadTargetSnapshot(prisma, owner.bookId);
+    const request = importJobRequestSchema.parse({
+      importId: randomUUID(),
+      target: { kind: "existing", bookId: owner.bookId, expectedTargetFingerprint: await fingerprintTargetSnapshot(target) },
+      source,
+      sourceFingerprint: await fingerprintGuestSource(source),
+      taxonomy: [{ type: "category", sourceId: sourceCategoryId, action: "reuse", targetId: food.id }],
+      duplicateGroups: [],
+      batchSize: 2,
+    });
+    const created = await createImportJob(prisma, owner.userId, request, { startImmediately: false });
+    await runImportJobBatchForTest(prisma, created.id);
+    const afterFirst = await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id } });
+    expect(afterFirst.importedCount).toBe(2);
+
+    const concurrent = await app.inject({
+      method: "POST",
+      url: "/api/v1/transactions",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+      payload: {
+        id: randomUUID(),
+        idempotencyKey: randomUUID(),
+        kind: "expense",
+        amountCents: 8888,
+        currency: "CNY",
+        categoryId: food.id,
+        paymentMethodId: null,
+        occurredAt: "2026-10-18T02:00:00.000Z",
+        occurredLocalDate: "2026-10-18",
+        occurredTz: "Asia/Shanghai",
+        note: "暂停时目标变化",
+        tagIds: [],
+      },
+    });
+    expect(concurrent.statusCode).toBe(201);
+    await processImportJob(prisma, created.id);
+    expect(await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id }, select: { status: true } })).toMatchObject({ status: "paused" });
+
+    // The test removes its own concurrent target row again; this restores the live target
+    // fingerprint while the already committed batches stay untouched.
+    await prisma.transaction.update({
+      where: { id: (concurrent.json() as { id: string }).id },
+      data: { deletedAt: new Date(), version: 2 },
+    });
+    await prisma.ledgerImportJob.update({
+      where: { id: created.id },
+      data: { status: "queued", lastErrorCode: null, lastErrorMessage: null },
+    });
+    const resumed = await app.inject({
+      method: "POST",
+      url: `/api/v1/ledger-imports/jobs/${created.id}/resume`,
+      headers: { cookie: owner.cookie },
+    });
+    expect(resumed.statusCode).toBe(200);
+    const done = await waitJob(owner.cookie, created.id);
+    expect(done.importedCount).toBe(5);
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(5);
+    expect(await prisma.ledgerImport.findUnique({ where: { id: created.id } })).not.toBeNull();
+  }, 40_000);
+
 });

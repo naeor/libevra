@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   DEFAULT_IMPORT_BATCH_SIZE,
   fingerprintGuestSource,
+  fingerprintImportSourceRecord,
   fingerprintTargetSnapshot,
   ledgerImportResultSchema,
   type GuestImportSource,
@@ -16,7 +17,8 @@ import {
 import type { PrismaClient } from "../db.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { allocateTransactionSeq } from "./transactionSeq.js";
-import { recordEvent } from "./events.js";
+import { diffEntry, recordEvent } from "./events.js";
+import { analyzeIncremental, resolveIncrementalPlan, writeSourceState, type IncrementalOperation } from "./importIncremental.js";
 import { loadFormalImportPair, loadSoloImportBook, lockFormalImportPair, lockSoloImportTarget } from "./importSolo.js";
 import { loadTargetSnapshot } from "./importTarget.js";
 import {
@@ -49,12 +51,18 @@ interface RemovedTarget {
 interface BatchRecord {
   readonly index: number;
   readonly imported: LedgerImportResult["imported"];
+  readonly updated: NonNullable<LedgerImportResult["updated"]>;
 }
 
 interface JobPayload {
-  readonly source: GuestImportSource;
+  /**
+   * 仅运行中的任务保存完整游客来源快照；完成后在同一最终事务里把 source 清空，
+   * 避免任务回执长期保留游客的备注/分类等内容。
+   */
+  readonly source: GuestImportSource | null;
   readonly taxonomy: readonly TaxonomyResolution[];
-  readonly importSourceIds: readonly string[];
+  /** D5 phase 2: one operation per source record, including explicit skip/keep decisions. */
+  readonly operations: readonly IncrementalOperation[];
   readonly removedTargets: readonly RemovedTarget[];
   readonly importRef: string;
   readonly expectedTotals: LedgerImportResult["totals"];
@@ -154,6 +162,7 @@ async function jobStatus(prisma: PrismaClient, jobId: string): Promise<ImportJob
     totalBatches: job.totalBatches,
     sourceCount: job.sourceCount,
     importedCount: job.importedCount,
+    updatedCount: job.updatedCount,
     skippedCount: job.skippedCount,
     removedCount: job.removedCount,
     batches: readPayload(job).batches.map((batch) => ({
@@ -201,6 +210,28 @@ export async function createImportJob(
     return status;
   }
 
+  /**
+   * 同一来源/目标已有暂停或运行中的任务时，优先返回旧任务，让用户继续而不是新建一个
+   * 可能重复写入的任务。来源快照变化（新指纹）才允许创建新任务。
+   */
+  const resumable = await prisma.ledgerImportJob.findFirst({
+    where: {
+      userId,
+      targetBookId: body.target.bookId,
+      sourceKind: body.sourceBookId === undefined ? "guest" : "book",
+      sourceBookId: body.sourceBookId ?? null,
+      sourceFingerprint: body.sourceFingerprint,
+      status: { in: ["queued", "running", "paused", "finalizing"] },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (resumable !== null) {
+    const status = await jobStatus(prisma, resumable.id);
+    if (status === null) throw notFound("import_job_missing", "找不到这个导入任务。");
+    return status;
+  }
+
   let source: GuestImportSource;
   let sourceFingerprint: string;
   let targetSnapshot: ImportTargetSnapshot;
@@ -238,9 +269,17 @@ export async function createImportJob(
 
   assertTaxonomyCoverage(source, body.taxonomy);
   const plan = buildDecisionPlan(body, source, targetSnapshot, false);
-  const importSource = source.transactions
-    .filter((item) => !plan.skippedSourceIds.has(item.id))
-    .sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt) || left.id.localeCompare(right.id));
+  const analysis = await analyzeIncremental(prisma, body.target.bookId, source, sourceBookId, targetSnapshot);
+  const incremental = resolveIncrementalPlan(analysis, body.incrementalDecisions, plan.skippedSourceIds);
+  const operationOrder = new Map(
+    [...source.transactions]
+      .sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt) || left.id.localeCompare(right.id))
+      .map((item, index) => [item.id, index]),
+  );
+  const operations = [...incremental.operations].sort(
+    (left, right) =>
+      (operationOrder.get(left.sourceTransactionId) ?? 0) - (operationOrder.get(right.sourceTransactionId) ?? 0),
+  );
   const removedTargets: RemovedTarget[] = [...plan.removedTargetIds].map((targetId) => {
     const row = targetSnapshot.transactions.find((item) => item.id === targetId);
     if (row === undefined) throw badRequest("decision_target_missing", "要移除的目标账目不在预览快照中。");
@@ -251,14 +290,18 @@ export async function createImportJob(
     };
   });
   const batchSize = body.batchSize ?? DEFAULT_IMPORT_BATCH_SIZE;
-  const totalBatches = Math.ceil(importSource.length / batchSize);
+  const totalBatches = Math.ceil(operations.length / batchSize);
   const payload: JobPayload = {
     source,
     taxonomy: body.taxonomy,
-    importSourceIds: importSource.map((item) => item.id),
+    operations,
     removedTargets,
     importRef: importRefFor(body.importId),
-    expectedTotals: buildTotals(importSource),
+    expectedTotals: buildTotals(
+      source.transactions.filter(
+        (item) => incremental.createdIds.has(item.id) || incremental.updatedIds.has(item.id),
+      ),
+    ),
     batches: [],
     taxonomyResolved: null,
   };
@@ -276,10 +319,11 @@ export async function createImportJob(
       totalBatches,
       sourceCount: source.transactions.length,
       importedCount: 0,
-      skippedCount: plan.skippedSourceIds.size,
+      updatedCount: 0,
+      skippedCount: incremental.skippedIds.size,
       removedCount: 0,
       targetBaselineCount: targetSnapshot.transactions.length,
-      targetExpectedCount: targetSnapshot.transactions.length,
+      targetExpectedCount: targetSnapshot.transactions.length + incremental.createdIds.size,
       sourceFingerprint,
       targetFingerprint,
       payload: payload as unknown as Prisma.InputJsonValue,
@@ -330,68 +374,209 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
       }
 
       const source = payload.source;
+      if (source === null) throw badRequest("source_missing", "任务来源快照已被清理，不能继续执行。");
       let taxonomy = payload.taxonomyResolved === null ? null : fromStoredTaxonomy(payload.taxonomyResolved);
       if (taxonomy === null) {
         taxonomy = await resolveTaxonomy(tx, job.targetBookId, source, targetSnapshot, payload.taxonomy, false);
       }
 
       const start = job.nextBatch * job.batchSize;
-      const sourceIds = payload.importSourceIds.slice(start, start + job.batchSize);
-      if (sourceIds.length === 0) return;
+      const operations = payload.operations.slice(start, start + job.batchSize);
+      if (operations.length === 0) return;
       const sourceById = new Map(source.transactions.map((item) => [item.id, item]));
       const sourceCategoryById = new Map(source.categories.map((item) => [item.id, item]));
       const sourcePaymentById = new Map(source.paymentMethods.map((item) => [item.id, item]));
-      const existingRefs = await tx.transaction.findMany({
-        where: { bookId: job.targetBookId, deletedAt: null, sourceRef: { in: sourceIds } },
-        select: { sourceRef: true },
-      });
-      if (existingRefs.length > 0) {
-        throw conflict("already_imported", "部分来源账目已经导入过这本账本，任务已暂停。");
+
+      const createIds = operations
+        .filter((operation) => operation.action === "create")
+        .map((operation) => operation.sourceTransactionId);
+      if (createIds.length > 0) {
+        const existingRefs = await tx.transaction.findMany({
+          where: { bookId: job.targetBookId, deletedAt: null, sourceRef: { in: createIds } },
+          select: { sourceRef: true },
+        });
+        if (existingRefs.length > 0) {
+          throw conflict("already_imported", "部分来源账目已经导入过这本账本，任务已暂停。");
+        }
       }
 
       const imported: LedgerImportResult["imported"] = [];
-      for (const sourceId of sourceIds) {
-        const item = sourceById.get(sourceId);
+      const updated: NonNullable<LedgerImportResult["updated"]> = [];
+      for (const operation of operations) {
+        const item = sourceById.get(operation.sourceTransactionId);
         if (item === undefined) throw badRequest("source_missing", "来源账目缺失。");
         const categoryId = taxonomy.categoryIds.get(item.categoryId);
         const paymentMethodId =
           item.paymentMethodId === null ? null : taxonomy.paymentMethodIds.get(item.paymentMethodId);
-        if (categoryId === undefined || (item.paymentMethodId !== null && paymentMethodId === undefined)) {
+        if (
+          operation.action !== "skip" &&
+          (categoryId === undefined || (item.paymentMethodId !== null && paymentMethodId === undefined))
+        ) {
           throw badRequest("taxonomy_missing", "账目的分类或支付方式没有映射。");
         }
         if (!sourceCategoryById.has(item.categoryId)) throw badRequest("source_category_missing", "来源分类不存在。");
         if (item.paymentMethodId !== null && !sourcePaymentById.has(item.paymentMethodId)) {
           throw badRequest("source_payment_missing", "来源支付方式不存在。");
         }
-        const seq = await allocateTransactionSeq(tx, job.targetBookId);
-        const targetTransactionId = randomUUID();
-        await tx.transaction.create({
-          data: {
-            id: targetTransactionId,
-            seq,
-            bookId: job.targetBookId,
-            userId: job.userId,
-            categoryId,
-            paymentMethodId: paymentMethodId ?? null,
-            kind: item.kind,
-            amountCents: BigInt(item.amountCents),
-            currency: item.currency,
-            occurredAt: new Date(item.occurredAt),
-            occurredLocalDate: new Date(`${item.occurredLocalDate}T00:00:00.000Z`),
-            occurredTz: item.occurredTz,
-            note: item.note,
-            idempotencyKey: randomUUID(),
-            sourceRef: item.id,
-            importRef: payload.importRef,
-            tags: {
-              create: item.tagIds
-                .map((sourceTagId) => taxonomy.tagIds.get(sourceTagId))
-                .filter((tagId): tagId is string => tagId !== undefined)
-                .map((tagId) => ({ tagId })),
+        const tagIds = item.tagIds
+          .map((sourceTagId) => taxonomy.tagIds.get(sourceTagId))
+          .filter((tagId): tagId is string => tagId !== undefined);
+
+        if (operation.action === "create") {
+          const seq = await allocateTransactionSeq(tx, job.targetBookId);
+          const targetTransactionId = randomUUID();
+          await tx.transaction.create({
+            data: {
+              id: targetTransactionId,
+              seq,
+              bookId: job.targetBookId,
+              userId: job.userId,
+              categoryId: categoryId!,
+              paymentMethodId: paymentMethodId ?? null,
+              kind: item.kind,
+              amountCents: BigInt(item.amountCents),
+              currency: item.currency,
+              occurredAt: new Date(item.occurredAt),
+              occurredLocalDate: new Date(`${item.occurredLocalDate}T00:00:00.000Z`),
+              occurredTz: item.occurredTz,
+              note: item.note,
+              idempotencyKey: randomUUID(),
+              sourceRef: item.id,
+              importRef: payload.importRef,
+              tags: { create: tagIds.map((tagId) => ({ tagId })) },
             },
-          },
-        });
-        imported.push({ sourceTransactionId: item.id, targetTransactionId, targetSeq: seq });
+          });
+          imported.push({ sourceTransactionId: item.id, targetTransactionId, targetSeq: seq });
+          await writeSourceState(tx, {
+            targetBookId: job.targetBookId,
+            sourceKind: job.sourceKind as "guest" | "book",
+            sourceBookId: job.sourceBookId,
+            operation,
+            targetTransactionId,
+            targetVersion: 1,
+            jobId: jobId,
+          });
+        } else if (operation.action === "update") {
+          if (operation.targetTransactionId === null || operation.targetVersion === null) {
+            throw conflict("target_changed", "更新目标缺少可验证的版本。");
+          }
+          const row = await tx.transaction.findFirst({
+            where: {
+              id: operation.targetTransactionId,
+              bookId: job.targetBookId,
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              seq: true,
+              version: true,
+              sourceRef: true,
+              kind: true,
+              amountCents: true,
+              currency: true,
+              categoryId: true,
+              paymentMethodId: true,
+              occurredAt: true,
+              occurredLocalDate: true,
+              occurredTz: true,
+              note: true,
+              tags: { select: { tagId: true } },
+            },
+          });
+          if (row === null || row.version !== operation.targetVersion || row.sourceRef !== item.id) {
+            throw conflict("target_changed", "目标账目已被其他操作修改，不能覆盖。");
+          }
+          const changed = await tx.transaction.update({
+            where: { id: row.id },
+            data: {
+              categoryId: categoryId!,
+              paymentMethodId: paymentMethodId ?? null,
+              kind: item.kind,
+              amountCents: BigInt(item.amountCents),
+              currency: item.currency,
+              occurredAt: new Date(item.occurredAt),
+              occurredLocalDate: new Date(`${item.occurredLocalDate}T00:00:00.000Z`),
+              occurredTz: item.occurredTz,
+              note: item.note,
+              version: row.version + 1,
+              tags: { deleteMany: {}, create: tagIds.map((tagId) => ({ tagId })) },
+            },
+            select: {
+              id: true,
+              seq: true,
+              version: true,
+              kind: true,
+              amountCents: true,
+              currency: true,
+              categoryId: true,
+              paymentMethodId: true,
+              occurredAt: true,
+              occurredLocalDate: true,
+              occurredTz: true,
+              note: true,
+              tags: { select: { tagId: true } },
+            },
+          });
+          const changes = diffEntry(
+            {
+              kind: row.kind,
+              amountCents: row.amountCents,
+              currency: row.currency,
+              categoryId: row.categoryId,
+              paymentMethodId: row.paymentMethodId,
+              occurredAt: row.occurredAt,
+              occurredLocalDate: row.occurredLocalDate,
+              occurredTz: row.occurredTz,
+              note: row.note,
+              tagIds: row.tags.map((tag) => tag.tagId).sort(),
+            },
+            {
+              kind: changed.kind,
+              amountCents: changed.amountCents,
+              currency: changed.currency,
+              categoryId: changed.categoryId,
+              paymentMethodId: changed.paymentMethodId,
+              occurredAt: changed.occurredAt,
+              occurredLocalDate: changed.occurredLocalDate,
+              occurredTz: changed.occurredTz,
+              note: changed.note,
+              tagIds: changed.tags.map((tag) => tag.tagId).sort(),
+            },
+          );
+          await recordEvent(tx, {
+            bookId: job.targetBookId,
+            transactionId: row.id,
+            transactionSeq: row.seq,
+            actorId: job.userId,
+            actorName: null,
+            kind: "updated",
+            changes: {
+              ...changes,
+              importId: { from: null, to: jobId },
+              importSource: { from: null, to: job.sourceKind },
+            },
+          });
+          updated.push({ sourceTransactionId: item.id, targetTransactionId: row.id, targetSeq: row.seq });
+          await writeSourceState(tx, {
+            targetBookId: job.targetBookId,
+            sourceKind: job.sourceKind as "guest" | "book",
+            sourceBookId: job.sourceBookId,
+            operation,
+            targetTransactionId: row.id,
+            targetVersion: row.version + 1,
+            jobId: jobId,
+          });
+        } else {
+          await writeSourceState(tx, {
+            targetBookId: job.targetBookId,
+            sourceKind: job.sourceKind as "guest" | "book",
+            sourceBookId: job.sourceBookId,
+            operation,
+            targetTransactionId: operation.targetTransactionId,
+            targetVersion: operation.targetVersion,
+            jobId: jobId,
+          });
+        }
       }
 
       if (taxonomy === null) throw new Error("taxonomy resolution missing");
@@ -399,7 +584,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
       const newTargetFingerprint = await fingerprintTargetSnapshot(newTargetSnapshot);
       const nextPayload: JobPayload = {
         ...payload,
-        batches: [...payload.batches, { index: job.nextBatch, imported }],
+        batches: [...payload.batches, { index: job.nextBatch, imported, updated }],
         taxonomyResolved: toStoredTaxonomy(taxonomy),
       };
       await tx.ledgerImportJob.update({
@@ -408,6 +593,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
           status: "running",
           nextBatch: job.nextBatch + 1,
           importedCount: job.importedCount + imported.length,
+          updatedCount: job.updatedCount + updated.length,
           targetFingerprint: newTargetFingerprint,
           targetExpectedCount: job.targetBaselineCount + job.importedCount + imported.length,
           payload: nextPayload as unknown as Prisma.InputJsonValue,
@@ -415,6 +601,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
           lastErrorMessage: null,
         },
       });
+
     },
     { maxWait: 10_000, timeout: 60_000 },
   );
@@ -499,6 +686,7 @@ async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
       const finalTargetFingerprint = await fingerprintTargetSnapshot(finalTargetSnapshot);
 
       const imported = payload.batches.flatMap((batch) => batch.imported);
+      const updated = payload.batches.flatMap((batch) => batch.updated ?? []);
       const taxonomy = payload.taxonomyResolved;
       const targetRow = await tx.book.findUnique({
         where: { id: job.targetBookId },
@@ -516,6 +704,7 @@ async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
         },
         sourceCount: job.sourceCount,
         importedCount: job.importedCount,
+        updatedCount: job.updatedCount,
         skippedCount: job.skippedCount,
         removedCount: removedTargets.length,
         targetExistingBefore: job.targetBaselineCount,
@@ -523,6 +712,7 @@ async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
         removedTargets,
         totals: payload.expectedTotals,
         imported,
+        updated,
         taxonomy: {
           categoriesCreated: taxonomy?.created.categories ?? 0,
           paymentMethodsCreated: taxonomy?.created.paymentMethods ?? 0,
@@ -556,9 +746,12 @@ async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
         data: {
           status: "completed",
           removedCount: removedTargets.length,
+          updatedCount: job.updatedCount,
           targetFingerprint: finalTargetFingerprint,
           targetExpectedCount: targetCountAfter,
           result: receipt,
+          // Data minimization: completed jobs no longer need the guest snapshot.
+          payload: { ...payload, source: null, operations: [] } as unknown as Prisma.InputJsonValue,
           lastErrorCode: null,
           lastErrorMessage: null,
         },

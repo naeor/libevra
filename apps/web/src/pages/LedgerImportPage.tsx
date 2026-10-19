@@ -4,6 +4,9 @@ import {
   ledgerImportResultSchema,
   IMPORT_BATCH_THRESHOLD,
   type ImportJobStatus,
+  type IncrementalDecisionAction,
+  type IncrementalPreviewResponse,
+  type IncrementalSourceStatus,
   type LedgerImportRequest,
   type LedgerImportResult,
 } from "@libellum/shared";
@@ -34,6 +37,12 @@ import {
   type DraftRecoverySummary,
 } from "../lib/ledgerImport/recovery.js";
 import { createImportJob, getImportJob, resumeImportJob } from "../lib/ledgerImport/job.js";
+import {
+  decisionsForRequest,
+  incrementalExclusions,
+  loadIncrementalPreview,
+  defaultIncrementalAction,
+} from "../lib/ledgerImport/incremental.js";
 import { buildImportPreview } from "../lib/ledgerImport/preview.js";
 import {
   taxonomyResolutionKey,
@@ -150,6 +159,12 @@ export function LedgerImportPage(): React.JSX.Element {
   const [resumeBusy, setResumeBusy] = useState(false);
   const [job, setJob] = useState<ImportJobStatus | null>(null);
   const [jobBusy, setJobBusy] = useState(false);
+  const [incremental, setIncremental] = useState<IncrementalPreviewResponse | null>(null);
+  const [incrementalBusy, setIncrementalBusy] = useState(false);
+  const [incrementalError, setIncrementalError] = useState<string | null>(null);
+  const [incrementalDecisions, setIncrementalDecisions] = useState<Map<string, IncrementalDecisionAction>>(
+    new Map(),
+  );
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -232,15 +247,53 @@ export function LedgerImportPage(): React.JSX.Element {
   const backTo = target === null ? "/start" : `/books/${target.id}/settings`;
   const preview = useMemo(() => {
     if (snapshots === null) return null;
-    return buildImportPreview(snapshots.source, snapshots.target, resolutions as TaxonomyResolutionMap);
-  }, [snapshots, resolutions]);
+    const excluded = incrementalExclusions(incremental);
+    return buildImportPreview(
+      snapshots.source,
+      snapshots.target,
+      resolutions as TaxonomyResolutionMap,
+      {
+        excludeDuplicateSourceIds: excluded.sourceIds,
+        excludeDuplicateTargetIds: excluded.targetIds,
+      },
+    );
+  }, [snapshots, resolutions, incremental]);
+
+  /** 读取服务端增量状态；失败时仍允许首次导入，但不能假装没有历史。 */
+  useEffect(() => {
+    if (snapshots === null || targetIsNew) {
+      setIncremental(null);
+      setIncrementalError(null);
+      return;
+    }
+    let cancelled = false;
+    setIncrementalBusy(true);
+    setIncrementalError(null);
+    void loadIncrementalPreview({ targetBookId: snapshots.target.bookId, source: snapshots.source })
+      .then((next) => {
+        if (cancelled) return;
+        setIncremental(next);
+        setIncrementalDecisions(new Map());
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) setIncrementalError(errorMessage(caught));
+      })
+      .finally(() => {
+        if (!cancelled) setIncrementalBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshots, targetIsNew]);
 
   const groups = preview?.duplicateGroups ?? [];
   const groupIndex = groups.length === 0 ? 0 : Math.min(requestedGroup, groups.length - 1);
   const currentGroup = groups[groupIndex] ?? null;
   const conflictCount = preview === null ? 0 : unresolvedConflicts(preview, resolutions);
   const unresolvedGroups = preview === null ? 0 : unresolvedDuplicateGroups(preview, decisions);
-  const canConfirm = preview !== null && conflictCount === 0 && unresolvedGroups === 0;
+  const incrementalReady = targetIsNew || incremental !== null;
+  const canConfirm =
+    preview !== null && conflictCount === 0 && unresolvedGroups === 0 && incrementalReady && incrementalError === null;
   const lastRequest = useRef<LedgerImportRequest | null>(null);
 
   function patchSearch(patch: Record<string, string | undefined>, replace = false): void {
@@ -420,8 +473,7 @@ export function LedgerImportPage(): React.JSX.Element {
     setSubmitError(null);
   }
 
-  function setGroupPreset(groupId: string, action: GroupPresetAction): void {
-    const group = preview?.duplicateGroups.find((item) => item.id === groupId);
+  function setGroupPreset(groupId: string, action: GroupPresetAction): void {    const group = preview?.duplicateGroups.find((item) => item.id === groupId);
     if (group === undefined) return;
     setDecisions((previous) => {
       const next = new Map(previous);
@@ -450,6 +502,15 @@ export function LedgerImportPage(): React.JSX.Element {
       const base = previous.get(groupId) ?? presetDecision(group, "keep_both");
       const next = new Map(previous);
       next.set(groupId, withTargetHandling(base, targetId, handling));
+      return next;
+    });
+    setSubmitError(null);
+  }
+
+  function setIncrementalDecision(sourceTransactionId: string, action: IncrementalDecisionAction): void {
+    setIncrementalDecisions((previous) => {
+      const next = new Map(previous);
+      next.set(sourceTransactionId, action);
       return next;
     });
     setSubmitError(null);
@@ -630,15 +691,21 @@ export function LedgerImportPage(): React.JSX.Element {
         decisions,
         serverSourceFingerprint: fingerprints?.source,
         serverTargetFingerprint: fingerprints?.target,
+        incrementalDecisions: decisionsForRequest(incremental, incrementalDecisions),
       });
 
       /**
        * D5：超过初始批次阈值的导入走服务端持久化任务；小导入继续走 D2-D4 的单事务路径。
-       * 任务创建后页面只轮询服务端进度，不依赖保持本页打开。
+       * 增量导入（有历史状态）始终走服务端任务，确保状态推进、更新目标和断点恢复走同一条路径。
        */
-      if (preview.source.transactions.length > IMPORT_BATCH_THRESHOLD) {
+      const hasIncrementalHistory =
+        incremental !== null && incremental.summary.newCount < preview.source.transactions.length;
+      if (preview.source.transactions.length > IMPORT_BATCH_THRESHOLD || hasIncrementalHistory) {
         if (targetIsNew) {
           throw new Error("大账本分批导入需要先创建目标账本；请先在账本空间新建目标后再导入。");
+        }
+        if (incrementalError !== null) {
+          throw new Error("无法读取增量历史，暂不开始导入；请刷新后重试。");
         }
         const created = await createImportJob(request);
         setJob(created);
@@ -712,7 +779,7 @@ export function LedgerImportPage(): React.JSX.Element {
       : step === "preview"
         ? "确认方向、映射和重复候选。预览和核对都不会修改任何账本。"
         : step === "review"
-          ? "逐组决定如何处理可能重复的账目；只有你明确选择移除的 A 记录才会被软删除。"
+          ? "核对来源变化与可能重复的账目；只有你明确选择更新的目标才会改变，自动导入不会静默覆盖。"
           : jobActive
             ? "导入任务已在服务器执行；关闭页面不会中断，重新打开可继续查看真实进度。"
             : "确认最终摘要后才会真正写入。来源账本数据会保留。";
@@ -743,6 +810,7 @@ export function LedgerImportPage(): React.JSX.Element {
       {books.isPending ? <SkeletonRows rows={3} /> : null}
       {books.isError ? <Alert>{errorMessage(books.error)}</Alert> : null}
       {loadError === null ? null : <Alert>{loadError}</Alert>}
+      {incrementalError === null ? null : <Alert>{incrementalError}</Alert>}
       {submitError === null ? null : <Alert>{submitError}</Alert>}
       {recovery === null || recovery.message === null ? null : (
         <DraftRecoveryNotice summary={recovery} />
@@ -815,28 +883,46 @@ export function LedgerImportPage(): React.JSX.Element {
           onBack={() => goStep("select")}
           onReview={() => patchSearch({ step: "review", group: "0" })}
           onConfirm={() => goStep("confirm")}
+          needsIncrementalReview={(incremental?.statuses ?? []).some(
+            (status) =>
+              status.status !== "new" &&
+              status.status !== "unchanged",
+          )}
         />
       ) : null}
 
       {step === "review" && !jobActive && !loading && loadError === null && preview !== null ? (
-        <ReviewStep
-          preview={preview}
-          groupIndex={groupIndex}
-          decisions={decisions}
-          onPreset={setGroupPreset}
-          onSource={setGroupSource}
-          onTarget={setGroupTarget}
-          onPrevious={() => {
-            if (groupIndex > 0) patchSearch({ group: String(groupIndex - 1) }, true);
-          }}
-          onNext={() => {
-            if (groupIndex < groups.length - 1) patchSearch({ group: String(groupIndex + 1) }, true);
-          }}
-          onBack={() => goStep("preview")}
-          onConfirm={() => goStep("confirm")}
-          canConfirm={canConfirm}
-          needsReviewGroupIds={recovery?.needsReviewGroupIds ?? []}
-        />
+        <>
+          {incrementalError === null ? null : <Alert>{incrementalError}</Alert>}
+          {incremental === null ? null : (
+            <IncrementalReview
+              statuses={incremental.statuses}
+              summary={incremental.summary}
+              source={preview.source}
+              target={preview.target}
+              decisions={incrementalDecisions}
+              onDecision={setIncrementalDecision}
+            />
+          )}
+          <ReviewStep
+            preview={preview}
+            groupIndex={groupIndex}
+            decisions={decisions}
+            onPreset={setGroupPreset}
+            onSource={setGroupSource}
+            onTarget={setGroupTarget}
+            onPrevious={() => {
+              if (groupIndex > 0) patchSearch({ group: String(groupIndex - 1) }, true);
+            }}
+            onNext={() => {
+              if (groupIndex < groups.length - 1) patchSearch({ group: String(groupIndex + 1) }, true);
+            }}
+            onBack={() => goStep("preview")}
+            onConfirm={() => goStep("confirm")}
+            canConfirm={canConfirm}
+            needsReviewGroupIds={recovery?.needsReviewGroupIds ?? []}
+          />
+        </>
       ) : null}
 
       {step === "confirm" && !jobActive && preview !== null && !loading && loadError === null ? (
@@ -975,7 +1061,10 @@ function BatchJobPanel({
     completed: "已完成",
     cancelled: "已取消",
   };
-  const percent = job.sourceCount === 0 ? 100 : Math.min(100, Math.round((job.importedCount / job.sourceCount) * 100));
+  const percent =
+    job.totalBatches === 0
+      ? 100
+      : Math.min(100, Math.round((job.nextBatch / job.totalBatches) * 100));
   const canResume = job.status === "paused" || job.status === "failed";
   return (
     <section data-testid="import-job-progress" className="flex flex-col gap-4">
@@ -990,7 +1079,9 @@ function BatchJobPanel({
           </span>
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
-          已完成 {String(job.importedCount)} / 总计 {String(job.sourceCount)} 笔来源记录
+          已处理 {String(job.nextBatch)} / {String(job.totalBatches)} 批；
+          新增 {String(job.importedCount)} 笔 · 更新 {String(job.updatedCount)} 笔 · 跳过 {String(job.skippedCount)} 笔。
+          总来源 {String(job.sourceCount)} 笔。
         </p>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-canvas">
           <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${String(percent)}%` }} />
@@ -1231,6 +1322,7 @@ function PreviewStep({
   onBack,
   onReview,
   onConfirm,
+  needsIncrementalReview,
 }: {
   readonly preview: ImportPreview;
   readonly conflictCount: number;
@@ -1239,8 +1331,10 @@ function PreviewStep({
   readonly onBack: () => void;
   readonly onReview: () => void;
   readonly onConfirm: () => void;
+  readonly needsIncrementalReview: boolean;
 }): React.JSX.Element {
   const { mapping, counts } = preview;
+  const hasReview = counts.duplicateGroups > 0 || needsIncrementalReview;
   return (
     <section data-testid="import-preview" className="flex flex-col gap-5">
       <div className="rounded-card border border-line bg-surface px-5 py-4">
@@ -1337,14 +1431,18 @@ function PreviewStep({
             {String(counts.duplicateGroups)} 组
           </span>
         </div>
-        {counts.duplicateGroups > 0 ? (
+        {hasReview ? (
           <button
             type="button"
             data-testid="open-review"
             onClick={onReview}
             className="mt-3 flex w-full items-center justify-between rounded-field border border-line bg-canvas px-4 py-3 text-left text-body text-ink transition hover:border-brand/40 hover:bg-brand-soft"
           >
-            <span>逐组核对这 {String(counts.duplicateGroups)} 组</span>
+            <span>
+              {counts.duplicateGroups > 0
+                ? `去核对这 ${String(counts.duplicateGroups)} 组重复项`
+                : "去核对此前导入与来源变化"}
+            </span>
             <span aria-hidden="true" className="text-muted">
               ›
             </span>
@@ -1358,9 +1456,9 @@ function PreviewStep({
         {conflictCount > 0 ? (
           <p className="text-helper-relaxed text-muted">请先处理完全部属性冲突，再继续。</p>
         ) : null}
-        {counts.duplicateGroups > 0 ? (
+        {hasReview ? (
           <Button onClick={onReview} disabled={conflictCount > 0}>
-            去核对可能重复的账目
+            {counts.duplicateGroups > 0 ? "去核对可能重复的账目" : "去核对增量变化"}
           </Button>
         ) : (
           <Button onClick={onConfirm} disabled={conflictCount > 0}>
@@ -1464,6 +1562,139 @@ function taxonomyLabel(type: TaxonomyConflict["type"]): string {
     case "tag":
       return "标签";
   }
+}
+
+function IncrementalReview({
+  statuses,
+  summary,
+  source,
+  target,
+  decisions,
+  onDecision,
+}: {
+  readonly statuses: readonly IncrementalSourceStatus[];
+  readonly summary: IncrementalPreviewResponse["summary"];
+  readonly source: ImportSource;
+  readonly target: ImportTarget;
+  readonly decisions: ReadonlyMap<string, IncrementalDecisionAction>;
+  readonly onDecision: (sourceTransactionId: string, action: IncrementalDecisionAction) => void;
+}): React.JSX.Element {
+  const labels: Record<IncrementalSourceStatus["status"], string> = {
+    new: "新增",
+    unchanged: "已导入未变化",
+    modified: "来源已修改",
+    target_changed: "目标已修改",
+    target_deleted: "目标已删除",
+    previously_skipped: "此前已跳过",
+    previously_skipped_modified: "此前跳过且来源已修改",
+    needs_review: "旧导入记录需确认",
+  };
+  const actionable = statuses.filter(
+    (status) =>
+      status.status === "modified" ||
+      status.status === "target_changed" ||
+      status.status === "target_deleted" ||
+      status.status === "previously_skipped" ||
+      status.status === "previously_skipped_modified" ||
+      status.status === "needs_review",
+  );
+  const categoryName = (id: string) => source.categories.find((item) => item.id === id)?.name ?? "未知分类";
+  const targetCategoryName = (id: string) => target.categories.find((item) => item.id === id)?.name ?? "未知分类";
+  const facts = (item: ImportSource["transactions"][number] | ImportTarget["transactions"][number], category: string) =>
+    `${formatMoney(item.amountCents, item.currency, { withCode: true })} · ${item.occurredLocalDate} · ${category}${item.note === null ? "" : ` · ${item.note}`}`;
+  return (
+    <section data-testid="incremental-review" className="flex flex-col gap-4 rounded-card border border-line bg-surface px-5 py-4">
+      <div>
+        <p className="text-body font-medium text-ink">此前导入的核对</p>
+        <p className="mt-1 text-helper-relaxed text-muted">
+          已导入且未变化的记录默认跳过；来源变化只有在你明确选择后才会更新目标。来源已删除的账目不会删除目标。
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2 text-helper">
+        <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">未变化 {String(summary.unchangedCount)}</span>
+        <span className="rounded-full bg-brand-soft px-2.5 py-1 text-brand-dark">新增 {String(summary.newCount)}</span>
+        {summary.modifiedCount > 0 ? <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">修改 {String(summary.modifiedCount)}</span> : null}
+        {summary.targetChangedCount > 0 ? <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">目标变化 {String(summary.targetChangedCount)}</span> : null}
+        {summary.targetDeletedCount > 0 ? <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">目标已删 {String(summary.targetDeletedCount)}</span> : null}
+        {summary.previouslySkippedCount > 0 ? <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">此前跳过 {String(summary.previouslySkippedCount)}</span> : null}
+        {summary.needsReviewCount > 0 ? <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">需确认 {String(summary.needsReviewCount)}</span> : null}
+      </div>
+      {actionable.length === 0 ? (
+        <p className="text-helper-relaxed text-muted">没有需要逐条处理的来源变化。</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {actionable.map((status) => {
+            const sourceTransaction = source.transactions.find((item) => item.id === status.sourceTransactionId);
+            const targetTransaction = target.transactions.find((item) => item.id === status.targetTransactionId);
+            const chosen = decisions.get(status.sourceTransactionId) ?? defaultIncrementalAction(status);
+            return (
+              <li key={status.sourceTransactionId} className="flex flex-col gap-2 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-body font-medium text-ink">{labels[status.status]}</p>
+                  {status.legacy ? <span className="text-helper text-muted">旧导入记录</span> : null}
+                </div>
+                {sourceTransaction === undefined ? null : (
+                  <p className="text-helper-relaxed text-muted">来源：{facts(sourceTransaction, categoryName(sourceTransaction.categoryId))}</p>
+                )}
+                {targetTransaction === undefined ? (
+                  <p className="text-helper-relaxed text-muted">目标：无对应账目（不会自动创建或删除）</p>
+                ) : (
+                  <p className="text-helper-relaxed text-muted">目标：{facts(targetTransaction, targetCategoryName(targetTransaction.categoryId))}</p>
+                )}
+                {status.status === "modified" ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onDecision(status.sourceTransactionId, "keep_target")}
+                      className={`rounded-field border px-3 py-2 text-button ${chosen === "keep_target" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
+                    >
+                      保留目标
+                    </button>
+                    <button
+                      type="button"
+                      disabled={status.targetChanged}
+                      onClick={() => onDecision(status.sourceTransactionId, "update_target")}
+                      className={`rounded-field border px-3 py-2 text-button disabled:cursor-not-allowed disabled:opacity-40 ${chosen === "update_target" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
+                    >
+                      用来源更新目标
+                    </button>
+                    {status.targetChanged ? (
+                      <span className="self-center text-helper text-warning-dark">目标已变化，禁止直接覆盖</span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {status.status === "previously_skipped" ||
+                status.status === "previously_skipped_modified" ||
+                status.status === "needs_review" ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onDecision(status.sourceTransactionId, "skip")}
+                      className={`rounded-field border px-3 py-2 text-button ${chosen === "skip" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
+                    >
+                      保持跳过
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDecision(status.sourceTransactionId, "import")}
+                      className={`rounded-field border px-3 py-2 text-button ${chosen === "import" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
+                    >
+                      本次导入
+                    </button>
+                  </div>
+                ) : null}
+                {status.status === "target_changed" || status.status === "target_deleted" ? (
+                  <p className="text-helper-relaxed text-muted">
+                    为保护已有数据，本次只保留目标，不覆盖、不恢复、不删除；如果你需要处理，请先在目标账本中手动核对。
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 function ReviewStep({
@@ -1813,6 +2044,11 @@ function ConfirmStep({
         <div className="rounded-card border border-line bg-surface px-5 py-5">
           <p className="text-helper text-muted">导入完成</p>
           <h2 className="mt-1 text-page-title text-ink">已导入 {String(result.importedCount)} 笔</h2>
+          {result.updatedCount > 0 ? (
+            <p className="mt-1 text-helper-relaxed text-muted">
+              并按你的明确选择更新了 {String(result.updatedCount)} 笔已有目标账目。
+            </p>
+          ) : null}
           <p className="mt-2 text-body-relaxed text-muted">
             到「{result.targetBook.name}」{result.targetBook.bookNumber === null ? "" : ` · 编号 ${result.targetBook.bookNumber}`}
             {result.targetBook.created ? "（这次新建的账本）" : ""}
@@ -1838,6 +2074,12 @@ function ConfirmStep({
               <span className="text-muted">实际导入</span>
               <span className="text-ink">{String(result.importedCount)} 笔</span>
             </li>
+            {result.updatedCount > 0 ? (
+              <li className="flex justify-between gap-3">
+                <span className="text-muted">更新已有</span>
+                <span className="text-ink">{String(result.updatedCount)} 笔</span>
+              </li>
+            ) : null}
             <li className="flex justify-between gap-3">
               <span className="text-muted">跳过</span>
               <span className="text-ink">{String(result.skippedCount)} 笔</span>

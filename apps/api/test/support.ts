@@ -64,6 +64,7 @@ export async function resetDatabase(): Promise<void> {
 
   await prisma.transactionTag.deleteMany();
   await prisma.transaction.deleteMany();
+  await prisma.ledgerImportSourceState.deleteMany();
   await prisma.ledgerImportJob.deleteMany();
   await prisma.ledgerImport.deleteMany();
   await prisma.tag.deleteMany();

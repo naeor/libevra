@@ -51,9 +51,19 @@ export function buildImportPreview(
   source: ImportSource,
   target: ImportTarget,
   resolutions?: TaxonomyResolutionMap,
+  options?: {
+    readonly excludeDuplicateSourceIds?: ReadonlySet<string>;
+    readonly excludeDuplicateTargetIds?: ReadonlySet<string>;
+  },
 ): ImportPreview {
   const mapping = buildTaxonomyMappingPlan(source, target, resolutions);
-  const duplicates = detectDuplicateGroups(source, target, mapping);
+  const duplicates = detectDuplicateGroups(
+    source,
+    target,
+    mapping,
+    options?.excludeDuplicateSourceIds,
+    options?.excludeDuplicateTargetIds,
+  );
   const totals = buildTotals(source);
   const dateRange = dateRangeOf(source);
   const duplicateSourceCount = duplicates.duplicateSourceIds.size;

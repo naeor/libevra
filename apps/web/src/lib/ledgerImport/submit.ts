@@ -10,6 +10,7 @@ import {
   type DuplicateDecision,
   type GuestImportSource,
   type ImportTargetSnapshot,
+  type IncrementalDecision,
   type LedgerImportRequest,
   type TaxonomyResolution,
 } from "@libellum/shared";
@@ -25,8 +26,7 @@ import {
   type GroupDecisionMap,
 } from "./decisions.js";
 
-export function guestSourceOf(preview: ImportPreview): GuestImportSource {
-  const source = preview.source;
+export function guestSourceOfSource(source: ImportPreview["source"]): GuestImportSource {
   return {
     name: source.identity.name,
     categories: source.categories.map((item) => ({
@@ -59,6 +59,10 @@ export function guestSourceOf(preview: ImportPreview): GuestImportSource {
       tagIds: item.tags.map((tag) => tag.id),
     })),
   };
+}
+
+export function guestSourceOf(preview: ImportPreview): GuestImportSource {
+  return guestSourceOfSource(preview.source);
 }
 
 export function targetSnapshotOf(preview: ImportPreview): ImportTargetSnapshot {
@@ -139,6 +143,8 @@ export async function buildLedgerImportRequest(input: {
   /** D4：服务器预览返回的来源/目标指纹；正式来源必须使用服务器指纹。 */
   readonly serverSourceFingerprint?: string | undefined;
   readonly serverTargetFingerprint?: string | undefined;
+  /** D5 phase 2：用户在增量核对中显式选择的动作。 */
+  readonly incrementalDecisions?: readonly IncrementalDecision[];
 }): Promise<LedgerImportRequest> {
   const { preview, targetIsNew, resolutions, decisions } = input;
   const source = preview.source.kind === "guest" ? guestSourceOf(preview) : null;
@@ -187,6 +193,8 @@ export async function buildLedgerImportRequest(input: {
     };
   });
 
+  const incrementalDecisions = [...(input.incrementalDecisions ?? [])];
+
   if (preview.source.kind === "book") {
     if (targetIsNew) throw new Error("正式账本来源不能导入新账本。");
     if (input.serverTargetFingerprint === undefined) throw new Error("正式来源缺少目标指纹，请重新预览。");
@@ -201,6 +209,7 @@ export async function buildLedgerImportRequest(input: {
       sourceFingerprint,
       taxonomy,
       duplicateGroups,
+      incrementalDecisions,
     };
   }
 
@@ -214,6 +223,7 @@ export async function buildLedgerImportRequest(input: {
       sourceFingerprint,
       taxonomy,
       duplicateGroups: [],
+      incrementalDecisions: [],
     };
   }
 
@@ -229,6 +239,7 @@ export async function buildLedgerImportRequest(input: {
     sourceFingerprint,
     taxonomy,
     duplicateGroups,
+    incrementalDecisions,
   };
 }
 

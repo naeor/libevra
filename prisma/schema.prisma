@@ -1267,6 +1267,7 @@ model LedgerImportJob {
   totalBatches        Int      @map("total_batches")
   sourceCount         Int      @map("source_count")
   importedCount       Int      @default(0) @map("imported_count")
+  updatedCount        Int      @default(0) @map("updated_count")
   skippedCount        Int      @default(0) @map("skipped_count")
   removedCount        Int      @default(0) @map("removed_count")
   targetBaselineCount Int      @map("target_baseline_count")
@@ -1283,6 +1284,34 @@ model LedgerImportJob {
   @@index([userId, createdAt])
   @@index([status, updatedAt])
   @@map("ledger_import_jobs")
+}
+
+/// S14-D D5 阶段二：来源记录 × 目标账本的持久决策历史。
+///
+/// ⚠️ 无外键：账本生命周期变化后，历史决策仍需可解释；权限在读取时重新校验。
+/// `sourceBookKey` 对游客来源固定为 `guest`，对正式来源为来源书 uuid，避免 nullable
+/// 列在 PostgreSQL 唯一约束中不生效。
+model LedgerImportSourceState {
+  id                  String   @id @default(uuid()) @db.Uuid
+  targetBookId        String   @map("target_book_id") @db.Uuid
+  sourceKind          String   @map("source_kind") @db.VarChar(8)
+  sourceBookId        String?  @map("source_book_id") @db.Uuid
+  sourceBookKey       String   @map("source_book_key") @db.VarChar(64)
+  sourceTransactionId String   @map("source_transaction_id") @db.Uuid
+  /// 记录的 canonical 内容指纹；只存指纹，不复制整份来源快照。
+  sourceFingerprint   String   @map("source_fingerprint") @db.VarChar(64)
+  /// imported | skipped | kept_target | target_deleted
+  decision            String   @db.VarChar(16)
+  targetTransactionId String?  @map("target_transaction_id") @db.Uuid
+  /// 上次确认时目标行的 version，用于发现目标并发变化。
+  targetVersion       Int?     @map("target_version")
+  lastImportJobId     String?  @map("last_import_job_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([targetBookId, sourceBookKey, sourceTransactionId])
+  @@index([targetBookId, sourceKind, sourceBookKey])
+  @@map("ledger_import_source_states")
 }
 
 model ImportLog {
