@@ -489,17 +489,19 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
 
     // Tags the file mentions that do not exist yet are created, because a tag
     // carries no amount: getting it wrong changes nothing about the money.
-    for (const item of toInsert) {
-      for (const name of item.tagNames) {
-        if (tagIdByName.has(name)) continue;
-        const created = await prisma.tag.create({
-          data: { id: randomUUID(), bookId, name, color: "#55997a" },
-        });
-        tagIdByName.set(name, created.id);
-      }
-    }
-
+    // They are created inside the same transaction as the entries and the import log, so a
+    // failure (including a phase-4 ledger lock) rolls back every part of the CSV import.
     await prisma.$transaction(async (tx) => {
+      for (const item of toInsert) {
+        for (const name of item.tagNames) {
+          if (tagIdByName.has(name)) continue;
+          const created = await tx.tag.create({
+            data: { id: randomUUID(), bookId, name, color: "#55997a" },
+          });
+          tagIdByName.set(name, created.id);
+        }
+      }
+
       /**
        * ⚠️ **Imported entries get numbers too, and they get them here — from the server.**
        *
