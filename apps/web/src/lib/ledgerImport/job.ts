@@ -38,3 +38,27 @@ export async function cancelImportJob(jobId: string): Promise<ImportJobStatus> {
   });
   return importJobStatusSchema.parse(raw);
 }
+
+export async function confirmImportJob(jobId: string): Promise<ImportJobStatus> {
+  const raw = await apiFetch<unknown>(`/ledger-imports/jobs/${jobId}/confirm`, {
+    method: "POST",
+    timeoutMs: 15_000,
+  });
+  return importJobStatusSchema.parse(raw);
+}
+
+export async function undoImportJob(jobId: string): Promise<ImportJobStatus> {
+  const raw = await apiFetch<unknown>(`/ledger-imports/jobs/${jobId}/undo`, {
+    method: "POST",
+    timeoutMs: 15_000,
+  });
+  return importJobStatusSchema.parse(raw);
+}
+
+export async function refreshImportJobActivity(jobId: string): Promise<ImportJobStatus> {
+  const raw = await apiFetch<unknown>(`/ledger-imports/jobs/${jobId}/activity`, {
+    method: "POST",
+    timeoutMs: 15_000,
+  });
+  return importJobStatusSchema.parse(raw);
+}

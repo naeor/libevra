@@ -1270,6 +1270,14 @@ model LedgerImportJob {
   sourceBookId        String?  @map("source_book_id") @db.Uuid
   targetBookId        String   @map("target_book_id") @db.Uuid
   status              String   @db.VarChar(24)
+  /// 3 = legacy D5 phase 1–3 auto-complete; 4 = undoable confirmation flow.
+  phase               Int      @default(3)
+  timeoutSeconds      Int      @default(600) @map("timeout_seconds")
+  /// Last explicit user activity (resume/keep-waiting); polling never changes it.
+  activityAt          DateTime? @map("activity_at") @db.Timestamptz(6)
+  /// When awaiting_confirmation/paused must be auto-undone; null for legacy/terminal jobs.
+  confirmationDeadline DateTime? @map("confirmation_deadline") @db.Timestamptz(6)
+  undoAttempts        Int      @default(0) @map("undo_attempts")
   batchSize           Int      @map("batch_size")
   nextBatch           Int      @default(0) @map("next_batch")
   totalBatches        Int      @map("total_batches")
@@ -1292,6 +1300,51 @@ model LedgerImportJob {
   @@index([userId, createdAt])
   @@index([status, updatedAt])
   @@map("ledger_import_jobs")
+}
+
+/// Persistent business lock for one ledger, introduced by S14-D5 phase 4.
+/// A row exists from the first import batch until confirm/undo completes safely.
+model LedgerWriteLock {
+  id         String    @id @default(uuid()) @db.Uuid
+  bookId     String    @map("book_id") @db.Uuid
+  ownerKind  String    @map("owner_kind") @db.VarChar(16)
+  ownerId    String    @map("owner_id") @db.VarChar(64)
+  metadata   Json?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  releasedAt DateTime? @map("released_at") @db.Timestamptz(6)
+
+  @@index([bookId, releasedAt])
+  @@index([ownerId])
+  @@map("ledger_write_locks")
+}
+
+/// One inverse-operation journal per committed batch. Written in the same transaction as the
+/// batch itself, so a crash cannot leave business writes without an inverse description.
+model LedgerImportUndoBatch {
+  id         String    @id @default(uuid()) @db.Uuid
+  jobId      String    @map("job_id") @db.Uuid
+  batchIndex Int       @map("batch_index")
+  /// Array of inverse operations; contains before-values needed to restore A.
+  payload    Json
+  appliedAt  DateTime  @default(now()) @map("applied_at") @db.Timestamptz(6)
+  undoneAt   DateTime? @map("undone_at") @db.Timestamptz(6)
+
+  @@unique([jobId, batchIndex])
+  @@index([jobId, undoneAt])
+  @@map("ledger_import_undo_batches")
+}
+
+/// Minimal immutable audit trail for job state changes. No source snapshot content.
+model LedgerImportJobEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  jobId       String   @map("job_id") @db.Uuid
+  kind        String   @db.VarChar(32)
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  detail      Json?
+  at          DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([jobId, at])
+  @@map("ledger_import_job_events")
 }
 
 /// S14-D D5 阶段二：来源记录 × 目标账本的持久决策历史。

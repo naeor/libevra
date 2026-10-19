@@ -12,6 +12,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "../db.js";
 import { buildXlsx } from "../export/xlsx.js";
 import { badRequest } from "../lib/errors.js";
+import { assertBookReadableForExport } from "../ledger/ledgerLocks.js";
 import {
   countExportRows,
   iterateExportRows,
@@ -168,6 +169,7 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
   app.get("/api/v1/export", { preHandler: requireAuth }, async (request, reply) => {
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
+    await assertBookReadableForExport(prisma, bookId);
 
     const query = exportQuerySchema.parse(request.query ?? {});
     const exportRef = newExportRef();
@@ -289,6 +291,7 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
   app.post("/api/v1/export", { preHandler: requireAuth }, async (request, reply) => {
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
+    await assertBookReadableForExport(prisma, bookId);
 
     const query = exportQuerySchema.parse({
       ...(request.query as Record<string, unknown>),

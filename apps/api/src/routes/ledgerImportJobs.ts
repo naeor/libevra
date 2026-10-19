@@ -4,10 +4,13 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "../db.js";
 import {
   cancelImportJob,
+  confirmImportJob,
   createImportJob,
   getImportJob,
   prepareImportJobWorker,
+  refreshImportJobActivity,
   resumeImportJob,
+  undoImportJob,
 } from "../ledger/importJob.js";
 import { forbidden } from "../lib/errors.js";
 import { getFormalSourceDisposition } from "../ledger/importCleanup.js";
@@ -82,6 +85,39 @@ export function registerLedgerImportJobRoutes(
       if (userId === undefined) throw forbidden("auth_required", "请先登录。");
       const { jobId } = request.params as { jobId: string };
       return importJobStatusSchema.parse(await cancelImportJob(options.prisma, userId, jobId));
+    },
+  );
+
+  app.post(
+    "/api/v1/ledger-imports/jobs/:jobId/confirm",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const { jobId } = request.params as { jobId: string };
+      return importJobStatusSchema.parse(await confirmImportJob(options.prisma, userId, jobId));
+    },
+  );
+
+  app.post(
+    "/api/v1/ledger-imports/jobs/:jobId/undo",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const { jobId } = request.params as { jobId: string };
+      return importJobStatusSchema.parse(await undoImportJob(options.prisma, userId, jobId));
+    },
+  );
+
+  app.post(
+    "/api/v1/ledger-imports/jobs/:jobId/activity",
+    { preHandler: options.requireAuth },
+    async (request) => {
+      const userId = request.currentUser?.id;
+      if (userId === undefined) throw forbidden("auth_required", "请先登录。");
+      const { jobId } = request.params as { jobId: string };
+      return importJobStatusSchema.parse(await refreshImportJobActivity(options.prisma, userId, jobId));
     },
   );
 

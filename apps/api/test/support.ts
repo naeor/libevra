@@ -5,6 +5,7 @@ import { COUNTER_SEEDS } from "../src/auth/recovery-code.js";
 import { createPrismaClient } from "../src/db.js";
 import { MemoryCriticalRemote } from "../src/critical/remote.js";
 import { type CriticalRuntime } from "../src/critical/runtime.js";
+import type { Prisma } from "../src/generated/prisma/client.js";
 import { assertTestDatabase } from "./setup.js";
 
 /**
@@ -62,6 +63,9 @@ export function cookieFrom(headers: Record<string, unknown>): string {
 export async function resetDatabase(): Promise<void> {
   await assertTestDatabase((sql) => prisma.$queryRawUnsafe(sql));
 
+  await prisma.ledgerWriteLock.deleteMany();
+  await prisma.ledgerImportUndoBatch.deleteMany();
+  await prisma.ledgerImportJobEvent.deleteMany();
   await prisma.transactionTag.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.ledgerImportSourceState.deleteMany();
@@ -164,6 +168,26 @@ export interface LedgerMeta {
   }[];
   readonly paymentMethods: { id: string; name: string; isArchived: boolean }[];
   readonly tags: { id: string; name: string; color: string }[];
+}
+
+/**
+ * Test-only fault injection: run a mutation as the active import's lock owner.
+ *
+ * Real external writes are blocked by the phase-4 trigger. Tests that simulate "somebody changed
+ * the target while the import was paused" must therefore bypass the trigger the same way the
+ * import worker itself does; this helper exists only in test support, never application code.
+ */
+export async function asImportLockOwner<T>(
+  jobId: string,
+  run: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe(
+      "SELECT set_config('libevra.ledger_lock_owner', $1, true)",
+      `import:${jobId}`,
+    );
+    return run(tx);
+  });
 }
 
 export async function ledgerOf(app: FastifyInstance, cookie: string): Promise<LedgerMeta> {

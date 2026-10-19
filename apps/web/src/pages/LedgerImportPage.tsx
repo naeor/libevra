@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   ledgerImportResultSchema,
-  IMPORT_BATCH_THRESHOLD,
   type ImportJobStatus,
   type IncrementalDecisionAction,
   type IncrementalPreviewResponse,
@@ -38,7 +37,14 @@ import {
   summarizeDraftRecovery,
   type DraftRecoverySummary,
 } from "../lib/ledgerImport/recovery.js";
-import { cancelImportJob, createImportJob, getImportJob, resumeImportJob } from "../lib/ledgerImport/job.js";
+import {
+  confirmImportJob,
+  createImportJob,
+  getImportJob,
+  refreshImportJobActivity,
+  resumeImportJob,
+  undoImportJob,
+} from "../lib/ledgerImport/job.js";
 import {
   decisionsForRequest,
   incrementalExclusions,
@@ -175,6 +181,7 @@ export function LedgerImportPage(): React.JSX.Element {
   const [job, setJob] = useState<ImportJobStatus | null>(null);
   const [jobBusy, setJobBusy] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [confirmConfirmOpen, setConfirmConfirmOpen] = useState(false);
   const [incremental, setIncremental] = useState<IncrementalPreviewResponse | null>(null);
   const [incrementalBusy, setIncrementalBusy] = useState(false);
   const [incrementalError, setIncrementalError] = useState<string | null>(null);
@@ -209,14 +216,31 @@ export function LedgerImportPage(): React.JSX.Element {
         const next = await getImportJob(jobIdParam);
         if (cancelled) return;
         setJob(next);
-        if (next.status === "completed" && next.result !== null) {
+        if ((next.status === "confirmed" || next.status === "completed") && next.result !== null) {
           setResult(next.result);
           setSubmitState("success");
           setSubmitError(null);
           setStepConfirmFromJob();
           return;
         }
-        if (next.status === "paused") {
+        if (next.status === "awaiting_confirmation") {
+          setStepConfirmFromJob();
+          setSubmitState("paused");
+          setSubmitError(null);
+        } else if (next.status === "undoing" || next.status === "confirming") {
+          setStepConfirmFromJob();
+          setSubmitState("submitting");
+          setSubmitError(null);
+        } else if (next.status === "undone") {
+          setStepConfirmFromJob();
+          setSubmitState("error");
+          setSubmitError("导入已撤销；本次造成的账目、分类和来源状态已恢复。");
+          return;
+        } else if (next.status === "undo_failed") {
+          setSubmitState("error");
+          setSubmitError(next.lastErrorMessage ?? "撤销失败；账本仍保持锁定，可以重试撤销。");
+          return;
+        } else if (next.status === "paused") {
           setSubmitState("paused");
           setSubmitError(next.lastErrorMessage);
         } else if (next.status === "failed" || next.status === "cancelled" || next.status === "expired") {
@@ -699,8 +723,9 @@ export function LedgerImportPage(): React.JSX.Element {
     const importId = newId();
     const targetLabel = preview.target.identity.name;
     const sourceLabel = preview.source.identity.name;
+    let request: Awaited<ReturnType<typeof buildLedgerImportRequest>> | null = null;
     try {
-      const request = await buildLedgerImportRequest({
+      request = await buildLedgerImportRequest({
         importId,
         preview,
         targetIsNew,
@@ -717,11 +742,11 @@ export function LedgerImportPage(): React.JSX.Element {
        */
       const hasIncrementalHistory =
         incremental !== null && incremental.summary.newCount < preview.source.transactions.length;
-      if (preview.source.transactions.length > IMPORT_BATCH_THRESHOLD || hasIncrementalHistory) {
-        if (targetIsNew) {
-          throw new Error("大账本分批导入需要先创建目标账本；请先在账本空间新建目标后再导入。");
-        }
-        if (incrementalError !== null) {
+      // Phase 4: every import into an existing target uses the reversible job flow, even when it
+      // is below the old batch threshold. Creating a brand-new target remains a synchronous
+      // bootstrap path because there is no pre-existing ledger to lock.
+      if (!targetIsNew) {
+        if (incrementalError !== null && hasIncrementalHistory) {
           throw new Error("无法读取增量历史，暂不开始导入；请刷新后重试。");
         }
         const created = await createImportJob(request);
@@ -740,7 +765,49 @@ export function LedgerImportPage(): React.JSX.Element {
       });
       await runSubmit(request, { targetLabel, sourceLabel }, preview.source);
     } catch (caught) {
-      setSubmitError(errorMessage(caught));
+      const message = errorMessage(caught);
+      const code = caught instanceof ApiRequestError ? caught.code : "";
+      if (request === null) {
+        setSubmitError(message);
+        setSubmitState("error");
+        return;
+      }
+      /**
+       * The reversible job path can fail its creation-time fingerprint check before a job exists.
+       * Reuse the same D4 recovery as the direct path: reload the formal preview and restore all
+       * still-safe draft choices instead of leaving the user on a dead error page.
+       */
+      if (
+        (code === "source_changed" || code === "target_changed") &&
+        request.sourceBookId !== undefined
+      ) {
+        removePendingTask(request.importId);
+        setPendingTasks(user === null ? [] : loadPendingTasks().filter((item) => item.userId === user.id));
+        try {
+          const reloaded = await reloadFormalPreviewWithRecovery();
+          if (reloaded) return;
+        } catch (recoveryError) {
+          if (!mounted.current) return;
+          setSubmitError(errorMessage(recoveryError));
+          setSubmitState("error");
+          return;
+        }
+      }
+      if (
+        code === "source_changed" ||
+        code === "target_changed" ||
+        code === "already_imported" ||
+        code.startsWith("taxonomy_") ||
+        code.startsWith("decision_") ||
+        code === "duplicate_"
+      ) {
+        removePendingTask(request.importId);
+        setPendingTasks(user === null ? [] : loadPendingTasks().filter((item) => item.userId === user.id));
+        setSubmitError(message);
+        setSubmitState("error");
+        return;
+      }
+      setSubmitError(message);
       setSubmitState("error");
     }
   }
@@ -788,15 +855,44 @@ export function LedgerImportPage(): React.JSX.Element {
     }
   }
 
-  async function cancelJob(): Promise<void> {
+  async function confirmJob(): Promise<void> {
     if (job === null) return;
     setJobBusy(true);
     setSubmitError(null);
     try {
-      const next = await cancelImportJob(job.id);
+      const next = await confirmImportJob(job.id);
       setJob(next);
-      setSubmitState("idle");
-      setSubmitError("任务已取消；已经提交的批次保留，未提交的记录没有写入。");
+      setSubmitState("submitting");
+    } catch (caught) {
+      setSubmitError(errorMessage(caught));
+    } finally {
+      setJobBusy(false);
+    }
+  }
+
+  async function undoJob(): Promise<void> {
+    if (job === null) return;
+    setJobBusy(true);
+    setSubmitError(null);
+    try {
+      const next = await undoImportJob(job.id);
+      setJob(next);
+      setSubmitState("submitting");
+    } catch (caught) {
+      setSubmitError(errorMessage(caught));
+    } finally {
+      setJobBusy(false);
+    }
+  }
+
+  async function keepWaiting(): Promise<void> {
+    if (job === null) return;
+    setJobBusy(true);
+    setSubmitError(null);
+    try {
+      const next = await refreshImportJobActivity(job.id);
+      setJob(next);
+      setSubmitError("已延长等待时间；自动轮询不会延长期限。");
     } catch (caught) {
       setSubmitError(errorMessage(caught));
     } finally {
@@ -853,7 +949,9 @@ export function LedgerImportPage(): React.JSX.Element {
           job={job}
           busy={jobBusy}
           onResume={() => void resumeJob()}
-          onCancel={() => setCancelConfirmOpen(true)}
+          onConfirm={() => setConfirmConfirmOpen(true)}
+          onUndo={() => setCancelConfirmOpen(true)}
+          onKeepWaiting={() => void keepWaiting()}
           onRefresh={() => {
             if (jobIdParam !== "") {
               void getImportJob(jobIdParam)
@@ -1058,29 +1156,52 @@ export function LedgerImportPage(): React.JSX.Element {
 
       <ConfirmDialog
         open={cancelConfirmOpen}
-        title="取消这个导入任务？"
-        description="取消不是撤销已经提交的批次。"
+        title="撤销本次导入？"
+        description="撤销会恢复本次导入造成的业务变化，而不是只停止后续批次。"
         consequences={[
-          "已经提交的批次及其账目会保留，不会回滚",
-          "剩余未提交的记录不会继续写入",
-          "任务来源快照会被清理；之后无法继续该任务",
-          "不会把部分完成误报为整体成功，也不会删除已经导入的账目",
+          "本任务新增的目标账目会被移除，更新过的目标账目会恢复原值",
+          "本次写入的分类、标签、来源状态和回执会恢复到导入前状态",
+          "其他账本、其他设备的离线待同步数据不会被删除",
+          "撤销失败时账本保持锁定并显示失败，不会伪装成功或直接解锁",
+          "撤销完成后才能再次编辑这本账本",
         ]}
-        confirmLabel="取消任务（保留已提交部分）"
+        confirmLabel="确认安全撤销本次导入"
         busy={jobBusy}
         onCancel={() => {
           if (!jobBusy) setCancelConfirmOpen(false);
         }}
         onConfirm={() => {
           setCancelConfirmOpen(false);
-          void cancelJob();
+          void undoJob();
         }}
       >
         <p className="text-helper-relaxed text-muted">
           已提交 {String(job?.nextBatch ?? 0)} 批，新增 {String(job?.importedCount ?? 0)} 笔、更新{" "}
-          {String(job?.updatedCount ?? 0)} 笔；这些记录会保留。
+          {String(job?.updatedCount ?? 0)} 笔；这些变化都会被精确恢复。
         </p>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmConfirmOpen}
+        title="确认完成这次导入？"
+        description="确认后本次导入进入正式状态，不能再撤销。"
+        consequences={[
+          "服务器会完成最终对账并写入正式导入回执",
+          "目标 A 的最终移除操作会在确认事务中执行",
+          "账本业务锁会在确认成功后释放",
+          "只有确认完成后才开放来源清理或正式来源处置",
+          "确认失败会回到等待确认并保留锁，不会释放账本",
+        ]}
+        confirmLabel="确认完成"
+        busy={jobBusy}
+        onCancel={() => {
+          if (!jobBusy) setConfirmConfirmOpen(false);
+        }}
+        onConfirm={() => {
+          setConfirmConfirmOpen(false);
+          void confirmJob();
+        }}
+      />
     </InnerPage>
   );
 }
@@ -1114,38 +1235,58 @@ function BatchJobPanel({
   job,
   busy,
   onResume,
-  onCancel,
+  onConfirm,
+  onUndo,
+  onKeepWaiting,
   onRefresh,
 }: {
   readonly job: ImportJobStatus;
   readonly busy: boolean;
   readonly onResume: () => void;
-  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+  readonly onUndo: () => void;
+  readonly onKeepWaiting: () => void;
   readonly onRefresh: () => void;
 }): React.JSX.Element {
   const labels: Record<ImportJobStatus["status"], string> = {
     queued: "排队中",
     running: "正在导入",
     finalizing: "最终对账中",
+    awaiting_confirmation: "批次已完成，等待最终确认",
+    confirming: "正在最终确认",
+    confirmed: "已确认完成",
+    undoing: "正在安全撤销",
+    undone: "已撤销",
+    undo_failed: "撤销失败，账本保持锁定",
     paused: "已暂停",
     failed: "需要处理",
-    completed: "已完成",
-    cancelled: "已取消",
+    completed: "已完成（旧版）",
+    cancelled: "已取消（旧版）",
     expired: "已过期，来源快照已清理",
   };
+  const [now, setNow] = useState(Date.now());
+  const deadline = job.confirmationDeadline === null ? null : Date.parse(job.confirmationDeadline);
+  useEffect(() => {
+    if (deadline === null || job.status !== "awaiting_confirmation") return;
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [deadline, job.status]);
+  const remainingSeconds =
+    deadline === null ? null : Math.max(0, Math.ceil((deadline - now) / 1_000));
   const percent =
     job.totalBatches === 0
       ? 100
       : Math.min(100, Math.round((job.nextBatch / job.totalBatches) * 100));
   const canResume = job.status === "paused" || job.status === "failed";
-  const canCancel =
-    job.status === "queued" || job.status === "running" || job.status === "paused" || job.status === "finalizing";
+  const canUndo = job.canUndo;
+  const canConfirm = job.canConfirm;
+  const waiting = job.status === "awaiting_confirmation" || job.status === "paused";
   return (
     <section data-testid="import-job-progress" className="flex flex-col gap-4">
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-helper text-muted">分批导入任务</p>
+            <p className="text-helper text-muted">可撤销导入任务</p>
             <p className="mt-1 text-body font-medium text-ink">{labels[job.status]}</p>
           </div>
           <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
@@ -1161,11 +1302,35 @@ function BatchJobPanel({
           <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${String(percent)}%` }} />
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
-          进度来自服务器已提交的批次；关闭页面不会中断任务。来源账本数据会保留，最终对账完成前不会显示整体成功。
+          在最终确认前，这本账本处于服务端业务锁中，其他设备的写入会被拒绝；撤销会恢复本次已提交的业务变化，而不是只停止后续批次。
         </p>
+        {job.status === "awaiting_confirmation" ? (
+          <p
+            className={`mt-2 text-helper-relaxed ${remainingSeconds !== null && remainingSeconds <= 60 ? "text-warning-dark" : "text-muted"}`}
+          >
+            {remainingSeconds === null
+              ? "等待确认。"
+              : `请在 ${String(Math.floor(remainingSeconds / 60))} 分 ${String(remainingSeconds % 60)} 秒内确认或撤销；超时将自动安全撤销。`}
+          </p>
+        ) : null}
+        {job.status === "paused" && remainingSeconds !== null ? (
+          <p className="mt-2 text-helper-relaxed text-warning-dark">
+            暂停中，超时后会自动安全撤销（约剩 {String(remainingSeconds)} 秒）。可以先继续任务。
+          </p>
+        ) : null}
         {job.nextBatch > 0 && (job.status === "paused" || job.status === "failed") ? (
           <p className="mt-2 text-helper-relaxed text-muted">
-            已提交的 {String(job.nextBatch)} 个批次会保留，不会整体回滚；A 记录的最终删除尚未执行。
+            已提交的 {String(job.nextBatch)} 个批次可以完整撤销；撤销前不会释放账本锁。
+          </p>
+        ) : null}
+        {job.status === "undo_failed" ? (
+          <p className="mt-2 text-helper-relaxed text-warning-dark">
+            撤销未完成，账本仍保持锁定；请重试撤销。系统不会把失败显示为成功，也不会直接解锁。
+          </p>
+        ) : null}
+        {job.status === "undone" ? (
+          <p className="mt-2 text-helper-relaxed text-muted">
+            本次导入造成的新增、更新和来源状态已恢复；账本锁已释放。
           </p>
         ) : null}
         {job.lastErrorMessage === null ? null : <Alert>{job.lastErrorMessage}</Alert>}
@@ -1177,6 +1342,16 @@ function BatchJobPanel({
           >
             刷新进度
           </button>
+          {waiting ? (
+            <button
+              type="button"
+              onClick={onKeepWaiting}
+              disabled={busy}
+              className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
+            >
+              我还在，延长等待
+            </button>
+          ) : null}
           {canResume ? (
             <button
               type="button"
@@ -1187,20 +1362,30 @@ function BatchJobPanel({
               {busy ? "正在恢复…" : "继续任务"}
             </button>
           ) : null}
-          {canCancel ? (
+          {canConfirm ? (
             <button
               type="button"
-              onClick={onCancel}
+              onClick={onConfirm}
+              disabled={busy}
+              className="rounded-field bg-brand px-3 py-2 text-button text-white disabled:opacity-50"
+            >
+              确认完成
+            </button>
+          ) : null}
+          {canUndo ? (
+            <button
+              type="button"
+              onClick={onUndo}
               disabled={busy}
               className="rounded-field border border-danger/40 px-3 py-2 text-button text-danger-dark disabled:opacity-50"
             >
-              取消任务
+              {job.status === "undo_failed" ? "重试撤销" : "撤销本次导入"}
             </button>
           ) : null}
         </div>
         {job.status === "expired" ? (
           <p className="mt-2 text-helper-relaxed text-muted">
-            暂停超过恢复期限，未提交部分的游客来源快照已清理，无法继续此任务；已经导入的账目仍保留，需要时可重新预览并新建任务。
+            旧版任务暂停超过恢复期限，来源快照已清理；已经导入的账目仍保留。
           </p>
         ) : null}
       </div>

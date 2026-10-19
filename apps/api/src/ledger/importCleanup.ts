@@ -151,7 +151,7 @@ export async function getFormalSourceDisposition(
   if (job.sourceKind !== "book" || job.sourceBookId === null) {
     throw badRequest("formal_source_required", "只有正式账本来源才有来源账本处置信息。");
   }
-  if (job.status !== "completed") {
+  if (job.status !== "completed" && job.status !== "confirmed") {
     throw conflict("import_job_not_completed", "只有已完成的导入任务才能查看来源账本处置信息。");
   }
   const source = await loadSoloImportBook(prisma, userId, job.sourceBookId, "来源");

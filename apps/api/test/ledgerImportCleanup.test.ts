@@ -324,7 +324,7 @@ describe("source cleanup, disposition and job lifecycle (D5 phase 3)", () => {
     ).toBeNull();
   }, 40_000);
 
-  it("cancels a partially committed job, preserves its batches, and purges its source payload", async () => {
+  it("cancels a phase-4 job through the safe undo path and removes its committed batch", async () => {
     const owner = await account("p3_cancel");
     const category = await categoryOf(owner.cookie, owner.bookId);
     const sourceCategoryId = randomUUID();
@@ -352,7 +352,20 @@ describe("source cleanup, disposition and job lifecycle (D5 phase 3)", () => {
       headers: { cookie: owner.cookie },
     });
     expect(cancel.statusCode).toBe(200);
-    expect(cancel.json()).toMatchObject({ status: "cancelled", importedCount: 1 });
+    const deadline = Date.now() + 15_000;
+    let status = "";
+    for (;;) {
+      const current = await app.inject({
+        method: "GET",
+        url: `/api/v1/ledger-imports/jobs/${created.id}`,
+        headers: { cookie: owner.cookie },
+      });
+      status = (current.json() as { status: string }).status;
+      if (status === "undone" || status === "undo_failed") break;
+      if (Date.now() > deadline) throw new Error(`undo timeout: ${status}`);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    expect(status).toBe("undone");
     const row = await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id } });
     expect((row.payload as { source?: unknown }).source).toBeNull();
     const resume = await app.inject({
@@ -360,8 +373,9 @@ describe("source cleanup, disposition and job lifecycle (D5 phase 3)", () => {
       url: `/api/v1/ledger-imports/jobs/${created.id}/resume`,
       headers: { cookie: owner.cookie },
     });
-    expect(resume.statusCode).toBe(400);
-    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(1);
+    expect(resume.statusCode).toBe(200);
+    expect(resume.json()).toMatchObject({ status: "undone" });
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
   }, 40_000);
 
   it("expires stale paused jobs without touching committed records", async () => {
@@ -383,7 +397,7 @@ describe("source cleanup, disposition and job lifecycle (D5 phase 3)", () => {
     const created = await createImportJob(prisma, owner.userId, request, { startImmediately: false });
     await prisma.ledgerImportJob.update({
       where: { id: created.id },
-      data: { status: "paused", updatedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
+      data: { status: "paused", phase: 3, updatedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
     });
     const expired = await expireStaleImportJobs(prisma, new Date(), 7);
     expect(expired).toBeGreaterThanOrEqual(1);

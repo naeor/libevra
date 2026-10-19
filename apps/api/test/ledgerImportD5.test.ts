@@ -16,7 +16,7 @@ import {
   processImportJob,
   runImportJobBatchForTest,
 } from "../src/ledger/importJob.js";
-import { makeApp, prisma, resetDatabase, signUp } from "./support.js";
+import { asImportLockOwner, makeApp, prisma, resetDatabase, signUp } from "./support.js";
 
 describe("batched ledger import (D5 phase 1)", () => {
   let app: FastifyInstance;
@@ -57,8 +57,18 @@ describe("batched ledger import (D5 phase 1)", () => {
         result: unknown;
         lastErrorMessage: string | null;
       };
-      if (job.status === "completed") return job;
-      if (job.status === "failed" || job.status === "paused") {
+      if (job.status === "awaiting_confirmation") {
+        const confirm = await app.inject({
+          method: "POST",
+          url: `/api/v1/ledger-imports/jobs/${jobId}/confirm`,
+          headers: { cookie },
+        });
+        expect(confirm.statusCode).toBe(200);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        continue;
+      }
+      if (job.status === "confirmed" || job.status === "completed") return job;
+      if (job.status === "failed" || job.status === "paused" || job.status === "undo_failed") {
         throw new Error(`job stopped: ${job.status} ${job.lastErrorMessage ?? ""}`);
       }
       if (Date.now() > deadline) throw new Error("job timeout");
@@ -397,7 +407,7 @@ describe("batched ledger import (D5 phase 1)", () => {
     expect(receipt.result).toMatchObject({ sourceBookId, importedCount: 5, reconciled: true });
   }, 40_000);
 
-  it("pauses after committed batches when the target changes concurrently", async () => {
+  it("refuses a concurrent target write after committed batches and still finishes safely", async () => {
     const owner = await account("d5_fault_target");
     const ledgerResponse = await app.inject({
       method: "GET",
@@ -474,23 +484,15 @@ describe("batched ledger import (D5 phase 1)", () => {
         tagIds: [],
       },
     });
-    expect(concurrent.statusCode).toBe(201);
+    expect(concurrent.statusCode).toBe(409);
+    expect(concurrent.json()).toMatchObject({ code: "ledger_locked" });
 
     await processImportJob(prisma, created.id);
-    const paused = await app.inject({
-      method: "GET",
-      url: `/api/v1/ledger-imports/jobs/${created.id}`,
-      headers: { cookie: owner.cookie },
-    });
-    expect(paused.statusCode).toBe(200);
-    expect(paused.json()).toMatchObject({
-      status: "paused",
-      lastErrorCode: "target_changed",
-      importedCount: 2,
-      nextBatch: 1,
-    });
-    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(3);
-    expect(await prisma.ledgerImport.findUnique({ where: { id: created.id } })).toBeNull();
+    const done = await waitJob(owner.cookie, created.id);
+    expect(done.status).toBe("confirmed");
+    expect(done.importedCount).toBe(5);
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(5);
+    expect(await prisma.ledgerImport.findUnique({ where: { id: created.id } })).not.toBeNull();
   }, 30_000);
 
   it("fails the final A deletion safely when an A row changed, then retries after reconciliation", async () => {
@@ -577,26 +579,28 @@ describe("batched ledger import (D5 phase 1)", () => {
     expect(afterBatch.importedCount).toBe(3);
 
     // Simulate another device changing/restoring the A row version between batches and finalization.
-    await prisma.transaction.update({
-      where: { id: targetRow.id },
-      data: { version: targetRow.version + 1 },
-    });
+    // A real device is refused by the phase-4 lock; this test intentionally bypasses it as the
+    // import owner to exercise the reconciliation path underneath the lock.
+    await asImportLockOwner(created.id, (tx) =>
+      tx.transaction.update({
+        where: { id: targetRow.id },
+        data: { version: targetRow.version + 1 },
+      }),
+    );
     await expect(finalizeImportJobForTest(prisma, created.id)).rejects.toThrow();
     expect(await prisma.transaction.findUnique({ where: { id: targetRow.id }, select: { deletedAt: true } })).toMatchObject({ deletedAt: null });
     expect(await prisma.ledgerImport.findUnique({ where: { id: created.id } })).toBeNull();
 
-    await prisma.transaction.update({
-      where: { id: targetRow.id },
-      data: { version: targetRow.version },
-    });
+    await asImportLockOwner(created.id, (tx) =>
+      tx.transaction.update({
+        where: { id: targetRow.id },
+        data: { version: targetRow.version },
+      }),
+    );
     await finalizeImportJobForTest(prisma, created.id);
-    const completed = await app.inject({
-      method: "GET",
-      url: `/api/v1/ledger-imports/jobs/${created.id}`,
-      headers: { cookie: owner.cookie },
-    });
-    expect(completed.json()).toMatchObject({
-      status: "completed",
+    const done = await waitJob(owner.cookie, created.id);
+    expect(done).toMatchObject({
+      status: "confirmed",
       importedCount: 3,
       removedCount: 1,
       result: { importedCount: 3, removedCount: 1, reconciled: true },
@@ -719,16 +723,24 @@ describe("batched ledger import (D5 phase 1)", () => {
       duplicateGroups: [],
     });
     const created = await createImportJob(prisma, owner.userId, request, { startImmediately: false });
-    await prisma.book.update({ where: { id: owner.bookId }, data: { archivedAt: new Date() } });
+    // Phase 4 is stronger than merely re-checking lifecycle at the next batch: the target is
+    // business-locked, so archiving it through the normal lifecycle route is refused.
+    const archive = await app.inject({
+      method: "POST",
+      url: `/api/v1/books/${owner.bookId}/lifecycle`,
+      headers: { cookie: owner.cookie },
+      payload: { action: "archive" },
+    });
+    expect(archive.statusCode, archive.body).toBe(409);
+    expect(archive.json()).toMatchObject({ code: "ledger_locked" });
     await processImportJob(prisma, created.id);
-    const status = await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id } });
-    expect(status.status).toBe("paused");
-    expect(status.lastErrorCode).toBe("book_archived");
-    expect(status.importedCount).toBe(0);
-    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(0);
+    const done = await waitJob(owner.cookie, created.id);
+    expect(done.status).toBe("confirmed");
+    expect(done.importedCount).toBeGreaterThan(0);
+    expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(done.importedCount);
   }, 30_000);
 
-  it("resumes a paused partial job without duplicating already committed batches", async () => {
+  it("blocks concurrent target writes while a partial job holds the business lock", async () => {
     const owner = await account("d5_resume_partial");
     const ledgerResponse = await app.inject({
       method: "GET",
@@ -803,26 +815,9 @@ describe("batched ledger import (D5 phase 1)", () => {
         tagIds: [],
       },
     });
-    expect(concurrent.statusCode).toBe(201);
+    expect(concurrent.statusCode).toBe(409);
+    expect(concurrent.json()).toMatchObject({ code: "ledger_locked" });
     await processImportJob(prisma, created.id);
-    expect(await prisma.ledgerImportJob.findUniqueOrThrow({ where: { id: created.id }, select: { status: true } })).toMatchObject({ status: "paused" });
-
-    // The test removes its own concurrent target row again; this restores the live target
-    // fingerprint while the already committed batches stay untouched.
-    await prisma.transaction.update({
-      where: { id: (concurrent.json() as { id: string }).id },
-      data: { deletedAt: new Date(), version: 2 },
-    });
-    await prisma.ledgerImportJob.update({
-      where: { id: created.id },
-      data: { status: "queued", lastErrorCode: null, lastErrorMessage: null },
-    });
-    const resumed = await app.inject({
-      method: "POST",
-      url: `/api/v1/ledger-imports/jobs/${created.id}/resume`,
-      headers: { cookie: owner.cookie },
-    });
-    expect(resumed.statusCode).toBe(200);
     const done = await waitJob(owner.cookie, created.id);
     expect(done.importedCount).toBe(5);
     expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(5);

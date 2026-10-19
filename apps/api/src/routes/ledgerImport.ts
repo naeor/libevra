@@ -53,6 +53,12 @@ export interface ResolvedTaxonomy {
     readonly paymentMethods: number;
     readonly tags: number;
   };
+  /** D5 phase 4: ids created by this job, needed for exact undo. */
+  readonly createdIds: {
+    readonly categories: readonly string[];
+    readonly paymentMethods: readonly string[];
+    readonly tags: readonly string[];
+  };
   readonly reused: {
     readonly categories: number;
     readonly paymentMethods: number;
@@ -165,6 +171,7 @@ export async function resolveTaxonomy(
   const paymentMethodIds = new Map<string, string>();
   const tagIds = new Map<string, string>();
   const created = { categories: 0, paymentMethods: 0, tags: 0 };
+  const createdIds = { categories: [] as string[], paymentMethods: [] as string[], tags: [] as string[] };
   const reused = { categories: 0, paymentMethods: 0, tags: 0 };
 
   const categories = new Map(target.categories.map((item) => [item.id, item]));
@@ -242,6 +249,7 @@ export async function resolveTaxonomy(
     categoryByName.set(`${category.kind}\u0000${normalizeName(name)}`, categories.get(createdCategory.id)!);
     categoryIds.set(category.id, createdCategory.id);
     created.categories += 1;
+    createdIds.categories.push(createdCategory.id);
   }
 
   for (const payment of source.paymentMethods) {
@@ -285,6 +293,7 @@ export async function resolveTaxonomy(
     paymentNames.add(normalizeName(name));
     paymentMethodIds.set(payment.id, createdPayment.id);
     created.paymentMethods += 1;
+    createdIds.paymentMethods.push(createdPayment.id);
   }
 
   for (const tag of source.tags) {
@@ -321,9 +330,10 @@ export async function resolveTaxonomy(
     tagNames.add(normalizeName(name));
     tagIds.set(tag.id, createdTag.id);
     created.tags += 1;
+    createdIds.tags.push(createdTag.id);
   }
 
-  return { categoryIds, paymentMethodIds, tagIds, created, reused };
+  return { categoryIds, paymentMethodIds, tagIds, created, createdIds, reused };
 }
 
 export function buildTotals(rows: readonly { kind: "expense" | "income"; amountCents: number; currency: string }[]): LedgerImportResult["totals"] {

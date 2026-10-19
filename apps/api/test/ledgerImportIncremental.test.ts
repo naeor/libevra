@@ -152,8 +152,18 @@ describe("incremental ledger import (D5 phase 2)", () => {
         result: unknown;
         lastErrorMessage: string | null;
       };
-      if (job.status === "completed") return job;
-      if (job.status === "failed" || job.status === "paused") {
+      if (job.status === "awaiting_confirmation") {
+        const confirm = await app.inject({
+          method: "POST",
+          url: `/api/v1/ledger-imports/jobs/${jobId}/confirm`,
+          headers: { cookie },
+        });
+        expect(confirm.statusCode).toBe(200);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        continue;
+      }
+      if (job.status === "confirmed" || job.status === "completed") return job;
+      if (job.status === "failed" || job.status === "paused" || job.status === "undo_failed") {
         throw new Error(`job stopped: ${job.status} ${job.lastErrorMessage ?? ""}`);
       }
       if (Date.now() > deadline) throw new Error("job timeout");
@@ -233,7 +243,7 @@ describe("incremental ledger import (D5 phase 2)", () => {
       ],
     );
     const done = await waitJob(owner.cookie, job.id);
-    expect(done).toMatchObject({ importedCount: 1, updatedCount: 1, status: "completed" });
+    expect(done).toMatchObject({ importedCount: 1, updatedCount: 1, status: "confirmed" });
     const updatedTarget = await prisma.transaction.findFirstOrThrow({
       where: { bookId: owner.bookId, note: "来源已修改", deletedAt: null },
       select: { amountCents: true, version: true },
@@ -522,7 +532,7 @@ describe("incremental ledger import (D5 phase 2)", () => {
     expect(response.statusCode).toBe(202);
     const job = response.json() as { id: string };
     const done = await waitJob(owner.cookie, job.id);
-    expect(done).toMatchObject({ importedCount: 0, updatedCount: 0, status: "completed" });
+    expect(done).toMatchObject({ importedCount: 0, updatedCount: 0, status: "confirmed" });
     const row = await prisma.transaction.findUniqueOrThrow({
       where: { id: targetId },
       select: { amountCents: true, sourceNamespace: true, version: true },

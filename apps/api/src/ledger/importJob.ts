@@ -15,11 +15,26 @@ import {
 } from "@libellum/shared";
 
 import type { PrismaClient } from "../db.js";
-import type { Prisma } from "../generated/prisma/client.js";
+import { Prisma } from "../generated/prisma/client.js";
 import { allocateTransactionSeq } from "./transactionSeq.js";
 import { diffEntry, recordEvent } from "./events.js";
-import { analyzeIncremental, resolveIncrementalPlan, sourceNamespaceOf, writeSourceState, type IncrementalOperation } from "./importIncremental.js";
+import { analyzeIncremental, resolveIncrementalPlan, sourceBookKeyOf, sourceNamespaceOf, writeSourceState, type IncrementalOperation } from "./importIncremental.js";
 import { loadFormalImportPair, loadSoloImportBook, lockFormalImportPair, lockSoloImportTarget } from "./importSolo.js";
+import {
+  acquireLedgerLocks,
+  assertJobLocks,
+  confirmTimeoutSeconds,
+  releaseJobLocks,
+  setLedgerLockOwner,
+} from "./ledgerLocks.js";
+import {
+  applyUndoOps,
+  getSourceStateBefore,
+  readTransactionBefore,
+  readUndoBatch,
+  writeUndoBatch,
+  type UndoOp,
+} from "./importUndo.js";
 import { loadTargetSnapshot } from "./importTarget.js";
 import {
   assertSourceIsSelfConsistent,
@@ -39,6 +54,11 @@ interface StoredTaxonomy {
   readonly paymentMethodIds: Record<string, string>;
   readonly tagIds: Record<string, string>;
   readonly created: { categories: number; paymentMethods: number; tags: number };
+  readonly createdIds?: {
+    readonly categories: readonly string[];
+    readonly paymentMethods: readonly string[];
+    readonly tags: readonly string[];
+  };
   readonly reused: { categories: number; paymentMethods: number; tags: number };
 }
 
@@ -76,6 +96,7 @@ function toStoredTaxonomy(resolved: ResolvedTaxonomy): StoredTaxonomy {
     paymentMethodIds: Object.fromEntries(resolved.paymentMethodIds),
     tagIds: Object.fromEntries(resolved.tagIds),
     created: resolved.created,
+    createdIds: resolved.createdIds,
     reused: resolved.reused,
   };
 }
@@ -86,6 +107,7 @@ function fromStoredTaxonomy(stored: StoredTaxonomy): ResolvedTaxonomy {
     paymentMethodIds: new Map(Object.entries(stored.paymentMethodIds)),
     tagIds: new Map(Object.entries(stored.tagIds)),
     created: stored.created,
+    createdIds: stored.createdIds ?? { categories: [], paymentMethods: [], tags: [] },
     reused: stored.reused,
   };
 }
@@ -148,12 +170,44 @@ function readPayload(job: { payload: unknown }): JobPayload {
   return job.payload as JobPayload;
 }
 
+async function recordJobEvent(
+  tx: Tx,
+  input: {
+    readonly jobId: string;
+    readonly kind: string;
+    readonly actorUserId: string | null;
+    readonly detail?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await tx.ledgerImportJobEvent.create({
+    data: {
+      jobId: input.jobId,
+      kind: input.kind,
+      actorUserId: input.actorUserId,
+      detail: (input.detail ?? {}) as unknown as Prisma.InputJsonValue,
+    },
+  });
+}
+
 async function jobStatus(prisma: PrismaClient, jobId: string): Promise<ImportJobStatus | null> {
   const job = await prisma.ledgerImportJob.findUnique({ where: { id: jobId } });
   if (job === null) return null;
   return {
     id: job.id,
     status: job.status as ImportJobStatus["status"],
+    phase: job.phase,
+    timeoutSeconds: job.timeoutSeconds,
+    activityAt: job.activityAt?.toISOString() ?? null,
+    confirmationDeadline: job.confirmationDeadline?.toISOString() ?? null,
+    undoAttempts: job.undoAttempts,
+    canConfirm: job.status === "awaiting_confirmation",
+    canUndo:
+      job.phase >= 4 &&
+      (job.status === "queued" ||
+        job.status === "running" ||
+        job.status === "paused" ||
+        job.status === "awaiting_confirmation" ||
+        job.status === "undo_failed"),
     sourceKind: job.sourceKind as "guest" | "book",
     sourceBookId: job.sourceBookId,
     targetBookId: job.targetBookId,
@@ -196,11 +250,12 @@ export async function createImportJob(
   prisma: PrismaClient,
   userId: string,
   body: ImportJobRequest,
-  options?: { readonly startImmediately?: boolean },
+  options?: { readonly startImmediately?: boolean; readonly timeoutSeconds?: number },
 ): Promise<ImportJobStatus> {
   if (body.target.kind !== "existing") {
     throw badRequest("batch_target_required", "分批导入只能导入现有正式账本；请先创建目标账本。");
   }
+  const targetBookId = body.target.bookId;
 
   const existing = await prisma.ledgerImportJob.findUnique({ where: { id: body.importId } });
   if (existing !== null) {
@@ -221,7 +276,18 @@ export async function createImportJob(
       sourceKind: body.sourceBookId === undefined ? "guest" : "book",
       sourceBookId: body.sourceBookId ?? null,
       sourceFingerprint: body.sourceFingerprint,
-      status: { in: ["queued", "running", "paused", "finalizing"] },
+      status: {
+        in: [
+          "queued",
+          "running",
+          "paused",
+          "finalizing",
+          "awaiting_confirmation",
+          "confirming",
+          "undoing",
+          "undo_failed",
+        ],
+      },
     },
     orderBy: { createdAt: "desc" },
     select: { id: true },
@@ -313,29 +379,46 @@ export async function createImportJob(
     taxonomyResolved: null,
   };
 
-  await prisma.ledgerImportJob.create({
-    data: {
-      id: body.importId,
-      userId,
-      sourceKind: sourceBookId === null ? "guest" : "book",
-      sourceBookId,
-      targetBookId: body.target.bookId,
-      status: "queued",
-      batchSize,
-      nextBatch: 0,
-      totalBatches,
-      sourceCount: source.transactions.length,
-      importedCount: 0,
-      updatedCount: 0,
-      skippedCount: incremental.skippedIds.size,
-      removedCount: 0,
-      targetBaselineCount: targetSnapshot.transactions.length,
-      targetExpectedCount: targetSnapshot.transactions.length + incremental.createdIds.size,
-      sourceFingerprint,
-      targetFingerprint,
-      payload: payload as unknown as Prisma.InputJsonValue,
+  const timeoutSeconds = options?.timeoutSeconds ?? confirmTimeoutSeconds();
+  const lockedBooks = sourceBookId === null ? [body.target.bookId] : [body.target.bookId, sourceBookId];
+  await prisma.$transaction(
+    async (tx) => {
+      await acquireLedgerLocks(tx, body.importId, lockedBooks);
+      await tx.ledgerImportJob.create({
+        data: {
+          id: body.importId,
+          userId,
+          sourceKind: sourceBookId === null ? "guest" : "book",
+          sourceBookId,
+          targetBookId,
+          status: "queued",
+          phase: 4,
+          timeoutSeconds,
+          activityAt: new Date(),
+          batchSize,
+          nextBatch: 0,
+          totalBatches,
+          sourceCount: source.transactions.length,
+          importedCount: 0,
+          updatedCount: 0,
+          skippedCount: incremental.skippedIds.size,
+          removedCount: 0,
+          targetBaselineCount: targetSnapshot.transactions.length,
+          targetExpectedCount: targetSnapshot.transactions.length + incremental.createdIds.size,
+          sourceFingerprint,
+          targetFingerprint,
+          payload: payload as unknown as Prisma.InputJsonValue,
+        },
+      });
+      await recordJobEvent(tx, {
+        jobId: body.importId,
+        kind: "queued",
+        actorUserId: userId,
+        detail: { sourceKind: sourceBookId === null ? "guest" : "book", timeoutSeconds },
+      });
     },
-  });
+    { maxWait: 10_000, timeout: 60_000 },
+  );
 
   if (options?.startImmediately === false) {
     // test-only control: caller will drive batches itself to inject failures.
@@ -354,9 +437,18 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
       const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
       if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
       if (job.status !== "queued" && job.status !== "running") return;
+      await assertJobUserActive(tx, job.userId);
+      if (job.phase >= 4) {
+        await setLedgerLockOwner(tx, jobId);
+        await assertJobLocks(
+          tx,
+          jobId,
+          job.sourceBookId === null ? [job.targetBookId] : [job.targetBookId, job.sourceBookId],
+        );
+      }
       const payload = readPayload(job);
       if (job.nextBatch >= job.totalBatches) return;
-      await assertJobUserActive(tx, job.userId);
+      const undoOps: UndoOp[] = [];
 
       let targetSnapshot: ImportTargetSnapshot;
       if (job.sourceKind === "book") {
@@ -385,6 +477,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
       const guestBookId = source.guestBookId ?? null;
       const sourceNamespace = sourceNamespaceOf(job.sourceBookId, guestBookId);
       let taxonomy = payload.taxonomyResolved === null ? null : fromStoredTaxonomy(payload.taxonomyResolved);
+      const newlyCreatedTaxonomy = payload.taxonomyResolved === null;
       if (taxonomy === null) {
         taxonomy = await resolveTaxonomy(tx, job.targetBookId, source, targetSnapshot, payload.taxonomy, false);
       }
@@ -435,6 +528,13 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
         const tagIds = item.tagIds
           .map((sourceTagId) => taxonomy.tagIds.get(sourceTagId))
           .filter((tagId): tagId is string => tagId !== undefined);
+        const sourceStateKey = sourceBookKeyOf(job.sourceBookId, guestBookId);
+        const sourceStateBefore = await getSourceStateBefore(
+          tx,
+          job.targetBookId,
+          sourceStateKey,
+          item.id,
+        );
 
         if (operation.action === "create") {
           const seq = await allocateTransactionSeq(tx, job.targetBookId);
@@ -462,6 +562,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             },
           });
           imported.push({ sourceTransactionId: item.id, targetTransactionId, targetSeq: seq });
+          undoOps.push({ kind: "delete_created_transaction", transactionId: targetTransactionId });
           await writeSourceState(tx, {
             targetBookId: job.targetBookId,
             sourceKind: job.sourceKind as "guest" | "book",
@@ -471,6 +572,13 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             targetTransactionId,
             targetVersion: 1,
             jobId: jobId,
+          });
+          undoOps.push({
+            kind: "restore_source_state",
+            targetBookId: job.targetBookId,
+            sourceBookKey: sourceStateKey,
+            sourceTransactionId: item.id,
+            before: sourceStateBefore,
           });
         } else if (operation.action === "update") {
           if (operation.targetTransactionId === null || operation.targetVersion === null) {
@@ -501,6 +609,10 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
           });
           if (row === null || row.version !== operation.targetVersion || row.sourceRef !== item.id) {
             throw conflict("target_changed", "目标账目已被其他操作修改，不能覆盖。");
+          }
+          const transactionBefore = await readTransactionBefore(tx, row.id);
+          if (transactionBefore === null) {
+            throw conflict("target_changed", "目标账目缺少可撤销快照，不能覆盖。");
           }
           const changed = await tx.transaction.update({
             where: { id: row.id },
@@ -584,6 +696,19 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             targetVersion: row.version + 1,
             jobId: jobId,
           });
+          undoOps.push({
+            kind: "restore_transaction",
+            transactionId: row.id,
+            expectedVersion: row.version + 1,
+            before: transactionBefore,
+          });
+          undoOps.push({
+            kind: "restore_source_state",
+            targetBookId: job.targetBookId,
+            sourceBookKey: sourceStateKey,
+            sourceTransactionId: item.id,
+            before: sourceStateBefore,
+          });
         } else {
           await writeSourceState(tx, {
             targetBookId: job.targetBookId,
@@ -595,10 +720,29 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             targetVersion: operation.targetVersion,
             jobId: jobId,
           });
+          undoOps.push({
+            kind: "restore_source_state",
+            targetBookId: job.targetBookId,
+            sourceBookKey: sourceStateKey,
+            sourceTransactionId: item.id,
+            before: sourceStateBefore,
+          });
         }
       }
 
       if (taxonomy === null) throw new Error("taxonomy resolution missing");
+      if (newlyCreatedTaxonomy) {
+        for (const id of taxonomy.createdIds.categories) {
+          undoOps.push({ kind: "delete_created_taxonomy", entity: "category", id });
+        }
+        for (const id of taxonomy.createdIds.paymentMethods) {
+          undoOps.push({ kind: "delete_created_taxonomy", entity: "paymentMethod", id });
+        }
+        for (const id of taxonomy.createdIds.tags) {
+          undoOps.push({ kind: "delete_created_taxonomy", entity: "tag", id });
+        }
+      }
+      await writeUndoBatch(tx, jobId, job.nextBatch, undoOps);
       const newTargetSnapshot = await loadTargetSnapshot(tx, job.targetBookId);
       const newTargetFingerprint = await fingerprintTargetSnapshot(newTargetSnapshot);
       const nextPayload: JobPayload = {
@@ -626,37 +770,40 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
   );
 }
 
-async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
+async function prepareAwaitingConfirmation(prisma: PrismaClient, jobId: string): Promise<void> {
   await prisma.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
       const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
       if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
-      if (job.status === "completed") return;
+      if (job.status === "awaiting_confirmation" || job.status === "confirmed" || job.status === "completed") return;
       if (job.status !== "queued" && job.status !== "running" && job.status !== "finalizing") return;
-      const payload = readPayload(job);
       await assertJobUserActive(tx, job.userId);
+      await setLedgerLockOwner(tx, jobId);
+      await assertJobLocks(
+        tx,
+        jobId,
+        job.sourceBookId === null ? [job.targetBookId] : [job.targetBookId, job.sourceBookId],
+      );
+      const payload = readPayload(job);
 
-      let targetSnapshot: ImportTargetSnapshot;
       if (job.sourceKind === "book") {
         if (job.sourceBookId === null) throw badRequest("source_required", "来源账本缺失。");
         await lockFormalImportPair(tx, job.sourceBookId, job.targetBookId);
         const pair = await loadFormalImportPair(tx, job.userId, job.sourceBookId, job.targetBookId);
         if (pair.sourceFingerprint !== job.sourceFingerprint) {
-          throw conflict("source_changed", "来源账本在最终确认前发生了变化，任务已暂停。");
+          throw conflict("source_changed", "来源账本在等待确认前发生了变化，任务已暂停。");
         }
         if (pair.targetFingerprint !== job.targetFingerprint) {
-          throw conflict("target_changed", "目标账本在最终确认前发生了变化，任务已暂停。");
+          throw conflict("target_changed", "目标账本在等待确认前发生了变化，任务已暂停。");
         }
-        targetSnapshot = pair.target;
       } else {
         await lockSoloImportTarget(tx, job.targetBookId);
         const target = await loadSoloImportBook(tx, job.userId, job.targetBookId, "目标");
         const currentFingerprint = await fingerprintTargetSnapshot(target.snapshot);
         if (currentFingerprint !== job.targetFingerprint) {
-          throw conflict("target_changed", "目标账本在最终确认前发生了变化，任务已暂停。");
+          throw conflict("target_changed", "目标账本在等待确认前发生了变化，任务已暂停。");
         }
-        targetSnapshot = target.snapshot;
       }
 
       const liveCount = await tx.transaction.count({ where: { bookId: job.targetBookId, deletedAt: null } });
@@ -664,6 +811,75 @@ async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
         throw conflict("target_changed", "目标账本账目数量与分批记录不一致，任务已暂停。");
       }
 
+      const now = new Date();
+      const deadline = new Date(now.getTime() + job.timeoutSeconds * 1_000);
+      await tx.ledgerImportJob.update({
+        where: { id: jobId },
+        data: {
+          status: "awaiting_confirmation",
+          activityAt: now,
+          confirmationDeadline: deadline,
+          // The inverse journal is sufficient to undo committed batches; the guest snapshot is
+          // no longer needed for confirmation and should not be retained while waiting 10 minutes.
+          payload: { ...payload, source: null, operations: [] } as unknown as Prisma.InputJsonValue,
+          lastErrorCode: null,
+          lastErrorMessage: null,
+        },
+      });
+      await recordJobEvent(tx, {
+        jobId,
+        kind: "awaiting_confirmation",
+        actorUserId: job.userId,
+        detail: { timeoutSeconds: job.timeoutSeconds, deadline: deadline.toISOString() },
+      });
+    },
+    { maxWait: 10_000, timeout: 60_000 },
+  );
+}
+
+async function confirmJobTransaction(prisma: PrismaClient, jobId: string): Promise<void> {
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+      const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+      if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
+      if (job.status === "confirmed" || job.status === "completed") return;
+      if (job.status !== "confirming") return;
+      await assertJobUserActive(tx, job.userId);
+      await setLedgerLockOwner(tx, jobId);
+      await assertJobLocks(
+        tx,
+        jobId,
+        job.sourceBookId === null ? [job.targetBookId] : [job.targetBookId, job.sourceBookId],
+      );
+      const payload = readPayload(job);
+
+      if (job.sourceKind === "book") {
+        if (job.sourceBookId === null) throw badRequest("source_required", "来源账本缺失。");
+        await lockFormalImportPair(tx, job.sourceBookId, job.targetBookId);
+        const pair = await loadFormalImportPair(tx, job.userId, job.sourceBookId, job.targetBookId);
+        if (pair.sourceFingerprint !== job.sourceFingerprint) {
+          throw conflict("source_changed", "来源账本在确认前发生了变化，任务已暂停。");
+        }
+        if (pair.targetFingerprint !== job.targetFingerprint) {
+          throw conflict("target_changed", "目标账本在确认前发生了变化，任务已暂停。");
+        }
+      } else {
+        await lockSoloImportTarget(tx, job.targetBookId);
+        const target = await loadSoloImportBook(tx, job.userId, job.targetBookId, "目标");
+        const currentFingerprint = await fingerprintTargetSnapshot(target.snapshot);
+        if (currentFingerprint !== job.targetFingerprint) {
+          throw conflict("target_changed", "目标账本在确认前发生了变化，任务已暂停。");
+        }
+      }
+
+      const liveCount = await tx.transaction.count({ where: { bookId: job.targetBookId, deletedAt: null } });
+      if (liveCount !== job.targetExpectedCount) {
+        throw conflict("target_changed", "目标账本账目数量与分批记录不一致，任务已暂停。");
+      }
+
+      // Target A soft deletions are deliberately deferred until the user's final confirmation.
+      // Undo before this point therefore never has to resurrect a soft-deleted A row.
       const removedTargets: NonNullable<LedgerImportResult["removedTargets"]> = [];
       if (payload.removedTargets.length > 0) {
         const deletedAt = new Date();
@@ -763,26 +979,68 @@ async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
       await tx.ledgerImportJob.update({
         where: { id: jobId },
         data: {
-          status: "completed",
+          status: "confirmed",
           removedCount: removedTargets.length,
           updatedCount: job.updatedCount,
           targetFingerprint: finalTargetFingerprint,
           targetExpectedCount: targetCountAfter,
           result: receipt,
-          // Data minimization: completed jobs no longer need the guest snapshot.
+          confirmationDeadline: null,
           payload: { ...payload, source: null, operations: [] } as unknown as Prisma.InputJsonValue,
           lastErrorCode: null,
           lastErrorMessage: null,
         },
+      });
+      await releaseJobLocks(tx, jobId);
+      // Once confirmed, inverse before-values can never be used again; retain event history only.
+      await tx.ledgerImportUndoBatch.updateMany({
+        where: { jobId },
+        data: { payload: { version: 1, ops: [] } as unknown as Prisma.InputJsonValue },
+      });
+      await recordJobEvent(tx, {
+        jobId,
+        kind: "confirmed",
+        actorUserId: job.userId,
+        detail: { removedCount: removedTargets.length, targetCountAfter },
       });
     },
     { maxWait: 10_000, timeout: 60_000 },
   );
 }
 
+/** Legacy name kept for test helpers; phase 4 stops at awaiting_confirmation instead of auto-completing. */
+async function finalizeJob(prisma: PrismaClient, jobId: string): Promise<void> {
+  await prepareAwaitingConfirmation(prisma, jobId);
+}
+
 async function markJobError(prisma: PrismaClient, jobId: string, error: unknown): Promise<void> {
   const code = errorCode(error);
   const message = errorMessage(error);
+  const job = await prisma.ledgerImportJob.findUnique({ where: { id: jobId } });
+  if (job === null) return;
+  if (job.phase >= 4) {
+    const now = new Date();
+    const deadline = new Date(now.getTime() + job.timeoutSeconds * 1_000);
+    await prisma.$transaction(async (tx) => {
+      await tx.ledgerImportJob.update({
+        where: { id: jobId },
+        data: {
+          status: "paused",
+          activityAt: now,
+          confirmationDeadline: deadline,
+          lastErrorCode: code,
+          lastErrorMessage: message,
+        },
+      });
+      await recordJobEvent(tx, {
+        jobId,
+        kind: "paused",
+        actorUserId: null,
+        detail: { code, deadline: deadline.toISOString() },
+      });
+    });
+    return;
+  }
   await prisma.ledgerImportJob.update({
     where: { id: jobId },
     data: {
@@ -800,6 +1058,19 @@ export async function processImportJob(prisma: PrismaClient, jobId: string): Pro
     for (;;) {
       const job = await prisma.ledgerImportJob.findUnique({ where: { id: jobId } });
       if (job === null) return;
+      if (job.phase < 4) {
+        // Phase-4 code must not drive a legacy lockless job through the new confirmation flow.
+        // Surface a clear re-preview requirement rather than silently writing or holding no lock.
+        await prisma.ledgerImportJob.updateMany({
+          where: { id: jobId, phase: { lt: 4 }, status: { in: ["queued", "running", "finalizing"] } },
+          data: {
+            status: "failed",
+            lastErrorCode: "legacy_import_requires_repreview",
+            lastErrorMessage: "这是旧版分批导入任务，升级后请重新预览并创建新的可撤销任务。",
+          },
+        });
+        return;
+      }
       if (
         job.status !== "queued" &&
         job.status !== "running" &&
@@ -827,6 +1098,281 @@ export function kickImportJob(prisma: PrismaClient, jobId: string): void {
   });
 }
 
+const activeConfirmJobs = new Set<string>();
+const activeUndoJobs = new Set<string>();
+
+export async function confirmImportJob(
+  prisma: PrismaClient,
+  userId: string,
+  jobId: string,
+): Promise<ImportJobStatus> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+    const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+    if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
+    if (job.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
+    if (job.status === "confirmed" || job.status === "completed") return;
+    if (job.status === "confirming") return;
+    if (job.status !== "awaiting_confirmation") {
+      throw badRequest("import_not_awaiting_confirmation", "任务还没有进入等待确认状态。");
+    }
+    await tx.ledgerImportJob.update({
+      where: { id: jobId },
+      data: {
+        status: "confirming",
+        confirmationDeadline: null,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+      },
+    });
+    await recordJobEvent(tx, {
+      jobId,
+      kind: "confirming",
+      actorUserId: userId,
+      detail: {},
+    });
+  });
+  setImmediate(() => {
+    void processConfirmJob(prisma, jobId).catch(() => undefined);
+  });
+  return getImportJob(prisma, userId, jobId);
+}
+
+async function processConfirmJob(prisma: PrismaClient, jobId: string): Promise<void> {
+  if (activeConfirmJobs.has(jobId)) return;
+  activeConfirmJobs.add(jobId);
+  try {
+    await confirmJobTransaction(prisma, jobId);
+  } catch (error) {
+    const code = errorCode(error);
+    const message = errorMessage(error);
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+      const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+      if (job === null || job.status !== "confirming") return;
+      const now = new Date();
+      await tx.ledgerImportJob.update({
+        where: { id: jobId },
+        data: {
+          status: "awaiting_confirmation",
+          lastErrorCode: code,
+          lastErrorMessage: message,
+          confirmationDeadline: new Date(now.getTime() + job.timeoutSeconds * 1_000),
+          activityAt: now,
+        },
+      });
+      await recordJobEvent(tx, {
+        jobId,
+        kind: "confirm_failed",
+        actorUserId: null,
+        detail: { code },
+      });
+    });
+  } finally {
+    activeConfirmJobs.delete(jobId);
+  }
+}
+
+async function startUndoTransaction(
+  prisma: PrismaClient,
+  jobId: string,
+  userId: string | null,
+): Promise<"nothing" | "started"> {
+  const started = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+    const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+    if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
+    if (userId !== null && job.userId !== userId) {
+      throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
+    }
+    if (job.phase < 4) {
+      throw conflict(
+        "legacy_import_not_undoable",
+        "这是旧版导入任务，没有可按批次恢复的反向日志，不能安全撤销；请使用旧版停止接口或等待其完成。",
+      );
+    }
+    if (job.status === "undone" || job.status === "cancelled" || job.status === "expired") return false;
+    if (job.status === "undoing") return false;
+    if (job.status === "confirming" || job.status === "confirmed" || job.status === "completed") {
+      throw conflict("import_already_confirmed", "任务已经确认，不能再撤销。");
+    }
+    if (job.status === "undo_failed") {
+      // Explicit retry / background recovery: keep the lock and continue from the pending batches.
+    } else if (
+      job.status !== "queued" &&
+      job.status !== "running" &&
+      job.status !== "paused" &&
+      job.status !== "awaiting_confirmation" &&
+      job.status !== "finalizing"
+    ) {
+      throw badRequest("import_job_not_undoable", "当前任务状态不能撤销。");
+    }
+    await tx.ledgerImportJob.update({
+      where: { id: jobId },
+      data: {
+        status: "undoing",
+        undoAttempts: job.undoAttempts + 1,
+        confirmationDeadline: null,
+        activityAt: new Date(),
+        lastErrorCode: null,
+        lastErrorMessage: null,
+      },
+    });
+    await recordJobEvent(tx, {
+      jobId,
+      kind: "undoing",
+      actorUserId: userId,
+      detail: { attempt: job.undoAttempts + 1, previousStatus: job.status },
+    });
+    return true;
+  });
+  return started ? "started" : "nothing";
+}
+
+export async function undoImportJob(
+  prisma: PrismaClient,
+  userId: string,
+  jobId: string,
+): Promise<ImportJobStatus> {
+  const result = await startUndoTransaction(prisma, jobId, userId);
+  setImmediate(() => {
+    void processUndoJob(prisma, jobId).catch(() => undefined);
+  });
+  return result === "nothing" ? getImportJob(prisma, userId, jobId) : getImportJob(prisma, userId, jobId);
+}
+
+async function processUndoJob(prisma: PrismaClient, jobId: string): Promise<void> {
+  if (activeUndoJobs.has(jobId)) return;
+  activeUndoJobs.add(jobId);
+  try {
+    for (;;) {
+      const job = await prisma.ledgerImportJob.findUnique({ where: { id: jobId } });
+      if (job === null) return;
+      if (job.status !== "undoing") return;
+      const pending = await prisma.ledgerImportUndoBatch.findFirst({
+        where: { jobId, undoneAt: null },
+        orderBy: { batchIndex: "desc" },
+        select: { id: true },
+      });
+      if (pending !== null) {
+        await prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+            const current = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+            if (current === null || current.status !== "undoing") return;
+            await setLedgerLockOwner(tx, jobId);
+            await assertJobLocks(
+              tx,
+              jobId,
+              current.sourceBookId === null
+                ? [current.targetBookId]
+                : [current.targetBookId, current.sourceBookId],
+            );
+            const row = await tx.ledgerImportUndoBatch.findFirst({
+              where: { jobId, undoneAt: null },
+              orderBy: { batchIndex: "desc" },
+            });
+            if (row === null) return;
+            const payload = readPayload(current);
+            await applyUndoOps(
+              tx,
+              {
+                id: jobId,
+                targetBookId: current.targetBookId,
+                userId: current.userId,
+                importRef: payload.importRef,
+              },
+              readUndoBatch(row.payload).ops,
+            );
+            await tx.ledgerImportUndoBatch.update({
+              where: { id: row.id },
+              data: { undoneAt: new Date() },
+            });
+            await recordJobEvent(tx, {
+              jobId,
+              kind: "undo_batch",
+              actorUserId: null,
+              detail: { batchIndex: row.batchIndex },
+            });
+          },
+          { maxWait: 10_000, timeout: 60_000 },
+        );
+        continue;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+        const current = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+        if (current === null || current.status !== "undoing") return;
+        const remaining = await tx.ledgerImportUndoBatch.count({ where: { jobId, undoneAt: null } });
+        if (remaining > 0) throw new Error("撤销仍有未完成批次。");
+        await releaseJobLocks(tx, jobId);
+        await tx.ledgerImportUndoBatch.updateMany({
+          where: { jobId },
+          data: { payload: { version: 1, ops: [] } as unknown as Prisma.InputJsonValue },
+        });
+        await tx.ledgerImportJob.update({
+          where: { id: jobId },
+          data: {
+            status: "undone",
+            result: Prisma.DbNull,
+            confirmationDeadline: null,
+            lastErrorCode: null,
+            lastErrorMessage: null,
+            // Data minimization: the inverse journal has served its purpose; retain counts/history.
+            payload: {
+              ...readPayload(current),
+              source: null,
+              operations: [],
+            } as unknown as Prisma.InputJsonValue,
+          },
+        });
+        await recordJobEvent(tx, {
+          jobId,
+          kind: "undone",
+          actorUserId: null,
+          detail: { attempts: current.undoAttempts },
+        });
+      });
+      return;
+    }
+  } catch (error) {
+    const code = errorCode(error);
+    const message = errorMessage(error);
+    await prisma.ledgerImportJob.update({
+      where: { id: jobId },
+      data: { status: "undo_failed", lastErrorCode: code, lastErrorMessage: message },
+    });
+  } finally {
+    activeUndoJobs.delete(jobId);
+  }
+}
+
+export async function refreshImportJobActivity(
+  prisma: PrismaClient,
+  userId: string,
+  jobId: string,
+): Promise<ImportJobStatus> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
+    const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
+    if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
+    if (job.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
+    if (job.status !== "awaiting_confirmation" && job.status !== "paused") {
+      throw badRequest("import_not_waiting", "任务当前不在等待确认或暂停状态。");
+    }
+    const now = new Date();
+    await tx.ledgerImportJob.update({
+      where: { id: jobId },
+      data: {
+        activityAt: now,
+        confirmationDeadline: new Date(now.getTime() + job.timeoutSeconds * 1_000),
+      },
+    });
+  });
+  return getImportJob(prisma, userId, jobId);
+}
+
 /** Test-only entry points for deterministic fault injection; production uses `processImportJob`. */
 export async function runImportJobBatchForTest(prisma: PrismaClient, jobId: string): Promise<void> {
   await runBatch(prisma, jobId);
@@ -844,12 +1390,26 @@ export async function finalizeImportJobForTest(prisma: PrismaClient, jobId: stri
  */
 export async function recoverImportJobs(prisma: PrismaClient): Promise<void> {
   const jobs = await prisma.ledgerImportJob.findMany({
-    where: { status: { in: ["queued", "running", "finalizing"] } },
-    select: { id: true },
+    where: {
+      OR: [
+        { status: { in: ["queued", "running", "finalizing"] } },
+        { status: "confirming" },
+        { status: "undoing" },
+      ],
+    },
+    select: { id: true, status: true },
     orderBy: { createdAt: "asc" },
     take: 100,
   });
-  for (const job of jobs) kickImportJob(prisma, job.id);
+  for (const job of jobs) {
+    if (job.status === "confirming") {
+      void processConfirmJob(prisma, job.id).catch(() => undefined);
+    } else if (job.status === "undoing") {
+      void processUndoJob(prisma, job.id).catch(() => undefined);
+    } else {
+      kickImportJob(prisma, job.id);
+    }
+  }
 }
 
 export async function resumeImportJob(
@@ -860,33 +1420,55 @@ export async function resumeImportJob(
   const job = await prisma.ledgerImportJob.findUnique({ where: { id: jobId } });
   if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
   if (job.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
-  if (job.status === "completed") return getImportJob(prisma, userId, jobId);
+  if (job.status === "completed" || job.status === "confirmed" || job.status === "undone") {
+    return getImportJob(prisma, userId, jobId);
+  }
   if (job.status === "cancelled" || job.status === "expired") {
     throw badRequest("import_job_cancelled", "这个导入任务已取消或恢复快照已过期，不能继续。");
   }
-  await prisma.ledgerImportJob.update({
-    where: { id: jobId },
-    data: { status: "queued", lastErrorCode: null, lastErrorMessage: null },
+  if (job.status === "awaiting_confirmation") {
+    throw badRequest("import_awaiting_confirmation", "任务已经处理完批次，请确认完成或撤销，不能继续执行。");
+  }
+  if (job.status !== "paused" && job.status !== "queued" && job.status !== "failed") {
+    throw badRequest("import_job_not_resumable", "当前任务状态不能继续。");
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.ledgerImportJob.update({
+      where: { id: jobId },
+      data: {
+        status: "queued",
+        activityAt: new Date(),
+        confirmationDeadline: null,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+      },
+    });
+    await recordJobEvent(tx, { jobId, kind: "resumed", actorUserId: userId });
   });
   kickImportJob(prisma, jobId);
   return getImportJob(prisma, userId, jobId);
 }
 
 /**
- * D5 phase 3: cancel a job without rolling back already committed batches.
- * The row lock serializes cancellation against the batch transaction: whichever gets the lock
- * first wins; if a batch commits first, it is retained, and no later batch is allowed to start.
+ * Phase 4 deliberately replaces the old "stop but keep partial batches" cancel semantics.
+ * For phase-4 jobs `cancel` is an alias of the safe undo, so a client calling the old route
+ * cannot leave a half-imported ledger under a held lock. Legacy phase-3 jobs keep the old
+ * stop-only behaviour because they have no inverse journal.
  */
 export async function cancelImportJob(
   prisma: PrismaClient,
   userId: string,
   jobId: string,
 ): Promise<ImportJobStatus> {
+  const existing = await prisma.ledgerImportJob.findUnique({ where: { id: jobId } });
+  if (existing === null) throw notFound("import_job_missing", "找不到这个导入任务。");
+  if (existing.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
+  if (existing.phase >= 4) return undoImportJob(prisma, userId, jobId);
+
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "ledger_import_jobs" WHERE "id" = ${jobId}::uuid FOR UPDATE`;
     const job = await tx.ledgerImportJob.findUnique({ where: { id: jobId } });
     if (job === null) throw notFound("import_job_missing", "找不到这个导入任务。");
-    if (job.userId !== userId) throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
     if (job.status === "completed") throw conflict("import_job_completed", "任务已经完成，不能取消。");
     if (job.status === "cancelled" || job.status === "expired") return;
     if (job.status !== "queued" && job.status !== "running" && job.status !== "paused" && job.status !== "finalizing") {
@@ -897,14 +1479,115 @@ export async function cancelImportJob(
       where: { id: jobId },
       data: {
         status: "cancelled",
-        // Keep counts/batches so the user knows which part was committed; drop guest source data.
         payload: { ...payload, source: null, operations: [] } as unknown as Prisma.InputJsonValue,
-        lastErrorCode: "job_cancelled",
-        lastErrorMessage: "任务已取消；已经提交的批次保留，未提交的记录没有写入。",
+        lastErrorCode: "job_cancelled_legacy",
+        lastErrorMessage: "旧版任务已取消；已经提交的批次保留，未提交的记录没有写入。",
       },
     });
   });
   return getImportJob(prisma, userId, jobId);
+}
+
+/**
+ * Phase-4 timeout/recovery sweep. Legacy phase-3 TTL remains in `expireStaleImportJobs`; a
+ * phase-4 job must never be TTL-expired while it still holds a business lock.
+ */
+export async function sweepStaleImportJobs(
+  prisma: PrismaClient,
+  now: Date = new Date(),
+): Promise<void> {
+  const staleCutoffFor = (timeoutSeconds: number) =>
+    new Date(now.getTime() - timeoutSeconds * 1_000);
+
+  const active = await prisma.ledgerImportJob.findMany({
+    where: { phase: { gte: 4 }, status: { in: ["queued", "running", "finalizing"] } },
+    select: { id: true, status: true, timeoutSeconds: true, updatedAt: true },
+    take: 100,
+  });
+  for (const job of active) {
+    if (job.updatedAt >= staleCutoffFor(job.timeoutSeconds)) continue;
+    const deadline = new Date(now.getTime() + job.timeoutSeconds * 1_000);
+    await prisma.$transaction(async (tx) => {
+      await tx.ledgerImportJob.updateMany({
+        where: { id: job.id, status: { in: ["queued", "running", "finalizing"] } },
+        data: {
+          status: "paused",
+          activityAt: now,
+          confirmationDeadline: deadline,
+          lastErrorCode: "import_stalled",
+          lastErrorMessage: "导入长时间没有进展，已暂停；超时后会自动安全撤销。",
+        },
+      });
+      await recordJobEvent(tx, {
+        jobId: job.id,
+        kind: "stalled_paused",
+        actorUserId: null,
+        detail: { deadline: deadline.toISOString() },
+      });
+    });
+  }
+
+  const timedOut = await prisma.ledgerImportJob.findMany({
+    where: {
+      phase: { gte: 4 },
+      status: { in: ["awaiting_confirmation", "paused"] },
+      confirmationDeadline: { lt: now },
+    },
+    select: { id: true },
+    take: 100,
+  });
+  for (const job of timedOut) {
+    try {
+      await startUndoTransaction(prisma, job.id, null);
+    } catch {
+      // A concurrent confirm/undo may have moved the job; the next sweep re-evaluates it.
+    }
+    setImmediate(() => {
+      void processUndoJob(prisma, job.id).catch(() => undefined);
+    });
+  }
+
+  const stuckConfirming = await prisma.ledgerImportJob.findMany({
+    where: { phase: { gte: 4 }, status: "confirming" },
+    select: { id: true, timeoutSeconds: true, updatedAt: true },
+    take: 50,
+  });
+  for (const job of stuckConfirming) {
+    if (job.updatedAt >= staleCutoffFor(job.timeoutSeconds)) continue;
+    const nowDate = new Date();
+    await prisma.ledgerImportJob.updateMany({
+      where: { id: job.id, status: "confirming" },
+      data: {
+        status: "awaiting_confirmation",
+        activityAt: nowDate,
+        confirmationDeadline: new Date(nowDate.getTime() + job.timeoutSeconds * 1_000),
+        lastErrorCode: "confirm_stalled",
+        lastErrorMessage: "最终确认超时，已回到等待确认；可以重试确认或撤销。",
+      },
+    });
+  }
+
+  const stuckUndoing = await prisma.ledgerImportJob.findMany({
+    where: { phase: { gte: 4 }, status: { in: ["undoing", "undo_failed"] } },
+    select: { id: true, status: true, updatedAt: true },
+    take: 50,
+  });
+  for (const job of stuckUndoing) {
+    if (job.updatedAt >= new Date(now.getTime() - 30_000)) continue;
+    if (job.status === "undo_failed") {
+      // Only automatic retries before the safe ceiling; after that a human must inspect the lock.
+      const full = await prisma.ledgerImportJob.findUnique({ where: { id: job.id }, select: { undoAttempts: true } });
+      if (full !== null && full.undoAttempts >= 3) continue;
+      try {
+        await startUndoTransaction(prisma, job.id, null);
+      } catch {
+        continue;
+      }
+    }
+    setImmediate(() => {
+      void processUndoJob(prisma, job.id).catch(() => undefined);
+    });
+  }
 }
 
 /**
@@ -920,6 +1603,7 @@ export async function expireStaleImportJobs(
   const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const jobs = await prisma.ledgerImportJob.findMany({
     where: {
+      phase: { lt: 4 },
       status: { in: ["paused", "failed"] },
       updatedAt: { lt: cutoff },
     },
@@ -962,11 +1646,12 @@ export function prepareImportJobWorker(prisma: PrismaClient): () => void {
   const timer = setInterval(() => {
     if (stopped) return;
     ticks += 1;
-    void recoverImportJobs(prisma).catch(() => undefined);
+    void sweepStaleImportJobs(prisma).catch(() => undefined);
     if (ticks % 12 === 0) void expireStaleImportJobs(prisma).catch(() => undefined);
   }, 5_000);
   timer.unref?.();
   void recoverImportJobs(prisma).catch(() => undefined);
+  void sweepStaleImportJobs(prisma).catch(() => undefined);
   return () => {
     stopped = true;
     clearInterval(timer);

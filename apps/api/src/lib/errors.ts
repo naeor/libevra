@@ -100,6 +100,25 @@ export function registerErrorHandlers(app: FastifyInstance): void {
     }
 
     /**
+     * S14-D5 phase 4: the database write trigger refuses changes while a ledger is under
+     * import/undo. This is a business lock, not a server fault; answer 409 so clients keep
+     * their queued work and retry after release.
+     */
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      typeof (error as { message?: unknown }).message === "string" &&
+      (error as { message: string }).message.includes("ledger_locked:")
+    ) {
+      request.log.info({ err: error }, "ledger write blocked by persistent business lock");
+      void reply.status(409).send({
+        code: "ledger_locked",
+        message: "这本账本正在进行导入、确认或撤销，暂时不能修改；请等待操作完成后再试。",
+      });
+      return;
+    }
+
+    /**
      * ⚠️ **A foreign-key failure is a race, not an internal fault.**
      *
      * A transaction can be created while the category/payment method/tag it names is being

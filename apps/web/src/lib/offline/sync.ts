@@ -277,6 +277,16 @@ async function deliver(intent: Intent): Promise<boolean> {
      * with the refusal, and **my copy is about to be overwritten by the next full refresh** — so if it is not
      * captured now, the thing the user actually typed is gone before anybody can show it to them.
      */
+    if (status === 409 && error instanceof ApiRequestError && error.code === "ledger_locked") {
+      /**
+       * Phase 4: an import/undo currently holds this ledger's business lock. This is a
+       * temporary refusal, not a content conflict — keep the pending mark untouched and retry
+       * after the lock is released, so offline work cannot be lost or turned into a red conflict.
+       */
+      await logOffline("DIAGNOSTIC:sync-ledger-locked", `${op} ${short} — 账本导入锁定，保留待同步`);
+      return false;
+    }
+
     if (status === 409) {
       const refusal = readRefusal(error);
 
