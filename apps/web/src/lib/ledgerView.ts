@@ -2,16 +2,31 @@ import type { Transaction } from "@libellum/shared";
 import type { QueryClient } from "@tanstack/react-query";
 import { asLocalPage, filterLocally, type LocalFilters } from "./offline/localLedger.js";
 
+/** Default for callers that have no device marks (e.g. tests of the older behaviour). */
+const NO_DELETED: ReadonlySet<string> = new Set();
+
 /** Apply the complete view filter after merging: persisted query pages may predate this fix. */
 export function mergeLedgerEntries(
-  local: readonly Transaction[], remote: readonly Transaction[], pending: ReadonlySet<string>, filters: LocalFilters,
+  local: readonly Transaction[],
+  remote: readonly Transaction[],
+  pending: ReadonlySet<string>,
+  filters: LocalFilters,
+  /**
+   * ⚠️ **Deletion tombstones must not be rendered, whether the delete is still queued or
+   * already acknowledged** (S15-C, 2026-10-20). The stored copy is kept on purpose — round 3
+   * needs it to ask whether a delete should stand — but that copy is the reason a deleted row
+   * stayed on screen: the merge combined it with the query's list and nothing removed it.
+   * The row component's own note says a deleted row is "never rendered at all in practice";
+   * this parameter is what makes that true again.
+   */
+  deleted: ReadonlySet<string> = NO_DELETED,
 ): readonly Transaction[] {
   const byId = new Map(remote.map(entry => [entry.id, entry]));
   for (const entry of local) {
     const server = byId.get(entry.id);
     if (server === undefined || pending.has(entry.id) || entry.version >= server.version) byId.set(entry.id, entry);
   }
-  return filterLocally([...byId.values()], filters);
+  return filterLocally([...byId.values()], filters).filter((entry) => !deleted.has(entry.id));
 }
 
 /** A local write must retain each query's income/expense, category and currency constraints. */

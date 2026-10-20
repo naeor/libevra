@@ -454,8 +454,8 @@ export function DetailPage(): React.JSX.Element {
   const entries = useMemo(() => {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
 
-    return mergeLedgerEntries(localEntries, fromQuery, pending, filters);
-  }, [list.data, localEntries, pending, month, kind, categoryId]);
+    return mergeLedgerEntries(localEntries, fromQuery, pending, filters, deleted);
+  }, [list.data, localEntries, pending, month, kind, categoryId, deleted]);
 
   /**
    * ⚠️ **One explicit sort, applied to whatever the sources produced.**
