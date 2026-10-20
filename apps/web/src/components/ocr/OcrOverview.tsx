@@ -1,61 +1,127 @@
 /**
- * OCR 批量识别结果的「概览」组件（S15-B B3，候选原型）。
+ * 批量识别结果的只读概览（S15-B §3.2/§3.3）。
  *
- * 设计方向 §3.2/§3.3 的边界，组件刻意照做：
- *  - **只读展示**：卡片上没有任何输入框，不直接改字段；
- *  - 点卡片进入详情（`onOpenDetail`），详情改完由页面把结果合并回来；
- *  - 汇总数字全部来自传入的候选列表（由纯函数计算，测试覆盖）；
- *  - 「统一确认」只是一个回调，组件不写账本、不绕过保存/锁/幂等；
- *  - 缺失字段显示「待确认」，不伪造默认值。
- *
- * 组件是纯展示：不持有状态，不调用 API，方便静态渲染测试，也方便以后放到真实的
- * 识别结果页里复用。
+ * 组件只展示、不编辑、不写账：
+ *  - 每笔一张横向卡片，状态、金额、对象、时间、分类/标签/渠道、异常原因一眼可见；
+ *  - 卡片上没有输入框，点「查看详情」进入编辑页；
+ *  - 汇总数字全部由传入的候选计算（`lib/ocr/types.ts` 的纯函数），和列表同一口径；
+ *  - 缺失字段显示「待确认」，不伪造默认值；疑似重复只提示，不合并、不删除。
  */
 
-import type { OcrCandidateView, OcrOverviewFilter } from "../../lib/ocrOverview.js";
 import {
-  accountText,
-  amountText,
-  currencyText,
-  dateTimeText,
-  directionText,
-  filterOcrItems,
-  isOcrItemQuestionable,
-  merchantText,
-  platformText,
-  statusText,
-  summariseOcrOverview,
-} from "../../lib/ocrOverview.js";
-import { Button } from "../Button.js";
+  OCR_CHANNEL_LABELS,
+  OCR_DIRECTION_LABELS,
+  type Category,
+  type OcrChannel,
+  type PaymentMethod,
+  type Tag,
+} from "@libellum/shared";
+
+import type { OcrDuplicateGroup } from "../../lib/ocr/duplicates.js";
+import { groupsForCandidate } from "../../lib/ocr/duplicates.js";
+import {
+  deriveIssues,
+  itemStatus,
+  type OcrBatchCandidate,
+  type OcrBatchCounts,
+  type OcrDirectionFilter,
+  type OcrItemStatus,
+  type OcrOverviewFilter,
+  type OcrSourceFilter,
+} from "../../lib/ocr/types.js";
 
 export interface OcrOverviewProps {
-  readonly items: readonly OcrCandidateView[];
-  readonly selectedIds: readonly string[];
+  /** 已按当前筛选条件过滤后的候选。 */
+  readonly items: readonly OcrBatchCandidate[];
+  /** 全部候选的计数（筛选不改变汇总）。 */
+  readonly counts: OcrBatchCounts;
   readonly filter: OcrOverviewFilter;
   readonly onFilterChange: (filter: OcrOverviewFilter) => void;
-  readonly onToggleSelection: (candidateId: string) => void;
+  readonly source: OcrSourceFilter;
+  readonly onSourceChange: (source: OcrSourceFilter) => void;
+  readonly direction: OcrDirectionFilter;
+  readonly onDirectionChange: (direction: OcrDirectionFilter) => void;
+  /** 批次里出现过的来源，来自全部候选而不是当前筛选结果。 */
+  readonly sources: readonly OcrChannel[];
+  readonly duplicateGroups: readonly OcrDuplicateGroup[];
+  readonly categories: readonly Category[];
+  readonly paymentMethods: readonly PaymentMethod[];
+  readonly tags: readonly Tag[];
   readonly onOpenDetail: (candidateId: string) => void;
-  readonly onReviewQuestionable: () => void;
-  readonly onConfirmSelected: (selectedIds: readonly string[]) => void;
-  /** 原型/数据来源说明，由页面传入；组件不假设数据来自哪里。 */
+  /** 数据来源说明，由页面传入；组件不假设批次来自哪里。 */
   readonly note?: string;
+}
+
+const STATUS_LABELS: Readonly<Record<OcrItemStatus, string>> = {
+  recognized: "已识别",
+  review: "待核对",
+  duplicate: "疑似重复",
+  invalid: "无效",
+};
+
+const STATUS_CLASSES: Readonly<Record<OcrItemStatus, string>> = {
+  recognized: "bg-brand-soft text-brand-dark",
+  review: "bg-warning/10 text-warning-dark",
+  duplicate: "bg-warning/10 text-warning-dark",
+  invalid: "bg-canvas text-muted",
+};
+
+function fieldText(value: string | null, fallback: string): string {
+  return value === null || value.trim() === "" ? fallback : value;
+}
+
+function amountText(item: OcrBatchCandidate): string {
+  return fieldText(item.amount, "待确认");
+}
+
+function dateTimeText(item: OcrBatchCandidate): string {
+  if (item.occurredLocalDate === null) return "日期待确认";
+  return item.occurredTime === null
+    ? item.occurredLocalDate
+    : `${item.occurredLocalDate} ${item.occurredTime}`;
+}
+
+function categoryText(
+  item: OcrBatchCandidate,
+  categories: readonly Category[],
+): string {
+  if (item.categoryId === null) return "未分类";
+  return categories.find((category) => category.id === item.categoryId)?.name ?? "未分类";
+}
+
+function paymentText(
+  item: OcrBatchCandidate,
+  methods: readonly PaymentMethod[],
+): string {
+  if (item.paymentMethodId === null) return "支付方式待确认";
+  return methods.find((method) => method.id === item.paymentMethodId)?.name ?? "支付方式待确认";
+}
+
+function tagText(item: OcrBatchCandidate, tags: readonly Tag[]): string {
+  if (item.tagIds.length === 0) return "无标签";
+  const names = item.tagIds
+    .map((id) => tags.find((tag) => tag.id === id)?.name)
+    .filter((name): name is string => name !== undefined);
+  return names.length === 0 ? "无标签" : names.join("、");
 }
 
 export function OcrOverview({
   items,
-  selectedIds,
+  counts,
   filter,
   onFilterChange,
-  onToggleSelection,
+  source,
+  onSourceChange,
+  direction,
+  onDirectionChange,
+  sources,
+  duplicateGroups,
+  categories,
+  paymentMethods,
+  tags,
   onOpenDetail,
-  onReviewQuestionable,
-  onConfirmSelected,
   note,
 }: OcrOverviewProps): React.JSX.Element {
-  const counts = summariseOcrOverview(items, selectedIds);
-  const visibleItems = filterOcrItems(items, filter);
-  const selected = new Set(selectedIds);
-
   return (
     <div className="flex flex-col gap-4">
       <section
@@ -63,11 +129,12 @@ export function OcrOverview({
         className="rounded-card border border-line bg-surface p-4 shadow-card"
       >
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <SummaryNumber label="待处理总数" value={counts.total} />
-          <SummaryNumber label="可直接确认" value={counts.complete} />
-          <SummaryNumber label="有疑问" value={counts.questionable} />
+          <SummaryNumber label="本次识别" value={counts.total} />
+          <SummaryNumber label="待核对" value={counts.pending} />
+          <SummaryNumber label="可直接导入" value={counts.confirmed} />
           <SummaryNumber label="可能重复" value={counts.duplicates} />
-          <SummaryNumber label="当前选中" value={counts.selected} />
+          <SummaryNumber label="已标记无效" value={counts.invalid} />
+          <SummaryNumber label="可导入" value={counts.valid} />
         </dl>
         <p className="mt-3 text-helper-relaxed text-muted">
           没有问题的记录不用逐笔点开；有疑问或可能重复的才需要进详情核对。确认前不会写入账本。
@@ -76,60 +143,116 @@ export function OcrOverview({
 
       {note === undefined ? null : <p className="text-helper-relaxed text-muted">{note}</p>}
 
-      <div role="group" aria-label="筛选交易" className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="按状态筛选">
         <FilterButton
           active={filter === "all"}
-          label={`全部 ${counts.total}`}
-          onSelect={() => onFilterChange("all")}
+          label={`全部 ${String(counts.total)}`}
+          onSelect={() => {
+            onFilterChange("all");
+          }}
         />
         <FilterButton
-          active={filter === "questionable"}
-          label={`只看有疑问 ${counts.questionable}`}
-          onSelect={() => onFilterChange("questionable")}
+          active={filter === "pending"}
+          label={`待核对 ${String(counts.pending)}`}
+          onSelect={() => {
+            onFilterChange("pending");
+          }}
+        />
+        <FilterButton
+          active={filter === "confirmed"}
+          label={`已确认 ${String(counts.confirmed)}`}
+          onSelect={() => {
+            onFilterChange("confirmed");
+          }}
+        />
+        <FilterButton
+          active={filter === "duplicates"}
+          label={`疑似重复 ${String(counts.duplicates)}`}
+          onSelect={() => {
+            onFilterChange("duplicates");
+          }}
         />
       </div>
 
-      {visibleItems.length === 0 ? (
+      {sources.length > 0 ? (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="按来源筛选">
+          <FilterButton
+            active={source === "all"}
+            label="全部来源"
+            onSelect={() => {
+              onSourceChange("all");
+            }}
+          />
+          {sources.map((value) => (
+            <FilterButton
+              key={value}
+              active={source === value}
+              label={OCR_CHANNEL_LABELS[value]}
+              onSelect={() => {
+                onSourceChange(value);
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2" role="group" aria-label="按收支筛选">
+        <FilterButton
+          active={direction === "all"}
+          label="全部收支"
+          onSelect={() => {
+            onDirectionChange("all");
+          }}
+        />
+        <FilterButton
+          active={direction === "expense"}
+          label="支出"
+          onSelect={() => {
+            onDirectionChange("expense");
+          }}
+        />
+        <FilterButton
+          active={direction === "income"}
+          label="收入"
+          onSelect={() => {
+            onDirectionChange("income");
+          }}
+        />
+      </div>
+
+      {items.length === 0 ? (
         <p className="rounded-card border border-line bg-surface p-4 text-body text-muted">
-          {filter === "questionable" ? "没有需要重点核对的项。" : "还没有识别出任何交易。"}
+          {counts.total === 0
+            ? "这次识别没有切分出任何交易。可以返回重新上传，或按单笔/手动录入。"
+            : "当前筛选下没有交易。"}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {visibleItems.map((item) => (
+          {items.map((item) => (
             <li key={item.candidateId}>
               <OcrOverviewCard
                 item={item}
-                selected={selected.has(item.candidateId)}
-                onToggleSelection={onToggleSelection}
+                duplicateGroups={duplicateGroups}
+                categories={categories}
+                paymentMethods={paymentMethods}
+                tags={tags}
                 onOpenDetail={onOpenDetail}
               />
             </li>
           ))}
         </ul>
       )}
-
-      <div className="flex flex-col gap-2">
-        <Button
-          onClick={() => {
-            onConfirmSelected(selectedIds);
-          }}
-          disabled={counts.selected === 0}
-        >
-          统一确认所选 {counts.selected} 笔
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={onReviewQuestionable}
-          disabled={counts.questionable === 0}
-        >
-          只处理有疑问的项（{counts.questionable}）
-        </Button>
-      </div>
     </div>
   );
 }
 
-function SummaryNumber({ label, value }: { readonly label: string; readonly value: number }): React.JSX.Element {
+function SummaryNumber({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: number;
+}): React.JSX.Element {
   return (
     <div>
       <dt className="text-helper text-muted">{label}</dt>
@@ -163,82 +286,99 @@ function FilterButton({
 
 function OcrOverviewCard({
   item,
-  selected,
-  onToggleSelection,
+  duplicateGroups,
+  categories,
+  paymentMethods,
+  tags,
   onOpenDetail,
 }: {
-  readonly item: OcrCandidateView;
-  readonly selected: boolean;
-  readonly onToggleSelection: (candidateId: string) => void;
+  readonly item: OcrBatchCandidate;
+  readonly duplicateGroups: readonly OcrDuplicateGroup[];
+  readonly categories: readonly Category[];
+  readonly paymentMethods: readonly PaymentMethod[];
+  readonly tags: readonly Tag[];
   readonly onOpenDetail: (candidateId: string) => void;
 }): React.JSX.Element {
-  const questionable = isOcrItemQuestionable(item);
-  const status = statusText(item);
+  const status = itemStatus(item);
+  const issues = deriveIssues(item);
+  const groups = groupsForCandidate(duplicateGroups, item.candidateId);
 
   return (
     <article
       className={`flex flex-col gap-2 rounded-card border bg-surface p-4 shadow-card ${
-        selected ? "border-brand" : "border-line"
+        item.invalid ? "border-line opacity-70" : "border-line"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <label className="flex items-center gap-2 text-helper text-muted">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => {
-              onToggleSelection(item.candidateId);
-            }}
-            aria-label={`选择 ${amountText(item)} ${merchantText(item)}`}
-          />
-          {selected ? "已选中" : "未选中"}
-        </label>
-
-        <span className="flex flex-wrap justify-end gap-1.5">
-          {item.duplicateSuspected ? (
-            <span className="rounded-full bg-warning/10 px-2.5 py-1 text-helper text-warning-dark">
-              可能重复
-            </span>
-          ) : null}
-          {questionable && !item.duplicateSuspected ? (
-            <span className="rounded-full bg-warning/10 px-2.5 py-1 text-helper text-warning-dark">
-              待核对
-            </span>
-          ) : null}
+        <span className="flex flex-wrap gap-1.5">
+          <span
+            className={`rounded-full px-2.5 py-1 text-helper ${STATUS_CLASSES[status]}`}
+          >
+            {STATUS_LABELS[status]}
+          </span>
           {item.isRefund ? (
-            <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">退款</span>
+            <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
+              退款
+            </span>
           ) : null}
           {item.isTransfer ? (
-            <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">转账</span>
+            <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
+              转账
+            </span>
           ) : null}
-          {status === null ? null : (
-            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">{status}</span>
-          )}
+          {item.reviewed && !item.invalid ? (
+            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">已核对</span>
+          ) : null}
         </span>
+
+        <button
+          type="button"
+          onClick={() => {
+            onOpenDetail(item.candidateId);
+          }}
+          className="shrink-0 rounded-field px-2 py-1.5 text-link text-brand-dark underline-offset-2 hover:underline"
+        >
+          查看详情
+        </button>
       </div>
 
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-section-title text-ink">{amountText(item)}</span>
-        <span className="text-helper text-muted">{currencyText(item)}</span>
+        <span className="text-helper text-muted">{item.currency ?? "币种待确认"}</span>
         <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
-          {directionText(item)}
+          {OCR_DIRECTION_LABELS[item.direction]}
         </span>
       </div>
 
-      <p className="text-body text-ink">{merchantText(item)}</p>
+      <p className="text-body text-ink">{fieldText(item.merchant, "对象/商户待确认")}</p>
       <p className="text-helper-relaxed text-muted">
-        {dateTimeText(item)} · {platformText(item)} · {accountText(item)}
+        {dateTimeText(item)} ·{" "}
+        {item.sourcePlatform === null ? "来源待确认" : OCR_CHANNEL_LABELS[item.sourcePlatform]} ·{" "}
+        {fieldText(item.account, "账户待确认")}
+      </p>
+
+      <p className="text-helper-relaxed text-muted">
+        分类：{categoryText(item, categories)} · 支付方式：{paymentText(item, paymentMethods)} ·
+        标签：{tagText(item, tags)}
       </p>
 
       {item.note === null ? null : (
         <p className="text-helper-relaxed text-muted">备注：{item.note}</p>
       )}
 
-      {item.issues.length === 0 ? (
-        <p className="text-helper text-muted">没有发现问题</p>
-      ) : (
+      {groups.length === 0 ? null : (
         <ul className="flex flex-col gap-1">
-          {item.issues.map((issue) => (
+          {groups.map((group) => (
+            <li key={group.groupId} className="text-helper-relaxed text-warning-dark">
+              ⚠ 可能重复：{group.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {issues.length === 0 ? null : (
+        <ul className="flex flex-col gap-1">
+          {issues.map((issue) => (
             <li
               key={`${issue.code}:${issue.field ?? ""}`}
               className="text-helper-relaxed text-warning-dark"
@@ -249,15 +389,9 @@ function OcrOverviewCard({
         </ul>
       )}
 
-      <button
-        type="button"
-        onClick={() => {
-          onOpenDetail(item.candidateId);
-        }}
-        className="self-start rounded-field px-2 py-1.5 text-link text-brand-dark underline-offset-2 hover:underline"
-      >
-        查看 / 编辑详情
-      </button>
+      {item.invalid ? (
+        <p className="text-helper text-muted">已标记无效，确认导入时不会计入。</p>
+      ) : null}
     </article>
   );
 }
