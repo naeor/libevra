@@ -41,6 +41,35 @@ function stubOcr() {
         lineCount: 30,
         averageConfidence: 0.9834,
         seconds: 1.2,
+        pageType: "single-detail",
+        layoutLabel: "微信支付详情",
+        requiresUserChoice: false,
+        candidates: [
+          {
+            candidateId: `img${String(index)}-1`,
+            imageIndex: index,
+            amount: "328.00",
+            currency: "CNY",
+            direction: "expense",
+            occurredLocalDate: "2026-09-21",
+            occurredTime: "16:55",
+            merchant: "Apple Distribution International",
+            sourcePlatform: "WECHAT",
+            account: "零钱",
+            note: null,
+            status: "posted",
+            isRefund: false,
+            isTransfer: false,
+            serial: "4200003225202609228616685603",
+            issues: [],
+            duplicateSuspected: false,
+            duplicateGroupIds: [],
+            isComplete: true,
+            isQuestionable: false,
+            rawText: "微信支付\n20.00",
+          },
+        ],
+        warnings: [],
       });
     },
     stop: (): void => undefined,
@@ -115,6 +144,90 @@ describe("POST /recognize", () => {
     expect(body.items[0]?.draft?.amount).toBe("328.00");
     expect(body.items[0]?.draft?.channel).toBe("WECHAT");
     expect(typeof body.seconds).toBe("number");
+  });
+
+  it("passes the page type and candidates through to the client", async () => {
+    const cookie = await signUp(app, "batch_viewer");
+    const form = multipart([{ field: "file", filename: "shot.png", type: "image/png", body: PNG_BYTES }]);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/recognize",
+      headers: { ...form.headers, cookie },
+      payload: form.payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = response.json() as { items: OcrItemResult[] };
+    expect(body.items[0]?.pageType).toBe("single-detail");
+    expect(body.items[0]?.layoutLabel).toBe("微信支付详情");
+    expect(body.items[0]?.requiresUserChoice).toBe(false);
+    expect(body.items[0]?.candidates).toHaveLength(1);
+    expect(body.items[0]?.candidates[0]).toMatchObject({
+      candidateId: "img0-1",
+      amount: "328.00",
+      currency: "CNY",
+      direction: "expense",
+      sourcePlatform: "WECHAT",
+      isComplete: true,
+    });
+    expect(body.items[0]?.warnings).toEqual([]);
+  });
+
+  it("still accepts an old per-image response without the batch fields", async () => {
+    const legacy = makeApp({
+      ocr: {
+        recognize: async (_image: Buffer, index: number) =>
+          ({
+            index,
+            ok: true,
+            draft: {
+              amount: "12.00",
+              currency: "CNY",
+              occurredLocalDate: "2026-09-21",
+              occurredTime: null,
+              kind: "expense",
+              channel: null,
+              counterparty: null,
+              note: null,
+              serial: null,
+              isRefund: false,
+              warnings: [],
+            },
+            error: null,
+            message: null,
+            lineCount: 5,
+            averageConfidence: 0.9,
+            seconds: 0.4,
+            // The shape a server from before S15-B returns: no pageType,
+            // candidates or warnings at all.
+          }) as unknown as OcrItemResult,
+        stop: () => undefined,
+      },
+    });
+    await legacy.ready();
+    try {
+      const cookie = await signUp(legacy, "legacy_ocr");
+      const form = multipart([
+        { field: "file", filename: "shot.png", type: "image/png", body: PNG_BYTES },
+      ]);
+      const response = await legacy.inject({
+        method: "POST",
+        url: "/api/v1/recognize",
+        headers: { ...form.headers, cookie },
+        payload: form.payload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json() as { items: OcrItemResult[] };
+      expect(body.items[0]?.draft?.amount).toBe("12.00");
+      expect(body.items[0]?.pageType).toBeNull();
+      expect(body.items[0]?.candidates).toEqual([]);
+      expect(body.items[0]?.warnings).toEqual([]);
+    } finally {
+      await legacy.close();
+    }
   });
 
   it("passes the image bytes through untouched", async () => {

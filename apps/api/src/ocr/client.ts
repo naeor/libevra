@@ -2,7 +2,15 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import type { OcrChannel, OcrDraft, OcrItemResult } from "@libellum/shared";
+import type {
+  OcrCandidate,
+  OcrChannel,
+  OcrDirection,
+  OcrDraft,
+  OcrIssue,
+  OcrItemResult,
+  OcrPageType,
+} from "@libellum/shared";
 
 /**
  * Talks to the Python recogniser.
@@ -66,6 +74,37 @@ interface RawResponse {
     readonly is_refund?: boolean;
     readonly warnings?: string[];
   };
+  /** S15-B: page type and every transaction cut out of this screenshot. */
+  readonly page_type?: string | null;
+  readonly layout_label?: string | null;
+  readonly requires_user_choice?: boolean;
+  readonly candidates?: readonly RawCandidate[];
+  readonly warnings?: readonly string[];
+}
+
+/** Python's snake_case candidate, before translation. */
+interface RawCandidate {
+  readonly candidate_id?: string;
+  readonly image_index?: number;
+  readonly amount?: string | null;
+  readonly currency?: string | null;
+  readonly direction?: string;
+  readonly occurred_local_date?: string | null;
+  readonly occurred_time?: string | null;
+  readonly merchant?: string | null;
+  readonly source_platform?: string | null;
+  readonly account?: string | null;
+  readonly note?: string | null;
+  readonly status?: string | null;
+  readonly is_refund?: boolean;
+  readonly is_transfer?: boolean;
+  readonly serial?: string | null;
+  readonly issues?: readonly { readonly code?: string; readonly message?: string; readonly field?: string | null }[];
+  readonly duplicate_suspected?: boolean;
+  readonly duplicate_group_ids?: readonly string[];
+  readonly is_complete?: boolean;
+  readonly is_questionable?: boolean;
+  readonly raw_text?: string;
 }
 
 interface Pending {
@@ -308,7 +347,9 @@ export class OcrService {
         },
       });
 
-      child.stdin.write(`${JSON.stringify({ id, image: image.toString("base64") })}\n`);
+      child.stdin.write(
+        `${JSON.stringify({ id, image_index: index, image: image.toString("base64") })}\n`,
+      );
     });
 
     return toItemResult(response, index);
@@ -335,7 +376,30 @@ function toItemResult(response: RawResponse, index: number): OcrItemResult {
     lineCount: response.lineCount ?? 0,
     averageConfidence: response.averageConfidence ?? 0,
     seconds: response.seconds ?? 0,
-  };
+    /**
+     * An old response (or a failed one) carries none of the S15-B fields. They
+     * become an explicit empty answer rather than being absent, so the client
+     * has one shape to read.
+     */
+    pageType: toPageType(response.page_type),
+    layoutLabel: response.layout_label ?? null,
+    requiresUserChoice: response.requires_user_choice === true,
+    candidates: (response.candidates ?? []).map((candidate) =>
+      toCandidate(candidate, index),
+    ),
+    warnings: response.warnings ?? [],
+  } satisfies Pick<
+    OcrItemResult,
+    | "index"
+    | "lineCount"
+    | "averageConfidence"
+    | "seconds"
+    | "pageType"
+    | "layoutLabel"
+    | "requiresUserChoice"
+    | "candidates"
+    | "warnings"
+  >;
 
   if (response.ok !== true || response.draft === undefined) {
     return {
@@ -365,4 +429,55 @@ function toItemResult(response: RawResponse, index: number): OcrItemResult {
   };
 
   return { ...base, ok: true, draft, error: null, message: null };
+}
+
+function toPageType(value: string | null | undefined): OcrPageType | null {
+  return value === "single-detail" || value === "transaction-list" || value === "unknown"
+    ? value
+    : null;
+}
+
+const DIRECTIONS: readonly OcrDirection[] = ["expense", "income", "transfer", "unknown"];
+
+function toDirection(value: string | undefined): OcrDirection {
+  return DIRECTIONS.find((direction) => direction === value) ?? "unknown";
+}
+
+function toCandidate(raw: RawCandidate, requestIndex: number): OcrCandidate {
+  const imageIndex = typeof raw.image_index === "number" ? raw.image_index : requestIndex;
+  const platform = raw.source_platform;
+
+  return {
+    candidateId: typeof raw.candidate_id === "string" && raw.candidate_id !== ""
+      ? raw.candidate_id
+      : `img${String(imageIndex)}-candidate`,
+    imageIndex,
+    amount: raw.amount ?? null,
+    currency: raw.currency ?? null,
+    direction: toDirection(raw.direction),
+    occurredLocalDate: raw.occurred_local_date ?? null,
+    occurredTime: raw.occurred_time ?? null,
+    merchant: raw.merchant ?? null,
+    sourcePlatform: platform === "WECHAT" || platform === "ALIPAY" || platform === "BANK"
+      ? (platform as OcrChannel)
+      : null,
+    account: raw.account ?? null,
+    note: raw.note ?? null,
+    status: raw.status ?? null,
+    isRefund: raw.is_refund === true,
+    isTransfer: raw.is_transfer === true,
+    serial: raw.serial ?? null,
+    issues: (raw.issues ?? []).map(
+      (issue): OcrIssue => ({
+        code: issue.code ?? "unknown",
+        message: issue.message ?? "",
+        field: issue.field ?? null,
+      }),
+    ),
+    duplicateSuspected: raw.duplicate_suspected === true,
+    duplicateGroupIds: raw.duplicate_group_ids ?? [],
+    isComplete: raw.is_complete === true,
+    isQuestionable: raw.is_questionable === true,
+    rawText: raw.raw_text ?? "",
+  };
 }
