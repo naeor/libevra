@@ -31,9 +31,55 @@ describe("chineseNumeralToDigits", () => {
 
   it("reads thousands and the ten-thousands unit", () => {
     expect(chineseNumeralToDigits("两千")).toBe("2000");
-    expect(chineseNumeralToDigits("一万二")).toBe("10002");
+    // ⚠️ The owner was explicit: **一万二 = 12000**, not 10002. The old assertion
+    // here said 10002 because every trailing digit was read as ones.
+    expect(chineseNumeralToDigits("一万二")).toBe("12000");
     expect(chineseNumeralToDigits("一万二千")).toBe("12000");
     expect(chineseNumeralToDigits("十二万")).toBe("120000");
+  });
+
+  it("fills in a unit the speaker left out", () => {
+    // Colloquial amounts elide the last unit: 一万二 is 一万二千, 三百五 is
+    // 三百五十. The missing unit is one level below the last unit actually said
+    // (万→千, 千→百, 百→十), which is that unit divided by ten.
+    expect(chineseNumeralToDigits("一万二")).toBe("12000");
+    expect(chineseNumeralToDigits("两万三")).toBe("23000");
+    expect(chineseNumeralToDigits("三千五")).toBe("3500");
+    expect(chineseNumeralToDigits("五百六")).toBe("560");
+    expect(chineseNumeralToDigits("三百五")).toBe("350");
+    expect(chineseNumeralToDigits("一百二")).toBe("120");
+    expect(chineseNumeralToDigits("一千二")).toBe("1200");
+    expect(chineseNumeralToDigits("五千六")).toBe("5600");
+    expect(chineseNumeralToDigits("一万二千三")).toBe("12300");
+    expect(chineseNumeralToDigits("一亿二")).toBe("120000000");
+  });
+
+  it("does not invent a unit when the number is already complete", () => {
+    // The elision rule only changes the value when the last unit said is above
+    // the ones place; 一百二十三 already ends at ones, so its 3 stays 3.
+    expect(chineseNumeralToDigits("一万二千")).toBe("12000");
+    expect(chineseNumeralToDigits("三千五百")).toBe("3500");
+    expect(chineseNumeralToDigits("二百")).toBe("200");
+    expect(chineseNumeralToDigits("二十")).toBe("20");
+    expect(chineseNumeralToDigits("一百二十三")).toBe("123");
+    expect(chineseNumeralToDigits("十五")).toBe("15");
+    expect(chineseNumeralToDigits("一万一千")).toBe("11000");
+  });
+
+  it("treats 零 as an explicit ones position", () => {
+    // 零 tells the listener the low position is ones, so 一万零二 stays 10002
+    // while 一万二 is 12000. The marker is what separates the two readings.
+    expect(chineseNumeralToDigits("一百零二")).toBe("102");
+    expect(chineseNumeralToDigits("三百零五")).toBe("305");
+    expect(chineseNumeralToDigits("一万零二")).toBe("10002");
+    expect(chineseNumeralToDigits("一千零二十")).toBe("1020");
+  });
+
+  it("keeps a bare digit or single unit unchanged", () => {
+    expect(chineseNumeralToDigits("五")).toBe("5");
+    expect(chineseNumeralToDigits("两")).toBe("2");
+    expect(chineseNumeralToDigits("十")).toBe("10");
+    expect(chineseNumeralToDigits("十五")).toBe("15");
   });
 
   it("reads the formal cheque-writing characters", () => {
@@ -115,6 +161,16 @@ describe("findChineseAmount", () => {
 
   it("finds the formal characters too", () => {
     expect(findChineseAmount("买菜叁佰捌拾元")?.value).toBe("380");
+  });
+
+  it("finds an amount whose last unit was left out", () => {
+    // Sentence level, because that is how the number arrives from recognition.
+    expect(findChineseAmount("午饭一万二")?.value).toBe("12000");
+    expect(findChineseAmount("打车三百五")?.value).toBe("350");
+    expect(findChineseAmount("买了个三千五的耳机")?.value).toBe("3500");
+    expect(findChineseAmount("工资一万二")?.value).toBe("12000");
+    // Regression: a numeral that was already complete must still read as before.
+    expect(findChineseAmount("买菜六十四")?.value).toBe("64");
   });
 
   it("returns null when there is no number", () => {

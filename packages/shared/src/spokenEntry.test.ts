@@ -59,6 +59,19 @@ describe("a spoken sentence, end to end", () => {
     const salary = parseSpokenEntryWithCategory("收到工资一万二", LEDGER);
     expect(salary.kind).toBe("income");
     expect(salary.categoryId).toBe("c-salary");
+    // The owner was explicit: 一万二 is 12000, not 10002.
+    expect(salary.amount).toBe("12000");
+  });
+
+  it("reads an amount whose last unit was left out", () => {
+    // Sentence level, through the same function the API uses.
+    const lunch = parseSpokenEntryWithCategory("午饭一万二", LEDGER);
+
+    expect(lunch.amount).toBe("12000");
+    expect(lunch.categoryId).toBe("c-food");
+    expect(lunch.note).toBe("午饭");
+
+    expect(parseSpokenEntry("打车三百五").amount).toBe("350");
   });
 
   it("prefers the price over another number in the same sentence", () => {
