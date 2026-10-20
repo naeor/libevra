@@ -239,7 +239,7 @@ class PageStructure:
         return not self.list_like and (self.has_big_amount or self.detail_label_count >= 2)
 
 
-def _label_of(text: str) -> str | None:
+def label_of(text: str) -> str | None:
     """`当前状态：支付成功` → `当前状态`; unknown labels stay unknown."""
 
     stripped = text.strip()
@@ -282,7 +282,7 @@ def analyse_structure(lines: Sequence[Line]) -> PageStructure:
         # row (`付款账户` → `尾号 6688`), so any number in it is a field value,
         # not a second transaction. Without this, a numeric account/尾号 value
         # classified a bank transfer detail page as a transaction list.
-        if any(_label_of(line.text) is not None for line in band):
+        if any(label_of(line.text) is not None for line in band):
             continue
 
         amounts = [line for line in band if is_amount_like(line)]
@@ -298,7 +298,7 @@ def analyse_structure(lines: Sequence[Line]) -> PageStructure:
 
     date_count = sum(1 for line in body if is_date_like(line.text))
 
-    detail_label_count = sum(1 for line in body if _label_of(line.text) is not None)
+    detail_label_count = sum(1 for line in body if label_of(line.text) is not None)
 
     heights = [line.height for line in body if line.height > 0]
     median_height = _median(heights)
@@ -435,6 +435,14 @@ def register_layout(descriptor: LayoutDescriptor) -> LayoutDescriptor:
 
 def registered_layouts() -> tuple[LayoutDescriptor, ...]:
     return tuple(_REGISTRY)
+
+
+def layout_by_id(layout_id: str | None) -> LayoutDescriptor | None:
+    """The descriptor a classification points at, if it still exists."""
+
+    if layout_id is None:
+        return None
+    return next((layout for layout in _REGISTRY if layout.id == layout_id), None)
 
 
 def reset_layouts() -> None:
@@ -744,6 +752,9 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
         extraction=ExtractionSpec(
             strategy="list-rows",
             status_markers=(("Pending", "pending"), ("Posted", "posted")),
+            # BOA statements are USD; the assumption is surfaced as a visible
+            # `currency_assumed` issue rather than silently presented as read.
+            default_currency="USD",
         ),
         notes="没有 BOA 截图；关键词来自常识而不是样本，行式样（金额列位置）未验证。",
     ),

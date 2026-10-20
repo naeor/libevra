@@ -46,6 +46,9 @@ ISSUE_DUPLICATE_SUSPECTED = "duplicate_suspected"
 ISSUE_LAYOUT_UNVERIFIED = "layout_unverified"
 ISSUE_LAYOUT_CONFLICT = "layout_conflict"
 ISSUE_EXTRACTION_INCOMPLETE = "extraction_incomplete"
+# A currency that was not printed but is implied by the source platform (WeChat
+# and Alipay bills are CNY). Kept as a visible assumption, not silent default.
+ISSUE_CURRENCY_ASSUMED = "currency_assumed"
 
 # Issues that stop an item from counting as "没有问题". Everything else is
 # context the user can read at a glance without being asked to act.

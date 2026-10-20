@@ -166,6 +166,30 @@ def boa_activity_list() -> list[Line]:
     ]
 
 
+def boa_activity_list_with_balance_column() -> list[Line]:
+    """未验证: a BOA-style row with Amount **and** Balance columns.
+
+    Two numbers per row is the case the generic cutter must refuse to guess: a
+    bank list that shows a running balance would otherwise record the balance as
+    the transaction amount. No sample exists, so the candidate should come back
+    with an "amount uncertain" issue rather than a number.
+    """
+
+    return [
+        L("9:41", 20, 40, 20),
+        L("Bank of America", 60, 36, 30),
+        L("Transactions", 110, 36, 28),
+        L("09/21/2026", 300, 36, 24),
+        L("APPLE.COM/BILL  CUPERTINO", 300, 150, 24),
+        L("-328.00", 300, 640, 24),
+        L("1,672.00", 300, 760, 24),
+        L("09/21/2026", 360, 36, 24),
+        L("PAYROLL  ACME CORP", 360, 150, 24),
+        L("+2,500.00", 360, 640, 24),
+        L("4,172.00", 360, 760, 24),
+    ]
+
+
 def unknown_page() -> list[Line]:
     """A settings screen: text but no transaction structure at all."""
 
