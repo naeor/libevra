@@ -114,3 +114,36 @@ describe("a spoken sentence, end to end", () => {
     expect(entry.categoryId).toBe("c-mine");
   });
 });
+
+/**
+ * The owner's fixed acceptance sentences that contain a date, end to end.
+ *
+ * S14-V found this on real text — 「10月8号……42元五角」 put 5 in the amount field
+ * and 「9月21号……88元」 put 9 — and it was a *field parser* fault, not the
+ * recogniser's. The units are tested above; this is the join with the category
+ * guess, which is the path the API actually takes.
+ */
+describe("a spoken sentence with a date, end to end", () => {
+  it("files the price, not the date number", () => {
+    const entry = parseSpokenEntryWithCategory("9 月 21 日餐饮花费 88 元", LEDGER);
+
+    expect(entry.amount).toBe("88");
+    expect(entry.kind).toBe("expense");
+    expect(entry.categoryId).toBe("c-food");
+    expect(entry.note).toBe("9月21日餐饮花费");
+  });
+
+  it("reads the jiao as part of the amount", () => {
+    const entry = parseSpokenEntryWithCategory("10 月 8 日在超市花了四十二块五", LEDGER);
+
+    expect(entry.amount).toBe("42.5");
+    expect(entry.categoryId).toBe("c-shopping");
+  });
+
+  it("still leaves the amount empty when only a date was said", () => {
+    const entry = parseSpokenEntryWithCategory("10 月 8 日", LEDGER);
+
+    expect(entry.amount).toBeNull();
+    expect(entry.note).toBe("10月8日");
+  });
+});
