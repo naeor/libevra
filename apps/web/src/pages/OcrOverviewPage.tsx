@@ -76,6 +76,8 @@ export function OcrOverviewPage(): React.JSX.Element {
   );
   const duplicateGroups = useMemo(() => findSuspectedDuplicates(items), [items]);
   const blockers = useMemo(() => (batch === null ? [] : findImportBlockers(batch)), [batch]);
+  const unresolvedPages =
+    batch?.pages.filter((page) => page.pageType === "unknown").length ?? 0;
 
   const wrongBook = batch !== null && !batchBelongsToBook(batch, currentBookId);
   const disabledReason = importDisabledReason({
@@ -233,7 +235,11 @@ export function OcrOverviewPage(): React.JSX.Element {
             note={
               wrongBook
                 ? "这批识别结果属于另一本账本：可以查看，但不能导入。请切回生成批次时的账本。"
-                : "批次只保存在当前标签页的临时存储里；确认导入前不会写入账本。"
+                : `批次只保存在当前标签页的临时存储里；确认导入前不会写入账本。${
+                    unresolvedPages > 0
+                      ? `另有 ${String(unresolvedPages)} 张截图无法判断页面类型，没有生成候选；需要时请单独上传并按单笔/多笔处理。`
+                      : ""
+                  }`
             }
           />
 
