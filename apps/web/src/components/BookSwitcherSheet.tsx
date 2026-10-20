@@ -274,6 +274,17 @@ export function BookSwitcherSheet({
  * ⚠️ **The 「当前记账账本」 tag is a statement, never a suggestion.** It comes from the device's own
  * memory of the ledger (`useCurrentBookId`), so this component cannot change that fact by being
  * rendered — which is the whole property the target-ledger screens depend on.
+ *
+ * ⚠️ **`onRename` is the one thing 账本设置 adds, and it is optional so 账本详情 does not change**
+ * (S15-C). The owner's complaint was that the name and the number each appeared twice on 账本设置:
+ * once in this card, once in the 「账本资料」 block below it. The block is gone; **the way to change
+ * the name moved into this card instead.**
+ *
+ * ⚠️ **Why the rename entry is a row under the card, not a control inside it.** The card is a
+ * `<button>` — the owner's *"右侧「切换」按钮整块可点"* — and a `<button>` inside a `<button>` is
+ * invalid HTML, breaks keyboard order, and makes one tap fire two actions. With `onRename` the card
+ * becomes a container of two rows (switch, rename); **without it the markup is the single button it
+ * always was**, so the read-only screen is untouched.
  */
 export function BookIdentityCard({
   bookId,
@@ -282,6 +293,7 @@ export function BookIdentityCard({
   memberCount,
   caption,
   onSwitch,
+  onRename,
 }: {
   readonly bookId: string;
   readonly name: string;
@@ -290,16 +302,18 @@ export function BookIdentityCard({
   /** 「正在管理」 on 账本设置; omitted on 账本详情, where nothing is being managed yet. */
   readonly caption?: string;
   readonly onSwitch: () => void;
+  /**
+   * ⚠️ **Only 账本设置 passes this, and only for an owner/editor.** A viewer's server would refuse
+   * the rename anyway, so they get no control that is certain to fail — just the sentence below.
+   */
+  readonly onRename?: (() => void) | undefined;
 }): React.JSX.Element {
   const currentBookId = useCurrentBookId();
   const isCurrentAccounting = bookId === currentBookId;
 
-  return (
-    <button
-      type="button"
-      onClick={onSwitch}
-      className="flex w-full items-center justify-between gap-4 rounded-card border border-line bg-surface px-5 py-4 text-left transition hover:bg-canvas"
-    >
+  /** The identity line itself — the same markup in both shapes of the card. */
+  const identity = (
+    <>
       <span className="flex min-w-0 flex-col gap-0.5">
         {caption === undefined ? null : <span className="text-helper text-muted">{caption}</span>}
         <span className="truncate text-base font-medium text-ink">{name}</span>
@@ -318,7 +332,47 @@ export function BookIdentityCard({
       </span>
 
       <span className="shrink-0 rounded-field bg-brand-soft px-3 py-1.5 text-helper text-brand-dark">切换</span>
-    </button>
+    </>
+  );
+
+  /** ⚠️ **The unchanged card** — 账本详情 renders this, and so does a viewer on 账本设置. */
+  if (onRename === undefined) {
+    return (
+      <button
+        type="button"
+        onClick={onSwitch}
+        className="flex w-full items-center justify-between gap-4 rounded-card border border-line bg-surface px-5 py-4 text-left transition hover:bg-canvas"
+      >
+        {identity}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-card border border-line bg-surface">
+      <button
+        type="button"
+        onClick={onSwitch}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-canvas"
+      >
+        {identity}
+      </button>
+
+      {/**
+        * ⚠️ **The name is not repeated here.** This row is an *action*, so it says what it does
+        * rather than showing the value that is already one line above it.
+        */}
+      <button
+        type="button"
+        onClick={onRename}
+        className="flex w-full items-center justify-between gap-4 border-t border-line px-5 py-3.5 text-left transition hover:bg-canvas"
+      >
+        <span className="text-helper text-muted">修改账本名称</span>
+        <span aria-hidden="true" className="shrink-0 text-helper text-muted">
+          ›
+        </span>
+      </button>
+    </div>
   );
 }
 
