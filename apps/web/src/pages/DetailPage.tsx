@@ -60,7 +60,7 @@ import { logOffline } from "../lib/offline/diagnostics.js";
 import { markPresentationSeen } from "../lib/spaceTransition.js";
 import { mergeLedgerEntries } from "../lib/ledgerView.js";
 import { syncMonth } from "../lib/offline/sync.js";
-import { pendingCount, syncNow } from "../lib/offline/syncController.js";
+import { pendingCount, retryAbandonedWrites, syncNow } from "../lib/offline/syncController.js";
 import { deleteEntry, resolveConflict, updateEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
@@ -361,6 +361,15 @@ export function DetailPage(): React.JSX.Element {
     let waiting = 0;
 
     try {
+      /**
+       * ⚠️ **A press of this button is a person asking us to try again**, so the session's "give up"
+       * verdicts are dropped before anything is delivered (`syncController` has promised that since it
+       * was written; nothing implemented it until now). **Memory only** — the marks, the queue and the
+       * data are untouched, and every entry is judged again from scratch: a 4xx is still a 4xx, it is
+       * simply re-judged. The automatic triggers do **not** call this.
+       */
+      await retryAbandonedWrites();
+
       /** ⚠️ Delivery first, so the pull below sees everything this device had to send. */
       delivered = await syncNow();
 
@@ -445,8 +454,8 @@ export function DetailPage(): React.JSX.Element {
   const entries = useMemo(() => {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
 
-    return mergeLedgerEntries(localEntries, fromQuery, pending, filters);
-  }, [list.data, localEntries, pending, month, kind, categoryId]);
+    return mergeLedgerEntries(localEntries, fromQuery, pending, filters, deleted);
+  }, [list.data, localEntries, pending, month, kind, categoryId, deleted]);
 
   /**
    * ⚠️ **One explicit sort, applied to whatever the sources produced.**

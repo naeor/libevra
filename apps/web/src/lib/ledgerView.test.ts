@@ -19,6 +19,29 @@ describe("ledger view isolation", () => {
     const pending = { ...expense, amountCents: 8000 };
     expect(mergeLedgerEntries([pending], [expense, income], new Set([expense.id]), { kind: "expense" })).toEqual([pending]);
   });
+  it("hides deletion tombstones, queued or acknowledged, from the list", () => {
+    // ⚠️ The owner's report (S15-C, 2026-10-20): "被删掉的东西还在" — the stored copy of a
+    // deleted entry was merged back into the view because nothing applied the deletion to the
+    // merged list. Both a queued delete (device copy + stale server row) and an acknowledged one
+    // (device copy only) must disappear; a row that is not deleted must survive.
+    const queued = row("queued", "expense");
+    const acknowledged = row("acknowledged", "expense");
+    const alive = row("alive", "expense");
+
+    expect(
+      mergeLedgerEntries(
+        [queued],
+        [queued, alive],
+        new Set([queued.id]),
+        { kind: "expense" },
+        new Set([queued.id, acknowledged.id]),
+      ).map(entry => entry.id),
+    ).toEqual([alive.id]);
+
+    expect(
+      mergeLedgerEntries([acknowledged], [], new Set(), { kind: "expense" }, new Set([acknowledged.id])),
+    ).toEqual([]);
+  });
   it("updates both query caches using all their original filters after a local write", () => {
     const client = new QueryClient();
     const views = [
