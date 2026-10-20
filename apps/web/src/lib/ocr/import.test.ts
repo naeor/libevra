@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildImportPlan, candidateLabel, composeNote } from "./import.js";
+import {
+  buildImportPlan,
+  candidateLabel,
+  composeNote,
+  countImportableItems,
+} from "./import.js";
 import type { OcrBatch, OcrBatchCandidate } from "./types.js";
 import { batchCandidate } from "./testFixtures.js";
 
@@ -128,6 +133,40 @@ describe("buildImportPlan", () => {
 
     expect(JSON.stringify(batch)).toBe(before);
     expect(batch.items[0]).toBe(item);
+  });
+});
+
+describe("countImportableItems", () => {
+  it("counts only candidates that pass the field checks", () => {
+    const items = [
+      batchCandidate({ candidateId: "ready" }),
+      batchCandidate({ candidateId: "no-currency", currency: null }),
+      batchCandidate({ candidateId: "unsupported", currency: "CAD" }),
+      batchCandidate({ candidateId: "excluded", invalid: true }),
+    ];
+
+    expect(countImportableItems(items)).toBe(1);
+  });
+
+  it("does not require the fixed ids that are minted at confirmation", () => {
+    // The button is enabled before any id exists; requiring importIds here would
+    // show “可导入 0 笔” on every first visit.
+    expect(countImportableItems([batchCandidate()])).toBe(1);
+    expect(buildImportPlan(batchOf([batchCandidate()])).blockers[0]?.reason).toContain("幂等 id");
+  });
+
+  it("matches the number of items a confirmed plan would write", () => {
+    const items = [
+      batchCandidate({ candidateId: "a" }),
+      batchCandidate({ candidateId: "b", amount: "18.50" }),
+      batchCandidate({ candidateId: "c", occurredLocalDate: null }),
+    ];
+    const importIds = Object.fromEntries(
+      items.map((item) => [item.candidateId, `id-${item.candidateId}`]),
+    );
+
+    expect(countImportableItems(items)).toBe(2);
+    expect(buildImportPlan(batchOf(items, importIds)).ready).toHaveLength(2);
   });
 });
 

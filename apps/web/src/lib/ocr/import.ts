@@ -161,6 +161,27 @@ export function findImportBlockers(batch: OcrBatch): OcrImportBlocker[] {
 }
 
 /**
+ * 有资格写入的笔数：未标记无效、且通过字段校验（`validationBlocker` 为 null）。
+ *
+ * ⚠️ **这是概览页「可导入 N 笔」和确认按钮上的那个 N**，不是“未标记无效”的数量。
+ * 两者在字段不够时会差开：一笔缺币种的候选仍然“有效”（用户没排除它），但它写不进去。
+ * 把未标记无效的数量当成可导入，会让概览在按钮被禁用时仍写着“可导入 5 笔”。
+ *
+ * 它**不检查固定 id**：`importIds` 只在确认那一刻才生成，所以这里不把“还没有 id”
+ * 算成阻塞，否则页面一打开就永远显示 0 笔可导入。
+ */
+export function countImportableItems(items: readonly OcrBatchCandidate[]): number {
+  let count = 0;
+
+  for (const item of items) {
+    if (item.invalid) continue;
+    if (validationBlocker(item) === null) count += 1;
+  }
+
+  return count;
+}
+
+/**
  * 把批次翻译成逐条写入计划。纯函数，不触网、不写账。
  *
  * 无效项（用户标记）不进入 ready 也不进入 blockers：它们本来就不该导入，页面用
