@@ -20,8 +20,12 @@ import { EntrySaved } from "../components/EntrySaved.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { errorMessage } from "../lib/api.js";
+import { currentBookId } from "../lib/currentBook.js";
 import { currentMonth, localTimeZone, toLocalDate, toLocalIso } from "../lib/datetime.js";
 import { amountPlaceholder, currencyName, formatMoney, parseAmountInput } from "../lib/format.js";
+import { createBatch } from "../lib/ocr/batch.js";
+import { saveBatch } from "../lib/ocr/batchStore.js";
+import { readableItems, routeRecognition } from "../lib/ocr/routeDecision.js";
 import {
   useCheckDuplicates,
   useCreateTransaction,
@@ -89,6 +93,15 @@ export function ScanPage(): React.JSX.Element {
     readonly amountCents: number;
     readonly existing: readonly Transaction[];
   } | null>(null);
+
+  /**
+   * A page type nobody could decide.
+   *
+   * Holds the readable screenshots rather than a boolean, because every choice in
+   * the dialog needs them: 按单笔 builds the old review from them, 按多笔 builds a
+   * batch from them, and 重新上传 keeps them on the pick step.
+   */
+  const [batchChoice, setBatchChoice] = useState<OcrItemResult[] | null>(null);
 
   /**
    * An entry that was just taken back, kept so it can be put back.
@@ -196,7 +209,7 @@ export function ScanPage(): React.JSX.Element {
       // A screenshot nobody could read is dropped here, with a count, rather
       // than being carried into the review queue as an empty form the user has
       // to work out is empty.
-      const readable = result.items.filter((item) => item.ok && item.draft !== null);
+      const readable = readableItems(result.items);
       const lost = result.items.length - readable.length;
 
       if (readable.length === 0) {
@@ -222,16 +235,28 @@ export function ScanPage(): React.JSX.Element {
         setError(`有 ${String(lost)} 张没能识别出来，已跳过。`);
       }
 
-      setItems(readable);
-      setCursor(0);
-      setStep({
-        name: "review",
-        draft:
-          mode === "single"
-            ? foldDrafts(readable, categories, paymentMethods, lastCategoryId)
-            : draftOf(readable[0]!, categories, paymentMethods, lastCategoryId),
-        warnings: readable[0]?.draft?.warnings ?? [],
-      });
+      /**
+       * **One upload, one path.**
+       *
+       * A transaction list (or a mix of list and detail screenshots) goes to the
+       * batch overview; a page type nobody can decide asks the user; everything
+       * else keeps the original single-entry review. The old flow is not
+       * reimplemented here — it is the fallback branch.
+       */
+      const route = routeRecognition(readable);
+
+      if (route === "batch") {
+        openBatch(result.items);
+        return;
+      }
+
+      if (route === "ask") {
+        setItems(readable);
+        setBatchChoice(readable);
+        return;
+      }
+
+      startSingleReview(readable);
     } catch (caught) {
       /**
        * A failure to *reach* recognition, which is a different situation from
@@ -262,6 +287,47 @@ export function ScanPage(): React.JSX.Element {
       draft: draftOf(item, categories, paymentMethods, lastCategoryId),
       warnings: [...(item.draft?.warnings ?? [])],
     });
+  }
+
+  /** The original single-entry review, used directly and by the 按单笔 answer. */
+  function startSingleReview(reviewItems: OcrItemResult[]): void {
+    setItems(reviewItems);
+    setCursor(0);
+    setStep({
+      name: "review",
+      draft:
+        mode === "single"
+          ? foldDrafts(reviewItems, categories, paymentMethods, lastCategoryId)
+          : draftOf(reviewItems[0]!, categories, paymentMethods, lastCategoryId),
+      warnings: reviewItems[0]?.draft?.warnings ?? [],
+    });
+  }
+
+  /**
+   * Put the whole upload into one batch and open the overview.
+   *
+   * **Nothing is written here** and nothing is sent anywhere: the batch is text
+   * in sessionStorage until the user confirms on the overview screen. If the
+   * browser refuses to store it (private mode/quota), the user is told rather
+   * than sent to an overview that would immediately look empty.
+   */
+  function openBatch(batchItems: readonly OcrItemResult[]): void {
+    const batch = createBatch(batchItems, {
+      bookId: ledger.data?.book.id ?? currentBookId(),
+      categories,
+      paymentMethods,
+      now: new Date(),
+      generateBatchId: uuidV7,
+    });
+
+    if (!saveBatch(batch)) {
+      setError(
+        "浏览器无法保存这次识别结果（可能是隐私模式或存储空间已满）。请重试，或改为逐笔核对。",
+      );
+      return;
+    }
+
+    void navigate("/ocr/overview");
   }
 
   /** How many are still waiting, including the one on screen. */
@@ -462,6 +528,41 @@ export function ScanPage(): React.JSX.Element {
       ) : null}
 
       {/*
+        The page type could not be decided. The design direction is explicit that
+        the program must not invent a transaction count here, so the user picks
+        the path: the original single-entry review, the batch overview, or going
+        back for a clearer screenshot.
+      */}
+      <ChoiceDialog
+        open={batchChoice !== null}
+        title="有截图无法判断是单笔还是多笔"
+        description={
+          batchChoice === null
+            ? ""
+            : `有 ${String(batchChoice.length)} 张截图没有匹配到已知版式。请选择怎么处理；系统不会自行决定交易数量。`
+        }
+        choices={UNKNOWN_PAGE_CHOICES}
+        onChoose={(choice) => {
+          const chosen = batchChoice;
+          setBatchChoice(null);
+          if (chosen === null) return;
+
+          if (choice === "single") {
+            startSingleReview(chosen);
+            return;
+          }
+
+          if (choice === "multi") {
+            openBatch(chosen);
+            return;
+          }
+
+          // "back": stay on the pick step with the pictures still attached, so
+          // the user can remove one or choose another. No automatic picker.
+        }}
+      />
+
+      {/*
         Recognition read nothing. The user picks the way forward; nothing here
         decides for them — see the note on `NOTHING_READABLE_CHOICES`.
       */}
@@ -594,6 +695,20 @@ const NOTHING_READABLE_CHOICES: readonly Choice<"retry" | "manual" | "back">[] =
   { id: "retry", label: "再试一次", hint: "用同一张图重新识别", primary: true },
   { id: "manual", label: "改为手动记账", hint: "自己填写这笔账" },
   { id: "back", label: "返回拍照页", hint: "可以换一张截图", dismissive: true },
+];
+
+/**
+ * The three ways out of "we cannot tell how many transactions this page holds".
+ *
+ * All three are real answers: the page may genuinely be one transaction on an
+ * unfamiliar layout, it may be a list, or the screenshot may simply be unusable.
+ * None of them is a sensible default, which is why the user is asked rather than
+ * guessed at.
+ */
+const UNKNOWN_PAGE_CHOICES: readonly Choice<"single" | "multi" | "back">[] = [
+  { id: "single", label: "按单笔处理", hint: "整张图当作一笔，进入原来的核对表单", primary: true },
+  { id: "multi", label: "按多笔处理", hint: "进入批量核对，可逐笔编辑或标记无效" },
+  { id: "back", label: "重新上传", hint: "回到拍照页换一张截图", dismissive: true },
 ];
 
 /**
