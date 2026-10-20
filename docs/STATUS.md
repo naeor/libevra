@@ -7,15 +7,15 @@
 
 | 项 | 值 |
 |---|---|
-| **最后核对** | 2026-10-20 10:08 CST |
+| **最后核对** | 2026-10-20 21:15 CST |
 | **生产版本** | **`1.14.20`** |
 | **生产 `/health`** | `ok=true`、`version=1.14.20`、`database=up`（2026-10-20 08:50 实测） |
 | **生产部署 commit** | `9102c00`（按发布记录，未在本次 SSH 复核；仓库 HEAD 比它多 2 个纯文档提交） |
 | **数据库迁移** | **51** 个（仓库 `prisma/migrations` 计数；开发库 `prisma migrate status` = up to date） |
 | **注册模式** | **邀请制**（未开放公开注册） |
 | **站点** | <https://libevra.com>（腾讯云，HTTPS） |
-| **当前阶段** | **S14 已完成并发布；S15 未开始（只有规划）；S16/S17 未开始** |
-| **分支 / 远程** | `s14-integration` 与 `main` **均已同步到 GitHub 且指向同一提交**（2026-10-20 快进合并，[PR #2](https://github.com/naeor/libevra/pull/2) 已 MERGED） |
+| **当前阶段** | **S14 已完成并发布；S15 首轮开发完成待验收（2026-10-20 夜间）；S16/S17 未开始** |
+| **分支 / 远程** | `s14-integration` 与 `main` **均已同步到 GitHub 且指向同一提交**（2026-10-20 快进合并，[PR #2](https://github.com/naeor/libevra/pull/2) 已 MERGED）；另有**本地开发分支** `s15-a` / `s15-b`（worktree 在 `Documents\deepseek-harness\default-workspace\worktrees\`），**未推送、未合并** |
 | **CI** | ✅ **已通过**：PR #2（3m05s）与 main push（2026-10-20）两次均绿 |
 | **当前提交** | 见 `git log -1 --oneline`（本文件不锁 hash，避免每次提交都过期） |
 | **工作区** | 唯一工作区 = `C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1` |
@@ -28,11 +28,13 @@
 | S13 | ✅ 完成并上线 | 线上管理机制、公告与协议、账号注销、异地关键状态登记簿、Critical Chain |
 | S14 | ✅ 完成并发布 | 游客模式与准入、账本导入（含 D5 阶段二~四）、1.14.18 / 1.14.19 / 1.14.20 生产发布 |
 | **S14-V** | 🟡 研究完成、**未发布** | 语音性能研究（VAD／静音短路／子进程恢复／计时）作为候选，成果归 S15-A |
-| **S15** | ⬜ 未开始 | 核心记账体验与识别系统优化（A 语音 / B OCR 多笔与概览页 / C 页面结构 / D 综合验收） |
+| **S15** | 🟡 **首轮已开发，待验收**（2026-10-20 夜间） | S15-A 语音 5 提交 / S15-B OCR 8 提交，分别在本地分支 `s15-a`/`s15-b`；报告见 [archive/misc/S15-夜间验收报告-20261020.md](archive/misc/S15-夜间验收报告-20261020.md) |
 | S16 | ⬜ 未开始 | 全产品视觉、交互、语言与设计系统统一 |
 | S17 | ⬜ 未开始 | Web/PWA 正式公开发布与开源交付 |
 
 ## 2. 下一步做什么
+
+> **2026-10-20 夜间更新**：S15-A / S15-B 首轮已开发完成（本地分支，未合并未推送）。**先验收**：[archive/misc/S15-夜间验收报告-20261020.md](archive/misc/S15-夜间验收报告-20261020.md)。下面第 1 条仍是"正式开工/合并前的确认项"。
 
 1. **S15 未获开发授权。** 开工前必须由所有者确认：
    - S15-A：base 目标默认模型、small 回退、准确率/延迟验收阈值、真实语音样本授权、并发与超时边界；
@@ -58,6 +60,7 @@
 ## 4. 证据出处
 
 - 生产实测：`curl.exe -s https://libevra.com/api/v1/health`（本次）
+- S15 夜间成果与复核：[archive/misc/S15-夜间验收报告-20261020.md](archive/misc/S15-夜间验收报告-20261020.md)、[archive/misc/Libevra-工作报告-2026-10-20.md](archive/misc/Libevra-工作报告-2026-10-20.md)
 - 仓库迁移数：`prisma/migrations/` 目录计数 + `pnpm exec prisma migrate status`
 - 发布过程：[`archive/releases/`](archive/releases/) 与 [`changelog/1.14.md`](changelog/1.14.md)
 - 运维操作：[`03-运维手册.md`](03-运维手册.md)、[`ops/`](ops/)
