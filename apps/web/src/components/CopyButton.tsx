@@ -116,6 +116,13 @@ export function CopyButton({
         predict the failure is a fallback that can be wrong**; one that is always present cannot.
         It also means the text can be screenshotted, which works everywhere.
       */}
+      {/*
+        ⚠️ **`text-base`, not the 10px this box used to ask for.** A textarea is a
+        focusable form control, and iOS magnifies the page below 16px (see the
+        `@layer base` note in `index.css`). The 10px never actually rendered — the
+        old unlayered rule capped every control at 16px — so this keeps the box
+        pixel-identical while making the intent honest.
+      */}
       <textarea
         readOnly
         value={text}
@@ -123,7 +130,7 @@ export function CopyButton({
         onFocus={(event) => {
           event.currentTarget.select();
         }}
-        className="w-full rounded-field border border-line bg-surface px-3 py-2 font-mono text-[10px] leading-relaxed text-ink"
+        className="w-full rounded-field border border-line bg-surface px-3 py-2 font-mono text-base leading-relaxed text-ink"
       />
     </div>
   );

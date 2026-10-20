@@ -512,7 +512,7 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
               rows={1}
               placeholder="写点什么……"
               aria-label="写留言"
-              className="min-h-11 flex-1 resize-none rounded-field border border-line bg-canvas px-4 py-3 text-body text-ink"
+              className="min-h-11 flex-1 resize-none rounded-field border border-line bg-canvas px-4 py-3 text-base text-ink"
             />
             <button
               type="button"
