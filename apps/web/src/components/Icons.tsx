@@ -93,6 +93,49 @@ export function PlusIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
 }
 
 /**
+ * The one disclosure arrow: 收起/展开、打开面板、"还有一项".
+ *
+ * ⚠️ **Why this exists** (S15-C 第四轮). 这一页原来在四处写 `⌄` / `⌃`：币种按钮、快捷金额、
+ * 更多选项、分类。同一个"展开"在两个地方是不同字符，`⌄` 与 `⌃` 的字形宽度也不一样，12px 的
+ * 字符夹在 15–36px 的文字之间就像一颗掉下来的小点。**一个字符不是图标**——它没有固定的
+ * 画布、不能旋转、宽度还由字体决定，所以两处箭头不可能长得一样。
+ *
+ * ⚠️ **One path, one box, two directions.** 收起与展开是**同一个 SVG**，只把 `up` 打开时
+ * 旋转 180°。`transform` 不进入布局，所以两种状态的占位、与文字的间距、行高完全一致，
+ * 展开时不会把左边的字挤动。尺寸 14px：约 1–1.5 个 15px 字母宽，比原来的 `⌄` 宽一点、
+ * 比正文小一档，不再用"放大字号"来加宽箭头。
+ *
+ * ⚠️ **不要再用字符画箭头。** 以后需要方向箭头时用这个组件（或给它加 `left`/`right`），
+ * 不要退回 `⌄` / `⌃` / `▾`：字体一换，它们又会各长各的。
+ */
+export function ChevronIcon({
+  up = false,
+  className = "",
+}: {
+  /** 展开状态传 `true`：同一个图形转 180°，不是另一个字符。 */
+  readonly up?: boolean;
+  readonly className?: string;
+}): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-chevron={up ? "up" : "down"}
+      aria-hidden="true"
+      className={`shrink-0 transition-transform duration-200 ease-out ${up ? "-rotate-180" : ""} ${className}`.trim()}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+/**
  * **The account avatar: a portrait silhouette, which is the convention everybody already knows.**
  *
  * ⚠️ **The owner asked for exactly this** (2026-10-13): *"图标是那种一个灰色的默认头像半身像那样的样子.
