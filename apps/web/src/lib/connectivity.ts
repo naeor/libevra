@@ -21,6 +21,19 @@ import { recordBackPress } from "./backFallback.js";
  */
 
 /**
+ * ⚠️ **How a 返回 control decides where it goes.**
+ *
+ * * `history` — the default, and what every screen but two uses: back returns to the screen the
+ *   reader actually came from, with the declared origin and then `backTo` as the fallbacks;
+ * * `parent` — the screen's parent is **fixed**, and history is not asked. Only the two screens
+ *   that point at each other need it — see `useGoBack` below.
+ *
+ * ⚠️ **The default is `history`, deliberately**: a screen that forgets to choose keeps the
+ * behaviour it had before this type existed. Only an explicit `backMode="parent"` changes anything.
+ */
+export type BackMode = "history" | "parent";
+
+/**
  * Go back to wherever the user actually came from.
  *
  * The screens below the tabs are reachable from more than one place — 分类管理
@@ -52,7 +65,7 @@ import { recordBackPress } from "./backFallback.js";
  * is a real move: it should be a history entry, and the reader can then go forward again. Replacing
  * would erase the screen they came from.
  */
-export function useGoBack(fallback: string): () => void {
+export function useGoBack(fallback: string, mode: BackMode = "history"): () => void {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -66,6 +79,32 @@ export function useGoBack(fallback: string): () => void {
     // them bounce between two screens.
     if (recordBackPress()) {
       void navigate("/", { replace: true });
+      return;
+    }
+
+    /**
+      * ⚠️ **`parent` mode: the declared parent, every time — history is not asked** (S15-C).
+      *
+      * ⚠️ **The loop it removes is 导出 ⇄ 账本设置.** 设置 → 导出 pushes 导出; 导出's back used
+      * history and returned to 设置; 设置's back then used history too, and the entry behind it *was*
+      * 导出 — so the two screens could walk a circle, exactly like 关于/设置 before `state.from`.
+      * **A screen whose parent never changes must not derive its parent from where the reader
+      * happened to come from.**
+      *
+      * ⚠️ **`location.state.from` is ignored here on purpose.** It is a *caller* declaring an origin
+      * for the screen it is about to open; a screen in `parent` mode is asserting its hierarchy is
+      * fixed, and honouring somebody else's idea of where it came from would bring the variance back.
+      *
+      * ⚠️ **`replace`, not a push** (S15-C follow-up, 2026-10-20). The first version pushed, and the
+      * visible result was a second loop one level down: 设置 →push 账本详情, whose own history-based
+      * back returned to 设置. 账本详情 is reachable from several places (明细「详情」、我的→账本管理、
+      * 旧地址重定向), so it cannot be forced into `parent`; a fixed-hierarchy back must therefore be
+      * a move **out of** this screen — `replace` consumes the entry instead of leaving one that a
+      * neighbour can bounce off. It comes *after* the five-press escape hatch above, because a
+      * reader stuck on a bouncing pair still needs a way out.
+      */
+    if (mode === "parent") {
+      void navigate(fallback, { replace: true });
       return;
     }
 
@@ -84,5 +123,5 @@ export function useGoBack(fallback: string): () => void {
     }
 
     void navigate(fallback);
-  }, [navigate, location.key, fallback, from]);
+  }, [navigate, location.key, fallback, from, mode]);
 }

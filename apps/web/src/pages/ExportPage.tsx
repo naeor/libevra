@@ -33,6 +33,11 @@ import { canShareFiles, deliverFile } from "../lib/share.js";
  *
  * ⚠️ **两条路径的区别只有"数据从哪来 / 给谁"**：`/export` 与明细页的工具按钮保持原样
  * （当前账本、`useLedger()`、返回 `/`），目标模式不调用 `useLedger()`。
+ *
+ * ⚠️ **S15-C：这一页的返回是 `parent` 模式，两种入口都一样。** 导出是账本设置的子页，
+ * 但也可以从明细页的工具按钮直接进来（`/export`）。两条入口的父级都是固定的：
+ * `/books/:bookId/settings/export` → 账本设置，`/export` → 明细。**用历史会让「设置 ⇄ 导出」
+ * 互相指回去**——设置 → 导出 → 返回（设置）→ 返回（导出）——所以两条入口都声明父级模式。
  */
 
 type RangePreset = "all" | "thisMonth" | "lastMonth" | "last3" | "custom";

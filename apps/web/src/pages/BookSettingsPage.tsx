@@ -35,6 +35,16 @@ import {
  *
  * ⚠️ **viewer 看不到假入口。** 名称行不可点、危险操作按 `useBooks()` 的 `role` / `isCreator`
  * 决定；但**服务端权限仍然是最终依据**，界面只是不给人一个按了必然失败的按钮。
+ *
+ * ⚠️ **S15-C：名称只写一次，编号只写一次。** 所有者截图指出的重复是这一页自己造成的：
+ * 标题下的 subtitle 写「名称 · 编号」，顶部 `BookIdentityCard` 又写一遍，下面的「账本资料」
+ * 再写第三遍。现在 **subtitle 不再传、整个「账本资料」块删除**，名称与编号只留在顶部卡片里；
+ * **改名入口也搬进了那张卡片**（`onRename`，只有 owner/editor 传），viewer 只在卡片下方看到
+ * 一句说明。
+ *
+ * ⚠️ **S15-C：返回是 `parent` 模式，不是历史。** 这一页的父级永远是 `/books/:bookId`
+ * （账本详情），而它自己的子页（导出）返回时也回到这里；两边都用历史就会互相指回去
+ * （设置 → 导出 → 设置 → 导出）。见 `useGoBack` 的 `parent` 分支。
  */
 export function BookSettingsPage(): React.JSX.Element {
   const { bookId = "" } = useParams<{ bookId: string }>();
@@ -219,8 +229,17 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
   return (
     <InnerPage
       title="账本设置"
-      subtitle={name === null ? "正在读取……" : `${name}${bookNumber === null ? "" : ` · ${bookNumber}`}`}
-      backTo="/start"
+      /**
+       * ⚠️ **No subtitle, on purpose.** It used to say 「名称 · 编号」, which is exactly what the
+       * card below says — the owner's screenshot showed the same two facts three times on one
+       * screen. A page title plus one identity card is the whole header.
+       */
+      backTo={`/books/${bookId}`}
+      /**
+       * ⚠️ **`parent`, not history** — see the note at the top of this file. Back from here is
+       * always 账本详情, whether the reader arrived from there, from 导出, or by deep link.
+       */
+      backMode="parent"
     >
       {meta.isPending ? <SkeletonRows rows={4} /> : null}
 
@@ -235,36 +254,20 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
             onSwitch={() => {
               setSwitcher(true);
             }}
+            /**
+             * ⚠️ **The rename entry lives in the card now** (owner's decision, S15-C): the
+             * 「账本资料」 block that used to hold it repeated the name and the number.
+             * **A viewer gets nothing to press** — the server would refuse the rename anyway
+             * (`requireBookForWrite`); they read the sentence below instead.
+             */
+            {...(canWrite ? { onRename: openRename } : {})}
           />
 
-          {/* ---------------------------------------------------------------- */}
-          <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-helper text-muted">账本资料</h2>
-
-            <ul className="overflow-hidden rounded-card border border-line bg-surface">
-              {canWrite ? (
-                <ActionRow
-                  label="账本名称"
-                  value={name ?? ""}
-                  onSelect={openRename}
-                />
-              ) : (
-                /**
-                 * ⚠️ **A viewer gets a value, not a button.** The server would refuse the rename
-                 * anyway (`requireBookForWrite`); showing the control would only teach them that
-                 * the app is broken.
-                 */
-                <ReadOnlyRow label="账本名称" value={name ?? ""} />
-              )}
-              <ReadOnlyRow label="账本编号" value={bookNumber ?? "（未分配编号）"} />
-            </ul>
-
-            {canWrite ? null : (
-              <p className="px-1 text-helper-relaxed text-muted">
-                你对这本账只有查看权限，所以名称等资料不能在这里修改。
-              </p>
-            )}
-          </section>
+          {canWrite ? null : (
+            <p className="px-1 text-helper-relaxed text-muted">
+              你对这本账只有查看权限，所以账本名称不能在这里修改。
+            </p>
+          )}
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
@@ -572,48 +575,6 @@ function NavRow({
           ›
         </span>
       </Link>
-    </li>
-  );
-}
-
-/** A row that opens something — shows the current value on the right, and a real arrow. */
-function ActionRow({
-  label,
-  value,
-  onSelect,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly onSelect: () => void;
-}): React.JSX.Element {
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onSelect}
-        className="flex w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition last:border-b-0 hover:bg-canvas"
-      >
-        <span className="shrink-0 text-sm text-ink">{label}</span>
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-helper text-muted">{value}</span>
-          <span aria-hidden="true" className="shrink-0 text-helper text-muted">
-            ›
-          </span>
-        </span>
-      </button>
-    </li>
-  );
-}
-
-/**
- * A value that cannot be changed here — **no arrow, and deliberately not a disabled button either**
- * (`SettingsPage` uses `disabled` for "not built yet"; this row is read-only by design, not pending).
- */
-function ReadOnlyRow({ label, value }: { readonly label: string; readonly value: string }): React.JSX.Element {
-  return (
-    <li className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 last:border-b-0">
-      <span className="shrink-0 text-sm text-ink">{label}</span>
-      <span className="min-w-0 truncate text-helper text-muted">{value}</span>
     </li>
   );
 }

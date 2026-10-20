@@ -7,7 +7,7 @@ import { GuestModeBadge } from "./GuestModeBadge.js";
 import { GuestWelcome } from "./GuestWelcome.js";
 import { OfflineStatus } from "./OfflineStatus.js";
 import { SyncBanner } from "./SyncBanner.js";
-import { useGoBack } from "../lib/connectivity.js";
+import { useGoBack, type BackMode } from "../lib/connectivity.js";
 
 /**
  * Whether the three recording cards are open, and who may close them.
@@ -200,11 +200,18 @@ export function TabPage({
  * would send somebody somewhere they had never been — which reads as a bug even
  * though nothing is broken. `backTo` is only the fallback for a deep link that
  * has no history behind it.
+ *
+ * ⚠️ **`backMode="parent"` is the opt-out, and only 账本设置 uses it** (S15-C). Its parent never
+ * changes; asking history meant 设置 could point back at 导出, and the pair walked a circle. 导出
+ * itself stays on history on purpose: it is a leaf pushed from 设置, so `-1` returns there and
+ * consumes its own entry — giving it a declared parent was the first version's second loop.
+ * **The default stays `history`, so every other screen behaves exactly as before.**
  */
 export function InnerPage({
   title,
   subtitle,
   backTo = "/",
+  backMode = "history",
   onBack,
   actions,
   children,
@@ -212,12 +219,16 @@ export function InnerPage({
   readonly title: string;
   readonly subtitle?: string;
   readonly backTo?: string;
+  /**
+   * ⚠️ **`history` unless a screen says otherwise.** See `useGoBack` in `lib/connectivity.ts`.
+   */
+  readonly backMode?: BackMode;
   /** Used when a screen must finish something before it leaves. */
   readonly onBack?: () => void;
   readonly actions?: React.ReactNode;
   readonly children: React.ReactNode;
 }): React.JSX.Element {
-  const goBack = useGoBack(backTo);
+  const goBack = useGoBack(backTo, backMode);
   const handleBack = onBack ?? goBack;
 
   return (

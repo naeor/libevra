@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -22,6 +23,26 @@ import { fileURLToPath } from "node:url";
  */
 function source(relativePath: string): string {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
+}
+
+/** The whole `src` tree, so "nobody else opted in" can be asserted rather than assumed. */
+const SRC = fileURLToPath(new URL("..", import.meta.url));
+
+function sourceFiles(directory: string): string[] {
+  const found: string[] = [];
+
+  for (const entry of readdirSync(directory)) {
+    const path = join(directory, entry);
+    if (statSync(path).isDirectory()) {
+      if (entry === "generated" || entry === "node_modules") continue;
+      found.push(...sourceFiles(path));
+      continue;
+    }
+    if (!/\.(tsx|ts)$/.test(entry)) continue;
+    found.push(path);
+  }
+
+  return found;
 }
 
 describe("退出一个二级页面时去哪里", () => {
@@ -76,5 +97,73 @@ describe("退出一个二级页面时去哪里", () => {
       */
     expect(source("../pages/AboutPage.tsx")).toContain('backTo={from ?? "/settings"}');
     expect(source("../pages/LegalPage.tsx")).toContain('backTo={from ?? "/settings"}');
+  });
+});
+
+/**
+ * ⚠️ **The second loop, reported by the owner on 2026-10-20** (S15-C): *"在导出账本页点返回 → 回到
+ * 账本设置；在账本设置点返回 → 又回到导出账本，来回循环."*
+ *
+ * ⚠️ **The fix is an opt-in mode, and the opt-in matters as much as the mode.** `parent` means "my
+ * parent never changes", which is true for 账本设置 (→ 账本详情). 账本详情 itself is reachable from
+ * several places (明细「详情」、我的→账本管理、旧地址重定向), so it keeps history-based back; 导出 is
+ * a leaf pushed from 设置, so plain history (-1) already returns there and consumes its entry.
+ *
+ * ⚠️ **`parent` navigates with `replace`, not push.** The first version pushed; the result was a
+ * second loop one level down (设置 →push 账本详情 → its history back returned to 设置). A fixed
+ * hierarchy's back is a move out of the screen, so it must not leave a new entry behind.
+ */
+describe("返回模式：默认历史，按需声明父级", () => {
+  const connectivity = source("./connectivity.ts");
+  const layouts = source("../components/Layouts.tsx");
+
+  it("默认仍是 history，谁都不传就和以前一样", () => {
+    expect(connectivity).toContain('mode: BackMode = "history"');
+    expect(layouts).toContain('backMode = "history"');
+    expect(layouts).toContain("useGoBack(backTo, backMode)");
+  });
+
+  it("parent 分支用声明的父级、replace 掉自己，不问历史，也不被 state.from 改写", () => {
+    const start = connectivity.indexOf('if (mode === "parent")');
+    const end = connectivity.indexOf("if (from !== null)");
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+
+    const branch = connectivity.slice(start, end);
+    expect(branch).toContain("void navigate(fallback, { replace: true });");
+    expect(branch).not.toContain("navigate(-1)");
+    expect(branch).not.toContain("navigate(from)");
+  });
+
+  it("只有账本设置声明了固定的父级（导出保持历史返回）", () => {
+    const found = sourceFiles(SRC)
+      .filter((path) => !/\.test\.(ts|tsx)$/.test(path))
+      .filter((path) => readFileSync(path, "utf8").includes("backMode"))
+      .map((path) => relative(SRC, path).replace(/\\/g, "/"))
+      .sort();
+
+    /**
+      * ⚠️ **The list is the guard**: 账本设置 is the only screen whose parent is fixed. A third
+      * file appearing here is either a new loop being fixed (fine — update this list) or a screen
+      * that just lost history-based back (not fine).
+      */
+    expect(found).toEqual([
+      "components/Layouts.tsx",
+      "lib/connectivity.ts",
+      "pages/BookSettingsPage.tsx",
+    ]);
+  });
+
+  it("设置的返回是账本详情；导出的返回仍交给历史（它是设置的叶子页）", () => {
+    const settings = source("../pages/BookSettingsPage.tsx");
+    const exportPage = source("../pages/ExportPage.tsx");
+
+    expect(settings).toContain("backTo={`/books/${bookId}`}");
+    expect(settings).toContain('backMode="parent"');
+
+    expect(exportPage).toContain('backTo="/"');
+    expect(exportPage).toContain("backTo={`/books/${bookId}/settings`}");
+    expect(exportPage).not.toContain("backMode");
   });
 });
