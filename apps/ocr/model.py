@@ -174,5 +174,6 @@ class Candidate:
             "duplicate_suspected": self.duplicate_suspected,
             "duplicate_group_ids": list(self.duplicate_group_ids),
             "is_complete": self.is_complete,
+            "is_questionable": self.is_questionable,
             "raw_text": self.raw_text,
         }
