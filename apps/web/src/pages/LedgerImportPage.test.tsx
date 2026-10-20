@@ -40,4 +40,14 @@ describe("账本导入的来源/目标选择", () => {
     expect(source).toContain('label: "本机游客账本"');
     expect(source).toContain("`正式账本 · ${book.name}`");
   });
+
+  it("两处下拉箭头与 /add 共用同一个 ChevronIcon，不再用字符画", () => {
+    expect(source).toContain('import { ChevronIcon } from "../components/Icons.js";');
+    expect(source).not.toContain("⌄");
+    expect(source).not.toContain("⌃");
+    // 只有「来源账本 B」「目标账本 A」两处，展开状态用旋转而不是换字符。
+    expect((source.match(/<ChevronIcon/g) ?? []).length).toBe(2);
+    expect(source).toContain('<ChevronIcon up={picking === "source"} className="text-muted" />');
+    expect(source).toContain('<ChevronIcon up={picking === "target"} className="text-muted" />');
+  });
 });
