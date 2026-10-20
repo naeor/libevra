@@ -8,7 +8,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
 import { badRequest, serviceUnavailable, tooManyRequests } from "../lib/errors.js";
-import { TranscriptionRejected, type VoiceService } from "../voice/client.js";
+import { TranscriptionRejected, VoiceBusyError, type VoiceService } from "../voice/client.js";
 
 interface VoiceRouteOptions {
   readonly requireAuth: (request: FastifyRequest) => Promise<void>;
@@ -155,6 +155,18 @@ export function registerVoiceRoutes(app: FastifyInstance, options: VoiceRouteOpt
         seconds: result.seconds,
       });
     } catch (error) {
+      /**
+       * Busy is not broken.
+       *
+       * 429 with the queue's own sentence, because "try again in a moment" is
+       * true and actionable, where 503 would read as "the feature is down" and
+       * invite giving up. The distinction only exists since S15-A added the
+       * bounded queue; before it every burst was a slow request.
+       */
+      if (error instanceof VoiceBusyError) {
+        throw tooManyRequests("voice_busy", error.message);
+      }
+
       if (error instanceof TranscriptionRejected) {
         /**
          * The audio was the problem, and the message is already written for the
