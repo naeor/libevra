@@ -18,7 +18,7 @@ import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
-import { ChoiceSheet, type ChoiceSheetOption } from "../components/ui/ChoiceSheet.js";
+import { InlineChoice, type InlineChoiceOption } from "../components/ui/InlineChoice.js";
 import { apiFetch, ApiRequestError, errorMessage } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
 import { formatTimeWithZone } from "../lib/datetime.js";
@@ -1479,33 +1479,29 @@ function SelectionStep({
   /**
    * 哪一列账本选择器正打开着：`null` 表示都关着。
    *
-   * ⚠️ **S15-C 第三轮：两处原生下拉换成项目自己的底部选择面板**（与 `/add` 币种同一个
-   * `ChoiceSheet`）。原生菜单的白色/灰色列表、选中态与安全区都不属于这套界面，而这里的选择
-   * 恰好是导入里最需要看清楚的一步（选错账本，写错的数据代价最大）。
+   * ⚠️ **S15-C 第四轮：两处换成内嵌下拉列表**（`InlineChoice`，与 `/add` 分类选择器同一形态）。
+   * 上一轮的 `ChoiceSheet`（底部面板）把整屏盖住；来源与目标紧挨着、需要对照着看，
+   * 展开在字段下方才读得清。**`ChoiceSheet` 本身保留**（`/add` 币种、导入等仍用）。
    */
   const [picking, setPicking] = useState<"source" | "target" | null>(null);
   /**
-   * 选项与原生 `<option>` 一一对应：占位项、游客来源、正式账本；
+   * 选项与原来的选择面板一一对应：占位项、游客来源、正式账本；
    * 目标里"与来源相同"的那一项仍保留但不可选（`disabled`），与原实现一致。
    */
-  const sourceOptions: readonly ChoiceSheetOption<string>[] = [
-    { value: "", label: "选择来源账本" },
-    ...(guestAvailable ? [{ value: "guest", label: "本机游客账本" }] : []),
-    ...sourceBooks.map((book) => ({ value: book.id, label: `正式账本 · ${book.name}` })),
+  const sourceOptions: readonly InlineChoiceOption[] = [
+    { id: "", label: "选择来源账本" },
+    ...(guestAvailable ? [{ id: "guest", label: "本机游客账本" }] : []),
+    ...sourceBooks.map((book) => ({ id: book.id, label: `正式账本 · ${book.name}` })),
   ];
-  const targetOptions: readonly ChoiceSheetOption<string>[] = [
-    { value: "", label: "选择目标账本" },
+  const targetOptions: readonly InlineChoiceOption[] = [
+    { id: "", label: "选择目标账本" },
     ...soloBooks.map((book) => ({
-      value: book.id,
+      id: book.id,
       label: book.name,
       disabled: book.id === sourceKey,
       ...(book.id === sourceKey ? { hint: "就是来源账本，不能选" } : {}),
     })),
   ];
-  const sourceLabel =
-    sourceOptions.find((option) => option.value === sourceKey)?.label ?? "选择来源账本";
-  const targetLabel =
-    targetOptions.find((option) => option.value === targetId)?.label ?? "选择目标账本";
 
   return (
     <section className="flex flex-col gap-5">
@@ -1518,24 +1514,20 @@ function SelectionStep({
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <div className="flex flex-col gap-2">
           <span className="text-body font-medium text-ink">来源账本 B</span>
-          <button
-            type="button"
-            data-testid="import-source"
-            aria-haspopup="dialog"
-            aria-expanded={picking === "source"}
-            aria-label={`来源账本 B：${sourceLabel}`}
-            onClick={() => {
-              setPicking("source");
+          <InlineChoice
+            label="来源账本 B"
+            testId="import-source"
+            open={picking === "source"}
+            value={sourceKey}
+            options={sourceOptions}
+            onToggle={() => {
+              setPicking((current) => (current === "source" ? null : "source"));
             }}
-            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-field border border-line bg-surface px-4 py-3 text-left text-ink outline-none transition hover:bg-canvas focus-visible:border-brand focus-visible:ring-4 focus-visible:ring-brand-soft"
-          >
-            <span className={`min-w-0 truncate ${sourceKey === "" ? "text-muted" : ""}`}>
-              {sourceLabel}
-            </span>
-            <span aria-hidden="true" className="shrink-0 text-muted">
-              ⌄
-            </span>
-          </button>
+            onSelect={onChangeSource}
+            onClose={() => {
+              setPicking(null);
+            }}
+          />
         </div>
         {guestAvailable || sourceBooks.length > 0 ? null : (
           <p className="mt-2 text-helper-relaxed text-muted">
@@ -1560,24 +1552,20 @@ function SelectionStep({
 
         <div className="flex flex-col gap-2">
           <span className="text-body font-medium text-ink">目标账本 A</span>
-          <button
-            type="button"
-            data-testid="import-target"
-            aria-haspopup="dialog"
-            aria-expanded={picking === "target"}
-            aria-label={`目标账本 A：${targetLabel}`}
-            onClick={() => {
-              setPicking("target");
+          <InlineChoice
+            label="目标账本 A"
+            testId="import-target"
+            open={picking === "target"}
+            value={targetId}
+            options={targetOptions}
+            onToggle={() => {
+              setPicking((current) => (current === "target" ? null : "target"));
             }}
-            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-field border border-line bg-surface px-4 py-3 text-left text-ink outline-none transition hover:bg-canvas focus-visible:border-brand focus-visible:ring-4 focus-visible:ring-brand-soft"
-          >
-            <span className={`min-w-0 truncate ${targetId === "" ? "text-muted" : ""}`}>
-              {targetLabel}
-            </span>
-            <span aria-hidden="true" className="shrink-0 text-muted">
-              ⌄
-            </span>
-          </button>
+            onSelect={onChangeTarget}
+            onClose={() => {
+              setPicking(null);
+            }}
+          />
         </div>
 
         {formalSource ? (
@@ -1605,31 +1593,6 @@ function SelectionStep({
       <Button onClick={onContinue} disabled={!canContinue}>
         查看预览
       </Button>
-
-      {/*
-        两个面板共用同一个 `picking`：同一时间只可能开一个，关掉时回到 `null`。
-        选中即写回原来的 `onChangeSource` / `onChangeTarget`，导入逻辑一个字没动。
-      */}
-      <ChoiceSheet
-        open={picking === "source"}
-        title="选择来源账本"
-        value={sourceKey}
-        options={sourceOptions}
-        onSelect={onChangeSource}
-        onClose={() => {
-          setPicking(null);
-        }}
-      />
-      <ChoiceSheet
-        open={picking === "target"}
-        title="选择目标账本"
-        value={targetId}
-        options={targetOptions}
-        onSelect={onChangeTarget}
-        onClose={() => {
-          setPicking(null);
-        }}
-      />
     </section>
   );
 }

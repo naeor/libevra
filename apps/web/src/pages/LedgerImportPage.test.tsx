@@ -3,12 +3,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * 账本导入（`/import-ledger`）第一步的"来源 / 目标"选择器。
+ * 账本导入（`/import-ledger`）的两件局部修复（S15-C 第四轮）。
  *
- * ⚠️ **这是本轮"导入页面"里被修的同类问题。** `/import`（CSV 导入）没有任何原生下拉；
- * 原生灰菜单出现在 `/import-ledger` 的「来源账本 B / 目标账本 A」两处，与 `/add` 的币种
- * 是同一个视觉问题。这里没有 DOM，因此断言源码层面的三件事：不再有 `<select>`、
- * 两个入口仍分别接回原来的回调、弹层用的是与 `/add` 相同的 `ChoiceSheet`。
+ * 1. **来源 / 目标选择器改成内嵌下拉列表**（`InlineChoice`，与 `/add` 分类选择器同一形态），
+ *    不再用底部面板 `ChoiceSheet`；
+ * 2. **返回不再自己 push 设置页**，改走 `useGoBack(backTo, "parent")`，步骤切换用 `replace`，
+ *    整页只占一条历史记录——否则 导入 → 设置 → 详情 → 导入 会走成环。
+ *
+ * 本仓库没有 DOM，因此沿用源码断言（与 `backNavigation.test.ts`、`ChoiceSheet.test.tsx`
+ * 同一做法）：选择器结构与交互由 `components/ui/InlineChoice.test.tsx` 覆盖。
  */
 const source = readFileSync(
   fileURLToPath(new URL("./LedgerImportPage.tsx", import.meta.url)),
@@ -16,14 +19,17 @@ const source = readFileSync(
 );
 
 describe("账本导入的来源/目标选择", () => {
-  it("不再使用原生 select，两个入口改用项目内的选择弹层", () => {
+  it("两个入口改用内嵌下拉列表，不再用底部面板 ChoiceSheet", () => {
     expect(source).not.toContain("<select");
     expect(source).not.toContain("</select>");
-    expect(source).toContain('from "../components/ui/ChoiceSheet.js"');
-    expect(source).toContain('data-testid="import-source"');
-    expect(source).toContain('data-testid="import-target"');
-    // 两个入口是按钮 + aria-haspopup，和 /add 币种一致。
-    expect(source.match(/aria-haspopup="dialog"/g)?.length).toBe(2);
+    expect(source).not.toContain('from "../components/ui/ChoiceSheet.js"');
+    expect(source).not.toContain("<ChoiceSheet");
+    expect(source).toContain('from "../components/ui/InlineChoice.js"');
+    // 一个来源、一个目标；触发按钮与列表都在组件里，页面不再自己拼 aria-haspopup="dialog"。
+    expect((source.match(/<InlineChoice/g) ?? []).length).toBe(2);
+    expect(source).toContain('testId="import-source"');
+    expect(source).toContain('testId="import-target"');
+    expect(source).not.toContain('aria-haspopup="dialog"');
   });
 
   it("选中项仍写回原来的回调，导入逻辑一个字没动", () => {
@@ -39,5 +45,7 @@ describe("账本导入的来源/目标选择", () => {
     expect(source).toContain('label: "选择目标账本"');
     expect(source).toContain('label: "本机游客账本"');
     expect(source).toContain("`正式账本 · ${book.name}`");
+    // 同一时间只开一个：两处共用一个 picking 状态。
+    expect(source).toContain('useState<"source" | "target" | null>(null)');
   });
 });
