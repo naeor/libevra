@@ -97,10 +97,11 @@ describe("matchCategory", () => {
   });
 
   it("counts the evidence when two categories could both fit", () => {
-    // "打车去吃饭" contains one word from each; 吃饭打车 has two from transport.
+    // "打车去吃饭" has one action word from each; the earlier action (打车) is what
+    // the money bought — owner decision 2026-10-20. Two 打车 still outvote 吃饭.
     const both = [category("c-food", "餐饮"), category("c-transport", "交通")];
 
-    expect(matchCategory("打车去吃饭", both, "expense")?.id).toBe("c-food");
+    expect(matchCategory("打车去吃饭", both, "expense")?.id).toBe("c-transport");
     expect(matchCategory("打车去吃饭，打车回来的", both, "expense")?.id).toBe("c-transport");
   });
 
@@ -192,13 +193,36 @@ describe("the food words the owner named", () => {
     expect(matchCategory("水费", FOOD_LEDGER, "expense")?.id).toBe("c-home");
   });
 
-  it("weights a meal name above one passing transport word", () => {
-    // The owner asked for the food words to carry more weight. 食堂 counts twice
-    // and 打车 once, so even a ledger that lists 交通 first picks 餐饮; without
-    // the weight this would be a tie decided by category order.
+  it("counts an action verb above a venue, and cancels a 去-destination", () => {
+    // Owner decision 2026-10-20: 「打车去食堂」 is a taxi fare. 食堂 is where the
+    // trip ended, not what was paid for, so the destination rule cancels it once
+    // the sentence contains an action word. This test used to encode the older
+    // behaviour (餐饮 won by weight); the owner has since named the intended one.
     const transportFirst = [category("c-transport", "交通"), category("c-food", "餐饮")];
+    const foodFirst = [category("c-food", "餐饮"), category("c-transport", "交通")];
 
-    expect(matchCategory("打车去食堂", transportFirst, "expense")?.id).toBe("c-food");
+    expect(matchCategory("打车去食堂", transportFirst, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("打车去食堂", foodFirst, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("打车去食堂三十八块", LEDGER, "expense")?.id).toBe("c-transport");
+  });
+
+  it("keeps the venue when it is what was paid for, not a destination", () => {
+    // No action word, so a bare 「食堂」 is ordinary evidence again; and a venue
+    // without a 去/到 marker is where the money was spent.
+    expect(matchCategory("食堂十五", LEDGER, "expense")?.id).toBe("c-food");
+    expect(matchCategory("在食堂吃饭", LEDGER, "expense")?.id).toBe("c-food");
+  });
+
+  it("applies the destination rule to other actions too", () => {
+    expect(matchCategory("坐地铁去公司", LEDGER, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("点外卖到公司", LEDGER, "expense")?.id).toBe("c-food");
+    expect(matchCategory("打车去机场", LEDGER, "expense")?.id).toBe("c-transport");
+  });
+
+  it("gives a tie to the action said first", () => {
+    // 「打车去吃饭」 pays for the ride; the meal is the purpose, not the purchase.
+    expect(matchCategory("打车去吃饭", LEDGER, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("吃饭打车", LEDGER, "expense")?.id).toBe("c-food");
   });
 
   it("keeps the income vocabulary as it was", () => {

@@ -149,6 +149,67 @@ const INCOME_VOCABULARY: SubjectVocabulary = {
 };
 
 /**
+ * The **action** that spent the money, keyed by the same subject names as
+ * `VOCABULARY`.
+ *
+ * The owner's rule (2026-10-20): 「打车去食堂」 is a taxi fare, not a meal — the
+ * thing that was *paid for* is the action (打车), while 食堂 is only where the
+ * trip ended. A word table alone cannot express that: 打车 and 食堂 are both
+ * evidence, and 食堂 even counts twice. So actions get a higher weight than
+ * ordinary words, and the destination rule below cancels venue names once an
+ * action is present.
+ *
+ * ⚠️ This is not semantic understanding. It is one structural rule — "an action
+ * verb outranks a place name, and a place after 去/到/往/回 is a destination" —
+ * chosen because it is explainable and testable. A sentence it gets wrong is one
+ * the user can correct in one tap, and `matched` shows which words produced the
+ * answer.
+ */
+const ACTIONS: Readonly<Record<string, readonly string[]>> = {
+  餐饮: ["吃饭", "吃个", "点餐", "点外卖", "打包", "吃外卖", "下馆子"],
+  交通: ["打车", "坐车", "坐地铁", "坐公交", "坐高铁", "坐飞机", "叫车", "开车", "骑车", "加油", "停车"],
+  购物: ["网购", "下单", "团购", "逛街"],
+  居住: ["交房租", "交水电费", "交电费", "交水费", "交物业费"],
+  通讯: ["充话费", "交话费"],
+  医疗: ["看病", "买药", "挂号", "体检", "住院", "看牙"],
+  娱乐: ["看电影", "玩游戏", "看演出", "旅游"],
+  教育: ["报名", "上课", "买书", "交学费"],
+};
+
+/**
+ * Places that are the **destination** of a trip rather than what the money
+ * bought: 「打车去食堂」 is transport, 「点外卖到公司」 is food.
+ *
+ * Only used when the sentence contains an action word (see `ACTIONS`); without
+ * one, a venue name is ordinary evidence — 「食堂 15」 is still a meal.
+ */
+const VENUE_LIST: readonly string[] = [
+  "食堂", "餐厅", "饭店", "饭馆", "公司", "单位", "学校", "机场", "车站",
+  "火车站", "地铁站", "超市", "商场", "医院", "药店", "宿舍", "家里", "楼下",
+];
+const VENUE_WORDS: ReadonlySet<string> = new Set(VENUE_LIST);
+
+const DESTINATION_PATTERN = new RegExp(
+  `(?:去|到|往|回)(?:一趟|趟|了|过)?(?:${VENUE_LIST.join("|")})`,
+  "g",
+);
+
+interface DestinationRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+/** Character ranges of 「去…」「到…」destination phrases. */
+function destinationRanges(spoken: string): readonly DestinationRange[] {
+  const ranges: DestinationRange[] = [];
+  for (const match of spoken.matchAll(DESTINATION_PATTERN)) {
+    const start = match.index ?? 0;
+    ranges.push({ start, end: start + match[0].length });
+  }
+  return ranges;
+}
+
+/**
  * Whether a category is "about" a subject.
  *
  * Containment in either direction against the subject's **aliases**, which is what
@@ -215,36 +276,40 @@ export function matchCategory(
       ? [...Object.entries(VOCABULARY), ["收入", INCOME_VOCABULARY] as const]
       : Object.entries(VOCABULARY);
 
-  let best: { readonly match: CategoryMatch; readonly score: number } | null = null;
+  /**
+   * Whether the sentence carries an action word at all. The destination rule
+   * only applies then: 「食堂」 alone must stay evidence.
+   */
+  const hasAction = subjects.some(([subjectName]) =>
+    (ACTIONS[subjectName] ?? []).some((word) => spoken.includes(word)),
+  );
+  const destinations = hasAction ? destinationRanges(spoken) : [];
+
+  const inDestination = (index: number): boolean =>
+    destinations.some((range) => index >= range.start && index < range.end);
+
+  let best: {
+    readonly match: CategoryMatch;
+    readonly score: number;
+    readonly firstAction: number;
+  } | null = null;
 
   for (const category of usable) {
-    /**
-     * Evidence, counting **occurrences rather than distinct words**, and weighted
-     * by how strong the word is.
-     *
-     * "打车去吃饭，打车回来的" is a sentence about transport, and counting each word
-     * once made it a tie with food. Somebody who says 打车 twice has told you which
-     * category it is.
-     *
-     * ⚠️ `includes` is a boolean, so the first version of this loop voted once per
-     * **word** and never once per **occurrence** — the comment above it said
-     * "occurrences" while the code said "words". The test caught the difference;
-     * a comment cannot.
-     *
-     * The weight is the owner's "增加权重": a meal name (午饭, 食堂) counts twice, a
-     * concrete dish (炸鸡) once. 吃饭 stays at one on purpose — it is a verb phrase
-     * rather than a category name, and the transport/food count test depends on it
-     * staying equal to 打车.
-     */
     const evidence = new Map<string, number>();
     let score = 0;
+    let firstAction = Number.POSITIVE_INFINITY;
 
     const vote = (word: string, weight: number): void => {
+      // Vote once per word, at its highest weight: an action word such as 打车 is
+      // also in `words`, and counting it twice would double a single statement.
+      if (evidence.has(word)) return;
+
       let count = 0;
       let at = spoken.indexOf(word);
 
       while (at !== -1) {
-        count += 1;
+        // A venue after 去/到/往/回 is where the trip ended, not what was bought.
+        if (!(VENUE_WORDS.has(word) && inDestination(at))) count += 1;
         at = spoken.indexOf(word, at + word.length);
       }
 
@@ -254,10 +319,16 @@ export function matchCategory(
       }
     };
 
-    for (const [, subject] of subjects) {
+    for (const [subjectName, subject] of subjects) {
       // Only a category that is *about* this subject votes on its words.
       if (!isAbout(category.name, subject.aliases)) continue;
 
+      for (const word of ACTIONS[subjectName] ?? []) {
+        if (spoken.includes(word)) {
+          firstAction = Math.min(firstAction, spoken.indexOf(word));
+        }
+        vote(word, 3);
+      }
       for (const word of subject.words) vote(word, 1);
       for (const word of subject.strong ?? []) vote(word, 2);
       for (const word of subject.related ?? []) vote(word, 1);
@@ -270,8 +341,17 @@ export function matchCategory(
       score += 2;
     }
 
-    if (score > 0 && (best === null || score > best.score)) {
-      best = { match: { id: category.id, matched: [...evidence.keys()] }, score };
+    /**
+     * Ties go to the **earlier action**: 「打车去吃饭」 is a taxi fare that paid
+     * for the ride, and the action said first is the one the amount belongs to.
+     */
+    if (
+      score > 0 &&
+      (best === null ||
+        score > best.score ||
+        (score === best.score && firstAction < best.firstAction))
+    ) {
+      best = { match: { id: category.id, matched: [...evidence.keys()] }, score, firstAction };
     }
   }
 
