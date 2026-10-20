@@ -20,6 +20,18 @@ import type {
   OcrPageType,
 } from "@libellum/shared";
 
+/**
+ * 分类值是谁定的。
+ *
+ *  - `ocr`：扫描/平台默认（目前只有“识别为转账 → 账本里的『转账』分类”这一条规则）；
+ *  - `inferred`：概览页按交易对象/备注文字从**本账本已有分类**里匹配出来的建议；
+ *  - `user`：用户在详情页选过或清空过。
+ *
+ * 旧 `sessionStorage` 批次没有这个字段：`categorySourceOf` 把“有分类、无来源”解释为
+ * `ocr`（平台默认或旧版用户选择），因此读旧数据不会报错，也不会把旧值标成系统建议。
+ */
+export type OcrCategorySource = "ocr" | "inferred" | "user";
+
 /** 一笔候选在批次里的完整状态（可序列化，因此不是 readonly）。 */
 export interface OcrBatchCandidate {
   candidateId: string;
@@ -43,6 +55,11 @@ export interface OcrBatchCandidate {
   invalid: boolean;
   reviewed: boolean;
   categoryId: string | null;
+  /**
+   * 分类值的来源；**可选**，旧批次没有这个字段（见 `categorySourceOf`）。
+   * 只有 `inferred` 会在界面上标成「系统建议」。
+   */
+  categorySource?: OcrCategorySource;
   paymentMethodId: string | null;
   tagIds: string[];
   /** 由 `duplicates.ts` 在每次编辑后重新计算，绝不落账、绝不删除。 */
@@ -97,6 +114,20 @@ export interface OcrBatchCounts {
   duplicates: number;
   /** 已标记无效。 */
   invalid: number;
+  /** 用户进过详情并保存过（不代表已入账，也不是“字段完整”）。 */
+  reviewed: number;
+}
+
+/**
+ * 分类值的来源；旧批次缺字段时按“有分类即平台默认”解释。
+ *
+ * 为什么不把缺字段直接当成 `user`：旧版本的详情页保存分类时没有写来源，把用户当时
+ * 的选择说成“平台默认”只是少标一个「系统建议」，而当成 `user` 会让它永远不参与
+ * 联想——前者不误导，后者会悄悄改变行为。分类为空时返回 `null`。
+ */
+export function categorySourceOf(item: OcrBatchCandidate): OcrCategorySource | null {
+  if (item.categorySource !== undefined) return item.categorySource;
+  return item.categoryId === null ? null : "ocr";
 }
 
 /**
@@ -216,6 +247,7 @@ export function countBatchItems(items: readonly OcrBatchCandidate[]): OcrBatchCo
   let confirmed = 0;
   let duplicates = 0;
   let invalid = 0;
+  let reviewed = 0;
 
   for (const item of items) {
     if (item.invalid) {
@@ -224,6 +256,8 @@ export function countBatchItems(items: readonly OcrBatchCandidate[]): OcrBatchCo
     }
 
     valid += 1;
+    if (item.reviewed) reviewed += 1;
+
     const status = itemStatus(item);
     if (status === "duplicate") {
       duplicates += 1;
@@ -235,7 +269,7 @@ export function countBatchItems(items: readonly OcrBatchCandidate[]): OcrBatchCo
     }
   }
 
-  return { total: items.length, valid, pending, confirmed, duplicates, invalid };
+  return { total: items.length, valid, pending, confirmed, duplicates, invalid, reviewed };
 }
 
 /** 概览筛选：状态、来源、收支三个维度取交集。 */
