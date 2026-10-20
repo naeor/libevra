@@ -12,7 +12,15 @@ import { refreshMessage } from "./refreshFeedback.js";
  * like a success either.
  */
 describe("refreshMessage", () => {
-  const base = { guest: false, offline: false, delivered: 0, pulled: 0, failed: false, error: null };
+  const base = {
+    guest: false,
+    offline: false,
+    delivered: 0,
+    pulled: 0,
+    failed: false,
+    error: null,
+    waiting: 0,
+  };
 
   it("reports delivery and the month together", () => {
     expect(refreshMessage({ ...base, delivered: 3, pulled: 12 })).toBe(
@@ -59,5 +67,28 @@ describe("refreshMessage", () => {
     const message = refreshMessage({ ...base, guest: true });
 
     expect(message).toContain("游客账本没有云端可同步");
+  });
+
+  /**
+   * ⚠️ **The lie this pair exists to prevent**: a delivery can fail without throwing, so "投递 0 条"
+   * used to be reported as "没有待投递的改动" while the rows were still marked on screen.
+   */
+  it("never says there was nothing to send while changes are still waiting", () => {
+    const message = refreshMessage({ ...base, waiting: 2 });
+
+    expect(message).toContain("已重新读取本机账目");
+    expect(message).not.toContain("没有待投递的改动");
+    expect(message).toContain("还有 2 条改动没有送到云端");
+  });
+
+  it("still reports the ones left behind after a partial delivery", () => {
+    const message = refreshMessage({ ...base, delivered: 1, waiting: 3 });
+
+    expect(message).toContain("已向云端投递 1 条");
+    expect(message).toContain("还有 3 条改动没有送到云端");
+  });
+
+  it("keeps the empty sentence when nothing is waiting", () => {
+    expect(refreshMessage(base)).toContain("没有待投递的改动");
   });
 });
