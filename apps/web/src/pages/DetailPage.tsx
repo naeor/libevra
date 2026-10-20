@@ -6,15 +6,39 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { CurrentBookCaption } from "../components/CurrentBookCaption.js";
 import { BottomNav } from "../components/BottomNav.js";
 import { useEntryMenu } from "../components/Layouts.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { GuestModeBadge } from "../components/GuestModeBadge.js";
 import { MonthPicker } from "../components/MonthPicker.js";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/States.js";
 import { OfflineStatus } from "../components/OfflineStatus.js";
 import { ConflictScreen } from "../components/ConflictScreen.js";
 import { SyncBanner } from "../components/SyncBanner.js";
+import { BatchActionBar } from "../components/ledger/BatchActionBar.js";
+import { BatchEditSheet } from "../components/ledger/BatchEditSheet.js";
+import { BatchRoleProbe } from "../components/ledger/BatchRoleProbe.js";
+import { DetailTools } from "../components/ledger/DetailTools.js";
+import { LedgerEntryRow } from "../components/ledger/LedgerEntryRow.js";
+import { SelectionBar } from "../components/ledger/SelectionBar.js";
+import {
+  EMPTY_BATCH_DRAFT,
+  allLoadedSelected,
+  batchDeleteConfirmation,
+  batchPermission,
+  buildBatchEdit,
+  entryTapAction,
+  selectAllLoaded,
+  selectedLoadedIds,
+  summarizeBatch,
+  toggleSelection,
+  type BatchEditDraft,
+  type BatchItemResult,
+  type BatchRoleState,
+  type BatchSummary,
+} from "../components/ledger/batch.js";
+import { refreshMessage } from "../components/ledger/refreshFeedback.js";
 import { errorMessage } from "../lib/api.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
-import { currentMonth, formatDayLabel, formatTimeWithZone } from "../lib/datetime.js";
+import { currentMonth, formatDayLabel } from "../lib/datetime.js";
 import { readSession, useDetailTransition, writeSession } from "../lib/detailTransition.js";
 import { currencyName, formatMoney } from "../lib/format.js";
 import {
@@ -24,6 +48,7 @@ import {
   deletedEntriesValue,
   pendingEntriesValue,
   readLocalTransactions,
+  readMarks,
   subscribeLedger,
   type ConflictRecord,
   conflictsValue,
@@ -36,7 +61,8 @@ import { markPresentationSeen } from "../lib/spaceTransition.js";
 import { mergeLedgerEntries } from "../lib/ledgerView.js";
 import { syncMonth } from "../lib/offline/sync.js";
 import { syncNow } from "../lib/offline/syncController.js";
-import { resolveConflict } from "../lib/offline/write.js";
+import { deleteEntry, resolveConflict, updateEntry } from "../lib/offline/write.js";
+import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
   hasLocalTransactions,
   useLedger,
@@ -278,6 +304,29 @@ export function DetailPage(): React.JSX.Element {
   const [refreshing, setRefreshing] = useState(false);
 
   /**
+   * ⚠️ **What the refresh actually managed to do, said once and briefly.**
+   *
+   * The owner asked for a sentence, not just a spinner: a turning icon says "something is running"
+   * but not whether the **server** was reached — and that is the thing the button is for. It is also
+   * the one place where a wrong sentence is worse than none, so the wording lives in
+   * `refreshMessage`: a zero is never reported as "the cloud was updated".
+   */
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (refreshNote === null) return;
+
+    /** ⚠️ The sentence leaves on its own; it is a report, not a permanent banner. */
+    const timer = window.setTimeout(() => {
+      setRefreshNote(null);
+    }, 8_000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [refreshNote]);
+
+  /**
    * ⚠️ **A counter, because a CSS animation runs when the class is *added*.** Toggling the same class off and on
    * again can be coalesced into no change at all, **so a second press would turn nothing** — and the whole point of
    * the one-turn animation is that it reports an event.
@@ -289,10 +338,21 @@ export function DetailPage(): React.JSX.Element {
 
     setRefreshing(true);
     setTurnKey((count) => count + 1);
+    setRefreshNote(null);
+
+    /**
+     * ⚠️ **The offline signal is read at the press, not afterwards.** The merged signal changes
+     * *because* a request failed, so reading it after the attempt would describe the state the
+     * attempt produced rather than the one it started from.
+     */
+    const offlineAtPress = offline;
+    let delivered = 0;
+    let pulled = 0;
+    let failure: string | null = null;
 
     try {
       /** ⚠️ Delivery first, so the pull below sees everything this device had to send. */
-      const delivered = await syncNow();
+      delivered = await syncNow();
 
       /**
        * ⚠️ **And then the server's current values are taken, which is what was missing.**
@@ -306,8 +366,15 @@ export function DetailPage(): React.JSX.Element {
        * ⚠️ **His own description of what this moment should be**: "理论上在点击它的一瞬间，它里面的数据应该跟服务器的
        * 同步（大部分情况下服务器覆盖，小部分情况有冲突）."
        */
-      await syncMonth(month);
-
+      pulled = await syncMonth(month);
+    } catch (caught) {
+      /**
+       * ⚠️ **A failure is reported, not swallowed.** The previous version let it escape as an
+       * unhandled rejection, so the only visible sign was a spinner that stopped — indistinguishable
+       * from success.
+       */
+      failure = errorMessage(caught);
+    } finally {
       /**
        * ⚠️ **Both layers are refreshed, not just the store.**
        *
@@ -315,16 +382,40 @@ export function DetailPage(): React.JSX.Element {
        * query's stale pages in place — **the same trap as before**: the store is fresh and the list still shows
        * the old data.
        */
-      await readLocalTransactions();
+      try {
+        await readLocalTransactions();
+      } catch {
+        /** ⚠️ A failed re-read must not hide the outcome of the sync that just ran. */
+      }
 
-      await logOffline(
-        "DIAGNOSTIC:manual-refresh",
-        delivered > 0 ? `投递 ${String(delivered)} 条` : "没有待投递的改动",
+      try {
+        await logOffline(
+          "DIAGNOSTIC:manual-refresh",
+          delivered > 0 ? `投递 ${String(delivered)} 条` : "没有待投递的改动",
+        );
+      } catch {
+        /** Diagnostics never break the button. */
+      }
+
+      setRefreshNote(
+        refreshMessage({
+          guest,
+          offline: offlineAtPress,
+          delivered,
+          pulled,
+          failed: failure !== null,
+          error: failure,
+        }),
       );
-    } finally {
       setRefreshing(false);
     }
-  }, [refreshing, month]);
+    /**
+     * ⚠️ **Not `window.location.reload()`, and that is a decision rather than an omission.** A
+     * reload would also "re-render the page"; it would also throw away the month being read, the
+     * scroll position, and any import in flight — and it would bypass the conflict and idempotency
+     * paths this button is supposed to exercise.
+     */
+  }, [refreshing, month, offline, guest]);
 
   const entries = useMemo(() => {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
@@ -365,9 +456,228 @@ export function DetailPage(): React.JSX.Element {
     return [...groups.entries()].sort(([left], [right]) => (left < right ? 1 : -1));
   }, [ordered]);
 
+  /**
+   * ⚠️ **Batch mode is a state of this screen, not another screen.**
+   *
+   * The owner's instruction was "当前列表原地进入多选模式（不跳新页面）", and the reason it has to be
+   * in place is the one this whole file is about: the list, the month and the filters are the context
+   * the user is choosing from. A route would rebuild them — and a selection made on one screen and
+   * acted on in another is how the wrong entries get deleted.
+   *
+   * Everything below is deliberately local state. Nothing is persisted: leaving the screen, changing
+   * the filter or pressing 取消 puts the ledger back exactly as it was.
+   */
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [batchDraft, setBatchDraft] = useState<BatchEditDraft>(EMPTY_BATCH_DRAFT);
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
+  const [roleState, setRoleState] = useState<BatchRoleState>({ status: "idle" });
+
+  /**
+   * ⚠️ **The existing write gate, reused rather than re-implemented.** Shared ledger + offline =
+   * read-only is the project's own rule (`writePolicy.ts`), and it is the same fact the write layer
+   * refuses on. A second, separately-computed answer is how a button ends up enabled over a
+   * guaranteed failure.
+   */
+  const { readOnly: sharedOfflineReadOnly, shared } = useSharedLedgerOfflineReadOnly();
+
+  const permission = batchPermission({ guest, shared, sharedOfflineReadOnly, role: roleState });
+
+  /** Every entry the list currently holds — the whole of what "全选" may mean. */
+  const loadedIds = useMemo(() => ordered.map((entry) => entry.id), [ordered]);
+  const selectedIds = useMemo(
+    () => selectedLoadedIds(loadedIds, selected),
+    [loadedIds, selected],
+  );
+  const selectedEntries = useMemo(
+    () => ordered.filter((entry) => selected.has(entry.id)),
+    [ordered, selected],
+  );
+  const selectedKinds = useMemo(
+    () => [...new Set(selectedEntries.map((entry) => entry.kind))],
+    [selectedEntries],
+  );
+  const everythingLoadedSelected = allLoadedSelected(loadedIds, selected);
+
+  const ledgerIndex = useMemo(
+    () => ({
+      categories: ledger.data?.categories ?? [],
+      paymentMethods: ledger.data?.paymentMethods ?? [],
+      tags: ledger.data?.tags ?? [],
+    }),
+    [ledger.data],
+  );
+
+  const enterBatch = (): void => {
+    /** The recording cards belong to the other mode; two open modes at once is one too many. */
+    menu.close();
+    setSelecting(true);
+    setSelected(new Set<string>());
+    setSelectionNotice(null);
+    setBatchSummary(null);
+    setBatchDraft(EMPTY_BATCH_DRAFT);
+    setRoleState(shared ? { status: "loading" } : { status: "idle" });
+  };
+
+  const exitBatch = (): void => {
+    setSelecting(false);
+    setSelected(new Set<string>());
+    setSelectionNotice(null);
+    setBatchEditOpen(false);
+    setConfirmBatchDelete(false);
+    setBatchSummary(null);
+    setBatchDraft(EMPTY_BATCH_DRAFT);
+    setRoleState({ status: "idle" });
+  };
+
+  /**
+   * ⚠️ **Leaving the current filter clears the selection, and says so.**
+   *
+   * A tick that is no longer on screen is a tick nobody can check before pressing 删除. The
+   * alternative — keeping it and acting on it — is the "看不见的选中项被误操作" case the owner
+   * asked to rule out. The notice exists so the reset reads as a rule rather than as a glitch.
+   */
+  const filterKey = `${month}|${kind}|${categoryId ?? ""}`;
+  const previousFilterKey = useRef(filterKey);
+
+  useEffect(() => {
+    if (previousFilterKey.current === filterKey) return;
+
+    previousFilterKey.current = filterKey;
+    setSelected(new Set<string>());
+    setSelectionNotice("筛选条件变了，已清空选择。");
+    setBatchSummary(null);
+  }, [filterKey]);
+
+  /**
+   * ⚠️ **One entry at a time, through the existing single-entry write path.**
+   *
+   * No batch endpoint, no schema change: each entry goes through `updateEntry`, which is the same
+   * function the entry screen uses — so the offline queue, the idempotency and the conflict chain
+   * all behave exactly as they already do. The loop is the only new thing, and it is what allows a
+   * per-entry result instead of one opaque success.
+   */
+  const applyBatchEdit = async (draft: BatchEditDraft): Promise<void> => {
+    if (!permission.allowed || selectedEntries.length === 0 || batchBusy) return;
+
+    setBatchBusy(true);
+    const results: BatchItemResult[] = [];
+
+    try {
+      for (const entry of selectedEntries) {
+        /**
+         * ⚠️ **A conflicted entry is refused rather than edited.** Its mark says "waiting for the
+         * user's choice"; a new edit on top would be a third version, and the sync layer would hold
+         * it back until that choice is made — work that looks done and is not.
+         */
+        if (conflicted.has(entry.id)) {
+          results.push({
+            id: entry.id,
+            status: "failed",
+            reason: "这笔还在等你在冲突页面里选一版，先处理冲突。",
+          });
+          continue;
+        }
+
+        const plan = buildBatchEdit(entry, draft, ledgerIndex);
+
+        if (plan.kind === "blocked") {
+          results.push({ id: entry.id, status: "failed", reason: plan.reason });
+          continue;
+        }
+
+        if (plan.kind === "unchanged") {
+          results.push({ id: entry.id, status: "unchanged" });
+          continue;
+        }
+
+        try {
+          const outcome = await updateEntry(entry.id, plan.input, plan.apply);
+
+          results.push(
+            outcome === null
+              ? { id: entry.id, status: "failed", reason: "本机没有这笔账目，无法修改。" }
+              : { id: entry.id, status: "ok", pending: outcome.pending },
+          );
+        } catch (caught) {
+          results.push({ id: entry.id, status: "failed", reason: errorMessage(caught) });
+        }
+      }
+    } finally {
+      setBatchSummary(summarizeBatch(results, "edit"));
+      /** ⚠️ Only the failures stay selected, so a retry starts from the right rows. */
+      setSelected(new Set(results.filter((result) => result.status === "failed").map((result) => result.id)));
+      setBatchEditOpen(false);
+      setBatchBusy(false);
+    }
+  };
+
+  const runBatchDelete = async (): Promise<void> => {
+    setConfirmBatchDelete(false);
+
+    if (!permission.allowed || selectedEntries.length === 0 || batchBusy) return;
+
+    setBatchBusy(true);
+    let results: BatchItemResult[] = [];
+
+    try {
+      for (const entry of selectedEntries) {
+        if (conflicted.has(entry.id)) {
+          results.push({
+            id: entry.id,
+            status: "failed",
+            reason: "这笔还在等你在冲突页面里选一版，先处理冲突。",
+          });
+          continue;
+        }
+
+        try {
+          /** ⚠️ The existing soft-delete path, per entry: marked first, then delivered if it can be. */
+          await deleteEntry(entry.id);
+          results.push({ id: entry.id, status: "ok", pending: offline });
+        } catch (caught) {
+          results.push({ id: entry.id, status: "failed", reason: errorMessage(caught) });
+        }
+      }
+    } finally {
+      /**
+       * ⚠️ **"Queued" is read from the marks afterwards, not assumed from the offline flag.**
+       *
+       * A delete that the server refused is still pending too — the mark is the honest record of
+       * "this device has asked and the server has not agreed yet" — and a summary that called it
+       * "deleted" would be reporting a request as a fact.
+       */
+      try {
+        const marks = await readMarks();
+
+        results = results.map((result) =>
+          result.status === "ok"
+            ? { id: result.id, status: "ok", pending: marks[result.id]?.pending === true }
+            : result,
+        );
+      } catch {
+        /** Reading the marks failed: the offline flag already gives the conservative answer. */
+      }
+
+      setBatchSummary(summarizeBatch(results, "delete"));
+      setSelected(new Set(results.filter((result) => result.status === "failed").map((result) => result.id)));
+      setBatchBusy(false);
+    }
+  };
+
   const isEmptyMonth = list.isSuccess && entries.length === 0;
   const year = month.slice(0, 4);
   const monthNumber = Number(month.slice(5, 7));
+
+  /**
+   * ⚠️ **The confirmation is built from the count that is on screen right now**, so the dialog can
+   * never describe a different number of entries from the ones the bar reported.
+   */
+  const deleteConfirmation = batchDeleteConfirmation(selectedIds.length);
 
   /**
    * ⚠️ **The choice is shown in place of the list, and that is deliberate.**
@@ -472,44 +782,33 @@ export function DetailPage(): React.JSX.Element {
                 </span>
               </div>
 
-              <div className="detail-tools flex gap-2">
-                <ToolButton
-                  /**
-                   * ⚠️ **The icon spins while the sync runs, because "slow" and "nothing is happening" are the
-                   * same thing on screen.** The owner's note was "联网的自动刷新比较慢" — and a slow operation
-                   * with no sign of activity is indistinguishable from a broken one, which is one of this
-                   * project's own lessons: **"没有反馈"和"没有生效"在用户看来没有区别.** The spin continues for at
-                   * least as long as the work does, so the button is never silent.
-                   */
-                  icon={<RefreshIcon key={turnKey} spinning={refreshing} />}
-                  label="刷新"
-                  hint="重新读取并同步账目"
-                  busy={refreshing}
-                  onClick={() => {
-                    void refresh();
-                  }}
-                />
-                {guest ? null : (
-                  <>
-                    <ToolButton
-                      icon={<ShareIcon />}
-                      label="导出"
-                      hint="导出账目"
-                      onClick={() => {
-                        void navigate("/export");
-                      }}
-                    />
-                    <ToolButton
-                      icon={<MoreIcon />}
-                      label="更多"
-                      hint="本机存放与待同步印记"
-                      onClick={() => {
-                        void navigate("/ledger/more");
-                      }}
-                    />
-                  </>
-                )}
-              </div>
+              {/*
+                ⚠️ **刷新 / 批量操作 / 更多.**
+
+                导出 moved into 更多 (the owner's instruction) and the batch button took its place:
+                exporting is a destination visited rarely, choosing several entries is something you
+                do while looking at the list. The row's size, shape and position are unchanged — see
+                `DetailTools`, which also carries the two icons.
+
+                ⚠️ A guest still sees 刷新 alone, which is the same rule the old 导出/更多 pair used:
+                guest mode is hidden from those two entry points, so the batch button is hidden with
+                them rather than becoming a third path with its own permissions to reason about.
+                Editing and deleting a single entry stay available to a guest on the entry screen.
+              */}
+              <DetailTools
+                refreshing={refreshing}
+                turnKey={turnKey}
+                guest={guest}
+                selecting={selecting}
+                onRefresh={() => {
+                  void refresh();
+                }}
+                onBatch={enterBatch}
+                onMore={() => {
+                  void navigate("/ledger/more");
+                }}
+                onExitSelection={exitBatch}
+              />
             </div>
 
             {/*
@@ -642,6 +941,30 @@ export function DetailPage(): React.JSX.Element {
                 </button>
               ))}
             </div>
+
+            {/*
+              ⚠️ **The report sits here, under the seam, and that placement is deliberate.**
+              The refresh button is in the pinned header, so the sentence has to appear at the top of
+              the reading area the user is looking at — a toast at the bottom competes with the
+              navigation, and a message below the list is off screen the moment anybody scrolls.
+            */}
+            {refreshNote === null ? null : (
+              <p role="status" className="mt-2 text-helper-relaxed text-muted">
+                {refreshNote}
+              </p>
+            )}
+
+            {selecting ? (
+              <SelectionBar
+                selectedCount={selectedIds.length}
+                loadedCount={loadedIds.length}
+                allSelected={everythingLoadedSelected}
+                notice={selectionNotice}
+                onToggleAll={() => {
+                  setSelected((current) => selectAllLoaded(loadedIds, current));
+                }}
+              />
+            ) : null}
           </div>
 
           {categoryId === null ? null : (
@@ -746,54 +1069,34 @@ export function DetailPage(): React.JSX.Element {
                 <h2 className="py-2 text-xs text-muted">{formatDayLabel(day)}</h2>
                 <ul className="overflow-hidden rounded-card bg-surface">
                   {dayEntries.map((entry) => (
-                    <li
+                    <LedgerEntryRow
                       key={entry.id}
-                      /**
-                       * ⚠️ **Two colours, two meanings: green for "not saved yet", red for "not deleted yet".**
-                       *
-                       * The owner's first request was colour on its own terms — "离线状态下新建出来的记账底色要
-                       * 特殊一些…换成浅红色之类的，用来提醒用户，现在还没被备份到服务器" — and when the deletion
-                       * side arrived he split it: **"删除印记变为 1 时背景变成淡红色——之前的断网新增账单背景就得
-                       * 改一下了，改成淡绿色吧."**
-                       *
-                       * ⚠️ **He is right, and the reason is that red was carrying two unrelated messages.**
-                       *
-                       * | Row | Colour | What the user needs to know |
-                       * |---|---|---|
-                       * | **已删除，服务器还不知道** | **淡红** | it is **still on the server** — the delete has not happened there yet |
-                       * | **已新建，服务器还不知道** | **淡绿** | it is **only on this device** — it is not backed up yet |
-                       *
-                       * A single warning colour for both would say "something is unsynced" and stop, **when the thing
-                       * the user has to do about each one is opposite**: one needs the entry to disappear elsewhere,
-                       * the other needs it to appear elsewhere.
-                       *
-                       * ⚠️ **Green rather than an amber warning token**, because green is the palette's calm colour
-                       * and an unsynced *addition* is not a problem — it is the feature working. **Red stays reserved
-                       * for the case where the two copies disagree about whether something exists.**
-                       *
-                       * ⚠️ **A deleted row is never rendered at all** — the deletion is applied to the merged list
-                       * before this point (see above). So in practice a row here is red only if it is deleted while
-                       * visible, and the honest reading is "this will go, once the server hears about it".
-                       */
-                      className={
-                        deleted.has(entry.id)
-                          ? "bg-danger-soft line-through decoration-danger/40"
-                          : conflicted.has(entry.id)
-                            ? "bg-warn-soft"
-                            : pending.has(entry.id)
-                              ? "bg-brand-soft"
-                              : undefined
-                      }
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          /**
-                           * ⚠️ **A conflicted row opens the choice, not the editor.**
-                           *
-                           * Opening the editor would let the user make a *third* version of an entry that already
-                           * has two — and the question "which of these two do you want" would never be asked.
-                           */
+                      entry={entry}
+                      selecting={selecting}
+                      selected={selected.has(entry.id)}
+                      pending={pending.has(entry.id)}
+                      conflicted={conflicted.has(entry.id)}
+                      deleted={deleted.has(entry.id)}
+                      onActivate={() => {
+                        /**
+                         * ⚠️ **One decision, in one pure function** (`entryTapAction`), so batch mode
+                         * cannot half-apply: in selection a tap toggles and never navigates, even on a
+                         * conflicted row; outside it, a conflicted row still opens the choice before
+                         * the editor — otherwise the user would make a *third* version of an entry
+                         * that already has two, and "which of these do you want" would never be asked.
+                         */
+                        const action = entryTapAction({
+                          selecting,
+                          conflicted: conflicted.has(entry.id),
+                        });
+
+                        if (action === "toggle-selection") {
+                          setSelected((current) => toggleSelection(current, entry.id));
+
+                          return;
+                        }
+
+                        if (action === "settle-conflict") {
                           const waiting = conflicts.find((conflict) => conflict.mine.id === entry.id);
 
                           if (waiting !== undefined) {
@@ -801,36 +1104,11 @@ export function DetailPage(): React.JSX.Element {
 
                             return;
                           }
+                        }
 
-                          void navigate(`/transactions/${entry.id}`);
-                        }}
-                        className="flex w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left transition last:border-b-0 hover:bg-canvas"
-                      >
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-line text-xs font-semibold text-category-ink">
-                          {entry.categoryIsSystem ? "—" : entry.categoryName.slice(0, 1)}
-                        </span>
-
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-sm text-ink">
-                            {entry.categoryIsSystem ? "暂无分类" : entry.categoryName}
-                            {entry.note ? <span className="text-muted"> · {entry.note}</span> : null}
-                          </span>
-                          <span className="truncate text-xs text-muted">
-                            {formatTimeWithZone(entry.occurredAt, entry.occurredTz)}
-                            {entry.paymentMethodName ? ` · ${entry.paymentMethodName}` : ""}
-                          </span>
-                        </span>
-
-                        <span
-                          className={`shrink-0 text-sm font-medium tabular-nums ${
-                            entry.kind === "expense" ? "text-ink" : "text-brand-dark"
-                          }`}
-                        >
-                          {entry.kind === "expense" ? "-" : "+"}
-                          {formatMoney(entry.amountCents, entry.currency)}
-                        </span>
-                      </button>
-                    </li>
+                        void navigate(`/transactions/${entry.id}`);
+                      }}
+                    />
                   ))}
                 </ul>
               </section>
@@ -883,24 +1161,92 @@ export function DetailPage(): React.JSX.Element {
         of buttons immediately above this line and a caption underneath a menu is
         just noise.
       */}
-      <CurrentBookCaption name={ledger.data?.book.name} hidden={entryOpen} />
+      {/*
+        ⚠️ **In batch mode the bar at the bottom belongs to the action, not to navigation.**
 
-      <LedgerNav
-        open={entryOpen}
-        onToggle={menu.toggle}
-        onNavigate={(to) => void navigate(to)}
-        onPickImages={(chosen) => {
-          /**
-           * Straight from the tap to recognition.
-           *
-           * The card has just opened the picker and has the pictures; this hands
-           * them over in memory and goes to the screen that recognises them. The
-           * user's two presses — 拍照, then choosing a picture — are the whole
-           * interaction, where before there was a screen in between whose only
-           * job was to ask for the picture again.
-           */
-          handOverForScan(chosen);
-          void navigate("/scan");
+        The owner's constraint was that the batch bar must not collide with `BottomNav`, its raised
+        记账 button or the safe area. One bar at a time is the only arrangement that satisfies all
+        three without duplicating the navigation's height here — so during selection the navigation,
+        its caption and the space the cards reserve are all replaced by the action bar, and 取消 puts
+        them back. **Nothing is unmounted that holds state**, so the ledger is exactly as it was.
+      */}
+      {selecting ? (
+        <BatchActionBar
+          selectedCount={selectedIds.length}
+          blockedReason={permission.reason}
+          busy={batchBusy}
+          summary={batchSummary}
+          onEdit={() => {
+            setBatchDraft(EMPTY_BATCH_DRAFT);
+            setBatchEditOpen(true);
+          }}
+          onDelete={() => {
+            setConfirmBatchDelete(true);
+          }}
+        />
+      ) : (
+        <>
+          <CurrentBookCaption name={ledger.data?.book.name} hidden={entryOpen} />
+
+          <LedgerNav
+            open={entryOpen}
+            onToggle={menu.toggle}
+            onNavigate={(to) => void navigate(to)}
+            onPickImages={(chosen) => {
+              /**
+               * Straight from the tap to recognition.
+               *
+               * The card has just opened the picker and has the pictures; this hands
+               * them over in memory and goes to the screen that recognises them. The
+               * user's two presses — 拍照, then choosing a picture — are the whole
+               * interaction, where before there was a screen in between whose only
+               * job was to ask for the picture again.
+               */
+              handOverForScan(chosen);
+              void navigate("/scan");
+            }}
+          />
+        </>
+      )}
+
+      {/*
+        ⚠️ **Mounted only while batch mode is on, and only in a shared ledger.** A personal ledger
+        has one member — its owner — so asking the server for this account's role there would be a
+        request on every visit for an answer that cannot vary.
+      */}
+      {selecting && shared ? <BatchRoleProbe onProbe={setRoleState} /> : null}
+
+      <BatchEditSheet
+        open={batchEditOpen}
+        count={selectedIds.length}
+        kinds={selectedKinds}
+        categories={ledgerIndex.categories}
+        paymentMethods={ledgerIndex.paymentMethods}
+        tags={ledgerIndex.tags}
+        draft={batchDraft}
+        blockedReason={permission.reason}
+        busy={batchBusy}
+        onDraftChange={setBatchDraft}
+        onApply={() => {
+          void applyBatchEdit(batchDraft);
+        }}
+        onClose={() => {
+          setBatchEditOpen(false);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmBatchDelete}
+        busy={batchBusy}
+        title={deleteConfirmation.title}
+        description={deleteConfirmation.description}
+        consequences={deleteConfirmation.consequences}
+        confirmLabel={deleteConfirmation.confirmLabel}
+        onCancel={() => {
+          setConfirmBatchDelete(false);
+        }}
+        onConfirm={() => {
+          void runBatchDelete();
         }}
       />
 
@@ -970,102 +1316,12 @@ function LedgerNav({
 }
 
 /**
- * A tool in the top corner.
+ * The month arrows.
  *
- * An icon, not a word. The first version printed 导出 and 更多 in small text on
- * translucent circles and the owner's note was that they read as speech
- * bubbles rather than tools — a word inside a pill looks like something to
- * read, where a mark inside a circle looks like something to press.
- *
- * With no `onClick` it is disabled and says why, which is the honest state for a
- * tool that does not exist yet — the owner's rule: something that looks ready
- * and does nothing is worse than something that admits it is not. Export now has
- * a destination and is live; 更多 still does not.
+ * The slot around them is what collapses, not their opacity — see `.detail-arrow-slot` — so the
+ * month sits flush with the wordmark in the display state and the arrows arrive by taking their
+ * room rather than by appearing in it.
  */
-function ToolButton({
-  icon,
-  label,
-  hint,
-  onClick,
-  busy,
-}: {
-  readonly icon: React.ReactNode;
-  readonly label: string;
-  readonly hint: string;
-  readonly onClick?: () => void;
-  /** ⚠️ Shows that the action is running, and blocks a second press. */
-  readonly busy?: boolean;
-}): React.JSX.Element {
-  const disabled = onClick === undefined || busy === true;
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      aria-busy={busy === true}
-      title={busy === true ? `${label}——正在进行` : `${label}——${hint}`}
-      aria-label={`${label}，${hint}`}
-      className={`flex size-9 items-center justify-center rounded-full transition ${
-        disabled
-          ? "bg-white/15 text-white/70"
-          : "bg-white/20 text-white hover:bg-white/30 active:bg-white/40"
-      }`}
-    >
-      {icon}
-    </button>
-  );
-}
-
-/** A box with an arrow leaving it: the usual mark for getting data out. */
-/**
- * A circular arrow, matching the weight and size of the two beside it.
- *
- * ⚠️ **Same stroke, same box, same `size-[18px]` as `ShareIcon` and `MoreIcon`** — the owner asked for the
- * animation and weight to match the other two, and a button that looks subtly different from its neighbours
- * reads as a different kind of control.
- */
-function RefreshIcon({ spinning = false }: { readonly spinning?: boolean }): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      /**
-       * ⚠️ **`animate-spin` on the icon, and the rotation is the whole feedback.** A refresh that takes a
-       * second and shows nothing looks like a button that does not work — **and the user then presses it
-       * again**, which is why the handler also ignores a second press while one is running.
-       */
-      className={`size-[18px] ${spinning ? "refresh-turn" : ""}`}
-      aria-hidden="true"
-    >
-      <path d="M20 12a8 8 0 1 1-2.6-5.9" strokeLinecap="round" />
-      <path d="M20 4v4.5h-4.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ShareIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="size-[18px]" aria-hidden="true">
-      <path d="M12 15V4M12 4 8.5 7.5M12 4l3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** Three dots: anything that does not deserve its own button yet. */
-function MoreIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="size-[18px]" aria-hidden="true">
-      <circle cx="5.5" cy="12" r="1.7" />
-      <circle cx="12" cy="12" r="1.7" />
-      <circle cx="18.5" cy="12" r="1.7" />
-    </svg>
-  );
-}
-
 function ArrowButton({
   direction,
   tabbable,
