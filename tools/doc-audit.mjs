@@ -30,9 +30,13 @@
 //
 // Read-only.
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = "C:\\Users\\ZhuanZ（无密码）\\Desktop\\工作\\记账程序\\记账程序v1";
+// ⚠️ 路径必须相对本文件解析：这个仓库可能被检出到任意目录（含 worktree）。
+// 2026-10-20 之前这里写死了某台机器上的绝对路径，导致在另一个 worktree 里跑时
+// **审计的是另一个分支的文档**，并把错误的版本号当成"代码现状"。
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DOCS = join(ROOT, "docs");
 
 /**
@@ -46,20 +50,20 @@ const DOCS = join(ROOT, "docs");
  * `颜色清单.md` 一旦被误排除，这个检查就失去了它存在的意义。
  */
 const RECORD_FILES = new Set([
-  "开发过程记录/版本记录（1.10-1.13）.md",
-  "开发过程记录/版本记录（1.08-1.09）.md",
-  "开发过程记录/开发日志.md",
-  "开发过程记录/部署记录-S12-B.md",
-  "开发过程记录/Libevra品牌迁移记录.md",
-  "开发过程记录/S12-A上线前安全与发布准备.md",
-  "开发过程记录/视觉精修验收-1.10.10.md",
-  "开发过程记录/账号迁移方案-本机到生产.md",
-  "开发过程记录/教训.md",
-  "开发过程记录/BUG记录.md",
+  "changelog/1.10-1.13.md",
+  "archive/logs/版本记录（1.08-1.09）.md",
+  "archive/logs/开发日志.md",
+  "archive/misc/部署记录-S12-B.md",
+  "specs/product/Libevra品牌迁移记录.md",
+  "archive/misc/S12-A上线前安全与发布准备.md",
+  "archive/misc/视觉精修验收-1.10.10.md",
+  "archive/misc/账号迁移方案-本机到生产.md",
+  "lessons.md",
+  "BUG记录.md",
 ]);
 
 /** 归档、以及上面列出的记录文件 —— 它们说的是"当时"，不是"现在"。 */
-const isRecord = (rel) => rel.startsWith("归档/") || RECORD_FILES.has(rel);
+const isRecord = (rel) => rel.startsWith("archive/") || RECORD_FILES.has(rel);
 
 // ---------------------------------------------------------------------------
 // Ground truth, read from the source rather than remembered
