@@ -25,13 +25,28 @@ import { recordBackPress } from "./backFallback.js";
  *
  * * `history` — the default, and what every screen but two uses: back returns to the screen the
  *   reader actually came from, with the declared origin and then `backTo` as the fallbacks;
- * * `parent` — the screen's parent is **fixed**, and history is not asked. Only the two screens
- *   that point at each other need it — see `useGoBack` below.
+ * * `parent` — 父级是声明的那个（不按来路推断），返回时**把这一页自己的历史记录消耗掉**：
+ *   有上一条就 pop，深链才 `replace` 到 `backTo`。只有账本设置与账本导入用（见 `useGoBack`）。
  *
  * ⚠️ **The default is `history`, deliberately**: a screen that forgets to choose keeps the
  * behaviour it had before this type existed. Only an explicit `backMode="parent"` changes anything.
  */
 export type BackMode = "history" | "parent";
+
+/**
+ * ⚠️ **`parent` 模式的返回该做哪种动作，作为一个纯函数**（S15-C 第四轮）。
+ *
+ * 本仓库没有 DOM，`useGoBack` 里的分支无法靠渲染断言，所以"pop 还是 replace"这条规则
+ * 单独抽出来，测试可以直接调用它。
+ *
+ * * **有上一条历史 → `pop`**：正常入口下，上一条就是声明的父级（账本设置总是从账本详情进来）；
+ *   pop 会把这一页自己的记录一起消耗掉，不给后面的页面留下一条可以弹回去的"影子"。
+ * * **会话第一条（`"default"`，即直接打开地址）→ `replace`**：没有上一条可回，
+ *   就用声明的父级把自己换掉，而不是把父级再 push 一遍。
+ */
+export function parentBackAction(key: string): "pop" | "replace" {
+  return key === "default" ? "replace" : "pop";
+}
 
 /**
  * Go back to wherever the user actually came from.
@@ -83,27 +98,33 @@ export function useGoBack(fallback: string, mode: BackMode = "history"): () => v
     }
 
     /**
-      * ⚠️ **`parent` mode: the declared parent, every time — history is not asked** (S15-C).
+      * ⚠️ **`parent` 模式：离开这一页，并把它的历史记录一起消耗掉**（S15-C，第四轮修正机制）。
       *
-      * ⚠️ **The loop it removes is 导出 ⇄ 账本设置.** 设置 → 导出 pushes 导出; 导出's back used
+      * ⚠️ **它要解决的第一个循环是 导出 ⇄ 账本设置。** 设置 → 导出 pushes 导出; 导出's back used
       * history and returned to 设置; 设置's back then used history too, and the entry behind it *was*
-      * 导出 — so the two screens could walk a circle, exactly like 关于/设置 before `state.from`.
+      * 导出 — 两页于是可以走成环，和 关于/设置 在 `state.from` 之前一模一样。
       * **A screen whose parent never changes must not derive its parent from where the reader
-      * happened to come from.**
+      * happened to come from** — 所以这里不问"来路"，父级是声明的那个。
       *
-      * ⚠️ **`location.state.from` is ignored here on purpose.** It is a *caller* declaring an origin
-      * for the screen it is about to open; a screen in `parent` mode is asserting its hierarchy is
-      * fixed, and honouring somebody else's idea of where it came from would bring the variance back.
+      * ⚠️ **`location.state.from` 在这里被有意忽略**：那是调用方为它即将打开的页面声明来路；
+      * `parent` 模式声明的是层级固定，接受别人的来路会把变化重新引进来。
       *
-      * ⚠️ **`replace`, not a push** (S15-C follow-up, 2026-10-20). The first version pushed, and the
-      * visible result was a second loop one level down: 设置 →push 账本详情, whose own history-based
-      * back returned to 设置. 账本详情 is reachable from several places (明细「详情」、我的→账本管理、
-      * 旧地址重定向), so it cannot be forced into `parent`; a fixed-hierarchy back must therefore be
-      * a move **out of** this screen — `replace` consumes the entry instead of leaving one that a
-      * neighbour can bounce off. It comes *after* the five-press escape hatch above, because a
-      * reader stuck on a bouncing pair still needs a way out.
+      * ⚠️ **第二版用 `replace` 把这一页换成父级，仍然会绕回**（2026-10-21，账本导入报告的循环）。
+      * `replace` 不缩短历史，只把当前这一条改个地址：账本详情 → 设置(push) → 导入(push)，
+      * 导入返回 push 一条设置，设置返回 replace 成详情——**详情脚下那条正是还没被消耗的导入页**，
+      * 详情一按 `-1` 就回到导入。所以：
+      *
+      * * 有上一条历史就 **`navigate(-1)`**：pop 连同这一页的记录一起消耗，正常入口下落的正是
+      *   账本详情（设置只从详情、或从它自己的子页进来；子页排在它前面，不在它后面）；
+      * * 自己是会话第一条（深链）时才用声明的父级 **`replace`** 掉自己。
+      *
+      * ⚠️ **逃生口仍排在前面**，因为卡在一对互相返回的页面上的人依然需要一条出路。
       */
     if (mode === "parent") {
+      if (parentBackAction(location.key) === "pop") {
+        void navigate(-1);
+        return;
+      }
       void navigate(fallback, { replace: true });
       return;
     }
