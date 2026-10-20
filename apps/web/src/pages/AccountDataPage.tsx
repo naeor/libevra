@@ -543,7 +543,15 @@ export function AccountDataPage(): React.JSX.Element {
                       : "单人账本"}
                 </p>
                 <select
-                  className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-body text-ink"
+                  /**
+                    * ⚠️ **`text-base`, not `text-body`** —— `index.css` 有一条明确的全局不变量：
+                    * 「Never let a form control's text fall below 16px」，因为 iOS Safari 会在低于
+                    * 16px 的控件获得焦点时**放大整页且不缩回**。元素选择器 `select { font-size: 16px }`
+                    * 就是那条规则，而 `text-body`(14px) 这样的类会把它覆盖掉——**类胜过元素选择器**，
+                    * 于是这个下拉成了同一种缺陷的漏网之处（另见 分类/标签/支付方式 的筛选下拉、
+                    * 批量编辑弹层的两个下拉）。
+                    */
+                  className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-base text-ink"
                   value={decisions[book.bookId] ?? "leave"}
                   disabled={book.options.length === 0 || busy}
                   onChange={(event) => {

@@ -120,7 +120,19 @@ export function StatsPage(): React.JSX.Element {
         * switching tabs, which is precisely the kind the owner asked to be ruled out by construction.
         */}
         <section className="flex flex-col gap-3 px-6 pt-6">
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        {/**
+          * ⚠️ **The strip hides its own scrollbar, exactly as the ledger's does.**
+          *
+          * 这两条横向筛选条是 `overflow-x-auto`，在桌面 Chrome（Windows 经典滚动条）下会带出一条
+          * **带左右箭头的灰色滚动条**，贴在筛选片下方——它既不是页面的一部分，也把「一排标签」读成了
+          * 「一个滚动区」。明细页的同款横条（`DetailPage` 的币种条）早就用
+          * `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden` 隐掉了它，
+          * **同一套界面里不该只有一处知道这件事。**
+          *
+          * ⚠️ **只改这两处，不动 `index.css`**：滚动条是这两个容器的局部属性，不是全局 token；
+          * 而且明细页那一条已经证明这个写法可用。滚动能力本身不变（触摸滑动、键盘、拖拽照旧）。
+          */}
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {STATS_RANGES.map((option) => (
             <button
               key={option}
@@ -137,7 +149,7 @@ export function StatsPage(): React.JSX.Element {
           ))}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {currencies.map((option) => (
             <button
               key={option}

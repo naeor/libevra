@@ -355,7 +355,7 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
           placeholder="账号编号或用户名"
           aria-label="要邀请谁"
           autoComplete="off"
-          className="min-h-11 flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-body text-ink transition outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
+          className="min-h-11 flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
         />
 
         <button

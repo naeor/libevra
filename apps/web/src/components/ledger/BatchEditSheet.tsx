@@ -126,7 +126,7 @@ export function BatchEditSheet({
                   categoryId: event.target.value === "" ? null : event.target.value,
                 });
               }}
-              className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink disabled:opacity-45"
+              className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-base text-ink disabled:opacity-45"
             >
               <option value="">选择分类…</option>
               {usableCategories.map((category) => (
@@ -231,7 +231,7 @@ export function BatchEditSheet({
                 paymentMethodId: event.target.value === "" ? null : event.target.value,
               });
             }}
-            className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink disabled:opacity-45"
+            className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-base text-ink disabled:opacity-45"
           >
             <option value="">选择支付方式…</option>
             {usablePaymentMethods.map((method) => (
