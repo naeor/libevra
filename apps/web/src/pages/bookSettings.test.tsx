@@ -185,13 +185,14 @@ describe("返回不再绕圈", () => {
     expect(settings.indexOf("backTo={`/books/${bookId}`}")).toBeLessThan(settings.indexOf('backMode="parent"'));
   });
 
-  it("导出的两个入口都回到它们真正的父级", () => {
+  it("导出保持历史返回（它是设置的叶子页，-1 天然回设置并消耗自己的条目）", () => {
     const exportPage = stripped("./ExportPage.tsx");
 
-    expect(exportPage.match(/backMode="parent"/g) ?? []).toHaveLength(2);
+    expect(exportPage).not.toContain("backMode");
     expect(exportPage).toContain('backTo="/"');
     expect(exportPage).toContain("backTo={`/books/${bookId}/settings`}");
-    // The shared view has to forward the mode, or both entries would silently fall back to history.
-    expect(exportPage).toContain("backMode={backMode}>");
+    // The shared view must not forward a mode: history is what keeps 导出 ↔ 设置 from looping,
+    // and a declared parent here was the first version's second bug.
+    expect(exportPage).not.toContain("backMode={");
   });
 });

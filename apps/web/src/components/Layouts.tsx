@@ -201,10 +201,11 @@ export function TabPage({
  * though nothing is broken. `backTo` is only the fallback for a deep link that
  * has no history behind it.
  *
- * ⚠️ **`backMode="parent"` is the opt-out, and only two screens use it** (S15-C): 账本设置 and
- * 导出. Their parents never change, and asking history meant they could point at each other —
- * 设置 → 导出 → 设置 → 导出, the same class of bug 关于/设置 had. **The default stays `history`, so
- * every other screen behaves exactly as before.**
+ * ⚠️ **`backMode="parent"` is the opt-out, and only 账本设置 uses it** (S15-C). Its parent never
+ * changes; asking history meant 设置 could point back at 导出, and the pair walked a circle. 导出
+ * itself stays on history on purpose: it is a leaf pushed from 设置, so `-1` returns there and
+ * consumes its own entry — giving it a declared parent was the first version's second loop.
+ * **The default stays `history`, so every other screen behaves exactly as before.**
  */
 export function InnerPage({
   title,

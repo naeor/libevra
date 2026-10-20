@@ -104,15 +104,14 @@ describe("退出一个二级页面时去哪里", () => {
  * ⚠️ **The second loop, reported by the owner on 2026-10-20** (S15-C): *"在导出账本页点返回 → 回到
  * 账本设置；在账本设置点返回 → 又回到导出账本，来回循环."*
  *
- * ⚠️ **Same shape as 关于/设置, different missing piece.** There, the origin was undeclared. Here the
- * origin is obvious but *history* keeps answering: 设置 → 导出 pushes 导出; 导出's back pops to 设置;
- * 设置's back then uses history as well, and the entry behind 设置 is 导出 — a circle with no wrong
- * screen in it.
- *
  * ⚠️ **The fix is an opt-in mode, and the opt-in matters as much as the mode.** `parent` means "my
- * parent never changes", which is only true for 账本设置 (→ 账本详情) and 导出 (→ its entry point).
- * Everything else must keep preferring history, so the default is asserted here — **a default that
- * darkened every other screen would be a worse bug than the one being fixed.**
+ * parent never changes", which is true for 账本设置 (→ 账本详情). 账本详情 itself is reachable from
+ * several places (明细「详情」、我的→账本管理、旧地址重定向), so it keeps history-based back; 导出 is
+ * a leaf pushed from 设置, so plain history (-1) already returns there and consumes its entry.
+ *
+ * ⚠️ **`parent` navigates with `replace`, not push.** The first version pushed; the result was a
+ * second loop one level down (设置 →push 账本详情 → its history back returned to 设置). A fixed
+ * hierarchy's back is a move out of the screen, so it must not leave a new entry behind.
  */
 describe("返回模式：默认历史，按需声明父级", () => {
   const connectivity = source("./connectivity.ts");
@@ -124,7 +123,7 @@ describe("返回模式：默认历史，按需声明父级", () => {
     expect(layouts).toContain("useGoBack(backTo, backMode)");
   });
 
-  it("parent 分支用声明的父级，不问历史，也不被 state.from 改写", () => {
+  it("parent 分支用声明的父级、replace 掉自己，不问历史，也不被 state.from 改写", () => {
     const start = connectivity.indexOf('if (mode === "parent")');
     const end = connectivity.indexOf("if (from !== null)");
 
@@ -132,12 +131,12 @@ describe("返回模式：默认历史，按需声明父级", () => {
     expect(end).toBeGreaterThan(start);
 
     const branch = connectivity.slice(start, end);
-    expect(branch).toContain("void navigate(fallback);");
+    expect(branch).toContain("void navigate(fallback, { replace: true });");
     expect(branch).not.toContain("navigate(-1)");
     expect(branch).not.toContain("navigate(from)");
   });
 
-  it("两个页面的父级是固定的，且只有它们声明了 backMode", () => {
+  it("只有账本设置声明了固定的父级（导出保持历史返回）", () => {
     const found = sourceFiles(SRC)
       .filter((path) => !/\.test\.(ts|tsx)$/.test(path))
       .filter((path) => readFileSync(path, "utf8").includes("backMode"))
@@ -145,19 +144,18 @@ describe("返回模式：默认历史，按需声明父级", () => {
       .sort();
 
     /**
-      * ⚠️ **The list is the guard**: 设置和导出 are the only two screens whose parent is fixed.
-      * A third file appearing here is either a new loop being fixed (fine — update this list) or a
-      * screen that just lost history-based back (not fine).
+      * ⚠️ **The list is the guard**: 账本设置 is the only screen whose parent is fixed. A third
+      * file appearing here is either a new loop being fixed (fine — update this list) or a screen
+      * that just lost history-based back (not fine).
       */
     expect(found).toEqual([
       "components/Layouts.tsx",
       "lib/connectivity.ts",
       "pages/BookSettingsPage.tsx",
-      "pages/ExportPage.tsx",
     ]);
   });
 
-  it("设置的返回是账本详情，导出的返回是设置 / 明细", () => {
+  it("设置的返回是账本详情；导出的返回仍交给历史（它是设置的叶子页）", () => {
     const settings = source("../pages/BookSettingsPage.tsx");
     const exportPage = source("../pages/ExportPage.tsx");
 
@@ -166,6 +164,6 @@ describe("返回模式：默认历史，按需声明父级", () => {
 
     expect(exportPage).toContain('backTo="/"');
     expect(exportPage).toContain("backTo={`/books/${bookId}/settings`}");
-    expect(exportPage.match(/backMode="parent"/g) ?? []).toHaveLength(2);
+    expect(exportPage).not.toContain("backMode");
   });
 });

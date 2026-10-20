@@ -95,13 +95,16 @@ export function useGoBack(fallback: string, mode: BackMode = "history"): () => v
       * for the screen it is about to open; a screen in `parent` mode is asserting its hierarchy is
       * fixed, and honouring somebody else's idea of where it came from would bring the variance back.
       *
-      * ⚠️ **A plain `navigate`, not `replace`** — the same rule 关于/设置 follows: returning to a
-      * declared parent is a real move, so the reader can go forward again. It comes *after* the
-      * five-press escape hatch above, because a reader stuck on a bouncing pair still needs a way
-      * out, and this branch would otherwise keep re-pushing the parent forever.
+      * ⚠️ **`replace`, not a push** (S15-C follow-up, 2026-10-20). The first version pushed, and the
+      * visible result was a second loop one level down: 设置 →push 账本详情, whose own history-based
+      * back returned to 设置. 账本详情 is reachable from several places (明细「详情」、我的→账本管理、
+      * 旧地址重定向), so it cannot be forced into `parent`; a fixed-hierarchy back must therefore be
+      * a move **out of** this screen — `replace` consumes the entry instead of leaving one that a
+      * neighbour can bounce off. It comes *after* the five-press escape hatch above, because a
+      * reader stuck on a bouncing pair still needs a way out.
       */
     if (mode === "parent") {
-      void navigate(fallback);
+      void navigate(fallback, { replace: true });
       return;
     }
 

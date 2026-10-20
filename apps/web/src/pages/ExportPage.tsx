@@ -7,7 +7,6 @@ import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { errorMessage } from "../lib/api.js";
-import type { BackMode } from "../lib/connectivity.js";
 import { currentMonth, formatMonthLabel, shiftMonth } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
 import { fetchExport, fetchTemplate, useLedger, useLedgerMeta } from "../lib/queries.js";
@@ -102,8 +101,6 @@ function ExportForCurrentLedger(): React.JSX.Element {
       categories={ledger.data?.categories ?? []}
       loading={ledger.isLoading}
       backTo="/"
-      /** ⚠️ The parent of 导出 on 明细 is the tab itself, and nothing else can be its parent. */
-      backMode="parent"
       subtitle={EXPORT_HINT}
       importTo="/import"
     />
@@ -127,8 +124,6 @@ function ExportForBook({ bookId }: { readonly bookId: string }): React.JSX.Eleme
       categories={meta.data?.categories ?? []}
       loading={meta.isLoading}
       backTo={`/books/${bookId}/settings`}
-      /** ⚠️ 账本设置的子页：返回永远是设置，不是「上一页」。 */
-      backMode="parent"
       subtitle={`正在导出「${label}」。${EXPORT_HINT}`}
       importTo={`/books/${bookId}/settings/import`}
       bookId={bookId}
@@ -141,7 +136,6 @@ function ExportView({
   categories: allCategories,
   loading,
   backTo,
-  backMode,
   subtitle,
   importTo,
   bookId,
@@ -150,8 +144,6 @@ function ExportView({
   readonly categories: readonly Category[];
   readonly loading: boolean;
   readonly backTo: string;
-  /** ⚠️ Passed through to `InnerPage`; both entries of this screen are `parent`. */
-  readonly backMode: BackMode;
   readonly subtitle: string;
   /** Where the 导入 button goes: `/import` for the current ledger, the book's own page otherwise. */
   readonly importTo: string;
@@ -249,7 +241,7 @@ function ExportView({
   }
 
   return (
-    <InnerPage title="导出账目" subtitle={subtitle} backTo={backTo} backMode={backMode}>
+    <InnerPage title="导出账目" subtitle={subtitle} backTo={backTo}>
       {error === null ? null : <Alert>{error}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
       {done === null ? null : <Alert tone="success">{done}</Alert>}
