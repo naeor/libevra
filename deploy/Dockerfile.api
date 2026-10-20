@@ -197,11 +197,16 @@ RUN mkdir -p /data/models /data/uploads \
 
 # ⚠️ **pnpm's dependency check is switched off in `deploy/npmrc.runtime`**, not here.
 # An `ENV verifyDepsBeforeRun=false` was tried and **did not work** — see that file.
+#
+# ⚠️ The speech model default is `base` as of S15-A (owner decision 2026-10-20):
+# 148 MB and ~6.7 s on the 2-vCPU host, against `small`'s 488 MB and ~25.5 s
+# (S14-V measurements, 4.7 s sample). `small` stays as the fallback — set
+# `LIBELLUM_WHISPER_MODEL=small` at run time, no rebuild needed.
 ENV NODE_ENV=production \
     HOME=/data \
     LIBELLUM_OCR_PYTHON=/opt/libevra/python/bin/python \
     LIBELLUM_VOICE_PYTHON=/opt/libevra/python/bin/python \
-    LIBELLUM_WHISPER_MODEL=small \
+    LIBELLUM_WHISPER_MODEL=base \
     LIBELLUM_WHISPER_THREADS=2 \
     API_HOST=0.0.0.0 \
     API_PORT=3000

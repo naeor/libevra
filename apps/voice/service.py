@@ -63,15 +63,35 @@ TARGET_RATE = 16_000
 MAX_AUDIO_BYTES = 8 * 1024 * 1024
 MAX_SECONDS = 60
 
-# The owner chose the model. `base` misheard 午饭 as 五份 — a tonal distinction
-# that matters in Chinese and that the smallest models are known to lose — so he
-# asked for one step up. `small` is 466 MB against `base`'s 148, still comfortable
-# on a 2 GB server, and noticeably better on Mandarin.
+# The model target for the next version (owner decision, S15-A · 2026-10-20):
+# `base` is the default, `small` stays as the fallback.
 #
-# Overridable so the choice can be revisited on a real phone without editing code,
+# The numbers behind that decision are the S14-V measurements on the 2-vCPU
+# production host, 4.7-second sample, same candidate code:
+#
+#   base  — 148 MB, model load 0.49 s, inference 6.72 s, total 6.73 s
+#   small — 488 MB, model load 1.53 s, inference 25.51 s, total 25.54 s
+#
+# Amount/date/channel/direction were equally correct on the synthetic set (9/9,
+# 7/7, 9/9, 9/9); `small` was better on merchant names (3/3 against base's 2/3 —
+# base heard 星巴克 as 新八课), which is why `small` is kept as a one-variable
+# fallback rather than deleted. ⚠️ Neither model meets the 5-second target yet,
+# so this is a *candidate* default and must not be described as released.
+#
+# Overridable so the choice can be revisited on a server without editing code,
 # and named in the startup line so a log says which one is actually loaded rather
-# than which one was intended.
-MODEL_NAME = os.environ.get("LIBELLUM_WHISPER_MODEL", "small")
+# than which one was intended. `LIBELLUM_WHISPER_MODEL=small` selects the
+# fallback.
+DEFAULT_MODEL_NAME = "base"
+
+
+def _model_name(value: str | None) -> str:
+    """The model name from an env var, falling back to the S15-A target."""
+    name = (value or "").strip()
+    return name if name != "" else DEFAULT_MODEL_NAME
+
+
+MODEL_NAME = _model_name(os.environ.get("LIBELLUM_WHISPER_MODEL"))
 # A model spec may be a local path. Keeping this separate from MODEL_NAME lets a
 # deployment switch models without changing the name written to logs.
 MODEL_SPEC = os.environ.get("LIBELLUM_WHISPER_MODEL_PATH") or MODEL_NAME
