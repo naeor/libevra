@@ -85,6 +85,26 @@ function defaultCategoryId(
   );
 }
 
+/**
+ * 把“有可见依据”的默认值写进候选，并标明来源。
+ *
+ * 分类的默认值只有转账预设这一条，来源记 `ocr`（平台/规则默认），这样概览页不会把它
+ * 当成系统按文字猜出来的建议（`inferred`）。支付方式只按来源平台名称匹配（微信/支付宝/
+ * 银行卡），匹配不到就留空，由详情页让用户选。
+ */
+function applyDefaults(
+  candidate: OcrBatchCandidate,
+  categories: readonly CategoryLike[],
+  paymentMethods: readonly PaymentMethodLike[],
+): void {
+  const categoryId = defaultCategoryId(candidate, categories);
+  if (categoryId !== null) {
+    candidate.categoryId = categoryId;
+    candidate.categorySource = "ocr";
+  }
+  candidate.paymentMethodId = defaultPaymentMethodId(candidate, paymentMethods);
+}
+
 /** 旧服务/未知页只有单笔 draft 时，把它作为一笔待核对候选。 */
 function candidateFromDraft(item: OcrItemResult): OcrBatchCandidate | null {
   const draft = item.draft;
@@ -157,8 +177,7 @@ export function createBatch(
 
     if (fromExtraction.length > 0) {
       for (const candidate of fromExtraction) {
-        candidate.categoryId = defaultCategoryId(candidate, categories);
-        candidate.paymentMethodId = defaultPaymentMethodId(candidate, paymentMethods);
+        applyDefaults(candidate, categories, paymentMethods);
         candidates.push(candidate);
       }
       continue;
@@ -166,8 +185,7 @@ export function createBatch(
 
     const fromDraft = candidateFromDraft(item);
     if (fromDraft !== null) {
-      fromDraft.categoryId = defaultCategoryId(fromDraft, categories);
-      fromDraft.paymentMethodId = defaultPaymentMethodId(fromDraft, paymentMethods);
+      applyDefaults(fromDraft, categories, paymentMethods);
       candidates.push(fromDraft);
     }
   }

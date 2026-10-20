@@ -3,25 +3,31 @@
  *
  * 数据来自 `lib/ocr/batchStore.ts` 的 sessionStorage 批次，不再有演示数据。
  * 页面职责（设计方向 §3.3）：
- *  - 顶部汇总本次识别/待核对/可导入/可能重复/无效；
- *  - 卡片只读，点「查看详情」进入单笔编辑；
+ *  - 顶部一行数字（识别总数/待核对/疑似重复/可导入），其余口径收进「详情」；
+ *  - 卡片只读，点「查看详情」进入单笔编辑；筛选保留状态、来源、方向三种，来源与方向
+ *    收进折叠面板；
  *  - 用户只核对有问题的项；最后**一次**确认，才逐条走既有本地写入/离线队列；
  *  - 确认前零写入；页面只调用 `createEntry`，没有新的批量保存接口。
+ *
+ * 分类候选按**批次所属账本**读取（`useLedgerMeta`）：批次可能来自另一本账，拿当前账本
+ * 的分类去联想或显示都是跨账本串味。批次属于别的账时只读、不导入，也不写联想结果。
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
-import { OcrOverview } from "../components/ocr/OcrOverview.js";
+import { OcrImportBar, OcrOverview } from "../components/ocr/OcrOverview.js";
 import { errorMessage } from "../lib/api.js";
 import { assignImportIds, batchBelongsToBook, refreshDuplicateMarks, withoutBatchItems } from "../lib/ocr/batch.js";
 import { clearBatch, loadBatch, saveBatch } from "../lib/ocr/batchStore.js";
+import { applyCategorySuggestions } from "../lib/ocr/category.js";
 import { findSuspectedDuplicates } from "../lib/ocr/duplicates.js";
 import {
+  countImportableItems,
   findImportBlockers,
   type OcrImportBlocker,
   type OcrImportOutcome,
@@ -37,8 +43,16 @@ import {
 } from "../lib/ocr/types.js";
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
-import { useBooks, useLedger } from "../lib/queries.js";
+import { useBooks, useLedger, useLedgerMeta } from "../lib/queries.js";
 import { uuidV7 } from "../lib/uuid.js";
+
+/**
+ * 列底空白：固定操作条不盖住最后一笔。
+ *
+ * 操作条自身已经让出安全区（`OcrImportBar`），这里再留出条高 + 余量，滚动到底时最后
+ * 一张卡片完整可见。`InnerPage` 的 `py-8` 不归本页所有，所以不在那里加。
+ */
+const BOTTOM_BAR_CLEARANCE = "h-44";
 
 export function OcrOverviewPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -55,20 +69,53 @@ export function OcrOverviewPage(): React.JSX.Element {
   const [filter, setFilter] = useState<OcrOverviewFilter>("all");
   const [source, setSource] = useState<OcrSourceFilter>("all");
   const [direction, setDirection] = useState<OcrDirectionFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [outcome, setOutcome] = useState<OcrImportOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = ledger.data?.categories ?? [];
-  const paymentMethods = ledger.data?.paymentMethods ?? [];
-  const tags = ledger.data?.tags ?? [];
+  const items = batch?.items ?? [];
   const currentBookId = ledger.data?.book.id ?? null;
   const role = books.data?.books.find((book) => book.id === currentBookId)?.role ?? null;
+  const wrongBook = batch !== null && !batchBelongsToBook(batch, currentBookId);
 
-  const items = batch?.items ?? [];
+  /**
+   * 批次所属账本的分类/支付方式/标签。批次有 `bookId` 就按它读；没有（旧批次/无账本
+   * 上下文）用 `""`，即当前账本。
+   *
+   * ⚠️ 批次属于另一本账时不回退到当前账本的分类：那会把 A 账的分类名显示在 B 账的
+   * 候选上，也会让联想拿到错误的候选集。宁可显示“未分类”，也不跨账本串味。
+   */
+  const batchBookId = batch?.bookId ?? "";
+  const bookMeta = useLedgerMeta(batchBookId);
+  const categories =
+    bookMeta.data?.categories ?? (wrongBook ? undefined : ledger.data?.categories) ?? [];
+  const paymentMethods =
+    bookMeta.data?.paymentMethods ?? (wrongBook ? undefined : ledger.data?.paymentMethods) ?? [];
+  const tags = bookMeta.data?.tags ?? (wrongBook ? undefined : ledger.data?.tags) ?? [];
+
+  /**
+   * 分类联想：把“交易对象/备注文字 → 本账本已有分类”的匹配写进批次草稿，并标来源
+   * `inferred`。纯函数在 `lib/ocr/category.ts`，这里只负责在分类列表就绪后应用一次。
+   *
+   * 幂等：已经推断过或用户选过的项 `categoryId` 非空，`applyCategorySuggestions` 返回
+   * `null`，不会再次写状态。存储写入失败只影响“下次进详情还能不能看到建议”，不改账本。
+   */
+  useEffect(() => {
+    if (batch === null || wrongBook || categories.length === 0) return;
+
+    const suggested = applyCategorySuggestions(batch.items, categories);
+    if (suggested === null) return;
+
+    const updated: OcrBatch = { ...batch, items: suggested };
+    saveBatch(updated);
+    setBatch(updated);
+  }, [batch, categories, wrongBook]);
+
   const counts = countBatchItems(items);
+  const importableCount = countImportableItems(items);
   const visibleItems = filterBatchItems(items, filter, source, direction);
   const sources = useMemo(
     () => [...new Set(items.map((item) => item.sourcePlatform).filter((value) => value !== null))],
@@ -79,7 +126,6 @@ export function OcrOverviewPage(): React.JSX.Element {
   const unresolvedPages =
     batch?.pages.filter((page) => page.pageType === "unknown").length ?? 0;
 
-  const wrongBook = batch !== null && !batchBelongsToBook(batch, currentBookId);
   const disabledReason = importDisabledReason({
     batch,
     validCount: counts.valid,
@@ -88,6 +134,20 @@ export function OcrOverviewPage(): React.JSX.Element {
     readOnly,
     isViewer: role === "viewer",
   });
+
+  /**
+   * 批次级风险提示。压缩页面时**不能**压掉它们：属于别的账本、有截图没切出候选，
+   * 都会让“看到的总数”和“实际的截图”对不上。
+   */
+  const warnings: string[] = [];
+  if (wrongBook) {
+    warnings.push("这批识别结果属于另一本账本：可以查看，但不能导入。请切回生成批次时的账本。");
+  }
+  if (unresolvedPages > 0) {
+    warnings.push(
+      `另有 ${String(unresolvedPages)} 张截图无法判断页面类型，没有生成候选；需要时请单独上传并按单笔/多笔处理。`,
+    );
+  }
 
   function openDetail(candidateId: string): void {
     void navigate(`/ocr/overview/${encodeURIComponent(candidateId)}`);
@@ -163,7 +223,7 @@ export function OcrOverviewPage(): React.JSX.Element {
   return (
     <InnerPage
       title="批量识别结果"
-      subtitle="先看到识别出的全部交易，只核对有疑问的，最后统一确认。"
+      subtitle="只核对有疑问的；确认前不写账本。"
       backTo="/scan"
       actions={
         <Button
@@ -220,76 +280,48 @@ export function OcrOverviewPage(): React.JSX.Element {
           <OcrOverview
             items={visibleItems}
             counts={counts}
+            importableCount={importableCount}
             filter={filter}
             onFilterChange={setFilter}
             source={source}
             onSourceChange={setSource}
             direction={direction}
             onDirectionChange={setDirection}
+            filtersOpen={filtersOpen}
+            onToggleFilters={() => {
+              setFiltersOpen((open) => !open);
+            }}
             sources={sources}
             duplicateGroups={duplicateGroups}
             categories={categories}
             paymentMethods={paymentMethods}
             tags={tags}
             onOpenDetail={openDetail}
-            note={
-              wrongBook
-                ? "这批识别结果属于另一本账本：可以查看，但不能导入。请切回生成批次时的账本。"
-                : `批次只保存在当前标签页的临时存储里；确认导入前不会写入账本。${
-                    unresolvedPages > 0
-                      ? `另有 ${String(unresolvedPages)} 张截图无法判断页面类型，没有生成候选；需要时请单独上传并按单笔/多笔处理。`
-                      : ""
-                  }`
-            }
+            warnings={warnings}
+            note="批次只保存在当前标签页的临时存储里，关掉标签页就消失；确认导入前不会写入账本。"
           />
 
-          <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
-            {disabledReason === null ? (
-              <p className="text-body-relaxed text-muted">
-                确认后将逐条写入当前账本（复用本地写入/离线队列与幂等）。共 {counts.valid} 笔。
-              </p>
-            ) : (
-              <p className="text-body-relaxed text-warning-dark">{disabledReason}</p>
-            )}
+          {/* 固定操作条不占文档流，这里补出等高空白，最后一笔不会被挡住。 */}
+          <div aria-hidden="true" className={BOTTOM_BAR_CLEARANCE} />
 
-            {blockers.length > 0 ? (
-              <ul className="flex flex-col gap-1">
-                {blockers.slice(0, 5).map((blocker) => (
-                  <li key={blocker.candidateId} className="text-helper-relaxed text-warning-dark">
-                    ⚠ {blocker.label}：{blocker.reason}
-                  </li>
-                ))}
-                {blockers.length > 5 ? (
-                  <li className="text-helper text-muted">还有 {blockers.length - 5} 笔，请进详情核对。</li>
-                ) : null}
-              </ul>
-            ) : null}
-
-            <Button
-              disabled={disabledReason !== null || importing}
-              onClick={() => {
-                setConfirmOpen(true);
-              }}
-            >
-              {importing ? "正在导入…" : `确认导入 ${String(counts.valid)} 笔`}
-            </Button>
-
-            <Button
-              variant="ghost"
-              disabled={importing}
-              onClick={() => {
-                setCancelOpen(true);
-              }}
-            >
-              取消这次识别
-            </Button>
-          </section>
+          <OcrImportBar
+            importableCount={importableCount}
+            blockedReason={disabledReason}
+            blockers={blockers}
+            busy={importing}
+            onConfirm={() => {
+              setConfirmOpen(true);
+            }}
+            onCancel={() => {
+              setCancelOpen(true);
+            }}
+          />
         </>
       )}
 
       <ConfirmDialog
         open={confirmOpen}
-        title={`确认导入 ${String(counts.valid)} 笔？`}
+        title={`确认导入 ${String(importableCount)} 笔？`}
         description="导入后会逐条写入当前账本。确认前没有任何账本写入。"
         consequences={[
           `其中 ${String(counts.confirmed)} 笔无需修改，${String(counts.pending)} 笔曾被标记为待核对。`,
@@ -299,7 +331,7 @@ export function OcrOverviewPage(): React.JSX.Element {
           counts.invalid > 0 ? `已标记无效的 ${String(counts.invalid)} 笔不会导入。` : "",
           "离线时先写入本机队列，联网后自动投递；不会显示成云端已保存。",
         ].filter((line) => line !== "")}
-        confirmLabel={`确认导入 ${String(counts.valid)} 笔`}
+        confirmLabel={`确认导入 ${String(importableCount)} 笔`}
         tone="default"
         busy={importing}
         onConfirm={() => {

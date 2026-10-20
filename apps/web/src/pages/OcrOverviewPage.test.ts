@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import type { OcrImportBlocker } from "../lib/ocr/import.js";
@@ -13,6 +16,11 @@ import { importDisabledReason } from "./OcrOverviewPage.js";
  * would fail the write. An enabled button over a guaranteed server refusal is
  * the failure this covers.
  */
+
+const PAGE_SOURCE = readFileSync(
+  fileURLToPath(new URL("./OcrOverviewPage.tsx", import.meta.url)),
+  "utf8",
+);
 
 function batchOf(bookId: string | null = "book-1"): OcrBatch {
   return {
@@ -121,5 +129,45 @@ describe("importDisabledReason", () => {
         isViewer: false,
       }),
     ).toBe("还有 2 笔不能导入（金额缺失），请先核对或标记无效。");
+  });
+});
+
+/**
+ * The bottom bar is a *view* of the page's existing import flow, so these are
+ * source assertions: without a DOM the thing that must be proven is that the
+ * screen did not grow a second writer or a second confirmation step.
+ */
+describe("bottom import bar wiring", () => {
+  it("renders the bar from real counts and the same disabled reason", () => {
+    expect(PAGE_SOURCE).toContain("const importableCount = countImportableItems(items);");
+    expect(PAGE_SOURCE).toContain("<OcrImportBar");
+    expect(PAGE_SOURCE).toContain("importableCount={importableCount}");
+    expect(PAGE_SOURCE).toContain("blockedReason={disabledReason}");
+    expect(PAGE_SOURCE).toContain("blockers={blockers}");
+    expect(PAGE_SOURCE).toContain("busy={importing}");
+  });
+
+  it("still confirms through the existing executeImport/createEntry path", () => {
+    expect(PAGE_SOURCE).toContain("executeImport(");
+    expect(PAGE_SOURCE).toContain("createLocally(");
+    expect(PAGE_SOURCE).toContain('import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";');
+    // No second write protocol, no direct network write, no new batch endpoint.
+    expect(PAGE_SOURCE).not.toContain("fetch(");
+    expect(PAGE_SOURCE).not.toContain("POST");
+    expect(PAGE_SOURCE).not.toContain("bulk");
+  });
+
+  it("leaves room below the list so the last card is not covered", () => {
+    expect(PAGE_SOURCE).toContain('const BOTTOM_BAR_CLEARANCE = "h-44";');
+    expect(PAGE_SOURCE).toContain("className={BOTTOM_BAR_CLEARANCE}");
+  });
+
+  it("keeps the explanatory text to one short line", () => {
+    expect(PAGE_SOURCE).toContain('subtitle="只核对有疑问的；确认前不写账本。"');
+  });
+
+  it("reads the batch's own ledger categories and applies the shared matcher", () => {
+    expect(PAGE_SOURCE).toContain("const bookMeta = useLedgerMeta(batchBookId);");
+    expect(PAGE_SOURCE).toContain("applyCategorySuggestions(batch.items, categories)");
   });
 });

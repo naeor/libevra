@@ -9,6 +9,7 @@ import {
   updateBatchItem,
   withoutBatchItems,
 } from "./batch.js";
+import { countImportableItems, findImportBlockers } from "./import.js";
 import type { OcrBatch } from "./types.js";
 import {
   countBatchItems,
@@ -107,6 +108,7 @@ describe("createBatch", () => {
     );
 
     expect(batch.items[0]?.categoryId).toBe("c-transfer");
+    expect(batch.items[0]?.categorySource).toBe("ocr");
     expect(batch.items[0]?.isTransfer).toBe(true);
     expect(batch.items[0]?.direction).toBe("expense");
 
@@ -237,7 +239,45 @@ describe("counts and filters", () => {
       confirmed: 1,
       duplicates: 2,
       invalid: 1,
+      reviewed: 0,
     });
+  });
+
+  it("keeps recognized, questionable, reviewed and importable distinct", () => {
+    const items = [
+      batchCandidate({ candidateId: "ok" }),
+      // Missing currency: still a valid candidate (the user did not exclude it),
+      // but it cannot be written, so it must not count as importable.
+      batchCandidate({ candidateId: "no-currency", currency: null }),
+      batchCandidate({ candidateId: "reviewed", reviewed: true }),
+      batchCandidate({ candidateId: "invalid", invalid: true }),
+    ];
+    const counts = countBatchItems(items);
+    const blockers = findImportBlockers({
+      version: 1,
+      batchId: "b",
+      createdAt: "2026-10-20T00:00:00.000Z",
+      bookId: null,
+      pages: [],
+      items,
+      importIds: {},
+    });
+
+    expect(counts).toMatchObject({
+      total: 4,
+      valid: 3,
+      pending: 1,
+      confirmed: 2,
+      invalid: 1,
+      reviewed: 1,
+    });
+    // "recognized" is about fields, not about the user having opened the detail.
+    expect(itemStatus(items[2]!)).toBe("recognized");
+    expect(filterBatchItems(items, "pending").map((entry) => entry.candidateId)).toEqual([
+      "no-currency",
+    ]);
+    expect(blockers.map((entry) => entry.candidateId)).toEqual(["no-currency"]);
+    expect(countImportableItems(items)).toBe(2);
   });
 
   it("filters by status, source and direction without losing the totals", () => {
@@ -253,6 +293,14 @@ describe("counts and filters", () => {
     expect(filterBatchItems(marked.items, "all", "WECHAT")).toHaveLength(5);
     expect(filterBatchItems(marked.items, "all", "ALIPAY")).toEqual([]);
     expect(filterBatchItems(marked.items, "all", "all", "income")).toEqual([]);
+    // The folded panel's filters still combine with the primary status filter.
+    expect(
+      filterBatchItems(marked.items, "pending", "WECHAT", "expense").map(
+        (entry) => entry.candidateId,
+      ),
+    ).toEqual(["b", "c", "d"]);
+    expect(filterBatchItems(marked.items, "confirmed", "WECHAT", "income")).toEqual([]);
+    expect(filterBatchItems(marked.items, "pending", "ALIPAY")).toEqual([]);
   });
 
   it("marks an invalid item as invalid even if it is also complete", () => {
