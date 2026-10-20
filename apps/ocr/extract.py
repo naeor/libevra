@@ -42,6 +42,25 @@ DATE_DASHED = re.compile(r"(20\d{2})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{1,2})")
 
 CLOCK = re.compile(r"(\d{1,2})\s*[:：]\s*(\d{2})(?:\s*[:：]\s*(\d{2}))?")
 
+# English month names, as US bank apps print a list's group date
+# (`Oct 19, 2026`). The recogniser drops the space as often as not
+# (`Oct19,2026`, `Oct 19,2026`), so every separator here is optional. From
+# `real-samples/2026-10-20_BOA*.jpg`.
+EN_MONTH_DATE = re.compile(
+    r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-zA-Z]*\.?\s*"
+    r"(\d{1,2})(?:\s*,\s*(\d{2,4}))?"
+)
+
+# A day named relative to the moment of the screenshot. WeChat's bill cards use
+# `今天 20:53` / `昨天 21:40`; Alipay's list prints `今天 20:53` too. The value
+# depends on the upload date, so it is only ever resolved with an explicit
+# reference date - never from `date.today()`.
+CN_RELATIVE_DAY = re.compile(r"(今天|今日|昨天|昨日|前天)")
+
+# A weekday without a date (`星期三 下午6:34`): WeChat's bill card header for a
+# transaction in the past week. Resolved backwards from the reference date.
+CN_WEEKDAY = re.compile(r"(?:星期|周|礼拜)([一二三四五六日天])")
+
 # Long digit strings are serial numbers, never amounts.
 SERIAL_LENGTH = 10
 

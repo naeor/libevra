@@ -38,6 +38,10 @@ ISSUE_MISSING_MERCHANT = "missing_merchant"
 ISSUE_MISSING_CURRENCY = "missing_currency"
 ISSUE_MISSING_YEAR = "missing_year"
 ISSUE_YEAR_INFERRED = "year_inferred"
+# A calendar date computed from the screenshot date rather than printed on the
+# screen (`今天 20:53`, `星期三 下午6:34`). Informational: the date is usable,
+# but the user is told where it came from.
+ISSUE_RELATIVE_DATE = "relative_date"
 ISSUE_DIRECTION_UNCLEAR = "direction_unclear"
 ISSUE_AMOUNT_UNCERTAIN = "amount_uncertain"
 ISSUE_AMOUNT_CONFLICT = "amount_conflict"

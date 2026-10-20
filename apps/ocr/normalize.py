@@ -18,14 +18,27 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date as Date
 
-from extract import CLOCK, DATE_DASHED, DATE_WITH_MARKERS, INCOME_MARKERS, REFUND_MARKERS, Line
+from extract import (
+    CLOCK,
+    CN_RELATIVE_DAY,
+    CN_WEEKDAY,
+    DATE_DASHED,
+    DATE_WITH_MARKERS,
+    EN_MONTH_DATE,
+    INCOME_MARKERS,
+    REFUND_MARKERS,
+    Line,
+)
 from model import (
     ISSUE_AMOUNT_CONFLICT,
     ISSUE_AMOUNT_UNCERTAIN,
     ISSUE_AMOUNT_UNREADABLE,
     ISSUE_MISSING_CURRENCY,
+    ISSUE_MISSING_DATE,
     ISSUE_MISSING_YEAR,
+    ISSUE_RELATIVE_DATE,
     ISSUE_YEAR_INFERRED,
     Issue,
 )
@@ -81,6 +94,9 @@ POSTED_MARKERS = (
     "POSTED",
     "posted",
     "Completed",
+    # BOA's transfer confirmation screen says `Success`; it is the same claim.
+    "Success",
+    "SUCCESS",
 )
 
 # Money leaving/entering by a transfer rather than a purchase. `转账-退款` is a
@@ -92,7 +108,7 @@ TRANSFER_MARKERS = ("转账", "转入", "转出", "汇款", "还款", "Transfer"
 # 收款方/收款账户 are deliberately absent: naming the payee is not the direction.
 INCOME_HINTS = INCOME_MARKERS + ("收入", "Refund", "REFUND", "Credit", "CREDIT")
 
-EXPENSE_HINTS = ("支出", "消费", "付款成功", "已支付", "扣款", "Debit", "DEBIT")
+EXPENSE_HINTS = ("支出", "消费", "购买", "付款成功", "已支付", "扣款", "Debit", "DEBIT")
 
 # A refund marker wins over everything else: its direction is the opposite of
 # the `支付` word that also appears on the screen. `退款` alone is included
@@ -131,6 +147,56 @@ _US_DATE = re.compile(r"(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{2,4})")
 # `10-09`. The year is NOT guessed; it becomes an issue for the user.
 _CN_MONTH_DAY = re.compile(r"(\d{1,2})\s*月\s*(\d{1,2})\s*日")
 _DASH_MONTH_DAY = re.compile(r"(?<!\d)(\d{1,2})\s*[-/]\s*(\d{1,2})(?!\d)")
+
+_EN_MONTHS: dict[str, int] = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
+# Relative-day wording, as an offset in days from the reference date.
+_RELATIVE_DAYS: dict[str, int] = {"今天": 0, "今日": 0, "昨天": 1, "昨日": 1, "前天": 2}
+
+# Weekday character → `date.weekday()` (Monday = 0).
+_WEEKDAYS: dict[str, int] = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
+
+# `上午/下午/晚上` in front of the clock. The recogniser drops the space
+# (`10月12日晚上9:04`), so the word is looked for before the clock rather than on
+# its own token. The mode says what `12` means: `am` → midnight, `noon` → noon,
+# `pm`/`night` → add twelve hours, and `night` also turns `12` into midnight
+# (`晚上12:10` is 00:10, while `下午12:10` is 12:10).
+_DAY_MODIFIERS: tuple[tuple[str, str], ...] = (
+    ("凌晨", "am"),
+    ("早上", "am"),
+    ("上午", "am"),
+    ("中午", "noon"),
+    ("下午", "pm"),
+    ("傍晚", "night"),
+    ("晚上", "night"),
+)
+
+
+def parse_reference_date(value: str | None) -> Date | None:
+    """`2026-10-20` → a date, or None. The only source of "today" in this module."""
+
+    if value is None:
+        return None
+    match = re.fullmatch(r"\s*(\d{4})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{1,2})\s*", value)
+    if match is None:
+        return None
+    try:
+        return Date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    except ValueError:
+        return None
 
 
 def _clean_number(text: str) -> str | None:
@@ -232,16 +298,30 @@ def read_amount(text: str, *, currency_hint: str | None = None) -> AmountRead:
     )
 
 
-def read_date_time(text: str, *, reference_year: int | None = None) -> DateTimeRead:
+def read_date_time(
+    text: str,
+    *,
+    reference_year: int | None = None,
+    reference_date: str | None = None,
+) -> DateTimeRead:
     """Read a date and/or time from a line of text.
 
-    A year-less date is **not** completed silently. With no `reference_year` the
+    A year-less date is **not** completed silently. With no reference date the
     date comes back None and the caller turns that into 待确认; with one (the
     upload happened in a known year) the date is filled but flagged
     `year_inferred`, so the user still sees it as a question.
+
+    Three shapes need the reference date rather than a year: a weekday
+    (`星期三 下午6:34`), a relative day (`今天 20:53`) and a month/day without a
+    year. All three are marked `relative_date`, which says out loud that the
+    calendar date was computed from the screenshot date and not printed.
     """
 
     issues: list[Issue] = []
+    reference = parse_reference_date(reference_date)
+    # A reference date also settles the year, and is the only thing that can.
+    if reference is not None and reference_year is None:
+        reference_year = reference.year
 
     date: str | None = None
     match = DATE_WITH_MARKERS.search(text)
@@ -265,9 +345,22 @@ def read_date_time(text: str, *, reference_year: int | None = None) -> DateTimeR
                 )
 
     if date is None:
+        date = _read_english_month_date(text, reference_year, issues)
+
+    if date is None:
+        date = _read_relative_day(text, reference, issues)
+
+    if date is None:
+        date = _read_weekday(text, reference, issues)
+
+    if date is None:
         match = _CN_MONTH_DAY.search(text)
+        # Alipay's year-less rows print `10-1823:58`, with the clock glued to the
+        # day. Searching only the part before the clock reads the day correctly
+        # instead of inventing a boundary that is not there.
+        dash_source = _before_clock(text)
         if match is None:
-            match = _DASH_MONTH_DAY.search(text)
+            match = _DASH_MONTH_DAY.search(dash_source)
         if match is not None:
             month, day = int(match.group(1)), int(match.group(2))
             if 1 <= month <= 12 and 1 <= day <= 31:
@@ -284,19 +377,150 @@ def read_date_time(text: str, *, reference_year: int | None = None) -> DateTimeR
                     issues.append(
                         Issue(
                             ISSUE_YEAR_INFERRED,
-                            f"年份是按上传年份（{reference_year}）补的，请确认。",
+                            f"年份是按截图年份（{reference_year}）补的，请确认。",
                             "date",
                         )
                     )
 
-    clock = CLOCK.search(text)
-    time = None
-    if clock is not None:
-        hour, minute = int(clock.group(1)), int(clock.group(2))
-        if 0 <= hour <= 23 and 0 <= minute <= 59:
-            time = f"{hour:02d}:{minute:02d}"
+    time = _read_clock(text)
 
     return DateTimeRead(date=date, time=time, issues=tuple(issues), raw=text)
+
+
+def _before_clock(text: str) -> str:
+    """The text before the first clock, or the whole text when there is none."""
+
+    clock = CLOCK.search(text)
+    return text if clock is None else text[: clock.start()]
+
+
+def _read_clock(text: str) -> str | None:
+    """The time on a line, honouring `上午/下午/晚上`.
+
+    `晚上9:04` is 21:04: without the modifier the clock alone is twelve hours
+    early, which is the difference between "that evening" and "that morning".
+    """
+
+    clock = CLOCK.search(text)
+    if clock is None:
+        return None
+
+    hour, minute = int(clock.group(1)), int(clock.group(2))
+    prefix = text[: clock.start()]
+    for word, mode in _DAY_MODIFIERS:
+        if word not in prefix:
+            continue
+        if mode in ("pm", "night") and hour < 12:
+            hour += 12
+        elif mode in ("am", "night") and hour == 12:
+            hour = 0
+        break
+
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _read_english_month_date(
+    text: str,
+    reference_year: int | None,
+    issues: list[Issue],
+) -> str | None:
+    """`Oct 19, 2026` / `Oct19,2026` → a date. The month name is the evidence."""
+
+    match = EN_MONTH_DATE.search(text)
+    if match is None:
+        return None
+    month = _EN_MONTHS.get(match.group(1)[:3].lower())
+    day = int(match.group(2))
+    if month is None or not 1 <= day <= 31:
+        return None
+
+    year_text = match.group(3)
+    if year_text is not None:
+        return f"{_full_year(int(year_text)):04d}-{month:02d}-{day:02d}"
+
+    if reference_year is None:
+        issues.append(
+            Issue(ISSUE_MISSING_YEAR, f"只读到「{match.group(0)}」没有年份，请确认是哪一年。", "date")
+        )
+        return None
+
+    issues.append(
+        Issue(
+            ISSUE_YEAR_INFERRED,
+            f"年份是按截图年份（{reference_year}）补的，请确认。",
+            "date",
+        )
+    )
+    return f"{reference_year:04d}-{month:02d}-{day:02d}"
+
+
+def _read_relative_day(
+    text: str,
+    reference: Date | None,
+    issues: list[Issue],
+) -> str | None:
+    """`今天 20:53` / `昨天` → a date, only when the screenshot date is supplied."""
+
+    match = CN_RELATIVE_DAY.search(text)
+    if match is None:
+        return None
+    if reference is None:
+        issues.append(
+            Issue(
+                ISSUE_MISSING_DATE,
+                f"只读到「{match.group(1)}」，没有截图日期就无法换算成具体哪一天，请选择。",
+                "date",
+            )
+        )
+        return None
+
+    offset = _RELATIVE_DAYS[match.group(1)]
+    resolved = Date.fromordinal(reference.toordinal() - offset)
+    issues.append(
+        Issue(
+            ISSUE_RELATIVE_DATE,
+            f"「{match.group(1)}」按截图日期（{reference.isoformat()}）换算成 "
+            f"{resolved.isoformat()}，请确认。",
+            "date",
+        )
+    )
+    return resolved.isoformat()
+
+
+def _read_weekday(
+    text: str,
+    reference: Date | None,
+    issues: list[Issue],
+) -> str | None:
+    """`星期三` → the most recent Wednesday at or before the screenshot date."""
+
+    match = CN_WEEKDAY.search(text)
+    if match is None:
+        return None
+    if reference is None:
+        issues.append(
+            Issue(
+                ISSUE_MISSING_DATE,
+                f"只读到「{match.group(0)}」，没有截图日期就无法换算成具体哪一天，请选择。",
+                "date",
+            )
+        )
+        return None
+
+    target = _WEEKDAYS[match.group(1)]
+    backwards = (reference.weekday() - target) % 7
+    resolved = Date.fromordinal(reference.toordinal() - backwards)
+    issues.append(
+        Issue(
+            ISSUE_RELATIVE_DATE,
+            f"「{match.group(0)}」按截图日期（{reference.isoformat()}）倒推成 "
+            f"{resolved.isoformat()}，请确认。",
+            "date",
+        )
+    )
+    return resolved.isoformat()
 
 
 def _full_year(year: int) -> int:

@@ -14,7 +14,9 @@ from model import (
     ISSUE_AMOUNT_UNCERTAIN,
     ISSUE_AMOUNT_UNREADABLE,
     ISSUE_MISSING_CURRENCY,
+    ISSUE_MISSING_DATE,
     ISSUE_MISSING_YEAR,
+    ISSUE_RELATIVE_DATE,
     ISSUE_YEAR_INFERRED,
 )
 from normalize import (
@@ -128,6 +130,77 @@ class ReadDateTimeTest(unittest.TestCase):
 
         self.assertIsNone(read.date)
         self.assertEqual(read.time, "12:34")
+
+
+class ReadDateTimeFromScreenshotsTest(unittest.TestCase):
+    """The date shapes the 2026-10-20 real samples printed."""
+
+    def test_english_month_date_from_a_us_bank_list(self) -> None:
+        # The recogniser drops the space after the comma, and sometimes all of them.
+        self.assertEqual(read_date_time("Oct 19, 2026").date, "2026-10-19")
+        self.assertEqual(read_date_time("Oct 19,2026").date, "2026-10-19")
+        self.assertEqual(read_date_time("Oct19,2026").date, "2026-10-19")
+
+    def test_an_english_month_without_a_year_is_a_question(self) -> None:
+        read = read_date_time("Oct 19")
+
+        self.assertIsNone(read.date)
+        self.assertIn(ISSUE_MISSING_YEAR, codes(read))
+
+    def test_the_evening_modifier_moves_the_clock_twelve_hours(self) -> None:
+        read = read_date_time("10月12日晚上9:04", reference_year=2026)
+
+        self.assertEqual(read.date, "2026-10-12")
+        self.assertEqual(read.time, "21:04")
+
+    def test_the_afternoon_modifier_moves_the_clock_twelve_hours(self) -> None:
+        self.assertEqual(read_date_time("10月13日下午5:20").time, "17:20")
+
+    def test_midday_and_noon_are_not_moved(self) -> None:
+        self.assertEqual(read_date_time("中午12:30").time, "12:30")
+        self.assertEqual(read_date_time("晚上12:10").time, "00:10")
+
+    def test_today_needs_an_explicit_screenshot_date(self) -> None:
+        without = read_date_time("今天20:53")
+        self.assertIsNone(without.date)
+        self.assertIn(ISSUE_MISSING_DATE, codes(without))
+
+        read = read_date_time("今天20:53", reference_date="2026-10-20")
+        self.assertEqual(read.date, "2026-10-20")
+        self.assertEqual(read.time, "20:53")
+        # The date was computed, not printed, and that is said out loud.
+        self.assertIn(ISSUE_RELATIVE_DATE, codes(read))
+
+    def test_yesterday_and_the_day_before(self) -> None:
+        self.assertEqual(read_date_time("昨天 08:00", reference_date="2026-10-20").date, "2026-10-19")
+        self.assertEqual(read_date_time("前天", reference_date="2026-10-20").date, "2026-10-18")
+
+    def test_a_weekday_counts_back_to_the_most_recent_one(self) -> None:
+        # 2026-10-20 is a Tuesday.
+        self.assertEqual(
+            read_date_time("星期三下午6:34", reference_date="2026-10-20").date, "2026-10-14"
+        )
+        self.assertEqual(read_date_time("星期二 09:00", reference_date="2026-10-20").date, "2026-10-20")
+        self.assertEqual(read_date_time("星期日 09:00", reference_date="2026-10-20").date, "2026-10-18")
+
+    def test_a_weekday_without_a_screenshot_date_is_a_question(self) -> None:
+        read = read_date_time("星期三下午6:34")
+
+        self.assertIsNone(read.date)
+        self.assertIn(ISSUE_MISSING_DATE, codes(read))
+
+    def test_month_day_glued_to_its_clock(self) -> None:
+        # Alipay prints `10-1823:58`: the day and the hour run together.
+        read = read_date_time("10-1823:58", reference_year=2026)
+
+        self.assertEqual(read.date, "2026-10-18")
+        self.assertEqual(read.time, "23:58")
+        self.assertIn(ISSUE_YEAR_INFERRED, codes(read))
+
+    def test_a_dotted_month_day_is_not_a_date(self) -> None:
+        # `；10.17购买` is a date the merchant printed with dots; reading it as the
+        # transaction date would be wrong, and dots are not a date separator here.
+        self.assertIsNone(read_date_time("某应用商店订阅；10.17购买").date)
 
 
 class StatusAndDirectionTest(unittest.TestCase):
