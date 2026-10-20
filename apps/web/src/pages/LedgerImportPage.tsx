@@ -18,6 +18,7 @@ import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
+import { ChoiceSheet, type ChoiceSheetOption } from "../components/ui/ChoiceSheet.js";
 import { apiFetch, ApiRequestError, errorMessage } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
 import { formatTimeWithZone } from "../lib/datetime.js";
@@ -1475,6 +1476,37 @@ function SelectionStep({
   const canContinue =
     sourceKey !== "" &&
     (formalSource ? targetId !== "" && !targetIsNew && targetId !== sourceKey : guestAvailable && targetId !== "");
+  /**
+   * 哪一列账本选择器正打开着：`null` 表示都关着。
+   *
+   * ⚠️ **S15-C 第三轮：两处原生下拉换成项目自己的底部选择面板**（与 `/add` 币种同一个
+   * `ChoiceSheet`）。原生菜单的白色/灰色列表、选中态与安全区都不属于这套界面，而这里的选择
+   * 恰好是导入里最需要看清楚的一步（选错账本，写错的数据代价最大）。
+   */
+  const [picking, setPicking] = useState<"source" | "target" | null>(null);
+  /**
+   * 选项与原生 `<option>` 一一对应：占位项、游客来源、正式账本；
+   * 目标里"与来源相同"的那一项仍保留但不可选（`disabled`），与原实现一致。
+   */
+  const sourceOptions: readonly ChoiceSheetOption<string>[] = [
+    { value: "", label: "选择来源账本" },
+    ...(guestAvailable ? [{ value: "guest", label: "本机游客账本" }] : []),
+    ...sourceBooks.map((book) => ({ value: book.id, label: `正式账本 · ${book.name}` })),
+  ];
+  const targetOptions: readonly ChoiceSheetOption<string>[] = [
+    { value: "", label: "选择目标账本" },
+    ...soloBooks.map((book) => ({
+      value: book.id,
+      label: book.name,
+      disabled: book.id === sourceKey,
+      ...(book.id === sourceKey ? { hint: "就是来源账本，不能选" } : {}),
+    })),
+  ];
+  const sourceLabel =
+    sourceOptions.find((option) => option.value === sourceKey)?.label ?? "选择来源账本";
+  const targetLabel =
+    targetOptions.find((option) => option.value === targetId)?.label ?? "选择目标账本";
+
   return (
     <section className="flex flex-col gap-5">
       <p className="text-body-relaxed text-muted">
@@ -1484,23 +1516,27 @@ function SelectionStep({
       </p>
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
-        <label className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           <span className="text-body font-medium text-ink">来源账本 B</span>
-          <select
+          <button
+            type="button"
             data-testid="import-source"
-            value={sourceKey}
-            onChange={(event) => onChangeSource(event.target.value)}
-            className="w-full rounded-field border border-line bg-surface px-4 py-3 text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            aria-haspopup="dialog"
+            aria-expanded={picking === "source"}
+            aria-label={`来源账本 B：${sourceLabel}`}
+            onClick={() => {
+              setPicking("source");
+            }}
+            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-field border border-line bg-surface px-4 py-3 text-left text-ink outline-none transition hover:bg-canvas focus-visible:border-brand focus-visible:ring-4 focus-visible:ring-brand-soft"
           >
-            <option value="">选择来源账本</option>
-            {guestAvailable ? <option value="guest">本机游客账本</option> : null}
-            {sourceBooks.map((book) => (
-              <option key={book.id} value={book.id}>
-                正式账本 · {book.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <span className={`min-w-0 truncate ${sourceKey === "" ? "text-muted" : ""}`}>
+              {sourceLabel}
+            </span>
+            <span aria-hidden="true" className="shrink-0 text-muted">
+              ⌄
+            </span>
+          </button>
+        </div>
         {guestAvailable || sourceBooks.length > 0 ? null : (
           <p className="mt-2 text-helper-relaxed text-muted">
             本机没有游客账本，也没有可作为来源的其他单人账本。
@@ -1522,22 +1558,27 @@ function SelectionStep({
           <span className="h-px flex-1 bg-line" />
         </div>
 
-        <label className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           <span className="text-body font-medium text-ink">目标账本 A</span>
-          <select
+          <button
+            type="button"
             data-testid="import-target"
-            value={targetId}
-            onChange={(event) => onChangeTarget(event.target.value)}
-            className="w-full rounded-field border border-line bg-surface px-4 py-3 text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            aria-haspopup="dialog"
+            aria-expanded={picking === "target"}
+            aria-label={`目标账本 A：${targetLabel}`}
+            onClick={() => {
+              setPicking("target");
+            }}
+            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-field border border-line bg-surface px-4 py-3 text-left text-ink outline-none transition hover:bg-canvas focus-visible:border-brand focus-visible:ring-4 focus-visible:ring-brand-soft"
           >
-            <option value="">选择目标账本</option>
-            {soloBooks.map((book) => (
-              <option key={book.id} value={book.id} disabled={book.id === sourceKey}>
-                {book.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <span className={`min-w-0 truncate ${targetId === "" ? "text-muted" : ""}`}>
+              {targetLabel}
+            </span>
+            <span aria-hidden="true" className="shrink-0 text-muted">
+              ⌄
+            </span>
+          </button>
+        </div>
 
         {formalSource ? (
           <p className="mt-3 text-helper-relaxed text-muted">
@@ -1564,6 +1605,31 @@ function SelectionStep({
       <Button onClick={onContinue} disabled={!canContinue}>
         查看预览
       </Button>
+
+      {/*
+        两个面板共用同一个 `picking`：同一时间只可能开一个，关掉时回到 `null`。
+        选中即写回原来的 `onChangeSource` / `onChangeTarget`，导入逻辑一个字没动。
+      */}
+      <ChoiceSheet
+        open={picking === "source"}
+        title="选择来源账本"
+        value={sourceKey}
+        options={sourceOptions}
+        onSelect={onChangeSource}
+        onClose={() => {
+          setPicking(null);
+        }}
+      />
+      <ChoiceSheet
+        open={picking === "target"}
+        title="选择目标账本"
+        value={targetId}
+        options={targetOptions}
+        onSelect={onChangeTarget}
+        onClose={() => {
+          setPicking(null);
+        }}
+      />
     </section>
   );
 }
