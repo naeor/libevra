@@ -1,5 +1,4 @@
 import {
-  CURRENCIES,
   MAX_TAGS_PER_TRANSACTION,
   decimalsFor,
   type Currency,
@@ -11,6 +10,8 @@ import { useLocation, useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { EntrySaved } from "../components/EntrySaved.js";
+import { AmountField } from "../components/entry/AmountField.js";
+import { CurrencySheet } from "../components/entry/CurrencySheet.js";
 import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
@@ -25,7 +26,7 @@ import {
   toLocalDate,
   toLocalIso,
 } from "../lib/datetime.js";
-import { amountPlaceholder, currencyName, minorToInput, parseAmountInput } from "../lib/format.js";
+import { currencyName, minorToInput, parseAmountInput } from "../lib/format.js";
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import { useCreateTransaction, useLedger, useQuickAmounts, useTransactions } from "../lib/queries.js";
@@ -114,6 +115,13 @@ export function AddEntryPage(): React.JSX.Element {
   const [hintCategoryId, setHintCategoryId] = useState<string | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<Currency>("CNY");
+  /**
+   * 币种面板是否打开。
+   *
+   * ⚠️ **第三轮：币种从"金额下方独立一行"搬到金额框右侧。** 它不再是常驻字段，
+   * 而是一个按需打开的选择器；打开与否只影响面板可见性，`currency` 的读写路径没有变。
+   */
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const [occurredAt, setOccurredAt] = useState(() => new Date());
   /**
    * Whether the reader has touched the 时间 field.
@@ -465,31 +473,22 @@ export function AddEntryPage(): React.JSX.Element {
         */}
         <section className="bg-canvas px-6 pt-4">
           {/*
-            ⚠️ **「点按即可修改」不是装饰**（S15-C）。金额是这块屏幕存在的理由，但它长得像一张
-            展示卡；给出一行 12px 的提示，比把卡片改成控件样式更克制，也不用动输入框本身。
+            ⚠️ **S15-C 第三轮：金额卡右侧的币种从"一句说明"变成"一个入口"。**
+            同时删掉了金额旁那行提示——金额框本来就是全屏最显眼的输入框，
+            那行字没有让任何人多记一笔，只占了一行高度。
           */}
-          <div className="flex items-baseline justify-between gap-2 pb-2">
-            <h2 className="text-helper text-muted">金额</h2>
-            <span className="text-helper text-muted">点按即可修改</span>
-          </div>
-          <label
-            className="flex cursor-text items-baseline gap-2 rounded-card border-2 border-brand bg-surface px-4 py-4 shadow-sm"
-          >
-            <span className="text-2xl text-brand-dark">{currency === "CNY" ? "¥" : ""}</span>
-            <input
-              ref={amountRef}
-              value={amountText}
-              onChange={(event) => {
-                setAmountText(event.target.value);
-              }}
-              inputMode="decimal"
-              placeholder={amountPlaceholder(currency)}
-              aria-label="金额"
-              autoFocus
-              className="w-full bg-transparent text-4xl font-semibold text-ink outline-none placeholder:text-muted/80"
-            />
-            <span className="text-body text-muted">{currency}</span>
-          </label>
+          <h2 className="pb-2 text-helper text-muted">金额</h2>
+
+          <AmountField
+            amountText={amountText}
+            currency={currency}
+            currencyOpen={currencyOpen}
+            inputRef={amountRef}
+            onAmountChange={setAmountText}
+            onOpenCurrency={() => {
+              setCurrencyOpen(true);
+            }}
+          />
 
           {/*
             ⚠️ **一行放两个「局部快捷动作」**（S15-C 第二轮）：左边沿用上一笔，右边展开快捷金额。
@@ -509,6 +508,18 @@ export function AddEntryPage(): React.JSX.Element {
             onInherit={inheritLast}
             notice={inheritNotice}
           />
+
+          {/* 币种面板：选中即写回 `currency`，金额文本与精度规则一个字不动。 */}
+          <CurrencySheet
+            open={currencyOpen}
+            currency={currency}
+            onSelect={(next) => {
+              setCurrency(next);
+            }}
+            onClose={() => {
+              setCurrencyOpen(false);
+            }}
+          />
         </section>
 
         {/*
@@ -516,9 +527,10 @@ export function AddEntryPage(): React.JSX.Element {
           everything below was inside the white-on-green block; it now sits on the page background, where
           ordinary fields belong.
 
-          S15-C 的排列顺序按真实手机重排（第二轮再收一轮）：支出/收入 → 金额 → 一行快捷操作
-          （沿用上一笔｜快捷金额）→ 分类 → 币种与时间一条紧凑卡片 → 更多选项（支付方式、备注、标签）
-          → 底部粘性保存条。高频核心在前，常用次级合并，低频收起。
+          S15-C 的排列顺序按真实手机重排（第二轮再收一轮，第三轮把币种并入金额卡）：
+          支出/收入 → 金额（右侧币种入口）→ 一行快捷操作（沿用上一笔｜快捷金额）→ 分类 →
+          时间一行 → 更多选项（支付方式、备注、标签）→ 底部粘性保存条。
+          高频核心在前，常用次级合并，低频收起。
         */}
 
         <section className="flex flex-col gap-2 px-6 pt-5">
@@ -608,55 +620,33 @@ export function AddEntryPage(): React.JSX.Element {
         </section>
 
         {/*
-          ⚠️ **币种与时间是「常用次级」，所以留在页面上，但不各占一整段。** 原来币种是六个胶囊
-          （360px 上要折成两行），时间是另一个整段；现在合成一张两行的卡片，各自仍然是可编辑控件：
-          币种是原生 select（手机上直接调起系统选择器），时间仍是 `datetime-local` 输入框。
-          取值、精度与提交语义一个字没变。
+          ⚠️ **时间仍是独立、可编辑的一行**（S15-C 第三轮）。币种已经并入金额卡，
+          这一张卡不再需要分两行，因此去掉了 `divide-y` 与币种那一行；`datetime-local`
+          控件、`occurredAt` / `occurredAtTouched` 的语义与第一轮完全相同。
+
+          右侧对齐与上一轮一致：标签在左、值在右，整行最小 48px，手指好点。
         */}
         <section className="flex flex-col gap-2 px-6 pt-5">
-          <div className="divide-y divide-line overflow-hidden rounded-field border border-line bg-surface">
-            <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4">
-              <label htmlFor="entry-currency" className="text-helper text-muted">
-                币种
-              </label>
-              <select
-                id="entry-currency"
-                aria-label="币种"
-                value={currency}
-                onChange={(event) => {
-                  setCurrency(event.target.value as Currency);
-                }}
-                className="min-h-11 w-full min-w-0 rounded-field bg-transparent px-2 text-right text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
-              >
-                {CURRENCIES.map((code) => (
-                  <option key={code} value={code}>
-                    {currencyName(code)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4">
-              <label htmlFor="entry-time" className="text-helper text-muted">
-                时间
-              </label>
-              <input
-                id="entry-time"
-                type="datetime-local"
-                step="1"
-                aria-label="时间"
-                value={toDateTimeLocalValue(occurredAt)}
-                onChange={(event) => {
-                  const parsed = fromDateTimeLocalValue(event.target.value);
-                  if (parsed) {
-                    setOccurredAt(parsed);
-                    // From here on the field outranks the clock; see `entryMoment`.
-                    setOccurredAtTouched(true);
-                  }
-                }}
-                className="min-h-11 w-full min-w-0 rounded-field bg-transparent px-2 text-right text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
-              />
-            </div>
+          <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-field border border-line bg-surface px-4">
+            <label htmlFor="entry-time" className="text-helper text-muted">
+              时间
+            </label>
+            <input
+              id="entry-time"
+              type="datetime-local"
+              step="1"
+              aria-label="时间"
+              value={toDateTimeLocalValue(occurredAt)}
+              onChange={(event) => {
+                const parsed = fromDateTimeLocalValue(event.target.value);
+                if (parsed) {
+                  setOccurredAt(parsed);
+                  // From here on the field outranks the clock; see `entryMoment`.
+                  setOccurredAtTouched(true);
+                }
+              }}
+              className="min-h-11 w-full min-w-0 rounded-field bg-transparent px-2 text-right text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
+            />
           </div>
 
           {/*
