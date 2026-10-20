@@ -144,7 +144,33 @@ function parseIntegerPart(text: string): number | null {
   /** The digit waiting for a unit, or `null` when none is pending. */
   let pending: number | null = null;
 
+  /**
+   * What a trailing digit with no unit of its own is worth.
+   *
+   * Spoken Chinese elides the last unit: 「一万二」 is 一万二千 (12000), 「三百五」
+   * is 三百五十 (350), 「一百二」 is 一百二十 (120). The owner was explicit about
+   * this — **一万二 = 12000** — and reading every trailing digit as ones is why
+   * this function used to answer 10002 and 305.
+   *
+   * The elided unit is always **one level below the last unit actually said**, so
+   * it is that unit divided by ten: 百 → 十, 千 → 百, 万 → 千, 亿 → 千万. A run
+   * with no unit at all (「五」) has no level to be below, so the default of one
+   * keeps a bare digit worth itself.
+   */
+  let trailingUnit = 1;
+
   for (const character of text) {
+    /**
+     * 零 is the speaker marking an explicit low position: 「一万零二」 is 10002,
+     * not 12000, and 「三百零五」 is 305, not 350. It resets what a following
+     * digit is worth back to ones.
+     */
+    if (character === "零" || character === "〇") {
+      pending = 0;
+      trailingUnit = 1;
+      continue;
+    }
+
     const digit = DIGITS[character];
 
     if (digit !== undefined) {
@@ -158,6 +184,7 @@ function parseIntegerPart(text: string): number | null {
       // 「十五」 — a unit with nothing before it means one of that unit.
       section += (pending ?? 1) * small;
       pending = null;
+      trailingUnit = small / 10;
       continue;
     }
 
@@ -171,6 +198,7 @@ function parseIntegerPart(text: string): number | null {
       total += section * big;
       section = 0;
       pending = null;
+      trailingUnit = big / 10;
       continue;
     }
 
@@ -179,7 +207,7 @@ function parseIntegerPart(text: string): number | null {
     return null;
   }
 
-  return total + section + (pending ?? 0);
+  return total + section + (pending === null ? 0 : pending * trailingUnit);
 }
 
 /**

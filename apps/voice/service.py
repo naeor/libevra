@@ -63,15 +63,35 @@ TARGET_RATE = 16_000
 MAX_AUDIO_BYTES = 8 * 1024 * 1024
 MAX_SECONDS = 60
 
-# The owner chose the model. `base` misheard 午饭 as 五份 — a tonal distinction
-# that matters in Chinese and that the smallest models are known to lose — so he
-# asked for one step up. `small` is 466 MB against `base`'s 148, still comfortable
-# on a 2 GB server, and noticeably better on Mandarin.
+# The model target for the next version (owner decision, S15-A · 2026-10-20):
+# `base` is the default, `small` stays as the fallback.
 #
-# Overridable so the choice can be revisited on a real phone without editing code,
+# The numbers behind that decision are the S14-V measurements on the 2-vCPU
+# production host, 4.7-second sample, same candidate code:
+#
+#   base  — 148 MB, model load 0.49 s, inference 6.72 s, total 6.73 s
+#   small — 488 MB, model load 1.53 s, inference 25.51 s, total 25.54 s
+#
+# Amount/date/channel/direction were equally correct on the synthetic set (9/9,
+# 7/7, 9/9, 9/9); `small` was better on merchant names (3/3 against base's 2/3 —
+# base heard 星巴克 as 新八课), which is why `small` is kept as a one-variable
+# fallback rather than deleted. ⚠️ Neither model meets the 5-second target yet,
+# so this is a *candidate* default and must not be described as released.
+#
+# Overridable so the choice can be revisited on a server without editing code,
 # and named in the startup line so a log says which one is actually loaded rather
-# than which one was intended.
-MODEL_NAME = os.environ.get("LIBELLUM_WHISPER_MODEL", "small")
+# than which one was intended. `LIBELLUM_WHISPER_MODEL=small` selects the
+# fallback.
+DEFAULT_MODEL_NAME = "base"
+
+
+def _model_name(value: str | None) -> str:
+    """The model name from an env var, falling back to the S15-A target."""
+    name = (value or "").strip()
+    return name if name != "" else DEFAULT_MODEL_NAME
+
+
+MODEL_NAME = _model_name(os.environ.get("LIBELLUM_WHISPER_MODEL"))
 # A model spec may be a local path. Keeping this separate from MODEL_NAME lets a
 # deployment switch models without changing the name written to logs.
 MODEL_SPEC = os.environ.get("LIBELLUM_WHISPER_MODEL_PATH") or MODEL_NAME
@@ -95,7 +115,18 @@ THREADS = _thread_count(os.environ.get("LIBELLUM_WHISPER_THREADS"))
 # VAD is deliberately conservative: it only skips clips with almost no energy,
 # where Whisper would otherwise spend a full inference pass and often invent
 # text. Normal speech still goes through the model unchanged.
-VAD_ENABLED = os.environ.get("LIBELLUM_WHISPER_VAD", "1").strip().lower() not in {"0", "false", "no", "off"}
+#
+# ⚠️ `LIBELLUM_WHISPER_VAD=0` is the escape hatch: if the energy gate ever
+# discards real speech on a device with unusual gain, recognition can be restored
+# without a code change.
+def _env_flag(value: str | None, default: bool) -> bool:
+    """Read a boolean env var the way the other services do."""
+    if value is None or value.strip() == "":
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+VAD_ENABLED = _env_flag(os.environ.get("LIBELLUM_WHISPER_VAD"), True)
 VAD_FRAME_SECONDS = 0.02
 VAD_MIN_SPEECH_SECONDS = 0.20
 VAD_PEAK_FLOOR = 0.002
@@ -155,7 +186,9 @@ def decode_audio(payload: str) -> np.ndarray:
     """
     try:
         raw = base64.b64decode(payload, validate=True)
-    except (binascii.Error, ValueError) as error:
+    except (binascii.Error, TypeError, ValueError) as error:
+        # TypeError covers a missing/`None` payload: the caller sent no string at
+        # all, which is not something to let surface as a 500.
         raise ValueError("audio_not_base64") from error
 
     if len(raw) > MAX_AUDIO_BYTES:
@@ -289,12 +322,30 @@ def main() -> int:
         infer_ms = 0.0
 
         try:
-            request = json.loads(line)
+            # ⚠️ Parsed separately so a malformed line is reported as a malformed
+            # line. `json.JSONDecodeError` is a `ValueError`, so the old single
+            # `except ValueError` answered a broken request with its *Python
+            # exception text* as the error code and "音频无法识别。" as the message
+            # — true of the audio, misleading about the request.
+            try:
+                request = json.loads(line)
+            except json.JSONDecodeError:
+                raise ValueError("bad_request") from None
+
+            if not isinstance(request, dict):
+                raise ValueError("bad_request")
+
             request_id = request.get("id")
             language = request.get("language")
 
+            # Reject a request with no audio as a typed rejection rather than
+            # letting the KeyError become "transcribe_failed".
+            payload = request.get("audio")
+            if not isinstance(payload, str):
+                raise ValueError("audio_missing")
+
             decode_started = time.perf_counter()
-            audio = decode_audio(request["audio"])
+            audio = decode_audio(payload)
             decode_ms = round((time.perf_counter() - decode_started) * 1000, 1)
 
             speech_present = True
@@ -395,6 +446,8 @@ def main() -> int:
 
 
 MESSAGES = {
+    "bad_request": "请求格式无法识别。",
+    "audio_missing": "没有收到录音数据。",
     "audio_not_base64": "录音数据无法解码。",
     "audio_too_large": "录音文件过大。",
     "audio_too_long": f"录音超过 {MAX_SECONDS} 秒，请说短一点。",

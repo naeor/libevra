@@ -97,10 +97,11 @@ describe("matchCategory", () => {
   });
 
   it("counts the evidence when two categories could both fit", () => {
-    // "打车去吃饭" contains one word from each; 吃饭打车 has two from transport.
+    // "打车去吃饭" has one action word from each; the earlier action (打车) is what
+    // the money bought — owner decision 2026-10-20. Two 打车 still outvote 吃饭.
     const both = [category("c-food", "餐饮"), category("c-transport", "交通")];
 
-    expect(matchCategory("打车去吃饭", both, "expense")?.id).toBe("c-food");
+    expect(matchCategory("打车去吃饭", both, "expense")?.id).toBe("c-transport");
     expect(matchCategory("打车去吃饭，打车回来的", both, "expense")?.id).toBe("c-transport");
   });
 
@@ -137,5 +138,95 @@ describe("matchCategory", () => {
   it("⚠️ does not match 暂无分类 against everything", () => {
     // Included in the default ledger, and "分类" alone must not vote for anything.
     expect(matchCategory("午饭三十八", [category("c-uncat", "暂无分类")], "expense")).toBeNull();
+  });
+});
+
+/**
+ * The owner's second report: **"炸鸡、卤肉饭 这类具体菜名没有进入餐饮联想词表"**.
+ *
+ * A separate fixture, because these tests are about the new vocabulary and the
+ * weight tiers rather than the older behaviour above.
+ */
+const FOOD_LEDGER: readonly CategoryCandidate[] = [
+  category("c-food", "餐饮"),
+  category("c-transport", "交通"),
+  category("c-home", "居住"),
+  category("c-salary", "工资", "income"),
+];
+
+describe("the food words the owner named", () => {
+  it("picks 餐饮 for a concrete dish", () => {
+    expect(matchCategory("炸鸡", FOOD_LEDGER, "expense")?.id).toBe("c-food");
+    expect(matchCategory("卤肉饭", FOOD_LEDGER, "expense")?.id).toBe("c-food");
+    // The interface shows why, so the dish itself has to be in `matched`.
+    expect(matchCategory("炸鸡", FOOD_LEDGER, "expense")?.matched).toContain("炸鸡");
+  });
+
+  it("picks 餐饮 for a meal name and for dishes in one sentence", () => {
+    expect(matchCategory("午餐三十八", FOOD_LEDGER, "expense")?.id).toBe("c-food");
+
+    const match = matchCategory("今天吃了炸鸡和汉堡", FOOD_LEDGER, "expense");
+
+    expect(match?.id).toBe("c-food");
+    expect(match?.matched).toEqual(expect.arrayContaining(["炸鸡", "汉堡"]));
+  });
+
+  it("matches the same words in a ledger whose category is called 吃饭", () => {
+    // Category names are the user's; the words belong to the subject.
+    const own = [category("c-mine", "吃饭")];
+
+    expect(matchCategory("炸鸡", own, "expense")?.id).toBe("c-mine");
+    expect(matchCategory("今天吃了卤肉饭", own, "expense")?.matched).toContain("卤肉饭");
+  });
+
+  it("returns null when the ledger has no food category", () => {
+    // Never invent one.
+    const noFood = [category("c-transport", "交通"), category("c-home", "居住")];
+
+    expect(matchCategory("炸鸡", noFood, "expense")).toBeNull();
+    expect(matchCategory("卤肉饭", noFood, "expense")).toBeNull();
+  });
+
+  it("still picks 交通 for 打车, and food does not steal 水费", () => {
+    expect(matchCategory("打车", FOOD_LEDGER, "expense")?.id).toBe("c-transport");
+    // 水 is never a word on its own; 水费 is a utility, not a drink.
+    expect(matchCategory("水费", FOOD_LEDGER, "expense")?.id).toBe("c-home");
+  });
+
+  it("counts an action verb above a venue, and cancels a 去-destination", () => {
+    // Owner decision 2026-10-20: 「打车去食堂」 is a taxi fare. 食堂 is where the
+    // trip ended, not what was paid for, so the destination rule cancels it once
+    // the sentence contains an action word. This test used to encode the older
+    // behaviour (餐饮 won by weight); the owner has since named the intended one.
+    const transportFirst = [category("c-transport", "交通"), category("c-food", "餐饮")];
+    const foodFirst = [category("c-food", "餐饮"), category("c-transport", "交通")];
+
+    expect(matchCategory("打车去食堂", transportFirst, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("打车去食堂", foodFirst, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("打车去食堂三十八块", LEDGER, "expense")?.id).toBe("c-transport");
+  });
+
+  it("keeps the venue when it is what was paid for, not a destination", () => {
+    // No action word, so a bare 「食堂」 is ordinary evidence again; and a venue
+    // without a 去/到 marker is where the money was spent.
+    expect(matchCategory("食堂十五", LEDGER, "expense")?.id).toBe("c-food");
+    expect(matchCategory("在食堂吃饭", LEDGER, "expense")?.id).toBe("c-food");
+  });
+
+  it("applies the destination rule to other actions too", () => {
+    expect(matchCategory("坐地铁去公司", LEDGER, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("点外卖到公司", LEDGER, "expense")?.id).toBe("c-food");
+    expect(matchCategory("打车去机场", LEDGER, "expense")?.id).toBe("c-transport");
+  });
+
+  it("gives a tie to the action said first", () => {
+    // 「打车去吃饭」 pays for the ride; the meal is the purpose, not the purchase.
+    expect(matchCategory("打车去吃饭", LEDGER, "expense")?.id).toBe("c-transport");
+    expect(matchCategory("吃饭打车", LEDGER, "expense")?.id).toBe("c-food");
+  });
+
+  it("keeps the income vocabulary as it was", () => {
+    expect(matchCategory("收到工资一万二", FOOD_LEDGER, "income")?.id).toBe("c-salary");
+    expect(matchCategory("报销到账", FOOD_LEDGER, "income")?.id).toBe("c-salary");
   });
 });

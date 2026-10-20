@@ -4,14 +4,21 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { VoiceService, VoiceServiceError } from "../src/voice/client.js";
+import {
+  TranscriptionRejected,
+  VoiceBusyError,
+  VoiceService,
+  VoiceServiceError,
+} from "../src/voice/client.js";
 
 /**
  * The child-process lifecycle, without Python or Whisper.
  *
  * These tests pin down the failures that used to wait for the old 300/600-second
  * timers: a child that exits before ready must reject immediately, and the next
- * request must be able to start a fresh child.
+ * request must be able to start a fresh child. The last block is the S15-A
+ * concurrency bound — the queue that keeps a burst of recordings from turning
+ * into a slow-motion outage.
  */
 const services: VoiceService[] = [];
 const directories: string[] = [];
@@ -24,13 +31,24 @@ async function fixture(program: string): Promise<string> {
   return script;
 }
 
-function service(script: string, options: { startupTimeoutMs?: number; transcribeTimeoutMs?: number } = {}): VoiceService {
+interface ServiceOptions {
+  readonly startupTimeoutMs?: number;
+  readonly transcribeTimeoutMs?: number;
+  readonly maxConcurrent?: number;
+  readonly maxQueue?: number;
+  readonly queueTimeoutMs?: number;
+}
+
+function service(script: string, options: ServiceOptions = {}): VoiceService {
   const instance = new VoiceService({
     pythonPath: process.execPath,
     serviceDirectory: path.dirname(script),
     serviceFile: script,
     startupTimeoutMs: options.startupTimeoutMs ?? 2_000,
     transcribeTimeoutMs: options.transcribeTimeoutMs ?? 2_000,
+    ...(options.maxConcurrent === undefined ? {} : { maxConcurrent: options.maxConcurrent }),
+    ...(options.maxQueue === undefined ? {} : { maxQueue: options.maxQueue }),
+    ...(options.queueTimeoutMs === undefined ? {} : { queueTimeoutMs: options.queueTimeoutMs }),
   });
   services.push(instance);
   return instance;
@@ -121,5 +139,140 @@ describe("VoiceService child lifecycle", () => {
     const started = Date.now();
     await expect(client.transcribe(Buffer.from("synthetic"))).rejects.toThrow(/识别超时/);
     expect(Date.now() - started).toBeLessThan(1_500);
+  });
+});
+
+/** Answers each request after a short delay; used to observe serialisation. */
+const SLOW_ANSWER = `
+let buffer = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  let newline = buffer.indexOf("\\n");
+  while (newline !== -1) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (line !== "") {
+      setTimeout(() => {
+        const request = JSON.parse(line);
+        process.stdout.write(JSON.stringify({ id: request.id, ok: true, text: "slow", seconds: 0.1, audioSeconds: 1 }) + "\\n");
+      }, 100);
+    }
+    newline = buffer.indexOf("\\n");
+  }
+});
+`;
+
+/** Fails the first request and answers the second: tests the slot is released. */
+const ERROR_THEN_OK = `
+let buffer = "";
+let count = 0;
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  let newline = buffer.indexOf("\\n");
+  while (newline !== -1) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (line !== "") {
+      count += 1;
+      const request = JSON.parse(line);
+      const answer = count === 1
+        ? { id: request.id, ok: false, error: "audio_too_long", message: "录音超过 60 秒，请说短一点。" }
+        : { id: request.id, ok: true, text: "after-failure", seconds: 0.01, audioSeconds: 1 };
+      process.stdout.write(JSON.stringify(answer) + "\\n");
+    }
+    newline = buffer.indexOf("\\n");
+  }
+});
+`;
+
+/** Never answers: a request that holds its slot for as long as the test needs. */
+const HANGING = LOADING + "process.stdin.resume();";
+
+/** Let a promise settle so a deliberately-held request cannot become unhandled. */
+function settled(promise: Promise<unknown>): void {
+  promise.then(
+    () => undefined,
+    () => undefined,
+  );
+}
+
+/**
+ * The S15-A concurrency bound.
+ *
+ * S14-V's finding was that one decode occupies the CPU for seconds; the risk
+ * S15-A names is a burst of recordings competing with the normal bookkeeping
+ * API. These tests are about the bound, not about whisper: a queued request
+ * waits, a full queue refuses immediately, and a failed request gives its slot
+ * to the next one.
+ */
+describe("VoiceService concurrency bound", () => {
+  it("serialises requests beyond maxConcurrent and answers all of them", async () => {
+    const script = await fixture(LOADING + SLOW_ANSWER);
+    const client = service(script, { maxConcurrent: 1, maxQueue: 4 });
+
+    const started = Date.now();
+    const results = await Promise.all([
+      client.transcribe(Buffer.from("first")),
+      client.transcribe(Buffer.from("second")),
+      client.transcribe(Buffer.from("third")),
+    ]);
+
+    // Three 100 ms answers arriving one at a time cannot finish faster than that;
+    // without the bound they would all be written to the child at once.
+    expect(results.map((result) => result.text)).toEqual(["slow", "slow", "slow"]);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+  });
+
+  it("refuses a request when the queue is already full", async () => {
+    const script = await fixture(HANGING);
+    const client = service(script, { maxConcurrent: 1, maxQueue: 0, transcribeTimeoutMs: 5_000 });
+
+    settled(client.transcribe(Buffer.from("held")));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    await expect(client.transcribe(Buffer.from("refused"))).rejects.toBeInstanceOf(VoiceBusyError);
+  });
+
+  it("fails a queued request after the queue timeout instead of waiting forever", async () => {
+    const script = await fixture(HANGING);
+    const client = service(script, {
+      maxConcurrent: 1,
+      maxQueue: 2,
+      queueTimeoutMs: 100,
+      transcribeTimeoutMs: 5_000,
+    });
+
+    settled(client.transcribe(Buffer.from("held")));
+    const queued = client.transcribe(Buffer.from("waiting"));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    await expect(queued).rejects.toBeInstanceOf(VoiceBusyError);
+    await expect(queued).rejects.toThrow(/排队超时/);
+  });
+
+  it("gives the slot to a queued request when the running one fails", async () => {
+    const script = await fixture(LOADING + ERROR_THEN_OK);
+    const client = service(script, { maxConcurrent: 1, maxQueue: 2 });
+
+    const first = client.transcribe(Buffer.from("first"));
+    const second = client.transcribe(Buffer.from("second"));
+
+    await expect(first).rejects.toBeInstanceOf(TranscriptionRejected);
+    const answered = await second;
+    expect(answered.text).toBe("after-failure");
+  });
+
+  it("rejects queued requests when the service stops", async () => {
+    const script = await fixture(HANGING);
+    const client = service(script, { maxConcurrent: 1, maxQueue: 2, transcribeTimeoutMs: 5_000 });
+
+    settled(client.transcribe(Buffer.from("held")));
+    const queued = client.transcribe(Buffer.from("waiting"));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    client.stop();
+    await expect(queued).rejects.toThrow(/已停止/);
   });
 });

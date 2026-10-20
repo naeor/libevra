@@ -19,17 +19,53 @@
 import { z } from "zod";
 
 import { matchCategory, type CategoryCandidate } from "./categoryMatch.js";
-import { findChineseAmount } from "./chineseNumerals.js";
+import { chineseNumeralToDigits, isNumeralChar } from "./chineseNumerals.js";
 
 /**
- * A spoken amount: digits, a decimal part, and an optional yuan/kuai marker.
+ * Words that mark the number before them as money, **longest first**.
  *
- * Chinese numerals (三十八) are **not** handled, deliberately. Whisper writes
- * numbers as digits for amounts in practice, and a numeral parser that gets
- * 三十八 right but 一百零八 wrong would be worse than not having one: it would
- * fill the field just often enough to be trusted.
+ * Longest first so 「块钱」 is read as one marker rather than 「块」 followed by a
+ * stray 钱, and 「欧元」 is not read as 「元」 with an 欧 in front.
  */
-const AMOUNT_PATTERN = /(\d+(?:\.\d{1,2})?)\s*(?:元|块|块钱|圆)?/;
+const CURRENCY_WORDS = ["人民币", "美元", "美金", "港币", "日元", "欧元", "块钱", "元", "块", "圆"] as const;
+
+/**
+ * Currency words the jiao/fen part can follow: 「四十二块五」, 「42 元 5 角」.
+ *
+ * ⚠️ **Foreign currencies score as an amount but are left in the note.** The
+ * entry this feeds has no currency field, so removing 「美元」 from
+ * 「12 美元，信用卡支付」 would leave an amount of `12` beside a note that no
+ * longer says which dollars — and the entry's default reads as yuan.
+ */
+const YUAN_WORDS: ReadonlySet<string> = new Set(["元", "块", "块钱", "圆"]);
+
+/** The characters that mean "half a yuan" when they follow a digit. */
+const JIAO_UNITS: ReadonlySet<string> = new Set(["角", "毛"]);
+
+/**
+ * Units that make a number a **date or a time**, never a price.
+ *
+ * ⚠️ This is the fix for the owner's report: 「9 月 21 日餐饮花费 88 元」 used to
+ * put **9** in the amount field because the digits pattern took the first number
+ * it saw, and 「10 月 8 日……四十二块五」 put the **5** of the jiao in — the date
+ * numbers are not prices and a fraction is not the amount.
+ */
+const DATE_UNITS: ReadonlySet<string> = new Set(["月", "日", "号", "年", "时", "点", "分", "秒", "天"]);
+
+/** Mirrors chineseNumerals' run cap: a sentence's numeral run is never longer. */
+const MAX_CHINESE_RUN = 24;
+
+/** One number the sentence could mean as the amount, and how to read it. */
+interface AmountCandidate {
+  /** Digits as they will be put in the amount field. */
+  readonly value: string;
+  /** Where the amount starts in the sentence. */
+  readonly start: number;
+  /** Where it ends, exclusive — the currency word included where it goes with it. */
+  readonly end: number;
+  /** Higher wins. A number next to a currency word beats a bare one. */
+  readonly score: number;
+}
 
 /** Words that mean income rather than spending. */
 const INCOME_WORDS = [
@@ -82,9 +118,6 @@ const FILLERS = [
   "记一下",
 ];
 
-/** Budget words that describe the amount rather than the purchase. */
-const AMOUNT_WORDS = ["元", "块", "块钱", "圆", "钱", "人民币", "美元", "美金", "港币", "日元", "欧元"];
-
 export interface SpokenEntry {
   /** Digits as spoken, e.g. `"38"` or `"38.5"`. Null when no amount was heard. */
   readonly amount: string | null;
@@ -116,29 +149,238 @@ export function parseSpokenEntry(spoken: string): SpokenEntry {
    * note reading "午饭 38 块" next to an amount of 38 says the number twice, and
    * the second copy is the one that goes stale when the amount is corrected.
    *
-   * ⚠️ **Chinese numerals are tried first, and that order is the point.**
+   * ⚠️ **Every number in the sentence is a candidate, and they are scored.**
    *
-   * The owner noticed the recogniser "对汉字大写的数字不太敏感" — and it was not the
-   * recogniser: whisper writes 三十八 for an unclear "三十八" and 叁佰捌拾 for a
-   * formal one, and this function only understood digits. Trying Chinese first
-   * also settles the ambiguous cases correctly: in "三百块" the digits pattern
-   * sees nothing, and in "三个人吃饭三百块" it would see the 三 — a number, but not
-   * the price.
+   * The owner's report was not that one number was misread but that the *wrong*
+   * number was read: 「9 月 21 日餐饮花费 88 元」 became `9` (the month) and
+   * 「10 月 8 日……四十二块五」 became `5` (the jiao), because the old code took
+   * the first digits it found and the Chinese branch took the first numeral run
+   * with a money word after it. Scoring instead of ordering means a date number
+   * simply is not a candidate, and a number with a currency word after it beats
+   * a bare one — see `findSpokenAmount`.
    */
-  const chinese = findChineseAmount(original);
+  const amount = findSpokenAmount(original);
+  const withoutAmount =
+    amount === null ? original : original.slice(0, amount.start) + " " + original.slice(amount.end);
 
-  if (chinese !== null) {
-    const withoutAmount = original.slice(0, chinese.index) + " " + original.slice(chinese.index + chinese.length);
+  return { amount: amount?.value ?? null, kind, note: cleanNote(withoutAmount) };
+}
 
-    return { amount: chinese.value, kind, note: cleanNote(withoutAmount) };
+/**
+ * Which of the numbers in a sentence is the amount.
+ *
+ * Four rules, in order of how much they decide:
+ *
+ *  1. **A number followed by a month/day/hour unit is not a price.** 月 日 号 年
+ *     时 点 分 秒 天 are the units of when something happened; a number next to
+ *     one is a date, and returning no amount is right where returning the date
+ *     would be a plausible-looking wrong number.
+ *  2. **A number next to a currency word wins.** 「88 元」 is the amount in a
+ *     sentence that also says 「9 月 21 日」.
+ *  3. **A jiao/fen part joins the yuan before it**: 「四十二块五」 is 42.5, not 42
+ *     and not 5, and 「42 元 5 角」 is the same amount said with digits.
+ *  4. Otherwise the longer number wins, and among equals the later one — the
+ *     price tends to come after the description ("买了三个苹果 25").
+ *
+ * Nothing is invented: a sentence with no eligible number returns `null`.
+ */
+function findSpokenAmount(text: string): AmountCandidate | null {
+  const candidates = [...findChineseAmountCandidates(text), ...findDigitAmountCandidates(text)];
+
+  let best: AmountCandidate | null = null;
+
+  for (const candidate of candidates) {
+    const isBetter =
+      best === null ||
+      candidate.score > best.score ||
+      (candidate.score === best.score && candidate.start > best.start);
+
+    if (isBetter) best = candidate;
   }
 
-  const match = AMOUNT_PATTERN.exec(original);
-  const amount = match?.[1] ?? null;
-  const withoutAmount = match === null ? original : original.replace(match[0], " ");
-
-  return { amount, kind, note: cleanNote(withoutAmount) };
+  return best;
 }
+
+/** Numbers written in Chinese numerals (三十八, 叁佰捌拾) that could be the amount. */
+function findChineseAmountCandidates(text: string): AmountCandidate[] {
+  const found: AmountCandidate[] = [];
+  let index = 0;
+
+  while (index < text.length) {
+    if (!isNumeralChar(text[index] ?? "")) {
+      index += 1;
+      continue;
+    }
+
+    let end = index;
+    while (end < text.length && end - index < MAX_CHINESE_RUN && isNumeralChar(text[end] ?? "")) {
+      end += 1;
+    }
+
+    const run = text.slice(index, end);
+    const value = chineseNumeralToDigits(run);
+
+    /**
+     * `三点` is a time and a run ending in the decimal point is half a number;
+     * both are skipped rather than read as a number that was never said.
+     */
+    const readable = !run.startsWith("点") && !run.startsWith("點") && !run.endsWith("点") && !run.endsWith("點");
+
+    if (value !== null && readable) {
+      const candidate = readChineseAmountCandidate(text, index, end, value);
+      if (candidate !== null) found.push(candidate);
+    }
+
+    index = end;
+  }
+
+  return found;
+}
+
+/** Turn one Chinese numeral run into a candidate, or reject it as a date. */
+function readChineseAmountCandidate(
+  text: string,
+  start: number,
+  end: number,
+  value: string,
+): AmountCandidate | null {
+  const after = skipSpaces(text, end);
+  const currency = CURRENCY_WORDS.find((word) => text.startsWith(word, after));
+
+  if (currency !== undefined) {
+    const markerEnd = after + currency.length;
+
+    // A fraction only follows a whole number: 三点五元 is already 3.5.
+    if (YUAN_WORDS.has(currency) && !value.includes(".")) {
+      const fraction = readFraction(text, markerEnd, true);
+      if (fraction !== null) {
+        return { value: `${value}.${fraction.digits}`, start, end: fraction.end, score: 1000 + value.length };
+      }
+    }
+
+    // Foreign currency stays in the note — see YUAN_WORDS.
+    return {
+      value,
+      start,
+      end: YUAN_WORDS.has(currency) ? markerEnd : end,
+      score: 1000 + value.length,
+    };
+  }
+
+  // 「五毛」 with no yuan word is 0.5, not 5.
+  if (JIAO_UNITS.has(text[end] ?? "") && /^[1-9]$/.test(value)) {
+    return { value: `0.${value}`, start, end: end + 1, score: 500 + value.length };
+  }
+
+  if (DATE_UNITS.has(text[after] ?? "")) return null;
+
+  return { value, start, end, score: value.length };
+}
+
+/** Numbers written in digits (38, 38.5, 12000) that could be the amount. */
+function findDigitAmountCandidates(text: string): AmountCandidate[] {
+  const found: AmountCandidate[] = [];
+
+  for (const match of text.matchAll(/\d{1,9}(?:\.\d{1,2})?/g)) {
+    const start = match.index ?? 0;
+    const amount = match[0];
+    const end = start + amount.length;
+    const after = skipSpaces(text, end);
+    const currency = CURRENCY_WORDS.find((word) => text.startsWith(word, after));
+
+    if (currency !== undefined) {
+      const markerEnd = after + currency.length;
+
+      if (YUAN_WORDS.has(currency) && !amount.includes(".")) {
+        const fraction = readFraction(text, markerEnd, true);
+
+        if (fraction !== null) {
+          found.push({ value: `${amount}.${fraction.digits}`, start, end: fraction.end, score: 1000 + amount.length });
+        } else {
+          found.push({ value: amount, start, end: markerEnd, score: 1000 + amount.length });
+        }
+        continue;
+      }
+
+      // Foreign currency stays in the note — see YUAN_WORDS.
+      found.push({ value: amount, start, end: YUAN_WORDS.has(currency) ? markerEnd : end, score: 1000 + amount.length });
+      continue;
+    }
+
+    // 「5 角」 with no yuan word is 0.5, not 5.
+    if (JIAO_UNITS.has(text[after] ?? "") && /^[1-9]$/.test(amount)) {
+      found.push({ value: `0.${amount}`, start, end: after + 1, score: 500 + amount.length });
+      continue;
+    }
+
+    if (DATE_UNITS.has(text[after] ?? "")) continue;
+
+    found.push({ value: amount, start, end, score: amount.length });
+  }
+
+  return found;
+}
+
+/**
+ * Read the jiao/fen part said after a yuan word.
+ *
+ * Three shapes are understood, because they are the three ways people say it:
+ * 「块五」 / 「块零五」 (no unit characters), 「元五角」, and 「元五角三分」.
+ * Returns the fraction as digits — `"5"` or `"53"` — and how much text it used.
+ */
+function readFraction(text: string, from: number, allowBare: boolean): { readonly digits: string; readonly end: number } | null {
+  const at = skipSpaces(text, from);
+  const first = readDigit(text, at);
+  if (first === null) return null;
+
+  // 「块零五」 — the zero is said out loud, and means five fen rather than five jiao.
+  if (first.digit === "0") {
+    const fen = readDigit(text, first.end);
+    return fen === null ? null : { digits: `0${fen.digit}`, end: fen.end };
+  }
+
+  const unit = text[first.end];
+
+  if (unit !== undefined && JIAO_UNITS.has(unit)) {
+    const afterJiao = first.end + 1;
+    const fen = readDigit(text, afterJiao);
+    if (fen !== null && text[fen.end] === "分") {
+      return { digits: `${first.digit}${fen.digit}`, end: fen.end + 1 };
+    }
+    return { digits: first.digit, end: afterJiao };
+  }
+
+  if (unit === "分") {
+    return { digits: `0${first.digit}`, end: first.end + 1 };
+  }
+
+  /**
+   * 「块五」 — the bare form only when nothing separates it from the yuan word.
+   * Allowing a space would read 「38 块 5 个」 as 38.5.
+   */
+  if (allowBare && at === from) return { digits: first.digit, end: first.end };
+
+  return null;
+}
+
+/** One digit, arabic or Chinese, at `index`. */
+function readDigit(text: string, index: number): { readonly digit: string; readonly end: number } | null {
+  const character = text[index];
+  if (character === undefined) return null;
+
+  if (character >= "0" && character <= "9") return { digit: character, end: index + 1 };
+
+  const value = chineseNumeralToDigits(character);
+  return value !== null && value.length === 1 ? { digit: value, end: index + 1 } : null;
+}
+
+/** Where the next non-space character is. Whisper writes 「38 元」 with a space. */
+function skipSpaces(text: string, from: number): number {
+  let at = from;
+  while (at < text.length && (text[at] === " " || text[at] === "　")) at += 1;
+  return at;
+}
+
 
 /**
  * Read a spoken sentence, including which category it sounds like.
@@ -183,7 +425,22 @@ export function cleanNote(text: string): string {
     if (note === before) break;
   }
 
-  return collapsePunctuation(note);
+  return collapsePunctuation(joinDateUnits(note));
+}
+
+/**
+ * Keep a date together.
+ *
+ * Whisper writes 「10 月 8 日」 with spaces, and the rule below turns spaces into
+ * commas; applied blindly it produced a note reading 「10，月，8，日在超市花了」.
+ * Joining a number to the unit that follows it — and that unit to the number
+ * after it — leaves 「10月8日在超市花了」, which is what was said.
+ */
+function joinDateUnits(text: string): string {
+  return text
+    .replace(/([上下午晚早凌晨])\s+(?=\d)/g, "$1")
+    .replace(/(\d)\s+(?=[月日号年时点分秒])/g, "$1")
+    .replace(/([月日号年时点分秒])\s+(?=\d)/g, "$1");
 }
 
 /** One pass of edge-stripping. */
