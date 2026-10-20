@@ -171,3 +171,76 @@ describe("bottom import bar wiring", () => {
     expect(PAGE_SOURCE).toContain("applyCategorySuggestions(batch.items, categories)");
   });
 });
+
+/**
+ * Completion is a session boundary, and the two exits differ in exactly one respect:
+ * 「返回明细」clears the session, 「再识别一批」keeps it. A screen without a DOM cannot press
+ * them, so the wiring is asserted where it is written — and the completion branch is checked
+ * for the thing it must not contain, `InnerPage`'s back and 「重新识别」 controls.
+ */
+describe("completion screen wiring", () => {
+  function between(start: string, end: string): string {
+    const from = PAGE_SOURCE.indexOf(start);
+    const to = PAGE_SOURCE.indexOf(end, from + start.length);
+
+    expect(from).toBeGreaterThanOrEqual(0);
+    expect(to).toBeGreaterThan(from);
+
+    return PAGE_SOURCE.slice(from, to);
+  }
+
+  it("renders its own completion shell instead of InnerPage", () => {
+    const completion = between("if (done !== null) {", "<InnerPage");
+
+    expect(completion).toContain("<ImportDoneScreen");
+    expect(completion).toContain("outcome={done.outcome}");
+    expect(completion).toContain("session={done.session}");
+    expect(completion).not.toContain("backTo=");
+    expect(completion).not.toContain("data-back-control");
+  });
+
+  it("ends and clears the session before going to the ledger", () => {
+    const finish = between("function finishSession", "function importAgain");
+
+    expect(finish).toContain("clearImportSession();");
+    expect(finish).toContain('navigate("/")');
+  });
+
+  it("starts the next batch without clearing the session", () => {
+    const again = between("function importAgain", "function retryFailed");
+
+    expect(again).toContain('navigate("/scan")');
+    expect(again).not.toContain("clearImportSession");
+  });
+
+  it("goes back to the batch for failed items, without touching the batch", () => {
+    const retry = between("function retryFailed", "function cancelBatch");
+
+    expect(retry).toContain("setDone(null)");
+    expect(retry).not.toContain("clearBatch");
+    expect(retry).not.toContain("withoutBatchItems");
+  });
+
+  it("records the batch with the id captured before the batch was cleared", () => {
+    expect(PAGE_SOURCE).toContain("recordImportBatch(session, {");
+    expect(PAGE_SOURCE).toContain("batchId: assigned.batchId");
+    expect(PAGE_SOURCE).toContain("pending: result.succeeded.filter((entry) => entry.pending).length");
+  });
+
+  it("drops a session that belongs to another ledger", () => {
+    const bookCheck = between(
+      "if (session === null || currentBookId === null) return;",
+      "const counts = countBatchItems(items);",
+    );
+
+    expect(bookCheck).toContain("if (session.bookId === currentBookId) return;");
+    expect(bookCheck).toContain("clearImportSession();");
+    expect(bookCheck).toContain("setSession(null);");
+  });
+
+  it("shows the session total after a refresh instead of the empty state", () => {
+    expect(PAGE_SOURCE).toContain("const resumeSession =");
+    expect(PAGE_SOURCE).toContain("本次会话已导入");
+    expect(PAGE_SOURCE).toContain("resumeTotals.imported");
+  });
+});

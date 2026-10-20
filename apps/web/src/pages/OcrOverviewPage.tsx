@@ -11,6 +11,10 @@
  *
  * 分类候选按**批次所属账本**读取（`useLedgerMeta`）：批次可能来自另一本账，拿当前账本
  * 的分类去联想或显示都是跨账本串味。批次属于别的账时只读、不导入，也不写联想结果。
+ *
+ * 导入完成后，同一个路由切到 `ImportDoneScreen`（完成页）：它不走 `InnerPage`，因为没有
+ * 返回、也没有「重新识别」。完成页的累计来自 `lib/ocr/importSession.ts` 的会话，
+ * 「返回明细」结束会话，「再识别一批」保留会话并去 `/scan`。
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -20,6 +24,7 @@ import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
+import { ImportDoneScreen } from "../components/ocr/ImportDoneScreen.js";
 import { OcrImportBar, OcrOverview } from "../components/ocr/OcrOverview.js";
 import { errorMessage } from "../lib/api.js";
 import { assignImportIds, batchBelongsToBook, refreshDuplicateMarks, withoutBatchItems } from "../lib/ocr/batch.js";
@@ -32,6 +37,14 @@ import {
   type OcrImportBlocker,
   type OcrImportOutcome,
 } from "../lib/ocr/import.js";
+import {
+  clearImportSession,
+  importSessionTotals,
+  loadImportSession,
+  recordImportBatch,
+  saveImportSession,
+  type OcrImportSession,
+} from "../lib/ocr/importSession.js";
 import { executeImport } from "../lib/ocr/importExecution.js";
 import {
   countBatchItems,
@@ -73,7 +86,19 @@ export function OcrOverviewPage(): React.JSX.Element {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [outcome, setOutcome] = useState<OcrImportOutcome | null>(null);
+  /**
+   * 导入会话：跨越多批的累计计数。刷新后 `outcome` 会丢，但会话还在，页面据此显示
+   * “本次会话已导入 N 笔”，而不是退回“没有待核对的批次”的空态。
+   */
+  const [session, setSession] = useState<OcrImportSession | null>(() => loadImportSession());
+  /**
+   * 完成态。`outcome` 与写入后的会话一起保存，避免出现“有结果但没有会话”的半状态；
+   * 它非空时页面渲染完成页外壳（没有返回、没有重新识别）。
+   */
+  const [done, setDone] = useState<{
+    readonly outcome: OcrImportOutcome;
+    readonly session: OcrImportSession;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const items = batch?.items ?? [];
@@ -114,6 +139,20 @@ export function OcrOverviewPage(): React.JSX.Element {
     setBatch(updated);
   }, [batch, categories, wrongBook]);
 
+  /**
+   * 一次会话只属于一本账。
+   *
+   * 切到别的账本时旧会话必须作废：把 A 账的“累计导入 N 笔”显示在 B 账上，比看不到历史
+   * 更误导。这里只在账本已知时判断；清掉后下一次导入会从第 1 批重新开始。
+   */
+  useEffect(() => {
+    if (session === null || currentBookId === null) return;
+    if (session.bookId === currentBookId) return;
+
+    clearImportSession();
+    setSession(null);
+  }, [session, currentBookId]);
+
   const counts = countBatchItems(items);
   const importableCount = countImportableItems(items);
   const visibleItems = filterBatchItems(items, filter, source, direction);
@@ -149,14 +188,49 @@ export function OcrOverviewPage(): React.JSX.Element {
     );
   }
 
+  /**
+   * 没有完成态、也没有待处理批次时，会话里仍可能留下“这次已经导入过”的事实（`outcome`
+   * 只在内存里，刷新就没了）。只认当前账本的会话：别的账本的记录既不算数也不显示。
+   */
+  const resumeSession =
+    session !== null && currentBookId !== null && session.bookId === currentBookId
+      ? session
+      : null;
+  const resumeTotals = resumeSession === null ? null : importSessionTotals(resumeSession);
+
   function openDetail(candidateId: string): void {
     void navigate(`/ocr/overview/${encodeURIComponent(candidateId)}`);
+  }
+
+  /**
+   * 「返回明细」结束这次会话：累计清零，下次从第 1 批重新计。
+   *
+   * 只清会话，不动账目：已写入的交易不依赖会话数据；先清后走，避免回到完成页时又看到
+   * 旧的累计。
+   */
+  function finishSession(): void {
+    clearImportSession();
+    setSession(null);
+    void navigate("/");
+  }
+
+  /** 「再识别一批」保留会话，下一批导入会追加到同一次会话。 */
+  function importAgain(): void {
+    void navigate("/scan");
+  }
+
+  /**
+   * 失败重试的最小入口：失败的笔仍留在批次里（固定 importIds 还在），回到批次屏幕即可
+   * 重新确认。这里不新建错误管理页，也不改批次数据。
+   */
+  function retryFailed(): void {
+    setDone(null);
   }
 
   function cancelBatch(): void {
     clearBatch();
     setBatch(null);
-    setOutcome(null);
+    setDone(null);
     void navigate("/scan");
   }
 
@@ -212,12 +286,45 @@ export function OcrOverviewPage(): React.JSX.Element {
         setBatch(remaining);
       }
 
-      setOutcome(result);
+      /**
+       * Record the batch in the session **after** the writes and after the batch cleanup,
+       * using the `batchId` captured above: a fully successful batch is gone from
+       * sessionStorage by now, and the session still has to tell which batch this was.
+       *
+       * Re-importing the same batch (a retry after partial failure) updates the existing
+       * entry instead of appending a second one — see `recordImportBatch`.
+       */
+      const nextSession = recordImportBatch(session, {
+        batchId: assigned.batchId,
+        bookId: assigned.bookId ?? currentBookId,
+        importedAt: new Date().toISOString(),
+        succeeded: result.succeeded.length,
+        failed: result.failed.length,
+        pending: result.succeeded.filter((entry) => entry.pending).length,
+      });
+
+      saveImportSession(nextSession);
+      setSession(nextSession);
+      setDone({ outcome: result, session: nextSession });
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
       setImporting(false);
     }
+  }
+
+  if (done !== null) {
+    // Completion gets its own shell: `InnerPage` always draws a back control and the
+    // 「重新识别」 action, and this state must offer neither (both have named replacements).
+    return (
+      <ImportDoneScreen
+        outcome={done.outcome}
+        session={done.session}
+        onBackToDetail={finishSession}
+        onAgain={importAgain}
+        onRetry={retryFailed}
+      />
+    );
   }
 
   return (
@@ -239,42 +346,48 @@ export function OcrOverviewPage(): React.JSX.Element {
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
 
-      {outcome !== null ? (
-        <ImportOutcomeView
-          outcome={outcome}
-          remaining={batch?.items.length ?? 0}
-          onBackToBatch={() => {
-            setOutcome(null);
-          }}
-          onLedger={() => {
-            void navigate("/");
-          }}
-          onAgain={() => {
-            void navigate("/scan");
-          }}
-        />
-      ) : batch === null ? (
-        <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
-          <h2 className="text-section-title text-ink">没有待核对的批次</h2>
-          <p className="text-body-relaxed text-muted">
-            这次识别结果已经清除（确认导入成功、取消，或换了一个标签页）。可以重新上传截图，或直接手动记账。
-          </p>
-          <Button
-            onClick={() => {
-              void navigate("/scan");
-            }}
-          >
-            去上传截图
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              void navigate("/add");
-            }}
-          >
-            直接手动记账
-          </Button>
-        </section>
+      {batch === null ? (
+        resumeSession === null || resumeTotals === null ? (
+          <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
+            <h2 className="text-section-title text-ink">没有待核对的批次</h2>
+            <p className="text-body-relaxed text-muted">
+              这次识别结果已经清除（确认导入成功、取消，或换了一个标签页）。可以重新上传截图，或直接手动记账。
+            </p>
+            <Button
+              onClick={() => {
+                void navigate("/scan");
+              }}
+            >
+              去上传截图
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void navigate("/add");
+              }}
+            >
+              直接手动记账
+            </Button>
+          </section>
+        ) : (
+          /**
+           * 刷新后 `outcome` 丢了，但会话还在：说“这次已经导入过”，而不是退回“什么都
+           * 没有”的空态。这里不恢复完整完成页，只保留累计与两个入口。
+           */
+          <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
+            <h2 className="text-section-title text-ink">
+              本次会话已导入{" "}
+              <span className="tabular-nums">{resumeTotals.imported}</span> 笔
+            </h2>
+            <p className="text-body-relaxed text-muted">
+              共 {resumeTotals.batches} 批。账目已经写入账本，刷新不会重复提交；完成页在刷新后不再显示。
+            </p>
+            <Button onClick={finishSession}>返回明细</Button>
+            <Button variant="ghost" onClick={importAgain}>
+              再识别一批
+            </Button>
+          </section>
+        )
       ) : (
         <>
           <OcrOverview
@@ -392,59 +505,3 @@ export function importDisabledReason({
   return null;
 }
 
-function ImportOutcomeView({
-  outcome,
-  remaining,
-  onBackToBatch,
-  onLedger,
-  onAgain,
-}: {
-  readonly outcome: OcrImportOutcome;
-  readonly remaining: number;
-  readonly onBackToBatch: () => void;
-  readonly onLedger: () => void;
-  readonly onAgain: () => void;
-}): React.JSX.Element {
-  const pending = outcome.succeeded.filter((entry) => entry.pending).length;
-  const delivered = outcome.succeeded.length - pending;
-
-  return (
-    <section aria-label="导入结果" className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
-      <h2 className="text-section-title text-ink">导入结果</h2>
-      <p className="text-body text-ink">
-        成功 {outcome.succeeded.length} / 失败 {outcome.failed.length}（共尝试 {outcome.attempted} 笔）
-      </p>
-
-      {pending > 0 ? (
-        <Alert tone="info">
-          其中 {pending} 笔已在本机排队，联网后自动投递；另有 {delivered} 笔已同步到服务器。
-        </Alert>
-      ) : null}
-
-      {outcome.failed.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-body-relaxed text-warning-dark">
-            以下 {outcome.failed.length} 笔没有写入，仍留在批次里（剩余 {remaining} 笔）：
-          </p>
-          <ul className="flex flex-col gap-1">
-            {outcome.failed.map((failure) => (
-              <li key={failure.candidateId} className="text-helper-relaxed text-warning-dark">
-                ⚠ {failure.label}：{failure.reason}
-              </li>
-            ))}
-          </ul>
-          <Button variant="secondary" onClick={onBackToBatch}>
-            返回概览重试
-          </Button>
-        </div>
-      ) : (
-        <p className="text-helper-relaxed text-muted">全部成功，批次已清除。</p>
-      )}
-
-      <Button onClick={onLedger}>查看明细</Button>
-      <Button variant="ghost" onClick={onAgain}>
-        再识别一批
-      </Button>
-    </section>
-  );
-}
