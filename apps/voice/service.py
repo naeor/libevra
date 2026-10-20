@@ -115,7 +115,18 @@ THREADS = _thread_count(os.environ.get("LIBELLUM_WHISPER_THREADS"))
 # VAD is deliberately conservative: it only skips clips with almost no energy,
 # where Whisper would otherwise spend a full inference pass and often invent
 # text. Normal speech still goes through the model unchanged.
-VAD_ENABLED = os.environ.get("LIBELLUM_WHISPER_VAD", "1").strip().lower() not in {"0", "false", "no", "off"}
+#
+# ⚠️ `LIBELLUM_WHISPER_VAD=0` is the escape hatch: if the energy gate ever
+# discards real speech on a device with unusual gain, recognition can be restored
+# without a code change.
+def _env_flag(value: str | None, default: bool) -> bool:
+    """Read a boolean env var the way the other services do."""
+    if value is None or value.strip() == "":
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+VAD_ENABLED = _env_flag(os.environ.get("LIBELLUM_WHISPER_VAD"), True)
 VAD_FRAME_SECONDS = 0.02
 VAD_MIN_SPEECH_SECONDS = 0.20
 VAD_PEAK_FLOOR = 0.002
@@ -175,7 +186,9 @@ def decode_audio(payload: str) -> np.ndarray:
     """
     try:
         raw = base64.b64decode(payload, validate=True)
-    except (binascii.Error, ValueError) as error:
+    except (binascii.Error, TypeError, ValueError) as error:
+        # TypeError covers a missing/`None` payload: the caller sent no string at
+        # all, which is not something to let surface as a 500.
         raise ValueError("audio_not_base64") from error
 
     if len(raw) > MAX_AUDIO_BYTES:
@@ -309,12 +322,30 @@ def main() -> int:
         infer_ms = 0.0
 
         try:
-            request = json.loads(line)
+            # ⚠️ Parsed separately so a malformed line is reported as a malformed
+            # line. `json.JSONDecodeError` is a `ValueError`, so the old single
+            # `except ValueError` answered a broken request with its *Python
+            # exception text* as the error code and "音频无法识别。" as the message
+            # — true of the audio, misleading about the request.
+            try:
+                request = json.loads(line)
+            except json.JSONDecodeError:
+                raise ValueError("bad_request") from None
+
+            if not isinstance(request, dict):
+                raise ValueError("bad_request")
+
             request_id = request.get("id")
             language = request.get("language")
 
+            # Reject a request with no audio as a typed rejection rather than
+            # letting the KeyError become "transcribe_failed".
+            payload = request.get("audio")
+            if not isinstance(payload, str):
+                raise ValueError("audio_missing")
+
             decode_started = time.perf_counter()
-            audio = decode_audio(request["audio"])
+            audio = decode_audio(payload)
             decode_ms = round((time.perf_counter() - decode_started) * 1000, 1)
 
             speech_present = True
@@ -415,6 +446,8 @@ def main() -> int:
 
 
 MESSAGES = {
+    "bad_request": "请求格式无法识别。",
+    "audio_missing": "没有收到录音数据。",
     "audio_not_base64": "录音数据无法解码。",
     "audio_too_large": "录音文件过大。",
     "audio_too_long": f"录音超过 {MAX_SECONDS} 秒，请说短一点。",
