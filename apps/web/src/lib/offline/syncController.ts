@@ -29,7 +29,14 @@ import { pullConflicts, syncAll } from "./sync.js";
  * **"Permanent" was a judgement about one response at one moment**, and the server may well have changed since:
  * the category was recreated, the session was refreshed, the book was restored. **An explicit request is the
  * one moment where retrying a rejected change is free of doubt.**
+ *
+ * ⚠️ **Where that promise is kept: `retryAbandonedWrites()` in `sync.ts`, called by the refresh button
+ * (`DetailPage`'s `refresh()`) just before `syncNow()`.** For a while this comment promised it and nothing
+ * implemented it, and the owner's red rows survived every press because the "permanent" verdict lasted as
+ * long as the page did. Re-exported here so the button imports one module rather than two.
  */
+export { retryAbandonedWrites } from "./sync.js";
+
 export async function syncNow(): Promise<number> {
   /**
    * ⚠️ **S14-C: the refresh button in guest mode re-reads the guest store.** There is nothing to

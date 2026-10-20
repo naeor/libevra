@@ -53,6 +53,31 @@ const failures = new Map<string, { attempts: number; message: string; permanent:
 const MAX_ATTEMPTS = 5;
 
 /**
+ * Forget this session's "give up" verdicts, so the next run tries again.
+ *
+ * ⚠️ **Only an explicit request calls this**, and that is the whole point. The skips above are right for
+ * a background retry — a request the server keeps refusing should not be hammered — and wrong for a
+ * person standing there asking. `syncController` has promised this since it was written ("a person
+ * pressing this button is asking us to try again") without it existing, which is why the owner's red
+ * rows survived every refresh: the mark was "permanent" for the life of the page.
+ *
+ * ⚠️ **It touches the in-memory bookkeeping and nothing else.** No queue, no marks, no entries: every
+ * entry with a pending mark is examined again on the next run and its response is judged from scratch.
+ * A 4xx is still a 4xx — it will simply be *re-judged*, which is the one thing a person can ask for.
+ */
+export async function retryAbandonedWrites(): Promise<number> {
+  const abandoned = failures.size;
+
+  failures.clear();
+
+  if (abandoned > 0) {
+    await logOffline("DIAGNOSTIC:sync-retry", `手动重试：清掉 ${String(abandoned)} 条本会话的放弃记录`);
+  }
+
+  return abandoned;
+}
+
+/**
  * Turn the device's marks into the list of things to do, in the order the user sees them.
  *
  * ⚠️ **Every entry with a mark produces exactly one intent**, so a red row always has work behind it and a
@@ -309,6 +334,40 @@ async function deliver(intent: Intent): Promise<boolean> {
       await logOffline("DIAGNOSTIC:sync-conflict", `${op} ${short} — 冲突但没收到对方那一版`);
 
       return false;
+    }
+
+    /**
+     * ⚠️ **A delete that finds nothing has already done its job.**
+     *
+     * The server's `DELETE /transactions/:id` answers **404 `transaction_missing`** when the row is not
+     * there any more — and for a delete, "not there" *is* the state the user asked for. Treating it as a
+     * failure is what kept his rows red: the first attempt genuinely succeeded (204 in the API log), the
+     * response was lost while the API restarted, the retry got the 404, and **the 404 was recorded as a
+     * permanent refusal** — so the mark was never acknowledged and the row stayed red for the rest of the
+     * session, and the next session asked again and was refused again.
+     *
+     * ⚠️ **Nothing else is widened by this.** A 404 on a `create` or an `update` still means what it
+     * meant: the row this device believes in is not on the server, which is a real disagreement and must
+     * stay visible (pending) rather than be acknowledged. Only `op === "delete"`, only `404`, and only
+     * the server's own `transaction_missing` code — a bare 404 from a proxy is not evidence of anything.
+     */
+    if (
+      op === "delete" &&
+      status === 404 &&
+      error instanceof ApiRequestError &&
+      error.code === "transaction_missing"
+    ) {
+      /** ⚠️ The same in-flight guard as the success path: never acknowledge an edit made mid-request. */
+      if (JSON.stringify((await readMarks())[entry.id]) === JSON.stringify(intent.mark)) {
+        await setMark(entry.id, { deleted: true, pending: false, synced: true });
+        await republishLedger();
+      }
+
+      failures.delete(entry.id);
+
+      await logOffline("DIAGNOSTIC:sync-already-gone", `${op} ${short} — 服务器已没有这行，删除视为完成`);
+
+      return true;
     }
 
     const previous = failures.get(entry.id);
