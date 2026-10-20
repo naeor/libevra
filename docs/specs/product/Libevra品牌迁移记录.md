@@ -147,16 +147,16 @@
 |---|---|
 | **`README.md`（根，英文主文档）** | 标题、介绍段、隐私段、许可证段 + **新增"Formerly Libellum"过渡说明**与指向本文的链接 |
 | **`README.zh-CN.md`（根）** | 标题、介绍段、隐私段、许可证段 + 同上过渡说明 |
-| **`docs/README.md`（docs 目录说明）** | 份数 25→26、根目录 15→16、本文档进入清单、证书名说明（新旧两种显示名都写到） |
-| **`docs/交接.md`** | 头部新增更名说明 + 三十秒版本表「项目 = Libevra（原名 Libellum）」 |
-| **`docs/技术方案.md`** | 标题、§0 项目名行、§12 决策表第 5 条、§11.2 协议段 + **头部新增更名说明**；**§13 定名过程整节保留原样**，只在 §13.4 加一条"本节是当时事实，现状见本文"的注 |
-| **`docs/开发计划.md`** | §4 项目名行、GitHub 仓库行（标注"计划改名，尚未执行"）、§9 项目名与协议行、公开仓库行 |
+| **`docs/00-索引.md`（docs 目录说明）** | 份数 25→26、根目录 15→16、本文档进入清单、证书名说明（新旧两种显示名都写到） |
+| **`docs/04-交接.md`** | 头部新增更名说明 + 三十秒版本表「项目 = Libevra（原名 Libellum）」 |
+| **`docs/02-技术方案.md`** | 标题、§0 项目名行、§12 决策表第 5 条、§11.2 协议段 + **头部新增更名说明**；**§13 定名过程整节保留原样**，只在 §13.4 加一条"本节是当时事实，现状见本文"的注 |
+| **`docs/01-规划.md`** | §4 项目名行、GitHub 仓库行（标注"计划改名，尚未执行"）、§9 项目名与协议行、公开仓库行 |
 | **`docs/archive/logs/开发日志.md`** | **只改头部**（标题 + 项目行 + 新增更名说明 + 仓库行标注）+ **ADR-006 加"已被取代"标注并新增 ADR-006a 记这次改名**。**全部历史条目一字未改** |
 | **`docs/specs/design/文字语义与排版规范.md`** | 标题、头部"三份设计规范"句、§5.1 品牌字距行（见 §8：更正了一处把相对值写成绝对值的记载） |
 | **`docs/specs/design/颜色语义与配色规范.md`** | 标题、头部句、§0 结论句 |
 | **`docs/specs/design/布局间距与圆角规范.md`** | 标题、头部句、§0 结论句 |
 | **`docs/specs/design/颜色清单.md`** | 标题 |
-| **`docs/待办清单.md`** | 标题 |
+| **`docs/01-规划.md`** | 标题 |
 | **`docs/specs/design/海浪效果要求.md`** | 头部版本行 + **§产品要求最后一条**（原文是"未发现 Libevra 的采用记录，因此保留当前 Libellum"，**已过期，已改为现状**） |
 | **`docs/archive/misc/视觉精修验收-1.10.10.md`** | 标题（正文实测数字与结论一字未改） |
 | **`docs/changelog/1.10-1.13.md`** | §1.3.1 当前状态（版本 1.10.20、最近六版、新增"品牌"行）+ **新增 1.10.20 条目**（本文的浓缩版） |
@@ -266,7 +266,7 @@
 | **`@libellum/shared` / `@libellum/web` / `@libellum/api`** | 三个 `package.json` + `pnpm-lock.yaml` + **全部源码 import** + `tools/check-build.mjs:24` 的 `--filter` | **workspace 包名**。改它要同时改 lockfile 与几百处 import；**而 `pnpm --filter @libellum/api` 已经被文档与脚本引用**（`archive/design/S6-导出与导入-设计决定.md` 还专门记过"用 `@libellum/api` 跑 prisma 会跑错目录"） |
 | **`LIBELLUM_LAN`** | `apps/web/vite.config.ts:21`、`start-dev-lan.cmd:8` | 运行开关：**改了会静默失效**（Vite 不再监听局域网、不再起 HTTPS），症状是"手机上打不开"，很难联想到改名 |
 | **`LIBELLUM_OCR_PYTHON` / `LIBELLUM_VOICE_PYTHON`** | `apps/api/src/ocr/client.ts:38`、`voice/client.ts:46` | 解释器路径覆盖 |
-| **`LIBELLUM_WHISPER_MODEL` / `_THREADS` / `_PROMPT`** | `apps/voice/service.py:74/75/112`、`docs/README.md` | 语音模型档位/线程/提示词 |
+| **`LIBELLUM_WHISPER_MODEL` / `_THREADS` / `_PROMPT`** | `apps/voice/service.py:74/75/112`、`docs/00-索引.md` | 语音模型档位/线程/提示词 |
 | **`LIBELLUM_ORIGIN` / `LIBELLUM_CHECK_BASE`** | `tools/_layout-audit.mjs`、`_verify-layout.mjs`、`check-modules.mjs` | 只在开发工具的说明里 |
 | `libellum-2026`（本地测试账号口令） | `tools/check-export-live.mjs:31` | 本地脚本里的凭据，与品牌无关 |
 | **`libellum-v1`**（Service Worker 缓存键前缀） | `apps/web/public/sw.js:33` | **改了 = 第一次上线时抛弃本机已有的整个 shell 缓存**。而这个项目**离线优先**、用户可能正靠那份缓存打开应用；等它联网重新填回来是一次**没必要的降级**。名字只出现在 DevTools 里 |
@@ -481,7 +481,7 @@
 1. **根 `README.md` 里两个 `docs/档案/…` 链接已失效**——`docs/档案/` 在 1.10.01 已并入 `docs/archive/`，但 README 的两处链接没跟着改。（`README.zh-CN.md` 里同类链接**也是旧的**。）
    **不属于改名范围，未动**；修法是两处路径替换。
    → **✅ 已修（第二阶段）**：实际是 **7 处**（新增的链接检查器又查出了 3 处），并加了常驻检查器 `tools/check-links.mjs`。
-2. ⚠️ **`docs/交接.md` 里有明文数据库口令**（形如 `DATABASE_URL=postgresql://ledger:<真实的 28 位口令>@127.0.0.1:5432/ledger_dev?schema=public`，**已提交进 Git**）。
+2. ⚠️ **`docs/04-交接.md` 里有明文数据库口令**（形如 `DATABASE_URL=postgresql://ledger:<真实的 28 位口令>@127.0.0.1:5432/ledger_dev?schema=public`，**已提交进 Git**）。
    ⚠️ **本文档不转录那份口令**——**记录一次泄露时把口令再抄一遍，就是又泄露了一次。**
    → **✅ 已彻底处置（S12-A 复核）**：
    ① 文档改为占位符（1.10.21）；② **口令已轮换，实测旧口令被拒（`28P01`）**（1.10.21）；
@@ -546,7 +546,7 @@ GitHub 会为重命名保留**重定向**，所以旧链接仍然可用。各项
 
 ### 第 6 步（**建议尽快，与改名相邻但独立**）：**处理 §9.2 的两处既有问题**
 
-明文口令（`docs/交接.md`）与失效的目录链接（根 README 里指向那个**已经不存在**的 `docs/档案/`，目录在 1.10.01 已并入 `docs/archive/`）。
+明文口令（`docs/04-交接.md`）与失效的目录链接（根 README 里指向那个**已经不存在**的 `docs/档案/`，目录在 1.10.01 已并入 `docs/archive/`）。
 （第 6 步的待办只看一句话：**旧目录名 + 旧中文路径**，与品牌无关。）
 
 ### 📌 不需要你做的事
@@ -682,9 +682,9 @@ git remote set-url origin https://github.com/naeor/libevra.git
 |---|---|
 | **`apps/web/src/pages/AboutPage.tsx`**（**用户可见**） | `github.com/naeor/libellum` → **`github.com/naeor/libevra`**，并改写注释说明判断依据 |
 | `docs/archive/logs/开发日志.md` **头部** | 仓库地址改新；加注"**正文里的旧地址是当时的事实，GitHub 会重定向，不用改**" |
-| `docs/开发计划.md` §4 | GitHub 账号行改为新地址 + 标注"2026-10-14 由 `libellum` 更名完成"；顺带把**已过期两轮**的"GitHub CLI ⚠️ 未安装"改为**已安装并登录** |
-| `docs/开发计划.md` §9 | "公开仓库"行改为新地址 + 更名完成 |
-| `docs/交接.md` **头部** | 仓库地址、`最后更新` 版本号，以及一张"**已经做完的**"清单 |
+| `docs/01-规划.md` §4 | GitHub 账号行改为新地址 + 标注"2026-10-14 由 `libellum` 更名完成"；顺带把**已过期两轮**的"GitHub CLI ⚠️ 未安装"改为**已安装并登录** |
+| `docs/01-规划.md` §9 | "公开仓库"行改为新地址 + 更名完成 |
+| `docs/04-交接.md` **头部** | 仓库地址、`最后更新` 版本号，以及一张"**已经做完的**"清单 |
 | `docs/changelog/1.10-1.13.md` | §1.3.1 新增"代码仓库"行；新增 1.10.21 条目 |
 
 **核对过、本来就不需要改的地方**：
@@ -739,9 +739,9 @@ git remote set-url origin https://github.com/naeor/libevra.git
 | 问题 | 核实结果 |
 |---|---|
 | 是哪个环境？ | **本机开发库**（`ledger_dev` / `ledger_test`，`127.0.0.1:5432`），角色 `ledger` |
-| 是否已进公开仓库？ | ⚠️ **是。** `docs/交接.md:76`，提交 **`3f72f4e`**，且**在 `origin/main` 上可见**（实测 `git show origin/main:docs/交接.md` 命中） |
+| 是否已进公开仓库？ | ⚠️ **是。** `docs/04-交接.md:76`，提交 **`3f72f4e`**，且**在 `origin/main` 上可见**（实测 `git show origin/main:docs/04-交接.md` 命中） |
 | **是否仍然有效？** | ⚠️ **是。实测用它连上了本机 PostgreSQL 17**：库 `ledger_dev`、角色 `ledger`、**public schema 21 张表（真实账目）** |
-| 还有别的文件在用吗？ | 仓库里只有 **`docs/交接.md`** 与本文档（后者是**引用说明**，一并处理）。本机 `.env` 用的也是同一口令 |
+| 还有别的文件在用吗？ | 仓库里只有 **`docs/04-交接.md`** 与本文档（后者是**引用说明**，一并处理）。本机 `.env` 用的也是同一口令 |
 | `.env` / `.env.example` 的关系 | ✅ `.env` **已被 `.gitignore:14` 忽略**、**从未被跟踪**（`git ls-files` 里只有 `.env.example`）；`.env.example` 用的是 `CHANGE_ME` 占位符——**这一层本来就做对了** |
 | 角色权限 | `rolsuper=false`、`rolcreatedb=true`、`rolcanlogin=true`、`rolvaliduntil` 为空（**永不过期**）；库的 owner 是 `ledger` |
 
@@ -758,7 +758,7 @@ git remote set-url origin https://github.com/naeor/libevra.git
 | 3 | **实测旧口令已被拒** | **`OLD CONNECT_REJECTED 28P01`**（认证失败） |
 | 4 | **实测新口令可用** | **`NEW CONNECT_OK {"usr":"ledger","tbls":"21"}`** |
 | 5 | **更新本机 `.env`**（`DATABASE_URL` 与 `TEST_DATABASE_URL` 两处同口令） | 旧口令已不在 `.env` 中（实测 `False`） |
-| 6 | **文档改为占位符** | `docs/交接.md` 的两行连接串改为 `CHANGE_ME`，并写明"**别再去历史里找它，它已经不能用了**" |
+| 6 | **文档改为占位符** | `docs/04-交接.md` 的两行连接串改为 `CHANGE_ME`，并写明"**别再去历史里找它，它已经不能用了**" |
 | 7 | **清理** | 临时 SQL、探针脚本、`.env.bak-before-rotation`（含旧口令）全部删除 |
 
 **权限与边界（明确没做的事）**：没有删除数据库、**没有修改数据库账号本身**（只改口令）、没有覆盖 `.env` 之外任何本地配置、
