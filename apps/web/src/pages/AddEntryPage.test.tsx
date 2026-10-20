@@ -420,20 +420,30 @@ describe("AddEntryPage 第四轮（S15-C 第四轮）", () => {
     expect(pageSource).toContain('className="min-h-full pb-0!"');
   });
 
-  it("金额 36px 真的生效：用 important 工具类越过全局 input 16px 规则", () => {
+  it("金额 30px 真的生效：用 important 工具类越过全局 input 16px 规则", () => {
     const html = renderPage();
     const cardTag = /<div[^>]*data-entry-amount="card"[^>]*>/.exec(html)?.[0] ?? "";
     const amountInput = /<input[^>]*aria-label="金额"[^>]*>/.exec(html)?.[0] ?? "";
 
-    // 根因：index.css 未分层的 `input{font-size:16px}` 会胜过 @layer utilities 里的 text-4xl，
+    // 根因：index.css 未分层的 `input{font-size:16px}` 会胜过 @layer utilities 里的 text-3xl，
     // 金额曾经实际按 16px 渲染（比 ¥ 小、与 CNY 同大）。修复只在金额输入框这一处。
-    expect(amountInput).toContain("text-4xl!");
-    expect((amountInput.match(/text-4xl/g) ?? []).length).toBe(1);
+    expect(amountInput).toContain("text-3xl!");
+    expect((amountInput.match(/text-3xl/g) ?? []).length).toBe(1);
+    // 所有者 2026-10-21：36px 太大，金额保持 30px（`text-3xl`）；不得回退到 text-4xl。
+    expect(amountInput).not.toContain("text-4xl");
     // 四种字号仍并存，但整行按中线对齐，不再用基线把小的挂在大的脚下。
     expect(cardTag).toContain("items-center");
     expect(cardTag).not.toContain("items-baseline");
     expect(amountSource).toContain('className="text-2xl text-brand-dark"');
     expect(amountSource).toContain("min-h-11");
+
+    // 焦点态：只认金额输入框（`:has(input:focus-visible)`），ring 画在卡上且用 brand-soft；
+    // 不能用 focus-within——点右侧 CNY 按钮也会亮整张卡，看起来像误触发了金额焦点。
+    expect(cardTag).toContain("has-[input:focus-visible]:ring-4");
+    expect(cardTag).toContain("has-[input:focus-visible]:ring-brand-soft");
+    expect(cardTag).not.toContain("focus-within:ring");
+    // ring 是 box-shadow，不参与布局；不允许为了焦点态改边框宽度（会跳）。
+    expect(cardTag).toContain("border-2 border-brand");
   });
 
   it("四处展开箭头是同一个 Chevron，页面上不再有 ⌄/⌃ 字符", () => {
