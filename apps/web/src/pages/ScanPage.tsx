@@ -251,6 +251,9 @@ export function ScanPage(): React.JSX.Element {
       }
 
       if (route === "ask") {
+        // Put the pick step back behind the dialog: the working spinner must not
+        // keep turning while the user is answering a question.
+        setStep({ name: "pick" });
         setItems(readable);
         setBatchChoice(readable);
         return;
@@ -321,6 +324,7 @@ export function ScanPage(): React.JSX.Element {
     });
 
     if (!saveBatch(batch)) {
+      setStep({ name: "pick" });
       setError(
         "浏览器无法保存这次识别结果（可能是隐私模式或存储空间已满）。请重试，或改为逐笔核对。",
       );
