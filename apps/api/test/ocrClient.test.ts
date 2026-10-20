@@ -52,8 +52,61 @@ process.stdin.on("data", (chunk) => {
         id: request.id,
         ok: true,
         draft: { amount: "12.34", currency: "CNY", occurred_local_date: "2026-02-01", kind: "expense" },
+        page_type: "transaction-list",
+        layout_label: "微信交易列表",
+        requires_user_choice: false,
+        warnings: ["一页多笔"],
+        candidates: [{
+          candidate_id: "img" + request.image_index + "-1",
+          image_index: request.image_index,
+          amount: "12.34",
+          currency: "CNY",
+          direction: "expense",
+          occurred_local_date: "2026-02-01",
+          occurred_time: "09:15",
+          merchant: "早餐店",
+          source_platform: "WECHAT",
+          account: "零钱",
+          note: null,
+          status: "posted",
+          is_refund: false,
+          is_transfer: false,
+          serial: null,
+          issues: [{ code: "missing_time", message: "没有读出时间", field: "time" }],
+          duplicate_suspected: false,
+          duplicate_group_ids: [],
+          is_complete: true,
+          is_questionable: false,
+          raw_text: "早餐店\\n-12.34"
+        }],
         lineCount: 2,
         averageConfidence: 0.9,
+        seconds: 0.01,
+      }) + "\\n");
+    }
+    newline = buffer.indexOf("\\n");
+  }
+});
+`;
+
+/** A response from a recogniser that has not been updated for S15-B. */
+const LEGACY_ANSWER = `
+let buffer = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  let newline = buffer.indexOf("\\n");
+  while (newline !== -1) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (line !== "") {
+      const request = JSON.parse(line);
+      process.stdout.write(JSON.stringify({
+        id: request.id,
+        ok: true,
+        draft: { amount: "7.00", currency: "CNY", occurred_local_date: "2026-02-02", kind: "expense" },
+        lineCount: 1,
+        averageConfidence: 0.8,
         seconds: 0.01,
       }) + "\\n");
     }
@@ -116,6 +169,48 @@ describe("OcrService child lifecycle", () => {
     const item = await client.recognize(Buffer.from("synthetic"), 0);
     expect(item.ok).toBe(true);
     expect(item.draft?.amount).toBe("12.34");
+  });
+
+  it("maps the page type, candidates and their issues", async () => {
+    const script = await fixture(READY + ANSWER);
+    const client = service(script);
+    const item = await client.recognize(Buffer.from("synthetic"), 2);
+
+    expect(item.pageType).toBe("transaction-list");
+    expect(item.layoutLabel).toBe("微信交易列表");
+    expect(item.requiresUserChoice).toBe(false);
+    expect(item.warnings).toEqual(["一页多笔"]);
+    expect(item.candidates).toHaveLength(1);
+    expect(item.candidates[0]).toMatchObject({
+      candidateId: "img2-1",
+      imageIndex: 2,
+      amount: "12.34",
+      currency: "CNY",
+      direction: "expense",
+      merchant: "早餐店",
+      sourcePlatform: "WECHAT",
+      status: "posted",
+      isComplete: true,
+      isQuestionable: false,
+    });
+    expect(item.candidates[0]?.issues[0]).toEqual({
+      code: "missing_time",
+      message: "没有读出时间",
+      field: "time",
+    });
+  });
+
+  it("keeps a pre-S15-B response working (no page type, no candidates)", async () => {
+    const script = await fixture(READY + LEGACY_ANSWER);
+    const client = service(script);
+    const item = await client.recognize(Buffer.from("synthetic"), 0);
+
+    expect(item.ok).toBe(true);
+    expect(item.draft?.amount).toBe("7.00");
+    expect(item.pageType).toBeNull();
+    expect(item.candidates).toEqual([]);
+    expect(item.warnings).toEqual([]);
+    expect(item.requiresUserChoice).toBe(false);
   });
 
   it("honours the per-image timeout after a successful startup", async () => {

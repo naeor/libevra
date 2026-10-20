@@ -48,6 +48,11 @@ function item(overrides: Partial<OcrItemResult["draft"]> = {}, ok = true): OcrIt
     lineCount: 30,
     averageConfidence: 0.98,
     seconds: 1.2,
+    pageType: "single-detail",
+    layoutLabel: "微信支付详情",
+    requiresUserChoice: false,
+    candidates: [],
+    warnings: [],
   };
 }
 

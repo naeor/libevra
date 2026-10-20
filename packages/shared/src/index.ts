@@ -21,17 +21,29 @@ export {
   MAX_RECOGNIZE_IMAGES,
   OCR_CHANNELS,
   OCR_CHANNEL_LABELS,
+  OCR_DIRECTIONS,
+  OCR_DIRECTION_LABELS,
+  OCR_PAGE_TYPES,
+  OCR_PAGE_TYPE_LABELS,
   RECOGNIZE_MIME_TYPES,
+  ocrCandidateSchema,
   ocrChannelSchema,
+  ocrDirectionSchema,
   ocrDraftSchema,
+  ocrIssueSchema,
   ocrItemResultSchema,
+  ocrPageTypeSchema,
   recognizeResponseSchema,
 } from "./ocr.js";
 
 export type {
+  OcrCandidate,
   OcrChannel,
+  OcrDirection,
   OcrDraft,
+  OcrIssue,
   OcrItemResult,
+  OcrPageType,
   RecognizeResponse,
 } from "./ocr.js";
 

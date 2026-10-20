@@ -66,6 +66,8 @@ import { ReferralCodePage } from "./pages/ReferralCodePage.js";
 import { RegenerateRecoveryCodePage } from "./pages/RegenerateRecoveryCodePage.js";
 import { RecordPage } from "./pages/RecordPage.js";
 import { ScanPage } from "./pages/ScanPage.js";
+import { OcrOverviewPage } from "./pages/OcrOverviewPage.js";
+import { OcrReviewDetailPage } from "./pages/OcrReviewDetailPage.js";
 import { VoiceReviewPage } from "./pages/VoiceReviewPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 import { AppearancePage, PreferencesPage, SecurityPage } from "./pages/SettingsSubPages.js";
@@ -285,6 +287,9 @@ function AppRoutes(): React.JSX.Element {
         <Route path="/record" element={<RequireAuth><RecordPage /></RequireAuth>} />
         <Route path="/ledger/more" element={<RequireAuth><LedgerMorePage /></RequireAuth>} />
         <Route path="/voice/review" element={<RequireAuth><VoiceReviewPage /></RequireAuth>} />
+        {/* S15-B：批量识别结果的概览与单笔核对（数据只在浏览器临时层，确认前不写账）。 */}
+        <Route path="/ocr/overview" element={<RequireAuth><OcrOverviewPage /></RequireAuth>} />
+        <Route path="/ocr/overview/:candidateId" element={<RequireAuth><OcrReviewDetailPage /></RequireAuth>} />
       <Route path="/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
       <Route path="/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
       <Route path="/import-ledger" element={<RequireAuth><LedgerImportPage /></RequireAuth>} />
