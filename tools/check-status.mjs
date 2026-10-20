@@ -67,6 +67,23 @@ for (const f of mdFiles) {
   const text = readFileSync(f, "utf8");
   if (/当前版本\s*[:：|]\s*`?1\.\d+\.\d+/.test(text)) offenders.push(rel);
 }
+
+// ---- 路由条数断言：文档写的条数必须等于 App.tsx 实测 ----
+// 2026-10-20 之前点击树文档写"50 条"，而代码已有 67 条，且没人会发现。
+const APP_TSX = join(ROOT, "apps", "web", "src", "App.tsx");
+if (existsSync(APP_TSX)) {
+  const app = readFileSync(APP_TSX, "utf8");
+  const actualRoutes = (app.match(/<Route\b/g) || []).length;
+  for (const f of mdFiles) {
+    const rel = f.slice(ROOT.length + 1).split("\\").join("/");
+    const text = readFileSync(f, "utf8");
+    const m = text.match(/路由总表（(\d+)\s*条/);
+    if (m && Number(m[1]) !== actualRoutes) {
+      problems.push(`路由条数过期：${rel} 写「${m[1]} 条」，App.tsx 实测 ${actualRoutes} 条`);
+    }
+  }
+  notes.push(`路由 ${actualRoutes} 条`);
+}
 if (offenders.length) problems.push("以下文档仍在写「当前版本」（应改为指向 STATUS.md）：\n  - " + offenders.join("\n  - "));
 
 notes.push(`代码版本 ${codeVersion}；迁移 ${migrationCount} 个`);
