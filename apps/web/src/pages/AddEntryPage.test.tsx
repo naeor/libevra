@@ -15,6 +15,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
+import { AmountField } from "../components/entry/AmountField.js";
+import { CurrencySheet } from "../components/entry/CurrencySheet.js";
 import { EntryMoreOptions, moreOptionsSummary } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { inheritFromLastEntry, type InheritedFields } from "../components/entry/inheritLast.js";
@@ -52,6 +54,26 @@ function shownMoment(html: string): Date {
   expect(match?.[1]).toBeTruthy();
 
   return new Date(match?.[1] ?? "");
+}
+
+/** 金额框右侧的币种入口（`aria-haspopup="dialog"` 的那个按钮）整段 HTML。 */
+function currencyTrigger(html: string): string {
+  const anchor = html.indexOf('aria-haspopup="dialog"');
+
+  if (anchor < 0) return "";
+
+  return html.slice(html.lastIndexOf("<button", anchor), html.indexOf("</button>", anchor) + 9);
+}
+
+/** 含某段文字的 `<button>` 开标签（用于断言选中态 / 禁用态）。 */
+function optionTag(html: string, label: string): string {
+  const index = html.indexOf(label);
+
+  if (index < 0) return "";
+
+  const open = html.lastIndexOf("<button", index);
+
+  return html.slice(open, html.indexOf(">", open) + 1);
 }
 
 describe("AddEntryPage", () => {
@@ -126,15 +148,22 @@ describe("nextEntryFields", () => {
  * 分别渲染收起与展开两种状态，等价于点击后的结果；页面本身只断言默认收起。
  */
 describe("AddEntryPage 移动端布局（S15-C）", () => {
-  it("金额仍是可直接输入、可修改的输入框，并有一句可见提示", () => {
+  it("金额仍是可直接输入、可修改的输入框，右侧另有独立的币种按钮", () => {
     const html = renderPage();
     const amount = /<input[^>]*aria-label="金额"[^>]*>/.exec(html)?.[0] ?? "";
+    const trigger = currencyTrigger(html);
 
     expect(amount).not.toBe("");
     // react-dom/server 19 按 React 属性名输出，HTML 属性名本身大小写不敏感。
     expect(amount.toLowerCase()).toContain('inputmode="decimal"');
     expect(amount.toLowerCase()).not.toContain("readonly");
-    expect(html).toContain("点按即可修改");
+
+    // ⚠️ label 不再包裹金额行：点金额是编辑金额，点 CNY 是打开币种面板，两个点击区域独立。
+    expect(html).not.toMatch(/<label[^>]*>[\s\S]*?aria-label="金额"/);
+    expect(trigger).not.toBe("");
+    expect(trigger).toContain('type="button"');
+    expect(trigger).toContain('aria-expanded="false"');
+    expect(trigger).toContain("CNY");
   });
 
   it("顶层只有 支出/收入 两个切换，转账留在分类体系里", () => {
@@ -161,7 +190,8 @@ describe("AddEntryPage 移动端布局（S15-C）", () => {
     const barStart = html.indexOf('data-entry-actions="sticky"');
 
     expect(barTag).toContain("sticky");
-    expect(barTag).toContain("bottom-0");
+    // 第三轮起底部让出 20px 给中央 +；粘性定位本身没有变。
+    expect(barTag).toContain("bottom-5");
     expect(barStart).toBeGreaterThan(html.indexOf("更多选项"));
     expect(barStart).toBeLessThan(html.indexOf("</form>"));
     expect(html.slice(barStart, html.indexOf("</form>"))).toContain('type="submit"');
@@ -178,15 +208,30 @@ describe("AddEntryPage 移动端布局（S15-C）", () => {
     expect(html).not.toContain("标签（最多");
     // 支付方式不再是独立一段：收起时整段不在 DOM 里，只有摘要那一行。
     expect(html).not.toContain(">支付方式<");
+    // 三项都为空时，摘要用字段名提示"这里还有这些可选项"。
+    expect(html).toContain("支付方式、备注、标签");
   });
 
-  it("币种与时间压成紧凑两行后仍可编辑", () => {
+  it("币种在金额框右侧，时间仍是一行可编辑输入", () => {
     const html = renderPage();
 
-    expect(html).toMatch(/<select[^>]*aria-label="币种"[^>]*>/);
-    expect((html.match(/<option/g) ?? []).length).toBe(CURRENCIES.length);
+    // 币种不再是金额下方的一行、也不再是原生 select；时间保持原控件。
+    expect(html).not.toMatch(/<select[^>]*aria-label="币种"/);
+    expect(html).not.toContain(">币种<");
     expect(html).toMatch(/<input[^>]*type="datetime-local"/);
-    expect(html).not.toMatch(/<select[^>]*aria-label="币种"[^>]*disabled/);
+    expect(html).not.toMatch(/<input[^>]*type="datetime-local"[^>]*disabled/);
+    // 金额卡与时间卡之间没有第三张"币种与时间"卡片：币种入口就在金额卡里。
+    expect(html).toContain('data-entry-amount="card"');
+    expect(currencyTrigger(html)).toContain("CNY");
+  });
+
+  it("「点按即可修改」与「不选也可以保存」两句冗余说明已删除", () => {
+    const html = renderPage();
+
+    expect(html).not.toContain("点按即可修改");
+    expect(html).not.toContain("不选也可以保存");
+    // 文案删掉，默认分类行为不变：分类入口仍显示「暂无分类」。
+    expect(html).toContain(">暂无分类<");
   });
 
   it("高频字段在 DOM 里全部排在低频字段之前", () => {
@@ -214,15 +259,16 @@ describe("AddEntryPage 第二轮（S15-C 第二轮）", () => {
     const html = renderPage();
     const quickToggle =
       /<button[^>]*aria-controls="entry-quick-amounts"[^>]*>/.exec(html)?.[0] ?? "";
-    const amountEnd = html.indexOf('</label>');
+    const amountCard = html.indexOf('data-entry-amount="card"');
 
     expect(quickToggle).toContain('aria-expanded="false"');
     expect(html).toContain("快捷金额");
     expect(html).toContain("沿用上一笔");
     // 收起 = 五个金额按钮不在 DOM 里；展开后的结构由 EntryQuickActions 的用例覆盖。
     expect(html).not.toContain('id="entry-quick-amounts"');
-    // 这一行在金额输入框之后、分类之前。
-    expect(html.indexOf("沿用上一笔")).toBeGreaterThan(amountEnd);
+    // 这一行在金额卡之后、分类之前。
+    expect(amountCard).toBeGreaterThan(-1);
+    expect(html.indexOf("沿用上一笔")).toBeGreaterThan(amountCard);
     expect(html.indexOf("沿用上一笔")).toBeLessThan(html.indexOf(">分类<"));
   });
 
@@ -231,6 +277,174 @@ describe("AddEntryPage 第二轮（S15-C 第二轮）", () => {
 
     expect(html).not.toContain("已沿用上一笔");
     expect(html).not.toContain("这个账本还没有可沿用的记录。");
+  });
+});
+
+/**
+ * 第三轮（S15-C）：币种入口 / 选择弹层、冗余说明删除、更多选项摘要、保存条与中央 + 的留白。
+ * 仍然没有 DOM：点击之后的"打开、选中、关闭"用受控组件的两种渲染状态代替。
+ */
+describe("AddEntryPage 第三轮（S15-C 第三轮）", () => {
+  const pageSource = readFileSync(
+    fileURLToPath(new URL("./AddEntryPage.tsx", import.meta.url)),
+    "utf8",
+  );
+  const saveBarSource = readFileSync(
+    fileURLToPath(new URL("../components/entry/EntrySaveBar.tsx", import.meta.url)),
+    "utf8",
+  );
+  const bottomNavSource = readFileSync(
+    fileURLToPath(new URL("../components/BottomNav.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  it("币种按钮与金额输入并列在金额卡里，不在任何 label 的点击范围中", () => {
+    const html = renderPage();
+    const cardStart = html.indexOf('data-entry-amount="card"');
+    const card = html.slice(cardStart, html.indexOf("</div>", cardStart));
+
+    expect(cardStart).toBeGreaterThan(-1);
+    expect(card).toContain('aria-label="金额"');
+    expect(card).toContain('aria-haspopup="dialog"');
+    expect(card).not.toContain("<label");
+
+    // 页面结构里金额行是 div，不是把币种按钮吞进去的 label。
+    expect(pageSource).not.toContain('cursor-text');
+    expect(pageSource).not.toContain("点按即可修改");
+    expect(pageSource).not.toContain("不选也可以保存");
+    // 页面上不再有任何原生 select（币种是唯一一处）。
+    expect(pageSource).not.toContain("<select");
+  });
+
+  it("金额的解析与精度规则仍是原来那两处，没有被本轮改掉", () => {
+    expect(pageSource).toContain("parseAmountInput(amountText, currency)");
+    expect(pageSource).toContain("decimalsFor(currency)");
+    expect(pageSource).toContain("setAmountText(minorToInput(cents, currency))");
+    // 币种切换只写回 currency，金额文本一个字不动。
+    expect(pageSource).toMatch(/setCurrency\(next\)/);
+  });
+
+  it("保存条用条外的真实留白让开中央 +，保存按钮仍在条内", () => {
+    const html = renderPage();
+    const barTag = /<div[^>]*data-entry-actions="sticky"[^>]*>/.exec(html)?.[0] ?? "";
+
+    expect(barTag).toContain("sticky");
+    // 20px 是条外的 bottom，不再是条内不透明内边距：+ 的上半圈不再被底色盖住。
+    expect(barTag).toContain("bottom-5");
+    expect(barTag).not.toContain("bottom-0");
+    expect(barTag).toContain("z-20");
+    // 保存按钮自身的呼吸空间还在条内。
+    expect(saveBarSource).toContain('className="border-t border-line px-6 pt-3 pb-5"');
+    // 软键盘抬起时仍直接贴键盘上沿，不额外叠加 20px。
+    expect(saveBarSource).toContain("keyboardInset > 0 ? { bottom: keyboardInset } : undefined");
+  });
+
+  it("内容短于一屏时保存条也停在底部：表单撑满滚动区，尾部弹性空白推开它", () => {
+    const html = renderPage();
+
+    // `TabPage` 原有的 pb-24 是第一轮给 + 预留的尾部空白；现在由保存条自己的 bottom-5
+    // 负责，所以本页用既有的 className 入口覆盖掉（未改 Layouts.tsx）。
+    expect(html).toContain("min-h-full pb-0!");
+    // 表单纵向撑满，多余高度由保存条前面的弹性空白吸收。
+    expect(html).toContain('class="flex flex-1 flex-col"');
+    expect(html).toContain('<div aria-hidden="true" class="flex-1"></div>');
+  });
+
+  it("没有靠提高 + 的层级硬修，BottomNav 的公共语义未改", () => {
+    expect(bottomNavSource).toContain(
+      'className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"',
+    );
+    expect(bottomNavSource).toContain(
+      'className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"',
+    );
+    // 中央 + 仍是导航 z-10 内部的一个按钮，没有改成 fixed/z-30 之类。
+    expect(bottomNavSource).not.toContain("z-30");
+    expect(bottomNavSource).not.toContain("z-40");
+  });
+});
+
+describe("AmountField", () => {
+  function renderAmount(currency: Currency): string {
+    return renderToStaticMarkup(
+      <AmountField
+        amountText="12.50"
+        currency={currency}
+        currencyOpen={false}
+        inputRef={{ current: null }}
+        onAmountChange={() => undefined}
+        onOpenCurrency={() => undefined}
+      />,
+    );
+  }
+
+  it("切换币种后左侧符号与右侧代码同步", () => {
+    const cny = renderAmount("CNY");
+
+    expect(cny).toContain("¥");
+    expect(cny).toContain(">CNY<");
+
+    const usd = renderAmount("USD");
+
+    expect(usd).toContain("$");
+    expect(usd).toContain(">USD<");
+    expect(usd).not.toContain(">CNY<");
+
+    // 日元/港币这类多字符符号同样来自同一张表。
+    expect(renderAmount("JPY")).toContain("JP¥");
+  });
+
+  it("金额输入框仍可编辑，币种按钮有对话框语义", () => {
+    const html = renderAmount("CNY");
+
+    expect(html).toContain('aria-label="金额"');
+    expect(html.toLowerCase()).toContain('inputmode="decimal"');
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*aria-haspopup="dialog"/);
+    expect(html).toContain('aria-expanded="false"');
+  });
+});
+
+describe("CurrencySheet", () => {
+  function renderSheet(open: boolean, currency: Currency = "CNY"): string {
+    return renderToStaticMarkup(
+      <CurrencySheet
+        open={open}
+        currency={currency}
+        onSelect={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+  }
+
+  it("关闭时什么都不渲染；打开后列出全部币种", () => {
+    expect(renderSheet(false)).toBe("");
+
+    const html = renderSheet(true);
+
+    expect(html).toContain("选择币种");
+    expect((html.match(/role="option"/g) ?? []).length).toBe(CURRENCIES.length);
+    for (const code of CURRENCIES) {
+      expect(html).toContain(`>${code}<`);
+    }
+  });
+
+  it("当前项是选中态，其余不是", () => {
+    const html = renderSheet(true);
+
+    expect(optionTag(html, "人民币")).toContain('aria-selected="true"');
+    expect(optionTag(html, "美元")).toContain('aria-selected="false"');
+  });
+
+  it("是固定定位、带上限高度与滚动的 dialog/listbox，不会被父容器裁切", () => {
+    const html = renderSheet(true);
+
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('role="listbox"');
+    expect(html).toContain("fixed inset-0 z-40");
+    expect(html).toContain("fixed inset-x-0 bottom-0 z-50");
+    expect(html).toContain("max-h-[calc(100dvh-24px)]");
+    expect(html).toContain("overflow-y-auto");
+    expect(html).toContain("pb-[env(safe-area-inset-bottom,0px)]");
   });
 });
 
@@ -615,6 +829,8 @@ describe("EntryMoreOptions", () => {
   const paymentMethods: readonly PaymentMethod[] = [
     { id: "pm-wechat", name: "微信", isArchived: false, sortOrder: 0 },
     { id: "pm-cash", name: "现金", isArchived: false, sortOrder: 1 },
+    // 页面在没有历史交易时默认选中的那一项（`DEFAULT_PAYMENT_METHOD_NAME`）。
+    { id: "pm-other", name: "其他", isArchived: false, sortOrder: 2 },
   ];
 
   function renderPanel(
@@ -649,18 +865,31 @@ describe("EntryMoreOptions", () => {
     const closed = renderPanel(false);
 
     expect(closed).toContain('aria-expanded="false"');
-    // 摘要是「实际选中的支付方式 · 有备注 · 有标签」。
-    expect(closed).toContain("微信 · 备注 · 标签");
+    // 摘要是「实际选中的支付方式名 · 有备注 · N 个标签」。
+    expect(closed).toContain("微信 · 有备注 · 1 个标签");
     expect((closed.match(/<button/g) ?? []).length).toBe(1);
     expect(closed).not.toContain('aria-label="备注"');
     expect(closed).not.toContain("早餐");
     expect(closed).not.toContain(">支付方式<");
   });
 
-  it("什么都没填时摘要给一句兜底", () => {
-    expect(
-      renderPanel(false, { paymentMethodId: null, note: "", selectedTagIds: [] }),
-    ).toContain("可选");
+  it("什么都没填时摘要列出三个可选项，而不是留白或「可选」", () => {
+    const closed = renderPanel(false, { paymentMethodId: null, note: "", selectedTagIds: [] });
+
+    expect(closed).toContain("支付方式、备注、标签");
+    expect(closed).not.toContain("可选");
+  });
+
+  it("默认选中的支付方式也算有效值，收起时显示实际名称", () => {
+    // 「其他」是页面在默认值里选中的那一项；摘要必须显示它，而不是把三项都当空。
+    const byDefault = renderPanel(false, {
+      paymentMethodId: "pm-other",
+      note: "",
+      selectedTagIds: [],
+    });
+
+    expect(byDefault).toContain("其他");
+    expect(byDefault).not.toContain("支付方式、备注、标签");
   });
 
   it("展开后支付方式、备注与标签都能编辑，上限不变", () => {
@@ -680,15 +909,30 @@ describe("EntryMoreOptions", () => {
 });
 
 describe("moreOptionsSummary", () => {
-  it("按 支付方式 → 备注 → 标签 的顺序拼摘要", () => {
+  it("按 支付方式 → 备注 → 标签 的顺序拼摘要，空字段名只在一项都没有时出现", () => {
     expect(
-      moreOptionsSummary({ paymentMethodName: "微信", note: "午饭", tagCount: 2 }),
-    ).toBe("微信 · 备注 · 标签");
-    expect(moreOptionsSummary({ paymentMethodName: "微信", note: "", tagCount: 0 })).toBe("微信");
-    expect(moreOptionsSummary({ paymentMethodName: null, note: "午饭", tagCount: 1 })).toBe(
-      "备注 · 标签",
+      moreOptionsSummary({ paymentMethodName: "支付宝", note: "午饭", tagCount: 2 }),
+    ).toBe("支付宝 · 有备注 · 2 个标签");
+    expect(moreOptionsSummary({ paymentMethodName: "支付宝", note: "", tagCount: 0 })).toBe(
+      "支付宝",
     );
-    expect(moreOptionsSummary({ paymentMethodName: null, note: "   ", tagCount: 0 })).toBe("可选");
+    // 不把真实值与空字段名混在一起：「支付宝、备注、标签」会读成后两项也有值。
+    expect(moreOptionsSummary({ paymentMethodName: "支付宝", note: "", tagCount: 0 })).not.toContain(
+      "备注",
+    );
+    expect(moreOptionsSummary({ paymentMethodName: null, note: "午饭", tagCount: 2 })).toBe(
+      "有备注 · 2 个标签",
+    );
+    // 只有一项都没有时，才用字段名介绍"这里还有这些可选项"。
+    expect(moreOptionsSummary({ paymentMethodName: null, note: "   ", tagCount: 0 })).toBe(
+      "支付方式、备注、标签",
+    );
+  });
+
+  it("标签用数量表达，单项标签也是「1 个标签」", () => {
+    expect(moreOptionsSummary({ paymentMethodName: null, note: "", tagCount: 1 })).toBe(
+      "1 个标签",
+    );
   });
 });
 
