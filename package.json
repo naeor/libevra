@@ -18,6 +18,8 @@
     "check:build": "node tools/check-build.mjs",
     "check:docs": "node tools/check-links.mjs && node tools/doc-audit.mjs",
     "check:links": "node tools/check-links.mjs",
+    "check:status": "node tools/check-status.mjs",
+    "agent:brief": "node tools/agent-brief.mjs",
     "test": "pnpm -r test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

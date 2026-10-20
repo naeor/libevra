@@ -59,6 +59,14 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # ⚠️ 文档也会静默过期：版本号写错、链接失效、STATUS 与代码不一致，
+      # 都不会让任何单测失败。这两步把文档纳入 CI 门禁（2026-10-20 新增）。
+      - name: Docs check
+        run: pnpm check:docs
+
+      - name: Status check
+        run: pnpm check:status
+
       - name: Test
         run: pnpm test
 

@@ -1,323 +1,106 @@
-// Regenerate the readable exports of every document.
+// 生成阅读版 PDF：只产 PDF，统一输出到 docs/阅读版/（保持相对路径镜像）。
 //
-// The Markdown files are the source; `docs/*.docx` and `docs/*.pdf` are
-// generated for reading and printing, and are git-ignored. Run `pnpm docs:build`
-// after editing any of them.
+// 决策（2026-10-20，所有者确认）：Word 与 PDF 只保留其一 → **留 PDF**。
+// 理由：手机/iPad 打开最稳；`docs/*.docx` 容易被误当成"可编辑源"。
 //
-// Five things are deliberate here.
-//
-// **The generator is the project's own converters**, `tools/md2docx.py` and
-// `tools/md2pdf.py`. They need `python-docx` and `fpdf2`, and no single
-// interpreter on a given machine is guaranteed to have them — this script
-// therefore probes the likely candidates and picks the first that can actually
-// import them, rather than assuming `python` means the right one and failing
-// with a confusing traceback.
-//
-// **`-X utf8` is not decoration.** Without it, a Chinese console code page makes
-// the converters fail while printing their own progress, which looks like a
-// converter bug and is not one.
-//
-// ⚠️ **The document list is discovered, not hand-maintained.** Until 1.10.01 it
-// was a literal array, and that array had already failed twice in the same way:
-// `S8-冲突-设计决定.md` — the document carrying the entire conflict rule — was
-// missing from it *entirely*, and later three of the four newest design
-// documents had no Word version at all. **A list that must be updated by hand is
-// a list that will be out of date**, so this walks the tree instead and only
-// keeps a table of titles.
-//
-// ⚠️ **Both formats come out of the same pass.** The owner asked for it in as
-// many words: **"所有的 markdown 文件最好都有一个 word 阅读版……如果可以的话，
-// 最好还有个 PDF，PDF 读起来比 word 省心。"** There is no LibreOffice, pandoc or
-// wkhtmltopdf on this machine, so `md2pdf.py` reads the Markdown directly rather
-// than converting the `.docx` — the same reasoning `md2docx.py` records.
-//
-// **There is no PDF step that depends on an external office suite**, and the
-// stale-PDF cleanup stays: a file that looks authoritative while being wrong is
-// worse than a missing one.
-
-import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, rmSync } from "node:fs";
+// 约定：
+//   - Markdown 是唯一的源；`docs/阅读版/**` 全部是生成物，**不入库**（见 .gitignore）。
+//   - 输出路径镜像源路径：`docs/specs/design/x.md` → `docs/阅读版/specs/design/x.pdf`。
+//   - 清理：`docs/阅读版/` 下没有对应源文件的 PDF 会被删掉（陈旧比缺失更糟）。
+//   - `docs/恢复码.docx` 没有 md 源、也不由本脚本处理，**不在清理范围内**（它在 docs 根，不在 阅读版/）。
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const docs = join(root, "docs");
-const archive = join(docs, "归档");
-const docxConverter = join(root, "tools", "md2docx.py");
-const pdfConverter = join(root, "tools", "md2pdf.py");
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const DOCS = join(ROOT, "docs");
+const OUT = join(DOCS, "阅读版");
+const CONVERTER = join(ROOT, "tools", "md2pdf.py");
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "阅读版", ".venv", "__pycache__"]);
 
-/**
- * Interpreters to try, best first.
- *
- * `PYTHON` wins so anyone can point this at their own environment. The DSH
- * runtime is here because that is where this project is developed; the plain
- * names are the ordinary case on someone else's machine.
- */
-function candidates() {
+function pythonCandidates() {
   const list = [];
-  if (process.env["PYTHON"]) list.push(process.env["PYTHON"]);
-
-  const home = process.env["DSH_HOME"];
-  if (home) {
-    list.push(
-      join(home, "dsh-runtimes", "dsh-primary-runtime", "dependencies", "python", "python.exe"),
-    );
-  }
-
-  // `py -3` first on Windows: it resolves to a real install, whereas a bare
-  // `python` can be the Microsoft Store stub that opens the store instead.
+  if (process.env.PYTHON) list.push(process.env.PYTHON);
+  const home = process.env.DSH_HOME;
+  if (home) list.push(join(home, "dsh-runtimes", "dsh-primary-runtime", "dependencies", "python", "python.exe"));
   list.push("py", "python3", "python");
   return list;
 }
-
 function canImport(interpreter, module) {
   const args = interpreter === "py" ? ["-3", "-c", `import ${module}`] : ["-c", `import ${module}`];
-  try {
-    execFileSync(interpreter, args, { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
+  try { execFileSync(interpreter, args, { stdio: "ignore" }); return true; } catch { return false; }
 }
-
 function pythonFor(module) {
-  for (const candidate of candidates()) {
-    if (canImport(candidate, module)) return candidate;
+  for (const c of pythonCandidates()) {
+    try { if (canImport(c, module)) return c; } catch { /* 下一个 */ }
   }
   return null;
 }
 
-function pythonArgs(interpreter, rest) {
-  const lead = interpreter === "py" ? ["-3"] : [];
-  return [...lead, "-X", "utf8", ...rest];
+const pdfPython = pythonFor("fpdf");
+if (pdfPython === null) {
+  console.error(
+    [
+      "找不到带 fpdf2 的 Python，阅读版未生成。",
+      "在项目里装一次：pip install fpdf2",
+      "或用 DSH 自带运行时：$env:PYTHON = \"$env:DSH_HOME\\dsh-runtimes\\dsh-primary-runtime\\dependencies\\python\\python.exe\"",
+    ].join("\n"),
+  );
+  process.exit(1);
 }
+console.log(`PDF 使用解释器：${pdfPython}`);
 
-/**
- * Titles for the documents, keyed by source path relative to `docs/`.
- *
- * Anything not listed gets a title derived from its filename — which is a fine
- * default and is why this table does not have to be complete. It exists so the
- * important documents get the name the owner knows them by.
- *
- * ⚠️ **Titles follow the current brand (2026-10-14, Libellum → Libevra)**, and
- * `版本记录（1.08-1.09）.md` is the one exception worth naming: it *is* history,
- * so its title says so — the old name is the subject of that document, not a
- * stale label on a current one. See `docs/开发过程记录/Libevra品牌迁移记录.md`.
- */
-const TITLES = {
-  "README.md": "Libevra · docs 目录说明",
-  "交接.md": "Libevra · 交接：从这里开始",
-  "开发过程记录/教训.md": "Libevra · 教训",
-  "开发过程记录/版本记录（1.10-1.13）.md": "Libevra · 版本记录（1.10-1.13）",
-  "开发过程记录/版本记录（1.08-1.09）.md": "Libellum（原名）· 版本记录（1.08-1.09）· 历史存档",
-  "开发计划.md": "Libevra 制作计划与大纲",
-  "技术方案.md": "Libevra 记账应用 · 技术方案",
-  "待办清单.md": "Libevra 后期待办与想法池",
-  "开发过程记录/颜色清单.md": "Libevra · 颜色清单与语义分类",
-  "开发过程记录/开发日志.md": "Libevra 开发日志",
-  "开发过程记录/S12-C-自动备份-审计与设计.md": "Libevra · S12-C 自动备份 · 审计与设计",
-  "开发过程记录/S12-C-B-实施与配置指南.md": "Libevra · S12-C-B 自动备份 · 实施与配置指南",
-  "开发过程记录/S13-A-线上管理机制-审计与设计.md": "Libevra · S13-A 线上管理机制 · 审计与设计",
-  "开发过程记录/S13-账本级数据归属与页面重整-审计.md": "Libevra · S13-E 账本级数据归属与页面重整 · 审计",
-  "开发过程记录/2026-10-17-S13-S14-跨会话交接.md": "Libevra · 跨会话交接（S13 → S14）",
-  "开发过程记录/S14-游客模式与准入系统-设计要点.md": "Libevra · S14 游客模式与准入系统 · 设计要点",
-  "开发过程记录/S14-D-账本导入-设计草案.md": "Libevra · S14-D 账本导入 · 设计草案",
-  "开发过程记录/S14-D5阶段二-增量导入.md": "Libevra · S14-D5 阶段二 · 增量导入",
-  "开发过程记录/S14-D5阶段三-来源清理与隐私生命周期.md": "Libevra · S14-D5 阶段三 · 来源清理与隐私生命周期",
-  "开发过程记录/S14-D5阶段四-可撤销导入与账本锁.md": "Libevra · S14-D5 阶段四 · 可撤销导入与账本锁",
-  "开发过程记录/S14-D5最终可靠性加固与验收.md": "Libevra · S14-D5 最终可靠性加固与验收",
-  "开发过程记录/S14-D5生产备份隔离升级演练.md": "Libevra · S14-D5 生产备份隔离升级演练",
-  "开发过程记录/S14发布候选与生产发布Runbook.md": "Libevra · S14 发布候选与生产发布 Runbook",
-  "开发过程记录/S14-1.14.18正式更新公告.md": "Libevra · S14 1.14.18 正式更新公告",
-  "开发过程记录/S14-1.14.20正式更新公告.md": "Libevra · S14 1.14.20 正式更新公告",
-  "开发过程记录/S14-1.14.20-OCR生产修复报告.md": "Libevra · S14 1.14.20 OCR 生产修复报告",
-  "开发过程记录/S14-1.14.20-ProductionReleaseComplete.md": "Libevra · S14 1.14.20 Production Release Complete",
-  "开发过程记录/S14-V-语音性能优化阶段报告.md": "Libevra · S14-V 语音性能优化阶段报告",
-  "开发过程记录/S15-B-OCR多笔交易与概览页面-设计方向.md": "Libevra · S15-B OCR 多笔交易与概览页面设计方向",
-  "开发过程记录/S14-1.14.20-Whisper语音性能研究.md": "Libevra · S14 1.14.20 Whisper 语音性能研究",
-  "开发过程记录/Libevra未来功能构想与产品方向.md": "Libevra · 未来功能构想与产品方向",
-  "开发过程记录/理解驱动开发-学习记录.md": "Libevra · 理解驱动开发 · 学习记录",
-  "开发过程记录/S13-最终版本向S14整合交接说明.md": "Libevra · S13 最终版本向 S14 整合交接说明",
-  "开发过程记录/S14-S13整合-预检与验收记录.md": "Libevra · S14 与 S13 整合 · 预检与验收记录",
-  "开发过程记录/BUG记录.md": "Libevra · BUG 记录",
-  "开发过程记录/海浪效果要求.md": "Libevra · 海浪效果要求与实现交接",
-  "开发过程记录/管理员与权限边界-设计决定.md": "Libevra · 系统管理员与权限边界 · 设计决定",
-  "开发过程记录/S12-A上线前安全与发布准备.md": "Libevra · S12-A 上线前安全与发布准备",
-  "生产环境与运维手册.md": "Libevra · 生产环境与运维手册",
-  "生产环境日常掌控速查.md": "Libevra · 生产环境日常掌控速查",
-  "运维上手教程.md": "Libevra · 运维上手教程（零基础）",
-  "开发过程记录/部署记录-S12-B.md": "Libevra · S12-B 部署记录（已上线）",
-  "Libevra服务器部署与日常维护入门.md": "Libevra · 服务器部署与日常维护入门",
-  "开发过程记录/Libevra品牌迁移记录.md": "Libevra · 品牌迁移记录（原名 Libellum）",
-  "归档/README.md": "Libevra · 归档说明：这里的东西接近被废弃",
-  "归档/归档说明.md": "Libevra · 1.10.01 文档整理记录",
-  "归档/S6-导出与导入-设计决定.md": "Libevra S6 · 导出与导入 · 设计决定",
-  "归档/协作与多账本-设计决定.md": "Libevra · 协作与多账本 · 设计决定",
-  "归档/S8-离线写入-设计决定.md": "Libevra S8 · 离线写入 · 设计决定",
-  "归档/S8-冲突-设计决定.md": "Libevra S8 · 冲突 · 设计决定",
-  "归档/离线与同步-设计决定.md": "Libevra · 离线与同步 · 设计决定",
-  "归档/账本与协作页-设计决定.md": "Libevra · 账本与协作页 · 设计决定",
-  "归档/账本空间-展示态-设计决定.md": "Libevra · 开始页面展示态 · 设计决定",
-  "归档/邀请码-示例.md": "Libevra · 邀请码格式示例",
-};
-
-/**
- * Directories under `docs/` that hold reading reports and other working papers,
- * not documents the owner reads on a phone. Excluded on purpose, and named here
- * so the exclusion is a decision rather than an oversight.
- */
-const SKIP_DIRS = new Set(["阅读报告"]);
-
-function walk(dir) {
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name.startsWith(".")) continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (dir === archive && SKIP_DIRS.has(entry.name)) continue;
-      out.push(...walk(full));
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
-      out.push(full);
-    }
+// ---------- 收集源 ----------
+function walk(dir, out = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP_DIRS.has(e.name)) continue;
+    const full = join(dir, e.name);
+    if (e.isDirectory()) walk(full, out);
+    else if (e.name.endsWith(".md")) out.push(full);
   }
   return out;
 }
+const sources = walk(DOCS).sort();
+console.log(`发现 ${sources.length} 份 Markdown`);
 
-function titleFor(rel) {
-  if (TITLES[rel]) return TITLES[rel];
-  const base = rel.replace(/\.md$/i, "").split("/").pop();
-  return `Libevra · ${base}`;
+// ---------- 清理：输出目录里没有源的 PDF ----------
+const produced = new Set();
+for (const from of sources) {
+  produced.add(relative(DOCS, from).split("\\").join("/").replace(/\.md$/, ".pdf"));
 }
-
-/**
- * Files in `docs/` that are deliberately *not* generated.
- *
- * ⚠️ **`恢复码.docx` must stay.** It is the only document in the repository with
- * no Markdown source, it is not produced by this script, and the owner asked
- * explicitly that it be kept. Anyone tidying the folder — including an AI —
- * will read it as an orphan. It is not one.
- */
-const NEVER_DELETE = new Set(["恢复码.docx"]);
-
-const docxPython = pythonFor("docx");
-const pdfPython = pythonFor("fpdf");
-
-if (docxPython === null) {
-  console.error(
-    [
-      "找不到带 python-docx 的 Python，文档导出已跳过。",
-      "",
-      "  Markdown 才是源文件，导出件是给人阅读用的，不影响项目运行。",
-      "  要重新生成 Word 版，先装一次依赖：",
-      "",
-      "      pip install python-docx fpdf2",
-      "",
-      "  或者用环境变量指定解释器：",
-      "",
-      "      $env:PYTHON = 'C:\\path\\to\\python.exe'; pnpm docs:build",
-      "",
-    ].join("\n"),
-  );
-  process.exitCode = 1;
-} else {
-  console.log(`Word  使用解释器：${docxPython}`);
-  if (pdfPython === null) {
-    console.warn(
-      "⚠️ 找不到带 fpdf2 的 Python，PDF 已跳过（Word 仍会生成）。\n" +
-        "   装一次即可：pip install fpdf2\n",
-    );
-  } else {
-    console.log(`PDF   使用解释器：${pdfPython}`);
-  }
-
-  const sources = walk(docs).sort();
-  console.log(`发现 ${String(sources.length)} 份 Markdown。\n`);
-
-  // Every generated file this run is going to write, so that anything left over
-  // from an earlier layout can be removed. Renaming an export used to leave the
-  // old name behind looking current.
-  /**
-   * ⚠️ **阅读版跟着源文件走，不再一律堆到 `docs/` 根目录。**
-   *
-   * 所有者 2026-10-17 的原话：**"那些设计决定、版本记录之类的东西，docs 跟 PDF 也都扔进去（平时不看）"**。
-   * 根目录只留他**日常要读**的那 9 份的阅读版；过程文档的 Word/PDF 跟着进 `开发过程记录/`。
-   *
-   * ⚠️ 这条规则比"维护两份名单"可靠：**输出目录＝源文件所在目录**，
-   * 于是新增一份文档时不需要记得去改这里 —— 它自然落在该在的地方。
-   */
-  const produced = new Set();
-  for (const from of sources) {
-    const base = from.replace(/\.md$/i, "");
-    produced.add(`${base}.docx`);
-    produced.add(`${base}.pdf`);
-  }
-
-  // ⚠️ **Stale cleanup runs first, not last.** A file that looks authoritative
-  // while being wrong is worse than a missing one, and doing it after the
-  // conversions means a later failure strands them — which is what happened the
-  // first time this script ran.
-  //
-  // ⚠️ **现在递归清理所有子目录**，因为阅读版跟着源文件分散到了各层。
-  // 以前只清理根目录与 `归档/`，是那时候所有生成物都在根目录。
+if (existsSync(OUT)) {
   let removed = 0;
-  const sweep = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name.startsWith(".")) continue;
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        // `阅读报告/` 是过程产物目录，不生成也不该被扫
-        if (dir === archive && SKIP_DIRS.has(entry.name)) continue;
-        sweep(full);
-        continue;
-      }
-      if (!/\.(docx|pdf)$/i.test(entry.name)) continue;
-      // ⚠️ `恢复码.docx` 没有 Markdown 源、也不由本脚本生成，**永远不许删**。
-      if (dir === docs && NEVER_DELETE.has(entry.name)) continue;
-      if (produced.has(full)) continue;
-      rmSync(full);
-      console.log(`  – 删除已不再生成的旧产物：${relative(root, full)}`);
-      removed += 1;
+  (function clean(dir) {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) { clean(full); continue; }
+      if (!e.name.toLowerCase().endsWith(".pdf")) continue;
+      const relOut = relative(OUT, full).split("\\").join("/");
+      if (!produced.has(relOut)) { rmSync(full); removed++; }
     }
-  };
-  sweep(docs);
-  if (removed > 0) console.log("");
+  })(OUT);
+  if (removed) console.log(`清理陈旧 PDF：${removed} 份`);
+}
 
-  let failed = 0;
-
-  for (const from of sources) {
-    const rel = relative(docs, from).split("\\").join("/");
-    const title = titleFor(rel);
-    // ⚠️ 输出与源同目录、同主名 —— 见上面 `produced` 那段的长注释。
-    const base = from.replace(/\.md$/i, "");
-    const docx = `${base}.docx`;
-    const pdf = `${base}.pdf`;
-
-    try {
-      execFileSync(docxPython, pythonArgs(docxPython, [docxConverter, from, docx, "--title", title]), {
-        stdio: "inherit",
-      });
-    } catch (error) {
-      console.error(`  ✗ ${rel} → Word 生成失败：${String(error)}`);
-      failed += 1;
-    }
-
-    if (pdfPython !== null) {
-      try {
-        execFileSync(pdfPython, pythonArgs(pdfPython, [pdfConverter, from, pdf, "--title", title]), {
-          stdio: "inherit",
-        });
-      } catch (error) {
-        console.error(`  ✗ ${rel} → PDF 生成失败：${String(error)}`);
-        failed += 1;
-      }
-    }
-  }
-
-  if (failed > 0) {
-    console.error(`\n${String(failed)} 份文档生成失败。`);
-    process.exitCode = 1;
-  } else {
-    const formats = pdfPython === null ? "Word" : "Word 与 PDF";
-    console.log(`\n全部 ${String(sources.length)} 份 Markdown 已重新导出为 ${formats}。`);
+// ---------- 生成 ----------
+let ok = 0, failed = 0;
+for (const from of sources) {
+  const relMd = relative(DOCS, from).split("\\").join("/");
+  const relPdf = relMd.replace(/\.md$/, ".pdf");
+  const target = join(OUT, relPdf.split("/").join("\\"));
+  mkdirSync(dirname(target), { recursive: true });
+  const title = relMd.replace(/\.md$/, "").split("/").pop();
+  try {
+    execFileSync(pdfPython, ["-X", "utf8", CONVERTER, from, target, "--title", title], { stdio: "pipe" });
+    ok++;
+    console.log(`  ✓ ${relMd}`);
+  } catch (error) {
+    failed++;
+    console.error(`  ✗ ${relMd} → PDF 生成失败：${String(error?.stderr ?? error).slice(0, 300)}`);
   }
 }
+
+console.log(`\n完成：${ok} 份成功${failed ? `，${failed} 份失败` : ""} → docs/阅读版/`);
+console.log("提示：阅读版不入库；需要时重跑 pnpm docs:build。");
+if (failed) process.exit(1);
