@@ -615,8 +615,6 @@ export function AddEntryPage(): React.JSX.Element {
               </ul>
             ) : null}
           </div>
-
-          <p className="text-helper text-muted">不选也可以保存，会记入「{UNCATEGORISED_LABEL}」。</p>
         </section>
 
         {/*
