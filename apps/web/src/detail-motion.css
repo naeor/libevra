@@ -199,6 +199,35 @@
   transform: none;
 }
 
+/*
+ * I. The month row takes no touches outside the controls that are actually pressable.
+ *
+ * ⚠️ **The three tool buttons were unclickable in the list state, and this was the whole cause.**
+ * Measured on a real 1440×900 window (2026-10-20): `document.elementFromPoint` at the centre of
+ * 刷新 returned `div.detail-month-controls`, not the button — and a real mouse click dispatched
+ * there produced a `click` on `.detail-month-row` and none on `.detail-tools`.
+ *
+ * **Why:** this row is `position: relative` and the tools row is static, **so the month paints
+ * above the buttons** without any z-index being involved. In the list state the row is translated
+ * up onto the buttons' line (`--p-month` and the extra 13px), where its own box is 400px wide and
+ * only 16px tall while `.detail-month-controls` inside it is 32px tall — **so the row plus its
+ * overflowing strip covers y≈5..37 of the 6..42 band the buttons occupy.** The button looks right
+ * and simply is not the element receiving the click: the same class of fault as the old
+ * `SyncBanner` overlap above, one layer down.
+ *
+ * ⚠️ **The fix is to stop the row's *empty* area from intercepting, not to raise the buttons'
+ * z-index** — the same reasoning as `.detail-tools` below: a control that has to win a stacking
+ * fight to be tappable will lose the next one. The two things in this row that are actually
+ * pressable keep their own pointer events, so the month picker and the arrows behave as before.
+ */
+.detail-month-row {
+  pointer-events: none;
+}
+
+.detail-month-row .detail-month {
+  pointer-events: auto;
+}
+
 /* The caret belongs to the display state; the arrows belong to the list state. */
 .detail-caret {
   opacity: calc(1 - var(--p-arrows));

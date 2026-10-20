@@ -60,7 +60,7 @@ import { logOffline } from "../lib/offline/diagnostics.js";
 import { markPresentationSeen } from "../lib/spaceTransition.js";
 import { mergeLedgerEntries } from "../lib/ledgerView.js";
 import { syncMonth } from "../lib/offline/sync.js";
-import { syncNow } from "../lib/offline/syncController.js";
+import { pendingCount, syncNow } from "../lib/offline/syncController.js";
 import { deleteEntry, resolveConflict, updateEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
@@ -349,6 +349,16 @@ export function DetailPage(): React.JSX.Element {
     let delivered = 0;
     let pulled = 0;
     let failure: string | null = null;
+    /**
+     * ⚠️ **Counted after the attempt, so the sentence can mention what was left behind.**
+     *
+     * `syncNow` reports only how many changes went, and **a delivery can fail without throwing** — a
+     * refused request is counted rather than raised. So "delivered 0" used to reach the note as "没有待
+     * 投递的改动" while the list was still showing marked rows. This is the number that makes the two
+     * statements agree; it comes from the same queue the colours come from (`pendingIds`), so it cannot
+     * disagree with them.
+     */
+    let waiting = 0;
 
     try {
       /** ⚠️ Delivery first, so the pull below sees everything this device had to send. */
@@ -397,6 +407,20 @@ export function DetailPage(): React.JSX.Element {
         /** Diagnostics never break the button. */
       }
 
+      /**
+       * ⚠️ **What is still waiting, read from the queue rather than assumed from `delivered`.**
+       *
+       * A failed attempt that did not throw leaves `delivered` at zero, which on its own reads exactly
+       * like an empty queue. This is the fact that tells them apart, and it is the one the reader needs:
+       * the rows are still marked on screen, so the note has to account for them.
+       */
+      try {
+        waiting = guest ? 0 : await pendingCount();
+      } catch {
+        /** A queue that cannot be read must not break the refresh; the note then says less, not wrong. */
+        waiting = 0;
+      }
+
       setRefreshNote(
         refreshMessage({
           guest,
@@ -405,6 +429,7 @@ export function DetailPage(): React.JSX.Element {
           pulled,
           failed: failure !== null,
           error: failure,
+          waiting,
         }),
       );
       setRefreshing(false);

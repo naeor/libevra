@@ -23,7 +23,26 @@ export function refreshMessage(input: {
   /** True when the attempt threw before finishing. */
   readonly failed: boolean;
   readonly error: string | null;
+  /**
+   * ⚠️ **How many changes are still waiting after the attempt.**
+   *
+   * Without this the last sentence below could say "没有待投递的改动" while the list is showing rows the
+   * server has not accepted — **the delivery can fail without throwing** (a refused request is counted,
+   * not raised), so `delivered === 0` does not mean "there was nothing to send". The owner's report was
+   * exactly that pair of facts on one screen: red rows, and a refresh that reported nothing to do.
+   */
+  readonly waiting: number;
 }): string {
+  /**
+   * ⚠️ **Said in every branch where it is true**, rather than only in the empty one: changes left behind
+   * are the thing the reader needs to know, and "投递了 3 条" with four rows still waiting is just as
+   * misleading as "没有待投递的改动".
+   */
+  const waitingNote =
+    input.waiting > 0
+      ? `还有 ${String(input.waiting)} 条改动没有送到云端，已保留在本机，下次联网会继续尝试。`
+      : "";
+
   if (input.failed) {
     const reason = input.error === null || input.error === "" ? "原因不明" : input.error;
 
@@ -33,20 +52,22 @@ export function refreshMessage(input: {
   if (input.guest) return "已重新读取本机账目（游客账本没有云端可同步）。";
 
   if (input.offline && input.delivered === 0 && input.pulled === 0) {
-    return "当前离线，没能连上云端；已经重新读取了本机账目。";
+    return `当前离线，没能连上云端；已经重新读取了本机账目。${waitingNote}`;
   }
 
   if (input.delivered > 0 && input.pulled > 0) {
-    return `已向云端投递 ${String(input.delivered)} 条，并更新了当前月（${String(input.pulled)} 条来自云端）。`;
+    return `已向云端投递 ${String(input.delivered)} 条，并更新了当前月（${String(input.pulled)} 条来自云端）。${waitingNote}`;
   }
 
   if (input.delivered > 0) {
-    return `已向云端投递 ${String(input.delivered)} 条；当前月没有从云端取回新的数据。`;
+    return `已向云端投递 ${String(input.delivered)} 条；当前月没有从云端取回新的数据。${waitingNote}`;
   }
 
   if (input.pulled > 0) {
-    return `已更新当前月（${String(input.pulled)} 条来自云端）。`;
+    return `已更新当前月（${String(input.pulled)} 条来自云端）。${waitingNote}`;
   }
+
+  if (waitingNote !== "") return `已重新读取本机账目；${waitingNote}`;
 
   return "已重新读取本机账目；没有待投递的改动，也没有从云端取回新的数据。";
 }
