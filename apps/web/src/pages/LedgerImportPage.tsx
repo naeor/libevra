@@ -16,6 +16,7 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { ChevronIcon } from "../components/Icons.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { ChoiceSheet, type ChoiceSheetOption } from "../components/ui/ChoiceSheet.js";
@@ -1532,9 +1533,7 @@ function SelectionStep({
             <span className={`min-w-0 truncate ${sourceKey === "" ? "text-muted" : ""}`}>
               {sourceLabel}
             </span>
-            <span aria-hidden="true" className="shrink-0 text-muted">
-              ⌄
-            </span>
+            <ChevronIcon up={picking === "source"} className="text-muted" />
           </button>
         </div>
         {guestAvailable || sourceBooks.length > 0 ? null : (
@@ -1574,9 +1573,7 @@ function SelectionStep({
             <span className={`min-w-0 truncate ${targetId === "" ? "text-muted" : ""}`}>
               {targetLabel}
             </span>
-            <span aria-hidden="true" className="shrink-0 text-muted">
-              ⌄
-            </span>
+            <ChevronIcon up={picking === "target"} className="text-muted" />
           </button>
         </div>
 

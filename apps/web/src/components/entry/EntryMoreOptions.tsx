@@ -4,6 +4,8 @@ import {
   type Tag,
 } from "@libellum/shared";
 
+import { ChevronIcon } from "../Icons.js";
+
 /**
  * 备注、支付方式与标签：手动记账页的低频扩展区。
  *
@@ -17,10 +19,14 @@ import {
  * （微信/支付宝/银行卡/现金/其他，或用户自建），账本里没有账户实体，两者不能合并、
  * 也不能互相顶替。
  *
- * ⚠️ **收起时那一行是一份摘要，不是折叠状态的开关说明**（S15-C 第三轮改法）：
- * 选了支付方式就显示它的名字，填了备注写「有备注」，选了标签写「2 个标签」；
- * 三项都没填时列出「支付方式、备注、标签」，用字段名告诉读者这里还有这些可选项。
- * **不把真实值与空字段名混在一起**——「支付宝、备注、标签」会让人以为后两项也有值。
+ * ⚠️ **收起时那一行是一份摘要，不是折叠状态的开关说明**（S15-C 第三轮引入，第四轮改成混排）：
+ * 三项**永远都在**，已填的那一项显示它的值（支付方式名 / 「有备注」/「2 个标签」），
+ * 未填的那一项显示灰色字段名（「备注」/「标签」）作为提示。所有者要的就是这种混排：
+ * 选了支付宝、其余没填时是「支付宝 · 备注 · 标签」，一眼看出"已经有什么、还能补什么"；
+ * 不再像第三轮那样把未填项整段藏起来（只剩「支付宝」，看不出这里还能填什么），
+ * 也不再像更早那样把真实值与空字段名混成一句（「支付宝、备注、标签」读起来像后两项也有值）。
+ * **已填是正文色，未填是 muted，分隔符 muted**，颜色本身就是"哪些已经填了"。
+ *
  * 摘要由传入的值算出（`moreOptionsSummary`），组件自己不记状态——
  * 展开与否由页面持有（`open` / `onToggle`），这样「再记一笔」可以把面板重新收起，
  * 备注、标签与支付方式的值仍由页面管理。做成受控组件还有一个好处：没有 DOM 的测试环境
@@ -71,16 +77,22 @@ export function EntryMoreOptions({
           className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-canvas"
         >
           <span className="shrink-0 text-button-lg text-ink">更多选项</span>
-          {/*
-            ⚠️ **摘要在 360px 上必须能被截断。** `min-w-0` + `truncate` 让这一段收缩，
-            「更多选项」与箭头两个 `shrink-0` 保证不被挤没；自定义一个长名字的支付方式
-            也不会把行撑破。
-          */}
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 truncate text-helper text-muted">{summary}</span>
-            <span aria-hidden="true" className="shrink-0 text-muted">
-              {open ? "⌃" : "⌄"}
+            {/*
+              ⚠️ **摘要在 360px 上必须能被截断。** `min-w-0` + `truncate` 让这一段收缩，
+              「更多选项」与箭头两个 `shrink-0` 保证不被挤没；自定义一个长名字的支付方式
+              也不会把行撑破。三段都是行内元素，省略号落在整句末尾，
+              **「支付方式」这一项永远排在前面**，窄屏先丢的是后面的提示。
+            */}
+            <span data-entry-more-summary className="min-w-0 truncate text-helper">
+              {summary.map((part, index) => (
+                <span key={part.slot}>
+                  {index > 0 ? <span className="text-muted"> · </span> : null}
+                  <span className={part.filled ? "text-ink" : "text-muted"}>{part.text}</span>
+                </span>
+              ))}
             </span>
+            <ChevronIcon up={open} className="text-muted" />
           </span>
         </button>
 
@@ -167,19 +179,34 @@ export function EntryMoreOptions({
 }
 
 /**
- * 收起那一行右侧的摘要。规则（S15-C 第三轮）：
+ * 收起那一行右侧的摘要，**已填值与未填提示混排**（所有者指定的规则，S15-C 第四轮）。
  *
  * | 状态 | 摘要 |
  * |---|---|
- * | 三项都没设置 | `支付方式、备注、标签`（字段名，而不是空白或「可选」） |
- * | 选了支付方式 | 实际名称，例如 `支付宝`（默认选中的「其他」同样算有效值） |
- * | 填了备注 | `有备注` |
- * | 选了标签 | `2 个标签`（数量，不是「标签」） |
- * | 多项 | 用 ` · ` 连接，例如 `支付宝 · 有备注 · 2 个标签` |
+ * | 只选了支付宝 | `支付宝 · 备注 · 标签` |
+ * | 支付宝 + 备注 | `支付宝 · 有备注 · 标签` |
+ * | 支付宝 + 2 个标签 | `支付宝 · 备注 · 2 个标签` |
+ * | 三项都有 | `支付宝 · 有备注 · 2 个标签` |
+ * | 只有默认支付方式「其他」 | `其他 · 备注 · 标签` |
  *
- * ⚠️ **空字段名只在一项都没有时出现。** 「支付宝、备注、标签」把真实值与占位名混在
- * 一起，读起来像后两项也填了；只有全空时那句才是在介绍"这里有这些可选项"。
+ * ⚠️ **三个槽位永远在，顺序永远是 支付方式 → 备注 → 标签。** 未填的槽位用字段名当提示，
+ * 已填的槽位用值；调用方按 `filled` 上色（已填 `text-ink`、未填 `text-muted`），
+ * 所以"哪些已经填了"由颜色和文字共同表达，不需要再写一句"可填"。
+ *
+ * ⚠️ **返回结构而不是拼好的字符串。** 上色要求在同一个句子里混两种颜色；如果这里 `join`
+ * 成一个字符串，组件就只能整体染成一种颜色，或者再按字符串切一遍——两处都会慢慢和规则
+ * 对不上。返回 `{ slot, text, filled }[]` 让"哪一段是什么状态"只有一个来源。
+ * 纯函数、无 React，四种组合可以在没有 DOM 的测试里直接断言。
  */
+export interface MoreOptionsSummaryPart {
+  /** 固定槽位，用作 React key，也用来断言顺序。 */
+  readonly slot: "payment" | "note" | "tags";
+  /** 已填时是实际值（支付方式名 / 有备注 / N 个标签），未填时是字段名提示。 */
+  readonly text: string;
+  /** 这一项是否有值：决定正文色还是 muted。 */
+  readonly filled: boolean;
+}
+
 export function moreOptionsSummary({
   paymentMethodName,
   note,
@@ -188,12 +215,26 @@ export function moreOptionsSummary({
   readonly paymentMethodName: string | null;
   readonly note: string;
   readonly tagCount: number;
-}): string {
-  const parts = [
-    paymentMethodName,
-    note.trim() === "" ? null : "有备注",
-    tagCount > 0 ? `${String(tagCount)} 个标签` : null,
-  ].filter((part): part is string => part !== null && part !== "");
+}): readonly MoreOptionsSummaryPart[] {
+  const paymentName = paymentMethodName?.trim() ?? "";
+  const hasNote = note.trim() !== "";
 
-  return parts.length > 0 ? parts.join(" · ") : "支付方式、备注、标签";
+  return [
+    {
+      slot: "payment",
+      // 默认支付方式（如「其他」）也是实际值，显示它的名字，不退化成字段名。
+      text: paymentName === "" ? "支付方式" : paymentName,
+      filled: paymentName !== "",
+    },
+    {
+      slot: "note",
+      text: hasNote ? "有备注" : "备注",
+      filled: hasNote,
+    },
+    {
+      slot: "tags",
+      text: tagCount > 0 ? `${String(tagCount)} 个标签` : "标签",
+      filled: tagCount > 0,
+    },
+  ];
 }
