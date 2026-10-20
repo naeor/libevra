@@ -7,6 +7,7 @@ import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { errorMessage } from "../lib/api.js";
+import type { BackMode } from "../lib/connectivity.js";
 import { currentMonth, formatMonthLabel, shiftMonth } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
 import { fetchExport, fetchTemplate, useLedger, useLedgerMeta } from "../lib/queries.js";
@@ -33,6 +34,11 @@ import { canShareFiles, deliverFile } from "../lib/share.js";
  *
  * ⚠️ **两条路径的区别只有"数据从哪来 / 给谁"**：`/export` 与明细页的工具按钮保持原样
  * （当前账本、`useLedger()`、返回 `/`），目标模式不调用 `useLedger()`。
+ *
+ * ⚠️ **S15-C：这一页的返回是 `parent` 模式，两种入口都一样。** 导出是账本设置的子页，
+ * 但也可以从明细页的工具按钮直接进来（`/export`）。两条入口的父级都是固定的：
+ * `/books/:bookId/settings/export` → 账本设置，`/export` → 明细。**用历史会让「设置 ⇄ 导出」
+ * 互相指回去**——设置 → 导出 → 返回（设置）→ 返回（导出）——所以两条入口都声明父级模式。
  */
 
 type RangePreset = "all" | "thisMonth" | "lastMonth" | "last3" | "custom";
@@ -96,6 +102,8 @@ function ExportForCurrentLedger(): React.JSX.Element {
       categories={ledger.data?.categories ?? []}
       loading={ledger.isLoading}
       backTo="/"
+      /** ⚠️ The parent of 导出 on 明细 is the tab itself, and nothing else can be its parent. */
+      backMode="parent"
       subtitle={EXPORT_HINT}
       importTo="/import"
     />
@@ -119,6 +127,8 @@ function ExportForBook({ bookId }: { readonly bookId: string }): React.JSX.Eleme
       categories={meta.data?.categories ?? []}
       loading={meta.isLoading}
       backTo={`/books/${bookId}/settings`}
+      /** ⚠️ 账本设置的子页：返回永远是设置，不是「上一页」。 */
+      backMode="parent"
       subtitle={`正在导出「${label}」。${EXPORT_HINT}`}
       importTo={`/books/${bookId}/settings/import`}
       bookId={bookId}
@@ -131,6 +141,7 @@ function ExportView({
   categories: allCategories,
   loading,
   backTo,
+  backMode,
   subtitle,
   importTo,
   bookId,
@@ -139,6 +150,8 @@ function ExportView({
   readonly categories: readonly Category[];
   readonly loading: boolean;
   readonly backTo: string;
+  /** ⚠️ Passed through to `InnerPage`; both entries of this screen are `parent`. */
+  readonly backMode: BackMode;
   readonly subtitle: string;
   /** Where the 导入 button goes: `/import` for the current ledger, the book's own page otherwise. */
   readonly importTo: string;
@@ -236,7 +249,7 @@ function ExportView({
   }
 
   return (
-    <InnerPage title="导出账目" subtitle={subtitle} backTo={backTo}>
+    <InnerPage title="导出账目" subtitle={subtitle} backTo={backTo} backMode={backMode}>
       {error === null ? null : <Alert>{error}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
       {done === null ? null : <Alert tone="success">{done}</Alert>}
