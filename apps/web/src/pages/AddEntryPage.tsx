@@ -11,6 +11,8 @@ import { useLocation, useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { EntrySaved } from "../components/EntrySaved.js";
+import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
+import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
 import { InfoIcon } from "../components/InfoHint.js";
 import { TabPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
@@ -67,16 +69,38 @@ export function AddEntryPage(): React.JSX.Element {
 
   const amountRef = useRef<HTMLInputElement>(null);
   const defaultsApplied = useRef(false);
+  /**
+   * 滚动区本身。只交给保存行动条使用：`useKeyboardInset` 要量它的底边，
+   * 才能算出软键盘到底盖住了多少（`TabPage` 本来就把这个 ref 暴露出来了）。
+   */
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const [kind, setKind] = useState<TransactionKind>("expense");
   const [amountText, setAmountText] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  /**
+   * 「更多选项」（备注、标签）是否展开。
+   *
+   * ⚠️ **默认收起是 S15-C 的取舍**：这两项不是每笔都要填，却曾占着保存按钮上方两整段。
+   * 收起不丢能力——展开后仍是原来的输入框与标签按钮；这里只控制可见性。
+   */
+  const [moreOpen, setMoreOpen] = useState(false);
   /** Which category's ⓘ explanation is open, if any. */
   const [hintCategoryId, setHintCategoryId] = useState<string | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<Currency>("CNY");
   const [occurredAt, setOccurredAt] = useState(() => new Date());
+  /**
+   * Whether the reader has touched the 时间 field.
+   *
+   * ⚠️ **S15-C follow-up (2026-10-20): the field used to be decorative.** The submit
+   * path read the clock unconditionally, so editing the time changed nothing on the
+   * saved entry — while the comment above claimed the user's choice was kept. The
+   * default is still "now at submit" (a mount-time value would go stale); the moment
+   * the reader edits the field, their value has to win. `entryMoment` is the rule.
+   */
+  const [occurredAtTouched, setOccurredAtTouched] = useState(false);
   const [note, setNote] = useState("");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +134,11 @@ export function AddEntryPage(): React.JSX.Element {
 
   // Defaults are applied exactly once, and only after both reads have settled —
   // otherwise a click made while the data was still loading would be overwritten.
+  //
+  // ⚠️ **连续记账（S15-C E）只在这里留了位置，没有实现。** 这一版「继承上一笔」只覆盖
+  // 分类、支付方式与币种；将来若要连金额/备注/标签也继承，唯一入口应当是这里与
+  // `NextEntryFields`，而不是在提交路径上偷偷带值。本轮不新增没有使用者的 props——
+  // 一个没有消费者的开关只会腐烂。
   useEffect(() => {
     if (defaultsApplied.current || copyFrom) return;
     if (!recent.isSuccess || !ledger.isSuccess) return;
@@ -139,6 +168,9 @@ export function AddEntryPage(): React.JSX.Element {
     setCurrency(copyFrom.currency);
     setNote(copyFrom.note ?? "");
     setTagIds(copyFrom.tags.map((tag) => tag.id));
+    // 复制来的备注/标签若藏在收起的「更多选项」里，会像没有复制成功；
+    // 只有确实有内容时才展开，空白的新笔记账仍保持收起。
+    if ((copyFrom.note ?? "") !== "" || copyFrom.tags.length > 0) setMoreOpen(true);
     defaultsApplied.current = true;
   }, [copyFrom]);
 
@@ -186,11 +218,12 @@ export function AddEntryPage(): React.JSX.Element {
      * value is not now, and a default that is hours stale is not a convenience. **That staleness is what the
      * owner reported**: two evening entries filed at noon, "被放到了 19:09 和 12 点整的两个账单中间."
      *
-     * ⚠️ **An explicitly chosen time is untouched by this**, because `occurredAt` is what the field holds and
-     * the field is what the user edited. The edit screen sets it from the entry being edited for the same
-     * reason: **a time the user chose outranks any default the program would prefer.**
+     * ⚠️ **An explicitly chosen time is untouched by this**, because `occurredAtTouched`
+     * records that the reader edited the field, and `entryMoment` then returns their value
+     * instead of the clock. Without that flag the paragraphs above were a promise the code
+     * did not keep (S15-C follow-up, 2026-10-20).
      */
-    const savedAt = new Date();
+    const savedAt = entryMoment(occurredAt, occurredAtTouched, new Date());
 
     try {
       /**
@@ -298,6 +331,8 @@ export function AddEntryPage(): React.JSX.Element {
           setNote(next.note);
           setTagIds([...next.tagIds]);
           setOccurredAt(next.occurredAt);
+          setOccurredAtTouched(next.occurredAtTouched);
+          setMoreOpen(false);
           setError(null);
           setSaved(null);
         }}
@@ -306,7 +341,7 @@ export function AddEntryPage(): React.JSX.Element {
   }
 
   return (
-    <TabPage active="/add" onNavigate={(to) => void navigate(to)}>
+    <TabPage active="/add" onNavigate={(to) => void navigate(to)} scrollRef={scrollRef}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -321,16 +356,17 @@ export function AddEntryPage(): React.JSX.Element {
             * original full-width proportions. It remains in the header of 明细 / 分析 / 账本空间 /
             * 我的.
             */}
-          <div className="flex gap-2">
+          <div data-entry-kind-switch className="flex gap-2">
             {(["expense", "income"] as const).map((option) => (
               <button
                 key={option}
                 type="button"
+                aria-pressed={kind === option}
                 onClick={() => {
                   setKind(option);
                   setCategoryId(null);
                 }}
-                className={`flex-1 rounded-field py-2 text-sm font-medium transition ${
+                className={`flex-1 rounded-field py-3 text-sm font-medium transition ${
                   kind === option ? "bg-white text-brand-dark" : "bg-white/15 text-white/90"
                 }`}
               >
@@ -358,8 +394,16 @@ export function AddEntryPage(): React.JSX.Element {
           ambiguously.
         */}
         <section className="bg-canvas px-6 pt-4">
+          {/*
+            ⚠️ **「点按即可修改」不是装饰**（S15-C）。金额是这块屏幕存在的理由，但它长得像一张
+            展示卡；给出一行 12px 的提示，比把卡片改成控件样式更克制，也不用动输入框本身。
+          */}
+          <div className="flex items-baseline justify-between gap-2 pb-2">
+            <h2 className="text-helper text-muted">金额</h2>
+            <span className="text-helper text-muted">点按即可修改</span>
+          </div>
           <label
-            className="flex items-baseline gap-2 rounded-card border-2 border-brand bg-surface px-4 py-4 shadow-sm"
+            className="flex cursor-text items-baseline gap-2 rounded-card border-2 border-brand bg-surface px-4 py-4 shadow-sm"
           >
             <span className="text-2xl text-brand-dark">{currency === "CNY" ? "¥" : ""}</span>
             <input
@@ -397,12 +441,10 @@ export function AddEntryPage(): React.JSX.Element {
           ⚠️ **The rest of the form starts here.** The old markup continued a single header past the amount, so
           everything below was inside the white-on-green block; it now sits on the page background, where
           ordinary fields belong.
+
+          S15-C 的排列顺序按真实手机重排：高频核心（金额、分类、支付方式）在前，常用次级（币种、时间）
+          合成一条紧凑卡片，低频（备注、标签）收进「更多选项」，保存固定为底部的粘性行动条。
         */}
-        {error ? (
-          <div className="px-6 pt-4">
-            <Alert>{error}</Alert>
-          </div>
-        ) : null}
 
         <section className="flex flex-col gap-2 px-6 pt-5">
           <h2 className="text-helper text-muted">分类</h2>
@@ -512,95 +554,111 @@ export function AddEntryPage(): React.JSX.Element {
           </div>
         </section>
 
+        {/*
+          ⚠️ **币种与时间是「常用次级」，所以留在页面上，但不各占一整段。** 原来币种是六个胶囊
+          （360px 上要折成两行），时间是另一个整段；现在合成一张两行的卡片，各自仍然是可编辑控件：
+          币种是原生 select（手机上直接调起系统选择器），时间仍是 `datetime-local` 输入框。
+          取值、精度与提交语义一个字没变。
+        */}
         <section className="flex flex-col gap-2 px-6 pt-5">
-          <h2 className="text-helper text-muted">币种</h2>
-          <div className="flex flex-wrap gap-2">
-            {CURRENCIES.map((code) => (
-              <button
-                key={code}
-                type="button"
-                onClick={() => {
-                  setCurrency(code);
+          <div className="divide-y divide-line overflow-hidden rounded-field border border-line bg-surface">
+            <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4">
+              <label htmlFor="entry-currency" className="text-helper text-muted">
+                币种
+              </label>
+              <select
+                id="entry-currency"
+                aria-label="币种"
+                value={currency}
+                onChange={(event) => {
+                  setCurrency(event.target.value as Currency);
                 }}
-                className={`rounded-full px-4 py-2 text-sm transition ${
-                  code === currency ? "bg-brand text-white" : "bg-surface text-ink hover:bg-brand-soft"
-                }`}
+                className="min-h-11 w-full min-w-0 rounded-field bg-transparent px-2 text-right text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
               >
-                {currencyName(code)}
-              </button>
-            ))}
-          </div>
-          <p className="text-helper-relaxed text-muted">
-            金额按各币种自身的精度记录，例如日元不保留小数。
-          </p>
-        </section>
-
-        <section className="flex flex-col gap-2 px-6 pt-5">
-          <h2 className="text-helper text-muted">时间</h2>
-          <input
-            type="datetime-local"
-            step="1"
-            value={toDateTimeLocalValue(occurredAt)}
-            onChange={(event) => {
-              const parsed = fromDateTimeLocalValue(event.target.value);
-              if (parsed) setOccurredAt(parsed);
-            }}
-            className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
-          />
-        </section>
-
-        <section className="flex flex-col gap-2 px-6 pt-5">
-          <h2 className="text-helper text-muted">备注</h2>
-          <input
-            value={note}
-            onChange={(event) => {
-              setNote(event.target.value);
-            }}
-            maxLength={200}
-            placeholder="可不填"
-            className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
-          />
-        </section>
-
-        {tags.length > 0 ? (
-          <section className="flex flex-col gap-2 px-6 pt-5">
-            <h2 className="text-helper text-muted">
-              标签（最多 {String(MAX_TAGS_PER_TRANSACTION)} 个，已选 {String(tagIds.length)} 个）
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => {
-                const selected = tagIds.includes(tag.id);
-                return (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => {
-                      setTagIds((current) =>
-                        current.includes(tag.id)
-                          ? current.filter((id) => id !== tag.id)
-                          : current.length >= MAX_TAGS_PER_TRANSACTION
-                            ? current
-                            : [...current, tag.id],
-                      );
-                    }}
-                    style={selected ? { backgroundColor: tag.color, borderColor: tag.color } : undefined}
-                    className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
-                      selected ? "text-white" : "border-line bg-surface text-ink hover:bg-brand-soft"
-                    }`}
-                  >
-                    {tag.name}
-                  </button>
-                );
-              })}
+                {CURRENCIES.map((code) => (
+                  <option key={code} value={code}>
+                    {currencyName(code)}
+                  </option>
+                ))}
+              </select>
             </div>
-          </section>
-        ) : null}
 
-        <div className="flex flex-col gap-3 px-6 py-6">
+            <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4">
+              <label htmlFor="entry-time" className="text-helper text-muted">
+                时间
+              </label>
+              <input
+                id="entry-time"
+                type="datetime-local"
+                step="1"
+                aria-label="时间"
+                value={toDateTimeLocalValue(occurredAt)}
+                onChange={(event) => {
+                  const parsed = fromDateTimeLocalValue(event.target.value);
+                  if (parsed) {
+                    setOccurredAt(parsed);
+                    // From here on the field outranks the clock; see `entryMoment`.
+                    setOccurredAtTouched(true);
+                  }
+                }}
+                className="min-h-11 w-full min-w-0 rounded-field bg-transparent px-2 text-right text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
+              />
+            </div>
+          </div>
+
+          {/*
+            精度提示只在真的需要时出现（目前只有日元是 0 位小数）。原来它常驻两行，
+            讲的却是大多数币种用不上的事。
+          */}
+          {decimalsFor(currency) === 0 ? (
+            <p className="text-helper-relaxed text-muted">
+              {currencyName(currency)}不保留小数，金额按整数记录。
+            </p>
+          ) : null}
+        </section>
+
+        {/*
+          备注与标签收进「更多选项」：默认收起，展开后与原来的字段完全一致
+          （备注 200 字上限、标签 10 个上限、选中颜色都不变）。组件只负责显示，
+          `moreOpen`、`note` 与 `tagIds` 仍由本页持有——保存时读到的还是同一份状态。
+        */}
+        <EntryMoreOptions
+          open={moreOpen}
+          onToggle={() => {
+            setMoreOpen((open) => !open);
+          }}
+          note={note}
+          onNoteChange={setNote}
+          tags={tags}
+          selectedTagIds={tagIds}
+          onToggleTag={(tagId) => {
+            setTagIds((current) =>
+              current.includes(tagId)
+                ? current.filter((id) => id !== tagId)
+                : current.length >= MAX_TAGS_PER_TRANSACTION
+                  ? current
+                  : [...current, tagId],
+            );
+          }}
+        />
+
+        {/*
+          ⚠️ **保存是滚动的终点，而不是另一次滑动。** 行动条粘在滚动区底部：它在文档流里
+          （最后一块内容不会被永久盖住），底部与 BottomNav 的上沿相接，软键盘弹出时整条抬起。
+          校验错误与共享账本只读提示也放在这里——点了保存就该在原地看到原因。
+        */}
+        <EntrySaveBar scrollRef={scrollRef}>
           {sharedOfflineReadOnly ? (
-            <Alert>
-              当前离线，共享账本暂时只能查看。恢复网络后可以继续记账；之前尚未同步的改动会保留。
-            </Alert>
+            <div className="pb-3">
+              <Alert>
+                当前离线，共享账本暂时只能查看。恢复网络后可以继续记账；之前尚未同步的改动会保留。
+              </Alert>
+            </div>
+          ) : null}
+          {error ? (
+            <div className="pb-3">
+              <Alert>{error}</Alert>
+            </div>
           ) : null}
           <button
             type="submit"
@@ -609,10 +667,21 @@ export function AddEntryPage(): React.JSX.Element {
           >
             {createEntry.isPending ? "保存中…" : "保存"}
           </button>
-        </div>
+        </EntrySaveBar>
       </form>
     </TabPage>
   );
+}
+
+/**
+ * Where `save` gets the moment it records.
+ *
+ * Two cases, and only two: **the reader edited 时间** → their value, exactly;
+ * otherwise → the clock at submit, never the value captured when the screen
+ * mounted. A free function so the rule can be asserted without a browser.
+ */
+export function entryMoment(chosen: Date, touched: boolean, now: Date): Date {
+  return touched ? chosen : now;
 }
 
 /** The form fields a new entry starts from, once its moment is known. */
@@ -621,6 +690,8 @@ export interface NextEntryFields {
   readonly note: string;
   readonly tagIds: readonly string[];
   readonly occurredAt: Date;
+  /** False: the next entry starts on "now at submit" again. */
+  readonly occurredAtTouched: boolean;
 }
 
 /**
@@ -633,5 +704,5 @@ export interface NextEntryFields {
  * a free function.
  */
 export function nextEntryFields(now: Date): NextEntryFields {
-  return { amountText: "", note: "", tagIds: [], occurredAt: now };
+  return { amountText: "", note: "", tagIds: [], occurredAt: now, occurredAtTouched: false };
 }
