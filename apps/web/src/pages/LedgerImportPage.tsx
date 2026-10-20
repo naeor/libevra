@@ -24,6 +24,7 @@ import { formatMoney } from "../lib/format.js";
 import { formatTimeWithZone } from "../lib/datetime.js";
 import { DEFAULT_BOOK_NAME } from "@libellum/shared";
 import { useActivateBook, useBooks } from "../lib/queries.js";
+import { useGoBack } from "../lib/connectivity.js";
 import {
   buildNewImportTarget,
   hasLocalGuestIdentity,
@@ -290,7 +291,18 @@ export function LedgerImportPage(): React.JSX.Element {
   const sourceIsFormal = sourceBook !== null;
   const accountLabel = user === null ? "正式账号" : user.displayName.trim() === "" ? user.username : user.displayName;
   const guestAvailable = useMemo(() => hasLocalGuestIdentity(), []);
+  /**
+   * ⚠️ **离开导入页去哪里，以及"怎么离开"**（S15-C，返回循环）。
+   *
+   * `backTo` 是深链时的落点：选了目标账本就回它的设置，没选就回账本空间。
+   * ⚠️ **正常进入时不能 `navigate(backTo)`（push）**：那会在历史里再写一条设置页；
+   * 设置页的 `parent` 返回如果还 `replace` 成账本详情，详情脚下那条就仍是没被消耗的导入页，
+   * 一按 `-1` 就落回导入——导入 ⇄ 设置 ⇄ 详情 走成环。现在两边都统一走 `useGoBack` 的
+   * `parent` 语义：**有上一条历史就 pop 掉自己**（正常入口下上一条就是账本设置），
+   * 深链才用 `backTo` 兜底。配合步骤切换的 `replace`，整页只占一条历史记录。
+   */
   const backTo = target === null ? "/start" : `/books/${target.id}/settings`;
+  const goBack = useGoBack(backTo, "parent");
   const preview = useMemo(() => {
     if (snapshots === null) return null;
     const excluded = incrementalExclusions(incremental);
@@ -351,9 +363,17 @@ export function LedgerImportPage(): React.JSX.Element {
     setSearch(next, { replace });
   }
 
+  /**
+   * ⚠️ **步骤切换用 `replace`，整页只占一条历史记录。**
+   *
+   * 导入页自己是"选择 → 预览 → 核对 → 确认"的小流程，页内的「返回」负责逐步后退
+   * （见 `onBack`）。如果每一步都 push，历史里就会留下 `step=preview`、`step=select` 等
+   * 多条同一个页面的记录：从本页离开时 pop 一次只会回到上一个步骤，而不是回到打开它的
+   * 账本设置——这正是一开始复现出的返回循环的一部分。**步骤是这一页的状态，不是一个去处。**
+   */
   function goStep(next: Step): void {
     setSubmitError(null);
-    patchSearch({ step: next, group: undefined });
+    patchSearch({ step: next, group: undefined }, true);
   }
 
   function changeTarget(next: string): void {
@@ -487,7 +507,7 @@ export function LedgerImportPage(): React.JSX.Element {
     if (submitState === "submitting") return;
     if (step === "confirm") {
       if (result !== null) {
-        void navigate(backTo);
+        goBack();
         return;
       }
       if (groups.length > 0) {
@@ -505,7 +525,7 @@ export function LedgerImportPage(): React.JSX.Element {
       goStep("select");
       return;
     }
-    void navigate(backTo);
+    goBack();
   }
 
   function chooseResolution(conflict: TaxonomyConflict, action: TaxonomyResolutionAction): void {
@@ -819,7 +839,7 @@ export function LedgerImportPage(): React.JSX.Element {
         target: requestTarget.kind === "new" ? "new" : requestTarget.bookId,
         source: task.request.sourceBookId ?? "guest",
         newName: requestTarget.kind === "new" ? requestTarget.name : undefined,
-      });
+      }, true);
       await runSubmit(task.request, { targetLabel: task.targetLabel, sourceLabel: task.sourceLabel });
     } finally {
       setResumeBusy(false);
@@ -1004,7 +1024,7 @@ export function LedgerImportPage(): React.JSX.Element {
           resolutions={resolutions}
           onResolve={chooseResolution}
           onBack={() => goStep("select")}
-          onReview={() => patchSearch({ step: "review", group: "0" })}
+          onReview={() => patchSearch({ step: "review", group: "0" }, true)}
           onConfirm={() => goStep("confirm")}
           needsIncrementalReview={(incremental?.statuses ?? []).some(
             (status) =>
@@ -1079,7 +1099,7 @@ export function LedgerImportPage(): React.JSX.Element {
           onBack={() => goStep(groups.length > 0 ? "review" : "preview")}
           onFinish={() => {
             if (result !== null) dropTask(result.importId);
-            void navigate(backTo);
+            goBack();
           }}
           onOpenTarget={(bookId) => {
             if (result !== null) dropTask(result.importId);

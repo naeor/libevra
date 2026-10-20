@@ -43,8 +43,13 @@ import {
  * 一句说明。
  *
  * ⚠️ **S15-C：返回是 `parent` 模式，不是历史。** 这一页的父级永远是 `/books/:bookId`
- * （账本详情），而它自己的子页（导出）返回时也回到这里；两边都用历史就会互相指回去
+ * （账本详情），而它自己的子页（导出、导入账本）返回时也回到这里；两边都用历史就会互相指回去
  * （设置 → 导出 → 设置 → 导出）。见 `useGoBack` 的 `parent` 分支。
+ *
+ * ⚠️ **第四轮修正的是"怎么离开"**：`parent` 以前用 `replace` 把自己换成账本详情，历史里那条
+ * 被换掉的位置仍是这一页——子页（导入账本）返回时 push 的一条设置会把这条顶到前面去，
+ * 于是详情按 `-1` 会落回子页。现在 `parent` 有历史就 pop，连同这一页的记录一起消耗掉；
+ * 只有直接从地址打开（会话第一条）时才 `replace` 到父级。**目的地没变，变的是不留影子。**
  */
 export function BookSettingsPage(): React.JSX.Element {
   const { bookId = "" } = useParams<{ bookId: string }>();
@@ -237,7 +242,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
       backTo={`/books/${bookId}`}
       /**
        * ⚠️ **`parent`, not history** — see the note at the top of this file. Back from here is
-       * always 账本详情, whether the reader arrived from there, from 导出, or by deep link.
+       * always 账本详情（正常入口下就是上一条历史，pop 掉这一页即可）；深链才用 `backTo` 兜底。
        */
       backMode="parent"
     >

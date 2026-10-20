@@ -49,3 +49,28 @@ describe("账本导入的来源/目标选择", () => {
     expect(source).toContain('useState<"source" | "target" | null>(null)');
   });
 });
+
+describe("账本导入的返回", () => {
+  it("离开走统一的 useGoBack（parent 语义），不再自己 push 设置页", () => {
+    expect(source).toContain('useGoBack(backTo, "parent")');
+    expect(source).not.toContain("void navigate(backTo)");
+    // onBack（选择步的离开）与确认完成后的「完成」都必须消耗掉这一页，而不是再 push 一条。
+    expect((source.match(/goBack\(\);/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("步骤切换用 replace：整页只占一条历史记录", () => {
+    expect(source).toContain("patchSearch({ step: next, group: undefined }, true);");
+    expect(source).toContain('patchSearch({ step: "review", group: "0" }, true)');
+    expect(source).toContain('step: "confirm",');
+    // 步骤地址（step=preview / step=confirm）不允许再以 push 的方式写进历史。
+    expect(source).not.toMatch(/patchSearch\(\{[^}]*step: "confirm"[^}]*\}\);/);
+  });
+
+  it("返回目标：有目标账本就回它的设置，否则回账本空间（深链兜底）", () => {
+    expect(source).toContain('const backTo = target === null ? "/start" : `/books/${target.id}/settings`;');
+  });
+
+  it("退出保护仍在：提交中不允许离开", () => {
+    expect(source).toContain('if (submitState === "submitting") return;');
+  });
+});
