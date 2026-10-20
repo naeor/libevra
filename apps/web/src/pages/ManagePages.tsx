@@ -238,7 +238,12 @@ function ReplacementSelect({
         onChange={(event) => {
           onChange(event.target.value);
         }}
-        className="rounded-field border border-line bg-surface px-3.5 py-2.5 text-body text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+        /**
+          * ⚠️ **`text-base`（16px），不是 `text-body`。** 与同页的新建输入框一致，也回到
+          * `index.css` 的「表单控件不低于 16px」不变量（低于它时 iOS Safari 会放大整页）。
+          * 下拉比文本框小一号是最容易被忽略的一种不一致——它不报错，只是不像同一个控件。
+          */
+        className="rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
       >
         <option value="">{fallbackLabel}</option>
         {options.map((option) => (

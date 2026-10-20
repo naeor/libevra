@@ -397,7 +397,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
           rows={1}
           placeholder="写一条留言…"
           aria-label="写留言"
-          className="min-h-10 flex-1 resize-none rounded-field border border-line/70 bg-surface px-3.5 py-2.5 text-body text-ink transition outline-none placeholder:text-muted/80 focus:border-brand/60 focus:ring-4 focus:ring-brand-soft"
+          className="min-h-10 flex-1 resize-none rounded-field border border-line/70 bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand/60 focus:ring-4 focus:ring-brand-soft"
         />
 
         <button
