@@ -190,8 +190,8 @@ describe("AddEntryPage 移动端布局（S15-C）", () => {
     const barStart = html.indexOf('data-entry-actions="sticky"');
 
     expect(barTag).toContain("sticky");
-    // 第三轮起底部让出 20px 给中央 +；粘性定位本身没有变。
-    expect(barTag).toContain("bottom-5");
+    // 第四轮起保存条贴住底部导航（bottom-0），不再用 bottom-5 在条外留缝。
+    expect(barTag).toContain("bottom-0");
     expect(barStart).toBeGreaterThan(html.indexOf("更多选项"));
     expect(barStart).toBeLessThan(html.indexOf("</form>"));
     expect(html.slice(barStart, html.indexOf("</form>"))).toContain('type="submit"');
@@ -206,10 +206,14 @@ describe("AddEntryPage 移动端布局（S15-C）", () => {
     expect(toggle).toContain('aria-expanded="false"');
     expect(html).not.toContain('aria-label="备注"');
     expect(html).not.toContain("标签（最多");
-    // 支付方式不再是独立一段：收起时整段不在 DOM 里，只有摘要那一行。
-    expect(html).not.toContain(">支付方式<");
-    // 三项都为空时，摘要用字段名提示"这里还有这些可选项"。
-    expect(html).toContain("支付方式、备注、标签");
+    // 支付方式不再是独立一段：收起时那一整段（含 h3）不在 DOM 里，只有摘要那一行。
+    expect(html).not.toContain(">支付方式</h3>");
+    // 三项都为空时，摘要用三个字段名提示"这里还有这些可选项"（全部 muted）。
+    expect(html).toContain("data-entry-more-summary");
+    expect(html).toContain('<span class="text-muted">支付方式</span>');
+    expect(html).toContain('<span class="text-muted">备注</span>');
+    expect(html).toContain('<span class="text-muted">标签</span>');
+    expect(html).not.toContain("支付方式、备注、标签");
   });
 
   it("币种在金额框右侧，时间仍是一行可编辑输入", () => {
@@ -289,10 +293,6 @@ describe("AddEntryPage 第三轮（S15-C 第三轮）", () => {
     fileURLToPath(new URL("./AddEntryPage.tsx", import.meta.url)),
     "utf8",
   );
-  const saveBarSource = readFileSync(
-    fileURLToPath(new URL("../components/entry/EntrySaveBar.tsx", import.meta.url)),
-    "utf8",
-  );
   const bottomNavSource = readFileSync(
     fileURLToPath(new URL("../components/BottomNav.tsx", import.meta.url)),
     "utf8",
@@ -324,26 +324,11 @@ describe("AddEntryPage 第三轮（S15-C 第三轮）", () => {
     expect(pageSource).toMatch(/setCurrency\(next\)/);
   });
 
-  it("保存条用条外的真实留白让开中央 +，保存按钮仍在条内", () => {
-    const html = renderPage();
-    const barTag = /<div[^>]*data-entry-actions="sticky"[^>]*>/.exec(html)?.[0] ?? "";
-
-    expect(barTag).toContain("sticky");
-    // 20px 是条外的 bottom，不再是条内不透明内边距：+ 的上半圈不再被底色盖住。
-    expect(barTag).toContain("bottom-5");
-    expect(barTag).not.toContain("bottom-0");
-    expect(barTag).toContain("z-20");
-    // 保存按钮自身的呼吸空间还在条内。
-    expect(saveBarSource).toContain('className="border-t border-line px-6 pt-3 pb-5"');
-    // 软键盘抬起时仍直接贴键盘上沿，不额外叠加 20px。
-    expect(saveBarSource).toContain("keyboardInset > 0 ? { bottom: keyboardInset } : undefined");
-  });
-
   it("内容短于一屏时保存条也停在底部：表单撑满滚动区，尾部弹性空白推开它", () => {
     const html = renderPage();
 
-    // `TabPage` 原有的 pb-24 是第一轮给 + 预留的尾部空白；现在由保存条自己的 bottom-5
-    // 负责，所以本页用既有的 className 入口覆盖掉（未改 Layouts.tsx）。
+    // `TabPage` 原有的 pb-24 是第一轮给 + 预留的尾部空白；现在保存条贴住导航（bottom-0），
+    // 尾部那段不再需要，所以本页用既有的 className 入口覆盖掉（未改 Layouts.tsx）。
     expect(html).toContain("min-h-full pb-0!");
     // 表单纵向撑满，多余高度由保存条前面的弹性空白吸收。
     expect(html).toContain('class="flex flex-1 flex-col"');
@@ -360,6 +345,152 @@ describe("AddEntryPage 第三轮（S15-C 第三轮）", () => {
     // 中央 + 仍是导航 z-10 内部的一个按钮，没有改成 fixed/z-30 之类。
     expect(bottomNavSource).not.toContain("z-30");
     expect(bottomNavSource).not.toContain("z-40");
+  });
+});
+
+/**
+ * 第四轮（S15-C）：金额对齐、保存栏与底部 Tab 无缝、统一 Chevron、摘要混排。
+ *
+ * ⚠️ **仍然没有 DOM**：这里断言的是渲染出来的结构与源码约定；"真的对齐/真的无缝"
+ * 由本轮的真实渲染验收（headless Chrome 的 `getBoundingClientRect`/`elementFromPoint`）
+ * 证明，两者缺一不可——结构对但层叠错，截图里才看得见。
+ */
+describe("AddEntryPage 第四轮（S15-C 第四轮）", () => {
+  const pageSource = readFileSync(
+    fileURLToPath(new URL("./AddEntryPage.tsx", import.meta.url)),
+    "utf8",
+  );
+  const saveBarSource = readFileSync(
+    fileURLToPath(new URL("../components/entry/EntrySaveBar.tsx", import.meta.url)),
+    "utf8",
+  );
+  const bottomNavSource = readFileSync(
+    fileURLToPath(new URL("../components/BottomNav.tsx", import.meta.url)),
+    "utf8",
+  );
+  const layoutsSource = readFileSync(
+    fileURLToPath(new URL("../components/Layouts.tsx", import.meta.url)),
+    "utf8",
+  );
+  const amountSource = readFileSync(
+    fileURLToPath(new URL("../components/entry/AmountField.tsx", import.meta.url)),
+    "utf8",
+  );
+  const moreOptionsSource = readFileSync(
+    fileURLToPath(new URL("../components/entry/EntryMoreOptions.tsx", import.meta.url)),
+    "utf8",
+  );
+  const quickActionsSource = readFileSync(
+    fileURLToPath(new URL("../components/entry/EntryQuickActions.tsx", import.meta.url)),
+    "utf8",
+  );
+  const iconsSource = readFileSync(
+    fileURLToPath(new URL("../components/Icons.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  it("保存条贴住底部导航：条的下边缘就是导航上沿，不再用 bottom-5 留缝", () => {
+    const html = renderPage();
+    const barTag = /<div[^>]*data-entry-actions="sticky"[^>]*>/.exec(html)?.[0] ?? "";
+
+    expect(barTag).toContain("sticky");
+    expect(barTag).toContain("bottom-0");
+    expect(barTag).not.toContain("bottom-5");
+    // 条内保留 20px 不透明底垫：+ 压在这块留白上，保存按钮的下缘仍在它上面。
+    expect(saveBarSource).toContain('className="border-t border-line px-6 pt-3 pb-5"');
+    expect(saveBarSource).toContain("bg-canvas");
+    // 软键盘抬起时贴键盘上沿，不再额外叠加 20px。
+    expect(saveBarSource).toContain("keyboardInset > 0 ? { bottom: keyboardInset } : undefined");
+  });
+
+  it("+ 画在保存条之上靠层叠顺序：保存条 z-0 低于导航 z-10", () => {
+    expect(saveBarSource).toContain("sticky bottom-0 z-0");
+    expect(saveBarSource).not.toContain("z-20");
+    expect(bottomNavSource).toContain(
+      'className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"',
+    );
+    // 没有把 + 抬到 z-30/z-40 来压过保存条。
+    expect(bottomNavSource).not.toContain("z-30");
+    expect(bottomNavSource).not.toContain("z-40");
+
+    // 公共层没被改：TabPage 仍保留 pb-24，页面用既有 className 覆盖；没有保存条的定位补丁。
+    expect(layoutsSource).toContain("mx-auto flex w-full max-w-md flex-col pb-24");
+    expect(layoutsSource).not.toContain("data-entry-actions");
+    expect(layoutsSource).not.toContain("bottom-5");
+    expect(pageSource).toContain('className="min-h-full pb-0!"');
+  });
+
+  it("金额 36px 真的生效：用 important 工具类越过全局 input 16px 规则", () => {
+    const html = renderPage();
+    const cardTag = /<div[^>]*data-entry-amount="card"[^>]*>/.exec(html)?.[0] ?? "";
+    const amountInput = /<input[^>]*aria-label="金额"[^>]*>/.exec(html)?.[0] ?? "";
+
+    // 根因：index.css 未分层的 `input{font-size:16px}` 会胜过 @layer utilities 里的 text-4xl，
+    // 金额曾经实际按 16px 渲染（比 ¥ 小、与 CNY 同大）。修复只在金额输入框这一处。
+    expect(amountInput).toContain("text-4xl!");
+    expect((amountInput.match(/text-4xl/g) ?? []).length).toBe(1);
+    // 四种字号仍并存，但整行按中线对齐，不再用基线把小的挂在大的脚下。
+    expect(cardTag).toContain("items-center");
+    expect(cardTag).not.toContain("items-baseline");
+    expect(amountSource).toContain('className="text-2xl text-brand-dark"');
+    expect(amountSource).toContain("min-h-11");
+  });
+
+  it("四处展开箭头是同一个 Chevron，页面上不再有 ⌄/⌃ 字符", () => {
+    const html = renderPage();
+
+    expect(html).not.toContain("⌄");
+    expect(html).not.toContain("⌃");
+
+    const chevrons = html.match(/<svg[^>]*data-chevron="down"[^>]*>/g) ?? [];
+    // 币种按钮 / 快捷金额 / 分类 / 更多选项。
+    expect(chevrons.length).toBe(4);
+    for (const tag of chevrons) {
+      expect(tag).toContain('viewBox="0 0 24 24"');
+      expect(tag).toContain('width="14"');
+      expect(tag).toContain('height="14"');
+      expect(tag).toContain('stroke-width="1.8"');
+    }
+
+    for (const source of [pageSource, amountSource, moreOptionsSource, quickActionsSource]) {
+      expect(source).not.toContain("⌄");
+      expect(source).not.toContain("⌃");
+    }
+
+    // 只有一个组件画它，且只有一条 path。
+    expect(iconsSource).toContain("export function ChevronIcon");
+    expect((iconsSource.match(/data-chevron=/g) ?? []).length).toBe(1);
+    expect((iconsSource.match(/m6 9 6 6 6-6/g) ?? []).length).toBe(1);
+  });
+
+  it("展开/收起只有方向类不同：同一个 SVG、同一个布局盒", () => {
+    function renderAmount(currencyOpen: boolean): string {
+      return renderToStaticMarkup(
+        <AmountField
+          amountText=""
+          currency="CNY"
+          currencyOpen={currencyOpen}
+          inputRef={{ current: null }}
+          onAmountChange={() => undefined}
+          onOpenCurrency={() => undefined}
+        />,
+      );
+    }
+
+    const closed = /<svg[^>]*data-chevron="down"[^>]*>/.exec(renderAmount(false))?.[0] ?? "";
+    const open = /<svg[^>]*data-chevron="up"[^>]*>/.exec(renderAmount(true))?.[0] ?? "";
+
+    expect(closed).not.toBe("");
+    expect(open).not.toBe("");
+    // 去掉方向（class 里的旋转 + data-chevron）后属性完全一样：
+    // 尺寸/画布/线条都不随方向变，布局盒因此一样。
+    const normalize = (tag: string): string =>
+      tag.replace(/ class="[^"]*"/, "").replace(/ data-chevron="(up|down)"/, "");
+    expect(normalize(open)).toBe(normalize(closed));
+    expect(closed).not.toContain("-rotate-180");
+    expect(open).toContain("-rotate-180");
+    expect(open).toContain('width="14"');
+    expect(open).toContain('height="14"');
   });
 });
 
@@ -861,26 +992,45 @@ describe("EntryMoreOptions", () => {
     );
   }
 
-  it("收起时不渲染字段，只给一行摘要", () => {
+  it("收起时不渲染字段，只给一行摘要：已填值是正文色", () => {
     const closed = renderPanel(false);
 
     expect(closed).toContain('aria-expanded="false"');
-    // 摘要是「实际选中的支付方式名 · 有备注 · N 个标签」。
-    expect(closed).toContain("微信 · 有备注 · 1 个标签");
+    // 摘要是「已填值 · 未填提示」混排：三项都有值时三段都是正文色。
+    expect(closed).toContain('<span class="text-ink">微信</span>');
+    expect(closed).toContain('<span class="text-ink">有备注</span>');
+    expect(closed).toContain('<span class="text-ink">1 个标签</span>');
+    expect(closed).toContain('<span class="text-muted"> · </span>');
     expect((closed.match(/<button/g) ?? []).length).toBe(1);
     expect(closed).not.toContain('aria-label="备注"');
     expect(closed).not.toContain("早餐");
-    expect(closed).not.toContain(">支付方式<");
   });
 
-  it("什么都没填时摘要列出三个可选项，而不是留白或「可选」", () => {
+  it("只填支付方式时，未填的两项以灰色字段名留在句子里", () => {
+    const closed = renderPanel(false, {
+      paymentMethodId: "pm-wechat",
+      note: "",
+      selectedTagIds: [],
+    });
+
+    expect(closed).toContain('<span class="text-ink">微信</span>');
+    expect(closed).toContain('<span class="text-muted">备注</span>');
+    expect(closed).toContain('<span class="text-muted">标签</span>');
+    // 既不是第三轮那种只剩「微信」，也不是更早的「微信、备注、标签」。
+    expect(closed).not.toContain("支付方式、备注、标签");
+  });
+
+  it("什么都没填时三个字段名都在，且都是 muted", () => {
     const closed = renderPanel(false, { paymentMethodId: null, note: "", selectedTagIds: [] });
 
-    expect(closed).toContain("支付方式、备注、标签");
+    expect(closed).toContain('<span class="text-muted">支付方式</span>');
+    expect(closed).toContain('<span class="text-muted">备注</span>');
+    expect(closed).toContain('<span class="text-muted">标签</span>');
+    expect(closed).not.toContain('<span class="text-ink">');
     expect(closed).not.toContain("可选");
   });
 
-  it("默认选中的支付方式也算有效值，收起时显示实际名称", () => {
+  it("默认选中的支付方式也算有效值，显示实际名称而不是字段名", () => {
     // 「其他」是页面在默认值里选中的那一项；摘要必须显示它，而不是把三项都当空。
     const byDefault = renderPanel(false, {
       paymentMethodId: "pm-other",
@@ -888,8 +1038,31 @@ describe("EntryMoreOptions", () => {
       selectedTagIds: [],
     });
 
-    expect(byDefault).toContain("其他");
-    expect(byDefault).not.toContain("支付方式、备注、标签");
+    expect(byDefault).toContain('<span class="text-ink">其他</span>');
+    expect(byDefault).not.toContain('<span class="text-muted">支付方式</span>');
+  });
+
+  it("摘要窄屏可收缩：min-w-0 + truncate，支付方式排在最前", () => {
+    const closed = renderPanel(false);
+    const summaryTag = /<span[^>]*data-entry-more-summary[^>]*>/.exec(closed)?.[0] ?? "";
+
+    expect(summaryTag).toContain("min-w-0");
+    expect(summaryTag).toContain("truncate");
+    // 顺序固定：支付方式在最前，窄屏先丢的是后面的提示。
+    expect(closed.indexOf(">微信<")).toBeGreaterThan(-1);
+    expect(closed.indexOf(">微信<")).toBeLessThan(closed.indexOf(">有备注<"));
+  });
+
+  it("展开/收起是同一个 SVG：只有方向类不同，布局盒一样", () => {
+    const closedChevron = /<svg[^>]*data-chevron="down"[^>]*>/.exec(renderPanel(false))?.[0] ?? "";
+    const openChevron = /<svg[^>]*data-chevron="up"[^>]*>/.exec(renderPanel(true))?.[0] ?? "";
+
+    expect(closedChevron).not.toBe("");
+    expect(openChevron).not.toBe("");
+    const normalize = (tag: string): string =>
+      tag.replace(/ class="[^"]*"/, "").replace(/ data-chevron="(up|down)"/, "");
+    expect(normalize(openChevron)).toBe(normalize(closedChevron));
+    expect(openChevron).toContain("-rotate-180");
   });
 
   it("展开后支付方式、备注与标签都能编辑，上限不变", () => {
@@ -909,28 +1082,76 @@ describe("EntryMoreOptions", () => {
 });
 
 describe("moreOptionsSummary", () => {
-  it("按 支付方式 → 备注 → 标签 的顺序拼摘要，空字段名只在一项都没有时出现", () => {
+  const texts = (parts: ReturnType<typeof moreOptionsSummary>): string[] =>
+    parts.map((part) => part.text);
+  const filled = (parts: ReturnType<typeof moreOptionsSummary>): boolean[] =>
+    parts.map((part) => part.filled);
+
+  it("所有者给的四条规则：已填值 + 未填提示混排，顺序固定", () => {
+    // 只选支付宝。
+    const onlyPayment = moreOptionsSummary({
+      paymentMethodName: "支付宝",
+      note: "",
+      tagCount: 0,
+    });
+    expect(texts(onlyPayment)).toEqual(["支付宝", "备注", "标签"]);
+    expect(filled(onlyPayment)).toEqual([true, false, false]);
+
+    // 支付宝 + 备注。
+    const withNote = moreOptionsSummary({
+      paymentMethodName: "支付宝",
+      note: "午饭",
+      tagCount: 0,
+    });
+    expect(texts(withNote)).toEqual(["支付宝", "有备注", "标签"]);
+    expect(filled(withNote)).toEqual([true, true, false]);
+
+    // 支付宝 + 2 个标签。
+    const withTags = moreOptionsSummary({
+      paymentMethodName: "支付宝",
+      note: "",
+      tagCount: 2,
+    });
+    expect(texts(withTags)).toEqual(["支付宝", "备注", "2 个标签"]);
+    expect(filled(withTags)).toEqual([true, false, true]);
+
+    // 三项都有。
+    const all = moreOptionsSummary({ paymentMethodName: "支付宝", note: "午饭", tagCount: 2 });
+    expect(texts(all)).toEqual(["支付宝", "有备注", "2 个标签"]);
+    expect(filled(all)).toEqual([true, true, true]);
+  });
+
+  it("槽位顺序与 key 固定为 支付方式 → 备注 → 标签", () => {
     expect(
-      moreOptionsSummary({ paymentMethodName: "支付宝", note: "午饭", tagCount: 2 }),
-    ).toBe("支付宝 · 有备注 · 2 个标签");
-    expect(moreOptionsSummary({ paymentMethodName: "支付宝", note: "", tagCount: 0 })).toBe(
-      "支付宝",
-    );
-    // 不把真实值与空字段名混在一起：「支付宝、备注、标签」会读成后两项也有值。
-    expect(moreOptionsSummary({ paymentMethodName: "支付宝", note: "", tagCount: 0 })).not.toContain(
-      "备注",
-    );
-    expect(moreOptionsSummary({ paymentMethodName: null, note: "午饭", tagCount: 2 })).toBe(
-      "有备注 · 2 个标签",
-    );
-    // 只有一项都没有时，才用字段名介绍"这里还有这些可选项"。
-    expect(moreOptionsSummary({ paymentMethodName: null, note: "   ", tagCount: 0 })).toBe(
-      "支付方式、备注、标签",
-    );
+      moreOptionsSummary({ paymentMethodName: null, note: "", tagCount: 0 }).map(
+        (part) => part.slot,
+      ),
+    ).toEqual(["payment", "note", "tags"]);
+  });
+
+  it("没有支付方式时用字段名占位，不是空白", () => {
+    const parts = moreOptionsSummary({ paymentMethodName: null, note: "午饭", tagCount: 2 });
+
+    expect(texts(parts)).toEqual(["支付方式", "有备注", "2 个标签"]);
+    expect(filled(parts)).toEqual([false, true, true]);
+  });
+
+  it("默认支付方式「其他」按已填处理，显示实际名称", () => {
+    const parts = moreOptionsSummary({ paymentMethodName: "其他", note: "", tagCount: 0 });
+
+    expect(texts(parts)).toEqual(["其他", "备注", "标签"]);
+    expect(filled(parts)).toEqual([true, false, false]);
+  });
+
+  it("空备注（含纯空白）不算填了，0 个标签显示提示", () => {
+    const parts = moreOptionsSummary({ paymentMethodName: "支付宝", note: "   ", tagCount: 0 });
+
+    expect(texts(parts)).toEqual(["支付宝", "备注", "标签"]);
+    expect(filled(parts)).toEqual([true, false, false]);
   });
 
   it("标签用数量表达，单项标签也是「1 个标签」", () => {
-    expect(moreOptionsSummary({ paymentMethodName: null, note: "", tagCount: 1 })).toBe(
+    expect(texts(moreOptionsSummary({ paymentMethodName: null, note: "", tagCount: 1 }))[2]).toBe(
       "1 个标签",
     );
   });

@@ -16,6 +16,7 @@ import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
 import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/inheritLast.js";
+import { ChevronIcon } from "../components/Icons.js";
 import { InfoIcon } from "../components/InfoHint.js";
 import { TabPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
@@ -422,15 +423,16 @@ export function AddEntryPage(): React.JSX.Element {
       onNavigate={(to) => void navigate(to)}
       scrollRef={scrollRef}
       /**
-       * ⚠️ **第三轮：让表单撑满滚动视口，并把 `TabPage` 的 `pb-24` 让给保存条自己。**
+       * ⚠️ **第四轮：让表单撑满滚动视口，并把 `TabPage` 的 `pb-24` 让给保存条自己。**
        *
        * `pb-24`（96px）是第一轮给"抬起的 +"预留的尾部空白。它有两个后果：内容短于一屏时
        * 保存条落在内容之后、离底栏还很远；内容长时滚到底部保存条又会突然抬升 96px。
-       * 现在保存条自己用 `bottom-5` 让出 20px，尾部那段就不再需要——这里用 `pb-0!` 只覆盖
-       * **本页**（`className` 是 `TabPage` 的既有入口，没有改 `Layouts.tsx`）。
+       * 第四轮把保存条改成 `sticky bottom-0`（贴着底栏、靠 z 序让 + 压在上面），
+       * 尾部那段空白不再需要——这里用 `pb-0!` 只覆盖**本页**（`className` 是 `TabPage`
+       * 的既有入口，没有改 `Layouts.tsx`）。
        *
-       * `min-h-full` + 表单 `flex-1` 让内容短时表单仍然铺满滚动区，保存条才会始终停在
-       * 底栏上方 20px；长内容时 `flex-1` 的 `min-height:auto` 不会压缩表单，滚动行为不变。
+       * `min-h-full` + 表单 `flex-1` 让内容短时表单仍然铺满滚动区，保存条才会始终贴住
+       * 底栏；长内容时 `flex-1` 的 `min-height:auto` 不会压缩表单，滚动行为不变。
        */
       className="min-h-full pb-0!"
     >
@@ -565,9 +567,8 @@ export function AddEntryPage(): React.JSX.Element {
               <span className="text-button-lg text-ink">
                 {selectedCategory?.name ?? UNCATEGORISED_LABEL}
               </span>
-              <span className="text-muted" aria-hidden="true">
-                {categoryOpen ? "⌃" : "⌄"}
-              </span>
+              {/* 与币种、快捷金额、更多选项同一个 Chevron：同一个 SVG，展开时旋转 180°。 */}
+              <ChevronIcon up={categoryOpen} className="text-muted" />
             </button>
 
             {categoryOpen ? (
@@ -680,9 +681,9 @@ export function AddEntryPage(): React.JSX.Element {
           （支付方式仍是那组胶囊、归档过滤与默认值不变；备注 200 字上限、标签 10 个上限、
           选中颜色都不变）。**支付方式不是账户**，它只是「这笔钱怎么付的」，两者不合并。
           组件只负责显示，`moreOpen`、`paymentMethodId`、`note` 与 `tagIds` 仍由本页持有——
-          保存时读到的还是同一份状态。收起时那一行显示摘要（实际选中的支付方式名 ·
-          有备注 · N 个标签；什么都没填时列出这三个可选项），
-          所以沿用或复制进来的内容不用展开也看得见。
+          保存时读到的还是同一份状态。收起时那一行是**已填值 + 未填提示**的混排
+          （`支付宝 · 有备注 · 2 个标签`；未填的那项用灰色字段名占位），
+          所以沿用或复制进来的内容不用展开也看得见，还能看出这里剩下什么可填。
         */}
         <EntryMoreOptions
           open={moreOpen}
@@ -708,14 +709,15 @@ export function AddEntryPage(): React.JSX.Element {
         />
 
         {/*
-          ⚠️ **这一块弹性空白把保存条推到底部**（第三轮）。内容短于一屏时它吃掉多余高度，
-          保存条因此仍停在底栏上方；内容长时它是 0 高，保存条的 `mt-5` 仍给出同样的间距。
+          ⚠️ **这一块弹性空白把保存条推到底部**（第四轮）。内容短于一屏时它吃掉多余高度，
+          保存条因此仍贴住底栏；内容长时它是 0 高，保存条的 `mt-5` 仍给出同样的间距。
         */}
         <div aria-hidden="true" className="flex-1" />
 
         {/*
           ⚠️ **保存是滚动的终点，而不是另一次滑动。** 行动条粘在滚动区底部：它在文档流里
-          （最后一块内容不会被永久盖住），底边停在底部导航上方 20px，给中央抬起的 + 让位；
+          （最后一块内容不会被永久盖住），下边缘与底部导航上沿重合（`bottom-0`）；
+          抬起的 + 靠 z 序（导航 z-10 > 这条 z-0）压在保存条底部的空白垫上，不压按钮。
           软键盘弹出时整条抬起。校验错误与共享账本只读提示也放在这里——点了保存就该在原地看到原因。
         */}
         <EntrySaveBar scrollRef={scrollRef}>

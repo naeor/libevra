@@ -1,6 +1,7 @@
 import type { Currency } from "@libellum/shared";
 
 import { minorToInput } from "../../lib/format.js";
+import { ChevronIcon } from "../Icons.js";
 
 /**
  * 金额下面那一行紧凑快捷操作：左边「沿用上一笔」，右边「快捷金额」。
@@ -37,7 +38,7 @@ export function EntryQuickActions({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-2 pt-3">
-      {/* 一行两个入口：360px 上是「沿用上一笔」+「快捷金额 ⌄」，两边都装得下。 */}
+      {/* 一行两个入口：360px 上是「沿用上一笔」+「快捷金额」，两边都装得下。 */}
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -52,10 +53,10 @@ export function EntryQuickActions({
           aria-expanded={open}
           aria-controls="entry-quick-amounts"
           onClick={onToggle}
-          className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-body text-muted transition hover:text-brand-dark"
+          className="flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-body text-muted transition hover:text-brand-dark"
         >
           快捷金额
-          <span aria-hidden="true">{open ? "⌃" : "⌄"}</span>
+          <ChevronIcon up={open} />
         </button>
       </div>
 
