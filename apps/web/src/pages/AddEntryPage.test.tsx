@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
 import { keyboardOffset } from "../components/entry/keyboardInset.js";
-import { AddEntryPage, nextEntryFields } from "./AddEntryPage.js";
+import { AddEntryPage, entryMoment, nextEntryFields } from "./AddEntryPage.js";
 
 /**
  * The rule restated by the project owner on 2026-10-10: **the date is never
@@ -62,6 +62,24 @@ describe("AddEntryPage", () => {
   });
 });
 
+describe("entryMoment", () => {
+  const submittedAt = new Date("2026-10-20T22:40:00+08:00");
+  const chosen = new Date("2026-10-19T08:15:00+08:00");
+
+  it("未编辑时间时，保存用提交那一刻的时钟", () => {
+    // The mount-time value would be stale after the screen sits in the background;
+    // `now` is passed in so this rule is asserted, not the clock.
+    expect(entryMoment(chosen, false, submittedAt).getTime()).toBe(submittedAt.getTime());
+  });
+
+  it("编辑过时间后，保存用读者选的那一个", () => {
+    // The bug this replaces (S15-C follow-up, 2026-10-20): the field was editable
+    // but the submit path ignored it and always wrote `new Date()`.
+    expect(entryMoment(chosen, true, submittedAt).getTime()).toBe(chosen.getTime());
+    expect(entryMoment(chosen, true, submittedAt).getTime()).not.toBe(submittedAt.getTime());
+  });
+});
+
 describe("nextEntryFields", () => {
   const now = new Date("2026-10-10T09:12:00+08:00");
 
@@ -75,6 +93,8 @@ describe("nextEntryFields", () => {
 
     expect(nextEntryFields(now).occurredAt.getTime()).toBe(now.getTime());
     expect(nextEntryFields(earlier).occurredAt.getTime()).toBe(earlier.getTime());
+    // A fresh entry must not inherit "the previous entry's time was edited".
+    expect(nextEntryFields(now).occurredAtTouched).toBe(false);
   });
 
   it("clears the amount, the note and the tags", () => {

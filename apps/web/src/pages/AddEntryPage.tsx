@@ -91,6 +91,16 @@ export function AddEntryPage(): React.JSX.Element {
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<Currency>("CNY");
   const [occurredAt, setOccurredAt] = useState(() => new Date());
+  /**
+   * Whether the reader has touched the 时间 field.
+   *
+   * ⚠️ **S15-C follow-up (2026-10-20): the field used to be decorative.** The submit
+   * path read the clock unconditionally, so editing the time changed nothing on the
+   * saved entry — while the comment above claimed the user's choice was kept. The
+   * default is still "now at submit" (a mount-time value would go stale); the moment
+   * the reader edits the field, their value has to win. `entryMoment` is the rule.
+   */
+  const [occurredAtTouched, setOccurredAtTouched] = useState(false);
   const [note, setNote] = useState("");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -208,11 +218,12 @@ export function AddEntryPage(): React.JSX.Element {
      * value is not now, and a default that is hours stale is not a convenience. **That staleness is what the
      * owner reported**: two evening entries filed at noon, "被放到了 19:09 和 12 点整的两个账单中间."
      *
-     * ⚠️ **An explicitly chosen time is untouched by this**, because `occurredAt` is what the field holds and
-     * the field is what the user edited. The edit screen sets it from the entry being edited for the same
-     * reason: **a time the user chose outranks any default the program would prefer.**
+     * ⚠️ **An explicitly chosen time is untouched by this**, because `occurredAtTouched`
+     * records that the reader edited the field, and `entryMoment` then returns their value
+     * instead of the clock. Without that flag the paragraphs above were a promise the code
+     * did not keep (S15-C follow-up, 2026-10-20).
      */
-    const savedAt = new Date();
+    const savedAt = entryMoment(occurredAt, occurredAtTouched, new Date());
 
     try {
       /**
@@ -320,6 +331,7 @@ export function AddEntryPage(): React.JSX.Element {
           setNote(next.note);
           setTagIds([...next.tagIds]);
           setOccurredAt(next.occurredAt);
+          setOccurredAtTouched(next.occurredAtTouched);
           setMoreOpen(false);
           setError(null);
           setSaved(null);
@@ -583,7 +595,11 @@ export function AddEntryPage(): React.JSX.Element {
                 value={toDateTimeLocalValue(occurredAt)}
                 onChange={(event) => {
                   const parsed = fromDateTimeLocalValue(event.target.value);
-                  if (parsed) setOccurredAt(parsed);
+                  if (parsed) {
+                    setOccurredAt(parsed);
+                    // From here on the field outranks the clock; see `entryMoment`.
+                    setOccurredAtTouched(true);
+                  }
                 }}
                 className="min-h-11 w-full min-w-0 rounded-field bg-transparent px-2 text-right text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
               />
@@ -657,12 +673,25 @@ export function AddEntryPage(): React.JSX.Element {
   );
 }
 
+/**
+ * Where `save` gets the moment it records.
+ *
+ * Two cases, and only two: **the reader edited 时间** → their value, exactly;
+ * otherwise → the clock at submit, never the value captured when the screen
+ * mounted. A free function so the rule can be asserted without a browser.
+ */
+export function entryMoment(chosen: Date, touched: boolean, now: Date): Date {
+  return touched ? chosen : now;
+}
+
 /** The form fields a new entry starts from, once its moment is known. */
 export interface NextEntryFields {
   readonly amountText: string;
   readonly note: string;
   readonly tagIds: readonly string[];
   readonly occurredAt: Date;
+  /** False: the next entry starts on "now at submit" again. */
+  readonly occurredAtTouched: boolean;
 }
 
 /**
@@ -675,5 +704,5 @@ export interface NextEntryFields {
  * a free function.
  */
 export function nextEntryFields(now: Date): NextEntryFields {
-  return { amountText: "", note: "", tagIds: [], occurredAt: now };
+  return { amountText: "", note: "", tagIds: [], occurredAt: now, occurredAtTouched: false };
 }
