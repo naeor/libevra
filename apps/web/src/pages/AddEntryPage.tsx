@@ -12,7 +12,9 @@ import { useLocation, useNavigate } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { EntrySaved } from "../components/EntrySaved.js";
 import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
+import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
+import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/inheritLast.js";
 import { InfoIcon } from "../components/InfoHint.js";
 import { TabPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
@@ -32,6 +34,19 @@ import { uuidV7 } from "../lib/uuid.js";
 /** Shown when there is nothing to inherit and nothing named 其他 to fall back on. */
 const UNCATEGORISED_LABEL = "暂无分类";
 const DEFAULT_PAYMENT_METHOD_NAME = "其他";
+
+/**
+ * 「沿用上一笔」的三句失败提示。读者下一步不同，所以不合并成一句：
+ * 空账本要去记第一笔，方向不对要切支出/收入，账本元数据没到要等一下。
+ */
+const INHERIT_REFUSAL_NOTICES: Record<InheritRefusal, string> = {
+  "no-record": "这个账本还没有可沿用的记录。",
+  "no-compatible": "还没有同方向的上一笔记录。",
+  "ledger-unavailable": "分类与支付方式还没加载完，稍后再试。",
+};
+
+/** 成功沿用的一句确认：没有它，只沿用了币种或分类为空时看起来像没反应。 */
+const INHERIT_DONE_NOTICE = "已沿用上一笔的分类、支付方式、币种与标签。";
 
 /**
  * The screen the whole application exists for.
@@ -80,12 +95,21 @@ export function AddEntryPage(): React.JSX.Element {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categoryOpen, setCategoryOpen] = useState(false);
   /**
-   * 「更多选项」（备注、标签）是否展开。
+   * 「更多选项」（支付方式、备注、标签）是否展开。
    *
-   * ⚠️ **默认收起是 S15-C 的取舍**：这两项不是每笔都要填，却曾占着保存按钮上方两整段。
-   * 收起不丢能力——展开后仍是原来的输入框与标签按钮；这里只控制可见性。
+   * ⚠️ **默认收起是 S15-C 的取舍**：这几项不是每笔都要填，却曾占着保存按钮上方两整段。
+   * 收起不丢能力——展开后仍是原来的控件；这里只控制可见性。
    */
   const [moreOpen, setMoreOpen] = useState(false);
+  /**
+   * 快捷金额（五个按钮）是否展开。
+   *
+   * ⚠️ **第二轮同样默认收起**：它只在「金额是整笔账的常用值」时有用，而金额框本身
+   * 才是每笔都要走的那一步。取值逻辑仍来自 `useQuickAmounts()`，这一项只控制可见性。
+   */
+  const [quickOpen, setQuickOpen] = useState(false);
+  /** 「沿用上一笔」的结果提示；null 表示没点过或已重置。 */
+  const [inheritNotice, setInheritNotice] = useState<string | null>(null);
   /** Which category's ⓘ explanation is open, if any. */
   const [hintCategoryId, setHintCategoryId] = useState<string | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
@@ -115,6 +139,20 @@ export function AddEntryPage(): React.JSX.Element {
   /** Set when the next render should put the cursor back in the amount field. */
   const focusAfterReset = useRef(false);
 
+  /**
+   * 同方向的最近记录，只给「沿用上一笔」用。
+   *
+   * ⚠️ **Why a `kind`-filtered query and not the already-loaded `recent`.** 两者都带账本作用域
+   * （`useTransactions` 的请求走当前账本，离线回退也只读当前账本的存储），区别在「最近一笔」的定义：
+   * `recent` 是全方向的最新一页，**若最近几十条恰好都是收入，支出方向就会「找不到上一笔」**，
+   * 而更早的支出其实存在。按 `kind` 过滤后，「跳过不兼容、继续找更早的」由同一套查询层完成
+   * （服务器与本地回退共用 `filterLocally`），页面既不翻页也不需要新接口。
+   *
+   * 代价是多一个 list 查询（按方向缓存，最多两份），换来的是**方向兼容的最近一笔**而不是
+   * 「最新一页里恰好有」。金额、备注、时间永远不从这里取。
+   */
+  const recentOfKind = useTransactions({ kind });
+
   const categories = useMemo(
     () =>
       (ledger.data?.categories ?? []).filter(
@@ -135,10 +173,9 @@ export function AddEntryPage(): React.JSX.Element {
   // Defaults are applied exactly once, and only after both reads have settled —
   // otherwise a click made while the data was still loading would be overwritten.
   //
-  // ⚠️ **连续记账（S15-C E）只在这里留了位置，没有实现。** 这一版「继承上一笔」只覆盖
-  // 分类、支付方式与币种；将来若要连金额/备注/标签也继承，唯一入口应当是这里与
-  // `NextEntryFields`，而不是在提交路径上偷偷带值。本轮不新增没有使用者的 props——
-  // 一个没有消费者的开关只会腐烂。
+  // ⚠️ **自动默认值只覆盖分类、支付方式与币种**；金额、备注、时间从不自动继承。
+  // 「沿用上一笔」是另一个入口（`inheritLast`）：由读者点击触发，带标签，但仍然不碰
+  // 金额/备注/时间，也不改方向。两条路径都不在提交路径上偷偷带值。
   useEffect(() => {
     if (defaultsApplied.current || copyFrom) return;
     if (!recent.isSuccess || !ledger.isSuccess) return;
@@ -173,6 +210,35 @@ export function AddEntryPage(): React.JSX.Element {
     if ((copyFrom.note ?? "") !== "" || copyFrom.tags.length > 0) setMoreOpen(true);
     defaultsApplied.current = true;
   }, [copyFrom]);
+
+  /**
+   * 「沿用上一笔」：把同方向上一笔的分类、支付方式、币种与标签套到当前草稿。
+   *
+   * ⚠️ **纯表单状态操作。** 不创建账目、不写库、不碰离线队列——保存仍然只能由读者按「保存」
+   * 触发。连续点多次的结果与点一次相同（`inheritFromLastEntry` 对同一份输入是幂等的）。
+   *
+   * ⚠️ **金额、备注、时间一个字都不动，方向也不改**：这正是它与「复制这一笔」的区别。
+   * 选谁、跳过谁由 `inheritFromLastEntry` 决定，这里只把结果塞回 state 并给一句提示。
+   */
+  function inheritLast(): void {
+    const outcome = inheritFromLastEntry(
+      recentOfKind.data?.pages.flatMap((page) => page.items) ?? [],
+      ledger.data,
+      kind,
+      { categoryId, paymentMethodId, currency, tagIds },
+    );
+
+    if (outcome.status === "nothing") {
+      setInheritNotice(INHERIT_REFUSAL_NOTICES[outcome.reason]);
+      return;
+    }
+
+    setCategoryId(outcome.fields.categoryId);
+    setPaymentMethodId(outcome.fields.paymentMethodId);
+    setCurrency(outcome.fields.currency);
+    setTagIds([...outcome.fields.tagIds]);
+    setInheritNotice(INHERIT_DONE_NOTICE);
+  }
 
   async function save(): Promise<void> {
     setError(null);
@@ -333,6 +399,8 @@ export function AddEntryPage(): React.JSX.Element {
           setOccurredAt(next.occurredAt);
           setOccurredAtTouched(next.occurredAtTouched);
           setMoreOpen(false);
+          setQuickOpen(false);
+          setInheritNotice(null);
           setError(null);
           setSaved(null);
         }}
@@ -365,6 +433,8 @@ export function AddEntryPage(): React.JSX.Element {
                 onClick={() => {
                   setKind(option);
                   setCategoryId(null);
+                  // 上一笔是另一个方向的，沿用提示留着会指错对象。
+                  setInheritNotice(null);
                 }}
                 className={`flex-1 rounded-field py-3 text-sm font-medium transition ${
                   kind === option ? "bg-white text-brand-dark" : "bg-white/15 text-white/90"
@@ -421,20 +491,24 @@ export function AddEntryPage(): React.JSX.Element {
             <span className="text-body text-muted">{currency}</span>
           </label>
 
-          <div className="flex flex-wrap gap-2 pt-3">
-            {quickAmounts.map((cents) => (
-              <button
-                key={cents}
-                type="button"
-                onClick={() => {
-                  setAmountText(minorToInput(cents, currency));
-                }}
-                className="rounded-full border border-brand-soft bg-brand-soft px-3.5 py-1.5 text-body text-brand-dark transition hover:border-brand"
-              >
-                {minorToInput(cents, currency)}
-              </button>
-            ))}
-          </div>
+          {/*
+            ⚠️ **一行放两个「局部快捷动作」**（S15-C 第二轮）：左边沿用上一笔，右边展开快捷金额。
+            收起来不是删掉能力——五个金额按钮仍是 `useQuickAmounts()` 的那五个，
+            点击仍写进同一个金额框；这一行只决定它们是否占版面。
+          */}
+          <EntryQuickActions
+            amounts={quickAmounts}
+            currency={currency}
+            open={quickOpen}
+            onToggle={() => {
+              setQuickOpen((open) => !open);
+            }}
+            onPickAmount={(cents) => {
+              setAmountText(minorToInput(cents, currency));
+            }}
+            onInherit={inheritLast}
+            notice={inheritNotice}
+          />
         </section>
 
         {/*
@@ -442,8 +516,9 @@ export function AddEntryPage(): React.JSX.Element {
           everything below was inside the white-on-green block; it now sits on the page background, where
           ordinary fields belong.
 
-          S15-C 的排列顺序按真实手机重排：高频核心（金额、分类、支付方式）在前，常用次级（币种、时间）
-          合成一条紧凑卡片，低频（备注、标签）收进「更多选项」，保存固定为底部的粘性行动条。
+          S15-C 的排列顺序按真实手机重排（第二轮再收一轮）：支出/收入 → 金额 → 一行快捷操作
+          （沿用上一笔｜快捷金额）→ 分类 → 币种与时间一条紧凑卡片 → 更多选项（支付方式、备注、标签）
+          → 底部粘性保存条。高频核心在前，常用次级合并，低频收起。
         */}
 
         <section className="flex flex-col gap-2 px-6 pt-5">
@@ -532,28 +607,6 @@ export function AddEntryPage(): React.JSX.Element {
           <p className="text-helper text-muted">不选也可以保存，会记入「{UNCATEGORISED_LABEL}」。</p>
         </section>
 
-        <section className="flex flex-col gap-2 px-6 pt-5">
-          <h2 className="text-helper text-muted">支付方式</h2>
-          <div className="flex flex-wrap gap-2">
-            {paymentMethods.map((method) => (
-              <button
-                key={method.id}
-                type="button"
-                onClick={() => {
-                  setPaymentMethodId(method.id === paymentMethodId ? null : method.id);
-                }}
-                className={`rounded-full px-4 py-2 text-sm transition ${
-                  method.id === paymentMethodId
-                    ? "bg-brand text-white"
-                    : "bg-surface text-ink hover:bg-brand-soft"
-                }`}
-              >
-                {method.name}
-              </button>
-            ))}
-          </div>
-        </section>
-
         {/*
           ⚠️ **币种与时间是「常用次级」，所以留在页面上，但不各占一整段。** 原来币种是六个胶囊
           （360px 上要折成两行），时间是另一个整段；现在合成一张两行的卡片，各自仍然是可编辑控件：
@@ -618,15 +671,21 @@ export function AddEntryPage(): React.JSX.Element {
         </section>
 
         {/*
-          备注与标签收进「更多选项」：默认收起，展开后与原来的字段完全一致
-          （备注 200 字上限、标签 10 个上限、选中颜色都不变）。组件只负责显示，
-          `moreOpen`、`note` 与 `tagIds` 仍由本页持有——保存时读到的还是同一份状态。
+          支付方式、备注与标签收进「更多选项」：默认收起，展开后与原来的字段完全一致
+          （支付方式仍是那组胶囊、归档过滤与默认值不变；备注 200 字上限、标签 10 个上限、
+          选中颜色都不变）。**支付方式不是账户**，它只是「这笔钱怎么付的」，两者不合并。
+          组件只负责显示，`moreOpen`、`paymentMethodId`、`note` 与 `tagIds` 仍由本页持有——
+          保存时读到的还是同一份状态。收起时那一行显示摘要（支付方式名 · 备注 · 标签），
+          所以沿用或复制进来的内容不用展开也看得见。
         */}
         <EntryMoreOptions
           open={moreOpen}
           onToggle={() => {
             setMoreOpen((open) => !open);
           }}
+          paymentMethods={paymentMethods}
+          paymentMethodId={paymentMethodId}
+          onPaymentMethodChange={setPaymentMethodId}
           note={note}
           onNoteChange={setNote}
           tags={tags}
