@@ -60,7 +60,9 @@ class QuestionableBatchTest(unittest.TestCase):
         self.assertEqual(summary.selected_by_default, ())
 
     def test_an_unverified_layout_flag_is_visible_on_every_item(self) -> None:
-        overview = build_overview([(0, fixtures.boa_activity_list())])
+        # The bank transfer detail has one synthetic sample only, so every item it
+        # yields carries the unverified flag.
+        overview = build_overview([(0, fixtures.bank_transfer_detail())])
 
         for candidate in overview.candidates:
             self.assertTrue(any(issue.code == "layout_unverified" for issue in candidate.issues))

@@ -231,6 +231,44 @@ class AgainstExistingTest(unittest.TestCase):
         self.assertEqual(report.existing_count, 1)
 
 
+class BoaOverlapTest(unittest.TestCase):
+    """Two overlapping screenshots of the same BOA list.
+
+    This is the case the real samples brought: the same two rows appear in both
+    screenshots (23.00 and 14.60), one row appears only in the second (20.78),
+    and neither page prints a time. Before the BOA cutter was fixed, no pair could
+    be matched at all - the amounts were balances.
+    """
+
+    def boa_candidates(self) -> list[Candidate]:
+        first = fixtures.boa_deals_list()
+        second = fixtures.boa_deals_list_scrolled()
+        return [
+            *extract_page(first, classify(first), image_index=0, reference_year=2026).candidates,
+            *extract_page(second, classify(second), image_index=1, reference_year=2026).candidates,
+        ]
+
+    def test_the_two_shared_rows_are_flagged_across_images(self) -> None:
+        groups = find_cross_image(self.boa_candidates())
+
+        self.assertGreaterEqual(len(groups), 2)
+        shared = sorted(group.candidate_ids for group in groups)
+        self.assertIn(("img0-2", "img1-1"), shared)  # -23.00
+        self.assertIn(("img0-3", "img1-2"), shared)  # -14.60
+
+    def test_the_row_that_exists_in_one_screenshot_only_is_not_flagged(self) -> None:
+        candidates = self.boa_candidates()
+        groups = find_cross_image(candidates)
+
+        reported = {candidate_id for group in groups for candidate_id in group.candidate_ids}
+        self.assertNotIn("img1-3", reported)  # -20.78
+
+    def test_a_missing_time_does_not_block_a_value_match(self) -> None:
+        groups = find_cross_image(self.boa_candidates())
+
+        self.assertTrue(all("时间缺失" in group.reason for group in groups))
+
+
 class MarkingTest(unittest.TestCase):
     def test_marking_adds_ids_and_a_visible_issue_without_removing_anything(self) -> None:
         candidates = [candidate("a"), candidate("b")]

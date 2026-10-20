@@ -53,6 +53,11 @@ def main() -> None:
         default=None,
         help="截图日期缺年份时使用的参考年份（会标记为 year_inferred）",
     )
+    parser.add_argument(
+        "--reference-date",
+        default=None,
+        help="截图日期 YYYY-MM-DD，用于换算「今天/昨天/星期三」（不传则留空待确认）",
+    )
     args = parser.parse_args()
 
     engine = RapidOCR()
@@ -63,7 +68,9 @@ def main() -> None:
             parser.error(f"找不到图片：{path}")
         pages.append((index, lines_of(engine, path)))
 
-    overview = build_overview(pages, reference_year=args.reference_year)
+    overview = build_overview(
+        pages, reference_year=args.reference_year, reference_date=args.reference_date
+    )
 
     if args.json:
         print(json.dumps(overview.to_dict(), ensure_ascii=False, indent=2))

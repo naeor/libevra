@@ -90,14 +90,19 @@ def build_overview(
     existing_entries: Sequence[ExistingEntry] = (),
     options: DuplicateOptions | None = None,
     reference_year: int | None = None,
+    reference_date: str | None = None,
 ) -> Overview:
     """Classify, extract and de-duplicate a whole upload. Pure and deterministic.
 
     `existing_entries` are ledger rows the caller already holds; this module does
     not fetch them, because detection must not need a database to be tested.
+    `reference_date` is the day the screenshots were taken; without it a
+    `今天 20:53` or `星期三 下午6:34` row cannot become a calendar date.
     """
 
-    extractions = extract_pages(pages, reference_year=reference_year)
+    extractions = extract_pages(
+        pages, reference_year=reference_year, reference_date=reference_date
+    )
     candidates = [candidate for extraction in extractions for candidate in extraction.candidates]
 
     duplicates = find_duplicates(candidates, list(existing_entries), options)

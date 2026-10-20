@@ -14,21 +14,27 @@ Two product rules from the design direction are baked in here:
   * **Every answer is explainable.** `Classification.evidence` lists the
     keywords and structural facts that fired. There is no "the model says so".
 
-## 已知 / 未验证 版式（2026-10-20）
+## 已知 / 未验证 版式（2026-10-20 真实样本基线）
 
 | layout id | 依据 | 状态 |
 |---|---|---|
 | wechat-single-detail | `real-samples/README.md` 记录的 6 张真实截图 + `make_samples.py` 合成样本 | 已验证 |
 | alipay-single-detail | 同上 | 已验证 |
+| wechat-bill-list | 真实样本：微信「账单」全部列表 8 笔，金额/日期/时间/商户/方向全对 | 已验证 |
+| wechat-bill-cards | 真实样本：微信支付账单卡片 2 张（分组日期头 + 记账日报排除） | 已验证 |
+| alipay-transaction-list | 真实样本：支付宝交易记录 5 笔（相对日期 + 汇总/按钮排除） | 已验证 |
+| boa-activity-list | 真实样本：BOA 交易列表 2 张（滚动重叠，金额/余额列分离） | 已验证 |
+| bank-single-detail | 真实样本 1 张（BOA Transaction Details） | **未验证**（仅 1 张） |
+| bank-transfer-confirmation | 真实样本 1 张（BOA 转账成功页） | **未验证**（仅 1 张） |
 | bank-transfer-detail | 仅 `make_samples.py` 合成样本；真实银行 App 截图仍缺失 | **未验证** |
-| wechat-transaction-list | **没有真实列表截图**；按微信常见字段先建框架 | **未验证** |
-| alipay-transaction-list | **没有真实列表截图**；按支付宝常见字段先建框架 | **未验证** |
-| boa-activity-list | **没有 BOA 截图**；关键词仅来自常识，不是样本 | **未验证** |
+| wechat-transaction-list | **没有真实「交易记录」行式样截图**；按常见字段先建框架 | **未验证** |
 | generic-transaction-list | 纯结构规则（多组"金额 + 日期"行） | **未验证** |
 
-The table above is the honest answer to "支持哪些版式": only the two single
-detail layouts have been checked against screenshots that once existed on this
-machine. Everything list-shaped is a framework waiting for its samples.
+The table above is the honest answer to "支持哪些版式". "已验证" means at least one
+real screenshot was read end-to-end and every field it printed came out right;
+it does not mean every screen of that bank is handled. The two bank detail
+layouts have exactly one sample each, so they stay unverified and every candidate
+they yield carries the unverified-layout flag.
 
 ## 如何新增一个银行/版式
 
@@ -54,8 +60,11 @@ from typing import Literal, Sequence
 
 from extract import (
     CLOCK,
+    CN_RELATIVE_DAY,
+    CN_WEEKDAY,
     DATE_DASHED,
     DATE_WITH_MARKERS,
+    EN_MONTH_DATE,
     LABEL_AMOUNT_ROW,
     LABEL_COUNTERPARTY_IN,
     LABEL_COUNTERPARTY_OUT,
@@ -131,6 +140,33 @@ DETAIL_LABELS: frozenset[str] = frozenset(
     }
 )
 
+# The same idea on an English bank screen (`real-samples/2026-10-20_BOA*`): BOA
+# prints its field name and its value on separate rows, and two of those values
+# are numbers (`Amount`, `Transaction date`), so without these labels a detail
+# screen's amount row and date row would be counted as two transactions.
+BANK_FIELD_LABELS: frozenset[str] = frozenset(
+    {
+        "Merchant Name",
+        "Amount",
+        "Transaction date",
+        "Transaction Date",
+        "Date",
+        "Type",
+        "Transaction category",
+        "Description",
+        "From",
+        "To",
+        "Confirmation",
+        "Number",
+        "Confirmation Number",
+        "Account",
+        "Balance",
+        "Posted Date",
+    }
+)
+
+DETAIL_LABELS: frozenset[str] = DETAIL_LABELS | BANK_FIELD_LABELS
+
 # Keywords that only appear on a *list* screen. Kept small on purpose: a list
 # page is better recognised by its row structure, and a keyword that is wrong
 # here silently changes a transaction count.
@@ -168,6 +204,11 @@ def is_date_like(text: str) -> bool:
     return bool(
         DATE_WITH_MARKERS.search(text)
         or DATE_DASHED.search(text)
+        # `Oct 19, 2026`: a US bank list's group date.
+        or EN_MONTH_DATE.search(text)
+        # `今天` / `昨天` (Alipay's list) and `星期三` (WeChat's card header).
+        or CN_RELATIVE_DAY.search(text)
+        or CN_WEEKDAY.search(text)
         or re.search(r"\d{1,2}\s*/\s*\d{1,2}(?:\s*/\s*\d{2,4})?", text)
         or re.search(r"\d{1,2}\s*月\s*\d{1,2}\s*日", text)
         or CLOCK.search(text)
@@ -239,6 +280,13 @@ class PageStructure:
         return not self.list_like and (self.has_big_amount or self.detail_label_count >= 2)
 
 
+def _only_numbers(band: Sequence[Line]) -> bool:
+    """True when every non-empty line in the band is a bare number/currency amount."""
+
+    lines = [line for line in band if line.text.strip() != ""]
+    return bool(lines) and all(is_amount_like(line) for line in lines)
+
+
 def label_of(text: str) -> str | None:
     """`当前状态：支付成功` → `当前状态`; unknown labels stay unknown."""
 
@@ -276,6 +324,7 @@ def analyse_structure(lines: Sequence[Line]) -> PageStructure:
 
     bands = vertical_bands(body)
     amount_rows: list[AmountRow] = []
+    previous_was_label = False
 
     for band in bands:
         # A band whose text includes a **field label** is a detail-page field
@@ -283,7 +332,19 @@ def analyse_structure(lines: Sequence[Line]) -> PageStructure:
         # not a second transaction. Without this, a numeric account/尾号 value
         # classified a bank transfer detail page as a transaction list.
         if any(label_of(line.text) is not None for line in band):
+            previous_was_label = True
             continue
+
+        # A value that did not fit next to its label wraps onto the row *below*
+        # it (BOA prints `From` / `Adv SafeBalance Banking-` / the last digits of
+        # the account on their own row). A row of digits straight under a field
+        # label is that field's tail, not a transaction amount - without this the
+        # BOA transfer confirmation page looked like a list because those digits
+        # were counted as an amount.
+        if previous_was_label and _only_numbers(band):
+            previous_was_label = False
+            continue
+        previous_was_label = False
 
         amounts = [line for line in band if is_amount_like(line)]
         if not amounts:
@@ -692,6 +753,104 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
         notes="真实银行 App 截图仍缺失（real-samples/README.md §2），字段词只在合成样本上验证过。",
     ),
     LayoutDescriptor(
+        id="bank-single-detail",
+        label="银行单笔交易详情（BOA Transaction Details）",
+        page_type="single-detail",
+        platform="BANK",
+        verified=False,
+        sample="real-samples/2026-10-20 单笔交易详情 1 张（本地基线；文本不入库）",
+        features=LayoutFeatures(
+            structure="single-detail",
+            # This screen never prints the bank's name (the account banner is
+            # above the fold), so the gate is the screen's own title and field
+            # names. A platform gate here would never fire on the real sample.
+            required_markers=("Transaction Details",),
+            strong=("Merchant Name", "Transaction date", "Transaction category", "Amount"),
+            weak=("Mobile Payment", "Online Purchase", "View more information"),
+            min_detail_labels=2,
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="bank-single-detail",
+            default_currency="USD",
+        ),
+        notes="1 张真实 BOA 截图；英文标签与值分行的版式，金额/日期/商户由英文标签定位。",
+    ),
+    LayoutDescriptor(
+        id="bank-transfer-confirmation",
+        label="银行转账成功确认页（BOA）",
+        page_type="single-detail",
+        platform="BANK",
+        verified=False,
+        sample="real-samples/2026-10-20 转账成功页 1 张（本地基线；文本不入库）",
+        features=LayoutFeatures(
+            structure="single-detail",
+            # `Confirmation Number` is printed on two rows by the recogniser, so
+            # the markers are the phrases that survive as one line.
+            required_markers=("Your payment is sent", "Print or Save"),
+            strong=("Confirmation", "Amount", "Date", "Success"),
+            weak=("Enrolled as", "Transaction dates are based on Eastern Time"),
+            min_detail_labels=2,
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="bank-transfer-confirmation",
+            default_currency="USD",
+        ),
+        notes="转账确认不是普通消费：is_transfer=True，方向按“钱已转出”记为 expense。",
+    ),
+    LayoutDescriptor(
+        id="wechat-bill-list",
+        label="微信账单全部列表（账单首页）",
+        page_type="transaction-list",
+        platform="WECHAT",
+        verified=True,
+        sample="real-samples/2026-10-20 微信账单全部列表（1 张，8 笔字段全对；文本不入库）",
+        features=LayoutFeatures(
+            structure="list",
+            required_markers=("全部账单",),
+            # The screen never prints 微信 anywhere: its title is just 账单 and
+            # the chrome is 全部账单 / 查找交易 / 收支统计. A platform gate would
+            # never fire here, which is why this screen can only be recognised by
+            # its own words.
+            strong=("查找交易", "收支统计"),
+            list_markers=LIST_MARKERS,
+        ),
+        extraction=ExtractionSpec(
+            strategy="list-rows",
+            direction_markers=(("收入", "income"), ("支出", "expense")),
+            status_markers=(("待入账", "pending"), ("已入账", "posted"), ("已到账", "posted")),
+            refund_markers=("退款",),
+            # WeChat bills are CNY even when the recogniser drops every `¥`. The
+            # assumption is surfaced as `currency_assumed`, not presented as read.
+            default_currency="CNY",
+        ),
+        notes="真实样本：8 笔（含 3 笔转账）金额/日期/时间/商户/方向全对。",
+    ),
+    LayoutDescriptor(
+        id="wechat-bill-cards",
+        label="微信账单卡片列表（分组日期 + 卡片）",
+        page_type="transaction-list",
+        platform="WECHAT",
+        verified=True,
+        sample="real-samples/2026-10-20 微信支付账单列表 2 张（含记账日报 1 张；文本不入库）",
+        features=LayoutFeatures(
+            structure="list",
+            platform_markers=WECHAT_MARKERS,
+            # 账单详情 is on every card and on no other WeChat screen.
+            required_markers=("账单详情",),
+            strong=("使用零钱支付", "账单详情"),
+            weak=("微信记账本", "记账日报"),
+            list_markers=("账单",),
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="wechat-bill-cards",
+            default_currency="CNY",
+        ),
+        notes="日期在卡片上方的分组头（10月12日晚上9:04 / 星期三下午6:34）；记账日报块整块排除。",
+    ),
+    LayoutDescriptor(
         id="wechat-transaction-list",
         label="微信交易记录列表",
         page_type="transaction-list",
@@ -710,53 +869,71 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
             direction_markers=(("收入", "income"), ("支出", "expense")),
             status_markers=(("待入账", "pending"), ("已入账", "posted"), ("已到账", "posted")),
             refund_markers=("退款",),
+            default_currency="CNY",
         ),
-        notes="没有真实列表截图；行切分是通用几何规则，字段名未验证。",
+        notes="没有真实样本的微信「交易记录」行式样；卡片式与账单首页各有自己的版式。",
     ),
     LayoutDescriptor(
         id="alipay-transaction-list",
         label="支付宝交易记录列表",
         page_type="transaction-list",
         platform="ALIPAY",
-        verified=False,
-        sample=None,
+        verified=True,
+        sample="real-samples/2026-10-20 支付宝交易记录列表 1 张（5 笔；文本不入库）",
         features=LayoutFeatures(
             structure="list",
-            platform_markers=ALIPAY_MARKERS,
-            strong=("交易记录", "收支明细"),
-            weak=("全部账单", "月账单", "账单管理"),
+            # The real screen does not print 支付宝 either; these three are its
+            # own chrome (a search box, the expense-analysis button, the saved
+            # banner). They gate the layout the same way a brand name would - a
+            # page that prints none of them is not claimed as Alipay.
+            platform_markers=("搜索交易记录", "收支分析", "本月已省") + ALIPAY_MARKERS,
+            strong=("搜索交易记录", "收支分析", "本月已省"),
+            weak=ALIPAY_MARKERS,
             list_markers=LIST_MARKERS,
         ),
         extraction=ExtractionSpec(
-            strategy="list-rows",
+            strategy="custom",
+            custom_extractor="alipay-bill-rows",
             direction_markers=(("收入", "income"), ("支出", "expense")),
             status_markers=(("待入账", "pending"), ("已入账", "posted"), ("已到账", "posted")),
             refund_markers=("退款",),
+            default_currency="CNY",
         ),
-        notes="没有真实列表截图；行切分是通用几何规则，字段名未验证。",
+        notes="相对日期（今天/昨天）用截图日期换算；金额右对齐才认；顶部汇总与「收支分析」按钮排除。",
     ),
     LayoutDescriptor(
         id="boa-activity-list",
         label="Bank of America 交易活动列表",
         page_type="transaction-list",
         platform="BANK",
-        verified=False,
-        sample=None,
+        verified=True,
+        sample="real-samples/2026-10-20 BOA 交易列表 2 张（滚动重叠；文本不入库）",
         features=LayoutFeatures(
             structure="list",
-            platform_markers=("Bank of America", "BANK OF AMERICA", "bankofamerica", "BofA", "BOFA"),
-            strong=("Transactions", "Activity"),
+            # The recogniser drops the spaces in `Provided by Bank of America`,
+            # so both spellings are needed for the gate to fire on real samples.
+            platform_markers=(
+                "Bank of America",
+                "BANK OF AMERICA",
+                "BankofAmerica",
+                "BANKOFAMERICA",
+                "bankofamerica",
+                "BofA",
+                "BOFA",
+            ),
+            strong=("Recent transactions", "Account and routing numbers", "Available balance"),
             weak=("Description", "Amount", "Balance", "Posted Date"),
             list_markers=("Posted", "Pending", "Transactions", "Activity"),
         ),
         extraction=ExtractionSpec(
-            strategy="list-rows",
+            strategy="custom",
+            custom_extractor="boa-activity-rows",
             status_markers=(("Pending", "pending"), ("Posted", "posted")),
             # BOA statements are USD; the assumption is surfaced as a visible
             # `currency_assumed` issue rather than silently presented as read.
             default_currency="USD",
         ),
-        notes="没有 BOA 截图；关键词来自常识而不是样本，行式样（金额列位置）未验证。",
+        notes="真实样本：日期头分行、金额列与运行余额列靠字号/符号区分、描述 2–4 行合并。",
     ),
     # Fallback: structure alone. It classifies *how many* transactions there are
     # but knows nothing about the source, so every item it yields carries the

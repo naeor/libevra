@@ -19,6 +19,7 @@ from layouts import (
     registered_layouts,
     reset_layouts,
 )
+from multi_extract import CUSTOM_EXTRACTORS
 from tests import fixtures
 
 
@@ -70,7 +71,7 @@ class ClassifyListsTest(unittest.TestCase):
         self.assertEqual(result.page_type, "transaction-list")
         self.assertEqual(result.layout_id, "wechat-transaction-list")
         self.assertEqual(result.platform, "WECHAT")
-        self.assertFalse(result.verified)  # no real list sample
+        self.assertFalse(result.verified)  # no real sample of this row shape
 
     def test_alipay_bill_list_is_transaction_list(self) -> None:
         result = classify(fixtures.alipay_transaction_list())
@@ -78,12 +79,13 @@ class ClassifyListsTest(unittest.TestCase):
         self.assertEqual(result.page_type, "transaction-list")
         self.assertEqual(result.layout_id, "alipay-transaction-list")
 
-    def test_boa_list_is_matched_but_flagged_unverified(self) -> None:
+    def test_boa_list_is_matched_against_a_real_sample(self) -> None:
         result = classify(fixtures.boa_activity_list())
 
         self.assertEqual(result.page_type, "transaction-list")
         self.assertEqual(result.layout_id, "boa-activity-list")
-        self.assertFalse(result.verified)
+        self.assertTrue(result.verified)
+        self.assertTrue(any("Bank" in item for item in result.evidence))
 
     def test_a_list_with_no_known_source_falls_back_to_structure(self) -> None:
         # Structure is still evidence of "several transactions", so the page type
@@ -105,6 +107,83 @@ class ClassifyListsTest(unittest.TestCase):
         self.assertEqual(result.layout_id, "generic-transaction-list")
         self.assertIsNone(result.platform)
         self.assertFalse(result.verified)
+
+
+class ClassifyRealListShapesTest(unittest.TestCase):
+    """The four list shapes the 2026-10-20 real samples brought."""
+
+    def test_wechat_bill_home_without_the_word_wechat_is_still_wechat(self) -> None:
+        # The screen's title is just 账单: no 微信 / 零钱 / 财付通 anywhere. It is
+        # recognised by its own chrome (全部账单 / 查找交易 / 收支统计).
+        result = classify(fixtures.wechat_bill_home_list())
+
+        self.assertEqual(result.page_type, "transaction-list")
+        self.assertEqual(result.layout_id, "wechat-bill-list")
+        self.assertEqual(result.platform, "WECHAT")
+        self.assertTrue(result.verified)
+        self.assertFalse(result.requires_user_choice)
+
+    def test_wechat_bill_cards_are_their_own_layout(self) -> None:
+        result = classify(fixtures.wechat_bill_cards())
+
+        self.assertEqual(result.page_type, "transaction-list")
+        self.assertEqual(result.layout_id, "wechat-bill-cards")
+        self.assertTrue(result.verified)
+        # Not the plain row list, even though both are WeChat bills.
+        self.assertNotEqual(result.layout_id, "wechat-transaction-list")
+
+    def test_alipay_list_is_recognised_without_the_word_alipay(self) -> None:
+        result = classify(fixtures.alipay_bill_with_relative_dates())
+
+        self.assertEqual(result.page_type, "transaction-list")
+        self.assertEqual(result.layout_id, "alipay-transaction-list")
+        self.assertEqual(result.platform, "ALIPAY")
+        self.assertTrue(result.verified)
+
+    def test_a_page_with_no_evidence_at_all_cannot_borrow_a_platform(self) -> None:
+        # The Alipay layout's gate is its own chrome, not "any list page": a page
+        # that prints none of it must not be claimed as Alipay.
+        page = [
+            fixtures.L("9:41", 20, 40, 20),
+            fixtures.L("流水", 60, 36, 30),
+            fixtures.L("咖啡", 300, 36),
+            fixtures.L("-25.00", 300, 700),
+            fixtures.L("10月9日 08:00", 340, 36, 22),
+            fixtures.L("地铁", 440, 36),
+            fixtures.L("-6.00", 440, 700),
+            fixtures.L("10月9日 07:30", 480, 36, 22),
+        ]
+        result = classify(page)
+
+        self.assertNotEqual(result.layout_id, "alipay-transaction-list")
+        self.assertIsNone(result.platform)
+
+
+class ClassifyBankDetailTest(unittest.TestCase):
+    def test_boa_single_detail_is_one_page(self) -> None:
+        result = classify(fixtures.bank_single_detail())
+
+        self.assertEqual(result.page_type, "single-detail")
+        self.assertEqual(result.layout_id, "bank-single-detail")
+        self.assertEqual(result.platform, "BANK")
+        # One sample only: the layout must still say it is unchecked.
+        self.assertFalse(result.verified)
+
+    def test_boa_transfer_confirmation_is_one_page(self) -> None:
+        result = classify(fixtures.bank_transfer_confirmation())
+
+        self.assertEqual(result.page_type, "single-detail")
+        self.assertEqual(result.layout_id, "bank-transfer-confirmation")
+        self.assertFalse(result.verified)
+
+    def test_an_account_tail_under_its_label_does_not_make_a_detail_a_list(self) -> None:
+        # `From` / `Adv SafeBalance Banking-` / the account's last digits on their
+        # own row: that wrap-around value used to be counted as a second amount
+        # row, which blocked every single-detail layout and left the page unknown.
+        result = classify(fixtures.bank_transfer_confirmation())
+
+        self.assertEqual(result.structure_signals[0], "0 个金额行")
+        self.assertEqual(result.page_type, "single-detail")
 
 
 class ClassifyUnknownTest(unittest.TestCase):
@@ -198,6 +277,10 @@ class RegistryExtensionTest(unittest.TestCase):
         self.assertIn("wechat-single-detail", ids)
         self.assertIn("alipay-single-detail", ids)
         self.assertIn("bank-transfer-detail", ids)
+        self.assertIn("bank-single-detail", ids)
+        self.assertIn("bank-transfer-confirmation", ids)
+        self.assertIn("wechat-bill-list", ids)
+        self.assertIn("wechat-bill-cards", ids)
         self.assertIn("wechat-transaction-list", ids)
         self.assertIn("alipay-transaction-list", ids)
         self.assertIn("boa-activity-list", ids)
@@ -208,16 +291,35 @@ class RegistryExtensionTest(unittest.TestCase):
 
         self.assertTrue(by_id["wechat-single-detail"].verified)
         self.assertTrue(by_id["alipay-single-detail"].verified)
-        # No real sample for these yet; claiming otherwise would be inventing
-        # verification the owner did not provide.
+        # Read end-to-end against the 2026-10-20 screenshots.
         for layout_id in (
-            "bank-transfer-detail",
-            "wechat-transaction-list",
+            "wechat-bill-list",
+            "wechat-bill-cards",
             "alipay-transaction-list",
             "boa-activity-list",
+        ):
+            self.assertTrue(by_id[layout_id].verified, layout_id)
+        # Still unverified: one sample each (bank detail pages), synthetic only
+        # (generic transfer detail), or no sample at all (the WeChat row list).
+        for layout_id in (
+            "bank-transfer-detail",
+            "bank-single-detail",
+            "bank-transfer-confirmation",
+            "wechat-transaction-list",
             "generic-transaction-list",
         ):
             self.assertFalse(by_id[layout_id].verified, layout_id)
+
+    def test_every_registered_extractor_exists(self) -> None:
+        for layout in registered_layouts():
+            spec = layout.extraction
+            if spec.strategy != "custom":
+                continue
+            self.assertIn(
+                spec.custom_extractor,
+                CUSTOM_EXTRACTORS,
+                f"{layout.id} 指向了未注册的抽取器",
+            )
 
 
 class ExplainTest(unittest.TestCase):
