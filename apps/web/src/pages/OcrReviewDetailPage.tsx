@@ -23,11 +23,19 @@ import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { TextField } from "../components/TextField.js";
-import { batchItem, updateBatchItem } from "../lib/ocr/batch.js";
+import { batchItem, batchBelongsToBook, updateBatchItem } from "../lib/ocr/batch.js";
 import { loadBatch, saveBatch } from "../lib/ocr/batchStore.js";
+import { inferCategory } from "../lib/ocr/category.js";
 import { findSuspectedDuplicates, groupsForCandidate } from "../lib/ocr/duplicates.js";
-import { deriveIssues, isItemComplete, type OcrBatch, type OcrBatchCandidate } from "../lib/ocr/types.js";
-import { useLedger } from "../lib/queries.js";
+import {
+  categorySourceOf,
+  deriveIssues,
+  isItemComplete,
+  type OcrBatch,
+  type OcrBatchCandidate,
+  type OcrCategorySource,
+} from "../lib/ocr/types.js";
+import { useLedger, useLedgerMeta } from "../lib/queries.js";
 
 interface FormState {
   amount: string;
@@ -88,6 +96,13 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   const ledger = useLedger();
 
   const [batch, setBatch] = useState<OcrBatch | null>(() => loadBatch());
+  /**
+   * 分类/支付方式/标签按**批次所属账本**读（`useLedgerMeta`），不是当前账本：
+   * 批次可能来自另一本账，用当前账本的下拉选项去改它会把 A 账的分类写进 B 账的草稿。
+   * 离线时这个查询可能没有数据，同账本才回退到 `useLedger` 的缓存（它一直在用）；
+   * 跨账本时不回退，宁可选项为空也不串账。
+   */
+  const bookMeta = useLedgerMeta(batch?.bookId ?? "");
   const item = batch === null || candidateId === undefined ? null : batchItem(batch, candidateId);
   const [form, setForm] = useState<FormState | null>(() => (item === null ? null : initialForm(item)));
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +124,12 @@ export function OcrReviewDetailPage(): React.JSX.Element {
     );
   }
 
-  const categories = ledger.data?.categories ?? [];
-  const paymentMethods = ledger.data?.paymentMethods ?? [];
-  const tags = ledger.data?.tags ?? [];
+  const sameBook = batchBelongsToBook(batch, ledger.data?.book.id ?? null);
+  const categories =
+    bookMeta.data?.categories ?? (sameBook ? ledger.data?.categories : undefined) ?? [];
+  const paymentMethods =
+    bookMeta.data?.paymentMethods ?? (sameBook ? ledger.data?.paymentMethods : undefined) ?? [];
+  const tags = bookMeta.data?.tags ?? (sameBook ? ledger.data?.tags : undefined) ?? [];
 
   const categoryOptions = categories.filter(
     (category) => !category.isArchived && !category.isSystem && category.kind === form.kind,
@@ -121,6 +139,30 @@ export function OcrReviewDetailPage(): React.JSX.Element {
     item.currency !== null && !(CURRENCIES as readonly string[]).includes(item.currency)
       ? item.currency
       : null;
+
+  /**
+   * 「系统建议」提示：只在分类还不是用户自己定的时候出现。
+   *
+   * 两种情况：
+   *  1. 批次里已带推断值（`categorySource === "inferred"`）——概览页已经用 `matchCategory`
+   *     在本账本分类里匹配过，这里只是说明“可改”；
+   *  2. 还没写进批次（存储写入失败等）——用同一套纯函数现算一次，和概览给的会是同一个结果。
+   * 用户改过分类后 `form.categoryId` 不再等于建议值，提示自动消失。
+   */
+  const itemSource = categorySourceOf(item);
+  const suggestedId =
+    item.categoryId !== null
+      ? itemSource === "inferred"
+        ? item.categoryId
+        : null
+      : itemSource === "user"
+        ? null
+        : (inferCategory(item, categories)?.categoryId ?? null);
+  const suggestedName =
+    suggestedId === null
+      ? null
+      : (categories.find((category) => category.id === suggestedId)?.name ?? null);
+  const showSuggestion = suggestedName !== null && form.categoryId === suggestedId;
 
   const preview = previewCandidate(item, form);
   const issues = deriveIssues(preview);
@@ -175,21 +217,28 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   function save(): void {
     if (form === null || item === null) return;
 
+    const nextCategoryId = form.categoryId === "" ? null : form.categoryId;
+    const nextCategorySource = categorySourceAfterSave(item, nextCategoryId);
+
     // Empty strings become null so a cleared field is honestly “待确认”, not "".
-    persist({
+    const patch: Partial<Omit<OcrBatchCandidate, "candidateId" | "imageIndex">> = {
       amount: form.amount.trim() === "" ? null : form.amount.trim(),
       currency: form.currency === "" ? null : form.currency,
       direction: form.directionConfirmed ? form.kind : item.direction,
       occurredLocalDate: form.date === "" ? null : form.date,
       occurredTime: form.time === "" ? null : form.time,
       merchant: form.merchant.trim() === "" ? null : form.merchant.trim(),
-      categoryId: form.categoryId === "" ? null : form.categoryId,
+      categoryId: nextCategoryId,
       paymentMethodId: form.paymentMethodId === "" ? null : form.paymentMethodId,
       tagIds: form.tagIds,
       account: form.account.trim() === "" ? null : form.account.trim(),
       note: form.note.trim() === "" ? null : form.note.trim(),
       reviewed: true,
-    });
+    };
+    // `exactOptionalPropertyTypes`：不确定来源时不要写 `categorySource: undefined`。
+    if (nextCategorySource !== undefined) patch.categorySource = nextCategorySource;
+
+    persist(patch);
   }
 
   function markInvalid(): void {
@@ -332,6 +381,12 @@ export function OcrReviewDetailPage(): React.JSX.Element {
           </select>
         </label>
 
+        {showSuggestion ? (
+          <p className="text-helper text-muted">
+            系统建议：{suggestedName}（可改；按交易对象/备注的文字匹配本账本已有分类，不是已确认）。
+          </p>
+        ) : null}
+
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-ink">渠道 / 支付方式</span>
           <select
@@ -466,3 +521,18 @@ function KindButton({
 
 export type { FormState };
 export { initialForm, previewCandidate };
+
+/**
+ * 保存后分类值的来源。
+ *
+ * 只在用户**真的动过**分类时改成 `user`：
+ *  - 没动 → 保留原来源，`inferred` 仍然是“系统建议”（用户看过后接受了它）；
+ *  - 换了一个 / 清空了推断值 → `user`，否则下次进概览会被重新推断出来，等于覆盖
+ *    用户的决定。
+ */
+export function categorySourceAfterSave(
+  item: Pick<OcrBatchCandidate, "categoryId" | "categorySource">,
+  nextCategoryId: string | null,
+): OcrCategorySource | undefined {
+  return nextCategoryId === item.categoryId ? item.categorySource : "user";
+}

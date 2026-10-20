@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { deriveIssues, isItemComplete } from "../lib/ocr/types.js";
 import { batchCandidate } from "../lib/ocr/testFixtures.js";
-import { initialForm, previewCandidate } from "./OcrReviewDetailPage.js";
+import {
+  categorySourceAfterSave,
+  initialForm,
+  previewCandidate,
+} from "./OcrReviewDetailPage.js";
 
 /**
  * The detail screen's data mapping, without a DOM.
@@ -103,5 +107,35 @@ describe("previewCandidate", () => {
 
     expect(preview.direction).toBe("expense");
     expect(preview.isTransfer).toBe(true);
+  });
+});
+
+/**
+ * 分类来源的规则：推断值只有在用户**没有动过**分类时才保持“系统建议”，
+ * 否则概览页有机会用推断覆盖用户的选择。
+ */
+describe("categorySourceAfterSave", () => {
+  it("keeps an untouched inferred category marked as inferred", () => {
+    const item = batchCandidate({ categoryId: "c-food", categorySource: "inferred" });
+
+    expect(categorySourceAfterSave(item, "c-food")).toBe("inferred");
+  });
+
+  it("marks a changed category as the user's own choice", () => {
+    const item = batchCandidate({ categoryId: "c-food", categorySource: "inferred" });
+
+    expect(categorySourceAfterSave(item, "c-transport")).toBe("user");
+  });
+
+  it("treats clearing an inferred category as a user decision", () => {
+    const item = batchCandidate({ categoryId: "c-food", categorySource: "inferred" });
+
+    expect(categorySourceAfterSave(item, null)).toBe("user");
+  });
+
+  it("does not invent a source when the user never chose a category", () => {
+    const item = batchCandidate({ categoryId: null });
+
+    expect(categorySourceAfterSave(item, null)).toBeUndefined();
   });
 });
