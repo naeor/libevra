@@ -139,3 +139,70 @@ describe("matchCategory", () => {
     expect(matchCategory("午饭三十八", [category("c-uncat", "暂无分类")], "expense")).toBeNull();
   });
 });
+
+/**
+ * The owner's second report: **"炸鸡、卤肉饭 这类具体菜名没有进入餐饮联想词表"**.
+ *
+ * A separate fixture, because these tests are about the new vocabulary and the
+ * weight tiers rather than the older behaviour above.
+ */
+const FOOD_LEDGER: readonly CategoryCandidate[] = [
+  category("c-food", "餐饮"),
+  category("c-transport", "交通"),
+  category("c-home", "居住"),
+  category("c-salary", "工资", "income"),
+];
+
+describe("the food words the owner named", () => {
+  it("picks 餐饮 for a concrete dish", () => {
+    expect(matchCategory("炸鸡", FOOD_LEDGER, "expense")?.id).toBe("c-food");
+    expect(matchCategory("卤肉饭", FOOD_LEDGER, "expense")?.id).toBe("c-food");
+    // The interface shows why, so the dish itself has to be in `matched`.
+    expect(matchCategory("炸鸡", FOOD_LEDGER, "expense")?.matched).toContain("炸鸡");
+  });
+
+  it("picks 餐饮 for a meal name and for dishes in one sentence", () => {
+    expect(matchCategory("午餐三十八", FOOD_LEDGER, "expense")?.id).toBe("c-food");
+
+    const match = matchCategory("今天吃了炸鸡和汉堡", FOOD_LEDGER, "expense");
+
+    expect(match?.id).toBe("c-food");
+    expect(match?.matched).toEqual(expect.arrayContaining(["炸鸡", "汉堡"]));
+  });
+
+  it("matches the same words in a ledger whose category is called 吃饭", () => {
+    // Category names are the user's; the words belong to the subject.
+    const own = [category("c-mine", "吃饭")];
+
+    expect(matchCategory("炸鸡", own, "expense")?.id).toBe("c-mine");
+    expect(matchCategory("今天吃了卤肉饭", own, "expense")?.matched).toContain("卤肉饭");
+  });
+
+  it("returns null when the ledger has no food category", () => {
+    // Never invent one.
+    const noFood = [category("c-transport", "交通"), category("c-home", "居住")];
+
+    expect(matchCategory("炸鸡", noFood, "expense")).toBeNull();
+    expect(matchCategory("卤肉饭", noFood, "expense")).toBeNull();
+  });
+
+  it("still picks 交通 for 打车, and food does not steal 水费", () => {
+    expect(matchCategory("打车", FOOD_LEDGER, "expense")?.id).toBe("c-transport");
+    // 水 is never a word on its own; 水费 is a utility, not a drink.
+    expect(matchCategory("水费", FOOD_LEDGER, "expense")?.id).toBe("c-home");
+  });
+
+  it("weights a meal name above one passing transport word", () => {
+    // The owner asked for the food words to carry more weight. 食堂 counts twice
+    // and 打车 once, so even a ledger that lists 交通 first picks 餐饮; without
+    // the weight this would be a tie decided by category order.
+    const transportFirst = [category("c-transport", "交通"), category("c-food", "餐饮")];
+
+    expect(matchCategory("打车去食堂", transportFirst, "expense")?.id).toBe("c-food");
+  });
+
+  it("keeps the income vocabulary as it was", () => {
+    expect(matchCategory("收到工资一万二", FOOD_LEDGER, "income")?.id).toBe("c-salary");
+    expect(matchCategory("报销到账", FOOD_LEDGER, "income")?.id).toBe("c-salary");
+  });
+});

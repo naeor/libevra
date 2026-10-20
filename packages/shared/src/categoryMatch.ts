@@ -18,9 +18,20 @@
  * The amount is shown for this reason; a silently-chosen category is the same
  * failure in a different field.
  *
- * The vocabularies are deliberately short. A long list matches more and is wrong
- * more: 「水」 appears in 水果, 水费 and 水瓶, so it is listed only where the words
- * around it carry the meaning.
+ * The vocabularies are made of **words, not fragments**. 「水」 appears in 水果, 水费
+ * and 水瓶, so it is never listed on its own; every entry is two characters or more
+ * and means the same thing wherever it appears.
+ *
+ * Evidence comes in tiers, because the owner asked for the food words to carry
+ * more weight:
+ *
+ *  * `words` — the everyday way of naming the activity (吃饭, 打车). One vote.
+ *  * `strong` — words that *are* the activity, not an example of it: 午饭, 外卖,
+ *    食堂, 火锅. Two votes. A dish is evidence of a meal; a meal name is the
+ *    category itself.
+ *  * `related` — concrete dishes and foods (炸鸡, 卤肉饭). One vote each: real
+ *    evidence, but a dish mentioned in passing must not outvote a sentence that
+ *    is really about something else.
  */
 
 /** What the matcher needs to know about a category. */
@@ -48,13 +59,42 @@ export interface CategoryMatch {
  * relationship**, so the synonyms have to be listed. That is what `aliases` is —
  * the names this subject goes by in somebody's ledger.
  */
-const VOCABULARY: Readonly<Record<string, { readonly aliases: readonly string[]; readonly words: readonly string[] }>> = {
+interface SubjectVocabulary {
+  readonly aliases: readonly string[];
+  readonly words: readonly string[];
+  /** Names of the activity itself; counted twice. */
+  readonly strong?: readonly string[];
+  /** Concrete dishes and foods; counted once. */
+  readonly related?: readonly string[];
+}
+
+const VOCABULARY: Readonly<Record<string, SubjectVocabulary>> = {
   餐饮: {
     aliases: ["餐饮", "吃饭", "吃的", "伙食", "美食", "食物", "食品"],
+    /**
+     * The words the owner called strong evidence: saying 午饭 or 外卖 is naming
+     * the meal, while saying 炸鸡 is naming one thing that was eaten. The nine
+     * here are exactly the list he gave; 早饭 and 夜宵 stay in `words` so the
+     * tier means "the owner's list", not "a guess at what is common".
+     */
+    strong: ["午饭", "晚饭", "早餐", "午餐", "晚餐", "外卖", "食堂", "火锅", "烧烤"],
     words: [
-      "午饭", "晚饭", "早饭", "早餐", "午餐", "晚餐", "夜宵", "宵夜", "吃饭", "吃了", "吃个",
-      "外卖", "点餐", "餐厅", "饭店", "饭馆", "食堂", "火锅", "烧烤", "拉面", "米饭", "面条",
-      "包子", "饺子", "快餐", "奶茶", "咖啡", "饮料", "零食", "水果", "买菜", "下馆子",
+      "早饭", "夜宵", "宵夜", "吃饭", "吃了", "吃个", "点餐", "餐厅", "饭店", "饭馆",
+      "拉面", "米饭", "面条", "包子", "饺子", "快餐", "奶茶", "咖啡", "饮料", "零食",
+      "水果", "买菜", "下馆子",
+    ],
+    /**
+     * ⚠️ The owner's second report: **炸鸡、卤肉饭 这类具体菜名没有进入餐饮联想
+     * 词表**. Every entry is two characters or more, so a dish name cannot be
+     * mistaken for a single ambiguous character (the 「水」 problem). A dish counts
+     * once: it is evidence of a meal, not proof of which category the sentence is
+     * about.
+     */
+    related: [
+      "炸鸡", "卤肉饭", "汉堡", "披萨", "米线", "麻辣烫", "螺蛳粉", "便当", "盒饭", "炒饭",
+      "盖饭", "寿司", "烤肉", "小龙虾", "串串", "麻辣香锅", "油条", "豆浆", "馒头", "白粥",
+      "喝粥", "鸡排", "炸串", "煎饼", "米粉", "馄饨", "工作餐", "加班餐", "下午茶", "年夜饭",
+      "料理",
     ],
   },
   交通: {
@@ -62,6 +102,7 @@ const VOCABULARY: Readonly<Record<string, { readonly aliases: readonly string[];
     words: [
       "打车", "出租车", "网约车", "滴滴", "公交", "地铁", "火车", "高铁", "动车", "机票",
       "飞机", "加油", "油费", "停车", "过路费", "高速费", "共享单车", "单车", "车票", "路费",
+      "代驾",
     ],
   },
   购物: {
@@ -73,7 +114,7 @@ const VOCABULARY: Readonly<Record<string, { readonly aliases: readonly string[];
   },
   居住: {
     aliases: ["居住", "住房", "房租", "物业", "家电", "家用"],
-    words: ["房租", "水电", "水电费", "水费", "电费", "燃气", "物业", "取暖", "暖气", "宽带", "网费"],
+    words: ["房租", "水电", "水电费", "水费", "电费", "燃气", "天然气", "物业", "取暖", "暖气", "宽带", "网费"],
   },
   通讯: {
     aliases: ["通讯", "话费", "通信", "手机费"],
@@ -81,7 +122,7 @@ const VOCABULARY: Readonly<Record<string, { readonly aliases: readonly string[];
   },
   医疗: {
     aliases: ["医疗", "看病", "医药", "健康"],
-    words: ["看病", "医院", "挂号", "买药", "药费", "体检", "牙医", "门诊", "住院"],
+    words: ["看病", "医院", "挂号", "买药", "药费", "体检", "牙医", "门诊", "住院", "药店"],
   },
   娱乐: {
     aliases: ["娱乐", "休闲", "玩乐", "爱好"],
@@ -102,7 +143,7 @@ const VOCABULARY: Readonly<Record<string, { readonly aliases: readonly string[];
 };
 
 /** The words that suggest money coming in, with the categories they belong to. */
-const INCOME_VOCABULARY = {
+const INCOME_VOCABULARY: SubjectVocabulary = {
   aliases: ["工资", "薪水", "收入", "奖金", "报销", "退款", "兼职", "外快", "理财", "分红", "利息"],
   words: ["工资", "薪水", "月薪", "奖金", "报销", "退款", "分红", "利息", "收到", "入账", "到账"],
 };
@@ -169,7 +210,7 @@ export function matchCategory(
    * category is about it. For income: the income subject as well, so that 工资 and
    * 报销 are reachable whichever an income category is named after.
    */
-  const subjects: readonly (readonly [string, { readonly aliases: readonly string[]; readonly words: readonly string[] }])[] =
+  const subjects: readonly (readonly [string, SubjectVocabulary])[] =
     kind === "income"
       ? [...Object.entries(VOCABULARY), ["收入", INCOME_VOCABULARY] as const]
       : Object.entries(VOCABULARY);
@@ -178,7 +219,8 @@ export function matchCategory(
 
   for (const category of usable) {
     /**
-     * Evidence, counting **occurrences rather than distinct words**.
+     * Evidence, counting **occurrences rather than distinct words**, and weighted
+     * by how strong the word is.
      *
      * "打车去吃饭，打车回来的" is a sentence about transport, and counting each word
      * once made it a tie with food. Somebody who says 打车 twice has told you which
@@ -188,10 +230,16 @@ export function matchCategory(
      * **word** and never once per **occurrence** — the comment above it said
      * "occurrences" while the code said "words". The test caught the difference;
      * a comment cannot.
+     *
+     * The weight is the owner's "增加权重": a meal name (午饭, 食堂) counts twice, a
+     * concrete dish (炸鸡) once. 吃饭 stays at one on purpose — it is a verb phrase
+     * rather than a category name, and the transport/food count test depends on it
+     * staying equal to 打车.
      */
     const evidence = new Map<string, number>();
+    let score = 0;
 
-    const vote = (word: string): void => {
+    const vote = (word: string, weight: number): void => {
       let count = 0;
       let at = spoken.indexOf(word);
 
@@ -200,24 +248,27 @@ export function matchCategory(
         at = spoken.indexOf(word, at + word.length);
       }
 
-      if (count > 0) evidence.set(word, count);
+      if (count > 0) {
+        evidence.set(word, count);
+        score += count * weight;
+      }
     };
 
     for (const [, subject] of subjects) {
       // Only a category that is *about* this subject votes on its words.
       if (!isAbout(category.name, subject.aliases)) continue;
 
-      for (const word of subject.words) vote(word);
+      for (const word of subject.words) vote(word, 1);
+      for (const word of subject.strong ?? []) vote(word, 2);
+      for (const word of subject.related ?? []) vote(word, 1);
     }
 
     // The category's own name, said out loud: "餐饮三十八". Counted as two votes,
     // because hearing the category named is the strongest evidence there is.
     if (category.name.length >= 2 && spoken.includes(category.name)) {
       evidence.set(category.name, (evidence.get(category.name) ?? 0) + 2);
+      score += 2;
     }
-
-    let score = 0;
-    for (const count of evidence.values()) score += count;
 
     if (score > 0 && (best === null || score > best.score)) {
       best = { match: { id: category.id, matched: [...evidence.keys()] }, score };
