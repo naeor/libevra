@@ -228,7 +228,7 @@ export function OcrOverview({
 
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
             <SummaryNumber label="未标记无效" value={counts.valid} />
-            <SummaryNumber label="无需核对" value={counts.confirmed} />
+            <SummaryNumber label="已确认" value={counts.confirmed} />
             <SummaryNumber label="已标记无效" value={counts.invalid} />
             <SummaryNumber label="你已核对过" value={counts.reviewed} />
           </dl>
@@ -239,10 +239,10 @@ export function OcrOverview({
               的笔数，其中可能仍有值得核对的项。
             </li>
             <li>
-              「待核对」= 缺字段、有疑问或疑似重复（含「疑似重复」）；「无需核对」= 字段齐全
-              且无问题。两者都还没有写入账本。
+              「待核对」= 缺字段、有疑问或疑似重复（含「疑似重复」）；「已确认」= 字段齐全、
+              无问题，不需要逐笔核对。两者都还没有写入账本。
             </li>
-            <li>「你已核对过」只表示保存过详情，不代表已入账。</li>
+            <li>「你已核对过」只表示保存过详情，不代表已入账；别和「已确认」混为一谈。</li>
             <li>上面的筛选只改变下面的列表，不改变这些汇总数字。</li>
           </ul>
 

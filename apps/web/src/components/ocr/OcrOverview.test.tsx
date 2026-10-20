@@ -189,7 +189,7 @@ describe("OcrOverview summary", () => {
 
     expect(html).toContain("详情与统计口径");
     expect(summaryNumber(html, "未标记无效")).toBe(String(counts.valid));
-    expect(summaryNumber(html, "无需核对")).toBe(String(counts.confirmed));
+    expect(summaryNumber(html, "已确认")).toBe(String(counts.confirmed));
     expect(summaryNumber(html, "已标记无效")).toBe(String(counts.invalid));
     expect(html).toContain("你已核对过");
     expect(summaryNumber(html, "你已核对过")).toBe(String(counts.reviewed));
