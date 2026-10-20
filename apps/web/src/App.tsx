@@ -66,6 +66,7 @@ import { ReferralCodePage } from "./pages/ReferralCodePage.js";
 import { RegenerateRecoveryCodePage } from "./pages/RegenerateRecoveryCodePage.js";
 import { RecordPage } from "./pages/RecordPage.js";
 import { ScanPage } from "./pages/ScanPage.js";
+import { OcrOverviewPage } from "./pages/OcrOverviewPage.js";
 import { VoiceReviewPage } from "./pages/VoiceReviewPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 import { AppearancePage, PreferencesPage, SecurityPage } from "./pages/SettingsSubPages.js";
@@ -285,6 +286,8 @@ function AppRoutes(): React.JSX.Element {
         <Route path="/record" element={<RequireAuth><RecordPage /></RequireAuth>} />
         <Route path="/ledger/more" element={<RequireAuth><LedgerMorePage /></RequireAuth>} />
         <Route path="/voice/review" element={<RequireAuth><VoiceReviewPage /></RequireAuth>} />
+        {/* ⚠️ S15-B 候选原型：识别概览页，用合成演示数据，未接保存。见 `OcrOverviewPage.tsx` 顶部说明。 */}
+        <Route path="/ocr/overview" element={<RequireAuth><OcrOverviewPage /></RequireAuth>} />
       <Route path="/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
       <Route path="/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
       <Route path="/import-ledger" element={<RequireAuth><LedgerImportPage /></RequireAuth>} />
