@@ -80,8 +80,8 @@ const STATUS_LABELS: Readonly<Record<OcrItemStatus, string>> = {
 
 const STATUS_CLASSES: Readonly<Record<OcrItemStatus, string>> = {
   recognized: "bg-brand-soft text-brand-dark",
-  review: "bg-warning/10 text-warning-dark",
-  duplicate: "bg-warning/10 text-warning-dark",
+  review: "bg-warn-soft text-warn-dark",
+  duplicate: "bg-warn-soft text-warn-dark",
   invalid: "bg-canvas text-muted",
 };
 
@@ -253,7 +253,7 @@ export function OcrOverview({
       {warnings === undefined || warnings.length === 0 ? null : (
         <ul aria-label="批次提醒" className="flex flex-col gap-1">
           {warnings.map((warning) => (
-            <li key={warning} className="text-helper-relaxed text-warning-dark">
+            <li key={warning} className="text-helper-relaxed text-warn-dark">
               ⚠ {warning}
             </li>
           ))}
@@ -427,7 +427,7 @@ export function OcrOverview({
   );
 }
 
-function SummaryInline({
+export function SummaryInline({
   label,
   value,
   tone = "default",
@@ -437,7 +437,7 @@ function SummaryInline({
   readonly tone?: "default" | "warning" | "brand";
 }): React.JSX.Element {
   const toneClass =
-    tone === "warning" ? "text-warning-dark" : tone === "brand" ? "text-brand-dark" : "text-ink";
+    tone === "warning" ? "text-warn-dark" : tone === "brand" ? "text-brand-dark" : "text-ink";
 
   return (
     <div className="flex items-baseline gap-1">
@@ -462,7 +462,7 @@ function SummaryNumber({
   );
 }
 
-function FilterButton({
+export function FilterButton({
   active,
   label,
   onSelect,
@@ -476,7 +476,7 @@ function FilterButton({
       type="button"
       aria-pressed={active}
       onClick={onSelect}
-      className={`rounded-full border px-3 py-1.5 text-helper transition ${
+      className={`min-h-11 rounded-full border px-3 py-1.5 text-helper transition ${
         active ? "border-brand bg-brand-soft text-brand-dark" : "border-line bg-surface text-muted"
       }`}
     >
@@ -580,7 +580,7 @@ function OcrOverviewCard({
       {groups.length === 0 ? null : (
         <ul className="flex flex-col gap-1">
           {groups.map((group) => (
-            <li key={group.groupId} className="text-helper-relaxed text-warning-dark">
+            <li key={group.groupId} className="text-helper-relaxed text-warn-dark">
               ⚠ 可能重复：{group.reason}
             </li>
           ))}
@@ -592,7 +592,7 @@ function OcrOverviewCard({
           {issues.map((issue) => (
             <li
               key={`${issue.code}:${issue.field ?? ""}`}
-              className="text-helper-relaxed text-warning-dark"
+              className="text-helper-relaxed text-warn-dark"
             >
               ⚠ {issue.message}
             </li>
@@ -601,7 +601,7 @@ function OcrOverviewCard({
       )}
 
       {showImportBlocker ? (
-        <p className="text-helper-relaxed text-warning-dark">⚠ 还不能导入：{importBlocker}</p>
+        <p className="text-helper-relaxed text-warn-dark">⚠ 还不能导入：{importBlocker}</p>
       ) : null}
 
       {item.invalid ? (
@@ -627,6 +627,7 @@ export function OcrImportBar({
   busy,
   onConfirm,
   onCancel,
+  cancelLabel = "取消这次识别",
 }: {
   readonly importableCount: number;
   /** 不能导入的原因（权限、账本不符、字段不够……）；`null` 表示可以确认。 */
@@ -636,6 +637,7 @@ export function OcrImportBar({
   readonly busy: boolean;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
+  readonly cancelLabel?: string;
 }): React.JSX.Element {
   const disabled = importableCount === 0 || blockedReason !== null || busy;
 
@@ -658,7 +660,7 @@ export function OcrImportBar({
 
         <div className="mt-1 flex items-start justify-between gap-3">
           <p
-            className={`text-helper ${blockedReason === null ? "text-muted" : "text-warning-dark"}`}
+            className={`text-helper ${blockedReason === null ? "text-muted" : "text-warn-dark"}`}
           >
             {blockedReason ?? "确认前不会写入账本。"}
           </p>
@@ -668,18 +670,18 @@ export function OcrImportBar({
             onClick={onCancel}
             className="shrink-0 text-helper text-muted underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-45"
           >
-            取消这次识别
+            {cancelLabel}
           </button>
         </div>
 
         {blockers.length === 0 ? null : (
           <details className="mt-1">
-            <summary className="w-fit cursor-pointer select-none text-helper text-warning-dark">
+            <summary className="w-fit cursor-pointer select-none text-helper text-warn-dark">
               查看 {String(blockers.length)} 笔不能导入的原因
             </summary>
             <ul className="mt-1 flex max-h-32 flex-col gap-1 overflow-y-auto">
               {blockers.map((entry) => (
-                <li key={entry.candidateId} className="text-helper-relaxed text-warning-dark">
+                <li key={entry.candidateId} className="text-helper-relaxed text-warn-dark">
                   ⚠ {entry.label}：{entry.reason}
                 </li>
               ))}
