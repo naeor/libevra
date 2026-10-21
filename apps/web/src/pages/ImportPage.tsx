@@ -1,50 +1,85 @@
-import type { ImportReport } from "@libellum/shared";
-import { useRef, useState } from "react";
+import type { BillImportCandidate, BillImportPreview, ImportReport } from "@libellum/shared";
+import { useRef, useState, type DragEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
+import {
+  BillCommitBar,
+  BillDoneView,
+  BillDuplicateSection,
+  BillFileSummary,
+  BillFilterRow,
+  BillParsingCard,
+  BillPickCard,
+  BillRowCard,
+  BillSummaryPanel,
+  billItemsById,
+} from "../components/import/BillImportViews.js";
 import { InnerPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
-import { fetchTemplate, useImportEntries, useLedgerMeta } from "../lib/queries.js";
+import {
+  BILL_SOURCE_LABELS,
+  billRowProblem,
+  commitBill,
+  previewBill,
+  recheckBill,
+} from "../lib/billImport.js";
+import {
+  BILL_IMPORT_ACCEPT,
+  billAcknowledgementReasons,
+  billCommitCheck,
+  billDuplicateGroups,
+  billFileProblem,
+  billFilterCounts,
+  billFilterRows,
+  billHistoryDuplicates,
+  billReportView,
+  billRowNotes,
+  billRowStatus,
+  type BillImportFilter,
+} from "../lib/billImportUi.js";
+import { localTimeZone } from "../lib/datetime.js";
+import { formatMoney, parseAmountInput } from "../lib/format.js";
+import { fetchTemplate, useLedgerMeta, useMoneyInvalidator } from "../lib/queries.js";
 import { deliverFile } from "../lib/share.js";
 
 /**
- * Import historical entries from a CSV.
+ * 账单导入 V2：选文件 → 服务端识别 → 概览核对 → 批量入账。
  *
- * The shape of this screen follows from one decision made on the server: an
- * import either writes **every** valid row or **none** of them. So there is no
- * partial state to report and no "23 of 40 rows imported" to explain — the
- * outcome is a report the user reads, and then either they fix the file or the
- * entries are there.
+ * 和旧版（只认 Libevra 自己导出的 CSV、整批要么全成功要么全失败）的区别：
  *
- * Two things the owner asked for and the server now guarantees, surfaced here
- * rather than left in a log: a rejected file names **which line** and **which
- * column**, and a file that has already been imported is recognised instead of
- * being imported twice.
+ *  * **格式由服务端按内容识别**（微信 XLSX / 支付宝 CSV / BOA PDF / Libevra CSV），
+ *    前端不按文件名猜；
+ *  * **先预览再写入**：`previewBill` 拿到逐笔候选，用户在概览里筛选、保留/跳过、
+ *    展开改字段，`recheckBill` 重算疑似重复，最后 `commitBill` 一次写入；
+ *  * **判重只有一处**：文件内重复与历史账目重复都由服务端统一判重，前端只展示与选择，
+ *    绝不自动取消勾选、绝不删除/合并已有账目；
+ *  * **身份重复与内容重复分开**：`identityDuplicate`（来源身份已存在）默认不选、不可选；
+ *    `duplicateIds`（疑似重复）只提示。
  *
- * ⚠️ **S13-E 之后这一页也能从账本设置进入：`/books/:bookId/settings/import`。**
- * 导入是**写**操作，写错账本的代价最大且最不明显（文件看起来完全正常），所以目标模式：
+ * ⚠️ **没有独立的 /import/review 路由**：契约里没有“按 previewId 重新取预览”的读接口，
+ * 预览只存在于当前页面的内存里。刷新或从别处深链进来只会回到选文件状态——这是有意的，
+ * 避免出现“看起来能恢复、实际上预览已过期”的半状态。
  *
- *  * 用 `useLedgerMeta(bookId)` 把**目标账本的名字和编号**显示在页面上，并且写进确认对话框；
- *  * `useImportEntries(bookId)` 让整个请求点名那本账；
- *  * 「下载模板」也带 `bookId`（模板按账本生成表头，不是同一个文件）；
- *  * 导出 / 返回都回 `/books/:bookId/settings`。
+ * ⚠️ **入口语义不能变**（见 `ImportPage.entry.test.tsx`）：
  *
- * ⚠️ **当前账本模式有两条来路，不能混为一条：**
- *
- *  * 旧的 `/export` → `/import` 链路一个字都没改：深链回退是 `/export`，页内仍保留
- *    「← 返回导出」这个属于导出上下文的次级链接。
- *  * 中央 `+` 菜单的「导入账单」带 `?from=nav`（见 `BottomNav.tsx`）：它是从当前页面
- *    打开的，头部「返回」按历史回退；深链/刷新的回退是**明细页 `/`**，而那个
- *    导出上下文专用的「← 返回导出」链接在这一来路下隐藏，避免看起来像"返回"却横跳导出。
+ *  * 中央 `+` 菜单用 `/import?from=nav`；这一来路隐藏「← 返回导出」，深链回退到明细 `/`；
+ *  * 旧 `/export → /import` 链路保留 `/export` 作为回退，并保留「← 返回导出」；
+ *  * 账本设置的目标模式（`/books/:bookId/settings/import`）始终显示目标账本横幅与编号。
  */
+
+const PAGE_SIZE = 100;
 
 type Step =
   | { readonly name: "choose" }
-  | { readonly name: "confirm"; readonly file: File }
-  | { readonly name: "report"; readonly report: ImportReport };
+  | { readonly name: "parsing" }
+  | { readonly name: "review"; readonly preview: BillImportPreview }
+  | { readonly name: "done"; readonly preview: BillImportPreview; readonly report: ImportReport };
+
+type Busy = null | "preview" | "commit" | "recheck";
 
 /** The target ledger, when the route names one — **the whole point of the banner**. */
 interface ImportTarget {
@@ -60,14 +95,12 @@ export function ImportPage(): React.JSX.Element {
 }
 
 function ImportForCurrentLedger(): React.JSX.Element {
-  const importEntries = useImportEntries();
   const [searchParams] = useSearchParams();
   /** The central `+` menu opens this route with `?from=nav` — see the note at the top. */
   const fromMenu = searchParams.get("from") === "nav";
 
   return (
     <ImportView
-      importEntries={importEntries}
       backTo={fromMenu ? "/" : "/export"}
       exportTo="/export"
       doneTo="/"
@@ -79,7 +112,6 @@ function ImportForCurrentLedger(): React.JSX.Element {
 
 function ImportForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
   const meta = useLedgerMeta(bookId);
-  const importEntries = useImportEntries(bookId);
 
   const name = meta.data?.book.name ?? null;
   const bookNumber = meta.data?.book.bookNumber ?? null;
@@ -87,153 +119,299 @@ function ImportForBook({ bookId }: { readonly bookId: string }): React.JSX.Eleme
 
   return (
     /**
-     * ⚠️ **Keyed by the ledger**: a half-finished step (or a file already chosen) must not carry over
-     * if the address is edited to another ledger — the whole risk this screen guards against is
-     * writing the right file into the wrong book.
+     * ⚠️ **Keyed by the ledger**: a half-finished review (or a file already chosen) must not carry
+     * over if the address is edited to another ledger — writing the right file into the wrong book
+     * is the most expensive mistake this screen can make.
      */
     <ImportView
       key={bookId}
-      importEntries={importEntries}
+      bookId={bookId}
       backTo={`/books/${bookId}/settings`}
       exportTo={`/books/${bookId}/settings/export`}
       doneTo={`/books/${bookId}/settings`}
       doneLabel="回到账本设置"
-      bookId={bookId}
       target={{ label, failure: meta.isError ? errorMessage(meta.error) : null }}
     />
   );
 }
 
 function ImportView({
-  importEntries,
+  bookId,
   backTo,
   exportTo,
   doneTo,
   doneLabel,
-  bookId,
   target,
   hideExportLink = false,
 }: {
-  readonly importEntries: ReturnType<typeof useImportEntries>;
-  /**
-   * The frame's back fallback for a deep link. **Target mode lands on 账本设置**, which is the parent
-   * this screen was opened from; the legacy current-ledger screen keeps `/export`, exactly as before.
-   * The central `+` entry passes `?from=nav`, whose fallback is 明细 (`/`).
-   */
+  /** Target ledger; `undefined` means "the ledger this device is in". */
+  readonly bookId?: string;
+  /** Deep-link fallback for the frame's 返回. Target mode lands on 账本设置. */
   readonly backTo: string;
   /** Where 「← 返回导出」 goes — the export screen of the same ledger. */
   readonly exportTo: string;
-  /** Where the report's 「完成」 button goes. */
+  /** Where the done screen's 「完成」 goes. */
   readonly doneTo: string;
   readonly doneLabel: string;
-  /** ⚠️ Named only in target mode — the template download carries it too. */
-  readonly bookId?: string;
-  /** ⚠️ Present only when the address names a ledger; its name **and** number are shown. */
+  /** Present only when the address names a ledger; name **and** number are shown. */
   readonly target?: ImportTarget;
-  /**
-   * ⚠️ **Hide the legacy export shortcut when this page was opened from the central `+` menu.**
-   * That link is a child of the `/export` context, not of the reader's current page; keeping it
-   * visible there reads like a "back" that jumps to an unrelated screen.
-   */
+  /** ⚠️ Hide the legacy export shortcut when opened from the central `+` menu. */
   readonly hideExportLink?: boolean;
 }): React.JSX.Element {
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
+  /** 逐笔字段校验的缓存：编辑一笔不会重算另外几万笔。 */
+  const problemCache = useRef(new WeakMap<BillImportCandidate, string | null>());
+
+  const duplicateSettings = useDuplicateDetectionSettings();
+  const meta = useLedgerMeta(bookId ?? "");
+  const invalidateMoney = useMoneyInvalidator(bookId);
 
   const [step, setStep] = useState<Step>({ name: "choose" });
+  /** Kept outside the step so a failed preview can still name the file it failed on. */
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<Busy>(null);
+  const [filter, setFilter] = useState<BillImportFilter>("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
+  /** 编辑过字段但还没重新检查：底部会出现「重新检查重复」。 */
+  const [dirty, setDirty] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
 
   const failure = target?.failure ?? null;
 
-  async function downloadTemplate(): Promise<void> {
-    setError(null);
+  function problemOf(item: BillImportCandidate): string | null {
+    const cached = problemCache.current.get(item);
+    if (cached !== undefined) return cached;
+    const problem = billRowProblem(item);
+    problemCache.current.set(item, problem);
+    return problem;
+  }
+
+  const preview = step.name === "review" || step.name === "done" ? step.preview : null;
+  const items = preview?.candidates ?? [];
+  const counts = billFilterCounts(items, problemOf);
+  const filtered = billFilterRows(items, filter, problemOf);
+  const visible = filtered.slice(0, visibleCount);
+  const groups = billDuplicateGroups(items);
+  const history = billHistoryDuplicates(items);
+  const itemsById = preview === null ? new Map<string, BillImportCandidate>() : billItemsById(preview);
+  const ackReasons = preview === null ? [] : billAcknowledgementReasons(preview);
+  const problemsById = new Map(items.map((item) => [item.id, problemOf(item)]));
+  const check =
+    preview === null ? null : billCommitCheck(items, preview, acknowledged, problemsById);
+
+  const categories = meta.data?.categories ?? [];
+  const paymentMethods = meta.data?.paymentMethods ?? [];
+  const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
+  const paymentNames = new Map(paymentMethods.map((method) => [method.id, method.name]));
+
+  function moneyText(item: BillImportCandidate): string {
     try {
-      /** ⚠️ The template is per ledger: headings are the same, but the request names the target. */
-      const file = await fetchTemplate(bookId);
-      await deliverFile(file.fileName, file.mimeType, file.bytes);
-    } catch (caught) {
-      setError(errorMessage(caught));
+      return formatMoney(parseAmountInput(item.amount, item.currency), item.currency);
+    } catch {
+      return item.amount.trim() === "" ? "金额待填写" : item.amount;
     }
   }
 
-  async function run(file: File): Promise<void> {
-    setBusy(true);
+  function openPicker(): void {
+    // `value` is reset in the input's onChange, so picking the same file twice still fires.
+    fileInput.current?.click();
+  }
+
+  function resetToChoose(): void {
+    setStep({ name: "choose" });
+    setFile(null);
+    setFilter("all");
+    setExpandedId(null);
+    setAcknowledged(false);
+    setDirty(false);
+    setVisibleCount(PAGE_SIZE);
+    setConfirmOpen(false);
+  }
+
+  async function downloadTemplate(): Promise<void> {
+    setTemplateBusy(true);
     setError(null);
+    try {
+      /** ⚠️ The template is per ledger: headings are the same, but the request names the target. */
+      const template = await fetchTemplate(bookId);
+      await deliverFile(template.fileName, template.mimeType, template.bytes);
+    } catch (caught) {
+      setError(`模板下载失败：${errorMessage(caught)}`);
+    } finally {
+      setTemplateBusy(false);
+    }
+  }
+
+  async function startPreview(picked: File): Promise<void> {
+    const problem = billFileProblem(picked);
+    if (problem !== null) {
+      setError(problem);
+      return;
+    }
+
+    setError(null);
+    setFile(picked);
+    setStep({ name: "parsing" });
+    setBusy("preview");
 
     try {
-      const report = await importEntries.mutateAsync(file);
-      setStep({ name: "report", report });
+      const next = await previewBill(
+        picked,
+        bookId ?? "",
+        duplicateSettings.settings,
+        localTimeZone(),
+      );
+      setStep({ name: "review", preview: next });
+      setFilter("all");
+      setExpandedId(null);
+      setAcknowledged(false);
+      setDirty(false);
+      setVisibleCount(PAGE_SIZE);
     } catch (caught) {
-      setError(errorMessage(caught));
+      setError(`没能识别这个文件：${errorMessage(caught)}`);
       setStep({ name: "choose" });
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  function onDrop(event: DragEvent<HTMLElement>): void {
+    event.preventDefault();
+    setDragging(false);
+    const dropped = event.dataTransfer.files?.[0];
+    if (dropped !== undefined) void startPreview(dropped);
+  }
+
+  /**
+   * 改一笔。只替换这一笔的对象（其余保持引用），这样 `problemOf` 的 WeakMap 缓存继续命中。
+   * 勾选状态单独走 `toggle`，不算“改过字段”，不会触发“重新检查重复”的提示。
+   */
+  function patchCandidate(id: string, patch: Partial<BillImportCandidate>, markDirty = true): void {
+    if (step.name !== "review") return;
+    setStep({
+      name: "review",
+      preview: {
+        ...step.preview,
+        candidates: step.preview.candidates.map((candidate) =>
+          candidate.id === id ? { ...candidate, ...patch } : candidate,
+        ),
+      },
+    });
+    if (markDirty) setDirty(true);
+  }
+
+  async function runRecheck(): Promise<void> {
+    if (step.name !== "review") return;
+
+    setBusy("recheck");
+    setError(null);
+    try {
+      const next = await recheckBill(step.preview, bookId ?? "", duplicateSettings.settings);
+      setStep({ name: "review", preview: next });
+      setDirty(false);
+    } catch (caught) {
+      setError(`重新检查失败：${errorMessage(caught)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runCommit(previewToCommit: BillImportPreview): Promise<void> {
+    setConfirmOpen(false);
+    setBusy("commit");
+    setError(null);
+    try {
+      const report = await commitBill(previewToCommit, bookId ?? "", acknowledged);
+      // 写入成功后刷新明细与汇总；目标账本不是当前账本时这个 invalidator 什么也不做。
+      await invalidateMoney();
+      setStep({ name: "done", preview: previewToCommit, report });
+    } catch (caught) {
+      setError(`导入没有完成：${errorMessage(caught)}`);
+      // 预览还留着，可以直接再试；后端按来源身份幂等，不会重复写入。
+      setStep((current) =>
+        current.name === "done" ? current : { name: "review", preview: previewToCommit },
+      );
+    } finally {
+      setBusy(null);
     }
   }
 
   return (
     <InnerPage
-      title="导入历史账"
-      subtitle="用导出的文件或模板填写，逐行校验通过后才会写入。任何一行有问题，整批都不会写入。"
+      title="导入账单"
+      subtitle="微信、支付宝、银行结单都可以。先识别，核对后再写入。"
       backTo={backTo}
     >
       {error === null ? null : <Alert>{error}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
 
       {/**
-        * ⚠️ **The target is stated before anything is chosen, not after.** A person who opened the
-        * wrong ledger's settings must be able to notice it here — with the number, not only the
-        * name, because two ledgers can be called the same thing.
-        */}
+       * ⚠️ **The target is stated before anything is chosen, not after.** A person who opened the
+       * wrong ledger's settings must be able to notice it here — with the number, not only the name.
+       */}
       {target === undefined ? null : (
         <div className="flex flex-col gap-1 rounded-field bg-brand-soft px-4 py-3 text-brand-dark">
           <p className="text-body font-medium">导入到「{target.label}」</p>
-          <p className="text-helper-relaxed">请先确认这是你要写入的账本。下面的文件会整批写进这本账。</p>
+          <p className="text-helper-relaxed">请先确认这是你要写入的账本。下面的文件会写进这本账。</p>
         </div>
       )}
 
+      {/**
+       * ⚠️ `sr-only`, never `hidden`/`display:none`: iOS Safari ignores programmatic clicks on an
+       * input that is not rendered. One input serves 选择 / 更换 in every step.
+       */}
+      <input
+        ref={fileInput}
+        type="file"
+        accept={BILL_IMPORT_ACCEPT}
+        aria-label="选择账单文件"
+        className="sr-only"
+        onChange={(event) => {
+          const picked = event.target.files?.[0];
+          // Reset so choosing the same file twice still fires a change.
+          event.target.value = "";
+          if (picked !== undefined) void startPreview(picked);
+        }}
+      />
+
       {step.name === "choose" ? (
         <section className="flex flex-col gap-4">
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".csv,text/csv"
-            aria-label="选择 CSV 文件"
-            className="sr-only"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              // Reset so choosing the same file twice still fires a change —
-              // otherwise a corrected file re-picked after a failure looks like
-              // nothing happened.
-              event.target.value = "";
-              if (file !== undefined) setStep({ name: "confirm", file });
-            }}
-          />
-
-          <Button
-            onClick={() => {
-              fileInput.current?.click();
-            }}
-            disabled={busy || failure !== null}
-          >
-            选择 CSV 文件
-          </Button>
-
-          <Button variant="secondary" onClick={() => void downloadTemplate()} disabled={failure !== null}>
-            下载模板
-          </Button>
-
-          <div className="rounded-field bg-brand-soft px-4 py-3 text-helper-relaxed text-brand-dark">
-            <p className="font-medium">关于判重</p>
-            <p className="mt-1">
-              文件里带的「流水编号」如果这个账本已经有了，那一行会被跳过，并在报告里写出来。
-              同一个文件再导入一次不会产生重复记录。
-            </p>
-            <p className="mt-2">
-              没有这几列的外部文件也能导入，但那时无法判重，可能产生重复。
-            </p>
-          </div>
+          {file === null ? (
+            <BillPickCard
+              busy={busy === "preview"}
+              disabled={failure !== null}
+              dragging={dragging}
+              onPick={openPicker}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (busy === null) setDragging(true);
+              }}
+              onDragLeave={() => {
+                setDragging(false);
+              }}
+              onDrop={onDrop}
+              template={{ busy: templateBusy, onDownload: () => void downloadTemplate() }}
+            />
+          ) : (
+            <>
+              <BillFileSummary
+                fileName={file.name}
+                fileSize={file.size}
+                formatLabel={null}
+                sourceLabel={null}
+                busy={busy !== null}
+                onChange={openPicker}
+                onClear={resetToChoose}
+              />
+              <p className="text-helper-relaxed text-muted">换一个文件会重新识别，之前的勾选不会带过去。</p>
+            </>
+          )}
 
           {hideExportLink ? null : (
             <Button
@@ -248,145 +426,210 @@ function ImportView({
         </section>
       ) : null}
 
-      {step.name === "report" ? (
-        <Report
-          report={step.report}
+      {step.name === "parsing" && file !== null ? (
+        <BillParsingCard fileName={file.name} fileSize={file.size} />
+      ) : null}
+
+      {step.name === "review" ? (
+        <section className="flex flex-col gap-4">
+          {file === null ? null : (
+            <BillFileSummary
+              fileName={file.name}
+              fileSize={file.size}
+              formatLabel={step.preview.format.toUpperCase()}
+              sourceLabel={BILL_SOURCE_LABELS[step.preview.source]}
+              busy={busy !== null}
+              onChange={openPicker}
+              onClear={resetToChoose}
+            />
+          )}
+
+          {ackReasons.length === 0 ? null : (
+            <div className="flex flex-col gap-1 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-warn-dark">
+              <p className="text-body font-medium">这份文件有需要你先了解的情况</p>
+              <ul className="flex flex-col gap-1">
+                {ackReasons.map((reason) => (
+                  <li key={reason}>⚠ {reason}</li>
+                ))}
+              </ul>
+              {step.preview.reconciliation.ok === false ? (
+                <p>确认无误后，请在底部勾选「我已了解上面的提示」再导入；已有账目不会被改动。</p>
+              ) : null}
+            </div>
+          )}
+
+          {step.preview.reconciliation.ok === true ? (
+            <p className="text-helper text-muted">对账：文件里的合计与明细一致。</p>
+          ) : null}
+
+          <BillSummaryPanel
+            counts={counts}
+            selectedCount={counts.selected}
+            readCount={items.length}
+            identitySkipped={counts.identity}
+          />
+
+          <BillFilterRow
+            filter={filter}
+            counts={counts}
+            onSelect={(next) => {
+              setFilter(next);
+              setVisibleCount(PAGE_SIZE);
+            }}
+          />
+
+          {filter === "all" || filter === "duplicate" ? (
+            <BillDuplicateSection
+              groups={groups.slice(0, 20)}
+              history={history}
+              itemsById={itemsById}
+              moneyText={moneyText}
+              busy={busy !== null}
+              onToggle={(id, selected) => {
+                patchCandidate(id, { selected }, false);
+              }}
+            />
+          ) : null}
+
+          <section aria-label="逐笔记录" className="flex flex-col gap-3">
+            {visible.length === 0 ? (
+              <p className="rounded-card border border-line bg-surface px-4 py-6 text-center text-helper text-muted">
+                这个筛选下没有记录。
+              </p>
+            ) : null}
+
+            {visible.map((item) => {
+              const status = billRowStatus(item, problemOf(item));
+              const historyIds =
+                history.find((entry) => entry.candidateId === item.id)?.ids ?? [];
+              return (
+                <BillRowCard
+                  key={item.id}
+                  item={item}
+                  status={status}
+                  notes={billRowNotes(item, problemOf(item), historyIds)}
+                  moneyText={moneyText(item)}
+                  categoryName={item.categoryId === null ? null : (categoryNames.get(item.categoryId) ?? null)}
+                  paymentName={
+                    item.paymentMethodId === null
+                      ? null
+                      : (paymentNames.get(item.paymentMethodId) ?? null)
+                  }
+                  expanded={expandedId === item.id}
+                  busy={busy !== null}
+                  categories={categories}
+                  paymentMethods={paymentMethods}
+                  onToggle={(selected) => {
+                    patchCandidate(item.id, { selected }, false);
+                  }}
+                  onExpand={() => {
+                    setExpandedId(expandedId === item.id ? null : item.id);
+                  }}
+                  onPatch={(patch) => {
+                    patchCandidate(item.id, patch);
+                  }}
+                />
+              );
+            })}
+          </section>
+
+          {filtered.length > visible.length ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setVisibleCount(visibleCount + PAGE_SIZE);
+              }}
+            >
+              显示更多（还有 {String(filtered.length - visible.length)} 笔）
+            </Button>
+          ) : null}
+
+          {groups.length > 20 ? (
+            <p className="text-helper text-muted">
+              疑似重复共 {String(groups.length)} 组，这里只列出前 20 组；用「疑似重复」筛选可以逐条查看。
+            </p>
+          ) : null}
+
+          {/* ⚠️ 固定底栏会盖住最后一笔，这里留出等高空白（`InnerPage` 的 padding 不归本页）。 */}
+          <div aria-hidden="true" className="h-44" />
+        </section>
+      ) : null}
+
+      {step.name === "review" && check !== null ? (
+        <BillCommitBar
+          importableCount={check.importableCount}
+          selectedCount={check.selectedCount}
+          blockers={check.blockers}
+          needsAcknowledgement={check.needsAcknowledgement}
+          acknowledged={acknowledged}
+          busy={busy !== null}
+          dirty={dirty}
+          rechecking={busy === "recheck"}
+          onAcknowledge={setAcknowledged}
+          onConfirm={() => {
+            setConfirmOpen(true);
+          }}
+          onCancel={resetToChoose}
+          onRecheck={() => void runRecheck()}
+        />
+      ) : null}
+
+      {step.name === "done" ? (
+        <BillDoneView
+          view={billReportView(
+            step.report,
+            step.preview,
+            billFilterCounts(step.preview.candidates, problemOf).selected,
+          )}
+          fileRef={step.report.fileRef ?? null}
+          exportedFileRef={step.report.exportedFileRef ?? null}
+          targetLabel={target?.label ?? null}
           doneLabel={doneLabel}
+          busy={busy !== null}
           onDone={() => {
-            setStep({ name: "choose" });
+            resetToChoose();
             void navigate(doneTo);
           }}
-          onAgain={() => {
-            setStep({ name: "choose" });
+          onAgain={resetToChoose}
+          onRetry={() => {
+            if (step.name === "done") void runCommit(step.preview);
           }}
         />
       ) : null}
 
-      {/* The confirmation the owner asked for: say how many rows, and what will
-          happen, before anything is written. */}
+      {/* The confirmation the owner asked for: say how many rows, and what happens, before writing. */}
       <ConfirmDialog
-        open={step.name === "confirm"}
+        open={confirmOpen}
         title="确认导入"
-        description="会先校验整个文件，通过后才写入这本账。"
-        confirmLabel={busy ? "正在导入…" : "开始导入"}
-        cancelLabel="取消"
-        // Not `danger`: importing adds records. A red confirm button would say
-        // "this deletes something", which is the opposite of what it does.
+        description="会把这批选中的记录写入账本，写入后可以在明细里逐笔查看。"
+        confirmLabel={
+          busy === "commit" || check === null ? "正在导入…" : `开始导入 ${String(check.importableCount)} 笔`
+        }
+        cancelLabel="再看看"
+        // Not `danger`: importing adds records. A red confirm button would say "this deletes something".
         tone="default"
-        busy={busy}
+        busy={busy === "commit"}
         onCancel={() => {
-          setStep({ name: "choose" });
+          setConfirmOpen(false);
         }}
         onConfirm={() => {
-          if (step.name === "confirm") void run(step.file);
+          if (step.name === "review") void runCommit(step.preview);
         }}
-        consequences={[
-          `文件：${step.name === "confirm" ? step.file.name : ""}`,
-          /** ⚠️ Named again at the moment it matters most. */
-          ...(target === undefined ? [] : [`导入到：「${target.label}」`]),
-          "逐行校验通过后才会写入；任何一行有问题，整批都不会写入。",
-          "已经在账本里的记录会被跳过，不会重复。",
-        ]}
+        consequences={
+          step.name === "review"
+            ? [
+                `文件：${file?.name ?? "已选文件"}`,
+                ...(target === undefined ? [] : [`导入到：「${target.label}」`]),
+                `可导入 ${String(check?.importableCount ?? 0)} 笔；跳过 ${String(counts.excluded)} 笔${
+                  counts.identity === 0 ? "" : `（其中来源已存在 ${String(counts.identity)} 笔）`
+                }。`,
+                `疑似重复 ${String(counts.duplicate)} 笔：只提示，不会删除或改动账本里已有的记录。`,
+                ...ackReasons.slice(0, 5).map((reason) => `已确认：${reason}`),
+                "已存在的来源会被跳过，不会重复写入；同一份文件再次导入也不会多出账目。",
+              ]
+            : []
+        }
       />
     </InnerPage>
-  );
-}
-
-/**
- * What happened, in the order a person needs it.
- *
- * A rejected file gets every problem listed — not the first one — because fixing
- * a spreadsheet one error per attempt is miserable. The line numbers are the
- * file's own, so they can be found by opening it.
- */
-function Report({
-  report,
-  doneLabel,
-  onDone,
-  onAgain,
-}: {
-  readonly report: ImportReport;
-  readonly doneLabel: string;
-  readonly onDone: () => void;
-  readonly onAgain: () => void;
-}): React.JSX.Element {
-  if (!report.ok) {
-    return (
-      <section className="flex flex-col gap-4">
-        <Alert>
-          没有写入任何数据：文件里有 {String(report.errors.length)} 处问题，全部改好之后再导入一次。
-        </Alert>
-
-        <ul className="overflow-hidden rounded-field border border-line bg-surface">
-          {report.errors.slice(0, 50).map((problem) => (
-            <li
-              key={`${String(problem.line)}-${problem.column ?? ""}`}
-              className="flex gap-3 border-b border-line px-4 py-3 text-sm last:border-b-0"
-            >
-              <span className="shrink-0 font-mono text-helper text-muted">第 {problem.line} 行</span>
-              <span className="text-ink">
-                {problem.column === null ? "" : `${problem.column}：`}
-                {problem.message}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {report.errors.length > 50 ? (
-          <p className="text-helper text-muted">
-            只显示了前 50 处，还有 {String(report.errors.length - 50)} 处。
-          </p>
-        ) : null}
-
-        <Button onClick={onAgain}>换一个文件</Button>
-      </section>
-    );
-  }
-
-  return (
-    <section className="flex flex-col gap-4">
-      <Alert tone="success">
-        已导入 {String(report.importedCount)} 条记录。
-        {report.skippedCount > 0 ? `另有 ${String(report.skippedCount)} 条已经存在，已跳过。` : ""}
-      </Alert>
-
-      <dl className="overflow-hidden rounded-field border border-line bg-surface">
-        <Row label="文件里的数据行" value={`${String(report.rowCount)} 条`} />
-        <Row label="写入" value={`${String(report.importedCount)} 条`} />
-        <Row label="跳过（已存在）" value={`${String(report.skippedCount)} 条`} />
-        {report.fileRef === undefined ? null : (
-          <Row label="导入编号" value={report.fileRef} mono />
-        )}
-        {report.exportedFileRef === null || report.exportedFileRef === undefined ? null : (
-          <Row label="来自这次导出" value={report.exportedFileRef} mono />
-        )}
-      </dl>
-
-      <p className="text-helper-relaxed text-muted">
-        导入编号是这次导入的标识，写进了这批每一笔记录里，日后可以据此追溯它们是从哪个文件来的。
-      </p>
-
-      <Button onClick={onDone}>{doneLabel}</Button>
-      <Button variant="secondary" onClick={onAgain}>
-        再导入一个文件
-      </Button>
-    </section>
-  );
-}
-
-function Row({
-  label,
-  value,
-  mono = false,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly mono?: boolean;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0">
-      <dt className="text-body text-muted">{label}</dt>
-      <dd className={`text-body text-ink ${mono ? "font-mono text-xs" : ""}`}>{value}</dd>
-    </div>
   );
 }
