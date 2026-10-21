@@ -1,6 +1,6 @@
 import type { ImportReport } from "@libellum/shared";
 import { useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
@@ -32,7 +32,13 @@ import { deliverFile } from "../lib/share.js";
  *  * 「下载模板」也带 `bookId`（模板按账本生成表头，不是同一个文件）；
  *  * 导出 / 返回都回 `/books/:bookId/settings`。
  *
- * ⚠️ **当前账本模式（旧的 `/export` → `/import`）行为一个字都没改。**
+ * ⚠️ **当前账本模式有两条来路，不能混为一条：**
+ *
+ *  * 旧的 `/export` → `/import` 链路一个字都没改：深链回退是 `/export`，页内仍保留
+ *    「← 返回导出」这个属于导出上下文的次级链接。
+ *  * 中央 `+` 菜单的「导入账单」带 `?from=nav`（见 `BottomNav.tsx`）：它是从当前页面
+ *    打开的，头部「返回」按历史回退；深链/刷新的回退是**明细页 `/`**，而那个
+ *    导出上下文专用的「← 返回导出」链接在这一来路下隐藏，避免看起来像"返回"却横跳导出。
  */
 
 type Step =
@@ -55,14 +61,18 @@ export function ImportPage(): React.JSX.Element {
 
 function ImportForCurrentLedger(): React.JSX.Element {
   const importEntries = useImportEntries();
+  const [searchParams] = useSearchParams();
+  /** The central `+` menu opens this route with `?from=nav` — see the note at the top. */
+  const fromMenu = searchParams.get("from") === "nav";
 
   return (
     <ImportView
       importEntries={importEntries}
-      backTo="/export"
+      backTo={fromMenu ? "/" : "/export"}
       exportTo="/export"
       doneTo="/"
       doneLabel="回到明细"
+      hideExportLink={fromMenu}
     />
   );
 }
@@ -102,11 +112,13 @@ function ImportView({
   doneLabel,
   bookId,
   target,
+  hideExportLink = false,
 }: {
   readonly importEntries: ReturnType<typeof useImportEntries>;
   /**
    * The frame's back fallback for a deep link. **Target mode lands on 账本设置**, which is the parent
-   * this screen was opened from; the current-ledger screen keeps `/export`, exactly as before.
+   * this screen was opened from; the legacy current-ledger screen keeps `/export`, exactly as before.
+   * The central `+` entry passes `?from=nav`, whose fallback is 明细 (`/`).
    */
   readonly backTo: string;
   /** Where 「← 返回导出」 goes — the export screen of the same ledger. */
@@ -118,6 +130,12 @@ function ImportView({
   readonly bookId?: string;
   /** ⚠️ Present only when the address names a ledger; its name **and** number are shown. */
   readonly target?: ImportTarget;
+  /**
+   * ⚠️ **Hide the legacy export shortcut when this page was opened from the central `+` menu.**
+   * That link is a child of the `/export` context, not of the reader's current page; keeping it
+   * visible there reads like a "back" that jumps to an unrelated screen.
+   */
+  readonly hideExportLink?: boolean;
 }): React.JSX.Element {
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -217,14 +235,16 @@ function ImportView({
             </p>
           </div>
 
-          <Button
-            variant="ghost"
-            onClick={() => {
-              void navigate(exportTo);
-            }}
-          >
-            ← 返回导出
-          </Button>
+          {hideExportLink ? null : (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void navigate(exportTo);
+              }}
+            >
+              ← 返回导出
+            </Button>
+          )}
         </section>
       ) : null}
 

@@ -208,7 +208,12 @@ const ENTRY_ACTIONS: readonly EntryAction[] = [
   {
     label: "导入账单",
     icon: <FileUpIcon className="size-6" />,
-    to: "/import",
+    /**
+     * `?from=nav` is the page's origin hint, not a second route: `ImportPage` uses it to hide the
+     * legacy 「← 返回导出」 shortcut (a child of `/export`) and to fall back to 明细 instead of
+     * `/export` when there is no history. The destination is still the current-ledger import.
+     */
+    to: "/import?from=nav",
     ariaLabel: "导入账单",
   },
 ];

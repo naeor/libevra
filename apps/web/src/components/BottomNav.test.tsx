@@ -113,7 +113,9 @@ describe("中央 + 菜单的四个入口", () => {
     const importCard = tagWithLabel(html, "导入账单");
 
     expect(importCard).not.toBe("");
-    expect(importCard).toContain('href="/import"');
+    // `?from=nav` tells ImportPage this is the central-menu origin (hide the legacy 返回导出 link,
+    // use 明细 as the deep-link fallback); the path itself is still the current-ledger import.
+    expect(importCard).toContain('href="/import?from=nav"');
     expect(importCard).not.toContain("/import-ledger");
 
     // Belt and braces: the wrong destination must not be reachable from this menu at all.
