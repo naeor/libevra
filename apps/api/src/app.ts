@@ -16,6 +16,7 @@ import {
   type ConsentPolicy,
 } from "./consent/policy.js";
 import type { PrismaClient } from "./db.js";
+import type { DocumentExtractor } from "./import/extractor.js";
 import { forbidden, registerErrorHandlers } from "./lib/errors.js";
 import { OcrService } from "./ocr/client.js";
 import { registerAdminRoutes } from "./routes/admin.js";
@@ -34,6 +35,7 @@ import { registerShareRoutes } from "./routes/share.js";
 import { registerExportRoutes } from "./routes/export.js";
 import { registerHealthRoute, type HealthDeps } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
+import { registerBillImportRoutes } from "./routes/billImport.js";
 import { registerLedgerImportRoutes } from "./routes/ledgerImport.js";
 import { registerLedgerImportJobRoutes } from "./routes/ledgerImportJobs.js";
 import { registerLedgerRoutes } from "./routes/ledger.js";
@@ -72,6 +74,11 @@ export interface BuildAppOptions extends HealthDeps {
    * have a 147 MB model on disk.
    */
   readonly voice?: Pick<VoiceService, "transcribe" | "stop">;
+  /**
+   * 账单文档解析器。真实实现要起 Python 子进程；路由测试可以注入只返回
+   * 合成文档的 stub，这样权限/校验/幂等测试不依赖本机 Python 依赖。
+   */
+  readonly importExtractor?: DocumentExtractor;
   /**
    * Local development includes a clearly marked test agreement and test major announcement.
    * Tests and production exclude them unless a caller passes a policy explicitly.
@@ -364,6 +371,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     registerVoiceRoutes(app, { requireAuth: requireBookWrite, prisma: options.prisma, voice });
     registerExportRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
     registerImportRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
+    registerBillImportRoutes(app, {
+      prisma: options.prisma,
+      requireAuth: requireBookWrite,
+      ...(options.importExtractor === undefined ? {} : { extractor: options.importExtractor }),
+    });
     /**
      * D2 guest-ledger import. Deliberately plain auth, not a ledger-header guard: a new target book
      * does not exist yet, and the existing-target path performs its own solo-book + membership
