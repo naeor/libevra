@@ -45,6 +45,28 @@ describe("真实本地审查分页", () => {
     const chunk = await fetchReviewChunk(mock.book, settings, 0);
     await expect(fetchReviewChunk(mock.book, { ...settings, timeWindowSeconds: 300 }, 0, 0, chunk.continuation!)).rejects.toThrow("快照已失效");
     mock.book = "book-2";
-    await expect(fetchReviewChunk("book-1", settings, 0, 0, chunk.continuation!)).rejects.toThrow("账本已切换");
+    await expect(fetchReviewChunk("book-1", settings, 0, 0, chunk.continuation!)).rejects.toThrow("本机没有这本账");
+  });
+  it("从另一账本设置在线检查时显式使用目标账本，不要求切换当前账本", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    mock.api.mockResolvedValue({ pairs: [], entries: [], total: 2, processed: 2, nextSeq: null, throughSeq: 2, nextCursor: null, truncated: false });
+    const result = await fetchReviewChunk("target-book", settings, 0);
+    expect(result.scope).toBe("server");
+    expect(mock.api).toHaveBeenCalledWith("/transactions/duplicates/review", expect.objectContaining({ bookId: "target-book" }));
+    expect(mock.book).toBe("book-1");
+  });
+  it("另一账本在线检查失败时，不能回退并冒用当前账本的本地数据", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    mock.entries = [entry(1), entry(2)];
+    mock.api.mockRejectedValue(new Error("网络中断"));
+    await expect(fetchReviewChunk("target-book", settings, 0)).rejects.toThrow("网络中断");
+  });
+  it("在线请求返回时当前账本变化，丢弃旧响应而不是回退显示另一账本", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    mock.api.mockImplementation(async () => {
+      mock.book = "changed-book";
+      return { pairs: [], entries: [], total: 2, processed: 2, nextSeq: null, throughSeq: 2, truncated: false };
+    });
+    await expect(fetchReviewChunk("book-1", settings, 0)).rejects.toThrow("账本已切换");
   });
 });

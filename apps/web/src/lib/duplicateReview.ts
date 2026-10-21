@@ -179,7 +179,9 @@ export async function fetchReviewChunk(
 ): Promise<ReviewScanChunk> {
   const empty = { pairs: [], entries: [], total: 0, processed: 0, nextSeq: null, throughSeq: 0, truncated: false, scope: "local" as const, continuation: null };
   if (!settings.enabled) return empty;
-  if (bookId !== duplicateBookId()) throw new Error("账本已切换，请重新检查。");
+  // 账本设置可以检查另一账本；在线请求明确携带目标，不切换当前本地账本。
+  const currentAtStart = duplicateBookId();
+  const guestAtStart = isGuestRuntime();
   const starting = cursor === undefined && afterSeq === 0 && throughSeq === undefined;
   if (cursor?.source !== "local" && !isGuestRuntime() && navigator.onLine) {
     try {
@@ -187,16 +189,18 @@ export async function fetchReviewChunk(
         method: "POST", bookId, body: { settings, afterSeq,
           ...(throughSeq === undefined ? {} : { throughSeq }), ...(cursor?.source === "server" ? { cursor: cursor.value } : {}) },
       });
-      if (bookId !== duplicateBookId()) throw new Error("账本已切换，请重新检查。");
+      if (currentAtStart !== duplicateBookId() || guestAtStart !== isGuestRuntime()) throw new Error("账本已切换，请重新检查。");
       const value = chunk.nextCursor ?? (chunk.nextSeq === null ? null : { leftSeq: chunk.nextSeq, rightSeq: 0, throughSeq: chunk.throughSeq });
       return { ...chunk, scope: "server", continuation: value === null ? null : { source: "server", value } };
     } catch (error) {
       // A server continuation must never be interpreted as a local position.
-      if (!starting) throw error;
+      if (!starting || currentAtStart !== duplicateBookId() || guestAtStart !== isGuestRuntime() || bookId !== currentAtStart) throw error;
     }
   } else if (cursor?.source === "server" || (!starting && cursor === undefined)) {
     throw new Error("在线检查已暂停；恢复连接后可从断点重试，或重新检查本机数据。");
   }
+  // 只有当前本地账本的数据可用于离线检查，不能把 A 的快照标成 B。
+  if (bookId !== duplicateBookId()) throw new Error("本机没有这本账的可用检查数据，请联网后重试。");
   let token: string;
   let snapshot: { bookId: string; settings: string; guest: boolean; entries: readonly Transaction[] };
   if (cursor?.source === "local") {

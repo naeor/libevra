@@ -319,7 +319,7 @@ describe("S15-E4 统一重复检测接口", () => {
     expect(keys.size).toBe(780); expect(processed).toBe(40);
   });
   it("单笔超过500条历史候选，前500对已忽略也不会漏掉后面的有效对", async () => {
-    const who = await account("ignored_review_prefix"); const ids = await denseEntries(who, 503);
+    const who = await account("ignored_prefix"); const ids = await denseEntries(who, 503);
     await ignorePairs(who, ids.slice(1, 501).map(id => ({ transactionIdA: ids[0]!, transactionIdB: id })));
     const first = (await review(who, { settings: SETTINGS })).json<DuplicateReviewChunk>();
     expect(first.pairs).toHaveLength(0); expect(first.processed).toBe(0); expect(first.nextCursor).toBeTruthy();
