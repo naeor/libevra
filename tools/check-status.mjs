@@ -33,13 +33,16 @@ const migrationCount = existsSync(MIGRATIONS)
 
 // --- STATUS 里声明的值 ---
 const v = status.match(/生产版本\*\*\s*\|\s*\*\*`?(\d+\.\d+\.\d+)`?\*\*/);
+// 本机候选版本可以领先生产；没有本地版本行的旧文档仍校验生产版本。
+const localVersion = status.match(/本地开发版本\*\*\s*\|\s*\*\*`?(\d+\.\d+\.\d+)`?\*\*/);
 const m = status.match(/数据库迁移\*\*\s*\|\s*\*\*(\d+)\*\*/);
 
 if (!v) problems.push("STATUS.md 里找不到「生产版本」行（格式应为 | **生产版本** | **`X.Y.Z`** |）");
 if (!m) problems.push("STATUS.md 里找不到「数据库迁移」行（格式应为 | **数据库迁移** | **N** 个…）");
 
-if (v && v[1] !== codeVersion) {
-  problems.push(`版本号不一致：STATUS=${v[1]}，代码=${codeVersion}`);
+const declaredCodeVersion = localVersion?.[1] ?? v?.[1];
+if (declaredCodeVersion && declaredCodeVersion !== codeVersion) {
+  problems.push(`版本号不一致：STATUS本地=${declaredCodeVersion}，代码=${codeVersion}`);
 }
 if (m && Number(m[1]) !== migrationCount) {
   problems.push(`迁移数不一致：STATUS=${m[1]}，仓库=${migrationCount}`);
