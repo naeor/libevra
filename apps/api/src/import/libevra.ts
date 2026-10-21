@@ -131,13 +131,13 @@ export function parseLibevraCsv(
 
     const note = values.get("note") ?? "";
     const sourceRefRaw = (values.get("sourceRef") ?? "") || (values.get("fileId") ?? "");
-    // 旧 /import 会把「流水编号」当作交易 id 回查，命中就跳过（导出再导入不能重复）。
-    // 候选 id 对前端是不透明 uuid，这里直接沿用它，让重复检测能认出同一笔已入账交易。
+    // 来源身份用于本账本回查；新候选始终有独立 UUID，跨账本导入不能占用源交易主键。
     const fileId = values.get("fileId") ?? "";
-    const candidateId = UUID_PATTERN.test(fileId) ? fileId : randomUUID();
+    const candidateId = randomUUID();
 
     candidates.push({
       id: candidateId,
+      ...(UUID_PATTERN.test(fileId) ? { sourceTransactionId: fileId } : {}),
       selected: kind !== "unknown",
       amount,
       currency,

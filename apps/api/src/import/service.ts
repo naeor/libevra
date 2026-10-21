@@ -138,7 +138,7 @@ function isBoaDocument(document: ExtractedDocument): boolean {
  * 预览/核对/提交的核心。
  *
  * 预览只解析与判重，不写账；提交只接受用户对“已解析候选”的选择与可编辑字段，
- * 金额/日期/币种/时间/时区以服务端预览为准（前端这些字段也是只读的）。
+ * 金额、日期等可核对修正；来源身份与定位始终来自服务端原始解析。
  */
 export class BillImportService {
   constructor(private readonly options: ImportServiceOptions) {}
@@ -336,6 +336,9 @@ export class BillImportService {
       format: parsed.format,
       candidates,
       warnings,
+      originalCandidates: (previous === null ? parsed.candidates : candidates).map((candidate) => ({ ...candidate, warnings: [...candidate.warnings] })),
+      originalWarnings: [...parsed.warnings, ...(previous === null ? [] : warnings),
+        ...(parsed.reconciliation.ok === false ? ["结单对账不一致，确认导入前需要先核对对账信息。"] : [])],
       reconciliation: parsed.reconciliation,
       committed: null,
     });
@@ -351,8 +354,7 @@ export class BillImportService {
   }
 
   /**
-   * 把前端回传的可编辑字段合并到候选，并拒绝改动只读字段。
-   * 只读字段在前端本来就不可编辑，服务端再拒绝一次，避免绕过 UI 改金额/日期。
+   * 合并核对字段；来源身份和文件定位不接受客户端覆盖。
    */
   private mergeRows(
     record: PreviewRecord,
@@ -360,6 +362,8 @@ export class BillImportService {
   ): BillImportCandidate[] {
     const baseById = new Map(record.candidates.map((candidate) => [candidate.id, candidate]));
     const rowById = new Map(rows.map((row) => [row.id, row]));
+    if (rowById.size !== rows.length) throw badRequest("duplicate_row", "同一候选不能提交多次。");
+    const originals = new Map((record.originalCandidates ?? record.candidates).map((candidate) => [candidate.id, candidate]));
 
     for (const row of rows) {
       if (!baseById.has(row.id)) {
@@ -369,31 +373,31 @@ export class BillImportService {
 
     return record.candidates.map((candidate) => {
       const row = rowById.get(candidate.id);
-      if (row === undefined) return { ...candidate, selected: false };
+      if (row === undefined) return { ...candidate, selected: false, duplicateIds: [],
+        warnings: [...(originals.get(candidate.id)?.warnings ?? [])] };
 
-      const line = candidate.line;
-      if (row.amount !== candidate.amount) {
-        throw badRequest("immutable_field", `第 ${line} 行的金额不能修改，金额以解析结果为准。`);
-      }
-      if (row.currency !== candidate.currency) {
-        throw badRequest("immutable_field", `第 ${line} 行的币种不能修改，币种以解析结果为准。`);
-      }
-      if (row.date !== candidate.date) {
-        throw badRequest("immutable_field", `第 ${line} 行的日期不能修改，日期以解析结果为准。`);
-      }
-      if (row.time !== candidate.time) {
-        throw badRequest("immutable_field", `第 ${line} 行的时间不能修改，时间以解析结果为准。`);
-      }
-      if (row.timezone !== candidate.timezone) {
-        throw badRequest("immutable_field", `第 ${line} 行的时区不能修改，时区以解析结果为准。`);
-      }
-      if (candidate.timePrecision === "day" && row.time !== null) {
-        throw badRequest("immutable_field", `第 ${line} 行只解析到日期，不能补上时间。`);
-      }
+      const original = originals.get(candidate.id) ?? candidate;
+      const fieldWarnings: [boolean, RegExp][] = [
+        [row.kind !== original.kind, /类型|方向/],
+        [row.time !== original.time, /时间|只提供日期|只解析到日期/],
+        [row.date !== original.date, /日期/],
+        [row.timezone !== original.timezone, /时区/],
+        [row.amount !== original.amount || row.currency !== original.currency, /金额|币种/],
+        [row.categoryId !== original.categoryId, /分类/],
+        [row.paymentMethodId !== original.paymentMethodId, /支付方式/],
+      ];
 
       return {
         ...candidate,
-        selected: row.selected && !candidate.identityDuplicate,
+        amount: row.amount,
+        currency: row.currency,
+        date: row.date,
+        time: row.time,
+        timezone: row.timezone,
+        timePrecision: row.time === null ? "day" : parseClockTime(row.time)?.precision ?? "second",
+        warnings: original.warnings.filter((warning) => !fieldWarnings.some(([changed, pattern]) => changed && pattern.test(warning))),
+        duplicateIds: [],
+        selected: row.selected,
         kind: row.kind,
         categoryId: row.categoryId,
         paymentMethodId: row.paymentMethodId,
@@ -413,7 +417,9 @@ export class BillImportService {
 
     let amountCents = 0;
     try {
+      if (!/^\d+(?:\.\d+)?$/.test(candidate.amount)) throw new RangeError("invalid_amount");
       amountCents = parseAmountToMinor(candidate.amount, decimalsFor(currency));
+      if (amountCents <= 0 || amountCents > 1e10 * 10 ** decimalsFor(currency)) throw new RangeError("amount_limit");
     } catch {
       issues.push({ column: "amount", message: "金额格式不正确，无法转换为最小单位。" });
     }
@@ -519,11 +525,12 @@ export class BillImportService {
       checkCandidateIds: record.source === "libevra",
     });
     record.candidates = duplicates.candidates;
+    record.warnings = mergeWarnings(record.originalWarnings ?? [], duplicates.warnings);
 
     return {
       ...previewOf(record),
       candidates: duplicates.candidates,
-      warnings: mergeWarnings(record.warnings, duplicates.warnings),
+      warnings: record.warnings,
     };
   }
 
@@ -614,7 +621,7 @@ export class BillImportService {
           };
         }
 
-        const ids = planned.map((row) => row.candidate.id);
+        const ids = planned.map((row) => row.candidate.sourceTransactionId ?? row.candidate.id);
         const existing = await tx.transaction.findMany({
           where: { bookId: input.bookId, id: { in: ids } },
           select: { id: true },
@@ -642,10 +649,16 @@ export class BillImportService {
                   .filter((ref): ref is string => ref !== null),
               );
 
+        const seenRefs = new Set<string>();
+        const seenSourceIds = new Set<string>();
         const toInsert = planned.filter((row) => {
-          if (existingIds.has(row.candidate.id)) return false;
+          const sourceId = row.candidate.sourceTransactionId;
+          if (existingIds.has(sourceId ?? row.candidate.id) || (sourceId !== undefined && seenSourceIds.has(sourceId))) return false;
           const ref = row.candidate.sourceRef;
-          return !(ref !== null && ref !== "" && existingRefs.has(ref));
+          if (ref && (existingRefs.has(ref) || seenRefs.has(ref))) return false;
+          if (ref) seenRefs.add(ref);
+          if (sourceId) seenSourceIds.add(sourceId);
+          return true;
         });
 
         // 分类/支付方式可能在预览后被归档或删除；整批拒绝，避免写入半个账本。

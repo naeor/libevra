@@ -246,14 +246,12 @@ export function dateTimeToInstant(
     second ?? 0,
   );
 
-  let offset = offsetAt(target, timeZone);
-  let instant = target - offset;
-  const corrected = offsetAt(instant, timeZone);
-  if (corrected !== offset) {
-    offset = corrected;
-    instant = target - offset;
-  }
-  return new Date(instant).toISOString();
+  const offsets = new Set([-172800000, -86400000, 0, 86400000, 172800000]
+    .map((delta) => offsetAt(target + delta, timeZone)));
+  const instants = [...offsets].map((offset) => target - offset)
+    .filter((instant) => instant + offsetAt(instant, timeZone) === target);
+  if (instants.length !== 1) throw new RangeError(instants.length === 0 ? "nonexistent_time" : "ambiguous_time");
+  return new Date(instants[0]!).toISOString();
 }
 
 /**

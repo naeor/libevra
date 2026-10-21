@@ -148,10 +148,15 @@ export function registerBillImportRoutes(
     extractor: options.extractor ?? createDocumentExtractor(),
     cache: new PreviewCache(),
   });
+  const requireTarget = async (request: FastifyRequest): Promise<void> => {
+    const declared = request.headers["x-libellum-book"];
+    if (typeof declared !== "string" || !z.string().uuid().safeParse(declared).success)
+      throw badRequest("missing_target_book", "请明确选择导入的目标账本后重试。");
+  };
 
   app.post(
     "/api/v1/import/preview",
-    { preHandler: options.requireAuth },
+    { preHandler: [requireTarget, options.requireAuth] },
     async (request, reply) => {
       if (!request.isMultipart()) {
         throw badRequest("expected_multipart", "请以文件上传的方式提交。");
@@ -175,7 +180,7 @@ export function registerBillImportRoutes(
 
   app.post(
     "/api/v1/import/recheck",
-    { preHandler: options.requireAuth },
+    { preHandler: [requireTarget, options.requireAuth] },
     async (request, reply) => {
       try {
         const body = recheckRequestSchema.parse(request.body);
@@ -195,7 +200,7 @@ export function registerBillImportRoutes(
 
   app.post(
     "/api/v1/import/commit",
-    { preHandler: options.requireAuth },
+    { preHandler: [requireTarget, options.requireAuth] },
     async (request, reply) => {
       try {
         const body = billImportCommitSchema.parse(request.body);
