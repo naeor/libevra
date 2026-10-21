@@ -31,11 +31,69 @@ export interface UpdateAnnouncement {
 }
 
 /**
- * 1.14.20 is the OCR production patch (2026-10-20). 1.14.18 is the S14 production release
- * (2026-10-19). 1.13.15 is the S13-G/H/I release; 1.13.09 is the S13-F release; 1.13.08 was a
- * production patch (card layout) and 1.13.07 was the full S13-E release.
+ * 1.15.00 is the S15 production release (2026-10-21). 1.14.20 is the OCR production patch
+ * (2026-10-20). 1.14.18 is the S14 production release (2026-10-19). 1.13.15 is the S13-G/H/I
+ * release; 1.13.09 is the S13-F release; 1.13.08 was a production patch (card layout) and
+ * 1.13.07 was the full S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.15.00",
+    releasedAt: "2026-10-21",
+    status: "released",
+    title: "Libevra 1.15.00",
+    summary: "记录更顺手，识别更完整。",
+    intro: [
+      "本次更新围绕手动记账、图片识别与批量核对展开：记账页面更紧凑，图片识别可以处理一张截图中的多笔交易，并新增了批量核对与统一确认的流程。",
+    ],
+    sections: [
+      {
+        heading: "手动记账，更顺手",
+        items: [
+          "重新整理了手动记账页面的字段顺序，金额、分类等常用内容更集中。",
+          "快捷金额默认收起，需要时展开；新增「沿用上一笔」，可沿用上一笔的分类、支付方式、币种与标签。",
+          "金额输入框右侧可直接切换币种，保存区域与底部导航衔接更自然。",
+        ],
+      },
+      {
+        heading: "一张截图，识别多笔",
+        items: [
+          "图片识别现在可以处理交易列表、银行流水等多笔页面，不再局限于单笔详情。",
+          "支持跨图片识别重复项提示；无法确定页面类型时，会请你选择按单笔或多笔处理。",
+          "识别结果仍以待核对草稿呈现，确认前不会写入账本。",
+        ],
+      },
+      {
+        heading: "批量核对，一次确认",
+        items: [
+          "新增批量核对概览，可按待核对、疑似重复等状态筛选，并进入单笔详情修改。",
+          "核对完成后统一确认导入，系统逐条写入并给出结果汇总。",
+          "导入完成页会显示本次会话的累计结果，可继续识别下一批；未确定的字段仍会明确标注。",
+        ],
+      },
+      {
+        heading: "账本与日常操作",
+        items: [
+          "账本导入的来源与目标改为页面内选择列表。",
+          "修复了从账本详情进入设置、再进入导入后返回时的页面循环。",
+          "明细页支持批量选择、批量修改与删除；离线删除状态与刷新反馈更准确。",
+        ],
+      },
+      {
+        heading: "界面与可读性",
+        items: [
+          "统一了展开箭头、金额字号与对齐等展示规则。",
+          "修复了部分输入控件字号被全局样式覆盖的问题。",
+          "保持邀请制注册，新账号仍需邀请码。",
+        ],
+      },
+    ],
+    closing: [
+      "感谢你使用 Libevra。",
+      "我们会继续改善记账与识别体验，让记录每一笔收支变得更轻松。",
+    ],
+    major: true,
+  },
   {
     version: "1.14.20",
     releasedAt: "2026-10-20",

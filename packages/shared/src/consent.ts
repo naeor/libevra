@@ -124,6 +124,69 @@ export const RELEASE_MAJOR_ANNOUNCEMENT_1_14_18: MajorAnnouncement = {
 };
 
 /**
+ * The real 1.15.00 major update, published with the S15 production release.
+ *
+ * ⚠️ **The user-visible facts must stay identical to the same version's entry in
+ * `apps/web/src/lib/updateAnnouncements.ts`**: the popup is driven by this server-side list, while
+ * the update history/detail pages are driven by the web bundle. One version, one story; the two
+ * files are the two halves of the same announcement.
+ *
+ * Accounts created after the publication instant are intentionally excluded by the server; this is
+ * a change notice for accounts that existed before it, not an onboarding message.
+ */
+export const RELEASE_MAJOR_ANNOUNCEMENT_1_15_00: MajorAnnouncement = {
+  id: "major-1.15.00",
+  version: "1.15.00",
+  title: "Libevra 1.15.00",
+  summary: "记录更顺手，识别更完整。",
+  sections: [
+    {
+      heading: "手动记账，更顺手",
+      items: [
+        "重新整理了手动记账页面的字段顺序，金额、分类等常用内容更集中。",
+        "快捷金额默认收起，需要时展开；新增「沿用上一笔」，可沿用上一笔的分类、支付方式、币种与标签。",
+        "金额输入框右侧可直接切换币种，保存区域与底部导航衔接更自然。",
+      ],
+    },
+    {
+      heading: "一张截图，识别多笔",
+      items: [
+        "图片识别现在可以处理交易列表、银行流水等多笔页面，不再局限于单笔详情。",
+        "支持跨图片识别重复项提示；无法确定页面类型时，会请你选择按单笔或多笔处理。",
+        "识别结果仍以待核对草稿呈现，确认前不会写入账本。",
+      ],
+    },
+    {
+      heading: "批量核对，一次确认",
+      items: [
+        "新增批量核对概览，可按待核对、疑似重复等状态筛选，并进入单笔详情修改。",
+        "核对完成后统一确认导入，系统逐条写入并给出结果汇总。",
+        "导入完成页会显示本次会话的累计结果，可继续识别下一批；未确定的字段仍会明确标注。",
+      ],
+    },
+    {
+      heading: "账本与日常操作",
+      items: [
+        "账本导入的来源与目标改为页面内选择列表。",
+        "修复了从账本详情进入设置、再进入导入后返回时的页面循环。",
+        "明细页支持批量选择、批量修改与删除；离线删除状态与刷新反馈更准确。",
+      ],
+    },
+    {
+      heading: "界面与可读性",
+      items: [
+        "统一了展开箭头、金额字号与对齐等展示规则。",
+        "修复了部分输入控件字号被全局样式覆盖的问题。",
+        "保持邀请制注册，新账号仍需邀请码。",
+      ],
+    },
+  ],
+  // 2026-10-21 09:21:05 CST, the actual 1.15.00 production deployment completion (api/web healthy).
+  publishedAt: "2026-10-21T01:21:05.000Z",
+  testOnly: false,
+};
+
+/**
  * Documents that currently require acceptance.
  *
  * Test-only documents are returned only when the caller explicitly enables local test mode. A
@@ -134,7 +197,10 @@ export function activeLegalDocuments(includeTest: boolean): readonly LegalDocume
 }
 
 export function activeMajorAnnouncements(includeTest: boolean): readonly MajorAnnouncement[] {
-  const announcements: MajorAnnouncement[] = [RELEASE_MAJOR_ANNOUNCEMENT_1_14_18];
+  const announcements: MajorAnnouncement[] = [
+    RELEASE_MAJOR_ANNOUNCEMENT_1_14_18,
+    RELEASE_MAJOR_ANNOUNCEMENT_1_15_00,
+  ];
   if (includeTest) announcements.push(TEST_MAJOR_ANNOUNCEMENT);
   return announcements;
 }
