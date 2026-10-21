@@ -58,6 +58,13 @@ export function buildImportPreview(
     readonly excludeDuplicateTargetIds?: ReadonlySet<string>;
     /** 用户重复检测设置（S15-E2）；缺省用统一默认规则。 */
     readonly duplicateSettings?: DuplicateDetectionSettings;
+    /**
+     * 目标账本里已经确认「不是同一笔」的配对键。
+     *
+     * 导入预览在浏览器里跑，不经过服务端的 `suppressConfirmed`，所以要由调用方把关系读出来；
+     * 缺省是空集合（游客、离线、新账本都确实没有关系）。
+     */
+    readonly suppressedPairKeys?: ReadonlySet<string>;
   },
 ): ImportPreview {
   const mapping = buildTaxonomyMappingPlan(source, target, resolutions);
@@ -68,6 +75,7 @@ export function buildImportPreview(
     options?.excludeDuplicateSourceIds,
     options?.excludeDuplicateTargetIds,
     options?.duplicateSettings,
+    options?.suppressedPairKeys,
   );
   const totals = buildTotals(source);
   const dateRange = dateRangeOf(source);
