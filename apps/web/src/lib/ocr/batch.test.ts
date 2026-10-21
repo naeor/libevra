@@ -75,6 +75,28 @@ describe("createBatch", () => {
     expect(batch.items[0]?.paymentMethodId).toBe("m-wechat");
   });
 
+  it("keeps the order platforms and only maps a same-named payment method", () => {
+    const batch = createBatch(
+      [
+        item({ index: 0, candidates: [makeCandidate({ candidateId: "img0-mt", sourcePlatform: "MEITUAN" })] }),
+        item({ index: 1, candidates: [makeCandidate({ candidateId: "img1-jd", sourcePlatform: "JD" })] }),
+        item({ index: 2, candidates: [makeCandidate({ candidateId: "img2-tb", sourcePlatform: "TAOBAO" })] }),
+      ],
+      {
+        bookId: "book-1",
+        categories: CATEGORIES,
+        // Only JD has a user-created method with the same name. 美团/淘宝 have
+        // no visible payment instrument on the order screen, so they stay empty.
+        paymentMethods: [...METHODS, { id: "m-jd", name: "京东", isArchived: false }],
+      },
+    );
+
+    expect(batch.items.map((entry) => entry.sourcePlatform)).toEqual(["MEITUAN", "JD", "TAOBAO"]);
+    expect(batch.items[0]?.paymentMethodId).toBeNull();
+    expect(batch.items[1]?.paymentMethodId).toBe("m-jd");
+    expect(batch.items[2]?.paymentMethodId).toBeNull();
+  });
+
   it("turns a draft-only unknown page into one candidate marked for review", () => {
     const batch = createBatch(
       [

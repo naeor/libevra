@@ -235,6 +235,18 @@ describe("OcrOverview filters", () => {
     expect(open).toContain("收入");
   });
 
+  it("shows the order platforms as sources and filters by them", () => {
+    const open = render({
+      sources: ["MEITUAN", "JD", "TAOBAO"],
+      filtersOpen: true,
+    });
+
+    expect(open).toContain("美团");
+    expect(open).toContain("京东");
+    expect(open).toContain("淘宝");
+    expect(render({ source: "TAOBAO" })).toContain("已筛选：来源 淘宝");
+  });
+
   it("summarises active secondary filters when the panel is closed", () => {
     const html = render({ source: "ALIPAY", direction: "expense" });
 
@@ -281,6 +293,15 @@ describe("OcrOverview cards", () => {
     expect(html).not.toContain("⚠");
     expect(html.split("20.00").length - 1).toBe(1);
     expect(html.split("查看详情").length - 1).toBe(1);
+  });
+
+  it("labels an order platform as its Chinese source, not a raw enum", () => {
+    const order = batchCandidate({ candidateId: "img0-mt", sourcePlatform: "MEITUAN" });
+    const html = render({ items: [order], counts: countBatchItems([order]) });
+
+    expect(html).toContain("美团");
+    expect(html).not.toContain("来源待确认");
+    expect(html).not.toContain("MEITUAN");
   });
 
   it("shows the specific warning only on the questionable record", () => {

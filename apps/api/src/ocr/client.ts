@@ -2,14 +2,15 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import type {
-  OcrCandidate,
-  OcrChannel,
-  OcrDirection,
-  OcrDraft,
-  OcrIssue,
-  OcrItemResult,
-  OcrPageType,
+import {
+  OCR_CHANNELS,
+  type OcrCandidate,
+  type OcrChannel,
+  type OcrDirection,
+  type OcrDraft,
+  type OcrIssue,
+  type OcrItemResult,
+  type OcrPageType,
 } from "@libellum/shared";
 
 /**
@@ -420,7 +421,7 @@ function toItemResult(response: RawResponse, index: number): OcrItemResult {
     occurredLocalDate: raw.occurred_local_date ?? null,
     occurredTime: raw.occurred_time ?? null,
     kind: raw.kind === "income" ? "income" : "expense",
-    channel: channel === "WECHAT" || channel === "ALIPAY" || channel === "BANK" ? (channel as OcrChannel) : null,
+    channel: toChannel(channel),
     counterparty: raw.counterparty ?? null,
     note: raw.note ?? null,
     serial: raw.serial ?? null,
@@ -443,9 +444,20 @@ function toDirection(value: string | undefined): OcrDirection {
   return DIRECTIONS.find((direction) => direction === value) ?? "unknown";
 }
 
+/**
+ * A channel the shared enum knows, or null.
+ *
+ * An unknown string is not an error at the wire level (an older or newer
+ * recogniser may print one), but it must never reach the candidate as an
+ * unverified enum value: the interface would then have to show a raw string.
+ * Using the shared list keeps this from being a fourth copy that drifts.
+ */
+function toChannel(value: string | null | undefined): OcrChannel | null {
+  return OCR_CHANNELS.find((channel) => channel === value) ?? null;
+}
+
 function toCandidate(raw: RawCandidate, requestIndex: number): OcrCandidate {
   const imageIndex = typeof raw.image_index === "number" ? raw.image_index : requestIndex;
-  const platform = raw.source_platform;
 
   return {
     candidateId: typeof raw.candidate_id === "string" && raw.candidate_id !== ""
@@ -458,9 +470,7 @@ function toCandidate(raw: RawCandidate, requestIndex: number): OcrCandidate {
     occurredLocalDate: raw.occurred_local_date ?? null,
     occurredTime: raw.occurred_time ?? null,
     merchant: raw.merchant ?? null,
-    sourcePlatform: platform === "WECHAT" || platform === "ALIPAY" || platform === "BANK"
-      ? (platform as OcrChannel)
-      : null,
+    sourcePlatform: toChannel(raw.source_platform),
     account: raw.account ?? null,
     note: raw.note ?? null,
     status: raw.status ?? null,

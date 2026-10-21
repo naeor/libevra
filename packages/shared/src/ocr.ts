@@ -18,8 +18,16 @@ import { z } from "zod";
  *    screenshot was unreadable or the feature is broken.
  */
 
-/** Which app the screenshot came from, when it can be told. */
-export const OCR_CHANNELS = ["WECHAT", "ALIPAY", "BANK"] as const;
+/**
+ * Which app the screenshot came from, when it can be told.
+ *
+ * The first three are payment apps; the last three are the shopping platforms
+ * whose order screens S15-B reads (2026-10-21 owner decision). The Python
+ * recogniser has emitted `MEITUAN/JD/TAOBAO` since those six layouts landed, so
+ * before this enum had them the API filtered the value to null and the UI could
+ * not say where an order came from.
+ */
+export const OCR_CHANNELS = ["WECHAT", "ALIPAY", "BANK", "MEITUAN", "JD", "TAOBAO"] as const;
 export const ocrChannelSchema = z.enum(OCR_CHANNELS);
 export type OcrChannel = z.infer<typeof ocrChannelSchema>;
 
@@ -28,6 +36,9 @@ export const OCR_CHANNEL_LABELS: Readonly<Record<OcrChannel, string>> = {
   WECHAT: "微信",
   ALIPAY: "支付宝",
   BANK: "银行",
+  MEITUAN: "美团",
+  JD: "京东",
+  TAOBAO: "淘宝",
 };
 
 /**

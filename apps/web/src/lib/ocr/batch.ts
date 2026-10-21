@@ -50,6 +50,11 @@ const CHANNEL_METHOD_NAMES: Readonly<Record<OcrChannel, string>> = {
   WECHAT: "微信",
   ALIPAY: "支付宝",
   BANK: "银行卡",
+  // 美团/京东/淘宝是购物平台，它们本身不说明用哪种方式付的钱。这三个名字只与
+  // 用户自己建的、**同名**的支付方式精确匹配；匹配不到就留空（不按平台猜微信/支付宝）。
+  MEITUAN: "美团",
+  JD: "京东",
+  TAOBAO: "淘宝",
 };
 
 function defaultPaymentMethodId(

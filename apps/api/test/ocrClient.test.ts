@@ -89,6 +89,74 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
+/**
+ * The 2026-10-21 order platforms.
+ *
+ * The Python recogniser prints `MEITUAN` / `JD` / `TAOBAO`; the client used to
+ * whitelist only the three payment channels and turn these into null. This fake
+ * also echoes one value the enum does not know, because filtering an unknown
+ * string must keep working.
+ */
+const ORDER_ANSWER = `
+let buffer = "";
+const platforms = ["MEITUAN", "JD", "TAOBAO", "FUTURE_PLATFORM"];
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  let newline = buffer.indexOf("\\n");
+  while (newline !== -1) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (line !== "") {
+      const request = JSON.parse(line);
+      const platform = platforms[request.image_index] ?? "FUTURE_PLATFORM";
+      process.stdout.write(JSON.stringify({
+        id: request.id,
+        ok: true,
+        draft: {
+          amount: "12.34",
+          currency: "CNY",
+          occurred_local_date: "2026-02-01",
+          kind: "expense",
+          channel: platform,
+        },
+        page_type: "transaction-list",
+        layout_label: "订单列表",
+        requires_user_choice: false,
+        warnings: [],
+        candidates: [{
+          candidate_id: "img" + request.image_index + "-1",
+          image_index: request.image_index,
+          amount: "12.34",
+          currency: "CNY",
+          direction: "expense",
+          occurred_local_date: "2026-02-01",
+          occurred_time: null,
+          merchant: "示例商户",
+          source_platform: platform,
+          account: null,
+          note: null,
+          status: "posted",
+          is_refund: false,
+          is_transfer: false,
+          serial: null,
+          issues: [],
+          duplicate_suspected: false,
+          duplicate_group_ids: [],
+          is_complete: true,
+          is_questionable: false,
+          raw_text: "示例商户\\n-12.34"
+        }],
+        lineCount: 2,
+        averageConfidence: 0.9,
+        seconds: 0.01,
+      }) + "\\n");
+    }
+    newline = buffer.indexOf("\\n");
+  }
+});
+`;
+
 /** A response from a recogniser that has not been updated for S15-B. */
 const LEGACY_ANSWER = `
 let buffer = "";
@@ -211,6 +279,22 @@ describe("OcrService child lifecycle", () => {
     expect(item.candidates).toEqual([]);
     expect(item.warnings).toEqual([]);
     expect(item.requiresUserChoice).toBe(false);
+  });
+
+  it("passes the order platforms through and still filters unknown channels", async () => {
+    const script = await fixture(READY + ORDER_ANSWER);
+    const client = service(script);
+
+    for (const [index, platform] of (["MEITUAN", "JD", "TAOBAO"] as const).entries()) {
+      const item = await client.recognize(Buffer.from("synthetic"), index);
+      expect(item.candidates[0]?.sourcePlatform).toBe(platform);
+      expect(item.draft?.channel).toBe(platform);
+    }
+
+    // A value the shared enum does not know is null, never a raw string.
+    const unknown = await client.recognize(Buffer.from("synthetic"), 3);
+    expect(unknown.candidates[0]?.sourcePlatform).toBeNull();
+    expect(unknown.draft?.channel).toBeNull();
   });
 
   it("honours the per-image timeout after a successful startup", async () => {
