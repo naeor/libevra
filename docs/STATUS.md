@@ -7,16 +7,16 @@
 
 | 项 | 值 |
 |---|---|
-| **最后核对** | 2026-10-21 08:36 CST（发布前；部署结果见 §1 与发布验收记录） |
-| **生产版本** | **`1.15.00`**（2026-10-21 发布；完成前生产仍为 `1.14.20`） |
-| **生产 `/health`** | 发布后确认 `ok=true`、`version=1.15.00`、`database=up`；发布前实测 `1.14.20 / database=up`（2026-10-21 08:30 CST） |
-| **生产部署 commit** | 本次发布 commit 见 [`S15-1.15.00发布验收记录`](archive/releases/S15-1.15.00发布验收记录.md)；部署前为 `9102c00`（旧记录，本次未能 SSH 复核） |
+| **最后核对** | 2026-10-21 09:24 CST（发布完成后实测：公网 `/health` 与容器内检查均为 `1.15.00 / database=up`，`/srv/libevra/.deployed-commit` = `2c9946a`，CI run `39522545935` success） |
+| **生产版本** | **`1.15.00`**（2026-10-21 09:21 CST 发布完成，替换 `1.14.20`） |
+| **生产 `/health`** | ✅ 发布后实测 `ok=true`、`version=1.15.00`、`database=up`（2026-10-21 09:21 CST，公网 HTTPS 与容器内各一次）；发布前为 `1.14.20 / database=up` |
+| **生产部署 commit** | **`2c9946a`**（2026-10-21 09:21 CST 写入 `/srv/libevra/.deployed-commit`；部署前为 `9102c00`，已 SSH 实测） |
 | **数据库迁移** | **51** 个（仓库 `prisma/migrations` 计数；本次**无新增**） |
 | **注册模式** | **邀请制**（未开放公开注册，本次未改变） |
 | **站点** | <https://libevra.com>（腾讯云，HTTPS） |
 | **当前阶段** | **S15-A/B/C 已发布（1.15.00，2026-10-21）；S15-D 未验收、未开始；S15-E 未启动（仅规划提案）**；S16/S17 未开始 |
-| **分支 / 远程** | `release/s15` 与 `main` 已同步到 GitHub（2026-10-21 快进，未 force push）；`main` 的发布版本提交与 docs 提交分开记录；本地 `s15-*` 开发分支未合并进发布 |
-| **CI** | ✅ 本次发布推送后由 CI 验证（typecheck / migrate / test / build / docs / status / 备份脚本自测）；结论见发布验收记录 |
+| **分支 / 远程** | `release/s15` 与 `main` 已同步到 GitHub（2026-10-21 快进，未 force push）：发布代码提交 `2c9946a`，其后的收尾 docs 提交见 `git log --oneline -1`；本地 `s15-*` 开发分支未合并进发布 |
+| **CI** | ✅ 发布代码提交 `2c9946a`：run `39522545935` **success**（2026-10-21 08:38–08:41 CST，3m11s，14 步全绿）；收尾 docs 提交 push 后再次触发 CI |
 | **当前提交** | 见 `git log -1 --oneline`（本文件不锁 hash，避免每次提交都过期） |
 | **工作区** | 发布用独立 worktree `worktrees\s15-release`；主工作区 `记账程序v1`（只读，另一 Agent 的 `s15e1-audit` worktree 未触碰） |
 
@@ -50,7 +50,7 @@
 | 项 | 状态 |
 |---|---|
 | **远程备份** | ✅ 已缓解（2026-10-21）：`release/s15` 已推送、`main` 已快进，本机损坏不再等于全部丢失 |
-| **CI** | ✅ 本次发布推送后验证（见发布验收记录） |
+| **CI** | ✅ run `39522545935` success（发布代码提交 `2c9946a`）；收尾 docs 提交另跑一次 |
 | **S15-D 未验收** | ⚠️ 真机软键盘/安全区、真实截图版式、真实账号流程均未验收；不得写成"S15 通过" |
 | **语音模型 small vs base** | ⚠️ 代码默认 `base`，生产 env 仍 `small`；切换与否待所有者决定（见发布验收记录 §语音） |
 | 本机仍是唯一可发布环境 | ⚠️ `deploy.sh` 从本机打包上传；换机器前要先从这里恢复工作区 |
@@ -61,7 +61,10 @@
 
 ## 4. 证据出处
 
-- 生产实测：`curl.exe -s https://libevra.com/api/v1/health`（本次）
+- 生产实测（2026-10-21 09:21 CST）：公网 `https://libevra.com/api/v1/health` = `1.15.00 / database=up`；容器内同一检查；`/healthz` = 200；
+  `/scan`、`/ocr/overview` 未登录访问实测落到 `/login`（headless Chrome 读最终 URL + 截图）；`critical-relay` 容器 ID 与启动时间未变
+- 回滚点：源码快照 `/srv/libevra.pre-1.15.00`、`/srv/libevra/.rollback-1.15.00.txt`、发布前备份 `deploy/backups/libevra_prod-20261021-091558.dump`
+  （SHA-256 `26e92dc6…a812`，含恢复演练 44 张表对比）
 - 本次发布：`changelog/1.15.md` + [`archive/releases/S15-1.15.00发布验收记录.md`](archive/releases/S15-1.15.00发布验收记录.md)
 - S15-A/B/C 工作总报告：[archive/misc/S15-工作总报告-20261021.md](archive/misc/S15-工作总报告-20261021.md)
 - 仓库迁移数：`prisma/migrations/` 目录计数 + `pnpm check:status`
