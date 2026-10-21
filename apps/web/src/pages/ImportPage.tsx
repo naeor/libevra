@@ -19,7 +19,7 @@ import {
   billItemsById,
 } from "../components/import/BillImportViews.js";
 import { InnerPage } from "../components/Layouts.js";
-import { errorMessage } from "../lib/api.js";
+import { ApiRequestError, errorMessage } from "../lib/api.js";
 import {
   BILL_SOURCE_LABELS,
   billRowProblem,
@@ -274,7 +274,19 @@ function ImportView({
       setDirty(false);
       setVisibleCount(PAGE_SIZE);
     } catch (caught) {
-      setError(`没能识别这个文件：${errorMessage(caught)}`);
+      /**
+       * A thrown `ApiRequestError` means the API answered with a readable problem
+       * (unsupported format, too many rows, …). Anything else means the browser
+       * never reached the API at all — usually the local server is not running.
+       *
+       * Saying “没能识别这个文件” for the latter was misleading: the file was fine
+       * and the parser never received it. Name the actual next step instead.
+       */
+      setError(
+        caught instanceof ApiRequestError
+          ? `没能识别这个文件：${errorMessage(caught)}`
+          : `没能识别这个文件：连不上本地服务。这个文件本身不一定有问题，请先启动本地 API（项目根目录运行 pnpm dev），刷新页面后重试。（${errorMessage(caught)}）`,
+      );
       setStep({ name: "choose" });
     } finally {
       setBusy(null);
