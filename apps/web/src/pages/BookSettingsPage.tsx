@@ -6,6 +6,7 @@ import { Alert } from "../components/Alert.js";
 import { BookIdentityCard, BookSwitcherSheet } from "../components/BookSwitcherSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
+import { NotDuplicateRelationsSection } from "../components/NotDuplicateRelationsSection.js";
 import { SkeletonRows } from "../components/States.js";
 import { TextField } from "../components/TextField.js";
 import { errorMessage } from "../lib/api.js";
@@ -320,6 +321,14 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
               ) : null}
             </ul>
           </section>
+
+          {/* ---------------------------------------------------------------- */}
+          {/**
+           * ⚠️ **S15-E3：已忽略的重复交易。** 放在「数据管理」之后，因为它管理的是
+           * 账本级的数据质量状态（不重复关系），不是个人偏好；查看与撤销入口必须在账本设置里，
+           * 否则用户误确认一次之后无处恢复（规划 §5.5）。
+           */}
+          <NotDuplicateRelationsSection bookId={bookId} canWrite={canWrite} />
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
