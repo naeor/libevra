@@ -31,9 +31,6 @@ import {
 
 import type { OcrBatchCandidate } from "./types.js";
 
-/** 默认时间窗口（秒）。保留导出是为了让旧测试/调用方仍能引用同一个数字。 */
-export const DUPLICATE_TIME_TOLERANCE_SECONDS = 60;
-
 /** 与 Python `dedupe.MERCHANT_SIMILARITY` 相同。 */
 export const MERCHANT_SIMILARITY = 0.85;
 
