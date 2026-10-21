@@ -16,6 +16,7 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { InlineChoice, type InlineChoiceOption } from "../components/ui/InlineChoice.js";
@@ -155,6 +156,7 @@ function totalsOf(transactions: readonly { kind: "expense" | "income"; amountCen
 
 export function LedgerImportPage(): React.JSX.Element {
   const { user } = useAuth();
+  const duplicateSettings = useDuplicateDetectionSettings();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
   const step = parseStep(search.get("step"));
@@ -313,9 +315,10 @@ export function LedgerImportPage(): React.JSX.Element {
       {
         excludeDuplicateSourceIds: excluded.sourceIds,
         excludeDuplicateTargetIds: excluded.targetIds,
+        duplicateSettings: duplicateSettings.settings,
       },
     );
-  }, [snapshots, resolutions, incremental]);
+  }, [snapshots, resolutions, incremental, duplicateSettings.settings]);
 
   /** 读取服务端增量状态；失败时仍允许首次导入，但不能假装没有历史。 */
   useEffect(() => {
@@ -593,6 +596,7 @@ export function LedgerImportPage(): React.JSX.Element {
       next.source,
       next.target,
       resolutions as TaxonomyResolutionMap,
+      { duplicateSettings: duplicateSettings.settings },
     );
     const recoveredResolutions = recoverTaxonomyResolutions(
       preview,
@@ -603,6 +607,7 @@ export function LedgerImportPage(): React.JSX.Element {
       next.source,
       next.target,
       recoveredResolutions as TaxonomyResolutionMap,
+      { duplicateSettings: duplicateSettings.settings },
     );
     const groupRecovery = recoverGroupDecisions(preview, finalPreview, decisions);
     const summary = summarizeDraftRecovery(decisions, resolutions, groupRecovery, recoveredResolutions);

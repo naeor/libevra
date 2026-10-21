@@ -12,9 +12,13 @@
  *    只按来源平台名称匹配；没有依据就留空，由详情页让用户选。
  */
 
-import type { OcrChannel, OcrItemResult } from "@libellum/shared";
+import type { DuplicateDetectionSettings, OcrChannel, OcrItemResult } from "@libellum/shared";
 
-import { withDuplicateMarks, type OcrDuplicateGroup } from "./duplicates.js";
+import {
+  withDuplicateMarks,
+  type OcrDuplicateGroup,
+  type OcrDuplicateOptions,
+} from "./duplicates.js";
 import {
   toBatchCandidate,
   type OcrBatch,
@@ -39,10 +43,23 @@ interface PaymentMethodLike {
 export interface CreateBatchOptions {
   /** 生成批次时所在的账本；切换账本后批次只可查看，不允许导入。 */
   readonly bookId: string | null;
+  /** 用户设置（S15-E2）；缺省用统一默认规则。 */
+  readonly duplicateSettings?: DuplicateDetectionSettings;
   readonly categories?: readonly CategoryLike[];
   readonly paymentMethods?: readonly PaymentMethodLike[];
   readonly now?: Date;
   readonly generateBatchId?: () => string;
+}
+
+/** 批次内所有候选共用一个账本键；没有账本上下文时用占位键（仍然同组比较）。 */
+function duplicateOptions(
+  batch: Pick<OcrBatch, "bookId">,
+  settings?: DuplicateDetectionSettings,
+): OcrDuplicateOptions {
+  return {
+    bookId: batch.bookId ?? "ocr-batch",
+    ...(settings === undefined ? {} : { settings }),
+  };
 }
 
 /** 来源平台对应的默认支付方式名称，与现有单笔核对 `draftOf` 的映射一致。 */
@@ -195,7 +212,12 @@ export function createBatch(
     }
   }
 
-  const marked = withDuplicateMarks(candidates);
+  const marked = withDuplicateMarks(candidates, {
+    bookId: options.bookId ?? "ocr-batch",
+    ...(options.duplicateSettings === undefined
+      ? {}
+      : { settings: options.duplicateSettings }),
+  });
 
   return {
     version: 1,
@@ -225,6 +247,7 @@ export function updateBatchItem(
   batch: OcrBatch,
   candidateId: string,
   patch: Partial<Omit<OcrBatchCandidate, "candidateId" | "imageIndex">>,
+  settings?: DuplicateDetectionSettings,
 ): OcrBatch {
   const items = batch.items.map((item) =>
     item.candidateId === candidateId
@@ -232,14 +255,15 @@ export function updateBatchItem(
       : item,
   );
 
-  return { ...batch, items: withDuplicateMarks(items).items };
+  return { ...batch, items: withDuplicateMarks(items, duplicateOptions(batch, settings)).items };
 }
 
 /** 重新计算重复标记（例如页面重新载入后，规则变化也能自愈）。 */
 export function refreshDuplicateMarks(
   batch: OcrBatch,
+  settings?: DuplicateDetectionSettings,
 ): { batch: OcrBatch; groups: OcrDuplicateGroup[] } {
-  const marked = withDuplicateMarks(batch.items);
+  const marked = withDuplicateMarks(batch.items, duplicateOptions(batch, settings));
   return { batch: { ...batch, items: marked.items }, groups: marked.groups };
 }
 
@@ -266,6 +290,7 @@ export function assignImportIds(
 export function withoutBatchItems(
   batch: OcrBatch,
   candidateIds: readonly string[],
+  settings?: DuplicateDetectionSettings,
 ): OcrBatch {
   const removed = new Set(candidateIds);
   const items = batch.items.filter((item) => !removed.has(item.candidateId));
@@ -275,7 +300,11 @@ export function withoutBatchItems(
     if (!removed.has(candidateId)) importIds[candidateId] = id;
   }
 
-  return { ...batch, items: withDuplicateMarks(items).items, importIds };
+  return {
+    ...batch,
+    items: withDuplicateMarks(items, duplicateOptions(batch, settings)).items,
+    importIds,
+  };
 }
 
 /** 批次是否属于当前账本。属于另一本时只读，避免把 A 账的截图写进 B 账。 */

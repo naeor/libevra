@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router";
 
+import { DuplicateDetectionSettingsCard } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import {
   CurrencyQuickPick,
@@ -63,6 +64,21 @@ export function PreferencesPage(): React.JSX.Element {
             value={currency}
             hint="该币种将排在所有币种列表的最前。汇率折算功能开放后，其它币种默认折算为该币种。"
           />
+        </div>
+      </section>
+
+      {/**
+       * ⚠️ **S15-E2：重复交易检测的提醒开关与规则。**
+       *
+       * 这是设置页里的**一节**，没有新增二级页面、没有改导航。值存在设备本地并
+       * 按账号隔离（见 `lib/duplicateSettings.ts`）；关闭提醒只关闭业务层提示，
+       * 不影响幂等、来源去重、权限与离线同步。
+       */}
+      <section className="flex flex-col gap-3">
+        <h2 className="px-1 text-helper text-muted">重复交易检测</h2>
+
+        <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+          <DuplicateDetectionSettingsCard />
         </div>
       </section>
 

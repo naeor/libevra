@@ -220,6 +220,64 @@ export function SettingsCategoryCard({
   );
 }
 
+/**
+ * **A real switch for an on/off setting.**
+ *
+ * ⚠️ **`role="switch"` + `aria-checked`, not a checkbox.** These settings save on
+ * press and have no form to submit, so a checkbox would promise a save button
+ * that does not exist. The switch keeps the answer ("is it on?") available to a
+ * screen reader while the whole 44 px target stays tappable.
+ *
+ * ⚠️ **The label is the accessible name, not a second copy of the text.** The
+ * visible title and the button's `aria-label` come from the same `label` prop;
+ * a separate hidden span would be a second place to forget to update.
+ */
+export function SettingsToggle({
+  label,
+  hint,
+  checked,
+  onChange,
+  testId,
+}: {
+  readonly label: string;
+  readonly hint?: string;
+  readonly checked: boolean;
+  readonly onChange: (next: boolean) => void;
+  /** Stable hook for tests; rendered on the switch button. */
+  readonly testId?: string;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-body text-ink">{label}</span>
+        {hint === undefined ? null : (
+          <span className="text-helper-relaxed text-muted">{hint}</span>
+        )}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        {...(testId === undefined ? {} : { "data-testid": testId })}
+        onClick={() => {
+          onChange(!checked);
+        }}
+        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft disabled:cursor-not-allowed disabled:opacity-45 ${
+          checked ? "bg-brand" : "bg-line"
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`inline-block size-5 rounded-full bg-white shadow-sm transition-transform ${
+            checked ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export interface SettingsRow {
   readonly label: string;
   readonly hint?: string;

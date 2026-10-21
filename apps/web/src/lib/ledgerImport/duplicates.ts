@@ -1,19 +1,34 @@
 /**
  * S14-D D1 · 可能重复的账目检测。
  *
- * 规则（所有者 2026-10-19 定）：
- *  - 只在来源 B 与目标 A 之间比较；A-A、B-B 永远不构成冲突；
- *  - 发生时间相差 <= 60 秒；
- *  - 收支类型、金额、币种完全一致；
- *  - 分类按**映射后的目标分类**比较；
- *  - 标签集合完全相同（顺序无关）。
+ * **S15-E2 起，判定规则不再写在这里。** 金额、币种、收支方向、时间窗口、分类与
+ * 支付方式全部交给共享核心 `@libellum/shared` 的 `evaluateDuplicatePair`；本文件是
+ * **账本导入入口的适配层**，只保留跨账本导入特有的三件事：
  *
- * ⚠️ 多候选不能随便取第一条。这里把“来源-目标”匹配图拆成连通分量，一个分量就是一组冲突；
- * 同一笔记录只会出现在一个组里，D3 的组级决定因此不会互相矛盾。
+ *  1. **只在来源 B 与目标 A 之间比较**；A-A、B-B 永远不构成冲突；
+ *  2. 把来源分类/支付方式翻译成**目标账本的语义键**（`target:<id>` / `new:<id>`），
+ *     绝不比较两个账本碰巧同名的显示名称；
+ *  3. 把匹配图拆成连通分量，一个分量就是一组冲突。
+ *
+ * ⚠️ **来源快照的账本键统一填目标账本。** 导入的问题始终是“这笔来源记录写进目标账本
+ * 后，会不会与目标已有记录重复”；核心的“同一账本”规则在适配层被解释为“同一目标账本”。
+ *
+ * ⚠️ **与旧实现的有意差异**（详见 `docs/specs/features/S15-E2-统一重复检测规则-设计决定.md`）：
+ *  - 不再要求标签集合相同（统一规则不比较标签）；
+ *  - 默认要求支付方式相同（双方都有映射后的支付方式时）；
+ *  - 时间窗口来自用户设置（默认仍是 60 秒），不再是模块常量；
+ *  - 时间按真实时间戳比较；旧实现本来就是这样，未改变。
  *
  * ⚠️ **只提醒，不自动删除。** 这里不产生任何写入决定；没有命中重复的来源记录默认进入待导入列表。
  */
-import type { Transaction } from "@libellum/shared";
+
+import {
+  DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+  evaluateDuplicatePair,
+  type DuplicateCandidateFields,
+  type DuplicateDetectionSettings,
+  type Transaction,
+} from "@libellum/shared";
 
 import type {
   DuplicateGroup,
@@ -23,8 +38,6 @@ import type {
   TaxonomyMappingPlan,
 } from "./types.js";
 
-export const DUPLICATE_TIME_WINDOW_MS = 60_000;
-
 export interface DuplicateDetectionResult {
   readonly groups: readonly DuplicateGroup[];
   readonly duplicateSourceIds: ReadonlySet<string>;
@@ -33,8 +46,10 @@ export interface DuplicateDetectionResult {
 
 interface CandidateRecord {
   readonly transaction: Transaction;
+  /** 目标账本语义键：复用时 `target:<id>`，新建时 `new:<sourceId>`。 */
   readonly categoryKey: string;
-  readonly tagKey: string;
+  /** 同上；来源没有支付方式时为 `null`。 */
+  readonly paymentKey: string | null;
   readonly categoryLabel: string;
   readonly tagLabels: readonly string[];
 }
@@ -44,22 +59,14 @@ interface GroupEdge {
   readonly targetId: string;
 }
 
-function tagKey(ids: readonly string[]): string {
-  return [...ids].sort().join("\u0001");
-}
-
 function tagLabelsFor(ids: readonly string[], namesById: ReadonlyMap<string, string>): readonly string[] {
   return ids
     .map((id) => namesById.get(id) ?? "（未知标签）")
     .sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
 }
 
-function componentKey(node: string): string {
-  return node;
-}
-
 /**
- * 来源分类/标签到目标语义键的索引。
+ * 来源分类/支付方式/标签到目标语义键的索引。
  *
  * 计划里 `targetId` 为 null 的是要新建的对象：`matchKey` 是 `new:<sourceId>`，不可能等于目标账本
  * 已有对象的键，因此不会产生“假重复”——除非冲突处理最终决定复用目标对象，D3 必须重新运行本检测。
@@ -70,19 +77,22 @@ function buildSourceIndexes(
 ): {
   categoryKeyById: Map<string, string>;
   categoryLabelById: Map<string, string>;
-  tagKeyById: Map<string, string>;
+  paymentKeyById: Map<string, string>;
   tagLabelById: Map<string, string>;
 } {
   const categoryKeyById = new Map<string, string>();
   const categoryLabelById = new Map<string, string>();
-  const tagKeyById = new Map<string, string>();
+  const paymentKeyById = new Map<string, string>();
   const tagLabelById = new Map<string, string>();
 
   for (const item of mapping.categories) {
     categoryKeyById.set(item.source.id, item.matchKey);
   }
+  for (const item of mapping.paymentMethods) {
+    paymentKeyById.set(item.source.id, item.matchKey);
+  }
   for (const item of mapping.tags) {
-    tagKeyById.set(item.source.id, item.matchKey);
+    tagLabelById.set(item.source.id, item.source.name);
   }
   // Labels are for display only; missing taxonomy (corrupt local data) must not crash a preview.
   for (const category of source.categories) {
@@ -92,7 +102,7 @@ function buildSourceIndexes(
     tagLabelById.set(tag.id, tag.name);
   }
 
-  return { categoryKeyById, categoryLabelById, tagKeyById, tagLabelById };
+  return { categoryKeyById, categoryLabelById, paymentKeyById, tagLabelById };
 }
 
 function sourceCandidates(
@@ -118,13 +128,13 @@ function sourceCandidates(
       // semantically; it must be repaired before import, not silently treated as "no duplicate".
       continue;
     }
-    const tagKeys = transaction.tags
-      .map((tag) => sourceIndexes.tagKeyById.get(tag.id))
-      .filter((key): key is string => key !== undefined);
     sourceRecords.set(transaction.id, {
       transaction,
       categoryKey,
-      tagKey: tagKey([...tagKeys].sort()),
+      paymentKey:
+        transaction.paymentMethodId === null
+          ? null
+          : (sourceIndexes.paymentKeyById.get(transaction.paymentMethodId) ?? null),
       categoryLabel,
       tagLabels: tagLabelsFor(
         transaction.tags.map((tag) => tag.id),
@@ -136,11 +146,11 @@ function sourceCandidates(
   const targetRecords = new Map<string, CandidateRecord>();
   for (const transaction of target.transactions) {
     if (excludeTargetIds.has(transaction.id)) continue;
-    const categoryKey = `target:${transaction.categoryId}`;
     targetRecords.set(transaction.id, {
       transaction,
-      categoryKey,
-      tagKey: tagKey(transaction.tags.map((tag) => `target:${tag.id}`)),
+      categoryKey: `target:${transaction.categoryId}`,
+      paymentKey:
+        transaction.paymentMethodId === null ? null : `target:${transaction.paymentMethodId}`,
       categoryLabel: transaction.categoryName,
       tagLabels: tagLabelsFor(
         transaction.tags.map((tag) => tag.id),
@@ -160,15 +170,38 @@ function sourceCandidates(
   return { sourceRecords, targetRecords, targetIndex };
 }
 
+/**
+ * 候选分桶键：只包含任何设置下都必须相同的维度（方向、金额、币种）。
+ *
+ * 分类/支付方式可能被用户关闭，不能放进桶键；时间窗口也不能（窗口可配置）。
+ * 桶内再走核心的完整规则。
+ */
 function candidateKey(record: CandidateRecord): string {
-  return `${record.transaction.kind}\u0000${String(record.transaction.amountCents)}\u0000${record.transaction.currency}\u0000${record.categoryKey}`;
+  return `${record.transaction.kind}\u0000${String(record.transaction.amountCents)}\u0000${record.transaction.currency.toUpperCase()}`;
 }
 
-function withinWindow(left: string, right: string): boolean {
-  const leftTime = Date.parse(left);
-  const rightTime = Date.parse(right);
-  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) return false;
-  return Math.abs(leftTime - rightTime) <= DUPLICATE_TIME_WINDOW_MS;
+/** 把一条导入候选翻译成统一核心的字段；账本键统一用目标账本（见文件头）。 */
+function coreCandidate(record: CandidateRecord, targetBookId: string): DuplicateCandidateFields {
+  return {
+    id: record.transaction.id,
+    bookId: targetBookId,
+    kind: record.transaction.kind,
+    amountCents: record.transaction.amountCents,
+    currency: record.transaction.currency,
+    occurredAt: record.transaction.occurredAt,
+    occurredAtPrecision: "second",
+    occurredLocalDate: record.transaction.occurredLocalDate,
+    categoryId: record.categoryKey,
+    paymentMethodId: record.paymentKey,
+  };
+}
+
+function emptyResult(): DuplicateDetectionResult {
+  return {
+    groups: [],
+    duplicateSourceIds: new Set(),
+    duplicateTargetIds: new Set(),
+  };
 }
 
 /**
@@ -176,6 +209,9 @@ function withinWindow(left: string, right: string): boolean {
  *
  * 输出顺序稳定：组按组内最早来源账目时间、再按来源 id 排序；组内来源记录在前、目标记录在后，
  * 各自按时间和 id 排序。界面据此逐组展示时不会因为 Map/Set 顺序而跳来跳去。
+ *
+ * `settings` 缺省时使用统一默认规则（开启提醒、60 秒、比较分类与支付方式）。用户关闭提醒后
+ * 本函数返回空结果——**导入本身与来源身份去重不受影响**。
  */
 export function detectDuplicateGroups(
   source: ImportSource,
@@ -183,7 +219,10 @@ export function detectDuplicateGroups(
   mapping: TaxonomyMappingPlan,
   excludeSourceIds: ReadonlySet<string> = new Set<string>(),
   excludeTargetIds: ReadonlySet<string> = new Set<string>(),
+  settings: DuplicateDetectionSettings = DEFAULT_DUPLICATE_DETECTION_SETTINGS,
 ): DuplicateDetectionResult {
+  if (!settings.enabled) return emptyResult();
+
   const { sourceRecords, targetRecords, targetIndex } = sourceCandidates(
     source,
     target,
@@ -193,25 +232,21 @@ export function detectDuplicateGroups(
   );
 
   const edges: GroupEdge[] = [];
-  const sourceById = new Map<string, CandidateRecord>();
-  for (const [id, record] of sourceRecords) sourceById.set(id, record);
 
   for (const [sourceId, sourceRecord] of sourceRecords) {
     const candidates = targetIndex.get(candidateKey(sourceRecord)) ?? [];
     for (const targetRecord of candidates) {
-      if (!withinWindow(sourceRecord.transaction.occurredAt, targetRecord.transaction.occurredAt)) continue;
-      if (sourceRecord.tagKey !== targetRecord.tagKey) continue;
+      const result = evaluateDuplicatePair(
+        coreCandidate(sourceRecord, target.bookId),
+        coreCandidate(targetRecord, target.bookId),
+        settings,
+      );
+      if (!result.matched) continue;
       edges.push({ sourceId, targetId: targetRecord.transaction.id });
     }
   }
 
-  if (edges.length === 0) {
-    return {
-      groups: [],
-      duplicateSourceIds: new Set(),
-      duplicateTargetIds: new Set(),
-    };
-  }
+  if (edges.length === 0) return emptyResult();
 
   // Adjacency over only the nodes that have at least one edge. Components are formed from
   // cross-source edges; no A-A or B-B edge is ever added.
@@ -264,7 +299,7 @@ export function detectDuplicateGroups(
     if (sourceIds.length === 0 || targetIds.length === 0) continue;
 
     const sourceRecordsInGroup = sourceIds
-      .map((id) => sourceById.get(id))
+      .map((id) => sourceRecords.get(id))
       .filter((record): record is CandidateRecord => record !== undefined);
     const targetRecordsInGroup = targetIds
       .map((id) => targetRecords.get(id))
@@ -327,5 +362,3 @@ function compareTransactionTime(left: Transaction | undefined, right: Transactio
 function compareRecords(left: CandidateRecord, right: CandidateRecord): number {
   return compareTransactionTime(left.transaction, right.transaction);
 }
-
-

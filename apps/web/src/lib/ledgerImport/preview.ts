@@ -4,6 +4,8 @@
  * 这个文件把来源/目标快照、taxonomy 映射和重复检测组合成一份可直接渲染、可测试、无副作用的预览。
  * **它不调用任何写接口，也不决定删除任何账目。**
  */
+import type { DuplicateDetectionSettings } from "@libellum/shared";
+
 import type { ImportPreview, ImportSource, ImportTarget, ImportTotals } from "./types.js";
 import { detectDuplicateGroups } from "./duplicates.js";
 import { buildTaxonomyMappingPlan, type TaxonomyResolutionMap } from "./mapping.js";
@@ -54,6 +56,8 @@ export function buildImportPreview(
   options?: {
     readonly excludeDuplicateSourceIds?: ReadonlySet<string>;
     readonly excludeDuplicateTargetIds?: ReadonlySet<string>;
+    /** 用户重复检测设置（S15-E2）；缺省用统一默认规则。 */
+    readonly duplicateSettings?: DuplicateDetectionSettings;
   },
 ): ImportPreview {
   const mapping = buildTaxonomyMappingPlan(source, target, resolutions);
@@ -63,6 +67,7 @@ export function buildImportPreview(
     mapping,
     options?.excludeDuplicateSourceIds,
     options?.excludeDuplicateTargetIds,
+    options?.duplicateSettings,
   );
   const totals = buildTotals(source);
   const dateRange = dateRangeOf(source);
