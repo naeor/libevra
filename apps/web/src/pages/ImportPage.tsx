@@ -315,11 +315,8 @@ function ImportView({
     if (dropped !== undefined) void startPreview(dropped);
   }
 
-  /**
-   * 改一笔。只替换这一笔的对象（其余保持引用），这样 `problemOf` 的 WeakMap 缓存继续命中。
-   * 勾选状态单独走 `toggle`，不算“改过字段”，不会触发“重新检查重复”的提示。
-   */
-  function patchCandidate(id: string, patch: Partial<BillImportCandidate>, markDirty = true): void {
+  /** 编辑与选择都会改变本次比较范围；提交前必须重新核对。 */
+  function patchCandidate(id: string, patch: Partial<BillImportCandidate>): void {
     if (step.name !== "review") return;
     setStep({
       name: "review",
@@ -330,7 +327,8 @@ function ImportView({
         ),
       },
     });
-    if (markDirty) setDirty(true);
+    setDirty(true);
+    setAcknowledged(false);
   }
 
   async function runRecheck(): Promise<void> {
@@ -342,6 +340,7 @@ function ImportView({
       const next = await recheckBill(step.preview, bookId, duplicateSettings.settings);
       setStep({ name: "review", preview: next });
       setDirty(false);
+      setAcknowledged(false);
     } catch (caught) {
       setError(`重新检查失败：${errorMessage(caught)}`);
     } finally {
@@ -513,7 +512,7 @@ function ImportView({
               moneyText={moneyText}
               busy={busy !== null}
               onToggle={(id, selected) => {
-                patchCandidate(id, { selected }, false);
+                patchCandidate(id, { selected });
               }}
             />
           ) : null}
@@ -547,7 +546,7 @@ function ImportView({
                   categories={categories}
                   paymentMethods={paymentMethods}
                   onToggle={(selected) => {
-                    patchCandidate(item.id, { selected }, false);
+                    patchCandidate(item.id, { selected });
                   }}
                   onExpand={() => {
                     setExpandedId(expandedId === item.id ? null : item.id);

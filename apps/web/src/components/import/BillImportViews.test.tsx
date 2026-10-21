@@ -496,7 +496,7 @@ describe("BillCommitBar", () => {
     );
 
     expect(markup).toContain("我已了解上面的提示（对账差异/文件提醒）");
-    expect(markup).toContain("请先勾选「我已了解上面的提示」。");
+    expect(markup).toContain("记录或选择有变化，请先重新检查重复。");
     expect(markup).toContain("重新检查重复");
     expect(markup).toMatch(/disabled=""[^>]*>确认导入 2 笔/);
   });
@@ -520,6 +520,16 @@ describe("BillCommitBar", () => {
     );
 
     expect(markup).toContain("正在导入…");
+  });
+
+  it("字段或选择变更后，即使没有其他问题也不能沿用旧重复结论提交", () => {
+    const markup = renderToStaticMarkup(
+      <BillCommitBar importableCount={2} selectedCount={2} blockers={[]}
+        needsAcknowledgement={false} acknowledged busy={false} dirty rechecking={false}
+        onAcknowledge={NOOP} onConfirm={NOOP} onCancel={NOOP} onRecheck={NOOP} />,
+    );
+    expect(markup).toMatch(/disabled=""[^>]*>确认导入 2 笔/);
+    expect(markup).toContain("记录或选择有变化，请先重新检查重复。");
   });
 });
 

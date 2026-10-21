@@ -538,6 +538,7 @@ function BillRowEditor({
         <span className="text-helper text-muted">时间</span>
         <input
           type="time"
+          step="1"
           value={item.time ?? ""}
           disabled={busy}
           aria-label="时间"
@@ -803,7 +804,7 @@ export function BillCommitBar({
   readonly onCancel: () => void;
   readonly onRecheck: () => void;
 }): React.JSX.Element {
-  const disabled = importableCount === 0 || blockers.length > 0 || busy;
+  const disabled = importableCount === 0 || blockers.length > 0 || busy || dirty;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card">
@@ -839,7 +840,7 @@ export function BillCommitBar({
 
         <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
           <p className={`text-helper ${blockers.length === 0 ? "text-muted" : "text-warn-dark"}`}>
-            {blockers[0] ?? "确认前不会写入账本。"}
+            {dirty ? "记录或选择有变化，请先重新检查重复。" : (blockers[0] ?? "确认前不会写入账本。")}
           </p>
           <span className="flex shrink-0 items-center gap-3">
             {dirty ? (

@@ -67,9 +67,8 @@ describe("ImportPage 的骨架与文案", () => {
     expect(PAGE).toContain("会把这批选中的记录写入账本");
   });
 
-  it("身份重复不会被勾选，勾选操作也不会触发重新检查", () => {
-    // `false` = 只改勾选、不算改字段：不会因为点了一下就要求重新检查重复。
-    expect(PAGE).toContain("patchCandidate(item.id, { selected }, false)");
+  it("选择变化也会进入重核，身份重复仍以服务端结论为准", () => {
+    expect(PAGE).toContain("patchCandidate(item.id, { selected })");
     expect(PAGE).toContain("billRowStatus(item, problemOf(item))");
   });
 
