@@ -116,7 +116,7 @@ export function DetailPage(): React.JSX.Element {
   const { rootRef, scrollRef, stripRef, atList, goTo } = useDetailTransition(saved.progress);
 
   /**
-   * The recording menu is shared with every other screen.
+   * The entry menu is shared with every other screen.
    *
    * The ledger used to own this state, which was the wrong shape: the cards are
    * the app's way of starting a record, and they are wanted on every screen. The
@@ -547,7 +547,7 @@ export function DetailPage(): React.JSX.Element {
   );
 
   const enterBatch = (): void => {
-    /** The recording cards belong to the other mode; two open modes at once is one too many. */
+    /** The entry cards belong to the other mode; two open modes at once is one too many. */
     menu.close();
     setSelecting(true);
     setSelected(new Set<string>());
@@ -1191,7 +1191,7 @@ export function DetailPage(): React.JSX.Element {
             has to be there mid-list. It also cannot affect the transition: the
             green area's height is the only thing that animates.
         
-        Hidden while the recording cards are open, because those cards are 100px
+        Hidden while the entry cards are open, because those cards are 100px
         of buttons immediately above this line and a caption underneath a menu is
         just noise.
       */}
@@ -1308,14 +1308,14 @@ export function DetailPage(): React.JSX.Element {
 }
 
 /**
- * The bottom bar, plus the space the recording cards need when they are out.
+ * The bottom bar, plus the space the entry cards need when they are out.
  *
  * The ledger builds its own frame rather than using `TabPage` because it owns
  * its scrolling region — the transition needs to know where the list is — and
  * because the bar's expansion has to reserve real space in this page's column.
  *
  * The cards behave the same here as on every other screen — pressing the button
- * unfolds three ways to record. The difference is only that the ledger folds
+ * unfolds the ways to add records. The difference is only that the ledger folds
  * them itself when the reader scrolls into the list; see the call site.
  *
  * The ledger is also where 拍照 gets the picker-direct behaviour: this is the

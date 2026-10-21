@@ -10,7 +10,7 @@ import { SyncBanner } from "./SyncBanner.js";
 import { useGoBack, type BackMode } from "../lib/connectivity.js";
 
 /**
- * Whether the three recording cards are open, and who may close them.
+ * Whether the entry cards are open, and who may close them.
  *
  * **The owner's design goal, in his words**: recording should be startable from
  * as many screens as possible. The three ways to record — voice, by hand, by
@@ -50,7 +50,7 @@ export function useEntryMenu(): EntryMenuValue {
  * behaviour lives in a `useEffect` that a test without a DOM cannot reach, and a
  * rule that is only asserted in a comment is a rule that drifts.
  *
- *  * **Pressing the button always unfolds the three options.** Never a jump to
+ *  * **Pressing the button always unfolds the options.** Never a jump to
  *    the manual form: somebody who wanted the camera would have had to open the
  *    menu anyway, so the jump only ever cost them a press.
  *  * **Arriving at any screen folds them**, so a page starts with its own
@@ -127,7 +127,7 @@ export function AppShell({ children }: { readonly children: React.ReactNode }): 
  * user has to scroll back down to reach the tabs. With the page itself never
  * scrolling, there is nothing for that toolbar to react to.
  *
- * **Every tab gets the three recording options.** That is the owner's design
+ * **Every tab gets the three recording options and 导入账单.** That is the owner's design
  * goal rather than an oversight: recording should be startable from wherever the
  * reader is, and the camera and voice routes have no other home. What a tab does
  * *not* get is the menu left open behind it — see `AppShell`.

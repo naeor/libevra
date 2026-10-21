@@ -80,6 +80,26 @@ export function CameraIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
+/**
+ * A sheet of paper with an arrow rising out of it — 「导入」 in the same drawing
+ * language as the other cards (24px box, `currentColor`, 1.8 stroke).
+ *
+ * ⚠️ It goes here rather than in `Icons.tsx` because it has one home: the entry
+ * menu. `Icons.tsx` is for icons more than one screen needs.
+ */
+function FileUpIcon({ className }: IconProps): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path
+        d="M15 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-4-4Z"
+        strokeLinejoin="round"
+      />
+      <path d="M15 3v4h4" strokeLinejoin="round" />
+      <path d="M12 16.5v-5M9.7 13.6 12 11.3l2.3 2.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 interface Tab {
   readonly to: string;
   readonly label: string;
@@ -138,10 +158,17 @@ interface EntryAction {
    * on the camera card where it is rendered.
    */
   readonly picksImages?: boolean;
+  /**
+   * What a screen reader hears, when `${label}记账` would be wrong.
+   *
+   * ⚠️ **导入账单 is not a way to type an entry**, so "导入账单记账" would be
+   * nonsense. Every other card keeps the default.
+   */
+  readonly ariaLabel?: string;
 }
 
 /**
- * The three ways to record something, in the order they appear.
+ * The four ways to get a record into the ledger, in the order they appear.
  *
  * Whether a card goes anywhere is expressed by `to` and by nothing else: with
  * one, it is a link; without one, it is a feature that has not shipped and is
@@ -163,17 +190,36 @@ interface EntryAction {
  * case where the picker cannot be opened at all — the page it lands on offers the
  * button itself, so the user is not stuck.
  *
- * **All three cards lead somewhere now**, which is the first time that has been
- * true: 语音 sat disabled with "即将开放" until the recorder shipped.
+ * ⚠️ **导入账单 is the fourth card, and it goes to `/import` — never
+ * `/import-ledger`.** The latter is `LedgerImportPage`, which migrates a whole
+ * ledger from another ledger; this card is about bringing a **CSV** file into
+ * **the ledger the reader is already in**, which is exactly what `/import` does
+ * (the same screen 导出 reaches through 「导入历史账」; the API parses CSV only,
+ * so the card makes no Excel promise). Pointing it at the ledger-import screen
+ * would silently change which ledger the file lands in.
+ *
+ * **All four cards lead somewhere now.** 语音 sat disabled with "即将开放"
+ * until the recorder shipped; 导入账单 is the newest of the four.
  */
 const ENTRY_ACTIONS: readonly EntryAction[] = [
   { label: "语音", icon: <MicrophoneIcon className="size-6" />, to: "/record" },
   { label: "手动", icon: <PenIcon className="size-6" />, to: "/add" },
   { label: "拍照", icon: <CameraIcon className="size-6" />, to: "/scan", picksImages: true },
+  {
+    label: "导入账单",
+    icon: <FileUpIcon className="size-6" />,
+    /**
+     * `?from=nav` is the page's origin hint, not a second route: `ImportPage` uses it to hide the
+     * legacy 「← 返回导出」 shortcut (a child of `/export`) and to fall back to 明细 instead of
+     * `/export` when there is no history. The destination is still the current-ledger import.
+     */
+    to: "/import?from=nav",
+    ariaLabel: "导入账单",
+  },
 ];
 
 /**
- * How the three recording cards behave.
+ * How the entry cards behave.
  *
  * **They are a switch everywhere, and that is deliberate.** An earlier version
  * made the centre button navigate to the manual form on screens other than the
@@ -194,7 +240,7 @@ export type EntryCards = {
 };
 
 /**
- * The bottom bar, whose centre button unfolds three ways to record.
+ * The bottom bar, whose centre button unfolds the ways to add records.
  *
  * Pressing it turns the `+` forty-five degrees into an `×` and unfolds the
  * cards above it. Pressing it again folds them away. The rotation is the whole
@@ -291,11 +337,29 @@ export function BottomNav({
             button is raised 32px above the bar, so the cards' lower edge comes
             within a few pixels of its top — close, but the owner asked for the
             row to sit lower and the two do not actually touch.
+
+            ⚠️ **Four cards have to fit a 320px screen**, so below `sm` they are
+            64px wide with 8px gaps and 12px side padding: 4×64 + 3×8 + 2×12 =
+            304px, leaving 16px of slack. That is a deliberate shrink of the old
+            4.5rem card rather than a second row — the frame reserves 100px for
+            this menu (see `TabPage`), and a 2×2 grid would grow past it and
+            cover the bar. From `sm` up the row returns to the original 4.5rem
+            cards, where four of them still fit inside `max-w-md`.
           */}
-          <ul className="mx-auto flex w-full max-w-md items-end justify-center gap-3 px-6 pb-[26px]">
+          <ul className="mx-auto flex w-full max-w-md items-end justify-center gap-2 px-3 pb-[26px] sm:gap-3 sm:px-6">
             {ENTRY_ACTIONS.map((action) => {
               const shape =
-                "flex w-[4.5rem] flex-col items-center gap-0.5 rounded-2xl bg-brand-soft py-2 text-brand-dark shadow-sm transition";
+                "flex w-16 flex-col items-center gap-0.5 rounded-2xl bg-brand-soft py-2 text-brand-dark shadow-sm transition sm:w-[4.5rem]";
+              /**
+               * ⚠️ **`导入账单` is four characters where the others are two** — it
+               * must not be shortened to `导入` (the owner asked for the full
+               * title), so every caption stays on one line and the card is wide
+               * enough for it. The same caption class on all four is what keeps
+               * the row aligned.
+               */
+              const caption = "whitespace-nowrap text-micro";
+              /** "语音记账" / "手动记账" / "拍照记账"; 导入账单 supplies its own. */
+              const spoken = action.ariaLabel ?? `${action.label}记账`;
 
               /**
                * ⚠️ **S14-C: 语音 and 拍照 are server-side capabilities** (transcription and screenshot
@@ -303,6 +367,10 @@ export function BottomNav({
                * are disabled with a natural reason instead of leading to a login screen or, worse,
                * pretending to work. 手动 stays live — it is the local form and the whole point of
                * guest mode.
+               *
+               * ⚠️ **导入账单 is behind the same gate**, and for the same reason: `/import` is a
+               * server write scoped to a real account ledger. A guest pressing it would be bounced
+               * to `/login`, which is exactly the dead end these cards avoid.
                */
               if (guest && action.label !== "手动") {
                 return (
@@ -311,11 +379,11 @@ export function BottomNav({
                       type="button"
                       disabled
                       tabIndex={open ? 0 : -1}
-                      aria-label={`${action.label}记账，需要正式账号`}
+                      aria-label={`${spoken}，需要正式账号`}
                       className={`${shape} opacity-55`}
                     >
                       {action.icon}
-                      <span className="text-micro">{action.label}</span>
+                      <span className={caption}>{action.label}</span>
                     </button>
                   </li>
                 );
@@ -343,14 +411,15 @@ export function BottomNav({
                   <li key={action.label}>
                     <button
                       type="button"
-                      aria-label={`${action.label}记账`}
+                      tabIndex={open ? 0 : -1}
+                      aria-label={spoken}
                       onClick={() => {
                         pickerRef.current?.click();
                       }}
                       className={`${shape} active:bg-brand-soft/70`}
                     >
                       {action.icon}
-                      <span className="text-micro">{action.label}</span>
+                      <span className={caption}>{action.label}</span>
                     </button>
                   </li>
                 );
@@ -363,9 +432,14 @@ export function BottomNav({
               if (action.to !== undefined) {
                 return (
                   <li key={action.label}>
-                    <Link to={action.to} aria-label={`${action.label}记账`} className={`${shape} active:bg-brand-soft/70`}>
+                    <Link
+                      to={action.to}
+                      tabIndex={open ? 0 : -1}
+                      aria-label={spoken}
+                      className={`${shape} active:bg-brand-soft/70`}
+                    >
                       {action.icon}
-                      <span className="text-micro">{action.label}</span>
+                      <span className={caption}>{action.label}</span>
                     </Link>
                   </li>
                 );
@@ -377,11 +451,11 @@ export function BottomNav({
                     type="button"
                     disabled
                     tabIndex={open ? 0 : -1}
-                    aria-label={`${action.label}记账，${action.hint ?? "即将开放"}`}
+                    aria-label={`${spoken}，${action.hint ?? "即将开放"}`}
                     className={`${shape} opacity-60`}
                   >
                     {action.icon}
-                    <span className="text-micro">{action.label}</span>
+                    <span className={caption}>{action.label}</span>
                   </button>
                 </li>
               );
