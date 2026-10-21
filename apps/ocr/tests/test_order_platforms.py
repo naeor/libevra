@@ -20,8 +20,9 @@ repository.
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
-from layouts import classify
+from layouts import classify, layout_by_id
 from multi_extract import extract_page
 from model import (
     ISSUE_DATE_HINT,
@@ -235,12 +236,26 @@ class TaobaoOrderListTest(unittest.TestCase):
         self.assertIn(ISSUE_ORDER_CLOSED, codes(closed))
         self.assertTrue(closed.is_questionable)
 
-    def test_an_order_waiting_to_ship_is_still_paid(self) -> None:
+    def test_an_order_waiting_to_ship_is_already_paid(self) -> None:
+        # 待发货 means the money has left the account: the owner counts it as an
+        # expense now (`posted`); a later return becomes a separate refund (income).
         shipped = self.candidates[1]
         self.assertEqual(shipped.direction, "expense")
         self.assertFalse(shipped.is_refund)
-        self.assertEqual(shipped.status, "pending")
+        self.assertEqual(shipped.status, "posted")
         self.assertFalse(shipped.is_questionable)
+
+    def test_an_order_waiting_to_receive_is_posted_too(self) -> None:
+        lines = [
+            replace(line, text="待收货")
+            if line.text == "待发货" and line.top < 1600
+            else line
+            for line in fixtures.taobao_order_list()
+        ]
+        page = page_on(lines)
+
+        self.assertEqual(page.candidates[1].status, "posted")
+        self.assertEqual(page.candidates[1].direction, "expense")
 
     def test_the_shop_row_is_the_merchant(self) -> None:
         self.assertEqual(
@@ -260,6 +275,90 @@ class TaobaoOrderListWithoutDateTest(unittest.TestCase):
         for candidate in page.candidates:
             self.assertIsNone(candidate.occurred_local_date)
             self.assertIn(ISSUE_MISSING_DATE, codes(candidate))
+
+
+class OrderStatusVocabularyTest(unittest.TestCase):
+    """The status vocabulary every order layout declares (owner decision 4)."""
+
+    ORDER_LAYOUTS = ("meituan-order-list", "jd-order-list", "jd-order-detail", "taobao-order-list")
+
+    def test_waiting_to_ship_or_receive_means_the_money_already_left(self) -> None:
+        for layout_id in self.ORDER_LAYOUTS:
+            spec = layout_by_id(layout_id).extraction
+            waiting = {
+                word: status
+                for word, status in dict(spec.status_markers).items()
+                if word in ("待发货", "待收货")
+            }
+            # Every order layout prints at least one of the two; all of them mean
+            # the payment already happened.
+            self.assertTrue(waiting, layout_id)
+            for word, status in waiting.items():
+                self.assertEqual(status, "posted", f"{layout_id}: {word}")
+
+    def test_waiting_to_pay_is_still_pending(self) -> None:
+        for layout_id in ("meituan-order-list", "jd-order-list", "taobao-order-list"):
+            spec = layout_by_id(layout_id).extraction
+            markers = dict(spec.status_markers)
+            self.assertEqual(markers.get("待付款"), "pending", layout_id)
+
+
+class PlatformVocabularyTest(unittest.TestCase):
+    """The `platform` value must be the exact spelling the shared enum uses."""
+
+    PLATFORMS = {
+        "meituan-order-list": "MEITUAN",
+        "meituan-order-detail": "MEITUAN",
+        "jd-order-list": "JD",
+        "jd-order-detail": "JD",
+        "taobao-order-list": "TAOBAO",
+        "taobao-order-detail": "TAOBAO",
+    }
+
+    def test_order_layouts_use_the_shared_enum_spelling(self) -> None:
+        for layout_id, expected in self.PLATFORMS.items():
+            self.assertEqual(layout_by_id(layout_id).platform, expected, layout_id)
+
+    def test_classification_reports_it_on_every_order_page(self) -> None:
+        for fixture, expected in (
+            (fixtures.meituan_order_list, "MEITUAN"),
+            (fixtures.meituan_order_detail, "MEITUAN"),
+            (fixtures.jd_order_list, "JD"),
+            (fixtures.jd_order_detail, "JD"),
+            (fixtures.taobao_order_list, "TAOBAO"),
+            (fixtures.taobao_order_detail, "TAOBAO"),
+        ):
+            self.assertEqual(classify(fixture()).platform, expected)
+
+
+class ClosedOrderOwnerDecisionTest(unittest.TestCase):
+    """Owner decisions 2026-10-21: keep a closed order as a candidate + warning."""
+
+    def test_a_closed_order_is_still_generated_with_the_warning(self) -> None:
+        # Without the refund row, the card is only 交易关闭. It must still become a
+        # candidate (not be silently dropped) with a direction it cannot claim.
+        lines = [line for line in fixtures.taobao_order_list() if "退款成功" not in line.text]
+        page = page_on(lines)
+
+        self.assertEqual(len(page.candidates), 2)
+        closed = page.candidates[0]
+        self.assertEqual(closed.status, "交易关闭")
+        self.assertEqual(closed.direction, "unknown")
+        self.assertFalse(closed.is_refund)
+        self.assertIn(ISSUE_ORDER_CLOSED, codes(closed))
+        self.assertTrue(closed.is_questionable)
+
+    def test_a_closed_and_refunded_order_is_an_income_refund_with_the_warning(self) -> None:
+        # 交易关闭 + 退款成功 stays a refund: money came back, and the closed-order
+        # question is still shown to the user.
+        page = page_on(fixtures.taobao_order_list())
+        closed = page.candidates[0]
+
+        self.assertEqual(closed.status, "交易关闭")
+        self.assertEqual(closed.direction, "income")
+        self.assertTrue(closed.is_refund)
+        self.assertIn(ISSUE_ORDER_CLOSED, codes(closed))
+        self.assertTrue(closed.is_questionable)
 
 
 class TaobaoOrderDetailTest(unittest.TestCase):
