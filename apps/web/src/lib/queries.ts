@@ -8,7 +8,6 @@ import {
   type DuplicateCheckInput,
   type DuplicateCheckResponse,
   type ExportFormat,
-  type ImportReport,
   type LedgerMetaResponse,
   type MeResponse,
   type PermanentDeleteCategoryInput,
@@ -87,7 +86,6 @@ import { setSharedLedger } from "./offline/writePolicy.js";
 import { syncAll } from "./offline/sync.js";
 import { withLocalFallback } from "./offline/fallback.js";
 import { computeStats, monthRange, summaryFor } from "./offline/localStats.js";
-import { uuidV7 } from "./uuid.js";
 
 /**
  * Every server call the interface makes, in one place.
@@ -1626,7 +1624,7 @@ export function useQuickAmounts(): number[] {
 // ---------------------------------------------------------------------------
 
 /** Anything that changes money must refresh the list *and* the totals. */
-function useMoneyInvalidator(bookId?: string): () => Promise<void> {
+export function useMoneyInvalidator(bookId?: string): () => Promise<void> {
   const client = useQueryClient();
 
   return async () => {
@@ -2254,35 +2252,5 @@ export function useExportLog(bookId?: string) {
           by: string;
         }[];
       }>("/export-log", { ...(bookId === undefined ? {} : { bookId }) }),
-  });
-}
-
-export function useImportEntries(bookId?: string) {
-  const invalidateMoney = useMoneyInvalidator(bookId);
-  const invalidateLedger = useLedgerInvalidator(bookId);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (file: File) => {
-      const form = new FormData();
-      form.append("fileId", uuidV7());
-      form.append("file", file, file.name === "" ? "import.csv" : file.name);
-      return apiFetch<ImportReport>("/import", {
-        method: "POST",
-        ...(bookId === undefined ? {} : { bookId }),
-        formData: form,
-        timeoutMs: 120_000,
-      });
-    },
-    onSuccess: () => {
-      /**
-       * ⚠️ **An import changes the *counts* as well as the money.** 账本详情 shows 账目数量 and
-       * 编辑记录 from the ledger metadata, so the metadata of the ledger that received the rows has
-       * to be refreshed — the target's when one is named, the current ledger's otherwise.
-       */
-      void invalidateLedger();
-      void invalidateMoney();
-      void queryClient.invalidateQueries({ queryKey: ["export-log"] });
-    },
   });
 }
