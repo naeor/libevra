@@ -1,5 +1,9 @@
 import { registerDuplicateReviewRoutes, duplicateWhere, candidateFromTransaction, suppressConfirmed } from "./duplicateReview.js";
-import { DEFAULT_DUPLICATE_DETECTION_SETTINGS, evaluateDuplicatePair } from "@libellum/shared";
+import {
+  DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+  evaluateDuplicatePair,
+  type DuplicateCandidateFields,
+} from "@libellum/shared";
 import {
   createTransactionSchema,
   duplicateCheckResponseSchema,
@@ -14,6 +18,7 @@ import {
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
+import { dateTimeToInstant } from "../import/common.js";
 import {
   resolveCategoryId,
   resolvePaymentMethodId,
@@ -420,11 +425,26 @@ export function registerTransactionRoutes(
 
     const settings = body.settings ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS;
     if (!settings.enabled) return { duplicates: [] };
-    const candidate = {
+    const candidate: DuplicateCandidateFields = {
       id: "new-draft", bookId, kind: body.kind, amountCents: body.amountCents, currency: body.currency,
       occurredAt: body.occurredAt ?? null, occurredAtPrecision: body.occurredAt ? "second" as const : "day" as const,
       occurredLocalDate: body.occurredLocalDate, categoryId: body.categoryId ?? null,
       paymentMethodId: body.paymentMethodId ?? null, note: body.note, tagIds: body.tagIds,
+    };
+    /**
+     * 兼容升级前安装的客户端：它们只发 `occurredLocalDate + HH:mm`，没有带偏移的
+     * `occurredAt`。旧口径是“读条目自己时区的墙上时间”，所以这里逐条用该条目的
+     * `occurredTz` 把 HH:mm 还原成绝对时刻，再交给统一核心按真实时间窗口比较；
+     * 不猜一个服务器时区。`occurredAt` 存在时以它为准（新客户端）。
+     */
+    const legacyTime = body.occurredAt === undefined && body.occurredTime !== "";
+    const legacyInstantIn = (timeZone: string): string | null => {
+      if (!legacyTime) return null;
+      try {
+        return dateTimeToInstant(body.occurredLocalDate, body.occurredTime, timeZone);
+      } catch {
+        return null;
+      }
     };
     const rows = await prisma.transaction.findMany({ where: duplicateWhere(bookId, candidate, settings), include: TRANSACTION_INCLUDE, orderBy: { seq: "desc" }, take: 1001 });
     /**
@@ -432,7 +452,14 @@ export function registerTransactionRoutes(
      * `/duplicates/candidates` 一样剔除用户已确认“不是同一笔”的配对；否则升级前安装的客户端
      * 会继续提醒已经被用户关掉的那一对，与新版界面自相矛盾。
      */
-    const evaluated = rows.map(row => ({ row, entry: toDto(row), pair: evaluateDuplicatePair(candidate, candidateFromTransaction(toDto(row), bookId), settings) }));
+    const evaluated = rows.map(row => {
+      const entry = toDto(row);
+      const occurredAt = legacyInstantIn(row.occurredTz);
+      const rowCandidate: DuplicateCandidateFields = occurredAt === null
+        ? candidate
+        : { ...candidate, occurredAt, occurredAtPrecision: "minute" };
+      return { row, entry, pair: evaluateDuplicatePair(rowCandidate, candidateFromTransaction(entry, bookId), settings) };
+    });
     const visible = await suppressConfirmed(prisma, bookId, evaluated.filter(item => item.pair.matched).map(item => item.pair));
     const visibleKeys = new Set(visible.map(pair => pair.pairKey));
     const duplicates = evaluated.filter(item => item.pair.matched && visibleKeys.has(item.pair.pairKey));

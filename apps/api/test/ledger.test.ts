@@ -569,15 +569,26 @@ describe("POST /api/v1/transactions/duplicates", () => {
     expect((response.json() as { duplicates: unknown[] }).duplicates).toHaveLength(0);
   });
 
-  it("finds nothing when the time differs", async () => {
+  it("finds nothing when the time is outside the window", async () => {
     // The point of comparing the time: the same amount on the same day is
     // ordinary, and warning about it would train people to dismiss the warning.
+    // 13:45:30 vs 13:47:00 is 90 seconds apart, outside the default 60s window.
     const cookie = await signUp("mama");
     await record(cookie);
 
-    const response = await check(cookie, { occurredTime: "13:46" });
+    const response = await check(cookie, { occurredTime: "13:47" });
 
     expect((response.json() as { duplicates: unknown[] }).duplicates).toHaveLength(0);
+  });
+
+  it("finds an entry inside the 60-second window", async () => {
+    const cookie = await signUp("mama");
+    await record(cookie);
+
+    // 13:45:30 vs 13:46:00 is 30 seconds apart: the unified rule warns.
+    const response = await check(cookie, { occurredTime: "13:46" });
+
+    expect((response.json() as { duplicates: unknown[] }).duplicates).toHaveLength(1);
   });
 
   it("reads the time on the entry's own clock, not the server's", async () => {
@@ -633,15 +644,16 @@ describe("POST /api/v1/transactions/duplicates", () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it("treats an empty time as 'no time recorded'", async () => {
-    // The form sends "" when the field is untouched, so it has to mean
-    // "recorded without a time" — not "matches everything".
+  it("treats an empty time as date-only evidence and still warns", async () => {
+    // The form sends "" when the field is untouched. The unified rule does not
+    // invent a time: it compares the local date as weaker evidence, so a same-day
+    // same-amount same-kind entry is still shown as a possible duplicate.
     const cookie = await signUp("mama");
     await record(cookie);
 
     const response = await check(cookie, { occurredTime: "" });
 
-    expect((response.json() as { duplicates: unknown[] }).duplicates).toHaveLength(0);
+    expect((response.json() as { duplicates: unknown[] }).duplicates).toHaveLength(1);
   });
 });
 

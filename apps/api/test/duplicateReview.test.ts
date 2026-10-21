@@ -146,7 +146,7 @@ describe("S15-E4 统一重复检测接口", () => {
   }
 
   it("把一笔新记录和账本里 60 秒内的同一笔配成一对", async () => {
-    const who = await account("duplicate-candidates");
+    const who = await account("duplicate_candidates");
     const existing = await entry(who);
 
     const response = await candidates(who, {
@@ -163,7 +163,7 @@ describe("S15-E4 统一重复检测接口", () => {
   });
 
   it("超过时间窗口就不算候选", async () => {
-    const who = await account("duplicate-window");
+    const who = await account("duplicate_window");
     await entry(who);
 
     const response = await candidates(who, {
@@ -176,7 +176,7 @@ describe("S15-E4 统一重复检测接口", () => {
   });
 
   it("关闭提醒后三种接口都返回空，不会偷偷跑一套不同的规则", async () => {
-    const who = await account("duplicate-disabled");
+    const who = await account("duplicate_disabled");
     await entry(who);
 
     const off = { ...SETTINGS, enabled: false };
@@ -190,8 +190,8 @@ describe("S15-E4 统一重复检测接口", () => {
   });
 
   it("候选不属于当前账本时明确拒绝", async () => {
-    const who = await account("duplicate-mismatch");
-    const other = await account("duplicate-mismatch-other");
+    const who = await account("duplicate_mismatch");
+    const other = await account("dup_mismatch_other");
 
     const response = await candidates(who, {
       candidates: [candidate(txId(903), other.bookId, "2026-10-21T10:03:00+08:00")],
@@ -203,7 +203,7 @@ describe("S15-E4 统一重复检测接口", () => {
   });
 
   it("已确认「不是同一笔」的配对不再出现在新增检查里", async () => {
-    const who = await account("duplicate-suppressed");
+    const who = await account("duplicate_suppressed");
     const first = await entry(who);
     const second = await entry(who);
 
@@ -213,7 +213,7 @@ describe("S15-E4 统一重复检测接口", () => {
       headers: headers(who),
       payload: { pairs: [{ transactionIdA: first, transactionIdB: second }] },
     });
-    expect(relation.statusCode).toBe(200);
+    expect(relation.statusCode).toBe(201);
 
     const response = await candidates(who, {
       candidates: [candidate(second, who.bookId, "2026-10-21T10:03:00+08:00")],
@@ -224,7 +224,7 @@ describe("S15-E4 统一重复检测接口", () => {
   });
 
   it("全账本审查每对只比一次，进度靠 throughSeq 单调向前", async () => {
-    const who = await account("duplicate-review");
+    const who = await account("duplicate_review");
     const first = await entry(who);
     const second = await entry(who, { occurredAt: new Date("2026-10-21T02:03:20.000Z") });
     const third = await entry(who, { amountCents: 9_900n });
@@ -254,12 +254,12 @@ describe("S15-E4 统一重复检测接口", () => {
   });
 
   it("批量导入检查只点名这一批，并在批内也两两比对", async () => {
-    const who = await account("duplicate-import");
+    const who = await account("duplicate_import");
     const existing = await entry(who);
-    const batchFirst = await entry(who, { importRef: "In-test-1" });
-    const batchSecond = await entry(who, { importRef: "In-test-1" });
+    const batchFirst = await entry(who, { importRef: "In-20261021-100300-abcd" });
+    const batchSecond = await entry(who, { importRef: "In-20261021-100300-abcd" });
 
-    const response = await importReview(who, { importRef: "In-test-1", settings: SETTINGS });
+    const response = await importReview(who, { importRef: "In-20261021-100300-abcd", settings: SETTINGS });
     expect(response.statusCode).toBe(200);
     const body = response.json<{
       pairs: { leftId: string; rightId: string }[];
@@ -279,9 +279,9 @@ describe("S15-E4 统一重复检测接口", () => {
   });
 
   it("没有这笔导入编号时如实说检查了 0 条", async () => {
-    const who = await account("duplicate-import-empty");
+    const who = await account("dup_import_empty");
 
-    const response = await importReview(who, { importRef: "In-nothing", settings: SETTINGS });
+    const response = await importReview(who, { importRef: "In-20261021-100400-ef01", settings: SETTINGS });
 
     expect(response.statusCode).toBe(200);
     expect(response.json<{ checked: number; pairs: unknown[] }>()).toMatchObject({ checked: 0, pairs: [] });

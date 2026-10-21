@@ -6,6 +6,7 @@ import {
   cleanText,
   formatAmountText,
   normalizeAmountText,
+  parseLocalDate,
   suggestCategoryId,
   syntheticSourceRef,
   truncateText,
@@ -58,6 +59,37 @@ function parseBoaDate(raw: string): string | null {
     return null;
   }
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+const DESCRIPTION_DATE_RE = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/;
+
+/**
+ * BOA 只给「过账日期」；部分商户描述里还会写交易日期（如 `UBER EATS 10/03`）。
+ *
+ * 两个日期不一致时不改写候选日期（避免编造消费日期），但把差异作为警告交给用户核对：
+ * 这是「消费日期 vs 入账日期」在本轮数据模型下能做到的核对边界。
+ */
+function descriptionDate(description: string, postingDate: string): string | null {
+  const match = DESCRIPTION_DATE_RE.exec(description);
+  const posting = parseLocalDate(postingDate);
+  if (match === null || posting === null) return null;
+
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const explicitYear = match[3] === undefined ? null : Number(match[3]);
+  let year = explicitYear === null ? posting.year : explicitYear < 100 ? 2000 + explicitYear : explicitYear;
+  if (explicitYear === null) {
+    if (month === 12 && posting.month === 1) year -= 1;
+    if (month === 1 && posting.month === 12) year += 1;
+  }
+
+  const stamp = Date.UTC(year, month - 1, day);
+  const check = new Date(stamp);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+    return null;
+  }
+  const iso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return iso === posting.iso ? null : iso;
 }
 
 function amountToCents(raw: string): number | null {
@@ -272,6 +304,12 @@ export function parseBoaPdf(
     const kind = expense ? "expense" : "income";
     const categoryId = suggestCategoryId(row.description, context.categories, kind);
     const rowWarnings = ["结单只提供过账日期，时间按当天 00:00 记录。"];
+    const transactionDate = descriptionDate(row.description, row.date);
+    if (transactionDate !== null) {
+      rowWarnings.push(
+        `描述里出现日期 ${transactionDate}（可能是消费日期），与过账日期 ${row.date} 不同；本行按过账日期入账，请核对。`,
+      );
+    }
     if (/refund|return/i.test(row.description)) {
       rowWarnings.push("描述里含 REFUND/RETURN，请核对这笔是否为退款。");
     }

@@ -353,7 +353,7 @@ describe("parseBoaPdf", () => {
         line(706, [[90, "REF 123"]]),
         line(690, [[36, "ATM and debit card subtractions"]]),
         line(670, [[36, "09/22/26"], [90, "ATM WITHDRAWAL"], [520, "-200.00"]]),
-        line(650, [[36, "09/23/26"], [90, "CARD PURCHASE"], [520, "-100.00"]]),
+        line(650, [[36, "09/23/26"], [90, "CARD PURCHASE 09/20"], [520, "-100.00"]]),
         line(630, [[36, "Other subtractions"]]),
         line(610, [[36, "09/24/26"], [90, "FEE"], [520, "-100.00"]]),
         line(590, [[36, "Total deposits and other additions"], [520, "$500.00"]]),
@@ -385,6 +385,9 @@ describe("parseBoaPdf", () => {
     expect(payroll?.merchant).toContain("REF 123");
     expect(atm).toMatchObject({ amount: "200.00", kind: "expense" });
     expect(card).toMatchObject({ amount: "100.00", kind: "expense" });
+    expect(card?.warnings.join(" ")).toContain("描述里出现日期 2026-09-20");
+    expect(card?.warnings.join(" ")).toContain("与过账日期 2026-09-23 不同");
+    expect(card?.date).toBe("2026-09-23");
     expect(fee).toMatchObject({ amount: "100.00", kind: "expense" });
     expect(bill.candidates.every((candidate) => candidate.time === null)).toBe(true);
     expect(bill.warnings.join(" ")).toContain("描述换行");
