@@ -23,6 +23,7 @@ import { useNavigate } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ImportDoneScreen } from "../components/ocr/ImportDoneScreen.js";
 import { OcrImportBar, OcrOverview } from "../components/ocr/OcrOverview.js";
@@ -72,12 +73,15 @@ export function OcrOverviewPage(): React.JSX.Element {
   const ledger = useLedger();
   const books = useBooks();
   const { readOnly } = useSharedLedgerOfflineReadOnly();
+  const duplicateSettings = useDuplicateDetectionSettings();
 
   const [batch, setBatch] = useState<OcrBatch | null>(() => {
     const stored = loadBatch();
     // Recompute rather than trusting the stored marks: an edit could have been
     // made by a previous build, and the user must never see a stale duplicate.
-    return stored === null ? null : refreshDuplicateMarks(stored).batch;
+    return stored === null
+      ? null
+      : refreshDuplicateMarks(stored, duplicateSettings.settings).batch;
   });
   const [filter, setFilter] = useState<OcrOverviewFilter>("all");
   const [source, setSource] = useState<OcrSourceFilter>("all");
@@ -160,7 +164,10 @@ export function OcrOverviewPage(): React.JSX.Element {
     () => [...new Set(items.map((item) => item.sourcePlatform).filter((value) => value !== null))],
     [items],
   );
-  const duplicateGroups = useMemo(() => findSuspectedDuplicates(items), [items]);
+  const duplicateGroups = useMemo(
+    () => findSuspectedDuplicates(items, { settings: duplicateSettings.settings }),
+    [items, duplicateSettings.settings],
+  );
   const blockers = useMemo(() => (batch === null ? [] : findImportBlockers(batch)), [batch]);
   const unresolvedPages =
     batch?.pages.filter((page) => page.pageType === "unknown").length ?? 0;
@@ -281,7 +288,11 @@ export function OcrOverviewPage(): React.JSX.Element {
       } else {
         // Delivered items leave the batch; failed ones stay, with their fixed
         // ids, so retrying is safe and the summary can say exactly what remains.
-        const remaining = withoutBatchItems(assigned, succeededIds);
+        const remaining = withoutBatchItems(
+          assigned,
+          succeededIds,
+          duplicateSettings.settings,
+        );
         saveBatch(remaining);
         setBatch(remaining);
       }

@@ -164,7 +164,7 @@ describe("detectDuplicateGroups", () => {
     expect(result.groups).toHaveLength(1);
   });
 
-  it("标签集合相同且顺序无关；标签集合不同则不命中", () => {
+  it("标签不参与统一规则：集合相同或不同都命中", () => {
     const base = { occurredAt: "2026-10-18T10:00:00+08:00" };
     const same = run(
       [transaction("s1", { ...base, tags: [SOURCE_TAGS[0]!, SOURCE_TAGS[1]!] })],
@@ -178,6 +178,7 @@ describe("detectDuplicateGroups", () => {
     );
     expect(same.groups).toHaveLength(1);
 
+    // S15-E2：统一规则不比较标签，标签集合不同不再排除。
     const different = run(
       [transaction("s1", { ...base, tags: [SOURCE_TAGS[0]!] })],
       [
@@ -188,21 +189,36 @@ describe("detectDuplicateGroups", () => {
         }),
       ],
     );
-    expect(different.groups).toEqual([]);
+    expect(different.groups).toHaveLength(1);
   });
 
-  it("支付方式与备注不同不影响命中", () => {
-    const result = run(
-      [transaction("s1", { occurredAt: "2026-10-18T10:00:00+08:00", note: "A", paymentMethodId: "s-wechat" })],
+  it("支付方式 ID 不同但映射到同一目标对象仍命中；映射到不同对象则不命中", () => {
+    const base = { occurredAt: "2026-10-18T10:00:00+08:00" };
+    const mappedSame = run(
+      [transaction("s1", { ...base, note: "A", paymentMethodId: "s-wechat" })],
       [
         targetTransaction("t1", {
+          ...base,
           occurredAt: "2026-10-18T10:00:30+08:00",
           note: "B",
           paymentMethodId: "t-wechat",
         }),
       ],
     );
-    expect(result.groups).toHaveLength(1);
+    expect(mappedSame.groups).toHaveLength(1);
+
+    // S15-E2：双方都有支付方式且映射到不同目标对象 → 默认不提示。
+    const mappedDifferent = run(
+      [transaction("s1", { ...base, paymentMethodId: "s-wechat" })],
+      [
+        targetTransaction("t1", {
+          ...base,
+          occurredAt: "2026-10-18T10:00:30+08:00",
+          paymentMethodId: "t-alipay",
+        }),
+      ],
+    );
+    expect(mappedDifferent.groups).toEqual([]);
   });
 
   it("目标账本内部两条相同账目不构成冲突", () => {

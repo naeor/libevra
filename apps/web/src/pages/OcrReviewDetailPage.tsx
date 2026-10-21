@@ -21,6 +21,7 @@ import { useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { TextField } from "../components/TextField.js";
 import { batchItem, batchBelongsToBook, updateBatchItem } from "../lib/ocr/batch.js";
@@ -94,6 +95,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   const { candidateId } = useParams();
   const navigate = useNavigate();
   const ledger = useLedger();
+  const duplicateSettings = useDuplicateDetectionSettings();
 
   const [batch, setBatch] = useState<OcrBatch | null>(() => loadBatch());
   /**
@@ -167,7 +169,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   const preview = previewCandidate(item, form);
   const issues = deriveIssues(preview);
   const duplicateGroups = groupsForCandidate(
-    findSuspectedDuplicates(batch.items),
+    findSuspectedDuplicates(batch.items, { settings: duplicateSettings.settings }),
     item.candidateId,
   );
 
@@ -204,7 +206,12 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   function persist(patchItem: Partial<OcrBatchCandidate>): void {
     if (batch === null || item === null) return;
 
-    const updated = updateBatchItem(batch, item.candidateId, patchItem);
+    const updated = updateBatchItem(
+      batch,
+      item.candidateId,
+      patchItem,
+      duplicateSettings.settings,
+    );
     if (!saveBatch(updated)) {
       setError("浏览器无法保存这笔修改（可能是隐私模式或存储空间已满）。修改没有生效，请重试。");
       return;

@@ -17,6 +17,7 @@ import { Button } from "../components/Button.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
 import { EntrySaved } from "../components/EntrySaved.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { errorMessage } from "../lib/api.js";
@@ -65,6 +66,7 @@ export function ScanPage(): React.JSX.Element {
   const checkDuplicates = useCheckDuplicates();
   const removeEntry = useDeleteTransaction();
   const restoreEntry = useRestoreTransaction();
+  const duplicateSettings = useDuplicateDetectionSettings();
 
   const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<Mode>("single");
@@ -317,6 +319,7 @@ export function ScanPage(): React.JSX.Element {
   function openBatch(batchItems: readonly OcrItemResult[]): void {
     const batch = createBatch(batchItems, {
       bookId: ledger.data?.book.id ?? currentBookId(),
+      duplicateSettings: duplicateSettings.settings,
       categories,
       paymentMethods,
       now: new Date(),

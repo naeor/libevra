@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_DUPLICATE_DETECTION_SETTINGS } from "@libellum/shared";
+
 import {
   duplicateReason,
   findSuspectedDuplicates,
@@ -104,6 +106,71 @@ describe("duplicateReason", () => {
         }),
       ),
     ).toBe("交易单号相同但金额不同，疑似同一笔，请核对");
+  });
+});
+
+describe("OCR 适配层接入统一核心", () => {
+  it("分类或支付方式不同：默认规则下不提示，关闭匹配后恢复", () => {
+    const left = batchCandidate({ categoryId: "cat-a", paymentMethodId: "pay-a" });
+    const right = batchCandidate({
+      candidateId: "img1-1",
+      categoryId: "cat-b",
+      paymentMethodId: "pay-b",
+    });
+
+    expect(duplicateReason(left, right)).toBeNull();
+    expect(
+      duplicateReason(left, right, {
+        settings: {
+          ...DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+          matchCategory: false,
+          matchPaymentMethod: false,
+        },
+      }),
+    ).not.toBeNull();
+  });
+
+  it("用户把窗口改成 5 分钟后，相差 4 分钟的两笔才提示", () => {
+    const left = batchCandidate({ occurredTime: "12:00" });
+    const right = batchCandidate({ candidateId: "img1-1", occurredTime: "12:04" });
+
+    expect(duplicateReason(left, right)).toBeNull();
+    expect(
+      duplicateReason(left, right, {
+        settings: { ...DEFAULT_DUPLICATE_DETECTION_SETTINGS, timeWindowSeconds: 300 },
+      }),
+    ).not.toBeNull();
+  });
+
+  it("跨日的相邻分钟按真实时间差命中（旧实现要求日期字符串相同）", () => {
+    const reason = duplicateReason(
+      batchCandidate({ occurredLocalDate: "2026-10-09", occurredTime: "23:59" }),
+      batchCandidate({
+        candidateId: "img1-1",
+        occurredLocalDate: "2026-10-10",
+        occurredTime: "00:00",
+      }),
+    );
+
+    expect(reason).toContain("跨日");
+  });
+
+  it("关闭提醒：不分组、不标记，但不会删除或改坏候选", () => {
+    const items = [
+      batchCandidate(),
+      batchCandidate({ candidateId: "img1-1", imageIndex: 1 }),
+    ];
+    const disabled = {
+      settings: { ...DEFAULT_DUPLICATE_DETECTION_SETTINGS, enabled: false },
+    };
+
+    expect(findSuspectedDuplicates(items, disabled)).toEqual([]);
+    expect(duplicateReason(items[0]!, items[1]!, disabled)).toBeNull();
+
+    const marked = withDuplicateMarks(items, disabled);
+    expect(marked.groups).toEqual([]);
+    expect(marked.items).toHaveLength(2);
+    expect(marked.items.every((item) => !item.duplicateSuspected && !item.invalid)).toBe(true);
   });
 });
 
