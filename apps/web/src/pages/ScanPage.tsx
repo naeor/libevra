@@ -379,6 +379,9 @@ export function ScanPage(): React.JSX.Element {
         currency: draft.currency,
         occurredLocalDate: draft.date,
         occurredTime: draft.time,
+        ...(draft.time ? { occurredAt: toLocalIso(new Date(`${draft.date}T${draft.time}:00`)) } : {}),
+        categoryId: draft.categoryId, paymentMethodId: draft.paymentMethodId,
+        note: draft.note, settings: duplicateSettings.settings,
       });
 
       if (found.length > 0) {
@@ -657,7 +660,7 @@ export function ScanPage(): React.JSX.Element {
           pendingDuplicate === null
             ? ""
             : pendingDuplicate.existing.length > 1
-              ? `日期、时间、金额、币种和收支类型都相同；系统找到 ${String(pendingDuplicate.existing.length)} 笔相似记录。要再记一笔吗？`
+              ? `符合你已启用的重复检测规则；系统找到 ${String(pendingDuplicate.existing.length)} 笔相似记录。要再记一笔吗？`
               : "日期、时间、金额、币种和收支类型都相同。要再记一笔吗？"
         }
         choices={DUPLICATE_CHOICES}

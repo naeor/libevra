@@ -471,3 +471,5 @@ export {
   type NotDuplicateRevocationReason,
   type NotDuplicateRelationship,
 } from "./notDuplicateRelations.js";
+
+export { duplicateRulesSchema, duplicateCandidateSchema, duplicateCandidatesRequestSchema, duplicateReviewRequestSchema } from "./duplicateReview.js";

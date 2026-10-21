@@ -71,6 +71,13 @@ export const DUPLICATE_TIME_WINDOW_PRESETS_SECONDS = [60, 300, 1_800, 3_600, 86_
 export interface DuplicateDetectionSettings {
   /** 是否启用重复提醒。默认 `true`。 */
   readonly enabled: boolean;
+  readonly matchAmount?: boolean;
+  readonly matchCurrency?: boolean;
+  readonly matchKind?: boolean;
+  readonly matchTime?: boolean;
+  readonly matchMerchant?: boolean;
+  readonly matchNote?: boolean;
+  readonly matchTags?: boolean;
   /** 时间窗口（秒）。默认 60；范围 1 秒–30 天，必须是整数。 */
   readonly timeWindowSeconds: number;
   /** 双方都有分类时是否要求相同。默认 `true`。 */
@@ -82,18 +89,22 @@ export interface DuplicateDetectionSettings {
 /** 所有设置都回到默认值：开启提醒、60 秒、比较分类与支付方式。 */
 export const DEFAULT_DUPLICATE_DETECTION_SETTINGS: DuplicateDetectionSettings = Object.freeze({
   enabled: true,
+  matchAmount: true, matchCurrency: true, matchKind: true, matchTime: true,
+  matchMerchant: false, matchNote: false, matchTags: false,
   timeWindowSeconds: 60,
   matchCategory: true,
   matchPaymentMethod: true,
 });
 
 export type DuplicateSettingsField =
+  | "matchAmount" | "matchCurrency" | "matchKind" | "matchTime" | "matchMerchant" | "matchNote" | "matchTags"
   | "enabled"
   | "timeWindowSeconds"
   | "matchCategory"
   | "matchPaymentMethod";
 
 const DUPLICATE_SETTINGS_FIELDS: readonly DuplicateSettingsField[] = [
+  "matchAmount", "matchCurrency", "matchKind", "matchTime", "matchMerchant", "matchNote", "matchTags",
   "enabled",
   "timeWindowSeconds",
   "matchCategory",
@@ -136,7 +147,7 @@ function isSettingsField(value: string): value is DuplicateSettingsField {
 
 function readBooleanField(
   source: Record<string, unknown>,
-  field: "enabled" | "matchCategory" | "matchPaymentMethod",
+  field: Exclude<DuplicateSettingsField, "timeWindowSeconds">,
   issues: DuplicateSettingsIssue[],
 ): boolean | undefined {
   const value = source[field];
@@ -221,12 +232,17 @@ export function validateDuplicateDetectionSettings(input: unknown): DuplicateSet
     }
   }
 
+  const optional: Partial<DuplicateDetectionSettings> = {};
+  for (const key of ["matchAmount", "matchCurrency", "matchKind", "matchTime", "matchMerchant", "matchNote", "matchTags"] as const) {
+    if (input[key] !== undefined) Object.assign(optional, { [key]: readBooleanField(input, key, issues) ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
+  }
   const enabled = readBooleanField(input, "enabled", issues);
   const matchCategory = readBooleanField(input, "matchCategory", issues);
   const matchPaymentMethod = readBooleanField(input, "matchPaymentMethod", issues);
   const timeWindowSeconds = readTimeWindow(input, issues);
 
   const settings: DuplicateDetectionSettings = {
+    ...optional,
     enabled: enabled ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.enabled,
     timeWindowSeconds: timeWindowSeconds ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.timeWindowSeconds,
     matchCategory: matchCategory ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.matchCategory,
@@ -277,6 +293,10 @@ export function recoverDuplicateDetectionSettings(input: unknown): DuplicateSett
     issues.push({ field, code: "unknown_field", message: `未知设置项：${field}，已忽略。` });
   }
 
+  const optional: Partial<DuplicateDetectionSettings> = {};
+  for (const key of ["matchAmount", "matchCurrency", "matchKind", "matchTime", "matchMerchant", "matchNote", "matchTags"] as const) {
+    if (input[key] !== undefined) Object.assign(optional, { [key]: readBooleanField(input, key, issues) ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
+  }
   const enabled = readBooleanField(input, "enabled", issues);
   const matchCategory = readBooleanField(input, "matchCategory", issues);
   const matchPaymentMethod = readBooleanField(input, "matchPaymentMethod", issues);
@@ -289,6 +309,7 @@ export function recoverDuplicateDetectionSettings(input: unknown): DuplicateSett
 
   return {
     settings: {
+      ...optional,
       enabled: enabled ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.enabled,
       timeWindowSeconds: timeWindowSeconds ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.timeWindowSeconds,
       matchCategory: matchCategory ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.matchCategory,
@@ -323,16 +344,20 @@ export interface DuplicateCandidateFields {
   /** 带时区偏移的 ISO 8601 时间戳；`null` 表示缺失/不可解析。 */
   readonly occurredAt: string | null;
   /** 时间戳精度；缺省视为 `"second"`。 */
-  readonly occurredAtPrecision?: DuplicateTimePrecision;
+  readonly occurredAtPrecision?: DuplicateTimePrecision | undefined;
   /** 本地日历日 `YYYY-MM-DD`；时间戳不可用时作为较弱依据。 */
   readonly occurredLocalDate: string | null;
   /** 账本内分类 ID；`null` 表示没有分类。**不传分类名称。** */
   readonly categoryId: string | null;
   /** 账本内支付方式 ID；`null` 表示没有支付方式。 */
   readonly paymentMethodId: string | null;
+  readonly merchant?: string | null | undefined;
+  readonly note?: string | null | undefined;
+  readonly tagIds?: readonly string[] | undefined;
 }
 
 export type DuplicateField =
+  | "merchant" | "note" | "tagIds"
   | "bookId"
   | "kind"
   | "amountCents"
@@ -343,6 +368,7 @@ export type DuplicateField =
   | "paymentMethodId";
 
 export type DuplicateRule =
+  | "merchant" | "note" | "tags"
   | "reminders"
   | "book"
   | "kind"
@@ -361,6 +387,7 @@ export type DuplicateRule =
 export type DuplicateRuleOutcome = "passed" | "excluded" | "missing" | "skipped";
 
 export type DuplicateExclusionCode =
+  | "auxiliary_mismatch"
   | "reminders_disabled"
   | "book_missing"
   | "book_mismatch"
@@ -585,7 +612,9 @@ export function evaluateDuplicatePair(
   }
 
   // 2. 收支方向
-  if (left.kind === "unknown" || right.kind === "unknown") {
+  if (settings.matchKind === false) {
+    rules.push(evaluation("kind", "skipped", ["kind"], "收支方向匹配已关闭。"));
+  } else if (left.kind === "unknown" || right.kind === "unknown") {
     rules.push(evaluation("kind", "excluded", ["kind"], "收支方向未知，不能判断为同一笔。", "kind_unknown"));
   } else if (left.kind !== right.kind) {
     rules.push(evaluation("kind", "excluded", ["kind"], "收支方向不同（收入与支出不会互为重复）。", "kind_mismatch"));
@@ -594,7 +623,9 @@ export function evaluateDuplicatePair(
   }
 
   // 3. 金额（整数最小单位，完全相等）
-  if (left.amountCents === null || right.amountCents === null) {
+  if (settings.matchAmount === false) {
+    rules.push(evaluation("amount", "skipped", ["amountCents"], "金额匹配已关闭。"));
+  } else if (left.amountCents === null || right.amountCents === null) {
     rules.push(evaluation("amount", "excluded", ["amountCents"], "缺少金额，无法判断。", "amount_missing"));
   } else if (!validAmount(left.amountCents) || !validAmount(right.amountCents)) {
     rules.push(
@@ -609,7 +640,9 @@ export function evaluateDuplicatePair(
   // 4. 币种
   const leftCurrency = normalizeCurrency(left.currency);
   const rightCurrency = normalizeCurrency(right.currency);
-  if (leftCurrency === null || rightCurrency === null) {
+  if (settings.matchCurrency === false) {
+    rules.push(evaluation("currency", "skipped", ["currency"], "币种匹配已关闭。"));
+  } else if (leftCurrency === null || rightCurrency === null) {
     rules.push(evaluation("currency", "excluded", ["currency"], "缺少币种，无法判断。", "currency_missing"));
   } else if (leftCurrency !== rightCurrency) {
     rules.push(evaluation("currency", "excluded", ["currency"], "币种不同（不做汇率折算）。", "currency_mismatch"));
@@ -622,7 +655,9 @@ export function evaluateDuplicatePair(
   const rightInstant = instantOf(right);
   let timeDifferenceSeconds: number | null = null;
 
-  if (leftInstant !== null && rightInstant !== null) {
+  if (settings.matchTime === false) {
+    rules.push(evaluation("time", "skipped", ["occurredAt"], "时间匹配已关闭。"));
+  } else if (leftInstant !== null && rightInstant !== null) {
     const differenceSeconds = Math.abs(leftInstant - rightInstant) / 1000;
     timeDifferenceSeconds = differenceSeconds;
 
@@ -730,6 +765,17 @@ export function evaluateDuplicatePair(
     }
   }
 
+  for (const [rule, field, enabled, a, b] of [
+    ["merchant", "merchant", settings.matchMerchant, left.merchant, right.merchant],
+    ["note", "note", settings.matchNote, left.note, right.note],
+    ["tags", "tagIds", settings.matchTags, left.tagIds?.slice().sort().join("\u0000"), right.tagIds?.slice().sort().join("\u0000")],
+  ] as const) {
+    if (!enabled) continue;
+    const x = a?.trim(); const y = b?.trim();
+    rules.push(!x || !y ? evaluation(rule, "missing", [field], "至少一方缺少辅助字段，不因缺失排除。")
+      : x === y ? evaluation(rule, "passed", [field], "辅助字段相同。")
+      : evaluation(rule, "excluded", [field], "已启用的辅助字段不同。", "auxiliary_mismatch"));
+  }
   const excluded = rules.filter((rule) => rule.outcome === "excluded");
   const missingRules = rules.filter((rule) => rule.outcome === "missing");
   const exclusionCodes = excluded
@@ -763,7 +809,7 @@ export function evaluateDuplicatePair(
   if (!matched) {
     reason = excluded[0]?.detail ?? "存在排除条件。";
   } else if (missingFields.length === 0) {
-    reason = "金额、币种、收支方向、时间、分类与支付方式都符合重复提示条件。";
+    reason = "所有已启用的检测规则均符合；请核对后决定是否保留。";
   } else {
     reason = `金额、币种、收支方向与时间符合条件；以下字段缺失，按较弱依据提示：${missingFields.join("、")}。`;
   }
@@ -830,7 +876,7 @@ export function evaluateDuplicateCandidates(
 
   const buckets = new Map<string, DuplicateCandidateFields[]>();
   for (const candidate of unique.values()) {
-    const key = batchBucketKey(candidate);
+    const key = batchBucketKey(candidate, settings);
     if (key === null) continue;
 
     const bucket = buckets.get(key);
@@ -871,13 +917,13 @@ export function evaluateDuplicateCandidates(
  * 金额/币种/方向/账本任一缺失或非法 → 返回 `null`：这些组合不可能命中，
  * 不必进入逐对判断（单对函数仍会给出明确的排除码）。
  */
-function batchBucketKey(candidate: DuplicateCandidateFields): string | null {
+function batchBucketKey(candidate: DuplicateCandidateFields, settings: DuplicateDetectionSettings): string | null {
   if (candidate.bookId.trim() === "") return null;
-  if (candidate.kind === "unknown") return null;
-  if (!validAmount(candidate.amountCents)) return null;
+  if (settings.matchKind !== false && candidate.kind === "unknown") return null;
+  if (settings.matchAmount !== false && !validAmount(candidate.amountCents)) return null;
 
   const currency = normalizeCurrency(candidate.currency);
-  if (currency === null) return null;
+  if (settings.matchCurrency !== false && currency === null) return null;
 
-  return `${candidate.bookId}\u0000${candidate.kind}\u0000${String(candidate.amountCents)}\u0000${currency}`;
+  return JSON.stringify([candidate.bookId, settings.matchKind === false ? null : candidate.kind, settings.matchAmount === false ? null : candidate.amountCents, settings.matchCurrency === false ? null : currency]);
 }

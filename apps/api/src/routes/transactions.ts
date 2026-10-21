@@ -1,3 +1,5 @@
+import { registerDuplicateReviewRoutes, duplicateWhere, candidateFromTransaction } from "./duplicateReview.js";
+import { DEFAULT_DUPLICATE_DETECTION_SETTINGS, evaluateDuplicatePair } from "@libellum/shared";
 import {
   createTransactionSchema,
   duplicateCheckResponseSchema,
@@ -409,48 +411,24 @@ export function registerTransactionRoutes(
    * interface has to *show* them: "要删掉旧的" is one of the choices, and nobody
    * can sensibly choose which of two entries to delete without seeing both.
    */
+  registerDuplicateReviewRoutes(app, { prisma, requireRead, include: TRANSACTION_INCLUDE, toDto });
+
   app.post("/api/v1/transactions/duplicates", { preHandler: requireRead }, async (request) => {
     const body = duplicateCheckSchema.parse(request.body);
     const userId = request.currentUser!.id;
     const bookId = request.book!.bookId;
 
-    /**
-     * The day's candidates, then the time compared on the entry's own clock.
-     *
-     * Two steps because the interesting comparison is a wall-clock one and the
-     * clock is per row: `occurredAt` is an absolute instant and `occurredTz`
-     * says which clock to read it on, so "was this at 18:03?" needs both. The
-     * day narrows it first — that column is indexed — and a day's entries are
-     * few, which is what makes a filter here honest rather than a shortcut.
-     */
-    const sameDay = await prisma.transaction.findMany({
-      where: {
-        bookId,
-        deletedAt: null,
-        kind: body.kind,
-        amountCents: BigInt(body.amountCents),
-        currency: body.currency,
-        occurredLocalDate: toDateOnly(body.occurredLocalDate),
-      },
-      include: TRANSACTION_INCLUDE,
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
-    /**
-     * An empty time means "no time recorded" — what the form sends when the
-     * field is left alone — so it matches other entries that also have none,
-     * rather than matching everything or nothing.
-     */
-    const duplicates = sameDay.filter((row) => {
-      const wallClock = wallClockIn(row.occurredAt, row.occurredTz);
-
-      return body.occurredTime === "" ? wallClock === "" : wallClock === body.occurredTime;
-    });
-
-    return duplicateCheckResponseSchema.parse({
-      duplicates: duplicates.slice(0, 5).map((row) => toDto(row)),
-    });
+    const settings = body.settings ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS;
+    if (!settings.enabled) return { duplicates: [] };
+    const candidate = {
+      id: "new-draft", bookId, kind: body.kind, amountCents: body.amountCents, currency: body.currency,
+      occurredAt: body.occurredAt ?? null, occurredAtPrecision: body.occurredAt ? "second" as const : "day" as const,
+      occurredLocalDate: body.occurredLocalDate, categoryId: body.categoryId ?? null,
+      paymentMethodId: body.paymentMethodId ?? null, note: body.note, tagIds: body.tagIds,
+    };
+    const rows = await prisma.transaction.findMany({ where: duplicateWhere(bookId, candidate, settings), include: TRANSACTION_INCLUDE, orderBy: { seq: "desc" }, take: 1001 });
+    const duplicates = rows.filter(row => evaluateDuplicatePair(candidate, candidateFromTransaction(toDto(row), bookId), settings).matched);
+    return duplicateCheckResponseSchema.parse({ duplicates: duplicates.slice(0, 100).map(row => toDto(row)) });
   });
 
   // -------------------------------------------------------------------------

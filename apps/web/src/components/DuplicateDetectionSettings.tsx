@@ -236,6 +236,15 @@ export function DuplicateDetectionSettingsSection({
         }`}
       >
         <legend className="sr-only">重复交易检测规则</legend>
+        {([
+          ["matchAmount", "金额匹配", true], ["matchCurrency", "币种匹配", true],
+          ["matchKind", "收支方向匹配", true], ["matchTime", "时间匹配", true],
+          ["matchMerchant", "商户匹配", false], ["matchNote", "备注匹配", false],
+          ["matchTags", "标签匹配", false],
+        ] as const).map(([key, label, fallback]) => <SettingsToggle key={key} label={label}
+          hint="纳入此项判断；关闭后不会因为这一项不同而排除疑似重复。"
+          checked={settings[key] ?? fallback} onChange={(value) => onChange({ [key]: value })} />)}
+        <p className="text-helper-relaxed text-muted">账本始终隔离。关闭多项规则会增加疑似重复数量，请按实际需要设置。</p>
 
         <div className="flex flex-col gap-2">
           <span className="text-body text-ink">时间窗口</span>

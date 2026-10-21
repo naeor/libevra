@@ -1,3 +1,5 @@
+import { checkNewCandidates, duplicateBookId } from "./duplicateReview.js";
+import { DEFAULT_DUPLICATE_DETECTION_SETTINGS } from "@libellum/shared";
 import {
   type ClassificationDeleteResponse,
   type ClassificationUsageResponse,
@@ -6,7 +8,6 @@ import {
   type CreateTagInput,
   type CreateTransactionInput,
   type DuplicateCheckInput,
-  type DuplicateCheckResponse,
   type ExportFormat,
   type ImportReport,
   type LedgerMetaResponse,
@@ -1736,33 +1737,16 @@ export function useCheckDuplicates(): UseMutationResult<
   Error,
   DuplicateCheckInput
 > {
-  const guest = useGuestMode();
-
-  return useMutation({
-    mutationFn: async (input: DuplicateCheckInput) => {
-      /**
-       * ⚠️ **A local duplicate check, not a server one.** Asking the server from guest mode would be
-       * a business request without an account, and its answer could include account entries. The
-       * guest check is deliberately conservative: same amount, same kind, same local date.
-       */
-      if (guest) {
-        const data = await loadGuestData();
-        const duplicates = sortedTransactions(data).filter((entry) => {
-          if (entry.amountCents !== input.amountCents) return false;
-          if (entry.kind !== input.kind) return false;
-          return entry.occurredLocalDate === input.occurredLocalDate;
-        });
-        return duplicates.slice(0, 5);
-      }
-
-      const response = await apiFetch<DuplicateCheckResponse>("/transactions/duplicates", {
-        method: "POST",
-        body: input,
-      });
-
-      return response.duplicates;
-    },
-  });
+  return useMutation({ mutationFn: async (input: DuplicateCheckInput) => {
+    const bookId = duplicateBookId();
+    const result = await checkNewCandidates(bookId, [{ id: "new-draft", bookId, kind: input.kind,
+      amountCents: input.amountCents, currency: input.currency, occurredAt: input.occurredAt ?? null,
+      occurredAtPrecision: input.occurredAt ? "second" : "day", occurredLocalDate: input.occurredLocalDate,
+      categoryId: input.categoryId ?? null, paymentMethodId: input.paymentMethodId ?? null, note: input.note, tagIds: input.tagIds,
+    }], input.settings ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS);
+    const ids = new Set(result.pairs.flatMap(p => [p.leftId, p.rightId]));
+    return result.history.filter(e => ids.has(e.id));
+  } });
 }
 
 /**
