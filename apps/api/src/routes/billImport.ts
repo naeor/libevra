@@ -156,7 +156,7 @@ export function registerBillImportRoutes(
 
   app.post(
     "/api/v1/import/preview",
-    { preHandler: [requireTarget, options.requireAuth] },
+    { preHandler: [options.requireAuth, requireTarget] },
     async (request, reply) => {
       if (!request.isMultipart()) {
         throw badRequest("expected_multipart", "请以文件上传的方式提交。");
@@ -180,7 +180,7 @@ export function registerBillImportRoutes(
 
   app.post(
     "/api/v1/import/recheck",
-    { preHandler: [requireTarget, options.requireAuth] },
+    { preHandler: [options.requireAuth, requireTarget] },
     async (request, reply) => {
       try {
         const body = recheckRequestSchema.parse(request.body);
@@ -200,7 +200,7 @@ export function registerBillImportRoutes(
 
   app.post(
     "/api/v1/import/commit",
-    { preHandler: [requireTarget, options.requireAuth] },
+    { preHandler: [options.requireAuth, requireTarget] },
     async (request, reply) => {
       try {
         const body = billImportCommitSchema.parse(request.body);
