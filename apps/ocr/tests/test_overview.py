@@ -1,8 +1,13 @@
-"""Tests for the overview batch: counts, default selection, and duplicate marks.
+"""Tests for the overview batch: counts and default selection.
 
 The overview's job is to let the user confirm quickly: 没有问题的项不要求逐笔点开,
 有疑问的项才重点核对. So the counts have to be exactly the list's counts, and the
 default selection may only contain items that truly need no attention.
+
+⚠️ **判重不在这里测（S15-E4）。** 这个模块以前会自己跑一遍疑似重复检测，
+和网页的规则各说各话；现在判重只发生在网页侧的统一核心
+（`packages/shared/src/duplicateDetection.ts`），Python 只负责分类、抽取和计数。
+所以本文件不再断言任何 `duplicates` 字段——它已经从响应里删掉了。
 """
 
 from __future__ import annotations
@@ -10,7 +15,6 @@ from __future__ import annotations
 import json
 import unittest
 
-from dedupe import ExistingEntry
 from overview import build_overview, describe_overview
 from tests import fixtures
 
@@ -23,7 +27,6 @@ class CleanBatchTest(unittest.TestCase):
         self.assertEqual(summary.total, 1)
         self.assertEqual(summary.complete, 1)
         self.assertEqual(summary.questionable, 0)
-        self.assertEqual(summary.duplicates, 0)
         self.assertEqual(summary.unknown_pages, 0)
         self.assertEqual(summary.selected_by_default, ("img0-1",))
         self.assertFalse(overview.requires_user_choice)
@@ -39,12 +42,12 @@ class CleanBatchTest(unittest.TestCase):
 
         self.assertEqual(summary.total, len(overview.candidates))
         self.assertEqual(
-            summary.questionable,
-            sum(1 for item in overview.candidates if item.is_questionable or not item.is_complete),
+            summary.complete,
+            sum(1 for item in overview.candidates if item.is_complete),
         )
         self.assertEqual(
-            summary.duplicates,
-            sum(1 for item in overview.candidates if item.duplicate_suspected),
+            summary.questionable,
+            sum(1 for item in overview.candidates if not item.is_complete),
         )
 
 
@@ -90,39 +93,26 @@ class QuestionableBatchTest(unittest.TestCase):
         self.assertTrue(overview.requires_user_choice)
 
 
-class DuplicateBatchTest(unittest.TestCase):
-    def test_the_same_list_uploaded_twice_is_marked_but_kept(self) -> None:
+class NoDuplicateJudgementTest(unittest.TestCase):
+    def test_the_same_list_uploaded_twice_is_kept_without_duplicate_marks(self) -> None:
+        """同一份列表上传两次仍然是两批账目。
+
+        界面交给网页的统一核心去标疑似重复；Python 这一层既不标记也不删除，
+        所以这里只断言「一笔都没少」。
+        """
+
         lines = fixtures.alipay_transaction_list()
         overview = build_overview([(0, lines), (1, lines)])
 
         self.assertEqual(overview.summary.total, 6)
-        self.assertEqual(overview.summary.duplicates, 6)
-        self.assertEqual(overview.summary.selected_by_default, ())
-        self.assertEqual(overview.duplicates.cross_image_count, 3)
-        # Nothing is removed: the user settles the duplicates.
         self.assertEqual(len(overview.candidates), 6)
-        for candidate in overview.candidates:
-            self.assertTrue(candidate.duplicate_suspected)
-            self.assertTrue(any(issue.code == "duplicate_suspected" for issue in candidate.issues))
+        self.assertFalse(any(candidate.duplicate_suspected for candidate in overview.candidates))
 
-    def test_an_existing_ledger_entry_is_marked_as_a_possible_duplicate(self) -> None:
-        existing = [
-            ExistingEntry(
-                entry_id="tx-1",
-                direction="expense",
-                amount_minor=2000,
-                currency="CNY",
-                occurred_local_date="2026-10-09",
-                occurred_time="12:34",
-            )
-        ]
-        overview = build_overview([(0, fixtures.wechat_single_detail())], existing_entries=existing)
+    def test_the_overview_no_longer_carries_a_duplicate_report(self) -> None:
+        payload = build_overview([(0, fixtures.wechat_single_detail())]).to_dict()
 
-        self.assertEqual(overview.duplicates.existing_count, 1)
-        candidate = overview.candidates[0]
-        self.assertIn("duplicate_suspected", {issue.code for issue in candidate.issues})
-        self.assertEqual(overview.summary.selected_by_default, ())
-        self.assertEqual(overview.summary.duplicates, 1)
+        self.assertNotIn("duplicates", payload)
+        self.assertNotIn("duplicates", payload["summary"])
 
 
 class SerialisationTest(unittest.TestCase):
@@ -134,10 +124,8 @@ class SerialisationTest(unittest.TestCase):
         decoded = json.loads(encoded)
 
         self.assertEqual(decoded["summary"]["total"], 6)
-        self.assertEqual(decoded["summary"]["duplicates"], 6)
         self.assertIn("pages", decoded)
         self.assertIn("candidates", decoded)
-        self.assertIn("duplicates", decoded)
         # The serialised candidate keeps nulls rather than dropping them: the
         # interface needs to know the difference between "not read" and "absent".
         first = decoded["candidates"][0]
@@ -150,7 +138,7 @@ class SerialisationTest(unittest.TestCase):
         text = describe_overview(overview)
 
         self.assertIn("共 1 笔", text)
-        self.assertIn("可直接确认 1 笔", text)
+        self.assertIn("字段齐全 1 笔", text)
 
 
 if __name__ == "__main__":

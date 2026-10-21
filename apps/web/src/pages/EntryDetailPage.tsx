@@ -1,19 +1,28 @@
 import {
+  DUPLICATE_SCOPE_LABELS,
   decimalsFor,
   CURRENCIES,
+  describeDuplicateMatch,
   formatTransactionNumber,
   MAX_TAGS_PER_TRANSACTION,
+  normalizeNotDuplicatePair,
   type Currency,
+  type DuplicatePairResult,
+  type Transaction,
 } from "@libellum/shared";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ErrorState, SkeletonRows } from "../components/States.js";
 import { useUndo } from "../components/UndoProvider.js";
 import { errorMessage } from "../lib/api.js";
+import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
+import { isGuestRuntime } from "../lib/guest/runtime.js";
+import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
 import { deleteEntry, updateEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
@@ -56,6 +65,22 @@ export function EntryDetailPage(): React.JSX.Element {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * 「更多」里的即时重复检测（S15-E4 第 7 条）。
+   *
+   * ⚠️ 只查**这一笔**与账本历史，不扫全账本：用户点的是“这笔有没有重复”，
+   * 全账本扫描是账本设置里那个明确的入口。结果不自动做任何事，只展示依据。
+   */
+  const duplicateSettings = useDuplicateDetectionSettings();
+  const [duplicateCheck, setDuplicateCheck] = useState<{
+    readonly pairs: readonly DuplicatePairResult[];
+    readonly others: readonly Transaction[];
+    readonly scope: "server" | "local";
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [busyPairKey, setBusyPairKey] = useState<string | null>(null);
 
   const [amountText, setAmountText] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -328,6 +353,63 @@ export function EntryDetailPage(): React.JSX.Element {
     }
   }
 
+  /**
+   * 对**当前这一笔**跑一次统一检测。
+   *
+   * 判定、设置、文案都走 `checkNewCandidates`（与手动/语音/拍照同一个核心），
+   * 结果只保留与这一笔有关的配对；检测失败要说出来，因为这是用户主动点的一次检查。
+   */
+  async function checkDuplicatesForEntry(): Promise<void> {
+    const data = entry.data;
+    if (data === undefined) return;
+    setChecking(true);
+    setCheckError(null);
+    try {
+      const bookId = duplicateBookId();
+      const result = await checkNewCandidates(
+        bookId,
+        [candidateFromEntry(data, bookId)],
+        duplicateSettings.settings,
+      );
+      const pairs = result.pairs.filter((pair) => pair.leftId === data.id || pair.rightId === data.id);
+      setDuplicateCheck({
+        pairs,
+        others: result.history.filter((other) => other.id !== data.id),
+        scope: result.scope,
+      });
+    } catch (caught) {
+      setCheckError(errorMessage(caught));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  /** 用户明确说“不是同一笔”才写关系；展示本身不做任何写入。 */
+  async function markNotDuplicate(pair: DuplicatePairResult): Promise<void> {
+    const normalized = normalizeNotDuplicatePair(pair.leftId, pair.rightId);
+    if (!normalized.ok) {
+      setCheckError("这两笔无法建立「不是同一笔」关系。");
+      return;
+    }
+    setBusyPairKey(pair.pairKey);
+    setCheckError(null);
+    try {
+      await createNotDuplicateRelations(duplicateBookId(), {
+        pairs: [{ transactionIdA: normalized.pair.transactionAId, transactionIdB: normalized.pair.transactionBId }],
+        decisionSource: "manual",
+      });
+      setDuplicateCheck((current) =>
+        current === null
+          ? current
+          : { ...current, pairs: current.pairs.filter((item) => item.pairKey !== pair.pairKey) },
+      );
+    } catch (caught) {
+      setCheckError(`「不是同一笔」没有记住：${errorMessage(caught)}`);
+    } finally {
+      setBusyPairKey(null);
+    }
+  }
+
   return (
     <InnerPage
       title={editing ? "修改记账" : "记账详情"}
@@ -578,6 +660,84 @@ export function EntryDetailPage(): React.JSX.Element {
           >
             复制这一笔
           </button>
+
+          {/**
+           * ⚠️ **S15-E4 第 7 条：明细页的“更多”里放“重复账目检测”。**
+           *
+           * 放在“复制这一笔”之后、删除之前：它不是主操作，但比删除更常被需要；
+           * 点一下只对**这一笔**检查，不会开始一次全账本扫描。
+           */}
+          <details className="rounded-field border border-line bg-surface">
+            <summary className="cursor-pointer px-4 py-3 text-body font-medium">更多</summary>
+            <div className="flex flex-col gap-3 border-t border-line px-4 py-3">
+              <button
+                type="button"
+                disabled={checking || !duplicateSettings.settings.enabled}
+                onClick={() => void checkDuplicatesForEntry()}
+                className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70 disabled:opacity-45"
+              >
+                {checking ? "正在检测…" : "重复账目检测"}
+              </button>
+              <p className="text-helper text-muted">
+                只检查这一笔与本账本的历史记录；不会删除、合并或修改任何账目。
+                {duplicateSettings.settings.enabled ? "" : "（重复提醒已关闭，需要先到设置里打开。）"}
+              </p>
+
+              {checkError === null ? null : <Alert tone="error">{checkError}</Alert>}
+
+              {duplicateCheck === null ? null : (
+                <div className="flex flex-col gap-2">
+                  {duplicateCheck.pairs.length === 0 ? (
+                    <p className="text-helper text-muted">
+                      没有发现符合当前规则的疑似重复。
+                      {duplicateCheck.scope === "local"
+                        ? `（本次只比对了${DUPLICATE_SCOPE_LABELS.local}，不能据此认为账本里没有重复。）`
+                        : ""}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-helper text-muted">
+                        找到 {duplicateCheck.pairs.length} 笔相似记录。疑似重复不会自动处理。
+                      </p>
+                      <ul className="flex flex-col gap-2">
+                        {duplicateCheck.pairs.map((pair) => {
+                          const otherId = pair.leftId === data.id ? pair.rightId : pair.leftId;
+                          const other = duplicateCheck.others.find((item) => item.id === otherId);
+                          return (
+                            <li key={pair.pairKey} className="flex flex-col gap-1 rounded-field bg-canvas px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => void navigate(`/transactions/${otherId}`)}
+                                className="flex items-baseline justify-between gap-3 text-left text-body"
+                              >
+                                <span className="truncate">
+                                  {other?.note?.trim() === "" || other?.note == null ? "（无备注）" : other.note}
+                                </span>
+                                <span className="shrink-0 text-muted">
+                                  {other === undefined
+                                    ? ""
+                                    : `${other.occurredLocalDate} · ${formatMoney(other.amountCents, other.currency)}`}
+                                </span>
+                              </button>
+                              <p className="text-helper text-muted">{describeDuplicateMatch(pair)}</p>
+                              <button
+                                type="button"
+                                disabled={isGuestRuntime() || busyPairKey === pair.pairKey}
+                                onClick={() => void markNotDuplicate(pair)}
+                                className="self-start text-helper text-brand-dark underline disabled:opacity-45"
+                              >
+                                {busyPairKey === pair.pairKey ? "正在记录…" : "这两笔不是同一笔"}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </details>
 
           <button
             type="button"

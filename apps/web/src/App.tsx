@@ -38,6 +38,7 @@ import { UpdateAnnouncementsPage } from "./pages/UpdateAnnouncementsPage.js";
 import { UpdateRuntimePage } from "./pages/UpdateRuntimePage.js";
 import { MonthDownloadPage } from "./pages/MonthDownloadPage.js";
 import { EntryDetailPage } from "./pages/EntryDetailPage.js";
+import { DuplicateReviewPage } from "./pages/DuplicateReviewPage.js";
 import { ExportPage } from "./pages/ExportPage.js";
 import { AccountDataPage } from "./pages/AccountDataPage.js";
 import { AdminLifecyclePage } from "./pages/AdminLifecyclePage.js";
@@ -355,6 +356,11 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/books/:bookId/settings/payment-methods" element={<RequireSession><PaymentMethodsPage /></RequireSession>} />
       <Route path="/books/:bookId/settings/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
       <Route path="/books/:bookId/settings/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
+      {/**
+       * ⚠️ S15-E5：全账本重复检查。`RequireAuth` 而不是 `RequireSession`：检查要请求服务器账本，
+       * 游客账本没有服务器数据可扫（页面本身也会说明它只扫本机已知记录）。
+       */}
+      <Route path="/books/:bookId/settings/duplicates" element={<RequireAuth><DuplicateReviewPage /></RequireAuth>} />
       {/* ⚠️ 账本空间：目前是占位页，见 `档案/账本与协作页-设计决定.md` §2.4 与 §8。 */}
       {/* ⚠️ 账本空间：展示态与常规态是**同一个页面的两个状态**，不是两个路由。 */}
       <Route path="/start" element={<RequireSession><LedgerSpacePage /></RequireSession>} />

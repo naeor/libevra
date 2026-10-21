@@ -1,3 +1,5 @@
+import { checkNewCandidates, duplicateBookId, type NewCandidatesResult } from "./duplicateReview.js";
+import { DEFAULT_DUPLICATE_DETECTION_SETTINGS } from "@libellum/shared";
 import {
   type ClassificationDeleteResponse,
   type ClassificationUsageResponse,
@@ -6,7 +8,6 @@ import {
   type CreateTagInput,
   type CreateTransactionInput,
   type DuplicateCheckInput,
-  type DuplicateCheckResponse,
   type ExportFormat,
   type LedgerMetaResponse,
   type MeResponse,
@@ -1730,37 +1731,22 @@ export function useDeleteTransaction(): UseMutationResult<unknown, Error, string
  * end up in browser history, in access logs, and in any proxy in between.
  */
 export function useCheckDuplicates(): UseMutationResult<
-  Transaction[],
+  NewCandidatesResult,
   Error,
   DuplicateCheckInput
 > {
-  const guest = useGuestMode();
-
-  return useMutation({
-    mutationFn: async (input: DuplicateCheckInput) => {
-      /**
-       * ⚠️ **A local duplicate check, not a server one.** Asking the server from guest mode would be
-       * a business request without an account, and its answer could include account entries. The
-       * guest check is deliberately conservative: same amount, same kind, same local date.
-       */
-      if (guest) {
-        const data = await loadGuestData();
-        const duplicates = sortedTransactions(data).filter((entry) => {
-          if (entry.amountCents !== input.amountCents) return false;
-          if (entry.kind !== input.kind) return false;
-          return entry.occurredLocalDate === input.occurredLocalDate;
-        });
-        return duplicates.slice(0, 5);
-      }
-
-      const response = await apiFetch<DuplicateCheckResponse>("/transactions/duplicates", {
-        method: "POST",
-        body: input,
-      });
-
-      return response.duplicates;
-    },
-  });
+  return useMutation({ mutationFn: async (input: DuplicateCheckInput) => {
+    const bookId = duplicateBookId();
+    /**
+     * ⚠️ **返回整份结果，而不是只挑出历史账目。** 调用方需要 `scope` 才能诚实地说
+     * “只比对了本机已知数据”；也需要 `truncated` 才能在结果不完整时提示。
+     */
+    return checkNewCandidates(bookId, [{ id: "new-draft", bookId, kind: input.kind,
+      amountCents: input.amountCents, currency: input.currency, occurredAt: input.occurredAt ?? null,
+      occurredAtPrecision: input.occurredAt ? "second" : "day", occurredLocalDate: input.occurredLocalDate,
+      categoryId: input.categoryId ?? null, paymentMethodId: input.paymentMethodId ?? null, note: input.note, tagIds: input.tagIds,
+    }], input.settings ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS);
+  } });
 }
 
 /**

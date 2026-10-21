@@ -71,6 +71,13 @@ export const DUPLICATE_TIME_WINDOW_PRESETS_SECONDS = [60, 300, 1_800, 3_600, 86_
 export interface DuplicateDetectionSettings {
   /** 是否启用重复提醒。默认 `true`。 */
   readonly enabled: boolean;
+  readonly matchAmount?: boolean;
+  readonly matchCurrency?: boolean;
+  readonly matchKind?: boolean;
+  readonly matchTime?: boolean;
+  readonly matchMerchant?: boolean;
+  readonly matchNote?: boolean;
+  readonly matchTags?: boolean;
   /** 时间窗口（秒）。默认 60；范围 1 秒–30 天，必须是整数。 */
   readonly timeWindowSeconds: number;
   /** 双方都有分类时是否要求相同。默认 `true`。 */
@@ -82,23 +89,44 @@ export interface DuplicateDetectionSettings {
 /** 所有设置都回到默认值：开启提醒、60 秒、比较分类与支付方式。 */
 export const DEFAULT_DUPLICATE_DETECTION_SETTINGS: DuplicateDetectionSettings = Object.freeze({
   enabled: true,
+  matchAmount: true, matchCurrency: true, matchKind: true, matchTime: true,
+  matchMerchant: false, matchNote: false, matchTags: false,
   timeWindowSeconds: 60,
   matchCategory: true,
   matchPaymentMethod: true,
 });
 
 export type DuplicateSettingsField =
+  | "matchAmount" | "matchCurrency" | "matchKind" | "matchTime" | "matchMerchant" | "matchNote" | "matchTags"
   | "enabled"
   | "timeWindowSeconds"
   | "matchCategory"
   | "matchPaymentMethod";
 
 const DUPLICATE_SETTINGS_FIELDS: readonly DuplicateSettingsField[] = [
+  "matchAmount", "matchCurrency", "matchKind", "matchTime", "matchMerchant", "matchNote", "matchTags",
   "enabled",
   "timeWindowSeconds",
   "matchCategory",
   "matchPaymentMethod",
 ];
+
+/**
+ * 辅助匹配规则（S15-E4 补齐的「可配置」部分）。
+ *
+ * 与金额/币种/方向/时间/分类/支付方式不同，这些字段**默认关闭**：它们不是判断同一笔的
+ * 必要条件，而是用户可以主动收紧的口径。缺席时按默认值补齐（默认值就是关闭），
+ * 因此旧版本写下的设置不需要迁移，也不会被误读成“已开启”。
+ */
+export const AUXILIARY_MATCH_FIELDS = [
+  "matchAmount",
+  "matchCurrency",
+  "matchKind",
+  "matchTime",
+  "matchMerchant",
+  "matchNote",
+  "matchTags",
+] as const;
 
 export type DuplicateSettingsIssueCode =
   | "not_object"
@@ -136,7 +164,7 @@ function isSettingsField(value: string): value is DuplicateSettingsField {
 
 function readBooleanField(
   source: Record<string, unknown>,
-  field: "enabled" | "matchCategory" | "matchPaymentMethod",
+  field: Exclude<DuplicateSettingsField, "timeWindowSeconds">,
   issues: DuplicateSettingsIssue[],
 ): boolean | undefined {
   const value = source[field];
@@ -221,12 +249,26 @@ export function validateDuplicateDetectionSettings(input: unknown): DuplicateSet
     }
   }
 
+  const optional: Partial<DuplicateDetectionSettings> = {};
+  for (const key of AUXILIARY_MATCH_FIELDS) {
+    /**
+     * 辅助规则（金额/币种/方向/时间之外的商户、备注、标签）**可以缺席**：它们是 S15-E4
+     * 新增的可选项，旧记录里没有。缺席按默认值补齐，不算错误；写了但不是布尔才是错误。
+     */
+    const value = input[key];
+    if (value === undefined) {
+      Object.assign(optional, { [key]: DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
+      continue;
+    }
+    Object.assign(optional, { [key]: readBooleanField(input, key, issues) ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
+  }
   const enabled = readBooleanField(input, "enabled", issues);
   const matchCategory = readBooleanField(input, "matchCategory", issues);
   const matchPaymentMethod = readBooleanField(input, "matchPaymentMethod", issues);
   const timeWindowSeconds = readTimeWindow(input, issues);
 
   const settings: DuplicateDetectionSettings = {
+    ...optional,
     enabled: enabled ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.enabled,
     timeWindowSeconds: timeWindowSeconds ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.timeWindowSeconds,
     matchCategory: matchCategory ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.matchCategory,
@@ -277,6 +319,10 @@ export function recoverDuplicateDetectionSettings(input: unknown): DuplicateSett
     issues.push({ field, code: "unknown_field", message: `未知设置项：${field}，已忽略。` });
   }
 
+  const optional: Partial<DuplicateDetectionSettings> = {};
+  for (const key of ["matchAmount", "matchCurrency", "matchKind", "matchTime", "matchMerchant", "matchNote", "matchTags"] as const) {
+    if (input[key] !== undefined) Object.assign(optional, { [key]: readBooleanField(input, key, issues) ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
+  }
   const enabled = readBooleanField(input, "enabled", issues);
   const matchCategory = readBooleanField(input, "matchCategory", issues);
   const matchPaymentMethod = readBooleanField(input, "matchPaymentMethod", issues);
@@ -289,6 +335,7 @@ export function recoverDuplicateDetectionSettings(input: unknown): DuplicateSett
 
   return {
     settings: {
+      ...optional,
       enabled: enabled ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.enabled,
       timeWindowSeconds: timeWindowSeconds ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.timeWindowSeconds,
       matchCategory: matchCategory ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS.matchCategory,
@@ -323,16 +370,20 @@ export interface DuplicateCandidateFields {
   /** 带时区偏移的 ISO 8601 时间戳；`null` 表示缺失/不可解析。 */
   readonly occurredAt: string | null;
   /** 时间戳精度；缺省视为 `"second"`。 */
-  readonly occurredAtPrecision?: DuplicateTimePrecision;
+  readonly occurredAtPrecision?: DuplicateTimePrecision | undefined;
   /** 本地日历日 `YYYY-MM-DD`；时间戳不可用时作为较弱依据。 */
   readonly occurredLocalDate: string | null;
   /** 账本内分类 ID；`null` 表示没有分类。**不传分类名称。** */
   readonly categoryId: string | null;
   /** 账本内支付方式 ID；`null` 表示没有支付方式。 */
   readonly paymentMethodId: string | null;
+  readonly merchant?: string | null | undefined;
+  readonly note?: string | null | undefined;
+  readonly tagIds?: readonly string[] | undefined;
 }
 
 export type DuplicateField =
+  | "merchant" | "note" | "tagIds"
   | "bookId"
   | "kind"
   | "amountCents"
@@ -343,6 +394,7 @@ export type DuplicateField =
   | "paymentMethodId";
 
 export type DuplicateRule =
+  | "merchant" | "note" | "tags"
   | "reminders"
   | "book"
   | "kind"
@@ -361,6 +413,7 @@ export type DuplicateRule =
 export type DuplicateRuleOutcome = "passed" | "excluded" | "missing" | "skipped";
 
 export type DuplicateExclusionCode =
+  | "auxiliary_mismatch"
   | "reminders_disabled"
   | "book_missing"
   | "book_mismatch"
@@ -585,7 +638,9 @@ export function evaluateDuplicatePair(
   }
 
   // 2. 收支方向
-  if (left.kind === "unknown" || right.kind === "unknown") {
+  if (settings.matchKind === false) {
+    rules.push(evaluation("kind", "skipped", ["kind"], "收支方向匹配已关闭。"));
+  } else if (left.kind === "unknown" || right.kind === "unknown") {
     rules.push(evaluation("kind", "excluded", ["kind"], "收支方向未知，不能判断为同一笔。", "kind_unknown"));
   } else if (left.kind !== right.kind) {
     rules.push(evaluation("kind", "excluded", ["kind"], "收支方向不同（收入与支出不会互为重复）。", "kind_mismatch"));
@@ -594,7 +649,9 @@ export function evaluateDuplicatePair(
   }
 
   // 3. 金额（整数最小单位，完全相等）
-  if (left.amountCents === null || right.amountCents === null) {
+  if (settings.matchAmount === false) {
+    rules.push(evaluation("amount", "skipped", ["amountCents"], "金额匹配已关闭。"));
+  } else if (left.amountCents === null || right.amountCents === null) {
     rules.push(evaluation("amount", "excluded", ["amountCents"], "缺少金额，无法判断。", "amount_missing"));
   } else if (!validAmount(left.amountCents) || !validAmount(right.amountCents)) {
     rules.push(
@@ -609,7 +666,9 @@ export function evaluateDuplicatePair(
   // 4. 币种
   const leftCurrency = normalizeCurrency(left.currency);
   const rightCurrency = normalizeCurrency(right.currency);
-  if (leftCurrency === null || rightCurrency === null) {
+  if (settings.matchCurrency === false) {
+    rules.push(evaluation("currency", "skipped", ["currency"], "币种匹配已关闭。"));
+  } else if (leftCurrency === null || rightCurrency === null) {
     rules.push(evaluation("currency", "excluded", ["currency"], "缺少币种，无法判断。", "currency_missing"));
   } else if (leftCurrency !== rightCurrency) {
     rules.push(evaluation("currency", "excluded", ["currency"], "币种不同（不做汇率折算）。", "currency_mismatch"));
@@ -622,7 +681,9 @@ export function evaluateDuplicatePair(
   const rightInstant = instantOf(right);
   let timeDifferenceSeconds: number | null = null;
 
-  if (leftInstant !== null && rightInstant !== null) {
+  if (settings.matchTime === false) {
+    rules.push(evaluation("time", "skipped", ["occurredAt"], "时间匹配已关闭。"));
+  } else if (leftInstant !== null && rightInstant !== null) {
     const differenceSeconds = Math.abs(leftInstant - rightInstant) / 1000;
     timeDifferenceSeconds = differenceSeconds;
 
@@ -730,6 +791,17 @@ export function evaluateDuplicatePair(
     }
   }
 
+  for (const [rule, field, enabled, a, b] of [
+    ["merchant", "merchant", settings.matchMerchant, left.merchant, right.merchant],
+    ["note", "note", settings.matchNote, left.note, right.note],
+    ["tags", "tagIds", settings.matchTags, left.tagIds?.slice().sort().join("\u0000"), right.tagIds?.slice().sort().join("\u0000")],
+  ] as const) {
+    if (!enabled) continue;
+    const x = a?.trim(); const y = b?.trim();
+    rules.push(!x || !y ? evaluation(rule, "missing", [field], "至少一方缺少辅助字段，不因缺失排除。")
+      : x === y ? evaluation(rule, "passed", [field], "辅助字段相同。")
+      : evaluation(rule, "excluded", [field], "已启用的辅助字段不同。", "auxiliary_mismatch"));
+  }
   const excluded = rules.filter((rule) => rule.outcome === "excluded");
   const missingRules = rules.filter((rule) => rule.outcome === "missing");
   const exclusionCodes = excluded
@@ -763,9 +835,9 @@ export function evaluateDuplicatePair(
   if (!matched) {
     reason = excluded[0]?.detail ?? "存在排除条件。";
   } else if (missingFields.length === 0) {
-    reason = "金额、币种、收支方向、时间、分类与支付方式都符合重复提示条件。";
+    reason = `${checkedFieldsSummary(rules)}均符合；请核对后决定是否保留。`;
   } else {
-    reason = `金额、币种、收支方向与时间符合条件；以下字段缺失，按较弱依据提示：${missingFields.join("、")}。`;
+    reason = `${checkedFieldsSummary(rules)}符合；以下字段缺失，按较弱依据提示：${missingFields.map(fieldLabel).join("、")}。`;
   }
 
   return {
@@ -830,7 +902,7 @@ export function evaluateDuplicateCandidates(
 
   const buckets = new Map<string, DuplicateCandidateFields[]>();
   for (const candidate of unique.values()) {
-    const key = batchBucketKey(candidate);
+    const key = batchBucketKey(candidate, settings);
     if (key === null) continue;
 
     const bucket = buckets.get(key);
@@ -871,13 +943,73 @@ export function evaluateDuplicateCandidates(
  * 金额/币种/方向/账本任一缺失或非法 → 返回 `null`：这些组合不可能命中，
  * 不必进入逐对判断（单对函数仍会给出明确的排除码）。
  */
-function batchBucketKey(candidate: DuplicateCandidateFields): string | null {
+function batchBucketKey(candidate: DuplicateCandidateFields, settings: DuplicateDetectionSettings): string | null {
   if (candidate.bookId.trim() === "") return null;
-  if (candidate.kind === "unknown") return null;
-  if (!validAmount(candidate.amountCents)) return null;
+  if (settings.matchKind !== false && candidate.kind === "unknown") return null;
+  if (settings.matchAmount !== false && !validAmount(candidate.amountCents)) return null;
 
   const currency = normalizeCurrency(candidate.currency);
-  if (currency === null) return null;
+  if (settings.matchCurrency !== false && currency === null) return null;
 
-  return `${candidate.bookId}\u0000${candidate.kind}\u0000${String(candidate.amountCents)}\u0000${currency}`;
+  return JSON.stringify([candidate.bookId, settings.matchKind === false ? null : candidate.kind, settings.matchAmount === false ? null : candidate.amountCents, settings.matchCurrency === false ? null : currency]);
 }
+
+/**
+ * 证据文案里“检查过哪些字段”。
+ *
+ * ⚠️ **从实际规则结果生成，不写死一句话**：关闭分类匹配后若仍说“所有规则均符合”，
+ * 用户会以为系统比对过分类。这里按 `rules` 里未被跳过的字段拼出中文清单，开关怎么设，
+ * 文案就怎么说。
+ */
+const DUPLICATE_FIELD_LABELS: Readonly<Record<string, string>> = {
+  amountCents: "金额",
+  currency: "币种",
+  kind: "收支方向",
+  occurredAt: "时间",
+  categoryId: "分类",
+  paymentMethodId: "支付方式",
+  merchant: "商户",
+  note: "备注",
+  tagIds: "标签",
+};
+
+/** 字段名转成给人看的说法；未知字段原样返回，宁可见到英文也不吞掉信息。 */
+function fieldLabel(field: DuplicateField): string {
+  return DUPLICATE_FIELD_LABELS[field] ?? field;
+}
+
+function checkedFieldsSummary(rules: readonly DuplicateRuleEvaluation[]): string {
+  const labels: string[] = [];
+  for (const rule of rules) {
+    /**
+     * ⚠️ `missing` 也必须跳过：否则会出现“分类、支付方式相同；分类、支付方式缺失”这种
+     * 自相矛盾的一句——缺失的字段没有被比较过，不能说它相同。
+     */
+    if (rule.outcome === "skipped" || rule.outcome === "missing") continue;
+    const field = rule.fields[0];
+    const label = field === undefined ? undefined : DUPLICATE_FIELD_LABELS[field];
+    if (label !== undefined && !labels.includes(label)) labels.push(label);
+  }
+  return labels.length === 0 ? "账本" : labels.join("、");
+}
+
+/**
+ * 一句给人看的“为什么像”。
+ *
+ * ⚠️ **所有入口共用这一句**（手动、语音、拍照、OCR 批量、CSV/账本导入、全账本审查），
+ * 否则同一个判定在六个界面上会有六种说法——用户看到的依据取决于他恰好在哪一页，
+ * 这正是 S15-E1 审查里“旧口径互相矛盾”的成因。
+ */
+export function describeDuplicateMatch(result: DuplicatePairResult): string {
+  if (result.suppressed) return "重复提醒已关闭，本次不进行检测。";
+  if (!result.matched) return result.reason;
+  const checked = checkedFieldsSummary(result.rules);
+  if (result.missingFields.length === 0) return `${checked}均相同。`;
+  return `${checked}相同；${result.missingFields.map(fieldLabel).join("、")}缺失，按较弱依据提示。`;
+}
+
+/** 检测范围的中文说法。`local` 绝不能被说成“账本里没有重复”。 */
+export const DUPLICATE_SCOPE_LABELS: Readonly<Record<"server" | "local", string>> = {
+  server: "账本（服务器）",
+  local: "本机已知数据",
+};

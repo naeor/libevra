@@ -1,7 +1,11 @@
 import {
   CURRENCIES,
   categoriesFor,
+  DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+  evaluateDuplicatePair,
   type Currency,
+  type DuplicateCandidateFields,
+  type DuplicatePairResult,
   type LedgerMetaResponse,
   type PaymentMethod,
   type Tag,
@@ -13,7 +17,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AmountField } from "../components/entry/AmountField.js";
 import { CurrencySheet } from "../components/entry/CurrencySheet.js";
@@ -21,7 +25,21 @@ import { EntryMoreOptions, moreOptionsSummary } from "../components/entry/EntryM
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { inheritFromLastEntry, type InheritedFields } from "../components/entry/inheritLast.js";
 import { keyboardOffset } from "../components/entry/keyboardInset.js";
-import { AddEntryPage, entryMoment, nextEntryFields } from "./AddEntryPage.js";
+import { AddEntryPage, entryMoment, MANUAL_DUPLICATE_CHOICES, manualDuplicateDescription, nextEntryFields } from "./AddEntryPage.js";
+
+/**
+ * 这一页要读“当前身份的重复检测设置”，而设置 hook 依赖 AuthProvider。
+ * 这里只渲染静态标记、不登录，所以给出一个固定的已登录身份即可；
+ * 设置本身仍走真实的 localStorage 读取路径（没有存储时回落到默认值）。
+ */
+vi.mock("../auth/AuthProvider.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../auth/AuthProvider.js")>();
+
+  return {
+    ...actual,
+    useAuth: () => ({ status: "ready", user: { id: "test-user", username: "tester" } }),
+  };
+});
 
 /**
  * The rule restated by the project owner on 2026-10-10: **the date is never
@@ -1181,5 +1199,78 @@ describe("keyboardOffset", () => {
 
   it("永远不返回负数", () => {
     expect(keyboardOffset(300, 0, 340)).toBe(0);
+  });
+});
+
+function candidateFor(id: string, overrides: Partial<DuplicateCandidateFields> = {}): DuplicateCandidateFields {
+  return {
+    id,
+    bookId: "book-1",
+    kind: "expense",
+    amountCents: 2_000,
+    currency: "CNY",
+    occurredAt: "2026-10-21T10:03:00+08:00",
+    occurredLocalDate: "2026-10-21",
+    categoryId: "cat-1",
+    paymentMethodId: "pm-1",
+    ...overrides,
+  };
+}
+
+function matchedPair(left: string, right: string): DuplicatePairResult {
+  return evaluateDuplicatePair(
+    candidateFor(left),
+    candidateFor(right),
+    DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+  );
+}
+
+/** 手动记账只用 `existing.length` 计数，所以只造出这个长度需要的对象。 */
+function existingEntries(count: number): Transaction[] {
+  return Array.from({ length: count }, (_, index) => ({ id: `existing-${String(index)}` }) as Transaction);
+}
+
+/**
+ * 提醒正文必须来自统一核心：同一组命中在手动、语音、拍照里不能各说一句。
+ * 这里直接测那个纯函数，因为对话框是否弹出取决于一次异步检测（本工作区没有 DOM 测试环境）。
+ */
+describe("manualDuplicateDescription", () => {
+  it("用统一核心的依据文案，而不是写死「日期、时间、金额都相同」", () => {
+    const description = manualDuplicateDescription({
+      existing: existingEntries(1),
+      pairs: [matchedPair("new", "old")],
+      scope: "server",
+    });
+
+    expect(description).toBe("收支方向、金额、币种、时间、分类、支付方式均相同。");
+    expect(description).not.toContain("日期");
+  });
+
+  it("多笔相似记录时说清楚一共几笔", () => {
+    const description = manualDuplicateDescription({
+      existing: existingEntries(3),
+      pairs: [matchedPair("new", "old-1")],
+      scope: "server",
+    });
+
+    expect(description).toContain("共找到 3 笔相似记录");
+  });
+
+  it("只查了本机数据时明确说出来，不暗示服务器账本没有重复", () => {
+    const description = manualDuplicateDescription({
+      existing: existingEntries(1),
+      pairs: [matchedPair("new", "old")],
+      scope: "local",
+    });
+
+    expect(description).toContain("本次只比对了本机已知数据");
+  });
+
+  it("提供「确认不是同一笔」这个选项，但不提供「删掉旧的」", () => {
+    expect(MANUAL_DUPLICATE_CHOICES.map((choice) => choice.label)).toEqual([
+      "仍然保存",
+      "确认不是同一笔",
+      "取消，我再看看",
+    ]);
   });
 });

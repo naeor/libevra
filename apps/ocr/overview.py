@@ -16,11 +16,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Sequence
 
-from dedupe import DuplicateOptions, DuplicateReport, ExistingEntry, find_duplicates, mark_duplicates
 from extract import Line
 from layouts import PAGE_TYPE_LABELS
 from model import Candidate
 from multi_extract import PageExtraction, extract_pages
+
+# ⚠️ **判重不在这里做（S15-E4）。**
+#
+# 这个模块以前会调用 `dedupe.py` 自己判一次疑似重复，于是同一批截图在 Python
+# 和网页各有一套规则：时间容差写死在 Python 常量里、分类和支付方式不参与、
+# 用户设置完全读不到。S15-E 把判重统一到
+# `packages/shared/src/duplicateDetection.ts`，由网页在拿到这一批候选后
+# 用同一份用户设置计算并打标记（`apps/web/src/lib/ocr/duplicates.ts`）。
+#
+# 所以这里只做「分类 + 抽取 + 计数」，不再给任何一笔贴重复标记；`dedupe.py`
+# 已随本次改动删除，避免第二套口径复活。
 
 
 @dataclass(frozen=True)
@@ -30,16 +40,14 @@ class OverviewSummary:
     total: int
     """Every extracted candidate, whatever its state."""
     complete: int
-    """No blocking issue, not a duplicate, all required fields present."""
+    """No blocking issue, all required fields present."""
     questionable: int
-    """Anything the user should look at: missing/conflicting fields, duplicates."""
-    duplicates: int
-    """Candidates involved in at least one suspected-duplicate group."""
+    """Anything the user should look at: missing or conflicting fields."""
     unknown_pages: int
     """Pages whose transaction count could not be decided; the user must choose."""
     pages_requiring_choice: int
     selected_by_default: tuple[str, ...]
-    """Ids preselected because they are complete and not suspected duplicates.
+    """Ids preselected because they are complete.
 
     Preselected is not confirmed: the design direction requires the user to
     execute one final confirmation before anything could be written.
@@ -50,7 +58,6 @@ class OverviewSummary:
             "total": self.total,
             "complete": self.complete,
             "questionable": self.questionable,
-            "duplicates": self.duplicates,
             "unknown_pages": self.unknown_pages,
             "pages_requiring_choice": self.pages_requiring_choice,
             "selected_by_default": list(self.selected_by_default),
@@ -61,7 +68,6 @@ class OverviewSummary:
 class Overview:
     pages: tuple[PageExtraction, ...]
     candidates: tuple[Candidate, ...]
-    duplicates: DuplicateReport
     summary: OverviewSummary
     warnings: tuple[str, ...]
     requires_user_choice: bool
@@ -77,7 +83,6 @@ class Overview:
         return {
             "pages": [page.to_dict() for page in self.pages],
             "candidates": [candidate.to_dict() for candidate in self.candidates],
-            "duplicates": self.duplicates.to_dict(),
             "summary": self.summary.to_dict(),
             "warnings": list(self.warnings),
             "requires_user_choice": self.requires_user_choice,
@@ -87,17 +92,16 @@ class Overview:
 def build_overview(
     pages: Sequence[tuple[int, Sequence[Line]]],
     *,
-    existing_entries: Sequence[ExistingEntry] = (),
-    options: DuplicateOptions | None = None,
     reference_year: int | None = None,
     reference_date: str | None = None,
 ) -> Overview:
-    """Classify, extract and de-duplicate a whole upload. Pure and deterministic.
+    """Classify and extract a whole upload. Pure and deterministic.
 
-    `existing_entries` are ledger rows the caller already holds; this module does
-    not fetch them, because detection must not need a database to be tested.
     `reference_date` is the day the screenshots were taken; without it a
     `今天 20:53` or `星期三 下午6:34` row cannot become a calendar date.
+
+    判重不在这里：网页拿到候选后用统一核心（`packages/shared/src/duplicateDetection.ts`）
+    配合用户设置计算，见本文件顶部的说明。
     """
 
     extractions = extract_pages(
@@ -105,19 +109,12 @@ def build_overview(
     )
     candidates = [candidate for extraction in extractions for candidate in extraction.candidates]
 
-    duplicates = find_duplicates(candidates, list(existing_entries), options)
-    mark_duplicates(candidates, duplicates)
-
     selected_by_default = tuple(
-        candidate.candidate_id
-        for candidate in candidates
-        if candidate.is_complete and not candidate.is_questionable
+        candidate.candidate_id for candidate in candidates if candidate.is_complete
     )
 
-    complete = sum(1 for candidate in candidates if candidate.is_complete and not candidate.is_questionable)
-    questionable = sum(
-        1 for candidate in candidates if candidate.is_questionable or not candidate.is_complete
-    )
+    complete = sum(1 for candidate in candidates if candidate.is_complete)
+    questionable = sum(1 for candidate in candidates if not candidate.is_complete)
     unknown_pages = sum(1 for extraction in extractions if extraction.classification.page_type == "unknown")
     pages_requiring_choice = sum(1 for extraction in extractions if extraction.requires_user_choice)
 
@@ -125,7 +122,6 @@ def build_overview(
         total=len(candidates),
         complete=complete,
         questionable=questionable,
-        duplicates=len(duplicates.duplicate_candidate_ids),
         unknown_pages=unknown_pages,
         pages_requiring_choice=pages_requiring_choice,
         selected_by_default=selected_by_default,
@@ -136,7 +132,6 @@ def build_overview(
     return Overview(
         pages=tuple(extractions),
         candidates=tuple(candidates),
-        duplicates=duplicates,
         summary=summary,
         warnings=tuple(warnings),
         requires_user_choice=any(extraction.requires_user_choice for extraction in extractions),
@@ -152,8 +147,8 @@ def describe_overview(overview: Overview) -> str:
 
     summary = overview.summary
     lines = [
-        f"共 {summary.total} 笔：可直接确认 {summary.complete} 笔，"
-        f"有疑问 {summary.questionable} 笔，可能重复 {summary.duplicates} 笔。",
+        f"共 {summary.total} 笔：字段齐全 {summary.complete} 笔，"
+        f"待确认 {summary.questionable} 笔。",
     ]
 
     if summary.unknown_pages > 0:

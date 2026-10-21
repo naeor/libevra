@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Category, PaymentMethod, Tag, Transaction } from "@libellum/shared";
+import { notDuplicatePairKey } from "@libellum/shared";
 
 import { buildImportPreview } from "./preview.js";
 import type { ImportSource, ImportTarget } from "./types.js";
@@ -161,6 +162,26 @@ describe("buildImportPreview", () => {
     expect(preview.counts.importableWithoutConflict).toBe(1);
     expect(preview.counts.duplicateGroups).toBe(1);
     expect(preview.warnings.some((warning) => warning.includes("可能重复"))).toBe(true);
+  });
+
+  it("已确认「不是同一笔」的配对不再进入重复组，但两笔都还在", () => {
+    const sourceEntry = transaction("s1", { occurredAt: "2026-10-18T10:00:00+08:00" });
+    const targetEntry = transaction("t1", {
+      occurredAt: "2026-10-18T10:00:30+08:00",
+      categoryId: "t-food",
+    });
+
+    const withSuppression = buildImportPreview(source([sourceEntry]), target([targetEntry]), undefined, {
+      suppressedPairKeys: new Set([notDuplicatePairKey("s1", "t1")]),
+    });
+    const withoutSuppression = buildImportPreview(source([sourceEntry]), target([targetEntry]));
+
+    expect(withoutSuppression.duplicateGroups).toHaveLength(1);
+    // 抑制只影响“提示”，不影响任何一笔的去留：导入数、目标记录数都不变。
+    expect(withSuppression.duplicateGroups).toHaveLength(0);
+    expect(withSuppression.counts.duplicateSourceRecords).toBe(0);
+    expect(withSuppression.counts.importableWithoutConflict).toBe(1);
+    expect(withSuppression.counts.targetTransactions).toBe(1);
   });
 
   it("来源墓碑只进入跳过统计与说明，不进入待导入", () => {

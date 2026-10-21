@@ -50,11 +50,14 @@ describe("重复交易检测设置节", () => {
     expect(html).toContain("关闭重复提醒不影响数据安全保护");
   });
 
-  it("三个开关默认开启，时间窗口默认 1 分钟", () => {
+  it("十个开关里默认开启金额、币种、方向、时间、分类与支付方式，时间窗口默认 1 分钟", () => {
     const html = sectionHtml();
 
-    expect((html.match(/role="switch"/g) ?? [])).toHaveLength(3);
-    expect((html.match(/aria-checked="true"/g) ?? [])).toHaveLength(3);
+    // 1 个总开关 + 7 个字段开关（金额/币种/方向/时间/商户/备注/标签）+ 分类 + 支付方式。
+    expect((html.match(/role="switch"/g) ?? [])).toHaveLength(10);
+    // 默认开启：总开关、金额、币种、方向、时间、分类、支付方式；商户/备注/标签默认关。
+    expect((html.match(/aria-checked="true"/g) ?? [])).toHaveLength(7);
+    expect((html.match(/aria-checked="false"/g) ?? [])).toHaveLength(3);
     expect(html).toContain("1 分钟");
     expect(html).not.toContain("当前窗口");
   });
@@ -69,11 +72,11 @@ describe("重复交易检测设置节", () => {
       }),
     });
 
-    // fieldset 的 disabled 是原生禁用；三个开关的值仍在 DOM 里（分类/支付为关）。
+    // fieldset 的 disabled 是原生禁用；开关的值仍在 DOM 里（分类/支付/三个可选字段为关）。
     expect(html).toContain('<fieldset disabled=""');
     expect(html).toContain("5 分钟");
-    expect(html).toContain("提醒已关闭；上面的时间窗口、分类与支付方式设置会保留");
-    expect((html.match(/aria-checked="false"/g) ?? [])).toHaveLength(3);
+    expect(html).toContain("提醒已关闭；上面的规则设置会保留");
+    expect((html.match(/aria-checked="false"/g) ?? [])).toHaveLength(6);
   });
 
   it("自定义窗口显示当前值，并说明 1 分钟–30 天范围", () => {

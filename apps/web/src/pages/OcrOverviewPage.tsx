@@ -20,23 +20,29 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { DUPLICATE_SCOPE_LABELS, describeDuplicateMatch } from "@libellum/shared";
+
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
+import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ImportDoneScreen } from "../components/ocr/ImportDoneScreen.js";
 import { OcrImportBar, OcrOverview } from "../components/ocr/OcrOverview.js";
 import { errorMessage } from "../lib/api.js";
+import { candidateFromInput, checkNewCandidates, type NewCandidatesResult } from "../lib/duplicateReview.js";
 import { assignImportIds, batchBelongsToBook, refreshDuplicateMarks, withoutBatchItems } from "../lib/ocr/batch.js";
 import { clearBatch, loadBatch, saveBatch } from "../lib/ocr/batchStore.js";
 import { applyCategorySuggestions } from "../lib/ocr/category.js";
 import { findSuspectedDuplicates } from "../lib/ocr/duplicates.js";
 import {
+  buildImportPlan,
   countImportableItems,
   findImportBlockers,
   type OcrImportBlocker,
   type OcrImportOutcome,
+  type OcrImportPlanItem,
 } from "../lib/ocr/import.js";
 import {
   clearImportSession,
@@ -67,6 +73,42 @@ import { uuidV7 } from "../lib/uuid.js";
  * 一张卡片完整可见。`InnerPage` 的 `py-8` 不归本页所有，所以不在那里加。
  */
 const BOTTOM_BAR_CLEARANCE = "h-44";
+
+type HistoryDuplicateChoice = "importAll" | "review";
+
+/**
+ * 与账本历史命中后的两种走法。
+ *
+ * 这里**没有**“删掉已有的那笔”之类的选项：这条路径只会往账本里写这批识别结果，
+ * 已有记录的处理必须在明细页走软删除/撤销，不能借导入顺手删掉。
+ */
+const HISTORY_DUPLICATE_CHOICES: readonly Choice<HistoryDuplicateChoice>[] = [
+  {
+    id: "importAll",
+    label: "仍然全部导入",
+    hint: "账本里已有的记录不会被删除、合并或跳过。",
+    primary: true,
+  },
+  {
+    id: "review",
+    label: "先不导入，去看看账本",
+    hint: "这批识别结果还留在页面上，不会写入任何账目。",
+    dismissive: true,
+  },
+];
+
+function historyDuplicateDescription(found: NewCandidatesResult): string {
+  const shown = found.pairs.slice(0, 3).map((pair) => describeDuplicateMatch(pair));
+  const rest = found.pairs.length - shown.length;
+  return [
+    `与${DUPLICATE_SCOPE_LABELS[found.scope]}比对，找到 ${String(found.pairs.length)} 对疑似重复（账本已有记录不会被删除或合并）。`,
+    ...shown,
+    rest > 0 ? `另有 ${String(rest)} 对没有列出。` : "",
+    "这只是提示：要不要都保留，由你决定。",
+  ]
+    .filter((line) => line !== "")
+    .join(" ");
+}
 
 export function OcrOverviewPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -104,6 +146,14 @@ export function OcrOverviewPage(): React.JSX.Element {
     readonly session: OcrImportSession;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 这批记录与账本历史命中的疑似重复。**不是阻止导入**，只是让用户在写入前看到依据：
+   * 选择“仍然全部导入”后照常写入，系统不会替他删掉任何已有记录。
+   */
+  const [pendingHistory, setPendingHistory] = useState<{
+    readonly assigned: OcrBatch;
+    readonly found: NewCandidatesResult;
+  } | null>(null);
 
   const items = batch?.items ?? [];
   const currentBookId = ledger.data?.book.id ?? null;
@@ -245,25 +295,61 @@ export function OcrOverviewPage(): React.JSX.Element {
     if (batch === null) return;
 
     setConfirmOpen(false);
+    setError(null);
+
+    /**
+     * ⚠️ **Ids are minted once, here, and written down before the first write.**
+     *
+     * If a retry generated new ids, the server's idempotency key would not
+     * recognise the earlier attempt and the ledger would gain duplicates. If
+     * the storage write fails, the import is cancelled rather than proceeding
+     * with ids that a refresh could not reuse.
+     */
+    const assigned = assignImportIds(batch, uuidV7);
+    if (!saveBatch(assigned)) {
+      setError("无法把固定的幂等 id 写入浏览器存储，已取消导入。请检查隐私模式/存储空间后重试。");
+      return;
+    }
+    setBatch(assigned);
+
+    /**
+     * 与账本历史比对**发生在写入之前**，但结果只是提示：命中后用户仍可“仍然全部导入”，
+     * 系统不会替他跳过、删除或合并任何记录。检查失败也不挡写入，只把原因说出来。
+     */
+    const plan = buildImportPlan(assigned);
+    if (plan.blockers.length === 0 && currentBookId !== null) {
+      const found = await checkAgainstHistory(plan.ready, currentBookId);
+      if (found !== null && found.history.length > 0) {
+        setPendingHistory({ assigned, found });
+        return;
+      }
+    }
+
+    await writeBatch(assigned);
+  }
+
+  /** 这批待写入的记录与账本已有记录的同一套检测（服务端粗筛 + 统一核心）。 */
+  async function checkAgainstHistory(
+    ready: readonly OcrImportPlanItem[],
+    bookId: string,
+  ): Promise<NewCandidatesResult | null> {
+    try {
+      return await checkNewCandidates(
+        bookId,
+        ready.map((entry) => candidateFromInput(entry.input, bookId)),
+        duplicateSettings.settings,
+      );
+    } catch (caught) {
+      setError(`这批记录与账本历史没能比对：${errorMessage(caught)}`);
+      return null;
+    }
+  }
+
+  async function writeBatch(assigned: OcrBatch): Promise<void> {
     setImporting(true);
     setError(null);
 
     try {
-      /**
-       * ⚠️ **Ids are minted once, here, and written down before the first write.**
-       *
-       * If a retry generated new ids, the server's idempotency key would not
-       * recognise the earlier attempt and the ledger would gain duplicates. If
-       * the storage write fails, the import is cancelled rather than proceeding
-       * with ids that a refresh could not reuse.
-       */
-      const assigned = assignImportIds(batch, uuidV7);
-      if (!saveBatch(assigned)) {
-        setError("无法把固定的幂等 id 写入浏览器存储，已取消导入。请检查隐私模式/存储空间后重试。");
-        return;
-      }
-      setBatch(assigned);
-
       const result = await executeImport(
         assigned,
         async (input) => {
@@ -463,6 +549,21 @@ export function OcrOverviewPage(): React.JSX.Element {
         }}
         onCancel={() => {
           setConfirmOpen(false);
+        }}
+      />
+
+      <ChoiceDialog<HistoryDuplicateChoice>
+        open={pendingHistory !== null}
+        title="这批记录里有疑似与账本重复的"
+        description={
+          pendingHistory === null ? "" : historyDuplicateDescription(pendingHistory.found)
+        }
+        choices={HISTORY_DUPLICATE_CHOICES}
+        onChoose={(choice) => {
+          if (pendingHistory === null) return;
+          const { assigned } = pendingHistory;
+          setPendingHistory(null);
+          if (choice === "importAll") void writeBatch(assigned);
         }}
       />
 

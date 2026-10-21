@@ -46,10 +46,17 @@ function settings(overrides: Partial<DuplicateDetectionSettings> = {}): Duplicat
 }
 
 describe("默认配置", () => {
-  it("开启提醒、60 秒、比较分类与支付方式", () => {
+  it("开启提醒、60 秒、比较金额/币种/方向/时间/分类/支付方式", () => {
     expect(DEFAULT_DUPLICATE_DETECTION_SETTINGS).toEqual({
       enabled: true,
       timeWindowSeconds: 60,
+      matchAmount: true,
+      matchCurrency: true,
+      matchKind: true,
+      matchTime: true,
+      matchMerchant: false,
+      matchNote: false,
+      matchTags: false,
       matchCategory: true,
       matchPaymentMethod: true,
     });

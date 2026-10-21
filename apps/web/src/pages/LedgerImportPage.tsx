@@ -66,6 +66,7 @@ import {
   restoreGuestCleanup,
 } from "../lib/guest/data.js";
 import { bookLifecycleAction } from "../lib/lifecycle.js";
+import { fetchNotDuplicatePairKeys } from "../lib/notDuplicateRelations.js";
 import { guestSourceOfSource } from "../lib/ledgerImport/submit.js";
 import { buildImportPreview } from "../lib/ledgerImport/preview.js";
 import {
@@ -305,6 +306,32 @@ export function LedgerImportPage(): React.JSX.Element {
    */
   const backTo = target === null ? "/start" : `/books/${target.id}/settings`;
   const goBack = useGoBack(backTo, "parent");
+  /**
+   * 目标账本里确认过的「不是同一笔」。
+   *
+   * 导入预览在浏览器里跑，服务端不会替它过滤关系；读不到就当“没有关系”——
+   * 宁可多提示一次，也不要因为一次读失败而漏掉真正的重复。
+   */
+  const [suppressedPairKeys, setSuppressedPairKeys] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  useEffect(() => {
+    if (target === null) {
+      setSuppressedPairKeys(new Set<string>());
+      return;
+    }
+    let cancelled = false;
+    void fetchNotDuplicatePairKeys(target.id)
+      .then((keys) => {
+        if (!cancelled) setSuppressedPairKeys(keys);
+      })
+      .catch(() => {
+        if (!cancelled) setSuppressedPairKeys(new Set<string>());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [target]);
   const preview = useMemo(() => {
     if (snapshots === null) return null;
     const excluded = incrementalExclusions(incremental);
@@ -316,9 +343,10 @@ export function LedgerImportPage(): React.JSX.Element {
         excludeDuplicateSourceIds: excluded.sourceIds,
         excludeDuplicateTargetIds: excluded.targetIds,
         duplicateSettings: duplicateSettings.settings,
+        suppressedPairKeys,
       },
     );
-  }, [snapshots, resolutions, incremental, duplicateSettings.settings]);
+  }, [snapshots, resolutions, incremental, duplicateSettings.settings, suppressedPairKeys]);
 
   /** 读取服务端增量状态；失败时仍允许首次导入，但不能假装没有历史。 */
   useEffect(() => {

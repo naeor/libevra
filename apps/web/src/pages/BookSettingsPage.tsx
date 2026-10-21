@@ -319,6 +319,16 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                   to={`/import-ledger?target=${bookId}`}
                 />
               ) : null}
+              {/**
+               * ⚠️ **S15-E5：全账本重复检查。** 入口放在数据管理里，而不是明细页顶部：
+               * 它是一次“体检”（可能很慢、会扫整本账），不是一个每天都要点的按钮；
+               * 放进数据管理，用户才是在明确选择“我要检查这本账”。
+               */}
+              <NavRow
+                label="重复账目检测"
+                hint="扫描这本账的历史记录，按组查看疑似重复并逐组处理"
+                to={`/books/${bookId}/settings/duplicates`}
+              />
             </ul>
           </section>
 

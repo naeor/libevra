@@ -1,3 +1,4 @@
+import { duplicateRulesSchema } from "./duplicateReview.js";
 import { z } from "zod";
 
 /**
@@ -597,6 +598,13 @@ export type SummaryResponse = z.infer<typeof summaryResponseSchema>;
  * hoist.
  */
 export const duplicateCheckSchema = z.object({
+  occurredAt: z.string().datetime({ offset: true }).optional(),
+  occurredTz: z.string().max(80).optional(),
+  categoryId: z.string().nullable().optional(),
+  paymentMethodId: z.string().nullable().optional(),
+  note: z.string().max(2000).nullable().optional(),
+  tagIds: z.array(z.string()).max(100).optional(),
+  settings: duplicateRulesSchema.optional(),
   kind: transactionKindSchema,
   amountCents: amountCentsSchema,
   currency: currencySchema,

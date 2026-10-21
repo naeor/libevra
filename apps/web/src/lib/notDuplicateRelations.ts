@@ -37,6 +37,8 @@ export const notDuplicateRelationQueryKeys = {
 export interface NotDuplicateRelationQueryOptions {
   readonly includeRevoked?: boolean;
   readonly transactionId?: string;
+  /** 分页游标；缺省读第一页。 */
+  readonly cursor?: string;
   /** `false` 时即使有缓存也不会发请求（例如游客模式）。 */
   readonly enabled?: boolean;
 }
@@ -57,11 +59,44 @@ export async function fetchNotDuplicateRelations(
     query: {
       includeRevoked: includeRevoked ? "true" : undefined,
       transactionId: options.transactionId,
+      cursor: options.cursor,
     },
     bookId,
   });
 
   return notDuplicateRelationListResponseSchema.parse(response);
+}
+
+/** 分页上限：关系是“用户逐对确认”产生的，正常账本远小于 20 页（400 条）。 */
+const MAX_RELATION_PAGES = 20;
+
+/**
+ * 目标账本里仍然生效的「不是同一笔」配对键。
+ *
+ * ⚠️ 账本导入的重复检测在**浏览器**里跑（服务端只校验结构），不会经过
+ * `suppressConfirmed`，所以这里把关系读出来自己过滤：用户确认过的对不再提示。
+ * 只收 `effective` 的行——被撤销或关键字段变过的旧关系不该继续抑制。
+ */
+export async function fetchNotDuplicatePairKeys(
+  bookId: string,
+): Promise<ReadonlySet<string>> {
+  const keys = new Set<string>();
+  let cursor: string | undefined;
+
+  for (let page = 0; page < MAX_RELATION_PAGES; page += 1) {
+    const response = await fetchNotDuplicateRelations(
+      bookId,
+      cursor === undefined ? {} : { cursor },
+    );
+    for (const item of response.items) {
+      if (!item.effective) continue;
+      keys.add(notDuplicatePairKey(item.transactionAId, item.transactionBId));
+    }
+    if (response.nextCursor === null) break;
+    cursor = response.nextCursor;
+  }
+
+  return keys;
 }
 
 /**
