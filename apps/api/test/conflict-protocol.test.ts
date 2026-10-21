@@ -58,6 +58,17 @@ describe("two-device conflict HTTP protocol", () => {
       transactionEvent: {
         create: async ({ data }: { data: Record<string, unknown> }) => ({ ...data, id: "event" }),
       },
+      /**
+       * ⚠️ **S15-E3: the same lesson as `transactionEvent` above.**
+       *
+       * Editing a key field (amount here) revokes every active not-duplicate relation in the same
+       * transaction, so the route calls `transactionNotDuplicateRelation.updateMany`. The stub has
+       * no such relation, and its absence would turn this protocol test into a 500 that points at
+       * the route. Nothing to revoke here → an empty result is the honest answer.
+       */
+      transactionNotDuplicateRelation: {
+        updateMany: async () => ({ count: 0 }),
+      },
       $transaction: vi.fn(async (work: (tx: unknown) => Promise<unknown>) => work(prisma)),
     };
     const app = Fastify();

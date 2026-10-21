@@ -809,6 +809,9 @@ model Book {
   /// ⚠️ 这本账的批量操作摘要：一次"删除 + 历史重关联"只写一行。
   operationLogs LedgerOperationLog[]
 
+  /// S15-E3：这本账里用户明确确认过的「两笔不是同一笔」记忆。见 `TransactionNotDuplicateRelation`。
+  notDuplicateRelations TransactionNotDuplicateRelation[]
+
   @@map("books")
 }
 
@@ -1173,6 +1176,77 @@ model TransactionTag {
   @@id([transactionId, tagId])
   @@index([tagId])
   @@map("transaction_tags")
+}
+
+/// S15-E3 · **用户明确确认过「这两笔不是同一笔」的记忆。**
+///
+/// ⚠️ **不是标签系统。** 标签是分类学（一个标签挂任意多笔，语义是"同类"），而不重复关系是
+/// **具体两笔之间**的判断，且**不具备传递性**：A–B 与 B–C 都不能推出 A–C。用标签表达会让人
+/// 以为可以批量套用，所以这里是一张独立的关系表（规划 §5.3）。
+///
+/// ⚠️ **规范化为 `transaction_a_id < transaction_b_id`。** 无序的一对只存一行，
+/// 因此 `(A,B)` 与 `(B,A)` 不可能各存一份。应用层写入前断言，数据库再加 CHECK 兜底
+/// （见 migration `s15e3_not_duplicate_relations`）。
+///
+/// ⚠️ **`book_id` 冗余但必要**：所有查询先按账本收窄，也是"绝不跨账本"的硬保证。
+///
+/// ⚠️ **交易侧刻意不加外键（E1 §6.3 方案 A）。** 理由与 `ledger_imports` 相同：
+/// 软删除只写 `deleted_at`，本来就不触发级联；账本永久清理时由 `book_id` 的 Cascade 把关系
+/// 一并带走，不会留孤儿行。加交易外键只会在交易行真正消失时抹掉"这两笔曾经被确认过"的事实，
+/// 而这正是历史需要回答的问题。读取端因此必须容忍对端缺失（返回 `null` 摘要）。
+///
+/// ⚠️ **`basis` 是判定当时的字段值快照，不是引用。** 金额/币种/方向/时间任一变化都会让关系
+/// 失效（见 `apps/api/src/ledger/notDuplicateRelations.ts`）；分类、支付方式、标签、商户、备注
+/// 变化不失效——按 E2 规则它们本来就不是重复的必要条件。
+///
+/// ⚠️ **撤销是软撤销**：`revoked_at` 置位而不是删行，撤销后该对重新进入候选。
+/// 同一对再次确认时**原地重激活**这一行（不用新行）——唯一约束保证了每对只有一份记录。
+model TransactionNotDuplicateRelation {
+  id     String @id @default(uuid()) @db.Uuid
+  bookId String @map("book_id") @db.Uuid
+
+  /// 字典序较小的一方，写入前断言。
+  transactionAId String @map("transaction_a_id") @db.Uuid
+  /// 字典序较大的一方。
+  transactionBId String @map("transaction_b_id") @db.Uuid
+
+  /// 首版只有 `not_duplicate`；保留扩展位（例如未来的 `duplicate_confirmed`）。
+  relationship String @default("not_duplicate") @db.VarChar(24)
+
+  /// `manual` / `review_group` / `import_review` —— 便于按来源统计与撤销。
+  decisionSource String @map("decision_source") @db.VarChar(24)
+
+  /// 确认人。**不加重到 `users` 的外键**：账号注销后这条判断仍然要能回答"谁说的"。
+  decidedBy String? @map("decided_by") @db.Uuid
+  /// 确认时的昵称快照（同 `TransactionEvent.actorName`），昵称后来改了也不改写历史。
+  decidedByName String? @map("decided_by_name") @db.VarChar(64)
+  decidedAt     DateTime @default(now()) @map("decided_at") @db.Timestamptz(6)
+
+  /// 判定当时两笔交易关键字段的**值快照**（金额字符串、币种、方向、时间、版本、seq 等）。
+  /// 读取端拿它和当前值比较，发现 stale 就按"不再抑制"处理。
+  basis Json @default("{}")
+
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy        String?   @map("revoked_by") @db.Uuid
+  revokedByName    String?   @map("revoked_by_name") @db.VarChar(64)
+  /// `user_revoked` / `key_fields_changed` / `basis_stale` / `book_cleanup`。
+  revocationReason String?   @map("revocation_reason") @db.VarChar(48)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  /// 无序的一对只存一行：配合 `a < b` 的规范化，等价于"无序唯一"。
+  @@unique([bookId, transactionAId, transactionBId])
+  /// 双向查"这一对是否已经判过"。
+  @@index([bookId, transactionAId])
+  @@index([bookId, transactionBId])
+  /// 列"当前生效的关系"（`revoked_at IS NULL`）。
+  @@index([bookId, revokedAt])
+  /// 管理页按确认时间倒序分页。
+  @@index([bookId, decidedAt])
+  @@map("transaction_not_duplicate_relations")
 }
 
 // ---------------------------------------------------------------------------
