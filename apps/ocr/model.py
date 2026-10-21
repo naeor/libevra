@@ -53,6 +53,15 @@ ISSUE_EXTRACTION_INCOMPLETE = "extraction_incomplete"
 # A currency that was not printed but is implied by the source platform (WeChat
 # and Alipay bills are CNY). Kept as a visible assumption, not silent default.
 ISSUE_CURRENCY_ASSUMED = "currency_assumed"
+# An order that was closed (交易关闭 / 超时关闭) or cancelled. It never became a
+# payment, so it must not be filed as an expense: the money question goes back
+# to the user. Blocking on purpose - it is the one case where a plausible amount
+# on the screen is very likely *not* money that moved.
+ISSUE_ORDER_CLOSED = "order_closed"
+# A date that was read from a sentence rather than from a field
+# (`凭据：6月25日下单交易快照`). Informational: the date is usable, but the user
+# is told it is a hint and not a printed field.
+ISSUE_DATE_HINT = "date_hint"
 
 # Issues that stop an item from counting as "没有问题". Everything else is
 # context the user can read at a glance without being asked to act.
@@ -71,6 +80,7 @@ BLOCKING_ISSUES = frozenset(
         ISSUE_LAYOUT_UNVERIFIED,
         ISSUE_LAYOUT_CONFLICT,
         ISSUE_EXTRACTION_INCOMPLETE,
+        ISSUE_ORDER_CLOSED,
     }
 )
 

@@ -36,6 +36,10 @@ inventing a count.
 | `alipay-bill-rows` | `alipay-transaction-list` | 顶部月度汇总 + `收支分析` 按钮；金额右对齐才能认；日期是 `今天 / 10-1823:58` |
 | `bank-single-detail` | `bank-single-detail` | 英文标签，值有时在标签**上方**；描述里的 `10/16` 不是交易日期 |
 | `bank-transfer-confirmation` | `bank-transfer-confirmation` | 转账确认页，`is_transfer`，方向由页面语义决定 |
+| `meituan-order-rows` | `meituan-order-list` | 卡片 = 店铺+状态行 + 右对齐￥金额；`共N件`/`使用时长`/`领神券` 不是金额；日期在卡片内 |
+| `jd-order-rows` | `jd-order-list` | 同上，但这一屏**不打印日期** → 保持缺失并标 `missing_date` |
+| `taobao-order-rows` | `taobao-order-list` | 金额是 `实付款￥xx` 行；日期只认这一行的 `09.21`（限时补款/预售发货日不是交易日期） |
+| `cn-order-detail` | `meituan-order-detail` / `jd-order-detail` / `taobao-order-detail` | 金额只认「应付款/实付款/合计」标签后的数字；`交易关闭` → 方向未知 + `order_closed` |
 
 通用行规则（`_extract_list_rows`）仍然服务没有专用抽取器的版式，也作为每个专用
 抽取器「认不出这种行式样」时的回退，所以新页面不会因为专用规则不认识就变成 0 笔。
@@ -65,6 +69,7 @@ from model import (
     ISSUE_AMOUNT_UNCERTAIN,
     ISSUE_AMOUNT_UNREADABLE,
     ISSUE_CURRENCY_ASSUMED,
+    ISSUE_DATE_HINT,
     ISSUE_DIRECTION_UNCLEAR,
     ISSUE_EXTRACTION_INCOMPLETE,
     ISSUE_LAYOUT_UNVERIFIED,
@@ -72,6 +77,7 @@ from model import (
     ISSUE_MISSING_CURRENCY,
     ISSUE_MISSING_DATE,
     ISSUE_MISSING_MERCHANT,
+    ISSUE_ORDER_CLOSED,
     Candidate,
     Issue,
 )
@@ -1375,12 +1381,703 @@ def bank_transfer_confirmation(
     return [candidate]
 
 
+# --- 美团 / 京东 / 淘宝 order pages (2026-10-21 真实样本) ---------------------
+#
+# These three screens are *order* pages, not bill pages, and that changes two
+# things the bill cutters never had to answer:
+#
+#   * the amount is the **order total the card prints**, while the same card also
+#     prints a count (`共2件`), a rental duration (`使用时长：73分钟`) and a discount
+#     (`共减￥x`). Only a money line is an amount;
+#   * the card's date is **optional**: 美团 prints `下单：2026-09-02 17:56`, Taobao
+#     prints `09.21` on the `实付款` row, and JD prints **no date at all** - which
+#     must stay empty with a `missing_date` question, never be guessed.
+#
+# All three share one card shape: a **shop row** (shop name on the left, the
+# order's own status on the right), the product rows, then the amount. So the
+# merchant and the status are both read from that one row, and everything else
+# is anchored on the amount.
+#
+# What must never become a candidate or a field: the platform ads and buttons
+# (`再省一单`, `京东服务…`, `闪购`, `再来一单` / `再买一单` / `再次购买`), the
+# notification banner (`开启通知，及时获取订单进度`), the count (`共2件`), the
+# discount (`共减￥x`), the original price and the shipping promise
+# (`预售，7月18日09:27前发货`).
+
+# Buttons, filter chips and ad copy on these three screens. Substring matching is
+# used only for phrases long enough not to hide inside a shop or product name.
+_ORDER_CHROME_ANY = (
+    "更多",
+    "再来一单",
+    "再买一单",
+    "再次购买",
+    "领神券",
+    "加入购物车",
+    "申请开票",
+    "催发货",
+    "修改地址",
+    "删除订单",
+    "查看发票",
+    "去查看",
+    "去开启",
+    "开启通知",
+    "搜索",
+    "全部订单",
+    "查看全部",
+    # Address/contact/receipt rows: a hotel's name ends in 店 too, so an address
+    # would otherwise win the merchant field (and take the user's address with it).
+    "配送地址",
+    "收货地址",
+    "发票信息",
+    "号码保护",
+    "订单信息",
+    "商品费用",
+    "客服",
+    "联系商家",
+    "打赏骑手",
+    "进店",
+    "粉丝群",
+    "费用明细",
+    "申请售后",
+    "退换/售后",
+    "退款/售后",
+    "评价晒单",
+    "送朋友",
+    "卖了换钱",
+    "查看物流",
+    "买后必看",
+    "去看看",
+    "筛选",
+    "AI助手",
+    "暂无进行中的订单",
+    "限时",
+    "优惠",
+    "延保",
+    "红包",
+)
+
+# Words that are chrome only when they are the whole line: `自营` is a JD badge
+# but `京东自营旗舰店` is a shop name, and `外卖` is a badge while
+# `【神抢手】…外卖兑换券` is what the order was for.
+_ORDER_CHROME_EXACT = frozenset(
+    {
+        "全部",
+        "购物",
+        "服务",
+        "健康",
+        "待",
+        "自营",
+        "外卖",
+        "天猫",
+        "淘宝",
+        "完成",
+        "待付款",
+        "待收货",
+        "待发货",
+        "待使用",
+        "已完成",
+        "评价",
+        "发票",
+        "筛选",
+        "管理",
+        "客服",
+        "秒送外卖",
+        "飞猪",
+        "闪购",
+        "京东服务",
+        "搜索我的订单",
+        "搜索订单",
+        "退款/售后",
+    }
+)
+
+# `爷爷不泡茶(济南高新万达店）>` → without the chevron. The chevron is the
+# screen's "this row opens a page" mark, not part of the name.
+_CHEVRON_TAIL = re.compile(r"\s*[>＞»]+\s*$")
+
+# The status filter row at the top of every one of these lists (`全部` / `待付款` /
+# `待收货/待使用`). It is page chrome, not an order: 美团 glues two chips into one
+# OCR line, and before this was excluded the first card inherited
+# `待收货/待使用` as its merchant and `待付款` as its status.
+_ORDER_CHIP = re.compile(r"^待?[付款收货发使用评价]+(?:/待?[付款收货发使用评价]+)?$")
+
+
+def _strip_chevron(text: str) -> str:
+    return _CHEVRON_TAIL.sub("", text.strip()).strip()
+
+
+def _is_order_chrome(text: str) -> bool:
+    stripped = text.strip()
+    if stripped in _ORDER_CHROME_EXACT:
+        return True
+    if _ORDER_CHIP.match(stripped):
+        return True
+    return any(word in stripped for word in _ORDER_CHROME_ANY)
+
+
+def _looks_like_shop(text: str) -> bool:
+    """A shop/merchant row on these order screens.
+
+    `店` is the only word all three platforms share (`旗舰店` / `专营店` / `(…店)`),
+    and a shop name never carries a date or a price. Requiring 店 is what keeps
+    `订单信息` / `商品费用` / `进店逛逛` out of the merchant field.
+    """
+
+    stripped = _strip_chevron(text)
+    if len(stripped) < 3 or "店" not in stripped:
+        return False
+    if _is_order_chrome(stripped):
+        return False
+    if is_date_like(stripped) or normalize.currency_in(stripped) is not None:
+        return False
+    return True
+
+
+def _order_status(text: str, spec: ExtractionSpec) -> str | None:
+    """The status the screen itself prints, in the layout's own vocabulary."""
+
+    for marker, status in spec.status_markers:
+        if marker in text:
+            return status
+    return normalize.normalize_status(text)
+
+
+def _order_refund_wording(joined: str) -> bool:
+    """A refund this screen states as such.
+
+    The strict markers only: the bare word 退款 also appears in a shop's own
+    rating (`好评率89%，平均22小时退款`) and in a service promise (`极速退款`), and
+    reading either as a refund would flip the direction of a payment.
+    """
+
+    return any(marker in joined for marker in normalize.REFUND_MARKERS)
+
+
+def _order_direction(
+    candidate: Candidate,
+    joined: str,
+    spec: ExtractionSpec,
+    read: normalize.AmountRead,
+) -> tuple[str, bool, bool]:
+    """Direction for one order card or detail page.
+
+    Order of evidence, and why:
+
+      1. a closed order (`交易关闭` / `超时关闭`) never became a payment, so the
+         direction stays `unknown` and the question is shown to the user - a
+         plausible amount on such a screen is very likely *not* money that moved;
+      2. a refund (`退款成功`) is money coming back;
+      3. a printed sign (unlikely on these screens, but free to honour);
+      4. wording in the row (`收入` / `支出`), then the layout's default
+         direction - 我的订单 only ever lists purchases I placed, which is why
+         `default_direction="expense"` is declared per layout instead of assumed
+         here.
+    """
+
+    closed = normalize.closed_marker_in(joined)
+    refund = _order_refund_wording(joined)
+
+    if closed is not None:
+        candidate.add_issue(
+            ISSUE_ORDER_CLOSED,
+            f"这一笔印着「{closed}」，可能没有实际付款，请确认是否需要记账。",
+            "status",
+        )
+        if refund:
+            # 淘宝 prints both: the order was closed *and* the money was returned.
+            return "income", True, False
+        return "unknown", False, False
+
+    if refund:
+        return "income", True, False
+
+    if read.negative is not None:
+        return ("expense" if read.negative else "income"), False, False
+
+    text_direction = normalize.direction_from_text(joined)
+    if text_direction in ("income", "expense"):
+        return text_direction, False, False
+
+    if spec.default_direction in ("expense", "income"):
+        return spec.default_direction, False, False
+
+    return _resolve_direction(joined, read, candidate)
+
+
+def _card_identity(
+    window: Sequence[Line],
+    spec: ExtractionSpec,
+) -> tuple[str | None, str | None]:
+    """The shop name and the status from the card's own header row.
+
+    The header row is the only row that carries a shop name, and it is the same
+    row the screen prints the order status on (完成 / 待发货 / 交易关闭). Reading
+    the status from that row instead of from the whole card is what stops the
+    page's filter chips (`待付款` / `待收货` at the top of the list) from being
+    read as an order's status.
+    """
+
+    for band in vertical_bands(window):
+        shops = [line for line in band if _looks_like_shop(line.text)]
+        if not shops:
+            continue
+        shop = max(shops, key=lambda line: len(line.text.strip()))
+        band_text = "\n".join(line.text for line in band)
+        return _strip_chevron(shop.text), _order_status(band_text, spec)
+
+    # No shop row on this card: 美团's 充电宝 card only prints what the order was.
+    for band in vertical_bands(window):
+        for line in sorted(band, key=lambda item: item.left):
+            if _is_order_chrome(line.text) or not _looks_like_merchant(line.text):
+                continue
+            band_text = "\n".join(item.text for item in band)
+            return _strip_chevron(line.text), _order_status(band_text, spec)
+
+    return None, None
+
+
+def _card_window(
+    body: Sequence[Line],
+    start: float,
+    stop: float,
+) -> list[Line]:
+    """The lines between two vertical boundaries, in reading order."""
+
+    return [line for line in body if start < line.top < stop]
+
+
+def _order_amount_rows(
+    body: Sequence[Line],
+    *,
+    amount_labels: tuple[str, ...],
+) -> list[Line]:
+    """The one money row per card, top to bottom.
+
+    Two shapes, both observed: 美团/京东 print a right-aligned `￥xx.xx`, and
+    淘宝 prints the same money inside its own label (`实付款￥xx`). The second
+    shape needs the label because the *original* price is also printed on the
+    card (a bare `￥xx` next to the product title).
+    """
+
+    if amount_labels:
+        rows = [
+            line
+            for line in body
+            if any(line.text.strip().startswith(label) for label in amount_labels)
+            and normalize.read_amount(line.text).value is not None
+        ]
+        return rows
+
+    page_right = max(line.left for line in body)
+    right_zone = page_right * _ALIPAY_RIGHT_ALIGNED
+    return [line for line in body if is_amount_like(line) and line.left >= right_zone]
+
+
+def _date_cell_text(text: str) -> str:
+    """The part of a row that can hold a date (`09.21 | 实付款￥xx` → `09.21`)."""
+
+    cut = len(text)
+    for needle in ("实付款", "实付价", "应付款", "合计", "¥", "￥"):
+        index = text.find(needle)
+        if index != -1:
+            cut = min(cut, index)
+    return text[:cut]
+
+
+def _order_card_date(
+    card: Sequence[Line],
+    anchor: Line,
+    context: ExtractionContext,
+    *,
+    date_scope: str,
+) -> tuple[str | None, str | None, list[Issue]]:
+    """The card's own date, or nothing at all.
+
+    `date_scope="card"` (美团/京东) reads any printed date inside the card.
+    `date_scope="paid-row"` (淘宝) reads only the row that carries `实付款`,
+    because the rest of a Taobao card prints dates that are *not* the order's:
+    a promo window (`限时补款：2026年9月20日-…`) and a shipping promise
+    (`预售，7月18日09:27前发货`). Using those would date a purchase to a campaign.
+    """
+
+    if date_scope == "paid-row":
+        row = [line for line in card if _same_row(line, anchor)]
+        for line in sorted(row, key=lambda item: item.left):
+            read = normalize.read_short_date(
+                _date_cell_text(line.text),
+                reference_year=context.reference_year,
+                reference_date=context.reference_date,
+            )
+            if read.date is not None:
+                return read.date, read.time, list(read.issues)
+        return None, None, []
+
+    return _read_group_date_time(card, context.reference_year, context.reference_date)
+
+
+def _order_rows(
+    lines: Sequence[Line],
+    context: ExtractionContext,
+    *,
+    amount_labels: tuple[str, ...] = (),
+    date_scope: str = "card",
+) -> list[Candidate]:
+    """One candidate per order card, cut on the card's own money row."""
+
+    body = _sorted_body(lines)
+    if not body:
+        return []
+
+    spec = _layout_spec(context)
+    anchors = _order_amount_rows(body, amount_labels=amount_labels)
+    if not anchors:
+        # None of the shapes this cutter knows: the generic row rule still gets
+        # its chance, so a screen that drifted does not silently yield nothing.
+        return _extract_list_rows(lines, context, spec)
+
+    candidates: list[Candidate] = []
+
+    for index, anchor in enumerate(anchors):
+        # The card starts at its shop row when that row can be found above the
+        # amount; a card without one (美团's 充电宝) starts halfway from the
+        # previous amount instead.
+        previous = anchors[index - 1].top if index > 0 else float("-inf")
+        identity_window = _card_window(body, previous, anchor.top + 1)
+        start = previous
+        for band in vertical_bands(identity_window):
+            if any(_looks_like_shop(line.text) for line in band):
+                # Half a pixel above the header row, because the row *is* part of
+                # the card (`交易关闭` sits on it) and the boundary test is strict.
+                start = min(line.top for line in band) - 1.0
+                break
+
+        stop = (
+            anchors[index + 1].top
+            if index + 1 < len(anchors)
+            else float("inf")
+        )
+        card = _card_window(body, start, stop)
+        if not card:
+            card = identity_window
+
+        merchant, status = _card_identity(identity_window, spec)
+        visible = [line for line in card if not _is_order_chrome(line.text)]
+        joined = "\n".join(line.text for line in visible)
+
+        read = normalize.read_amount(anchor.text)
+        candidate = Candidate(
+            candidate_id=f"img{context.image_index}-{index + 1}",
+            image_index=context.image_index,
+            amount=read.value,
+            merchant=merchant,
+            status=status,
+            source_platform=context.classification.platform,
+            raw_text=joined,
+        )
+        for issue in read.issues:
+            if issue.code == ISSUE_MISSING_CURRENCY:
+                continue  # settled once by `_apply_currency`, with its own wording
+            candidate.add_issue(issue.code, issue.message, issue.field)
+        if candidate.amount is None:
+            candidate.add_issue(ISSUE_MISSING_AMOUNT, "没有读出这一笔的金额，请填写。", "amount")
+
+        candidate.currency = _apply_currency(candidate, joined, context, spec=spec)
+
+        date, time, date_issues = _order_card_date(
+            card, anchor, context, date_scope=date_scope
+        )
+        candidate.occurred_local_date = date
+        candidate.occurred_time = time
+        for issue in date_issues:
+            candidate.add_issue(issue.code, issue.message, issue.field)
+        if date is None:
+            candidate.add_issue(
+                ISSUE_MISSING_DATE,
+                "这张订单卡片上没有日期，请选择是哪一天。",
+                "date",
+            )
+        elif time is None:
+            candidate.add_issue("missing_time", "卡片上没有时间，同一天的多笔可能无法区分。", "time")
+
+        if candidate.merchant is None:
+            candidate.add_issue(ISSUE_MISSING_MERCHANT, "没有读出店铺/商户，请填写。", "merchant")
+
+        candidate.direction, candidate.is_refund, candidate.is_transfer = _order_direction(
+            candidate, joined, spec, read
+        )
+        _add_layout_issue(candidate, context.classification)
+        candidates.append(candidate)
+
+    return candidates
+
+
+def meituan_order_rows(
+    lines: Sequence[Line],
+    context: ExtractionContext,
+) -> list[Candidate]:
+    """美团外卖订单列表: 店铺 + 状态 on the header row, 金额 right-aligned.
+
+    The card's date is either the plain timestamp (`2026-09-13 18:45:25`) or the
+    label the screen prints (`下单：2026-09-02 17:56`), and both are inside the
+    card - so the whole card is searched, and `使用时长：73分钟` is not a date.
+    """
+
+    return _order_rows(lines, context, date_scope="card")
+
+
+def jd_order_rows(
+    lines: Sequence[Line],
+    context: ExtractionContext,
+) -> list[Candidate]:
+    """京东订单列表: same card shape, but the card prints **no date at all**.
+
+    That is a fact about the screen, not a reading failure, so every candidate
+    keeps an empty date and a `missing_date` question instead of borrowing the
+    screenshot's date.
+    """
+
+    return _order_rows(lines, context, date_scope="card")
+
+
+def taobao_order_rows(
+    lines: Sequence[Line],
+    context: ExtractionContext,
+) -> list[Candidate]:
+    """淘宝/天猫订单列表: the money row is `实付款￥xx`, and it also holds the date.
+
+    The date on that row (`09.21`) has no year; it is completed from the
+    reference year and flagged `year_inferred`. A card cut off by the bottom of
+    the screen prints no `实付款` and therefore yields nothing, rather than an
+    empty transaction.
+    """
+
+    return _order_rows(
+        lines,
+        context,
+        amount_labels=("实付款", "实付价", "应付款"),
+        date_scope="paid-row",
+    )
+
+
+# Money labels that name the *paid* total on a Chinese order detail, the most
+# authoritative first. Order matters: `应付款`/`实付款`/`合计` are totals, while
+# `实付价` is one line item - and the original price has no label at all.
+_ORDER_AMOUNT_LABELS = (
+    "应付款",
+    "实付款",
+    "合计",
+    "总计",
+    "订单金额",
+    "付款金额",
+    "实付价",
+    "实付",
+    "到手",
+)
+
+_PAYMENT_LABELS = ("支付方式", "付款方式")
+
+
+def _amount_after_label(text: str, labels: Sequence[str]) -> str | None:
+    """`共减￥x合计￥yy` → `yy` (the number that follows a money label)."""
+
+    for label in labels:
+        match = re.search(
+            re.escape(label) + r"\s*[¥￥]?\s*(\d[\d,]*(?:\.\d{1,2})?)",
+            text,
+        )
+        if match is not None:
+            return match.group(1).replace(",", "")
+    return None
+
+
+def _labelled_amount(
+    body: Sequence[Line],
+    labels: Sequence[str],
+) -> normalize.AmountRead:
+    """The amount the page labels as paid, or an empty read.
+
+    Three shapes appear on the real screens and all three are accepted:
+
+      * `合计￥xx` - label and number on one line (美团);
+      * `应付款` | `￥xx` - a label cell and a value cell on one row (淘宝);
+      * `实付款` | `共减￥x合计￥yy` - the value cell itself carries the
+        discount, so the number *after* a money label wins (京东).
+    """
+
+    for label in labels:
+        for line in body:
+            if label not in line.text:
+                continue
+
+            if line.text.strip() != label:
+                inline = _amount_after_label(line.text, labels)
+                if inline is not None:
+                    return normalize.AmountRead(
+                        value=inline, currency=normalize.currency_in(line.text)
+                    )
+
+            row = [
+                other
+                for other in body
+                if other is not line
+                and _same_row(other, line)
+                and other.left > line.left + 2
+            ]
+            for other in sorted(row, key=lambda item: item.left):
+                value = _amount_after_label(other.text, labels)
+                if value is None:
+                    single = normalize.read_amount(other.text)
+                    value = single.value
+                if value is not None:
+                    return normalize.AmountRead(
+                        value=value, currency=normalize.currency_in(other.text)
+                    )
+
+    return normalize.AmountRead()
+
+
+def _detail_merchant(body: Sequence[Line]) -> str | None:
+    for line in body:
+        if _looks_like_shop(line.text):
+            return _strip_chevron(line.text)
+    return None
+
+
+def _row_value_right_of(
+    body: Sequence[Line],
+    labels: Sequence[str],
+) -> str | None:
+    """The text to the right of an exact label, on the label's own row."""
+
+    for label in labels:
+        anchor = next((line for line in body if line.text.strip() == label), None)
+        if anchor is None:
+            continue
+        row = [
+            other
+            for other in body
+            if other is not anchor
+            and _same_row(other, anchor)
+            and other.left > anchor.left + 2
+            and other.text.strip() != ""
+        ]
+        if row:
+            return _strip_chevron(min(row, key=lambda item: item.left).text)
+    return None
+
+
+def _detail_date_time(
+    body: Sequence[Line],
+    context: ExtractionContext,
+) -> tuple[str | None, str | None, list[Issue]]:
+    """A date the page prints, or nothing.
+
+    A detail page often prints no date at all (美团/京东 do not), and the
+    screenshot's own date is **not** a substitute - `missing_date` is the honest
+    answer. When the date comes from a sentence rather than a field
+    (`凭据：6月25日下单交易快照`), it is kept but flagged `date_hint`, so the user
+    sees where the number came from.
+    """
+
+    for line in body:
+        text = line.text.strip()
+        read = normalize.read_date_time(
+            text,
+            reference_year=context.reference_year,
+            reference_date=context.reference_date,
+        )
+        if read.date is None:
+            continue
+        issues = list(read.issues)
+        if "下单" in text:
+            issues.append(
+                Issue(
+                    ISSUE_DATE_HINT,
+                    f"日期是从「{text[:24]}」这一行读到的，不是独立的日期字段，请确认。",
+                    "date",
+                )
+            )
+        return read.date, read.time, issues
+    return None, None, []
+
+
+def cn_order_detail(
+    lines: Sequence[Line],
+    context: ExtractionContext,
+) -> list[Candidate]:
+    """美团 / 京东 / 淘宝 订单详情: one order, amount from its own money label.
+
+    The amount is whichever number the screen labels as paid, never the largest
+    number: the same page prints the original price, the discount
+    (`共减￥x`) and a points/reward line, and a wrong amount is worse
+    than a blank one. The payment method is read only when the screen actually
+    prints it - 美团 keeps it behind a collapsed row (`配送骑手/支付方式等`), which
+    must not be turned into a guess.
+    """
+
+    body = _sorted_body(lines)
+    joined = "\n".join(line.text for line in lines)
+    spec = _layout_spec(context)
+
+    read = _labelled_amount(body, spec.amount_labels or _ORDER_AMOUNT_LABELS)
+    if read.value is None:
+        # Nothing labelled: fall back to the largest number, the rule the older
+        # single-detail reader used, and let the issues say what happened.
+        numbers = [line for line in body if is_amount_like(line)]
+        if numbers:
+            read = normalize.read_amount(max(numbers, key=lambda line: line.height).text)
+
+    date, time, date_issues = _detail_date_time(body, context)
+
+    candidate = Candidate(
+        candidate_id=f"img{context.image_index}-1",
+        image_index=context.image_index,
+        amount=read.value,
+        occurred_local_date=date,
+        occurred_time=time,
+        merchant=_detail_merchant(body),
+        account=_row_value_right_of(body, _PAYMENT_LABELS),
+        status=_order_status(joined, spec),
+        source_platform=context.classification.platform,
+        raw_text=joined,
+    )
+
+    for issue in read.issues:
+        if issue.code == ISSUE_MISSING_CURRENCY:
+            continue  # settled once by `_apply_currency`, with its own wording
+        candidate.add_issue(issue.code, issue.message, issue.field)
+    if candidate.amount is None:
+        candidate.add_issue(ISSUE_MISSING_AMOUNT, "没有读出金额，请填写。", "amount")
+
+    candidate.currency = _apply_currency(candidate, joined, context, spec=spec)
+
+    for issue in date_issues:
+        candidate.add_issue(issue.code, issue.message, issue.field)
+    if candidate.occurred_local_date is None:
+        candidate.add_issue(ISSUE_MISSING_DATE, "这张详情页上没有日期，请选择是哪一天。", "date")
+    elif candidate.occurred_time is None:
+        candidate.add_issue("missing_time", "详情页上没有时间。", "time")
+
+    if candidate.merchant is None:
+        candidate.add_issue(ISSUE_MISSING_MERCHANT, "没有读出店铺/商户，请填写。", "merchant")
+
+    candidate.direction, candidate.is_refund, candidate.is_transfer = _order_direction(
+        candidate, joined, spec, read
+    )
+    _add_layout_issue(candidate, context.classification)
+    return [candidate]
+
+
 _BUILTIN_EXTRACTORS: dict[str, CustomExtractor] = {
     "boa-activity-rows": boa_activity_rows,
     "wechat-bill-cards": wechat_bill_cards,
     "alipay-bill-rows": alipay_bill_rows,
     "bank-single-detail": bank_single_detail,
     "bank-transfer-confirmation": bank_transfer_confirmation,
+    "meituan-order-rows": meituan_order_rows,
+    "jd-order-rows": jd_order_rows,
+    "taobao-order-rows": taobao_order_rows,
+    "cn-order-detail": cn_order_detail,
 }
 
 
