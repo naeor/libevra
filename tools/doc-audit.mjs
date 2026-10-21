@@ -51,6 +51,8 @@ const DOCS = join(ROOT, "docs");
  */
 const RECORD_FILES = new Set([
   "changelog/1.10-1.13.md",
+  "changelog/1.14.md",
+  "changelog/1.15.md",
   "archive/logs/版本记录（1.08-1.09）.md",
   "archive/logs/开发日志.md",
   "archive/misc/部署记录-S12-B.md",
