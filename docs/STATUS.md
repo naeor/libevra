@@ -7,18 +7,18 @@
 
 | 项 | 值 |
 |---|---|
-| **最后核对** | 2026-10-21 09:40 CST（1.15.01 更新公告补丁：版本与公告数据已就绪；1.15.00 已于 09:21 CST 上线，`/health` 实测 `1.15.00 / database=up`、`.deployed-commit` = `2c9946a`；1.15.01 部署结果见发布验收记录） |
-| **生产版本** | **`1.15.01`**（更新公告与重要更新弹窗补丁；1.15.00 已于 2026-10-21 09:21 CST 上线并替换 1.14.20） |
-| **生产 `/health`** | ✅ 1.15.00 发布后实测 `ok=true`、`version=1.15.00`、`database=up`（2026-10-21 09:21 CST）；1.15.01 补丁部署后需再次实测并更新本行 |
-| **生产部署 commit** | 1.15.00 = **`2c9946a`**；本次 **1.15.01** 补丁 commit 发布后写入 `/srv/libevra/.deployed-commit`，详见发布验收记录 |
+| **最后核对** | 2026-10-21 10:00 CST（1.15.01 补丁生产发布完成：公网 `/health` 实测 `1.15.01 / database=up`，`.deployed-commit` = `9064909`，CI run `39529182047` success；详见[发布验收记录](archive/releases/S15-1.15.01-更新公告与重要更新弹窗补丁-发布验收记录.md)） |
+| **生产版本** | **`1.15.01`**（更新公告与重要更新弹窗补丁；2026-10-21 09:56 CST 上线并替换 1.15.00） |
+| **生产 `/health`** | ✅ 实测 `ok=true`、`version=1.15.01`、`database=up`（公网 2026-10-21 09:57 CST；容器内 09:59 CST 同一结果） |
+| **生产部署 commit** | **`9064909`**（`/srv/libevra/.deployed-commit` 实测；= 1.15.01 发布代码 `2663ac8` + 仅改测试期望的 CI 修复提交） |
 | **数据库迁移** | **51** 个（仓库 `prisma/migrations` 计数；本次**无新增**） |
 | **注册模式** | **邀请制**（未开放公开注册，本次未改变） |
 | **站点** | <https://libevra.com>（腾讯云，HTTPS） |
-| **当前阶段** | **S15-A/B/C 已发布（1.15.00，2026-10-21；1.15.01 更新公告/重要更新弹窗补丁紧随发布）；S15-D 未验收、未开始；S15-E 未启动（仅规划提案）**；S16/S17 未开始 |
-| **分支 / 远程** | `release/s15` 与 `main` 已同步到 GitHub（2026-10-21 快进，未 force push）：1.15.00 发布代码提交 `2c9946a`、收尾 docs `88d6158`；**1.15.01 公告补丁**在 `s15-announce` 分支上完成并推送；本地 `s15-*` 开发分支未合并进发布 |
-| **CI** | ✅ 1.15.00：代码提交 `2c9946a` run `39522545935` success（3m11s）、收尾 docs 提交 run `39527257618` success（3m20s）；**1.15.01 补丁提交与 docs 提交的 CI 结果见验收记录** |
+| **当前阶段** | **S15-A/B/C 已发布（1.15.00 + 1.15.01 公告/弹窗补丁，2026-10-21）；S15-D 未验收、未开始；S15-E 未启动（仅规划提案）**；S16/S17 未开始 |
+| **分支 / 远程** | `s15-announce` 与 `main` 已同步到 GitHub（2026-10-21 快进，未 force push）：1.15.01 代码 `2663ac8`、测试修复 `9064909`、docs 收尾提交；1.15.00 的 `release/s15` 保持 `2c9946a` + 收尾 docs `88d6158`；本地 `s15-*` 开发分支未合并进发布 |
+| **CI** | ✅ `9064909` run `39529182047` success（3m10s）；`2663ac8` run `39528833167` 曾红（API 测试仍断言 1.14.18 为最新公告），仅改测试期望后复跑全绿；1.15.00 的 run `39522545935` / `39527257618` success；docs 收尾提交另跑一次 |
 | **当前提交** | 见 `git log -1 --oneline`（本文件不锁 hash，避免每次提交都过期） |
-| **工作区** | 发布用独立 worktree `worktrees\s15-release`；主工作区 `记账程序v1`（只读，另一 Agent 的 `s15e1-audit` worktree 未触碰） |
+| **工作区** | 发布用 worktree `worktrees\s15-announce`（分支 `s15-announce`）；主工作区 `记账程序v1` 与另一 Agent 的 `s15e1-audit` worktree 未触碰 |
 
 ## 1. 阶段
 
@@ -50,7 +50,7 @@
 | 项 | 状态 |
 |---|---|
 | **远程备份** | ✅ 已缓解（2026-10-21）：`release/s15` 已推送、`main` 已快进，本机损坏不再等于全部丢失 |
-| **CI** | ✅ run `39522545935` success（发布代码提交 `2c9946a`）；收尾 docs 提交另跑一次 |
+| **CI** | ✅ run `39529182047` success（1.15.01 部署 commit `9064909`）；`2663ac8` 首次因过期测试断言红，已仅改测试修复；docs 收尾提交另跑一次 |
 | **S15-D 未验收** | ⚠️ 真机软键盘/安全区、真实截图版式、真实账号流程均未验收；不得写成"S15 通过" |
 | **语音模型 small vs base** | ⚠️ 代码默认 `base`，生产 env 仍 `small`；切换与否待所有者决定（见发布验收记录 §语音） |
 | 本机仍是唯一可发布环境 | ⚠️ `deploy.sh` 从本机打包上传；换机器前要先从这里恢复工作区 |
@@ -61,11 +61,13 @@
 
 ## 4. 证据出处
 
-- 生产实测（2026-10-21 09:21 CST）：公网 `https://libevra.com/api/v1/health` = `1.15.00 / database=up`；容器内同一检查；`/healthz` = 200；
-  `/scan`、`/ocr/overview` 未登录访问实测落到 `/login`（headless Chrome 读最终 URL + 截图）；`critical-relay` 容器 ID 与启动时间未变
-- 回滚点：源码快照 `/srv/libevra.pre-1.15.00`、`/srv/libevra/.rollback-1.15.00.txt`、发布前备份 `deploy/backups/libevra_prod-20261021-091558.dump`
-  （SHA-256 `26e92dc6…a812`，含恢复演练 44 张表对比）
-- 本次发布：`changelog/1.15.md` + [`archive/releases/S15-1.15.00发布验收记录.md`](archive/releases/S15-1.15.00发布验收记录.md)
+- 生产实测（2026-10-21 09:57 CST，1.15.01）：公网 `https://libevra.com/api/v1/health` = `1.15.01 / database=up`；容器内同一检查；`/healthz` = 200；
+  `/`、`/login`、`/scan`、`/ocr/overview`、`/update` 均 200；新 bundle `assets/index-DxV9z8zP.js` 含 `Libevra 1.15.00` / `记录更顺手，识别更完整。`；
+  `/update`、`/scan`、`/ocr/overview` 未登录实测落到 `/login`（headless Chrome 读最终 URL）；`critical-relay` 容器 ID 与启动时间未变
+- 1.15.01 回滚点：源码快照 `/srv/libevra.pre-1.15.01`、`/srv/libevra/.rollback-1.15.01.txt`、发布前备份 `deploy/backups/libevra_prod-20261021-094351.dump`
+  （SHA-256 `f083a777…4ac5`，含恢复演练 44 张表对比）
+- 1.15.00 生产实测（2026-10-21 09:21 CST）：`/health` = `1.15.00 / database=up`；回滚点 `/srv/libevra.pre-1.15.00` 与备份 `libevra_prod-20261021-091558.dump`（SHA-256 `26e92dc6…a812`）
+- 本次发布：`changelog/1.15.md` + [`archive/releases/S15-1.15.01-更新公告与重要更新弹窗补丁-发布验收记录.md`](archive/releases/S15-1.15.01-更新公告与重要更新弹窗补丁-发布验收记录.md)（1.15.00 记录另存于同目录）
 - S15-A/B/C 工作总报告：[archive/misc/S15-工作总报告-20261021.md](archive/misc/S15-工作总报告-20261021.md)
 - 仓库迁移数：`prisma/migrations/` 目录计数 + `pnpm check:status`
 - 发布过程：[`archive/releases/`](archive/releases/) 与 [`changelog/1.15.md`](changelog/1.15.md)
