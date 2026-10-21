@@ -1,3 +1,4 @@
+import { clearGuestDuplicateSettings } from "../duplicateSettings.js";
 import { resetEverything } from "../offline/reset.js";
 import { resetGuestDataCache } from "./data.js";
 import { clearGuestIdentity } from "./identity.js";
@@ -7,9 +8,10 @@ import { clearGuestDatabase } from "./storage.js";
  * Remove the guest identity and every byte of guest data.
  *
  * ⚠️ **This function is the reason the guest store is a separate database.** It deletes
- * `libellum-guest` and the guest identity key — and nothing else. It deliberately does **not**
- * call the account cleanup helpers, does not open/delete the `libellum` database, and does not
- * touch the remembered formal user, the current book, the query cache or the service worker.
+ * `libellum-guest`, the guest identity key, and the guest's device-local duplicate-detection
+ * preference (`libellum.duplicate-detection.v1.guest`) — and nothing else. It deliberately does
+ * **not** call the account cleanup helpers, does not open/delete the `libellum` database, and does
+ * not touch the remembered formal user, the current book, the query cache or the service worker.
  * Clearing guest data must be incapable of damaging a formal account's offline copy on the same
  * browser, and a smaller cleanup is the only way to guarantee that.
  *
@@ -23,6 +25,8 @@ export interface ClearGuestDataResult {
 
 export async function clearGuestData(): Promise<ClearGuestDataResult> {
   const identityCleared = clearGuestIdentity();
+  // Guest-only preference; the account-scoped keys are untouched. See duplicateSettings.ts.
+  clearGuestDuplicateSettings();
   // Drop the in-memory copy with the identity, so a later guest cannot read the previous one's data
   // through a stale module snapshot.
   resetGuestDataCache();

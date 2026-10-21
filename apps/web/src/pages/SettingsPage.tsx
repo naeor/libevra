@@ -59,7 +59,7 @@ export function SettingsHome({
       <div className="flex flex-col gap-2">
         <SettingsCategoryCard
           title="记账偏好"
-          description="默认币种、录入习惯与记账界面"
+          description="默认币种、重复提醒与录入习惯"
           to="/settings/preferences"
           onOpen={onOpen}
         />
