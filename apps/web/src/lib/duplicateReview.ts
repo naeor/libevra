@@ -1,5 +1,6 @@
 import {
   evaluateDuplicatePair,
+  type CreateTransactionInput,
   type DuplicateCandidateFields,
   type DuplicateCandidatesResponse,
   type DuplicateDetectionSettings,
@@ -44,6 +45,31 @@ export function candidateFromEntry(entry: Transaction, bookId: string): Duplicat
     paymentMethodId: entry.paymentMethodId,
     note: entry.note,
     tagIds: entry.tags.map((tag) => tag.id),
+  };
+}
+
+/**
+ * 还没写入账本的记录（OCR 批量、导入预览）跑检测时的候选。
+ *
+ * `id` 用写入时真正会用的那个 id（幂等键同值）：这样“确认不是同一笔”写下的关系键，
+ * 与写入后账本里的交易 id 一致，不会因为换了一种表示而失效。
+ */
+export function candidateFromInput(
+  input: CreateTransactionInput,
+  bookId: string,
+): DuplicateCandidateFields {
+  return {
+    id: input.id,
+    bookId,
+    kind: input.kind,
+    amountCents: input.amountCents,
+    currency: input.currency,
+    occurredAt: input.occurredAt,
+    occurredLocalDate: input.occurredLocalDate,
+    categoryId: input.categoryId ?? null,
+    paymentMethodId: input.paymentMethodId ?? null,
+    note: input.note ?? null,
+    tagIds: input.tagIds,
   };
 }
 

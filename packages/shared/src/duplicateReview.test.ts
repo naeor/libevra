@@ -106,6 +106,15 @@ describe("describeDuplicateMatch", () => {
     expect(text).not.toContain("categoryId");
     expect(text).toContain("缺失");
   });
+
+  it("缺失的字段不会被同一句话里说成“相同”", () => {
+    const text = describeDuplicateMatch(pair("a", "b", { categoryId: null }));
+
+    // 句子的前半段是“比过且相同的字段”，缺失字段只能出现在后半段。
+    const compared = text.split("；")[0] ?? "";
+    expect(compared).not.toContain("分类");
+    expect(text).toContain("分类缺失");
+  });
 });
 
 describe("duplicateRulesSchema", () => {

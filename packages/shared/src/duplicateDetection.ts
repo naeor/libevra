@@ -981,7 +981,11 @@ function fieldLabel(field: DuplicateField): string {
 function checkedFieldsSummary(rules: readonly DuplicateRuleEvaluation[]): string {
   const labels: string[] = [];
   for (const rule of rules) {
-    if (rule.outcome === "skipped") continue;
+    /**
+     * ⚠️ `missing` 也必须跳过：否则会出现“分类、支付方式相同；分类、支付方式缺失”这种
+     * 自相矛盾的一句——缺失的字段没有被比较过，不能说它相同。
+     */
+    if (rule.outcome === "skipped" || rule.outcome === "missing") continue;
     const field = rule.fields[0];
     const label = field === undefined ? undefined : DUPLICATE_FIELD_LABELS[field];
     if (label !== undefined && !labels.includes(label)) labels.push(label);

@@ -23,6 +23,7 @@
 import {
   DEFAULT_DUPLICATE_DETECTION_SETTINGS,
   decimalsFor,
+  describeDuplicateMatch,
   evaluateDuplicatePair,
   notDuplicatePairKey,
   parseAmountToMinor,
@@ -31,9 +32,6 @@ import {
 } from "@libellum/shared";
 
 import type { OcrBatchCandidate } from "./types.js";
-
-/** 与 Python `dedupe.MERCHANT_SIMILARITY` 相同。 */
-export const MERCHANT_SIMILARITY = 0.85;
 
 /** 没有账本上下文（旧测试、极旧批次）时使用的占位账本键。 */
 const OCR_BATCH_BOOK_ID = "ocr-batch";
@@ -126,62 +124,23 @@ function toCoreCandidate(
     occurredLocalDate: item.occurredLocalDate,
     categoryId: item.categoryId,
     paymentMethodId: item.paymentMethodId,
+    /**
+     * 商户交给核心统一比较（`matchMerchant` 开关控制）。
+     *
+     * ⚠️ 以前这里有一套 0.85 相似度前置条件：它是 Python `dedupe.py` 的残留，**不受设置控制**，
+     * 于是“关闭商户匹配”对 OCR 无效，而手动/语音又完全按设置走——同一对记录在不同页面上
+     * 得到不同结论。现在只保留核心这一份规则；OCR 文本噪声由用户决定是否关闭该开关。
+     */
+    merchant: item.merchant,
   };
-}
-
-function merchantKey(text: string | null): string {
-  if (text === null) return "";
-  return text
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[^0-9a-z\u4e00-\u9fff]+/g, "");
-}
-
-/** Levenshtein distance, for the same 0.85 similarity floor Python uses. */
-function editDistance(left: string, right: string): number {
-  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
-
-  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
-    let diagonal = previous[0] ?? 0;
-    previous[0] = leftIndex;
-
-    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
-      const above = previous[rightIndex] ?? 0;
-      const cost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
-      previous[rightIndex] = Math.min(
-        (previous[rightIndex - 1] ?? 0) + 1,
-        above + 1,
-        diagonal + cost,
-      );
-      diagonal = above;
-    }
-  }
-
-  return previous[right.length] ?? 0;
-}
-
-function merchantsComparable(left: string | null, right: string | null): boolean {
-  const leftKey = merchantKey(left);
-  const rightKey = merchantKey(right);
-  if (leftKey === "" || rightKey === "") return true;
-  if (leftKey === rightKey) return true;
-  if (
-    leftKey.length >= 2 &&
-    rightKey.length >= 2 &&
-    (leftKey.includes(rightKey) || rightKey.includes(leftKey))
-  ) {
-    return true;
-  }
-  const longest = Math.max(leftKey.length, rightKey.length);
-  return 1 - editDistance(leftKey, rightKey) / longest >= MERCHANT_SIMILARITY;
 }
 
 /**
  * 两笔为什么像同一笔；`null` 表示不像。
  *
- * 顺序：OCR 专属的“单号”前置 → 商户相似度 → 统一核心规则。核心返回的 `matched`
- * 已经包含金额/币种/方向/时间/分类/支付方式；这里只负责把结果翻译成批次界面用的
- * 中文说明。
+ * 顺序：OCR 专属的“单号”前置 → 统一核心规则。核心返回的 `matched` 已经包含
+ * 金额/币种/方向/时间/分类/支付方式/商户等全部可比字段（各自受设置开关控制）；
+ * 这里只负责把结果翻译成批次界面用的中文说明。
  */
 export function duplicateReason(
   left: OcrBatchCandidate,
@@ -209,8 +168,6 @@ export function duplicateReason(
     return "交易单号相同";
   }
 
-  if (!merchantsComparable(left.merchant, right.merchant)) return null;
-
   const bookId = options.bookId ?? OCR_BATCH_BOOK_ID;
   const result = evaluateDuplicatePair(
     toCoreCandidate(left, bookId),
@@ -220,19 +177,15 @@ export function duplicateReason(
 
   if (!result.matched) return null;
 
-  const leftInstant = instantFromLocal(left.occurredLocalDate, left.occurredTime);
-  const rightInstant = instantFromLocal(right.occurredLocalDate, right.occurredTime);
-
-  if (leftInstant === null || rightInstant === null) {
-    return "金额、币种、方向、日期相同（时间缺失，可能无法区分同日多笔）";
-  }
-  if (left.occurredLocalDate === right.occurredLocalDate) {
-    return "金额、币种、方向、日期、时间都相同";
-  }
-
-  const seconds =
-    result.timeDifferenceSeconds === null ? 0 : Math.round(result.timeDifferenceSeconds);
-  return `金额、币种、方向相同，时间相差 ${String(seconds)} 秒（跨日）`;
+  /**
+   * 文案统一由核心生成（`describeDuplicateMatch`），这里只补一条**核心不知道的事实**：
+   * 两条记录是否跨日。以前这里手写“金额、币种、方向、日期、时间都相同”，
+   * 与手动/语音/导入的说法不一致，正是 S15-E1 里“同一判定六种说法”的来源之一。
+   */
+  const base = describeDuplicateMatch(result);
+  const seconds = result.timeDifferenceSeconds === null ? null : Math.round(result.timeDifferenceSeconds);
+  if (seconds === null || left.occurredLocalDate === right.occurredLocalDate) return base;
+  return `${base}（两条记录相隔 ${String(seconds)} 秒，跨日）`;
 }
 
 class UnionFind {

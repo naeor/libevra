@@ -18,26 +18,37 @@ import { batchCandidate } from "./testFixtures.js";
  */
 describe("duplicateReason", () => {
   it("matches equal money in the same direction at the same time", () => {
+    // 文案来自统一核心：说清楚比过哪几项，以及哪几项两边都没有（弱依据）。
     expect(duplicateReason(batchCandidate(), batchCandidate({ candidateId: "img1-1" }))).toBe(
-      "金额、币种、方向、日期、时间都相同",
+      "收支方向、金额、币种、时间相同；分类、支付方式缺失，按较弱依据提示。",
     );
   });
 
-  it("does not treat two different merchants as one transaction", () => {
+  it("商户匹配默认关闭：不同商户也会提示，由用户决定是否同一笔", () => {
     expect(
       duplicateReason(
         batchCandidate(),
         batchCandidate({ candidateId: "img1-1", merchant: "中石化加油站" }),
       ),
-    ).toBeNull();
+    ).not.toBeNull();
   });
 
-  it("absorbs OCR differences in the merchant text", () => {
-    // A missing space/punctuation must not hide the duplicate.
+  it("开启商户匹配后按原文严格比较，OCR 文本差异不再自动当作同一笔", () => {
+    const settings = { ...DEFAULT_DUPLICATE_DETECTION_SETTINGS, matchMerchant: true };
+
     expect(
       duplicateReason(
         batchCandidate({ merchant: "Starbucks Coffee" }),
         batchCandidate({ candidateId: "img1-1", merchant: "STARBUCKSCOFFEE" }),
+        { settings },
+      ),
+    ).toBeNull();
+
+    expect(
+      duplicateReason(
+        batchCandidate({ merchant: "老王便利店" }),
+        batchCandidate({ candidateId: "img1-1", merchant: "老王便利店" }),
+        { settings },
       ),
     ).not.toBeNull();
   });
@@ -64,7 +75,7 @@ describe("duplicateReason", () => {
         batchCandidate({ occurredTime: null }),
         batchCandidate({ candidateId: "img1-1", occurredTime: "12:34" }),
       ),
-    ).toBe("金额、币种、方向、日期相同（时间缺失，可能无法区分同日多笔）");
+    ).toBe("收支方向、金额、币种相同；时间、分类、支付方式缺失，按较弱依据提示。");
   });
 
   it("never guesses a direction or a date", () => {
