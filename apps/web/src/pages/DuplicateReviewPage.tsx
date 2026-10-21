@@ -5,9 +5,8 @@ import {
   normalizeNotDuplicatePair,
   type CreateNotDuplicateRelationsInput,
   type DuplicatePairResult,
-  type Transaction,
 } from "@libellum/shared";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -15,7 +14,8 @@ import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionS
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
-import { fetchReviewChunk } from "../lib/duplicateReview.js";
+import { ReviewScanController } from "../lib/reviewScanController.js";
+import { fetchReviewChunk, releaseReviewCursor } from "../lib/duplicateReview.js";
 import { formatMoney } from "../lib/format.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
@@ -37,16 +37,15 @@ export function DuplicateReviewPage(): React.JSX.Element {
   const duplicateSettings = useDuplicateDetectionSettings();
   const settings = duplicateSettings.settings;
 
-  type Phase = "idle" | "running" | "done" | "error";
-
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [processed, setProcessed] = useState(0);
-  const [total, setTotal] = useState<number | null>(null);
-  const [pairs, setPairs] = useState<readonly DuplicatePairResult[]>([]);
-  const [entries, setEntries] = useState<readonly Transaction[]>([]);
-  const [scope, setScope] = useState<"server" | "local">("server");
-  const [truncated, setTruncated] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
+  const settingsKey = JSON.stringify(settings);
+  const controller = useMemo(() => new ReviewScanController(
+    (after, through, cursor) => fetchReviewChunk(bookId, JSON.parse(settingsKey) as typeof settings, after, through, cursor),
+    releaseReviewCursor,
+  ), [bookId, settingsKey]);
+  const activeController = useRef(controller);
+  activeController.current = controller;
+  const { phase, processed, total, pairs, entries, scope, truncated, failure } = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+  useEffect(() => () => controller.dispose(), [controller]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyPairKey, setBusyPairKey] = useState<string | null>(null);
 
@@ -54,58 +53,13 @@ export function DuplicateReviewPage(): React.JSX.Element {
   const [resolved, setResolved] = useState<ReadonlySet<string>>(new Set());
   const [dismissedGroups, setDismissedGroups] = useState<ReadonlySet<string>>(new Set());
 
-  const cancelled = useRef(false);
-  /** 游标留在 ref 里：失败重试要从断点继续，而不是重扫一遍。 */
-  const cursor = useRef(0);
-  const through = useRef<number | undefined>(undefined);
-
+  useEffect(() => { setResolved(new Set()); setDismissedGroups(new Set()); setActionError(null); setBusyPairKey(null); }, [controller]);
   const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
-
-  const scan = useCallback(async (resume: boolean) => {
-    cancelled.current = false;
-    setFailure(null);
-    setActionError(null);
-    setPhase("running");
-    if (!resume) {
-      cursor.current = 0;
-      through.current = undefined;
-      setProcessed(0);
-      setTotal(null);
-      setPairs([]);
-      setEntries([]);
-      setResolved(new Set());
-      setDismissedGroups(new Set());
-      setTruncated(false);
-    }
-
-    const collectedPairs = [...pairs];
-    const collectedEntries = new Map(entries.map((entry) => [entry.id, entry]));
-    let done = 0;
-
-    try {
-      for (;;) {
-        const chunk = await fetchReviewChunk(bookId, settings, cursor.current, through.current);
-        through.current = chunk.throughSeq;
-        setScope(chunk.scope);
-        setTotal(chunk.total);
-        if (chunk.truncated) setTruncated(true);
-        collectedPairs.push(...chunk.pairs);
-        for (const entry of chunk.entries) collectedEntries.set(entry.id, entry);
-        done += chunk.processed;
-        cursor.current = chunk.nextSeq ?? chunk.throughSeq;
-        setProcessed(done);
-        setPairs([...collectedPairs]);
-        setEntries([...collectedEntries.values()]);
-        if (chunk.nextSeq === null || cancelled.current) break;
-        // 让出事件循环，进度与取消按钮才有机会被画出来/被点到。
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-      setPhase("done");
-    } catch (caught) {
-      setFailure(errorMessage(caught));
-      setPhase("error");
-    }
-  }, [bookId, settings, pairs, entries]);
+  const scan = (resume: boolean) => {
+    if (!settings.enabled) return;
+    if (!resume) { setResolved(new Set()); setDismissedGroups(new Set()); setActionError(null); }
+    void controller.scan(resume);
+  };
 
   /** 分组只用于排版；组内每一对的依据都必须摊开显示。 */
   const groups = useMemo(
@@ -128,13 +82,13 @@ export function DuplicateReviewPage(): React.JSX.Element {
     setActionError(null);
     try {
       await createNotDuplicateRelations(bookId, input);
-      setResolved((current) => new Set(current).add(pair.pairKey));
+      if (activeController.current === controller) setResolved((current) => new Set(current).add(pair.pairKey));
     } catch (caught) {
-      setActionError(`「不是同一笔」没有记住：${errorMessage(caught)}`);
+      if (activeController.current === controller) setActionError(`「不是同一笔」没有记住：${errorMessage(caught)}`);
     } finally {
-      setBusyPairKey(null);
+      if (activeController.current === controller) setBusyPairKey(null);
     }
-  }, [bookId]);
+  }, [bookId, controller]);
 
   const relationsUnavailable = isGuestRuntime();
 
@@ -158,6 +112,7 @@ export function DuplicateReviewPage(): React.JSX.Element {
           <Alert tone="info">重复提醒已关闭，所以本次不会给出结果。需要检查请先在设置里打开重复提醒。</Alert>
         )}
 
+        {phase === "paused" || phase === "error" ? <p className="text-helper text-muted">检查已暂停，已完成 {processed}{total === null ? "" : ` / ${total}`} 笔；下面仅显示已检查范围。</p> : null}
         {phase === "running" ? (
           <div className="flex flex-col gap-2">
             <p className="text-body">
@@ -171,13 +126,13 @@ export function DuplicateReviewPage(): React.JSX.Element {
             >
               <div
                 className="h-full rounded-full bg-brand transition-all"
-                style={{ width: total === null || total === 0 ? "10%" : `${String(Math.min(100, Math.round((processed / total) * 100)))}%` }}
+                style={{ width: total === null || total === 0 ? "0%" : `${String(Math.min(100, Math.round((processed / total) * 100)))}%` }}
               />
             </div>
             <Button
               variant="secondary"
               onClick={() => {
-                cancelled.current = true;
+                controller.cancel();
               }}
             >
               取消检查
@@ -186,16 +141,17 @@ export function DuplicateReviewPage(): React.JSX.Element {
         ) : (
           <div className="flex gap-3">
             <Button
-              onClick={() => void scan(phase === "error")}
+              onClick={() => void scan(phase === "error" || phase === "paused")}
               disabled={!settings.enabled}
             >
-              {phase === "idle" ? "开始检查" : phase === "error" ? "从断点重试" : "重新检查"}
+              {phase === "idle" ? "开始检查" : phase === "error" ? "从断点重试" : phase === "paused" ? "继续检查" : "重新检查"}
             </Button>
+            {phase === "paused" || phase === "error" ? <Button variant="secondary" disabled={!settings.enabled} onClick={() => scan(false)}>重新检查</Button> : null}
           </div>
         )}
       </section>
 
-      {phase === "done" || phase === "running" ? (
+      {phase !== "idle" ? (
         <section className="flex flex-col gap-3">
           <h2 className="px-1 text-helper text-muted">
             疑似重复{visibleGroups.length === 0 ? "" : `（${String(visibleGroups.length)} 组）`}
@@ -208,12 +164,12 @@ export function DuplicateReviewPage(): React.JSX.Element {
             </Alert>
           ) : null}
           {truncated ? (
-            <Alert tone="info">结果已达到单次上限，还有配对没有显示。处理完这些后再检查一次即可看到更多。</Alert>
+            <Alert tone="info">检测服务返回了不完整结果，请重新检查。</Alert>
           ) : null}
 
           {visibleGroups.length === 0 ? (
             <p className="rounded-card border border-line bg-surface p-5 text-body-relaxed text-muted">
-              {phase === "running" ? "还没有发现符合当前规则的疑似重复。" : "没有发现符合当前规则的疑似重复。"}
+              {phase !== "done" ? "已检查范围中暂未发现符合当前规则的疑似重复。" : "没有发现符合当前规则的疑似重复。"}
             </p>
           ) : null}
 
