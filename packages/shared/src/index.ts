@@ -486,4 +486,5 @@ export {
   type DuplicateImportReviewResponse,
   type DuplicatePairGroup,
   type DuplicateReviewChunk,
+  type DuplicateReviewCursor,
 } from "./duplicateReview.js";

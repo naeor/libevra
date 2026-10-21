@@ -7,6 +7,7 @@ import {
   type DuplicateImportReviewResponse,
   type DuplicatePairResult,
   type DuplicateReviewChunk,
+  type DuplicateReviewCursor,
   type Transaction,
 } from "@libellum/shared";
 import { apiFetch, currentBookIdHeader } from "./api.js";
@@ -28,7 +29,10 @@ export interface NewCandidatesResult {
 }
 
 /** 全账本审查的一页，同样带数据来源。 */
+export type ReviewCursor = { readonly source: "server"; readonly value: DuplicateReviewCursor }
+  | { readonly source: "local"; readonly snapshot: string; readonly left: number; readonly right: number };
 export interface ReviewScanChunk extends DuplicateReviewChunk {
+  readonly continuation?: ReviewCursor | null;
   readonly scope: "server" | "local";
 }
 
@@ -164,83 +168,73 @@ export async function checkNewCandidates(
   return { pairs: [...pairs.values()], history: [...history.values()], scope, truncated };
 }
 
-/**
- * 审查游标用的序号。
- *
- * ⚠️ `Transaction.seq` 在协议里是可选的（离线新建、尚未同步的账目没有服务器序号）。
- * 这些账目在本地审查里按 `0` 处理：它们排在最早的位置，与“尚未拿到序号”一致；
- * 服务端返回的账目一定有序号，所以服务端分块不受影响。
- */
-function seqOf(entry: Transaction): number {
-  return entry.seq ?? 0;
+/** Local snapshots use immutable ID-ordered positions, never fabricated server sequence numbers. */
+const reviewSnapshots = new Map<string, { bookId: string; settings: string; guest: boolean; entries: readonly Transaction[] }>();
+let snapshotSerial = 0;
+export function releaseReviewCursor(cursor?: ReviewCursor | null): void {
+  if (cursor?.source === "local") reviewSnapshots.delete(cursor.snapshot);
 }
-
-/**
- * 全账本审查的一页。
- *
- * 服务端按 `seq` 游标分块（不一次拉全账本）；游客或离线时在同一套规则核心上只扫本机
- * 已知数据，并用 `scope` 明说范围。两边的分块算法一致：**每对只比一次**（只与 seq 更大的
- * 记录比较），所以翻页不会重复、也不会漏。
- */
 export async function fetchReviewChunk(
-  bookId: string,
-  settings: DuplicateDetectionSettings,
-  afterSeq: number,
-  throughSeq?: number,
+  bookId: string, settings: DuplicateDetectionSettings, afterSeq: number, throughSeq?: number, cursor?: ReviewCursor,
 ): Promise<ReviewScanChunk> {
-  if (!settings.enabled) {
-    return { pairs: [], entries: [], total: 0, processed: 0, nextSeq: null, throughSeq: 0, truncated: false, scope: "local" };
-  }
-
-  if (!isGuestRuntime() && navigator.onLine) {
+  const empty = { pairs: [], entries: [], total: 0, processed: 0, nextSeq: null, throughSeq: 0, truncated: false, scope: "local" as const, continuation: null };
+  if (!settings.enabled) return empty;
+  if (bookId !== duplicateBookId()) throw new Error("账本已切换，请重新检查。");
+  const starting = cursor === undefined && afterSeq === 0 && throughSeq === undefined;
+  if (cursor?.source !== "local" && !isGuestRuntime() && navigator.onLine) {
     try {
       const chunk = await apiFetch<DuplicateReviewChunk>("/transactions/duplicates/review", {
-        method: "POST",
-        bookId,
-        body: { settings, afterSeq, ...(throughSeq === undefined ? {} : { throughSeq }) },
+        method: "POST", bookId, body: { settings, afterSeq,
+          ...(throughSeq === undefined ? {} : { throughSeq }), ...(cursor?.source === "server" ? { cursor: cursor.value } : {}) },
       });
-      return { ...chunk, scope: "server" };
-    } catch {
-      // 落回本机数据，由界面说明范围。
+      if (bookId !== duplicateBookId()) throw new Error("账本已切换，请重新检查。");
+      const value = chunk.nextCursor ?? (chunk.nextSeq === null ? null : { leftSeq: chunk.nextSeq, rightSeq: 0, throughSeq: chunk.throughSeq });
+      return { ...chunk, scope: "server", continuation: value === null ? null : { source: "server", value } };
+    } catch (error) {
+      // A server continuation must never be interpreted as a local position.
+      if (!starting) throw error;
     }
+  } else if (cursor?.source === "server" || (!starting && cursor === undefined)) {
+    throw new Error("在线检查已暂停；恢复连接后可从断点重试，或重新检查本机数据。");
   }
-
-  const local = await localEntries();
-  const ordered = [...local].sort((left, right) => seqOf(left) - seqOf(right));
-  const maximum = throughSeq ?? (ordered.length === 0 ? 0 : seqOf(ordered[ordered.length - 1]!));
-  const total = ordered.filter((entry) => seqOf(entry) <= maximum).length;
-  const chunk = ordered.filter((entry) => seqOf(entry) > afterSeq && seqOf(entry) <= maximum).slice(0, 50);
-
-  const entries = new Map<string, Transaction>();
-  const pairs: DuplicatePairResult[] = [];
-  let truncated = false;
-  for (const entry of chunk) {
+  let token: string;
+  let snapshot: { bookId: string; settings: string; guest: boolean; entries: readonly Transaction[] };
+  if (cursor?.source === "local") {
+    token = cursor.snapshot;
+    const stored = reviewSnapshots.get(token);
+    if (!stored || stored.bookId !== bookId || stored.settings !== JSON.stringify(settings) || stored.guest !== isGuestRuntime()) {
+      throw new Error("本机检查快照已失效，请重新检查。");
+    }
+    snapshot = stored;
+  } else {
+    const local = await localEntries();
+    if (bookId !== duplicateBookId()) throw new Error("账本已切换，请重新检查。");
+    const unique = new Map(local.map(entry => [entry.id, entry]));
+    snapshot = { bookId, settings: JSON.stringify(settings), guest: isGuestRuntime(), entries: structuredClone([...unique.values()].sort((a, b) => a.id.localeCompare(b.id))) };
+    token = String(++snapshotSerial);
+    while (reviewSnapshots.size >= 4) reviewSnapshots.delete(reviewSnapshots.keys().next().value!);
+    reviewSnapshots.set(token, snapshot);
+  }
+  const ordered = snapshot.entries;
+  let left = cursor?.source === "local" ? cursor.left : 0;
+  let right = cursor?.source === "local" ? cursor.right : 1;
+  const pairs: DuplicatePairResult[] = []; const entries = new Map<string, Transaction>();
+  let processed = 0; let examined = 0;
+  // 500 evaluations / 50 completed left rows per chunk; dense buckets can always resume mid-row.
+  while (left < ordered.length && examined < 500 && processed < 50) {
+    const entry = ordered[left]!;
     const candidate = candidateFromEntry(entry, bookId);
-    for (const other of ordered) {
-      if (seqOf(other) <= seqOf(entry) || seqOf(other) > maximum) continue;
+    while (right < ordered.length && examined < 500) {
+      const other = ordered[right++]!; examined += 1;
       const result = evaluateDuplicatePair(candidate, candidateFromEntry(other, bookId), settings);
-      if (!result.matched) continue;
-      pairs.push(result);
-      entries.set(entry.id, entry);
-      entries.set(other.id, other);
+      if (result.matched) { pairs.push(result); entries.set(entry.id, entry); entries.set(other.id, other); }
     }
-    if (pairs.length >= 500) {
-      truncated = true;
-      break;
-    }
+    if (right >= ordered.length) { left += 1; right = left + 1; processed += 1; }
   }
-
-  const last = chunk[chunk.length - 1];
-  return {
-    pairs,
-    entries: [...entries.values()],
-    total,
-    processed: chunk.length,
-    nextSeq: last === undefined ? null : seqOf(last),
-    throughSeq: maximum,
-    truncated,
-    scope: "local",
-  };
+  const continuation: ReviewCursor | null = left >= ordered.length ? null : { source: "local", snapshot: token, left, right };
+  // Keep the snapshot until its owner accepts the response; cancellation may discard this chunk.
+  return { pairs, entries: [...entries.values()], total: ordered.length, processed,
+    nextSeq: continuation === null ? null : 0, throughSeq: 0, truncated: false, scope: "local", continuation };
 }
 
 /**

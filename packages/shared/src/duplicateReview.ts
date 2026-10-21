@@ -20,7 +20,15 @@ export const duplicateCandidateSchema = z.object({
 export const duplicateCandidatesRequestSchema = z.object({
   candidates: z.array(duplicateCandidateSchema).max(100), settings: duplicateRulesSchema.optional(),
 });
+/** Pair cursor: completed left rows plus the last examined right row of the active left. */
+export const duplicateReviewCursorSchema = z.object({
+  activeSeq: z.number().int().nonnegative().optional(),
+  leftSeq: z.number().int().nonnegative(), rightSeq: z.number().int().nonnegative(),
+  throughSeq: z.number().int().nonnegative(),
+});
+export type DuplicateReviewCursor = z.infer<typeof duplicateReviewCursorSchema>;
 export const duplicateReviewRequestSchema = z.object({
+  cursor: duplicateReviewCursorSchema.optional(),
   afterSeq: z.number().int().nonnegative().default(0),
   throughSeq: z.number().int().nonnegative().optional(),
   settings: duplicateRulesSchema.optional(),
@@ -129,6 +137,8 @@ export interface DuplicateCandidatesResponse {
 
 /** 全账本审查的一页（按 seq 游标切块，客户端反复调用直到 `nextSeq === null`）。 */
 export interface DuplicateReviewChunk {
+  /** 精确配对断点；null 完成。旧客户端仍可使用 nextSeq（只推进完整处理的左侧行）。 */
+  readonly nextCursor?: DuplicateReviewCursor | null;
   readonly pairs: readonly DuplicatePairResult[];
   readonly entries: readonly Transaction[];
   /** 本次审查范围内的账目总数（已排除软删除）。 */

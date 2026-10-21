@@ -91,7 +91,10 @@ export async function suppressConfirmed(
   const ids = [...new Set(pairs.flatMap((pair) => [pair.leftId, pair.rightId]))].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
   if (ids.length === 0) return [...pairs];
   const relations = await prisma.transactionNotDuplicateRelation.findMany({
-    where: { bookId, revokedAt: null, transactionAId: { in: ids }, transactionBId: { in: ids } },
+    where: { bookId, revokedAt: null, OR: pairs.filter(pair => ids.includes(pair.leftId) && ids.includes(pair.rightId)).map(pair => {
+      const [transactionAId, transactionBId] = [pair.leftId, pair.rightId].sort();
+      return { transactionAId: transactionAId!, transactionBId: transactionBId! };
+    }) },
   });
   if (relations.length === 0) return [...pairs];
   const transactions = await loadRelationTransactions(prisma, bookId, ids);
@@ -195,59 +198,56 @@ export function registerDuplicateReviewRoutes<Row>(app: FastifyInstance, options
     };
     if (!settings.enabled) return empty;
 
-    const maximum = body.throughSeq
-      ?? (await prisma.transaction.aggregate({ where: { bookId }, _max: { seq: true } }))._max.seq
-      ?? 0;
+    const maximum = body.cursor?.throughSeq ?? body.throughSeq
+      ?? (await prisma.transaction.aggregate({ where: { bookId }, _max: { seq: true } }))._max.seq ?? 0;
     const total = await prisma.transaction.count({ where: { bookId, deletedAt: null, seq: { lte: maximum } } });
-    if (body.afterSeq >= maximum) return { ...empty, total, throughSeq: maximum };
-
-    const rows = await prisma.transaction.findMany({
-      where: { bookId, deletedAt: null, seq: { gt: body.afterSeq, lte: maximum } },
-      include,
-      orderBy: { seq: "asc" },
-      take: REVIEW_CHUNK_SIZE + 1,
-    });
-    const chunk = rows.slice(0, REVIEW_CHUNK_SIZE);
-
+    // afterSeq remains the legacy "all left rows through here finished" cursor.
+    let completedSeq = body.cursor?.leftSeq ?? body.afterSeq;
+    let rightSeq = body.cursor?.rightSeq ?? 0;
+    let activeSeq = body.cursor?.activeSeq;
+    let processed = 0;
+    let examined = 0;
     const entries = new Map<string, Transaction>();
     const pairs: DuplicatePairResult[] = [];
-    let truncated = false;
-
-    for (const row of chunk) {
+    // At most 50 left-row queries and 500 pair evaluations per request, even if every pair is ignored.
+    while (processed < REVIEW_CHUNK_SIZE && examined < MAX_HISTORY_ROWS && pairs.length < MAX_PAIRS_PER_REQUEST) {
+      const row = await prisma.transaction.findFirst({
+        where: { bookId, deletedAt: null, seq: { gt: completedSeq, lte: maximum } }, include, orderBy: { seq: "asc" },
+      });
+      if (row === null) return { ...empty, pairs, entries: [...entries.values()], total, processed, throughSeq: maximum, nextCursor: null } satisfies DuplicateReviewChunk;
+      if (activeSeq !== row.seq) rightSeq = 0;
+      activeSeq = row.seq;
       const entry = dto(row);
       const candidate = candidateFromTransaction(entry, bookId);
+      const capacity = Math.min(MAX_HISTORY_ROWS - examined, MAX_PAIRS_PER_REQUEST - pairs.length);
       const others = await prisma.transaction.findMany({
-        where: { ...duplicateWhere(bookId, candidate, settings), seq: { gt: row.seq, lte: maximum } },
-        include,
-        orderBy: { seq: "asc" },
-        take: MAX_HISTORY_ROWS + 1,
+        where: { ...duplicateWhere(bookId, candidate, settings), seq: { gt: Math.max(row.seq, rightSeq), lte: maximum } },
+        include, orderBy: { seq: "asc" }, take: capacity + 1,
       });
-      if (others.length > MAX_HISTORY_ROWS) truncated = true;
-      for (const other of others.slice(0, MAX_HISTORY_ROWS)) {
+      const checked = others.slice(0, capacity);
+      const matches: DuplicatePairResult[] = [];
+      const matchingEntries = new Map<string, Transaction>();
+      for (const other of checked) {
         const match = dto(other);
         const result = evaluateDuplicatePair(candidate, candidateFromTransaction(match, bookId), settings);
-        if (!result.matched) continue;
-        pairs.push(result);
-        entries.set(entry.id, entry);
-        entries.set(match.id, match);
-        if (pairs.length >= MAX_PAIRS_PER_REQUEST) {
-          truncated = true;
-          break;
-        }
+        if (result.matched) { matches.push(result); matchingEntries.set(match.id, match); }
       }
-      if (pairs.length >= MAX_PAIRS_PER_REQUEST) break;
+      // Ignored pairs consume work budget, never visible result quota. Cursor still advances.
+      const visible = await suppressConfirmed(prisma, bookId, matches);
+      pairs.push(...visible);
+      if (visible.length) entries.set(entry.id, entry);
+      for (const pair of visible) { const match = matchingEntries.get(pair.rightId); if (match) entries.set(match.id, match); }
+      examined += checked.length;
+      if (others.length > capacity) {
+        rightSeq = checked[checked.length - 1]!.seq;
+        break;
+      }
+      completedSeq = row.seq; rightSeq = 0; processed += 1;
     }
-
-    const visible = await suppressConfirmed(prisma, bookId, pairs);
-    const last = chunk[chunk.length - 1];
-    return {
-      pairs: visible,
-      entries: [...entries.values()],
-      total,
-      processed: chunk.length,
-      nextSeq: last === undefined ? null : last.seq,
-      throughSeq: maximum,
-      truncated,
+    const more = await prisma.transaction.findFirst({ where: { bookId, deletedAt: null, seq: { gt: completedSeq, lte: maximum } }, select: { id: true } });
+    return { pairs, entries: [...entries.values()], total, processed, throughSeq: maximum, truncated: false,
+      nextSeq: more === null ? null : completedSeq,
+      nextCursor: more === null ? null : { leftSeq: completedSeq, rightSeq, throughSeq: maximum, ...(activeSeq === undefined ? {} : { activeSeq }) },
     } satisfies DuplicateReviewChunk;
   });
 

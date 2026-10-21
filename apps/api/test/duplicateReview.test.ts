@@ -1,3 +1,4 @@
+import type { DuplicateReviewChunk, DuplicateReviewCursor } from "@libellum/shared";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -243,9 +244,9 @@ describe("S15-E4 统一重复检测接口", () => {
     expect(firstPage.processed).toBe(3);
     expect(firstPage.pairs).toHaveLength(1);
     expect(firstPage.entries.map((item) => item.id).sort()).toEqual([first, second].sort());
-    expect(firstPage.nextSeq).toBe(firstPage.throughSeq);
+    expect(firstPage.nextSeq).toBeNull();
 
-    const tail = await review(who, { settings: SETTINGS, afterSeq: firstPage.nextSeq, throughSeq: firstPage.throughSeq });
+    const tail = await review(who, { settings: SETTINGS, afterSeq: firstPage.throughSeq, throughSeq: firstPage.throughSeq });
     const tailPage = tail.json<{ pairs: unknown[]; nextSeq: number | null; processed: number }>();
     expect(tailPage.pairs).toHaveLength(0);
     expect(tailPage.processed).toBe(0);
@@ -286,4 +287,54 @@ describe("S15-E4 统一重复检测接口", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json<{ checked: number; pairs: unknown[] }>()).toMatchObject({ checked: 0, pairs: [] });
   });
+  async function denseEntries(who: Account, count: number): Promise<string[]> {
+    const categoryId = await uncategorised(who.bookId);
+    const data = Array.from({ length: count }, () => {
+      seq += 1; const id = txId(seq);
+      return { id, bookId: who.bookId, userId: who.userId, seq, categoryId, kind: "expense" as const,
+        amountCents: 2000n, currency: "CNY", occurredAt: new Date("2026-10-21T02:03:00Z"),
+        occurredLocalDate: new Date("2026-10-21"), occurredTz: "UTC", idempotencyKey: id };
+    });
+    await prisma.transaction.createMany({ data });
+    return data.map(row => row.id);
+  }
+  async function ignorePairs(who: Account, pairs: { transactionIdA: string; transactionIdB: string }[]) {
+    for (let start = 0; start < pairs.length; start += 200) {
+      const response = await app.inject({ method: "POST", url: "/api/v1/books/" + who.bookId + "/not-duplicate-relations",
+        headers: headers(who), payload: { pairs: pairs.slice(start, start + 200), decisionSource: "review_group" } });
+      expect([200, 201]).toContain(response.statusCode);
+    }
+  }
+  it("密集结果超过500对仍可逐页继续，所有780对恰好一次", async () => {
+    const who = await account("dense_review"); await denseEntries(who, 40);
+    const keys = new Set<string>(); let cursor: DuplicateReviewCursor | undefined; let processed = 0; let calls = 0;
+    do {
+      const response = await review(who, { settings: SETTINGS, cursor }); expect(response.statusCode).toBe(200);
+      const chunk = response.json<DuplicateReviewChunk>();
+      expect(chunk.pairs.length).toBeLessThanOrEqual(500); expect(chunk.truncated).toBe(false);
+      for (const pair of chunk.pairs) { expect(keys.has(pair.pairKey)).toBe(false); keys.add(pair.pairKey); }
+      processed += chunk.processed; cursor = chunk.nextCursor ?? undefined; calls += 1;
+      expect(calls).toBeLessThan(5);
+    } while (cursor);
+    expect(keys.size).toBe(780); expect(processed).toBe(40);
+  });
+  it("单笔超过500条历史候选，前500对已忽略也不会漏掉后面的有效对", async () => {
+    const who = await account("ignored_review_prefix"); const ids = await denseEntries(who, 503);
+    await ignorePairs(who, ids.slice(1, 501).map(id => ({ transactionIdA: ids[0]!, transactionIdB: id })));
+    const first = (await review(who, { settings: SETTINGS })).json<DuplicateReviewChunk>();
+    expect(first.pairs).toHaveLength(0); expect(first.processed).toBe(0); expect(first.nextCursor).toBeTruthy();
+    const second = (await review(who, { settings: SETTINGS, cursor: first.nextCursor })).json<DuplicateReviewChunk>();
+    expect(second.pairs.some(pair => pair.leftId === ids[0] && pair.rightId === ids[502])).toBe(true);
+    expect(second.processed).toBeGreaterThanOrEqual(1); expect(second.nextCursor).not.toEqual(first.nextCursor);
+  });
+  it("全部528对已忽略仍以工作量预算前进，最终正常结束", async () => {
+    const who = await account("ignored_review_all"); const ids = await denseEntries(who, 33);
+    await ignorePairs(who, ids.flatMap((id, i) => ids.slice(i + 1).map(other => ({ transactionIdA: id, transactionIdB: other }))));
+    const first = (await review(who, { settings: SETTINGS })).json<DuplicateReviewChunk>();
+    expect(first.pairs).toHaveLength(0); expect(first.nextCursor).toBeTruthy();
+    const second = (await review(who, { settings: SETTINGS, cursor: first.nextCursor })).json<DuplicateReviewChunk>();
+    expect(second.pairs).toHaveLength(0); expect(second.nextCursor).toBeNull();
+    expect(first.processed + second.processed).toBe(33);
+  });
+
 });
