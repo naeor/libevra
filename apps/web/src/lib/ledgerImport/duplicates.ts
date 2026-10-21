@@ -25,6 +25,7 @@
 import {
   DEFAULT_DUPLICATE_DETECTION_SETTINGS,
   evaluateDuplicatePair,
+  notDuplicatePairKey,
   type DuplicateCandidateFields,
   type DuplicateDetectionSettings,
   type Transaction,
@@ -220,6 +221,16 @@ export function detectDuplicateGroups(
   excludeSourceIds: ReadonlySet<string> = new Set<string>(),
   excludeTargetIds: ReadonlySet<string> = new Set<string>(),
   settings: DuplicateDetectionSettings = DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+  /**
+   * S15-E3：用户已确认「不是同一笔」的配对键（`notDuplicatePairKey` 生成）。
+   *
+   * 账本导入是**跨账本**比较，而关系按账本保存，所以当前产品路径通常传空集合；
+   * 这个参数是给 E4/E5 复用的**唯一抑制点**——过滤只在适配层发生，
+   * E2 的检测规则与用户设置语义不变。
+   *
+   * ⚠️ 不具传递性：只跳过键里明确出现的那一对。
+   */
+  suppressedPairKeys: ReadonlySet<string> = new Set<string>(),
 ): DuplicateDetectionResult {
   if (!settings.enabled) return emptyResult();
 
@@ -236,6 +247,11 @@ export function detectDuplicateGroups(
   for (const [sourceId, sourceRecord] of sourceRecords) {
     const candidates = targetIndex.get(candidateKey(sourceRecord)) ?? [];
     for (const targetRecord of candidates) {
+      if (suppressedPairKeys.size > 0 &&
+          suppressedPairKeys.has(notDuplicatePairKey(sourceId, targetRecord.transaction.id))) {
+        continue;
+      }
+
       const result = evaluateDuplicatePair(
         coreCandidate(sourceRecord, target.bookId),
         coreCandidate(targetRecord, target.bookId),

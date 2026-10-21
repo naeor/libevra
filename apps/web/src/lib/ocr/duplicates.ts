@@ -24,6 +24,7 @@ import {
   DEFAULT_DUPLICATE_DETECTION_SETTINGS,
   decimalsFor,
   evaluateDuplicatePair,
+  notDuplicatePairKey,
   parseAmountToMinor,
   type DuplicateCandidateFields,
   type DuplicateDetectionSettings,
@@ -42,6 +43,14 @@ export interface OcrDuplicateOptions {
   readonly settings?: DuplicateDetectionSettings;
   /** 批次所属账本；同一批次内所有候选必须相同。 */
   readonly bookId?: string;
+  /**
+   * S15-E3：用户已确认「不是同一笔」的配对键（`notDuplicatePairKey` 生成）。
+   *
+   * OCR 候选项在导入前还不是正式交易，所以这里通常传空集合；它存在的意义是
+   * **让 E4/E5 用同一套键抑制已确认的对**，而不是在页面里再写一份过滤。
+   * 过滤只发生在适配层：E2 核心规则与设置语义不受影响。
+   */
+  readonly suppressedPairKeys?: ReadonlySet<string>;
 }
 
 export interface OcrDuplicateGroup {
@@ -183,6 +192,16 @@ export function duplicateReason(
 
   // 关闭提醒时，连单号这种强证据也不提示：用户要的是“不打扰”。
   if (!settings.enabled) return null;
+
+  /**
+   * S15-E3：用户已经明确确认过这两笔「不是同一笔」→ 不再提示。
+   * 只抑制这一对，不推导任何传递关系（A–B、B–C 不推出 A–C）。
+   *
+   * 放在单号规则之前：这是用户自己的结论，优先于任何算法证据。
+   */
+  if (options.suppressedPairKeys?.has(notDuplicatePairKey(left.candidateId, right.candidateId)) === true) {
+    return null;
+  }
 
   if (left.serial !== null && right.serial !== null) {
     if (left.serial !== right.serial) return null;

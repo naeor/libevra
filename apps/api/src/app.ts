@@ -37,6 +37,7 @@ import { registerImportRoutes } from "./routes/import.js";
 import { registerLedgerImportRoutes } from "./routes/ledgerImport.js";
 import { registerLedgerImportJobRoutes } from "./routes/ledgerImportJobs.js";
 import { registerLedgerRoutes } from "./routes/ledger.js";
+import { registerNotDuplicateRelationRoutes } from "./routes/notDuplicateRelations.js";
 import { registerRecognizeRoutes } from "./routes/recognize.js";
 import { registerStatsRoutes } from "./routes/stats.js";
 import { registerTransactionRoutes } from "./routes/transactions.js";
@@ -350,6 +351,15 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     });
     registerStatsRoutes(app, { prisma: options.prisma, requireAuth: requireBookRead });
     registerClassificationRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
+    /**
+     * S15-E3 关系记忆：读挂 read（viewer 也能看），写挂 write（viewer 被拒）。
+     * 两个包装器就是上面注册的既有守卫，没有新增权限规则。
+     */
+    registerNotDuplicateRelationRoutes(app, {
+      prisma: options.prisma,
+      requireAuth: requireBookWrite,
+      requireRead: requireBookRead,
+    });
     registerRecognizeRoutes(app, { requireAuth: requireBookRead, ocr });
     registerVoiceRoutes(app, { requireAuth: requireBookWrite, prisma: options.prisma, voice });
     registerExportRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });

@@ -20,6 +20,10 @@ import {
 import { allocateTransactionSeq } from "../ledger/transactionSeq.js";
 import { diffEntry, recordEvent } from "../ledger/events.js";
 import {
+  changedKeyFields,
+  revokeRelationsTouchingTransaction,
+} from "../ledger/notDuplicateRelations.js";
+import {
   appendHistory,
   asArray,
   CONFLICT_FIELDS,
@@ -874,6 +878,26 @@ export function registerTransactionRoutes(
           actorName: request.currentUser!.displayName,
           kind: "updated",
           changes: changed,
+        });
+      }
+
+      /**
+       * ⚠️ **S15-E3：关系失效与编辑在同一个事务里。**
+       *
+       * 只比较**关键字段**（金额/币种/方向/时间）；分类、支付方式、标签、备注变化
+       * 不会让关系失效——按 E2 统一规则，它们不是"疑似重复"的必要条件。
+       *
+       * ⚠️ **不改这个路由的响应、权限和版本语义**：这里只多写一条撤销，
+       * 编辑本身照旧成功。失败会连带回滚整次编辑（同一事务），不会出现
+       * "账目改了、旧判断还生效"的半截状态。
+       */
+      if (changedKeyFields(existing, result).length > 0) {
+        await revokeRelationsTouchingTransaction(tx, {
+          bookId,
+          transactionId: result.id,
+          actorId: userId,
+          actorName: request.currentUser!.displayName,
+          now: new Date(),
         });
       }
 

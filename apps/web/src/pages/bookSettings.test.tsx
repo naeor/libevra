@@ -70,6 +70,16 @@ vi.mock("../auth/AuthProvider.js", async (importOriginal) => {
   return { ...actual, useAuth: () => ({ user: { id: "user-1", defaultCurrency: "CNY" } }) };
 });
 
+/**
+ * S15-E3：账本设置里新增了「已忽略的重复交易」管理区，它有自己的数据 hooks。
+ * 这一页的布局测试不挂 QueryClient（其余数据 hooks 都在上面 stub 掉了），所以这里把
+ * 关系 hooks 也替换成固定的空列表——被测试的仍然是「设置页渲染出了什么」。
+ */
+vi.mock("../lib/notDuplicateRelations.js", () => ({
+  useNotDuplicateRelations: () => ({ data: { items: [] }, isLoading: false, error: null }),
+  useRevokeNotDuplicateRelation: () => ({ mutateAsync: async () => undefined }),
+}));
+
 import { BookSettingsPage } from "./BookSettingsPage.js";
 
 const NAME = "家庭账本";

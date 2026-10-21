@@ -24,6 +24,7 @@ import { errorMessage } from "../lib/api.js";
 import { currentBookId } from "../lib/currentBook.js";
 import { currentMonth, localTimeZone, toLocalDate, toLocalIso } from "../lib/datetime.js";
 import { amountPlaceholder, currencyName, formatMoney, parseAmountInput } from "../lib/format.js";
+import { createNotDuplicateRelations, notDuplicateConfirmationForEntry } from "../lib/notDuplicateRelations.js";
 import { createBatch } from "../lib/ocr/batch.js";
 import { saveBatch } from "../lib/ocr/batchStore.js";
 import { readableItems, routeRecognition } from "../lib/ocr/routeDecision.js";
@@ -392,7 +393,19 @@ export function ScanPage(): React.JSX.Element {
   }
 
   /** Actually write the entry. Reached directly, or after a duplicate warning. */
-  async function write(draft: ReviewDraft, amountCents: number): Promise<void> {
+  async function write(
+    draft: ReviewDraft,
+    amountCents: number,
+    /**
+     * S15-E3: the pairs the user **explicitly** confirmed as "not the same transaction".
+     *
+     * These are existing entries the duplicate check found for this exact draft. The
+     * confirmation is a separate choice in the dialog ("确认不是同一笔"), never inferred from
+     * "仍然保存" — saving two similar entries is a legitimate thing to do and says nothing
+     * about whether they are the same money.
+     */
+    notDuplicateWith: readonly string[] = [],
+  ): Promise<void> {
     const occurredAt = new Date(`${draft.date}T${draft.time === "" ? "12:00" : draft.time}:00`);
 
     try {
@@ -428,6 +441,28 @@ export function ScanPage(): React.JSX.Element {
         note: draft.note.trim() === "" ? null : draft.note.trim(),
         tagIds: [],
       });
+
+      /**
+       * ⚠️ **S15-E3: recorded only after the entry exists**, and a failure here must not
+       * pretend the entry was lost — it is already saved. The relation is extra memory, so
+       * the message says exactly what did and did not happen.
+       *
+       * The pair is created with the entry's final id (the same client-generated id that was
+       * sent as `id`/`idempotencyKey`), so a retried upload cannot point at a different row.
+       */
+      if (notDuplicateWith.length > 0) {
+        try {
+          const bookId = ledger.data?.book.id ?? currentBookId();
+          if (bookId === null) throw new Error("找不到当前账本，无法记录「不是同一笔」。");
+
+          const input = notDuplicateConfirmationForEntry(notDuplicateWith, entry.id);
+          if (input === null) throw new Error("没有可记录的交易对。");
+
+          await createNotDuplicateRelations(bookId, input);
+        } catch (caught) {
+          setError(`账目已保存，但「不是同一笔」没有记住：${errorMessage(caught)}`);
+        }
+      }
 
       setStep({ name: "saved", entry });
     } catch (caught) {
@@ -618,7 +653,13 @@ export function ScanPage(): React.JSX.Element {
       <ChoiceDialog
         open={pendingDuplicate !== null}
         title="这笔账好像已经记过了"
-        description="日期、时间、金额、币种和收支类型都相同。要再记一笔吗？"
+        description={
+          pendingDuplicate === null
+            ? ""
+            : pendingDuplicate.existing.length > 1
+              ? `日期、时间、金额、币种和收支类型都相同；系统找到 ${String(pendingDuplicate.existing.length)} 笔相似记录。要再记一笔吗？`
+              : "日期、时间、金额、币种和收支类型都相同。要再记一笔吗？"
+        }
         choices={DUPLICATE_CHOICES}
         onChoose={(choice) => {
           const pending = pendingDuplicate;
@@ -627,6 +668,25 @@ export function ScanPage(): React.JSX.Element {
 
           if (choice === "save") {
             void write(pending.draft, pending.amountCents);
+            return;
+          }
+
+          /**
+           * ⚠️ **S15-E3: an explicit confirmation, not an inference.**
+           *
+           * "仍然保存" above intentionally records nothing: keeping two similar entries says
+           * nothing about whether they are the same money. **This** choice is the one that says
+           * so, and it is the only path that writes a not-duplicate relation for the new entry.
+           *
+           * The relation is written after the entry exists, with the entry's final id; a failure
+           * to remember it is reported on the saved screen (the money was saved either way).
+           */
+          if (choice === "confirmNotDuplicate") {
+            void write(
+              pending.draft,
+              pending.amountCents,
+              pending.existing.map((existing) => existing.id),
+            );
             return;
           }
 
@@ -732,8 +792,13 @@ const UNKNOWN_PAGE_CHOICES: readonly Choice<"single" | "multi" | "back">[] = [
  * tab away. A button that navigates to a blank page is worse than a button that
  * does not exist.
  */
-const DUPLICATE_CHOICES: readonly Choice<"save" | "replace" | "cancel">[] = [
+const DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "replace" | "cancel">[] = [
   { id: "save", label: "仍然保存", hint: "两笔都留（也许是两次一样的消费）", primary: true },
+  {
+    id: "confirmNotDuplicate",
+    label: "确认不是同一笔",
+    hint: "两笔都留，并记住这一对：以后不再提示",
+  },
   { id: "replace", label: "删掉旧的，保存这笔", hint: "只留现在这笔" },
   { id: "cancel", label: "取消，我再看看", dismissive: true },
 ];
