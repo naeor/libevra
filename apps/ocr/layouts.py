@@ -947,6 +947,11 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
     # A closed order (交易关闭 / 超时关闭) never became a payment, so it must not be
     # filed as an expense; the `order_closed` issue sends that question back to the
     # user instead of deciding it here.
+    #
+    # 待发货 / 待收货 are **posted**, not pending: the money has already left the
+    # account (owner, 2026-10-21: "这笔钱付出去了，那就应该被算作支出"). A later
+    # return is a separate refund (income), which the refund rules already handle;
+    # only `待付款` has not paid yet and stays `pending`.
     LayoutDescriptor(
         id="meituan-order-list",
         label="美团外卖订单列表",
@@ -971,7 +976,7 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
                 ("订单已完成", "posted"),
                 ("已完成", "posted"),
                 ("待付款", "pending"),
-                ("待收货", "pending"),
+                ("待收货", "posted"),
                 ("待使用", "pending"),
                 ("退款成功", "退款成功"),
                 ("已退款", "已退款"),
@@ -1030,7 +1035,7 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
             status_markers=(
                 ("已完成", "posted"),
                 ("待付款", "pending"),
-                ("待收货", "pending"),
+                ("待收货", "posted"),
                 ("待使用", "pending"),
                 ("交易关闭", "交易关闭"),
                 ("退款成功", "退款成功"),
@@ -1060,7 +1065,7 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
             strategy="custom",
             custom_extractor="cn-order-detail",
             amount_labels=("应付款", "实付款", "合计", "总计", "订单金额", "实付"),
-            status_markers=(("已完成", "posted"), ("待收货", "pending"), ("交易关闭", "交易关闭")),
+            status_markers=(("已完成", "posted"), ("待收货", "posted"), ("交易关闭", "交易关闭")),
             default_direction="expense",
             default_currency="CNY",
         ),
@@ -1090,8 +1095,8 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
                 ("交易关闭", "交易关闭"),
                 ("超时关闭", "交易关闭"),
                 ("待付款", "pending"),
-                ("待发货", "pending"),
-                ("待收货", "pending"),
+                ("待发货", "posted"),
+                ("待收货", "posted"),
                 ("退款成功", "退款成功"),
                 ("已完成", "posted"),
             ),
