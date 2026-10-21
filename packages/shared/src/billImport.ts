@@ -17,6 +17,7 @@ export const billImportCandidateSchema = billImportCommitRowSchema.extend({
   line: z.number().int().positive(), page: z.number().int().positive().optional(),
   timePrecision: z.enum(["second", "minute", "day"]),
   merchant: z.string(), sourceRef: z.string().nullable(), sourceStatus: z.string(),
+  sourceTransactionId: z.string().uuid().optional(),
   warnings: z.array(z.string()), duplicateIds: z.array(z.string()), identityDuplicate: z.boolean(),
 });
 export type BillImportCandidate = z.infer<typeof billImportCandidateSchema>;

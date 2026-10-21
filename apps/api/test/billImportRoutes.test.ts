@@ -470,7 +470,7 @@ describe("bill import V2 preview/commit routes", () => {
     expect(await prisma.transactionTag.count({ where: { transaction: { bookId } } })).toBe(2);
   });
 
-  it("rejects commits that try to edit immutable amount or date values", async () => {
+  it("核对和直接提交允许修正金额币种日期时间时区，并按修正值保存", async () => {
     const app = makeApp();
     const { cookie, bookId } = await owner(app, "bill_immutable");
     const preview = await previewFile(app, cookie, bookId, {
@@ -479,7 +479,14 @@ describe("bill import V2 preview/commit routes", () => {
       content: Buffer.from(ALIPAY_CSV, "utf8"),
     });
     const rows = commitRows(preview);
-    rows[0] = { ...rows[0]!, amount: "99.99" };
+    rows[0] = { ...rows[0]!, amount: "99.99", currency: "USD", date: "2026-10-05", time: "09:12:43", timezone: "America/New_York" };
+    const checked = await app.inject({
+      method: "POST", url: "/api/v1/import/recheck", headers: { cookie, "x-libellum-book": bookId },
+      payload: { previewId: preview.previewId, rows, settings: SETTINGS },
+    });
+    expect(checked.statusCode, checked.body).toBe(200);
+    expect(checked.json().candidates[0]).toMatchObject({ amount: "99.99", currency: "USD", timePrecision: "second" });
+    rows[0] = { ...rows[0]!, amount: "100.01", time: "09:12" };
 
     const response = await app.inject({
       method: "POST",
@@ -487,9 +494,48 @@ describe("bill import V2 preview/commit routes", () => {
       headers: { cookie, "x-libellum-book": bookId },
       payload: { previewId: preview.previewId, rows, acknowledgeWarnings: false },
     });
-    expect(response.statusCode).toBe(400);
-    expect(response.json()).toMatchObject({ code: "immutable_field" });
-    expect(await prisma.transaction.count({ where: { bookId } })).toBe(0);
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, importedCount: 1 });
+    const saved = await prisma.transaction.findFirstOrThrow({ where: { bookId } });
+    expect(saved.amountCents).toBe(10001n);
+    expect(saved.currency).toBe("USD");
+    expect(saved.occurredAt.toISOString()).toBe("2026-10-05T13:12:00.000Z");
+    expect(saved.occurredLocalDate.toISOString().slice(0, 10)).toBe("2026-10-05");
+    expect(saved.occurredTz).toBe("America/New_York");
+  });
+
+  it("V2 三接口缺少目标账本头时拒绝，不回退到最早账本", async () => {
+    const app = makeApp();
+    const { cookie } = await owner(app, "bill_no_target");
+    for (const action of ["preview", "recheck", "commit"]) {
+      const response = await app.inject({ method: "POST", url: "/api/v1/import/" + action, headers: { cookie }, payload: {} });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ code: "missing_target_book" });
+    }
+  });
+
+  it("自有导出导入另一账本生成新主键，重复流水两行只导入一笔", async () => {
+    const app = makeApp();
+    const a = await owner(app, "bill_source_id_a");
+    const b = await owner(app, "bill_source_id_b");
+    const first = await previewFile(app, a.cookie, a.bookId, { filename: "a.csv", contentType: "text/csv", content: Buffer.from(LIBEVRA_CSV) });
+    const saved = await app.inject({ method: "POST", url: "/api/v1/import/commit",
+      headers: { cookie: a.cookie, "x-libellum-book": a.bookId },
+      payload: { previewId: first.previewId, rows: commitRows(first), acknowledgeWarnings: false } });
+    expect(saved.json()).toMatchObject({ ok: true, importedCount: 1 });
+    const source = await prisma.transaction.findFirstOrThrow({ where: { bookId: a.bookId } });
+    const csv = ["日期,金额,币种,类型,流水编号",
+      `2026-10-01,12.34,CNY,支出,${source.id}`,
+      `2026-10-01,12.34,CNY,支出,${source.id}`].join("\n");
+    const preview = await previewFile(app, b.cookie, b.bookId, { filename: "b.csv", contentType: "text/csv", content: Buffer.from(csv) });
+    expect(new Set(preview.candidates.map((row) => row.id)).size).toBe(2);
+    expect(preview.candidates.every((row) => row.id !== source.id)).toBe(true);
+    const response = await app.inject({ method: "POST", url: "/api/v1/import/commit",
+      headers: { cookie: b.cookie, "x-libellum-book": b.bookId },
+      payload: { previewId: preview.previewId, rows: commitRows(preview), acknowledgeWarnings: false } });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, importedCount: 1, skippedCount: 1 });
+    expect(await prisma.transaction.count({ where: { bookId: b.bookId } })).toBe(1);
   });
 
   it("returns row errors and writes nothing when a selected row is still invalid", async () => {

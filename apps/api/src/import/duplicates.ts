@@ -1,357 +1,152 @@
-import {
-  decimalsFor,
-  evaluateDuplicateCandidates,
-  parseAmountToMinor,
-  type BillImportCandidate,
-  type DuplicateCandidateFields,
-  type DuplicateDetectionSettings,
-} from "@libellum/shared";
-
+import { decimalsFor, evaluateDuplicatePair, parseAmountToMinor,
+  type BillImportCandidate, type DuplicateCandidateFields, type DuplicateDetectionSettings } from "@libellum/shared";
 import type { PrismaClient } from "../db.js";
 import { dateTimeToInstant, formatAmountText } from "./common.js";
 
-/** Prisma `in` 列表过长会撑爆参数上限，按块查询。 */
-const REF_CHUNK_SIZE = 500;
-/** SQL 粗筛上限；超出时只比对最近的一部分并明确提示，不假装覆盖全量。 */
-const MAX_EXISTING_SCAN = 5_000;
-const MAX_DUPLICATE_IDS = 10;
-
-interface ExistingRefRow {
-  readonly id: string;
-  readonly seq: number;
-  readonly occurredLocalDate: Date;
-  readonly deletedAt: Date | null;
-}
-
-interface ExistingTransactionRow extends ExistingRefRow {
-  readonly kind: "expense" | "income";
-  readonly amountCents: bigint;
-  readonly currency: string;
-  readonly occurredAt: Date;
-  readonly categoryId: string;
-  readonly paymentMethodId: string | null;
-}
-
+const CHUNK = 500;
+const MAX_EXISTING_SCAN = 5000;
+const MAX_COMPARISONS = 250000;
 export interface DuplicateDetectionInput {
-  readonly prisma: PrismaClient;
-  readonly bookId: string;
-  readonly candidates: BillImportCandidate[];
-  readonly settings: DuplicateDetectionSettings;
-  /** 请求级时区，用于候选没带时区或时区无效时兜底。 */
-  readonly timezone: string;
-  /**
-   * 是否把候选 id 当作可能已存在的交易 id 查询（只有 Libevra 导出会复用流水编号）。
-   * 其他格式的候选 id 是随机 uuid，查了只会白跑几十次 SQL。
-   */
-  readonly checkCandidateIds?: boolean;
+  readonly prisma: PrismaClient; readonly bookId: string;
+  readonly candidates: BillImportCandidate[]; readonly settings: DuplicateDetectionSettings;
+  readonly timezone: string; readonly checkCandidateIds?: boolean;
 }
-
-export interface DuplicateDetectionResult {
-  readonly candidates: BillImportCandidate[];
-  readonly warnings: string[];
+export interface DuplicateDetectionResult { readonly candidates: BillImportCandidate[]; readonly warnings: string[] }
+function add(candidate: BillImportCandidate, id: string, message: string): void {
+  if (candidate.duplicateIds.length >= 10 || candidate.duplicateIds.includes(id)) return;
+  candidate.duplicateIds.push(id);
+  if (candidate.warnings.filter((s) => s.includes("疑似重复")).length < 2) candidate.warnings.push(message);
 }
-
-function cloneCandidate(candidate: BillImportCandidate): BillImportCandidate {
-  return {
-    ...candidate,
-    warnings: [...candidate.warnings],
-    duplicateIds: [...candidate.duplicateIds],
-  };
+function identity(candidate: BillImportCandidate, message: string): void {
+  candidate.identityDuplicate = true; candidate.selected = false; candidate.warnings.push(message);
 }
-
-function isoDate(value: Date): string {
-  return value.toISOString().slice(0, 10);
+function iso(date: Date): string { return date.toISOString().slice(0, 10); }
+function shift(date: string, days: number): Date {
+  const value = new Date(date + "T00:00:00Z"); value.setUTCDate(value.getUTCDate() + days); return value;
 }
-
-function shiftIsoDate(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function shortRef(ref: string): string {
-  return ref.length <= 28 ? ref : `${ref.slice(0, 25)}…`;
-}
-
-function markIdentityDuplicate(candidate: BillImportCandidate, warning: string): void {
-  candidate.identityDuplicate = true;
-  candidate.selected = false;
-  if (!candidate.warnings.includes(warning)) candidate.warnings.push(warning);
-}
-
-function addDuplicate(
-  candidate: BillImportCandidate,
-  duplicateId: string,
-  warning: string,
-): void {
-  if (candidate.duplicateIds.length >= MAX_DUPLICATE_IDS) return;
-  if (!candidate.duplicateIds.includes(duplicateId)) {
-    candidate.duplicateIds.push(duplicateId);
-  }
-  // 每个候选最多两条重复提示，避免 20 个同额交易把 warnings 撑爆。
-  const duplicateWarnings = candidate.warnings.filter((item) => item.includes("疑似重复"));
-  if (duplicateWarnings.length < 2 && !candidate.warnings.includes(warning)) {
-    candidate.warnings.push(warning);
-  }
-}
-
-async function findExistingRefs(
-  prisma: PrismaClient,
-  bookId: string,
-  refs: readonly string[],
-): Promise<Map<string, ExistingRefRow>> {
-  const found = new Map<string, ExistingRefRow>();
-  for (let index = 0; index < refs.length; index += REF_CHUNK_SIZE) {
-    const chunk = refs.slice(index, index + REF_CHUNK_SIZE);
-    const rows = await prisma.transaction.findMany({
-      where: {
-        bookId,
-        sourceNamespace: "",
-        sourceRef: { in: chunk },
-      },
-      select: {
-        id: true,
-        seq: true,
-        sourceRef: true,
-        occurredLocalDate: true,
-        deletedAt: true,
-      },
-    });
-    for (const row of rows) {
-      if (row.sourceRef === null) continue;
-      found.set(row.sourceRef, row);
-    }
-  }
-  return found;
-}
-
-/**
- * 统一重复检测（预览与重新核对共用）。
- *
- * 分两层，语义不同：
- * - 身份重复：同一个 `sourceNamespace+sourceRef` 已存在（或文件内重复），提交时会被跳过，
- *   所以直接取消勾选并标 `identityDuplicate`；
- * - 内容重复：金额/方向/币种/时间相近，只是“疑似”，保留勾选，交给用户判断。
- *
- * E3 的“不重复”关系只能抑制两笔**已存在**交易之间的配对；新候选在提交前没有数据库 id，
- * 无法映射到关系表，这一点在实现报告里作为已知限制说明，不假装已覆盖。
- */
-export async function detectDuplicates(
-  input: DuplicateDetectionInput,
-): Promise<DuplicateDetectionResult> {
-  const candidates = input.candidates.map(cloneCandidate);
+/** 身份去重独立于设置；只比较候选-候选/候选-历史，绝不比较历史-历史。 */
+export async function detectDuplicates(input: DuplicateDetectionInput): Promise<DuplicateDetectionResult> {
+  const candidates = input.candidates.map((candidate) => ({
+    ...candidate, duplicateIds: [] as string[],
+    identityDuplicate: candidate.warnings.some((warning) => warning.startsWith("文件指纹与已有导入记录")),
+    warnings: candidate.warnings.filter((warning) => !/疑似重复|这一笔会被跳过|来源单号.*已.*占用/.test(warning)),
+  }));
   const warnings: string[] = [];
-
-  // 1) 文件内部同一来源单号只保留一笔（优先保留已勾选的那笔）。
   const groups = new Map<string, BillImportCandidate[]>();
-  for (const candidate of candidates) {
-    if (candidate.sourceRef === null || candidate.sourceRef === "") continue;
-    const group = groups.get(candidate.sourceRef);
-    if (group === undefined) groups.set(candidate.sourceRef, [candidate]);
-    else group.push(candidate);
+  for (const candidate of candidates) for (const key of [
+    candidate.sourceRef ? "ref:" + candidate.sourceRef : null,
+    candidate.sourceTransactionId ? "id:" + candidate.sourceTransactionId : null,
+  ]) {
+    if (!key) continue;
+    const group = groups.get(key) ?? []; group.push(candidate); groups.set(key, group);
   }
   for (const group of groups.values()) {
     if (group.length < 2) continue;
-    const owner = group.find((candidate) => candidate.selected) ?? group[0];
-    if (owner === undefined) continue;
-    for (const candidate of group) {
-      if (candidate === owner) continue;
-      markIdentityDuplicate(
-        candidate,
-        `文件内第 ${owner.line} 行使用了相同的来源单号，这一笔会被跳过。`,
-      );
-    }
+    const owner = group.find((candidate) => candidate.selected && !candidate.identityDuplicate) ?? group[0]!;
+    for (const candidate of group) if (candidate !== owner && !candidate.identityDuplicate)
+      identity(candidate, `文件内第 ${owner.line} 行使用了相同的来源身份，这一笔会被跳过。`);
   }
-
-  // 2) 与账本已有交易的身份比对：业务上的“防重复写入”靠这一层。
-  const refs = candidates
-    .map((candidate) => candidate.sourceRef)
-    .filter((ref): ref is string => ref !== null && ref !== "");
-  if (refs.length > 0) {
-    const existingRefs = await findExistingRefs(input.prisma, input.bookId, refs);
+  const refs = [...new Set(candidates.flatMap((candidate) => candidate.sourceRef ? [candidate.sourceRef] : []))];
+  for (let i = 0; i < refs.length; i += CHUNK) {
+    const existing = await input.prisma.transaction.findMany({
+      where: { bookId: input.bookId, sourceNamespace: "", sourceRef: { in: refs.slice(i, i + CHUNK) } },
+      select: { id: true, sourceRef: true, seq: true, occurredLocalDate: true, deletedAt: true },
+    });
+    const byRef = new Map(existing.map((row) => [row.sourceRef, row]));
     for (const candidate of candidates) {
-      if (candidate.sourceRef === null) continue;
-      const existing = existingRefs.get(candidate.sourceRef);
-      if (existing === undefined) continue;
-      if (existing.deletedAt !== null) {
-        markIdentityDuplicate(
-          candidate,
-          `来源单号「${shortRef(candidate.sourceRef)}」已被一笔已删除的交易占用，无法再次导入。`,
-        );
-      } else {
-        markIdentityDuplicate(
-          candidate,
-          `来源单号「${shortRef(candidate.sourceRef)}」已存在（交易 #${existing.seq}，${isoDate(existing.occurredLocalDate)}），这一笔会被跳过。`,
-        );
-      }
+      const row = byRef.get(candidate.sourceRef);
+      if (row && !candidate.identityDuplicate)
+        identity(candidate, `来源单号已存在（交易 #${row.seq}，${iso(row.occurredLocalDate)}${row.deletedAt ? "，已删除" : ""}），这一笔会被跳过。`);
     }
   }
-
-  // 2b) Libevra 导出把交易 id 写进「流水编号」，适配器会把它复用为候选 id。
-  // 旧 /import 靠 id 命中跳过已入账行；这里同样把这类候选标成身份重复。
-  const candidateIds = [...new Set(candidates.map((candidate) => candidate.id))];
-  if (input.checkCandidateIds === true && candidateIds.length > 0) {
-    for (let index = 0; index < candidateIds.length; index += REF_CHUNK_SIZE) {
-      const chunk = candidateIds.slice(index, index + REF_CHUNK_SIZE);
-      const existingById = await input.prisma.transaction.findMany({
-        where: { bookId: input.bookId, id: { in: chunk } },
-        select: { id: true, seq: true, occurredLocalDate: true, deletedAt: true },
-      });
-      const byId = new Map(existingById.map((row) => [row.id, row]));
-      for (const candidate of candidates) {
-        const existing = byId.get(candidate.id);
-        if (existing === undefined || candidate.identityDuplicate) continue;
-        markIdentityDuplicate(
-          candidate,
-          `流水编号对应的交易 #${existing.seq}（${isoDate(existing.occurredLocalDate)}）已在本账本中，这一笔会被跳过。`,
-        );
-      }
+  const sourceIds = [...new Set(candidates.flatMap((candidate) => candidate.sourceTransactionId ? [candidate.sourceTransactionId] : []))];
+  if (input.checkCandidateIds) for (let i = 0; i < sourceIds.length; i += CHUNK) {
+    const existing = await input.prisma.transaction.findMany({
+      where: { bookId: input.bookId, id: { in: sourceIds.slice(i, i + CHUNK) } },
+      select: { id: true, seq: true },
+    });
+    const byId = new Map(existing.map((row) => [row.id, row]));
+    for (const candidate of candidates) {
+      const row = candidate.sourceTransactionId ? byId.get(candidate.sourceTransactionId) : undefined;
+      if (row && !candidate.identityDuplicate)
+        identity(candidate, `流水编号对应的交易 #${row.seq} 已在本账本中，这一笔会被跳过。`);
     }
   }
-
-  // 3) 内容重复：只对将要导入（已勾选、方向明确）的候选做，避免给排除行刷噪音。
-  if (input.settings.enabled) {
-    const compared = candidates.filter(
-      (candidate) =>
-        candidate.selected &&
-        !candidate.identityDuplicate &&
-        candidate.kind !== "unknown" &&
-        candidate.date.length === 10,
-    );
-
-    const amounts = new Map<string, number>();
+  const settings = input.settings;
+  if (settings.enabled) {
+    const compared = candidates.filter((candidate) => candidate.selected && !candidate.identityDuplicate);
+    const fields: DuplicateCandidateFields[] = [];
+    const tags = settings.matchTags ? await input.prisma.tag.findMany({
+      where: { bookId: input.bookId }, select: { id: true, name: true },
+    }) : [];
+    const tagIds = new Map(tags.map((tag) => [tag.name, tag.id]));
     for (const candidate of compared) {
+      let amountCents: number;
+      let occurredAt: string | null = null;
+      try { amountCents = parseAmountToMinor(candidate.amount, decimalsFor(candidate.currency)); } catch { continue; }
       try {
-        const amountCents = parseAmountToMinor(candidate.amount, decimalsFor(candidate.currency));
-        if (Number.isSafeInteger(amountCents)) amounts.set(candidate.id, amountCents);
-      } catch {
-        // 金额读不出的候选在提交阶段会报错，这里不参与内容判重。
-      }
+        const instant = dateTimeToInstant(candidate.date, candidate.time, candidate.timezone);
+        if (candidate.time !== null) occurredAt = instant;
+      } catch { continue; }
+      fields.push({
+        id: candidate.id, bookId: input.bookId, kind: candidate.kind, amountCents, currency: candidate.currency,
+        occurredAt, occurredAtPrecision: candidate.timePrecision, occurredLocalDate: candidate.date,
+        categoryId: candidate.categoryId, paymentMethodId: candidate.paymentMethodId,
+        merchant: candidate.merchant, note: candidate.note,
+        tagIds: candidate.tags.map((name) => tagIds.get(name) ?? `new:${input.bookId}:${name}`),
+      });
     }
-    const comparable = compared.filter((candidate) => amounts.has(candidate.id));
-
-    if (comparable.length > 0) {
-      const dates = comparable.map((candidate) => candidate.date).sort();
-      const first = dates[0];
-      const last = dates[dates.length - 1];
-      if (first !== undefined && last !== undefined) {
-        const windowDays = Math.ceil(input.settings.timeWindowSeconds / 86_400) + 1;
-        const currencies = [...new Set(comparable.map((candidate) => candidate.currency))];
-        const existing = await input.prisma.transaction.findMany({
-          where: {
-            bookId: input.bookId,
-            deletedAt: null,
-            kind: { in: ["expense", "income"] },
-            currency: { in: currencies },
-            occurredLocalDate: {
-              gte: new Date(`${shiftIsoDate(first, -windowDays)}T00:00:00.000Z`),
-              lte: new Date(`${shiftIsoDate(last, windowDays)}T00:00:00.000Z`),
-            },
-          },
-          select: {
-            id: true,
-            seq: true,
-            kind: true,
-            amountCents: true,
-            currency: true,
-            occurredAt: true,
-            occurredLocalDate: true,
-            categoryId: true,
-            paymentMethodId: true,
-            deletedAt: true,
-          },
-          take: MAX_EXISTING_SCAN,
-        });
-        if (existing.length === MAX_EXISTING_SCAN) {
-          warnings.push(
-            `时间范围内账本交易超过 ${MAX_EXISTING_SCAN} 笔，重复检测只比对了其中一部分。`,
-          );
-        }
-
-        const fields: DuplicateCandidateFields[] = [];
-        for (const candidate of comparable) {
-          const amountCents = amounts.get(candidate.id);
-          if (amountCents === undefined) continue;
-          let occurredAt: string | null = null;
-          if (candidate.timePrecision !== "day" && candidate.time !== null) {
-            try {
-              occurredAt = dateTimeToInstant(
-                candidate.date,
-                candidate.time,
-                candidate.timezone === "" ? input.timezone : candidate.timezone,
-              );
-            } catch {
-              occurredAt = null;
-            }
+    if (fields.length) {
+      const dates = fields.map((field) => field.occurredLocalDate).filter((value): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+      const days = Math.ceil(settings.timeWindowSeconds / 86400) + 2;
+      const existing = await input.prisma.transaction.findMany({
+        where: {
+          bookId: input.bookId, deletedAt: null,
+          ...(settings.matchAmount === false ? {} : { amountCents: { in: [...new Set(fields.map((field) => BigInt(field.amountCents!)))] } }),
+          ...(settings.matchKind === false ? {} : { kind: { in: compared.flatMap((candidate) => candidate.kind === "unknown" ? [] : [candidate.kind]) } }),
+          ...(settings.matchCurrency === false ? {} : { currency: { in: [...new Set(compared.map((field) => field.currency))] } }),
+          ...(settings.matchTime === false || !dates.length ? {} : { occurredLocalDate: {
+            gte: shift(dates[0]!, -days), lte: shift(dates[dates.length - 1]!, days),
+          } }),
+        },
+        select: { id: true, seq: true, kind: true, amountCents: true, currency: true, occurredAt: true,
+          occurredLocalDate: true, categoryId: true, paymentMethodId: true, note: true,
+          tags: { select: { tagId: true } } },
+        orderBy: [{ occurredAt: "desc" }, { id: "asc" }], take: MAX_EXISTING_SCAN + 1,
+      });
+      if (existing.length > MAX_EXISTING_SCAN) warnings.push(`匹配范围超过 ${MAX_EXISTING_SCAN} 笔，历史重复检测仅覆盖最近部分记录。`);
+      const history = existing.slice(0, MAX_EXISTING_SCAN).map((row): DuplicateCandidateFields => ({
+        id: row.id, bookId: input.bookId, kind: row.kind, amountCents: Number(row.amountCents), currency: row.currency,
+        occurredAt: row.occurredAt.toISOString(), occurredAtPrecision: "second", occurredLocalDate: iso(row.occurredLocalDate),
+        categoryId: row.categoryId, paymentMethodId: row.paymentMethodId, note: row.note, merchant: null,
+        tagIds: row.tags.map((tag) => tag.tagId),
+      }));
+      const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+      const historyById = new Map(existing.map((row) => [row.id, row]));
+      let checks = 0;
+      outer: for (let i = 0; i < fields.length; i++) {
+        const left = fields[i]!;
+        for (const right of [...fields.slice(i + 1), ...history]) {
+          if (++checks > MAX_COMPARISONS) {
+            warnings.push("候选配对数量较大，本次重复检测未覆盖所有组合；请缩小文件范围后继续核对。"); break outer;
           }
-          fields.push({
-            id: candidate.id,
-            bookId: input.bookId,
-            kind: candidate.kind === "income" ? "income" : "expense",
-            amountCents,
-            currency: candidate.currency,
-            occurredAt,
-            ...(candidate.timePrecision === "day"
-              ? {}
-              : { occurredAtPrecision: candidate.timePrecision }),
-            occurredLocalDate: candidate.date,
-            categoryId: candidate.categoryId,
-            paymentMethodId: candidate.paymentMethodId,
-          });
-        }
-        for (const row of existing) {
-          fields.push({
-            id: row.id,
-            bookId: input.bookId,
-            kind: row.kind,
-            amountCents: Number(row.amountCents),
-            currency: row.currency,
-            occurredAt: row.occurredAt.toISOString(),
-            occurredAtPrecision: "second",
-            occurredLocalDate: isoDate(row.occurredLocalDate),
-            categoryId: row.categoryId,
-            paymentMethodId: row.paymentMethodId,
-          });
-        }
-
-        const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-        const existingById = new Map(existing.map((row) => [row.id, row]));
-        const batch = evaluateDuplicateCandidates(fields, input.settings);
-        for (const pair of batch.pairs) {
-          if (!pair.matched || pair.suppressed) continue;
-          const left = byId.get(pair.leftId);
-          const right = byId.get(pair.rightId);
-          if (left !== undefined && right !== undefined) {
-            addDuplicate(left, right.id, `与文件内第 ${right.line} 行疑似重复，请核对。`);
-            addDuplicate(right, left.id, `与文件内第 ${left.line} 行疑似重复，请核对。`);
-            continue;
-          }
-          if (left !== undefined || right !== undefined) {
-            const candidate = left ?? right;
-            const existingRow = existingById.get(left !== undefined ? pair.rightId : pair.leftId);
-            if (candidate !== undefined && existingRow !== undefined) {
-              addDuplicate(
-                candidate,
-                existingRow.id,
-                `与账本已有交易 #${existingRow.seq}（${isoDate(existingRow.occurredLocalDate)} ${formatAmountText(Number(existingRow.amountCents), existingRow.currency)} ${existingRow.currency}）疑似重复，请核对。`,
-              );
-            }
+          if (!evaluateDuplicatePair(left, right, settings).matched) continue;
+          const candidate = byId.get(left.id)!;
+          const other = byId.get(right.id);
+          if (other) {
+            add(candidate, other.id, `与文件内第 ${other.line} 行疑似重复，请核对。`);
+            add(other, candidate.id, `与文件内第 ${candidate.line} 行疑似重复，请核对。`);
+          } else {
+            const row = historyById.get(right.id)!;
+            add(candidate, row.id, `与账本已有交易 #${row.seq}（${iso(row.occurredLocalDate)} ${formatAmountText(Number(row.amountCents), row.currency)} ${row.currency}）疑似重复，请核对。`);
           }
         }
       }
     }
   }
-
   const identityCount = candidates.filter((candidate) => candidate.identityDuplicate).length;
-  if (identityCount > 0) {
-    warnings.push(`有 ${identityCount} 笔交易的来源单号已存在，导入时会跳过，不会重复写入。`);
-  }
-  const duplicateCount = candidates.filter((candidate) => candidate.duplicateIds.length > 0).length;
-  if (duplicateCount > 0) {
-    warnings.push(
-      `有 ${duplicateCount} 笔交易与账本已有记录或文件内其他行疑似重复，已标出但没有取消勾选。`,
-    );
-  }
-
+  if (identityCount) warnings.push(`有 ${identityCount} 笔交易的来源身份已存在，导入时会跳过，不会重复写入。`);
+  const count = candidates.filter((candidate) => candidate.duplicateIds.length).length;
+  if (count) warnings.push(`有 ${count} 笔交易疑似重复，已标出但没有取消勾选。`);
   return { candidates, warnings };
 }

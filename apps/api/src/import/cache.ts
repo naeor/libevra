@@ -20,7 +20,9 @@ export interface PreviewRecord {
   readonly format: BillImportPreview["format"];
   /** 重新核对会更新候选（编辑字段/重复标记），提交以最后一次核对结果为准。 */
   candidates: BillImportCandidate[];
-  readonly warnings: string[];
+  warnings: string[];
+  originalCandidates?: BillImportCandidate[];
+  originalWarnings?: string[];
   readonly reconciliation: BillImportPreview["reconciliation"];
   /** 提交成功后的报告；同一预览重复提交直接复用，保证幂等。 */
   committed: ImportReport | null;
