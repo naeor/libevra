@@ -1,13 +1,23 @@
 import { useMemo, useState } from "react";
-import { UNCATEGORISED_NAME, decimalsFor, type Transaction } from "@libellum/shared";
+import {
+  DUPLICATE_SCOPE_LABELS,
+  UNCATEGORISED_NAME,
+  decimalsFor,
+  describeDuplicateMatch,
+  type CreateTransactionInput,
+  type DuplicatePairResult,
+  type Transaction,
+} from "@libellum/shared";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { EntrySaved } from "../components/EntrySaved.js";
 import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
 import { InnerPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
+import { currentBookId } from "../lib/currentBook.js";
 import {
   currentMonth,
   localTimeZone,
@@ -15,7 +25,9 @@ import {
   toLocalIso,
 } from "../lib/datetime.js";
 import { currencyName, formatMoney, parseAmountInput } from "../lib/format.js";
+import { createNotDuplicateRelations, notDuplicateConfirmationForEntry } from "../lib/notDuplicateRelations.js";
 import {
+  useCheckDuplicates,
   useCreateTransaction,
   useDeleteTransaction,
   useLedger,
@@ -65,6 +77,19 @@ export function VoiceReviewPage(): React.JSX.Element {
   const [saved, setSaved] = useState<Transaction | null>(null);
   const [undone, setUndone] = useState<Transaction | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * 语音记账同样只给**轻提醒**（S15-E4）：一句话问，不上分组核对页。
+   * 规则、设置和文案都来自统一核心，与手动/拍照完全一致。
+   */
+  const checkDuplicates = useCheckDuplicates();
+  const duplicateSettings = useDuplicateDetectionSettings();
+  const [pendingDuplicate, setPendingDuplicate] = useState<{
+    readonly input: CreateTransactionInput;
+    readonly existing: readonly Transaction[];
+    readonly pairs: readonly DuplicatePairResult[];
+    readonly scope: "server" | "local";
+  } | null>(null);
 
   const categories = ledger.data?.categories ?? [];
   const paymentMethods = ledger.data?.paymentMethods ?? [];
@@ -116,6 +141,36 @@ export function VoiceReviewPage(): React.JSX.Element {
     }),
     [spoken, categoryId],
   );
+
+  /**
+   * 写入 + 记录「不是同一笔」。
+   *
+   * 「仍然保存」传空数组：用户保留两笔相似账目，并不等于他确认这两笔不是同一笔。
+   */
+  async function write(
+    input: CreateTransactionInput,
+    notDuplicateWith: readonly string[] = [],
+  ): Promise<void> {
+    try {
+      const entry = await createEntry.mutateAsync(input);
+      setSaved(entry);
+      setPendingDuplicate(null);
+
+      if (notDuplicateWith.length > 0) {
+        try {
+          const bookId = ledger.data?.book.id ?? currentBookId();
+          if (bookId === null) throw new Error("找不到当前账本，无法记录「不是同一笔」。");
+          const confirmation = notDuplicateConfirmationForEntry(notDuplicateWith, entry.id);
+          if (confirmation === null) throw new Error("没有可记录的交易对。");
+          await createNotDuplicateRelations(bookId, confirmation);
+        } catch (caught) {
+          setError(`这笔账已保存，但「不是同一笔」没有记住：${errorMessage(caught)}`);
+        }
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
 
   /**
    * Nothing to confirm.
@@ -233,9 +288,9 @@ export function VoiceReviewPage(): React.JSX.Element {
         remaining={1}
         categories={categories}
         paymentMethods={paymentMethods}
-        busy={createEntry.isPending}
+        busy={createEntry.isPending || checkDuplicates.isPending || pendingDuplicate !== null}
         onManual={() => void navigate("/add")}
-        onSave={(edited) => {
+        onSave={async (edited) => {
           setError(null);
 
           /**
@@ -269,6 +324,16 @@ export function VoiceReviewPage(): React.JSX.Element {
           );
 
           /**
+           * ⚠️ **时间字段留空时，检测按“只有日期”处理。**
+           *
+           * 保存的 `occurredAt` 仍然是 12:00（既有行为，不改写入），但判重不能拿这个 12:00
+           * 当真：语音从不提供时刻，用它去和 12:00 附近的历史记录比“相差 60 秒”，
+           * 等于凭空造出一个时间。所以检测传 `occurredAt: null` + 空 `occurredTime`，
+           * 核心只会给出“同一天”的弱依据，并明确标注时间信息不足。
+           */
+          const timeKnown = edited.time !== "";
+
+          /**
            * `uuidV7()`, not `crypto.randomUUID()`: the latter is a
            * secure-context API and is undefined over plain `http://`, which
            * is how a phone on the LAN used to reach this app.
@@ -278,32 +343,101 @@ export function VoiceReviewPage(): React.JSX.Element {
            * `idempotency_key` de-duplication into a no-op on this path.
            */
           const id = uuidV7();
+          /** 类型标注而不是 `as const`：`CreateTransactionInput` 的 `tagIds` 是可变的 `string[]`。 */
+          const input: CreateTransactionInput = {
+            id,
+            idempotencyKey: id,
+            kind: edited.kind,
+            amountCents,
+            currency: edited.currency,
+            categoryId: edited.categoryId,
+            paymentMethodId: edited.paymentMethodId,
+            occurredAt: toLocalIso(occurredAt),
+            occurredLocalDate: toLocalDate(occurredAt),
+            occurredTz: localTimeZone(),
+            note: edited.note.trim() === "" ? null : edited.note.trim(),
+            tagIds: [],
+          };
 
-          void createEntry
-            .mutateAsync({
-              id,
-              idempotencyKey: id,
+          try {
+            const found = await checkDuplicates.mutateAsync({
               kind: edited.kind,
               amountCents,
               currency: edited.currency,
+              occurredAt: timeKnown ? input.occurredAt : undefined,
+              occurredLocalDate: input.occurredLocalDate,
+              /** 空字符串 = 没有记录时刻；核心据此按 day 精度给出弱依据。 */
+              occurredTime: timeKnown ? edited.time : "",
               categoryId: edited.categoryId,
               paymentMethodId: edited.paymentMethodId,
-              occurredAt: toLocalIso(occurredAt),
-              occurredLocalDate: toLocalDate(occurredAt),
-              occurredTz: localTimeZone(),
-              note: edited.note.trim() === "" ? null : edited.note.trim(),
-              tagIds: [],
-            })
-            .then((entry) => {
-              setSaved(entry);
-            })
-            .catch((caught: unknown) => {
-              setError(errorMessage(caught));
+              note: input.note ?? undefined,
+              tagIds: input.tagIds,
+              settings: duplicateSettings.settings,
             });
+            if (found.history.length > 0) {
+              setPendingDuplicate({
+                input,
+                existing: found.history,
+                pairs: found.pairs,
+                scope: found.scope,
+              });
+              return;
+            }
+          } catch {
+            // 检测失败不阻止保存：提醒是礼貌，不是关卡。
+          }
+
+          await write(input);
+        }}
+      />
+
+      <ChoiceDialog
+        open={pendingDuplicate !== null}
+        title="这笔账好像已经记过了"
+        description={pendingDuplicate === null ? "" : voiceDuplicateDescription(pendingDuplicate)}
+        choices={MANUAL_DUPLICATE_CHOICES}
+        onChoose={(choice) => {
+          const pending = pendingDuplicate;
+          setPendingDuplicate(null);
+          if (pending === null) return;
+          if (choice === "save") {
+            void write(pending.input);
+            return;
+          }
+          if (choice === "confirmNotDuplicate") {
+            void write(pending.input, pending.existing.map((entry) => entry.id));
+            return;
+          }
+          // "cancel": 表单还在，用户可以继续改。
         }}
       />
     </InnerPage>
   );
+}
+
+/**
+ * 语音记账的轻提醒选项：与手动记账完全一致。
+ *
+ * ⚠️ **没有「删掉旧的，保存这笔」**：语音核对页的撤销路径是“保存后撤销”，而不是在保存前
+ * 删除历史账目；两种删除语义混在一个对话框里，用户很难分清删的是哪一笔。
+ */
+const MANUAL_DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "cancel">[] = [
+  { id: "save", label: "仍然保存", hint: "两笔都留下（也许是两次一样的消费）", primary: true },
+  { id: "confirmNotDuplicate", label: "确认不是同一笔", hint: "两笔都留，并记住这一对：以后不再提示" },
+  { id: "cancel", label: "取消，我再看看", dismissive: true },
+];
+
+/** 提醒正文：依据来自实际命中的规则，并说明本次比对了哪份数据。 */
+function voiceDuplicateDescription(pending: {
+  readonly existing: readonly Transaction[];
+  readonly pairs: readonly DuplicatePairResult[];
+  readonly scope: "server" | "local";
+}): string {
+  const first = pending.pairs[0];
+  const basis = first === undefined ? "金额、收支方向和时间与已有账目相符。" : describeDuplicateMatch(first);
+  const count = pending.existing.length > 1 ? `共找到 ${String(pending.existing.length)} 笔相似记录。` : "";
+  const scopeNote = pending.scope === "local" ? `本次只比对了${DUPLICATE_SCOPE_LABELS.local}。` : "";
+  return `${basis}${count}${scopeNote}`;
 }
 
 /**
@@ -318,3 +452,4 @@ const UNDONE_CHOICES: readonly Choice<"restore" | "dismiss">[] = [
   { id: "restore", label: "重新记上", hint: "我刚才点错了", primary: true },
   { id: "dismiss", label: "知道了", dismissive: true },
 ];
+

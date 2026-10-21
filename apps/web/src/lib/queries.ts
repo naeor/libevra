@@ -1,4 +1,4 @@
-import { checkNewCandidates, duplicateBookId } from "./duplicateReview.js";
+import { checkNewCandidates, duplicateBookId, type NewCandidatesResult } from "./duplicateReview.js";
 import { DEFAULT_DUPLICATE_DETECTION_SETTINGS } from "@libellum/shared";
 import {
   type ClassificationDeleteResponse,
@@ -1733,19 +1733,21 @@ export function useDeleteTransaction(): UseMutationResult<unknown, Error, string
  * end up in browser history, in access logs, and in any proxy in between.
  */
 export function useCheckDuplicates(): UseMutationResult<
-  Transaction[],
+  NewCandidatesResult,
   Error,
   DuplicateCheckInput
 > {
   return useMutation({ mutationFn: async (input: DuplicateCheckInput) => {
     const bookId = duplicateBookId();
-    const result = await checkNewCandidates(bookId, [{ id: "new-draft", bookId, kind: input.kind,
+    /**
+     * ⚠️ **返回整份结果，而不是只挑出历史账目。** 调用方需要 `scope` 才能诚实地说
+     * “只比对了本机已知数据”；也需要 `truncated` 才能在结果不完整时提示。
+     */
+    return checkNewCandidates(bookId, [{ id: "new-draft", bookId, kind: input.kind,
       amountCents: input.amountCents, currency: input.currency, occurredAt: input.occurredAt ?? null,
       occurredAtPrecision: input.occurredAt ? "second" : "day", occurredLocalDate: input.occurredLocalDate,
       categoryId: input.categoryId ?? null, paymentMethodId: input.paymentMethodId ?? null, note: input.note, tagIds: input.tagIds,
     }], input.settings ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS);
-    const ids = new Set(result.pairs.flatMap(p => [p.leftId, p.rightId]));
-    return result.history.filter(e => ids.has(e.id));
   } });
 }
 

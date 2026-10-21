@@ -1,7 +1,11 @@
 import {
+  DUPLICATE_SCOPE_LABELS,
   MAX_TAGS_PER_TRANSACTION,
   decimalsFor,
+  describeDuplicateMatch,
+  type CreateTransactionInput,
   type Currency,
+  type DuplicatePairResult,
   type Transaction,
   type TransactionKind,
 } from "@libellum/shared";
@@ -9,6 +13,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
+import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { EntrySaved } from "../components/EntrySaved.js";
 import { AmountField } from "../components/entry/AmountField.js";
 import { CurrencySheet } from "../components/entry/CurrencySheet.js";
@@ -20,6 +26,7 @@ import { ChevronIcon } from "../components/Icons.js";
 import { InfoIcon } from "../components/InfoHint.js";
 import { TabPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
+import { currentBookId } from "../lib/currentBook.js";
 import {
   fromDateTimeLocalValue,
   localTimeZone,
@@ -28,14 +35,48 @@ import {
   toLocalIso,
 } from "../lib/datetime.js";
 import { currencyName, minorToInput, parseAmountInput } from "../lib/format.js";
+import { createNotDuplicateRelations, notDuplicateConfirmationForEntry } from "../lib/notDuplicateRelations.js";
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
-import { useCreateTransaction, useLedger, useQuickAmounts, useTransactions } from "../lib/queries.js";
+import {
+  useCheckDuplicates,
+  useCreateTransaction,
+  useLedger,
+  useQuickAmounts,
+  useTransactions,
+} from "../lib/queries.js";
 import { uuidV7 } from "../lib/uuid.js";
 
 /** Shown when there is nothing to inherit and nothing named 其他 to fall back on. */
 const UNCATEGORISED_LABEL = "暂无分类";
 const DEFAULT_PAYMENT_METHOD_NAME = "其他";
+
+/**
+ * 手动记账的轻提醒选项。
+ *
+ * 与拍照页的四个选项相比少一个「删掉旧的」：手动记账时用户刚才是**在输入**，不是在核对一张
+ * 识别结果；此刻更常见的意图是“我记错了，回去改”。删除旧账目仍然可以到明细页用现有软删除。
+ */
+export const MANUAL_DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "cancel">[] = [
+  { id: "save", label: "仍然保存", hint: "两笔都留下（也许是两次一样的消费）", primary: true },
+  { id: "confirmNotDuplicate", label: "确认不是同一笔", hint: "两笔都留，并记住这一对：以后不再提示" },
+  { id: "cancel", label: "取消，我再看看", dismissive: true },
+];
+
+/**
+ * 提醒正文。与拍照页共用 `describeDuplicateMatch`，所以“哪些字段相同”永远来自实际命中的规则。
+ */
+export function manualDuplicateDescription(pending: {
+  readonly existing: readonly Transaction[];
+  readonly pairs: readonly DuplicatePairResult[];
+  readonly scope: "server" | "local";
+}): string {
+  const first = pending.pairs[0];
+  const basis = first === undefined ? "金额、收支方向和时间与已有账目相符。" : describeDuplicateMatch(first);
+  const count = pending.existing.length > 1 ? `共找到 ${String(pending.existing.length)} 笔相似记录。` : "";
+  const scopeNote = pending.scope === "local" ? `本次只比对了${DUPLICATE_SCOPE_LABELS.local}。` : "";
+  return `${basis}${count}${scopeNote}`;
+}
 
 /**
  * 「沿用上一笔」的三句失败提示。读者下一步不同，所以不合并成一句：
@@ -75,6 +116,14 @@ export function AddEntryPage(): React.JSX.Element {
   const quickAmounts = useQuickAmounts();
   const recent = useTransactions({});
   const createEntry = useCreateTransaction();
+  /**
+   * 写之前先问一句（S15-E4）：手动记账**轻提醒**，不进入分组核对页。
+   *
+   * ⚠️ 规则与设置全部来自统一核心（`useCheckDuplicates` → `checkNewCandidates`），
+   * 这里只决定“问不问、怎么问”。检测失败不阻止写入——提醒是礼貌，不是关卡。
+   */
+  const checkDuplicates = useCheckDuplicates();
+  const duplicateSettings = useDuplicateDetectionSettings();
   /**
    * ⚠️ **Shared ledger + offline = read-only**, the owner's S13-E rule. The write layer refuses it
    * anyway; this hook is what lets the form say why *before* the user types a whole entry.
@@ -147,6 +196,25 @@ export function AddEntryPage(): React.JSX.Element {
   const [saved, setSaved] = useState<Transaction | null>(null);
   /** Set when the next render should put the cursor back in the amount field. */
   const focusAfterReset = useRef(false);
+
+  /**
+   * 疑似重复时挂起的那一笔：**先不写**，等用户决定。
+   *
+   * ⚠️ 保存的 id 已经在进对话框之前生成并留在 `input` 里，所以「仍然保存」「确认不是同一笔」
+   * 两次选择写的是**同一条记录**（同一个 `id` = `idempotencyKey`），不会因为重试多出一笔。
+   */
+  const [pendingDuplicate, setPendingDuplicate] = useState<{
+    readonly input: CreateTransactionInput;
+    readonly amountCents: number;
+    readonly existing: readonly Transaction[];
+    readonly pairs: readonly DuplicatePairResult[];
+    readonly scope: "server" | "local";
+  } | null>(null);
+  /** 本地写入进行中；与检测中的状态一起锁住保存按钮。 */
+  const [writing, setWriting] = useState(false);
+
+  /** 保存按钮的忙碌态：检测、写入、或正在等待用户回答“像不像”。 */
+  const busy = writing || checkDuplicates.isPending || createEntry.isPending || pendingDuplicate !== null;
 
   /**
    * 同方向的最近记录，只给「沿用上一笔」用。
@@ -300,37 +368,106 @@ export function AddEntryPage(): React.JSX.Element {
      */
     const savedAt = entryMoment(occurredAt, occurredAtTouched, new Date());
 
-    try {
+    /**
+     * ⚠️ **The id and the idempotency key are the same value, minted here — once.**
+     *
+     * That is what lets the entry exist — and be shown — before the server has ever heard of it, and it
+     * is what makes a replayed upload harmless: the server's `idempotency_key` is unique, so the second
+     * delivery finds the row it already made.
+     *
+     * ⚠️ **Minted before the duplicate question, not after.** The dialog may be cancelled and the entry
+     * saved later, or saved twice; both paths must write the **same** entry, so the id cannot be created
+     * inside the write call.
+     */
+    const id = uuidV7();
+    const input = {
+      id,
+      idempotencyKey: id,
+      kind,
+      amountCents,
+      currency,
+      categoryId,
+      paymentMethodId,
       /**
-       * ⚠️ **The id and the idempotency key are the same value, minted here.**
-       *
-       * That is what lets the entry exist — and be shown — before the server has ever heard of it, and it
-       * is what makes a replayed upload harmless: the server's `idempotency_key` is unique, so the second
-       * delivery finds the row it already made.
+       * ⚠️ **The default is "now", the user's own choice is kept — see `savedAt` above.**
        */
-      const id = uuidV7();
-      const input = {
-        id,
-        idempotencyKey: id,
+      occurredAt: toLocalIso(savedAt),
+      occurredLocalDate: toLocalDate(savedAt),
+      occurredTz: localTimeZone(),
+      note: note.trim() === "" ? null : note.trim(),
+      tagIds,
+    } as const;
+
+    /**
+     * 手动记账的**轻提醒**（S15-E4）：像不像，一句话问；不像就直接写。
+     *
+     * ⚠️ 检测失败一律静默放行：拿不到提醒不是丢掉一笔账的理由。数据范围由
+     * `found.scope` 说明——离线时只比对了本机已知记录。
+     */
+    try {
+      const found = await checkDuplicates.mutateAsync({
         kind,
         amountCents,
         currency,
+        occurredAt: input.occurredAt,
+        occurredLocalDate: input.occurredLocalDate,
+        /** `HH:mm`：旧接口的形状；统一核心只认 `occurredAt` 的秒级偏移时间。 */
+        occurredTime: input.occurredAt.slice(11, 16),
         categoryId,
         paymentMethodId,
-        /**
-         * ⚠️ **The default is "now", the user's own choice is kept — see `savedAt` above.**
-         */
-        occurredAt: toLocalIso(savedAt),
-        occurredLocalDate: toLocalDate(savedAt),
-        occurredTz: localTimeZone(),
-        note: note.trim() === "" ? null : note.trim(),
+        note: input.note ?? undefined,
         tagIds,
-      } as const;
+        settings: duplicateSettings.settings,
+      });
 
-      const outcome = await createLocally(
-        input,
-        localEntry(input, ledger.data),
-      );
+      if (found.history.length > 0) {
+        setPendingDuplicate({
+          input,
+          amountCents,
+          existing: found.history,
+          pairs: found.pairs,
+          scope: found.scope,
+        });
+        return;
+      }
+    } catch {
+      // Deliberately silent: see above.
+    }
+
+    await write(input);
+  }
+
+  /**
+   * 真正写入。`notDuplicateWith` 只有在用户选了「确认不是同一笔」时非空，
+   * 「仍然保存」永远传空——保存两笔相似账目是正当操作，不构成“它们不是同一笔”的证据。
+   */
+  async function write(
+    input: CreateTransactionInput,
+    notDuplicateWith: readonly string[] = [],
+  ): Promise<void> {
+    setWriting(true);
+    try {
+      let entry: Transaction;
+      try {
+        const outcome = await createLocally(input, localEntry(input, ledger.data));
+        entry = outcome.entry;
+      } catch (caught) {
+        /**
+         * ⚠️ **Falling back to the local write when the server refuses.**
+         *
+         * A 5xx or a dropped connection is not a reason to lose what the user typed. The write goes to the
+         * device and the queue, and reaches the server when it can — which is the whole point of this round.
+         * The retry uses the **same** `id`/`idempotencyKey`: a new one would create a second entry for the
+         * same money if the first request had in fact reached the server.
+         */
+        try {
+          const outcome = await createLocally(input, localEntry(input, ledger.data));
+          entry = outcome.entry;
+        } catch {
+          setError(errorMessage(caught));
+          return;
+        }
+      }
 
       /**
        * ⚠️ **A locally stored entry is still a saved entry.**
@@ -339,37 +476,26 @@ export function AddEntryPage(): React.JSX.Element {
        * device. The only difference is the marker the ledger puts on the row: **silently reporting a write
        * that has not left the device is how somebody loses spending they believe they recorded.**
        */
-      setSaved(outcome.entry);
-    } catch (caught) {
+      setSaved(entry);
+      setPendingDuplicate(null);
+
       /**
-       * ⚠️ **Falling back to the local write when the server refuses.**
-       *
-       * A 5xx or a dropped connection is not a reason to lose what the user typed. The write goes to the
-       * device and the queue, and reaches the server when it can — which is the whole point of this round.
+       * S15-E3/E4: 「确认不是同一笔」写入关系记忆。放在写入**之后**，因为关系要指向真实存在的
+       * 交易 id；失败也只说“没记住”，绝不说“没保存”。
        */
-      try {
-        const id = uuidV7();
-        const input = {
-          id,
-          idempotencyKey: id,
-          kind,
-          amountCents,
-          currency,
-          categoryId,
-          paymentMethodId,
-          occurredAt: toLocalIso(savedAt),
-          occurredLocalDate: toLocalDate(savedAt),
-          occurredTz: localTimeZone(),
-          note: note.trim() === "" ? null : note.trim(),
-          tagIds,
-        } as const;
-
-        const outcome = await createLocally(input, localEntry(input, ledger.data));
-
-        setSaved(outcome.entry);
-      } catch {
-        setError(errorMessage(caught));
+      if (notDuplicateWith.length > 0) {
+        try {
+          const bookId = ledger.data?.book.id ?? currentBookId();
+          if (bookId === null) throw new Error("找不到当前账本，无法记录「不是同一笔」。");
+          const confirmation = notDuplicateConfirmationForEntry(notDuplicateWith, entry.id);
+          if (confirmation === null) throw new Error("没有可记录的交易对。");
+          await createNotDuplicateRelations(bookId, confirmation);
+        } catch (caught) {
+          setError(`这笔账已保存，但「不是同一笔」没有记住：${errorMessage(caught)}`);
+        }
       }
+    } finally {
+      setWriting(false);
     }
   }
 
@@ -735,13 +861,41 @@ export function AddEntryPage(): React.JSX.Element {
           ) : null}
           <button
             type="submit"
-            disabled={sharedOfflineReadOnly || createEntry.isPending || amountText.trim() === ""}
+            disabled={sharedOfflineReadOnly || busy || amountText.trim() === ""}
             className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
           >
-            {createEntry.isPending ? "保存中…" : "保存"}
+            {busy ? "保存中…" : "保存"}
           </button>
         </EntrySaveBar>
       </form>
+
+      {/*
+        ⚠️ **手动记账的提醒是“一句话”，不是分组核对页。** 手动记账一笔一笔来，用户手上
+        就只有这一笔；把他送进批量界面反而更慢。选项与拍照页一致（仍然保存 / 确认不是同一笔 /
+        取消），因为同一条规则在两个入口必须给出同样的选择。
+
+        「仍然保存」不写关系记忆——两笔相似账目可能真的是两次消费，保存它们不构成“不是同一笔”。
+      */}
+      <ChoiceDialog
+        open={pendingDuplicate !== null}
+        title="这笔账好像已经记过了"
+        description={pendingDuplicate === null ? "" : manualDuplicateDescription(pendingDuplicate)}
+        choices={MANUAL_DUPLICATE_CHOICES}
+        onChoose={(choice) => {
+          const pending = pendingDuplicate;
+          setPendingDuplicate(null);
+          if (pending === null) return;
+          if (choice === "save") {
+            void write(pending.input);
+            return;
+          }
+          if (choice === "confirmNotDuplicate") {
+            void write(pending.input, pending.existing.map((entry) => entry.id));
+            return;
+          }
+          // "cancel": 表单原样留着，用户回到刚才的位置继续改。
+        }}
+      />
     </TabPage>
   );
 }

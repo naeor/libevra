@@ -217,7 +217,7 @@ export function DuplicateDetectionSettingsSection({
     <div className="flex flex-col gap-5">
       <SettingsToggle
         label="重复交易提醒"
-        hint="发现金额与时间相近的记录时提示。只提示，不会自动删除或合并。"
+        hint="按下面的规则在新增时提示；只提示，不会自动删除或合并。"
         checked={settings.enabled}
         onChange={(enabled) => {
           onChange({ enabled });
@@ -336,7 +336,7 @@ export function DuplicateDetectionSettingsSection({
 
       {settings.enabled ? null : (
         <p className="text-helper-relaxed text-muted">
-          提醒已关闭；上面的时间窗口、分类与支付方式设置会保留，重新开启后继续生效。
+          提醒已关闭；上面的规则设置会保留，重新开启后继续生效。
         </p>
       )}
 

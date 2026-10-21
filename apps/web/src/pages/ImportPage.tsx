@@ -1,12 +1,23 @@
 import type { ImportReport } from "@libellum/shared";
+import {
+  describeDuplicateMatch,
+  groupDuplicatePairs,
+  normalizeNotDuplicatePair,
+  type DuplicatePairResult,
+  type Transaction,
+} from "@libellum/shared";
 import { useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { errorMessage } from "../lib/api.js";
+import { duplicateBookId, fetchImportReview } from "../lib/duplicateReview.js";
+import { formatMoney } from "../lib/format.js";
+import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
 import { fetchTemplate, useImportEntries, useLedgerMeta } from "../lib/queries.js";
 import { deliverFile } from "../lib/share.js";
 
@@ -251,6 +262,7 @@ function ImportView({
       {step.name === "report" ? (
         <Report
           report={step.report}
+          bookId={bookId ?? null}
           doneLabel={doneLabel}
           onDone={() => {
             setStep({ name: "choose" });
@@ -301,11 +313,14 @@ function ImportView({
  */
 function Report({
   report,
+  bookId,
   doneLabel,
   onDone,
   onAgain,
 }: {
   readonly report: ImportReport;
+  /** ⚠️ 只有点名账本时才拿得到 id；老入口（当前账本）由 `duplicateBookId()` 兜底。 */
+  readonly bookId: string | null;
   readonly doneLabel: string;
   readonly onDone: () => void;
   readonly onAgain: () => void;
@@ -366,6 +381,10 @@ function Report({
         导入编号是这次导入的标识，写进了这批每一笔记录里，日后可以据此追溯它们是从哪个文件来的。
       </p>
 
+      {report.importedCount > 0 && report.fileRef !== undefined ? (
+        <ImportDuplicateCheck bookId={bookId} importRef={report.fileRef} />
+      ) : null}
+
       <Button onClick={onDone}>{doneLabel}</Button>
       <Button variant="secondary" onClick={onAgain}>
         再导入一个文件
@@ -388,5 +407,157 @@ function Row({
       <dt className="text-body text-muted">{label}</dt>
       <dd className={`text-body text-ink ${mono ? "font-mono text-xs" : ""}`}>{value}</dd>
     </div>
+  );
+}
+
+/**
+ * 批量导入之后的疑似重复检查（S15-E4）。
+ *
+ * ⚠️ **复查的目标是“这一批”，不是“整本账”。** 用导入编号点名这一批，服务端拿它和历史
+ * 比对，界面只负责分组展示 —— 判重规则仍然只有 `duplicateDetection.ts` 那一份。
+ *
+ * ⚠️ **不自动跳过、不自动删除。** 已经写入的账目不会因为这次检查而消失；这里只回答
+ * “其中哪些看起来和账本里已有的记录是同一笔”，让用户自己决定，并且只有明确点
+ * “不是同一笔”才会留下一条关系。
+ *
+ * 为什么不是导入前检查：CSV 导入是服务端整批校验、整批写入，浏览器手里没有行数据；
+ * 把文件再解析一遍就会多出第二套解析口径。
+ */
+function ImportDuplicateCheck({
+  bookId,
+  importRef,
+}: {
+  readonly bookId: string | null;
+  readonly importRef: string;
+}): React.JSX.Element {
+  const duplicateSettings = useDuplicateDetectionSettings();
+  const [state, setState] = useState<
+    | { readonly phase: "idle" }
+    | { readonly phase: "running" }
+    | {
+        readonly phase: "done";
+        readonly pairs: readonly DuplicatePairResult[];
+        readonly entries: readonly Transaction[];
+        readonly checked: number;
+        readonly truncated: boolean;
+      }
+    | { readonly phase: "error"; readonly message: string }
+  >({ phase: "idle" });
+  const [resolved, setResolved] = useState<ReadonlySet<string>>(new Set());
+  const [busyPairKey, setBusyPairKey] = useState<string | null>(null);
+
+  function targetBook(): string {
+    return bookId ?? duplicateBookId();
+  }
+
+  async function run(): Promise<void> {
+    if (!duplicateSettings.settings.enabled) return;
+    setState({ phase: "running" });
+    try {
+      const target = targetBook();
+      if (target === "") throw new Error("找不到当前账本，无法检查这批导入。");
+      const result = await fetchImportReview(target, importRef, duplicateSettings.settings);
+      setState({ phase: "done", ...result });
+    } catch (caught) {
+      setState({ phase: "error", message: errorMessage(caught) });
+    }
+  }
+
+  async function markNotDuplicate(pair: DuplicatePairResult): Promise<void> {
+    const normalized = normalizeNotDuplicatePair(pair.leftId, pair.rightId);
+    if (!normalized.ok) return;
+    setBusyPairKey(pair.pairKey);
+    try {
+      await createNotDuplicateRelations(targetBook(), {
+        pairs: [
+          {
+            transactionIdA: normalized.pair.transactionAId,
+            transactionIdB: normalized.pair.transactionBId,
+          },
+        ],
+        decisionSource: "import_review",
+      });
+      setResolved((current) => new Set([...current, pair.pairKey]));
+    } catch (caught) {
+      setState({ phase: "error", message: `「不是同一笔」没有记住：${errorMessage(caught)}` });
+    } finally {
+      setBusyPairKey(null);
+    }
+  }
+
+  const done = state.phase === "done" ? state : null;
+  const groups = groupDuplicatePairs(
+    (done?.pairs ?? []).filter((pair) => !resolved.has(pair.pairKey)),
+  );
+  const entriesById = new Map((done?.entries ?? []).map((entry) => [entry.id, entry]));
+
+  return (
+    <section className="flex flex-col gap-3 rounded-field border border-line bg-surface px-4 py-3">
+      <div className="flex flex-col gap-1">
+        <p className="text-body font-medium">这批导入有没有和旧记录重复？</p>
+        <p className="text-helper text-muted">
+          按当前设置检查这一批与账本历史；只提示，不跳过、不删除、不合并已经写入的记录。
+          {duplicateSettings.settings.enabled ? "" : "（重复提醒已关闭，需要先到设置里打开。）"}
+        </p>
+      </div>
+
+      <Button
+        variant="secondary"
+        disabled={state.phase === "running" || !duplicateSettings.settings.enabled}
+        onClick={() => void run()}
+      >
+        {state.phase === "running" ? "正在检查…" : "检查这批导入"}
+      </Button>
+
+      {state.phase === "error" ? <Alert>{state.message}</Alert> : null}
+
+      {done === null ? null : groups.length === 0 ? (
+        <p className="text-helper text-muted">
+          没有发现符合当前规则的疑似重复（已检查 {String(done.checked)} 条）。
+          {done.truncated ? "本次达到单次上限，结果可能不完整。" : ""}
+        </p>
+      ) : (
+        <>
+          <p className="text-helper text-muted">
+            检查了 {String(done.checked)} 条，发现 {String(groups.length)} 组疑似重复。
+            {done.truncated ? "本次达到单次上限，结果可能不完整。" : ""}
+          </p>
+          <ul className="flex flex-col gap-3">
+            {groups.map((group) => (
+              <li key={group.key} className="flex flex-col gap-2 rounded-field bg-canvas px-3 py-2">
+                {group.ids.map((id) => {
+                  const entry = entriesById.get(id);
+                  return (
+                    <p key={id} className="flex items-baseline justify-between gap-3 text-body">
+                      <span className="truncate">
+                        {entry?.note?.trim() === "" || entry?.note == null ? "（无备注）" : entry.note}
+                      </span>
+                      <span className="shrink-0 text-muted">
+                        {entry === undefined
+                          ? ""
+                          : `${entry.occurredLocalDate} · ${formatMoney(entry.amountCents, entry.currency)}`}
+                      </span>
+                    </p>
+                  );
+                })}
+                {group.pairs.map((pair) => (
+                  <div key={pair.pairKey} className="flex items-center justify-between gap-3">
+                    <p className="text-helper text-muted">{describeDuplicateMatch(pair)}</p>
+                    <button
+                      type="button"
+                      disabled={busyPairKey === pair.pairKey}
+                      onClick={() => void markNotDuplicate(pair)}
+                      className="shrink-0 text-helper text-brand-dark underline disabled:opacity-45"
+                    >
+                      {busyPairKey === pair.pairKey ? "正在记录…" : "不是同一笔"}
+                    </button>
+                  </div>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }

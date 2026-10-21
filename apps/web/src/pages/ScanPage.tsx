@@ -1,9 +1,12 @@
 import {
   CURRENCIES,
+  DUPLICATE_SCOPE_LABELS,
   MAX_RECOGNIZE_IMAGES,
   decimalsFor,
+  describeDuplicateMatch,
   formatMinor,
   type Currency,
+  type DuplicatePairResult,
   type OcrItemResult,
   type Transaction,
   type TransactionKind,
@@ -95,6 +98,10 @@ export function ScanPage(): React.JSX.Element {
     readonly draft: ReviewDraft;
     readonly amountCents: number;
     readonly existing: readonly Transaction[];
+    /** 每对命中的依据；对话框据此说明“哪些字段相同”，而不是写死一句话。 */
+    readonly pairs: readonly DuplicatePairResult[];
+    /** 这次答案来自服务器账本还是本机已知数据。 */
+    readonly scope: "server" | "local";
   } | null>(null);
 
   /**
@@ -384,8 +391,14 @@ export function ScanPage(): React.JSX.Element {
         note: draft.note, settings: duplicateSettings.settings,
       });
 
-      if (found.length > 0) {
-        setPendingDuplicate({ draft, amountCents, existing: found });
+      if (found.history.length > 0) {
+        setPendingDuplicate({
+          draft,
+          amountCents,
+          existing: found.history,
+          pairs: found.pairs,
+          scope: found.scope,
+        });
         return;
       }
     } catch {
@@ -657,11 +670,7 @@ export function ScanPage(): React.JSX.Element {
         open={pendingDuplicate !== null}
         title="这笔账好像已经记过了"
         description={
-          pendingDuplicate === null
-            ? ""
-            : pendingDuplicate.existing.length > 1
-              ? `符合你已启用的重复检测规则；系统找到 ${String(pendingDuplicate.existing.length)} 笔相似记录。要再记一笔吗？`
-              : "日期、时间、金额、币种和收支类型都相同。要再记一笔吗？"
+          pendingDuplicate === null ? "" : duplicateDialogDescription(pendingDuplicate)
         }
         choices={DUPLICATE_CHOICES}
         onChoose={(choice) => {
@@ -795,6 +804,29 @@ const UNKNOWN_PAGE_CHOICES: readonly Choice<"single" | "multi" | "back">[] = [
  * tab away. A button that navigates to a blank page is worse than a button that
  * does not exist.
  */
+/**
+ * 提示框正文：**说清是哪几条规则命中的、这次比对了哪份数据**。
+ *
+ * ⚠️ 这句话原先写死为“日期、时间、金额、币种和收支类型都相同”，可设置里每一项都能关。
+ * 用户关掉分类匹配后再看到“分类相同”的暗示，就再也无法判断系统到底比过什么——
+ * 所以正文一律由 `describeDuplicateMatch` 从实际命中的规则生成。
+ */
+function duplicateDialogDescription(pending: {
+  readonly existing: readonly Transaction[];
+  readonly pairs: readonly DuplicatePairResult[];
+  readonly scope: "server" | "local";
+}): string {
+  const scopeNote = pending.scope === "local" ? `本次只比对了${DUPLICATE_SCOPE_LABELS.local}。` : "";
+  const first = pending.pairs[0];
+  const basis = first === undefined
+    ? "有一笔账目与你填写的金额、收支方向和时间相符。"
+    : `${describeDuplicateMatch(first)}`;
+  const count = pending.existing.length > 1
+    ? `系统找到 ${String(pending.existing.length)} 笔相似记录。`
+    : "";
+  return `${basis}${count}要再记一笔吗？${scopeNote}`;
+}
+
 const DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "replace" | "cancel">[] = [
   { id: "save", label: "仍然保存", hint: "两笔都留（也许是两次一样的消费）", primary: true },
   {

@@ -111,6 +111,23 @@ const DUPLICATE_SETTINGS_FIELDS: readonly DuplicateSettingsField[] = [
   "matchPaymentMethod",
 ];
 
+/**
+ * 辅助匹配规则（S15-E4 补齐的「可配置」部分）。
+ *
+ * 与金额/币种/方向/时间/分类/支付方式不同，这些字段**默认关闭**：它们不是判断同一笔的
+ * 必要条件，而是用户可以主动收紧的口径。缺席时按默认值补齐（默认值就是关闭），
+ * 因此旧版本写下的设置不需要迁移，也不会被误读成“已开启”。
+ */
+export const AUXILIARY_MATCH_FIELDS = [
+  "matchAmount",
+  "matchCurrency",
+  "matchKind",
+  "matchTime",
+  "matchMerchant",
+  "matchNote",
+  "matchTags",
+] as const;
+
 export type DuplicateSettingsIssueCode =
   | "not_object"
   | "unknown_field"
@@ -233,8 +250,17 @@ export function validateDuplicateDetectionSettings(input: unknown): DuplicateSet
   }
 
   const optional: Partial<DuplicateDetectionSettings> = {};
-  for (const key of ["matchAmount", "matchCurrency", "matchKind", "matchTime", "matchMerchant", "matchNote", "matchTags"] as const) {
-    if (input[key] !== undefined) Object.assign(optional, { [key]: readBooleanField(input, key, issues) ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
+  for (const key of AUXILIARY_MATCH_FIELDS) {
+    /**
+     * 辅助规则（金额/币种/方向/时间之外的商户、备注、标签）**可以缺席**：它们是 S15-E4
+     * 新增的可选项，旧记录里没有。缺席按默认值补齐，不算错误；写了但不是布尔才是错误。
+     */
+    const value = input[key];
+    if (value === undefined) {
+      Object.assign(optional, { [key]: DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
+      continue;
+    }
+    Object.assign(optional, { [key]: readBooleanField(input, key, issues) ?? DEFAULT_DUPLICATE_DETECTION_SETTINGS[key] });
   }
   const enabled = readBooleanField(input, "enabled", issues);
   const matchCategory = readBooleanField(input, "matchCategory", issues);
@@ -809,9 +835,9 @@ export function evaluateDuplicatePair(
   if (!matched) {
     reason = excluded[0]?.detail ?? "存在排除条件。";
   } else if (missingFields.length === 0) {
-    reason = "所有已启用的检测规则均符合；请核对后决定是否保留。";
+    reason = `${checkedFieldsSummary(rules)}均符合；请核对后决定是否保留。`;
   } else {
-    reason = `金额、币种、收支方向与时间符合条件；以下字段缺失，按较弱依据提示：${missingFields.join("、")}。`;
+    reason = `${checkedFieldsSummary(rules)}符合；以下字段缺失，按较弱依据提示：${missingFields.map(fieldLabel).join("、")}。`;
   }
 
   return {
@@ -927,3 +953,59 @@ function batchBucketKey(candidate: DuplicateCandidateFields, settings: Duplicate
 
   return JSON.stringify([candidate.bookId, settings.matchKind === false ? null : candidate.kind, settings.matchAmount === false ? null : candidate.amountCents, settings.matchCurrency === false ? null : currency]);
 }
+
+/**
+ * 证据文案里“检查过哪些字段”。
+ *
+ * ⚠️ **从实际规则结果生成，不写死一句话**：关闭分类匹配后若仍说“所有规则均符合”，
+ * 用户会以为系统比对过分类。这里按 `rules` 里未被跳过的字段拼出中文清单，开关怎么设，
+ * 文案就怎么说。
+ */
+const DUPLICATE_FIELD_LABELS: Readonly<Record<string, string>> = {
+  amountCents: "金额",
+  currency: "币种",
+  kind: "收支方向",
+  occurredAt: "时间",
+  categoryId: "分类",
+  paymentMethodId: "支付方式",
+  merchant: "商户",
+  note: "备注",
+  tagIds: "标签",
+};
+
+/** 字段名转成给人看的说法；未知字段原样返回，宁可见到英文也不吞掉信息。 */
+function fieldLabel(field: DuplicateField): string {
+  return DUPLICATE_FIELD_LABELS[field] ?? field;
+}
+
+function checkedFieldsSummary(rules: readonly DuplicateRuleEvaluation[]): string {
+  const labels: string[] = [];
+  for (const rule of rules) {
+    if (rule.outcome === "skipped") continue;
+    const field = rule.fields[0];
+    const label = field === undefined ? undefined : DUPLICATE_FIELD_LABELS[field];
+    if (label !== undefined && !labels.includes(label)) labels.push(label);
+  }
+  return labels.length === 0 ? "账本" : labels.join("、");
+}
+
+/**
+ * 一句给人看的“为什么像”。
+ *
+ * ⚠️ **所有入口共用这一句**（手动、语音、拍照、OCR 批量、CSV/账本导入、全账本审查），
+ * 否则同一个判定在六个界面上会有六种说法——用户看到的依据取决于他恰好在哪一页，
+ * 这正是 S15-E1 审查里“旧口径互相矛盾”的成因。
+ */
+export function describeDuplicateMatch(result: DuplicatePairResult): string {
+  if (result.suppressed) return "重复提醒已关闭，本次不进行检测。";
+  if (!result.matched) return result.reason;
+  const checked = checkedFieldsSummary(result.rules);
+  if (result.missingFields.length === 0) return `${checked}均相同。`;
+  return `${checked}相同；${result.missingFields.map(fieldLabel).join("、")}缺失，按较弱依据提示。`;
+}
+
+/** 检测范围的中文说法。`local` 绝不能被说成“账本里没有重复”。 */
+export const DUPLICATE_SCOPE_LABELS: Readonly<Record<"server" | "local", string>> = {
+  server: "账本（服务器）",
+  local: "本机已知数据",
+};

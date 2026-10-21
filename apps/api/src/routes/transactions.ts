@@ -1,4 +1,4 @@
-import { registerDuplicateReviewRoutes, duplicateWhere, candidateFromTransaction } from "./duplicateReview.js";
+import { registerDuplicateReviewRoutes, duplicateWhere, candidateFromTransaction, suppressConfirmed } from "./duplicateReview.js";
 import { DEFAULT_DUPLICATE_DETECTION_SETTINGS, evaluateDuplicatePair } from "@libellum/shared";
 import {
   createTransactionSchema,
@@ -427,8 +427,16 @@ export function registerTransactionRoutes(
       paymentMethodId: body.paymentMethodId ?? null, note: body.note, tagIds: body.tagIds,
     };
     const rows = await prisma.transaction.findMany({ where: duplicateWhere(bookId, candidate, settings), include: TRANSACTION_INCLUDE, orderBy: { seq: "desc" }, take: 1001 });
-    const duplicates = rows.filter(row => evaluateDuplicatePair(candidate, candidateFromTransaction(toDto(row), bookId), settings).matched);
-    return duplicateCheckResponseSchema.parse({ duplicates: duplicates.slice(0, 100).map(row => toDto(row)) });
+    /**
+     * ⚠️ **旧接口保留，但口径只有一份。** 这里内部照旧调用统一核心，并且和
+     * `/duplicates/candidates` 一样剔除用户已确认“不是同一笔”的配对；否则升级前安装的客户端
+     * 会继续提醒已经被用户关掉的那一对，与新版界面自相矛盾。
+     */
+    const evaluated = rows.map(row => ({ row, entry: toDto(row), pair: evaluateDuplicatePair(candidate, candidateFromTransaction(toDto(row), bookId), settings) }));
+    const visible = await suppressConfirmed(prisma, bookId, evaluated.filter(item => item.pair.matched).map(item => item.pair));
+    const visibleKeys = new Set(visible.map(pair => pair.pairKey));
+    const duplicates = evaluated.filter(item => item.pair.matched && visibleKeys.has(item.pair.pairKey));
+    return duplicateCheckResponseSchema.parse({ duplicates: duplicates.slice(0, 100).map(item => item.entry) });
   });
 
   // -------------------------------------------------------------------------

@@ -282,10 +282,13 @@ export {
   type UpdateTransactionInput,
 } from "./ledger.js";
 export {
+  AUXILIARY_MATCH_FIELDS,
   DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+  DUPLICATE_SCOPE_LABELS,
   DUPLICATE_TIME_WINDOW_MAX_SECONDS,
   DUPLICATE_TIME_WINDOW_MIN_SECONDS,
   DUPLICATE_TIME_WINDOW_PRESETS_SECONDS,
+  describeDuplicateMatch,
   duplicatePairKey,
   evaluateDuplicateCandidates,
   evaluateDuplicatePair,
@@ -472,4 +475,13 @@ export {
   type NotDuplicateRelationship,
 } from "./notDuplicateRelations.js";
 
-export { duplicateRulesSchema, duplicateCandidateSchema, duplicateCandidatesRequestSchema, duplicateReviewRequestSchema } from "./duplicateReview.js";
+export {
+  duplicateRulesSchema, duplicateCandidateSchema, duplicateCandidatesRequestSchema, duplicateReviewRequestSchema,
+  duplicateImportReviewRequestSchema,
+  groupDuplicatePairs,
+  type DuplicateCandidatesResponse,
+  type DuplicateImportReviewRequest,
+  type DuplicateImportReviewResponse,
+  type DuplicatePairGroup,
+  type DuplicateReviewChunk,
+} from "./duplicateReview.js";
