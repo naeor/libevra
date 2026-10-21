@@ -10,6 +10,12 @@ export const BILL_SOURCE_LABELS: Record<BillImportPreview["source"], string> = {
   libevra: "Libevra 账单", wechat: "微信支付账单", alipay: "支付宝交易明细", boa: "Bank of America 结单",
 };
 
+/** 导入请求必须显式点名账本，不能触发旧客户端的服务端兼容回退。 */
+function requireImportBook(bookId: string): string {
+  if (bookId.trim() === "") throw new Error("尚未确定导入账本，请返回明细页后重新导入。");
+  return bookId;
+}
+
 /** Only editable fields leave the browser; provenance stays with the server preview. */
 export function billCommitRows(items: readonly BillImportCandidate[]): BillImportCommitRow[] {
   return items.map((item) => billImportCommitRowSchema.parse({
@@ -54,12 +60,12 @@ export async function previewBill(file: File, bookId: string, settings: Duplicat
   formData.append("settings", JSON.stringify(settings));
   formData.append("timezone", timezone);
   formData.append("file", file);
-  return billImportPreviewSchema.parse(await apiFetch("/import/preview", { method: "POST", bookId, formData, timeoutMs: 120_000 }));
+  return billImportPreviewSchema.parse(await apiFetch("/import/preview", { method: "POST", bookId: requireImportBook(bookId), formData, timeoutMs: 120_000 }));
 }
 
 export async function recheckBill(preview: BillImportPreview, bookId: string, settings: DuplicateDetectionSettings): Promise<BillImportPreview> {
   return billImportPreviewSchema.parse(await apiFetch("/import/recheck", {
-    method: "POST", bookId,
+    method: "POST", bookId: requireImportBook(bookId),
     body: { previewId: preview.previewId, rows: billCommitRows(preview.candidates), settings },
     timeoutMs: 120_000,
   }));
@@ -67,7 +73,7 @@ export async function recheckBill(preview: BillImportPreview, bookId: string, se
 
 export async function commitBill(preview: BillImportPreview, bookId: string, acknowledgeWarnings: boolean): Promise<ImportReport> {
   return importReportSchema.parse(await apiFetch("/import/commit", {
-    method: "POST", bookId,
+    method: "POST", bookId: requireImportBook(bookId),
     body: { previewId: preview.previewId, rows: billCommitRows(preview.candidates), acknowledgeWarnings },
     timeoutMs: 120_000,
   }));

@@ -43,7 +43,7 @@ import {
 } from "../lib/billImportUi.js";
 import { localTimeZone } from "../lib/datetime.js";
 import { formatMoney, parseAmountInput } from "../lib/format.js";
-import { fetchTemplate, useLedgerMeta, useMoneyInvalidator } from "../lib/queries.js";
+import { fetchTemplate, useCurrentBookId, useLedger, useLedgerMeta, useMoneyInvalidator } from "../lib/queries.js";
 import { deliverFile } from "../lib/share.js";
 
 /**
@@ -96,11 +96,26 @@ export function ImportPage(): React.JSX.Element {
 
 function ImportForCurrentLedger(): React.JSX.Element {
   const [searchParams] = useSearchParams();
+  // 当前入口可以使用 useLedger 初始化设备账本；目标入口绝不能调用它。
+  const ledger = useLedger();
+  const bookId = useCurrentBookId();
   /** The central `+` menu opens this route with `?from=nav` — see the note at the top. */
   const fromMenu = searchParams.get("from") === "nav";
 
+  if (bookId === null || bookId === "") {
+    return (
+      <InnerPage title="导入账单" backTo={fromMenu ? "/" : "/export"}>
+        <Alert tone={ledger.isError ? "error" : "info"}>
+          {ledger.isError ? `无法读取当前账本：${errorMessage(ledger.error)}` : "正在读取当前账本，请稍候……"}
+        </Alert>
+      </InnerPage>
+    );
+  }
+
   return (
     <ImportView
+      key={bookId}
+      bookId={bookId}
       backTo={fromMenu ? "/" : "/export"}
       exportTo="/export"
       doneTo="/"
@@ -144,8 +159,8 @@ function ImportView({
   target,
   hideExportLink = false,
 }: {
-  /** Target ledger; `undefined` means "the ledger this device is in". */
-  readonly bookId?: string;
+  /** 进入核对流程时即固定的账本；当前账本变化会由外层 key 清空旧会话。 */
+  readonly bookId: string;
   /** Deep-link fallback for the frame's 返回. Target mode lands on 账本设置. */
   readonly backTo: string;
   /** Where 「← 返回导出」 goes — the export screen of the same ledger. */
@@ -164,7 +179,7 @@ function ImportView({
   const problemCache = useRef(new WeakMap<BillImportCandidate, string | null>());
 
   const duplicateSettings = useDuplicateDetectionSettings();
-  const meta = useLedgerMeta(bookId ?? "");
+  const meta = useLedgerMeta(bookId);
   const invalidateMoney = useMoneyInvalidator(bookId);
 
   const [step, setStep] = useState<Step>({ name: "choose" });
@@ -263,7 +278,7 @@ function ImportView({
     try {
       const next = await previewBill(
         picked,
-        bookId ?? "",
+        bookId,
         duplicateSettings.settings,
         localTimeZone(),
       );
@@ -324,7 +339,7 @@ function ImportView({
     setBusy("recheck");
     setError(null);
     try {
-      const next = await recheckBill(step.preview, bookId ?? "", duplicateSettings.settings);
+      const next = await recheckBill(step.preview, bookId, duplicateSettings.settings);
       setStep({ name: "review", preview: next });
       setDirty(false);
     } catch (caught) {
@@ -339,7 +354,7 @@ function ImportView({
     setBusy("commit");
     setError(null);
     try {
-      const report = await commitBill(previewToCommit, bookId ?? "", acknowledged);
+      const report = await commitBill(previewToCommit, bookId, acknowledged);
       // 写入成功后刷新明细与汇总；目标账本不是当前账本时这个 invalidator 什么也不做。
       await invalidateMoney();
       setStep({ name: "done", preview: previewToCommit, report });

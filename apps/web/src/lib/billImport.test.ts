@@ -7,6 +7,7 @@ import {
 } from "@libellum/shared";
 
 import { BILL_SOURCE_LABELS, billCommitRows, commitBill, previewBill, recheckBill } from "./billImport.js";
+import { primeBookId } from "./api.js";
 
 /**
  * 客户端契约：请求打到哪里、带什么、如何解析响应。
@@ -92,6 +93,7 @@ const REPORT = {
 
 afterEach(() => {
   requested = [];
+  primeBookId(null);
   vi.unstubAllGlobals();
 });
 
@@ -107,6 +109,30 @@ describe("来源名称", () => {
 });
 
 describe("previewBill", () => {
+  it("当前账本不是最早账本时，预览、重查、提交始终显式携带选定账本", async () => {
+    primeBookId("oldest-book");
+    const preview = previewOf([candidate()]);
+    stubBrowser(preview);
+    await previewBill(xlsxFile(), "selected-book", DEFAULT_DUPLICATE_DETECTION_SETTINGS, "Asia/Shanghai");
+    primeBookId("changed-book");
+    await recheckBill(preview, "selected-book", DEFAULT_DUPLICATE_DETECTION_SETTINGS);
+    stubBrowser(REPORT);
+    await commitBill(preview, "selected-book", false);
+    expect(requested).toHaveLength(3);
+    for (const call of requested) {
+      expect((call.init.headers as Record<string, string>)["x-libellum-book"]).toBe("selected-book");
+    }
+  });
+
+  it("账本未确定时三种请求都不能发送，更不能回退到最早账本", async () => {
+    primeBookId("oldest-book");
+    stubBrowser(previewOf([candidate()]));
+    await expect(previewBill(xlsxFile(), "", DEFAULT_DUPLICATE_DETECTION_SETTINGS, "Asia/Shanghai")).rejects.toThrow("尚未确定");
+    await expect(recheckBill(previewOf([candidate()]), " ", DEFAULT_DUPLICATE_DETECTION_SETTINGS)).rejects.toThrow("尚未确定");
+    await expect(commitBill(previewOf([candidate()]), "", false)).rejects.toThrow("尚未确定");
+    expect(requested).toHaveLength(0);
+  });
+
   it("multipart 上传：settings/timezone/file 三个字段，不带 content-type", async () => {
     stubBrowser(previewOf([candidate()]));
 
