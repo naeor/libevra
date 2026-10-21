@@ -256,7 +256,7 @@ describe("bill import V2 preview/commit routes", () => {
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: first.previewId, rows: commitRows(first), acknowledgeWarnings: false },
+      payload: { previewId: first.previewId, previewRevision: first.revision, rows: commitRows(first), acknowledgeWarnings: false },
     });
     expect(response.statusCode, response.body).toBe(200);
     const stored = await prisma.transaction.findFirstOrThrow({ where: { bookId } });
@@ -339,7 +339,7 @@ describe("bill import V2 preview/commit routes", () => {
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows, acknowledgeWarnings: false },
+      payload: { previewId: preview.previewId, previewRevision: preview.revision, rows, acknowledgeWarnings: false },
     });
     expect(first.statusCode, first.body).toBe(200);
     expect(first.json()).toMatchObject({ ok: true, rowCount: 2, importedCount: 1, skippedCount: 1 });
@@ -348,7 +348,7 @@ describe("bill import V2 preview/commit routes", () => {
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows, acknowledgeWarnings: false },
+      payload: { previewId: preview.previewId, previewRevision: preview.revision, rows, acknowledgeWarnings: false },
     });
     expect(second.statusCode, second.body).toBe(200);
     expect(second.json()).toEqual(first.json());
@@ -359,6 +359,44 @@ describe("bill import V2 preview/commit routes", () => {
     expect(stored.sourceRef).toBe("alipay:2026100112345678901234567890");
     expect(stored.importRef).toMatch(/^In-/);
     expect(stored.amountCents).toBe(1234n);
+  });
+
+  it("并发提交同一预览只入账一次，所有请求都返回同一份报告", async () => {
+    const app = makeApp();
+    const { cookie, bookId } = await owner(app, "bill_conc");
+    const preview = await previewFile(app, cookie, bookId, {
+      filename: "alipay.csv",
+      contentType: "text/csv",
+      content: Buffer.from(ALIPAY_CSV, "utf8"),
+    });
+    const rows = commitRows(preview);
+    const payload = {
+      previewId: preview.previewId,
+      previewRevision: preview.revision,
+      rows,
+      acknowledgeWarnings: false,
+    };
+
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        app.inject({
+          method: "POST",
+          url: "/api/v1/import/commit",
+          headers: { cookie, "x-libellum-book": bookId },
+          payload,
+        }),
+      ),
+    );
+
+    expect(
+      responses.map((response) => response.statusCode),
+      responses.map((response) => response.body).join("\n"),
+    ).toEqual([200, 200, 200, 200]);
+    const reports = responses.map((response) => response.json());
+    expect(reports[0]).toMatchObject({ ok: true, importedCount: 1 });
+    for (const report of reports) expect(report).toEqual(reports[0]);
+    expect(await prisma.transaction.count({ where: { bookId } })).toBe(1);
+    expect(await prisma.importLog.count({ where: { bookId } })).toBe(1);
   });
 
   it("marks every candidate as identity-duplicate when the same file is uploaded again", async () => {
@@ -373,7 +411,7 @@ describe("bill import V2 preview/commit routes", () => {
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows: commitRows(preview), acknowledgeWarnings: false },
+      payload: { previewId: preview.previewId, previewRevision: preview.revision, rows: commitRows(preview), acknowledgeWarnings: false },
     });
     expect(response.statusCode, response.body).toBe(200);
 
@@ -398,7 +436,7 @@ describe("bill import V2 preview/commit routes", () => {
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows: commitRows(preview), acknowledgeWarnings: false },
+      payload: { previewId: preview.previewId, previewRevision: preview.revision, rows: commitRows(preview), acknowledgeWarnings: false },
     });
     expect(committed.statusCode, committed.body).toBe(200);
     const stored = await prisma.transaction.findFirstOrThrow({ where: { bookId } });
@@ -429,7 +467,7 @@ describe("bill import V2 preview/commit routes", () => {
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows: commitRows(preview), acknowledgeWarnings: false },
+      payload: { previewId: preview.previewId, previewRevision: preview.revision, rows: commitRows(preview), acknowledgeWarnings: false },
     });
     expect(committed.statusCode, committed.body).toBe(200);
 
@@ -456,11 +494,22 @@ describe("bill import V2 preview/commit routes", () => {
     });
     const rows = commitRows(preview);
     rows[0] = { ...rows[0]!, tags: ["出差", "客户"] };
+    const checked = await app.inject({
+      method: "POST", url: "/api/v1/import/recheck", headers: { cookie, "x-libellum-book": bookId },
+      payload: { previewId: preview.previewId, rows, settings: SETTINGS },
+    });
+    expect(checked.statusCode, checked.body).toBe(200);
+    const checkedPreview = billImportPreviewSchema.parse(checked.json());
     const response = await app.inject({
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows, acknowledgeWarnings: false },
+      payload: {
+        previewId: checkedPreview.previewId,
+        previewRevision: checkedPreview.revision,
+        rows,
+        acknowledgeWarnings: false,
+      },
     });
     expect(response.statusCode, response.body).toBe(200);
     expect(response.json()).toMatchObject({ ok: true, importedCount: 1 });
@@ -470,7 +519,7 @@ describe("bill import V2 preview/commit routes", () => {
     expect(await prisma.transactionTag.count({ where: { transaction: { bookId } } })).toBe(2);
   });
 
-  it("核对和直接提交允许修正金额币种日期时间时区，并按修正值保存", async () => {
+  it("核对后修改必须重新核对，重新核对后按修正值保存", async () => {
     const app = makeApp();
     const { cookie, bookId } = await owner(app, "bill_immutable");
     const preview = await previewFile(app, cookie, bookId, {
@@ -486,13 +535,41 @@ describe("bill import V2 preview/commit routes", () => {
     });
     expect(checked.statusCode, checked.body).toBe(200);
     expect(checked.json().candidates[0]).toMatchObject({ amount: "99.99", currency: "USD", timePrecision: "second" });
-    rows[0] = { ...rows[0]!, amount: "100.01", time: "09:12" };
+    const checkedPreview = billImportPreviewSchema.parse(checked.json());
 
+    // 再次修改但不重新核对：服务端必须拒绝，不能把旧检测结果套到新内容上。
+    rows[0] = { ...rows[0]!, amount: "100.01", time: "09:12" };
+    const rejected = await app.inject({
+      method: "POST",
+      url: "/api/v1/import/commit",
+      headers: { cookie, "x-libellum-book": bookId },
+      payload: {
+        previewId: checkedPreview.previewId,
+        previewRevision: checkedPreview.revision,
+        rows,
+        acknowledgeWarnings: false,
+      },
+    });
+    expect(rejected.statusCode, rejected.body).toBe(409);
+    expect(rejected.json()).toMatchObject({ code: "preview_stale" });
+
+    // 重新核对后，同一份修改可以提交。
+    const recheckedAgain = await app.inject({
+      method: "POST", url: "/api/v1/import/recheck", headers: { cookie, "x-libellum-book": bookId },
+      payload: { previewId: checkedPreview.previewId, rows, settings: SETTINGS },
+    });
+    expect(recheckedAgain.statusCode, recheckedAgain.body).toBe(200);
+    const recheckedPreview = billImportPreviewSchema.parse(recheckedAgain.json());
     const response = await app.inject({
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows, acknowledgeWarnings: false },
+      payload: {
+        previewId: recheckedPreview.previewId,
+        previewRevision: recheckedPreview.revision,
+        rows,
+        acknowledgeWarnings: false,
+      },
     });
     expect(response.statusCode, response.body).toBe(200);
     expect(response.json()).toMatchObject({ ok: true, importedCount: 1 });
@@ -502,6 +579,53 @@ describe("bill import V2 preview/commit routes", () => {
     expect(saved.occurredAt.toISOString()).toBe("2026-10-05T13:12:00.000Z");
     expect(saved.occurredLocalDate.toISOString().slice(0, 10)).toBe("2026-10-05");
     expect(saved.occurredTz).toBe("America/New_York");
+  });
+
+  it("旧 revision 的提交被拒绝，防止并发重检后使用过期检测结果", async () => {
+    const app = makeApp();
+    const { cookie, bookId } = await owner(app, "bill_revision");
+    const preview = await previewFile(app, cookie, bookId, {
+      filename: "alipay.csv",
+      contentType: "text/csv",
+      content: Buffer.from(ALIPAY_CSV, "utf8"),
+    });
+    const rows = commitRows(preview);
+    const firstRevision = preview.revision;
+
+    const rechecked = await app.inject({
+      method: "POST", url: "/api/v1/import/recheck", headers: { cookie, "x-libellum-book": bookId },
+      payload: { previewId: preview.previewId, rows, settings: SETTINGS },
+    });
+    expect(rechecked.statusCode, rechecked.body).toBe(200);
+    const latest = billImportPreviewSchema.parse(rechecked.json());
+    expect(latest.revision).toBeGreaterThan(firstRevision);
+
+    // 内容没变，但 revision 已经过期：仍必须拒绝，因为检测结果可能来自更早的快照。
+    const stale = await app.inject({
+      method: "POST", url: "/api/v1/import/commit",
+      headers: { cookie, "x-libellum-book": bookId },
+      payload: {
+        previewId: preview.previewId,
+        previewRevision: firstRevision,
+        rows,
+        acknowledgeWarnings: false,
+      },
+    });
+    expect(stale.statusCode, stale.body).toBe(409);
+    expect(stale.json()).toMatchObject({ code: "preview_revision_mismatch" });
+
+    const accepted = await app.inject({
+      method: "POST", url: "/api/v1/import/commit",
+      headers: { cookie, "x-libellum-book": bookId },
+      payload: {
+        previewId: latest.previewId,
+        previewRevision: latest.revision,
+        rows,
+        acknowledgeWarnings: false,
+      },
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect(accepted.json()).toMatchObject({ ok: true, importedCount: 1 });
   });
 
   it("V2 三接口缺少目标账本头时拒绝，不回退到最早账本", async () => {
@@ -521,7 +645,7 @@ describe("bill import V2 preview/commit routes", () => {
     const first = await previewFile(app, a.cookie, a.bookId, { filename: "a.csv", contentType: "text/csv", content: Buffer.from(LIBEVRA_CSV) });
     const saved = await app.inject({ method: "POST", url: "/api/v1/import/commit",
       headers: { cookie: a.cookie, "x-libellum-book": a.bookId },
-      payload: { previewId: first.previewId, rows: commitRows(first), acknowledgeWarnings: false } });
+      payload: { previewId: first.previewId, previewRevision: first.revision, rows: commitRows(first), acknowledgeWarnings: false } });
     expect(saved.json()).toMatchObject({ ok: true, importedCount: 1 });
     const source = await prisma.transaction.findFirstOrThrow({ where: { bookId: a.bookId } });
     const csv = ["日期,金额,币种,类型,流水编号",
@@ -532,7 +656,7 @@ describe("bill import V2 preview/commit routes", () => {
     expect(preview.candidates.every((row) => row.id !== source.id)).toBe(true);
     const response = await app.inject({ method: "POST", url: "/api/v1/import/commit",
       headers: { cookie: b.cookie, "x-libellum-book": b.bookId },
-      payload: { previewId: preview.previewId, rows: commitRows(preview), acknowledgeWarnings: false } });
+      payload: { previewId: preview.previewId, previewRevision: preview.revision, rows: commitRows(preview), acknowledgeWarnings: false } });
     expect(response.statusCode, response.body).toBe(200);
     expect(response.json()).toMatchObject({ ok: true, importedCount: 1, skippedCount: 1 });
     expect(await prisma.transaction.count({ where: { bookId: b.bookId } })).toBe(1);
@@ -548,12 +672,23 @@ describe("bill import V2 preview/commit routes", () => {
     });
     const rows = commitRows(preview);
     rows[0] = { ...rows[0]!, kind: "unknown", selected: true };
+    const checked = await app.inject({
+      method: "POST", url: "/api/v1/import/recheck", headers: { cookie, "x-libellum-book": bookId },
+      payload: { previewId: preview.previewId, rows, settings: SETTINGS },
+    });
+    expect(checked.statusCode, checked.body).toBe(200);
+    const checkedPreview = billImportPreviewSchema.parse(checked.json());
 
     const response = await app.inject({
       method: "POST",
       url: "/api/v1/import/commit",
       headers: { cookie, "x-libellum-book": bookId },
-      payload: { previewId: preview.previewId, rows, acknowledgeWarnings: false },
+      payload: {
+        previewId: checkedPreview.previewId,
+        previewRevision: checkedPreview.revision,
+        rows,
+        acknowledgeWarnings: false,
+      },
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ ok: false, importedCount: 0 });
@@ -593,7 +728,7 @@ describe("bill import V2 preview/commit routes", () => {
       content: Buffer.from("%PDF-1.7 fake", "latin1"),
     });
     expect(preview.reconciliation.ok).toBe(false);
-    const payload = { previewId: preview.previewId, rows: commitRows(preview), acknowledgeWarnings: false };
+    const payload = { previewId: preview.previewId, previewRevision: preview.revision, rows: commitRows(preview), acknowledgeWarnings: false };
 
     const rejected = await app.inject({
       method: "POST",

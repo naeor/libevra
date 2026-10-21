@@ -274,34 +274,53 @@ export async function writeRelations(
 
     const basis = makeBasis(transactionA, transactionB, context.now);
 
-    const existing = await tx.transactionNotDuplicateRelation.findUnique({
-      where: {
-        bookId_transactionAId_transactionBId: {
-          bookId: context.bookId,
-          transactionAId: item.transactionAId,
-          transactionBId: item.transactionBId,
-        },
+    const uniqueWhere = {
+      bookId_transactionAId_transactionBId: {
+        bookId: context.bookId,
+        transactionAId: item.transactionAId,
+        transactionBId: item.transactionBId,
       },
+    } as const;
+
+    let existing = await tx.transactionNotDuplicateRelation.findUnique({
+      where: uniqueWhere,
     });
 
     if (existing === null) {
-      const row = await tx.transactionNotDuplicateRelation.create({
-        data: {
-          bookId: context.bookId,
-          transactionAId: item.transactionAId,
-          transactionBId: item.transactionBId,
-          relationship: "not_duplicate",
-          decisionSource: context.decisionSource,
-          decidedBy: context.decidedBy,
-          decidedByName: context.decidedByName,
-          decidedAt: context.now,
-          basis: basis as unknown as Prisma.InputJsonValue,
-        },
-        select: { id: true },
+      /**
+       * ⚠️ 并发确认同一对时不能 `findUnique → create`：两个请求都读不到行，
+       * 后写的一方会撞唯一约束（PostgreSQL 会让整个事务失效并返回 P2002）。
+       * `createMany({ skipDuplicates: true })` 是 `INSERT … ON CONFLICT DO NOTHING`，
+       * 并发下只有一个请求真正插入；随后再读一次，把并发创建的那一行按
+       * “已生效/已撤销”走幂等或重激活分支。
+       */
+      const inserted = await tx.transactionNotDuplicateRelation.createMany({
+        data: [
+          {
+            bookId: context.bookId,
+            transactionAId: item.transactionAId,
+            transactionBId: item.transactionBId,
+            relationship: "not_duplicate",
+            decisionSource: context.decisionSource,
+            decidedBy: context.decidedBy,
+            decidedByName: context.decidedByName,
+            decidedAt: context.now,
+            basis: basis as unknown as Prisma.InputJsonValue,
+          },
+        ],
+        skipDuplicates: true,
       });
-      ids.push(row.id);
-      created += 1;
-      continue;
+      existing = await tx.transactionNotDuplicateRelation.findUnique({
+        where: uniqueWhere,
+      });
+      if (existing === null) {
+        throw new Error("writeRelations: relation row disappeared after insert");
+      }
+      if (inserted.count === 1) {
+        ids.push(existing.id);
+        created += 1;
+        continue;
+      }
     }
 
     /**

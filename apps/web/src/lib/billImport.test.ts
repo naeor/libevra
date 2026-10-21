@@ -68,6 +68,7 @@ function previewOf(candidates: readonly BillImportCandidate[]): BillImportPrevie
   return {
     previewId: "01990000-0000-7000-8000-0000000000ff",
     expiresAt: "2026-10-21T13:00:00.000Z",
+    revision: 1,
     source: "wechat",
     format: "xlsx",
     candidates: [...candidates],
@@ -225,9 +226,11 @@ describe("recheckBill / commitBill 的请求行", () => {
     expect(report.skippedCount).toBe(1);
     const body = JSON.parse(String(requested[0]!.init.body)) as {
       previewId: string;
+      previewRevision: number;
       acknowledgeWarnings: boolean;
       rows: unknown[];
     };
+    expect(body.previewRevision).toBe(1);
     expect(body.acknowledgeWarnings).toBe(true);
     expect(body.rows).toHaveLength(2);
   });

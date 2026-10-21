@@ -79,7 +79,7 @@ describe("账单导入审查修复", () => {
     const original = candidate();
     const previewId = randomUUID();
     const record = cache.put({ previewId, userId, bookId, fingerprint: "a", createdAt: Date.now(),
-      source: "libevra", format: "csv", candidates: [original], warnings: ["旧疑似重复摘要"],
+      revision: 1, source: "libevra", format: "csv", candidates: [original], warnings: ["旧疑似重复摘要"],
       originalWarnings: [], originalCandidates: [original], reconciliation: { ok: null, messages: [] }, committed: null });
     const service = new BillImportService({ prisma: database().prisma, cache, extractor: { extract: vi.fn() } });
     const input = { userId, bookId, previewId, settings: { ...DEFAULT, enabled: false } };
@@ -91,8 +91,10 @@ describe("账单导入审查修复", () => {
       timezone: "America/New_York", timePrecision: "day", warnings: [] });
     expect(good.warnings).toEqual([]);
     expect(record.warnings).toEqual([]);
-    const rejected = await service.commit({ ...input, acknowledgeWarnings: false,
-      rows: [{ ...original, date: "2026-02-30", amount: "0" }] });
+    const invalidRows = [{ ...original, date: "2026-02-30", amount: "0" }];
+    await service.recheck({ ...input, rows: invalidRows });
+    const rejected = await service.commit({ ...input, previewRevision: record.revision, acknowledgeWarnings: false,
+      rows: invalidRows });
     expect(rejected.ok).toBe(false);
     expect(rejected.importedCount).toBe(0);
     for (const edit of [
@@ -101,7 +103,10 @@ describe("账单导入审查修复", () => {
       { date: "2026-03-08", time: "02:30:00", timezone: "America/New_York" },
       { date: "2026-11-01", time: "01:30:00", timezone: "America/New_York" },
     ]) {
-      const result = await service.commit({ ...input, acknowledgeWarnings: false, rows: [{ ...original, ...edit }] });
+      const rows = [{ ...original, ...edit }];
+      await service.recheck({ ...input, rows });
+      const result = await service.commit({ ...input, previewRevision: record.revision,
+        acknowledgeWarnings: false, rows });
       expect(result.ok, JSON.stringify(edit)).toBe(false);
       expect(result.importedCount).toBe(0);
     }

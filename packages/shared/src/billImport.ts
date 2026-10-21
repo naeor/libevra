@@ -23,6 +23,11 @@ export const billImportCandidateSchema = billImportCommitRowSchema.extend({
 export type BillImportCandidate = z.infer<typeof billImportCandidateSchema>;
 export const billImportPreviewSchema = z.object({
   previewId: z.string().uuid(), expiresAt: z.string(),
+  /**
+   * 预览内容版本：每次 recheck 后 +1。commit 必须带回这个值，
+   * 防止用旧核对结果提交；见 service.commit 的最终行快照校验。
+   */
+  revision: z.number().int().positive(),
   source: z.enum(["libevra", "wechat", "alipay", "boa"]),
   format: z.enum(["csv", "xlsx", "pdf"]),
   candidates: z.array(billImportCandidateSchema).max(MAX_BILL_IMPORT_ROWS),
@@ -31,7 +36,10 @@ export const billImportPreviewSchema = z.object({
 });
 export type BillImportPreview = z.infer<typeof billImportPreviewSchema>;
 export const billImportCommitSchema = z.object({
-  previewId: z.string().uuid(), rows: z.array(billImportCommitRowSchema).max(MAX_BILL_IMPORT_ROWS),
+  previewId: z.string().uuid(),
+  /** 必须等于预览/recheck 返回的最新 revision；缺失或过期都拒绝。 */
+  previewRevision: z.number().int().positive(),
+  rows: z.array(billImportCommitRowSchema).max(MAX_BILL_IMPORT_ROWS),
   acknowledgeWarnings: z.boolean().default(false),
 }).strict();
 export type BillImportCommit = z.infer<typeof billImportCommitSchema>;

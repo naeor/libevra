@@ -74,7 +74,12 @@ export async function recheckBill(preview: BillImportPreview, bookId: string, se
 export async function commitBill(preview: BillImportPreview, bookId: string, acknowledgeWarnings: boolean): Promise<ImportReport> {
   return importReportSchema.parse(await apiFetch("/import/commit", {
     method: "POST", bookId: requireImportBook(bookId),
-    body: { previewId: preview.previewId, rows: billCommitRows(preview.candidates), acknowledgeWarnings },
+    body: {
+      previewId: preview.previewId,
+      previewRevision: preview.revision,
+      rows: billCommitRows(preview.candidates),
+      acknowledgeWarnings,
+    },
     timeoutMs: 120_000,
   }));
 }

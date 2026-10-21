@@ -63,6 +63,8 @@ export interface CommitInput {
   readonly userId: string;
   readonly bookId: string;
   readonly previewId: string;
+  /** 最后一次预览/recheck 的 revision；缺失或不一致都拒绝，避免用旧核对结果提交。 */
+  readonly previewRevision: number;
   readonly rows: readonly BillImportCommitRow[];
   readonly acknowledgeWarnings: boolean;
 }
@@ -111,12 +113,38 @@ function previewOf(record: PreviewRecord): BillImportPreview {
   return {
     previewId: record.previewId,
     expiresAt: new Date(record.expiresAt).toISOString(),
+    revision: record.revision,
     source: record.source,
     format: record.format,
     candidates: record.candidates,
     warnings: record.warnings,
     reconciliation: record.reconciliation,
   };
+}
+
+/**
+ * 可编辑字段与“最后一次核对快照”的比较。`selected` 也算——勾选/取消勾选会改变
+ * 提交范围，前端把它标成 dirty 并要求重新核对；服务端不能接受未经核对的改变。
+ * 来源身份、行号、warnings、duplicateIds 不属于提交行，不参与比较。
+ */
+function commitRowMatchesCandidate(
+  row: BillImportCommitRow,
+  candidate: BillImportCandidate,
+): boolean {
+  return (
+    row.selected === candidate.selected &&
+    row.amount === candidate.amount &&
+    row.currency === candidate.currency &&
+    row.kind === candidate.kind &&
+    row.date === candidate.date &&
+    row.time === candidate.time &&
+    row.timezone === candidate.timezone &&
+    row.categoryId === candidate.categoryId &&
+    row.paymentMethodId === candidate.paymentMethodId &&
+    row.note === candidate.note &&
+    row.tags.length === candidate.tags.length &&
+    row.tags.every((tag, index) => tag === candidate.tags[index])
+  );
 }
 
 function mergeWarnings(...groups: readonly (readonly string[])[]): string[] {
@@ -141,6 +169,13 @@ function isBoaDocument(document: ExtractedDocument): boolean {
  * 金额、日期等可核对修正；来源身份与定位始终来自服务端原始解析。
  */
 export class BillImportService {
+  /**
+   * recheck / commit 共享的串行队列。预览记录是进程内可变对象，若两个请求分别
+   * 重检和提交，异步窗口里 revision/candidates 可能在“校验通过”和“真正落库”之间被改写。
+   * 队列只串行同一进程内的 recheck+commit（解析和预览生成不经过它），代价很小。
+   */
+  private operationChain: Promise<void> = Promise.resolve();
+
   constructor(private readonly options: ImportServiceOptions) {}
 
   private get prisma(): PrismaClient {
@@ -332,6 +367,7 @@ export class BillImportService {
       bookId: input.bookId,
       fingerprint,
       createdAt: Date.now(),
+      revision: 1,
       source: parsed.source,
       format: parsed.format,
       candidates,
@@ -405,6 +441,28 @@ export class BillImportService {
         tags: [...row.tags],
       };
     });
+  }
+
+  /**
+   * 提交必须基于**最后一次核对快照**：字段或勾选在 preview/recheck 之后被改过，
+   * 说明检测结果已经不是最终提交内容的检测结果，拒绝并要求重新核对。
+   * 未知行/重复行留给 mergeRows 给出原有 400 语义。
+   */
+  private assertCommitMatchesPreview(
+    record: PreviewRecord,
+    rows: readonly BillImportCommitRow[],
+  ): void {
+    const candidates = new Map(record.candidates.map((candidate) => [candidate.id, candidate]));
+    for (const row of rows) {
+      const candidate = candidates.get(row.id);
+      if (candidate === undefined) continue;
+      if (!commitRowMatchesCandidate(row, candidate)) {
+        throw conflict(
+          "preview_stale",
+          "核对之后候选内容发生了变化，请先重新检查疑似重复，再提交。",
+        );
+      }
+    }
   }
 
   private resolveRow(candidate: BillImportCandidate, book: BookData): ResolveResult {
@@ -495,7 +553,25 @@ export class BillImportService {
     };
   }
 
+  private async runExclusive<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.operationChain;
+    let release!: () => void;
+    this.operationChain = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }
+
   async recheck(input: RecheckInput): Promise<BillImportPreview> {
+    return this.runExclusive(async () => this.recheckUnlocked(input));
+  }
+
+  private async recheckUnlocked(input: RecheckInput): Promise<BillImportPreview> {
     const record = this.requirePreview(input.previewId, input.userId, input.bookId);
     const book = await this.loadBookData(input.bookId);
     let merged = this.mergeRows(record, input.rows);
@@ -526,6 +602,9 @@ export class BillImportService {
     });
     record.candidates = duplicates.candidates;
     record.warnings = mergeWarnings(record.originalWarnings ?? [], duplicates.warnings);
+    // 每次成功重检都推进版本；旧 revision 的 commit 必须失败，不能在并发/多窗口
+    // 场景下把上一轮的检测结果套到新一轮内容上。
+    record.revision += 1;
 
     return {
       ...previewOf(record),
@@ -535,7 +614,20 @@ export class BillImportService {
   }
 
   async commit(input: CommitInput): Promise<ImportReport> {
+    return this.runExclusive(async () => this.commitUnlocked(input));
+  }
+
+  private async commitUnlocked(input: CommitInput): Promise<ImportReport> {
     const record = this.requirePreview(input.previewId, input.userId, input.bookId);
+
+    if (input.previewRevision !== record.revision) {
+      throw conflict(
+        "preview_revision_mismatch",
+        "这次核对已经更新（可能在其他窗口重新检查过），请刷新核对页后再提交。",
+      );
+    }
+    this.assertCommitMatchesPreview(record, input.rows);
+
     if (record.committed !== null) return record.committed;
 
     if (record.reconciliation.ok === false && !input.acknowledgeWarnings) {

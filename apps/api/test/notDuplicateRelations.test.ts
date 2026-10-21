@@ -213,6 +213,36 @@ describe("S15-E3 不重复关系", () => {
     expect(await prisma.transactionNotDuplicateRelation.count({ where: { bookId: owner.bookId } })).toBe(1);
   });
 
+  it("并发确认同一对：全部 200/201，不因唯一约束返回 500，且只落一行", async () => {
+    const owner = await account("rel_concurrent");
+    const a = await entry(owner);
+    const b = await entry(owner);
+
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        postRelations(owner, { pairs: [{ transactionIdA: a, transactionIdB: b }] }),
+      ),
+    );
+
+    // E6 B12 回归：唯一约束竞争不能让用户看到 500。
+    expect(
+      responses.map((response) => response.statusCode),
+      responses.map((response) => response.body).join("\n"),
+    ).toEqual(expect.arrayContaining([201]));
+    expect(
+      responses.every((response) => response.statusCode === 200 || response.statusCode === 201),
+    ).toBe(true);
+
+    const bodies = responses.map((response) => response.json() as {
+      created: number;
+      unchanged: number;
+      items: { id: string }[];
+    });
+    expect(bodies.reduce((sum, body) => sum + body.created, 0)).toBe(1);
+    expect(new Set(bodies.flatMap((body) => body.items.map((item) => item.id))).size).toBe(1);
+    expect(await prisma.transactionNotDuplicateRelation.count({ where: { bookId: owner.bookId } })).toBe(1);
+  });
+
   it("撤销是软撤销、重复撤销幂等；默认列表不再返回已撤销", async () => {
     const owner = await account("rel_revoke");
     const a = await entry(owner);

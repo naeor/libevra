@@ -208,6 +208,7 @@ export function registerBillImportRoutes(
           userId: request.currentUser!.id,
           bookId: request.book!.bookId,
           previewId: body.previewId,
+          previewRevision: body.previewRevision,
           rows: body.rows,
           acknowledgeWarnings: body.acknowledgeWarnings,
         });

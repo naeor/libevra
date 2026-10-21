@@ -18,6 +18,8 @@ export interface PreviewRecord {
   readonly expiresAt: number;
   readonly source: BillImportPreview["source"];
   readonly format: BillImportPreview["format"];
+  /** 预览内容版本；每次 recheck 成功 +1，commit 必须带回同一值。 */
+  revision: number;
   /** 重新核对会更新候选（编辑字段/重复标记），提交以最后一次核对结果为准。 */
   candidates: BillImportCandidate[];
   warnings: string[];
