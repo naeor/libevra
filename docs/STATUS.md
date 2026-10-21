@@ -86,6 +86,7 @@
 - 1.15.00 生产实测（2026-10-21 09:21 CST）：`/health` = `1.15.00 / database=up`；回滚点 `/srv/libevra.pre-1.15.00` 与备份 `libevra_prod-20261021-091558.dump`（SHA-256 `26e92dc6…a812`）
 - 本次发布：`changelog/1.15.md` + [`archive/releases/S15-1.15.01-更新公告与重要更新弹窗补丁-发布验收记录.md`](archive/releases/S15-1.15.01-更新公告与重要更新弹窗补丁-发布验收记录.md)（1.15.00 记录另存于同目录）
 - S15-A/B/C 工作总报告：[archive/misc/S15-工作总报告-20261021.md](archive/misc/S15-工作总报告-20261021.md)
+- **S15 全阶段总览（A/B/C + E + 账单导入 V2，2026-10-22 整合版）**：[archive/misc/S15-全阶段总览-20261022.md](archive/misc/S15-全阶段总览-20261022.md)
 - 仓库迁移数：`prisma/migrations/` 目录计数 + `pnpm check:status`
 - 发布过程：[`archive/releases/`](archive/releases/) 与 [`changelog/1.15.md`](changelog/1.15.md)
 - 运维操作：[`03-运维手册.md`](03-运维手册.md)、[`ops/`](ops/)
