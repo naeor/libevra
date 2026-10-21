@@ -20,11 +20,13 @@ from model import (
     ISSUE_YEAR_INFERRED,
 )
 from normalize import (
+    closed_marker_in,
     currency_in,
     direction_from_text,
     normalize_status,
     read_amount,
     read_date_time,
+    read_short_date,
 )
 
 
@@ -201,6 +203,62 @@ class ReadDateTimeFromScreenshotsTest(unittest.TestCase):
         # `；10.17购买` is a date the merchant printed with dots; reading it as the
         # transaction date would be wrong, and dots are not a date separator here.
         self.assertIsNone(read_date_time("某应用商店订阅；10.17购买").date)
+
+
+class ReadShortDateTest(unittest.TestCase):
+    """`09.21` - the year-less date Taobao prints next to `实付款`.
+
+    A dot between two numbers is also how a price is written, so this reader is
+    opt-in: `read_date_time` still refuses dotted dates (see the test above), and
+    only the cell that is known to hold a date goes through here.
+    """
+
+    def test_a_dotted_month_day_uses_the_screenshot_year(self) -> None:
+        read = read_short_date("09.21", reference_year=2026)
+
+        self.assertEqual(read.date, "2026-09-21")
+        self.assertIn(ISSUE_YEAR_INFERRED, codes(read))
+
+    def test_the_separator_may_have_been_read_as_a_digit(self) -> None:
+        # `09.211` is what the recogniser returns for the printed `09.21 |`.
+        self.assertEqual(read_short_date("09.211", reference_year=2026).date, "2026-09-21")
+
+    def test_single_digit_month_and_day(self) -> None:
+        self.assertEqual(read_short_date("9.5", reference_year=2026).date, "2026-09-05")
+
+    def test_without_a_reference_year_the_date_is_a_question(self) -> None:
+        read = read_short_date("09.21")
+
+        self.assertIsNone(read.date)
+        self.assertIn(ISSUE_MISSING_YEAR, codes(read))
+
+    def test_a_price_is_never_a_date(self) -> None:
+        # `￥11.20` is eleven yuan twenty, not November 20th.
+        self.assertIsNone(read_short_date("￥11.20", reference_year=2026).date)
+        self.assertIsNone(read_short_date("11.20元", reference_year=2026).date)
+
+    def test_an_impossible_month_or_day_is_refused(self) -> None:
+        self.assertIsNone(read_short_date("13.01", reference_year=2026).date)
+        self.assertIsNone(read_short_date("11.45", reference_year=2026).date)
+
+    def test_a_full_date_is_left_to_the_general_reader(self) -> None:
+        # The Taobao card also prints `限时补款：2026年9月20日-…`; a full date is
+        # read by `read_date_time`, and this reader only handles the short shape.
+        self.assertEqual(
+            read_date_time("限时补款：2026年9月20日-2026...", reference_year=2026).date,
+            "2026-09-20",
+        )
+
+
+class ClosedOrderTest(unittest.TestCase):
+    def test_closing_wording_is_recognised(self) -> None:
+        self.assertEqual(closed_marker_in("交易关闭"), "交易关闭")
+        self.assertEqual(closed_marker_in("超时关闭"), "超时关闭")
+
+    def test_a_shipping_state_is_not_a_closed_order(self) -> None:
+        # 待发货 means the money already left; it is not a closed order.
+        self.assertIsNone(closed_marker_in("待发货"))
+        self.assertIsNone(closed_marker_in("已完成"))
 
 
 class StatusAndDirectionTest(unittest.TestCase):

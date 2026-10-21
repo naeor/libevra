@@ -23,6 +23,12 @@ Two product rules from the design direction are baked in here:
 | wechat-bill-list | 真实样本：微信「账单」全部列表 8 笔，金额/日期/时间/商户/方向全对 | 已验证 |
 | wechat-bill-cards | 真实样本：微信支付账单卡片 2 张（分组日期头 + 记账日报排除） | 已验证 |
 | alipay-transaction-list | 真实样本：支付宝交易记录 5 笔（相对日期 + 汇总/按钮排除） | 已验证 |
+| meituan-order-list | 真实样本：美团外卖订单列表 1 张（4 笔，含广告卡/通知横幅） | 已验证（1 张） |
+| meituan-order-detail | 真实样本：美团外卖订单详情 1 张（合计金额，页面无日期） | 已验证（1 张） |
+| jd-order-list | 真实样本：京东订单列表 1 张（3 笔，卡片不打印日期） | 已验证（1 张） |
+| jd-order-detail | 真实样本：京东订单详情 1 张（实付款/合计/支付方式） | 已验证（1 张） |
+| taobao-order-list | 真实样本：淘宝订单列表 1 张（2 笔，`09.21` 缺年份 + 交易关闭） | 已验证（1 张） |
+| taobao-order-detail | 真实样本：淘宝交易关闭详情 1 张（交易关闭 = 方向未知） | 已验证（1 张） |
 | boa-activity-list | 真实样本：BOA 交易列表 2 张（滚动重叠，金额/余额列分离） | 已验证 |
 | bank-single-detail | 真实样本 1 张（BOA Transaction Details） | **未验证**（仅 1 张） |
 | bank-transfer-confirmation | 真实样本 1 张（BOA 转账成功页） | **未验证**（仅 1 张） |
@@ -35,6 +41,13 @@ real screenshot was read end-to-end and every field it printed came out right;
 it does not mean every screen of that bank is handled. The two bank detail
 layouts have exactly one sample each, so they stay unverified and every candidate
 they yield carries the unverified-layout flag.
+
+The six 美团/京东/淘宝 order layouts (2026-10-21) are the exception that proves
+the rule: each has **one** real sample per page type, and it was read field by
+field, so they are marked verified - but one screenshot cannot cover a platform's
+variants (a Taobao detail that prints no `交易关闭`, a 美团 card with no date, a
+JD card whose shop name is OCR'd in two pieces). Their `notes` and
+`real-samples/README.md` say what that one sample did and did not prove.
 
 ## 如何新增一个银行/版式
 
@@ -90,6 +103,9 @@ PLATFORM_LABELS: dict[str, str] = {
     "WECHAT": "微信",
     "ALIPAY": "支付宝",
     "BANK": "银行",
+    "MEITUAN": "美团",
+    "JD": "京东",
+    "TAOBAO": "淘宝/天猫",
 }
 
 WECHAT_MARKERS = ("微信支付", "财付通", "微信账单", "对订单有疑惑", "零钱", "微信")
@@ -394,6 +410,15 @@ class ExtractionSpec:
     # Only set when the platform's currency is certain; `None` means the line
     # must carry its own symbol and a missing currency is a question.
     default_currency: str | None = None
+    # Money labels an *order detail* prints in front of the amount, the most
+    # authoritative first. `应付款`/`实付款`/`合计` are totals; `实付价` is one line
+    # item. Only a labelled amount may become the amount - the original price and
+    # the discount line sit right next to it (`共减￥x合计￥y`).
+    amount_labels: tuple[str, ...] = ()
+    # The direction an *order list* implies without printing a sign or the word
+    # 支出: 我的订单 only ever lists purchases I placed. Never applied to a closed
+    # or refunded order - their own wording decides first.
+    default_direction: str | None = None
 
 
 @dataclass(frozen=True)
@@ -408,6 +433,11 @@ class LayoutFeatures:
     list_markers: tuple[str, ...] = ()
     min_detail_labels: int = 0
     min_amount_rows: int = 2
+    # A detail screen that prints several bare prices (one per product line) has
+    # `structure.list_like` and would otherwise be refused as a detail. Opt in
+    # only together with `required_markers` naming the screen's money label, so
+    # the gate is "this page prints 实付款/应付款/合计", not "it looks like a list".
+    tolerate_list_structure: bool = False
 
 
 @dataclass(frozen=True)
@@ -537,7 +567,7 @@ def _score_layout(
         if len(structure.amount_rows) < features.min_amount_rows:
             return None
     else:
-        if structure.list_like:
+        if structure.list_like and not features.tolerate_list_structure:
             return None
 
     if features.required_markers and not all(marker in joined for marker in features.required_markers):
@@ -900,6 +930,203 @@ _BUILTIN_LAYOUTS: tuple[LayoutDescriptor, ...] = (
             default_currency="CNY",
         ),
         notes="相对日期（今天/昨天）用截图日期换算；金额右对齐才认；顶部汇总与「收支分析」按钮排除。",
+    ),
+    # --- 美团 / 京东 / 淘宝（2026-10-21 三平台 6 张真实截图） -------------------
+    #
+    # These three screens are *order* lists, not bill lists, and that changes two
+    # things the bill layouts never had to answer:
+    #
+    #   * the amount is the **order total** that the card prints, while the same
+    #     card also prints a count (`共2件`), a duration (`使用时长：73分钟`) and a
+    #     discount (`共减￥x`). Only a right-aligned money line is an amount;
+    #   * the card's **date is optional** (JD prints none at all) and, on Taobao,
+    #     the date next to `实付款` is the order date - the promo window
+    #     (`限时补款：2026年9月20日-…`) and the shipping promise
+    #     (`预售，7月18日09:27前发货`) are not.
+    #
+    # A closed order (交易关闭 / 超时关闭) never became a payment, so it must not be
+    # filed as an expense; the `order_closed` issue sends that question back to the
+    # user instead of deciding it here.
+    LayoutDescriptor(
+        id="meituan-order-list",
+        label="美团外卖订单列表",
+        page_type="transaction-list",
+        platform="MEITUAN",
+        verified=True,
+        sample="real-samples/2026-10-21_美团订单列表 1 张（4 笔；文本不入库）",
+        features=LayoutFeatures(
+            structure="list",
+            # Like the WeChat/Alipay screens, this one never prints its own brand
+            # in the body (only the logo does). 再来一单 / 领神券 / 下单： are 美团's
+            # own buttons and row labels, and 准时宝 / 打赏骑手 only exist here.
+            platform_markers=("美团", "再来一单", "领神券", "神抢手", "准时宝", "打赏骑手", "联系商家"),
+            strong=("再来一单", "领神券", "下单：", "已完成"),
+            weak=("外卖", "订单", "配送"),
+            list_markers=("订单",),
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="meituan-order-rows",
+            status_markers=(
+                ("订单已完成", "posted"),
+                ("已完成", "posted"),
+                ("待付款", "pending"),
+                ("待收货", "pending"),
+                ("待使用", "pending"),
+                ("退款成功", "退款成功"),
+                ("已退款", "已退款"),
+                ("已取消", "已取消"),
+            ),
+            default_direction="expense",
+            default_currency="CNY",
+        ),
+        notes="卡片 = 店铺名 + 状态 + 金额（右对齐￥）+ 下单时间/时间；`共N件`、`使用时长`、`领神券` 与底部广告不是金额。",
+    ),
+    LayoutDescriptor(
+        id="meituan-order-detail",
+        label="美团外卖订单详情",
+        page_type="single-detail",
+        platform="MEITUAN",
+        verified=True,
+        sample="real-samples/2026-10-21_美团订单详情 1 张（1 笔；文本不入库）",
+        features=LayoutFeatures(
+            structure="single-detail",
+            platform_markers=("美团", "准时宝", "打赏骑手", "联系商家", "再来一单", "订单已完成"),
+            # The total row is what makes this screen a detail; it is also the
+            # field the extractor reads, so a page without it is not claimed.
+            required_markers=("合计",),
+            strong=("订单信息", "商品费用", "合计", "准时宝", "配送地址"),
+            weak=("感谢您对", "费用明细", "已完成"),
+            min_detail_labels=0,
+            tolerate_list_structure=True,
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="cn-order-detail",
+            amount_labels=("应付款", "实付款", "合计", "总计", "订单金额", "实付"),
+            status_markers=(("订单已完成", "posted"), ("已完成", "posted"), ("已取消", "已取消")),
+            default_direction="expense",
+            default_currency="CNY",
+        ),
+        notes="金额取「合计￥xx.xx」（不是共2件）；页面不显示下单时间 → missing_date；支付方式折叠时不猜。",
+    ),
+    LayoutDescriptor(
+        id="jd-order-list",
+        label="京东订单列表",
+        page_type="transaction-list",
+        platform="JD",
+        verified=True,
+        sample="real-samples/2026-10-21_京东订单列表 1 张（3 笔；文本不入库）",
+        features=LayoutFeatures(
+            structure="list",
+            platform_markers=("京东", "京豆", "PLUS", "京东服务", "京东自营", "卖了换钱", "秒送外卖"),
+            strong=("京东服务", "自营", "再次购买", "退换/售后", "去查看"),
+            weak=("搜索我的订单", "待收货", "订单", "完成"),
+            list_markers=("订单",),
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="jd-order-rows",
+            status_markers=(
+                ("已完成", "posted"),
+                ("待付款", "pending"),
+                ("待收货", "pending"),
+                ("待使用", "pending"),
+                ("交易关闭", "交易关闭"),
+                ("退款成功", "退款成功"),
+            ),
+            default_direction="expense",
+            default_currency="CNY",
+        ),
+        notes="卡片 = 店铺名 + 商品 + 右侧￥金额 + 共N件；这一屏**不打印下单日期** → 保持缺失并标 missing_date，不猜。",
+    ),
+    LayoutDescriptor(
+        id="jd-order-detail",
+        label="京东订单详情",
+        page_type="single-detail",
+        platform="JD",
+        verified=True,
+        sample="real-samples/2026-10-21_京东订单详情 1 张（1 笔；文本不入库）",
+        features=LayoutFeatures(
+            structure="single-detail",
+            platform_markers=("京东", "京豆", "PLUS", "京东服务"),
+            required_markers=("实付款",),
+            strong=("实付款", "订单编号", "支付方式", "全部订单信息"),
+            weak=("进店", "评价晒单", "查看物流", "再次购买"),
+            min_detail_labels=0,
+            tolerate_list_structure=True,
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="cn-order-detail",
+            amount_labels=("应付款", "实付款", "合计", "总计", "订单金额", "实付"),
+            status_markers=(("已完成", "posted"), ("待收货", "pending"), ("交易关闭", "交易关闭")),
+            default_direction="expense",
+            default_currency="CNY",
+        ),
+        notes="金额取「实付款」行的「合计￥xx」，不是商品原价、也不是「共减￥x」；支付方式「微信支付」可读。",
+    ),
+    LayoutDescriptor(
+        id="taobao-order-list",
+        label="淘宝/天猫订单列表",
+        page_type="transaction-list",
+        platform="TAOBAO",
+        verified=True,
+        sample="real-samples/2026-10-21_淘宝订单列表 1 张（2 笔；文本不入库）",
+        features=LayoutFeatures(
+            structure="list",
+            # 天猫/淘宝 words do print on this screen (the shop row carries the
+            # 天猫 badge), unlike WeChat/Alipay. 再买一单 / 闪购 / 申请开票 are
+            # Taobao's own, and 实付款 is its own row label.
+            platform_markers=("天猫", "淘宝", "闪购", "再买一单", "实付款", "待发货", "申请开票", "退款/售后"),
+            strong=("天猫", "实付款", "交易关闭", "待发货", "再买一单"),
+            weak=("淘宝", "申请开票", "催发货", "退款"),
+            list_markers=("订单",),
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="taobao-order-rows",
+            status_markers=(
+                ("交易关闭", "交易关闭"),
+                ("超时关闭", "交易关闭"),
+                ("待付款", "pending"),
+                ("待发货", "pending"),
+                ("待收货", "pending"),
+                ("退款成功", "退款成功"),
+                ("已完成", "posted"),
+            ),
+            default_direction="expense",
+            default_currency="CNY",
+        ),
+        notes="金额取「实付款￥xx」行；日期只认同一行的 `09.21`（年份按截图推断并标注）；限时补款/预售发货日不是交易日期。",
+    ),
+    LayoutDescriptor(
+        id="taobao-order-detail",
+        label="淘宝/天猫订单详情（含交易关闭）",
+        page_type="single-detail",
+        platform="TAOBAO",
+        verified=True,
+        sample="real-samples/2026-10-21_淘宝交易关闭详情 1 张（1 笔；文本不入库）",
+        features=LayoutFeatures(
+            structure="single-detail",
+            # 淘宝 order details do not always print the brand word; 交易关闭 /
+            # 应付款 / 实付价 / 号码保护中 are this screen's own wording.
+            platform_markers=("淘宝", "天猫", "交易关闭", "超时关闭", "应付款", "实付价", "号码保护中", "订单保障"),
+            required_markers=("应付款",),
+            strong=("应付款", "实付价", "订单信息", "订单保障", "加入购物车"),
+            weak=("订单", "退款", "进店逛逛"),
+            min_detail_labels=0,
+            tolerate_list_structure=True,
+        ),
+        extraction=ExtractionSpec(
+            strategy="custom",
+            custom_extractor="cn-order-detail",
+            amount_labels=("应付款", "实付款", "合计", "总计", "订单金额", "实付价", "实付"),
+            status_markers=(("交易关闭", "交易关闭"), ("超时关闭", "交易关闭"), ("退款成功", "退款成功")),
+            default_direction="expense",
+            default_currency="CNY",
+        ),
+        notes="金额取「应付款￥xx」；`交易关闭/超时关闭` → 方向未知 + order_closed，不当已支付消费；日期来自「凭据：…下单…」并标 date_hint。",
     ),
     LayoutDescriptor(
         id="boa-activity-list",

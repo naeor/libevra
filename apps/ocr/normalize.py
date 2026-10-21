@@ -103,6 +103,22 @@ POSTED_MARKERS = (
 # refund, not a transfer, so refunds are checked first.
 TRANSFER_MARKERS = ("转账", "转入", "转出", "汇款", "还款", "Transfer", "TRANSFER")
 
+# An order that never became a payment. Taobao/Tmall print `交易关闭` as the
+# order's own status and `超时关闭` under it; JD and Meituan say `已取消`.
+#
+# Deliberately *not* in `REFUND_HINTS`: a refund gives back money that had left,
+# a closed order never took it. Reading a closed order as an expense (or as a
+# refund) would file money that never moved - which is the "wrong number is worse
+# than no number" failure this module is built around.
+ORDER_CLOSED_MARKERS = (
+    "交易关闭",
+    "超时关闭",
+    "订单已关闭",
+    "订单已取消",
+    "已取消",
+    "已关闭",
+)
+
 # Words that mean money came *in*. `extract.INCOME_MARKERS` are the phrases the
 # detail screens print; `收入` is what a list row or a summary line prints.
 # 收款方/收款账户 are deliberately absent: naming the payee is not the direction.
@@ -527,6 +543,83 @@ def _full_year(year: int) -> int:
     """`26` → 2026; `2026` stays. Two-digit years in lists are 2000-2099."""
 
     return year + 2000 if year < 100 else year
+
+
+# A month/day written with a dot (`09.21`): the shape Tmall/Taobao print on every
+# order card. Kept apart from `read_date_time` on purpose - a dot between two
+# numbers is also how a price is written (`11.20` 元), so this reader is only safe
+# where the caller already knows the cell holds a date.
+_SHORT_DATE = re.compile(r"(?<!\d)(\d{1,2})\s*[.\-/]\s*(\d{1,2})")
+
+
+def read_short_date(
+    text: str,
+    *,
+    reference_year: int | None = None,
+    reference_date: str | None = None,
+) -> DateTimeRead:
+    """`09.21` → a date, completed from the reference year and flagged.
+
+    Taobao/Tmall print the order date as `09.21` with no year at all, so the year
+    can only come from the screenshot date; it is filled in **and flagged**
+    `year_inferred`, never silently, and never from the machine clock.
+
+    A line that carries a currency mark is a price and is refused outright:
+    `￥11.20` is eleven yuan twenty, not November 20th.
+    """
+
+    issues: list[Issue] = []
+    reference = parse_reference_date(reference_date)
+    if reference is not None and reference_year is None:
+        reference_year = reference.year
+
+    if currency_in(text) is not None or "元" in text:
+        # `￥11.20` / `11.20元` is a price, not November 20th.
+        return DateTimeRead(raw=text)
+
+    match = _SHORT_DATE.search(text)
+    if match is None:
+        return DateTimeRead(raw=text)
+
+    # A number followed by a money word is money even without a symbol.
+    if text[match.end() : match.end() + 1] in ("元", "块", "角", "分"):
+        return DateTimeRead(raw=text)
+
+    month, day = int(match.group(1)), int(match.group(2))
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return DateTimeRead(raw=text)
+
+    if reference_year is None:
+        issues.append(
+            Issue(
+                ISSUE_MISSING_YEAR,
+                f"只读到「{match.group(0)}」没有年份，请确认是哪一年。",
+                "date",
+            )
+        )
+        return DateTimeRead(issues=tuple(issues), raw=text)
+
+    issues.append(
+        Issue(
+            ISSUE_YEAR_INFERRED,
+            f"年份是按截图年份（{reference_year}）补的，请确认。",
+            "date",
+        )
+    )
+    return DateTimeRead(
+        date=f"{reference_year:04d}-{month:02d}-{day:02d}",
+        issues=tuple(issues),
+        raw=text,
+    )
+
+
+def closed_marker_in(text: str) -> str | None:
+    """The wording that says the order never became a payment, or None."""
+
+    for marker in ORDER_CLOSED_MARKERS:
+        if marker in text:
+            return marker
+    return None
 
 
 def normalize_status(text: str) -> str | None:

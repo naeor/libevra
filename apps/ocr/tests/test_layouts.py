@@ -186,6 +186,77 @@ class ClassifyBankDetailTest(unittest.TestCase):
         self.assertEqual(result.page_type, "single-detail")
 
 
+class ClassifyOrderPlatformsTest(unittest.TestCase):
+    """美团 / 京东 / 淘宝 order screens (2026-10-21 samples).
+
+    One list and one detail per platform, because the two answer different
+    questions: how many transactions are on the page, and is this page an order
+    at all. The same platform word appears on both, so the gate that separates
+    them is the page's structure, not its vocabulary.
+    """
+
+    def test_meituan_order_list_is_a_transaction_list(self) -> None:
+        result = classify(fixtures.meituan_order_list())
+
+        self.assertEqual(result.page_type, "transaction-list")
+        self.assertEqual(result.layout_id, "meituan-order-list")
+        self.assertEqual(result.platform, "MEITUAN")
+        self.assertTrue(result.verified)
+        self.assertFalse(result.requires_user_choice)
+
+    def test_meituan_order_detail_is_one_page(self) -> None:
+        result = classify(fixtures.meituan_order_detail())
+
+        self.assertEqual(result.page_type, "single-detail")
+        self.assertEqual(result.layout_id, "meituan-order-detail")
+        self.assertEqual(result.platform, "MEITUAN")
+
+    def test_jd_order_list_is_a_transaction_list(self) -> None:
+        result = classify(fixtures.jd_order_list())
+
+        self.assertEqual(result.page_type, "transaction-list")
+        self.assertEqual(result.layout_id, "jd-order-list")
+        self.assertEqual(result.platform, "JD")
+        self.assertTrue(result.verified)
+
+    def test_jd_order_detail_is_one_page(self) -> None:
+        result = classify(fixtures.jd_order_detail())
+
+        self.assertEqual(result.page_type, "single-detail")
+        self.assertEqual(result.layout_id, "jd-order-detail")
+        self.assertEqual(result.platform, "JD")
+
+    def test_taobao_order_list_is_a_transaction_list(self) -> None:
+        result = classify(fixtures.taobao_order_list())
+
+        self.assertEqual(result.page_type, "transaction-list")
+        self.assertEqual(result.layout_id, "taobao-order-list")
+        self.assertEqual(result.platform, "TAOBAO")
+
+    def test_taobao_closed_order_detail_is_one_page(self) -> None:
+        result = classify(fixtures.taobao_order_detail())
+
+        self.assertEqual(result.page_type, "single-detail")
+        self.assertEqual(result.layout_id, "taobao-order-detail")
+        self.assertEqual(result.platform, "TAOBAO")
+
+    def test_the_order_list_does_not_print_its_brand_and_is_still_recognised(self) -> None:
+        # 美团's list prints no 美团 anywhere (only the logo); 京东's prints it
+        # inside a shop name. Neither may need the brand word to be read.
+        meituan = fixtures.meituan_order_list()
+        self.assertFalse(any("美团" in line.text for line in meituan))
+        self.assertIn("meituan-order-list", classify(meituan).layout_id)
+
+    def test_an_order_detail_without_its_money_label_is_not_claimed(self) -> None:
+        # The detail layouts require their own money label (合计/实付款/应付款),
+        # so a page that merely *mentions* 京东 or 淘宝 is not cut into one order.
+        lines = [line for line in fixtures.jd_order_detail() if "实付款" not in line.text]
+
+        result = classify(lines)
+
+        self.assertNotEqual(result.layout_id, "jd-order-detail")
+
+
 class ClassifyUnknownTest(unittest.TestCase):
     def test_a_page_with_no_transaction_structure_requires_a_choice(self) -> None:
         result = classify(fixtures.unknown_page())
@@ -285,6 +356,12 @@ class RegistryExtensionTest(unittest.TestCase):
         self.assertIn("alipay-transaction-list", ids)
         self.assertIn("boa-activity-list", ids)
         self.assertIn("generic-transaction-list", ids)
+        self.assertIn("meituan-order-list", ids)
+        self.assertIn("meituan-order-detail", ids)
+        self.assertIn("jd-order-list", ids)
+        self.assertIn("jd-order-detail", ids)
+        self.assertIn("taobao-order-list", ids)
+        self.assertIn("taobao-order-detail", ids)
 
     def test_verified_flags_match_the_documented_evidence(self) -> None:
         by_id = {layout.id: layout for layout in registered_layouts()}
@@ -297,6 +374,17 @@ class RegistryExtensionTest(unittest.TestCase):
             "wechat-bill-cards",
             "alipay-transaction-list",
             "boa-activity-list",
+        ):
+            self.assertTrue(by_id[layout_id].verified, layout_id)
+        # Read end-to-end against the 2026-10-21 美团/京东/淘宝 screenshots: one
+        # sample per layout, and every field it printed came out right.
+        for layout_id in (
+            "meituan-order-list",
+            "meituan-order-detail",
+            "jd-order-list",
+            "jd-order-detail",
+            "taobao-order-list",
+            "taobao-order-detail",
         ):
             self.assertTrue(by_id[layout_id].verified, layout_id)
         # Still unverified: one sample each (bank detail pages), synthetic only
