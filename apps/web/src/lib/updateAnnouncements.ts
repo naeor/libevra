@@ -31,14 +31,36 @@ export interface UpdateAnnouncement {
 }
 
 /**
- * 1.15.03 is the S15-E + 账单导入 V2 production release (2026-10-22), a normal
- * (non-popup) announcement. 1.15.00 is the S15 production release (2026-10-21).
+ * 1.15.04 is the old-major-announcement display fix (2026-10-22), a normal
+ * (non-popup) announcement. 1.15.03 is the S15-E + 账单导入 V2 production release
+ * (2026-10-22), also normal (non-popup). 1.15.00 is the S15 production release (2026-10-21).
  * 1.14.20 is the OCR production patch (2026-10-20). 1.14.18 is the S14 production
  * release (2026-10-19). 1.13.15 is the S13-G/H/I release; 1.13.09 is the S13-F
  * release; 1.13.08 was a production patch (card layout) and 1.13.07 was the full
  * S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.15.04",
+    releasedAt: "2026-10-22",
+    status: "released",
+    title: "Libevra 1.15.04",
+    summary: "升级后，旧的重大更新提示不再重复出现。",
+    intro: [
+      "本次更新修复了一个提示重复的问题：应用升级到新版本后，以前版本的重要更新提示可能再次弹出。",
+    ],
+    sections: [
+      {
+        heading: "重要更新提示",
+        items: [
+          "升级到新版本后，旧版本的重要更新提示不会再重复弹出；已看过的旧提示仍可在「软件更新」历史中查看。",
+          "这次只调整了提示的显示判断，不影响同一账号的确认状态，也不会删除、合并或覆盖任何账目。",
+        ],
+      },
+    ],
+    closing: ["感谢你使用 Libevra。"],
+    major: false,
+  },
   {
     version: "1.15.03",
     releasedAt: "2026-10-22",
