@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 
+import { APP_VERSION } from "@libellum/shared";
+
 import { Button } from "./Button.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import {
@@ -14,6 +16,7 @@ import {
 } from "../lib/consent.js";
 import { deliverFile } from "../lib/share.js";
 import { errorMessage } from "../lib/api.js";
+import { selectDisplayedMajorAnnouncement } from "../lib/majorAnnouncementVisibility.js";
 
 /** Pages where a gentle announcement must not interrupt an active input/import flow. */
 export function isInputFlow(pathname: string): boolean {
@@ -86,7 +89,15 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
     (document) => !document.accepted,
   );
   const missing = (status?.missingDocumentIds.length ?? 0) > 0;
-  const pendingMajor = status?.majorAnnouncement ?? null;
+  /**
+   * ⚠️ The server returns the newest unacknowledged major announcement, not necessarily one that
+   * belongs to this build. After an update, an older popup must stay history; see the filter's
+   * rationale. `onAckMajor` only ever receives this displayable value.
+   */
+  const pendingMajor = selectDisplayedMajorAnnouncement(
+    status?.majorAnnouncement ?? null,
+    APP_VERSION,
+  );
   const legalPage = isPublicLegalPage(location.pathname);
   const accountDataPage = isAccountDataPage(location.pathname);
   const safeForMajor = !isInputFlow(location.pathname);
