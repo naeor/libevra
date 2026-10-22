@@ -7,19 +7,19 @@
 
 | 项 | 值 |
 |---|---|
-| **最后核对** | 2026-10-22 06:55 CST（生产已发布 **`1.15.03`** / commit `c00aa7f` / 第 52 号迁移；发布前备份、迁移、健康检查与隔离测试账号冒烟均完成；发布 commit CI run `39689386576` success；**S15-D 真机验收仍未完成**） |
-| **生产版本** | **`1.15.03`**（2026-10-22 06:46 CST 上线；含 S15-E2/E3/E4/E5 统一重复检测、账单导入 V2、E6 P2-1/P2-2 修复） |
-| **本地开发版本** | **`1.15.03`**（与生产部署 commit `c00aa7f` 一致；E6 P2 修复已发布） |
-| **生产 `/health`** | ✅ 实测 `ok=true`、`version=1.15.03`、`database=up`（公网 2026-10-22 06:47/06:48 CST 两次） |
-| **生产部署 commit** | **`c00aa7f`**（`/srv/libevra/.deployed-commit` 实测；根目录与 `deploy/` 标记一致） |
+| **最后核对** | 2026-10-22 08:22 CST（生产 **`1.15.03`**：API 代码 `c00aa7f` + 同版本 Web 公告补丁 `d21a108` / 第 52 号迁移；备份、迁移、健康检查、隔离冒烟均完成；公告补丁 Web 健康与静态内容已核对；`d21a108` CI run `39698616563` success；**S15-D 真机验收仍未完成**） |
+| **生产版本** | **`1.15.03`**（2026-10-22 06:46 CST 上线；含 S15-E2/E3/E4/E5 统一重复检测、账单导入 V2、E6 P2-1/P2-2 修复；08:18 CST 追加同版本「软件更新」公告，未升版本） |
+| **本地开发版本** | **`1.15.03`**（当前代码基于公告补丁 `d21a108`；API 代码与生产 `c00aa7f` 一致，Web 公告已发布） |
+| **生产 `/health`** | ✅ 实测 `ok=true`、`version=1.15.03`、`database=up`（公网 2026-10-22 06:47/06:48 与 08:17 CST 三次）；Web 公告补丁后 `/healthz` 200 |
+| **生产部署 commit** | **`d21a108`**（根目录与 `deploy/.deployed-commit` 实测一致，2026-10-22 08:18 CST 更新；API 运行镜像仍由 `c00aa7f` 构建，两 commit 间 API 无变更，Web 由 `d21a108` 构建） |
 | **数据库迁移** | **52** 个；生产已完成第 52 号 `20261021031459_s15e3_not_duplicate_relations`（关系表，2026-10-22 发布时应用，0 未完成）。1.15.03 不新增其他迁移 |
 | **注册模式** | **邀请制**（未开放公开注册，本次未改变） |
 | **站点** | <https://libevra.com>（腾讯云，HTTPS） |
 | **当前阶段** | **S15-A/B/C 已发布（1.15.00 + 1.15.01）；S15-E2/E3/E4/E5 与账单导入 V2 已随 1.15.03 发布（第 52 号关系表迁移已上生产）；E6 专项验收为附 P2 条件通过，P2-1/P2-2 已修复并发布；S15-D 真机验收仍未完成；S16/S17 未开始** |
-| **分支 / 远程** | 远端 `main` 与 `s15-complete` 已快进到发布代码 **`c00aa7f`**（fast-forward，无 force push）；发布后文档随本 docs 收尾提交补记并推送，发布记录见 §4。历史分支保留：`s15-announce`、`release/s15`、`s14-integration` 等 |
-| **CI** | ✅ 发布代码 `c00aa7f` 的 run [`39689386576`](https://github.com/naeor/libevra/actions/runs/39689386576) **success**（约 2m34s，Typecheck/migrate/test/build 全绿，2026-10-22 06:53 CST）；发布后 docs 提交 `bde57f3` 的 run [`39689829140`](https://github.com/naeor/libevra/actions/runs/39689829140) **success**（06:57 CST）；上一个发布 commit `9064909` 的 run `39529182047` success（3m10s）；1.15.00 的 run `39522545935` / `39527257618` success |
+| **分支 / 远程** | 远端 `main` 与 `s15-complete` 已到公告补丁代码 **`d21a108`**（`c00aa7f` 为 1.15.03 发布代码，`d21a108` 仅 Web 公告/测试；无 force push）；发布后文档随本 docs 收尾提交补记并推送，发布记录见 §4。历史分支保留：`s15-announce`、`release/s15`、`s14-integration` 等 |
+| **CI** | ✅ 发布代码 `c00aa7f` 的 run [`39689386576`](https://github.com/naeor/libevra/actions/runs/39689386576) **success**（约 2m34s，Typecheck/migrate/test/build 全绿，2026-10-22 06:53 CST）；公告补丁 `d21a108` 的 run [`39698616563`](https://github.com/naeor/libevra/actions/runs/39698616563) **success**（08:18 CST）；发布后 docs 提交 `bde57f3` 的 run [`39689829140`](https://github.com/naeor/libevra/actions/runs/39689829140) **success**（06:57 CST）；上一个发布 commit `9064909` 的 run `39529182047` success（3m10s）；1.15.00 的 run `39522545935` / `39527257618` success |
 | **当前提交** | 见 `git log -1 --oneline`（本文件不锁 hash，避免每次提交都过期） |
-| **工作区** | **只剩主工作区 `记账程序v1`**（分支 `s15-complete`，发布代码 `c00aa7f` 与发布后 docs 提交均已推送）；2026-10-22 已把 32 个 S15 worktree 中的 31 个全部核对、合入并清理，删除前备份记录在仓库外 `private-samples/worktree-integration-20261022/` |
+| **工作区** | **只剩主工作区 `记账程序v1`**（分支 `s15-complete`；发布代码 `c00aa7f`、公告补丁 `d21a108` 与发布后 docs 提交均已推送）；2026-10-22 已把 32 个 S15 worktree 中的 31 个全部核对、合入并清理，删除前备份记录在仓库外 `private-samples/worktree-integration-20261022/` |
 
 ## 1. 阶段
 
