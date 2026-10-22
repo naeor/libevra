@@ -18,7 +18,11 @@ describe("重大更新弹窗的版本过滤", () => {
     expect(
       selectDisplayedMajorAnnouncement(RELEASE_MAJOR_ANNOUNCEMENT_1_15_00, "1.15.03"),
     ).toBeNull();
+    expect(
+      selectDisplayedMajorAnnouncement(RELEASE_MAJOR_ANNOUNCEMENT_1_15_00, "1.15.05"),
+    ).toBeNull();
     expect(isMajorAnnouncementOlderThanApp("1.15.00", "1.15.03")).toBe(true);
+    expect(isMajorAnnouncementOlderThanApp("1.15.00", "1.15.05")).toBe(true);
   });
 
   it("当前构建与公告同版本时保留弹窗", () => {

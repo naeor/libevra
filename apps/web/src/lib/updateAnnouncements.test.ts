@@ -27,6 +27,7 @@ describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.15.05",
       "1.15.04",
       "1.15.03",
       "1.15.00",
@@ -38,6 +39,25 @@ describe("version announcements", () => {
       "1.13.07",
     ]);
     expect(released.every((entry) => entry.status === "released" && entry.releasedAt !== null)).toBe(true);
+  });
+
+  it("records the 1.15.05 feature update as a normal, non-popup announcement", () => {
+    const announcement = releasedAnnouncementByVersion("1.15.05");
+    expect(announcement?.title).toBe("Libevra 1.15.05");
+    expect(announcement?.summary).toBe("粘贴也能记账，语音和快捷菜单更好用。");
+    expect(announcement?.releasedAt).toBe("2026-10-23");
+    expect(announcement?.major).toBe(false);
+    expect(announcement?.intro?.[0]).toContain("粘贴识别");
+    expect(announcement?.sections.map((section) => section.heading)).toEqual([
+      "粘贴文字，识别记账",
+      "语音记账，更好修改",
+      "快捷菜单，五种方式",
+    ]);
+    expect(announcement?.sections[0]?.items.join("")).toContain("金额、日期、分类");
+    expect(announcement?.sections[1]?.items.join("")).toContain("不需要重新录音");
+    expect(announcement?.sections[1]?.items.join("")).toContain("仍会受环境、语速和口音影响");
+    expect(announcement?.sections[2]?.items.join("")).toContain("五种记账方式");
+    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
   });
 
   it("records the 1.15.04 fix as a normal, non-popup update", () => {
@@ -136,6 +156,7 @@ describe("version announcements", () => {
   });
 
   it("answers with the latest applicable release for a running version", () => {
+    expect(latestApplicableAnnouncement("1.15.05")?.version).toBe("1.15.05");
     expect(latestApplicableAnnouncement("1.15.04")?.version).toBe("1.15.04");
     expect(latestApplicableAnnouncement("1.15.03")?.version).toBe("1.15.03");
     expect(latestApplicableAnnouncement("1.15.02")?.version).toBe("1.15.00");
@@ -165,7 +186,8 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.15.00")).toBe(true);
     expect(hasNewerReleasedVersion("1.15.02")).toBe(true);
     expect(hasNewerReleasedVersion("1.15.03")).toBe(true);
-    expect(hasNewerReleasedVersion("1.15.04")).toBe(false);
+    expect(hasNewerReleasedVersion("1.15.04")).toBe(true);
+    expect(hasNewerReleasedVersion("1.15.05")).toBe(false);
   });
 
   it("returns all actual releases and leaves the first page to the UI", () => {
@@ -185,7 +207,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.15.04").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.15.05").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.15.05").older?.version).toBe("1.15.04");
+    expect(adjacentReleasedAnnouncements("1.15.04").newer?.version).toBe("1.15.05");
     expect(adjacentReleasedAnnouncements("1.15.04").older?.version).toBe("1.15.03");
     expect(adjacentReleasedAnnouncements("1.15.03").newer?.version).toBe("1.15.04");
     expect(adjacentReleasedAnnouncements("1.15.03").older?.version).toBe("1.15.00");
@@ -204,6 +228,7 @@ describe("version announcements", () => {
   });
 
   it("formats the publication date without inventing a time or timezone", () => {
+    expect(formatReleaseDate("2026-10-23")).toBe("2026年10月23日");
     expect(formatReleaseDate("2026-10-22")).toBe("2026年10月22日");
     expect(formatReleaseDate("2026-10-19")).toBe("2026年10月19日");
     expect(formatReleaseDate("2026-10-18")).toBe("2026年10月18日");

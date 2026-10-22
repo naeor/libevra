@@ -31,15 +31,51 @@ export interface UpdateAnnouncement {
 }
 
 /**
- * 1.15.04 is the old-major-announcement display fix (2026-10-22), a normal
- * (non-popup) announcement. 1.15.03 is the S15-E + 账单导入 V2 production release
- * (2026-10-22), also normal (non-popup). 1.15.00 is the S15 production release (2026-10-21).
+ * 1.15.05 is the paste-entry + voice-parsing + five-way shortcut-menu release
+ * (2026-10-23), a normal (non-popup) announcement. 1.15.04 is the
+ * old-major-announcement display fix (2026-10-22), also normal (non-popup).
+ * 1.15.03 is the S15-E + 账单导入 V2 production release (2026-10-22), also normal
+ * (non-popup). 1.15.00 is the S15 production release (2026-10-21).
  * 1.14.20 is the OCR production patch (2026-10-20). 1.14.18 is the S14 production
  * release (2026-10-19). 1.13.15 is the S13-G/H/I release; 1.13.09 is the S13-F
  * release; 1.13.08 was a production patch (card layout) and 1.13.07 was the full
  * S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.15.05",
+    releasedAt: "2026-10-23",
+    status: "released",
+    title: "Libevra 1.15.05",
+    summary: "粘贴也能记账，语音和快捷菜单更好用。",
+    intro: ["本次更新新增了粘贴识别，并改进了语音记账和快捷记账菜单。"],
+    sections: [
+      {
+        heading: "粘贴文字，识别记账",
+        items: [
+          "复制一段交易文字粘贴进来，Libevra 会尝试识别金额、日期、分类等信息，并先放进核对页。",
+          "核对无误后再保存；一段文字里有几笔时，也可以分开处理。",
+        ],
+      },
+      {
+        heading: "语音记账，更好修改",
+        items: [
+          "改进了金额、日期、商户和分类的识别，常见的口语说法更容易得到正确结果。",
+          "语音转成的文字可以手动修改，修改后会重新解析，不需要重新录音。",
+          "语音识别仍会受环境、语速和口音影响，保存前请再核对一次。",
+        ],
+      },
+      {
+        heading: "快捷菜单，五种方式",
+        items: [
+          "中央加号现在提供粘贴、语音、手动、拍照、导入五种记账方式。",
+          "五种方式保持在一行内排列，手动记账位于中央；手机屏幕较窄时使用简短名称，空间足够时显示完整名称。",
+        ],
+      },
+    ],
+    closing: ["感谢你使用 Libevra。"],
+    major: false,
+  },
   {
     version: "1.15.04",
     releasedAt: "2026-10-22",
