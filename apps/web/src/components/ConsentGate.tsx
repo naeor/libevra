@@ -23,8 +23,10 @@ export function isInputFlow(pathname: string): boolean {
   return (
     pathname === "/add" ||
     pathname === "/record" ||
+    pathname === "/paste" ||
     pathname === "/scan" ||
     pathname === "/voice/review" ||
+    pathname === "/paste/review" ||
     pathname.startsWith("/import") ||
     pathname.endsWith("/settings/import") ||
     pathname.startsWith("/transactions/")

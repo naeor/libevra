@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { MAX_SPEECH_SECONDS, isSpeechless } from "@libellum/shared";
+import { useEffect, useMemo, useState } from "react";
+import { MAX_SPEECH_SECONDS, isSpeechless, parseTransactionText } from "@libellum/shared";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -7,7 +7,7 @@ import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { VoiceRipples } from "../components/VoiceRipples.js";
 import { errorMessage } from "../lib/api.js";
-import { useTranscribe } from "../lib/queries.js";
+import { useLedger, useTranscribe } from "../lib/queries.js";
 import { handOverSpoken } from "../lib/scanHandoff.js";
 import { describeBlocker, useVoiceRecorder, type Recording } from "../lib/useVoiceRecorder.js";
 
@@ -37,16 +37,10 @@ import { describeBlocker, useVoiceRecorder, type Recording } from "../lib/useVoi
 export function RecordPage(): React.JSX.Element {
   const navigate = useNavigate();
   const transcribe = useTranscribe();
-
-  const [result, setResult] = useState<{
-    readonly text: string;
-    readonly amount: string | null;
-    readonly kind: "expense" | "income";
-    readonly note: string;
-  } | null>(null);
+  const ledger = useLedger();
+  const categories = useMemo(() => ledger.data?.categories ?? [], [ledger.data?.categories]);
 
   const recorder = useVoiceRecorder((recording: Recording) => {
-    setResult(null);
     transcribe.mutate(recording.blob);
   });
 
@@ -67,6 +61,24 @@ export function RecordPage(): React.JSX.Element {
     // recording's corrections to another one's words.
     setEditedText(null);
   }, [transcribe.data]);
+
+  /**
+   * Re-run the **same** shared parser on the text as it is now.
+   *
+   * This is the architecture's main payoff and the owner asked for it in those
+   * terms: correcting what Whisper heard must not require another upload or
+   * another inference. The API's parse is only a starting point — the browser
+   * re-parses with the user's local clock, because "昨天" depends on where the
+   * user is, not on the server's timezone.
+   */
+  const parsed = useMemo(() => {
+    if (transcribe.data === undefined || transcribe.data.text === "") return null;
+
+    const text = (editedText ?? transcribe.data.text).trim();
+    if (text === "") return null;
+
+    return parseTransactionText(text, { categories, now: new Date() });
+  }, [transcribe.data, editedText, categories]);
 
   const recording = recorder.state === "recording";
   const busy = recorder.state === "starting" || recorder.state === "stopping" || transcribe.isPending;
@@ -111,7 +123,6 @@ export function RecordPage(): React.JSX.Element {
             return;
           }
 
-          setResult(null);
           setEditedText(null);
           transcribe.reset();
           void recorder.start();
@@ -172,13 +183,28 @@ export function RecordPage(): React.JSX.Element {
           */}
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-brand-soft px-3 py-1.5 text-brand-dark">
-              {transcribe.data.amount === null
+              {parsed === null || parsed.amount === null
                 ? "没听到金额"
-                : `${transcribe.data.kind === "income" ? "收入" : "支出"} ${transcribe.data.amount}`}
+                : `${parsed.kind === "income" ? "收入" : "支出"} ${parsed.amount}`}
             </span>
-            {transcribe.data.note === "" ? null : (
+            {parsed?.merchant == null ? null : (
               <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
-                备注：{transcribe.data.note}
+                商户：{parsed.merchant}
+              </span>
+            )}
+            {parsed?.paymentMethod == null ? null : (
+              <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
+                支付：{parsed.paymentMethod}
+              </span>
+            )}
+            {parsed?.occurredLocalDate == null ? null : (
+              <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
+                日期：{parsed.occurredLocalDate}
+              </span>
+            )}
+            {parsed === null || parsed.note === "" ? null : (
+              <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
+                备注：{parsed.note}
               </span>
             )}
           </div>
@@ -196,15 +222,9 @@ export function RecordPage(): React.JSX.Element {
                * so rather than showing an empty form.
                */
               const text = (editedText ?? transcribe.data.text).trim();
+              if (parsed === null) return;
 
-              handOverSpoken({
-                text,
-                amount: transcribe.data.amount,
-                kind: transcribe.data.kind,
-                categoryId: transcribe.data.categoryId,
-                categoryMatched: transcribe.data.categoryMatched,
-              });
-
+              handOverSpoken({ text, parsed, source: "voice" });
               void navigate("/voice/review");
             }}
           >

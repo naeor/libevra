@@ -1,3 +1,5 @@
+import type { TransactionTextResult } from "@libellum/shared";
+
 /**
  * Handing things from the recording controls to the screens that use them.
  *
@@ -43,17 +45,14 @@ export function takeScanHandover(): File[] {
   return files;
 }
 
-/** What the voice screen hands to its review form. */
+/** What a text-entry screen hands to its review form. */
 export interface SpokenDraftHandover {
-  /** The sentence as heard, already edited by the user if they changed it. */
+  /** The sentence as heard/pasted, already edited by the user if they changed it. */
   readonly text: string;
-  /** Digits as spoken, or null when no amount was heard. */
-  readonly amount: string | null;
-  readonly kind: "expense" | "income";
-  /** A category the sentence sounds like, or null when nothing fitted. */
-  readonly categoryId: string | null;
-  /** The words that matched, so the form can show its reasoning. */
-  readonly categoryMatched: readonly string[];
+  /** The shared-core candidate, parsed from that exact text with the user's clock. */
+  readonly parsed: TransactionTextResult;
+  /** Which entrance produced the draft, so the review screen can speak honestly. */
+  readonly source: "voice" | "paste";
 }
 
 let pendingSpoken: SpokenDraftHandover | null = null;

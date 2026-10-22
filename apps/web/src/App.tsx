@@ -65,6 +65,7 @@ import { LegalDocumentPage } from "./pages/LegalDocumentPage.js";
 import { StartBookMembersPage, StartBookSharePage } from "./pages/StartBookPages.js";
 import { ReferralCodePage } from "./pages/ReferralCodePage.js";
 import { RegenerateRecoveryCodePage } from "./pages/RegenerateRecoveryCodePage.js";
+import { PastePage } from "./pages/PastePage.js";
 import { RecordPage } from "./pages/RecordPage.js";
 import { ScanPage } from "./pages/ScanPage.js";
 import { OcrOverviewPage } from "./pages/OcrOverviewPage.js";
@@ -286,8 +287,10 @@ function AppRoutes(): React.JSX.Element {
 
       <Route path="/scan" element={<RequireAuth><ScanPage /></RequireAuth>} />
         <Route path="/record" element={<RequireAuth><RecordPage /></RequireAuth>} />
+        <Route path="/paste" element={<RequireAuth><PastePage /></RequireAuth>} />
         <Route path="/ledger/more" element={<RequireAuth><LedgerMorePage /></RequireAuth>} />
         <Route path="/voice/review" element={<RequireAuth><VoiceReviewPage /></RequireAuth>} />
+        <Route path="/paste/review" element={<RequireAuth><VoiceReviewPage /></RequireAuth>} />
         {/* S15-B：批量识别结果的概览与单笔核对（数据只在浏览器临时层，确认前不写账）。 */}
         <Route path="/ocr/overview" element={<RequireAuth><OcrOverviewPage /></RequireAuth>} />
         <Route path="/ocr/overview/:candidateId" element={<RequireAuth><OcrReviewDetailPage /></RequireAuth>} />

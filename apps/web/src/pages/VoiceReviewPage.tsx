@@ -4,9 +4,11 @@ import {
   UNCATEGORISED_NAME,
   decimalsFor,
   describeDuplicateMatch,
+  type CategoryCandidate,
   type CreateTransactionInput,
   type DuplicatePairResult,
   type Transaction,
+  type TransactionTextResult,
 } from "@libellum/shared";
 import { useNavigate } from "react-router";
 
@@ -38,6 +40,75 @@ import { takeSpokenHandover } from "../lib/scanHandoff.js";
 import { uuidV7 } from "../lib/uuid.js";
 
 /**
+ * Turn one shared-core candidate into the form's starting values.
+ *
+ * Pure, and exported for the acceptance tests: the screen's job is the save
+ * handshake, while the mapping is where a field quietly lands in the wrong
+ * place — an amount losing its decimals, a date becoming today because the
+ * parse was `null`, or a payment label being matched to the wrong card.
+ *
+ * The two "do not invent" rules stay here:
+ *
+ *  * A missing date falls back to **today**, which is what "recorded now" means,
+ *    not a guess about what the user said.
+ *  * A payment label only fills the field when exactly one ledger method fits;
+ *    支付宝 and 余额宝 are different things, and an empty field gets chosen
+ *    while a wrong one gets confirmed.
+ */
+export function draftOf(
+  parsed: TransactionTextResult | null,
+  fallbackText: string,
+  categories: readonly CategoryCandidate[],
+  paymentMethods: readonly { readonly id: string; readonly name: string; readonly isArchived: boolean }[],
+  lastCategoryId: string | null,
+  now: Date = new Date(),
+  /**
+   * Whether the note may start from the heard/pasted text. Voice keeps the old
+   * behaviour (the transcript stays next to the form while it is being checked);
+   * paste does not, because a copied payment detail can contain an order number
+   * or a whole bank message and the note is saved. The paste screen shows the
+   * snippet for review and only a short merchant note is prefilled.
+   */
+  keepTranscriptInNote = true,
+): { readonly draft: ReviewDraft; readonly categoryReason: string | null; readonly heardCategoryId: string | null } {
+  const usable = (id: string | null): string | null =>
+    id !== null && categories.some((category) => category.id === id && !category.isArchived) ? id : null;
+
+  const heardCategoryId = usable(parsed?.categoryId ?? null);
+  const categoryId = heardCategoryId ?? usable(lastCategoryId);
+
+  const label = parsed?.paymentMethod ?? null;
+  const matches =
+    label === null
+      ? []
+      : paymentMethods.filter(
+          (method) => method.name === label || method.name.includes(label) || label.includes(method.name),
+        );
+
+  return {
+    draft: {
+      amount: parsed?.amount ?? "",
+      kind: parsed?.kind ?? "expense",
+      currency: parsed?.currency ?? "CNY",
+      date: parsed?.occurredLocalDate ?? toLocalDate(now),
+      time: parsed?.occurredTime ?? "",
+      categoryId,
+      paymentMethodId: matches.length === 1 ? (matches[0]?.id ?? null) : null,
+      note: keepTranscriptInNote
+        ? parsed?.note !== undefined && parsed.note !== ""
+          ? parsed.note
+          : fallbackText
+        : (parsed?.merchant ?? ""),
+    },
+    categoryReason:
+      heardCategoryId === null || parsed === null || parsed.categoryMatched.length === 0
+        ? null
+        : parsed.categoryMatched.join("、"),
+    heardCategoryId,
+  };
+}
+
+/**
  * Confirming an entry that was spoken.
  *
  * **The same form as the camera path**, which is what the owner asked for:
@@ -53,10 +124,11 @@ import { uuidV7 } from "../lib/uuid.js";
  * keep in mind: **午饭 came back as 五份**. Nobody can catch that in a filled-in
  * form; they can catch it beside the sentence that produced it.
  *
- * **No date is taken from speech.** The owner asked to leave it out of the first
- * version, and the reasoning holds: a misheard date is the hardest mistake to
- * notice, because 10-09 and 10-10 look equally plausible in a form. An entry
- * recorded now *is* now, which is right nearly always.
+ * **A date is taken only from an explicit date word.** "昨天" and "10 月 8 日"
+ * are parsed by the same core as the amount, with the browser's local clock, so
+ * a relative date means the user's today rather than the server's. When the
+ * sentence says no date, the entry stays today — which is what "recorded now"
+ * means, not a guess about what the user said.
  */
 export function VoiceReviewPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -93,6 +165,9 @@ export function VoiceReviewPage(): React.JSX.Element {
 
   const categories = ledger.data?.categories ?? [];
   const paymentMethods = ledger.data?.paymentMethods ?? [];
+  const parsed = spoken?.parsed ?? null;
+  const origin = spoken?.source === "paste" ? "/paste" : "/record";
+  const heardLabel = spoken?.source === "paste" ? "粘贴的内容" : "听到";
 
   /**
    * The category a new entry starts on.
@@ -100,46 +175,30 @@ export function VoiceReviewPage(): React.JSX.Element {
    * ⚠️ **What was said wins over what was used last**, which is the opposite of
    * the camera path's rule and deliberately so. A screenshot carries no hint about
    * the category, so the last one used is the only evidence available. A sentence
-   * often carries one — "午饭三十八" is food — and the server has already worked
-   * out which of *this* ledger's categories it sounds like. Falling back to the
-   * last used one only when nothing matched.
+   * often carries one — "午饭三十八" is food — and the shared parser has already
+   * worked out which of *this* ledger's categories it sounds like. Falling back
+   * to the last used one only when nothing matched.
    */
-  const recent = useTransactions({ month: currentMonth(), kind: spoken?.kind ?? "expense" });
+  const recent = useTransactions({ month: currentMonth(), kind: parsed?.kind ?? "expense" });
   const lastCategoryId = recent.data?.pages[0]?.items[0]?.categoryId ?? null;
 
   /**
-   * Whether a category id is usable: it has to exist, be the right kind and not
-   * be archived. The server checked before answering, but the list can change
-   * between the recording and this screen.
+   * The form's starting values, mapped from the same candidate the paste screen
+   * uses. All of the "what does this field mean" decisions live in `draftOf`,
+   * where they are testable without a session.
    */
-  const usable = (id: string | null | undefined): string | null =>
-    id !== null &&
-    id !== undefined &&
-    categories.some((category) => category.id === id && !category.isArchived)
-      ? id
-      : null;
-
-  const heardCategoryId = usable(spoken?.categoryId);
-  const categoryId = heardCategoryId ?? usable(lastCategoryId);
-
-  /** The sentence the category came from, when it came from the sentence. */
-  const categoryReason =
-    heardCategoryId === null || spoken === null || spoken.categoryMatched.length === 0
-      ? null
-      : spoken.categoryMatched.join("、");
-
-  const draft = useMemo<ReviewDraft>(
-    () => ({
-      amount: spoken?.amount ?? "",
-      kind: spoken?.kind ?? "expense",
-      currency: "CNY",
-      date: toLocalDate(new Date()),
-      time: "",
-      categoryId,
-      paymentMethodId: null,
-      note: spoken?.text ?? "",
-    }),
-    [spoken, categoryId],
+  const { draft, categoryReason, heardCategoryId } = useMemo(
+    () =>
+      draftOf(
+        parsed,
+        spoken?.text ?? "",
+        categories,
+        paymentMethods,
+        lastCategoryId,
+        undefined,
+        spoken?.source !== "paste",
+      ),
+    [parsed, spoken?.text, spoken?.source, categories, paymentMethods, lastCategoryId],
   );
 
   /**
@@ -181,8 +240,8 @@ export function VoiceReviewPage(): React.JSX.Element {
    */
   if (spoken === null) {
     return (
-      <InnerPage title="核对" subtitle="没有听到内容。" backTo="/record">
-        <Alert tone="info">这一页需要一个刚录好的语音。请先录一段。</Alert>
+      <InnerPage title="核对" subtitle="没有可核对的内容。" backTo="/">
+        <Alert tone="info">这一页需要一个刚识别好的结果。请先录音或粘贴交易文字。</Alert>
         <button
           type="button"
           onClick={() => void navigate("/record")}
@@ -209,7 +268,7 @@ export function VoiceReviewPage(): React.JSX.Element {
           // One entry at a time, so nothing is waiting behind it.
           remaining={0}
           onHome={() => void navigate("/")}
-          onAgain={() => void navigate("/record")}
+          onAgain={() => void navigate(origin)}
           onUndo={() => {
             void removeEntry
               .mutateAsync(saved.id)
@@ -249,8 +308,12 @@ export function VoiceReviewPage(): React.JSX.Element {
   return (
     <InnerPage
       title="核对"
-      subtitle="听到的内容已经填进表单，请确认金额和分类后再保存。"
-      backTo="/record"
+      subtitle={
+        spoken.source === "paste"
+          ? "粘贴的文字已经填进表单，请确认金额和分类后再保存。"
+          : "听到的内容已经填进表单，请确认金额和分类后再保存。"
+      }
+      backTo={origin}
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
 
@@ -259,8 +322,24 @@ export function VoiceReviewPage(): React.JSX.Element {
         See the note at the top of the file for why this is not decoration.
       */}
       <p className="rounded-field bg-canvas px-4 py-3 text-sm leading-relaxed text-muted">
-        听到：{spoken.text}
+        {heardLabel}：{spoken.text}
       </p>
+
+      {/*
+        What the parser is unsure about, in its own words.
+        A weak match is not the same as a reading, and the review screen is the
+        last place where the difference can still change the saved row.
+      */}
+      {parsed !== null && parsed.issues.length > 0 ? (
+        <div className="flex flex-col gap-1 rounded-field border border-line px-4 py-3">
+          {parsed.issues.map((issue) => (
+            <p key={`${issue.field}:${issue.code}`} className="text-helper text-muted">
+              {issue.severity === "ambiguous" ? "需要确认：" : "提示："}
+              {issue.message}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
       {/*
         Why the category is already filled in.
@@ -273,7 +352,7 @@ export function VoiceReviewPage(): React.JSX.Element {
       */}
       {categoryReason === null ? null : (
         <p className="text-helper text-muted">
-          听到「{categoryReason}」，已把分类选为
+          {spoken.source === "paste" ? "看到" : "听到"}「{categoryReason}」，已把分类选为
           <span className="text-ink">
             {" "}
             {categories.find((category) => category.id === heardCategoryId)?.name ?? ""}
@@ -284,12 +363,12 @@ export function VoiceReviewPage(): React.JSX.Element {
 
       <ReviewStep
         draft={draft}
-        warnings={[]}
         remaining={1}
         categories={categories}
         paymentMethods={paymentMethods}
         busy={createEntry.isPending || checkDuplicates.isPending || pendingDuplicate !== null}
         onManual={() => void navigate("/add")}
+        warnings={parsed?.issues.map((issue) => issue.message) ?? []}
         onSave={async (edited) => {
           setError(null);
 
