@@ -27,6 +27,7 @@ describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.15.03",
       "1.15.00",
       "1.14.20",
       "1.14.18",
@@ -36,6 +37,21 @@ describe("version announcements", () => {
       "1.13.07",
     ]);
     expect(released.every((entry) => entry.status === "released" && entry.releasedAt !== null)).toBe(true);
+  });
+
+  it("records the 1.15.03 announcement as a normal, non-popup update", () => {
+    const announcement = releasedAnnouncementByVersion("1.15.03");
+    expect(announcement?.title).toBe("Libevra 1.15.03");
+    expect(announcement?.summary).toBe("重复记录更清楚，账单导入更省心。");
+    expect(announcement?.releasedAt).toBe("2026-10-22");
+    expect(announcement?.major).toBe(false);
+    expect(announcement?.sections.map((section) => section.heading)).toEqual([
+      "疑似重复，统一提醒",
+      "重复检测设置",
+      "账单导入：微信 / 支付宝 / BOA / Libevra CSV",
+      "更安心的处理方式",
+    ]);
+    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
   });
 
   it("records the 1.15.00 release as a major update with the official copy", () => {
@@ -103,11 +119,14 @@ describe("version announcements", () => {
   it("does not invent an announcement for a future development build", () => {
     expect(releasedAnnouncementByVersion("1.14.21")).toBeNull();
     expect(releasedAnnouncementByVersion("1.15.01")).toBeNull();
+    expect(releasedAnnouncementByVersion("1.15.02")).toBeNull();
   });
 
   it("answers with the latest applicable release for a running version", () => {
-    expect(latestApplicableAnnouncement("1.15.00")?.version).toBe("1.15.00");
+    expect(latestApplicableAnnouncement("1.15.03")?.version).toBe("1.15.03");
+    expect(latestApplicableAnnouncement("1.15.02")?.version).toBe("1.15.00");
     expect(latestApplicableAnnouncement("1.15.01")?.version).toBe("1.15.00");
+    expect(latestApplicableAnnouncement("1.15.00")?.version).toBe("1.15.00");
     expect(latestApplicableAnnouncement("1.14.20")?.version).toBe("1.14.20");
     expect(latestApplicableAnnouncement("1.14.19")?.version).toBe("1.14.18");
     expect(latestApplicableAnnouncement("1.14.18")?.version).toBe("1.14.18");
@@ -129,7 +148,9 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.14.18")).toBe(true);
     expect(hasNewerReleasedVersion("1.14.19")).toBe(true);
     expect(hasNewerReleasedVersion("1.14.20")).toBe(true);
-    expect(hasNewerReleasedVersion("1.15.00")).toBe(false);
+    expect(hasNewerReleasedVersion("1.15.00")).toBe(true);
+    expect(hasNewerReleasedVersion("1.15.02")).toBe(true);
+    expect(hasNewerReleasedVersion("1.15.03")).toBe(false);
   });
 
   it("returns all actual releases and leaves the first page to the UI", () => {
@@ -149,7 +170,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.15.00").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.15.03").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.15.03").older?.version).toBe("1.15.00");
+    expect(adjacentReleasedAnnouncements("1.15.00").newer?.version).toBe("1.15.03");
     expect(adjacentReleasedAnnouncements("1.15.00").older?.version).toBe("1.14.20");
     expect(adjacentReleasedAnnouncements("1.14.20").newer?.version).toBe("1.15.00");
     expect(adjacentReleasedAnnouncements("1.14.20").older?.version).toBe("1.14.18");
@@ -164,6 +187,7 @@ describe("version announcements", () => {
   });
 
   it("formats the publication date without inventing a time or timezone", () => {
+    expect(formatReleaseDate("2026-10-22")).toBe("2026年10月22日");
     expect(formatReleaseDate("2026-10-19")).toBe("2026年10月19日");
     expect(formatReleaseDate("2026-10-18")).toBe("2026年10月18日");
   });

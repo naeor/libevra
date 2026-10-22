@@ -31,12 +31,63 @@ export interface UpdateAnnouncement {
 }
 
 /**
- * 1.15.00 is the S15 production release (2026-10-21). 1.14.20 is the OCR production patch
- * (2026-10-20). 1.14.18 is the S14 production release (2026-10-19). 1.13.15 is the S13-G/H/I
- * release; 1.13.09 is the S13-F release; 1.13.08 was a production patch (card layout) and
- * 1.13.07 was the full S13-E release.
+ * 1.15.03 is the S15-E + 账单导入 V2 production release (2026-10-22), a normal
+ * (non-popup) announcement. 1.15.00 is the S15 production release (2026-10-21).
+ * 1.14.20 is the OCR production patch (2026-10-20). 1.14.18 is the S14 production
+ * release (2026-10-19). 1.13.15 is the S13-G/H/I release; 1.13.09 is the S13-F
+ * release; 1.13.08 was a production patch (card layout) and 1.13.07 was the full
+ * S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.15.03",
+    releasedAt: "2026-10-22",
+    status: "released",
+    title: "Libevra 1.15.03",
+    summary: "重复记录更清楚，账单导入更省心。",
+    intro: [
+      "本次更新完成了重复交易检测与账单导入的统一：新增记录时会按同一套规则提示疑似重复；账单导入支持微信、支付宝、BOA 与 Libevra CSV，并可在核对后一次确认。所有提示都只供你判断，不会自动删除、合并或覆盖原有记录。",
+    ],
+    sections: [
+      {
+        heading: "疑似重复，统一提醒",
+        items: [
+          "新增记账、语音、图片识别与账单导入等入口统一使用一套重复判断规则，不再各用各的口径。",
+          "提示只说明「可能重复」，是否保留由你决定；确认过的「不是同一笔」会按账本记住，之后不再反复提示。",
+          "可以对整本账本做一次主动检查，显示进度、可随时取消；检查只给出候选，不会自动处理任何记录。",
+        ],
+      },
+      {
+        heading: "重复检测设置",
+        items: [
+          "在设置 → 记账偏好中新增「重复交易提醒」，可开关提醒、调整时间窗口与参与判断的字段。",
+          "时间窗口默认 1 分钟，可自定义 1 分钟到 30 天；账本始终各自隔离检测。",
+          "关闭提醒只影响提示，不影响幂等、来源去重、权限与离线同步。",
+        ],
+      },
+      {
+        heading: "账单导入：微信 / 支付宝 / BOA / Libevra CSV",
+        items: [
+          "导入页会按文件内容自动识别来源，微信 XLSX、支付宝 CSV、BOA PDF 与 Libevra CSV 使用同一套预览核对流程。",
+          "核对时可以修改金额、日期、时间、收支方向、分类、支付方式、备注与标签；修改或重新勾选后需要重新检查疑似重复，再统一提交。",
+          "同一来源文件重复导入会按来源身份跳过；内容疑似重复只提示，不自动取消或删除。",
+        ],
+      },
+      {
+        heading: "更安心的处理方式",
+        items: [
+          "重复检查与账单导入都不会自动删除、合并或覆盖账本记录，疑似重复始终保留给你判断。",
+          "对账不一致、日期精度不足或字段缺失会明确提示；扫描版 PDF 仍不支持，只支持带文本层的 PDF。",
+          "修复了同时确认同一条「不是同一笔」关系时可能出现的偶发错误，以及导入核对后未重新检查就提交的问题。",
+        ],
+      },
+    ],
+    closing: [
+      "感谢你使用 Libevra。",
+      "我们会继续完善重复检测与账单导入，让整理账目更简单，也更可靠。",
+    ],
+    major: false,
+  },
   {
     version: "1.15.00",
     releasedAt: "2026-10-21",
