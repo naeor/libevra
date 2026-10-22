@@ -80,6 +80,16 @@ export function CameraIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
+/** A clipboard with two lines: pasted transaction text. */
+function ClipboardIcon({ className }: IconProps): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /**
  * A sheet of paper with an arrow rising out of it — 「导入」 in the same drawing
  * language as the other cards (24px box, `currentColor`, 1.8 stroke).
@@ -145,6 +155,14 @@ export function ledgerTabLabel(memberCount: number | undefined): string {
 
 interface EntryAction {
   readonly label: string;
+  /**
+   * The short visible caption used while the row is too tight for four characters.
+   *
+   * ⚠️ **This is only a caption, never the accessible name.** The full `label`
+   * stays on every card as `aria-label`, so a narrow screen does not turn
+   * 粘贴识别 into "粘贴" for someone using a screen reader.
+   */
+  readonly shortLabel: string;
   readonly icon: ReactNode;
   /** Why the card is disabled, read out with its label. Absent when it has a `to`. */
   readonly hint?: string;
@@ -198,15 +216,43 @@ interface EntryAction {
  * so the card makes no Excel promise). Pointing it at the ledger-import screen
  * would silently change which ledger the file lands in.
  *
- * **All four cards lead somewhere now.** 语音 sat disabled with "即将开放"
- * until the recorder shipped; 导入账单 is the newest of the four.
+ * **All five cards lead somewhere now.** 语音 sat disabled with "即将开放"
+ * until the recorder shipped; 粘贴识别 is the newest, and 手动记账 sits in the
+ * visual centre because it is the fallback that always works.
  */
 const ENTRY_ACTIONS: readonly EntryAction[] = [
-  { label: "语音", icon: <MicrophoneIcon className="size-6" />, to: "/record" },
-  { label: "手动", icon: <PenIcon className="size-6" />, to: "/add" },
-  { label: "拍照", icon: <CameraIcon className="size-6" />, to: "/scan", picksImages: true },
+  {
+    label: "粘贴识别",
+    shortLabel: "粘贴",
+    icon: <ClipboardIcon className="size-6" />,
+    to: "/paste",
+    ariaLabel: "粘贴识别",
+  },
+  {
+    label: "语音记账",
+    shortLabel: "语音",
+    icon: <MicrophoneIcon className="size-6" />,
+    to: "/record",
+    ariaLabel: "语音记账",
+  },
+  {
+    label: "手动记账",
+    shortLabel: "手动",
+    icon: <PenIcon className="size-6" />,
+    to: "/add",
+    ariaLabel: "手动记账",
+  },
+  {
+    label: "拍照识别",
+    shortLabel: "拍照",
+    icon: <CameraIcon className="size-6" />,
+    to: "/scan",
+    picksImages: true,
+    ariaLabel: "拍照识别",
+  },
   {
     label: "导入账单",
+    shortLabel: "导入",
     icon: <FileUpIcon className="size-6" />,
     /**
      * `?from=nav` is the page's origin hint, not a second route: `ImportPage` uses it to hide the
@@ -338,28 +384,44 @@ export function BottomNav({
             within a few pixels of its top — close, but the owner asked for the
             row to sit lower and the two do not actually touch.
 
-            ⚠️ **Four cards have to fit a 320px screen**, so below `sm` they are
-            64px wide with 8px gaps and 12px side padding: 4×64 + 3×8 + 2×12 =
-            304px, leaving 16px of slack. That is a deliberate shrink of the old
-            4.5rem card rather than a second row — the frame reserves 100px for
-            this menu (see `TabPage`), and a 2×2 grid would grow past it and
-            cover the bar. From `sm` up the row returns to the original 4.5rem
-            cards, where four of them still fit inside `max-w-md`.
+            ⚠️ **Five cards have to fit a 320px screen without a second row.**
+            The row is full-bleed and its cards share the available width
+            equally (`flex-1 basis-0`), rather than being pinned to `w-14`:
+            - 320px: 2×8px side padding + 4×4px gaps → each card 57.6px.
+            - 360px and up: side padding 12px, gaps 6px.
+            - 420px and up: side padding 16px, gaps 8px.
+            - `sm` (≥640px): the existing `max-w-md` cap and 24px/12px rhythm.
+
+            ⚠️ **The caption shortens only below the existing 420px step.**
+            Four-character captions have 44px of text; at 320px a 57.6px card
+            would leave only 6.8px on each side, which is the cramped edge the
+            owner rejected. Below 420px the five cards therefore show 粘贴 /
+            语音 / 手动 / 拍照 / 导入, and from 420px up they show the full
+            粘贴识别 / 语音记账 / 手动记账 / 拍照识别 / 导入账单. The full
+            labels at 420px have ≥13.6px of breathing room. This reuses the
+            row's existing 420px breakpoint rather than inventing a second one.
+
+            The short caption is visual only: `aria-label` on every card stays
+            the full name, so the accessible name does not change with width.
           */}
-          <ul className="mx-auto flex w-full max-w-md items-end justify-center gap-2 px-3 pb-[26px] sm:gap-3 sm:px-6">
+          <ul className="mx-auto flex w-full max-w-md items-end justify-center gap-1 px-2 pb-[26px] min-[360px]:gap-1.5 min-[360px]:px-3 min-[420px]:gap-2 min-[420px]:px-4 sm:gap-3 sm:px-6">
             {ENTRY_ACTIONS.map((action) => {
               const shape =
-                "flex w-16 flex-col items-center gap-0.5 rounded-2xl bg-brand-soft py-2 text-brand-dark shadow-sm transition sm:w-[4.5rem]";
+                "flex w-full min-w-0 flex-col items-center gap-0.5 rounded-2xl bg-brand-soft px-1 py-2 text-brand-dark shadow-sm transition sm:px-2";
               /**
-               * ⚠️ **`导入账单` is four characters where the others are two** — it
-               * must not be shortened to `导入` (the owner asked for the full
-               * title), so every caption stays on one line and the card is wide
-               * enough for it. The same caption class on all four is what keeps
-               * the row aligned.
+               * The visible caption switches at the same 420px breakpoint that
+               * widens the row. ⚠️ **The short text is visual only** — `spoken`
+               * below is always the full name, and it is what `aria-label`
+               * carries on every link/button.
                */
               const caption = "whitespace-nowrap text-micro";
-              /** "语音记账" / "手动记账" / "拍照记账"; 导入账单 supplies its own. */
-              const spoken = action.ariaLabel ?? `${action.label}记账`;
+              const spoken = action.ariaLabel ?? action.label;
+              const captionText = (
+                <span aria-hidden="true" className={caption}>
+                  <span className="min-[420px]:hidden">{action.shortLabel}</span>
+                  <span className="hidden min-[420px]:inline">{action.label}</span>
+                </span>
+              );
 
               /**
                * ⚠️ **S14-C: 语音 and 拍照 are server-side capabilities** (transcription and screenshot
@@ -372,9 +434,9 @@ export function BottomNav({
                * server write scoped to a real account ledger. A guest pressing it would be bounced
                * to `/login`, which is exactly the dead end these cards avoid.
                */
-              if (guest && action.label !== "手动") {
+              if (guest && action.label !== "手动记账") {
                 return (
-                  <li key={action.label}>
+                  <li key={action.label} className="min-w-0 flex-1 basis-0">
                     <button
                       type="button"
                       disabled
@@ -383,7 +445,7 @@ export function BottomNav({
                       className={`${shape} opacity-55`}
                     >
                       {action.icon}
-                      <span className={caption}>{action.label}</span>
+                      {captionText}
                     </button>
                   </li>
                 );
@@ -408,7 +470,7 @@ export function BottomNav({
                */
               if (action.picksImages === true && onPickImages !== undefined) {
                 return (
-                  <li key={action.label}>
+                  <li key={action.label} className="min-w-0 flex-1 basis-0">
                     <button
                       type="button"
                       tabIndex={open ? 0 : -1}
@@ -419,7 +481,7 @@ export function BottomNav({
                       className={`${shape} active:bg-brand-soft/70`}
                     >
                       {action.icon}
-                      <span className={caption}>{action.label}</span>
+                      {captionText}
                     </button>
                   </li>
                 );
@@ -431,7 +493,7 @@ export function BottomNav({
               // cannot.
               if (action.to !== undefined) {
                 return (
-                  <li key={action.label}>
+                  <li key={action.label} className="min-w-0 flex-1 basis-0">
                     <Link
                       to={action.to}
                       tabIndex={open ? 0 : -1}
@@ -439,14 +501,14 @@ export function BottomNav({
                       className={`${shape} active:bg-brand-soft/70`}
                     >
                       {action.icon}
-                      <span className={caption}>{action.label}</span>
+                      {captionText}
                     </Link>
                   </li>
                 );
               }
 
               return (
-                <li key={action.label}>
+                <li key={action.label} className="min-w-0 flex-1 basis-0">
                   <button
                     type="button"
                     disabled
@@ -455,7 +517,7 @@ export function BottomNav({
                     className={`${shape} opacity-60`}
                   >
                     {action.icon}
-                    <span className={caption}>{action.label}</span>
+                    {captionText}
                   </button>
                 </li>
               );
