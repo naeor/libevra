@@ -104,10 +104,27 @@ export {
   isSpeechless,
   parseSpokenEntry,
   parseSpokenEntryWithCategory,
-  transcribeResponseSchema,
   type SpokenEntry,
-  type TranscribeResponse,
 } from "./speech.js";
+
+export { transcribeResponseSchema, type TranscribeResponse } from "./voiceParsing.js";
+
+export {
+  fieldStatusSchema,
+  hasMultipleTransactions,
+  looksStructured,
+  parseTransactionText,
+  parseTransactionTexts,
+  splitTransactionTexts,
+  transactionFieldStatusSchema,
+  transactionIssueSchema,
+  transactionTextResultSchema,
+  type FieldStatus,
+  type ParseTransactionTextOptions,
+  type TransactionFieldStatus,
+  type TransactionIssue,
+  type TransactionTextResult,
+} from "./transactionText.js";
 
 export { healthResponseSchema, type HealthResponse } from "./health.js";
 

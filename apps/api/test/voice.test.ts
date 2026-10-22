@@ -89,7 +89,15 @@ describe("POST /voice/transcribe", () => {
       kind: "expense",
       audioSeconds: 4.7,
       seconds: 1.2,
+      parsed: {
+        amount: "35",
+        currency: "CNY",
+        kind: "expense",
+        paymentMethod: "微信",
+        note: "午餐，用微信支付",
+      },
     });
+    expect(response.json().parsed.categoryId).toBeTruthy();
     expect(calls).toHaveLength(1);
   });
 

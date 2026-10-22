@@ -1,7 +1,7 @@
 import {
   MAX_SPEECH_BYTES,
   isSpeechless,
-  parseSpokenEntryWithCategory,
+  parseTransactionText,
   transcribeResponseSchema,
 } from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -107,6 +107,8 @@ export function registerVoiceRoutes(app: FastifyInstance, options: VoiceRouteOpt
        * to the microphone — try again — while an error belongs in a banner. The
        * text is emptied so nothing downstream can offer `[BLANK_AUDIO]` as a note.
        */
+      const empty = parseTransactionText("", { categories: [] });
+
       if (isSpeechless(result.text)) {
         return transcribeResponseSchema.parse({
           text: "",
@@ -115,6 +117,7 @@ export function registerVoiceRoutes(app: FastifyInstance, options: VoiceRouteOpt
           note: "",
           categoryId: null,
           categoryMatched: [],
+          parsed: empty,
           audioSeconds: result.audioSeconds,
           seconds: result.seconds,
         });
@@ -142,15 +145,20 @@ export function registerVoiceRoutes(app: FastifyInstance, options: VoiceRouteOpt
         select: { id: true, name: true, kind: true, isArchived: true },
       });
 
-      const spoken = parseSpokenEntryWithCategory(result.text, categories);
+      // The same parser the paste screen uses. The API computes it here so a
+      // second client gets identical fields for identical text; the browser
+      // re-runs it after the user edits the transcript, with the user's own
+      // local clock, because relative dates must not be calculated in UTC.
+      const parsed = parseTransactionText(result.text, { categories, now: new Date() });
 
       return transcribeResponseSchema.parse({
         text: result.text,
-        amount: spoken.amount,
-        kind: spoken.kind,
-        note: spoken.note,
-        categoryId: spoken.categoryId,
-        categoryMatched: spoken.categoryMatched,
+        amount: parsed.amount,
+        kind: parsed.kind,
+        note: parsed.note,
+        categoryId: parsed.categoryId,
+        categoryMatched: parsed.categoryMatched,
+        parsed,
         audioSeconds: result.audioSeconds,
         seconds: result.seconds,
       });

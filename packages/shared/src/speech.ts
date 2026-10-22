@@ -16,8 +16,6 @@
  *  * **The note is what was said**, minus the noise words — not a summary. The
  *    user can read it back and see whether they were heard correctly.
  */
-import { z } from "zod";
-
 import { matchCategory, type CategoryCandidate } from "./categoryMatch.js";
 import { chineseNumeralToDigits, isNumeralChar } from "./chineseNumerals.js";
 
@@ -56,7 +54,7 @@ const DATE_UNITS: ReadonlySet<string> = new Set(["月", "日", "号", "年", "�
 const MAX_CHINESE_RUN = 24;
 
 /** One number the sentence could mean as the amount, and how to read it. */
-interface AmountCandidate {
+export interface AmountCandidate {
   /** Digits as they will be put in the amount field. */
   readonly value: string;
   /** Where the amount starts in the sentence. */
@@ -184,8 +182,64 @@ export function parseSpokenEntry(spoken: string): SpokenEntry {
  *
  * Nothing is invented: a sentence with no eligible number returns `null`.
  */
-function findSpokenAmount(text: string): AmountCandidate | null {
-  const candidates = [...findChineseAmountCandidates(text), ...findDigitAmountCandidates(text)];
+export function findAmountCandidates(text: string): AmountCandidate[] {
+  return [
+    ...findForeignCurrencyWithCents(text),
+    ...findChineseAmountCandidates(text),
+    ...findDigitAmountCandidates(text),
+  ];
+}
+
+/**
+ * A foreign amount split into its major and minor units, e.g. `23美元62美分`.
+ *
+ * The ordinary candidate readers see two unrelated numbers (`23` and `62`) and
+ * keep whichever wins the score. For dollars, the minor unit is part of the same
+ * price: the owner's acceptance sentence is exactly
+ * 「二十三美元六十二美分」, which is 23.62, not 23 and not 62. This reads the pair
+ * before the individual numbers so the combined candidate outranks both.
+ */
+function findForeignCurrencyWithCents(text: string): AmountCandidate[] {
+  const found: AmountCandidate[] = [];
+  const digitPattern =
+    /(\d{1,9})(?:\.(\d{1,2}))?\s*(美元|美金|USD|欧元|EUR)\s*(\d{1,2})\s*(美分|欧分|cents?)/gi;
+  for (const match of text.matchAll(digitPattern)) {
+    const major = match[1] ?? "";
+    const cents = match[4] ?? "";
+    if (major === "" || cents === "" || major.includes(".")) continue;
+    const start = match.index ?? 0;
+    found.push({
+      value: `${major}.${cents.padStart(2, "0")}`,
+      start,
+      end: start + match[0].length,
+      score: 2500,
+    });
+  }
+
+  const chinesePattern =
+    /([一二两三四五六七八九十]{1,3})\s*(美元|美金|欧元)\s*([一二两三四五六七八九十]{1,3})\s*(美分|欧分)/g;
+  for (const match of text.matchAll(chinesePattern)) {
+    const majorText = match[1] ?? "";
+    const centsText = match[3] ?? "";
+    if (majorText === "" || centsText === "") continue;
+    const major = chineseNumeralToDigits(majorText);
+    const cents = chineseNumeralToDigits(centsText);
+    if (major === null || cents === null || cents.length > 2) continue;
+    const start = match.index ?? 0;
+    found.push({
+      value: `${major}.${cents.padStart(2, "0")}`,
+      start,
+      end: start + match[0].length,
+      score: 2500,
+    });
+  }
+
+  return found;
+}
+
+
+export function findSpokenAmount(text: string): AmountCandidate | null {
+  const candidates = findAmountCandidates(text);
 
   let best: AmountCandidate | null = null;
 
@@ -333,25 +387,32 @@ function readFraction(text: string, from: number, allowBare: boolean): { readonl
   const first = readDigit(text, at);
   if (first === null) return null;
 
+  // Whisper writes spaces between these parts ("28 元 5 角"), so the unit is
+  // looked up after any spaces rather than at the character immediately after
+  // the digit. Without this, 28 元 5 角 silently lost its 5.
+  const unitAt = skipSpaces(text, first.end);
+
   // 「块零五」 — the zero is said out loud, and means five fen rather than five jiao.
   if (first.digit === "0") {
-    const fen = readDigit(text, first.end);
+    const fen = readDigit(text, unitAt);
     return fen === null ? null : { digits: `0${fen.digit}`, end: fen.end };
   }
 
-  const unit = text[first.end];
+  const unit = text[unitAt];
 
   if (unit !== undefined && JIAO_UNITS.has(unit)) {
-    const afterJiao = first.end + 1;
-    const fen = readDigit(text, afterJiao);
-    if (fen !== null && text[fen.end] === "分") {
-      return { digits: `${first.digit}${fen.digit}`, end: fen.end + 1 };
+    const afterJiao = unitAt + 1;
+    const fenAt = skipSpaces(text, afterJiao);
+    const fen = readDigit(text, fenAt);
+    const fenUnitAt = fen === null ? -1 : skipSpaces(text, fen.end);
+    if (fen !== null && text[fenUnitAt] === "分") {
+      return { digits: `${first.digit}${fen.digit}`, end: fenUnitAt + 1 };
     }
     return { digits: first.digit, end: afterJiao };
   }
 
   if (unit === "分") {
-    return { digits: `0${first.digit}`, end: first.end + 1 };
+    return { digits: `0${first.digit}`, end: unitAt + 1 };
   }
 
   /**
@@ -495,46 +556,6 @@ export const MAX_SPEECH_SECONDS = 30;
 
 /** Roughly what thirty seconds of browser audio weighs, with room to spare. */
 export const MAX_SPEECH_BYTES = 2 * 1024 * 1024;
-
-/**
- * What one recording produces.
- *
- * The transcription **and** the fields read out of it. Both, rather than only the
- * fields, because the owner asked for the text to be visible and editable — that
- * is the whole trust mechanism here: somebody who can see "午饭 38" can tell
- * whether they were heard correctly, where somebody shown only a filled-in form
- * cannot tell whether the machine guessed.
- *
- * `amount`, `kind` and `note` are what `parseSpokenEntry` read: a starting point
- * for the review form, never a decision. Nothing is saved by this endpoint.
- */
-export const transcribeResponseSchema = z.object({
-  /** What was heard, verbatim. */
-  text: z.string(),
-  /** Digits as spoken, or null when no amount was said. */
-  amount: z.string().nullable(),
-  kind: z.enum(["expense", "income"]),
-  /** The sentence with the noise removed — a starting note, not a summary. */
-  note: z.string(),
-  /**
-   * A category the sentence sounds like, or `null` when nothing fitted.
-   *
-   * `null` is not a failure: the category field is one tap away, and a wrong guess
-   * that looks plausible is worse than an empty field.
-   */
-  categoryId: z.string().nullable(),
-  /**
-   * The words that matched, so the interface can show its reasoning.
-   *
-   * "听到「午饭」，已选：餐饮" — the same principle as showing the transcript: a
-   * field the app filled in silently is a field the user cannot check.
-   */
-  categoryMatched: z.array(z.string()),
-  /** How long the audio was, and how long the transcription took. */
-  audioSeconds: z.number(),
-  seconds: z.number(),
-});
-export type TranscribeResponse = z.infer<typeof transcribeResponseSchema>;
 
 /**
  * Whether the text is worth offering as an entry at all.

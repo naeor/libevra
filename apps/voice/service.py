@@ -131,6 +131,21 @@ VAD_FRAME_SECONDS = 0.02
 VAD_MIN_SPEECH_SECONDS = 0.20
 VAD_PEAK_FLOOR = 0.002
 
+# Whisper can emit non-speech tokens ("[BLANK_AUDIO]", "(音乐)", "[NOISE]") on
+# noisy recordings. The energy gate already refuses near-silence, but a cough or
+# a passing bus can still reach the model; suppressing those tokens keeps them
+# out of the transcript without touching the words that were actually said.
+# whisper.cpp exposes this as `suppress_nst`. It defaults on because the failure
+# is visible nonsense in the note field, and can be switched off by env for a
+# deployment that finds it removes a real sound description.
+SUPPRESS_NST = _env_flag(os.environ.get("LIBELLUM_WHISPER_SUPPRESS_NST"), True)
+
+# Greedy decoding, explicitly, rather than inheriting a library default. A
+# bookkeeping sentence has one obvious reading; temperature 0 is the least
+# surprising one and keeps repeated requests stable. The fallback schedule
+# (`temperature_inc`) stays at its default so a stuck decode can still recover.
+TEMPERATURE = 0.0
+
 # ---------------------------------------------------------------------------
 # The hint that steers recognition towards bookkeeping.
 # ---------------------------------------------------------------------------
@@ -304,6 +319,8 @@ def main() -> int:
                 "model": MODEL_SPEC,
                 "threads": THREADS,
                 "vad": VAD_ENABLED,
+                "suppressNst": SUPPRESS_NST,
+                "temperature": TEMPERATURE,
                 "modelLoadMs": model_load_ms,
             }
         ),
@@ -396,6 +413,10 @@ def main() -> int:
                 # The bookkeeping hint. See INITIAL_PROMPT above for what is in it
                 # and, more importantly, what is deliberately not.
                 initial_prompt=INITIAL_PROMPT,
+                # Keep bracket noise ("[BLANK_AUDIO]", "(音乐)") out of the note.
+                # See SUPPRESS_NST above; disabled only by explicit env opt-out.
+                suppress_nst=SUPPRESS_NST,
+                temperature=TEMPERATURE,
             )
             infer_ms = round((time.perf_counter() - infer_started) * 1000, 1)
             timings["inferMs"] = infer_ms

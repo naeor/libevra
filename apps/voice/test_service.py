@@ -85,6 +85,14 @@ class ModelSettingsTests(unittest.TestCase):
         self.assertFalse(service._env_flag("no", True))
         self.assertFalse(service._env_flag(None, False))
 
+    def test_noise_tokens_are_suppressed_and_decoding_is_greedy(self) -> None:
+        # Bracket tags such as "[BLANK_AUDIO]" or "(音乐)" are not believable
+        # bookkeeping notes; suppressing non-speech tokens keeps them out, and
+        # temperature 0 keeps the same recording's wording stable. Both have an
+        # env/constant escape hatch rather than being buried in a call site.
+        self.assertTrue(service.SUPPRESS_NST)
+        self.assertEqual(service.TEMPERATURE, 0.0)
+
     def test_every_rejection_has_a_message_for_the_user(self) -> None:
         # The sidecar's error message is shown to the user by the API route, so a
         # reason with no message would reach them as the generic fallback.
@@ -267,6 +275,8 @@ class MainLoopTests(unittest.TestCase):
         self.assertEqual(ready["model"], service.MODEL_SPEC)
         self.assertEqual(ready["threads"], service.THREADS)
         self.assertEqual(ready["vad"], service.VAD_ENABLED)
+        self.assertEqual(ready["suppressNst"], service.SUPPRESS_NST)
+        self.assertEqual(ready["temperature"], service.TEMPERATURE)
         self.assertIn("modelLoadMs", ready)
         self.assertEqual(model.kwargs["n_threads"], service.THREADS)
 
@@ -292,6 +302,8 @@ class MainLoopTests(unittest.TestCase):
         self.assertEqual(call["language"], "zh")
         self.assertTrue(call["no_context"])
         self.assertEqual(call["initial_prompt"], service.INITIAL_PROMPT)
+        self.assertEqual(call["suppress_nst"], service.SUPPRESS_NST)
+        self.assertEqual(call["temperature"], service.TEMPERATURE)
         self.assertEqual(call["samples"], service.TARGET_RATE)
 
     def test_a_bad_recording_is_reported_and_the_loop_keeps_going(self) -> None:
