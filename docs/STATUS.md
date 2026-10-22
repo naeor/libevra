@@ -7,19 +7,19 @@
 
 | 项 | 值 |
 |---|---|
-| **最后核对** | 2026-10-22 09:47 CST（生产 **`1.15.04`**：API/Web 代码 `a33a99e` / 第 52 号迁移；含旧版重大公告过滤修复与 1.15.04 软件更新公告；代码与发布记录 `78ee0b5` 已推送 `main`/`s15-complete`，CI run `39707345503` success；**S15-D 真机验收仍未完成**） |
-| **生产版本** | **`1.15.04`**（2026-10-22 09:38 CST 上线；在 1.15.03 基础上仅增加客户端旧版重大公告过滤与 1.15.04 软件更新公告；无服务端业务/数据库变更） |
-| **本地开发版本** | **`1.15.04`**（与生产一致；`9368f4a` 修复 + `a33a99e` 公告；工作区 clean；未推送） |
-| **生产 `/health`** | ✅ 实测 `ok=true`、`version=1.15.04`、`database=up`（公网 2026-10-22 09:40 CST）；`/healthz` 200，`/update` 200，首页 bundle `assets/index-isD-khVT.js` 含 1.15.04 公告 |
-| **生产部署 commit** | **`a33a99e`**（根目录与 `deploy/.deployed-commit` 实测一致，2026-10-22 09:38 CST 更新；API/Web 镜像均由 `a33a99e` 构建：`libevra-rc-api:1.15.04-20261022` / `libevra-rc-web:1.15.04-20261022`） |
-| **数据库迁移** | **52** 个；生产已完成第 52 号 `20261021031459_s15e3_not_duplicate_relations`（关系表，2026-10-22 发布时应用，0 未完成）。1.15.04 不新增迁移 |
+| **最后核对** | 2026-10-23 05:20 CST（生产 **`1.15.05`**：API/Web 代码 `60bb301` / 第 52 号迁移；含粘贴识别、共享语义解析/语音优化与五入口响应式短文案；**本次未 push GitHub**，远端仍为 `8527a38`；**S15-D 真机验收仍未完成**） |
+| **生产版本** | **`1.15.05`**（2026-10-23 05:13 CST 上线；在 1.15.04 基础上增加 S15 粘贴识别、共享语义解析/语音优化与五入口响应式短文案；无数据库变更） |
+| **本地开发版本** | **`1.15.05`**（与生产一致；代码 `60bb301`；发布文档提交后工作区 clean；**未推送**） |
+| **生产 `/health`** | ✅ 实测 `ok=true`、`version=1.15.05`、`database=up`（公网 2026-10-23 05:15 CST）；`/healthz` 200，`/update` 200，首页 bundle `assets/index-BcVAxIgL.js` 含 `1.15.05`、短/完整五入口标签与 `/paste` |
+| **生产部署 commit** | **`60bb301`**（根目录与 `deploy/.deployed-commit` 实测一致，2026-10-23 05:13 CST 更新；API/Web 镜像均由 `60bb301` 构建：`libevra-rc-api:1.15.05-20261023` / `libevra-rc-web:1.15.05-20261023`） |
+| **数据库迁移** | **52** 个；生产已完成第 52 号 `20261021031459_s15e3_not_duplicate_relations`（关系表，2026-10-22 发布时应用，0 未完成）。1.15.05 **不新增迁移** |
 | **注册模式** | **邀请制**（未开放公开注册，本次未改变） |
 | **站点** | <https://libevra.com>（腾讯云，HTTPS） |
-| **当前阶段** | **S15-A/B/C 已发布（1.15.00 + 1.15.01）；S15-E2/E3/E4/E5 与账单导入 V2 已随 1.15.03 发布（第 52 号关系表迁移已上生产）；`1.15.04` 已上线旧公告过滤修复与软件更新公告；E6 专项验收为附 P2 条件通过，P2-1/P2-2 已修复并发布；S15-D 真机验收仍未完成；S16/S17 未开始** |
-| **分支 / 远程** | 远端 `main` 与 `s15-complete` 已推送 **1.15.04**（代码 `a33a99e`、发布记录 `78ee0b5`；fast-forward，无 force push）；本次 docs 记录提交随同推送，本地与远端一致。历史分支保留：`s15-announce`、`release/s15`、`s14-integration` 等 |
-| **CI** | ✅ **`1.15.04` 的 run [`39707345503`](https://github.com/naeor/libevra/actions/runs/39707345503) success**（2m46s，2026-10-22 09:46 CST；Typecheck/migrate/test/Docs/Status/Build 全绿）；此前 `d21a108` run [`39698616563`](https://github.com/naeor/libevra/actions/runs/39698616563) success；发布代码 `c00aa7f` 的 run [`39689386576`](https://github.com/naeor/libevra/actions/runs/39689386576) success |
-| **当前提交** | 见 `git log -1 --oneline`（本文件不锁 hash，避免每次提交都过期） |
-| **工作区** | 只剩主工作区 `记账程序v1`（分支 `s15-complete`）；本地与远端 `main` / `s15-complete` 一致；生产部署代码 `a33a99e`，发布记录 `78ee0b5` 已推送。2026-10-22 已把 32 个 S15 worktree 中的 31 个全部核对、合入并清理，删除前备份记录在仓库外 `private-samples/worktree-integration-20261022/` |
+| **当前阶段** | **S15-A/B/C 已发布（1.15.00 + 1.15.01）；S15-E2/E3/E4/E5 与账单导入 V2 已随 1.15.03 发布（第 52 号关系表迁移已上生产）；`1.15.04` 已上线旧公告过滤修复与软件更新公告；`1.15.05` 已上线粘贴识别、共享语义解析/语音优化与五入口响应式短文案；E6 专项验收为附 P2 条件通过，P2-1/P2-2 已修复并发布；S15-D 真机验收仍未完成；S16/S17 未开始** |
+| **分支 / 远程** | 本地分支 `s15-complete` 的 **1.15.05** 代码/文档**尚未 push**；远端 `main` 与 `s15-complete` 仍为 **`8527a38`（1.15.04 文档/CI 记录）**，未获本次 GitHub 上传授权。历史分支保留：`s15-announce`、`release/s15`、`s14-integration` 等 |
+| **CI** | ⬜ **1.15.05 未 push，因此无 CI**；上一次成功为 `1.15.04` 的 run [`39707345503`](https://github.com/naeor/libevra/actions/runs/39707345503) success（2026-10-22 09:46 CST） |
+| **当前提交** | `60bb301`（发布代码 + 版本号）；发布文档单独提交后以 `git log -1` 为准 |
+| **工作区** | 只剩主工作区 `记账程序v1`（分支 `s15-complete`）；生产部署代码 `60bb301`；本次未 push GitHub，远端仍 `8527a38`。2026-10-22 已把 32 个 S15 worktree 中的 31 个全部核对、合入并清理，删除前备份记录在仓库外 `private-samples/worktree-integration-20261022/` |
 
 ## 1. 阶段
 
@@ -29,7 +29,7 @@
 | S13 | ✅ 完成并上线 | 线上管理机制、公告与协议、账号注销、异地关键状态登记簿、Critical Chain |
 | S14 | ✅ 完成并发布 | 游客模式与准入、账本导入（含 D5 阶段二~四）、1.14.18 / 1.14.19 / 1.14.20 生产发布 |
 | S14-V | 🟡 研究完成、未单独发布 | 语音性能研究（VAD／静音短路／子进程恢复／计时）已作为 S15-A 输入，随 1.15.00 落地 |
-| **S15** | 🟡 **A/B/C/E 已发布（1.15.00/1.15.01/1.15.03）；D 未验收；账单导入 V2 已发布** | **A** 语音与字段解析、**B** OCR 多笔与概览/批量导入、**C** 页面结构与日常操作已随 `1.15.00` 发布；**S15-D 真机与整体体验验收未开始**；**S15-E1 只读审查完成；E2 统一规则+设置、E3 不重复关系记忆（52 号迁移已上生产）、E4 全部入口统一提醒、E5 全账本检查随 1.15.03 发布；E6 专项验收完成（145/146，无 P0/P1，附 P2 条件），P2-1/P2-2 已修复并发布**；**账单导入 V2（微信 XLSX / 支付宝 CSV / BOA PDF / Libevra CSV）已随 1.15.03 发布，隔离测试账号完成 14/14 生产冒烟** |
+| **S15** | 🟡 **A/B/C/E 已发布（1.15.00/1.15.01/1.15.03）；1.15.05 已发布粘贴识别/共享解析/五入口短文案；D 未验收；账单导入 V2 已发布** | **A** 语音与字段解析、**B** OCR 多笔与概览/批量导入、**C** 页面结构与日常操作已随 `1.15.00` 发布；**1.15.05** 增加粘贴识别、共享语义解析核心与五入口响应式短文案；**S15-D 真机与整体体验验收未开始**；**S15-E1 只读审查完成；E2 统一规则+设置、E3 不重复关系记忆（52 号迁移已上生产）、E4 全部入口统一提醒、E5 全账本检查随 1.15.03 发布；E6 专项验收完成（145/146，无 P0/P1，附 P2 条件），P2-1/P2-2 已修复并发布**；**账单导入 V2（微信 XLSX / 支付宝 CSV / BOA PDF / Libevra CSV）已随 1.15.03 发布，隔离测试账号完成 14/14 生产冒烟** |
 | S16 | ⬜ 未开始 | 全产品视觉、交互、语言与设计系统统一（S15-D 通过后才进入） |
 | S17 | ⬜ 未开始 | Web/PWA 正式公开发布与开源交付 |
 
@@ -49,7 +49,7 @@
 4. **语音模型已切 `base`（所有者批准，2026-10-21 10:02 CST）**：生产 `deploy/.env` 已由 `small` 改为 `base`，仅重建 api
    （relay/db/web 未动）；base 模型已预热（容器内 `modelLoadMs=6598.5`，缓存于 `/data/.local/share/pywhispercpp/models/ggml-base.bin`），
    small 模型与 `.env.bak-20261021-base` 保留可回退；**语音体感与真机效果待所有者验证**。
-5. **`1.15.04` 已上线（2026-10-22 09:38 CST）**：仅 Web 展示层修复与软件更新公告，已通过 web 1059 项与 API 同意/公告 8 项测试；生产 `/health` = `1.15.04/database=up`，无迁移、db/relay 未重启；本地代码尚未推送 GitHub（`a33a99e`），旧页面需刷新后生效。详见[正式生产发布与验收记录](archive/releases/S15-1.15.04-正式生产发布与验收记录-20261022.md)。
+5. **`1.15.05` 已上线（2026-10-23 05:13 CST）**：S15 粘贴识别、共享语义解析/语音优化与五入口响应式短文案；通过 shared 326 / API 558 / web 1075 / Python 27 项测试与 `typecheck`/`check:build`；生产 `/health` = `1.15.05/database=up`，无迁移、db/relay 未重启；真实浏览器 320/375/390/430 与登录/五入口冒烟通过；**本次未 push GitHub，远端仍为 `8527a38`**。详见[1.15.05 发布验收记录](archive/releases/S15-1.15.05-粘贴识别与五入口短文案-发布验收记录-20261023.md)。1.15.04 旧公告修复记录见[1.15.04 发布验收记录](archive/releases/S15-1.15.04-正式生产发布与验收记录-20261022.md)。
 6. 旧 S11 剩余项归 **S16**；S12 的演示账号／公安备案归 **S17**。
 
 详细范围见 [`01-规划.md`](01-规划.md)；生产运维见 [`03-运维手册.md`](03-运维手册.md)。
@@ -79,7 +79,10 @@
 
 ## 4. 证据出处
 
-- **生产实测（2026-10-22 09:40 CST，1.15.04）**：公网 `https://libevra.com/api/v1/health` = `1.15.04 / database=up`；`/healthz` = 200；`/update` = 200；首页 bundle `assets/index-isD-khVT.js` 含 1.15.04 公告文案；根与 deploy 的 `.last-deployed`/`.deployed-commit` = `1.15.04`/`a33a99e`；db 仍 52 个已完成迁移，db/relay 容器未重启
+- **生产实测（2026-10-23 05:20 CST，1.15.05）**：公网 `https://libevra.com/api/v1/health` = `1.15.05 / database=up`；`/healthz` = 200；`/update` = 200；首页 bundle `assets/index-BcVAxIgL.js` 含 `1.15.05`、五入口短/完整标签与 `/paste`；根与 deploy 的 `.last-deployed`/`.deployed-commit` = `1.15.05`/`60bb301`；db 仍 52 个已完成迁移，db/relay 容器未重启；登录与五入口/响应式冒烟通过
+- 1.15.05 回滚点：源码快照 `/srv/libevra.pre-1.15.05-20261023-050839`、发布前备份 `deploy/backups/libevra_prod-20261023-051233.dump`
+  （179,955 B，SHA-256 `fcb3600f…36d1`，含恢复演练 45 张表对比）；旧 1.15.04 API/Web 镜像与 `docker-compose.release-1.15.04.yml` 保留
+- 上一版生产实测（2026-10-22 09:40 CST，1.15.04）：公网 `https://libevra.com/api/v1/health` = `1.15.04 / database=up`；`/healthz` = 200；`/update` = 200；首页 bundle `assets/index-isD-khVT.js` 含 1.15.04 公告文案；根与 deploy 的 `.last-deployed`/`.deployed-commit` = `1.15.04`/`a33a99e`；db 仍 52 个已完成迁移，db/relay 容器未重启
 - 1.15.04 回滚点：源码快照 `/srv/libevra.pre-1.15.04-20261022-013504`、发布前备份 `deploy/backups/libevra_prod-20261022-093753.dump`
   （179,672 B，SHA-256 `07f80298…7260`，含恢复演练 45 张表对比）；旧 API `libevra-rc-api:1.15.03-20261022`、旧 Web `libevra-rc-web:1.15.03-20261022-announcement` 保留
 - **生产实测（2026-10-22 06:47–06:48 CST，1.15.03）**：公网 `https://libevra.com/api/v1/health` = `1.15.03 / database=up`；`/healthz` = 200；首页新 bundle `assets/index-BLR4GQTz.js`；
@@ -92,8 +95,8 @@
 - 1.15.01 回滚点：源码快照 `/srv/libevra.pre-1.15.01`、`/srv/libevra/.rollback-1.15.01.txt`、发布前备份 `deploy/backups/libevra_prod-20261021-094351.dump`
   （SHA-256 `f083a777…4ac5`，含恢复演练 44 张表对比）
 - 1.15.00 生产实测（2026-10-21 09:21 CST）：`/health` = `1.15.00 / database=up`；回滚点 `/srv/libevra.pre-1.15.00` 与备份 `libevra_prod-20261021-091558.dump`（SHA-256 `26e92dc6…a812`）
-- **本次发布（1.15.04）**：[`archive/releases/S15-1.15.04-正式生产发布与验收记录-20261022.md`](archive/releases/S15-1.15.04-正式生产发布与验收记录-20261022.md)；`changelog/1.15.md`
-- **1.15.04 GitHub 推送与 CI**：`main` 与 `s15-complete` = `78ee0b5`；CI run [`39707345503`](https://github.com/naeor/libevra/actions/runs/39707345503) success（2m46s，2026-10-22 09:46 CST）
+- **本次发布（1.15.05）**：[`archive/releases/S15-1.15.05-粘贴识别与五入口短文案-发布验收记录-20261023.md`](archive/releases/S15-1.15.05-粘贴识别与五入口短文案-发布验收记录-20261023.md)；`changelog/1.15.md`
+- **1.15.05 GitHub 状态**：⬜ 未 push；远端 `main` 与 `s15-complete` 仍为 `8527a38`，因此无 1.15.05 CI。上一次推送为 1.15.04：`78ee0b5`；CI run [`39707345503`](https://github.com/naeor/libevra/actions/runs/39707345503) success（2m46s，2026-10-22 09:46 CST）
 - 上一次发布（1.15.03）：[`archive/releases/S15-1.15.03-正式生产发布与验收记录-20261022.md`](archive/releases/S15-1.15.03-正式生产发布与验收记录-20261022.md)（发布前预检记录另存于同目录）
 - 更早发布（1.15.01）：[`archive/releases/S15-1.15.01-更新公告与重要更新弹窗补丁-发布验收记录.md`](archive/releases/S15-1.15.01-更新公告与重要更新弹窗补丁-发布验收记录.md)（1.15.00 记录另存于同目录）
 - S15-A/B/C 工作总报告：[archive/misc/S15-工作总报告-20261021.md](archive/misc/S15-工作总报告-20261021.md)
