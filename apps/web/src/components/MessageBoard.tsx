@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { ChevronIcon } from "./Icons.js";
 import { FrameAction, SectionFrame } from "./SectionFrame.js";
 import { errorMessage } from "../lib/api.js";
+import { useGoBack } from "../lib/connectivity.js";
 import { useBookMessages, useSendBookMessage, type BookMessageView } from "../lib/queries.js";
 
 /**
@@ -441,6 +443,14 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
   const messages = useBookMessages();
   const composer = useMessageComposer();
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * ⚠️ **S16-A: back pops this screen instead of pushing `/ledger` again.** The old control was a
+   * `<Link to="/ledger">`, which *added* a ledger entry on top of the board — so the phone's back
+   * gesture from the ledger page reopened the board, and the two screens walked in a circle.
+   * `useGoBack` returns to wherever the reader came from and only falls back to `/ledger` for a deep
+   * link, the same rule every other secondary screen uses.
+   */
+  const goBack = useGoBack("/ledger");
 
   /**
    * ⚠️ **Follow the newest message**, including the first load, because this view is *entered* to
@@ -452,20 +462,27 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-canvas">
-      <header className="shrink-0 bg-brand px-4 pt-5 pb-4 text-white">
-        <div className="mx-auto flex w-full max-w-md items-center gap-3">
-          <Link
-            to="/ledger"
-            className="-ml-1 flex items-center gap-1.5 rounded-field px-2.5 py-2 text-sm text-white/90 transition hover:bg-white/10"
+      {/*
+        ⚠️ S16-A: the same top bar as every other secondary screen (back on the left, the title
+        centred, a hairline under it) instead of a green band. The green band is the first-level
+        tabs' header; on a pushed full-screen view it read as "another tab". This screen keeps its
+        own frame — `h-dvh` with the history scrolling between a fixed bar and a fixed composer —
+        because the on-screen keyboard needs exactly that (see the note above).
+      */}
+      <header className="shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top,0px)]">
+        <div className="relative mx-auto flex h-14 w-full max-w-md items-center px-6">
+          <button
+            type="button"
+            data-back-control
+            onClick={goBack}
+            className="-ml-3 flex h-11 shrink-0 items-center gap-1 rounded-field pr-3 pl-2 text-base text-brand-dark transition hover:bg-brand-soft active:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
           >
-            <span aria-hidden="true" className="text-lg leading-none">
-              ←
-            </span>
+            <ChevronIcon direction="left" className="size-5" />
             返回
-          </Link>
-          <div className="flex min-w-0 flex-col">
-            <h1 className="truncate text-base font-semibold tracking-tight">留言</h1>
-            <p className="truncate text-xs text-white/75">{bookName}</p>
+          </button>
+          <div className="pointer-events-none absolute inset-x-24 flex min-w-0 flex-col items-center text-center">
+            <h1 className="max-w-full truncate text-section-title text-ink">留言</h1>
+            <p className="max-w-full truncate text-helper text-muted">{bookName}</p>
           </div>
         </div>
       </header>

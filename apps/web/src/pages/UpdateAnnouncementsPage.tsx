@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
+import { RecordGroup, RecordRow } from "../components/ui/RecordList.js";
 import {
   ANNOUNCEMENT_PAGE_SIZE,
   formatReleaseDate,
   releasedAnnouncements,
+  type UpdateAnnouncement,
 } from "../lib/updateAnnouncements.js";
 
 /**
@@ -18,6 +19,11 @@ import {
  * ⚠️ **No placeholders for older versions.** The owner's rule is actual
  * releases, not rows produced to fill a screen; if only two releases exist, two
  * rows is the honest answer.
+ *
+ * ⚠️ **S16-A：记录，而不是一叠白卡片。** 所有者：*"连续白底卡片与分割线过于机械。请优化版本、日期、
+ * 标题、预览文字之间的视觉关系，增强历史列表的阅读体验。"* 现在每条是：版本号（等宽小字）与日期在
+ * 同一行，标题一行，预览最多两行；按 `1.15`、`1.14` 这样的版本系列分组，组标题滚动时吸顶。
+ * 预览仍是 `summary`——"使用独立摘要而不是截取正文首句"留给后续内容系统，本轮不改数据。
  */
 export function UpdateAnnouncementsPage(): React.JSX.Element {
   const announcements = releasedAnnouncements();
@@ -26,42 +32,27 @@ export function UpdateAnnouncementsPage(): React.JSX.Element {
   const olderCount = announcements.length - visible.length;
 
   return (
-    <InnerPage
-      title="更新公告"
-      subtitle="这里只列出已经正式发布的版本。"
-      backTo="/update"
-    >
+    <InnerPage title="更新公告" subtitle="这里只列出已经正式发布的版本。" backTo="/update">
       {announcements.length === 0 ? (
-        <p className="rounded-card border border-line bg-surface px-4 py-3 text-body text-muted">
-          还没有正式发布的公告。
-        </p>
+        <p className="text-body text-muted">还没有正式发布的公告。</p>
       ) : (
-        <ul className="overflow-hidden rounded-card border border-line bg-surface">
-          {visible.map((announcement) => (
-            <li key={announcement.version} className="border-b border-line last:border-b-0">
-              <Link
-                to={`/update/announcements/${announcement.version}`}
-                className="flex items-start gap-3 px-4 py-4 transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="font-mono text-sm font-medium text-ink">{announcement.version}</span>
-                    {announcement.releasedAt === null ? null : (
-                      <span className="text-helper text-muted">
-                        {formatReleaseDate(announcement.releasedAt)}
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-1 block text-base font-medium text-ink">{announcement.title}</span>
-                  <span className="mt-1 block text-helper-relaxed text-muted">{announcement.summary}</span>
-                </span>
-                <span aria-hidden="true" className="mt-1 shrink-0 text-lg leading-none text-muted">
-                  ›
-                </span>
-              </Link>
-            </li>
+        <div className="flex flex-col">
+          {groupBySeries(visible).map((group) => (
+            <RecordGroup key={group.series} heading={`${group.series} 版本`}>
+              {group.items.map((announcement) => (
+                <RecordRow
+                  key={announcement.version}
+                  eyebrow={<span className="font-mono">{announcement.version}</span>}
+                  aside={announcement.releasedAt === null ? undefined : formatReleaseDate(announcement.releasedAt)}
+                  primary={announcement.title}
+                  preview={announcement.summary}
+                  strong
+                  to={`/update/announcements/${announcement.version}`}
+                />
+              ))}
+            </RecordGroup>
           ))}
-        </ul>
+        </div>
       )}
 
       {olderCount > 0 ? (
@@ -75,4 +66,26 @@ export function UpdateAnnouncementsPage(): React.JSX.Element {
       ) : null}
     </InnerPage>
   );
+}
+
+/**
+ * Newest-first announcements → runs of the same `major.minor` series ("1.15", "1.14", …).
+ *
+ * ⚠️ **Runs, not buckets**: the list is already ordered by release date, so a series heading appears
+ * where that series starts in time. Re-bucketing would reorder releases if a patch of an older series
+ * ever shipped after a newer series — the date order is the fact this page reports.
+ */
+function groupBySeries(
+  announcements: readonly UpdateAnnouncement[],
+): { readonly series: string; readonly items: UpdateAnnouncement[] }[] {
+  const groups: { series: string; items: UpdateAnnouncement[] }[] = [];
+
+  for (const announcement of announcements) {
+    const series = announcement.version.split(".").slice(0, 2).join(".");
+    const last = groups[groups.length - 1];
+    if (last !== undefined && last.series === series) last.items.push(announcement);
+    else groups.push({ series, items: [announcement] });
+  }
+
+  return groups;
 }

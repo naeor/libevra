@@ -118,8 +118,12 @@ export function LedgerInvitePage(): React.JSX.Element {
         * ⚠️ **The search card.** It is the whole point of the page: *"通过用户名或账号编号搜索目标用户"*
         * and *"选择目标用户及其账本权限"* and *"发送加入当前账本的邀请."*
         */}
-      <div className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
-        <h2 className="text-sm font-medium text-ink">邀请某个人</h2>
+      {/**
+        * ⚠️ **S16-A：表单直接放在页面上。** 原来外面套了一张卡片、卡片里再写一个「邀请某个人」——
+        * 页面标题已经是「邀请成员」，这一层标题和外框都只是重复。找到的人仍是一张浅绿卡片：
+        * 它是"选中的对象"，权限选择与发送都属于它。
+        */}
+      <section aria-label="邀请某个人" className="flex flex-col gap-4">
 
         <TextField
           label="账号编号或用户名"
@@ -242,12 +246,16 @@ export function LedgerInvitePage(): React.JSX.Element {
             邀请已经发出。他会收到一条通知，接受之后才真正加入。
           </p>
         ) : null}
-      </div>
+      </section>
 
-      <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
-        <h2 className="text-sm font-medium text-ink">已经在账本里的人</h2>
+      {/**
+        * ⚠️ **成员列表自己有外框**（`MemberList`），外面再包一张卡片就是"盒子套盒子"。
+        * 这里只给它一个组名。
+        */}
+      <section className="flex flex-col gap-2">
+        <h2 className="px-5 text-helper font-medium text-muted">已经在账本里的人</h2>
         <MemberList />
-      </div>
+      </section>
 
       {/**
         * ⚠️ **The sharing link, named as the third way in.** The owner keeps the concepts apart —

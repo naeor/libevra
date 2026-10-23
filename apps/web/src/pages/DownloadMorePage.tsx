@@ -262,7 +262,7 @@ export function DownloadMorePage(): React.JSX.Element {
 
       <section className="flex flex-col gap-2">
         <Button
-          variant="danger"
+          variant="danger-quiet"
           onClick={() => {
             setConfirmReset(true);
           }}

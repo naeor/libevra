@@ -233,10 +233,16 @@ function CandidateCard({
       {/*
         The exact lines this card was parsed from. Kept visible so a wrong
         split is caught here, not after it has become a saved transaction.
+
+        ⚠️ S16-A: only when the text produced more than one card. With a single card the source is
+        the whole text still sitting in the box above, so the grey copy repeated it word for word
+        and doubled the card's height; the split check it exists for only applies to several cards.
       */}
-      <p className="whitespace-pre-wrap rounded-field bg-canvas px-3 py-2 text-helper text-muted">
-        {candidate.sourceText}
-      </p>
+      {total > 1 ? (
+        <p className="whitespace-pre-wrap rounded-field bg-canvas px-3 py-2 text-helper text-muted">
+          {candidate.sourceText}
+        </p>
+      ) : null}
 
       {parsed.issues.length > 0 ? (
         <ul className="flex flex-col gap-1 text-helper text-muted">

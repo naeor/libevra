@@ -1558,12 +1558,12 @@ function SelectionStep({
 
   return (
     <section className="flex flex-col gap-5">
-      <p className="text-body-relaxed text-muted">
-        来源 B 可以是本机游客账本，也可以是当前账号的另一本正式单人账本。正式账本来源只允许
-        B、A 都只有当前账号一个有效成员、且没有待接受邀请或可用分享链接；预览和提交都会重新校验。
-        导入后来源 B 的数据不会被删除或清空。
-      </p>
-
+      {/*
+        ⚠️ S16-A: the selection comes first, the rules under it. The paragraph about which ledgers may
+        be a source used to sit above both pickers — five lines at 390px — so the first screen was
+        mostly explanation and the two choices the step is about started below the fold. The wording
+        is unchanged; it is now the step's footnote, next to the button that acts on it.
+      */}
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <div className="flex flex-col gap-2">
           <span className="text-body font-medium text-ink">来源账本 B</span>
@@ -1646,6 +1646,12 @@ function SelectionStep({
       <Button onClick={onContinue} disabled={!canContinue}>
         查看预览
       </Button>
+
+      <p className="text-helper-relaxed text-muted">
+        来源 B 可以是本机游客账本，也可以是当前账号的另一本正式单人账本。正式账本来源只允许
+        B、A 都只有当前账号一个有效成员、且没有待接受邀请或可用分享链接；预览和提交都会重新校验。
+        导入后来源 B 的数据不会被删除或清空。
+      </p>
     </section>
   );
 }

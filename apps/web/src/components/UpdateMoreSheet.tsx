@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { InfoIcon } from "./InfoHint.js";
-import { CopyIcon } from "./Icons.js";
+import { ChevronIcon, CopyIcon } from "./Icons.js";
 import { copyText } from "../lib/clipboard.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { formatRuntimeReport, readRuntimeSnapshot } from "../lib/runtimeInfo.js";
@@ -163,7 +163,7 @@ export function UpdateMoreSheet({
               <span className="min-w-0 flex-1 text-body text-ink">
                 {phase === "copying" ? "正在复制…" : "复制版本信息"}
               </span>
-              <span aria-hidden="true" className="text-muted">›</span>
+              <ChevronIcon direction="right" className="size-4 text-muted/70" />
             </button>
           </li>
           <li>
@@ -176,7 +176,7 @@ export function UpdateMoreSheet({
                 <InfoIcon className="size-5" />
               </span>
               <span className="min-w-0 flex-1 text-body text-ink">查看运行信息</span>
-              <span aria-hidden="true" className="text-muted">›</span>
+              <ChevronIcon direction="right" className="size-4 text-muted/70" />
             </button>
           </li>
         </ul>

@@ -49,8 +49,14 @@ const RANGE_LABELS: Record<Exclude<RangePreset, "custom">, string> = {
   last3: "近三个月",
 };
 
-/** The sentence the current-ledger entry and 账本设置's export entry share. */
-const EXPORT_HINT = "选择要导出的范围与格式。导出的文件会带一个编号，日后可以对照。";
+/**
+ * The sentence the current-ledger entry and 账本设置's export entry share.
+ *
+ * ⚠️ S16-A: it now sits under the 导出 button (what happens to the file), not under the title. Its old
+ * first half, 「选择要导出的范围与格式。」, only described the form directly below it, and with the
+ * ledger name in front it made the header four lines tall at 390px.
+ */
+const EXPORT_HINT = "导出的文件会带一个编号，日后可以对照。";
 
 function rangeForPreset(preset: RangePreset, customFrom: string, customTo: string): {
   monthFrom?: string;
@@ -101,7 +107,6 @@ function ExportForCurrentLedger(): React.JSX.Element {
       categories={ledger.data?.categories ?? []}
       loading={ledger.isLoading}
       backTo="/"
-      subtitle={EXPORT_HINT}
       importTo="/import"
     />
   );
@@ -124,7 +129,7 @@ function ExportForBook({ bookId }: { readonly bookId: string }): React.JSX.Eleme
       categories={meta.data?.categories ?? []}
       loading={meta.isLoading}
       backTo={`/books/${bookId}/settings`}
-      subtitle={`正在导出「${label}」。${EXPORT_HINT}`}
+      subtitle={`正在导出「${label}」`}
       importTo={`/books/${bookId}/settings/import`}
       bookId={bookId}
       failure={meta.isError ? errorMessage(meta.error) : null}
@@ -144,7 +149,7 @@ function ExportView({
   readonly categories: readonly Category[];
   readonly loading: boolean;
   readonly backTo: string;
-  readonly subtitle: string;
+  readonly subtitle?: string;
   /** Where the 导入 button goes: `/import` for the current ledger, the book's own page otherwise. */
   readonly importTo: string;
   /** ⚠️ Named only in target mode — and then every request below carries it. */
@@ -241,7 +246,7 @@ function ExportView({
   }
 
   return (
-    <InnerPage title="导出账目" subtitle={subtitle} backTo={backTo}>
+    <InnerPage title="导出账目" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
       {error === null ? null : <Alert>{error}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
       {done === null ? null : <Alert tone="success">{done}</Alert>}
@@ -420,7 +425,10 @@ function ExportView({
           {busy ? "正在准备…" : "导出"}
         </Button>
 
-        <p className="text-helper-relaxed text-muted">{deliveryHint}</p>
+        <p className="text-helper-relaxed text-muted">
+          {EXPORT_HINT}
+          {deliveryHint}
+        </p>
 
         <Button
           variant="secondary"

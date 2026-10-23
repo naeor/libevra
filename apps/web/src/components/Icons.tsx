@@ -107,15 +107,26 @@ export function PlusIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
  *
  * ⚠️ **不要再用字符画箭头。** 以后需要方向箭头时用这个组件（或给它加 `left`/`right`），
  * 不要退回 `⌄` / `⌃` / `▾`：字体一换，它们又会各长各的。
+ *
+ * ⚠️ **S16-A 加了 `direction`，仍是同一个 SVG。** 返回导航用 `left`，列表行末尾的"进入下一页"用
+ * `right`——它们以前分别是字符 `←` 与 `›`，正是上面说的"字体一换就各长各的"。`up` 保留为原来的
+ * 写法（展开/收起），四个方向都只是旋转这一条路径，所以占位与描边粗细完全一致。
  */
 export function ChevronIcon({
   up = false,
+  direction,
   className = "",
 }: {
   /** 展开状态传 `true`：同一个图形转 180°，不是另一个字符。 */
   readonly up?: boolean;
+  /** 显式方向；不传时由 `up` 决定（向上或向下）。 */
+  readonly direction?: "down" | "up" | "left" | "right";
   readonly className?: string;
 }): React.JSX.Element {
+  const facing = direction ?? (up ? "up" : "down");
+  const rotation =
+    facing === "up" ? "-rotate-180" : facing === "left" ? "rotate-90" : facing === "right" ? "-rotate-90" : "";
+
   return (
     <svg
       viewBox="0 0 24 24"
@@ -126,9 +137,9 @@ export function ChevronIcon({
       strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
-      data-chevron={up ? "up" : "down"}
+      data-chevron={facing}
       aria-hidden="true"
-      className={`shrink-0 transition-transform duration-200 ease-out ${up ? "-rotate-180" : ""} ${className}`.trim()}
+      className={`shrink-0 transition-transform duration-200 ease-out ${rotation} ${className}`.trim()}
     >
       <path d="m6 9 6 6 6-6" />
     </svg>

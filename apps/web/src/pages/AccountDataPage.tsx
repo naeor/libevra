@@ -7,6 +7,7 @@ import { Button } from "../components/Button.js";
 import { ConsentDialog } from "../components/ConsentGate.js";
 import { CopyButton } from "../components/CopyButton.js";
 import { InnerPage } from "../components/Layouts.js";
+import { InlineMessage, ListGroup, ListRow } from "../components/ui/List.js";
 import { TextField } from "../components/TextField.js";
 import { errorMessage } from "../lib/api.js";
 import { fetchAccountExport } from "../lib/consent.js";
@@ -244,134 +245,137 @@ export function AccountDataPage(): React.JSX.Element {
 
   return (
     <InnerPage title="账号与数据" backTo="/settings">
-      <p className="text-body-relaxed text-muted">管理账号数据、已归档账本，以及需要谨慎处理的删除操作。</p>
-
-      {error === null ? null : <Alert>{error}</Alert>}
+      {/**
+        * ⚠️ **S16-A：反馈贴着页面顶部，但不再整段铺开。** 服务器的错误说明可能有好几行（例如注销
+        * 前需要交接的账本），原来的 `Alert` 会把下面的三组内容整体推出首屏。`InlineMessage` 默认显示
+        * 两行、可展开全文、可关闭；文字完整保留，读屏软件读到的是全文。
+        *
+        * ⚠️ 原来标题下的一句概述（"管理账号数据、已归档账本……"）去掉了：下面三组的组名已经说清楚
+        * 这一页管什么，概述只是把第一组往下推。
+        */}
+      {error === null ? null : (
+        <InlineMessage
+          tone="error"
+          onDismiss={() => {
+            setError(null);
+          }}
+        >
+          {error}
+        </InlineMessage>
+      )}
       {notice === null ? null : (
-        <p className="rounded-field bg-brand-soft px-3 py-2 text-helper-relaxed text-brand-dark">{notice}</p>
+        <InlineMessage
+          tone="success"
+          onDismiss={() => {
+            setNotice(null);
+          }}
+        >
+          {notice}
+        </InlineMessage>
       )}
 
-      <section className="flex flex-col gap-2.5">
-        <h2 className="px-1 text-helper text-muted">数据管理</h2>
-        <div className="overflow-hidden rounded-card border border-line bg-surface">
-          <button
-            type="button"
-            onClick={() => void onExport()}
-            disabled={busy}
-            className="flex w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition hover:bg-canvas disabled:opacity-45"
-          >
-            <span>
-              <span className="block text-body text-ink">导出我的数据</span>
-              <span className="block text-helper text-muted">账号资料与当前可访问账本的全部账目</span>
-            </span>
-            <span className="shrink-0 text-muted">›</span>
-          </button>
-          <div className="px-5 py-4">
-            <p className="text-body text-ink">已归档账本</p>
-            {archivedBooks.length === 0 ? (
-              <p className="mt-1 text-helper text-muted">没有已归档账本。</p>
-            ) : (
-              <div className="mt-3 flex flex-col gap-3">
-                {archivedBooks.map((book) => (
-                  <div key={book.bookId} className="rounded-field bg-canvas px-4 py-3">
-                    <p className="text-body text-ink">{book.name}</p>
-                    <p className="mt-0.5 text-helper text-muted">
-                      归档于 {dateText(book.archivedAt)} · 自助恢复截止 {dateText(book.selfRestoreUntil)}
-                    </p>
-                    <p className="text-helper text-muted">预计清理 {dateText(book.scheduledPurgeAt)}（到期后 24 小时内）</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {book.selfRestoreUntil !== null && new Date(book.selfRestoreUntil).getTime() > Date.now() ? (
-                        <Button variant="secondary" fullWidth={false} disabled={busy} onClick={() => void onRestore(book.bookId)}>
-                          恢复账本
-                        </Button>
-                      ) : null}
-                      {book.selfRestoreUntil !== null && new Date(book.selfRestoreUntil).getTime() <= Date.now() ? (
-                        <Button variant="secondary" fullWidth={false} disabled={busy} onClick={() => void onRequestRecovery(book.bookId)}>
-                          申请人工恢复
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
+      <ListGroup title="数据">
+        <ListRow
+          label="导出我的数据"
+          detail="账号资料与当前可访问账本的全部账目"
+          onClick={() => void onExport()}
+          disabled={busy}
+        />
+      </ListGroup>
+
+      {/**
+        * ⚠️ **读取中不是"没有账本"。** 以前数据还没回来时 `activeBooks` 是空数组，页面会先显示
+        * 「当前账号没有账本」再跳成列表；读取失败时也会停在这句话上。现在三种状态分开：读取中、
+        * 读取失败（可重试）、真的没有账本。
+        */}
+      {data === null ? (
+        <ListGroup title="我的账本">
+          {error === null ? (
+            <div className="px-5 py-4 text-body text-muted">正在读取账本……</div>
+          ) : (
+            <ListRow label="账本列表读取失败" detail="点按重新读取" onClick={() => void load()} disabled={busy} />
+          )}
+        </ListGroup>
+      ) : (
+        <ListGroup
+          title="我的账本"
+          footer={archivedBooks.length === 0 ? "没有已归档账本。" : undefined}
+        >
+          {activeBooks.length === 0 ? (
+            <div className="px-5 py-4">
+              <p className="text-body text-ink">当前账号没有账本。</p>
+              <p className="mt-1 text-helper text-muted">删除全部账本数据后仍会保留账号，你可以从账本空间新建一本。</p>
+              <Button
+                variant="secondary"
+                fullWidth={false}
+                className="mt-3"
+                onClick={() => void navigate("/start")}
+              >
+                去新建账本
+              </Button>
+            </div>
+          ) : (
+            activeBooks.map((book) => (
+              <ListRow
+                key={book.bookId}
+                label={<span className="block truncate">{book.name}</span>}
+                detail={`${book.bookNumber === null ? "" : `${book.bookNumber} · `}${
+                  book.memberCount > 1 ? `共享账本 · ${String(book.memberCount)} 位成员` : "单人账本"
+                }`}
+                onClick={() => void navigate(`/books/${book.bookId}/settings`)}
+              />
+            ))
+          )}
+        </ListGroup>
+      )}
+
+      {archivedBooks.length === 0 ? null : (
+        <ListGroup title="已归档账本">
+          {archivedBooks.map((book) => (
+            <div key={book.bookId} className="flex flex-col gap-1 px-5 py-3.5">
+              <p className="text-body text-ink">{book.name}</p>
+              <p className="text-helper-relaxed text-muted">
+                归档于 {dateText(book.archivedAt)} · 自助恢复截止 {dateText(book.selfRestoreUntil)}
+              </p>
+              <p className="text-helper-relaxed text-muted">预计清理 {dateText(book.scheduledPurgeAt)}（到期后 24 小时内）</p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {book.selfRestoreUntil !== null && new Date(book.selfRestoreUntil).getTime() > Date.now() ? (
+                  <Button variant="secondary" fullWidth={false} disabled={busy} onClick={() => void onRestore(book.bookId)}>
+                    恢复账本
+                  </Button>
+                ) : null}
+                {book.selfRestoreUntil !== null && new Date(book.selfRestoreUntil).getTime() <= Date.now() ? (
+                  <Button variant="secondary" fullWidth={false} disabled={busy} onClick={() => void onRequestRecovery(book.bookId)}>
+                    申请人工恢复
+                  </Button>
+                ) : null}
               </div>
-            )}
-          </div>
-        </div>
-      </section>
+            </div>
+          ))}
+        </ListGroup>
+      )}
 
-      <section className="flex flex-col gap-2.5">
-        <h2 className="px-1 text-helper text-muted">我的账本</h2>
-        {activeBooks.length === 0 ? (
-          <div className="rounded-card border border-line bg-surface px-5 py-4">
-            <p className="text-body text-ink">当前账号没有账本。</p>
-            <p className="mt-1 text-helper text-muted">删除全部账本数据后仍会保留账号，你可以从账本空间新建一本。</p>
-            <Button
-              variant="secondary"
-              fullWidth={false}
-              className="mt-3"
-              onClick={() => void navigate("/start")}
-            >
-              去新建账本
-            </Button>
-          </div>
-        ) : (
-          <ul className="overflow-hidden rounded-card border border-line bg-surface">
-            {activeBooks.map((book) => (
-              <li key={book.bookId}>
-                <button
-                  type="button"
-                  onClick={() => void navigate(`/books/${book.bookId}/settings`)}
-                  className="flex w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition last:border-b-0 hover:bg-canvas"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-body text-ink">{book.name}</span>
-                    <span className="block text-helper text-muted">
-                      {book.bookNumber === null ? "" : `${book.bookNumber} · `}
-                      {book.memberCount > 1 ? `共享账本 · ${String(book.memberCount)} 位成员` : "单人账本"}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-muted">›</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-2.5">
-        <h2 className="px-1 text-helper text-muted">危险操作</h2>
-        <div className="rounded-card border border-line bg-surface">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void openDeleteDialog()}
-            className="flex w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition hover:bg-canvas disabled:opacity-45"
-          >
-            <span>
-              <span className="block text-body font-medium text-danger">删除服务器数据</span>
-              <span className="block text-helper text-muted">
-                选择账本或全部账本；账号仍保留，可以继续登录和新建账本
-              </span>
-            </span>
-            <span className="shrink-0 text-danger">›</span>
-          </button>
-          <button
-            type="button"
-            disabled={busy || blocked}
-            onClick={openCloseDialog}
-            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-canvas disabled:opacity-45"
-          >
-            <span>
-              <span className="block text-body font-medium text-danger">注销账号</span>
-              <span className="block text-helper text-muted">
-                逐本处理账本、撤销登录；注销后不能继续使用这个账号
-              </span>
-              {blocked ? <span className="block text-helper text-danger">有账本需要先处理管理者交接或清理状态。</span> : null}
-            </span>
-            <span className="shrink-0 text-danger">›</span>
-          </button>
-        </div>
-      </section>
+      <ListGroup title="危险操作">
+        <ListRow
+          label="删除服务器数据"
+          tone="danger"
+          detail="选择账本或全部账本；账号仍保留，可以继续登录和新建账本"
+          disabled={busy}
+          onClick={() => void openDeleteDialog()}
+        />
+        <ListRow
+          label="注销账号"
+          tone="danger"
+          detail={
+            <>
+              逐本处理账本、撤销登录；注销后不能继续使用这个账号
+              {blocked ? <span className="block text-danger">有账本需要先处理管理者交接或清理状态。</span> : null}
+            </>
+          }
+          disabled={busy || blocked}
+          onClick={openCloseDialog}
+        />
+      </ListGroup>
 
       {dialog === "delete" && preview !== null ? (
         <ConsentDialog

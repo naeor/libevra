@@ -145,6 +145,7 @@ export function LedgerPage(): React.JSX.Element {
                 name={ledger.data.book.name}
                 bookNumber={ledger.data.book.bookNumber}
                 bookCount={books.isSuccess ? books.data.books.length : null}
+                facts={stats === undefined ? null : `${String(stats.transactionCount)} 笔`}
               />
               <MemberSummaryCard
                 members={memberList}
@@ -159,6 +160,7 @@ export function LedgerPage(): React.JSX.Element {
                 name={ledger.data.book.name}
                 bookNumber={ledger.data.book.bookNumber}
                 bookCount={books.isSuccess ? books.data.books.length : null}
+                facts={stats === undefined ? null : `${String(stats.transactionCount)} 笔账目`}
               />
             </section>
           )}
@@ -184,7 +186,7 @@ export function LedgerPage(): React.JSX.Element {
             action={<FrameAction to="/ledger/history">查看全部 ›</FrameAction>}
           >
             <HistoryList
-              limit={2}
+              limit={3}
               embedded
               emptyHint="这本账还没有改动记录。改动记录从这个功能上线之后开始，之前的操作不会补记。"
             />
@@ -227,45 +229,24 @@ export function LedgerPage(): React.JSX.Element {
               title="邀请成员"
               bare
             >
-              <p className="mb-3 text-body-relaxed text-muted">
-                这本账现在只有你一个人。输入对方的账号编号或用户名，他会收到一条邀请，
-                接受之后才真正加入。
-              </p>
+              {/**
+                * ⚠️ **S16-A：说明放到输入框下面，并降为辅助文字。** 单人账本里邀请是"可以做"，
+                * 不是"必须做"：原来一段 14px 的说明压在输入框上面，整块比编辑记录还重。
+                * 现在输入框是这一块的第一眼，说明是它的注脚；文字本身没有改。
+                */}
               <QuickInvite bookName={ledger.data.book.name} />
             </SectionFrame>
           )}
 
           {/**
-            * ⚠️ **Fourth layer: the details, previewed and one tap away.** The owner asked for exactly
-            * this split: *"诸如完整账本编号、创建时间、空间占用、全部编辑历史、详细成员权限等内容，
-            * 可在适当的位置简洁预览，再通过点击进入二级页面查看。不要为了展示所有数据而破坏主页面
-            * 的简洁程度."*
+            * ⚠️ **S16-A：原来的「账本信息」卡片去掉了，它的内容并入顶部的当前账本卡片。**
+            *
+            * 所有者：*"当前底部账本信息卡片与账本详情存在较多重复。请评估是否应该移除、精简、融入顶部
+            * 当前账本区域或采用其他方案。"* 那张卡的四项里：成员数已经在成员卡片上（单人账本恒为 1），
+            * 账目笔数现在写在当前账本卡片的编号后面，创建日期在账本详情里，「详情」与卡片上的「查看详情」
+            * 是同一个去处；估算的空间占用移到账本详情页的资料里（`BookDetailPage`）。所有者此前要求的
+            * "简洁预览 + 点击进入二级页面查看"仍然成立，只是预览不再单独占一块。
             */}
-          {stats === undefined ? null : (
-            /**
-             * ⚠️ **推广后走默认规格（16px/600）。** 与「编辑记录」「留言」同一层——
-             * 它同样是页面上的一个整块内容区。
-             */
-            <Section
-              title="账本信息"
-              action={{ to: `/books/${ledger.data.book.id}`, label: "详情" }}
-            >
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <Fact label="创建于" value={stats.createdAt.slice(0, 10)} />
-                <Fact label="账目" value={`${String(stats.transactionCount)} 笔`} />
-                <Fact label="成员" value={`${String(memberCount)} 人`} />
-                <Fact
-                  label="占用空间"
-                  /**
-                   * ⚠️ **"约" stays.** An estimate shown beside three exact figures is read as exact,
-                   * and somebody will eventually reconcile against it — see `estimateBytes`.
-                   */
-                  value={`约 ${formatBytes(estimateBytes(stats.transactionCount, stats.eventCount))}`}
-                />
-              </dl>
-            </Section>
-          )}
-
           <LeaveBookSection bookId={ledger.data.book.id} />
         </>
       ) : null}
@@ -368,7 +349,11 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
         </button>
       </div>
 
-      <Link to="/ledger/invite" className="text-helper text-brand transition hover:text-brand-dark">
+      <p className="text-helper-relaxed text-muted">
+        这本账现在只有你一个人。输入对方的账号编号或用户名，他会收到一条邀请，接受之后才真正加入。
+      </p>
+
+      <Link to="/ledger/invite" className="self-start text-helper text-brand transition hover:text-brand-dark">
         选择对方的权限，或查看已发出的邀请 ›
       </Link>
     </div>
@@ -389,13 +374,15 @@ function CurrentBookCard({
   name,
   bookNumber,
   bookCount,
+  facts,
 }: {
   readonly bookId: string;
   readonly name: string;
   readonly bookNumber: string | null;
   readonly bookCount: number | null;
+  readonly facts: string | null;
 }): React.JSX.Element {
-  return <BookCardSplit bookId={bookId} name={name} bookNumber={bookNumber} bookCount={bookCount} />;
+  return <BookCardSplit bookId={bookId} name={name} bookNumber={bookNumber} bookCount={bookCount} facts={facts} />;
 }
 
 /**
@@ -416,12 +403,15 @@ function BookCardSplit({
   name,
   bookNumber,
   bookCount,
+  facts = null,
   tinted = false,
 }: {
   readonly bookId: string;
   readonly name: string;
   readonly bookNumber: string | null;
   readonly bookCount: number | null;
+  /** S16-A：原「账本信息」卡片里的事实（笔数、创建日期），写在编号后面。 */
+  readonly facts?: string | null;
   readonly tinted?: boolean;
 }): React.JSX.Element {
   const countLabel = bookCount === null ? "" : `（共 ${String(bookCount)} 本）`;
@@ -439,8 +429,9 @@ function BookCardSplit({
         >
           <span className="text-helper text-muted">当前账本</span>
           <span className="break-words text-base font-medium text-ink">{name}</span>
-          <span className="truncate font-mono text-helper text-muted">
-            {bookNumber ?? "（未分配编号）"}
+          <span className="truncate text-helper text-muted">
+            <span className="font-mono">{bookNumber ?? "（未分配编号）"}</span>
+            {facts === null ? null : ` · ${facts}`}
           </span>
           <span className="text-helper font-medium text-brand">查看详情 ›</span>
         </Link>
@@ -534,11 +525,13 @@ function SoloBookCard({
   name,
   bookNumber,
   bookCount,
+  facts,
 }: {
   readonly bookId: string;
   readonly name: string;
   readonly bookNumber: string | null;
   readonly bookCount: number | null;
+  readonly facts: string | null;
 }): React.JSX.Element {
   return (
     <BookCardSplit
@@ -546,20 +539,12 @@ function SoloBookCard({
       name={name}
       bookNumber={bookNumber}
       bookCount={bookCount}
+      facts={facts}
       tinted
     />
   );
 }
 
-/** One label-and-value pair in the details preview. */
-function Fact({ label, value }: { readonly label: string; readonly value: string }): React.JSX.Element {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-helper text-muted">{label}</dt>
-      <dd className="text-ink">{value}</dd>
-    </div>
-  );
-}
 
 /** The switch glyph — arrows pointing both ways, so the word 切换账本 has a visual anchor. */
 function SwitchIcon({ className = "size-4" }: { readonly className?: string }): React.JSX.Element {
@@ -708,22 +693,4 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
       )}
     </Section>
   );
-}
-
-/**
- * A rough size for one ledger's rows.
- *
- * ⚠️ **Deliberately an estimate, and the constants are deliberately round.** PostgreSQL keeps table
- * bytes per table, not per owning ledger, so an exact answer means measuring each row's payload —
- * **real work for a figure nobody makes a decision with.**
- */
-function estimateBytes(transactionCount: number, eventCount: number): number {
-  return transactionCount * 1024 + eventCount * 512;
-}
-
-/** KB / MB, with one decimal — enough to see a change, not enough to imply precision. */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

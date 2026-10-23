@@ -3,6 +3,7 @@ import { useParams } from "react-router";
 import { InnerPage } from "../components/Layouts.js";
 import { MemberList } from "../components/MemberList.js";
 import { ShareSection } from "../components/ShareSection.js";
+import { ListGroup } from "../components/ui/List.js";
 import { SkeletonRows } from "../components/States.js";
 import { useBookMembers, useLedgerMeta } from "../lib/queries.js";
 
@@ -74,36 +75,36 @@ export function StartBookMembersPage(): React.JSX.Element {
     <InnerPage title="成员与邀请" subtitle={name ?? "正在读取……"} backTo="/start">
       {pending ? <SkeletonRows rows={3} /> : null}
 
-      <div className="rounded-card border border-line bg-surface p-5">
-        <MemberList bookId={bookId} />
-      </div>
+      {/* ⚠️ S16-A：`MemberList` 自带外框；外面再包一张卡片就是"盒子套盒子"。 */}
+      <MemberList bookId={bookId} />
 
       {canInvite ? (
-        <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
-          <h2 className="text-sm font-medium text-ink">邀请新成员</h2>
-          <p className="text-body-relaxed text-muted">
-            按对方账号编号或用户名找到他，选好权限，发一条邀请。他接受之后才真正加入这本账。
-          </p>
-          {/**
-            * ⚠️ **This one really does enter the ledger, and the label says so.**
-            *
-            * `/ledger/invite` names its ledger in the request header, which is the **current** ledger
-            * — so inviting from there means being in the ledger, and it cannot be reached for a target
-            * ledger without switching (which is forbidden). Rather than build a second invite screen
-            * that invites into an arbitrary ledger, the link is honest about what it does: **it enters
-            * 这本账 first.** The alternative was a silent switch, and that is the one thing the owner
-            * ruled out by name.
-            */}
-          <p className="rounded-field bg-canvas px-4 py-3 text-helper-relaxed text-muted">
-            邀请要在一本账里面发起。点下面的按钮会先进入「{name ?? "这本账"}」，然后在那个页面上邀请。
-          </p>
-          <a
-            href="/ledger/invite"
-            className="inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-sm text-white transition hover:bg-brand-dark"
-          >
-            去邀请
-          </a>
-        </div>
+        <ListGroup title="邀请新成员">
+          <div className="flex flex-col gap-2 px-5 py-4">
+            <p className="text-body-relaxed text-muted">
+              按对方账号编号或用户名找到他，选好权限，发一条邀请。他接受之后才真正加入这本账。
+            </p>
+            {/**
+              * ⚠️ **This one really does enter the ledger, and the label says so.**
+              *
+              * `/ledger/invite` names its ledger in the request header, which is the **current** ledger
+              * — so inviting from there means being in the ledger, and it cannot be reached for a target
+              * ledger without switching (which is forbidden). Rather than build a second invite screen
+              * that invites into an arbitrary ledger, the link is honest about what it does: **it enters
+              * 这本账 first.** The alternative was a silent switch, and that is the one thing the owner
+              * ruled out by name.
+              */}
+            <p className="text-helper-relaxed text-muted">
+              邀请要在一本账里面发起。点下面的按钮会先进入「{name ?? "这本账"}」，然后在那个页面上邀请。
+            </p>
+            <a
+              href="/ledger/invite"
+              className="mt-1 inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-button text-white transition hover:bg-brand-dark"
+            >
+              去邀请
+            </a>
+          </div>
+        </ListGroup>
       ) : null}
 
       <p className="text-helper-relaxed text-muted">

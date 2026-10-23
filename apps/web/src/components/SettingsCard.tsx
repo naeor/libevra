@@ -6,6 +6,7 @@ import { errorMessage } from "../lib/api.js";
 import { currencyName } from "../lib/format.js";
 import { useUpdatePreferences } from "../lib/queries.js";
 import { Alert } from "./Alert.js";
+import { ChevronIcon } from "./Icons.js";
 
 /**
  * **The building blocks of the settings screens.**
@@ -195,43 +196,28 @@ export function SettingsCategoryCard({
   readonly onOpen: (to: string) => void;
 }): React.JSX.Element {
   return (
-    <div className="overflow-hidden rounded-card border border-line bg-surface">
-      <button
-        type="button"
-        data-section={to}
-        onClick={() => {
-          onOpen(to);
-        }}
-        className="flex min-h-20 w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-canvas focus-visible:bg-brand-soft focus-visible:outline-none active:bg-brand-soft"
-      >
-        <span className="flex flex-col gap-1">
-          <span className="text-body text-ink">{title}</span>
-          <span className="text-helper text-muted">{description}</span>
-        </span>
-        {/**
-         * The same chevron `MePage` uses: green, small, decorative. The card's
-         * accessible name is its text — a second label on the arrow would repeat it.
-         */}
-        <span aria-hidden="true" className="shrink-0 text-base text-brand">
-          ›
-        </span>
-      </button>
-    </div>
+    /**
+     * ⚠️ **S16-A：分类现在是一组列表里的一行，外框由设置首页的 `ListGroup` 统一画。** 原来六张分类各自
+     * 一张卡片，首页因此是六个等大的白框，"哪些是一类"只能靠读文字判断。整张卡可点、币种快选不在
+     * 按钮里面这两条规则都没有变——只是行与行之间从卡片间距变成了贯通的分隔线。
+     */
+    <button
+      type="button"
+      data-section={to}
+      onClick={() => {
+        onOpen(to);
+      }}
+      className="flex min-h-13 w-full items-center justify-between gap-4 px-5 py-3 text-left transition-colors hover:bg-canvas focus-visible:bg-brand-soft focus-visible:outline-none active:bg-brand-soft/60"
+    >
+      <span className="flex flex-col gap-0.5">
+        <span className="text-body text-ink">{title}</span>
+        <span className="text-helper text-muted">{description}</span>
+      </span>
+      <ChevronIcon direction="right" className="size-4 text-muted/70" />
+    </button>
   );
 }
 
-/**
- * **A real switch for an on/off setting.**
- *
- * ⚠️ **`role="switch"` + `aria-checked`, not a checkbox.** These settings save on
- * press and have no form to submit, so a checkbox would promise a save button
- * that does not exist. The switch keeps the answer ("is it on?") available to a
- * screen reader while the whole 44 px target stays tappable.
- *
- * ⚠️ **The label is the accessible name, not a second copy of the text.** The
- * visible title and the button's `aria-label` come from the same `label` prop;
- * a separate hidden span would be a second place to forget to update.
- */
 export function SettingsToggle({
   label,
   hint,
@@ -247,7 +233,7 @@ export function SettingsToggle({
   readonly testId?: string;
 }): React.JSX.Element {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className={`flex justify-between gap-4 ${hint === undefined ? "items-center" : "items-start"}`}>
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-body text-ink">{label}</span>
         {hint === undefined ? null : (
@@ -300,7 +286,7 @@ export function SettingsRowList({
   readonly onNavigate: (to: string) => void;
 }): React.JSX.Element {
   return (
-    <ul className="overflow-hidden rounded-card border border-line bg-surface">
+    <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
       {rows.map((row) => (
         <li key={row.label}>
           <button
@@ -309,17 +295,22 @@ export function SettingsRowList({
             onClick={() => {
               if (row.to !== undefined) onNavigate(row.to);
             }}
-            className="flex min-h-14 w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition-colors last:border-b-0 enabled:hover:bg-canvas enabled:focus-visible:bg-brand-soft enabled:focus-visible:outline-none disabled:cursor-default"
+            className="flex min-h-13 w-full items-center justify-between gap-4 px-5 py-3 text-left transition-colors enabled:hover:bg-canvas enabled:focus-visible:bg-brand-soft enabled:focus-visible:outline-none enabled:active:bg-brand-soft/60 disabled:cursor-default"
           >
             <span className="flex flex-col gap-0.5">
-              <span className={`text-sm ${row.to === undefined ? "text-muted" : "text-ink"}`}>
+              <span className={`text-body ${row.to === undefined ? "text-muted" : "text-ink"}`}>
                 {row.label}
               </span>
               {row.hint ? <span className="text-helper text-muted">{row.hint}</span> : null}
             </span>
-            <span className="shrink-0 text-helper text-muted">
-              {row.to === undefined ? "后续开放" : "›"}
-            </span>
+            {/**
+              * ⚠️ 还没开放的项是一行**说明**，不是一个坏掉的按钮：右侧写「后续开放」，没有箭头。
+              */}
+            {row.to === undefined ? (
+              <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-helper text-muted">后续开放</span>
+            ) : (
+              <ChevronIcon direction="right" className="size-4 text-muted/70" />
+            )}
           </button>
         </li>
       ))}

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
+import { ListGroup, ListRow } from "../components/ui/List.js";
 import { clearAllMarks, readStoredMonths } from "../lib/offline/localLedger.js";
 import { deferConflictsToServer } from "../lib/offline/sync.js";
 
@@ -68,95 +68,82 @@ export function LedgerMorePage(): React.JSX.Element {
 
   return (
     <InnerPage title="明细 · 更多">
-      <div className="flex flex-col gap-6 px-6 py-5">
-        <section className="flex flex-col gap-1">
-          <h2 className="text-helper text-muted">这台设备</h2>
-          <p className="text-body text-ink">
-            {counts === null
-              ? "正在读取…"
-              : `本机存着 ${String(counts.months)} 个月、${String(counts.entries)} 条账目。`}
-          </p>
-        </section>
+      {/**
+        * ⚠️ **S16-A：四段"按钮 + 一段说明"改成三组列表行。** 原来每个入口都是一块整宽的大按钮，
+        * 下面再跟一段灰字，页面读起来像一排同样重要的大按钮；而且外层多套了一层 `px-6`，
+        * 内容比其它页面缩进了一倍。现在：
+        *
+        * - 去往别处的（导出、回到明细）是带 `›` 的行；
+        * - 就地执行的（清空印记、重新加载）是强调色的行，没有箭头；
+        * - 每段说明成为对应行的第二行，原文不变（含"不会发送任何请求"等安全措辞）。
+        */}
+      <p className="text-body text-ink">
+        <span className="text-muted">这台设备 · </span>
+        {counts === null
+          ? "正在读取…"
+          : `本机存着 ${String(counts.months)} 个月、${String(counts.entries)} 条账目。`}
+      </p>
 
-        <section className="flex flex-col gap-2">
-          <h2 className="text-helper text-muted">导出账目</h2>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              void navigate("/export");
-            }}
-          >
-            导出为文件
-          </Button>
-          <p className="text-helper-relaxed text-muted">
-            打开导出页面，按月份和条件导出 CSV 或 JSON。导出的范围与字段都在那个页面上选择。
-          </p>
-        </section>
+      <ListGroup title="导出账目">
+        <ListRow
+          label="导出为文件"
+          detail="打开导出页面，按月份和条件导出 CSV 或 JSON。导出的范围与字段都在那个页面上选择。"
+          onClick={() => {
+            void navigate("/export");
+          }}
+        />
+      </ListGroup>
 
-        <section className="flex flex-col gap-2">
-          <h2 className="text-helper text-muted">筛选与查找</h2>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              void navigate("/");
-            }}
-          >
-            回到明细页筛选
-          </Button>
-          <p className="text-helper-relaxed text-muted">
-            明细页顶部可以按月、按收支切换；点某笔账目的分类，就只看这个分类。
-            <span className="text-ink"> 目前还没有按文字搜索账目</span>
-            ——它需要一个真正的搜索功能，不是在这里加一个入口就能做好的，所以这次没有做。
-          </p>
-        </section>
+      <ListGroup title="筛选与查找">
+        <ListRow
+          label="回到明细页筛选"
+          detail={
+            <>
+              明细页顶部可以按月、按收支切换；点某笔账目的分类，就只看这个分类。
+              <span className="text-ink"> 目前还没有按文字搜索账目</span>
+              ——它需要一个真正的搜索功能，不是在这里加一个入口就能做好的，所以这次没有做。
+            </>
+          }
+          onClick={() => {
+            void navigate("/");
+          }}
+        />
+      </ListGroup>
 
-        <section className="flex flex-col gap-3">
-          <h2 className="text-helper text-muted">数据维护</h2>
-
-          <div className="flex flex-col gap-2">
-            <Button
-              onClick={() => {
-                void (async () => {
-                  /**
-                   * ⚠️ **The server is told as well, and that is the half that makes this work.**
-                   *
-                   * "清空印记就意味着不选了使用服务器当前的值" — **which is a decision the server has to hear**, or it
-                   * keeps raising the same questions and the next pull hands them back.
-                   */
-                  await deferConflictsToServer();
-                  await clearAllMarks();
-                  setCleared(true);
-                })();
-              }}
-            >
-              {cleared ? "已清空待同步印记" : "清空「待同步」印记"}
-            </Button>
-
-            <p className="text-helper-relaxed text-muted">
+      <ListGroup title="数据维护">
+        <ListRow
+          tone="action"
+          label={cleared ? "已清空待同步印记" : "清空「待同步」印记"}
+          detail={
+            <>
               停止把这些账目当作「还没同步」「还没删除」或「等你要选」来提醒。
               不会发送任何请求，也不会删掉服务器或本机上的任何账目 —— 只是让它们不再带颜色。
               服务器上确实已经删掉的，本机下次取回列表时会照常消失。
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 border-t border-line pt-3">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setConfirmReload(true);
-              }}
-            >
-              重新加载应用
-            </Button>
-
-            <p className="text-helper-relaxed text-muted">
+            </>
+          }
+          onClick={() => {
+            void (async () => {
+              await deferConflictsToServer();
+              await clearAllMarks();
+              setCleared(true);
+            })();
+          }}
+        />
+        <ListRow
+          tone="action"
+          label="重新加载应用"
+          detail={
+            <>
               界面出现异常时，重新加载页面通常能恢复。
               它只是重新打开这个页面，<span className="text-ink">不会清除本机账目</span>
               ；也不会修复服务器上的数据 —— 那是另一件事。
-            </p>
-          </div>
-        </section>
-      </div>
+            </>
+          }
+          onClick={() => {
+            setConfirmReload(true);
+          }}
+        />
+      </ListGroup>
 
       <ConfirmDialog
         open={confirmReload}

@@ -167,7 +167,7 @@ export function DownloadManagerPage(): React.JSX.Element {
         )}
 
         <Button
-          variant="danger"
+          variant="danger-quiet"
           disabled={fillRunning || storedCount === 0}
           onClick={() => {
             /**

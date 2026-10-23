@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { Alert } from "../components/Alert.js";
 import { BookIdentityCard, BookSwitcherSheet } from "../components/BookSwitcherSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { ChevronIcon } from "../components/Icons.js";
 import { InnerPage } from "../components/Layouts.js";
 import { NotDuplicateRelationsSection } from "../components/NotDuplicateRelationsSection.js";
 import { SkeletonRows } from "../components/States.js";
@@ -277,8 +278,8 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-helper text-muted">记账管理</h2>
-            <ul className="overflow-hidden rounded-card border border-line bg-surface">
+            <h2 className="px-5 text-helper font-medium text-muted">记账管理</h2>
+            <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
               <NavRow
                 label="分类管理"
                 hint="支出、收入的分类；归档不影响已有记录"
@@ -299,8 +300,8 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-helper text-muted">数据管理</h2>
-            <ul className="overflow-hidden rounded-card border border-line bg-surface">
+            <h2 className="px-5 text-helper font-medium text-muted">数据管理</h2>
+            <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
               <NavRow
                 label="导出数据"
                 hint="把这本账导出为 CSV / Excel"
@@ -342,7 +343,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-helper text-muted">危险操作</h2>
+            <h2 className="px-5 text-helper font-medium text-muted">危险操作</h2>
 
             <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
               {error === null ? null : <Alert>{error}</Alert>}
@@ -589,15 +590,13 @@ function NavRow({
     <li>
       <Link
         to={to}
-        className="flex w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition last:border-b-0 hover:bg-canvas"
+        className="flex min-h-13 w-full items-center justify-between gap-4 px-5 py-3 text-left transition-colors hover:bg-canvas active:bg-brand-soft/60 focus-visible:bg-brand-soft focus-visible:outline-none"
       >
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-sm text-ink">{label}</span>
+          <span className="text-body text-ink">{label}</span>
           <span className="text-helper text-muted">{hint}</span>
         </span>
-        <span aria-hidden="true" className="shrink-0 text-helper text-muted">
-          ›
-        </span>
+        <ChevronIcon direction="right" className="size-4 text-muted/70" />
       </Link>
     </li>
   );

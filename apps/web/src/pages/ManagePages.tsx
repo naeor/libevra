@@ -145,14 +145,14 @@ function ArchivableList({
   readonly readOnly?: boolean;
 }): React.JSX.Element {
   return (
-    <ul className="overflow-hidden rounded-card border border-line bg-surface">
+    <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
       {items.map((item) => {
         const locked = lockedIds.includes(item.id);
         const description = item.description ?? null;
 
         return (
           <li key={item.id}>
-            <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5 last:border-b-0">
+            <div className="flex items-center justify-between gap-4 px-5 py-3.5">
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className={`text-sm ${item.isArchived ? "text-muted line-through" : "text-ink"}`}>
                   {item.name}
@@ -282,7 +282,7 @@ function CategoriesForCurrentLedger(): React.JSX.Element {
       pending={ledger.isPending}
       isSuccess={ledger.isSuccess}
       backTo={CURRENT_BACK_TO}
-      subtitle={CATEGORIES_HINT}
+      hint={CATEGORIES_HINT}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
@@ -305,11 +305,12 @@ function CategoriesForBook({ bookId }: { readonly bookId: string }): React.JSX.E
       backTo={`/books/${bookId}/settings`}
       subtitle={
         meta.isSuccess
-          ? `正在管理「${describeBook(meta.data.book)}」。${CATEGORIES_HINT}`
+          ? `正在管理「${describeBook(meta.data.book)}」`
           : meta.isError
             ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
             : "正在读取账本……"
       }
+      hint={CATEGORIES_HINT}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
@@ -325,6 +326,7 @@ function CategoriesView({
   isSuccess,
   backTo,
   subtitle,
+  hint,
   failure = null,
   shared,
   canWrite,
@@ -335,7 +337,9 @@ function CategoriesView({
   readonly pending: boolean;
   readonly isSuccess: boolean;
   readonly backTo: string;
-  readonly subtitle: string;
+  readonly subtitle?: string;
+  /** S16-A：页面用途的说明，放在列表下方（贴着它解释的操作），不再接在标题后面。 */
+  readonly hint?: string;
   /** A target ledger that could not be read — stated, never silently replaced. */
   readonly failure?: string | null;
   /** A shared ledger must say that a delete/re-point affects every collaborator. */
@@ -371,7 +375,7 @@ function CategoriesView({
         );
 
   return (
-    <InnerPage title="分类管理" subtitle={subtitle} backTo={backTo}>
+    <InnerPage title="分类管理" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
       {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看分类，不能新增、改名、归档或删除。</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
@@ -430,6 +434,8 @@ function CategoriesView({
               setPendingDelete(item as Category);
             }}
           />
+
+          {hint === undefined ? null : <p className="px-1 text-helper-relaxed text-muted">{hint}</p>}
 
           {archived.length > 0 ? (
             <section className="flex flex-col gap-2">
@@ -562,7 +568,7 @@ function PaymentMethodsForCurrentLedger(): React.JSX.Element {
       pending={ledger.isPending}
       isSuccess={ledger.isSuccess}
       backTo={CURRENT_BACK_TO}
-      subtitle={PAYMENT_METHODS_HINT}
+      hint={PAYMENT_METHODS_HINT}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
@@ -585,11 +591,12 @@ function PaymentMethodsForBook({ bookId }: { readonly bookId: string }): React.J
       backTo={`/books/${bookId}/settings`}
       subtitle={
         meta.isSuccess
-          ? `正在管理「${describeBook(meta.data.book)}」。${PAYMENT_METHODS_HINT}`
+          ? `正在管理「${describeBook(meta.data.book)}」`
           : meta.isError
             ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
             : "正在读取账本……"
       }
+      hint={PAYMENT_METHODS_HINT}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
@@ -605,6 +612,7 @@ function PaymentMethodsView({
   isSuccess,
   backTo,
   subtitle,
+  hint,
   failure = null,
   shared,
   canWrite,
@@ -615,7 +623,9 @@ function PaymentMethodsView({
   readonly pending: boolean;
   readonly isSuccess: boolean;
   readonly backTo: string;
-  readonly subtitle: string;
+  readonly subtitle?: string;
+  /** S16-A：页面用途的说明，放在列表下方（贴着它解释的操作），不再接在标题后面。 */
+  readonly hint?: string;
   readonly failure?: string | null;
   readonly shared: boolean;
   readonly canWrite: boolean;
@@ -640,7 +650,7 @@ function PaymentMethodsView({
       : allMethods.filter((item) => !item.isArchived && item.id !== pendingDelete.id);
 
   return (
-    <InnerPage title="支付方式" subtitle={subtitle} backTo={backTo}>
+    <InnerPage title="支付方式" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
       {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看支付方式，不能新增、改名、归档或删除。</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
@@ -681,6 +691,8 @@ function PaymentMethodsView({
               setPendingDelete(item as PaymentMethod);
             }}
           />
+
+          {hint === undefined ? null : <p className="px-1 text-helper-relaxed text-muted">{hint}</p>}
 
           {archived.length > 0 ? (
             <section className="flex flex-col gap-2">
@@ -832,7 +844,7 @@ function TagsForCurrentLedger(): React.JSX.Element {
       tags={ledger.data?.tags ?? []}
       pending={ledger.isPending}
       backTo={CURRENT_BACK_TO}
-      subtitle={TAGS_HINT}
+      hint={TAGS_HINT}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
@@ -854,11 +866,12 @@ function TagsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element
       backTo={`/books/${bookId}/settings`}
       subtitle={
         meta.isSuccess
-          ? `正在管理「${describeBook(meta.data.book)}」。${TAGS_HINT}`
+          ? `正在管理「${describeBook(meta.data.book)}」`
           : meta.isError
             ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
             : "正在读取账本……"
       }
+      hint={TAGS_HINT}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
@@ -873,6 +886,7 @@ function TagsView({
   pending,
   backTo,
   subtitle,
+  hint,
   failure = null,
   shared,
   canWrite,
@@ -882,7 +896,9 @@ function TagsView({
   readonly tags: readonly Tag[];
   readonly pending: boolean;
   readonly backTo: string;
-  readonly subtitle: string;
+  readonly subtitle?: string;
+  /** S16-A：页面用途的说明，放在列表下方（贴着它解释的操作），不再接在标题后面。 */
+  readonly hint?: string;
   readonly failure?: string | null;
   readonly shared: boolean;
   readonly canWrite: boolean;
@@ -900,7 +916,7 @@ function TagsView({
   const deleteCount = pendingDelete === null ? 0 : (usage?.tags[pendingDelete.id] ?? 0);
 
   return (
-    <InnerPage title="标签" subtitle={subtitle} backTo={backTo}>
+    <InnerPage title="标签" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
       {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看标签，不能新增或删除。</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
@@ -959,10 +975,10 @@ function TagsView({
       {pending ? <SkeletonRows rows={3} /> : null}
 
       {tags.length > 0 ? (
-        <ul className="overflow-hidden rounded-card border border-line bg-surface">
+        <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
           {tags.map((tag) => (
             <li key={tag.id}>
-              <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5 last:border-b-0">
+              <div className="flex items-center justify-between gap-4 px-5 py-3.5">
                 <span className="flex items-center gap-3">
                   <span style={{ backgroundColor: tag.color }} className="size-3 rounded-full" />
                   <span className="text-body text-ink">{tag.name}</span>
@@ -983,6 +999,8 @@ function TagsView({
           ))}
         </ul>
       ) : null}
+
+      {hint === undefined ? null : <p className="px-1 text-helper-relaxed text-muted">{hint}</p>}
 
       <ConfirmDialog
         open={pendingDelete !== null}

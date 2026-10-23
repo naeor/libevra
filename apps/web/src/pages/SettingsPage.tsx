@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
 import { InnerPage } from "../components/Layouts.js";
+import { ListGroup } from "../components/ui/List.js";
 import {
   CurrencyQuickPick,
   SettingsCategoryCard,
@@ -48,7 +49,12 @@ export function SettingsHome({
   readonly onOpen: (to: string) => void;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-3">
+    /**
+     * ⚠️ **S16-A：三组，而不是六张等大的卡片。** 「记账」一组（偏好 + 默认币种快选），
+     * 「账号与系统」一组，「关于」单独一组。分组让"哪些是一类"一眼可见；行与行之间是贯通的分隔线，
+     * 整组只有一个外框（`ListGroup`）。卡片的顺序、描述、管理员入口的显示条件都没有变。
+     */
+    <div className="flex flex-col gap-5">
       {/**
        * ⚠️ **记账偏好 的卡片，以及卡片下方的默认币种快捷控件。**
        *
@@ -56,7 +62,7 @@ export function SettingsHome({
        * 独立元素，不在卡片的 `<button>` 里——所以点币种永远不会触发卡片导航，也不需要
        * `stopPropagation`。这是本轮明确要求的结构（"不要嵌套 button，用并列元素"）。
        */}
-      <div className="flex flex-col gap-2">
+      <ListGroup>
         <SettingsCategoryCard
           title="记账偏好"
           description="默认币种、重复提醒与录入习惯"
@@ -64,66 +70,70 @@ export function SettingsHome({
           onOpen={onOpen}
         />
 
-        <div className="flex flex-col gap-2.5 rounded-card border border-line bg-surface px-5 py-3.5">
+        <div className="flex flex-col gap-2.5 px-5 py-3.5">
           {/**
            * The current value is written out as well as highlighted: the pills are
            * the control, this line is the answer to "what is it now?".
            */}
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-helper text-muted">默认币种</span>
-            <span className="text-body text-ink">{currencyName(currency.current)}</span>
+            <span className="text-body text-ink">默认币种</span>
+            <span className="text-body text-muted">{currencyName(currency.current)}</span>
           </div>
           <CurrencyQuickPick value={currency} />
         </div>
-      </div>
+      </ListGroup>
 
-      <SettingsCategoryCard
-        title="显示与数据"
-        description="语言、主题与汇率显示"
-        to="/settings/appearance"
-        onOpen={onOpen}
-      />
-
-      <SettingsCategoryCard
-        title="账号安全"
-        description="密码、恢复码与邀请码"
-        to="/settings/security"
-        onOpen={onOpen}
-      />
-
-      <SettingsCategoryCard
-        title="账号与数据"
-        description="导出、删除数据与注销账号"
-        to="/settings/account-data"
-        onOpen={onOpen}
-      />
-
-      {/**
-       * ⚠️ **「系统管理」只在 `useAdminEntry` 说是的时候渲染（S13-C）。**
-       *
-       * 所有者 2026-10-17：*"如果不是管理员用户的话，直接隐藏管理入口就行，或者说压根不渲染."*
-       * 所以这里没有"灰着的入口"、没有"无权访问"的占位——**普通账号看到的就是没有这一张卡片**。
-       * 卡片打开管理台 `/admin`，五个子页（邀请码、管理员、账号、操作记录）由管理台自己列出，
-       * 每一页打开时仍会向服务器确认一次。
-       *
-       * ⚠️ **放在「账号安全」之后、「关于」之前**：它是关于**整个系统**的一张，既不属于
-       * 记账偏好，也不属于某一个人的账号安全，而「关于」按惯例留在最后。
-       */}
-      {isAdmin ? (
+      <ListGroup>
         <SettingsCategoryCard
-          title="系统管理"
-          description="平台概览、账号、邀请码与操作记录"
-          to="/admin"
+          title="显示与数据"
+          description="语言、主题与汇率显示"
+          to="/settings/appearance"
           onOpen={onOpen}
         />
-      ) : null}
 
-      <SettingsCategoryCard
-        title="关于 Libevra"
-        description="版本信息、开源协议与隐私说明"
-        to="/about"
-        onOpen={onOpen}
-      />
+        <SettingsCategoryCard
+          title="账号安全"
+          description="密码、恢复码与邀请码"
+          to="/settings/security"
+          onOpen={onOpen}
+        />
+
+        <SettingsCategoryCard
+          title="账号与数据"
+          description="导出、删除数据与注销账号"
+          to="/settings/account-data"
+          onOpen={onOpen}
+        />
+
+        {/**
+         * ⚠️ **「系统管理」只在 `useAdminEntry` 说是的时候渲染（S13-C）。**
+         *
+         * 所有者 2026-10-17：*"如果不是管理员用户的话，直接隐藏管理入口就行，或者说压根不渲染."*
+         * 所以这里没有"灰着的入口"、没有"无权访问"的占位——**普通账号看到的就是没有这一张卡片**。
+         * 卡片打开管理台 `/admin`，五个子页（邀请码、管理员、账号、操作记录）由管理台自己列出，
+         * 每一页打开时仍会向服务器确认一次。
+         *
+         * ⚠️ **放在「账号安全」之后、「关于」之前**：它是关于**整个系统**的一张，既不属于
+         * 记账偏好，也不属于某一个人的账号安全，而「关于」按惯例留在最后。
+         */}
+        {isAdmin ? (
+          <SettingsCategoryCard
+            title="系统管理"
+            description="平台概览、账号、邀请码与操作记录"
+            to="/admin"
+            onOpen={onOpen}
+          />
+        ) : null}
+      </ListGroup>
+
+      <ListGroup>
+        <SettingsCategoryCard
+          title="关于 Libevra"
+          description="版本信息、开源协议与隐私说明"
+          to="/about"
+          onOpen={onOpen}
+        />
+      </ListGroup>
     </div>
   );
 }

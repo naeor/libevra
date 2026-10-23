@@ -344,21 +344,25 @@ export function OcrReviewDetailPage(): React.JSX.Element {
           </select>
         </label>
 
-        <div className="flex gap-3">
-          <label className="flex flex-1 flex-col gap-1.5">
+        {/* S16-A: at 320px the time input used to push past the card edge and scroll the whole
+            page sideways. Below 360px the two pickers now stack (the same "one field per row" rule
+            the owner chose for the manual entry form); wider screens keep them side by side, and
+            `min-w-0` lets each shrink inside its column. */}
+        <div className="flex flex-col gap-3 min-[360px]:flex-row">
+          <label className="flex min-w-0 flex-[1.4] flex-col gap-1.5">
             <span className="text-sm font-medium text-ink">日期</span>
             <input
               type="date"
-              className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
               value={form.date}
               onChange={(event) => { patch({ date: event.target.value }); }}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1.5">
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5">
             <span className="text-sm font-medium text-ink">时间</span>
             <input
               type="time"
-              className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
               value={form.time}
               onChange={(event) => { patch({ time: event.target.value }); }}
             />
@@ -487,7 +491,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
       <div className="flex flex-col gap-2">
         <Button onClick={save}>保存并返回概览</Button>
-        <Button variant={item.invalid ? "secondary" : "danger"} onClick={markInvalid}>
+        <Button variant={item.invalid ? "secondary" : "danger-quiet"} onClick={markInvalid}>
           {item.invalid ? "恢复为有效" : "标记为无效"}
         </Button>
         <Button

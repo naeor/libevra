@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { ChevronIcon } from "../components/Icons.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { TabPage } from "../components/Layouts.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
@@ -103,7 +104,7 @@ export function GuestMePage(): React.JSX.Element {
         </section>
 
         <section>
-          <h2 className="mb-2 px-1 text-helper text-muted">账本设置</h2>
+          <h2 className="mb-2 px-5 text-helper font-medium text-muted">账本设置</h2>
           <div className="overflow-hidden rounded-card border border-line bg-surface">
             {[
               { label: "分类管理", tail: "/settings/categories" },
@@ -120,16 +121,14 @@ export function GuestMePage(): React.JSX.Element {
                 className={settingsRow}
               >
                 <span>{entry.label}</span>
-                <span aria-hidden="true" className="text-muted">
-                  ›
-                </span>
+                <ChevronIcon direction="right" className="size-4 text-muted/70" />
               </button>
             ))}
           </div>
         </section>
 
         <section>
-          <h2 className="mb-2 px-1 text-helper text-muted">本机数据</h2>
+          <h2 className="mb-2 px-5 text-helper font-medium text-muted">本机数据</h2>
           <div className="overflow-hidden rounded-card border border-line bg-surface">
             <button
               type="button"
@@ -139,7 +138,7 @@ export function GuestMePage(): React.JSX.Element {
               className={`${settingsRow} text-danger`}
             >
               <span>清除游客数据</span>
-              <span aria-hidden="true">›</span>
+              <ChevronIcon direction="right" className="size-4 text-danger/70" />
             </button>
             <button
               type="button"
@@ -149,7 +148,7 @@ export function GuestMePage(): React.JSX.Element {
               className={`${settingsRow} text-danger`}
             >
               <span>清除此设备全部 Libevra 本地数据</span>
-              <span aria-hidden="true">›</span>
+              <ChevronIcon direction="right" className="size-4 text-danger/70" />
             </button>
           </div>
           <p className="mt-3 px-1 text-helper-relaxed text-muted">

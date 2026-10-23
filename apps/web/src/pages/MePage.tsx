@@ -5,7 +5,9 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { DefaultAvatar } from "../components/DefaultAvatar.js";
 import { TabPage } from "../components/Layouts.js";
+import { ListGroup, ListRow } from "../components/ui/List.js";
 import { useGuestMode } from "../lib/guest/session.js";
+import { useBooks, useCurrentBookId } from "../lib/queries.js";
 import { APP_VERSION } from "../lib/version.js";
 import { GuestMePage } from "./GuestMePage.js";
 
@@ -39,8 +41,12 @@ function AccountMePage(): React.JSX.Element {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const currentBookId = useCurrentBookId();
+  const books = useBooks();
 
   if (!user) return <></>;
+
+  const currentBook = books.data?.books.find((book) => book.id === currentBookId);
 
   /**
    * One list, in the order somebody would look for things: who I am, then
@@ -52,7 +58,18 @@ function AccountMePage(): React.JSX.Element {
    */
   const links: { to: string; label: string; hint?: string }[] = [
     { to: "/profile", label: "个人资料", hint: "昵称、用户名、账号编号" },
-    { to: "/start", label: "我的账本", hint: user.username },
+    /**
+     * ⚠️ **S16-A：「我的账本」打开的是当前账本的详情，而不是账本空间的开始页。**
+     *
+     * 所有者：*"「我的账本」仍然指向旧的账本空间开始页。请调整为进入当前选中账本的详情页。"*
+     * 目标由 `myBookTarget` 决定（见下方），**不写死任何账本 id**；第二行显示当前账本的名字，
+     * 取代原来那行用户名（用户名与这一行的意思无关）。
+     */
+    {
+      to: myBookTarget(currentBookId, books.data?.books),
+      label: "我的账本",
+      hint: currentBook?.name ?? (currentBookId === null ? "选择一本账本开始记账" : "当前账本的资料与设置"),
+    },
     { to: "/downloads", label: "下载管理", hint: "离线能看哪些月份，以及占用多少空间" },
     /**
      * ⚠️ **The version, where somebody looks when something is wrong.**
@@ -92,25 +109,16 @@ function AccountMePage(): React.JSX.Element {
           * **Two lists with the same job and different padding is the defect**, and the fix is one
           * class rather than a new component.
           */}
-        <ul className="overflow-hidden rounded-card border border-line bg-surface">
+        <ListGroup>
           {links.map((link) => (
-            <li key={link.to}>
-              <button
-                type="button"
-                onClick={() => void navigate(link.to)}
-                className="flex w-full items-center justify-between gap-4 border-b border-line px-5 py-4 text-left transition last:border-b-0 hover:bg-canvas"
-              >
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-body text-ink">{link.label}</span>
-                  {link.hint === undefined ? null : (
-                    <span className="text-helper text-muted">{link.hint}</span>
-                  )}
-                </span>
-                <span className="shrink-0 text-base text-brand">›</span>
-              </button>
-            </li>
+            <ListRow
+              key={link.label}
+              label={link.label}
+              detail={link.hint}
+              to={link.to}
+            />
           ))}
-        </ul>
+        </ListGroup>
       </nav>
 
       {/**
@@ -183,4 +191,24 @@ function AccountMePage(): React.JSX.Element {
       />
     </TabPage>
   );
+}
+
+/**
+ * **「我的账本」去哪里。**
+ *
+ * - 设备还不知道当前账本（新登录、本机数据被清理）→ 账本空间，在那里选一本；
+ * - 账本列表已经读到，而当前账本不在其中（被移出、账本已弃置）→ 同样回到账本空间，
+ *   **不打开一个注定"打不开"的详情页**；
+ * - 其余情况（包括离线、列表还没读到）→ `/books/:id`。详情页自己能处理"读不到这本账"，
+ *   并且只读、不会改变当前账本（见 `BookDetailPage`）。
+ *
+ * 地址里带的是设备当前账本的 id，所以刷新、返回都能重新回答"这是哪一本"。
+ */
+export function myBookTarget(
+  currentBookId: string | null,
+  books: readonly { readonly id: string }[] | undefined,
+): string {
+  if (currentBookId === null) return "/start";
+  if (books !== undefined && !books.some((book) => book.id === currentBookId)) return "/start";
+  return `/books/${currentBookId}`;
 }

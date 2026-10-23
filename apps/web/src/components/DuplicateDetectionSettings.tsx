@@ -242,9 +242,14 @@ export function DuplicateDetectionSettingsSection({
           ["matchMerchant", "商户匹配", false], ["matchNote", "备注匹配", false],
           ["matchTags", "标签匹配", false],
         ] as const).map(([key, label, fallback]) => <SettingsToggle key={key} label={label}
-          hint="纳入此项判断；关闭后不会因为这一项不同而排除疑似重复。"
           checked={settings[key] ?? fallback} onChange={(value) => onChange({ [key]: value })} />)}
-        <p className="text-helper-relaxed text-muted">账本始终隔离。关闭多项规则会增加疑似重复数量，请按实际需要设置。</p>
+        {/**
+         * ⚠️ S16-A：七个开关原来各自带同一句说明（"纳入此项判断；关闭后不会因为这一项不同而排除疑似
+         * 重复。"），同一句话在一屏里出现七次。现在开关只写名称，这句说明在它们下面出现一次。
+         */}
+        <p className="text-helper-relaxed text-muted">
+          打开的项会纳入判断；关闭后不会因为这一项不同而排除疑似重复。账本始终隔离。关闭多项规则会增加疑似重复数量，请按实际需要设置。
+        </p>
 
         <div className="flex flex-col gap-2">
           <span className="text-body text-ink">时间窗口</span>

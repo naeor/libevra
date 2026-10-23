@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { ChevronIcon } from "./Icons.js";
 import { SkeletonRows } from "./States.js";
 import { errorMessage } from "../lib/api.js";
 import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js";
@@ -365,12 +366,10 @@ export function BookIdentityCard({
       <button
         type="button"
         onClick={onRename}
-        className="flex w-full items-center justify-between gap-4 border-t border-line px-5 py-3.5 text-left transition hover:bg-canvas"
+        className="flex min-h-12 w-full items-center justify-between gap-4 border-t border-line px-5 py-3 text-left transition-colors hover:bg-canvas active:bg-brand-soft/60"
       >
-        <span className="text-helper text-muted">修改账本名称</span>
-        <span aria-hidden="true" className="shrink-0 text-helper text-muted">
-          ›
-        </span>
+        <span className="text-body text-ink">修改账本名称</span>
+        <ChevronIcon direction="right" className="size-4 text-muted/70" />
       </button>
     </div>
   );

@@ -2,6 +2,7 @@ import { Link } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
 import { MemberList } from "../components/MemberList.js";
+import { ListGroup, ListRow } from "../components/ui/List.js";
 import { SkeletonRows } from "../components/States.js";
 import { useBooks, useLedger } from "../lib/queries.js";
 
@@ -92,18 +93,17 @@ export function LedgerMembersPage(): React.JSX.Element {
         * ⚠️ **The lone ledger reaches the same page from its own 邀请成员 section** — one flow, two
         * ways in, so there is nothing to keep in step.
         */}
-      <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
-        <h2 className="text-sm font-medium text-ink">邀请新成员</h2>
-        <p className="text-body-relaxed text-muted">
-          按对方账号编号或用户名找到他，选好权限，发一条邀请。他接受之后才真正加入这本账。
-        </p>
-        <Link
+      {/**
+        * ⚠️ **S16-A：邀请是一个去处，所以是一行可点的列表项**，而不是一张带说明和绿色按钮的卡片——
+        * 那张卡片和成员列表等重，读起来像页面的第二个主题。说明文字没变，成了这一行的第二行。
+        */}
+      <ListGroup>
+        <ListRow
+          label="邀请新成员"
+          detail="按对方账号编号或用户名找到他，选好权限，发一条邀请。他接受之后才真正加入这本账。"
           to="/ledger/invite"
-          className="inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-sm text-white transition hover:bg-brand-dark"
-        >
-          邀请成员
-        </Link>
-      </div>
+        />
+      </ListGroup>
     </InnerPage>
   );
 }

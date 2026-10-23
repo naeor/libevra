@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router";
 import { TEST_MAJOR_ANNOUNCEMENT } from "@libellum/shared";
 
 import { InnerPage } from "../components/Layouts.js";
+import { ListGroup, ListRow } from "../components/ui/List.js";
 import {
   adjacentReleasedAnnouncements,
   formatReleaseDate,
@@ -63,12 +64,14 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
       }
       backTo="/update/announcements"
     >
-      <section className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-3.5">
-        <p className="text-helper-relaxed text-muted">{announcement.summary}</p>
-      </section>
+      {/**
+        * ⚠️ **S16-A：公告是一篇短文，按文章排，而不是一叠卡片。** 摘要是导语（不再单独装框），
+        * 每个小节用标题 + 细线分隔；版本导航是两行可点的列表。
+        */}
+      <p className="text-body-relaxed text-muted">{announcement.summary}</p>
 
       {announcement.intro === undefined ? null : (
-        <section className="flex flex-col gap-3 px-1 text-body-relaxed text-ink">
+        <section className="flex flex-col gap-3 text-body-relaxed text-ink">
           {announcement.intro.map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))}
@@ -76,8 +79,8 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
       )}
 
       {announcement.sections.map((section) => (
-        <section key={section.heading} className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-3.5">
-          <h2 className="text-sm font-semibold text-ink">{section.heading}</h2>
+        <section key={section.heading} className="flex flex-col gap-2 border-t border-line pt-5">
+          <h2 className="text-section-title text-ink">{section.heading}</h2>
           <ul className="flex list-disc flex-col gap-2 pl-5 text-body-relaxed text-ink marker:text-brand">
             {section.items.map((item) => (
               <li key={item}>{item}</li>
@@ -87,7 +90,7 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
       ))}
 
       {announcement.closing === undefined ? null : (
-        <section className="flex flex-col gap-3 px-1 text-body-relaxed text-ink">
+        <section className="flex flex-col gap-3 border-t border-line pt-5 text-body-relaxed text-ink">
           {announcement.closing.map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))}
@@ -95,33 +98,27 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
       )}
 
       {older === null && newer === null ? null : (
-        <nav aria-label="版本导航" className="grid gap-3 sm:grid-cols-2">
-          {older === null ? null : (
-            <Link
-              to={`/update/announcements/${older.version}`}
-              className="flex min-w-0 flex-col gap-1 rounded-card border border-line bg-surface px-4 py-3 transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
-            >
-              <span className="text-helper text-muted">上一版本</span>
-              <span className="truncate text-sm font-medium text-ink">
-                {older.version} · {older.title}
-              </span>
-            </Link>
-          )}
-          {newer === null ? null : (
-            <Link
-              to={`/update/announcements/${newer.version}`}
-              className="flex min-w-0 flex-col gap-1 rounded-card border border-line bg-surface px-4 py-3 text-right transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft sm:col-start-2"
-            >
-              <span className="text-helper text-muted">下一版本</span>
-              <span className="truncate text-sm font-medium text-ink">
-                {newer.version} · {newer.title}
-              </span>
-            </Link>
-          )}
+        <nav aria-label="版本导航">
+          <ListGroup>
+            {newer === null ? null : (
+              <ListRow
+                label={<span className="block truncate">{newer.version} · {newer.title}</span>}
+                detail="下一版本"
+                to={`/update/announcements/${newer.version}`}
+              />
+            )}
+            {older === null ? null : (
+              <ListRow
+                label={<span className="block truncate">{older.version} · {older.title}</span>}
+                detail="上一版本"
+                to={`/update/announcements/${older.version}`}
+              />
+            )}
+          </ListGroup>
         </nav>
       )}
 
-      <Link to="/update/announcements" className="text-body font-medium text-brand">
+      <Link to="/update/announcements" className="self-start text-body font-medium text-brand">
         返回更新公告
       </Link>
     </InnerPage>

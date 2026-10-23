@@ -4,6 +4,7 @@ import { useLocation } from "react-router";
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
 import { BottomNav, type EntryCards } from "./BottomNav.js";
 import { GuestModeBadge } from "./GuestModeBadge.js";
+import { ChevronIcon } from "./Icons.js";
 import { GuestWelcome } from "./GuestWelcome.js";
 import { OfflineStatus } from "./OfflineStatus.js";
 import { SyncBanner } from "./SyncBanner.js";
@@ -220,6 +221,12 @@ export function InnerPage({
   children,
 }: {
   readonly title: string;
+  /**
+   * ⚠️ **S16-A: optional and short.** A subtitle names the *context* of the page (which ledger, which
+   * version) in one line. An explanation of how the page works belongs next to the thing it explains —
+   * as a footnote under a list or a hint under a field — not between the title and the first control,
+   * where it pushes the page's actual job below the fold.
+   */
   readonly subtitle?: string;
   readonly backTo?: string;
   /**
@@ -233,9 +240,17 @@ export function InnerPage({
 }): React.JSX.Element {
   const goBack = useGoBack(backTo, backMode);
   const handleBack = onBack ?? goBack;
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
+  const condensed = useTitleScrolledAway(titleRef);
 
   return (
-    <>
+    /**
+     * ⚠️ **The wrapper exists for `position: sticky`.** A sticky element only sticks inside its own
+     * parent; `#root` is exactly one viewport tall, so a navigation bar placed directly in it would
+     * scroll away after the first screen. `min-h-full` + growing with the content gives the bar a
+     * parent as tall as the page.
+     */
+    <div className="flex min-h-full flex-col">
       {/*
         ⚠️ **Both banners, on every framed screen.**
 
@@ -251,36 +266,130 @@ export function InnerPage({
         A notice about the *device's* storage has nothing to do with which frame a screen
         chose, so it belongs beside every frame rather than inside one of them.
       */}
-      <SyncBanner />
       <OfflineStatus />
-      <main className="mx-auto flex min-h-full w-full max-w-md flex-col gap-6 px-6 py-8">
-        <div className="flex items-start justify-between gap-4">
-          {/* Deliberately generous: this is the control a thumb reaches for on
-              a phone, and a small target means missed taps. */}
-          <button
-            type="button"
-            data-back-control
-            onClick={handleBack}
-            className="-mt-1 -ml-2 flex items-center gap-1.5 rounded-field px-2.5 py-2.5 text-base text-muted transition hover:bg-brand-soft hover:text-ink"
-          >
-            <span aria-hidden="true" className="text-lg leading-none">
-              ←
-            </span>
-            返回
-          </button>
-          {actions}
-        </div>
 
+      <PageNavBar title={title} condensed={condensed} onBack={handleBack} actions={actions}>
+        {/* ⚠️ The offline banner is itself `sticky top-0`; inside the bar's sticky group it stays
+            pinned *with* the bar instead of being covered by it. */}
+        <SyncBanner />
+      </PageNavBar>
+
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 pt-1 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))]">
         <header>
-          <h1 className="flex items-center gap-2 text-page-title text-ink">
+          <h1 ref={titleRef} className="flex items-center gap-2 text-page-title text-ink">
             {title}
             <GuestModeBadge />
           </h1>
-          {subtitle ? <p className="mt-1.5 text-body-relaxed text-muted">{subtitle}</p> : null}
+          {subtitle ? <p className="mt-1 text-body-relaxed text-muted">{subtitle}</p> : null}
         </header>
 
         {children}
       </main>
-    </>
+    </div>
   );
+}
+
+/**
+ * **S16-A: the one top bar every secondary screen shares.**
+ *
+ * ⚠️ **Why it is sticky.** The back control used to scroll away with the page, so on a long list
+ * (编辑历史、更新公告、下载管理) the only way out was to scroll all the way back up. The owner asked
+ * for the back entry to stay visible while scrolling, at the top left, without costing first-screen
+ * height — **so the bar is 48px, and the large title below it is not repeated until it has scrolled
+ * under the bar.** Then the bar shows the title in small type and a hairline, the way a phone's own
+ * settings screens do.
+ *
+ * ⚠️ **The back control keeps `data-back-control`** — tests and the E2E scripts find it by that name.
+ *
+ * ⚠️ **Safe area**: `index.html` sets `viewport-fit=cover`, so in an installed PWA the page runs under
+ * the status bar. The bar pads itself by `safe-area-inset-top` (zero in a normal browser tab).
+ *
+ * ⚠️ **Right-hand actions keep their own slot** and never overlap the centred title: the title is
+ * inset from both sides and truncates.
+ */
+function PageNavBar({
+  title,
+  condensed,
+  onBack,
+  actions,
+  children,
+}: {
+  readonly title: string;
+  readonly condensed: boolean;
+  readonly onBack: () => void;
+  readonly actions?: React.ReactNode;
+  /** Pinned above the bar inside the same sticky group (the offline banner). */
+  readonly children?: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div
+      data-page-nav
+      data-condensed={condensed ? "true" : "false"}
+      className={`sticky top-0 z-30 border-b pt-[env(safe-area-inset-top,0px)] transition-[background-color,border-color] duration-200 ${
+        condensed ? "border-line bg-canvas/90 backdrop-blur-md" : "border-transparent bg-canvas"
+      }`}
+    >
+      {children}
+      <nav aria-label="页面导航" className="relative mx-auto flex h-12 w-full max-w-md items-center justify-between gap-3 px-6">
+        {/* Deliberately generous: this is the control a thumb reaches for on a phone, and a small
+            target means missed taps. 44px high, and the chevron sits on the content's 24px edge. */}
+        <button
+          type="button"
+          data-back-control
+          onClick={onBack}
+          className="-ml-3 flex h-11 shrink-0 items-center gap-1 rounded-field pr-3 pl-2 text-base text-brand-dark transition hover:bg-brand-soft active:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+        >
+          <ChevronIcon direction="left" className="size-5" />
+          返回
+        </button>
+
+        <p
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-x-24 truncate text-center text-section-title text-ink transition-opacity duration-200 ${
+            condensed ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          {title}
+        </p>
+
+        {actions === undefined || actions === null ? null : (
+          <div className="relative flex shrink-0 items-center gap-1">{actions}</div>
+        )}
+      </nav>
+    </div>
+  );
+}
+
+/**
+ * Whether the page's large title has scrolled up under the navigation bar.
+ *
+ * ⚠️ **An observer, not a scroll listener**: it costs nothing while scrolling and it answers the only
+ * question the bar has — "is the big title still visible?". The top margin is the bar's own height,
+ * so the small title appears exactly when the large one goes under the bar, not when it leaves the
+ * screen. Where `IntersectionObserver` is missing (tests, very old browsers) the bar simply never
+ * condenses, which is the pre-S16 look.
+ */
+function useTitleScrolledAway(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [away, setAway] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (element === null || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry === undefined) return;
+        setAway(!entry.isIntersecting && entry.boundingClientRect.top < 64);
+      },
+      { rootMargin: "-56px 0px 0px 0px", threshold: 0 },
+    );
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref]);
+
+  return away;
 }

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { BookIdentityCard, BookSwitcherSheet } from "../components/BookSwitcherSheet.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { FactRow, ListGroup, ListRow } from "../components/ui/List.js";
 import { SkeletonRows } from "../components/States.js";
 import { errorMessage } from "../lib/api.js";
 import { useBooks, useLedgerMeta } from "../lib/queries.js";
@@ -59,48 +60,47 @@ export function BookDetailPage(): React.JSX.Element {
             }}
           />
 
-          <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-helper text-muted">这本账的资料</h2>
-
-            <dl className="overflow-hidden rounded-card border border-line bg-surface">
-              {memberCount === undefined ? null : <FactRow label="成员数量" value={`${String(memberCount)} 人`} />}
-              {stats === undefined ? null : (
-                <>
-                  <FactRow label="创建日期" value={stats.createdAt.slice(0, 10)} />
-                  <FactRow label="账目数量" value={`${String(stats.transactionCount)} 笔`} />
-                  <FactRow label="编辑记录" value={`${String(stats.eventCount)} 条`} />
-                </>
-              )}
-            </dl>
-
-            <p className="px-1 text-helper-relaxed text-muted">
-              这些数字来自服务器，只用于认出这本账；收支合计不在这里，见「分析」。
-            </p>
-          </section>
+          {/**
+            * ⚠️ **S16-A：资料是只读事实（`FactRow`），去处是可点的行（`ListRow`）——两组分开。**
+            * 「占用空间」从账本页的「账本信息」卡片移到这里（那张卡片已并入账本页顶部）。
+            */}
+          <ListGroup
+            as="dl"
+            title="这本账的资料"
+            footer="这些数字来自服务器，只用于认出这本账；收支合计不在这里，见「分析」。"
+          >
+            {memberCount === undefined ? null : <FactRow label="成员数量" value={`${String(memberCount)} 人`} />}
+            {stats === undefined ? null : (
+              <>
+                <FactRow label="创建日期" value={stats.createdAt.slice(0, 10)} />
+                <FactRow label="账目数量" value={`${String(stats.transactionCount)} 笔`} />
+                <FactRow label="编辑记录" value={`${String(stats.eventCount)} 条`} />
+                {/**
+                  * ⚠️ **"约" stays.** An estimate shown beside three exact figures is read as exact,
+                  * and somebody will eventually reconcile against it — see `estimateBytes`.
+                  */}
+                <FactRow
+                  label="占用空间"
+                  value={`约 ${formatBytes(estimateBytes(stats.transactionCount, stats.eventCount))}`}
+                />
+              </>
+            )}
+          </ListGroup>
 
           {/**
             * ⚠️ **One entry row into the management screen, and it carries `bookId` with it.**
             * The arrow is real: this row navigates. Nothing else on this page pretends to.
             */}
-          <button
-            type="button"
-            onClick={() => {
-              void navigate(`/books/${bookId}/settings`);
-            }}
-            className="flex w-full items-center justify-between gap-4 rounded-card border border-line bg-surface px-5 py-4 text-left transition hover:bg-canvas"
-          >
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-body text-ink">账本设置</span>
-              <span className="text-helper text-muted">管理账本资料、分类、标签和支付方式</span>
-            </span>
-            <span aria-hidden="true" className="shrink-0 text-muted">
-              ›
-            </span>
-          </button>
-
-          <Link to="/start" className="text-body text-brand transition hover:text-brand-dark">
-            前往账本空间 ›
-          </Link>
+          <ListGroup>
+            <ListRow
+              label="账本设置"
+              detail="管理账本资料、分类、标签和支付方式"
+              onClick={() => {
+                void navigate(`/books/${bookId}/settings`);
+              }}
+            />
+            <ListRow label="前往账本空间" detail="切换、新建或整理全部账本" to="/start" />
+          </ListGroup>
         </>
       ) : null}
 
@@ -174,12 +174,20 @@ export function BookDetailPage(): React.JSX.Element {
   );
 }
 
-/** One read-only fact — label left, value right, **and no arrow**, because nothing happens here. */
-function FactRow({ label, value }: { readonly label: string; readonly value: string }): React.JSX.Element {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5 last:border-b-0">
-      <dt className="text-body text-muted">{label}</dt>
-      <dd className="text-body text-ink">{value}</dd>
-    </div>
-  );
+/**
+ * A rough size for one ledger's rows.
+ *
+ * ⚠️ **Deliberately an estimate, and the constants are deliberately round.** PostgreSQL keeps table
+ * bytes per table, not per owning ledger, so an exact answer means measuring each row's payload —
+ * **real work for a figure nobody makes a decision with.**
+ */
+function estimateBytes(transactionCount: number, eventCount: number): number {
+  return transactionCount * 1024 + eventCount * 512;
+}
+
+/** KB / MB, with one decimal — enough to see a change, not enough to imply precision. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

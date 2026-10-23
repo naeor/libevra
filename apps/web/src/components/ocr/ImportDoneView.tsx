@@ -99,11 +99,16 @@ export function ImportDoneView({
           <span className="tabular-nums text-ink">{totals.batches}</span> 批
         </p>
 
-        <div className="flex flex-col gap-2.5">
+        {/*
+          ⚠️ S16-A: the batches are a record of what happened, so they are rows in one frame —
+          not one shadowed card each. With five batches the old stack was five boxes tall and pushed
+          the two buttons' context off the screen; a list keeps every batch's facts and reads in order.
+        */}
+        <ol className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
           {session.batches.map((batch) => (
-            <BatchCard key={batch.batchId} batch={batch} />
+            <BatchRow key={batch.batchId} batch={batch} />
           ))}
-        </div>
+        </ol>
 
         {failed === 0 ? null : (
           <button
@@ -122,26 +127,31 @@ export function ImportDoneView({
         lives on the opaque bar itself, matching the bottom bars elsewhere.
       */}
       <div className="sticky bottom-0 border-t border-line bg-surface px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
-        <div className="flex flex-col gap-2">
-          <Button onClick={onBackToDetail}>返回明细</Button>
+        {/*
+          ⚠️ S16-A: side by side instead of stacked. Two full-width buttons on top of each other
+          took ~120px of a phone's height for two choices; one row keeps both large (≥44px) and
+          gives the list above more room. The primary action stays on the trailing side.
+        */}
+        <div className="grid grid-cols-2 gap-2.5">
           <Button variant="secondary" onClick={onAgain}>
             再识别一批
           </Button>
+          <Button onClick={onBackToDetail}>返回明细</Button>
         </div>
       </div>
     </div>
   );
 }
 
-function BatchCard({ batch }: { readonly batch: OcrImportSessionBatch }): React.JSX.Element {
+function BatchRow({ batch }: { readonly batch: OcrImportSessionBatch }): React.JSX.Element {
   const time = formatTimeInZone(batch.importedAt, localTimeZone());
 
   return (
-    <article className="flex flex-col gap-1 rounded-card border border-line bg-surface p-3.5 shadow-card">
+    <li className="flex flex-col gap-0.5 px-4 py-3">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-card-title text-ink">第 {batch.sequence} 批</h2>
         {time === "" ? null : (
-          <time dateTime={batch.importedAt} className="text-helper text-muted">
+          <time dateTime={batch.importedAt} className="text-helper text-muted tabular-nums">
             {time}
           </time>
         )}
@@ -171,14 +181,10 @@ function BatchCard({ batch }: { readonly batch: OcrImportSessionBatch }): React.
           失败的 {batch.failed} 笔仍留在批次里，可重试。
         </p>
       ) : null}
-    </article>
+    </li>
   );
 }
 
-/**
- * 状态图标：成功用品牌绿，部分成功用既有 warning 语义色，全失败用 danger。
- * 用 SVG 而不是 emoji，和 `EntrySaved.tsx` 的 CheckMark 同一套画法。
- */
 function StatusMark({ status }: { readonly status: ImportDoneStatus }): React.JSX.Element {
   const circle =
     status === "success" ? "fill-brand-soft" : status === "partial" ? "fill-warn-soft" : "fill-danger-soft";
