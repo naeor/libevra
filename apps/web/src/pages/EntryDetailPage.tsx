@@ -16,6 +16,7 @@ import { useNavigate, useParams } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
+import { BatchAddSheet } from "../components/entry/BatchAddSheet.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ErrorState, SkeletonRows } from "../components/States.js";
 import { useUndo } from "../components/UndoProvider.js";
@@ -63,6 +64,8 @@ export function EntryDetailPage(): React.JSX.Element {
   const { readOnly: sharedOfflineReadOnly } = useSharedLedgerOfflineReadOnly();
 
   const [editing, setEditing] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchSavedCount, setBatchSavedCount] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -432,6 +435,9 @@ export function EntryDetailPage(): React.JSX.Element {
       }
     >
       {error ? <Alert>{error}</Alert> : null}
+      {batchSavedCount > 0 ? (
+        <Alert tone="success">已新增 {String(batchSavedCount)} 笔账目。</Alert>
+      ) : null}
       {sharedOfflineReadOnly ? (
         <Alert>
           当前离线，共享账本暂时只能查看。恢复网络后可以修改或删除这笔记录；之前尚未同步的改动会保留。
@@ -580,13 +586,26 @@ export function EntryDetailPage(): React.JSX.Element {
             </section>
           ) : null}
 
-          <button
-            type="button"
-            disabled={sharedOfflineReadOnly || update.isPending}
-            onClick={() => void save()}
-            className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
-          >            {update.isPending ? "保存中…" : "保存修改"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={sharedOfflineReadOnly || update.isPending}
+              onClick={() => {
+                setBatchOpen(true);
+              }}
+              className="flex-1 rounded-field border border-brand bg-surface py-3.5 text-button-lg font-medium text-brand-dark transition hover:bg-brand-soft disabled:opacity-45"
+            >
+              批量记账
+            </button>
+            <button
+              type="button"
+              disabled={sharedOfflineReadOnly || update.isPending}
+              onClick={() => void save()}
+              className="flex-[1.4] rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+            >
+              {update.isPending ? "保存中…" : "保存修改"}
+            </button>
+          </div>
         </>
       ) : (
         <>
@@ -751,6 +770,17 @@ export function EntryDetailPage(): React.JSX.Element {
           </button>
         </>
       )}
+
+      <BatchAddSheet
+        open={batchOpen}
+        source={data}
+        onClose={() => {
+          setBatchOpen(false);
+        }}
+        onSaved={(count) => {
+          setBatchSavedCount(count);
+        }}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

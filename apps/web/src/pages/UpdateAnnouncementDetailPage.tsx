@@ -70,6 +70,12 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
         */}
       <p className="text-body-relaxed text-muted">{announcement.summary}</p>
 
+      {announcement.revisedAt === undefined ? null : (
+        <p className="text-helper-relaxed text-muted">
+          本文于 {formatReleaseDate(announcement.revisedAt)} 按发布记录整理，原版本号及发布日期不变。
+        </p>
+      )}
+
       {announcement.intro === undefined ? null : (
         <section className="flex flex-col gap-3 text-body-relaxed text-ink">
           {announcement.intro.map((paragraph) => (

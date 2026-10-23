@@ -30,30 +30,30 @@ describe("software update announcements", () => {
     const html = renderAt("/update", <SoftwareUpdatePage />);
 
     expect(html).toContain(APP_VERSION);
-    expect(html).toContain("1.15.05");
-    expect(html).toContain("Libevra 1.15.05");
-    expect(html).toContain("粘贴也能记账，语音和快捷菜单更好用。");
+    expect(html).toContain("1.16.03");
+    expect(html).toContain("页面统一与文案优化");
+    expect(html).toContain("统一二级页面布局与导航，整理全站文案表述，并修正若干高风险提示。");
     expect(html).toContain("2026年10月23日");
-    expect(html).toContain('href="/update/announcements/1.15.05"');
+    expect(html).toContain('href="/update/announcements/1.16.03"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("粘贴文字，识别记账");
-    expect(html).toContain("语音记账，更好修改");
-    expect(html).toContain("快捷菜单，五种方式");
+    expect(html).toContain("调整及优化");
+    expect(html).toContain("问题修复");
+    expect(html).toContain("注意事项");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
   });
 
-  it("lists 1.15.05 before the previous release in the archive", () => {
+  it("lists the newest release before the previous release in the archive", () => {
     const html = renderAt("/update/announcements", <UpdateAnnouncementsPage />);
 
-    const current = html.indexOf("Libevra 1.15.05");
-    const previous = html.indexOf("Libevra 1.15.04");
+    const current = html.indexOf("页面统一与文案优化");
+    const previous = html.indexOf("粘贴识别与语音解析");
     expect(current).toBeGreaterThanOrEqual(0);
     expect(previous).toBeGreaterThan(current);
+    expect(html).toContain('href="/update/announcements/1.16.03"');
     expect(html).toContain('href="/update/announcements/1.15.05"');
-    expect(html).toContain('href="/update/announcements/1.15.04"');
   });
 
   it("renders the full 1.15.05 announcement with version navigation and a back control", () => {
@@ -64,13 +64,14 @@ describe("software update announcements", () => {
       </Routes>,
     );
 
-    expect(html).toContain("粘贴文字，识别记账");
-    expect(html).toContain("语音记账，更好修改");
-    expect(html).toContain("快捷菜单，五种方式");
-    expect(html).toContain("不需要重新录音");
-    expect(html).toContain("感谢你使用 Libevra。");
+    expect(html).toContain("新增功能");
+    expect(html).toContain("调整及优化");
+    expect(html).toContain("注意事项");
+    expect(html).toContain("无需重新录音");
+    expect(html).toContain("按发布记录整理，原版本号及发布日期不变");
+    expect(html).not.toContain("感谢你使用 Libevra。");
     expect(html).toContain("上一版本");
-    expect(html).toContain("1.15.04 · Libevra 1.15.04");
+    expect(html).toContain("1.15.04 · 旧版重大更新提示修复");
     expect(html).toContain("data-back-control");
     expect(html).not.toContain('role="dialog"');
   });
