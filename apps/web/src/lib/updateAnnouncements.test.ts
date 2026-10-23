@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { activeMajorAnnouncements } from "@libellum/shared";
+import { selectDisplayedMajorAnnouncement } from "./majorAnnouncementVisibility.js";
 
 import {
   ANNOUNCEMENT_PAGE_SIZE,
@@ -24,6 +27,18 @@ function announcement(version: string, releasedAt: string | null): UpdateAnnounc
 }
 
 describe("version announcements", () => {
+  it("editorial revisions neither create major notices nor change their identity/publication cutoff", () => {
+    const major = activeMajorAnnouncements(false);
+    expect(major.map(({ id, version, publishedAt, testOnly }) => ({ id, version, publishedAt, testOnly }))).toEqual([
+      { id: "major-1.14.18", version: "1.14.18", publishedAt: "2026-10-19T08:31:24.000Z", testOnly: false },
+      { id: "major-1.15.00", version: "1.15.00", publishedAt: "2026-10-21T01:21:05.000Z", testOnly: false },
+    ]);
+    for (const notice of major) {
+      expect(selectDisplayedMajorAnnouncement(notice, "1.16.04")).toBeNull();
+      expect(selectDisplayedMajorAnnouncement(notice, notice.version)).toBe(notice);
+    }
+    expect(selectDisplayedMajorAnnouncement(null, "1.16.04")).toBeNull();
+  });
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
@@ -41,115 +56,60 @@ describe("version announcements", () => {
     expect(released.every((entry) => entry.status === "released" && entry.releasedAt !== null)).toBe(true);
   });
 
-  it("records the 1.15.05 feature update as a normal, non-popup announcement", () => {
-    const announcement = releasedAnnouncementByVersion("1.15.05");
-    expect(announcement?.title).toBe("Libevra 1.15.05");
-    expect(announcement?.summary).toBe("粘贴也能记账，语音和快捷菜单更好用。");
-    expect(announcement?.releasedAt).toBe("2026-10-23");
-    expect(announcement?.major).toBe(false);
-    expect(announcement?.intro?.[0]).toContain("粘贴识别");
-    expect(announcement?.sections.map((section) => section.heading)).toEqual([
-      "粘贴文字，识别记账",
-      "语音记账，更好修改",
-      "快捷菜单，五种方式",
-    ]);
-    expect(announcement?.sections[0]?.items.join("")).toContain("金额、日期、分类");
-    expect(announcement?.sections[1]?.items.join("")).toContain("不需要重新录音");
-    expect(announcement?.sections[1]?.items.join("")).toContain("仍会受环境、语速和口音影响");
-    expect(announcement?.sections[2]?.items.join("")).toContain("五种记账方式");
-    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
+  it("preserves every original version, publication date, release state and major flag", () => {
+    const original = JSON.parse(readFileSync(new URL("../../../../docs/archive/announcements/历史公告-S16整理前-20261023.json", import.meta.url), "utf8")) as { announcements: UpdateAnnouncement[] };
+    const identity = (entry: UpdateAnnouncement) => ({ version: entry.version, releasedAt: entry.releasedAt, status: entry.status, major: entry.major });
+    expect(releasedAnnouncements().map(identity)).toEqual(original.announcements.map(identity));
   });
 
-  it("records the 1.15.04 fix as a normal, non-popup update", () => {
-    const announcement = releasedAnnouncementByVersion("1.15.04");
-    expect(announcement?.title).toBe("Libevra 1.15.04");
-    expect(announcement?.summary).toBe("升级后，旧的重大更新提示不再重复出现。");
-    expect(announcement?.releasedAt).toBe("2026-10-22");
-    expect(announcement?.major).toBe(false);
-    expect(announcement?.intro?.[0]).toContain("提示重复");
-    expect(announcement?.sections.map((section) => section.heading)).toEqual(["重要更新提示"]);
-    expect(announcement?.sections[0]?.items).toHaveLength(2);
-    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
+  it.each(releasedAnnouncements())("$version has an independent title, overview and classified body", (entry) => {
+    expect(entry.title).not.toMatch(/^Libevra\s+\d/);
+    expect(entry.summary).not.toBe(entry.title);
+    expect(entry.summary).not.toBe(entry.sections[0]?.items[0]);
+    expect(entry.sections.length).toBeGreaterThan(0);
+    expect(new Set(entry.sections.map(section => section.heading)).size).toBe(entry.sections.length);
+    for (const section of entry.sections) {
+      expect(["新增功能", "调整及优化", "问题修复", "注意事项"]).toContain(section.heading);
+      expect(section.items.length).toBeGreaterThan(0);
+      expect(section.items.every(item => item.trim().length > 0)).toBe(true);
+    }
+    expect(entry.revisedAt).toBe("2026-10-23");
+    expect(entry.revisedAt! >= entry.releasedAt!).toBe(true);
+    expect(JSON.stringify(entry)).not.toMatch(/更省心|更安心|感谢你|我们会继续|更顺手|更可靠/);
   });
 
-  it("records the 1.15.03 announcement as a normal, non-popup update", () => {
-    const announcement = releasedAnnouncementByVersion("1.15.03");
-    expect(announcement?.title).toBe("Libevra 1.15.03");
-    expect(announcement?.summary).toBe("重复记录更清楚，账单导入更省心。");
-    expect(announcement?.releasedAt).toBe("2026-10-22");
-    expect(announcement?.major).toBe(false);
-    expect(announcement?.sections.map((section) => section.heading)).toEqual([
-      "疑似重复，统一提醒",
-      "重复检测设置",
-      "账单导入：微信 / 支付宝 / BOA / Libevra CSV",
-      "更安心的处理方式",
-    ]);
-    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
+  it("records specific changes without moving later features into older releases", () => {
+    const paste = JSON.stringify(releasedAnnouncementByVersion("1.15.05"));
+    expect(paste).toContain("粘贴识别与语音解析");
+    expect(paste).toContain("无需重新录音");
+    expect(paste).toContain("无法可靠拆分");
+    const duplicates = JSON.stringify(releasedAnnouncementByVersion("1.15.03"));
+    expect(duplicates).toContain("当前浏览器，不跨设备同步");
+    expect(duplicates).toContain("不自动删除、合并或覆盖");
+    expect(duplicates).toContain("不支持扫描版");
+    expect(duplicates).toContain("重新检查");
+    const earlier = JSON.stringify(releasedAnnouncementByVersion("1.15.00"));
+    expect(earlier).not.toContain("新增全账本");
+    expect(earlier).toContain("不检查整本账本");
+    expect(earlier).not.toContain("粘贴识别");
+    const ocr = JSON.stringify(releasedAnnouncementByVersion("1.14.20"));
+    expect(ocr).toContain("60 秒");
+    expect(ocr).toContain("不包含语音提速");
   });
 
-  it("records the 1.15.00 release as a major update with the official copy", () => {
-    const announcement = releasedAnnouncementByVersion("1.15.00");
-    expect(announcement?.title).toBe("Libevra 1.15.00");
-    expect(announcement?.summary).toBe("记录更顺手，识别更完整。");
-    expect(announcement?.releasedAt).toBe("2026-10-21");
-    expect(announcement?.major).toBe(true);
-    expect(announcement?.sections.map((section) => section.heading)).toEqual([
-      "手动记账，更顺手",
-      "一张截图，识别多笔",
-      "批量核对，一次确认",
-      "账本与日常操作",
-      "界面与可读性",
-    ]);
-    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
+  it("retains recovery and acknowledgement boundaries instead of making stronger promises", () => {
+    const imported = JSON.stringify(releasedAnnouncementByVersion("1.14.18"));
+    expect(imported).toContain("10 分钟");
+    expect(imported).toContain("系统会尝试撤回");
+    expect(imported).toContain("CSV/XLSX 文件导入是不同流程");
+    expect(imported).toContain("不会自动删除");
+    const safety = JSON.stringify(releasedAnnouncementByVersion("1.13.15"));
+    expect(safety).toContain("恢复凭证不能用于恢复已注销账号");
+    expect(safety).toContain("不表示正式隐私政策或使用条款已经提供");
+    expect(safety).toContain("降低恢复历史备份时已删除账本、账号状态或权限变更意外失效的风险");
   });
 
-  it("keeps the 1.14.20 OCR patch announcement as a non-major release", () => {
-    const announcement = releasedAnnouncementByVersion("1.14.20");
-    expect(announcement?.title).toBe("Libevra 1.14.20");
-    expect(announcement?.summary).toBe("让每一次识别，都更可靠。");
-    expect(announcement?.releasedAt).toBe("2026-10-20");
-    expect(announcement?.major).toBe(false);
-    expect(announcement?.sections.map((section) => section.heading)).toEqual([
-      "图片识别恢复正常",
-      "更及时的错误反馈",
-      "其他改进",
-    ]);
-    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
-  });
-
-  it("keeps the exact 1.14.18 user-facing announcement", () => {
-    const announcement = releasedAnnouncementByVersion("1.14.18");
-    expect(announcement?.title).toBe("Libevra 1.14.18");
-    expect(announcement?.summary).toBe("让账目流动，也让每一步更安心。");
-    expect(announcement?.releasedAt).toBe("2026-10-19");
-    expect(announcement?.major).toBe(true);
-    expect(announcement?.intro?.[0]).toContain("重新设计了账本导入体验");
-    expect(announcement?.sections.map((section) => section.heading)).toEqual([
-      "账本之间，自由整理",
-      "导入前，先确认",
-      "更清楚地处理重复记录",
-      "其他改进",
-    ]);
-    expect(announcement?.closing?.[0]).toBe("感谢你使用 Libevra。");
-  });
-
-  it("exposes the 1.13.15 release with its three user-facing groups", () => {
-    const announcement = releasedAnnouncementByVersion("1.13.15");
-    expect(announcement?.title).toBe("软件更新与版本公告");
-    expect(announcement?.releasedAt).toBe("2026-10-19");
-    expect(announcement?.sections.map((section) => section.heading)).toEqual([
-      "数据保护与恢复",
-      "账号与账本安全",
-      "稳定性改进",
-    ]);
-  });
-
-  it("exposes the 1.13.09 announcement as released", () => {
-    expect(releasedAnnouncementByVersion("1.13.09")?.title).toBe("软件更新与版本公告");
-    expect(releasedAnnouncementByVersion("1.13.09")?.releasedAt).toBe("2026-10-18");
-  });
-
-  it("does not invent an announcement for a future development build", () => {
+  it("does not invent independent notices for versions without a bundled announcement", () => {
     expect(releasedAnnouncementByVersion("1.14.21")).toBeNull();
     expect(releasedAnnouncementByVersion("1.15.01")).toBeNull();
     expect(releasedAnnouncementByVersion("1.15.02")).toBeNull();

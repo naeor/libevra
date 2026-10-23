@@ -23,7 +23,7 @@ import {
  * ⚠️ **S16-A：记录，而不是一叠白卡片。** 所有者：*"连续白底卡片与分割线过于机械。请优化版本、日期、
  * 标题、预览文字之间的视觉关系，增强历史列表的阅读体验。"* 现在每条是：版本号（等宽小字）与日期在
  * 同一行，标题一行，预览最多两行；按 `1.15`、`1.14` 这样的版本系列分组，组标题滚动时吸顶。
- * 预览仍是 `summary`——"使用独立摘要而不是截取正文首句"留给后续内容系统，本轮不改数据。
+ * 预览读取独立撰写的 `summary`，不截取正文，也不从标题解析版本号。
  */
 export function UpdateAnnouncementsPage(): React.JSX.Element {
   const announcements = releasedAnnouncements();
