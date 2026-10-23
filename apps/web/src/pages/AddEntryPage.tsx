@@ -622,7 +622,7 @@ export function AddEntryPage(): React.JSX.Element {
             同时删掉了金额旁那行提示——金额框本来就是全屏最显眼的输入框，
             那行字没有让任何人多记一笔，只占了一行高度。
           */}
-          <h2 className="pb-2 text-helper text-muted">金额</h2>
+          <h2 className="pb-2 text-card-title text-ink">金额</h2>
 
           <AmountField
             amountText={amountText}
@@ -679,7 +679,7 @@ export function AddEntryPage(): React.JSX.Element {
         */}
 
         <section className="flex flex-col gap-2 px-6 pt-5">
-          <h2 className="text-helper text-muted">分类</h2>
+          <h2 className="text-card-title text-ink">分类</h2>
 
           <div className="overflow-hidden rounded-field border border-line bg-surface">
             <button
@@ -770,7 +770,7 @@ export function AddEntryPage(): React.JSX.Element {
         */}
         <section className="flex flex-col gap-2 px-6 pt-5">
           <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-field border border-line bg-surface px-4">
-            <label htmlFor="entry-time" className="text-helper text-muted">
+            <label htmlFor="entry-time" className="text-card-title text-ink">
               时间
             </label>
             <input

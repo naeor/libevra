@@ -26,7 +26,7 @@ import { InnerPage } from "../components/Layouts.js";
 const DOCUMENTS = {
   privacy: {
     title: "隐私政策",
-    lede: "这一页还没有内容。下面是上线前必须写清楚的事项——不是条款草案，是一份待办清单。",
+    lede: "正式隐私政策尚未提供。此页仅列出待确认事项，不是正式政策文本。",
     questions: [
       "账目、备注、照片与语音分别存在哪里，保留多久，由谁运营的服务器承载。",
       "拍照与语音识别在设备本机完成还是传到服务器；如果传输，传了什么、留不留。",
@@ -38,7 +38,7 @@ const DOCUMENTS = {
   },
   terms: {
     title: "使用条款",
-    lede: "这一页还没有内容。下面是上线前必须写清楚的事项——不是条款草案，是一份待办清单。",
+    lede: "正式使用条款尚未提供。此页仅列出待确认事项，不是正式条款文本。",
     questions: [
       "服务以何种形式提供（自建部署还是托管），可用性上作不作承诺。",
       "账号与邀请码的发放规则、有效期，以及滥用时的处置方式。",
@@ -63,7 +63,7 @@ export function LegalPage({ kind }: { readonly kind: keyof typeof DOCUMENTS }): 
   const from = typeof declared === "string" ? declared : null;
 
   return (
-    <InnerPage title={document.title} subtitle="尚未编写" backTo={from ?? "/settings"}>
+    <InnerPage title={document.title} backTo={from ?? "/settings"}>
       <div className="flex flex-col gap-5 text-body-relaxed text-ink">
         <section className="rounded-card border border-line bg-surface p-5">
           {/**
@@ -75,7 +75,7 @@ export function LegalPage({ kind }: { readonly kind: keyof typeof DOCUMENTS }): 
         </section>
 
         <section className="rounded-card border border-line bg-surface p-5">
-          <h2 className="font-medium">上线前需要写清楚的事</h2>
+          <h2 className="text-section-title text-ink">正式文本需要说明</h2>
           <ul className="mt-3 flex list-disc flex-col gap-2 pl-5 text-muted">
             {document.questions.map((question) => (
               <li key={question}>{question}</li>
@@ -84,8 +84,7 @@ export function LegalPage({ kind }: { readonly kind: keyof typeof DOCUMENTS }): 
         </section>
 
         <p className="text-helper-relaxed text-muted">
-          项目尚未上线。这两份文档会在正式提供对外服务之前补齐，
-          并由所有者确认后再对外声明——在此之前，此页不会出现任何未经确认的条款。
+          正式文本尚在准备中，提供后会替换本页。
         </p>
       </div>
     </InnerPage>

@@ -171,7 +171,7 @@ export function EntryDetailPage(): React.JSX.Element {
             </div>
           )}
           <p className="mt-1 text-helper-relaxed text-muted">
-            删除只是把这条记录移入历史；恢复后它仍使用原来的编号，不会变成一笔新账。
+            恢复后将保留原账目编号。账本须仍然存在，且你有编辑权限。
           </p>
         </section>
 
@@ -193,7 +193,7 @@ export function EntryDetailPage(): React.JSX.Element {
           }}
           className="w-full rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {restore.isPending ? "正在恢复…" : "恢复这笔记账"}
+          {restore.isPending ? "正在恢复…" : "恢复账目"}
         </button>
         <button
           type="button"
@@ -440,7 +440,7 @@ export function EntryDetailPage(): React.JSX.Element {
 
       <section className="rounded-card border border-line bg-surface p-5">
         <p className="text-xs text-muted">{data.kind === "expense" ? "支出" : "收入"}</p>
-        <p className="mt-1 text-3xl font-semibold text-ink">
+        <p className="mt-1 text-3xl font-semibold text-ink tabular-nums">
           {data.kind === "expense" ? "-" : "+"}
           {formatMoney(data.amountCents, data.currency, { withCode: true })}
         </p>
@@ -449,7 +449,7 @@ export function EntryDetailPage(): React.JSX.Element {
       {editing ? (
         <>
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-xs text-muted">金额</h2>
+            <h2 className="px-1 text-card-title text-ink">金额</h2>
             <input
               value={amountText}
               onChange={(event) => {
@@ -461,7 +461,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-xs text-muted">分类</h2>
+            <h2 className="px-1 text-card-title text-ink">分类</h2>
             <div className="grid grid-cols-3 gap-2">
               {ownCategories.map((category) => (
                 <button
@@ -481,7 +481,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-xs text-muted">支付方式</h2>
+            <h2 className="px-1 text-card-title text-ink">支付方式</h2>
             <div className="flex flex-wrap gap-2">
               {ownPaymentMethods.map((method) => (
                 <button
@@ -501,7 +501,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-xs text-muted">币种</h2>
+            <h2 className="px-1 text-card-title text-ink">币种</h2>
             <div className="flex flex-wrap gap-2">
               {CURRENCIES.map((code) => (
                 <button
@@ -521,7 +521,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-xs text-muted">时间</h2>
+            <h2 className="px-1 text-card-title text-ink">时间</h2>
             <input
               type="datetime-local"
               step="1"
@@ -535,7 +535,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-xs text-muted">备注</h2>
+            <h2 className="px-1 text-card-title text-ink">备注</h2>
             <input
               value={note}
               maxLength={200}
@@ -548,7 +548,7 @@ export function EntryDetailPage(): React.JSX.Element {
 
           {(ledger.data?.tags.length ?? 0) > 0 ? (
             <section className="flex flex-col gap-2">
-              <h2 className="px-1 text-xs text-muted">
+              <h2 className="px-1 text-card-title text-ink">
                 标签（最多 {String(MAX_TAGS_PER_TRANSACTION)} 个）
               </h2>
               <div className="flex flex-wrap gap-2">
@@ -590,25 +590,25 @@ export function EntryDetailPage(): React.JSX.Element {
         </>
       ) : (
         <>
-          <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-sm">
-            <dt className="text-muted">分类</dt>
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-body [&>dd]:min-w-0 [&>dd]:break-words">
+            <dt className="text-card-title text-ink">分类</dt>
             <dd className="text-right text-ink">
               {data.categoryIsSystem ? "暂无分类" : data.categoryName}
             </dd>
 
-            <dt className="text-muted">支付方式</dt>
+            <dt className="text-card-title text-ink">支付方式</dt>
             <dd className="text-right text-ink">{data.paymentMethodName ?? "未记录"}</dd>
 
-            <dt className="text-muted">币种</dt>
+            <dt className="text-card-title text-ink">币种</dt>
             <dd className="text-right text-ink">{currencyName(data.currency)}</dd>
 
-            <dt className="text-muted">时间</dt>
-            <dd className="text-right text-ink">{formatDateTimeInZone(data.occurredAt, data.occurredTz)}</dd>
+            <dt className="text-card-title text-ink">时间</dt>
+            <dd className="text-right text-ink tabular-nums">{formatDateTimeInZone(data.occurredAt, data.occurredTz)}</dd>
 
-            <dt className="text-muted">时区</dt>
+            <dt className="text-card-title text-ink">时区</dt>
             <dd className="text-right text-muted">{data.occurredTz}</dd>
 
-            <dt className="text-muted">备注</dt>
+            <dt className="text-card-title text-ink">备注</dt>
             <dd className="text-right text-ink">{data.note ?? "无"}</dd>
 
             {/**
@@ -626,14 +626,14 @@ export function EntryDetailPage(): React.JSX.Element {
               */}
             {data.seq === undefined ? null : (
               <>
-                <dt className="text-muted">编号</dt>
+                <dt className="text-card-title text-ink">编号</dt>
                 <dd className="text-right font-mono text-ink">{formatTransactionNumber(data.seq)}</dd>
               </>
             )}
           </dl>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-xs text-muted">标签</h2>
+            <h2 className="px-1 text-card-title text-ink">标签</h2>
             {data.tags.length === 0 ? (
               <p className="px-1 text-sm text-muted">没有标签</p>
             ) : (
@@ -755,10 +755,10 @@ export function EntryDetailPage(): React.JSX.Element {
       <ConfirmDialog
         open={confirmDelete}
         busy={remove.isPending}
-        title="删除这笔记账？"
+        title="删除这笔账目？"
         description={`即将删除这笔 ${formatMoney(data.amountCents, data.currency, { withCode: true })} 的记录。`}
         consequences={[
-          "删除后，你无法在应用里自行恢复这笔记录",
+          "删除后，可从编辑历史打开账目并恢复；账本须仍然存在，且你有编辑权限",
           "本月的总额、笔数与结余会立即重新计算",
           "删除后的几秒内仍可在底部选择「撤销」",
         ]}

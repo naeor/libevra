@@ -96,14 +96,11 @@ describe("invitation copy", () => {
 });
 
 describe("account copy", () => {
-  it("separates what may be shared from what must not be", () => {
-    // Moved to the profile screen when the account screen was rebuilt, which
-    // this test caught. What matters is the wording, not which file holds it.
+  it("keeps the recovery-code warning without restoring the retired field explanations", () => {
+    // S16：所有者删除账号字段解释，但恢复码的安全提醒必须保留。
     const profile = source("../pages/ProfilePage.tsx");
 
-    // One sentence used to run the two together with a semicolon, which reads
-    // as a single thought. They are opposite instructions and are now two.
-    expect(profile).toContain("可安全地分享给他人");
+    expect(profile).not.toContain("可安全地分享给他人");
     expect(profile).toContain("请勿向任何人透露恢复码");
     expect(profile).not.toContain("恢复码必须保密");
   });

@@ -283,10 +283,9 @@
    * So this is the *existing* system extended, not a parallel one — see the long note below about
    * what may and may not live in this block.
    *
-   * ⚠️ **These values are the audit's recommendation: they match what the app already renders.**
-   * Adopting a token must not change a pixel — that is what makes the migration reviewable. The one
-   * deliberate exception is `--text-section-title`, which is the size experiment this round is
-   * about; it is applied **only** on 分析 and 账本／协作 for now.
+   * S16：沿用既有字号；字段名称使用 card-title，与 helper 解释区分。
+   * section-title 已全站采用，不再是两页实验。多行正文行高为 24px；
+   * 单行正文和辅助信息保持紧凑，不通过统一缩小解释来制造层级。
    * -------------------------------------------------------------------- */
 
   /** 页面标题 —— 一级页（绿头）与二级页（`InnerPage`）。20/600，负字距。 */
@@ -298,10 +297,7 @@
   /**
    * 正式功能区标题 —— 「收支趋势」「分类占比」「编辑记录」「留言」这一层。
    *
-   * ⚠️ **16px/600 is the experiment** (owner, 2026-10-13). The auditing round recommended keeping
-   * the old 14px/500 and *naming* it, because raising it changes how the whole app reads. The owner
-   * chose to raise it — **so it is done as an experiment on two pages first**, exactly as he asked:
-   * *"本轮允许实际修改代码，但先只在「分析」和「账本／协作」两个一级页面进行视觉试验."*
+   * 16px/600：功能区标题；与 14px/500 的字段/列表名称区分。
    */
   --text-section-title: 1rem;
   --text-section-title--line-height: 1.5rem;
@@ -318,7 +314,7 @@
 
   /** 普通正文·宽松 —— 多行说明段落。**同一个 14px，另一种阅读方式。** */
   --text-body-relaxed: 0.875rem;
-  --text-body-relaxed--line-height: 1.4375rem;
+  --text-body-relaxed--line-height: 1.5rem;
 
   /** 辅助说明 / 小分组标签 —— 单行：日期、编号、成员数量、设置分组标签。 */
   --text-helper: 0.75rem;
@@ -372,7 +368,7 @@
   the typography audit opened with (`text-xs` used at two different line-heights, 53 times).
 */
 @layer components {
-  /** 正式功能区标题（现规格）—— 试验之外的所有页面继续用这个。 */
+  /** 正式功能区标题：共享 Section 与页面显式标题使用同一规格。 */
   .section-title {
     font-size: var(--text-section-title);
     line-height: var(--text-section-title--line-height);

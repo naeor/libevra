@@ -56,7 +56,8 @@ export function AboutPage(): React.JSX.Element {
       <div className="flex flex-col gap-6 border-t border-line pt-6">
         <ProseSection title="你的数据">
           <p>
-            账目只保存在你自己部署的服务器上。应用不接入任何第三方统计、广告或分析服务，
+            账目保存在你自己部署的服务器上；游客账本只保存在这台设备，不会自动上传。
+            离线期间的修改会暂存在本机，恢复网络后再同步。应用不接入任何第三方统计、广告或分析服务，
             日志中不记录金额、备注与图片内容。
           </p>
         </ProseSection>
@@ -86,8 +87,8 @@ export function AboutPage(): React.JSX.Element {
 
         <ProseSection title="金额的处理方式">
           <p>
-            金额以「分」为单位按整数保存与计算，不使用浮点数，避免出现分位误差。
-            所有币种目前统一按两位小数记录，不同币种分开统计。
+            金额以各币种的最小单位按整数保存与计算，不使用浮点数，避免出现分位误差。
+            不同币种按各自的小数位显示、分开统计；日元没有小数位，人民币和美元等保留两位。
           </p>
         </ProseSection>
       </div>

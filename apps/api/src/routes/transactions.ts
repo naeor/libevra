@@ -917,7 +917,7 @@ export function registerTransactionRoutes(
       return result;
     });
     request.log.info({ transactionId: id, deviceId: deviceIdFrom(request), settlesConflict: settling,
-      amountCents: Number(updated.amountCents), writtenFields: Object.keys(write) }, "conflict-write-confirmed");
+      writtenFields: Object.keys(write) }, "conflict-write-confirmed");
 
     return toDto(updated);
   });

@@ -57,7 +57,7 @@ function AccountMePage(): React.JSX.Element {
    * （`/categories`、`/payment-methods`、`/tags`）本轮不动，只删这一屏的入口。
    */
   const links: { to: string; label: string; hint?: string }[] = [
-    { to: "/profile", label: "个人资料", hint: "昵称、用户名、账号编号" },
+    { to: "/profile", label: "个人资料" },
     /**
      * ⚠️ **S16-A：「我的账本」打开的是当前账本的详情，而不是账本空间的开始页。**
      *

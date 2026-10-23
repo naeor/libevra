@@ -183,7 +183,7 @@ describe("BillSummaryPanel / BillFilterRow", () => {
     expect(markup).toContain("可导入");
     expect(markup).toContain("来源已存在");
     expect(markup).toContain("已勾选 3 笔");
-    expect(markup).toContain("数字是怎么算的");
+    expect(markup).toContain("数量说明");
   });
 
   it("没有身份重复时不占用一行", () => {

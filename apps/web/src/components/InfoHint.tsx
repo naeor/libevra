@@ -8,7 +8,7 @@ export function InfoIcon({ className = "" }: { readonly className?: string }): R
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex size-4 items-center justify-center rounded-full border border-current text-[10px] leading-none ${className}`}
+      className={`inline-flex size-4 items-center justify-center rounded-full border border-current text-micro leading-none ${className}`}
     >
       i
     </span>

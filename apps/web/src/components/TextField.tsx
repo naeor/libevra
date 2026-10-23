@@ -15,7 +15,7 @@ export function TextField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-ink">
+      <label htmlFor={id} className="text-card-title text-ink">
         {label}
       </label>
       <input

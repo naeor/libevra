@@ -26,7 +26,7 @@ export function ReferralCodePage(): React.JSX.Element {
   return (
     <InnerPage
       title="邀请码"
-      subtitle="用于别人注册 Libevra 账号，属于账号本身。"
+      subtitle="邀请他人注册 Libevra。"
       backTo="/settings"
     >
       <Card>
@@ -41,8 +41,7 @@ export function ReferralCodePage(): React.JSX.Element {
         * and there is no longer a screen in between.
         */}
       <p className="text-helper-relaxed text-muted">
-        想请别人一起记某一本账，用账本里的「邀请成员」——那是加入账本，不是注册账号。
-        也可以从账本详情里生成分享链接，让别人自己点进来。
+        一起记账请使用账本中的「邀请成员」或分享链接。
       </p>
     </InnerPage>
   );

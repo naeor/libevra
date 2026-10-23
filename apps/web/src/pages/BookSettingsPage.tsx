@@ -532,9 +532,9 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
         title={`归档「${name ?? "这本账"}」？`}
         description="归档后这本账暂时离开普通账本列表，数据保留。你可以在 60 天内自行恢复。"
         consequences={[
-          "归档日期以服务器 UTC 时间为准",
+          "归档日期以服务器时间为准",
           "60 天内可自行恢复",
-          "满 365 天后由服务器清理并留下删除墓碑",
+          "满 365 天后由服务器清理，只留下不含账目内容的删除记录",
         ]}
         confirmLabel="归档这本账"
         tone="default"
@@ -551,7 +551,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
         description="这本账的账目、分类、标签、留言和关联数据会立即进入永久删除流程，不能由你恢复。"
         consequences={[
           "服务器会清理这本账的内容",
-          "保留不含账目正文的删除墓碑",
+          "保留不含账目正文的删除记录",
           "其他账本与其他成员的数据不受影响",
           "旧设备恢复联网后会收到账本已删除状态并停止同步",
         ]}

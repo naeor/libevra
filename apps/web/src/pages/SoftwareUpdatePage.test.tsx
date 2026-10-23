@@ -26,15 +26,21 @@ function renderAt(path: string, node: React.ReactNode): string {
 }
 
 describe("software update announcements", () => {
-  it("shows the running 1.15.05 and its latest normal announcement", () => {
+  it("shows the running build and the latest released normal announcement", () => {
     const html = renderAt("/update", <SoftwareUpdatePage />);
 
-    expect(APP_VERSION).toBe("1.15.05");
+    expect(html).toContain(APP_VERSION);
     expect(html).toContain("1.15.05");
     expect(html).toContain("Libevra 1.15.05");
     expect(html).toContain("粘贴也能记账，语音和快捷菜单更好用。");
     expect(html).toContain("2026年10月23日");
     expect(html).toContain('href="/update/announcements/1.15.05"');
+    expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
+    expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
+    expect(html).not.toContain("更早");
+    expect(html).toContain("粘贴文字，识别记账");
+    expect(html).toContain("语音记账，更好修改");
+    expect(html).toContain("快捷菜单，五种方式");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
   });

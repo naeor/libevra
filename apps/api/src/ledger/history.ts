@@ -41,7 +41,7 @@ const KIND_VERB: Record<HistoryEntry["kind"], string> = {
   updated: "修改了",
   deleted: "删除了",
   restored: "恢复了",
-  member_changed: "变更了成员",
+  member_changed: "变更了",
   /**
     * ⚠️ **`"改了"`, not `"变更了这本账"`, and the live smoke test is what caught it.**
     *
@@ -100,7 +100,7 @@ export async function readHistory(
      */
     const subject =
       kind === "member_changed" || kind === "book_changed"
-        ? "这本账"
+        ? kind === "member_changed" ? "这本账的成员" : "这本账"
         : number === null
           ? "一笔账目"
           : label === null
@@ -109,6 +109,13 @@ export async function readHistory(
 
     const changes = (row.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>;
 
+    const summary =
+      kind === "member_changed"
+        ? `${who} 变更了这本账的成员`
+        : kind === "book_changed"
+          ? `${who} 改了这本账`
+          : `${who} ${KIND_VERB[kind]} ${subject}`;
+
     return {
       id: row.id,
       kind,
@@ -116,34 +123,46 @@ export async function readHistory(
       actorName: row.actorName,
       transactionId: row.transactionId,
       transactionSeq: row.transactionSeq,
-      summary: `${who} ${KIND_VERB[kind]} ${subject}`,
+      summary,
       /**
        * ⚠️ **Rendered with the field's Chinese name**, because "amountCents 3500 → 3800" is a
        * developer's sentence. `trackedFieldLabel` is the same table the diff used, so a field that
-       * is tracked but unnamed cannot appear here at all — **it would show its column name.**
+       * is tracked but unnamed uses a neutral label instead of exposing an internal column name.
        */
       changes: Object.entries(changes).map(([key, value]) => ({
-        label: trackedFieldLabel(key) ?? key,
-        from: renderValue(value?.from),
-        to: renderValue(value?.to),
+        label: HISTORY_LABELS[key] ?? trackedFieldLabel(key) ?? "其他变更",
+        from: renderValue(value?.from, key),
+        to: renderValue(value?.to, key),
       })),
     };
   });
 }
 
+// Display-only names for membership events; do not add them to entry diff tracking.
+const HISTORY_LABELS: Readonly<Record<string, string>> = {
+  joined: "加入账本",
+  removed: "移除成员",
+  left: "退出账本",
+  role: "成员权限",
+};
+
 /**
  * A changed value as a person reads it.
  *
  * ⚠️ **Money is not converted here, deliberately.** `amountCents` is stored in minor units and the
- * currency's precision lives in `shared`; formatting it in this module would be a second
- * implementation of the money rule — **and the one place people check by hand is the one that must
- * not be wrong.** The client already has `formatMoney`; it renders the number it is given.
+ * currency's precision lives in `shared`, but events do not reliably retain the currency at the
+ * time of the change. The entry's current currency may be different. S16 leaves money unchanged
+ * pending a historical-context design; using current currency or dividing by 100 is unsafe.
  *
- * ⚠️ So this returns the raw minor-unit number **as a string**, and the screen decides. A value that
- * is already a string (a note, a currency code) is passed through unchanged.
+ * ⚠️ This still returns the raw minor-unit number as a string (a documented unresolved display
+ * issue). Known role/kind enums are translated here without changing the stored event.
  */
-function renderValue(value: unknown): string {
+function renderValue(value: unknown, key: string): string {
   if (value === null || value === undefined) return "（空）";
+  if (key === "role" && value === "viewer") return "仅查看";
+  if (key === "role" && value === "editor") return "可编辑";
+  if (key === "kind" && value === "income") return "收入";
+  if (key === "kind" && value === "expense") return "支出";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return JSON.stringify(value) ?? "（无法显示）";

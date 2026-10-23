@@ -223,7 +223,7 @@ export function OcrOverview({
 
         <details className="mt-1.5">
           <summary className="w-fit cursor-pointer select-none text-helper text-muted">
-            详情与统计口径
+            数量说明
           </summary>
 
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
@@ -235,15 +235,14 @@ export function OcrOverview({
 
           <ul className="mt-2 flex flex-col gap-1 text-helper text-muted">
             <li>
-              「本次识别」含已标记无效；「可导入」只算通过字段校验（金额、币种、方向、日期）
-              的笔数，其中可能仍有值得核对的项。
+              「本次识别」包括无效项。「可导入」表示金额、币种、收支类型和日期完整，仍可能需要核对。
             </li>
             <li>
-              「待核对」= 缺字段、有疑问或疑似重复（含「疑似重复」）；「已确认」= 字段齐全、
-              无问题，不需要逐笔核对。两者都还没有写入账本。
+              「待核对」包括信息不完整、有疑问和疑似重复的账目。「已确认」表示信息齐全且未发现问题。
+              两者都尚未入账。
             </li>
-            <li>「你已核对过」只表示保存过详情，不代表已入账；别和「已确认」混为一谈。</li>
-            <li>上面的筛选只改变下面的列表，不改变这些汇总数字。</li>
+            <li>「你已核对过」表示你保存过详情，与自动检查的「已确认」不同，也不代表已入账。</li>
+            <li>筛选只影响列表，不改变汇总数量。</li>
           </ul>
 
           {note === undefined ? null : <p className="mt-2 text-helper text-muted">{note}</p>}

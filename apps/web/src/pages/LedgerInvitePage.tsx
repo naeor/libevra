@@ -135,7 +135,7 @@ export function LedgerInvitePage(): React.JSX.Element {
             if (event.key === "Enter") runLookup();
           }}
           placeholder="10000003 或 naeor"
-          hint="要完整的 8 位编号，或完整的用户名。只按前缀查找是不行的。"
+          hint="请输入完整的 8 位账号编号或用户名。"
           inputMode="text"
           autoComplete="off"
         />
@@ -173,12 +173,12 @@ export function LedgerInvitePage(): React.JSX.Element {
             {account.alreadyMember ? (
               /** ⚠️ Stated instead of offering a button the server would refuse. */
               <p className="text-body-relaxed text-muted">
-                这个人已经在这本账里了。
+                对方已是账本成员。
               </p>
             ) : (
               <>
                 <fieldset className="flex flex-col gap-2">
-                  <legend className="mb-1 text-body text-ink">给他什么权限</legend>
+                  <legend className="mb-1 text-body text-ink">成员权限</legend>
 
                   {(
                     [
@@ -218,7 +218,7 @@ export function LedgerInvitePage(): React.JSX.Element {
                   </Button>
                 ) : (
                   <p className="rounded-field bg-canvas px-4 py-3 text-body-relaxed text-muted">
-                    你在这本账里只能查看，不能邀请别人。请让有编辑权限的成员来邀请。
+                    仅查看成员无法发送邀请，请联系有编辑权限的成员。
                   </p>
                 )}
 

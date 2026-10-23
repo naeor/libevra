@@ -76,7 +76,7 @@ export function SettingsHome({
            * the control, this line is the answer to "what is it now?".
            */}
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-body text-ink">默认币种</span>
+            <span className="text-card-title text-ink">默认币种</span>
             <span className="text-body text-muted">{currencyName(currency.current)}</span>
           </div>
           <CurrencyQuickPick value={currency} />

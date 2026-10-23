@@ -405,7 +405,7 @@ export function AccountDataPage(): React.JSX.Element {
             只会删除账本数据。账号、密码、登录状态和恢复码都不会改变，之后仍可登录并新建账本。
           </p>
           <div className="mt-3 rounded-field bg-canvas px-3 py-2 text-helper-relaxed text-muted">
-            共享账本：退出协作，其他成员不受影响。单人账本、最后成员账本或已归档账本：永久删除并保留必要墓碑。
+            共享账本：退出协作，其他成员不受影响。单人账本、最后成员账本或已归档账本：永久删除，并保留必要的删除记录。
           </div>
 
           {deleteBlocked ? (
@@ -479,7 +479,7 @@ export function AccountDataPage(): React.JSX.Element {
             />
           </div>
           <p className="mt-3 text-helper text-muted">
-            旧设备联网后会停止同步并清理对应本地副本；历史加密备份仍按已公开的备份期限保存，不能即时抹除。
+            旧设备联网后会停止同步并清理对应本地副本；历史备份按备份周期保留，最长约 365 天，到期后清理，不能即时抹除。
           </p>
           {error === null ? null : <Alert>{error}</Alert>}
         </ConsentDialog>
@@ -630,7 +630,7 @@ export function AccountDataPage(): React.JSX.Element {
           )}
 
           <p className="mt-3 text-helper text-muted">
-            历史加密备份仍按已公开的备份期限到期清理；完全离线的设备会在下次联网时退出。
+            历史备份按备份周期保留，最长约 365 天，到期后清理；完全离线的设备会在下次联网时退出。
           </p>
         </ConsentDialog>
       ) : null}

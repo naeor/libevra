@@ -232,7 +232,7 @@ describe("renaming a ledger", () => {
      * output was **"naeor 变更了这本账 这本账"**, with the noun twice. **A substring check on a sentence
      * tests the words you thought of, not the sentence.** The live smoke test read it out and caught it.
      */
-    expect(renamed?.summary).toBe("ren_alice 改了 这本账");
+    expect(renamed?.summary).toBe("ren_alice 改了这本账");
     expect(renamed?.changes).toEqual([{ label: "名称", from: "我的账本", to: "家庭账本" }]);
   });
 });

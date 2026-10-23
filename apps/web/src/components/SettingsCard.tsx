@@ -116,8 +116,6 @@ export function CurrencyQuickPick({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-2.5">
-      {hint === undefined ? null : <p className="text-helper-relaxed text-muted">{hint}</p>}
-
       {/**
        * ⚠️ **`aria-pressed`, not a radio group.** The pills are buttons that save
        * on press — a radio would promise a form and a submit button that do not
@@ -154,6 +152,7 @@ export function CurrencyQuickPick({
         })}
       </div>
 
+      {hint === undefined ? null : <p className="text-helper-relaxed text-muted">{hint}</p>}
       {value.error === null ? null : <Alert tone="error">{value.error}</Alert>}
       {value.saved && !value.pending ? <p className="text-helper text-brand-dark">已保存。</p> : null}
     </div>
@@ -209,11 +208,11 @@ export function SettingsCategoryCard({
       }}
       className="flex min-h-13 w-full items-center justify-between gap-4 px-5 py-3 text-left transition-colors hover:bg-canvas focus-visible:bg-brand-soft focus-visible:outline-none active:bg-brand-soft/60"
     >
-      <span className="flex flex-col gap-0.5">
-        <span className="text-body text-ink">{title}</span>
-        <span className="text-helper text-muted">{description}</span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="text-card-title text-ink">{title}</span>
+        <span className="text-helper-relaxed text-muted">{description}</span>
       </span>
-      <ChevronIcon direction="right" className="size-4 text-muted/70" />
+      <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
     </button>
   );
 }
@@ -234,8 +233,8 @@ export function SettingsToggle({
 }): React.JSX.Element {
   return (
     <div className={`flex justify-between gap-4 ${hint === undefined ? "items-center" : "items-start"}`}>
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-body text-ink">{label}</span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="text-card-title text-ink">{label}</span>
         {hint === undefined ? null : (
           <span className="text-helper-relaxed text-muted">{hint}</span>
         )}
@@ -297,11 +296,11 @@ export function SettingsRowList({
             }}
             className="flex min-h-13 w-full items-center justify-between gap-4 px-5 py-3 text-left transition-colors enabled:hover:bg-canvas enabled:focus-visible:bg-brand-soft enabled:focus-visible:outline-none enabled:active:bg-brand-soft/60 disabled:cursor-default"
           >
-            <span className="flex flex-col gap-0.5">
-              <span className={`text-body ${row.to === undefined ? "text-muted" : "text-ink"}`}>
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className={`text-card-title ${row.to === undefined ? "text-muted" : "text-ink"}`}>
                 {row.label}
               </span>
-              {row.hint ? <span className="text-helper text-muted">{row.hint}</span> : null}
+              {row.hint ? <span className="text-helper-relaxed text-muted">{row.hint}</span> : null}
             </span>
             {/**
               * ⚠️ 还没开放的项是一行**说明**，不是一个坏掉的按钮：右侧写「后续开放」，没有箭头。

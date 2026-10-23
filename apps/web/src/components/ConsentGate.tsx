@@ -415,7 +415,7 @@ function AccountDataHelp({
         </Button>
         <details className="rounded-field border border-line px-3 py-2.5 text-helper-relaxed text-muted">
           <summary className="cursor-pointer font-medium text-ink">
-            删除服务器储存的数据
+            删除服务器存储的数据
           </summary>
           <p className="mt-1">
             需要先退出协作、处理或归档每一本账本。打开「账号与数据」逐本查看影响范围并确认。

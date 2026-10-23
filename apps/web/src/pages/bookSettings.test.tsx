@@ -160,6 +160,12 @@ describe("账本设置页源码不再重复", () => {
     expect(settings).not.toContain("ReadOnlyRow");
   });
 
+  it("归档/删除说明不向用户暴露内部墓碑与 UTC 术语", () => {
+    expect(settings).not.toContain("墓碑");
+    expect(settings).not.toContain("UTC 时间");
+    expect(settings).toContain("不含账目内容的删除记录");
+  });
+
   it("编号只在卡片里出现一次", () => {
     // Exactly one place hands the number to something that renders it.
     expect(settings.match(/bookNumber=\{bookNumber\}/g) ?? []).toHaveLength(1);

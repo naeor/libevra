@@ -42,12 +42,12 @@ describe("重复交易检测设置节", () => {
   it("默认展示提醒、时间窗口、分类、支付方式与恢复默认", () => {
     const html = sectionHtml();
 
-    expect(html).toContain("重复交易提醒");
+    expect(html).toContain("重复提醒");
     expect(html).toContain("时间窗口");
     expect(html).toContain("分类匹配");
     expect(html).toContain("支付方式匹配");
     expect(html).toContain("恢复默认设置");
-    expect(html).toContain("关闭重复提醒不影响数据安全保护");
+    expect(html).toContain("关闭提醒不影响防止重复提交");
   });
 
   it("十个开关里默认开启金额、币种、方向、时间、分类与支付方式，时间窗口默认 1 分钟", () => {
@@ -75,7 +75,7 @@ describe("重复交易检测设置节", () => {
     // fieldset 的 disabled 是原生禁用；开关的值仍在 DOM 里（分类/支付/三个可选字段为关）。
     expect(html).toContain('<fieldset disabled=""');
     expect(html).toContain("5 分钟");
-    expect(html).toContain("提醒已关闭；上面的规则设置会保留");
+    expect(html).toContain("提醒已关闭，规则设置已保留");
     expect((html.match(/aria-checked="false"/g) ?? [])).toHaveLength(6);
   });
 
@@ -84,7 +84,7 @@ describe("重复交易检测设置节", () => {
 
     expect(html).toContain("自定义");
     expect(html).toContain("当前窗口：7 分钟");
-    expect(html).toContain("1 分钟–30 天");
+    expect(html).toContain("1 分钟至 30 天");
   });
 
   it("保存成功、保存失败与恢复提示分别渲染", () => {

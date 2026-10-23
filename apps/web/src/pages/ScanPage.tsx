@@ -971,7 +971,7 @@ function PickStep({
       */}
       {files.length > 1 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-helper text-muted">这些截图怎么算</h2>
+          <h2 className="text-card-title text-ink">这些截图怎么算</h2>
           <div className="flex flex-col gap-2">
             <ModeOption
               mode="single"
@@ -1049,8 +1049,8 @@ function ModeOption({
         selected ? "border-brand bg-brand-soft" : "border-line bg-surface"
       }`}
     >
-      <span className="text-body text-ink">{title}</span>
-      <span className="text-helper text-muted">{hint}</span>
+      <span className="text-card-title text-ink">{title}</span>
+      <span className="text-helper-relaxed text-muted">{hint}</span>
     </button>
   );
 }

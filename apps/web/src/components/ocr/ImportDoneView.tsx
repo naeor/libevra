@@ -95,8 +95,8 @@ export function ImportDoneView({
         */}
         <p className="text-center text-body text-muted">
           本次会话累计导入{" "}
-          <span className="tabular-nums text-ink">{totals.imported}</span> 笔 · 共{" "}
-          <span className="tabular-nums text-ink">{totals.batches}</span> 批
+          <span className="font-semibold tabular-nums text-ink">{totals.imported}</span> 笔 · 共{" "}
+          <span className="font-semibold tabular-nums text-ink">{totals.batches}</span> 批
         </p>
 
         {/*
@@ -147,7 +147,7 @@ function BatchRow({ batch }: { readonly batch: OcrImportSessionBatch }): React.J
   const time = formatTimeInZone(batch.importedAt, localTimeZone());
 
   return (
-    <li className="flex flex-col gap-0.5 px-4 py-3">
+    <li className="flex flex-col gap-1 px-4 py-3">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-card-title text-ink">第 {batch.sequence} 批</h2>
         {time === "" ? null : (
@@ -158,7 +158,7 @@ function BatchRow({ batch }: { readonly batch: OcrImportSessionBatch }): React.J
       </div>
 
       <p
-        className={`text-helper-relaxed tabular-nums ${
+        className={`text-body tabular-nums ${
           batch.failed > 0 ? "text-warn-dark" : "text-muted"
         }`}
       >

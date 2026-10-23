@@ -22,7 +22,7 @@
 export type CopyOutcome = "copied" | "manual" | "failed";
 
 /** Try every mechanism available, cheapest and most reliable first. */
-export async function copyText(text: string): Promise<CopyOutcome> {
+export async function copyText(text: string, container?: HTMLElement): Promise<CopyOutcome> {
   if (typeof document === "undefined") return "manual";
 
   /**
@@ -57,7 +57,9 @@ export async function copyText(text: string): Promise<CopyOutcome> {
     area.style.background = "transparent";
     area.style.fontSize = "12pt";
 
-    document.body.appendChild(area);
+    // 原生模态 dialog 会让外部元素不可聚焦；其内的调用者可显式指定复制容器。
+    // 未传入时保持原来的 body 路径，其他页面行为不变。
+    (container ?? document.body).appendChild(area);
 
     /**
      * ⚠️ **`setSelectionRange`, not `select()`.**

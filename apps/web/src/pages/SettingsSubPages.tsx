@@ -57,12 +57,12 @@ export function PreferencesPage(): React.JSX.Element {
   return (
     <SettingsSubPage title="记账偏好">
       <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-helper text-muted">默认币种</h2>
+        <h2 className="px-1 text-section-title text-ink">默认币种</h2>
 
         <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
           <CurrencyQuickPick
             value={currency}
-            hint="该币种将排在所有币种列表的最前。汇率折算功能开放后，其它币种默认折算为该币种。"
+            hint="优先显示在币种列表中。"
           />
         </div>
       </section>
@@ -75,7 +75,7 @@ export function PreferencesPage(): React.JSX.Element {
        * 不影响幂等、来源去重、权限与离线同步。
        */}
       <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-helper text-muted">重复交易检测</h2>
+        <h2 className="px-1 text-section-title text-ink">重复账目检测</h2>
 
         <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
           <DuplicateDetectionSettingsCard />
@@ -88,7 +88,7 @@ export function PreferencesPage(): React.JSX.Element {
        * as a stated fact rather than as an entry that silently does nothing.
        */}
       <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-helper text-muted">录入与界面</h2>
+        <h2 className="px-1 text-section-title text-ink">录入与界面</h2>
         <SettingsRowList
           rows={[
             { label: "大键盘输入金额", hint: "使用应用内的大号数字键盘" },

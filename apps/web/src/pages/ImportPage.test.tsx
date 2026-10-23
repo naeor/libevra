@@ -41,12 +41,12 @@ describe("ImportPage 的骨架与文案", () => {
     expect(PAGE).toContain("useDuplicateDetectionSettings()");
   });
 
-  it("连不上本地服务时，错误文案指向服务而不是误报文件格式", () => {
+  it("未分类的失败给出重试建议，不误报文件格式或要求运行开发命令", () => {
     // 只有服务端真的回了可读错误（ApiRequestError）才是“文件没识别”；
     // 请求根本没到达服务时（例如 API 没启动），文件本身不一定有问题。
     expect(PAGE).toContain("caught instanceof ApiRequestError");
-    expect(PAGE).toContain("连不上本地服务");
-    expect(PAGE).toContain("项目根目录运行 pnpm dev");
+    expect(PAGE).toContain("暂时无法识别文件，请重试");
+    expect(PAGE).not.toContain("项目根目录运行 pnpm dev");
   });
 
   it("核对页用服务端判重结果分组，编辑后可以重新检查", () => {

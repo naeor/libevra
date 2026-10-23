@@ -290,17 +290,13 @@ function ImportView({
       setVisibleCount(PAGE_SIZE);
     } catch (caught) {
       /**
-       * A thrown `ApiRequestError` means the API answered with a readable problem
-       * (unsupported format, too many rows, …). Anything else means the browser
-       * never reached the API at all — usually the local server is not running.
-       *
-       * Saying “没能识别这个文件” for the latter was misleading: the file was fine
-       * and the parser never received it. Name the actual next step instead.
+       * Preserve classified service errors. An unknown failure can also be a response/schema
+       * problem, so do not infer a network cause or ask users to start a development server.
        */
       setError(
         caught instanceof ApiRequestError
-          ? `没能识别这个文件：${errorMessage(caught)}`
-          : `没能识别这个文件：连不上本地服务。这个文件本身不一定有问题，请先启动本地 API（项目根目录运行 pnpm dev），刷新页面后重试。（${errorMessage(caught)}）`,
+          ? `未能识别文件：${errorMessage(caught)}`
+          : "暂时无法识别文件，请重试。若仍然失败，请联系管理员。",
       );
       setStep({ name: "choose" });
     } finally {

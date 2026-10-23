@@ -187,7 +187,7 @@ describe("OcrOverview summary", () => {
     const counts = countBatchItems(ITEMS);
     const html = render();
 
-    expect(html).toContain("详情与统计口径");
+    expect(html).toContain("数量说明");
     expect(summaryNumber(html, "未标记无效")).toBe(String(counts.valid));
     expect(summaryNumber(html, "已确认")).toBe(String(counts.confirmed));
     expect(summaryNumber(html, "已标记无效")).toBe(String(counts.invalid));

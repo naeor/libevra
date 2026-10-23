@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
@@ -38,6 +38,20 @@ export function SoftwareUpdatePage(): React.JSX.Element {
   const latest = latestApplicableAnnouncement(APP_VERSION);
   const newerExists = hasNewerReleasedVersion(APP_VERSION);
   const developmentBuild = import.meta.env.DEV;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewLines, setPreviewLines] = useState(6);
+
+  // Fit whole lines into the reserved preview space; the link remains outside the clamp.
+  useEffect(() => {
+    const element = previewRef.current;
+    if (element === null || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight);
+      if (lineHeight > 0) setPreviewLines(Math.max(1, Math.floor(element.clientHeight / lineHeight)));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [latest]);
 
   const statusLabel = currentAnnouncement === null
     ? developmentBuild
@@ -47,10 +61,10 @@ export function SoftwareUpdatePage(): React.JSX.Element {
 
   const statusText = (() => {
     if (newerExists) {
-      return "应用内置的公告记录中有较新的正式版本；本页没有连接服务器做实时检查。";
+      return "内置公告中有更新的正式版本。";
     }
     if (currentAnnouncement !== null) {
-      return "这个版本已收录在发布公告中。";
+      return "";
     }
     if (developmentBuild) {
       return "这是本地开发构建，不代表已经正式发布。";
@@ -59,17 +73,13 @@ export function SoftwareUpdatePage(): React.JSX.Element {
   })();
 
   /**
-   * ⚠️ **S16-A：近期更新是一小段列表，而不是孤零零一条。** 所有者：*"目前首页只显示很少的信息，
-   * 大量空间空置。请重新设计版本信息和近期更新的布局，提高可浏览性。"* 公告的数据与条目数量都没有
-   * 改——这里只是把**已有的**公告按时间多列几条：最新一条展开（含各小节标题），其余几条各占一行。
-   * 布局按 5–10 条设计（所有者说明的后续需求）；当前取 `RECENT_UPDATE_COUNT` 条，改这一个常量即可。
-   * 仍然只列"不晚于当前运行版本"的公告——旧客户端不能声称知道比自己更新的版本。
+   * 首页以本期公告为主，下方补充五个历史版本，与「全部公告」的完整目录区分。
+   * 历史摘要读取独立的 summary 字段，不从正文自动截取；公告数据保持不变。
+   * 仍然只列不晚于当前运行版本的公告。
    */
   const recent = releasedAnnouncements()
-    .filter((announcement) => compareVersions(APP_VERSION, announcement.version) >= 0)
+    .filter((announcement) => compareVersions(APP_VERSION, announcement.version) >= 0 && announcement.version !== latest?.version)
     .slice(0, RECENT_UPDATE_COUNT);
-  const earlier = latest === null ? recent : recent.filter((announcement) => announcement.version !== latest.version);
-  const totalReleased = releasedAnnouncements().length;
 
   return (
     <InnerPage
@@ -88,28 +98,48 @@ export function SoftwareUpdatePage(): React.JSX.Element {
         </button>
       }
     >
-      {/**
-        * ⚠️ **当前版本是一个"摘要对象"，所以它仍是卡片**（布局规范 §9-A）；只是把三行零散的灰字
-        * 收成一行状态 + 一行说明。
-        */}
-      <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-helper text-muted">当前运行版本</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-ink tabular-nums">{APP_VERSION}</p>
-            {currentAnnouncement?.releasedAt === undefined || currentAnnouncement.releasedAt === null ? null : (
-              <p className="mt-1 text-helper text-muted">{formatReleaseDate(currentAnnouncement.releasedAt)} 发布</p>
-            )}
+      <article aria-label="版本与公告预览" className="flex h-[min(30rem,60svh)] min-h-80 flex-col gap-4 border-b border-line py-5">
+      <section aria-label="版本状态" className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span aria-label={`当前版本 ${APP_VERSION}`} className="text-3xl font-semibold tracking-tight text-ink tabular-nums">{APP_VERSION}</span>
           </div>
           <span className="shrink-0 rounded-full bg-brand-soft px-2.5 py-1 text-micro font-medium text-brand-dark">
             {statusLabel}
           </span>
         </div>
-        <p className="border-t border-line pt-3 text-helper-relaxed text-muted">
-          {statusText}
-          {newerExists ? null : "版本来自当前运行的构建；本页不做服务器实时版本检查。"}
-        </p>
+        {statusText ? <p className="text-helper-relaxed text-muted">{statusText}</p> : null}
       </section>
+
+      {latest === null ? (
+        <p className="text-body text-muted">还没有正式发布的公告。</p>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <header className="flex flex-col gap-2">
+            <h2 className="text-section-title text-ink">{latest.title}</h2>
+            {latest.releasedAt === null ? null : <time className="text-helper text-muted" dateTime={latest.releasedAt}>{formatReleaseDate(latest.releasedAt)}</time>}
+          </header>
+          <div ref={previewRef} className="min-h-0 flex-1 overflow-hidden text-body-relaxed text-muted">
+            <p className="line-clamp-(--preview-lines)" style={{ "--preview-lines": previewLines } as React.CSSProperties}>
+              {latest.summary}<br /><br />
+              {latest.sections.map((section, index) => (
+                <Fragment key={section.heading}>
+                  {index > 0 ? <><br /><br /></> : null}
+                  <span className="font-medium text-ink">{section.heading}</span><br />
+                  {section.items.join(" ")}
+                </Fragment>
+              ))}
+            </p>
+          </div>
+          <Link
+            to={`/update/announcements/${latest.version}`}
+            className="flex min-h-11 shrink-0 items-center self-start text-helper font-medium text-brand transition hover:text-brand-dark"
+          >
+            阅读完整公告 ›
+          </Link>
+        </div>
+      )}
+      </article>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
@@ -119,61 +149,25 @@ export function SoftwareUpdatePage(): React.JSX.Element {
           </Link>
         </div>
 
-        {latest === null ? (
-          <p className="text-body text-muted">还没有正式发布的公告。</p>
-        ) : (
-          <Link
-            to={`/update/announcements/${latest.version}`}
-            className="flex flex-col gap-2 rounded-card border border-line bg-surface px-5 py-4 transition hover:border-brand/40 hover:bg-brand-soft/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
-          >
-            <span className="flex items-baseline justify-between gap-3">
-              <span className="font-mono text-helper font-medium text-muted">{latest.version}</span>
-              {latest.releasedAt === null ? null : (
-                <span className="shrink-0 text-helper text-muted">{formatReleaseDate(latest.releasedAt)}</span>
-              )}
-            </span>
-            <span className="text-section-title text-ink">{latest.title}</span>
-            <span className="text-body-relaxed text-muted">{latest.summary}</span>
-            {latest.sections.length === 0 ? null : (
-              <ul className="mt-1 flex flex-col gap-1.5 border-t border-line pt-3">
-                {latest.sections.map((section) => (
-                  <li key={section.heading} className="flex items-baseline gap-2 text-body text-ink">
-                    <span aria-hidden="true" className="size-1.5 shrink-0 -translate-y-0.5 rounded-full bg-brand" />
-                    <span className="min-w-0">{section.heading}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <span className="mt-1 text-helper font-medium text-brand">查看更新公告 ›</span>
-          </Link>
-        )}
-
-        {earlier.length === 0 ? null : (
-          <div className="flex flex-col">
-            <h3 className="pt-2 pb-1 text-helper font-medium text-muted">更早</h3>
-            <RecordList label="更早的更新公告">
-              {earlier.map((announcement) => (
+        {recent.length === 0 ? null : (
+          <div className="[&>ul>li>a]:gap-0.5 [&>ul>li>a]:py-2.5">
+            <RecordList label="近期更新">
+              {recent.map((announcement) => (
                 <RecordRow
                   key={announcement.version}
-                  eyebrow={<span className="font-mono">{announcement.version}</span>}
+                  eyebrow={<span className="tabular-nums">{announcement.version}</span>}
                   aside={announcement.releasedAt === null ? undefined : formatReleaseDate(announcement.releasedAt)}
                   primary={announcement.title}
+                  title={announcement.title}
                   preview={announcement.summary}
                   strong
                   to={`/update/announcements/${announcement.version}`}
                 />
               ))}
             </RecordList>
-            {totalReleased > recent.length ? (
-              <Link
-                to="/update/announcements"
-                className="mt-1 self-start py-2 text-body font-medium text-brand transition hover:text-brand-dark"
-              >
-                查看全部 {String(totalReleased)} 条公告 ›
-              </Link>
-            ) : null}
           </div>
         )}
+        <p className="text-helper text-muted">版本信息来自当前构建与内置公告，未实时检查更新。</p>
       </section>
 
       <UpdateMoreSheet open={moreOpen} onClose={closeMore} />
@@ -181,5 +175,5 @@ export function SoftwareUpdatePage(): React.JSX.Element {
   );
 }
 
-/** 软件更新首页列出的公告条数（含展开的最新一条）。后续需求是 5–10 条。 */
+/** 本期公告之外再展示五个版本，完整历史通过「全部公告」进入。 */
 const RECENT_UPDATE_COUNT = 5;

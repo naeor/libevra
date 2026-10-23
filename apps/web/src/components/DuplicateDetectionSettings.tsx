@@ -216,8 +216,8 @@ export function DuplicateDetectionSettingsSection({
   return (
     <div className="flex flex-col gap-5">
       <SettingsToggle
-        label="重复交易提醒"
-        hint="按下面的规则在新增时提示；只提示，不会自动删除或合并。"
+        label="重复提醒"
+        hint="新增账目时提示疑似重复，不会自动删除或合并。"
         checked={settings.enabled}
         onChange={(enabled) => {
           onChange({ enabled });
@@ -235,7 +235,7 @@ export function DuplicateDetectionSettingsSection({
           settings.enabled ? "" : "opacity-60"
         }`}
       >
-        <legend className="sr-only">重复交易检测规则</legend>
+        <legend className="sr-only">重复检测规则</legend>
         {([
           ["matchAmount", "金额匹配", true], ["matchCurrency", "币种匹配", true],
           ["matchKind", "收支方向匹配", true], ["matchTime", "时间匹配", true],
@@ -248,11 +248,11 @@ export function DuplicateDetectionSettingsSection({
          * 重复。"），同一句话在一屏里出现七次。现在开关只写名称，这句说明在它们下面出现一次。
          */}
         <p className="text-helper-relaxed text-muted">
-          打开的项会纳入判断；关闭后不会因为这一项不同而排除疑似重复。账本始终隔离。关闭多项规则会增加疑似重复数量，请按实际需要设置。
+          仅比较已开启的项目，各账本独立检查。关闭多项规则可能增加疑似重复提醒。
         </p>
 
         <div className="flex flex-col gap-2">
-          <span className="text-body text-ink">时间窗口</span>
+          <span className="text-card-title text-ink">时间窗口</span>
           <InlineChoice
             label="时间窗口"
             value={choiceValue}
@@ -268,8 +268,7 @@ export function DuplicateDetectionSettingsSection({
             }}
           />
           <p className="text-helper-relaxed text-muted">
-            两条记录的时间差不超过该窗口时，才会被视为疑似重复。默认 1 分钟；自定义范围
-            1 分钟–30 天。
+            仅比较时间相差不超过此范围的账目。默认 1 分钟，可设为 1 分钟至 30 天。
           </p>
           {!preset ? (
             <p className="text-helper text-muted">
@@ -281,7 +280,7 @@ export function DuplicateDetectionSettingsSection({
             <div className="flex flex-col gap-2 rounded-field bg-canvas p-3">
               <div className="flex items-end gap-2">
                 <label className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-helper text-muted">自定义（分钟）</span>
+                  <span className="text-card-title text-ink">自定义（分钟）</span>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -341,12 +340,12 @@ export function DuplicateDetectionSettingsSection({
 
       {settings.enabled ? null : (
         <p className="text-helper-relaxed text-muted">
-          提醒已关闭；上面的规则设置会保留，重新开启后继续生效。
+          提醒已关闭，规则设置已保留。
         </p>
       )}
 
       <p className="text-helper-relaxed text-muted">
-        关闭重复提醒不影响数据安全保护：幂等、来源身份去重、权限与离线同步仍照常生效。
+        关闭提醒不影响防止重复提交、识别相同来源、权限检查和离线同步。
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">

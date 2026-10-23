@@ -91,4 +91,16 @@ describe("账本导入的返回", () => {
     expect(inlineChoice).not.toContain("⌄");
     expect(inlineChoice).not.toContain("⌃");
   });
+
+  it("高风险文案不再声称只会新增，也不把内部 A/B 代号给用户看", () => {
+    expect(source).not.toContain("本轮只新增，不会修改或删除");
+    expect(source).not.toContain("请核对每一笔 A 的去留");
+    expect(source).not.toContain('"保留 A"');
+    expect(source).not.toContain('"保留 B"');
+    expect(source).not.toContain(">来源 B<");
+    expect(source).not.toContain(">目标 A<");
+    expect(source).toContain("会在核对步骤逐笔列出并再次确认");
+    expect(source).toContain('["keep_a", "保留目标账本"');
+    expect(source).toContain('["keep_b", "保留来源账本"');
+  });
 });

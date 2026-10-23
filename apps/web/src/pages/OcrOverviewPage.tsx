@@ -307,7 +307,7 @@ export function OcrOverviewPage(): React.JSX.Element {
      */
     const assigned = assignImportIds(batch, uuidV7);
     if (!saveBatch(assigned)) {
-      setError("无法把固定的幂等 id 写入浏览器存储，已取消导入。请检查隐私模式/存储空间后重试。");
+      setError("无法保存本次导入信息，已取消导入。请检查浏览器存储空间或隐私模式设置后重试。");
       return;
     }
     setBatch(assigned);

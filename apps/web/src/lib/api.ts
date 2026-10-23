@@ -195,7 +195,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     throw new ApiRequestError(
       response.status,
       "malformed_response",
-      `服务器返回了无法解析的内容（HTTP ${String(response.status)}），可能不是本应用的服务。`,
+      "服务暂时无法响应，请稍后重试。",
     );
   }
 
@@ -282,7 +282,7 @@ export async function apiFetchFile(
       throw new ApiRequestError(
         response.status,
         "malformed_response",
-        `服务器返回了无法解析的内容（HTTP ${String(response.status)}）。`,
+        "服务暂时无法响应，请稍后重试。",
       );
     }
 
@@ -311,18 +311,11 @@ export async function apiFetchFile(
  * That was not a hypothetical cost. When the owner photographed a bill and was
  * told his network was at fault, the network was fine: the message simply had
  * nothing to do with the cause, and it took a round of server-side measurement
- * to find that out. The replacement states what is known, tells the user it is
- * not their fault, and points at the one thing they can try.
+ * to find that out. The replacement states the failure and offers a retry without guessing a cause.
  */
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
 
-  // A thrown `Error` at least has a name and a message; a thrown string or
-  // object does not, and `String()` on those gives something useless.
-  const detail = error instanceof Error ? error.message : String(error);
-
-  return (
-    "操作没有完成：请求未能送达服务器或响应无法识别。这不是你的操作问题。" +
-    `请重试一次；若仍然失败，请把这行信息告诉开发者（${detail.slice(0, 120)}）。`
-  );
+  // Unknown failures do not establish a network cause. Do not expose raw exceptions in UI copy.
+  return "操作未完成，请重试。若仍然失败，请联系管理员。";
 }

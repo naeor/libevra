@@ -164,7 +164,7 @@ export function RecordPage(): React.JSX.Element {
 
       {transcribe.isSuccess && !heardNothing && transcribe.data.text !== "" ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-helper text-muted">听到的内容（可以修改）</h2>
+          <h2 className="text-card-title text-ink">听到的内容（可以修改）</h2>
 
           <textarea
             value={editedText ?? transcribe.data.text}

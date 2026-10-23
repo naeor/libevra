@@ -372,18 +372,19 @@ describe("batchDeleteConfirmation", () => {
     expect(batchDeleteConfirmation(1).title).toContain("1");
   });
 
-  it("does not promise an undo, and says so in words", () => {
+  it("distinguishes batch undo from restoring individual entries", () => {
     const confirmation = batchDeleteConfirmation(7);
 
-    expect(confirmation.consequences.join(" ")).toContain("无法在应用里自行恢复");
-    expect(confirmation.consequences.join(" ")).not.toContain("撤销");
+    expect(confirmation.description).toContain("不提供一键撤销");
+    expect(confirmation.consequences.join(" ")).toContain("从编辑历史逐笔恢复");
+    expect(confirmation.consequences.join(" ")).toContain("账本须仍然存在，且你有编辑权限");
   });
 
   it("mentions the recalculation and the offline queue", () => {
     const joined = batchDeleteConfirmation(2).consequences.join(" ");
 
     expect(joined).toContain("本月总额");
-    expect(joined).toContain("离线时会先在本机排队");
+    expect(joined).toContain("离线时先保存在本机，联网后同步");
   });
 });
 

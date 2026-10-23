@@ -241,8 +241,8 @@ export function RegisterPage(): React.JSX.Element {
       title="创建账号"
       subtitle={
         restricted
-          ? "填写邀请码后即可创建账号。"
-          : "用户名和密码，两步就可以开始记账。"
+          ? "创建账号需要邀请码。"
+          : "创建你的 Libevra 账号。"
       }
       navigation={<AuthSwitcher active="register" />}
     >

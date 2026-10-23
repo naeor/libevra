@@ -48,7 +48,7 @@ export function ListGroup({
     <section className={`flex flex-col gap-2 ${className}`.trim()}>
       {title === undefined && action === undefined ? null : (
         <div className="flex items-baseline justify-between gap-3 px-5">
-          {title === undefined ? <span /> : <h2 className="text-helper font-medium text-muted">{title}</h2>}
+          {title === undefined ? <span /> : <h2 className="text-card-title text-ink">{title}</h2>}
           {action === undefined ? null : <span className="shrink-0 text-helper">{action}</span>}
         </div>
       )}
@@ -114,19 +114,19 @@ export function ListRow({
   const interactive = to !== undefined || onClick !== undefined;
   const showChevron = chevron ?? (interactive && trailing === undefined && tone !== "action");
   const labelTone =
-    tone === "danger" ? "font-medium text-danger" : tone === "action" ? "font-medium text-brand-dark" : "text-ink";
+    tone === "danger" ? "text-danger" : tone === "action" ? "text-brand-dark" : "text-ink";
 
   const body = (
     <>
       {leading === undefined ? null : <span className="flex shrink-0 items-center">{leading}</span>}
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className={`text-body ${labelTone}`}>{label}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className={`text-card-title ${labelTone}`}>{label}</span>
         {detail === undefined || detail === null ? null : (
           <span className="text-helper-relaxed text-muted">{detail}</span>
         )}
       </span>
       {value === undefined || value === null ? null : (
-        <span className="max-w-[45%] shrink-0 truncate text-right text-body text-muted">{value}</span>
+        <span className="max-w-[45%] shrink-0 truncate text-right text-body text-muted tabular-nums">{value}</span>
       )}
       {trailing === undefined ? null : <span className="flex shrink-0 items-center">{trailing}</span>}
       {showChevron ? (
@@ -193,10 +193,10 @@ export function FactRow({
   readonly action?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-5 py-3">
-      <dt className="min-h-7 content-center text-body text-muted">{label}</dt>
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-5 py-3">
+      <dt className="min-h-7 content-center text-card-title text-ink">{label}</dt>
       <dd
-        className={`flex min-w-0 items-center justify-end gap-2 text-right text-body text-ink ${mono ? "font-mono tracking-wide" : ""}`}
+        className={`flex min-w-0 items-center justify-end gap-2 text-right text-body text-ink tabular-nums ${mono ? "font-mono tracking-wide" : ""}`}
       >
         <span className="min-w-0 truncate">{value}</span>
         {action}
@@ -222,9 +222,9 @@ export function ProseSection({
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <section className="flex flex-col gap-1.5">
-      <h2 className="text-card-title text-ink">{title}</h2>
-      <div className="flex flex-col gap-2 text-body-relaxed text-muted">{children}</div>
+    <section className="flex flex-col gap-3">
+      <h2 className="text-section-title text-ink">{title}</h2>
+      <div className="flex flex-col gap-3 text-body-relaxed text-ink">{children}</div>
     </section>
   );
 }

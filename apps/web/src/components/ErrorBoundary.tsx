@@ -8,9 +8,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
  * That is the worst possible failure for an application somebody trusts with
  * their money, so it gets a real screen: what happened, and a way to recover.
  *
- * The message is shown deliberately. This is a self-hosted tool used by people
- * who can act on a stack trace — hiding it behind "something went wrong" would
- * only make a report harder to act on.
+ * Technical details remain available on demand; the main message gives a recovery action.
  */
 interface ErrorBoundaryState {
   readonly error: Error | null;
@@ -37,12 +35,15 @@ export class ErrorBoundary extends Component<{ readonly children: ReactNode }, E
       <main className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center gap-4 px-6 py-12 text-center">
         <p className="text-lg font-semibold text-ink">页面无法显示</p>
         <p className="text-body-relaxed text-muted">
-          界面遇到了一个未预期的问题。你的账目数据保存在服务器上，不受影响。
+          页面暂时无法显示，请重新加载或返回明细。
         </p>
 
-        <pre className="w-full overflow-x-auto rounded-field bg-danger-soft p-3 text-left text-helper-relaxed whitespace-pre-wrap text-danger">
-          {error.message}
-        </pre>
+        <details className="w-full text-left text-helper-relaxed text-muted">
+          <summary className="cursor-pointer">查看错误详情</summary>
+          <pre className="mt-2 overflow-x-auto rounded-field bg-danger-soft p-3 whitespace-pre-wrap text-danger">
+            {error.message}
+          </pre>
+        </details>
 
         <button
           type="button"

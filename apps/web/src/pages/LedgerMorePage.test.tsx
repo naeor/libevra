@@ -12,7 +12,7 @@ import { LedgerMorePage, RELOAD_CONFIRMATION } from "./LedgerMorePage.js";
  * this project:**
  *
  *  * 导出 is reachable — it lost its top-level button, so this is now the only way in;
- *  * 清空「待同步」印记 still says what it does **not** do (no request, no deletion);
+ *  * 清空「待同步」印记 describes discarded pending actions and server conflict resolution;
  *  * 重新加载应用 is described as a page reload, and is **not** confused with 下载管理's
  *    「清除并重新加载」, which deletes the device's copy first.
  */
@@ -37,16 +37,18 @@ describe("LedgerMorePage", () => {
   it("is honest that there is no text search yet", () => {
     const html = renderPage();
 
-    expect(html).toContain("目前还没有按文字搜索账目");
+    expect(html).toContain("暂不支持文字搜索");
     expect(html).toContain("回到明细页筛选");
   });
 
-  it("keeps the clear-marks button with its original, exact safety wording", () => {
+  it("warns that pending changes stop submitting and conflicts use the server version", () => {
     const html = renderPage();
 
     expect(html).toContain("清空「待同步」印记");
-    expect(html).toContain("不会发送任何请求");
-    expect(html).toContain("不会删掉服务器或本机上的任何账目");
+    expect(html).not.toContain("不会发送任何请求");
+    expect(html).toContain("尚未同步的修改和删除将不再提交");
+    expect(html).toContain("请求将冲突按服务器版本处理");
+    expect(html).toContain("此操作不删除账目");
   });
 
   it("offers 重新加载应用 as plain page reload, without promising a fix", () => {

@@ -256,7 +256,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   return (
     <InnerPage
       title="核对这一笔"
-      subtitle="只修改本批次的临时数据；保存不会写入账本。"
+      subtitle="保存到本次识别结果，确认导入后才会入账。"
       backTo="/ocr/overview"
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
@@ -265,14 +265,14 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
       {form.directionConfirmed ? null : (
         <Alert tone="info">
-          截图没有说明这笔是收入还是支出。请选择类型；不选的话它不会进入确认导入。
+          未能确定收支类型。请先选择收入或支出，才能导入。
         </Alert>
       )}
 
       {item.isTransfer ? (
         <Alert tone="info">
-          这是一笔转账。账本只有收入/支出两种类型，没有 transfer 类型；这笔会按你选的收支记录，
-          备注里保留「转账」，分类可映射到账本已有的「转账」分类。
+          这是一笔转账，将按你选择的收入或支出入账。备注会保留「转账」，
+          也可选择账本已有的「转账」分类。
         </Alert>
       ) : null}
 
@@ -419,7 +419,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
           value={form.account}
           placeholder="例如：零钱、尾号 6688"
           onChange={(event) => { patch({ account: event.target.value }); }}
-          hint="会写进备注；账本没有单独的账户字段。"
+          hint="账户信息将保存在备注中。"
         />
 
         <fieldset className="flex flex-col gap-2">
@@ -484,8 +484,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
         <p className="text-helper text-muted">
           {isItemComplete(preview)
-            ? "关键字段已齐全；保存后回概览，仍要统一确认才会写账。"
-            : "关键字段还不齐：保存的是草稿，确认导入前需要补齐或标记无效。"}
+            ? "信息已齐全。返回概览确认导入后，才会入账。"
+            : "信息尚未补齐，可先保存草稿。导入前需补齐或标记无效。"}
         </p>
       </section>
 

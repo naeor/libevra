@@ -259,18 +259,17 @@ export function BillSummaryPanel({
 
       <details className="mt-1.5">
         <summary className="w-fit min-h-11 cursor-pointer select-none text-helper text-muted">
-          数字是怎么算的
+          数量说明
         </summary>
         <ul className="mt-1 flex flex-col gap-1 text-helper text-muted">
-          <li>「本次读到」是文件里被识别出的交易笔数，不是行数。</li>
+          <li>「本次读到」表示文件中识别出的交易笔数，不是文件行数。</li>
           <li>
-            「待核对」= 有提醒或字段不完整的笔数；「疑似重复」= 被判重规则标记的笔数，两者可能重叠。
+            「待核对」包括有提醒或信息不完整的账目，「疑似重复」表示检测到可能重复，两者可能重叠。
           </li>
           <li>
-            「可导入」只算已勾选、且不是「来源已存在」的笔数；勾选状态改变时它会立刻变，而上面的
-            「待核对/疑似重复」不会。
+            「可导入」只计算已勾选且并非「来源已存在」的账目，随勾选变化。「待核对」和「疑似重复」不受勾选影响。
           </li>
-          <li>全部数字都还没有写入账本，确认导入之后才会写。</li>
+          <li>这些账目尚未入账，确认导入后才会写入。</li>
         </ul>
       </details>
 
@@ -977,7 +976,7 @@ export function BillDoneView({
 
       {fileRef === null ? null : (
         <p className="text-helper-relaxed text-muted">
-          导入编号写进了这批每一笔记录里，日后可以据此追溯它们来自哪个文件。
+          每笔账目保留导入编号，可据此查找来源文件。
         </p>
       )}
 

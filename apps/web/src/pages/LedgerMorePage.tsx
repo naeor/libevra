@@ -75,19 +75,19 @@ export function LedgerMorePage(): React.JSX.Element {
         *
         * - 去往别处的（导出、回到明细）是带 `›` 的行；
         * - 就地执行的（清空印记、重新加载）是强调色的行，没有箭头；
-        * - 每段说明成为对应行的第二行，原文不变（含"不会发送任何请求"等安全措辞）。
+        * - 每段说明成为对应行的第二行。S16 文案复核后，清空印记明确说明停止提交与服务器冲突处理。
         */}
       <p className="text-body text-ink">
         <span className="text-muted">这台设备 · </span>
         {counts === null
           ? "正在读取…"
-          : `本机存着 ${String(counts.months)} 个月、${String(counts.entries)} 条账目。`}
+          : `本机已保存 ${String(counts.months)} 个月的 ${String(counts.entries)} 笔账目。`}
       </p>
 
       <ListGroup title="导出账目">
         <ListRow
           label="导出为文件"
-          detail="打开导出页面，按月份和条件导出 CSV 或 JSON。导出的范围与字段都在那个页面上选择。"
+          detail="按时间和条件导出 CSV 或 Excel 文件。"
           onClick={() => {
             void navigate("/export");
           }}
@@ -99,9 +99,7 @@ export function LedgerMorePage(): React.JSX.Element {
           label="回到明细页筛选"
           detail={
             <>
-              明细页顶部可以按月、按收支切换；点某笔账目的分类，就只看这个分类。
-              <span className="text-ink"> 目前还没有按文字搜索账目</span>
-              ——它需要一个真正的搜索功能，不是在这里加一个入口就能做好的，所以这次没有做。
+              按月份、收支或分类筛选账目。暂不支持文字搜索。
             </>
           }
           onClick={() => {
@@ -116,9 +114,8 @@ export function LedgerMorePage(): React.JSX.Element {
           label={cleared ? "已清空待同步印记" : "清空「待同步」印记"}
           detail={
             <>
-              停止把这些账目当作「还没同步」「还没删除」或「等你要选」来提醒。
-              不会发送任何请求，也不会删掉服务器或本机上的任何账目 —— 只是让它们不再带颜色。
-              服务器上确实已经删掉的，本机下次取回列表时会照常消失。
+              尚未同步的修改和删除将不再提交，并请求将冲突按服务器版本处理。
+              此操作不删除账目；重新获取列表时，服务器已删除的账目会从本机移除。
             </>
           }
           onClick={() => {
@@ -134,9 +131,7 @@ export function LedgerMorePage(): React.JSX.Element {
           label="重新加载应用"
           detail={
             <>
-              界面出现异常时，重新加载页面通常能恢复。
-              它只是重新打开这个页面，<span className="text-ink">不会清除本机账目</span>
-              ；也不会修复服务器上的数据 —— 那是另一件事。
+              重新打开当前页面，不会清除本机账目或修复服务器数据。
             </>
           }
           onClick={() => {

@@ -81,8 +81,8 @@ export function GuestMePage(): React.JSX.Element {
           </div>
           <div className="border-t border-line px-5 py-4">
             <p className="text-helper-relaxed text-muted">
-              创建或登录正式账号后，在目标账本的「设置 → 导入账本」里可以先预览、再确认导入。游客账本不会自动上传、合并或删除；
-              本轮导入也不会删除正式账本里已有的任何账目。
+              创建或登录正式账号后，游客账本不会自动上传、合并或删除。
+              如需导入，请前往目标账本的「设置 → 导入账本」，预览并确认具体变更。
             </p>
             <div className="mt-3 flex flex-col gap-2">
               <button

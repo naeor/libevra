@@ -397,11 +397,11 @@ export function batchDeleteConfirmation(count: number): {
 } {
   return {
     title: `删除选中的 ${String(count)} 笔账目？`,
-    description: "每笔都会走和单笔删除相同的删除路径。",
+    description: "批量删除不提供一键撤销。",
     consequences: [
-      "删除后，你无法在应用里自行恢复这些记录",
+      "删除后，可从编辑历史逐笔恢复；账本须仍然存在，且你有编辑权限",
       "本月总额、笔数与结余会立即重新计算",
-      "离线时会先在本机排队，联网后投递",
+      "离线时先保存在本机，联网后同步",
     ],
     confirmLabel: "确认删除",
   };

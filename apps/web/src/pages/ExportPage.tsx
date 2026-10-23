@@ -253,7 +253,7 @@ function ExportView({
 
       {/* ------------------------------------------------------------------ */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-helper text-muted">时间范围</h2>
+        <h2 className="text-section-title text-ink">时间范围</h2>
 
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(RANGE_LABELS) as Exclude<RangePreset, "custom">[]).map((preset) => (
@@ -325,7 +325,7 @@ function ExportView({
 
       {/* ------------------------------------------------------------------ */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-helper text-muted">文件格式</h2>
+        <h2 className="text-section-title text-ink">文件格式</h2>
 
         <div className="grid grid-cols-2 gap-2">
           {(
@@ -356,7 +356,7 @@ function ExportView({
 
       {/* ------------------------------------------------------------------ */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-helper text-muted">筛选（可不选）</h2>
+        <h2 className="text-section-title text-ink">筛选（可不选）</h2>
 
         <label className="flex flex-col gap-1.5">
           <span className="text-body text-ink">收支类型</span>

@@ -708,7 +708,7 @@ export function LedgerImportPage(): React.JSX.Element {
             parsed.targetExistingBefore - requestRemovedCount + parsed.importedCount ||
           JSON.stringify(parsed.totals) !== JSON.stringify(expectedTotals)
         ) {
-          setSubmitError("服务器已完成提交，但回执与本地预期不一致。请先截图保留本页，然后打开目标账本核对；不要重复提交。");
+          setSubmitError("服务器已完成提交，但结果与预期不一致。请截图保留本页，并打开目标账本核对，不要重复提交。");
           setResult(parsed);
           setSubmitState("error");
           return;
@@ -1161,17 +1161,17 @@ export function LedgerImportPage(): React.JSX.Element {
 
       <ConfirmDialog
         open={removalConfirmOpen}
-        title="确认软删除目标账目？"
+        title="删除所选目标账目并导入？"
         description={
           preview === null
-            ? "本次导入会软删除目标账本中的记录。"
-            : `本次将软删除 ${String(removedTargets(preview, decisions).length)} 笔目标 A 记录，并导入 ${String(importedSourceCount(preview, decisions))} 笔来源 B 记录。`
+            ? "本次导入会删除你选择移除的目标账目，可从编辑历史恢复。"
+            : `将删除 ${String(removedTargets(preview, decisions).length)} 笔目标账目，并导入 ${String(importedSourceCount(preview, decisions))} 笔来源账目。`
         }
         consequences={[
-          "只会软删除你在核对页明确标记为「移除」的目标记录",
-          "被移除的记录会进入现有账目删除/恢复机制，编号不变",
+          "仅删除你在核对页明确标记为「移除」的目标账目",
+          "可从编辑历史恢复被移除的账目，编号不变；账本须仍然存在，且你有编辑权限",
           "来源账本数据不会因此被删除",
-          "提交在同一事务中完成；失败会整体回滚，不会出现 A 已删而 B 未写入",
+          "本次提交失败时会恢复原状，不会只删除目标账目而未导入来源账目",
         ]}
         confirmLabel="确认删除并导入"
         busy={submitState === "submitting"}
@@ -1201,15 +1201,15 @@ export function LedgerImportPage(): React.JSX.Element {
       <ConfirmDialog
         open={cancelConfirmOpen}
         title="撤销本次导入？"
-        description="撤销会恢复本次导入造成的业务变化，而不是只停止后续批次。"
+        description="撤销会恢复本次导入已完成的变更，不只是停止后续导入。"
         consequences={[
           "本任务新增的目标账目会被移除，更新过的目标账目会恢复原值",
-          "本次写入的分类、标签、来源状态和回执会恢复到导入前状态",
+          "本次写入的分类、标签、来源状态和导入结果会恢复到导入前状态",
           "其他账本、其他设备的离线待同步数据不会被删除",
-          "撤销失败时账本保持锁定并显示失败，不会伪装成功或直接解锁",
+          "撤销失败时账本仍暂停编辑，页面会提示失败",
           "撤销完成后才能再次编辑这本账本",
         ]}
-        confirmLabel="确认安全撤销本次导入"
+        confirmLabel="确认撤销导入"
         busy={jobBusy}
         onCancel={() => {
           if (!jobBusy) setCancelConfirmOpen(false);
@@ -1228,13 +1228,13 @@ export function LedgerImportPage(): React.JSX.Element {
       <ConfirmDialog
         open={confirmConfirmOpen}
         title="确认完成这次导入？"
-        description="确认后本次导入进入正式状态，不能再撤销。"
+        description="确认完成后，本次导入将无法撤销。"
         consequences={[
-          "服务器会完成最终对账并写入正式导入回执",
-          "目标 A 的最终移除操作会在确认事务中执行",
-          "账本业务锁会在确认成功后释放",
-          "只有确认完成后才开放来源清理或正式来源处置",
-          "确认失败会回到等待确认并保留锁，不会释放账本",
+          "服务器会核对最终结果并保存导入记录",
+          "你选择移除的目标账目将在此时删除",
+          "确认成功后，账本恢复编辑",
+          "确认完成后，才可清理已迁入的游客账目或弃置来源账本",
+          "确认失败时仍等待确认，账本继续暂停编辑",
         ]}
         confirmLabel="确认完成"
         busy={jobBusy}
@@ -1346,7 +1346,7 @@ function BatchJobPanel({
           <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${String(percent)}%` }} />
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
-          在最终确认前，这本账本处于服务端业务锁中，其他设备的写入会被拒绝；撤销会恢复本次已提交的业务变化，而不是只停止后续批次。
+          最终确认前，这本账本暂停编辑，其他设备也无法修改。撤销导入会恢复已完成的变更，不只是停止后续导入。
         </p>
         {job.status === "awaiting_confirmation" ? (
           <p
@@ -1566,9 +1566,9 @@ function SelectionStep({
       */}
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <div className="flex flex-col gap-2">
-          <span className="text-body font-medium text-ink">来源账本 B</span>
+          <span className="text-body font-medium text-ink">来源账本</span>
           <InlineChoice
-            label="来源账本 B"
+            label="来源账本"
             testId="import-source"
             open={picking === "source"}
             value={sourceKey}
@@ -1589,7 +1589,7 @@ function SelectionStep({
         )}
         {formalSource ? (
           <p className="mt-2 text-helper-relaxed text-muted">
-            正式来源只会导入你在预览中确认的记录；不会删除来源 B 的账目，也不会关闭来源账本。
+            正式来源只会导入你在预览中确认的记录；不会删除来源账本的账目，也不会关闭来源账本。
           </p>
         ) : guestAvailable ? (
           <p className="mt-2 text-helper-relaxed text-muted">
@@ -1604,9 +1604,9 @@ function SelectionStep({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-body font-medium text-ink">目标账本 A</span>
+          <span className="text-body font-medium text-ink">目标账本</span>
           <InlineChoice
-            label="目标账本 A"
+            label="目标账本"
             testId="import-target"
             open={picking === "target"}
             value={targetId}
@@ -1648,9 +1648,8 @@ function SelectionStep({
       </Button>
 
       <p className="text-helper-relaxed text-muted">
-        来源 B 可以是本机游客账本，也可以是当前账号的另一本正式单人账本。正式账本来源只允许
-        B、A 都只有当前账号一个有效成员、且没有待接受邀请或可用分享链接；预览和提交都会重新校验。
-        导入后来源 B 的数据不会被删除或清空。
+        可从本机游客账本或当前账号的另一本单人账本导入。使用正式账本时，两本账本都须仅有你一名有效成员，
+        且没有待接受邀请或可用分享链接。预览和提交时都会检查，导入不会删除或清空来源账本。
       </p>
     </section>
   );
@@ -1682,19 +1681,19 @@ function PreviewStep({
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <p className="text-helper text-muted">导入方向</p>
         <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2">
-          <span className="text-helper text-muted">来源 B</span>
+          <span className="text-helper text-muted">来源账本</span>
           <BookIdentity book={preview.source.identity} />
           <span className="justify-self-center text-muted" aria-hidden="true">
             ↓
           </span>
           <span className="h-px w-full bg-line" aria-hidden="true" />
-          <span className="text-helper text-muted">目标 A</span>
+          <span className="text-helper text-muted">目标账本</span>
           <BookIdentity book={preview.target.identity} />
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
           {preview.source.kind === "guest"
             ? "来源是本机游客账本；导入后本机数据仍会保留。"
-            : "来源是正式单人账本；导入后来源 B 的数据仍会保留，不会自动删除或关闭。"}
+            : "来源是正式单人账本；导入后来源账本的数据仍会保留，不会自动删除或关闭。"}
         </p>
       </div>
 
@@ -1722,7 +1721,7 @@ function PreviewStep({
           )}
           {counts.targetTransactions > 0 ? (
             <p className="mt-3 text-helper-relaxed text-muted">
-              目标账本已有 {String(counts.targetTransactions)} 条账目；本轮只新增，不会修改或删除它们。
+              目标账本已有 {String(counts.targetTransactions)} 条账目；导入不会覆盖它们。如需删除或移动其中的账目，会在核对步骤逐笔列出并再次确认。
             </p>
           ) : null}
           {counts.sourceSkippedDeleted > 0 ? (
@@ -1766,7 +1765,7 @@ function PreviewStep({
           <div>
             <h2 className="section-title">可能重复的账目</h2>
             <p className="mt-1 text-helper-relaxed text-muted">
-              只比较来源 B 与目标 A 的记录；核对后再决定跳过还是两边都保留。
+              只比较来源账本与目标账本的记录；核对后再决定跳过还是两边都保留。
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
@@ -2149,7 +2148,7 @@ function SourceRetentionCard({
     setArchiveBusy(true);
     try {
       await bookLifecycleAction(disposition.sourceBookId, "archive");
-      setArchived("来源账本已通过 S13 生命周期弃置；可在归档恢复页面按恢复期限恢复。");
+      setArchived("来源账本已弃置，可在归档恢复页面查看恢复期限并恢复。");
       setArchiveConfirmOpen(false);
       setDisposition(null);
     } catch (caught) {
@@ -2219,7 +2218,7 @@ function SourceRetentionCard({
         <div className="rounded-field border border-line bg-canvas px-4 py-3">
           <p className="text-body text-ink">正式来源账本默认完整保留</p>
           <p className="mt-1 text-helper-relaxed text-muted">
-            只有在导入完成后，你才可以选择是否弃置来源 B。弃置使用 S13 现有归档/恢复/墓碑流程，不会直接删除数据。
+            导入完成后，可另行选择是否弃置来源账本。弃置后数据暂时保留，可在恢复期限内恢复。
           </p>
           {archived === null ? null : <p className="mt-2 text-helper-relaxed text-brand-dark">{archived}</p>}
           {disposition === null ? null : (
@@ -2265,12 +2264,12 @@ function SourceRetentionCard({
       <ConfirmDialog
         open={guestConfirmOpen}
         title="清理已迁入的游客记录？"
-        description="只清理服务端确认已安全迁入目标的记录；不会清空 IndexedDB，也不会删除未迁移记录。"
+        description="仅清理服务器已确认迁入目标的游客账目，不清空本机存储，也不删除未迁入的账目。"
         consequences={[
           "本机游客账本中已确认迁入的指定记录会移入本机清理记录，可恢复",
           "未迁移、已跳过、已变化或目标校验不通过的记录会保留",
           "其他游客账本、离线队列、分类/设置不会被清空",
-          "重复点击是幂等的；已经清理的记录不会再次处理",
+          "已清理的账目不会重复处理",
         ]}
         confirmLabel="确认清理已迁入记录"
         busy={guestBusy}
@@ -2287,14 +2286,14 @@ function SourceRetentionCard({
             ? "仍有未确认迁入的来源账目，仍要弃置来源？"
             : "弃置来源账本？"
         }
-        description="弃置走 S13 生命周期，不是直接删除数据库记录。"
+        description="弃置后暂时保留来源数据，可在恢复期限内恢复。"
         consequences={[
           (disposition?.unmigratedCount ?? 0) > 0
             ? `来源中仍有 ${String(disposition?.unmigratedCount ?? 0)} 笔账目没有确认迁入目标；弃置不会删除它们，但之后需要恢复来源才能查看`
             : "来源账本中的账目都能在目标账本中找到",
-          "弃置后来源账本仍保留服务端数据，可在 S13 恢复期限内恢复",
+          "弃置后来源数据仍保存在服务器，可在恢复期限内恢复",
           "不会执行永久删除，也不会删除备份",
-          "超过恢复期限后，来源会按 S13 生命周期进入计划永久删除；届时不再可恢复",
+          "超过恢复期限后，来源账本将按计划永久删除；届时无法恢复",
         ]}
         confirmLabel={(disposition?.unmigratedCount ?? 0) > 0 ? "我确认仍有未迁入记录，弃置来源" : "确认弃置来源"}
         busy={archiveBusy}
@@ -2402,15 +2401,15 @@ function ReviewStep({
         <div className="rounded-card border border-line bg-surface px-5 py-4">
           <p className="text-body font-medium text-ink">快捷建议</p>
           <p className="mt-1 text-helper-relaxed text-muted">
-            这里只填充下面的逐条选择，不会直接删除任何记录；请核对每一笔 A 的去留。
+            这里只填充下面的逐条选择，不会直接删除任何记录；请核对目标账本中每一笔账目的去留。
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {(
               [
-                ["keep_a", "保留 A", "B 全跳过，A 全保留"],
-                ["keep_b", "保留 B", "B 全导入，A 全移除"],
-                ["keep_both", "两边都保留", "B 全导入，A 全保留"],
-                ["keep_neither", "两边都不保留", "B 全跳过，A 全移除"],
+                ["keep_a", "保留目标账本", "来源跳过，目标保留"],
+                ["keep_b", "保留来源账本", "来源导入，目标移除"],
+                ["keep_both", "两边都保留", "来源导入，目标保留"],
+                ["keep_neither", "两边都不保留", "来源跳过，目标移除"],
               ] as const
             ).map(([action, label, hint]) => (
               <button
@@ -2433,7 +2432,7 @@ function ReviewStep({
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <p className="text-body font-medium text-ink">
-          来源 B
+          来源账本
           <span className="ml-2 text-helper font-normal text-muted">导入 / 跳过</span>
         </p>
         <ul className="mt-1 divide-y divide-line">
@@ -2459,8 +2458,8 @@ function ReviewStep({
         <div className="my-4 h-px bg-line" />
 
         <p className="text-body font-medium text-ink">
-          目标 A
-          <span className="ml-2 text-helper font-normal text-muted">保留 / 移除（软删除）</span>
+          目标账本
+          <span className="ml-2 text-helper font-normal text-muted">保留 / 移除（可恢复）</span>
         </p>
         <ul className="mt-1 divide-y divide-line">
           {targetRecords.map((record) => {
@@ -2476,7 +2475,7 @@ function ReviewStep({
                   value={handling}
                   options={[
                     { value: "keep", label: "保留" },
-                    { value: "remove", label: "移除（软删除）", tone: "danger" },
+                    { value: "remove", label: "移除（可恢复）", tone: "danger" },
                   ]}
                   onChange={(next) => onTarget(group.id, record.transaction.id, next as TargetHandling)}
                 />
@@ -2492,7 +2491,7 @@ function ReviewStep({
 
       {removed > 0 ? (
         <p className="text-helper-relaxed text-muted">
-          最终确认时会再次列出这 {String(removed)} 笔将被软删除的 A 记录，并要求明确确认。
+          最终确认时将再次列出这 {String(removed)} 笔待删除的目标账目，请逐笔核对。
         </p>
       ) : null}
 
@@ -2550,7 +2549,7 @@ function decisionSummary(
   if (imported === 0 && skipped === group.sourceCount && removed === 0) {
     return "将跳过全部来源记录，目标记录全部保留。";
   }
-  return `将导入 ${String(imported)} 笔来源记录、跳过 ${String(skipped)} 笔；目标 A 保留 ${String(kept)} 笔、软删除 ${String(removed)} 笔。`;
+  return `将导入 ${String(imported)} 笔来源账目、跳过 ${String(skipped)} 笔；目标账本保留 ${String(kept)} 笔、删除 ${String(removed)} 笔。`;
 }
 
 function SegmentedChoice({
@@ -2668,7 +2667,7 @@ function ConfirmStep({
           ) : null}
           {result.removedCount > 0 ? (
             <p className="mt-1 text-helper-relaxed text-muted">
-              按你的核对选择，软删除了 {String(result.removedCount)} 笔目标账目；它们可在原账目的历史/恢复入口恢复。
+              已按你的选择删除 {String(result.removedCount)} 笔目标账目。可从编辑历史逐笔恢复；账本须仍然存在，且你有编辑权限。
             </p>
           ) : null}
         </div>
@@ -2695,7 +2694,7 @@ function ConfirmStep({
               <span className="text-ink">{String(result.skippedCount)} 笔</span>
             </li>
             <li className="flex justify-between gap-3">
-              <span className="text-muted">软删除 A</span>
+              <span className="text-muted">已删除目标账目</span>
               <span className="text-ink">{String(result.removedCount)} 笔</span>
             </li>
             <li className="flex justify-between gap-3">
@@ -2784,7 +2783,7 @@ function ConfirmStep({
         <div className="mt-4 grid grid-cols-3 divide-x divide-line">
           <Metric label="将导入" value={`${String(importedTransactions.length)} 笔`} />
           <Metric label="跳过" value={`${String(skipped.size)} 笔`} />
-          <Metric label="将软删除" value={`${String(removals.length)} 笔`} />
+          <Metric label="将删除" value={`${String(removals.length)} 笔`} />
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
           分类/支付/标签：复用 {String(reuse)} 个 · 新建 {String(create)} 个。同名属性冲突已按你的选择处理。
@@ -2814,7 +2813,7 @@ function ConfirmStep({
         ) : (
           <details className="mt-3 rounded-field border border-line bg-canvas px-3 py-2">
             <summary className="cursor-pointer text-helper font-medium text-ink">
-              将软删除 A 的 {String(removals.length)} 笔记录（展开核对）
+              将删除 {String(removals.length)} 笔目标账目（展开核对）
             </summary>
             <ul className="mt-2 max-h-48 divide-y divide-line overflow-auto">
               {removals.map((item) => (
@@ -2828,7 +2827,7 @@ function ConfirmStep({
               ))}
             </ul>
             <p className="mt-2 text-helper-relaxed text-muted">
-              只会软删除上面这些记录；它们会进入现有删除/恢复入口，不会变成永久删除。来源账本数据不受影响。
+              仅删除上面列出的账目，可从编辑历史恢复，不会永久删除。来源账本不受影响。
             </p>
           </details>
         )}

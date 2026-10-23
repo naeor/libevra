@@ -122,7 +122,7 @@ describe("share links", () => {
     const entries = (history.json() as {
       entries: { kind: string; changes: { label: string }[] }[];
     }).entries;
-    expect(entries.some((entry) => entry.kind === "member_changed" && entry.changes.some((change) => change.label === "joined"))).toBe(true);
+    expect(entries.some((entry) => entry.kind === "member_changed" && entry.changes.some((change) => change.label === "加入账本"))).toBe(true);
   });
 
   it("stops working the moment it is revoked", async () => {

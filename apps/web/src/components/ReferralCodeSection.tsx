@@ -78,14 +78,14 @@ export function ReferralCodeSection(): React.JSX.Element {
         */}
       {exhausted ? (
         <p className="rounded-card border border-line bg-surface px-5 py-4 text-body-relaxed text-muted">
-          次级邀请码一共只能生成 {String(quota?.limit ?? 3)} 个，你已经用完了。
-          这是终身额度，撤销或过期的邀请码不会退还名额。
+          已用完 {String(quota?.limit ?? 3)} 个邀请码名额。
+          额度为终身限额，撤销或过期后不返还。
         </p>
       ) : null}
 
       {mintedCode === null ? null : (
         <div className="rounded-card border border-brand bg-brand-soft/40 px-5 py-4">
-          <p className="text-helper text-muted">把这个码给要注册的人：</p>
+          <p className="text-helper text-muted">注册邀请码</p>
           <p className="mt-2 rounded-field bg-surface px-3 py-2 text-center font-mono text-lg tracking-widest text-ink">
             {mintedCode}
           </p>
@@ -122,9 +122,9 @@ export function ReferralCodeSection(): React.JSX.Element {
             * asks the user to make a decision and then ignores it.
             */}
           <p className="text-body-relaxed text-muted">
-            生成之后，把码给要注册的人。他会得到一个独立的账号和自己的账本，
-            <strong className="font-medium text-ink">与你的任何账本都没有关系</strong>——
-            想让他进某一本账，要在那本账里单独邀请他，而且他也要同意。
+            邀请码用于创建独立账号，
+            <strong className="font-medium text-ink">不会加入你的账本</strong>。
+            一起记账需另行发送账本邀请，并由对方接受。
           </p>
 
           <div className="mt-4 flex gap-3">
@@ -157,8 +157,7 @@ export function ReferralCodeSection(): React.JSX.Element {
       ) : null}
 
       <p className="text-helper-relaxed text-muted">
-        用邀请码注册的人得到的是一个普通账号，与你的账本没有关系。
-        通过邀请码注册的账号不能再生成邀请码——否则一次邀请会被变成无数次。
+        通过邀请码注册的账号不能生成邀请码。
       </p>
     </section>
   );

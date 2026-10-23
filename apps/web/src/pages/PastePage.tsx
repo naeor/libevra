@@ -103,7 +103,7 @@ export function PastePage(): React.JSX.Element {
       {clipboardError === null ? null : <Alert tone="info">{clipboardError}</Alert>}
 
       <section className="flex flex-col gap-3">
-        <label htmlFor="paste-text" className="text-helper text-muted">
+        <label htmlFor="paste-text" className="text-card-title text-ink">
           交易文字
         </label>
         <textarea
@@ -141,7 +141,7 @@ export function PastePage(): React.JSX.Element {
           识别交易
         </Button>
 
-        <p className="text-helper text-muted">
+        <p className="text-helper-relaxed text-muted">
           不会自动读取剪贴板；识别只在本机完成，不会把文字发给外部 AI，也不会在确认前写入账本。
         </p>
       </section>
@@ -156,7 +156,7 @@ export function PastePage(): React.JSX.Element {
         </Alert>
       ) : (
         <section className="flex flex-col gap-3">
-          <h2 className="text-helper text-muted">
+          <h2 className="text-section-title text-ink">
             识别结果（{candidates.length > 1 ? `共 ${String(candidates.length)} 笔` : "1 笔"}）
           </h2>
 
@@ -239,13 +239,13 @@ function CandidateCard({
         and doubled the card's height; the split check it exists for only applies to several cards.
       */}
       {total > 1 ? (
-        <p className="whitespace-pre-wrap rounded-field bg-canvas px-3 py-2 text-helper text-muted">
+        <p className="whitespace-pre-wrap rounded-field bg-canvas px-3 py-2 text-helper-relaxed text-muted">
           {candidate.sourceText}
         </p>
       ) : null}
 
       {parsed.issues.length > 0 ? (
-        <ul className="flex flex-col gap-1 text-helper text-muted">
+        <ul className="flex flex-col gap-1 text-helper-relaxed text-muted">
           {parsed.issues.map((issue) => (
             <li key={`${issue.field}:${issue.code}`}>
               {issue.severity === "ambiguous" ? "需要确认：" : "提示："}

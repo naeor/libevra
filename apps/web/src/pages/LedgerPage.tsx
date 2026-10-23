@@ -188,7 +188,7 @@ export function LedgerPage(): React.JSX.Element {
             <HistoryList
               limit={3}
               embedded
-              emptyHint="这本账还没有改动记录。改动记录从这个功能上线之后开始，之前的操作不会补记。"
+                emptyHint="暂无编辑记录。此功能启用前的操作不在记录中。"
             />
           </SectionFrame>
 

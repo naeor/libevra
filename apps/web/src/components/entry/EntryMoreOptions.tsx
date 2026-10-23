@@ -102,7 +102,7 @@ export function EntryMoreOptions({
             className="flex flex-col gap-4 border-t border-line px-4 py-4"
           >
             <div className="flex flex-col gap-2">
-              <h3 className="text-helper text-muted">支付方式</h3>
+              <h3 className="text-card-title text-ink">支付方式</h3>
               <div className="flex flex-wrap gap-2">
                 {paymentMethods.map((method) => (
                   <button
@@ -124,7 +124,7 @@ export function EntryMoreOptions({
             </div>
 
             <label className="flex flex-col gap-2">
-              <span className="text-helper text-muted">备注</span>
+              <span className="text-card-title text-ink">备注</span>
               <input
                 aria-label="备注"
                 value={note}
@@ -139,7 +139,7 @@ export function EntryMoreOptions({
 
             {tags.length > 0 ? (
               <div className="flex flex-col gap-2">
-                <h3 className="text-helper text-muted">
+                <h3 className="text-card-title text-ink">
                   标签（最多 {String(MAX_TAGS_PER_TRANSACTION)} 个，已选 {String(selectedTagIds.length)}{" "}
                   个）
                 </h3>

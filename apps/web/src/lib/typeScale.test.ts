@@ -39,14 +39,6 @@ const ALLOWED: readonly { readonly file: string; readonly why: string }[] = [
     file: "pages/ExportPage.tsx",
     why: "16px 是 input 的**防 iOS 聚焦缩放**阈值，与 `index.css` 的全局规则同义（所有者 §8.4）",
   },
-  {
-    file: "components/CopyButton.tsx",
-    why: "**待归并**：10px 的复制按钮不在图表里，没有理由比底部导航还小。记在这里而不是忘掉",
-  },
-  {
-    file: "components/InfoHint.tsx",
-    why: "**待归并**：`size-4` 的圆形问号徽标，属于「紧凑徽标」例外，但 10px 偏小",
-  },
 ];
 
 /** ⚠️ The chart components, taken as a directory rather than one by one. */
@@ -110,7 +102,7 @@ describe("任意字号", () => {
     expect(
       offenders,
       [
-        "组件里出现了任意字号。请改用语义 token（见 docs/开发过程记录/文字语义与排版规范.md §3）：",
+        "组件里出现了任意字号。请改用语义 token（见 docs/specs/design/文字语义与排版规范.md §13）：",
         "  正文 text-body ｜ 辅助 text-helper ｜ 微文字 text-micro ｜ 功能区标题 text-section-title",
         "确实需要新尺寸时，先加语义 token，再把它加进本测试的白名单并写明理由。",
         `  ${offenders.join("\n  ")}`,
