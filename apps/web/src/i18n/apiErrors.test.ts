@@ -160,3 +160,35 @@ describe("服务器错误码的译文", () => {
     expect(Object.entries(enApi).filter(([, text]) => /\{\{/.test(text))).toEqual([]);
   });
 });
+
+describe("校验失败时优先显示具体原因（S16 整合）", () => {
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("英文界面把 shared 的校验原文翻成具体英文，而不是笼统的“请检查填写内容”", () => {
+    applyLocale("en-US");
+    const message = localizedApiErrorMessage(new ApiRequestError(400, "validation_failed", "密码至少 8 位"));
+    expect(message).not.toMatch(/[㐀-鿿]/u);
+    expect(message).not.toBe(enUS.errors.api.validation_failed);
+  });
+
+  it("查不到原文时退回错误码的通用说明", () => {
+    applyLocale("en-US");
+    expect(localizedApiErrorMessage(new ApiRequestError(400, "validation_failed", "某个没有收录的原文"))).toBe(
+      enUS.errors.api.validation_failed,
+    );
+  });
+
+  it("中文界面保持服务器原文", () => {
+    expect(localizedApiErrorMessage(new ApiRequestError(400, "validation_failed", "密码至少 8 位"))).toBe("密码至少 8 位");
+  });
+
+  it("浏览器端自己构造的错误码按当前语言显示", () => {
+    applyLocale("en-US");
+    expect(localizedApiErrorMessage(new ApiRequestError(0, "not_stored", "这一笔还没有存到本机"))).not.toMatch(/[㐀-鿿]/u);
+    expect(localizedApiErrorMessage(new ApiRequestError(500, "account_export_failed", "导出失败。"))).not.toMatch(
+      /[㐀-鿿]/u,
+    );
+  });
+});

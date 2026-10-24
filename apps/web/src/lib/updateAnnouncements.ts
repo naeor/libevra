@@ -7,6 +7,9 @@
  * popup itself is driven by the separate server policy (`packages/shared/src/consent.ts`) and the
  * existing account-level acknowledgement table; this file only provides the full history/detail
  * pages, so the two sources must keep the same user-visible facts.
+ *
+ * i18n-ignore-file：本文件是更新公告的中文**内容数据**（源语言原文）。英文整篇译文在
+ * `i18n/content/updateAnnouncements.en.ts`，显示时由 `localizeUpdateAnnouncement()` 替换。
  */
 import { currentLocale, isChineseLocale } from "../i18n/index.js";
 

@@ -324,6 +324,10 @@ const CLIENT_ERROR_KEYS = {
   timeout: "errors.client.timeout",
   malformed_response: "errors.client.malformed",
   unexpected_error: "errors.client.unavailable",
+  /** `lib/queries.ts`：离线写入没能存进本机。 */
+  not_stored: "ledger.queries.notStored",
+  /** `lib/consent.ts`：账号导出下载失败且服务器没给出原因。 */
+  account_export_failed: "account.data.exportFailed",
 } as const;
 
 /**
@@ -336,6 +340,14 @@ const CLIENT_ERROR_KEYS = {
 export function localizedApiErrorMessage(error: ApiRequestError): string {
   if (error.code in CLIENT_ERROR_KEYS) return t(CLIENT_ERROR_KEYS[error.code as keyof typeof CLIENT_ERROR_KEYS]);
   if (isChineseLocale()) return error.message;
+  /**
+   * 校验失败时服务器给的往往是 shared 里的具体原因（“密码至少 8 位”）；先查原文对照表，
+   * 查得到就显示具体原因，查不到再用错误码的通用说明。
+   */
+  if (error.code === "validation_failed") {
+    const specific = translateSharedMessage(error.message);
+    if (specific !== error.message) return specific;
+  }
   const key = `errors.api.${error.code}`;
   if (i18next.exists(key)) return i18next.t(key as "errors.api.validation_failed");
   const shared = translateSharedMessage(error.message);
