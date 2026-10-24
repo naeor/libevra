@@ -194,7 +194,7 @@ export function FactRow({
   readonly action?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-5 py-3">
+    <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-5 py-3">
       <dt className="min-h-7 content-center text-card-title text-ink">{label}</dt>
       <dd
         className={`flex min-w-0 items-center justify-end gap-2 text-right text-body text-ink tabular-nums ${mono ? "font-mono tracking-wide" : ""}`}

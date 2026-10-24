@@ -625,7 +625,7 @@ export function EntryDetailPage(): React.JSX.Element {
         </>
       ) : (
         <>
-          <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-body [&>dd]:min-w-0 [&>dd]:break-words">
+          <dl className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-body [&>dd]:min-w-0 [&>dd]:break-words">
             <dt className="text-card-title text-ink">{t("common.field.category")}</dt>
             <dd className="text-right text-ink">
               {displayCategoryName(data.categoryIsSystem ? UNCATEGORISED_NAME : data.categoryName)}

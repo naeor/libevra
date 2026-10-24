@@ -33,7 +33,7 @@ export function LedgerInfoPage(): React.JSX.Element {
       {ledger.isPending ? <SkeletonRows rows={3} /> : null}
 
       {ledger.isSuccess ? (
-        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-sm">
+        <dl className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-sm">
           <dt className="text-muted">{t("books.info.name")}</dt>
           <dd className="min-w-0 text-right break-words text-ink">{ledger.data.book.name}</dd>
 

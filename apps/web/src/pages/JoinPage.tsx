@@ -81,7 +81,7 @@ export function JoinPage(): React.JSX.Element {
       ) : null}
 
       <div className="rounded-card border border-line bg-surface p-5">
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 text-sm">
+        <dl className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 text-sm">
           <dt className="text-muted">{t("account.join.ledger")}</dt>
           <dd className="min-w-0 break-words text-right text-ink">{data.bookName}</dd>
 

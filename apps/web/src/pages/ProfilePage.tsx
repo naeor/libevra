@@ -37,7 +37,7 @@ export function ProfilePage(): React.JSX.Element {
   return (
     <InnerPage title={t("account.profile.title")} backTo="/me">
       {/* 个人资料独立保留紧凑的只读样式，不回调共享 FactRow 的全站文字层级。 */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-4 rounded-card border border-line bg-surface p-5 text-body">
+      <dl className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-center gap-x-4 gap-y-4 rounded-card border border-line bg-surface p-5 text-body">
         <dt className="text-muted">{t("account.profile.nickname")}</dt>
         <dd className="min-w-0 break-words text-right text-ink">{user.displayName}</dd>
         <dt className="text-muted">{t("account.profile.username")}</dt>
