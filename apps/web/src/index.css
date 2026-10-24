@@ -562,6 +562,13 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /*
+    ⚠️ **S16 国际化：一个放不下的长单词只在“本来就要溢出”时才折行。**
+    中文本来就能在任意字之间换行；英文（以及以后的德语等长复合词、长网址、长用户名、文件名）
+    遇到比容器还宽的单词时会把页面撑出横向滚动。`break-word` 只在这种情况下生效，
+    不改变正常排版，也不影响 `truncate`（`white-space: nowrap` 时不起作用）。
+  */
+  overflow-wrap: break-word;
 }
 
 /*
@@ -704,6 +711,12 @@ body {
   字标与块同宽时（中文），`left: 50%` 与 `translateX(-50%)` 正好抵消，位置与以前完全相同。
 */
 .space-brand-name { position: relative; width: fit-content; left: calc(50% * (1 - var(--p))); transform: translateX(calc(-50% * (1 - var(--p)))); }
+/*
+  更长的语言（伪语言压力测试里加长 40%）会让一行标语超过屏幕宽度。整块最宽到“屏宽减两侧边距”，
+  超出时标语自己换行；中文与英文在 320px 下都放得下一行，渲染与以前相同。
+*/
+.space-brand { width: max-content; max-width: calc(100vw - 2 * var(--space-content-left, 24px)); }
+.space-brand-tagline { white-space: normal; }
 .space-brand-tagline { margin-top: calc(10px - 7px * var(--p)); font-size: calc(14px - 4px * var(--p)); line-height: 1.5; letter-spacing: 0.08em; }
 
 /*
