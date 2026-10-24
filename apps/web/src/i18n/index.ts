@@ -25,6 +25,7 @@ import {
   isLocale,
   type Locale,
 } from "./locales.js";
+import { PSEUDO_LOCALE, pseudoEnabled, pseudoLocalizeTree } from "./pseudo.js";
 import { enUS, zhCN } from "./resources/index.js";
 
 export { LOCALE_NATIVE_NAMES, LOCALE_SHORT_NAMES, SUPPORTED_LOCALES, type Locale } from "./locales.js";
@@ -47,7 +48,8 @@ void i18next.use(initReactI18next).init({
   },
   lng: SOURCE_LOCALE,
   fallbackLng: SOURCE_LOCALE,
-  supportedLngs: [...SUPPORTED_LOCALES],
+  // 伪语言只在开发环境注册（见 `pseudo.ts`），生产包里只有两种正式语言。
+  supportedLngs: import.meta.env?.DEV === true ? [...SUPPORTED_LOCALES, PSEUDO_LOCALE] : [...SUPPORTED_LOCALES],
   load: "currentOnly",
   defaultNS: "translation",
   ns: ["translation"],
@@ -70,6 +72,7 @@ export const i18n = i18next;
 /** 当前界面语言。 */
 export function currentLocale(): Locale {
   const value = i18next.resolvedLanguage ?? i18next.language;
+  if (value === PSEUDO_LOCALE) return "en-US"; // 伪语言按英文格式化日期与数字
   return isLocale(value) ? value : SOURCE_LOCALE;
 }
 
@@ -103,10 +106,15 @@ export function useI18n(): { readonly t: typeof i18next.t; readonly locale: Loca
 export function useLanguageRerender(): Locale {
   const { i18n: instance } = useTranslation();
   const value = instance.resolvedLanguage ?? instance.language;
+  if (value === PSEUDO_LOCALE) return "en-US";
   return isLocale(value) ? value : SOURCE_LOCALE;
 }
 
 /** 直接切换显示语言（不保存偏好）。正常界面请用 `lib/languageRuntime.ts` 的控制器。 */
 export function applyLocale(locale: Locale): void {
-  if (i18next.language !== locale) void i18next.changeLanguage(locale);
+  const target = locale === "en-US" && pseudoEnabled() ? PSEUDO_LOCALE : locale;
+  if (target === PSEUDO_LOCALE && !i18next.hasResourceBundle(PSEUDO_LOCALE, "translation")) {
+    i18next.addResourceBundle(PSEUDO_LOCALE, "translation", pseudoLocalizeTree(enUS));
+  }
+  if (i18next.language !== target) void i18next.changeLanguage(target);
 }

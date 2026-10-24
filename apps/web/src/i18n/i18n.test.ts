@@ -140,3 +140,16 @@ describe("运行时翻译与回退", () => {
     expect(missingTranslationKeys().some((entry) => entry.endsWith("testOnly.doesNotExist"))).toBe(true);
   });
 });
+
+describe("伪语言（开发用长文本压力测试）", () => {
+  it("保留占位符与标签，加长并加括号", async () => {
+    const { pseudoLocalizeText } = await import("./pseudo.js");
+    const out = pseudoLocalizeText("Hello {{name}}, <b>save</b> now");
+    expect(out.startsWith("⟦")).toBe(true);
+    expect(out.endsWith("⟧")).toBe(true);
+    expect(out).toContain("{{name}}");
+    expect(out).toContain("<b>");
+    expect(out).toContain("</b>");
+    expect(out.length).toBeGreaterThan("Hello {{name}}, <b>save</b> now".length);
+  });
+});

@@ -694,6 +694,16 @@ body {
   white-space: nowrap;
 }
 .space-brand-name { font-size: calc(2.1rem - 0.7rem * var(--p)); font-weight: 600; letter-spacing: 0.16em; line-height: 1.3; }
+/*
+  ⚠️ **S16 国际化：标语比字标宽时，字标在展开态仍然居中。**
+
+  中文标语比 `Libevra` 窄，整块的宽度由字标决定，两行看起来就是居中的。英文标语更长，块变宽后左对齐的
+  字标会偏到左边。这里让字标按同一个 `--p` 插值：展开态（p=0）在块内居中，收起态（p=1）回到左对齐——
+  与整块位置用的是同一个进度值，拖动过程中连续变化，不另起动画。
+
+  字标与块同宽时（中文），`left: 50%` 与 `translateX(-50%)` 正好抵消，位置与以前完全相同。
+*/
+.space-brand-name { position: relative; width: fit-content; left: calc(50% * (1 - var(--p))); transform: translateX(calc(-50% * (1 - var(--p)))); }
 .space-brand-tagline { margin-top: calc(10px - 7px * var(--p)); font-size: calc(14px - 4px * var(--p)); line-height: 1.5; letter-spacing: 0.08em; }
 
 /*
