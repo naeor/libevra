@@ -73,9 +73,12 @@ const isRecord = (rel) => rel.startsWith("archive/") || RECORD_FILES.has(rel);
 const css = readFileSync(join(ROOT, "apps", "web", "src", "index.css"), "utf8");
 
 /** Every `--color-*` / `--radius-*` / `--text-*` currently defined. */
+// 文档的默认值表对应 @theme 浅色基线，不能被后面的模式或组件局部覆盖污染。
+const defaultTheme = /@theme\s*\{([\s\S]*?)^\}/m.exec(css)?.[1];
+if (defaultTheme === undefined) throw new Error("找不到 @theme 默认值块");
 function tokensOf(prefix) {
   const out = new Map();
-  for (const m of css.matchAll(new RegExp(`--${prefix}[a-z0-9-]*:\\s*([^;]+);`, "gi"))) {
+  for (const m of defaultTheme.matchAll(new RegExp(`--${prefix}[a-z0-9-]*:\\s*([^;]+);`, "gi"))) {
     const name = m[0].slice(0, m[0].indexOf(":")).trim();
     out.set(name, m[1].trim());
   }
