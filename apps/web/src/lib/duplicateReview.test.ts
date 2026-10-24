@@ -1,8 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import type { CreateTransactionInput } from "@libellum/shared";
+import {
+  DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+  describeDuplicateMatch,
+  evaluateDuplicatePair,
+  type CreateTransactionInput,
+  type DuplicateCandidateFields,
+  type DuplicateDetectionSettings,
+} from "@libellum/shared";
 
-import { candidateFromInput } from "./duplicateReview.js";
+import { applyLocale } from "../i18n/index.js";
+import { candidateFromInput, describeDuplicateMatchText, duplicateScopeLabel } from "./duplicateReview.js";
 
 /**
  * OCR 批量/导入预览在**写入之前**就检测，候选人必须与写入后账本里的那一笔一致。
@@ -54,5 +62,64 @@ describe("candidateFromInput", () => {
     expect(candidate.categoryId).toBeNull();
     expect(candidate.paymentMethodId).toBeNull();
     expect(candidate.note).toBeNull();
+  });
+});
+
+/**
+ * S16：依据说明按规则结果在 Web 端重新拼句（`describeDuplicateMatchText`）。
+ *
+ * 中文必须与 shared 的 `describeDuplicateMatch` **逐字一致**——拍照、语音、OCR、全账本检查都用这一句，
+ * 换一种说法就会重新出现“同一判定六种说法”；英文界面里不能残留中文。
+ */
+describe("describeDuplicateMatchText", () => {
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  const base: DuplicateCandidateFields = {
+    id: "a",
+    bookId: "book-1",
+    kind: "expense",
+    amountCents: 2_000,
+    currency: "CNY",
+    occurredAt: "2026-10-09T12:34:00+08:00",
+    occurredLocalDate: "2026-10-09",
+    categoryId: "c1",
+    paymentMethodId: "m1",
+  };
+
+  function pair(
+    right: Partial<DuplicateCandidateFields>,
+    settings: DuplicateDetectionSettings = DEFAULT_DUPLICATE_DETECTION_SETTINGS,
+    left: Partial<DuplicateCandidateFields> = {},
+  ) {
+    return evaluateDuplicatePair({ ...base, ...left }, { ...base, id: "b", ...right }, settings);
+  }
+
+  const cases = {
+    allSame: pair({ occurredAt: "2026-10-09T12:34:30+08:00" }),
+    missingCategory: pair({ categoryId: null }),
+    noTime: pair({ occurredAt: null }, DEFAULT_DUPLICATE_DETECTION_SETTINGS, { occurredAt: null }),
+    rulesOff: pair({}, { ...DEFAULT_DUPLICATE_DETECTION_SETTINGS, matchCategory: false, matchPaymentMethod: false }),
+    suppressed: { ...pair({}), suppressed: true },
+  };
+
+  it("中文与 shared 原文逐字一致", () => {
+    for (const result of Object.values(cases)) {
+      expect(describeDuplicateMatchText(result)).toBe(describeDuplicateMatch(result));
+    }
+  });
+
+  it("英文按规则拼句，不残留中文", () => {
+    applyLocale("en-US");
+
+    expect(describeDuplicateMatchText(cases.allSame)).toBe(
+      "Same type, amount, currency, time, category, and payment method.",
+    );
+    expect(describeDuplicateMatchText(cases.missingCategory)).toContain("category missing");
+    for (const result of Object.values(cases)) {
+      expect(describeDuplicateMatchText(result)).not.toMatch(/[㐀-鿿]/);
+    }
+    expect(duplicateScopeLabel("local")).toBe("data on this device");
   });
 });

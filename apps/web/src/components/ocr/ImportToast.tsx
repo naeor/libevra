@@ -12,6 +12,7 @@
  *    定时器在 `ImportDoneScreen` 里，卸载时清理。
  */
 
+import { t } from "../../i18n/index.js";
 import type { OcrImportOutcome } from "../../lib/ocr/import.js";
 
 /** Toast 的语义色：成功、部分失败、全失败。 */
@@ -51,6 +52,8 @@ const GLYPHS: Record<ImportToastTone, string> = {
  *
  * 分支顺序就是优先级：先看有没有“一条都没开始写”的阻塞，再看全失败，再看部分失败，
  * 最后才是成功（成功里还要区分“已经写入账本”和“只在本机排队”）。
+ *
+ * 文案按调用时的界面语言生成；Toast 只显示约 3 秒，不随之后的语言切换重算。
  */
 export function importToastFor(outcome: OcrImportOutcome): ImportToastMessage {
   const succeeded = outcome.succeeded.length;
@@ -61,30 +64,30 @@ export function importToastFor(outcome: OcrImportOutcome): ImportToastMessage {
   if (outcome.blockers.length > 0) {
     return {
       tone: "danger",
-      title: "没有导入任何账目",
-      detail: `${String(outcome.blockers.length)} 笔还不能导入，请先核对或标记无效。`,
+      title: t("ocr.toast.blockedTitle"),
+      detail: t("ocr.toast.blockedDetail", { count: outcome.blockers.length }),
     };
   }
 
   if (succeeded === 0) {
     return {
       tone: "danger",
-      title: "导入失败",
+      title: t("ocr.toast.failedTitle"),
       detail:
         failed > 0
-          ? `${String(failed)} 笔都没有写入，批次仍保留，可以重试。`
-          : "这一批没有账目写入。",
+          ? t("ocr.toast.failedDetail", { count: failed })
+          : t("ocr.toast.failedEmpty"),
     };
   }
 
   if (failed > 0) {
     return {
       tone: "warning",
-      title: `导入完成：成功 ${String(succeeded)} 笔，失败 ${String(failed)} 笔`,
+      title: t("ocr.toast.partialTitle", { succeeded, failed }),
       detail:
         pending > 0
-          ? `失败的 ${String(failed)} 笔仍留在批次里；${String(pending)} 笔在本机排队，联网后自动同步。`
-          : `失败的 ${String(failed)} 笔仍留在批次里，可以重试。`,
+          ? t("ocr.toast.partialPending", { failed, pending })
+          : t("ocr.toast.partialDetail", { failed }),
     };
   }
 
@@ -95,23 +98,23 @@ export function importToastFor(outcome: OcrImportOutcome): ImportToastMessage {
   if (pending > 0 && delivered === 0) {
     return {
       tone: "success",
-      title: "账目已在本机排队",
-      detail: `${String(pending)} 笔待联网后自动同步，不会丢。`,
+      title: t("ocr.toast.queuedTitle"),
+      detail: t("ocr.toast.queuedDetail", { count: pending }),
     };
   }
 
   if (pending > 0) {
     return {
       tone: "success",
-      title: "账目已成功导入",
-      detail: `${String(delivered)} 笔已写入账本，${String(pending)} 笔在本机排队、联网后自动同步。`,
+      title: t("ocr.toast.importedTitle"),
+      detail: t("ocr.toast.mixedDetail", { delivered, pending }),
     };
   }
 
   return {
     tone: "success",
-    title: "账目已成功导入",
-    detail: `本批 ${String(succeeded)} 笔已写入账本。`,
+    title: t("ocr.toast.importedTitle"),
+    detail: t("ocr.toast.importedDetail", { count: succeeded }),
   };
 }
 

@@ -3,6 +3,9 @@
  *
  * Kept out of `*.test.ts` so several suites can share them without one test file
  * importing another. Nothing in the application imports this module.
+ *
+ * i18n-ignore-file：这里的中文是模拟识别结果的测试数据（商户名、账户、版式名），
+ * 不是界面文字，S16 国际化不翻译。
  */
 
 import type { OcrCandidate, OcrItemResult } from "@libellum/shared";

@@ -10,10 +10,84 @@ import {
   type DuplicateReviewCursor,
   type Transaction,
 } from "@libellum/shared";
+import { currentLocale, isChineseLocale, t } from "../i18n/index.js";
+import type zhDuplicates from "../i18n/resources/zh-CN/duplicates.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { apiFetch, currentBookIdHeader } from "./api.js";
 import { isGuestRuntime } from "./guest/runtime.js";
 import { guestDataValue, guestDeletedIds, guestTransactions } from "./guest/data.js";
 import { deletedEntriesValue, readLocalTransactions } from "./offline/localLedger.js";
+
+// ---------------------------------------------------------------------------
+// 依据说明的本地化（S16）
+// ---------------------------------------------------------------------------
+
+type DuplicateFieldKey = keyof typeof zhDuplicates.match.field;
+
+const DUPLICATE_FIELD_KEYS: ReadonlySet<string> = new Set<DuplicateFieldKey>([
+  "amountCents",
+  "currency",
+  "kind",
+  "occurredAt",
+  "categoryId",
+  "paymentMethodId",
+  "merchant",
+  "note",
+  "tagIds",
+]);
+
+function isDuplicateFieldKey(field: string): field is DuplicateFieldKey {
+  return DUPLICATE_FIELD_KEYS.has(field);
+}
+
+/**
+ * 句子里的一串词：中文用「、」连接（与 shared 原文一致），其它语言交给 `Intl.ListFormat`
+ * （英文得到 `amount, currency, and time`）。
+ */
+export function joinDuplicateList(items: readonly string[]): string {
+  if (isChineseLocale()) return items.join(t("duplicates.listSeparator"));
+  return new Intl.ListFormat(currentLocale(), { style: "long", type: "conjunction" }).format(items);
+}
+
+/** 字段名转成当前语言的说法；未知字段原样返回（与 shared 的 `fieldLabel` 同一约定）。 */
+export function duplicateFieldLabel(field: string): string {
+  return isDuplicateFieldKey(field) ? t(`duplicates.match.field.${field}`) : field;
+}
+
+/** 检测范围的说法（`DUPLICATE_SCOPE_LABELS` 按代码翻译）。`local` 绝不能被说成“账本里没有重复”。 */
+export function duplicateScopeLabel(scope: "server" | "local"): string {
+  return t(`duplicates.scope.${scope}`);
+}
+
+/**
+ * `describeDuplicateMatch`（`@libellum/shared`）的界面语言版本：**按规则结果重新拼句**，
+ * 不按中文原文查表。中文输出与 shared 逐字一致（见 `duplicateReview.test.ts`）。
+ *
+ * 所有界面上的“为什么像”都应该用这一句，否则同一判定在不同页面会有不同说法。
+ * 未命中（`matched: false`）时 shared 返回第一条排除规则的中文说明，这里交给
+ * `translateSharedMessage` 查表（正常界面只展示命中的对，这条路径基本走不到）。
+ */
+export function describeDuplicateMatchText(result: DuplicatePairResult): string {
+  if (result.suppressed) return t("duplicates.match.suppressed");
+  if (!result.matched) return translateSharedMessage(result.reason);
+
+  const labels: string[] = [];
+  for (const rule of result.rules) {
+    // 与 shared 的 `checkedFieldsSummary` 相同：跳过的与缺失的字段都没有被比较过。
+    if (rule.outcome === "skipped" || rule.outcome === "missing") continue;
+    const field = rule.fields[0];
+    if (field === undefined || !isDuplicateFieldKey(field)) continue;
+    const label = t(`duplicates.match.field.${field}`);
+    if (!labels.includes(label)) labels.push(label);
+  }
+
+  const checked = labels.length === 0 ? t("duplicates.match.ledgerOnly") : joinDuplicateList(labels);
+  if (result.missingFields.length === 0) return t("duplicates.match.allSame", { fields: checked });
+  return t("duplicates.match.sameWithMissing", {
+    fields: checked,
+    missing: joinDuplicateList(result.missingFields.map(duplicateFieldLabel)),
+  });
+}
 
 /**
  * 一次新增检查的结果，外加**这次答案是从哪来的**。
@@ -112,8 +186,8 @@ export async function checkNewCandidates(
   settings: DuplicateDetectionSettings,
 ): Promise<NewCandidatesResult> {
   if (!settings.enabled) return { pairs: [], history: [], scope: "local", truncated: false };
-  if (candidates.some((candidate) => candidate.bookId !== bookId)) throw new Error("候选记录账本不一致。");
-  if (duplicateBookId() !== bookId) throw new Error("账本已切换，请重新核对。");
+  if (candidates.some((candidate) => candidate.bookId !== bookId)) throw new Error(t("duplicates.errors.mixedBooks"));
+  if (duplicateBookId() !== bookId) throw new Error(t("duplicates.errors.bookChangedReview"));
 
   const pairs = new Map<string, DuplicatePairResult>();
   const history = new Map<string, Transaction>();
@@ -163,7 +237,7 @@ export async function checkNewCandidates(
   }
 
   // 请求期间账本被切换时，结果属于另一本账——宁可报错也不要显示到错的账本上。
-  if (duplicateBookId() !== bookId) throw new Error("账本已切换，请重新核对。");
+  if (duplicateBookId() !== bookId) throw new Error(t("duplicates.errors.bookChangedReview"));
 
   return { pairs: [...pairs.values()], history: [...history.values()], scope, truncated };
 }
@@ -189,7 +263,7 @@ export async function fetchReviewChunk(
         method: "POST", bookId, body: { settings, afterSeq,
           ...(throughSeq === undefined ? {} : { throughSeq }), ...(cursor?.source === "server" ? { cursor: cursor.value } : {}) },
       });
-      if (currentAtStart !== duplicateBookId() || guestAtStart !== isGuestRuntime()) throw new Error("账本已切换，请重新检查。");
+      if (currentAtStart !== duplicateBookId() || guestAtStart !== isGuestRuntime()) throw new Error(t("duplicates.errors.bookChangedCheck"));
       const value = chunk.nextCursor ?? (chunk.nextSeq === null ? null : { leftSeq: chunk.nextSeq, rightSeq: 0, throughSeq: chunk.throughSeq });
       return { ...chunk, scope: "server", continuation: value === null ? null : { source: "server", value } };
     } catch (error) {
@@ -197,22 +271,22 @@ export async function fetchReviewChunk(
       if (!starting || currentAtStart !== duplicateBookId() || guestAtStart !== isGuestRuntime() || bookId !== currentAtStart) throw error;
     }
   } else if (cursor?.source === "server" || (!starting && cursor === undefined)) {
-    throw new Error("在线检查已暂停；恢复连接后可从断点重试，或重新检查本机数据。");
+    throw new Error(t("duplicates.errors.onlinePaused"));
   }
   // 只有当前本地账本的数据可用于离线检查，不能把 A 的快照标成 B。
-  if (bookId !== duplicateBookId()) throw new Error("本机没有这本账的可用检查数据，请联网后重试。");
+  if (bookId !== duplicateBookId()) throw new Error(t("duplicates.errors.noLocalData"));
   let token: string;
   let snapshot: { bookId: string; settings: string; guest: boolean; entries: readonly Transaction[] };
   if (cursor?.source === "local") {
     token = cursor.snapshot;
     const stored = reviewSnapshots.get(token);
     if (!stored || stored.bookId !== bookId || stored.settings !== JSON.stringify(settings) || stored.guest !== isGuestRuntime()) {
-      throw new Error("本机检查快照已失效，请重新检查。");
+      throw new Error(t("duplicates.errors.snapshotExpired"));
     }
     snapshot = stored;
   } else {
     const local = await localEntries();
-    if (bookId !== duplicateBookId()) throw new Error("账本已切换，请重新检查。");
+    if (bookId !== duplicateBookId()) throw new Error(t("duplicates.errors.bookChangedCheck"));
     const unique = new Map(local.map(entry => [entry.id, entry]));
     snapshot = { bookId, settings: JSON.stringify(settings), guest: isGuestRuntime(), entries: structuredClone([...unique.values()].sort((a, b) => a.id.localeCompare(b.id))) };
     token = String(++snapshotSerial);
@@ -258,7 +332,7 @@ export async function fetchImportReview(
 ): Promise<{ pairs: readonly DuplicatePairResult[]; entries: readonly Transaction[]; checked: number; truncated: boolean }> {
   if (!settings.enabled) return { pairs: [], entries: [], checked: 0, truncated: false };
   if (isGuestRuntime() || !navigator.onLine) {
-    throw new Error("游客账本和离线状态没有批量导入的重复检查：这次导入的记录在服务器账本上。");
+    throw new Error(t("duplicates.errors.importReviewUnavailable"));
   }
   const response = await apiFetch<DuplicateImportReviewResponse>("/transactions/duplicates/import-review", {
     method: "POST",

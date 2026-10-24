@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { applyLocale } from "../i18n/index.js";
 import { DuplicateReviewPage } from "./DuplicateReviewPage.js";
 
 /**
@@ -61,5 +62,21 @@ describe("全账本重复检查页", () => {
     expect(html).toContain("不会自动删除或合并任何账目");
     expect(html).not.toContain("自动删除了");
     expect(html).not.toContain("已合并");
+  });
+});
+
+describe("全账本重复检查页（英文界面，S16）", () => {
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("本页文字都是英文（页面框架的返回栏不属于本页，单独去掉）", () => {
+    applyLocale("en-US");
+    const html = renderPage().replace(/<nav[\s\S]*?<\/nav>/g, "");
+
+    expect(html).toContain("Duplicate detection");
+    expect(html).toContain("These follow your current duplicate alert settings");
+    expect(html).toContain("Start check");
+    expect(html).not.toMatch(/[㐀-鿿]/);
   });
 });

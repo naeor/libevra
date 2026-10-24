@@ -21,9 +21,17 @@ import {
   type Currency,
 } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import { localTimeZone, toLocalDate, toLocalIso } from "../datetime.js";
 import { parseAmountInput } from "../format.js";
 import type { OcrBatch, OcrBatchCandidate } from "./types.js";
+
+/**
+ * 写进账目备注的固定词（**数据，不是界面文字**）：备注会保存到服务器、导出、再导入，
+ * 不能随界面语言变化，所以英文界面下也保持中文。
+ */
+const NOTE_ACCOUNT_PREFIX = "账户："; // i18n-ignore：写入账目备注的数据，不随界面语言变化
+export const NOTE_TRANSFER_MARKER = "转账"; // i18n-ignore：写入账目备注的数据，不随界面语言变化
 
 /** 备注上限，与共享 `createTransactionSchema` 一致。 */
 export const NOTE_MAX_LENGTH = 200;
@@ -70,10 +78,10 @@ function hasText(value: string | null): value is string {
   return value !== null && value.trim() !== "";
 }
 
-/** 简短的可读标识，用于失败汇总；不包含完整截图原文。 */
+/** 简短的可读标识，用于失败汇总；不包含完整截图原文。调用时按界面语言取文案。 */
 export function candidateLabel(item: OcrBatchCandidate): string {
-  const amount = hasText(item.amount) ? `${item.amount} ${item.currency ?? ""}`.trim() : "金额待确认";
-  const merchant = hasText(item.merchant) ? item.merchant : "商户待确认";
+  const amount = hasText(item.amount) ? `${item.amount} ${item.currency ?? ""}`.trim() : t("ocr.label.amountPending");
+  const merchant = hasText(item.merchant) ? item.merchant : t("ocr.label.merchantPending");
   return `${amount} · ${merchant}`;
 }
 
@@ -87,8 +95,8 @@ export function composeNote(item: OcrBatchCandidate): string | null {
   const parts: string[] = [];
   if (hasText(item.merchant)) parts.push(item.merchant.trim());
   if (hasText(item.note)) parts.push(item.note.trim());
-  if (hasText(item.account)) parts.push(`账户：${item.account.trim()}`);
-  if (item.isTransfer) parts.push("转账");
+  if (hasText(item.account)) parts.push(`${NOTE_ACCOUNT_PREFIX}${item.account.trim()}`);
+  if (item.isTransfer) parts.push(NOTE_TRANSFER_MARKER);
   return parts.length === 0 ? null : parts.join(" · ");
 }
 
@@ -117,31 +125,36 @@ function blocker(item: OcrBatchCandidate, reason: string): OcrImportBlocker {
  *
  * Separate from the id check so the overview can tell the user *before* the
  * confirmation (and before any uuid is minted) how many items still need work.
+ *
+ * The reason is display text in the current interface language; callers only
+ * ever compare the result with `null`, never with the text.
  */
 export function validationBlocker(item: OcrBatchCandidate): string | null {
-  if (!hasText(item.amount)) return "金额缺失";
+  if (!hasText(item.amount)) return t("ocr.blocker.amountMissing");
 
   if (!isSupportedCurrency(item.currency)) {
-    return hasText(item.currency) ? `账本不支持币种 ${item.currency}` : "币种待确认";
+    return hasText(item.currency)
+      ? t("ocr.blocker.currencyUnsupported", { currency: item.currency })
+      : t("ocr.blocker.currencyPending");
   }
 
   let amountCents: number;
   try {
     amountCents = parseAmountInput(item.amount, item.currency);
   } catch {
-    return "金额格式不正确";
+    return t("ocr.blocker.amountInvalid");
   }
-  if (amountCents <= 0) return "金额需要大于 0";
+  if (amountCents <= 0) return t("ocr.blocker.amountPositive");
 
-  if (item.direction !== "income" && item.direction !== "expense") return "收支方向待确认";
-  if (!validDate(item.occurredLocalDate)) return "日期待确认";
+  if (item.direction !== "income" && item.direction !== "expense") return t("ocr.blocker.directionPending");
+  if (!validDate(item.occurredLocalDate)) return t("ocr.blocker.datePending");
 
   const time = hasText(item.occurredTime) ? item.occurredTime.trim() : "";
-  if (time !== "" && !validTime(time)) return "时间格式不正确";
+  if (time !== "" && !validTime(time)) return t("ocr.blocker.timeInvalid");
 
   const note = composeNote(item);
   if (note !== null && note.length > NOTE_MAX_LENGTH) {
-    return `备注超过 ${String(NOTE_MAX_LENGTH)} 字，请精简`;
+    return t("ocr.blocker.noteTooLong", { max: String(NOTE_MAX_LENGTH) });
   }
 
   return null;
@@ -206,7 +219,7 @@ export function buildImportPlan(batch: OcrBatch): OcrImportPlan {
 
     const id = batch.importIds[item.candidateId];
     if (id === undefined) {
-      blockers.push(blocker(item, "内部错误：这一笔还没有固定的幂等 id，请返回概览重试。"));
+      blockers.push(blocker(item, t("ocr.blocker.noImportId")));
       continue;
     }
 

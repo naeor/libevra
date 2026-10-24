@@ -23,7 +23,6 @@
 import {
   DEFAULT_DUPLICATE_DETECTION_SETTINGS,
   decimalsFor,
-  describeDuplicateMatch,
   evaluateDuplicatePair,
   notDuplicatePairKey,
   parseAmountToMinor,
@@ -31,6 +30,8 @@ import {
   type DuplicateDetectionSettings,
 } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
+import { describeDuplicateMatchText } from "../duplicateReview.js";
 import type { OcrBatchCandidate } from "./types.js";
 
 /** 没有账本上下文（旧测试、极旧批次）时使用的占位账本键。 */
@@ -140,7 +141,7 @@ function toCoreCandidate(
  *
  * 顺序：OCR 专属的“单号”前置 → 统一核心规则。核心返回的 `matched` 已经包含
  * 金额/币种/方向/时间/分类/支付方式/商户等全部可比字段（各自受设置开关控制）；
- * 这里只负责把结果翻译成批次界面用的中文说明。
+ * 这里只负责把结果翻译成批次界面用的说明（调用时的界面语言；分组不进存储，每次渲染重算）。
  */
 export function duplicateReason(
   left: OcrBatchCandidate,
@@ -164,8 +165,8 @@ export function duplicateReason(
 
   if (left.serial !== null && right.serial !== null) {
     if (left.serial !== right.serial) return null;
-    if (left.amount !== right.amount) return "交易单号相同但金额不同，疑似同一笔，请核对";
-    return "交易单号相同";
+    if (left.amount !== right.amount) return t("ocr.duplicate.sameSerialDifferentAmount");
+    return t("ocr.duplicate.sameSerial");
   }
 
   const bookId = options.bookId ?? OCR_BATCH_BOOK_ID;
@@ -178,14 +179,15 @@ export function duplicateReason(
   if (!result.matched) return null;
 
   /**
-   * 文案统一由核心生成（`describeDuplicateMatch`），这里只补一条**核心不知道的事实**：
+   * 文案统一由核心规则结果生成（`describeDuplicateMatchText`，即 shared `describeDuplicateMatch`
+   * 的界面语言版本），这里只补一条**核心不知道的事实**：
    * 两条记录是否跨日。以前这里手写“金额、币种、方向、日期、时间都相同”，
    * 与手动/语音/导入的说法不一致，正是 S15-E1 里“同一判定六种说法”的来源之一。
    */
-  const base = describeDuplicateMatch(result);
+  const base = describeDuplicateMatchText(result);
   const seconds = result.timeDifferenceSeconds === null ? null : Math.round(result.timeDifferenceSeconds);
   if (seconds === null || left.occurredLocalDate === right.occurredLocalDate) return base;
-  return `${base}（两条记录相隔 ${String(seconds)} 秒，跨日）`;
+  return t("ocr.duplicate.crossDay", { base, seconds: String(seconds) });
 }
 
 class UnionFind {
@@ -237,7 +239,7 @@ function groupsFromPairs(
     const reason =
       pairs.find(
         (pair) => candidateIds.includes(pair.left) && candidateIds.includes(pair.right),
-      )?.reason ?? "特征相同";
+      )?.reason ?? t("ocr.duplicate.sameFeatures");
 
     groups.push({
       groupId: `${kind === "same-image" ? "dup-same" : "dup-cross"}-${groups.length + 1}`,
@@ -246,8 +248,8 @@ function groupsFromPairs(
       reason,
       message:
         kind === "cross-image"
-          ? "这些交易可能来自截图重叠或重复上传，被标记为可能重复，请核对后决定保留哪些。"
-          : "同一张截图里出现了可能相同的交易，请核对是否为截图重叠或 OCR 重复。",
+          ? t("ocr.duplicate.crossImage")
+          : t("ocr.duplicate.sameImage"),
     });
   }
 

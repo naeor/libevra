@@ -1,15 +1,14 @@
 import { useMemo, useState } from "react";
 import {
-  DUPLICATE_SCOPE_LABELS,
   UNCATEGORISED_NAME,
   decimalsFor,
-  describeDuplicateMatch,
   type CategoryCandidate,
   type CreateTransactionInput,
   type DuplicatePairResult,
   type Transaction,
   type TransactionTextResult,
 } from "@libellum/shared";
+import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -18,6 +17,8 @@ import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionS
 import { EntrySaved } from "../components/EntrySaved.js";
 import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
 import { InnerPage } from "../components/Layouts.js";
+import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
 import { currentBookId } from "../lib/currentBook.js";
 import {
@@ -26,8 +27,10 @@ import {
   toLocalDate,
   toLocalIso,
 } from "../lib/datetime.js";
+import { describeDuplicateMatchText } from "../lib/duplicateReview.js";
 import { currencyName, formatMoney, parseAmountInput } from "../lib/format.js";
 import { createNotDuplicateRelations, notDuplicateConfirmationForEntry } from "../lib/notDuplicateRelations.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import {
   useCheckDuplicates,
   useCreateTransaction,
@@ -132,6 +135,7 @@ export function draftOf(
  */
 export function VoiceReviewPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
   const ledger = useLedger();
   const createEntry = useCreateTransaction();
   const removeEntry = useDeleteTransaction();
@@ -167,7 +171,16 @@ export function VoiceReviewPage(): React.JSX.Element {
   const paymentMethods = ledger.data?.paymentMethods ?? [];
   const parsed = spoken?.parsed ?? null;
   const origin = spoken?.source === "paste" ? "/paste" : "/record";
-  const heardLabel = spoken?.source === "paste" ? "粘贴的内容" : "听到";
+
+  /** 对话框选项按语言生成一次（见 `localizeChoices`）；必须在下面的提前返回之前调用。 */
+  const choices = useMemo(
+    () => ({
+      duplicate: localizeChoices(MANUAL_DUPLICATE_CHOICES),
+      undone: localizeChoices(UNDONE_CHOICES),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale],
+  );
 
   /**
    * The category a new entry starts on.
@@ -218,12 +231,12 @@ export function VoiceReviewPage(): React.JSX.Element {
       if (notDuplicateWith.length > 0) {
         try {
           const bookId = ledger.data?.book.id ?? currentBookId();
-          if (bookId === null) throw new Error("找不到当前账本，无法记录「不是同一笔」。");
+          if (bookId === null) throw new Error(t("capture.notDuplicate.bookMissing"));
           const confirmation = notDuplicateConfirmationForEntry(notDuplicateWith, entry.id);
-          if (confirmation === null) throw new Error("没有可记录的交易对。");
+          if (confirmation === null) throw new Error(t("capture.notDuplicate.noPairs"));
           await createNotDuplicateRelations(bookId, confirmation);
         } catch (caught) {
-          setError(`这笔账已保存，但「不是同一笔」没有记住：${errorMessage(caught)}`);
+          setError(t("capture.review.notDuplicateFailed", { reason: errorMessage(caught) }));
         }
       }
     } catch (caught) {
@@ -240,14 +253,14 @@ export function VoiceReviewPage(): React.JSX.Element {
    */
   if (spoken === null) {
     return (
-      <InnerPage title="核对" subtitle="没有可核对的内容。" backTo="/">
-        <Alert tone="info">这一页需要一个刚识别好的结果。请先录音或粘贴交易文字。</Alert>
+      <InnerPage title={t("capture.review.title")} subtitle={t("capture.review.emptySubtitle")} backTo="/">
+        <Alert tone="info">{t("capture.review.emptyBody")}</Alert>
         <button
           type="button"
           onClick={() => void navigate("/record")}
           className="text-body text-brand-dark underline"
         >
-          去录音
+          {t("capture.review.goRecord")}
         </button>
       </InnerPage>
     );
@@ -258,13 +271,14 @@ export function VoiceReviewPage(): React.JSX.Element {
       <>
         <EntrySaved
           entry={saved}
-          categoryName={
+          categoryName={displayCategoryName(
             categories.find((category) => category.id === saved.categoryId)?.name ??
-            UNCATEGORISED_NAME
-          }
-          paymentName={
-            paymentMethods.find((method) => method.id === saved.paymentMethodId)?.name ?? null
-          }
+            UNCATEGORISED_NAME,
+          )}
+          paymentName={(() => {
+            const name = paymentMethods.find((method) => method.id === saved.paymentMethodId)?.name;
+            return name === undefined ? null : displayPaymentMethodName(name);
+          })()}
           // One entry at a time, so nothing is waiting behind it.
           remaining={0}
           onHome={() => void navigate("/")}
@@ -284,13 +298,13 @@ export function VoiceReviewPage(): React.JSX.Element {
 
         <ChoiceDialog
           open={undone !== null}
-          title="已撤销这笔记账"
+          title={t("capture.undone.title")}
           description={
             undone === null
               ? ""
-              : `${formatMoney(undone.amountCents, undone.currency)} 已从账本移除。`
+              : t("capture.undone.description", { amount: formatMoney(undone.amountCents, undone.currency) })
           }
-          choices={UNDONE_CHOICES}
+          choices={choices.undone}
           onChoose={(choice) => {
             const entry = undone;
             setUndone(null);
@@ -307,11 +321,11 @@ export function VoiceReviewPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="核对"
+      title={t("capture.review.title")}
       subtitle={
         spoken.source === "paste"
-          ? "粘贴的文字已经填进表单，请确认金额和分类后再保存。"
-          : "听到的内容已经填进表单，请确认金额和分类后再保存。"
+          ? t("capture.review.subtitlePaste")
+          : t("capture.review.subtitleVoice")
       }
       backTo={origin}
     >
@@ -320,22 +334,26 @@ export function VoiceReviewPage(): React.JSX.Element {
       {/*
         What was heard, kept on screen next to the numbers it produced.
         See the note at the top of the file for why this is not decoration.
+        The text itself is the user's own words and is never translated.
       */}
-      <p className="rounded-field bg-canvas px-4 py-3 text-sm leading-relaxed text-muted">
-        {heardLabel}：{spoken.text}
+      <p className="break-words rounded-field bg-canvas px-4 py-3 text-sm leading-relaxed text-muted">
+        {spoken.source === "paste"
+          ? t("capture.review.heardPaste", { text: spoken.text })
+          : t("capture.review.heardVoice", { text: spoken.text })}
       </p>
 
       {/*
         What the parser is unsure about, in its own words.
         A weak match is not the same as a reading, and the review screen is the
         last place where the difference can still change the saved row.
+        The words come from the shared parser (Chinese) and are looked up by text.
       */}
       {parsed !== null && parsed.issues.length > 0 ? (
         <div className="flex flex-col gap-1 rounded-field border border-line px-4 py-3">
           {parsed.issues.map((issue) => (
             <p key={`${issue.field}:${issue.code}`} className="text-helper text-muted">
-              {issue.severity === "ambiguous" ? "需要确认：" : "提示："}
-              {issue.message}
+              {issue.severity === "ambiguous" ? t("capture.issue.ambiguous") : t("capture.issue.warning")}
+              {translateSharedMessage(issue.message)}
             </p>
           ))}
         </div>
@@ -352,12 +370,26 @@ export function VoiceReviewPage(): React.JSX.Element {
       */}
       {categoryReason === null ? null : (
         <p className="text-helper text-muted">
-          {spoken.source === "paste" ? "看到" : "听到"}「{categoryReason}」，已把分类选为
-          <span className="text-ink">
-            {" "}
-            {categories.find((category) => category.id === heardCategoryId)?.name ?? ""}
-          </span>
-          。如果不对，在上面的分类里改一下就好。
+          {/*
+            The matched words and the category name are data (the user's words, the
+            ledger's category), so they are escaped before Trans parses the sentence.
+          */}
+          <Trans
+            i18nKey={
+              spoken.source === "paste"
+                ? "capture.review.categoryReasonPaste"
+                : "capture.review.categoryReasonVoice"
+            }
+            values={{
+              reason: categoryReason,
+              name: displayCategoryName(
+                categories.find((category) => category.id === heardCategoryId)?.name ?? "",
+              ),
+            }}
+            tOptions={{ interpolation: { escapeValue: true } }}
+            shouldUnescape
+            components={{ name: <span className="text-ink" /> }}
+          />
         </p>
       )}
 
@@ -368,7 +400,7 @@ export function VoiceReviewPage(): React.JSX.Element {
         paymentMethods={paymentMethods}
         busy={createEntry.isPending || checkDuplicates.isPending || pendingDuplicate !== null}
         onManual={() => void navigate("/add")}
-        warnings={parsed?.issues.map((issue) => issue.message) ?? []}
+        warnings={parsed?.issues.map((issue) => translateSharedMessage(issue.message)) ?? []}
         onSave={async (edited) => {
           setError(null);
 
@@ -387,14 +419,14 @@ export function VoiceReviewPage(): React.JSX.Element {
           } catch {
             setError(
               decimalsFor(edited.currency) === 0
-                ? `${currencyName(edited.currency)}不支持小数，请输入整数金额。`
-                : "金额格式不正确。",
+                ? t("capture.amount.noDecimals", { currency: currencyName(edited.currency) })
+                : t("capture.amount.invalid"),
             );
             return;
           }
 
           if (amountCents <= 0) {
-            setError("金额需要大于 0。");
+            setError(t("capture.amount.positive"));
             return;
           }
 
@@ -472,9 +504,9 @@ export function VoiceReviewPage(): React.JSX.Element {
 
       <ChoiceDialog
         open={pendingDuplicate !== null}
-        title="这笔账好像已经记过了"
+        title={t("duplicates.reminder.title")}
         description={pendingDuplicate === null ? "" : voiceDuplicateDescription(pendingDuplicate)}
-        choices={MANUAL_DUPLICATE_CHOICES}
+        choices={choices.duplicate}
         onChoose={(choice) => {
           const pending = pendingDuplicate;
           setPendingDuplicate(null);
@@ -500,11 +532,42 @@ export function VoiceReviewPage(): React.JSX.Element {
  * ⚠️ **没有「删掉旧的，保存这笔」**：语音核对页的撤销路径是“保存后撤销”，而不是在保存前
  * 删除历史账目；两种删除语义混在一个对话框里，用户很难分清删的是哪一笔。
  */
-const MANUAL_DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "cancel">[] = [
-  { id: "save", label: "仍然保存", hint: "两笔都留下（也许是两次一样的消费）", primary: true },
-  { id: "confirmNotDuplicate", label: "确认不是同一笔", hint: "两笔都留，并记住这一对：以后不再提示" },
-  { id: "cancel", label: "取消，我再看看", dismissive: true },
+const MANUAL_DUPLICATE_CHOICES: readonly ChoiceDefinition<"save" | "confirmNotDuplicate" | "cancel">[] = [
+  {
+    id: "save",
+    label: () => translate("duplicates.reminder.save"),
+    hint: () => translate("duplicates.reminder.saveHintVoice"),
+    primary: true,
+  },
+  {
+    id: "confirmNotDuplicate",
+    label: () => translate("duplicates.reminder.confirmNotDuplicate"),
+    hint: () => translate("duplicates.reminder.confirmNotDuplicateHint"),
+  },
+  { id: "cancel", label: () => translate("duplicates.reminder.cancel"), dismissive: true },
 ];
+
+/**
+ * 对话框选项的定义（S16）：模块顶层只存 id、行为标记与**取文案的函数**；
+ * `localizeChoices` 在渲染时按当前语言生成 `Choice`（与 `ScanPage` 同一做法）。
+ */
+interface ChoiceDefinition<Id extends string> {
+  readonly id: Id;
+  readonly label: () => string;
+  readonly hint?: () => string;
+  readonly primary?: boolean;
+  readonly dismissive?: boolean;
+}
+
+function localizeChoices<Id extends string>(
+  definitions: readonly ChoiceDefinition<Id>[],
+): readonly Choice<Id>[] {
+  return definitions.map(({ label, hint, ...rest }) => ({
+    ...rest,
+    label: label(),
+    ...(hint === undefined ? {} : { hint: hint() }),
+  }));
+}
 
 /** 提醒正文：依据来自实际命中的规则，并说明本次比对了哪份数据。 */
 function voiceDuplicateDescription(pending: {
@@ -513,10 +576,15 @@ function voiceDuplicateDescription(pending: {
   readonly scope: "server" | "local";
 }): string {
   const first = pending.pairs[0];
-  const basis = first === undefined ? "金额、收支方向和时间与已有账目相符。" : describeDuplicateMatch(first);
-  const count = pending.existing.length > 1 ? `共找到 ${String(pending.existing.length)} 笔相似记录。` : "";
-  const scopeNote = pending.scope === "local" ? `本次只比对了${DUPLICATE_SCOPE_LABELS.local}。` : "";
-  return `${basis}${count}${scopeNote}`;
+  const basis = first === undefined
+    ? translate("duplicates.reminder.basisFallbackVoice")
+    : describeDuplicateMatchText(first);
+  const count = pending.existing.length > 1
+    ? translate("duplicates.reminder.countVoice", { count: pending.existing.length })
+    : "";
+  const scopeNote = pending.scope === "local" ? translate("duplicates.reminder.localOnly") : "";
+  // 中文句子直接相连（与原来逐字一致），其它语言句间加空格。
+  return [basis, count, scopeNote].filter((sentence) => sentence !== "").join(isChineseLocale() ? "" : " ");
 }
 
 /**
@@ -527,8 +595,13 @@ function voiceDuplicateDescription(pending: {
  * their mind. 重新记上 rather than 撤销撤销, because the second is a word nobody
  * reads twice.
  */
-const UNDONE_CHOICES: readonly Choice<"restore" | "dismiss">[] = [
-  { id: "restore", label: "重新记上", hint: "我刚才点错了", primary: true },
-  { id: "dismiss", label: "知道了", dismissive: true },
+const UNDONE_CHOICES: readonly ChoiceDefinition<"restore" | "dismiss">[] = [
+  {
+    id: "restore",
+    label: () => translate("capture.undone.restore"),
+    hint: () => translate("capture.undone.restoreHint"),
+    primary: true,
+  },
+  { id: "dismiss", label: () => translate("capture.undone.dismiss"), dismissive: true },
 ];
 
