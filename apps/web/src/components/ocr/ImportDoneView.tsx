@@ -14,7 +14,10 @@
  * 按钮组贴底（sticky）而不是堆在长列表后面。
  */
 
+import { Trans } from "react-i18next";
+
 import { Button } from "../Button.js";
+import { useI18n } from "../../i18n/index.js";
 import { formatTimeInZone, localTimeZone } from "../../lib/datetime.js";
 import type { OcrImportOutcome } from "../../lib/ocr/import.js";
 import {
@@ -25,17 +28,7 @@ import {
 
 export type ImportDoneStatus = "success" | "partial" | "failed";
 
-const HEADINGS: Record<ImportDoneStatus, string> = {
-  success: "全部导入成功",
-  partial: "部分导入成功",
-  failed: "导入失败",
-};
-
-const SUBTITLES: Record<ImportDoneStatus, string> = {
-  success: "批次已处理完，账目已写入当前账本。",
-  partial: "成功的已经写入账本；失败的仍留在批次里，可以重试。",
-  failed: "这一批没有账目写入账本，批次仍保留。",
-};
+// 标题与说明按状态取文案：`ocr.done.heading.<status>` / `ocr.done.subtitle.<status>`。
 
 const SUBTITLE_TONES: Record<ImportDoneStatus, string> = {
   success: "text-muted",
@@ -69,6 +62,7 @@ export function ImportDoneView({
   /** 回到批次列表处理仍失败的笔（不结束会话）。 */
   readonly onRetry: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const status = importDoneStatus(outcome);
   const failed = outcome.failed.length;
   const totals = importSessionTotals(session);
@@ -78,14 +72,14 @@ export function ImportDoneView({
       <div className="flex flex-1 flex-col justify-center gap-5 px-6 pt-6 pb-5">
         <header className="flex flex-col items-center gap-2 text-center">
           <StatusMark status={status} />
-          <h1 className="text-lg font-semibold text-ink">{HEADINGS[status]}</h1>
+          <h1 className="text-lg font-semibold text-ink">{t(`ocr.done.heading.${status}`)}</h1>
           {/*
             `w-full` matters: the header centres its children, and a centred flex item
             sizes to its content, so a longer sentence would run off the screen instead
             of wrapping (the partial-import subtitle did exactly that).
           */}
           <p className={`w-full text-body-relaxed ${SUBTITLE_TONES[status]}`}>
-            {SUBTITLES[status]}
+            {t(`ocr.done.subtitle.${status}`)}
           </p>
         </header>
 
@@ -94,9 +88,14 @@ export function ImportDoneView({
           deliberately says nothing about it: one fact, one place.
         */}
         <p className="text-center text-body text-muted">
-          本次会话累计导入{" "}
-          <span className="font-semibold tabular-nums text-ink">{totals.imported}</span> 笔 · 共{" "}
-          <span className="font-semibold tabular-nums text-ink">{totals.batches}</span> 批
+          <Trans
+            i18nKey="ocr.done.session"
+            values={{ imported: totals.imported, batches: totals.batches }}
+            components={{
+              imported: <span className="font-semibold tabular-nums text-ink" />,
+              batches: <span className="font-semibold tabular-nums text-ink" />,
+            }}
+          />
         </p>
 
         {/*
@@ -116,7 +115,7 @@ export function ImportDoneView({
             onClick={onRetry}
             className="text-helper text-muted underline transition hover:text-ink"
           >
-            返回批次处理 {failed} 笔失败
+            {t("ocr.done.retryFailed", { count: failed })}
           </button>
         )}
       </div>
@@ -132,11 +131,12 @@ export function ImportDoneView({
           took ~120px of a phone's height for two choices; one row keeps both large (≥44px) and
           gives the list above more room. The primary action stays on the trailing side.
         */}
+        {/* S16：320px 下英文按钮文字可能折成两行，居中排版。 */}
         <div className="grid grid-cols-2 gap-2.5">
-          <Button variant="secondary" onClick={onAgain}>
-            再识别一批
+          <Button variant="secondary" className="text-center" onClick={onAgain}>
+            {t("ocr.done.scanAgain")}
           </Button>
-          <Button onClick={onBackToDetail}>返回明细</Button>
+          <Button className="text-center" onClick={onBackToDetail}>{t("ocr.done.backToEntries")}</Button>
         </div>
       </div>
     </div>
@@ -144,12 +144,13 @@ export function ImportDoneView({
 }
 
 function BatchRow({ batch }: { readonly batch: OcrImportSessionBatch }): React.JSX.Element {
+  const { t } = useI18n();
   const time = formatTimeInZone(batch.importedAt, localTimeZone());
 
   return (
     <li className="flex flex-col gap-1 px-4 py-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-card-title text-ink">第 {batch.sequence} 批</h2>
+        <h2 className="text-card-title text-ink">{t("ocr.done.batch", { number: batch.sequence })}</h2>
         {time === "" ? null : (
           <time dateTime={batch.importedAt} className="text-helper text-muted tabular-nums">
             {time}
@@ -162,7 +163,7 @@ function BatchRow({ batch }: { readonly batch: OcrImportSessionBatch }): React.J
           batch.failed > 0 ? "text-warn-dark" : "text-muted"
         }`}
       >
-        成功 {batch.succeeded} · 失败 {batch.failed}
+        {t("ocr.done.batchCounts", { succeeded: batch.succeeded, failed: batch.failed })}
       </p>
 
       {/*
@@ -172,13 +173,13 @@ function BatchRow({ batch }: { readonly batch: OcrImportSessionBatch }): React.J
       */}
       {batch.pending > 0 ? (
         <p className="text-helper-relaxed text-brand-dark">
-          其中 {batch.pending} 笔已在本机排队，联网后自动同步
+          {t("ocr.done.batchPending", { count: batch.pending })}
         </p>
       ) : null}
 
       {batch.failed > 0 ? (
         <p className="text-helper-relaxed text-warn-dark">
-          失败的 {batch.failed} 笔仍留在批次里，可重试。
+          {t("ocr.done.batchFailed", { count: batch.failed })}
         </p>
       ) : null}
     </li>

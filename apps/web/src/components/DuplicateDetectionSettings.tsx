@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "../auth/AuthProvider.js";
+import { useI18n } from "../i18n/index.js";
 import {
   describeTimeWindowSeconds,
   DUPLICATE_TIME_WINDOW_CUSTOM_MAX_MINUTES,
@@ -30,13 +31,13 @@ import { useGuestMode } from "../lib/guest/session.js";
 import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
 import { SettingsToggle } from "./SettingsCard.js";
-import { InlineChoice } from "./ui/InlineChoice.js";
+import { InlineChoice, type InlineChoiceOption } from "./ui/InlineChoice.js";
 
 export interface DuplicateDetectionSettingsState {
   readonly settings: DuplicateDetectionSettings;
   /** 最近一次保存成功，显示「已保存。」。 */
   readonly saved: boolean;
-  /** 最近一次保存失败，已经是可展示的中文。 */
+  /** 最近一次保存失败，已经是可展示的一句话（保存时的界面语言）。 */
   readonly error: string | null;
   /** 读取时发现旧版本/损坏/存储不可用；不是本次操作错误。 */
   readonly notice: string | null;
@@ -63,6 +64,7 @@ function defaultLoadResult(): DuplicateSettingsLoadResult {
 export function useDuplicateDetectionSettings(): DuplicateDetectionSettingsState {
   const { user } = useAuth();
   const guest = useGuestMode();
+  const { t, locale } = useI18n();
   const userId = user?.id ?? null;
 
   const loaded = useMemo<DuplicateSettingsLoadResult>(() => {
@@ -85,21 +87,22 @@ export function useDuplicateDetectionSettings(): DuplicateDetectionSettingsState
 
   const settings = override ?? loaded.settings;
 
+  // `locale` 在依赖里：切换语言后提示随之重算（见 i18n/index.ts 对 useMemo 的说明）。
   const notice = useMemo<string | null>(() => {
     if (loaded.storageProblem === "unavailable") {
-      return "浏览器存储不可用；这里的修改只在当前页面有效，刷新后会回到默认值。";
+      return t("duplicates.settings.notice.unavailable");
     }
     if (loaded.storageProblem === "unreadable") {
-      return "保存的重复检测设置无法读取，已使用默认值。";
+      return t("duplicates.settings.notice.unreadable");
     }
     if (loaded.storageProblem === "version_mismatch") {
-      return "保存的重复检测设置来自不同版本，已使用默认值。";
+      return t("duplicates.settings.notice.versionMismatch");
     }
     if (loaded.source === "recovered") {
-      return "原有设置有一项无法读取，已对缺失或非法的项使用默认值。";
+      return t("duplicates.settings.notice.recovered");
     }
     return null;
-  }, [loaded]);
+  }, [loaded, locale, t]);
 
   const commit = (next: DuplicateDetectionSettings): void => {
     setOverride(next);
@@ -113,7 +116,7 @@ export function useDuplicateDetectionSettings(): DuplicateDetectionSettingsState
         : null;
 
     if (scope === null) {
-      setError("当前没有可保存设置的账号。");
+      setError(t("duplicates.settings.noAccount"));
       return;
     }
 
@@ -149,12 +152,26 @@ function minutesText(seconds: number): string {
   return String(seconds / 60);
 }
 
-const WINDOW_OPTIONS = [
-  ...DUPLICATE_TIME_WINDOW_PRESETS_SECONDS.map((seconds) => ({
-    id: String(seconds),
-    label: describeTimeWindowSeconds(seconds),
-  })),
-  { id: "custom", label: "自定义", hint: "1 分钟–30 天" },
+/**
+ * 时间窗口的选项。**渲染时生成**（不放模块顶层）：标签是界面文字，顶层常量会把导入时的
+ * 语言固定下来。
+ */
+function windowOptions(t: ReturnType<typeof useI18n>["t"]): readonly InlineChoiceOption[] {
+  return [
+    ...DUPLICATE_TIME_WINDOW_PRESETS_SECONDS.map((seconds) => ({
+      id: String(seconds),
+      label: describeTimeWindowSeconds(seconds),
+    })),
+    { id: "custom", label: t("duplicates.settings.custom"), hint: t("duplicates.settings.customHint") },
+  ];
+}
+
+/** 七个规则开关：只存键与默认值，名称在渲染时取。 */
+const RULE_TOGGLES = [
+  ["matchAmount", true], ["matchCurrency", true],
+  ["matchKind", true], ["matchTime", true],
+  ["matchMerchant", false], ["matchNote", false],
+  ["matchTags", false],
 ] as const;
 
 export function DuplicateDetectionSettingsSection({
@@ -172,6 +189,7 @@ export function DuplicateDetectionSettingsSection({
   readonly onChange: (patch: Partial<DuplicateDetectionSettings>) => void;
   readonly onReset: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState(() => minutesText(settings.timeWindowSeconds));
@@ -216,8 +234,8 @@ export function DuplicateDetectionSettingsSection({
   return (
     <div className="flex flex-col gap-5">
       <SettingsToggle
-        label="重复提醒"
-        hint="新增账目时提示疑似重复，不会自动删除或合并。"
+        label={t("duplicates.settings.reminder")}
+        hint={t("duplicates.settings.reminderHint")}
         checked={settings.enabled}
         onChange={(enabled) => {
           onChange({ enabled });
@@ -235,28 +253,23 @@ export function DuplicateDetectionSettingsSection({
           settings.enabled ? "" : "opacity-60"
         }`}
       >
-        <legend className="sr-only">重复检测规则</legend>
-        {([
-          ["matchAmount", "金额匹配", true], ["matchCurrency", "币种匹配", true],
-          ["matchKind", "收支方向匹配", true], ["matchTime", "时间匹配", true],
-          ["matchMerchant", "商户匹配", false], ["matchNote", "备注匹配", false],
-          ["matchTags", "标签匹配", false],
-        ] as const).map(([key, label, fallback]) => <SettingsToggle key={key} label={label}
+        <legend className="sr-only">{t("duplicates.settings.rulesLegend")}</legend>
+        {RULE_TOGGLES.map(([key, fallback]) => <SettingsToggle key={key} label={t(`duplicates.settings.toggle.${key}`)}
           checked={settings[key] ?? fallback} onChange={(value) => onChange({ [key]: value })} />)}
         {/**
          * ⚠️ S16-A：七个开关原来各自带同一句说明（"纳入此项判断；关闭后不会因为这一项不同而排除疑似
          * 重复。"），同一句话在一屏里出现七次。现在开关只写名称，这句说明在它们下面出现一次。
          */}
         <p className="text-helper-relaxed text-muted">
-          仅比较已开启的项目，各账本独立检查。关闭多项规则可能增加疑似重复提醒。
+          {t("duplicates.settings.rulesNote")}
         </p>
 
         <div className="flex flex-col gap-2">
-          <span className="text-card-title text-ink">时间窗口</span>
+          <span className="text-card-title text-ink">{t("duplicates.settings.timeWindow")}</span>
           <InlineChoice
-            label="时间窗口"
+            label={t("duplicates.settings.timeWindow")}
             value={choiceValue}
-            options={WINDOW_OPTIONS}
+            options={windowOptions(t)}
             open={settings.enabled && choiceOpen}
             testId="duplicate-window-choice"
             onToggle={() => {
@@ -268,11 +281,13 @@ export function DuplicateDetectionSettingsSection({
             }}
           />
           <p className="text-helper-relaxed text-muted">
-            仅比较时间相差不超过此范围的账目。默认 1 分钟，可设为 1 分钟至 30 天。
+            {t("duplicates.settings.timeWindowNote")}
           </p>
           {!preset ? (
             <p className="text-helper text-muted">
-              当前窗口：{describeTimeWindowSeconds(settings.timeWindowSeconds)}
+              {t("duplicates.settings.currentWindow", {
+                value: describeTimeWindowSeconds(settings.timeWindowSeconds),
+              })}
             </p>
           ) : null}
 
@@ -280,7 +295,7 @@ export function DuplicateDetectionSettingsSection({
             <div className="flex flex-col gap-2 rounded-field bg-canvas p-3">
               <div className="flex items-end gap-2">
                 <label className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-card-title text-ink">自定义（分钟）</span>
+                  <span className="text-card-title text-ink">{t("duplicates.settings.customLabel")}</span>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -302,11 +317,11 @@ export function DuplicateDetectionSettingsSection({
                   className="min-h-11"
                   onClick={applyCustom}
                 >
-                  应用
+                  {t("duplicates.settings.apply")}
                 </Button>
               </div>
               <p className="text-helper text-muted">
-                请输入 1–{String(DUPLICATE_TIME_WINDOW_CUSTOM_MAX_MINUTES)} 之间的整数分钟。
+                {t("duplicates.settings.customRange", { max: String(DUPLICATE_TIME_WINDOW_CUSTOM_MAX_MINUTES) })}
               </p>
               {customError === null ? null : (
                 <p role="alert" className="text-helper-relaxed text-danger">
@@ -318,8 +333,8 @@ export function DuplicateDetectionSettingsSection({
         </div>
 
         <SettingsToggle
-          label="分类匹配"
-          hint="双方都有分类时才要求一致；只有一方有分类不会因此被排除。"
+          label={t("duplicates.settings.category")}
+          hint={t("duplicates.settings.categoryHint")}
           checked={settings.matchCategory}
           onChange={(matchCategory) => {
             onChange({ matchCategory });
@@ -328,8 +343,8 @@ export function DuplicateDetectionSettingsSection({
         />
 
         <SettingsToggle
-          label="支付方式匹配"
-          hint="双方都有支付方式时才要求一致；只有一方有不会因此被排除。"
+          label={t("duplicates.settings.paymentMethod")}
+          hint={t("duplicates.settings.paymentMethodHint")}
           checked={settings.matchPaymentMethod}
           onChange={(matchPaymentMethod) => {
             onChange({ matchPaymentMethod });
@@ -340,12 +355,12 @@ export function DuplicateDetectionSettingsSection({
 
       {settings.enabled ? null : (
         <p className="text-helper-relaxed text-muted">
-          提醒已关闭，规则设置已保留。
+          {t("duplicates.settings.offKept")}
         </p>
       )}
 
       <p className="text-helper-relaxed text-muted">
-        关闭提醒不影响防止重复提交、识别相同来源、权限检查和离线同步。
+        {t("duplicates.settings.unaffected")}
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
@@ -359,9 +374,9 @@ export function DuplicateDetectionSettingsSection({
           onClick={onReset}
           className="inline-flex min-h-11 items-center text-link text-brand-dark transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
-          恢复默认设置
+          {t("duplicates.settings.reset")}
         </button>
-        {saved ? <span className="text-helper text-brand-dark">已保存。</span> : null}
+        {saved ? <span className="text-helper text-brand-dark">{t("duplicates.settings.saved")}</span> : null}
       </div>
 
       {error === null ? null : <Alert tone="error">{error}</Alert>}

@@ -1,5 +1,15 @@
 import type { DuplicatePairResult, Transaction } from "@libellum/shared";
+import { t } from "../i18n/index.js";
+import { ApiRequestError, localizedApiErrorMessage } from "./api.js";
 import type { ReviewCursor, ReviewScanChunk } from "./duplicateReview.js";
+/**
+ * 失败原因（界面语言）：服务器错误按错误码本地化（中文界面仍是服务器原文）；本页自己抛出的
+ * 错误在抛出时已经按界面语言取了文案（`duplicateReview.ts`）。
+ */
+function failureText(error: unknown): string {
+  if (error instanceof ApiRequestError) return localizedApiErrorMessage(error);
+  return error instanceof Error ? error.message : t("duplicates.review.failed");
+}
 export interface ReviewScanState {
   readonly phase: "idle" | "running" | "paused" | "done" | "error";
   readonly processed: number; readonly total: number | null;
@@ -49,7 +59,7 @@ export class ReviewScanController {
         if (run !== this.generation) return;
       }
     } catch (error) {
-      if (run === this.generation) this.publish({ ...this.state, phase: "error", failure: error instanceof Error ? error.message : "检查失败，请重试。" });
+      if (run === this.generation) this.publish({ ...this.state, phase: "error", failure: failureText(error) });
     }
   }
 }

@@ -62,17 +62,25 @@ function duplicateOptions(
   };
 }
 
-/** 来源平台对应的默认支付方式名称，与现有单笔核对 `draftOf` 的映射一致。 */
+/**
+ * 来源平台对应的默认支付方式名称，与现有单笔核对 `draftOf` 的映射一致。
+ *
+ * ⚠️ S16：这些是**与账本里支付方式名比较的数据**（预置支付方式的中文原名），不是界面文字，
+ * 英文界面下也不能翻译，否则就匹配不到了。
+ */
 const CHANNEL_METHOD_NAMES: Readonly<Record<OcrChannel, string>> = {
-  WECHAT: "微信",
-  ALIPAY: "支付宝",
-  BANK: "银行卡",
+  WECHAT: "微信", // i18n-ignore：与支付方式原名比较的数据
+  ALIPAY: "支付宝", // i18n-ignore：与支付方式原名比较的数据
+  BANK: "银行卡", // i18n-ignore：与支付方式原名比较的数据
   // 美团/京东/淘宝是购物平台，它们本身不说明用哪种方式付的钱。这三个名字只与
   // 用户自己建的、**同名**的支付方式精确匹配；匹配不到就留空（不按平台猜微信/支付宝）。
-  MEITUAN: "美团",
-  JD: "京东",
-  TAOBAO: "淘宝",
+  MEITUAN: "美团", // i18n-ignore：与支付方式原名比较的数据
+  JD: "京东", // i18n-ignore：与支付方式原名比较的数据
+  TAOBAO: "淘宝", // i18n-ignore：与支付方式原名比较的数据
 };
+
+/** 预置「转账」分类的原名：用于在账本分类里找同名分类（数据比较，不是界面文字）。 */
+export const TRANSFER_CATEGORY_NAME = "转账"; // i18n-ignore：与分类原名比较的数据
 
 function defaultPaymentMethodId(
   item: OcrBatchCandidate,
@@ -99,7 +107,7 @@ function defaultCategoryId(
   return (
     categories.find(
       (category) =>
-        category.name === "转账" &&
+        category.name === TRANSFER_CATEGORY_NAME &&
         category.kind === kind &&
         !category.isArchived &&
         category.isSystem !== true,
@@ -148,10 +156,15 @@ function candidateFromDraft(item: OcrItemResult): OcrBatchCandidate | null {
     isRefund: draft.isRefund,
     isTransfer: false,
     serial: draft.serial,
+    /**
+     * ⚠️ S16：这条问题会随批次存进 sessionStorage，所以**存的是代码 + 中文原文**（与识别服务给出的
+     * 问题同一格式），不存当前界面语言的译文。显示时按代码翻译（`ocrIssueText`）：中文界面显示
+     * 这句原文，英文界面显示 `ocr.issue.extraction_incomplete`。
+     */
     issues: [
       {
         code: "extraction_incomplete",
-        message: "这张截图无法判断页面类型，只按一笔处理，请核对。",
+        message: "这张截图无法判断页面类型，只按一笔处理，请核对。", // i18n-ignore：存入批次的原文，显示时按 code 翻译
         field: null,
       },
     ],

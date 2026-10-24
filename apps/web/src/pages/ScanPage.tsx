@@ -1,9 +1,8 @@
 import {
   CURRENCIES,
-  DUPLICATE_SCOPE_LABELS,
   MAX_RECOGNIZE_IMAGES,
+  UNCATEGORISED_NAME,
   decimalsFor,
-  describeDuplicateMatch,
   formatMinor,
   type Currency,
   type DuplicatePairResult,
@@ -12,6 +11,7 @@ import {
   type TransactionKind,
 } from "@libellum/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -23,11 +23,14 @@ import { EntrySaved } from "../components/EntrySaved.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
+import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { currentBookId } from "../lib/currentBook.js";
 import { currentMonth, localTimeZone, toLocalDate, toLocalIso } from "../lib/datetime.js";
-import { amountPlaceholder, currencyName, formatMoney, parseAmountInput } from "../lib/format.js";
+import { describeDuplicateMatchText } from "../lib/duplicateReview.js";
+import { currencyName, formatMoney, parseAmountInput } from "../lib/format.js";
 import { createNotDuplicateRelations, notDuplicateConfirmationForEntry } from "../lib/notDuplicateRelations.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import { createBatch } from "../lib/ocr/batch.js";
 import { saveBatch } from "../lib/ocr/batchStore.js";
 import { readableItems, routeRecognition } from "../lib/ocr/routeDecision.js";
@@ -64,6 +67,7 @@ type Mode = "single" | "batch";
 
 export function ScanPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
   const ledger = useLedger();
   const recognize = useRecognize();
   const createEntry = useCreateTransaction();
@@ -198,7 +202,7 @@ export function ScanPage(): React.JSX.Element {
     const combined = [...files, ...chosen];
 
     if (combined.length > MAX_RECOGNIZE_IMAGES) {
-      setError(`一次最多 ${String(MAX_RECOGNIZE_IMAGES)} 张截图。`);
+      setError(t("capture.scan.tooMany", { max: MAX_RECOGNIZE_IMAGES }));
       setFiles(combined.slice(0, MAX_RECOGNIZE_IMAGES));
       return;
     }
@@ -242,7 +246,7 @@ export function ScanPage(): React.JSX.Element {
       }
 
       if (lost > 0) {
-        setError(`有 ${String(lost)} 张没能识别出来，已跳过。`);
+        setError(t("capture.scan.skipped", { count: lost }));
       }
 
       /**
@@ -336,9 +340,7 @@ export function ScanPage(): React.JSX.Element {
 
     if (!saveBatch(batch)) {
       setStep({ name: "pick" });
-      setError(
-        "浏览器无法保存这次识别结果（可能是隐私模式或存储空间已满）。请重试，或改为逐笔核对。",
-      );
+      setError(t("capture.scan.storageFailed"));
       return;
     }
 
@@ -357,14 +359,14 @@ export function ScanPage(): React.JSX.Element {
     } catch {
       setError(
         decimalsFor(draft.currency) === 0
-          ? `${currencyName(draft.currency)}不支持小数，请输入整数金额。`
-          : "金额格式不正确。",
+          ? t("capture.amount.noDecimals", { currency: currencyName(draft.currency) })
+          : t("capture.amount.invalid"),
       );
       return;
     }
 
     if (amountCents <= 0) {
-      setError("金额需要大于 0。");
+      setError(t("capture.amount.positive"));
       return;
     }
 
@@ -469,14 +471,15 @@ export function ScanPage(): React.JSX.Element {
       if (notDuplicateWith.length > 0) {
         try {
           const bookId = ledger.data?.book.id ?? currentBookId();
-          if (bookId === null) throw new Error("找不到当前账本，无法记录「不是同一笔」。");
+          if (bookId === null) throw new Error(t("capture.notDuplicate.bookMissing"));
 
           const input = notDuplicateConfirmationForEntry(notDuplicateWith, entry.id);
-          if (input === null) throw new Error("没有可记录的交易对。");
+          if (input === null) throw new Error(t("capture.notDuplicate.noPairs"));
 
           await createNotDuplicateRelations(bookId, input);
         } catch (caught) {
-          setError(`账目已保存，但「不是同一笔」没有记住：${errorMessage(caught)}`);
+          // 关系没记住，但钱已经记下了：消息必须说清哪件事成功、哪件没有。
+          setError(t("capture.scan.notDuplicateFailed", { reason: errorMessage(caught) }));
         }
       }
 
@@ -486,10 +489,25 @@ export function ScanPage(): React.JSX.Element {
     }
   }
 
+  /**
+   * 对话框的选项：定义在组件外（只存 id 与文案键），这里按语言生成一次。
+   * `locale` 是唯一依赖——语言不变时数组不变，`ChoiceDialog` 的 effect 不会因此重跑。
+   */
+  const choices = useMemo(
+    () => ({
+      nothingReadable: localizeChoices(NOTHING_READABLE_CHOICES),
+      unknownPage: localizeChoices(UNKNOWN_PAGE_CHOICES),
+      duplicate: localizeChoices(DUPLICATE_CHOICES),
+      undone: localizeChoices(UNDONE_CHOICES),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale],
+  );
+
   return (
     <InnerPage
-      title="拍照记账"
-      subtitle="上传付款截图，识别后由你核对。截图不会被保存，识别完成即丢弃。"
+      title={t("capture.scan.title")}
+      subtitle={t("capture.scan.subtitle")}
       backTo="/"
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
@@ -529,12 +547,13 @@ export function ScanPage(): React.JSX.Element {
         <div className="flex flex-col gap-4">
           <EntrySaved
             entry={step.entry}
-            categoryName={
-              categories.find((category) => category.id === step.entry.categoryId)?.name ?? "暂无分类"
-            }
-            paymentName={
-              paymentMethods.find((method) => method.id === step.entry.paymentMethodId)?.name ?? null
-            }
+            categoryName={displayCategoryName(
+              categories.find((category) => category.id === step.entry.categoryId)?.name ?? UNCATEGORISED_NAME,
+            )}
+            paymentName={(() => {
+              const name = paymentMethods.find((method) => method.id === step.entry.paymentMethodId)?.name;
+              return name === undefined ? null : displayPaymentMethodName(name);
+            })()}
             /**
              * How many are left **after** this one.
              *
@@ -593,13 +612,13 @@ export function ScanPage(): React.JSX.Element {
       */}
       <ChoiceDialog
         open={batchChoice !== null}
-        title="有截图无法判断是单笔还是多笔"
+        title={t("capture.scan.unknownPage.title")}
         description={
           batchChoice === null
             ? ""
-            : `有 ${String(batchChoice.length)} 张截图没有匹配到已知版式。请选择怎么处理；系统不会自行决定交易数量。`
+            : t("capture.scan.unknownPage.description", { count: batchChoice.length })
         }
-        choices={UNKNOWN_PAGE_CHOICES}
+        choices={choices.unknownPage}
         onChoose={(choice) => {
           const chosen = batchChoice;
           setBatchChoice(null);
@@ -626,9 +645,9 @@ export function ScanPage(): React.JSX.Element {
       */}
       <ChoiceDialog
         open={nothingReadable}
-        title="没能读出这几张截图的信息"
-        description="可以再试一次，或改为手动填写。"
-        choices={NOTHING_READABLE_CHOICES}
+        title={t("capture.scan.nothingReadable.title")}
+        description={t("capture.scan.nothingReadable.description")}
+        choices={choices.nothingReadable}
         onChoose={(choice) => {
           setNothingReadable(false);
 
@@ -668,11 +687,11 @@ export function ScanPage(): React.JSX.Element {
       */}
       <ChoiceDialog
         open={pendingDuplicate !== null}
-        title="这笔账好像已经记过了"
+        title={t("duplicates.reminder.title")}
         description={
           pendingDuplicate === null ? "" : duplicateDialogDescription(pendingDuplicate)
         }
-        choices={DUPLICATE_CHOICES}
+        choices={choices.duplicate}
         onChoose={(choice) => {
           const pending = pendingDuplicate;
           setPendingDuplicate(null);
@@ -737,13 +756,13 @@ export function ScanPage(): React.JSX.Element {
       */}
       <ChoiceDialog
         open={undone !== null}
-        title="已撤销这笔记账"
+        title={t("capture.undone.title")}
         description={
           undone === null
             ? ""
-            : `${formatMoney(undone.amountCents, undone.currency)} 已从账本移除。`
+            : t("capture.undone.description", { amount: formatMoney(undone.amountCents, undone.currency) })
         }
-        choices={UNDONE_CHOICES}
+        choices={choices.undone}
         onChoose={(choice) => {
           const entry = undone;
           setUndone(null);
@@ -770,11 +789,47 @@ export function ScanPage(): React.JSX.Element {
  * the owner's "返回拍照记账页面" — **and deliberately not an automatic re-open of
  * the picker.** He was explicit: "这种情况下不要帮用户自动点击."
  */
-const NOTHING_READABLE_CHOICES: readonly Choice<"retry" | "manual" | "back">[] = [
-  { id: "retry", label: "再试一次", hint: "用同一张图重新识别", primary: true },
-  { id: "manual", label: "改为手动记账", hint: "自己填写这笔账" },
-  { id: "back", label: "返回拍照页", hint: "可以换一张截图", dismissive: true },
+const NOTHING_READABLE_CHOICES: readonly ChoiceDefinition<"retry" | "manual" | "back">[] = [
+  {
+    id: "retry",
+    label: () => translate("capture.scan.nothingReadable.retry"),
+    hint: () => translate("capture.scan.nothingReadable.retryHint"),
+    primary: true,
+  },
+  {
+    id: "manual",
+    label: () => translate("capture.scan.nothingReadable.manual"),
+    hint: () => translate("capture.scan.nothingReadable.manualHint"),
+  },
+  {
+    id: "back",
+    label: () => translate("capture.scan.nothingReadable.back"),
+    hint: () => translate("capture.scan.nothingReadable.backHint"),
+    dismissive: true,
+  },
 ];
+
+/**
+ * 对话框选项的定义（S16）：模块顶层只存 id、行为标记与**取文案的函数**，不存文案本身——
+ * 顶层常量里的文案会固定成导入时的语言。`localizeChoices` 在渲染时按当前语言生成 `Choice`。
+ */
+interface ChoiceDefinition<Id extends string> {
+  readonly id: Id;
+  readonly label: () => string;
+  readonly hint?: () => string;
+  readonly primary?: boolean;
+  readonly dismissive?: boolean;
+}
+
+function localizeChoices<Id extends string>(
+  definitions: readonly ChoiceDefinition<Id>[],
+): readonly Choice<Id>[] {
+  return definitions.map(({ label, hint, ...rest }) => ({
+    ...rest,
+    label: label(),
+    ...(hint === undefined ? {} : { hint: hint() }),
+  }));
+}
 
 /**
  * The three ways out of "we cannot tell how many transactions this page holds".
@@ -784,10 +839,24 @@ const NOTHING_READABLE_CHOICES: readonly Choice<"retry" | "manual" | "back">[] =
  * None of them is a sensible default, which is why the user is asked rather than
  * guessed at.
  */
-const UNKNOWN_PAGE_CHOICES: readonly Choice<"single" | "multi" | "back">[] = [
-  { id: "single", label: "按单笔处理", hint: "整张图当作一笔，进入原来的核对表单", primary: true },
-  { id: "multi", label: "按多笔处理", hint: "进入批量核对，可逐笔编辑或标记无效" },
-  { id: "back", label: "重新上传", hint: "回到拍照页换一张截图", dismissive: true },
+const UNKNOWN_PAGE_CHOICES: readonly ChoiceDefinition<"single" | "multi" | "back">[] = [
+  {
+    id: "single",
+    label: () => translate("capture.scan.unknownPage.single"),
+    hint: () => translate("capture.scan.unknownPage.singleHint"),
+    primary: true,
+  },
+  {
+    id: "multi",
+    label: () => translate("capture.scan.unknownPage.multi"),
+    hint: () => translate("capture.scan.unknownPage.multiHint"),
+  },
+  {
+    id: "back",
+    label: () => translate("capture.scan.unknownPage.back"),
+    hint: () => translate("capture.scan.unknownPage.backHint"),
+    dismissive: true,
+  },
 ];
 
 /**
@@ -816,26 +885,42 @@ function duplicateDialogDescription(pending: {
   readonly pairs: readonly DuplicatePairResult[];
   readonly scope: "server" | "local";
 }): string {
-  const scopeNote = pending.scope === "local" ? `本次只比对了${DUPLICATE_SCOPE_LABELS.local}。` : "";
+  // 各句按当前语言取；中文拼接结果与原来逐字一致（句子之间没有空格），英文句间加空格。
+  const scopeNote = pending.scope === "local" ? translate("duplicates.reminder.localOnly") : "";
   const first = pending.pairs[0];
   const basis = first === undefined
-    ? "有一笔账目与你填写的金额、收支方向和时间相符。"
-    : `${describeDuplicateMatch(first)}`;
+    ? translate("duplicates.reminder.basisFallbackScan")
+    : describeDuplicateMatchText(first);
   const count = pending.existing.length > 1
-    ? `系统找到 ${String(pending.existing.length)} 笔相似记录。`
+    ? translate("duplicates.reminder.countScan", { count: pending.existing.length })
     : "";
-  return `${basis}${count}要再记一笔吗？${scopeNote}`;
+  return joinSentences([basis, count, translate("duplicates.reminder.askAgain"), scopeNote]);
 }
 
-const DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "replace" | "cancel">[] = [
-  { id: "save", label: "仍然保存", hint: "两笔都留（也许是两次一样的消费）", primary: true },
+/** 几句话连成一段：中文直接相连，其它语言用空格隔开。空句跳过。 */
+function joinSentences(sentences: readonly string[]): string {
+  return sentences.filter((sentence) => sentence !== "").join(isChineseLocale() ? "" : " ");
+}
+
+/** `confirmNotDuplicate` 是唯一会记录关系的**显式**选项；文案在 `duplicates.reminder.*`。 */
+const DUPLICATE_CHOICES: readonly ChoiceDefinition<"save" | "confirmNotDuplicate" | "replace" | "cancel">[] = [
+  {
+    id: "save",
+    label: () => translate("duplicates.reminder.save"),
+    hint: () => translate("duplicates.reminder.saveHintScan"),
+    primary: true,
+  },
   {
     id: "confirmNotDuplicate",
-    label: "确认不是同一笔",
-    hint: "两笔都留，并记住这一对：以后不再提示",
+    label: () => translate("duplicates.reminder.confirmNotDuplicate"),
+    hint: () => translate("duplicates.reminder.confirmNotDuplicateHint"),
   },
-  { id: "replace", label: "删掉旧的，保存这笔", hint: "只留现在这笔" },
-  { id: "cancel", label: "取消，我再看看", dismissive: true },
+  {
+    id: "replace",
+    label: () => translate("duplicates.reminder.replace"),
+    hint: () => translate("duplicates.reminder.replaceHint"),
+  },
+  { id: "cancel", label: () => translate("duplicates.reminder.cancel"), dismissive: true },
 ];
 
 /**
@@ -848,9 +933,14 @@ const DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "repla
  * The first option is labelled 重新记上 rather than 撤销撤销, because the second
  * is a word nobody reads twice.
  */
-const UNDONE_CHOICES: readonly Choice<"restore" | "dismiss">[] = [
-  { id: "restore", label: "重新记上", hint: "我刚才点错了", primary: true },
-  { id: "dismiss", label: "知道了", dismissive: true },
+const UNDONE_CHOICES: readonly ChoiceDefinition<"restore" | "dismiss">[] = [
+  {
+    id: "restore",
+    label: () => translate("capture.undone.restore"),
+    hint: () => translate("capture.undone.restoreHint"),
+    primary: true,
+  },
+  { id: "dismiss", label: () => translate("capture.undone.dismiss"), dismissive: true },
 ];
 
 function PickStep({
@@ -874,6 +964,7 @@ function PickStep({
   readonly onStart: () => void;
   readonly onManual: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const pickerRef = useRef<HTMLInputElement>(null);
   const [pickerAsked, setPickerAsked] = useState(false);
   const [pickerSilent, setPickerSilent] = useState(false);
@@ -923,19 +1014,18 @@ function PickStep({
         {/* An SVG with no size fills its container, which is how this ended up
             the size of the whole drop zone. */}
         <CameraIcon className="size-8 text-muted" />
-        <span className="text-body text-ink">选择截图</span>
-        <span className="text-helper text-muted">
-          微信 / 支付宝 / 银行的付款截图，最多 {MAX_RECOGNIZE_IMAGES} 张
+        <span className="text-body text-ink">{t("capture.scan.pick.choose")}</span>
+        <span className="px-4 text-helper text-muted">
+          {t("capture.scan.pick.chooseHint", { max: MAX_RECOGNIZE_IMAGES })}
         </span>
       </button>
 
       {pickerAsked && pickerSilent ? (
         <Alert tone="info">
-          没有收到图片。如果选择器一直打不开，可以先用
-          <button type="button" className="mx-1 underline" onClick={onManual}>
-            手动记账
-          </button>
-          ，功能不受影响。
+          <Trans
+            i18nKey="capture.scan.pick.pickerSilent"
+            components={{ manual: <button type="button" className="mx-1 underline" onClick={onManual} /> }}
+          />
         </Alert>
       ) : null}
 
@@ -943,10 +1033,10 @@ function PickStep({
         <ul className="flex flex-wrap gap-3">
           {previews.map((url, index) => (
             <li key={url} className="relative">
-              <img src={url} alt={`第 ${String(index + 1)} 张截图`} className="size-20 rounded-field object-cover" />
+              <img src={url} alt={t("capture.scan.pick.thumbnailAlt", { number: index + 1 })} className="size-20 rounded-field object-cover" />
               <button
                 type="button"
-                aria-label={`移除第 ${String(index + 1)} 张`}
+                aria-label={t("capture.scan.pick.remove", { number: index + 1 })}
                 onClick={() => {
                   onRemove(index);
                 }}
@@ -971,20 +1061,20 @@ function PickStep({
       */}
       {files.length > 1 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-card-title text-ink">这些截图怎么算</h2>
+          <h2 className="text-card-title text-ink">{t("capture.scan.pick.modeTitle")}</h2>
           <div className="flex flex-col gap-2">
             <ModeOption
               mode="single"
               current={mode}
-              title="同一笔消费，分几张凭证"
-              hint="金额相加，只核对一次"
+              title={t("capture.scan.pick.singleTitle")}
+              hint={t("capture.scan.pick.singleHint")}
               onSelect={onMode}
             />
             <ModeOption
               mode="batch"
               current={mode}
-              title="几笔不同的消费"
-              hint="每张单独核对一次"
+              title={t("capture.scan.pick.batchTitle")}
+              hint={t("capture.scan.pick.batchHint")}
               onSelect={onMode}
             />
           </div>
@@ -1006,16 +1096,16 @@ function PickStep({
             so one deliberate confirmation is cheap; the saving was never worth
             the uncertainty. Now the choice is visible, and 开始识别 confirms it.
           */}
-          <p className="text-helper text-muted">选好后点下面的「开始识别」。</p>
+          <p className="text-helper text-muted">{t("capture.scan.pick.modeNext")}</p>
         </section>
       ) : null}
 
       <Button disabled={files.length === 0 || busy} onClick={onStart}>
-        开始识别
+        {t("capture.scan.pick.start")}
       </Button>
 
       <button type="button" onClick={onManual} className="text-helper text-muted underline">
-        识别不方便？直接手动记账
+        {t("capture.manualFallback")}
       </button>
 
       {busy ? <SkeletonRows rows={2} /> : null}
@@ -1056,12 +1146,14 @@ function ModeOption({
 }
 
 function WorkingStep({ total }: { readonly total: number }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <div className="flex flex-col items-center gap-4 py-10">
       <div className="size-10 animate-spin rounded-full border-3 border-brand-soft border-t-brand" />
-      <p className="text-body text-ink">正在识别…</p>
-      <p className="text-helper text-muted">
-        共 {total} 张，每张约需 1.5 秒。截图识别完成后即被丢弃。
+      <p className="text-body text-ink">{t("capture.recognizing")}</p>
+      <p className="text-center text-helper text-muted">
+        {t("capture.scan.working", { count: total })}
       </p>
     </div>
   );
@@ -1080,7 +1172,8 @@ export function draftOf(
 
   // The channel narrows the payment method: a WeChat screenshot means WeChat.
   // Nothing is invented when there is no match — an empty field is honest.
-  const channelNames: Record<string, string> = { WECHAT: "微信", ALIPAY: "支付宝", BANK: "银行卡" };
+  // S16：这些是与账本支付方式原名比较的**数据**，不随界面语言变化。
+  const channelNames: Record<string, string> = { WECHAT: "微信", ALIPAY: "支付宝", BANK: "银行卡" }; // i18n-ignore：与支付方式原名比较的数据
   const wanted = draft?.channel === null || draft?.channel === undefined ? null : channelNames[draft.channel];
   const method = wanted === null ? undefined : paymentMethods.find((entry) => entry.name === wanted);
 

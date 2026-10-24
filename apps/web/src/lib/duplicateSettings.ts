@@ -30,6 +30,8 @@ import {
   type DuplicateSettingsIssue,
 } from "@libellum/shared";
 
+import { t } from "../i18n/index.js";
+
 /** 键前缀同时是清理范围：`clearAllDeviceData` 会删除所有以 `libellum` 开头的键。 */
 export const DUPLICATE_SETTINGS_STORAGE_PREFIX = "libellum.duplicate-detection.v1";
 
@@ -149,7 +151,7 @@ export function loadDuplicateSettings(
 
 export interface DuplicateSettingsSaveResult {
   readonly ok: boolean;
-  /** 已经是一句可直接展示的中文；成功时为 `null`。 */
+  /** 已经是一句可直接展示的话（调用时的界面语言）；成功时为 `null`。 */
   readonly error: string | null;
 }
 
@@ -165,12 +167,12 @@ export function saveDuplicateSettings(
   storage: DuplicateSettingsStorage | null = duplicateSettingsStorage(),
 ): DuplicateSettingsSaveResult {
   if (storage === null) {
-    return { ok: false, error: "浏览器存储不可用，设置只在本次打开期间有效。" };
+    return { ok: false, error: t("duplicates.settings.saveUnavailable") };
   }
 
   const validation = validateDuplicateDetectionSettings(settings);
   if (!validation.ok) {
-    return { ok: false, error: "设置不合法，未保存（时间窗口必须是 1 秒–30 天的整数）。" };
+    return { ok: false, error: t("duplicates.settings.saveInvalid") };
   }
 
   const record: DuplicateSettingsRecord = {
@@ -185,7 +187,7 @@ export function saveDuplicateSettings(
   } catch {
     return {
       ok: false,
-      error: "浏览器存储写入失败（可能是空间不足或隐私模式），设置只在本次打开期间有效。",
+      error: t("duplicates.settings.saveFailed"),
     };
   }
 }
@@ -242,39 +244,48 @@ export function parseCustomTimeWindowMinutes(input: string): CustomTimeWindowPar
   const trimmed = input.trim();
 
   if (trimmed === "") {
-    return { ok: false, message: "请输入时间窗口（整数分钟）。" };
+    return { ok: false, message: t("duplicates.settings.customError.empty") };
   }
   if (!/^\d+$/.test(trimmed)) {
-    return { ok: false, message: "请输入整数分钟：不能是负数、小数或其它字符。" };
+    return { ok: false, message: t("duplicates.settings.customError.notInteger") };
   }
 
   const minutes = Number(trimmed);
   if (!Number.isSafeInteger(minutes)) {
     return {
       ok: false,
-      message: `数值过大，请输入 ${String(DUPLICATE_TIME_WINDOW_CUSTOM_MIN_MINUTES)}–${String(DUPLICATE_TIME_WINDOW_CUSTOM_MAX_MINUTES)} 之间的整数分钟。`,
+      message: t("duplicates.settings.customError.tooLarge", {
+        min: String(DUPLICATE_TIME_WINDOW_CUSTOM_MIN_MINUTES),
+        max: String(DUPLICATE_TIME_WINDOW_CUSTOM_MAX_MINUTES),
+      }),
     };
   }
 
   const seconds = minutes * 60;
   if (seconds < 60) {
-    return { ok: false, message: "自定义窗口不能小于 1 分钟。" };
+    return { ok: false, message: t("duplicates.settings.customError.tooSmall") };
   }
   if (seconds > DUPLICATE_TIME_WINDOW_MAX_SECONDS) {
     return {
       ok: false,
-      message: `自定义窗口不能大于 ${String(DUPLICATE_TIME_WINDOW_CUSTOM_MAX_MINUTES)} 分钟（30 天）。`,
+      message: t("duplicates.settings.customError.overMax", {
+        max: String(DUPLICATE_TIME_WINDOW_CUSTOM_MAX_MINUTES),
+      }),
     };
   }
 
   return { ok: true, seconds };
 }
 
-/** 把秒数说成人话：整天的说天、整小时的说小时、整分钟的说分钟，其余说秒。 */
+/**
+ * 把秒数说成人话：整天的说天、整小时的说小时、整分钟的说分钟，其余说秒。
+ *
+ * 调用时取文案（界面语言），不要在模块顶层调用后缓存结果。
+ */
 export function describeTimeWindowSeconds(seconds: number): string {
-  if (seconds % 86_400 === 0) return `${String(seconds / 86_400)} 天`;
-  if (seconds % 3_600 === 0) return `${String(seconds / 3_600)} 小时`;
-  if (seconds % 60 === 0) return `${String(seconds / 60)} 分钟`;
+  if (seconds % 86_400 === 0) return t("duplicates.settings.window.days", { count: seconds / 86_400 });
+  if (seconds % 3_600 === 0) return t("duplicates.settings.window.hours", { count: seconds / 3_600 });
+  if (seconds % 60 === 0) return t("duplicates.settings.window.minutes", { count: seconds / 60 });
 
-  return `${String(seconds)} 秒`;
+  return t("duplicates.settings.window.seconds", { count: seconds });
 }
