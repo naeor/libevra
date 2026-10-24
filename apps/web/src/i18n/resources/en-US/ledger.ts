@@ -271,6 +271,13 @@ const ledger: Messages<typeof zh> = {
         "（空）": "(empty)",
         "（无法显示）": "(can’t display)",
       },
+      加入账本: {
+        加入: "Joined",
+        重新加入: "Rejoined",
+        通过分享链接加入: "Joined via share link",
+        通过分享链接重新加入: "Rejoined via share link",
+        曾经退出: "Had left before",
+      },
       成员权限: {
         仅查看: "View only",
         可编辑: "Can edit",
