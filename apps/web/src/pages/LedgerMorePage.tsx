@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
+import { t as translate, useI18n } from "../i18n/index.js";
 import { clearAllMarks, readStoredMonths } from "../lib/offline/localLedger.js";
 import { deferConflictsToServer } from "../lib/offline/sync.js";
 
@@ -18,17 +19,27 @@ import { deferConflictsToServer } from "../lib/offline/sync.js";
  * not clear the local copy, does not fix a database, and does not send a request. The "clear and
  * reload" on 下载管理 is a *different* operation that deletes the device's copy first, and the two
  * must not be described alike.
+ *
+ * ⚠️ **S16：是函数，不是常量。** 文案在 `books.more.reload.*`，必须在打开对话框时按当前语言取；
+ * 模块顶层的常量会把导入那一刻的语言固定下来。
  */
-export const RELOAD_CONFIRMATION = {
-  title: "重新加载应用？",
-  description: "页面会像重新打开一样再加载一次，用来恢复界面异常。",
-  consequences: [
-    "未保存的表单内容会丢失",
-    "正在进行的导入可能中断",
-    "不会清除本机账目，也不会删除服务器上的任何数据",
-  ],
-  confirmLabel: "重新加载",
-} as const;
+export function reloadConfirmation(): {
+  readonly title: string;
+  readonly description: string;
+  readonly consequences: readonly string[];
+  readonly confirmLabel: string;
+} {
+  return {
+    title: translate("books.more.reload.title"),
+    description: translate("books.more.reload.description"),
+    consequences: [
+      translate("books.more.reload.formLost"),
+      translate("books.more.reload.importInterrupted"),
+      translate("books.more.reload.nothingDeleted"),
+    ],
+    confirmLabel: translate("books.more.reload.confirm"),
+  };
+}
 
 /**
  * The ledger's own "more" screen.
@@ -45,6 +56,8 @@ export const RELOAD_CONFIRMATION = {
  * screen itself is untouched — this is an entry point, not a rewrite.
  */
 export function LedgerMorePage(): React.JSX.Element {
+  const { t } = useI18n();
+  const reload = reloadConfirmation();
   const navigate = useNavigate();
   const [cleared, setCleared] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
@@ -67,7 +80,7 @@ export function LedgerMorePage(): React.JSX.Element {
   }, []);
 
   return (
-    <InnerPage title="明细 · 更多">
+    <InnerPage title={t("books.more.title")}>
       {/**
         * ⚠️ **S16-A：四段"按钮 + 一段说明"改成三组列表行。** 原来每个入口都是一块整宽的大按钮，
         * 下面再跟一段灰字，页面读起来像一排同样重要的大按钮；而且外层多套了一层 `px-6`，
@@ -78,46 +91,40 @@ export function LedgerMorePage(): React.JSX.Element {
         * - 每段说明成为对应行的第二行。S16 文案复核后，清空印记明确说明停止提交与服务器冲突处理。
         */}
       <p className="text-body text-ink">
-        <span className="text-muted">这台设备 · </span>
+        <span className="text-muted">{t("books.more.device")}</span>
         {counts === null
-          ? "正在读取…"
-          : `本机已保存 ${String(counts.months)} 个月的 ${String(counts.entries)} 笔账目。`}
+          ? t("books.more.loading")
+          : t("books.more.stored", {
+              months: t("books.more.months", { count: counts.months }),
+              entries: t("books.more.entries", { count: counts.entries }),
+            })}
       </p>
 
-      <ListGroup title="导出账目">
+      <ListGroup title={t("books.more.exportGroup")}>
         <ListRow
-          label="导出为文件"
-          detail="按时间和条件导出 CSV 或 Excel 文件。"
+          label={t("books.more.exportRow.label")}
+          detail={t("books.more.exportRow.detail")}
           onClick={() => {
             void navigate("/export");
           }}
         />
       </ListGroup>
 
-      <ListGroup title="筛选与查找">
+      <ListGroup title={t("books.more.filterGroup")}>
         <ListRow
-          label="回到明细页筛选"
-          detail={
-            <>
-              按月份、收支或分类筛选账目。暂不支持文字搜索。
-            </>
-          }
+          label={t("books.more.filterRow.label")}
+          detail={t("books.more.filterRow.detail")}
           onClick={() => {
             void navigate("/");
           }}
         />
       </ListGroup>
 
-      <ListGroup title="数据维护">
+      <ListGroup title={t("books.more.maintenanceGroup")}>
         <ListRow
           tone="action"
-          label={cleared ? "已清空待同步印记" : "清空「待同步」印记"}
-          detail={
-            <>
-              尚未同步的修改和删除将不再提交，并请求将冲突按服务器版本处理。
-              此操作不删除账目；重新获取列表时，服务器已删除的账目会从本机移除。
-            </>
-          }
+          label={cleared ? t("books.more.cleared") : t("books.more.clearMarks")}
+          detail={t("books.more.clearDetail")}
           onClick={() => {
             void (async () => {
               await deferConflictsToServer();
@@ -128,12 +135,8 @@ export function LedgerMorePage(): React.JSX.Element {
         />
         <ListRow
           tone="action"
-          label="重新加载应用"
-          detail={
-            <>
-              重新打开当前页面，不会清除本机账目或修复服务器数据。
-            </>
-          }
+          label={t("books.more.reloadRow.label")}
+          detail={t("books.more.reloadRow.detail")}
           onClick={() => {
             setConfirmReload(true);
           }}
@@ -142,10 +145,10 @@ export function LedgerMorePage(): React.JSX.Element {
 
       <ConfirmDialog
         open={confirmReload}
-        title={RELOAD_CONFIRMATION.title}
-        description={RELOAD_CONFIRMATION.description}
-        consequences={RELOAD_CONFIRMATION.consequences}
-        confirmLabel={RELOAD_CONFIRMATION.confirmLabel}
+        title={reload.title}
+        description={reload.description}
+        consequences={reload.consequences}
+        confirmLabel={reload.confirmLabel}
         onCancel={() => {
           setConfirmReload(false);
         }}

@@ -15,6 +15,7 @@ import {
 } from "../../lib/chart/format.js";
 import { chartNotice, summariseSeries } from "../../lib/chart/guards.js";
 import { currencyName, formatMoney } from "../../lib/format.js";
+import { isChineseLocale, useI18n } from "../../i18n/index.js";
 
 const PLOT_HEIGHT = 190;
 
@@ -38,6 +39,7 @@ export function TrendChart({
   /** Whether any entry exists in this currency and period — see `chartNotice`. */
   readonly hasEntries: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [active, setActive] = useState<number | null>(null);
   const dragging = useRef(false);
 
@@ -52,13 +54,13 @@ export function TrendChart({
 
   const legend: LegendItem[] = [
     {
-      label: "支出",
+      label: t("common.kind.expense"),
       color: EXPENSE_COLOR,
       shape: "circle",
       value: formatMoney(totals.expense, currency),
     },
     {
-      label: "收入",
+      label: t("common.kind.income"),
       color: INCOME_COLOR,
       shape: "square",
       value: formatMoney(totals.income, currency),
@@ -70,8 +72,8 @@ export function TrendChart({
       <ChartFrame
         height={PLOT_HEIGHT}
         padding={{ top: 14, right: 12, bottom: 26, left: 42 }}
-        title={`${currencyName(currency)}收支趋势`}
-        notice={chartNotice(hasEntries, [...expenses, ...incomes], "收支")}
+        title={t("stats.trend.chartTitle", { currency: currencyName(currency) })}
+        notice={chartNotice(hasEntries, [...expenses, ...incomes], "flow")}
       >
         {(layout) => {
           const all = [...expenses, ...incomes];
@@ -206,7 +208,9 @@ function ActiveMarker({
   readonly income: string;
   readonly currency: string;
 }): React.JSX.Element {
-  const width = 112;
+  const { t, locale } = useI18n();
+  /** 英文的“Income 12,345.67 CNY”比中文长约 20px，提示框相应加宽；中文保持原来的 112（S16）。 */
+  const width = isChineseLocale(locale) ? 112 : 132;
   const height = 46;
   const left = Math.min(Math.max(x - width / 2, 2), layout.width - width - 2);
   const top = 2;
@@ -227,10 +231,10 @@ function ActiveMarker({
         {label}
       </text>
       <text x={left + 8} y={top + 29} fontSize={11} fill={EXPENSE_COLOR}>
-        支出 {expense}
+        {t("stats.trend.tooltipExpense", { amount: expense })}
       </text>
       <text x={left + 8} y={top + 41} fontSize={11} fill={INCOME_COLOR}>
-        收入 {income} {currency}
+        {t("stats.trend.tooltipIncome", { amount: income, currency })}
       </text>
     </g>
   );

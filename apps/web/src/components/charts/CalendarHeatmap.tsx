@@ -5,11 +5,14 @@ import { bucketOf, bucketThresholds } from "../../lib/chart/scales.js";
 import { heatColor } from "../../lib/chart/theme.js";
 import { formatExactAmount } from "../../lib/chart/format.js";
 import { chartNotice } from "../../lib/chart/guards.js";
+import { formatLocalDate } from "../../lib/datetime.js";
 import { currencyName, formatMoney } from "../../lib/format.js";
+import { isChineseLocale, useI18n } from "../../i18n/index.js";
 
 const LEVELS = 4;
 const COLUMNS = 7;
-const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"] as const;
+/** 周一开头。显示名在 `stats.heatmap.weekdays.<id>`，渲染时按当前语言取（S16）。 */
+const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
 /**
  * Which days were heavy, as a grid of squares.
@@ -35,7 +38,10 @@ export function CalendarHeatmap({
   /** Whether any entry exists in this period — the series is gap-filled. */
   readonly hasEntries: boolean;
 }): React.JSX.Element {
+  const { t, locale } = useI18n();
   const [selected, setSelected] = useState<string | null>(null);
+  /** 日期显示：中文界面保持 `YYYY-MM-DD` 原样（与以前一致），其它语言按当地习惯（`Oct 9, 2026`）。 */
+  const showDate = (bucket: string): string => (isChineseLocale(locale) ? bucket : formatLocalDate(bucket));
 
   const thresholds = useMemo(
     () => bucketThresholds(days.map((day) => day.expenseMinor), LEVELS),
@@ -45,7 +51,7 @@ export function CalendarHeatmap({
   const notice = chartNotice(
     hasEntries,
     days.map((day) => day.expenseMinor),
-    "支出",
+    "expense",
   );
 
   if (notice !== null) {
@@ -66,7 +72,7 @@ export function CalendarHeatmap({
       <div className="grid grid-cols-7 gap-1">
         {WEEKDAYS.map((day) => (
           <span key={day} className="text-center text-[10px] text-muted">
-            {day}
+            {t(`stats.heatmap.weekdays.${day}`)}
           </span>
         ))}
 
@@ -86,7 +92,11 @@ export function CalendarHeatmap({
               onClick={() => {
                 setSelected(isSelected ? null : day.bucket);
               }}
-              aria-label={`${day.bucket} 支出 ${formatExactAmount(day.expenseMinor, currency)} ${currency}`}
+              aria-label={t("stats.heatmap.dayLabel", {
+                date: showDate(day.bucket),
+                amount: formatExactAmount(day.expenseMinor, currency),
+                currency,
+              })}
               aria-pressed={isSelected}
               className={`flex aspect-square items-center justify-center rounded text-[10px] transition ${
                 isSelected ? "ring-2 ring-ink ring-offset-1" : ""
@@ -99,37 +109,42 @@ export function CalendarHeatmap({
         })}
       </div>
 
-      <div className="flex items-center gap-2 text-[10px] text-muted">
-        <span>少</span>
+      {/* 英文图例更长：允许换行，色块不被压缩（S16）。 */}
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted">
+        <span>{t("stats.heatmap.less")}</span>
         {Array.from({ length: LEVELS + 1 }, (_, level) => (
           <span
             key={level}
-            className="inline-block h-3 w-6 rounded-sm"
+            className="inline-block h-3 w-6 shrink-0 rounded-sm"
             style={{ backgroundColor: heatColor(level) }}
           />
         ))}
-        <span>多</span>
-        <span className="ml-1">最左为无支出</span>
+        <span>{t("stats.heatmap.more")}</span>
+        <span className="ml-1">{t("stats.heatmap.leftmostNone")}</span>
       </div>
 
       <p className="text-xs leading-relaxed text-muted">
         {selected === null
-          ? `本期共 ${String(spentDays)} 天有支出，合计 ${formatMoney(total, currency)}。颜色表示“在本期内的相对高低”。`
-          : `${selected} 支出 ${formatMoney(
-              days.find((day) => day.bucket === selected)?.expenseMinor ?? 0,
-              currency,
-            )}（第 ${String(
-              bucketOf(
-                days.find((day) => day.bucket === selected)?.expenseMinor ?? 0,
-                thresholds,
+          ? t("stats.heatmap.summary", { count: spentDays, total: formatMoney(total, currency) })
+          : t("stats.heatmap.selected", {
+              date: showDate(selected),
+              amount: formatMoney(days.find((day) => day.bucket === selected)?.expenseMinor ?? 0, currency),
+              level: String(
+                bucketOf(
+                  days.find((day) => day.bucket === selected)?.expenseMinor ?? 0,
+                  thresholds,
+                ),
               ),
-            )} 档）`}
+            })}
       </p>
 
       {peak.expenseMinor > 0 ? (
         <p className="text-xs leading-relaxed text-muted">
-          {currencyName(currency)}支出最多的一天是 {peak.bucket}，
-          {formatMoney(peak.expenseMinor, currency)}。
+          {t("stats.heatmap.peak", {
+            currency: currencyName(currency),
+            date: showDate(peak.bucket),
+            amount: formatMoney(peak.expenseMinor, currency),
+          })}
         </p>
       ) : null}
     </div>

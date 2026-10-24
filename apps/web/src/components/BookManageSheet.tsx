@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { useI18n } from "../i18n/index.js";
 import { type BookSummary } from "../lib/queries.js";
 
 /**
@@ -44,6 +45,7 @@ export function BookManageSheet({
   readonly isCurrent: boolean;
   readonly onClose: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   /** ⚠️ Live drag offset, so the sheet follows the finger rather than only reacting at the end. */
@@ -136,7 +138,7 @@ export function BookManageSheet({
   const items: SheetItem[] = [
     {
       key: "info",
-      label: "账本详情",
+      label: t("books.sheet.info"),
 
       onSelect: () => {
         go(`/books/${book.id}`);
@@ -146,7 +148,7 @@ export function BookManageSheet({
       ? [
           {
             key: "rename",
-            label: "重命名",
+            label: t("books.sheet.rename"),
 
             onSelect: () => {
               go(`/books/${book.id}/settings?rename=1`);
@@ -156,7 +158,7 @@ export function BookManageSheet({
       : []),
     {
       key: "settings",
-      label: "账本设置",
+      label: t("books.sheet.settings"),
 
       onSelect: () => {
         go(`/books/${book.id}/settings`);
@@ -164,7 +166,7 @@ export function BookManageSheet({
     },
     {
       key: "members",
-      label: "成员与邀请",
+      label: t("books.sheet.members"),
 
       onSelect: () => {
         go(`/start/book/${book.id}/members`);
@@ -172,7 +174,7 @@ export function BookManageSheet({
     },
     {
       key: "share",
-      label: "分享链接",
+      label: t("books.sheet.share"),
 
       onSelect: () => {
         go(`/start/book/${book.id}/share`);
@@ -197,7 +199,7 @@ export function BookManageSheet({
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`管理「${book.name}」`}
+        aria-label={t("books.manageNamed", { name: book.name })}
         /**
           * ⚠️ **Swipe-down closes it, and the offset follows the finger.** The owner listed it as one
           * of the ways out (*"向下滑动"*), and **a sheet that only moves after release feels broken** —
@@ -237,16 +239,16 @@ export function BookManageSheet({
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-base font-medium text-ink">{book.name}</span>
             <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
-              <span className="font-mono">{book.bookNumber ?? "（未分配编号）"}</span>
+              <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
               <span>·</span>
-              <span>{String(book.memberCount)} 人</span>
+              <span>{t("books.people", { count: book.memberCount })}</span>
               {isCurrent ? (
                 /**
                   * ⚠️ **A word, not only a colour.** The owner's rule for the list applies here too:
                   * *"不要只依赖颜色传递当前状态."*
                   */
                 <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
-                  当前
+                  {t("books.current")}
                 </span>
               ) : null}
             </span>
@@ -255,7 +257,7 @@ export function BookManageSheet({
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭管理面板"
+            aria-label={t("books.sheet.close")}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
           >
             <SheetIcon kind="close" />
@@ -287,7 +289,7 @@ export function BookManageSheet({
             className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-ink transition hover:bg-canvas"
           >
             <SheetIcon kind="archive" />
-            退出、归档或删除这本账
+            <span className="min-w-0">{t("books.sheet.lifecycle")}</span>
           </button>
         </div>
       </div>

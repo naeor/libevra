@@ -3,8 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { applyLocale } from "../i18n/index.js";
 import { GUEST_IDENTITY_STORAGE_KEY } from "../lib/guest/identity.js";
-import { BottomNav } from "./BottomNav.js";
+import { BottomNav, ledgerTabLabel } from "./BottomNav.js";
 
 /**
  * **The centre menu, checked without a DOM.**
@@ -83,6 +84,7 @@ function menuCards(html: string): string[] {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  applyLocale("zh-CN");
 });
 
 describe("中央 + 菜单的五个入口", () => {
@@ -223,6 +225,58 @@ describe("菜单开合", () => {
       expect(card).toContain('tabindex="-1"');
     }
     expect(menuCards(renderNav({ open: true })).every((card) => card.includes('tabindex="0"'))).toBe(true);
+  });
+});
+
+describe("英文界面（S16）", () => {
+  const CJK = /[㐀-鿿]/;
+
+  it("renders no Chinese, and the five cards keep their full English names as accessible names", () => {
+    applyLocale("en-US");
+    const html = renderNav();
+    const cards = menuCards(html);
+
+    expect(html).not.toMatch(CJK);
+    expect(cards).toHaveLength(5);
+
+    const full = ["Paste text", "Voice entry", "Manual entry", "Scan a receipt", "Import a statement"];
+    const short = ["Paste", "Voice", "Manual", "Scan", "Import"];
+    for (let index = 0; index < cards.length; index += 1) {
+      const card = cards[index] ?? "";
+      expect(card).toContain(`aria-label="${full[index] ?? ""}"`);
+      // ⚠️ 英文完整名比任何宽度下的卡片都宽（≥70px vs ≤73px 卡宽、11px 字），所以只显示短名，
+      // 不再挂 420px 的切换；完整名只留在 aria-label。
+      expect(card).toContain(`>${short[index] ?? ""}</span>`);
+      expect(card).not.toContain("min-[420px]:inline");
+      expect(card).toContain('<span aria-hidden="true" class="whitespace-nowrap text-micro">');
+    }
+
+    // Destinations are untouched by the language.
+    expect(tagWithLabel(html, "Import a statement")).toContain('href="/import?from=nav"');
+    expect(tagWithLabel(html, "Manual entry")).toContain('href="/add"');
+    expect(html).toContain('aria-label="Hide ways to add"');
+    for (const tab of ["Entries", "Insights", "Ledger", "Me"]) {
+      expect(html).toContain(`>${tab}</button>`);
+    }
+  });
+
+  it("keys the guest rule on the card id, not on its Chinese label", () => {
+    applyLocale("en-US");
+    const html = renderNav({ guest: true });
+
+    // 以前是 `label !== "手动记账"`：切到英文后所有卡都会被当成"非手动"而禁用。
+    expect(html).toContain('href="/add"');
+    expect(tagWithLabel(html, "Paste text, needs a full account")).toContain('disabled=""');
+    expect(html).not.toContain('href="/paste"');
+    expect(html).not.toMatch(CJK);
+  });
+
+  it("names the fourth tab by member count in either language", () => {
+    expect(ledgerTabLabel(1)).toBe("账本");
+    expect(ledgerTabLabel(2)).toBe("协作");
+    applyLocale("en-US");
+    expect(ledgerTabLabel(undefined)).toBe("Ledger");
+    expect(ledgerTabLabel(3)).toBe("Shared");
   });
 });
 

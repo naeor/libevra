@@ -38,13 +38,16 @@ describe("analysis screen copy", () => {
   it("describes itself as a computed result", () => {
     // Was "把账目变成看得懂的图。" — warm, but it describes a feeling rather
     // than saying what the screen is.
-    expect(source("../pages/StatsPage.tsx")).toContain("以下结果由已记录的账目计算得出。");
+    // S16：文案搬进 `stats` 模块；页面用键取，句子本身仍逐字钉在中文资源里。
+    expect(source("../i18n/resources/zh-CN/stats.ts")).toContain('subtitle: "以下结果由已记录的账目计算得出。"');
+    expect(source("../pages/StatsPage.tsx")).toContain('subtitle={t("stats.subtitle")}');
   });
 
   it("does not explain exchange rates where none are applied", () => {
     // The owner asked for this sentence to go: stating that no conversion
     // happens is noise on a screen that does not convert anything.
     expect(source("../pages/StatsPage.tsx")).not.toContain("不进行汇率换算");
+    expect(source("../i18n/resources/zh-CN/stats.ts")).not.toContain("不进行汇率换算");
     expect(source("../pages/AddEntryPage.tsx")).not.toContain("不进行汇率换算");
   });
 });
@@ -113,10 +116,12 @@ describe("account copy", () => {
 
 describe("archive copy", () => {
   it("says what archiving does, to the thing being archived", () => {
-    const manage = source("../pages/ManagePages.tsx");
+    // S16：三页的说明搬进 `manage` 模块（中文原文逐字不变），页面按键取。
+    const manage = source("../i18n/resources/zh-CN/manage.ts");
 
     expect(manage).toContain("归档后不再出现在记账选项中");
     expect(manage).not.toContain("归档后不再出现在记账选项里");
+    expect(source("../pages/ManagePages.tsx")).toContain('t("manage.categories.hint")');
   });
 });
 
@@ -149,6 +154,24 @@ describe("register", () => {
       const text = visibleText(file);
 
       for (const colloquial of ["都是 0", "还没有", "没什么", "搞定", "挺好的"]) {
+        expect(text, `${file} shows 「${colloquial}」 to the user`).not.toContain(colloquial);
+      }
+    }
+  });
+
+  it("keeps the same register in the S16 resource modules for those screens", () => {
+    /**
+     * S16：分析、分类/标签/支付方式管理、账本空间的界面文字搬进了 `stats` / `manage` / `books` 模块。
+     * 规则管的是用户读到的字，所以同样的口语词也不许出现在这些模块的中文资源里（`visibleText` 剥掉注释）。
+     */
+    for (const file of [
+      "../i18n/resources/zh-CN/stats.ts",
+      "../i18n/resources/zh-CN/manage.ts",
+      "../i18n/resources/zh-CN/books.ts",
+    ]) {
+      const text = visibleText(file);
+
+      for (const colloquial of ["都是 0", "没什么", "搞定", "挺好的"]) {
         expect(text, `${file} shows 「${colloquial}」 to the user`).not.toContain(colloquial);
       }
     }
@@ -248,6 +271,8 @@ describe("guest mode copy (S14-C)", () => {
 
   it("disables server-only recording actions with a reason instead of faking them", () => {
     // The local form stays; voice/photo are server-side and say why they are unavailable.
-    expect(bottomNav).toContain("需要正式账号");
+    // S16：原因句在 `nav` 模块（中文原文不变），底栏按键取。
+    expect(bottomNav).toContain('t("nav.entry.needsAccount"');
+    expect(visibleText("../i18n/resources/zh-CN/nav.ts")).toContain("需要正式账号");
   });
 });

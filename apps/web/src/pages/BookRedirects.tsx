@@ -1,6 +1,7 @@
 import { Link, Navigate, useLocation, useParams } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
+import { useI18n } from "../i18n/index.js";
 import { useLedger } from "../lib/queries.js";
 
 /**
@@ -19,8 +20,9 @@ import { useLedger } from "../lib/queries.js";
 
 /** 读取中：一句静态文字，比一块骨架更诚实——这一屏本来就不会停留。 */
 function Loading(): React.JSX.Element {
+  const { t } = useI18n();
   return (
-    <main className="flex min-h-full items-center justify-center text-body text-muted">正在打开账本……</main>
+    <main className="flex min-h-full items-center justify-center text-body text-muted">{t("books.redirect.opening")}</main>
   );
 }
 
@@ -31,16 +33,17 @@ function Loading(): React.JSX.Element {
  * 分类"，所以这里给出原因和唯一有用的下一步（去账本空间选一本）。
  */
 function NoCurrentBook(): React.JSX.Element {
+  const { t } = useI18n();
   return (
-    <InnerPage title="还没有当前账本" backTo="/start">
+    <InnerPage title={t("books.redirect.noCurrentTitle")} backTo="/start">
       <p className="text-body-relaxed text-muted">
-        这个入口管理的是「当前账本」的分类、标签或支付方式。先选一本账本进去，再回来就能用了。
+        {t("books.redirect.noCurrentBody")}
       </p>
       <Link
         to="/start"
         className="inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-sm font-medium text-on-brand transition hover:bg-brand-dark"
       >
-        去账本空间
+        {t("books.goToSpace")}
       </Link>
     </InnerPage>
   );

@@ -3,7 +3,11 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
-import { LedgerMorePage, RELOAD_CONFIRMATION } from "./LedgerMorePage.js";
+import { applyLocale } from "../i18n/index.js";
+import { LedgerMorePage, reloadConfirmation } from "./LedgerMorePage.js";
+
+/** S16：确认文案改为调用时按当前语言取；默认语言（中文）下内容与以前逐字相同。 */
+const RELOAD_CONFIRMATION = reloadConfirmation();
 
 /**
  * The ledger's 更多 screen.
@@ -105,5 +109,22 @@ describe("RELOAD_CONFIRMATION", () => {
     expect(html).toContain("重新加载应用？");
     expect(html).toContain("未保存的表单内容会丢失");
     expect(html).toContain("重新加载");
+  });
+});
+
+describe("LedgerMorePage in English (S16)", () => {
+  it("renders without any Chinese and takes the dialog wording at call time", () => {
+    applyLocale("en-US");
+    try {
+      const html = renderPage();
+      expect(html).not.toMatch(/[㐀-鿿]/);
+      expect(html).toContain("Clear “not synced” marks");
+
+      const confirmation = reloadConfirmation();
+      expect(confirmation.title).toBe("Reload the app?");
+      expect(confirmation.consequences.join(" ")).not.toMatch(/[㐀-鿿]/);
+    } finally {
+      applyLocale("zh-CN");
+    }
   });
 });

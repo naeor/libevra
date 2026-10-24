@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { useI18n } from "../../i18n/index.js";
+
 /**
  * 从一列固定选项里选一个：项目自己的底部选择面板。
  *
@@ -55,6 +57,7 @@ export function ChoiceSheet<Value extends string>({
   readonly onSelect: (value: Value) => void;
   readonly onClose: () => void;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
   /**
    * ⚠️ **`onClose` 走 ref，不进 effect 的依赖。** 页面通常传一个内联箭头函数，
@@ -147,7 +150,7 @@ export function ChoiceSheet<Value extends string>({
           <button
             type="button"
             onClick={onClose}
-            aria-label={`关闭${title}`}
+            aria-label={t("nav.sheet.close", { title })}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
             <svg

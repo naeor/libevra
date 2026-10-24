@@ -74,7 +74,7 @@ import { VoiceReviewPage } from "./pages/VoiceReviewPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 import { ThemeAppearancePage } from "./pages/ThemeAppearancePage.js";
 import { AppearancePage, PreferencesPage, SecurityPage } from "./pages/SettingsSubPages.js";
-import { useLanguageRerender } from "./i18n/index.js";
+import { useI18n, useLanguageRerender } from "./i18n/index.js";
 import { LanguagePage } from "./pages/LanguagePage.js";
 
 /**
@@ -127,8 +127,9 @@ const queryClient = new QueryClient({
 });
 
 function Splash(): React.JSX.Element {
+  const { t } = useI18n();
   return (
-    <main className="flex min-h-full items-center justify-center text-body text-muted">载入中…</main>
+    <main className="flex min-h-full items-center justify-center text-body text-muted">{t("nav.splash")}</main>
   );
 }
 

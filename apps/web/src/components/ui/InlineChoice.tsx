@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from "react";
 
+import { useI18n } from "../../i18n/index.js";
 import { ChevronIcon } from "../Icons.js";
 
 /**
@@ -44,7 +45,7 @@ export function InlineChoice({
   value,
   options,
   open,
-  placeholder = "未选择",
+  placeholder: placeholderProp,
   testId,
   onToggle,
   onSelect,
@@ -63,6 +64,9 @@ export function InlineChoice({
   readonly onSelect: (id: string) => void;
   readonly onClose: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+  /** 默认「未选择」（`nav.choice.placeholder`），渲染时按当前语言取。 */
+  const placeholder = placeholderProp ?? t("nav.choice.placeholder");
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   /**
@@ -146,7 +150,7 @@ export function InlineChoice({
         aria-haspopup="listbox"
         aria-expanded={open}
         {...(open ? { "aria-controls": listId } : {})}
-        aria-label={`${label}：${current?.label ?? placeholder}`}
+        aria-label={t("nav.choice.current", { label, value: current?.label ?? placeholder })}
         onClick={onToggle}
         className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-canvas focus-visible:bg-canvas focus-visible:outline-none"
       >

@@ -6,7 +6,9 @@ import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { FactRow, ListGroup, ListRow } from "../components/ui/List.js";
 import { SkeletonRows } from "../components/States.js";
+import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { formatLocalDate } from "../lib/datetime.js";
 import { useBooks, useLedgerMeta } from "../lib/queries.js";
 
 /**
@@ -27,6 +29,7 @@ import { useBooks, useLedgerMeta } from "../lib/queries.js";
  * **不静默回落到当前账本** —— 那会让用户以为自己打开的是 A 账，实际看到的是 B 账。
  */
 export function BookDetailPage(): React.JSX.Element {
+  const { t, locale } = useI18n();
   const { bookId = "" } = useParams<{ bookId: string }>();
   const meta = useLedgerMeta(bookId);
   const books = useBooks();
@@ -43,9 +46,12 @@ export function BookDetailPage(): React.JSX.Element {
   const bookNumber = meta.data?.book.bookNumber ?? row?.bookNumber ?? null;
   const memberCount = meta.data?.book.memberCount ?? row?.memberCount;
   const stats = meta.data?.stats;
+  /** 创建日期：中文界面保持 `YYYY-MM-DD`（与以前一致），其它语言按当地习惯显示同一个日历日。 */
+  const createdDate = stats === undefined ? "" : stats.createdAt.slice(0, 10);
+  const createdLabel = isChineseLocale(locale) ? createdDate : formatLocalDate(createdDate);
 
   return (
-    <InnerPage title="账本详情" backTo="/start">
+    <InnerPage title={t("books.detail.title")} backTo="/start">
       {meta.isPending ? <SkeletonRows rows={4} /> : null}
 
       {meta.isSuccess ? (
@@ -66,22 +72,26 @@ export function BookDetailPage(): React.JSX.Element {
             */}
           <ListGroup
             as="dl"
-            title="这本账的资料"
-            footer="这些数字来自服务器，只用于认出这本账；收支合计不在这里，见「分析」。"
+            title={t("books.detail.factsTitle")}
+            footer={t("books.detail.factsFooter")}
           >
-            {memberCount === undefined ? null : <FactRow label="成员数量" value={`${String(memberCount)} 人`} />}
+            {memberCount === undefined ? null : (
+              <FactRow label={t("books.detail.memberCount")} value={t("books.people", { count: memberCount })} />
+            )}
             {stats === undefined ? null : (
               <>
-                <FactRow label="创建日期" value={stats.createdAt.slice(0, 10)} />
-                <FactRow label="账目数量" value={`${String(stats.transactionCount)} 笔`} />
-                <FactRow label="编辑记录" value={`${String(stats.eventCount)} 条`} />
+                <FactRow label={t("books.detail.createdAt")} value={createdLabel} />
+                <FactRow label={t("books.detail.entryCount")} value={t("common.count.entries", { count: stats.transactionCount })} />
+                <FactRow label={t("books.detail.eventCount")} value={t("books.detail.events", { count: stats.eventCount })} />
                 {/**
                   * ⚠️ **"约" stays.** An estimate shown beside three exact figures is read as exact,
                   * and somebody will eventually reconcile against it — see `estimateBytes`.
                   */}
                 <FactRow
-                  label="占用空间"
-                  value={`约 ${formatBytes(estimateBytes(stats.transactionCount, stats.eventCount))}`}
+                  label={t("books.detail.storage")}
+                  value={t("books.detail.storageValue", {
+                    size: formatBytes(estimateBytes(stats.transactionCount, stats.eventCount)),
+                  })}
                 />
               </>
             )}
@@ -93,13 +103,13 @@ export function BookDetailPage(): React.JSX.Element {
             */}
           <ListGroup>
             <ListRow
-              label="账本设置"
-              detail="管理账本资料、分类、标签和支付方式"
+              label={t("books.detail.settingsRow.label")}
+              detail={t("books.detail.settingsRow.detail")}
               onClick={() => {
                 void navigate(`/books/${bookId}/settings`);
               }}
             />
-            <ListRow label="前往账本空间" detail="切换、新建或整理全部账本" to="/start" />
+            <ListRow label={t("books.detail.spaceRow.label")} detail={t("books.detail.spaceRow.detail")} to="/start" />
           </ListGroup>
         </>
       ) : null}
@@ -112,12 +122,12 @@ export function BookDetailPage(): React.JSX.Element {
       {meta.isError ? (
         <section className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
           <div className="flex flex-col gap-1">
-            <h2 className="text-base font-medium text-ink">打不开这本账</h2>
+            <h2 className="text-base font-medium text-ink">{t("books.unreadable.title")}</h2>
             <p role="alert" className="text-body-relaxed text-muted">
               {errorMessage(meta.error)}
             </p>
             <p className="text-helper-relaxed text-muted">
-              它可能已经被弃置，或者你已经不在其中。这一页不会自动换成你当前的账本。
+              {t("books.unreadable.hint")}
             </p>
           </div>
 
@@ -139,7 +149,7 @@ export function BookDetailPage(): React.JSX.Element {
                 void navigate("/start");
               }}
             >
-              返回账本空间
+              {t("books.unreadable.back")}
             </Button>
             <Button
               variant="secondary"
@@ -147,7 +157,7 @@ export function BookDetailPage(): React.JSX.Element {
                 setSwitcher(true);
               }}
             >
-              选择其他账本
+              {t("books.unreadable.chooseOther")}
             </Button>
           </div>
         </section>
