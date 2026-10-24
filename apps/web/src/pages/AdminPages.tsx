@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -9,6 +10,7 @@ import { InnerPage } from "../components/Layouts.js";
 import { SectionFrame } from "../components/SectionFrame.js";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/States.js";
 import { TextField } from "../components/TextField.js";
+import { t as translate, useI18n } from "../i18n/index.js";
 import {
   createAdminInvite,
   fetchAdminAudit,
@@ -22,6 +24,7 @@ import {
   suspendAdminUser,
 } from "../lib/admin.js";
 import { errorMessage } from "../lib/api.js";
+import { formatInstant } from "../lib/datetime.js";
 import type {
   AdminAuditListResponse,
   AdminInvite,
@@ -138,21 +141,29 @@ function InfoRow({
   readonly label: string;
   readonly value: React.ReactNode;
 }): React.JSX.Element {
+  /**
+   * S16：英文标签更长。标签 `min-w-0` 可换行；值仍然 `shrink-0` 不折断数字，较长的值
+   * （如“3（另有 1 个只满足一半）”）允许换行并右对齐。
+   */
   return (
     <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5 last:border-b-0">
-      <span className="text-sm text-ink">{label}</span>
-      <span className="shrink-0 text-helper text-muted">{value}</span>
+      <span className="min-w-0 text-sm text-ink">{label}</span>
+      <span className="max-w-[60%] shrink-0 text-right text-helper text-muted [overflow-wrap:anywhere]">{value}</span>
     </div>
   );
 }
 
-/** `2026/10/17 10:32` — the console is a desktop screen, so a compact timestamp is fine. */
+/**
+ * `2026/10/17 10:32` — the console is a desktop screen, so a compact timestamp is fine.
+ *
+ * S16：按当前界面语言格式化（中文输出与原来的 `toLocaleString("zh-CN", …)` 相同）。
+ */
 function stamp(value: string | null): string {
   if (value === null) return "—";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "—";
 
-  return parsed.toLocaleString("zh-CN", {
+  return formatInstant(parsed, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -171,6 +182,7 @@ function count(value: number): string {
 export function AdminOverviewPage(): React.JSX.Element {
   const navigate = useNavigate();
   const { state, reload } = useLoad(fetchAdminOverview);
+  const { t } = useI18n();
 
   return (
     /**
@@ -179,7 +191,7 @@ export function AdminOverviewPage(): React.JSX.Element {
      * back through — so the fallback has to be the screen the reader actually came from.
      * The sub-pages keep `/admin` as their fallback, which is correct for them.
      */
-    <Shell title="系统管理" backTo="/settings">
+    <Shell title={t("admin.overview.title")} backTo="/settings">
       {state.kind === "loading" ? <SkeletonRows rows={5} /> : null}
       {state.kind === "error" ? <ErrorState message={state.message} onRetry={reload} /> : null}
       {state.kind === "ready" ? <OverviewBody data={state.data} onNavigate={navigate} /> : null}
@@ -194,90 +206,95 @@ function OverviewBody({
   readonly data: AdminOverviewResponse;
   readonly onNavigate: (to: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <>
-      <SectionFrame title="概览">
-        <InfoRow label="账号总数" value={count(data.users.total)} />
-        <InfoRow label="已停用账号" value={count(data.users.suspended)} />
-        <InfoRow label="账本总数" value={count(data.books.total)} />
+      <SectionFrame title={t("admin.overview.summary")}>
+        <InfoRow label={t("admin.overview.totalAccounts")} value={count(data.users.total)} />
+        <InfoRow label={t("admin.overview.suspendedAccounts")} value={count(data.users.suspended)} />
+        <InfoRow label={t("admin.overview.totalLedgers")} value={count(data.books.total)} />
         <InfoRow
-          label="管理员"
+          label={t("admin.overview.admins")}
           value={
             data.admins.halfConfigured > 0
-              ? `${count(data.admins.active)}（另有 ${count(data.admins.halfConfigured)} 个只满足一半）`
+              ? t("admin.overview.adminsHalf", {
+                  active: count(data.admins.active),
+                  half: count(data.admins.halfConfigured),
+                })
               : count(data.admins.active)
           }
         />
       </SectionFrame>
 
-      <SectionFrame title="邀请码">
-        <InfoRow label="可用" value={count(data.invites.available)} />
-        <InfoRow label="已使用" value={count(data.invites.used)} />
-        <InfoRow label="已作废" value={count(data.invites.revoked)} />
-        <InfoRow label="已过期" value={count(data.invites.expired)} />
+      <SectionFrame title={t("admin.overview.invites")}>
+        <InfoRow label={t("admin.inviteStatus.available")} value={count(data.invites.available)} />
+        <InfoRow label={t("admin.inviteStatus.used")} value={count(data.invites.used)} />
+        <InfoRow label={t("admin.inviteStatus.revoked")} value={count(data.invites.revoked)} />
+        <InfoRow label={t("admin.inviteStatus.expired")} value={count(data.invites.expired)} />
       </SectionFrame>
 
-      <SectionFrame title="备份">
+      <SectionFrame title={t("admin.overview.backup")}>
         {data.lastBackup === null ? (
           /**
            * ⚠️ **"还没有记录" is the honest answer.** The writer is connected now, but a fresh
            * deployment (or a failed write) still has no row; "normal" would be invented.
            */
           <p className="px-5 py-4 text-body-relaxed text-muted">
-            还没有备份记录。第一次成功运行后才会在这里出现结果。
+            {t("admin.overview.noBackup")}
           </p>
         ) : (
           <>
-            <InfoRow label="上次备份" value={stamp(data.lastBackup.at)} />
+            <InfoRow label={t("admin.overview.lastBackup")} value={stamp(data.lastBackup.at)} />
             <InfoRow
-              label="结果"
+              label={t("admin.overview.result")}
               value={
                 data.lastBackup.stale
-                  ? "未知（记录已过期）"
+                  ? t("admin.overview.resultUnknown")
                   : data.lastBackup.ok
-                    ? "成功（含恢复演练）"
-                    : "失败"
+                    ? t("admin.overview.resultOk")
+                    : t("admin.overview.resultFailed")
               }
             />
             {data.lastBackup.stale ? (
               <InfoRow
-                label="最后记录结果"
-                value={data.lastBackup.ok ? "成功（含恢复演练）" : "失败"}
+                label={t("admin.overview.lastRecordedResult")}
+                value={data.lastBackup.ok ? t("admin.overview.resultOk") : t("admin.overview.resultFailed")}
               />
             ) : null}
             {data.lastBackup.stale ? (
               <p className="px-5 pb-4 text-helper-relaxed text-muted">
-                超过 36 小时没有新的备份记录，因此不再把最后一次结果当作当前状态。
+                {t("admin.overview.staleNote")}
               </p>
             ) : null}
             {data.lastBackup.note === null ? null : (
-              <InfoRow label="备注" value={data.lastBackup.note} />
+              <InfoRow label={t("admin.overview.note")} value={data.lastBackup.note} />
             )}
           </>
         )}
       </SectionFrame>
 
       <SectionFrame
-        title="最近操作"
+        title={t("admin.overview.recent")}
         action={
           <button
             type="button"
             className="text-brand transition hover:text-brand-dark"
             onClick={() => { onNavigate("/admin/audit"); }}
           >
-            全部 ›
+            {t("admin.overview.all")}
           </button>
         }
       >
         {data.recentActions.length === 0 ? (
-          <p className="px-5 py-4 text-body-relaxed text-muted">还没有管理操作。</p>
+          <p className="px-5 py-4 text-body-relaxed text-muted">{t("admin.overview.noRecent")}</p>
         ) : (
           data.recentActions.map((entry) => (
             <div
               key={entry.id}
               className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5 last:border-b-0"
             >
-              <span className="flex flex-col gap-0.5">
+              <span className="flex min-w-0 flex-col gap-0.5 [overflow-wrap:anywhere]">
                 <span className="text-sm text-ink">{entry.action}</span>
                 <span className="text-helper text-muted">
                   {entry.adminUsername}
@@ -292,16 +309,16 @@ function OverviewBody({
 
       <div className="flex flex-col gap-3 px-6 py-7">
         <Button variant="secondary" onClick={() => { onNavigate("/admin/invites"); }}>
-          邀请码管理
+          {t("admin.overview.goInvites")}
         </Button>
         <Button variant="secondary" onClick={() => { onNavigate("/admin/admins"); }}>
-          管理员状态
+          {t("admin.overview.goAdmins")}
         </Button>
         <Button variant="secondary" onClick={() => { onNavigate("/admin/users"); }}>
-          查找账号
+          {t("admin.overview.goUsers")}
         </Button>
         <Button variant="secondary" onClick={() => { onNavigate("/admin/lifecycle"); }}>
-          账本恢复申请
+          {t("admin.overview.goLifecycle")}
         </Button>
       </div>
     </>
@@ -311,15 +328,10 @@ function OverviewBody({
 // ---------------------------------------------------------------------------
 // /admin/invites
 // ---------------------------------------------------------------------------
-const STATUS_LABEL: Record<AdminInvite["status"], string> = {
-  available: "可用",
-  used: "已使用",
-  revoked: "已作废",
-  expired: "已过期",
-};
-
+/** S16：邀请码状态的文字按状态 ID 在渲染时取（`admin.inviteStatus.<status>`），不再放模块顶层常量。 */
 export function AdminInvitesPage(): React.JSX.Element {
   const { state, reload } = useLoad(fetchAdminInvites);
+  const { t } = useI18n();
   const [created, setCreated] = useState<{ code: string; note: string | null } | null>(null);
   const [shape, setShape] = useState<"ordinary" | "reserved">("ordinary");
   const [note, setNote] = useState("");
@@ -342,68 +354,69 @@ export function AdminInvitesPage(): React.JSX.Element {
   }, [shape, note, reload]);
 
   return (
-    <Shell title="邀请码">
-      <SectionFrame title="创建邀请码">
+    <Shell title={t("admin.invites.title")}>
+      <SectionFrame title={t("admin.invites.create")}>
         <div className="flex flex-col gap-4 px-5 py-4">
-          <div className="flex gap-2">
+          {/* S16：两个形状按钮在英文下更长，窄屏允许换行 */}
+          <div className="flex flex-wrap gap-2">
             <Button
               variant={shape === "ordinary" ? "primary" : "secondary"}
               fullWidth={false}
               onClick={() => { setShape("ordinary"); }}
             >
-              7 天有效
+              {t("admin.invites.ordinary")}
             </Button>
             <Button
               variant={shape === "reserved" ? "primary" : "secondary"}
               fullWidth={false}
               onClick={() => { setShape("reserved"); }}
             >
-              预留编号·永久
+              {t("admin.invites.reserved")}
             </Button>
           </div>
 
           <p className="text-helper-relaxed text-muted">
             {shape === "ordinary"
-              ? "7 天后自动过期，可作废。适合「现在就要发一个码」的场合。"
-              : "预留一个前 100 的账号编号、永不过期。编号一旦预留就不会退回。"}
+              ? t("admin.invites.ordinaryHint")
+              : t("admin.invites.reservedHint")}
           </p>
 
           <TextField
-            label="备注（只有你自己看得到）"
+            label={t("admin.invites.noteLabel")}
             value={note}
             maxLength={200}
             onChange={(event) => { setNote(event.target.value); }}
-            placeholder="例如：给母亲"
+            placeholder={t("admin.invites.notePlaceholder")}
           />
 
           {message === null ? null : <Alert tone="error">{message}</Alert>}
 
           <Button disabled={busy} onClick={submit}>
-            {busy ? "创建中…" : "创建"}
+            {busy ? t("admin.invites.creating") : t("admin.invites.submit")}
           </Button>
         </div>
       </SectionFrame>
 
       {created === null ? null : (
-        <SectionFrame title="新邀请码（只显示这一次）">
+        <SectionFrame title={t("admin.invites.newCode")}>
           <div className="flex flex-col gap-3 px-5 py-4">
             <Alert tone="info">
-              离开这个页面后就再也看不到这个码了。请现在复制或用截图保存。
+              {t("admin.invites.newCodeWarning")}
             </Alert>
-            <CopyButton text={created.code} label="复制邀请码" hint="邀请码只显示这一次" />
+            <CopyButton text={created.code} label={t("admin.invites.copy")} hint={t("admin.invites.copyHint")} />
             <Button variant="ghost" onClick={() => { setCreated(null); }}>
-              我已保存
+              {t("admin.invites.saved")}
             </Button>
           </div>
         </SectionFrame>
       )}
 
-      <SectionFrame title="全部邀请码">
+      <SectionFrame title={t("admin.invites.all")}>
         {state.kind === "loading" ? <SkeletonRows rows={4} /> : null}
         {state.kind === "error" ? <ErrorState message={state.message} onRetry={reload} /> : null}
         {state.kind === "ready" ? (
           state.data.invites.length === 0 ? (
-            <EmptyState title="还没有邀请码" description="上面可以创建一个。" />
+            <EmptyState title={t("admin.invites.emptyTitle")} description={t("admin.invites.emptyDescription")} />
           ) : (
             <InviteList invites={state.data.invites} onRevoke={setRevoking} />
           )
@@ -428,6 +441,8 @@ function InviteList({
   readonly invites: readonly AdminInvite[];
   readonly onRevoke: (invite: AdminInvite) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <>
       {invites.map((invite) => (
@@ -438,11 +453,11 @@ function InviteList({
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="font-mono text-sm text-ink">{invite.maskedCode}</span>
             <span className="truncate text-helper text-muted">
-              {invite.note ?? "（无备注）"}
-              {invite.accountNumber === null ? "" : ` · 预留 ${invite.accountNumber}`}
+              {invite.note ?? t("admin.invites.noNote")}
+              {invite.accountNumber === null ? "" : ` · ${t("admin.invites.reservedNumber", { number: invite.accountNumber })}`}
             </span>
             <span className="text-helper text-muted">
-              {STATUS_LABEL[invite.status]}
+              {t(`admin.inviteStatus.${invite.status}`)}
               {invite.usedByUsername === null ? "" : ` · ${invite.usedByUsername}`}
               {` · ${stamp(invite.createdAt)}`}
             </span>
@@ -453,7 +468,7 @@ function InviteList({
               className="shrink-0 text-xs text-danger transition hover:text-danger-dark"
               onClick={() => { onRevoke(invite); }}
             >
-              作废
+              {t("admin.invites.revoke")}
             </button>
           )}
         </div>
@@ -485,32 +500,37 @@ function RevokeInviteDialog({
   const [message, setMessage] = useState<string | null>(null);
 
   const needsAcknowledgement = invite.status === "used";
+  const { t } = useI18n();
 
   return (
     <ConfirmDialog
       open
       tone="danger"
-      title="作废邀请码？"
-      description={`${invite.maskedCode}${invite.note === null ? "" : `（${invite.note}）`}`}
+      title={t("admin.revoke.title")}
+      description={
+        invite.note === null
+          ? invite.maskedCode
+          : t("admin.revoke.withNote", { code: invite.maskedCode, note: invite.note })
+      }
       consequences={[
-        "作废后这个码不能再被用来注册。",
+        t("admin.revoke.consequence"),
         ...(needsAcknowledgement
           ? [
-              "⚠️ 这个码已经被注册使用过：作废它不会关闭已注册的账户。",
-              "那个账户仍然是可用状态，需要你单独处理。",
+              t("admin.revoke.usedWarning"),
+              t("admin.revoke.usedFollowUp"),
             ]
-          : ["预留编号不会退回。"]),
+          : [t("admin.revoke.reservedKept")]),
       ]}
-      confirmLabel="作废"
+      confirmLabel={t("admin.revoke.confirm")}
       busy={busy}
       onCancel={onCancel}
       onConfirm={() => {
         if (reason.trim() === "" || password === "") {
-          setMessage("需要填写原因并输入你的密码。");
+          setMessage(t("admin.form.reasonAndPasswordRequired"));
           return;
         }
         if (needsAcknowledgement && !acknowledge) {
-          setMessage("请先确认你已经读过「不会关闭账户」的提示。");
+          setMessage(t("admin.revoke.acknowledgeRequired"));
           return;
         }
 
@@ -529,13 +549,13 @@ function RevokeInviteDialog({
     >
       <div className="mt-4 flex flex-col gap-3">
         <TextField
-          label="原因（会记进操作记录）"
+          label={t("admin.form.reason")}
           value={reason}
           maxLength={200}
           onChange={(event) => { setReason(event.target.value); }}
         />
         <TextField
-          label="你的密码（二次验证）"
+          label={t("admin.form.password")}
           type="password"
           value={password}
           autoComplete="current-password"
@@ -549,7 +569,7 @@ function RevokeInviteDialog({
               onChange={(event) => { setAcknowledge(event.target.checked); }}
               className="mt-0.5"
             />
-            <span>我知道作废邀请码不会关闭已经注册的账户。</span>
+            <span>{t("admin.revoke.acknowledge")}</span>
           </label>
         ) : null}
         {message === null ? null : <Alert tone="error">{message}</Alert>}
@@ -561,32 +581,40 @@ function RevokeInviteDialog({
 // ---------------------------------------------------------------------------
 // /admin/admins — read-only on purpose
 // ---------------------------------------------------------------------------
-const ROSTER_LABEL: Record<string, string> = {
-  active: "管理员",
-  grant_only: "只满足一半：有授权、不在允许名单",
-  allowlist_only: "只满足一半：在允许名单、无授权",
-  eligible: "有资格，未授权",
-};
+/**
+ * 名单状态的稳定 ID（服务器原样返回）。文字在渲染时按 `admin.roster.status.<id>` 取；
+ * 不认识的状态原样显示——和原来 `ROSTER_LABEL[status] ?? status` 的回退一致。
+ */
+const ROSTER_STATUSES = ["active", "grant_only", "allowlist_only", "eligible"] as const;
+type RosterStatus = (typeof ROSTER_STATUSES)[number];
+
+function rosterLabel(status: string): string {
+  return (ROSTER_STATUSES as readonly string[]).includes(status)
+    ? translate(`admin.roster.status.${status as RosterStatus}`)
+    : status;
+}
 
 export function AdminAdminsPage(): React.JSX.Element {
   const { state, reload } = useLoad(fetchAdminRoster);
+  const { t } = useI18n();
 
   return (
-    <Shell title="管理员">
-      <SectionFrame title="当前状态">
+    <Shell title={t("admin.roster.title")}>
+      <SectionFrame title={t("admin.roster.current")}>
         {state.kind === "loading" ? <SkeletonRows rows={3} /> : null}
         {state.kind === "error" ? <ErrorState message={state.message} onRetry={reload} /> : null}
         {state.kind === "ready" ? <RosterList data={state.data} /> : null}
       </SectionFrame>
 
-      <SectionFrame title="为什么这里不能授权">
+      <SectionFrame title={t("admin.roster.whyTitle")}>
         <p className="px-5 py-4 text-body-relaxed text-muted">
-          授权与撤销管理员需要同时写入「授权」和「允许名单」两处记录，只能在服务器终端用
-          <code className="mx-1 font-mono text-xs">admin:grant</code> 与
-          <code className="mx-1 font-mono text-xs">admin:allow</code> 完成。
+          <Trans
+            i18nKey="admin.roster.whyCommands"
+            components={{ code: <code className="mx-1 font-mono text-xs" /> }}
+          />
         </p>
         <p className="px-5 pb-4 text-body-relaxed text-muted">
-          如果网页能提权，那么一个被盗的管理员会话就等于多了一把能开同一把锁的钥匙——这正是两道锁要防的事。
+          {t("admin.roster.whyRisk")}
         </p>
       </SectionFrame>
     </Shell>
@@ -594,25 +622,27 @@ export function AdminAdminsPage(): React.JSX.Element {
 }
 
 function RosterList({ data }: { readonly data: AdminRosterResponse }): React.JSX.Element {
+  const { t } = useI18n();
+
   if (data.entries.length === 0) {
-    return <EmptyState title="没有可显示的账号" description="前 100 个账号才会出现在这里。" />;
+    return <EmptyState title={t("admin.roster.emptyTitle")} description={t("admin.roster.emptyDescription")} />;
   }
 
   return (
     <>
       <p className="px-5 py-3 text-helper text-muted">
-        有资格账号共 {count(data.eligibleTotal)} 个（编号 10000000–10000099）。
+        {t("admin.roster.eligibleTotal", { count: data.eligibleTotal })}
       </p>
       {data.entries.map((entry) => (
         <div key={entry.userId} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3.5">
-          <span className="flex flex-col gap-0.5">
-            <span className="text-sm text-ink">
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm text-ink [overflow-wrap:anywhere]">
               {entry.username} · {entry.accountNumber}
             </span>
             <span
               className={`text-helper ${entry.status === "active" ? "text-brand-dark" : "text-muted"}`}
             >
-              {ROSTER_LABEL[entry.status] ?? entry.status}
+              {rosterLabel(entry.status)}
             </span>
           </span>
           <span className="shrink-0 text-helper text-muted">
@@ -654,45 +684,47 @@ export function AdminUsersPage(): React.JSX.Element {
       .finally(() => { setBusy(false); });
   }, [query]);
 
+  const { t } = useI18n();
+
   return (
-    <Shell title="查找账号">
-      <SectionFrame title="精确查找" bare>
+    <Shell title={t("admin.users.title")}>
+      <SectionFrame title={t("admin.users.exact")} bare>
         <div className="flex flex-col gap-3 px-6">
           <TextField
-            label="账号编号或用户名（完整匹配）"
+            label={t("admin.users.queryLabel")}
             value={query}
             onChange={(event) => { setQuery(event.target.value); }}
-            placeholder="例如 10000101 或 naeor"
+            placeholder={t("admin.users.queryPlaceholder")}
             onKeyDown={(event) => {
               if (event.key === "Enter") search();
             }}
           />
           <Button disabled={busy} onClick={search}>
-            {busy ? "查找中…" : "查找"}
+            {busy ? t("admin.users.searching") : t("admin.users.search")}
           </Button>
           <p className="text-helper text-muted">
-            只支持完整编号或完整用户名——不做模糊列表，因为"能管理用户"不等于"能浏览所有人"。
+            {t("admin.users.exactNote")}
           </p>
           {message === null ? null : <Alert tone="error">{message}</Alert>}
         </div>
       </SectionFrame>
 
       {result === null ? null : (
-        <SectionFrame title="结果">
+        <SectionFrame title={t("admin.users.results")}>
           {result.users.length === 0 ? (
-            <EmptyState title="没有找到" description="需要输入完整的 8 位编号或完整用户名。" />
+            <EmptyState title={t("admin.users.emptyTitle")} description={t("admin.users.emptyDescription")} />
           ) : (
             result.users.map((user) => (
               <div key={user.userId} className="flex flex-col gap-2 border-b border-line px-5 py-4 last:border-b-0">
-                <span className="text-sm text-ink">
+                <span className="text-sm text-ink [overflow-wrap:anywhere]">
                   {user.username} · {user.accountNumber}
                 </span>
-                <span className="text-helper text-muted">
-                  {user.displayName} · 注册于 {stamp(user.createdAt)}
-                  {user.isDemo ? " · 演示账号" : ""}
-                  {user.isActiveAdmin ? " · 管理员" : ""}
-                  {user.suspendedAt === null ? "" : ` · 已于 ${stamp(user.suspendedAt)} 停用`}
-                  {` · ${count(user.activeSessions)} 台设备在线`}
+                <span className="text-helper text-muted [overflow-wrap:anywhere]">
+                  {user.displayName} · {t("admin.users.registeredAt", { date: stamp(user.createdAt) })}
+                  {user.isDemo ? ` · ${t("admin.users.demo")}` : ""}
+                  {user.isActiveAdmin ? ` · ${t("admin.users.admin")}` : ""}
+                  {user.suspendedAt === null ? "" : ` · ${t("admin.users.suspendedAt", { date: stamp(user.suspendedAt) })}`}
+                  {` · ${t("admin.users.sessions", { count: user.activeSessions })}`}
                 </span>
                 <Button
                   variant={user.suspendedAt === null ? "danger" : "secondary"}
@@ -701,7 +733,7 @@ export function AdminUsersPage(): React.JSX.Element {
                     setAction({ user, kind: user.suspendedAt === null ? "suspend" : "restore" });
                   }}
                 >
-                  {user.suspendedAt === null ? "停用账户" : "恢复账户"}
+                  {user.suspendedAt === null ? t("admin.users.suspend") : t("admin.users.restore")}
                 </Button>
               </div>
             ))
@@ -741,28 +773,29 @@ function AccountActionDialog({
   const [message, setMessage] = useState<string | null>(null);
 
   const suspending = kind === "suspend";
+  const { t } = useI18n();
 
   return (
     <ConfirmDialog
       open
       tone={suspending ? "danger" : "default"}
-      title={suspending ? "停用账户？" : "恢复账户？"}
-      description={`${user.username}（${user.accountNumber}）`}
+      title={suspending ? t("admin.accountAction.suspendTitle") : t("admin.accountAction.restoreTitle")}
+      description={t("admin.accountAction.target", { username: user.username, accountNumber: user.accountNumber })}
       consequences={
         suspending
           ? [
-              `该账号在 ${count(user.activeSessions)} 台设备上的登录会被立即清除。`,
-              "停用后无法登录，登录页只会提示「该账户目前已停用或不存在」。",
-              "账本与流水不会被删除；账户随时可以恢复。",
+              t("admin.accountAction.suspendSessions", { count: user.activeSessions }),
+              t("admin.accountAction.suspendLogin"),
+              t("admin.accountAction.suspendData"),
             ]
-          : ["账户将恢复登录能力。", "之前的登录会话不会恢复，需要重新登录。"]
+          : [t("admin.accountAction.restoreLogin"), t("admin.accountAction.restoreSessions")]
       }
-      confirmLabel={suspending ? "停用" : "恢复"}
+      confirmLabel={suspending ? t("admin.accountAction.suspend") : t("admin.accountAction.restore")}
       busy={busy}
       onCancel={onCancel}
       onConfirm={() => {
         if (reason.trim() === "" || password === "") {
-          setMessage("需要填写原因并输入你的密码。");
+          setMessage(t("admin.form.reasonAndPasswordRequired"));
           return;
         }
 
@@ -782,13 +815,13 @@ function AccountActionDialog({
     >
       <div className="mt-4 flex flex-col gap-3">
         <TextField
-          label="原因（会记进操作记录）"
+          label={t("admin.form.reason")}
           value={reason}
           maxLength={200}
           onChange={(event) => { setReason(event.target.value); }}
         />
         <TextField
-          label="你的密码（二次验证）"
+          label={t("admin.form.password")}
           type="password"
           value={password}
           autoComplete="current-password"
@@ -805,26 +838,33 @@ function AccountActionDialog({
 // ---------------------------------------------------------------------------
 export function AdminAuditPage(): React.JSX.Element {
   const { state, reload } = useLoad(fetchAdminAudit);
+  const { t } = useI18n();
 
   return (
-    <Shell title="操作记录">
-      <SectionFrame title="最近 50 条">
+    <Shell title={t("admin.audit.title")}>
+      <SectionFrame title={t("admin.audit.latest")}>
         {state.kind === "loading" ? <SkeletonRows rows={5} /> : null}
         {state.kind === "error" ? <ErrorState message={state.message} onRetry={reload} /> : null}
         {state.kind === "ready" ? <AuditList data={state.data} /> : null}
       </SectionFrame>
-      <SectionFrame title="说明">
+      <SectionFrame title={t("admin.audit.about")}>
         <p className="px-5 py-4 text-body-relaxed text-muted">
-          操作记录永久保留，不会自动清理，也不可编辑或删除。记录里不包含密码、会话、恢复码或邀请码明文。
+          {t("admin.audit.retention")}
         </p>
       </SectionFrame>
     </Shell>
   );
 }
 
+/**
+ * ⚠️ `entry.action` 是稳定标识（`invite.create` 等，见 `@libellum/shared` 的 `AUDIT_ACTIONS`），
+ * 改动前后都原样显示，S16 不给它加译名——中文界面也一直显示标识本身。
+ */
 function AuditList({ data }: { readonly data: AdminAuditListResponse }): React.JSX.Element {
+  const { t } = useI18n();
+
   if (data.entries.length === 0) {
-    return <EmptyState title="还没有操作记录" description="管理操作会出现在这里。" />;
+    return <EmptyState title={t("admin.audit.emptyTitle")} description={t("admin.audit.emptyDescription")} />;
   }
 
   return (
@@ -836,7 +876,7 @@ function AuditList({ data }: { readonly data: AdminAuditListResponse }): React.J
             <span className="truncate text-helper text-muted">
               {entry.adminUsername}
               {entry.target === null ? "" : ` · ${entry.target}`}
-              {entry.outcome === "failed" ? " · 被拒绝" : ""}
+              {entry.outcome === "failed" ? ` · ${t("admin.audit.refused")}` : ""}
             </span>
           </span>
           <span className="shrink-0 text-helper text-muted">{stamp(entry.at)}</span>

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { InfoIcon } from "./InfoHint.js";
 import { ChevronIcon, CopyIcon } from "./Icons.js";
+import { useI18n } from "../i18n/index.js";
 import { copyText } from "../lib/clipboard.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { formatRuntimeReport, readRuntimeSnapshot } from "../lib/runtimeInfo.js";
@@ -30,6 +31,7 @@ export function UpdateMoreSheet({
   const { offline, reason } = useAccountOffline();
   const [phase, setPhase] = useState<CopyPhase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
   const closeButton = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<number | null>(null);
 
@@ -89,7 +91,7 @@ export function UpdateMoreSheet({
       setPhase("manual");
     } catch {
       setPhase("failed");
-      setError("读取运行信息时出错了。可以打开运行信息页查看并复制。");
+      setError(t("update.more.failed"));
     }
   }
 
@@ -109,7 +111,7 @@ export function UpdateMoreSheet({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="软件更新更多操作"
+        aria-label={t("update.more.label")}
         className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet sheet-in"
       >
         <div className="flex justify-center pt-3 pb-1">
@@ -117,12 +119,12 @@ export function UpdateMoreSheet({
         </div>
 
         <div className="flex items-center justify-between gap-3 px-5 pt-2 pb-3">
-          <span className="text-base font-medium text-ink">更多</span>
+          <span className="text-base font-medium text-ink">{t("update.more.title")}</span>
           <button
             ref={closeButton}
             type="button"
             onClick={onClose}
-            aria-label="关闭更多菜单"
+            aria-label={t("update.more.close")}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
@@ -133,13 +135,13 @@ export function UpdateMoreSheet({
 
         {phase === "copied" ? (
           <p role="status" className="mx-5 mb-3 rounded-field bg-brand-soft px-4 py-3 text-body text-brand-dark">
-            已复制到剪贴板。
+            {t("update.more.copied")}
           </p>
         ) : null}
 
         {phase === "manual" ? (
           <p role="status" className="mx-5 mb-3 rounded-field bg-brand-soft px-4 py-3 text-body text-brand-dark">
-            当前浏览器不允许自动复制。请打开「运行信息」查看完整内容并手动复制。
+            {t("update.more.manual")}
           </p>
         ) : null}
 
@@ -161,7 +163,7 @@ export function UpdateMoreSheet({
                 <CopyIcon className="size-5" />
               </span>
               <span className="min-w-0 flex-1 text-body text-ink">
-                {phase === "copying" ? "正在复制…" : "复制版本信息"}
+                {phase === "copying" ? t("update.more.copying") : t("update.more.copy")}
               </span>
               <ChevronIcon direction="right" className="size-4 text-muted/70" />
             </button>
@@ -175,7 +177,7 @@ export function UpdateMoreSheet({
               <span className="text-muted">
                 <InfoIcon className="size-5" />
               </span>
-              <span className="min-w-0 flex-1 text-body text-ink">查看运行信息</span>
+              <span className="min-w-0 flex-1 text-body text-ink">{t("update.more.runtime")}</span>
               <ChevronIcon direction="right" className="size-4 text-muted/70" />
             </button>
           </li>
@@ -187,7 +189,7 @@ export function UpdateMoreSheet({
             onClick={onClose}
             className="flex min-h-12 w-full items-center rounded-field px-1 text-body text-muted transition hover:bg-canvas hover:text-ink"
           >
-            关闭
+            {t("update.more.dismiss")}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import {
   useBookMembers,
@@ -44,9 +45,10 @@ export function MemberList({
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<BookMemberView | null>(null);
+  const { t } = useI18n();
 
-  if (members.isPending) return <p className="text-body text-muted">正在读取成员……</p>;
-  if (members.isError) return <p className="text-body text-muted">成员读取失败。</p>;
+  if (members.isPending) return <p className="text-body text-muted">{t("collab.members.loading")}</p>;
+  if (members.isError) return <p className="text-body text-muted">{t("collab.members.loadFailed")}</p>;
 
   const { members: list, myRole } = members.data;
   /**
@@ -107,9 +109,7 @@ export function MemberList({
         * conclusion.
         */}
       {canManage ? null : (
-        <p className="text-helper-relaxed text-muted">
-          你是这本账的查看者，可以看到成员，但不能修改权限或移除成员。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("collab.members.viewerNote")}</p>
       )}
 
       {confirmRemove === null ? null : (
@@ -143,23 +143,28 @@ function MemberRow({
   readonly onChangeRole: (role: "editor" | "viewer") => void;
   readonly onAskRemove: () => void;
 }): React.JSX.Element {
-  const roleLabel = member.role === "viewer" ? "仅查看" : "可编辑";
+  const { t } = useI18n();
+  const roleLabel = member.role === "viewer" ? t("collab.role.viewer") : t("collab.role.editor");
 
   return (
     <div className="flex flex-col gap-2 px-5 py-4">
-      <div className="flex items-center justify-between gap-4">
-        <span className="flex flex-col gap-0.5">
-          <span className="flex items-center gap-2 text-body text-ink">
-            {member.displayName}
+      {/**
+        * S16：长昵称 + 英文角色标签时，名字一栏可以换行，操作按钮放不下就换到下一行，
+        * 不再把名字挤出卡片。
+        */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink">
+            <span className="min-w-0 [overflow-wrap:anywhere]">{member.displayName}</span>
             {member.isCreator ? (
-              <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
-                创建者
+              <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
+                {t("collab.members.creator")}
               </span>
             ) : null}
-            <span className="rounded-full bg-canvas px-2 py-0.5 text-micro text-muted">{roleLabel}</span>
+            <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-micro text-muted">{roleLabel}</span>
           </span>
 
-          <span className="font-mono text-helper text-muted">
+          <span className="font-mono text-helper text-muted [overflow-wrap:anywhere]">
             {member.accountNumber} · {member.username}
           </span>
         </span>
@@ -174,7 +179,7 @@ function MemberRow({
               }}
               className="text-helper text-brand transition hover:text-brand-dark disabled:opacity-45"
             >
-              {member.role === "viewer" ? "改为可编辑" : "改为仅查看"}
+              {member.role === "viewer" ? t("collab.members.makeEditor") : t("collab.members.makeViewer")}
             </button>
 
             <button
@@ -183,7 +188,7 @@ function MemberRow({
               onClick={onAskRemove}
               className="text-helper text-muted transition hover:text-danger disabled:opacity-45"
             >
-              移出
+              {t("collab.members.remove")}
             </button>
           </div>
         ) : null}
@@ -196,9 +201,7 @@ function MemberRow({
         * to do.
         */}
       {member.isCreator && canManage ? (
-        <p className="text-helper-relaxed text-muted">
-          创建者不能被降级或移出——否则这本账将没有人能修改。如果你不想再看到它，请用「弃置」。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("collab.members.creatorNote")}</p>
       ) : null}
     </div>
   );
@@ -220,28 +223,29 @@ function RemoveConfirm({
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <div className="rounded-card border border-danger bg-danger-soft px-5 py-4">
-      <p className="text-body text-ink">把 {member.displayName} 移出这本账？</p>
-      <p className="mt-2 text-helper-relaxed text-muted">
-        他会立刻看不到这本账，但他记过的账目会留下，历史记录里也会留下这一条。
-        要恢复需要重新邀请，并且要他同意。
+      <p className="text-body text-ink [overflow-wrap:anywhere]">
+        {t("collab.members.removeTitle", { name: member.displayName })}
       </p>
-      <div className="mt-3 flex gap-3">
+      <p className="mt-2 text-helper-relaxed text-muted">{t("collab.members.removeBody")}</p>
+      <div className="mt-3 flex flex-wrap gap-3">
         <button
           type="button"
           disabled={busy}
           onClick={onConfirm}
           className="rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
         >
-          移出
+          {t("collab.members.remove")}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded-field bg-surface px-4 py-2 text-body text-muted transition hover:text-ink"
         >
-          取消
+          {t("collab.members.cancel")}
         </button>
       </div>
     </div>

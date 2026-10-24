@@ -3,7 +3,9 @@ import { Link } from "react-router";
 
 import { ChevronIcon } from "./Icons.js";
 import { FrameAction, SectionFrame } from "./SectionFrame.js";
+import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { formatInstant } from "../lib/datetime.js";
 import { useGoBack } from "../lib/connectivity.js";
 import { useBookMessages, useSendBookMessage, type BookMessageView } from "../lib/queries.js";
 
@@ -208,11 +210,8 @@ function MessageRow({ message }: { readonly message: BookMessage }): React.JSX.E
 
 /** The empty state, which says what the board is for rather than being a void. */
 function EmptyBoard(): React.JSX.Element {
-  return (
-    <p className="px-4 py-5 text-body-relaxed text-muted">
-      这本账还没有留言。这里可以讨论和这本账有关的事，比如「昨天买菜的 86 元是不是还没有记？」。
-    </p>
-  );
+  const { t } = useI18n();
+  return <p className="px-4 py-5 text-body-relaxed text-muted">{t("collab.messages.empty")}</p>;
 }
 
 /**
@@ -252,6 +251,7 @@ export function MessageBoardSection({ bookId }: { readonly bookId: string }): Re
   }, [bookId, messages.isSuccess]);
 
   const unread = messages.isSuccess ? fresh : 0;
+  const { t } = useI18n();
 
   return (
     /**
@@ -263,7 +263,7 @@ export function MessageBoardSection({ bookId }: { readonly bookId: string }): Re
       * 全屏页用的是 `MessageBoardFull`，所以这里放大标题不会影响全屏对话。
       */
     <SectionFrame
-      title="留言"
+      title={t("collab.messages.title")}
       action={
         <>
           {/**
@@ -273,9 +273,9 @@ export function MessageBoardSection({ bookId }: { readonly bookId: string }): Re
             * whether anything is waiting in it.
             */}
           {unread > 0 ? (
-            <span className="text-brand">新消息 {String(unread)} 条</span>
+            <span className="text-brand">{t("collab.messages.newCount", { count: unread })}</span>
           ) : null}
-          <FrameAction to="/ledger/messages">展开完整对话 ›</FrameAction>
+          <FrameAction to="/ledger/messages">{t("collab.messages.expand")}</FrameAction>
         </>
       }
     >
@@ -313,6 +313,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
   const composer = useMessageComposer();
   const [submitted, setSubmitted] = useState(0);
   const listRef = useRef<HTMLUListElement | null>(null);
+  const { t } = useI18n();
 
   /** ⚠️ Scroll to the newest only when *this* view sent something, not on every refetch. */
   useEffect(() => {
@@ -320,8 +321,8 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
     listRef.current?.lastElementChild?.scrollIntoView({ block: "nearest" });
   }, [submitted]);
 
-  if (messages.isPending) return <p className="px-5 py-4 text-body text-muted">正在读取留言……</p>;
-  if (messages.isError) return <p className="px-5 py-4 text-body text-muted">留言读取失败。</p>;
+  if (messages.isPending) return <p className="px-5 py-4 text-body text-muted">{t("collab.messages.loading")}</p>;
+  if (messages.isError) return <p className="px-5 py-4 text-body text-muted">{t("collab.messages.loadFailed")}</p>;
 
   /**
    * ⚠️ **The newest few, and the list is already newest-first from the server.** `slice` rather than
@@ -397,8 +398,8 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
           }}
           maxLength={500}
           rows={1}
-          placeholder="写一条留言…"
-          aria-label="写留言"
+          placeholder={t("collab.messages.placeholder")}
+          aria-label={t("collab.messages.inputLabel")}
           className="min-h-10 flex-1 resize-none rounded-field border border-line/70 bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand/60 focus:ring-4 focus:ring-focus-ring"
         />
 
@@ -417,7 +418,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
             */
           className="shrink-0 rounded-field bg-brand px-3.5 py-2 text-xs font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
         >
-          {composer.sending ? "…" : "发送"}
+          {composer.sending ? "…" : t("collab.messages.send")}
         </button>
       </div>
     </div>
@@ -451,6 +452,7 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
    * link, the same rule every other secondary screen uses.
    */
   const goBack = useGoBack("/ledger");
+  const { t } = useI18n();
 
   /**
    * ⚠️ **Follow the newest message**, including the first load, because this view is *entered* to
@@ -478,10 +480,10 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
             className="-ml-3 flex h-11 shrink-0 items-center gap-1 rounded-field pr-3 pl-2 text-base text-brand-dark transition hover:bg-brand-soft active:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
             <ChevronIcon direction="left" className="size-5" />
-            返回
+            {t("collab.messages.back")}
           </button>
           <div className="pointer-events-none absolute inset-x-24 flex min-w-0 flex-col items-center text-center">
-            <h1 className="max-w-full truncate text-section-title text-ink">留言</h1>
+            <h1 className="max-w-full truncate text-section-title text-ink">{t("collab.messages.title")}</h1>
             <p className="max-w-full truncate text-helper text-muted">{bookName}</p>
           </div>
         </div>
@@ -489,8 +491,8 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col pb-4">
-          {messages.isPending ? <p className="px-5 py-6 text-body text-muted">正在读取留言……</p> : null}
-          {messages.isError ? <p className="px-5 py-6 text-body text-muted">留言读取失败。</p> : null}
+          {messages.isPending ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loading")}</p> : null}
+          {messages.isError ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loadFailed")}</p> : null}
 
           {messages.isSuccess ? (
             /**
@@ -527,8 +529,8 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
               }}
               maxLength={500}
               rows={1}
-              placeholder="写点什么……"
-              aria-label="写留言"
+              placeholder={t("collab.messages.placeholderFull")}
+              aria-label={t("collab.messages.inputLabel")}
               className="min-h-11 flex-1 resize-none rounded-field border border-line bg-canvas px-4 py-3 text-base text-ink"
             />
             <button
@@ -539,7 +541,7 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
               }}
               className="shrink-0 rounded-field bg-brand px-4 py-3 text-sm text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
             >
-              {composer.sending ? "发送中……" : "发送"}
+              {composer.sending ? t("collab.messages.sending") : t("collab.messages.send")}
             </button>
           </div>
         </div>
@@ -557,10 +559,14 @@ type BookMessage = BookMessageView;
  * ⚠️ **Coarser than the history's version on purpose** — a board reads as a conversation, and
  * *"今天 14:32"* is what somebody wants; seconds would be noise. **A message from last month says the
  * date, because "12 天前" is arithmetic the reader should not have to do.**
+ *
+ * S16：中文保留原来的写法（`今天 14:32`、`10 月 8 日 14:32`）；其它语言的钟点与日期交给 `Intl`
+ * （`Today 2:32 PM`、`Oct 8, 2:32 PM`）。只改显示，不改按哪一天归属。
  */
 function formatWhen(iso: string): string {
   const at = new Date(iso);
   const now = new Date();
+  const chinese = isChineseLocale();
 
   const sameDay = (a: Date, b: Date): boolean =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -568,10 +574,14 @@ function formatWhen(iso: string): string {
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
 
-  const time = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+  const time = chinese
+    ? `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`
+    : formatInstant(at, { hour: "numeric", minute: "2-digit" });
 
-  if (sameDay(at, now)) return `今天 ${time}`;
-  if (sameDay(at, yesterday)) return `昨天 ${time}`;
+  if (sameDay(at, now)) return translate("collab.messages.todayAt", { time });
+  if (sameDay(at, yesterday)) return translate("collab.messages.yesterdayAt", { time });
 
-  return `${String(at.getMonth() + 1)} 月 ${String(at.getDate())} 日 ${time}`;
+  if (!chinese) return formatInstant(at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  return `${String(at.getMonth() + 1)} 月 ${String(at.getDate())} 日 ${time}`; // i18n-ignore：中文界面专用的固定格式（与 lib/datetime.ts 的 formatDayLabel 同一做法）
 }

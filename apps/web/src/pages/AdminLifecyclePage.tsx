@@ -6,7 +6,9 @@ import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/States.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
+import { formatInstant } from "../lib/datetime.js";
 
 interface RecoveryRequest {
   readonly id: string;
@@ -23,8 +25,9 @@ interface RecoveryRequest {
   readonly targetAccountNumber: string | null;
 }
 
+/** S16：按当前界面语言格式化（中文输出与原来的 `toLocaleString("zh-CN", …)` 相同）。 */
 function dateText(value: string | null): string {
-  return value === null ? "—" : new Date(value).toLocaleString("zh-CN", { dateStyle: "medium", timeStyle: "short" });
+  return value === null ? "—" : formatInstant(value, { dateStyle: "medium", timeStyle: "short" });
 }
 
 /**
@@ -41,6 +44,7 @@ export function AdminLifecyclePage(): React.JSX.Element {
   const [targetAccountNumber, setTargetAccountNumber] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const { t } = useI18n();
 
   const load = useCallback(async () => {
     setError(null);
@@ -84,26 +88,27 @@ export function AdminLifecyclePage(): React.JSX.Element {
   }
 
   return (
-    <InnerPage title="账本恢复申请" backTo="/admin">
+    <InnerPage title={t("admin.lifecycle.title")} backTo="/admin">
       <p className="text-body-relaxed text-muted">
-        这里只处理归档账本的恢复申请；管理员看不到账目内容。先核验申请人的恢复凭证与账号归属，再决定。
+        {t("admin.lifecycle.intro")}
       </p>
       {error === null ? null : <Alert>{error}</Alert>}
       {requests === null ? <SkeletonRows rows={3} /> : null}
-      {requests !== null && requests.length === 0 ? <EmptyState title="没有恢复申请" description="新申请会出现在这里。" /> : null}
+      {requests !== null && requests.length === 0 ? <EmptyState title={t("admin.lifecycle.emptyTitle")} description={t("admin.lifecycle.emptyDescription")} /> : null}
       {requests !== null && requests.length > 0 ? (
         <div className="flex flex-col gap-2.5">
           {requests.map((request) => (
             <div key={request.id} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-body font-medium text-ink">账本 {request.bookNumber ?? request.bookId.slice(0, 8)}</p>
+                <div className="min-w-0">
+                  <p className="text-body font-medium text-ink">{t("admin.lifecycle.ledger", { number: request.bookNumber ?? request.bookId.slice(0, 8) })}</p>
                   <p className="text-helper text-muted">
-                    申请账号 {request.requesterAccountNumber} · {request.kind === "closed_account" ? "已注销账号" : "使用中账号"}
+                    {t("admin.lifecycle.requester", { number: request.requesterAccountNumber })} · {request.kind === "closed_account" ? t("admin.lifecycle.closedAccount") : t("admin.lifecycle.activeAccount")}
                   </p>
-                  <p className="text-helper text-muted">审核截止：{dateText(request.deadlineAt)}</p>
+                  <p className="text-helper text-muted">{t("admin.lifecycle.deadline", { date: dateText(request.deadlineAt) })}</p>
                 </div>
-                <span className="rounded-full bg-canvas px-2 py-1 text-helper text-muted">{request.status}</span>
+                {/* `status` 是服务器的状态标识（pending 等），原样显示 */}
+                <span className="shrink-0 rounded-full bg-canvas px-2 py-1 text-helper text-muted">{request.status}</span>
               </div>
               {request.status === "pending" ? (
                 <div className="flex gap-2">
@@ -114,15 +119,15 @@ export function AdminLifecyclePage(): React.JSX.Element {
                       setTargetAccountNumber(request.targetAccountNumber ?? "");
                     }}
                   >
-                    批准恢复
+                    {t("admin.lifecycle.approve")}
                   </Button>
                   <Button variant="ghost" onClick={() => setSelected({ request, action: "reject" })}>
-                    拒绝
+                    {t("admin.lifecycle.reject")}
                   </Button>
                 </div>
               ) : (
-                <p className="text-helper text-muted">
-                  {request.decidedAt === null ? "" : `处理于 ${dateText(request.decidedAt)}`}
+                <p className="text-helper text-muted [overflow-wrap:anywhere]">
+                  {request.decidedAt === null ? "" : t("admin.lifecycle.decidedAt", { date: dateText(request.decidedAt) })}
                   {request.decidedByName === null ? "" : ` · ${request.decidedByName}`}
                   {request.decisionNote === null ? "" : ` · ${request.decisionNote}`}
                 </p>
@@ -134,14 +139,18 @@ export function AdminLifecyclePage(): React.JSX.Element {
 
       <ConfirmDialog
         open={selected !== null}
-        title={selected?.action === "approve" ? "批准恢复这本账？" : "拒绝恢复申请？"}
-        description="这个操作会写入管理员审计，并且需要重新输入你的密码。"
+        title={selected?.action === "approve" ? t("admin.lifecycle.approveTitle") : t("admin.lifecycle.rejectTitle")}
+        description={t("admin.lifecycle.dialogDescription")}
         consequences={
           selected?.action === "approve"
-            ? ["账本恢复到指定账号", "不会向管理员显示账目内容", "恢复后按正常生命周期继续"]
-            : ["申请被拒绝", "到期后账本仍会按原定时间清理"]
+            ? [
+                t("admin.lifecycle.approveConsequences.target"),
+                t("admin.lifecycle.approveConsequences.private"),
+                t("admin.lifecycle.approveConsequences.lifecycle"),
+              ]
+            : [t("admin.lifecycle.rejectConsequences.rejected"), t("admin.lifecycle.rejectConsequences.purge")]
         }
-        confirmLabel={selected?.action === "approve" ? "批准恢复" : "拒绝申请"}
+        confirmLabel={selected?.action === "approve" ? t("admin.lifecycle.approve") : t("admin.lifecycle.rejectConfirm")}
         tone={selected?.action === "approve" ? "default" : "danger"}
         busy={busy}
         onCancel={() => {
@@ -153,19 +162,19 @@ export function AdminLifecyclePage(): React.JSX.Element {
         <div className="mt-4 flex flex-col gap-3">
           {selected?.action === "approve" ? (
             <TextField
-              label="接收账本的账号编号"
-              hint="仅已注销账号的申请需要填写；使用中账号会恢复到原账号。"
+              label={t("admin.lifecycle.targetLabel")}
+              hint={t("admin.lifecycle.targetHint")}
               value={targetAccountNumber}
               onChange={(event) => setTargetAccountNumber(event.target.value)}
             />
           ) : null}
           <TextField
-            label="处理备注（可选）"
+            label={t("admin.lifecycle.noteLabel")}
             value={note}
             onChange={(event) => setNote(event.target.value)}
           />
           <TextField
-            label="当前密码"
+            label={t("admin.lifecycle.passwordLabel")}
             type="password"
             autoComplete="current-password"
             value={password}

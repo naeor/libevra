@@ -1,4 +1,129 @@
-/** `update` 文案（源语言：简体中文）。键结构即全部语言的键定义。 */
-const update = {};
+/**
+ * `update` 文案：软件更新、更新公告的页面框架、运行信息、诊断报告、关于页（源语言：简体中文）。
+ * 键结构即全部语言的键定义。
+ *
+ * ⚠️ 公告**正文**（标题、摘要、小节）不在这里：它们来自 `lib/updateAnnouncements.ts`，
+ * 显示前经过 `i18n/content` 的 `localizeUpdateAnnouncement()` 整篇替换。
+ */
+const update = {
+  home: {
+    title: "软件更新",
+    more: "更多",
+    previewLabel: "版本与公告预览",
+    statusLabel: "版本状态",
+    currentVersion: "当前版本 {{version}}",
+    status: {
+      development: "开发预览",
+      running: "运行版本",
+      released: "正式发布",
+    },
+    statusText: {
+      newer: "内置公告中有更新的正式版本。",
+      development: "这是本地开发构建，不代表已经正式发布。",
+      unlisted: "当前构建尚未收录在发布公告中。",
+    },
+    noAnnouncements: "还没有正式发布的公告。",
+    readFull: "阅读完整公告 ›",
+    recent: "近期更新",
+    all: "全部公告 ›",
+    source: "版本信息来自当前构建与内置公告，未实时检查更新。",
+  },
+  announcements: {
+    title: "更新公告",
+    subtitle: "这里只列出已经正式发布的版本。",
+    empty: "还没有正式发布的公告。",
+    series: "{{series}} 版本",
+    showOlder_one: "显示更早公告（还有 {{count}} 条）",
+    showOlder_other: "显示更早公告（还有 {{count}} 条）",
+  },
+  detail: {
+    missingTitle: "版本公告",
+    missingSubtitle: "这个版本没有可查看的正式公告。",
+    missingBody: "也许这个版本还未正式发布，或者链接有误。",
+    back: "返回更新公告",
+    revised: "本文于 {{date}} 按发布记录整理，原版本号及发布日期不变。",
+    navLabel: "版本导航",
+    newer: "下一版本",
+    older: "上一版本",
+  },
+  runtime: {
+    title: "运行信息",
+    subtitle: "用于排查问题，不影响正常使用。",
+    loadFailed: "读取运行信息时出错了。",
+    loading: "正在读取…",
+    app: "应用与构建",
+    appVersion: "应用版本",
+    buildLocal: "构建时间（本机）",
+    buildStamp: "构建标记（UTC）",
+    network: "网络",
+    cache: "本机缓存",
+    cacheEntries: "缓存条目",
+    liveEntries: "当前版本会读",
+    entryCount_one: "{{count}} 条",
+    entryCount_other: "{{count}} 条",
+    cacheSize: "缓存占用",
+    logs: "运行记录",
+    page: "当前页面",
+    pageUrl: "页面",
+    capturedAt: "记录时间",
+    reload: "重新读取",
+    diagnostics: "诊断信息",
+    copy: "复制诊断信息",
+    copied: "已复制诊断信息",
+    copyHint: "如果遇到问题，可以把这些内容复制给开发者。",
+  },
+  /** 运行状态的说法：运行信息页与诊断报告共用。 */
+  state: {
+    online: "在线",
+    offline: "离线（{{reason}}）",
+    unreachable: "服务器没有答复",
+    browserOffline: "浏览器报告离线",
+    swNone: "没有注册（开发模式）",
+    swControlling_one: "{{count}} 个注册，正在控制本页",
+    swControlling_other: "{{count}} 个注册，正在控制本页",
+    swNotControlling_one: "{{count}} 个注册，未控制本页",
+    swNotControlling_other: "{{count}} 个注册，未控制本页",
+    swUnknown: "无法读取",
+  },
+  /** 复制给开发者的诊断报告（`lib/runtimeInfo.ts`）。只翻译标签，值（时间、地址、数字）保持原样。 */
+  report: {
+    buildLocal: "构建时间（本机）：{{value}}",
+    buildUtc: "构建时间（UTC）：{{value}}",
+    serviceWorker: "Service Worker：{{value}}",
+    network: "网络：{{value}}",
+    cacheEntries: "缓存条目：{{count}} 条，其中 {{live}} 条当前版本会读",
+    cacheBytes_one: "缓存大小：{{count}} 字节",
+    cacheBytes_other: "缓存大小：{{count}} 字节",
+    logs: "运行记录：{{count}} 条",
+    page: "页面：{{value}}",
+    time: "时间：{{value}}",
+  },
+  more: {
+    label: "软件更新更多操作",
+    title: "更多",
+    close: "关闭更多菜单",
+    copied: "已复制到剪贴板。",
+    manual: "当前浏览器不允许自动复制。请打开「运行信息」查看完整内容并手动复制。",
+    failed: "读取运行信息时出错了。可以打开运行信息页查看并复制。",
+    copying: "正在复制…",
+    copy: "复制版本信息",
+    runtime: "查看运行信息",
+    dismiss: "关闭",
+  },
+  about: {
+    title: "关于 Libevra",
+    versionLink: "版本 {{version}} · 软件更新 ›",
+    dataTitle: "你的数据",
+    dataBody: "账目保存在你自己部署的服务器上；游客账本只保存在这台设备，不会自动上传。离线期间的修改会暂存在本机，恢复网络后再同步。应用不接入任何第三方统计、广告或分析服务，日志中不记录金额、备注与图片内容。",
+    openSourceTitle: "开源",
+    openSourceBody: "本项目以 AGPL-3.0 协议开源。源代码公开可查，任何人都可以自行部署。",
+    repository: "仓库地址：",
+    amountsTitle: "金额的处理方式",
+    amountsBody: "金额以各币种的最小单位按整数保存与计算，不使用浮点数，避免出现分位误差。不同币种按各自的小数位显示、分开统计；日元没有小数位，人民币和美元等保留两位。",
+    legal: "协议",
+    privacy: "隐私政策",
+    terms: "使用条款",
+  },
+};
 
 export default update;

@@ -5,6 +5,7 @@ import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { MemberList } from "../components/MemberList.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useInviteToBook, useLedger, useLookupAccount, type DirectoryAccount } from "../lib/queries.js";
 
@@ -40,8 +41,16 @@ export function LedgerInvitePage(): React.JSX.Element {
   const [role, setRole] = useState<"editor" | "viewer">("editor");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
-  const bookName = ledger.data?.book.name ?? "这本账";
+  /**
+   * S16：账本名是用户数据，原样插进句子；还没读到账本时用整句的“这本账”说法，
+   * 而不是把“这本账”当成名字塞进引号（英文里会读成一个叫 this ledger 的账本）。
+   */
+  const bookName = ledger.data?.book.name;
+  const subtitle = bookName === undefined
+    ? t("collab.invite.subtitleCurrent")
+    : t("collab.invite.subtitle", { name: bookName });
 
   /**
    * ⚠️ **One box for both ways of naming somebody**, because the server takes either and the user
@@ -110,8 +119,8 @@ export function LedgerInvitePage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="邀请成员"
-      subtitle={`把别人请进「${bookName}」`}
+      title={t("collab.invite.title")}
+      subtitle={subtitle}
       backTo="/ledger"
     >
       {/**
@@ -123,10 +132,10 @@ export function LedgerInvitePage(): React.JSX.Element {
         * 页面标题已经是「邀请成员」，这一层标题和外框都只是重复。找到的人仍是一张浅绿卡片：
         * 它是"选中的对象"，权限选择与发送都属于它。
         */}
-      <section aria-label="邀请某个人" className="flex flex-col gap-4">
+      <section aria-label={t("collab.invite.sectionLabel")} className="flex flex-col gap-4">
 
         <TextField
-          label="账号编号或用户名"
+          label={t("collab.invite.queryLabel")}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -134,8 +143,8 @@ export function LedgerInvitePage(): React.JSX.Element {
           onKeyDown={(event) => {
             if (event.key === "Enter") runLookup();
           }}
-          placeholder="10000003 或 naeor"
-          hint="请输入完整的 8 位账号编号或用户名。"
+          placeholder={t("collab.invite.queryPlaceholder")}
+          hint={t("collab.invite.queryHint")}
           inputMode="text"
           autoComplete="off"
         />
@@ -146,7 +155,7 @@ export function LedgerInvitePage(): React.JSX.Element {
             disabled={lookup.isPending || query.trim() === ""}
             onClick={runLookup}
           >
-            {lookup.isPending ? "正在查找……" : "查找"}
+            {lookup.isPending ? t("collab.invite.searching") : t("collab.invite.search")}
           </Button>
         </div>
 
@@ -173,17 +182,17 @@ export function LedgerInvitePage(): React.JSX.Element {
             {account.alreadyMember ? (
               /** ⚠️ Stated instead of offering a button the server would refuse. */
               <p className="text-body-relaxed text-muted">
-                对方已是账本成员。
+                {t("collab.invite.alreadyMember")}
               </p>
             ) : (
               <>
                 <fieldset className="flex flex-col gap-2">
-                  <legend className="mb-1 text-body text-ink">成员权限</legend>
+                  <legend className="mb-1 text-body text-ink">{t("collab.invite.roleLegend")}</legend>
 
                   {(
                     [
-                      { value: "editor", label: "可以记账和修改", hint: "能记账、改账、邀请别人" },
-                      { value: "viewer", label: "只能查看", hint: "能看账目，不能改动" },
+                      { value: "editor", label: t("collab.invite.roleEditor.label"), hint: t("collab.invite.roleEditor.hint") },
+                      { value: "viewer", label: t("collab.invite.roleViewer.label"), hint: t("collab.invite.roleViewer.hint") },
                     ] as const
                   ).map((option) => (
                     <label key={option.value} className="flex items-start gap-3 text-body text-ink">
@@ -214,11 +223,11 @@ export function LedgerInvitePage(): React.JSX.Element {
                   */}
                 {canInvite ? (
                   <Button disabled={invite.isPending} onClick={send}>
-                    {invite.isPending ? "正在发送……" : "发送邀请"}
+                    {invite.isPending ? t("collab.invite.sending") : t("collab.invite.send")}
                   </Button>
                 ) : (
                   <p className="rounded-field bg-canvas px-4 py-3 text-body-relaxed text-muted">
-                    仅查看成员无法发送邀请，请联系有编辑权限的成员。
+                    {t("collab.invite.viewerCannotInvite")}
                   </p>
                 )}
 
@@ -230,10 +239,10 @@ export function LedgerInvitePage(): React.JSX.Element {
                 {invitation === null ? null : (
                   <p className="text-helper-relaxed text-muted">
                     {invitation.status === "pending"
-                      ? "已经邀请过他了，正在等他确认。再发一次只会刷新那条邀请，不会多发一条。"
+                      ? t("collab.invite.status.pending")
                       : invitation.status === "declined"
-                        ? "他上次拒绝了。你可以再邀请一次，或者先问问他的想法。"
-                        : "他已经接受过邀请，现在是这本账的成员。"}
+                        ? t("collab.invite.status.declined")
+                        : t("collab.invite.status.accepted")}
                   </p>
                 )}
               </>
@@ -243,7 +252,7 @@ export function LedgerInvitePage(): React.JSX.Element {
 
         {sent ? (
           <p role="status" className="rounded-field bg-brand-soft px-4 py-3 text-body text-brand-dark">
-            邀请已经发出。他会收到一条通知，接受之后才真正加入。
+            {t("collab.invite.sent")}
           </p>
         ) : null}
       </section>
@@ -253,7 +262,7 @@ export function LedgerInvitePage(): React.JSX.Element {
         * 这里只给它一个组名。
         */}
       <section className="flex flex-col gap-2">
-        <h2 className="px-5 text-helper font-medium text-muted">已经在账本里的人</h2>
+        <h2 className="px-5 text-helper font-medium text-muted">{t("collab.invite.membersHeading")}</h2>
         <MemberList />
       </section>
 
@@ -267,14 +276,10 @@ export function LedgerInvitePage(): React.JSX.Element {
         * the sharing screen carries, and it now names the place that exists **and** the second,
         * real way one is issued since S13: an administrator creating it in the console.
         */}
-      <p className="text-helper-relaxed text-muted">
-        想一次请多个人，或者不方便当面输入编号，可以用分享链接——它在账本详情里。
-        用于注册账号的邀请码与账本无关：在「设置 → 账号安全」里生成（终身 3 个）；
-        没有可用的码时，可以请管理员在管理后台发放。
-      </p>
+      <p className="text-helper-relaxed text-muted">{t("collab.invite.otherWays")}</p>
 
       <Link to="/ledger" className="text-body text-brand transition hover:text-brand-dark">
-        ‹ 返回账本
+        {t("collab.invite.backToLedger")}
       </Link>
     </InnerPage>
   );

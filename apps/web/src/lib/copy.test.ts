@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import enCollab from "../i18n/resources/en-US/collab.js";
+import zhCollab from "../i18n/resources/zh-CN/collab.js";
+
 /**
  * The wording the owner asked for, pinned.
  *
@@ -64,8 +67,27 @@ describe("invitation copy", () => {
     const invite = source("../pages/LedgerInvitePage.tsx");
 
     // The screen says what pressing the button does, and to whom.
-    expect(invite).toContain("发送邀请");
-    expect(invite).toContain("接受之后才真正加入");
+    // S16：文字搬进了 `i18n/resources/zh-CN/collab.ts`；页面引用这两个键，资源里仍是原句。
+    expect(invite).toContain('t("collab.invite.send")');
+    expect(invite).toContain('t("collab.invite.sent")');
+    expect(zhCollab.invite.send).toBe("发送邀请");
+    expect(zhCollab.invite.sent).toContain("接受之后才真正加入");
+  });
+
+  /**
+   * S16：邀请页、留言页的界面文字现在住在 `collab` 文案模块里，下面两条规则因此也要查那里——
+   * 否则旧流程的说法或口语化措辞可以借着“搬进资源文件”绕过检查。
+   */
+  it("keeps the moved collaboration text free of the retired flow and of colloquial phrasing", () => {
+    const resources = JSON.stringify([zhCollab, enCollab]);
+    for (const retired of ["协作者", "去邀请", "/collaborators"]) {
+      expect(resources, `collab 文案出现「${retired}」`).not.toContain(retired);
+    }
+
+    const inviteText = JSON.stringify(zhCollab.invite);
+    for (const colloquial of ["都是 0", "还没有", "没什么", "搞定", "挺好的"]) {
+      expect(inviteText, `邀请页文案出现「${colloquial}」`).not.toContain(colloquial);
+    }
   });
 
   /**
