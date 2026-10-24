@@ -6,6 +6,7 @@
  */
 import type { DuplicateDetectionSettings } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import type { ImportPreview, ImportSource, ImportTarget, ImportTotals } from "./types.js";
 import { detectDuplicateGroups } from "./duplicates.js";
 import { buildTaxonomyMappingPlan, type TaxonomyResolutionMap } from "./mapping.js";
@@ -81,26 +82,29 @@ export function buildImportPreview(
   const dateRange = dateRangeOf(source);
   const duplicateSourceCount = duplicates.duplicateSourceIds.size;
   const duplicateTargetCount = duplicates.duplicateTargetIds.size;
+  // 提示文字只用于显示，生成时按当前语言取（调用方在切换语言后会重新生成预览）。
   const warnings: string[] = [];
 
   if (source.hiddenDeletedCount > 0) {
-    warnings.push(`来源账本有 ${String(source.hiddenDeletedCount)} 条已删除记录，不会导入。`);
+    warnings.push(t("ledgerImport.warning.sourceDeleted", { count: source.hiddenDeletedCount }));
   }
   if (mapping.conflicts.length > 0) {
-    warnings.push(
-      `分类、支付方式或标签有 ${String(mapping.conflicts.length)} 项同名但属性不同，导入前需要逐项确认；冲突项在你选择前按“复用目标对象”估算。`,
-    );
+    warnings.push(t("ledgerImport.warning.conflicts", { count: mapping.conflicts.length }));
   }
   if (duplicates.groups.length > 0) {
     warnings.push(
-      `发现 ${String(duplicates.groups.length)} 组可能重复的账目（来源 ${String(duplicateSourceCount)} 条、目标 ${String(duplicateTargetCount)} 条），需要逐组核对后再写入。`,
+      t("ledgerImport.warning.duplicates", {
+        groups: t("ledgerImport.count.groups", { count: duplicates.groups.length }),
+        source: t("ledgerImport.count.records", { count: duplicateSourceCount }),
+        target: t("ledgerImport.count.records", { count: duplicateTargetCount }),
+      }),
     );
   }
   if (target.transactions.length > 0) {
-    warnings.push(`目标账本已有 ${String(target.transactions.length)} 条账目，导入只会追加或按你的选择处理重复项，不会静默修改它们。`);
+    warnings.push(t("ledgerImport.warning.targetExisting", { count: target.transactions.length }));
   }
   if (source.kind === "guest") {
-    warnings.push("这是本机游客账本；预览和导入都不会自动删除游客数据，清理仍是单独操作。");
+    warnings.push(t("ledgerImport.warning.guest"));
   }
 
   return {

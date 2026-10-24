@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Trans } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   ledgerImportResultSchema,
@@ -20,9 +21,13 @@ import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionS
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { InlineChoice, type InlineChoiceOption } from "../components/ui/InlineChoice.js";
+import { i18n, isChineseLocale, t, useI18n } from "../i18n/index.js";
+import type zhLedgerImport from "../i18n/resources/zh-CN/ledgerImport.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { apiFetch, ApiRequestError, errorMessage } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
-import { formatTimeWithZone } from "../lib/datetime.js";
+import { formatInstant, formatTimeWithZone } from "../lib/datetime.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import { DEFAULT_BOOK_NAME } from "@libellum/shared";
 import { useActivateBook, useBooks } from "../lib/queries.js";
 import { useGoBack } from "../lib/connectivity.js";
@@ -121,12 +126,56 @@ import type {
 type Step = "select" | "preview" | "review" | "confirm";
 type SubmitState = "idle" | "submitting" | "paused" | "error" | "success";
 
-const STEP_ITEMS = [
-  { id: "select" as const, label: "选择" },
-  { id: "preview" as const, label: "预览" },
-  { id: "review" as const, label: "核对" },
-  { id: "confirm" as const, label: "确认" },
+/** 顺序即步骤条顺序；显示名在 `ledgerImport.steps.*`，渲染时按当前语言取。 */
+const STEP_ITEMS: readonly { readonly id: Step }[] = [
+  { id: "select" },
+  { id: "preview" },
+  { id: "review" },
+  { id: "confirm" },
 ];
+
+/** 服务器任务表里有专门译文的错误码（见 `ledgerImport.jobError.*`）。 */
+type JobErrorCode = Exclude<keyof typeof zhLedgerImport.jobError, "generic">;
+
+function isJobErrorCode(code: string): code is JobErrorCode {
+  return code !== "" && code !== "generic" && i18n.exists(`ledgerImport.jobError.${code}`);
+}
+
+/**
+ * 任务表里服务器写下的失败说明（`lastErrorMessage`）在当前语言下怎么显示。
+ *
+ * 中文界面：与以前一样显示服务器原文。其它语言：先按 `lastErrorCode` 查本模块的译文，再查
+ * `errors.api.<code>`，再查 shared 原文对照表；都没有就给一句通用说明——不把中文原文塞进英文界面。
+ */
+function jobErrorText(job: Pick<ImportJobStatus, "lastErrorCode" | "lastErrorMessage">): string | null {
+  const message = job.lastErrorMessage;
+  if (message === null) return null;
+  if (isChineseLocale()) return message;
+  const code = job.lastErrorCode ?? "";
+  if (isJobErrorCode(code)) return t(`ledgerImport.jobError.${code}`);
+  const apiKey = `errors.api.${code}`;
+  if (code !== "" && i18n.exists(apiKey)) return t(apiKey as "errors.api.validation_failed");
+  const shared = translateSharedMessage(message);
+  if (shared !== message) return shared;
+  return t("ledgerImport.jobError.generic");
+}
+
+/**
+ * 正式来源的处置说明。中文界面显示服务器原文；其它语言按服务器给的结构化字段（能否弃置、
+ * 未迁入数量）选择译文，与服务器生成原文的条件完全相同（`apps/api/src/ledger/importCleanup.ts`）。
+ */
+function dispositionReason(disposition: FormalSourceDisposition): string {
+  if (isChineseLocale()) return disposition.reason;
+  if (!disposition.canArchive) return t("ledgerImport.retention.reason.blocked");
+  return disposition.unmigratedCount === 0
+    ? t("ledgerImport.retention.reason.allMigrated")
+    : t("ledgerImport.retention.reason.someUnmigrated");
+}
+
+/** 一个时刻（ISO）按当前语言显示；没有值时显示「无」。 */
+function instantOrNone(value: string | null): string {
+  return value === null ? t("ledgerImport.retention.formal.none") : formatInstant(value);
+}
 
 function parseStep(value: string | null): Step {
   return value === "preview" || value === "review" || value === "confirm" ? value : "select";
@@ -156,6 +205,7 @@ function totalsOf(transactions: readonly { kind: "expense" | "income"; amountCen
 }
 
 export function LedgerImportPage(): React.JSX.Element {
+  const { t, locale } = useI18n();
   const { user } = useAuth();
   const duplicateSettings = useDuplicateDetectionSettings();
   const navigate = useNavigate();
@@ -243,18 +293,18 @@ export function LedgerImportPage(): React.JSX.Element {
         } else if (next.status === "undone") {
           setStepConfirmFromJob();
           setSubmitState("error");
-          setSubmitError("导入已撤销；本次造成的账目、分类和来源状态已恢复。");
+          setSubmitError(t("ledgerImport.message.undone"));
           return;
         } else if (next.status === "undo_failed") {
           setSubmitState("error");
-          setSubmitError(next.lastErrorMessage ?? "撤销失败；账本仍保持锁定，可以重试撤销。");
+          setSubmitError(jobErrorText(next) ?? t("ledgerImport.message.undoFailed"));
           return;
         } else if (next.status === "paused") {
           setSubmitState("paused");
-          setSubmitError(next.lastErrorMessage);
+          setSubmitError(jobErrorText(next));
         } else if (next.status === "failed" || next.status === "cancelled" || next.status === "expired") {
           setSubmitState("error");
-          setSubmitError(next.lastErrorMessage);
+          setSubmitError(jobErrorText(next));
           return;
         } else {
           setSubmitState("submitting");
@@ -292,7 +342,12 @@ export function LedgerImportPage(): React.JSX.Element {
   const sourceBook = soloBooks.find((book) => book.id === sourceKey) ?? null;
   const sourceIsGuest = sourceKey === "guest";
   const sourceIsFormal = sourceBook !== null;
-  const accountLabel = user === null ? "正式账号" : user.displayName.trim() === "" ? user.username : user.displayName;
+  const accountLabel =
+    user === null
+      ? t("ledgerImport.select.accountFallback")
+      : user.displayName.trim() === ""
+        ? user.username
+        : user.displayName;
   const guestAvailable = useMemo(() => hasLocalGuestIdentity(), []);
   /**
    * ⚠️ **离开导入页去哪里，以及"怎么离开"**（S15-C，返回循环）。
@@ -332,6 +387,8 @@ export function LedgerImportPage(): React.JSX.Element {
       cancelled = true;
     };
   }, [target]);
+  // ⚠️ 预览里的冲突说明与提示文字在生成时按当前语言取（`lib/ledgerImport/mapping.ts`、`preview.ts`），
+  // 所以 `locale` 必须在依赖里：切换语言后重新生成。组 id 由成员 id 决定，已做的决定不受影响。
   const preview = useMemo(() => {
     if (snapshots === null) return null;
     const excluded = incrementalExclusions(incremental);
@@ -346,7 +403,7 @@ export function LedgerImportPage(): React.JSX.Element {
         suppressedPairKeys,
       },
     );
-  }, [snapshots, resolutions, incremental, duplicateSettings.settings, suppressedPairKeys]);
+  }, [snapshots, resolutions, incremental, duplicateSettings.settings, suppressedPairKeys, locale]);
 
   /** 读取服务端增量状态；失败时仍允许首次导入，但不能假装没有历史。 */
   useEffect(() => {
@@ -469,7 +526,7 @@ export function LedgerImportPage(): React.JSX.Element {
       try {
         if (sourceIsGuest) {
           const source = await loadGuestImportSource();
-          if (source === null) throw new Error("本机没有可用的游客账本。");
+          if (source === null) throw new Error(t("ledgerImport.message.noGuest"));
           const targetSnapshot = targetIsNew
             ? buildNewImportTarget(currentNewName)
             : await loadBookImportTarget(targetId);
@@ -708,7 +765,7 @@ export function LedgerImportPage(): React.JSX.Element {
             parsed.targetExistingBefore - requestRemovedCount + parsed.importedCount ||
           JSON.stringify(parsed.totals) !== JSON.stringify(expectedTotals)
         ) {
-          setSubmitError("服务器已完成提交，但结果与预期不一致。请截图保留本页，并打开目标账本核对，不要重复提交。");
+          setSubmitError(t("ledgerImport.message.resultMismatch"));
           setResult(parsed);
           setSubmitState("error");
           return;
@@ -801,7 +858,7 @@ export function LedgerImportPage(): React.JSX.Element {
       const hasIncrementalHistory =
         incremental !== null && incremental.summary.newCount < preview.source.transactions.length;
       if (incrementalError !== null && hasIncrementalHistory) {
-        throw new Error("无法读取增量历史，暂不开始导入；请刷新后重试。");
+        throw new Error(t("ledgerImport.message.incrementalUnavailable"));
       }
       const created = await createImportJob(request);
       setJob(created);
@@ -858,7 +915,7 @@ export function LedgerImportPage(): React.JSX.Element {
 
   async function resumeTask(task: PendingImportTask): Promise<void> {
     if (user !== null && task.userId !== user.id) {
-      setSubmitError("这个导入任务属于另一个账号。请先登录原账号，再继续检查。");
+      setSubmitError(t("ledgerImport.message.otherAccount"));
       setSubmitState("error");
       return;
     }
@@ -936,7 +993,7 @@ export function LedgerImportPage(): React.JSX.Element {
     try {
       const next = await refreshImportJobActivity(job.id);
       setJob(next);
-      setSubmitError("已延长等待时间；自动轮询不会延长期限。");
+      setSubmitError(t("ledgerImport.message.waitExtended"));
     } catch (caught) {
       setSubmitError(errorMessage(caught));
     } finally {
@@ -948,24 +1005,30 @@ export function LedgerImportPage(): React.JSX.Element {
 
   const subtitle =
     step === "select"
-      ? "把本机游客账本或另一本正式单人账本导入目标账本。先确认来源和目标。"
+      ? t("ledgerImport.subtitle.select")
       : step === "preview"
-        ? "确认方向、映射和重复候选。预览和核对都不会修改任何账本。"
+        ? t("ledgerImport.subtitle.preview")
         : step === "review"
-          ? "核对来源变化与可能重复的账目；只有你明确选择更新的目标才会改变，自动导入不会静默覆盖。"
+          ? t("ledgerImport.subtitle.review")
           : jobActive
-            ? "导入任务已在服务器执行；关闭页面不会中断，重新打开可继续查看真实进度。"
-            : "确认最终摘要后才会真正写入。来源账本数据会保留。";
+            ? t("ledgerImport.subtitle.jobActive")
+            : t("ledgerImport.subtitle.confirm");
 
   return (
     <InnerPage
-      title="导入账本"
+      title={t("ledgerImport.title")}
       subtitle={subtitle}
       backTo={backTo}
       onBack={onBack}
       actions={
         <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
-          {submitState === "success" ? "已完成" : sourceIsGuest ? "游客来源" : sourceIsFormal ? "正式账本来源" : "选择来源"}
+          {submitState === "success"
+            ? t("ledgerImport.badge.done")
+            : sourceIsGuest
+              ? t("ledgerImport.badge.guest")
+              : sourceIsFormal
+                ? t("ledgerImport.badge.formal")
+                : t("ledgerImport.badge.choose")}
         </span>
       }
     >
@@ -985,7 +1048,7 @@ export function LedgerImportPage(): React.JSX.Element {
       {loadError === null ? null : <Alert>{loadError}</Alert>}
       {incrementalError === null ? null : <Alert>{incrementalError}</Alert>}
       {submitError === null ? null : <Alert>{submitError}</Alert>}
-      {recovery === null || recovery.message === null ? null : (
+      {recovery === null || recovery.messageId === null ? null : (
         <DraftRecoveryNotice summary={recovery} />
       )}
       {jobActive && job !== null ? (
@@ -1023,23 +1086,23 @@ export function LedgerImportPage(): React.JSX.Element {
           onChangeNewName={(name) => patchSearch({ newName: name }, true)}
           onContinue={() => {
             if (sourceKey === "") {
-              setLoadError("请选择来源账本。");
+              setLoadError(t("ledgerImport.message.chooseSource"));
               return;
             }
             if (sourceIsGuest && !guestAvailable) {
-              setLoadError("本机没有可用的游客账本。");
+              setLoadError(t("ledgerImport.message.noGuest"));
               return;
             }
             if (sourceIsFormal && (targetId === "" || targetIsNew || targetId === sourceKey)) {
-              setLoadError("正式账本来源需要选择另一本现有正式账本作为目标。");
+              setLoadError(t("ledgerImport.message.formalNeedsTarget"));
               return;
             }
             if (targetId === "") {
-              setLoadError("请选择目标账本。");
+              setLoadError(t("ledgerImport.message.chooseTarget"));
               return;
             }
             if (targetIsNew && currentNewName.trim() === "") {
-              setLoadError("请填写新账本名称。");
+              setLoadError(t("ledgerImport.message.newNameRequired"));
               return;
             }
             setLoadError(null);
@@ -1161,19 +1224,22 @@ export function LedgerImportPage(): React.JSX.Element {
 
       <ConfirmDialog
         open={removalConfirmOpen}
-        title="删除所选目标账目并导入？"
+        title={t("ledgerImport.removalDialog.title")}
         description={
           preview === null
-            ? "本次导入会删除你选择移除的目标账目，可从编辑历史恢复。"
-            : `将删除 ${String(removedTargets(preview, decisions).length)} 笔目标账目，并导入 ${String(importedSourceCount(preview, decisions))} 笔来源账目。`
+            ? t("ledgerImport.removalDialog.descriptionFallback")
+            : t("ledgerImport.removalDialog.description", {
+                removed: t("ledgerImport.count.targetEntries", { count: removedTargets(preview, decisions).length }),
+                imported: t("ledgerImport.count.sourceEntries", { count: importedSourceCount(preview, decisions) }),
+              })
         }
         consequences={[
-          "仅删除你在核对页明确标记为「移除」的目标账目",
-          "可从编辑历史恢复被移除的账目，编号不变；账本须仍然存在，且你有编辑权限",
-          "来源账本数据不会因此被删除",
-          "本次提交失败时会恢复原状，不会只删除目标账目而未导入来源账目",
+          t("ledgerImport.removalDialog.consequence.onlyMarked"),
+          t("ledgerImport.removalDialog.consequence.restorable"),
+          t("ledgerImport.removalDialog.consequence.sourceKept"),
+          t("ledgerImport.removalDialog.consequence.atomic"),
         ]}
-        confirmLabel="确认删除并导入"
+        confirmLabel={t("ledgerImport.removalDialog.confirm")}
         busy={submitState === "submitting"}
         onCancel={() => {
           if (submitState !== "submitting") setRemovalConfirmOpen(false);
@@ -1188,7 +1254,7 @@ export function LedgerImportPage(): React.JSX.Element {
             {removedTargets(preview, decisions).map((item) => (
               <li key={item.transactionId} className="flex justify-between gap-3 border-b border-line py-1 last:border-b-0">
                 <span className="min-w-0 truncate">
-                  {item.occurredLocalDate} · {item.categoryLabel}
+                  {item.occurredLocalDate} · {displayCategoryName(item.categoryLabel)}
                   {item.note === null ? "" : ` · ${item.note}`}
                 </span>
                 <span className="shrink-0 tabular-nums">{formatMoney(item.amountCents, item.currency)}</span>
@@ -1200,16 +1266,16 @@ export function LedgerImportPage(): React.JSX.Element {
 
       <ConfirmDialog
         open={cancelConfirmOpen}
-        title="撤销本次导入？"
-        description="撤销会恢复本次导入已完成的变更，不只是停止后续导入。"
+        title={t("ledgerImport.undoDialog.title")}
+        description={t("ledgerImport.undoDialog.description")}
         consequences={[
-          "本任务新增的目标账目会被移除，更新过的目标账目会恢复原值",
-          "本次写入的分类、标签、来源状态和导入结果会恢复到导入前状态",
-          "其他账本、其他设备的离线待同步数据不会被删除",
-          "撤销失败时账本仍暂停编辑，页面会提示失败",
-          "撤销完成后才能再次编辑这本账本",
+          t("ledgerImport.undoDialog.consequence.targetReverted"),
+          t("ledgerImport.undoDialog.consequence.stateReverted"),
+          t("ledgerImport.undoDialog.consequence.othersKept"),
+          t("ledgerImport.undoDialog.consequence.failureLocked"),
+          t("ledgerImport.undoDialog.consequence.editAfter"),
         ]}
-        confirmLabel="确认撤销导入"
+        confirmLabel={t("ledgerImport.undoDialog.confirm")}
         busy={jobBusy}
         onCancel={() => {
           if (!jobBusy) setCancelConfirmOpen(false);
@@ -1220,23 +1286,26 @@ export function LedgerImportPage(): React.JSX.Element {
         }}
       >
         <p className="text-helper-relaxed text-muted">
-          已提交 {String(job?.nextBatch ?? 0)} 批，新增 {String(job?.importedCount ?? 0)} 笔、更新{" "}
-          {String(job?.updatedCount ?? 0)} 笔；这些变化都会被精确恢复。
+          {t("ledgerImport.undoDialog.progress", {
+            batches: t("ledgerImport.count.batches", { count: job?.nextBatch ?? 0 }),
+            added: t("ledgerImport.count.entries", { count: job?.importedCount ?? 0 }),
+            updated: t("ledgerImport.count.entries", { count: job?.updatedCount ?? 0 }),
+          })}
         </p>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmConfirmOpen}
-        title="确认完成这次导入？"
-        description="确认完成后，本次导入将无法撤销。"
+        title={t("ledgerImport.finishDialog.title")}
+        description={t("ledgerImport.finishDialog.description")}
         consequences={[
-          "服务器会核对最终结果并保存导入记录",
-          "你选择移除的目标账目将在此时删除",
-          "确认成功后，账本恢复编辑",
-          "确认完成后，才可清理已迁入的游客账目或弃置来源账本",
-          "确认失败时仍等待确认，账本继续暂停编辑",
+          t("ledgerImport.finishDialog.consequence.serverChecks"),
+          t("ledgerImport.finishDialog.consequence.removalsApplied"),
+          t("ledgerImport.finishDialog.consequence.unlocks"),
+          t("ledgerImport.finishDialog.consequence.cleanupAfter"),
+          t("ledgerImport.finishDialog.consequence.failureWaits"),
         ]}
-        confirmLabel="确认完成"
+        confirmLabel={t("ledgerImport.finishDialog.confirm")}
         busy={jobBusy}
         onCancel={() => {
           if (!jobBusy) setConfirmConfirmOpen(false);
@@ -1250,10 +1319,12 @@ export function LedgerImportPage(): React.JSX.Element {
   );
 }
 
-function StepRail({ step }: { readonly step: Step }): React.JSX.Element {
+export function StepRail({ step }: { readonly step: Step }): React.JSX.Element {
+  const { t } = useI18n();
   const activeIndex = STEP_ITEMS.findIndex((item) => item.id === step);
+  // ⚠️ S16：英文四个步骤名约 340px，比 320/375 宽屏的内容区宽；允许换行（中文一行放得下，外观不变）。
   return (
-    <ol className="flex items-center gap-1.5 px-1 text-helper" aria-label="导入步骤">
+    <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-helper" aria-label={t("ledgerImport.steps.aria")}>
       {STEP_ITEMS.map((item, index) => {
         const active = index === activeIndex;
         const done = index < activeIndex;
@@ -1267,7 +1338,7 @@ function StepRail({ step }: { readonly step: Step }): React.JSX.Element {
             >
               {index + 1}
             </span>
-            <span className={active ? "text-ink" : "text-muted"}>{item.label}</span>
+            <span className={active ? "text-ink" : "text-muted"}>{t(`ledgerImport.steps.${item.id}`)}</span>
           </li>
         );
       })}
@@ -1275,7 +1346,7 @@ function StepRail({ step }: { readonly step: Step }): React.JSX.Element {
   );
 }
 
-function BatchJobPanel({
+export function BatchJobPanel({
   job,
   busy,
   onResume,
@@ -1292,22 +1363,7 @@ function BatchJobPanel({
   readonly onKeepWaiting: () => void;
   readonly onRefresh: () => void;
 }): React.JSX.Element {
-  const labels: Record<ImportJobStatus["status"], string> = {
-    queued: "排队中",
-    running: "正在导入",
-    finalizing: "最终对账中",
-    awaiting_confirmation: "批次已完成，等待最终确认",
-    confirming: "正在最终确认",
-    confirmed: "已确认完成",
-    undoing: "正在安全撤销",
-    undone: "已撤销",
-    undo_failed: "撤销失败，账本保持锁定",
-    paused: "已暂停",
-    failed: "需要处理",
-    completed: "已完成（旧版）",
-    cancelled: "已取消（旧版）",
-    expired: "已过期，来源快照已清理",
-  };
+  const { t } = useI18n();
   const [now, setNow] = useState(Date.now());
   const deadline = job.confirmationDeadline === null ? null : Date.parse(job.confirmationDeadline);
   useEffect(() => {
@@ -1329,62 +1385,67 @@ function BatchJobPanel({
     <section data-testid="import-job-progress" className="flex flex-col gap-4">
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-helper text-muted">可撤销导入任务</p>
-            <p className="mt-1 text-body font-medium text-ink">{labels[job.status]}</p>
+          <div className="min-w-0">
+            <p className="text-helper text-muted">{t("ledgerImport.job.title")}</p>
+            <p className="mt-1 text-body font-medium text-ink">{t(`ledgerImport.job.status.${job.status}`)}</p>
           </div>
-          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
-            {job.nextBatch} / {job.totalBatches} 批
+          <span className="shrink-0 rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
+            {t("ledgerImport.job.batchBadge", {
+              done: job.nextBatch,
+              batches: t("ledgerImport.count.batches", { count: job.totalBatches }),
+            })}
           </span>
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
-          已处理 {String(job.nextBatch)} / {String(job.totalBatches)} 批；
-          新增 {String(job.importedCount)} 笔 · 更新 {String(job.updatedCount)} 笔 · 跳过 {String(job.skippedCount)} 笔。
-          总来源 {String(job.sourceCount)} 笔。
+          {t("ledgerImport.job.progress", {
+            done: job.nextBatch,
+            batches: t("ledgerImport.count.batches", { count: job.totalBatches }),
+            added: t("ledgerImport.count.entries", { count: job.importedCount }),
+            updated: t("ledgerImport.count.entries", { count: job.updatedCount }),
+            skipped: t("ledgerImport.count.entries", { count: job.skippedCount }),
+            total: t("ledgerImport.count.entries", { count: job.sourceCount }),
+          })}
         </p>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-canvas">
           <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${String(percent)}%` }} />
         </div>
-        <p className="mt-3 text-helper-relaxed text-muted">
-          最终确认前，这本账本暂停编辑，其他设备也无法修改。撤销导入会恢复已完成的变更，不只是停止后续导入。
-        </p>
+        <p className="mt-3 text-helper-relaxed text-muted">{t("ledgerImport.job.lockNote")}</p>
         {job.status === "awaiting_confirmation" ? (
           <p
             className={`mt-2 text-helper-relaxed ${remainingSeconds !== null && remainingSeconds <= 60 ? "text-warning-dark" : "text-muted"}`}
           >
             {remainingSeconds === null
-              ? "等待确认。"
-              : `请在 ${String(Math.floor(remainingSeconds / 60))} 分 ${String(remainingSeconds % 60)} 秒内确认或撤销；超时将自动安全撤销。`}
+              ? t("ledgerImport.job.waiting")
+              : t("ledgerImport.job.countdown", {
+                  minutes: Math.floor(remainingSeconds / 60),
+                  seconds: remainingSeconds % 60,
+                })}
           </p>
         ) : null}
         {job.status === "paused" && remainingSeconds !== null ? (
           <p className="mt-2 text-helper-relaxed text-warning-dark">
-            暂停中，超时后会自动安全撤销（约剩 {String(remainingSeconds)} 秒）。可以先继续任务。
+            {t("ledgerImport.job.pausedCountdown", { count: remainingSeconds })}
           </p>
         ) : null}
         {job.nextBatch > 0 && (job.status === "paused" || job.status === "failed") ? (
           <p className="mt-2 text-helper-relaxed text-muted">
-            已提交的 {String(job.nextBatch)} 个批次可以完整撤销；撤销前不会释放账本锁。
+            {t("ledgerImport.job.undoableBatches", { count: job.nextBatch })}
           </p>
         ) : null}
         {job.status === "undo_failed" ? (
-          <p className="mt-2 text-helper-relaxed text-warning-dark">
-            撤销未完成，账本仍保持锁定；请重试撤销。系统不会把失败显示为成功，也不会直接解锁。
-          </p>
+          <p className="mt-2 text-helper-relaxed text-warning-dark">{t("ledgerImport.job.undoFailed")}</p>
         ) : null}
         {job.status === "undone" ? (
-          <p className="mt-2 text-helper-relaxed text-muted">
-            本次导入造成的新增、更新和来源状态已恢复；账本锁已释放。
-          </p>
+          <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.job.undone")}</p>
         ) : null}
-        {job.lastErrorMessage === null ? null : <Alert>{job.lastErrorMessage}</Alert>}
+        {job.lastErrorMessage === null ? null : <Alert>{jobErrorText(job)}</Alert>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={onRefresh}
             className="rounded-field border border-line px-3 py-2 text-button text-muted"
           >
-            刷新进度
+            {t("ledgerImport.job.action.refresh")}
           </button>
           {waiting ? (
             <button
@@ -1393,7 +1454,7 @@ function BatchJobPanel({
               disabled={busy}
               className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
             >
-              我还在，延长等待
+              {t("ledgerImport.job.action.keepWaiting")}
             </button>
           ) : null}
           {canResume ? (
@@ -1403,7 +1464,7 @@ function BatchJobPanel({
               disabled={busy}
               className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
             >
-              {busy ? "正在恢复…" : "继续任务"}
+              {busy ? t("ledgerImport.job.action.resuming") : t("ledgerImport.job.action.resume")}
             </button>
           ) : null}
           {canConfirm ? (
@@ -1413,7 +1474,7 @@ function BatchJobPanel({
               disabled={busy}
               className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
             >
-              确认完成
+              {t("ledgerImport.job.action.finish")}
             </button>
           ) : null}
           {canUndo ? (
@@ -1423,21 +1484,19 @@ function BatchJobPanel({
               disabled={busy}
               className="rounded-field border border-danger/40 px-3 py-2 text-button text-danger-dark disabled:opacity-50"
             >
-              {job.status === "undo_failed" ? "重试撤销" : "撤销本次导入"}
+              {job.status === "undo_failed" ? t("ledgerImport.job.action.retryUndo") : t("ledgerImport.job.action.undo")}
             </button>
           ) : null}
         </div>
         {job.status === "expired" ? (
-          <p className="mt-2 text-helper-relaxed text-muted">
-            旧版任务暂停超过恢复期限，来源快照已清理；已经导入的账目仍保留。
-          </p>
+          <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.job.expired")}</p>
         ) : null}
       </div>
     </section>
   );
 }
 
-function PendingTaskBanner({
+export function PendingTaskBanner({
   tasks,
   busy,
   onResume,
@@ -1448,12 +1507,13 @@ function PendingTaskBanner({
   readonly onResume: (task: PendingImportTask) => void;
   readonly onDrop: (importId: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const task = tasks[0]!;
   return (
     <section className="rounded-card border border-line bg-surface px-4 py-3">
-      <p className="text-body font-medium text-ink">有一次导入还没有确认结果</p>
-      <p className="mt-1 text-helper-relaxed text-muted">
-        {task.sourceLabel} → {task.targetLabel}。继续只会用同一个任务编号向服务器确认，不会重复生成账目。
+      <p className="text-body font-medium text-ink">{t("ledgerImport.pending.title")}</p>
+      <p className="mt-1 text-helper-relaxed text-muted [overflow-wrap:anywhere]">
+        {t("ledgerImport.pending.body", { source: task.sourceLabel, target: task.targetLabel })}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button
@@ -1462,39 +1522,47 @@ function PendingTaskBanner({
           disabled={busy}
           className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
         >
-          {busy ? "正在检查…" : "继续检查结果"}
+          {busy ? t("ledgerImport.checking") : t("ledgerImport.pending.resume")}
         </button>
         <button
           type="button"
           onClick={() => onDrop(task.request.importId)}
           className="rounded-field border border-line px-3 py-2 text-button text-muted"
         >
-          放弃本机记录
+          {t("ledgerImport.pending.drop")}
         </button>
       </div>
-      <p className="mt-2 text-helper text-muted">放弃只清除本机任务记录，不会删除已经导入的账目。</p>
+      <p className="mt-2 text-helper text-muted">{t("ledgerImport.pending.dropNote")}</p>
     </section>
   );
 }
 
-function DraftRecoveryNotice({ summary }: { readonly summary: DraftRecoverySummary }): React.JSX.Element {
+export function DraftRecoveryNotice({ summary }: { readonly summary: DraftRecoverySummary }): React.JSX.Element {
+  const { t } = useI18n();
+  // 每个分句自带前导标点（中文「，」「；」/ 英文「; 」），按出现与否依次拼接，句末再加句号。
+  const details = [
+    t("ledgerImport.recovery.restoredGroups", { count: summary.restoredGroups }),
+    summary.resetGroups > 0 ? t("ledgerImport.recovery.resetGroups", { count: summary.resetGroups }) : "",
+    summary.restoredConflicts > 0
+      ? t("ledgerImport.recovery.restoredConflicts", { count: summary.restoredConflicts })
+      : "",
+    summary.resetConflicts > 0 ? t("ledgerImport.recovery.resetConflicts", { count: summary.resetConflicts }) : "",
+    t("ledgerImport.recovery.end"),
+  ].join("");
   return (
     <section className="rounded-card border border-brand/30 bg-brand-soft px-4 py-3">
-      <p className="text-body font-medium text-brand-dark">{summary.message}</p>
-      <p className="mt-1 text-helper-relaxed text-brand-dark/80">
-        已恢复 {String(summary.restoredGroups)} 组重复决定
-        {summary.resetGroups > 0 ? `，${String(summary.resetGroups)} 组需要重新核对` : ""}
-        {summary.restoredConflicts > 0 ? `；已恢复 ${String(summary.restoredConflicts)} 个映射选择` : ""}
-        {summary.resetConflicts > 0 ? `，${String(summary.resetConflicts)} 个映射需要重新选择` : ""}。
+      <p className="text-body font-medium text-brand-dark">
+        {summary.messageId === null ? null : t(`ledgerImport.recovery.message.${summary.messageId}`)}
       </p>
+      <p className="mt-1 text-helper-relaxed text-brand-dark/80">{details}</p>
       {summary.needsReviewGroupIds.length === 0 ? null : (
-        <p className="mt-1 text-helper text-brand-dark/80">受影响的冲突组已在核对页高亮。</p>
+        <p className="mt-1 text-helper text-brand-dark/80">{t("ledgerImport.recovery.highlighted")}</p>
       )}
     </section>
   );
 }
 
-function SelectionStep({
+export function SelectionStep({
   targetId,
   target,
   targetIsNew,
@@ -1525,6 +1593,7 @@ function SelectionStep({
   readonly onChangeNewName: (next: string) => void;
   readonly onContinue: () => void;
 }): React.JSX.Element {
+  const { t, locale } = useI18n();
   const formalSource = sourceBook !== null;
   const canContinue =
     sourceKey !== "" &&
@@ -1542,17 +1611,17 @@ function SelectionStep({
    * 目标里"与来源相同"的那一项仍保留但不可选（`disabled`），与原实现一致。
    */
   const sourceOptions: readonly InlineChoiceOption[] = [
-    { id: "", label: "选择来源账本" },
-    ...(guestAvailable ? [{ id: "guest", label: "本机游客账本" }] : []),
-    ...sourceBooks.map((book) => ({ id: book.id, label: `正式账本 · ${book.name}` })),
+    { id: "", label: t("ledgerImport.select.sourcePlaceholder") },
+    ...(guestAvailable ? [{ id: "guest", label: t("ledgerImport.select.guestOption") }] : []),
+    ...sourceBooks.map((book) => ({ id: book.id, label: t("ledgerImport.select.formalOption", { name: book.name }) })),
   ];
   const targetOptions: readonly InlineChoiceOption[] = [
-    { id: "", label: "选择目标账本" },
+    { id: "", label: t("ledgerImport.select.targetPlaceholder") },
     ...soloBooks.map((book) => ({
       id: book.id,
       label: book.name,
       disabled: book.id === sourceKey,
-      ...(book.id === sourceKey ? { hint: "就是来源账本，不能选" } : {}),
+      ...(book.id === sourceKey ? { hint: t("ledgerImport.select.sameAsSource") } : {}),
     })),
   ];
 
@@ -1566,9 +1635,9 @@ function SelectionStep({
       */}
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <div className="flex flex-col gap-2">
-          <span className="text-body font-medium text-ink">来源账本</span>
+          <span className="text-body font-medium text-ink">{t("ledgerImport.select.sourceLabel")}</span>
           <InlineChoice
-            label="来源账本"
+            label={t("ledgerImport.select.sourceLabel")}
             testId="import-source"
             open={picking === "source"}
             value={sourceKey}
@@ -1583,18 +1652,12 @@ function SelectionStep({
           />
         </div>
         {guestAvailable || sourceBooks.length > 0 ? null : (
-          <p className="mt-2 text-helper-relaxed text-muted">
-            本机没有游客账本，也没有可作为来源的其他单人账本。
-          </p>
+          <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.select.noSources")}</p>
         )}
         {formalSource ? (
-          <p className="mt-2 text-helper-relaxed text-muted">
-            正式来源只会导入你在预览中确认的记录；不会删除来源账本的账目，也不会关闭来源账本。
-          </p>
+          <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.select.formalSourceNote")}</p>
         ) : guestAvailable ? (
-          <p className="mt-2 text-helper-relaxed text-muted">
-            来源游客数据在上传前不会被读取或发送；导入后也不会自动删除。
-          </p>
+          <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.select.guestSourceNote")}</p>
         ) : null}
 
         <div className="my-4 flex items-center gap-3" aria-hidden="true">
@@ -1604,9 +1667,9 @@ function SelectionStep({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-body font-medium text-ink">目标账本</span>
+          <span className="text-body font-medium text-ink">{t("ledgerImport.select.targetLabel")}</span>
           <InlineChoice
-            label="目标账本"
+            label={t("ledgerImport.select.targetLabel")}
             testId="import-target"
             open={picking === "target"}
             value={targetId}
@@ -1622,40 +1685,47 @@ function SelectionStep({
         </div>
 
         {formalSource ? (
-          <p className="mt-3 text-helper-relaxed text-muted">
-            正式来源只能导入另一本现有正式单人账本；不能新建目标账本，也不能选来源自己。
-          </p>
+          <p className="mt-3 text-helper-relaxed text-muted">{t("ledgerImport.select.formalTargetNote")}</p>
         ) : (
           <p className="mt-3 text-helper-relaxed text-muted">
-            导入不会新建目标账本。请先在
-            <a href="/" className="mx-1 text-brand-dark underline-offset-2 hover:underline">
-              账本空间
-            </a>
-            正常创建一个空账本，再回到这里选择它作为目标。
+            {/* 中文链接两侧没有空格，靠 mx-1 留白；英文句子本身带空格，不再加外边距。 */}
+            <Trans
+              i18nKey="ledgerImport.select.createTargetFirst"
+              components={{
+                link: (
+                  <a
+                    href="/"
+                    className={`${locale === "zh-CN" ? "mx-1 " : ""}text-brand-dark underline-offset-2 hover:underline`}
+                  />
+                ),
+              }}
+            />
           </p>
         )}
 
         {target === null ? null : (
-          <p className="mt-3 text-helper-relaxed text-muted">
-            导入到「{target.name}」 · {accountLabel}
-            {target.bookNumber === null ? "" : ` · 编号 ${target.bookNumber}`}
+          <p className="mt-3 text-helper-relaxed text-muted [overflow-wrap:anywhere]">
+            {target.bookNumber === null
+              ? t("ledgerImport.select.importInto", { name: target.name, account: accountLabel })
+              : t("ledgerImport.select.importIntoWithNumber", {
+                  name: target.name,
+                  account: accountLabel,
+                  number: target.bookNumber,
+                })}
           </p>
         )}
       </div>
 
       <Button onClick={onContinue} disabled={!canContinue}>
-        查看预览
+        {t("ledgerImport.select.continue")}
       </Button>
 
-      <p className="text-helper-relaxed text-muted">
-        可从本机游客账本或当前账号的另一本单人账本导入。使用正式账本时，两本账本都须仅有你一名有效成员，
-        且没有待接受邀请或可用分享链接。预览和提交时都会检查，导入不会删除或清空来源账本。
-      </p>
+      <p className="text-helper-relaxed text-muted">{t("ledgerImport.select.rules")}</p>
     </section>
   );
 }
 
-function PreviewStep({
+export function PreviewStep({
   preview,
   conflictCount,
   resolutions,
@@ -1674,46 +1744,57 @@ function PreviewStep({
   readonly onConfirm: () => void;
   readonly needsIncrementalReview: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const { mapping, counts } = preview;
   const hasReview = counts.duplicateGroups > 0 || needsIncrementalReview;
   return (
     <section data-testid="import-preview" className="flex flex-col gap-5">
       <div className="rounded-card border border-line bg-surface px-5 py-4">
-        <p className="text-helper text-muted">导入方向</p>
+        <p className="text-helper text-muted">{t("ledgerImport.preview.direction")}</p>
         <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2">
-          <span className="text-helper text-muted">来源账本</span>
+          <span className="text-helper text-muted">{t("ledgerImport.select.sourceLabel")}</span>
           <BookIdentity book={preview.source.identity} />
           <span className="justify-self-center text-muted" aria-hidden="true">
             ↓
           </span>
           <span className="h-px w-full bg-line" aria-hidden="true" />
-          <span className="text-helper text-muted">目标账本</span>
+          <span className="text-helper text-muted">{t("ledgerImport.select.targetLabel")}</span>
           <BookIdentity book={preview.target.identity} />
         </div>
         <p className="mt-3 text-helper-relaxed text-muted">
-          {preview.source.kind === "guest"
-            ? "来源是本机游客账本；导入后本机数据仍会保留。"
-            : "来源是正式单人账本；导入后来源账本的数据仍会保留，不会自动删除或关闭。"}
+          {preview.source.kind === "guest" ? t("ledgerImport.preview.guestNote") : t("ledgerImport.preview.formalNote")}
         </p>
       </div>
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
-        <h2 className="section-title">这次会发生什么</h2>
+        <h2 className="section-title">{t("ledgerImport.preview.whatHappens")}</h2>
         <div className="mt-4 grid grid-cols-3 divide-x divide-line">
-          <Metric label="来源" value={`${String(counts.sourceTransactions)} 笔`} />
-          <Metric label="无冲突" value={`${String(counts.importableWithoutConflict)} 笔`} />
-          <Metric label="重复组" value={`${String(counts.duplicateGroups)} 组`} />
+          <Metric
+            label={t("ledgerImport.preview.metric.source")}
+            value={t("ledgerImport.metricValue.entries", { count: counts.sourceTransactions })}
+          />
+          <Metric
+            label={t("ledgerImport.preview.metric.clean")}
+            value={t("ledgerImport.metricValue.entries", { count: counts.importableWithoutConflict })}
+          />
+          <Metric
+            label={t("ledgerImport.preview.metric.groups")}
+            value={t("ledgerImport.metricValue.groups", { count: counts.duplicateGroups })}
+          />
         </div>
         <div className="mt-4 border-t border-line pt-4">
           {preview.totals.length === 0 ? (
-            <p className="text-helper-relaxed text-muted">来源没有账目。</p>
+            <p className="text-helper-relaxed text-muted">{t("ledgerImport.preview.noEntries")}</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {preview.totals.map((total) => (
                 <li key={total.currency} className="flex items-baseline justify-between gap-3">
-                  <span className="text-helper text-muted">{total.currency}</span>
-                  <span className="text-right text-body text-ink">
-                    支出 {formatMoney(total.expenseCents, total.currency)} · 收入 {formatMoney(total.incomeCents, total.currency)}
+                  <span className="shrink-0 text-helper text-muted">{total.currency}</span>
+                  <span className="min-w-0 text-right text-body text-ink">
+                    {t("ledgerImport.totals", {
+                      expense: formatMoney(total.expenseCents, total.currency),
+                      income: formatMoney(total.incomeCents, total.currency),
+                    })}
                   </span>
                 </li>
               ))}
@@ -1721,12 +1802,12 @@ function PreviewStep({
           )}
           {counts.targetTransactions > 0 ? (
             <p className="mt-3 text-helper-relaxed text-muted">
-              目标账本已有 {String(counts.targetTransactions)} 条账目；导入不会覆盖它们。如需删除或移动其中的账目，会在核对步骤逐笔列出并再次确认。
+              {t("ledgerImport.preview.targetExisting", { count: counts.targetTransactions })}
             </p>
           ) : null}
           {counts.sourceSkippedDeleted > 0 ? (
             <p className="mt-1 text-helper-relaxed text-muted">
-              来源中 {String(counts.sourceSkippedDeleted)} 条已删除的账目不会导入。
+              {t("ledgerImport.preview.sourceDeleted", { count: counts.sourceSkippedDeleted })}
             </p>
           ) : null}
         </div>
@@ -1734,17 +1815,20 @@ function PreviewStep({
 
       <details className="rounded-card border border-line bg-surface px-5 py-4 [&::-webkit-details-marker]:hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-          <span className="text-body font-medium text-ink">分类、支付方式与标签</span>
-          <span className="text-helper text-muted">
-            {conflictCount > 0 ? `${String(conflictCount)} 项待确认` : "查看详情"} ›
+          <span className="min-w-0 text-body font-medium text-ink">{t("ledgerImport.preview.taxonomyTitle")}</span>
+          <span className="shrink-0 text-helper text-muted">
+            {conflictCount > 0
+              ? t("ledgerImport.preview.pendingConflicts", { count: conflictCount })
+              : t("ledgerImport.preview.viewDetails")}{" "}
+            ›
           </span>
         </summary>
         <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
-          <MappingRow label="分类" items={mapping.categories} />
-          <MappingRow label="支付方式" items={mapping.paymentMethods} />
-          <MappingRow label="标签" items={mapping.tags} />
+          <MappingRow label={t("ledgerImport.preview.mappingLabel.category")} items={mapping.categories} />
+          <MappingRow label={t("ledgerImport.preview.mappingLabel.paymentMethod")} items={mapping.paymentMethods} />
+          <MappingRow label={t("ledgerImport.preview.mappingLabel.tag")} items={mapping.tags} />
           {mapping.conflicts.length === 0 ? (
-            <p className="text-helper-relaxed text-muted">没有同名但属性不同的对象。</p>
+            <p className="text-helper-relaxed text-muted">{t("ledgerImport.preview.noConflicts")}</p>
           ) : (
             <ul className="flex flex-col gap-2 pt-1">
               {mapping.conflicts.map((conflict) => (
@@ -1762,14 +1846,12 @@ function PreviewStep({
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="section-title">可能重复的账目</h2>
-            <p className="mt-1 text-helper-relaxed text-muted">
-              只比较来源账本与目标账本的记录；核对后再决定跳过还是两边都保留。
-            </p>
+          <div className="min-w-0">
+            <h2 className="section-title">{t("ledgerImport.preview.duplicatesTitle")}</h2>
+            <p className="mt-1 text-helper-relaxed text-muted">{t("ledgerImport.preview.duplicatesNote")}</p>
           </div>
           <span className="shrink-0 rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
-            {String(counts.duplicateGroups)} 组
+            {t("ledgerImport.count.groups", { count: counts.duplicateGroups })}
           </span>
         </div>
         {hasReview ? (
@@ -1777,37 +1859,39 @@ function PreviewStep({
             type="button"
             data-testid="open-review"
             onClick={onReview}
-            className="mt-3 flex w-full items-center justify-between rounded-field border border-line bg-canvas px-4 py-3 text-left text-body text-ink transition hover:border-brand/40 hover:bg-brand-soft"
+            className="mt-3 flex w-full items-center justify-between gap-3 rounded-field border border-line bg-canvas px-4 py-3 text-left text-body text-ink transition hover:border-brand/40 hover:bg-brand-soft"
           >
-            <span>
+            <span className="min-w-0">
               {counts.duplicateGroups > 0
-                ? `去核对这 ${String(counts.duplicateGroups)} 组重复项`
-                : "去核对此前导入与来源变化"}
+                ? t("ledgerImport.preview.reviewGroups", { count: counts.duplicateGroups })
+                : t("ledgerImport.preview.reviewIncremental")}
             </span>
-            <span aria-hidden="true" className="text-muted">
+            <span aria-hidden="true" className="shrink-0 text-muted">
               ›
             </span>
           </button>
         ) : (
-          <p className="mt-3 text-helper-relaxed text-muted">没有发现可能重复的账目。</p>
+          <p className="mt-3 text-helper-relaxed text-muted">{t("ledgerImport.preview.noDuplicates")}</p>
         )}
       </div>
 
       <div className="flex flex-col gap-2">
         {conflictCount > 0 ? (
-          <p className="text-helper-relaxed text-muted">请先处理完全部属性冲突，再继续。</p>
+          <p className="text-helper-relaxed text-muted">{t("ledgerImport.preview.resolveConflictsFirst")}</p>
         ) : null}
         {hasReview ? (
           <Button onClick={onReview} disabled={conflictCount > 0}>
-            {counts.duplicateGroups > 0 ? "去核对可能重复的账目" : "去核对增量变化"}
+            {counts.duplicateGroups > 0
+              ? t("ledgerImport.preview.reviewDuplicatesButton")
+              : t("ledgerImport.preview.reviewIncrementalButton")}
           </Button>
         ) : (
           <Button onClick={onConfirm} disabled={conflictCount > 0}>
-            继续确认
+            {t("ledgerImport.preview.continue")}
           </Button>
         )}
         <Button variant="secondary" onClick={onBack}>
-          重新选择
+          {t("ledgerImport.preview.chooseAgain")}
         </Button>
       </div>
     </section>
@@ -1819,10 +1903,13 @@ function BookIdentity({
 }: {
   readonly book: ImportPreview["source"]["identity"];
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <span className="min-w-0 text-right">
       <span className="block truncate text-body font-medium text-ink">{book.name}</span>
-      {book.bookNumber === null ? null : <span className="block text-helper text-muted">编号 {book.bookNumber}</span>}
+      {book.bookNumber === null ? null : (
+        <span className="block text-helper text-muted">{t("ledgerImport.bookNumber", { number: book.bookNumber })}</span>
+      )}
     </span>
   );
 }
@@ -1843,14 +1930,13 @@ function MappingRow({
   readonly label: string;
   readonly items: readonly { readonly targetId: string | null }[];
 }): React.JSX.Element {
+  const { t } = useI18n();
   const reuse = items.filter((item) => item.targetId !== null).length;
   const create = items.filter((item) => item.targetId === null).length;
   return (
     <div className="flex items-baseline justify-between gap-3 text-body">
-      <span className="text-muted">{label}</span>
-      <span className="text-right text-ink">
-        复用 {String(reuse)} · 新建 {String(create)}
-      </span>
+      <span className="min-w-0 text-muted">{label}</span>
+      <span className="shrink-0 text-right text-ink">{t("ledgerImport.preview.mappingRow", { reuse, create })}</span>
     </div>
   );
 }
@@ -1864,48 +1950,55 @@ function ConflictRow({
   readonly value: TaxonomyResolutionAction | undefined;
   readonly onChange: (action: TaxonomyResolutionAction) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+  const sourceName = taxonomyDisplayName(conflict.type, conflict.sourceName);
   return (
     <li className="rounded-field bg-canvas px-3 py-3 text-sm text-ink">
-      <p className="font-medium">
-        {taxonomyLabel(conflict.type)}「{conflict.sourceName}」与目标「{conflict.targetName}」同名但属性不同
+      <p className="font-medium [overflow-wrap:anywhere]">
+        {t("ledgerImport.conflict.title", {
+          type: t(`ledgerImport.conflict.type.${conflict.type}`),
+          source: sourceName,
+          target: taxonomyDisplayName(conflict.type, conflict.targetName),
+        })}
       </p>
       <p className="mt-1 text-helper-relaxed text-muted">{conflict.message}</p>
-      <div className="mt-2 flex gap-2" role="group" aria-label={`处理${conflict.sourceName}冲突`}>
+      <div className="mt-2 flex gap-2" role="group" aria-label={t("ledgerImport.conflict.aria", { name: sourceName })}>
         <button
           type="button"
           onClick={() => onChange("reuse")}
-          className={`flex-1 rounded-field border px-3 py-2 text-left text-helper transition ${
+          className={`min-w-0 flex-1 rounded-field border px-3 py-2 text-left text-helper transition ${
             value === "reuse" ? "border-brand bg-brand-soft text-brand-dark" : "border-line bg-surface text-muted"
           }`}
         >
-          复用目标对象
+          {t("ledgerImport.conflict.reuse")}
         </button>
         <button
           type="button"
           onClick={() => onChange("create")}
-          className={`flex-1 rounded-field border px-3 py-2 text-left text-helper transition ${
+          className={`min-w-0 flex-1 rounded-field border px-3 py-2 text-left text-helper transition ${
             value === "create" ? "border-brand bg-brand-soft text-brand-dark" : "border-line bg-surface text-muted"
           }`}
         >
-          在目标新建来源副本
+          {t("ledgerImport.conflict.create")}
         </button>
       </div>
     </li>
   );
 }
 
-function taxonomyLabel(type: TaxonomyConflict["type"]): string {
+/** 冲突对象名只用于显示：预置分类 / 支付方式按当前语言显示，其余原样。 */
+function taxonomyDisplayName(type: TaxonomyConflict["type"], name: string): string {
   switch (type) {
     case "category":
-      return "分类";
+      return displayCategoryName(name);
     case "paymentMethod":
-      return "支付方式";
+      return displayPaymentMethodName(name);
     case "tag":
-      return "标签";
+      return name;
   }
 }
 
-function IncrementalReview({
+export function IncrementalReview({
   statuses,
   summary,
   source,
@@ -1920,16 +2013,7 @@ function IncrementalReview({
   readonly decisions: ReadonlyMap<string, IncrementalDecisionAction>;
   readonly onDecision: (sourceTransactionId: string, action: IncrementalDecisionAction) => void;
 }): React.JSX.Element {
-  const labels: Record<IncrementalSourceStatus["status"], string> = {
-    new: "新增",
-    unchanged: "已导入未变化",
-    modified: "来源已修改",
-    target_changed: "目标已修改",
-    target_deleted: "目标已删除",
-    previously_skipped: "此前已跳过",
-    previously_skipped_modified: "此前跳过且来源已修改",
-    needs_review: "旧导入记录需确认",
-  };
+  const { t } = useI18n();
   const actionable = statuses.filter(
     (status) =>
       status.status === "modified" ||
@@ -1940,35 +2024,61 @@ function IncrementalReview({
       status.status === "needs_review",
   );
   const legacyCount = statuses.filter((status) => status.legacy).length;
-  const categoryName = (id: string) => source.categories.find((item) => item.id === id)?.name ?? "未知分类";
-  const targetCategoryName = (id: string) => target.categories.find((item) => item.id === id)?.name ?? "未知分类";
+  // 分类名只用于显示：预置分类按当前语言显示；找不到时显示「未知分类」。
+  const categoryName = (id: string) => {
+    const name = source.categories.find((item) => item.id === id)?.name;
+    return name === undefined ? t("ledgerImport.incremental.unknownCategory") : displayCategoryName(name);
+  };
+  const targetCategoryName = (id: string) => {
+    const name = target.categories.find((item) => item.id === id)?.name;
+    return name === undefined ? t("ledgerImport.incremental.unknownCategory") : displayCategoryName(name);
+  };
   const facts = (item: ImportSource["transactions"][number] | ImportTarget["transactions"][number], category: string) =>
     `${formatMoney(item.amountCents, item.currency, { withCode: true })} · ${item.occurredLocalDate} · ${category}${item.note === null ? "" : ` · ${item.note}`}`;
   return (
     <section data-testid="incremental-review" className="flex flex-col gap-4 rounded-card border border-line bg-surface px-5 py-4">
       <div>
-        <p className="text-body font-medium text-ink">此前导入的核对</p>
-        <p className="mt-1 text-helper-relaxed text-muted">
-          已导入且未变化的记录默认跳过；来源变化只有在你明确选择后才会更新目标。来源已删除的账目不会删除目标。
-        </p>
+        <p className="text-body font-medium text-ink">{t("ledgerImport.incremental.title")}</p>
+        <p className="mt-1 text-helper-relaxed text-muted">{t("ledgerImport.incremental.note")}</p>
       </div>
       <div className="flex flex-wrap gap-2 text-helper">
-        <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">未变化 {String(summary.unchangedCount)}</span>
-        <span className="rounded-full bg-brand-soft px-2.5 py-1 text-brand-dark">新增 {String(summary.newCount)}</span>
-        {summary.modifiedCount > 0 ? <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">修改 {String(summary.modifiedCount)}</span> : null}
-        {summary.targetChangedCount > 0 ? <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">目标变化 {String(summary.targetChangedCount)}</span> : null}
-        {summary.targetDeletedCount > 0 ? <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">目标已删 {String(summary.targetDeletedCount)}</span> : null}
-        {summary.previouslySkippedCount > 0 ? <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">此前跳过 {String(summary.previouslySkippedCount)}</span> : null}
-        {summary.needsReviewCount > 0 ? <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">需确认 {String(summary.needsReviewCount)}</span> : null}
+        <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">
+          {t("ledgerImport.incremental.chip.unchanged", { number: summary.unchangedCount })}
+        </span>
+        <span className="rounded-full bg-brand-soft px-2.5 py-1 text-brand-dark">
+          {t("ledgerImport.incremental.chip.new", { number: summary.newCount })}
+        </span>
+        {summary.modifiedCount > 0 ? (
+          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">
+            {t("ledgerImport.incremental.chip.modified", { number: summary.modifiedCount })}
+          </span>
+        ) : null}
+        {summary.targetChangedCount > 0 ? (
+          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">
+            {t("ledgerImport.incremental.chip.targetChanged", { number: summary.targetChangedCount })}
+          </span>
+        ) : null}
+        {summary.targetDeletedCount > 0 ? (
+          <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">
+            {t("ledgerImport.incremental.chip.targetDeleted", { number: summary.targetDeletedCount })}
+          </span>
+        ) : null}
+        {summary.previouslySkippedCount > 0 ? (
+          <span className="rounded-full bg-canvas px-2.5 py-1 text-muted">
+            {t("ledgerImport.incremental.chip.previouslySkipped", { number: summary.previouslySkippedCount })}
+          </span>
+        ) : null}
+        {summary.needsReviewCount > 0 ? (
+          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">
+            {t("ledgerImport.incremental.chip.needsReview", { number: summary.needsReviewCount })}
+          </span>
+        ) : null}
       </div>
       {legacyCount > 0 ? (
-        <p className="text-helper-relaxed text-muted">
-          有 {String(legacyCount)} 笔旧版本导入没有稳定的来源账本身份，不能确认是否属于当前游客账本；
-          默认只保留目标，不会静默覆盖或建立删除关系。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("ledgerImport.incremental.legacy", { count: legacyCount })}</p>
       ) : null}
       {actionable.length === 0 ? (
-        <p className="text-helper-relaxed text-muted">没有需要逐条处理的来源变化。</p>
+        <p className="text-helper-relaxed text-muted">{t("ledgerImport.incremental.noChanges")}</p>
       ) : (
         <ul className="divide-y divide-line">
           {actionable.map((status) => {
@@ -1978,16 +2088,26 @@ function IncrementalReview({
             return (
               <li key={status.sourceTransactionId} className="flex flex-col gap-2 py-3">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-body font-medium text-ink">{labels[status.status]}</p>
-                  {status.legacy ? <span className="text-helper text-muted">旧导入记录</span> : null}
+                  <p className="min-w-0 text-body font-medium text-ink">{t(`ledgerImport.incremental.status.${status.status}`)}</p>
+                  {status.legacy ? (
+                    <span className="shrink-0 text-helper text-muted">{t("ledgerImport.incremental.legacyBadge")}</span>
+                  ) : null}
                 </div>
                 {sourceTransaction === undefined ? null : (
-                  <p className="text-helper-relaxed text-muted">来源：{facts(sourceTransaction, categoryName(sourceTransaction.categoryId))}</p>
+                  <p className="text-helper-relaxed text-muted [overflow-wrap:anywhere]">
+                    {t("ledgerImport.incremental.sourceFacts", {
+                      facts: facts(sourceTransaction, categoryName(sourceTransaction.categoryId)),
+                    })}
+                  </p>
                 )}
                 {targetTransaction === undefined ? (
-                  <p className="text-helper-relaxed text-muted">目标：无对应账目（不会自动创建或删除）</p>
+                  <p className="text-helper-relaxed text-muted">{t("ledgerImport.incremental.noTarget")}</p>
                 ) : (
-                  <p className="text-helper-relaxed text-muted">目标：{facts(targetTransaction, targetCategoryName(targetTransaction.categoryId))}</p>
+                  <p className="text-helper-relaxed text-muted [overflow-wrap:anywhere]">
+                    {t("ledgerImport.incremental.targetFacts", {
+                      facts: facts(targetTransaction, targetCategoryName(targetTransaction.categoryId)),
+                    })}
+                  </p>
                 )}
                 {status.status === "modified" ? (
                   <div className="flex flex-wrap gap-2">
@@ -1996,7 +2116,7 @@ function IncrementalReview({
                       onClick={() => onDecision(status.sourceTransactionId, "keep_target")}
                       className={`rounded-field border px-3 py-2 text-button ${chosen === "keep_target" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
                     >
-                      保留目标
+                      {t("ledgerImport.incremental.keepTarget")}
                     </button>
                     <button
                       type="button"
@@ -2004,13 +2124,15 @@ function IncrementalReview({
                       onClick={() => onDecision(status.sourceTransactionId, "update_target")}
                       className={`rounded-field border px-3 py-2 text-button disabled:cursor-not-allowed disabled:opacity-40 ${chosen === "update_target" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
                     >
-                      用来源更新目标
+                      {t("ledgerImport.incremental.updateTarget")}
                     </button>
                     {status.targetChanged ? (
-                      <span className="self-center text-helper text-warning-dark">目标已变化，禁止直接覆盖</span>
+                      <span className="self-center text-helper text-warning-dark">
+                        {t("ledgerImport.incremental.targetChangedLocked")}
+                      </span>
                     ) : null}
                     {status.legacy ? (
-                      <span className="self-center text-helper text-muted">旧记录身份未确认，禁止直接覆盖</span>
+                      <span className="self-center text-helper text-muted">{t("ledgerImport.incremental.legacyLocked")}</span>
                     ) : null}
                   </div>
                 ) : null}
@@ -2023,21 +2145,19 @@ function IncrementalReview({
                       onClick={() => onDecision(status.sourceTransactionId, "skip")}
                       className={`rounded-field border px-3 py-2 text-button ${chosen === "skip" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
                     >
-                      保持跳过
+                      {t("ledgerImport.incremental.keepSkipped")}
                     </button>
                     <button
                       type="button"
                       onClick={() => onDecision(status.sourceTransactionId, "import")}
                       className={`rounded-field border px-3 py-2 text-button ${chosen === "import" ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"}`}
                     >
-                      本次导入
+                      {t("ledgerImport.incremental.importNow")}
                     </button>
                   </div>
                 ) : null}
                 {status.status === "target_changed" || status.status === "target_deleted" ? (
-                  <p className="text-helper-relaxed text-muted">
-                    为保护已有数据，本次只保留目标，不覆盖、不恢复、不删除；如果你需要处理，请先在目标账本中手动核对。
-                  </p>
+                  <p className="text-helper-relaxed text-muted">{t("ledgerImport.incremental.protectNote")}</p>
                 ) : null}
               </li>
             );
@@ -2048,7 +2168,7 @@ function IncrementalReview({
   );
 }
 
-function SourceRetentionCard({
+export function SourceRetentionCard({
   result,
   preview,
   jobId,
@@ -2059,6 +2179,7 @@ function SourceRetentionCard({
   readonly jobId: string | null;
   readonly onError: (message: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const guestBookId = preview.source.kind === "guest" ? preview.source.bookId : null;
   const [guestPreview, setGuestPreview] = useState<GuestCleanupPreviewResponse | null>(null);
   const [guestConfirmOpen, setGuestConfirmOpen] = useState(false);
@@ -2084,7 +2205,7 @@ function SourceRetentionCard({
       setGuestPreview(next);
       setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
       if (next.cleanableCount === 0) {
-        setGuestMessage("没有可安全清理的记录；未迁入记录默认保留。");
+        setGuestMessage(t("ledgerImport.retention.guest.nothingToClean"));
       }
     } catch (caught) {
       onError(errorMessage(caught));
@@ -2101,7 +2222,10 @@ function SourceRetentionCard({
       const resultOfCleanup = await cleanupMigratedGuestTransactions(guestPreview.cleanableSourceIds);
       setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
       setGuestMessage(
-        `已清理 ${String(resultOfCleanup.removed)} 笔已确认迁入的游客记录；来源仍保留 ${String(resultOfCleanup.remaining)} 笔。清理记录保存在本机，可恢复。`,
+        t("ledgerImport.retention.guest.cleaned", {
+          removed: t("ledgerImport.count.guestEntries", { count: resultOfCleanup.removed }),
+          remaining: t("ledgerImport.count.entries", { count: resultOfCleanup.remaining }),
+        }),
       );
       setGuestConfirmOpen(false);
       setGuestPreview(null);
@@ -2119,7 +2243,7 @@ function SourceRetentionCard({
     try {
       const restored = await restoreGuestCleanup(archivedTransactions.map((item) => item.id));
       setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
-      setGuestMessage(`已恢复 ${String(restored)} 笔清理记录到游客账本。`);
+      setGuestMessage(t("ledgerImport.retention.guest.restored", { count: restored }));
     } catch (caught) {
       onError(errorMessage(caught));
     } finally {
@@ -2148,7 +2272,7 @@ function SourceRetentionCard({
     setArchiveBusy(true);
     try {
       await bookLifecycleAction(disposition.sourceBookId, "archive");
-      setArchived("来源账本已弃置，可在归档恢复页面查看恢复期限并恢复。");
+      setArchived(t("ledgerImport.retention.formal.archived"));
       setArchiveConfirmOpen(false);
       setDisposition(null);
     } catch (caught) {
@@ -2163,22 +2287,21 @@ function SourceRetentionCard({
   return (
     <section data-testid="source-retention" className="flex flex-col gap-3 rounded-card border border-line bg-surface px-5 py-4">
       <div>
-        <p className="text-body font-medium text-ink">来源安全与清理</p>
-        <p className="mt-1 text-helper-relaxed text-muted">
-          导入成功不等于可以自动清理来源。这里的所有操作都是独立、手动、默认保留；未迁移记录不会被清理或弃置。
-        </p>
+        <p className="text-body font-medium text-ink">{t("ledgerImport.retention.title")}</p>
+        <p className="mt-1 text-helper-relaxed text-muted">{t("ledgerImport.retention.intro")}</p>
       </div>
       {guestBookId === null ? null : (
         <div className="rounded-field border border-line bg-canvas px-4 py-3">
-          <p className="text-body text-ink">游客来源账本仍在本机</p>
-          <p className="mt-1 text-helper-relaxed text-muted">
-            导入不会自动删除游客数据。可以检查哪些记录已确认迁入目标；未迁移、已跳过、已变化或目标校验不通过的记录会保留。
-          </p>
+          <p className="text-body text-ink">{t("ledgerImport.retention.guest.title")}</p>
+          <p className="mt-1 text-helper-relaxed text-muted">{t("ledgerImport.retention.guest.note")}</p>
           {guestMessage === null ? null : <p className="mt-2 text-helper-relaxed text-warning-dark">{guestMessage}</p>}
           {guestPreview === null ? null : (
             <p className="mt-2 text-helper-relaxed text-muted">
-              可清理 {String(guestPreview.cleanableCount)} 笔，保留 {String(guestPreview.retainedCount)} 笔（总来源{" "}
-              {String(guestPreview.sourceCount)} 笔）。
+              {t("ledgerImport.retention.guest.preview", {
+                cleanable: t("ledgerImport.count.entries", { count: guestPreview.cleanableCount }),
+                retained: t("ledgerImport.count.entries", { count: guestPreview.retainedCount }),
+                total: t("ledgerImport.count.entries", { count: guestPreview.sourceCount }),
+              })}
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
@@ -2188,7 +2311,7 @@ function SourceRetentionCard({
               disabled={guestBusy}
               className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
             >
-              {guestBusy ? "正在检查…" : "检查可清理的游客记录"}
+              {guestBusy ? t("ledgerImport.checking") : t("ledgerImport.retention.guest.check")}
             </button>
             {guestPreview !== null && guestPreview.cleanableCount > 0 ? (
               <button
@@ -2197,7 +2320,7 @@ function SourceRetentionCard({
                 disabled={guestBusy}
                 className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
               >
-                清理这 {String(guestPreview.cleanableCount)} 笔
+                {t("ledgerImport.retention.guest.clean", { count: guestPreview.cleanableCount })}
               </button>
             ) : null}
             {guestArchiveCount === 0 ? null : (
@@ -2207,7 +2330,7 @@ function SourceRetentionCard({
                 disabled={guestBusy}
                 className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
               >
-                恢复本机清理记录（{String(guestArchiveCount)}）
+                {t("ledgerImport.retention.guest.restore", { number: guestArchiveCount })}
               </button>
             )}
           </div>
@@ -2216,25 +2339,30 @@ function SourceRetentionCard({
 
       {result.sourceBookId === undefined ? null : (
         <div className="rounded-field border border-line bg-canvas px-4 py-3">
-          <p className="text-body text-ink">正式来源账本默认完整保留</p>
-          <p className="mt-1 text-helper-relaxed text-muted">
-            导入完成后，可另行选择是否弃置来源账本。弃置后数据暂时保留，可在恢复期限内恢复。
-          </p>
+          <p className="text-body text-ink">{t("ledgerImport.retention.formal.title")}</p>
+          <p className="mt-1 text-helper-relaxed text-muted">{t("ledgerImport.retention.formal.note")}</p>
           {archived === null ? null : <p className="mt-2 text-helper-relaxed text-brand-dark">{archived}</p>}
           {disposition === null ? null : (
             <div className="mt-2 text-helper-relaxed text-muted">
-              <p>
-                来源 {disposition.sourceBookName}：已确认在目标中的账目 {String(disposition.migratedCount)} 笔，
-                未确认迁入 {String(disposition.unmigratedCount)} 笔（总来源 {String(disposition.sourceCount)} 笔）。
+              <p className="[overflow-wrap:anywhere]">
+                {t("ledgerImport.retention.formal.counts", {
+                  name: disposition.sourceBookName,
+                  migrated: t("ledgerImport.count.entries", { count: disposition.migratedCount }),
+                  unmigrated: t("ledgerImport.count.entries", { count: disposition.unmigratedCount }),
+                  total: t("ledgerImport.count.entries", { count: disposition.sourceCount }),
+                })}
               </p>
-              <p className="mt-1">{disposition.reason}</p>
+              <p className="mt-1">{dispositionReason(disposition)}</p>
               {disposition.archivedAt === null ? null : (
-                <p className="mt-1">已归档；自动恢复截止：{disposition.selfRestoreUntil ?? "无"}；计划永久删除：{disposition.scheduledPurgeAt ?? "无"}。</p>
+                <p className="mt-1">
+                  {t("ledgerImport.retention.formal.archivedInfo", {
+                    restoreUntil: instantOrNone(disposition.selfRestoreUntil),
+                    purgeAt: instantOrNone(disposition.scheduledPurgeAt),
+                  })}
+                </p>
               )}
               {disposition.unmigratedCount > 0 ? (
-                <p className="mt-1 text-warning-dark">
-                  仍有未确认迁入的来源账目。弃置不会删除它们，但弃置后需要走恢复流程才能查看来源。
-                </p>
+                <p className="mt-1 text-warning-dark">{t("ledgerImport.retention.formal.unmigratedWarning")}</p>
               ) : null}
             </div>
           )}
@@ -2245,7 +2373,7 @@ function SourceRetentionCard({
               disabled={archiveBusy}
               className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50"
             >
-              {archiveBusy ? "正在检查…" : "检查来源账本处置"}
+              {archiveBusy ? t("ledgerImport.checking") : t("ledgerImport.retention.formal.check")}
             </button>
             {disposition !== null && disposition.canArchive && archived === null ? (
               <button
@@ -2254,7 +2382,7 @@ function SourceRetentionCard({
                 disabled={archiveBusy}
                 className="rounded-field border border-danger/40 px-3 py-2 text-button text-danger-dark disabled:opacity-50"
               >
-                弃置来源账本（不删除数据）
+                {t("ledgerImport.retention.formal.archive")}
               </button>
             ) : null}
           </div>
@@ -2263,15 +2391,15 @@ function SourceRetentionCard({
 
       <ConfirmDialog
         open={guestConfirmOpen}
-        title="清理已迁入的游客记录？"
-        description="仅清理服务器已确认迁入目标的游客账目，不清空本机存储，也不删除未迁入的账目。"
+        title={t("ledgerImport.retention.guestDialog.title")}
+        description={t("ledgerImport.retention.guestDialog.description")}
         consequences={[
-          "本机游客账本中已确认迁入的指定记录会移入本机清理记录，可恢复",
-          "未迁移、已跳过、已变化或目标校验不通过的记录会保留",
-          "其他游客账本、离线队列、分类/设置不会被清空",
-          "已清理的账目不会重复处理",
+          t("ledgerImport.retention.guestDialog.consequence.movedToArchive"),
+          t("ledgerImport.retention.guestDialog.consequence.othersKept"),
+          t("ledgerImport.retention.guestDialog.consequence.nothingWiped"),
+          t("ledgerImport.retention.guestDialog.consequence.noRepeat"),
         ]}
-        confirmLabel="确认清理已迁入记录"
+        confirmLabel={t("ledgerImport.retention.guestDialog.confirm")}
         busy={guestBusy}
         onCancel={() => {
           if (!guestBusy) setGuestConfirmOpen(false);
@@ -2283,19 +2411,25 @@ function SourceRetentionCard({
         open={archiveConfirmOpen}
         title={
           (disposition?.unmigratedCount ?? 0) > 0
-            ? "仍有未确认迁入的来源账目，仍要弃置来源？"
-            : "弃置来源账本？"
+            ? t("ledgerImport.retention.archiveDialog.titleUnmigrated")
+            : t("ledgerImport.retention.archiveDialog.title")
         }
-        description="弃置后暂时保留来源数据，可在恢复期限内恢复。"
+        description={t("ledgerImport.retention.archiveDialog.description")}
         consequences={[
           (disposition?.unmigratedCount ?? 0) > 0
-            ? `来源中仍有 ${String(disposition?.unmigratedCount ?? 0)} 笔账目没有确认迁入目标；弃置不会删除它们，但之后需要恢复来源才能查看`
-            : "来源账本中的账目都能在目标账本中找到",
-          "弃置后来源数据仍保存在服务器，可在恢复期限内恢复",
-          "不会执行永久删除，也不会删除备份",
-          "超过恢复期限后，来源账本将按计划永久删除；届时无法恢复",
+            ? t("ledgerImport.retention.archiveDialog.consequence.unmigrated", {
+                count: disposition?.unmigratedCount ?? 0,
+              })
+            : t("ledgerImport.retention.archiveDialog.consequence.allMigrated"),
+          t("ledgerImport.retention.archiveDialog.consequence.kept"),
+          t("ledgerImport.retention.archiveDialog.consequence.noPurge"),
+          t("ledgerImport.retention.archiveDialog.consequence.purgeLater"),
         ]}
-        confirmLabel={(disposition?.unmigratedCount ?? 0) > 0 ? "我确认仍有未迁入记录，弃置来源" : "确认弃置来源"}
+        confirmLabel={
+          (disposition?.unmigratedCount ?? 0) > 0
+            ? t("ledgerImport.retention.archiveDialog.confirmUnmigrated")
+            : t("ledgerImport.retention.archiveDialog.confirm")
+        }
         busy={archiveBusy}
         onCancel={() => {
           if (!archiveBusy) setArchiveConfirmOpen(false);
@@ -2306,7 +2440,7 @@ function SourceRetentionCard({
   );
 }
 
-function ReviewStep({
+export function ReviewStep({
   preview,
   groupIndex,
   decisions,
@@ -2333,17 +2467,18 @@ function ReviewStep({
   readonly canConfirm: boolean;
   readonly needsReviewGroupIds: readonly string[];
 }): React.JSX.Element {
+  const { t } = useI18n();
   const groups = preview.duplicateGroups;
   const group = groups[groupIndex];
   if (group === undefined) {
     return (
       <section className="flex flex-col gap-3">
-        <p className="text-body-relaxed text-muted">没有需要核对的重复组。</p>
+        <p className="text-body-relaxed text-muted">{t("ledgerImport.review.noGroups")}</p>
         <Button onClick={onConfirm} disabled={!canConfirm}>
-          继续确认
+          {t("ledgerImport.review.continue")}
         </Button>
         <Button variant="secondary" onClick={onBack}>
-          返回预览
+          {t("ledgerImport.review.backToPreview")}
         </Button>
       </section>
     );
@@ -2360,16 +2495,19 @@ function ReviewStep({
   return (
     <section data-testid="import-review" className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="section-title">可能重复的账目</h2>
+        <div className="min-w-0">
+          <h2 className="section-title">{t("ledgerImport.review.title")}</h2>
           <p className="mt-1 text-helper-relaxed text-muted">
-            来源 {String(group.sourceCount)} 条 · 目标 {String(group.targetCount)} 条
+            {t("ledgerImport.review.counts", {
+              source: t("ledgerImport.count.records", { count: group.sourceCount }),
+              target: t("ledgerImport.count.records", { count: group.targetCount }),
+            })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
-            aria-label="上一组"
+            aria-label={t("ledgerImport.review.previousGroup")}
             onClick={onPrevious}
             disabled={groupIndex === 0}
             className="flex size-8 items-center justify-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
@@ -2381,7 +2519,7 @@ function ReviewStep({
           </span>
           <button
             type="button"
-            aria-label="下一组"
+            aria-label={t("ledgerImport.review.nextGroup")}
             onClick={onNext}
             disabled={groupIndex === groups.length - 1}
             className="flex size-8 items-center justify-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
@@ -2393,37 +2531,28 @@ function ReviewStep({
 
       {needsReview ? (
         <p className="rounded-field border border-danger/30 bg-danger/5 px-3 py-2 text-helper text-danger-dark">
-          这一组在重新预览后发生了变化，需要重新核对。
+          {t("ledgerImport.review.changed")}
         </p>
       ) : null}
 
       {isOneToOne(group) ? null : (
         <div className="rounded-card border border-line bg-surface px-5 py-4">
-          <p className="text-body font-medium text-ink">快捷建议</p>
-          <p className="mt-1 text-helper-relaxed text-muted">
-            这里只填充下面的逐条选择，不会直接删除任何记录；请核对目标账本中每一笔账目的去留。
-          </p>
+          <p className="text-body font-medium text-ink">{t("ledgerImport.review.quickTitle")}</p>
+          <p className="mt-1 text-helper-relaxed text-muted">{t("ledgerImport.review.quickNote")}</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {(
-              [
-                ["keep_a", "保留目标账本", "来源跳过，目标保留"],
-                ["keep_b", "保留来源账本", "来源导入，目标移除"],
-                ["keep_both", "两边都保留", "来源导入，目标保留"],
-                ["keep_neither", "两边都不保留", "来源跳过，目标移除"],
-              ] as const
-            ).map(([action, label, hint]) => (
+            {(["keep_a", "keep_b", "keep_both", "keep_neither"] as const).map((action) => (
               <button
                 key={action}
                 type="button"
                 onClick={() => onPreset(group.id, action)}
-                className={`rounded-field border px-3 py-2 text-left text-helper transition ${
+                className={`min-w-0 rounded-field border px-3 py-2 text-left text-helper transition ${
                   decision?.action === action
                     ? "border-brand bg-brand-soft text-brand-dark"
                     : "border-line bg-canvas text-muted hover:border-brand/40"
                 }`}
               >
-                <span className="block font-medium text-ink">{label}</span>
-                <span className="mt-0.5 block">{hint}</span>
+                <span className="block font-medium text-ink">{t(`ledgerImport.review.preset.${action}.label`)}</span>
+                <span className="mt-0.5 block">{t(`ledgerImport.review.preset.${action}.hint`)}</span>
               </button>
             ))}
           </div>
@@ -2432,8 +2561,8 @@ function ReviewStep({
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
         <p className="text-body font-medium text-ink">
-          来源账本
-          <span className="ml-2 text-helper font-normal text-muted">导入 / 跳过</span>
+          {t("ledgerImport.review.sourceHeading")}
+          <span className="ml-2 text-helper font-normal text-muted">{t("ledgerImport.review.sourceChoices")}</span>
         </p>
         <ul className="mt-1 divide-y divide-line">
           {sourceRecords.map((record) => {
@@ -2442,11 +2571,13 @@ function ReviewStep({
               <li key={record.transaction.id} className="py-3">
                 <RecordFacts record={record} />
                 <SegmentedChoice
-                  label={`来源记录处理：${record.transaction.note ?? record.categoryLabel}`}
+                  label={t("ledgerImport.review.sourceAria", {
+                    name: record.transaction.note ?? displayCategoryName(record.categoryLabel),
+                  })}
                   value={handling}
                   options={[
-                    { value: "import", label: "导入" },
-                    { value: "skip", label: "跳过" },
+                    { value: "import", label: t("ledgerImport.review.option.import") },
+                    { value: "skip", label: t("ledgerImport.review.option.skip") },
                   ]}
                   onChange={(next) => onSource(group.id, record.transaction.id, next as SourceHandling)}
                 />
@@ -2458,8 +2589,8 @@ function ReviewStep({
         <div className="my-4 h-px bg-line" />
 
         <p className="text-body font-medium text-ink">
-          目标账本
-          <span className="ml-2 text-helper font-normal text-muted">保留 / 移除（可恢复）</span>
+          {t("ledgerImport.review.targetHeading")}
+          <span className="ml-2 text-helper font-normal text-muted">{t("ledgerImport.review.targetChoices")}</span>
         </p>
         <ul className="mt-1 divide-y divide-line">
           {targetRecords.map((record) => {
@@ -2471,11 +2602,13 @@ function ReviewStep({
               >
                 <RecordFacts record={record} />
                 <SegmentedChoice
-                  label={`目标记录处理：${record.transaction.note ?? record.categoryLabel}`}
+                  label={t("ledgerImport.review.targetAria", {
+                    name: record.transaction.note ?? displayCategoryName(record.categoryLabel),
+                  })}
                   value={handling}
                   options={[
-                    { value: "keep", label: "保留" },
-                    { value: "remove", label: "移除（可恢复）", tone: "danger" },
+                    { value: "keep", label: t("ledgerImport.review.option.keep") },
+                    { value: "remove", label: t("ledgerImport.review.option.remove"), tone: "danger" },
                   ]}
                   onChange={(next) => onTarget(group.id, record.transaction.id, next as TargetHandling)}
                 />
@@ -2485,13 +2618,15 @@ function ReviewStep({
         </ul>
 
         <p className="mt-3 text-helper-relaxed text-muted">
-          {resolved ? decisionSummary(sourceRecords.length - skipped, skipped, targetRecords.length - removed, removed, group) : "请为每笔来源和目标记录选择处理方式，之后才能继续。"}
+          {resolved
+            ? decisionSummary(sourceRecords.length - skipped, skipped, targetRecords.length - removed, removed, group)
+            : t("ledgerImport.review.chooseEach")}
         </p>
       </div>
 
       {removed > 0 ? (
         <p className="text-helper-relaxed text-muted">
-          最终确认时将再次列出这 {String(removed)} 笔待删除的目标账目，请逐笔核对。
+          {t("ledgerImport.review.removalReminder", { count: removed })}
         </p>
       ) : null}
 
@@ -2501,27 +2636,29 @@ function ReviewStep({
             type="button"
             onClick={onPrevious}
             disabled={groupIndex === 0}
-            className="flex-1 rounded-field border border-line bg-surface px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-w-0 flex-1 rounded-field border border-line bg-surface px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
           >
-            上一组
+            {t("ledgerImport.review.previousShort")}
           </button>
           <button
             type="button"
             onClick={onNext}
             disabled={groupIndex === groups.length - 1}
-            className="flex-1 rounded-field border border-line bg-surface px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-w-0 flex-1 rounded-field border border-line bg-surface px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
           >
-            下一组
+            {t("ledgerImport.review.nextShort")}
           </button>
         </div>
         <div className="mt-2">
           <Button onClick={onConfirm} disabled={!canConfirm}>
-            {canConfirm ? "继续确认" : `还有 ${String(groups.filter((item) => !decisions.has(item.id)).length)} 组未决定`}
+            {canConfirm
+              ? t("ledgerImport.review.continue")
+              : t("ledgerImport.review.undecided", { count: groups.filter((item) => !decisions.has(item.id)).length })}
           </Button>
         </div>
         <div className="mt-2">
           <Button variant="secondary" onClick={onBack}>
-            返回预览
+            {t("ledgerImport.review.backToPreview")}
           </Button>
         </div>
       </div>
@@ -2541,15 +2678,20 @@ function decisionSummary(
   group: ImportPreview["duplicateGroups"][number],
 ): string {
   if (imported === group.sourceCount && skipped === 0 && removed === 0) {
-    return "将导入全部来源记录，目标记录全部保留。";
+    return t("ledgerImport.review.summary.importAllKeepAll");
   }
   if (imported === 0 && kept === 0 && removed === group.targetCount) {
-    return "将跳过全部来源记录，并移除全部目标记录。";
+    return t("ledgerImport.review.summary.skipAllRemoveAll");
   }
   if (imported === 0 && skipped === group.sourceCount && removed === 0) {
-    return "将跳过全部来源记录，目标记录全部保留。";
+    return t("ledgerImport.review.summary.skipAllKeepAll");
   }
-  return `将导入 ${String(imported)} 笔来源账目、跳过 ${String(skipped)} 笔；目标账本保留 ${String(kept)} 笔、删除 ${String(removed)} 笔。`;
+  return t("ledgerImport.review.summary.mixed", {
+    imported: t("ledgerImport.count.entries", { count: imported }),
+    skipped: t("ledgerImport.count.entries", { count: skipped }),
+    kept: t("ledgerImport.count.entries", { count: kept }),
+    removed: t("ledgerImport.count.entries", { count: removed }),
+  });
 }
 
 function SegmentedChoice({
@@ -2602,8 +2744,8 @@ function RecordFacts({ record }: { readonly record: DuplicateRecord }): React.JS
         </span>
       </div>
       <p className="mt-1 text-helper text-ink">
-        {record.categoryLabel}
-        {transaction.paymentMethodName === null ? "" : ` · ${transaction.paymentMethodName}`}
+        {displayCategoryName(record.categoryLabel)}
+        {transaction.paymentMethodName === null ? "" : ` · ${displayPaymentMethodName(transaction.paymentMethodName)}`}
       </p>
       {transaction.note === null || transaction.note === "" ? null : (
         <p className="mt-0.5 text-helper text-muted">{transaction.note}</p>
@@ -2612,7 +2754,7 @@ function RecordFacts({ record }: { readonly record: DuplicateRecord }): React.JS
   );
 }
 
-function ConfirmStep({
+export function ConfirmStep({
   preview,
   targetIsNew,
   decisions,
@@ -2637,6 +2779,7 @@ function ConfirmStep({
   readonly onFinish: () => void;
   readonly onOpenTarget: (bookId: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const skipped = skippedSourceIds(preview, decisions);
   const removals = removedTargets(preview, decisions);
   const importedTransactions = preview.source.transactions.filter((item) => !skipped.has(item.id));
@@ -2651,79 +2794,90 @@ function ConfirmStep({
     return (
       <section data-testid="import-result" className="flex flex-col gap-5">
         <div className="rounded-card border border-line bg-surface px-5 py-5">
-          <p className="text-helper text-muted">导入完成</p>
-          <h2 className="mt-1 text-page-title text-ink">已导入 {String(result.importedCount)} 笔</h2>
+          <p className="text-helper text-muted">{t("ledgerImport.result.eyebrow")}</p>
+          <h2 className="mt-1 text-page-title text-ink">
+            {t("ledgerImport.result.imported", { count: result.importedCount })}
+          </h2>
           {result.updatedCount > 0 ? (
             <p className="mt-1 text-helper-relaxed text-muted">
-              并按你的明确选择更新了 {String(result.updatedCount)} 笔已有目标账目。
+              {t("ledgerImport.result.updated", { count: result.updatedCount })}
             </p>
           ) : null}
-          <p className="mt-2 text-body-relaxed text-muted">
-            到「{result.targetBook.name}」{result.targetBook.bookNumber === null ? "" : ` · 编号 ${result.targetBook.bookNumber}`}
-            {result.targetBook.created ? "（这次新建的账本）" : ""}
+          <p className="mt-2 text-body-relaxed text-muted [overflow-wrap:anywhere]">
+            {result.targetBook.bookNumber === null
+              ? t("ledgerImport.result.into", { name: result.targetBook.name })
+              : t("ledgerImport.result.intoWithNumber", {
+                  name: result.targetBook.name,
+                  number: result.targetBook.bookNumber,
+                })}
+            {result.targetBook.created ? t("ledgerImport.result.createdSuffix") : ""}
           </p>
           {result.skippedCount > 0 ? (
-            <p className="mt-1 text-helper-relaxed text-muted">按你的核对选择，跳过了 {String(result.skippedCount)} 笔来源记录。</p>
+            <p className="mt-1 text-helper-relaxed text-muted">
+              {t("ledgerImport.result.skipped", { count: result.skippedCount })}
+            </p>
           ) : null}
           {result.removedCount > 0 ? (
             <p className="mt-1 text-helper-relaxed text-muted">
-              已按你的选择删除 {String(result.removedCount)} 笔目标账目。可从编辑历史逐笔恢复；账本须仍然存在，且你有编辑权限。
+              {t("ledgerImport.result.removed", { count: result.removedCount })}
             </p>
           ) : null}
         </div>
 
         <div className="rounded-card border border-line bg-surface px-5 py-4">
-          <h2 className="section-title">对账</h2>
+          <h2 className="section-title">{t("ledgerImport.result.checkTitle")}</h2>
           <ul className="mt-3 flex flex-col gap-2 text-body">
-            <li className="flex justify-between gap-3">
-              <span className="text-muted">来源记录</span>
-              <span className="text-ink">{String(result.sourceCount)} 笔</span>
-            </li>
-            <li className="flex justify-between gap-3">
-              <span className="text-muted">实际导入</span>
-              <span className="text-ink">{String(result.importedCount)} 笔</span>
-            </li>
+            <ResultRow
+              label={t("ledgerImport.result.row.source")}
+              value={t("ledgerImport.count.entries", { count: result.sourceCount })}
+            />
+            <ResultRow
+              label={t("ledgerImport.result.row.imported")}
+              value={t("ledgerImport.count.entries", { count: result.importedCount })}
+            />
             {result.updatedCount > 0 ? (
-              <li className="flex justify-between gap-3">
-                <span className="text-muted">更新已有</span>
-                <span className="text-ink">{String(result.updatedCount)} 笔</span>
-              </li>
+              <ResultRow
+                label={t("ledgerImport.result.row.updated")}
+                value={t("ledgerImport.count.entries", { count: result.updatedCount })}
+              />
             ) : null}
-            <li className="flex justify-between gap-3">
-              <span className="text-muted">跳过</span>
-              <span className="text-ink">{String(result.skippedCount)} 笔</span>
-            </li>
-            <li className="flex justify-between gap-3">
-              <span className="text-muted">已删除目标账目</span>
-              <span className="text-ink">{String(result.removedCount)} 笔</span>
-            </li>
-            <li className="flex justify-between gap-3">
-              <span className="text-muted">目标账目</span>
-              <span className="text-ink">
-                {String(result.targetExistingBefore)} → {String(result.targetCountAfter)} 笔
-              </span>
-            </li>
+            <ResultRow
+              label={t("ledgerImport.result.row.skipped")}
+              value={t("ledgerImport.count.entries", { count: result.skippedCount })}
+            />
+            <ResultRow
+              label={t("ledgerImport.result.row.removed")}
+              value={t("ledgerImport.count.entries", { count: result.removedCount })}
+            />
+            <ResultRow
+              label={t("ledgerImport.result.row.target")}
+              value={t("ledgerImport.result.targetChange", {
+                before: result.targetExistingBefore,
+                after: t("ledgerImport.count.entries", { count: result.targetCountAfter }),
+              })}
+            />
           </ul>
           {totals.length === 0 ? null : (
             <div className="mt-3 border-t border-line pt-3">
-              <p className="text-helper text-muted">按币种核对（不会跨币种相加）</p>
+              <p className="text-helper text-muted">{t("ledgerImport.result.byCurrency")}</p>
               {result.totals.map((total) => (
                 <p key={total.currency} className="mt-1 text-body text-ink">
-                  {total.currency}：支出 {formatMoney(total.expenseCents, total.currency)} · 收入{" "}
-                  {formatMoney(total.incomeCents, total.currency)}
+                  {t("ledgerImport.result.currencyTotals", {
+                    currency: total.currency,
+                    expense: formatMoney(total.expenseCents, total.currency),
+                    income: formatMoney(total.incomeCents, total.currency),
+                  })}
                 </p>
               ))}
             </div>
           )}
-          <p className="mt-3 text-helper-relaxed text-muted">
-            服务器已按实际写入结果核对；来源账本数据仍然保留，不会自动删除。
-          </p>
+          <p className="mt-3 text-helper-relaxed text-muted">{t("ledgerImport.result.serverChecked")}</p>
         </div>
 
         <div className="flex flex-col gap-2">
-          <Button onClick={() => onOpenTarget(result.targetBook.id)}>打开目标账本</Button>
+          <Button onClick={() => onOpenTarget(result.targetBook.id)}>{t("ledgerImport.result.openTarget")}</Button>
           <Button variant="secondary" onClick={onFinish}>
-            完成
+            {t("ledgerImport.result.done")}
           </Button>
         </div>
       </section>
@@ -2735,11 +2889,11 @@ function ConfirmStep({
       <section className="flex flex-col gap-5">
         <div className="rounded-card border border-line bg-surface px-5 py-6 text-center">
           <div className="mx-auto size-9 animate-spin rounded-full border-2 border-brand-soft border-t-brand" aria-hidden="true" />
-          <h2 className="mt-4 text-page-title text-ink">正在导入</h2>
+          <h2 className="mt-4 text-page-title text-ink">{t("ledgerImport.confirm.submittingTitle")}</h2>
           <p className="mt-2 text-body-relaxed text-muted">
-            正在检查目标权限、写入 {String(importedTransactions.length)} 笔账目并对账。请不要关闭页面。
+            {t("ledgerImport.confirm.submittingBody", { count: importedTransactions.length })}
           </p>
-          <p className="mt-2 text-helper text-muted">同一任务只会执行一次；网络中断后可用“继续检查结果”确认。</p>
+          <p className="mt-2 text-helper text-muted">{t("ledgerImport.confirm.submittingNote")}</p>
         </div>
       </section>
     );
@@ -2749,20 +2903,20 @@ function ConfirmStep({
     return (
       <section className="flex flex-col gap-4">
         <div className="rounded-card border border-line bg-surface px-5 py-4">
-          <p className="text-helper text-muted">{submitState === "paused" ? "导入已暂停" : "导入没有完成"}</p>
+          <p className="text-helper text-muted">
+            {submitState === "paused" ? t("ledgerImport.confirm.pausedEyebrow") : t("ledgerImport.confirm.errorEyebrow")}
+          </p>
           <h2 className="mt-1 text-section-title text-ink">
-            {submitState === "paused" ? "可以安全重试" : "需要重新核对"}
+            {submitState === "paused" ? t("ledgerImport.confirm.pausedTitle") : t("ledgerImport.confirm.errorTitle")}
           </h2>
           <p className="mt-2 text-body-relaxed text-muted">
-            {submitState === "paused"
-              ? "服务器可能已经完成，也可能还没有执行。重新检查同一个任务编号不会创建第二份账目。"
-              : "本轮没有写入任何目标账目。请返回预览重新确认后再开始。"}
+            {submitState === "paused" ? t("ledgerImport.confirm.pausedBody") : t("ledgerImport.confirm.errorBody")}
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          {submitState === "paused" ? <Button onClick={onRetry}>继续检查结果</Button> : null}
+          {submitState === "paused" ? <Button onClick={onRetry}>{t("ledgerImport.confirm.checkResult")}</Button> : null}
           <Button variant="secondary" onClick={onBack}>
-            返回核对
+            {t("ledgerImport.confirm.backToReview")}
           </Button>
         </div>
       </section>
@@ -2773,74 +2927,92 @@ function ConfirmStep({
   return (
     <section data-testid="import-confirm" className="flex flex-col gap-5">
       <div className="rounded-card border border-line bg-surface px-5 py-4">
-        <p className="text-helper text-muted">最终确认</p>
-        <h2 className="mt-1 text-section-title text-ink">
-          {targetIsNew ? "创建新账本并导入" : `导入到「${targetLabel}」`}
+        <p className="text-helper text-muted">{t("ledgerImport.confirm.finalTitle")}</p>
+        <h2 className="mt-1 text-section-title text-ink [overflow-wrap:anywhere]">
+          {targetIsNew
+            ? t("ledgerImport.confirm.createAndImport")
+            : t("ledgerImport.confirm.importInto", { name: targetLabel })}
         </h2>
-        <p className="mt-2 text-body-relaxed text-muted">
-          来源：{preview.source.identity.name} · 目标：{targetLabel}
+        <p className="mt-2 text-body-relaxed text-muted [overflow-wrap:anywhere]">
+          {t("ledgerImport.confirm.route", { source: preview.source.identity.name, target: targetLabel })}
         </p>
         <div className="mt-4 grid grid-cols-3 divide-x divide-line">
-          <Metric label="将导入" value={`${String(importedTransactions.length)} 笔`} />
-          <Metric label="跳过" value={`${String(skipped.size)} 笔`} />
-          <Metric label="将删除" value={`${String(removals.length)} 笔`} />
+          <Metric
+            label={t("ledgerImport.confirm.metric.import")}
+            value={t("ledgerImport.metricValue.entries", { count: importedTransactions.length })}
+          />
+          <Metric
+            label={t("ledgerImport.confirm.metric.skip")}
+            value={t("ledgerImport.metricValue.entries", { count: skipped.size })}
+          />
+          <Metric
+            label={t("ledgerImport.confirm.metric.remove")}
+            value={t("ledgerImport.metricValue.entries", { count: removals.length })}
+          />
         </div>
-        <p className="mt-3 text-helper-relaxed text-muted">
-          分类/支付/标签：复用 {String(reuse)} 个 · 新建 {String(create)} 个。同名属性冲突已按你的选择处理。
-        </p>
+        <p className="mt-3 text-helper-relaxed text-muted">{t("ledgerImport.confirm.taxonomy", { reuse, create })}</p>
       </div>
 
       <div className="rounded-card border border-line bg-surface px-5 py-4">
-        <h2 className="section-title">按币种预览</h2>
+        <h2 className="section-title">{t("ledgerImport.confirm.byCurrency")}</h2>
         {totals.length === 0 ? (
-          <p className="mt-2 text-helper-relaxed text-muted">没有可导入的账目。</p>
+          <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.confirm.nothingToImport")}</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-2">
             {totals.map((total) => (
               <li key={total.currency} className="flex items-baseline justify-between gap-3 text-body">
-                <span className="text-muted">{total.currency}</span>
-                <span className="text-right text-ink">
-                  支出 {formatMoney(total.expenseCents, total.currency)} · 收入 {formatMoney(total.incomeCents, total.currency)}
+                <span className="shrink-0 text-muted">{total.currency}</span>
+                <span className="min-w-0 text-right text-ink">
+                  {t("ledgerImport.totals", {
+                    expense: formatMoney(total.expenseCents, total.currency),
+                    income: formatMoney(total.incomeCents, total.currency),
+                  })}
                 </span>
               </li>
             ))}
           </ul>
         )}
         {removals.length === 0 ? (
-          <p className="mt-3 text-helper-relaxed text-muted">
-            本轮不会删除目标账本 A 的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除来源账本的数据。
-          </p>
+          <p className="mt-3 text-helper-relaxed text-muted">{t("ledgerImport.confirm.noRemovals")}</p>
         ) : (
           <details className="mt-3 rounded-field border border-line bg-canvas px-3 py-2">
             <summary className="cursor-pointer text-helper font-medium text-ink">
-              将删除 {String(removals.length)} 笔目标账目（展开核对）
+              {t("ledgerImport.confirm.removalsSummary", { count: removals.length })}
             </summary>
             <ul className="mt-2 max-h-48 divide-y divide-line overflow-auto">
               {removals.map((item) => (
                 <li key={item.transactionId} className="flex justify-between gap-3 py-2 text-helper">
                   <span className="min-w-0 truncate">
-                    {item.occurredLocalDate} · {item.categoryLabel}
+                    {item.occurredLocalDate} · {displayCategoryName(item.categoryLabel)}
                     {item.note === null ? "" : ` · ${item.note}`}
                   </span>
                   <span className="shrink-0 tabular-nums">{formatMoney(item.amountCents, item.currency)}</span>
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-helper-relaxed text-muted">
-              仅删除上面列出的账目，可从编辑历史恢复，不会永久删除。来源账本不受影响。
-            </p>
+            <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.confirm.removalsNote")}</p>
           </details>
         )}
       </div>
 
       <div className="flex flex-col gap-2">
         <Button onClick={onStart} disabled={!canConfirm}>
-          {removals.length > 0 ? "确认删除并导入" : "开始导入"}
+          {removals.length > 0 ? t("ledgerImport.confirm.deleteAndImport") : t("ledgerImport.confirm.start")}
         </Button>
         <Button variant="secondary" onClick={onBack}>
-          返回核对
+          {t("ledgerImport.confirm.backToReview")}
         </Button>
       </div>
     </section>
+  );
+}
+
+/** 对账表的一行：标签可换行，数量不换行。 */
+function ResultRow({ label, value }: { readonly label: string; readonly value: string }): React.JSX.Element {
+  return (
+    <li className="flex justify-between gap-3">
+      <span className="min-w-0 text-muted">{label}</span>
+      <span className="shrink-0 text-ink">{value}</span>
+    </li>
   );
 }
