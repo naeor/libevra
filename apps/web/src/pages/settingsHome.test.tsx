@@ -38,15 +38,12 @@ function fakeCurrency(overrides: Partial<DefaultCurrency> = {}): DefaultCurrency
 
 function homeHtml({
   isAdmin = false,
-  currency = fakeCurrency(),
 }: {
   readonly isAdmin?: boolean;
-  readonly currency?: DefaultCurrency;
 } = {}): string {
   return renderToStaticMarkup(
     <SettingsHome
       isAdmin={isAdmin}
-      currency={currency}
       onOpen={() => undefined}
     />,
   );
@@ -100,7 +97,7 @@ function deepestButtonNesting(html: string): number {
 const CATEGORIES = [
   ["记账偏好", "默认币种、重复提醒与录入习惯"],
   ["显示与数据", "语言、主题与汇率显示"],
-  ["账号安全", "密码、恢复码与邀请码"],
+  ["账号与安全", "密码、恢复码与邀请码"],
   ["账号与数据", "导出、删除数据与注销账号"],
   ["关于 Libevra", "版本信息、开源协议与隐私说明"],
 ] as const;
@@ -130,7 +127,7 @@ describe("设置首页的分类", () => {
     // quick action; any quick 导出/导入 control here would duplicate a page that already exists.
     expect(homeHtml()).not.toContain("导出数据");
     expect(homeHtml()).not.toContain("导入");
-    expect((homeHtml().match(/<button\b/g) ?? []).length).toBe(5 + 6);
+    expect((homeHtml().match(/<button\b/g) ?? []).length).toBe(5);
   });
 });
 
@@ -149,31 +146,26 @@ describe("系统管理入口", () => {
     expect(html).toContain("平台概览、账号、邀请码与操作记录");
     expect(html.indexOf("账号与数据")).toBeLessThan(html.indexOf("系统管理"));
     expect(html.indexOf("系统管理")).toBeLessThan(html.indexOf("关于 Libevra"));
-    expect((html.match(/<button\b/g) ?? []).length).toBe(6 + 6);
+    expect((html.match(/<button\b/g) ?? []).length).toBe(6);
   });
 });
 
 describe("默认币种的快捷控件", () => {
   it("shows the current currency and all six choices", () => {
-    const html = homeHtml({ currency: fakeCurrency({ current: "USD" }) });
+    const html = renderToStaticMarkup(<CurrencyQuickPick value={fakeCurrency({ current: "USD" })} />);
 
     for (const name of ["人民币", "美元", "欧元", "日元", "港币", "英镑"]) {
       expect(html).toContain(name);
     }
 
     // The written value is the current one, and its pill is the pressed one.
-    expect(html).toMatch(/默认币种<\/span><span[^>]*>美元<\/span>/);
     expect(html).toMatch(/aria-pressed="true"[^>]*>美元</);
   });
 
-  it("sits below the card, outside the card's own button", () => {
+  it("首页不再展开币种控件，二级页的控件保持有效 HTML", () => {
     const html = homeHtml();
-    const cardButtonEnd = html.indexOf("</button>");
-    const firstPill = html.indexOf('data-currency="CNY"');
-
-    expect(cardButtonEnd).toBeGreaterThan(-1);
-    // The quick control comes after the whole card, so the card stays one clean target.
-    expect(firstPill).toBeGreaterThan(cardButtonEnd);
+    expect(html).not.toContain('data-currency=');
+    expect(html).not.toContain('aria-pressed=');
     expect(deepestButtonNesting(html)).toBe(1);
   });
 
@@ -188,6 +180,17 @@ describe("默认币种的快捷控件", () => {
 
     expect(choose).toHaveBeenCalledTimes(1);
     expect(choose).toHaveBeenCalledWith("USD");
+  });
+});
+
+describe("设置首页的分组", () => {
+  it("导航项同属一组，关于独立一组，管理员判断保留", () => {
+    const tree = SettingsHome({ isAdmin: true, onOpen: () => undefined });
+    const groups = elementsOf(tree).filter(element => typeof element.type === "function" && element.type.name === "ListGroup");
+    expect(groups).toHaveLength(2);
+    const html = homeHtml({ isAdmin: true });
+    expect(html).not.toContain('data-currency=');
+    expect(html).toContain('data-section="/settings/preferences"');
   });
 });
 

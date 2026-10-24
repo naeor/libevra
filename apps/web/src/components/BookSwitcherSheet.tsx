@@ -206,7 +206,7 @@ export function BookSwitcherSheet({
               onClick={() => {
                 void books.refetch();
               }}
-              className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+              className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
             >
               重试
             </button>
@@ -219,7 +219,7 @@ export function BookSwitcherSheet({
             <Link
               to="/start"
               onClick={onClose}
-              className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+              className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
             >
               去账本空间
             </Link>

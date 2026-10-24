@@ -171,7 +171,7 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand-soft/70"
+            className="flex-1 rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand/20"
           >
             {cancelLabel}
           </button>
@@ -180,8 +180,10 @@ export function ConfirmDialog({
             type="button"
             disabled={busy}
             onClick={onConfirm}
-            className={`flex-1 rounded-field px-4 py-3 text-button-lg font-medium text-white transition disabled:opacity-45 ${
-              tone === "danger" ? "bg-danger hover:bg-danger-dark" : "bg-brand hover:bg-brand-dark"
+            className={`flex-1 rounded-field px-4 py-3 text-button-lg font-medium transition disabled:opacity-45 ${
+              tone === "danger"
+                ? "bg-danger text-on-danger hover:bg-danger-dark"
+                : "bg-brand text-on-brand hover:bg-brand-dark"
             }`}
           >
             {busy ? "处理中…" : confirmLabel}

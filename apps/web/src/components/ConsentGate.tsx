@@ -256,7 +256,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
               aria-label="关闭重要更新"
               disabled={busy}
               onClick={() => void onAckMajor("dismissed")}
-              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
             >
               ×
             </button>

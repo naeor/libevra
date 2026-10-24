@@ -358,7 +358,7 @@ describe("AddEntryPage 第三轮（S15-C 第三轮）", () => {
       'className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"',
     );
     expect(bottomNavSource).toContain(
-      'className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"',
+      'className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"',
     );
     // 中央 + 仍是导航 z-10 内部的一个按钮，没有改成 fixed/z-30 之类。
     expect(bottomNavSource).not.toContain("z-30");
@@ -458,7 +458,7 @@ describe("AddEntryPage 第四轮（S15-C 第四轮）", () => {
     // 焦点态：只认金额输入框（`:has(input:focus-visible)`），ring 画在卡上且用 brand-soft；
     // 不能用 focus-within——点右侧 CNY 按钮也会亮整张卡，看起来像误触发了金额焦点。
     expect(cardTag).toContain("has-[input:focus-visible]:ring-4");
-    expect(cardTag).toContain("has-[input:focus-visible]:ring-brand-soft");
+    expect(cardTag).toContain("has-[input:focus-visible]:ring-focus-ring");
     expect(cardTag).not.toContain("focus-within:ring");
     // ring 是 box-shadow，不参与布局；不允许为了焦点态改边框宽度（会跳）。
     expect(cardTag).toContain("border-2 border-brand");

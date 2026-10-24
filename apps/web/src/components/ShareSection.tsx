@@ -216,7 +216,7 @@ function Picker<T extends string | number>({
             onPick(option.value);
           }}
           className={`rounded-field px-3 py-1.5 text-xs transition ${
-            option.value === value ? "bg-brand text-white" : "bg-canvas text-muted hover:text-ink"
+            option.value === value ? "bg-brand text-on-brand" : "bg-canvas text-muted hover:text-ink"
           }`}
         >
           {option.label}

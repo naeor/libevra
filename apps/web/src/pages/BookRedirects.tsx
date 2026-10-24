@@ -38,7 +38,7 @@ function NoCurrentBook(): React.JSX.Element {
       </p>
       <Link
         to="/start"
-        className="inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-dark"
+        className="inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-sm font-medium text-on-brand transition hover:bg-brand-dark"
       >
         去账本空间
       </Link>

@@ -129,12 +129,55 @@
   --color-warn-dark: #8f6420;
   --color-warn-soft: #fdf6e7;
 
+  /* ---- Foreground roles (S16-B0) --------------------------------------
+   * Filled controls need a foreground *role*, not a literal white. Keep the
+   * current white as the default so the green light theme is visually unchanged;
+   * a designed palette can override these without touching components.
+   */
+  --color-on-brand: #ffffff;
+  --color-on-danger: #ffffff;
+  --color-on-warn: #1a1206;
+  --color-on-ink: #ffffff;
+  --color-on-heat: #ffffff;
+  --color-on-tag: #ffffff;
+  --color-control-knob: #ffffff;
+  --color-focus-ring: #edf5f0;
+  --color-line-strong: #7f8f87;
+
+  /* ---- Financial data semantics -------------------------------------- */
+  --color-data-expense: #b8574f;
+  --color-data-income: #3f7a5f;
+  --color-data-transfer: #4a7fb5;
+
+  /* ---- Data visualisation: independent palette ----------------------- */
+  --color-chart-1: #3f7a5f;
+  --color-chart-2: #4a7fb5;
+  --color-chart-3: #c08a3e;
+  --color-chart-4: #b8574f;
+  --color-chart-5: #7a6bb0;
+  --color-chart-6: #5d8c8c;
+  --color-chart-7: #8a8f5c;
+  --color-chart-8: #a86f9a;
+  --color-chart-heat-0: #eef1ef;
+  --color-chart-heat-1: #d7e8dd;
+  --color-chart-heat-2: #a9d0ba;
+  --color-chart-heat-3: #79b596;
+  --color-chart-heat-4: #4b8a6d;
+
+  /* ---- Illustration + glass ------------------------------------------ */
+  --color-ocean-1: #3f7059;
+  --color-ocean-2: #4f8a6d;
+  --color-ocean-3: #6aa78a;
+  --color-ocean-4: #96c4ac;
+  --color-on-ocean: #ffffff;
+  --color-glass-highlight: rgb(255 255 255 / 0.14);
+
   /* ---- Interaction states --------------------------------------------
    *
    * ⚠️ **These exist because the audit found the states were the one thing with no token at all.**
    * Colours had been thought about; *states* had not. The result was measurable:
    *
-   *  * **Focus had no rule.** `focus:ring-4 focus:ring-brand-soft` was written out per component, so
+   *  * **Focus had no rule.** `focus:ring-4 focus:ring-focus-ring` was written out per component, so
    *    **whether a control showed a focus ring depended on who wrote it** — and `Button`, the most
    *    used control in the app, **had none at all** until this round.
    *  * **The overlay had no name.** `bg-ink/25` and `bg-ink/35` both meant "dim what is behind this",
@@ -541,6 +584,65 @@ body {
  * against asking for less than 16px. **Neither half of that pair may be deleted.**
  */
 @layer base {
+  /* S16-B0: two root dimensions; dark/palette value blocks are later design work. */
+  html { color-scheme: light; }
+  html[data-theme-mode="dark"] {
+  color-scheme: dark;
+  /* 无 palette 属性时的安全回退；正式绿色映射在下方 data-theme-palette=green 块。 */
+--color-canvas: #17181a;
+  --color-surface: #2c2c2c;
+  --color-ink: #e8e9eb;
+  --color-muted: #afb3b8;
+  --color-line: #3b3e42;
+  --color-line-strong: #7e858d;
+  --color-brand: #8eab96;
+  --color-brand-dark: #b9d2bf;
+  --color-brand-soft: #26312b;
+  --color-category-ink: #c4dcc9;
+  --color-accent-ink: #afb3b8;
+  --color-chart-rule: #777e86;
+  --color-danger: #e99a92;
+  --color-danger-dark: #f0b4ad;
+  --color-danger-soft: #3c2a2a;
+  --color-warn: #ddba7b;
+  --color-warn-dark: #ebcfa1;
+  --color-warn-soft: #383126;
+  --color-on-brand: #142119;
+  --color-on-danger: #291716;
+  --color-on-warn: #261e12;
+  --color-on-ink: #17181a;
+  --color-on-heat: #101d16;
+  --color-on-tag: #ffffff;
+  --color-control-knob: #f0f1f2;
+  --color-focus-ring: #a3c3ab;
+  --color-data-expense: #e99a92;
+  --color-data-income: #9ac8ae;
+  --color-data-transfer: #9bbce2;
+  --color-chart-1: #9ac8ae;
+  --color-chart-2: #9bbce2;
+  --color-chart-3: #ddba7b;
+  --color-chart-4: #e99a92;
+  --color-chart-5: #bcade0;
+  --color-chart-6: #8bc6c7;
+  --color-chart-7: #c1c897;
+  --color-chart-8: #d5aac9;
+  --color-chart-heat-0: #2d3033;
+  --color-chart-heat-1: #2d4436;
+  --color-chart-heat-2: #3c5e49;
+  --color-chart-heat-3: #8ab99b;
+  --color-chart-heat-4: #bddbc7;
+  --color-ocean-1: #22332b;
+  --color-ocean-2: #31483b;
+  --color-ocean-3: #486552;
+  --color-ocean-4: #7c9f88;
+  --color-on-ocean: #e5efe8;
+  --color-glass-highlight: rgb(255 255 255 / 0.06);
+  --color-overlay-soft: rgb(0 0 0 / 0.52);
+  --color-overlay: rgb(0 0 0 / 0.66);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.14);
+  --shadow-sheet: 0 -8px 30px rgb(0 0 0 / 0.32);
+}
+
   /* Keep the numeric keypad on mobile when entering amounts or codes. */
   input[inputmode="numeric"],
   input[inputmode="decimal"] {
@@ -588,7 +690,7 @@ body {
   left: calc(50% * (1 - var(--p)) + var(--space-content-left, 24px) * var(--p));
   top: calc(var(--sea-h) * 0.34 * (1 - var(--p)) + (14px + env(safe-area-inset-top, 0px)) * var(--p));
   transform: translate(calc(-50% * (1 - var(--p))), calc(-50% * (1 - var(--p))));
-  color: white;
+  color: var(--color-on-ocean);
   white-space: nowrap;
 }
 .space-brand-name { font-size: calc(2.1rem - 0.7rem * var(--p)); font-weight: 600; letter-spacing: 0.16em; line-height: 1.3; }
@@ -703,4 +805,125 @@ body {
   flex: 1 0 auto;
   padding-top: max(24px, calc(var(--sea-h) * 0.07));
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+/* 角色复用的局限：brand-dark 是可读链接；实心填充用其自身亮度变化。 */
+html[data-theme-mode="dark"] button.bg-brand:hover,
+html[data-theme-mode="dark"] .bg-danger:hover,
+html[data-theme-mode="dark"] .bg-warn:hover { filter: brightness(1.08); }
+html[data-theme-mode="dark"] button.bg-brand:hover { background-color: var(--color-brand); }
+html[data-theme-mode="dark"] .bg-danger:hover { background-color: var(--color-danger); }
+html[data-theme-mode="dark"] .bg-warn:hover { background-color: var(--color-warn); }
+/* 接线修正候选：输入边界、占位符、低透明度页头文字、键盘焦点。 */
+html[data-theme-mode="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme-mode="dark"] textarea,
+html[data-theme-mode="dark"] select { border-color: var(--color-line-strong); }
+html[data-theme-mode="dark"] .rounded-field.border-line:has(> input),
+html[data-theme-mode="dark"] .rounded-field.border-line:has(> button[aria-expanded]) { border-color: var(--color-line-strong); }
+html[data-theme-mode="dark"] input::placeholder,
+html[data-theme-mode="dark"] textarea::placeholder { color: var(--color-muted); opacity: 1; }
+html[data-theme-mode="dark"] :focus-visible:not(input):not([class*="focus-visible:ring"]) { outline: 2px solid var(--color-focus-ring); outline-offset: 3px; }
+html[data-theme-mode="dark"] [style*="--color-chart-heat-"].text-muted { color: var(--color-ink); }
+html[data-theme-mode="dark"] .bg-brand [class*="text-on-brand/"] { color: var(--color-on-brand); }
+/* 大面积页头用已有 brand-soft 表面；按钮继续使用精确品牌绿。 */
+html[data-theme-mode="dark"] header.bg-brand,
+html[data-theme-mode="dark"] .detail-hero {
+  --color-on-brand: var(--color-ink);
+  background-color: var(--color-brand-soft);
+}
+html[data-theme-mode="dark"] .space-account .text-on-brand { color: var(--color-on-ocean); }
+/* text-brand 小字必须使用可读前景；品牌填充和图形仍保留精确品牌绿。 */
+html[data-theme-mode="dark"] .text-brand { color: var(--color-brand-dark); }
+/* 任意用户标签的自动前景仍待专门接入；本轮没有引入 B1 预览观察器。 */
+
+/* S16-B3 正式深色绿色映射：R2-A 中性轴 + 所有者选定的 R3-A 品牌组。
+   50 个角色不增加、不改名；明暗轴与色盘轴仍由文档属性区分。
+   只有绿色色盘开放，故绿色映射即当前唯一的正式深色映射。 */
+html[data-theme-mode="dark"][data-theme-palette="green"] {
+  color-scheme: dark;
+  --color-canvas: #17181a;
+  --color-surface: #2c2c2c;
+  --color-ink: #e8e9eb;
+  --color-muted: #afb3b8;
+  --color-line: #3b3e42;
+  --color-line-strong: #7e858d;
+  --color-brand: #8eab96;
+  --color-brand-dark: #b9d2bf;
+  --color-brand-soft: #26312b;
+  --color-category-ink: #c4dcc9;
+  --color-accent-ink: #afb3b8;
+  --color-chart-rule: #777e86;
+  --color-danger: #e99a92;
+  --color-danger-dark: #f0b4ad;
+  --color-danger-soft: #3c2a2a;
+  --color-warn: #ddba7b;
+  --color-warn-dark: #ebcfa1;
+  --color-warn-soft: #383126;
+  --color-on-brand: #142119;
+  --color-on-danger: #291716;
+  --color-on-warn: #261e12;
+  --color-on-ink: #17181a;
+  --color-on-heat: #101d16;
+  --color-on-tag: #ffffff;
+  --color-control-knob: #f0f1f2;
+  --color-focus-ring: #a3c3ab;
+  --color-data-expense: #e99a92;
+  --color-data-income: #9ac8ae;
+  --color-data-transfer: #9bbce2;
+  --color-chart-1: #9ac8ae;
+  --color-chart-2: #9bbce2;
+  --color-chart-3: #ddba7b;
+  --color-chart-4: #e99a92;
+  --color-chart-5: #bcade0;
+  --color-chart-6: #8bc6c7;
+  --color-chart-7: #c1c897;
+  --color-chart-8: #d5aac9;
+  --color-chart-heat-0: #2d3033;
+  --color-chart-heat-1: #2d4436;
+  --color-chart-heat-2: #3c5e49;
+  --color-chart-heat-3: #8ab99b;
+  --color-chart-heat-4: #bddbc7;
+  --color-ocean-1: #22332b;
+  --color-ocean-2: #31483b;
+  --color-ocean-3: #486552;
+  --color-ocean-4: #7c9f88;
+  --color-on-ocean: #e5efe8;
+  --color-glass-highlight: rgb(255 255 255 / 0.06);
+  --color-overlay-soft: rgb(0 0 0 / 0.52);
+  --color-overlay: rgb(0 0 0 / 0.66);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.14);
+  --shadow-sheet: 0 -8px 30px rgb(0 0 0 / 0.32);
+}
+/* A：画布贯穿页头/正文，已有统计卡成为第一层表面。局部前景不会外溢到主按钮。 */
+/* A：五入口展开卡是普通表面，不是五块绿色底；绿色只留在图标上。 */
+html[data-theme-mode="dark"] .bottom-full ul a,
+html[data-theme-mode="dark"] .bottom-full ul button {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+}
+html[data-theme-mode="dark"] .bottom-full ul a svg,
+html[data-theme-mode="dark"] .bottom-full ul button svg {
+  color: var(--color-brand-dark);
+}
+html[data-theme-mode="dark"]:not([data-theme-palette]) header.bg-brand,
+html[data-theme-mode="dark"]:not([data-theme-palette]) .detail-hero,
+html[data-theme-mode="dark"][data-theme-palette="green"] header.bg-brand,
+html[data-theme-mode="dark"][data-theme-palette="green"] .detail-hero {
+  background-color: var(--color-canvas);
+  --color-on-brand: var(--color-ink);
+}
+html[data-theme-mode="dark"]:not([data-theme-palette]) .detail-currency-card,
+html[data-theme-mode="dark"][data-theme-palette="green"] .detail-currency-card {
+  background: var(--color-surface);
+}
+/* 所有有文字的用户标签共用计算前景。仅深色生效，用户原色和浅色显示不变。 */
+html[data-theme-mode="dark"]:not([data-theme-palette]) .text-on-tag,
+html[data-theme-mode="dark"][data-theme-palette="green"] .text-on-tag {
+  color: var(--tag-foreground, var(--color-on-tag));
+}
+/* 输入已有焦点工具类也必须有实体边界，不能只靠低透明阴影。 */
+html[data-theme-mode="dark"]:not([data-theme-palette]) :is(input, textarea, select):focus-visible:not(.outline-none),
+html[data-theme-mode="dark"][data-theme-palette="green"] :is(input, textarea, select):focus-visible:not(.outline-none) {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }

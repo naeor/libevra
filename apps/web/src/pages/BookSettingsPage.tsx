@@ -428,7 +428,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
           <div className="flex flex-col gap-2">
             <Link
               to="/start"
-              className="rounded-field bg-brand px-4 py-3 text-center text-button-lg font-medium text-white transition hover:bg-brand-dark"
+              className="rounded-field bg-brand px-4 py-3 text-center text-button-lg font-medium text-on-brand transition hover:bg-brand-dark"
             >
               返回账本空间
             </Link>
@@ -437,7 +437,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
               onClick={() => {
                 setSwitcher(true);
               }}
-              className="rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand-soft/70"
+              className="rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand/20"
             >
               选择其他账本
             </button>

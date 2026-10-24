@@ -265,7 +265,7 @@ function ExportView({
                 setRange(preset);
               }}
               className={`rounded-field px-4 py-3 text-sm transition ${
-                range === preset ? "bg-brand text-white" : "bg-brand-soft text-brand-dark"
+                range === preset ? "bg-brand text-on-brand" : "bg-brand-soft text-brand-dark"
               }`}
             >
               {RANGE_LABELS[preset]}
@@ -279,7 +279,7 @@ function ExportView({
               setRange("custom");
             }}
             className={`col-span-2 rounded-field px-4 py-3 text-sm transition ${
-              range === "custom" ? "bg-brand text-white" : "bg-brand-soft text-brand-dark"
+              range === "custom" ? "bg-brand text-on-brand" : "bg-brand-soft text-brand-dark"
             }`}
           >
             自定义月份
@@ -342,11 +342,11 @@ function ExportView({
                 setFormat(value);
               }}
               className={`flex flex-col items-start gap-1 rounded-field px-4 py-3 text-left transition ${
-                format === value ? "bg-brand text-white" : "bg-brand-soft text-brand-dark"
+                format === value ? "bg-brand text-on-brand" : "bg-brand-soft text-brand-dark"
               }`}
             >
               <span className="text-sm font-medium">{label}</span>
-              <span className={`text-xs leading-snug ${format === value ? "text-white/80" : "text-brand-dark/70"}`}>
+              <span className={`text-xs leading-snug ${format === value ? "text-on-brand/80" : "text-brand-dark/70"}`}>
                 {hint}
               </span>
             </button>

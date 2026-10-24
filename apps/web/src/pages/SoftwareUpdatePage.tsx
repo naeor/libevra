@@ -92,7 +92,7 @@ export function SoftwareUpdatePage(): React.JSX.Element {
             setMoreOpen(true);
           }}
           aria-label="更多"
-          className="flex size-11 items-center justify-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+          className="flex size-11 items-center justify-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
           <MoreIcon className="size-5" />
         </button>

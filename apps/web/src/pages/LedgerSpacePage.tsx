@@ -443,7 +443,7 @@ function AccountButton({ enabled }: { readonly enabled: boolean }): React.JSX.El
         *
         * Still no ring: the portrait's own tinted disc lifts it off the water.
         */}
-      <AvatarIcon className="size-[26px] text-white" />
+      <AvatarIcon className="size-[26px] text-on-brand" />
     </a>
   );
 }

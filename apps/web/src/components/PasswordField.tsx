@@ -48,7 +48,7 @@ export function PasswordField({
           type={visible ? "text" : "password"}
           aria-invalid={error === undefined ? undefined : true}
           aria-describedby={describedBy}
-          className={`w-full rounded-field border bg-surface py-3 pr-12 pl-3.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:ring-4 focus:ring-brand-soft ${
+          className={`w-full rounded-field border bg-surface py-3 pr-12 pl-3.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:ring-4 focus:ring-focus-ring ${
             error === undefined ? "border-line focus:border-brand" : "border-danger focus:border-danger"
           } ${className}`}
         />
@@ -59,7 +59,7 @@ export function PasswordField({
           }}
           aria-label={visible ? "隐藏密码" : "显示密码"}
           aria-pressed={visible}
-          className="absolute top-1/2 right-1 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft focus-visible:outline-none"
+          className="absolute top-1/2 right-1 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring focus-visible:outline-none"
         >
           <EyeIcon hidden={visible} />
         </button>

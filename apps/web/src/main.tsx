@@ -2,12 +2,15 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App.js";
+import { startThemeRuntime } from "./lib/theme.js";
 import { primeBookId } from "./lib/api.js";
 import { currentBookId, restoreCurrentBook, subscribeCurrentBook } from "./lib/currentBook.js";
 import { restoreOfflineScopeSync } from "./lib/offline/scope.js";
 import { requestPersistentStorage } from "./lib/offline/persistence.js";
 import { registerServiceWorker } from "./lib/offline/worker.js";
 import "./index.css";
+
+startThemeRuntime();
 
 const container = document.getElementById("root");
 

@@ -148,7 +148,7 @@ export function ChoiceSheet<Value extends string>({
             type="button"
             onClick={onClose}
             aria-label={`关闭${title}`}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
             <svg
               viewBox="0 0 24 24"

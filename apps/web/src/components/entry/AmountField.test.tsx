@@ -45,7 +45,7 @@ describe("AmountField", () => {
     const card = /<div[^>]*data-entry-amount="card"[^>]*>/.exec(html)?.[0] ?? "";
 
     expect(card).toContain("has-[input:focus-visible]:ring-4");
-    expect(card).toContain("has-[input:focus-visible]:ring-brand-soft");
+    expect(card).toContain("has-[input:focus-visible]:ring-focus-ring");
     // focus-within 会被右侧币种按钮的聚焦触发，不能用于金额焦点态。
     expect(card).not.toContain("focus-within:ring");
     // ring 走 box-shadow，不改边框宽度：聚焦不会让卡或文字跳动。

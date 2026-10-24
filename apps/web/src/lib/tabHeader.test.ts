@@ -46,7 +46,7 @@ describe("一级页面顶部绿色区域", () => {
       * them all. `text-page-title` and `text-body-relaxed` carry **size, line-height, weight and
       * tracking** from one place. **The test still pins the spec — it pins the token now.**
       */
-    expect(header).toContain('className="bg-brand px-6 pt-8 pb-6 text-white"');
+    expect(header).toContain('className="bg-brand px-6 pt-8 pb-6 text-on-brand"');
     /**
      * ⚠️ **The title class now also lays out the small guest badge (S14-C).** The size/weight/
      * tracking still come from the same token; `flex items-center gap-2` is the only addition, and
@@ -60,7 +60,7 @@ describe("一级页面顶部绿色区域", () => {
       * `#55997a` is itself only 3.37:1. The limit is the brand green, not this paragraph — so the
       * test pins the best available value rather than pretending a passing one exists.
       */
-    expect(header).toContain('className="mt-1.5 text-body-relaxed text-white"');
+    expect(header).toContain('className="mt-1.5 text-body-relaxed text-on-brand"');
   });
 
   it("leaves no second copy of the header markup in either page", () => {

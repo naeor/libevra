@@ -950,7 +950,7 @@ function PickStep({
                 onClick={() => {
                   onRemove(index);
                 }}
-                className="absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-ink/75 text-xs text-white"
+                className="absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-ink/75 text-xs text-on-ink"
               >
                 ✕
               </button>

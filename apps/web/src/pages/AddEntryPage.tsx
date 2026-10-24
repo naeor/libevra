@@ -569,7 +569,7 @@ export function AddEntryPage(): React.JSX.Element {
           void save();
         }}
       >
-        <header className="flex flex-col gap-4 bg-brand px-6 pt-8 pb-6 text-white">
+        <header className="flex flex-col gap-4 bg-brand px-6 pt-8 pb-6 text-on-brand">
           {/**
             * ⚠️ **The guest identity is deliberately not shown on this screen** (S14-C UI fix,
             * 1.14.05). It shared this row with the 支出/收入 switch and broke its balance; the owner
@@ -590,7 +590,7 @@ export function AddEntryPage(): React.JSX.Element {
                   setInheritNotice(null);
                 }}
                 className={`flex-1 rounded-field py-3 text-sm font-medium transition ${
-                  kind === option ? "bg-white text-brand-dark" : "bg-white/15 text-white/90"
+                  kind === option ? "bg-surface text-brand-dark" : "bg-on-brand/15 text-on-brand/90"
                 }`}
               >
                 {option === "expense" ? "支出" : "收入"}
@@ -862,7 +862,7 @@ export function AddEntryPage(): React.JSX.Element {
           <button
             type="submit"
             disabled={sharedOfflineReadOnly || busy || amountText.trim() === ""}
-            className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+            className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
           >
             {busy ? "保存中…" : "保存"}
           </button>

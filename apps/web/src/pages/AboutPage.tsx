@@ -41,7 +41,7 @@ export function AboutPage(): React.JSX.Element {
       <section className="flex items-center gap-4">
         <span
           aria-hidden="true"
-          className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand text-white shadow-card"
+          className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand text-on-brand shadow-card"
         >
           <BrandMark className="size-7" />
         </span>

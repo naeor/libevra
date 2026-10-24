@@ -12,7 +12,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { errorMessage } from "../lib/api.js";
-import { CATEGORICAL_COLORS } from "../lib/chart/theme.js";
+import { DEFAULT_TAG_COLOR, TAG_COLORS } from "../lib/tagColors.js";
 import {
   useBookMembers,
   useCategoryMutations,
@@ -100,12 +100,12 @@ function AddRow({
         onChange={(event) => {
           setName(event.target.value);
         }}
-        className="flex-1 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
+        className="flex-1 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
       />
       <button
         type="submit"
         disabled={busy || name.trim() === ""}
-        className="shrink-0 rounded-field bg-brand px-5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+        className="shrink-0 rounded-field bg-brand px-5 text-sm font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
       >
         添加
       </button>
@@ -243,7 +243,7 @@ function ReplacementSelect({
           * `index.css` 的「表单控件不低于 16px」不变量（低于它时 iOS Safari 会放大整页）。
           * 下拉比文本框小一号是最容易被忽略的一种不一致——它不报错，只是不像同一个控件。
           */
-        className="rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+        className="rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
       >
         <option value="">{fallbackLabel}</option>
         {options.map((option) => (
@@ -390,7 +390,7 @@ function CategoriesView({
               setKind(option);
             }}
             className={`flex-1 rounded-field py-2.5 text-sm font-medium transition ${
-              kind === option ? "bg-brand text-white" : "bg-surface text-muted"
+              kind === option ? "bg-brand text-on-brand" : "bg-surface text-muted"
             }`}
           >
             {option === "expense" ? "支出分类" : "收入分类"}
@@ -808,24 +808,10 @@ function PaymentMethodsView({
 /**
  * The swatches offered when creating a tag.
  *
- * Taken from the chart palette rather than written out again, because a tag
- * colour and a chart series colour are the same kind of thing: a value the user
- * picks, which has to be distinguishable from the ones beside it. Two lists
- * meant the same green could drift into two slightly different greens — and it
- * already had: the old list here contained the accent green, so the first
- * swatch was the button colour.
+ * They live in `lib/tagColors.ts`, not the chart palette: a tag colour is user
+ * data saved as `#RRGGBB`, so it must not move when the theme changes. Chart
+ * colours are a visual encoding and are now CSS tokens.
  */
-const TAG_COLORS = CATEGORICAL_COLORS;
-
-/**
- * The colour a new tag starts on.
- *
- * `CATEGORICAL_COLORS` is a non-empty constant, so the first entry always
- * exists; the assertion says that rather than a `?? "#…"` fallback, which would
- * have been a colour literal outside the token file — the one thing
- * `docs/开发过程记录/颜色清单.md` §7 forbids.
- */
-const DEFAULT_TAG_COLOR = CATEGORICAL_COLORS[0] as string;
 
 export function TagsPage(): React.JSX.Element {
   const { bookId } = useParams<{ bookId?: string }>();
@@ -931,7 +917,7 @@ function TagsView({
           onChange={(event) => {
             setName(event.target.value);
           }}
-          className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
+          className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
         />
 
         <div className="flex items-center gap-2">
@@ -965,7 +951,7 @@ function TagsView({
                 setError(errorMessage(caught));
               });
           }}
-          className="w-full rounded-field bg-brand py-3 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+          className="w-full rounded-field bg-brand py-3 text-sm font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
         >
           添加标签
         </button>

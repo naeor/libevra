@@ -99,7 +99,7 @@ export function StartBookMembersPage(): React.JSX.Element {
             </p>
             <a
               href="/ledger/invite"
-              className="mt-1 inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-button text-white transition hover:bg-brand-dark"
+              className="mt-1 inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-button text-on-brand transition hover:bg-brand-dark"
             >
               去邀请
             </a>

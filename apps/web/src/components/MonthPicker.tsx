@@ -109,7 +109,7 @@ export function MonthPicker({
                   }}
                   className={`w-full rounded-field py-3 text-sm transition ${
                     selected
-                      ? "bg-brand text-white"
+                      ? "bg-brand text-on-brand"
                       : future
                         ? "text-muted/40"
                         : "bg-canvas text-ink hover:bg-brand-soft"
@@ -128,7 +128,7 @@ export function MonthPicker({
             onSelect(currentMonth());
             onClose();
           }}
-          className="mt-4 w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+          className="mt-4 w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
         >
           回到本月
         </button>

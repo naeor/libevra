@@ -5,6 +5,7 @@ import {
 } from "@libellum/shared";
 
 import { ChevronIcon } from "../Icons.js";
+import { tagFillStyle } from "../../lib/tagColors.js";
 
 /**
  * 备注、支付方式与标签：手动记账页的低频扩展区。
@@ -113,7 +114,7 @@ export function EntryMoreOptions({
                     }}
                     className={`rounded-full px-4 py-2 text-sm transition ${
                       method.id === paymentMethodId
-                        ? "bg-brand text-white"
+                        ? "bg-brand text-on-brand"
                         : "bg-surface text-ink hover:bg-brand-soft"
                     }`}
                   >
@@ -133,7 +134,7 @@ export function EntryMoreOptions({
                 }}
                 maxLength={200}
                 placeholder="可不填"
-                className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
               />
             </label>
 
@@ -155,12 +156,12 @@ export function EntryMoreOptions({
                         }}
                         style={
                           selected
-                            ? { backgroundColor: tag.color, borderColor: tag.color }
+                            ? tagFillStyle(tag.color)
                             : undefined
                         }
                         className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
                           selected
-                            ? "text-white"
+                            ? "text-on-tag"
                             : "border-line bg-surface text-ink hover:bg-brand-soft"
                         }`}
                       >

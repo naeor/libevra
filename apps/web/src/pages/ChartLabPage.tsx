@@ -83,10 +83,10 @@ export function ChartLabPage(): React.JSX.Element {
 
       <Section title="「我的」页头部（头像 + 名字）">
         <div className="-m-4 overflow-hidden rounded-card">
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 bg-brand px-6 py-10 text-white">
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 bg-brand px-6 py-10 text-on-brand">
             <DefaultAvatar />
             <p className="mt-1 text-page-title">Tao</p>
-            <p className="text-xs text-white/75">@naeor</p>
+            <p className="text-xs text-on-brand/75">@naeor</p>
           </div>
         </div>
       </Section>
@@ -200,7 +200,7 @@ export function ChartLabPage(): React.JSX.Element {
                 setRange(option);
               }}
               className={`rounded-full px-4 py-1.5 text-sm transition ${
-                range === option ? "bg-brand text-white" : "bg-canvas text-muted"
+                range === option ? "bg-brand text-on-brand" : "bg-canvas text-muted"
               }`}
             >
               {option === "7d" ? "近 7 天" : "本月"}

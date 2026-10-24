@@ -325,7 +325,7 @@ export function CopyInline({
           setPhase(outcome === "copied" ? "copied" : "manual");
         });
       }}
-      className="shrink-0 rounded-full px-2 py-0.5 font-sans text-helper tracking-normal text-brand-dark transition hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+      className="shrink-0 rounded-full px-2 py-0.5 font-sans text-helper tracking-normal text-brand-dark transition hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
     >
       {phase === "copied" ? "已复制" : phase === "manual" ? "请长按复制" : label}
     </button>

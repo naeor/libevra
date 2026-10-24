@@ -90,10 +90,10 @@ function AccountMePage(): React.JSX.Element {
         The min-height is what keeps the visual weight in the middle of the
         colour instead of at its top.
       */}
-      <header className="flex min-h-64 flex-col items-center justify-center gap-3 bg-brand px-6 py-10 text-white">
+      <header className="flex min-h-64 flex-col items-center justify-center gap-3 bg-brand px-6 py-10 text-on-brand">
         <DefaultAvatar />
         <p className="mt-1 truncate text-page-title">{user.displayName}</p>
-        <p className="text-xs text-white/75">@{user.username}</p>
+        <p className="text-xs text-on-brand/75">@{user.username}</p>
       </header>
 
       <nav className="px-6 pt-5">
@@ -143,7 +143,7 @@ function AccountMePage(): React.JSX.Element {
           onClick={() => {
             setConfirmSignOut(true);
           }}
-          className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-white shadow-sm transition hover:bg-danger-dark"
+          className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-on-brand shadow-sm transition hover:bg-danger-dark"
         >
           退出登录
         </button>

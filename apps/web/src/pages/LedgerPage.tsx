@@ -110,7 +110,7 @@ export function LedgerPage(): React.JSX.Element {
                   navigate(bookId === undefined ? "/start" : `/books/${bookId}/settings`);
                 }}
                 aria-label="账本设置"
-                className="relative flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-ink transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+                className="relative flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-ink transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
               >
                 <GearIcon />
               </button>
@@ -336,14 +336,14 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
           placeholder="账号编号或用户名"
           aria-label="要邀请谁"
           autoComplete="off"
-          className="min-h-11 flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
+          className="min-h-11 flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
         />
 
         <button
           type="button"
           disabled={!canSend}
           onClick={send}
-          className="shrink-0 rounded-field bg-brand px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+          className="shrink-0 rounded-field bg-brand px-4 py-2.5 text-sm font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
         >
           {invite.isPending ? "发送中…" : "邀请"}
         </button>
@@ -425,7 +425,7 @@ function BookCardSplit({
       <div className="book-card-body">
         <Link
           to={`/books/${bookId}`}
-          className="flex min-h-20 min-w-0 flex-1 flex-col justify-between gap-1.5 p-4 text-left transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+          className="flex min-h-20 min-w-0 flex-1 flex-col justify-between gap-1.5 p-4 text-left transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
           <span className="text-helper text-muted">当前账本</span>
           <span className="break-words text-base font-medium text-ink">{name}</span>
@@ -439,7 +439,7 @@ function BookCardSplit({
         <Link
           to="/start"
           aria-label={`切换账本${countLabel}`}
-          className="book-card-switch group border-line text-center transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft active:bg-brand-soft/40"
+          className="book-card-switch group border-line text-center transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring active:bg-brand-soft/40"
         >
           <SwitchIcon className="book-card-switch-icon text-brand transition group-hover:scale-105 group-active:scale-95" />
           <span className="book-card-switch-label text-helper font-medium text-brand">切换账本</span>
@@ -653,7 +653,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
                   setConfirming(false);
                 });
             }}
-            className="rounded-field bg-danger px-4 py-2 text-sm text-white transition hover:bg-danger-dark disabled:opacity-45"
+            className="rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
           >
             {leave.isPending ? "正在退出……" : "确认退出"}
           </button>
@@ -686,7 +686,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
           onClick={() => {
             setConfirming(true);
           }}
-          className="mt-3 rounded-field bg-danger px-4 py-2 text-sm text-white transition hover:bg-danger-dark"
+          className="mt-3 rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark"
         >
           退出这本账
         </button>

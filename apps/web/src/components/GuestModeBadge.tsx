@@ -17,7 +17,7 @@ export function GuestModeBadge({ className = "" }: { readonly className?: string
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full bg-white px-2 py-0.5 text-micro font-medium text-brand shadow-sm ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full bg-surface px-2 py-0.5 text-micro font-medium text-brand shadow-sm ${className}`}
     >
       游客模式
     </span>

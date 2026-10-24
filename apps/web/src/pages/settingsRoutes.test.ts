@@ -19,6 +19,7 @@ const SUB_ROUTES = [
   ["/settings/preferences", "PreferencesPage"],
   ["/settings/appearance", "AppearancePage"],
   ["/settings/security", "SecurityPage"],
+  ["/settings/appearance/theme", "ThemeAppearancePage"],
 ] as const;
 
 describe("设置子页面的路由", () => {
@@ -72,7 +73,8 @@ describe("子页面的返回与入口", () => {
   });
 
   it("首页的每张卡片都指向真实地址", () => {
-    for (const [path] of SUB_ROUTES) expect(home, path).toContain(`to="${path}"`);
+    for (const [path] of SUB_ROUTES.filter(([path]) => path !== "/settings/appearance/theme")) expect(home, path).toContain(`to="${path}"`);
+    expect(pages).toContain('to: "/settings/appearance/theme"');
 
     // 系统管理（仅管理员）与关于，同样是能走到的一级地址。
     expect(home).toContain('to="/admin"');

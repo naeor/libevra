@@ -45,10 +45,8 @@ function SettingsSubPage({
 /**
  * `/settings/preferences` — 记账偏好.
  *
- * ⚠️ **The default currency control is the same component the home uses**, driven
- * by the same `useDefaultCurrency` hook. **There is no second currency state on
- * this page**: pressing a pill here patches the account exactly as it does on the
- * home, and the selected pill updates from the PATCH's own answer.
+ * 默认币种只在本页展开；原 CurrencyQuickPick、useDefaultCurrency 与 PATCH 路径不变。
+ * 首页不再挂载币种控件；本页仍以 PATCH 回答更新当前选择，没有第二套币种状态。
  */
 export function PreferencesPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -107,8 +105,8 @@ export function PreferencesPage(): React.JSX.Element {
 /**
  * `/settings/appearance` — 显示与数据.
  *
- * ⚠️ **Three items, all pending, and nothing else.** 语言 / 主题色 / 汇率折算 are the
- * whole of this category. Export and import are **not** listed here: the audit
+ * 语言 / 外观 / 汇率折算。外观进入统一模式与主题色选择页，另两项仍为占位。
+ * Export and import are **not** listed here: the audit
  * caught them labelled 「后续开放」 while the pages already existed, and the S13-E
  * decision moved them to 账本设置 → 数据管理, where the data they act on lives.
  */
@@ -120,7 +118,7 @@ export function AppearancePage(): React.JSX.Element {
       <SettingsRowList
         rows={[
           { label: "语言", hint: "中文 / English" },
-          { label: "主题色", hint: "跟随系统或手动选择" },
+          { label: "外观", hint: "外观模式与主题色", to: "/settings/appearance/theme" },
           { label: "汇率折算", hint: "将各币种折算为一种货币后统计" },
         ]}
         onNavigate={(to) => void navigate(to)}
@@ -150,7 +148,7 @@ export function SecurityPage(): React.JSX.Element {
   };
 
   return (
-    <SettingsSubPage title="账号安全">
+    <SettingsSubPage title="账号与安全">
       <SettingsRowList
         rows={[
           {

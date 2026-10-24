@@ -386,7 +386,7 @@
   flex-direction: column;
   justify-content: center;
   border-radius: var(--radius-card, 1rem);
-  background: rgb(255 255 255 / 0.14);
+  background: var(--color-glass-highlight);
 }
 
 /*

@@ -72,6 +72,7 @@ import { OcrOverviewPage } from "./pages/OcrOverviewPage.js";
 import { OcrReviewDetailPage } from "./pages/OcrReviewDetailPage.js";
 import { VoiceReviewPage } from "./pages/VoiceReviewPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
+import { ThemeAppearancePage } from "./pages/ThemeAppearancePage.js";
 import { AppearancePage, PreferencesPage, SecurityPage } from "./pages/SettingsSubPages.js";
 
 /**
@@ -313,6 +314,7 @@ function AppRoutes(): React.JSX.Element {
         */}
       <Route path="/settings/preferences" element={<RequireAuth><PreferencesPage /></RequireAuth>} />
       <Route path="/settings/appearance" element={<RequireAuth><AppearancePage /></RequireAuth>} />
+      <Route path="/settings/appearance/theme" element={<RequireAuth><ThemeAppearancePage /></RequireAuth>} />
       <Route path="/settings/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
       <Route path="/settings/account-data" element={<RequireAuth><AccountDataPage /></RequireAuth>} />
       <Route path="/settings/password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />

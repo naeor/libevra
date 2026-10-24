@@ -232,7 +232,7 @@ function RemoveConfirm({
           type="button"
           disabled={busy}
           onClick={onConfirm}
-          className="rounded-field bg-danger px-4 py-2 text-sm text-white transition hover:bg-danger-dark disabled:opacity-45"
+          className="rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
         >
           移出
         </button>

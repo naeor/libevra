@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
+import { tagFillStyle } from "../lib/tagColors.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { BatchAddSheet } from "../components/entry/BatchAddSheet.js";
@@ -194,7 +195,7 @@ export function EntryDetailPage(): React.JSX.Element {
               }
             })();
           }}
-          className="w-full rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
+          className="w-full rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
         >
           {restore.isPending ? "正在恢复…" : "恢复账目"}
         </button>
@@ -462,7 +463,7 @@ export function EntryDetailPage(): React.JSX.Element {
                 setAmountText(event.target.value);
               }}
               inputMode="decimal"
-              className="rounded-field border border-line bg-surface px-3.5 py-3 text-2xl font-semibold text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              className="rounded-field border border-line bg-surface px-3.5 py-3 text-2xl font-semibold text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             />
           </section>
 
@@ -477,7 +478,7 @@ export function EntryDetailPage(): React.JSX.Element {
                     setCategoryId(category.id === categoryId ? null : category.id);
                   }}
                   className={`rounded-field py-3 text-sm transition ${
-                    category.id === categoryId ? "bg-brand text-white" : "bg-surface text-ink"
+                    category.id === categoryId ? "bg-brand text-on-brand" : "bg-surface text-ink"
                   }`}
                 >
                   {category.name}
@@ -497,7 +498,7 @@ export function EntryDetailPage(): React.JSX.Element {
                     setPaymentMethodId(method.id === paymentMethodId ? null : method.id);
                   }}
                   className={`rounded-full px-4 py-2 text-sm transition ${
-                    method.id === paymentMethodId ? "bg-brand text-white" : "bg-surface text-ink"
+                    method.id === paymentMethodId ? "bg-brand text-on-brand" : "bg-surface text-ink"
                   }`}
                 >
                   {method.name}
@@ -517,7 +518,7 @@ export function EntryDetailPage(): React.JSX.Element {
                     setCurrency(code);
                   }}
                   className={`rounded-full px-4 py-2 text-sm transition ${
-                    code === currency ? "bg-brand text-white" : "bg-surface text-ink"
+                    code === currency ? "bg-brand text-on-brand" : "bg-surface text-ink"
                   }`}
                 >
                   {currencyName(code)}
@@ -536,7 +537,7 @@ export function EntryDetailPage(): React.JSX.Element {
                 const parsed = fromDateTimeLocalValue(event.target.value);
                 if (parsed) setOccurredAt(parsed);
               }}
-              className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             />
           </section>
 
@@ -548,7 +549,7 @@ export function EntryDetailPage(): React.JSX.Element {
               onChange={(event) => {
                 setNote(event.target.value);
               }}
-              className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             />
           </section>
 
@@ -573,9 +574,9 @@ export function EntryDetailPage(): React.JSX.Element {
                               : [...current, tag.id],
                         );
                       }}
-                      style={selected ? { backgroundColor: tag.color, borderColor: tag.color } : undefined}
+                      style={selected ? tagFillStyle(tag.color) : undefined}
                       className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
-                        selected ? "text-white" : "border-line bg-surface text-ink"
+                        selected ? "text-on-tag" : "border-line bg-surface text-ink"
                       }`}
                     >
                       {tag.name}
@@ -601,7 +602,7 @@ export function EntryDetailPage(): React.JSX.Element {
               type="button"
               disabled={sharedOfflineReadOnly || update.isPending}
               onClick={() => void save()}
-              className="flex-[1.4] rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+              className="flex-[1.4] rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
             >
               {update.isPending ? "保存中…" : "保存修改"}
             </button>
@@ -660,8 +661,8 @@ export function EntryDetailPage(): React.JSX.Element {
                 {data.tags.map((tag) => (
                   <span
                     key={tag.id}
-                    style={{ backgroundColor: tag.color }}
-                    className="rounded-full px-3.5 py-1.5 text-sm text-white"
+                    style={tagFillStyle(tag.color)}
+                    className="rounded-full px-3.5 py-1.5 text-sm text-on-tag"
                   >
                     {tag.name}
                   </span>
@@ -675,7 +676,7 @@ export function EntryDetailPage(): React.JSX.Element {
             onClick={() => {
               void navigate("/add", { state: { copyFrom: data } });
             }}
-            className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+            className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
           >
             复制这一笔
           </button>
@@ -693,7 +694,7 @@ export function EntryDetailPage(): React.JSX.Element {
                 type="button"
                 disabled={checking || !duplicateSettings.settings.enabled}
                 onClick={() => void checkDuplicatesForEntry()}
-                className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70 disabled:opacity-45"
+                className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20 disabled:opacity-45"
               >
                 {checking ? "正在检测…" : "重复账目检测"}
               </button>
@@ -764,7 +765,7 @@ export function EntryDetailPage(): React.JSX.Element {
             onClick={() => {
               setConfirmDelete(true);
             }}
-            className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-white transition hover:bg-danger-dark disabled:opacity-45"
+            className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
           >
             删除这笔记账
           </button>

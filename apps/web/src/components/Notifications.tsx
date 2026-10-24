@@ -217,7 +217,7 @@ function NotificationCard({
             onClick={() => {
               onDecide("accepted");
             }}
-            className="flex-1 rounded-field bg-brand px-4 py-2 text-sm text-white transition hover:bg-brand-dark disabled:opacity-45"
+            className="flex-1 rounded-field bg-brand px-4 py-2 text-sm text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
           >
             同意
           </button>

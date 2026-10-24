@@ -23,7 +23,7 @@ export function EmptyState({
         <button
           type="button"
           onClick={onAction}
-          className="mt-2 rounded-field bg-brand px-6 py-2.5 text-sm font-medium text-white transition hover:bg-brand-dark"
+          className="mt-2 rounded-field bg-brand px-6 py-2.5 text-sm font-medium text-on-brand transition hover:bg-brand-dark"
         >
           {actionLabel}
         </button>
@@ -65,7 +65,7 @@ export function ErrorState({
       <button
         type="button"
         onClick={onRetry}
-        className="mt-2 rounded-field bg-brand-soft px-6 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+        className="mt-2 rounded-field bg-brand-soft px-6 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
       >
         重试
       </button>

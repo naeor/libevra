@@ -140,9 +140,9 @@ export function CurrencyQuickPick({
                * smallest controls in the settings screens — exactly where a missed
                * tap is most likely on a phone.
                */
-              className={`inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm transition-colors disabled:opacity-45 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft ${
+              className={`inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm transition-colors disabled:opacity-45 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring ${
                 selected
-                  ? "bg-brand text-white hover:bg-brand-dark"
+                  ? "bg-brand text-on-brand hover:bg-brand-dark"
                   : "bg-canvas text-muted hover:text-ink"
               }`}
             >
@@ -248,13 +248,13 @@ export function SettingsToggle({
         onClick={() => {
           onChange(!checked);
         }}
-        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft disabled:cursor-not-allowed disabled:opacity-45 ${
+        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-45 ${
           checked ? "bg-brand" : "bg-line"
         }`}
       >
         <span
           aria-hidden="true"
-          className={`inline-block size-5 rounded-full bg-white shadow-sm transition-transform ${
+          className={`inline-block size-5 rounded-full bg-control-knob shadow-sm transition-transform ${
             checked ? "translate-x-6" : "translate-x-1"
           }`}
         />

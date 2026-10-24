@@ -47,7 +47,7 @@ export function ProfilePage(): React.JSX.Element {
             aria-haspopup="dialog"
             aria-expanded={numberOpen}
             onClick={() => setNumberOpen(true)}
-            className="-my-3 inline-flex min-h-11 max-w-full items-center rounded-sm py-3 font-mono text-ink tabular-nums transition-colors hover:text-brand-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+            className="-my-3 inline-flex min-h-11 max-w-full items-center rounded-sm py-3 font-mono text-ink tabular-nums transition-colors hover:text-brand-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
             {user.accountNumber}
           </button>

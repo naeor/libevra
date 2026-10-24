@@ -42,7 +42,7 @@ function SwitchLink({
       className={`flex min-h-11 items-center justify-center rounded-[0.6875rem] text-button transition ${
         selected
           ? "bg-surface text-ink shadow-card"
-          : "text-muted hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft focus-visible:outline-none"
+          : "text-muted hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring focus-visible:outline-none"
       }`}
     >
       {label}

@@ -42,7 +42,7 @@ export function AuthLayout({
         <header className="auth-enter flex flex-col items-center text-center">
           <span
             aria-hidden="true"
-            className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-brand text-white shadow-card"
+            className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-brand text-on-brand shadow-card"
           >
             <BrandMark className="size-7" />
           </span>

@@ -292,7 +292,7 @@ export function DuplicateDetectionSettingsSection({
                       setCustomText(event.target.value);
                       setCustomError(null);
                     }}
-                    className="min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+                    className="min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
                   />
                 </label>
                 <Button
@@ -357,7 +357,7 @@ export function DuplicateDetectionSettingsSection({
           type="button"
           data-testid="duplicate-settings-reset"
           onClick={onReset}
-          className="inline-flex min-h-11 items-center text-link text-brand-dark transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+          className="inline-flex min-h-11 items-center text-link text-brand-dark transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
           恢复默认设置
         </button>

@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "../Alert.js";
+import { tagFillStyle } from "../../lib/tagColors.js";
 import { ChoiceDialog, type Choice } from "../ChoiceDialog.js";
 import { ConfirmDialog } from "../ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../DuplicateDetectionSettings.js";
@@ -359,7 +360,7 @@ export function BatchAddSheet({
             <button
               type="button"
               onClick={onClose}
-              className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-white"
+              className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand"
             >
               完成
             </button>
@@ -438,7 +439,7 @@ export function BatchAddSheet({
                 type="button"
                 disabled={busy || drafts.length === 0}
                 onClick={() => void saveAll()}
-                className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+                className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
               >
                 {busy ? "保存中…" : `保存 ${String(drafts.length)} 笔`}
               </button>
@@ -523,7 +524,7 @@ function BatchCard({
               onChange({ kind, categoryId: null });
             }}
             className={`flex-1 rounded-field py-2 text-sm ${
-              draft.kind === kind ? "bg-brand text-white" : "bg-canvas text-ink"
+              draft.kind === kind ? "bg-brand text-on-brand" : "bg-canvas text-ink"
             }`}
           >
             {kind === "expense" ? "支出" : "收入"}
@@ -640,9 +641,9 @@ function BatchCard({
                         : [...draft.tagIds, tag.id],
                   });
                 }}
-                style={selected ? { backgroundColor: tag.color, borderColor: tag.color } : undefined}
+                style={selected ? tagFillStyle(tag.color) : undefined}
                 className={`rounded-full border px-2.5 py-1 text-helper ${
-                  selected ? "text-white" : "border-line bg-canvas text-muted"
+                  selected ? "text-on-tag" : "border-line bg-canvas text-muted"
                 }`}
               >
                 {tag.name}

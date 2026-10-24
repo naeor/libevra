@@ -30,12 +30,12 @@ export function UndoBar({
 
   return (
     <div className="fixed inset-x-0 bottom-28 z-50 flex justify-center px-5">
-      <div className="flex w-full max-w-md items-center justify-between gap-4 rounded-field bg-ink px-4 py-3 text-sm text-white shadow-lg">
+      <div className="flex w-full max-w-md items-center justify-between gap-4 rounded-field bg-ink px-4 py-3 text-sm text-on-ink shadow-lg">
         <span>{message}</span>
         <button
           type="button"
           onClick={onAction}
-          className="shrink-0 font-medium text-brand-soft transition hover:text-white"
+          className="shrink-0 font-medium text-brand-soft transition hover:text-on-ink"
         >
           {actionLabel}
         </button>
