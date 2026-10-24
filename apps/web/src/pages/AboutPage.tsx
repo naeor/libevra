@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { BrandMark } from "../components/BrandMark.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow, ProseSection } from "../components/ui/List.js";
+import { useI18n } from "../i18n/index.js";
 import { APP_VERSION } from "../lib/version.js";
 
 /**
@@ -25,9 +26,10 @@ export function AboutPage(): React.JSX.Element {
 
   const declared = (location.state as { from?: unknown } | null)?.from;
   const from = typeof declared === "string" ? declared : null;
+  const { t } = useI18n();
 
   return (
-    <InnerPage title="关于 Libevra" backTo={from ?? "/settings"}>
+    <InnerPage title={t("update.about.title")} backTo={from ?? "/settings"}>
       {/**
         * ⚠️ **S16-A：这一页以阅读为主，所以不再是三张大白卡片。** 所有者：*"当前多个短说明分别装入大卡片，
         * 整体像展示页面。请考虑更自然的文本分节与信息层级，减少不必要的框。"* 现在是：
@@ -46,24 +48,20 @@ export function AboutPage(): React.JSX.Element {
           <BrandMark className="size-7" />
         </span>
         <span className="flex min-w-0 flex-col gap-1">
-          <span className="text-body-relaxed text-ink">the free, open ledger</span>
+          <span className="text-body-relaxed text-ink">{t("common.tagline")}</span>
           <Link to="/update" className="self-start text-helper text-brand transition hover:text-brand-dark">
-            版本 {APP_VERSION} · 软件更新 ›
+            {t("update.about.versionLink", { version: APP_VERSION })}
           </Link>
         </span>
       </section>
 
       <div className="flex flex-col gap-6 border-t border-line pt-6">
-        <ProseSection title="你的数据">
-          <p>
-            账目保存在你自己部署的服务器上；游客账本只保存在这台设备，不会自动上传。
-            离线期间的修改会暂存在本机，恢复网络后再同步。应用不接入任何第三方统计、广告或分析服务，
-            日志中不记录金额、备注与图片内容。
-          </p>
+        <ProseSection title={t("update.about.dataTitle")}>
+          <p>{t("update.about.dataBody")}</p>
         </ProseSection>
 
-        <ProseSection title="开源">
-          <p>本项目以 AGPL-3.0 协议开源。源代码公开可查，任何人都可以自行部署。</p>
+        <ProseSection title={t("update.about.openSourceTitle")}>
+          <p>{t("update.about.openSourceBody")}</p>
           {/**
             * ⚠️ **The repository moved with the brand, and this line has to land on the real one**
             * (2026-10-14, Libellum → Libevra). It said `…/libellum` while the remote still had that
@@ -73,7 +71,7 @@ export function AboutPage(): React.JSX.Element {
             * The rename is recorded in `docs/开发过程记录/Libevra品牌迁移记录.md`.
             */}
           <p>
-            仓库地址：
+            {t("update.about.repository")}
             <a
               href="https://github.com/naeor/libevra"
               target="_blank"
@@ -85,11 +83,8 @@ export function AboutPage(): React.JSX.Element {
           </p>
         </ProseSection>
 
-        <ProseSection title="金额的处理方式">
-          <p>
-            金额以各币种的最小单位按整数保存与计算，不使用浮点数，避免出现分位误差。
-            不同币种按各自的小数位显示、分开统计；日元没有小数位，人民币和美元等保留两位。
-          </p>
+        <ProseSection title={t("update.about.amountsTitle")}>
+          <p>{t("update.about.amountsBody")}</p>
         </ProseSection>
       </div>
 
@@ -99,9 +94,9 @@ export function AboutPage(): React.JSX.Element {
         * then lands back on 协议 — the loop the owner asked to remove. Plain history already returns
         * here, and a deep link still falls back to 设置.
         */}
-      <ListGroup title="协议">
-        <ListRow label="隐私政策" to="/legal/privacy" />
-        <ListRow label="使用条款" to="/legal/terms" />
+      <ListGroup title={t("update.about.legal")}>
+        <ListRow label={t("update.about.privacy")} to="/legal/privacy" />
+        <ListRow label={t("update.about.terms")} to="/legal/terms" />
       </ListGroup>
     </InnerPage>
   );

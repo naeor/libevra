@@ -1,5 +1,6 @@
 import { MessageBoardFull } from "../components/MessageBoard.js";
 import { SkeletonRows } from "../components/States.js";
+import { useI18n } from "../i18n/index.js";
 import { useLedger } from "../lib/queries.js";
 
 /**
@@ -24,6 +25,7 @@ import { useLedger } from "../lib/queries.js";
  */
 export function MessageBoardPage(): React.JSX.Element {
   const ledger = useLedger();
+  const { t } = useI18n();
 
   /**
    * ⚠️ **The name waits for the ledger rather than showing a placeholder heading**, because the
@@ -46,10 +48,10 @@ export function MessageBoardPage(): React.JSX.Element {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-6 py-8">
         <p className="rounded-card border border-line bg-surface px-5 py-4 text-body-relaxed text-muted">
-          无法读取账本信息，请返回账本页面重试。
+          {t("collab.messages.ledgerLoadFailed")}
         </p>
         <a href="/ledger" className="text-body text-brand transition hover:text-brand-dark">
-          ‹ 返回账本
+          {t("collab.messages.backToLedger")}
         </a>
       </div>
     );

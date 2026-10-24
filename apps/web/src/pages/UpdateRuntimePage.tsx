@@ -4,10 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CopyButton } from "../components/CopyButton.js";
 import { InnerPage } from "../components/Layouts.js";
 import { Button } from "../components/Button.js";
+import { useI18n } from "../i18n/index.js";
 import { formatBytes } from "../lib/offline/persistence.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import {
   formatRuntimeReport,
+  networkLabel,
   readRuntimeSnapshot,
   type RuntimeSnapshot,
 } from "../lib/runtimeInfo.js";
@@ -25,6 +27,7 @@ export function UpdateRuntimePage(): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,82 +36,87 @@ export function UpdateRuntimePage(): React.JSX.Element {
     try {
       setSnapshot(await readRuntimeSnapshot(queryClient, offline, reason));
     } catch {
-      setError("读取运行信息时出错了。");
+      /** 存的是“出错了”这一事实对应的文案；切换语言后下次读取会按新语言重写。 */
+      setError(t("update.runtime.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [offline, queryClient, reason]);
+    // `t` 是 i18next 的绑定函数，引用稳定，放进依赖不会多触发读取。
+  }, [offline, queryClient, reason, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  /**
+   * S16：两列的最小宽度改为 0，长值（构建标记这类没有断点的字符串）可以折行。原来的 `auto 1fr`
+   * 在 320px 宽时，"Service Worker" 这类标签的最短宽度 + 一整串构建标记已经超出卡片（中文也是）；
+   * 英文标签更长，问题更明显。值列仍然右对齐。
+   */
+  const grid = "grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-body";
+
   return (
     <InnerPage
-      title="运行信息"
-      subtitle="用于排查问题，不影响正常使用。"
+      title={t("update.runtime.title")}
+      subtitle={t("update.runtime.subtitle")}
       backTo="/update"
     >
-      {loading ? <p className="text-body text-muted">正在读取…</p> : null}
+      {loading ? <p className="text-body text-muted">{t("update.runtime.loading")}</p> : null}
       {error === null ? null : <p role="alert" className="rounded-field bg-danger-soft px-4 py-3 text-body text-danger">{error}</p>}
 
       {snapshot === null ? null : (
         <>
           <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
-            <h2 className="text-sm font-semibold text-ink">应用与构建</h2>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-body">
-              <dt className="text-muted">应用版本</dt>
+            <h2 className="text-sm font-semibold text-ink">{t("update.runtime.app")}</h2>
+            <dl className={grid}>
+              <dt className="text-muted">{t("update.runtime.appVersion")}</dt>
               <dd className="text-right font-mono text-ink">{snapshot.version}</dd>
-              <dt className="text-muted">构建时间（本机）</dt>
-              <dd className="text-right text-ink">{snapshot.buildStampLocal}</dd>
-              <dt className="text-muted">构建标记（UTC）</dt>
-              <dd className="text-right font-mono text-helper text-ink">{snapshot.buildStamp}</dd>
+              <dt className="text-muted">{t("update.runtime.buildLocal")}</dt>
+              <dd className="text-right text-ink [overflow-wrap:anywhere]">{snapshot.buildStampLocal}</dd>
+              <dt className="text-muted">{t("update.runtime.buildStamp")}</dt>
+              <dd className="text-right font-mono text-helper text-ink [overflow-wrap:anywhere]">{snapshot.buildStamp}</dd>
               <dt className="text-muted">Service Worker</dt>
               <dd className="text-right text-ink">{snapshot.serviceWorker}</dd>
-              <dt className="text-muted">网络</dt>
-              <dd className="text-right text-ink">
-                {snapshot.online
-                  ? "在线"
-                  : `离线（${snapshot.offlineReason === "unreachable" ? "服务器没有答复" : "浏览器报告离线"}）`}
-              </dd>
+              <dt className="text-muted">{t("update.runtime.network")}</dt>
+              <dd className="text-right text-ink">{networkLabel(snapshot)}</dd>
             </dl>
           </section>
 
           <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
-            <h2 className="text-sm font-semibold text-ink">本机缓存</h2>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-body">
-              <dt className="text-muted">缓存条目</dt>
-              <dd className="text-right text-ink">{snapshot.queryCount} 条</dd>
-              <dt className="text-muted">当前版本会读</dt>
-              <dd className="text-right text-ink">{snapshot.liveQueryCount} 条</dd>
-              <dt className="text-muted">缓存占用</dt>
+            <h2 className="text-sm font-semibold text-ink">{t("update.runtime.cache")}</h2>
+            <dl className={grid}>
+              <dt className="text-muted">{t("update.runtime.cacheEntries")}</dt>
+              <dd className="text-right text-ink">{t("update.runtime.entryCount", { count: snapshot.queryCount })}</dd>
+              <dt className="text-muted">{t("update.runtime.liveEntries")}</dt>
+              <dd className="text-right text-ink">{t("update.runtime.entryCount", { count: snapshot.liveQueryCount })}</dd>
+              <dt className="text-muted">{t("update.runtime.cacheSize")}</dt>
               <dd className="text-right text-ink">{formatBytes(snapshot.cacheBytes)}</dd>
-              <dt className="text-muted">运行记录</dt>
-              <dd className="text-right text-ink">{snapshot.logCount} 条</dd>
+              <dt className="text-muted">{t("update.runtime.logs")}</dt>
+              <dd className="text-right text-ink">{t("update.runtime.entryCount", { count: snapshot.logCount })}</dd>
             </dl>
           </section>
 
           <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
-            <h2 className="text-sm font-semibold text-ink">当前页面</h2>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-body">
-              <dt className="text-muted">页面</dt>
+            <h2 className="text-sm font-semibold text-ink">{t("update.runtime.page")}</h2>
+            <dl className={grid}>
+              <dt className="text-muted">{t("update.runtime.pageUrl")}</dt>
               <dd className="break-all text-right text-helper text-ink">{snapshot.page}</dd>
-              <dt className="text-muted">记录时间</dt>
-              <dd className="text-right text-helper text-ink">{snapshot.capturedAt}</dd>
+              <dt className="text-muted">{t("update.runtime.capturedAt")}</dt>
+              <dd className="text-right text-helper text-ink [overflow-wrap:anywhere]">{snapshot.capturedAt}</dd>
             </dl>
             <Button variant="secondary" onClick={() => void load()} disabled={loading}>
-              重新读取
+              {t("update.runtime.reload")}
             </Button>
           </section>
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-ink">诊断信息</h2>
+            <h2 className="text-sm font-semibold text-ink">{t("update.runtime.diagnostics")}</h2>
             <CopyButton
               text={formatRuntimeReport(snapshot)}
-              label="复制诊断信息"
-              copiedLabel="已复制诊断信息"
+              label={t("update.runtime.copy")}
+              copiedLabel={t("update.runtime.copied")}
               rows={10}
-              hint="如果遇到问题，可以把这些内容复制给开发者。"
+              hint={t("update.runtime.copyHint")}
             />
           </section>
         </>
