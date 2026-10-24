@@ -1,4 +1,309 @@
-/** `ledger` 文案（源语言：简体中文）。键结构即全部语言的键定义。 */
-const ledger = {};
+/**
+ * `ledger` 文案：明细页、账本 / 协作页、批量操作、编辑历史、月份选择与几个通用小部件（源语言：简体中文）。
+ *
+ * 键结构即全部语言的键定义。中文一字不改地搬自原来的组件。
+ *
+ * ⚠️ `history.serverLabels` / `history.serverValues` 的**键名是服务器句子里的中文原文**
+ * （`apps/api/src/ledger/history.ts`、`events.ts`），中文界面原样显示服务器文字，只有其它语言
+ * 才按原文查这里的译文——与 `presets` 用预置中文名做键是同一个做法。
+ */
+const ledger = {
+  /** 明细页（`/`）。 */
+  detail: {
+    backToEntries: "← 返回明细",
+    goToLedgers: "前往账本空间",
+    moreCurrencies: "更多币种",
+    /** 币种条最后那张小卡片上的字：`|` 分隔可以各自换行的词组（窄屏时上下两行）。 */
+    moreCurrenciesCard: "更多|币种",
+    loading: "载入中…",
+    filteredCategory: "已筛选分类：{{name}}",
+    clearCategoryFilter: "清除分类筛选",
+    emptyExpense: "这个月还没有支出",
+    emptyIncome: "这个月还没有收入",
+    emptyHint: "点击下方中间的记账按钮，记下第一笔。",
+    emptyAction: "记一笔",
+    loadEarlier: "加载更早的记录",
+    previousMonth: "上一个月",
+    nextMonth: "下一个月",
+    noDataThisMonth: "本月暂无数据",
+    incomeAmount: "入账 {{amount}}",
+    netAmount: "结余 {{amount}}",
+    noData: "暂无数据",
+    allCurrencies: "全部币种",
+    mainCurrency: "主币种",
+    nothingThisMonth: "本月无记录",
+    filterChanged: "筛选条件变了，已清空选择。",
+    conflictPending: "这笔还在等你在冲突页面里选一版，先处理冲突。",
+    notOnDevice: "本机没有这笔账目，无法修改。",
+    stuck: {
+      nothingStored: "本机没有这一段时间的记录，而且现在连不上服务器。",
+      nothingStoredHint: "联网后会自动补上；也可以在「我的 → 下载管理」里提前下载。",
+      unreadable_one: "本机有 {{count}} 条记录，但这次没能读到。",
+      unreadable_other: "本机有 {{count}} 条记录，但这次没能读到。",
+      unreadableHint: "联网后会自动恢复。",
+      readNotTried: "本机读取：尚未尝试",
+      readCounts: "本机读取：本机存储 {{stored}} 条 / 查询缓存 {{disk}} 条 / 内存 {{live}} 条 / 合计 {{total}} 条",
+      readNote: "（{{note}}）",
+    },
+  },
+  /** 账本 / 协作页（`/ledger`）。 */
+  page: {
+    titleShared: "协作",
+    titleSolo: "账本",
+    subtitleShared: "这本账由几个人一起记。",
+    subtitleSolo: "这本账目前只有你一个人在用。",
+    settings: "账本设置",
+    factsShort_one: "{{count}} 笔",
+    factsShort_other: "{{count}} 笔",
+    factsLong_one: "{{count}} 笔账目",
+    factsLong_other: "{{count}} 笔账目",
+    history: "编辑记录",
+    viewAll: "查看全部 ›",
+    historyEmpty: "暂无编辑记录。此功能启用前的操作不在记录中。",
+    invite: "邀请成员",
+    inviteSent: "邀请已经发出。他会在通知里看到，接受之后就成为「{{book}}」的成员。",
+    invitePlaceholder: "账号编号或用户名",
+    inviteWho: "要邀请谁",
+    sending: "发送中…",
+    inviteButton: "邀请",
+    inviteHint: "这本账现在只有你一个人。输入对方的账号编号或用户名，他会收到一条邀请，接受之后才真正加入。",
+    inviteMore: "选择对方的权限，或查看已发出的邀请 ›",
+    currentBook: "当前账本",
+    noNumber: "（未分配编号）",
+    viewDetails: "查看详情 ›",
+    switchBook: "切换账本",
+    /** 读屏用的完整说法（可见的字在窄卡片里可能用短词）。 */
+    switchBookLabel: "切换账本",
+    switchBookCount_one: "切换账本（共 {{count}} 本）",
+    switchBookCount_other: "切换账本（共 {{count}} 本）",
+    members: "成员",
+    memberCount_one: "{{count}} 人",
+    memberCount_other: "{{count}} 人",
+    manageMembers: "成员管理 ›",
+    leaveTitle: "退出这本账",
+    leaveExplain: "退出之后这本账不再出现在你的列表里，你也就看不到它的账目了。 你记过的账目会留下，历史记录里也会留下这一条。",
+    leaving: "正在退出……",
+    leaveConfirm: "确认退出",
+  },
+  /** 明细页的批量操作（`components/ledger/*`）。 */
+  batch: {
+    permission: {
+      guest: "游客账本请逐笔修改；批量操作暂未开放。",
+      offline: "当前离线，共享账本只能查看。联网后可以批量修改或删除。",
+      viewer: "你在这本账里是「仅查看」，不能修改或删除账目。",
+      error: "没能确认你在这本账的权限，暂时不能批量修改。联网后重试。",
+      checking: "正在确认你在这本账的权限…",
+    },
+    blocked: {
+      nothingTicked: "还没有勾选要修改的字段。",
+      chooseCategory: "请先选择要统一使用的分类。",
+      categoryMissing: "选中的分类不在这本账里。",
+      archived: "「{{name}}」已归档，不能再使用。",
+      wrongKind: {
+        expense: "「{{name}}」不是支出分类，和这笔账的方向不同。",
+        income: "「{{name}}」不是收入分类，和这笔账的方向不同。",
+      },
+      choosePayment: "请先选择要统一使用的支付方式。",
+      paymentMissing: "选中的支付方式不在这本账里。",
+      chooseTagsToAdd: "请先选择要添加的标签。",
+      chooseTagsToRemove: "请先选择要移除的标签。",
+      tagMissing: "选中的标签不在这本账里。",
+      tooManyTags: "加上这些标签会超过每笔 {{max}} 个的上限。",
+    },
+    deleteConfirm: {
+      title_one: "删除选中的 {{count}} 笔账目？",
+      title_other: "删除选中的 {{count}} 笔账目？",
+      description: "批量删除不提供一键撤销。",
+      restore: "删除后，可从编辑历史逐笔恢复；账本须仍然存在，且你有编辑权限",
+      recalc: "本月总额、笔数与结余会立即重新计算",
+      offline: "离线时先保存在本机，联网后同步",
+      confirm: "确认删除",
+    },
+    summary: {
+      nothingToChange: "没有需要改动的地方。",
+      nothingToDo: "没有可处理的账目。",
+      edit: {
+        noneSucceeded_one: "没有修改成功任何一笔，{{count}} 笔失败。",
+        noneSucceeded_other: "没有修改成功任何一笔，{{count}} 笔失败。",
+        allQueued_one: "已在本机修改 {{count}} 笔，还没有投递到云端；联网后会自动投递。",
+        allQueued_other: "已在本机修改 {{count}} 笔，还没有投递到云端；联网后会自动投递。",
+        done_one: "已修改 {{count}} 笔。",
+        done_other: "已修改 {{count}} 笔。",
+      },
+      delete: {
+        noneSucceeded_one: "没有删除成功任何一笔，{{count}} 笔失败。",
+        noneSucceeded_other: "没有删除成功任何一笔，{{count}} 笔失败。",
+        allQueued_one: "已在本机删除 {{count}} 笔，还没有投递到云端；联网后会自动投递。",
+        allQueued_other: "已在本机删除 {{count}} 笔，还没有投递到云端；联网后会自动投递。",
+        done_one: "已删除 {{count}} 笔。",
+        done_other: "已删除 {{count}} 笔。",
+      },
+      queued_one: "其中 {{count}} 笔还在本机排队，联网后投递。",
+      queued_other: "其中 {{count}} 笔还在本机排队，联网后投递。",
+      unchanged_one: "另有 {{count}} 笔本来就是这个值，没有改动。",
+      unchanged_other: "另有 {{count}} 笔本来就是这个值，没有改动。",
+      failed_one: "有 {{count}} 笔失败：{{reasons}}",
+      failed_other: "有 {{count}} 笔失败：{{reasons}}",
+      reasonSeparator: "；",
+    },
+    /** 批量编辑面板（`BatchEditSheet`）。 */
+    sheet: {
+      noneSelected: "没有选中账目。",
+      tickFirst: "请先勾选要修改的字段。",
+      incomplete: "勾选的字段还没有选好值。",
+      title: "批量编辑",
+      selectedCount_one: "已选 {{count}} 笔",
+      selectedCount_other: "已选 {{count}} 笔",
+      intro: "只改动你勾选的字段，未勾选的字段保持原值。金额、收支方向、币种和时间不会被批量修改。",
+      changeCategory: "修改分类",
+      mixedKinds: "所选的账目收支方向不同，不能统一改分类。请只选同一方向的账目。",
+      chooseCategory: "选择分类",
+      chooseCategoryOption: "选择分类…",
+      changeTags: "修改标签",
+      tagAdd: "添加",
+      tagRemove: "移除",
+      noTags: "这本账还没有标签。",
+      changePayment: "修改支付方式",
+      choosePayment: "选择支付方式",
+      choosePaymentOption: "选择支付方式…",
+      applyCount_one: "应用到 {{count}} 笔",
+      applyCount_other: "应用到 {{count}} 笔",
+    },
+    /** 底部操作条（`BatchActionBar`）与列表上方的选择条（`SelectionBar`）。 */
+    selectedCount_one: "已选 {{count}} 条",
+    selectedCount_other: "已选 {{count}} 条",
+    edit: "批量编辑",
+    delete: "批量删除",
+    selectFirst: "先选中至少一笔账目。",
+    onlyTicked: "只会改动你勾选的字段。",
+    selectTitle: "选择账目",
+    deselectAll: "取消全选",
+    selectLoaded_one: "全选已加载的 {{count}} 条",
+    selectLoaded_other: "全选已加载的 {{count}} 条",
+    selectScope: "只勾选当前筛选下已加载的账目，不会扩大到整本账",
+  },
+  /** 明细页右上角的工具按钮（`DetailTools`）。 */
+  tools: {
+    exitBatch: "退出批量操作",
+    refresh: "刷新",
+    refreshHint: "重新读取并同步账目",
+    batch: "批量操作",
+    batchHint: "批量修改或删除账目",
+    more: "更多",
+    moreHint: "导出账目与数据维护",
+    titleBusy: "{{label}}——正在进行",
+    title: "{{label}}——{{hint}}",
+    ariaLabel: "{{label}}，{{hint}}",
+  },
+  /** 明细列表的一行（`LedgerEntryRow`）。 */
+  row: {
+    selected: "已选中",
+    unselected: "未选中",
+    selectionLabel: "{{state}}：{{category}}，{{amount}}",
+  },
+  /** 刷新按钮之后的那一句（`refreshMessage`）。 */
+  refresh: {
+    waiting_one: "还有 {{count}} 条改动没有送到云端，已保留在本机，下次联网会继续尝试。",
+    waiting_other: "还有 {{count}} 条改动没有送到云端，已保留在本机，下次联网会继续尝试。",
+    unknownReason: "原因不明",
+    failed: "同步没有完成：{{reason}}。已经重新读取了本机账目。",
+    guest: "已重新读取本机账目（游客账本没有云端可同步）。",
+    offline: "当前离线，没能连上云端；已经重新读取了本机账目。",
+    deliveredAndPulled_one: "已向云端投递 {{count}} 条，并更新了当前月（{{pulled}} 条来自云端）。",
+    deliveredAndPulled_other: "已向云端投递 {{count}} 条，并更新了当前月（{{pulled}} 条来自云端）。",
+    delivered_one: "已向云端投递 {{count}} 条；当前月没有从云端取回新的数据。",
+    delivered_other: "已向云端投递 {{count}} 条；当前月没有从云端取回新的数据。",
+    pulled: "已更新当前月（{{pulled}} 条来自云端）。",
+    reloadedWaiting: "已重新读取本机账目；{{note}}",
+    nothing: "已重新读取本机账目；没有待投递的改动，也没有从云端取回新的数据。",
+  },
+  monthPicker: {
+    close: "关闭月份选择",
+    title: "选择月份",
+    previousYear: "上一年",
+    nextYear: "下一年",
+    thisMonth: "回到本月",
+  },
+  /** 编辑历史（`HistoryList`、`LedgerHistoryPage`）。 */
+  history: {
+    loading: "正在读取历史……",
+    failed: "历史读取失败。",
+    recentLabel: "最近的编辑记录",
+    totalNote: "共 {{total}} 条记录，这里显示最近 {{shown}} 条。",
+    moreChanges_one: "另有 {{count}} 项改动",
+    moreChanges_other: "另有 {{count}} 项改动",
+    change: "{{label}}：{{from}} → {{to}}",
+    copyNumber: "复制编号",
+    copyNumberLabel: "复制编号 {{number}}",
+    pageTitle: "编辑历史",
+    loadingBook: "正在读取当前账本……",
+    pageHint: "点按账目记录查看详情，点按编号复制。",
+    /**
+     * 以下几组只在**非中文**界面用来重组服务器的句子；中文界面原样显示服务器原文。
+     * 中文值照抄服务器（`apps/api/src/ledger/history.ts`），方便核对两边说的是同一件事。
+     */
+    someone: "某人",
+    verb: {
+      created: "添加了",
+      updated: "修改了",
+      deleted: "删除了",
+      restored: "恢复了",
+    },
+    memberChanged: "{{actor}} 变更了这本账的成员",
+    bookChanged: "{{actor}} 改了这本账",
+    anEntry: "一笔账目",
+    entryNumber: "记录 {{number}}",
+    serverLabels: {
+      金额: "金额",
+      类型: "类型",
+      币种: "币种",
+      分类: "分类",
+      支付方式: "支付方式",
+      时间: "时间",
+      时区: "时区",
+      备注: "备注",
+      名称: "名称",
+      导入任务: "导入任务",
+      导入来源: "导入来源",
+      重复组: "重复组",
+      导入撤销: "导入撤销",
+      加入账本: "加入账本",
+      移除成员: "移除成员",
+      退出账本: "退出账本",
+      成员权限: "成员权限",
+      其他变更: "其他变更",
+    },
+    /**
+     * 服务器写进改动值的几个固定说法（`renderValue`）。`any` 对任何字段都可能出现；其余按字段名分组，
+     * 只在那个字段下才翻译——别的字段里同样的字（例如备注恰好写着「收入」）是用户数据，原样显示。
+     */
+    serverValues: {
+      any: {
+        "（空）": "（空）",
+        "（无法显示）": "（无法显示）",
+      },
+      成员权限: {
+        仅查看: "仅查看",
+        可编辑: "可编辑",
+      },
+      类型: {
+        收入: "收入",
+        支出: "支出",
+      },
+    },
+  },
+  /** 底栏上方的当前账本说明（`CurrentBookCaption`）。 */
+  caption: {
+    currentBook: "当前账本：{{name}}",
+  },
+  /** `lib/queries.ts` 里会显示给人的几句。 */
+  queries: {
+    guestUnavailable: "游客账本暂时打不开。",
+    guestName: "游客",
+    notInGuest: "这一笔不在游客账本里。",
+    notStored: "这一笔还没有存到本机，离线时看不到。联网后会自动补上。",
+    cannotRestore: "这一笔已经无法恢复。",
+  },
+};
 
 export default ledger;

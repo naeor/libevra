@@ -4,6 +4,8 @@ import {
   type Tag,
 } from "@libellum/shared";
 
+import { t as translate, useI18n } from "../../i18n/index.js";
+import { displayPaymentMethodName } from "../../lib/presetNames.js";
 import { ChevronIcon } from "../Icons.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
 
@@ -59,6 +61,7 @@ export function EntryMoreOptions({
   readonly selectedTagIds: readonly string[];
   readonly onToggleTag: (tagId: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const paymentMethodName =
     paymentMethods.find((method) => method.id === paymentMethodId)?.name ?? null;
   const summary = moreOptionsSummary({
@@ -77,7 +80,7 @@ export function EntryMoreOptions({
           onClick={onToggle}
           className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-canvas"
         >
-          <span className="shrink-0 text-button-lg text-ink">更多选项</span>
+          <span className="shrink-0 text-button-lg text-ink">{t("entry.more.title")}</span>
           <span className="flex min-w-0 items-center gap-1.5">
             {/*
               ⚠️ **摘要在 360px 上必须能被截断。** `min-w-0` + `truncate` 让这一段收缩，
@@ -103,7 +106,7 @@ export function EntryMoreOptions({
             className="flex flex-col gap-4 border-t border-line px-4 py-4"
           >
             <div className="flex flex-col gap-2">
-              <h3 className="text-card-title text-ink">支付方式</h3>
+              <h3 className="text-card-title text-ink">{t("common.field.paymentMethod")}</h3>
               <div className="flex flex-wrap gap-2">
                 {paymentMethods.map((method) => (
                   <button
@@ -118,22 +121,22 @@ export function EntryMoreOptions({
                         : "bg-surface text-ink hover:bg-brand-soft"
                     }`}
                   >
-                    {method.name}
+                    {displayPaymentMethodName(method.name)}
                   </button>
                 ))}
               </div>
             </div>
 
             <label className="flex flex-col gap-2">
-              <span className="text-card-title text-ink">备注</span>
+              <span className="text-card-title text-ink">{t("common.field.note")}</span>
               <input
-                aria-label="备注"
+                aria-label={t("common.field.note")}
                 value={note}
                 onChange={(event) => {
                   onNoteChange(event.target.value);
                 }}
                 maxLength={200}
-                placeholder="可不填"
+                placeholder={t("entry.more.notePlaceholder")}
                 className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
               />
             </label>
@@ -141,8 +144,7 @@ export function EntryMoreOptions({
             {tags.length > 0 ? (
               <div className="flex flex-col gap-2">
                 <h3 className="text-card-title text-ink">
-                  标签（最多 {String(MAX_TAGS_PER_TRANSACTION)} 个，已选 {String(selectedTagIds.length)}{" "}
-                  个）
+                  {t("entry.more.tagsHeading", { max: MAX_TAGS_PER_TRANSACTION, selected: selectedTagIds.length })}
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {tags.map((tag) => {
@@ -220,21 +222,25 @@ export function moreOptionsSummary({
   const paymentName = paymentMethodName?.trim() ?? "";
   const hasNote = note.trim() !== "";
 
+  /**
+   * S16：摘要是显示用的文字——支付方式名经 `displayPaymentMethodName`（只翻译预置名），
+   * 字段名提示按当前语言取。纯函数在调用时取文案，切换语言后重新渲染即更新。
+   */
   return [
     {
       slot: "payment",
       // 默认支付方式（如「其他」）也是实际值，显示它的名字，不退化成字段名。
-      text: paymentName === "" ? "支付方式" : paymentName,
+      text: paymentName === "" ? translate("common.field.paymentMethod") : displayPaymentMethodName(paymentName),
       filled: paymentName !== "",
     },
     {
       slot: "note",
-      text: hasNote ? "有备注" : "备注",
+      text: hasNote ? translate("entry.more.hasNote") : translate("common.field.note"),
       filled: hasNote,
     },
     {
       slot: "tags",
-      text: tagCount > 0 ? `${String(tagCount)} 个标签` : "标签",
+      text: tagCount > 0 ? translate("entry.more.tagCount", { count: tagCount }) : translate("common.field.tags"),
       filled: tagCount > 0,
     },
   ];

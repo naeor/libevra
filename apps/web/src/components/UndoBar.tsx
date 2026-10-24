@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { useI18n } from "../i18n/index.js";
+
 /**
  * A short-lived bar offering to undo the thing that just happened.
  *
@@ -10,7 +12,7 @@ import { useEffect } from "react";
  */
 export function UndoBar({
   message,
-  actionLabel = "撤销",
+  actionLabel,
   durationMs = 5000,
   onAction,
   onDismiss,
@@ -21,6 +23,8 @@ export function UndoBar({
   readonly onAction: () => void;
   readonly onDismiss: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   useEffect(() => {
     const timer = window.setTimeout(onDismiss, durationMs);
     return () => {
@@ -31,13 +35,13 @@ export function UndoBar({
   return (
     <div className="fixed inset-x-0 bottom-28 z-50 flex justify-center px-5">
       <div className="flex w-full max-w-md items-center justify-between gap-4 rounded-field bg-ink px-4 py-3 text-sm text-on-ink shadow-lg">
-        <span>{message}</span>
+        <span className="min-w-0">{message}</span>
         <button
           type="button"
           onClick={onAction}
           className="shrink-0 font-medium text-brand-soft transition hover:text-on-ink"
         >
-          {actionLabel}
+          {actionLabel ?? t("common.action.undo")}
         </button>
       </div>
     </div>

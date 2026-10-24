@@ -1,5 +1,6 @@
 import { HistoryList } from "../components/HistoryList.js";
 import { InnerPage } from "../components/Layouts.js";
+import { useI18n } from "../i18n/index.js";
 import { useLedger } from "../lib/queries.js";
 
 /**
@@ -18,20 +19,21 @@ import { useLedger } from "../lib/queries.js";
  */
 export function LedgerHistoryPage(): React.JSX.Element {
   const ledger = useLedger();
+  const { t } = useI18n();
 
   return (
     <InnerPage
-      title="编辑历史"
-      subtitle={ledger.data?.book.name ?? "正在读取当前账本……"}
+      title={t("ledger.history.pageTitle")}
+      subtitle={ledger.data?.book.name ?? t("ledger.history.loadingBook")}
       backTo="/ledger"
     >
       <HistoryList
         limit={200}
-        emptyHint="暂无编辑记录。此功能启用前的操作不在记录中。"
+        emptyHint={t("ledger.page.historyEmpty")}
       />
 
       <p className="mt-4 text-helper-relaxed text-muted">
-        点按账目记录查看详情，点按编号复制。
+        {t("ledger.history.pageHint")}
       </p>
     </InnerPage>
   );

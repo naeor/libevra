@@ -1,7 +1,8 @@
 import type { Transaction } from "@libellum/shared";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { applyLocale } from "../i18n/index.js";
 import { EntrySaved } from "./EntrySaved.js";
 
 /**
@@ -152,5 +153,30 @@ describe("EntrySaved", () => {
     // confirmation screen too.
     expect(html).toContain("1,000");
     expect(html).not.toContain("10.00");
+  });
+});
+
+/** S16：英文界面下没有中文；预置分类与支付方式按英文显示（传入的仍是存储的中文原名）。 */
+describe("EntrySaved in English", () => {
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("speaks English and shows preset names in English", () => {
+    applyLocale("en-US");
+    const html = render({ onUndo: () => undefined });
+
+    expect(html).not.toMatch(/[㐀-鿿]/);
+    expect(html).toContain("Saved");
+    expect(html).toContain("Food &amp; drink · WeChat Pay");
+    expect(html).toContain("Add another");
+    expect(html).toContain("Back to home");
+    expect(html).toContain("Undo this entry");
+  });
+
+  it("counts what is left in a batch", () => {
+    applyLocale("en-US");
+
+    expect(render({ remaining: 3 })).toContain("Continue (3 left)");
   });
 });

@@ -1,7 +1,9 @@
 import type { Transaction } from "@libellum/shared";
 
 import { Button } from "./Button.js";
+import { useI18n } from "../i18n/index.js";
 import { formatMoney } from "../lib/format.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 
 /**
  * What the screen says after an entry is saved.
@@ -74,7 +76,17 @@ export function EntrySaved({
    */
   readonly onUndo?: (() => void) | undefined;
 }): React.JSX.Element {
-  const detail = [categoryName, paymentName].filter((part) => part !== null && part !== "").join(" · ");
+  const { t } = useI18n();
+  /**
+   * S16：调用方传的是**存储的原名**（拍照、语音、手动三处都是）；预置分类 / 支付方式在这里按当前语言
+   * 显示，自建名字原样显示。已经是显示名的字符串再过一遍也不会变。
+   */
+  const detail = [
+    categoryName === "" ? "" : displayCategoryName(categoryName),
+    paymentName === null || paymentName === "" ? "" : displayPaymentMethodName(paymentName),
+  ]
+    .filter((part) => part !== "")
+    .join(" · ");
   const inBatch = remaining > 0;
 
   return (
@@ -91,7 +103,7 @@ export function EntrySaved({
         pixels instead of twenty-eight is the difference between reaching the
         button and scrolling to it on a phone.
       */}
-      <h1 className="mt-2 text-lg font-semibold text-ink">已记账</h1>
+      <h1 className="mt-2 text-lg font-semibold text-ink">{t("entry.saved.title")}</h1>
 
       <p className="text-3xl font-medium tabular-nums text-ink">
         {formatMoney(entry.amountCents, entry.currency)}
@@ -101,7 +113,7 @@ export function EntrySaved({
 
       <div className="mt-7 flex w-full max-w-xs flex-col gap-3">
         <Button onClick={onAgain}>
-          {inBatch ? `继续记账（还有 ${String(remaining)} 张）` : "再记一笔"}
+          {inBatch ? t("entry.saved.continueBatch", { count: remaining }) : t("entry.saved.again")}
         </Button>
 
         {/*
@@ -112,7 +124,7 @@ export function EntrySaved({
         */}
         {inBatch ? null : (
           <Button variant="secondary" onClick={onHome}>
-            返回主页
+            {t("entry.saved.home")}
           </Button>
         )}
 
@@ -133,7 +145,7 @@ export function EntrySaved({
             onClick={onUndo}
             className="mt-1 text-helper text-muted underline transition hover:text-ink"
           >
-            撤销这次记账
+            {t("entry.saved.undo")}
           </button>
         )}
       </div>

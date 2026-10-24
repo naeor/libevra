@@ -1,13 +1,14 @@
 import type { Category, PaymentMethod, Tag, Transaction } from "@libellum/shared";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { applyLocale } from "../../i18n/index.js";
 import { BatchActionBar } from "./BatchActionBar.js";
 import { BatchEditSheet } from "./BatchEditSheet.js";
 import { DetailTools } from "./DetailTools.js";
 import { LedgerEntryRow } from "./LedgerEntryRow.js";
 import { SelectionBar } from "./SelectionBar.js";
-import { EMPTY_BATCH_DRAFT, summarizeBatch } from "./batch.js";
+import { EMPTY_BATCH_DRAFT, batchDeleteConfirmation, batchPermission, buildBatchEdit, summarizeBatch } from "./batch.js";
 
 /**
  * What the batch screens actually render.
@@ -401,5 +402,149 @@ describe("LedgerEntryRow", () => {
     expect(row({ conflicted: true })).toContain("bg-warn-soft");
     expect(row({ deleted: true })).toContain("bg-danger-soft");
     expect(row({})).not.toContain("bg-brand-soft");
+  });
+});
+
+/**
+ * **S16：英文界面下这几块不残留中文。**
+ *
+ * 只用预置分类 / 支付方式（它们有英文显示名）和英文备注，所以页面上不应出现任何中文；
+ * 一旦出现，就是某句界面文字漏了翻译。用户自建的名字本来就原样显示，不在这里测。
+ */
+describe("batch screens in English", () => {
+  const CJK = /[㐀-鿿]/;
+
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  const PRESET_ENTRY: Transaction = {
+    ...ENTRY,
+    categoryId: "c-preset",
+    categoryName: "餐饮",
+    paymentMethodName: "现金",
+    note: "lunch",
+  };
+
+  const PRESET_CATEGORIES: readonly Category[] = [
+    { ...CATEGORIES[0]!, id: "c-preset", name: "餐饮" },
+    { ...CATEGORIES[0]!, id: "c-archived", name: "交通", isArchived: true },
+  ];
+
+  const PRESET_METHODS: readonly PaymentMethod[] = [{ id: "p-cash", name: "现金", isArchived: false, sortOrder: 0 }];
+
+  it("renders the tools, the selection bar and the action bar without Chinese", () => {
+    applyLocale("en-US");
+
+    const tools = renderToStaticMarkup(
+      <DetailTools
+        refreshing={false}
+        turnKey={0}
+        guest={false}
+        selecting={false}
+        onRefresh={noop}
+        onBatch={noop}
+        onMore={noop}
+        onExitSelection={noop}
+      />,
+    );
+    const exit = renderToStaticMarkup(
+      <DetailTools
+        refreshing={false}
+        turnKey={0}
+        guest={false}
+        selecting
+        onRefresh={noop}
+        onBatch={noop}
+        onMore={noop}
+        onExitSelection={noop}
+      />,
+    );
+    const selection = renderToStaticMarkup(
+      <SelectionBar selectedCount={1} loadedCount={12} allSelected={false} notice={null} onToggleAll={noop} />,
+    );
+    const failure = buildBatchEdit(
+      PRESET_ENTRY,
+      { ...EMPTY_BATCH_DRAFT, setCategory: true, categoryId: "c-archived" },
+      { categories: PRESET_CATEGORIES, paymentMethods: PRESET_METHODS, tags: TAGS },
+    );
+    const summary = summarizeBatch(
+      [
+        { id: "e1", status: "ok", pending: false },
+        { id: "e2", status: "ok", pending: true },
+        { id: "e3", status: "failed", reason: failure.kind === "blocked" ? failure.reason : "" },
+      ],
+      "edit",
+    );
+    const bar = renderToStaticMarkup(
+      <BatchActionBar
+        selectedCount={3}
+        blockedReason={
+          batchPermission({ guest: false, shared: true, sharedOfflineReadOnly: false, role: { status: "loading" } }).reason
+        }
+        busy={false}
+        summary={summary}
+        onEdit={noop}
+        onDelete={noop}
+      />,
+    );
+
+    for (const html of [tools, exit, selection, bar]) expect(html).not.toMatch(CJK);
+
+    expect(tools).toContain("Refresh: Reload and sync entries");
+    expect(exit).toContain("Cancel");
+    expect(selection).toContain("Select all 12 loaded entries");
+    expect(selection).toContain("1 selected");
+    /** 预置分类名按英文显示，句子之间有空格。 */
+    expect(summary.message).toBe(
+      "Changed 2 entries. 1 of them is still queued on this device and will be sent once you’re online. 1 failed: “Transport” is archived and can’t be used.",
+    );
+    expect(bar).toContain("Checking your access to this ledger…");
+  });
+
+  it("renders the edit sheet, the row and the delete confirmation without Chinese", () => {
+    applyLocale("en-US");
+
+    const sheet = renderToStaticMarkup(
+      <BatchEditSheet
+        open
+        count={2}
+        kinds={["expense"]}
+        categories={PRESET_CATEGORIES}
+        paymentMethods={PRESET_METHODS}
+        tags={[]}
+        draft={EMPTY_BATCH_DRAFT}
+        blockedReason={null}
+        busy={false}
+        onDraftChange={noop}
+        onApply={noop}
+        onClose={noop}
+      />,
+    );
+    const row = renderToStaticMarkup(
+      <ul>
+        <LedgerEntryRow
+          entry={PRESET_ENTRY}
+          selecting
+          selected
+          pending={false}
+          conflicted={false}
+          deleted={false}
+          onActivate={noop}
+        />
+      </ul>,
+    );
+    const confirmation = batchDeleteConfirmation(3);
+
+    expect(sheet).not.toMatch(CJK);
+    expect(row).not.toMatch(CJK);
+    expect(JSON.stringify(confirmation)).not.toMatch(CJK);
+
+    expect(sheet).toContain("Apply to 2");
+    expect(sheet).toContain("Food &amp; drink");
+    expect(row).toContain("Food &amp; drink");
+    expect(row).toContain("Cash");
+    expect(row).toContain('aria-label="Selected: Food &amp; drink, ¥12.34"');
+    expect(confirmation.title).toBe("Delete 3 selected entries?");
   });
 });

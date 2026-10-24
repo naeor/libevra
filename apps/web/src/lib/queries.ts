@@ -38,6 +38,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { updateTransactionViews } from "./ledgerView.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { t } from "../i18n/index.js";
 import { ApiRequestError, apiFetch, apiFetchFile, currentBookIdHeader } from "./api.js";
 import { currentBookId, setCurrentBook, subscribeCurrentBook } from "./currentBook.js";
 import { publishGuestSnapshot, requireGuestId } from "./guest/bridge.js";
@@ -207,7 +208,7 @@ function useGuestData(): GuestData | null {
 
 async function loadGuestData(): Promise<GuestData> {
   const data = await ensureGuestData(requireGuestId());
-  if (data === null) throw new Error("游客账本暂时打不开。");
+  if (data === null) throw new Error(t("ledger.queries.guestUnavailable"));
   return data;
 }
 
@@ -824,7 +825,7 @@ export function useBookMembers(bookId?: string) {
           members: [
             {
               userId: identity,
-              displayName: "游客",
+              displayName: t("ledger.queries.guestName"),
               username: "guest",
               accountNumber: "",
               role: "owner" as const,
@@ -1406,7 +1407,7 @@ export function useTransaction(id: string) {
     queryFn: async () => {
       if (guest) {
         const found = sortedTransactions(await loadGuestData()).find((entry) => entry.id === id);
-        if (found === undefined) throw new Error("这一笔不在游客账本里。");
+        if (found === undefined) throw new Error(t("ledger.queries.notInGuest"));
         return found;
       }
 
@@ -1418,11 +1419,11 @@ export function useTransaction(id: string) {
 
           if (found !== null) return found;
 
-          throw new ApiRequestError(
-            0,
-            "not_stored",
-            "这一笔还没有存到本机，离线时看不到。联网后会自动补上。",
-          );
+          /**
+           * S16：消息按当前语言取。⚠️ 非中文界面里 `errorMessage()` 按错误码查 `errors.api.not_stored`，
+           * 那一条要由 errors 模块补上，否则英文界面显示的是通用说明（见交接报告）。
+           */
+          throw new ApiRequestError(0, "not_stored", t("ledger.queries.notStored"));
         },
       });
     },
@@ -1690,7 +1691,7 @@ export function useUpdateTransaction(
     mutationFn: async (input: UpdateTransactionInput) => {
       if (guest) {
         const entry = await updateGuestTransaction(id, input, (current) => current);
-        if (entry === null) throw new Error("这一笔不在游客账本里。");
+        if (entry === null) throw new Error(t("ledger.queries.notInGuest"));
         publishGuestSnapshot();
         return entry;
       }
@@ -1792,7 +1793,7 @@ export function useRestoreTransaction(): UseMutationResult<Transaction, Error, s
     mutationFn: async (id: string) => {
       if (guest) {
         const entry = await restoreGuestTransaction(id);
-        if (entry === null) throw new Error("这一笔已经无法恢复。");
+        if (entry === null) throw new Error(t("ledger.queries.cannotRestore"));
         publishGuestSnapshot();
         return entry;
       }
@@ -2156,12 +2157,16 @@ const EXPORT_MIME: Record<ExportFormat, string> = {
 function describe(filters: ExportFilters, now: Date): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
   const stamp = `${String(now.getFullYear())}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  /**
+   * ⚠️ S16：导出文件名不随界面语言变化——服务器的 `content-disposition` 用的也是这套中文名
+   * （`apps/api/src/routes/export.ts`），导出文件与语言无关是国际化规范 §3 的约定。
+   */
   const range =
     filters.monthFrom === undefined && filters.monthTo === undefined
-      ? "全部"
-      : `${filters.monthFrom ?? "起始"}-${filters.monthTo ?? "至今"}`;
+      ? "全部" // i18n-ignore：导出文件名，与服务器一致，不随语言变化
+      : `${filters.monthFrom ?? "起始"}-${filters.monthTo ?? "至今"}`; // i18n-ignore：导出文件名，与服务器一致，不随语言变化
 
-  return `账目-${range}-${stamp}`;
+  return `账目-${range}-${stamp}`; // i18n-ignore：导出文件名，与服务器一致，不随语言变化
 }
 
 /**
@@ -2210,7 +2215,7 @@ export async function fetchTemplate(bookId?: string): Promise<ExportedFile> {
   );
 
   return {
-    fileName: "记账导入模板.csv",
+    fileName: "记账导入模板.csv", // i18n-ignore：导出文件名，与服务器 content-disposition 一致，不随语言变化
     mimeType: EXPORT_MIME.csv,
     format: "csv",
     fileRef: "",

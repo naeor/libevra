@@ -11,6 +11,7 @@ import { NotificationBell } from "../components/Notifications.js";
 import { TabPage } from "../components/Layouts.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { SkeletonRows } from "../components/States.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useBookMembers, useBooks, useInviteToBook, useLeaveBook, useLedger } from "../lib/queries.js";
 
@@ -44,6 +45,7 @@ export function LedgerPage(): React.JSX.Element {
   const ledger = useLedger();
   const books = useBooks();
   const members = useBookMembers();
+  const { t } = useI18n();
 
   const memberCount = ledger.data?.book.memberCount ?? 1;
   const shared = memberCount >= 2;
@@ -89,8 +91,8 @@ export function LedgerPage(): React.JSX.Element {
         * that depends on a request is a layout that moves.**
         */}
       <TabPageHeader
-        title={shared ? "协作" : "账本"}
-        subtitle={shared ? "这本账由几个人一起记。" : "这本账目前只有你一个人在用。"}
+        title={shared ? t("ledger.page.titleShared") : t("ledger.page.titleSolo")}
+        subtitle={shared ? t("ledger.page.subtitleShared") : t("ledger.page.subtitleSolo")}
         action={
           /**
            * ⚠️ **Two actions, one action row.** The bell opens notifications; the gear opens the
@@ -109,7 +111,7 @@ export function LedgerPage(): React.JSX.Element {
                   // guessed settings page for a book we cannot name.
                   navigate(bookId === undefined ? "/start" : `/books/${bookId}/settings`);
                 }}
-                aria-label="账本设置"
+                aria-label={t("ledger.page.settings")}
                 className="relative flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-ink transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
               >
                 <GearIcon />
@@ -145,7 +147,7 @@ export function LedgerPage(): React.JSX.Element {
                 name={ledger.data.book.name}
                 bookNumber={ledger.data.book.bookNumber}
                 bookCount={books.isSuccess ? books.data.books.length : null}
-                facts={stats === undefined ? null : `${String(stats.transactionCount)} 笔`}
+                facts={stats === undefined ? null : t("ledger.page.factsShort", { count: stats.transactionCount })}
               />
               <MemberSummaryCard
                 members={memberList}
@@ -160,7 +162,7 @@ export function LedgerPage(): React.JSX.Element {
                 name={ledger.data.book.name}
                 bookNumber={ledger.data.book.bookNumber}
                 bookCount={books.isSuccess ? books.data.books.length : null}
-                facts={stats === undefined ? null : `${String(stats.transactionCount)} 笔账目`}
+                facts={stats === undefined ? null : t("ledger.page.factsLong", { count: stats.transactionCount })}
               />
             </section>
           )}
@@ -182,13 +184,13 @@ export function LedgerPage(): React.JSX.Element {
             * 所以它和「留言」由**同一个来源**决定，不可能是两个值。
             */}
           <SectionFrame
-            title="编辑记录"
-            action={<FrameAction to="/ledger/history">查看全部 ›</FrameAction>}
+            title={t("ledger.page.history")}
+            action={<FrameAction to="/ledger/history">{t("ledger.page.viewAll")}</FrameAction>}
           >
             <HistoryList
               limit={3}
               embedded
-                emptyHint="暂无编辑记录。此功能启用前的操作不在记录中。"
+                emptyHint={t("ledger.page.historyEmpty")}
             />
           </SectionFrame>
 
@@ -226,7 +228,7 @@ export function LedgerPage(): React.JSX.Element {
               * 并确认这一层也属于正式功能区标题。
               */
             <SectionFrame
-              title="邀请成员"
+              title={t("ledger.page.invite")}
               bare
             >
               {/**
@@ -274,6 +276,7 @@ export function LedgerPage(): React.JSX.Element {
  */
 function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Element {
   const invite = useInviteToBook();
+  const { t } = useI18n();
 
   const [query, setQuery] = useState("");
   const [sent, setSent] = useState(false);
@@ -316,7 +319,7 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
 
       {sent ? (
         <p role="status" className="rounded-field bg-brand-soft px-4 py-3 text-body text-brand-dark">
-          邀请已经发出。他会在通知里看到，接受之后就成为「{bookName}」的成员。
+          {t("ledger.page.inviteSent", { book: bookName })}
         </p>
       ) : null}
 
@@ -333,10 +336,10 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
           onKeyDown={(event) => {
             if (event.key === "Enter") send();
           }}
-          placeholder="账号编号或用户名"
-          aria-label="要邀请谁"
+          placeholder={t("ledger.page.invitePlaceholder")}
+          aria-label={t("ledger.page.inviteWho")}
           autoComplete="off"
-          className="min-h-11 flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
+          className="min-h-11 min-w-0 flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
         />
 
         <button
@@ -345,16 +348,16 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
           onClick={send}
           className="shrink-0 rounded-field bg-brand px-4 py-2.5 text-sm font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
         >
-          {invite.isPending ? "发送中…" : "邀请"}
+          {invite.isPending ? t("ledger.page.sending") : t("ledger.page.inviteButton")}
         </button>
       </div>
 
       <p className="text-helper-relaxed text-muted">
-        这本账现在只有你一个人。输入对方的账号编号或用户名，他会收到一条邀请，接受之后才真正加入。
+        {t("ledger.page.inviteHint")}
       </p>
 
       <Link to="/ledger/invite" className="self-start text-helper text-brand transition hover:text-brand-dark">
-        选择对方的权限，或查看已发出的邀请 ›
+        {t("ledger.page.inviteMore")}
       </Link>
     </div>
   );
@@ -414,7 +417,9 @@ function BookCardSplit({
   readonly facts?: string | null;
   readonly tinted?: boolean;
 }): React.JSX.Element {
-  const countLabel = bookCount === null ? "" : `（共 ${String(bookCount)} 本）`;
+  const { t } = useI18n();
+  const switchLabel =
+    bookCount === null ? t("ledger.page.switchBookLabel") : t("ledger.page.switchBookCount", { count: bookCount });
 
   return (
     <div
@@ -427,22 +432,22 @@ function BookCardSplit({
           to={`/books/${bookId}`}
           className="flex min-h-20 min-w-0 flex-1 flex-col justify-between gap-1.5 p-4 text-left transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
-          <span className="text-helper text-muted">当前账本</span>
+          <span className="text-helper text-muted">{t("ledger.page.currentBook")}</span>
           <span className="break-words text-base font-medium text-ink">{name}</span>
           <span className="truncate text-helper text-muted">
-            <span className="font-mono">{bookNumber ?? "（未分配编号）"}</span>
+            <span className="font-mono">{bookNumber ?? t("ledger.page.noNumber")}</span>
             {facts === null ? null : ` · ${facts}`}
           </span>
-          <span className="text-helper font-medium text-brand">查看详情 ›</span>
+          <span className="text-helper font-medium text-brand">{t("ledger.page.viewDetails")}</span>
         </Link>
 
         <Link
           to="/start"
-          aria-label={`切换账本${countLabel}`}
+          aria-label={switchLabel}
           className="book-card-switch group border-line text-center transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring active:bg-brand-soft/40"
         >
           <SwitchIcon className="book-card-switch-icon text-brand transition group-hover:scale-105 group-active:scale-95" />
-          <span className="book-card-switch-label text-helper font-medium text-brand">切换账本</span>
+          <span className="book-card-switch-label text-helper font-medium text-brand">{t("ledger.page.switchBook")}</span>
         </Link>
       </div>
     </div>
@@ -469,6 +474,7 @@ function MemberSummaryCard({
   readonly memberCount: number;
   readonly loading: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   /** ⚠️ Three at most, and the remainder is arithmetic — see the note above about equal heights. */
   const faces = members.slice(0, 3);
   const extra = Math.max(0, memberCount - faces.length);
@@ -479,9 +485,9 @@ function MemberSummaryCard({
       className="flex h-full min-h-0 flex-col justify-between gap-3 rounded-card border border-line bg-surface p-4 transition hover:border-brand/40"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-helper text-muted">成员</span>
+        <span className="text-helper text-muted">{t("ledger.page.members")}</span>
         <span className="text-base font-medium text-ink">
-          {loading ? "…" : `${String(memberCount)} 人`}
+          {loading ? "…" : t("ledger.page.memberCount", { count: memberCount })}
         </span>
       </div>
 
@@ -504,7 +510,7 @@ function MemberSummaryCard({
           </span>
         )}
 
-        <span className="text-helper text-brand">成员管理 ›</span>
+        <span className="text-helper text-brand">{t("ledger.page.manageMembers")}</span>
       </div>
     </Link>
   );
@@ -606,6 +612,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
   const { user } = useAuth();
   const members = useBookMembers();
   const leave = useLeaveBook();
+  const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -618,7 +625,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
     /**
       * ⚠️ **推广后走默认规格（16px/600）。**
       */
-    <Section title="退出这本账">
+    <Section title={t("ledger.page.leaveTitle")}>
       {error === null ? null : (
         <p role="alert" className="mb-3 rounded-field bg-danger-soft px-4 py-3 text-body text-danger">
           {error}
@@ -626,12 +633,11 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
       )}
 
       <p className="text-body-relaxed text-muted">
-        退出之后这本账不再出现在你的列表里，你也就看不到它的账目了。
-        你记过的账目会留下，历史记录里也会留下这一条。
+        {t("ledger.page.leaveExplain")}
       </p>
 
       {confirming ? (
-        <div className="mt-3 flex gap-3">
+        <div className="mt-3 flex flex-wrap gap-3">
           <button
             type="button"
             disabled={leave.isPending}
@@ -655,7 +661,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
             }}
             className="rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
           >
-            {leave.isPending ? "正在退出……" : "确认退出"}
+            {leave.isPending ? t("ledger.page.leaving") : t("ledger.page.leaveConfirm")}
           </button>
           <button
             type="button"
@@ -664,7 +670,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
             }}
             className="rounded-field bg-canvas px-4 py-2 text-body text-muted transition hover:text-ink"
           >
-            取消
+            {t("common.action.cancel")}
           </button>
         </div>
       ) : (
@@ -688,7 +694,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
           }}
           className="mt-3 rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark"
         >
-          退出这本账
+          {t("ledger.page.leaveTitle")}
         </button>
       )}
     </Section>

@@ -1,6 +1,7 @@
 import type { Currency } from "@libellum/shared";
 import type { RefObject } from "react";
 
+import { useI18n } from "../../i18n/index.js";
 import { amountPlaceholder, currencyName, currencySymbol } from "../../lib/format.js";
 import { ChevronIcon } from "../Icons.js";
 
@@ -54,6 +55,8 @@ export function AmountField({
   readonly onAmountChange: (value: string) => void;
   readonly onOpenCurrency: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <div
       data-entry-amount="card"
@@ -71,7 +74,7 @@ export function AmountField({
         }}
         inputMode="decimal"
         placeholder={amountPlaceholder(currency)}
-        aria-label="金额"
+        aria-label={t("common.field.amount")}
         autoFocus
         className="min-w-0 flex-1 bg-transparent text-3xl! font-semibold text-ink outline-none placeholder:text-muted/80"
       />
@@ -86,7 +89,7 @@ export function AmountField({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={currencyOpen}
-        aria-label={`币种：${currencyName(currency)}（${currency}），点按切换`}
+        aria-label={t("entry.amountField.currencyButton", { name: currencyName(currency), code: currency })}
         onClick={onOpenCurrency}
         className="-mr-1 flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-2 py-2 text-base font-medium text-brand-dark outline-none transition hover:bg-brand-soft focus-visible:ring-2 focus-visible:ring-brand"
       >

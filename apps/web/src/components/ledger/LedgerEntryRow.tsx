@@ -1,7 +1,9 @@
-import type { Transaction } from "@libellum/shared";
+import { UNCATEGORISED_NAME, type Transaction } from "@libellum/shared";
 
+import { useI18n } from "../../i18n/index.js";
 import { formatTimeWithZone } from "../../lib/datetime.js";
 import { formatMoney } from "../../lib/format.js";
+import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 
 /**
  * One entry in the ledger's list, with the selection state batch mode adds.
@@ -47,6 +49,9 @@ export function LedgerEntryRow({
   readonly deleted: boolean;
   readonly onActivate: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+  /** 分类与支付方式只在**显示**时换成当前语言的预置名；数据本身不变。 */
+  const categoryLabel = displayCategoryName(entry.categoryIsSystem ? UNCATEGORISED_NAME : entry.categoryName);
   const toneClass = deleted
     ? "bg-danger-soft line-through decoration-danger/40"
     : conflicted
@@ -67,7 +72,11 @@ export function LedgerEntryRow({
         aria-pressed={selecting ? selected : undefined}
         aria-label={
           selecting
-            ? `${selected ? "已选中" : "未选中"}：${entry.categoryIsSystem ? "暂无分类" : entry.categoryName}，${formatMoney(entry.amountCents, entry.currency)}`
+            ? t("ledger.row.selectionLabel", {
+                state: selected ? t("ledger.row.selected") : t("ledger.row.unselected"),
+                category: categoryLabel,
+                amount: formatMoney(entry.amountCents, entry.currency),
+              })
             : undefined
         }
         className="flex w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left transition last:border-b-0 hover:bg-canvas"
@@ -75,17 +84,17 @@ export function LedgerEntryRow({
         {selecting ? <SelectionBox selected={selected} /> : null}
 
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-line text-xs font-semibold text-category-ink">
-          {entry.categoryIsSystem ? "—" : entry.categoryName.slice(0, 1)}
+          {entry.categoryIsSystem ? "—" : categoryLabel.slice(0, 1)}
         </span>
 
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-sm text-ink">
-            {entry.categoryIsSystem ? "暂无分类" : entry.categoryName}
+            {categoryLabel}
             {entry.note ? <span className="text-muted"> · {entry.note}</span> : null}
           </span>
           <span className="truncate text-xs text-muted">
             {formatTimeWithZone(entry.occurredAt, entry.occurredTz)}
-            {entry.paymentMethodName ? ` · ${entry.paymentMethodName}` : ""}
+            {entry.paymentMethodName ? ` · ${displayPaymentMethodName(entry.paymentMethodName)}` : ""}
           </span>
         </span>
 

@@ -1,4 +1,6 @@
 import type { Category, PaymentMethod, Tag, TransactionKind } from "@libellum/shared";
+import { useI18n } from "../../i18n/index.js";
+import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
 
 import { draftTouchesAnything, type BatchEditDraft, type BatchTagMode } from "./batch.js";
@@ -48,6 +50,7 @@ export function BatchEditSheet({
   readonly onApply: () => void;
   readonly onClose: () => void;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
   if (!open) return null;
 
   const mixedKinds = kinds.length > 1;
@@ -65,29 +68,29 @@ export function BatchEditSheet({
   const applyReason =
     blockedReason ??
     (count === 0
-      ? "没有选中账目。"
+      ? t("ledger.batch.sheet.noneSelected")
       : !draftTouchesAnything(draft)
-        ? "请先勾选要修改的字段。"
+        ? t("ledger.batch.sheet.tickFirst")
         : incomplete
-          ? "勾选的字段还没有选好值。"
+          ? t("ledger.batch.sheet.incomplete")
           : null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button type="button" aria-label="关闭" onClick={onClose} className="absolute inset-0 bg-overlay" />
+      <button type="button" aria-label={t("common.a11y.close")} onClick={onClose} className="absolute inset-0 bg-overlay" />
 
       <div
         role="dialog"
-        aria-label="批量编辑"
+        aria-label={t("ledger.batch.sheet.title")}
         className="relative flex max-h-[85dvh] w-full max-w-md flex-col overflow-y-auto rounded-t-card bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
       >
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-base font-medium text-ink">批量编辑</h2>
-          <span className="text-helper text-muted">已选 {count} 笔</span>
+          <h2 className="min-w-0 text-base font-medium text-ink">{t("ledger.batch.sheet.title")}</h2>
+          <span className="shrink-0 text-helper text-muted">{t("ledger.batch.sheet.selectedCount", { count })}</span>
         </div>
 
         <p className="mt-1 text-helper-relaxed text-muted">
-          只改动你勾选的字段，未勾选的字段保持原值。金额、收支方向、币种和时间不会被批量修改。
+          {t("ledger.batch.sheet.intro")}
         </p>
 
         {blockedReason === null ? null : (
@@ -103,24 +106,24 @@ export function BatchEditSheet({
               type="checkbox"
               checked={draft.setCategory}
               disabled={mixedKinds || blockedReason !== null}
-              aria-label="修改分类"
+              aria-label={t("ledger.batch.sheet.changeCategory")}
               onChange={(event) => {
                 onDraftChange({ ...draft, setCategory: event.target.checked });
               }}
-              className="size-4 accent-brand"
+              className="size-4 shrink-0 accent-brand"
             />
-            修改分类
+            {t("ledger.batch.sheet.changeCategory")}
           </label>
 
           {mixedKinds ? (
             <p className="mt-1.5 text-helper-relaxed text-muted">
-              所选的账目收支方向不同，不能统一改分类。请只选同一方向的账目。
+              {t("ledger.batch.sheet.mixedKinds")}
             </p>
           ) : (
             <select
               value={draft.categoryId ?? ""}
               disabled={!draft.setCategory || blockedReason !== null}
-              aria-label="选择分类"
+              aria-label={t("ledger.batch.sheet.chooseCategory")}
               onChange={(event) => {
                 onDraftChange({
                   ...draft,
@@ -129,10 +132,10 @@ export function BatchEditSheet({
               }}
               className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-base text-ink disabled:opacity-45"
             >
-              <option value="">选择分类…</option>
+              <option value="">{t("ledger.batch.sheet.chooseCategoryOption")}</option>
               {usableCategories.map((category) => (
                 <option key={category.id} value={category.id}>
-                  {category.name}
+                  {displayCategoryName(category.name)}
                 </option>
               ))}
             </select>
@@ -146,13 +149,13 @@ export function BatchEditSheet({
               type="checkbox"
               checked={draft.setTags}
               disabled={blockedReason !== null}
-              aria-label="修改标签"
+              aria-label={t("ledger.batch.sheet.changeTags")}
               onChange={(event) => {
                 onDraftChange({ ...draft, setTags: event.target.checked });
               }}
-              className="size-4 accent-brand"
+              className="size-4 shrink-0 accent-brand"
             />
-            修改标签
+            {t("ledger.batch.sheet.changeTags")}
           </label>
 
           <div className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">
@@ -169,7 +172,7 @@ export function BatchEditSheet({
                   draft.tagMode === mode ? "bg-surface text-brand-dark shadow-sm" : "text-muted"
                 }`}
               >
-                {mode === "add" ? "添加" : "移除"}
+                {mode === "add" ? t("ledger.batch.sheet.tagAdd") : t("ledger.batch.sheet.tagRemove")}
               </button>
             ))}
           </div>
@@ -202,7 +205,7 @@ export function BatchEditSheet({
               );
             })}
 
-            {tags.length === 0 ? <span className="text-helper text-muted">这本账还没有标签。</span> : null}
+            {tags.length === 0 ? <span className="text-helper text-muted">{t("ledger.batch.sheet.noTags")}</span> : null}
           </div>
         </section>
 
@@ -213,19 +216,19 @@ export function BatchEditSheet({
               type="checkbox"
               checked={draft.setPaymentMethod}
               disabled={blockedReason !== null}
-              aria-label="修改支付方式"
+              aria-label={t("ledger.batch.sheet.changePayment")}
               onChange={(event) => {
                 onDraftChange({ ...draft, setPaymentMethod: event.target.checked });
               }}
-              className="size-4 accent-brand"
+              className="size-4 shrink-0 accent-brand"
             />
-            修改支付方式
+            {t("ledger.batch.sheet.changePayment")}
           </label>
 
           <select
             value={draft.paymentMethodId ?? ""}
             disabled={!draft.setPaymentMethod || blockedReason !== null}
-            aria-label="选择支付方式"
+            aria-label={t("ledger.batch.sheet.choosePayment")}
             onChange={(event) => {
               onDraftChange({
                 ...draft,
@@ -234,10 +237,10 @@ export function BatchEditSheet({
             }}
             className="mt-2 w-full rounded-field border border-line bg-surface px-3 py-2 text-base text-ink disabled:opacity-45"
           >
-            <option value="">选择支付方式…</option>
+            <option value="">{t("ledger.batch.sheet.choosePaymentOption")}</option>
             {usablePaymentMethods.map((method) => (
               <option key={method.id} value={method.id}>
-                {method.name}
+                {displayPaymentMethodName(method.name)}
               </option>
             ))}
           </select>
@@ -249,7 +252,7 @@ export function BatchEditSheet({
             onClick={onClose}
             className="flex-1 rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand/20"
           >
-            取消
+            {t("common.action.cancel")}
           </button>
 
           <button
@@ -258,7 +261,7 @@ export function BatchEditSheet({
             onClick={onApply}
             className="flex-1 rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {busy ? "处理中…" : `应用到 ${String(count)} 笔`}
+            {busy ? t("common.status.processing") : t("ledger.batch.sheet.applyCount", { count })}
           </button>
         </div>
 

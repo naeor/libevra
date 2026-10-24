@@ -1,5 +1,6 @@
 import { CURRENCIES, type Currency } from "@libellum/shared";
 
+import { useI18n } from "../../i18n/index.js";
 import { currencyName } from "../../lib/format.js";
 import { ChoiceSheet } from "../ui/ChoiceSheet.js";
 
@@ -24,10 +25,12 @@ export function CurrencySheet({
   readonly onSelect: (currency: Currency) => void;
   readonly onClose: () => void;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
+
   return (
     <ChoiceSheet
       open={open}
-      title="选择币种"
+      title={t("entry.currencySheet.title")}
       value={currency}
       options={CURRENCIES.map((code) => ({
         value: code,
