@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BillImportCandidate } from "@libellum/shared";
+
+import { applyLocale } from "../../i18n/index.js";
 
 import {
   BillCommitBar,
@@ -625,5 +627,187 @@ describe("BillDoneView", () => {
     expect(markup).toContain("这次没有记录写入账本");
     expect(markup).toContain("text-danger");
     expect(markup).not.toContain("导入编号");
+  });
+});
+
+/**
+ * S16：英文界面下整条导入流程的展示组件不残留中文。
+ *
+ * 数据（商户、单号、来源状态、自建分类名）用英文/ASCII，这样“页面里出现中文”只可能来自界面文案；
+ * 预置分类 / 支付方式用中文原名，验证它们只在显示时换成英文（编辑框提交的仍是 id）。
+ */
+describe("S16 英文界面", () => {
+  const CJK = /[㐀-鿿]/u;
+
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  function englishItem(overrides: Partial<BillImportCandidate> = {}): BillImportCandidate {
+    return candidate({ merchant: "Corner Store", sourceStatus: "Paid", sourceRef: "TX-9", note: "Lunch", ...overrides });
+  }
+
+  it("选文件、文件摘要、解析中：全部是英文", () => {
+    applyLocale("en-US");
+    const markup = [
+      renderToStaticMarkup(
+        <BillPickCard
+          busy={false}
+          disabled={false}
+          dragging={false}
+          onPick={NOOP}
+          onDragOver={NOOP}
+          onDragLeave={NOOP}
+          onDrop={NOOP}
+          template={{ busy: false, onDownload: NOOP }}
+        />,
+      ),
+      renderToStaticMarkup(
+        <BillFileSummary
+          fileName="statement.xlsx"
+          fileSize={12800}
+          formatLabel="XLSX"
+          sourceLabel="WeChat Pay statement"
+          busy={false}
+          onChange={NOOP}
+          onClear={NOOP}
+        />,
+      ),
+      renderToStaticMarkup(<BillParsingCard fileName="boa-2026-09.pdf" fileSize={2048} />),
+    ].join("\n");
+
+    expect(markup).not.toMatch(CJK);
+    expect(markup).toContain("Choose a statement file");
+    expect(markup).toContain("WeChat XLSX · Alipay CSV · Bank PDF · Libevra CSV");
+    // 模板按钮在句子中间（<Trans>），按钮本身仍是可点的 <button>。
+    expect(markup).toMatch(/Starting from scratch\? <button[^>]*>Download the Libevra CSV template<\/button> and fill/);
+    expect(markup).toContain("13 KB · XLSX · Recognized as WeChat Pay statement");
+  });
+
+  it("概览、筛选、逐笔卡片（展开编辑）、疑似重复：全部是英文，单复数正确", () => {
+    applyLocale("en-US");
+    const first = englishItem({
+      id: "01990000-0000-7000-8000-000000000031",
+      line: 3,
+      page: 2,
+      duplicateIds: ["01990000-0000-7000-8000-000000000032", "tx-old-1"],
+      tags: ["work", "trip"],
+      time: null,
+      timePrecision: "day",
+    });
+    const second = englishItem({
+      id: "01990000-0000-7000-8000-000000000032",
+      line: 4,
+      duplicateIds: ["01990000-0000-7000-8000-000000000031"],
+    });
+
+    const markup = [
+      renderToStaticMarkup(<BillSummaryPanel counts={COUNTS} selectedCount={1} readCount={5} identitySkipped={1} />),
+      renderToStaticMarkup(<BillFilterRow filter="all" counts={COUNTS} onSelect={NOOP} />),
+      renderToStaticMarkup(
+        <BillRowCard
+          item={first}
+          status="duplicate"
+          notes={["Check the transaction date."]}
+          moneyText="¥20.00"
+          categoryName="餐饮"
+          paymentName="微信"
+          expanded
+          busy={false}
+          categories={[
+            { id: "01990000-0000-7000-8000-00000000c001", name: "餐饮" },
+            { id: "01990000-0000-7000-8000-00000000c002", name: "Hobbies" },
+          ]}
+          paymentMethods={[{ id: "01990000-0000-7000-8000-00000000p001", name: "支付宝" }]}
+          onToggle={NOOP}
+          onExpand={NOOP}
+          onPatch={NOOP}
+        />,
+      ),
+      renderToStaticMarkup(
+        <BillDuplicateSection
+          groups={billDuplicateGroups([first, second])}
+          history={[{ candidateId: first.id, ids: ["tx-old-1", "tx-old-2"] }]}
+          itemsById={billItemsById({ candidates: [first, second] })}
+          moneyText={() => "¥20.00"}
+          busy={false}
+          onToggle={NOOP}
+        />,
+      ),
+    ].join("\n");
+
+    expect(markup).not.toMatch(CJK);
+    expect(markup).toContain("1 selected.");
+    expect(markup).toContain("Possible duplicates 1");
+    expect(markup).toContain('aria-label="Import Page 2 · Row 3: ¥20.00"');
+    expect(markup).toContain("2026-10-09 · Time not available");
+    // 预置名只在显示时翻译；自建分类 Hobbies 原样。
+    expect(markup).toContain("Category: Food &amp; drink · Payment method: WeChat Pay · Tags: work trip");
+    expect(markup).toContain(">Hobbies<");
+    expect(markup).toContain(">Alipay<");
+    expect(markup).toContain('Reference: <span class="font-mono">TX-9</span> · Paid');
+    expect(markup).toContain("Group 1 in this file (2 transactions)");
+    expect(markup).toContain('Existing entry IDs <span class="font-mono">tx-old-1, tx-old-2</span>');
+  });
+
+  it("底部确认条与完成页：全部是英文，单复数正确", () => {
+    applyLocale("en-US");
+    const markup = [
+      renderToStaticMarkup(
+        <BillCommitBar
+          importableCount={1}
+          selectedCount={2}
+          blockers={["Nothing is selected yet.", "Another reason", "A third reason"]}
+          needsAcknowledgement
+          acknowledged={false}
+          busy={false}
+          dirty
+          rechecking={false}
+          onAcknowledge={NOOP}
+          onConfirm={NOOP}
+          onCancel={NOOP}
+          onRecheck={NOOP}
+        />,
+      ),
+      renderToStaticMarkup(
+        <BillDoneView
+          view={doneView({
+            status: "partial",
+            imported: 1,
+            failed: 1,
+            failures: [{ line: 12, page: 3, where: "Page 3 · Row 12", message: "amount: Check the amount." }],
+          })}
+          fileRef="In-abc"
+          exportedFileRef={null}
+          targetLabel="Household (00000001)"
+          doneLabel="Back to entries"
+          busy={false}
+          onDone={NOOP}
+          onAgain={NOOP}
+          onRetry={NOOP}
+        />,
+      ),
+    ].join("\n");
+
+    expect(markup).not.toMatch(CJK);
+    expect(markup).toContain('<strong class="font-semibold">1</strong> ready to import');
+    expect(markup).toContain('ready to import<span class="text-muted"> (2 selected)</span>');
+    expect(markup).toContain("Import 1 entry");
+    expect(markup).toContain("2 more reasons");
+    expect(markup).toContain("Check duplicates again");
+    expect(markup).toContain("Partly imported");
+    expect(markup).toContain("Added to “Household (00000001)”");
+    expect(markup).toContain("8 entries");
+    expect(markup).toContain("1 entry");
+    expect(markup).toContain("Skipped rows: Row 3, Row 7. These were already imported");
+  });
+
+  it("切回中文后立即恢复中文原文（键结构与中文文案未变）", () => {
+    applyLocale("en-US");
+    renderToStaticMarkup(<BillFilterRow filter="all" counts={COUNTS} onSelect={NOOP} />);
+    applyLocale("zh-CN");
+    const markup = renderToStaticMarkup(<BillFilterRow filter="all" counts={COUNTS} onSelect={NOOP} />);
+    expect(markup).toContain("全部 5");
+    expect(markup).toContain('aria-label="按状态筛选"');
   });
 });

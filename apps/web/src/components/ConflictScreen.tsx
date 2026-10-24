@@ -2,8 +2,11 @@ import type { Transaction } from "@libellum/shared";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "./Button.js";
+import { t, useI18n } from "../i18n/index.js";
+import { ApiRequestError, errorMessage } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
-import { mergeEntries, type AutomaticPick, type MergeField } from "../lib/offline/merge.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
+import { fieldLabel, mergeEntries, type AutomaticPick, type MergeField } from "../lib/offline/merge.js";
 import { applyConflictChoices, conflictQuestions } from "../lib/offline/conflictChoices.js";
 import { logOffline } from "../lib/offline/diagnostics.js";
 import type { ConflictRecord } from "../lib/offline/localLedger.js";
@@ -50,13 +53,18 @@ interface Names {
   readonly tags?: readonly { readonly id: string; readonly name: string }[] | undefined;
 }
 
-/** How a value is shown. Amounts are money, ids become names, everything else prints itself. */
+/**
+ * How a value is shown. Amounts are money, ids become names, everything else prints itself.
+ *
+ * S16: only the words *around* the data are translated (`（空）`, 收入/支出). Notes and user-made names print as
+ * stored; preset category / payment-method names go through the display helpers, which leave renamed ones alone.
+ */
 function describe(field: MergeField, value: unknown, names: Names = {}): string {
   if (field === "amountCents") return formatMoney(Number(value), "CNY");
 
-  if (field === "kind") return value === "income" ? "收入" : "支出";
+  if (field === "kind") return value === "income" ? t("common.kind.income") : t("common.kind.expense");
 
-  if (field === "note") return value === null || value === "" ? "（空）" : String(value);
+  if (field === "note") return value === null || value === "" ? t("offline.conflict.empty") : String(value);
 
   if (field === "currency") return String(value);
 
@@ -68,35 +76,44 @@ function describe(field: MergeField, value: unknown, names: Names = {}): string 
    * list, **rather than showing an empty choice or inventing a label.**
    */
   if (field === "categoryId") {
-    return names.categories?.find((item) => item.id === value)?.name ?? String(value);
+    const name = names.categories?.find((item) => item.id === value)?.name;
+    return name === undefined ? String(value) : displayCategoryName(name);
   }
 
   if (field === "paymentMethodId") {
-    if (value === null) return "（无）";
+    if (value === null) return t("offline.conflict.none");
 
-    return names.paymentMethods?.find((item) => item.id === value)?.name ?? String(value);
+    const name = names.paymentMethods?.find((item) => item.id === value)?.name;
+    return name === undefined ? String(value) : displayPaymentMethodName(name);
   }
 
   if (field === "tags") {
     const ids = Array.isArray(value) ? (value as string[]) : [];
 
-    if (ids.length === 0) return "（无标签）";
+    if (ids.length === 0) return t("offline.conflict.noTags");
 
-    return ids.map((id) => names.tags?.find((item) => item.id === id)?.name ?? id).join("、");
+    return ids
+      .map((id) => names.tags?.find((item) => item.id === id)?.name ?? id)
+      .join(t("offline.conflict.tagSeparator"));
   }
 
-  return value === null || value === undefined ? "（空）" : String(value);
+  return value === null || value === undefined ? t("offline.conflict.empty") : String(value);
 }
 
 /** The side a field came from, in words. */
 function sideLabel(from: "mine" | "theirs"): string {
-  return from === "mine" ? "用你的" : "用服务器上的";
+  return from === "mine" ? t("offline.conflict.fromMine") : t("offline.conflict.fromTheirs");
 }
 
 export function ConflictScreen({ conflict, onResolve, onLater, categories, paymentMethods, tags }: ConflictScreenProps): React.JSX.Element {
+  /**
+   * ⚠️ S16：`locale` 在依赖里——合并结果与问题里带着字段名、选项名，切换语言后要重新生成。
+   * 合并本身（哪个字段取哪一边）与语言无关，重新计算得到的是同一个结果。
+   */
+  const { locale } = useI18n();
   const merged = useMemo(
     () => mergeEntries(conflict.base, conflict.mine, conflict.theirs),
-    [conflict.base, conflict.mine, conflict.theirs],
+    [conflict.base, conflict.mine, conflict.theirs, locale],
   );
 
   /**
@@ -107,7 +124,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
   const [answers, setAnswers] = useState<ReadonlyMap<MergeField, unknown>>(new Map());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const questions = useMemo(() => conflictQuestions(conflict), [conflict]);
+  const questions = useMemo(() => conflictQuestions(conflict), [conflict, locale]);
   const settled = useMemo(() => applyConflictChoices(merged.merged, answers,
     { categories, paymentMethods, tags }, [conflict.mine, conflict.theirs]),
     [merged.merged, answers, categories, paymentMethods, tags, conflict.mine, conflict.theirs]);
@@ -120,9 +137,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
 
   return (
     <div className="flex flex-col gap-5 px-6 py-5">
-        <p className="text-body-relaxed text-muted">
-          不同设备提交了不同的修改。下面列出服务器保存的候选值，选择后会同步到其他设备。
-        </p>
+        <p className="text-body-relaxed text-muted">{t("offline.conflict.intro")}</p>
 
         {/*
           ⚠️ **The automatic part is shown first, before any question is asked.**
@@ -134,7 +149,9 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
         */}
         {merged.automatic.length > 0 ? (
           <section className="flex flex-col gap-2">
-            <h2 className="text-helper text-muted">已经自动合好的地方（{merged.automatic.length} 处）</h2>
+            <h2 className="text-helper text-muted">
+              {t("offline.conflict.autoTitle", { count: merged.automatic.length })}
+            </h2>
 
             <ul className="overflow-hidden rounded-card border border-line bg-surface">
               {merged.automatic.map((pick: AutomaticPick) => (
@@ -142,26 +159,27 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
                   key={pick.field}
                   className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-2.5 text-sm last:border-b-0"
                 >
-                  <span className="text-muted">{pick.label}</span>
-                  <span className="text-right">
+                  <span className="shrink-0 text-muted">{fieldLabel(pick.field)}</span>
+                  <span className="min-w-0 text-right [overflow-wrap:anywhere]">
                     <span className="text-ink">{describe(pick.field, pick.value, { categories, paymentMethods, tags })}</span>
                     {/*
                       ⚠️ **Which side it came from is the point.** "金额 → ¥25.00" without "用你的" leaves the user
                       unable to tell whether their edit survived — **and that question is the whole reason this
                       list exists.**
                     */}
-                    <span className="ml-2 text-helper text-muted">{sideLabel(pick.from)}</span>
+                    {/* 来源说明作为一个整体换行（英文 “Kept the server’s” 不拆成两行）。 */}
+                    <span className="ml-2 inline-block whitespace-nowrap text-helper text-muted">{sideLabel(pick.from)}</span>
                   </span>
                 </li>
               ))}
             </ul>
           </section>
         ) : (
-          <p className="text-helper text-muted">没有需要自动合并的字段。</p>
+          <p className="text-helper text-muted">{t("offline.conflict.noAuto")}</p>
         )}
 
         <section className="flex flex-col gap-2">
-          <h2 className="text-helper text-muted">需要你选的地方（{questions.length} 处）</h2>
+          <h2 className="text-helper text-muted">{t("offline.conflict.questionsTitle", { count: questions.length })}</h2>
 
           {questions.map((field) => {
             const chosen = answers.get(field.field);
@@ -169,7 +187,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
 
             return (
               <div key={field.field} className="rounded-card border border-line bg-surface px-4 py-3">
-                <p className="text-body text-ink">{field.label}</p>
+                <p className="text-body text-ink">{fieldLabel(field.field)}</p>
 
                 <div className="mt-2 flex flex-col gap-2">
                   {options.map((option, index) => (
@@ -189,8 +207,12 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
                           : "border-line bg-canvas text-muted hover:border-brand"
                       }`}
                     >
-                      <span className="text-xs">{option.label}</span>
-                      <span className={answers.has(field.field) && JSON.stringify(chosen) === JSON.stringify(option.value) ? "text-ink" : ""}>
+                      <span className="shrink-0 text-xs">{option.label}</span>
+                      <span
+                        className={`min-w-0 text-right [overflow-wrap:anywhere] ${
+                          answers.has(field.field) && JSON.stringify(chosen) === JSON.stringify(option.value) ? "text-ink" : ""
+                        }`}
+                      >
                         {describe(field.field, option.value, { categories, paymentMethods, tags })}
                       </span>
                     </button>
@@ -202,7 +224,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
                   value, and the user is told so instead of discovering it in the result.
                 */}
                 {chosen === undefined ? (
-                  <p className="mt-2 text-helper text-muted">选一个；不选就先用服务器上的。</p>
+                  <p className="mt-2 text-helper text-muted">{t("offline.conflict.defaultHint")}</p>
                 ) : null}
               </div>
             );
@@ -210,19 +232,33 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
         </section>
 
         <section className="flex flex-col gap-2">
-          {questions.length === 0 ? <p className="text-body text-muted">当前没有不同的候选值。保存将采用服务器值并关闭遗留冲突。</p> : null}
+          {questions.length === 0 ? <p className="text-body text-muted">{t("offline.conflict.noQuestions")}</p> : null}
           {error !== null ? <p role="alert" className="text-sm">{error}</p> : null}
           <Button
             disabled={unanswered > 0 || saving}
             onClick={() => {
               setSaving(true);
               setError(null);
+              /**
+               * 失败原因来自 `resolveConflict`（`lib/offline/write.ts`），抛出时已按当前语言生成；
+               * 服务器错误按错误码本地化（`errorMessage`），其它异常没有可读原因时给通用说明。
+               */
               void Promise.resolve().then(() => onResolve(settled)).catch((cause: unknown) => {
-                setError(cause instanceof Error ? cause.message : "保存失败，请重试。");
+                setError(
+                  cause instanceof ApiRequestError
+                    ? errorMessage(cause)
+                    : cause instanceof Error
+                      ? cause.message
+                      : t("offline.conflict.saveFailed"),
+                );
               }).finally(() => setSaving(false));
             }}
           >
-            {saving ? "正在保存…" : unanswered > 0 ? `还有 ${String(unanswered)} 处没选` : "用这个结果保存"}
+            {saving
+              ? t("offline.conflict.saving")
+              : unanswered > 0
+                ? t("offline.conflict.unanswered", { count: unanswered })
+                : t("offline.conflict.save")}
           </Button>
 
           <Button
@@ -231,13 +267,10 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
               onLater();
             }}
           >
-            稍后再处理
+            {t("offline.conflict.later")}
           </Button>
 
-          <p className="text-helper-relaxed text-muted">
-            保存后这笔记账会按上面的结果重新送到服务器。
-            「稍后再处理」不会丢东西——两份都留着，下次打开还会问你。
-          </p>
+          <p className="text-helper-relaxed text-muted">{t("offline.conflict.footer")}</p>
       </section>
     </div>
   );

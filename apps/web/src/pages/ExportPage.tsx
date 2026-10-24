@@ -6,9 +6,11 @@ import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { currentMonth, formatMonthLabel, shiftMonth } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
+import { displayCategoryName } from "../lib/presetNames.js";
 import { fetchExport, fetchTemplate, useLedger, useLedgerMeta } from "../lib/queries.js";
 import { canShareFiles, deliverFile } from "../lib/share.js";
 
@@ -38,25 +40,24 @@ import { canShareFiles, deliverFile } from "../lib/share.js";
  * 但也可以从明细页的工具按钮直接进来（`/export`）。两条入口的父级都是固定的：
  * `/books/:bookId/settings/export` → 账本设置，`/export` → 明细。**用历史会让「设置 ⇄ 导出」
  * 互相指回去**——设置 → 导出 → 返回（设置）→ 返回（导出）——所以两条入口都声明父级模式。
+ *
+ * ⚠️ **S16 国际化：只翻译这一页的界面，导出的文件不随语言变化。** 文件内容（表头、列顺序、日期与
+ * 金额格式）由服务器生成，请求里不带界面语言；文件名由 `lib/queries.ts` 按固定规则生成。
+ * 切换语言前后导出的文件逐字节一致（见 `ExportPage.locale.test.ts`）。
  */
 
 type RangePreset = "all" | "thisMonth" | "lastMonth" | "last3" | "custom";
 
-const RANGE_LABELS: Record<Exclude<RangePreset, "custom">, string> = {
-  all: "全部",
-  thisMonth: "本月",
-  lastMonth: "上月",
-  last3: "近三个月",
-};
+/** 快捷范围按钮的顺序；文字在渲染时取 `dataio.export.range.<id>`。 */
+const RANGE_PRESETS: readonly Exclude<RangePreset, "custom">[] = ["all", "thisMonth", "lastMonth", "last3"];
 
-/**
- * The sentence the current-ledger entry and 账本设置's export entry share.
+/*
+ * The sentence the current-ledger entry and 账本设置's export entry share (`dataio.export.hint`).
  *
  * ⚠️ S16-A: it now sits under the 导出 button (what happens to the file), not under the title. Its old
  * first half, 「选择要导出的范围与格式。」, only described the form directly below it, and with the
  * ledger name in front it made the header four lines tall at 390px.
  */
-const EXPORT_HINT = "导出的文件会带一个编号，日后可以对照。";
 
 function rangeForPreset(preset: RangePreset, customFrom: string, customTo: string): {
   monthFrom?: string;
@@ -114,10 +115,16 @@ function ExportForCurrentLedger(): React.JSX.Element {
 
 function ExportForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
   const meta = useLedgerMeta(bookId);
+  const { t } = useI18n();
 
   const name = meta.data?.book.name ?? null;
   const bookNumber = meta.data?.book.bookNumber ?? null;
-  const label = name === null ? "正在读取账本……" : bookNumber === null ? name : `${name}（${bookNumber}）`;
+  const label =
+    name === null
+      ? t("dataio.common.readingBook")
+      : bookNumber === null
+        ? name
+        : t("dataio.common.bookLabel", { name, number: bookNumber });
 
   return (
     /**
@@ -129,7 +136,7 @@ function ExportForBook({ bookId }: { readonly bookId: string }): React.JSX.Eleme
       categories={meta.data?.categories ?? []}
       loading={meta.isLoading}
       backTo={`/books/${bookId}/settings`}
-      subtitle={`正在导出「${label}」`}
+      subtitle={t("dataio.export.subtitle", { label })}
       importTo={`/books/${bookId}/settings/import`}
       bookId={bookId}
       failure={meta.isError ? errorMessage(meta.error) : null}
@@ -158,6 +165,7 @@ function ExportView({
 }): React.JSX.Element {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, locale } = useI18n();
 
   const [format, setFormat] = useState<ExportFormat>("csv");
   const [range, setRange] = useState<RangePreset>("all");
@@ -186,10 +194,9 @@ function ExportView({
   const deliveryHint = useMemo(() => {
     // A throwaway file of the same shape: `canShare` only inspects the file.
     const probe = new File([new Uint8Array(1)], "probe.csv", { type: "text/csv" });
-    return canShareFiles(probe)
-      ? "导出后会打开系统分享菜单，可存到「文件」、用 AirDrop 发送或发给其他应用。"
-      : "导出后文件会直接下载到本机。";
-  }, []);
+    return canShareFiles(probe) ? t("dataio.export.deliveryShare") : t("dataio.export.deliveryDownload");
+    // `locale`：切换语言后重新取文案（`t` 本身不变）。
+  }, [locale, t]);
 
   async function run(): Promise<void> {
     setBusy(true);
@@ -213,14 +220,14 @@ function ExportView({
       const outcome = await deliverFile(file.fileName, file.mimeType, file.bytes);
 
       if (outcome.cancelled) {
-        setDone("已取消。文件没有导出。");
+        setDone(t("dataio.export.cancelled"));
         return;
       }
 
       setDone(
         outcome.method === "share"
-          ? `已导出 ${String(file.rowCount)} 条记录（${file.fileRef}），并打开分享菜单。`
-          : `已导出 ${String(file.rowCount)} 条记录（${file.fileRef}），文件已下载。`,
+          ? t("dataio.export.doneShare", { count: file.rowCount, ref: file.fileRef })
+          : t("dataio.export.doneDownload", { count: file.rowCount, ref: file.fileRef }),
       );
     } catch (caught) {
       setError(errorMessage(caught));
@@ -237,7 +244,7 @@ function ExportView({
     try {
       const file = await fetchTemplate(bookId);
       const outcome = await deliverFile(file.fileName, file.mimeType, file.bytes);
-      if (!outcome.cancelled) setDone("模板已导出，可在表头下逐行填写。");
+      if (!outcome.cancelled) setDone(t("dataio.export.templateDone"));
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -246,17 +253,17 @@ function ExportView({
   }
 
   return (
-    <InnerPage title="导出账目" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
+    <InnerPage title={t("dataio.export.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
       {error === null ? null : <Alert>{error}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
       {done === null ? null : <Alert tone="success">{done}</Alert>}
 
       {/* ------------------------------------------------------------------ */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-section-title text-ink">时间范围</h2>
+        <h2 className="text-section-title text-ink">{t("dataio.export.range.title")}</h2>
 
         <div className="grid grid-cols-2 gap-2">
-          {(Object.keys(RANGE_LABELS) as Exclude<RangePreset, "custom">[]).map((preset) => (
+          {RANGE_PRESETS.map((preset) => (
             <button
               key={preset}
               type="button"
@@ -268,7 +275,7 @@ function ExportView({
                 range === preset ? "bg-brand text-on-brand" : "bg-brand-soft text-brand-dark"
               }`}
             >
-              {RANGE_LABELS[preset]}
+              {t(`dataio.export.range.${preset}`)}
             </button>
           ))}
 
@@ -282,14 +289,14 @@ function ExportView({
               range === "custom" ? "bg-brand text-on-brand" : "bg-brand-soft text-brand-dark"
             }`}
           >
-            自定义月份
+            {t("dataio.export.range.custom")}
           </button>
         </div>
 
         {range === "custom" ? (
           <div className="flex items-center gap-3">
-            <label className="flex-1">
-              <span className="sr-only">起始月份</span>
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">{t("dataio.export.range.from")}</span>
               <input
                 type="month"
                 value={customFrom}
@@ -299,9 +306,9 @@ function ExportView({
                 className="w-full rounded-field border border-line bg-surface px-3 py-3 text-[16px] text-ink"
               />
             </label>
-            <span className="text-body text-muted">至</span>
-            <label className="flex-1">
-              <span className="sr-only">结束月份</span>
+            <span className="shrink-0 text-body text-muted">{t("dataio.export.range.between")}</span>
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">{t("dataio.export.range.to")}</span>
               <input
                 type="month"
                 value={customTo}
@@ -315,23 +322,30 @@ function ExportView({
         ) : null}
 
         <p className="text-helper-relaxed text-muted">
-          当前选择：{range === "custom"
-            ? `${formatMonthLabel(customFrom)} 至 ${formatMonthLabel(customTo)}`
-            : range === "all"
-              ? "全部记录"
-              : RANGE_LABELS[range]}
+          {t("dataio.export.range.current", {
+            value:
+              range === "custom"
+                ? t("dataio.export.range.customValue", {
+                    from: formatMonthLabel(customFrom),
+                    to: formatMonthLabel(customTo),
+                  })
+                : range === "all"
+                  ? t("dataio.export.range.allRecords")
+                  : t(`dataio.export.range.${range}`),
+          })}
         </p>
       </section>
 
       {/* ------------------------------------------------------------------ */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-section-title text-ink">文件格式</h2>
+        <h2 className="text-section-title text-ink">{t("dataio.export.format.title")}</h2>
 
         <div className="grid grid-cols-2 gap-2">
+          {/* 「CSV」「Excel」是格式名，不翻译；说明文字随语言。 */}
           {(
             [
-              ["csv", "CSV", "任何表格软件都能打开，导入也用这个格式"],
-              ["xlsx", "Excel", "Excel / WPS 可直接打开，金额是数字可求和"],
+              ["csv", "CSV", t("dataio.export.format.csvHint")],
+              ["xlsx", "Excel", t("dataio.export.format.xlsxHint")],
             ] as const
           ).map(([value, label, hint]) => (
             <button
@@ -341,7 +355,7 @@ function ExportView({
               onClick={() => {
                 setFormat(value);
               }}
-              className={`flex flex-col items-start gap-1 rounded-field px-4 py-3 text-left transition ${
+              className={`flex min-w-0 flex-col items-start gap-1 rounded-field px-4 py-3 text-left transition ${
                 format === value ? "bg-brand text-on-brand" : "bg-brand-soft text-brand-dark"
               }`}
             >
@@ -356,10 +370,10 @@ function ExportView({
 
       {/* ------------------------------------------------------------------ */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-section-title text-ink">筛选（可不选）</h2>
+        <h2 className="text-section-title text-ink">{t("dataio.export.filters.title")}</h2>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-body text-ink">收支类型</span>
+          <span className="text-body text-ink">{t("dataio.export.filters.kind")}</span>
           <select
             value={kind}
             onChange={(event) => {
@@ -367,14 +381,14 @@ function ExportView({
             }}
             className="rounded-field border border-line bg-surface px-3 py-3 text-[16px] text-ink"
           >
-            <option value="all">支出和收入</option>
-            <option value="expense">只看支出</option>
-            <option value="income">只看收入</option>
+            <option value="all">{t("dataio.export.filters.kindAll")}</option>
+            <option value="expense">{t("dataio.export.filters.kindExpense")}</option>
+            <option value="income">{t("dataio.export.filters.kindIncome")}</option>
           </select>
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-body text-ink">币种</span>
+          <span className="text-body text-ink">{t("dataio.export.filters.currency")}</span>
           <select
             value={currency}
             onChange={(event) => {
@@ -382,17 +396,17 @@ function ExportView({
             }}
             className="rounded-field border border-line bg-surface px-3 py-3 text-[16px] text-ink"
           >
-            <option value="all">全部币种</option>
+            <option value="all">{t("dataio.export.filters.currencyAll")}</option>
             {CURRENCIES.map((code) => (
               <option key={code} value={code}>
-                {currencyName(code)}（{code}）
+                {t("dataio.export.filters.currencyOption", { name: currencyName(code), code })}
               </option>
             ))}
           </select>
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-body text-ink">分类</span>
+          <span className="text-body text-ink">{t("dataio.export.filters.category")}</span>
           <select
             value={categoryId}
             onChange={(event) => {
@@ -400,10 +414,12 @@ function ExportView({
             }}
             className="rounded-field border border-line bg-surface px-3 py-3 text-[16px] text-ink"
           >
-            <option value="all">全部分类</option>
+            <option value="all">{t("dataio.export.filters.categoryAll")}</option>
+            {/* 预置分类只在显示时翻译；筛选提交的是 id，导出文件里仍是原名。 */}
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
-                {category.kind === "expense" ? "支出" : "收入"} · {category.name}
+                {category.kind === "expense" ? t("common.kind.expense") : t("common.kind.income")} ·{" "}
+                {displayCategoryName(category.name)}
               </option>
             ))}
           </select>
@@ -422,12 +438,11 @@ function ExportView({
            */
           disabled={busy || loading || failure !== null}
         >
-          {busy ? "正在准备…" : "导出"}
+          {busy ? t("dataio.export.preparing") : t("dataio.export.run")}
         </Button>
 
         <p className="text-helper-relaxed text-muted">
-          {EXPORT_HINT}
-          {deliveryHint}
+          {t("dataio.export.hintWithDelivery", { hint: t("dataio.export.hint"), delivery: deliveryHint })}
         </p>
 
         <Button
@@ -437,11 +452,9 @@ function ExportView({
           }}
           disabled={busy}
         >
-          下载导入模板
+          {t("dataio.export.template")}
         </Button>
-        <p className="text-helper-relaxed text-muted">
-          模板只有表头，没有数据。它和导出的文件是同一套列，可以在里面逐行填写。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("dataio.export.templateHint")}</p>
 
         <Button
           variant="ghost"
@@ -449,7 +462,7 @@ function ExportView({
             void navigate(importTo);
           }}
         >
-          导入历史账 →
+          {t("dataio.export.importLink")}
         </Button>
       </section>
 
@@ -471,7 +484,7 @@ function ExportView({
       */}
 
       <p className="text-helper-relaxed text-muted">
-        导出默认币种：{currencyName(user?.defaultCurrency ?? "CNY")}。不同币种分开统计，不做汇率换算。
+        {t("dataio.export.currencyNote", { currency: currencyName(user?.defaultCurrency ?? "CNY") })}
       </p>
     </InnerPage>
   );

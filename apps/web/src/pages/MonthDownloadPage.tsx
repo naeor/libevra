@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { useI18n } from "../i18n/index.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import {
   bytesForMonth,
@@ -40,6 +41,7 @@ export function MonthDownloadPage(): React.JSX.Element {
   const { month = "" } = useParams<{ month: string }>();
   const queryClient = useQueryClient();
   const { fill } = useOfflineFillStatus();
+  const { t } = useI18n();
 
   const [stored, setStored] = useState(false);
   const [entryCount, setEntryCount] = useState(0);
@@ -49,7 +51,8 @@ export function MonthDownloadPage(): React.JSX.Element {
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /** 只有一种错误：读本机数据失败。存原因而不是句子，文字随当前语言显示。 */
+  const [error, setError] = useState<"read" | null>(null);
 
   const load = useCallback(async () => {
     if (month === "") return;
@@ -70,7 +73,7 @@ export function MonthDownloadPage(): React.JSX.Element {
       setNever(neverList.includes(month));
       setUsage(report.usageBytes);
     } catch {
-      setError("读取本机数据时出错了。");
+      setError("read");
     } finally {
       setLoading(false);
     }
@@ -88,8 +91,8 @@ export function MonthDownloadPage(): React.JSX.Element {
   const running = fill?.running ?? false;
 
   return (
-    <InnerPage title={label} subtitle="这一个月的离线保存设置。" backTo="/downloads">
-      {error === null ? null : <Alert tone="error">{error}</Alert>}
+    <InnerPage title={label} subtitle={t("offline.month.subtitle")} backTo="/downloads">
+      {error === null ? null : <Alert tone="error">{t("offline.downloads.readError")}</Alert>}
 
       {/*
         ⚠️ **The "will not be kept" warning lives here now**, not on every screen.
@@ -100,36 +103,32 @@ export function MonthDownloadPage(): React.JSX.Element {
         fact about *storage*, so it belongs on the screens about storage, which are
         the two the user opens on purpose.
       */}
-      {persisted === false ? (
-        <Alert tone="info">
-          ⚠️ 浏览器没有承诺长期保留这些数据，长期不使用可能被清除。保持在 Wi-Fi
-          下打开应用可以让它继续保留。
-        </Alert>
-      ) : null}
+      {persisted === false ? <Alert tone="info">{t("offline.downloads.notPersisted")}</Alert> : null}
 
+      {/* 标签 + 值：标签 `min-w-0` 可换行，值不换行（英文标签更长）。 */}
       <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-4 text-sm">
-        <div className="flex items-baseline justify-between">
-          <span className="text-muted">当前状态</span>
-          <span className="text-ink">
-            {loading ? "读取中…" : stored ? "已下载" : "未下载"}
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 text-muted">{t("offline.month.status")}</span>
+          <span className="shrink-0 text-ink">
+            {loading ? t("offline.month.loading") : stored ? t("offline.month.stored") : t("offline.month.missing")}
           </span>
         </div>
 
-        <div className="flex items-baseline justify-between">
-          <span className="text-muted">这个月的记录</span>
-          <span className="text-ink">{loading ? "…" : `${String(entryCount)} 笔`}</span>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 text-muted">{t("offline.month.entries")}</span>
+          <span className="shrink-0 text-ink">{loading ? "…" : t("common.count.entries", { count: entryCount })}</span>
         </div>
 
-        <div className="flex items-baseline justify-between">
-          <span className="text-muted">占用空间</span>
-          <span className="text-ink">
-            {loading ? "…" : stored ? formatBytes(bytes) : `预计 ${formatBytes(bytes)}`}
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 text-muted">{t("offline.month.size")}</span>
+          <span className="shrink-0 text-ink">
+            {loading ? "…" : stored ? formatBytes(bytes) : t("offline.month.estimate", { size: formatBytes(bytes) })}
           </span>
         </div>
 
-        <div className="flex items-baseline justify-between">
-          <span className="text-muted">本机共占用</span>
-          <span className="text-ink">{usage === null ? "…" : formatBytes(usage)}</span>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 text-muted">{t("offline.month.deviceTotal")}</span>
+          <span className="shrink-0 text-ink">{usage === null ? "…" : formatBytes(usage)}</span>
         </div>
       </section>
 
@@ -137,8 +136,9 @@ export function MonthDownloadPage(): React.JSX.Element {
         The toggle, built like the spending/income switch: a label on the left, two
         buttons on the right, one of them already chosen.
       */}
-      <section className="flex items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3">
-        <span className="text-body text-ink">联网时自动下载</span>
+      {/* `flex-wrap`：窄屏（尤其英文）放不下时，两个按钮换到标题下一行，而不是把标题挤成一列。 */}
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3">
+        <span className="min-w-0 text-body text-ink">{t("offline.month.autoTitle")}</span>
 
         <span className="flex shrink-0 gap-2">
           {([true, false] as const).map((auto) => (
@@ -155,16 +155,14 @@ export function MonthDownloadPage(): React.JSX.Element {
                 !never === auto ? "bg-brand text-on-brand" : "bg-canvas text-muted"
               }`}
             >
-              {auto ? "自动下载" : "永不下载"}
+              {auto ? t("offline.month.auto") : t("offline.month.never")}
             </button>
           ))}
         </span>
       </section>
 
       <p className="text-helper-relaxed text-muted">
-        {never
-          ? "这个月不会被自动取回。想离线看它的时候，改回「自动下载」再点下面的按钮即可。"
-          : "联网时应用会自动把这个月取回到本机，离线时也能查看。"}
+        {never ? t("offline.month.neverHint") : t("offline.month.autoHint")}
       </p>
 
       <section className="flex flex-col gap-2">
@@ -181,7 +179,7 @@ export function MonthDownloadPage(): React.JSX.Element {
                 });
             }}
           >
-            {working ? "正在删除…" : "删除这个月已下载的数据"}
+            {working ? t("offline.month.deleting") : t("offline.month.delete")}
           </Button>
         ) : (
           <Button
@@ -204,14 +202,12 @@ export function MonthDownloadPage(): React.JSX.Element {
                 });
             }}
           >
-            {running ? "正在下载…" : "下载当月数据"}
+            {running ? t("offline.month.downloading") : t("offline.month.download")}
           </Button>
         )}
 
         <p className="text-helper-relaxed text-muted">
-          {stored
-            ? "删除后空间会真正释放。如果这个月还是「自动下载」，下次联网时它会自己回来——不想让它回来，就先改成「永不下载」。"
-            : "下载这个月之后，即使没有网络也能翻看它的每一笔。"}
+          {stored ? t("offline.month.deleteHint") : t("offline.month.downloadHint")}
         </p>
       </section>
 
@@ -220,7 +216,7 @@ export function MonthDownloadPage(): React.JSX.Element {
         onClick={() => void navigate("/downloads")}
         className="text-helper text-muted underline"
       >
-        返回下载管理
+        {t("offline.month.back")}
       </button>
     </InnerPage>
   );

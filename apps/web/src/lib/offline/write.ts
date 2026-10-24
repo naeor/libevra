@@ -1,5 +1,6 @@
 import type { CreateTransactionInput, Transaction, UpdateTransactionInput } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import { ApiRequestError, apiFetch } from "../api.js";
 import { publishGuestSnapshot } from "../guest/bridge.js";
 import {
@@ -62,7 +63,8 @@ export class SharedLedgerOfflineReadOnlyError extends Error {
   readonly code = "shared_ledger_offline_read_only";
 
   constructor() {
-    super("当前离线，共享账本暂时只能查看。恢复网络后可以继续修改。");
+    // 文字在抛出时按当前界面语言生成；判断用的是 `code`，不是这句话。
+    super(t("offline.write.sharedReadOnly"));
     this.name = "SharedLedgerOfflineReadOnlyError";
   }
 }
@@ -318,7 +320,7 @@ export async function createEntry(input: CreateTransactionInput, entry: Transact
   await afterWrite();
 
   if (isAccountOffline()) {
-    await logOffline("DIAGNOSTIC:write-local", `新建 ${entry.id.slice(0, 8)}（离线）`);
+    await logOffline("DIAGNOSTIC:write-local", `新建 ${entry.id.slice(0, 8)}（离线）`); // i18n-ignore：诊断日志（存本机，给开发者看）
 
     return { entry, pending: true };
   }
@@ -416,7 +418,7 @@ export async function updateEntry(
   await afterWrite();
 
   if (isAccountOffline()) {
-    await logOffline("DIAGNOSTIC:write-local", `修改 ${id.slice(0, 8)}（离线）`);
+    await logOffline("DIAGNOSTIC:write-local", `修改 ${id.slice(0, 8)}（离线）`); // i18n-ignore：诊断日志
 
     return { entry: next, pending: true };
   }
@@ -476,7 +478,7 @@ export async function deleteEntry(id: string): Promise<void> {
   await afterWrite();
 
   if (isAccountOffline()) {
-    await logOffline("DIAGNOSTIC:write-local", `删除 ${id.slice(0, 8)}（离线）`);
+    await logOffline("DIAGNOSTIC:write-local", `删除 ${id.slice(0, 8)}（离线）`); // i18n-ignore：诊断日志
 
     return;
   }
@@ -552,7 +554,7 @@ export async function resolveConflict(
   });
   await afterWrite();
 
-  await logOffline("DIAGNOSTIC:conflict-settled", `用户选定 ${id.slice(0, 8)}（本地已生效）`);
+  await logOffline("DIAGNOSTIC:conflict-settled", `用户选定 ${id.slice(0, 8)}（本地已生效）`); // i18n-ignore：诊断日志
 
   /**
    * ⚠️ **Then the server is told, and a failure is reported rather than swallowed.**
@@ -563,7 +565,7 @@ export async function resolveConflict(
   await syncAll();
   await afterWrite();
   if ((await readMarks())[id]?.pending === true) {
-    throw new Error("选择已保存在本机，但服务器尚未确认。请保持联网后重试；诊断记录中有请求结果。");
+    throw new Error(t("offline.write.conflictUnconfirmed"));
   }
 
 }

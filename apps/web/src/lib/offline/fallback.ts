@@ -28,6 +28,7 @@
  * unhappy" is answerable from the record rather than from another round of guessing — the
  * rule the owner set out in DEVLOG §9.1.
  */
+import { t } from "../../i18n/index.js";
 import { reportReachability } from "./connectivity.js";
 import { withDeadline } from "./deadline.js";
 import { logOffline } from "./diagnostics.js";
@@ -120,7 +121,7 @@ export async function withLocalFallback<T>(options: FallbackOptions<T>): Promise
 
     await logOffline(
       `${FALLBACK_MARKER} · ${options.label}`,
-      local.timedOut ? `${detail}；⚠️ 本机读取超时` : detail,
+      local.timedOut ? `${detail}；⚠️ 本机读取超时` : detail, // i18n-ignore：诊断日志（存本机，给开发者看）
     );
 
     /**
@@ -137,7 +138,8 @@ export async function withLocalFallback<T>(options: FallbackOptions<T>): Promise
        * it does not know — "you have no entries this month" when the truth is "the device did not
        * answer". The error state says the true thing, and the log line above says which half failed.
        */
-      throw new Error(`本机数据读取超时：${options.label}`);
+      // `label` 是给开发者看的查询名（如 `transactions 2026-10`），原样带上。
+      throw new Error(t("offline.write.localReadTimeout", { label: options.label }));
     }
 
     return local.value as T;

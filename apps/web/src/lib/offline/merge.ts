@@ -1,5 +1,7 @@
 import type { Transaction } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
+
 /**
  * Working out what two copies of one entry disagree about.
  *
@@ -36,7 +38,10 @@ export type MergeField =
 /** One field the two sides disagree about, ready for the user to choose. */
 export interface FieldConflict {
   readonly field: MergeField;
-  /** The label a person reads — kept here so a second table cannot drift from this one. */
+  /**
+   * The label a person reads — kept here so a second table cannot drift from this one. Taken in the language that
+   * was current when the merge ran; a screen that outlives a language switch re-runs the merge (or calls `fieldLabel`).
+   */
   readonly label: string;
   readonly mine: unknown;
   readonly theirs: unknown;
@@ -61,16 +66,28 @@ export interface MergeResult {
   readonly conflicts: readonly FieldConflict[];
 }
 
-export const FIELD_LABELS: Record<MergeField, string> = {
-  kind: "收支",
-  amountCents: "金额",
-  currency: "币种",
-  categoryId: "分类",
-  paymentMethodId: "支付方式",
-  occurredAt: "时间",
-  note: "备注",
-  tags: "标签",
-};
+/**
+ * Every field's label **key** (`offline.field.<field>`).
+ *
+ * ⚠️ S16: keys, not text, at module level — text taken here would freeze the language the module was loaded in.
+ * `fieldLabel()` reads the current language each time it is called; the key set doubles as the list of fields a
+ * person can be asked about (see `conflictChoices.ts`).
+ */
+export const FIELD_LABELS = {
+  kind: "offline.field.kind",
+  amountCents: "offline.field.amountCents",
+  currency: "offline.field.currency",
+  categoryId: "offline.field.categoryId",
+  paymentMethodId: "offline.field.paymentMethodId",
+  occurredAt: "offline.field.occurredAt",
+  note: "offline.field.note",
+  tags: "offline.field.tags",
+} as const satisfies Record<MergeField, string>;
+
+/** The label a person reads for one field, in the current interface language. */
+export function fieldLabel(field: MergeField): string {
+  return t(FIELD_LABELS[field]);
+}
 
 /**
  * The fields compared, in the order a person reads a receipt.
@@ -138,7 +155,7 @@ export function mergeEntries(
      * work**, and the only thing worse than asking too much is deciding wrongly without asking.
      */
     if (base === null) {
-      conflicts.push({ field, label: FIELD_LABELS[field], mine: myValue, theirs: theirValue, base: null });
+      conflicts.push({ field, label: fieldLabel(field), mine: myValue, theirs: theirValue, base: null });
       continue;
     }
 
@@ -151,13 +168,13 @@ export function mergeEntries(
      * sync loses somebody else's edit — **and the user would have no way to know it happened.**
      */
     if (!iChanged && theyChanged) {
-      automatic.push({ field, label: FIELD_LABELS[field], from: "theirs", value: theirValue });
+      automatic.push({ field, label: fieldLabel(field), from: "theirs", value: theirValue });
       continue;
     }
 
     /** ⚠️ Only I changed it, so mine stands. **This is the ordinary offline edit**, and it is not a question. */
     if (iChanged && !theyChanged) {
-      automatic.push({ field, label: FIELD_LABELS[field], from: "mine", value: myValue });
+      automatic.push({ field, label: fieldLabel(field), from: "mine", value: myValue });
       values[field] = myValue;
       continue;
     }
@@ -167,7 +184,7 @@ export function mergeEntries(
      *
      * Everything above exists to keep this question to the cases where it is genuinely theirs to answer.
      */
-    conflicts.push({ field, label: FIELD_LABELS[field], mine: myValue, theirs: theirValue, base: baseValue });
+    conflicts.push({ field, label: fieldLabel(field), mine: myValue, theirs: theirValue, base: baseValue });
   }
 
   return {

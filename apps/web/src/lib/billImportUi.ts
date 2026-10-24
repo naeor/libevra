@@ -17,7 +17,15 @@ import {
   type ImportReport,
 } from "@libellum/shared";
 
+import { t } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { billRowProblem } from "./billImport.js";
+
+/**
+ * ⚠️ S16：这一层的文案都在**调用时**用 `t()` 取（页面每次渲染都会重新调用这些函数），
+ * 顶层常量只存键。服务端预览里带来的提示（`warnings`、对账说明、提交失败原因）是服务器的中文原文，
+ * 显示前经过 `translateSharedMessage` 查表：中文界面原样显示，英文界面查到译文才替换。
+ */
 
 /**
  * 文件选择框的 `accept`。
@@ -58,9 +66,12 @@ export function formatBillFileSize(bytes: number): string {
  * 反过来，服务端才是最终裁决者——它读不出表头时会返回明确的错误，前端照原样显示。
  */
 export function billFileProblem(file: { readonly name: string; readonly size: number; readonly type?: string }): string | null {
-  if (file.size <= 0) return "这个文件是空的，请换一个文件。";
+  if (file.size <= 0) return t("dataio.billFile.empty");
   if (file.size > MAX_BILL_IMPORT_BYTES) {
-    return `这个文件有 ${formatBillFileSize(file.size)}，超过 ${formatBillFileSize(MAX_BILL_IMPORT_BYTES)} 上限；请先拆分再导入。`;
+    return t("dataio.billFile.tooLarge", {
+      size: formatBillFileSize(file.size),
+      limit: formatBillFileSize(MAX_BILL_IMPORT_BYTES),
+    });
   }
 
   const name = file.name.toLowerCase();
@@ -70,19 +81,16 @@ export function billFileProblem(file: { readonly name: string; readonly size: nu
   if ((BILL_IMPORT_EXTENSIONS as readonly string[]).includes(extension)) return null;
   if (type !== "" && BILL_IMPORT_MIME_TYPES.has(type)) return null;
 
-  return "只支持 CSV、XLSX、PDF：微信账单（XLSX）、支付宝交易明细（CSV）、银行结单（PDF），以及 Libevra 自己导出的 CSV。";
+  return t("dataio.billFile.unsupported");
 }
 
 /** 逐笔卡片的展示状态。**顺序有意义**：身份重复优先于一切。 */
 export type BillRowStatus = "identity" | "duplicate" | "review" | "ready" | "excluded";
 
-export const BILL_ROW_STATUS_LABELS: Readonly<Record<BillRowStatus, string>> = {
-  identity: "来源已存在",
-  duplicate: "疑似重复",
-  review: "待核对",
-  ready: "可导入",
-  excluded: "已跳过",
-};
+/** 状态徽章的文字（显示时取当前语言）。 */
+export function billRowStatusLabel(status: BillRowStatus): string {
+  return t(`dataio.rowStatus.${status}`);
+}
 
 /** 状态徽章的颜色；与 OCR 概览的语义一致：提醒用 `warn-*`，正常用品牌色。 */
 export const BILL_ROW_STATUS_CLASSES: Readonly<Record<BillRowStatus, string>> = {
@@ -94,14 +102,8 @@ export const BILL_ROW_STATUS_CLASSES: Readonly<Record<BillRowStatus, string>> = 
 };
 
 /** 方向的字面文案；`unknown` 单独一档，因为账单里确实有“不计收支”的行。 */
-const BILL_KIND_LABELS: Readonly<Record<BillImportCandidate["kind"], string>> = {
-  income: "收入",
-  expense: "支出",
-  unknown: "方向待确认",
-};
-
 export function billDirectionLabel(kind: BillImportCandidate["kind"]): string {
-  return BILL_KIND_LABELS[kind];
+  return t(`dataio.direction.${kind}`);
 }
 
 /** 这一笔是否**真的会写进账本**：勾选了，且不是服务端已判定“来源已存在”的那一笔。 */
@@ -109,9 +111,13 @@ export function billRowSelected(item: BillImportCandidate): boolean {
   return item.selected && !item.identityDuplicate;
 }
 
-/** 逐笔问题（金额/币种/方向/日期/时间/时区），来自既有契约的 `billRowProblem`。 */
+/**
+ * 逐笔问题（金额/币种/方向/日期/时间/时区），来自既有契约的 `billRowProblem`。
+ *
+ * `item.warnings` 是服务端识别时写的中文原文，只在显示时查表翻译，不改预览数据本身。
+ */
 export function billRowWarnings(item: BillImportCandidate, problem: string | null): string[] {
-  const warnings = [...item.warnings];
+  const warnings = item.warnings.map((warning) => translateSharedMessage(warning));
   if (problem !== null) warnings.push(problem);
   return warnings;
 }
@@ -126,13 +132,18 @@ export function billRowStatus(item: BillImportCandidate, problem: string | null)
 /** 概览的五个筛选，与 OCR 概览的胶囊按钮保持一致。 */
 export type BillImportFilter = "all" | "review" | "duplicate" | "selected" | "excluded";
 
-export const BILL_IMPORT_FILTERS: readonly { readonly id: BillImportFilter; readonly label: string }[] = [
-  { id: "all", label: "全部" },
-  { id: "review", label: "待核对" },
-  { id: "duplicate", label: "疑似重复" },
-  { id: "selected", label: "已选" },
-  { id: "excluded", label: "已跳过" },
+/** 筛选按钮的顺序；文字在显示时用 `billFilterLabel()` 取。 */
+export const BILL_IMPORT_FILTERS: readonly { readonly id: BillImportFilter }[] = [
+  { id: "all" },
+  { id: "review" },
+  { id: "duplicate" },
+  { id: "selected" },
+  { id: "excluded" },
 ];
+
+export function billFilterLabel(filter: BillImportFilter): string {
+  return t(`dataio.filter.${filter}`);
+}
 
 /** 与 `billReviewCounts` 同口径，只是把“已跳过”拆出来给筛选用。 */
 export interface BillFilterCounts extends Record<BillImportFilter, number> {
@@ -207,7 +218,7 @@ export function billFilterRows(
 export interface BillDuplicateGroup {
   readonly groupId: string;
   readonly ids: readonly string[];
-  /** 展示用的中文说明；具体证据由服务端统一判重给出，这里只说“像”。 */
+  /** 展示用的说明（调用时按当前界面语言生成）；具体证据由服务端统一判重给出，这里只说“像”。 */
   readonly reason: string;
 }
 
@@ -300,7 +311,7 @@ export function billDuplicateGroups(items: readonly BillImportCandidate[]): Bill
     groups.push({
       groupId: `bill-dup-${String(groups.length + 1)}`,
       ids,
-      reason: "金额、币种、方向与时间相近（服务端统一判重）",
+      reason: t("dataio.review.duplicateReason"),
     });
   }
 
@@ -346,15 +357,15 @@ export function billCommitCheck(
 
   const blockers: string[] = [];
   if (items.length === 0) {
-    blockers.push("这个文件里没有识别到可以导入的交易，请换一个文件。");
+    blockers.push(t("dataio.review.blockerNoRows"));
   } else if (selected.length === 0) {
-    blockers.push("还没有选中要导入的记录：展开每一笔，勾选要写入的记录。");
+    blockers.push(t("dataio.review.blockerNoneSelected"));
   }
   if (problems.length > 0) {
-    blockers.push(`有 ${String(problems.length)} 笔需要先改好（金额、币种、方向或日期），卡片上写了原因。`);
+    blockers.push(t("dataio.review.blockerProblems", { count: problems.length }));
   }
   if (needsAcknowledgement && !acknowledged) {
-    blockers.push("请先勾选「我已了解上面的提示」。");
+    blockers.push(t("dataio.review.blockerAcknowledge"));
   }
 
   const importable = selected.filter((item) => (problemsById.get(item.id) ?? null) === null);
@@ -409,9 +420,12 @@ export function billReportView(
     const page = byLine.get(error.line)?.page ?? null;
     const where =
       page === null
-        ? `第 ${String(error.line)} 行`
-        : `第 ${String(page)} 页 · 第 ${String(error.line)} 行`;
-    const message = error.column === null ? error.message : `${error.column}：${error.message}`;
+        ? t("dataio.review.line", { line: error.line })
+        : t("dataio.review.pageLine", { page, line: error.line });
+    // 失败原因是服务端原文；列名（`amount`、`date`…）是服务端的稳定字段名，原样显示。
+    const reason = translateSharedMessage(error.message);
+    const message =
+      error.column === null ? reason : t("dataio.review.failureWithColumn", { column: error.column, message: reason });
     return { line: error.line, page, where, message };
   });
 
@@ -434,17 +448,18 @@ export function billReportView(
 
 /** 日期 + 时间，**精度不足时明说**，不编造 00:00 或 12:00。 */
 export function billTimeText(item: Pick<BillImportCandidate, "date" | "time" | "timePrecision">): string {
+  // 日期保持账单原样的 `YYYY-MM-DD`（与下方可编辑的日期框一致），不随语言改写。
   if (item.time === null || item.time === "" || item.timePrecision === "day") {
-    return `${item.date} · 时间信息不足`;
+    return t("dataio.review.timeUnknown", { date: item.date });
   }
   return `${item.date} ${item.time}`;
 }
 
-/** 错误/卡片定位：`第 3 页 · 第 12 行` 或 `第 12 行`。 */
+/** 错误/卡片定位：`第 3 页 · 第 12 行` 或 `第 12 行`（英文：`Page 3 · Row 12`）。 */
 export function billLocationText(item: Pick<BillImportCandidate, "line" | "page">): string {
   return item.page === undefined
-    ? `第 ${String(item.line)} 行`
-    : `第 ${String(item.page)} 页 · 第 ${String(item.line)} 行`;
+    ? t("dataio.review.line", { line: item.line })
+    : t("dataio.review.pageLine", { page: item.page, line: item.line });
 }
 
 /** `sourceRef` 有值才显示；空字符串按没有处理。 */
@@ -485,10 +500,17 @@ export function billAcknowledgementReasons(
   preview: Pick<BillImportPreview, "warnings" | "reconciliation">,
 ): readonly string[] {
   const reasons: string[] = [];
-  if (preview.warnings.length > 0) reasons.push(...preview.warnings);
+  if (preview.warnings.length > 0) reasons.push(...preview.warnings.map((warning) => translateSharedMessage(warning)));
   if (preview.reconciliation.ok === false) {
     reasons.push(
-      `对账差异：${preview.reconciliation.messages.length > 0 ? preview.reconciliation.messages.join("；") : "文件里的合计与明细对不上，请核对。"}`,
+      t("dataio.review.reconciliation", {
+        details:
+          preview.reconciliation.messages.length > 0
+            ? preview.reconciliation.messages
+                .map((message) => translateSharedMessage(message))
+                .join(t("dataio.review.reconciliationSeparator"))
+            : t("dataio.review.reconciliationFallback"),
+      }),
     );
   }
   return reasons;
@@ -502,10 +524,10 @@ export function billRowNotes(
 ): readonly string[] {
   const notes = billRowWarnings(item, problem);
   if (historyIds.length > 0) {
-    notes.push(`与账本里已有的账目相似（编号 ${historyIds.join("、")}），请核对是否已经记过。`);
+    notes.push(t("dataio.review.similarHistory", { ids: historyIds.join(t("dataio.common.listSeparator")) }));
   }
   if (item.identityDuplicate) {
-    notes.push("来源身份已存在：这一笔之前导入过，默认不写入，避免重复记账。");
+    notes.push(t("dataio.review.identityExists"));
   }
   return notes;
 }

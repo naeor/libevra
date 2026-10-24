@@ -1,4 +1,10 @@
+import { t } from "../../i18n/index.js";
 import { hasIndexedDb, listKeys, readValue } from "./storage.js";
+
+/*
+ * S16：这份报告显示在「下载管理 · 更多」的诊断文本里，固定的说明词按调用时的界面语言生成；
+ * 浏览器给的错误名与原始预览（`error`、`cachePreview`）原样保留。
+ */
 
 /**
  * What the device's own database says about itself.
@@ -62,12 +68,12 @@ export async function databaseReport(): Promise<DatabaseReport> {
     return {
       supported: false,
       opened: false,
-      error: "这个浏览器或这个模式下没有 IndexedDB",
+      error: t("offline.db.noIndexedDb"),
       keyCount: 0,
       keys: [],
       cacheBytes: 0,
       hasDatabase: false,
-      cacheKind: "(无数据库)",
+      cacheKind: t("offline.db.noDatabase"),
       cachePreview: "",
       cacheParses: false,
       cacheQueryCount: 0,
@@ -91,9 +97,9 @@ export async function databaseReport(): Promise<DatabaseReport> {
      */
     const kind =
       cached === null || cached === undefined
-        ? "(键不存在)"
+        ? t("offline.db.keyMissing")
         : typeof cached === "string"
-          ? "字符串"
+          ? t("offline.db.string")
           : typeof cached;
     const preview = typeof cached === "string" ? cached.slice(0, 80) : JSON.stringify(cached)?.slice(0, 80) ?? "";
 
@@ -137,7 +143,7 @@ export async function databaseReport(): Promise<DatabaseReport> {
       keys: [],
       cacheBytes: 0,
       hasDatabase: true,
-      cacheKind: "(打不开)",
+      cacheKind: t("offline.db.cannotOpen"),
       cachePreview: "",
       cacheParses: false,
       cacheQueryCount: 0,

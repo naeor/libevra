@@ -6,8 +6,9 @@ import {
   type BillImportPreview,
 } from "@libellum/shared";
 
-import { BILL_SOURCE_LABELS, billCommitRows, commitBill, previewBill, recheckBill } from "./billImport.js";
+import { billCommitRows, billSourceLabel, commitBill, previewBill, recheckBill } from "./billImport.js";
 import { primeBookId } from "./api.js";
+import { applyLocale } from "../i18n/index.js";
 
 /**
  * 客户端契约：请求打到哪里、带什么、如何解析响应。
@@ -99,13 +100,29 @@ afterEach(() => {
 });
 
 describe("来源名称", () => {
+  const SOURCES = ["libevra", "wechat", "alipay", "boa"] as const;
+
   it("四种来源都有中文名，界面不直接显示 libevra/wechat 这种内部值", () => {
-    expect(BILL_SOURCE_LABELS).toEqual({
+    expect(Object.fromEntries(SOURCES.map((source) => [source, billSourceLabel(source)]))).toEqual({
       libevra: "Libevra 账单",
       wechat: "微信支付账单",
       alipay: "支付宝交易明细",
       boa: "Bank of America 结单",
     });
+  });
+
+  it("S16：英文界面显示英文来源名，内部值仍不外露", () => {
+    applyLocale("en-US");
+    try {
+      expect(SOURCES.map((source) => billSourceLabel(source))).toEqual([
+        "Libevra file",
+        "WeChat Pay statement",
+        "Alipay transaction history",
+        "Bank of America statement",
+      ]);
+    } finally {
+      applyLocale("zh-CN");
+    }
   });
 });
 

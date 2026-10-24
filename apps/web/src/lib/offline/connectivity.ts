@@ -59,7 +59,7 @@ export function reportReachability(reachable: boolean, detail?: string): void {
   if (reachable) {
     if (lastRequestFailed) {
       lastRequestFailed = false;
-      void logOffline("DIAGNOSTIC:reachable", "服务器恢复响应");
+      void logOffline("DIAGNOSTIC:reachable", "服务器恢复响应"); // i18n-ignore：诊断日志（存本机，给开发者看）
       emit();
     }
 
@@ -68,7 +68,7 @@ export function reportReachability(reachable: boolean, detail?: string): void {
 
   if (!lastRequestFailed) {
     lastRequestFailed = true;
-    void logOffline("DIAGNOSTIC:unreachable", detail ?? "请求没有收到答复");
+    void logOffline("DIAGNOSTIC:unreachable", detail ?? "请求没有收到答复"); // i18n-ignore：诊断日志
     emit();
   }
 }

@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
+import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -7,9 +8,11 @@ import { Button } from "../components/Button.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { GearIcon, MoreIcon } from "../components/Icons.js";
 import { InnerPage } from "../components/Layouts.js";
+import { useI18n } from "../i18n/index.js";
 import { logOffline } from "../lib/offline/diagnostics.js";
 import {
   forgetAllMonths,
+  monthLabel,
   monthRows,
   readNeverMonths,
   storedMonthsIn,
@@ -41,11 +44,13 @@ export function DownloadManagerPage(): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { fill } = useOfflineFillStatus();
+  const { t } = useI18n();
 
   const [rows, setRows] = useState<readonly MonthRow[]>([]);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  /** 只有一种错误：读本机数据失败。存原因而不是句子，文字随当前语言显示。 */
+  const [error, setError] = useState<"read" | null>(null);
   const [confirmCellular, setConfirmCellular] = useState(false);
 
   const load = useCallback(async () => {
@@ -61,7 +66,7 @@ export function DownloadManagerPage(): React.JSX.Element {
        */
       setRows(monthRows(transactions, never, storedMonthsIn(queryClient), new Date()));
     } catch {
-      setError("读取本机数据时出错了。");
+      setError("read");
     } finally {
       setLoading(false);
     }
@@ -98,42 +103,39 @@ export function DownloadManagerPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="下载管理"
-      subtitle="这些记录存在这台设备上，离线时也能查看。"
+      title={t("offline.downloads.title")}
+      subtitle={t("offline.downloads.subtitle")}
       backTo="/me"
       actions={
         <button
           type="button"
           onClick={() => void navigate("/downloads/more")}
-          aria-label="更多"
+          aria-label={t("common.action.more")}
           className="rounded-field p-2.5 text-muted transition hover:bg-brand-soft hover:text-ink"
         >
           <MoreIcon className="size-5" />
         </button>
       }
     >
-      {error === null ? null : <Alert tone="error">{error}</Alert>}
+      {error === null ? null : <Alert tone="error">{t("offline.downloads.readError")}</Alert>}
 
-      {canStoreOffline() ? null : (
-        <Alert tone="info">这个浏览器不支持本机存储，离线时无法查看记录。</Alert>
-      )}
+      {canStoreOffline() ? null : <Alert tone="info">{t("offline.downloads.unsupported")}</Alert>}
 
-      {persisted === false ? (
-        <Alert tone="info">
-          ⚠️ 浏览器没有承诺长期保留这些数据，长期不使用可能被清除。保持在 Wi-Fi
-          下打开应用可以让它继续保留。
-        </Alert>
-      ) : null}
+      {persisted === false ? <Alert tone="info">{t("offline.downloads.notPersisted")}</Alert> : null}
 
       <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 text-sm">
         <p className="text-ink">
-          已下载 <span className="font-medium">{storedCount}</span> 个月
-          {missingCount === 0 ? "，全部月份都已下载" : `，还有 ${String(missingCount)} 个月没有下载`}
+          <Trans
+            i18nKey={missingCount === 0 ? "offline.downloads.summaryAll" : "offline.downloads.summaryMissing"}
+            count={storedCount}
+            values={{ count: storedCount, missing: missingCount }}
+            components={{ b: <span className="font-medium" /> }}
+          />
         </p>
 
         {fillRunning ? (
           <p className="text-helper text-muted">
-            正在下载（{fill?.done ?? 0}/{fill?.total ?? 0} 个月）…可以离开这一页，下载会在后台继续。
+            {t("offline.downloads.running", { done: fill?.done ?? 0, total: fill?.total ?? 0 })}
           </p>
         ) : (
           <Button
@@ -162,7 +164,7 @@ export function DownloadManagerPage(): React.JSX.Element {
             }}
             disabled={fill === null}
           >
-            下载全部
+            {t("offline.downloads.downloadAll")}
           </Button>
         )}
 
@@ -177,19 +179,19 @@ export function DownloadManagerPage(): React.JSX.Element {
              * successful and undid itself.
              */
             const cleared = forgetAllMonths(queryClient);
-            void logOffline("删除全部", `清除了 ${String(cleared)} 个月`);
+            void logOffline("删除全部", `清除了 ${String(cleared)} 个月`); // i18n-ignore：诊断日志（存本机，给开发者看）
             void load();
           }}
         >
-          删除全部已下载数据
+          {t("offline.downloads.deleteAll")}
         </Button>
       </section>
 
       <ChoiceDialog
         open={confirmCellular}
-        title="当前疑似使用流量"
-        description={`继续下载大约会用掉 ${formatBytes(estimatedBytes)} 流量。也可以连上 Wi-Fi 再下载。`}
-        choices={CELLULAR_CHOICES}
+        title={t("offline.downloads.cellularTitle")}
+        description={t("offline.downloads.cellularDescription", { size: formatBytes(estimatedBytes) })}
+        choices={cellularChoices(t)}
         onChoose={(choice) => {
           setConfirmCellular(false);
           if (choice === "download") void fill?.start(undefined, true);
@@ -197,7 +199,7 @@ export function DownloadManagerPage(): React.JSX.Element {
       />
 
       {loading ? (
-        <p className="text-body text-muted">正在读取…</p>
+        <p className="text-body text-muted">{t("common.status.reading")}</p>
       ) : (
         <ul className="flex flex-col overflow-hidden rounded-card border border-line bg-surface">
           {rows.map((row) => (
@@ -205,17 +207,18 @@ export function DownloadManagerPage(): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => void navigate(`/downloads/${row.month}`)}
-                aria-label={`${row.label}的下载设置`}
+                aria-label={t("offline.downloads.rowAria", { month: monthLabel(row.month) })}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
               >
+                {/* 月份名在渲染时按当前语言生成（`row.label` 是读取那一刻的语言）。 */}
                 <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-body text-ink">{row.label}</span>
+                  <span className="text-body text-ink">{monthLabel(row.month)}</span>
                   <span className="text-micro text-muted">
                     {row.state === "stored"
-                      ? `已下载 · ${String(row.entryCount)} 笔 · ${formatBytes(row.bytes)}`
+                      ? t("offline.downloads.rowStored", { count: row.entryCount, size: formatBytes(row.bytes) })
                       : row.state === "never"
-                        ? "永不下载"
-                        : `未下载 · 预计 ${formatBytes(row.bytes)}`}
+                        ? t("offline.downloads.rowNever")
+                        : t("offline.downloads.rowMissing", { size: formatBytes(row.bytes) })}
                   </span>
                 </span>
 
@@ -236,7 +239,15 @@ export function DownloadManagerPage(): React.JSX.Element {
  * data later — and the labels should name them. 等连上 Wi-Fi 再下载 is the dismissive option,
  * since doing nothing is what happens if the user closes the dialog.
  */
-const CELLULAR_CHOICES: readonly Choice<"download" | "wait">[] = [
-  { id: "download", label: "继续下载", hint: "现在就存到本机", primary: true },
-  { id: "wait", label: "等连上 Wi-Fi 再下载", dismissive: true },
-];
+function cellularChoices(t: ReturnType<typeof useI18n>["t"]): readonly Choice<"download" | "wait">[] {
+  // S16：渲染时生成，选项文字随当前语言；`id` 是稳定值，逻辑只看它。
+  return [
+    {
+      id: "download",
+      label: t("offline.downloads.cellularContinue"),
+      hint: t("offline.downloads.cellularContinueHint"),
+      primary: true,
+    },
+    { id: "wait", label: t("offline.downloads.cellularWait"), dismissive: true },
+  ];
+}

@@ -1,5 +1,6 @@
 import type { Transaction, TransactionListResponse } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import { ensureGuestData, guestDeletedIds, guestTransactions } from "../guest/data.js";
 import { guestRuntimeId } from "../guest/runtime.js";
 import { logOffline } from "./diagnostics.js";
@@ -227,7 +228,7 @@ export async function readLocalTransactions(): Promise<readonly Transaction[]> {
     let mine = await readStoredEntries();
 
     if (mine.length === 0) {
-      await logOffline("DIAGNOSTIC:ledger-reread", "第一次读本机存储为空，重试一次");
+      await logOffline("DIAGNOSTIC:ledger-reread", "第一次读本机存储为空，重试一次"); // i18n-ignore：诊断日志
       mine = await readStoredEntries();
     }
 
@@ -262,13 +263,14 @@ export async function readLocalTransactions(): Promise<readonly Transaction[]> {
       liveEntries: live.length,
       storedEntries: mine.length,
       total: mergedEntries.length,
-      note:
+      // S16：只记原因，文字在 `lastLocalRead()` 里按当前语言生成。
+      noteReason:
         mine.length > 0
-          ? `本机存储 ${String(mine.length)} 条`
+          ? "stored"
           : raw === null
-            ? "本机没有缓存"
+            ? "noCache"
             : fromDisk.length === 0
-              ? "缓存里没有账目"
+              ? "noEntries"
               : null,
     };
 
@@ -285,8 +287,8 @@ export async function readLocalTransactions(): Promise<readonly Transaction[]> {
      */
     await logOffline(
       "DIAGNOSTIC:local-read",
-      `磁盘 ${raw === null ? "无缓存键" : `${String(raw.length)} 字节`} → ${String(fromDisk.length)} 条；` +
-        `内存 ${String(live.length)} 条；合计 ${String(localRead.total)} 条`,
+      `磁盘 ${raw === null ? "无缓存键" : `${String(raw.length)} 字节`} → ${String(fromDisk.length)} 条；` + // i18n-ignore：诊断日志（存本机，给开发者看）
+        `内存 ${String(live.length)} 条；合计 ${String(localRead.total)} 条`, // i18n-ignore：诊断日志
     );
 
     return mergedEntries;
@@ -537,7 +539,7 @@ export async function clearAllMarks(): Promise<void> {
 
   await logOffline(
     "DIAGNOSTIC:marks-cleared",
-    hadConflict ? "用户清空印记：不再选择，以服务器为准" : "用户清空了全部待同步印记",
+    hadConflict ? "用户清空印记：不再选择，以服务器为准" : "用户清空了全部待同步印记", // i18n-ignore：诊断日志
   );
 }
 
@@ -832,7 +834,7 @@ export async function reconcileMarks(serverIds: ReadonlySet<string>): Promise<vo
   await writeOwn(ledgerMarksKey(), next);
   publishPending(pendingFromMarks(next));
 
-  await logOffline("DIAGNOSTIC:marks-reconciled", `清除 ${String(cleared)} 个已同步的标记`);
+  await logOffline("DIAGNOSTIC:marks-reconciled", `清除 ${String(cleared)} 个已同步的标记`); // i18n-ignore：诊断日志
 }
 
 /**
@@ -1011,23 +1013,59 @@ export interface LocalReadReport {
   /** Entries our own month-keyed store held. Counted apart from `diskEntries` on purpose. */
   readonly storedEntries: number;
   readonly total: number;
-  /** A plain-language reason, when there is nothing to show. */
+  /** A plain-language reason, when there is nothing to show — in the current interface language. */
   readonly note: string | null;
 }
 
-let localRead: LocalReadReport = {
+/**
+ * Why the read came out the way it did, as a stable id.
+ *
+ * ⚠️ S16: the record keeps the **reason**, not the sentence, so the sentence follows the interface language at the
+ * moment it is shown (`offline.localRead.*`). The numbers are unchanged.
+ */
+type LocalReadNoteReason = "stored" | "noCache" | "noEntries" | "notRead";
+
+interface LocalReadRecord extends Omit<LocalReadReport, "note"> {
+  readonly noteReason: LocalReadNoteReason | null;
+}
+
+let localRead: LocalReadRecord = {
   at: 0,
   diskBytes: 0,
   diskEntries: 0,
   liveEntries: 0,
   storedEntries: 0,
   total: 0,
-  note: "还没有读过本机数据",
+  noteReason: "notRead",
 };
+
+/** The sentence for a reason, in the current interface language. */
+function localReadNote(record: LocalReadRecord): string | null {
+  switch (record.noteReason) {
+    case "stored":
+      return t("offline.localRead.stored", { count: record.storedEntries });
+    case "noCache":
+      return t("offline.localRead.noCache");
+    case "noEntries":
+      return t("offline.localRead.noEntries");
+    case "notRead":
+      return t("offline.localRead.notRead");
+    case null:
+      return null;
+  }
+}
 
 /** The last local read, so a waiting screen can say what was tried. */
 export function lastLocalRead(): LocalReadReport {
-  return localRead;
+  return {
+    at: localRead.at,
+    diskBytes: localRead.diskBytes,
+    diskEntries: localRead.diskEntries,
+    liveEntries: localRead.liveEntries,
+    storedEntries: localRead.storedEntries,
+    total: localRead.total,
+    note: localReadNote(localRead),
+  };
 }
 
 /**
