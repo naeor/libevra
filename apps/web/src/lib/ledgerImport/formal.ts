@@ -15,6 +15,7 @@ import {
   type Transaction,
 } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import { apiFetch } from "../api.js";
 import type { ImportSource, ImportTarget } from "./types.js";
 
@@ -78,7 +79,8 @@ function transactionFromSource(
     amountCents: item.amountCents,
     currency: item.currency,
     categoryId: item.categoryId,
-    categoryName: categoryNames.get(item.categoryId) ?? "（未知分类）",
+    // 找不到分类时的显示占位（只用于预览显示，不参与指纹、匹配或请求）。
+    categoryName: categoryNames.get(item.categoryId) ?? t("ledgerImport.unknown.category"),
     categoryIsSystem: false,
     paymentMethodId: item.paymentMethodId,
     paymentMethodName: item.paymentMethodId === null ? null : (paymentNames.get(item.paymentMethodId) ?? null),
@@ -104,7 +106,7 @@ function transactionFromTarget(
     amountCents: item.amountCents,
     currency: item.currency,
     categoryId: item.categoryId,
-    categoryName: categoryNames.get(item.categoryId) ?? "（未知分类）",
+    categoryName: categoryNames.get(item.categoryId) ?? t("ledgerImport.unknown.category"),
     categoryIsSystem: false,
     paymentMethodId: item.paymentMethodId,
     paymentMethodName: item.paymentMethodId === null ? null : (paymentNames.get(item.paymentMethodId) ?? null),

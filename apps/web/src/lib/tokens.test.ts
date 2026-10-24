@@ -15,6 +15,35 @@ import { describe, expect, it } from "vitest";
 
 const CSS = readFileSync(join(import.meta.dirname, "..", "index.css"), "utf8");
 
+describe("S16-B3 R3-A 深色正式映射", () => {
+  it("完整覆盖已有 50 个角色并采用 R3-A 品牌色", () => {
+    const block =
+      [...CSS.matchAll(/html\[data-theme-mode="dark"\]\s*\{([^}]+)\}/g)]
+        .map((match) => match[1]!)
+        .find((value) => value.includes("--color-canvas:")) ?? "";
+    const values = new Map(
+      [...block.matchAll(/--color-([a-z0-9-]+):\s*([^;]+);/g)].map((match) => [
+        match[1]!,
+        match[2]!.trim(),
+      ]),
+    );
+    expect(values.size).toBe(50);
+    expect(values.get("brand")).toBe("#8eab96");
+    expect(values.get("on-brand")).toBe("#142119");
+    expect(values.get("focus-ring")).toBe("#a3c3ab");
+    for (const [fg, bg] of [
+      ["ink", "surface"],
+      ["muted", "surface"],
+      ["on-brand", "brand"],
+      ["on-danger", "danger"],
+      ["brand-dark", "brand-soft"],
+    ]) {
+      expect(contrast(values.get(fg!)!, values.get(bg!)!)).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(token("canvas")).toBe("#fafcfb");
+  });
+});
+
 function token(name: string): string {
   const match = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(CSS);
   if (match?.[1] === undefined) throw new Error(`missing --color-${name}`);

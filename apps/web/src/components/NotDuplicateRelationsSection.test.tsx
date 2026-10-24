@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { NotDuplicateRelation } from "@libellum/shared";
 
+import { applyLocale } from "../i18n/index.js";
 import { NotDuplicateRelationsView } from "./NotDuplicateRelationsSection.js";
 
 /**
@@ -173,5 +174,37 @@ describe("已忽略的重复交易管理区", () => {
     const markup = html({ pendingId: "01990000-0000-7000-8000-0000000000aa" });
     expect(markup).toContain("撤销中…");
     expect(markup).toContain("disabled");
+  });
+});
+
+describe("已忽略的重复交易管理区（英文界面，S16）", () => {
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("界面文字全部是英文；预置分类显示译名，确认人等数据原样显示", () => {
+    applyLocale("en-US");
+
+    const english = relation({
+      decidedByName: "Alex",
+      revokedAt: "2026-10-22T03:00:00.000Z",
+      revokedByName: "Sam",
+      decisionSource: "review_group",
+    });
+    const stale = relation({
+      id: "01990000-0000-7000-8000-0000000000bb",
+      decidedByName: "Alex",
+      stale: true,
+      staleFields: ["amountCents", "occurredAt"],
+    });
+    const markup = html({ items: [english, stale], canWrite: false, offline: true });
+
+    expect(markup).toContain("Ignored duplicates");
+    expect(markup).toContain("Food &amp; drink");
+    expect(markup).toContain("Confirmed by Alex");
+    expect(markup).toContain("Whole group");
+    expect(markup).toContain("Undone by Sam");
+    expect(markup).toContain("The details changed (amount and time)");
+    expect(markup).not.toMatch(/[㐀-鿿]/);
   });
 });

@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_DUPLICATE_DETECTION_SETTINGS, type DuplicateDetectionSettings } from "@libellum/shared";
 
+import { applyLocale } from "../i18n/index.js";
+import { describeTimeWindowSeconds, parseCustomTimeWindowMinutes } from "../lib/duplicateSettings.js";
 import {
   DuplicateDetectionSettingsSection,
   type DuplicateDetectionSettingsState,
@@ -131,6 +133,32 @@ describe("SettingsToggle", () => {
     expect(button).toBeDefined();
     (button?.props as { onClick: () => void }).onClick();
     expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
+
+describe("重复交易检测设置节（英文界面，S16）", () => {
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("开关、时间窗口与校验提示都是英文", () => {
+    applyLocale("en-US");
+
+    const html = sectionHtml({
+      value: settings({ timeWindowSeconds: 7_200, enabled: false }),
+      state: { saved: true },
+    });
+
+    expect(html).toContain("Duplicate alerts");
+    expect(html).toContain("Match type (income/expense)");
+    expect(html).toContain("Current window: 2 hours");
+    expect(html).toContain("Restore defaults");
+    expect(html).not.toMatch(/[㐀-鿿]/);
+
+    expect(describeTimeWindowSeconds(60)).toBe("1 minute");
+    expect(describeTimeWindowSeconds(172_800)).toBe("2 days");
+    const parsed = parseCustomTimeWindowMinutes("1.5");
+    expect(parsed.ok ? "" : parsed.message).not.toMatch(/[㐀-鿿]/);
   });
 });
 

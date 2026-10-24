@@ -1,7 +1,8 @@
 import { DEFAULT_TAG_COLOR } from "../tagColors.js";
 import type { Transaction } from "@libellum/shared";
+import { t } from "../../i18n/index.js";
 import type { ConflictRecord } from "./localLedger.js";
-import { FIELD_LABELS, mergeEntries, type MergeField } from "./merge.js";
+import { FIELD_LABELS, fieldLabel, mergeEntries, type MergeField } from "./merge.js";
 
 export interface ConflictOption { readonly label: string; readonly value: unknown }
 export interface ConflictQuestion { readonly field: MergeField; readonly label: string; readonly options: readonly ConflictOption[] }
@@ -13,27 +14,33 @@ function key(field: MergeField, value: unknown): string | undefined {
   return JSON.stringify(field === "tags" && Array.isArray(value) ? [...value].sort() : value);
 }
 
-/** Server claims survive refreshes and are available on every device, including the winner. */
+/**
+ * Server claims survive refreshes and are available on every device, including the winner.
+ *
+ * S16: the labels are taken in the current interface language when this runs; the conflict screen re-runs it when
+ * the language changes. The option *values* are the stored data and are never translated.
+ */
 export function conflictQuestions(conflict: ConflictRecord): readonly ConflictQuestion[] {
   if (conflict.fields === undefined) {
     return mergeEntries(conflict.base, conflict.mine, conflict.theirs).conflicts
       .filter(item => item.field !== "occurredAt")
       .map(item => ({ field: item.field, label: item.label, options: [
-        { label: "这台设备", value: item.mine }, { label: "服务器", value: item.theirs },
+        { label: t("offline.conflict.optionThisDevice"), value: item.mine },
+        { label: t("offline.conflict.optionServer"), value: item.theirs },
       ] }));
   }
   return conflict.fields.flatMap(item => {
     const field = (item.field === "tagIds" ? "tags" : item.field) as MergeField;
     if (!(field in FIELD_LABELS) || field === "occurredAt") return [];
-    const options: ConflictOption[] = [{ label: "服务器", value: valueOf(conflict.theirs, field) }];
+    const options: ConflictOption[] = [{ label: t("offline.conflict.optionServer"), value: valueOf(conflict.theirs, field) }];
     for (const claim of item.claims ?? []) {
       if (claim.chain.length === 0) continue;
-      options.push({ label: `设备 ${claim.deviceId.slice(0, 8)} 提交`, value: claim.chain.at(-1) });
+      options.push({ label: t("offline.conflict.optionDevice", { device: claim.deviceId.slice(0, 8) }), value: claim.chain.at(-1) });
     }
     // Older persisted conflicts may predate the claims payload.
-    if ((item.claims?.length ?? 0) === 0) options.push({ label: "这台设备", value: valueOf(conflict.mine, field) });
+    if ((item.claims?.length ?? 0) === 0) options.push({ label: t("offline.conflict.optionThisDevice"), value: valueOf(conflict.mine, field) });
     const unique = options.filter((option, index) => options.findIndex(other => key(field, other.value) === key(field, option.value)) === index);
-    return unique.length < 2 ? [] : [{ field, label: FIELD_LABELS[field], options: unique }];
+    return unique.length < 2 ? [] : [{ field, label: fieldLabel(field), options: unique }];
   });
 }
 

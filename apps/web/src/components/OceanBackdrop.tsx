@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useI18n } from "../i18n/index.js";
 import { oceanPath } from "../lib/oceanGeometry.js";
 
 /**
@@ -35,6 +36,7 @@ export function OceanBackdrop({
   readonly interactive?: boolean;
   readonly children?: React.ReactNode;
 } = {}): React.JSX.Element {
+  const { t } = useI18n();
   const host = useRef<HTMLDivElement>(null);
   const paths = useRef<(SVGPathElement | null)[]>([]);
   useEffect(() => {
@@ -86,7 +88,7 @@ export function OceanBackdrop({
       </svg>
       <div className="space-brand">
         <p className="space-brand-name">Libevra</p>
-        <p className="space-brand-tagline">记一本账，安静而长久。</p>
+        <p className="space-brand-tagline">{t("books.space.slogan")}</p>
       </div>
       {children}
     </div>

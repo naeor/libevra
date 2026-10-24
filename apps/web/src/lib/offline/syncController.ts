@@ -120,7 +120,7 @@ export function startSyncTriggers(): () => void {
 
         const report = await syncAll();
 
-        if (report.delivered > 0) await logOffline("DIAGNOSTIC:sync", `${reason}：投递 ${String(report.delivered)} 条`);
+        if (report.delivered > 0) await logOffline("DIAGNOSTIC:sync", `${reason}：投递 ${String(report.delivered)} 条`); // i18n-ignore：诊断日志（存本机，给开发者看）
 
         /**
          * ⚠️ **Republished even when nothing was delivered.** A stale colour is the symptom being fixed here,
@@ -138,7 +138,7 @@ export function startSyncTriggers(): () => void {
         const waiting = (await pendingIds()).size;
 
         if (waiting > 0) {
-          await logOffline("DIAGNOSTIC:sync-waiting", `${reason}：仍有 ${String(waiting)} 条未投递`);
+          await logOffline("DIAGNOSTIC:sync-waiting", `${reason}：仍有 ${String(waiting)} 条未投递`); // i18n-ignore：诊断日志
         }
       } finally {
         running = false;
@@ -146,9 +146,9 @@ export function startSyncTriggers(): () => void {
     })();
   };
 
-  const onOnline = (): void => run("网络恢复");
+  const onOnline = (): void => run("网络恢复"); // i18n-ignore：触发原因只写进诊断日志
   const onVisible = (): void => {
-    if (document.visibilityState === "visible") run("回到前台");
+    if (document.visibilityState === "visible") run("回到前台"); // i18n-ignore：触发原因只写进诊断日志
   };
 
   window.addEventListener("online", onOnline);
@@ -158,7 +158,7 @@ export function startSyncTriggers(): () => void {
    * ⚠️ **On start-up too.** A reload with a queue on disk is the same situation as a network returning, and
    * **the user should never have to do something to make their own entries reach the server.**
    */
-  run("启动");
+  run("启动"); // i18n-ignore：触发原因只写进诊断日志
 
   return () => {
     window.removeEventListener("online", onOnline);

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { zhCN } from "../i18n/resources/index.js";
 import type { OcrImportBlocker } from "../lib/ocr/import.js";
 import type { OcrBatch } from "../lib/ocr/types.js";
 import { batchCandidate } from "../lib/ocr/testFixtures.js";
@@ -163,7 +164,9 @@ describe("bottom import bar wiring", () => {
   });
 
   it("keeps the explanatory text to one short line", () => {
-    expect(PAGE_SOURCE).toContain('subtitle="只核对有疑问的；确认前不写账本。"');
+    // S16: the subtitle comes from the `ocr` resources; the Chinese wording is unchanged.
+    expect(PAGE_SOURCE).toContain('subtitle={t("ocr.overview.subtitle")}');
+    expect(zhCN.ocr.overview.subtitle).toBe("只核对有疑问的；确认前不写账本。");
   });
 
   it("reads the batch's own ledger categories and applies the shared matcher", () => {
@@ -240,7 +243,8 @@ describe("completion screen wiring", () => {
 
   it("shows the session total after a refresh instead of the empty state", () => {
     expect(PAGE_SOURCE).toContain("const resumeSession =");
-    expect(PAGE_SOURCE).toContain("本次会话已导入");
+    expect(PAGE_SOURCE).toContain('i18nKey="ocr.overview.resumeTitle"');
+    expect(zhCN.ocr.overview.resumeTitle_other).toContain("本次会话已导入");
     expect(PAGE_SOURCE).toContain("resumeTotals.imported");
   });
 });

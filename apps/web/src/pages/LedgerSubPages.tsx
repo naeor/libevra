@@ -4,6 +4,8 @@ import { InnerPage } from "../components/Layouts.js";
 import { MemberList } from "../components/MemberList.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
 import { SkeletonRows } from "../components/States.js";
+import { isChineseLocale, useI18n } from "../i18n/index.js";
+import { formatLocalDate } from "../lib/datetime.js";
 import { useBooks, useLedger } from "../lib/queries.js";
 
 /**
@@ -19,56 +21,58 @@ import { useBooks, useLedger } from "../lib/queries.js";
 
 /** **完整账本信息** —— what the main tab previews four facts of. */
 export function LedgerInfoPage(): React.JSX.Element {
+  const { t, locale } = useI18n();
   const ledger = useLedger();
   const books = useBooks();
   const stats = ledger.data?.stats;
+  /** 中文界面保持 `YYYY-MM-DD`（与以前一致），其它语言按当地习惯显示同一个日历日。 */
+  const showDate = (localDate: string): string => (isChineseLocale(locale) ? localDate : formatLocalDate(localDate));
 
   return (
-    <InnerPage title="账本信息" subtitle={ledger.data?.book.name ?? "正在读取……"} backTo="/ledger">
+    <InnerPage title={t("books.info.title")} subtitle={ledger.data?.book.name ?? t("books.loadingShort")} backTo="/ledger">
       {ledger.isPending ? <SkeletonRows rows={3} /> : null}
 
       {ledger.isSuccess ? (
-        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-sm">
-          <dt className="text-muted">账本名称</dt>
-          <dd className="text-right text-ink">{ledger.data.book.name}</dd>
+        <dl className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-sm">
+          <dt className="text-muted">{t("books.info.name")}</dt>
+          <dd className="min-w-0 text-right break-words text-ink">{ledger.data.book.name}</dd>
 
-          <dt className="text-muted">账本编号</dt>
+          <dt className="text-muted">{t("books.info.number")}</dt>
           <dd className="text-right font-mono text-ink">
-            {ledger.data.book.bookNumber ?? "（未分配）"}
+            {ledger.data.book.bookNumber ?? t("books.info.unassigned")}
           </dd>
 
-          <dt className="text-muted">成员数量</dt>
-          <dd className="text-right text-ink">{String(ledger.data.book.memberCount ?? 1)} 人</dd>
+          <dt className="text-muted">{t("books.info.memberCount")}</dt>
+          <dd className="text-right text-ink">{t("books.people", { count: ledger.data.book.memberCount ?? 1 })}</dd>
 
           {stats === undefined ? null : (
             <>
-              <dt className="text-muted">创建时间</dt>
-              <dd className="text-right text-ink">{stats.createdAt.slice(0, 10)}</dd>
+              <dt className="text-muted">{t("books.info.createdAt")}</dt>
+              <dd className="text-right text-ink">{showDate(stats.createdAt.slice(0, 10))}</dd>
 
-              <dt className="text-muted">账目数量</dt>
-              <dd className="text-right text-ink">{String(stats.transactionCount)} 笔</dd>
+              <dt className="text-muted">{t("books.info.entryCount")}</dt>
+              <dd className="text-right text-ink">{t("common.count.entries", { count: stats.transactionCount })}</dd>
 
-              <dt className="text-muted">编辑记录</dt>
-              <dd className="text-right text-ink">{String(stats.eventCount)} 条</dd>
+              <dt className="text-muted">{t("books.info.eventCount")}</dt>
+              <dd className="text-right text-ink">{t("books.detail.events", { count: stats.eventCount })}</dd>
             </>
           )}
 
           {books.isSuccess ? (
             <>
-              <dt className="text-muted">你的账本总数</dt>
-              <dd className="text-right text-ink">{String(books.data.books.length)} 本</dd>
+              <dt className="text-muted">{t("books.info.totalLedgers")}</dt>
+              <dd className="text-right text-ink">{t("books.info.ledgers", { count: books.data.books.length })}</dd>
             </>
           ) : null}
         </dl>
       ) : null}
 
       <p className="text-helper-relaxed text-muted">
-        占用空间没有列在这里：它是一个估算值，而在这一页里它会被当成精确值来读。
-        需要时主页面上有一行「约 …」的提示。
+        {t("books.info.storageNote")}
       </p>
 
       <Link to="/start" className="text-body text-brand transition hover:text-brand-dark">
-        前往账本空间 ›
+        {t("books.info.toSpace")}
       </Link>
     </InnerPage>
   );
@@ -76,10 +80,11 @@ export function LedgerInfoPage(): React.JSX.Element {
 
 /** **成员管理** —— 看成员、改权限、邀请新成员。 */
 export function LedgerMembersPage(): React.JSX.Element {
+  const { t } = useI18n();
   const ledger = useLedger();
 
   return (
-    <InnerPage title="成员管理" subtitle={ledger.data?.book.name ?? "正在读取……"} backTo="/ledger">
+    <InnerPage title={t("books.membersPage.title")} subtitle={ledger.data?.book.name ?? t("books.loadingShort")} backTo="/ledger">
       {/**
         * ⚠️ **The full-strength list, controls included** — this is the page the 协作 tab's 成员 card
         * opens, and the reason that card can stay a glimpse.
@@ -99,8 +104,8 @@ export function LedgerMembersPage(): React.JSX.Element {
         */}
       <ListGroup>
         <ListRow
-          label="邀请新成员"
-          detail="按对方账号编号或用户名找到他，选好权限，发一条邀请。他接受之后才真正加入这本账。"
+          label={t("books.members.inviteTitle")}
+          detail={t("books.members.inviteHow")}
           to="/ledger/invite"
         />
       </ListGroup>

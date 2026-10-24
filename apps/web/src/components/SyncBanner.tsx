@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/index.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
@@ -26,6 +27,7 @@ import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
  * recorded now is kept until it can be sent.
  */
 export function SyncBanner(): React.JSX.Element | null {
+  const { t } = useI18n();
   const guest = useGuestMode();
   const { offline, reason } = useAccountOffline();
   const { readOnly } = useSharedLedgerOfflineReadOnly();
@@ -49,12 +51,10 @@ export function SyncBanner(): React.JSX.Element | null {
            * real and anything recorded now will be sent later; that sentence would be false here,
            * because a new shared write is refused before it is recorded.
            */
-          "当前离线，共享账本暂时只能查看。恢复网络后可以继续修改；之前尚未同步的改动会保留。"
-        : `${
-            reason === "unreachable"
-              ? "连不上服务器：下面的数据来自本机，离线时也能查看。"
-              : "当前处于离线状态：下面的数据来自本机，离线时也能查看。"
-          } 网络恢复后会自动同步。`}
+          t("offline.banner.sharedReadOnly")
+        : reason === "unreachable"
+          ? t("offline.banner.unreachable")
+          : t("offline.banner.offline")}
     </div>
   );
 }

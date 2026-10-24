@@ -1,3 +1,5 @@
+import { t } from "../i18n/index.js";
+
 /**
  * What version of the program this is.
  *
@@ -84,7 +86,7 @@ export function buildStamp(): string {
   try {
     return __BUILD_STAMP__;
   } catch {
-    return "(未知)";
+    return t("nav.version.unknown");
   }
 }
 
@@ -117,5 +119,6 @@ export function buildStampLocal(): string {
   const minutes = Math.abs(offsetMinutes) % 60;
   const zone = `UTC${sign}${String(hours)}${minutes === 0 ? "" : `:${pad(minutes)}`}`;
 
-  return `${local}（本机时间 ${zone}）`;
+  // 日期本身保持 `YYYY-MM-DD HH:mm:ss`：这是诊断信息，要能与 UTC 构建时间逐字对照，不随语言变格式。
+  return t("nav.version.localTime", { time: local, zone });
 }

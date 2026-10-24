@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="currentColor" style="color:var(--avatar-color,var(--color-brand,#55997a))" role="img" aria-labelledby="sprout-title">
+  <title id="sprout-title">新芽</title>
+  <rect x="45" y="55" width="6" height="22" rx="3" fill-opacity=".82"/>
+  <path d="M49.5 62C29 66 21 47 16 27C38 26 54 40 49.5 62Z" fill-opacity=".72"/>
+  <path d="M46.5 62C67 66 75 47 80 27C58 26 42 40 46.5 62Z" fill-opacity=".72"/>
+</svg>

@@ -25,6 +25,9 @@ import {
   type UpdateTransactionInput,
 } from "@libellum/shared";
 
+import { isChineseLocale, t } from "../../i18n/index.js";
+import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
+
 // ---------------------------------------------------------------------------
 // Selection
 // ---------------------------------------------------------------------------
@@ -132,13 +135,13 @@ export function batchPermission(input: {
   readonly role: BatchRoleState;
 }): BatchPermission {
   if (input.guest) {
-    return { allowed: false, reason: "游客账本请逐笔修改；批量操作暂未开放。" };
+    return { allowed: false, reason: t("ledger.batch.permission.guest") };
   }
 
   if (input.sharedOfflineReadOnly) {
     return {
       allowed: false,
-      reason: "当前离线，共享账本只能查看。联网后可以批量修改或删除。",
+      reason: t("ledger.batch.permission.offline"),
     };
   }
 
@@ -146,17 +149,17 @@ export function batchPermission(input: {
 
   if (input.role.status === "ready") {
     if (input.role.role === "viewer") {
-      return { allowed: false, reason: "你在这本账里是「仅查看」，不能修改或删除账目。" };
+      return { allowed: false, reason: t("ledger.batch.permission.viewer") };
     }
 
     return { allowed: true, reason: null };
   }
 
   if (input.role.status === "error") {
-    return { allowed: false, reason: "没能确认你在这本账的权限，暂时不能批量修改。联网后重试。" };
+    return { allowed: false, reason: t("ledger.batch.permission.error") };
   }
 
-  return { allowed: false, reason: "正在确认你在这本账的权限…" };
+  return { allowed: false, reason: t("ledger.batch.permission.checking") };
 }
 
 // ---------------------------------------------------------------------------
@@ -232,10 +235,6 @@ function tagsAfter(base: readonly Tag[], draft: BatchEditDraft, chosen: readonly
   return base.filter((existing) => !chosen.some((tag) => tag.id === existing.id));
 }
 
-function kindWord(kind: TransactionKind): string {
-  return kind === "expense" ? "支出" : "收入";
-}
-
 /**
  * Turn a draft into the patch for **one** entry.
  *
@@ -252,20 +251,23 @@ export function buildBatchEdit(
   ledger: BatchLedgerIndex,
 ): BatchEditPlan {
   if (!draftTouchesAnything(draft)) {
-    return { kind: "blocked", reason: "还没有勾选要修改的字段。" };
+    return { kind: "blocked", reason: t("ledger.batch.blocked.nothingTicked") };
   }
 
   let category: Category | null = null;
   if (draft.setCategory) {
-    if (draft.categoryId === null) return { kind: "blocked", reason: "请先选择要统一使用的分类。" };
+    if (draft.categoryId === null) return { kind: "blocked", reason: t("ledger.batch.blocked.chooseCategory") };
 
     const found = ledger.categories.find((candidate) => candidate.id === draft.categoryId);
-    if (found === undefined) return { kind: "blocked", reason: "选中的分类不在这本账里。" };
-    if (found.isArchived) return { kind: "blocked", reason: `「${found.name}」已归档，不能再使用。` };
+    if (found === undefined) return { kind: "blocked", reason: t("ledger.batch.blocked.categoryMissing") };
+    if (found.isArchived) {
+      return { kind: "blocked", reason: t("ledger.batch.blocked.archived", { name: displayCategoryName(found.name) }) };
+    }
     if (found.kind !== entry.kind) {
+      const kind: TransactionKind = entry.kind;
       return {
         kind: "blocked",
-        reason: `「${found.name}」不是${kindWord(entry.kind)}分类，和这笔账的方向不同。`,
+        reason: t(`ledger.batch.blocked.wrongKind.${kind}`, { name: displayCategoryName(found.name) }),
       };
     }
 
@@ -275,12 +277,17 @@ export function buildBatchEdit(
   let method: PaymentMethod | null = null;
   if (draft.setPaymentMethod) {
     if (draft.paymentMethodId === null) {
-      return { kind: "blocked", reason: "请先选择要统一使用的支付方式。" };
+      return { kind: "blocked", reason: t("ledger.batch.blocked.choosePayment") };
     }
 
     const found = ledger.paymentMethods.find((candidate) => candidate.id === draft.paymentMethodId);
-    if (found === undefined) return { kind: "blocked", reason: "选中的支付方式不在这本账里。" };
-    if (found.isArchived) return { kind: "blocked", reason: `「${found.name}」已归档，不能再使用。` };
+    if (found === undefined) return { kind: "blocked", reason: t("ledger.batch.blocked.paymentMissing") };
+    if (found.isArchived) {
+      return {
+        kind: "blocked",
+        reason: t("ledger.batch.blocked.archived", { name: displayPaymentMethodName(found.name) }),
+      };
+    }
 
     method = found;
   }
@@ -290,13 +297,16 @@ export function buildBatchEdit(
     if (draft.tagIds.length === 0) {
       return {
         kind: "blocked",
-        reason: draft.tagMode === "add" ? "请先选择要添加的标签。" : "请先选择要移除的标签。",
+        reason:
+          draft.tagMode === "add"
+            ? t("ledger.batch.blocked.chooseTagsToAdd")
+            : t("ledger.batch.blocked.chooseTagsToRemove"),
       };
     }
 
     for (const id of draft.tagIds) {
       const found = ledger.tags.find((candidate) => candidate.id === id);
-      if (found === undefined) return { kind: "blocked", reason: "选中的标签不在这本账里。" };
+      if (found === undefined) return { kind: "blocked", reason: t("ledger.batch.blocked.tagMissing") };
 
       chosenTags.push(found);
     }
@@ -304,7 +314,7 @@ export function buildBatchEdit(
     if (draft.tagMode === "add" && tagsAfter(entry.tags, draft, chosenTags).length > MAX_TAGS_PER_TRANSACTION) {
       return {
         kind: "blocked",
-        reason: `加上这些标签会超过每笔 ${String(MAX_TAGS_PER_TRANSACTION)} 个的上限。`,
+        reason: t("ledger.batch.blocked.tooManyTags", { max: MAX_TAGS_PER_TRANSACTION }),
       };
     }
   }
@@ -396,14 +406,14 @@ export function batchDeleteConfirmation(count: number): {
   readonly confirmLabel: string;
 } {
   return {
-    title: `删除选中的 ${String(count)} 笔账目？`,
-    description: "批量删除不提供一键撤销。",
+    title: t("ledger.batch.deleteConfirm.title", { count }),
+    description: t("ledger.batch.deleteConfirm.description"),
     consequences: [
-      "删除后，可从编辑历史逐笔恢复；账本须仍然存在，且你有编辑权限",
-      "本月总额、笔数与结余会立即重新计算",
-      "离线时先保存在本机，联网后同步",
+      t("ledger.batch.deleteConfirm.restore"),
+      t("ledger.batch.deleteConfirm.recalc"),
+      t("ledger.batch.deleteConfirm.offline"),
     ],
-    confirmLabel: "确认删除",
+    confirmLabel: t("ledger.batch.deleteConfirm.confirm"),
   };
 }
 
@@ -458,30 +468,37 @@ export function summarizeBatch(
     failures.push({ id: result.id, reason: result.reason });
   }
 
-  const verb = action === "edit" ? "修改" : "删除";
   const parts: string[] = [];
 
   if (ok === 0 && failed === 0) {
-    parts.push(unchanged > 0 ? "没有需要改动的地方。" : "没有可处理的账目。");
+    parts.push(
+      unchanged > 0 ? t("ledger.batch.summary.nothingToChange") : t("ledger.batch.summary.nothingToDo"),
+    );
   } else if (ok === 0) {
-    parts.push(`没有${verb}成功任何一笔，${String(failed)} 笔失败。`);
+    parts.push(t(`ledger.batch.summary.${action}.noneSucceeded`, { count: failed }));
   } else if (queued === ok) {
-    parts.push(`已在本机${verb} ${String(ok)} 笔，还没有投递到云端；联网后会自动投递。`);
+    parts.push(t(`ledger.batch.summary.${action}.allQueued`, { count: ok }));
   } else {
-    parts.push(`已${verb} ${String(ok)} 笔。`);
+    parts.push(t(`ledger.batch.summary.${action}.done`, { count: ok }));
     if (queued > 0) {
-      parts.push(`其中 ${String(queued)} 笔还在本机排队，联网后投递。`);
+      parts.push(t("ledger.batch.summary.queued", { count: queued }));
     }
   }
 
   if (ok > 0 && unchanged > 0) {
-    parts.push(`另有 ${String(unchanged)} 笔本来就是这个值，没有改动。`);
+    parts.push(t("ledger.batch.summary.unchanged", { count: unchanged }));
   }
 
   if (failed > 0) {
-    const shown = failures.slice(0, 2).map((failure) => failure.reason).join("；");
-    parts.push(`有 ${String(failed)} 笔失败：${shown}${failures.length > 2 ? "…" : ""}`);
+    const shown = failures
+      .slice(0, 2)
+      .map((failure) => failure.reason)
+      .join(t("ledger.batch.summary.reasonSeparator"));
+    parts.push(
+      t("ledger.batch.summary.failed", { count: failed, reasons: `${shown}${failures.length > 2 ? "…" : ""}` }),
+    );
   }
 
-  return { ok, unchanged, failed, queued, message: parts.join(""), failures };
+  /** 中文句号本身就是分隔；其它语言的句子之间要一个空格。 */
+  return { ok, unchanged, failed, queued, message: parts.join(isChineseLocale() ? "" : " "), failures };
 }

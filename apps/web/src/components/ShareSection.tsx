@@ -3,6 +3,7 @@
 import { Button } from "./Button.js";
 import { CopyButton } from "./CopyButton.js";
 import { QrCodeView } from "./QrCodeView.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useCreateShareLink, useRevokeShareLink, useShareLinks, type ShareLinkView } from "../lib/queries.js";
 
@@ -39,13 +40,14 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
   const [maxUses, setMaxUses] = useState(10);
   const [freshToken, setFreshToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   const all = links.data?.links ?? [];
   const live = all.filter((link) => link.active);
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-body text-muted">分享这本账</h2>
+      <h2 className="text-body text-muted">{t("collab.share.heading")}</h2>
 
       {error !== null ? (
         <p role="alert" className="rounded-field bg-danger-soft px-4 py-3 text-body text-danger">
@@ -53,19 +55,16 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
         </p>
       ) : null}
 
-      <p className="text-helper-relaxed text-muted">
-        拿到链接的人打开后，会先看到这是哪本账、他会被给什么权限，确认之后才会加入。
-        链接可以随时撤销；撤销之后旧的立刻失效。
-      </p>
+      <p className="text-helper-relaxed text-muted">{t("collab.share.intro")}</p>
 
       {freshToken === null ? (
         <div className="flex flex-col gap-4 rounded-card border border-line bg-surface px-5 py-4">
           <Picker
-            label="给对方的权限"
+            label={t("collab.share.roleLabel")}
             value={role}
             options={[
-              { value: "viewer" as const, label: "仅查看" },
-              { value: "editor" as const, label: "可编辑" },
+              { value: "viewer" as const, label: t("collab.role.viewer") },
+              { value: "editor" as const, label: t("collab.role.editor") },
             ]}
             onPick={setRole}
           />
@@ -75,16 +74,16 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
             * able to see that 7 is the maximum, otherwise the picker looks like it simply ran out.
             */}
           <Picker
-            label="有效期（1–7 天）"
+            label={t("collab.share.daysLabel")}
             value={days}
-            options={[1, 3, 7].map((value) => ({ value, label: `${String(value)} 天` }))}
+            options={[1, 3, 7].map((value) => ({ value, label: t("collab.share.days", { count: value }) }))}
             onPick={setDays}
           />
 
           <Picker
-            label="最多几人可以加入（1–10）"
+            label={t("collab.share.maxUsesLabel")}
             value={maxUses}
-            options={[1, 3, 5, 10].map((value) => ({ value, label: `${String(value)} 人` }))}
+            options={[1, 3, 5, 10].map((value) => ({ value, label: t("collab.share.people", { count: value }) }))}
             onPick={setMaxUses}
           />
 
@@ -103,12 +102,12 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
                 });
             }}
           >
-            {create.isPending ? "正在生成……" : "生成分享链接"}
+            {create.isPending ? t("collab.share.creating") : t("collab.share.create")}
           </Button>
         </div>
       ) : (
         <div className="rounded-card border border-brand bg-brand-soft/40 px-5 py-4">
-          <p className="text-helper text-muted">这条链接只会显示这一次，请现在复制并保存：</p>
+          <p className="text-helper text-muted">{t("collab.share.showOnce")}</p>
           <p className="mt-2 break-all rounded-field bg-surface px-3 py-2 font-mono text-helper text-ink">
             {`${window.location.origin}/join/${freshToken}`}
           </p>
@@ -125,12 +124,13 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
           <div className="mt-3 flex justify-center">
             <QrCodeView
               text={`${window.location.origin}/join/${freshToken}`}
-              label="这本账的加入二维码"
+              label={t("collab.share.qrLabel")}
             />
           </div>
 
-          <p className="mt-2 text-center text-helper text-muted">让对方用相机扫这个码</p>
-          <div className="mt-3 flex gap-3">
+          <p className="mt-2 text-center text-helper text-muted">{t("collab.share.scanHint")}</p>
+          {/* S16：英文按钮更长，窄屏允许换行 */}
+          <div className="mt-3 flex flex-wrap gap-3">
             <Button
               fullWidth={false}
               onClick={() => {
@@ -139,10 +139,10 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
                   .catch(() => undefined);
               }}
             >
-              复制链接
+              {t("collab.share.copyLink")}
             </Button>
             <Button variant="secondary" fullWidth={false} onClick={() => { setFreshToken(null); }}>
-              我已保存
+              {t("collab.share.saved")}
             </Button>
           </div>
         </div>
@@ -173,13 +173,12 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
       ) : null}
 
       {links.isSuccess && all.length === 0 ? (
-        <p className="text-helper text-muted">这本账现在没有分享链接。</p>
+        <p className="text-helper text-muted">{t("collab.share.empty")}</p>
       ) : null}
 
       {all.length > 0 ? (
         <p className="text-helper-relaxed text-muted">
-          生效中 {String(live.length)} 条。撤销与过期的链接会留在列表里——
-          它们记录着"谁曾经可以进来"，删掉就没有依据可查了。
+          {t("collab.share.liveSummary", { count: live.length })}
         </p>
       ) : null}
     </section>
@@ -236,43 +235,48 @@ function LinkRow({
   readonly onRevoke: () => void;
 }): React.JSX.Element {
   const remaining = Math.max(0, link.maxUses - link.useCount);
+  const { t } = useI18n();
 
   /**
    * ⚠️ **Why a link stopped working is shown, not left to be guessed.** The three reasons send the
    * owner to different actions — revoke another link, generate a fresh one, or raise the cap next
    * time — and **"this link no longer works" without a reason is a support question.**
+   *
+   * S16：这里只决定是哪一种状态（稳定 ID），文字在渲染时按当前语言取。
    */
-  const state = link.revokedAt !== null
-    ? "已撤销"
+  const state: "revoked" | "full" | "expired" | null = link.revokedAt !== null
+    ? "revoked"
     : remaining === 0
-      ? "名额已用完"
+      ? "full"
       : new Date(link.expiresAt).getTime() <= Date.now()
-        ? "已过期"
+        ? "expired"
         : null;
 
   return (
     <li className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 last:border-b-0">
-      <span className="flex flex-col gap-0.5">
-        <span className="flex items-center gap-2 text-body text-ink">
-          {link.role === "editor" ? "可编辑" : "仅查看"}
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink">
+          {link.role === "editor" ? t("collab.role.editor") : t("collab.role.viewer")}
           {state === null ? (
             <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
-              生效中
+              {t("collab.share.state.active")}
             </span>
           ) : (
-            <span className="rounded-full bg-canvas px-2 py-0.5 text-micro text-muted">{state}</span>
+            <span className="rounded-full bg-canvas px-2 py-0.5 text-micro text-muted">
+              {t(`collab.share.state.${state}`)}
+            </span>
           )}
         </span>
 
         <span className="text-helper text-muted">
-          {String(link.days)} 天 · 已加入 {String(link.useCount)}/{String(link.maxUses)} 人
-          {remaining > 0 ? ` · 还剩 ${String(remaining)} 个名额` : ""}
+          {t("collab.share.usage", { count: link.days, used: link.useCount, max: link.maxUses })}
+          {remaining > 0 ? ` · ${t("collab.share.remaining", { count: remaining })}` : ""}
         </span>
 
         <span className="text-helper text-muted">
           {link.lastUsedAt === null
-            ? `生成于 ${link.createdAt.slice(0, 10)}`
-            : `最近一次使用 ${link.lastUsedAt.slice(0, 10)}`}
+            ? t("collab.share.createdOn", { date: link.createdAt.slice(0, 10) })
+            : t("collab.share.lastUsedOn", { date: link.lastUsedAt.slice(0, 10) })}
         </span>
       </span>
 
@@ -283,7 +287,7 @@ function LinkRow({
           onClick={onRevoke}
           className="shrink-0 text-helper text-muted transition hover:text-danger disabled:opacity-45"
         >
-          撤销
+          {t("collab.share.revoke")}
         </button>
       ) : null}
     </li>

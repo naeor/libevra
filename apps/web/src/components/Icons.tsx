@@ -186,3 +186,25 @@ export function AvatarIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
     </svg>
   );
 }
+
+/**
+ * **语言 / 地球图标（S16 国际化）。** 登录页语言切换按钮用；描边与 `GearIcon` 同粗细，跟随 `currentColor`。
+ */
+export function GlobeIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z" />
+    </svg>
+  );
+}

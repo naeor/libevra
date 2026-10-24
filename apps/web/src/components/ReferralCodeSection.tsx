@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Trans } from "react-i18next";
 
+import { useI18n } from "../i18n/index.js";
 import { Button } from "./Button.js";
 import { errorMessage } from "../lib/api.js";
 import { useMintReferralCode, useReferralQuota } from "../lib/queries.js";
@@ -23,6 +25,7 @@ import { useMintReferralCode, useReferralQuota } from "../lib/queries.js";
 export function ReferralCodeSection(): React.JSX.Element {
   const quotaQuery = useReferralQuota();
   const referral = useMintReferralCode();
+  const { t } = useI18n();
 
   const [open, setOpen] = useState(false);
   const [mintedCode, setMintedCode] = useState<string | null>(null);
@@ -42,12 +45,12 @@ export function ReferralCodeSection(): React.JSX.Element {
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-body text-muted">
-          邀请码
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2 className="min-w-0 text-body text-muted">
+          {t("account.referral.heading")}
           {quota === null ? null : (
             <span className="ml-2 text-helper text-muted">
-              终身 {String(quota.limit)} 个 · 已用 {String(quota.used)} 个 · 还剩 {String(remaining ?? 0)} 个
+              {t("account.referral.quota", { limit: quota.limit, used: quota.used, remaining: remaining ?? 0 })}
             </span>
           )}
         </h2>
@@ -58,9 +61,9 @@ export function ReferralCodeSection(): React.JSX.Element {
             onClick={() => {
               setOpen(true);
             }}
-            className="text-helper text-brand transition hover:text-brand-dark"
+            className="shrink-0 text-helper text-brand transition hover:text-brand-dark"
           >
-            生成邀请码
+            {t("account.referral.mint")}
           </button>
         )}
       </div>
@@ -78,25 +81,24 @@ export function ReferralCodeSection(): React.JSX.Element {
         */}
       {exhausted ? (
         <p className="rounded-card border border-line bg-surface px-5 py-4 text-body-relaxed text-muted">
-          已用完 {String(quota?.limit ?? 3)} 个邀请码名额。
-          额度为终身限额，撤销或过期后不返还。
+          {t("account.referral.exhausted", { count: quota?.limit ?? 3 })}
         </p>
       ) : null}
 
       {mintedCode === null ? null : (
         <div className="rounded-card border border-brand bg-brand-soft/40 px-5 py-4">
-          <p className="text-helper text-muted">注册邀请码</p>
+          <p className="text-helper text-muted">{t("account.referral.codeLabel")}</p>
           <p className="mt-2 rounded-field bg-surface px-3 py-2 text-center font-mono text-lg tracking-widest text-ink">
             {mintedCode}
           </p>
-          <div className="mt-3 flex gap-3">
+          <div className="mt-3 flex flex-wrap gap-3">
             <Button
               fullWidth={false}
               onClick={() => {
                 void navigator.clipboard.writeText(mintedCode).catch(() => undefined);
               }}
             >
-              复制
+              {t("account.referral.copy")}
             </Button>
             <Button
               variant="secondary"
@@ -106,7 +108,7 @@ export function ReferralCodeSection(): React.JSX.Element {
                 setOpen(false);
               }}
             >
-              完成
+              {t("account.referral.done")}
             </Button>
           </div>
         </div>
@@ -122,9 +124,7 @@ export function ReferralCodeSection(): React.JSX.Element {
             * asks the user to make a decision and then ignores it.
             */}
           <p className="text-body-relaxed text-muted">
-            邀请码用于创建独立账号，
-            <strong className="font-medium text-ink">不会加入你的账本</strong>。
-            一起记账需另行发送账本邀请，并由对方接受。
+            <Trans i18nKey="account.referral.explain" components={{ b: <strong className="font-medium text-ink" /> }} />
           </p>
 
           <div className="mt-4 flex gap-3">
@@ -142,7 +142,7 @@ export function ReferralCodeSection(): React.JSX.Element {
                   });
               }}
             >
-              {referral.isPending ? "正在生成……" : "生成"}
+              {referral.isPending ? t("account.referral.generating") : t("account.referral.generate")}
             </Button>
             <Button
               variant="secondary"
@@ -150,15 +150,13 @@ export function ReferralCodeSection(): React.JSX.Element {
                 setOpen(false);
               }}
             >
-              取消
+              {t("account.referral.cancel")}
             </Button>
           </div>
         </div>
       ) : null}
 
-      <p className="text-helper-relaxed text-muted">
-        通过邀请码注册的账号不能生成邀请码。
-      </p>
+      <p className="text-helper-relaxed text-muted">{t("account.referral.referredCannotMint")}</p>
     </section>
   );
 }

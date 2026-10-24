@@ -562,6 +562,13 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /*
+    ⚠️ **S16 国际化：一个放不下的长单词只在“本来就要溢出”时才折行。**
+    中文本来就能在任意字之间换行；英文（以及以后的德语等长复合词、长网址、长用户名、文件名）
+    遇到比容器还宽的单词时会把页面撑出横向滚动。`break-word` 只在这种情况下生效，
+    不改变正常排版，也不影响 `truncate`（`white-space: nowrap` 时不起作用）。
+  */
+  overflow-wrap: break-word;
 }
 
 /*
@@ -586,7 +593,62 @@ body {
 @layer base {
   /* S16-B0: two root dimensions; dark/palette value blocks are later design work. */
   html { color-scheme: light; }
-  html[data-theme-mode="dark"] { color-scheme: dark; }
+  html[data-theme-mode="dark"] {
+  color-scheme: dark;
+  /* 无 palette 属性时的安全回退；正式绿色映射在下方 data-theme-palette=green 块。 */
+--color-canvas: #17181a;
+  --color-surface: #2c2c2c;
+  --color-ink: #e8e9eb;
+  --color-muted: #afb3b8;
+  --color-line: #3b3e42;
+  --color-line-strong: #7e858d;
+  --color-brand: #8eab96;
+  --color-brand-dark: #b9d2bf;
+  --color-brand-soft: #26312b;
+  --color-category-ink: #c4dcc9;
+  --color-accent-ink: #afb3b8;
+  --color-chart-rule: #777e86;
+  --color-danger: #e99a92;
+  --color-danger-dark: #f0b4ad;
+  --color-danger-soft: #3c2a2a;
+  --color-warn: #ddba7b;
+  --color-warn-dark: #ebcfa1;
+  --color-warn-soft: #383126;
+  --color-on-brand: #142119;
+  --color-on-danger: #291716;
+  --color-on-warn: #261e12;
+  --color-on-ink: #17181a;
+  --color-on-heat: #101d16;
+  --color-on-tag: #ffffff;
+  --color-control-knob: #f0f1f2;
+  --color-focus-ring: #a3c3ab;
+  --color-data-expense: #e99a92;
+  --color-data-income: #9ac8ae;
+  --color-data-transfer: #9bbce2;
+  --color-chart-1: #9ac8ae;
+  --color-chart-2: #9bbce2;
+  --color-chart-3: #ddba7b;
+  --color-chart-4: #e99a92;
+  --color-chart-5: #bcade0;
+  --color-chart-6: #8bc6c7;
+  --color-chart-7: #c1c897;
+  --color-chart-8: #d5aac9;
+  --color-chart-heat-0: #2d3033;
+  --color-chart-heat-1: #2d4436;
+  --color-chart-heat-2: #3c5e49;
+  --color-chart-heat-3: #8ab99b;
+  --color-chart-heat-4: #bddbc7;
+  --color-ocean-1: #96c4ac;
+  --color-ocean-2: #6aa78a;
+  --color-ocean-3: #4f8a6d;
+  --color-ocean-4: #3f7059;
+  --color-on-ocean: #17181a;
+  --color-glass-highlight: rgb(255 255 255 / 0.06);
+  --color-overlay-soft: rgb(0 0 0 / 0.52);
+  --color-overlay: rgb(0 0 0 / 0.66);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.14);
+  --shadow-sheet: 0 -8px 30px rgb(0 0 0 / 0.32);
+}
 
   /* Keep the numeric keypad on mobile when entering amounts or codes. */
   input[inputmode="numeric"],
@@ -639,6 +701,30 @@ body {
   white-space: nowrap;
 }
 .space-brand-name { font-size: calc(2.1rem - 0.7rem * var(--p)); font-weight: 600; letter-spacing: 0.16em; line-height: 1.3; }
+/*
+  ⚠️ **S16 国际化：标语比字标宽时，字标在展开态仍然居中。**
+
+  中文标语比 `Libevra` 窄，整块的宽度由字标决定，两行看起来就是居中的。英文标语更长，块变宽后左对齐的
+  字标会偏到左边。这里让字标按同一个 `--p` 插值：展开态（p=0）在块内居中，收起态（p=1）回到左对齐——
+  与整块位置用的是同一个进度值，拖动过程中连续变化，不另起动画。
+
+  字标与块同宽时（中文），`left: 50%` 与 `translateX(-50%)` 正好抵消，位置与以前完全相同。
+*/
+.space-brand-name { position: relative; width: fit-content; left: calc(50% * (1 - var(--p))); transform: translateX(calc(-50% * (1 - var(--p)))); }
+/*
+  更长的语言（伪语言压力测试里加长 40%）会让一行标语超过屏幕宽度。整块最宽到“屏宽减两侧边距”，
+  超出时标语自己换行；中文与英文在 320px 下都放得下一行，渲染与以前相同。
+*/
+.space-brand { width: max-content; max-width: calc(100vw - 2 * var(--space-content-left, 24px)); }
+.space-brand-tagline { white-space: normal; }
+
+/*
+  ⚠️ **S16 国际化：三列选择网格（账目编辑里的分类）。**
+  中文分类名 2–4 个字，三列放得下，保持原样；英文名（Entertainment、Uncategorized）在 320px 的三列里
+  只能在词中间断开。非中文界面改为“每列至少 7rem、放得下几列就几列”：320px 两列，390px 起三列。
+*/
+.choice-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:root:not([lang^="zh"]) .choice-grid-3 { grid-template-columns: repeat(auto-fill, minmax(min(100%, 7rem), 1fr)); }
 .space-brand-tagline { margin-top: calc(10px - 7px * var(--p)); font-size: calc(14px - 4px * var(--p)); line-height: 1.5; letter-spacing: 0.08em; }
 
 /*
@@ -751,3 +837,329 @@ body {
   padding-top: max(24px, calc(var(--sea-h) * 0.07));
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 }
+
+/* 角色复用的局限：brand-dark 是可读链接；实心填充用其自身亮度变化。 */
+html[data-theme-mode="dark"] button.bg-brand:hover,
+html[data-theme-mode="dark"] .bg-danger:hover,
+html[data-theme-mode="dark"] .bg-warn:hover { filter: brightness(1.08); }
+html[data-theme-mode="dark"] button.bg-brand:hover { background-color: var(--color-brand); }
+html[data-theme-mode="dark"] .bg-danger:hover { background-color: var(--color-danger); }
+html[data-theme-mode="dark"] .bg-warn:hover { background-color: var(--color-warn); }
+/* 接线修正候选：输入边界、占位符、低透明度页头文字、键盘焦点。 */
+html[data-theme-mode="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme-mode="dark"] textarea,
+html[data-theme-mode="dark"] select { border-color: var(--color-line-strong); }
+html[data-theme-mode="dark"] .rounded-field.border-line:has(> input),
+html[data-theme-mode="dark"] .rounded-field.border-line:has(> button[aria-expanded]) { border-color: var(--color-line-strong); }
+html[data-theme-mode="dark"] input::placeholder,
+html[data-theme-mode="dark"] textarea::placeholder { color: var(--color-muted); opacity: 1; }
+html[data-theme-mode="dark"] :focus-visible:not(input):not([class*="focus-visible:ring"]) { outline: 2px solid var(--color-focus-ring); outline-offset: 3px; }
+html[data-theme-mode="dark"] [style*="--color-chart-heat-"].text-muted { color: var(--color-ink); }
+html[data-theme-mode="dark"] .bg-brand [class*="text-on-brand/"] { color: var(--color-on-brand); }
+/* 大面积页头用已有 brand-soft 表面；按钮继续使用精确品牌绿。 */
+html[data-theme-mode="dark"] header.bg-brand,
+html[data-theme-mode="dark"] .detail-hero {
+  --color-on-brand: var(--color-ink);
+  background-color: var(--color-brand-soft);
+}
+html[data-theme-mode="dark"] .space-account .text-on-brand { color: var(--color-on-ocean); }
+/* text-brand 小字必须使用可读前景；品牌填充和图形仍保留精确品牌绿。 */
+html[data-theme-mode="dark"] .text-brand { color: var(--color-brand-dark); }
+/* 任意用户标签的自动前景仍待专门接入；本轮没有引入 B1 预览观察器。 */
+
+/* S16-B3 正式深色绿色映射：R2-A 中性轴 + 所有者选定的 R3-A 品牌组。
+   50 个角色不增加、不改名；明暗轴与色盘轴仍由文档属性区分。
+   S16-C 七色共用上述中性底层，其他色盘只覆盖下方 11 个品牌角色。 */
+html[data-theme-mode="dark"][data-theme-palette="green"] {
+  color-scheme: dark;
+  --color-canvas: #17181a;
+  --color-surface: #2c2c2c;
+  --color-ink: #e8e9eb;
+  --color-muted: #afb3b8;
+  --color-line: #3b3e42;
+  --color-line-strong: #7e858d;
+  --color-brand: #8eab96;
+  --color-brand-dark: #b9d2bf;
+  --color-brand-soft: #26312b;
+  --color-category-ink: #c4dcc9;
+  --color-accent-ink: #afb3b8;
+  --color-chart-rule: #777e86;
+  --color-danger: #e99a92;
+  --color-danger-dark: #f0b4ad;
+  --color-danger-soft: #3c2a2a;
+  --color-warn: #ddba7b;
+  --color-warn-dark: #ebcfa1;
+  --color-warn-soft: #383126;
+  --color-on-brand: #142119;
+  --color-on-danger: #291716;
+  --color-on-warn: #261e12;
+  --color-on-ink: #17181a;
+  --color-on-heat: #101d16;
+  --color-on-tag: #ffffff;
+  --color-control-knob: #f0f1f2;
+  --color-focus-ring: #a3c3ab;
+  --color-data-expense: #e99a92;
+  --color-data-income: #9ac8ae;
+  --color-data-transfer: #9bbce2;
+  --color-chart-1: #9ac8ae;
+  --color-chart-2: #9bbce2;
+  --color-chart-3: #ddba7b;
+  --color-chart-4: #e99a92;
+  --color-chart-5: #bcade0;
+  --color-chart-6: #8bc6c7;
+  --color-chart-7: #c1c897;
+  --color-chart-8: #d5aac9;
+  --color-chart-heat-0: #2d3033;
+  --color-chart-heat-1: #2d4436;
+  --color-chart-heat-2: #3c5e49;
+  --color-chart-heat-3: #8ab99b;
+  --color-chart-heat-4: #bddbc7;
+  --color-ocean-1: #96c4ac;
+  --color-ocean-2: #6aa78a;
+  --color-ocean-3: #4f8a6d;
+  --color-ocean-4: #3f7059;
+  --color-on-ocean: #17181a;
+  --color-glass-highlight: rgb(255 255 255 / 0.06);
+  --color-overlay-soft: rgb(0 0 0 / 0.52);
+  --color-overlay: rgb(0 0 0 / 0.66);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.14);
+  --shadow-sheet: 0 -8px 30px rgb(0 0 0 / 0.32);
+}
+/* A：画布贯穿页头/正文，已有统计卡成为第一层表面。局部前景不会外溢到主按钮。 */
+/* A：五入口展开卡是普通表面，不是五块绿色底；绿色只留在图标上。 */
+html[data-theme-mode="dark"] .bottom-full ul a,
+html[data-theme-mode="dark"] .bottom-full ul button {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+}
+html[data-theme-mode="dark"] .bottom-full ul a svg,
+html[data-theme-mode="dark"] .bottom-full ul button svg {
+  color: var(--color-brand-dark);
+}
+html[data-theme-mode="dark"]:not([data-theme-palette]) header.bg-brand,
+html[data-theme-mode="dark"]:not([data-theme-palette]) .detail-hero,
+html[data-theme-mode="dark"][data-theme-palette] header.bg-brand,
+html[data-theme-mode="dark"][data-theme-palette] .detail-hero {
+  background-color: var(--color-canvas);
+  --color-on-brand: var(--color-ink);
+}
+html[data-theme-mode="dark"]:not([data-theme-palette]) .detail-currency-card,
+html[data-theme-mode="dark"][data-theme-palette] .detail-currency-card {
+  background: var(--color-surface);
+}
+/* 所有有文字的用户标签共用计算前景。仅深色生效，用户原色和浅色显示不变。 */
+html[data-theme-mode="dark"]:not([data-theme-palette]) .text-on-tag,
+html[data-theme-mode="dark"][data-theme-palette] .text-on-tag {
+  color: var(--tag-foreground, var(--color-on-tag));
+}
+/* 输入已有焦点工具类也必须有实体边界，不能只靠低透明阴影。 */
+html[data-theme-mode="dark"]:not([data-theme-palette]) :is(input, textarea, select):focus-visible:not(.outline-none),
+html[data-theme-mode="dark"][data-theme-palette] :is(input, textarea, select):focus-visible:not(.outline-none) {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* S16-C：已验收七主题。色盘只覆盖品牌组，财务 / 图表与中性层保持共同值。 */
+html[data-theme-mode="light"][data-theme-palette="yellow"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="yellow"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="yellow"] {
+  --color-brand: #ddb765;
+  --color-brand-dark: #735322;
+  --color-brand-soft: #fcf3df;
+  --color-on-brand: #332818;
+  --color-category-ink: #735322;
+  --color-focus-ring: #896425;
+  --color-ocean-1: #dfb96b;
+  --color-ocean-2: #eacb8a;
+  --color-ocean-3: #f3dfb1;
+  --color-ocean-4: #faf0d8;
+  --color-on-ocean: #332818;
+}
+html[data-theme-mode="dark"][data-theme-palette="yellow"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="yellow"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="yellow"] {
+  --color-brand: #d9cba6;
+  --color-brand-dark: #e7dbbc;
+  --color-brand-soft: #34332f;
+  --color-on-brand: #29271f;
+  --color-category-ink: #e8dcbc;
+  --color-focus-ring: #d9cba6;
+  --color-ocean-1: #d9cba6;
+  --color-ocean-2: #c5b38c;
+  --color-ocean-3: #ad9772;
+  --color-ocean-4: #927b58;
+  --color-on-ocean: #29271f;
+}
+html[data-theme-mode="light"][data-theme-palette="orange"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="orange"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="orange"] {
+  --color-brand: #876b59;
+  --color-brand-dark: #705342;
+  --color-brand-soft: #f3ece6;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #705342;
+  --color-focus-ring: #876b59;
+  --color-ocean-1: #795f4c;
+  --color-ocean-2: #997b61;
+  --color-ocean-3: #b89b7a;
+  --color-ocean-4: #dcc8aa;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="orange"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="orange"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="orange"] {
+  --color-brand: #bea28b;
+  --color-brand-dark: #d8bfaa;
+  --color-brand-soft: #342e29;
+  --color-on-brand: #241c16;
+  --color-category-ink: #e2cbb7;
+  --color-focus-ring: #ccb39e;
+  --color-ocean-1: #b79a7e;
+  --color-ocean-2: #967a61;
+  --color-ocean-3: #7b604c;
+  --color-ocean-4: #604938;
+  --color-on-ocean: #241c16;
+}
+html[data-theme-mode="light"][data-theme-palette="blue"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="blue"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="blue"] {
+  --color-brand: #527a9c;
+  --color-brand-dark: #406380;
+  --color-brand-soft: #eaf1f6;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #406380;
+  --color-focus-ring: #527a9c;
+  --color-ocean-1: #426d91;
+  --color-ocean-2: #628bac;
+  --color-ocean-3: #8db0c9;
+  --color-ocean-4: #c0d5e1;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="blue"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="blue"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="blue"] {
+  --color-brand: #91b5ce;
+  --color-brand-dark: #b4d1e5;
+  --color-brand-soft: #27343e;
+  --color-on-brand: #14212a;
+  --color-category-ink: #c3dceb;
+  --color-focus-ring: #a5c5dc;
+  --color-ocean-1: #80abc7;
+  --color-ocean-2: #608cae;
+  --color-ocean-3: #48718e;
+  --color-ocean-4: #34556e;
+  --color-on-ocean: #14212a;
+}
+html[data-theme-mode="light"][data-theme-palette="purple"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="purple"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="purple"] {
+  --color-brand: #7d6e8b;
+  --color-brand-dark: #655670;
+  --color-brand-soft: #f1edf4;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #655670;
+  --color-focus-ring: #7d6e8b;
+  --color-ocean-1: #70607f;
+  --color-ocean-2: #9382a3;
+  --color-ocean-3: #b3a2c1;
+  --color-ocean-4: #d6cadf;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="purple"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="purple"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="purple"] {
+  --color-brand: #ab9fbd;
+  --color-brand-dark: #cdc2da;
+  --color-brand-soft: #323137;
+  --color-on-brand: #221f29;
+  --color-category-ink: #d9cfe3;
+  --color-focus-ring: #beb1ce;
+  --color-ocean-1: #a596b6;
+  --color-ocean-2: #89769e;
+  --color-ocean-3: #705f86;
+  --color-ocean-4: #584969;
+  --color-on-ocean: #221f29;
+}
+html[data-theme-mode="light"][data-theme-palette="red"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="red"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="red"] {
+  --color-brand: #986660;
+  --color-brand-dark: #7c514c;
+  --color-brand-soft: #f5edeb;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #7c514c;
+  --color-focus-ring: #986660;
+  --color-ocean-1: #916057;
+  --color-ocean-2: #b28070;
+  --color-ocean-3: #cba18d;
+  --color-ocean-4: #e5c7b5;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="red"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="red"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="red"] {
+  --color-brand: #c28f86;
+  --color-brand-dark: #dbb2a8;
+  --color-brand-soft: #373131;
+  --color-on-brand: #291c19;
+  --color-category-ink: #e4c4ba;
+  --color-focus-ring: #cfa79b;
+  --color-ocean-1: #bd8e80;
+  --color-ocean-2: #a27364;
+  --color-ocean-3: #865b4f;
+  --color-ocean-4: #6c463c;
+  --color-on-ocean: #291c19;
+}
+html[data-theme-mode="light"][data-theme-palette="cyan"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="cyan"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="cyan"] {
+  --color-brand: #507b7d;
+  --color-brand-dark: #3e6264;
+  --color-brand-soft: #eaf1f1;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #3e6264;
+  --color-focus-ring: #507b7d;
+  --color-ocean-1: #456e70;
+  --color-ocean-2: #6c9696;
+  --color-ocean-3: #9ebebe;
+  --color-ocean-4: #c9ddda;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="cyan"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="cyan"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="cyan"] {
+  --color-brand: #9bbabd;
+  --color-brand-dark: #bfd6d8;
+  --color-brand-soft: #2a3537;
+  --color-on-brand: #182325;
+  --color-category-ink: #cee0e1;
+  --color-focus-ring: #adc9cc;
+  --color-ocean-1: #91b5b4;
+  --color-ocean-2: #709796;
+  --color-ocean-3: #567a7b;
+  --color-ocean-4: #3e6063;
+  --color-on-ocean: #182325;
+}
+
+/* 绿色浅色维持 @theme 原值；色点独立展示各色，不增加重复语义 Token。 */
+.theme-swatch[data-theme-palette="green"] { background-color: #55997a; }
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="green"] { background-color: #8eab96; }
+
+/* 已验收浅色候选的前景分配；森林绿保持原有浅色品牌表现。 */
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"],[data-theme-palette="yellow"]) .detail-currency-card { background: var(--color-brand-dark); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) header.bg-brand [class*="text-on-brand/"],
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .detail-hero [class*="text-on-brand/"] { color: var(--color-on-brand); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .detail-toggle-bar .text-muted { color: color-mix(in srgb,var(--color-muted) 94%,var(--color-ink)); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) [role=status].text-danger { color: var(--color-danger-dark); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .text-on-tag { color: var(--tag-foreground,var(--color-on-tag)); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) :is(input:not([type=checkbox]):not([type=radio]),textarea,select),
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .rounded-field.border-line:has(>input),
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .rounded-field.border-line:has(>button[aria-expanded]) { border-color: var(--color-line-strong); }
+html[data-theme-mode="light"]:is([data-theme-palette="yellow"],[data-theme-palette="red"],[data-theme-palette="purple"]) header.bg-brand [class*="bg-on-brand/"] { background: transparent; }
+
+/* 蜜金黄：金色填充配深字，深金负责链接、边界与焦点。 */
+html[data-theme-mode="light"][data-theme-palette="yellow"] .text-brand { color: var(--color-brand-dark); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-currency-card { background: var(--color-brand-soft); color: var(--color-on-brand); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand { outline: 1px solid var(--color-brand-dark); outline-offset: -1px; }
+html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:hover { background: color-mix(in srgb,var(--color-brand) 88%,white); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:active { background: color-mix(in srgb,var(--color-brand) 94%,var(--color-on-brand)); }

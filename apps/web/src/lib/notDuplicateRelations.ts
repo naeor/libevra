@@ -24,6 +24,7 @@ import {
 } from "@libellum/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { t } from "../i18n/index.js";
 import { apiFetch } from "./api.js";
 import { useGuestMode } from "./guest/session.js";
 
@@ -183,7 +184,7 @@ export function useCreateNotDuplicateRelations(bookId: string) {
   return useMutation({
     mutationFn: async (input: CreateNotDuplicateRelationsInput) => {
       if (guest) {
-        throw new Error("游客账本是本机数据，没有服务器端的不重复关系。");
+        throw new Error(t("duplicates.errors.guestRelations"));
       }
       return createNotDuplicateRelations(bookId, input);
     },
@@ -198,7 +199,7 @@ export function useRevokeNotDuplicateRelation(bookId: string) {
   return useMutation({
     mutationFn: async (relationId: string) => {
       if (guest) {
-        throw new Error("游客账本是本机数据，没有服务器端的不重复关系。");
+        throw new Error(t("duplicates.errors.guestRelations"));
       }
       return revokeNotDuplicateRelation(bookId, relationId);
     },

@@ -1,5 +1,7 @@
 import { useId, useState, type InputHTMLAttributes } from "react";
 
+import { useI18n } from "../i18n/index.js";
+
 interface PasswordFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type"> {
   readonly label: string;
   readonly hint?: string;
@@ -27,6 +29,7 @@ export function PasswordField({
 }: PasswordFieldProps): React.JSX.Element {
   const id = useId();
   const [visible, setVisible] = useState(false);
+  const { t } = useI18n();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
   const describedBy =
@@ -57,7 +60,7 @@ export function PasswordField({
           onClick={() => {
             setVisible((current) => !current);
           }}
-          aria-label={visible ? "隐藏密码" : "显示密码"}
+          aria-label={visible ? t("auth.passwordToggle.hide") : t("auth.passwordToggle.show")}
           aria-pressed={visible}
           className="absolute top-1/2 right-1 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring focus-visible:outline-none"
         >

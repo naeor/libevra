@@ -5,9 +5,10 @@ import { ChartFrame } from "../chart/ChartFrame.js";
 import { Baseline, YAxis } from "../chart/Axis.js";
 import { createLinearScale, niceDomain, ticksFor } from "../../lib/chart/scales.js";
 import { EXPENSE_COLOR, INCOME_COLOR } from "../../lib/chart/theme.js";
-import { formatAxisAmount, formatExactAmount } from "../../lib/chart/format.js";
+import { bucketFullLabel, formatAxisAmount, formatExactAmount } from "../../lib/chart/format.js";
 import { summariseSeries } from "../../lib/chart/guards.js";
 import { currencyName, formatMoney } from "../../lib/format.js";
+import { isChineseLocale, useI18n } from "../../i18n/index.js";
 
 
 /**
@@ -35,28 +36,35 @@ export function ComparisonPanel({
   readonly previousDays: number;
   readonly currency: string;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const rows = [
     {
-      label: "支出",
+      kind: "expense",
+      label: t("common.kind.expense"),
       current: current.expenseMinor,
       previous: previous?.expenseMinor ?? null,
       invert: true,
       color: EXPENSE_COLOR,
     },
     {
-      label: "收入",
+      kind: "income",
+      label: t("common.kind.income"),
       current: current.incomeMinor,
       previous: previous?.incomeMinor ?? null,
       invert: false,
       color: INCOME_COLOR,
     },
   ];
+  const days = {
+    current: t("stats.days", { count: currentDays }),
+    previous: t("stats.days", { count: previousDays }),
+  };
 
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row) => (
         <ComparisonRow
-          key={row.label}
+          key={row.kind}
           label={row.label}
           color={row.color}
           current={row.current}
@@ -68,10 +76,10 @@ export function ComparisonPanel({
 
       <p className="text-xs leading-relaxed text-muted">
         {previous === null
-          ? "所选时段没有可对比的历史数据，因此不显示变化幅度。"
+          ? t("stats.comparison.noHistory")
           : monthToDate
-            ? `对比为“上月同期”：本期 ${String(currentDays)} 天，对比上期 ${String(previousDays)} 天。本期尚未结束，与完整月份比较会失真。`
-            : `对比为上一完整周期：本期 ${String(currentDays)} 天，对比上期 ${String(previousDays)} 天。`}
+            ? t("stats.comparison.monthToDate", days)
+            : t("stats.comparison.fullPeriod", days)}
       </p>
     </div>
   );
@@ -93,6 +101,7 @@ function ComparisonRow({
   /** True for spending, where an increase is not good news. */
   readonly invert: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const hasComparison = previous !== null && previous !== 0;
   const delta = hasComparison ? (current - previous) / previous : 0;
   const rising = delta > 0;
@@ -109,16 +118,16 @@ function ComparisonRow({
 
   return (
     <div className="flex items-baseline justify-between gap-3 rounded-field bg-canvas px-4 py-3">
-      <span className="flex items-center gap-2 text-sm text-muted">
-        <span aria-hidden="true" className="inline-block size-2 rounded-full" style={{ backgroundColor: color }} />
+      <span className="flex min-w-0 items-center gap-2 text-sm text-muted">
+        <span aria-hidden="true" className="inline-block size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
         {label}
       </span>
-      <span className="flex items-baseline gap-2">
+      <span className="flex shrink-0 items-baseline gap-2">
         <span className="text-base font-medium tabular-nums text-ink">
           {formatMoney(current, currency)}
         </span>
         <span className={`text-xs tabular-nums ${tone}`}>
-          {!hasComparison ? "—" : isNotable ? `${rising ? "↑" : "↓"} ${formatPercent(Math.abs(delta))}` : "持平"}
+          {!hasComparison ? "—" : isNotable ? `${rising ? "↑" : "↓"} ${formatPercent(Math.abs(delta))}` : t("stats.comparison.flat")}
         </span>
       </span>
     </div>
@@ -145,9 +154,20 @@ export function YearOverview({
   readonly totals: PeriodTotals;
   readonly currency: string;
 }): React.JSX.Element {
+  const { t, locale } = useI18n();
   const [active, setActive] = useState<number | null>(null);
 
   const values = months.map((month) => month.expenseMinor);
+  /**
+   * 选中月份的名字：中文界面仍是月份数字（`10 月支出 …`，与以前一致）；其它语言用月份名（`Oct 2026`）。
+   */
+  const activeMonth = active === null ? undefined : months[active];
+  const activeMonthName =
+    active === null
+      ? ""
+      : isChineseLocale(locale) || activeMonth === undefined
+        ? String(active + 1)
+        : bucketFullLabel(activeMonth.bucket, "month");
   const summary = summariseSeries(values);
   const peak = Math.max(...values, 0);
   const peakIndex = values.indexOf(peak);
@@ -155,21 +175,21 @@ export function YearOverview({
   return (
     <div className="flex flex-col gap-4">
       <dl className="grid grid-cols-2 gap-3">
-        <Stat label="总支出" value={formatMoney(totals.expenseMinor, currency)} />
-        <Stat label="总收入" value={formatMoney(totals.incomeMinor, currency)} />
+        <Stat label={t("stats.year.totalExpense")} value={formatMoney(totals.expenseMinor, currency)} />
+        <Stat label={t("stats.year.totalIncome")} value={formatMoney(totals.incomeMinor, currency)} />
         <Stat
-          label="结余"
+          label={t("stats.year.net")}
           value={formatMoney(totals.netMinor, currency)}
           tone={totals.netMinor < 0 ? "danger" : "default"}
         />
-        <Stat label="笔数" value={`${String(totals.count)} 笔`} />
+        <Stat label={t("stats.year.count")} value={t("common.count.entries", { count: totals.count })} />
       </dl>
 
       {summary.state === "ready" || summary.state === "single" ? (
         <ChartFrame
           height={148}
           padding={{ top: 10, right: 8, bottom: 20, left: 40 }}
-          title={`${currencyName(currency)} 各月支出`}
+          title={t("stats.year.chartTitle", { currency: currencyName(currency) })}
           notice={null}
         >
           {(layout) => {
@@ -227,14 +247,17 @@ export function YearOverview({
         </ChartFrame>
       ) : (
         <p className="rounded-field bg-canvas px-4 py-3 text-xs leading-relaxed text-muted">
-          所选时段暂无支出记录，因此不显示各月分布。
+          {t("stats.year.noSpending")}
         </p>
       )}
 
       {active === null ? null : (
         <p className="text-xs text-muted">
-          {active + 1} 月支出 {formatExactAmount(months[active]?.expenseMinor ?? 0, currency)}{" "}
-          {currency}
+          {t("stats.year.monthDetail", {
+            month: activeMonthName,
+            amount: formatExactAmount(activeMonth?.expenseMinor ?? 0, currency),
+            currency,
+          })}
         </p>
       )}
     </div>

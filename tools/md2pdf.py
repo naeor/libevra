@@ -466,6 +466,63 @@ def heading(pdf: Doc, level: int, text: str, first: bool) -> None:
     write_inline(pdf, text, size, ACCENT)
 
 
+def collect_toc_entries(lines: list[str]) -> list[tuple[int, str]]:
+    """Collect headings for the reading-version table of contents.
+
+    The first H1 is the document title and is already printed above the TOC, so
+    it is not repeated. Fenced code is ignored. The returned text is stripped of
+    inline Markdown so the TOC reads like a printed contents page.
+    """
+    entries: list[tuple[int, str]] = []
+    in_code = False
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+        match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if not match:
+            continue
+        text = strip_md(match.group(2).strip())
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            entries.append((len(match.group(1)), text))
+    if entries and entries[0][0] == 1:
+        entries = entries[1:]
+    return entries
+
+
+def contents(pdf: Doc, entries: list[tuple[int, str]]) -> None:
+    """Print the TOC directly below the document title.
+
+    Deliberately no page numbers: this converter is a reading companion and
+    hard-coding page numbers would silently drift as documents grow. The heading
+    tree is what the owner asked for; a stable, readable outline beats a wrong
+    cross-reference. Body content starts on a fresh page after this block.
+    """
+    if not entries:
+        return
+    pdf.ln(9)
+    pdf.set_font("body", "", 17.0)
+    pdf.set_text_color(*ACCENT)
+    pdf.set_xy(MARGIN_L, pdf.get_y())
+    pdf.cell(0, 9, "目录", new_x="LMARGIN", new_y="NEXT")
+    rule(pdf, 2.0)
+    sizes = {1: 11.2, 2: 10.6, 3: 9.9, 4: 9.4, 5: 9.1, 6: 9.1}
+    indents = {1: 0.0, 2: 3.0, 3: 7.0, 4: 11.0, 5: 15.0, 6: 19.0}
+    for level, text in entries:
+        size = sizes.get(level, 9.1)
+        pad = indents.get(level, 0.0)
+        if level <= 2:
+            rich = f"**{text}**"
+        else:
+            rich = text
+        write_inline(pdf, rich, size, ACCENT if level <= 2 else MUTED, pad_l=pad)
+        pdf.ln(0.7)
+
+
 def quote(pdf: Doc, text: str) -> None:
     """A light panel with a left rule.
 
@@ -706,10 +763,33 @@ def convert(md_text: str, out_path: str, title: str) -> None:
     pdf.add_page()
 
     lines = md_text.splitlines()
+    toc_entries = collect_toc_entries(lines)
+    first_heading_level = None
+    scanning_code = False
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            scanning_code = not scanning_code
+            continue
+        if scanning_code:
+            continue
+        match = re.match(r"^(#{1,6})\s+", stripped)
+        if match:
+            first_heading_level = len(match.group(1))
+            break
     i = 0
     first_heading = True
+    toc_done = False
     in_code = False
     code_buf: list[str] = []
+
+    # Some older notes start at `##` and never have an H1. Give them a proper
+    # title page and contents page too, instead of silently skipping the TOC.
+    if toc_entries and first_heading_level != 1 and not toc_done:
+        heading(pdf, 1, title, True)
+        contents(pdf, toc_entries)
+        toc_done = True
+        pdf.add_page()
 
     while i < len(lines):
         raw = lines[i].rstrip()
@@ -753,7 +833,12 @@ def convert(md_text: str, out_path: str, title: str) -> None:
 
         m = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if m:
-            heading(pdf, len(m.group(1)), m.group(2).strip(), first_heading)
+            level = len(m.group(1))
+            heading(pdf, level, m.group(2).strip(), first_heading)
+            if first_heading and level == 1 and toc_entries and not toc_done:
+                contents(pdf, toc_entries)
+                toc_done = True
+                pdf.add_page()
             first_heading = False
             i += 1
             continue

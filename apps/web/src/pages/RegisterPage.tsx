@@ -5,6 +5,7 @@ import {
   type RegistrationConfigResponse,
 } from "@libellum/shared";
 import { useCallback, useEffect, useState } from "react";
+import { Trans } from "react-i18next";
 import { Link, Navigate, useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
@@ -15,6 +16,8 @@ import { Button } from "../components/Button.js";
 import { PasswordField } from "../components/PasswordField.js";
 import { RecoveryCodeCard } from "../components/RecoveryCodeCard.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
 import { fetchRequiredLegalDocuments } from "../lib/consent.js";
 import { fetchRegistrationConfig } from "../lib/registration.js";
@@ -37,6 +40,7 @@ type RegistrationAgreement = LegalDocument & { readonly contentHash: string };
 export function RegisterPage(): React.JSX.Element {
   const { user, register } = useAuth();
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
 
   const [config, setConfig] = useState<RegistrationConfigResponse | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -73,7 +77,7 @@ export function RegisterPage(): React.JSX.Element {
       setConfigError(null);
     } catch {
       if (!silent) {
-        setConfigError("暂时无法确认当前的注册方式。请检查网络后重试。");
+        setConfigError(t("auth.register.configFailed"));
       }
     }
   }, []);
@@ -104,7 +108,7 @@ export function RegisterPage(): React.JSX.Element {
       })
       .catch(() => {
         if (!cancelled) {
-          setAgreementsError("暂时无法读取当前协议文件。请刷新页面或稍后再试。");
+          setAgreementsError(t("auth.register.agreementsFailed"));
         }
       })
       .finally(() => {
@@ -124,7 +128,7 @@ export function RegisterPage(): React.JSX.Element {
     setError(null);
 
     if (config.inviteRequired && inviteCode.trim() === "") {
-      setError("请填写邀请码。");
+      setError(t("auth.register.inviteMissing"));
       return;
     }
 
@@ -145,17 +149,19 @@ export function RegisterPage(): React.JSX.Element {
     });
 
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "请检查填写的内容。");
+      // zod 提示是 `@libellum/shared` 里的中文原文，按当前界面语言查表显示。
+      const issue = parsed.error.issues[0]?.message;
+      setError(issue === undefined ? t("auth.register.invalid") : translateSharedMessage(issue));
       return;
     }
 
     if (password !== confirmPassword) {
-      setConfirmError("两次输入的密码不一致。");
+      setConfirmError(t("auth.register.passwordMismatch"));
       return;
     }
 
     if (agreements.length > 0 && !agreements.every((document) => agreedIds.includes(document.id))) {
-      setError("请先阅读并分别同意每一份当前适用的协议。");
+      setError(t("auth.register.agreementsRequired"));
       return;
     }
 
@@ -185,8 +191,8 @@ export function RegisterPage(): React.JSX.Element {
   if (recoveryCode) {
     return (
       <AuthLayout
-        title="恢复码"
-        subtitle="账号已创建。请现在保存这个恢复码。"
+        title={t("auth.register.recoveryTitle")}
+        subtitle={t("auth.register.recoverySubtitle")}
         guestEntry={false}
       >
         <RecoveryCodeCard
@@ -207,13 +213,13 @@ export function RegisterPage(): React.JSX.Element {
   if (config === null) {
     return (
       <AuthLayout
-        title="创建账号"
-        subtitle="正在确认当前的注册方式。"
+        title={t("auth.register.title")}
+        subtitle={t("auth.register.checkingSubtitle")}
         navigation={<AuthSwitcher active="register" />}
       >
         {configError === null ? (
           <p role="status" className="text-body text-muted">
-            正在确认当前的注册方式…
+            {t("auth.register.checking")}
           </p>
         ) : (
           <>
@@ -226,7 +232,7 @@ export function RegisterPage(): React.JSX.Element {
                 void loadConfig(false);
               }}
             >
-              重试
+              {t("auth.register.retry")}
             </Button>
           </>
         )}
@@ -238,12 +244,8 @@ export function RegisterPage(): React.JSX.Element {
 
   return (
     <AuthLayout
-      title="创建账号"
-      subtitle={
-        restricted
-          ? "创建账号需要邀请码。"
-          : "创建你的 Libevra 账号。"
-      }
+      title={t("auth.register.title")}
+      subtitle={restricted ? t("auth.register.subtitleInvite") : t("auth.register.subtitleOpen")}
       navigation={<AuthSwitcher active="register" />}
     >
       {restricted ? <InviteOpennessNotice /> : null}
@@ -253,13 +255,13 @@ export function RegisterPage(): React.JSX.Element {
 
         {restricted ? (
           <TextField
-            label="邀请码"
+            label={t("auth.field.inviteCode")}
             placeholder="XXXX-XXXX-XXXX"
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
             autoFocus
-            hint="由已有账号在「设置 → 账号安全」生成，或由管理员发放。"
+            hint={t("auth.register.inviteHint")}
             value={inviteCode}
             onChange={(event) => {
               setInviteCode(event.target.value);
@@ -268,8 +270,8 @@ export function RegisterPage(): React.JSX.Element {
         ) : null}
 
         <TextField
-          label="用户名"
-          hint="3–20 位字母、数字或下划线，用于登录，全站唯一"
+          label={t("auth.field.username")}
+          hint={t("auth.register.usernameHint")}
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
@@ -281,9 +283,9 @@ export function RegisterPage(): React.JSX.Element {
         />
 
         <PasswordField
-          label="密码"
+          label={t("auth.field.password")}
           autoComplete="new-password"
-          hint={`至少 ${String(PASSWORD_MIN_LENGTH)} 位`}
+          hint={t("auth.field.passwordMin", { min: PASSWORD_MIN_LENGTH })}
           value={password}
           onChange={(event) => {
             setPassword(event.target.value);
@@ -292,7 +294,7 @@ export function RegisterPage(): React.JSX.Element {
         />
 
         <PasswordField
-          label="确认密码"
+          label={t("auth.field.confirmPassword")}
           autoComplete="new-password"
           {...(confirmError === null ? {} : { error: confirmError })}
           value={confirmPassword}
@@ -303,7 +305,7 @@ export function RegisterPage(): React.JSX.Element {
         />
 
         {agreementsLoading ? (
-          <p className="text-helper text-muted">正在读取当前协议文件…</p>
+          <p className="text-helper text-muted">{t("auth.register.agreementsLoading")}</p>
         ) : null}
         {agreementsError === null ? null : <Alert>{agreementsError}</Alert>}
 
@@ -325,33 +327,48 @@ export function RegisterPage(): React.JSX.Element {
                     }}
                     className="mt-1 size-4 shrink-0"
                   />
-                  <span>
-                    我已阅读并同意
-                    <a
-                      href={`/legal/${document.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-1 font-medium text-brand hover:underline"
-                    >
-                      {document.title}
-                    </a>
-                    。<span className="block text-helper text-muted">版本 {document.version}</span>
+                  <span className="min-w-0 break-words">
+                    {/**
+                      * 协议标题是协议文件自己的中文原文（用户同意的就是这份中文），不翻译；
+                      * 句子本身随界面语言变化，链接用 `<link>` 嵌在句中，英文语序不被拆碎。
+                      */}
+                    <Trans
+                      i18nKey="auth.register.agree"
+                      values={{ title: document.title }}
+                      components={{
+                        link: (
+                          <a
+                            href={`/legal/${document.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-brand hover:underline"
+                          />
+                        ),
+                      }}
+                    />
+                    <span className="block text-helper text-muted">
+                      {t("auth.register.documentVersion", { version: document.version })}
+                    </span>
                   </span>
                 </label>
               );
             })}
+            {/** 非中文界面：协议只有中文版本，以中文为准（S16-C-10，英文译本待专业审核）。 */}
+            {locale === "zh-CN" ? null : (
+              <p className="text-helper-relaxed text-muted">{t("legal.chineseOnly")}</p>
+            )}
           </section>
         ) : null}
 
         <Button type="submit" disabled={busy || agreementsLoading}>
-          {busy ? "创建中…" : "创建账号"}
+          {busy ? t("auth.register.submitting") : t("auth.register.submit")}
         </Button>
       </form>
 
       <p className="text-center text-helper-relaxed text-muted">
-        已经有一个账号？
+        {t("auth.register.haveAccount")}
         <Link className="ml-1 font-medium text-brand-dark hover:underline" to="/login">
-          去登录
+          {t("auth.register.goLogin")}
         </Link>
       </p>
     </AuthLayout>
@@ -368,12 +385,11 @@ export function RegisterPage(): React.JSX.Element {
  * the field is, and switching between login and register does not interrupt anyone.
  */
 function InviteOpennessNotice(): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <section className="rounded-field border border-brand/25 bg-brand-soft/60 px-4 py-3">
-      <p className="text-body text-brand-dark">为了保持稳定的使用体验，目前新账号通过邀请开放。</p>
-      <p className="mt-1 text-helper-relaxed text-muted">
-        邀请码与账本无关；它只用于创建一个独立的账号。
-      </p>
+      <p className="text-body text-brand-dark">{t("auth.register.inviteNotice")}</p>
+      <p className="mt-1 text-helper-relaxed text-muted">{t("auth.register.inviteNoticeDetail")}</p>
     </section>
   );
 }

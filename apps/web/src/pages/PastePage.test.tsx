@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   parseTransactionText,
   type CategoryCandidate,
 } from "@libellum/shared";
 
+import { applyLocale } from "../i18n/index.js";
 import { PastePage, recognisePastedText } from "./PastePage.js";
 
 /**
@@ -126,5 +127,25 @@ describe("粘贴页的入口、隐私说明与手动输入", () => {
     expect(html).toContain("不会自动读取剪贴板");
     expect(html).toContain("不会把文字发给外部 AI");
     expect(html).toContain("不会在确认前写入账本");
+  });
+});
+
+describe("粘贴页（英文界面，S16）", () => {
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("界面是英文，输入框示例保持识别语言（中文）", () => {
+    applyLocale("en-US");
+    const html = renderPage();
+
+    expect(html).toContain("Paste text");
+    expect(html).toContain("Paste from clipboard");
+    // 示例是识别语言的原文，刻意不翻译。
+    expect(html).toContain("For example: 今天中午麦当劳花了 28.5 元");
+
+    // 去掉页面框架的返回栏（不属于本页）与示例占位文字后，不应再有中文。
+    const own = html.replace(/<nav[\s\S]*?<\/nav>/g, "").replace(/placeholder="[^"]*"/g, "");
+    expect(own).not.toMatch(/[㐀-鿿]/);
   });
 });

@@ -1,11 +1,9 @@
 /**
  * The two-dimensional theme preference (S16-B0).
  *
- * This module is deliberately only the *foundation*: it defines the dimensions,
- * resolves "follow the system" and applies the attributes the CSS value blocks
- * will target. It does not contain a dark palette or seven brand palettes —
- * those are Codex design work. Nothing calls `applyThemePreference()` yet; the
- * settings UI that will is part of the next S16-B slice.
+ * B0 的偏好解析、持久化与文档属性由首屏脚本及设置入口共同复用。
+ * 七主题已在所有者验收后接入 localhost，仍复用 B0 key 与偏好格式。
+ * 森林绿默认浅色品牌不变；深色保留中性表面，海浪完整逆序并使用黑字。
  *
  * Why attributes and not a React context? A theme is a document-level fact, and
  * every component already reads semantic tokens from CSS. A context would put a
@@ -27,6 +25,15 @@ export const THEME_PALETTES = [
   "purple",
 ] as const;
 export type ThemePalette = (typeof THEME_PALETTES)[number];
+
+/** 只开放已有实际浅/深色映射的色盘；其余色盘仍保留 B0 的契约。 */
+export const AVAILABLE_THEME_PALETTES: readonly ThemePalette[] = ["green", "yellow", "orange", "blue", "purple", "red", "cyan"];
+
+export function availableThemePreference(preference: ThemePreference): ThemePreference {
+  return AVAILABLE_THEME_PALETTES.includes(preference.palette)
+    ? preference
+    : { ...preference, palette: "green" };
+}
 
 export interface ThemePreference {
   readonly mode: ThemeMode;
@@ -110,6 +117,7 @@ export function resolveThemeMode(mode: ThemeMode, systemDark: boolean): "light" 
 
 /** The minimal document surface the applier needs, which keeps it testable without a DOM. */
 export interface ThemeRoot {
+  readonly style?: { colorScheme: string };
   readonly dataset: {
     themeMode?: string;
     themePalette?: string;
@@ -133,6 +141,7 @@ export function applyThemePreference(
   root.dataset.themePreference = preference.mode;
   root.dataset.themeMode = resolveThemeMode(preference.mode, systemDark);
   root.dataset.themePalette = preference.palette;
+  if (root.style) root.style.colorScheme = resolveThemeMode(preference.mode, systemDark);
 }
 
 /**
@@ -148,4 +157,56 @@ export function watchSystemTheme(
   const listener = (event: MediaQueryListEvent): void => onChange(event.matches);
   media.addEventListener("change", listener);
   return () => media.removeEventListener("change", listener);
+}
+
+type SystemThemeMedia = Pick<MediaQueryList, "matches" | "addEventListener" | "removeEventListener">;
+
+/** 首屏脚本与运行时共用，避免两份 JSON 解析/回退规则。 */
+export function restoreThemeBeforePaint(root: ThemeRoot, storage: ThemeStorage | null, systemDark: boolean): ThemePreference {
+  const preference = availableThemePreference(readThemePreference(storage));
+  applyThemePreference(root, preference, systemDark);
+  return preference;
+}
+
+/** 偏好只在这里管理；React 订阅选择值，颜色仍由文档属性与 CSS 决定。 */
+export function createThemeController(root: ThemeRoot, storage: ThemeStorage | null, media: SystemThemeMedia) {
+  let preference = restoreThemeBeforePaint(root, storage, media.matches);
+  const listeners = new Set<() => void>();
+  let unwatch = (): void => undefined;
+  const apply = (): void => applyThemePreference(root, preference, media.matches);
+  const notify = (): void => { for (const listener of listeners) listener(); };
+  const watch = (): void => {
+    unwatch();
+    unwatch = preference.mode === "system" ? watchSystemTheme(media, () => { apply(); }) : () => undefined;
+  };
+  const replace = (next: ThemePreference): void => {
+    preference = availableThemePreference(next);
+    apply(); watch(); notify();
+  };
+  watch();
+  return {
+    getSnapshot: (): ThemePreference => preference,
+    subscribe: (listener: () => void): (() => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    choose: (next: Partial<ThemePreference>): void => {
+      const chosen = availableThemePreference({ ...preference, ...next });
+      if (storage) persistThemePreference(storage, chosen);
+      replace(chosen);
+    },
+    restore: (raw: string | null): void => { replace(parseThemePreference(raw)); },
+    dispose: (): void => { unwatch(); listeners.clear(); },
+  };
+}
+
+let browserController: ReturnType<typeof createThemeController> | null = null;
+
+export function startThemeRuntime(): ReturnType<typeof createThemeController> {
+  if (browserController !== null) return browserController;
+  let storage: Storage | null = null;
+  try { storage = window.localStorage; } catch { /* 隐私模式下只保持本次会话。 */ }
+  browserController = createThemeController(document.documentElement, storage, window.matchMedia("(prefers-color-scheme: dark)"));
+  const controller = browserController;
+  window.addEventListener("storage", (event) => {
+    if (event.key === THEME_STORAGE_KEY || event.key === null) controller.restore(event.newValue);
+  });
+  return controller;
 }

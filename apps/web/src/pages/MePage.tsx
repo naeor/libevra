@@ -6,6 +6,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { UserAvatar } from "../components/UserAvatar.js";
 import { TabPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
+import { useI18n } from "../i18n/index.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useBooks, useCurrentBookId } from "../lib/queries.js";
 import { APP_VERSION } from "../lib/version.js";
@@ -43,6 +44,7 @@ function AccountMePage(): React.JSX.Element {
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const currentBookId = useCurrentBookId();
   const books = useBooks();
+  const { t } = useI18n();
 
   if (!user) return <></>;
 
@@ -57,7 +59,7 @@ function AccountMePage(): React.JSX.Element {
    * （`/categories`、`/payment-methods`、`/tags`）本轮不动，只删这一屏的入口。
    */
   const links: { to: string; label: string; hint?: string }[] = [
-    { to: "/profile", label: "个人资料" },
+    { to: "/profile", label: t("account.me.profile") },
     /**
      * ⚠️ **S16-A：「我的账本」打开的是当前账本的详情，而不是账本空间的开始页。**
      *
@@ -67,10 +69,12 @@ function AccountMePage(): React.JSX.Element {
      */
     {
       to: myBookTarget(currentBookId, books.data?.books),
-      label: "我的账本",
-      hint: currentBook?.name ?? (currentBookId === null ? "选择一本账本开始记账" : "当前账本的资料与设置"),
+      label: t("account.me.myLedger"),
+      hint:
+        currentBook?.name ??
+        (currentBookId === null ? t("account.me.myLedgerChoose") : t("account.me.myLedgerHint")),
     },
-    { to: "/downloads", label: "下载管理", hint: "离线能看哪些月份，以及占用多少空间" },
+    { to: "/downloads", label: t("account.me.downloads"), hint: t("account.me.downloadsHint") },
     /**
      * ⚠️ **The version, where somebody looks when something is wrong.**
      *
@@ -78,8 +82,8 @@ function AccountMePage(): React.JSX.Element {
      * right place — a version screen is consulted when the program is misbehaving, and the
      * account screen is where the other "about this device and this account" rows live.
      */
-    { to: "/update", label: "软件更新", hint: `当前版本 ${APP_VERSION}` },
-    { to: "/settings", label: "设置", hint: "默认币种、账号安全、显示与数据" },
+    { to: "/update", label: t("account.me.updates"), hint: t("account.me.updatesHint", { version: APP_VERSION }) },
+    { to: "/settings", label: t("account.me.settings"), hint: t("account.me.settingsHint") },
   ];
 
   return (
@@ -112,7 +116,7 @@ function AccountMePage(): React.JSX.Element {
         <ListGroup>
           {links.map((link) => (
             <ListRow
-              key={link.label}
+              key={link.to}
               label={link.label}
               detail={link.hint}
               to={link.to}
@@ -145,16 +149,16 @@ function AccountMePage(): React.JSX.Element {
           }}
           className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-on-brand shadow-sm transition hover:bg-danger-dark"
         >
-          退出登录
+          {t("account.me.signOut")}
         </button>
       </div>
 
       <ConfirmDialog
         open={confirmSignOut}
-        title="退出登录？"
-        description="退出后需要重新输入用户名与密码才能查看账目。账目数据不会丢失。"
-        consequences={["本设备上的登录状态会立即失效", "如果忘记密码，需要用恢复码重置"]}
-        confirmLabel="退出登录"
+        title={t("account.me.signOutTitle")}
+        description={t("account.me.signOutDescription")}
+        consequences={[t("account.me.signOutSession"), t("account.me.signOutRecovery")]}
+        confirmLabel={t("account.me.signOut")}
         onCancel={() => {
           setConfirmSignOut(false);
         }}

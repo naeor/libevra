@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 
+import { useI18n } from "../i18n/index.js";
 import { createGuestIdentity } from "../lib/guest/identity.js";
 
 /**
@@ -17,6 +18,7 @@ import { createGuestIdentity } from "../lib/guest/identity.js";
  * left.
  */
 export function GuestEntry(): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="auth-enter auth-enter-delayed mt-8 border-t border-line pt-5 text-center">
       <Link
@@ -28,7 +30,7 @@ export function GuestEntry(): React.JSX.Element {
         }}
         className="inline-flex min-h-11 items-center justify-center gap-1 rounded-field px-4 text-helper text-muted transition hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring focus-visible:outline-none"
       >
-        以游客身份继续
+        {t("auth.guestEntry")}
         <span aria-hidden="true" className="text-brand">
           ›
         </span>

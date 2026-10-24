@@ -1,5 +1,7 @@
 import { Link } from "react-router";
 
+import { useI18n } from "../i18n/index.js";
+
 /**
  * The two account-entry destinations, as one control.
  *
@@ -15,13 +17,14 @@ export function AuthSwitcher({
 }: {
   readonly active: "login" | "register";
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <nav
-      aria-label="账号入口"
+      aria-label={t("auth.switcher.label")}
       className="grid grid-cols-2 gap-1 rounded-field bg-brand-soft/60 p-1"
     >
-      <SwitchLink to="/login" label="登录" selected={active === "login"} />
-      <SwitchLink to="/register" label="创建账号" selected={active === "register"} />
+      <SwitchLink to="/login" label={t("auth.switcher.login")} selected={active === "login"} />
+      <SwitchLink to="/register" label={t("auth.switcher.register")} selected={active === "register"} />
     </nav>
   );
 }
@@ -39,7 +42,7 @@ function SwitchLink({
     <Link
       to={to}
       aria-current={selected ? "page" : undefined}
-      className={`flex min-h-11 items-center justify-center rounded-[0.6875rem] text-button transition ${
+      className={`flex min-h-11 min-w-0 items-center justify-center rounded-[0.6875rem] px-2 text-center text-button transition ${
         selected
           ? "bg-surface text-ink shadow-card"
           : "text-muted hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring focus-visible:outline-none"

@@ -1,4 +1,5 @@
 import type { AvatarId } from "@libellum/shared";
+import { t } from "../i18n/index.js";
 export type LegacyAvatarId = Exclude<AvatarId, "flower" | "moon" | "sun" | "star" | "coffee" | "sprout" | "wave" | "daoxuan-special">;
 
 /** 仅兼容已经被用户保存的旧稿，不在正式选择区继续展示。 */
@@ -23,7 +24,7 @@ export function LegacyUserAvatar({ avatarId, label, className = "size-24" }: {
     leaf: <><path d="M23 70C11 26 48 17 76 19 80 55 62 83 23 70Z" fill="#91ae85" /><path d="m25 71 37-38m-22 24-1-19m11 8 17 1" fill="none" stroke="#d8dfb7" strokeWidth="3" strokeLinecap="round" /><path d="m24 71-6 9" stroke="#9b956a" strokeWidth="4" strokeLinecap="round" /></>,
     mountain: <><circle cx="69" cy="25" r="10" fill="#edc78c" /><path d="m10 74 30-48 30 48Z" fill="#91aca1" /><path d="m43 74 21-35 23 35Z" fill="#b7c6ae" /><path d="m30 42 10-16 11 18-12-5Z" fill="#f1ead5" /><path d="M17 80h61" stroke="#c5d1b8" strokeWidth="3" strokeLinecap="round" /></>,
   };
-  return <svg viewBox="0 0 96 96" className={`shrink-0 rounded-full ${className}`} role="img" aria-label={`${label}头像`} data-avatar-id={id}>
+  return <svg viewBox="0 0 96 96" className={`shrink-0 rounded-full ${className}`} role="img" aria-label={t("account.avatars.imageLabel", { name: label })} data-avatar-id={id}>
     <circle cx="48" cy="48" r="48" fill="#f7f1e3" />
     {art[id]}
   </svg>;

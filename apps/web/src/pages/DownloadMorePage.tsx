@@ -6,6 +6,8 @@ import { Button } from "../components/Button.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { CopyButton } from "../components/CopyButton.js";
+import { useI18n } from "../i18n/index.js";
+import { formatInstant } from "../lib/datetime.js";
 import {
   cacheFootprint,
   describeKey,
@@ -34,6 +36,9 @@ import { readTrace, traceLine, readValue } from "../lib/offline/storage.js";
  * this offline work has been slowed down by the same gap — the person holding the phone
  * could see the problem and the developer could not — and a button that puts the whole state
  * on the clipboard is the shortest path between them.
+ *
+ * ⚠️ S16：页面与诊断文本的**标题、标签**随界面语言；**运行记录与存储追踪的每一行是写入时的原文**
+ * （诊断数据，存在本机，给开发者看），不随语言改写。时间戳保持 ISO 8601，便于对照服务器日志。
  */
 /**
  * How many storage-trace steps the full report keeps.
@@ -47,6 +52,7 @@ const TRACE_LINES = 20;
 export function DownloadMorePage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const [log, setLog] = useState<readonly LogEntry[]>([]);
   const [footprint, setFootprint] = useState<CacheFootprint | null>(null);
@@ -132,8 +138,9 @@ export function DownloadMorePage(): React.JSX.Element {
   }, [load]);
 
   /** Everything a developer would need, as plain text. */
+  const notRead = t("offline.report.notRead");
   const report = [
-    "Libevra · 离线诊断",
+    t("offline.report.title"),
     /**
      * ⚠️ **The build first, and it is not decoration.**
      *
@@ -141,25 +148,25 @@ export function DownloadMorePage(): React.JSX.Element {
      * does not say which build produced it cannot be trusted to be about the current one — and
      * the giveaway was subtle: an identical timestamp to the previous report.
      */
-    `构建：${__BUILD_STAMP__}`,
-    `时间：${new Date().toISOString()}`,
-    `页面：${window.location.href}`,
+    t("offline.report.build", { value: __BUILD_STAMP__ }),
+    t("offline.report.time", { value: new Date().toISOString() }),
+    t("offline.report.page", { value: window.location.href }),
     "",
-    "== 占用构成 ==",
+    t("offline.report.storageHeading"),
     storage === null
-      ? "(未读取)"
+      ? notRead
       : [
-          `总计：${formatBytes(storage.totalBytes)}`,
-          `账本数据：${formatBytes(storage.queryCacheBytes)}`,
-          `应用本体：${formatBytes(storage.shellCacheBytes)}`,
-          `运行记录：${formatBytes(storage.diagnosticsBytes)}`,
-          `浏览器其它：${formatBytes(storage.otherBytes)}`,
+          t("offline.report.storageTotal", { size: formatBytes(storage.totalBytes) }),
+          t("offline.report.storageLedger", { size: formatBytes(storage.queryCacheBytes) }),
+          t("offline.report.storageShell", { size: formatBytes(storage.shellCacheBytes) }),
+          t("offline.report.storageLog", { size: formatBytes(storage.diagnosticsBytes) }),
+          t("offline.report.storageOther", { size: formatBytes(storage.otherBytes) }),
         ].join("\n"),
     "",
-    "== 缓存条目 ==",
+    t("offline.report.cacheHeading"),
     footprint === null
-      ? "(未读取)"
-      : `共 ${String(footprint.queryCount)} 条，其中 ${String(footprint.liveQueryCount)} 条当前版本会读`,
+      ? notRead
+      : t("offline.report.cacheCount", { count: footprint.queryCount, live: footprint.liveQueryCount }),
     ...(footprint?.heaviest ?? []).map(
       (entry) => `  ${entry.label} — ${formatBytes(entry.bytes)}`,
     ),
@@ -172,12 +179,13 @@ export function DownloadMorePage(): React.JSX.Element {
      * noise around them.** The last twenty steps show what just happened, which is the only thing this section
      * has ever been used for; the total is kept so it is clear that trimming happened.
      */
-    `== 存储追踪（最近 ${String(Math.min(trace.length, TRACE_LINES))} 条 / 共 ${String(trace.length)} 条） ==`,
+    t("offline.report.traceHeading", { shown: Math.min(trace.length, TRACE_LINES), total: trace.length }),
     ...trace.slice(-TRACE_LINES),
     "",
     /** ⚠️ **Omitted entirely when empty** — a heading and no content is one more thing to read past. */
-    ...(queries.length === 0 ? [] : [`== 全部存储键（${String(queries.length)} 条） ==`, ...queries, ""]),
-    `== 运行记录（最近 ${String(Math.min(log.length, 60))} 条 / 共 ${String(log.length)} 条，最新在前） ==`,
+    ...(queries.length === 0 ? [] : [t("offline.report.keysHeading", { count: queries.length }), ...queries, ""]),
+    t("offline.report.logHeading", { shown: Math.min(log.length, 60), total: log.length }),
+    // 每一行运行记录是写入时的原文（诊断数据），不翻译。
     ...log.slice(0, 60).map((entry) => `${new Date(entry.at).toISOString()} ${entry.what}${entry.detail === undefined ? "" : ` — ${entry.detail}`}`),
     "",
   ].join("\n");
@@ -190,23 +198,46 @@ export function DownloadMorePage(): React.JSX.Element {
    * the full report long, and they are only needed once the short one has narrowed it down.
    */
   const shortReport = [
-    `Libevra · 离线诊断（简版）`,
-    `构建：${__BUILD_STAMP__}`,
-    `页面：${window.location.href}`,
-    `网络：${navigator.onLine ? "在线" : "离线"}`,
-    `缓存条目：${String(footprint?.queryCount ?? 0)} 条（${String(footprint?.liveQueryCount ?? 0)} 条有效）`,
-    `缓存大小：${String(footprint?.cacheBytes ?? 0)} 字节`,
-    `数据库：${db === null ? "(未读取)" : db.opened ? `可打开，${String(db.keyCount)} 个键：${db.keys.join(",")}` : `打不开 — ${db.error ?? "未知"}`}`,
-    `本机存储：${String(storedMonths)} 个月 / ${String(storedEntries)} 条`,
-    `缓存内容：${db === null ? "(未读取)" : `${db.cacheKind}，${String(db.cacheBytes)} 字节，${db.cacheParses ? `可解析 ${String(db.cacheQueryCount)} 条` : "不可解析"}`}`,
-    `占用：总计 ${formatBytes(storage?.totalBytes ?? 0)} / 账本 ${formatBytes(storage?.queryCacheBytes ?? 0)}`,
-    `运行记录：${String(log.length)} 条`,
+    t("offline.report.shortTitle"),
+    t("offline.report.build", { value: __BUILD_STAMP__ }),
+    t("offline.report.page", { value: window.location.href }),
+    t("offline.report.network", {
+      value: navigator.onLine ? t("offline.report.online") : t("offline.report.offline"),
+    }),
+    t("offline.report.cacheEntries", { count: footprint?.queryCount ?? 0, live: footprint?.liveQueryCount ?? 0 }),
+    t("offline.report.cacheSize", { bytes: footprint?.cacheBytes ?? 0 }),
+    t("offline.report.database", {
+      value:
+        db === null
+          ? notRead
+          : db.opened
+            ? t("offline.report.databaseOpened", { count: db.keyCount, keys: db.keys.join(",") })
+            : t("offline.report.databaseFailed", { error: db.error ?? t("offline.report.unknown") }),
+    }),
+    t("offline.report.stored", { months: storedMonths, entries: storedEntries }),
+    t("offline.report.cacheContent", {
+      value:
+        db === null
+          ? notRead
+          : t("offline.report.cacheContentValue", {
+              kind: db.cacheKind,
+              bytes: db.cacheBytes,
+              parse: db.cacheParses
+                ? t("offline.report.cacheParses", { count: db.cacheQueryCount })
+                : t("offline.report.cacheUnparsable"),
+            }),
+    }),
+    t("offline.report.usage", {
+      total: formatBytes(storage?.totalBytes ?? 0),
+      ledger: formatBytes(storage?.queryCacheBytes ?? 0),
+    }),
+    t("offline.report.logCount", { count: log.length }),
   ].join("\n");
 
   return (
     <InnerPage
-      title="下载管理 · 更多"
-      subtitle="下载记录与存储明细。"
+      title={t("offline.more.title")}
+      subtitle={t("offline.more.subtitle")}
       backTo="/downloads"
       /*
         ⚠️ **The back control replaces rather than pushes.**
@@ -235,9 +266,9 @@ export function DownloadMorePage(): React.JSX.Element {
         */}
         <CopyButton
           text={shortReport}
-          label="复制简版诊断"
+          label={t("offline.more.copyShort")}
           rows={5}
-          hint="短的，方便直接发在聊天里。"
+          hint={t("offline.more.copyShortHint")}
         />
 
         {/*
@@ -250,14 +281,12 @@ export function DownloadMorePage(): React.JSX.Element {
         */}
         <CopyButton
           text={report}
-          label="复制完整诊断"
+          label={t("offline.more.copyFull")}
           rows={12}
-          hint="完整的，包含存储追踪与全部运行记录。"
+          hint={t("offline.more.copyFullHint")}
         />
 
-        <p className="text-helper-relaxed text-muted">
-          服务器上的账目不受影响；这里只是本机的副本。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("offline.more.serverSafe")}</p>
       </section>
 
       <section className="flex flex-col gap-2">
@@ -267,20 +296,17 @@ export function DownloadMorePage(): React.JSX.Element {
             setConfirmReset(true);
           }}
         >
-          清除本应用的全部本地数据
+          {t("offline.more.reset")}
         </Button>
 
-        <p className="text-helper-relaxed text-muted">
-          会删掉本机上的账本副本、应用缓存和离线记录，然后重新加载。
-          服务器上的数据不受影响，联网后可以重新下载。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("offline.more.resetHint")}</p>
       </section>
 
       <ChoiceDialog
         open={confirmReset}
-        title="清除本机全部数据？"
-        description="服务器上的账目不会被删除。清除后需要重新下载才能离线查看。"
-        choices={RESET_CHOICES}
+        title={t("offline.more.resetTitle")}
+        description={t("offline.more.resetDescription")}
+        choices={resetChoices(t)}
         onChoose={(choice) => {
           setConfirmReset(false);
           if (choice !== "reset") return;
@@ -293,13 +319,13 @@ export function DownloadMorePage(): React.JSX.Element {
 
       {storage === null ? null : (
         <section className="flex flex-col gap-1.5 rounded-card border border-line bg-surface px-4 py-3 text-sm">
-          <h2 className="text-helper text-muted">占用构成</h2>
-          <p className="text-ink">总计 {formatBytes(storage.totalBytes)}</p>
+          <h2 className="text-helper text-muted">{t("offline.more.storageTitle")}</h2>
+          <p className="text-ink">{t("offline.more.storageTotal", { size: formatBytes(storage.totalBytes) })}</p>
           <ul className="flex flex-col gap-0.5 text-micro text-muted">
-            <li>账本数据 {formatBytes(storage.queryCacheBytes)}</li>
-            <li>应用本体（HTML / JS / CSS）{formatBytes(storage.shellCacheBytes)}</li>
-            <li>运行记录 {formatBytes(storage.diagnosticsBytes)}</li>
-            <li>浏览器其它 {formatBytes(storage.otherBytes)}</li>
+            <li>{t("offline.more.storageLedger", { size: formatBytes(storage.queryCacheBytes) })}</li>
+            <li>{t("offline.more.storageShell", { size: formatBytes(storage.shellCacheBytes) })}</li>
+            <li>{t("offline.more.storageLog", { size: formatBytes(storage.diagnosticsBytes) })}</li>
+            <li>{t("offline.more.storageOther", { size: formatBytes(storage.otherBytes) })}</li>
           </ul>
           {/*
             ⚠️ **The honest note about the remainder.**
@@ -309,17 +335,15 @@ export function DownloadMorePage(): React.JSX.Element {
             before writing it to disk. Saying what it is stops the ledger taking the blame,
             and stops a "free up space" button being expected where none can exist.
           */}
-          <p className="text-micro leading-relaxed text-muted">
-            「浏览器其它」由浏览器自己记账，可能包含还没写到磁盘的数据，应用无法直接清除。
-          </p>
+          <p className="text-micro leading-relaxed text-muted">{t("offline.more.storageOtherNote")}</p>
         </section>
       )}
 
       {footprint === null ? null : (
         <section className="flex flex-col gap-1.5 rounded-card border border-line bg-surface px-4 py-3 text-sm">
-          <h2 className="text-helper text-muted">缓存条目</h2>
+          <h2 className="text-helper text-muted">{t("offline.more.cacheTitle")}</h2>
           <p className="text-ink">
-            共 {footprint.queryCount} 条，其中 {footprint.liveQueryCount} 条当前版本会读取
+            {t("offline.more.cacheCount", { count: footprint.queryCount, live: footprint.liveQueryCount })}
           </p>
           <ul className="flex flex-col gap-0.5 text-micro text-muted">
             {footprint.heaviest.map((entry) => (
@@ -333,23 +357,23 @@ export function DownloadMorePage(): React.JSX.Element {
       )}
 
       <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-helper text-muted">运行记录（{log.length} 条）</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="min-w-0 text-helper text-muted">{t("offline.more.logTitle", { count: log.length })}</h2>
           <button
             type="button"
             onClick={() => {
               void clearOfflineLog().then(() => load());
             }}
-            className="text-micro text-muted underline"
+            className="shrink-0 text-micro text-muted underline"
           >
-            清空
+            {t("offline.more.logClear")}
           </button>
         </div>
 
         {loading ? (
-          <p className="text-body text-muted">正在读取…</p>
+          <p className="text-body text-muted">{t("common.status.reading")}</p>
         ) : log.length === 0 ? (
-          <p className="text-body text-muted">还没有记录。</p>
+          <p className="text-body text-muted">{t("offline.more.logEmpty")}</p>
         ) : (
           <ul className="flex flex-col gap-1 rounded-card border border-line bg-surface px-4 py-3">
             {log.map((entry, index) => (
@@ -357,7 +381,7 @@ export function DownloadMorePage(): React.JSX.Element {
                 key={`${String(entry.at)}-${String(index)}`}
                 className="text-micro leading-relaxed"
               >
-                <span className="font-mono text-muted">{new Date(entry.at).toLocaleTimeString()}</span>{" "}
+                <span className="font-mono text-muted">{formatInstant(entry.at, { timeStyle: "medium" })}</span>{" "}
                 <span className="text-ink">{entry.what}</span>
                 {entry.detail === undefined ? null : (
                   <span className="text-muted"> — {entry.detail}</span>
@@ -378,7 +402,10 @@ export function DownloadMorePage(): React.JSX.Element {
  * the app cannot run with its own cache removed. 先不清理 is the dismissive option, since
  * closing the dialog is the same as doing nothing.
  */
-const RESET_CHOICES: readonly Choice<"reset" | "cancel">[] = [
-  { id: "reset", label: "清除并重新加载", hint: "需要联网重新下载", primary: true },
-  { id: "cancel", label: "先不清理", dismissive: true },
-];
+function resetChoices(t: ReturnType<typeof useI18n>["t"]): readonly Choice<"reset" | "cancel">[] {
+  // S16：渲染时生成，选项文字随当前语言；逻辑只看 `id`。
+  return [
+    { id: "reset", label: t("offline.more.resetConfirm"), hint: t("offline.more.resetConfirmHint"), primary: true },
+    { id: "cancel", label: t("offline.more.resetCancel"), dismissive: true },
+  ];
+}

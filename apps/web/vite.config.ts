@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { themePrepaintPlugin } from "./theme-prepaint-plugin.js";
 
 /**
  * Whether the dev server is reachable from other devices on the network.
@@ -136,6 +137,6 @@ export default defineConfig({
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [themePrepaintPlugin(), react(), tailwindcss()],
   server: serverOptions(),
 });

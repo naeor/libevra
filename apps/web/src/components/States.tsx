@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n/index.js";
+
 /**
  * What a screen shows before it has anything to show.
  *
@@ -58,16 +60,17 @@ export function ErrorState({
   readonly message: string;
   readonly onRetry: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-      <p className="text-base font-medium text-ink">加载失败</p>
+      <p className="text-base font-medium text-ink">{t("nav.state.loadFailed")}</p>
       <p className="max-w-xs text-body-relaxed text-muted">{message}</p>
       <button
         type="button"
         onClick={onRetry}
-        className="mt-2 rounded-field bg-brand-soft px-6 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+        className="mt-2 rounded-field bg-brand-soft px-6 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
       >
-        重试
+        {t("nav.state.retry")}
       </button>
     </div>
   );

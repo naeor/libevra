@@ -1,8 +1,9 @@
 import type { Transaction } from "@libellum/shared";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { ConflictScreen } from "./ConflictScreen.js";
+import { applyLocale } from "../i18n/index.js";
 import type { ConflictRecord } from "../lib/offline/localLedger.js";
 
 /**
@@ -136,5 +137,53 @@ describe("the conflict screen", () => {
     });
 
     expect(markup).toContain("没有需要自动合并的字段");
+  });
+});
+
+/**
+ * S16：英文界面同样必须把“机器替你决定了什么”和“不选会怎样”说清楚——这是高风险页面，
+ * 翻译不能把后果说丢。用户数据（备注、自建分类名）原样显示；预置分类名只在显示时翻译。
+ */
+describe("the conflict screen in English", () => {
+  const CJK = /[㐀-鿿]/u;
+
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("states every automatic decision, its side, the default and the safe way out — with no Chinese left", () => {
+    applyLocale("en-US");
+
+    const markup = renderToStaticMarkup(
+      <ConflictScreen
+        conflict={{
+          mine: entry({ amountCents: 2500, categoryName: "Hobbies", note: "taxi home" }),
+          theirs: entry({ amountCents: 9999, categoryId: "cat-other", categoryName: "其他" }),
+          base: entry({ categoryName: "Hobbies" }),
+          at: 0,
+        }}
+        categories={[
+          { id: "cat-food", name: "Hobbies" },
+          { id: "cat-other", name: "其他" },
+        ]}
+        onResolve={() => undefined}
+        onLater={() => undefined}
+      />,
+    );
+
+    expect(markup).not.toMatch(CJK);
+    expect(markup).toContain("Merged automatically (2)");
+    expect(markup).toContain("Kept yours");
+    expect(markup).toContain("Kept the server’s");
+    expect(markup).toContain("taxi home");
+    // 预置分类“其他”显示为英文；值本身（id）不变。
+    expect(markup).toContain(">Other<");
+    expect(markup).toContain("Your choice needed (1)");
+    expect(markup).toContain("This device");
+    expect(markup).toContain("Server");
+    expect(markup).toContain("If you don’t, the server’s version is kept.");
+    expect(markup).toContain("1 still to choose");
+    expect(markup).toContain("Decide later");
+    expect(markup).toContain("both versions are kept");
   });
 });

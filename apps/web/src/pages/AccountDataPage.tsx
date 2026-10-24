@@ -9,8 +9,10 @@ import { CopyButton } from "../components/CopyButton.js";
 import { InnerPage } from "../components/Layouts.js";
 import { InlineMessage, ListGroup, ListRow } from "../components/ui/List.js";
 import { TextField } from "../components/TextField.js";
+import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { fetchAccountExport } from "../lib/consent.js";
+import { formatInstant } from "../lib/datetime.js";
 import {
   closeAccount,
   deleteServerData,
@@ -29,7 +31,45 @@ import { deliverFile } from "../lib/share.js";
 
 function dateText(value: string | null): string {
   if (value === null) return "—";
-  return new Date(value).toLocaleString("zh-CN", { dateStyle: "medium", timeStyle: "short" });
+  return formatInstant(value, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/**
+ * **服务器要求的确认原文**（`apps/api/src/routes/lifecycle.ts` 逐字比对）。提交给服务器的永远是这两句，
+ * 不随界面语言变化。
+ */
+const DELETE_CONFIRMATION = "删除服务器数据"; // i18n-ignore：服务器逐字校验的确认原文，不是界面文字
+const CLOSE_CONFIRMATION = "注销账号"; // i18n-ignore：服务器逐字校验的确认原文，不是界面文字
+
+/**
+ * 用户输入的确认短语是否有效（S16 国际化）。
+ *
+ * ⚠️ **服务器原文永远有效，中文界面的判断与以前完全相同**（中文短语就是服务器原文，逐字比对）。
+ * 其它语言另外接受**当前语言的短语**（忽略首尾空格与大小写，手机键盘常自动大写首字母）——让英文用户
+ * 不必输入中文；通过后提交的仍是服务器原文。这只是界面上的防误触，真正的校验（密码 + 原文）在服务器。
+ */
+export function confirmationAccepted(typed: string, serverPhrase: string, localizedPhrase: string): boolean {
+  if (typed === serverPhrase) return true;
+  if (localizedPhrase === serverPhrase) return false;
+  return typed.trim().toLocaleLowerCase() === localizedPhrase.trim().toLocaleLowerCase();
+}
+
+const BLOCKED_REASONS = ["purging", "pendingRecovery", "noSuccessor", "noSuccessorClose"] as const;
+
+/**
+ * 服务器给的「暂时不能处理」原因按当前语言显示。
+ *
+ * 中文界面原样显示服务器原文（与以前相同）；其它语言用中文原文反查 `account.data.blockedReason.*`，
+ * 查到就显示译文，查不到（服务器以后新增的说法）就原样显示，不丢信息。
+ */
+export function blockedReasonText(reason: string): string {
+  if (isChineseLocale()) return reason;
+  for (const key of BLOCKED_REASONS) {
+    if (translate(`account.data.blockedReason.${key}`, { lng: "zh-CN" }) === reason) {
+      return translate(`account.data.blockedReason.${key}`);
+    }
+  }
+  return reason;
 }
 
 type Dialog = "delete" | "delete-result" | "close" | "close-result" | null;
@@ -48,6 +88,9 @@ type Dialog = "delete" | "delete-result" | "close" | "close-result" | null;
 export function AccountDataPage(): React.JSX.Element {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { t } = useI18n();
+  const deletePhrase = t("account.data.deletePhrase");
+  const closePhrase = t("account.data.closePhrase");
   const [data, setData] = useState<AccountLifecycle | null>(null);
   const [preview, setPreview] = useState<DataDeletionPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +170,7 @@ export function AccountDataPage(): React.JSX.Element {
     try {
       const file = await fetchAccountExport();
       const outcome = await deliverFile(file.fileName, "application/json", file.bytes);
-      setNotice(outcome.cancelled ? "已取消导出。" : "账号数据已导出。");
+      setNotice(outcome.cancelled ? t("account.data.exportCancelled") : t("account.data.exportDone"));
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -141,7 +184,7 @@ export function AccountDataPage(): React.JSX.Element {
     try {
       await restoreArchivedBook(bookId);
       await load();
-      setNotice("账本已恢复。");
+      setNotice(t("account.data.restored"));
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -155,7 +198,7 @@ export function AccountDataPage(): React.JSX.Element {
     try {
       const request = await requestManualRecovery(bookId);
       await load();
-      setNotice(`人工恢复申请已提交，审核截止 ${dateText(request.deadlineAt)}。`);
+      setNotice(t("account.data.manualRecoveryRequested", { deadline: dateText(request.deadlineAt) }));
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -164,8 +207,8 @@ export function AccountDataPage(): React.JSX.Element {
   }
 
   async function submitDelete(): Promise<void> {
-    if (confirmation !== "删除服务器数据") {
-      setError("请输入「删除服务器数据」确认这次操作。");
+    if (!confirmationAccepted(confirmation, DELETE_CONFIRMATION, deletePhrase)) {
+      setError(t("account.data.phraseRequired", { phrase: deletePhrase }));
       return;
     }
     setBusy(true);
@@ -174,7 +217,7 @@ export function AccountDataPage(): React.JSX.Element {
       const bookIds = allBooks ? [] : [...selected];
       const result = await deleteServerData({
         password,
-        confirmation,
+        confirmation: DELETE_CONFIRMATION,
         all: allBooks,
         bookIds,
       });
@@ -196,8 +239,8 @@ export function AccountDataPage(): React.JSX.Element {
 
   async function submitClose(): Promise<void> {
     if (data === null) return;
-    if (confirmation !== "注销账号") {
-      setError("请输入「注销账号」确认这次操作。");
+    if (!confirmationAccepted(confirmation, CLOSE_CONFIRMATION, closePhrase)) {
+      setError(t("account.data.phraseRequired", { phrase: closePhrase }));
       return;
     }
     setBusy(true);
@@ -206,7 +249,7 @@ export function AccountDataPage(): React.JSX.Element {
       const result = await closeAccount({
         method: "close_account",
         password,
-        confirmation,
+        confirmation: CLOSE_CONFIRMATION,
         decisions: data.books.map((book) => ({
           bookId: book.bookId,
           action: decisions[book.bookId] ?? "leave",
@@ -244,7 +287,7 @@ export function AccountDataPage(): React.JSX.Element {
   const deleteBlocked = (preview?.blockers.length ?? 0) > 0;
 
   return (
-    <InnerPage title="账号与数据" backTo="/settings">
+    <InnerPage title={t("account.data.title")} backTo="/settings">
       {/**
         * ⚠️ **S16-A：反馈贴着页面顶部，但不再整段铺开。** 服务器的错误说明可能有好几行（例如注销
         * 前需要交接的账本），原来的 `Alert` 会把下面的三组内容整体推出首屏。`InlineMessage` 默认显示
@@ -274,10 +317,10 @@ export function AccountDataPage(): React.JSX.Element {
         </InlineMessage>
       )}
 
-      <ListGroup title="数据">
+      <ListGroup title={t("account.data.groupData")}>
         <ListRow
-          label="导出我的数据"
-          detail="账号资料与当前可访问账本的全部账目"
+          label={t("account.data.export")}
+          detail={t("account.data.exportDetail")}
           onClick={() => void onExport()}
           disabled={busy}
         />
@@ -289,29 +332,34 @@ export function AccountDataPage(): React.JSX.Element {
         * 读取失败（可重试）、真的没有账本。
         */}
       {data === null ? (
-        <ListGroup title="我的账本">
+        <ListGroup title={t("account.data.myLedgers")}>
           {error === null ? (
-            <div className="px-5 py-4 text-body text-muted">正在读取账本……</div>
+            <div className="px-5 py-4 text-body text-muted">{t("account.data.loadingLedgers")}</div>
           ) : (
-            <ListRow label="账本列表读取失败" detail="点按重新读取" onClick={() => void load()} disabled={busy} />
+            <ListRow
+              label={t("account.data.loadFailed")}
+              detail={t("account.data.loadRetry")}
+              onClick={() => void load()}
+              disabled={busy}
+            />
           )}
         </ListGroup>
       ) : (
         <ListGroup
-          title="我的账本"
-          footer={archivedBooks.length === 0 ? "没有已归档账本。" : undefined}
+          title={t("account.data.myLedgers")}
+          footer={archivedBooks.length === 0 ? t("account.data.noArchived") : undefined}
         >
           {activeBooks.length === 0 ? (
             <div className="px-5 py-4">
-              <p className="text-body text-ink">当前账号没有账本。</p>
-              <p className="mt-1 text-helper text-muted">删除全部账本数据后仍会保留账号，你可以从账本空间新建一本。</p>
+              <p className="text-body text-ink">{t("account.data.noLedgers")}</p>
+              <p className="mt-1 text-helper text-muted">{t("account.data.noLedgersHint")}</p>
               <Button
                 variant="secondary"
                 fullWidth={false}
                 className="mt-3"
                 onClick={() => void navigate("/start")}
               >
-                去新建账本
+                {t("account.data.createLedger")}
               </Button>
             </div>
           ) : (
@@ -320,7 +368,9 @@ export function AccountDataPage(): React.JSX.Element {
                 key={book.bookId}
                 label={<span className="block truncate">{book.name}</span>}
                 detail={`${book.bookNumber === null ? "" : `${book.bookNumber} · `}${
-                  book.memberCount > 1 ? `共享账本 · ${String(book.memberCount)} 位成员` : "单人账本"
+                  book.memberCount > 1
+                    ? t("account.data.sharedLedger", { count: book.memberCount })
+                    : t("account.data.soloLedger")
                 }`}
                 onClick={() => void navigate(`/books/${book.bookId}/settings`)}
               />
@@ -330,23 +380,28 @@ export function AccountDataPage(): React.JSX.Element {
       )}
 
       {archivedBooks.length === 0 ? null : (
-        <ListGroup title="已归档账本">
+        <ListGroup title={t("account.data.archivedGroup")}>
           {archivedBooks.map((book) => (
-            <div key={book.bookId} className="flex flex-col gap-1 px-5 py-3.5">
-              <p className="text-body text-ink">{book.name}</p>
+            <div key={book.bookId} className="flex min-w-0 flex-col gap-1 px-5 py-3.5">
+              <p className="break-words text-body text-ink">{book.name}</p>
               <p className="text-helper-relaxed text-muted">
-                归档于 {dateText(book.archivedAt)} · 自助恢复截止 {dateText(book.selfRestoreUntil)}
+                {t("account.data.archivedAt", {
+                  archivedAt: dateText(book.archivedAt),
+                  restoreUntil: dateText(book.selfRestoreUntil),
+                })}
               </p>
-              <p className="text-helper-relaxed text-muted">预计清理 {dateText(book.scheduledPurgeAt)}（到期后 24 小时内）</p>
+              <p className="text-helper-relaxed text-muted">
+                {t("account.data.purgeAt", { purgeAt: dateText(book.scheduledPurgeAt) })}
+              </p>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {book.selfRestoreUntil !== null && new Date(book.selfRestoreUntil).getTime() > Date.now() ? (
                   <Button variant="secondary" fullWidth={false} disabled={busy} onClick={() => void onRestore(book.bookId)}>
-                    恢复账本
+                    {t("account.data.restore")}
                   </Button>
                 ) : null}
                 {book.selfRestoreUntil !== null && new Date(book.selfRestoreUntil).getTime() <= Date.now() ? (
                   <Button variant="secondary" fullWidth={false} disabled={busy} onClick={() => void onRequestRecovery(book.bookId)}>
-                    申请人工恢复
+                    {t("account.data.requestRecovery")}
                   </Button>
                 ) : null}
               </div>
@@ -355,21 +410,21 @@ export function AccountDataPage(): React.JSX.Element {
         </ListGroup>
       )}
 
-      <ListGroup title="危险操作">
+      <ListGroup title={t("account.data.danger")}>
         <ListRow
-          label="删除服务器数据"
+          label={t("account.data.deleteServerData")}
           tone="danger"
-          detail="选择账本或全部账本；账号仍保留，可以继续登录和新建账本"
+          detail={t("account.data.deleteServerDataDetail")}
           disabled={busy}
           onClick={() => void openDeleteDialog()}
         />
         <ListRow
-          label="注销账号"
+          label={t("account.data.closeAccount")}
           tone="danger"
           detail={
             <>
-              逐本处理账本、撤销登录；注销后不能继续使用这个账号
-              {blocked ? <span className="block text-danger">有账本需要先处理管理者交接或清理状态。</span> : null}
+              {t("account.data.closeAccountDetail")}
+              {blocked ? <span className="block text-danger">{t("account.data.closeBlocked")}</span> : null}
             </>
           }
           disabled={busy || blocked}
@@ -379,12 +434,12 @@ export function AccountDataPage(): React.JSX.Element {
 
       {dialog === "delete" && preview !== null ? (
         <ConsentDialog
-          title="删除服务器数据"
-          eyebrow="账号会保留"
+          title={t("account.data.delete.title")}
+          eyebrow={t("account.data.delete.eyebrow")}
           footer={
             <>
               <Button variant="secondary" onClick={() => setDialog(null)} disabled={busy}>
-                取消
+                {t("account.data.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -396,21 +451,23 @@ export function AccountDataPage(): React.JSX.Element {
                   (!allBooks && selected.size === 0)
                 }
               >
-                {busy ? "处理中…" : allBooks ? "删除全部账本数据" : "删除所选账本数据"}
+                {busy
+                  ? t("account.data.processing")
+                  : allBooks
+                    ? t("account.data.delete.submitAll")
+                    : t("account.data.delete.submitSelected")}
               </Button>
             </>
           }
         >
-          <p className="text-body-relaxed text-ink">
-            只会删除账本数据。账号、密码、登录状态和恢复码都不会改变，之后仍可登录并新建账本。
-          </p>
+          <p className="text-body-relaxed text-ink">{t("account.data.delete.intro")}</p>
           <div className="mt-3 rounded-field bg-canvas px-3 py-2 text-helper-relaxed text-muted">
-            共享账本：退出协作，其他成员不受影响。单人账本、最后成员账本或已归档账本：永久删除，并保留必要的删除记录。
+            {t("account.data.delete.rules")}
           </div>
 
           {deleteBlocked ? (
             <p className="mt-3 rounded-field bg-danger-soft px-3 py-2 text-helper-relaxed text-danger">
-              有账本暂时不能删除数据（需要管理者交接或存在待处理的恢复申请）。整个操作不会执行。
+              {t("account.data.delete.blocked")}
             </p>
           ) : null}
 
@@ -424,7 +481,7 @@ export function AccountDataPage(): React.JSX.Element {
               }}
               className="mt-1 size-4 shrink-0"
             />
-            <span>删除全部账本数据（{String(preview.counts.total)} 本）</span>
+            <span className="min-w-0">{t("account.data.delete.all", { count: preview.counts.total })}</span>
           </label>
 
           <div className="mt-3 flex flex-col gap-2">
@@ -447,16 +504,16 @@ export function AccountDataPage(): React.JSX.Element {
                     className="mt-1 size-4 shrink-0"
                   />
                   <span className="min-w-0 text-body text-ink">
-                    <span className="block">{book.name}</span>
+                    <span className="block break-words">{book.name}</span>
                     <span className="block text-helper text-muted">
                       {book.action === "leave"
-                        ? `退出共享账本 · ${String(book.memberCount)} 位成员`
+                        ? t("account.data.delete.leaveShared", { count: book.memberCount })
                         : book.archived
-                          ? "永久删除已归档账本"
-                          : "永久删除账本数据"}
+                          ? t("account.data.delete.deleteArchived")
+                          : t("account.data.delete.deleteData")}
                     </span>
                     {book.blockedReason === null ? null : (
-                      <span className="block text-helper text-danger">{book.blockedReason}</span>
+                      <span className="block text-helper text-danger">{blockedReasonText(book.blockedReason)}</span>
                     )}
                   </span>
                 </label>
@@ -466,85 +523,81 @@ export function AccountDataPage(): React.JSX.Element {
 
           <div className="mt-4 flex flex-col gap-3">
             <TextField
-              label="当前密码"
+              label={t("account.data.currentPassword")}
               type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
             <TextField
-              label="输入「删除服务器数据」确认"
+              label={t("account.data.phraseLabel", { phrase: deletePhrase })}
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
             />
           </div>
-          <p className="mt-3 text-helper text-muted">
-            旧设备联网后会停止同步并清理对应本地副本；历史备份按备份周期保留，最长约 365 天，到期后清理，不能即时抹除。
-          </p>
+          <p className="mt-3 text-helper text-muted">{t("account.data.delete.backupNote")}</p>
           {error === null ? null : <Alert>{error}</Alert>}
         </ConsentDialog>
       ) : null}
 
       {dialog === "delete-result" && deleteResult !== null ? (
         <ConsentDialog
-          title="服务器数据已删除"
-          eyebrow="账号仍保留"
-          footer={<Button onClick={finishDelete}>完成</Button>}
+          title={t("account.data.deleteResult.title")}
+          eyebrow={t("account.data.deleteResult.eyebrow")}
+          footer={<Button onClick={finishDelete}>{t("account.data.deleteResult.done")}</Button>}
         >
-          <p className="text-body-relaxed text-ink">所选账本已按规则处理完毕。账号没有被注销，仍可正常登录。</p>
+          <p className="text-body-relaxed text-ink">{t("account.data.deleteResult.intro")}</p>
           <ul className="mt-3 flex flex-col gap-1.5 text-body text-ink">
             {deleteResult.processed.map((item) => (
               <li key={item.bookId} className="flex justify-between gap-3">
                 <span className="min-w-0 truncate">{preview?.books.find((book) => book.bookId === item.bookId)?.name ?? item.bookId.slice(0, 8)}</span>
                 <span className="shrink-0">
                   {item.action === "left" || item.action === "already_left"
-                    ? "已退出共享账本"
+                    ? t("account.data.deleteResult.left")
                     : item.action === "deleted"
-                      ? "已永久删除"
-                      : "此前已删除"}
+                      ? t("account.data.deleteResult.deleted")
+                      : t("account.data.deleteResult.alreadyDeleted")}
                 </span>
               </li>
             ))}
           </ul>
           <p className="mt-3 text-helper text-muted">
-            当前账号剩余 {String(deleteResult.remainingBookCount)} 本账本。没有账本时可以从账本空间新建。
+            {t("account.data.deleteResult.remaining", { count: deleteResult.remainingBookCount })}
           </p>
         </ConsentDialog>
       ) : null}
 
       {dialog === "close" && data !== null ? (
         <ConsentDialog
-          title="注销账号"
-          eyebrow="不可恢复"
+          title={t("account.data.close.title")}
+          eyebrow={t("account.data.close.eyebrow")}
           onDismiss={busy ? undefined : cancelClose}
           footer={
             <>
               <Button variant="secondary" onClick={cancelClose} disabled={busy}>
-                取消
+                {t("account.data.cancel")}
               </Button>
               <Button
                 variant="danger"
                 onClick={() => void submitClose()}
                 disabled={busy || password.length === 0}
               >
-                {busy ? "处理中…" : "确认注销"}
+                {busy ? t("account.data.processing") : t("account.data.close.submit")}
               </Button>
             </>
           }
         >
-          <p className="text-body-relaxed text-ink">
-            注销后这个账号不能继续登录或同步。下面每一本账本都会按现有生命周期规则处理。
-          </p>
+          <p className="text-body-relaxed text-ink">{t("account.data.close.intro")}</p>
           <div className="mt-3 flex flex-col gap-2">
             {data.books.map((book) => (
               <div key={book.bookId} className="rounded-field border border-line px-3 py-2.5">
-                <p className="text-body text-ink">{book.name}</p>
+                <p className="break-words text-body text-ink">{book.name}</p>
                 <p className="mt-0.5 text-helper text-muted">
                   {book.archived
-                    ? `已归档 · ${dateText(book.archivedAt)}`
+                    ? t("account.data.close.archived", { date: dateText(book.archivedAt) })
                     : book.memberCount > 1
-                      ? `共享账本 · ${String(book.memberCount)} 位成员`
-                      : "单人账本"}
+                      ? t("account.data.sharedLedger", { count: book.memberCount })
+                      : t("account.data.soloLedger")}
                 </p>
                 <select
                   /**
@@ -566,72 +619,68 @@ export function AccountDataPage(): React.JSX.Element {
                   {book.options.map((option) => (
                     <option key={option} value={option}>
                       {option === "leave"
-                        ? "退出共享账本"
+                        ? t("account.data.close.optionLeave")
                         : option === "archive"
-                          ? "归档账本（60 天内可恢复）"
+                          ? t("account.data.close.optionArchive")
                           : option === "keep_archived"
-                            ? "保持原归档期限"
-                            : "永久删除账本"}
+                            ? t("account.data.close.optionKeepArchived")
+                            : t("account.data.close.optionDelete")}
                     </option>
                   ))}
                 </select>
-                {book.blockedReason === null ? null : <p className="mt-1 text-helper text-danger">{book.blockedReason}</p>}
+                {book.blockedReason === null ? null : (
+                  <p className="mt-1 text-helper text-danger">{blockedReasonText(book.blockedReason)}</p>
+                )}
               </div>
             ))}
           </div>
           <div className="mt-4 flex flex-col gap-3">
             <TextField
-              label="当前密码"
+              label={t("account.data.currentPassword")}
               type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
             <TextField
-              label="输入「注销账号」确认"
+              label={t("account.data.phraseLabel", { phrase: closePhrase })}
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
             />
           </div>
-          <p className="mt-3 text-helper text-muted">
-            若保留归档账本，会生成一次性恢复凭证；凭证只用于恢复符合条件的归档账本，不能恢复账号。旧设备联网后会退出。
-          </p>
+          <p className="mt-3 text-helper text-muted">{t("account.data.close.credentialNote")}</p>
           {error === null ? null : <Alert>{error}</Alert>}
         </ConsentDialog>
       ) : null}
 
       {dialog === "close-result" && closeResult !== null ? (
         <ConsentDialog
-          title="账号已注销"
-          eyebrow="已停止使用"
-          footer={<Button onClick={() => void finishClose()}>返回登录</Button>}
+          title={t("account.data.closeResult.title")}
+          eyebrow={t("account.data.closeResult.eyebrow")}
+          footer={<Button onClick={() => void finishClose()}>{t("account.data.closeResult.backToLogin")}</Button>}
         >
-          <p className="text-body-relaxed text-ink">这个账号已注销，无法继续使用；旧设备联网后会退出登录。</p>
+          <p className="text-body-relaxed text-ink">{t("account.data.closeResult.intro")}</p>
 
           {closeResult.recoveryCredential === null ? (
-            <p className="mt-3 text-helper-relaxed text-muted">没有保留需要恢复的归档账本。</p>
+            <p className="mt-3 text-helper-relaxed text-muted">{t("account.data.closeResult.noCredential")}</p>
           ) : (
             <div className="mt-4 rounded-field border border-line bg-canvas p-4">
-              <p className="text-body font-medium text-ink">归档恢复凭证</p>
-              <p className="mt-1 text-helper-relaxed text-muted">
-                只显示这一次，请现在保存。它用于申请恢复符合条件的归档账本，不能恢复账号。
-              </p>
+              <p className="text-body font-medium text-ink">{t("account.data.closeResult.credentialTitle")}</p>
+              <p className="mt-1 text-helper-relaxed text-muted">{t("account.data.closeResult.credentialNote")}</p>
               <div className="mt-3">
                 <CopyButton
                   text={closeResult.recoveryCredential}
-                  label="复制恢复凭证"
-                  copiedLabel="已复制"
+                  label={t("account.data.closeResult.copy")}
+                  copiedLabel={t("account.data.closeResult.copied")}
                   variant="secondary"
                   rows={3}
-                  hint="完整的恢复凭证也显示在下方，可以长按选择。"
+                  hint={t("account.data.closeResult.copyHint")}
                 />
               </div>
             </div>
           )}
 
-          <p className="mt-3 text-helper text-muted">
-            历史备份按备份周期保留，最长约 365 天，到期后清理；完全离线的设备会在下次联网时退出。
-          </p>
+          <p className="mt-3 text-helper text-muted">{t("account.data.closeResult.backupNote")}</p>
         </ConsentDialog>
       ) : null}
     </InnerPage>

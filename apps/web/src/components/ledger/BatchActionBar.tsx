@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/index.js";
 import type { BatchSummary } from "./batch.js";
 
 /**
@@ -35,6 +36,7 @@ export function BatchActionBar({
   readonly onEdit: () => void;
   readonly onDelete: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const disabled = selectedCount === 0 || blockedReason !== null || busy;
 
   return (
@@ -58,16 +60,20 @@ export function BatchActionBar({
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <span className="mr-auto text-sm text-ink">已选 {selectedCount} 条</span>
+        {/*
+          S16：英文比中文长，这一行在 320px 上可能放不下「已选 N 条」+ 两个按钮，所以允许换行
+          （按钮整体落到下一行，不会被挤压或重叠）。
+        */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-auto min-w-0 text-sm text-ink">{t("ledger.batch.selectedCount", { count: selectedCount })}</span>
 
           <button
             type="button"
             disabled={disabled}
             onClick={onEdit}
-            className="rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70 disabled:cursor-not-allowed disabled:opacity-45"
+            className="rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            批量编辑
+            {t("ledger.batch.edit")}
           </button>
 
           <button
@@ -76,12 +82,12 @@ export function BatchActionBar({
             onClick={onDelete}
             className="rounded-field bg-danger px-4 py-2.5 text-sm font-medium text-on-danger transition hover:bg-danger-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
-            批量删除
+            {t("ledger.batch.delete")}
           </button>
         </div>
 
         <p className="mt-1 pb-3 text-helper text-muted">
-          {blockedReason ?? (selectedCount === 0 ? "先选中至少一笔账目。" : "只会改动你勾选的字段。")}
+          {blockedReason ?? (selectedCount === 0 ? t("ledger.batch.selectFirst") : t("ledger.batch.onlyTicked"))}
         </p>
       </div>
     </div>

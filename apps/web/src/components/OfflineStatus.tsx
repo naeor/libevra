@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useI18n } from "../i18n/index.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
@@ -41,6 +42,7 @@ const LINGER_MS = 10_000;
 const OFFLINE_NOTICE_MS = 4_000;
 
 export function OfflineStatus(): React.JSX.Element | null {
+  const { t } = useI18n();
   const guest = useGuestMode();
   const { fill, ready } = useOfflineFillStatus();
   const { offline } = useAccountOffline();
@@ -142,27 +144,26 @@ export function OfflineStatus(): React.JSX.Element | null {
     >
       {running ? (
         <>
-          <p>
-            正在把历史记录存到本机，离线时也能查看（{fill?.done ?? 0}/{fill?.total ?? 0} 个月）…
-          </p>
-          <p>可以在「我的 → 下载管理」里查看和调整。</p>
+          <p>{t("offline.status.downloading", { done: fill?.done ?? 0, total: fill?.total ?? 0 })}</p>
+          <p>{t("offline.status.manageHint")}</p>
         </>
       ) : null}
 
       {lingering && fill?.stopped === null ? (
         <>
-          <p>
-            历史记录已存到本机（{fill?.total ?? 0} 个月），离线时也能查看。
-          </p>
-          <p>可以在「我的 → 下载管理」里查看和调整。</p>
+          <p>{t("offline.status.finished", { count: fill?.total ?? 0 })}</p>
+          <p>{t("offline.status.manageHint")}</p>
         </>
       ) : null}
 
-      {lingering && fill?.stopped != null ? <p>{fill.stopped}</p> : null}
-
-      {!running && !lingering && (fill?.skippedMetered ?? false) ? (
-        <p>当前是流量网络，暂时没有下载历史记录。连上 Wi-Fi 后会自动继续。</p>
+      {/* 停止原因是稳定 id，文字在这里按当前语言选。 */}
+      {lingering && fill?.stopped != null ? (
+        <p>
+          {fill.stopped === "partial" ? t("offline.status.stoppedPartial") : t("offline.status.stoppedInterrupted")}
+        </p>
       ) : null}
+
+      {!running && !lingering && (fill?.skippedMetered ?? false) ? <p>{t("offline.status.metered")}</p> : null}
 
       {/*
         ⚠️ **The fallback statement, and it is deliberately blunt.**
@@ -173,13 +174,16 @@ export function OfflineStatus(): React.JSX.Element | null {
       */}
       {offlineLongEnough ? (
         <>
-          <p>连不上服务器，现在显示的是本机保存的数据。</p>
+          <p>{t("offline.status.unreachable")}</p>
           <p>
-            本机共有 {read.total} 条记录
             {read.at === 0
-              ? "（还没有读取过）"
-              : `（本机存储 ${read.storedEntries} 条 / 查询缓存 ${read.diskEntries} 条 / 内存 ${read.liveEntries} 条）`}
-            。联网后会自动同步。
+              ? t("offline.status.localNotRead", { count: read.total })
+              : t("offline.status.localCounts", {
+                  count: read.total,
+                  stored: read.storedEntries,
+                  disk: read.diskEntries,
+                  live: read.liveEntries,
+                })}
           </p>
         </>
       ) : null}

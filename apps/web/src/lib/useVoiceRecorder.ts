@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MAX_SPEECH_SECONDS } from "@libellum/shared";
 
+import { t } from "../i18n/index.js";
 import { secondsLeft } from "./voiceRipples.js";
 
 /**
@@ -102,17 +103,14 @@ export function detectBlocker(context: MediaContext = readMediaContext()): Recor
   return null;
 }
 
-/** How to say the problem, and what the user can do about it. */
+/** How to say the problem, and what the user can do about it (in the current interface language). */
 export function describeBlocker(blocker: RecorderBlocker): string | null {
   if (blocker === "insecure-context") {
-    return (
-      "这个地址不是安全连接，浏览器不提供录音能力。请改用 https 地址打开" +
-      "（手机访问时用启动窗口里打印的 https 地址），或者改用手动记账。"
-    );
+    return t("capture.recorder.insecure");
   }
 
   if (blocker === "unsupported") {
-    return "这个浏览器不支持录音。可以改用手动记账，功能不受影响。";
+    return t("capture.recorder.unsupported");
   }
 
   return null;
@@ -305,7 +303,7 @@ export function useVoiceRecorder(
         setElapsed(0);
 
         if (blob.size === 0) {
-          setError(byLimit ? "没有录到声音。" : "录音是空的，请再试一次。");
+          setError(byLimit ? t("capture.recorder.silentAtLimit") : t("capture.recorder.empty"));
           return;
         }
 
@@ -371,13 +369,13 @@ function describeMicrophoneError(caught: unknown): string {
   switch (name) {
     case "NotAllowedError":
     case "SecurityError":
-      return "浏览器没有允许使用麦克风。可以在浏览器的网站设置里打开麦克风权限，或者改用手动记账。";
+      return t("capture.recorder.denied");
     case "NotFoundError":
     case "OverconstrainedError":
-      return "没有找到可用的麦克风。可以改用手动记账。";
+      return t("capture.recorder.notFound");
     case "NotReadableError":
-      return "麦克风被其它程序占用了。关掉正在用麦克风的程序再试一次。";
+      return t("capture.recorder.busy");
     default:
-      return "没能开始录音。可以改用手动记账。";
+      return t("capture.recorder.failed");
   }
 }

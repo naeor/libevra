@@ -4,7 +4,7 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-quiet";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-brand text-on-brand shadow-sm hover:bg-brand-dark",
-  secondary: "bg-brand-soft text-brand-dark hover:bg-brand-soft/70",
+  secondary: "bg-brand-soft text-brand-dark hover:bg-brand/20",
   ghost: "bg-transparent text-muted hover:text-ink",
   // The muted red from the palette, so it reads as "careful" without shouting.
   danger: "bg-danger text-on-danger shadow-sm hover:bg-danger-dark",

@@ -19,9 +19,10 @@ import {
   billItemsById,
 } from "../components/import/BillImportViews.js";
 import { InnerPage } from "../components/Layouts.js";
+import { useI18n, type Locale } from "../i18n/index.js";
 import { ApiRequestError, errorMessage } from "../lib/api.js";
 import {
-  BILL_SOURCE_LABELS,
+  billSourceLabel,
   billRowProblem,
   commitBill,
   previewBill,
@@ -96,6 +97,7 @@ export function ImportPage(): React.JSX.Element {
 
 function ImportForCurrentLedger(): React.JSX.Element {
   const [searchParams] = useSearchParams();
+  const { t } = useI18n();
   // 当前入口可以使用 useLedger 初始化设备账本；目标入口绝不能调用它。
   const ledger = useLedger();
   const bookId = useCurrentBookId();
@@ -104,9 +106,11 @@ function ImportForCurrentLedger(): React.JSX.Element {
 
   if (bookId === null || bookId === "") {
     return (
-      <InnerPage title="导入账单" backTo={fromMenu ? "/" : "/export"}>
+      <InnerPage title={t("dataio.import.title")} backTo={fromMenu ? "/" : "/export"}>
         <Alert tone={ledger.isError ? "error" : "info"}>
-          {ledger.isError ? `无法读取当前账本：${errorMessage(ledger.error)}` : "正在读取当前账本，请稍候……"}
+          {ledger.isError
+            ? t("dataio.import.readError", { error: errorMessage(ledger.error) })
+            : t("dataio.import.reading")}
         </Alert>
       </InnerPage>
     );
@@ -119,7 +123,7 @@ function ImportForCurrentLedger(): React.JSX.Element {
       backTo={fromMenu ? "/" : "/export"}
       exportTo="/export"
       doneTo="/"
-      doneLabel="回到明细"
+      doneLabel={t("dataio.import.doneToEntries")}
       hideExportLink={fromMenu}
     />
   );
@@ -127,10 +131,17 @@ function ImportForCurrentLedger(): React.JSX.Element {
 
 function ImportForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
   const meta = useLedgerMeta(bookId);
+  const { t } = useI18n();
 
   const name = meta.data?.book.name ?? null;
   const bookNumber = meta.data?.book.bookNumber ?? null;
-  const label = name === null ? "正在读取账本……" : bookNumber === null ? name : `${name}（${bookNumber}）`;
+  // ⚠️ 名称（编号）：两个账本可能同名，编号必须一起显示。账本名是用户数据，不翻译。
+  const label =
+    name === null
+      ? t("dataio.common.readingBook")
+      : bookNumber === null
+        ? name
+        : t("dataio.common.bookLabel", { name, number: bookNumber });
 
   return (
     /**
@@ -144,7 +155,7 @@ function ImportForBook({ bookId }: { readonly bookId: string }): React.JSX.Eleme
       backTo={`/books/${bookId}/settings`}
       exportTo={`/books/${bookId}/settings/export`}
       doneTo={`/books/${bookId}/settings`}
-      doneLabel="回到账本设置"
+      doneLabel={t("dataio.import.doneToSettings")}
       target={{ label, failure: meta.isError ? errorMessage(meta.error) : null }}
     />
   );
@@ -174,9 +185,17 @@ function ImportView({
   readonly hideExportLink?: boolean;
 }): React.JSX.Element {
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
   const fileInput = useRef<HTMLInputElement>(null);
-  /** 逐笔字段校验的缓存：编辑一笔不会重算另外几万笔。 */
-  const problemCache = useRef(new WeakMap<BillImportCandidate, string | null>());
+  /**
+   * 逐笔字段校验的缓存：编辑一笔不会重算另外几万笔。
+   *
+   * ⚠️ S16：缓存的是**提示文字**，所以按界面语言分开——切换语言后整份缓存作废，提示随之换成新语言。
+   */
+  const problemCache = useRef<{ locale: Locale; map: WeakMap<BillImportCandidate, string | null> }>({
+    locale,
+    map: new WeakMap(),
+  });
 
   const duplicateSettings = useDuplicateDetectionSettings();
   const meta = useLedgerMeta(bookId);
@@ -200,10 +219,11 @@ function ImportView({
   const failure = target?.failure ?? null;
 
   function problemOf(item: BillImportCandidate): string | null {
-    const cached = problemCache.current.get(item);
+    if (problemCache.current.locale !== locale) problemCache.current = { locale, map: new WeakMap() };
+    const cached = problemCache.current.map.get(item);
     if (cached !== undefined) return cached;
     const problem = billRowProblem(item);
-    problemCache.current.set(item, problem);
+    problemCache.current.map.set(item, problem);
     return problem;
   }
 
@@ -229,7 +249,7 @@ function ImportView({
     try {
       return formatMoney(parseAmountInput(item.amount, item.currency), item.currency);
     } catch {
-      return item.amount.trim() === "" ? "金额待填写" : item.amount;
+      return item.amount.trim() === "" ? t("dataio.import.amountMissing") : item.amount;
     }
   }
 
@@ -257,7 +277,7 @@ function ImportView({
       const template = await fetchTemplate(bookId);
       await deliverFile(template.fileName, template.mimeType, template.bytes);
     } catch (caught) {
-      setError(`模板下载失败：${errorMessage(caught)}`);
+      setError(t("dataio.import.templateFailed", { error: errorMessage(caught) }));
     } finally {
       setTemplateBusy(false);
     }
@@ -295,8 +315,8 @@ function ImportView({
        */
       setError(
         caught instanceof ApiRequestError
-          ? `未能识别文件：${errorMessage(caught)}`
-          : "暂时无法识别文件，请重试。若仍然失败，请联系管理员。",
+          ? t("dataio.import.recognizeFailed", { error: errorMessage(caught) })
+          : t("dataio.import.recognizeUnknown"),
       );
       setStep({ name: "choose" });
     } finally {
@@ -338,7 +358,7 @@ function ImportView({
       setDirty(false);
       setAcknowledged(false);
     } catch (caught) {
-      setError(`重新检查失败：${errorMessage(caught)}`);
+      setError(t("dataio.import.recheckFailed", { error: errorMessage(caught) }));
     } finally {
       setBusy(null);
     }
@@ -354,7 +374,7 @@ function ImportView({
       await invalidateMoney();
       setStep({ name: "done", preview: previewToCommit, report });
     } catch (caught) {
-      setError(`导入没有完成：${errorMessage(caught)}`);
+      setError(t("dataio.import.commitFailed", { error: errorMessage(caught) }));
       // 预览还留着，可以直接再试；后端按来源身份幂等，不会重复写入。
       setStep((current) =>
         current.name === "done" ? current : { name: "review", preview: previewToCommit },
@@ -366,8 +386,8 @@ function ImportView({
 
   return (
     <InnerPage
-      title="导入账单"
-      subtitle="微信、支付宝、银行结单都可以。先识别，核对后再写入。"
+      title={t("dataio.import.title")}
+      subtitle={t("dataio.import.subtitle")}
       backTo={backTo}
     >
       {error === null ? null : <Alert>{error}</Alert>}
@@ -379,8 +399,10 @@ function ImportView({
        */}
       {target === undefined ? null : (
         <div className="flex flex-col gap-1 rounded-field bg-brand-soft px-4 py-3 text-brand-dark">
-          <p className="text-body font-medium">导入到「{target.label}」</p>
-          <p className="text-helper-relaxed">请先确认这是你要写入的账本。下面的文件会写进这本账。</p>
+          <p className="min-w-0 text-body font-medium [overflow-wrap:anywhere]">
+            {t("dataio.import.target", { target: target.label })}
+          </p>
+          <p className="text-helper-relaxed">{t("dataio.import.targetHint")}</p>
         </div>
       )}
 
@@ -392,7 +414,7 @@ function ImportView({
         ref={fileInput}
         type="file"
         accept={BILL_IMPORT_ACCEPT}
-        aria-label="选择账单文件"
+        aria-label={t("dataio.pick.choose")}
         className="sr-only"
         onChange={(event) => {
           const picked = event.target.files?.[0];
@@ -431,7 +453,7 @@ function ImportView({
                 onChange={openPicker}
                 onClear={resetToChoose}
               />
-              <p className="text-helper-relaxed text-muted">换一个文件会重新识别，之前的勾选不会带过去。</p>
+              <p className="text-helper-relaxed text-muted">{t("dataio.import.changeHint")}</p>
             </>
           )}
 
@@ -442,7 +464,7 @@ function ImportView({
                 void navigate(exportTo);
               }}
             >
-              ← 返回导出
+              {t("dataio.import.backToExport")}
             </Button>
           )}
         </section>
@@ -459,7 +481,7 @@ function ImportView({
               fileName={file.name}
               fileSize={file.size}
               formatLabel={step.preview.format.toUpperCase()}
-              sourceLabel={BILL_SOURCE_LABELS[step.preview.source]}
+              sourceLabel={billSourceLabel(step.preview.source)}
               busy={busy !== null}
               onChange={openPicker}
               onClear={resetToChoose}
@@ -468,20 +490,18 @@ function ImportView({
 
           {ackReasons.length === 0 ? null : (
             <div className="flex flex-col gap-1 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-warn-dark">
-              <p className="text-body font-medium">这份文件有需要你先了解的情况</p>
+              <p className="text-body font-medium">{t("dataio.import.ackTitle")}</p>
               <ul className="flex flex-col gap-1">
                 {ackReasons.map((reason) => (
                   <li key={reason}>⚠ {reason}</li>
                 ))}
               </ul>
-              {step.preview.reconciliation.ok === false ? (
-                <p>确认无误后，请在底部勾选「我已了解上面的提示」再导入；已有账目不会被改动。</p>
-              ) : null}
+              {step.preview.reconciliation.ok === false ? <p>{t("dataio.import.ackHint")}</p> : null}
             </div>
           )}
 
           {step.preview.reconciliation.ok === true ? (
-            <p className="text-helper text-muted">对账：文件里的合计与明细一致。</p>
+            <p className="text-helper text-muted">{t("dataio.import.reconciled")}</p>
           ) : null}
 
           <BillSummaryPanel
@@ -513,10 +533,10 @@ function ImportView({
             />
           ) : null}
 
-          <section aria-label="逐笔记录" className="flex flex-col gap-3">
+          <section aria-label={t("dataio.import.listAria")} className="flex flex-col gap-3">
             {visible.length === 0 ? (
               <p className="rounded-card border border-line bg-surface px-4 py-6 text-center text-helper text-muted">
-                这个筛选下没有记录。
+                {t("dataio.import.emptyFilter")}
               </p>
             ) : null}
 
@@ -562,14 +582,12 @@ function ImportView({
                 setVisibleCount(visibleCount + PAGE_SIZE);
               }}
             >
-              显示更多（还有 {String(filtered.length - visible.length)} 笔）
+              {t("dataio.import.showMore", { count: filtered.length - visible.length })}
             </Button>
           ) : null}
 
           {groups.length > 20 ? (
-            <p className="text-helper text-muted">
-              疑似重复共 {String(groups.length)} 组，这里只列出前 20 组；用「疑似重复」筛选可以逐条查看。
-            </p>
+            <p className="text-helper text-muted">{t("dataio.import.groupsTruncated", { count: groups.length })}</p>
           ) : null}
 
           {/* ⚠️ 固定底栏会盖住最后一笔，这里留出等高空白（`InnerPage` 的 padding 不归本页）。 */}
@@ -622,12 +640,14 @@ function ImportView({
       {/* The confirmation the owner asked for: say how many rows, and what happens, before writing. */}
       <ConfirmDialog
         open={confirmOpen}
-        title="确认导入"
-        description="会把这批选中的记录写入账本，写入后可以在明细里逐笔查看。"
+        title={t("dataio.confirm.title")}
+        description={t("dataio.confirm.description")}
         confirmLabel={
-          busy === "commit" || check === null ? "正在导入…" : `开始导入 ${String(check.importableCount)} 笔`
+          busy === "commit" || check === null
+            ? t("dataio.confirm.importing")
+            : t("dataio.confirm.start", { count: check.importableCount })
         }
-        cancelLabel="再看看"
+        cancelLabel={t("dataio.confirm.cancel")}
         // Not `danger`: importing adds records. A red confirm button would say "this deletes something".
         tone="default"
         busy={busy === "commit"}
@@ -640,14 +660,21 @@ function ImportView({
         consequences={
           step.name === "review"
             ? [
-                `文件：${file?.name ?? "已选文件"}`,
-                ...(target === undefined ? [] : [`导入到：「${target.label}」`]),
-                `可导入 ${String(check?.importableCount ?? 0)} 笔；跳过 ${String(counts.excluded)} 笔${
-                  counts.identity === 0 ? "" : `（其中来源已存在 ${String(counts.identity)} 笔）`
-                }。`,
-                `疑似重复 ${String(counts.duplicate)} 笔：只提示，不会删除或改动账本里已有的记录。`,
-                ...ackReasons.slice(0, 5).map((reason) => `已确认：${reason}`),
-                "已存在的来源会被跳过，不会重复写入；同一份文件再次导入也不会多出账目。",
+                t("dataio.confirm.file", { name: file?.name ?? t("dataio.confirm.fileFallback") }),
+                ...(target === undefined ? [] : [t("dataio.confirm.target", { target: target.label })]),
+                counts.identity === 0
+                  ? t("dataio.confirm.counts", {
+                      importable: check?.importableCount ?? 0,
+                      skipped: counts.excluded,
+                    })
+                  : t("dataio.confirm.countsWithIdentity", {
+                      importable: check?.importableCount ?? 0,
+                      skipped: counts.excluded,
+                      identity: counts.identity,
+                    }),
+                t("dataio.confirm.duplicates", { count: counts.duplicate }),
+                ...ackReasons.slice(0, 5).map((reason) => t("dataio.confirm.acknowledged", { reason })),
+                t("dataio.confirm.identityNote"),
               ]
             : []
         }

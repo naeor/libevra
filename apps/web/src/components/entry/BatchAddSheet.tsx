@@ -8,7 +8,10 @@ import {
 } from "@libellum/shared";
 import { useEffect, useMemo, useState } from "react";
 
+import { t as translate, useI18n } from "../../i18n/index.js";
+import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { Alert } from "../Alert.js";
+import { tagFillStyle } from "../../lib/tagColors.js";
 import { ChoiceDialog, type Choice } from "../ChoiceDialog.js";
 import { ConfirmDialog } from "../ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../DuplicateDetectionSettings.js";
@@ -67,13 +70,16 @@ interface BatchLedgerData {
   readonly tags: readonly BatchTag[];
 }
 
-const BATCH_DUPLICATE_CHOICES: readonly Choice<"save" | "cancel">[] = [
-  { id: "save", label: "仍然保存全部", primary: true },
-  { id: "cancel", label: "取消，我再看看", dismissive: true },
-];
+/** 批量记账遇到疑似重复时的两个选项；文案在调用时按当前语言取（不在模块顶层取）。 */
+function batchDuplicateChoices(): readonly Choice<"save" | "cancel">[] {
+  return [
+    { id: "save", label: translate("entry.batch.saveAll"), primary: true },
+    { id: "cancel", label: translate("entry.duplicate.cancel"), dismissive: true },
+  ];
+}
 
 function fallbackPaymentMethodId(methods: readonly BatchPaymentMethod[]): string | null {
-  return methods.find((method) => method.name === "其他")?.id ?? methods[0]?.id ?? null;
+  return methods.find((method) => method.name === "其他")?.id ?? methods[0]?.id ?? null; // i18n-ignore：与数据库里的预置支付方式原名比较，不是界面文字
 }
 
 /** The source entry is a template for the first card; the original is never touched. */
@@ -136,19 +142,19 @@ export function batchTotalCents(drafts: readonly BatchEntryDraft[]): number {
 }
 
 export function validateBatchDraft(draft: BatchEntryDraft): string | null {
-  if (draft.amountText.trim() === "") return "请填写金额。";
+  if (draft.amountText.trim() === "") return translate("entry.amount.required");
   try {
     const amount = parseAmountInput(draft.amountText, draft.currency);
-    if (amount <= 0) return "金额需要大于 0。";
+    if (amount <= 0) return translate("entry.amount.positive");
   } catch {
     return decimalsFor(draft.currency) === 0
-      ? `${currencyName(draft.currency)}不支持小数，请输入整数金额。`
-      : `金额格式不正确，${currencyName(draft.currency)}最多两位小数。`;
+      ? translate("entry.amount.integerOnly", { currency: currencyName(draft.currency) })
+      : translate("entry.amount.invalid", { currency: currencyName(draft.currency) });
   }
-  if (Number.isNaN(draft.occurredAt.getTime())) return "请选择有效的时间。";
-  if (draft.note.length > 200) return "备注最多 200 个字符。";
+  if (Number.isNaN(draft.occurredAt.getTime())) return translate("entry.batch.timeInvalid");
+  if (draft.note.length > 200) return translate("entry.batch.noteTooLong", { max: 200 });
   if (draft.tagIds.length > MAX_TAGS_PER_TRANSACTION) {
-    return `每笔最多选择 ${String(MAX_TAGS_PER_TRANSACTION)} 个标签。`;
+    return translate("entry.batch.tooManyTags", { max: MAX_TAGS_PER_TRANSACTION });
   }
   return null;
 }
@@ -192,6 +198,7 @@ export function BatchAddSheet({
   readonly onClose: () => void;
   readonly onSaved: (count: number) => void;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
   const ledger = useLedger();
   const duplicateSettings = useDuplicateDetectionSettings();
   const checkDuplicates = useCheckDuplicates();
@@ -258,7 +265,7 @@ export function BatchAddSheet({
   async function saveAll(skipDuplicateCheck = false): Promise<void> {
     setError(null);
     if (ledgerData === undefined) {
-      setError("账本还没有加载完成，请稍后再试。");
+      setError(t("entry.batch.ledgerLoading"));
       return;
     }
 
@@ -269,7 +276,7 @@ export function BatchAddSheet({
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
-      setError("有账目还没有填好，请检查标出的项目。");
+      setError(t("entry.batch.hasErrors"));
       return;
     }
 
@@ -323,8 +330,10 @@ export function BatchAddSheet({
       } catch (caught) {
         setError(
           written === 0
-            ? `没有新增账目：${caught instanceof Error ? caught.message : "请稍后重试。"}`
-            : `已新增 ${String(written)} 笔，其余没有保存。请重试未保存的账目。`,
+            ? t("entry.batch.noneSaved", {
+                reason: caught instanceof Error ? caught.message : t("entry.batch.retryLater"),
+              })
+            : t("entry.batch.partlySaved", { count: written }),
         );
       }
     } finally {
@@ -338,37 +347,37 @@ export function BatchAddSheet({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="批量记账"
+        aria-label={t("entry.batch.title")}
         className="sheet-in fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(100dvh-12px)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-canvas shadow-sheet"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-5 py-3">
-          <h2 className="text-base font-medium text-ink">批量记账</h2>
+          <h2 className="min-w-0 text-base font-medium text-ink">{t("entry.batch.title")}</h2>
           <button
             type="button"
             disabled={busy}
             onClick={onClose}
-            className="text-sm font-medium text-brand-dark disabled:opacity-45"
+            className="shrink-0 text-sm font-medium text-brand-dark disabled:opacity-45"
           >
-            取消
+            {t("common.action.cancel")}
           </button>
         </div>
 
         {savedCount !== null ? (
           <div className="flex flex-col gap-5 p-5">
-            <Alert tone="success">已新增 {String(savedCount)} 笔账目。</Alert>
+            <Alert tone="success">{t("entry.batch.saved", { count: savedCount })}</Alert>
             <button
               type="button"
               onClick={onClose}
               className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand"
             >
-              完成
+              {t("common.action.done")}
             </button>
           </div>
         ) : (
           <>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
               <p className="pb-3 text-helper-relaxed text-muted">
-                第一笔已带入当前账目；可修改或继续添加。保存前不会写入账本。
+                {t("entry.batch.intro")}
               </p>
 
               {error === null ? null : (
@@ -399,13 +408,13 @@ export function BatchAddSheet({
                 ))}
               </div>
 
-              <div className="flex items-center justify-between gap-3 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
                 <button
                   type="button"
                   onClick={addCard}
                   className="rounded-field border border-brand px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand-soft"
                 >
-                  再记一笔
+                  {t("entry.batch.addCard")}
                 </button>
                 <button
                   type="button"
@@ -417,21 +426,21 @@ export function BatchAddSheet({
                   }}
                   className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-helper text-muted transition hover:text-ink"
                 >
-                  记账设置
+                  {t("entry.batch.settings")}
                 </button>
               </div>
             </div>
 
             <div className="shrink-0 border-t border-line bg-surface px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3">
-              <div className="flex items-center justify-between gap-3 pb-2 text-sm">
-                <span className="text-muted">共 {String(drafts.length)} 笔</span>
-                <span className="font-medium text-ink">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-2 text-sm">
+                <span className="text-muted">{t("entry.batch.cardCount", { count: drafts.length })}</span>
+                <span className="min-w-0 font-medium text-ink">
                   {totalCurrency === null
-                    ? "多币种，不合计"
-                    : `合计 ${currencyName(totalCurrency)} ${minorToInput(
-                        batchTotalCents(drafts),
-                        totalCurrency,
-                      )}`}
+                    ? t("entry.batch.mixedCurrencies")
+                    : t("entry.batch.total", {
+                        currency: currencyName(totalCurrency),
+                        amount: minorToInput(batchTotalCents(drafts), totalCurrency),
+                      })}
                 </span>
               </div>
               <button
@@ -440,7 +449,7 @@ export function BatchAddSheet({
                 onClick={() => void saveAll()}
                 className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
               >
-                {busy ? "保存中…" : `保存 ${String(drafts.length)} 笔`}
+                {busy ? t("common.action.saving") : t("entry.batch.saveCount", { count: drafts.length })}
               </button>
             </div>
           </>
@@ -449,10 +458,10 @@ export function BatchAddSheet({
 
       <ConfirmDialog
         open={removeCandidate !== null}
-        title="删除这张卡片？"
-        description="这张卡片已经填了内容。"
-        consequences={["只删除这次批量记账里的卡片，不会删除已保存的账目。"]}
-        confirmLabel="删除卡片"
+        title={t("entry.batch.removeTitle")}
+        description={t("entry.batch.removeDescription")}
+        consequences={[t("entry.batch.removeConsequence")]}
+        confirmLabel={t("entry.batch.removeConfirm")}
         onConfirm={confirmRemove}
         onCancel={() => {
           setRemoveCandidate(null);
@@ -461,9 +470,9 @@ export function BatchAddSheet({
 
       <ChoiceDialog
         open={duplicateCount > 0}
-        title="有账目可能重复"
-        description={`检测到 ${String(duplicateCount)} 笔与账本里的已有账目相似。疑似重复不会被自动处理；可以选择仍然保存全部，或返回检查。`}
-        choices={BATCH_DUPLICATE_CHOICES}
+        title={t("entry.batch.duplicateTitle")}
+        description={t("entry.batch.duplicateDescription", { count: duplicateCount })}
+        choices={batchDuplicateChoices()}
         onChoose={(choice) => {
           setDuplicateCount(0);
           if (choice === "save") void saveAll(true);
@@ -496,19 +505,20 @@ function BatchCard({
   readonly onChange: (patch: Partial<BatchEntryDraft>) => void;
   readonly onRemove: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const categoryOptions = categories.filter((category) => category.kind === draft.kind);
   return (
     <section className="rounded-card border border-line bg-surface p-4">
       <div className="flex items-center justify-between gap-3 pb-3">
-        <h3 className="text-sm font-semibold text-ink">第 {String(index + 1)} 笔</h3>
+        <h3 className="text-sm font-semibold text-ink">{t("entry.batch.cardTitle", { number: index + 1 })}</h3>
         {canRemove ? (
           <button
             type="button"
             onClick={onRemove}
-            aria-label={`删除第 ${String(index + 1)} 笔`}
+            aria-label={t("entry.batch.removeCard", { number: index + 1 })}
             className="text-helper text-danger"
           >
-            删除
+            {t("common.action.delete")}
           </button>
         ) : null}
       </div>
@@ -526,14 +536,14 @@ function BatchCard({
               draft.kind === kind ? "bg-brand text-on-brand" : "bg-canvas text-ink"
             }`}
           >
-            {kind === "expense" ? "支出" : "收入"}
+            {t(`common.kind.${kind}`)}
           </button>
         ))}
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 pb-3">
         <label className="flex flex-col gap-1 text-helper text-muted">
-          金额
+          {t("common.field.amount")}
           <input
             autoFocus={autoFocusAmount}
             inputMode="decimal"
@@ -545,7 +555,7 @@ function BatchCard({
           />
         </label>
         <select
-          aria-label="币种"
+          aria-label={t("common.field.currency")}
           value={draft.currency}
           onChange={(event) => {
             onChange({ currency: event.target.value as Currency });
@@ -561,8 +571,8 @@ function BatchCard({
       </div>
 
       <div className="grid grid-cols-2 gap-2 pb-3">
-        <label className="flex flex-col gap-1 text-helper text-muted">
-          分类
+        <label className="flex min-w-0 flex-col gap-1 text-helper text-muted">
+          {t("common.field.category")}
           <select
             value={draft.categoryId ?? ""}
             onChange={(event) => {
@@ -570,16 +580,16 @@ function BatchCard({
             }}
             className="min-h-10 rounded-field border border-line bg-canvas px-2 text-base text-ink"
           >
-            <option value="">未分类</option>
+            <option value="">{t("entry.batch.uncategorized")}</option>
             {categoryOptions.map((category) => (
               <option key={category.id} value={category.id}>
-                {category.name}
+                {displayCategoryName(category.name)}
               </option>
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-helper text-muted">
-          支付方式
+        <label className="flex min-w-0 flex-col gap-1 text-helper text-muted">
+          {t("common.field.paymentMethod")}
           <select
             value={draft.paymentMethodId ?? ""}
             onChange={(event) => {
@@ -587,10 +597,10 @@ function BatchCard({
             }}
             className="min-h-10 rounded-field border border-line bg-canvas px-2 text-base text-ink"
           >
-            <option value="">未记录</option>
+            <option value="">{t("entry.batch.noPayment")}</option>
             {paymentMethods.map((method) => (
               <option key={method.id} value={method.id}>
-                {method.name}
+                {displayPaymentMethodName(method.name)}
               </option>
             ))}
           </select>
@@ -598,7 +608,7 @@ function BatchCard({
       </div>
 
       <label className="flex flex-col gap-1 pb-3 text-helper text-muted">
-        时间
+        {t("common.field.time")}
         <input
           type="datetime-local"
           step="1"
@@ -612,7 +622,7 @@ function BatchCard({
       </label>
 
       <label className="flex flex-col gap-1 pb-3 text-helper text-muted">
-        备注
+        {t("common.field.note")}
         <input
           maxLength={200}
           value={draft.note}
@@ -640,7 +650,7 @@ function BatchCard({
                         : [...draft.tagIds, tag.id],
                   });
                 }}
-                style={selected ? { backgroundColor: tag.color, borderColor: tag.color } : undefined}
+                style={selected ? tagFillStyle(tag.color) : undefined}
                 className={`rounded-full border px-2.5 py-1 text-helper ${
                   selected ? "text-on-tag" : "border-line bg-canvas text-muted"
                 }`}

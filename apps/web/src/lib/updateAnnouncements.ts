@@ -7,7 +7,12 @@
  * popup itself is driven by the separate server policy (`packages/shared/src/consent.ts`) and the
  * existing account-level acknowledgement table; this file only provides the full history/detail
  * pages, so the two sources must keep the same user-visible facts.
+ *
+ * i18n-ignore-file：本文件是更新公告的中文**内容数据**（源语言原文）。英文整篇译文在
+ * `i18n/content/updateAnnouncements.en.ts`，显示时由 `localizeUpdateAnnouncement()` 替换。
  */
+import { currentLocale, isChineseLocale } from "../i18n/index.js";
+
 export interface UpdateAnnouncement {
   /** The exact version users saw in production, e.g. "1.13.07". */
   readonly version: string;
@@ -44,6 +49,36 @@ export interface UpdateAnnouncement {
  * S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  {
+    version: "1.16.08",
+    releasedAt: "2026-10-24",
+    status: "released",
+    title: "七套主题与深色外观",
+    summary: "新增七套主题色与浅色、深色及跟随系统模式，并整理设置首页和外观预览。",
+    sections: [
+      {
+        heading: "新增功能",
+        items: [
+          "在「设置 → 显示与数据 → 外观」中选择森林绿、蜜金黄、暖木棕、雾霭蓝、烟霞紫、丹霞红或青瓷灰。主题色与浅色、深色、跟随系统模式可以独立选择，切换立即生效。",
+          "深色外观以中性背景和卡片承载内容，品牌色用于交互强调；账本空间保留四层海浪与各主题配色。"
+        ]
+      },
+      {
+        heading: "调整及优化",
+        items: [
+          "设置首页将记账偏好收起为二级入口，默认币种仍在「记账偏好」中设置。",
+          "外观页并排展示账本空间与明细的手机比例预览，并随主题实时变化；小屏幕优先保留模式按钮和主题色选项。"
+        ]
+      },
+      {
+        heading: "注意事项",
+        items: [
+          "外观偏好保存在当前浏览器，刷新和切换页面后保留，不跨设备同步。财务收支和分类颜色的含义不随主题色改变。"
+        ]
+      }
+    ],
+    major: false
+  },
   {
     "version": "1.16.03",
     "releasedAt": "2026-10-23",
@@ -452,14 +487,20 @@ export function adjacentReleasedAnnouncements(
   };
 }
 
-/** Stable for a Chinese reader, without inventing a time or timezone. */
+/**
+ * Stable for a Chinese reader, without inventing a time or timezone.
+ *
+ * 中文界面输出不变（`2026年10月24日`）；其它语言按当前界面语言走 `Intl`（`Oct 24, 2026`）。
+ * 发布日期是日历日，按 UTC 零点解析与格式化，不随设备时区漂移。
+ */
 export function formatReleaseDate(date: string): string {
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return date;
 
-  return new Intl.DateTimeFormat("zh-CN", {
+  const locale = currentLocale();
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
-    month: "long",
+    month: isChineseLocale(locale) ? "long" : "short",
     day: "numeric",
     timeZone: "UTC",
   }).format(parsed);

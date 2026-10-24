@@ -12,8 +12,6 @@
 
 import {
   CURRENCIES,
-  OCR_CHANNEL_LABELS,
-  OCR_DIRECTION_LABELS,
   type TransactionKind,
 } from "@libellum/shared";
 import { useState } from "react";
@@ -24,7 +22,16 @@ import { Button } from "../components/Button.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { TextField } from "../components/TextField.js";
-import { batchItem, batchBelongsToBook, updateBatchItem } from "../lib/ocr/batch.js";
+import { ocrChannelLabel, ocrDirectionLabel, ocrIssueText } from "../components/ocr/OcrOverview.js";
+import { useI18n } from "../i18n/index.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
+import {
+  TRANSFER_CATEGORY_NAME,
+  batchItem,
+  batchBelongsToBook,
+  updateBatchItem,
+} from "../lib/ocr/batch.js";
+import { NOTE_TRANSFER_MARKER } from "../lib/ocr/import.js";
 import { loadBatch, saveBatch } from "../lib/ocr/batchStore.js";
 import { inferCategory } from "../lib/ocr/category.js";
 import { findSuspectedDuplicates, groupsForCandidate } from "../lib/ocr/duplicates.js";
@@ -94,6 +101,7 @@ function previewCandidate(item: OcrBatchCandidate, form: FormState): OcrBatchCan
 export function OcrReviewDetailPage(): React.JSX.Element {
   const { candidateId } = useParams();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const ledger = useLedger();
   const duplicateSettings = useDuplicateDetectionSettings();
 
@@ -111,16 +119,16 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
   if (batch === null || item === null || form === null) {
     return (
-      <InnerPage title="核对这一笔" backTo="/ocr/overview">
+      <InnerPage title={t("ocr.detail.title")} backTo="/ocr/overview">
         <Alert tone="error">
-          找不到这一笔：批次可能已经被清除，或这条链接来自另一个标签页。
+          {t("ocr.detail.notFound")}
         </Alert>
         <Button
           onClick={() => {
             void navigate("/ocr/overview");
           }}
         >
-          返回批量识别结果
+          {t("ocr.detail.backToOverview")}
         </Button>
       </InnerPage>
     );
@@ -186,7 +194,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
     const transferCategory = item?.isTransfer === true
       ? categories.find(
           (category) =>
-            category.name === "转账" &&
+            category.name === TRANSFER_CATEGORY_NAME &&
             category.kind === next &&
             !category.isArchived &&
             !category.isSystem,
@@ -213,7 +221,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
       duplicateSettings.settings,
     );
     if (!saveBatch(updated)) {
-      setError("浏览器无法保存这笔修改（可能是隐私模式或存储空间已满）。修改没有生效，请重试。");
+      setError(t("ocr.detail.storageFailed"));
       return;
     }
 
@@ -255,68 +263,75 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="核对这一笔"
-      subtitle="保存到本次识别结果，确认导入后才会入账。"
+      title={t("ocr.detail.title")}
+      subtitle={t("ocr.detail.subtitle")}
       backTo="/ocr/overview"
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
 
-      {item.invalid ? <Alert tone="info">这笔已标记无效，确认导入时不会计入。</Alert> : null}
+      {item.invalid ? <Alert tone="info">{t("ocr.detail.invalid")}</Alert> : null}
 
       {form.directionConfirmed ? null : (
         <Alert tone="info">
-          未能确定收支类型。请先选择收入或支出，才能导入。
+          {t("ocr.detail.directionUnknown")}
         </Alert>
       )}
 
       {item.isTransfer ? (
         <Alert tone="info">
-          这是一笔转账，将按你选择的收入或支出入账。备注会保留「转账」，
-          也可选择账本已有的「转账」分类。
+          {t("ocr.detail.transfer", { marker: NOTE_TRANSFER_MARKER })}
         </Alert>
       ) : null}
 
       {duplicateGroups.length > 0 ? (
         <Alert tone="info">
-          {duplicateGroups.map((group) => `可能重复：${group.reason}。`).join(" ")}
-          系统不会自动合并或删除，是否保留由你在概览页确认。
+          {t("ocr.detail.duplicateNote", {
+            reasons: duplicateGroups
+              .map((group) => t("ocr.detail.duplicateReason", { reason: group.reason }))
+              .join(" "),
+          })}
         </Alert>
       ) : null}
 
       <section className="flex flex-col gap-4 rounded-card border border-line bg-surface p-4 shadow-card">
         <div className="flex flex-wrap gap-1.5">
           <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
-            {OCR_DIRECTION_LABELS[item.direction]}
+            {ocrDirectionLabel(item.direction)}
           </span>
           {item.isRefund ? (
-            <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">退款</span>
+            <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">{t("ocr.list.refund")}</span>
           ) : null}
           {item.reviewed ? (
-            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">已核对过</span>
+            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">{t("ocr.detail.reviewed")}</span>
           ) : null}
           <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
-            来源：{item.sourcePlatform === null ? "待确认" : OCR_CHANNEL_LABELS[item.sourcePlatform]}
+            {t("ocr.detail.source", {
+              source:
+                item.sourcePlatform === null
+                  ? t("ocr.detail.sourcePending")
+                  : ocrChannelLabel(item.sourcePlatform),
+            })}
           </span>
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-helper text-muted">类型（转账不是单独类型）</span>
+          <span className="text-helper text-muted">{t("ocr.detail.kindLabel")}</span>
           <div className="flex gap-2">
             <KindButton
               active={form.directionConfirmed && form.kind === "expense"}
-              label="支出"
+              label={t("common.kind.expense")}
               onSelect={() => { changeKind("expense"); }}
             />
             <KindButton
               active={form.directionConfirmed && form.kind === "income"}
-              label="收入"
+              label={t("common.kind.income")}
               onSelect={() => { changeKind("income"); }}
             />
           </div>
         </div>
 
         <TextField
-          label="金额"
+          label={t("common.field.amount")}
           inputMode="decimal"
           value={form.amount}
           placeholder="0.00"
@@ -324,16 +339,16 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         />
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-ink">币种</span>
+          <span className="text-sm font-medium text-ink">{t("common.field.currency")}</span>
           <select
             className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={form.currency}
             onChange={(event) => { patch({ currency: event.target.value }); }}
           >
-            <option value="">请选择币种</option>
+            <option value="">{t("ocr.detail.chooseCurrency")}</option>
             {unsupportedCurrency === null ? null : (
               <option value={unsupportedCurrency} disabled>
-                {unsupportedCurrency}（账本不支持，请改选）
+                {t("ocr.detail.unsupportedCurrency", { currency: unsupportedCurrency })}
               </option>
             )}
             {CURRENCIES.map((currency) => (
@@ -350,7 +365,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             `min-w-0` lets each shrink inside its column. */}
         <div className="flex flex-col gap-3 min-[360px]:flex-row">
           <label className="flex min-w-0 flex-[1.4] flex-col gap-1.5">
-            <span className="text-sm font-medium text-ink">日期</span>
+            <span className="text-sm font-medium text-ink">{t("common.field.date")}</span>
             <input
               type="date"
               className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
@@ -359,7 +374,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             />
           </label>
           <label className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className="text-sm font-medium text-ink">时间</span>
+            <span className="text-sm font-medium text-ink">{t("common.field.time")}</span>
             <input
               type="time"
               className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
@@ -370,23 +385,23 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         </div>
 
         <TextField
-          label="对象 / 商户"
+          label={t("ocr.detail.merchant")}
           value={form.merchant}
-          placeholder="未读出就留空"
+          placeholder={t("ocr.detail.merchantPlaceholder")}
           onChange={(event) => { patch({ merchant: event.target.value }); }}
         />
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-ink">分类</span>
+          <span className="text-sm font-medium text-ink">{t("common.field.category")}</span>
           <select
             className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={categoryOptions.some((category) => category.id === form.categoryId) ? form.categoryId : ""}
             onChange={(event) => { patch({ categoryId: event.target.value }); }}
           >
-            <option value="">未分类（导入时归入暂无分类）</option>
+            <option value="">{t("ocr.detail.uncategorized")}</option>
             {categoryOptions.map((category) => (
               <option key={category.id} value={category.id}>
-                {category.name}
+                {displayCategoryName(category.name)}
               </option>
             ))}
           </select>
@@ -394,38 +409,38 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
         {showSuggestion ? (
           <p className="text-helper text-muted">
-            系统建议：{suggestedName}（可改；按交易对象/备注的文字匹配本账本已有分类，不是已确认）。
+            {t("ocr.detail.suggestion", { name: displayCategoryName(suggestedName ?? "") })}
           </p>
         ) : null}
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-ink">渠道 / 支付方式</span>
+          <span className="text-sm font-medium text-ink">{t("ocr.detail.paymentMethod")}</span>
           <select
             className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={methodOptions.some((method) => method.id === form.paymentMethodId) ? form.paymentMethodId : ""}
             onChange={(event) => { patch({ paymentMethodId: event.target.value }); }}
           >
-            <option value="">未指定</option>
+            <option value="">{t("ocr.detail.unspecified")}</option>
             {methodOptions.map((method) => (
               <option key={method.id} value={method.id}>
-                {method.name}
+                {displayPaymentMethodName(method.name)}
               </option>
             ))}
           </select>
         </label>
 
         <TextField
-          label="账户"
+          label={t("ocr.detail.account")}
           value={form.account}
-          placeholder="例如：零钱、尾号 6688"
+          placeholder={t("ocr.detail.accountPlaceholder")}
           onChange={(event) => { patch({ account: event.target.value }); }}
-          hint="账户信息将保存在备注中。"
+          hint={t("ocr.detail.accountHint")}
         />
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium text-ink">标签</legend>
+          <legend className="text-sm font-medium text-ink">{t("common.field.tags")}</legend>
           {tags.length === 0 ? (
-            <p className="text-helper text-muted">这本账还没有标签。</p>
+            <p className="text-helper text-muted">{t("ocr.detail.noTags")}</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {tags.map((tag) => {
@@ -457,25 +472,25 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         </fieldset>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-ink">备注</span>
+          <span className="text-sm font-medium text-ink">{t("common.field.note")}</span>
           <textarea
             rows={3}
             maxLength={200}
             className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={form.note}
-            placeholder="可以留空"
+            placeholder={t("ocr.detail.notePlaceholder")}
             onChange={(event) => { patch({ note: event.target.value }); }}
           />
-          <span className="text-helper text-muted">最多 200 字；导入时还会在前面加上商户、账户信息。</span>
+          <span className="text-helper text-muted">{t("ocr.detail.noteHint")}</span>
         </label>
 
         {issues.length === 0 ? null : (
           <div className="flex flex-col gap-1">
-            <span className="text-helper text-muted">还需要核对</span>
+            <span className="text-helper text-muted">{t("ocr.detail.stillToCheck")}</span>
             <ul className="flex flex-col gap-1">
               {issues.map((issue) => (
                 <li key={`${issue.code}:${issue.field ?? ""}`} className="text-helper-relaxed text-warning-dark">
-                  ⚠ {issue.message}
+                  ⚠ {ocrIssueText(issue)}
                 </li>
               ))}
             </ul>
@@ -484,15 +499,15 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
         <p className="text-helper text-muted">
           {isItemComplete(preview)
-            ? "信息已齐全。返回概览确认导入后，才会入账。"
-            : "信息尚未补齐，可先保存草稿。导入前需补齐或标记无效。"}
+            ? t("ocr.detail.complete")
+            : t("ocr.detail.incomplete")}
         </p>
       </section>
 
       <div className="flex flex-col gap-2">
-        <Button onClick={save}>保存并返回概览</Button>
+        <Button onClick={save}>{t("ocr.detail.save")}</Button>
         <Button variant={item.invalid ? "secondary" : "danger-quiet"} onClick={markInvalid}>
-          {item.invalid ? "恢复为有效" : "标记为无效"}
+          {item.invalid ? t("ocr.detail.restoreValid") : t("ocr.detail.markInvalid")}
         </Button>
         <Button
           variant="ghost"
@@ -500,7 +515,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             void navigate("/ocr/overview");
           }}
         >
-          返回概览（不保存）
+          {t("ocr.detail.backWithoutSaving")}
         </Button>
       </div>
     </InnerPage>

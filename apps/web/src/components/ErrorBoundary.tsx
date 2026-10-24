@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { t } from "../i18n/index.js";
+
 /**
  * Last line of defence against a blank screen.
  *
@@ -33,13 +35,13 @@ export class ErrorBoundary extends Component<{ readonly children: ReactNode }, E
 
     return (
       <main className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-        <p className="text-lg font-semibold text-ink">页面无法显示</p>
+        <p className="text-lg font-semibold text-ink">{t("nav.errorBoundary.title")}</p>
         <p className="text-body-relaxed text-muted">
-          页面暂时无法显示，请重新加载或返回明细。
+          {t("nav.errorBoundary.body")}
         </p>
 
         <details className="w-full text-left text-helper-relaxed text-muted">
-          <summary className="cursor-pointer">查看错误详情</summary>
+          <summary className="cursor-pointer">{t("nav.errorBoundary.details")}</summary>
           <pre className="mt-2 overflow-x-auto rounded-field bg-danger-soft p-3 whitespace-pre-wrap text-danger">
             {error.message}
           </pre>
@@ -52,7 +54,7 @@ export class ErrorBoundary extends Component<{ readonly children: ReactNode }, E
           }}
           className="w-full rounded-field bg-brand py-3 text-sm font-medium text-on-brand transition hover:bg-brand-dark"
         >
-          刷新页面
+          {t("nav.errorBoundary.reload")}
         </button>
 
         <button
@@ -60,9 +62,9 @@ export class ErrorBoundary extends Component<{ readonly children: ReactNode }, E
           onClick={() => {
             window.location.href = "/";
           }}
-          className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+          className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
         >
-          回到明细
+          {t("nav.errorBoundary.home")}
         </button>
       </main>
     );

@@ -1,6 +1,7 @@
 import { useLocation } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
+import { useI18n } from "../i18n/index.js";
 
 /**
  * **隐私政策 / 使用条款 —— 页面存在，内容尚未编写。**
@@ -22,37 +23,24 @@ import { InnerPage } from "../components/Layouts.js";
  * **Nothing here claims compliance with any regulation**, and nothing should be added that does.
  */
 
-/** The two documents, and what each will have to cover. */
+/**
+ * The two documents, and what each will have to cover.
+ *
+ * 文字在 `legal.placeholder.<kind>.*`（S16 国际化）；这里只存顺序与键，渲染时按当前语言取。
+ * 这些是「待确认事项」而不是条款正文，所以可以翻译——英文同样声明它不是正式文本。
+ */
 const DOCUMENTS = {
-  privacy: {
-    title: "隐私政策",
-    lede: "正式隐私政策尚未提供。此页仅列出待确认事项，不是正式政策文本。",
-    questions: [
-      "账目、备注、照片与语音分别存在哪里，保留多久，由谁运营的服务器承载。",
-      "拍照与语音识别在设备本机完成还是传到服务器；如果传输，传了什么、留不留。",
-      "诊断日志记录什么。目前的设计是不记录金额、备注与图片内容，这一点需要逐条核实后写进正文。",
-      "数据导出与删除的途径，以及账号注销后各类数据分别如何处理。",
-      "Cookie 与本地存储的用途。会话 Cookie 是必需的；其它本地存储用于离线缓存与界面偏好。",
-      "是否接入任何第三方服务。当前没有统计、广告或分析服务，若将来引入，本节需同步更新。",
-    ],
-  },
-  terms: {
-    title: "使用条款",
-    lede: "正式使用条款尚未提供。此页仅列出待确认事项，不是正式条款文本。",
-    questions: [
-      "服务以何种形式提供（自建部署还是托管），可用性上作不作承诺。",
-      "账号与邀请码的发放规则、有效期，以及滥用时的处置方式。",
-      "共享账本中各位成员的数据归属：谁可以看、谁可以改、退出后各自留下什么。",
-      "备份与数据丢失的责任边界。",
-      "开源许可（AGPL-3.0）与使用条款之间的关系。",
-      "服务变更或终止时，用户如何取回自己的数据。",
-    ],
-  },
+  privacy: ["storage", "recognition", "logs", "exportDelete", "cookies", "thirdParty"],
+  terms: ["service", "accounts", "sharing", "backup", "license", "termination"],
 } as const;
 
 export function LegalPage({ kind }: { readonly kind: keyof typeof DOCUMENTS }): React.JSX.Element {
   const location = useLocation();
-  const document = DOCUMENTS[kind];
+  const { t } = useI18n();
+  const questions: readonly string[] =
+    kind === "privacy"
+      ? DOCUMENTS.privacy.map((question) => t(`legal.placeholder.privacy.questions.${question}`))
+      : DOCUMENTS.terms.map((question) => t(`legal.placeholder.terms.questions.${question}`));
 
   /**
    * ⚠️ **The same declared-origin rule as `AboutPage`**, so 返回 goes back to the start page when the
@@ -63,7 +51,7 @@ export function LegalPage({ kind }: { readonly kind: keyof typeof DOCUMENTS }): 
   const from = typeof declared === "string" ? declared : null;
 
   return (
-    <InnerPage title={document.title} backTo={from ?? "/settings"}>
+    <InnerPage title={t(`legal.placeholder.${kind}.title`)} backTo={from ?? "/settings"}>
       <div className="flex flex-col gap-5 text-body-relaxed text-ink">
         <section className="rounded-card border border-line bg-surface p-5">
           {/**
@@ -71,21 +59,19 @@ export function LegalPage({ kind }: { readonly kind: keyof typeof DOCUMENTS }): 
             * their data; the second-best answer is **an accurate statement that the document is not
             * written**, and the worst is a paragraph that looks like a policy and is not one.
             */}
-          <p className="text-muted">{document.lede}</p>
+          <p className="text-muted">{t(`legal.placeholder.${kind}.lede`)}</p>
         </section>
 
         <section className="rounded-card border border-line bg-surface p-5">
-          <h2 className="text-section-title text-ink">正式文本需要说明</h2>
+          <h2 className="text-section-title text-ink">{t("legal.placeholder.mustCover")}</h2>
           <ul className="mt-3 flex list-disc flex-col gap-2 pl-5 text-muted">
-            {document.questions.map((question) => (
+            {questions.map((question) => (
               <li key={question}>{question}</li>
             ))}
           </ul>
         </section>
 
-        <p className="text-helper-relaxed text-muted">
-          正式文本尚在准备中，提供后会替换本页。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("legal.placeholder.pending")}</p>
       </div>
     </InnerPage>
   );

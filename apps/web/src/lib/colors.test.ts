@@ -43,7 +43,6 @@ import { describe, expect, it } from "vitest";
 const SRC = resolve(import.meta.dirname, "..");
 
 /** Files permitted to define colour literals. */
-// 旧头像兼容渲染保留固定插画色；审核通过的新头像及默认小花均走主题 token。
 const EXEMPT = new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx"]);
 
 /**

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { useI18n } from "../../i18n/index.js";
 import { copyText } from "../../lib/clipboard.js";
 import { ChevronIcon } from "../Icons.js";
 
@@ -193,7 +194,7 @@ export function FactRow({
   readonly action?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-5 py-3">
+    <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-5 py-3">
       <dt className="min-h-7 content-center text-card-title text-ink">{label}</dt>
       <dd
         className={`flex min-w-0 items-center justify-end gap-2 text-right text-body text-ink tabular-nums ${mono ? "font-mono tracking-wide" : ""}`}
@@ -245,6 +246,7 @@ export function InlineMessage({
   readonly children: React.ReactNode;
   readonly onDismiss?: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const textRef = useRef<HTMLParagraphElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -272,7 +274,7 @@ export function InlineMessage({
             }}
             className="mt-0.5 text-helper font-medium underline-offset-2 hover:underline"
           >
-            {expanded ? "收起" : "展开全文"}
+            {expanded ? t("nav.message.collapse") : t("nav.message.expand")}
           </button>
         ) : null}
       </div>
@@ -280,7 +282,7 @@ export function InlineMessage({
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="关闭提示"
+          aria-label={t("nav.message.dismiss")}
           className="-mr-1 shrink-0 rounded-field px-1.5 text-helper opacity-70 transition hover:opacity-100"
         >
           ✕
@@ -298,11 +300,13 @@ export function InlineMessage({
  */
 export function CopyInline({
   text,
-  label = "复制",
+  label,
 }: {
   readonly text: string;
+  /** 默认「复制」（`nav.copy.copy`，按当前语言）。 */
   readonly label?: string;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [phase, setPhase] = useState<"idle" | "copied" | "manual">("idle");
 
   useEffect(() => {
@@ -327,7 +331,7 @@ export function CopyInline({
       }}
       className="shrink-0 rounded-full px-2 py-0.5 font-sans text-helper tracking-normal text-brand-dark transition hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
     >
-      {phase === "copied" ? "已复制" : phase === "manual" ? "请长按复制" : label}
+      {phase === "copied" ? t("nav.copy.copied") : phase === "manual" ? t("nav.copy.manual") : (label ?? t("nav.copy.copy"))}
     </button>
   );
 }

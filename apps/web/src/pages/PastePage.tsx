@@ -10,9 +10,19 @@ import { useNavigate } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { currencyName } from "../lib/format.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import { useLedger } from "../lib/queries.js";
 import { handOverSpoken } from "../lib/scanHandoff.js";
+
+/**
+ * 输入框里的示例。**识别规则按中文写**（关键词、商户、支付渠道），所以英文界面也保持这两句
+ * 中文示例，只翻译“例如 / 或粘贴”这些说明。
+ */
+const TYPED_EXAMPLE = "今天中午麦当劳花了 28.5 元"; // i18n-ignore：识别语言（中文）的示例，不随界面语言变化
+const PASTED_EXAMPLE = "微信支付：交易成功，实付 ¥28.50"; // i18n-ignore：识别语言（中文）的示例，不随界面语言变化
 
 /** One pasted transaction, with the exact lines it was read from. */
 export interface PasteCandidate {
@@ -53,6 +63,7 @@ export function recognisePastedText(
  */
 export function PastePage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const ledger = useLedger();
   const [text, setText] = useState("");
   const [candidates, setCandidates] = useState<readonly PasteCandidate[] | null>(null);
@@ -74,13 +85,13 @@ export function PastePage(): React.JSX.Element {
       }
       const pasted = await navigator.clipboard.readText();
       if (pasted.trim() === "") {
-        setClipboardError("剪贴板里没有文字，可以直接在下面手动粘贴。");
+        setClipboardError(t("capture.paste.clipboardEmpty"));
         return;
       }
       setText(pasted);
       setCandidates(null);
     } catch {
-      setClipboardError("浏览器没有允许读取剪贴板，请在下面手动粘贴。");
+      setClipboardError(t("capture.paste.clipboardDenied"));
     }
   }
 
@@ -96,15 +107,15 @@ export function PastePage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="粘贴识别"
-      subtitle="粘贴交易文字，自动识别金额、日期和分类。"
+      title={t("capture.paste.title")}
+      subtitle={t("capture.paste.subtitle")}
       backTo="/"
     >
       {clipboardError === null ? null : <Alert tone="info">{clipboardError}</Alert>}
 
       <section className="flex flex-col gap-3">
         <label htmlFor="paste-text" className="text-card-title text-ink">
-          交易文字
+          {t("capture.paste.label")}
         </label>
         <textarea
           id="paste-text"
@@ -116,13 +127,13 @@ export function PastePage(): React.JSX.Element {
             setCandidates(null);
           }}
           rows={6}
-          placeholder={"例如：今天中午麦当劳花了 28.5 元\n或粘贴：微信支付：交易成功，实付 ¥28.50"}
+          placeholder={t("capture.paste.placeholder", { typed: TYPED_EXAMPLE, pasted: PASTED_EXAMPLE })}
           className="w-full rounded-field border border-line bg-surface px-4 py-3 text-base leading-relaxed text-ink outline-none focus:border-brand"
         />
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" fullWidth={false} onClick={() => void pasteFromClipboard()}>
-            从剪贴板粘贴
+            {t("capture.paste.fromClipboard")}
           </Button>
           <Button
             variant="secondary"
@@ -133,16 +144,16 @@ export function PastePage(): React.JSX.Element {
               setClipboardError(null);
             }}
           >
-            清空
+            {t("capture.paste.clear")}
           </Button>
         </div>
 
         <Button onClick={recognise} disabled={text.trim() === ""}>
-          识别交易
+          {t("capture.paste.recognize")}
         </Button>
 
         <p className="text-helper-relaxed text-muted">
-          不会自动读取剪贴板；识别只在本机完成，不会把文字发给外部 AI，也不会在确认前写入账本。
+          {t("capture.paste.privacy")}
         </p>
       </section>
 
@@ -152,12 +163,14 @@ export function PastePage(): React.JSX.Element {
             candidate.parsed.amount === null && candidate.parsed.merchant === null,
         ) ? (
         <Alert tone="info">
-          没有从这段文字里认出交易金额。可以补充金额或商户后重试，也可以直接手动记账。
+          {t("capture.paste.nothingFound")}
         </Alert>
       ) : (
         <section className="flex flex-col gap-3">
           <h2 className="text-section-title text-ink">
-            识别结果（{candidates.length > 1 ? `共 ${String(candidates.length)} 笔` : "1 笔"}）
+            {candidates.length > 1
+              ? t("capture.paste.resultsMany", { count: candidates.length })
+              : t("capture.paste.resultsSingle")}
           </h2>
 
           {candidates.map((candidate, index) => (
@@ -166,10 +179,10 @@ export function PastePage(): React.JSX.Element {
               candidate={candidate}
               index={index}
               total={candidates.length}
-              categoryName={
-                categories.find((category) => category.id === candidate.parsed.categoryId)?.name ??
-                null
-              }
+              categoryName={(() => {
+                const name = categories.find((category) => category.id === candidate.parsed.categoryId)?.name;
+                return name === undefined ? null : displayCategoryName(name);
+              })()}
               onConfirm={() => {
                 handOverSpoken({
                   text: candidate.sourceText,
@@ -188,7 +201,7 @@ export function PastePage(): React.JSX.Element {
         onClick={() => void navigate("/add")}
         className="text-helper text-muted underline"
       >
-        识别不方便？直接手动记账
+        {t("capture.manualFallback")}
       </button>
     </InnerPage>
   );
@@ -208,26 +221,31 @@ function CandidateCard({
   readonly categoryName: string | null;
   readonly onConfirm: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const parsed = candidate.parsed;
-  const direction = parsed.kind === "income" ? "收入" : "支出";
+  const direction = t(parsed.kind === "income" ? "common.kind.income" : "common.kind.expense");
   const money =
     parsed.amount === null
-      ? "金额待确认"
-      : `${direction} ${parsed.amount}${parsed.currency === null ? "" : ` ${currencyName(parsed.currency)}`}`;
+      ? t("capture.paste.amountPending")
+      : `${t("capture.paste.amountLine", { kind: direction, amount: parsed.amount })}${parsed.currency === null ? "" : ` ${currencyName(parsed.currency)}`}`;
 
   return (
     <article className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-base font-medium text-ink">{money}</p>
-        {total > 1 ? <span className="text-helper text-muted">第 {String(index + 1)} 笔</span> : null}
+        <p className="min-w-0 text-base font-medium text-ink">{money}</p>
+        {total > 1 ? <span className="shrink-0 text-helper text-muted">{t("capture.paste.position", { number: index + 1 })}</span> : null}
       </div>
 
+      {/* 识别出来的日期、时间、商户是原文（数据）；支付方式只在是预置名时显示译名。 */}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <Field label="日期" value={parsed.occurredLocalDate ?? "待确认"} />
-        <Field label="时间" value={parsed.occurredTime ?? "未识别"} />
-        <Field label="商户" value={parsed.merchant ?? "未识别"} />
-        <Field label="支付方式" value={parsed.paymentMethod ?? "未识别"} />
-        <Field label="分类" value={categoryName ?? "待选择"} />
+        <Field label={t("common.field.date")} value={parsed.occurredLocalDate ?? t("capture.paste.toConfirm")} />
+        <Field label={t("common.field.time")} value={parsed.occurredTime ?? t("capture.paste.notFound")} />
+        <Field label={t("common.field.merchant")} value={parsed.merchant ?? t("capture.paste.notFound")} />
+        <Field
+          label={t("common.field.paymentMethod")}
+          value={parsed.paymentMethod === null ? t("capture.paste.notFound") : displayPaymentMethodName(parsed.paymentMethod)}
+        />
+        <Field label={t("common.field.category")} value={categoryName ?? t("capture.paste.toChoose")} />
       </dl>
 
       {/*
@@ -248,8 +266,9 @@ function CandidateCard({
         <ul className="flex flex-col gap-1 text-helper-relaxed text-muted">
           {parsed.issues.map((issue) => (
             <li key={`${issue.field}:${issue.code}`}>
-              {issue.severity === "ambiguous" ? "需要确认：" : "提示："}
-              {issue.message}
+              {issue.severity === "ambiguous" ? t("capture.issue.ambiguous") : t("capture.issue.warning")}
+              {/* 识别核心（@libellum/shared transactionText）给出的中文说明，按原文查表翻译。 */}
+              {translateSharedMessage(issue.message)}
             </li>
           ))}
         </ul>
@@ -264,12 +283,12 @@ function CandidateCard({
       */}
       {parsed.multipleTransactions ? (
         <Alert tone="info">
-          这段文字里可能有多笔交易，目前无法可靠拆分。请先按每一笔分开粘贴，避免把多笔合成一笔。
+          {t("capture.paste.multiple")}
         </Alert>
       ) : null}
 
       <Button onClick={onConfirm} disabled={parsed.multipleTransactions}>
-        核对这笔记账
+        {t("capture.paste.review")}
       </Button>
     </article>
   );

@@ -2,15 +2,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
+import { UserAvatar } from "../components/UserAvatar.js";
 import { Button } from "../components/Button.js";
 import { BookManageSheet } from "../components/BookManageSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { GuestModeBadge } from "../components/GuestModeBadge.js";
 import { AvatarIcon } from "../components/Icons.js";
-import { UserAvatar } from "../components/UserAvatar.js";
 import { GearIcon, PlusIcon } from "../components/Icons.js";
 import { OceanBackdrop } from "../components/OceanBackdrop.js";
 import { SkeletonRows } from "../components/States.js";
+import { useI18n } from "../i18n/index.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { APP_VERSION } from "../lib/version.js";
 import { errorMessage } from "../lib/api.js";
@@ -45,6 +46,7 @@ import {
  * behind the per-ledger gear**, which is where the rest of the management was already going.
  */
 export function LedgerSpacePage(): React.JSX.Element {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { user } = useAuth();
   const guest = useGuestMode();
@@ -166,7 +168,11 @@ export function LedgerSpacePage(): React.JSX.Element {
     setError(null);
 
     try {
-      const created = await createBook.mutateAsync(name.trim() === "" ? "我的账本" : name.trim());
+      /**
+       * 名称留空时用当前界面语言的默认名（S16）：中文仍是「我的账本」。只影响**新建**这一本，
+       * 已有账本的名字是用户数据，任何语言下都不改。
+       */
+      const created = await createBook.mutateAsync(name.trim() === "" ? t("books.defaultLedgerName") : name.trim());
       setCreating(false);
       setName("");
       await enterLedger(created.id);
@@ -223,12 +229,12 @@ export function LedgerSpacePage(): React.JSX.Element {
           type="button"
           className="space-cue"
           onClick={() => space.goTo(1)}
-          aria-label="展开账本列表"
+          aria-label={t("books.space.expandList")}
         >
           <svg width="24" height="28" viewBox="0 0 24 28" fill="none" aria-hidden="true">
             <path d="M12 25V5m-7 7 7-7 7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span>上滑进入我的账本</span>
+          <span>{t("books.space.pullUp")}</span>
         </button>
       </div>
 
@@ -237,7 +243,7 @@ export function LedgerSpacePage(): React.JSX.Element {
         * or an arrow key from reaching content nobody can see yet — and it is the same mechanism the
         * hook already uses on the scroll element itself.
         */}
-      <div ref={space.scrollRef} className="space-scroll" tabIndex={0} aria-label="账本列表">
+      <div ref={space.scrollRef} className="space-scroll" tabIndex={0} aria-label={t("books.space.listLabel")}>
         <div ref={contentRef} className="mx-auto w-full max-w-md px-6 space-content">
           {error === null ? null : (
             <p role="alert" className="mb-4 rounded-field bg-danger-soft px-4 py-3 text-body text-danger">
@@ -247,7 +253,7 @@ export function LedgerSpacePage(): React.JSX.Element {
 
           {switching ? (
             <p role="status" className="mb-4 text-body text-muted">
-              正在切换到那本账……
+              {t("books.space.switching")}
             </p>
           ) : null}
 
@@ -270,11 +276,11 @@ export function LedgerSpacePage(): React.JSX.Element {
                 * below the brand's `2.1rem`.
                 */}
               <div className="mb-2.5 flex items-baseline justify-between gap-3">
-                <h1 className="flex items-center gap-2 text-base font-medium text-ink">
-                  我的账本
+                <h1 className="flex min-w-0 flex-wrap items-center gap-2 text-base font-medium text-ink">
+                  {t("books.space.heading")}
                   <GuestModeBadge />
                 </h1>
-                <span className="shrink-0 text-helper text-muted">共 {String(list.length)} 本</span>
+                <span className="shrink-0 text-helper text-muted">{t("books.space.count", { count: list.length })}</span>
               </div>
 
               {list.length === 0 ? (
@@ -352,7 +358,7 @@ export function LedgerSpacePage(): React.JSX.Element {
                       className="inline-flex items-center gap-1.5 rounded-field px-3 py-2 text-body text-brand transition hover:bg-brand-soft"
                     >
                       <PlusIcon />
-                      新建账本
+                      {t("books.space.newLedger")}
                     </button>
                   )}
                 </div>
@@ -372,9 +378,7 @@ export function LedgerSpacePage(): React.JSX.Element {
               ) : null}
 
               <p className="mt-5 text-helper-relaxed text-muted">
-                {guest
-                    ? "游客账本只保存在当前设备，不会自动上传或合并。登录后可在目标账本设置中导入。"
-                    : "账本编号用于核对账本，不能用于搜索或加入。加入账本需要邀请。"}
+                {guest ? t("books.space.guestNote") : t("books.space.numberNote")}
               </p>
 
               {/**
@@ -419,6 +423,7 @@ export function LedgerSpacePage(): React.JSX.Element {
  */
 function AccountButton({ enabled }: { readonly enabled: boolean }): React.JSX.Element {
   const { user } = useAuth();
+  const { t } = useI18n();
   return (
     <a
       href="/me"
@@ -434,10 +439,17 @@ function AccountButton({ enabled }: { readonly enabled: boolean }): React.JSX.El
         * on a button nobody can see yet.**
         */
       style={{ pointerEvents: enabled ? "auto" : "none" }}
-      aria-label="我的"
+      aria-label={t("nav.tabs.me")}
       className="space-account"
     >
-      {/* 正式账户显示已保存的系统头像；游客保留原白色账户图标。点击时机仍由海浪状态决定。 */}
+      {/**
+        * ⚠️ **White, in both identities** (S14-C UI fix, 1.14.05). The owner reported that the
+        * muted grey sat too close to the deep-green band to be recognisable; white is the same
+        * colour the wordmark and the note beneath it already use. **Only this icon changes** — the
+        * other account avatars (`DefaultAvatar` on 我的/成员) keep their existing colours.
+        *
+        * Still no ring: the portrait's own tinted disc lifts it off the water.
+        */}
       {user ? <UserAvatar avatarId={user.avatarId} className="size-8" /> : <AvatarIcon className="size-[26px] text-on-brand" />}
     </a>
   );
@@ -471,6 +483,7 @@ function BookRow({
   readonly onManage?: (() => void) | undefined;
   readonly local?: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="flex items-stretch">
       <button
@@ -484,27 +497,27 @@ function BookRow({
           * *"不要只依赖颜色传递当前状态."* And **not a large green fill** — *"不要将整个当前账本行改成
           面积过大的绿色背景，以免破坏列表的轻盈感."*
           */}
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           <span
-            className={`truncate text-sm ${isCurrent ? "font-medium text-brand-dark" : "text-ink"}`}
+            className={`min-w-0 truncate text-sm ${isCurrent ? "font-medium text-brand-dark" : "text-ink"}`}
           >
             {book.name}
           </span>
           {isCurrent ? (
             <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
-              当前
+              {t("books.current")}
             </span>
           ) : null}
         </span>
 
         <span className="flex flex-wrap items-center gap-x-2 text-helper text-muted">
           {local ? (
-            <span>仅本机 · 游客本地账本</span>
+            <span>{t("books.space.guestLocal")}</span>
           ) : (
             <>
-              <span className="font-mono">{book.bookNumber ?? "（未分配编号）"}</span>
+              <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
               <span>·</span>
-              <span>{String(book.memberCount)} 人</span>
+              <span>{t("books.people", { count: book.memberCount })}</span>
             </>
           )}
         </span>
@@ -519,7 +532,7 @@ function BookRow({
         <button
           type="button"
           onClick={onManage}
-          aria-label={`管理「${book.name}」`}
+          aria-label={t("books.manageNamed", { name: book.name })}
           className="flex min-h-11 w-12 shrink-0 items-center justify-center text-muted transition hover:bg-canvas hover:text-ink"
         >
           <GearIcon className="size-[18px]" />
@@ -531,6 +544,7 @@ function BookRow({
 
 /** **No ledgers at all** — the one case where the create action *is* the main thing on screen. */
 function EmptyState({ onCreate }: { readonly onCreate: () => void }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="flex flex-col items-start gap-4 rounded-card border border-line bg-surface px-5 py-6">
       {/**
@@ -540,9 +554,9 @@ function EmptyState({ onCreate }: { readonly onCreate: () => void }): React.JSX.
         * exists so a newly written screen cannot quietly opt out of it.**
         */}
       <p className="text-body-relaxed text-muted">
-        当前账号尚无账本。创建第一本之后即可开始记账，也可以邀请别人一起记。
+        {t("books.space.empty")}
       </p>
-      <Button onClick={onCreate}>新建第一本账</Button>
+      <Button onClick={onCreate}>{t("books.space.createFirst")}</Button>
     </div>
   );
 }
@@ -561,6 +575,7 @@ function NewBookForm({
   readonly onSubmit: () => void;
   readonly onCancel: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -570,7 +585,7 @@ function NewBookForm({
   return (
     <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
       <label className="flex flex-col gap-1.5 text-body text-muted">
-        新账本的名称
+        {t("books.space.newName")}
         <input
           ref={ref}
           value={name}
@@ -582,17 +597,18 @@ function NewBookForm({
           }}
           /** ⚠️ The same 40 the server enforces — a longer name would be refused after typing it. */
           maxLength={40}
-          placeholder="我的账本"
+          placeholder={t("books.defaultLedgerName")}
           className="rounded-field border border-line bg-canvas px-4 py-3 text-ink"
         />
       </label>
 
-      <div className="flex gap-3">
+      {/* 英文按钮更长：放不下时换行，而不是挤出卡片（S16）。 */}
+      <div className="flex flex-wrap gap-3">
         <Button fullWidth={false} disabled={busy} onClick={onSubmit}>
-          {busy ? "正在创建……" : "创建并进入"}
+          {busy ? t("books.space.creating") : t("books.space.createAndEnter")}
         </Button>
         <Button variant="secondary" fullWidth={false} onClick={onCancel}>
-          取消
+          {t("common.action.cancel")}
         </Button>
       </div>
     </div>
@@ -616,15 +632,16 @@ function DisposedSection({
   readonly busy: boolean;
   readonly onRestore: (bookId: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <section className="mt-6 flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-medium text-ink">已弃置</h2>
-        <span className="shrink-0 text-helper text-muted">共 {String(disposed.length)} 本</span>
+        <h2 className="text-sm font-medium text-ink">{t("books.space.retired.title")}</h2>
+        <span className="shrink-0 text-helper text-muted">{t("books.space.count", { count: disposed.length })}</span>
       </div>
 
       <p className="text-helper-relaxed text-muted">
-        这些账本的数据都还在，只是不再出现在列表里。恢复后立刻可以使用。
+        {t("books.space.retired.description")}
       </p>
 
       <ul className="overflow-hidden rounded-card border border-line bg-surface">
@@ -636,7 +653,7 @@ function DisposedSection({
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="truncate text-body text-ink">{book.name}</span>
               <span className="font-mono text-helper text-muted">
-                {book.bookNumber ?? "（未分配编号）"}
+                {book.bookNumber ?? t("books.noNumber")}
               </span>
             </span>
 
@@ -648,7 +665,7 @@ function DisposedSection({
                 onRestore(book.id);
               }}
             >
-              恢复
+              {t("books.space.retired.restore")}
             </Button>
           </li>
         ))}
@@ -681,24 +698,25 @@ function DisposedSection({
  * See `useGoBack`.
  */
 function ProjectFooter(): React.JSX.Element {
+  const { t } = useI18n();
   const linkClass = "text-muted transition hover:text-ink";
 
   return (
     <footer className="mt-auto flex shrink-0 flex-col items-center gap-2 pt-8 text-xs">
       <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
         <Link to="/about" state={{ from: "/start" }} className={linkClass}>
-          关于 Libevra
+          {t("books.space.footer.about")}
         </Link>
         <Link to="/legal/privacy" state={{ from: "/start" }} className={linkClass}>
-          隐私政策
+          {t("books.space.footer.privacy")}
         </Link>
         <Link to="/legal/terms" state={{ from: "/start" }} className={linkClass}>
-          使用条款
+          {t("books.space.footer.terms")}
         </Link>
       </nav>
 
       <p className="text-center leading-relaxed text-muted">
-        Libevra 是一个离线优先的记账工具，AGPL-3.0 开源。
+        {t("books.space.footer.tagline")}
         <span className="ml-1 font-mono">v{APP_VERSION}</span>
       </p>
     </footer>

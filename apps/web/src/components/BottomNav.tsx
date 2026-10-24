@@ -1,3 +1,4 @@
+import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { useLedger } from "../lib/queries.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useRef, type ReactNode } from "react";
@@ -112,7 +113,8 @@ function FileUpIcon({ className }: IconProps): React.JSX.Element {
 
 interface Tab {
   readonly to: string;
-  readonly label: string;
+  /** 稳定 ID；显示名在 `nav.tabs.<id>`，渲染时按当前语言取（S16）。 */
+  readonly id: "entries" | "insights" | "add" | "ledger" | "me";
   readonly icon: (props: IconProps) => React.JSX.Element;
   readonly primary?: boolean;
   /**
@@ -130,12 +132,12 @@ interface Tab {
 }
 
 export const TABS: readonly Tab[] = [
-  { to: "/", label: "明细", icon: ListIcon },
-  { to: "/stats", label: "分析", icon: ChartIcon },
-  { to: "/add", label: "记账", icon: PlusIcon, primary: true },
+  { to: "/", id: "entries", icon: ListIcon },
+  { to: "/stats", id: "insights", icon: ChartIcon },
+  { to: "/add", id: "add", icon: PlusIcon, primary: true },
   /** ⚠️ The fourth slot is the ledger itself — *"账本"* alone, *"协作"* with others. */
-  { to: "/ledger", label: "账本", icon: PeopleIcon, labelFromMembers: true },
-  { to: "/me", label: "我的", icon: PersonIcon },
+  { to: "/ledger", id: "ledger", icon: PeopleIcon, labelFromMembers: true },
+  { to: "/me", id: "me", icon: PersonIcon },
 ];
 
 /**
@@ -150,22 +152,22 @@ export const TABS: readonly Tab[] = [
  * direction is the one a person notices.**
  */
 export function ledgerTabLabel(memberCount: number | undefined): string {
-  return memberCount !== undefined && memberCount >= 2 ? "协作" : "账本";
+  return memberCount !== undefined && memberCount >= 2 ? translate("nav.tabs.shared") : translate("nav.tabs.ledger");
 }
 
 interface EntryAction {
-  readonly label: string;
   /**
-   * The short visible caption used while the row is too tight for four characters.
+   * 稳定 ID（S16）。完整名在 `nav.entry.<id>.label`，窄屏可见短名在 `nav.entry.<id>.short`。
    *
-   * ⚠️ **This is only a caption, never the accessible name.** The full `label`
+   * ⚠️ **逻辑只比较这个 ID，不比较文案**（以前是 `label !== "手动记账"`，切到英文就会失效）。
+   *
+   * The short caption is used while the row is too tight for the full name.
+   * ⚠️ **It is only a caption, never the accessible name.** The full label
    * stays on every card as `aria-label`, so a narrow screen does not turn
    * 粘贴识别 into "粘贴" for someone using a screen reader.
    */
-  readonly shortLabel: string;
+  readonly id: "paste" | "voice" | "manual" | "scan" | "import";
   readonly icon: ReactNode;
-  /** Why the card is disabled, read out with its label. Absent when it has a `to`. */
-  readonly hint?: string;
   /** Where the card goes, when it goes anywhere. */
   readonly to?: string;
   /**
@@ -176,13 +178,10 @@ interface EntryAction {
    * on the camera card where it is rendered.
    */
   readonly picksImages?: boolean;
-  /**
-   * What a screen reader hears, when `${label}记账` would be wrong.
-   *
-   * ⚠️ **导入账单 is not a way to type an entry**, so "导入账单记账" would be
-   * nonsense. Every other card keeps the default.
+  /*
+   * ⚠️ 以前这里还有 `ariaLabel`（"导入账单记账" 不成话，所以每张卡单独写读屏名），但五张卡的值都与
+   * 完整名相同。S16 把文案移进 `nav.entry.<id>.label` 后，读屏名就是完整名，不再单独存一份。
    */
-  readonly ariaLabel?: string;
 }
 
 /**
@@ -222,37 +221,28 @@ interface EntryAction {
  */
 const ENTRY_ACTIONS: readonly EntryAction[] = [
   {
-    label: "粘贴识别",
-    shortLabel: "粘贴",
+    id: "paste",
     icon: <ClipboardIcon className="size-6" />,
     to: "/paste",
-    ariaLabel: "粘贴识别",
   },
   {
-    label: "语音记账",
-    shortLabel: "语音",
+    id: "voice",
     icon: <MicrophoneIcon className="size-6" />,
     to: "/record",
-    ariaLabel: "语音记账",
   },
   {
-    label: "手动记账",
-    shortLabel: "手动",
+    id: "manual",
     icon: <PenIcon className="size-6" />,
     to: "/add",
-    ariaLabel: "手动记账",
   },
   {
-    label: "拍照识别",
-    shortLabel: "拍照",
+    id: "scan",
     icon: <CameraIcon className="size-6" />,
     to: "/scan",
     picksImages: true,
-    ariaLabel: "拍照识别",
   },
   {
-    label: "导入账单",
-    shortLabel: "导入",
+    id: "import",
     icon: <FileUpIcon className="size-6" />,
     /**
      * `?from=nav` is the page's origin hint, not a second route: `ImportPage` uses it to hide the
@@ -260,7 +250,6 @@ const ENTRY_ACTIONS: readonly EntryAction[] = [
      * `/export` when there is no history. The destination is still the current-ledger import.
      */
     to: "/import?from=nav",
-    ariaLabel: "导入账单",
   },
 ];
 
@@ -316,6 +305,14 @@ export function BottomNav({
    */
   readonly onPickImages?: ((files: File[]) => void) | undefined;
 }): React.JSX.Element {
+  const { t, locale } = useI18n();
+  /**
+   * ⚠️ **完整名只在中文下有位置显示（S16）。** 中文完整名是四个字（11px 字号约 44px），≥420px 时
+   * 每张卡约 73px，放得下；英文完整名（Scan a receipt / Import a statement）有 70–95px，
+   * 比任何宽度下的卡都宽（`max-w-md` 封顶后每张卡也只有约 70px）。所以英文在所有宽度都显示短名
+   * （Scan / Voice / Paste / Manual / Import），完整名仍在 `aria-label` 里。
+   */
+  const fullCaptionFits = isChineseLocale(locale);
   const open = cards.expanded;
   const guest = useGuestMode();
   const pickerRef = useRef<HTMLInputElement | null>(null);
@@ -329,7 +326,7 @@ export function BottomNav({
     // height and only scrolls its middle region, so the bar never ends up
     // underneath a browser toolbar.
     <nav
-      aria-label="主导航"
+      aria-label={t("nav.mainNav")}
       className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
     >
       {/*
@@ -415,11 +412,16 @@ export function BottomNav({
                * carries on every link/button.
                */
               const caption = "whitespace-nowrap text-micro";
-              const spoken = action.ariaLabel ?? action.label;
-              const captionText = (
+              const spoken = t(`nav.entry.${action.id}.label`);
+              const shortCaption = t(`nav.entry.${action.id}.short`);
+              const captionText = fullCaptionFits ? (
                 <span aria-hidden="true" className={caption}>
-                  <span className="min-[420px]:hidden">{action.shortLabel}</span>
-                  <span className="hidden min-[420px]:inline">{action.label}</span>
+                  <span className="min-[420px]:hidden">{shortCaption}</span>
+                  <span className="hidden min-[420px]:inline">{spoken}</span>
+                </span>
+              ) : (
+                <span aria-hidden="true" className={caption}>
+                  <span>{shortCaption}</span>
                 </span>
               );
 
@@ -434,14 +436,14 @@ export function BottomNav({
                * server write scoped to a real account ledger. A guest pressing it would be bounced
                * to `/login`, which is exactly the dead end these cards avoid.
                */
-              if (guest && action.label !== "手动记账") {
+              if (guest && action.id !== "manual") {
                 return (
-                  <li key={action.label} className="min-w-0 flex-1 basis-0">
+                  <li key={action.id} className="min-w-0 flex-1 basis-0">
                     <button
                       type="button"
                       disabled
                       tabIndex={open ? 0 : -1}
-                      aria-label={`${spoken}，需要正式账号`}
+                      aria-label={t("nav.entry.needsAccount", { label: spoken })}
                       className={`${shape} opacity-55`}
                     >
                       {action.icon}
@@ -470,7 +472,7 @@ export function BottomNav({
                */
               if (action.picksImages === true && onPickImages !== undefined) {
                 return (
-                  <li key={action.label} className="min-w-0 flex-1 basis-0">
+                  <li key={action.id} className="min-w-0 flex-1 basis-0">
                     <button
                       type="button"
                       tabIndex={open ? 0 : -1}
@@ -493,7 +495,7 @@ export function BottomNav({
               // cannot.
               if (action.to !== undefined) {
                 return (
-                  <li key={action.label} className="min-w-0 flex-1 basis-0">
+                  <li key={action.id} className="min-w-0 flex-1 basis-0">
                     <Link
                       to={action.to}
                       tabIndex={open ? 0 : -1}
@@ -508,12 +510,12 @@ export function BottomNav({
               }
 
               return (
-                <li key={action.label} className="min-w-0 flex-1 basis-0">
+                <li key={action.id} className="min-w-0 flex-1 basis-0">
                   <button
                     type="button"
                     disabled
                     tabIndex={open ? 0 : -1}
-                    aria-label={`${spoken}，${action.hint ?? "即将开放"}`}
+                    aria-label={t("nav.entry.unavailable", { label: spoken, reason: t("nav.entry.comingSoon") })}
                     className={`${shape} opacity-60`}
                   >
                     {action.icon}
@@ -541,7 +543,7 @@ export function BottomNav({
            * `useLedger` is TanStack Query, so the ledger screen's own fetch is shared rather than
            * repeated — the bar costs no extra request.
            */
-          const label = tab.labelFromMembers === true ? ledgerTabLabel(ledger.data?.book.memberCount) : tab.label;
+          const label = tab.labelFromMembers === true ? ledgerTabLabel(ledger.data?.book.memberCount) : t(`nav.tabs.${tab.id}`);
 
           if (tab.primary === true) {
             return (
@@ -558,7 +560,7 @@ export function BottomNav({
                   type="button"
                   onClick={cards.onToggle}
                   aria-expanded={open}
-                  aria-label={open ? "收起记账方式" : "展开记账方式"}
+                  aria-label={open ? t("nav.entry.collapse") : t("nav.entry.expand")}
                   className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"
                 >
                   <PlusIcon

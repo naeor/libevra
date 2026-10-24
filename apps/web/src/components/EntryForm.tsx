@@ -1,7 +1,9 @@
-import { type Currency, type TransactionKind } from "@libellum/shared";
+import { UNCATEGORISED_NAME, type Currency, type TransactionKind } from "@libellum/shared";
 import { useState } from "react";
 
+import { useI18n } from "../i18n/index.js";
 import { amountPlaceholder } from "../lib/format.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 
 import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
@@ -50,6 +52,7 @@ export function ReviewStep({
   readonly onSave: (draft: ReviewDraft) => void;
   readonly onManual: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [value, setValue] = useState<ReviewDraft>(draft);
 
   const usableCategories = categories.filter(
@@ -74,14 +77,14 @@ export function ReviewStep({
       )}
 
       {remaining > 1 ? (
-        <p className="text-helper text-muted">还有 {remaining} 张需要核对</p>
+        <p className="text-helper text-muted">{t("entry.review.remaining", { count: remaining })}</p>
       ) : null}
 
       {/* The amount is the thing being checked, so it is the largest control
           on the screen and the first thing the eye lands on. */}
       <section className="flex flex-col gap-2">
         <label htmlFor="scan-amount" className="text-helper text-muted">
-          金额
+          {t("common.field.amount")}
         </label>
         <div className="flex items-baseline gap-2 rounded-card border border-line bg-surface px-5 py-4">
           <span className="text-xl text-muted">¥</span>
@@ -111,7 +114,7 @@ export function ReviewStep({
               value.kind === option ? "bg-brand text-on-brand" : "bg-surface text-muted"
             }`}
           >
-            {option === "expense" ? "支出" : "收入"}
+            {t(`common.kind.${option}`)}
           </button>
         ))}
       </section>
@@ -145,7 +148,7 @@ export function ReviewStep({
         vertical space and buys certainty, and the certainty is worth more on a
         form somebody fills in one-handed.
       */}
-      <Field label="日期">
+      <Field label={t("common.field.date")}>
         <input
           type="date"
           value={value.date}
@@ -156,7 +159,7 @@ export function ReviewStep({
         />
       </Field>
 
-      <Field label="时间">
+      <Field label={t("common.field.time")}>
         <input
           type="time"
           value={value.time}
@@ -167,7 +170,7 @@ export function ReviewStep({
         />
       </Field>
 
-      <Field label="分类">
+      <Field label={t("common.field.category")}>
         <select
           value={value.categoryId ?? ""}
           onChange={(event) => {
@@ -175,16 +178,16 @@ export function ReviewStep({
           }}
           className="w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
         >
-          <option value="">暂无分类</option>
+          <option value="">{displayCategoryName(UNCATEGORISED_NAME)}</option>
           {usableCategories.map((category) => (
             <option key={category.id} value={category.id}>
-              {category.name}
+              {displayCategoryName(category.name)}
             </option>
           ))}
         </select>
       </Field>
 
-      <Field label="支付方式">
+      <Field label={t("common.field.paymentMethod")}>
         <select
           value={value.paymentMethodId ?? ""}
           onChange={(event) => {
@@ -192,20 +195,20 @@ export function ReviewStep({
           }}
           className="w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
         >
-          <option value="">未选择</option>
+          <option value="">{t("entry.review.paymentUnselected")}</option>
           {usableMethods.map((method) => (
             <option key={method.id} value={method.id}>
-              {method.name}
+              {displayPaymentMethodName(method.name)}
             </option>
           ))}
         </select>
       </Field>
 
-      <Field label="备注">
+      <Field label={t("common.field.note")}>
         <input
           value={value.note}
           maxLength={200}
-          placeholder="可不填"
+          placeholder={t("entry.review.notePlaceholder")}
           onChange={(event) => {
             patch({ note: event.target.value });
           }}
@@ -219,11 +222,11 @@ export function ReviewStep({
           onSave(value);
         }}
       >
-        {busy ? "保存中…" : "确认并保存"}
+        {busy ? t("common.action.saving") : t("entry.review.confirmSave")}
       </Button>
 
       <button type="button" onClick={onManual} className="text-helper text-muted underline">
-        识别得不对？改成手动记账
+        {t("entry.review.switchToManual")}
       </button>
     </div>
   );

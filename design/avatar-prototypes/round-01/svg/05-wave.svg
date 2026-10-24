@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="currentColor" style="color:var(--avatar-color,var(--color-brand,#55997a))" role="img" aria-labelledby="wave-title">
+  <title id="wave-title">海浪</title>
+  <g transform="translate(0 -3)">
+    <path d="M15 69C17 40 39 20 67 23C73 24 78 25 82 28C63 27 49 39 50 51C51 65 64 68 81 62C73 76 58 81 42 77C30 75 22 71 15 69Z" fill-opacity=".28"/>
+    <path d="M20 72C24 50 41 35 61 35C66 35 71 36 76 38C60 38 49 47 50 57C51 67 63 70 76 65C67 77 51 82 37 77C30 75 25 74 20 72Z" fill-opacity=".8"/>
+  </g>
+</svg>

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { t } from "../i18n/index.js";
 
 /** 保护刷新、页内链接以及浏览器后退；不保存草稿，不阻止已确认的离开。 */
 export function useDraftExit(dirty: boolean): void {
@@ -11,7 +12,7 @@ export function useDraftExit(dirty: boolean): void {
     window.history.pushState({ ...window.history.state, profileDraftGuard: marker }, "", window.location.href);
     const pop = (): void => {
       if (!active || window.history.state?.profileDraftGuard === marker) return;
-      if (window.confirm("放弃未保存的修改并离开？")) {
+      if (window.confirm(t("account.profile.leaveConfirm"))) {
         active = false;
         window.removeEventListener("beforeunload", beforeUnload);
         window.history.back();
@@ -19,7 +20,7 @@ export function useDraftExit(dirty: boolean): void {
     };
     const link = (event: MouseEvent): void => {
       if (!(event.target instanceof Element) || !event.target.closest("a[href]")) return;
-      if (!window.confirm("放弃未保存的修改并离开？")) { event.preventDefault(); event.stopPropagation(); }
+      if (!window.confirm(t("account.profile.leaveConfirm"))) { event.preventDefault(); event.stopPropagation(); }
     };
     window.addEventListener("beforeunload", beforeUnload);
     window.addEventListener("popstate", pop);

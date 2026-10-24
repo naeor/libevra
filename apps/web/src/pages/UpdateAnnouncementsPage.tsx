@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { InnerPage } from "../components/Layouts.js";
 import { RecordGroup, RecordRow } from "../components/ui/RecordList.js";
+import { localizeUpdateAnnouncement } from "../i18n/content/index.js";
+import { useI18n } from "../i18n/index.js";
 import {
   ANNOUNCEMENT_PAGE_SIZE,
   formatReleaseDate,
@@ -30,16 +32,17 @@ export function UpdateAnnouncementsPage(): React.JSX.Element {
   const [visibleCount, setVisibleCount] = useState(ANNOUNCEMENT_PAGE_SIZE);
   const visible = announcements.slice(0, visibleCount);
   const olderCount = announcements.length - visible.length;
+  const { t } = useI18n();
 
   return (
-    <InnerPage title="更新公告" subtitle="这里只列出已经正式发布的版本。" backTo="/update">
+    <InnerPage title={t("update.announcements.title")} subtitle={t("update.announcements.subtitle")} backTo="/update">
       {announcements.length === 0 ? (
-        <p className="text-body text-muted">还没有正式发布的公告。</p>
+        <p className="text-body text-muted">{t("update.announcements.empty")}</p>
       ) : (
         <div className="flex flex-col">
           {groupBySeries(visible).map((group) => (
-            <RecordGroup key={group.series} heading={`${group.series} 版本`}>
-              {group.items.map((announcement) => (
+            <RecordGroup key={group.series} heading={t("update.announcements.series", { series: group.series })}>
+              {group.items.map((source) => localizeUpdateAnnouncement(source)).map((announcement) => (
                 <RecordRow
                   key={announcement.version}
                   eyebrow={<span className="font-mono">{announcement.version}</span>}
@@ -59,9 +62,9 @@ export function UpdateAnnouncementsPage(): React.JSX.Element {
         <button
           type="button"
           onClick={() => setVisibleCount((current) => current + ANNOUNCEMENT_PAGE_SIZE)}
-          className="self-start text-body font-medium text-brand"
+          className="self-start text-left text-body font-medium text-brand"
         >
-          显示更早公告（还有 {olderCount} 条）
+          {t("update.announcements.showOlder", { count: olderCount })}
         </button>
       ) : null}
     </InnerPage>

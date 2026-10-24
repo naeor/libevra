@@ -114,7 +114,7 @@ export function ChoiceDialog<Id extends string>({
               className={`w-full rounded-field px-4 py-3 text-left transition ${
                 choice.primary === true
                   ? "bg-brand text-on-brand hover:bg-brand-dark"
-                  : "bg-brand-soft text-brand-dark hover:bg-brand-soft/70"
+                  : "bg-brand-soft text-brand-dark hover:bg-brand/20"
               }`}
             >
               <span className="block text-button-lg font-medium">{choice.label}</span>

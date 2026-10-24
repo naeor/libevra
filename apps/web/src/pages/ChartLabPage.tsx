@@ -7,6 +7,7 @@ import { ComparisonPanel, YearOverview } from "../components/charts/SummaryPanel
 import { TrendChart } from "../components/charts/TrendChart.js";
 import { EntrySaved } from "../components/EntrySaved.js";
 import { DefaultAvatar } from "../components/DefaultAvatar.js";
+import { useI18n } from "../i18n/index.js";
 
 /**
  * A development harness — **not a shipped feature**.
@@ -45,12 +46,13 @@ const SPIKY_DAYS: StatsSeriesPoint[] = SPIKY_MONTH.map((expenseMinor, index) => 
 
 const MONTHS = monthSeries([82_000, 124_000, 66_000, 198_000, 91_000, 105_000, 143_000, 78_000, 112_000, 96_000, 131_000, 89_000]);
 
+/** 样例数据，模拟服务器返回的分类原名（预置名在英文界面会经 `displayCategoryName` 显示成英文）。 */
 const CATEGORIES: CategoryTotal[] = [
-  { categoryId: "1", name: "餐饮", kind: "expense", minor: 124_000, share: 0.41 },
-  { categoryId: "2", name: "购物", kind: "expense", minor: 86_000, share: 0.28 },
-  { categoryId: "3", name: "服务", kind: "expense", minor: 42_000, share: 0.14 },
-  { categoryId: "4", name: "娱乐", kind: "expense", minor: 31_000, share: 0.1 },
-  { categoryId: "5", name: "其它", kind: "expense", minor: 19_000, share: 0.07 },
+  { categoryId: "1", name: "餐饮", kind: "expense", minor: 124_000, share: 0.41 }, // i18n-ignore：样例数据（分类原名）
+  { categoryId: "2", name: "购物", kind: "expense", minor: 86_000, share: 0.28 }, // i18n-ignore：样例数据（分类原名）
+  { categoryId: "3", name: "服务", kind: "expense", minor: 42_000, share: 0.14 }, // i18n-ignore：样例数据（分类原名）
+  { categoryId: "4", name: "娱乐", kind: "expense", minor: 31_000, share: 0.1 }, // i18n-ignore：样例数据（分类原名）
+  { categoryId: "5", name: "其它", kind: "expense", minor: 19_000, share: 0.07 }, // i18n-ignore：样例数据（用户自建分类名）
 ];
 
 const TOTALS: PeriodTotals = {
@@ -70,18 +72,19 @@ const EMPTY_TOTALS: PeriodTotals = {
 };
 
 export function ChartLabPage(): React.JSX.Element {
+  const { t } = useI18n();
   const [range, setRange] = useState<"7d" | "month">("month");
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-md flex-col gap-8 px-4 py-8">
       <header>
-        <h1 className="text-xl font-semibold text-ink">组件预览 · 开发验证页</h1>
+        <h1 className="text-xl font-semibold text-ink">{t("stats.lab.title")}</h1>
         <p className="mt-1.5 text-body-relaxed text-muted">
-          这个页面只在开发模式下存在，用来确认图表与完成页在异常数据下仍然可读。它不是产品功能，也不需要登录。
+          {t("stats.lab.intro")}
         </p>
       </header>
 
-      <Section title="「我的」页头部（头像 + 名字）">
+      <Section title={t("stats.lab.meHeader")}>
         <div className="-m-4 overflow-hidden rounded-card">
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 bg-brand px-6 py-10 text-on-brand">
             <DefaultAvatar />
@@ -91,7 +94,7 @@ export function ChartLabPage(): React.JSX.Element {
         </div>
       </Section>
 
-      <Section title="记账完成页（保存后出现）">
+      <Section title={t("stats.lab.entrySaved")}>
         {/*
           Both shapes, because they differ in a way a screenshot has to show:
           the last entry of a batch offers a way home, and one part-way through
@@ -107,10 +110,10 @@ export function ChartLabPage(): React.JSX.Element {
               amountCents: 2000,
               currency: "CNY",
               categoryId: "c1",
-              categoryName: "餐饮",
+              categoryName: "餐饮", // i18n-ignore：样例数据（分类原名）
               categoryIsSystem: false,
               paymentMethodId: "p1",
-              paymentMethodName: "微信",
+              paymentMethodName: "微信", // i18n-ignore：样例数据（支付方式原名）
               occurredAt: "2026-10-09T04:00:00.000Z",
               occurredLocalDate: "2026-10-09",
               occurredTz: "Asia/Shanghai",
@@ -118,8 +121,8 @@ export function ChartLabPage(): React.JSX.Element {
               tags: [],
               version: 1,
             }}
-            categoryName="餐饮"
-            paymentName="微信"
+            categoryName="餐饮" // i18n-ignore：样例数据（分类原名）
+            paymentName="微信" // i18n-ignore：样例数据（支付方式原名）
             remaining={0}
             onHome={() => undefined}
             onAgain={() => undefined}
@@ -127,7 +130,7 @@ export function ChartLabPage(): React.JSX.Element {
         </div>
       </Section>
 
-      <Section title="记账完成页 · 一批还没做完（中途没有返回主页）">
+      <Section title={t("stats.lab.entrySavedBatch")}>
         <div className="-m-4 overflow-hidden rounded-card">
           <EntrySaved
             entry={{
@@ -136,10 +139,10 @@ export function ChartLabPage(): React.JSX.Element {
               amountCents: 3850,
               currency: "CNY",
               categoryId: "c1",
-              categoryName: "餐饮",
+              categoryName: "餐饮", // i18n-ignore：样例数据（分类原名）
               categoryIsSystem: false,
               paymentMethodId: "p1",
-              paymentMethodName: "微信",
+              paymentMethodName: "微信", // i18n-ignore：样例数据（支付方式原名）
               occurredAt: "2026-10-09T04:00:00.000Z",
               occurredLocalDate: "2026-10-09",
               occurredTz: "Asia/Shanghai",
@@ -147,8 +150,8 @@ export function ChartLabPage(): React.JSX.Element {
               tags: [],
               version: 1,
             }}
-            categoryName="餐饮"
-            paymentName="微信"
+            categoryName="餐饮" // i18n-ignore：样例数据（分类原名）
+            paymentName="微信" // i18n-ignore：样例数据（支付方式原名）
             remaining={2}
             onHome={() => undefined}
             onAgain={() => undefined}
@@ -156,15 +159,15 @@ export function ChartLabPage(): React.JSX.Element {
         </div>
       </Section>
 
-      <Section title="趋势折线（双系列，可触摸）">
+      <Section title={t("stats.lab.trend")}>
         <TrendChart points={MONTHS} currency={CURRENCY} bucket="month" hasEntries />
       </Section>
 
-      <Section title="分类占比（点分类下钻）">
+      <Section title={t("stats.lab.donut")}>
         <CategoryDonut totals={CATEGORIES} currency={CURRENCY} />
       </Section>
 
-      <Section title="环比对比（月未结束，对比上月同期）">
+      <Section title={t("stats.lab.comparisonMonthToDate")}>
         <ComparisonPanel
           current={TOTALS}
           previous={{ ...TOTALS, expenseMinor: 268_000 }}
@@ -175,7 +178,7 @@ export function ChartLabPage(): React.JSX.Element {
         />
       </Section>
 
-      <Section title="环比对比（没有可对比的数据）">
+      <Section title={t("stats.lab.comparisonNone")}>
         <ComparisonPanel
           current={TOTALS}
           previous={null}
@@ -186,11 +189,11 @@ export function ChartLabPage(): React.JSX.Element {
         />
       </Section>
 
-      <Section title="年度总览">
+      <Section title={t("stats.lab.year")}>
         <YearOverview months={MONTHS} totals={TOTALS} currency={CURRENCY} />
       </Section>
 
-      <Section title="日历热力（含一个 10 倍极值）">
+      <Section title={t("stats.lab.heatmap")}>
         <div className="mb-3 flex gap-2">
           {(["7d", "month"] as const).map((option) => (
             <button
@@ -203,7 +206,7 @@ export function ChartLabPage(): React.JSX.Element {
                 range === option ? "bg-brand text-on-brand" : "bg-canvas text-muted"
               }`}
             >
-              {option === "7d" ? "近 7 天" : "本月"}
+              {option === "7d" ? t("stats.range.7d") : t("stats.thisMonth")}
             </button>
           ))}
         </div>
@@ -214,15 +217,15 @@ export function ChartLabPage(): React.JSX.Element {
         />
       </Section>
 
-      <Section title="异常状态">
+      <Section title={t("stats.lab.edgeCases")}>
         <div className="flex flex-col gap-6">
           <div>
-            <p className="mb-2 text-helper text-ink">没有任何数据</p>
+            <p className="mb-2 text-helper text-ink">{t("stats.lab.noData")}</p>
             <TrendChart points={[]} currency={CURRENCY} bucket="day" hasEntries={false} />
           </div>
           <div>
             <p className="mb-2 text-helper text-ink">
-              没有数据，但序列被补过零（**这是本次修掉的 bug**：以前会误报"金额均为零"）
+              {t("stats.lab.gapFilled")}
             </p>
             <TrendChart
               points={Array.from({ length: 7 }, (_, index) => ({
@@ -236,7 +239,7 @@ export function ChartLabPage(): React.JSX.Element {
             />
           </div>
           <div>
-            <p className="mb-2 text-helper text-ink">有记录但全为零</p>
+            <p className="mb-2 text-helper text-ink">{t("stats.lab.allZero")}</p>
             <TrendChart
               points={[{ bucket: "2026-10-01", expenseMinor: 0, incomeMinor: 0 }]}
               currency={CURRENCY}
@@ -245,14 +248,14 @@ export function ChartLabPage(): React.JSX.Element {
             />
           </div>
           <div>
-            <p className="mb-2 text-helper text-ink">只有一个分类</p>
+            <p className="mb-2 text-helper text-ink">{t("stats.lab.singleCategory")}</p>
             <CategoryDonut
-              totals={[{ categoryId: "1", name: "餐饮", kind: "expense", minor: 5_000, share: 1 }]}
+              totals={[{ categoryId: "1", name: "餐饮", kind: "expense", minor: 5_000, share: 1 }]} // i18n-ignore：样例数据（分类原名）
               currency={CURRENCY}
             />
           </div>
           <div>
-            <p className="mb-2 text-helper text-ink">全零的年度总览</p>
+            <p className="mb-2 text-helper text-ink">{t("stats.lab.yearAllZero")}</p>
             <YearOverview
               months={monthSeries(Array.from({ length: 12 }, () => 0))}
               totals={EMPTY_TOTALS}
@@ -260,7 +263,7 @@ export function ChartLabPage(): React.JSX.Element {
             />
           </div>
           <div>
-            <p className="mb-2 text-helper text-ink">含负结余的年度总览</p>
+            <p className="mb-2 text-helper text-ink">{t("stats.lab.yearNegative")}</p>
             <YearOverview
               months={monthSeries([120_000, 300_000, 480_000, 90_000, 210_000, 260_000, 150_000, 88_000, 300_000, 190_000, 240_000, 420_000])}
               totals={{ ...TOTALS, incomeMinor: 100_000, netMinor: -202_000 }}
@@ -268,7 +271,7 @@ export function ChartLabPage(): React.JSX.Element {
             />
           </div>
           <div>
-            <p className="mb-2 text-helper text-ink">日元（没有小数位）</p>
+            <p className="mb-2 text-helper text-ink">{t("stats.lab.yen")}</p>
             <TrendChart
               points={[
                 { bucket: "2026-08", expenseMinor: 12_000, incomeMinor: 30_000 },

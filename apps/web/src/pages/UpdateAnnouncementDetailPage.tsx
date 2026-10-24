@@ -3,6 +3,8 @@ import { TEST_MAJOR_ANNOUNCEMENT } from "@libellum/shared";
 
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
+import { localizeUpdateAnnouncement } from "../i18n/content/index.js";
+import { useI18n } from "../i18n/index.js";
 import {
   adjacentReleasedAnnouncements,
   formatReleaseDate,
@@ -18,6 +20,7 @@ import {
  */
 export function UpdateAnnouncementDetailPage(): React.JSX.Element {
   const { version } = useParams<{ readonly version: string }>();
+  const { t } = useI18n();
 
   /**
    * The local major-announcement test has a synthetic version and is not part of the real release
@@ -37,22 +40,26 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
         }
       : null;
 
-  const announcement = (version === undefined ? null : releasedAnnouncementByVersion(version)) ?? testMajor;
+  const source = (version === undefined ? null : releasedAnnouncementByVersion(version)) ?? testMajor;
 
-  if (announcement === null) {
+  if (source === null) {
     return (
-      <InnerPage title="版本公告" subtitle="这个版本没有可查看的正式公告。" backTo="/update/announcements">
+      <InnerPage title={t("update.detail.missingTitle")} subtitle={t("update.detail.missingSubtitle")} backTo="/update/announcements">
         <p className="rounded-card border border-line bg-surface px-4 py-3 text-body text-muted">
-          也许这个版本还未正式发布，或者链接有误。
+          {t("update.detail.missingBody")}
         </p>
         <Link to="/update/announcements" className="text-body font-medium text-brand">
-          返回更新公告
+          {t("update.detail.back")}
         </Link>
       </InnerPage>
     );
   }
 
-  const { older, newer } = adjacentReleasedAnnouncements(announcement.version);
+  /** S16：版本号、日期、前后版本按原始公告决定；显示的文字走本地化（没有译文时原样返回）。 */
+  const announcement = localizeUpdateAnnouncement(source);
+  const adjacent = adjacentReleasedAnnouncements(source.version);
+  const older = adjacent.older === null ? null : localizeUpdateAnnouncement(adjacent.older);
+  const newer = adjacent.newer === null ? null : localizeUpdateAnnouncement(adjacent.newer);
 
   return (
     <InnerPage
@@ -72,7 +79,7 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
 
       {announcement.revisedAt === undefined ? null : (
         <p className="text-helper-relaxed text-muted">
-          本文于 {formatReleaseDate(announcement.revisedAt)} 按发布记录整理，原版本号及发布日期不变。
+          {t("update.detail.revised", { date: formatReleaseDate(announcement.revisedAt) })}
         </p>
       )}
 
@@ -104,19 +111,19 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
       )}
 
       {older === null && newer === null ? null : (
-        <nav aria-label="版本导航">
+        <nav aria-label={t("update.detail.navLabel")}>
           <ListGroup>
             {newer === null ? null : (
               <ListRow
                 label={<span className="block truncate">{newer.version} · {newer.title}</span>}
-                detail="下一版本"
+                detail={t("update.detail.newer")}
                 to={`/update/announcements/${newer.version}`}
               />
             )}
             {older === null ? null : (
               <ListRow
                 label={<span className="block truncate">{older.version} · {older.title}</span>}
-                detail="上一版本"
+                detail={t("update.detail.older")}
                 to={`/update/announcements/${older.version}`}
               />
             )}
@@ -125,7 +132,7 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
       )}
 
       <Link to="/update/announcements" className="self-start text-body font-medium text-brand">
-        返回更新公告
+        {t("update.detail.back")}
       </Link>
     </InnerPage>
   );

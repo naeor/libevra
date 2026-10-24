@@ -9,6 +9,8 @@
  */
 import type { Category, PaymentMethod, Tag } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
+import { displayCategoryName, displayPaymentMethodName } from "../presetNames.js";
 import type {
   TaxonomyConflict,
   TaxonomyConflictReason,
@@ -38,7 +40,7 @@ export function categoryMatchKey(kind: Category["kind"], name: string): string {
 }
 
 function uniqueName(base: string, reserved: Set<string>): string {
-  const clean = base.trim() === "" ? "未命名" : base.trim();
+  const clean = base.trim() === "" ? "未命名" : base.trim(); // i18n-ignore：新建对象的名字会发给服务器保存（数据），不随界面语言变化
   let candidate = clean.slice(0, MAX_OBJECT_NAME);
   let index = 2;
   while (reserved.has(normalizeObjectName(candidate))) {
@@ -66,6 +68,27 @@ function conflict(
     reason,
     message,
   };
+}
+
+/*
+ * 冲突说明（`TaxonomyConflict.message`）只用于显示：生成时按当前语言取文案，名字用显示名
+ * （预置分类 / 支付方式按语言显示）。页面的预览 `useMemo` 依赖 `locale`，切换语言会重新生成。
+ * 判断冲突只看 `reason` 与 id，从不比较这段文字。
+ */
+function archiveMismatchMessage(
+  type: "category" | "paymentMethod",
+  name: string,
+  sourceArchived: boolean,
+): string {
+  // 冲突只在两边归档状态不同的时候产生，所以只有「来源已归档 / 目标已归档」两种句子。
+  if (type === "category") {
+    return sourceArchived
+      ? t("ledgerImport.conflict.reason.categorySourceArchived", { name: displayCategoryName(name) })
+      : t("ledgerImport.conflict.reason.categoryTargetArchived", { name: displayCategoryName(name) });
+  }
+  return sourceArchived
+    ? t("ledgerImport.conflict.reason.paymentSourceArchived", { name: displayPaymentMethodName(name) })
+    : t("ledgerImport.conflict.reason.paymentTargetArchived", { name: displayPaymentMethodName(name) });
 }
 
 /**
@@ -149,7 +172,7 @@ function mapCategory(
       source,
       sameName,
       "category_system_mismatch",
-      `来源里的自定义分类「${source.name}」与目标的系统分类同名，不能在目标里直接复用。`,
+      t("ledgerImport.conflict.reason.categorySystem", { name: displayCategoryName(source.name) }),
     );
     conflicts.push(item);
     return {
@@ -172,7 +195,7 @@ function mapCategory(
       source,
       sameName,
       "category_archive_mismatch",
-      `来源分类「${source.name}」${source.isArchived ? "已归档" : "未归档"}，目标同名分类${sameName.isArchived ? "已归档" : "未归档"}。`,
+      archiveMismatchMessage("category", source.name, source.isArchived),
     );
     conflicts.push(item);
     return {
@@ -233,7 +256,7 @@ function mapPaymentMethod(
       source,
       sameName,
       "payment_method_archive_mismatch",
-      `来源支付方式「${source.name}」${source.isArchived ? "已归档" : "未归档"}，目标同名支付方式${sameName.isArchived ? "已归档" : "未归档"}。`,
+      archiveMismatchMessage("paymentMethod", source.name, source.isArchived),
     );
     return {
       mapping: {
@@ -293,7 +316,7 @@ function mapTag(
       source,
       sameName,
       "tag_color_mismatch",
-      `来源标签「${source.name}」与目标同名标签颜色不同；复用目标会丢失来源颜色。`,
+      t("ledgerImport.conflict.reason.tagColor", { name: source.name }),
     );
     return {
       mapping: {

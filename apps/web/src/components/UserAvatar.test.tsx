@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { UserAvatar, AVATAR_LABELS } from "./UserAvatar.js";
+import { UserAvatar, avatarLabel } from "./UserAvatar.js";
 
 describe("系统头像素材", () => {
   it("新旧 21 个稳定身份均可访问，不引入外部图像请求", () => {
@@ -11,7 +11,7 @@ describe("系统头像素材", () => {
     for (const id of AVATAR_IDS) {
       const html = renderToStaticMarkup(<UserAvatar avatarId={id} />);
       expect(html).toContain(`data-avatar-id="${id}"`);
-      expect(html).toContain(`${AVATAR_LABELS[id]}头像`);
+      expect(html).toContain(`${avatarLabel(id)}头像`);
       expect(html).not.toContain("<image");
     }
   });

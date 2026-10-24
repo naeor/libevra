@@ -9,6 +9,7 @@ import { GuestWelcome } from "./GuestWelcome.js";
 import { OfflineStatus } from "./OfflineStatus.js";
 import { SyncBanner } from "./SyncBanner.js";
 import { useGoBack, type BackMode } from "../lib/connectivity.js";
+import { useI18n } from "../i18n/index.js";
 
 /**
  * Whether the entry cards are open, and who may close them.
@@ -321,6 +322,7 @@ function PageNavBar({
   /** Pinned above the bar inside the same sticky group (the offline banner). */
   readonly children?: React.ReactNode;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div
       data-page-nav
@@ -330,7 +332,7 @@ function PageNavBar({
       }`}
     >
       {children}
-      <nav aria-label="页面导航" className="relative mx-auto flex h-12 w-full max-w-md items-center justify-between gap-3 px-6">
+      <nav aria-label={t("nav.page.nav")} className="relative mx-auto flex h-12 w-full max-w-md items-center justify-between gap-3 px-6">
         {/* Deliberately generous: this is the control a thumb reaches for on a phone, and a small
             target means missed taps. 44px high, and the chevron sits on the content's 24px edge. */}
         <button
@@ -340,7 +342,7 @@ function PageNavBar({
           className="-ml-3 flex h-11 shrink-0 items-center gap-1 rounded-field pr-3 pl-2 text-base text-brand-dark transition hover:bg-brand-soft active:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
           <ChevronIcon direction="left" className="size-5" />
-          返回
+          {t("nav.page.back")}
         </button>
 
         <p

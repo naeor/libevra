@@ -1,5 +1,7 @@
 import { decimalsFor, formatMinor } from "@libellum/shared";
 
+import { currentLocale, isChineseLocale } from "../../i18n/index.js";
+
 /**
  * Axis and label formatting.
  *
@@ -11,17 +13,24 @@ import { decimalsFor, formatMinor } from "@libellum/shared";
 const TEN_THOUSAND = 10_000;
 const HUNDRED_MILLION = 100_000_000;
 
-/** `12000` becomes `1.2万`; below ten thousand the number is shown as it is. */
+/**
+ * `12000` becomes `1.2万`; below ten thousand the number is shown as it is.
+ *
+ * 英文（及以后的其它语言）用 `Intl` 的 compact 写法：`12K`、`1.2M`——同样“缩短但不改数量级”。
+ */
 export function formatCompactNumber(value: number): string {
+  if (!isChineseLocale()) {
+    return new Intl.NumberFormat(currentLocale(), { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  }
   const absolute = Math.abs(value);
   const sign = value < 0 ? "-" : "";
 
   if (absolute >= HUNDRED_MILLION) {
-    return `${sign}${trim(absolute / HUNDRED_MILLION)}亿`;
+    return `${sign}${trim(absolute / HUNDRED_MILLION)}亿`; // i18n-ignore：中文界面专用的固定格式
   }
 
   if (absolute >= TEN_THOUSAND) {
-    return `${sign}${trim(absolute / TEN_THOUSAND)}万`;
+    return `${sign}${trim(absolute / TEN_THOUSAND)}万`; // i18n-ignore：中文界面专用的固定格式
   }
 
   return `${sign}${String(Math.round(absolute))}`;
@@ -81,9 +90,17 @@ function trim(value: number): string {
  * would be truncated into nonsense rather than shortened into meaning.
  */
 export function bucketLabel(bucket: string, kind: "day" | "month"): string {
+  if (!isChineseLocale()) {
+    const date = new Date(Number(bucket.slice(0, 4)), Number(bucket.slice(5, 7)) - 1, kind === "month" ? 1 : Number(bucket.slice(8, 10)));
+    return new Intl.DateTimeFormat(
+      currentLocale(),
+      kind === "month" ? { month: "short" } : { month: "numeric", day: "numeric" },
+    ).format(date);
+  }
+
   if (kind === "month") {
     // "2026-10" reads as "10月"; the year is in the range label above the chart.
-    return `${String(Number(bucket.slice(5, 7)))}月`;
+    return `${String(Number(bucket.slice(5, 7)))}月`; // i18n-ignore：中文界面专用的固定格式
   }
 
   return `${String(Number(bucket.slice(5, 7)))}/${String(Number(bucket.slice(8, 10)))}`;
@@ -92,7 +109,11 @@ export function bucketLabel(bucket: string, kind: "day" | "month"): string {
 /** A full date for a tooltip, where there is room to be unambiguous. */
 export function bucketFullLabel(bucket: string, kind: "day" | "month"): string {
   if (kind === "month") {
-    return `${bucket.slice(0, 4)} 年 ${String(Number(bucket.slice(5, 7)))} 月`;
+    if (!isChineseLocale()) {
+      const date = new Date(Number(bucket.slice(0, 4)), Number(bucket.slice(5, 7)) - 1, 1);
+      return new Intl.DateTimeFormat(currentLocale(), { year: "numeric", month: "short" }).format(date);
+    }
+    return `${bucket.slice(0, 4)} 年 ${String(Number(bucket.slice(5, 7)))} 月`; // i18n-ignore：中文界面专用的固定格式
   }
 
   return `${bucket.slice(0, 4)}-${bucket.slice(5, 7)}-${bucket.slice(8, 10)}`;

@@ -13,7 +13,8 @@
  */
 
 import {
-  NOT_DUPLICATE_DECISION_SOURCE_LABELS,
+  NOT_DUPLICATE_DECISION_SOURCES,
+  UNCATEGORISED_NAME,
   formatTransactionNumber,
   type NotDuplicateRelation,
   type NotDuplicateRelationTransaction,
@@ -23,55 +24,62 @@ import { useState } from "react";
 
 import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
+import { t as translate, useI18n } from "../i18n/index.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { formatDateTimeInZone, localTimeZone } from "../lib/datetime.js";
+import { duplicateFieldLabel, joinDuplicateList } from "../lib/duplicateReview.js";
 import { formatMoney } from "../lib/format.js";
 import { errorMessage } from "../lib/api.js";
+import { displayCategoryName } from "../lib/presetNames.js";
 import {
   useNotDuplicateRelations,
   useRevokeNotDuplicateRelation,
 } from "../lib/notDuplicateRelations.js";
 
-const STALE_FIELD_LABELS: Readonly<Record<string, string>> = {
-  amountCents: "金额",
-  currency: "币种",
-  kind: "收支方向",
-  occurredAt: "时间",
-};
+/** 失效时会列出的字段：只在这里出现的才翻译，其它字段名原样显示（与以前一致）。 */
+const STALE_FIELDS: ReadonlySet<string> = new Set(["amountCents", "currency", "kind", "occurredAt"]);
 
 function transactionLine(entry: NotDuplicateRelationTransaction | null): string {
-  if (entry === null) return "交易已不存在";
+  if (entry === null) return translate("duplicates.relations.missingEntry");
 
   return [
     `${formatTransactionNumber(entry.seq)}`,
     entry.occurredLocalDate,
     formatMoney(entry.amountCents, entry.currency, { withCode: true }),
-    entry.kind === "income" ? "收入" : "支出",
-    entry.categoryName ?? "暂无分类",
+    translate(entry.kind === "income" ? "common.kind.income" : "common.kind.expense"),
+    // 分类名是账本数据：只有预置名在英文界面显示译名（`displayCategoryName`）。
+    displayCategoryName(entry.categoryName ?? UNCATEGORISED_NAME),
   ].join(" · ");
+}
+
+/** 确认来源按代码翻译（`NOT_DUPLICATE_DECISION_SOURCE_LABELS` 的界面语言版本）；未知代码原样显示。 */
+function decisionSourceText(source: string): string {
+  return (NOT_DUPLICATE_DECISION_SOURCES as readonly string[]).includes(source)
+    ? translate(`duplicates.relations.source.${source as NotDuplicateDecisionSource}`)
+    : source;
 }
 
 function statusText(relation: NotDuplicateRelation): string {
   if (relation.revokedAt !== null) {
-    const who = relation.revokedByName ?? "未知成员";
+    const who = relation.revokedByName ?? translate("duplicates.relations.unknownMember");
     const when = formatDateTimeInZone(relation.revokedAt, localTimeZone());
-    return `已撤销：${who} · ${when}`;
+    return translate("duplicates.relations.revoked", { who, when });
   }
 
   if (relation.stale) {
-    const fields = relation.staleFields
-      .map((field) => STALE_FIELD_LABELS[field] ?? field)
-      .join("、");
+    const fields = joinDuplicateList(
+      relation.staleFields.map((field) => (STALE_FIELDS.has(field) ? duplicateFieldLabel(field) : field)),
+    );
     return fields === ""
-      ? "判定依据已变化：这一对重新参与重复提示"
-      : `判定依据已变化（${fields}）：这一对重新参与重复提示`;
+      ? translate("duplicates.relations.staleNoFields")
+      : translate("duplicates.relations.staleFields", { fields });
   }
 
   if (relation.transactionA === null || relation.transactionB === null) {
-    return "对端交易已不存在：这一对不再参与提示";
+    return translate("duplicates.relations.orphaned");
   }
 
-  return "生效中：重复提示会忽略这一对";
+  return translate("duplicates.relations.activeStatus");
 }
 
 /**
@@ -98,17 +106,19 @@ export function NotDuplicateRelationsView({
   readonly onToggleRevoked: () => void;
   readonly onRevoke: (relationId: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="px-1 text-helper text-muted">已忽略的重复交易</h2>
+      <h2 className="px-1 text-helper text-muted">{t("duplicates.relations.heading")}</h2>
 
       <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         <p className="text-helper-relaxed text-muted">
-          这里是你明确确认过「不是同一笔」的交易对。它们不会再出现在重复提示里；撤销后重新参与提示。
-          记录保存在服务器、由全账本共享，不随个人检测偏好同步。
+          {t("duplicates.relations.intro")}
         </p>
 
-        <div role="group" aria-label="关系筛选" className="flex gap-2">
+        {/* S16：英文按钮更长，窄屏允许换行。 */}
+        <div role="group" aria-label={t("duplicates.relations.filterLabel")} className="flex flex-wrap gap-2">
           <button
             type="button"
             aria-pressed={!showRevoked}
@@ -119,7 +129,7 @@ export function NotDuplicateRelationsView({
               showRevoked ? "border-line text-muted" : "border-brand bg-brand-soft text-brand-dark"
             }`}
           >
-            生效中
+            {t("duplicates.relations.active")}
           </button>
           <button
             type="button"
@@ -131,31 +141,31 @@ export function NotDuplicateRelationsView({
               showRevoked ? "border-brand bg-brand-soft text-brand-dark" : "border-line text-muted"
             }`}
           >
-            含已撤销
+            {t("duplicates.relations.includeRevoked")}
           </button>
         </div>
 
         {offline ? (
           <p className="text-helper-relaxed text-warn-dark">
-            当前离线：只能查看已加载的记录，不能新建或撤销；联网后会自动刷新。
+            {t("duplicates.relations.offline")}
           </p>
         ) : null}
 
         {canWrite ? null : (
           <p className="text-helper-relaxed text-muted">
-            你是这本账的查看者，只能查看「不重复」判断，不能撤销。
+            {t("duplicates.relations.viewer")}
           </p>
         )}
 
         {error === null ? null : <Alert tone="error">{error}</Alert>}
 
         {loading ? (
-          <p className="text-helper text-muted">正在读取…</p>
+          <p className="text-helper text-muted">{t("common.status.reading")}</p>
         ) : items.length === 0 ? (
           <p className="text-helper-relaxed text-muted">
             {showRevoked
-              ? "还没有撤销过的「不重复」判断。"
-              : "还没有确认过「不是同一笔」的交易。确认之后，这一对会出现在这里。"}
+              ? t("duplicates.relations.emptyRevoked")
+              : t("duplicates.relations.empty")}
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-line">
@@ -173,11 +183,11 @@ export function NotDuplicateRelationsView({
                   </p>
 
                   <p className="text-helper-relaxed text-muted">
-                    确认人：{relation.decidedByName ?? "未知成员"} ·{" "}
-                    {formatDateTimeInZone(relation.decidedAt, localTimeZone())} ·{" "}
-                    {NOT_DUPLICATE_DECISION_SOURCE_LABELS[
-                      relation.decisionSource as NotDuplicateDecisionSource
-                    ] ?? relation.decisionSource}
+                    {t("duplicates.relations.decided", {
+                      who: relation.decidedByName ?? t("duplicates.relations.unknownMember"),
+                      when: formatDateTimeInZone(relation.decidedAt, localTimeZone()),
+                      source: decisionSourceText(relation.decisionSource),
+                    })}
                   </p>
 
                   <p
@@ -197,7 +207,7 @@ export function NotDuplicateRelationsView({
                         onRevoke(relation.id);
                       }}
                     >
-                      {busy ? "撤销中…" : "撤销这条判断"}
+                      {busy ? t("duplicates.relations.revoking") : t("duplicates.relations.revoke")}
                     </Button>
                   )}
                 </li>

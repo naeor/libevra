@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { useI18n } from "../i18n/index.js";
+
 /**
  * Confirmation before anything is destroyed.
  *
@@ -18,8 +20,8 @@ export function ConfirmDialog({
   title,
   description,
   consequences = [],
-  confirmLabel = "确认",
-  cancelLabel = "取消",
+  confirmLabel,
+  cancelLabel,
   tone = "danger",
   busy = false,
   onConfirm,
@@ -51,6 +53,7 @@ export function ConfirmDialog({
    */
   readonly children?: React.ReactNode;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -171,9 +174,9 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand-soft/70"
+            className="flex-1 rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand/20"
           >
-            {cancelLabel}
+            {cancelLabel ?? t("common.action.cancel")}
           </button>
           <button
             ref={confirmRef}
@@ -186,7 +189,7 @@ export function ConfirmDialog({
                 : "bg-brand text-on-brand hover:bg-brand-dark"
             }`}
           >
-            {busy ? "处理中…" : confirmLabel}
+            {busy ? t("common.status.processing") : (confirmLabel ?? t("common.action.confirm"))}
           </button>
         </div>
       </div>

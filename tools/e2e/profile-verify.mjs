@@ -3,8 +3,8 @@ import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { openPage, apiLogin, api, assert, runCase } from "./cdp.mjs";
 
-const BASE = "http://127.0.0.1:5173";
-const API = `${BASE}/api/v1`;
+const BASE = "https://127.0.0.1:5173";
+const API = "http://127.0.0.1:3000/api/v1";
 const dir = resolve("_backups/profile-verification");
 mkdirSync(dir, { recursive: true });
 const fixture = JSON.parse(readFileSync(`${dir}/fixture.json`, "utf8"));
@@ -22,6 +22,7 @@ const fill = value => page.evaluate(`(() => {const e=document.querySelector('for
 const show = async path => { await page.navigate(BASE + path); await page.waitFor("!!document.querySelector('[data-avatar-id]')"); };
 const noOverflow = () => page.evaluate("document.documentElement.scrollWidth<=innerWidth");
 try {
+  await page.send("Security.setIgnoreCertificateErrors", { ignore: true });
   await page.setCookie("libellum_session", cookie);
   await page.setViewport(390, 844, true);
   await show("/profile");

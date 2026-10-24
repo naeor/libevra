@@ -10,6 +10,7 @@ import { InnerPage } from "../components/Layouts.js";
 import { NotDuplicateRelationsSection } from "../components/NotDuplicateRelationsSection.js";
 import { SkeletonRows } from "../components/States.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { bookLifecycleAction, fetchBookLifecycle, type BookLifecycleSummary } from "../lib/lifecycle.js";
 import { clearBookLocalData } from "../lib/offline/localCleanup.js";
@@ -65,6 +66,7 @@ export function BookSettingsPage(): React.JSX.Element {
 }
 
 function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const { t } = useI18n();
   const meta = useLedgerMeta(bookId);
   const books = useBooks();
   /**
@@ -156,11 +158,11 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
     const value = draft.trim();
     /** ⚠️ The same bounds the server enforces — 1–40, trimmed — checked here so the error is instant. */
     if (value === "") {
-      setRenameError("账本名称不能为空。");
+      setRenameError(t("books.settings.rename.empty"));
       return;
     }
     if (value.length > 40) {
-      setRenameError("账本名称最多 40 个字。");
+      setRenameError(t("books.settings.rename.tooLong"));
       return;
     }
 
@@ -235,7 +237,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
   return (
     <InnerPage
-      title="账本设置"
+      title={t("books.settings.title")}
       /**
        * ⚠️ **No subtitle, on purpose.** It used to say 「名称 · 编号」, which is exactly what the
        * card below says — the owner's screenshot showed the same two facts three times on one
@@ -257,7 +259,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
             name={name ?? ""}
             bookNumber={bookNumber}
             memberCount={memberCount}
-            caption="正在管理"
+            caption={t("books.settings.managing")}
             onSwitch={() => {
               setSwitcher(true);
             }}
@@ -272,27 +274,27 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
           {canWrite ? null : (
             <p className="px-1 text-helper-relaxed text-muted">
-              你对这本账只有查看权限，所以账本名称不能在这里修改。
+              {t("books.settings.viewerNotice")}
             </p>
           )}
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
-            <h2 className="px-5 text-helper font-medium text-muted">记账管理</h2>
+            <h2 className="px-5 text-helper font-medium text-muted">{t("books.settings.section.bookkeeping")}</h2>
             <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
               <NavRow
-                label="分类管理"
-                hint="支出、收入的分类；归档不影响已有记录"
+                label={t("books.settings.row.categories.label")}
+                hint={t("books.settings.row.categories.hint")}
                 to={`/books/${bookId}/settings/categories`}
               />
               <NavRow
-                label="标签管理"
-                hint="跨分类标记，例如「出差」「可报销」"
+                label={t("books.settings.row.tags.label")}
+                hint={t("books.settings.row.tags.hint")}
                 to={`/books/${bookId}/settings/tags`}
               />
               <NavRow
-                label="支付方式"
-                hint="微信、支付宝、银行卡、现金等"
+                label={t("books.settings.row.paymentMethods.label")}
+                hint={t("books.settings.row.paymentMethods.hint")}
                 to={`/books/${bookId}/settings/payment-methods`}
               />
             </ul>
@@ -300,23 +302,23 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
-            <h2 className="px-5 text-helper font-medium text-muted">数据管理</h2>
+            <h2 className="px-5 text-helper font-medium text-muted">{t("books.settings.section.data")}</h2>
             <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
               <NavRow
-                label="导出数据"
-                hint="把这本账导出为 CSV / Excel"
+                label={t("books.settings.row.export.label")}
+                hint={t("books.settings.row.export.hint")}
                 to={`/books/${bookId}/settings/export`}
               />
               <NavRow
-                label="导入历史账"
-                hint="从 CSV 批量导入这本账"
+                label={t("books.settings.row.import.label")}
+                hint={t("books.settings.row.import.hint")}
                 to={`/books/${bookId}/settings/import`}
               />
               {/* ⚠️ S14-D D1：只对本人拥有的单人账本显示。多人账本导入要等单独设计。 */}
               {row?.isCreator === true && memberCount === 1 ? (
                 <NavRow
-                  label="导入账本"
-                  hint="从本机游客账本或你的另一本单人账本导入（先预览）"
+                  label={t("books.settings.row.importLedger.label")}
+                  hint={t("books.settings.row.importLedger.hint")}
                   to={`/import-ledger?target=${bookId}`}
                 />
               ) : null}
@@ -326,8 +328,8 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                * 放进数据管理，用户才是在明确选择“我要检查这本账”。
                */}
               <NavRow
-                label="重复账目检测"
-                hint="扫描这本账的历史记录，按组查看疑似重复并逐组处理"
+                label={t("books.settings.row.duplicates.label")}
+                hint={t("books.settings.row.duplicates.hint")}
                 to={`/books/${bookId}/settings/duplicates`}
               />
             </ul>
@@ -343,20 +345,20 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
           {/* ---------------------------------------------------------------- */}
           <section className="flex flex-col gap-2">
-            <h2 className="px-5 text-helper font-medium text-muted">危险操作</h2>
+            <h2 className="px-5 text-helper font-medium text-muted">{t("books.settings.section.danger")}</h2>
 
             <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
               {error === null ? null : <Alert>{error}</Alert>}
               {lifecycle === null ? (
-                <p className="text-body-relaxed text-muted">正在读取账本状态…</p>
+                <p className="text-body-relaxed text-muted">{t("books.settings.lifecycleLoading")}</p>
               ) : lifecycle.memberCount > 1 ? (
                 <>
                   <p className="text-body-relaxed text-muted">
-                    这本账还有其他成员。退出协作只会撤销你的访问权限，你的账目与历史会保留，其他成员的数据不受影响。
+                    {t("books.settings.sharedNote")}
                   </p>
                   {lifecycle.needsSuccessor ? (
                     <p className="text-helper text-danger">
-                      你是这本账的管理者，但还没有其他编辑者可以接手。请先在成员设置中增加编辑者，或让其他成员成为编辑者。
+                      {t("books.settings.needsSuccessor")}
                     </p>
                   ) : null}
                   <button
@@ -368,13 +370,13 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                     }}
                     className="flex w-full items-center justify-center rounded-field border border-line px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-canvas disabled:opacity-45"
                   >
-                    退出这本账
+                    {t("books.settings.leave")}
                   </button>
                 </>
               ) : (
                 <>
                   <p className="text-body-relaxed text-muted">
-                    你是这本账的最后一位有效成员。可以归档并在 60 天内自行恢复；超过 60 天只能申请人工恢复；归档满 365 天后清理。永久删除会立即进入清理流程。
+                    {t("books.settings.lastMemberNote")}
                   </p>
                   <button
                     type="button"
@@ -385,7 +387,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                     }}
                     className="flex w-full items-center justify-center rounded-field border border-line px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-canvas disabled:opacity-45"
                   >
-                    归档这本账
+                    {t("books.settings.archive")}
                   </button>
                   <button
                     type="button"
@@ -396,7 +398,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                     }}
                     className="flex w-full items-center justify-center rounded-field border border-danger/40 px-4 py-3 text-button-lg font-medium text-danger transition hover:bg-danger-soft disabled:opacity-45"
                   >
-                    永久删除这本账
+                    {t("books.settings.delete")}
                   </button>
                 </>
               )}
@@ -404,7 +406,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
           </section>
 
           <p className="text-helper-relaxed text-muted">
-            成员与邀请、分享链接在账本空间的齿轮面板里，和以前一样。
+            {t("books.settings.membersElsewhere")}
           </p>
         </>
       ) : null}
@@ -416,12 +418,12 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
       {meta.isError ? (
         <section className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
           <div className="flex flex-col gap-1">
-            <h2 className="text-base font-medium text-ink">打不开这本账</h2>
+            <h2 className="text-base font-medium text-ink">{t("books.unreadable.title")}</h2>
             <p role="alert" className="text-body-relaxed text-muted">
               {errorMessage(meta.error)}
             </p>
             <p className="text-helper-relaxed text-muted">
-              它可能已经被弃置，或者你已经不在其中。这一页不会自动换成你当前的账本。
+              {t("books.unreadable.hint")}
             </p>
           </div>
 
@@ -430,16 +432,16 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
               to="/start"
               className="rounded-field bg-brand px-4 py-3 text-center text-button-lg font-medium text-on-brand transition hover:bg-brand-dark"
             >
-              返回账本空间
+              {t("books.unreadable.back")}
             </Link>
             <button
               type="button"
               onClick={() => {
                 setSwitcher(true);
               }}
-              className="rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand-soft/70"
+              className="rounded-field bg-brand-soft px-4 py-3 text-button-lg font-medium text-brand-dark transition hover:bg-brand/20"
             >
-              选择其他账本
+              {t("books.unreadable.chooseOther")}
             </button>
           </div>
         </section>
@@ -452,10 +454,10 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
         */}
       <ConfirmDialog
         open={renaming}
-        title="重命名这本账"
-        description="改名之后，这本账的所有成员看到的都是新名称。"
-        confirmLabel={rename.isPending ? "正在保存……" : "保存"}
-        cancelLabel="取消"
+        title={t("books.settings.rename.title")}
+        description={t("books.settings.rename.description")}
+        confirmLabel={rename.isPending ? t("books.settings.rename.saving") : t("books.settings.rename.save")}
+        cancelLabel={t("common.action.cancel")}
         tone="default"
         busy={rename.isPending}
         onCancel={closeRename}
@@ -468,7 +470,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
             </p>
           )}
           <TextField
-            label="账本名称"
+            label={t("books.settings.rename.field")}
             value={draft}
             maxLength={40}
             onChange={(event) => {
@@ -487,15 +489,15 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
         */}
       <ConfirmDialog
         open={pendingSwitch !== null}
-        title="换个账本继续？"
-        description="正在修改的账本名称还没有保存。"
+        title={t("books.settings.switchDraft.title")}
+        description={t("books.settings.switchDraft.description")}
         consequences={[
-          "切换后这个名称不会被保存",
-          "这本账的名称、分类与标签都保持不变",
-          "取消可以回来继续编辑",
+          t("books.settings.switchDraft.notSaved"),
+          t("books.settings.switchDraft.unchanged"),
+          t("books.settings.switchDraft.cancelReturns"),
         ]}
-        confirmLabel="不保存，切换"
-        cancelLabel="留下继续编辑"
+        confirmLabel={t("books.settings.switchDraft.confirm")}
+        cancelLabel={t("books.settings.switchDraft.cancel")}
         tone="default"
         onCancel={() => {
           setPendingSwitch(null);
@@ -511,14 +513,14 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
       <ConfirmDialog
         open={confirming === "leave"}
-        title={`退出「${name ?? "这本账"}」？`}
-        description="退出后这本账不再出现在你的列表里，你也就看不到它的账目了。"
+        title={t("books.settings.leaveDialog.title", { name: name ?? t("books.thisLedger") })}
+        description={t("books.settings.leaveDialog.description")}
         consequences={[
-          "仅撤销你在这本账的访问与同步权限",
-          "你记过的账目与历史会保留",
-          "其他成员的数据与成员关系不受影响",
+          t("books.settings.leaveDialog.revoke"),
+          t("books.settings.leaveDialog.keep"),
+          t("books.settings.leaveDialog.others"),
         ]}
-        confirmLabel="退出这本账"
+        confirmLabel={t("books.settings.leave")}
         tone="default"
         busy={lifecycleBusy}
         onCancel={() => {
@@ -529,14 +531,14 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
       <ConfirmDialog
         open={confirming === "archive"}
-        title={`归档「${name ?? "这本账"}」？`}
-        description="归档后这本账暂时离开普通账本列表，数据保留。你可以在 60 天内自行恢复。"
+        title={t("books.settings.archiveDialog.title", { name: name ?? t("books.thisLedger") })}
+        description={t("books.settings.archiveDialog.description")}
         consequences={[
-          "归档日期以服务器时间为准",
-          "60 天内可自行恢复",
-          "满 365 天后由服务器清理，只留下不含账目内容的删除记录",
+          t("books.settings.archiveDialog.serverTime"),
+          t("books.settings.archiveDialog.restore"),
+          t("books.settings.archiveDialog.cleanup"),
         ]}
-        confirmLabel="归档这本账"
+        confirmLabel={t("books.settings.archive")}
         tone="default"
         busy={lifecycleBusy}
         onCancel={() => {
@@ -547,15 +549,15 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
       <ConfirmDialog
         open={confirming === "delete"}
-        title={`永久删除「${name ?? "这本账"}」？`}
-        description="这本账的账目、分类、标签、留言和关联数据会立即进入永久删除流程，不能由你恢复。"
+        title={t("books.settings.deleteDialog.title", { name: name ?? t("books.thisLedger") })}
+        description={t("books.settings.deleteDialog.description")}
         consequences={[
-          "服务器会清理这本账的内容",
-          "保留不含账目正文的删除记录",
-          "其他账本与其他成员的数据不受影响",
-          "旧设备恢复联网后会收到账本已删除状态并停止同步",
+          t("books.settings.deleteDialog.cleanup"),
+          t("books.settings.deleteDialog.record"),
+          t("books.settings.deleteDialog.others"),
+          t("books.settings.deleteDialog.devices"),
         ]}
-        confirmLabel="永久删除"
+        confirmLabel={t("books.settings.deleteDialog.confirm")}
         busy={lifecycleBusy}
         onCancel={() => {
           setConfirming(null);

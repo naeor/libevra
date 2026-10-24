@@ -1,6 +1,6 @@
 import {
-  DUPLICATE_SCOPE_LABELS,
   MAX_TAGS_PER_TRANSACTION,
+  UNCATEGORISED_NAME,
   decimalsFor,
   describeDuplicateMatch,
   type CreateTransactionInput,
@@ -25,6 +25,8 @@ import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/i
 import { ChevronIcon } from "../components/Icons.js";
 import { InfoIcon } from "../components/InfoHint.js";
 import { TabPage } from "../components/Layouts.js";
+import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
 import { currentBookId } from "../lib/currentBook.js";
 import {
@@ -36,6 +38,7 @@ import {
 } from "../lib/datetime.js";
 import { currencyName, minorToInput, parseAmountInput } from "../lib/format.js";
 import { createNotDuplicateRelations, notDuplicateConfirmationForEntry } from "../lib/notDuplicateRelations.js";
+import { displayCategoryDescription, displayCategoryName } from "../lib/presetNames.js";
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
@@ -47,24 +50,37 @@ import {
 } from "../lib/queries.js";
 import { uuidV7 } from "../lib/uuid.js";
 
-/** Shown when there is nothing to inherit and nothing named 其他 to fall back on. */
-const UNCATEGORISED_LABEL = "暂无分类";
-const DEFAULT_PAYMENT_METHOD_NAME = "其他";
+/**
+ * The payment method a first entry falls back to. ⚠️ 这是与数据库里预置支付方式**原名**比较的值，
+ * 不是界面文字，所以不翻译；显示时仍走 `displayPaymentMethodName`。
+ */
+const DEFAULT_PAYMENT_METHOD_NAME = "其他"; // i18n-ignore：与数据库里的预置支付方式原名比较
 
 /**
  * 手动记账的轻提醒选项。
  *
  * 与拍照页的四个选项相比少一个「删掉旧的」：手动记账时用户刚才是**在输入**，不是在核对一张
  * 识别结果；此刻更常见的意图是“我记错了，回去改”。删除旧账目仍然可以到明细页用现有软删除。
+ *
+ * S16：做成函数而不是模块顶层常量——文案要在渲染时按当前语言取，顶层常量会把导入时的语言固定下来。
  */
-export const MANUAL_DUPLICATE_CHOICES: readonly Choice<"save" | "confirmNotDuplicate" | "cancel">[] = [
-  { id: "save", label: "仍然保存", hint: "两笔都留下（也许是两次一样的消费）", primary: true },
-  { id: "confirmNotDuplicate", label: "确认不是同一笔", hint: "两笔都留，并记住这一对：以后不再提示" },
-  { id: "cancel", label: "取消，我再看看", dismissive: true },
-];
+export function manualDuplicateChoices(): readonly Choice<"save" | "confirmNotDuplicate" | "cancel">[] {
+  return [
+    { id: "save", label: translate("entry.duplicate.save"), hint: translate("entry.duplicate.saveHint"), primary: true },
+    {
+      id: "confirmNotDuplicate",
+      label: translate("entry.duplicate.confirmNotDuplicate"),
+      hint: translate("entry.duplicate.confirmNotDuplicateHint"),
+    },
+    { id: "cancel", label: translate("entry.duplicate.cancel"), dismissive: true },
+  ];
+}
 
 /**
  * 提醒正文。与拍照页共用 `describeDuplicateMatch`，所以“哪些字段相同”永远来自实际命中的规则。
+ *
+ * S16：`describeDuplicateMatch` 是 `@libellum/shared` 写死的中文句子，经 `translateSharedMessage`
+ * 按原文查表翻译（中文界面原样返回）；其余几句在本模块的文案里。
  */
 export function manualDuplicateDescription(pending: {
   readonly existing: readonly Transaction[];
@@ -72,24 +88,25 @@ export function manualDuplicateDescription(pending: {
   readonly scope: "server" | "local";
 }): string {
   const first = pending.pairs[0];
-  const basis = first === undefined ? "金额、收支方向和时间与已有账目相符。" : describeDuplicateMatch(first);
-  const count = pending.existing.length > 1 ? `共找到 ${String(pending.existing.length)} 笔相似记录。` : "";
-  const scopeNote = pending.scope === "local" ? `本次只比对了${DUPLICATE_SCOPE_LABELS.local}。` : "";
-  return `${basis}${count}${scopeNote}`;
+  const basis =
+    first === undefined
+      ? translate("entry.duplicate.fallbackBasis")
+      : translateSharedMessage(describeDuplicateMatch(first));
+  const count =
+    pending.existing.length > 1 ? translate("entry.duplicate.foundCount", { count: pending.existing.length }) : "";
+  const scopeNote = pending.scope === "local" ? translate("entry.duplicate.localScope") : "";
+  /** 中文句号本身就是分隔；其它语言的句子之间要一个空格。 */
+  return [basis, count, scopeNote].filter((part) => part !== "").join(isChineseLocale() ? "" : " ");
 }
 
 /**
  * 「沿用上一笔」的三句失败提示。读者下一步不同，所以不合并成一句：
  * 空账本要去记第一笔，方向不对要切支出/收入，账本元数据没到要等一下。
+ * 文案在 `entry.quick.refusal.<原因>`，按原因的稳定 ID 取。
  */
-const INHERIT_REFUSAL_NOTICES: Record<InheritRefusal, string> = {
-  "no-record": "这个账本还没有可沿用的记录。",
-  "no-compatible": "还没有同方向的上一笔记录。",
-  "ledger-unavailable": "分类与支付方式还没加载完，稍后再试。",
-};
-
-/** 成功沿用的一句确认：没有它，只沿用了币种或分类为空时看起来像没反应。 */
-const INHERIT_DONE_NOTICE = "已沿用上一笔的分类、支付方式、币种与标签。";
+function inheritRefusalNotice(reason: InheritRefusal): string {
+  return translate(`entry.quick.refusal.${reason}`);
+}
 
 /**
  * The screen the whole application exists for.
@@ -112,6 +129,7 @@ const INHERIT_DONE_NOTICE = "已沿用上一笔的分类、支付方式、币种
 export function AddEntryPage(): React.JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useI18n();
   const ledger = useLedger();
   const quickAmounts = useQuickAmounts();
   const recent = useTransactions({});
@@ -306,7 +324,7 @@ export function AddEntryPage(): React.JSX.Element {
     );
 
     if (outcome.status === "nothing") {
-      setInheritNotice(INHERIT_REFUSAL_NOTICES[outcome.reason]);
+      setInheritNotice(inheritRefusalNotice(outcome.reason));
       return;
     }
 
@@ -314,14 +332,14 @@ export function AddEntryPage(): React.JSX.Element {
     setPaymentMethodId(outcome.fields.paymentMethodId);
     setCurrency(outcome.fields.currency);
     setTagIds([...outcome.fields.tagIds]);
-    setInheritNotice(INHERIT_DONE_NOTICE);
+    setInheritNotice(t("entry.quick.inheritDone"));
   }
 
   async function save(): Promise<void> {
     setError(null);
 
     if (sharedOfflineReadOnly) {
-      setError("当前离线，共享账本暂时只能查看。恢复网络后可以继续记账。");
+      setError(t("entry.add.offlineSave"));
       return;
     }
 
@@ -331,14 +349,14 @@ export function AddEntryPage(): React.JSX.Element {
     } catch {
       setError(
         decimalsFor(currency) === 0
-          ? `${currencyName(currency)}不支持小数，请输入整数金额。`
-          : `金额格式不正确，${currencyName(currency)}最多两位小数。`,
+          ? t("entry.amount.integerOnly", { currency: currencyName(currency) })
+          : t("entry.amount.invalid", { currency: currencyName(currency) }),
       );
       return;
     }
 
     if (amountCents <= 0) {
-      setError("金额需要大于 0。");
+      setError(t("entry.amount.positive"));
       return;
     }
 
@@ -486,12 +504,12 @@ export function AddEntryPage(): React.JSX.Element {
       if (notDuplicateWith.length > 0) {
         try {
           const bookId = ledger.data?.book.id ?? currentBookId();
-          if (bookId === null) throw new Error("找不到当前账本，无法记录「不是同一笔」。");
+          if (bookId === null) throw new Error(t("entry.add.notDuplicateNoBook"));
           const confirmation = notDuplicateConfirmationForEntry(notDuplicateWith, entry.id);
-          if (confirmation === null) throw new Error("没有可记录的交易对。");
+          if (confirmation === null) throw new Error(t("entry.add.notDuplicateNoPair"));
           await createNotDuplicateRelations(bookId, confirmation);
         } catch (caught) {
-          setError(`这笔账已保存，但「不是同一笔」没有记住：${errorMessage(caught)}`);
+          setError(t("entry.add.notDuplicateFailed", { reason: errorMessage(caught) }));
         }
       }
     } finally {
@@ -513,7 +531,8 @@ export function AddEntryPage(): React.JSX.Element {
       <EntrySaved
         entry={saved}
         categoryName={
-          categories.find((category) => category.id === saved.categoryId)?.name ?? UNCATEGORISED_LABEL
+          /** 传存储的原名；`EntrySaved` 负责按当前语言显示预置名。 */
+          categories.find((category) => category.id === saved.categoryId)?.name ?? UNCATEGORISED_NAME
         }
         paymentName={
           paymentMethods.find((method) => method.id === saved.paymentMethodId)?.name ?? null
@@ -593,7 +612,7 @@ export function AddEntryPage(): React.JSX.Element {
                   kind === option ? "bg-surface text-brand-dark" : "bg-on-brand/15 text-on-brand/90"
                 }`}
               >
-                {option === "expense" ? "支出" : "收入"}
+                {t(`common.kind.${option}`)}
               </button>
             ))}
           </div>
@@ -622,7 +641,7 @@ export function AddEntryPage(): React.JSX.Element {
             同时删掉了金额旁那行提示——金额框本来就是全屏最显眼的输入框，
             那行字没有让任何人多记一笔，只占了一行高度。
           */}
-          <h2 className="pb-2 text-card-title text-ink">金额</h2>
+          <h2 className="pb-2 text-card-title text-ink">{t("common.field.amount")}</h2>
 
           <AmountField
             amountText={amountText}
@@ -679,7 +698,7 @@ export function AddEntryPage(): React.JSX.Element {
         */}
 
         <section className="flex flex-col gap-2 px-6 pt-5">
-          <h2 className="text-card-title text-ink">分类</h2>
+          <h2 className="text-card-title text-ink">{t("common.field.category")}</h2>
 
           <div className="overflow-hidden rounded-field border border-line bg-surface">
             <button
@@ -688,10 +707,10 @@ export function AddEntryPage(): React.JSX.Element {
               onClick={() => {
                 setCategoryOpen((open) => !open);
               }}
-              className="flex w-full items-center justify-between px-4 py-3.5 text-left transition hover:bg-canvas"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-canvas"
             >
-              <span className="text-button-lg text-ink">
-                {selectedCategory?.name ?? UNCATEGORISED_LABEL}
+              <span className="min-w-0 text-button-lg text-ink">
+                {displayCategoryName(selectedCategory?.name ?? UNCATEGORISED_NAME)}
               </span>
               {/* 与币种、快捷金额、更多选项同一个 Chevron：同一个 SVG，展开时旋转 180°。 */}
               <ChevronIcon up={categoryOpen} className="text-muted" />
@@ -710,7 +729,7 @@ export function AddEntryPage(): React.JSX.Element {
                       categoryId === null ? "text-brand-dark" : "text-ink"
                     }`}
                   >
-                    {UNCATEGORISED_LABEL}
+                    {displayCategoryName(UNCATEGORISED_NAME)}
                   </button>
                 </li>
 
@@ -727,7 +746,7 @@ export function AddEntryPage(): React.JSX.Element {
                           category.id === categoryId ? "text-brand-dark" : "text-ink"
                         }`}
                       >
-                        {category.name}
+                        {displayCategoryName(category.name)}
                       </button>
 
                       {/* The explanation belongs to the preset, so it only
@@ -735,7 +754,7 @@ export function AddEntryPage(): React.JSX.Element {
                       {category.description ? (
                         <button
                           type="button"
-                          aria-label={`${category.name}包含哪些支出`}
+                          aria-label={t("entry.add.categoryHint", { name: displayCategoryName(category.name) })}
                           aria-expanded={hintCategoryId === category.id}
                           onClick={() => {
                             setHintCategoryId((current) =>
@@ -751,7 +770,7 @@ export function AddEntryPage(): React.JSX.Element {
 
                     {hintCategoryId === category.id && category.description ? (
                       <p className="px-4 pb-3 text-helper-relaxed text-muted">
-                        {category.description}
+                        {displayCategoryDescription(category.name, category.kind, category.description)}
                       </p>
                     ) : null}
                   </li>
@@ -771,13 +790,13 @@ export function AddEntryPage(): React.JSX.Element {
         <section className="flex flex-col gap-2 px-6 pt-5">
           <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-field border border-line bg-surface px-4">
             <label htmlFor="entry-time" className="text-card-title text-ink">
-              时间
+              {t("common.field.time")}
             </label>
             <input
               id="entry-time"
               type="datetime-local"
               step="1"
-              aria-label="时间"
+              aria-label={t("common.field.time")}
               value={toDateTimeLocalValue(occurredAt)}
               onChange={(event) => {
                 const parsed = fromDateTimeLocalValue(event.target.value);
@@ -797,7 +816,7 @@ export function AddEntryPage(): React.JSX.Element {
           */}
           {decimalsFor(currency) === 0 ? (
             <p className="text-helper-relaxed text-muted">
-              {currencyName(currency)}不保留小数，金额按整数记录。
+              {t("entry.amount.integerHint", { currency: currencyName(currency) })}
             </p>
           ) : null}
         </section>
@@ -850,7 +869,7 @@ export function AddEntryPage(): React.JSX.Element {
           {sharedOfflineReadOnly ? (
             <div className="pb-3">
               <Alert>
-                当前离线，共享账本暂时只能查看。恢复网络后可以继续记账；之前尚未同步的改动会保留。
+                {t("entry.add.offlineNotice")}
               </Alert>
             </div>
           ) : null}
@@ -864,7 +883,7 @@ export function AddEntryPage(): React.JSX.Element {
             disabled={sharedOfflineReadOnly || busy || amountText.trim() === ""}
             className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
           >
-            {busy ? "保存中…" : "保存"}
+            {busy ? t("common.action.saving") : t("common.action.save")}
           </button>
         </EntrySaveBar>
       </form>
@@ -878,9 +897,9 @@ export function AddEntryPage(): React.JSX.Element {
       */}
       <ChoiceDialog
         open={pendingDuplicate !== null}
-        title="这笔账好像已经记过了"
+        title={t("entry.add.duplicateTitle")}
         description={pendingDuplicate === null ? "" : manualDuplicateDescription(pendingDuplicate)}
-        choices={MANUAL_DUPLICATE_CHOICES}
+        choices={manualDuplicateChoices()}
         onChoose={(choice) => {
           const pending = pendingDuplicate;
           setPendingDuplicate(null);

@@ -1,6 +1,5 @@
 import {
   CURRENCIES,
-  RANGE_LABELS,
   STATS_RANGES,
   averagePerDay,
   bucketForPreset,
@@ -28,9 +27,10 @@ import { Section } from "../components/Section.js";
 import { SkeletonRows } from "../components/States.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { errorMessage } from "../lib/api.js";
-import { toLocalDate } from "../lib/datetime.js";
+import { formatLocalDate, toLocalDate } from "../lib/datetime.js";
 import { currencyName, formatMoney } from "../lib/format.js";
 import { useLedger, useStats } from "../lib/queries.js";
+import { isChineseLocale, useI18n } from "../i18n/index.js";
 
 /** The heat map's own two views: the last week, or the current month. */
 const HEAT_RANGES = ["7d", "month"] as const;
@@ -40,6 +40,14 @@ export function StatsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const ledger = useLedger();
   const { user } = useAuth();
+  const { t, locale } = useI18n();
+  /**
+   * 时段说明里的日期：中文界面保持 `YYYY-MM-DD`（与以前一致），其它语言按当地习惯显示。
+   * 只影响显示；查询仍用 `range.from` / `range.to` 原值。
+   */
+  const showDate = (localDate: string): string => (isChineseLocale(locale) ? localDate : formatLocalDate(localDate));
+  /** 热力图两个视图的名字：近 7 天 与时段按钮同名，本月单独一条。 */
+  const heatRangeLabel = (option: HeatRange): string => (option === "7d" ? t("stats.range.7d") : t("stats.thisMonth"));
 
   const [preset, setPreset] = useState<StatsRangeKey>("30d");
   const [currency, setCurrency] = useState<Currency | null>(null);
@@ -110,7 +118,7 @@ export function StatsPage(): React.JSX.Element {
         * a different layer. The reason the row existed (two ledgers' charts look identical) is still
         * answered, just once instead of twice.
         */}
-      <TabPageHeader title="分析" subtitle="以下结果由已记录的账目计算得出。" />
+      <TabPageHeader title={t("stats.title")} subtitle={t("stats.subtitle")} />
 
       {/**
         * ⚠️ **`pt-6`, to match the first block on 账本／协作** — the owner's 7th point:
@@ -144,7 +152,7 @@ export function StatsPage(): React.JSX.Element {
                 preset === option ? "bg-brand text-on-brand" : "bg-surface text-muted hover:text-ink"
               }`}
             >
-              {RANGE_LABELS[option]}
+              {t(`stats.range.${option}`)}
             </button>
           ))}
         </div>
@@ -167,7 +175,11 @@ export function StatsPage(): React.JSX.Element {
         </div>
 
         <p className="text-helper-relaxed text-muted">
-          {range.from} 至 {range.to}，币种为{currencyName(currencyInUse)}。
+          {t("stats.rangeSummary", {
+            from: showDate(range.from),
+            to: showDate(range.to),
+            currency: currencyName(currencyInUse),
+          })}
         </p>
       </section>
 
@@ -185,7 +197,7 @@ export function StatsPage(): React.JSX.Element {
 
       {main.data ? (
         <>
-          <Section title="收支趋势">
+          <Section title={t("stats.section.trend")}>
             <TrendChart
               points={main.data.series}
               currency={currencyInUse}
@@ -194,7 +206,7 @@ export function StatsPage(): React.JSX.Element {
             />
           </Section>
 
-          <Section title="分类占比">
+          <Section title={t("stats.section.categoryShare")}>
             <div className="mb-3 flex gap-2">
               {(["expense", "income"] as const).map((option) => (
                 <button
@@ -207,7 +219,7 @@ export function StatsPage(): React.JSX.Element {
                     kind === option ? "bg-brand text-on-brand" : "bg-canvas text-muted hover:text-ink"
                   }`}
                 >
-                  {option === "expense" ? "支出" : "收入"}
+                  {t(`common.kind.${option}`)}
                 </button>
               ))}
             </div>
@@ -222,7 +234,7 @@ export function StatsPage(): React.JSX.Element {
             />
           </Section>
 
-          <Section title="环比对比">
+          <Section title={t("stats.section.comparison")}>
             <ComparisonPanel
               current={main.data.totals}
               previous={main.data.comparison?.totals ?? null}
@@ -237,16 +249,16 @@ export function StatsPage(): React.JSX.Element {
             />
           </Section>
 
-          <Section title="本期概览">
+          <Section title={t("stats.section.overview")}>
             <dl className="grid grid-cols-2 gap-3">
-              <Stat label="日均支出" value={formatMoney(averagePerDay(main.data.totals, main.data.range.days), currencyInUse)} />
-              <Stat label="最大单笔" value={formatMoney(main.data.totals.largestExpenseMinor, currencyInUse)} />
+              <Stat label={t("stats.overview.averagePerDay")} value={formatMoney(averagePerDay(main.data.totals, main.data.range.days), currencyInUse)} />
+              <Stat label={t("stats.overview.largestExpense")} value={formatMoney(main.data.totals.largestExpenseMinor, currencyInUse)} />
             </dl>
           </Section>
         </>
       ) : null}
 
-      <Section title={`日历热力（${heatRange === "7d" ? "近 7 天" : "本月"}）`}>
+      <Section title={t("stats.section.heatmap", { range: heatRangeLabel(heatRange) })}>
         <div className="mb-3 flex gap-2">
           {HEAT_RANGES.map((option) => (
             <button
@@ -259,7 +271,7 @@ export function StatsPage(): React.JSX.Element {
                 heatRange === option ? "bg-brand text-on-brand" : "bg-canvas text-muted hover:text-ink"
               }`}
             >
-              {option === "7d" ? "近 7 天" : "本月"}
+              {heatRangeLabel(option)}
             </button>
           ))}
         </div>
@@ -274,7 +286,7 @@ export function StatsPage(): React.JSX.Element {
         )}
       </Section>
 
-      <Section title={`年度总览（${year}）`}>
+      <Section title={t("stats.section.year", { year })}>
         {yearStats.data ? (
           <YearOverview
             months={yearStats.data.series}

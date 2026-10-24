@@ -31,6 +31,7 @@ import {
   type Transaction,
 } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import type {
   DuplicateGroup,
   DuplicateRecord,
@@ -61,8 +62,9 @@ interface GroupEdge {
 }
 
 function tagLabelsFor(ids: readonly string[], namesById: ReadonlyMap<string, string>): readonly string[] {
+  // 标签名只用于显示；找不到时的占位按当前语言取，不参与重复判断。
   return ids
-    .map((id) => namesById.get(id) ?? "（未知标签）")
+    .map((id) => namesById.get(id) ?? t("ledgerImport.unknown.tag"))
     .sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
 }
 

@@ -1,19 +1,25 @@
-import { currentMonth } from "../lib/datetime.js";
+import { isChineseLocale, useI18n } from "../i18n/index.js";
+import { currentMonth, formatInstant } from "../lib/datetime.js";
 
-const MONTH_NAMES = [
-  "1 月",
-  "2 月",
-  "3 月",
-  "4 月",
-  "5 月",
-  "6 月",
-  "7 月",
-  "8 月",
-  "9 月",
-  "10 月",
-  "11 月",
-  "12 月",
-] as const;
+/** 十二个月份按钮，顺序固定；名字在渲染时按当前语言取（见 `monthName`）。 */
+const MONTH_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
+
+/**
+ * 月份按钮上的字。
+ *
+ * ⚠️ 中文界面保留原来的「1 月」写法（与 `formatMonthLabel` 的中文固定格式同一口径，`Intl` 给的是
+ * 不带空格的「1月」）；其它语言用 `Intl` 的月份简称（Jan、Feb…）。
+ */
+function monthName(year: number, index: number): string {
+  if (isChineseLocale()) return `${String(index + 1)} 月`; // i18n-ignore：中文界面专用的固定格式（与原来一致）
+  return formatInstant(new Date(year, index, 1), { month: "short" });
+}
+
+/** 年份标题：中文「2026 年」，其它语言只写数字（由 `Intl` 决定）。 */
+function yearLabel(year: number): string {
+  if (isChineseLocale()) return `${String(year)} 年`; // i18n-ignore：中文界面专用的固定格式（与原来一致）
+  return formatInstant(new Date(year, 0, 1), { year: "numeric" });
+}
 
 /**
  * Choosing a month.
@@ -41,6 +47,7 @@ export function MonthPicker({
   /** Months after this one are shown but cannot be chosen. */
   readonly maxMonth: string;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
   if (!open) return null;
 
   const year = Number(month.slice(0, 4));
@@ -55,20 +62,20 @@ export function MonthPicker({
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <button
         type="button"
-        aria-label="关闭月份选择"
+        aria-label={t("ledger.monthPicker.close")}
         onClick={onClose}
         className="absolute inset-0 bg-overlay"
       />
 
       <div
         role="dialog"
-        aria-label="选择月份"
+        aria-label={t("ledger.monthPicker.title")}
         className="relative w-full max-w-md rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
           <button
             type="button"
-            aria-label="上一年"
+            aria-label={t("ledger.monthPicker.previousYear")}
             onClick={() => {
               step(-1);
             }}
@@ -77,11 +84,11 @@ export function MonthPicker({
             ‹
           </button>
 
-          <span className="text-base font-medium tabular-nums text-ink">{year} 年</span>
+          <span className="text-base font-medium tabular-nums text-ink">{yearLabel(year)}</span>
 
           <button
             type="button"
-            aria-label="下一年"
+            aria-label={t("ledger.monthPicker.nextYear")}
             onClick={() => {
               step(1);
             }}
@@ -92,7 +99,8 @@ export function MonthPicker({
         </div>
 
         <ul className="grid grid-cols-3 gap-2">
-          {MONTH_NAMES.map((name, index) => {
+          {MONTH_INDEXES.map((index) => {
+            const name = monthName(year, index);
             const value = `${String(year)}-${String(index + 1).padStart(2, "0")}`;
             const selected = value === month;
             const future = value > maxMonth;
@@ -128,9 +136,9 @@ export function MonthPicker({
             onSelect(currentMonth());
             onClose();
           }}
-          className="mt-4 w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand-soft/70"
+          className="mt-4 w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
         >
-          回到本月
+          {t("ledger.monthPicker.thisMonth")}
         </button>
       </div>
     </div>

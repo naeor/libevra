@@ -131,13 +131,19 @@ const FILL_PAGE_SIZE = 100;
  */
 const MAX_FILL_PAGES = 40;
 
+/** 下载提前停下的原因：`partial` = 出错但已取回一部分（有 Error）；`interrupted` = 其它中断。 */
+export type OfflineFillStop = "partial" | "interrupted";
+
 export interface OfflineFill {
   /** Months finished, and how many were planned. */
   readonly done: number;
   readonly total: number;
   readonly running: boolean;
-  /** Set when it stopped early, with a sentence worth showing. */
-  readonly stopped: string | null;
+  /**
+   * Set when it stopped early: **why**, as a stable id. The sentence worth showing is chosen where it is
+   * shown (`OfflineStatus`, `offline.status.stopped*`) — S16: so it follows the current interface language.
+   */
+  readonly stopped: OfflineFillStop | null;
   /** Whether it skipped itself because the connection is metered. */
   readonly skippedMetered: boolean;
   /**
@@ -185,7 +191,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
   const [running, setRunning] = useState(false);
-  const [stopped, setStopped] = useState<string | null>(null);
+  const [stopped, setStopped] = useState<OfflineFillStop | null>(null);
   const [skippedMetered, setSkippedMetered] = useState(false);
   const [justFinishedAt, setJustFinishedAt] = useState<number | null>(null);
 
@@ -235,22 +241,22 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
        * ⚠️ **Every attempt is written down**, because four rounds of reading this file
        * did not explain why the button appeared to do nothing. See `diagnostics.ts`.
        */
-      await logOffline(explicit ? "手动下载" : "自动下载", explicit ? `月份：${requested.join("、")}` : undefined);
+      await logOffline(explicit ? "手动下载" : "自动下载", explicit ? `月份：${requested.join("、")}` : undefined); // i18n-ignore：诊断日志（存本机，给开发者看）
 
       if (!explicit && isMeteredConnection()) {
-        await logOffline("已跳过", "浏览器报告省流量或 2G/慢速网络");
+        await logOffline("已跳过", "浏览器报告省流量或 2G/慢速网络"); // i18n-ignore：诊断日志
         setSkippedMetered(true);
         return;
       }
 
       if (isMeteredConnection()) {
-        await logOffline("（流量网络，但你手动要求，继续）");
+        await logOffline("（流量网络，但你手动要求，继续）"); // i18n-ignore：诊断日志
       }
 
       setSkippedMetered(false);
 
       const months = explicit ? requested : monthsToFetch(new Date(), DEFAULT_MONTHS_BACK);
-      await logOffline("开始", `计划 ${months.length} 个月`);
+      await logOffline("开始", `计划 ${months.length} 个月`); // i18n-ignore：诊断日志
       setTotal(months.length);
       setDone(0);
       setStopped(null);
@@ -334,12 +340,12 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
           existing.pages[existing.pages.length - 1]?.nextCursor === null;
 
         if (alreadyComplete) {
-          await logOffline("跳过（已完整）", month);
+          await logOffline("跳过（已完整）", month); // i18n-ignore：诊断日志
         }
 
         if (!alreadyComplete) {
           if (refresh && existing !== undefined) {
-            await logOffline("重新取回（手动要求）", month);
+            await logOffline("重新取回（手动要求）", month); // i18n-ignore：诊断日志
             queryClient.removeQueries({ queryKey: key, exact: true });
           }
 
@@ -388,7 +394,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
            */
           await storeMonth(month, pages.flatMap((page) => page.items));
 
-          await logOffline("取回", `${month}：${pages.length} 页 / ${pages.reduce((n, page) => n + page.items.length, 0)} 条`);
+          await logOffline("取回", `${month}：${pages.length} 页 / ${pages.reduce((n, page) => n + page.items.length, 0)} 条`); // i18n-ignore：诊断日志
         }
 
         finished += 1;
@@ -404,13 +410,9 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
          */
         const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 
-        await logOffline("出错", detail);
+        await logOffline("出错", detail); // i18n-ignore：诊断日志
 
-        setStopped(
-          error instanceof Error
-            ? "这次没能全部取回，已取回的部分离线时可以用。下次联网会自动继续。"
-            : "取回中断了，下次联网会自动继续。",
-        );
+        setStopped(error instanceof Error ? "partial" : "interrupted");
       } finally {
         runningRef.current = false;
         setRunning(false);
@@ -419,7 +421,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
          * agrees about when "ten seconds" started.
          */
         setJustFinishedAt(Date.now());
-        await logOffline("结束", `完成 ${finished}/${months.length} 个月`);
+        await logOffline("结束", `完成 ${finished}/${months.length} 个月`); // i18n-ignore：诊断日志
       }
     },
     [queryClient],
@@ -441,7 +443,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
      * session is ready must be able to try again**, so nothing is consumed here.
      */
     if (!options.enabled) {
-      void logOffline("自动下载等待登录", "登录后会自动开始");
+      void logOffline("自动下载等待登录", "登录后会自动开始"); // i18n-ignore：诊断日志
       return;
     }
 

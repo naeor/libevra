@@ -12,14 +12,18 @@
  */
 
 import {
-  OCR_CHANNEL_LABELS,
-  OCR_DIRECTION_LABELS,
   type Category,
   type OcrChannel,
+  type OcrDirection,
+  type OcrIssue,
   type PaymentMethod,
   type Tag,
 } from "@libellum/shared";
+import { Trans } from "react-i18next";
 
+import { isChineseLocale, t as translate, useI18n } from "../../i18n/index.js";
+import type zhOcr from "../../i18n/resources/zh-CN/ocr.js";
+import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { groupsForCandidate, type OcrDuplicateGroup } from "../../lib/ocr/duplicates.js";
 import { validationBlocker, type OcrImportBlocker } from "../../lib/ocr/import.js";
 import {
@@ -71,12 +75,57 @@ export interface OcrOverviewProps {
   readonly note?: string;
 }
 
-const STATUS_LABELS: Readonly<Record<OcrItemStatus, string>> = {
-  recognized: "已识别",
-  review: "待核对",
-  duplicate: "疑似重复",
-  invalid: "无效",
-};
+// ---------------------------------------------------------------------------
+// 按代码翻译的标签（S16）。shared 的 `OCR_CHANNEL_LABELS` / `OCR_DIRECTION_LABELS` 是中文，
+// 这里按代码取当前界面语言的说法；单笔核对页也用这几个函数。
+// ---------------------------------------------------------------------------
+
+type OcrIssueCode = keyof typeof zhOcr.issue;
+
+const OCR_ISSUE_CODES: ReadonlySet<string> = new Set<OcrIssueCode>([
+  "missing_amount",
+  "missing_date",
+  "missing_time",
+  "missing_merchant",
+  "missing_currency",
+  "missing_year",
+  "year_inferred",
+  "relative_date",
+  "direction_unclear",
+  "amount_uncertain",
+  "amount_conflict",
+  "amount_unreadable",
+  "duplicate_suspected",
+  "layout_unverified",
+  "layout_conflict",
+  "extraction_incomplete",
+  "currency_assumed",
+  "order_closed",
+  "date_hint",
+]);
+
+/** 来源平台的说法（`OCR_CHANNEL_LABELS` 的界面语言版本）。 */
+export function ocrChannelLabel(channel: OcrChannel): string {
+  return translate(`ocr.channel.${channel}`);
+}
+
+/** 收支方向的说法（`OCR_DIRECTION_LABELS` 的界面语言版本）。 */
+export function ocrDirectionLabel(direction: OcrDirection): string {
+  return translate(`ocr.direction.${direction}`);
+}
+
+/**
+ * 一条识别问题的说明。
+ *
+ * ⚠️ 问题文字来自识别服务（Python），是中文原文且常带具体细节：中文界面**原样显示**；其它语言
+ * 按问题代码显示通用说明（`ocr.issue.*`），不认识的代码显示一句通用提示——不把中文塞进英文界面。
+ */
+export function ocrIssueText(issue: Pick<OcrIssue, "code" | "message">): string {
+  if (isChineseLocale()) return issue.message;
+  return OCR_ISSUE_CODES.has(issue.code)
+    ? translate(`ocr.issue.${issue.code as OcrIssueCode}`)
+    : translate("ocr.issueFallback");
+}
 
 const STATUS_CLASSES: Readonly<Record<OcrItemStatus, string>> = {
   recognized: "bg-brand-soft text-brand-dark",
@@ -90,22 +139,23 @@ function fieldText(value: string | null, fallback: string): string {
 }
 
 function amountText(item: OcrBatchCandidate): string {
-  return fieldText(item.amount, "待确认");
+  return fieldText(item.amount, translate("ocr.list.amountPending"));
 }
 
 function currencyText(item: OcrBatchCandidate): string {
-  return fieldText(item.currency, "币种待确认");
+  return fieldText(item.currency, translate("ocr.list.currencyPending"));
 }
 
+/** 日期与时间按识别出的原样（`YYYY-MM-DD HH:mm`）显示：这是用户要核对的值，与编辑框一致。 */
 function dateTimeText(item: OcrBatchCandidate): string {
-  if (item.occurredLocalDate === null) return "日期待确认";
+  if (item.occurredLocalDate === null) return translate("ocr.list.datePending");
   return item.occurredTime === null
     ? item.occurredLocalDate
     : `${item.occurredLocalDate} ${item.occurredTime}`;
 }
 
 function sourceText(item: OcrBatchCandidate): string {
-  return item.sourcePlatform === null ? "来源待确认" : OCR_CHANNEL_LABELS[item.sourcePlatform];
+  return item.sourcePlatform === null ? translate("ocr.list.sourcePending") : ocrChannelLabel(item.sourcePlatform);
 }
 
 /**
@@ -116,27 +166,29 @@ function categoryText(
   item: OcrBatchCandidate,
   categories: readonly Category[],
 ): string {
-  if (item.categoryId === null) return "未分类";
+  if (item.categoryId === null) return translate("ocr.list.uncategorized");
   const name = categories.find((category) => category.id === item.categoryId)?.name;
-  if (name === undefined) return "未分类";
-  return categorySourceOf(item) === "inferred" ? `${name}（系统建议）` : name;
+  if (name === undefined) return translate("ocr.list.uncategorized");
+  const shown = displayCategoryName(name);
+  return categorySourceOf(item) === "inferred" ? translate("ocr.list.suggested", { name: shown }) : shown;
 }
 
 function paymentText(
   item: OcrBatchCandidate,
   methods: readonly PaymentMethod[],
 ): string {
-  if (item.paymentMethodId === null) return "待确认";
-  return methods.find((method) => method.id === item.paymentMethodId)?.name ?? "待确认";
+  if (item.paymentMethodId === null) return translate("ocr.list.paymentPending");
+  const name = methods.find((method) => method.id === item.paymentMethodId)?.name;
+  return name === undefined ? translate("ocr.list.paymentPending") : displayPaymentMethodName(name);
 }
 
-/** 没有标签就整段省略，而不是写“无标签”占一行。 */
+/** 没有标签就整段省略，而不是写“无标签”占一行。标签名是用户数据，原样显示。 */
 function tagText(item: OcrBatchCandidate, tags: readonly Tag[]): string | null {
   if (item.tagIds.length === 0) return null;
   const names = item.tagIds
     .map((id) => tags.find((tag) => tag.id === id)?.name)
     .filter((name): name is string => name !== undefined);
-  return names.length === 0 ? null : names.join("、");
+  return names.length === 0 ? null : names.join(translate("ocr.listSeparator"));
 }
 
 /** 次级筛选是否生效；用于「筛选 · N」与“已筛选”提示。 */
@@ -149,22 +201,15 @@ function secondaryFilterText(
   direction: OcrDirectionFilter,
 ): string {
   const parts: string[] = [];
-  if (source !== "all") parts.push(`来源 ${OCR_CHANNEL_LABELS[source]}`);
-  if (direction !== "all") parts.push(direction === "expense" ? "只看支出" : "只看收入");
-  return parts.join(" · ");
+  if (source !== "all") parts.push(translate("ocr.list.sourceFilter", { source: ocrChannelLabel(source) }));
+  if (direction !== "all") {
+    parts.push(direction === "expense" ? translate("ocr.list.expenseOnly") : translate("ocr.list.incomeOnly"));
+  }
+  return parts.join(translate("ocr.list.filterSeparator"));
 }
 
 function primaryFilterText(filter: OcrOverviewFilter): string {
-  switch (filter) {
-    case "pending":
-      return "待核对";
-    case "duplicates":
-      return "疑似重复";
-    case "confirmed":
-      return "已确认";
-    case "all":
-      return "全部";
-  }
+  return translate(`ocr.list.primary.${filter}`);
 }
 
 /** 当前空列表的筛选说明；没有任何次级筛选时为空串。 */
@@ -176,7 +221,7 @@ function activeFilterText(
   const parts = [primaryFilterText(filter)];
   const secondary = secondaryFilterText(source, direction);
   if (secondary !== "") parts.push(secondary);
-  return parts.join(" · ");
+  return parts.join(translate("ocr.list.filterSeparator"));
 }
 
 export function OcrOverview({
@@ -200,6 +245,7 @@ export function OcrOverview({
   warnings,
   note,
 }: OcrOverviewProps): React.JSX.Element {
+  const { t } = useI18n();
   const extras = secondaryFilterCount(source, direction);
   const filterDetail = activeFilterText(filter, source, direction);
 
@@ -211,38 +257,33 @@ export function OcrOverview({
   return (
     <div className="flex flex-col gap-3">
       <section
-        aria-label="识别概览汇总"
+        aria-label={t("ocr.list.summaryLabel")}
         className="rounded-card border border-line bg-surface px-4 py-3 shadow-card"
       >
         <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <SummaryInline label="本次识别" value={counts.total} />
-          <SummaryInline label="待核对" value={counts.pending} tone="warning" />
-          <SummaryInline label="疑似重复" value={counts.duplicates} tone="warning" />
-          <SummaryInline label="可导入" value={importableCount} tone="brand" />
+          <SummaryInline label={t("ocr.list.recognized")} value={counts.total} />
+          <SummaryInline label={t("ocr.list.pending")} value={counts.pending} tone="warning" />
+          <SummaryInline label={t("ocr.list.duplicates")} value={counts.duplicates} tone="warning" />
+          <SummaryInline label={t("ocr.list.importable")} value={importableCount} tone="brand" />
         </dl>
 
         <details className="mt-1.5">
           <summary className="w-fit cursor-pointer select-none text-helper text-muted">
-            数量说明
+            {t("ocr.list.countsHelp")}
           </summary>
 
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
-            <SummaryNumber label="未标记无效" value={counts.valid} />
-            <SummaryNumber label="已确认" value={counts.confirmed} />
-            <SummaryNumber label="已标记无效" value={counts.invalid} />
-            <SummaryNumber label="你已核对过" value={counts.reviewed} />
+            <SummaryNumber label={t("ocr.list.valid")} value={counts.valid} />
+            <SummaryNumber label={t("ocr.list.confirmed")} value={counts.confirmed} />
+            <SummaryNumber label={t("ocr.list.invalid")} value={counts.invalid} />
+            <SummaryNumber label={t("ocr.list.reviewed")} value={counts.reviewed} />
           </dl>
 
           <ul className="mt-2 flex flex-col gap-1 text-helper text-muted">
-            <li>
-              「本次识别」包括无效项。「可导入」表示金额、币种、收支类型和日期完整，仍可能需要核对。
-            </li>
-            <li>
-              「待核对」包括信息不完整、有疑问和疑似重复的账目。「已确认」表示信息齐全且未发现问题。
-              两者都尚未入账。
-            </li>
-            <li>「你已核对过」表示你保存过详情，与自动检查的「已确认」不同，也不代表已入账。</li>
-            <li>筛选只影响列表，不改变汇总数量。</li>
+            <li>{t("ocr.list.helpRecognized")}</li>
+            <li>{t("ocr.list.helpPending")}</li>
+            <li>{t("ocr.list.helpReviewed")}</li>
+            <li>{t("ocr.list.helpFilters")}</li>
           </ul>
 
           {note === undefined ? null : <p className="mt-2 text-helper text-muted">{note}</p>}
@@ -250,7 +291,7 @@ export function OcrOverview({
       </section>
 
       {warnings === undefined || warnings.length === 0 ? null : (
-        <ul aria-label="批次提醒" className="flex flex-col gap-1">
+        <ul aria-label={t("ocr.list.warningsLabel")} className="flex flex-col gap-1">
           {warnings.map((warning) => (
             <li key={warning} className="text-helper-relaxed text-warn-dark">
               ⚠ {warning}
@@ -259,31 +300,31 @@ export function OcrOverview({
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="按状态筛选">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("ocr.list.statusFilterLabel")}>
         <FilterButton
           active={filter === "all"}
-          label={`全部 ${String(counts.total)}`}
+          label={t("ocr.list.chipAll", { count: counts.total })}
           onSelect={() => {
             onFilterChange("all");
           }}
         />
         <FilterButton
           active={filter === "pending"}
-          label={`待核对 ${String(counts.pending)}`}
+          label={t("ocr.list.chipPending", { count: counts.pending })}
           onSelect={() => {
             onFilterChange("pending");
           }}
         />
         <FilterButton
           active={filter === "duplicates"}
-          label={`疑似重复 ${String(counts.duplicates)}`}
+          label={t("ocr.list.chipDuplicates", { count: counts.duplicates })}
           onSelect={() => {
             onFilterChange("duplicates");
           }}
         />
         <FilterButton
           active={filter === "confirmed"}
-          label={`已确认 ${String(counts.confirmed)}`}
+          label={t("ocr.list.chipConfirmed", { count: counts.confirmed })}
           onSelect={() => {
             onFilterChange("confirmed");
           }}
@@ -299,7 +340,7 @@ export function OcrOverview({
               : "border-line bg-surface text-muted"
           }`}
         >
-          筛选{extras === 0 ? "" : ` · ${String(extras)}`}
+          {extras === 0 ? t("ocr.list.filter") : t("ocr.list.filterCount", { count: extras })}
         </button>
       </div>
 
@@ -310,11 +351,11 @@ export function OcrOverview({
         >
           {sources.length === 0 ? null : (
             <div className="flex flex-col gap-1.5">
-              <span className="text-helper text-muted">来源</span>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="按来源筛选">
+              <span className="text-helper text-muted">{t("ocr.list.source")}</span>
+              <div className="flex flex-wrap gap-2" role="group" aria-label={t("ocr.list.sourceFilterLabel")}>
                 <FilterButton
                   active={source === "all"}
-                  label="全部来源"
+                  label={t("ocr.list.allSources")}
                   onSelect={() => {
                     onSourceChange("all");
                   }}
@@ -323,7 +364,7 @@ export function OcrOverview({
                   <FilterButton
                     key={value}
                     active={source === value}
-                    label={OCR_CHANNEL_LABELS[value]}
+                    label={ocrChannelLabel(value)}
                     onSelect={() => {
                       onSourceChange(value);
                     }}
@@ -334,25 +375,25 @@ export function OcrOverview({
           )}
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-helper text-muted">收支方向</span>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="按收支筛选">
+            <span className="text-helper text-muted">{t("ocr.list.direction")}</span>
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t("ocr.list.directionFilterLabel")}>
               <FilterButton
                 active={direction === "all"}
-                label="全部收支"
+                label={t("ocr.list.allDirections")}
                 onSelect={() => {
                   onDirectionChange("all");
                 }}
               />
               <FilterButton
                 active={direction === "expense"}
-                label="支出"
+                label={t("common.kind.expense")}
                 onSelect={() => {
                   onDirectionChange("expense");
                 }}
               />
               <FilterButton
                 active={direction === "income"}
-                label="收入"
+                label={t("common.kind.income")}
                 onSelect={() => {
                   onDirectionChange("income");
                 }}
@@ -364,21 +405,21 @@ export function OcrOverview({
             <button
               type="button"
               onClick={clearSecondaryFilters}
-              className="self-start text-helper text-brand-dark underline-offset-2 hover:underline"
+              className="self-start text-left text-helper text-brand-dark underline-offset-2 hover:underline"
             >
-              清除来源/方向筛选
+              {t("ocr.list.clearSecondary")}
             </button>
           )}
         </div>
       ) : extras === 0 ? null : (
         <p className="text-helper text-muted">
-          已筛选：{secondaryFilterText(source, direction)}
+          {t("ocr.list.filtered", { filters: secondaryFilterText(source, direction) })}
           <button
             type="button"
             onClick={clearSecondaryFilters}
             className="ml-2 text-brand-dark underline-offset-2 hover:underline"
           >
-            清除
+            {t("ocr.list.clear")}
           </button>
         </p>
       )}
@@ -387,12 +428,12 @@ export function OcrOverview({
         <div className="rounded-card border border-line bg-surface p-4">
           <p className="text-body text-muted">
             {counts.total === 0
-              ? "这次识别没有切分出任何交易。可以返回重新上传，或按单笔/手动录入。"
-              : "当前筛选下没有交易。"}
+              ? t("ocr.list.nothingExtracted")
+              : t("ocr.list.noMatch")}
           </p>
           {counts.total === 0 ? null : (
             <>
-              <p className="mt-1 text-helper text-muted">当前筛选：{filterDetail}。</p>
+              <p className="mt-1 text-helper text-muted">{t("ocr.list.currentFilters", { filters: filterDetail })}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -401,7 +442,7 @@ export function OcrOverview({
                 }}
                 className="mt-2 text-helper text-brand-dark underline-offset-2 hover:underline"
               >
-                显示全部交易
+                {t("ocr.list.showAll")}
               </button>
             </>
           )}
@@ -499,6 +540,7 @@ function OcrOverviewCard({
   readonly tags: readonly Tag[];
   readonly onOpenDetail: (candidateId: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const status = itemStatus(item);
   const issues = deriveIssues(item);
   const groups = groupsForCandidate(duplicateGroups, item.candidateId);
@@ -520,20 +562,20 @@ function OcrOverviewCard({
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <span className="flex flex-wrap gap-1.5">
           <span className={`rounded-full px-2.5 py-1 text-helper ${STATUS_CLASSES[status]}`}>
-            {STATUS_LABELS[status]}
+            {t(`ocr.status.${status}`)}
           </span>
           {item.isRefund ? (
             <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
-              退款
+              {t("ocr.list.refund")}
             </span>
           ) : null}
           {item.isTransfer ? (
             <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
-              转账
+              {t("ocr.list.transfer")}
             </span>
           ) : null}
           {item.reviewed && !item.invalid ? (
-            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">已核对</span>
+            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">{t("ocr.list.reviewedBadge")}</span>
           ) : null}
         </span>
 
@@ -546,20 +588,23 @@ function OcrOverviewCard({
         <span className="text-section-title text-ink">{amountText(item)}</span>
         <span className="text-helper text-muted">{currencyText(item)}</span>
         <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
-          {OCR_DIRECTION_LABELS[item.direction]}
+          {ocrDirectionLabel(item.direction)}
         </span>
       </div>
 
-      <p className="text-body text-ink">{fieldText(item.merchant, "对象/商户待确认")}</p>
+      <p className="break-words text-body text-ink">{fieldText(item.merchant, t("ocr.list.merchantPending"))}</p>
 
+      {/* S16：说明文字 `min-w-0` + 允许断行，英文较长时不把「查看详情」挤出卡片。 */}
       <div className="flex items-end justify-between gap-3">
-        <p className="text-helper text-muted">
-          分类：{categoryText(item, categories)} · 支付方式：
-          {paymentText(item, paymentMethods)}
-          {labels === null ? "" : ` · 标签：${labels}`}
-          {item.account === null || item.account.trim() === ""
-            ? ""
-            : ` · 账户：${item.account.trim()}`}
+        <p className="min-w-0 text-helper text-muted [overflow-wrap:anywhere]">
+          {[
+            t("ocr.list.cardCategory", { value: categoryText(item, categories) }),
+            t("ocr.list.cardPayment", { value: paymentText(item, paymentMethods) }),
+            ...(labels === null ? [] : [t("ocr.list.cardTags", { value: labels })]),
+            ...(item.account === null || item.account.trim() === ""
+              ? []
+              : [t("ocr.list.cardAccount", { value: item.account.trim() })]),
+          ].join(" · ")}
         </p>
         <button
           type="button"
@@ -568,19 +613,19 @@ function OcrOverviewCard({
           }}
           className="shrink-0 rounded-field px-2 py-1 text-link text-brand-dark underline-offset-2 hover:underline"
         >
-          查看详情
+          {t("ocr.list.viewDetails")}
         </button>
       </div>
 
       {item.note === null || item.note.trim() === "" ? null : (
-        <p className="truncate text-helper text-muted">备注：{item.note.trim()}</p>
+        <p className="truncate text-helper text-muted">{t("ocr.list.cardNote", { value: item.note.trim() })}</p>
       )}
 
       {groups.length === 0 ? null : (
         <ul className="flex flex-col gap-1">
           {groups.map((group) => (
             <li key={group.groupId} className="text-helper-relaxed text-warn-dark">
-              ⚠ 可能重复：{group.reason}
+              {t("ocr.list.possibleDuplicate", { reason: group.reason })}
             </li>
           ))}
         </ul>
@@ -593,18 +638,18 @@ function OcrOverviewCard({
               key={`${issue.code}:${issue.field ?? ""}`}
               className="text-helper-relaxed text-warn-dark"
             >
-              ⚠ {issue.message}
+              ⚠ {ocrIssueText(issue)}
             </li>
           ))}
         </ul>
       )}
 
       {showImportBlocker ? (
-        <p className="text-helper-relaxed text-warn-dark">⚠ 还不能导入：{importBlocker}</p>
+        <p className="text-helper-relaxed text-warn-dark">{t("ocr.list.cannotImport", { reason: importBlocker })}</p>
       ) : null}
 
       {item.invalid ? (
-        <p className="text-helper text-muted">已标记无效，确认导入时不会计入。</p>
+        <p className="text-helper text-muted">{t("ocr.list.markedInvalid")}</p>
       ) : null}
     </article>
   );
@@ -626,7 +671,7 @@ export function OcrImportBar({
   busy,
   onConfirm,
   onCancel,
-  cancelLabel = "取消这次识别",
+  cancelLabel,
 }: {
   readonly importableCount: number;
   /** 不能导入的原因（权限、账本不符、字段不够……）；`null` 表示可以确认。 */
@@ -636,32 +681,40 @@ export function OcrImportBar({
   readonly busy: boolean;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
+  /** 默认「取消这次识别」（当前界面语言）。 */
   readonly cancelLabel?: string;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const disabled = importableCount === 0 || blockedReason !== null || busy;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card">
       <div className="mx-auto w-full max-w-md px-6 pt-2.5 pb-3">
+        {/* S16：英文的按钮文字更长（“Import 12 entries”），计数允许收缩换行，按钮保持一行。 */}
         <div className="flex items-center gap-3">
-          <p className="mr-auto text-helper-relaxed text-ink">
-            可导入 <strong className="font-semibold">{importableCount}</strong> 笔
+          <p className="mr-auto min-w-0 text-helper-relaxed text-ink">
+            <Trans
+              i18nKey="ocr.bar.importable"
+              count={importableCount}
+              values={{ count: importableCount }}
+              components={{ b: <strong className="font-semibold" /> }}
+            />
           </p>
           <button
             type="button"
             disabled={disabled}
             onClick={onConfirm}
-            className="rounded-field bg-brand px-4 py-2.5 text-button-lg font-medium text-on-brand shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
+            className="shrink-0 rounded-field bg-brand px-4 py-2.5 text-button-lg font-medium text-on-brand shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {busy ? "正在导入…" : `确认导入 ${String(importableCount)} 笔`}
+            {busy ? t("ocr.bar.importing") : t("ocr.bar.confirm", { count: importableCount })}
           </button>
         </div>
 
         <div className="mt-1 flex items-start justify-between gap-3">
           <p
-            className={`text-helper ${blockedReason === null ? "text-muted" : "text-warn-dark"}`}
+            className={`min-w-0 text-helper ${blockedReason === null ? "text-muted" : "text-warn-dark"}`}
           >
-            {blockedReason ?? "确认前不会写入账本。"}
+            {blockedReason ?? t("ocr.bar.nothingWritten")}
           </p>
           <button
             type="button"
@@ -669,19 +722,19 @@ export function OcrImportBar({
             onClick={onCancel}
             className="shrink-0 text-helper text-muted underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {cancelLabel}
+            {cancelLabel ?? t("ocr.bar.cancel")}
           </button>
         </div>
 
         {blockers.length === 0 ? null : (
           <details className="mt-1">
             <summary className="w-fit cursor-pointer select-none text-helper text-warn-dark">
-              查看 {String(blockers.length)} 笔不能导入的原因
+              {t("ocr.bar.blockers", { count: blockers.length })}
             </summary>
             <ul className="mt-1 flex max-h-32 flex-col gap-1 overflow-y-auto">
               {blockers.map((entry) => (
                 <li key={entry.candidateId} className="text-helper-relaxed text-warn-dark">
-                  ⚠ {entry.label}：{entry.reason}
+                  {t("ocr.bar.blocker", { label: entry.label, reason: entry.reason })}
                 </li>
               ))}
             </ul>

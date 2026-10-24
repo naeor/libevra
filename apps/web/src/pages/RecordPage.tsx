@@ -6,7 +6,9 @@ import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { VoiceRipples } from "../components/VoiceRipples.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { displayPaymentMethodName } from "../lib/presetNames.js";
 import { useLedger, useTranscribe } from "../lib/queries.js";
 import { handOverSpoken } from "../lib/scanHandoff.js";
 import { describeBlocker, useVoiceRecorder, type Recording } from "../lib/useVoiceRecorder.js";
@@ -34,8 +36,16 @@ import { describeBlocker, useVoiceRecorder, type Recording } from "../lib/useVoi
  * terms. Somebody who can read back "午饭 38" knows whether they were heard;
  * somebody shown a filled-in form cannot tell whether it was heard or guessed.
  */
+
+/**
+ * 说明里的示例句。**识别语言是中文**（转写按中文、解析按中文关键词），所以英文界面也保持
+ * 这句中文示例，只翻译它周围的说明。
+ */
+const SPOKEN_EXAMPLE = "午饭 38"; // i18n-ignore：识别语言（中文）的示例，不随界面语言变化
+
 export function RecordPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const transcribe = useTranscribe();
   const ledger = useLedger();
   const categories = useMemo(() => ledger.data?.categories ?? [], [ledger.data?.categories]);
@@ -85,8 +95,8 @@ export function RecordPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="语音记账"
-      subtitle="说一句花了多少，比如「午饭 38」。说完会自动转成文字，你可以先核对再记。"
+      title={t("capture.record.title")}
+      subtitle={t("capture.record.subtitle", { example: SPOKEN_EXAMPLE })}
       backTo="/"
     >
       {recorder.error === null ? null : <Alert tone="error">{recorder.error}</Alert>}
@@ -132,20 +142,20 @@ export function RecordPage(): React.JSX.Element {
         <VoiceRipples level={recorder.level} active={recording} />
 
         <span className="flex flex-col items-center gap-1">
-          <span className="text-base font-medium text-ink">
+          <span className="text-center text-base font-medium text-ink">
             {recorder.state === "starting"
-              ? "正在准备麦克风…"
+              ? t("capture.record.preparing")
               : recording
-                ? "正在录音，点击停止"
+                ? t("capture.record.recording")
                 : transcribe.isSuccess
-                  ? "点击重新录一遍"
-                  : "点击开始录音"}
+                  ? t("capture.record.again")
+                  : t("capture.record.start")}
           </span>
 
           <span className="text-helper text-muted">
             {recording
-              ? `还可以录 ${String(recorder.secondsLeft)} 秒`
-              : `每段最多 ${String(MAX_SPEECH_SECONDS)} 秒`}
+              ? t("capture.record.secondsLeft", { count: recorder.secondsLeft })
+              : t("capture.record.maxSeconds", { count: MAX_SPEECH_SECONDS })}
           </span>
         </span>
       </button>
@@ -155,16 +165,16 @@ export function RecordPage(): React.JSX.Element {
       )}
 
       {transcribe.isPending ? (
-        <p className="text-center text-body text-muted">正在识别…</p>
+        <p className="text-center text-body text-muted">{t("capture.recognizing")}</p>
       ) : null}
 
       {heardNothing ? (
-        <Alert tone="info">没有听清。可以靠近一点、说大声一点，或者改用手动记账。</Alert>
+        <Alert tone="info">{t("capture.record.heardNothing")}</Alert>
       ) : null}
 
       {transcribe.isSuccess && !heardNothing && transcribe.data.text !== "" ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-card-title text-ink">听到的内容（可以修改）</h2>
+          <h2 className="text-card-title text-ink">{t("capture.record.heardTitle")}</h2>
 
           <textarea
             value={editedText ?? transcribe.data.text}
@@ -184,27 +194,31 @@ export function RecordPage(): React.JSX.Element {
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-brand-soft px-3 py-1.5 text-brand-dark">
               {parsed === null || parsed.amount === null
-                ? "没听到金额"
-                : `${parsed.kind === "income" ? "收入" : "支出"} ${parsed.amount}`}
+                ? t("capture.record.noAmount")
+                : t("capture.record.amountChip", {
+                    kind: t(parsed.kind === "income" ? "common.kind.income" : "common.kind.expense"),
+                    amount: parsed.amount,
+                  })}
             </span>
+            {/* 商户、备注是听到的原文（数据），原样显示；支付方式只在是预置名时显示译名。 */}
             {parsed?.merchant == null ? null : (
               <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
-                商户：{parsed.merchant}
+                {t("capture.record.merchantChip", { value: parsed.merchant })}
               </span>
             )}
             {parsed?.paymentMethod == null ? null : (
               <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
-                支付：{parsed.paymentMethod}
+                {t("capture.record.paymentChip", { value: displayPaymentMethodName(parsed.paymentMethod) })}
               </span>
             )}
             {parsed?.occurredLocalDate == null ? null : (
               <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
-                日期：{parsed.occurredLocalDate}
+                {t("capture.record.dateChip", { value: parsed.occurredLocalDate })}
               </span>
             )}
             {parsed === null || parsed.note === "" ? null : (
               <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
-                备注：{parsed.note}
+                {t("capture.record.noteChip", { value: parsed.note })}
               </span>
             )}
           </div>
@@ -228,7 +242,7 @@ export function RecordPage(): React.JSX.Element {
               void navigate("/voice/review");
             }}
           >
-            去核对并记账
+            {t("capture.record.review")}
           </Button>
         </section>
       ) : null}
@@ -238,7 +252,7 @@ export function RecordPage(): React.JSX.Element {
         onClick={() => void navigate("/add")}
         className="text-helper text-muted underline"
       >
-        语音不方便？直接手动记账
+        {t("capture.record.manualFallback")}
       </button>
     </InnerPage>
   );

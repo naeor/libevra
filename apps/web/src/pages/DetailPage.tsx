@@ -36,11 +36,13 @@ import {
   type BatchSummary,
 } from "../components/ledger/batch.js";
 import { refreshMessage } from "../components/ledger/refreshFeedback.js";
+import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
-import { currentMonth, formatDayLabel } from "../lib/datetime.js";
+import { currentMonth, formatDayLabel, formatInstant, formatMonthLabel } from "../lib/datetime.js";
 import { readSession, useDetailTransition, writeSession } from "../lib/detailTransition.js";
 import { currencyName, formatMoney } from "../lib/format.js";
+import { displayCategoryName } from "../lib/presetNames.js";
 import {
   filterLocally,
   lastLocalRead,
@@ -89,6 +91,7 @@ import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
  */
 export function DetailPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const guest = useGuestMode();
@@ -410,7 +413,7 @@ export function DetailPage(): React.JSX.Element {
       try {
         await logOffline(
           "DIAGNOSTIC:manual-refresh",
-          delivered > 0 ? `投递 ${String(delivered)} 条` : "没有待投递的改动",
+          delivered > 0 ? `投递 ${String(delivered)} 条` : "没有待投递的改动", // i18n-ignore：诊断日志，不是界面文字
         );
       } catch {
         /** Diagnostics never break the button. */
@@ -583,7 +586,7 @@ export function DetailPage(): React.JSX.Element {
 
     previousFilterKey.current = filterKey;
     setSelected(new Set<string>());
-    setSelectionNotice("筛选条件变了，已清空选择。");
+    setSelectionNotice(t("ledger.detail.filterChanged"));
     setBatchSummary(null);
   }, [filterKey]);
 
@@ -612,7 +615,7 @@ export function DetailPage(): React.JSX.Element {
           results.push({
             id: entry.id,
             status: "failed",
-            reason: "这笔还在等你在冲突页面里选一版，先处理冲突。",
+            reason: t("ledger.detail.conflictPending"),
           });
           continue;
         }
@@ -634,7 +637,7 @@ export function DetailPage(): React.JSX.Element {
 
           results.push(
             outcome === null
-              ? { id: entry.id, status: "failed", reason: "本机没有这笔账目，无法修改。" }
+              ? { id: entry.id, status: "failed", reason: t("ledger.detail.notOnDevice") }
               : { id: entry.id, status: "ok", pending: outcome.pending },
           );
         } catch (caught) {
@@ -664,7 +667,7 @@ export function DetailPage(): React.JSX.Element {
           results.push({
             id: entry.id,
             status: "failed",
-            reason: "这笔还在等你在冲突页面里选一版，先处理冲突。",
+            reason: t("ledger.detail.conflictPending"),
           });
           continue;
         }
@@ -704,8 +707,6 @@ export function DetailPage(): React.JSX.Element {
   };
 
   const isEmptyMonth = list.isSuccess && entries.length === 0;
-  const year = month.slice(0, 4);
-  const monthNumber = Number(month.slice(5, 7));
 
   /**
    * ⚠️ **The confirmation is built from the count that is on screen right now**, so the dialog can
@@ -731,7 +732,7 @@ export function DetailPage(): React.JSX.Element {
             }}
             className="text-sm text-muted transition hover:text-ink"
           >
-            ← 返回明细
+            {t("ledger.detail.backToEntries")}
           </button>
         </div>
 
@@ -794,7 +795,7 @@ export function DetailPage(): React.JSX.Element {
                     markPresentationSeen(presentationOwnerId);
                     window.location.assign("/start");
                   }}
-                  aria-label="前往账本空间"
+                  aria-label={t("ledger.detail.goToLedgers")}
                   className="detail-title -ml-1 rounded-field px-1 text-2xl font-semibold tracking-tight transition hover:opacity-80"
                 >
                   Libevra
@@ -871,7 +872,7 @@ export function DetailPage(): React.JSX.Element {
                   }}
                   className="detail-month inline-flex items-center text-base text-on-brand/95"
                 >
-                  {year} 年 {monthNumber} 月
+                  {headerMonthLabel(month)}
                   <span className="detail-caret ml-1 text-[10px] text-on-brand/75" aria-hidden="true">
                     ▼
                   </span>
@@ -938,11 +939,21 @@ export function DetailPage(): React.JSX.Element {
                     onClick={() => {
                       setShowAllCurrencies(true);
                     }}
-                    aria-label="更多币种"
+                    aria-label={t("ledger.detail.moreCurrencies")}
                     className="detail-more-currency detail-currency-card detail-small-card w-34 shrink-0 whitespace-nowrap px-4 text-left text-xs text-on-brand/90"
                   >
+                    {/*
+                      两个 inline-block 是为了窄卡片里「更多 / 币种」各占一行、不在词中间断开。
+                      S16：词组从文案里按 `|` 拆出来；英文只有一个短词（见 en-US 的说明）。
+                    */}
                     <span>
-                      <span className="inline-block">更多</span><span className="inline-block">币种</span>
+                      {t("ledger.detail.moreCurrenciesCard")
+                        .split("|")
+                        .map((part) => (
+                          <span key={part} className="inline-block">
+                            {part}
+                          </span>
+                        ))}
                     </span>
                   </button>
                 </div>
@@ -971,7 +982,7 @@ export function DetailPage(): React.JSX.Element {
                       : "text-muted hover:text-ink"
                   }`}
                 >
-                  {option === "expense" ? "支出" : "收入"}
+                  {t(`common.kind.${option}`)}
                 </button>
               ))}
             </div>
@@ -1003,12 +1014,19 @@ export function DetailPage(): React.JSX.Element {
 
           {categoryId === null ? null : (
             <div className="px-6 pt-3">
-              <span className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-xs text-brand-dark">
-                已筛选分类：{filteredCategory?.name ?? "载入中…"}
+              <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-xs text-brand-dark">
+                <span className="min-w-0">
+                  {t("ledger.detail.filteredCategory", {
+                    name:
+                      filteredCategory === undefined
+                        ? t("ledger.detail.loading")
+                        : displayCategoryName(filteredCategory.name),
+                  })}
+                </span>
                 <button
                   type="button"
                   onClick={clearCategoryFilter}
-                  aria-label="清除分类筛选"
+                  aria-label={t("ledger.detail.clearCategoryFilter")}
                   className="px-1 text-brand-dark/70 transition hover:text-brand-dark"
                 >
                   ✕
@@ -1091,9 +1109,9 @@ export function DetailPage(): React.JSX.Element {
 
             {isEmptyMonth ? (
               <EmptyState
-                title={kind === "expense" ? "这个月还没有支出" : "这个月还没有收入"}
-                description="点击下方中间的记账按钮，记下第一笔。"
-                actionLabel="记一笔"
+                title={kind === "expense" ? t("ledger.detail.emptyExpense") : t("ledger.detail.emptyIncome")}
+                description={t("ledger.detail.emptyHint")}
+                actionLabel={t("ledger.detail.emptyAction")}
                 onAction={() => void navigate("/add")}
               />
             ) : null}
@@ -1155,7 +1173,7 @@ export function DetailPage(): React.JSX.Element {
                 onClick={() => void list.fetchNextPage()}
                 className="my-4 w-full rounded-field bg-surface py-3 text-sm text-muted transition hover:text-ink disabled:opacity-45"
               >
-                {list.isFetchingNextPage ? "加载中…" : "加载更早的记录"}
+                {list.isFetchingNextPage ? t("common.status.loading") : t("ledger.detail.loadEarlier")}
               </button>
             ) : null}
           </div>
@@ -1365,13 +1383,15 @@ function ArrowButton({
   readonly tabbable: boolean;
   readonly onClick: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <button
       type="button"
       onClick={onClick}
       tabIndex={tabbable ? 0 : -1}
       aria-hidden={!tabbable}
-      aria-label={direction === "left" ? "上一个月" : "下一个月"}
+      aria-label={direction === "left" ? t("ledger.detail.previousMonth") : t("ledger.detail.nextMonth")}
       className="detail-arrow rounded-full p-1.5 text-on-brand/85 transition"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5">
@@ -1402,12 +1422,14 @@ function MainCard({
   readonly currency: string;
   readonly className?: string;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <section className={`${className} detail-currency-card px-5`}>
       <span className="detail-main-name text-xs text-on-brand/75">{currencyName(currency)}</span>
 
       {summary === null ? (
-        <span className="mt-1 text-sm text-on-brand/80">本月暂无数据</span>
+        <span className="mt-1 text-sm text-on-brand/80">{t("ledger.detail.noDataThisMonth")}</span>
       ) : (
         <>
           <span className="detail-main-amount font-semibold tabular-nums">
@@ -1415,8 +1437,8 @@ function MainCard({
           </span>
 
           <span className="detail-main-detail mt-1 flex gap-4 text-xs text-on-brand/80 tabular-nums">
-            <span>入账 {formatMoney(summary.incomeCents, summary.currency)}</span>
-            <span>结余 {formatMoney(summary.balanceCents, summary.currency)}</span>
+            <span>{t("ledger.detail.incomeAmount", { amount: formatMoney(summary.incomeCents, summary.currency) })}</span>
+            <span>{t("ledger.detail.netAmount", { amount: formatMoney(summary.balanceCents, summary.currency) })}</span>
           </span>
         </>
       )}
@@ -1449,6 +1471,8 @@ function SmallCard({
   readonly currency: string;
   readonly className?: string;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     /*
      * The padding lives inside, not on the card.
@@ -1462,14 +1486,14 @@ function SmallCard({
       <div className="flex h-full flex-col justify-center px-4">
         <span className="text-[11px] whitespace-nowrap text-on-brand/70">{currencyName(currency)}</span>
         {summary === null ? (
-          <span className="text-[11px] whitespace-nowrap text-on-brand/60">暂无数据</span>
+          <span className="text-[11px] whitespace-nowrap text-on-brand/60">{t("ledger.detail.noData")}</span>
         ) : (
           <>
             <span className="text-base font-medium tabular-nums whitespace-nowrap">
               {formatMoney(summary.expenseCents, summary.currency)}
             </span>
             <span className="text-[11px] whitespace-nowrap text-on-brand/70 tabular-nums">
-              结余 {formatMoney(summary.balanceCents, summary.currency)}
+              {t("ledger.detail.netAmount", { amount: formatMoney(summary.balanceCents, summary.currency) })}
             </span>
           </>
         )}
@@ -1488,32 +1512,36 @@ function AllCurrenciesSheet({
   readonly mainCode: string;
   readonly onClose: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button type="button" aria-label="关闭" onClick={onClose} className="absolute inset-0 bg-overlay" />
+      <button type="button" aria-label={t("common.a11y.close")} onClick={onClose} className="absolute inset-0 bg-overlay" />
 
       <div
         role="dialog"
-        aria-label="全部币种"
+        aria-label={t("ledger.detail.allCurrencies")}
         className="relative w-full max-w-md rounded-t-card bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
       >
-        <h2 className="mb-4 text-base font-medium text-ink">全部币种</h2>
+        <h2 className="mb-4 text-base font-medium text-ink">{t("ledger.detail.allCurrencies")}</h2>
 
         <ul className="flex flex-col gap-2">
           {CURRENCIES.map((code) => {
             const row = currencies.find((item) => item.currency === code);
 
             return (
-              <li key={code} className="flex items-center justify-between rounded-field bg-canvas px-4 py-3">
-                <span className="text-sm text-ink">
+              <li key={code} className="flex items-center justify-between gap-3 rounded-field bg-canvas px-4 py-3">
+                <span className="min-w-0 text-sm text-ink">
                   {currencyName(code)}
-                  {code === mainCode ? <span className="ml-2 text-xs text-muted">主币种</span> : null}
+                  {code === mainCode ? (
+                    <span className="ml-2 text-xs text-muted">{t("ledger.detail.mainCurrency")}</span>
+                  ) : null}
                 </span>
 
                 {row === undefined ? (
-                  <span className="text-xs text-muted">本月无记录</span>
+                  <span className="shrink-0 text-xs text-muted">{t("ledger.detail.nothingThisMonth")}</span>
                 ) : (
-                  <span className="text-sm tabular-nums text-ink">
+                  <span className="shrink-0 text-sm tabular-nums text-ink">
                     {formatMoney(row.expenseCents, row.currency)}
                   </span>
                 )}
@@ -1527,11 +1555,23 @@ function AllCurrenciesSheet({
           onClick={onClose}
           className="mt-4 w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark"
         >
-          关闭
+          {t("common.action.close")}
         </button>
       </div>
     </div>
   );
+}
+
+/**
+ * 头部的月份文字（S16）。
+ *
+ * 中文沿用 `formatMonthLabel`（`2026 年 10 月`，与以前逐字一致）；其它语言用月份简称（`Oct 2026`）：
+ * 列表态里月份和右上角三个工具按钮挤在同一行，320px 宽时放不下 `September 2026` 这样的全称。
+ */
+function headerMonthLabel(month: string): string {
+  if (isChineseLocale()) return formatMonthLabel(month);
+  const date = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
+  return formatInstant(date, { month: "short", year: "numeric" });
 }
 
 /** Move a `YYYY-MM` string by whole months. */
@@ -1681,6 +1721,7 @@ function useLocalEntries(filters: TransactionFilters): readonly Transaction[] {
  * Telling them apart needs the counts from the last local read, which is why that is recorded at all.
  */
 function StuckOnLoad(): React.JSX.Element {
+  const { t } = useI18n();
   const read = lastLocalRead();
 
   const nothingStored = read.at === 0 || read.total === 0;
@@ -1689,23 +1730,26 @@ function StuckOnLoad(): React.JSX.Element {
     <div className="flex flex-col gap-1.5 py-3 text-center text-xs leading-relaxed text-muted">
       {nothingStored ? (
         <>
-          <p>本机没有这一段时间的记录，而且现在连不上服务器。</p>
-          <p>联网后会自动补上；也可以在「我的 → 下载管理」里提前下载。</p>
+          <p>{t("ledger.detail.stuck.nothingStored")}</p>
+          <p>{t("ledger.detail.stuck.nothingStoredHint")}</p>
         </>
       ) : (
         <>
-          <p>本机有 {read.total} 条记录，但这次没能读到。</p>
-          <p>联网后会自动恢复。</p>
+          <p>{t("ledger.detail.stuck.unreadable", { count: read.total })}</p>
+          <p>{t("ledger.detail.stuck.unreadableHint")}</p>
         </>
       )}
 
       {/* The numbers, so the line above can be checked rather than believed. */}
       <p className="font-mono text-[10px] opacity-70">
         {read.at === 0
-          ? "本机读取：尚未尝试"
-          : `本机读取：本机存储 ${String(read.storedEntries)} 条 / 查询缓存 ${String(read.diskEntries)} 条 / 内存 ${String(read.liveEntries)} 条 / 合计 ${String(read.total)} 条${
-              read.note === null ? "" : `（${read.note}）`
-            }`}
+          ? t("ledger.detail.stuck.readNotTried")
+          : `${t("ledger.detail.stuck.readCounts", {
+              stored: read.storedEntries,
+              disk: read.diskEntries,
+              live: read.liveEntries,
+              total: read.total,
+            })}${read.note === null ? "" : t("ledger.detail.stuck.readNote", { note: read.note })}`}
       </p>
     </div>
   );

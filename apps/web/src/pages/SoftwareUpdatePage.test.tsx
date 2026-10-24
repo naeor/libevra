@@ -30,16 +30,16 @@ describe("software update announcements", () => {
     const html = renderAt("/update", <SoftwareUpdatePage />);
 
     expect(html).toContain(APP_VERSION);
-    expect(html).toContain("1.16.03");
-    expect(html).toContain("页面统一与文案优化");
-    expect(html).toContain("统一二级页面布局与导航，整理全站文案表述，并修正若干高风险提示。");
-    expect(html).toContain("2026年10月23日");
-    expect(html).toContain('href="/update/announcements/1.16.03"');
+    expect(html).toContain("1.16.08");
+    expect(html).toContain("七套主题与深色外观");
+    expect(html).toContain("新增七套主题色与浅色、深色及跟随系统模式，并整理设置首页和外观预览。");
+    expect(html).toContain("2026年10月24日");
+    expect(html).toContain('href="/update/announcements/1.16.08"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
+    expect(html).toContain("新增功能");
     expect(html).toContain("调整及优化");
-    expect(html).toContain("问题修复");
     expect(html).toContain("注意事项");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
@@ -48,10 +48,11 @@ describe("software update announcements", () => {
   it("lists the newest release before the previous release in the archive", () => {
     const html = renderAt("/update/announcements", <UpdateAnnouncementsPage />);
 
-    const current = html.indexOf("页面统一与文案优化");
-    const previous = html.indexOf("粘贴识别与语音解析");
+    const current = html.indexOf("七套主题与深色外观");
+    const previous = html.indexOf("页面统一与文案优化");
     expect(current).toBeGreaterThanOrEqual(0);
     expect(previous).toBeGreaterThan(current);
+    expect(html).toContain('href="/update/announcements/1.16.08"');
     expect(html).toContain('href="/update/announcements/1.16.03"');
     expect(html).toContain('href="/update/announcements/1.15.05"');
   });

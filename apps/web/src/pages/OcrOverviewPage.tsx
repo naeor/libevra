@@ -18,9 +18,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
-
-import { DUPLICATE_SCOPE_LABELS, describeDuplicateMatch } from "@libellum/shared";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
@@ -30,8 +29,15 @@ import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionS
 import { InnerPage } from "../components/Layouts.js";
 import { ImportDoneScreen } from "../components/ocr/ImportDoneScreen.js";
 import { OcrImportBar, OcrOverview } from "../components/ocr/OcrOverview.js";
+import { t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
-import { candidateFromInput, checkNewCandidates, type NewCandidatesResult } from "../lib/duplicateReview.js";
+import {
+  candidateFromInput,
+  checkNewCandidates,
+  describeDuplicateMatchText,
+  duplicateScopeLabel,
+  type NewCandidatesResult,
+} from "../lib/duplicateReview.js";
 import { assignImportIds, batchBelongsToBook, refreshDuplicateMarks, withoutBatchItems } from "../lib/ocr/batch.js";
 import { clearBatch, loadBatch, saveBatch } from "../lib/ocr/batchStore.js";
 import { applyCategorySuggestions } from "../lib/ocr/category.js";
@@ -81,30 +87,37 @@ type HistoryDuplicateChoice = "importAll" | "review";
  *
  * 这里**没有**“删掉已有的那笔”之类的选项：这条路径只会往账本里写这批识别结果，
  * 已有记录的处理必须在明细页走软删除/撤销，不能借导入顺手删掉。
+ *
+ * 渲染时生成（文案随界面语言变化）；页面用 `useMemo` 按语言缓存，选项数组不会每次渲染都换。
  */
-const HISTORY_DUPLICATE_CHOICES: readonly Choice<HistoryDuplicateChoice>[] = [
-  {
-    id: "importAll",
-    label: "仍然全部导入",
-    hint: "账本里已有的记录不会被删除、合并或跳过。",
-    primary: true,
-  },
-  {
-    id: "review",
-    label: "先不导入，去看看账本",
-    hint: "这批识别结果还留在页面上，不会写入任何账目。",
-    dismissive: true,
-  },
-];
+function historyDuplicateChoices(): readonly Choice<HistoryDuplicateChoice>[] {
+  return [
+    {
+      id: "importAll",
+      label: translate("ocr.overview.historyImportAll"),
+      hint: translate("ocr.overview.historyImportAllHint"),
+      primary: true,
+    },
+    {
+      id: "review",
+      label: translate("ocr.overview.historyReview"),
+      hint: translate("ocr.overview.historyReviewHint"),
+      dismissive: true,
+    },
+  ];
+}
 
 function historyDuplicateDescription(found: NewCandidatesResult): string {
-  const shown = found.pairs.slice(0, 3).map((pair) => describeDuplicateMatch(pair));
+  const shown = found.pairs.slice(0, 3).map((pair) => describeDuplicateMatchText(pair));
   const rest = found.pairs.length - shown.length;
   return [
-    `与${DUPLICATE_SCOPE_LABELS[found.scope]}比对，找到 ${String(found.pairs.length)} 对疑似重复（账本已有记录不会被删除或合并）。`,
+    translate("ocr.overview.historyFound", {
+      count: found.pairs.length,
+      scope: duplicateScopeLabel(found.scope),
+    }),
     ...shown,
-    rest > 0 ? `另有 ${String(rest)} 对没有列出。` : "",
-    "这只是提示：要不要都保留，由你决定。",
+    rest > 0 ? translate("ocr.overview.historyMore", { count: rest }) : "",
+    translate("ocr.overview.historyNote"),
   ]
     .filter((line) => line !== "")
     .join(" ");
@@ -112,6 +125,7 @@ function historyDuplicateDescription(found: NewCandidatesResult): string {
 
 export function OcrOverviewPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
   const ledger = useLedger();
   const books = useBooks();
   const { readOnly } = useSharedLedgerOfflineReadOnly();
@@ -214,11 +228,22 @@ export function OcrOverviewPage(): React.JSX.Element {
     () => [...new Set(items.map((item) => item.sourcePlatform).filter((value) => value !== null))],
     [items],
   );
+  // 分组说明与阻塞原因都是界面文字：`locale` 在依赖里，切换语言后重算。
   const duplicateGroups = useMemo(
     () => findSuspectedDuplicates(items, { settings: duplicateSettings.settings }),
-    [items, duplicateSettings.settings],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, duplicateSettings.settings, locale],
   );
-  const blockers = useMemo(() => (batch === null ? [] : findImportBlockers(batch)), [batch]);
+  const blockers = useMemo(
+    () => (batch === null ? [] : findImportBlockers(batch)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [batch, locale],
+  );
+  const historyChoices = useMemo(
+    () => historyDuplicateChoices(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale],
+  );
   const unresolvedPages =
     batch?.pages.filter((page) => page.pageType === "unknown").length ?? 0;
 
@@ -237,12 +262,10 @@ export function OcrOverviewPage(): React.JSX.Element {
    */
   const warnings: string[] = [];
   if (wrongBook) {
-    warnings.push("这批识别结果属于另一本账本：可以查看，但不能导入。请切回生成批次时的账本。");
+    warnings.push(t("ocr.overview.wrongBook"));
   }
   if (unresolvedPages > 0) {
-    warnings.push(
-      `另有 ${String(unresolvedPages)} 张截图无法判断页面类型，没有生成候选；需要时请单独上传并按单笔/多笔处理。`,
-    );
+    warnings.push(t("ocr.overview.unresolvedPages", { count: unresolvedPages }));
   }
 
   /**
@@ -307,7 +330,7 @@ export function OcrOverviewPage(): React.JSX.Element {
      */
     const assigned = assignImportIds(batch, uuidV7);
     if (!saveBatch(assigned)) {
-      setError("无法保存本次导入信息，已取消导入。请检查浏览器存储空间或隐私模式设置后重试。");
+      setError(t("ocr.overview.storageFailed"));
       return;
     }
     setBatch(assigned);
@@ -340,7 +363,7 @@ export function OcrOverviewPage(): React.JSX.Element {
         duplicateSettings.settings,
       );
     } catch (caught) {
-      setError(`这批记录与账本历史没能比对：${errorMessage(caught)}`);
+      setError(t("ocr.overview.historyFailed", { reason: errorMessage(caught) }));
       return null;
     }
   }
@@ -362,7 +385,7 @@ export function OcrOverviewPage(): React.JSX.Element {
       if (result.blockers.length > 0) {
         // The button is disabled when blockers exist; reaching here means the
         // batch changed underneath the screen. Refuse instead of skipping a row.
-        setError(`有 ${String(result.blockers.length)} 笔还不能导入，请先核对或标记无效。`);
+        setError(t("ocr.overview.blocked", { count: result.blockers.length }));
         return;
       }
 
@@ -426,8 +449,8 @@ export function OcrOverviewPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="批量识别结果"
-      subtitle="只核对有疑问的；确认前不写账本。"
+      title={t("ocr.overview.title")}
+      subtitle={t("ocr.overview.subtitle")}
       backTo="/scan"
       actions={
         <Button
@@ -437,7 +460,7 @@ export function OcrOverviewPage(): React.JSX.Element {
             void navigate("/scan");
           }}
         >
-          重新识别
+          {t("ocr.overview.rescan")}
         </Button>
       }
     >
@@ -446,16 +469,16 @@ export function OcrOverviewPage(): React.JSX.Element {
       {batch === null ? (
         resumeSession === null || resumeTotals === null ? (
           <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
-            <h2 className="text-section-title text-ink">没有待核对的批次</h2>
+            <h2 className="text-section-title text-ink">{t("ocr.overview.emptyTitle")}</h2>
             <p className="text-body-relaxed text-muted">
-              这次识别结果已经清除（确认导入成功、取消，或换了一个标签页）。可以重新上传截图，或直接手动记账。
+              {t("ocr.overview.emptyBody")}
             </p>
             <Button
               onClick={() => {
                 void navigate("/scan");
               }}
             >
-              去上传截图
+              {t("ocr.overview.upload")}
             </Button>
             <Button
               variant="ghost"
@@ -463,25 +486,30 @@ export function OcrOverviewPage(): React.JSX.Element {
                 void navigate("/add");
               }}
             >
-              直接手动记账
+              {t("ocr.overview.manual")}
             </Button>
           </section>
         ) : (
           /**
            * 刷新后 `outcome` 丢了，但会话还在：说“这次已经导入过”，而不是退回“什么都
            * 没有”的空态。这里不恢复完整完成页，只保留累计与两个入口。
+           * （标题即「本次会话已导入 N 笔」，文案见 `ocr.overview.resumeTitle`。）
            */
           <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
             <h2 className="text-section-title text-ink">
-              本次会话已导入{" "}
-              <span className="tabular-nums">{resumeTotals.imported}</span> 笔
+              <Trans
+                i18nKey="ocr.overview.resumeTitle"
+                count={resumeTotals.imported}
+                values={{ count: resumeTotals.imported }}
+                components={{ n: <span className="tabular-nums" /> }}
+              />
             </h2>
             <p className="text-body-relaxed text-muted">
-              共 {resumeTotals.batches} 批。账目已经写入账本，刷新不会重复提交；完成页在刷新后不再显示。
+              {t("ocr.overview.resumeBody", { count: resumeTotals.batches })}
             </p>
-            <Button onClick={finishSession}>返回明细</Button>
+            <Button onClick={finishSession}>{t("ocr.overview.backToEntries")}</Button>
             <Button variant="ghost" onClick={importAgain}>
-              再识别一批
+              {t("ocr.overview.scanAgain")}
             </Button>
           </section>
         )
@@ -508,7 +536,7 @@ export function OcrOverviewPage(): React.JSX.Element {
             tags={tags}
             onOpenDetail={openDetail}
             warnings={warnings}
-            note="批次只保存在当前标签页的临时存储里，关掉标签页就消失；确认导入前不会写入账本。"
+            note={t("ocr.overview.note")}
           />
 
           {/* 固定操作条不占文档流，这里补出等高空白，最后一笔不会被挡住。 */}
@@ -531,17 +559,17 @@ export function OcrOverviewPage(): React.JSX.Element {
 
       <ConfirmDialog
         open={confirmOpen}
-        title={`确认导入 ${String(importableCount)} 笔？`}
-        description="导入后会逐条写入当前账本。确认前没有任何账本写入。"
+        title={t("ocr.overview.confirmTitle", { count: importableCount })}
+        description={t("ocr.overview.confirmDescription")}
         consequences={[
-          `其中 ${String(counts.confirmed)} 笔无需修改，${String(counts.pending)} 笔曾被标记为待核对。`,
+          t("ocr.overview.confirmCounts", { confirmed: counts.confirmed, pending: counts.pending }),
           counts.duplicates > 0
-            ? `可能包含 ${String(counts.duplicates)} 笔疑似重复；系统不会自动合并或删除，是否都保留由你决定。`
-            : "没有疑似重复。",
-          counts.invalid > 0 ? `已标记无效的 ${String(counts.invalid)} 笔不会导入。` : "",
-          "离线时先写入本机队列，联网后自动投递；不会显示成云端已保存。",
+            ? t("ocr.overview.confirmDuplicates", { count: counts.duplicates })
+            : t("ocr.overview.confirmNoDuplicates"),
+          counts.invalid > 0 ? t("ocr.overview.confirmInvalid", { count: counts.invalid }) : "",
+          t("ocr.overview.confirmOffline"),
         ].filter((line) => line !== "")}
-        confirmLabel={`确认导入 ${String(importableCount)} 笔`}
+        confirmLabel={t("ocr.bar.confirm", { count: importableCount })}
         tone="default"
         busy={importing}
         onConfirm={() => {
@@ -554,11 +582,11 @@ export function OcrOverviewPage(): React.JSX.Element {
 
       <ChoiceDialog<HistoryDuplicateChoice>
         open={pendingHistory !== null}
-        title="这批记录里有疑似与账本重复的"
+        title={t("ocr.overview.historyTitle")}
         description={
           pendingHistory === null ? "" : historyDuplicateDescription(pendingHistory.found)
         }
-        choices={HISTORY_DUPLICATE_CHOICES}
+        choices={historyChoices}
         onChoose={(choice) => {
           if (pendingHistory === null) return;
           const { assigned } = pendingHistory;
@@ -569,11 +597,11 @@ export function OcrOverviewPage(): React.JSX.Element {
 
       <ConfirmDialog
         open={cancelOpen}
-        title="取消这次识别？"
-        description="这批识别结果只会从当前标签页清除，不会影响账本。"
-        consequences={["已导入的账目不受影响。", "取消后需要重新上传截图才能再次核对。"]}
-        confirmLabel="放弃并返回"
-        cancelLabel="继续核对"
+        title={t("ocr.overview.cancelTitle")}
+        description={t("ocr.overview.cancelDescription")}
+        consequences={[t("ocr.overview.cancelImported"), t("ocr.overview.cancelReupload")]}
+        confirmLabel={t("ocr.overview.cancelConfirm")}
+        cancelLabel={t("ocr.overview.cancelKeep")}
         onConfirm={cancelBatch}
         onCancel={() => {
           setCancelOpen(false);
@@ -606,13 +634,16 @@ export function importDisabledReason({
   readonly readOnly: boolean;
   readonly isViewer: boolean;
 }): string | null {
-  if (batch === null) return "没有待导入的批次。";
-  if (wrongBook) return "这批识别结果属于另一本账本，不能导入。请切回原账本。";
-  if (readOnly) return "当前离线，共享账本暂时只能查看；恢复网络后才能导入。";
-  if (isViewer) return "你在本账本中是只读成员，不能导入账目。";
-  if (validCount === 0) return "没有可导入的笔数（可能都已标记无效）。";
+  if (batch === null) return translate("ocr.overview.disabled.noBatch");
+  if (wrongBook) return translate("ocr.overview.disabled.wrongBook");
+  if (readOnly) return translate("ocr.overview.disabled.offlineReadOnly");
+  if (isViewer) return translate("ocr.overview.disabled.viewer");
+  if (validCount === 0) return translate("ocr.overview.disabled.nothingValid");
   if (blockers.length > 0) {
-    return `还有 ${String(blockers.length)} 笔不能导入（${blockers[0]?.reason ?? ""}），请先核对或标记无效。`;
+    return translate("ocr.overview.disabled.blocked", {
+      count: blockers.length,
+      reason: blockers[0]?.reason ?? "",
+    });
   }
   return null;
 }

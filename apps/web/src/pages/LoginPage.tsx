@@ -9,11 +9,14 @@ import { AuthSwitcher } from "../components/AuthSwitcher.js";
 import { Button } from "../components/Button.js";
 import { PasswordField } from "../components/PasswordField.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
 
 export function LoginPage(): React.JSX.Element {
   const { user, login, sessionRevoked, sessionEndReason } = useAuth();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +32,9 @@ export function LoginPage(): React.JSX.Element {
 
     const parsed = loginRequestSchema.safeParse({ username, password });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "请填写用户名和密码。");
+      // zod 提示是 `@libellum/shared` 里的中文原文，按当前界面语言查表显示。
+      const issue = parsed.error.issues[0]?.message;
+      setError(issue === undefined ? t("auth.login.missingFields") : translateSharedMessage(issue));
       return;
     }
 
@@ -56,16 +61,16 @@ export function LoginPage(): React.JSX.Element {
 
   return (
     <AuthLayout
-      title="登录"
-      subtitle="使用用户名和密码继续。"
+      title={t("auth.login.title")}
+      subtitle={t("auth.login.subtitle")}
       navigation={<AuthSwitcher active="login" />}
       footer={
         <div className="flex flex-col items-center gap-2">
           <Link className="text-muted transition hover:text-ink" to="/recover">
-            忘记密码
+            {t("auth.login.forgotPassword")}
           </Link>
           <Link className="text-helper text-muted/80 transition hover:text-ink" to="/recover-archive">
-            恢复已注销账号的归档账本
+            {t("auth.login.recoverArchive")}
           </Link>
         </div>
       }
@@ -73,10 +78,10 @@ export function LoginPage(): React.JSX.Element {
       {sessionRevoked ? (
         <Alert tone="info">
           {sessionEndReason === "account_closed"
-            ? "这个账号已注销，无法继续使用。"
+            ? t("auth.login.sessionAccountClosed")
             : sessionEndReason === "account_disabled"
-              ? "该账号目前已停用，本设备的登录状态已结束。"
-              : "登录状态已失效，请重新登录。"}
+              ? t("auth.login.sessionAccountDisabled")
+              : t("auth.login.sessionExpired")}
         </Alert>
       ) : null}
 
@@ -84,7 +89,7 @@ export function LoginPage(): React.JSX.Element {
         {error === null ? null : <Alert>{error}</Alert>}
 
         <TextField
-          label="用户名"
+          label={t("auth.field.username")}
           autoComplete="username"
           autoFocus
           value={username}
@@ -94,7 +99,7 @@ export function LoginPage(): React.JSX.Element {
         />
 
         <PasswordField
-          label="密码"
+          label={t("auth.field.password")}
           autoComplete="current-password"
           value={password}
           onChange={(event) => {
@@ -103,7 +108,7 @@ export function LoginPage(): React.JSX.Element {
         />
 
         <Button type="submit" disabled={busy}>
-          {busy ? "登录中…" : "登录"}
+          {busy ? t("auth.login.submitting") : t("auth.login.submit")}
         </Button>
       </form>
     </AuthLayout>
