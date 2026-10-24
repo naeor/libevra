@@ -631,11 +631,11 @@ body {
   --color-chart-heat-2: #3c5e49;
   --color-chart-heat-3: #8ab99b;
   --color-chart-heat-4: #bddbc7;
-  --color-ocean-1: #22332b;
-  --color-ocean-2: #31483b;
-  --color-ocean-3: #486552;
-  --color-ocean-4: #7c9f88;
-  --color-on-ocean: #e5efe8;
+  --color-ocean-1: #96c4ac;
+  --color-ocean-2: #6aa78a;
+  --color-ocean-3: #4f8a6d;
+  --color-ocean-4: #3f7059;
+  --color-on-ocean: #17181a;
   --color-glass-highlight: rgb(255 255 255 / 0.06);
   --color-overlay-soft: rgb(0 0 0 / 0.52);
   --color-overlay: rgb(0 0 0 / 0.66);
@@ -838,7 +838,7 @@ html[data-theme-mode="dark"] .text-brand { color: var(--color-brand-dark); }
 
 /* S16-B3 正式深色绿色映射：R2-A 中性轴 + 所有者选定的 R3-A 品牌组。
    50 个角色不增加、不改名；明暗轴与色盘轴仍由文档属性区分。
-   只有绿色色盘开放，故绿色映射即当前唯一的正式深色映射。 */
+   S16-C 七色共用上述中性底层，其他色盘只覆盖下方 11 个品牌角色。 */
 html[data-theme-mode="dark"][data-theme-palette="green"] {
   color-scheme: dark;
   --color-canvas: #17181a;
@@ -883,11 +883,11 @@ html[data-theme-mode="dark"][data-theme-palette="green"] {
   --color-chart-heat-2: #3c5e49;
   --color-chart-heat-3: #8ab99b;
   --color-chart-heat-4: #bddbc7;
-  --color-ocean-1: #22332b;
-  --color-ocean-2: #31483b;
-  --color-ocean-3: #486552;
-  --color-ocean-4: #7c9f88;
-  --color-on-ocean: #e5efe8;
+  --color-ocean-1: #96c4ac;
+  --color-ocean-2: #6aa78a;
+  --color-ocean-3: #4f8a6d;
+  --color-ocean-4: #3f7059;
+  --color-on-ocean: #17181a;
   --color-glass-highlight: rgb(255 255 255 / 0.06);
   --color-overlay-soft: rgb(0 0 0 / 0.52);
   --color-overlay: rgb(0 0 0 / 0.66);
@@ -907,23 +907,228 @@ html[data-theme-mode="dark"] .bottom-full ul button svg {
 }
 html[data-theme-mode="dark"]:not([data-theme-palette]) header.bg-brand,
 html[data-theme-mode="dark"]:not([data-theme-palette]) .detail-hero,
-html[data-theme-mode="dark"][data-theme-palette="green"] header.bg-brand,
-html[data-theme-mode="dark"][data-theme-palette="green"] .detail-hero {
+html[data-theme-mode="dark"][data-theme-palette] header.bg-brand,
+html[data-theme-mode="dark"][data-theme-palette] .detail-hero {
   background-color: var(--color-canvas);
   --color-on-brand: var(--color-ink);
 }
 html[data-theme-mode="dark"]:not([data-theme-palette]) .detail-currency-card,
-html[data-theme-mode="dark"][data-theme-palette="green"] .detail-currency-card {
+html[data-theme-mode="dark"][data-theme-palette] .detail-currency-card {
   background: var(--color-surface);
 }
 /* 所有有文字的用户标签共用计算前景。仅深色生效，用户原色和浅色显示不变。 */
 html[data-theme-mode="dark"]:not([data-theme-palette]) .text-on-tag,
-html[data-theme-mode="dark"][data-theme-palette="green"] .text-on-tag {
+html[data-theme-mode="dark"][data-theme-palette] .text-on-tag {
   color: var(--tag-foreground, var(--color-on-tag));
 }
 /* 输入已有焦点工具类也必须有实体边界，不能只靠低透明阴影。 */
 html[data-theme-mode="dark"]:not([data-theme-palette]) :is(input, textarea, select):focus-visible:not(.outline-none),
-html[data-theme-mode="dark"][data-theme-palette="green"] :is(input, textarea, select):focus-visible:not(.outline-none) {
+html[data-theme-mode="dark"][data-theme-palette] :is(input, textarea, select):focus-visible:not(.outline-none) {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
+
+/* S16-C：已验收七主题。色盘只覆盖品牌组，财务 / 图表与中性层保持共同值。 */
+html[data-theme-mode="light"][data-theme-palette="yellow"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="yellow"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="yellow"] {
+  --color-brand: #ddb765;
+  --color-brand-dark: #735322;
+  --color-brand-soft: #fcf3df;
+  --color-on-brand: #332818;
+  --color-category-ink: #735322;
+  --color-focus-ring: #896425;
+  --color-ocean-1: #dfb96b;
+  --color-ocean-2: #eacb8a;
+  --color-ocean-3: #f3dfb1;
+  --color-ocean-4: #faf0d8;
+  --color-on-ocean: #332818;
+}
+html[data-theme-mode="dark"][data-theme-palette="yellow"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="yellow"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="yellow"] {
+  --color-brand: #d9cba6;
+  --color-brand-dark: #e7dbbc;
+  --color-brand-soft: #34332f;
+  --color-on-brand: #29271f;
+  --color-category-ink: #e8dcbc;
+  --color-focus-ring: #d9cba6;
+  --color-ocean-1: #d9cba6;
+  --color-ocean-2: #c5b38c;
+  --color-ocean-3: #ad9772;
+  --color-ocean-4: #927b58;
+  --color-on-ocean: #29271f;
+}
+html[data-theme-mode="light"][data-theme-palette="orange"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="orange"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="orange"] {
+  --color-brand: #876b59;
+  --color-brand-dark: #705342;
+  --color-brand-soft: #f3ece6;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #705342;
+  --color-focus-ring: #876b59;
+  --color-ocean-1: #795f4c;
+  --color-ocean-2: #997b61;
+  --color-ocean-3: #b89b7a;
+  --color-ocean-4: #dcc8aa;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="orange"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="orange"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="orange"] {
+  --color-brand: #bea28b;
+  --color-brand-dark: #d8bfaa;
+  --color-brand-soft: #342e29;
+  --color-on-brand: #241c16;
+  --color-category-ink: #e2cbb7;
+  --color-focus-ring: #ccb39e;
+  --color-ocean-1: #b79a7e;
+  --color-ocean-2: #967a61;
+  --color-ocean-3: #7b604c;
+  --color-ocean-4: #604938;
+  --color-on-ocean: #241c16;
+}
+html[data-theme-mode="light"][data-theme-palette="blue"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="blue"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="blue"] {
+  --color-brand: #527a9c;
+  --color-brand-dark: #406380;
+  --color-brand-soft: #eaf1f6;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #406380;
+  --color-focus-ring: #527a9c;
+  --color-ocean-1: #426d91;
+  --color-ocean-2: #628bac;
+  --color-ocean-3: #8db0c9;
+  --color-ocean-4: #c0d5e1;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="blue"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="blue"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="blue"] {
+  --color-brand: #91b5ce;
+  --color-brand-dark: #b4d1e5;
+  --color-brand-soft: #27343e;
+  --color-on-brand: #14212a;
+  --color-category-ink: #c3dceb;
+  --color-focus-ring: #a5c5dc;
+  --color-ocean-1: #80abc7;
+  --color-ocean-2: #608cae;
+  --color-ocean-3: #48718e;
+  --color-ocean-4: #34556e;
+  --color-on-ocean: #14212a;
+}
+html[data-theme-mode="light"][data-theme-palette="purple"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="purple"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="purple"] {
+  --color-brand: #7d6e8b;
+  --color-brand-dark: #655670;
+  --color-brand-soft: #f1edf4;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #655670;
+  --color-focus-ring: #7d6e8b;
+  --color-ocean-1: #70607f;
+  --color-ocean-2: #9382a3;
+  --color-ocean-3: #b3a2c1;
+  --color-ocean-4: #d6cadf;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="purple"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="purple"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="purple"] {
+  --color-brand: #ab9fbd;
+  --color-brand-dark: #cdc2da;
+  --color-brand-soft: #323137;
+  --color-on-brand: #221f29;
+  --color-category-ink: #d9cfe3;
+  --color-focus-ring: #beb1ce;
+  --color-ocean-1: #a596b6;
+  --color-ocean-2: #89769e;
+  --color-ocean-3: #705f86;
+  --color-ocean-4: #584969;
+  --color-on-ocean: #221f29;
+}
+html[data-theme-mode="light"][data-theme-palette="red"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="red"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="red"] {
+  --color-brand: #986660;
+  --color-brand-dark: #7c514c;
+  --color-brand-soft: #f5edeb;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #7c514c;
+  --color-focus-ring: #986660;
+  --color-ocean-1: #916057;
+  --color-ocean-2: #b28070;
+  --color-ocean-3: #cba18d;
+  --color-ocean-4: #e5c7b5;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="red"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="red"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="red"] {
+  --color-brand: #c28f86;
+  --color-brand-dark: #dbb2a8;
+  --color-brand-soft: #373131;
+  --color-on-brand: #291c19;
+  --color-category-ink: #e4c4ba;
+  --color-focus-ring: #cfa79b;
+  --color-ocean-1: #bd8e80;
+  --color-ocean-2: #a27364;
+  --color-ocean-3: #865b4f;
+  --color-ocean-4: #6c463c;
+  --color-on-ocean: #291c19;
+}
+html[data-theme-mode="light"][data-theme-palette="cyan"],
+.theme-swatch[data-theme-mode="light"][data-theme-palette="cyan"],
+html[data-theme-mode="light"] .theme-swatch[data-theme-palette="cyan"] {
+  --color-brand: #507b7d;
+  --color-brand-dark: #3e6264;
+  --color-brand-soft: #eaf1f1;
+  --color-on-brand: #ffffff;
+  --color-category-ink: #3e6264;
+  --color-focus-ring: #507b7d;
+  --color-ocean-1: #456e70;
+  --color-ocean-2: #6c9696;
+  --color-ocean-3: #9ebebe;
+  --color-ocean-4: #c9ddda;
+  --color-on-ocean: #ffffff;
+}
+html[data-theme-mode="dark"][data-theme-palette="cyan"],
+.theme-swatch[data-theme-mode="dark"][data-theme-palette="cyan"],
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="cyan"] {
+  --color-brand: #9bbabd;
+  --color-brand-dark: #bfd6d8;
+  --color-brand-soft: #2a3537;
+  --color-on-brand: #182325;
+  --color-category-ink: #cee0e1;
+  --color-focus-ring: #adc9cc;
+  --color-ocean-1: #91b5b4;
+  --color-ocean-2: #709796;
+  --color-ocean-3: #567a7b;
+  --color-ocean-4: #3e6063;
+  --color-on-ocean: #182325;
+}
+
+/* 绿色浅色维持 @theme 原值；色点独立展示各色，不增加重复语义 Token。 */
+.theme-swatch[data-theme-palette="green"] { background-color: #55997a; }
+html[data-theme-mode="dark"] .theme-swatch[data-theme-palette="green"] { background-color: #8eab96; }
+
+/* 已验收浅色候选的前景分配；森林绿保持原有浅色品牌表现。 */
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"],[data-theme-palette="yellow"]) .detail-currency-card { background: var(--color-brand-dark); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) header.bg-brand [class*="text-on-brand/"],
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .detail-hero [class*="text-on-brand/"] { color: var(--color-on-brand); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .detail-toggle-bar .text-muted { color: color-mix(in srgb,var(--color-muted) 94%,var(--color-ink)); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) [role=status].text-danger { color: var(--color-danger-dark); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .text-on-tag { color: var(--tag-foreground,var(--color-on-tag)); }
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) :is(input:not([type=checkbox]):not([type=radio]),textarea,select),
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .rounded-field.border-line:has(>input),
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .rounded-field.border-line:has(>button[aria-expanded]) { border-color: var(--color-line-strong); }
+html[data-theme-mode="light"]:is([data-theme-palette="yellow"],[data-theme-palette="red"],[data-theme-palette="purple"]) header.bg-brand [class*="bg-on-brand/"] { background: transparent; }
+
+/* 蜜金黄：金色填充配深字，深金负责链接、边界与焦点。 */
+html[data-theme-mode="light"][data-theme-palette="yellow"] .text-brand { color: var(--color-brand-dark); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-currency-card { background: var(--color-brand-soft); color: var(--color-on-brand); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand { outline: 1px solid var(--color-brand-dark); outline-offset: -1px; }
+html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:hover { background: color-mix(in srgb,var(--color-brand) 88%,white); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:active { background: color-mix(in srgb,var(--color-brand) 94%,var(--color-on-brand)); }

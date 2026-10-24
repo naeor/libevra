@@ -45,6 +45,36 @@ export interface UpdateAnnouncement {
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
   {
+    version: "1.16.08",
+    releasedAt: null,
+    status: "development",
+    title: "七套主题与深色外观",
+    summary: "新增七套主题色与浅色、深色及跟随系统模式，并整理设置首页和外观预览。",
+    sections: [
+      {
+        heading: "新增功能",
+        items: [
+          "在「设置 → 显示与数据 → 外观」中选择森林绿、蜜金黄、暖木棕、雾霭蓝、烟霞紫、丹霞红或青瓷灰。主题色与浅色、深色、跟随系统模式可以独立选择，切换立即生效。",
+          "深色外观以中性背景和卡片承载内容，品牌色用于交互强调；账本空间保留四层海浪与各主题配色。"
+        ]
+      },
+      {
+        heading: "调整及优化",
+        items: [
+          "设置首页将记账偏好收起为二级入口，默认币种仍在「记账偏好」中设置。",
+          "外观页并排展示账本空间与明细的手机比例预览，并随主题实时变化；小屏幕优先保留模式按钮和主题色选项。"
+        ]
+      },
+      {
+        heading: "注意事项",
+        items: [
+          "外观偏好保存在当前浏览器，刷新和切换页面后保留，不跨设备同步。财务收支和分类颜色的含义不随主题色改变。"
+        ]
+      }
+    ],
+    major: false
+  },
+  {
     "version": "1.16.03",
     "releasedAt": "2026-10-23",
     "revisedAt": "2026-10-23",

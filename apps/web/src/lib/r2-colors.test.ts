@@ -37,8 +37,11 @@ describe("S16-B 深色中性卡片与 R3-A 品牌组", () => {
     expect(r3["brand-soft"]).toBe("#26312b");
     expect(r3["on-brand"]).toBe("#142119");
     expect(r3["focus-ring"]).toBe("#a3c3ab");
-    expect(r3["ocean-1"]).toBe("#22332b");
-    expect(r3["on-ocean"]).toBe("#e5efe8");
+    expect(r3["ocean-1"]).toBe("#96c4ac");
+    expect(r3["ocean-2"]).toBe("#6aa78a");
+    expect(r3["ocean-3"]).toBe("#4f8a6d");
+    expect(r3["ocean-4"]).toBe("#3f7059");
+    expect(r3["on-ocean"]).toBe("#17181a");
     expect(r3.canvas).toBe("#17181a");
     expect(r3.surface).toBe("#2c2c2c");
     expect(r3.muted).toBe("#afb3b8");

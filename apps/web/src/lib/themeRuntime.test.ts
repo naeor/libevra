@@ -43,17 +43,17 @@ describe("主题入口与首屏共用 B0 契约", () => {
     env.changeSystem(false);
     expect(env.root.dataset["themeMode"]).toBe("dark");
   });
-  it("刷新恢复两维偏好；不开放缺少映射的色盘", () => {
+  it("刷新恢复两维偏好；七套已映射色盘可独立选择", () => {
     const env = environment();
     const first = createThemeController(env.root, env.storage, env.media);
     first.choose({ mode: "dark" });
-    first.choose({ palette: "green" });
+    first.choose({ palette: "purple" });
     expect(first.getSnapshot().mode).toBe("dark");
-    expect(JSON.parse(env.value()!)).toEqual({ mode: "dark", palette: "green" });
+    expect(JSON.parse(env.value()!)).toEqual({ mode: "dark", palette: "purple" });
     first.dispose();
     const second = createThemeController(env.root, env.storage, env.media);
-    expect(second.getSnapshot()).toEqual({ mode: "dark", palette: "green" });
-    expect(availableThemePreference({ mode: "system", palette: "purple" })).toEqual({ mode: "system", palette: "green" });
+    expect(second.getSnapshot()).toEqual({ mode: "dark", palette: "purple" });
+    expect(availableThemePreference({ mode: "system", palette: "purple" })).toEqual({ mode: "system", palette: "purple" });
   });
   it("跨标签恢复不回写，损坏偏好回退，订阅可清理", () => {
     const env = environment();

@@ -39,6 +39,10 @@ const ALLOWED: readonly { readonly file: string; readonly why: string }[] = [
     file: "pages/ExportPage.tsx",
     why: "16px 是 input 的**防 iOS 聚焦缩放**阈值，与 `index.css` 的全局规则同义（所有者 §8.4）",
   },
+  {
+    file: "components/ThemePreview.tsx",
+    why: "外观页两张约 160–167px 宽的页面缩略图，用极小字号按比例表现真实密度；仅作 aria-hidden 视觉预览，不用于正文或交互控件",
+  },
 ];
 
 /** ⚠️ The chart components, taken as a directory rather than one by one. */

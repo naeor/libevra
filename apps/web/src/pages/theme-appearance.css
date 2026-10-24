@@ -1,0 +1,34 @@
+/* Local presentation only. Keep InnerPage's normal scrolling and safe areas. */
+.appearance-preview {
+  --preview-height: clamp(6rem, calc(100vh - 21rem), 18rem);
+  width: min(100%, calc(var(--preview-height) * 0.5625));
+  aspect-ratio: 9 / 16;
+  justify-self: center;
+}
+@supports (height: 100dvh) {
+  .appearance-preview {
+    --preview-height: clamp(6rem, calc(100dvh - 21rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)), 18rem);
+  }
+}
+
+/* Real detail-page roles, including its neutral dark header and cards. */
+.appearance-detail-preview {
+  --preview-header: var(--color-brand);
+  --preview-header-ink: var(--color-on-brand);
+  --preview-summary: color-mix(in srgb, var(--color-on-brand) 14%, transparent);
+}
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"],[data-theme-palette="yellow"]) .appearance-detail-preview {
+  --preview-summary: var(--color-brand-dark);
+}
+html[data-theme-mode="light"][data-theme-palette="yellow"] .appearance-detail-preview {
+  --preview-summary: var(--color-brand-soft);
+}
+html[data-theme-mode="dark"] .appearance-detail-preview {
+  --preview-header: var(--color-canvas);
+  --preview-header-ink: var(--color-ink);
+  --preview-summary: var(--color-surface);
+}
+
+@media (max-height: 540px) {
+  .appearance-settings { gap: 0.75rem; }
+}

@@ -2,8 +2,8 @@
  * The two-dimensional theme preference (S16-B0).
  *
  * B0 的偏好解析、持久化与文档属性由首屏脚本及设置入口共同复用。
- * 本地候选只开放已有映射的绿色；绿色浅色沿用原始品牌，绿色深色采用
- * 所有者选定的 R3-A 柔和鼠尾草绿。其他色盘仍未开放。
+ * 七主题已在所有者验收后接入 localhost，仍复用 B0 key 与偏好格式。
+ * 森林绿默认浅色品牌不变；深色保留中性表面，海浪完整逆序并使用黑字。
  *
  * Why attributes and not a React context? A theme is a document-level fact, and
  * every component already reads semantic tokens from CSS. A context would put a
@@ -27,7 +27,7 @@ export const THEME_PALETTES = [
 export type ThemePalette = (typeof THEME_PALETTES)[number];
 
 /** 只开放已有实际浅/深色映射的色盘；其余色盘仍保留 B0 的契约。 */
-export const AVAILABLE_THEME_PALETTES: readonly ThemePalette[] = ["green"];
+export const AVAILABLE_THEME_PALETTES: readonly ThemePalette[] = ["green", "yellow", "orange", "blue", "purple", "red", "cyan"];
 
 export function availableThemePreference(preference: ThemePreference): ThemePreference {
   return AVAILABLE_THEME_PALETTES.includes(preference.palette)
