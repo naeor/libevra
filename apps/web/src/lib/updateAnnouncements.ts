@@ -8,6 +8,8 @@
  * existing account-level acknowledgement table; this file only provides the full history/detail
  * pages, so the two sources must keep the same user-visible facts.
  */
+import { currentLocale, isChineseLocale } from "../i18n/index.js";
+
 export interface UpdateAnnouncement {
   /** The exact version users saw in production, e.g. "1.13.07". */
   readonly version: string;
@@ -482,14 +484,20 @@ export function adjacentReleasedAnnouncements(
   };
 }
 
-/** Stable for a Chinese reader, without inventing a time or timezone. */
+/**
+ * Stable for a Chinese reader, without inventing a time or timezone.
+ *
+ * 中文界面输出不变（`2026年10月24日`）；其它语言按当前界面语言走 `Intl`（`Oct 24, 2026`）。
+ * 发布日期是日历日，按 UTC 零点解析与格式化，不随设备时区漂移。
+ */
 export function formatReleaseDate(date: string): string {
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return date;
 
-  return new Intl.DateTimeFormat("zh-CN", {
+  const locale = currentLocale();
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
-    month: "long",
+    month: isChineseLocale(locale) ? "long" : "short",
     day: "numeric",
     timeZone: "UTC",
   }).format(parsed);
