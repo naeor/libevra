@@ -55,8 +55,8 @@ export function displayCategoryDescription(
 ): string | null {
   if (description === null || description === undefined) return null;
   if (isChineseLocale()) return description;
-  if (name === UNCATEGORISED_NAME && description === "未选择分类的记账") {
-    return t("presets.categoryDescription.暂无分类");
+  if (name === UNCATEGORISED_NAME && description === "未选择分类的记账") { // i18n-ignore：与数据库里的预置原文比较
+    return t("presets.categoryDescription.暂无分类"); // i18n-ignore：键名是预置原文
   }
   const presets = kind === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
   const preset = presets.find((item) => item.name === name);
