@@ -116,7 +116,7 @@ function SelectionBox({ selected }: { readonly selected: boolean }): React.JSX.E
       aria-hidden="true"
       data-selected={selected ? "true" : "false"}
       className={`flex size-5 shrink-0 items-center justify-center rounded-[6px] border text-micro font-semibold transition ${
-        selected ? "border-brand bg-brand text-white" : "border-line bg-surface text-transparent"
+        selected ? "border-brand bg-brand text-on-brand" : "border-line bg-surface text-transparent"
       }`}
     >
       ✓

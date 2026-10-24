@@ -50,6 +50,8 @@ model User {
   accountNumber String  @unique @map("account_number")
   passwordHash String   @map("password_hash")
   displayName  String   @map("display_name")
+  /// 系统预设头像的稳定 ID；不存文件或第三方地址。
+  avatarId     String   @default("flower") @map("avatar_id") @db.VarChar(24)
   isDemo       Boolean  @default(false) @map("is_demo")
 
   /// May see every ledger, not only the ones they belong to.

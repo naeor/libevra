@@ -505,3 +505,4 @@ export {
   type DuplicateReviewChunk,
   type DuplicateReviewCursor,
 } from "./duplicateReview.js";
+export { AVATAR_IDS, APPROVED_AVATAR_IDS, SELECTABLE_AVATAR_IDS, avatarIdSchema, updateProfileRequestSchema, type AvatarId, type UpdateProfileRequest } from "./profile.js";

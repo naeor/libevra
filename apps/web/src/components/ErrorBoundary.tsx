@@ -50,7 +50,7 @@ export class ErrorBoundary extends Component<{ readonly children: ReactNode }, E
           onClick={() => {
             window.location.reload();
           }}
-          className="w-full rounded-field bg-brand py-3 text-sm font-medium text-white transition hover:bg-brand-dark"
+          className="w-full rounded-field bg-brand py-3 text-sm font-medium text-on-brand transition hover:bg-brand-dark"
         >
           刷新页面
         </button>

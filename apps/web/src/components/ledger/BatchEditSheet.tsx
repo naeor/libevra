@@ -193,7 +193,7 @@ export function BatchEditSheet({
                   }}
                   style={chosen ? { backgroundColor: tag.color, borderColor: tag.color } : undefined}
                   className={`rounded-full border px-3 py-1.5 text-helper transition disabled:opacity-45 ${
-                    chosen ? "text-white" : "border-line bg-surface text-ink"
+                    chosen ? "text-on-tag" : "border-line bg-surface text-ink"
                   }`}
                 >
                   {tag.name}
@@ -255,7 +255,7 @@ export function BatchEditSheet({
             type="button"
             disabled={applyReason !== null || busy}
             onClick={onApply}
-            className="flex-1 rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex-1 rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
             {busy ? "处理中…" : `应用到 ${String(count)} 笔`}
           </button>

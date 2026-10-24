@@ -56,6 +56,7 @@ import { LedgerHistoryPage } from "./pages/LedgerHistoryPage.js";
 import { LedgerMembersPage } from "./pages/LedgerSubPages.js";
 import { LedgerPage } from "./pages/LedgerPage.js";
 import { ProfilePage } from "./pages/ProfilePage.js";
+import { AvatarPickerPage } from "./pages/AvatarPickerPage.js";
 import { LedgerSpacePage } from "./pages/LedgerSpacePage.js";
 import { StatsPage } from "./pages/StatsPage.js";
 import { RecoverPage } from "./pages/RecoverPage.js";
@@ -298,6 +299,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
       <Route path="/import-ledger" element={<RequireAuth><LedgerImportPage /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+      <Route path="/profile/avatar" element={<RequireAuth><AvatarPickerPage /></RequireAuth>} />
       <Route path="/downloads" element={<RequireAuth><DownloadManagerPage /></RequireAuth>} />
         <Route path="/downloads/more" element={<RequireAuth><DownloadMorePage /></RequireAuth>} />
         <Route path="/update" element={<RequireAuth><SoftwareUpdatePage /></RequireAuth>} />

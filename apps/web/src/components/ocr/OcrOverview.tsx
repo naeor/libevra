@@ -651,7 +651,7 @@ export function OcrImportBar({
             type="button"
             disabled={disabled}
             onClick={onConfirm}
-            className="rounded-field bg-brand px-4 py-2.5 text-button-lg font-medium text-white shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
+            className="rounded-field bg-brand px-4 py-2.5 text-button-lg font-medium text-on-brand shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
             {busy ? "正在导入…" : `确认导入 ${String(importableCount)} 笔`}
           </button>

@@ -90,7 +90,7 @@ export function ProfileAccountNumberSheet({
         <span aria-hidden="true" className="mx-auto h-1 w-10 shrink-0 rounded-full bg-line" />
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-section-title text-ink">账号编号</h2>
-          <button type="button" autoFocus onClick={() => void close()} aria-label="关闭账号编号" className="flex size-11 items-center justify-center rounded-full text-body text-muted transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft">✕</button>
+          <button type="button" autoFocus onClick={() => void close()} aria-label="关闭账号编号" className="flex size-11 items-center justify-center rounded-full text-body text-muted transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring">✕</button>
         </div>
         <p className="select-all py-2 text-center font-mono text-page-title text-ink tabular-nums">{number}</p>
         <Button onClick={() => void copy()} disabled={phase === "copying"}>

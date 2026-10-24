@@ -18,6 +18,7 @@ export type MemberRole = "owner" | "editor" | "viewer";
 export interface MemberView {
   readonly userId: string;
   readonly displayName: string;
+  readonly avatarId: string;
   readonly username: string;
   readonly accountNumber: string;
   readonly role: MemberRole;
@@ -43,13 +44,14 @@ export async function listMembers(prisma: PrismaClient, bookId: string): Promise
     orderBy: { joinedAt: "asc" },
     select: {
       role: true,
-      user: { select: { id: true, displayName: true, username: true, accountNumber: true } },
+      user: { select: { id: true, displayName: true, avatarId: true, username: true, accountNumber: true } },
     },
   });
 
   return rows.map((row) => ({
     userId: row.user.id,
     displayName: row.user.displayName,
+    avatarId: row.user.avatarId,
     username: row.user.username,
     accountNumber: row.user.accountNumber,
     role: row.role,

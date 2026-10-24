@@ -43,7 +43,7 @@ export function DetailTools({
           type="button"
           onClick={onExitSelection}
           aria-label="退出批量操作"
-          className="h-9 rounded-full bg-white/20 px-4 text-sm text-white transition hover:bg-white/30 active:bg-white/40"
+          className="h-9 rounded-full bg-on-brand/20 px-4 text-sm text-on-brand transition hover:bg-on-brand/30 active:bg-on-brand/40"
         >
           取消
         </button>
@@ -117,7 +117,7 @@ function ToolButton({
       title={busy === true ? `${label}——正在进行` : `${label}——${hint}`}
       aria-label={`${label}，${hint}`}
       className={`flex size-9 items-center justify-center rounded-full transition ${
-        disabled ? "bg-white/15 text-white/70" : "bg-white/20 text-white hover:bg-white/30 active:bg-white/40"
+        disabled ? "bg-on-brand/15 text-on-brand/70" : "bg-on-brand/20 text-on-brand hover:bg-on-brand/30 active:bg-on-brand/40"
       }`}
     >
       {icon}

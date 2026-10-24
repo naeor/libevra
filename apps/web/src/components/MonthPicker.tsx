@@ -109,7 +109,7 @@ export function MonthPicker({
                   }}
                   className={`w-full rounded-field py-3 text-sm transition ${
                     selected
-                      ? "bg-brand text-white"
+                      ? "bg-brand text-on-brand"
                       : future
                         ? "text-muted/40"
                         : "bg-canvas text-ink hover:bg-brand-soft"

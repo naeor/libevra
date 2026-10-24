@@ -783,7 +783,7 @@ export function DetailPage(): React.JSX.Element {
             the list on every frame.
           */}
           <header
-            className="detail-hero relative bg-brand px-6 text-white"
+            className="detail-hero relative bg-brand px-6 text-on-brand"
             data-pinned={atList}
           >
             <div className="flex h-9 items-center justify-between">
@@ -869,10 +869,10 @@ export function DetailPage(): React.JSX.Element {
                   onClick={() => {
                     setPickerOpen(true);
                   }}
-                  className="detail-month inline-flex items-center text-base text-white/95"
+                  className="detail-month inline-flex items-center text-base text-on-brand/95"
                 >
                   {year} 年 {monthNumber} 月
-                  <span className="detail-caret ml-1 text-[10px] text-white/75" aria-hidden="true">
+                  <span className="detail-caret ml-1 text-[10px] text-on-brand/75" aria-hidden="true">
                     ▼
                   </span>
                 </button>
@@ -890,7 +890,7 @@ export function DetailPage(): React.JSX.Element {
             </div>
 
             {summary.isPending ? (
-              <div className="mt-4 h-28 animate-pulse rounded-card bg-white/15" />
+              <div className="mt-4 h-28 animate-pulse rounded-card bg-on-brand/15" />
             ) : (
               /*
                * One strip holding every currency, primary first.
@@ -939,7 +939,7 @@ export function DetailPage(): React.JSX.Element {
                       setShowAllCurrencies(true);
                     }}
                     aria-label="更多币种"
-                    className="detail-more-currency detail-currency-card detail-small-card w-34 shrink-0 whitespace-nowrap px-4 text-left text-xs text-white/90"
+                    className="detail-more-currency detail-currency-card detail-small-card w-34 shrink-0 whitespace-nowrap px-4 text-left text-xs text-on-brand/90"
                   >
                     <span>
                       <span className="inline-block">更多</span><span className="inline-block">币种</span>
@@ -1372,7 +1372,7 @@ function ArrowButton({
       tabIndex={tabbable ? 0 : -1}
       aria-hidden={!tabbable}
       aria-label={direction === "left" ? "上一个月" : "下一个月"}
-      className="detail-arrow rounded-full p-1.5 text-white/85 transition"
+      className="detail-arrow rounded-full p-1.5 text-on-brand/85 transition"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5">
         <path
@@ -1404,17 +1404,17 @@ function MainCard({
 }): React.JSX.Element {
   return (
     <section className={`${className} detail-currency-card px-5`}>
-      <span className="detail-main-name text-xs text-white/75">{currencyName(currency)}</span>
+      <span className="detail-main-name text-xs text-on-brand/75">{currencyName(currency)}</span>
 
       {summary === null ? (
-        <span className="mt-1 text-sm text-white/80">本月暂无数据</span>
+        <span className="mt-1 text-sm text-on-brand/80">本月暂无数据</span>
       ) : (
         <>
           <span className="detail-main-amount font-semibold tabular-nums">
             {formatMoney(summary.expenseCents, summary.currency)}
           </span>
 
-          <span className="detail-main-detail mt-1 flex gap-4 text-xs text-white/80 tabular-nums">
+          <span className="detail-main-detail mt-1 flex gap-4 text-xs text-on-brand/80 tabular-nums">
             <span>入账 {formatMoney(summary.incomeCents, summary.currency)}</span>
             <span>结余 {formatMoney(summary.balanceCents, summary.currency)}</span>
           </span>
@@ -1460,15 +1460,15 @@ function SmallCard({
      */
     <div className={`detail-currency-card detail-small-card w-34 shrink-0 ${className}`}>
       <div className="flex h-full flex-col justify-center px-4">
-        <span className="text-[11px] whitespace-nowrap text-white/70">{currencyName(currency)}</span>
+        <span className="text-[11px] whitespace-nowrap text-on-brand/70">{currencyName(currency)}</span>
         {summary === null ? (
-          <span className="text-[11px] whitespace-nowrap text-white/60">暂无数据</span>
+          <span className="text-[11px] whitespace-nowrap text-on-brand/60">暂无数据</span>
         ) : (
           <>
             <span className="text-base font-medium tabular-nums whitespace-nowrap">
               {formatMoney(summary.expenseCents, summary.currency)}
             </span>
-            <span className="text-[11px] whitespace-nowrap text-white/70 tabular-nums">
+            <span className="text-[11px] whitespace-nowrap text-on-brand/70 tabular-nums">
               结余 {formatMoney(summary.balanceCents, summary.currency)}
             </span>
           </>

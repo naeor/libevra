@@ -88,7 +88,7 @@ export function GuestMePage(): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => void navigate("/register")}
-                className="w-full rounded-field bg-brand py-3 text-button font-medium text-white transition hover:bg-brand-dark"
+                className="w-full rounded-field bg-brand py-3 text-button font-medium text-on-brand transition hover:bg-brand-dark"
               >
                 创建正式账号
               </button>

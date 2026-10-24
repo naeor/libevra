@@ -152,7 +152,7 @@ export function MonthDownloadPage(): React.JSX.Element {
                 void setNeverMonth(month, !auto).then(() => load());
               }}
               className={`rounded-field px-4 py-2 text-sm font-medium transition ${
-                !never === auto ? "bg-brand text-white" : "bg-canvas text-muted"
+                !never === auto ? "bg-brand text-on-brand" : "bg-canvas text-muted"
               }`}
             >
               {auto ? "自动下载" : "永不下载"}

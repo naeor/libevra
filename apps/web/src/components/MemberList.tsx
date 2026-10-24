@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { UserAvatar } from "./UserAvatar.js";
 
 import { errorMessage } from "../lib/api.js";
 import {
@@ -148,7 +149,8 @@ function MemberRow({
   return (
     <div className="flex flex-col gap-2 px-5 py-4">
       <div className="flex items-center justify-between gap-4">
-        <span className="flex flex-col gap-0.5">
+        <UserAvatar avatarId={member.avatarId} className="size-10" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5 break-words">
           <span className="flex items-center gap-2 text-body text-ink">
             {member.displayName}
             {member.isCreator ? (
@@ -232,7 +234,7 @@ function RemoveConfirm({
           type="button"
           disabled={busy}
           onClick={onConfirm}
-          className="rounded-field bg-danger px-4 py-2 text-sm text-white transition hover:bg-danger-dark disabled:opacity-45"
+          className="rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
         >
           移出
         </button>

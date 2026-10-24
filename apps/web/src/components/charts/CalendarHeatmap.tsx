@@ -90,7 +90,7 @@ export function CalendarHeatmap({
               aria-pressed={isSelected}
               className={`flex aspect-square items-center justify-center rounded text-[10px] transition ${
                 isSelected ? "ring-2 ring-ink ring-offset-1" : ""
-              } ${level >= 3 ? "text-white" : "text-muted"}`}
+              } ${level >= 3 ? "text-on-heat" : "text-muted"}`}
               style={{ backgroundColor: heatColor(level) }}
             >
               {Number(day.bucket.slice(8, 10))}

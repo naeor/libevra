@@ -113,7 +113,7 @@ export function ChoiceDialog<Id extends string>({
               }}
               className={`w-full rounded-field px-4 py-3 text-left transition ${
                 choice.primary === true
-                  ? "bg-brand text-white hover:bg-brand-dark"
+                  ? "bg-brand text-on-brand hover:bg-brand-dark"
                   : "bg-brand-soft text-brand-dark hover:bg-brand-soft/70"
               }`}
             >
@@ -121,7 +121,7 @@ export function ChoiceDialog<Id extends string>({
               {choice.hint === undefined ? null : (
                 <span
                   className={`mt-0.5 block text-xs ${
-                    choice.primary === true ? "text-white/80" : "text-brand-dark/75"
+                    choice.primary === true ? "text-on-brand/80" : "text-brand-dark/75"
                   }`}
                 >
                   {choice.hint}

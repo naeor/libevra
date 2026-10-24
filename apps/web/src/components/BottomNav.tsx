@@ -559,7 +559,7 @@ export function BottomNav({
                   onClick={cards.onToggle}
                   aria-expanded={open}
                   aria-label={open ? "收起记账方式" : "展开记账方式"}
-                  className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"
+                  className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"
                 >
                   <PlusIcon
                     className={`size-8 transition-transform duration-200 ease-out ${

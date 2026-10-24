@@ -6,7 +6,7 @@ import { Baseline, XAxis, YAxis } from "../chart/Axis.js";
 import { Legend, type LegendItem } from "../chart/Legend.js";
 import { areaPath, linePath } from "../../lib/chart/geometry.js";
 import { createLinearScale, extentOf, niceDomain, ticksFor } from "../../lib/chart/scales.js";
-import { categoricalColor, markerPoints } from "../../lib/chart/theme.js";
+import { EXPENSE_COLOR, INCOME_COLOR, markerPoints } from "../../lib/chart/theme.js";
 import {
   bucketFullLabel,
   bucketLabel,
@@ -15,10 +15,6 @@ import {
 } from "../../lib/chart/format.js";
 import { chartNotice, summariseSeries } from "../../lib/chart/guards.js";
 import { currencyName, formatMoney } from "../../lib/format.js";
-
-/** Expense is the thing people come to look at, so it leads and is filled. */
-const EXPENSE_COLOR = categoricalColor(3);
-const INCOME_COLOR = categoricalColor(0);
 
 const PLOT_HEIGHT = 190;
 

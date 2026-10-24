@@ -6,17 +6,16 @@ import { describe, expect, it } from "vitest";
 /**
  * The colour rule, enforced rather than described.
  *
- * `docs/开发过程记录/颜色清单.md` §7 says components may not contain colour literals: adding a
+ * `docs/specs/design/颜色主题系统实现规范.md` and the colour checklist say components may not contain colour literals: adding a
  * colour means deciding which block it belongs to, and a block is a token. That
  * is easy to agree with and easy to break — one `#ffffff` in a hurry, and the
  * next person copies it. So it is checked here.
  *
- * Four files are allowed to hold literals, and only four:
+ * Three files are allowed to hold literals, and only three:
  *
  *  * `index.css` — the token definitions themselves;
- *  * `lib/chart/theme.ts` — the chart palettes, which must be literals because
- *    they are handed to SVG as strings and asserted in tests. They are *data*
- *    rather than theme; see §4 of the document.
+ *  * `lib/tagColors.ts` — user tag colours are saved as `#RRGGBB` values in the
+ *    database, so they cannot be CSS variables or follow a theme.
  *  * `components/QrCodeView.tsx` — **and this one is an optical requirement, not a
  *    colour choice.** A QR symbol is read by a camera's thresholding step, which
  *    wants the modules near 0% and the plate near 100% reflectance. **A near-black
@@ -25,11 +24,8 @@ import { describe, expect, it } from "vitest";
  *    least diagnosable kind. The owner asked for these codes *"方便当面扫码加入"*,
  *    so they have to read.
  *
- *  * `components/OceanBackdrop.tsx` — **the sea's four fills, and they are a drawing rather than a
- *    theme.** The owner specified the subject: brand green `#55997a` mixed towards white by depth,
- *    *"而不是常见的科技粒子动画"*. Reading them from tokens would mean **four tokens that exist for
- *    one illustration**, and the day a token changes the sea changes shape — **which is not what a
- *    brand palette is for.**
+ * The chart palette and ocean fills used to be exemptions; S16-B0 moved both to
+ * CSS variables, so they are checked like every other component now.
  *
  * Comments are stripped before checking, so the document and the code may talk
  * about a colour without tripping the rule.
@@ -47,7 +43,8 @@ import { describe, expect, it } from "vitest";
 const SRC = resolve(import.meta.dirname, "..");
 
 /** Files permitted to define colour literals. */
-const EXEMPT = new Set(["index.css", "theme.ts", "QrCodeView.tsx", "OceanBackdrop.tsx"]);
+// 旧头像兼容渲染保留固定插画色；审核通过的新头像及默认小花均走主题 token。
+const EXEMPT = new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx"]);
 
 /**
  * ⚠️ **One file may hardcode `rgb()`, and the reason is the same kind as `OceanBackdrop`'s.**
@@ -150,6 +147,37 @@ describe("colour literals", () => {
   });
 
   /**
+   * S16-B0: the built-in palette is now checked by name.
+   *
+   * The earlier guard deliberately did not try this, because `text-white` was
+   * correct on the green header and a name-based rule needed an allowlist. The
+   * theme refactor replaced those uses with `on-*` roles, so the one remaining
+   * legitimate fixed white is the QR plate — an optical requirement, not a
+   * colour choice. Anything else here is a colour that would not follow a theme.
+   */
+  it("do not use Tailwind's built-in palette instead of a semantic token", () => {
+    const builtIn =
+      /\b(?:text|bg|border|ring|divide|placeholder|from|via|to)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:-\d{2,3})?(?:\/\d+)?\b/g;
+    const offenders: string[] = [];
+
+    for (const path of sourceFiles(SRC)) {
+      if (!/\.(ts|tsx)$/.test(path)) continue;
+      const name = path.split(/[\\/]/).pop() ?? "";
+      if (name === "QrCodeView.tsx") continue; // white plate is read by a camera, not by the theme
+      const source = stripComments(readFileSync(path, "utf8"));
+      for (const match of source.matchAll(builtIn)) {
+        const line = source.slice(0, match.index).split("\n").length;
+        offenders.push(`${relative(SRC, path).replace(/\\/g, "/")}:${String(line)} ${match[0]}`);
+      }
+    }
+
+    expect(
+      offenders,
+      `组件用了 Tailwind 内置色，主题切换时不会跟随语义 token：\n  ${offenders.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  /**
    * ⚠️ **This test is deliberately narrow, and the limit is worth writing down** — the owner asked
    * whether the check could cover *inline styles*, *unexpected Tailwind built-ins* and *ad-hoc opacity
    * combinations*, and the honest answer is **mostly no, not cheaply**:
@@ -158,20 +186,21 @@ describe("colour literals", () => {
    *    read from the database; `backgroundColor: heatColor(level)` is a computed chart value. A rule
    *    against inline colour would flag the two cases the palette cannot own, and the honest repair
    *    would be suppression comments — which is how a rule becomes noise.
-   *  * **Tailwind built-ins cannot be told apart by name alone.** `text-white` is correct on the green
-   *    header; `text-red-500` would be a mistake. Both are "a built-in", so a name-based rule needs an
-   *    allowlist of correct ones, which then has to be maintained — and the maintenance is the cost.
+   *  * **Inline style colour cannot be separated from data.** `style={{ backgroundColor: tag.color }}`
+   *    and `backgroundColor: heatColor(level)` are the two cases the palette cannot own; a rule would
+   *    need suppressions, and suppressions are how a rule becomes noise. (Tailwind built-ins *are* checked
+   *    by name now that the `on-*` roles exist; only the QR plate remains exempt.)
    *  * **Opacity combinations are not wrong in themselves.** `text-white/80` on the brand header is a
    *    deliberate, documented limitation; a rule banning `/NN` would force it to be written some other
    *    way without making it more readable.
    *
-   * **So the constraint is recorded in the design document instead** (`颜色语义与配色规范.md` §4.3 and
+   * **So the constraint is recorded in the design document instead** (`颜色主题系统实现规范.md` §7 and the legacy `颜色语义与配色规范.md` §4.3 and
    * §9.3), where a reader gets the *reason*, rather than encoded as a rule that misfires. **This is the
    * choice the owner offered: low-cost and reliable, or documented — not a complicated rule that
    * generates false alarms.**
    */
   it("stops where a rule would start misfiring, and says so", () => {
-    expect(EXEMPT.size).toBe(4);
+    expect(EXEMPT).toEqual(new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx"]));
     expect(ALLOWED_RGBA_FILES).toEqual(["detail-motion.css"]);
     /**
       * ⚠️ **The one allowed `rgb()` is a translucency, and that is the shape of the whole exception.**

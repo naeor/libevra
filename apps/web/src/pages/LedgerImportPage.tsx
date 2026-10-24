@@ -1262,7 +1262,7 @@ function StepRail({ step }: { readonly step: Step }): React.JSX.Element {
             {index > 0 ? <span aria-hidden="true" className="h-px w-2 shrink-0 bg-line" /> : null}
             <span
               className={`flex size-5 shrink-0 items-center justify-center rounded-full text-micro font-medium ${
-                active ? "bg-brand text-white" : done ? "bg-brand-soft text-brand-dark" : "bg-canvas text-muted"
+                active ? "bg-brand text-on-brand" : done ? "bg-brand-soft text-brand-dark" : "bg-canvas text-muted"
               }`}
             >
               {index + 1}
@@ -1401,7 +1401,7 @@ function BatchJobPanel({
               type="button"
               onClick={onResume}
               disabled={busy}
-              className="rounded-field bg-brand px-3 py-2 text-button text-white disabled:opacity-50"
+              className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
             >
               {busy ? "正在恢复…" : "继续任务"}
             </button>
@@ -1411,7 +1411,7 @@ function BatchJobPanel({
               type="button"
               onClick={onConfirm}
               disabled={busy}
-              className="rounded-field bg-brand px-3 py-2 text-button text-white disabled:opacity-50"
+              className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
             >
               确认完成
             </button>
@@ -1460,7 +1460,7 @@ function PendingTaskBanner({
           type="button"
           onClick={() => onResume(task)}
           disabled={busy}
-          className="rounded-field bg-brand px-3 py-2 text-button text-white disabled:opacity-50"
+          className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
         >
           {busy ? "正在检查…" : "继续检查结果"}
         </button>
@@ -2195,7 +2195,7 @@ function SourceRetentionCard({
                 type="button"
                 onClick={() => setGuestConfirmOpen(true)}
                 disabled={guestBusy}
-                className="rounded-field bg-brand px-3 py-2 text-button text-white disabled:opacity-50"
+                className="rounded-field bg-brand px-3 py-2 text-button text-on-brand disabled:opacity-50"
               >
                 清理这 {String(guestPreview.cleanableCount)} 笔
               </button>

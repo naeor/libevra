@@ -49,7 +49,7 @@ function BillSelect({
   return (
     <select
       {...props}
-      className="min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+      className="min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
     >
       {children}
     </select>
@@ -465,7 +465,7 @@ function BillRowEditor({
   readonly onPatch: (patch: Partial<BillImportCandidate>) => void;
 }): React.JSX.Element {
   const fieldClass =
-    "min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-brand-soft";
+    "min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-focus-ring";
 
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-3">
@@ -817,7 +817,7 @@ export function BillCommitBar({
             type="button"
             disabled={disabled}
             onClick={onConfirm}
-            className="min-h-11 rounded-field bg-brand px-4 py-2.5 text-button-lg font-medium text-white shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
+            className="min-h-11 rounded-field bg-brand px-4 py-2.5 text-button-lg font-medium text-on-brand shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
             {busy ? "正在导入…" : `确认导入 ${String(importableCount)} 笔`}
           </button>

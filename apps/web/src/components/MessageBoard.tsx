@@ -399,7 +399,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
           rows={1}
           placeholder="写一条留言…"
           aria-label="写留言"
-          className="min-h-10 flex-1 resize-none rounded-field border border-line/70 bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand/60 focus:ring-4 focus:ring-brand-soft"
+          className="min-h-10 flex-1 resize-none rounded-field border border-line/70 bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand/60 focus:ring-4 focus:ring-focus-ring"
         />
 
         <button
@@ -415,7 +415,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
             * 邀请成员 button's `px-4 py-2.5 text-sm`. The owner: *"这不是全页面级主操作，不应做成
             * 大面积绿色按钮"* and *"视觉上它是'局部操作按钮'，不是一级主操作按钮."*
             */
-          className="shrink-0 rounded-field bg-brand px-3.5 py-2 text-xs font-medium text-white transition hover:bg-brand-dark disabled:opacity-45"
+          className="shrink-0 rounded-field bg-brand px-3.5 py-2 text-xs font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
         >
           {composer.sending ? "…" : "发送"}
         </button>
@@ -475,7 +475,7 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
             type="button"
             data-back-control
             onClick={goBack}
-            className="-ml-3 flex h-11 shrink-0 items-center gap-1 rounded-field pr-3 pl-2 text-base text-brand-dark transition hover:bg-brand-soft active:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+            className="-ml-3 flex h-11 shrink-0 items-center gap-1 rounded-field pr-3 pl-2 text-base text-brand-dark transition hover:bg-brand-soft active:bg-brand-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
             <ChevronIcon direction="left" className="size-5" />
             返回
@@ -537,7 +537,7 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
               onClick={() => {
                 void composer.send();
               }}
-              className="shrink-0 rounded-field bg-brand px-4 py-3 text-sm text-white transition hover:bg-brand-dark disabled:opacity-45"
+              className="shrink-0 rounded-field bg-brand px-4 py-3 text-sm text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
             >
               {composer.sending ? "发送中……" : "发送"}
             </button>

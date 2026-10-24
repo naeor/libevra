@@ -74,7 +74,7 @@ export function BatchActionBar({
             type="button"
             disabled={disabled}
             onClick={onDelete}
-            className="rounded-field bg-danger px-4 py-2.5 text-sm font-medium text-white transition hover:bg-danger-dark disabled:cursor-not-allowed disabled:opacity-45"
+            className="rounded-field bg-danger px-4 py-2.5 text-sm font-medium text-on-danger transition hover:bg-danger-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
             批量删除
           </button>

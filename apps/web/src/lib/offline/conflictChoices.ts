@@ -1,4 +1,4 @@
-import { categoricalColor } from "../chart/theme.js";
+import { DEFAULT_TAG_COLOR } from "../tagColors.js";
 import type { Transaction } from "@libellum/shared";
 import type { ConflictRecord } from "./localLedger.js";
 import { FIELD_LABELS, mergeEntries, type MergeField } from "./merge.js";
@@ -49,7 +49,7 @@ export function applyConflictChoices(
   for (const [field, value] of choices) {
     if (field === "tags") {
       const known = new Map([...sources.flatMap(source => source.tags), ...(names.tags ?? [])].map(tag => [tag.id, tag]));
-      result.tags = (value as string[]).map(id => ({ id, name: known.get(id)?.name ?? id, color: known.get(id)?.color ?? categoricalColor(0) }));
+      result.tags = (value as string[]).map(id => ({ id, name: known.get(id)?.name ?? id, color: known.get(id)?.color ?? DEFAULT_TAG_COLOR }));
     } else (result as unknown as Record<string, unknown>)[field] = value;
   }
   if (choices.has("categoryId")) {

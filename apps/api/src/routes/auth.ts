@@ -15,6 +15,7 @@ import {
   type RegistrationMode,
   type SessionUser,
   updatePreferencesRequestSchema,
+  updateProfileRequestSchema,
 } from "@libellum/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
@@ -68,6 +69,7 @@ type UserRow = {
   accountNumber: string;
   username: string;
   displayName: string;
+  avatarId: string;
   isDemo: boolean;
   defaultCurrency: string;
   createdAt: Date;
@@ -79,6 +81,7 @@ function toSessionUser(user: UserRow): SessionUser {
     accountNumber: user.accountNumber,
     username: user.username,
     displayName: user.displayName,
+    avatarId: user.avatarId,
     isDemo: user.isDemo,
     // See the guard: the column type is wider than the supported set, and only
     // a manual database edit could put anything else in it.
@@ -157,6 +160,29 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
   }
 
   const requireAuth = createRequireAuth(prisma);
+
+  app.patch("/api/v1/auth/profile", { preHandler: requireAuth }, async (request) => {
+    const body = updateProfileRequestSchema.parse(request.body);
+    const id = request.currentUser!.id;
+    try {
+      const user = await prisma.$transaction(async (tx) => {
+        const result = await tx.user.updateMany({
+          where: { id, [body.field]: body.previousValue },
+          data: { [body.field]: body.value },
+        });
+        if (result.count !== 1) {
+          throw conflict("profile_changed", "这项资料已在其他设备修改，请刷新后再试。当前输入仍保留。");
+        }
+        return tx.user.findUniqueOrThrow({ where: { id } });
+      });
+      return meResponseSchema.parse({ user: toSessionUser(user) });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        throw conflict("username_taken", "该用户名已被占用，请换一个。");
+      }
+      throw error;
+    }
+  });
 
   // ---------------------------------------------------------------------------
   // GET /api/v1/auth/registration-config

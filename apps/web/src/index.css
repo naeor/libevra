@@ -129,12 +129,55 @@
   --color-warn-dark: #8f6420;
   --color-warn-soft: #fdf6e7;
 
+  /* ---- Foreground roles (S16-B0) --------------------------------------
+   * Filled controls need a foreground *role*, not a literal white. Keep the
+   * current white as the default so the green light theme is visually unchanged;
+   * a designed palette can override these without touching components.
+   */
+  --color-on-brand: #ffffff;
+  --color-on-danger: #ffffff;
+  --color-on-warn: #1a1206;
+  --color-on-ink: #ffffff;
+  --color-on-heat: #ffffff;
+  --color-on-tag: #ffffff;
+  --color-control-knob: #ffffff;
+  --color-focus-ring: #edf5f0;
+  --color-line-strong: #7f8f87;
+
+  /* ---- Financial data semantics -------------------------------------- */
+  --color-data-expense: #b8574f;
+  --color-data-income: #3f7a5f;
+  --color-data-transfer: #4a7fb5;
+
+  /* ---- Data visualisation: independent palette ----------------------- */
+  --color-chart-1: #3f7a5f;
+  --color-chart-2: #4a7fb5;
+  --color-chart-3: #c08a3e;
+  --color-chart-4: #b8574f;
+  --color-chart-5: #7a6bb0;
+  --color-chart-6: #5d8c8c;
+  --color-chart-7: #8a8f5c;
+  --color-chart-8: #a86f9a;
+  --color-chart-heat-0: #eef1ef;
+  --color-chart-heat-1: #d7e8dd;
+  --color-chart-heat-2: #a9d0ba;
+  --color-chart-heat-3: #79b596;
+  --color-chart-heat-4: #4b8a6d;
+
+  /* ---- Illustration + glass ------------------------------------------ */
+  --color-ocean-1: #3f7059;
+  --color-ocean-2: #4f8a6d;
+  --color-ocean-3: #6aa78a;
+  --color-ocean-4: #96c4ac;
+  --color-on-ocean: #ffffff;
+  --color-glass-highlight: rgb(255 255 255 / 0.14);
+
   /* ---- Interaction states --------------------------------------------
    *
    * ⚠️ **These exist because the audit found the states were the one thing with no token at all.**
    * Colours had been thought about; *states* had not. The result was measurable:
    *
-   *  * **Focus had no rule.** `focus:ring-4 focus:ring-brand-soft` was written out per component, so
+   *  * **Focus had no rule.** `focus:ring-4 focus:ring-focus-ring` was written out per component, so
    *    **whether a control showed a focus ring depended on who wrote it** — and `Button`, the most
    *    used control in the app, **had none at all** until this round.
    *  * **The overlay had no name.** `bg-ink/25` and `bg-ink/35` both meant "dim what is behind this",
@@ -541,6 +584,10 @@ body {
  * against asking for less than 16px. **Neither half of that pair may be deleted.**
  */
 @layer base {
+  /* S16-B0: two root dimensions; dark/palette value blocks are later design work. */
+  html { color-scheme: light; }
+  html[data-theme-mode="dark"] { color-scheme: dark; }
+
   /* Keep the numeric keypad on mobile when entering amounts or codes. */
   input[inputmode="numeric"],
   input[inputmode="decimal"] {
@@ -588,7 +635,7 @@ body {
   left: calc(50% * (1 - var(--p)) + var(--space-content-left, 24px) * var(--p));
   top: calc(var(--sea-h) * 0.34 * (1 - var(--p)) + (14px + env(safe-area-inset-top, 0px)) * var(--p));
   transform: translate(calc(-50% * (1 - var(--p))), calc(-50% * (1 - var(--p))));
-  color: white;
+  color: var(--color-on-ocean);
   white-space: nowrap;
 }
 .space-brand-name { font-size: calc(2.1rem - 0.7rem * var(--p)); font-weight: 600; letter-spacing: 0.16em; line-height: 1.3; }

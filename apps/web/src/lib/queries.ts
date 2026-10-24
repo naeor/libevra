@@ -781,6 +781,7 @@ export function useLedgerHistory(limit: number) {
 export interface BookMemberView {
   readonly userId: string;
   readonly displayName: string;
+  readonly avatarId?: string;
   readonly username: string;
   readonly accountNumber: string;
   readonly role: "owner" | "editor" | "viewer";

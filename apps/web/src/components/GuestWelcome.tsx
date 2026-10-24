@@ -49,12 +49,12 @@ export function GuestWelcome(): React.JSX.Element | null {
 
   return (
     <div className="guest-welcome flex items-center justify-center" aria-hidden="true">
-      <div className="flex flex-col items-center gap-3 text-white">
-        <span className="flex size-16 items-center justify-center rounded-2xl bg-white/15">
+      <div className="flex flex-col items-center gap-3 text-on-brand">
+        <span className="flex size-16 items-center justify-center rounded-2xl bg-on-brand/15">
           <BrandMark className="size-8" />
         </span>
         <p className="text-2xl font-semibold tracking-tight">Libevra</p>
-        <p className="text-body text-white/85">游客模式 · 数据只保存在这台设备</p>
+        <p className="text-body text-on-brand/85">游客模式 · 数据只保存在这台设备</p>
       </div>
     </div>
   );

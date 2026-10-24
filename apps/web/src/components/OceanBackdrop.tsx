@@ -1,7 +1,16 @@
 import { useEffect, useRef } from "react";
 import { oceanPath } from "../lib/oceanGeometry.js";
 
-const OCEAN_COLORS = ["#3f7059", "#4f8a6d", "#6aa78a", "#96c4ac"] as const;
+/**
+ * The sea's four fills are tokens (S16-B0). Geometry, layers and motion are
+ * unchanged; a future palette can supply a matching ramp in CSS.
+ */
+const OCEAN_COLORS = [
+  "var(--color-ocean-1)",
+  "var(--color-ocean-2)",
+  "var(--color-ocean-3)",
+  "var(--color-ocean-4)",
+] as const;
 
 /**
  * One drawing and one brand, continuously reshaped by the page's progress.

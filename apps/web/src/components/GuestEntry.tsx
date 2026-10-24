@@ -26,7 +26,7 @@ export function GuestEntry(): React.JSX.Element {
           // ignored here because the app reports a storage problem if there is one.
           createGuestIdentity();
         }}
-        className="inline-flex min-h-11 items-center justify-center gap-1 rounded-field px-4 text-helper text-muted transition hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft focus-visible:outline-none"
+        className="inline-flex min-h-11 items-center justify-center gap-1 rounded-field px-4 text-helper text-muted transition hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring focus-visible:outline-none"
       >
         以游客身份继续
         <span aria-hidden="true" className="text-brand">

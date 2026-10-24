@@ -1,4 +1,4 @@
-import { authResponseSchema, meResponseSchema, type SessionUser } from "@libellum/shared";
+import { authResponseSchema, meResponseSchema, type SessionUser, type UpdateProfileRequest } from "@libellum/shared";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { ApiRequestError, apiFetch } from "../lib/api.js";
@@ -44,6 +44,7 @@ interface AuthContextValue {
   /** `preserveOfflineData` keeps the downloaded ledger cache when signing out from the consent gate. */
   logout(options?: { readonly preserveOfflineData?: boolean }): Promise<void>;
   reload(): Promise<void>;
+  updateProfile(input: UpdateProfileRequest): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -225,7 +226,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     async function revalidate(): Promise<void> {
       try {
         const response = await apiFetch<unknown>("/auth/me");
-        if (!cancelled) setUser(meResponseSchema.parse(response).user);
+        if (!cancelled) {
+          const current = meResponseSchema.parse(response).user;
+          setUser(current);
+          await rememberUser(current);
+        }
       } catch (error) {
         if (cancelled) return;
         if (error instanceof ApiRequestError && error.status === 401) {
@@ -337,9 +342,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     setSessionEndReason(null);
   }, [forgetLocalState]);
 
+  const updateProfile = useCallback(async (input: UpdateProfileRequest) => {
+    const response = meResponseSchema.parse(await apiFetch<unknown>("/auth/profile", { method: "PATCH", body: input }));
+    setUser(response.user);
+    await rememberUser(response.user);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, status, sessionRevoked, sessionEndReason, login, register, logout, reload }),
-    [user, status, sessionRevoked, sessionEndReason, login, register, logout, reload],
+    () => ({ user, status, sessionRevoked, sessionEndReason, login, register, logout, reload, updateProfile }),
+    [user, status, sessionRevoked, sessionEndReason, login, register, logout, reload, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

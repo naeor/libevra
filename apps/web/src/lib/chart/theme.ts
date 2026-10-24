@@ -8,35 +8,26 @@
  *    shape, so a legend and a chart stay readable for someone who cannot
  *    separate the hues, or is looking at a washed-out screen in daylight.
  *
- * ⚠️ **This file holds values, not tokens — read `docs/开发过程记录/颜色清单.md` §4 before
- * touching it.** Charts are the one place the theme cannot reach: the colours
- * are handed to SVG as strings and asserted in tests, so they have to be
- * literals rather than `var(--…)`. Two consequences worth knowing:
+ * Charts now read the same CSS variables as the rest of the app (S16-B0), so a
+ * future dark theme can supply its own ramp without touching this module. The
+ * exports are CSS `var(--…)` strings; SVG accepts them directly. Tests must use
+ * `var(--color-chart-…)` in expectations, not a resolved hex.
  *
- *  * **A chart series is not the accent colour.** `#55997a` used to be first in
- *    this list *and* the interface accent, so the first slice of every donut was
- *    the same green as the button above it — a reader could not tell which was
- *    the theme and which was data. The list now starts on a deeper, more muted
- *    green, which keeps the accent being the accent.
- *  * **This palette may change independently of the theme.** It is chosen for
- *    distinguishability rather than for matching, so a future dark mode wants
- *    its own ramp here, not a recoloured copy of this one.
+ * Financial data colours are a separate axis from the categorical palette:
+ * expense and income have stable meanings regardless of the user's accent
+ * palette. They point at `--color-data-*`, not `--color-chart-*`.
  */
 
-/**
- * Eight hues, ordered so neighbouring entries differ in both hue and lightness.
- *
- * The first entry is deliberately *not* the accent green — see the note above.
- */
+/** Eight categorical hues, kept low-saturation and distinct in both hue and lightness. */
 export const CATEGORICAL_COLORS: readonly string[] = [
-  "#3f7a5f",
-  "#4a7fb5",
-  "#c08a3e",
-  "#b8574f",
-  "#7a6bb0",
-  "#5d8c8c",
-  "#8a8f5c",
-  "#a86f9a",
+  "var(--color-chart-1)",
+  "var(--color-chart-2)",
+  "var(--color-chart-3)",
+  "var(--color-chart-4)",
+  "var(--color-chart-5)",
+  "var(--color-chart-6)",
+  "var(--color-chart-7)",
+  "var(--color-chart-8)",
 ];
 
 export function categoricalColor(index: number): string {
@@ -60,11 +51,11 @@ export function categoricalColor(index: number): string {
  * not be collapsed into one token.
  */
 export const HEAT_COLORS: readonly string[] = [
-  "#eef1ef",
-  "#d7e8dd",
-  "#a9d0ba",
-  "#79b596",
-  "#4b8a6d",
+  "var(--color-chart-heat-0)",
+  "var(--color-chart-heat-1)",
+  "var(--color-chart-heat-2)",
+  "var(--color-chart-heat-3)",
+  "var(--color-chart-heat-4)",
 ];
 
 export function heatColor(level: number): string {
@@ -72,6 +63,11 @@ export function heatColor(level: number): string {
 
   return HEAT_COLORS[clamped] ?? HEAT_COLORS[0]!;
 }
+
+/** Financial-meaning colours; these do not follow the accent palette. */
+export const EXPENSE_COLOR = "var(--color-data-expense)";
+export const INCOME_COLOR = "var(--color-data-income)";
+export const TRANSFER_COLOR = "var(--color-data-transfer)";
 
 export type MarkerShape = "circle" | "square" | "triangle" | "diamond";
 

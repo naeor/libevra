@@ -38,12 +38,12 @@ export function TabPageHeader({
       * primitive, so **one class string used by both screens is the enforcement** — there is no second
       * copy to edit.
       */
-    <header className="bg-brand px-6 pt-8 pb-6 text-white">
+    <header className="bg-brand px-6 pt-8 pb-6 text-on-brand">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           {/**
             * ⚠️ **`text-page-title`**, and no colour class: the header sets
-            * `text-white`, so the title inherits it. **Adding `text-white` here would be a second place
+            * `text-on-brand`, so the title inherits it. **Adding `text-on-brand` here would be a second place
             * saying the same thing**, and the day the header changes colour the title would not follow.
             */}
           <h1 className="flex items-center gap-2 text-page-title">
@@ -51,7 +51,7 @@ export function TabPageHeader({
             <GuestModeBadge className="translate-y-0.5" />
           </h1>
           {/**
-            * ⚠️ **`mt-1.5 text-body-relaxed text-white/80`** — the exact gap and weight both
+            * ⚠️ **`mt-1.5 text-body-relaxed text-on-brand/80`** — the exact gap and weight both
             * screens already used. **`leading-relaxed` matters more than it looks**: the subtitle is
             * allowed to wrap to two lines at 320 px, and the tighter default would change the header's
             * height between phones.
@@ -68,7 +68,7 @@ export function TabPageHeader({
             * full white is taken because it is the best available within the constraint** — it is a
             * supplementary sentence, not an instruction anyone has to act on.
             */}
-          <p className="mt-1.5 text-body-relaxed text-white">{subtitle}</p>
+          <p className="mt-1.5 text-body-relaxed text-on-brand">{subtitle}</p>
         </div>
 
         {action}

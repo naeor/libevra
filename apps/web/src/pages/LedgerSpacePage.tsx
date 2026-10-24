@@ -7,6 +7,7 @@ import { BookManageSheet } from "../components/BookManageSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { GuestModeBadge } from "../components/GuestModeBadge.js";
 import { AvatarIcon } from "../components/Icons.js";
+import { UserAvatar } from "../components/UserAvatar.js";
 import { GearIcon, PlusIcon } from "../components/Icons.js";
 import { OceanBackdrop } from "../components/OceanBackdrop.js";
 import { SkeletonRows } from "../components/States.js";
@@ -417,6 +418,7 @@ export function LedgerSpacePage(): React.JSX.Element {
  * *"从账户页面能够通过合理的现有入口返回账本空间."*
  */
 function AccountButton({ enabled }: { readonly enabled: boolean }): React.JSX.Element {
+  const { user } = useAuth();
   return (
     <a
       href="/me"
@@ -435,15 +437,8 @@ function AccountButton({ enabled }: { readonly enabled: boolean }): React.JSX.El
       aria-label="我的"
       className="space-account"
     >
-      {/**
-        * ⚠️ **White, in both identities** (S14-C UI fix, 1.14.05). The owner reported that the
-        * muted grey sat too close to the deep-green band to be recognisable; white is the same
-        * colour the wordmark and the note beneath it already use. **Only this icon changes** — the
-        * other account avatars (`DefaultAvatar` on 我的/成员) keep their existing colours.
-        *
-        * Still no ring: the portrait's own tinted disc lifts it off the water.
-        */}
-      <AvatarIcon className="size-[26px] text-white" />
+      {/* 正式账户显示已保存的系统头像；游客保留原白色账户图标。点击时机仍由海浪状态决定。 */}
+      {user ? <UserAvatar avatarId={user.avatarId} className="size-8" /> : <AvatarIcon className="size-[26px] text-on-brand" />}
     </a>
   );
 }

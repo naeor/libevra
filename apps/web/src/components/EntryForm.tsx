@@ -108,7 +108,7 @@ export function ReviewStep({
               patch({ kind: option });
             }}
             className={`flex-1 rounded-field py-2.5 text-sm font-medium transition ${
-              value.kind === option ? "bg-brand text-white" : "bg-surface text-muted"
+              value.kind === option ? "bg-brand text-on-brand" : "bg-surface text-muted"
             }`}
           >
             {option === "expense" ? "支出" : "收入"}

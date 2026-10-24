@@ -326,7 +326,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-ink">币种</span>
           <select
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={form.currency}
             onChange={(event) => { patch({ currency: event.target.value }); }}
           >
@@ -353,7 +353,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             <span className="text-sm font-medium text-ink">日期</span>
             <input
               type="date"
-              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
               value={form.date}
               onChange={(event) => { patch({ date: event.target.value }); }}
             />
@@ -362,7 +362,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             <span className="text-sm font-medium text-ink">时间</span>
             <input
               type="time"
-              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
               value={form.time}
               onChange={(event) => { patch({ time: event.target.value }); }}
             />
@@ -379,7 +379,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-ink">分类</span>
           <select
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={categoryOptions.some((category) => category.id === form.categoryId) ? form.categoryId : ""}
             onChange={(event) => { patch({ categoryId: event.target.value }); }}
           >
@@ -401,7 +401,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-ink">渠道 / 支付方式</span>
           <select
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={methodOptions.some((method) => method.id === form.paymentMethodId) ? form.paymentMethodId : ""}
             onChange={(event) => { patch({ paymentMethodId: event.target.value }); }}
           >
@@ -461,7 +461,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
           <textarea
             rows={3}
             maxLength={200}
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={form.note}
             placeholder="可以留空"
             onChange={(event) => { patch({ note: event.target.value }); }}

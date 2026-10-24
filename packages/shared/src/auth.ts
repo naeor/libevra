@@ -102,6 +102,8 @@ export const sessionUserSchema = z.object({
   accountNumber: z.string(),
   username: z.string(),
   displayName: z.string(),
+  /** 旧的离线缓存没有此字段时，界面使用 flower。 */
+  avatarId: z.string().optional(),
   isDemo: z.boolean(),
   /**
    * The currency this account treats as primary: it leads every currency list,

@@ -141,7 +141,7 @@ export function StatsPage(): React.JSX.Element {
                 setPreset(option);
               }}
               className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${
-                preset === option ? "bg-brand text-white" : "bg-surface text-muted hover:text-ink"
+                preset === option ? "bg-brand text-on-brand" : "bg-surface text-muted hover:text-ink"
               }`}
             >
               {RANGE_LABELS[option]}
@@ -158,7 +158,7 @@ export function StatsPage(): React.JSX.Element {
                 setCurrency(option);
               }}
               className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${
-                currencyInUse === option ? "bg-brand text-white" : "bg-surface text-muted hover:text-ink"
+                currencyInUse === option ? "bg-brand text-on-brand" : "bg-surface text-muted hover:text-ink"
               }`}
             >
               {currencyName(option)}
@@ -204,7 +204,7 @@ export function StatsPage(): React.JSX.Element {
                     setKind(option);
                   }}
                   className={`rounded-full px-4 py-1.5 text-sm transition ${
-                    kind === option ? "bg-brand text-white" : "bg-canvas text-muted hover:text-ink"
+                    kind === option ? "bg-brand text-on-brand" : "bg-canvas text-muted hover:text-ink"
                   }`}
                 >
                   {option === "expense" ? "支出" : "收入"}
@@ -256,7 +256,7 @@ export function StatsPage(): React.JSX.Element {
                 setHeatRange(option);
               }}
               className={`rounded-full px-4 py-1.5 text-sm transition ${
-                heatRange === option ? "bg-brand text-white" : "bg-canvas text-muted hover:text-ink"
+                heatRange === option ? "bg-brand text-on-brand" : "bg-canvas text-muted hover:text-ink"
               }`}
             >
               {option === "7d" ? "近 7 天" : "本月"}

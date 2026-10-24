@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" style="color:var(--avatar-on-brand,var(--color-on-brand,#fff))" role="img" aria-labelledby="daoxuan-title" data-design="daoxuan-b-special">
+  <title id="daoxuan-title">倒悬 · 特典版</title>
+  <defs>
+    <mask id="daoxuan-under-0" x="0" y="0" width="96" height="96" maskUnits="userSpaceOnUse" style="mask-type:luminance"><rect width="96" height="96" fill="white"/><g fill="none" stroke="black" stroke-width="7.2" stroke-linecap="butt"><path d="M36.94 29.531Q49.894 32.132 55.272 39.107"/></g></mask>
+    <mask id="daoxuan-under-1" x="0" y="0" width="96" height="96" maskUnits="userSpaceOnUse" style="mask-type:luminance"><rect width="96" height="96" fill="white"/><g fill="none" stroke="black" stroke-width="7.2" stroke-linecap="butt"><path d="M39.268 63.813Q35.043 51.293 38.395 43.149"/></g></mask>
+    <mask id="daoxuan-under-2" x="0" y="0" width="96" height="96" maskUnits="userSpaceOnUse" style="mask-type:luminance"><rect width="96" height="96" fill="white"/><g fill="none" stroke="black" stroke-width="7.2" stroke-linecap="butt"><path d="M67.792 44.656Q59.063 54.574 50.333 55.744"/></g></mask>
+    <mask id="daoxuan-orbit-clearance" x="0" y="0" width="96" height="96" maskUnits="userSpaceOnUse" style="mask-type:luminance">
+      <rect width="96" height="96" fill="white"/>
+      <path d="M48 82Q15.264 27.1 79.177 28Q48 83.8 16.823 28Q80.736 27.1 48 82Z" fill="none" stroke="black" stroke-width="8.1" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16.823 28H30L24 42ZM79.177 28H66L72 42Z" fill="black"/>
+      <path d="M48 10Q48.8 14.2 52.1 15Q48.8 15.8 48 20Q47.2 15.8 43.9 15Q47.2 14.2 48 10Z" fill="black" stroke="black" stroke-width="2.2"/>
+      <circle cx="25.473" cy="63.773" r="3.2" fill="black"/><circle cx="66.451" cy="59.982" r="4" fill="black"/>
+    </mask>
+  </defs>
+  <circle cx="48" cy="48" r="48" fill="var(--avatar-backdrop,var(--color-brand-dark,#447d63))"/>
+  <g data-layer="orbits" fill="none" stroke="currentColor" stroke-width=".95" mask="url(#daoxuan-orbit-clearance)">
+    <circle cx="48" cy="48" r="33" stroke-opacity="0.18"/>
+    <circle cx="48" cy="48" r="27.5" stroke-opacity="0.14"/>
+    <circle cx="48" cy="48" r="22" stroke-opacity="0.11"/>
+  </g>
+  <g data-layer="symbols" fill="currentColor">
+    <path data-symbol="star" d="M48 10Q48.8 14.2 52.1 15Q48.8 15.8 48 20Q47.2 15.8 43.9 15Q47.2 14.2 48 10Z" fill-opacity=".7"/>
+    <circle data-symbol="solid" cx="25.473" cy="63.773" r="1.9" fill-opacity=".5"/>
+    <circle data-symbol="hollow" cx="66.451" cy="59.982" r="2.4" fill="none" stroke="currentColor" stroke-width=".95" stroke-opacity=".46"/>
+  </g>
+  <g data-layer="knot" fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round" opacity=".96">
+    <path d="M48 82Q15.264 27.1 79.177 28" mask="url(#daoxuan-under-0)"/>
+    <path d="M79.177 28Q48 83.8 16.823 28" mask="url(#daoxuan-under-1)"/>
+    <path d="M16.823 28Q80.736 27.1 48 82" mask="url(#daoxuan-under-2)"/>
+  </g>
+</svg>

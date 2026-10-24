@@ -40,7 +40,7 @@ export function SyncBanner(): React.JSX.Element | null {
   return (
     <div
       role="status"
-      className="sticky top-0 z-30 bg-danger px-5 py-2.5 text-center text-helper-relaxed font-medium text-white"
+      className="sticky top-0 z-30 bg-danger px-5 py-2.5 text-center text-helper-relaxed font-medium text-on-danger"
     >
       {readOnly
         ? /**

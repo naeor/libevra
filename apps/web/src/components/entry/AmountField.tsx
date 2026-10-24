@@ -57,7 +57,7 @@ export function AmountField({
   return (
     <div
       data-entry-amount="card"
-      className="flex items-center gap-2 rounded-card border-2 border-brand bg-surface px-4 py-4 shadow-sm has-[input:focus-visible]:ring-4 has-[input:focus-visible]:ring-brand-soft"
+      className="flex items-center gap-2 rounded-card border-2 border-brand bg-surface px-4 py-4 shadow-sm has-[input:focus-visible]:ring-4 has-[input:focus-visible]:ring-focus-ring"
     >
       <span aria-hidden="true" className="text-2xl text-brand-dark">
         {currencySymbol(currency)}

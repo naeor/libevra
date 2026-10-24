@@ -4,13 +4,11 @@ import { useState } from "react";
 import { ChartFrame } from "../chart/ChartFrame.js";
 import { Baseline, YAxis } from "../chart/Axis.js";
 import { createLinearScale, niceDomain, ticksFor } from "../../lib/chart/scales.js";
-import { categoricalColor } from "../../lib/chart/theme.js";
+import { EXPENSE_COLOR, INCOME_COLOR } from "../../lib/chart/theme.js";
 import { formatAxisAmount, formatExactAmount } from "../../lib/chart/format.js";
 import { summariseSeries } from "../../lib/chart/guards.js";
 import { currencyName, formatMoney } from "../../lib/format.js";
 
-const EXPENSE_COLOR = categoricalColor(3);
-const INCOME_COLOR = categoricalColor(0);
 
 /**
  * Month against month, with the comparison made honest.

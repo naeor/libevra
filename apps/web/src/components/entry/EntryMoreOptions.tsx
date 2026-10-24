@@ -113,7 +113,7 @@ export function EntryMoreOptions({
                     }}
                     className={`rounded-full px-4 py-2 text-sm transition ${
                       method.id === paymentMethodId
-                        ? "bg-brand text-white"
+                        ? "bg-brand text-on-brand"
                         : "bg-surface text-ink hover:bg-brand-soft"
                     }`}
                   >
@@ -133,7 +133,7 @@ export function EntryMoreOptions({
                 }}
                 maxLength={200}
                 placeholder="可不填"
-                className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
               />
             </label>
 
@@ -160,7 +160,7 @@ export function EntryMoreOptions({
                         }
                         className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
                           selected
-                            ? "text-white"
+                            ? "text-on-tag"
                             : "border-line bg-surface text-ink hover:bg-brand-soft"
                         }`}
                       >

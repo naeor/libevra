@@ -51,7 +51,7 @@ describe("ChoiceDialog", () => {
   it("marks exactly one option as primary", () => {
     const html = render();
 
-    expect(html.split("bg-brand text-white").length - 1).toBe(1);
+    expect(html.split("bg-brand text-on-brand").length - 1).toBe(1);
   });
 
   it("announces itself as a dialog and names itself", () => {

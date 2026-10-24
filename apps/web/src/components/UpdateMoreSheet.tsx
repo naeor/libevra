@@ -123,7 +123,7 @@ export function UpdateMoreSheet({
             type="button"
             onClick={onClose}
             aria-label="关闭更多菜单"
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-brand-soft"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
               <path d="m6 6 12 12M18 6 6 18" />
