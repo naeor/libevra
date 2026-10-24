@@ -1,4 +1,13 @@
+import { t } from "../../i18n/index.js";
 import { quantile } from "./scales.js";
+
+/**
+ * 图表说的是哪一类金额（S16）：`expense` = 支出，`flow` = 收支（支出与收入一起）。
+ *
+ * ⚠️ 以前调用方直接传中文（"支出" / "收支"）拼进句子；英文语序不同，拼不出来，所以改成传 ID，
+ * 整句在 `stats.notice.*` 里按当前语言取。
+ */
+export type ChartSubject = "expense" | "flow";
 
 /**
  * What a series is, before anything is drawn.
@@ -92,13 +101,13 @@ export function canCompare(previous: number | null | undefined): boolean {
 export function chartNotice(
   hasEntries: boolean,
   values: readonly number[],
-  subject: string,
+  subject: ChartSubject,
 ): string | null {
-  if (!hasEntries) return `所选时段暂无${subject}记录。`;
+  if (!hasEntries) return t(`stats.notice.empty.${subject}`);
 
   const summary = summariseSeries(values);
 
-  if (summary.state === "all-zero") return "所选时段已有记录，但金额均为零。";
+  if (summary.state === "all-zero") return t("stats.notice.allZero");
 
   return null;
 }
@@ -115,16 +124,16 @@ export function chartNotice(
  * Use `chartNotice` where the values have been gap-filled; this one is for
  * data that naturally has no rows when there is nothing to show.
  */
-export function emptyStateMessage(state: ChartState, subject: string): string | null {
+export function emptyStateMessage(state: ChartState, subject: ChartSubject): string | null {
   switch (state) {
     case "empty":
-      return `所选时段暂无${subject}记录。`;
+      return t(`stats.notice.empty.${subject}`);
 
     case "all-zero":
-      return "所选时段已有记录，但金额均为零。";
+      return t("stats.notice.allZero");
 
     case "single":
-      return `所选时段仅有一项${subject}，占比分析暂不适用。`;
+      return t(`stats.notice.single.${subject}`);
 
     case "ready":
     default:

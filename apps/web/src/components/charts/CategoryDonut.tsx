@@ -6,13 +6,18 @@ import { arcPath } from "../../lib/chart/geometry.js";
 import { categoricalColor, markerPoints, markerShape, type MarkerShape } from "../../lib/chart/theme.js";
 import { emptyStateMessage, summariseSeries } from "../../lib/chart/guards.js";
 import { formatMoney } from "../../lib/format.js";
+import { displayCategoryName } from "../../lib/presetNames.js";
+import { useI18n } from "../../i18n/index.js";
 
 /** Beyond this many slices the ring becomes confetti; the rest become 其它. */
 const MAX_SLICES = 6;
 
 interface Slice {
   readonly id: string | null;
+  /** 分类的原名（数据）；“其它 N 项”这一片为空串，显示名在渲染时按当前语言生成。 */
   readonly name: string;
+  /** 只有“其它 N 项”这一片有：被合并进来的分类数。 */
+  readonly othersCount?: number;
   readonly minor: number;
   readonly share: number;
   readonly color: string;
@@ -39,19 +44,25 @@ export function CategoryDonut({
   readonly currency: string;
   readonly onSelectCategory?: (categoryId: string) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const slices = useMemo(() => buildSlices(totals), [totals]);
   const total = slices.reduce((sum, slice) => sum + slice.minor, 0);
   const summary = summariseSeries(slices.map((slice) => slice.minor));
+  /** 显示名：预置分类按当前语言显示，用户自建 / 改过名的原样；“其它 N 项”按当前语言生成。 */
+  const sliceLabel = (slice: Slice): string =>
+    slice.othersCount === undefined
+      ? displayCategoryName(slice.name)
+      : t("stats.donut.others", { count: slice.othersCount });
 
   return (
     <>
       <ChartFrame
         height={188}
         padding={{ top: 8, right: 8, bottom: 8, left: 8 }}
-        title={`${currency} 分类占比`}
-        notice={emptyStateMessage(summary.state, "支出")}
+        title={t("stats.donut.chartTitle", { currency })}
+        notice={emptyStateMessage(summary.state, "expense")}
       >
         {(layout) => {
           const cx = layout.width / 2;
@@ -70,7 +81,7 @@ export function CategoryDonut({
 
                 return (
                   <path
-                    key={slice.name}
+                    key={slice.id ?? "others"}
                     d={path}
                     fill={slice.color}
                     fillOpacity={activeId === null || activeId === slice.id ? 1 : 0.35}
@@ -84,7 +95,7 @@ export function CategoryDonut({
                 fontSize={11}
                 fill="var(--color-accent-ink)"
               >
-                合计
+                {t("stats.donut.total")}
               </text>
               <text
                 x={cx}
@@ -107,7 +118,7 @@ export function CategoryDonut({
           const tappable = slice.id !== null && onSelectCategory !== undefined;
 
           return (
-            <li key={slice.name}>
+            <li key={slice.id ?? "others"}>
               <button
                 type="button"
                 disabled={!tappable}
@@ -119,9 +130,9 @@ export function CategoryDonut({
                 className="flex w-full items-center gap-2.5 border-b border-line py-2.5 text-left text-sm last:border-b-0 disabled:cursor-default"
               >
                 <SliceMarker color={slice.color} shape={slice.shape} />
-                <span className="flex-1 truncate text-ink">{slice.name}</span>
-                <span className="text-xs text-muted">{Math.round(share * 100)}%</span>
-                <span className="w-20 text-right tabular-nums text-ink">
+                <span className="min-w-0 flex-1 truncate text-ink">{sliceLabel(slice)}</span>
+                <span className="shrink-0 text-xs text-muted">{Math.round(share * 100)}%</span>
+                <span className="w-20 shrink-0 text-right tabular-nums text-ink">
                   {formatMoney(slice.minor, currency)}
                 </span>
               </button>
@@ -183,7 +194,8 @@ function buildSlices(totals: readonly CategoryTotal[]): Slice[] {
   if (tailTotal > 0) {
     slices.push({
       id: null,
-      name: `其它 ${String(tail.length)} 项`,
+      name: "",
+      othersCount: tail.length,
       minor: tailTotal,
       share: 0,
       color: categoricalColor(slices.length),

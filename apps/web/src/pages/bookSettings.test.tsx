@@ -80,6 +80,7 @@ vi.mock("../lib/notDuplicateRelations.js", () => ({
   useRevokeNotDuplicateRelation: () => ({ mutateAsync: async () => undefined }),
 }));
 
+import { applyLocale } from "../i18n/index.js";
 import { BookSettingsPage } from "./BookSettingsPage.js";
 
 const NAME = "家庭账本";
@@ -149,6 +150,28 @@ describe("账本设置页渲染出来只剩一次", () => {
   });
 });
 
+describe("账本设置页的英文界面（S16）", () => {
+  it("shows the page in English and leaves the ledger name as stored", () => {
+    data.role = "owner";
+    applyLocale("en-US");
+    try {
+      const html = rendered();
+
+      for (const text of ["Ledger settings", "Managing", "Rename ledger", "Recording", "Data", "Danger zone", "Categories", "Switch", "3 members"]) {
+        expect(html, text).toContain(text);
+      }
+      for (const chinese of ["账本设置", "正在管理", "修改账本名称", "记账管理", "数据管理", "危险操作", "分类管理", "切换", "3 人"]) {
+        expect(html, chinese).not.toContain(chinese);
+      }
+      // 账本名是用户数据：原样、只出现一次。
+      expect(count(html, NAME)).toBe(1);
+      expect(count(html, NUMBER)).toBe(1);
+    } finally {
+      applyLocale("zh-CN");
+    }
+  });
+});
+
 describe("账本设置页源码不再重复", () => {
   const settings = stripped("./BookSettingsPage.tsx");
 
@@ -161,9 +184,15 @@ describe("账本设置页源码不再重复", () => {
   });
 
   it("归档/删除说明不向用户暴露内部墓碑与 UTC 术语", () => {
+    // S16：说明文字搬进 `books` 模块（中文原文不变），所以两处都查。
+    const copy = stripped("../i18n/resources/zh-CN/books.ts");
+
     expect(settings).not.toContain("墓碑");
     expect(settings).not.toContain("UTC 时间");
-    expect(settings).toContain("不含账目内容的删除记录");
+    expect(copy).not.toContain("墓碑");
+    expect(copy).not.toContain("UTC 时间");
+    expect(copy).toContain("不含账目内容的删除记录");
+    expect(settings).toContain('t("books.settings.archiveDialog.cleanup")');
   });
 
   it("编号只在卡片里出现一次", () => {
@@ -187,8 +216,12 @@ describe("改名入口搬进了顶部卡片", () => {
   });
 
   it("viewer 的说明在卡片下方，不在卡片消失", () => {
-    expect(settings).toContain("只有查看权限");
-    expect(settings.indexOf("只有查看权限")).toBeGreaterThan(settings.indexOf("<BookIdentityCard"));
+    // S16：句子在 `books.settings.viewerNotice`（中文原文不变），页面按键取。
+    const viewerNotice = 't("books.settings.viewerNotice")';
+
+    expect(stripped("../i18n/resources/zh-CN/books.ts")).toContain("只有查看权限");
+    expect(settings).toContain(viewerNotice);
+    expect(settings.indexOf(viewerNotice)).toBeGreaterThan(settings.indexOf("<BookIdentityCard"));
   });
 });
 

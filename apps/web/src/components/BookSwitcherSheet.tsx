@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { ChevronIcon } from "./Icons.js";
 import { SkeletonRows } from "./States.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js";
 
@@ -32,15 +33,11 @@ import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js"
 /** What the sheet is switching — the two pages that use it differ only in this word. */
 export type BookSwitcherPurpose = "view" | "manage";
 
-/**
+/*
  * ⚠️ **The sentence is the safety feature, so it says the same thing in both modes apart from the
  * verb.** Every reviewer of this screen asked one question — *"this changes my current ledger,
- * right?"* — and the answer is no.
+ * right?"* — and the answer is no. 两句话在 `books.switcher.hint.<purpose>`，渲染时按当前语言取（S16）。
  */
-const HINTS: Record<BookSwitcherPurpose, string> = {
-  view: "此处只切换正在查看的账本，不会更改当前记账账本。",
-  manage: "此处只切换正在管理的账本，不会更改当前记账账本。",
-};
 
 export function BookSwitcherSheet({
   open,
@@ -56,6 +53,7 @@ export function BookSwitcherSheet({
   readonly onSelect: (bookId: string) => void;
   readonly onClose: () => void;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
   const books = useBooks();
   /**
    * ⚠️ **Read from the device's own memory, never from `useLedger()`** — this sheet lives on the
@@ -135,7 +133,7 @@ export function BookSwitcherSheet({
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-label="选择账本"
+        aria-label={t("books.switcher.title")}
         onTouchStart={(event) => {
           startY.current = (event.target as HTMLElement).closest("[data-sheet-drag]") ? event.touches[0]?.clientY ?? null : null;
         }}
@@ -171,12 +169,12 @@ export function BookSwitcherSheet({
         </div>
 
         <div data-sheet-drag className="flex items-center justify-between gap-3 px-5 pt-2 pb-1">
-          <h2 className="text-base font-medium text-ink">选择账本</h2>
+          <h2 className="text-base font-medium text-ink">{t("books.switcher.title")}</h2>
 
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭账本列表"
+            aria-label={t("books.switcher.close")}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
           >
             <svg className="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -186,7 +184,7 @@ export function BookSwitcherSheet({
         </div>
 
         {/* ⚠️ The grey sentence: what this list does *not* do. */}
-        <p className="shrink-0 px-5 pb-3 text-helper-relaxed text-muted">{HINTS[purpose]}</p>
+        <p className="shrink-0 px-5 pb-3 text-helper-relaxed text-muted">{t(`books.switcher.hint.${purpose}`)}</p>
 
         {/**
           * ⚠️ **Only this region scrolls.** The drag handle, title, close button and grey sentence
@@ -199,7 +197,7 @@ export function BookSwitcherSheet({
         {books.isError ? (
           <div className="flex flex-col gap-3 px-5 py-4">
             <p role="alert" className="text-body-relaxed text-danger">
-              读不到账本列表：{errorMessage(books.error)}
+              {t("books.switcher.loadFailed", { error: errorMessage(books.error) })}
             </p>
             <button
               type="button"
@@ -208,20 +206,20 @@ export function BookSwitcherSheet({
               }}
               className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
             >
-              重试
+              {t("nav.state.retry")}
             </button>
           </div>
         ) : null}
 
         {books.isSuccess && list.length === 0 ? (
           <div className="flex flex-col gap-3 px-5 py-4">
-            <p className="text-body-relaxed text-muted">这个账号下还没有可切换的账本。</p>
+            <p className="text-body-relaxed text-muted">{t("books.switcher.empty")}</p>
             <Link
               to="/start"
               onClick={onClose}
               className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
             >
-              去账本空间
+              {t("books.goToSpace")}
             </Link>
           </div>
         ) : null}
@@ -234,7 +232,7 @@ export function BookSwitcherSheet({
           */}
         {targetMissing ? (
           <p className="mx-5 mb-3 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-warn-dark">
-            正在查看的这本账已不在列表里：它可能已被弃置，或者你已经不在其中。
+            {t("books.switcher.targetMissing")}
           </p>
         ) : null}
 
@@ -309,6 +307,7 @@ export function BookIdentityCard({
    */
   readonly onRename?: (() => void) | undefined;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const currentBookId = useCurrentBookId();
   const isCurrentAccounting = bookId === currentBookId;
 
@@ -319,20 +318,20 @@ export function BookIdentityCard({
         {caption === undefined ? null : <span className="text-helper text-muted">{caption}</span>}
         <span className="truncate text-base font-medium text-ink">{name}</span>
         <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
-          <span className="font-mono">{bookNumber ?? "（未分配编号）"}</span>
+          <span className="font-mono">{bookNumber ?? t("books.noNumber")}</span>
           {memberCount === undefined ? null : (
             <>
               <span>·</span>
-              <span>{String(memberCount)} 人</span>
+              <span>{t("books.people", { count: memberCount })}</span>
             </>
           )}
           {isCurrentAccounting ? (
-            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">当前记账账本</span>
+            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">{t("books.currentAccounting")}</span>
           ) : null}
         </span>
       </span>
 
-      <span className="shrink-0 rounded-field bg-brand-soft px-3 py-1.5 text-helper text-brand-dark">切换</span>
+      <span className="shrink-0 rounded-field bg-brand-soft px-3 py-1.5 text-helper text-brand-dark">{t("books.identity.switch")}</span>
     </>
   );
 
@@ -368,7 +367,7 @@ export function BookIdentityCard({
         onClick={onRename}
         className="flex min-h-12 w-full items-center justify-between gap-4 border-t border-line px-5 py-3 text-left transition-colors hover:bg-canvas active:bg-brand-soft/60"
       >
-        <span className="text-body text-ink">修改账本名称</span>
+        <span className="min-w-0 text-body text-ink">{t("books.identity.rename")}</span>
         <ChevronIcon direction="right" className="size-4 text-muted/70" />
       </button>
     </div>
@@ -389,6 +388,7 @@ function BookRow({
   readonly isCurrentAccounting: boolean;
   readonly onSelect: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <button
       type="button"
@@ -401,16 +401,16 @@ function BookRow({
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-body text-ink">{book.name}</span>
         <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
-          <span className="font-mono">{book.bookNumber ?? "（未分配编号）"}</span>
+          <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
           <span>·</span>
-          <span>{String(book.memberCount)} 人</span>
+          <span>{t("books.people", { count: book.memberCount })}</span>
           {/**
             * ⚠️ **A word, not only a colour, and not only a tick** — the same rule the management
             * sheet follows for its 「当前」 badge. It says what the ledger *is* (where entries go),
             * which is a different fact from what this sheet is about (what is on screen).
             */}
           {isCurrentAccounting ? (
-            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">当前记账账本</span>
+            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">{t("books.currentAccounting")}</span>
           ) : null}
         </span>
       </span>

@@ -227,21 +227,22 @@ describe("chartNotice", () => {
     // ever recorded in arrives as a row of zeroes. Reporting that as "the
     // amounts were all zero" tells the user something untrue about their money
     // — and they had not spent anything in it at all.
-    expect(chartNotice(false, [0, 0, 0, 0], "收支")).toBe("所选时段暂无收支记录。");
+    // S16：主题按 ID 传（"flow" = 收支），整句由 `stats.notice.*` 按当前语言给出；默认语言中文。
+    expect(chartNotice(false, [0, 0, 0, 0], "flow")).toBe("所选时段暂无收支记录。");
   });
 
   it("only blames zeroes when there really are entries", () => {
-    expect(chartNotice(true, [0, 0, 0], "收支")).toBe("所选时段已有记录，但金额均为零。");
+    expect(chartNotice(true, [0, 0, 0], "flow")).toBe("所选时段已有记录，但金额均为零。");
   });
 
   it("stays quiet when there is something to draw", () => {
-    expect(chartNotice(true, [0, 500, 0], "收支")).toBeNull();
+    expect(chartNotice(true, [0, 500, 0], "flow")).toBeNull();
   });
 
   it("prefers 'no entries' over any other reading", () => {
     // Even with values present, an empty total means nothing was recorded —
     // the values can only be gap-fill.
-    expect(chartNotice(false, [0, 500], "收支")).toBe("所选时段暂无收支记录。");
+    expect(chartNotice(false, [0, 500], "flow")).toBe("所选时段暂无收支记录。");
   });
 });
 
@@ -254,19 +255,19 @@ describe("canCompare and emptyStateMessage", () => {
   });
 
   it("explains why a chart is blank instead of leaving it blank", () => {
-    expect(emptyStateMessage("empty", "支出")).toContain("暂无支出记录");
-    expect(emptyStateMessage("all-zero", "支出")).toContain("金额均为零");
-    expect(emptyStateMessage("single", "支出")).toContain("仅有一项支出");
-    expect(emptyStateMessage("ready", "支出")).toBeNull();
+    expect(emptyStateMessage("empty", "expense")).toContain("暂无支出记录");
+    expect(emptyStateMessage("all-zero", "expense")).toContain("金额均为零");
+    expect(emptyStateMessage("single", "expense")).toContain("仅有一项支出");
+    expect(emptyStateMessage("ready", "expense")).toBeNull();
   });
 
   it("phrases empty states as statements, not remarks", () => {
     // The owner's note: "金额都是 0" reads like a person talking. A ledger's
     // surrounding text should sound like the product stating a fact.
     const messages = [
-      emptyStateMessage("empty", "支出"),
-      emptyStateMessage("all-zero", "支出"),
-      emptyStateMessage("single", "支出"),
+      emptyStateMessage("empty", "expense"),
+      emptyStateMessage("all-zero", "expense"),
+      emptyStateMessage("single", "expense"),
     ];
 
     for (const message of messages) {

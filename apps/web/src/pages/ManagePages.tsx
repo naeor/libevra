@@ -1,8 +1,9 @@
-import type {
-  Category,
-  ClassificationUsageResponse,
-  PaymentMethod,
-  Tag,
+import {
+  UNCATEGORISED_NAME,
+  type Category,
+  type ClassificationUsageResponse,
+  type PaymentMethod,
+  type Tag,
 } from "@libellum/shared";
 import { useState } from "react";
 import { useParams } from "react-router";
@@ -11,7 +12,13 @@ import { Alert } from "../components/Alert.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
+import { t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import {
+  displayCategoryDescription,
+  displayCategoryName,
+  displayPaymentMethodName,
+} from "../lib/presetNames.js";
 import { DEFAULT_TAG_COLOR, TAG_COLORS } from "../lib/tagColors.js";
 import {
   useBookMembers,
@@ -57,17 +64,30 @@ import {
 /** 旧的 `/categories` 等地址从账户页进来，所以声明的父级仍是它（深链兜底）。 */
 const CURRENT_BACK_TO = "/me";
 
-/**
+/*
  * ⚠️ **The exact wording is pinned by `copy.test.ts`** ("归档后不再出现在记账选项中"), and the same
  * sentence is used for both modes — the target screen must not describe archiving differently.
+ * S16：三句说明在 `manage.categories.hint` / `manage.paymentMethods.hint` / `manage.tags.hint`，
+ * 由各页在渲染时按当前语言取。
  */
-const CATEGORIES_HINT = "归档后不再出现在记账选项中。已有记录仍会显示该分类的名称，可随时恢复。";
-const PAYMENT_METHODS_HINT = "记录款项的支付渠道。归档后不再出现在记账选项中，已有记录不受影响。";
-const TAGS_HINT = "标签用于跨分类标注，例如「出差」「可报销」。每条记录最多添加 10 个标签。";
 
-/** `名称（编号）` — the two facts that tell two similarly named ledgers apart. */
+/** `名称（编号）` — the two facts that tell two similarly named ledgers apart. 调用时按当前语言取格式。 */
 function describeBook(book: { readonly name: string; readonly bookNumber: string | null }): string {
-  return book.bookNumber === null ? book.name : `${book.name}（${book.bookNumber}）`;
+  return book.bookNumber === null
+    ? book.name
+    : translate("manage.common.bookLabel", { name: book.name, number: book.bookNumber });
+}
+
+/** 目标账本模式的副标题：正在管理哪本 / 读不到 / 读取中。 */
+function targetSubtitle(meta: {
+  readonly isSuccess: boolean;
+  readonly isError: boolean;
+  readonly data?: { readonly book: { readonly name: string; readonly bookNumber: string | null } } | undefined;
+}): string {
+  if (meta.isSuccess && meta.data !== undefined) {
+    return translate("manage.common.managing", { book: describeBook(meta.data.book) });
+  }
+  return meta.isError ? translate("manage.common.unreadable") : translate("manage.common.loadingLedger");
 }
 
 function AddRow({
@@ -79,6 +99,7 @@ function AddRow({
   readonly onAdd: (name: string) => Promise<void>;
   readonly busy: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [name, setName] = useState("");
 
   return (
@@ -100,14 +121,14 @@ function AddRow({
         onChange={(event) => {
           setName(event.target.value);
         }}
-        className="flex-1 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
+        className="min-w-0 flex-1 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
       />
       <button
         type="submit"
         disabled={busy || name.trim() === ""}
         className="shrink-0 rounded-field bg-brand px-5 text-sm font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
       >
-        添加
+        {t("manage.common.add")}
       </button>
     </form>
   );
@@ -115,10 +136,30 @@ function AddRow({
 
 interface Archivable {
   readonly id: string;
+  /** 存储的原名（数据）。对话框、提交都用它；列表显示用 `label`。 */
   readonly name: string;
+  /**
+   * 列表里显示的名字（S16）：预置分类 / 支付方式按当前语言显示，用户自建或改过名的就是原名。
+   * 不传时显示 `name`。
+   */
+  readonly label?: string;
   readonly isArchived: boolean;
   /** Present only while this still carries the preset wording. */
   readonly description?: string | null | undefined;
+}
+
+/** 分类在列表里的样子：显示名与说明按当前语言（只翻译仍是预置原文的那些），其余字段原样。 */
+function categoryRow(category: Category): Category & Archivable {
+  return {
+    ...category,
+    label: displayCategoryName(category.name),
+    description: displayCategoryDescription(category.name, category.kind, category.description),
+  };
+}
+
+/** 支付方式在列表里的样子：预置名按当前语言显示。 */
+function paymentMethodRow(method: PaymentMethod): PaymentMethod & Archivable {
+  return { ...method, label: displayPaymentMethodName(method.name) };
 }
 
 function ArchivableList({
@@ -144,6 +185,7 @@ function ArchivableList({
   /** ⚠️ Viewer: the server would 403 every write, so the controls are not offered at all. */
   readonly readOnly?: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
       {items.map((item) => {
@@ -154,22 +196,23 @@ function ArchivableList({
           <li key={item.id}>
             <div className="flex items-center justify-between gap-4 px-5 py-3.5">
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span className={`text-sm ${item.isArchived ? "text-muted line-through" : "text-ink"}`}>
-                  {item.name}
+                <span className={`break-words text-sm ${item.isArchived ? "text-muted line-through" : "text-ink"}`}>
+                  {item.label ?? item.name}
                 </span>
                 {/* The preset explanation, shown plainly here: this is the
                     screen somebody opens precisely to read them. */}
                 {description ? (
                   <span className="text-helper-relaxed text-muted">{description}</span>
                 ) : null}
-                {locked ? <span className="text-helper text-muted">系统分类，不可修改</span> : null}
+                {locked ? <span className="text-helper text-muted">{t("manage.common.systemLocked")}</span> : null}
                 {item.isArchived && !locked ? (
-                  <span className="text-helper text-muted">已归档，历史记录仍显示</span>
+                  <span className="text-helper text-muted">{t("manage.common.archivedNote")}</span>
                 ) : null}
               </span>
 
               {readOnly ? null : (
-                <span className="flex shrink-0 items-center gap-3">
+                /* 英文的「Delete permanently」更长：窄屏时允许按钮换到第二行，名称列不被挤没（S16）。 */
+                <span className="flex max-w-[50%] shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
                 {locked ? null : item.isArchived ? (
                   <button
                     type="button"
@@ -179,7 +222,7 @@ function ArchivableList({
                     }}
                     className="text-body text-brand-dark transition hover:underline disabled:opacity-45"
                   >
-                    恢复
+                    {t("manage.common.restore")}
                   </button>
                 ) : (
                   <button
@@ -190,7 +233,7 @@ function ArchivableList({
                     }}
                     className="text-body text-muted transition hover:text-ink disabled:opacity-45"
                   >
-                    归档
+                    {t("manage.common.archive")}
                   </button>
                 )}
 
@@ -203,7 +246,7 @@ function ArchivableList({
                     }}
                     className="text-helper text-danger transition hover:underline disabled:opacity-45"
                   >
-                    永久删除
+                    {t("manage.common.deletePermanently")}
                   </button>
                 )}
                 </span>
@@ -271,6 +314,7 @@ export function CategoriesPage(): React.JSX.Element {
 }
 
 function CategoriesForCurrentLedger(): React.JSX.Element {
+  const { t } = useI18n();
   const ledger = useLedger();
   const members = useBookMembers();
   const mutations = useCategoryMutations();
@@ -282,7 +326,7 @@ function CategoriesForCurrentLedger(): React.JSX.Element {
       pending={ledger.isPending}
       isSuccess={ledger.isSuccess}
       backTo={CURRENT_BACK_TO}
-      hint={CATEGORIES_HINT}
+      hint={t("manage.categories.hint")}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
@@ -292,6 +336,7 @@ function CategoriesForCurrentLedger(): React.JSX.Element {
 }
 
 function CategoriesForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const { t } = useI18n();
   const meta = useLedgerMeta(bookId);
   const members = useBookMembers(bookId);
   const mutations = useCategoryMutations(bookId);
@@ -303,14 +348,8 @@ function CategoriesForBook({ bookId }: { readonly bookId: string }): React.JSX.E
       pending={meta.isPending}
       isSuccess={meta.isSuccess}
       backTo={`/books/${bookId}/settings`}
-      subtitle={
-        meta.isSuccess
-          ? `正在管理「${describeBook(meta.data.book)}」`
-          : meta.isError
-            ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
-            : "正在读取账本……"
-      }
-      hint={CATEGORIES_HINT}
+      subtitle={targetSubtitle(meta)}
+      hint={t("manage.categories.hint")}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
@@ -348,6 +387,7 @@ function CategoriesView({
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof useCategoryMutations>;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const { create, update, archive, permanentDelete } = mutations;
 
   const [kind, setKind] = useState<"expense" | "income">("expense");
@@ -375,8 +415,8 @@ function CategoriesView({
         );
 
   return (
-    <InnerPage title="分类管理" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
-      {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看分类，不能新增、改名、归档或删除。</Alert>}
+    <InnerPage title={t("manage.categories.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
+      {canWrite ? null : <Alert tone="info">{t("manage.categories.viewerNotice")}</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -389,11 +429,11 @@ function CategoriesView({
             onClick={() => {
               setKind(option);
             }}
-            className={`flex-1 rounded-field py-2.5 text-sm font-medium transition ${
+            className={`min-w-0 flex-1 rounded-field px-2 py-2.5 text-sm font-medium transition ${
               kind === option ? "bg-brand text-on-brand" : "bg-surface text-muted"
             }`}
           >
-            {option === "expense" ? "支出分类" : "收入分类"}
+            {t(`manage.categories.${option}`)}
           </button>
         ))}
       </div>
@@ -403,7 +443,7 @@ function CategoriesView({
       {isSuccess ? (
         <>
           {canWrite ? <AddRow
-            placeholder="新分类名称"
+            placeholder={t("manage.categories.newPlaceholder")}
             busy={create.isPending}
             onAdd={async (name) => {
               setError(null);
@@ -416,7 +456,7 @@ function CategoriesView({
           /> : null}
 
           <ArchivableList
-            items={active}
+            items={active.map(categoryRow)}
             readOnly={!canWrite}
             busyId={archive.isPending ? (pendingArchive?.id ?? null) : null}
             lockedIds={systemIds}
@@ -439,9 +479,9 @@ function CategoriesView({
 
           {archived.length > 0 ? (
             <section className="flex flex-col gap-2">
-              <h2 className="px-1 text-helper text-muted">已归档（{String(archived.length)}）</h2>
+              <h2 className="px-1 text-helper text-muted">{t("manage.common.archivedHeading", { count: archived.length })}</h2>
               <ArchivableList
-                items={archived}
+                items={archived.map(categoryRow)}
                 readOnly={!canWrite}
                 busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
@@ -465,14 +505,14 @@ function CategoriesView({
         open={pendingArchive !== null}
         busy={archive.isPending}
         tone="default"
-        title={`归档「${pendingArchive?.name ?? ""}」？`}
-        description="归档不会删除任何数据。"
+        title={t("manage.common.archiveTitle", { name: displayCategoryName(pendingArchive?.name ?? "") })}
+        description={t("manage.common.archiveDescription")}
         consequences={[
-          "它会从记账时的分类选项中消失",
-          "已有的记录仍然显示这个分类的名字",
-          "你随时可以在这里把它恢复",
+          t("manage.categories.archiveGone"),
+          t("manage.categories.archiveKeepsName"),
+          t("manage.common.restoreAnytime"),
         ]}
-        confirmLabel="归档"
+        confirmLabel={t("manage.common.archive")}
         onCancel={() => {
           setPendingArchive(null);
         }}
@@ -486,21 +526,21 @@ function CategoriesView({
       <ConfirmDialog
         open={pendingDelete !== null}
         busy={permanentDelete.isPending}
-        title={`永久删除「${pendingDelete?.name ?? ""}」？`}
+        title={t("manage.common.deleteTitle", { name: displayCategoryName(pendingDelete?.name ?? "") })}
         description={
           usage === undefined
-            ? "正在统计受影响的记录……"
+            ? t("manage.common.countingUsage")
             : deleteCount === 0
-              ? "目前没有在用这个分类的账目。删除后不可恢复。"
-              : `有 ${String(deleteCount)} 笔记账正在使用这个分类。删除前请选择这些记录的处理方式。`
+              ? t("manage.categories.deleteNoUsage")
+              : t("manage.categories.deleteUsage", { count: deleteCount })
         }
         consequences={[
-          "账目本身、金额与日期都不会改变",
-          "这些记录会改用下方选择的分类（不选则使用「暂无分类」）",
-          "删除后无法恢复这个分类",
-          ...(shared ? ["这是共享账本，删除与替换会影响所有协作者看到的历史记录"] : []),
+          t("manage.common.entriesUnchanged"),
+          t("manage.categories.deleteReassign"),
+          t("manage.categories.deleteFinal"),
+          ...(shared ? [t("manage.common.sharedWarning")] : []),
         ]}
-        confirmLabel={permanentDelete.isPending ? "正在删除…" : "永久删除"}
+        confirmLabel={permanentDelete.isPending ? t("manage.common.deleting") : t("manage.common.deletePermanently")}
         onCancel={() => {
           setPendingDelete(null);
         }}
@@ -518,10 +558,13 @@ function CategoriesView({
               setPendingDelete(null);
               setReplacementId("");
               setNotice(
-                `已删除「${target.name}」。${
+                `${t("manage.common.deleted", { name: displayCategoryName(target.name) })}${
                   result.affectedEntries === 0
-                    ? "没有账目需要转移。"
-                    : `${String(result.affectedEntries)} 笔记录已转入「${result.replacementName ?? "暂无分类"}」。`
+                    ? t("manage.common.nothingMoved")
+                    : t("manage.categories.moved", {
+                        count: result.affectedEntries,
+                        name: displayCategoryName(result.replacementName ?? UNCATEGORISED_NAME),
+                      })
                 }`,
               );
             })
@@ -531,11 +574,11 @@ function CategoriesView({
         }}
       >
         <ReplacementSelect
-          label="这些历史记录改用哪个分类？"
+          label={t("manage.categories.replacementLabel")}
           value={replacementId}
           onChange={setReplacementId}
-          options={replacementOptions}
-          fallbackLabel="使用「暂无分类」（推荐）"
+          options={replacementOptions.map((option) => ({ id: option.id, name: displayCategoryName(option.name) }))}
+          fallbackLabel={t("manage.categories.replacementFallback")}
         />
       </ConfirmDialog>
     </InnerPage>
@@ -557,6 +600,7 @@ export function PaymentMethodsPage(): React.JSX.Element {
 }
 
 function PaymentMethodsForCurrentLedger(): React.JSX.Element {
+  const { t } = useI18n();
   const ledger = useLedger();
   const members = useBookMembers();
   const mutations = usePaymentMethodMutations();
@@ -568,7 +612,7 @@ function PaymentMethodsForCurrentLedger(): React.JSX.Element {
       pending={ledger.isPending}
       isSuccess={ledger.isSuccess}
       backTo={CURRENT_BACK_TO}
-      hint={PAYMENT_METHODS_HINT}
+      hint={t("manage.paymentMethods.hint")}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
@@ -578,6 +622,7 @@ function PaymentMethodsForCurrentLedger(): React.JSX.Element {
 }
 
 function PaymentMethodsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const { t } = useI18n();
   const meta = useLedgerMeta(bookId);
   const members = useBookMembers(bookId);
   const mutations = usePaymentMethodMutations(bookId);
@@ -589,14 +634,8 @@ function PaymentMethodsForBook({ bookId }: { readonly bookId: string }): React.J
       pending={meta.isPending}
       isSuccess={meta.isSuccess}
       backTo={`/books/${bookId}/settings`}
-      subtitle={
-        meta.isSuccess
-          ? `正在管理「${describeBook(meta.data.book)}」`
-          : meta.isError
-            ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
-            : "正在读取账本……"
-      }
-      hint={PAYMENT_METHODS_HINT}
+      subtitle={targetSubtitle(meta)}
+      hint={t("manage.paymentMethods.hint")}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
@@ -632,6 +671,7 @@ function PaymentMethodsView({
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof usePaymentMethodMutations>;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const { create, update, archive, permanentDelete } = mutations;
 
   const [pendingArchive, setPendingArchive] = useState<Archivable | null>(null);
@@ -650,8 +690,8 @@ function PaymentMethodsView({
       : allMethods.filter((item) => !item.isArchived && item.id !== pendingDelete.id);
 
   return (
-    <InnerPage title="支付方式" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
-      {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看支付方式，不能新增、改名、归档或删除。</Alert>}
+    <InnerPage title={t("manage.paymentMethods.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
+      {canWrite ? null : <Alert tone="info">{t("manage.paymentMethods.viewerNotice")}</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -661,7 +701,7 @@ function PaymentMethodsView({
       {isSuccess ? (
         <>
           {canWrite ? <AddRow
-            placeholder="新支付方式"
+            placeholder={t("manage.paymentMethods.newPlaceholder")}
             busy={create.isPending}
             onAdd={async (name) => {
               setError(null);
@@ -674,7 +714,7 @@ function PaymentMethodsView({
           /> : null}
 
           <ArchivableList
-            items={active}
+            items={active.map(paymentMethodRow)}
             readOnly={!canWrite}
             busyId={archive.isPending ? (pendingArchive?.id ?? null) : null}
             onArchive={(item) => {
@@ -696,9 +736,9 @@ function PaymentMethodsView({
 
           {archived.length > 0 ? (
             <section className="flex flex-col gap-2">
-              <h2 className="px-1 text-helper text-muted">已归档（{String(archived.length)}）</h2>
+              <h2 className="px-1 text-helper text-muted">{t("manage.common.archivedHeading", { count: archived.length })}</h2>
               <ArchivableList
-                items={archived}
+                items={archived.map(paymentMethodRow)}
                 readOnly={!canWrite}
                 busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
@@ -722,14 +762,14 @@ function PaymentMethodsView({
         open={pendingArchive !== null}
         busy={archive.isPending}
         tone="default"
-        title={`归档「${pendingArchive?.name ?? ""}」？`}
-        description="归档不会删除任何数据。"
+        title={t("manage.common.archiveTitle", { name: displayPaymentMethodName(pendingArchive?.name ?? "") })}
+        description={t("manage.common.archiveDescription")}
         consequences={[
-          "它会从记账时的支付方式选项中消失",
-          "已有的记录仍然显示这个支付方式",
-          "你随时可以在这里把它恢复",
+          t("manage.paymentMethods.archiveGone"),
+          t("manage.paymentMethods.archiveKeepsName"),
+          t("manage.common.restoreAnytime"),
         ]}
-        confirmLabel="归档"
+        confirmLabel={t("manage.common.archive")}
         onCancel={() => {
           setPendingArchive(null);
         }}
@@ -743,21 +783,21 @@ function PaymentMethodsView({
       <ConfirmDialog
         open={pendingDelete !== null}
         busy={permanentDelete.isPending}
-        title={`永久删除「${pendingDelete?.name ?? ""}」？`}
+        title={t("manage.common.deleteTitle", { name: displayPaymentMethodName(pendingDelete?.name ?? "") })}
         description={
           usage === undefined
-            ? "正在统计受影响的记录……"
+            ? t("manage.common.countingUsage")
             : deleteCount === 0
-              ? "目前没有在用这个支付方式的账目。删除后不可恢复。"
-              : `有 ${String(deleteCount)} 笔记账正在使用这个支付方式。删除前请选择这些记录的处理方式。`
+              ? t("manage.paymentMethods.deleteNoUsage")
+              : t("manage.paymentMethods.deleteUsage", { count: deleteCount })
         }
         consequences={[
-          "账目本身、金额与日期都不会改变",
-          "这些记录会改用下方选择的支付方式；不选则显示为「未指定」",
-          "删除后无法恢复这个支付方式",
-          ...(shared ? ["这是共享账本，删除与替换会影响所有协作者看到的历史记录"] : []),
+          t("manage.common.entriesUnchanged"),
+          t("manage.paymentMethods.deleteReassign"),
+          t("manage.paymentMethods.deleteFinal"),
+          ...(shared ? [t("manage.common.sharedWarning")] : []),
         ]}
-        confirmLabel={permanentDelete.isPending ? "正在删除…" : "永久删除"}
+        confirmLabel={permanentDelete.isPending ? t("manage.common.deleting") : t("manage.common.deletePermanently")}
         onCancel={() => {
           setPendingDelete(null);
         }}
@@ -775,12 +815,15 @@ function PaymentMethodsView({
               setPendingDelete(null);
               setReplacementId("");
               setNotice(
-                `已删除「${target.name}」。${
+                `${t("manage.common.deleted", { name: displayPaymentMethodName(target.name) })}${
                   result.affectedEntries === 0
-                    ? "没有账目需要转移。"
+                    ? t("manage.common.nothingMoved")
                     : result.replacementName === null
-                      ? `${String(result.affectedEntries)} 笔记录已改为「未指定」。`
-                      : `${String(result.affectedEntries)} 笔记录已改为「${result.replacementName}」。`
+                      ? t("manage.paymentMethods.unassigned", { count: result.affectedEntries })
+                      : t("manage.paymentMethods.moved", {
+                          count: result.affectedEntries,
+                          name: displayPaymentMethodName(result.replacementName),
+                        })
                 }`,
               );
             })
@@ -790,11 +833,11 @@ function PaymentMethodsView({
         }}
       >
         <ReplacementSelect
-          label="这些历史记录改用哪个支付方式？"
+          label={t("manage.paymentMethods.replacementLabel")}
           value={replacementId}
           onChange={setReplacementId}
-          options={replacementOptions}
-          fallbackLabel="改为「未指定」"
+          options={replacementOptions.map((option) => ({ id: option.id, name: displayPaymentMethodName(option.name) }))}
+          fallbackLabel={t("manage.paymentMethods.replacementFallback")}
         />
       </ConfirmDialog>
     </InnerPage>
@@ -820,6 +863,7 @@ export function TagsPage(): React.JSX.Element {
 }
 
 function TagsForCurrentLedger(): React.JSX.Element {
+  const { t } = useI18n();
   const ledger = useLedger();
   const members = useBookMembers();
   const mutations = useTagMutations();
@@ -830,7 +874,7 @@ function TagsForCurrentLedger(): React.JSX.Element {
       tags={ledger.data?.tags ?? []}
       pending={ledger.isPending}
       backTo={CURRENT_BACK_TO}
-      hint={TAGS_HINT}
+      hint={t("manage.tags.hint")}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
       usage={usage.data}
@@ -840,6 +884,7 @@ function TagsForCurrentLedger(): React.JSX.Element {
 }
 
 function TagsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element {
+  const { t } = useI18n();
   const meta = useLedgerMeta(bookId);
   const members = useBookMembers(bookId);
   const mutations = useTagMutations(bookId);
@@ -850,14 +895,8 @@ function TagsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element
       tags={meta.data?.tags ?? []}
       pending={meta.isPending}
       backTo={`/books/${bookId}/settings`}
-      subtitle={
-        meta.isSuccess
-          ? `正在管理「${describeBook(meta.data.book)}」`
-          : meta.isError
-            ? "读不到这本账。它可能已被弃置，或者你已经不在其中。"
-            : "正在读取账本……"
-      }
-      hint={TAGS_HINT}
+      subtitle={targetSubtitle(meta)}
+      hint={t("manage.tags.hint")}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
       canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
@@ -891,6 +930,7 @@ function TagsView({
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof useTagMutations>;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const { create, remove } = mutations;
 
   const [name, setName] = useState("");
@@ -902,8 +942,8 @@ function TagsView({
   const deleteCount = pendingDelete === null ? 0 : (usage?.tags[pendingDelete.id] ?? 0);
 
   return (
-    <InnerPage title="标签" {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
-      {canWrite ? null : <Alert tone="info">你是这本账的查看者，只能查看标签，不能新增或删除。</Alert>}
+    <InnerPage title={t("manage.tags.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
+      {canWrite ? null : <Alert tone="info">{t("manage.tags.viewerNotice")}</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -913,7 +953,7 @@ function TagsView({
         <input
           value={name}
           maxLength={12}
-          placeholder="新标签名称"
+          placeholder={t("manage.tags.newPlaceholder")}
           onChange={(event) => {
             setName(event.target.value);
           }}
@@ -925,7 +965,7 @@ function TagsView({
             <button
               key={option}
               type="button"
-              aria-label={`颜色 ${option}`}
+              aria-label={t("manage.tags.color", { color: option })}
               onClick={() => {
                 setColor(option);
               }}
@@ -953,7 +993,7 @@ function TagsView({
           }}
           className="w-full rounded-field bg-brand py-3 text-sm font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
         >
-          添加标签
+          {t("manage.tags.add")}
         </button>
       </section>
       ) : null}
@@ -965,9 +1005,9 @@ function TagsView({
           {tags.map((tag) => (
             <li key={tag.id}>
               <div className="flex items-center justify-between gap-4 px-5 py-3.5">
-                <span className="flex items-center gap-3">
-                  <span style={{ backgroundColor: tag.color }} className="size-3 rounded-full" />
-                  <span className="text-body text-ink">{tag.name}</span>
+                <span className="flex min-w-0 items-center gap-3">
+                  <span style={{ backgroundColor: tag.color }} className="size-3 shrink-0 rounded-full" />
+                  <span className="min-w-0 break-words text-body text-ink">{tag.name}</span>
                 </span>
                 {canWrite ? (
                   <button
@@ -977,7 +1017,7 @@ function TagsView({
                     }}
                     className="shrink-0 text-body text-muted transition hover:text-danger"
                   >
-                    删除
+                    {t("manage.tags.delete")}
                   </button>
                 ) : null}
               </div>
@@ -991,21 +1031,21 @@ function TagsView({
       <ConfirmDialog
         open={pendingDelete !== null}
         busy={remove.isPending}
-        title={`删除标签「${pendingDelete?.name ?? ""}」？`}
+        title={t("manage.tags.deleteTitle", { name: pendingDelete?.name ?? "" })}
         description={
           usage === undefined
-            ? "正在统计受影响的记录……"
+            ? t("manage.common.countingUsage")
             : deleteCount === 0
-              ? "目前没有在用这个标签的账目。删除后不可恢复。"
-              : `有 ${String(deleteCount)} 笔记账正在使用这个标签，删除后会解除这些关联。`
+              ? t("manage.tags.deleteNoUsage")
+              : t("manage.tags.deleteUsage", { count: deleteCount })
         }
         consequences={[
-          "使用过这个标签的记账会失去该标签，账目本身完整保留",
-          "删除后，你无法在应用里自行恢复这个标签",
-          "如果需要，之后可以重新创建一个同名标签，但不会自动贴回原来的记账",
-          ...(shared ? ["这是共享账本，删除会影响所有协作者看到的历史记录"] : []),
+          t("manage.tags.deleteDetach"),
+          t("manage.tags.deleteFinal"),
+          t("manage.tags.deleteRecreate"),
+          ...(shared ? [t("manage.tags.sharedWarning")] : []),
         ]}
-        confirmLabel="确认删除"
+        confirmLabel={t("manage.tags.confirmDelete")}
         onCancel={() => {
           setPendingDelete(null);
         }}
@@ -1018,10 +1058,10 @@ function TagsView({
             .mutateAsync(target.id)
             .then((result) => {
               setNotice(
-                `已删除标签「${target.name}」。${
+                `${t("manage.tags.deleted", { name: target.name })}${
                   result.affectedEntries === 0
-                    ? "没有账目使用它。"
-                    : `${String(result.affectedEntries)} 笔记录已解除该标签。`
+                    ? t("manage.tags.unused")
+                    : t("manage.tags.detached", { count: result.affectedEntries })
                 }`,
               );
             })

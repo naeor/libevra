@@ -1,5 +1,7 @@
+import { Trans } from "react-i18next";
 import { useParams } from "react-router";
 
+import { useI18n } from "../i18n/index.js";
 import { InnerPage } from "../components/Layouts.js";
 import { MemberList } from "../components/MemberList.js";
 import { ShareSection } from "../components/ShareSection.js";
@@ -60,6 +62,7 @@ function useTargetLedger(): {
  * reason the invite section below it is not a permission of its own.
  */
 export function StartBookMembersPage(): React.JSX.Element {
+  const { t } = useI18n();
   const { bookId, name, pending } = useTargetLedger();
   const members = useBookMembers(bookId);
 
@@ -72,17 +75,17 @@ export function StartBookMembersPage(): React.JSX.Element {
   const canInvite = members.data?.myRole === "owner" || members.data?.myRole === "editor";
 
   return (
-    <InnerPage title="成员与邀请" subtitle={name ?? "正在读取……"} backTo="/start">
+    <InnerPage title={t("books.members.title")} subtitle={name ?? t("books.loadingShort")} backTo="/start">
       {pending ? <SkeletonRows rows={3} /> : null}
 
       {/* ⚠️ S16-A：`MemberList` 自带外框；外面再包一张卡片就是"盒子套盒子"。 */}
       <MemberList bookId={bookId} />
 
       {canInvite ? (
-        <ListGroup title="邀请新成员">
+        <ListGroup title={t("books.members.inviteTitle")}>
           <div className="flex flex-col gap-2 px-5 py-4">
             <p className="text-body-relaxed text-muted">
-              按对方账号编号或用户名找到他，选好权限，发一条邀请。他接受之后才真正加入这本账。
+              {t("books.members.inviteHow")}
             </p>
             {/**
               * ⚠️ **This one really does enter the ledger, and the label says so.**
@@ -95,20 +98,20 @@ export function StartBookMembersPage(): React.JSX.Element {
               * ruled out by name.
               */}
             <p className="text-helper-relaxed text-muted">
-              邀请要在一本账里面发起。点下面的按钮会先进入「{name ?? "这本账"}」，然后在那个页面上邀请。
+              {t("books.members.inviteEnters", { name: name ?? t("books.thisLedger") })}
             </p>
             <a
               href="/ledger/invite"
               className="mt-1 inline-flex self-start rounded-field bg-brand px-4 py-2.5 text-button text-on-brand transition hover:bg-brand-dark"
             >
-              去邀请
+              {t("books.members.goInvite")}
             </a>
           </div>
         </ListGroup>
       ) : null}
 
       <p className="text-helper-relaxed text-muted">
-        成员管理属于当前打开的这本账。邀请别人加入某一本账，不会把你或他加入其他账本。
+        {t("books.members.scopeNote")}
       </p>
     </InnerPage>
   );
@@ -126,25 +129,24 @@ export function StartBookMembersPage(): React.JSX.Element {
  * answer that matters.
  */
 export function StartBookSharePage(): React.JSX.Element {
+  const { t } = useI18n();
   const { bookId, name, pending } = useTargetLedger();
   const meta = useLedgerMeta(bookId);
 
   return (
-    <InnerPage title="分享链接" subtitle={name ?? "正在读取……"} backTo="/start">
+    <InnerPage title={t("books.share.title")} subtitle={name ?? t("books.loadingShort")} backTo="/start">
       {pending ? <SkeletonRows rows={3} /> : null}
 
       {meta.isSuccess ? (
         <>
           <p className="text-helper-relaxed text-muted">
-            分享链接让别人自己加入这本账。加入进来的人会成为这本账的成员，
-            <strong className="font-medium text-ink">与你的其他账本没有关系</strong>。
+            <Trans i18nKey="books.share.intro" components={{ b: <strong className="font-medium text-ink" /> }} />
           </p>
 
           <ShareSection bookId={bookId} />
 
           <p className="text-helper-relaxed text-muted">
-            想按名字邀请某个人，用「成员与邀请」；用于注册账号的邀请码与账本无关，
-            在「设置 → 账号安全」生成（终身 3 个），或由管理员在管理后台发放。
+            {t("books.share.otherWays")}
           </p>
         </>
       ) : null}
