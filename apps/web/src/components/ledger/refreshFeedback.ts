@@ -1,3 +1,13 @@
+import { isChineseLocale, t } from "../../i18n/index.js";
+
+/**
+ * 两句话接在一起：中文句号本身就是分隔，英文等语言之间要一个空格。第二句为空时只返回第一句。
+ */
+function withNote(main: string, note: string): string {
+  if (note === "") return main;
+  return isChineseLocale() ? `${main}${note}` : `${main} ${note}`;
+}
+
 /**
  * What the refresh button says afterwards.
  *
@@ -38,36 +48,36 @@ export function refreshMessage(input: {
    * are the thing the reader needs to know, and "投递了 3 条" with four rows still waiting is just as
    * misleading as "没有待投递的改动".
    */
-  const waitingNote =
-    input.waiting > 0
-      ? `还有 ${String(input.waiting)} 条改动没有送到云端，已保留在本机，下次联网会继续尝试。`
-      : "";
+  const waitingNote = input.waiting > 0 ? t("ledger.refresh.waiting", { count: input.waiting }) : "";
 
   if (input.failed) {
-    const reason = input.error === null || input.error === "" ? "原因不明" : input.error;
+    const reason = input.error === null || input.error === "" ? t("ledger.refresh.unknownReason") : input.error;
 
-    return `同步没有完成：${reason}。已经重新读取了本机账目。`;
+    return t("ledger.refresh.failed", { reason });
   }
 
-  if (input.guest) return "已重新读取本机账目（游客账本没有云端可同步）。";
+  if (input.guest) return t("ledger.refresh.guest");
 
   if (input.offline && input.delivered === 0 && input.pulled === 0) {
-    return `当前离线，没能连上云端；已经重新读取了本机账目。${waitingNote}`;
+    return withNote(t("ledger.refresh.offline"), waitingNote);
   }
 
   if (input.delivered > 0 && input.pulled > 0) {
-    return `已向云端投递 ${String(input.delivered)} 条，并更新了当前月（${String(input.pulled)} 条来自云端）。${waitingNote}`;
+    return withNote(
+      t("ledger.refresh.deliveredAndPulled", { count: input.delivered, pulled: input.pulled }),
+      waitingNote,
+    );
   }
 
   if (input.delivered > 0) {
-    return `已向云端投递 ${String(input.delivered)} 条；当前月没有从云端取回新的数据。${waitingNote}`;
+    return withNote(t("ledger.refresh.delivered", { count: input.delivered }), waitingNote);
   }
 
   if (input.pulled > 0) {
-    return `已更新当前月（${String(input.pulled)} 条来自云端）。${waitingNote}`;
+    return withNote(t("ledger.refresh.pulled", { pulled: input.pulled }), waitingNote);
   }
 
-  if (waitingNote !== "") return `已重新读取本机账目；${waitingNote}`;
+  if (waitingNote !== "") return t("ledger.refresh.reloadedWaiting", { note: waitingNote });
 
-  return "已重新读取本机账目；没有待投递的改动，也没有从云端取回新的数据。";
+  return t("ledger.refresh.nothing");
 }

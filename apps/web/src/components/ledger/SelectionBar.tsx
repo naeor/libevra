@@ -1,3 +1,5 @@
+import { useI18n } from "../../i18n/index.js";
+
 /**
  * The bar that appears above the list once batch mode starts.
  *
@@ -22,11 +24,13 @@ export function SelectionBar({
   readonly notice: string | null;
   readonly onToggleAll: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <div className="mt-3 rounded-field bg-surface px-4 py-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium text-ink">选择账目</h2>
-        <span className="text-helper text-muted">已选 {selectedCount} 条</span>
+        <h2 className="min-w-0 text-sm font-medium text-ink">{t("ledger.batch.selectTitle")}</h2>
+        <span className="shrink-0 text-helper text-muted">{t("ledger.batch.selectedCount", { count: selectedCount })}</span>
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -37,10 +41,10 @@ export function SelectionBar({
           aria-pressed={allSelected}
           className="text-helper font-medium text-brand-dark transition hover:underline disabled:opacity-45 disabled:hover:no-underline"
         >
-          {allSelected ? "取消全选" : `全选已加载的 ${String(loadedCount)} 条`}
+          {allSelected ? t("ledger.batch.deselectAll") : t("ledger.batch.selectLoaded", { count: loadedCount })}
         </button>
 
-        <span className="text-micro text-muted">只勾选当前筛选下已加载的账目，不会扩大到整本账</span>
+        <span className="text-micro text-muted">{t("ledger.batch.selectScope")}</span>
       </div>
 
       {notice === null ? null : (

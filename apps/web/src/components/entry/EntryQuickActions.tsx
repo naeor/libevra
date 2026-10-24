@@ -1,5 +1,6 @@
 import type { Currency } from "@libellum/shared";
 
+import { useI18n } from "../../i18n/index.js";
 import { minorToInput } from "../../lib/format.js";
 import { ChevronIcon } from "../Icons.js";
 
@@ -36,16 +37,21 @@ export function EntryQuickActions({
   /** 沿用成功或失败的一句短提示；null 表示还没有点过。 */
   readonly notice: string | null;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <div className="flex flex-col gap-2 pt-3">
-      {/* 一行两个入口：360px 上是「沿用上一笔」+「快捷金额」，两边都装得下。 */}
-      <div className="flex items-center justify-between gap-2">
+      {/*
+        一行两个入口：360px 上是「沿用上一笔」+「快捷金额」，两边都装得下。
+        S16：英文更长，允许换行（`flex-wrap`），窄屏时第二个入口落到下一行而不是互相挤压。
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           onClick={onInherit}
           className="shrink-0 rounded-full border border-brand-soft bg-brand-soft px-3 py-1 text-body text-brand-dark transition hover:border-brand"
         >
-          沿用上一笔
+          {t("entry.quick.inherit")}
         </button>
 
         <button
@@ -55,7 +61,7 @@ export function EntryQuickActions({
           onClick={onToggle}
           className="flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-body text-muted transition hover:text-brand-dark"
         >
-          快捷金额
+          {t("entry.quick.amounts")}
           <ChevronIcon up={open} />
         </button>
       </div>

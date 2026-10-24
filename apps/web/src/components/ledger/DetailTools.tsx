@@ -12,6 +12,8 @@
  */
 import type { ReactNode } from "react";
 
+import { useI18n } from "../../i18n/index.js";
+
 export function DetailTools({
   refreshing,
   turnKey,
@@ -32,6 +34,8 @@ export function DetailTools({
   readonly onMore: () => void;
   readonly onExitSelection: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <div className="detail-tools flex gap-2">
       {selecting ? (
@@ -42,10 +46,10 @@ export function DetailTools({
         <button
           type="button"
           onClick={onExitSelection}
-          aria-label="退出批量操作"
+          aria-label={t("ledger.tools.exitBatch")}
           className="h-9 rounded-full bg-on-brand/20 px-4 text-sm text-on-brand transition hover:bg-on-brand/30 active:bg-on-brand/40"
         >
-          取消
+          {t("common.action.cancel")}
         </button>
       ) : (
         <>
@@ -58,8 +62,8 @@ export function DetailTools({
              * least as long as the work does, so the button is never silent.
              */
             icon={<RefreshIcon key={turnKey} spinning={refreshing} />}
-            label="刷新"
-            hint="重新读取并同步账目"
+            label={t("ledger.tools.refresh")}
+            hint={t("ledger.tools.refreshHint")}
             busy={refreshing}
             onClick={onRefresh}
           />
@@ -67,11 +71,16 @@ export function DetailTools({
             <>
               <ToolButton
                 icon={<BatchIcon />}
-                label="批量操作"
-                hint="批量修改或删除账目"
+                label={t("ledger.tools.batch")}
+                hint={t("ledger.tools.batchHint")}
                 onClick={onBatch}
               />
-              <ToolButton icon={<MoreIcon />} label="更多" hint="导出账目与数据维护" onClick={onMore} />
+              <ToolButton
+                icon={<MoreIcon />}
+                label={t("ledger.tools.more")}
+                hint={t("ledger.tools.moreHint")}
+                onClick={onMore}
+              />
             </>
           )}
         </>
@@ -106,6 +115,7 @@ function ToolButton({
   /** ⚠️ Shows that the action is running, and blocks a second press. */
   readonly busy?: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const disabled = onClick === undefined || busy === true;
 
   return (
@@ -114,8 +124,8 @@ function ToolButton({
       disabled={disabled}
       onClick={onClick}
       aria-busy={busy === true}
-      title={busy === true ? `${label}——正在进行` : `${label}——${hint}`}
-      aria-label={`${label}，${hint}`}
+      title={busy === true ? t("ledger.tools.titleBusy", { label }) : t("ledger.tools.title", { label, hint })}
+      aria-label={t("ledger.tools.ariaLabel", { label, hint })}
       className={`flex size-9 items-center justify-center rounded-full transition ${
         disabled ? "bg-on-brand/15 text-on-brand/70" : "bg-on-brand/20 text-on-brand hover:bg-on-brand/30 active:bg-on-brand/40"
       }`}

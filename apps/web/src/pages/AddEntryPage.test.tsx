@@ -17,15 +17,16 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { applyLocale } from "../i18n/index.js";
 import { AmountField } from "../components/entry/AmountField.js";
 import { CurrencySheet } from "../components/entry/CurrencySheet.js";
 import { EntryMoreOptions, moreOptionsSummary } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { inheritFromLastEntry, type InheritedFields } from "../components/entry/inheritLast.js";
 import { keyboardOffset } from "../components/entry/keyboardInset.js";
-import { AddEntryPage, entryMoment, MANUAL_DUPLICATE_CHOICES, manualDuplicateDescription, nextEntryFields } from "./AddEntryPage.js";
+import { AddEntryPage, entryMoment, manualDuplicateChoices, manualDuplicateDescription, nextEntryFields } from "./AddEntryPage.js";
 
 /**
  * 这一页要读“当前身份的重复检测设置”，而设置 hook 依赖 AuthProvider。
@@ -1267,10 +1268,61 @@ describe("manualDuplicateDescription", () => {
   });
 
   it("提供「确认不是同一笔」这个选项，但不提供「删掉旧的」", () => {
-    expect(MANUAL_DUPLICATE_CHOICES.map((choice) => choice.label)).toEqual([
+    // S16：选项做成函数（文案在调用时按当前语言取），默认语言下仍是这三句中文。
+    expect(manualDuplicateChoices().map((choice) => choice.label)).toEqual([
       "仍然保存",
       "确认不是同一笔",
       "取消，我再看看",
     ]);
+  });
+});
+
+/**
+ * **S16：英文界面下记账表单不残留中文。**
+ *
+ * 只检查本页自己的 `<form>`：外层的 `TabPage`（底栏等）由别的模块负责翻译，不在这里断言。
+ * 表单里没有任何用户数据（测试里账本没有加载），所以出现中文就是漏翻。
+ */
+describe("AddEntryPage in English", () => {
+  const CJK = /[㐀-鿿]/;
+
+  afterEach(() => {
+    applyLocale("zh-CN");
+  });
+
+  it("renders the entry form without Chinese", () => {
+    applyLocale("en-US");
+    const html = renderPage();
+    const form = html.slice(html.indexOf("<form"), html.indexOf("</form>") + 7);
+
+    expect(form.length).toBeGreaterThan(100);
+    expect(form).not.toMatch(CJK);
+    expect(form).toContain("Expense");
+    expect(form).toContain('aria-label="Amount"');
+    expect(form).toContain("Uncategorized");
+    expect(form).toContain("Same as last");
+    expect(form).toContain("Quick amounts");
+    expect(form).toContain("More options");
+    expect(form).toContain(">Save<");
+  });
+
+  it("translates the summary, the choices and the duplicate note, but never a custom name", () => {
+    applyLocale("en-US");
+
+    expect(
+      moreOptionsSummary({ paymentMethodName: "微信", note: "x", tagCount: 2 }).map((part) => part.text),
+    ).toEqual(["WeChat Pay", "Note added", "2 tags"]);
+    /** 自建的支付方式名是用户数据，英文界面也原样显示。 */
+    expect(moreOptionsSummary({ paymentMethodName: "招行信用卡", note: "", tagCount: 0 })[0]?.text).toBe("招行信用卡");
+    expect(manualDuplicateChoices().map((choice) => choice.label)).toEqual([
+      "Save anyway",
+      "Not a duplicate",
+      "Cancel, let me check",
+    ]);
+    expect(
+      manualDuplicateDescription({ existing: existingEntries(3), pairs: [], scope: "local" }),
+    ).toBe(
+      "The amount, type and time match an existing entry. Found 3 similar entries. Only data on this device was checked this time.",
+    );
   });
 });

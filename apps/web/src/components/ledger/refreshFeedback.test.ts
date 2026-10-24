@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { applyLocale } from "../../i18n/index.js";
 import { refreshMessage } from "./refreshFeedback.js";
 
 /**
@@ -90,5 +91,26 @@ describe("refreshMessage", () => {
 
   it("keeps the empty sentence when nothing is waiting", () => {
     expect(refreshMessage(base)).toContain("没有待投递的改动");
+  });
+
+  /** S16：英文句子之间要有空格，单复数按条数变化，且不残留中文。 */
+  describe("in English", () => {
+    afterEach(() => {
+      applyLocale("zh-CN");
+    });
+
+    it("joins the sentences with a space and counts in English", () => {
+      applyLocale("en-US");
+
+      expect(refreshMessage({ ...base, delivered: 1, waiting: 2 })).toBe(
+        "Sent 1 change to the cloud. Nothing new came back for this month. 2 changes haven’t reached the cloud yet. They’re kept on this device and will be retried next time you’re online.",
+      );
+      expect(refreshMessage({ ...base, delivered: 3, pulled: 12 })).toBe(
+        "Sent 3 changes to the cloud and updated this month (12 from the cloud).",
+      );
+      expect(refreshMessage({ ...base, failed: true, error: null })).not.toMatch(/[㐀-鿿]/);
+      expect(refreshMessage({ ...base, guest: true })).not.toMatch(/[㐀-鿿]/);
+      expect(refreshMessage(base)).not.toMatch(/[㐀-鿿]/);
+    });
   });
 });

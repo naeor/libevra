@@ -1,11 +1,11 @@
 import {
-  DUPLICATE_SCOPE_LABELS,
   decimalsFor,
   CURRENCIES,
   describeDuplicateMatch,
   formatTransactionNumber,
   MAX_TAGS_PER_TRANSACTION,
   normalizeNotDuplicatePair,
+  UNCATEGORISED_NAME,
   type Currency,
   type DuplicatePairResult,
   type Transaction,
@@ -21,6 +21,8 @@ import { BatchAddSheet } from "../components/entry/BatchAddSheet.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ErrorState, SkeletonRows } from "../components/States.js";
 import { useUndo } from "../components/UndoProvider.js";
+import { isChineseLocale, useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
@@ -29,12 +31,14 @@ import { deleteEntry, updateEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
   formatDateTimeInZone,
+  formatLocalDate,
   fromDateTimeLocalValue,
   toDateTimeLocalValue,
   toLocalDate,
   toLocalIso,
 } from "../lib/datetime.js";
 import { currencyName, formatMoney, minorToInput, parseAmountInput } from "../lib/format.js";
+import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import {
   useDeleteTransaction,
   useLedger,
@@ -42,6 +46,14 @@ import {
   useTransaction,
   useUpdateTransaction,
 } from "../lib/queries.js";
+
+/**
+ * 日历日（`YYYY-MM-DD`）给人看：中文界面保留原来的 `2026-10-21` 写法（与国际化之前一致），
+ * 其它语言按 `Intl`（`Oct 21, 2026`）。
+ */
+function displayLocalDate(localDate: string): string {
+  return isChineseLocale() ? localDate : formatLocalDate(localDate);
+}
 
 /**
  * One entry: everything recorded about it, plus the three things a person
@@ -56,6 +68,7 @@ export function EntryDetailPage(): React.JSX.Element {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { showUndo } = useUndo();
+  const { t } = useI18n();
 
   const ledger = useLedger();
   const entry = useTransaction(id);
@@ -121,7 +134,7 @@ export function EntryDetailPage(): React.JSX.Element {
 
   if (entry.isPending) {
     return (
-      <InnerPage title="记账详情" backTo="/">
+      <InnerPage title={t("entry.detail.title")} backTo="/">
         <SkeletonRows rows={3} />
       </InnerPage>
     );
@@ -129,7 +142,7 @@ export function EntryDetailPage(): React.JSX.Element {
 
   if (entry.isError || !entry.data) {
     return (
-      <InnerPage title="记账详情" backTo="/">
+      <InnerPage title={t("entry.detail.title")} backTo="/">
         <ErrorState
           message={errorMessage(entry.error)}
           onRetry={() => {
@@ -148,26 +161,28 @@ export function EntryDetailPage(): React.JSX.Element {
 
   if (data.deletedAt !== null && data.deletedAt !== undefined) {
     return (
-      <InnerPage title="记账详情" subtitle="这笔账目已删除" backTo="/ledger/history">
+      <InnerPage title={t("entry.detail.title")} subtitle={t("entry.detail.deletedSubtitle")} backTo="/ledger/history">
         <section className="rounded-card border border-line bg-surface px-5 py-5">
-          <p className="text-helper text-muted">{data.kind === "expense" ? "支出" : "收入"} · 已删除</p>
+          <p className="text-helper text-muted">{t("entry.detail.deletedLine", { kind: t(`common.kind.${data.kind}`) })}</p>
           <p className="mt-1 text-3xl font-semibold text-ink">
             {formatMoney(data.amountCents, data.currency, { withCode: true })}
           </p>
           <p className="mt-2 text-body text-ink">
-            {data.categoryName}
-            {data.paymentMethodName === null ? "" : ` · ${data.paymentMethodName}`}
+            {displayCategoryName(data.categoryName)}
+            {data.paymentMethodName === null ? "" : ` · ${displayPaymentMethodName(data.paymentMethodName)}`}
           </p>
-          <p className="mt-3 text-body text-muted">{data.occurredLocalDate} 的记录</p>
+          <p className="mt-3 text-body text-muted">
+            {t("entry.detail.recordOf", { date: displayLocalDate(data.occurredLocalDate) })}
+          </p>
           {data.note === null ? null : <p className="mt-1 text-body-relaxed text-muted">{data.note}</p>}
           <p className="mt-3 text-helper text-muted">
-            删除时间：{formatDateTimeInZone(data.deletedAt, data.occurredTz)}
+            {t("entry.detail.deletedAt", { time: formatDateTimeInZone(data.deletedAt, data.occurredTz) })}
           </p>
           {data.deletedByImportId === undefined ? null : (
             <div className="mt-3 border-t border-line pt-3">
-              <p className="text-helper-relaxed text-muted">通过账本导入移除</p>
+              <p className="text-helper-relaxed text-muted">{t("entry.detail.removedByImport")}</p>
               <details className="mt-1">
-                <summary className="cursor-pointer text-helper text-ink">查看导入任务编号</summary>
+                <summary className="cursor-pointer text-helper text-ink">{t("entry.detail.showImportId")}</summary>
                 <p className="mt-1 break-all rounded-field bg-canvas px-3 py-2 font-mono text-helper text-muted">
                   {data.deletedByImportId}
                 </p>
@@ -175,7 +190,7 @@ export function EntryDetailPage(): React.JSX.Element {
             </div>
           )}
           <p className="mt-1 text-helper-relaxed text-muted">
-            恢复后将保留原账目编号。账本须仍然存在，且你有编辑权限。
+            {t("entry.detail.restoreNote")}
           </p>
         </section>
 
@@ -197,14 +212,14 @@ export function EntryDetailPage(): React.JSX.Element {
           }}
           className="w-full rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {restore.isPending ? "正在恢复…" : "恢复账目"}
+          {restore.isPending ? t("entry.detail.restoring") : t("entry.detail.restore")}
         </button>
         <button
           type="button"
           onClick={() => void navigate("/ledger/history")}
           className="w-full rounded-field border border-line bg-surface px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-canvas"
         >
-          返回历史记录
+          {t("entry.detail.backToHistory")}
         </button>
       </InnerPage>
     );
@@ -224,8 +239,8 @@ export function EntryDetailPage(): React.JSX.Element {
     } catch {
       setError(
         decimalsFor(currency) === 0
-          ? `${currencyName(currency)}不支持小数，请输入整数金额。`
-          : `金额格式不正确，${currencyName(currency)}最多两位小数。`,
+          ? t("entry.amount.integerOnly", { currency: currencyName(currency) })
+          : t("entry.amount.invalid", { currency: currencyName(currency) }),
       );
       return;
     }
@@ -347,7 +362,7 @@ export function EntryDetailPage(): React.JSX.Element {
       await deleteEntry(id);
       await navigate("/");
       showUndo({
-        message: "已删除这笔记账",
+        message: t("entry.detail.deletedUndo"),
         onUndo: async () => {
           await restore.mutateAsync(id);
         },
@@ -392,7 +407,7 @@ export function EntryDetailPage(): React.JSX.Element {
   async function markNotDuplicate(pair: DuplicatePairResult): Promise<void> {
     const normalized = normalizeNotDuplicatePair(pair.leftId, pair.rightId);
     if (!normalized.ok) {
-      setCheckError("这两笔无法建立「不是同一笔」关系。");
+      setCheckError(t("entry.detail.notSamePairInvalid"));
       return;
     }
     setBusyPairKey(pair.pairKey);
@@ -408,7 +423,7 @@ export function EntryDetailPage(): React.JSX.Element {
           : { ...current, pairs: current.pairs.filter((item) => item.pairKey !== pair.pairKey) },
       );
     } catch (caught) {
-      setCheckError(`「不是同一笔」没有记住：${errorMessage(caught)}`);
+      setCheckError(t("entry.detail.notSameFailed", { reason: errorMessage(caught) }));
     } finally {
       setBusyPairKey(null);
     }
@@ -416,7 +431,7 @@ export function EntryDetailPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title={editing ? "修改记账" : "记账详情"}
+      title={editing ? t("entry.detail.editTitle") : t("entry.detail.title")}
       onBack={() => {
         if (editing) setEditing(false);
         else void navigate("/");
@@ -430,23 +445,23 @@ export function EntryDetailPage(): React.JSX.Element {
             }}
             className="text-sm font-medium text-brand-dark transition hover:underline"
           >
-            修改
+            {t("entry.detail.edit")}
           </button>
         )
       }
     >
       {error ? <Alert>{error}</Alert> : null}
       {batchSavedCount > 0 ? (
-        <Alert tone="success">已新增 {String(batchSavedCount)} 笔账目。</Alert>
+        <Alert tone="success">{t("entry.batch.saved", { count: batchSavedCount })}</Alert>
       ) : null}
       {sharedOfflineReadOnly ? (
         <Alert>
-          当前离线，共享账本暂时只能查看。恢复网络后可以修改或删除这笔记录；之前尚未同步的改动会保留。
+          {t("entry.detail.offlineReadOnly")}
         </Alert>
       ) : null}
 
       <section className="rounded-card border border-line bg-surface p-5">
-        <p className="text-xs text-muted">{data.kind === "expense" ? "支出" : "收入"}</p>
+        <p className="text-xs text-muted">{t(`common.kind.${data.kind}`)}</p>
         <p className="mt-1 text-3xl font-semibold text-ink tabular-nums">
           {data.kind === "expense" ? "-" : "+"}
           {formatMoney(data.amountCents, data.currency, { withCode: true })}
@@ -456,7 +471,7 @@ export function EntryDetailPage(): React.JSX.Element {
       {editing ? (
         <>
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-card-title text-ink">金额</h2>
+            <h2 className="px-1 text-card-title text-ink">{t("common.field.amount")}</h2>
             <input
               value={amountText}
               onChange={(event) => {
@@ -468,7 +483,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-card-title text-ink">分类</h2>
+            <h2 className="px-1 text-card-title text-ink">{t("common.field.category")}</h2>
             <div className="grid grid-cols-3 gap-2">
               {ownCategories.map((category) => (
                 <button
@@ -477,18 +492,18 @@ export function EntryDetailPage(): React.JSX.Element {
                   onClick={() => {
                     setCategoryId(category.id === categoryId ? null : category.id);
                   }}
-                  className={`rounded-field py-3 text-sm transition ${
+                  className={`min-w-0 rounded-field px-1 py-3 text-sm [overflow-wrap:anywhere] transition ${
                     category.id === categoryId ? "bg-brand text-on-brand" : "bg-surface text-ink"
                   }`}
                 >
-                  {category.name}
+                  {displayCategoryName(category.name)}
                 </button>
               ))}
             </div>
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-card-title text-ink">支付方式</h2>
+            <h2 className="px-1 text-card-title text-ink">{t("common.field.paymentMethod")}</h2>
             <div className="flex flex-wrap gap-2">
               {ownPaymentMethods.map((method) => (
                 <button
@@ -501,14 +516,14 @@ export function EntryDetailPage(): React.JSX.Element {
                     method.id === paymentMethodId ? "bg-brand text-on-brand" : "bg-surface text-ink"
                   }`}
                 >
-                  {method.name}
+                  {displayPaymentMethodName(method.name)}
                 </button>
               ))}
             </div>
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-card-title text-ink">币种</h2>
+            <h2 className="px-1 text-card-title text-ink">{t("common.field.currency")}</h2>
             <div className="flex flex-wrap gap-2">
               {CURRENCIES.map((code) => (
                 <button
@@ -528,7 +543,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-card-title text-ink">时间</h2>
+            <h2 className="px-1 text-card-title text-ink">{t("common.field.time")}</h2>
             <input
               type="datetime-local"
               step="1"
@@ -542,7 +557,7 @@ export function EntryDetailPage(): React.JSX.Element {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-card-title text-ink">备注</h2>
+            <h2 className="px-1 text-card-title text-ink">{t("common.field.note")}</h2>
             <input
               value={note}
               maxLength={200}
@@ -556,7 +571,7 @@ export function EntryDetailPage(): React.JSX.Element {
           {(ledger.data?.tags.length ?? 0) > 0 ? (
             <section className="flex flex-col gap-2">
               <h2 className="px-1 text-card-title text-ink">
-                标签（最多 {String(MAX_TAGS_PER_TRANSACTION)} 个）
+                {t("entry.detail.tagsHeading", { max: MAX_TAGS_PER_TRANSACTION })}
               </h2>
               <div className="flex flex-wrap gap-2">
                 {(ledger.data?.tags ?? []).map((tag) => {
@@ -594,42 +609,46 @@ export function EntryDetailPage(): React.JSX.Element {
               onClick={() => {
                 setBatchOpen(true);
               }}
-              className="flex-1 rounded-field border border-brand bg-surface py-3.5 text-button-lg font-medium text-brand-dark transition hover:bg-brand-soft disabled:opacity-45"
+              className="min-w-0 flex-1 rounded-field border border-brand bg-surface px-2 py-3.5 text-button-lg font-medium text-brand-dark transition hover:bg-brand-soft disabled:opacity-45"
             >
-              批量记账
+              {t("entry.detail.batchAdd")}
             </button>
             <button
               type="button"
               disabled={sharedOfflineReadOnly || update.isPending}
               onClick={() => void save()}
-              className="flex-[1.4] rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
+              className="min-w-0 flex-[1.4] rounded-field bg-brand px-2 py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
             >
-              {update.isPending ? "保存中…" : "保存修改"}
+              {update.isPending ? t("common.action.saving") : t("entry.detail.saveChanges")}
             </button>
           </div>
         </>
       ) : (
         <>
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-5 text-body [&>dd]:min-w-0 [&>dd]:break-words">
-            <dt className="text-card-title text-ink">分类</dt>
+            <dt className="text-card-title text-ink">{t("common.field.category")}</dt>
             <dd className="text-right text-ink">
-              {data.categoryIsSystem ? "暂无分类" : data.categoryName}
+              {displayCategoryName(data.categoryIsSystem ? UNCATEGORISED_NAME : data.categoryName)}
             </dd>
 
-            <dt className="text-card-title text-ink">支付方式</dt>
-            <dd className="text-right text-ink">{data.paymentMethodName ?? "未记录"}</dd>
+            <dt className="text-card-title text-ink">{t("common.field.paymentMethod")}</dt>
+            <dd className="text-right text-ink">
+              {data.paymentMethodName === null
+                ? t("entry.detail.notRecorded")
+                : displayPaymentMethodName(data.paymentMethodName)}
+            </dd>
 
-            <dt className="text-card-title text-ink">币种</dt>
+            <dt className="text-card-title text-ink">{t("common.field.currency")}</dt>
             <dd className="text-right text-ink">{currencyName(data.currency)}</dd>
 
-            <dt className="text-card-title text-ink">时间</dt>
+            <dt className="text-card-title text-ink">{t("common.field.time")}</dt>
             <dd className="text-right text-ink tabular-nums">{formatDateTimeInZone(data.occurredAt, data.occurredTz)}</dd>
 
-            <dt className="text-card-title text-ink">时区</dt>
+            <dt className="text-card-title text-ink">{t("common.field.timeZone")}</dt>
             <dd className="text-right text-muted">{data.occurredTz}</dd>
 
-            <dt className="text-card-title text-ink">备注</dt>
-            <dd className="text-right text-ink">{data.note ?? "无"}</dd>
+            <dt className="text-card-title text-ink">{t("common.field.note")}</dt>
+            <dd className="text-right text-ink">{data.note ?? t("common.status.none")}</dd>
 
             {/**
               * ⚠️ **The number appears here and nowhere else.**
@@ -646,16 +665,16 @@ export function EntryDetailPage(): React.JSX.Element {
               */}
             {data.seq === undefined ? null : (
               <>
-                <dt className="text-card-title text-ink">编号</dt>
+                <dt className="text-card-title text-ink">{t("entry.detail.number")}</dt>
                 <dd className="text-right font-mono text-ink">{formatTransactionNumber(data.seq)}</dd>
               </>
             )}
           </dl>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-card-title text-ink">标签</h2>
+            <h2 className="px-1 text-card-title text-ink">{t("common.field.tags")}</h2>
             {data.tags.length === 0 ? (
-              <p className="px-1 text-sm text-muted">没有标签</p>
+              <p className="px-1 text-sm text-muted">{t("entry.detail.noTags")}</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {data.tags.map((tag) => (
@@ -678,7 +697,7 @@ export function EntryDetailPage(): React.JSX.Element {
             }}
             className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
           >
-            复制这一笔
+            {t("entry.detail.copy")}
           </button>
 
           {/**
@@ -688,7 +707,7 @@ export function EntryDetailPage(): React.JSX.Element {
            * 点一下只对**这一笔**检查，不会开始一次全账本扫描。
            */}
           <details className="rounded-field border border-line bg-surface">
-            <summary className="cursor-pointer px-4 py-3 text-body font-medium">更多</summary>
+            <summary className="cursor-pointer px-4 py-3 text-body font-medium">{t("common.action.more")}</summary>
             <div className="flex flex-col gap-3 border-t border-line px-4 py-3">
               <button
                 type="button"
@@ -696,11 +715,11 @@ export function EntryDetailPage(): React.JSX.Element {
                 onClick={() => void checkDuplicatesForEntry()}
                 className="w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20 disabled:opacity-45"
               >
-                {checking ? "正在检测…" : "重复账目检测"}
+                {checking ? t("entry.detail.checking") : t("entry.detail.checkDuplicates")}
               </button>
               <p className="text-helper text-muted">
-                只检查这一笔与本账本的历史记录；不会删除、合并或修改任何账目。
-                {duplicateSettings.settings.enabled ? "" : "（重复提醒已关闭，需要先到设置里打开。）"}
+                {t("entry.detail.checkScope")}
+                {duplicateSettings.settings.enabled ? "" : t("entry.detail.checkDisabled")}
               </p>
 
               {checkError === null ? null : <Alert tone="error">{checkError}</Alert>}
@@ -709,15 +728,13 @@ export function EntryDetailPage(): React.JSX.Element {
                 <div className="flex flex-col gap-2">
                   {duplicateCheck.pairs.length === 0 ? (
                     <p className="text-helper text-muted">
-                      没有发现符合当前规则的疑似重复。
-                      {duplicateCheck.scope === "local"
-                        ? `（本次只比对了${DUPLICATE_SCOPE_LABELS.local}，不能据此认为账本里没有重复。）`
-                        : ""}
+                      {t("entry.detail.noDuplicates")}
+                      {duplicateCheck.scope === "local" ? t("entry.detail.localScopeNote") : ""}
                     </p>
                   ) : (
                     <>
                       <p className="text-helper text-muted">
-                        找到 {duplicateCheck.pairs.length} 笔相似记录。疑似重复不会自动处理。
+                        {t("entry.detail.foundSimilar", { count: duplicateCheck.pairs.length })}
                       </p>
                       <ul className="flex flex-col gap-2">
                         {duplicateCheck.pairs.map((pair) => {
@@ -730,23 +747,25 @@ export function EntryDetailPage(): React.JSX.Element {
                                 onClick={() => void navigate(`/transactions/${otherId}`)}
                                 className="flex items-baseline justify-between gap-3 text-left text-body"
                               >
-                                <span className="truncate">
-                                  {other?.note?.trim() === "" || other?.note == null ? "（无备注）" : other.note}
+                                <span className="min-w-0 truncate">
+                                  {other?.note?.trim() === "" || other?.note == null ? t("entry.detail.noNote") : other.note}
                                 </span>
                                 <span className="shrink-0 text-muted">
                                   {other === undefined
                                     ? ""
-                                    : `${other.occurredLocalDate} · ${formatMoney(other.amountCents, other.currency)}`}
+                                    : `${displayLocalDate(other.occurredLocalDate)} · ${formatMoney(other.amountCents, other.currency)}`}
                                 </span>
                               </button>
-                              <p className="text-helper text-muted">{describeDuplicateMatch(pair)}</p>
+                              <p className="text-helper text-muted">
+                                {translateSharedMessage(describeDuplicateMatch(pair))}
+                              </p>
                               <button
                                 type="button"
                                 disabled={isGuestRuntime() || busyPairKey === pair.pairKey}
                                 onClick={() => void markNotDuplicate(pair)}
                                 className="self-start text-helper text-brand-dark underline disabled:opacity-45"
                               >
-                                {busyPairKey === pair.pairKey ? "正在记录…" : "这两笔不是同一笔"}
+                                {busyPairKey === pair.pairKey ? t("entry.detail.marking") : t("entry.detail.notSame")}
                               </button>
                             </li>
                           );
@@ -767,7 +786,7 @@ export function EntryDetailPage(): React.JSX.Element {
             }}
             className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
           >
-            删除这笔记账
+            {t("entry.detail.delete")}
           </button>
         </>
       )}
@@ -786,14 +805,12 @@ export function EntryDetailPage(): React.JSX.Element {
       <ConfirmDialog
         open={confirmDelete}
         busy={remove.isPending}
-        title="删除这笔账目？"
-        description={`即将删除这笔 ${formatMoney(data.amountCents, data.currency, { withCode: true })} 的记录。`}
-        consequences={[
-          "删除后，可从编辑历史打开账目并恢复；账本须仍然存在，且你有编辑权限",
-          "本月的总额、笔数与结余会立即重新计算",
-          "删除后的几秒内仍可在底部选择「撤销」",
-        ]}
-        confirmLabel="确认删除"
+        title={t("entry.detail.deleteTitle")}
+        description={t("entry.detail.deleteDescription", {
+          amount: formatMoney(data.amountCents, data.currency, { withCode: true }),
+        })}
+        consequences={[t("entry.detail.deleteRestore"), t("entry.detail.deleteRecalc"), t("entry.detail.deleteUndo")]}
+        confirmLabel={t("entry.detail.confirmDelete")}
         onCancel={() => {
           setConfirmDelete(false);
         }}
