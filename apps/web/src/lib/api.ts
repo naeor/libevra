@@ -1,5 +1,10 @@
 import { apiErrorSchema } from "@libellum/shared";
 
+import i18next from "i18next";
+
+import { isChineseLocale, t } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
+
 /**
  * The device id, for the request header.
  *
@@ -140,7 +145,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     throw new ApiRequestError(
       0,
       "offline",
-      "当前处于离线状态，无法与服务器同步。请恢复网络后重试。",
+      t("errors.client.offline"),
     );
   }
 
@@ -176,7 +181,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     response = await fetch(buildUrl(path, options.query), init);
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new ApiRequestError(0, "timeout", "请求超时，请检查网络后重试。");
+      throw new ApiRequestError(0, "timeout", t("errors.client.timeout"));
     }
     throw error;
   } finally {
@@ -195,7 +200,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     throw new ApiRequestError(
       response.status,
       "malformed_response",
-      "服务暂时无法响应，请稍后重试。",
+      t("errors.client.malformed"),
     );
   }
 
@@ -206,7 +211,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       throw new ApiRequestError(response.status, parsed.data.code, parsed.data.message, parsed.data.details);
     }
 
-    throw new ApiRequestError(response.status, "unexpected_error", "服务暂时不可用，请稍后再试。");
+    throw new ApiRequestError(response.status, "unexpected_error", t("errors.client.unavailable"));
   }
 
   return payload as T;
@@ -242,7 +247,7 @@ export async function apiFetchFile(
   bookId?: string,
 ): Promise<FetchedFile> {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
-    throw new ApiRequestError(0, "offline", "当前处于离线状态，无法与服务器同步。请恢复网络后重试。");
+    throw new ApiRequestError(0, "offline", t("errors.client.offline"));
   }
 
   const controller = new AbortController();
@@ -266,7 +271,7 @@ export async function apiFetchFile(
     });
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new ApiRequestError(0, "timeout", "请求超时，请检查网络后重试。");
+      throw new ApiRequestError(0, "timeout", t("errors.client.timeout"));
     }
     throw error;
   } finally {
@@ -282,7 +287,7 @@ export async function apiFetchFile(
       throw new ApiRequestError(
         response.status,
         "malformed_response",
-        "服务暂时无法响应，请稍后重试。",
+        t("errors.client.malformed"),
       );
     }
 
@@ -290,7 +295,7 @@ export async function apiFetchFile(
     if (parsed.success) {
       throw new ApiRequestError(response.status, parsed.data.code, parsed.data.message, parsed.data.details);
     }
-    throw new ApiRequestError(response.status, "unexpected_error", "服务暂时不可用，请稍后再试。");
+    throw new ApiRequestError(response.status, "unexpected_error", t("errors.client.unavailable"));
   }
 
   return {
@@ -313,9 +318,34 @@ export async function apiFetchFile(
  * nothing to do with the cause, and it took a round of server-side measurement
  * to find that out. The replacement states the failure and offers a retry without guessing a cause.
  */
+/** 浏览器端自己构造的错误码；它们的 `message` 已经按当时的界面语言生成。 */
+const CLIENT_ERROR_KEYS = {
+  offline: "errors.client.offline",
+  timeout: "errors.client.timeout",
+  malformed_response: "errors.client.malformed",
+  unexpected_error: "errors.client.unavailable",
+} as const;
+
+/**
+ * 一个请求错误在**当前界面语言**下该怎么说。
+ *
+ * ⚠️ **中文界面：与以前完全相同，显示服务器给的原文。** 其它语言：先按错误码查 `errors.api.<code>`，
+ * 再试 shared 原文对照表（zod 校验信息等），都没有就给一句通用说明——**不把中文原文塞进英文界面**。
+ * 错误码本身（`error.code`）从不改变，页面里按错误码做的判断不受语言影响。
+ */
+export function localizedApiErrorMessage(error: ApiRequestError): string {
+  if (error.code in CLIENT_ERROR_KEYS) return t(CLIENT_ERROR_KEYS[error.code as keyof typeof CLIENT_ERROR_KEYS]);
+  if (isChineseLocale()) return error.message;
+  const key = `errors.api.${error.code}`;
+  if (i18next.exists(key)) return i18next.t(key as "errors.api.validation_failed");
+  const shared = translateSharedMessage(error.message);
+  if (shared !== error.message) return shared;
+  return t("errors.client.unknownServer");
+}
+
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof ApiRequestError) return localizedApiErrorMessage(error);
 
   // Unknown failures do not establish a network cause. Do not expose raw exceptions in UI copy.
-  return "操作未完成，请重试。若仍然失败，请联系管理员。";
+  return t("errors.client.generic");
 }

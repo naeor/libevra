@@ -4,7 +4,12 @@
  * Everything here works in the **user's own calendar**. The server stores the
  * local date and the IANA zone alongside the instant, so no other part of the
  * system has to guess what "today" meant to the person who recorded an entry.
+ *
+ * ⚠️ **S16 国际化：只改“怎么显示”，不改“是哪一天 / 哪一刻”。** 显示函数按当前界面语言输出
+ * （中文保留原来的写法，其它语言用 `Intl`）；`toLocalDate` / `toLocalIso` / `currentMonth` 等
+ * 产生存储值的函数与语言无关，切换语言不会改变任何账目的日期、时区或排序。
  */
+import { currentLocale, isChineseLocale, t } from "../i18n/index.js";
 
 function pad(value: number, width = 2): string {
   return String(value).padStart(width, "0");
@@ -45,25 +50,40 @@ export function shiftMonth(month: string, delta: number): string {
   return currentMonth(new Date(year, index + delta, 1));
 }
 
+/** `2026 年 10 月` / `October 2026`. */
 export function formatMonthLabel(month: string): string {
-  return `${String(Number(month.slice(0, 4)))} 年 ${String(Number(month.slice(5, 7)))} 月`;
+  if (!isChineseLocale()) {
+    const date = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
+    return new Intl.DateTimeFormat(currentLocale(), { year: "numeric", month: "long" }).format(date);
+  }
+  return `${String(Number(month.slice(0, 4)))} 年 ${String(Number(month.slice(5, 7)))} 月`; // i18n-ignore：中文界面专用的固定格式
 }
 
-/** `今天` / `昨天` / `10月8日 周三` — the heading a day's entries sit under. */
+/** `今天` / `昨天` / `10月8日 周三` — the heading a day's entries sit under. English: `Today` / `Wed, Oct 8`. */
 export function formatDayLabel(localDate: string, today: Date = new Date()): string {
-  if (localDate === toLocalDate(today)) return "今天";
+  if (localDate === toLocalDate(today)) return t("format.today");
 
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (localDate === toLocalDate(yesterday)) return "昨天";
+  if (localDate === toLocalDate(yesterday)) return t("format.yesterday");
 
   const [year, month, day] = localDate.split("-").map(Number);
   const date = new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1);
-  const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][date.getDay()] ?? "";
 
-  const prefix = date.getFullYear() === today.getFullYear() ? "" : `${String(date.getFullYear())} 年 `;
+  if (!isChineseLocale()) {
+    return new Intl.DateTimeFormat(currentLocale(), {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      ...(date.getFullYear() === today.getFullYear() ? {} : { year: "numeric" }),
+    }).format(date);
+  }
 
-  return `${prefix}${String(month ?? 0)} 月 ${String(day ?? 0)} 日 ${weekday}`;
+  const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][date.getDay()] ?? ""; // i18n-ignore：中文界面专用的固定格式
+
+  const prefix = date.getFullYear() === today.getFullYear() ? "" : `${String(date.getFullYear())} 年 `; // i18n-ignore：中文界面专用的固定格式
+
+  return `${prefix}${String(month ?? 0)} 月 ${String(day ?? 0)} 日 ${weekday}`; // i18n-ignore：中文界面专用的固定格式
 }
 
 /** `YYYY-MM-DDTHH:mm:ss` for an `<input type="datetime-local">`, in local time. */
@@ -144,9 +164,14 @@ export function zoneOffsetLabel(iso: string, timeZone: string): string {
   }
 }
 
-/** `HH:mm` in the zone the entry was recorded in. */
+/** `HH:mm` in the zone the entry was recorded in (English: `7:34 PM`). */
 export function formatTimeInZone(iso: string, timeZone: string): string {
   try {
+    if (!isChineseLocale()) {
+      return new Intl.DateTimeFormat(currentLocale(), { hour: "numeric", minute: "2-digit", timeZone }).format(
+        new Date(iso),
+      );
+    }
     return new Intl.DateTimeFormat("zh-CN", {
       hour: "2-digit",
       minute: "2-digit",
@@ -180,6 +205,17 @@ export function formatTimeWithZone(iso: string, timeZone: string): string {
 
 export function formatDateTimeInZone(iso: string, timeZone: string): string {
   try {
+    if (!isChineseLocale()) {
+      return new Intl.DateTimeFormat(currentLocale(), {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZone,
+      }).format(new Date(iso));
+    }
     return new Intl.DateTimeFormat("zh-CN", {
       year: "numeric",
       month: "2-digit",
@@ -193,4 +229,47 @@ export function formatDateTimeInZone(iso: string, timeZone: string): string {
   } catch {
     return iso;
   }
+}
+
+/**
+ * 一个时刻按当前界面语言显示（设备本地时区），代替各处的 `toLocaleString("zh-CN", …)`。
+ *
+ * `style` 对应 `Intl.DateTimeFormat` 的 `dateStyle` / `timeStyle`；无法解析的值原样返回。
+ */
+export function formatInstant(
+  value: string | number | Date,
+  options: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" },
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return typeof value === "string" ? value : "";
+  try {
+    return new Intl.DateTimeFormat(currentLocale(), options).format(date);
+  } catch {
+    return date.toISOString();
+  }
+}
+
+/** 只显示日期（`2026年10月25日` / `Oct 25, 2026`）。`YYYY-MM-DD` 按日历日解释，不受时区影响。 */
+export function formatLocalDate(localDate: string, options: Intl.DateTimeFormatOptions = { dateStyle: "medium" }): string {
+  const [year, month, day] = localDate.split("-").map(Number);
+  if (year === undefined || month === undefined || day === undefined || Number.isNaN(year + month + day)) return localDate;
+  return new Intl.DateTimeFormat(currentLocale(), options).format(new Date(year, month - 1, day));
+}
+
+/**
+ * 相对时间：`3 分钟前` / `3 minutes ago`、`明天` / `tomorrow`。
+ *
+ * 只用于“大概多久以前”的提示；需要精确时间的地方请同时显示绝对时间。
+ */
+export function formatRelativeTime(value: string | number | Date, now: Date = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const diffSeconds = Math.round((date.getTime() - now.getTime()) / 1000);
+  const format = new Intl.RelativeTimeFormat(currentLocale(), { numeric: "auto" });
+  const absolute = Math.abs(diffSeconds);
+  if (absolute < 60) return format.format(diffSeconds, "second");
+  if (absolute < 3600) return format.format(Math.round(diffSeconds / 60), "minute");
+  if (absolute < 86_400) return format.format(Math.round(diffSeconds / 3600), "hour");
+  if (absolute < 2_592_000) return format.format(Math.round(diffSeconds / 86_400), "day");
+  if (absolute < 31_536_000) return format.format(Math.round(diffSeconds / 2_592_000), "month");
+  return format.format(Math.round(diffSeconds / 31_536_000), "year");
 }

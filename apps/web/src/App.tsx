@@ -74,6 +74,8 @@ import { VoiceReviewPage } from "./pages/VoiceReviewPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 import { ThemeAppearancePage } from "./pages/ThemeAppearancePage.js";
 import { AppearancePage, PreferencesPage, SecurityPage } from "./pages/SettingsSubPages.js";
+import { useLanguageRerender } from "./i18n/index.js";
+import { LanguagePage } from "./pages/LanguagePage.js";
 
 /**
  * The chart foundation's development harness.
@@ -315,6 +317,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/settings/preferences" element={<RequireAuth><PreferencesPage /></RequireAuth>} />
       <Route path="/settings/appearance" element={<RequireAuth><AppearancePage /></RequireAuth>} />
       <Route path="/settings/appearance/theme" element={<RequireAuth><ThemeAppearancePage /></RequireAuth>} />
+      <Route path="/settings/appearance/language" element={<RequireSession><LanguagePage /></RequireSession>} />
       <Route path="/settings/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
       <Route path="/settings/account-data" element={<RequireAuth><AccountDataPage /></RequireAuth>} />
       <Route path="/settings/password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
@@ -467,6 +470,12 @@ function AppRoutes(): React.JSX.Element {
 }
 
 export default function App(): React.JSX.Element {
+  /**
+   * ⚠️ **订阅界面语言（S16 国际化）。** 切换语言时 App 重新渲染，整棵树随之刷新，所有文案与
+   * 格式化（日期、金额）都拿到新语言的结果。只是重新渲染，不会重新挂载：表单输入、滚动位置、
+   * 查询缓存、登录状态与离线队列都保留，也不会整页刷新。
+   */
+  useLanguageRerender();
   return (
     <ErrorBoundary>
       <PersistQueryClientProvider

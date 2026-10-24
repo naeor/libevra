@@ -113,8 +113,9 @@ describe("设置页的「系统管理」入口", () => {
 
     const gate = settings.indexOf("{isAdmin ? (");
     /** ⚠️ 匹配 JSX 属性本身，而不是注释里出现的同一串字。 */
-    const section = settings.indexOf('title="系统管理"');
-    const about = settings.indexOf('title="关于 Libevra"');
+    /** S16 国际化后标题是文案键，按键名定位（中文文案见 `i18n/resources/zh-CN/settings.ts`）。 */
+    const section = settings.indexOf('title={t("settings.home.admin.title")}');
+    const about = settings.indexOf('title={t("settings.home.about.title")}');
 
     expect(gate).toBeGreaterThan(-1);
     /** 条件在卡片之前：否则「系统管理」卡片会被无条件渲染出来。 */

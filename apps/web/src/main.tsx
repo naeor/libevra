@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App.js";
 import { startThemeRuntime } from "./lib/theme.js";
+import { startLanguageRuntime } from "./lib/languageRuntime.js";
 import { primeBookId } from "./lib/api.js";
 import { currentBookId, restoreCurrentBook, subscribeCurrentBook } from "./lib/currentBook.js";
 import { restoreOfflineScopeSync } from "./lib/offline/scope.js";
@@ -11,6 +12,12 @@ import { registerServiceWorker } from "./lib/offline/worker.js";
 import "./index.css";
 
 startThemeRuntime();
+
+/**
+ * ⚠️ **界面语言在第一次渲染前确定**（S16 国际化）：读本机偏好 → 切换 i18next → 写 `<html lang>`。
+ * 文案已经打包在主包里，这一步是同步的，所以首屏不会先闪一下中文再变成英文。
+ */
+startLanguageRuntime();
 
 const container = document.getElementById("root");
 

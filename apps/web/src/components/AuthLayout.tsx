@@ -1,6 +1,7 @@
 import { BrandMark } from "./BrandMark.js";
 import { Card } from "./Card.js";
 import { GuestEntry } from "./GuestEntry.js";
+import { LanguageSwitch } from "./LanguageSwitch.js";
 
 /**
  * The shared frame for every account-entry screen.
@@ -38,7 +39,14 @@ export function AuthLayout({
 }): React.JSX.Element {
   return (
     <main className="min-h-dvh bg-canvas">
-      <div className="mx-auto flex w-full max-w-[26rem] flex-col px-5 pt-12 pb-10 sm:pt-16">
+      <div className="relative mx-auto flex w-full max-w-[26rem] flex-col px-5 pt-12 pb-10 sm:pt-16">
+        {/**
+          * ⚠️ **登录前也能切换语言**（S16 国际化）。放在右上角、不占表单的位置；
+          * 安全区让它在刘海屏上不被状态栏盖住。
+          */}
+        <div className="absolute top-[calc(env(safe-area-inset-top,0px)+0.5rem)] right-3">
+          <LanguageSwitch />
+        </div>
         <header className="auth-enter flex flex-col items-center text-center">
           <span
             aria-hidden="true"

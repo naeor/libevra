@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "../auth/AuthProvider.js";
 import { errorMessage } from "../lib/api.js";
 import { currencyName } from "../lib/format.js";
+import { t } from "../i18n/index.js";
 import { useUpdatePreferences } from "../lib/queries.js";
 import { Alert } from "./Alert.js";
 import { ChevronIcon } from "./Icons.js";
@@ -121,7 +122,7 @@ export function CurrencyQuickPick({
        * on press — a radio would promise a form and a submit button that do not
        * exist. `aria-pressed` lets a screen reader say which one is in force.
        */}
-      <div role="group" aria-label="默认币种" className="flex flex-wrap gap-2">
+      <div role="group" aria-label={t("settings.preferences.defaultCurrency")} className="flex flex-wrap gap-2">
         {CURRENCIES.map((option) => {
           const selected = value.current === option;
 
@@ -154,7 +155,7 @@ export function CurrencyQuickPick({
 
       {hint === undefined ? null : <p className="text-helper-relaxed text-muted">{hint}</p>}
       {value.error === null ? null : <Alert tone="error">{value.error}</Alert>}
-      {value.saved && !value.pending ? <p className="text-helper text-brand-dark">已保存。</p> : null}
+      {value.saved && !value.pending ? <p className="text-helper text-brand-dark">{t("settings.saved")}</p> : null}
     </div>
   );
 }
@@ -306,9 +307,9 @@ export function SettingsRowList({
               * ⚠️ 还没开放的项是一行**说明**，不是一个坏掉的按钮：右侧写「后续开放」，没有箭头。
               */}
             {row.to === undefined ? (
-              <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-helper text-muted">后续开放</span>
+              <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-helper text-muted">{t("settings.comingLater")}</span>
             ) : (
-              <ChevronIcon direction="right" className="size-4 text-muted/70" />
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
             )}
           </button>
         </li>

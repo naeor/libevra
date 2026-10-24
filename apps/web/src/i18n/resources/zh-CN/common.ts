@@ -1,0 +1,85 @@
+/**
+ * `common` 文案：多个页面都会用到的通用动作、状态与字段名（源语言：简体中文）。
+ *
+ * 只放**含义在任何页面都相同**的词。同一个中文词在不同场景需要不同英文时（例如“完成”
+ * 有时是 Done、有时是 Finish import），请写在所属页面自己的模块里，不要硬塞进这里。
+ */
+const common = {
+  appName: "Libevra",
+  tagline: "the free, open ledger",
+  action: {
+    ok: "确定",
+    cancel: "取消",
+    save: "保存",
+    saving: "保存中…",
+    delete: "删除",
+    edit: "编辑",
+    done: "完成",
+    back: "返回",
+    retry: "重试",
+    close: "关闭",
+    confirm: "确认",
+    continue: "继续",
+    next: "下一步",
+    previous: "上一步",
+    copy: "复制",
+    copied: "已复制",
+    undo: "撤销",
+    more: "更多",
+    gotIt: "知道了",
+    viewDetails: "查看详情",
+    search: "搜索",
+    clear: "清除",
+    selectAll: "全选",
+    add: "添加",
+    create: "创建",
+    rename: "重命名",
+    share: "分享",
+    download: "下载",
+    refresh: "刷新",
+    open: "打开",
+    skip: "跳过",
+    send: "发送",
+  },
+  status: {
+    loading: "加载中…",
+    processing: "处理中…",
+    reading: "正在读取…",
+    failed: "失败",
+    expired: "已过期",
+    offline: "离线",
+    none: "无",
+  },
+  field: {
+    amount: "金额",
+    currency: "币种",
+    category: "分类",
+    tags: "标签",
+    paymentMethod: "支付方式",
+    note: "备注",
+    time: "时间",
+    date: "日期",
+    merchant: "商户",
+    ledger: "账本",
+    timeZone: "时区",
+    username: "用户名",
+    password: "密码",
+    nickname: "昵称",
+    accountNumber: "账号编号",
+  },
+  kind: {
+    expense: "支出",
+    income: "收入",
+  },
+  count: {
+    entries_one: "{{count}} 笔",
+    entries_other: "{{count}} 笔",
+  },
+  a11y: {
+    close: "关闭",
+    back: "返回",
+    more: "更多操作",
+  },
+};
+
+export default common;
