@@ -484,7 +484,8 @@ export function EntryDetailPage(): React.JSX.Element {
 
           <section className="flex flex-col gap-2">
             <h2 className="px-1 text-card-title text-ink">{t("common.field.category")}</h2>
-            <div className="grid grid-cols-3 gap-2">
+            {/* S16：中文固定三列；英文等更长的语言按最小宽度自动排列（320px 下两列），避免分类名在词中间断开。 */}
+            <div className="choice-grid-3 grid gap-2">
               {ownCategories.map((category) => (
                 <button
                   key={category.id}

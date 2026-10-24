@@ -717,6 +717,14 @@ body {
 */
 .space-brand { width: max-content; max-width: calc(100vw - 2 * var(--space-content-left, 24px)); }
 .space-brand-tagline { white-space: normal; }
+
+/*
+  ⚠️ **S16 国际化：三列选择网格（账目编辑里的分类）。**
+  中文分类名 2–4 个字，三列放得下，保持原样；英文名（Entertainment、Uncategorized）在 320px 的三列里
+  只能在词中间断开。非中文界面改为“每列至少 7rem、放得下几列就几列”：320px 两列，390px 起三列。
+*/
+.choice-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:root:not([lang^="zh"]) .choice-grid-3 { grid-template-columns: repeat(auto-fill, minmax(min(100%, 7rem), 1fr)); }
 .space-brand-tagline { margin-top: calc(10px - 7px * var(--p)); font-size: calc(14px - 4px * var(--p)); line-height: 1.5; letter-spacing: 0.08em; }
 
 /*
