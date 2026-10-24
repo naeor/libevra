@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { applyLocale } from "../../i18n/index.js";
 import { queryKeys, transactionFilters } from "../queries.js";
-import { monthRows, monthLabel, estimateBytes, managerMonths } from "./downloadManager.js";
+import { describeKey, monthRows, monthLabel, estimateBytes, managerMonths } from "./downloadManager.js";
 import { monthRange, summaryFor } from "./localStats.js";
 
 /**
@@ -169,6 +170,22 @@ describe("the download manager's table", () => {
   it("leaves a malformed key alone", () => {
     // Rather than producing "undefined年NaN月".
     expect(monthLabel("nonsense")).toBe("nonsense");
+  });
+
+  it("S16: names months in English for an English interface, and keeps the key itself unchanged", () => {
+    applyLocale("en-US");
+    try {
+      expect(monthLabel("2026-09")).toBe("September 2026");
+      expect(monthLabel("nonsense")).toBe("nonsense");
+      expect(describeKey(["transactions", { month: "2026-09", kind: undefined }])).toBe(
+        "transactions · 2 fields · month=2026-09",
+      );
+      expect(describeKey(["stats", { from: "2026-09-01" }])).toBe("stats · 1 field · from=2026-09-01");
+    } finally {
+      applyLocale("zh-CN");
+    }
+    expect(monthLabel("2026-09")).toBe("2026年9月");
+    expect(describeKey(["stats", {}])).toBe("stats · 0字段 · (全空)");
   });
 
   it("lists the months newest first", () => {

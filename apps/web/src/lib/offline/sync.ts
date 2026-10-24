@@ -71,7 +71,7 @@ export async function retryAbandonedWrites(): Promise<number> {
   failures.clear();
 
   if (abandoned > 0) {
-    await logOffline("DIAGNOSTIC:sync-retry", `手动重试：清掉 ${String(abandoned)} 条本会话的放弃记录`);
+    await logOffline("DIAGNOSTIC:sync-retry", `手动重试：清掉 ${String(abandoned)} 条本会话的放弃记录`); // i18n-ignore：诊断日志（存本机，给开发者看）
   }
 
   return abandoned;
@@ -174,7 +174,7 @@ async function runSync(): Promise<SyncReport> {
   let delivered = 0;
   let refused = 0;
 
-  await logOffline("DIAGNOSTIC:sync", `核对 ${String(work.length)} 条待处理`);
+  await logOffline("DIAGNOSTIC:sync", `核对 ${String(work.length)} 条待处理`); // i18n-ignore：诊断日志
 
   for (const intent of work) {
     const failure = failures.get(intent.entry.id);
@@ -201,10 +201,10 @@ async function runSync(): Promise<SyncReport> {
 
   const waiting = (await intents()).length;
 
-  if (delivered > 0) await logOffline("DIAGNOSTIC:sync-done", `投递 ${String(delivered)} 条`);
+  if (delivered > 0) await logOffline("DIAGNOSTIC:sync-done", `投递 ${String(delivered)} 条`); // i18n-ignore：诊断日志
 
   if (waiting > 0) {
-    await logOffline("DIAGNOSTIC:sync-waiting", `仍有 ${String(waiting)} 条未投递`);
+    await logOffline("DIAGNOSTIC:sync-waiting", `仍有 ${String(waiting)} 条未投递`); // i18n-ignore：诊断日志
   }
 
   return { delivered, waiting, refused };
@@ -268,7 +268,7 @@ async function deliver(intent: Intent): Promise<boolean> {
 
     await logOffline(
       "DIAGNOSTIC:sync-failed",
-      `${op} ${short} — ${status === 0 ? "无响应" : String(status)} ${message}`,
+      `${op} ${short} — ${status === 0 ? "无响应" : String(status)} ${message}`, // i18n-ignore：诊断日志
     );
 
     /**
@@ -308,7 +308,7 @@ async function deliver(intent: Intent): Promise<boolean> {
        * temporary refusal, not a content conflict — keep the pending mark untouched and retry
        * after the lock is released, so offline work cannot be lost or turned into a red conflict.
        */
-      await logOffline("DIAGNOSTIC:sync-ledger-locked", `${op} ${short} — 账本导入锁定，保留待同步`);
+      await logOffline("DIAGNOSTIC:sync-ledger-locked", `${op} ${short} — 账本导入锁定，保留待同步`); // i18n-ignore：诊断日志
       return false;
     }
 
@@ -322,7 +322,7 @@ async function deliver(intent: Intent): Promise<boolean> {
 
         failures.delete(entry.id);
 
-        await logOffline("DIAGNOSTIC:sync-conflict", `${op} ${short} — 两份都留住了，等用户决定`);
+        await logOffline("DIAGNOSTIC:sync-conflict", `${op} ${short} — 两份都留住了，等用户决定`); // i18n-ignore：诊断日志
 
         return false;
       }
@@ -331,7 +331,7 @@ async function deliver(intent: Intent): Promise<boolean> {
        * ⚠️ **A 409 without the server's copy is the old protocol**, and it must not be swallowed: the entry is
        * left marked, so it stays visible and the next run tries again rather than the edit disappearing.
        */
-      await logOffline("DIAGNOSTIC:sync-conflict", `${op} ${short} — 冲突但没收到对方那一版`);
+      await logOffline("DIAGNOSTIC:sync-conflict", `${op} ${short} — 冲突但没收到对方那一版`); // i18n-ignore：诊断日志
 
       return false;
     }
@@ -365,7 +365,7 @@ async function deliver(intent: Intent): Promise<boolean> {
 
       failures.delete(entry.id);
 
-      await logOffline("DIAGNOSTIC:sync-already-gone", `${op} ${short} — 服务器已没有这行，删除视为完成`);
+      await logOffline("DIAGNOSTIC:sync-already-gone", `${op} ${short} — 服务器已没有这行，删除视为完成`); // i18n-ignore：诊断日志
 
       return true;
     }
@@ -549,12 +549,12 @@ export async function deferConflictsToServer(): Promise<boolean> {
   }).catch(() => null);
 
   if (answer === null) {
-    await logOffline("DIAGNOSTIC:conflicts-deferred", "告诉服务器「以服务器为准」失败，下次同步再试");
+    await logOffline("DIAGNOSTIC:conflicts-deferred", "告诉服务器「以服务器为准」失败，下次同步再试"); // i18n-ignore：诊断日志
 
     return false;
   }
 
-  await logOffline("DIAGNOSTIC:conflicts-deferred", `已告诉服务器：${String(answer.resolved)} 笔以它为准`);
+  await logOffline("DIAGNOSTIC:conflicts-deferred", `已告诉服务器：${String(answer.resolved)} 笔以它为准`); // i18n-ignore：诊断日志
 
   return true;
 }
@@ -629,7 +629,7 @@ export async function pullConflicts(): Promise<number> {
     await upsertEntry(current);
     await setMark(id, null);
     await republishLedger();
-    await logOffline("DIAGNOSTIC:conflict-adopted", `${id.slice(0, 8)}：其他设备已处理，金额=${String(current.amountCents)} 分`);
+    await logOffline("DIAGNOSTIC:conflict-adopted", `${id.slice(0, 8)}：其他设备已处理，金额=${String(current.amountCents)} 分`); // i18n-ignore：诊断日志
   }
 
   let found = 0;
@@ -688,7 +688,7 @@ export async function pullConflicts(): Promise<number> {
     found += 1;
   }
 
-  if (found > 0) await logOffline("DIAGNOSTIC:conflicts-pulled", `服务器上有 ${String(found)} 笔待选择`);
+  if (found > 0) await logOffline("DIAGNOSTIC:conflicts-pulled", `服务器上有 ${String(found)} 笔待选择`); // i18n-ignore：诊断日志
 
   return found;
 }

@@ -1,5 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { isChineseLocale, t } from "../../i18n/index.js";
+import { formatMonthLabel } from "../datetime.js";
 import { readValue, writeValue } from "./storage.js";
 
 /**
@@ -31,7 +33,10 @@ export const MANAGER_MONTHS = 60;
 export interface MonthRow {
   /** `YYYY-MM`. */
   readonly month: string;
-  /** How it is said on screen: `2026年9月`. */
+  /**
+   * How it is said on screen: `2026年9月` / `September 2026`, in the language current when the rows were built.
+   * A screen that outlives a language switch should call `monthLabel(row.month)` instead.
+   */
   readonly label: string;
   readonly state: "stored" | "missing" | "never";
   readonly entryCount: number;
@@ -49,7 +54,10 @@ export function monthLabel(month: string): string {
   // rather than as "undefined年NaN月".
   if (year === undefined || rawMonth === undefined) return month;
 
-  return `${year}年${String(Number(rawMonth))}月`;
+  // S16：其它语言走 `Intl`（`September 2026`）；中文保留这一页一直以来的紧凑写法 `2026年9月`。
+  if (!isChineseLocale()) return formatMonthLabel(month);
+
+  return `${year}年${String(Number(rawMonth))}月`; // i18n-ignore：中文界面专用的固定格式
 }
 
 /**
@@ -402,7 +410,9 @@ export function describeKey(queryKey: unknown): string {
      * A count of four fields versus three is exactly what told this project which stored
      * entries were leftovers, and it is invisible if only the values are shown.
      */
-    return `${name} · ${String(Object.keys(rest).length)}字段 · ${sorted === "" ? "(全空)" : sorted}`;
+    return `${name} · ${t("offline.key.fields", { count: Object.keys(rest).length })} · ${
+      sorted === "" ? t("offline.key.allEmpty") : sorted
+    }`;
   }
 
   return `${name} · ${String(rest)}`;

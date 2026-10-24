@@ -54,7 +54,7 @@ export async function registerServiceWorker(): Promise<boolean> {
       }
 
       if ((existing ?? []).length > 0) {
-        console.info("[offline] 开发模式：已注销此前注册的 Service Worker，避免拿到旧代码。");
+        console.info("[offline] 开发模式：已注销此前注册的 Service Worker，避免拿到旧代码。"); // i18n-ignore：开发者日志
       }
     } catch {
       // Nothing to unregister is the normal case.
@@ -66,8 +66,8 @@ export async function registerServiceWorker(): Promise<boolean> {
   if (!canRegisterWorker()) {
     if (import.meta.env.DEV) {
       console.info(
-        "[offline] 未注册 Service Worker：这个地址不是安全上下文。\n" +
-          "          离线功能需要 https 或 localhost。手机访问请用 https 地址（见 docs/README.md）。",
+        "[offline] 未注册 Service Worker：这个地址不是安全上下文。\n" + // i18n-ignore：开发者日志
+          "          离线功能需要 https 或 localhost。手机访问请用 https 地址（见 docs/README.md）。", // i18n-ignore：开发者日志
       );
     }
 
@@ -89,7 +89,7 @@ export async function registerServiceWorker(): Promise<boolean> {
     return true;
   } catch (error) {
     // A failure to register costs offline support and nothing else.
-    console.warn("[offline] Service Worker 注册失败：", error);
+    console.warn("[offline] Service Worker 注册失败：", error); // i18n-ignore：开发者日志
 
     return false;
   }

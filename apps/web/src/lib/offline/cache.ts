@@ -143,7 +143,7 @@ export const cachePersister = createAsyncStoragePersister({
     } catch (error) {
       void logCacheEvent(
         "DIAGNOSTIC:cache-unreadable",
-        `缓存无法解析，按「没有缓存」处理并保留原值：${error instanceof Error ? error.message : String(error)}`,
+        `缓存无法解析，按「没有缓存」处理并保留原值：${error instanceof Error ? error.message : String(error)}`, // i18n-ignore：诊断日志（存本机，给开发者看）
       );
 
       return undefined as never;
@@ -202,7 +202,7 @@ export const cachePersister = createAsyncStoragePersister({
      * `clearQueryCache`, not in an error path.
      */
     removeItem: () => {
-      void logCacheEvent("DIAGNOSTIC:cache-keep", "库要求删除缓存，已拒绝");
+      void logCacheEvent("DIAGNOSTIC:cache-keep", "库要求删除缓存，已拒绝"); // i18n-ignore：诊断日志
     },
   },
   throttleTime: 1_000,
@@ -331,7 +331,7 @@ async function mergeAndWrite(key: string, value: string): Promise<void> {
     if (merged.length < storedRaw.length) {
       await logCacheEvent(
         "DIAGNOSTIC:cache-merge-refused",
-        `合并后反而更小（${String(storedRaw.length)} → ${String(merged.length)} 字节），保留设备上的版本`,
+        `合并后反而更小（${String(storedRaw.length)} → ${String(merged.length)} 字节），保留设备上的版本`, // i18n-ignore：诊断日志
       );
 
       return;
@@ -339,7 +339,7 @@ async function mergeAndWrite(key: string, value: string): Promise<void> {
 
     await logCacheEvent(
       "DIAGNOSTIC:cache-merge",
-      `保留 ${String(preserved.length)} 个月份记录；${String(storedRaw.length)} → ${String(merged.length)} 字节`,
+      `保留 ${String(preserved.length)} 个月份记录；${String(storedRaw.length)} → ${String(merged.length)} 字节`, // i18n-ignore：诊断日志
     );
 
     await writeValue(key, merged);

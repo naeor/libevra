@@ -143,7 +143,7 @@ export function hasIndexedDb(): boolean {
 function openDatabase(): Promise<IDBDatabase> {
   if (databasePromise !== null) return databasePromise;
 
-  trace("open", DATABASE, "开始打开");
+  trace("open", DATABASE, "开始打开"); // i18n-ignore：存储追踪（诊断数据，给开发者看）
 
   databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DATABASE, VERSION);
@@ -151,7 +151,7 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const database = request.result;
 
-      trace("open", DATABASE, `升级到版本 ${String(VERSION)}`);
+      trace("open", DATABASE, `升级到版本 ${String(VERSION)}`); // i18n-ignore：存储追踪
 
       if (!database.objectStoreNames.contains(STORE)) {
         database.createObjectStore(STORE);
@@ -161,7 +161,7 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onsuccess = () => {
       const database = request.result;
 
-      trace("open", DATABASE, "成功");
+      trace("open", DATABASE, "成功"); // i18n-ignore：存储追踪
 
       /**
        * A second tab opening a newer version asks this one to close.
@@ -170,7 +170,7 @@ function openDatabase(): Promise<IDBDatabase> {
        * user sees a page that never loads — with no error and nothing to click.
        */
       database.onversionchange = () => {
-        trace("open", DATABASE, "另一个页面要求升级，已关闭连接");
+        trace("open", DATABASE, "另一个页面要求升级，已关闭连接"); // i18n-ignore：存储追踪
         database.close();
         databasePromise = null;
       };
@@ -181,7 +181,7 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onerror = () => {
       const detail = request.error?.name ?? "unknown";
 
-      trace("open", DATABASE, `失败：${detail}`);
+      trace("open", DATABASE, `失败：${detail}`); // i18n-ignore：存储追踪
 
       reject(request.error ?? new Error("indexeddb_open_failed"));
     };
@@ -195,7 +195,7 @@ function openDatabase(): Promise<IDBDatabase> {
        * to a broken database from the outside, and it resolves itself once the other tab
        * closes.
        */
-      trace("open", DATABASE, "被阻塞：另一个页面占着旧版本");
+      trace("open", DATABASE, "被阻塞：另一个页面占着旧版本"); // i18n-ignore：存储追踪
 
       reject(new Error("indexeddb_blocked"));
     };
@@ -251,7 +251,7 @@ async function withStore<T>(
  */
 export async function readValue<T>(key: string): Promise<T | null> {
   if (!hasIndexedDb()) {
-    trace("read", key, "没有 IndexedDB");
+    trace("read", key, "没有 IndexedDB"); // i18n-ignore：存储追踪
 
     return null;
   }
@@ -259,7 +259,7 @@ export async function readValue<T>(key: string): Promise<T | null> {
   try {
     const value = await withStore(true, (store) => store.get(key) as IDBRequest<T | undefined>);
 
-    trace("read", key, value === undefined ? "键不存在" : summarize(value));
+    trace("read", key, value === undefined ? "键不存在" : summarize(value)); // i18n-ignore：存储追踪
 
     /**
      * ⚠️ **Every read refreshes the synchronous copy**, which is what lets a screen draw the
@@ -280,7 +280,7 @@ export async function readValue<T>(key: string): Promise<T | null> {
     trace(
       "read",
       key,
-      `失败：${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
+      `失败：${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`, // i18n-ignore：存储追踪
     );
 
     return null;
@@ -296,12 +296,12 @@ export async function readValue<T>(key: string): Promise<T | null> {
  */
 function summarize(value: unknown): string {
   if (typeof value === "string") {
-    return `${String(value.length)} 字节字符串「${value.slice(0, 40)}…」`;
+    return `${String(value.length)} 字节字符串「${value.slice(0, 40)}…」`; // i18n-ignore：存储追踪
   }
 
-  if (Array.isArray(value)) return `数组 ${String(value.length)} 项`;
+  if (Array.isArray(value)) return `数组 ${String(value.length)} 项`; // i18n-ignore：存储追踪
 
-  if (typeof value === "object" && value !== null) return `对象，键：${Object.keys(value).join(",")}`;
+  if (typeof value === "object" && value !== null) return `对象，键：${Object.keys(value).join(",")}`; // i18n-ignore：存储追踪
 
   return String(value);
 }
@@ -359,7 +359,7 @@ export async function writeValue(key: string, value: unknown): Promise<boolean> 
 
 async function writeValueNow(key: string, value: unknown): Promise<boolean> {
   if (!hasIndexedDb()) {
-    trace("write", key, "没有 IndexedDB，未写入");
+    trace("write", key, "没有 IndexedDB，未写入"); // i18n-ignore：存储追踪
 
     return false;
   }
@@ -377,7 +377,7 @@ async function writeValueNow(key: string, value: unknown): Promise<boolean> {
     trace(
       "write",
       key,
-      `失败：${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
+      `失败：${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`, // i18n-ignore：存储追踪
     );
 
     return false;
@@ -402,14 +402,14 @@ export async function removeValue(key: string): Promise<boolean> {
     try {
       await withStore(false, (store) => store.delete(key));
 
-      trace("remove", key, "已删除");
+      trace("remove", key, "已删除"); // i18n-ignore：存储追踪
 
       return true;
     } catch (error) {
       trace(
         "remove",
         key,
-        `失败：${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
+        `失败：${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`, // i18n-ignore：存储追踪
       );
 
       return false;

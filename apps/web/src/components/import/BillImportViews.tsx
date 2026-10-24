@@ -7,19 +7,26 @@
  *
  * 视觉语言沿用 OCR 概览/语音/拍照页：`rounded-card` 卡片、`text-section-title` 金额、
  * `min-h-11` 触控目标、`text-helper` 辅助文字、`warn-*` 提醒色。
+ *
+ * S16 国际化：文案都来自 `dataio.*`；账单里的商户、备注、标签、单号、来源状态是数据，原样显示。
+ * 英文比中文长，按钮行一律允许换行（`flex-wrap`），说明文字不截断。
  */
 
 import { CURRENCIES, type BillImportCandidate, type BillImportPreview } from "@libellum/shared";
 import type { ReactNode, SelectHTMLAttributes } from "react";
+import { Trans } from "react-i18next";
 
 import { Button } from "../Button.js";
+import { useI18n } from "../../i18n/index.js";
 import { currencyName } from "../../lib/format.js";
+import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import {
   BILL_IMPORT_FILTERS,
   BILL_ROW_STATUS_CLASSES,
-  BILL_ROW_STATUS_LABELS,
   billDirectionLabel,
+  billFilterLabel,
   billLocationText,
+  billRowStatusLabel,
   billSourceRefText,
   billTagsText,
   billTimeText,
@@ -86,6 +93,8 @@ export function BillPickCard({
   /** 模板下载入口；`null` 表示不显示（例如账本信息还没读到）。 */
   readonly template: { readonly busy: boolean; readonly onDownload: () => void } | null;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <section className="flex flex-col gap-3">
       <div
@@ -103,41 +112,41 @@ export function BillPickCard({
           className="flex min-h-11 w-full flex-col items-center justify-center gap-2 text-center disabled:cursor-not-allowed disabled:opacity-45"
         >
           <UploadIcon />
-          <span className="text-body text-ink">{busy ? "正在识别…" : "选择账单文件"}</span>
-          <span className="text-helper text-muted">微信 XLSX · 支付宝 CSV · 银行 PDF · Libevra CSV</span>
-          <span className="text-helper text-muted">单个文件最大 10 MB；电脑上也可以把文件拖进来</span>
+          <span className="text-body text-ink">{busy ? t("dataio.pick.recognizing") : t("dataio.pick.choose")}</span>
+          <span className="text-helper text-muted">{t("dataio.pick.formats")}</span>
+          <span className="text-helper text-muted">{t("dataio.pick.limit")}</span>
         </button>
       </div>
 
       <details className="rounded-field bg-canvas px-4 py-3 text-helper-relaxed text-muted">
         <summary className="w-fit cursor-pointer select-none font-medium text-ink">
-          识别和判重是怎么做的
+          {t("dataio.pick.howTitle")}
         </summary>
         <ul className="mt-2 flex flex-col gap-1">
-          <li>格式按文件内容识别，不看文件名：同一份账单换了名字也能认出来。</li>
-          <li>
-            文件内部重复、以及和账本里已有账目的重复，都用同一套规则判定；只提示，不自动删除，
-            也不会取消你已有的勾选。
-          </li>
-          <li>
-            之前导入过的同一份来源会标成「来源已存在」并跳过，所以同一个文件再导一次不会多出账目。
-          </li>
-          <li>全部在本机处理，不上传第三方服务。</li>
+          <li>{t("dataio.pick.howFormat")}</li>
+          <li>{t("dataio.pick.howDuplicates")}</li>
+          <li>{t("dataio.pick.howIdentity")}</li>
+          <li>{t("dataio.pick.howLocal")}</li>
         </ul>
       </details>
 
       {template === null ? null : (
         <p className="text-helper-relaxed text-muted">
-          想从零开始整理？可以
-          <button
-            type="button"
-            disabled={template.busy}
-            onClick={template.onDownload}
-            className="mx-1 min-h-11 rounded-field px-1 text-link text-brand-dark underline-offset-2 hover:underline disabled:opacity-45"
-          >
-            {template.busy ? "正在生成模板…" : "下载 Libevra CSV 模板"}
-          </button>
-          照着表头填。
+          {/* 按钮在句子中间：整句交给 `<Trans>`，英文语序由文案决定，不拆成前后两段。 */}
+          <Trans
+            i18nKey="dataio.pick.template"
+            values={{ label: template.busy ? t("dataio.pick.templateGenerating") : t("dataio.pick.templateDownload") }}
+            components={{
+              btn: (
+                <button
+                  type="button"
+                  disabled={template.busy}
+                  onClick={template.onDownload}
+                  className="mx-1 min-h-11 rounded-field px-1 text-link text-brand-dark underline-offset-2 hover:underline disabled:opacity-45"
+                />
+              ),
+            }}
+          />
         </p>
       )}
     </section>
@@ -162,9 +171,11 @@ export function BillFileSummary({
   readonly onChange: () => void;
   readonly onClear: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <section
-      aria-label="已选文件"
+      aria-label={t("dataio.fileSummary.aria")}
       className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-3 shadow-card"
     >
       <div className="flex items-start justify-between gap-3">
@@ -174,7 +185,7 @@ export function BillFileSummary({
           <p className="text-helper text-muted">
             {formatBillFileSize(fileSize)}
             {formatLabel === null ? "" : ` · ${formatLabel}`}
-            {sourceLabel === null ? "" : ` · 识别为 ${sourceLabel}`}
+            {sourceLabel === null ? "" : ` · ${t("dataio.fileSummary.recognizedAs", { source: sourceLabel })}`}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -184,7 +195,7 @@ export function BillFileSummary({
             onClick={onChange}
             className="min-h-11 rounded-field px-2 py-1 text-link text-brand-dark underline-offset-2 hover:underline disabled:opacity-45"
           >
-            更换
+            {t("dataio.fileSummary.change")}
           </button>
           <button
             type="button"
@@ -192,7 +203,7 @@ export function BillFileSummary({
             onClick={onClear}
             className="min-h-11 rounded-field px-2 py-1 text-link text-muted underline-offset-2 hover:underline disabled:opacity-45"
           >
-            清除
+            {t("dataio.fileSummary.clear")}
           </button>
         </div>
       </div>
@@ -208,16 +219,18 @@ export function BillParsingCard({
   readonly fileName: string;
   readonly fileSize: number;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <section
-      aria-label="正在识别"
+      aria-label={t("dataio.parsing.aria")}
       className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-6 text-center shadow-card"
     >
-      <p className="text-body text-ink">正在识别账单…</p>
+      <p className="text-body text-ink">{t("dataio.parsing.title")}</p>
       <p className="truncate text-helper text-muted">
         {fileName} · {formatBillFileSize(fileSize)}
       </p>
-      <p className="text-helper text-muted">逐行读取并做判重，大文件可能需要几十秒，不要关闭页面。</p>
+      <p className="text-helper text-muted">{t("dataio.parsing.hint")}</p>
     </section>
   );
 }
@@ -238,42 +251,44 @@ export function BillSummaryPanel({
   readonly readCount: number;
   readonly identitySkipped: number;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
     <section
-      aria-label="账单概览汇总"
+      aria-label={t("dataio.summary.aria")}
       className="rounded-card border border-line bg-surface px-4 py-3 shadow-card"
     >
       <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <SummaryInline label="本次读到" value={readCount} />
-        <SummaryInline label="待核对" value={counts.review} tone={counts.review > 0 ? "warning" : "default"} />
+        <SummaryInline label={t("dataio.summary.read")} value={readCount} />
         <SummaryInline
-          label="疑似重复"
+          label={t("dataio.summary.review")}
+          value={counts.review}
+          tone={counts.review > 0 ? "warning" : "default"}
+        />
+        <SummaryInline
+          label={t("dataio.summary.duplicate")}
           value={counts.duplicate}
           tone={counts.duplicate > 0 ? "warning" : "default"}
         />
-        <SummaryInline label="可导入" value={counts.selected} tone="brand" />
+        <SummaryInline label={t("dataio.summary.importable")} value={counts.selected} tone="brand" />
         {identitySkipped === 0 ? null : (
-          <SummaryInline label="来源已存在" value={identitySkipped} tone="default" />
+          <SummaryInline label={t("dataio.summary.identity")} value={identitySkipped} tone="default" />
         )}
       </dl>
 
       <details className="mt-1.5">
         <summary className="w-fit min-h-11 cursor-pointer select-none text-helper text-muted">
-          数量说明
+          {t("dataio.summary.explainTitle")}
         </summary>
         <ul className="mt-1 flex flex-col gap-1 text-helper text-muted">
-          <li>「本次读到」表示文件中识别出的交易笔数，不是文件行数。</li>
-          <li>
-            「待核对」包括有提醒或信息不完整的账目，「疑似重复」表示检测到可能重复，两者可能重叠。
-          </li>
-          <li>
-            「可导入」只计算已勾选且并非「来源已存在」的账目，随勾选变化。「待核对」和「疑似重复」不受勾选影响。
-          </li>
-          <li>这些账目尚未入账，确认导入后才会写入。</li>
+          <li>{t("dataio.summary.explainRead")}</li>
+          <li>{t("dataio.summary.explainOverlap")}</li>
+          <li>{t("dataio.summary.explainImportable")}</li>
+          <li>{t("dataio.summary.explainPending")}</li>
         </ul>
       </details>
 
-      <p className="mt-1 text-helper text-muted">已勾选 {selectedCount} 笔。</p>
+      <p className="mt-1 text-helper text-muted">{t("dataio.summary.selected", { count: selectedCount })}</p>
     </section>
   );
 }
@@ -288,8 +303,10 @@ export function BillFilterRow({
   readonly counts: BillFilterCounts;
   readonly onSelect: (filter: BillImportFilter) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="按状态筛选">
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("dataio.filter.aria")}>
       {BILL_IMPORT_FILTERS.map((entry) => {
         const active = entry.id === filter;
         return (
@@ -304,7 +321,7 @@ export function BillFilterRow({
               active ? "border-brand bg-brand-soft text-brand-dark" : "border-line bg-surface text-muted"
             }`}
           >
-            {entry.label} {String(counts[entry.id])}
+            {billFilterLabel(entry.id)} {String(counts[entry.id])}
           </button>
         );
       })}
@@ -351,6 +368,7 @@ export function BillRowCard({
   readonly onExpand: () => void;
   readonly onPatch: (patch: Partial<BillImportCandidate>) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const location = billLocationText(item);
   const sourceRef = billSourceRefText(item);
   const checked = item.selected && !item.identityDuplicate;
@@ -368,7 +386,7 @@ export function BillRowCard({
         onChange={(event) => {
           onToggle(event.target.checked);
         }}
-        aria-label={`导入 ${location}：${moneyText}`}
+        aria-label={t("dataio.row.toggleAria", { location, amount: moneyText })}
         className="mt-1.5 size-5 shrink-0 accent-brand disabled:opacity-45"
       />
 
@@ -376,13 +394,13 @@ export function BillRowCard({
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <span className="flex flex-wrap gap-1.5">
             <span className={`rounded-full px-2.5 py-1 text-helper ${BILL_ROW_STATUS_CLASSES[status]}`}>
-              {BILL_ROW_STATUS_LABELS[status]}
+              {billRowStatusLabel(status)}
             </span>
             <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
               {billDirectionLabel(item.kind)}
             </span>
           </span>
-          <span className="text-helper text-muted">
+          <span className="min-w-0 text-helper text-muted">
             {location} · {billTimeText(item)}
           </span>
         </div>
@@ -393,23 +411,31 @@ export function BillRowCard({
         </p>
 
         <p className="truncate text-body text-ink">
-          {item.merchant.trim() === "" ? "对象/商户待确认" : item.merchant}
+          {item.merchant.trim() === "" ? t("dataio.row.merchantUnknown") : item.merchant}
         </p>
 
-        <p className="text-helper text-muted">
-          分类：{categoryName ?? "未分类"} · 支付方式：{paymentName ?? "未填写"}
-          {item.tags.length === 0 ? "" : ` · 标签：${billTagsText(item.tags)}`}
+        {/* 分类 / 支付方式只在显示时翻译预置名；勾选与提交仍用 id。 */}
+        <p className="text-helper text-muted [overflow-wrap:anywhere]">
+          {t("dataio.row.categoryAndPayment", {
+            category: categoryName === null ? t("dataio.row.uncategorized") : displayCategoryName(categoryName),
+            payment: paymentName === null ? t("dataio.row.paymentNone") : displayPaymentMethodName(paymentName),
+          })}
+          {item.tags.length === 0 ? "" : ` · ${t("dataio.row.tags", { tags: billTagsText(item.tags) })}`}
         </p>
 
         {sourceRef === null ? null : (
           <p className="truncate text-helper text-muted">
-            来源单号：<span className="font-mono">{sourceRef}</span>
+            <Trans
+              i18nKey="dataio.row.sourceRef"
+              values={{ ref: sourceRef }}
+              components={{ mono: <span className="font-mono" /> }}
+            />
             {item.sourceStatus.trim() === "" ? "" : ` · ${item.sourceStatus}`}
           </p>
         )}
 
         {item.note.trim() === "" ? null : (
-          <p className="truncate text-helper text-muted">备注：{item.note}</p>
+          <p className="truncate text-helper text-muted">{t("dataio.row.note", { note: item.note })}</p>
         )}
 
         {notes.length === 0 ? null : (
@@ -428,7 +454,7 @@ export function BillRowCard({
           onClick={onExpand}
           className="w-fit min-h-11 rounded-field px-1 py-1 text-link text-brand-dark underline-offset-2 hover:underline"
         >
-          {expanded ? "收起详情" : "查看详情"}
+          {expanded ? t("dataio.row.collapse") : t("dataio.row.expand")}
         </button>
 
         {expanded ? (
@@ -464,19 +490,20 @@ function BillRowEditor({
   readonly busy: boolean;
   readonly onPatch: (patch: Partial<BillImportCandidate>) => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const fieldClass =
     "min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-focus-ring";
 
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-3">
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">金额（{item.currency}）</span>
+        <span className="text-helper text-muted">{t("dataio.editor.amountWithCurrency", { currency: item.currency })}</span>
         <input
           type="text"
           inputMode="decimal"
           value={item.amount}
           disabled={busy}
-          aria-label="金额"
+          aria-label={t("dataio.editor.amount")}
           onChange={(event) => {
             onPatch({ amount: event.target.value });
           }}
@@ -485,11 +512,11 @@ function BillRowEditor({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">币种</span>
+        <span className="text-helper text-muted">{t("dataio.editor.currency")}</span>
         <BillSelect
           value={item.currency}
           disabled={busy}
-          aria-label="币种"
+          aria-label={t("dataio.editor.currency")}
           onChange={(event) => {
             onPatch({ currency: event.target.value });
           }}
@@ -503,29 +530,29 @@ function BillRowEditor({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">方向</span>
+        <span className="text-helper text-muted">{t("dataio.editor.direction")}</span>
         <BillSelect
           value={item.kind}
           disabled={busy}
-          aria-label="方向"
+          aria-label={t("dataio.editor.direction")}
           onChange={(event) => {
             const value = event.target.value;
             if (value === "income" || value === "expense" || value === "unknown") onPatch({ kind: value });
           }}
         >
-          <option value="expense">支出</option>
-          <option value="income">收入</option>
-          <option value="unknown">方向待确认</option>
+          <option value="expense">{billDirectionLabel("expense")}</option>
+          <option value="income">{billDirectionLabel("income")}</option>
+          <option value="unknown">{billDirectionLabel("unknown")}</option>
         </BillSelect>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">日期</span>
+        <span className="text-helper text-muted">{t("dataio.editor.date")}</span>
         <input
           type="date"
           value={item.date}
           disabled={busy}
-          aria-label="日期"
+          aria-label={t("dataio.editor.date")}
           onChange={(event) => {
             onPatch({ date: event.target.value });
           }}
@@ -534,13 +561,13 @@ function BillRowEditor({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">时间</span>
+        <span className="text-helper text-muted">{t("dataio.editor.time")}</span>
         <input
           type="time"
           step="1"
           value={item.time ?? ""}
           disabled={busy}
-          aria-label="时间"
+          aria-label={t("dataio.editor.time")}
           onChange={(event) => {
             const value = event.target.value;
             onPatch({ time: value === "" ? null : value });
@@ -548,72 +575,70 @@ function BillRowEditor({
           className={fieldClass}
         />
         <span className="text-helper text-muted">
-          {item.time === null
-            ? "留空时按「时间信息不足」入账，不会补一个编造的时分。"
-            : "按账单上的当地时间填写；时区在下面单独确认。"}
+          {item.time === null ? t("dataio.editor.timeHintEmpty") : t("dataio.editor.timeHint")}
         </span>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">时区</span>
+        <span className="text-helper text-muted">{t("dataio.editor.timezone")}</span>
         <input
           type="text"
           value={item.timezone}
           disabled={busy}
-          aria-label="时区"
+          aria-label={t("dataio.editor.timezone")}
           onChange={(event) => {
             onPatch({ timezone: event.target.value });
           }}
           className={fieldClass}
         />
-        <span className="text-helper text-muted">IANA 名称，例如 Asia/Shanghai、America/New_York。</span>
+        <span className="text-helper text-muted">{t("dataio.editor.timezoneHint")}</span>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">分类</span>
+        <span className="text-helper text-muted">{t("dataio.editor.category")}</span>
         <BillSelect
           value={item.categoryId ?? ""}
           disabled={busy}
-          aria-label="分类"
+          aria-label={t("dataio.editor.category")}
           onChange={(event) => {
             onPatch({ categoryId: event.target.value === "" ? null : event.target.value });
           }}
         >
-          <option value="">未分类</option>
+          <option value="">{t("dataio.row.uncategorized")}</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
-              {category.name}
+              {displayCategoryName(category.name)}
             </option>
           ))}
         </BillSelect>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">支付方式</span>
+        <span className="text-helper text-muted">{t("dataio.editor.paymentMethod")}</span>
         <BillSelect
           value={item.paymentMethodId ?? ""}
           disabled={busy}
-          aria-label="支付方式"
+          aria-label={t("dataio.editor.paymentMethod")}
           onChange={(event) => {
             onPatch({ paymentMethodId: event.target.value === "" ? null : event.target.value });
           }}
         >
-          <option value="">未填写</option>
+          <option value="">{t("dataio.row.paymentNone")}</option>
           {paymentMethods.map((method) => (
             <option key={method.id} value={method.id}>
-              {method.name}
+              {displayPaymentMethodName(method.name)}
             </option>
           ))}
         </BillSelect>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">备注</span>
+        <span className="text-helper text-muted">{t("dataio.editor.note")}</span>
         <textarea
           rows={2}
           value={item.note}
           disabled={busy}
-          aria-label="备注"
+          aria-label={t("dataio.editor.note")}
           maxLength={2000}
           onChange={(event) => {
             onPatch({ note: event.target.value });
@@ -623,18 +648,18 @@ function BillRowEditor({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-helper text-muted">标签</span>
+        <span className="text-helper text-muted">{t("dataio.editor.tags")}</span>
         <input
           type="text"
           value={billTagsText(item.tags)}
           disabled={busy}
-          aria-label="标签"
+          aria-label={t("dataio.editor.tags")}
           onChange={(event) => {
             onPatch({ tags: parseBillTags(event.target.value) });
           }}
           className={fieldClass}
         />
-        <span className="text-helper text-muted">空格或逗号分隔，最多 30 个。</span>
+        <span className="text-helper text-muted">{t("dataio.editor.tagsHint")}</span>
       </label>
     </div>
   );
@@ -665,11 +690,13 @@ export function BillDuplicateSection({
   readonly busy: boolean;
   readonly onToggle: (id: string, selected: boolean) => void;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
+
   if (groups.length === 0 && history.length === 0) return null;
 
   return (
-    <section aria-label="疑似重复" className="flex flex-col gap-3">
-      <h2 className="text-helper text-muted">疑似重复，需要你判断</h2>
+    <section aria-label={t("dataio.duplicates.aria")} className="flex flex-col gap-3">
+      <h2 className="text-helper text-muted">{t("dataio.duplicates.title")}</h2>
 
       {groups.map((group, index) => (
         <div
@@ -677,10 +704,10 @@ export function BillDuplicateSection({
           className="flex flex-col gap-2 rounded-card border border-warn-soft bg-surface px-4 py-3 shadow-card"
         >
           <p className="text-body font-medium text-ink">
-            同一份文件里的第 {String(index + 1)} 组（{String(group.ids.length)} 笔）
+            {t("dataio.duplicates.groupTitle", { index: index + 1, count: group.ids.length })}
           </p>
           <p className="text-helper-relaxed text-muted">
-            {group.reason}。请核对后决定保留哪些；系统不会替你删掉或合并任何一笔。
+            {t("dataio.duplicates.groupHint", { reason: group.reason })}
           </p>
           <ul className="flex flex-col gap-2">
             {group.ids.map((id) => {
@@ -699,7 +726,7 @@ export function BillDuplicateSection({
                     onChange={(event) => {
                       onToggle(id, event.target.checked);
                     }}
-                    aria-label={`保留 ${billLocationText(item)}`}
+                    aria-label={t("dataio.duplicates.keepAria", { location: billLocationText(item) })}
                     className="mt-0.5 size-5 shrink-0 accent-brand"
                   />
                   <span className="flex min-w-0 flex-col gap-0.5">
@@ -711,8 +738,10 @@ export function BillDuplicateSection({
                       {billDirectionLabel(item.kind)}
                     </span>
                     <span className="truncate text-helper text-muted">
-                      {item.merchant.trim() === "" ? "对象/商户待确认" : item.merchant}
-                      {billSourceRefText(item) === null ? "" : ` · 单号 ${billSourceRefText(item) ?? ""}`}
+                      {item.merchant.trim() === "" ? t("dataio.row.merchantUnknown") : item.merchant}
+                      {billSourceRefText(item) === null
+                        ? ""
+                        : ` · ${t("dataio.duplicates.ref", { ref: billSourceRefText(item) ?? "" })}`}
                     </span>
                   </span>
                 </li>
@@ -724,10 +753,8 @@ export function BillDuplicateSection({
 
       {history.length === 0 ? null : (
         <div className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-3 shadow-card">
-          <p className="text-body font-medium text-ink">和账本里已有账目相似</p>
-          <p className="text-helper-relaxed text-muted">
-            这些笔可能是之前已经记过的。已有账目不会被改动，这里只决定这次的笔要不要再写一次。
-          </p>
+          <p className="text-body font-medium text-ink">{t("dataio.duplicates.historyTitle")}</p>
+          <p className="text-helper-relaxed text-muted">{t("dataio.duplicates.historyHint")}</p>
           <ul className="flex flex-col gap-2">
             {history.map((entry) => {
               const item = itemsById.get(entry.candidateId);
@@ -742,13 +769,17 @@ export function BillDuplicateSection({
                     onChange={(event) => {
                       onToggle(entry.candidateId, event.target.checked);
                     }}
-                    aria-label={`保留 ${billLocationText(item)}`}
+                    aria-label={t("dataio.duplicates.keepAria", { location: billLocationText(item) })}
                     className="mt-0.5 size-5 shrink-0 accent-brand"
                   />
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="truncate text-helper text-ink">
-                      {billLocationText(item)} · {billTimeText(item)} · 已有账目编号{" "}
-                      <span className="font-mono">{entry.ids.join("、")}</span>
+                      {billLocationText(item)} · {billTimeText(item)} ·{" "}
+                      <Trans
+                        i18nKey="dataio.duplicates.existingIds"
+                        values={{ ids: entry.ids.join(t("dataio.common.listSeparator")) }}
+                        components={{ mono: <span className="font-mono" /> }}
+                      />
                     </span>
                     <span className="text-body text-ink">
                       {moneyText(item)} <span className="text-helper text-muted">{item.currency}</span> ·{" "}
@@ -803,15 +834,22 @@ export function BillCommitBar({
   readonly onCancel: () => void;
   readonly onRecheck: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const disabled = importableCount === 0 || blockers.length > 0 || busy || dirty;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card">
       <div className="mx-auto w-full max-w-md px-6 pt-2.5 pb-3">
-        <div className="flex items-center gap-3">
-          <p className="mr-auto text-helper-relaxed text-ink">
-            可导入 <strong className="font-semibold">{String(importableCount)}</strong> 笔
-            <span className="text-muted">（已勾选 {String(selectedCount)}）</span>
+        {/* ⚠️ 英文的按钮文字更长：窄屏允许数量说明与按钮分两行，不挤压、不溢出。 */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="mr-auto min-w-0 text-helper-relaxed text-ink">
+            <Trans
+              i18nKey="dataio.commit.importable"
+              count={importableCount}
+              values={{ count: importableCount }}
+              components={{ b: <strong className="font-semibold" /> }}
+            />
+            <span className="text-muted">{t("dataio.commit.selected", { count: selectedCount })}</span>
           </p>
           <button
             type="button"
@@ -819,7 +857,7 @@ export function BillCommitBar({
             onClick={onConfirm}
             className="min-h-11 rounded-field bg-brand px-4 py-2.5 text-button-lg font-medium text-on-brand shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {busy ? "正在导入…" : `确认导入 ${String(importableCount)} 笔`}
+            {busy ? t("dataio.commit.importing") : t("dataio.commit.confirm", { count: importableCount })}
           </button>
         </div>
 
@@ -833,15 +871,15 @@ export function BillCommitBar({
               }}
               className="size-5 shrink-0 accent-brand"
             />
-            我已了解上面的提示（对账差异/文件提醒）
+            {t("dataio.commit.acknowledge")}
           </label>
         ) : null}
 
         <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
-          <p className={`text-helper ${blockers.length === 0 ? "text-muted" : "text-warn-dark"}`}>
-            {dirty ? "记录或选择有变化，请先重新检查重复。" : (blockers[0] ?? "确认前不会写入账本。")}
+          <p className={`min-w-0 text-helper ${blockers.length === 0 ? "text-muted" : "text-warn-dark"}`}>
+            {dirty ? t("dataio.commit.dirty") : (blockers[0] ?? t("dataio.commit.safe"))}
           </p>
-          <span className="flex shrink-0 items-center gap-3">
+          <span className="flex max-w-full shrink-0 flex-wrap items-center gap-x-3">
             {dirty ? (
               <button
                 type="button"
@@ -849,7 +887,7 @@ export function BillCommitBar({
                 onClick={onRecheck}
                 className="min-h-11 text-helper text-brand-dark underline-offset-2 hover:underline disabled:opacity-45"
               >
-                {rechecking ? "正在重新检查…" : "重新检查重复"}
+                {rechecking ? t("dataio.commit.rechecking") : t("dataio.commit.recheck")}
               </button>
             ) : null}
             <button
@@ -858,7 +896,7 @@ export function BillCommitBar({
               onClick={onCancel}
               className="min-h-11 text-helper text-muted underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-45"
             >
-              取消这次导入
+              {t("dataio.commit.cancel")}
             </button>
           </span>
         </div>
@@ -866,7 +904,7 @@ export function BillCommitBar({
         {blockers.length > 1 ? (
           <details className="mt-1">
             <summary className="w-fit min-h-11 cursor-pointer select-none text-helper text-warn-dark">
-              还有 {String(blockers.length - 1)} 条原因
+              {t("dataio.commit.moreReasons", { count: blockers.length - 1 })}
             </summary>
             <ul className="mt-1 flex flex-col gap-1">
               {blockers.slice(1, MAX_BAR_BLOCKERS + 1).map((blocker) => (
@@ -912,14 +950,20 @@ export function BillDoneView({
   readonly onAgain: () => void;
   readonly onRetry: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const heading =
-    view.status === "success" ? "导入完成" : view.status === "partial" ? "部分导入成功" : "没有导入成功";
+    view.status === "success"
+      ? t("dataio.done.success")
+      : view.status === "partial"
+        ? t("dataio.done.partial")
+        : t("dataio.done.failed");
   const subtitle =
     view.status === "success"
-      ? "所有选中的记录都已写入账本。"
+      ? t("dataio.done.successHint")
       : view.status === "partial"
-        ? "成功的已经写入账本；失败的仍留在这份预览里，可以重试。"
-        : "这次没有记录写入账本，预览还留着，可以改好再试。";
+        ? t("dataio.done.partialHint")
+        : t("dataio.done.failedHint");
+  const entries = (count: number): string => t("common.count.entries", { count });
 
   return (
     <section className="flex flex-col gap-4">
@@ -930,23 +974,29 @@ export function BillDoneView({
           {subtitle}
         </p>
         {targetLabel === null ? null : (
-          <p className="text-helper text-muted">写入「{targetLabel}」</p>
+          <p className="text-helper text-muted">{t("dataio.done.target", { target: targetLabel })}</p>
         )}
       </header>
 
       <dl className="overflow-hidden rounded-field border border-line bg-surface">
-        <DoneRow label="本次读到" value={`${String(view.read)} 笔`} />
-        <DoneRow label="选中导入" value={`${String(view.selected)} 笔`} />
-        <DoneRow label="成功写入" value={`${String(view.imported)} 笔`} />
-        <DoneRow label="跳过（已存在）" value={`${String(view.skipped)} 笔`} />
-        <DoneRow label="失败" value={`${String(view.failed)} 笔`} tone={view.failed > 0 ? "danger" : "default"} />
-        {fileRef === null ? null : <DoneRow label="导入编号" value={fileRef} mono />}
-        {exportedFileRef === null ? null : <DoneRow label="来自这次导出" value={exportedFileRef} mono />}
+        <DoneRow label={t("dataio.done.read")} value={entries(view.read)} />
+        <DoneRow label={t("dataio.done.selected")} value={entries(view.selected)} />
+        <DoneRow label={t("dataio.done.imported")} value={entries(view.imported)} />
+        <DoneRow label={t("dataio.done.skipped")} value={entries(view.skipped)} />
+        <DoneRow
+          label={t("dataio.done.failedCount")}
+          value={entries(view.failed)}
+          tone={view.failed > 0 ? "danger" : "default"}
+        />
+        {fileRef === null ? null : <DoneRow label={t("dataio.done.fileRef")} value={fileRef} mono />}
+        {exportedFileRef === null ? null : (
+          <DoneRow label={t("dataio.done.exportedFileRef")} value={exportedFileRef} mono />
+        )}
       </dl>
 
       {view.failures.length === 0 ? null : (
-        <section aria-label="失败原因" className="flex flex-col gap-2">
-          <h3 className="text-helper text-muted">失败原因（可以按位置回文件里改）</h3>
+        <section aria-label={t("dataio.done.failuresAria")} className="flex flex-col gap-2">
+          <h3 className="text-helper text-muted">{t("dataio.done.failuresTitle")}</h3>
           <ul className="overflow-hidden rounded-field border border-line bg-surface">
             {view.failures.slice(0, 50).map((failure) => (
               <li
@@ -960,7 +1010,7 @@ export function BillDoneView({
           </ul>
           {view.failures.length > 50 ? (
             <p className="text-helper text-muted">
-              只显示了前 50 处，还有 {String(view.failures.length - 50)} 处。
+              {t("dataio.done.failuresMore", { count: view.failures.length - 50 })}
             </p>
           ) : null}
         </section>
@@ -968,16 +1018,20 @@ export function BillDoneView({
 
       {view.skippedLines.length === 0 ? null : (
         <p className="text-helper-relaxed text-muted">
-          跳过的行：{view.skippedLines.slice(0, 20).map((line) => `第 ${String(line)} 行`).join("、")}
-          {view.skippedLines.length > 20 ? ` 等 ${String(view.skippedLines.length)} 行` : ""}。
-          这些是来源已存在的记录，没有重复写入。
+          {view.skippedLines.length > 20
+            ? t("dataio.done.skippedLinesMore", {
+                lines: skippedLineList(view.skippedLines, t("dataio.common.listSeparator")),
+                count: view.skippedLines.length,
+              })
+            : t("dataio.done.skippedLines", {
+                lines: skippedLineList(view.skippedLines, t("dataio.common.listSeparator")),
+              })}{" "}
+          {t("dataio.done.skippedExplain")}
         </p>
       )}
 
       {fileRef === null ? null : (
-        <p className="text-helper-relaxed text-muted">
-          每笔账目保留导入编号，可据此查找来源文件。
-        </p>
+        <p className="text-helper-relaxed text-muted">{t("dataio.done.fileRefNote")}</p>
       )}
 
       <Button onClick={onDone} disabled={busy}>
@@ -985,14 +1039,22 @@ export function BillDoneView({
       </Button>
       {view.failed === 0 ? null : (
         <Button variant="secondary" onClick={onRetry} disabled={busy}>
-          {busy ? "正在重试…" : "重试失败的记录"}
+          {busy ? t("dataio.done.retrying") : t("dataio.done.retry")}
         </Button>
       )}
       <Button variant="secondary" onClick={onAgain} disabled={busy}>
-        再导入一个文件
+        {t("dataio.done.again")}
       </Button>
     </section>
   );
+}
+
+/** 跳过的行号：最多列 20 个，`第 3 行、第 7 行` / `Row 3, Row 7`。 */
+function skippedLineList(lines: readonly number[], separator: string): string {
+  return lines
+    .slice(0, 20)
+    .map((line) => billLocationText({ line }))
+    .join(separator);
 }
 
 // ---------------------------------------------------------------------------
@@ -1031,9 +1093,10 @@ function DoneRow({
 }): React.JSX.Element {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0">
-      <dt className="text-body text-muted">{label}</dt>
+      <dt className="min-w-0 text-body text-muted">{label}</dt>
+      {/* 数量（`12 笔` / `12 entries`）不拆行；编号较长时允许在任意处换行，不撑出屏幕。 */}
       <dd
-        className={`text-body tabular-nums ${mono ? "font-mono text-helper" : ""} ${
+        className={`text-right text-body tabular-nums ${mono ? "min-w-0 font-mono text-helper [overflow-wrap:anywhere]" : "shrink-0"} ${
           tone === "danger" ? "text-danger" : "text-ink"
         }`}
       >
