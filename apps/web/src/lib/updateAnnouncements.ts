@@ -46,8 +46,8 @@ export interface UpdateAnnouncement {
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
   {
     version: "1.16.08",
-    releasedAt: null,
-    status: "development",
+    releasedAt: "2026-10-24",
+    status: "released",
     title: "七套主题与深色外观",
     summary: "新增七套主题色与浅色、深色及跟随系统模式，并整理设置首页和外观预览。",
     sections: [
