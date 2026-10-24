@@ -178,13 +178,19 @@ export function recoverGroupDecisions(
   return { decisions, restoredGroupIds, changedGroupIds };
 }
 
+/**
+ * 恢复结果提示的稳定 ID；文案在 `ledgerImport.recovery.message.*`，渲染时按当前语言取
+ * （摘要存在页面状态里，存 ID 而不是文字，切换语言后提示也会跟着变）。
+ */
+export type DraftRecoveryMessageId = "partial" | "restored" | "mappingReset";
+
 export interface DraftRecoverySummary {
   readonly restoredGroups: number;
   readonly resetGroups: number;
   readonly restoredConflicts: number;
   readonly resetConflicts: number;
   readonly needsReviewGroupIds: readonly string[];
-  readonly message: string | null;
+  readonly messageId: DraftRecoveryMessageId | null;
 }
 
 export function summarizeDraftRecovery(
@@ -199,14 +205,12 @@ export function summarizeDraftRecovery(
   const resetConflicts = Math.max(0, previousResolutions.size - restoredConflicts);
   const affected = resetGroups > 0 || resetConflicts > 0;
 
-  let message: string | null = null;
+  let messageId: DraftRecoveryMessageId | null = null;
   if (previousDecisions.size > 0 || previousResolutions.size > 0) {
-    message = affected
-      ? "部分选择已恢复，变化的记录需要重新核对。"
-      : "已恢复之前的选择，请重新检查完整确认页。";
+    messageId = affected ? "partial" : "restored";
   }
   if (affected && resetGroups === 0 && resetConflicts > 0) {
-    message = "部分映射选择无法安全恢复，变化的记录需要重新核对。";
+    messageId = "mappingReset";
   }
 
   return {
@@ -215,6 +219,6 @@ export function summarizeDraftRecovery(
     restoredConflicts,
     resetConflicts,
     needsReviewGroupIds: recovery.changedGroupIds,
-    message,
+    messageId,
   };
 }

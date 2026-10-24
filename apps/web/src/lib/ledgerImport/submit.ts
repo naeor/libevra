@@ -15,6 +15,7 @@ import {
   type TaxonomyResolution,
 } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import type { ImportPreview } from "./types.js";
 import type { TaxonomyResolutionAction, TaxonomyResolutionMap } from "./mapping.js";
 import { taxonomyResolutionKey } from "./mapping.js";
@@ -120,7 +121,7 @@ function resolutionFor(
       : type === "paymentMethod"
         ? preview.mapping.paymentMethods.find((item) => item.source.id === sourceId)
         : preview.mapping.tags.find((item) => item.source.id === sourceId);
-  if (mapping === undefined) throw new Error("来源对象没有映射方案。");
+  if (mapping === undefined) throw new Error(t("ledgerImport.submitError.noMapping"));
   if (mapping.conflict !== null && chosen === "create") {
     return {
       type,
@@ -151,7 +152,7 @@ export async function buildLedgerImportRequest(input: {
   const source = preview.source.kind === "guest" ? guestSourceOf(preview) : null;
   const sourceFingerprint =
     source === null ? input.serverSourceFingerprint : await fingerprintGuestSource(source);
-  if (sourceFingerprint === undefined) throw new Error("正式来源缺少服务器指纹，请重新预览。");
+  if (sourceFingerprint === undefined) throw new Error(t("ledgerImport.submitError.missingSourceFingerprint"));
 
   const taxonomy: TaxonomyResolution[] = [
     ...preview.source.categories.map((item) => resolutionFor(preview, "category", item.id, resolutions, targetIsNew)),
@@ -163,7 +164,7 @@ export async function buildLedgerImportRequest(input: {
 
   const duplicateGroups: DuplicateDecision[] = preview.duplicateGroups.map((group) => {
     const decision = decisions.get(group.id);
-    if (decision === undefined) throw new Error("还有重复组没有处理。");
+    if (decision === undefined) throw new Error(t("ledgerImport.submitError.unresolvedGroups"));
     const sourceIds = group.records
       .filter((record) => record.side === "source")
       .map((record) => record.transaction.id);
@@ -197,8 +198,8 @@ export async function buildLedgerImportRequest(input: {
   const incrementalDecisions = [...(input.incrementalDecisions ?? [])];
 
   if (preview.source.kind === "book") {
-    if (targetIsNew) throw new Error("正式账本来源不能导入新账本。");
-    if (input.serverTargetFingerprint === undefined) throw new Error("正式来源缺少目标指纹，请重新预览。");
+    if (targetIsNew) throw new Error(t("ledgerImport.submitError.formalToNew"));
+    if (input.serverTargetFingerprint === undefined) throw new Error(t("ledgerImport.submitError.missingTargetFingerprint"));
     return {
       importId: input.importId,
       target: {
@@ -214,7 +215,7 @@ export async function buildLedgerImportRequest(input: {
     };
   }
 
-  if (source === null) throw new Error("缺少游客来源快照。");
+  if (source === null) throw new Error(t("ledgerImport.submitError.missingGuestSource"));
 
   if (targetIsNew) {
     return {

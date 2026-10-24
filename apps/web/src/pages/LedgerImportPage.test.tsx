@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { t } from "../i18n/index.js";
+
 /**
  * 账本导入（`/import-ledger`）的两件局部修复（S15-C 第四轮）。
  *
@@ -15,6 +17,18 @@ import { describe, expect, it } from "vitest";
  */
 const source = readFileSync(
   fileURLToPath(new URL("./LedgerImportPage.tsx", import.meta.url)),
+  "utf8",
+);
+/**
+ * S16 起页面文案在 `i18n/resources/*\/ledgerImport.ts`；源码里只剩键名。
+ * 下面的断言改为“源码用了这个键 + 这个键的中文原文没变”，意图不变。
+ */
+const zhMessages = readFileSync(
+  fileURLToPath(new URL("../i18n/resources/zh-CN/ledgerImport.ts", import.meta.url)),
+  "utf8",
+);
+const enMessages = readFileSync(
+  fileURLToPath(new URL("../i18n/resources/en-US/ledgerImport.ts", import.meta.url)),
   "utf8",
 );
 
@@ -37,14 +51,19 @@ describe("账本导入的来源/目标选择", () => {
     expect(source).toContain("onSelect={onChangeTarget}");
     // 目标里"与来源相同"的那一项保留但不可选——与原 select 的 disabled option 一致。
     expect(source).toContain("disabled: book.id === sourceKey");
-    expect(source).toContain("就是来源账本，不能选");
+    expect(source).toContain('hint: t("ledgerImport.select.sameAsSource")');
+    expect(t("ledgerImport.select.sameAsSource")).toBe("就是来源账本，不能选");
   });
 
   it("占位项与游客来源仍存在，选择结果与原来一一对应", () => {
-    expect(source).toContain('label: "选择来源账本"');
-    expect(source).toContain('label: "选择目标账本"');
-    expect(source).toContain('label: "本机游客账本"');
-    expect(source).toContain("`正式账本 · ${book.name}`");
+    expect(source).toContain('label: t("ledgerImport.select.sourcePlaceholder")');
+    expect(source).toContain('label: t("ledgerImport.select.targetPlaceholder")');
+    expect(source).toContain('label: t("ledgerImport.select.guestOption")');
+    expect(source).toContain('t("ledgerImport.select.formalOption", { name: book.name })');
+    expect(t("ledgerImport.select.sourcePlaceholder")).toBe("选择来源账本");
+    expect(t("ledgerImport.select.targetPlaceholder")).toBe("选择目标账本");
+    expect(t("ledgerImport.select.guestOption")).toBe("本机游客账本");
+    expect(t("ledgerImport.select.formalOption", { name: "旅行" })).toBe("正式账本 · 旅行");
     // 同一时间只开一个：两处共用一个 picking 状态。
     expect(source).toContain('useState<"source" | "target" | null>(null)');
   });
@@ -93,14 +112,23 @@ describe("账本导入的返回", () => {
   });
 
   it("高风险文案不再声称只会新增，也不把内部 A/B 代号给用户看", () => {
-    expect(source).not.toContain("本轮只新增，不会修改或删除");
-    expect(source).not.toContain("请核对每一笔 A 的去留");
-    expect(source).not.toContain('"保留 A"');
-    expect(source).not.toContain('"保留 B"');
-    expect(source).not.toContain(">来源 B<");
-    expect(source).not.toContain(">目标 A<");
-    expect(source).toContain("会在核对步骤逐笔列出并再次确认");
-    expect(source).toContain('["keep_a", "保留目标账本"');
-    expect(source).toContain('["keep_b", "保留来源账本"');
+    for (const text of [source, zhMessages, enMessages]) {
+      expect(text).not.toContain("本轮只新增，不会修改或删除");
+      expect(text).not.toContain("请核对每一笔 A 的去留");
+      expect(text).not.toContain('"保留 A"');
+      expect(text).not.toContain('"保留 B"');
+      expect(text).not.toContain(">来源 B<");
+      expect(text).not.toContain(">目标 A<");
+      expect(text).not.toContain('"来源 B"');
+      expect(text).not.toContain('"目标 A"');
+    }
+    // 英文里也不出现内部代号（“ledger A / B”）。
+    expect(enMessages).not.toMatch(/\b(?:ledger|source|target) [AB]\b/i);
+    expect(t("ledgerImport.preview.targetExisting", { count: 2 })).toContain("会在核对步骤逐笔列出并再次确认");
+    // 快捷建议按动作 id 取文案（不再在源码里写中文）；动作 id 与原来一一对应。
+    expect(source).toContain('(["keep_a", "keep_b", "keep_both", "keep_neither"] as const)');
+    expect(source).toContain("t(`ledgerImport.review.preset.${action}.label`)");
+    expect(t("ledgerImport.review.preset.keep_a.label")).toBe("保留目标账本");
+    expect(t("ledgerImport.review.preset.keep_b.label")).toBe("保留来源账本");
   });
 });
