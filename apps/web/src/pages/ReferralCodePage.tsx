@@ -1,6 +1,7 @@
 import { Card } from "../components/Card.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ReferralCodeSection } from "../components/ReferralCodeSection.js";
+import { useI18n } from "../i18n/index.js";
 
 /**
  * **邀请码 —— 账号级功能，现在有了自己的一页。**
@@ -23,12 +24,9 @@ import { ReferralCodeSection } from "../components/ReferralCodeSection.js";
  * to disagree about a quota** (`教训.md` §8.12).
  */
 export function ReferralCodePage(): React.JSX.Element {
+  const { t } = useI18n();
   return (
-    <InnerPage
-      title="邀请码"
-      subtitle="邀请他人注册 Libevra。"
-      backTo="/settings"
-    >
+    <InnerPage title={t("account.referral.title")} subtitle={t("account.referral.subtitle")} backTo="/settings">
       <Card>
         <ReferralCodeSection />
       </Card>
@@ -40,9 +38,7 @@ export function ReferralCodePage(): React.JSX.Element {
         * first says where the second lives — and it is now literally true: 邀请成员 is in the ledger,
         * and there is no longer a screen in between.
         */}
-      <p className="text-helper-relaxed text-muted">
-        一起记账请使用账本中的「邀请成员」或分享链接。
-      </p>
+      <p className="text-helper-relaxed text-muted">{t("account.referral.ledgerHint")}</p>
     </InnerPage>
   );
 }

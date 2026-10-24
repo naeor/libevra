@@ -1,11 +1,24 @@
 import { useState } from "react";
+import { Trans } from "react-i18next";
 
 import { Alert } from "../components/Alert.js";
 import { AuthLayout } from "../components/AuthLayout.js";
 import { Button } from "../components/Button.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { apiFetch } from "../lib/api.js";
+import { formatInstant } from "../lib/datetime.js";
+
+/** 与原来的 `toLocaleString()` 默认格式相同的字段（中文仍是 `2026/10/25 14:30:00`），随界面语言排列。 */
+const DEADLINE_FORMAT: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+};
 
 /**
  * Public claim form for an archived ledger whose owner has closed the account.
@@ -14,6 +27,7 @@ import { apiFetch } from "../lib/api.js";
  * A request is not a recovery: an administrator must verify eligibility and approve it.
  */
 export function ArchiveRecoveryPage(): React.JSX.Element {
+  const { t } = useI18n();
   const [accountNumber, setAccountNumber] = useState("");
   const [credential, setCredential] = useState("");
   const [bookNumber, setBookNumber] = useState("");
@@ -50,47 +64,49 @@ export function ArchiveRecoveryPage(): React.JSX.Element {
   }
 
   return (
-    <AuthLayout title="恢复归档账本">
+    <AuthLayout title={t("auth.archive.title")}>
       {request === null ? (
         <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
-          <p className="text-body-relaxed text-muted">
-            账号注销时如果选择了保留归档账本，会得到一条一次性恢复凭证。提交后需要管理员核验，不会仅凭账本编号直接恢复。
-          </p>
+          <p className="text-body-relaxed text-muted">{t("auth.archive.intro")}</p>
           {error === null ? null : <Alert>{error}</Alert>}
           <TextField
-            label="原账号编号"
+            label={t("auth.archive.accountNumber")}
             inputMode="numeric"
             value={accountNumber}
             onChange={(event) => setAccountNumber(event.target.value)}
           />
           <TextField
-            label="一次性恢复凭证"
+            label={t("auth.archive.credential")}
             value={credential}
             onChange={(event) => setCredential(event.target.value)}
           />
           <TextField
-            label="原账本编号"
+            label={t("auth.archive.bookNumber")}
             inputMode="numeric"
             value={bookNumber}
             onChange={(event) => setBookNumber(event.target.value)}
           />
           <TextField
-            label="接收账本的账号编号（可选）"
+            label={t("auth.archive.targetAccountNumber")}
             inputMode="numeric"
             value={targetAccountNumber}
             onChange={(event) => setTargetAccountNumber(event.target.value)}
           />
           <Button type="submit" disabled={busy}>
-            {busy ? "提交中…" : "提交恢复申请"}
+            {busy ? t("auth.archive.submitting") : t("auth.archive.submit")}
           </Button>
         </form>
       ) : (
         <div className="flex flex-col gap-3">
           <Alert tone="info">
-            申请已提交。管理员核验后才会恢复；审核截止 {new Date(request.deadlineAt).toLocaleString("zh-CN")}。
+            {t("auth.archive.submitted", { deadline: formatInstant(request.deadlineAt, DEADLINE_FORMAT) })}
           </Alert>
-          <p className="text-body-relaxed text-muted">
-            申请编号：<span className="font-mono">{request.requestId}</span>
+          <p className="break-words text-body-relaxed text-muted">
+            <Trans
+              i18nKey="auth.archive.requestId"
+              values={{ id: request.requestId }}
+              components={{ mono: <span className="font-mono" /> }}
+            />
           </p>
           <Button
             variant="secondary"
@@ -98,7 +114,7 @@ export function ArchiveRecoveryPage(): React.JSX.Element {
               window.location.assign("/login");
             }}
           >
-            返回登录
+            {t("auth.archive.backToLogin")}
           </Button>
         </div>
       )}

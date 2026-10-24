@@ -7,10 +7,13 @@ import { AuthLayout } from "../components/AuthLayout.js";
 import { Button } from "../components/Button.js";
 import { RecoveryCodeCard } from "../components/RecoveryCodeCard.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 
 export function RecoverPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const [username, setUsername] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
@@ -25,7 +28,9 @@ export function RecoverPage(): React.JSX.Element {
 
     const parsed = recoverRequestSchema.safeParse({ username, recoveryCode, newPassword });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "请检查填写的内容。");
+      // zod 提示是 `@libellum/shared` 里的中文原文，按当前界面语言查表显示。
+      const issue = parsed.error.issues[0]?.message;
+      setError(issue === undefined ? t("auth.recover.invalid") : translateSharedMessage(issue));
       return;
     }
 
@@ -45,7 +50,7 @@ export function RecoverPage(): React.JSX.Element {
 
   if (issuedCode) {
     return (
-      <AuthLayout title="密码已重置" subtitle="原密码已失效，请使用新密码登录。">
+      <AuthLayout title={t("auth.recover.doneTitle")} subtitle={t("auth.recover.doneSubtitle")}>
         <RecoveryCodeCard
           code={issuedCode}
           onContinue={() => {
@@ -58,11 +63,11 @@ export function RecoverPage(): React.JSX.Element {
 
   return (
     <AuthLayout
-      title="找回密码"
-      subtitle="输入用户名与恢复码，即可设置新密码。"
+      title={t("auth.recover.title")}
+      subtitle={t("auth.recover.subtitle")}
       footer={
         <Link className="font-medium text-brand-dark hover:underline" to="/login">
-          返回登录
+          {t("auth.recover.backToLogin")}
         </Link>
       }
     >
@@ -70,7 +75,7 @@ export function RecoverPage(): React.JSX.Element {
         {error ? <Alert>{error}</Alert> : null}
 
         <TextField
-          label="用户名"
+          label={t("auth.field.username")}
           autoComplete="username"
           autoFocus
           value={username}
@@ -80,10 +85,10 @@ export function RecoverPage(): React.JSX.Element {
         />
 
         <TextField
-          label="恢复码"
+          label={t("auth.field.recoveryCode")}
           placeholder="XXXX-XXXX-XXXX-XXXX"
           autoComplete="off"
-          hint="不区分大小写，可省略连字符"
+          hint={t("auth.recover.recoveryCodeHint")}
           value={recoveryCode}
           onChange={(event) => {
             setRecoveryCode(event.target.value);
@@ -91,10 +96,10 @@ export function RecoverPage(): React.JSX.Element {
         />
 
         <TextField
-          label="新密码"
+          label={t("auth.field.newPassword")}
           type="password"
           autoComplete="new-password"
-          hint={`至少 ${String(PASSWORD_MIN_LENGTH)} 位`}
+          hint={t("auth.field.passwordMin", { min: PASSWORD_MIN_LENGTH })}
           value={newPassword}
           onChange={(event) => {
             setNewPassword(event.target.value);
@@ -102,7 +107,7 @@ export function RecoverPage(): React.JSX.Element {
         />
 
         <Button type="submit" disabled={busy}>
-          {busy ? "提交中…" : "重置密码"}
+          {busy ? t("auth.recover.submitting") : t("auth.recover.submit")}
         </Button>
       </form>
     </AuthLayout>

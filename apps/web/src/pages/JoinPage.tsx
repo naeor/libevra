@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
+import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useJoinViaShareLink, useShareLinkPreview } from "../lib/queries.js";
 
@@ -28,10 +29,11 @@ export function JoinPage(): React.JSX.Element {
   const preview = useShareLinkPreview(token ?? null);
   const join = useJoinViaShareLink();
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   if (preview.isPending) {
     return (
-      <InnerPage title="加入账本" subtitle="正在读取这个邀请链接。" backTo="/">
+      <InnerPage title={t("account.join.title")} subtitle={t("account.join.loading")} backTo="/">
         <SkeletonRows rows={2} />
       </InnerPage>
     );
@@ -39,14 +41,10 @@ export function JoinPage(): React.JSX.Element {
 
   if (preview.isError) {
     return (
-      <InnerPage title="加入账本" subtitle="这个链接不能用了。" backTo="/">
+      <InnerPage title={t("account.join.title")} subtitle={t("account.join.invalidSubtitle")} backTo="/">
         <div className="rounded-card border border-line bg-surface p-5">
-          <p className="text-body-relaxed text-muted">
-            这个分享链接**无效或已被撤销**。请让邀请你的人重新生成一条。
-          </p>
-          <p className="mt-4 text-helper text-muted">
-            （链接只能被生成它的那个人撤销。撤销之后，手上的旧链接都会失效。）
-          </p>
+          <p className="text-body-relaxed text-muted">{t("account.join.invalid")}</p>
+          <p className="mt-4 text-helper text-muted">{t("account.join.revokeNote")}</p>
         </div>
       </InnerPage>
     );
@@ -56,19 +54,17 @@ export function JoinPage(): React.JSX.Element {
 
   if (data.alreadyMember) {
     return (
-      <InnerPage title="加入账本" subtitle="你已经在这本账里了。" backTo="/">
+      <InnerPage title={t("account.join.title")} subtitle={t("account.join.alreadySubtitle")} backTo="/">
         <div className="rounded-card border border-line bg-surface p-5">
-          <p className="text-body text-ink">「{data.bookName}」</p>
-          <p className="mt-2 text-helper-relaxed text-muted">
-            你已经在这本账里，不需要再加入一次。
-          </p>
+          <p className="break-words text-body text-ink">{t("account.join.bookName", { name: data.bookName })}</p>
+          <p className="mt-2 text-helper-relaxed text-muted">{t("account.join.alreadyMember")}</p>
           <div className="mt-4">
             <Button
               onClick={() => {
                 navigate("/start");
               }}
             >
-              去我的账本
+              {t("account.join.goLedgers")}
             </Button>
           </div>
         </div>
@@ -77,7 +73,7 @@ export function JoinPage(): React.JSX.Element {
   }
 
   return (
-    <InnerPage title="加入账本" subtitle="请确认之后才会加入。" backTo="/">
+    <InnerPage title={t("account.join.title")} subtitle={t("account.join.confirmSubtitle")} backTo="/">
       {error !== null ? (
         <p role="alert" className="mb-4 rounded-field bg-danger-soft px-4 py-3 text-body text-danger">
           {error}
@@ -85,25 +81,25 @@ export function JoinPage(): React.JSX.Element {
       ) : null}
 
       <div className="rounded-card border border-line bg-surface p-5">
-        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-3 text-sm">
-          <dt className="text-muted">账本</dt>
-          <dd className="text-right text-ink">{data.bookName}</dd>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 text-sm">
+          <dt className="text-muted">{t("account.join.ledger")}</dt>
+          <dd className="min-w-0 break-words text-right text-ink">{data.bookName}</dd>
 
-          <dt className="text-muted">账本编号</dt>
-          <dd className="text-right font-mono text-ink">{data.bookNumber ?? "（未分配）"}</dd>
+          <dt className="text-muted">{t("account.join.ledgerNumber")}</dt>
+          <dd className="min-w-0 text-right font-mono text-ink">{data.bookNumber ?? t("account.join.unassigned")}</dd>
 
-          <dt className="text-muted">邀请人</dt>
-          <dd className="text-right text-ink">{data.createdByName}</dd>
+          <dt className="text-muted">{t("account.join.inviter")}</dt>
+          <dd className="min-w-0 break-words text-right text-ink">{data.createdByName}</dd>
 
-          <dt className="text-muted">你的权限</dt>
-          <dd className="text-right text-ink">{data.role === "editor" ? "可编辑" : "仅查看"}</dd>
+          <dt className="text-muted">{t("account.join.role")}</dt>
+          <dd className="min-w-0 text-right text-ink">
+            {data.role === "editor" ? t("account.join.editor") : t("account.join.viewer")}
+          </dd>
         </dl>
 
         <p className="mt-5 border-t border-line pt-4 text-helper-relaxed text-muted">
-          {data.role === "editor"
-            ? "加入后你可以记帐、改帐目。"
-            : "加入后你可以看到这本账的全部账目，但不能修改。"}
-          {" "}加入之前什么都不会发生。
+          {data.role === "editor" ? t("account.join.editorNote") : t("account.join.viewerNote")}{" "}
+          {t("account.join.nothingYet")}
         </p>
 
         <div className="mt-5 flex flex-col gap-3">
@@ -123,7 +119,7 @@ export function JoinPage(): React.JSX.Element {
                 });
             }}
           >
-            {join.isPending ? "正在加入……" : "确认加入"}
+            {join.isPending ? t("account.join.joining") : t("account.join.confirm")}
           </Button>
 
           <Button
@@ -132,7 +128,7 @@ export function JoinPage(): React.JSX.Element {
               navigate("/");
             }}
           >
-            先不加入
+            {t("account.join.notNow")}
           </Button>
         </div>
       </div>

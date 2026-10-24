@@ -37,6 +37,7 @@ import {
   type UpdateTransactionInput,
 } from "@libellum/shared";
 
+import { t } from "../../i18n/index.js";
 import { createDefaultGuestLedger, type GuestLedger } from "./ledger.js";
 import { guestKey, readGuestValue, writeGuestValue } from "./storage.js";
 
@@ -311,20 +312,21 @@ export async function reloadGuestData(guestId: string): Promise<GuestData | null
 async function persist(data: GuestData): Promise<void> {
   const written = await writeGuestValue(ledgerKey(requireGuestId()), data);
   if (!written) {
-    throw new Error("游客数据暂时无法保存。请检查浏览器是否允许网站保存数据。");
+    // 提示在抛出时按当前界面语言取（S16）；调用方显示 `error.message`。
+    throw new Error(t("account.guest.errors.saveFailed"));
   }
   publish(data);
 }
 
 function requireGuestId(): string {
-  if (snapshotGuestId === null) throw new Error("游客身份尚未准备好。");
+  if (snapshotGuestId === null) throw new Error(t("account.guest.errors.identityNotReady"));
   return snapshotGuestId;
 }
 
 async function requireData(): Promise<GuestData> {
   if (snapshot === null) {
     const loaded = await ensureGuestData(requireGuestId());
-    if (loaded === null) throw new Error("游客账本暂时打不开。");
+    if (loaded === null) throw new Error(t("account.guest.errors.ledgerUnavailable"));
     return loaded;
   }
   return snapshot;
@@ -387,7 +389,7 @@ function resolveCategory(
     candidates[0];
 
   if (chosen === undefined) {
-    throw new Error("这个账本还没有可用的分类。");
+    throw new Error(t("account.guest.errors.noCategory"));
   }
 
   return chosen;
@@ -594,7 +596,7 @@ function assertUniqueName(
   id?: string,
 ): void {
   if (existing.some((entry) => entry.id !== id && entry.name === name)) {
-    throw new Error("已经有一个同名的项目了。");
+    throw new Error(t("account.guest.errors.duplicateName"));
   }
 }
 
@@ -626,8 +628,8 @@ export async function updateGuestCategory(
 ): Promise<Category> {
   const data = await requireData();
   const current = data.categories.find((category) => category.id === id);
-  if (current === undefined) throw new Error("这个分类已经不存在了。");
-  if (current.isSystem) throw new Error("系统分类不能修改。");
+  if (current === undefined) throw new Error(t("account.guest.errors.categoryGone"));
+  if (current.isSystem) throw new Error(t("account.guest.errors.systemCategoryEdit"));
 
   const name = input.name === undefined ? current.name : input.name.trim();
   assertUniqueName(
@@ -664,7 +666,7 @@ export async function deleteGuestCategory(
   if (current === undefined) {
     return { affectedEntries: 0, replacementId: null, replacementName: null, operationId: newId() };
   }
-  if (current.isSystem) throw new Error("系统分类不能删除。");
+  if (current.isSystem) throw new Error(t("account.guest.errors.systemCategoryDelete"));
 
   const replacement =
     replacementCategoryId == null
@@ -673,7 +675,7 @@ export async function deleteGuestCategory(
         )
       : data.categories.find((category) => category.id === replacementCategoryId);
 
-  if (replacement === undefined) throw new Error("还没有可用来接收历史账目的分类。");
+  if (replacement === undefined) throw new Error(t("account.guest.errors.noReplacement"));
 
   let moved = 0;
   const transactions = data.transactions.map((entry) => {
@@ -733,7 +735,7 @@ export async function updateGuestPaymentMethod(
 ): Promise<PaymentMethod> {
   const data = await requireData();
   const current = data.paymentMethods.find((method) => method.id === id);
-  if (current === undefined) throw new Error("这个支付方式已经不存在了。");
+  if (current === undefined) throw new Error(t("account.guest.errors.paymentMethodGone"));
 
   const name = input.name === undefined ? current.name : input.name.trim();
   assertUniqueName(data.paymentMethods, name, id);
@@ -816,7 +818,7 @@ export async function createGuestTag(input: CreateTagInput): Promise<Tag> {
 export async function updateGuestTag(id: string, input: UpdateTagInput): Promise<Tag> {
   const data = await requireData();
   const current = data.tags.find((tag) => tag.id === id);
-  if (current === undefined) throw new Error("这个标签已经不存在了。");
+  if (current === undefined) throw new Error(t("account.guest.errors.tagGone"));
 
   const name = input.name === undefined ? current.name : input.name.trim();
   assertUniqueName(data.tags, name, id);

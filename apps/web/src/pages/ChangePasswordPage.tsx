@@ -7,10 +7,13 @@ import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { InnerPage } from "../components/Layouts.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
+import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 
 export function ChangePasswordPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -25,7 +28,9 @@ export function ChangePasswordPage(): React.JSX.Element {
 
     const parsed = changePasswordRequestSchema.safeParse({ currentPassword, newPassword });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "请检查填写的内容");
+      // zod 提示是 `@libellum/shared` 里的中文原文，按当前界面语言查表显示。
+      const issue = parsed.error.issues[0]?.message;
+      setError(issue === undefined ? t("account.changePassword.invalid") : translateSharedMessage(issue));
       return;
     }
 
@@ -44,17 +49,17 @@ export function ChangePasswordPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="更改密码"
-      subtitle="修改成功后，其它设备上的登录状态将立即失效。"
+      title={t("account.changePassword.title")}
+      subtitle={t("account.changePassword.subtitle")}
       backTo="/settings"
     >
       <Card>
         <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
           {error ? <Alert>{error}</Alert> : null}
-          {done ? <Alert tone="success">密码已更新。</Alert> : null}
+          {done ? <Alert tone="success">{t("account.changePassword.done")}</Alert> : null}
 
           <TextField
-            label="当前密码"
+            label={t("account.changePassword.currentPassword")}
             type="password"
             autoComplete="current-password"
             autoFocus
@@ -65,10 +70,10 @@ export function ChangePasswordPage(): React.JSX.Element {
           />
 
           <TextField
-            label="新密码"
+            label={t("account.changePassword.newPassword")}
             type="password"
             autoComplete="new-password"
-            hint={`至少 ${String(PASSWORD_MIN_LENGTH)} 位`}
+            hint={t("auth.field.passwordMin", { min: PASSWORD_MIN_LENGTH })}
             value={newPassword}
             onChange={(event) => {
               setNewPassword(event.target.value);
@@ -76,7 +81,7 @@ export function ChangePasswordPage(): React.JSX.Element {
           />
 
           <Button type="submit" disabled={busy}>
-            {busy ? "提交中…" : "确认修改"}
+            {busy ? t("account.changePassword.submitting") : t("account.changePassword.submit")}
           </Button>
         </form>
       </Card>

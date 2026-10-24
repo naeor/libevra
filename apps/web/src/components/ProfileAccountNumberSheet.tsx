@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useI18n } from "../i18n/index.js";
 import { copyText } from "../lib/clipboard.js";
 import { Button } from "./Button.js";
 
@@ -20,6 +21,7 @@ export function ProfileAccountNumberSheet({
   const animations = useRef<Animation[]>([]);
   const session = useRef(0);
   const [phase, setPhase] = useState<"idle" | "copying" | "copied" | "manual">("idle");
+  const { t } = useI18n();
 
   useEffect(() => {
     const element = dialog.current;
@@ -80,7 +82,7 @@ export function ProfileAccountNumberSheet({
   return (
     <dialog
       ref={dialog}
-      aria-label="账号编号"
+      aria-label={t("account.accountNumberSheet.title")}
       aria-modal="true"
       onCancel={(event) => { event.preventDefault(); void close(); }}
       className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 backdrop:bg-transparent open:flex open:items-end open:justify-center"
@@ -89,15 +91,23 @@ export function ProfileAccountNumberSheet({
       <div ref={panel} className="relative flex max-h-[calc(100dvh-24px)] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-sheet border border-line bg-surface px-5 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-sheet">
         <span aria-hidden="true" className="mx-auto h-1 w-10 shrink-0 rounded-full bg-line" />
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-section-title text-ink">账号编号</h2>
-          <button type="button" autoFocus onClick={() => void close()} aria-label="关闭账号编号" className="flex size-11 items-center justify-center rounded-full text-body text-muted transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring">✕</button>
+          <h2 className="min-w-0 text-section-title text-ink">{t("account.accountNumberSheet.title")}</h2>
+          <button type="button" autoFocus onClick={() => void close()} aria-label={t("account.accountNumberSheet.close")} className="flex size-11 items-center justify-center rounded-full text-body text-muted transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring">✕</button>
         </div>
         <p className="select-all py-2 text-center font-mono text-page-title text-ink tabular-nums">{number}</p>
         <Button onClick={() => void copy()} disabled={phase === "copying"}>
-          {phase === "copied" ? "已复制" : phase === "copying" ? "正在复制…" : "复制账号编号"}
+          {phase === "copied"
+            ? t("account.accountNumberSheet.copied")
+            : phase === "copying"
+              ? t("account.accountNumberSheet.copying")
+              : t("account.accountNumberSheet.copy")}
         </Button>
         <p role="status" aria-live="polite" className="min-h-5 text-center text-helper-relaxed text-muted">
-          {phase === "manual" ? "无法自动复制，请长按上方编号复制。" : phase === "copied" ? "账号编号已复制。" : ""}
+          {phase === "manual"
+            ? t("account.accountNumberSheet.manual")
+            : phase === "copied"
+              ? t("account.accountNumberSheet.copiedStatus")
+              : ""}
         </p>
       </div>
     </dialog>

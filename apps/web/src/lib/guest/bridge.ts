@@ -7,6 +7,7 @@
  * guest adapter publishes into them and **the exact same components render guest entries**. That is
  * the S14-C goal: one UI, two data sources.
  */
+import { t } from "../../i18n/index.js";
 import { publishDeleted, publishLedger, publishPending } from "../offline/localLedger.js";
 import {
   ensureGuestData,
@@ -43,6 +44,6 @@ export function requireGuestId(): string {
   if (runtime !== null) return runtime;
 
   const identity = readGuestIdentity();
-  if (identity === null) throw new Error("游客身份尚未准备好。");
+  if (identity === null) throw new Error(t("account.guest.errors.identityNotReady"));
   return identity.id;
 }

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { useI18n } from "../i18n/index.js";
 import { encodeQr } from "../lib/qr.js";
 
 /**
@@ -30,13 +31,15 @@ export function QrCodeView({
    * honest answer is to say so — **a QR area that renders nothing looks like a bug, and a symbol
    * that carries half a URL looks like success.**
    */
+  const { t, locale } = useI18n();
+  /** 失败说明在 `useMemo` 里生成，所以依赖里带上 `locale`：切换语言后重新取文案。 */
   const code = useMemo(() => {
     try {
       return { ok: true as const, value: encodeQr(text) };
     } catch (caught: unknown) {
-      return { ok: false as const, message: caught instanceof Error ? caught.message : "无法生成二维码。" };
+      return { ok: false as const, message: caught instanceof Error ? caught.message : t("account.qr.failed") };
     }
-  }, [text]);
+  }, [text, locale]);
 
   if (!code.ok) {
     return <p className="rounded-field bg-danger-soft px-4 py-3 text-body text-danger">{code.message}</p>;

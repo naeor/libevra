@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/index.js";
 import { useGuestMode } from "../lib/guest/session.js";
 
 /**
@@ -13,13 +14,14 @@ import { useGuestMode } from "../lib/guest/session.js";
  */
 export function GuestModeBadge({ className = "" }: { readonly className?: string }): React.JSX.Element | null {
   const guest = useGuestMode();
+  const { t } = useI18n();
   if (!guest) return null;
 
   return (
     <span
       className={`inline-flex shrink-0 items-center rounded-full bg-surface px-2 py-0.5 text-micro font-medium text-brand shadow-sm ${className}`}
     >
-      游客模式
+      {t("account.guest.badge")}
     </span>
   );
 }

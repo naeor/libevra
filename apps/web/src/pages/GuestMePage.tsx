@@ -5,9 +5,11 @@ import { ChevronIcon } from "../components/Icons.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { TabPage } from "../components/Layouts.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
+import { LOCALE_NATIVE_NAMES, useI18n } from "../i18n/index.js";
 import { clearGuestData } from "../lib/guest/cleanup.js";
 import { clearAllDeviceData } from "../lib/guest/cleanup.js";
 import { readGuestIdentity } from "../lib/guest/identity.js";
+import { useLanguagePreference } from "../lib/languageRuntime.js";
 import { useLedger } from "../lib/queries.js";
 import { APP_VERSION } from "../lib/version.js";
 
@@ -31,6 +33,8 @@ export function GuestMePage(): React.JSX.Element {
   const [clearOpen, setClearOpen] = useState(false);
   const [clearAllStage, setClearAllStage] = useState<0 | 1 | 2>(0);
   const [busy, setBusy] = useState(false);
+  const { t } = useI18n();
+  const language = useLanguagePreference();
 
   const settingsRow =
     "flex w-full items-center justify-between gap-4 border-b border-line px-5 py-3.5 text-left text-body text-ink transition last:border-b-0 hover:bg-canvas disabled:opacity-50";
@@ -61,56 +65,54 @@ export function GuestMePage(): React.JSX.Element {
 
   return (
     <TabPage active="me" onNavigate={(to) => void navigate(to)} currentBookName={ledger.data?.book.name}>
-      <TabPageHeader
-        title="我的"
-        subtitle="游客模式 · 本地账本，数据只保存在这台设备"
-      />
+      <TabPageHeader title={t("account.guestMe.title")} subtitle={t("account.guestMe.subtitle")} />
 
       <div className="flex flex-col gap-6 px-6 py-6">
         <section className="rounded-card border border-line bg-surface">
           <div className="flex items-center justify-between gap-4 px-5 py-4">
             <div className="min-w-0">
-              <p className="text-body font-medium text-ink">游客身份</p>
+              <p className="text-body font-medium text-ink">{t("account.guestMe.identity")}</p>
               <p className="mt-0.5 truncate text-helper text-muted">
-                本机身份 · {identity?.id.slice(0, 8) ?? "未创建"}
+                {t("account.guestMe.localIdentity", {
+                  id: identity?.id.slice(0, 8) ?? t("account.guestMe.notCreated"),
+                })}
               </p>
             </div>
             <span className="shrink-0 rounded-full bg-brand-soft px-3 py-1 text-helper text-brand-dark">
-              仅本机
+              {t("account.guestMe.localOnly")}
             </span>
           </div>
           <div className="border-t border-line px-5 py-4">
-            <p className="text-helper-relaxed text-muted">
-              创建或登录正式账号后，游客账本不会自动上传、合并或删除。
-              如需导入，请前往目标账本的「设置 → 导入账本」，预览并确认具体变更。
-            </p>
+            <p className="text-helper-relaxed text-muted">{t("account.guestMe.formalNote")}</p>
             <div className="mt-3 flex flex-col gap-2">
               <button
                 type="button"
                 onClick={() => void navigate("/register")}
-                className="w-full rounded-field bg-brand py-3 text-button font-medium text-on-brand transition hover:bg-brand-dark"
+                className="w-full rounded-field bg-brand px-3 py-3 text-button font-medium text-on-brand transition hover:bg-brand-dark"
               >
-                创建正式账号
+                {t("account.guestMe.createAccount")}
               </button>
               <button
                 type="button"
                 onClick={() => void navigate("/login")}
-                className="w-full rounded-field border border-line py-3 text-button font-medium text-ink transition hover:bg-canvas"
+                className="w-full rounded-field border border-line px-3 py-3 text-button font-medium text-ink transition hover:bg-canvas"
               >
-                登录已有账号
+                {t("account.guestMe.signIn")}
               </button>
             </div>
           </div>
         </section>
 
         <section>
-          <h2 className="mb-2 px-5 text-helper font-medium text-muted">账本设置</h2>
+          <h2 className="mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.ledgerSettings")}</h2>
           <div className="overflow-hidden rounded-card border border-line bg-surface">
-            {[
-              { label: "分类管理", tail: "/settings/categories" },
-              { label: "支付方式", tail: "/settings/payment-methods" },
-              { label: "标签", tail: "/settings/tags" },
-            ].map((entry) => (
+            {(
+              [
+                { label: t("account.guestMe.categories"), tail: "/settings/categories" },
+                { label: t("account.guestMe.paymentMethods"), tail: "/settings/payment-methods" },
+                { label: t("account.guestMe.tags"), tail: "/settings/tags" },
+              ] as const
+            ).map((entry) => (
               <button
                 key={entry.tail}
                 type="button"
@@ -120,15 +122,41 @@ export function GuestMePage(): React.JSX.Element {
                 }}
                 className={settingsRow}
               >
-                <span>{entry.label}</span>
-                <ChevronIcon direction="right" className="size-4 text-muted/70" />
+                <span className="min-w-0">{entry.label}</span>
+                <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
               </button>
             ))}
           </div>
         </section>
 
+        {/**
+          * ⚠️ **S16：游客没有「设置」页，语言入口放在这里。** 目标就是正式账号在
+          * 设置 → 显示与数据 → 语言 打开的同一页（`/settings/appearance/language`，游客可进）；
+          * 行的写法与上面的账本设置行一致。标题在非英文界面附上 “Language”，
+          * 切到看不懂的语言后也能找回这一行（与设置页的语言行相同）。
+          */}
         <section>
-          <h2 className="mb-2 px-5 text-helper font-medium text-muted">本机数据</h2>
+          <h2 className="mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.display")}</h2>
+          <div className="overflow-hidden rounded-card border border-line bg-surface">
+            <button
+              type="button"
+              data-testid="guest-language-row"
+              onClick={() => void navigate("/settings/appearance/language")}
+              className={settingsRow}
+            >
+              <span className="min-w-0">
+                {`${t("language.title")}${language.locale === "en-US" ? "" : " / Language"}`}
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-helper text-muted">
+                {LOCALE_NATIVE_NAMES[language.locale]}
+                <ChevronIcon direction="right" className="size-4 text-muted/70" />
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.deviceData")}</h2>
           <div className="overflow-hidden rounded-card border border-line bg-surface">
             <button
               type="button"
@@ -137,8 +165,8 @@ export function GuestMePage(): React.JSX.Element {
               }}
               className={`${settingsRow} text-danger`}
             >
-              <span>清除游客数据</span>
-              <ChevronIcon direction="right" className="size-4 text-danger/70" />
+              <span className="min-w-0">{t("account.guestMe.clearGuest")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-danger/70" />
             </button>
             <button
               type="button"
@@ -147,13 +175,11 @@ export function GuestMePage(): React.JSX.Element {
               }}
               className={`${settingsRow} text-danger`}
             >
-              <span>清除此设备全部 Libevra 本地数据</span>
-              <ChevronIcon direction="right" className="size-4 text-danger/70" />
+              <span className="min-w-0">{t("account.guestMe.clearAll")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-danger/70" />
             </button>
           </div>
-          <p className="mt-3 px-1 text-helper-relaxed text-muted">
-            游客数据没有云端备份；清除浏览器数据或更换设备后可能无法找回。
-          </p>
+          <p className="mt-3 px-1 text-helper-relaxed text-muted">{t("account.guestMe.noBackup")}</p>
         </section>
 
         <p className="text-center text-helper text-muted">Libevra {APP_VERSION}</p>
@@ -161,14 +187,14 @@ export function GuestMePage(): React.JSX.Element {
 
       <ConfirmDialog
         open={clearOpen}
-        title="清除游客数据？"
-        description="只删除这个浏览器里的游客身份与本地账本。正式账号的离线数据与登录状态不受影响。"
+        title={t("account.guestMe.clearGuestDialog.title")}
+        description={t("account.guestMe.clearGuestDialog.description")}
         consequences={[
-          "游客身份与本地账本会从这台设备删除",
-          "没有云端备份，删除后无法找回",
-          "再次进入游客模式会得到一个新的空账本",
+          t("account.guestMe.clearGuestDialog.removed"),
+          t("account.guestMe.clearGuestDialog.noBackup"),
+          t("account.guestMe.clearGuestDialog.fresh"),
         ]}
-        confirmLabel="清除游客数据"
+        confirmLabel={t("account.guestMe.clearGuestDialog.confirm")}
         busy={busy}
         onCancel={() => {
           if (!busy) setClearOpen(false);
@@ -180,14 +206,14 @@ export function GuestMePage(): React.JSX.Element {
 
       <ConfirmDialog
         open={clearAllStage === 1}
-        title="清除此设备全部 Libevra 本地数据？"
-        description="范围包括：游客身份与本地账本、当前正式账号的离线账本副本与缓存、以及本应用注册的离线缓存。"
+        title={t("account.guestMe.clearAllDialog.title")}
+        description={t("account.guestMe.clearAllDialog.description")}
         consequences={[
-          "这台设备上 Libevra 的所有本地数据都会被删除",
-          "不会删除服务器上的账号与账目",
-          "下一步还需要再确认一次",
+          t("account.guestMe.clearAllDialog.everything"),
+          t("account.guestMe.clearAllDialog.serverKept"),
+          t("account.guestMe.clearAllDialog.twoSteps"),
         ]}
-        confirmLabel="继续"
+        confirmLabel={t("account.guestMe.clearAllDialog.confirm")}
         busy={busy}
         onCancel={() => {
           if (!busy) setClearAllStage(0);
@@ -199,14 +225,14 @@ export function GuestMePage(): React.JSX.Element {
 
       <ConfirmDialog
         open={clearAllStage === 2}
-        title="最后一次确认"
-        description="这一步不可撤销。删除后需要联网重新下载正式账号的账目；游客数据无法恢复。"
+        title={t("account.guestMe.finalDialog.title")}
+        description={t("account.guestMe.finalDialog.description")}
         consequences={[
-          "游客本地账本无法恢复",
-          "正式账号需要重新登录或重新下载离线数据",
-          "不会影响服务器上的任何数据",
+          t("account.guestMe.finalDialog.guestLost"),
+          t("account.guestMe.finalDialog.reDownload"),
+          t("account.guestMe.finalDialog.serverKept"),
         ]}
-        confirmLabel="确认清除全部本地数据"
+        confirmLabel={t("account.guestMe.finalDialog.confirm")}
         busy={busy}
         onCancel={() => {
           if (!busy) setClearAllStage(0);

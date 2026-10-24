@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { BrandMark } from "./BrandMark.js";
+import { useI18n } from "../i18n/index.js";
 import { updateGuestIdentity } from "../lib/guest/identity.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
 
@@ -19,6 +20,7 @@ const WELCOME_MS = 1_400;
 export function GuestWelcome(): React.JSX.Element | null {
   const identity = useGuestIdentity();
   const [visible, setVisible] = useState(false);
+  const { t } = useI18n();
 
   /**
    * ⚠️ **The identity is usually created on the login screen, which this component is already
@@ -53,8 +55,8 @@ export function GuestWelcome(): React.JSX.Element | null {
         <span className="flex size-16 items-center justify-center rounded-2xl bg-on-brand/15">
           <BrandMark className="size-8" />
         </span>
-        <p className="text-2xl font-semibold tracking-tight">Libevra</p>
-        <p className="text-body text-on-brand/85">游客模式 · 数据只保存在这台设备</p>
+        <p className="text-2xl font-semibold tracking-tight">{t("common.appName")}</p>
+        <p className="px-6 text-center text-body text-on-brand/85">{t("account.guest.welcome")}</p>
       </div>
     </div>
   );

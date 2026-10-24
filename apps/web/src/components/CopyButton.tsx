@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../components/Button.js";
+import { useI18n } from "../i18n/index.js";
 import { copyText } from "../lib/clipboard.js";
 
 /**
@@ -29,15 +30,17 @@ import { copyText } from "../lib/clipboard.js";
  */
 export function CopyButton({
   text,
-  label = "复制",
-  copiedLabel = "已复制到剪贴板",
+  label,
+  copiedLabel,
   rows = 8,
   variant = "primary",
   /** Shown above the text box. Says what the text is for. */
   hint,
 }: {
   readonly text: string;
+  /** 不传时用通用的「复制」（按当前界面语言）。 */
   readonly label?: string;
+  /** 不传时用通用的「已复制到剪贴板」（按当前界面语言）。 */
   readonly copiedLabel?: string;
   readonly rows?: number;
   readonly variant?: "primary" | "secondary" | "danger" | "ghost";
@@ -45,6 +48,7 @@ export function CopyButton({
 }): React.JSX.Element {
   const [phase, setPhase] = useState<"idle" | "flash" | "copied" | "manual">("idle");
   const timers = useRef<number[]>([]);
+  const { t } = useI18n();
 
   // A screen that unmounts mid-flash must not leave timers behind.
   useEffect(
@@ -97,13 +101,11 @@ export function CopyButton({
          */
         className={`transition-opacity duration-200 ${phase === "flash" ? "opacity-40" : "opacity-100"}`}
       >
-        {phase === "copied" ? copiedLabel : label}
+        {phase === "copied" ? (copiedLabel ?? t("account.copy.copied")) : (label ?? t("account.copy.label"))}
       </Button>
 
       {phase === "manual" ? (
-        <p className="text-center text-helper-relaxed text-muted">
-          这个浏览器不允许自动复制。下面就是全部内容，长按选择「复制」，或直接截图。
-        </p>
+        <p className="text-center text-helper-relaxed text-muted">{t("account.copy.manual")}</p>
       ) : null}
 
       {hint === undefined ? null : <p className="text-helper text-muted">{hint}</p>}

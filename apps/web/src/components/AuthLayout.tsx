@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/index.js";
 import { BrandMark } from "./BrandMark.js";
 import { Card } from "./Card.js";
 import { GuestEntry } from "./GuestEntry.js";
@@ -37,6 +38,7 @@ export function AuthLayout({
   /** The guest entry is on by default; the guest placeholder page turns it off (it is the destination). */
   readonly guestEntry?: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <main className="min-h-dvh bg-canvas">
       <div className="relative mx-auto flex w-full max-w-[26rem] flex-col px-5 pt-12 pb-10 sm:pt-16">
@@ -54,8 +56,8 @@ export function AuthLayout({
           >
             <BrandMark className="size-7" />
           </span>
-          <p className="text-2xl font-semibold tracking-tight text-ink">Libevra</p>
-          <p className="mt-1.5 text-helper text-muted">the free, open ledger</p>
+          <p className="text-2xl font-semibold tracking-tight text-ink">{t("common.appName")}</p>
+          <p className="mt-1.5 text-helper text-muted">{t("common.tagline")}</p>
         </header>
 
         {navigation === undefined ? null : (

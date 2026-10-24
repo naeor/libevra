@@ -98,11 +98,16 @@ describe("invitation copy", () => {
 describe("account copy", () => {
   it("keeps the recovery-code warning without restoring the retired field explanations", () => {
     // S16：所有者删除账号字段解释，但恢复码的安全提醒必须保留。
+    // S16 国际化：文字搬进 `account` 文案模块，页面里留下的是键——两处一起检查。
     const profile = source("../pages/ProfilePage.tsx");
+    const accountCopy = source("../i18n/resources/zh-CN/account.ts");
 
-    expect(profile).not.toContain("可安全地分享给他人");
-    expect(profile).toContain("请勿向任何人透露恢复码");
-    expect(profile).not.toContain("恢复码必须保密");
+    expect(profile).toContain('t("account.profile.recoveryWarning")');
+    expect(accountCopy).toContain('recoveryWarning: "请勿向任何人透露恢复码');
+    for (const text of [profile, accountCopy]) {
+      expect(text).not.toContain("可安全地分享给他人");
+      expect(text).not.toContain("恢复码必须保密");
+    }
   });
 });
 
@@ -163,28 +168,42 @@ describe("account entry copy (S14-A)", () => {
   const guestEntry = visibleText("../components/GuestEntry.tsx");
   const passwordField = visibleText("../components/PasswordField.tsx");
 
+  /** S16 国际化：这几页的文字搬进了 `auth` 文案模块（中文原文一字未改），页面里留下的是键。 */
+  const authCopy = visibleText("../i18n/resources/zh-CN/auth.ts");
+
   it("states the invite rule plainly and without manufactured scarcity", () => {
-    expect(register).toContain("为了保持稳定的使用体验，目前新账号通过邀请开放。");
+    expect(register).toContain('t("auth.register.inviteNotice")');
+    expect(authCopy).toContain("为了保持稳定的使用体验，目前新账号通过邀请开放。");
 
     for (const rejected of ["注册额度已耗尽", "服务器资源不足", "名额用完了", "当前没有额度"]) {
       expect(register, `RegisterPage shows 「${rejected}」`).not.toContain(rejected);
+      expect(authCopy, `auth copy shows 「${rejected}」`).not.toContain(rejected);
     }
   });
 
   it("asks only for username, password and its confirmation (plus the invite code when required)", () => {
-    expect(register).toContain("确认密码");
-    expect(register).toContain("两次输入的密码不一致。");
+    expect(register).toContain('t("auth.field.confirmPassword")');
+    expect(register).toContain('t("auth.register.passwordMismatch")');
+    expect(authCopy).toContain('confirmPassword: "确认密码"');
+    expect(authCopy).toContain('passwordMismatch: "两次输入的密码不一致。"');
     // The reveal control is shared by both password inputs; its label lives in one component.
-    expect(passwordField).toContain("显示密码");
+    expect(passwordField).toContain('t("auth.passwordToggle.show")');
+    expect(authCopy).toContain('show: "显示密码"');
     // The nickname/email/phone/code fields the owner ruled out must not appear as inputs.
     for (const rejected of ['label="昵称"', 'label="邮箱"', 'label="手机号"', 'label="验证码"']) {
       expect(register, `RegisterPage shows ${rejected}`).not.toContain(rejected);
     }
+    // Every input label on the page is one of the allowed fields.
+    const labels = [...register.matchAll(/label=\{t\("([^"]+)"\)\}/g)].map((match) => match[1]).sort();
+    expect(labels).toEqual(
+      ["auth.field.confirmPassword", "auth.field.inviteCode", "auth.field.password", "auth.field.username"],
+    );
   });
 
   it("keeps the guest entry on the account screens and opens the shared app", () => {
     // The entry itself is a shared component; its label lives in one place.
-    expect(guestEntry).toContain("以游客身份继续");
+    expect(guestEntry).toContain('t("auth.guestEntry")');
+    expect(authCopy).toContain('guestEntry: "以游客身份继续"');
     // S14-C: guest mode is the real app, so the entry goes to `/` and creates/reuses the identity.
     expect(guestEntry).toContain('to="/"');
     expect(guestEntry).toContain("createGuestIdentity");
@@ -192,6 +211,7 @@ describe("account entry copy (S14-A)", () => {
     // Login no longer hard-codes "invite registration" as the only way to create an account —
     // with S14-A the register page decides that from the server's mode.
     expect(login).not.toContain("使用邀请码注册");
+    expect(authCopy).not.toContain("使用邀请码注册");
   });
 });
 
@@ -201,18 +221,29 @@ describe("guest mode copy (S14-C)", () => {
   const bottomNav = visibleText("../components/BottomNav.tsx");
 
   it("states the identity compactly and does not repeat a registration pitch", () => {
-    expect(badge).toContain("游客模式");
-    expect(guestMe).toContain("游客身份");
-    expect(guestMe).not.toContain("请先注册");
-    expect(guestMe).not.toContain("你正在游客模式");
+    // S16 国际化：文字在 `account` 文案模块，页面里留下的是键——两处一起检查。
+    const accountCopy = visibleText("../i18n/resources/zh-CN/account.ts");
+    expect(badge).toContain('t("account.guest.badge")');
+    expect(accountCopy).toContain('badge: "游客模式"');
+    expect(guestMe).toContain('t("account.guestMe.identity")');
+    expect(accountCopy).toContain('identity: "游客身份"');
+    for (const text of [guestMe, accountCopy]) {
+      expect(text).not.toContain("请先注册");
+      expect(text).not.toContain("你正在游客模式");
+    }
   });
 
   it("separates guest data from a formal account and warns about no cloud backup", () => {
-    expect(guestMe).toContain("创建或登录正式账号后");
-    expect(guestMe).toContain("游客账本不会自动上传、合并或删除");
-    expect(guestMe).toContain("游客数据没有云端备份");
-    expect(guestMe).toContain("清除游客数据");
-    expect(guestMe).toContain("清除此设备全部 Libevra 本地数据");
+    const accountCopy = visibleText("../i18n/resources/zh-CN/account.ts");
+    expect(guestMe).toContain('t("account.guestMe.formalNote")');
+    expect(accountCopy).toContain("创建或登录正式账号后");
+    expect(accountCopy).toContain("游客账本不会自动上传、合并或删除");
+    expect(guestMe).toContain('t("account.guestMe.noBackup")');
+    expect(accountCopy).toContain("游客数据没有云端备份");
+    expect(guestMe).toContain('t("account.guestMe.clearGuest")');
+    expect(accountCopy).toContain('clearGuest: "清除游客数据"');
+    expect(guestMe).toContain('t("account.guestMe.clearAll")');
+    expect(accountCopy).toContain('clearAll: "清除此设备全部 Libevra 本地数据"');
   });
 
   it("disables server-only recording actions with a reason instead of faking them", () => {
