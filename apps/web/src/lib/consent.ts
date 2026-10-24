@@ -1,5 +1,6 @@
 import type { LegalDocument, MajorAnnouncement } from "@libellum/shared";
 
+import { t } from "../i18n/index.js";
 import { ApiRequestError, apiFetch } from "./api.js";
 
 export interface RequiredLegalDocument extends LegalDocument {
@@ -57,7 +58,8 @@ export async function fetchAccountExport(): Promise<{ fileName: string; bytes: U
 
   if (!response.ok) {
     let code = "account_export_failed";
-    let message = "导出失败。";
+    // 兜底说明在出错时按当前语言取；服务器给了原文就用原文（`errorMessage()` 再按语言处理）。
+    let message = t("account.data.exportFailed");
     try {
       const parsed = (await response.json()) as { code?: string; message?: string };
       code = parsed.code ?? code;

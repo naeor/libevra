@@ -7,10 +7,12 @@ import { Card } from "../components/Card.js";
 import { InnerPage } from "../components/Layouts.js";
 import { RecoveryCodeCard } from "../components/RecoveryCodeCard.js";
 import { TextField } from "../components/TextField.js";
+import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 
 export function RegenerateRecoveryCodePage(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +24,7 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
     setError(null);
 
     if (password.length === 0) {
-      setError("请输入当前密码。");
+      setError(t("account.recoveryCode.passwordRequired"));
       return;
     }
 
@@ -43,7 +45,11 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
 
   if (issuedCode) {
     return (
-      <InnerPage title="新的恢复码" subtitle="请立即保存。" backTo="/settings">
+      <InnerPage
+        title={t("account.recoveryCode.issuedTitle")}
+        subtitle={t("account.recoveryCode.issuedSubtitle")}
+        backTo="/settings"
+      >
         <RecoveryCodeCard code={issuedCode} onContinue={() => void navigate("/settings")} />
       </InnerPage>
     );
@@ -51,20 +57,18 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title="生成新的恢复码"
-      subtitle="生成后，原有的恢复码将立即失效。"
+      title={t("account.recoveryCode.title")}
+      subtitle={t("account.recoveryCode.subtitle")}
       backTo="/settings"
     >
       <Card>
         <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
           {error ? <Alert>{error}</Alert> : null}
 
-          <p className="text-body-relaxed text-muted">
-            恢复码用于在忘记密码时重置密码，仅在生成时显示一次。请仅在原恢复码遗失或可能泄露时重新生成。
-          </p>
+          <p className="text-body-relaxed text-muted">{t("account.recoveryCode.explanation")}</p>
 
           <TextField
-            label="当前密码"
+            label={t("account.recoveryCode.currentPassword")}
             type="password"
             autoComplete="current-password"
             autoFocus
@@ -75,7 +79,7 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
           />
 
           <Button type="submit" disabled={busy}>
-            {busy ? "生成中…" : "确认生成"}
+            {busy ? t("account.recoveryCode.submitting") : t("account.recoveryCode.submit")}
           </Button>
         </form>
       </Card>

@@ -24,7 +24,7 @@ export interface GuestLedger {
   readonly updatedAt: string;
 }
 
-export const DEFAULT_GUEST_LEDGER_NAME = "我的本地账本";
+export const DEFAULT_GUEST_LEDGER_NAME = "我的本地账本"; // i18n-ignore：写进本机数据库的账本名（数据，可被导入正式账号），不是界面文字
 export const DEFAULT_GUEST_CURRENCY = "CNY";
 
 const LEDGERS_NAME = "ledgers";

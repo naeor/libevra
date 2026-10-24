@@ -5,6 +5,8 @@ import { APP_VERSION } from "@libellum/shared";
 
 import { Button } from "./Button.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { localizeMajorAnnouncement } from "../i18n/content/index.js";
+import { useI18n } from "../i18n/index.js";
 import {
   acceptAgreement,
   acknowledgeMajorAnnouncement,
@@ -56,6 +58,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
   const userId = user?.id ?? null;
 
   const [status, setStatus] = useState<ConsentStatus | null>(null);
@@ -142,11 +145,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
     try {
       const file = await fetchAccountExport();
       const outcome = await deliverFile(file.fileName, "application/json", file.bytes);
-      setNotice(
-        outcome.cancelled
-          ? "已取消导出。"
-          : "账号数据已导出。文件包含账号资料和当前可访问账本的全部账目。",
-      );
+      setNotice(outcome.cancelled ? t("legal.consent.exportCancelled") : t("legal.consent.exportDone"));
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -169,25 +168,31 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
     return <>{children}</>;
   }
 
+  /**
+   * 重大公告的**内容**按当前语言显示（没有译文时原样中文）；确认 / 关闭仍用服务器下发的原对象，
+   * `id` 与 `version` 不随语言变化。
+   */
+  const shownMajor = pendingMajor === null ? null : localizeMajorAnnouncement(pendingMajor);
+
   return (
     <>
       {children}
 
       {mode === "data-help" ? (
         <ConsentDialog
-          title="如果你暂时不同意"
-          eyebrow="账户与数据处理"
+          title={t("legal.consent.help.title")}
+          eyebrow={t("legal.consent.help.eyebrow")}
           footer={
             <>
               <Button variant="ghost" onClick={() => void onLogout()} disabled={busy}>
-                退出登录
+                {t("legal.consent.help.signOut")}
               </Button>
               <Button variant="secondary" onClick={() => {
                 setMode("agreement");
                 setNotice(null);
                 setError(null);
               }} disabled={busy}>
-                返回协议确认
+                {t("legal.consent.help.backToAgreement")}
               </Button>
             </>
           }
@@ -205,19 +210,34 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
       ) : showAgreement ? (
         <ConsentDialog
           title={currentDocument.title}
-          eyebrow={currentDocument.version ? `文件版本 ${currentDocument.version}` : undefined}
+          eyebrow={
+            currentDocument.version
+              ? t("legal.consent.documentVersion", { version: currentDocument.version })
+              : undefined
+          }
           footer={
             <>
               <Button onClick={() => void onAccept()} disabled={!checked || busy}>
-                {busy ? "处理中…" : "同意并继续"}
+                {busy ? t("legal.consent.processing") : t("legal.consent.accept")}
               </Button>
               <Button variant="secondary" onClick={() => setMode("data-help")} disabled={busy}>
-                暂不同意
+                {t("legal.consent.decline")}
               </Button>
             </>
           }
         >
-          <p className="text-body-relaxed text-ink">{currentDocument.summary}</p>
+          {/**
+            * ⚠️ 协议的标题、摘要与正文是用户要同意的**中文原文**（内容哈希即中文版本），不翻译；
+            * 非中文界面在摘要前说明以中文版本为准（S16-C-10）。
+            */}
+          {locale === "zh-CN" ? null : (
+            <p className="mb-3 rounded-field bg-canvas px-3 py-2 text-helper-relaxed text-muted">
+              {t("legal.chineseOnly")}
+            </p>
+          )}
+          <p lang="zh-CN" className="text-body-relaxed text-ink">
+            {currentDocument.summary}
+          </p>
 
           <a
             href={`/legal/${currentDocument.id}`}
@@ -225,7 +245,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
             rel="noreferrer"
             className="mt-3 inline-block text-body font-medium text-brand hover:underline"
           >
-            查看完整文件
+            {t("legal.consent.viewFull")}
           </a>
 
           {error === null ? null : (
@@ -243,17 +263,17 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
               }}
               className="mt-1 size-4 shrink-0"
             />
-            <span>我已阅读并同意这份文件。</span>
+            <span>{t("legal.consent.agree")}</span>
           </label>
         </ConsentDialog>
       ) : (
         <ConsentDialog
-          title={pendingMajor!.title}
-          eyebrow={`重要更新 · ${pendingMajor!.version}`}
+          title={shownMajor!.title}
+          eyebrow={t("legal.consent.majorEyebrow", { version: pendingMajor!.version })}
           closeAction={
             <button
               type="button"
-              aria-label="关闭重要更新"
+              aria-label={t("legal.consent.closeMajor")}
               disabled={busy}
               onClick={() => void onAckMajor("dismissed")}
               className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
@@ -264,15 +284,15 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
           footer={
             <>
               <Button onClick={() => void onAckMajor("acknowledged")} disabled={busy}>
-                {busy ? "处理中…" : "知道了"}
+                {busy ? t("legal.consent.processing") : t("legal.consent.gotIt")}
               </Button>
               <Button variant="secondary" onClick={() => void onAckMajor("opened_details")} disabled={busy}>
-                查看详情
+                {t("legal.consent.viewDetails")}
               </Button>
             </>
           }
         >
-          <MajorAnnouncementBody announcement={pendingMajor!} error={error} />
+          <MajorAnnouncementBody announcement={shownMajor!} error={error} />
         </ConsentDialog>
       )}
     </>
@@ -394,11 +414,10 @@ function AccountDataHelp({
   readonly onExport: () => void;
   readonly onOpenAccountData: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <>
-      <p className="text-body-relaxed text-muted">
-        你可以先导出或处理账号中的数据，稍后再决定。
-      </p>
+      <p className="text-body-relaxed text-muted">{t("legal.consent.help.intro")}</p>
 
       {notice === null ? null : (
         <p className="mt-3 rounded-field bg-brand-soft px-3 py-2 text-helper-relaxed text-brand-dark">{notice}</p>
@@ -411,34 +430,24 @@ function AccountDataHelp({
 
       <div className="mt-4 flex flex-col gap-2">
         <Button variant="secondary" onClick={onExport} disabled={busy}>
-          {busy ? "处理中…" : "导出我的数据"}
+          {busy ? t("legal.consent.processing") : t("legal.consent.help.export")}
         </Button>
         <details className="rounded-field border border-line px-3 py-2.5 text-helper-relaxed text-muted">
-          <summary className="cursor-pointer font-medium text-ink">
-            删除服务器存储的数据
-          </summary>
-          <p className="mt-1">
-            需要先退出协作、处理或归档每一本账本。打开「账号与数据」逐本查看影响范围并确认。
-          </p>
+          <summary className="cursor-pointer font-medium text-ink">{t("legal.consent.help.deleteTitle")}</summary>
+          <p className="mt-1">{t("legal.consent.help.deleteBody")}</p>
         </details>
         <details className="rounded-field border border-line px-3 py-2.5 text-helper-relaxed text-muted">
-          <summary className="cursor-pointer font-medium text-ink">
-            注销账号
-          </summary>
-          <p className="mt-1">
-            注销会撤销会话、阻止重新登录，并按每本账本的归档/删除规则处理数据；已归档账本可保留期限并提供一次性恢复凭证。
-          </p>
+          <summary className="cursor-pointer font-medium text-ink">{t("legal.consent.help.closeTitle")}</summary>
+          <p className="mt-1">{t("legal.consent.help.closeBody")}</p>
         </details>
         <Button variant="secondary" onClick={onOpenAccountData} disabled={busy}>
-          打开账号与数据
+          {t("legal.consent.help.openAccountData")}
         </Button>
       </div>
 
-      <p className="mt-4 text-helper text-muted">
-        删除或注销会处理服务器数据；本机离线副本会在账号处理完成后清理，尚未同步的记录不会在没有提示的情况下被当作已删除。
-      </p>
+      <p className="mt-4 text-helper text-muted">{t("legal.consent.help.localNote")}</p>
       <Link to="/legal/local-test-terms" target="_blank" className="mt-3 inline-block text-helper font-medium text-brand">
-        查看协议文件
+        {t("legal.consent.help.viewAgreement")}
       </Link>
     </>
   );

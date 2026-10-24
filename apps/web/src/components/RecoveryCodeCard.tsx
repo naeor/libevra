@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useI18n } from "../i18n/index.js";
 import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
 import { Card } from "./Card.js";
@@ -20,6 +21,7 @@ export function RecoveryCodeCard({
 }): React.JSX.Element {
   const [confirmed, setConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
 
   async function copy(): Promise<void> {
     try {
@@ -32,16 +34,14 @@ export function RecoveryCodeCard({
 
   return (
     <div className="flex flex-col gap-5">
-      <Alert tone="info">
-        请妥善保存以下恢复码。它仅显示一次，是忘记密码时重置密码的唯一凭据。
-      </Alert>
+      <Alert tone="info">{t("auth.recoveryCard.notice")}</Alert>
 
       <Card className="bg-brand-soft/50 text-center">
         <p className="font-mono text-lg tracking-[0.18em] text-brand-dark select-all">{code}</p>
       </Card>
 
       <Button variant="secondary" onClick={() => void copy()}>
-        {copied ? "已复制" : "复制恢复码"}
+        {copied ? t("auth.recoveryCard.copied") : t("auth.recoveryCard.copy")}
       </Button>
 
       <label className="flex items-start gap-3 rounded-field border border-line px-4 py-3 text-body text-ink">
@@ -53,11 +53,11 @@ export function RecoveryCodeCard({
           }}
           className="mt-0.5 size-4 accent-[var(--color-brand)]"
         />
-        <span>我已妥善保存该恢复码</span>
+        <span className="min-w-0">{t("auth.recoveryCard.confirm")}</span>
       </label>
 
       <Button disabled={!confirmed} onClick={onContinue}>
-        完成
+        {t("auth.recoveryCard.done")}
       </Button>
     </div>
   );

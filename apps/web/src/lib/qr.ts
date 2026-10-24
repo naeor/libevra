@@ -22,6 +22,7 @@
  * self-consistency would not catch a wrong BCH generator polynomial**: an encoder can agree with
  * itself and disagree with every scanner.
  */
+import { t } from "../i18n/index.js";
 
 /** GF(256) with the QR primitive polynomial 0x11d. */
 const EXP = new Uint8Array(512);
@@ -147,9 +148,8 @@ export function encodeQr(text: string): QrCode {
   });
 
   if (spec === undefined) {
-    throw new Error(
-      `这段文字太长，放不进二维码（${String(bytes.length)} 字节，上限 271 字节）。`,
-    );
+    // 说明在抛出时按当前界面语言取（S16）；`QrCodeView` 直接显示 `error.message`。
+    throw new Error(t("account.qr.tooLong", { bytes: bytes.length }));
   }
 
   const bits = buildDataBits(spec, bytes);
@@ -192,7 +192,7 @@ function bitsToCodewords(bits: readonly boolean[], expected: number): number[] {
     out.push(byte);
   }
   if (out.length !== expected) {
-    throw new Error(`内部错误：数据码字 ${String(out.length)} 个，预期 ${String(expected)} 个。`);
+    throw new Error(t("account.qr.internal", { actual: out.length, expected }));
   }
   return out;
 }
