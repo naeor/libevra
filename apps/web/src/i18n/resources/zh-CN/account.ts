@@ -272,7 +272,7 @@ const account = {
     title: "加入账本",
     loading: "正在读取这个邀请链接。",
     invalidSubtitle: "这个链接不能用了。",
-    invalid: "这个分享链接**无效或已被撤销**。请让邀请你的人重新生成一条。",
+    invalid: "这个分享链接无效或已被撤销。请让邀请你的人重新生成一条。",
     revokeNote: "（链接只能被生成它的那个人撤销。撤销之后，手上的旧链接都会失效。）",
     alreadySubtitle: "你已经在这本账里了。",
     bookName: "「{{name}}」",

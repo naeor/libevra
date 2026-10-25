@@ -415,7 +415,7 @@ const ledgerImport = {
     taxonomy: "分类/支付/标签：复用 {{reuse}} 个 · 新建 {{create}} 个。同名属性冲突已按你的选择处理。",
     byCurrency: "按币种预览",
     nothingToImport: "没有可导入的账目。",
-    noRemovals: "本轮不会删除目标账本 A 的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除来源账本的数据。",
+    noRemovals: "本轮不会删除目标账本的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除来源账本的数据。",
     removalsSummary_one: "将删除 {{count}} 笔目标账目（展开核对）",
     removalsSummary_other: "将删除 {{count}} 笔目标账目（展开核对）",
     removalsNote: "仅删除上面列出的账目，可从编辑历史恢复，不会永久删除。来源账本不受影响。",

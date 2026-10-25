@@ -77,6 +77,30 @@ describe("the conflict screen", () => {
     expect(markup).toContain("用你的");
   });
 
+  it("shows amounts in the entry’s own currency, not a fixed one", () => {
+    const markup = render({
+      mine: entry({ amountCents: 2500, currency: "USD" }),
+      theirs: entry({ currency: "USD" }),
+      base: entry({ currency: "USD" }),
+      at: 0,
+    });
+
+    expect(markup).toContain("$25.00");
+    expect(markup).not.toContain("¥");
+  });
+
+  it("shows both conflicting amounts in the entry’s own currency", () => {
+    const markup = render({
+      mine: entry({ amountCents: 2500, currency: "USD" }),
+      theirs: entry({ amountCents: 9999, currency: "USD" }),
+      base: entry({ currency: "USD" }),
+      at: 0,
+    });
+
+    expect(markup).toContain("$25.00");
+    expect(markup).toContain("$99.99");
+  });
+
   it("asks about the field both sides changed", () => {
     const markup = render({
       mine: entry({ amountCents: 2500 }),

@@ -100,7 +100,7 @@ const stats: Messages<typeof zh> = {
     heatmap: "Spending calendar (one 10× outlier)",
     edgeCases: "Edge cases",
     noData: "No data at all",
-    gapFilled: "No data, but the series was zero-filled (**the bug fixed here**: it used to say “every amount is zero”)",
+    gapFilled: "No data, but the series was zero-filled (the bug fixed here: it used to say “every amount is zero”)",
     allZero: "Entries, all zero",
     singleCategory: "Only one category",
     yearAllZero: "Year overview, all zero",

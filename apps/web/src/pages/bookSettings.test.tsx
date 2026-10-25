@@ -157,7 +157,7 @@ describe("账本设置页的英文界面（S16）", () => {
     try {
       const html = rendered();
 
-      for (const text of ["Ledger settings", "Managing", "Rename ledger", "Recording", "Data", "Danger zone", "Categories", "Switch", "3 members"]) {
+      for (const text of ["Ledger settings", "Managing", "Rename ledger", "Bookkeeping", "Data", "Danger zone", "Categories", "Switch", "3 members"]) {
         expect(html, text).toContain(text);
       }
       for (const chinese of ["账本设置", "正在管理", "修改账本名称", "记账管理", "数据管理", "危险操作", "分类管理", "切换", "3 人"]) {

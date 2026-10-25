@@ -104,7 +104,7 @@ const stats = {
     heatmap: "日历热力（含一个 10 倍极值）",
     edgeCases: "异常状态",
     noData: "没有任何数据",
-    gapFilled: "没有数据，但序列被补过零（**这是本次修掉的 bug**：以前会误报\"金额均为零\"）",
+    gapFilled: "没有数据，但序列被补过零（这是本次修掉的 bug：以前会误报\"金额均为零\"）",
     allZero: "有记录但全为零",
     singleCategory: "只有一个分类",
     yearAllZero: "全零的年度总览",

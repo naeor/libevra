@@ -12,7 +12,7 @@ import { legalDocumentById } from "@libellum/shared";
  * production build with no reviewed legal documents simply has no such route content.
  *
  * ⚠️ **S16：页面框架随界面语言变化，协议的标题与正文不翻译。** 用户同意的是中文原文（内容哈希即中文
- * 版本），英文界面照样显示中文正文，并在正文前说明以中文版本为准、英文译本待专业审核（S16-C-10）。
+ * 版本），英文界面照样显示中文正文，并在正文前说明以中文版本为准、英文译本待专业审核（S16-G-10）。
  */
 export function LegalDocumentPage(): React.JSX.Element {
   const { documentId } = useParams<{ readonly documentId: string }>();

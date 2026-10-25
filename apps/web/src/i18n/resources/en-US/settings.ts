@@ -5,7 +5,7 @@ import type zh from "../zh-CN/settings.js";
 const settings: Messages<typeof zh> = {
   home: {
     title: "Settings",
-    preferences: { title: "Recording", description: "Default currency, duplicate alerts and entry habits" },
+    preferences: { title: "Entry preferences", description: "Default currency, duplicate alerts and entry habits" },
     appearance: { title: "Display & data", description: "Language, theme and currency conversion" },
     security: { title: "Account & security", description: "Password, recovery code and invite codes" },
     accountData: { title: "Your data", description: "Export, delete data or close your account" },
@@ -15,14 +15,14 @@ const settings: Messages<typeof zh> = {
   comingLater: "Coming later",
   saved: "Saved.",
   preferences: {
-    title: "Recording",
+    title: "Entry preferences",
     defaultCurrency: "Default currency",
     defaultCurrencyHint: "Shown first in currency lists.",
     duplicates: "Duplicate detection",
     entryAndLayout: "Entry & layout",
     largeKeypad: { label: "Large keypad for amounts", hint: "Use the app’s large number pad" },
     reuseLast: { label: "Reuse last entry", hint: "Prefill new entries with the category and details you used last" },
-    startRecording: { label: "Start recording after sign-in", hint: "Skip the entries page and go straight to adding one" },
+    startRecording: { label: "Start an entry after sign-in", hint: "Skip the entries page and go straight to adding one" },
     currencyOrder: { label: "Currency order", hint: "Your default currency always comes first" },
     buttonPosition: { label: "Main button position", hint: "Left hand / right hand" },
   },

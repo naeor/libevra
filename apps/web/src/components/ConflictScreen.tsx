@@ -58,9 +58,10 @@ interface Names {
  *
  * S16: only the words *around* the data are translated (`（空）`, 收入/支出). Notes and user-made names print as
  * stored; preset category / payment-method names go through the display helpers, which leave renamed ones alone.
+ * 金额按这笔账自己的币种格式化（`currency` 由调用方按来源传入；以前固定按人民币显示）。
  */
-function describe(field: MergeField, value: unknown, names: Names = {}): string {
-  if (field === "amountCents") return formatMoney(Number(value), "CNY");
+function describe(field: MergeField, value: unknown, names: Names, currency: string): string {
+  if (field === "amountCents") return formatMoney(Number(value), currency);
 
   if (field === "kind") return value === "income" ? t("common.kind.income") : t("common.kind.expense");
 
@@ -161,7 +162,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
                 >
                   <span className="shrink-0 text-muted">{fieldLabel(pick.field)}</span>
                   <span className="min-w-0 text-right [overflow-wrap:anywhere]">
-                    <span className="text-ink">{describe(pick.field, pick.value, { categories, paymentMethods, tags })}</span>
+                    <span className="text-ink">{describe(pick.field, pick.value, { categories, paymentMethods, tags }, pick.from === "mine" ? conflict.mine.currency : conflict.theirs.currency)}</span>
                     {/*
                       ⚠️ **Which side it came from is the point.** "金额 → ¥25.00" without "用你的" leaves the user
                       unable to tell whether their edit survived — **and that question is the whole reason this
@@ -213,7 +214,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
                           answers.has(field.field) && JSON.stringify(chosen) === JSON.stringify(option.value) ? "text-ink" : ""
                         }`}
                       >
-                        {describe(field.field, option.value, { categories, paymentMethods, tags })}
+                        {describe(field.field, option.value, { categories, paymentMethods, tags }, option.currency ?? merged.merged.currency)}
                       </span>
                     </button>
                   ))}

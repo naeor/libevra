@@ -82,7 +82,7 @@ const dataio = {
     howDuplicates:
       "文件内部重复、以及和账本里已有账目的重复，都用同一套规则判定；只提示，不自动删除， 也不会取消你已有的勾选。",
     howIdentity: "之前导入过的同一份来源会标成「来源已存在」并跳过，所以同一个文件再导一次不会多出账目。",
-    howLocal: "全部在本机处理，不上传第三方服务。",
+    howLocal: "文件会上传到 Libevra 自己的服务器上识别和判重，不会发送给任何第三方服务。",
     /** `<btn>` 是下载模板的按钮，按钮文字是 `{{label}}`。 */
     template: "想从零开始整理？可以<btn>{{label}}</btn>照着表头填。",
     templateDownload: "下载 Libevra CSV 模板",

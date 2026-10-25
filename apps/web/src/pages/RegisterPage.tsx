@@ -353,7 +353,7 @@ export function RegisterPage(): React.JSX.Element {
                 </label>
               );
             })}
-            {/** 非中文界面：协议只有中文版本，以中文为准（S16-C-10，英文译本待专业审核）。 */}
+            {/** 非中文界面：协议只有中文版本，以中文为准（S16-G-10，英文译本待专业审核）。 */}
             {locale === "zh-CN" ? null : (
               <p className="text-helper-relaxed text-muted">{t("legal.chineseOnly")}</p>
             )}

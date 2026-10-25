@@ -79,7 +79,8 @@ const dataio: Messages<typeof zh> = {
       "Duplicates within the file and duplicates of entries already in the ledger are checked with the same rules. You’re only alerted — nothing is deleted automatically, and your selections stay as they are.",
     howIdentity:
       "Anything imported before from the same source is marked “Already imported” and skipped, so importing the same file again won’t add entries.",
-    howLocal: "Everything is processed on this device and never sent to third-party services.",
+    howLocal:
+      "Files are uploaded to Libevra’s own server for recognition and duplicate checks — never sent to third-party services.",
     template: "Starting from scratch? <btn>{{label}}</btn> and fill it in under the headers.",
     templateDownload: "Download the Libevra CSV template",
     templateGenerating: "Generating the template…",

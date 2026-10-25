@@ -228,7 +228,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
         >
           {/**
             * ⚠️ 协议的标题、摘要与正文是用户要同意的**中文原文**（内容哈希即中文版本），不翻译；
-            * 非中文界面在摘要前说明以中文版本为准（S16-C-10）。
+            * 非中文界面在摘要前说明以中文版本为准（S16-G-10）。
             */}
           {locale === "zh-CN" ? null : (
             <p className="mb-3 rounded-field bg-canvas px-3 py-2 text-helper-relaxed text-muted">

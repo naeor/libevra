@@ -4,7 +4,7 @@ import { t } from "../../i18n/index.js";
 import type { ConflictRecord } from "./localLedger.js";
 import { FIELD_LABELS, fieldLabel, mergeEntries, type MergeField } from "./merge.js";
 
-export interface ConflictOption { readonly label: string; readonly value: unknown }
+export interface ConflictOption { readonly label: string; readonly value: unknown; readonly currency?: string }
 export interface ConflictQuestion { readonly field: MergeField; readonly label: string; readonly options: readonly ConflictOption[] }
 
 function valueOf(entry: Transaction, field: MergeField): unknown {
@@ -25,20 +25,20 @@ export function conflictQuestions(conflict: ConflictRecord): readonly ConflictQu
     return mergeEntries(conflict.base, conflict.mine, conflict.theirs).conflicts
       .filter(item => item.field !== "occurredAt")
       .map(item => ({ field: item.field, label: item.label, options: [
-        { label: t("offline.conflict.optionThisDevice"), value: item.mine },
-        { label: t("offline.conflict.optionServer"), value: item.theirs },
+        { label: t("offline.conflict.optionThisDevice"), value: item.mine, currency: conflict.mine.currency },
+        { label: t("offline.conflict.optionServer"), value: item.theirs, currency: conflict.theirs.currency },
       ] }));
   }
   return conflict.fields.flatMap(item => {
     const field = (item.field === "tagIds" ? "tags" : item.field) as MergeField;
     if (!(field in FIELD_LABELS) || field === "occurredAt") return [];
-    const options: ConflictOption[] = [{ label: t("offline.conflict.optionServer"), value: valueOf(conflict.theirs, field) }];
+    const options: ConflictOption[] = [{ label: t("offline.conflict.optionServer"), value: valueOf(conflict.theirs, field), currency: conflict.theirs.currency }];
     for (const claim of item.claims ?? []) {
       if (claim.chain.length === 0) continue;
       options.push({ label: t("offline.conflict.optionDevice", { device: claim.deviceId.slice(0, 8) }), value: claim.chain.at(-1) });
     }
     // Older persisted conflicts may predate the claims payload.
-    if ((item.claims?.length ?? 0) === 0) options.push({ label: t("offline.conflict.optionThisDevice"), value: valueOf(conflict.mine, field) });
+    if ((item.claims?.length ?? 0) === 0) options.push({ label: t("offline.conflict.optionThisDevice"), value: valueOf(conflict.mine, field), currency: conflict.mine.currency });
     const unique = options.filter((option, index) => options.findIndex(other => key(field, other.value) === key(field, option.value)) === index);
     return unique.length < 2 ? [] : [{ field, label: fieldLabel(field), options: unique }];
   });
