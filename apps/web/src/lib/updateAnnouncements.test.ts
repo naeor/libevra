@@ -42,6 +42,7 @@ describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.16.15",
       "1.16.09",
       "1.16.08",
       "1.16.03",
@@ -67,14 +68,15 @@ describe("version announcements", () => {
     expect(released.filter((entry) => originalVersions.has(entry.version)).map(identity)).toEqual(
       original.announcements.map(identity),
     );
-    expect(released[0]?.version).toBe("1.16.09");
+    expect(released[0]?.version).toBe("1.16.15");
     expect(released.filter((entry) => !originalVersions.has(entry.version)).map((entry) => entry.version)).toEqual([
+      "1.16.15",
       "1.16.09",
       "1.16.08",
       "1.16.03",
     ]);
-    // 1.16.15 是发布候选，未正式发布前不得出现在“已发布”列表里。
-    expect(released.some((entry) => entry.version === "1.16.15")).toBe(false);
+    // 1.16.15 已于 2026-10-25 正式发布，必须出现在“已发布”列表里。
+    expect(released.some((entry) => entry.version === "1.16.15")).toBe(true);
   });
 
   it.each(releasedAnnouncements())("$version has an independent title, overview and classified body", (entry) => {
@@ -88,7 +90,10 @@ describe("version announcements", () => {
       expect(section.items.length).toBeGreaterThan(0);
       expect(section.items.every(item => item.trim().length > 0)).toBe(true);
     }
-    if (entry.version === "1.16.09") {
+    if (entry.version === "1.16.15") {
+      expect(entry.releasedAt).toBe("2026-10-25");
+      expect(entry.revisedAt).toBeUndefined();
+    } else if (entry.version === "1.16.09") {
       expect(entry.releasedAt).toBe("2026-10-25");
       expect(entry.revisedAt).toBeUndefined();
     } else if (entry.version === "1.16.08") {
@@ -139,7 +144,7 @@ describe("version announcements", () => {
   });
 
   it("answers with the latest applicable release for a running version", () => {
-    expect(latestApplicableAnnouncement("1.16.15")?.version).toBe("1.16.09");
+    expect(latestApplicableAnnouncement("1.16.15")?.version).toBe("1.16.15");
     expect(latestApplicableAnnouncement("1.16.14")?.version).toBe("1.16.09");
     expect(latestApplicableAnnouncement("1.16.09")?.version).toBe("1.16.09");
     expect(latestApplicableAnnouncement("1.16.08")?.version).toBe("1.16.08");
@@ -180,7 +185,7 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.15.05")).toBe(true);
     expect(hasNewerReleasedVersion("1.16.03")).toBe(true);
     expect(hasNewerReleasedVersion("1.16.08")).toBe(true);
-    expect(hasNewerReleasedVersion("1.16.09")).toBe(false);
+    expect(hasNewerReleasedVersion("1.16.09")).toBe(true);
     expect(hasNewerReleasedVersion("1.16.15")).toBe(false);
   });
 
@@ -201,7 +206,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.16.09").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.16.15").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.16.15").older?.version).toBe("1.16.09");
+    expect(adjacentReleasedAnnouncements("1.16.09").newer?.version).toBe("1.16.15");
     expect(adjacentReleasedAnnouncements("1.16.09").older?.version).toBe("1.16.08");
     expect(adjacentReleasedAnnouncements("1.16.08").newer?.version).toBe("1.16.09");
     expect(adjacentReleasedAnnouncements("1.16.08").older?.version).toBe("1.16.03");

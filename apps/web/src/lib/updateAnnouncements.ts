@@ -49,11 +49,11 @@ export interface UpdateAnnouncement {
  * S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
-  // 1.16.15 发布候选：尚未发布，status 保持 development、releasedAt 为 null；正式发布后再翻转。
+  // 1.16.15 正式发布（2026-10-25）：S16 全量候选上线。
   {
     version: "1.16.15",
-    releasedAt: null,
-    status: "development",
+    releasedAt: "2026-10-25",
+    status: "released",
     title: "中英双语、系统头像与纪念奖励",
     summary: "新增中英双语界面、九款系统头像与特典头像奖励，并改进设置体验与离线提示。",
     sections: [

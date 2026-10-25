@@ -10,6 +10,45 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.16.15": {
+    title: "Bilingual UI, system avatars and memorial rewards",
+    summary:
+      "Adds a Chinese/English interface, nine system avatars with special-avatar rewards, and improves the Settings experience and offline messaging.",
+    sections: [
+      {
+        heading: "New features",
+        items: [
+          "The interface now supports Chinese and English: choose Follow system, Chinese or English in Settings → Display & data → Language. Changes apply immediately, and dates and numbers follow the selected language.",
+          "Nine system avatars in Classic Collection and Special Collection, each with a one-line caption that updates as you preview.",
+          "Special avatars are now memorial rewards: Descent is granted automatically after your first sign-in, and The Hanged can be earned by signing in on the third Thursday of November (World Philosophy Day) in your account's time zone. The server grants them permanently; the avatar page shows the unlock date and a creation note.",
+        ],
+      },
+      {
+        heading: "Improvements",
+        items: [
+          "Changing recording preferences while offline now fails immediately with a notice instead of waiting silently for the network.",
+          "Clear all data on this device now also covers language and appearance preferences; switching, closing or deleting an account clears that account's device-level leftovers.",
+          "With Reduce motion enabled, skeletons and button spinners no longer pulse or rotate.",
+          "Unified text hierarchy and spacing, and corrected line heights in some chart captions.",
+        ],
+      },
+      {
+        heading: "Bug fixes",
+        items: [
+          "Fixed new or switched ledgers showing local records from another ledger; this release includes the same ledger data isolation fix as 1.16.09.",
+          "Fixed sync or downloads still in flight during a ledger switch using the wrong ledger.",
+        ],
+      },
+      {
+        heading: "Notes",
+        items: [
+          "Language and appearance preferences are stored in this browser and don't sync across devices; special-avatar unlocks are stored on the server account.",
+          "Make-up grants follow server-side rules (granted when eligible and not owned yet); this version has no manual make-up entry.",
+        ],
+      },
+    ],
+  },
+
   "1.16.09": {
     title: "Ledger data isolation fix",
     summary:
