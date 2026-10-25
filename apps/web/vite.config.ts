@@ -139,4 +139,41 @@ export default defineConfig({
   },
   plugins: [themePrepaintPlugin(), react(), tailwindcss()],
   server: serverOptions(),
+  /**
+   * Chunk strategy: keep the entry lean and let rarely-changing code be cached separately.
+   *
+   * ⚠️ **Both language packs still ship eagerly** — see `src/i18n/resources/index.ts`. The
+   * offline-first PWA must have the English copy available on the first offline English visit,
+   * so the i18n data is *preloaded with the app* (the service worker caches every same-origin
+   * asset on first use), not fetched on demand. The split below decides only which file holds
+   * the bytes; it never turns a pack into a lazy request.
+   *
+   * Vendor groups exist for cache stability: React, the router, the query client and i18next
+   * change on their own schedule, so a typo fix in a page should not invalidate a ~500 KB
+   * vendor download for returning visitors.
+   */
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string): string | undefined {
+          const normalized = id.replaceAll("\\", "/");
+          if (normalized.includes("/src/i18n/resources/")) return "i18n-resources";
+          if (!normalized.includes("node_modules")) return undefined;
+          if (normalized.includes("react-router")) return "vendor-router";
+          if (normalized.includes("@tanstack/")) return "vendor-query";
+          if (normalized.includes("i18next") || normalized.includes("@babel/runtime")) {
+            return "vendor-i18n";
+          }
+          if (
+            normalized.includes("/react/") ||
+            normalized.includes("/react-dom/") ||
+            normalized.includes("/scheduler/")
+          ) {
+            return "vendor-react";
+          }
+          return "vendor";
+        },
+      },
+    },
+  },
 });

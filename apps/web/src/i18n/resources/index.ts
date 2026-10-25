@@ -1,9 +1,11 @@
 /**
  * 全部文案资源的装配点。
  *
- * ⚠️ **两种语言都打进主包，不做按需加载。** Libevra 是离线优先的 PWA：语言包若拆成单独的
- * chunk，第一次离线打开英文界面时就可能因为那个 chunk 没被缓存而退回中文甚至报错。
- * 两份文案合计只有几十 KB（gzip 后更小），换来的是任何时候切换都即时、离线也可用。
+ * ⚠️ **两种语言都随首次加载一起打包，不做按需加载。** Libevra 是离线优先的 PWA：语言包若
+ * 按语言拆成懒加载 chunk，第一次离线打开英文界面时就可能因为那个 chunk 没被缓存而退回中文
+ * 甚至报错。因此在构建里它们被固定为一个 **启动即预载** 的 `i18n-resources` chunk（见
+ * `apps/web/vite.config.ts` 的 manualChunks），首次打开就随应用一起缓存，切换语言即时、离线也可用。
+ * 两份文案合计只有几十 KB（gzip 后更小），这个体积优先保证离线正确性。
  */
 import enAccount from "./en-US/account.js";
 import enAdmin from "./en-US/admin.js";
