@@ -2,7 +2,7 @@ import { apiErrorSchema } from "@libellum/shared";
 
 import i18next from "i18next";
 
-import { isChineseLocale, t } from "../i18n/index.js";
+import { currentLocale, isChineseLocale, t } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 
 /**
@@ -73,10 +73,23 @@ export class ApiRequestError extends Error {
  * `bookId` overrides the current ledger for a single call. The offline queue needs that:
  * **each queued change carries the ledger it was made in**, and those do not have to match
  * whichever ledger the person happens to be looking at when the network comes back.
+ *
+ * ⚠️ **The interface language travels with JSON requests too**, because some text is created by
+ * the server before any screen renders — the default ledger name at registration is the first
+ * case (`defaultBookNameFor` in the API). A name written in the wrong language at that moment can
+ * only be fixed by another write the person never asked for, so the header is sent from the same
+ * single place the other headers are.
+ *
+ * **File downloads deliberately omit it** (`includeLanguage: false`): an export must be
+ * byte-identical whatever language the interface is in, so the server must not be given a reason
+ * to change what it writes. `ExportPage.locale.test.ts` pins that contract.
+ *
+ * Exported for tests that pin the header contract without a fetch mock.
  */
-function buildHeaders(bookId?: string): Record<string, string> {
+export function buildHeaders(bookId?: string, includeLanguage = true): Record<string, string> {
   const headers: Record<string, string> = {
     accept: "application/json",
+    ...(includeLanguage ? { "accept-language": currentLocale() } : {}),
     "x-libellum-device": deviceHeader(),
   };
 
@@ -261,12 +274,14 @@ export async function apiFetchFile(
       method: "GET",
       credentials: "same-origin",
       /**
-       * ⚠️ The same headers as the JSON calls, minus the JSON `accept`.
+       * ⚠️ The same headers as the JSON calls, minus the JSON `accept` and minus the language.
        *
        * A download is a request about a ledger too — the export route reads the ledger named
        * in the header — so it goes through the same builder rather than hand-rolling its own.
+       * The language is left out on purpose: exported files are a data artifact and must be
+       * byte-identical in every interface language, so the server never sees a reason to alter them.
        */
-      headers: { ...buildHeaders(bookId), accept: "*/*" },
+      headers: { ...buildHeaders(bookId, false), accept: "*/*" },
       signal: controller.signal,
     });
   } catch (error) {

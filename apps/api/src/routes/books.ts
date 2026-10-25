@@ -10,7 +10,7 @@ import { requireBookForWrite } from "../ledger/access.js";
 import { createDefaultLedger } from "../ledger/bootstrap.js";
 import { recordEvent } from "../ledger/events.js";
 import { recordCriticalEvent } from "../critical/store.js";
-import { DEFAULT_BOOK_NAME } from "../ledger/presets.js";
+import { defaultBookNameFor } from "../ledger/defaultName.js";
 
 /**
  * Ledgers themselves: list them, make one, enter one, set one aside, bring it back.
@@ -164,14 +164,16 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
     /**
      * ⚠️ **The name is optional on purpose.** Most people have one ledger and never open this
      * screen; the ones who do are usually splitting "mine" from "ours", and a name they have to
-     * invent before they can start is a step in the way. The same default the first ledger gets.
+     * invent before they can start is a step in the way. The same default the first ledger gets —
+     * including following the language of this request, not the language the first one was
+     * created in.
      *
      * ⚠️ **Nothing is copied from the ledger they were in.** A new ledger gets its own preset
      * categories and payment methods — copying the other one's would silently duplicate every
      * customisation into a book that was meant to be separate.
      */
     const bookId = await prisma.$transaction((tx) =>
-      createDefaultLedger(tx, userId, body.name ?? DEFAULT_BOOK_NAME),
+      createDefaultLedger(tx, userId, body.name ?? defaultBookNameFor(request.headers["accept-language"])),
     );
 
     /**

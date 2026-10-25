@@ -40,6 +40,7 @@ import {
 import type { PrismaClient } from "../db.js";
 import { recordReferral } from "../collab/referral.js";
 import { createDefaultLedger } from "../ledger/bootstrap.js";
+import { defaultBookNameFor } from "../ledger/defaultName.js";
 import { badRequest, conflict, tooManyRequests, unauthorized } from "../lib/errors.js";
 
 export interface AuthRouteOptions {
@@ -338,7 +339,10 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
       // The account is useless without a ledger, so it is created here, inside
       // the same transaction: book, membership, preset categories and payment
       // methods all exist, or the signup does not happen at all.
-      await createDefaultLedger(tx, created.id);
+      //
+      // The name follows the language the person registered in — see
+      // `defaultBookNameFor` for why the server, not the screen, has to decide.
+      await createDefaultLedger(tx, created.id, defaultBookNameFor(request.headers["accept-language"]));
 
       /**
        * The acceptance evidence is written in the same transaction as the account. A failed
