@@ -1,4 +1,5 @@
 import { hasIndexedDb, readValue } from "./storage.js";
+import { scopedKey } from "./scope.js";
 
 /**
  * Asking the browser to keep what it has been given.
@@ -106,7 +107,7 @@ export interface StorageBreakdown {
 export async function storageBreakdown(): Promise<StorageBreakdown> {
   const report = await storageReport();
 
-  const queryCacheBytes = await byteLengthOf("query-cache");
+  const queryCacheBytes = await byteLengthOf(scopedKey("query-cache"));
   const diagnosticsBytes = await byteLengthOf("offline-log");
 
   let shellCacheBytes = 0;

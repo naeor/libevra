@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError, apiFetch } from "../api.js";
 import { readMarks, setMark, upsertEntry } from "./localLedger.js";
 import { retryAbandonedWrites, syncAll } from "./sync.js";
+import { setOfflineScope } from "./scope.js";
 
 /**
  * The two halves of "为什么删掉的行一直是红色的" (owner, 2026-10-20, localhost, network up).
@@ -38,6 +39,7 @@ function entry(): Transaction {
 }
 
 beforeEach(async () => {
+  setOfflineScope("test-user", "test-book");
   vi.mocked(apiFetch).mockReset();
   /** ⚠️ The failure book is module state by design (it is a session, not a document), so each test starts from a clean session. */
   await retryAbandonedWrites();

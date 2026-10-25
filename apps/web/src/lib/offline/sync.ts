@@ -6,7 +6,7 @@ import { guestRuntimeId, notifyGuestWrite } from "../guest/runtime.js";
 import { readMarks, readStoredMonths, setConflict, setMark, storeMonth, upsertEntry, type ConflictFieldRecord, type EntryMark } from "./localLedger.js";
 import { logOffline } from "./diagnostics.js";
 import { republishLedger } from "./write.js";
-import { offlineScope } from "./scope.js";
+import { offlineScope, scopedKey } from "./scope.js";
 import { clearBookLocalData } from "./localCleanup.js";
 
 /**
@@ -169,6 +169,9 @@ export function syncAll(): Promise<SyncReport> {
 }
 
 async function runSync(): Promise<SyncReport> {
+  const scope = offlineScope();
+  if (scope === "") return { delivered: 0, waiting: 0, refused: 0 };
+  const context = scopedKey("ledger-months");
   const work = await intents();
 
   let delivered = 0;
@@ -177,6 +180,7 @@ async function runSync(): Promise<SyncReport> {
   await logOffline("DIAGNOSTIC:sync", `核对 ${String(work.length)} 条待处理`); // i18n-ignore：诊断日志
 
   for (const intent of work) {
+    if (scopedKey("ledger-months") !== context) break;
     const failure = failures.get(intent.entry.id);
 
     /**
@@ -195,7 +199,7 @@ async function runSync(): Promise<SyncReport> {
       continue;
     }
 
-    if (await deliver(intent)) delivered += 1;
+    if (await deliver(intent, scope, context)) delivered += 1;
     else if (failures.get(intent.entry.id)?.permanent === true) refused += 1;
   }
 
@@ -216,8 +220,9 @@ async function runSync(): Promise<SyncReport> {
  * ⚠️ **Clearing the mark is what removes the colour, and it happens in the same step as the delivery** — so
  * there is no moment where the server has the change and the screen still claims it does not.
  */
-async function deliver(intent: Intent): Promise<boolean> {
+async function deliver(intent: Intent, scope: string, context: string): Promise<boolean> {
   const { entry, op } = intent;
+  const bookId = scope.slice(scope.indexOf(":") + 1);
   const short = entry.id.slice(0, 8);
 
   try {
@@ -225,19 +230,23 @@ async function deliver(intent: Intent): Promise<boolean> {
     await logOffline("DIAGNOSTIC:sync-request", JSON.stringify({ id: short, op,
       settlesConflict: intent.mark.settlesConflict === true,
       amountCents: entry.amountCents, fields: Object.keys(intent.mark.chain ?? {}) }));
+    if (scopedKey("ledger-months") !== context) return false;
     if (op === "create") {
       confirmed = await apiFetch<Transaction>("/transactions", {
+        bookId,
         method: "POST",
         body: createBody(entry, intent.mark),
       });
     } else if (op === "update") {
       confirmed = await apiFetch<Transaction>(`/transactions/${entry.id}`, {
+        bookId,
         method: "PATCH",
         body: updateBody(entry, intent.mark),
       });
     } else {
-      await apiFetch<unknown>(`/transactions/${entry.id}`, { method: "DELETE" });
+      await apiFetch<unknown>(`/transactions/${entry.id}`, { method: "DELETE", bookId });
     }
+    if (scopedKey("ledger-months") !== context) return true;
 
     /**
      * ⚠️ **The mark is cleared, and for a deletion that means the entry stops being rendered at all.**
@@ -247,7 +256,9 @@ async function deliver(intent: Intent): Promise<boolean> {
      */
     // Never acknowledge an edit made while this request was in flight.
     if (JSON.stringify((await readMarks())[entry.id]) === JSON.stringify(intent.mark)) {
+      if (scopedKey("ledger-months") !== context) return true;
       if (confirmed !== undefined) await upsertEntry(confirmed);
+      if (scopedKey("ledger-months") !== context) return true;
       // Keep an acknowledged tombstone so an older query cache cannot resurrect a deleted row.
       await setMark(entry.id, op === "delete" ? { deleted: true, pending: false, synced: true } : null);
       await republishLedger();
@@ -260,6 +271,7 @@ async function deliver(intent: Intent): Promise<boolean> {
 
     return true;
   } catch (error) {
+    if (scopedKey("ledger-months") !== context) return false;
     const status = error instanceof ApiRequestError ? error.status : 0;
 
     // HTTP failures retain the local intent. A list page cannot acknowledge a write.
@@ -317,6 +329,7 @@ async function deliver(intent: Intent): Promise<boolean> {
 
       if (refusal !== null) {
         if (JSON.stringify((await readMarks())[entry.id]) === JSON.stringify(intent.mark)) {
+          if (scopedKey("ledger-months") !== context) return false;
           await recordConflict(entry, refusal);
         }
 
@@ -359,6 +372,7 @@ async function deliver(intent: Intent): Promise<boolean> {
     ) {
       /** ⚠️ The same in-flight guard as the success path: never acknowledge an edit made mid-request. */
       if (JSON.stringify((await readMarks())[entry.id]) === JSON.stringify(intent.mark)) {
+        if (scopedKey("ledger-months") !== context) return false;
         await setMark(entry.id, { deleted: true, pending: false, synced: true });
         await republishLedger();
       }
@@ -543,7 +557,10 @@ function updateBody(entry: Transaction, mark: EntryMark) {
 }
 
 export async function deferConflictsToServer(): Promise<boolean> {
+  const scope = offlineScope();
+  if (!scope) return false;
   const answer = await apiFetch<{ readonly resolved: number }>("/conflicts/resolve-with-server", {
+    bookId: scope.slice(scope.indexOf(":") + 1),
     method: "POST",
     timeoutMs: 10_000,
   }).catch(() => null);
@@ -572,13 +589,17 @@ export async function syncMonth(month: string): Promise<number> {
     return 0;
   }
 
+  const scope = offlineScope();
+  if (!scope) return 0;
+  const bookId = scope.slice(scope.indexOf(":") + 1);
   const entries: Transaction[] = [];
+  const context = scopedKey("ledger-months");
   let cursor: string | undefined;
   do {
     const page = await apiFetch<{ readonly items: readonly Transaction[]; readonly nextCursor: string | null }>(
-      "/transactions", { query: { month, limit: "100", cursor }, timeoutMs: 15_000 },
+      "/transactions", { bookId, query: { month, limit: "100", cursor }, timeoutMs: 15_000 },
     ).catch(() => null);
-    if (page === null) return 0;
+    if (page === null || scopedKey("ledger-months") !== context) return 0;
     entries.push(...page.items);
     cursor = page.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -586,17 +607,24 @@ export async function syncMonth(month: string): Promise<number> {
   const serverIds = new Set(entries.map(entry => entry.id));
   const stored = await readStoredMonths();
   const marks = await readMarks();
+  if (scopedKey("ledger-months") !== context) return 0;
   for (const entry of stored[month] ?? []) {
+    if (scopedKey("ledger-months") !== context) return 0;
     if (marks[entry.id]?.deleted === true && marks[entry.id]?.pending === true && !serverIds.has(entry.id)) {
       await setMark(entry.id, { deleted: true, pending: false, synced: true });
     }
   }
+  if (scopedKey("ledger-months") !== context) return 0;
   await storeMonth(month, entries);
   await republishLedger();
   return entries.length;
 }
 export async function pullConflicts(): Promise<number> {
   if (guestRuntimeId() !== null) return 0;
+  const scope = offlineScope();
+  if (!scope) return 0;
+  const bookId = scope.slice(scope.indexOf(":") + 1);
+  const context = scopedKey("ledger-months");
 
   const answer = await apiFetch<{
     readonly conflicts: readonly {
@@ -605,13 +633,14 @@ export async function pullConflicts(): Promise<number> {
       readonly current: Transaction | null;
       readonly fields: readonly ConflictFieldRecord[];
     }[];
-  }>("/conflicts", { timeoutMs: 10_000 }).catch(() => null);
+  }>("/conflicts", { bookId, timeoutMs: 10_000 }).catch(() => null);
 
   /** ⚠️ A failed pull changes nothing — an unanswered question stays on screen rather than disappearing. */
-  if (answer === null) return 0;
+  if (answer === null || scopedKey("ledger-months") !== context) return 0;
 
   const marks = await readMarks();
   const stored = await readStoredMonths();
+  if (scopedKey("ledger-months") !== context) return 0;
   const byId = new Map<string, Transaction>();
 
   for (const entries of Object.values(stored)) {
@@ -623,10 +652,13 @@ export async function pullConflicts(): Promise<number> {
   /** ⚠️ Questions the server no longer has are answered — drop them so the yellow mark goes. */
   for (const [id, mark] of Object.entries(marks)) {
     if (mark.conflict === undefined || listed.has(id) || mark.settlesConflict === true) continue;
-    const current = await apiFetch<Transaction>(`/transactions/${id}`).catch(() => null);
+    const current = await apiFetch<Transaction>(`/transactions/${id}`, { bookId }).catch(() => null);
+    if (scopedKey("ledger-months") !== context) return 0;
     if (current === null) continue;
     if (JSON.stringify((await readMarks())[id]) !== JSON.stringify(mark)) continue;
+    if (scopedKey("ledger-months") !== context) return 0;
     await upsertEntry(current);
+    if (scopedKey("ledger-months") !== context) return 0;
     await setMark(id, null);
     await republishLedger();
     await logOffline("DIAGNOSTIC:conflict-adopted", `${id.slice(0, 8)}：其他设备已处理，金额=${String(current.amountCents)} 分`); // i18n-ignore：诊断日志
@@ -675,6 +707,7 @@ export async function pullConflicts(): Promise<number> {
         ...(field.field === "amountCents" ? { server: field.serverValue,
           devices: field.claims?.map(claim => ({ device: claim.deviceId, chain: claim.chain })) } : {}) })) }));
 
+    if (scopedKey("ledger-months") !== context) return 0;
     await setConflict(item.transactionId, {
       /** ⚠️ This device's entry — what the user has here. */
       mine: entry,

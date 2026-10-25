@@ -1,5 +1,6 @@
 import { t } from "../../i18n/index.js";
 import { hasIndexedDb, listKeys, readValue } from "./storage.js";
+import { scopedKey } from "./scope.js";
 
 /*
  * S16：这份报告显示在「下载管理 · 更多」的诊断文本里，固定的说明词按调用时的界面语言生成；
@@ -86,7 +87,7 @@ export async function databaseReport(): Promise<DatabaseReport> {
      * here is the same failure the ledger would hit — which is the point of asking.
      */
     const keys = await listKeys();
-    const cached = await readValue<unknown>("query-cache");
+    const cached = await readValue<unknown>(scopedKey("query-cache"));
 
     /**
      * ⚠️ **Read as `unknown`, not as `string`.**

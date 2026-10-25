@@ -32,10 +32,20 @@ vi.mock("./offline/storage.js", () => ({
   readSnapshot: <T,>(key: string): T | null => (snapshot.get(key) as T | undefined) ?? null,
 }));
 
-const { currentBookId, forgetCurrentBook, setCurrentBook, restoreCurrentBook, subscribeCurrentBook } =
+const { currentBookId, forgetCurrentBook, setCurrentBook, selectBookForReload, restoreCurrentBook, subscribeCurrentBook } =
   await import("./currentBook.js");
 
 describe("the remembered ledger", () => {
+  it("切换只更新下一页选择，旧页 header 不变且迟到响应不能覆盖目标", async () => {
+    await setCurrentBook("original");
+    await selectBookForReload("new-book");
+    expect(currentBookId()).toBe("original");
+    expect(store.get("current-book")).toBe("new-book");
+    await setCurrentBook("original");
+    expect(store.get("current-book")).toBe("new-book");
+    forgetCurrentBook();
+    expect(currentBookId()).toBeNull();
+  });
   beforeEach(() => {
     store.clear();
     snapshot.clear();

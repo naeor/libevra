@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance } from "fastify";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildApp } from "../src/app.js";
 import { createPrismaClient } from "../src/db.js";
@@ -123,6 +123,27 @@ async function ledgerOf(cookie: string) {
 }
 
 describe("ledger numbers", () => {
+  it("并发幂等重试也不能返回另一本账的交易", async () => {
+    const cookie = await signUp("isolation_race");
+    const original = await ledgerOf(cookie);
+    const payload = entryPayload();
+    const created = await app.inject({ method: "POST", url: "/api/v1/transactions",
+      headers: { cookie, "x-libellum-book": original.book.id }, payload });
+    expect(created.statusCode).toBe(201);
+    const next = await app.inject({ method: "POST", url: "/api/v1/books", headers: { cookie }, payload: { name: "Test01" } });
+    expect(next.statusCode).toBe(201);
+    const bookId = (next.json() as { id: string }).id;
+    // 精确复现：首遍查询未命中，但 INSERT 竞争失败，第二遍读到其他账本的 winner。
+    const firstRead = vi.spyOn(prisma.transaction, "findUnique").mockResolvedValueOnce(null);
+    try {
+      const retried = await app.inject({ method: "POST", url: "/api/v1/transactions",
+        headers: { cookie, "x-libellum-book": bookId }, payload });
+      expect(retried.statusCode).toBe(409);
+      expect(retried.json().code).toBe("idempotency_conflict");
+      expect(retried.json()).not.toHaveProperty("amountCents");
+      expect(await prisma.transaction.count({ where: { bookId } })).toBe(0);
+    } finally { firstRead.mockRestore(); }
+  });
   /** The number of an account's own ledger. */
   async function bookNumberOf(cookie: string): Promise<string | null> {
     const response = await app.inject({

@@ -6,7 +6,7 @@ import { startThemeRuntime } from "./lib/theme.js";
 import { startLanguageRuntime } from "./lib/languageRuntime.js";
 import { primeBookId } from "./lib/api.js";
 import { currentBookId, restoreCurrentBook, subscribeCurrentBook } from "./lib/currentBook.js";
-import { restoreOfflineScopeSync } from "./lib/offline/scope.js";
+import { restoreOfflineScope } from "./lib/offline/scope.js";
 import { requestPersistentStorage } from "./lib/offline/persistence.js";
 import { registerServiceWorker } from "./lib/offline/worker.js";
 import "./index.css";
@@ -69,20 +69,15 @@ subscribeCurrentBook(() => {
   primeBookId(currentBookId());
 });
 
-/**
- * ⚠️ **The offline scope is restored first, and synchronously, because the persisted query cache
- * is keyed by it.**
- *
- * The cache is read once, early. If the scope were still empty at that moment, the read would land
- * on the unscoped key — **another account's copy, or none**. This is why the scope is remembered
- * as a value that `storage.ts` has in its synchronous mirror rather than only in IndexedDB.
- */
-restoreOfflineScopeSync();
-
-void restoreCurrentBook();
-
-createRoot(container).render(
+/** 首屏查询恢复前先有界读盘，不能把尚未恢复身份误当成旧全局缓存的所有者。 */
+async function start(): Promise<void> {
+  const book = await restoreCurrentBook();
+  await restoreOfflineScope(book);
+  createRoot(container!).render(
   <StrictMode>
     <App />
   </StrictMode>,
 );
+}
+
+void start();

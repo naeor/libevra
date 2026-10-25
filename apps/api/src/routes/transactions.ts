@@ -389,6 +389,9 @@ export function registerTransactionRoutes(
       });
 
       if (winner) {
+        if (winner.bookId !== bookId) {
+          throw conflict("idempotency_conflict", "该请求标识已被占用。");
+        }
         reply.status(200);
         return toDto(winner);
       }

@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { isChineseLocale, t } from "../../i18n/index.js";
 import { formatMonthLabel } from "../datetime.js";
 import { readValue, writeValue } from "./storage.js";
+import { scopedKey } from "./scope.js";
 
 /**
  * What the download manager shows and controls, month by month.
@@ -183,7 +184,7 @@ export async function setNeverMonth(month: string, never: boolean): Promise<read
 async function readCache(): Promise<{
   readonly clientState?: { readonly queries?: readonly { readonly queryKey?: readonly unknown[] }[] };
 } | null> {
-  const raw = await readValue<string>(CACHE_KEY);
+  const raw = await readValue<string>(scopedKey(CACHE_KEY));
   if (raw === null) return null;
 
   try {
@@ -343,7 +344,7 @@ export interface CacheFootprint {
 
 /** Measure the stored cache. */
 export async function cacheFootprint(queryClient: QueryClient): Promise<CacheFootprint> {
-  const raw = (await readValue<string>(CACHE_KEY)) ?? "";
+  const raw = (await readValue<string>(scopedKey(CACHE_KEY))) ?? "";
   const parsed = await readCache();
 
   const stored = parsed?.clientState?.queries ?? [];
@@ -462,7 +463,7 @@ export async function forgetStaleEntries(): Promise<number> {
   if (removed === 0) return 0;
 
   await writeValue(
-    CACHE_KEY,
+    scopedKey(CACHE_KEY),
     JSON.stringify({ ...parsed, clientState: { ...parsed.clientState, queries: kept } }),
   );
 

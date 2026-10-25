@@ -22,10 +22,12 @@
  */
 
 import { readSnapshot, readValue, writeValue } from "./offline/storage.js";
+import { withDeadline } from "./offline/deadline.js";
 
 const KEY = "current-book";
 
 let current: string | null = null;
+let nextBook: string | null = null;
 const listeners = new Set<() => void>();
 
 /** The ledger id in use, or `null` when nothing has been chosen yet. */
@@ -53,10 +55,20 @@ export function currentBookId(): string | null {
  * result; `useActivateBook` awaits it.
  */
 export function setCurrentBook(id: string | null): Promise<boolean> {
+  // 刷新前，旧页面的后台响应不得覆盖下一页的账本选择。
+  if (nextBook !== null) return Promise.resolve(false);
   current = id;
   const written = writeValue(KEY, id);
   for (const listener of listeners) listener();
   return written;
+}
+
+/** 下一页使用新账本；旧页面的请求和存储保持同一账本直到整页刷新。 */
+export async function selectBookForReload(id: string): Promise<boolean> {
+  nextBook = id;
+  const saved = await writeValue(KEY, id);
+  if (!saved) nextBook = null;
+  return saved;
 }
 
 /**
@@ -71,7 +83,7 @@ export async function restoreCurrentBook(): Promise<string | null> {
   const mirrored = readSnapshot<string | null>(KEY);
   if (typeof mirrored === "string" && mirrored !== "") applyRestored(mirrored);
 
-  const stored = await readValue<string | null>(KEY);
+  const { value: stored } = await withDeadline(readValue<string | null>(KEY));
   if (typeof stored === "string" && stored !== "") return applyRestored(stored);
 
   return current;
@@ -95,6 +107,7 @@ function applyRestored(id: string): string {
  * but the client should not ask in the first place.
  */
 export function forgetCurrentBook(): void {
+  nextBook = null;
   setCurrentBook(null);
 }
 

@@ -40,7 +40,7 @@ import { updateTransactionViews } from "./ledgerView.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { t } from "../i18n/index.js";
 import { ApiRequestError, apiFetch, apiFetchFile, currentBookIdHeader } from "./api.js";
-import { currentBookId, setCurrentBook, subscribeCurrentBook } from "./currentBook.js";
+import { currentBookId, selectBookForReload, setCurrentBook, subscribeCurrentBook } from "./currentBook.js";
 import { publishGuestSnapshot, requireGuestId } from "./guest/bridge.js";
 import {
   archiveGuestCategory,
@@ -70,7 +70,7 @@ import {
 import { installGuestWriteListener, isGuestRuntime } from "./guest/runtime.js";
 import { useGuestMode } from "./guest/session.js";
 import { CACHE_KEY } from "./offline/cache.js";
-import { migrateUnscopedKeys, setOfflineBook } from "./offline/scope.js";
+import { prepareOfflineBook, scopedKey } from "./offline/scope.js";
 import {
   asLocalPage,
   filterLocally,
@@ -419,7 +419,9 @@ export function useActivateBook() {
        * resolves — which is what lets `enterLedger` reload *after* the write has landed.
        * See the long note on `useActivateBook`.
        */
-      return setCurrentBook(bookId);
+      return selectBookForReload(bookId).then((saved) => {
+        if (!saved) throw new Error("无法保存账本选择，请重试。"); // i18n-ignore：存储故障提示
+      });
     },
   });
 }
@@ -1091,13 +1093,9 @@ export function useLedger() {
        * effect once both are present** — see `offline/scope.ts` for why a half-filled scope would
        * be worse than none: it would read another account's copy while looking correct.
        *
-       * ⚠️ **The migration runs here, once, before anything reads the stored copy.** Everything
-       * written before scoping existed belonged to the single account and single ledger there used
-       * to be — so it is moved into the scope that is now current. **Skipping this would make sixty
-       * downloaded months vanish from a device that still has every byte of them**, which is
-       * precisely the failure `档案/离线与同步-设计决定.md` is about.
+       * 先检查本机副本的归属，再开放给同步；全局旧键保留原件，不自动迁移。
        */
-      setOfflineBook(ledger.book.id);
+      await prepareOfflineBook(ledger.book.id);
       /**
        * ⚠️ **Record whether the *current* ledger is shared**, for the offline write policy.
        *
@@ -1106,20 +1104,6 @@ export function useLedger() {
        * ledger's member count records it where the write layer can read it synchronously.
        */
       setSharedLedger((ledger.book.memberCount ?? 1) >= 2);
-      /**
-       * ⚠️ **All three of the device's own keys move together, including the query cache.**
-       *
-       * `query-cache` was held back until the scope could be resolved *synchronously at startup*,
-       * because the persister reads it once, early. Migrating it to a key the persister never
-       * reads would have been worse than leaving it: **the data would still be on the device and
-       * the application would behave as though it had never existed.** Now that
-       * `restoreOfflineScopeSync` runs before the first render, the persister addresses the scoped
-       * key and the migration has somewhere real to put the copy.
-       *
-       * ⚠️ **Copied, never moved** — see `migrateUnscopedKeys`. If this ever runs before the
-       * account is known, the old key is still there to be migrated again.
-       */
-      void migrateUnscopedKeys(["ledger-months", "ledger-marks", CACHE_KEY]);
 
       return ledger;
     },
@@ -1220,7 +1204,7 @@ export function hasLocalTransactions(filters: TransactionFilters): boolean {
     return filterLocally(ledgerSnapshotValue(), filters).length > 0;
   }
 
-  const raw = readSnapshot<string>(CACHE_KEY);
+  const raw = readSnapshot<string>(scopedKey(CACHE_KEY));
   if (raw === null) return false;
 
   /**

@@ -1,7 +1,7 @@
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import type { Query } from "@tanstack/react-query";
 
-import { scopedKey } from "./scope.js";
+import { offlineScope, scopedKey } from "./scope.js";
 import { readValue, removeValue, writeValue } from "./storage.js";
 
 /**
@@ -120,8 +120,9 @@ export const VOLATILE = { volatile: true } as const;
  * corrupt copy is fine; discarding a *readable* one because a read was interrupted is not, and the
  * library's version cannot tell the difference.**
  */
-export const cachePersister = createAsyncStoragePersister({
-  key: CACHE_KEY,
+function createScopedPersister(key: string) {
+return createAsyncStoragePersister({
+  key,
   /**
    * ⚠️ **A tolerant deserializer, which is the second half of the same fix.**
    *
@@ -161,10 +162,9 @@ export const cachePersister = createAsyncStoragePersister({
      * handed to the next one **before the server was asked anything**, and the screen would show
      * the wrong ledger's rows for as long as that took.
      *
-     * ⚠️ **The scope is restored synchronously at startup** (see `restoreOfflineScopeSync`), which
-     * is what makes this correct on the very first read rather than only after a round trip.
+     * 首屏前 await restoreOfflineScope；本 persister 的地址固定于创建时，节流期间不再漂移。
      */
-    getItem: (key) => readValue<string>(scopedKey(key)),
+    getItem: (key) => readValue<string>(key),
     /**
      * ⚠️ **Merge, rather than replace.**
      *
@@ -192,7 +192,7 @@ export const cachePersister = createAsyncStoragePersister({
        * ⚠️ **The same scope as `getItem`, or the two would disagree** — a write to the unscoped
        * key next to a read from the scoped one is a cache that never survives a reload.
        */
-      void writeMerged(scopedKey(key), value);
+      void writeMerged(key, value);
     },
     /**
      * ⚠️ **Never called by us, and inert if the library calls it.**
@@ -207,6 +207,27 @@ export const cachePersister = createAsyncStoragePersister({
   },
   throttleTime: 1_000,
 });
+}
+
+// 节流任务绑定调用时的账本，不能在一秒后用另一个账本的地址落盘。
+const persisters = new Map<string, ReturnType<typeof createScopedPersister>>();
+function currentPersister() {
+  const key = scopedKey(CACHE_KEY);
+  let persister = persisters.get(key);
+  if (!persister) {
+    persister = createScopedPersister(key);
+    persisters.set(key, persister);
+  }
+  return persister;
+}
+export const cachePersister = {
+  persistClient: (client: Parameters<ReturnType<typeof createScopedPersister>["persistClient"]>[0]) => {
+    if (offlineScope() === "") return Promise.resolve();
+    return currentPersister().persistClient(client);
+  },
+  restoreClient: () => offlineScope() === "" ? Promise.resolve(undefined) : currentPersister().restoreClient(),
+  removeClient: () => Promise.resolve(),
+};
 
 /** A dehydrated cache, as the persister hands it over. */
 interface DehydratedCache {

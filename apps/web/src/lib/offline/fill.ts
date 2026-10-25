@@ -7,6 +7,7 @@ import { queryKeys, transactionFilters } from "../queries.js";
 import { logOffline } from "./diagnostics.js";
 import { readNeverMonths } from "./downloadManager.js";
 import { storeMonth } from "./localLedger.js";
+import { offlineScope, scopedKey } from "./scope.js";
 
 /**
  * Filling in the months the user has never opened.
@@ -205,6 +206,10 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
   const start = useCallback(
     async (requested?: readonly string[], force = false) => {
       if (runningRef.current) return;
+      const scope = offlineScope();
+      if (scope === "") return;
+      const bookId = scope.slice(scope.indexOf(":") + 1);
+      const context = scopedKey("ledger-months");
 
       /**
        * ⚠️ **An explicit request ignores the metered check**; the automatic one does
@@ -279,6 +284,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
 
       try {
         for (const month of months) {
+          if (scopedKey("ledger-months") !== context) break;
           if (never.includes(month)) {
             /**
              * Counted as done so the progress bar finishes.
@@ -354,9 +360,11 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
 
           for (let page = 0; page < MAX_FILL_PAGES; page += 1) {
             const fetched = await apiFetch<TransactionListResponse>("/transactions", {
+              bookId,
               query: { ...filters, limit: FILL_PAGE_SIZE, cursor },
             });
 
+            if (scopedKey("ledger-months") !== context) return;
             pages.push(fetched);
 
             /**

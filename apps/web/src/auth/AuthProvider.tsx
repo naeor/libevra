@@ -212,8 +212,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
    * the next account cannot inherit it.
    */
   useEffect(() => {
+    if (status !== "ready") return;
     setOfflineAccount(user?.id ?? null);
-  }, [user]);
+  }, [user, status]);
 
   // While a user is signed in, revalidate periodically and whenever the tab
   // regains focus — returning to the window is exactly when someone would

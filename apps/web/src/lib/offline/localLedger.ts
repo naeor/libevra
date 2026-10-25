@@ -167,6 +167,7 @@ export function transactionsFromCacheCached(raw: string | null): readonly Transa
  * one layer down.
  */
 export async function readLocalTransactions(): Promise<readonly Transaction[]> {
+  const readingScope = ledgerMonthsKey();
   /**
    * ⚠️ **S14-C: in guest mode this store is the guest ledger, not the account's offline copy.**
    *
@@ -197,7 +198,8 @@ export async function readLocalTransactions(): Promise<readonly Transaction[]> {
    * merges 138 entries, **on the main thread**, and a tablet that is also suspending pages does not
    * absorb that. **The work was being done several times over and the screen was paying for it.**
    */
-  if (inFlight !== null) return inFlight;
+  if (inFlight !== null && inFlightScope === readingScope) return inFlight;
+  inFlightScope = readingScope;
 
   inFlight = (async () => {
     /**
@@ -232,7 +234,8 @@ export async function readLocalTransactions(): Promise<readonly Transaction[]> {
       mine = await readStoredEntries();
     }
 
-    const raw = await readValue<string>(CACHE_KEY);
+    if (ledgerMonthsKey() !== readingScope) return [];
+    const raw = await readValue<string>(scopedKey(CACHE_KEY));
 
     /**
      * ⚠️ **Through the memo**, because this runs for every screen and every filter change and the
@@ -294,6 +297,7 @@ export async function readLocalTransactions(): Promise<readonly Transaction[]> {
     return mergedEntries;
   })()
     .then((entries) => {
+      if (ledgerMonthsKey() !== readingScope) return [];
       /**
        * ⚠️ **Published synchronously, before the promise resolves.**
        *
@@ -312,7 +316,7 @@ export async function readLocalTransactions(): Promise<readonly Transaction[]> {
        * The join is an optimisation; if the shared attempt failed, the next caller must be allowed to
        * try again rather than receive the same rejection for the rest of the session.
        */
-      inFlight = null;
+      if (inFlightScope === readingScope) inFlight = null;
     });
 
   return inFlight;
@@ -581,9 +585,11 @@ export function publishConflicts(next: readonly ConflictRecord[]): void {
 }
 
 export async function setConflict(id: string, conflict: ConflictRecord): Promise<void> {
+  const key = ledgerMarksKey();
   const all = await readMarks();
-
-  await writeOwn(ledgerMarksKey(), { ...all, [id]: { ...all[id], pending: true, conflict } });
+  if (ledgerMarksKey() !== key) return;
+  await writeOwn(key, { ...all, [id]: { ...all[id], pending: true, conflict } });
+  if (ledgerMarksKey() !== key) return;
 
   publishConflicts(conflictsFromMarks({ ...all, [id]: { ...all[id], pending: true, conflict } }));
 }
@@ -598,6 +604,7 @@ export function conflictsFromMarks(marks: LedgerMarks): readonly ConflictRecord[
 
 /** Set or clear one entry''s mark. */
 export async function setMark(id: string, mark: EntryMark | null): Promise<void> {
+  const key = ledgerMarksKey();
   /**
    * ⚠️ **Read from the synchronous snapshot, not from the disk.**
    *
@@ -616,7 +623,9 @@ export async function setMark(id: string, mark: EntryMark | null): Promise<void>
   if (mark === null || (mark.pending !== true && mark.deleted !== true)) delete next[id];
   else next[id] = mark;
 
-  await writeOwn(ledgerMarksKey(), next);
+  if (ledgerMarksKey() !== key) return;
+  await writeOwn(key, next);
+  if (ledgerMarksKey() !== key) return;
 
   /**
    * ⚠️ **The stored marks and the in-memory set are updated together**, so the row colouring on
@@ -722,6 +731,7 @@ export async function readStoredMonths(): Promise<StoredMonths> {
  * once in the cache layer, and it is not going to be repeated here.
  */
 export async function storeMonth(month: string, entries: readonly Transaction[]): Promise<void> {
+  const key = ledgerMonthsKey();
   const all = await readStoredMonths();
 
   // A download must not replace edits or conflict candidates awaiting a decision.
@@ -730,7 +740,8 @@ export async function storeMonth(month: string, entries: readonly Transaction[])
   for (const entry of all[month] ?? []) {
     if (marks[entry.id]?.pending === true || marks[entry.id]?.deleted === true) merged.set(entry.id, entry);
   }
-  await writeOwn(ledgerMonthsKey(), { ...all, [month]: [...merged.values()] });
+  if (ledgerMonthsKey() !== key) return;
+  await writeOwn(key, { ...all, [month]: [...merged.values()] });
 }
 
 /**
@@ -740,13 +751,15 @@ export async function storeMonth(month: string, entries: readonly Transaction[])
  * the screen reads this store, so a write here is on screen before the server hears anything.
  */
 export async function upsertEntry(entry: Transaction): Promise<void> {
+  const key = ledgerMonthsKey();
   const month = entry.occurredLocalDate.slice(0, 7);
   const all = await readStoredMonths();
   const existing = all[month] ?? [];
 
   const without = existing.filter((candidate) => candidate.id !== entry.id);
 
-  await writeOwn(ledgerMonthsKey(), { ...all, [month]: [...without, entry] });
+  if (ledgerMonthsKey() !== key) return;
+  await writeOwn(key, { ...all, [month]: [...without, entry] });
 }
 
 /**
@@ -859,10 +872,13 @@ export async function reconcileMarks(serverIds: ReadonlySet<string>): Promise<vo
  * it.**
  */
 let ledgerSnapshot: readonly Transaction[] = [];
+let ledgerSnapshotScope = "";
+const EMPTY_LEDGER: readonly Transaction[] = [];
 const ledgerListeners = new Set<() => void>();
 
 /** The ledger as last read from the device. Synchronous, for render. */
 export function ledgerSnapshotValue(): readonly Transaction[] {
+  if (guestRuntimeId() === null && ledgerSnapshotScope !== ledgerMonthsKey()) return EMPTY_LEDGER;
   return ledgerSnapshot;
 }
 
@@ -923,6 +939,7 @@ export function publishDeleted(ids: ReadonlySet<string>): void {
  * view is the mistake this project spent four hours on, one layer down — see `refreshView` in `write.ts`.
  */
 export function publishLedger(entries: readonly Transaction[]): void {
+  ledgerSnapshotScope = ledgerMonthsKey();
   ledgerSnapshot = entries;
 
   for (const listener of ledgerListeners) listener();
@@ -982,6 +999,7 @@ export function publishPending(ids: ReadonlySet<string>): void {
  * millisecond.
  */
 let inFlight: Promise<readonly Transaction[]> | null = null;
+let inFlightScope = "";
 
 /**
  * Forget a read that is still in progress.

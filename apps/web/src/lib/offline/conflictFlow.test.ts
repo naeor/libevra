@@ -8,6 +8,7 @@ import { readMarks, readStoredMonths, setMark, upsertEntry, conflictsValue } fro
 import { pullConflicts, syncAll, syncMonth } from "./sync.js";
 import { applyConflictChoices, conflictQuestions } from "./conflictChoices.js";
 import { resolveConflict } from "./write.js";
+import { setOfflineScope } from "./scope.js";
 
 vi.mock("../api.js", async (original) => ({ ...await original<typeof import("../api.js")>(), apiFetch: vi.fn() }));
 vi.mock("./diagnostics.js", () => ({ logOffline: vi.fn(async () => undefined) }));
@@ -32,6 +33,7 @@ const fields = [{ field: "amountCents", serverValue: 8000,
 let server = entry(8000);
 let open = true;
 beforeEach(async () => {
+  setOfflineScope("test-user", "test-book");
   vi.mocked(apiFetch).mockReset();
   server = entry(8000); open = true;
   await setMark(id, null);
