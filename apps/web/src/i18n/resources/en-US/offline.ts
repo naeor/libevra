@@ -82,8 +82,8 @@ const offline: Messages<typeof zh> = {
     unsupported: "This browser doesn’t support storing data on the device, so entries can’t be viewed offline.",
     notPersisted:
       "⚠️ The browser hasn’t promised to keep this data. If the app goes unused for a long time, it may be cleared. Opening the app on Wi-Fi now and then helps keep it.",
-    summaryAll_one: "<b>{{count}}</b> month downloaded — that’s all of them",
-    summaryAll_other: "<b>{{count}}</b> months downloaded — that’s all of them",
+    summaryAll_one: "<b>{{count}}</b> month downloaded — that’s every month",
+    summaryAll_other: "<b>{{count}}</b> months downloaded — that’s every month",
     summaryMissing_one: "<b>{{count}}</b> month downloaded; {{missing}} not downloaded yet",
     summaryMissing_other: "<b>{{count}}</b> months downloaded; {{missing}} not downloaded yet",
     running: "Downloading ({{done}}/{{total}} months)… You can leave this page — the download continues in the background.",

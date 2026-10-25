@@ -37,7 +37,7 @@ const capture: Messages<typeof zh> = {
     skipped_one: "{{count}} screenshot couldn’t be read and was skipped.",
     skipped_other: "{{count}} screenshots couldn’t be read and were skipped.",
     storageFailed: "Your browser couldn’t save these results (private browsing, or storage may be full). Try again, or review them one at a time.",
-    notDuplicateFailed: "The entry was saved, but “Not a duplicate” wasn’t remembered: {{reason}}",
+    notDuplicateFailed: "The entry was saved, but “Not a duplicate” wasn’t remembered. {{reason}}",
     unknownPage: {
       title: "Is this one entry or several?",
       description_one: "{{count}} screenshot didn’t match a layout we know. Choose how to handle it — Libevra won’t guess how many entries it holds.",
@@ -142,7 +142,7 @@ const capture: Messages<typeof zh> = {
     heardVoice: "Heard: {{text}}",
     categoryReasonPaste: "Saw “{{reason}}”, so the category is set to<name> {{name}}</name>. If that’s wrong, just change the category above.",
     categoryReasonVoice: "Heard “{{reason}}”, so the category is set to<name> {{name}}</name>. If that’s wrong, just change the category above.",
-    notDuplicateFailed: "The entry was saved, but “Not a duplicate” wasn’t remembered: {{reason}}",
+    notDuplicateFailed: "The entry was saved, but “Not a duplicate” wasn’t remembered. {{reason}}",
   },
 };
 

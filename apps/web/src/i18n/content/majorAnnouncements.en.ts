@@ -16,7 +16,7 @@ export const MAJOR_ANNOUNCEMENTS_EN: Readonly<Record<string, MajorAnnouncementTe
       {
         heading: "Move entries between ledgers",
         items: [
-          "You can now import records from a guest ledger into one of your ledgers, or import an eligible solo ledger into another solo ledger.",
+          "You can now import entries from a guest ledger into one of your ledgers, or import an eligible solo ledger into another solo ledger.",
           "Before importing, choose the target ledger, check the differences and resolve conflicts. The original ledger is never deleted automatically by an import.",
         ],
       },
@@ -31,8 +31,8 @@ export const MAJOR_ANNOUNCEMENTS_EN: Readonly<Record<string, MajorAnnouncementTe
       {
         heading: "Clearer handling of duplicates",
         items: [
-          "When you import data you’ve imported before, existing source records are recognized, so fewer duplicates are added.",
-          "When a source record has changed, the import preview lets you keep what’s there or update it with the new content.",
+          "When you import data you’ve imported before, existing source entries are recognized, so fewer duplicates are added.",
+          "When a source entry has changed, the import preview lets you keep what’s there or update it with the new content.",
         ],
       },
       {
@@ -40,7 +40,7 @@ export const MAJOR_ANNOUNCEMENTS_EN: Readonly<Record<string, MajorAnnouncementTe
         items: [
           "Improved status messages, error handling and recovery during imports.",
           "Strengthened protection for ledger and entry data.",
-          "Improved rollback when a CSV import fails, so no partial records are left behind.",
+          "Improved rollback when a CSV import fails, so no partial entries are left behind.",
           "Sign-up is still by invitation only; new accounts still need an invite code.",
         ],
       },
@@ -72,14 +72,14 @@ export const MAJOR_ANNOUNCEMENTS_EN: Readonly<Record<string, MajorAnnouncementTe
         items: [
           "A new review overview lets you filter by status, such as To review or Possible duplicate, and open any entry to edit it.",
           "When you’re done, confirm them all at once. Each entry is saved in turn and you get a summary of the results.",
-          "The import complete page shows the running total for this session and lets you scan the next batch. Uncertain fields are still clearly marked.",
+          "The import-complete page shows the running total for this session and lets you scan the next batch. Uncertain fields are still clearly marked.",
         ],
       },
       {
         heading: "Ledgers and everyday actions",
         items: [
           "Ledger import now picks the source and target from lists on the page.",
-          "Fixed a loop when going back after opening settings and then import from a ledger’s details.",
+          "Fixed a navigation loop when returning from settings or the import page opened from a ledger’s details.",
           "Entries now lets you select, edit and delete several entries at once, with more accurate offline delete status and refresh feedback.",
         ],
       },

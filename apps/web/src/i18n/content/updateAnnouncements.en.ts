@@ -32,7 +32,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
       {
         heading: "Notes",
         items: [
-          "Appearance preferences are saved in this browser and stay after refreshing or changing pages, but don’t sync across devices. The colors for income, expenses and categories mean the same in every theme.",
+          "Appearance preferences are saved in this browser and stay after refreshing or changing pages, but don’t sync across devices. The colors for income, expenses and categories mean the same thing in every theme.",
         ],
       },
     ],
@@ -55,7 +55,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
         heading: "Bug fixes",
         items: [
           "Fixed inaccurate descriptions of where data is stored and of currency decimal places on the About page, and legal pages that still described the live product as not yet launched.",
-          "Fixed wording in ledger import that could be read as “only adds, never deletes”. It now makes clear that source ledger records may be skipped, removed or deleted.",
+          "Fixed wording in ledger import that could be read as “only adds, never deletes”. It now makes clear that source ledger entries may be skipped, removed or deleted.",
           "Fixed some descriptions in the change history showing internal field names or extra spaces.",
         ],
       },
@@ -84,7 +84,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
         heading: "Improvements",
         items: [
           "Voice and Paste use the same rules for reading amounts, dates, merchants and categories. You can edit a voice transcript and parse it again without recording again.",
-          "The central Add menu offers five methods—Paste, Voice, Manual, Scan and Import—with Manual kept in the middle. Narrow screens show short names.",
+          "The central Add menu offers five methods — Paste, Voice, Manual, Scan and Import — with Manual in the middle. Narrow screens show short names.",
         ],
       },
       {
@@ -130,7 +130,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
           "Manual, Voice, Scan and statement import all use the same duplicate rules. You decide whether to keep a possible duplicate; nothing is deselected or deleted automatically.",
           "In Settings → Recording, turn duplicate alerts on or off, choose which fields to match and set the time window: 1 minute by default, anywhere from 1 minute to 30 days. Each ledger is checked on its own.",
           "While reviewing a statement, you can edit the amount, date, time, type, category, payment method, note and tags. After editing or reselecting, check again before submitting.",
-          "Importing the same source records again skips the ones already there; similar records from a different source are only flagged as possible duplicates.",
+          "Importing the same source entries again skips the ones already there; similar entries from a different source are only flagged as possible duplicates.",
         ],
       },
       {
@@ -151,7 +151,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
   },
 
   "1.15.00": {
-    title: "Multi-entry scanning and recording changes",
+    title: "Multi-entry scanning and entry changes",
     summary:
       "Scan can now read several entries from one image and review them together, Manual entry can reuse your last entry, and Entries gains bulk actions and better back navigation.",
     sections: [
@@ -168,14 +168,14 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
         heading: "Improvements",
         items: [
           "Manual entry fields have been reordered, quick amounts are collapsed by default, and you can switch currency right next to the amount.",
-          "The import complete page shows the running total for this session and lets you scan the next batch. Uncertain fields stay marked.",
+          "The import-complete page shows the running total for this session and lets you scan the next batch. Uncertain fields stay marked.",
           "Ledger import now picks the source and target from lists on the page, with consistent expand arrows, amount sizes and alignment.",
         ],
       },
       {
         heading: "Bug fixes",
         items: [
-          "Fixed a possible loop when going back after opening settings and import from a ledger’s details.",
+          "Fixed a possible navigation loop when returning from settings or the import page opened from a ledger’s details.",
           "Improved the offline delete status and refresh feedback, and fixed some input fields having their font size overridden by global styles.",
         ],
       },
@@ -211,22 +211,22 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
   "1.14.18": {
     title: "Ledger import, undo and source management",
     summary:
-      "Import from a guest ledger or an eligible solo ledger, with batched imports, undo before confirming and checks for changed source records.",
+      "Import from a guest ledger or an eligible solo ledger, with batched imports, undo before confirming and checks for changed source entries.",
     sections: [
       {
         heading: "New features",
         items: [
           "Import a guest ledger into one of your ledgers, or an eligible solo ledger into another solo ledger. When the source is one of your ledgers, both source and target must meet the solo-ledger requirements, and you need to create and choose the target ledger before importing.",
           "Preview the differences before importing, choosing to import or skip each source entry and to keep or remove each target entry. The source ledger is never deleted automatically.",
-          "Large imports run on the server in batches; if one is interrupted, you can check the task and continue it. Importing again recognizes sources already handled and checks source records for changes.",
-          "After an import is confirmed, you can separately review the guest records that were moved and clean them up yourself, or retire a source ledger under the usual ledger lifecycle rules. Records that weren’t moved aren’t deleted by the guest cleanup.",
+          "Large imports run on the server in batches; if one is interrupted, you can check the task and continue it. Importing again recognizes sources already handled and checks source entries for changes.",
+          "After an import is confirmed, you can separately review the guest entries that were moved and clean them up yourself, or retire a source ledger under the usual ledger lifecycle rules. Entries that weren’t moved aren’t deleted by the guest ledger cleanup.",
         ],
       },
       {
         heading: "Improvements",
         items: [
           "Once all batches are written, you have 10 minutes to confirm. If you undo or the time runs out, Libevra tries to roll back the changes from that import. The ledgers involved can’t be edited until the final confirmation.",
-          "When a source record has changed, you can keep the target as it is or, where updates are allowed, apply the change to the target entry.",
+          "When a source entry has changed, you can keep the target as it is or, where updates are allowed, apply the change to the target entry.",
         ],
       },
       {
@@ -252,7 +252,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
         heading: "New features",
         items: [
           "Added account closure and server data deletion, showing what will happen to each ledger before you confirm. Shared and solo ledgers each follow their own rules.",
-          "Added ledger archiving, self-service restore within a time limit, and manual recovery requests. The ledger recovery keys issued when you close an account are separate from your account recovery code.",
+          "Added ledger archiving, self-service restore within a time limit, and manual recovery requests. The ledger recovery credentials issued when you close an account are separate from your account recovery code.",
           "Added important-update notices and agreement confirmation. Regular release notes don’t need confirming; confirmations of important announcements are saved per account.",
           "Added a record of key operations, which lowers the risk that restoring an older backup accidentally undoes deleted ledgers, account status or permission changes.",
         ],
@@ -267,7 +267,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
       {
         heading: "Notes",
         items: [
-          "Ledger recovery is subject to time limits and the existing process, and recovery keys can’t restore a closed account. The agreement confirmation feature going live doesn’t mean a formal Privacy Policy or Terms of Use is available yet.",
+          "Ledger recovery is subject to time limits and the existing process, and recovery credentials can’t restore a closed account. The agreement confirmation feature going live doesn’t mean a formal Privacy Policy or Terms of Use is available yet.",
         ],
       },
     ],

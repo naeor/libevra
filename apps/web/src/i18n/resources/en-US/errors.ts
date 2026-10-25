@@ -40,7 +40,7 @@ const errors: Messages<typeof zh> = {
     invalid_credentials: "Incorrect username or password.",
     invalid_password: "Incorrect password.",
     invalid_recovery_code: "Incorrect username or recovery code.",
-    recovery_credentials_invalid: "Incorrect account number or recovery key.",
+    recovery_credentials_invalid: "Incorrect account number or recovery credential.",
     password_invalid: "Incorrect password. Nothing was changed.",
     password_throttled: "Too many password attempts. Please wait a moment and try again.",
     reauth_failed: "Incorrect password. Nothing was changed.",
@@ -75,7 +75,7 @@ const errors: Messages<typeof zh> = {
     invite_already_revoked: "That invite code has already been revoked.",
     invite_rate_limited: "You’ve created too many invite codes in the past hour. Please try again later.",
     invite_used_needs_acknowledgement:
-      "This invite code has already been used to create an account. Revoking it won’t close that account—you’ll need to handle the account separately. Please confirm and try again.",
+      "This invite code has already been used to create an account. Revoking it won’t close that account — you’ll need to handle the account separately. Please confirm and try again.",
     referral_code_collision: "Couldn’t create a unique invite code. Please try again.",
     referral_flag_removed:
       "Invite codes no longer have an “add as collaborator” option. To share a ledger, invite the person to that ledger directly.",
@@ -221,8 +221,8 @@ const errors: Messages<typeof zh> = {
     python_unavailable: "The document reader is temporarily unavailable. Please try again later.",
     import_parser_unavailable:
       "The document reader is temporarily unavailable. Please try again later. Your file wasn’t saved.",
-    missing_settings: "Duplicate check settings are missing. Refresh the page and try again.",
-    invalid_settings: "The duplicate check settings aren’t valid.",
+    missing_settings: "Duplicate detection settings are missing. Refresh the page and try again.",
+    invalid_settings: "The duplicate detection settings aren’t valid.",
     missing_target_book: "Choose the ledger to import into and try again.",
     preview_expired: "This preview has expired. Upload the file again.",
     preview_revision_mismatch: "This review was updated, possibly in another window. Refresh the review page before submitting.",
@@ -231,7 +231,7 @@ const errors: Messages<typeof zh> = {
     unknown_row: "What you submitted doesn’t match the preview. Upload the file again and review it.",
     data_changed: "Categories or payment methods have changed. Upload the file again and review it.",
     duplicate_source: "Another import just used the same source reference. Preview the import again.",
-    reconciliation_not_acknowledged: "The statement totals don’t reconcile. Check the box to confirm before importing.",
+    reconciliation_not_acknowledged: "The statement totals don’t add up. Check the box to confirm before importing.",
 
     // ---- 账本导入（游客账本 / 正式账本、分批任务与撤销） ----
     target_required: "Choose a target ledger.",
@@ -251,9 +251,9 @@ const errors: Messages<typeof zh> = {
     import_forbidden: "This import doesn’t belong to your account.",
     import_receipt_missing: "The server’s confirmation for this import couldn’t be found.",
     import_job_missing: "That import couldn’t be found.",
-    import_job_cancelled: "This import was cancelled or its restore snapshot has expired, so it can’t continue.",
-    import_job_completed: "This import has already finished and can’t be cancelled.",
-    import_job_not_cancellable: "This import can’t be cancelled right now.",
+    import_job_cancelled: "This import was canceled or its restore snapshot has expired, so it can’t continue.",
+    import_job_completed: "This import has already finished and can’t be canceled.",
+    import_job_not_cancellable: "This import can’t be canceled right now.",
     import_job_not_completed: "Source ledger details are only available after the import finishes.",
     import_job_not_resumable: "This import can’t be resumed right now.",
     import_job_not_undoable: "This import can’t be undone right now.",

@@ -22,8 +22,8 @@ const ledgerImport: Messages<typeof zh> = {
   },
   badge: {
     done: "Completed",
-    guest: "Guest source",
-    formal: "Ledger source",
+    guest: "Guest ledger",
+    formal: "Account ledger",
     choose: "Choose source",
   },
   steps: {
@@ -80,7 +80,7 @@ const ledgerImport: Messages<typeof zh> = {
     legacy_import_requires_repreview:
       "This is an older batch import. Preview again and start a new import that can be undone.",
     job_cancelled_legacy:
-      "This older import was cancelled. Batches already submitted were kept; entries not yet submitted weren’t written.",
+      "This older import was canceled. Batches already submitted were kept; entries not yet submitted weren’t written.",
     import_stalled:
       "The import made no progress for too long and was paused. It will be safely undone automatically when time runs out.",
     confirm_stalled:
@@ -144,7 +144,7 @@ const ledgerImport: Messages<typeof zh> = {
       paused: "Paused",
       failed: "Needs attention",
       completed: "Completed (older import)",
-      cancelled: "Cancelled (older import)",
+      cancelled: "Canceled (older import)",
       expired: "Expired — the source snapshot has been cleared",
     },
     batchBadge: "{{done}} / {{batches}}",
@@ -275,7 +275,7 @@ const ledgerImport: Messages<typeof zh> = {
       paymentMethod: "Payment method",
       tag: "Tag",
     },
-    title: "{{type}} “{{source}}” has the same name as “{{target}}” in the target, but different settings",
+    title: "{{type}} “{{source}}” has the same name as “{{target}}” in the target ledger, but different settings",
     aria: "Resolve the conflict for {{name}}",
     reuse: "Reuse the target’s",
     create: "Add a copy from the source",
@@ -360,7 +360,7 @@ const ledgerImport: Messages<typeof zh> = {
       archived: "The source ledger has been retired. You can see its recovery deadline and restore it on the archive recovery page.",
       counts:
         "Source “{{name}}”: {{migrated}} confirmed in the target, {{unmigrated}} not confirmed as migrated ({{total}} in total).",
-      archivedInfo: "Archived. Self-restore deadline: {{restoreUntil}}. Scheduled permanent deletion: {{purgeAt}}.",
+      archivedInfo: "Retired. Self-restore deadline: {{restoreUntil}}. Scheduled permanent deletion: {{purgeAt}}.",
       none: "None",
       unmigratedWarning:
         "Some source entries aren’t confirmed as migrated. Retiring won’t delete them, but you’ll need to restore the source ledger to see them.",
@@ -373,7 +373,7 @@ const ledgerImport: Messages<typeof zh> = {
       someUnmigrated:
         "This source ledger can be retired now, but some of its entries weren’t migrated to the target ledger. Retiring won’t delete them, but you’ll need to restore the source to see them.",
       blocked:
-        "This source ledger can’t be retired right now (it may have other members, active invites or share links, already be archived, or have a pending recovery request).",
+        "This source ledger can’t be retired right now — it may have other members, active invites or share links, it may already be retired, or it may have a pending recovery request.",
     },
     guestDialog: {
       title: "Clean up migrated guest entries?",

@@ -22,7 +22,7 @@ const stats: Messages<typeof zh> = {
     year: "Year overview ({{year}})",
   },
   overview: {
-    averagePerDay: "Daily average spent",
+    averagePerDay: "Average spent per day",
     largestExpense: "Largest expense",
   },
   days_one: "{{count}} day",

@@ -13,7 +13,7 @@ const auth: Messages<typeof zh> = {
     passwordMin: "At least {{min}} characters",
   },
   switcher: {
-    label: "Account",
+    label: "Account access",
     login: "Sign in",
     register: "Create account",
   },
@@ -50,7 +50,7 @@ const auth: Messages<typeof zh> = {
     agreementsRequired: "Read and accept each of the current agreements first.",
     subtitleInvite: "You need an invite code to create an account.",
     subtitleOpen: "Create your Libevra account.",
-    inviteHint: "An existing account can create one in Settings → Account & security, or an admin can give you one.",
+    inviteHint: "An existing user can create one in Settings → Account & security, or an admin can give you one.",
     usernameHint: "3–20 letters, numbers or underscores. Used to sign in; must be unique.",
     agree: "I have read and agree to <link>{{title}}</link>.",
     documentVersion: "Version {{version}}",
@@ -58,7 +58,7 @@ const auth: Messages<typeof zh> = {
     submitting: "Creating…",
     haveAccount: "Already have an account?",
     goLogin: "Sign in",
-    inviteNotice: "To keep things running smoothly, new accounts are currently by invitation.",
+    inviteNotice: "To keep things running smoothly, new accounts are invitation-only for now.",
     inviteNoticeDetail: "Invite codes have nothing to do with ledgers; a code only creates a separate account.",
   },
   recover: {

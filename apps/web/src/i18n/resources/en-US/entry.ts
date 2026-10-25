@@ -16,9 +16,9 @@ const entry: Messages<typeof zh> = {
       "You’re offline, so this shared ledger is view-only. You can add entries again once you’re back online. Changes that haven’t synced yet are kept.",
     categoryHint: "What’s included in {{name}}",
     duplicateTitle: "Looks like you’ve already added this",
-    notDuplicateNoBook: "Couldn’t find the current ledger, so “not a duplicate” wasn’t saved.",
+    notDuplicateNoBook: "Couldn’t find the current ledger, so “Not a duplicate” wasn’t saved.",
     notDuplicateNoPair: "There’s no pair of entries to remember.",
-    notDuplicateFailed: "The entry was saved, but “not a duplicate” wasn’t remembered. {{reason}}",
+    notDuplicateFailed: "The entry was saved, but “Not a duplicate” wasn’t remembered. {{reason}}",
   },
   duplicate: {
     save: "Save anyway",

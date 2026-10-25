@@ -62,12 +62,12 @@ const admin: Messages<typeof zh> = {
   revoke: {
     title: "Revoke invite code?",
     withNote: "{{code}} ({{note}})",
-    consequence: "Once revoked, this code can’t be used to sign up.",
-    usedWarning: "⚠️ This code has already been used to sign up. Revoking it won’t close that account.",
+    consequence: "Once revoked, this code can’t be used to create an account.",
+    usedWarning: "⚠️ This code has already been used to create an account. Revoking it won’t close that account.",
     usedFollowUp: "That account stays active — you’ll need to deal with it separately.",
     reservedKept: "The reserved number won’t be released.",
     confirm: "Revoke",
-    acknowledgeRequired: "First confirm you’ve read the note that this won’t close the account.",
+    acknowledgeRequired: "First confirm you’ve read the note saying this won’t close the account.",
     acknowledge: "I understand that revoking this invite code won’t close the account that was already created.",
   },
   form: {
