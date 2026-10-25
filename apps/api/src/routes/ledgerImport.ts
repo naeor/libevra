@@ -352,6 +352,25 @@ export function buildTotals(rows: readonly { kind: "expense" | "income"; amountC
     .map(([currency, value]) => ({ currency, ...value }));
 }
 
+/**
+ * 并发提交同一个 importId 时，短暂等待对方事务提交并返回已写好的回执。
+ * 没有回执（或回执属于别人）时返回 null，由调用方按原错误处理。
+ */
+async function replayCommittedReceipt(
+  prisma: PrismaClient,
+  userId: string,
+  receiptId: string,
+): Promise<LedgerImportResult | null> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const existing = await prisma.ledgerImport.findUnique({ where: { id: receiptId } });
+    if (existing !== null && existing.userId === userId) {
+      return ledgerImportResultSchema.parse(existing.result);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return null;
+}
+
 async function executeImport(
   prisma: PrismaClient,
   userId: string,
@@ -696,13 +715,8 @@ async function executeImport(
      * 只要回执属于当前账号，就返回原回执。两个事务可能恰好同时结束，因此短暂等待对方提交，
      * 而不是在“自己先失败、对方尚未提交”的窗口里错误返回 409。
      */
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      const existing = await prisma.ledgerImport.findUnique({ where: { id: receiptId } });
-      if (existing !== null && existing.userId === userId) {
-        return ledgerImportResultSchema.parse(existing.result);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
+    const replay = await replayCommittedReceipt(prisma, userId, receiptId);
+    if (replay !== null) return replay;
     throw error;
   }
 }
@@ -933,12 +947,23 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
       throw badRequest("target_required", "请选择目标账本。");
     }
 
-    const result = await executeImport(
-      options.prisma,
-      userId,
-      request.currentUser?.displayName ?? null,
-      body,
-    );
-    return reply.send(result);
+    try {
+      const result = await executeImport(
+        options.prisma,
+        userId,
+        request.currentUser?.displayName ?? null,
+        body,
+      );
+      return reply.send(result);
+    } catch (error) {
+      /**
+       * 同一 importId 的两个请求同时通过上方回执预检时，先提交的一笔会让另一笔在
+       * executeImport 的事务外预检里看到「目标账本已变化」。那属于同一任务的并发重放，
+       * 不是用户改动：回执一旦存在就按幂等结果返回，避免误报 409。
+       */
+      const replay = await replayCommittedReceipt(options.prisma, userId, body.importId);
+      if (replay !== null) return reply.send(replay);
+      throw error;
+    }
   });
 }
