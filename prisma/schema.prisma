@@ -115,6 +115,19 @@ model User {
   /// is a preference about how the owner thinks about money, not about a ledger.
   defaultCurrency String @default("CNY") @map("default_currency") @db.VarChar(3)
 
+  /// **账户时区（IANA 名称，例如 `Asia/Shanghai`）。** 特典头像的“纪念日”按账户当地日期
+  /// 判定，而不是按 UTC 日期：世界哲学日在不同时区可能落在不同的 UTC 日期上，按 UTC 发会
+  /// 让一部分人早一天或晚一天看到。
+  ///
+  /// ⚠️ **可空，且不猜。** 空表示“这台账户还从未从设备得到过时区”；那时判定回退到 UTC，
+  /// 并把 `confirmed` 报给前端。首次拿到有效时区后写入，并把变更记进
+  /// `user_time_zone_changes`。
+  timeZone String? @map("time_zone") @db.VarChar(64)
+
+  /// 上一次确认/更新时区的时间。用来限制短时间内反复切换时区，避免有人靠改时区
+  /// 反复触发或躲避纪念日判定。
+  timeZoneUpdatedAt DateTime? @map("time_zone_updated_at") @db.Timestamptz(6)
+
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -143,6 +156,15 @@ model User {
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsSent     Notification[] @relation("NotificationSender")
   notificationQuotas    NotificationQuota[]
+
+  /// 特典头像的解锁记录（每个头像每账户最多一条）。
+  avatarUnlocks        AvatarUnlock[]
+  /// 奖励事件：未确认的会在每次 `/auth/me` 里重新下发，直到界面确认展示。
+  avatarRewardEvents   AvatarRewardEvent[]
+  /// 那唯一一次“补领”的使用记录。
+  avatarMakeUpGrant    AvatarMakeUpGrant?
+  /// 账户时区的变更历史（谁、从什么时区到什么时区、为什么）。
+  timeZoneChanges      UserTimeZoneChange[]
   createdShareLinks     BookShareLink[]   @relation("ShareLinkCreator")
   revokedShareLinks     BookShareLink[]   @relation("ShareLinkRevoker")
   /// Referral codes this account minted. `SetNull` on delete — see the migration: the codes are
@@ -1918,4 +1940,89 @@ model CriticalOperation {
 
   @@index([createdAt(sort: Desc)])
   @@map("critical_operations")
+}
+
+// ---------------------------------------------------------------------------
+// 特典头像奖励（S16）
+// ---------------------------------------------------------------------------
+//
+// 设计要点（见 `docs/specs/features/S16-头像奖励系统-设计决定.md`）：
+//  * 活动规则在 `packages/shared/src/rewards.ts`，数据库只存“已经发了什么”，不存规则；
+//  * 解锁记录与通知事件分开：**发奖不依赖通知送达**，通知只是“告诉用户一声”；
+//  * 未确认的事件每次 `/auth/me` 都会重新下发，所以丢一次响应不会丢奖励。
+
+/// 每个账户每个特典头像最多一条解锁记录。
+///
+/// ⚠️ `@@unique([userId, avatarId])` 是并发下的最后一道锁：两个请求同时判定
+/// “可以发放”时，第二次插入会撞唯一约束并被吞掉（`createMany({ skipDuplicates })`
+/// 或捕获 P2002），因此不会重复发奖，也不会重复创建通知事件。
+model AvatarUnlock {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  avatarId   String   @map("avatar_id") @db.VarChar(24)
+  activityId String   @map("activity_id") @db.VarChar(64)
+  /// first_login | anniversary | make_up
+  source     String   @db.VarChar(16)
+  unlockedAt DateTime @default(now()) @map("unlocked_at") @db.Timestamptz(6)
+
+  user   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events AvatarRewardEvent[]
+
+  @@unique([userId, avatarId])
+  @@index([activityId])
+  @@map("avatar_unlocks")
+}
+
+/// 奖励事件：解锁发生时创建，界面确认展示后置为 `confirmed`。
+///
+/// 状态只有两态，因为第一版只需要“待通知/已通知”：
+/// pending → confirmed。**没有已读回执之外的第三态**，避免把事情做复杂。
+model AvatarRewardEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  avatarId    String    @map("avatar_id") @db.VarChar(24)
+  activityId  String    @map("activity_id") @db.VarChar(64)
+  unlockId    String?   @map("unlock_id") @db.Uuid
+  /// pending | confirmed
+  status      String    @default("pending") @db.VarChar(16)
+  occurredAt  DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(6)
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unlock AvatarUnlock? @relation(fields: [unlockId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("avatar_reward_events")
+}
+
+/// 那唯一一次“补领”的使用记录：每个账户最多一行。
+///
+/// ⚠️ 以 `userId` 作主键，让“只有一次”由数据库保证，而不是靠先查后写。
+model AvatarMakeUpGrant {
+  userId     String   @id @map("user_id") @db.Uuid
+  avatarId   String   @map("avatar_id") @db.VarChar(24)
+  activityId String   @map("activity_id") @db.VarChar(64)
+  usedAt     DateTime @default(now()) @map("used_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("avatar_make_up_grants")
+}
+
+/// 账户时区的变更历史。
+///
+/// 只记“变了什么”，不参与发奖判定；判定一律读 `users.time_zone`（当前活跃时区）。
+model UserTimeZoneChange {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  fromZone  String?  @map("from_zone") @db.VarChar(64)
+  toZone    String   @map("to_zone") @db.VarChar(64)
+  /// first_login | request | manual
+  source    String   @db.VarChar(16)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("user_time_zone_changes")
 }

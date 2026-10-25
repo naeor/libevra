@@ -24,7 +24,8 @@ describe("账户资料：鉴权、并发与身份稳定性", () => {
   });
   it("新芽与海浪可保存，旧头像 ID 继续兼容而不被重新映射", async () => {
     let previousValue = "flower";
-    for (const value of ["sprout", "wave", "daoxuan-special", "descent-special", "leaf", "boat", "cat", "moon"]) {
+    // 倒悬/降临是特典头像，需先解锁（见 avatarRewards.test.ts），这里只验证经典头像。
+    for (const value of ["sprout", "wave", "leaf", "boat", "cat", "moon"]) {
       const response = await patch({ field: "avatarId", value, previousValue });
       expect(response.statusCode).toBe(200);
       expect(response.json().user.avatarId).toBe(value);

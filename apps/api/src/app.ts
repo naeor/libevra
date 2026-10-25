@@ -22,6 +22,7 @@ import { OcrService } from "./ocr/client.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerAdminLifecycleRoutes } from "./routes/adminLifecycle.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerAvatarRewardRoutes } from "./routes/avatarRewards.js";
 import { registerBooksRoutes } from "./routes/books.js";
 import { registerClassificationRoutes } from "./routes/classification.js";
 import { registerDirectoryRoutes } from "./routes/directory.js";
@@ -290,6 +291,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      */
     registerDirectoryRoutes(app, { prisma: options.prisma, requireAuth });
     registerNotificationRoutes(app, { prisma: options.prisma, requireAuth });
+    /**
+     * 特典头像奖励（S16）：账号级接口，挂普通 auth，不带账本头 —— 头像属于账户而不是某一本账。
+     * 判定/发放全部在服务端；失败不能挡住登录与通知，所以路由自己兜底成“这轮没看到”。
+     */
+    registerAvatarRewardRoutes(app, { prisma: options.prisma, requireAuth });
 
     /**
      * ⚠️ **Share links are registered with plain auth, and each route resolves its own ledger.**

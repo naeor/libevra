@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { currencySchema } from "./ledger.js";
+import { avatarRewardEventSchema } from "./rewards.js";
 
 /**
  * Account rules live in the shared package so the browser and the API enforce
@@ -122,7 +123,17 @@ export const updatePreferencesRequestSchema = z.object({
 
 export type UpdatePreferencesRequest = z.infer<typeof updatePreferencesRequestSchema>;
 
-export const meResponseSchema = z.object({ user: sessionUserSchema });
+export const meResponseSchema = z.object({
+  user: sessionUserSchema,
+  /**
+   * 已获得但尚未确认展示的特典头像奖励事件。
+   *
+   * ⚠️ 可选：老版本客户端与离线缓存不解这个字段也能工作；服务端每次
+   * `/auth/me` 都会重新计算并返回仍处于 pending 的事件，所以丢一次响应
+   * 不会丢奖励。
+   */
+  avatarRewardEvents: z.array(avatarRewardEventSchema).optional(),
+});
 export type MeResponse = z.infer<typeof meResponseSchema>;
 
 export const authResponseSchema = z.object({

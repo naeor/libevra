@@ -42,6 +42,11 @@ import { recordReferral } from "../collab/referral.js";
 import { createDefaultLedger } from "../ledger/bootstrap.js";
 import { defaultBookNameFor } from "../ledger/defaultName.js";
 import { badRequest, conflict, tooManyRequests, unauthorized } from "../lib/errors.js";
+import {
+  assertAvatarSelectable,
+  readTimeZoneHeader,
+  runAvatarRewardCheck,
+} from "../rewards/service.js";
 
 export interface AuthRouteOptions {
   readonly prisma: PrismaClient;
@@ -165,6 +170,15 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
   app.patch("/api/v1/auth/profile", { preHandler: requireAuth }, async (request) => {
     const body = updateProfileRequestSchema.parse(request.body);
     const id = request.currentUser!.id;
+
+    /**
+     * ⚠️ **特典头像必须真的解锁过。** 前端把锁定头像的保存按钮禁掉只是体验；
+     * 这里是服务端边界 —— 直接改请求体也选不上未解锁的头像。
+     */
+    if (body.field === "avatarId") {
+      await assertAvatarSelectable(prisma, { userId: id, avatarId: body.value });
+    }
+
     try {
       const user = await prisma.$transaction(async (tx) => {
         const result = await tx.user.updateMany({
@@ -534,7 +548,34 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
   // GET /api/v1/auth/me
   // ---------------------------------------------------------------------------
   app.get("/api/v1/auth/me", { preHandler: requireAuth }, async (request) => {
-    return meResponseSchema.parse({ user: request.currentUser });
+    const user = request.currentUser!;
+
+    /**
+     * ⚠️ **奖励判定挂在 `/auth/me` 上，而不是单独跑一个定时任务。** App 每 60 秒、每次
+     * 回到前台、每次登录后都会调这个接口，所以“新用户首次登录”“老用户首次在线”
+     * “纪念日当天已经登录着”，都只需要一次普通的读请求就能补发——不需要签到按钮，
+     * 也不要求用户先打开头像页。
+     *
+     * ⚠️ **判定失败绝不能挡住这个接口。** 头像奖励坏了，登录、同步、记账都不该跟着坏；
+     * 这轮没拿到，下一轮 /auth/me 会重试，库里没有重复记录所以重试是幂等的。
+     */
+    let pendingRewardEvents: unknown[] | undefined;
+    try {
+      const check = await runAvatarRewardCheck(prisma, {
+        userId: user.id,
+        headerZone: readTimeZoneHeader(request.headers),
+        now: new Date(),
+      });
+      pendingRewardEvents = check.events.length > 0 ? [...check.events] : undefined;
+    } catch {
+      pendingRewardEvents = undefined;
+    }
+
+    return meResponseSchema.parse(
+      pendingRewardEvents === undefined
+        ? { user }
+        : { user, avatarRewardEvents: pendingRewardEvents },
+    );
   });
 
   // ---------------------------------------------------------------------------
