@@ -10,6 +10,29 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.16.09": {
+    title: "Ledger data isolation fix",
+    summary:
+      "Fixes new or switched ledgers showing records from another ledger, and corrects where local caches and sync were attributed during a switch.",
+    sections: [
+      {
+        heading: "Bug fixes",
+        items: [
+          "Fixed details and insights sometimes mixing in local records from another ledger after creating or switching ledgers. The app now resolves the account and ledger before reading their data on startup.",
+          "Fixed sync or downloads still in flight during a ledger switch being filed under the wrong ledger. Requests and local saves now stay bound to the ledger they started in.",
+          "Stopped copying old caches whose ownership cannot be confirmed into a new ledger. Local copies with provably wrong ownership are kept aside, and unsynced originals are never deleted automatically.",
+        ],
+      },
+      {
+        heading: "Notes",
+        items: [
+          "If an older version left local data with unclear ownership, keep the original device data for review. Do not clear local data to work around it, as unsynced records could be lost.",
+          "This fix does not delete or rewrite historical entries on the server.",
+        ],
+      },
+    ],
+  },
+
   "1.16.08": {
     title: "Seven themes and dark mode",
     summary:
