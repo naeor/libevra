@@ -61,7 +61,7 @@ export function AvatarCreationNoteSheet({
         onClick={event => {
           event.stopPropagation();
         }}
-        className="w-full max-w-md rounded-t-3xl bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] shadow-xl sm:rounded-3xl sm:pb-5"
+        className="w-full max-w-md rounded-t-sheet bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] shadow-xl sm:rounded-card sm:pb-5"
       >
         <h2 className="text-section-title text-ink">{t("account.avatars.creationNoteTitle")}</h2>
         <p className="mt-2 text-helper-relaxed text-ink">{note}</p>

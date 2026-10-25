@@ -82,7 +82,7 @@ export function BatchEditSheet({
       <div
         role="dialog"
         aria-label={t("ledger.batch.sheet.title")}
-        className="relative flex max-h-[85dvh] w-full max-w-md flex-col overflow-y-auto rounded-t-card bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        className="relative flex max-h-[85dvh] w-full max-w-md flex-col overflow-y-auto rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
       >
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="min-w-0 text-base font-medium text-ink">{t("ledger.batch.sheet.title")}</h2>

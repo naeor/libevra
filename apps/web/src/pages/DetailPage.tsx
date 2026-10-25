@@ -1532,7 +1532,7 @@ function AllCurrenciesSheet({
       <div
         role="dialog"
         aria-label={t("ledger.detail.allCurrencies")}
-        className="relative w-full max-w-md rounded-t-card bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        className="relative w-full max-w-md rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
       >
         <h2 className="mb-4 text-base font-medium text-ink">{t("ledger.detail.allCurrencies")}</h2>
 
@@ -1738,7 +1738,7 @@ function StuckOnLoad(): React.JSX.Element {
   const nothingStored = read.at === 0 || read.total === 0;
 
   return (
-    <div className="flex flex-col gap-1.5 py-3 text-center text-xs leading-relaxed text-muted">
+    <div className="flex flex-col gap-1.5 py-3 text-center text-helper-relaxed text-muted">
       {nothingStored ? (
         <>
           <p>{t("ledger.detail.stuck.nothingStored")}</p>

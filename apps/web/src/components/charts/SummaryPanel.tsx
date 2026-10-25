@@ -74,7 +74,7 @@ export function ComparisonPanel({
         />
       ))}
 
-      <p className="text-xs leading-relaxed text-muted">
+      <p className="text-helper-relaxed text-muted">
         {previous === null
           ? t("stats.comparison.noHistory")
           : monthToDate
@@ -246,7 +246,7 @@ export function YearOverview({
           }}
         </ChartFrame>
       ) : (
-        <p className="rounded-field bg-canvas px-4 py-3 text-xs leading-relaxed text-muted">
+        <p className="rounded-field bg-canvas px-4 py-3 text-helper-relaxed text-muted">
           {t("stats.year.noSpending")}
         </p>
       )}

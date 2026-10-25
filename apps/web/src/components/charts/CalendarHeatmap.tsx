@@ -56,7 +56,7 @@ export function CalendarHeatmap({
 
   if (notice !== null) {
     return (
-      <p className="rounded-field bg-canvas px-4 py-3 text-xs leading-relaxed text-muted">{notice}</p>
+      <p className="rounded-field bg-canvas px-4 py-3 text-helper-relaxed text-muted">{notice}</p>
     );
   }
 
@@ -123,7 +123,7 @@ export function CalendarHeatmap({
         <span className="ml-1">{t("stats.heatmap.leftmostNone")}</span>
       </div>
 
-      <p className="text-xs leading-relaxed text-muted">
+      <p className="text-helper-relaxed text-muted">
         {selected === null
           ? t("stats.heatmap.summary", { count: spentDays, total: formatMoney(total, currency) })
           : t("stats.heatmap.selected", {
@@ -139,7 +139,7 @@ export function CalendarHeatmap({
       </p>
 
       {peak.expenseMinor > 0 ? (
-        <p className="text-xs leading-relaxed text-muted">
+        <p className="text-helper-relaxed text-muted">
           {t("stats.heatmap.peak", {
             currency: currencyName(currency),
             date: showDate(peak.bucket),

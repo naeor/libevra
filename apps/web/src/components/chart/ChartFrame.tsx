@@ -61,7 +61,7 @@ export function ChartFrame({
       <div
         ref={ref}
         style={{ minHeight: height }}
-        className="flex items-center justify-center rounded-field bg-canvas px-4 text-center text-xs leading-relaxed text-muted"
+        className="flex items-center justify-center rounded-field bg-canvas px-4 text-center text-helper-relaxed text-muted"
       >
         {notice}
       </div>
