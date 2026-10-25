@@ -173,9 +173,11 @@ describe("英文界面：账号页面", () => {
     expectNoChinese(render(<ProfilePage />, "/profile?edit=1"));
     const avatars = render(<AvatarPickerPage />, "/profile/avatar");
     expectNoChinese(avatars);
-    expect(avatars).toContain("Classic collection");
-    expect(avatars).toContain("Special collection");
+    expect(avatars).toContain("Classic Collection");
+    expect(avatars).toContain("Special Collection");
     expect(avatars).toContain("First Bloom");
+    expect(avatars).toContain("Let a little flower bloom, and add a touch of beauty.");
+    expect(avatars).not.toContain("Tap to preview");
 
     expectNoChinese(render(<AccountDataPage />, "/settings/account-data"));
     expect(missingTranslationKeys()).toEqual([]);

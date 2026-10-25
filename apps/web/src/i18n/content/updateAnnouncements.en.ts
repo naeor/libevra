@@ -329,14 +329,14 @@ export const UPDATE_ANNOUNCEMENTS_EN_DRAFT: Readonly<Record<string, UpdateAnnoun
   "1.16.09": {
     title: "Chinese and English, and profile avatars",
     summary:
-      "The app, server error messages and release announcements can be shown in Chinese or English, and profiles can now be edited with eight system avatars.",
+      "The app, server error messages and release announcements can be shown in Chinese or English, and profiles can now be edited with nine system avatars.",
     sections: [
       {
         heading: "New features",
         items: [
           "Switch between Chinese and English in Settings → Display & data → Language, or from the top-right corner of the sign-in, sign-up and account-recovery pages. The first visit follows this browser’s language, and the choice is saved on this device.",
           "Open Me → Profile to view and edit your profile. Each save changes one field at a time; if the value was changed elsewhere meanwhile, your input is kept and you’re asked to refresh and try again.",
-          "Eight system avatars: the Classic collection (First Bloom, Sprout, Sun, Crescent, Morning Star, Wave, Coffee) and the Special collection (Inverted). Avatars appear on Me, Profile and shared members.",
+          "Nine system avatars: the Classic Collection (First Bloom, Sprout, Sun, Crescent, Morning Star, Wave, Coffee) and the Special Collection (The Hanged, Descent). Avatars appear on Me, Profile and shared members.",
         ],
       },
       {
@@ -345,6 +345,7 @@ export const UPDATE_ANNOUNCEMENTS_EN_DRAFT: Readonly<Record<string, UpdateAnnoun
           "Dates, times, amounts and list order follow the current language. Ledger and category names stay as entered, and switching language never changes saved data or avatar choices.",
           "Errors returned by the server are shown in the current language by error code, and Updates, history and shared pages also have English text.",
           "Fixed a batch of English-layout and wording issues, including long-word wrapping, button labels overflowing, date formats and consistency in Updates.",
+          "The avatar picker now uses Classic Collection and Special Collection, and each avatar comes with a short line of text; redundant how-to prompts were removed for a quieter page.",
         ],
       },
       {

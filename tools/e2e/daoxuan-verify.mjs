@@ -13,10 +13,10 @@ try {
   const before=(await me()).avatarId;
   await page.navigate(base+'/profile/avatar');
   await page.waitFor(`!!document.querySelector('button[aria-label="倒悬"]')`);
-  assert(await page.evaluate(`document.querySelector('[role=group][aria-label="基础系列"]').querySelectorAll('button').length===7 && document.querySelector('[role=group][aria-label="特典系列"]').querySelectorAll('button').length===1`),'系列分组错误');
+  assert(await page.evaluate(`document.querySelector('[role=group][aria-label="经典系列"]').querySelectorAll('button').length===7 && document.querySelector('[role=group][aria-label="特典系列"]').querySelectorAll('button').length===2`),'系列分组错误');
   assert(await page.evaluate(`[...document.querySelectorAll('[aria-pressed]')].every(b=>b.textContent.trim()==='')`),'网格仍显示名称');
   await page.evaluate(`document.querySelector('button[aria-label="初绽"]').click()`);
-  assert(await page.evaluate(`document.querySelector('[aria-label="头像预览"]').innerText.includes('初绽') && document.querySelector('[aria-label="头像预览"]').innerText.includes('基础系列 · 默认')`),'初绽默认信息缺失');
+  assert(await page.evaluate(`document.querySelector('[aria-label="头像预览"]').innerText.includes('初绽') && document.querySelector('[aria-label="头像预览"]').innerText.includes('经典系列 · 默认')`),'初绽默认信息缺失');
   await page.evaluate(`document.querySelector('button[aria-label="倒悬"]').click()`);
   assert(await page.evaluate(`document.querySelector('[aria-label="头像预览"]').innerText.includes('倒悬') && document.querySelector('[aria-label="头像预览"]').innerText.includes('特典系列')`),'预览名称与系列未切换');
   assert((await me()).avatarId===before,'预览写入了账户');

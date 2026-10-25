@@ -88,7 +88,7 @@ try {
   await runCase(results, "小屏 320px 网格与保存按钮", async () => {
     await page.setViewport(320, 640, true);
     assert(await noOverflow(), "320 overflow");
-    const layout = await page.evaluate("(() => {const grid=document.querySelector('[role=group][aria-label=\"基础系列\"]');const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='保存');const r=b.getBoundingClientRect(); return {columns:getComputedStyle(grid).gridTemplateColumns.split(' ').length,bottom:r.bottom,top:r.top,height:innerHeight};})()");
+    const layout = await page.evaluate("(() => {const grid=document.querySelector('[role=group][aria-label=\"经典系列\"]');const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='保存');const r=b.getBoundingClientRect(); return {columns:getComputedStyle(grid).gridTemplateColumns.split(' ').length,bottom:r.bottom,top:r.top,height:innerHeight};})()");
     assert(layout.columns === 4 && layout.bottom <= layout.height && layout.top >= 0, JSON.stringify(layout));
     await screenshot("06-iphone-small"); return layout;
   });
@@ -96,7 +96,7 @@ try {
     const layouts = [];
     for (const width of [375, 390, 430, 768, 1440]) {
       await page.setViewport(width, 900, width < 768);
-      const columns = await page.evaluate("getComputedStyle(document.querySelector('[role=group][aria-label=\"基础系列\"]')).gridTemplateColumns.split(' ').length");
+      const columns = await page.evaluate("getComputedStyle(document.querySelector('[role=group][aria-label=\"经典系列\"]')).gridTemplateColumns.split(' ').length");
       assert(await noOverflow(), `${width} overflow`);
       assert(columns === (width < 400 ? 4 : width < 768 ? 5 : 6), `${width} wrong columns ${columns}`);
       layouts.push({ width, columns });

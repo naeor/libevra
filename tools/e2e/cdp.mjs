@@ -1,10 +1,18 @@
 /** Minimal Chrome DevTools Protocol client for local E2E checks (Node 24 global WebSocket). */
 import { writeFileSync } from "node:fs";
 
-export async function openPage(port) {
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const page = targets.find((target) => target.type === "page");
-  if (!page) throw new Error(`no page target on ${port}`);
+export async function openPage(port, initialUrl = "https://127.0.0.1:5173/") {
+  const listUrl = `http://127.0.0.1:${port}/json/list`;
+  const targets = await (await fetch(listUrl)).json();
+  let page = targets.find((target) => target.type === "page");
+  if (!page) {
+    // 没有可用页签时自己开一个（本机 Chrome 以 --remote-debugging-port 启动后可能只剩浏览器内建页签）。
+    const created = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(initialUrl)}`, {
+      method: "PUT",
+    });
+    if (!created.ok) throw new Error(`no page target on ${port} (create failed: ${created.status})`);
+    page = await created.json();
+  }
   const socket = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     socket.addEventListener("open", resolve, { once: true });
@@ -20,13 +28,36 @@ export async function openPage(port) {
       pending.delete(message.id);
       if (message.error) reject(new Error(`${message.error.message} (${message.error.code})`));
       else resolve(message.result ?? {});
+      return;
+    }
+    /**
+     * 页面有未保存改动时导航会弹出 beforeunload 确认框；CDP 不自动关掉它，
+     * `Page.navigate` 会一直等下去。头像页「选中但未保存」正是这种状态，所以这里统一接受。
+     */
+    if (message.method === "Page.javascriptDialogOpening") {
+      socket.send(
+        JSON.stringify({ id: nextId++, method: "Page.handleJavaScriptDialog", params: { accept: true } }),
+      );
     }
   });
 
   function send(method, params = {}) {
     const id = nextId++;
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`CDP ${method} timed out after 20000ms`));
+      }, 20000);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
       socket.send(JSON.stringify({ id, method, params }));
     });
   }
@@ -44,9 +75,22 @@ export async function openPage(port) {
     return result.result?.value;
   }
 
+  async function acceptDialog() {
+    await send("Page.handleJavaScriptDialog", { accept: true }).catch(() => {});
+  }
+
   async function navigate(url) {
-    await send("Page.navigate", { url });
-    await waitFor("document.readyState === 'complete'", 15000);
+    try {
+      await send("Page.navigate", { url });
+      await waitFor("document.readyState === 'complete'", 15000);
+      return;
+    } catch (error) {
+      // 页面有未保存改动时导航会弹 beforeunload 确认框，导致 Runtime.evaluate 被阻塞；
+      // 接受弹窗后重试一次。
+      await acceptDialog();
+      await send("Page.navigate", { url });
+      await waitFor("document.readyState === 'complete'", 15000);
+    }
   }
 
   async function waitFor(expression, timeoutMs = 10000, intervalMs = 100) {
@@ -102,7 +146,10 @@ export async function openPage(port) {
     });
   }
 
-  return { socket, send, evaluate, navigate, waitFor, screenshot, setViewport, setCookie, clearStorage, setOffline, close: () => socket.close() };
+  // 监听 beforeunload 弹窗事件（Page.javascriptDialogOpening）需要先启用 Page 域。
+  await send("Page.enable").catch(() => {});
+
+  return { socket, send, evaluate, navigate, waitFor, screenshot, setViewport, setCookie, clearStorage, setOffline, acceptDialog, close: () => socket.close() };
 }
 
 export async function apiLogin(base, username, password) {

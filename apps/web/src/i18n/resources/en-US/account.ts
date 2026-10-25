@@ -106,11 +106,11 @@ const account: Messages<typeof zh> = {
     regenerate: "New recovery code",
   },
   avatars: {
-    title: "Choose avatar", preview: "Avatar preview", current: "Current avatar", basic: "Classic collection", special: "Special collection", default: "Default",
-    hint: "Tap to preview. Your avatar changes only when you save.", previewing: "Previewing: {{name}}", saved: "This is your saved avatar",
+    title: "Choose avatar", preview: "Avatar preview", current: "Current avatar", basic: "Classic Collection", special: "Special Collection", default: "Default",
     discardTitle: "Discard this avatar selection?", discardDescription: "Your saved avatar won’t change.", discard: "Discard selection", continue: "Keep choosing",
     imageLabel: "{{name}} avatar",
     names: { flower: "First Bloom", sprout: "Sprout", sun: "Sun", moon: "Crescent", star: "Morning Star", wave: "Wave", coffee: "Coffee", "daoxuan-special": "The Hanged", "descent-special": "Descent", house: "House", car: "Car", bird: "Bird", cloud: "Cloud", tree: "Tree", cat: "Cat", dog: "Dog", mushroom: "Mushroom", boat: "Boat", lighthouse: "Lighthouse", fish: "Fish", leaf: "Leaf", mountain: "Mountain" },
+    descriptions: { flower: "Let a little flower bloom, and add a touch of beauty.", sprout: "Sprout happily, and grow happily.", sun: "May you be as radiant as sunlight.", moon: "May you shine as softly as moonlight.", star: "Daybreak has arrived, fear no longer the bitterness of the long night.", wave: "Waves rise and fall; life always leaves room for a turn.", coffee: "The coffee is rich, but please don’t stay up too late.", "daoxuan-special": "Perhaps the world has long stood inverted; only in suspension can truth be glimpsed.", "descent-special": "Bearing ardor, nobility, and kindness, a golden meteor descends from beyond the heavens into this world." },
   },
   accountNumberSheet: {
     title: "Account number",

@@ -29,7 +29,7 @@ try{
   assert((await me()).avatarId===before.avatarId,'预览写入账户');
   assert(await p.evaluate(`document.querySelector('section svg').dataset.avatarId===${JSON.stringify(goal)}`),'头像预览未接线');
   assert(await p.evaluate(`[...document.querySelectorAll('[aria-pressed]')].every(b=>b.textContent.trim()==='')`),'网格名称未收起');
-  assert(await p.evaluate(`!!document.querySelector('[role=group][aria-label="${locale==='zh-CN'?'特典系列':'Special collection'}"]')`),'系列文案未切换');
+  assert(await p.evaluate(`!!document.querySelector('[role=group][aria-label="${locale==='zh-CN'?'特典系列':'Special Collection'}"]')`),'系列文案未切换');
   for(const width of [320,390,768]){await p.setViewport(width,844,width<500);assert(await p.evaluate('document.documentElement.scrollWidth<=innerWidth'),'头像页溢出');}
   await p.setViewport(390,844,true);await p.screenshot(`${dir}/avatars-${locale}.png`);
   if(before.avatarId!==goal){await click(locale==='zh-CN'?'保存':'Save');await p.waitFor(`location.pathname==='/profile'`);}

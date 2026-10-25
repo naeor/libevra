@@ -13,6 +13,16 @@ import { t } from "../i18n/index.js";
 
 export function avatarLabel(id: AvatarId): string { return t(`account.avatars.names.${id}`); }
 
+// 只有这九款有新文案；早期兼容头像不添加描述，避免把内部旧 ID 写进界面。
+const DESCRIBED_AVATAR_IDS = ["flower", "sprout", "sun", "moon", "star", "wave", "coffee", "daoxuan-special", "descent-special"] as const;
+type DescribedAvatarId = (typeof DESCRIBED_AVATAR_IDS)[number];
+
+export function avatarDescription(id: AvatarId): string {
+  return (DESCRIBED_AVATAR_IDS as readonly string[]).includes(id)
+    ? t(`account.avatars.descriptions.${id as DescribedAvatarId}`)
+    : "";
+}
+
 // 只有打包时导入的、已审核的本地 SVG 可成为 HTML；账户输入只能查白名单 ID。
 const APPROVED_SVG = { sprout, sun, moon, star, wave, coffee, "daoxuan-special": daoxuanSpecial, "descent-special": descentSpecial } as const;
 const ART = Object.fromEntries(Object.entries(APPROVED_SVG).map(([id, source]) => [
