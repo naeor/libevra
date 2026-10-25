@@ -55,7 +55,7 @@ export interface SpaceTransition {
  * Prefixed rather than bare, because `localStorage` is shared with everything else on the origin and
  * **a bare key like `"seen"` is how two features come to overwrite each other.**
  */
-const PRESENTATION_SEEN_PREFIX = "libellum-presentation-seen";
+import { presentationSeenKey } from "./deviceStorageKeys.js";
 
 /**
  * Whether this account has already been shown the presentation state.
@@ -71,7 +71,7 @@ const PRESENTATION_SEEN_PREFIX = "libellum-presentation-seen";
 export function readSeenPresentation(userId: string | undefined): boolean {
   if (userId === undefined) return true;
   try {
-    return window.localStorage.getItem(`${PRESENTATION_SEEN_PREFIX}:${userId}`) === "1";
+    return window.localStorage.getItem(presentationSeenKey(userId)) === "1";
   } catch {
     /** ⚠️ Private browsing refuses storage, and **a refused read must not trap somebody in the welcome.** */
     return true;
@@ -81,7 +81,7 @@ export function readSeenPresentation(userId: string | undefined): boolean {
 export function markPresentationSeen(userId: string | undefined): void {
   if (userId === undefined) return;
   try {
-    window.localStorage.setItem(`${PRESENTATION_SEEN_PREFIX}:${userId}`, "1");
+    window.localStorage.setItem(presentationSeenKey(userId), "1");
   } catch {
     // Nothing to do: the welcome will simply appear again.
   }

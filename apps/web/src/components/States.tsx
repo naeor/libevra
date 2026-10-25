@@ -40,12 +40,12 @@ export function SkeletonRows({ rows = 5 }: { readonly rows?: number }): React.JS
     <div className="flex flex-col gap-3 px-5 py-4" aria-hidden="true">
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className="flex items-center gap-3">
-          <div className="size-9 shrink-0 animate-pulse rounded-full bg-line" />
+          <div className="size-9 shrink-0 animate-pulse rounded-full bg-line motion-reduce:animate-none" />
           <div className="flex flex-1 flex-col gap-2">
-            <div className="h-3.5 w-2/5 animate-pulse rounded bg-line" />
-            <div className="h-3 w-1/4 animate-pulse rounded bg-line" />
+            <div className="h-3.5 w-2/5 animate-pulse rounded bg-line motion-reduce:animate-none" />
+            <div className="h-3 w-1/4 animate-pulse rounded bg-line motion-reduce:animate-none" />
           </div>
-          <div className="h-3.5 w-16 animate-pulse rounded bg-line" />
+          <div className="h-3.5 w-16 animate-pulse rounded bg-line motion-reduce:animate-none" />
         </div>
       ))}
     </div>

@@ -1,3 +1,4 @@
+import { isAppDeviceStorageKey } from "../deviceStorageKeys.js";
 import { clearGuestDuplicateSettings } from "../duplicateSettings.js";
 import { resetEverything } from "../offline/reset.js";
 import { resetGuestDataCache } from "./data.js";
@@ -64,9 +65,9 @@ export async function clearAllDeviceData(): Promise<void> {
       for (let index = 0; index < storage.length; index += 1) {
         const key = storage.key(index);
         if (key === null) continue;
-        // The historical `libellum-` prefix is part of the app's own keys (identity, presentation
-        // flags, message-read marks, shared-ledger hints); `current-book` predates the brand.
-        if (key.startsWith("libellum") || key === "current-book") keys.push(key);
+        // 两个品牌前缀与 `current-book` 都由 deviceStorageKeys.ts 统一定义：清理范围不能各自维护，
+        // 否则新增的 `libevra.*` 键会被漏掉（2026-10-25 S16-E 审计修复）。
+        if (isAppDeviceStorageKey(key)) keys.push(key);
       }
       for (const key of keys) storage.removeItem(key);
     }

@@ -892,7 +892,7 @@ export function DetailPage(): React.JSX.Element {
             </div>
 
             {summary.isPending ? (
-              <div className="mt-4 h-28 animate-pulse rounded-card bg-on-brand/15" />
+              <div className="mt-4 h-28 animate-pulse rounded-card bg-on-brand/15 motion-reduce:animate-none" />
             ) : (
               /*
                * One strip holding every currency, primary first.

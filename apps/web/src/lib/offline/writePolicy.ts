@@ -37,13 +37,13 @@ import { useAccountOffline } from "./connectivity.js";
  * `localStorage` rather than IndexedDB because the write layer needs a **synchronous** answer at
  * the moment a write is attempted; the async read at startup would be too late.
  */
-const STORAGE_PREFIX = "libellum:shared-ledger:";
+import { sharedLedgerKey } from "../deviceStorageKeys.js";
 
 let sharedLedger: boolean | null = null;
 const listeners = new Set<() => void>();
 
 function storageKey(bookId: string): string {
-  return `${STORAGE_PREFIX}${bookId}`;
+  return sharedLedgerKey(bookId);
 }
 
 function readStoredShared(bookId: string | null): boolean | null {

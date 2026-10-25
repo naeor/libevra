@@ -255,7 +255,9 @@ export function AccountDataPage(): React.JSX.Element {
           action: decisions[book.bookId] ?? "leave",
         })),
       });
-      if (user !== null) await clearAccountLocalData(user.id);
+      if (user !== null) {
+        await clearAccountLocalData(user.id, data.books.map((book) => book.bookId));
+      }
       setCloseResult(result);
       setDialog("close-result");
       setPassword("");

@@ -77,7 +77,7 @@ export function clearMessageDraft(): void {
  * ⚠️ **Stored in `localStorage`, not IndexedDB**, deliberately: it is not bookkeeping data, it must
  * never be mistaken for something worth syncing, and it must be safe to lose.
  */
-const SEEN_PREFIX = "libellum-messages-seen:";
+import { messagesSeenKey } from "../lib/deviceStorageKeys.js";
 
 /**
  * ⚠️ **The bare global, never `window.localStorage`.**
@@ -100,7 +100,7 @@ function storage(): Storage | null {
 
 export function markMessagesSeen(bookId: string, at: Date = new Date()): void {
   try {
-    storage()?.setItem(`${SEEN_PREFIX}${bookId}`, String(at.getTime()));
+    storage()?.setItem(messagesSeenKey(bookId), String(at.getTime()));
   } catch {
     /** ⚠️ A browser refusing storage must not break the board — the count just stays empty. */
   }
@@ -112,7 +112,7 @@ export function newMessageCount(
 ): number {
   let seenAt = 0;
   try {
-    seenAt = Number(storage()?.getItem(`${SEEN_PREFIX}${bookId}`) ?? "0") || 0;
+    seenAt = Number(storage()?.getItem(messagesSeenKey(bookId)) ?? "0") || 0;
   } catch {
     return 0;
   }
