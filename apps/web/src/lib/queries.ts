@@ -258,6 +258,15 @@ export function useUpdatePreferences() {
   const client = useQueryClient();
 
   return useMutation({
+    /**
+     * ⚠️ **`networkMode: "always"`：离线时不要静默挂起。**
+     *
+     * TanStack Query 默认的 `online` 模式会在离线时**暂停** mutation：请求不发、不失败、
+     * 一直 pending，界面上表现为「所有币种按钮变灰但没有任何说明」，恢复网络后又会自己
+     * 提交一次用户以为没生效的修改（S16-E-10 核对发现）。偏好是服务器状态，离线时无法
+     * 真正保存，所以这里选择立刻请求、把失败如实显示出来，而不是假装排队。
+     */
+    networkMode: "always",
     mutationFn: (input: UpdatePreferencesRequest) =>
       apiFetch<MeResponse>("/auth/me", { method: "PATCH", body: input }),
     onSuccess: (data) => {
