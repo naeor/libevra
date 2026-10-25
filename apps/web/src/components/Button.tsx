@@ -20,6 +20,7 @@ export function Button({
   variant = "primary",
   fullWidth = true,
   className = "",
+  disabledClassName = "",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   readonly variant?: Variant;
@@ -29,13 +30,22 @@ export function Button({
    * stylesheet order, not by the order they appear in `className`.
    */
   readonly fullWidth?: boolean;
+  /**
+   * S16：覆盖禁用态外观（例：深色主按钮整体 45% 透明后文字对比度不足时，改用浅底深字）。
+   * 只有传入它、且按钮确实禁用时才替换默认变体样式——不与 `disabled:opacity-45`
+   * 这类伪类工具类互相覆盖，两个普通工具类的先后顺序不该被用来决定视觉。
+   */
+  readonly disabledClassName?: string;
 }): React.JSX.Element {
+  const disabledLook = props.disabled === true && disabledClassName !== "";
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-2 rounded-field px-4 py-3 text-button-lg font-medium transition disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`inline-flex items-center justify-center gap-2 rounded-field px-4 py-3 text-button-lg font-medium transition ${
+        disabledLook ? disabledClassName : `${VARIANTS[variant]} disabled:opacity-45`
+      } ${props.disabled === true ? "cursor-not-allowed" : ""} ${
         fullWidth ? "w-full" : "w-auto"
-      } outline-none focus-visible:ring-4 focus-visible:ring-focus-ring ${VARIANTS[variant]} ${className}`}
+      } outline-none focus-visible:ring-4 focus-visible:ring-focus-ring ${className}`}
     />
   );
 }

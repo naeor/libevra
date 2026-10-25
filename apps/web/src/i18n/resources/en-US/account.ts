@@ -115,7 +115,7 @@ const account: Messages<typeof zh> = {
     unlockFirstLogin: "Unlocks automatically after your first sign-in",
     unlockPhilosophyDay: "Unlocks when you sign in on World Philosophy Day (third Thursday of November)",
     unlockedAt: "Unlocked {{date}}",
-    lockedSaveHint: "Unlock this avatar before saving it",
+    lockedSaveHint: "Not unlocked yet — unavailable for now.",
     creationNote: "Creation note",
     creationNoteTitle: "Creation note",
     creationNoteClose: "Got it",

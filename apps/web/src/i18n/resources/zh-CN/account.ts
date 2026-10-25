@@ -112,7 +112,7 @@ const account = {
     unlockFirstLogin: "首次登录后自动解锁",
     unlockPhilosophyDay: "每年 11 月第三个周四（世界哲学日）登录解锁",
     unlockedAt: "已于 {{date}} 解锁",
-    lockedSaveHint: "解锁后才能保存这款头像",
+    lockedSaveHint: "尚未解锁，暂不可使用",
     creationNote: "创作注记",
     creationNoteTitle: "创作注记",
     creationNoteClose: "知道了",
