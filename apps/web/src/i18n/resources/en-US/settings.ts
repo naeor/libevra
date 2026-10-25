@@ -56,7 +56,7 @@ const settings: Messages<typeof zh> = {
   },
   preview: {
     spaceLabel: "Ledger home preview",
-    slogan: "One ledger, quietly kept for years.",
+    slogan: "Bookkeeping, your way.",
     detailLabel: "Entries page preview",
     summary: "CNY · Spent this month",
     inflow: "In ¥18,000.00",

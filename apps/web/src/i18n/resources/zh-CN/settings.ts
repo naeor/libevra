@@ -53,7 +53,7 @@ const settings = {
   },
   preview: {
     spaceLabel: "账本空间起始页预览",
-    slogan: "记一本账，安静而长久。",
+    slogan: "记账，按你的方式",
     detailLabel: "明细页面预览",
     summary: "人民币 · 本月支出",
     inflow: "入账 ¥18,000.00",

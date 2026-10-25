@@ -22,7 +22,7 @@ const books = {
   /** 开始页 / 账本空间。 */
   space: {
     /** 品牌标语（海浪上的那一行）。 */
-    slogan: "记一本账，安静而长久。",
+    slogan: "记账，按你的方式",
     expandList: "展开账本列表",
     pullUp: "上滑进入我的账本",
     listLabel: "账本列表",

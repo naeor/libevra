@@ -14,8 +14,8 @@ const books: Messages<typeof zh> = {
   goToSpace: "Go to your ledgers",
   loadingShort: "Loading…",
   space: {
-    // 品牌标语：与设置 → 外观预览里的译法一致，待所有者确认。
-    slogan: "One ledger, quietly kept for years.",
+    // 品牌标语：与设置 → 外观预览里的译法一致。
+    slogan: "Bookkeeping, your way.",
     expandList: "Show ledger list",
     pullUp: "Swipe up for your ledgers",
     listLabel: "Ledger list",
