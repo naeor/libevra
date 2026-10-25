@@ -426,6 +426,22 @@ async function executeImport(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      /**
+       * 同一个 importId 的并发提交必须串行化（双击、超时重试、两个标签页同时确认）。
+       * 只靠 catch 里的短轮询不够：慢事务一旦超过轮询窗口，先失败的一方就会错误地
+       * 返回 409（S14-D D4 并发用例曾在全量测试里偶发 409）。这里用事务级 advisory
+       * lock 按 importId 排队；拿到锁后先复查回执，已有回执直接按幂等重放返回。
+       * 锁的获取顺序固定为「先 importId、后成员/账本行」，不会与其它事务形成环。
+       */
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`ledger-import:${receiptId}`}))::text`;
+      const replay = await tx.ledgerImport.findUnique({ where: { id: receiptId } });
+      if (replay !== null) {
+        if (replay.userId !== userId) {
+          throw forbidden("import_forbidden", "这个导入任务不属于当前账号。");
+        }
+        return ledgerImportResultSchema.parse(replay.result);
+      }
+
       const targetBookId = targetIsNew
         ? await createDefaultLedger(tx, userId, body.target.kind === "new" ? body.target.name : "")
         : body.target.kind === "existing"
