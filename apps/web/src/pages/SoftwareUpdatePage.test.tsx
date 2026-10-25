@@ -38,8 +38,8 @@ describe("software update announcements", () => {
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("新增功能");
-    expect(html).toContain("调整及优化");
+    expect(html).toContain("账本数据隔离修复");
+    expect(html).toContain("问题修复");
     expect(html).toContain("注意事项");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");

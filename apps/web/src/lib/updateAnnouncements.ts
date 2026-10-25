@@ -52,8 +52,8 @@ const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
   // 1.16.09 发布候选：尚未发布，status 保持 development、releasedAt 为 null；正式发布后再翻转。
   {
     version: "1.16.09",
-    releasedAt: null,
-    status: "development",
+    releasedAt: "2026-10-25",
+    status: "released",
     title: "账本数据隔离修复",
     summary: "修复新建或切换账本后显示其他账本记录的问题，并修正切换期间的本机缓存与同步归属。",
     sections: [
