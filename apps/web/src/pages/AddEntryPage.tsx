@@ -42,6 +42,7 @@ import { displayCategoryDescription, displayCategoryName } from "../lib/presetNa
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
+  useBookMembers,
   useCheckDuplicates,
   useCreateTransaction,
   useLedger,
@@ -214,6 +215,14 @@ export function AddEntryPage(): React.JSX.Element {
   const [saved, setSaved] = useState<Transaction | null>(null);
   /** Set when the next render should put the cursor back in the amount field. */
   const focusAfterReset = useRef(false);
+
+  /**
+   * **Whether this ledger has anyone else to talk to.** ⚠️ The shortcut quote only exists in a shared
+   * ledger — telling your only self about the entry you just wrote is noise, and the owner asked for
+   * it to be absent from personal books rather than hidden in them.
+   */
+  const members = useBookMembers();
+  const shared = (members.data?.members.length ?? 1) >= 2;
 
   /**
    * 疑似重复时挂起的那一笔：**先不写**，等用户决定。
@@ -543,6 +552,19 @@ export function AddEntryPage(): React.JSX.Element {
         onHome={() => {
           void navigate("/");
         }}
+        /**
+         * ⚠️ **Opens the message screen with this entry attached — it does not send anything.** The
+         * entry is already saved, so the quote is a reference to it (`?quote=transaction:<id>`), never
+         * a second write; the message screen resolves the id against the server before showing a card.
+         * Absent in a personal ledger (see `shared` above).
+         */
+        {...(shared
+          ? {
+              onQuote: () => {
+                void navigate(`/ledger/messages?quote=transaction:${saved.id}`);
+              },
+            }
+          : {})}
         onAgain={() => {
           const next = nextEntryFields(new Date());
 

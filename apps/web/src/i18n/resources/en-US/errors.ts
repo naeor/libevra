@@ -150,6 +150,9 @@ const errors: Messages<typeof zh> = {
     share_link_invalid: "This share link isn’t valid or has expired.",
     share_link_missing: "That share link couldn’t be found.",
 
+    // ---- 留言（留言可以引用账目或修改记录） ----
+    quote_target_unavailable: "The entry or edit this message quotes isn’t available anymore.",
+
     // ---- 恢复申请 ----
     recovery_not_eligible: "This ledger isn’t eligible for recovery.",
     recovery_request_decided: "This request has already been handled.",

@@ -208,3 +208,46 @@ export function GlobeIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
     </svg>
   );
 }
+
+/**
+ * **一条引用 —— 引号形状的一对逗号，不是「消息气泡」。**
+ *
+ * ⚠️ 留言引用的是**账目与修改记录**，不是回复某个人；用聊天的「回复箭头」会让这块区域看起来像一个
+ * 私聊线程，而那正是所有者反复排除的形态。引号是「这里引用了别处的一句话」的通用记号，和
+ * `QuoteReferenceCard` 的形态一致。
+ */
+export function QuoteIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M10 8.5c0 3-2 4.5-4.2 5.5M10 8.5H6.2A2.2 2.2 0 0 0 4 10.7v.8a2.2 2.2 0 0 0 2.2 2.2H10V8.5Z" />
+      <path d="M20 8.5c0 3-2 4.5-4.2 5.5M20 8.5h-3.8a2.2 2.2 0 0 0-2.2 2.2v.8a2.2 2.2 0 0 0 2.2 2.2H20V8.5Z" />
+    </svg>
+  );
+}
+
+/** Close an overlay — a thin cross, sized by the caller. */
+export function CloseIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}

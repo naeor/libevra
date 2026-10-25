@@ -538,3 +538,20 @@ export {
   type AvatarRewardsResponse,
   type SpecialAvatarId,
 } from "./rewards.js";
+
+export {
+  QUOTE_REFERENCE_KINDS,
+  messageReferenceInputSchema,
+  quoteReferenceKindSchema,
+  type MessageReferenceInput,
+  type MessageReferenceView,
+  type QuoteEventTargetView,
+  type QuoteReferenceKind,
+  type QuoteSnapshot,
+  type QuoteTargetView,
+  type QuoteTargetsResponse,
+  type QuoteTransactionTargetView,
+  type QuotedEventChange,
+  type QuotedEventSnapshot,
+  type QuotedTransactionSnapshot,
+} from "./messages.js";

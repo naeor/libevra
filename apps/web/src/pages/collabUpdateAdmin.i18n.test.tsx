@@ -159,13 +159,19 @@ vi.mock("../lib/queries.js", async (importOriginal) => {
       isSuccess: true,
       data: {
         messages: [
-          { id: "m1", senderId: "u2", senderName: "Sam", body: "Did we log the groceries?", createdAt: minutesAgo(1), mine: false },
-          { id: "m2", senderId: "u1", senderName: "Alex", body: "Yes, this morning.", createdAt: "2026-03-08T06:05:00.000Z", mine: true },
+          { id: "m1", senderId: "u2", senderName: "Sam", body: "Did we log the groceries?", createdAt: minutesAgo(1), mine: false, reference: null },
+          { id: "m2", senderId: "u1", senderName: "Alex", body: "Yes, this morning.", createdAt: "2026-03-08T06:05:00.000Z", mine: true, reference: null },
         ],
         total: 2,
       },
     }),
     useSendBookMessage: () => idle,
+    useQuoteTargets: () => ({
+      isPending: false,
+      isError: false,
+      data: { transactions: [], events: [] },
+    }),
+    useQuoteTarget: () => ({ isPending: false, isError: false, data: undefined }),
     useLedger: () => ({ isPending: false, isError: false, data: { book: { name: fakes.ledgerName } } }),
     useLookupAccount: () => idle,
     useInviteToBook: () => idle,

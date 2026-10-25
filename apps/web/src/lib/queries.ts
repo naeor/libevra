@@ -11,8 +11,13 @@ import {
   type ExportFormat,
   type LedgerMetaResponse,
   type MeResponse,
+  type MessageReferenceInput,
+  type MessageReferenceView,
   type PermanentDeleteCategoryInput,
   type PermanentDeletePaymentMethodInput,
+  type QuoteReferenceKind,
+  type QuoteTargetView,
+  type QuoteTargetsResponse,
   type RecognizeResponse,
   type StatsQuery,
   type StatsResponse,
@@ -151,6 +156,9 @@ export const queryKeys = {
    * the owner ruled out.**
    */
   bookMessages: ["book-messages"] as const,
+  /** Recent entries and edit events the composer may quote — per ledger, like the board itself. */
+  quoteTargets: ["quote-targets"] as const,
+  quoteTarget: (kind: QuoteReferenceKind, id: string) => ["quote-target", kind, id] as const,
   ledger: ["ledger"] as const,
   summary: (month: string) => ["summary", month] as const,
   transactions: (filters: TransactionFilters) => ["transactions", filters] as const,
@@ -967,6 +975,12 @@ export interface BookMessageView {
   readonly body: string;
   readonly createdAt: string;
   readonly mine: boolean;
+  /**
+   * What this message is about, when the sender chose to attach something. `null` is the normal case —
+   * quoting is optional and most messages stay plain — and `available: false` is how a quote survives
+   * the deletion of its entry without taking the board down.
+   */
+  readonly reference: MessageReferenceView | null;
 }
 
 export function useBookMessages() {
@@ -986,9 +1000,45 @@ export function useSendBookMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: string) =>
-      apiFetch<{ ok: boolean; id: string }>("/books/messages", { method: "POST", body: { body } }),
+    /**
+     * ⚠️ **The body is still the only required field.** `reference` is an optional attachment; posting
+     * without one is the pre-existing behaviour and must stay byte-for-byte the same request shape.
+     */
+    mutationFn: (input: string | { readonly body: string; readonly reference: MessageReferenceInput | null }) => {
+      const body = typeof input === "string" ? input : input.body;
+      const reference = typeof input === "string" ? null : input.reference;
+      return apiFetch<{ ok: boolean; id: string }>("/books/messages", {
+        method: "POST",
+        body: reference === null ? { body } : { body, reference },
+      });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.bookMessages }),
+  });
+}
+
+/**
+ * The picker's two columns: recent entries and recent edit events.
+ *
+ * ⚠️ **`staleTime: 0` for the same reason as the board**: the thing being quoted is usually the entry
+ * that was just added or edited on somebody's other device, and a stale picker would simply not offer it.
+ */
+export function useQuoteTargets() {
+  return useQuery({
+    queryKey: queryKeys.quoteTargets,
+    queryFn: () => apiFetch<QuoteTargetsResponse>("/books/quote-targets"),
+    staleTime: 0,
+  });
+}
+
+/** One target by id — used by the "quote this entry" shortcut after saving a new entry. */
+export function useQuoteTarget(kind: QuoteReferenceKind, id: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.quoteTarget(kind, id),
+    queryFn: () => apiFetch<QuoteTargetView>(`/books/quote-targets/${kind}/${id}`),
+    enabled: enabled && id !== "",
+    staleTime: 0,
+    /** ⚠️ The shortcut needs to *read* that a target is gone, not retry it into an error screen. */
+    retry: false,
   });
 }
 

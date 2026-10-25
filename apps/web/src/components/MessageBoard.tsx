@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
-import { ChevronIcon } from "./Icons.js";
+import type { MessageReferenceView, QuoteReferenceKind } from "@libellum/shared";
+
+import { ChevronIcon, QuoteIcon } from "./Icons.js";
+import { QuotePickerSheet, QuoteReferenceCard } from "./MessageQuote.js";
 import { FrameAction, SectionFrame } from "./SectionFrame.js";
 import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { formatInstant } from "../lib/datetime.js";
 import { useGoBack } from "../lib/connectivity.js";
-import { useBookMessages, useSendBookMessage, type BookMessageView } from "../lib/queries.js";
+import { useBookMessages, useQuoteTarget, useSendBookMessage, type BookMessageView } from "../lib/queries.js";
 
 /**
  * **这本账的留言 —— 围绕账目的公共讨论，不是聊天。**
@@ -53,9 +56,21 @@ import { useBookMessages, useSendBookMessage, type BookMessageView } from "../li
  */
 let sharedDraft = "";
 
+/**
+ * **The quote chosen for the unsent message, shared by the two views for the same reason the draft is.**
+ *
+ * ⚠️ **Only the *reference target* is held here — the snapshot always comes from the server.** If the
+ * card remembered a snapshot it fetched, it would be a second copy of the fact that could disagree with
+ * the one written on send; the picker and the shortcut both use `MessageReferenceView` produced by the
+ * API (`apps/api/src/ledger/quotes.ts`), and sending passes only `{kind, id}` — **the server re-reads the
+ * snapshot, so a client cannot invent a title or amount.**
+ */
+let sharedQuote: MessageReferenceView | null = null;
+
 /** Forget the draft. Called when the ledger changes, so text cannot cross between ledgers. */
 export function clearMessageDraft(): void {
   sharedDraft = "";
+  sharedQuote = null;
 }
 
 /**
@@ -130,6 +145,12 @@ export function newMessageCount(
 export interface MessageComposer {
   readonly draft: string;
   readonly setDraft: (value: string) => void;
+  /**
+   * The thing this message is about — **optional, and `null` for every ordinary message.**
+   * Choosing one never sends anything; it only attaches a snapshot to the next send.
+   */
+  readonly quote: MessageReferenceView | null;
+  readonly setQuote: (reference: MessageReferenceView | null) => void;
   readonly error: string | null;
   readonly sending: boolean;
   /** ⚠️ Resolves `true` only when the server accepted it — never optimistically. */
@@ -140,6 +161,7 @@ export interface MessageComposer {
 export function useMessageComposer(): MessageComposer {
   const mutation = useSendBookMessage();
   const [draft, setDraftState] = useState(sharedDraft);
+  const [quote, setQuoteState] = useState<MessageReferenceView | null>(sharedQuote);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -151,9 +173,16 @@ export function useMessageComposer(): MessageComposer {
     setDraftState(value);
   }
 
+  /** Same rule as `setDraft`: the two presentations share one quote, one place to lose it. */
+  function setQuote(reference: MessageReferenceView | null): void {
+    sharedQuote = reference;
+    setQuoteState(reference);
+  }
+
   /** ⚠️ A view that mounts after the other one wrote keeps its text, because the module holds it. */
   useEffect(() => {
     setDraftState(sharedDraft);
+    setQuoteState(sharedQuote);
   }, []);
 
   async function send(): Promise<boolean> {
@@ -163,9 +192,18 @@ export function useMessageComposer(): MessageComposer {
     setError(null);
 
     try {
-      await mutation.mutateAsync(body);
+      /**
+       * ⚠️ **Only `{kind, id}` is sent.** The server re-reads the snapshot and refuses a target that is
+       * gone or belongs to another ledger — **so quoting cannot become a way to write a fabricated
+       * title or amount into a conversation** (`apps/api/src/ledger/quotes.ts`).
+       */
+      await mutation.mutateAsync({
+        body,
+        reference: sharedQuote === null ? null : { kind: sharedQuote.kind, id: sharedQuote.id },
+      });
       /** ⚠️ Cleared only after the server said yes — see `canSend`'s note about offline. */
       setDraft("");
+      setQuote(null);
       return true;
     } catch (caught: unknown) {
       /**
@@ -182,6 +220,8 @@ export function useMessageComposer(): MessageComposer {
   return {
     draft,
     setDraft,
+    quote,
+    setQuote,
     error,
     sending: mutation.isPending,
     send,
@@ -192,12 +232,35 @@ export function useMessageComposer(): MessageComposer {
 
 /** One message: who, when, and what — in that order, and nothing else. */
 function MessageRow({ message }: { readonly message: BookMessage }): React.JSX.Element {
+  const reference = message.reference;
+
+  /**
+   * ⚠️ **A quote links to the entry it is about, when there is one left to open.** A deleted entry is a
+   * soft delete, so `transactionId` usually survives and the detail screen itself explains the deletion —
+   * deciding here that a dead link should be withheld would be a second place deciding what "deleted"
+   * means. An unavailable quote with no id at all renders as plain text.
+   */
+  const target =
+    reference === null || !reference.available
+      ? null
+      : reference.snapshot.kind === "transaction"
+        ? reference.snapshot.id
+        : reference.snapshot.transactionId;
+
   return (
-    <li className="flex flex-col gap-0.5 border-b border-line px-5 py-3 last:border-b-0">
+    <li className="flex flex-col gap-1 border-b border-line px-5 py-3 last:border-b-0">
       <span className="flex flex-wrap items-baseline gap-2">
         <span className="text-helper text-muted">{message.senderName}</span>
         <span className="text-helper text-muted">{formatWhen(message.createdAt)}</span>
       </span>
+
+      {reference === null ? null : (
+        <QuoteReferenceCard
+          reference={reference}
+          {...(target === null ? {} : { href: `/transactions/${target}` })}
+        />
+      )}
+
       {/**
         * ⚠️ **`break-words`, because a message is arbitrary text.** Without it **one long pasted
         * string scrolls the whole page sideways on a phone** — and the person who pasted it will not
@@ -312,6 +375,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
   const messages = useBookMessages();
   const composer = useMessageComposer();
   const [submitted, setSubmitted] = useState(0);
+  const [picking, setPicking] = useState(false);
   const listRef = useRef<HTMLUListElement | null>(null);
   const { t } = useI18n();
 
@@ -366,6 +430,22 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
       <div className="border-t border-line" />
 
       {/**
+        * ⚠️ **The chosen quote sits above the input, in the operation half** — the card reads as
+        * "this is what my next sentence is about", and removing it is one × in the same place it
+        * appeared. **No quote, no extra height**: the input row below is unchanged.
+        */}
+      {composer.quote === null ? null : (
+        <div className="px-3 pt-3">
+          <QuoteReferenceCard
+            reference={composer.quote}
+            onRemove={() => {
+              composer.setQuote(null);
+            }}
+          />
+        </div>
+      )}
+
+      {/**
         * ⚠️ **The operation half: one row, input left, small button right.** The owner's rules:
         * *"左侧：输入框；右侧：发送按钮"*, *"发送按钮要明显比主按钮小"*, *"输入区应尽量利用横向空间"*,
         * *"整体布局应优先保证输入框宽度."*
@@ -375,6 +455,24 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
         * width**, instead of the two splitting it evenly and the input becoming unusable.
         */}
       <div className="flex items-center gap-2 p-3">
+        {/**
+          * ⚠️ **The quote entry is a thin icon, not a labelled button.** The owner asked for a
+          * "小型引用按钮" that stays "足够低调，不要成为留言区域最醒目的元素" — a word beside the
+          * 发送 button would compete with it, and this is the one control whose whole job is to
+          * disappear until someone needs it.
+          */}
+        <button
+          type="button"
+          aria-label={t("collab.messages.quoteButton")}
+          aria-expanded={picking}
+          onClick={() => {
+            setPicking(true);
+          }}
+          className="flex size-10 shrink-0 items-center justify-center rounded-field text-muted transition hover:bg-brand-soft hover:text-brand-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
+        >
+          <QuoteIcon className="size-5" />
+        </button>
+
         <textarea
           value={composer.draft}
           onChange={(event) => {
@@ -421,6 +519,18 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
           {composer.sending ? "…" : t("collab.messages.send")}
         </button>
       </div>
+
+      {picking ? (
+        <QuotePickerSheet
+          onPick={(reference) => {
+            composer.setQuote(reference);
+            setPicking(false);
+          }}
+          onClose={() => {
+            setPicking(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -440,10 +550,35 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
  * ⚠️ **The same `useMessageComposer`**, so text typed here is the text the card shows and vice versa
  * — and a send from either place is one request, not two paths that could disagree.
  */
-export function MessageBoardFull({ bookName }: { readonly bookName: string }): React.JSX.Element {
+export function MessageBoardFull({
+  bookName,
+  quoteRequest,
+}: {
+  readonly bookName: string;
+  /**
+   * **A quote the shortcut entry handed over** (`/ledger/messages?quote=transaction:<id>`, from the
+   * 「引用留言」 line under a saved entry). ⚠️ It is a *request*, resolved here against the server —
+   * **a link cannot smuggle a title or amount in**, because only `{kind, id}` travels in the URL and
+   * the snapshot is re-read. If the target is gone, the attempt is silently dropped and the ordinary
+   * composer stays as it was; **opening the messages screen must never fail because of a quote.**
+   */
+  readonly quoteRequest?: { readonly kind: QuoteReferenceKind; readonly id: string };
+}): React.JSX.Element {
   const messages = useBookMessages();
   const composer = useMessageComposer();
+  const [picking, setPicking] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  /**
+   * ⚠️ **Fetched even when the request came from the card** — the target is what the server would
+   * write, so the card the reader sees before sending is the same card every other member will see.
+   */
+  const pendingTarget = useQuoteTarget(
+    quoteRequest?.kind ?? "transaction",
+    quoteRequest?.id ?? "",
+    quoteRequest !== undefined,
+  );
+  const appliedRequest = useRef<string | null>(null);
   /**
    * ⚠️ **S16-A: back pops this screen instead of pushing `/ledger` again.** The old control was a
    * `<Link to="/ledger">`, which *added* a ledger entry on top of the board — so the phone's back
@@ -453,6 +588,25 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
    */
   const goBack = useGoBack("/ledger");
   const { t } = useI18n();
+
+  /**
+   * ⚠️ **The shortcut entry attaches its quote once, and only once.** `appliedRequest` remembers which
+   * request was consumed so a refetch of the target cannot re-attach a quote the reader had removed —
+   * **removing a quote must stay removed**, including while the screen is open.
+   */
+  useEffect(() => {
+    if (quoteRequest === undefined || pendingTarget.data === undefined) return;
+    const requestKey = `${quoteRequest.kind}:${quoteRequest.id}`;
+    if (appliedRequest.current === requestKey) return;
+    appliedRequest.current = requestKey;
+    composer.setQuote({
+      kind: pendingTarget.data.kind,
+      id: pendingTarget.data.id,
+      available: true,
+      snapshot: pendingTarget.data.snapshot,
+    });
+    inputRef.current?.focus();
+  }, [quoteRequest, pendingTarget.data, composer]);
 
   /**
    * ⚠️ **Follow the newest message**, including the first load, because this view is *entered* to
@@ -521,8 +675,34 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
             </p>
           ) : null}
 
+          {composer.quote === null ? null : (
+            <QuoteReferenceCard
+              reference={composer.quote}
+              onRemove={() => {
+                composer.setQuote(null);
+              }}
+            />
+          )}
+
           <div className="flex items-end gap-2">
+            {/**
+              * ⚠️ Same quiet icon as the card's — **one way to start a quote, whichever view the
+              * reader happens to be in.** The label is for the screen reader, not for the eye.
+              */}
+            <button
+              type="button"
+              aria-label={t("collab.messages.quoteButton")}
+              aria-expanded={picking}
+              onClick={() => {
+                setPicking(true);
+              }}
+              className="flex size-11 shrink-0 items-center justify-center rounded-field text-muted transition hover:bg-brand-soft hover:text-brand-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
+            >
+              <QuoteIcon className="size-5" />
+            </button>
+
             <textarea
+              ref={inputRef}
               value={composer.draft}
               onChange={(event) => {
                 composer.setDraft(event.target.value);
@@ -546,6 +726,18 @@ export function MessageBoardFull({ bookName }: { readonly bookName: string }): R
           </div>
         </div>
       </div>
+
+      {picking ? (
+        <QuotePickerSheet
+          onPick={(reference) => {
+            composer.setQuote(reference);
+            setPicking(false);
+          }}
+          onClose={() => {
+            setPicking(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

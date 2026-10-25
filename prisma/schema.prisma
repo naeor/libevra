@@ -686,6 +686,16 @@ model BookMessage {
   /// does not need two timestamps beside it.**
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  /// **可选引用（S16 留言引用）：null = 普通留言。** `transaction` 引用一笔账目本身，
+  /// `event` 引用一次不可变的账目修改事件。
+  ///
+  /// ⚠️ **引用是快照，不是外键。** 目标后来被删除、或成员失去访问权时，留言仍要能显示
+  /// “当时引用的是什么”，并明确标注它已不可再打开——因此在发送时由服务端写下一份**不可变展示快照**，
+  /// 而不是读取时 join（join 会让旧引用随目标被修改而“变味”，历史引用的语义就丢了）。
+  refKind String? @map("ref_kind") @db.VarChar(16)
+  refId   String? @map("ref_id") @db.Uuid
+  refSnapshot Json? @map("ref_snapshot") @db.Json
+
   book   Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
   sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
 

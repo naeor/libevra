@@ -1,6 +1,7 @@
 import type { Transaction } from "@libellum/shared";
 
 import { Button } from "./Button.js";
+import { QuoteIcon } from "./Icons.js";
 import { useI18n } from "../i18n/index.js";
 import { formatMoney } from "../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
@@ -48,6 +49,7 @@ export function EntrySaved({
   onHome,
   onAgain,
   onUndo,
+  onQuote,
 }: {
   readonly entry: Transaction;
   readonly categoryName: string;
@@ -75,6 +77,15 @@ export function EntrySaved({
    * the fields are still on screen behind this one.
    */
   readonly onUndo?: (() => void) | undefined;
+  /**
+   * **Start a message about this entry** — only a shared ledger passes this.
+   *
+   * ⚠️ Optional by design: a personal ledger has nobody to tell, so the line is absent and the screen
+   * is exactly what it was. Even in a shared ledger it is a quiet line under the buttons, **not a
+   * dialog**: the owner's rule is that most saves must cost no extra step at all, and a control that
+   * asks "do you want to say something?" after every entry would make every save cost one.
+   */
+  readonly onQuote?: (() => void) | undefined;
 }): React.JSX.Element {
   const { t } = useI18n();
   /**
@@ -146,6 +157,23 @@ export function EntrySaved({
             className="mt-1 text-helper text-muted underline transition hover:text-ink"
           >
             {t("entry.saved.undo")}
+          </button>
+        )}
+
+        {/**
+          * ⚠️ **The shortcut quote, quieter than the undo and below it.** It is an invitation, not a
+          * step: no dialog, no focus grab, no second save. Tapping it opens the ledger's message screen
+          * with this entry attached, **and the entry is already written — quoting never writes it
+          * again.**
+          */}
+        {onQuote === undefined ? null : (
+          <button
+            type="button"
+            onClick={onQuote}
+            className="mt-1 inline-flex items-center justify-center gap-1.5 text-helper text-muted transition hover:text-ink"
+          >
+            <QuoteIcon className="size-4" />
+            {t("collab.messages.quickQuote")}
           </button>
         )}
       </div>

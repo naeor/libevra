@@ -1,7 +1,23 @@
+import type { QuoteReferenceKind } from "@libellum/shared";
+import { useSearchParams } from "react-router";
+
 import { MessageBoardFull } from "../components/MessageBoard.js";
 import { SkeletonRows } from "../components/States.js";
 import { useI18n } from "../i18n/index.js";
 import { useLedger } from "../lib/queries.js";
+
+/**
+ * ⚠️ **The shortcut entry's quote, parsed from the URL and dropped if it does not parse.** The URL is
+ * the only thing that crosses a navigation, so this is the one place the request is decoded — and a
+ * malformed link must degrade to an ordinary composer rather than fail the screen.
+ */
+function readQuoteRequest(params: URLSearchParams): { kind: QuoteReferenceKind; id: string } | undefined {
+  const raw = params.get("quote");
+  if (raw === null) return undefined;
+  const [kind, id] = raw.split(":");
+  if ((kind !== "transaction" && kind !== "event") || id === undefined || id === "") return undefined;
+  return { kind, id };
+}
 
 /**
  * **完整留言对话 —— 全屏，不是弹窗也不是半屏抽屉。**
@@ -25,6 +41,8 @@ import { useLedger } from "../lib/queries.js";
  */
 export function MessageBoardPage(): React.JSX.Element {
   const ledger = useLedger();
+  const [searchParams] = useSearchParams();
+  const quoteRequest = readQuoteRequest(searchParams);
   const { t } = useI18n();
 
   /**
@@ -57,5 +75,5 @@ export function MessageBoardPage(): React.JSX.Element {
     );
   }
 
-  return <MessageBoardFull bookName={ledger.data.book.name} />;
+  return <MessageBoardFull bookName={ledger.data.book.name} {...(quoteRequest === undefined ? {} : { quoteRequest })} />;
 }

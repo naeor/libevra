@@ -36,6 +36,35 @@ export interface HistoryEntry {
   readonly changes: readonly { readonly label: string; readonly from: string; readonly to: string }[];
 }
 
+/**
+ * The row shape `historyEntryFromRow` accepts — the exact `select` used by both the history endpoint
+ * and the quote-target endpoints, so a quoted event and a history line are rendered by one function
+ * (`教训.md` §8.12).
+ */
+export interface HistoryEventRow {
+  readonly id: string;
+  readonly kind: string;
+  readonly occurredAt: Date;
+  readonly actorName: string | null;
+  readonly transactionId: string | null;
+  readonly transactionSeq: number | null;
+  readonly changes: unknown;
+  readonly transaction: { readonly note: string | null; readonly category: { readonly name: string } } | null;
+}
+
+/** The `select` both readers use. ⚠️ Must stay in step with `HistoryEventRow`. */
+export const HISTORY_EVENT_SELECT = {
+  id: true,
+  kind: true,
+  occurredAt: true,
+  actorName: true,
+  transactionId: true,
+  transactionSeq: true,
+  changes: true,
+  transaction: { select: { note: true, category: { select: { name: true } } } },
+} as const;
+
+
 const KIND_VERB: Record<HistoryEntry["kind"], string> = {
   created: "添加了",
   updated: "修改了",
@@ -56,28 +85,38 @@ const KIND_VERB: Record<HistoryEntry["kind"], string> = {
   book_changed: "改了",
 };
 
+/** Which history kinds a reader wants — used by the quote picker to skip member/book events. */
+export interface HistoryReadOptions {
+  readonly kinds?: readonly HistoryEntry["kind"][];
+}
+
 export async function readHistory(
   prisma: PrismaClient,
   bookId: string,
   limit: number,
+  options: HistoryReadOptions = {},
 ): Promise<HistoryEntry[]> {
   const rows = await prisma.transactionEvent.findMany({
-    where: { bookId },
+    where: {
+      bookId,
+      ...(options.kinds === undefined ? {} : { kind: { in: [...options.kinds] } }),
+    },
     orderBy: { occurredAt: "desc" },
     take: limit,
-    select: {
-      id: true,
-      kind: true,
-      occurredAt: true,
-      actorName: true,
-      transactionId: true,
-      transactionSeq: true,
-      changes: true,
-      transaction: { select: { note: true, category: { select: { name: true } } } },
-    },
+    select: HISTORY_EVENT_SELECT,
   });
 
-  return rows.map((row) => {
+  return rows.map(historyEntryFromRow);
+}
+
+/**
+ * One event row → the sentence a person reads.
+ *
+ * ⚠️ **Exported because a quoted edit and the history list must say the same thing about the same
+ * event.** A second formatter would drift the day one of them learns a new field (`教训.md` §8.12).
+ */
+export function historyEntryFromRow(row: HistoryEventRow): HistoryEntry {
+
     const kind = row.kind as HistoryEntry["kind"];
     const who = row.actorName ?? "某人";
     const number = row.transactionSeq === null ? null : `#${String(row.transactionSeq).padStart(6, "0")}`;
@@ -135,7 +174,6 @@ export async function readHistory(
         to: renderValue(value?.to, key),
       })),
     };
-  });
 }
 
 // Display-only names for membership events; do not add them to entry diff tracking.

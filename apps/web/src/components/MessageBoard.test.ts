@@ -9,6 +9,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/queries.js", () => ({
   useBookMessages: vi.fn(),
   useSendBookMessage: vi.fn(),
+  /** ⚠️ Only imported by the board's quote UI; a pure-function test never mounts it. */
+  useQuoteTargets: vi.fn(),
+  useQuoteTarget: vi.fn(),
 }));
 vi.mock("../lib/api.js", () => ({ errorMessage: (caught: unknown) => String(caught) }));
 

@@ -151,6 +151,9 @@ const errors = {
     share_link_invalid: "这个分享链接无效或已失效。",
     share_link_missing: "找不到这条分享链接。",
 
+    // ---- 留言（留言可以引用账目或修改记录） ----
+    quote_target_unavailable: "引用的账目或修改记录已经不在了。",
+
     // ---- 恢复申请 ----
     recovery_not_eligible: "这本账当前不能申请恢复。",
     recovery_request_decided: "这条申请已经处理过。",

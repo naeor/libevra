@@ -1,7 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { Prisma } from "../generated/prisma/client.js";
+import { messageReferenceInputSchema } from "@libellum/shared";
 
 import type { PrismaClient } from "../db.js";
+import { badRequest } from "../lib/errors.js";
 import { confirmP0 } from "../critical/confirm.js";
 import { runP0Operation } from "./p0-operation.js";
 import { recordCriticalEvent } from "../critical/store.js";
@@ -20,6 +23,12 @@ import {
 import { changeMemberRole, listMembers, removeMember } from "../collab/members.js";
 import { recordEvent } from "../ledger/events.js";
 import { requireBook, requireBookForWrite } from "../ledger/access.js";
+import {
+  quoteEventTarget,
+  quoteTransactionTarget,
+  readQuoteTargets,
+  withMessageReferences,
+} from "../ledger/quotes.js";
 
 /**
  * Share links, and the two ways out of a ledger.
@@ -369,20 +378,72 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
       where: { bookId: book.bookId },
       orderBy: { createdAt: "desc" },
       take: query.limit ?? 50,
-      select: { id: true, senderId: true, senderName: true, body: true, createdAt: true },
+      select: {
+        id: true,
+        senderId: true,
+        senderName: true,
+        body: true,
+        createdAt: true,
+        refKind: true,
+        refId: true,
+        refSnapshot: true,
+      },
     });
 
+    /**
+     * ⚠️ **`available` is computed here, per read, not stored.** Whether the reader can still open
+     * the quoted entry is a question about *now*; the snapshot beside it is a question about *then*.
+     * A 204-deleted entry keeps its old quote card but flips to "已删除或不可访问".
+     */
+    const rowsWithReferences = await withMessageReferences(prisma, book.bookId, rows.reverse());
+
     return {
-      messages: rows.reverse().map((row) => ({
+      messages: rowsWithReferences.map((row) => ({
         id: row.id,
         senderId: row.senderId,
         senderName: row.senderName,
         body: row.body,
         createdAt: row.createdAt.toISOString(),
         mine: row.senderId === userId,
+        reference: row.reference,
       })),
       total: await prisma.bookMessage.count({ where: { bookId: book.bookId } }),
     };
+  });
+
+  // ---------------------------------------------------------------------------
+  // GET /api/v1/books/quote-targets — what the message composer may quote
+  // ---------------------------------------------------------------------------
+  /**
+   * ⚠️ **Same access rule as the board itself** (`requireBook`): quoting is reading, and a viewer
+   * who may speak may also point at what was said. It is *posting a reference* that must resolve
+   * the target under the same membership (`POST` below), so a copied id from another ledger cannot
+   * leak a title.
+   */
+  app.get("/api/v1/books/quote-targets", { preHandler: requireAuth }, async (request) => {
+    const userId = request.currentUser!.id;
+    const book = await requireBook(prisma, request, userId);
+    return readQuoteTargets(prisma, book.bookId);
+  });
+
+  // ---------------------------------------------------------------------------
+  // GET /api/v1/books/quote-targets/:kind/:id — one target, for a quick-quote link
+  // ---------------------------------------------------------------------------
+  app.get("/api/v1/books/quote-targets/:kind/:id", { preHandler: requireAuth }, async (request) => {
+    const userId = request.currentUser!.id;
+    const book = await requireBook(prisma, request, userId);
+    const params = z
+      .object({ kind: z.enum(["transaction", "event"]), id: z.string().uuid() })
+      .parse(request.params ?? {});
+
+    const target =
+      params.kind === "transaction"
+        ? await quoteTransactionTarget(prisma, book.bookId, params.id)
+        : await quoteEventTarget(prisma, book.bookId, params.id);
+    if (target === null) {
+      throw badRequest("quote_target_unavailable", "这笔账目或修改记录已经不在了。");
+    }
+    return target;
   });
 
   // ---------------------------------------------------------------------------
@@ -391,20 +452,57 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
   app.post("/api/v1/books/messages", { preHandler: requireAuth }, async (request, reply) => {
     const userId = request.currentUser!.id;
     const book = await requireBook(prisma, request, userId);
-    const body = z.object({ body: z.string().trim().min(1).max(500) }).parse(request.body ?? {});
+    /**
+     * ⚠️ **The reference is optional, and that is the feature**, not a shortcut: the owner was
+     * explicit that *"绝大多数时候，用户仍然应该像现在一样直接留言，不必选择账目"*. An absent
+     * reference must behave exactly like the pre-quote board.
+     *
+     * ⚠️ **Only `{kind, id}` is accepted from the client.** The display snapshot is built here from
+     * the book's own rows, so a crafted body cannot put another ledger's title (or a fabricated
+     * amount) onto a card that looks trustworthy.
+     */
+    const parsed = z
+      .object({
+        body: z.string().trim().min(1).max(500),
+        reference: messageReferenceInputSchema.nullish(),
+      })
+      .parse(request.body ?? {});
+
+    let refKind: "transaction" | "event" | null = null;
+    let refId: string | null = null;
+    let refSnapshot: Prisma.InputJsonValue | undefined;
+    if (parsed.reference !== null && parsed.reference !== undefined) {
+      const target =
+        parsed.reference.kind === "transaction"
+          ? await quoteTransactionTarget(prisma, book.bookId, parsed.reference.id)
+          : await quoteEventTarget(prisma, book.bookId, parsed.reference.id);
+      if (target === null) {
+        throw badRequest("quote_target_unavailable", "这笔账目或修改记录已经不在了。");
+      }
+      refKind = target.kind;
+      refId = target.id;
+      refSnapshot = target.snapshot as unknown as Prisma.InputJsonValue;
+    }
 
     const created = await prisma.bookMessage.create({
-      data: {
-        bookId: book.bookId,
-        senderId: userId,
-        /**
-         * ⚠️ **The name is copied in, not joined on read.** Joining would show the name the account
-         * has *now*, so **renaming yourself would silently rewrite every message you ever sent** —
-         * the same reasoning as `TransactionEvent.actorName`.
-         */
-        senderName: request.currentUser!.displayName,
-        body: body.body,
-      },
+      data: (() => {
+        const data: Prisma.BookMessageUncheckedCreateInput = {
+          bookId: book.bookId,
+          senderId: userId,
+          /**
+           * ⚠️ **The name is copied in, not joined on read.** Joining would show the name the account
+           * has *now*, so **renaming yourself would silently rewrite every message you ever sent** —
+           * the same reasoning as `TransactionEvent.actorName`.
+           */
+          senderName: request.currentUser!.displayName,
+          body: parsed.body,
+          refKind,
+          refId,
+        };
+        /** ⚠️ 只有真的引用时才写快照；`undefined` 在 JSON 列上不是一个合法值。 */
+        if (refSnapshot !== undefined) data.refSnapshot = refSnapshot;
+        return data;
+      })(),
       select: { id: true, createdAt: true },
     });
 

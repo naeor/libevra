@@ -134,6 +134,25 @@ describe("EntrySaved", () => {
     expect(html).toContain("text-helper text-muted underline");
   });
 
+  it("offers the shortcut quote only when the caller provides it", () => {
+    /**
+     * ⚠️ **A personal ledger passes nothing, and the screen is exactly what it was** — telling your
+     * only self about the entry you just wrote is noise, and the owner asked for the entry to be
+     * *absent* there rather than hidden.
+     */
+    const html = render({ onQuote: () => undefined });
+
+    expect(html).toContain("引用留言");
+    expect(render()).not.toContain("引用留言");
+  });
+
+  it("keeps the shortcut quote quieter than the undo", () => {
+    // It is an invitation, not a step: the eye should reach "record the next one" first.
+    const html = render({ onUndo: () => undefined, onQuote: () => undefined });
+
+    expect(html.indexOf("撤销这次记账")).toBeLessThan(html.indexOf("引用留言"));
+  });
+
   it("announces itself to a screen reader", () => {
     // Otherwise the interface silently becomes a different screen.
     expect(render()).toContain('role="status"');
@@ -178,5 +197,11 @@ describe("EntrySaved in English", () => {
     applyLocale("en-US");
 
     expect(render({ remaining: 3 })).toContain("Continue (3 left)");
+  });
+
+  it("offers the shortcut quote in English too", () => {
+    applyLocale("en-US");
+
+    expect(render({ onQuote: () => undefined })).toContain("Message about this");
   });
 });

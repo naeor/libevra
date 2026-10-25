@@ -53,6 +53,7 @@ const FULL_FILES = [
   "invites.ts",
   "ledger.ts",
   "ledgerImport.ts",
+  "messages.ts",
   "money.ts",
   "notDuplicateRelations.ts",
   "ocr.ts",
