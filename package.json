@@ -19,6 +19,7 @@
     "check:docs": "node tools/check-links.mjs && node tools/doc-audit.mjs",
     "check:links": "node tools/check-links.mjs",
     "check:status": "node tools/check-status.mjs",
+    "i18n:scan": "node tools/i18n-scan.mjs",
     "agent:brief": "node tools/agent-brief.mjs",
     "test": "pnpm -r test",
     "db:generate": "prisma generate",

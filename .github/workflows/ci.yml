@@ -67,6 +67,11 @@ jobs:
       - name: Status check
         run: pnpm check:status
 
+      # ⚠️ 国际化也会静默漏译：新增界面文字写死中文不会让任何单测失败，
+      # 但英文界面会漏中文。这步把 i18n 扫描纳入 CI 门禁（2026-10-25 新增，配合 S16-G）。
+      - name: i18n scan
+        run: pnpm i18n:scan
+
       - name: Test
         run: pnpm test
 

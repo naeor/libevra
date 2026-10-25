@@ -156,3 +156,10 @@ deploy/backups/restored/
 # （`*` 不跨 `/`），匹配不到 `deploy/.env.production.example`——
 # 它落进 `.env.*` 被忽略，模板从此进不了仓库。所以需要一条 `!` 把它放回来：
 !deploy/.env.production.example
+
+# ---- 本机媒体与设计素材（不进产品仓库，2026-10-25 发布前清理）----
+# 宣传片/配乐工程（约 2.6 GB）、另一个 AI 的头像原型工作区、临时导出素材都只留在本机；
+# 不删除、不提交。需要长期归档时另建媒体仓库或单独备份，不混进产品仓库历史。
+promo/
+Claude outputs/
+design/avatar-prototypes/
