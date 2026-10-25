@@ -63,6 +63,19 @@ describe("退出一个二级页面时去哪里", () => {
     expect(fromIndex).toBeLessThan(historyIndex);
   });
 
+  it("深链的新会话用父级 replace 自己，而不是 push", () => {
+    /**
+      * ⚠️ **push 会与父级自己的 `-1` 形成一个两屏循环**（2026-10-25 由
+      * `tools/e2e/navigation-back-verify.mjs` 在真实浏览器里复现）：
+      * 偏好（会话第一条）返回 → push 设置；设置返回 `-1` → 落回偏好；偏好又 push 设置……
+      * 会话第一条没有可回的历史，正确答案是 replace：不留影子。
+      */
+    const connectivity = source("./connectivity.ts");
+
+    expect(connectivity).not.toContain("void navigate(fallback);");
+    expect(connectivity).toContain("void navigate(fallback, { replace: true });");
+  });
+
   it("reads the state defensively", () => {
     /**
       * ⚠️ **`state` is `unknown` at runtime.** A screen that crashed because somebody passed a number

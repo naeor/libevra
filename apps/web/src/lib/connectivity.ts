@@ -143,6 +143,14 @@ export function useGoBack(fallback: string, mode: BackMode = "history"): () => v
       return;
     }
 
-    void navigate(fallback);
+    /**
+      * ⚠️ **会话第一条（深链 / 刷新）→ 用声明的父级 `replace` 自己，不是 push。**
+      *
+      * push 会留下「偏好 → 设置」这条记录；设置自己的返回走 `-1`，正好落回偏好，
+      * 而偏好（会话第一条）的返回又会 push 设置——两屏来回走圈，正是所有者报过的那类
+      * "返回总是在两个界面卡死"（2026-10-25 发布后由 `navigation-back-verify.mjs` 复现）。
+      * replace 不给自己留影子，也如实回答"深链没有可回的历史"。
+      */
+    void navigate(fallback, { replace: true });
   }, [navigate, location.key, fallback, from, mode]);
 }
