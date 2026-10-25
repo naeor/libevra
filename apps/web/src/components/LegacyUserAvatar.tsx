@@ -1,6 +1,6 @@
 import type { AvatarId } from "@libellum/shared";
 import { t } from "../i18n/index.js";
-export type LegacyAvatarId = Exclude<AvatarId, "flower" | "moon" | "sun" | "star" | "coffee" | "sprout" | "wave" | "daoxuan-special">;
+export type LegacyAvatarId = Exclude<AvatarId, "flower" | "moon" | "sun" | "star" | "coffee" | "sprout" | "wave" | "daoxuan-special" | "descent-special">;
 
 /** 仅兼容已经被用户保存的旧稿，不在正式选择区继续展示。 */
 export function LegacyUserAvatar({ avatarId, label, className = "size-24" }: {

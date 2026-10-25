@@ -7,13 +7,14 @@ import star from "../assets/avatars/04-morning-star.svg?raw";
 import wave from "../assets/avatars/05-wave.svg?raw";
 import coffee from "../assets/avatars/06-coffee.svg?raw";
 import daoxuanSpecial from "../assets/avatars/07-daoxuan-special.svg?raw";
+import descentSpecial from "../assets/avatars/08-descent-special.svg?raw";
 import { LegacyUserAvatar, type LegacyAvatarId } from "./LegacyUserAvatar.js";
 import { t } from "../i18n/index.js";
 
 export function avatarLabel(id: AvatarId): string { return t(`account.avatars.names.${id}`); }
 
 // 只有打包时导入的、已审核的本地 SVG 可成为 HTML；账户输入只能查白名单 ID。
-const APPROVED_SVG = { sprout, sun, moon, star, wave, coffee, "daoxuan-special": daoxuanSpecial } as const;
+const APPROVED_SVG = { sprout, sun, moon, star, wave, coffee, "daoxuan-special": daoxuanSpecial, "descent-special": descentSpecial } as const;
 const ART = Object.fromEntries(Object.entries(APPROVED_SVG).map(([id, source]) => [
   id, source.replace(/^<svg\b[^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(/<title\b[^>]*>[\s\S]*?<\/title>/, ""),
 ])) as Record<keyof typeof APPROVED_SVG, string>;

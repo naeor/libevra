@@ -107,7 +107,7 @@ const account = {
     hint: "轻点预览，保存后才会更换。", previewing: "正在预览：{{name}}", saved: "这是你已保存的头像",
     discardTitle: "放弃这次头像选择？", discardDescription: "你已保存的头像不会改变。", discard: "放弃选择", continue: "继续挑选",
     imageLabel: "{{name}}头像",
-    names: { flower: "初绽", sprout: "新芽", sun: "太阳", moon: "弦月", star: "晨星", wave: "海浪", coffee: "咖啡", "daoxuan-special": "倒悬", house: "小屋", car: "小车", bird: "小鸟", cloud: "云朵", tree: "树木", cat: "小猫", dog: "小狗", mushroom: "蘑菇", boat: "小船", lighthouse: "灯塔", fish: "小鱼", leaf: "叶子", mountain: "小山" },
+    names: { flower: "初绽", sprout: "新芽", sun: "太阳", moon: "弦月", star: "晨星", wave: "海浪", coffee: "咖啡", "daoxuan-special": "倒悬", "descent-special": "降临", house: "小屋", car: "小车", bird: "小鸟", cloud: "云朵", tree: "树木", cat: "小猫", dog: "小狗", mushroom: "蘑菇", boat: "小船", lighthouse: "灯塔", fish: "小鱼", leaf: "叶子", mountain: "小山" },
   },
   accountNumberSheet: {
     title: "账号编号",

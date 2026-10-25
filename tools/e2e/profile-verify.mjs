@@ -38,17 +38,17 @@ try {
   });
   await click("选择头像");
   await page.waitFor("location.pathname==='/profile/avatar'");
-  await page.waitFor("document.querySelectorAll('[aria-pressed]').length===8");
+  await page.waitFor("document.querySelectorAll('[aria-pressed]').length===9");
   await runCase(results, "独立头像页默认状态", async () => {
-    assert(await page.evaluate("document.querySelectorAll('[aria-pressed]').length===8 && document.querySelectorAll('[aria-pressed=true]').length===1"), "avatar list");
+    assert(await page.evaluate("document.querySelectorAll('[aria-pressed]').length===9 && document.querySelectorAll('[aria-pressed=true]').length===1"), "avatar list");
     await screenshot("03-avatar-default");
   });
   await runCase(results, "审核六款与默认小花上架，弦月双实例蒙版不冲突", async () => {
     const ids = await page.evaluate("Array.from(document.querySelectorAll('[aria-pressed] svg')).map(e=>e.dataset.avatarId)");
-    assert(JSON.stringify(ids) === JSON.stringify(["flower", "sprout", "sun", "moon", "star", "wave", "coffee", "daoxuan-special"]), "wrong official set");
+    assert(JSON.stringify(ids) === JSON.stringify(["flower", "sprout", "sun", "moon", "star", "wave", "coffee", "daoxuan-special", "descent-special"]), "wrong official set");
     await click("弦月");
     const masks = await page.evaluate("Array.from(document.querySelectorAll('mask')).map(e=>e.id)");
-    assert(masks.length===6 && new Set(masks).size===6,"avatar mask collision");
+    assert(masks.length===8 && new Set(masks).size===8,"avatar mask collision");
     assert(await page.evaluate("Array.from(document.querySelectorAll('[data-approved-art=moon]')).every(e=>!!e.querySelector('circle[cx=\"46.5\"][cy=\"48\"][r=\"16.5\"]'))"), "approved tangent moon changed");
     const rings = await page.evaluate("document.querySelector('[data-approved-art=star]').querySelectorAll('circle').length");
     assert(rings===2,"star double rings lost");

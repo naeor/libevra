@@ -1163,3 +1163,29 @@ html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-currency-card
 html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand { outline: 1px solid var(--color-brand-dark); outline-offset: -1px; }
 html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:hover { background: color-mix(in srgb,var(--color-brand) 88%,white); }
 html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:active { background: color-mix(in srgb,var(--color-brand) 94%,var(--color-on-brand)); }
+
+/* 降临保留绿色审核值；其他色盘从既有品牌令牌派生同样的层次。 */
+html[data-theme-mode="dark"] [data-avatar-id="descent-special"] {
+  --descent-bg: #447d63;
+  --descent-star: #fffdf5;
+  --descent-outer: #6c9c80;
+  --descent-halo: #d4e4d5;
+  --descent-flower: #4c846a;
+  --descent-special: #588e74;
+}
+
+html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) [data-avatar-id="descent-special"] {
+  --descent-bg: var(--color-brand-soft);
+  --descent-star: var(--color-brand);
+  --descent-outer: color-mix(in srgb, var(--descent-bg) 75%, var(--color-brand));
+  --descent-halo: color-mix(in srgb, var(--color-brand) 85%, var(--descent-bg));
+  --descent-flower: color-mix(in srgb, var(--descent-bg) 94%, var(--color-brand));
+  --descent-special: color-mix(in srgb, var(--descent-bg) 88%, var(--color-brand));
+}
+html[data-theme-mode="dark"][data-theme-palette]:not([data-theme-palette="green"]) [data-avatar-id="descent-special"] {
+  --descent-bg: color-mix(in srgb, var(--color-brand) 63%, black);
+  --descent-outer: color-mix(in srgb, var(--color-brand) 55%, var(--descent-bg));
+  --descent-halo: color-mix(in srgb, var(--color-brand-dark) 60%, white);
+  --descent-flower: color-mix(in srgb, var(--descent-bg) 92%, var(--color-brand));
+  --descent-special: color-mix(in srgb, var(--descent-bg) 82%, var(--color-brand));
+}

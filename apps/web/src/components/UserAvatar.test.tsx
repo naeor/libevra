@@ -6,8 +6,17 @@ import { describe, expect, it } from "vitest";
 import { UserAvatar, avatarLabel } from "./UserAvatar.js";
 
 describe("系统头像素材", () => {
-  it("新旧 21 个稳定身份均可访问，不引入外部图像请求", () => {
-    expect(AVATAR_IDS).toHaveLength(21);
+  it("降临多个实例的蒙版与裁切互不引用，完整五瓣花仅自然遮挡", () => {
+    const html = renderToStaticMarkup(<><UserAvatar avatarId="descent-special" /><UserAvatar avatarId="descent-special" /></>);
+    const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+    expect(ids).toHaveLength(6);
+    expect(new Set(ids).size).toBe(6);
+    for (const id of ids) expect(html).toContain(`url(#${id})`);
+    expect(html).toContain('translate(33 56) scale(.85) rotate(-8)');
+    expect(html.match(/data-layer="flower"/g)).toHaveLength(2);
+  });
+  it("新旧 22 个稳定身份均可访问，不引入外部图像请求", () => {
+    expect(AVATAR_IDS).toHaveLength(22);
     for (const id of AVATAR_IDS) {
       const html = renderToStaticMarkup(<UserAvatar avatarId={id} />);
       expect(html).toContain(`data-avatar-id="${id}"`);

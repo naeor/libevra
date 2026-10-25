@@ -18,13 +18,13 @@ afterAll(async () => { await prisma.$disconnect(); });
 
 describe("账户资料：鉴权、并发与身份稳定性", () => {
   it("数据库头像 CHECK 与共享白名单一致", () => {
-    const sql = readFileSync(new URL("../../../prisma/migrations/20261025040000_daoxuan_avatar/migration.sql", import.meta.url), "utf8");
+    const sql = readFileSync(new URL("../../../prisma/migrations/20261025050000_descent_avatar/migration.sql", import.meta.url), "utf8");
     const check = sql.slice(sql.indexOf("CHECK"));
     expect([...check.matchAll(/'([^']+)'/g)].map(m => m[1])).toEqual([...AVATAR_IDS]);
   });
   it("新芽与海浪可保存，旧头像 ID 继续兼容而不被重新映射", async () => {
     let previousValue = "flower";
-    for (const value of ["sprout", "wave", "daoxuan-special", "leaf", "boat", "cat", "moon"]) {
+    for (const value of ["sprout", "wave", "daoxuan-special", "descent-special", "leaf", "boat", "cat", "moon"]) {
       const response = await patch({ field: "avatarId", value, previousValue });
       expect(response.statusCode).toBe(200);
       expect(response.json().user.avatarId).toBe(value);

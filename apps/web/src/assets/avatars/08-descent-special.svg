@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="descent-title">
+  <title id="descent-title">降临 · 草图精修 · 浅底</title>
+  <defs>
+    <clipPath id="descent-frame"><circle cx="48" cy="48" r="48"/></clipPath>
+    <mask id="descent-core" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96" style="mask-type:luminance"><rect width="96" height="96" fill="white"/><circle cx="48" cy="59" r="4.4" fill="black"/></mask>
+    <mask id="descent-clearance" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96" style="mask-type:luminance"><rect width="96" height="96" fill="white"/><path d="M48 28C51.8 51.5 52.5 55.2 74 59C52.5 62.8 51.8 66.5 48 90C44.2 66.5 43.5 62.8 22 59C43.5 55.2 44.2 51.5 48 28Z" fill="black" stroke="black" stroke-width="2.2"/></mask>
+  </defs>
+  <circle cx="48" cy="48" r="48" fill="var(--descent-bg,#edf5f0)"/>
+  <g clip-path="url(#descent-frame)" mask="url(#descent-core)">
+    <g data-layer="flower" fill="var(--descent-flower,#e3eee6)" transform="translate(33 56) scale(.85) rotate(-8)">
+      <path d="M-2-1C-20-2-28-17-27-31C-8-34 2-17-2-1Z"/>
+      <path d="M1-2C-8-20 4-35 19-38C28-22 18-6 1-2Z"/>
+      <path d="M3 1C12-11 31-6 38 7C24 19 10 14 3 1Z"/>
+      <path d="M1 3C16 15 11 31-1 42C-10 25-12 11 1 3Z" fill="var(--descent-special,#dae8de)"/>
+      <path d="M-3 2C-12 17-29 21-40 12C-34-4-13-7-3 2Z"/>
+    </g>
+    <g data-layer="outer-trail" fill="var(--descent-outer,#c6ddcc)">
+      <circle data-part="wrap" cx="48" cy="59" r="18"/>
+      <path data-part="extension" d="M43-16C45 9 30 37 30 59H66C66 37 53 8 55-16Z"/>
+    </g>
+    <circle data-layer="halo" cx="48" cy="59" r="24" stroke-dasharray="96.76105373056564 9.215338450530059 40.21238596594935 4.607669225265029" stroke-dashoffset="-71.62831250184729" fill="none" stroke="var(--descent-halo,#6ca58a)" stroke-width="1.65" stroke-linecap="round" mask="url(#descent-clearance)"/>
+    <path data-layer="star" d="M48 28C51.8 51.5 52.5 55.2 74 59C52.5 62.8 51.8 66.5 48 90C44.2 66.5 43.5 62.8 22 59C43.5 55.2 44.2 51.5 48 28Z" fill="var(--descent-star,#55997a)"/>
+  </g>
+</svg>

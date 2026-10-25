@@ -26,8 +26,8 @@ export function AvatarPickerPage(): React.JSX.Element {
   const legacy = !(SELECTABLE_AVATAR_IDS as readonly string[]).includes(original);
   const groups: readonly { key: string; label: string; ids: readonly AvatarId[] }[] = [
     ...(legacy ? [{ key: "current", label: t("account.avatars.current"), ids: [original] }] : []),
-    { key: "basic", label: t("account.avatars.basic"), ids: SELECTABLE_AVATAR_IDS.filter(id => id !== "daoxuan-special") },
-    { key: "special", label: t("account.avatars.special"), ids: ["daoxuan-special"] },
+    { key: "basic", label: t("account.avatars.basic"), ids: SELECTABLE_AVATAR_IDS.filter(id => id !== "daoxuan-special" && id !== "descent-special") },
+    { key: "special", label: t("account.avatars.special"), ids: ["daoxuan-special", "descent-special"] },
   ];
   const selectedGroup = groups.find(group => group.ids.includes(selected))!;
   useDraftExit(dirty || busy);

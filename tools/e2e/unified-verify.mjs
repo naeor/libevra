@@ -23,7 +23,7 @@ try{
   await p.waitFor(`document.documentElement.lang===${JSON.stringify(locale)}`);
   await show('/profile?edit=1','button[aria-label]');
   await click(locale==='zh-CN'?'轻点头像更换':'Tap to change avatar');
-  await p.waitFor(`location.pathname==='/profile/avatar' && document.querySelectorAll('[aria-pressed]').length===8`);
+  await p.waitFor(`location.pathname==='/profile/avatar' && document.querySelectorAll('[aria-pressed]').length===9`);
   const goal=locale==='zh-CN'?'daoxuan-special':'flower',label=locale==='zh-CN'?'倒悬':'First Bloom';
   const before=await me();await click(label);
   assert((await me()).avatarId===before.avatarId,'预览写入账户');

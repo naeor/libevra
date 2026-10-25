@@ -110,7 +110,7 @@ const account: Messages<typeof zh> = {
     hint: "Tap to preview. Your avatar changes only when you save.", previewing: "Previewing: {{name}}", saved: "This is your saved avatar",
     discardTitle: "Discard this avatar selection?", discardDescription: "Your saved avatar won’t change.", discard: "Discard selection", continue: "Keep choosing",
     imageLabel: "{{name}} avatar",
-    names: { flower: "First Bloom", sprout: "Sprout", sun: "Sun", moon: "Crescent", star: "Morning Star", wave: "Wave", coffee: "Coffee", "daoxuan-special": "The Hanged", house: "House", car: "Car", bird: "Bird", cloud: "Cloud", tree: "Tree", cat: "Cat", dog: "Dog", mushroom: "Mushroom", boat: "Boat", lighthouse: "Lighthouse", fish: "Fish", leaf: "Leaf", mountain: "Mountain" },
+    names: { flower: "First Bloom", sprout: "Sprout", sun: "Sun", moon: "Crescent", star: "Morning Star", wave: "Wave", coffee: "Coffee", "daoxuan-special": "The Hanged", "descent-special": "Descent", house: "House", car: "Car", bird: "Bird", cloud: "Cloud", tree: "Tree", cat: "Cat", dog: "Dog", mushroom: "Mushroom", boat: "Boat", lighthouse: "Lighthouse", fish: "Fish", leaf: "Leaf", mountain: "Mountain" },
   },
   accountNumberSheet: {
     title: "Account number",
