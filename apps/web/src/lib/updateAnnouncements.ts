@@ -49,6 +49,31 @@ export interface UpdateAnnouncement {
  * S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  // 1.16.16 正式发布（2026-10-25）：深链返回修复与文案微调。
+  {
+    version: "1.16.16",
+    releasedAt: "2026-10-25",
+    status: "released",
+    title: "深链返回修复与文案微调",
+    summary: "修复从分享链接、通知或刷新后进入页面时返回会在两屏之间来回跳动的问题，并补充软件更新入口的提示文案。",
+    sections: [
+      {
+        heading: "问题修复",
+        items: [
+          "修复从分享链接、通知或刷新后直接打开二级页面时，连续返回可能在两个页面之间来回跳动的问题；现在第一次返回会直接回到上级页面，不再压入多余的历史记录。"
+        ]
+      },
+      {
+        heading: "调整及优化",
+        items: ["「我的 → 软件更新」的版本提示现在会说明可以点击查看更新记录。"]
+      },
+      {
+        heading: "注意事项",
+        items: ["本次为补丁更新，不涉及数据库或迁移；已登录的账号与账本数据不受影响。"]
+      }
+    ],
+    major: false
+  },
   // 1.16.15 正式发布（2026-10-25）：S16 全量候选上线。
   {
     version: "1.16.15",

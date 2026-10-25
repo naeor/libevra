@@ -81,7 +81,11 @@ async function clickRow(page, text) {
 }
 
 async function clickEntry(page, href, text) {
-  if (await clickHref(page, href)) return true;
+  // 目标页可能还在渲染（pathname 已变但列表未挂载）：最多等 2.5s 再回退到文案匹配。
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    if (await clickHref(page, href)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   return clickRow(page, text);
 }
 

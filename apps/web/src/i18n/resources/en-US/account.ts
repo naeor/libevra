@@ -11,7 +11,7 @@ const account: Messages<typeof zh> = {
     downloads: "Downloads",
     downloadsHint: "Which months are available offline, and how much space they use",
     updates: "Updates",
-    updatesHint: "Current version {{version}}",
+    updatesHint: "Current version {{version}} · Tap to see what's new",
     settings: "Settings",
     settingsHint: "Default currency, account security, display & data",
     signOut: "Sign out",

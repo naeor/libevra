@@ -12,7 +12,7 @@ const account = {
     downloads: "下载管理",
     downloadsHint: "离线能看哪些月份，以及占用多少空间",
     updates: "软件更新",
-    updatesHint: "当前版本 {{version}}",
+    updatesHint: "当前版本 {{version}} · 点击查看更新记录",
     settings: "设置",
     settingsHint: "默认币种、账号安全、显示与数据",
     signOut: "退出登录",

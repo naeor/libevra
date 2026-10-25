@@ -10,6 +10,27 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.16.16": {
+    title: "Back-navigation fix and copy tweaks",
+    summary:
+      "Fixes the back button bouncing between two pages when the app opens a subpage from a link, notification or refresh, and adds a hint to the update entry.",
+    sections: [
+      {
+        heading: "Bug fixes",
+        items: [
+          "Fixed the back button bouncing between two pages after opening a subpage from a shared link, notification or refresh; the first back now returns to the parent page without leaving an extra history entry.",
+        ],
+      },
+      {
+        heading: "Improvements",
+        items: ["The version hint under Me → Updates now explains that tapping it opens the update history."],
+      },
+      {
+        heading: "Notes",
+        items: ["This is a patch update with no database or migration changes; existing accounts and ledger data are unaffected."],
+      },
+    ],
+  },
   "1.16.15": {
     title: "Bilingual UI, system avatars and memorial rewards",
     summary:
