@@ -1,0 +1,16 @@
+# S16 feature release: bilingual UI, system avatars with memorial rewards, settings/QA hardening.
+# Adds migrations 53–57 (avatar column + reward tables + users.time_zone).
+# Keep the independently operated relay on its existing known-good image.
+services:
+  migrate:
+    image: libevra-rc-api:1.16.15-20261025
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.16.15-20261025
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.16.15-20261025
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
