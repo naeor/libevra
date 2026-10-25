@@ -320,3 +320,40 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
     ],
   },
 };
+
+/**
+ * 1.16.09 发布候选：英文译文先以候选形式保留。上面的 `UPDATE_ANNOUNCEMENTS_EN` 只对应
+ * 已发布公告，发布 1.16.09 时把这一条并入其中（`announcements.test.ts` 会检查多余译文）。
+ */
+export const UPDATE_ANNOUNCEMENTS_EN_DRAFT: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.16.09": {
+    title: "Chinese and English, and profile avatars",
+    summary:
+      "The app, server error messages and release announcements can be shown in Chinese or English, and profiles can now be edited with eight system avatars.",
+    sections: [
+      {
+        heading: "New features",
+        items: [
+          "Switch between Chinese and English in Settings → Display & data → Language, or from the top-right corner of the sign-in, sign-up and account-recovery pages. The first visit follows this browser’s language, and the choice is saved on this device.",
+          "Open Me → Profile to view and edit your profile. Each save changes one field at a time; if the value was changed elsewhere meanwhile, your input is kept and you’re asked to refresh and try again.",
+          "Eight system avatars: the Classic collection (First Bloom, Sprout, Sun, Crescent, Morning Star, Wave, Coffee) and the Special collection (Inverted). Avatars appear on Me, Profile and shared members.",
+        ],
+      },
+      {
+        heading: "Improvements",
+        items: [
+          "Dates, times, amounts and list order follow the current language. Ledger and category names stay as entered, and switching language never changes saved data or avatar choices.",
+          "Errors returned by the server are shown in the current language by error code, and Updates, history and shared pages also have English text.",
+          "Fixed a batch of English-layout and wording issues, including long-word wrapping, button labels overflowing, date formats and consistency in Updates.",
+        ],
+      },
+      {
+        heading: "Notes",
+        items: [
+          "The English copy is still being reviewed, so a few wordings may change. Legal documents currently follow the Chinese version.",
+          "The language choice is saved in this browser on this device and doesn’t sync across devices. Language settings change only what the interface and messages show; they never change financial data, permissions or saved avatar IDs.",
+        ],
+      },
+    ],
+  },
+};

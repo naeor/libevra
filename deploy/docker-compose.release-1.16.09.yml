@@ -1,0 +1,15 @@
+# Bilingual UI, profile editing and system avatars. Adds three avatar migrations (53–55).
+# Keep the independently operated relay on its existing known-good image.
+services:
+  migrate:
+    image: libevra-rc-api:1.16.09-20261025
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.16.09-20261025
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.16.09-20261025
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
