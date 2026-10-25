@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useNavigate, useSearchParams } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
+import { AvatarRewardBanner } from "../components/AvatarRewardBanner.js";
 import { CurrentBookCaption } from "../components/CurrentBookCaption.js";
 import { BottomNav } from "../components/BottomNav.js";
 import { useEntryMenu } from "../components/Layouts.js";
@@ -1357,12 +1358,22 @@ function LedgerNav({
         aria-hidden="true"
         className={`shrink-0 transition-[height] duration-200 ease-out ${open ? "h-[100px]" : "h-0"}`}
       />
-      <BottomNav
-        active="/"
-        onNavigate={onNavigate}
-        cards={{ mode: "toggle", expanded: open, active: true, onToggle }}
-        onPickImages={onPickImages}
-      />
+      {/*
+        ⚠️ **Banner and bar share one positioned wrapper, and that is the whole layout contract.**
+        The notice is absolutely positioned above this wrapper's top edge, so it always sits just
+        above the navigation no matter how tall the bar or safe area is — no fixed pixel offset,
+        no measuring, no "it was right on my phone" guess. The `+` button is raised 32px above the
+        bar, hence the 2.25rem gap in `AvatarRewardBanner`.
+      */}
+      <div className="relative shrink-0">
+        <AvatarRewardBanner />
+        <BottomNav
+          active="/"
+          onNavigate={onNavigate}
+          cards={{ mode: "toggle", expanded: open, active: true, onToggle }}
+          onPickImages={onPickImages}
+        />
+      </div>
     </>
   );
 }

@@ -86,10 +86,32 @@ export class ApiRequestError extends Error {
  *
  * Exported for tests that pin the header contract without a fetch mock.
  */
+/**
+ * The device's IANA time zone, when the browser is willing to say.
+ *
+ * ⚠️ **This is how an anniversary rule can be evaluated in the account's own
+ * local day.** The server never trusts the device clock for "now", but it does
+ * need to learn *where* the account is, or a person in Los Angeles would be
+ * judged by the UTC date and could miss their own Philosophy Day (or get it a
+ * day early). An unusable value is simply omitted — the server falls back to
+ * UTC and records the account as "time zone not yet confirmed".
+ */
+function deviceTimeZone(): string | undefined {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    return zone !== "" && zone.length <= 64 ? zone : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function buildHeaders(bookId?: string, includeLanguage = true): Record<string, string> {
+  const zone = deviceTimeZone();
   const headers: Record<string, string> = {
     accept: "application/json",
     ...(includeLanguage ? { "accept-language": currentLocale() } : {}),
+    ...(zone === undefined ? {} : { "x-libellum-time-zone": zone }),
     "x-libellum-device": deviceHeader(),
   };
 

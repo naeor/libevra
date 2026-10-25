@@ -108,6 +108,18 @@ const account = {
     imageLabel: "{{name}}头像",
     names: { flower: "初绽", sprout: "新芽", sun: "太阳", moon: "弦月", star: "晨星", wave: "海浪", coffee: "咖啡", "daoxuan-special": "倒悬", "descent-special": "降临", house: "小屋", car: "小车", bird: "小鸟", cloud: "云朵", tree: "树木", cat: "小猫", dog: "小狗", mushroom: "蘑菇", boat: "小船", lighthouse: "灯塔", fish: "小鱼", leaf: "叶子", mountain: "小山" },
     descriptions: { flower: "开一朵小花，添一点美好。", sprout: "开开心心地发芽，开开心心地长大。", sun: "愿你如日光般美好。", moon: "愿你如月芒般闪耀。", star: "拂晓已至，不必再畏惧长夜的苦寒。", wave: "浪花起起伏伏，生活总有转机。", coffee: "咖啡香醇，但不要总熬夜哦。", "daoxuan-special": "或许世界本就颠倒，唯有倒悬之时，方能窥见真相。", "descent-special": "怀抱着热忱、高洁与善良，金色的流星自天外降临此世。" },
+    locked: "未解锁",
+    unlockFirstLogin: "首次登录后自动解锁",
+    unlockPhilosophyDay: "每年 11 月第三个周四（世界哲学日）登录解锁",
+    unlockedAt: "已于 {{date}} 解锁",
+    lockedSaveHint: "解锁后才能保存这款头像",
+    creationNote: "创作注记",
+    creationNoteTitle: "创作注记",
+    creationNoteClose: "知道了",
+    notes: {
+      "daoxuan-special": "创作灵感源于《原神》。本作品为非官方致敬创作，与《原神》及其权利方无官方关联。",
+      "descent-special": "创作灵感源于《原神》。本作品为非官方致敬创作，与《原神》及其权利方无官方关联。",
+    },
   },
   accountNumberSheet: {
     title: "账号编号",

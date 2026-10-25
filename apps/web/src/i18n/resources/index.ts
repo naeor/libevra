@@ -29,6 +29,7 @@ import enNav from "./en-US/nav.js";
 import enOcr from "./en-US/ocr.js";
 import enOffline from "./en-US/offline.js";
 import enPresets from "./en-US/presets.js";
+import enRewards from "./en-US/rewards.js";
 import enSettings from "./en-US/settings.js";
 import enStats from "./en-US/stats.js";
 import enUpdate from "./en-US/update.js";
@@ -54,6 +55,7 @@ import zhNav from "./zh-CN/nav.js";
 import zhOcr from "./zh-CN/ocr.js";
 import zhOffline from "./zh-CN/offline.js";
 import zhPresets from "./zh-CN/presets.js";
+import zhRewards from "./zh-CN/rewards.js";
 import zhSettings from "./zh-CN/settings.js";
 import zhStats from "./zh-CN/stats.js";
 import zhUpdate from "./zh-CN/update.js";
@@ -85,6 +87,7 @@ export const zhCN = {
   update: zhUpdate,
   admin: zhAdmin,
   announcements: zhAnnouncements,
+  rewards: zhRewards,
 };
 
 export type TranslationResource = typeof zhCN;
@@ -115,4 +118,5 @@ export const enUS: Messages<TranslationResource> = {
   update: enUpdate,
   admin: enAdmin,
   announcements: enAnnouncements,
+  rewards: enRewards,
 };
