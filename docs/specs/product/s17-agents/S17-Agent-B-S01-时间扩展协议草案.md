@@ -588,5 +588,21 @@ B 向 S-01 v2 提交两项 **additive** 提案（不改已登记形状、不改�
 
 **冻结前规则**：新 API 在 docstring 标 “S-01 v2 draft”；W1 页面接入必须在 S-01 v2 冻结之后；B 不因此新增结果形状、不扩展只读端点（T2/G-11 不变）。性能验证计划见提案 §4（54,000 笔 / 36 月基准、`FX_PERF=1` 门控、单批 ≤50ms、`daily` 模式差异 ≤5%）。
 
+### 15.1 实现状态（2026-10-27，draft，已在本分支实现并验证）
+
+**已落地**（`packages/shared/src/fx.ts`，提交 `待回填`；提案提交 `9d77b06`）：
+
+- `FX_MAX_RANGE_MONTHS = 36`、`FX_MAX_DETAIL_ENTRIES = 50_000`；
+- `FxConvertedEntry`/`FxDetailOptions`/`FxAggregateDetail`/`FxDetailedAggregate`；
+- `aggregateFxDetailed`/`aggregateFxDetailedAsync`（`detail.daily` 恒输出、`detail.entries` 可选，逐笔与 `convertFx` 同源、`daily = Σ success` 严格守恒、失败笔不进入投影、超限 `fx_detail_limit` 不截断、异步取消不返回部分结果）；
+- `fxRangeMonths(from, to, maxMonths = 36)`（含首尾月、跨年连续、非法日期 `fx_range_invalid`、超限 `fx_range_too_long` 不截断）；
+- `apps/web/src/lib/fxView.ts` 的 `rangeMonths` 委托 `fxRangeMonths`（14→36，默认参数向后兼容；唯一消费方，页面未改）。
+
+**实测性能（`FX_PERF=1`，本机 Windows/Node，仅作回归对比）**：1,000,000 笔 daily-only **13.6 s**；200,000 笔 includeEntries **2.7 s**；10,000 次 × 36 月枚举 **0.54 s**；单笔约 13–14 µs（逐笔投影与 daily 同扫描，无二次折算）。
+
+**W1 接入建议（冻结前不接页面）**：普通图表只请求 `daily`（≤36 个月）；逐笔明细仅在详情/导出视图请求并显式 `maxEntries`（默认 50,000，>50k 走异步批次 + `yieldControl`）；UI 侧不得在渲染帧同步执行 200k 以上聚合。
+
+**证据**：`packages/shared/src/fxDetail.test.ts`（12 用例）、`fxPerformance.test.ts`（3 用例，默认 skip）、web `fxView.test.tsx`（8 用例）；`pnpm --filter @libellum/shared test` 533 passed + 3 skipped；shared/web typecheck 0。
+
 
 
