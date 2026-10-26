@@ -2,8 +2,8 @@
 
 > 本文件是 **DS-S17-C-Advanced** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent C 自己。
-> 当前状态：**规格已收到（2026-10-27）；C-0 数据契约与公共协议已交付（2026-10-27）；C-1 排行/分布/变化贡献基础已交付本地候选（2026-10-27，提交 `f801a65`），等待 Lead 验收后进入 C-2**。
-> **最后核对**：`f801a65` / 2026-10-27。
+> 当前状态：**规格已收到（2026-10-27）；C-0 数据契约与公共协议已交付（2026-10-27）；C-1 排行/分布/变化贡献基础已交付本地候选（2026-10-27，提交 `0da1997`），等待 Lead 验收后进入 C-2**。
+> **最后核对**：`0da1997` / 2026-10-27。
 
 ---
 
@@ -139,7 +139,7 @@
 |---|---|---|---|---|---|---|---|
 | 2026-10-27 | 工作区/分支/任务文档初始化（Lead 创建）；未开发 | 本文件 | 随初始化提交 | 未运行 | 无 | 见 §7 | 等待所有者第二轮需求；先评审 A 的 S-01 草案 |
 | 2026-10-27 | 初始化确认：已阅读规格与边界，未开始开发 | 本文件 | 随初始化确认提交 | 未运行（本轮仅只读核实） | 无 | 见 §7 | 等待所有者第二轮详细需求 |
-| 2026-10-27 | **C-1 交付（函数基础 + 基础图表）**：Lead 口径确认范围为 I18 + A06–A11 + A15–A17 的函数基础 + 基础图表（精确排行表/发散条/直方图/箱线/集中度/瀑布）；shared 数学权威层（`advanced/draftTypes.ts` draft 命名空间，未冻结）+ web 几何/适配器；新增单测 33（shared）+ 23（web） | 本文件；`packages/shared/src/analysis/advanced/{draftTypes,rational,quantiles,distribution,contribution,matrix,ranking,index}.ts` + `{math,structures}.test.ts`；`apps/web/src/analysis/{types,format,sharedTypes,geometry,adapters}.ts` + `{geometry,adapters}.test.ts` | `f801a65` | `pnpm --filter @libellum/shared typecheck` EXIT 0；`pnpm --filter @libellum/shared test` 20 文件/410 测试全过；`pnpm --filter @libellum/web typecheck` EXIT 0；`pnpm --filter @libellum/web test` 154 文件/1408 测试全过（含新增 23）；`node tools/check-links.mjs`、`node tools/doc-audit.mjs` 提交前跑 | 新增 draft 类型命名空间（`Draft*` 前缀，文件头声明「不是公共协议、不得被其他 Agent 引用、待映射到 S-01 v2 = QC-16」）；未接入 A 的 T2 端点，未冻结公共类型；未新增迁移 | Type 7 分位与总体标准差表示待 QC-10/QC-11；A17 增长展示口径待 QC-17；真实 DB 只读抽样未做（凭据禁令，见 C-0 文档 §7 QC-14） | 回填提交号；等 Lead 验收 C-1 → 进入 C-2（P01–P04、P08–P15、P21） |
+| 2026-10-27 | **C-1 交付（函数基础 + 基础图表）**：Lead 口径确认范围为 I18 + A06–A11 + A15–A17 的函数基础 + 基础图表（精确排行表/发散条/直方图/箱线/集中度/瀑布）；shared 数学权威层（`advanced/draftTypes.ts` draft 命名空间，未冻结）+ web 几何/适配器；新增单测 33（shared）+ 23（web） | 本文件；`packages/shared/src/analysis/advanced/{draftTypes,rational,quantiles,distribution,contribution,matrix,ranking,index}.ts` + `{math,structures}.test.ts`；`apps/web/src/analysis/{types,format,sharedTypes,geometry,adapters}.ts` + `{geometry,adapters}.test.ts` | `0da1997` | `pnpm --filter @libellum/shared typecheck` EXIT 0；`pnpm --filter @libellum/shared test` 20 文件/410 测试全过；`pnpm --filter @libellum/web typecheck` EXIT 0；`pnpm --filter @libellum/web test` 154 文件/1408 测试全过（含新增 23）；`node tools/check-links.mjs`、`node tools/doc-audit.mjs` 提交前跑 | 新增 draft 类型命名空间（`Draft*` 前缀，文件头声明「不是公共协议、不得被其他 Agent 引用、待映射到 S-01 v2 = QC-16」）；未接入 A 的 T2 端点，未冻结公共类型；未新增迁移 | Type 7 分位与总体标准差表示待 QC-10/QC-11；A17 增长展示口径待 QC-17；真实 DB 只读抽样未做（凭据禁令，见 C-0 文档 §7 QC-14） | 回填提交号；等 Lead 验收 C-1 → 进入 C-2（P01–P04、P08–P15、P21） |
 
 ---
 
