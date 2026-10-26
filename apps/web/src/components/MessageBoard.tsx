@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import type { MessageReferenceView, QuoteReferenceKind } from "@libellum/shared";
@@ -406,11 +406,12 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
   if (messages.isError) return <p className="px-5 py-4 text-body text-muted">{t("collab.messages.loadFailed")}</p>;
 
   /**
-   * ⚠️ **The newest few, and the list is already newest-first from the server.** `slice` rather than
-   * a reversed copy: the order on screen is the order that arrives, so there is no second place
-   * deciding what "most recent" means.
+   * ⚠️ **The newest few, at the bottom.** `/books/messages` returns **oldest → newest** (the server
+   * reverses its descending query before returning), so the last `limit` rows are the latest ones;
+   * `slice(-limit)` keeps them in reading order — newest at the bottom, same as the full screen.
+   * (m07047: this used to take the first rows, which are the oldest.)
    */
-  const shown = messages.data.messages.slice(0, limit);
+  const shown = messages.data.messages.slice(-limit);
 
   return (
     <div className="flex flex-col">
@@ -589,7 +590,7 @@ export function MessageBoardFull({
   const messages = useBookMessages();
   const composer = useMessageComposer();
   const [picking, setPicking] = useState(false);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   /**
    * ⚠️ **Fetched even when the request came from the card** — the target is what the server would
@@ -631,11 +632,14 @@ export function MessageBoardFull({
   }, [quoteRequest, pendingTarget.data, composer]);
 
   /**
-   * ⚠️ **Follow the newest message**, including the first load, because this view is *entered* to
-   * read the latest — unlike the card, which only moves when it sent something.
+   * ⚠️ **Open at the newest message.** This screen is entered to read *what just happened*, so the
+   * first paint — cached or freshly fetched — scrolls the history to its end; new messages keep it
+   * pinned there. (m07047: the list is oldest → newest, so the bottom is the latest.)
    */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    const scroller = scrollRef.current;
+    if (scroller === null) return;
+    scroller.scrollTop = scroller.scrollHeight;
   }, [messages.data?.messages.length, composer.sending]);
 
   return (
@@ -665,27 +669,25 @@ export function MessageBoardFull({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col pb-4">
           {messages.isPending ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loading")}</p> : null}
           {messages.isError ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loadFailed")}</p> : null}
 
           {messages.isSuccess ? (
             /**
-             * ⚠️ **Oldest-first here, and newest-first on the card** — the same data, read in the
-             * direction each view is for. A conversation is read downwards; a card is a glance at
-             * what just happened. **This is presentation, not a second source.**
+             * ⚠️ **Oldest-first, newest at the bottom.** The server already returns ascending order,
+             * so the list renders as received — a conversation is read downwards and the latest
+             * sentence is the last one. **This is presentation, not a second source.**
              */
             <ul className="flex flex-col">
-              {[...messages.data.messages].reverse().map((message) => (
+              {messages.data.messages.map((message) => (
                 <MessageRow key={message.id} message={message} />
               ))}
             </ul>
           ) : null}
 
           {messages.isSuccess && messages.data.messages.length === 0 ? <EmptyBoard /> : null}
-
-          <div ref={bottomRef} />
         </div>
       </div>
 

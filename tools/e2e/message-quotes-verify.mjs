@@ -1,4 +1,4 @@
-﻿/**
+/**
  * E2E：共享账本留言的「账目引用」功能（m05272）。
  *
  * 覆盖：
@@ -228,6 +228,7 @@ const electricity = await createEntry("电费", 12000);
 assert(grocery.id !== electricity.id, "两笔账目 id 相同");
 
 let groceryQuoteToken = "";
+let plainToken = "";
 
 await login(cookie, SHARED);
 await page.navigate(`${WEB}/ledger/messages`);
@@ -247,6 +248,7 @@ await runCase(results, "留言页默认仍是简单输入框，引用按钮低�
 
 await runCase(results, "普通留言可以直接发送，不需要任何引用", async () => {
   const token = uniqueToken("普通留言");
+  plainToken = token;
   await typeIntoComposer(token);
   await sendMessage();
   await waitForMessage(token);
@@ -254,6 +256,48 @@ await runCase(results, "普通留言可以直接发送，不需要任何引用",
   assert(row, "发送后的留言不在列表里");
   assert(!row.includes("¥"), "普通留言不应该出现引用卡片");
   return `${token} 已发送且不带引用`;
+});
+
+await runCase(results, "留言顺序与默认位置：最新在最下面，从协作页展开后自动停在最下方", async () => {
+  // 先看协作页的小卡片：最新一条应该在卡片最下面。
+  await page.navigate(`${WEB}/ledger`);
+  await page.waitFor("document.readyState === 'complete'");
+  await page.waitFor("document.body.innerText.includes('展开完整对话')", 15000);
+  await page.waitFor(`document.body.innerText.includes(${JSON.stringify(plainToken)})`, 8000);
+  const cardRows = await page.evaluate(`(() => {
+    const list = [...document.querySelectorAll('ul')].find((node) => node.className.includes('max-h'));
+    return [...(list?.querySelectorAll('li') ?? [])].map((row) => row.innerText);
+  })()`);
+  assert(cardRows.length > 0, "协作页留言卡片里没有留言");
+  assert(
+    cardRows.at(-1).includes(plainToken),
+    `卡片最下面不是最新留言：${cardRows.at(-1).slice(0, 60)}`,
+  );
+
+  // 再点「展开完整对话」，全屏页应该停在最下方（最新）。
+  const expanded = await clickText("展开完整对话");
+  assert(expanded, "没有「展开完整对话」入口");
+  await page.waitFor("location.pathname === '/ledger/messages'", 8000);
+  await page.waitFor("document.querySelector('textarea') !== null", 15000);
+  await page.waitFor(`document.body.innerText.includes(${JSON.stringify(plainToken)})`, 8000);
+  await sleep(400);
+  const state = await page.evaluate(`(() => {
+    const scroller = [...document.querySelectorAll('div')].find((node) => {
+      const style = getComputedStyle(node);
+      return style.overflowY === 'auto' && node.scrollHeight > node.clientHeight + 20;
+    });
+    if (!scroller) return null;
+    const rows = [...scroller.querySelectorAll('li')];
+    return {
+      atBottom: Math.abs(scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop) < 4,
+      lastRow: rows.at(-1)?.innerText ?? '',
+    };
+  })()`);
+  assert(state !== null, "没有找到留言滚动区");
+  assert(state.lastRow.includes(plainToken), `最新留言不在列表最下面：${state.lastRow.slice(0, 60)}`);
+  assert(state.atBottom, "进入留言页没有默认跳到最下方");
+  await shot("02c-messages-bottom.png");
+  return "卡片与全屏页都是最新在下，进入后停在最下方";
 });
 
 await runCase(results, "引用面板从下往上展开、从上往下收回（入场/退场动画类齐全）", async () => {
