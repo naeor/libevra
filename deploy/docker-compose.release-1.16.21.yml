@@ -1,0 +1,17 @@
+# Release 1.16.21: exchange-rate conversion, cross-currency totals and the
+# offline save fix, plus the 1.16.17/1.16.18 changes already released locally.
+# Database migrations: 59 (20261026080000_message_quotes and 20261026120000_fx_public_rates).
+# Keep the independently operated relay on its existing known-good image.
+services:
+  migrate:
+    image: libevra-rc-api:1.16.21-20261026
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.16.21-20261026
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.16.21-20261026
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

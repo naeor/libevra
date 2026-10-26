@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { activeMajorAnnouncements } from "@libellum/shared";
 import { selectDisplayedMajorAnnouncement } from "./majorAnnouncementVisibility.js";
@@ -42,6 +42,7 @@ describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.16.21",
       "1.16.18",
       "1.16.16",
       "1.16.15",
@@ -70,8 +71,9 @@ describe("version announcements", () => {
     expect(released.filter((entry) => originalVersions.has(entry.version)).map(identity)).toEqual(
       original.announcements.map(identity),
     );
-    expect(released[0]?.version).toBe("1.16.18");
+    expect(released[0]?.version).toBe("1.16.21");
     expect(released.filter((entry) => !originalVersions.has(entry.version)).map((entry) => entry.version)).toEqual([
+      "1.16.21",
       "1.16.18",
       "1.16.16",
       "1.16.15",
@@ -79,7 +81,7 @@ describe("version announcements", () => {
       "1.16.08",
       "1.16.03",
     ]);
-    // 1.16.15 / 1.16.16 已于 2026-10-25 正式发布，1.16.18 于 2026-10-26 发布，必须出现在“已发布”列表里。
+    // 1.16.15 / 1.16.16 已于 2026-10-25 正式发布，1.16.18 与 1.16.21 于 2026-10-26 发布，必须出现在“已发布”列表里。
     expect(released.some((entry) => entry.version === "1.16.15")).toBe(true);
     expect(released.some((entry) => entry.version === "1.16.16")).toBe(true);
     expect(released.some((entry) => entry.version === "1.16.18")).toBe(true);
@@ -96,7 +98,10 @@ describe("version announcements", () => {
       expect(section.items.length).toBeGreaterThan(0);
       expect(section.items.every(item => item.trim().length > 0)).toBe(true);
     }
-    if (entry.version === "1.16.18") {
+    if (entry.version === "1.16.21") {
+      expect(entry.releasedAt).toBe("2026-10-26");
+      expect(entry.revisedAt).toBeUndefined();
+    } else if (entry.version === "1.16.18") {
       expect(entry.releasedAt).toBe("2026-10-26");
       expect(entry.revisedAt).toBeUndefined();
     } else if (entry.version === "1.16.16") {
@@ -156,6 +161,9 @@ describe("version announcements", () => {
   });
 
   it("answers with the latest applicable release for a running version", () => {
+    expect(latestApplicableAnnouncement("1.16.21")?.version).toBe("1.16.21");
+    expect(latestApplicableAnnouncement("1.16.20")?.version).toBe("1.16.18");
+    expect(latestApplicableAnnouncement("1.16.19")?.version).toBe("1.16.18");
     expect(latestApplicableAnnouncement("1.16.18")?.version).toBe("1.16.18");
     expect(latestApplicableAnnouncement("1.16.17")?.version).toBe("1.16.16");
     expect(latestApplicableAnnouncement("1.16.16")?.version).toBe("1.16.16");
@@ -203,7 +211,9 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.16.09")).toBe(true);
     expect(hasNewerReleasedVersion("1.16.15")).toBe(true);
     expect(hasNewerReleasedVersion("1.16.16")).toBe(true);
-    expect(hasNewerReleasedVersion("1.16.18")).toBe(false);
+    expect(hasNewerReleasedVersion("1.16.19")).toBe(true);
+    expect(hasNewerReleasedVersion("1.16.20")).toBe(true);
+    expect(hasNewerReleasedVersion("1.16.21")).toBe(false);
   });
 
   it("returns all actual releases and leaves the first page to the UI", () => {
@@ -223,7 +233,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.16.18").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.16.21").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.16.21").older?.version).toBe("1.16.18");
+    expect(adjacentReleasedAnnouncements("1.16.18").newer?.version).toBe("1.16.21");
     expect(adjacentReleasedAnnouncements("1.16.18").older?.version).toBe("1.16.16");
     expect(adjacentReleasedAnnouncements("1.16.16").newer?.version).toBe("1.16.18");
     expect(adjacentReleasedAnnouncements("1.16.16").older?.version).toBe("1.16.15");

@@ -38,6 +38,8 @@ export interface UpdateAnnouncement {
 }
 
 /**
+ * 1.16.21 is the exchange-rate conversion + cross-currency analysis release
+ * (2026-10-26), a normal (non-popup) announcement.
  * 1.15.05 is the paste-entry + voice-parsing + five-way shortcut-menu release
  * (2026-10-23), a normal (non-popup) announcement. 1.15.04 is the
  * old-major-announcement display fix (2026-10-22), also normal (non-popup).
@@ -49,6 +51,48 @@ export interface UpdateAnnouncement {
  * S13-E release.
  */
 const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+  // 1.16.21 正式发布（2026-10-26）：汇率折算模式、跨币种统计与离线保存修复。
+  {
+    version: "1.16.21",
+    releasedAt: "2026-10-26",
+    status: "released",
+    title: "汇率折算与跨币种统计",
+    summary:
+      "新增可选的汇率折算模式：把不同币种的账目按交易日期折算成默认币种查看，分析与详情保留原币；另修复个人账本离线新增账目可能停在保存中的问题。",
+    sections: [
+      {
+        heading: "新增功能",
+        items: [
+          "新增「汇率折算模式」，默认关闭。在「设置 → 显示与数据 → 汇率折算」中开启后，明细会同时显示折算金额与原币金额；分析新增综合视图，把不同币种按默认货币汇总，也可以随时切回分币种分析。",
+          "折算使用账目交易日期对应的历史参考汇率（来源 ECB，经 Frankfurter 获取）；周末与节假日自动回退到最近可用日期，详情里会写明交易日期、实际参考日、来源与使用的汇率。",
+          "汇率折算按账号保存在当前设备，切换账号、账本或统计货币时互不影响；只改变本机显示，其他成员看到的数据和权限不变。"
+        ]
+      },
+      {
+        heading: "调整及优化",
+        items: [
+          "账目、编辑、导出以及共享账本里保存的金额始终是原始币种与原始金额；折算结果只用于查看与统计，不会写回任何一条记录。",
+          "缺汇率、离线或本机保存的时段不完整时，统计会明确标注为不完整并给出可定位的账目，不显示可能误导的百分比；成功折算的部分单独给出小计。",
+          "设置首页与「显示与数据」中的入口文案随汇率功能同步整理，中英文保持一致。"
+        ]
+      },
+      {
+        heading: "问题修复",
+        items: [
+          "修复个人账本在离线或网络不稳定时，新增账目可能因重复检测等待联网而一直停在保存中的问题；现在先在本机完成检测与保存，联网后再同步。"
+        ]
+      },
+      {
+        heading: "注意事项",
+        items: [
+          "本次更新包含第 59 号数据库迁移，只新增公共参考汇率缓存表，不改动账目、账本与成员权限；升级时自动完成。",
+          "汇率折算默认关闭，升级后原有页面与数据保持不变；开启后才显示折算金额。",
+          "参考汇率用于查看与统计，实际结算金额仍以银行或支付渠道的成交价为准。"
+        ]
+      }
+    ],
+    major: false
+  },
   // 1.16.18 正式发布（2026-10-26）：品牌标语、留言引用与头像页优化。
   {
     version: "1.16.18",

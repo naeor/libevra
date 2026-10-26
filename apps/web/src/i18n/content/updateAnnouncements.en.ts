@@ -10,6 +10,43 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.16.21": {
+    title: "Exchange-rate conversion and cross-currency totals",
+    summary:
+      "Adds an optional exchange-rate view that converts entries into your default currency at the historical rate for their date, while analyses and details keep the original amounts; also fixes entries getting stuck while saving offline.",
+    sections: [
+      {
+        heading: "New features",
+        items: [
+          "An optional “Exchange-rate conversion” mode, off by default. When you turn it on under Settings → Display & data → Exchange rate, the entry list shows both the converted and original amounts; Insights gains a combined view that totals different currencies in your default currency, and you can switch back to per-currency analysis at any time.",
+          "Conversion uses the historical reference rate for each entry's date (ECB rates via Frankfurter); on weekends and holidays it falls back to the most recent available date, and the entry details show the trade date, the actual reference date, the source and the rate used.",
+          "The conversion setting is stored per account on this device and stays separate when you switch accounts, ledgers or target currencies; it only affects what this device displays, while other members' data and permissions stay unchanged."
+        ]
+      },
+      {
+        heading: "Improvements",
+        items: [
+          "Entries, editing, exports and the amounts stored in shared ledgers always keep their original currency and amount; converted values are for viewing and totals only and are never written back to any record.",
+          "When rates are missing, you are offline, or the locally stored period is incomplete, totals are marked as incomplete with the affected entries listed instead of showing misleading percentages, and the converted part is shown as a separate subtotal.",
+          "The Settings home and the Display & data entry were tidied up alongside the new exchange-rate screen, with matching Chinese and English copy."
+        ]
+      },
+      {
+        heading: "Bug fixes",
+        items: [
+          "Fixed an issue where adding an entry in a personal ledger could stay in the saving state when offline or on an unstable network, because the duplicate check waited for a connection; detection and saving now happen locally first and sync once you're back online."
+        ]
+      },
+      {
+        heading: "Notes",
+        items: [
+          "This update includes database migration 59, which only adds a public reference-rate cache table and leaves entries, ledgers and member permissions unchanged; it runs automatically.",
+          "Exchange-rate conversion is off by default, so existing screens and data look the same after upgrading; converted amounts appear only after you turn it on.",
+          "Reference rates are for viewing and totals; the amount actually settled by your bank or payment provider may differ."
+        ]
+      }
+    ]
+  },
   "1.16.18": {
     title: "New brand tagline, message quotes and avatar page polish",
     summary:
