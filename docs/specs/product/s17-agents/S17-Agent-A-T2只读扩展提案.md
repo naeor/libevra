@@ -4,7 +4,7 @@
   - 所有者原话：「只读扩展允许批准；只要不是修改就行……私钥等私密文件绝对不允许被读取。」
   - 实现位置：`packages/shared/src/analytics.ts`（共享契约）、`packages/shared/src/analysis/adapters/analytics.ts`（DTO → 计算形态）、`apps/api/src/routes/analytics.ts`（两个只读 GET）、`apps/api/src/app.ts`（以 `requireBookRead` 注册，**没有写路由、没有新权限规则**）。
   - 实现提交：`21c0438 feat(s17): Agent A T2 只读扩展（只读端点）`（本地提交，未推送；分支 `deepseek/s17-finance-category`）。
-  - 测试：`packages/shared/src/analytics.test.ts`（20）、`packages/shared/src/analysis/adapters/analytics.test.ts`（6）、`apps/api/test/analytics.test.ts`（14，集成测试需 `TEST_DATABASE_URL`，本 worktree 无数据库，见 §9.5）。
+  - 测试：`packages/shared/src/analytics.test.ts`（31）、`packages/shared/src/analysis/adapters/analytics.test.ts`（11）、`apps/api/test/analytics.test.ts`（14，集成；Lead m02818 授权后在本地 `ledger_test` 跑通 14/14，见 `S17-Agent-A-T2-验收证据包.md` 条件 4）。
   - 实现记录与偏差登记见 §9；任务文档新增 §15 记录批准与实现。
 - 提出：DS-S17-A-Finance（Agent A）
 - 目的：补齐「来源追溯」与「综合模式逐笔折算」所缺的只读数据入口；对应任务文档 §7 的 A-Q13 / A-Q17
@@ -244,7 +244,7 @@ A 侧落地（已实现，2026-10-27）：`packages/shared/src/analysis/adapters
 - [x] 不返回敏感字段（见 9.1）。
 - [x] 金额字符串化，`> Number.MAX_SAFE_INTEGER` 无损（适配器另有 safe-integer 校验）。
 - [x] shared 层边界测试覆盖 schema/边界/精度（`analytics.test.ts` 31 + `adapters/analytics.test.ts` 11 = 42 项）。
-- [ ] 集成测试在带 `TEST_DATABASE_URL` 的环境执行（本 worktree 无数据库，见 9.3；Lead m01325 指示本轮不跑，等 Lead 统一环境）。
+- [x] 集成测试在本地 `ledger_test` 执行（Lead m02818 授权）：`prisma migrate deploy` exit 0；`test/analytics.test.ts` 14/14 + `test/stats.test.ts` 11/11 = **25 passed**（证据见 `S17-Agent-A-T2-验收证据包.md` 条件 4）；最终「已验收」由所有者签认。
 
 ### 9.6 变更记录
 

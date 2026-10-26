@@ -291,7 +291,7 @@ describe("GET /analytics/extremes", () => {
 describe("analytics read authorization", () => {
   it("lets a viewer read but never write, and keeps outsiders out", async () => {
     const ownerCookie = await signUp(app, "analytics_auth_owner");
-    const viewerCookie = await signUp(app, "analytics_auth_viewer");
+    const viewerCookie = await signUp(app, "analytics_auth_view");
     const book = await prisma.book.findFirst({ where: { creator: { username: "analytics_auth_owner" } } });
     expect(book).not.toBeNull();
 
@@ -309,7 +309,7 @@ describe("analytics read authorization", () => {
     );
     expect(forbidden.statusCode).toBe(403);
 
-    const viewer = (await prisma.user.findUnique({ where: { username: "analytics_auth_viewer" } }))!;
+    const viewer = (await prisma.user.findUnique({ where: { username: "analytics_auth_view" } }))!;
     await prisma.bookMember.create({ data: { bookId: book!.id, userId: viewer.id, role: "viewer" } });
 
     const allowed = await get(

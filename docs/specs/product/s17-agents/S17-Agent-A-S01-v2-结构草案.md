@@ -39,6 +39,7 @@
 | C · 数据契约/公共协议 | `S17-Agent-C-C0-数据契约与公共协议-20261027.md`（C 工作区，只读） | C-0；QC-01…QC-17 |
 | C · 专业分析 | C-1/C-2 交付记录与 `Draft*` 类型（C 工作区，只读） | QC-18…QC-25 新增；`Draft*` 未冻结 |
 | D · 布局侧接口 | `S17-Agent-D-S03-接口草案-布局侧-v1.md`（D 工作区，只读） | S-03 draft v0.2；Lead 六问已裁定；数值待 W3 |
+| B · 正式冲突检查意见（2026-10-27） | `docs/specs/design/S17-B-S01-v2冲突检查意见.md`（B 工作区，提交 `b7daa74`，只读；Lead m02628 转发） | 8 🔴 / 5 🟡 / 8 ✅ / 5 🟢；A 在 **r4** 处理并登记跨 Agent 冲突表 AC-B01…AC-B13；未冻结 |
 
 **已并入 S-01 draft 的跨 Agent 结论**（见 s01-draft §15–§17）：B 七形状命名归 A、`dataVersion`/`coverageEnd`/`bucket` 语义、半开↔闭区间换算、区间上限两类边界、闰日对齐、A05 默认窗口政策。
 
@@ -51,12 +52,12 @@
 | 字段 | v2 口径 | 状态 |
 |---|---|---|
 | `version` | `"s01-v2-draft"`（冻结时定正式版本串） | 🟡 版本号命名待 Lead 定 |
-| `analysisId` / `analysisType` / `metric` | 沿用；`analysisType` 命名空间 `<domain>.<name>`，domain ∈ `basic\|category\|time\|dist\|cross\|record`（domain 可扩） | 👍 |
+| `analysisId` / `analysisType` / `metric` | 沿用；`analysisType` 命名空间 `<domain>.<name>`，domain ∈ `basic\|category\|time\|dist\|cross\|record\|fx`（开放，**`fx` 由 XC-02 补入**：P16–P20 的 FX 诊断以 `analysisType="fx.*"` 自描述，不依赖单值枚举；未知域允许 `<domain>.<name>` 形式）；**`metric` 允许 `count`**（计数类序列用整数，`MoneyValue` 不适用；也允许 `<domain>.<name>` 形式，未知 metric 必须带 `unavailableReason`，不得静默当 0）——B-V2-05 澄清已采纳 | 👍（B-V2-05、XC-02） |
 | `resolvedFilters` / `resolvedPeriod` / `resolvedCurrency` | 沿用；`resolvedPeriod` 仍为**闭区间**；月键比较另带比较键元数据 | 👍 |
 | `completeness` | 沿用 9 态；时间桶级**复用**同一枚举（不新增桶级枚举） | 👍 |
-| `dataVersion` | 书级数据版本令牌，由计算入口提供、A 只透传；缓存键必须包含 | 👍 |
-| `computation` | 增可选 `method`（如 `quantile-type7`/`population-stddev`/`histogram-sturges`）、`sampling?`（视觉采样元信息，不可回算）、`coverageEnd?`、**`analysisLimit?`**（`maxAnalysisDays`/`maxMonths` 越界可追溯，B 缺口 1 / G-18） | 🟡 字段名/是否进冻结待评审（R-09） |
-| `source` | `SourceDescriptor.query.kind` 增 `"analysis-records"`、`"fx"`（记录级/FX 只读投影）；`bucket?`（B 时间桶，格式 `{ key, granularity, span: { start, end } }`）；按 B X-02 **删除 `timeBucket?`**，不保留两套桶引用 | 🟡 待裁定（QC-01/QC-13/G-02） |
+| `dataVersion` | 书级数据版本令牌，由计算入口提供、A 只透传；缓存键必须包含。**B-V2-08 澄清**：web 客户端本地计算路径当前无服务端入口，允许 `string \| null`（`null`=客户端本地计算、非权威），取值规则由 **G-10** 裁定；冻结前不得把客户端令牌当权威 | 🟡 G-10（B-V2-08 已登记） |
+| `computation` | 增可选 `method`（如 `quantile-type7`/`population-stddev`/`histogram-sturges`；**B-V2-10 补充取值**：`population-stddev`/`sample-cv-fixedpoint`/`mad-median`/`iqr-quantile`，开放字符串、未知值透传不重算；**XC-07/XC-41**：直方图算法名与算法本体待所有者裁定——C 现实现为 `histogram-nice-bin-width`（非 Sturges），分位名 C 用 `type7-linear`，v2 暂登记两候选、冻结前统一）、`sampling?`（仅**视觉层**采样元信息，不可回算；**XC-08/XC-35**：结果层可追溯采样字段（如 `strategy`/`omittedCount`/`sampleCount`/`complete`）为权威，`computation.sampling` 只作视觉标注且不得与结果层冲突）、`coverageEnd?`、**`analysisLimit?`**（`maxAnalysisDays`/`maxMonths` 及 C 的 `MAX_*` 越界可追溯，B 缺口 1 / G-18 / **XC-09**） | 🟡 字段名/是否进冻结待评审（R-09） |
+| `source` | `SourceDescriptor.query.kind` 增 `"analysis-records"`、`"fx"`（记录级/FX 只读投影）；`bucket?`（B 时间桶，格式 `{ key, granularity, span: { start, end } }`）；按 B X-02 **删除 `timeBucket?`**，不保留两套桶引用；**B-V2-06 收窄映射见 §4.4**（`stats`/`transactions`/`analysis-records`/`fx`，允许 `kind: string`+可选 `params`，未知 kind 必须报 `unavailableReason`） | 🟡 待裁定（QC-01/QC-13/G-02） |
 | `Ratio` 序列化 | 进程内 `bigint`；跨 HTTP 统一 `{ numerator: string; denominator: string }` | 👍 |
 | 金额 | `MoneyValue{amountMinor:string,currency,decimals}`；平均值 `exact-money`；禁止浮点权威值 | 👍 |
 | 缺失≠0 | 不可计算一律 `null` + `unavailableReason`，禁止补 0 | 👍 |
@@ -79,10 +80,10 @@
 
 | 名称 | 来源映射（示例） | 关键字段摘要 | 状态 | 负责人 |
 |---|---|---|---|---|
-| `time-series` | B04/I06…I16 | `granularity day\|week\|month`、`buckets[]`（半开 span + 闭区间换算）、`axis`、`total` 只对 complete 桶求和 | 👍 | B |
+| `time-series` | B04/I06…I16 | `granularity day\|week\|month`、`buckets[]`（半开 span + 闭区间换算）、`axis`；**`total` 口径见 §4.1**（B 实现：`Σ state∈{complete,in-progress}`；任一 `unknown`→`total=null`；`future` 不计入；`complete=(unknown==0&&future==0&&inProgress==0)`；null 时附 `unavailableReason`）；**B-V2-01 已修**：删去旧「只对 complete 桶求和」的矛盾表述 | 👍（B-V2-01 已修） | B |
 | `multi-series` | B04 多分组/P14 小多图 | 多序列共用桶轴；`series[]` | 👍 | B |
 | `period-comparison` | A01–A05 | 两期 + 差额/增长率；`previous<=0` 给不可用原因；`leapDayFallbacks`/`policyId` | 👍（B-16/B-17 待裁定） | B |
-| `calendar-heatmap` | B08/I19（**I12 为「支出分类构成」，非日历**） | 逐日 value/count/state/level；五态；周一起始；只对完整日计算强度 | 🟡 B-17 一致性待裁定（唯一实现归 B 的 `timeCalendar`/`calendarHeatmap`） | B |
+| `calendar-heatmap` | B08/I19（**B-V2-02 更正**：I12 = 每日支出波动 A12；「支出分类构成」= I14；日历 = B08/I19） | 逐日 value/count/state/level；五态；周一起始；只对完整日计算强度 | 🟡 B-17 一致性待裁定（唯一实现归 B 的 `timeCalendar`/`calendarHeatmap`） | B |
 | `moving-average` | A13/A14 | 尾随 7/30 日历日；精确分数；窗口不足/含未知→不插值 | 👍 | B |
 | `variability` | A12（每日支出波动）/A20（收入稳定性） | 均值精确分数、总体 σ、CV（定点）、均值±σ 带、样本阈值、`judgedState` | 🟡 B-16 A12 口径待裁定 | B |
 | `anomaly` | A19 | MAD→IQR→分位退化链、阈值与参数可追溯、今天排除 | 👍 | B |
@@ -94,25 +95,25 @@
 | 名称 | 来源映射 | 关键字段摘要 | 状态 | 负责人 |
 |---|---|---|---|---|
 | `ranked-records` | I18/A16 | 记录级排行：recordId/金额/业务日期/分类/支付方式/`share`/`tieCount`/`total`/`sampleComplete` | 🟡 待裁定（QC-01/QC-02） | C（A 收口） |
-| `distribution` | A09/A10/A11/P12/P23 | 直方图箱 + 分位（Type 7）+ 总体方差/σ + 离群围栏；`method` 可追溯 | 🟡 待裁定（QC-10/QC-11 已登记 §16） | C（A 收口） |
-| `contribution` | A06/A07/A17/P22/P24 | 两期分类贡献：previous/current/delta/growth/deltaShare + 新增/消失标记 | 🟡 待裁定（QC-04） | C（A 收口） |
-| `matrix` | P01/P02/P03/P13 | 二维交叉表（分类×时间/支付方式）；守恒校验 | 🟡 待裁定（QC-22 边界） | C（A 收口） |
+| `distribution` | A09/A10/A11/P12/P23 | 直方图箱 + 分位（Type 7）+ 总体方差/σ + 离群围栏；`method` 可追溯。**XC-07**：直方图算法（Sturges vs C 的 nice-bin-width）与 `method` 枚举名**待所有者裁定**（G-24）；**XC-17**：分位点集合待冻结——建议 P25/P50/P75 + IQR 必填，P10/P90 显式可选（G-25） | 🟡 待裁定（QC-10/QC-11 已登记 §16；XC-07/XC-17 → G-24/G-25） | C（A 收口） |
+| `contribution` | A06/A07/A17/P22/P24 | 两期分类贡献：previous/current/delta/growth/deltaShare + 新增/消失标记；**XC-18**：引用编号更正（本行不引 QC-04，退款/负金额语义与形状无关；growth=null 口径见 QC-17）、**纳入守恒字段** `conservation{rowsDeltaMinor,matchesTotal,matchedBy}`（否则「ΣΔ=Δ总」无法在结果层证明） | 🟡 待裁定（QC-17） | C（A 收口） |
+| `matrix` | P01/P02/P03/P04 | 二维交叉表（分类×时间/支付方式）；守恒校验。**XC-19**：`matrix` 只保留 P01/P02/P03/P04；**P13 四指标交叉表归 `pivot` 还是 `matrix` 待所有者/Lead 裁定**（G-26），裁定前 P13 不得同时挂两个形状 | 🟡 待裁定（QC-22/XC-19） | C（A 收口） |
 | `hierarchy` | P05/P06/P07 | 层级聚合；**依赖分类层级模型（QC-03 未批准）** → 首版单层退化 + 显式标注；**旭日/桑基是 `HierarchyResult` 的纯派生投影（QC-28，不新增结果形状）**：层级不完整时旭日/桑基**拒绝启用并给原因**，Treemap 退化为单层扁平（面积仍=金额占比）；桑基 ≤4,000 连线、守恒四项。**正式定义见 §14**（C 提供：`DraftCategoryRelation` 输入 DTO、四项守恒、`hierarchyIsUsable` 门控、`MAX_HIERARCHY_NODES=2000`） | 🟡 依赖所有者（QC-03）；输入 DTO/守恒/门控已按 G-16 正式定义并入 | C |
-| `scatter` | P10/P11 | 散点/气泡：点数上限策略、`omittedCount`、`complete` | 🟡 待裁定（QC-19/QC-20，含 draft 版本合并） | C（A 收口） |
+| `scatter` | P10/P11 | 散点/气泡：点数上限策略、`omittedCount`、`complete`。**XC-21/XC-27**：以 C-2 实现 `DraftScatterResult` 字段为准（`strategy:"none"\|"top-amount"`/`omittedCount`/`sampleCount`/`complete`）；C-0 旧草案文本标「已被实现取代」，不再称「两版」 | 🟡 待裁定（QC-19/QC-20） | C（A 收口） |
 | `fx-diagnostic` | P16–P20 | **判别联合形态（Lead QC-29 裁定）**：`diagnosticKind: "currency-composition"｜"contribution"｜"rate-trend"｜"coverage"｜"fallback-usage"` 五子形状，公共字段 `targetCurrency?`/`completeness`/`source`；**正式定义见 §15**（C-4 文档 `S17-Agent-C-S01-v2评审-C-4-FX诊断形状与常量定义.md` @ `465d21e`）；P16 笔数份额与 P17 金额份额**不同基**（QC-30，§15.5）；只复用权威 FX 引擎，不自造汇率 | 🟡 待裁定（QC-12 真实只读投影；形状族已按 C-4 收口） | C（A 收口） |
 
 ### 3.4 C：C-2 新增八个 draft 形状（QC-18…QC-25）
 
 | 名称 | 来源 | 关键字段摘要 | 状态 | 负责人 |
 |---|---|---|---|---|
-| `rank-migration` | P09（QC-18） | 上/本期名次、并列策略、moved/new/removed 计数 | 🟡 待裁定 | C（A 收口） |
+| `rank-migration` | P09（QC-18） | 上/本期名次、并列策略、moved/new/removed 计数；**XC-26**：并列策略常量 `rankingPolicy="amount-desc-id-asc-ties-share-rank"` 补入 §12 枚举常量组（字段名冻结时以 C 实现为准） | 🟡 待裁定 | C（A 收口） |
 | `scatter`（draft 合并） | P10（QC-19） | 与 3.3 的 `scatter` **合并为一个形状**（C 的两版草案需对齐） | 🟡 | C + A |
 | `bubble` | P11（QC-20） | count/sum/mean/share；无笔数时 mean/share = null | 🟡 | C |
 | `boxplot` | P12（QC-21） | Type 7 分位、1.5×IQR 围栏、`BOXPLOT_MIN_RELIABLE_SAMPLE=5`（待 A 确认）、maxOutliers | 🟡 | C + A |
-| `pivot` | P13（QC-22） | 四指标、行列合计、守恒校验、稀疏空=「未发生」非 0、`MAX_PIVOT_CELLS=2500` | 🟡 | C |
-| `small-multiples` | P14（QC-23） | `scaleMode`、`topN≤24`、桶键须与 B 时间序列同口径、截断说明 | 🟡 | C + B |
-| `calendar` | P15（QC-24） | 五态、`weekIndex` 周一起始、`leapYear/weekCount`、`intensityMin/Max`；**须与 B I12 日历同结果、不另立日历系统** | 🟡 | C + B |
-| `cross-cube` | P21（QC-25） | 受控维度/指标白名单、≤3 维、≤5,000 组合、跨币种必须含 currency 维、长表输出、拒绝原因枚举 | 🟡 | C + 后端 |
+| `pivot` | P13（QC-22） | 四指标、行列合计、守恒校验、稀疏空=「未发生」非 0、`MAX_PIVOT_CELLS=2500`；**XC-30/XC-38**：四指标枚举 `PIVOT_METRICS=["amount","count","average","share"]` 补入 §12 枚举常量组；若 XC-19 裁定 P13 归 `pivot`，本形状即 P13 的正式归属 | 🟡 待裁定 | C |
+| `small-multiples` | P14（QC-23） | `scaleMode`、`topN≤24`、桶键须与 B 时间序列同口径、截断说明；**XC-31**：结果必须携带 `granularity` 并复用 B 的 `TimeAxisHint`（或直接引用 `time-series` 形状），否则桶口径无法证明；`MAX_SMALL_MULTIPLES_TOP_N=24` 补入 §12（默认 12） | 🟡 待裁定 | C + B |
+| `calendar` | P15（QC-24） | 五态、`weekIndex` 周一起始、`leapYear/weekCount`、`intensityMin/Max`；**B-V2-03 更正：须与 B 的 `calendarHeatmap`（B08/I19）同结果、不另立日历系统**（不是 I12；I12 是每日支出波动）。**XC-32**：v2 **只冻结 B 的 `calendar-heatmap`**，C 的 `calendar` 作为纯投影/适配，不单独冻结为结果形状（C 已在回执同意）；A §3.4 行按此调整 | 🟡 归属已澄清（投影）/🟡 数值待 W3 | C + B |
+| `cross-cube` | P21（QC-25） | 受控维度/指标白名单、≤3 维、≤5,000 组合、跨币种必须含 currency 维、长表输出、拒绝原因枚举；**XC-33/XC-38**：维度白名单 `ADVANCED_DIMENSIONS` 与拒绝联合 `DraftCrossCubeOutcome{ok:false,reason,detail}` 补入 §12 枚举常量组；后端查询依赖属 T2/G-11 批准范围 | 🟡 待裁定（白名单待冻结） | C + 后端 |
 | `sankey`（QC-28，**纯派生投影，不新增结果形状**） | C-3 P07 | 由 `HierarchyResult` 纯投影派生（`${id}::direct` 直接终端、≤4,000 连线、四项守恒）；层级不完整/未知分类时拒绝启用并给原因 | 👍 投影归属（C-2 回执）/🟡 数值上限 | C |
 
 > 计数：见 §0「计数口径」（结果形状 25、输入 DTO 7、图表输入/投影另计）。旧「C 结果形状共 7+7=14」仅指 C 侧形状；`hierarchy` 依赖模型、`sankey` 为派生投影。C 的 20 个图表家族编号与 Codex/S-02 的 CF 编号映射未定（QC-15）。
@@ -122,15 +123,16 @@
 ## 4. B 时间形状的统一规则（v2 冻结候选）
 
 1. **区间**：用户/结果用闭区间 `[from,to]`；桶内部半开 `[start,end)`；`bucketToInclusive(bucket)` 是唯一换算（日粒度 `to = addDays(end,-1)`）。
-2. **桶状态**：`complete|in-progress|future|unknown|unavailable` → 复用 `AnalysisCompleteness` 映射（B §4.2，见 §4.10）；`total` 口径：`unknown`/`future` 不计入；`in-progress` 可计入但 `complete=false` 明示；**存在 `unknown` 时 `total=null`**（B X-02 收紧）。
+2. **桶状态**：`complete|in-progress|future|unknown|unavailable` → 复用 `AnalysisCompleteness` 映射（B §4.2，见 §4.10）；`total` 口径：**B-V2-01 与 B 实现（`timeSeries.ts` @934680c）对齐**——`total = Σ(state∈{complete,in-progress})`；`future` 不计入；**任一 `unknown` 时 `total=null`**，且必须附 `unavailableReason`，不得补 0；`in-progress` 可计入但结果层 `complete=false` 明示；`complete=(unknown==0 && future==0 && inProgress==0)`；桶对象自身保留五态 `state`（不把 9 态塞进桶，见 §4.10 与 B-V2-04）。
 3. **轴**：`TimeAxisHint` 属于结果（业务日期、周一起始、桶粒度）；locale/颜色/像素归渲染层。
-4. **来源**：整图级 `SourceDescriptor` + 桶级 `bucket?`；点击桶按 `bucket.from/to`（闭区间）取来源，权限重新校验。
+4. **来源**：整图级 `SourceDescriptor` + 桶级 `bucket?`；点击桶按 `bucket.from/to`（闭区间）取来源，权限重新校验。**B-V2-06 映射表**：`kind ∈ { stats（原币聚合）, transactions（原币逐笔）, analysis-records（记录级只读投影）, fx（汇率折算投影） }`，允许 `kind: string` + 可选 `params`；未知 kind 必须带 `unavailableReason`，不得静默；B W1 原币只用 `transactions`/`stats`。
+4.1 **桶 `span` 裁剪语义（B-V2-07）**：`bucket.span` = 裁剪到分析区间的半开区间 `[start,end)`；`naturalSpan` = 未裁剪的自然桶；`clippedStart/clippedEnd` 标记裁剪边界；`bucket.from/to = bucketToInclusive(span)`；禁止用未裁剪自然桶反推合计或来源。
 5. **区间上限**：按 s01-draft §17——月键比较不设日上限（月数暂记 ≤36）、日窗口 `maxAnalysisDays` 默认 400、闰日 2 月末对齐逐条记录、A05 默认 `same-day-index` + `policyId`。
 6. **A12 波动性口径（B-16 待裁定）**：均值精确分数、**总体** σ、CV 定点表示（位数待定）、均值±σ 带、`sufficientSample=false` 明示（样本阈值 7 天）、今天/进行中桶不入样（`todayExcluded`）、零收入月单独计数、**A20 最小样本 3 个月**（B 评审要求写入 v2）、**极值日 = 偏离均值 > N×总体 σ**（`extremeSigma`，默认 N=2，D-02 待所有者裁定）。→ 与 s01-draft §16.2 一致的部分标 👍，CV 定点位数/阈值/N 值标 🟡。
 7. **日历一致性（B-17 待裁定）**：**唯一实现归 B**——`timeCalendar.ts`（日历算术/桶键/五态）+ `calendarHeatmap.ts`（逐日强度分位 0–4、周一起始月矩阵）；`weekCount` = 与 ISO 周交叠的 Monday 起始行数、`leapYear` = 2 月天数；C 的 `calendar`（QC-24）只做投影/适配（`weekIndex` 由 `isoWeekOf` 派生、不重算分位、不另立五态）；强度以 B 分位等级为权威，C 的 `intensityMin/Max` 仅图例显示区间。
 8. **综合模式数据源：B-S01v2-01 `FxAggregate` 逐日/逐笔投影（additive，🟡 待裁定）**：B 提案在 `packages/shared/src/fx.ts` **新增**（不改既有函数）`FxDetailedAggregate extends FxAggregate`，含 `detail.daily`（业务日期 → `FxTotals`；只含至少一笔成功折算的日期，缺失日不出现≠0；`Σ daily = totals` 用 BigInt 精确守恒）与 `detail.entries`（`FxConvertedEntry[]`，逐笔金额直接取 `convertFx` 结果、输入序、失败笔不在其中），经 `aggregateFxDetailed`/`aggregateFxDetailedAsync` 暴露；`includeEntries` 默认 `false`，`FX_MAX_DETAIL_ENTRIES = 50_000`，超限抛 `fx_detail_limit`（不截断、不返回部分结果）；异步 `signal` 取消不返回部分结果；`complete=false` 时 `daily` 只表示「已成功折算部分」，时间分析必须把 `failures` 日期映射为 **unknown**（非 0）并降级整体完整性；`aggregateFx`/`aggregateFxAsync` 签名与唯一消费方 `fxView.ts` 零改动。**综合模式的时间/分类/来源分析只能消费该投影，不得在页面层另写一套折算**。
    - **Lead Q-BP 最终裁定（2026-10-27）**：①字段名用可选 `detail`，类型 `FxAggregateDetail`/`FxDetailedAggregate` 保持、不更名；②`maxEntries` 默认 50,000 是**默认上限/保护值**，逐笔明细视图必须**显式传参**，文档须写明「默认值只是保护，不得作为业务契约」；③`maxEntries`(50k) 与 `maxAnalysisDays`(400) 属**不同轴，不强行对齐**，v2 并列登记、各自默认值；④`detail.daily` **恒输出**（稳定图表与守恒检查），`entries` 保持可选；⑤正式定义**已并入 §13**（B 提案 §16；首次落盘 `f3bd4d6`／回填 `a2539bd`，D-05 修订版 `7405194`／回填 `3792ace`，以 `7405194` 为准）；A 已按 Lead **D-05 裁定**将 `FxConvertedEntry.kind` 收窄为 `"income" | "expense"`、删除 `"transfer"`、补 IV-G17-13 与 §13.5-4 未来扩展条款；⑥性能规范采纳（异步批次 + `yieldControl`、**不得在渲染帧同步聚合**），引用 B 基线文档 `docs/specs/design/S17-B-性能基线.md`。
-9. **月键上限常量落位（B-S01v2-02，additive，🟡 待裁定）**：shared `fx.ts` 增 `FX_MAX_RANGE_MONTHS = 36` 与 `fxRangeMonths(from, to, maxMonths = FX_MAX_RANGE_MONTHS)`（含首尾月枚举、超限抛 `fx_range_too_long` 不截断、非法入参抛 `fx_range_invalid`）；web `rangeMonths` 委托 shared、默认上限 14 → 36（draft，W1 接入时生效；15–36 个月不再抛错是唯一行为变化；W1 页面行为由 B 在切分方案中明确）；与 s01-draft §17.1(a)/G-09 一致，日窗口 `maxAnalysisDays` 仍由 analysis 调用方传入；Lead 已批准「15–36 月不再抛错（draft，W1 接入生效）」。**正式定义与默认值表见 §13（B 提案 §16 @ `7405194`，D-05 修订版；首次落盘 `f3bd4d6`）：`fxRangeMonths.maxMonths` 默认 36、范围 1..1200。**
+9. **月键上限常量落位（B-S01v2-02，additive，🟡 待裁定）**：shared `fx.ts` 增 `FX_MAX_RANGE_MONTHS = 36` 与 `fxRangeMonths(from, to, maxMonths = FX_MAX_RANGE_MONTHS)`（含首尾月枚举、超限抛 `fx_range_too_long` 不截断、非法入参抛 `fx_range_invalid`）；web `rangeMonths` 委托 shared、默认上限 14 → 36（draft，W1 接入时生效；15–36 个月不再抛错是唯一行为变化；W1 页面行为由 B 在切分方案中明确）；与 s01-draft §17.1(a)/G-09 一致，日窗口 `maxAnalysisDays` 仍由 analysis 调用方传入；Lead 已批准「15–36 月不再抛错（draft，W1 接入生效）」。**正式定义与默认值表见 §13（B 提案 §16 @ `7405194`，D-05 修订版；首次落盘 `f3bd4d6`）：`fxRangeMonths.maxMonths` 默认 36、范围 1..1200。**（B-V2-12 状态更新：B 已实现 web `rangeMonths` 委托 shared（`13428bd`），当前仍为 draft；页面可见变化在 W1 接入生效，v2 §12 保持 O/draft 状态。）
 10. **五态 → 9 态映射表（G-20，B 草案 §4.2 可核对版）**：
 
 | 时间桶 `state` | `completeness`（9 态） | 说明 |
@@ -141,6 +143,11 @@
 | `unknown` | `offline-incomplete` | 离线覆盖不足/数据未知；**缺失≠0** |
 | `unavailable` | `fx-incomplete` / `request-failed` / `no-permission` | 汇率缺失、请求失败或无权限；按原因细分 |
 
+**B-V2-04 补充**：五态是**桶对象自身的 `state`**（B 已实现，不压缩成 9 态）；9 态 `completeness` 只出现在整结果层；桶级可带 `unavailableReason?` 供消费方解释，不得用 9 态覆盖桶状态。
+
+11. **B 字段名以 B 草案 §3.7 为准（B-V2-09）**：`time-series`/`multi-series`/`period-comparison`/`calendar-heatmap`/`moving-average`/`variability`/`anomaly` 的字段名逐字采用 B 草案 §3.7；v2 冻结时「逐字并入 `types.ts`」，A 侧不得先改名再冻结。
+12. **v2 不含 `quarter`/`year` 粒度（B-V2-13）**：G-08 建议 v2 明确标注「不纳入、另立提案」；当前 `granularity: day|week|month` 不变，季度/年度须先补口径再立提案。
+
 ---
 
 ## 5. C 专业形状的接入规则（v2 冻结候选）
@@ -149,6 +156,26 @@
 - C 需要的公共扩展（QC-01）：①`AnalysisResult` union 纳入 C 形状（或按 `analysisType` 允许 `c.*` 子联合）；②`SourceDescriptor.query.kind` 增 `analysis-records`/`fx`；③`ComputationMetadata.method`/`sampling?`。→ 均标 🟡，由 A 在 v2 冻结稿收口。
 - C 的分位/离散度（QC-10/QC-11）引用 s01-draft §16：Type 7 精确分数算法、总体 σ 默认、`SqrtValue`/`CoefficientsOfVariation`、`varianceKind`。→ 👍（口径已登记，字段名 R-10 待评审）。
 - C 的 8 个 draft 形状（QC-18…25）：冻结前需逐项确认是否升为正式形状、字段名与阈值（尤其 `BOXPLOT_MIN_RELIABLE_SAMPLE=5`、`MAX_PIVOT_CELLS=2500`、`topN≤24`、`MAX_*` 上限）。→ 🟡。
+
+### 5.1 C 核验清单（XC-01…XC-50）处理规则（修订 r4）
+
+> 来源：C《S-01 v2 冻结前交叉核验清单》（C worktree `docs/specs/product/s17-agents/S17-Agent-C-S01-v2冻结前交叉核验清单-20261027.md`，HEAD `fe9b939`，只读）；逐条处理记录见 `S17-Agent-A-S01-v2-r4-核验处理记录.md`。下表只收录**已直接改写进 v2 的规则**；需所有者裁定的条目见 §7 G-24…G-33 与「最小待所有者问题集」。
+
+1. **版本/命名（XC-01/XC-05/XC-06/XC-40）**：C 的 `ADVANCED_DRAFT_VERSION="c1-draft"`、`DraftRational` 等 draft 名不进协议；冻结后统一引用 S-01 v2 的 `version`，C 类型去 `Draft` 前缀时把 `DraftRational` 改名为 `Ratio`（不保留别名）；金额一律 bigint（进程内），C 结果不得出现金额 number。
+2. **来源结构（XC-03/XC-13/XC-15）**：C 结果经 `AnalysisResultBase` 获得 `source: SourceDescriptor`；C 的 `ChartSource{analysisId,title,currency,complete}` 是 `SourceDescriptor` 的**派生视图**，图表输入由适配层从结果注入 `source`，不得两套并存；旭日/桑基/Treemap 的「拒绝原因」属图表输入层，由 S-02/Codex 渲染，不写回结果金额。
+3. **完整性映射（XC-04/XC-34，C 三/四态 → 9 态）**：`DraftCompleteness`：`complete`→`complete`（无数据→`no-transactions`）、`no-transactions`→`no-transactions`、`unavailable`→按原因 `fx-incomplete`/`request-failed`/`no-permission`/`not-applicable`；`DraftFxCompleteness.partial`→`fx-incomplete`（**待所有者确认**，见 G-27）。图表输入不得退化为 `complete:boolean`，保留 `completeness` 枚举或 `availabilityReason`（XC-14/XC-25）。
+4. **采样（XC-08/XC-35）**：结果层可追溯字段（`strategy`/`omittedCount`/`sampleCount`/`complete`）为权威；`computation.sampling?` 仅标注「视觉层采样」，不得与结果层冲突（同一事实单一来源）。
+5. **限额（XC-09）**：`analysisLimit?` 覆盖 C 的 `FX_DRAFT_MAX_TREND_DAYS=400`、`MAX_PIVOT_CELLS=2500`、`MAX_CUBE_*`、`MAX_SANKEY_LINKS`、`C_HIERARCHY_TABLE_MAX_ROWS=500` 等；超限必须显式携带 limit 原因（如 P18 超 400 天→`unavailable` + 原因），不得只靠适配层 note。
+6. **base 包装形态（XC-24）**：C 正式类型 = `AnalysisResultBase & { shape: "<c-shape>" } & <C draft 字段清单>`；字段清单以 C 实现 `draftTypes.ts` 为准、冻结时逐字并入 `types.ts`；v2 不重新发明 C 字段名。
+7. **矩阵/透视（XC-19）**：`matrix` 仅 P01/P02/P03/P04；P13 归属 `pivot` 或 `matrix` 待裁定（G-26），裁定前不双挂。
+8. **P16/P20 状态（XC-22①③，待所有者）**：P16 `completeness` 用三态 `DraftCompleteness`（partial 不适用）；P20「无折算需求」的 `available` 当前在 web 适配层（`adapters5.ts`），结果层是否加字段待所有者裁定（G-28）；P19 补 `rows[]`、`FX_DRAFT_AMOUNT_COVERAGE_REASON` 补登 §12（已按 C 实现）。
+9. **分位点集合（XC-17）**：建议 P25/P50/P75 + IQR 必填，P10/P90 显式可选（G-25）；直方图算法见 G-24。
+10. **枚举/常量（XC-26/30/33/37/38/39/41/42/44/45）**：见 §12「枚举与文本常量组」：`PIVOT_METRICS`、`ADVANCED_DIMENSIONS`、`diagnosticKind` 5 值、`DraftHierarchyNodeKind`、`rankingPolicy`、`C_SANKEY_MAX_LINKS`/`MAX_SANKEY_LINKS` 同值别名、`MAX_SMALL_MULTIPLES_TOP_N`；展示文案（`WEEKDAY_LABELS`/`UNSPECIFIED_PAYMENT_METHOD_LABEL`/`DIRECT_LABEL_SUFFIX` 等）**不进协议**，只登记归属；方法串（`type7-linear`/`population-stddev`/`histogram-nice-bin-width`）随 G-24 统一。
+11. **Codex 合同副本（XC-46/XC-47/XC-48）**：`apps/web/src/workbench/contract/types.ts` 是 s01-draft v1 快照副本，**A 不改 Codex 分支**；集成阶段由 Lead 决定单一来源（从 shared 导入 v2 类型并删除副本，或标「预览专用、不冻结」），v2 标注「待收敛」。C 图表输入 → Codex props 映射属 W3（S-02）。
+12. **参数键空间（XC-49）**：`AnalysisReference.params` 白名单（G-12a）须纳入 C 的参数键（P13 维度/指标、P21 维度组合、P18 币种/区间、P06/P07 层级模式），只允许枚举/预设键/相对区间，禁私人信息；由 A 出发布形态、D 按形态校验。
+13. **尺寸（XC-50）**：`ObjectSizeContract` 的三档密度数值待 W3（Codex/D）；C 的降级策略（如桑基极小退层级表）随密度档位后在 W3 定；A 的 `CARD_DENSITY_THRESHOLDS` 仍为占位（P）。
+14. **`fx-diagnostic` 域（XC-02）**：`analysisType` 已补 `fx` 域（§2），`analysisType="fx.*"` 自描述、不依赖单值枚举。
+15. **dataVersion/coverageEnd（XC-10）**：draft 结果未包信封属预期差异，冻结后由 base 提供，无需额外设计。
 
 ---
 
@@ -191,9 +218,9 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | G-05 | B-16 A12 波动性口径：总体 σ + CV 定点位数 + 样本阈值 7 天 + 今天排除 + 零收入月计数的最终确认 | B-16 | B 的 variability/VariabilityResult | 所有者/Lead |
 | G-06 | B-17 日历一致性：B 日历热力与 C `calendar`（P15）同结果/同五态/周一起始/`weekCount`/强度归一化，唯一实现归属 | B-17/QC-24 | B-2/C-2 日历 | Lead/A+B |
 | G-07 | QC-21…QC-25 映射：Boxplot/Pivot/SmallMultiples/Calendar/CrossCube 是否升正式形状；`BOXPLOT_MIN_RELIABLE_SAMPLE=5`、`MAX_PIVOT_CELLS=2500`、`topN≤24`、组合上限等阈值确认 | QC-21…25 | C-2 后半 | 所有者/Lead |
-| G-08 | `timeGranularity` 是否增加 `quarter`/`year`（Q-BC-1）；与 §15 的 `timeGranularity?` 建议合并 | Q-BC-1/QC-05 | B/C 时间定义 | Lead |
+| G-08 | `timeGranularity` 是否增加 `quarter`/`year`（Q-BC-1）；与 §15 的 `timeGranularity?` 建议合并；**B-V2-13 建议 v2 明确「不含 quarter/year、另立提案」** | Q-BC-1/QC-05/B-V2-13 | B/C 时间定义 | Lead |
 | G-09 | 区间上限确认：月键比较月数上限（暂记 36）、日窗口 `maxAnalysisDays` 默认 400、是否调 3660；**B-S01v2-02 月键常量落位**：`FX_MAX_RANGE_MONTHS = 36`、`fxRangeMonths(from,to,maxMonths=36)` 参数化、web `rangeMonths` 委托 shared（默认 14→36） | Q-BA-12/§17/B-S01v2-02 | A/B/C 长区间 | 所有者 |
-| G-10 | `dataVersion` 生产方/递增语义与 `coverageEnd` 合同（离线） | QC-06/07 | 全部完整性 | Lead/离线模块 |
+| G-10 | `dataVersion` 生产方/递增语义与 `coverageEnd` 合同（离线）；**B-V2-08**：web 客户端本地计算路径无服务端入口，需给原币路径取值规则或显式允许 `string\|null`（null=客户端本地、非权威），不得把客户端令牌当权威 | QC-06/07/B-V2-08 | 全部完整性 | Lead/离线模块 |
 | G-11 | 记录级/FX 只读投影范围与权限（A 的 T2 端点当前只读范围：逐笔不含 note/tags/userId；极值 limited metrics）——C 的 I18/A16/P10/P12/P23 是否够用 | QC-02/QC-13/T2 | C 来源追溯 | Lead + 所有者 |
 | G-12a | **`AnalysisReference.params` 白名单发布形态与版本化**（D 评审拆项）：分析目录为每个 `analysisId` 给出 params 键白名单（键集合 + 值类型 + 必填/可选 + 相对区间写法），随目录/`analysisVersion` 演进；**A 出发布形态，D 按形态校验** | S-03/D X-01 | 布局/内容文档 | Lead + A/D |
 | G-12b | **未知/较新 `analysisVersion` 行为**（D 评审拆项）：缺省=跟随当前目录版本；接收者目录较旧/不识别 → 只读占位 + 提示更新、不回写、不删未知字段（原草案只写未知 `analysisId`） | S-03/D X-01 | 布局/内容文档 | Lead + A/D |
@@ -209,16 +236,26 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | G-21 | **数值常量清单与冻结/可配置逐项登记**（C 回执要求，见 §12）：`maxAnalysisDays` 400、`maxMonths` 36、`FX_MAX_DETAIL_ENTRIES` 50,000、密度阈值、正态/波动性阈值、C 各项上限（pivot/cross-cube/sankey/boxplot/small-multiples/层级表/序列/Pareto/覆盖率/金额分档等）逐项标 F 冻结 / C 可配置 / O 待裁定 / P 占位；C 回执提及但 v2 尚未定义的常量先登记待 C 定义 | C 2026-10-27 回执 | 全部 | Lead + A + 所有者 |
 | G-22 | **QC-29（Lead 已裁定）**：`fx-diagnostic` 采用**判别联合形态**（`diagnosticKind` 5 值），`§3.3`/`§15` 按 C-4 文档更新，不再保留「单形状 + 9 字段等价语义」备选方案；真实 FX 只读投影（QC-12）仍待 G-11 批准 | C-4/QC-29 | `fx-diagnostic` 五子形状 | Lead（已裁定）+ C/A |
 | G-23 | **QC-30（Lead 已裁定）**：P16（笔数份额）与 P17（金额份额）**不同基，不得同屏合成单一「占比」**；默认分开呈现并各自标注分母（P16=笔数、P17=仅已折算金额、缺失≠0）；仅同币种同过滤条件允许并排且必须带口径标签；具体文案由 C 在 W3 给模板，v2 只登记规则 | C-4/QC-30 | P16/P17 展示 | Lead（已裁定）+ C/A |
+| G-24 | **直方图分箱算法（XC-07/XC-41，需所有者）**：采用 Sturges 还是 C 当前实现的 nice-bin-width？`method` 枚举与 owner 规格口径须一致；C 现实现 `histogram-nice-bin-width`、分位名 `type7-linear`；若改算法会影响 C-1 测试与 W3 图表，因而是口径决定而非纯命名 | C XC-07/XC-41 | Distribution/Boxplot/P12 | 所有者（+A 收口） |
+| G-25 | **distribution 分位点集合（XC-17，需所有者）**：至少 P25/P50/P75 + IQR？P10/P90 是否纳入（纳入须显式参数）；不得两个 Agent 给出不同分位集合 | C XC-17 | Distribution / P12 | 所有者/A |
+| G-26 | **P13 交叉表归属（XC-19，需所有者/Lead）**：`matrix`（P01–P04）与 `pivot`（P13 四指标）边界——建议 P13 归 `pivot`、`matrix` 只留 P01–P04；裁定前 P13 不得双挂 | C XC-19 | C-2 后半形状归属 | 所有者/Lead |
+| G-27 | **C 完整性映射（XC-04/XC-34，需所有者确认语义）**：`DraftCompleteness`/`DraftFxCompleteness` → 9 态（§5.1-3），特别是 `partial`→`fx-incomplete`；冻结前需所有者书面确认，不得由 A 单方推断 | C XC-04/XC-34 | C 全部形状 | 所有者 |
+| G-28 | **P16 三态 vs 四态、P20 `available` 归属（XC-22①③，需所有者）**：P16 用 `DraftCompleteness` 三态（partial 不适用）还是四态；P20「无折算需求」的 `available` 在结果层还是适配层（当前 web 适配层 `adapters5.ts`）；P19 `rows[]` 已按 C 实现补入 v2 文本 | C XC-22 | fx-diagnostic 五子形状 | 所有者（+C 提供正式文本） |
+| G-29 | **B/C 时间与日历归属（XC-31/XC-32）**：v2 只冻结 B `calendar-heatmap`，C `calendar` 为纯投影；C `small-multiples` 必须携带 `granularity` 并复用 B `TimeAxisHint`（或直接引用 `time-series`）；C 已同意 | C XC-31/XC-32 | B/C 时间形状 | Lead + A/B/C（已澄清待确认） |
+| G-30 | **枚举/能力边界常量（XC-26/XC-30/XC-33/XC-37/XC-38）**：`PIVOT_METRICS`、`ADVANCED_DIMENSIONS`、`diagnosticKind` 5 值、`DraftHierarchyNodeKind`、`rankingPolicy`、`MAX_SMALL_MULTIPLES_TOP_N`、`C_SANKEY_MAX_LINKS`/`MAX_SANKEY_LINKS` 同值别名是否作为协议枚举/常量冻结 | C XC-38 等 | C 形状能力边界 | Lead/A（归类需所有者确认 F/C/O/P） |
+| G-31 | **Codex 合同单一来源（XC-46/XC-47，Lead 决定）**：`记账程序v1-s17-codex-ui` 的 `contract/types.ts` 为 s01-draft v1 副本；集成前由 Lead 决定「改为从 shared 导入 v2 类型并删除副本」或「标预览专用、不冻结」；A 不改 Codex 分支 | C XC-46/47 | Workbench 预览集成 | Lead/Codex |
+| G-32 | **C 参数键空间纳入 G-12a（XC-49）**：`AnalysisReference.params` 白名单须含 P13 维度/指标、P21 维度组合、P18 币种/区间、P06/P07 层级模式；只允许枚举/预设/相对区间、禁私人信息；A 出发布形态、D 校验 | C XC-49 | 布局引用 C 卡片 | Lead + A/D |
+| G-33 | **常量 F/C/O/P 最终归类（XC-36/XC-43/XC-44/XC-45）**：§12 冻结清单 v1 的 O 项（3660 上限、36 月、50k、boxplot 5、topN 12/24、cube 5000、sankey 4000、层级 2000/500 等）由所有者逐项确认；A 只书面确认文档内 F/C/O/P 标记 | C XC-36…45 / G-21 | 冻结稿 | 所有者（+A 书面确认） |
 
 ---
 
 ## 8. 三类标记统计与冻结门槛
 
-- **已定（👍）**：A 四形状 + 四图表输入；B 七形状中 5 个（time-series/multi-series/period-comparison 的未决项已收、calendar-heatmap 待 B-17、moving-average/anomaly）；C 的分位/σ 口径（§16 已登记）；D 两契约（draft v0.2 已被 Lead 评审接受）。
+- **已定（👍）**：A 四形状 + 四图表输入；B 七形状中 5 个（time-series/multi-series/period-comparison 的未决项已收、calendar-heatmap 待 B-17、moving-average/anomaly）；C 的分位/σ 口径（§16 已登记）；D 两契约（draft v0.2 已被 Lead 评审接受）。B 的正式冲突检查（`b7daa74`）另确认 **8 组通过**：G-17 与 B §16 D-05 修订版逐条一致、D-05 无 transfer 残留、B-16/B-17 口径、A05 政策、闰日、bucketToInclusive、五态方向、七形状命名/axis。
 - **待所有者裁定（🟡）**：B-16/B-17、QC-10/11（字段名 R-10）、QC-18…25、QC-01/02/13、区间上限 G-09、dataVersion/coverageEnd G-10、**B 的 FxAggregate 逐日/逐笔投影（G-17）与月键上限参数化（G-09 增补）** 等（见 §7）。
 - **待实现确认（🔵）**：C 形状的实际 `types.ts` 字段、D 的建议字段（`contractVersion?` 等）、图表输入阈值/密度、C 的采样与上限常量。
 
-**冻结门槛**：G-01…G-23 **全部有结论**（允许"不纳入 v2"的明确否决；**G-16/G-17 按 Lead Q-BP-3 裁定为统一组号**，正式定义文本已分别并入 **§14**（C @ `465d21e`／`dc91f35`）与 **§13**（B D-05 修订版 @ `7405194`／`3792ace`，首次落盘 `f3bd4d6`／`a2539bd`）；G-18 为 `analysisLimit?`、G-19 为 A05 窗口政策、G-20 为五态映射、G-21 为常量清单（C 已补 `C_*` 与 `FX_DRAFT_*` 正式定义 → §12 冻结清单 v1）、**G-22=QC-29 判别联合（Lead 已裁定）**、**G-23=QC-30 P16/P17 不同基（Lead 已裁定）**）→ Lead 组织 A/B/C/D 交叉评审 → **A 书面确认「哪些常量冻结、哪些可配置」（C-1 要求，见 §12）** → 所有者批准 → A 发布 `s01-v2` 并同步 `types.ts` 与各 Agent 实现。冻结前另需满足：§0 计数口径与 §12 常量清单已复核、`fx-diagnostic` 权威定义已引用 C-4 文档（C-3）、G-17 的 `kind` 已由 Lead **D-05 裁定**为 `"income" | "expense"`（删除 `transfer`；未来需转账须另立合同并取得所有者批准、新增 G 组，不得以预留值写入冻结稿）。
+**冻结门槛**：G-01…G-33 **全部有结论**（允许"不纳入 v2"的明确否决；**G-16/G-17 按 Lead Q-BP-3 裁定为统一组号**，正式定义文本已分别并入 **§14**（C @ `465d21e`／`dc91f35`）与 **§13**（B D-05 修订版 @ `7405194`／`3792ace`，首次落盘 `f3bd4d6`／`a2539bd`）；G-18 为 `analysisLimit?`、G-19 为 A05 窗口政策、G-20 为五态映射、G-21 为常量清单（C 已补 `C_*` 与 `FX_DRAFT_*` 正式定义 → §12 冻结清单 v1）、**G-22=QC-29 判别联合（Lead 已裁定）**、**G-23=QC-30 P16/P17 不同基（Lead 已裁定）**、**G-24…G-33 = C 核验清单（XC-01…XC-50）中需所有者/Lead 拍板或登记的条目**（G-24 直方图算法、G-25 分位点集合、G-26 P13 归属、G-27 C 完整性映射语义、G-28 P16/P20、G-29 B/C 时间与日历归属、G-30 枚举/能力边界常量、G-31 Codex 合同单一来源、G-32 C 参数键空间、G-33 常量 F/C/O/P 归类））→ Lead 组织 A/B/C/D 交叉评审 → **A 书面确认「哪些常量冻结、哪些可配置」（C-1 要求，见 §12）** → 所有者批准 → A 发布 `s01-v2` 并同步 `types.ts` 与各 Agent 实现。冻结前另需满足：§0 计数口径与 §12 常量清单已复核、`fx-diagnostic` 权威定义已引用 C-4 文档（C-3）、G-17 的 `kind` 已由 Lead **D-05 裁定**为 `"income" | "expense"`（删除 `transfer`；未来需转账须另立合同并取得所有者批准、新增 G 组，不得以预留值写入冻结稿）、**C 正式冲突/核验清单已处理并回执（见 `S17-Agent-A-S01-v2-r4-核验处理记录.md`）、D 正式冲突意见待到齐**（冲突表到齐前不宣称可冻结）。
 
 ---
 
@@ -240,6 +277,8 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 1.3 **Lead Q-BP-1～5 最终裁定（2026-10-27）已并入**：§4.8/§4.9 附「Lead Q-BP 最终裁定」要点、§7 G-17 行更新、G-16/G-17 统一组号（G-16 = `DraftCategoryRelation`、G-17 = FX 投影）、A05 窗口政策与五态映射顺延为 G-19/G-20；性能规范（异步批次 + `yieldControl`、不在渲染帧同步聚合）采纳并引用 `docs/specs/design/S17-B-性能基线.md`；评审意见汇总表登记 X-05（Lead 裁定）。
 1.4 **B 的 G-17 正式定义（B 提案 §16；首次落盘 `f3bd4d6`／回填 `a2539bd`，D-05 修订版 `7405194`／回填 `3792ace`，以 `7405194` 为准）已并入 §13**：16.1 目的与边界、16.2 TS 契约、16.3 **十三条**不变量 IV-G17-01…13（13 为交易类型域）、16.4 默认值表、16.5 兼容性与冻结规则（含第 4 条未来扩展）。**Lead D-05 裁定（2026-10-27）已应用**：`FxConvertedEntry.kind` 只允许 `"income" | "expense"`，删除 `"transfer"`（S-01 核心与 `TransactionKind` 仅此二者；所有者规格 §12「无转账合同/转账识别属非目标」；B 修订提交 `7405194` 已落实）；如未来需要转账须另立合同并取得所有者批准、新增 G 组，不得以预留值写入冻结稿。评审意见汇总表登记 X-06、D-05（已裁定）。
 1.5 **C 的收口材料（2026-10-27，`465d21e`；Lead m02188 转发）已并入**：①G-16 正式定义 → **§14**（`DraftCategoryRelation` 输入 DTO、输入拒绝行为、四项守恒、`hierarchyIsUsable` 门控、`DraftHierarchyResult`、桑基纯投影 QC-28、`HIERARCHY_ROOT_ID="__root__"`/`HIERARCHY_DIRECT_SUFFIX="::direct"`/`MAX_HIERARCHY_NODES=2000`/`MAX_SANKEY_LINKS=4000`）；②C-4 FX 诊断权威定义 → **§15**（5 子形状判别联合、公共子结构、字段映射表、`C_*`/`FX_DRAFT_*` 常量）；③**Lead QC-29 裁定**：采用判别联合（`diagnosticKind` 5 值），§3.3 行与 §15 按此更新，不再保留单形状备选；④**Lead QC-30 裁定**：P16 笔数份额与 P17 金额份额不同基，不得同屏合成单一「占比」，默认分开并各自标注分母；⑤常量按「C 侧展示契约归 C、FX 引擎常量归 B」归属并直接引用 C 给的常量名（§12 冻结清单 v1）。评审意见汇总表登记 X-07 与 G-22/G-23。
+1.6 **B 的正式冲突检查意见（2026-10-27，提交 `b7daa74`）已到并处理（修订 r4）**：8 🔴 全部在本草案落地——B-V2-01 `time-series.total` 口径与 §4.1 对齐 B 实现（`timeSeries.ts` @934680c）；B-V2-02/B-V2-03 日历来源更正为 B08/I19（I12=每日支出波动、I14=支出分类构成）；B-V2-04 桶级保留五态、9 态仅结果层并补 `unavailableReason?`；B-V2-05 `metric` 允许 `count`/开放字符串；B-V2-06 `SourceDescriptor.query.kind` 收窄映射表（§4.4）；B-V2-07 桶 `span` 裁剪语义（§4.4 第 4.1 条）；B-V2-08 `dataVersion` 客户端路径转 **G-10** 待裁定。5 🟡 文本类已处理：B-V2-09 字段名以 B §3.7 为准；B-V2-10 `computation.method` 补 B 取值；B-V2-11 §12 补 B 常量（`WEEKDAY_MIN_SAMPLE_DAYS`/`ANOMALY_MAD_MULTIPLIER`/`ANOMALY_IQR_MULTIPLIER`/`SEASONAL_MIN_YEARS`/`CALENDAR_HEAT_LEVELS`，categorySeries 归并阈值待 B 定义）；B-V2-12 `rangeMonths` 状态更新（B `13428bd` 已实现委托，W1 生效）；B-V2-13 v2 标注不含 `quarter`/`year`（G-08 另立提案）。冲突登记见 `S17-Agent-A-S01-v2-跨Agent冲突检查汇总表.md` AC-B01…AC-B13；C/D 正式冲突意见未到，冲突表到齐前不宣称可冻结。
+1.7 **C 的《S-01 v2 冻结前交叉核验清单》（2026-10-27，C worktree HEAD `fe9b939`，XC-01…XC-50）已到并处理（修订 r4-C）**：已直接改写进 v2 的规则见 **§5.1**（版本/命名、来源结构、完整性映射、采样单一来源、限额、base 包装形态、矩阵/透视、P16/P20、分位集合、枚举常量、Codex 合同、参数键空间、尺寸、fx 域、dataVersion）；需拍板项登记为 **G-24…G-33**，并另出「最小待所有者问题集」（10 条，见 `S17-Agent-A-S01-v2-r4-核验处理记录.md`）。逐条处理见 `S17-Agent-A-S01-v2-r4-核验处理记录.md`（XC-01…XC-50 全表 + B 的 13 项处理 + 最小问题集）。**B 的正式冲突检查已于 1.6/r4 处理完毕；C 的核验清单已回执；D 的正式冲突意见仍待 Lead 转发**，冲突表到齐前不宣称可冻结。
 2. A 汇总意见 → 修订本草案（仍 `s01-v2-draft`）。
 3. Lead 报所有者批准 §7 检查清单（重点 G-01/G-03/G-04/G-07/G-09/G-11/G-16/G-17/G-21）。
 4. 冻结：A 发布正式 S-01 v2（版本串、`types.ts` 调整清单、差异说明），Lead 同步索引；之后各 Agent 按 v2 实现/接入。
@@ -258,6 +297,8 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | 2026-10-27 | **修订 r3（纳入 B 的 G-17 正式定义 + C 的 G-16/C-4 收口材料 + Lead QC-29/QC-30 裁定）**：①**新增 §13**（G-17 正式定义，B 提案 §16（首次落盘 `f3bd4d6`／回填 `a2539bd`；D-05 修订版 `7405194`／回填 `3792ace`）：16.1–16.5 全文 + 12 条 IV-G17 不变量（r3 定稿收口补 IV-G17-13，共 13 条）+ 默认值表；A 备注 `kind:"transfer"` 待裁定，后按 D-05 裁定删除，见 r3a）；②**新增 §14**（G-16 正式定义，C 文档 @ `465d21e`／回填 `dc91f35`：`DraftCategoryRelation`/输入拒绝行为/四项守恒/`hierarchyIsUsable`/`DraftHierarchyResult`/桑基纯投影/常量）；③**新增 §15**（C-4 FX 诊断判别联合，C 文档 @ `465d21e`：5 子形状 + 公共子结构 + 9 项字段映射 + QC-30 不同基规则 + `FX_DRAFT_*`/`C_*` 常量）；④§3.3 `hierarchy`/`fx-diagnostic` 行指向 §14/§15，`fx-diagnostic` 改为判别联合；⑤§7 G-16/G-17 行更新、新增 **G-22（QC-29 已裁定）**/**G-23（QC-30 已裁定）**；⑥§8 冻结门槛扩至 **G-01…G-23** 并注明 G-16/G-17 正式文本已并入、`transfer` 待裁定；⑦§10 新增 1.4（B G-17）/1.5（C 收口 + Lead QC-29/30）；⑧§12 常量清单定稿为**「冻结清单 v1」**并按 Lead 规则标归属（C 侧展示契约归 C、FX 引擎常量归 B/A，直接引用 C 给的常量名）；⑨§1 来源表新增 C 两份材料行；⑩评审意见汇总表登记 X-06/X-07、G-22/G-23，任务文档同步 | `s01-v2-draft` 更新，未冻结 |
 | 2026-10-27 | **应用 Lead D-05 裁定（G-17 `FxConvertedEntry.kind`）**：§13.2 `kind` 改为 `"income" \| "expense"`（删除 `"transfer"`），原待裁定备注改为裁定记录（附理由与「未来需转账须另立合同/新增 G 组」规则）；§1/§4.8/§7 G-17/§8/§10 1.4 相关表述同步；评审意见汇总表 D-05 记为「已裁定：删除 transfer」 | `s01-v2-draft` 更新，未冻结 |
 | 2026-10-27 | **r3 定稿收口（D-05 修订版并入）**：B 修订版 §16 `7405194`／回填 `3792ace` 已并入 §13——§13 来源引用更新为「B §16 @ `7405194`（含 D-05 修订；首次落盘 `f3bd4d6`）」；§13.2 `kind` 行补「继承交易自身 kind，与 `TransactionKind`（`TRANSACTION_KINDS`）对齐」注释；§13.3 新增 **IV-G17-13 交易类型域**（共 13 条）；§13.5 新增第 4 条「未来扩展（不在 S-01 v2 / 本组合同内）」；§1/§4.8/§4.9/§7 G-17/§8/§10 1.4/§12 表来源同步为 `7405194`；评审意见汇总表 D-05/G-17/X-06 同步 | `s01-v2-draft` → **定稿候选**（未冻结，待所有者批准）；`826c950`（本地提交，未推送） |
+| 2026-10-27 | **修订 r4（纳入 B 的正式冲突检查意见，B 提交 `b7daa74`）**：8 🔴 全部落地——§3.2 `time-series.total` 与 §4.1 对齐 B 实现（`timeSeries.ts` @934680c：Σ complete+in-progress、任一 unknown→null、future 不计、`complete` 公式、`unavailableReason`）；§3.2 `calendar-heatmap` 与 §3.4 C `calendar` 来源更正为 **B08/I19**（I12=每日支出波动 A12、I14=支出分类构成）；§4.10 补「桶级保留五态、9 态仅结果层、桶级 `unavailableReason?`」；§2 `metric` 允许 `count`/开放字符串；§4.4 增 `SourceDescriptor.query.kind` 映射表（stats/transactions/analysis-records/fx）；§4.4 新增第 4.1 条桶 `span` 裁剪语义；§7 G-10 登记 B-V2-08（客户端 `dataVersion` 可为 null、待裁定）。5 🟡：§4 新增第 11/12 条（字段名逐字采用 B §3.7；v2 不含 quarter/year→G-08）；§2 `computation.method` 补 B 取值；§12 补 B 常量 6 行；§4.9 补 rangeMonths 状态；§1/§10 1.6 登记。评审意见汇总表登记 X-08；跨 Agent 冲突表登记 AC-B01…AC-B13 | `s01-v2-draft` 更新，未冻结 |
+| 2026-10-27 | **修订 r4-C（纳入 C 的冻结前交叉核验清单 XC-01…XC-50，C worktree `fe9b939`，Lead m02818 转达）**：§2 `analysisType` 增 `fx` 域（XC-02）、`computation` 补 XC-07/XC-08/XC-09 注（算法待裁、采样单一来源、analysisLimit 覆盖 C 限额）；§3.3/§3.4 逐行补 XC 处理（XC-07/17/18/19/21/26/30/31/32/33）；新增 **§5.1「C 核验清单处理规则」**（15 条：版本命名、来源派生、完整性映射表、采样权威、限额、base 包装形态、矩阵/透视、P16/P20、分位集合、枚举/常量、Codex 合同、参数键空间、尺寸、fx 域、dataVersion）；§7 新增 **G-24…G-33**（直方图算法、分位集合、P13 归属、C 完整性映射、P16/P20、B/C 时间与日历归属、枚举常量、Codex 单一来源、C 参数键空间、常量 F/C/O/P 归类）；§8 冻结门槛扩至 **G-01…G-33**；§10 新增 1.7（C 核验清单已处理）；§12 补枚举与文本常量组（`PIVOT_METRICS`/`ADVANCED_DIMENSIONS`/`rankingPolicy`/`MAX_SMALL_MULTIPLES_TOP_N`/`diagnosticKind` 等，展示文案不进协议）；逐条处理记录见 `S17-Agent-A-S01-v2-r4-核验处理记录.md`；评审意见汇总表登记 X-09；跨 Agent 冲突表登记 AC-C01…AC-C50（摘要） | `s01-v2-draft` 更新，未冻结 |
 
 ---
 
@@ -303,10 +344,37 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | 小多图 TopN | 默认 12 / 上限 24 | 序列；`small-multiples` | 超出折叠为「其它」+ note | C | O（G-07） | C-2 |
 | 交叉表维度/组合上限 | ≤3 维 / ≤5,000 组合 | `cross-cube` | 超出拒绝并给原因 | C | O（G-07） | C-2 |
 | 日历强度分位 | 0–4 级 | 五态之上的强度等级 | 以 B 分位等级为权威 | B | F（B 实现） | B |
+| `CALENDAR_HEAT_LEVELS` | 4 | 级；B 日历强度分位（0–4） | 与「日历强度分位 0–4 级」同值，作为常量名登记 | B | F（B 实现） | B 草案（B-V2-11） |
+| `WEEKDAY_MIN_SAMPLE_DAYS` | 28 | 天；B 星期分布最小样本 | 不足时明示，不推算 | B | F（B 实现） | B 草案 `weekdayPattern.ts:32`（B-V2-11） |
+| `ANOMALY_MAD_MULTIPLIER` | 3.5 | 倍；B MAD 异常阈值 | 与退化链一致、可追溯 | B | F（B 实现） | B 草案（B-V2-11） |
+| `ANOMALY_IQR_MULTIPLIER` | 1.5 | 倍；B IQR 异常阈值 | 与退化链一致、可追溯 | B | F（B 实现） | B 草案（B-V2-11） |
+| `SEASONAL_MIN_YEARS` | 2 | 年；B 季节性最小样本 | 不足时明示，不推算 | B | F（B 实现） | B 草案（B-V2-11）；与「季节性月数上限 36」并列 |
+| categorySeries「其他」归并阈值 | 待 B 定义 | 比例/条数；B 分类序列折叠 | 未定前按「金额守恒 + 可展开」处理，不得静默丢金额 | B | O（B-V2-11 待 B 定义） | B 正式冲突检查意见 `b7daa74` |
 | 星期起始 | 周一 | 时间桶/日历 | 固定 | 所有者（Q-05） | F | 所有者规格 |
 | 其他实现层常量 | 待补 | 采样/缓存/渲染阈值 | 缓存 LRU 等不进协议 | 各 Agent | P | — |
 
 > **冻结前动作（C-1 要求）**：A 在 v2 冻结稿书面确认本表每项 F/C/O/P 归属；本清单为「冻结清单 v1」，以 §7 G-21 为准；`FX_DRAFT_*`（C-4 诊断夹具）与权威引擎常量（`FX_MAX_FALLBACK_DAYS`/`FX_POLICY`，B/S16-D）不得混用；Lead 组织逐项复核，所有者批准后随 `s01-v2` 冻结。
+
+### 12.1 枚举与文本常量组（r4-C 补登：XC-26/30/33/37/38/39/41/42/44/45）
+
+> 规则：**枚举/能力边界常量进协议**（C 实现已支持、v2 未授权会造成空白）；**展示文案不进协议**（只登记归属，由 S-02/Codex 与 i18n 负责）。状态列同一约定：F/C/O/P。
+
+| 常量/枚举 | 值（C 实现为准） | 归属 | 状态 | 来源 |
+|---|---|---|---|---|
+| `PIVOT_METRICS` | `["amount","count","average","share"]` | C | O（待所有者按 G-30 确认） | XC-30/XC-38 |
+| `ADVANCED_DIMENSIONS` | C 维度白名单（P13/P21 可用维度集合，以 `advanced/` 实现为准） | C | O（待冻结，G-30） | XC-33/XC-38 |
+| `diagnosticKind` | `["currency-composition","contribution","rate-trend","coverage","fallback-usage"]` | C | F（Lead QC-29 已裁定判别联合） | XC-38/§15 |
+| `DraftHierarchyNodeKind` | `["root","category","direct"]` | C | F（G-16 正式定义） | XC-38/§14 |
+| `rankingPolicy` | `"amount-desc-id-asc-ties-share-rank"` | C | O（字段名冻结时确认，G-30） | XC-26 |
+| `MAX_SMALL_MULTIPLES_TOP_N` | `24`（默认 12） | C | O（G-07/XC-43） | XC-43 |
+| `C_SANKEY_MAX_LINKS` / `MAX_SANKEY_LINKS` | `4000`（同值双名） | C / shared 计算 | F | XC-37 |
+| `method` 字符串 | `type7-linear`、`population-stddev`、`histogram-nice-bin-width`（候选） | A/C | O（随 G-24 统一） | XC-41 |
+| `FX_DRAFT_AMOUNT_COVERAGE_REASON` | C 的 P19 文案常量 | C（展示） | 不进协议（登记为展示文案） | XC-42 |
+| `WEEKDAY_LABELS` / `UNSPECIFIED_PAYMENT_METHOD_LABEL` / `DIRECT_LABEL_SUFFIX` | C/web 展示文案 | C/B | 不进协议（归 i18n/S-02） | XC-39 |
+| `BOXPLOT_DEFAULT_MAX_OUTLIERS` | `20` | C | C（可配置） | XC-44 |
+| `C_COVERAGE_NEAR_COMPLETE_THRESHOLD` | `0.95`（§15.6 已登记；§15.3 已引用） | C | F | XC-45 |
+| `ADVANCED_DRAFT_VERSION` / `c1-draft` | C 内部草案串 | C | **不进协议**（冻结后删除，XC-01/XC-40） | XC-01/XC-40 |
+
 
 ---
 
