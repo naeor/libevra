@@ -75,4 +75,39 @@ describe("batch adapters", () => {
     expect(toAnalysisEntries(rows).map((entry) => entry.amountMinor)).toEqual([1200n, 0n]);
     expect(toFxEntries(rows).map((entry) => entry.amountCents)).toEqual([1200, 0]);
   });
+
+  it("map an empty page to empty arrays", () => {
+    expect(toAnalysisEntries([])).toEqual([]);
+    expect(toFxEntries([])).toEqual([]);
+  });
+});
+
+describe("adapter precision boundaries", () => {
+  it("maps a bigint string far beyond Number range without rounding", () => {
+    const amountMinor = "100000000000000000000000000000000000000";
+
+    expect(toAnalysisEntry(row({ amountMinor })).amountMinor).toBe(BigInt(amountMinor));
+  });
+
+  it("maps the largest safe integer exactly on both sides", () => {
+    const safe = String(Number.MAX_SAFE_INTEGER);
+
+    expect(toAnalysisEntry(row({ amountMinor: safe })).amountMinor).toBe(BigInt(safe));
+    expect(toFxEntry(row({ amountMinor: safe })).amountCents).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("refuses Number.MAX_SAFE_INTEGER + 1 instead of rounding", () => {
+    const unsafe = String(Number.MAX_SAFE_INTEGER + 1);
+
+    expect(() => toFxEntry(row({ amountMinor: unsafe }))).toThrow(RangeError);
+    expect(() => toFxEntry(row({ amountMinor: unsafe }))).toThrow(/fx_amount_unsafe/);
+  });
+
+  it("keeps the record identity fields the source descriptor needs", () => {
+    const entry = toAnalysisEntry(row({ version: 7 }));
+
+    expect(entry.id).toBe("1b4e28ba-2fa1-11d2-883f-0016d3cca427");
+    expect(entry.currency).toBe("CNY");
+    expect(entry.categoryId).toBe("3b4e28ba-2fa1-11d2-883f-0016d3cca427");
+  });
 });

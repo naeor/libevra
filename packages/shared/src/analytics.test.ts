@@ -11,6 +11,7 @@ import {
   summarisePeakDay,
   type AnalyticsDayAggregate,
 } from "./analytics.js";
+import { addDays } from "./stats.js";
 
 function day(
   date: string,
@@ -241,5 +242,137 @@ describe("summariseMostRecordedDay (B20)", () => {
 
   it("returns null with no days", () => {
     expect(summariseMostRecordedDay([])).toBeNull();
+  });
+
+  it("reports a single non-tied day with tieCount 1", () => {
+    expect(summariseMostRecordedDay([day("2026-10-02", { count: 2, incomeCount: 1, expenseCount: 1 })])).toMatchObject({
+      date: "2026-10-02",
+      count: 2,
+      tieCount: 1,
+    });
+  });
+});
+
+describe("analytics transactions boundary contract (shared layer)", () => {
+  it("accepts a single-day range and the 400-day inclusive limit", () => {
+    const firstDay = "2026-10-01";
+
+    expect(analyticsTransactionsQuerySchema.safeParse({ from: firstDay, to: firstDay }).success).toBe(true);
+    expect(analyticsTransactionsQuerySchema.safeParse({ from: firstDay, to: addDays(firstDay, 399) }).success).toBe(true);
+    expect(analyticsTransactionsQuerySchema.safeParse({ from: firstDay, to: addDays(firstDay, 400) }).success).toBe(false);
+  });
+
+  it("points the range errors at the field that must change", () => {
+    const backwards = analyticsTransactionsQuerySchema.safeParse({ from: "2026-10-31", to: "2026-10-01" });
+    if (!backwards.success) {
+      expect(backwards.error.issues[0]?.path).toEqual(["from"]);
+    } else {
+      throw new Error("backwards range should be rejected");
+    }
+
+    const tooLong = analyticsTransactionsQuerySchema.safeParse({ from: "2020-01-01", to: "2026-10-09" });
+    if (!tooLong.success) {
+      expect(tooLong.error.issues[0]?.path).toEqual(["to"]);
+    } else {
+      throw new Error("over-long range should be rejected");
+    }
+  });
+
+  it("accepts the page-size boundaries and rejects 0 / cap+1", () => {
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, limit: 1 }).success).toBe(true);
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, limit: ANALYTICS_MAX_PAGE_SIZE }).success).toBe(true);
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, limit: 0 }).success).toBe(false);
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, limit: ANALYTICS_MAX_PAGE_SIZE + 1 }).success).toBe(false);
+  });
+
+  it("bounds the cursor length so a bad cursor fails before the query", () => {
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, cursor: "a".repeat(4096) }).success).toBe(true);
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, cursor: "a".repeat(4097) }).success).toBe(false);
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, cursor: "" }).success).toBe(false);
+  });
+
+  it("rejects malformed dates, unknown kinds and currencies", () => {
+    expect(analyticsTransactionsQuerySchema.safeParse({ from: "2026/10/01", to: "2026-10-02" }).success).toBe(false);
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, kind: "transfer" }).success).toBe(false);
+    expect(analyticsTransactionsQuerySchema.safeParse({ ...RANGE, currency: "BTC" }).success).toBe(false);
+  });
+
+  it("keeps the amount string strict: no sign, no leading zero, no fraction", () => {
+    const item = {
+      id: "1b4e28ba-2fa1-11d2-883f-0016d3cca427",
+      bookId: "2b4e28ba-2fa1-11d2-883f-0016d3cca427",
+      kind: "expense",
+      amountMinor: "1200",
+      currency: "CNY",
+      occurredLocalDate: "2026-10-01",
+      categoryId: "3b4e28ba-2fa1-11d2-883f-0016d3cca427",
+      categoryName: "餐饮",
+      paymentMethodId: null,
+      paymentMethodName: null,
+      version: 1,
+    };
+
+    for (const amountMinor of ["-1", "01", "1.5", "1e3"]) {
+      expect(
+        analyticsTransactionsResponseSchema.safeParse({ items: [{ ...item, amountMinor }], nextCursor: null, range: RANGE }).success,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("analytics extremes response boundaries (unit / completeness / tieCount)", () => {
+  const base = {
+    metric: "active-days",
+    kind: "expense",
+    range: RANGE,
+    currency: "CNY",
+    unit: "days",
+    value: "12",
+    occurredLocalDate: null,
+    record: null,
+    count: null,
+    incomeCount: null,
+    expenseCount: null,
+    tieCount: 0,
+    completeness: "complete",
+  } as const;
+
+  it("accepts the three documented unit values", () => {
+    for (const unit of ["money", "count", "days"] as const) {
+      expect(analyticsExtremesResponseSchema.safeParse({ ...base, unit }).success).toBe(true);
+    }
+  });
+
+  it("requires unit and rejects an unknown one", () => {
+    const { unit: _unit, ...withoutUnit } = base;
+    expect(analyticsExtremesResponseSchema.safeParse(withoutUnit).success).toBe(false);
+    expect(analyticsExtremesResponseSchema.safeParse({ ...base, unit: "percent" }).success).toBe(false);
+  });
+
+  it("rejects a negative tie count and an unknown completeness value", () => {
+    expect(analyticsExtremesResponseSchema.safeParse({ ...base, tieCount: -1 }).success).toBe(false);
+    expect(analyticsExtremesResponseSchema.safeParse({ ...base, completeness: "partial" }).success).toBe(false);
+  });
+
+  it("accepts a money extreme record whose payment method is null", () => {
+    const parsed = analyticsExtremesResponseSchema.parse({
+      ...base,
+      metric: "max",
+      unit: "money",
+      value: "1200",
+      occurredLocalDate: "2026-10-01",
+      record: {
+        id: "1b4e28ba-2fa1-11d2-883f-0016d3cca427",
+        categoryId: "3b4e28ba-2fa1-11d2-883f-0016d3cca427",
+        categoryName: "餐饮",
+        paymentMethodId: null,
+        paymentMethodName: null,
+      },
+      tieCount: 2,
+    });
+
+    expect(parsed.unit).toBe("money");
+    expect(parsed.tieCount).toBe(2);
+    expect(parsed.record?.paymentMethodId).toBeNull();
   });
 });

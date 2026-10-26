@@ -243,8 +243,10 @@ A 侧落地（已实现，2026-10-27）：`packages/shared/src/analysis/adapters
 - [x] 权限复用 `requireBook`（`write:false`）：viewer 可读、非成员 403、已删/删除中 410、归档 403。
 - [x] 不返回敏感字段（见 9.1）。
 - [x] 金额字符串化，`> Number.MAX_SAFE_INTEGER` 无损（适配器另有 safe-integer 校验）。
-- [ ] 集成测试在带 `TEST_DATABASE_URL` 的环境执行（本 worktree 无数据库，见 9.3）。
+- [x] shared 层边界测试覆盖 schema/边界/精度（`analytics.test.ts` 31 + `adapters/analytics.test.ts` 11 = 42 项）。
+- [ ] 集成测试在带 `TEST_DATABASE_URL` 的环境执行（本 worktree 无数据库，见 9.3；Lead m01325 指示本轮不跑，等 Lead 统一环境）。
 
 ### 9.6 变更记录
 
 - 2026-10-27 批准并实现（所有者经 Lead m01003 转达；Lead 要求严格只读、不改写入语义、不加迁移、加权限/越权/只读测试）。
+- 2026-10-27 状态对齐为「已实现，待所有者验收（暂不合并）」（Lead m01281/m01325）；补 shared 层边界测试 16 项；T2-Q1/`unit` 语义以建议默认口径登记任务文档 A-Q23/A-Q24，待所有者验收时裁定。
