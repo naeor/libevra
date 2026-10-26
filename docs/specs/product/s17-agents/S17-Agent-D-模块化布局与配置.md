@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-D-Layout** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent D 自己。
-> 当前状态：**所有者规格已归档；D-0 评审通过（条件性）；D-1 完成；D-2 前置完成（含 S-03 布局侧草案，Lead 评审通过）；D-3 headless 完成且 Lead 验收通过；D-4 前置 headless 完成且 Lead 验收通过（m00988）；D-5 只读预研完成（W5/W6 集成清单、永久文档 30 项与交付 36 项对照、1.16.23 影响面、S-01 v2 复核；17 files / 209 tests 通过），待 Lead 汇总；D-2 UI 等待 Codex 视觉规范**；已按 Lead 指令 rebase 到 1.16.23 基线 `d4e4fd8`（rebase 后 HEAD `61c1855`，复验全绿，2026-10-27）。
+> 当前状态：**所有者规格已归档；D-0 评审通过（条件性）；D-1 完成；D-2 前置完成（含 S-03 布局侧草案，Lead 评审通过）；D-3 headless 完成且 Lead 验收通过；D-4 前置 headless 完成且 Lead 验收通过（m00988）；D-5 只读预研完成（W5/W6 集成清单、永久文档 30 项与交付 36 项对照、1.16.23 影响面、S-01 v2 复核；17 files / 209 tests 通过），待 Lead 汇总；D-2 UI 等待 Codex 视觉规范**；已按 Lead 指令 rebase 到 1.16.23 基线 `d4e4fd8`（rebase 后 HEAD `7d9f9fc`，复验全绿，2026-10-27）；S-03 布局侧草案评审修订记录已整理（§8.1/§8.2 裁定与 OQ-LM 待决登记，2026-10-27），仍 draft v0.3 未冻结。
 
 ---
 
@@ -52,7 +52,7 @@
 - **D-2 前置交付物（2026-10-27，Lead 批准范围：不依赖 Codex 视觉规范的部分）**：
   - 同一目录新增 `commands.ts`（headless 编辑器状态、`applyCommand` 命令集与撤销栈）、`focus.ts`（焦点导航与键盘映射）、`machine.ts`（浏览/编辑状态机），及对应单元测试；目录 barrel 追加三个模块（**仍未接** `@libellum/shared` 包入口）。
   - [S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)：模式与入口、编辑会话生命周期、命令表与失败码、焦点/键盘映射、拖拽与键盘并行、触摸 vs 鼠标、无障碍清单、待决项。
-  - [S17-Agent-D-S03-接口草案-布局侧-v1.md](./S17-Agent-D-S03-接口草案-布局侧-v1.md)：**draft v0.2，未冻结**；Lead 已评审六问并裁定（§8 记录）：接受两类型为 draft、尺寸 W3 声明、暂不拆 `ContainerGeometryContract`、迁移签名纳入契约而缓存键仅实现约定、未知 `analysisId` 只读占位、OQ-LM-01 锁定 size-first。
+  - [S17-Agent-D-S03-接口草案-布局侧-v1.md](./S17-Agent-D-S03-接口草案-布局侧-v1.md)：**draft v0.3，未冻结**；Lead 六问裁定记录见 §8，OQ-LM-01/03/04/05/06/07 待决项逐条登记见 §8.2（2026-10-27 评审修订记录整理；裁定针对 v0.1，现内容累计 v0.2/v0.3，性质仍为 draft）；裁定要点：接受两类型为 draft、尺寸 W3 声明并在原型/真机冻结、暂不拆 `ContainerGeometryContract`、迁移签名纳入契约而缓存键仅实现约定、容器内部几何归内容文档、未知 `analysisId` 只读占位、OQ-LM-01 锁定 size-first。
 - **D-3 headless 交付物（2026-10-27，Lead 批准范围：不依赖 Codex 视觉）**：
   - 同一目录新增 `compaction.ts`（垂直紧凑纯函数；默认不启用）、`repair.ts`（几何确定性修复与 `GEOMETRY_REPAIR_ORDER`）；`projection.ts` 接入可选 `ProjectOptions.verticalCompact`（默认 `false`）；`types.ts` 增该开关并锁定 size-first 注释。
   - 新增 `migration.test.ts`（18 项：3→4/4→3、列数矩阵、容器、Spacer、多跳无漂移、冲突贪心、非法输入）、`compaction.test.ts`（8 项含 800 场景属性测试）、`repair.test.ts`（10 项）、`container.test.ts`（12 项：折叠↔展开、expandedSize、撤销/重做、投影形态）。
@@ -144,6 +144,7 @@
 | 2026-10-27 | D-4 前置 headless 完成（Lead 批准：文档 IO/迁移链与缓存键/分享快照与短码/导入管道/本地存储契约）：新增 `document-io.ts`/`migration-chain.ts`/`share-snapshot.ts`/`import-pipeline.ts`/`storage-contract.ts` 与 5 个测试文件（59 项）；S-03 草案升级 v0.3；新增 D-4 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、S-03 草案、D-4 文档 | `b9f4d33`（+ 本记录提交） | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **17 files / 209 tests passed**，exit 0 | 目录 barrel 追加五模块 + `parseShareSnapshot`；**仍未接** `@libellum/shared` 入口；S-03 仍 draft v0.3 | OQ-CF-10 短码参数、OQ-CF-01 删除语义、OQ-CF-02 草稿落本地、B-6 隐私门未定；服务端同步仅接口占位 | 待 Lead 评审 D-4；Codex 视觉后 D-2 UI；W6 服务端同步需批准+迁移评审 |
 | 2026-10-27 | D-5 只读预研完成（Lead 批准 m00988）：W5/W6 集成批次与接入点清单（10 批次）、永久文档 30 项与最终交付 36 项逐项对照、1.16.23 候选影响面（主工作区/发布快照/预计零 rebase 文件冲突）、S-01 v2 中 D 契约条款复核（无变化）；新增 D-5 记录文档；未改代码、未 rebase、未接页面、未 push | 本文件、`docs/specs/product/s17-agents/S17-Agent-D-D5-只读预研-W5W6集成与规格对照-v1.md` | `e73946b` | 只读核对 + 文档检查（check-links/doc-audit/check-status）与 `typecheck`/`vitest` 复验（17 files / 209 tests） | 无接口变化（S-03 仍 draft v0.3） | 1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`）；待 Lead 汇总预研结论；OQ-LM/OQ-CF 与 Codex 视觉仍待上游 | D-5 提交后按 Lead 指令 rebase 到 `d4e4fd8` 并复验；Codex 视觉后进入 D-2 UI；按 I-0…I-10 批次推进集成 |
 | 2026-10-27 | 按 Lead 指令 rebase 到 1.16.23 基线 `d4e4fd8`（`release/1.16.23`）：D 备份分支 `backup/agent-d-pre-1.16.23-20261027`（→ `932d4d1`）；15 个提交全部重放、**零冲突**；`docs/00-索引.md` 无重叠 | 无文件差异（仅基线变化） | HEAD `61c1855`（rebase 后） | `typecheck` exit 0；`vitest run src/analysis/layout` **17 files / 209 tests passed**；`check-links` 201 份/1006 链接失效 0；`doc-audit` 仅 4 条既存缺失路径告警；`check-status` 通过（**版本 1.16.23、迁移 60**） | 无接口变化（S-03 仍 draft v0.3） | Lead 建议的备份分支名 `pre-1.16.23-20261027` 已存在且属 Agent A（指向 A 提交 `6077d8d`），D 改用 `backup/agent-d-pre-1.16.23-20261027` | 向 Lead 报告 D-5 交付 + rebase 结果；等 Lead 汇总与 Codex 视觉；按 I-0…I-10 集成 |
+| 2026-10-27 | S-03 布局侧草案评审修订记录整理（Lead 指令 m01153）：§8 保留六问裁定并新增 §8.1 裁定版本说明与 §8.2 OQ-LM-01/03/04/05/06/07 待决项登记表（状态/阻塞阶段/占位口径/裁定方）；§9 变更记录追加整理行；仅文档，不改代码 | S-03 文档、本文件 | 本轮本地提交 | 未运行（纯文档；rebase 后全量校验见上一行） | 无接口内容变化（仍 draft v0.3 未冻结） | OQ-LM 数值与裁定仍待所有者；Codex 真实视觉规范未到位（外部 W4 报告已核实不可复核，不作为规范） | D-2 UI 继续等待 Codex 真实规范；I-0 入口导出等 S-03 冻结与 OQ 裁定后再启动 |
 
 ---
 
@@ -152,12 +153,12 @@
 | 编号 | 问题 | 影响 | 需要谁决定 |
 |---|---|---|---|
 | D-Q1 | 布局/配置能力清单与细则未提供 | ~~无法开工~~ **已解决（2026-10-27）**：所有者规格已下发并归档（`ff09275`），按规格执行 | 已解除 |
-| D-Q2 | W1/基线与 1.16.23 发布提交 | **已解除（2026-10-27）**：1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`，无迁移）；D 已按 Lead 指令 rebase（15 提交零冲突，rebase 后 HEAD `61c1855`；备份分支 `backup/agent-d-pre-1.16.23-20261027` → `932d4d1`；建议名 `pre-1.16.23-20261027` 已被 Agent A 占用）；页面集成批次仍由 Lead 统一协调 | 已解除 |
+| D-Q2 | W1/基线与 1.16.23 发布提交 | **已解除（2026-10-27）**：1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`，无迁移）；D 已按 Lead 指令 rebase（15 提交零冲突，rebase 后 HEAD `7d9f9fc`；备份分支 `backup/agent-d-pre-1.16.23-20261027` → `932d4d1`；建议名 `pre-1.16.23-20261027` 已被 Agent A 占用）；页面集成批次仍由 Lead 统一协调 | 已解除 |
 | D-Q3 | 服务端同步的存储模型/隐私合规未决策（OQ privacy gate） | W6 分享能力 | 所有者 |
 | D-Q4 | 卡片最小/推荐尺寸需要 A/B/C 与 Codex 共同确认 | 已在 D-0 提出 `ObjectSizeContract` 草案；数值待 W3 | Lead 协调（S-03） |
 | D-Q5 | 跨设备布局迁移与“统一/独立布局”交互细节需所有者确认 | W6（OQ-LM-07/08） | 所有者 |
 | D-Q6 | 与 S18（跨屏幕适配）的边界：布局响应式 vs S18 全站适配 | 范围重叠 | 所有者 / Lead |
-| D-Q7 | OQ-LM-03/04/05/06/07 待所有者决定，当前按规格默认值/占位实现，W5 前必须定 | 阻塞 W5 紧凑默认、Spacer 窄屏降级、容器入口 UI、收缩字段表现与跨列写回 | 所有者 |
+| D-Q7 | OQ-LM-03/04/05/06/07 待所有者决定，当前按规格默认值/占位实现，W5 前必须定 | 阻塞 W5 紧凑默认、Spacer 窄屏降级、容器入口 UI、收缩字段表现与跨列写回；2026-10-27 已逐条登记于 S-03 §8.2（OQ-LM-01 已锁定 S；OQ-LM-02 归 W3 声明；03/04/05/06/07 待所有者） | 所有者 |
 | D-Q8 | 卡片 `minSize`/`sizeLadder`/`compatSize`、Codex 视觉规范、S-01 冻结仍待上游 | 阻塞尺寸契约冻结、D-2 UI 与 S-03 对齐 | Lead / A/B/C / Codex |
 | D-Q9 | 索引 B-14（D 规格未下发）状态 | ~~仅索引一致性问题~~ **已解除（2026-10-27）**：Lead 已更新 orchestrator 索引（`3fc42db`） | 已解除 |
 | D-Q10 | D-3 headless 与 S-03 v0.2 待 Lead 评审；D-2 UI 待 Codex 视觉规范 | ~~阻塞~~ **D-3 与 S-03 v0.2 已解除（2026-10-27，Lead 验收通过并批准 D-4 前置）**；D-2 UI 仍待 Codex 视觉规范 | Lead / Codex |
