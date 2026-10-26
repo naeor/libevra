@@ -450,6 +450,55 @@ export function peakDay(entries: readonly AnalysisEntry[], kind: AnalysisKind): 
   return peak;
 }
 
+/** Highest business date by number of recorded transactions (B20). */
+export interface PeakRecordedDay {
+  readonly date: string;
+  readonly count: number;
+  readonly incomeCount: number;
+  readonly expenseCount: number;
+  /** Number of days sharing the peak count — never let refresh order decide. */
+  readonly tieCount: number;
+}
+
+/**
+ * The business date with the most recorded transactions (owner specification
+ * B20).
+ *
+ * This counts records, not money: a day with many small entries can beat a day
+ * with one large purchase. "没有记账" is never evidence of "没有消费", so the
+ * label stays "交易记录最多的一天". Ties keep the earliest date and report
+ * `tieCount` instead of letting refresh order choose.
+ */
+export function peakRecordedDay(
+  entries: readonly AnalysisEntry[],
+): PeakRecordedDay | null {
+  const days = dayTotals(entries);
+
+  let peak: PeakRecordedDay | null = null;
+
+  for (const day of days) {
+    if (peak === null || day.count > peak.count) {
+      peak = {
+        date: day.date,
+        count: day.count,
+        incomeCount: day.incomeCount,
+        expenseCount: day.expenseCount,
+        tieCount: 1,
+      };
+    } else if (day.count === peak.count) {
+      peak = {
+        date: peak.date,
+        count: peak.count,
+        incomeCount: peak.incomeCount,
+        expenseCount: peak.expenseCount,
+        tieCount: peak.tieCount + 1,
+      };
+    }
+  }
+
+  return peak;
+}
+
 /**
  * One extreme record (owner specification B09/B10/B17/B20).
  *

@@ -11,3 +11,4 @@
 export * from "./numericCard.js";
 export * from "./composition.js";
 export * from "./ranking.js";
+export * from "./extremeCard.js";

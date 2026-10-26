@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-A-Finance** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent A 自己。
-> 当前状态：**A-0 已交付（2026-10-27）；A-1/A-2 装配层已完成（B01–B07、B15/B16、I01–I05、I17 纯计算装配 + 数值卡/构成/排行图表输入协议，132 项新增测试全绿），T2 只读扩展提案已提交评审（未批准前不实现）；等待 Lead/Claude 评审 S-01 草案（`s01-draft`，未冻结）。**
+> 当前状态：**A-3 已交付（2026-10-27）：B08–B14、B17–B20 装配 + CF-A02 极值摘要卡输入 + 来源接口占位，54 项新增测试全绿（analysis 219 / shared 596）；与 Agent B 时间扩展的 6 项对齐结论已登记 S-01 §15（待 Lead 转 B 与评审）。A-0/A-1/A-2 已交付；T2 只读扩展提案待批准（未实现）；S-01 仍 `s01-draft`，待 Lead/Claude 评审。**
 
 ---
 
@@ -122,11 +122,11 @@
 
 | 能力组 | 状态 | 备注 |
 |---|---|---|
-| B01–B20 | 开发中：A-0 计算原语 + A-1 装配 B01–B07；B08–B14/B17–B20 装配在 A-3（原语已就绪） | 规格 §6–§12；26 项状态见 §9.1 |
+| B01–B20 | 开发中：A-0 计算原语 + A-1 装配 B01–B07 + A-3 装配 B08–B14/B17–B20——**20 项纯计算装配已全部就绪**；视觉组件未开始 | 规格 §6–§12；26 项状态见 §9.1 |
 | I01–I05、I17 | 开发中：A-2 纯计算装配完成（I01/I02/I03/I04/I05/I17 + B15/B16），含测试；环图/条形/排行**视觉组件**待 S-02/S-03 | 规格 §13–§16；I17 结构化字段已确认（`paymentMethodId` 可空，见 §10 问题 7） |
 | W1 财务统计正确性 | 等待所有者细则与基线门禁 | 前置：1.16.23 发布（索引 B-1/A-Q2） |
-| S-01 分析结果协议 | 开发中：草案 `s01-draft` 已登记（独立文件，未冻结，待评审）；A-1/A-2 补充 exact-money、可空 value 与图表输入协议（§14） | 评审前不得冻结；评审人 Lead/Claude/B/C/D |
-| W3 基础图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03；CF-A01 数值卡**输入协议**已完成，视觉组件待 Codex |
+| S-01 分析结果协议 | 开发中：草案 `s01-draft` 已登记（独立文件，未冻结，待评审）；A-1/A-2 补 exact-money、可空 value 与 §14 图表输入协议；A-3 补 §14.5 极值卡 + §15 与 B 时间扩展对齐（六问已答复） | 评审前不得冻结；评审人 Lead/Claude/B/C/D |
+| W3 基础图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03；CF-A01 数值卡 + CF-A02 极值卡**输入协议**已完成，视觉组件待 Codex |
 
 > 每次开发结束必须更新本表 + §6 交接记录。
 
@@ -148,6 +148,7 @@
 | 2026-10-27 | 初始化确认：已阅读规格与边界，未开始开发 | 本文件 | `docs(s17): Agent A 初始化确认`（本地提交，未推送） | 未运行（无代码改动） | 无 | 见 §7（A-Q1…A-Q6 均未变） | 等待所有者第二轮详细需求 |
 | 2026-10-26 | **Lead 登记所有者完整开发规格**（逐字原件落盘） | `S17-Agent-A-完整开发规格-所有者-20261026.md`、本文件 §2.2.1/§5/§9 | `docs(s17): 登记所有者完整开发规格与 26 项验收清单模板`（本地提交，未推送） | 未运行（无代码改动） | S-01 草案范围已明确（仍待评审冻结） | 见 §7 | Agent A：记录理解 + 填写 §9 覆盖清单，开始 A-0 |
 | 2026-10-27 | **A-1/A-2 交付（Lead 批准并行）**：①分析装配层 `context.ts`（区间/筛选/币种/完整性解析）②B01–B07 装配（`analyses/basic.ts`）③B15/B16/I01–I05/I17 装配（`analyses/category.ts`，含“其他”折叠、未分类/未指定显式组、权限/完整性状态）④图表输入协议 `charts/{numericCard,composition,ranking}.ts`（数值卡 CF-A01、构成 CF-A03/A04/A05、排行 CF-A04/A07）⑤S-01 草案补充 exact-money/可空 value/§14 图表输入协议 ⑥T2 只读扩展提案（独立文件，待批准，未实现）⑦新增测试 `context.test.ts`（27）、`basic.test.ts`（22）、`category.test.ts`（21）、`charts.test.ts`（23） | 本文件 §1/§5/§6.2/§7/§9；`S17-Agent-A-S01-共享分析结果协议草案.md`（§7.3/§7.4/§9/§14）；新增 `S17-Agent-A-T2只读扩展提案.md`；新增 `analysis/{context.ts,analyses/basic.ts,analyses/category.ts,charts/numericCard.ts,charts/composition.ts,charts/ranking.ts,charts/index.ts}` 与 4 个测试文件；改动 `analysis/{types.ts,primitives.ts,index.ts}` | 本地提交 `05ec5a2`（未推送，`feat(s17): Agent A A-1/A-2 装配层与图表输入协议`） | `pnpm --filter @libellum/shared exec tsc -p tsconfig.json --noEmit` 通过；`vitest run src/analysis` 6 files/165 passed；`pnpm --filter @libellum/shared test` 24 files/542 passed；`pnpm -r typecheck`（shared/api/web）通过；`pnpm check:build` 通过（636 modules，仅既有 chunk>500kB 警告）；`check-links`/`doc-audit`/`check-status` 均 exit 0 | `ScalarValue` 新增 `exact-money`（B06/B07 精确平均）；`ScalarResult.value` 允许 `null`（不可确定，禁止渲染 0）；`RankedGroup.secondary`；`AnalysisEntry.tagIds`；新增图表输入类型（`NumericCardInput`/`CompositionChartInput`/`RankingChartInput`）——均为 `s01-draft` 内改动，**未冻结** | §7 更新 A-Q13/A-Q17 并新增 A-Q19（T2 提案评审）；图表视觉组件与真实尺寸阈值待 S-02/S-03/Codex（A-Q5）；I 类“点击来源”依赖 T2 批准 | 等 Lead/Claude 评审 S-01 与 T2 提案；之后 A-3（B08–B14、B17–B20 装配 + 极值摘要/来源接口） |
+| 2026-10-27 | **A-3 交付（Lead 批准 m00736）**：①`analyses/statistics.ts`：B08 中位数(exact-money)、B09/B10/B17 单笔极值、B11/B12 单日高峰、B13/B14 有/无记录天数、B18/B19 比例(percent-100)、B20 交易最多一天（`peakRecordedDay` 按笔数）②`primitives.ts` 增 `peakRecordedDay`；`types.ts` 增 `RecordExtremeResult.extremeValue/countBreakdown`（B20 不把笔数装扮成金额）；`context.ts` 增 `makeExtreme` 统一极值信封与 `source.transactionIds` 占位 ③`charts/extremeCard.ts`：CF-A02 极值摘要卡输入（三档密度、aux 固定顺序 date→tie→category→收支笔数、值不随尺寸变）④S-01 草案更新 §7.3/§8/§9/§13/§14.5，并新增 **§15 与 B 时间扩展对齐**（Lead m00781 六问逐条答复 + Q-BA 合并结论，登记不冻结）⑤任务文档 §5/§6.2/§7/§9 更新（新增 A-Q20/A-Q21/A-Q22）⑥新增测试 `statistics.test.ts`(43)、`charts/extremeCard.test.ts`(8)，`primitives.test.ts` 增 `peakRecordedDay` 3 项 | 本文件 §5/§6.2/§7/§9；`S17-Agent-A-S01-共享分析结果协议草案.md`（§7.3/§8/§9/§13/§14.5/§15）；`analysis/{types,primitives,context}.ts`；新增 `analysis/analyses/statistics.ts`、`analysis/charts/extremeCard.ts`；`analysis/{charts/index.ts,index.ts}`；测试 3 个文件 | 本地提交（未推送，`feat(s17): Agent A A-3 统计分析与极值摘要卡`）；提交号待本行回填 | `pnpm --filter @libellum/shared exec tsc -p tsconfig.json --noEmit` 通过；`vitest run src/analysis` 8 files/219 passed（原 165，+54）；`pnpm --filter @libellum/shared test` 26 files/596 passed（原 542）；`pnpm -r typecheck`、`pnpm check:build`、`check-links`/`doc-audit`/`check-status` 待本行回填 | `RecordExtremeResult` 增可选 `extremeValue`/`countBreakdown`（只增不改）；新增 `ExtremeCardInput`；S-01 §15 登记 `SourceDescriptor.bucket?`/`ComputationMetadata.coverageEnd?`（**仅登记，未实现**）；均为 `s01-draft` 内改动，**未冻结** | B20 的 `extreme`（金额）必须为 null；记录级来源取数待 T2（A-Q17/A-Q19）；时间扩展对齐结论待 Lead 转 B 评审（A-Q20）；`timeGranularity?` 与 `coverageEnd?` 待冻结（A-Q21/A-Q22） | 提交后回填提交号与全量校验结果；补「结果→图表输入」精简示例（Lead 可选项）；等 S-01/T2/1.16.23 基线/Codex 视觉门禁；A-4 整体回归交付 |
 
 ---
 
@@ -174,6 +175,9 @@
 | A-Q17 | 重要 | 下钻来源不足：`GET /api/v1/transactions` 仅支持 `month` 过滤、无任意 from/to、无金额排序；B09/B10/B17 与 I 类来源需扩展 | 来源追溯/极值 | Lead + 后端 | 同 A-Q13 的 T2 提案（`/analytics/transactions` 区间逐笔 + `/analytics/extremes` 极值聚合）；未批准前极值先由服务端聚合（不含逐笔来源） |
 | A-Q18 | 一般 | 分类颜色稳定映射（分类 id→主题调色板）需要 Codex 视觉令牌配合 | 环形图/图例 | Lead/Codex（与 A-Q8 合并） | 协议 §10 已定"按稳定分类身份"原则 |
 | A-Q19 | 阻塞 | T2 只读扩展提案待评审（端点命名/字符串化金额/多币种逐笔/极值并列返回/实现归属，共 T2-Q1…T2-Q6） | 影响 B09/B10/B17、I 类来源、综合模式 | Lead + 所有者/后端 | 提案文档 `S17-Agent-A-T2只读扩展提案.md`；批准前不实现、不改 schema、不改既有端点响应 |
+| A-Q20 | 重要 | 与 Agent B 的时间扩展对齐（B-0 草案 `b23311c` 的 7 形状 + Q-BA-1…11；Lead m00781 六问） | B-1 起的实现一致性与 S-01 冻结 | Lead 转 B + Claude/所有者评审 | **结论已登记 S-01 §15**：7 形状登记进 `AnalysisResult` union、命名归 A（采纳 B 的英文名）；`dataVersion` 由计算入口（工作台数据层）生产、A 只透传；`SourceDescriptor.bucket?` 可选字段；闭区间保留 + `bucketToInclusive` 换算；图表输入=只读适配层（渲染不重算）；`coverageEnd` 复用 `AnalysisCompleteness`（`offline-incomplete`）。A 不修改 B 文件，待 Lead 转达 |
+| A-Q21 | 一般 | `AnalysisDefinition.groupBy` 是否新增 `"week"\|"month"`（B 的 Q-BA-5） | B 的时间分析定义表达 | Lead + B + Claude | 建议**不改 `groupBy`**（避免分组维度与时间桶混淆），改为可选 `timeGranularity?: "day"\|"week"\|"month"`；登记 S-01 §15.2，S-01 冻结时定，不影响 A 现有四形状 |
+| A-Q22 | 一般 | 离线覆盖 `coverageEnd` 的展示元数据（新增 R-09）：A 建议仅在 `ComputationMetadata` 增可选 `coverageEnd?: string\|null`，完整性判定仍只认 `completeness` | L 样本 / 离线覆盖显示 | Lead + 离线模块（A-Q16/R-08） | 未实现；等离线模块合同明确后再冻结，不在 A-3 擅自新增状态 |
 
 ---
 
@@ -203,19 +207,19 @@
 | B05 | 收入交易笔数 | CF-A01 | 开发中（A-1 装配完成） | `assembleIncomeCount` | `analyses/basic.test.ts`（B） | 同上 |
 | B06 | 日均支出 | CF-A01 | 开发中（A-1 装配完成） | `assembleDailyAverageExpense`（exact-money；分母=period.dayCount） | `analyses/basic.test.ts`（C/N/fixed/A） | 分母=自然日（`daysBetween` 含两端）；不整除保持精确 `Ratio` |
 | B07 | 单笔平均支出 | CF-A01 | 开发中（A-1 装配完成） | `assembleAverageExpensePerTransaction`（exact-money） | `analyses/basic.test.ts`（C/B/A） | 零笔 → `value=null` 且 no-transactions（不可计算，不是 0） |
-| B08 | 单笔支出中位数 | CF-A01 | 开发中（A-0 原语完成） | `medianMinor(amounts)` | `primitives.test.ts`（medianMinor/sample N） | 偶数样本精确半单位 `Ratio`；`bigint` 排序 |
-| B09 | 最大单笔支出 | CF-A02 | 开发中（A-0 原语完成） | `extremeRecord(entries,"expense","max")` | `primitives.test.ts`（extremeRecord/sample D） | 金额→日期→id 确定性；`tieCount` |
-| B10 | 最小单笔支出 | CF-A02 | 开发中（A-0 原语完成） | `extremeRecord(entries,"expense","min")` | `primitives.test.ts`（extremeRecord） | 退款/负数/零金额语义待核查（A-Q3）；不得擅自过滤非正记录 |
-| B11 | 最高单日支出 | CF-A02 | 开发中（A-0 原语完成） | `peakDay(entries,"expense")` + `dayTotals` | `primitives.test.ts`（peakDay） | 先按业务日期汇总再取最高；并列计数 |
-| B12 | 最高单日收入 | CF-A02 | 开发中（A-0 原语完成） | `peakDay(entries,"income")` | `primitives.test.ts`（peakDay） | 同 B11 |
-| B13 | 有支出记录的天数 | CF-A01/CF-A05 | 开发中（A-0 原语完成） | `distinctRecordedDays(entries)` | `primitives.test.ts`（distinctRecordedDays） | 按业务日期去重；缺汇率时区分原始/可折算 |
-| B14 | 无支出记录的天数 | CF-A01/CF-A05 | 开发中（A-0 原语完成） | `daysWithoutRecords(entries,from,to)` | `primitives.test.ts`（sample L） | 必须称"无记录"，覆盖不足时不完整（A-Q16） |
+| B08 | 单笔支出中位数 | CF-A01 | 开发中（A-3 装配完成） | `assembleMedianExpense`（exact-money；`medianMinor` `bigint` 排序、偶数样本精确半单位） | `analyses/statistics.test.ts`（C/N/D/G/A/M） | 不整除/半最小单位内部精确；零样本不可计算 |
+| B09 | 最大单笔支出 | CF-A02 | 开发中（A-3 装配完成） | `assembleMaxExpenseTransaction`（`extremeRecord` + 记录字段 + `source.transactionIds` 占位） | `analyses/statistics.test.ts`（C/D/G/A/no-permission）、`charts/extremeCard.test.ts` | 金额→日期→id 确定性；`tieCount`；来源取数待 T2（A-Q17） |
+| B10 | 最小单笔支出 | CF-A02 | 开发中（A-3 装配完成） | `assembleMinExpenseTransaction`（`extremeRecord` "min"） | `analyses/statistics.test.ts`（C/D/N） | 不擅自过滤非正记录；退款/负数语义待 W1 细则（A-Q3） |
+| B11 | 最高单日支出 | CF-A02 | 开发中（A-3 装配完成） | `assemblePeakExpenseDay`（`peakDay`，当日总额最高） | `analyses/statistics.test.ts`（C/H/O/A）、`charts/extremeCard.test.ts` | 先按业务日期汇总再取最高（不是最大单笔所在日）；`sampleCount`=当日笔数 |
+| B12 | 最高单日收入 | CF-A02 | 开发中（A-3 装配完成） | `assemblePeakIncomeDay` | `analyses/statistics.test.ts`（B/C） | 同 B11 |
+| B13 | 有支出记录的天数 | CF-A01/CF-A05 | 开发中（A-3 装配完成） | `assembleDaysWithExpenseRecords`（`distinctRecordedDays`） | `analyses/statistics.test.ts`（C/H/A/fx-incomplete/no-permission） | 同日多笔只算一天；不因币种重复计日 |
+| B14 | 无支出记录的天数 | CF-A01/CF-A05 | 开发中（A-3 装配完成） | `assembleDaysWithoutExpenseRecords`（`daysWithoutRecords`，非完整覆盖 notes 标 `coverage incomplete`） | `analyses/statistics.test.ts`（C/H/A/L） | 必须称“无记录”而非“没花钱”；覆盖不足不伪装完整（A-Q16） |
 | B15 | 最大支出分类 | CF-A02 | 开发中（A-2 装配完成） | `assembleMaxExpenseCategory`（record-extreme；`tieCount`=同金额组数） | `analyses/category.test.ts`（D/A） | 未分类显式入组、金额不丢（A-Q15） |
 | B16 | 分类总数量 | CF-A01 | 开发中（A-2 装配完成） | `assembleCategoryCount`（`isSystem` 真实标记；notes 记 realCategories/uncategorised） | `analyses/category.test.ts`（C/both/system） | 未分类不计入真实分类数；可选包含系统分类 |
-| B17 | 最大单笔收入 | CF-A02 | 开发中（A-0 原语完成） | `extremeRecord(entries,"income","max")` | `primitives.test.ts`（extremeRecord） | 同 B09 |
-| B18 | 收支比 | CF-A01/CF-A05 | 开发中（A-0 原语完成） | `ratioOf(expenseMinor, incomeMinor)` | `primitives.test.ts` + `rational.test.ts` | 分母零 `null`；可 >100% 不截断 |
-| B19 | 账面结余比例 | CF-A06 | 开发中（A-0 原语完成） | `ratioOf(netMinor, incomeMinor)` | `rational.test.ts` | 可负；不称储蓄率 |
-| B20 | 交易记录最多的一天 | CF-A02 | 开发中（A-0 原语完成；count 排序待 A-1 补原语） | `dayTotals` + 笔数排序（`peakDay` 按金额，不适用） | `primitives.test.ts`（dayTotals/sample O） | 业务日期；默认收入+支出；并列计数 |
+| B17 | 最大单笔收入 | CF-A02 | 开发中（A-3 装配完成） | `assembleMaxIncomeTransaction`（`extremeRecord` "max" + `source.transactionIds` 占位） | `analyses/statistics.test.ts`（B/C） | 同 B09；记录取数待 T2 |
+| B18 | 收支比 | CF-A01/CF-A05 | 开发中（A-3 装配完成） | `assembleExpenseIncomeRatio`（`ratioOf(expense,income)`，scale `percent-100`） | `analyses/statistics.test.ts`（O/B/C/A）、`rational.test.ts` | 收入分母零→`null`（不可计算）；>100% 不截断；不称预算使用率 |
+| B19 | 账面结余比例 | CF-A06 | 开发中（A-3 装配完成） | `assembleLedgerSurplusRatio`（`ratioOf(net,income)`，可负） | `analyses/statistics.test.ts`（O/B/C） | 不称储蓄率；分母零/负收入语义随 B18 |
+| B20 | 交易记录最多的一天 | CF-A02 | 开发中（A-3 装配完成） | `assembleMostRecordedDay`（`peakRecordedDay` 按业务日期计数；`extreme=null`、`extremeValue=count`、`countBreakdown`） | `analyses/statistics.test.ts`（C/O/B/A/no-permission）、`primitives.test.ts`（peakRecordedDay C/O/A）、`charts/extremeCard.test.ts` | 业务日期；默认收入+支出；并列计数；笔数不得装扮成金额 |
 
 ### 9.2 I 类（I01–I05、I17）
 
@@ -233,16 +237,16 @@
 | 交付物 | 状态 | 位置 | 备注 |
 |---|---|---|---|
 | 真实字段映射表 | 已完成（A-0） | 本文档 §10 | 18 问逐条作答；缺字段单列 10.3 |
-| 标准分析结果协议（S-01 草案） | 草案已登记（未冻结）；A-1/A-2 已补 exact-money/可空 value/§14 图表输入协议 | `S17-Agent-A-S01-共享分析结果协议草案.md` + `packages/shared/src/analysis/types.ts` | `s01-draft`，待 Lead/Claude/B/C/D 评审 |
-| 基础计算原语 | 已完成（A-0 首批 + A-2 补充） | `packages/shared/src/analysis/{rational,primitives}.ts` | 精确金额/分组/排序/比例/日期聚合；`rational.test.ts` 20 + `primitives.test.ts` 52 |
-| 分析装配层（A-1/A-2） | 开发中（B01–B07、B15/B16、I01–I05、I17 已完成） | `analysis/context.ts`、`analysis/analyses/{basic,category}.ts` | 区间/筛选/完整性解析 + 26 项中的 18 项装配；`context.test.ts` 27 + `basic.test.ts` 22 + `category.test.ts` 21 |
-| 图表输入协议（CF-A01/A03/A04/A05/A07） | 开发中（输入层完成，视觉组件未开始） | `analysis/charts/{numericCard,composition,ranking}.ts` | 数值卡三档密度（阈值临时占位，A-Q5）+ 构成图 + 排行图；`charts.test.ts` 23；视觉/尺寸待 S-02/S-03/Codex |
+| 标准分析结果协议（S-01 草案） | 草案已登记（未冻结）；A-1/A-2 补 exact-money/可空 value/§14 图表输入协议；A-3 补 §14.5 极值卡 + §15 与 B 时间扩展对齐（Lead 六问已答复） | `S17-Agent-A-S01-共享分析结果协议草案.md` + `packages/shared/src/analysis/types.ts` | `s01-draft`，待 Lead/Claude/B/C/D 评审；§15 结论待 Lead 转 B |
+| 基础计算原语 | 已完成（A-0 首批 + A-2/A-3 补充，含 `peakRecordedDay`） | `packages/shared/src/analysis/{rational,primitives}.ts` | 精确金额/分组/排序/比例/日期聚合/计数高峰；`rational.test.ts` 20 + `primitives.test.ts` 55 |
+| 分析装配层（A-1/A-2/A-3） | 开发中（**26 项纯计算装配全部完成**：B01–B20、B15/B16、I01–I05、I17；视觉组件未开始） | `analysis/context.ts`、`analysis/analyses/{basic,category,statistics}.ts` | 区间/筛选/完整性解析 + 极值/比例/天数装配；`context.test.ts` 27 + `basic.test.ts` 22 + `category.test.ts` 21 + `statistics.test.ts` 43 |
+| 图表输入协议（CF-A01/A02/A03/A04/A05/A07） | 开发中（输入层完成，视觉组件未开始） | `analysis/charts/{numericCard,composition,ranking,extremeCard}.ts` | 数值卡三档密度（阈值临时占位，A-Q5）+ 构成图 + 排行图 + 极值摘要卡（CF-A02，B20 以 count 呈现）；`charts.test.ts` 23 + `extremeCard.test.ts` 8；视觉/尺寸待 S-02/S-03/Codex |
 | 图表家族 CF-A01…CF-A07 | 未开始（视觉组件） | 待 S-02/S-03 | 输入协议已完成，渲染组件归 Codex 共享设计系统 |
-| 尺寸密度（Compact/Medium/Expanded） | 输入层完成（视觉未开始，W3） | `analysis/charts/numericCard.ts` | 真实容器尺寸优先；阈值待 Codex 定稿 |
-| 测试样本 A–O | 骨架已完成（A-0）；A-1/A-2 已用于 165 项断言 | `packages/shared/src/analysis/fixtures.ts` | 15 个样本，不入 barrel |
+| 尺寸密度（Compact/Medium/Expanded） | 输入层完成（视觉未开始，W3） | `analysis/charts/numericCard.ts` | 真实容器尺寸优先；阈值待 Codex 定稿（A-Q5） |
+| 测试样本 A–O | 骨架已完成（A-0）；A-1/A-2/A-3 已用于 219 项断言 | `packages/shared/src/analysis/fixtures.ts` | 15 个样本，不入 barrel |
 | T2 只读扩展提案 | 提案稿待评审（未批准，未实现） | `S17-Agent-A-T2只读扩展提案.md` | 区间逐笔查询 + 极值聚合；对应 A-Q13/A-Q17/A-Q19 |
 | 性能测量记录 | 未开始（A-4） | 待定 | 规格 §22 |
-| 给 B/C/D/Codex/Lead 的接口交接说明 | 待建（协议评审通过后） | 待建（草案 §14 已给图表输入协议） | 规格 §24 |
+| 给 B/C/D/Codex/Lead 的接口交接说明 | 部分完成（S-01 §14 图表输入、§15 对 B 六问答复）；独立交接说明待协议评审后建 | 草案 §14/§15 | 规格 §24；图表视觉组件与尺寸令牌归 Codex/D（A-Q5） |
 
 ## §10 字段映射表（A-0 产出，逐条回答规格 §2 的 18 个问题）
 
@@ -308,5 +312,95 @@
 | `time.mode/from/to/preset` | `ResolvedPeriod{from,to,dayCount}`（用户闭区间；DB 用 `[from,to]`，跨月折算半开 `[start, endExclusive)`） | `occurredLocalDate >= from AND <= to` |
 | `currency.mode="inherit"` | `ResolvedCurrency{mode:"original",currency}` 或 `{mode:"aggregate",targetCurrency}` | 原币：单币种 where；综合：逐笔 `FxEntry` + `aggregateFxAsync` |
 | 结果 `computation.rounding` | — | `ANALYSIS_ROUNDING_POLICY="minor-half-away-v1"`；显示舍入 `ratioToDecimalText` |
+
+---
+
+## §11 附录：结果 → 图表输入精简示例（供 B/C/D/Codex 引用，非冻结）
+
+> 目的：Lead 可选项——让其他 Agent 不用读实现就能看到「权威结果 → 图表输入」的实际形状。
+> 样例取自通过测试的样本 C（支出 1200 餐饮/600 交通/200 娱乐，CNY，区间 2026-10-01…10-31）；**真实输出以代码为准**，本附录只示意字段与语义，不构成冻结接口。
+
+### 11.1 B06 日均支出 → `numericCardInput`（CF-A01）
+
+```jsonc
+// assembleDailyAverageExpense(C 样本) → ScalarResult，再 numericCardInput(result, {title, size: {width:480,height:320}})
+{
+  "kind": "numeric-card", "analysisId": "AN-B06", "density": "expanded", "title": "日均支出",
+  "valueText": "0.65", "unit": "currency", "currency": "CNY", "sign": "positive",
+  "auxiliary": [                                    // 顺序固定：count → days → total → comparison
+    { "id": "days", "valueText": "31" },            // 分母=自然日，不是有支出天数
+    { "id": "total", "valueText": "20.00" }         // exact-money 的分子（精确总额），仅辅助展示
+  ],
+  "completeness": "complete",
+  "source": { "analysisId": "AN-B06", "query": { "kind": "transactions", "from": "2026-10-01", "to": "2026-10-31", "currency": "CNY" } }
+}
+```
+
+要点：`valueText` 是 2000/31 的**一次显示舍入**（`0.65`），内部权威值仍是 `exact-money` 2000/31；三档密度 `valueText` 必须相同。
+
+### 11.2 I01 支出分类构成 → `compositionChartInput`（CF-A03/A04/A05）
+
+```jsonc
+{
+  "kind": "composition-chart", "analysisId": "AN-I01", "currency": "CNY",
+  "totalMinor": "2000", "totalText": "20.00",
+  "segments": [
+    { "id": "c-meal", "label": "餐饮", "amountMinor": "1200", "amountText": "12.00",
+      "share": { "numerator": "3", "denominator": "5" }, "shareText": "60.0%",
+      "fractionOfTotal": 0.6, "isFolded": false },            // fractionOfTotal 仅供绘图，不得反推金额
+    { "id": "c-transport", "label": "交通", "amountMinor": "600", "amountText": "6.00",
+      "share": { "numerator": "3", "denominator": "10" }, "shareText": "30.0%",
+      "fractionOfTotal": 0.3, "isFolded": false },
+    { "id": "c-fun", "label": "娱乐", "amountMinor": "200", "amountText": "2.00",
+      "share": { "numerator": "1", "denominator": "10" }, "shareText": "10.0%",
+      "fractionOfTotal": 0.1, "isFolded": false }
+  ],
+  "completeness": "complete", "drawable": true,
+  "source": { "analysisId": "AN-I01", "query": { "kind": "transactions", "from": "2026-10-01", "to": "2026-10-31", "currency": "CNY" } }
+}
+```
+
+要点：`drawable=false` 时（缺汇率 `fx-incomplete`、无数据、`total===0`）不得画完整环；`share` 为精确 `Ratio`（JSON 传输时按 S-01 §15.2 转 `{numerator:"3",denominator:"5"}`），显示用 `shareText`。
+
+### 11.3 I03 支出分类排行 → `rankingChartInput`（CF-A04/A07）
+
+```jsonc
+{
+  "kind": "ranking-chart", "analysisId": "AN-I03", "primaryKind": "money", "maxValue": "1200",
+  "items": [
+    { "rank": 1, "id": "c-meal", "label": "餐饮", "primaryKind": "money",
+      "primaryMinor": "1200", "count": 1, "primaryText": "12.00", "secondaryText": null,
+      "share": { "numerator": "3", "denominator": "5" }, "shareText": "60.0%",
+      "fractionOfMax": 1, "isFolded": false },
+    { "rank": 2, "id": "c-transport", "label": "交通", "primaryKind": "money",
+      "primaryMinor": "600", "count": 1, "primaryText": "6.00", "secondaryText": null,
+      "share": { "numerator": "3", "denominator": "10" }, "shareText": "30.0%",
+      "fractionOfMax": 0.5, "isFolded": false }
+  ],
+  "completeness": "complete",
+  "source": { "analysisId": "AN-I03", "query": { "kind": "transactions", "from": "2026-10-01", "to": "2026-10-31", "currency": "CNY" } }
+}
+```
+
+要点：`fractionOfMax` 只用于条长归一化；`primaryMinor` 是精确最小单位；「其他」折叠段 `isFolded=true` 且金额=成员精确合计。
+
+### 11.4 B09 最大单笔支出 → `extremeCardInput`（CF-A02）
+
+```jsonc
+{
+  "kind": "extreme-card", "analysisId": "AN-B09", "density": "expanded", "title": "最大单笔支出",
+  "valueText": "12.00", "unit": "currency", "currency": "CNY", "sign": "positive",
+  "occurredLocalDate": "2026-10-01", "categoryLabel": "餐饮", "paymentMethodLabel": "钱包", "tieCount": 1,
+  "auxiliary": [
+    { "id": "date", "valueText": "2026-10-01" },
+    { "id": "category", "valueText": "餐饮" }
+  ],
+  "completeness": "complete",
+  "source": { "analysisId": "AN-B09", "transactionIds": ["c-meal"], /* 记录级取数待 T2（A-Q17） */ }
+}
+```
+
+要点：B20「交易记录最多的一天」的 `unit` 是 `count`、`extreme` 金额字段为 `null`，`countBreakdown` 给收支笔数拆分——不得用金额卡伪装笔数。
+
 
 

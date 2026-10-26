@@ -32,6 +32,7 @@ import {
   medianMinor,
   paymentMethodTotals,
   peakDay,
+  peakRecordedDay,
   sumByKind,
   sumMinorExact,
   toMoneyValue,
@@ -494,5 +495,31 @@ describe("sample O filter scenarios", () => {
     const firstTwoDays = entriesInRange(SAMPLE_O_FILTERS.entries, "2026-10-01", "2026-10-02");
 
     expect(firstTwoDays.map((entry) => entry.id)).toEqual(["o-exp-a-1", "o-exp-b-1"]);
+  });
+});
+
+describe("peak recorded day (B20)", () => {
+  it("picks the date with the most records, counting both kinds", () => {
+    expect(peakRecordedDay(SAMPLE_C_EXPENSE_ONLY.entries)).toEqual({
+      date: "2026-10-02",
+      count: 2,
+      incomeCount: 0,
+      expenseCount: 2,
+      tieCount: 1,
+    });
+  });
+
+  it("keeps the earliest date and reports every tied day", () => {
+    expect(peakRecordedDay(SAMPLE_O_FILTERS.entries)).toEqual({
+      date: "2026-10-01",
+      count: 1,
+      incomeCount: 0,
+      expenseCount: 1,
+      tieCount: 4,
+    });
+  });
+
+  it("returns null when nothing is recorded", () => {
+    expect(peakRecordedDay(SAMPLE_A_EMPTY_BOOK.entries)).toBeNull();
   });
 });

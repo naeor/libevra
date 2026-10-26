@@ -451,6 +451,57 @@ export function makeEmptyExtreme(
   };
 }
 
+/** The varying fields of a `record-extreme` result (B09–B12, B15, B17, B20). */
+export interface ExtremeFields {
+  /** Money extreme for money-shaped analyses; `null` when the value is not money. */
+  readonly extreme: MoneyValue | null;
+  /** Authoritative scalar when the extreme is not money (B20 record count). */
+  readonly extremeValue?: ScalarValue | undefined;
+  /** B20: income + expense records on the peak day. */
+  readonly countBreakdown?:
+    | {
+        readonly total: number;
+        readonly income: number;
+        readonly expense: number;
+      }
+    | undefined;
+  readonly occurredLocalDate?: string | null | undefined;
+  readonly recordId?: string | null | undefined;
+  readonly categoryId?: string | null | undefined;
+  readonly categoryLabel?: string | null | undefined;
+  readonly paymentMethodLabel?: string | null | undefined;
+  readonly summary?: string | null | undefined;
+  readonly tieCount?: number | undefined;
+  /** Record ids this extreme points at, for the source descriptor (T2 pending). */
+  readonly sourceRecordIds?: readonly string[] | undefined;
+}
+
+/** A `record-extreme` result (owner specification §4.4). */
+export function makeExtreme(
+  definition: AnalysisDefinition,
+  scope: PreparedScope,
+  groupBy: string | null,
+  fields: ExtremeFields,
+  computation: ComputationMetadata = computationOf(),
+): RecordExtremeResult {
+  return {
+    ...makeBase(definition, scope, groupBy, computation, fields.sourceRecordIds),
+    shape: "record-extreme",
+    extreme: fields.extreme,
+    ...(fields.extremeValue === undefined ? {} : { extremeValue: fields.extremeValue }),
+    ...(fields.countBreakdown === undefined
+      ? {}
+      : { countBreakdown: fields.countBreakdown }),
+    occurredLocalDate: fields.occurredLocalDate ?? null,
+    recordId: fields.recordId ?? null,
+    categoryId: fields.categoryId ?? null,
+    categoryLabel: fields.categoryLabel ?? null,
+    paymentMethodLabel: fields.paymentMethodLabel ?? null,
+    summary: fields.summary ?? null,
+    tieCount: fields.tieCount ?? 0,
+  };
+}
+
 /** Build a definition with the protocol version and first-version currency mode. */
 export function makeDefinition(
   input: Omit<AnalysisDefinition, "version" | "currency"> & {

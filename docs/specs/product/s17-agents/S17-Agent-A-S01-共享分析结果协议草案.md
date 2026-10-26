@@ -4,8 +4,8 @@
 - 拟定：DS-S17-A-Finance（Agent A）
 - 评审：Lead、Claude（财务正确性）、Agent B、Agent C、Agent D、Codex 视觉侧（只读）
 - 依据：所有者《S17-Agent-A-完整开发规格-所有者-20261026.md》§2、§3、§4、§20、§21、§24；《S17-模块化财务分析工作台-总需求规格.md》§3、§4；《S17-分析能力目录.md》§10
-- 实现位置（草案代码，未接入 UI）：`packages/shared/src/analysis/{types.ts,rational.ts,primitives.ts,context.ts,index.ts}`、`analysis/analyses/{basic.ts,category.ts}`、`analysis/charts/{numericCard.ts,composition.ts,ranking.ts,index.ts}`（A-1/A-2 装配层）；测试见同目录 `*.test.ts`
-- 最后核对：分支 `deepseek/s17-finance-category`，提交 `f05838f` 之后的工作区改动（见任务文档 §6.2）
+- 实现位置（草案代码，未接入 UI）：`packages/shared/src/analysis/{types.ts,rational.ts,primitives.ts,context.ts,index.ts}`、`analysis/analyses/{basic.ts,category.ts,statistics.ts}`、`analysis/charts/{numericCard.ts,composition.ts,ranking.ts,extremeCard.ts,index.ts}`（A-1/A-2/A-3 装配层）；测试见同目录 `*.test.ts`
+- 最后核对：分支 `deepseek/s17-finance-category`，提交 `f05838f` 之后的工作区改动（A-3 交付前以任务文档 §6.2 为准）
 
 > 本文件只**登记**接口与合同，供 B/C/D 评审与并行开发引用；**冻结前任何一方不得据此固化对外 API**。评审通过后由 Lead 在本文件标注【已冻结 + commit】，并同步索引 §2 的 S-01 行。
 
@@ -154,7 +154,7 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 | `scalar` | `value: ScalarValue \| null`（**null=不可确定/阻塞态，禁止渲染为 0**）+ 可选 `comparison` | B01–B08、B13–B14、B16、B18–B19 |
 | `ranked-groups` | `groups[]{ id, label, primary: ScalarValue, count, share: Ratio\|null, secondary?: ScalarValue, isFolded? }`（`secondary` 供 I05 同时展示笔数与金额） | I03–I05、B15 排行、I17 排行 |
 | `composition` | `total: MoneyValue\|null`、`parts[]{ id, label, amount: MoneyValue, count, share: Ratio\|null, isFolded? }` | I01–I02、I17 构成、B13–B14 天数构成 |
-| `record-extreme` | 极值金额、业务日期、记录 id、分类、支付方式、安全摘要、`tieCount` | B09–B12、B15、B17、B20 |
+| `record-extreme` | `extreme: MoneyValue\|null`（金额类极值）、`occurredLocalDate`、`recordId`、`categoryId/categoryLabel`、`paymentMethodLabel`、`summary`、`tieCount`；A-3 增可选 `extremeValue?: ScalarValue`（**非金额极值**，如 B20 记录数，禁止把笔数装扮成金额）与 `countBreakdown?: {total,income,expense}`（B20 收支笔数拆分） | B09–B12、B15、B17、B20 |
 
 扩展规则：B 需要时间序列、C 需要分布/分位数/交叉矩阵时，**在上述信封上加新 `shape` 或新 `analysisType`**，不得改动四种基础形状字段语义；新形状必须声明其完整性/来源/舍入字段来源（规格 §4.3）。
 
@@ -187,9 +187,12 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 | `categoryTotals(entries, kind)` | B15/I01–I05 | 金额降序→分类 id 升序；系统"暂无分类"保留为真实组并标记 `isSystem` |
 | `paymentMethodTotals(entries, kind)` | I17 | `paymentMethodId=null` → 显式"未指定"组，不丢弃 |
 | `dayTotals` / `peakDay` | B11/B12 | 先按业务日期汇总再取最高；并列计数 |
+| `peakRecordedDay(entries)` | B20 | 按业务日期统计**交易笔数**取最高日；返回 `{date,count,incomeCount,expenseCount,tieCount}`；与金额高峰无关 |
 | `extremeRecord(entries, kind, "max"\|"min")` | B09/B10/B17 | 金额→日期→记录 id 的确定性并列处理；返回 `tieCount` |
 | `foldRemainder(items, maxParts)` | I01「其他」 | 折叠金额守恒、返回被折叠 id；仅展示折叠，不是真实分类 |
 | `toMoneyValue` / `formatMoneyForDisplay` | 序列化/显示 | 金额十进制字符串；`bigint` 精确格式化 |
+
+装配层构建器（`packages/shared/src/analysis/context.ts`）：`prepareScope`（解析区间/筛选/完整性）、`makeScalar`/`makeRankedGroups`/`makeComposition`/`makeExtreme`（四种形状信封统一组装，保证 `source`/`completeness`/`computation` 不会各装配函数各写一套）。
 
 `packages/shared/src/analysis/rational.ts`：`ratioOf`（约分/零分母 null）、`compareRatio`（交叉相乘）、`ratioToDecimalText`/`ratioToPercentText`（half away from zero，显示专用）、`ratioToNumber`（仅绘图）、`formatMinorExact`（任意大小 `bigint`）。
 
@@ -208,19 +211,19 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 | B05 收入笔数 | scalar(count) | `totalsOf().incomeCount`；装配 `assembleIncomeCount` |
 | B06 日均支出 | scalar(exact-money) + ratio 元数据 | `averageMinor(total, dayCount)`；分母=自然日非有交易日；装配 `assembleDailyAverageExpense` |
 | B07 单笔平均支出 | scalar(exact-money) | `averageMinor(total, expenseCount)`；零笔不可计算；装配 `assembleAverageExpensePerTransaction` |
-| B08 单笔支出中位数 | scalar | `medianMinor`（`bigint` 排序、偶数半单位） |
-| B09 最大单笔支出 | record-extreme | `extremeRecord(...,"max")` + tieCount/来源记录 |
-| B10 最小单笔支出 | record-extreme | `extremeRecord(...,"min")`；退款/负数语义待核查（A-Q3） |
-| B11 最高单日支出 | record-extreme | `peakDay(...,"expense")` |
-| B12 最高单日收入 | record-extreme | `peakDay(...,"income")` |
-| B13 有支出记录天数 | scalar(days) | `distinctRecordedDays`；缺汇率区分原始/可折算 |
-| B14 无支出记录天数 | scalar(days) | `daysWithoutRecords`；仅完整覆盖可信 |
+| B08 单笔支出中位数 | scalar(exact-money) | `medianMinor`（`bigint` 排序、偶数样本精确半单位）；装配 `assembleMedianExpense`（analyses/statistics.ts） |
+| B09 最大单笔支出 | record-extreme | `extremeRecord(...,"max")` + tieCount/来源记录；装配 `assembleMaxExpenseTransaction`；`source.transactionIds` 携带该记录 id（记录级取数待 T2，A-Q17） |
+| B10 最小单笔支出 | record-extreme | `extremeRecord(...,"min")`；不擅自过滤非正记录（退款/负数语义待 W1 细则，A-Q3）；装配 `assembleMinExpenseTransaction` |
+| B11 最高单日支出 | record-extreme | `peakDay(...,"expense")`（单日总额最高，非最大单笔所在日）；装配 `assemblePeakExpenseDay`（`computation.sampleCount`=当日笔数） |
+| B12 最高单日收入 | record-extreme | `peakDay(...,"income")`；装配 `assemblePeakIncomeDay` |
+| B13 有支出记录天数 | scalar(days) | `distinctRecordedDays`；同日多笔只算一天、不因币种重复计日；装配 `assembleDaysWithExpenseRecords` |
+| B14 无支出记录天数 | scalar(days) | `daysWithoutRecords`；仅完整覆盖可信，非 complete 时 `computation.notes` 标 `coverage incomplete`；装配 `assembleDaysWithoutExpenseRecords` |
 | B15 最大支出分类 | record-extreme 或 ranked-groups 首项 | `categoryTotals` + 未分类显式；装配 `assembleMaxExpenseCategory`（analyses/category.ts，`tieCount`=同金额组数） |
 | B16 分类总数量 | scalar(count) | 真实分类去重；未分类不计入真实分类数；装配 `assembleCategoryCount`（`isSystem` 真实标记判定，notes 记 `realCategories`/`uncategorised-present\|absent`） |
-| B17 最大单笔收入 | record-extreme | `extremeRecord(...,"max")` |
-| B18 收支比 | scalar(ratio) | `ratioOf(expense, income)`；分母零 null；>100% 不截断 |
-| B19 账面结余比例 | scalar(ratio) | `ratioOf(net, income)`；可负；不称储蓄率 |
-| B20 交易记录最多的一天 | record-extreme | 业务日期计数（默认收入+支出） |
+| B17 最大单笔收入 | record-extreme | `extremeRecord(...,"max")`；装配 `assembleMaxIncomeTransaction`；`source.transactionIds` 携带记录 id（待 T2，A-Q17） |
+| B18 收支比 | scalar(ratio, percent-100) | `ratioOf(expense, income)`；收入分母零→null（不可计算，不是 0）；>100% 不截断；装配 `assembleExpenseIncomeRatio` |
+| B19 账面结余比例 | scalar(ratio, percent-100) | `ratioOf(net, income)`；可负；不称储蓄率；装配 `assembleLedgerSurplusRatio` |
+| B20 交易记录最多的一天 | record-extreme | `peakRecordedDay`（业务日期计数，默认收入+支出）；用 `extremeValue`=count + `countBreakdown`，`extreme`（金额字段）为 null，不把笔数装扮成金额；装配 `assembleMostRecordedDay` |
 | I01 支出分类构成 | composition | `categoryTotals` + `foldRemainder`；合计守恒；装配 `assembleExpenseCategoryComposition`（`maxParts` 折叠「其他」，total 仅在 complete 且 >0 时非 null） |
 | I02 收入分类构成 | composition | 复用 I01 计算/图表核心；装配 `assembleIncomeCategoryComposition` |
 | I03 支出分类排行 | ranked-groups | `categoryTotals`（金额降序→id 升序）；装配 `assembleExpenseCategoryRanking`（`topN`） |
@@ -279,6 +282,9 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 - [ ] 四种结果形状可覆盖 A 的 26 项，并为 B/C 扩展留出空间
 - [ ] `ScalarValue` 新增 `exact-money`（B06/B07 精确平均）且 `ScalarResult.value` 可为 `null`（不可确定，禁止渲染为 0）无异议
 - [ ] 图表输入协议（§14：numeric-card / composition-chart / ranking-chart）足够 Codex/B/C/D 直接消费，且绘图数值只从精确值派生
+- [ ] 极值摘要卡输入（§14.5 extreme-card）足够 CF-A02 消费；B20 的笔数以 `unit:"count"` 呈现、不装扮成金额
+- [ ] `RecordExtremeResult` 新增 `extremeValue?`/`countBreakdown?` 只增不改，不破坏 B09–B12/B15/B17 现有字段语义
+- [ ] 与 B 的时间扩展登记（§15：7 形状命名归 A、`dataVersion` 生产方与递增语义、`SourceDescriptor.bucket?`、半开↔闭区间换算、图表输入契约、`coverageEnd` 复用完整性）已评审；R-09/A-Q21 有结论
 - [ ] `AnalysisDefinition` 不含 presentation、不含账本 ID、首版币种只能 inherit
 - [ ] 与现有 `stats.ts`/`fx.ts`/`money.ts` 复用边界（R-01…R-08）有结论
 
@@ -288,7 +294,7 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 
 > 目的：把「权威分析结果」适配成「图表组件可直接消费的输入」，使 Codex/后续渲染层**不需要也不允许重算金额**（规格 §4.2、§24、ACC-02/ACC-08）。
 > 原则：输入里的每个数值文本都来自精确结果；绘图用 `number` 比例只作归一化，**不得**用比例反推金额；尺寸/密度只影响展示项，不改变权威值（ACC-02）。
-> 实现：`packages/shared/src/analysis/charts/{numericCard.ts,composition.ts,ranking.ts}`；测试 `charts/charts.test.ts`。
+> 实现：`packages/shared/src/analysis/charts/{numericCard.ts,composition.ts,ranking.ts,extremeCard.ts}`；测试 `charts/charts.test.ts`、`charts/extremeCard.test.ts`。
 
 ### 14.1 数值指标卡 `NumericCardInput`（CF-A01，B01–B08/B13–B14/B16/B18–B19）
 
@@ -368,5 +374,65 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 
 - 图表输入只描述**内容**（值/标签/份额/完整性/来源）；具体图表类型（环形/横向条/排行表/百分比条）、颜色、圆角、动画属于视觉与渲染层（Codex/S-02），不在本协议内。
 - 尺寸自适应：调用方按真实宽高选择 `NumericCardInput.density`；构成/排行图在容器过小或数据不可绘制时，由卡片层回退到摘要形态，**不得**缩小字号硬塞完整图表（规格 §18）。
+
+### 14.5 极值摘要卡 `ExtremeCardInput`（CF-A02，B09–B12/B15/B17/B20）
+
+```ts
+{
+  kind: "extreme-card";
+  analysisId: string;
+  density: "compact" | "medium" | "expanded";
+  title: string;
+  valueText: string | null;        // 主值（金额或笔数）；null = 不可确定，禁止显示 0
+  unit: "currency" | "count" | "days" | "percent" | "fraction" | null;
+  currency: string | null;         // 非金额极值（B20）为 null
+  sign: "positive" | "negative" | "zero" | "unknown";
+  occurredLocalDate: string | null;
+  categoryLabel: string | null;
+  paymentMethodLabel: string | null;
+  tieCount: number;                // 并列数；1 = 无并列
+  countBreakdown?: { total: number; income: number; expense: number }; // B20
+  auxiliary: { id: "date" | "tie" | "category" | "income-count" | "expense-count"; valueText: string }[];
+  completeness: AnalysisCompleteness;
+  unavailableReason?: string;
+  source: SourceDescriptor;
+}
+```
+
+- 密度：compact 只保证主值 + 1 条最必要辅助（业务日期）；medium 前 2 条；expanded 全部。辅助项顺序固定 `date → tie(>1) → category → income-count → expense-count`，**不依赖语言或本地化排序**。
+- `valueText` 三种密度下必须完全相同（ACC-02）；B20 的「笔数」必须以 `unit:"count"` 呈现，不得塞进金额字段借金额卡伪装。
+- 记录级极值（B09/B10/B17）同时给出 `recordId` 与可再次校验的 `source`；记录详情取数受 T2 与权限约束，卡片只显示安全摘要，不扩大权限面（ACC-12）。
+- 与 `NumericCardInput` 的关系：同为 CF-A02/A01 的输入适配层，均复用 `chooseCardDensity`/`scalarText`；两者都不改变权威值。
+
+## 15. 与 Agent B 的时间扩展对齐（登记，不冻结）
+
+> 背景：Agent B 的 B-0 草案 `S17-Agent-B-S01-时间扩展协议草案.md`（459 行，提交 `b23311c`，未 push）提出 7 个时间结果形状与 Q-BA-1…11；Lead 要求 A 在 S-01 内登记答复。以下全部为**登记项**，不改变已登记四形状语义；S-01 冻结前仍需 Lead/Claude/所有者评审。
+> 边界：A 只在自己的协议草案与任务文档登记结论，**不修改 B 的工作区/文件**；B 的异议经 Lead 转达。
+
+### 15.1 Lead 六问逐条答复
+
+1. **7 个时间形状是否进 `AnalysisResult` union：是，登记。** 冻结版本的 union = 现有四形状 + `time-series` / `multi-series` / `period-comparison` / `calendar-heatmap` / `moving-average` / `variability` / `anomaly`。**命名归 A**（A 维护 `types.ts` 与 S-01）：采纳 B 建议的 discriminator 英文名逐字不变，A 在 `types.ts` 统一声明；B 不改名，若确需改名走 Lead 裁决。实现状态：仅登记，代码待 B-1，A 不预先实现 B 的形状。
+2. **`dataVersion` 属于 S-01：是，已在 `AnalysisResultBase.dataVersion: string|null`。** 语义：由**计算入口**（工作台数据层/查询入口）生成并传入的「书级数据版本令牌」；同一 snapshot 内所有卡片/结果必须相同；数据变化（新增/修改/删除/恢复/导入、影响显示的分类/支付方式改名或归档）时递增；格式为不透明字符串（`"<epochMillis>-<seq>"` 或内容哈希，由 W1/W2 与后端定，A-Q6）；缓存键必须包含它；`null` 只允许用于无持久化的一次性预览。生产方**不是** A 的纯计算函数（A 只透传），也不是渲染层；B/C/D 不得自行递增或伪造。与 B 的 Q-BA-4 一致。
+3. **逐桶来源追溯：需要，登记 `SourceDescriptor.bucket?` 可选字段**：`{ key; granularity:"day"|"week"|"month"; from; to（闭区间换算后）; clippedStart?; clippedEnd? }`。整图级 descriptor 不带 `bucket`；桶级 descriptor 必须与该桶计算口径一致（同一 filters/period/currency）；点桶下钻按 `bucket.from/to` 用闭区间查询，权限重新校验（ACC-12）。与 B 的 Q-BA-3 一致。
+4. **半开桶 ↔ 闭区间 `ResolvedPeriod`：统一规则** —— 结果与用户可见区间继续用闭区间 `[from,to]`；时间桶内部用半开 `[start,end)`；换算函数 `bucketToInclusive(bucket): { from; to }`（日粒度 `to = addDays(end,-1)`；周/月粒度取自然桶末日）；`clippedStart/clippedEnd` 记录与工作台区间裁剪的边界，裁剪后闭区间仍可还原。**不新增日期类型**，在 `types.ts` 注释与 B 的 `analysis/time.ts` 声明同一转换语义。与 B 的 Q-BA-2 一致。
+5. **7 形状与 CF 图表输入的衔接（一句话契约）**：「结果形状 = 权威口径（精确值 + 完整性 + 来源）；图表输入 = 只读适配层（把同一结果映射为渲染可直接消费的字段，含仅供绘图的 `number` 比例）；渲染层不得重算金额、不得改变完整性状态。」B 的时间图表（折线/柱状/热力/移动平均等）按同一模式在 S-01 §14 增补「time-chart 输入」登记位（**§14.6 预留**，由 B 提草案、A 登记、Codex 视觉确认），不得把 axis/label 等展示派生写回结果。
+6. **`coverageEnd` 如何表达：复用 `AnalysisCompleteness`，不新增状态枚举。** 离线覆盖不足时 B 的桶 `state:"unknown"` 按 B §4.2 映射为结果/桶 `completeness:"offline-incomplete"`；`coverageEnd` 本身是**计算输入**（B 的 `classifyBucket` 参数），不是新状态。若卡片需显示「数据截至 X」，建议（未冻结，**R-09**）在 `ComputationMetadata` 增可选 `coverageEnd?: string|null` 作展示元数据；完整性判定只认 `completeness`，不得用「有 coverageEnd 即完整」反推。等离线模块合同（A-Q16/R-08）明确后再冻结。
+
+### 15.2 其余 Q-BA 合并结论（A 侧登记）
+
+| 编号 | B 的建议 | A 的登记结论 |
+|---|---|---|
+| Q-BA-5 | `groupBy` 增 `"week"\|"month"` | **不在 `AnalysisDefinition.groupBy` 混入时间粒度**（避免混淆「按分类分组」与「按时间分桶」）；建议新增可选 `timeGranularity?: "day"\|"week"\|"month"`（登记 **A-Q21**，S-01 冻结时一并定）；B 的时间定义用 `analysisType` + 该字段表达 |
+| Q-BA-6 | `analysisType` 命名空间 `time.*` | 同意并扩为规则 `<domain>.<name>`，domain ∈ `basic\|category\|time\|dist\|cross\|record`；A 侧按 A-4 统一，B 用 `time.*` 不阻塞 |
+| Q-BA-7 | 桶级复用 `AnalysisCompleteness` | 同意：桶级复用同一枚举，映射按 B §4.2；不新增桶级枚举（桶 `state` 是 B 内部时间语义） |
+| Q-BA-8 | `Ratio` 的 JSON 传输 | 进程内 `bigint`；跨 HTTP 统一序列化为 `{ numerator: string; denominator: string }`（整数十进制字符串，不丢精度、不转 `number`）；A 在 S-01 冻结版登记，B/C 照此实现 |
+| Q-BA-9 | `TimeAxisHint` 属于结果 | 同意：轴属于计算口径（business-date、周一起、桶粒度），归结果；locale/颜色/像素宽度归渲染层 |
+| Q-BA-10 | FX 完整性直接引用 | 同意：综合模式引用 `aggregateFx` 的 `complete/missingCount/reviewDates`，按 S-01 §5 映射完整性，不重算 |
+| Q-BA-11 | I13 星期分布用 7 桶模板轴 | 不阻塞：先用 `TimeSeriesResult` + `weekday` 7 桶模板轴表达；若后续 B 需要独立形状再走 S-01 扩展登记 |
+
+### 15.3 对 S-01 冻结的影响
+
+- Q-BA-1/2/3/4/7/8 在 A 侧已有明确登记结论（§15.1、§15.2），B 可据此继续 B-1；**S-01 仍为 `s01-draft`**，上述登记需与 S-01 一并经 Lead/Claude/所有者评审后冻结。
+- 新增待评审项：**R-09**（`ComputationMetadata.coverageEnd?` 展示元数据）、**A-Q21**（`timeGranularity?` 字段）；A 不据此实现 B 的形状，也不修改 B 的工作区。
 
 > 评审通过后：Lead 在本文件标注【已冻结（commit）】→ 通知 B/C/D/Codex → 索引 §2 S-01 行同步 → Agent A 按最终类型实现 A-1…A-4。

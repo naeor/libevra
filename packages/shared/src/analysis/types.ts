@@ -306,10 +306,25 @@ export interface CompositionResult extends AnalysisResultBase {
  *
  * `tieCount` makes equal-value ties explicit and deterministic instead of
  * letting refresh order decide which record is shown.
+ *
+ * `extreme` is a money value for the money-shaped extremes (B09/B10/B11/B12/
+ * B15/B17). B20's extreme is a *record count*, so it fills the additive
+ * `extremeValue` scalar instead and leaves `extreme` null — a count is never
+ * dressed up as money (owner specification ACC-10, B20).
  */
 export interface RecordExtremeResult extends AnalysisResultBase {
   readonly shape: "record-extreme";
   readonly extreme: MoneyValue | null;
+  /** Authoritative value when the extreme is not money (B20 record count). */
+  readonly extremeValue?: ScalarValue | undefined;
+  /** B20 breakdown of the peak day: income + expense records = count. */
+  readonly countBreakdown?:
+    | {
+        readonly total: number;
+        readonly income: number;
+        readonly expense: number;
+      }
+    | undefined;
   readonly occurredLocalDate: string | null;
   readonly recordId: string | null;
   readonly categoryId: string | null;
