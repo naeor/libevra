@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import type { MessageReferenceView, QuoteReferenceKind } from "@libellum/shared";
@@ -486,7 +486,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
           onClick={() => {
             setPicking(true);
           }}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full transition hover:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full transition hover:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
           <QuoteIcon className="size-7" />
         </button>
@@ -501,6 +501,10 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
            * 输入体验顺畅"*; on a phone the return key is the obvious way to send, and a textarea that
            * ignored it would feel broken. **`rows={1}` with a soft look** — *"输入框要做得轻一点、
            * 软一点，避免'框中框'的压迫感."*
+           *
+           * ⚠️ **输入框、引用按钮、发送按钮必须同高**（m06997）：三件同处一行时高度不齐会让人以为
+           * 点错了地方；`min-h-11` + `py-2.5`（16px 行高 24 + 上下 10）正好 44px，与两个 `size-11` /
+           * `h-11` 控件对齐。
            */
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -516,7 +520,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
           rows={1}
           placeholder={t("collab.messages.placeholder")}
           aria-label={t("collab.messages.inputLabel")}
-          className="min-h-10 flex-1 resize-none rounded-field border border-line/70 bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand/60 focus:ring-4 focus:ring-focus-ring"
+          className="h-11 flex-1 resize-none rounded-field border border-line/70 bg-surface px-3.5 py-2.5 text-base text-ink transition outline-none placeholder:text-muted/80 focus:border-brand/60 focus:ring-4 focus:ring-focus-ring"
         />
 
         <button
@@ -532,7 +536,7 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
             * 邀请成员 button's `px-4 py-2.5 text-sm`. The owner: *"这不是全页面级主操作，不应做成
             * 大面积绿色按钮"* and *"视觉上它是'局部操作按钮'，不是一级主操作按钮."*
             */
-          className="shrink-0 rounded-field bg-brand px-3.5 py-2 text-xs font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
+          className="inline-flex h-11 shrink-0 items-center rounded-field bg-brand px-3.5 text-sm font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
         >
           {composer.sending ? "…" : t("collab.messages.send")}
         </button>
@@ -702,7 +706,7 @@ export function MessageBoardFull({
             />
           )}
 
-          <div className="flex items-end gap-2">
+          <div className="flex items-center gap-2">
             {/**
               * ⚠️ Same themed badge as the card's — **one way to start a quote, whichever view the
               * reader happens to be in.** The label is for the screen reader, not for the eye.
@@ -719,6 +723,11 @@ export function MessageBoardFull({
               <QuoteIcon className="size-7" />
             </button>
 
+            {/**
+              * ⚠️ **三件同高**（m06997）：引用徽章 `size-11`、发送按钮 `h-11`，输入框用
+              * `min-h-11` + `py-2.5`（24px 行高 + 上下 10 = 44px）。此前 `items-end` + `py-3` 让
+              * 输入框 48px、按钮 32px，三者底边不齐，看起来像没对齐。
+              */}
             <textarea
               ref={inputRef}
               value={composer.draft}
@@ -729,7 +738,7 @@ export function MessageBoardFull({
               rows={1}
               placeholder={t("collab.messages.placeholderFull")}
               aria-label={t("collab.messages.inputLabel")}
-              className="min-h-11 flex-1 resize-none rounded-field border border-line bg-canvas px-4 py-3 text-base text-ink"
+              className="h-11 flex-1 resize-none rounded-field border border-line bg-canvas px-4 py-2.5 text-base text-ink"
             />
             <button
               type="button"
@@ -737,7 +746,7 @@ export function MessageBoardFull({
               onClick={() => {
                 void composer.send();
               }}
-              className="shrink-0 rounded-field bg-brand px-4 py-3 text-sm text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
+              className="inline-flex h-11 shrink-0 items-center rounded-field bg-brand px-4 text-sm text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
             >
               {composer.sending ? t("collab.messages.sending") : t("collab.messages.send")}
             </button>
