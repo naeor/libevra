@@ -13,7 +13,7 @@
 | 项目 | **Libevra**（原名 Libellum，2026-10-14 更名）—— **离线优先**的个人/家庭记账程序 |
 | 技术栈 | React 19 + Vite 8 + Tailwind 4（web）；Fastify 5 + Prisma 7 + PostgreSQL 17（api）；OCR/语音是 Python sidecar |
 | 线上 | <https://libevra.com>（**生产源码靠 `git archive` 上传，不是 git clone**） |
-| 工作区 | `C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1`（**唯一**工作区，单分支 `s14-integration`） |
+| 工作区 | 主工作区 `C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1`；各任务另有并列 worktree `记账程序v1-<主题>-<日期>`（分支名不固定，以 `git worktree list` 与 STATUS「分支 / 远程」「工作区」两行为准；旧写法“唯一工作区、单分支 `s14-integration`”已于 2026-10-26 核对为过时） |
 | 语言 | 所有回复、文档、提交信息用**中文** |
 | 当前状态 | **不要在这里找——读 [`docs/STATUS.md`](docs/STATUS.md)** |
 
@@ -70,7 +70,7 @@
 
 > 所有者原话：**"我们现在做的所有改动，在由 agent 自己判断并检查完有没有问题之后，默认是直接同步到 localhost 界面的……但是所有的这些改动在得到我的明确指令之前，不能同步到服务器上。"**
 
-- **本地默认同步**：Agent 自检 + Lead 独立复核通过后，改动**默认合并到本机主工作区**（`记账程序v1`，分支 `s14-integration`），所有者在 `localhost` 页面直接看到；**不需要每次询问**。
+- **本地默认同步**：Agent 自检 + Lead 独立复核通过后，改动**默认合并到本机主工作区**（`记账程序v1`；当前分支名见 STATUS，不再固定为 `s14-integration`），所有者在 `localhost` 页面直接看到；**不需要每次询问**。
 - **远端必须当次批准**：GitHub（push / PR / tag）、生产服务器（部署 / SSH / 写数据）、任何外部服务，一律按 §4 执行——未获**当次**明确批准，不动。
 - **合并由 Lead 统一执行**：Agent 只提交自己的分支 + 交接报告；Lead 复核后合并进主工作区，避免多个 Agent 同时改主工作区。
 - **合并前留快照**：把分支合进 localhost 前，先建本地 tag/branch 快照；所有者一句话即可回滚到上一版。
