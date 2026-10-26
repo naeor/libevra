@@ -1,0 +1,262 @@
+[
+  {
+    "cards": [
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      }
+    ],
+    "heroHeight": 204,
+    "heroScrollWidth": 257,
+    "heroWidth": 257,
+    "pageWidth": 320,
+    "shellHeight": 204,
+    "width": 320
+  },
+  {
+    "cards": [
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      }
+    ],
+    "heroHeight": 188,
+    "heroScrollWidth": 312,
+    "heroWidth": 312,
+    "pageWidth": 375,
+    "shellHeight": 188,
+    "width": 375
+  },
+  {
+    "cards": [
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      }
+    ],
+    "heroHeight": 188,
+    "heroScrollWidth": 327,
+    "heroWidth": 327,
+    "pageWidth": 390,
+    "shellHeight": 188,
+    "width": 390
+  },
+  {
+    "cards": [
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      }
+    ],
+    "heroHeight": 188,
+    "heroScrollWidth": 367,
+    "heroWidth": 367,
+    "pageWidth": 430,
+    "shellHeight": 188,
+    "width": 430
+  },
+  {
+    "cards": [
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      },
+      {
+        "height": 112,
+        "parentHeight": 112,
+        "scrollWidth": 136,
+        "width": 136
+      }
+    ],
+    "heroHeight": 188,
+    "heroScrollWidth": 400,
+    "heroWidth": 400,
+    "pageWidth": 1440,
+    "shellHeight": 188,
+    "width": 1440
+  }
+]

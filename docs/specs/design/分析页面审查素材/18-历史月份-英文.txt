@@ -1,0 +1,73 @@
+Insights
+
+Combined analysis
+
+Combined analysis
+By currency
+Last 7 days
+Last 30 days
+Last 90 days
+Last year
+View month
+Use date range above
+
+2026-09-01 — 2026-09-30 · Reporting currency: CNY
+
+Refresh totals
+
+Income
+
+77,795.46 CNY
+
+Expenses
+
+34,255.69 CNY
+
+Net income
+
+43,539.77 CNY
+
+60 entries converted · Totals add up the displayed amount of each entry
+
+Monthly trend · CNY
+2026-09
+Expenses 34,255.69 CNY
+
+Income 77,795.46 CNY
+
+Category subtotals · CNY
+Expenses
+Income
+Transport
+7,200.68 CNY
+Other
+6,651.64 CNY
+Entertainment
+6,313.18 CNY
+医疗
+4,882.80 CNY
+Shopping
+3,873.77 CNY
+旅行
+3,139.22 CNY
+Food & drink
+989.96 CNY
+Education
+871.18 CNY
+居家
+333.26 CNY
+Original currency totals
+
+Source: ECB via Frankfurter · Reference conversion. Bank settlement rates may differ.
+
+Current ledger: 合成审查 · multi
+
+Paste
+Voice
+Manual
+Scan
+Import
+Entries
+Insights
+Ledger
+Me

@@ -1,0 +1,162 @@
+[
+  {
+    "buttons": [
+      {
+        "bg": "rgb(44, 44, 44)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(155, 186, 189)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=combined&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(130, 154, 157)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(69, 76, 76)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=currency&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(87, 99, 100)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(112, 131, 133)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=combined&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(143, 171, 174)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(56, 59, 59)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=currency&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(116, 137, 139)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(83, 93, 94)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=combined&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(155, 186, 189)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(44, 44, 44)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=currency&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(130, 154, 156)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(69, 76, 77)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=combined&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(155, 186, 189)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(44, 44, 44)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=currency&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(141, 168, 171)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(58, 62, 62)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=combined&range=90d&currency=USD&kind=income&month=2026-09"
+  },
+  {
+    "buttons": [
+      {
+        "bg": "rgb(155, 186, 189)",
+        "label": "Combined analysis",
+        "pressed": "true"
+      },
+      {
+        "bg": "rgb(44, 44, 44)",
+        "label": "By currency",
+        "pressed": "false"
+      }
+    ],
+    "hasTrend": false,
+    "url": "?analysis=currency&range=90d&currency=USD&kind=income&month=2026-09"
+  }
+]
