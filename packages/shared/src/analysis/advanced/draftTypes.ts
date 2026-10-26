@@ -436,3 +436,109 @@ export interface DraftCrossCubeResult {
   readonly dimensionPositions: ReadonlyMap<import("./dimensions.js").AdvancedDimension, number>;
 }
 
+/* ------------------------------------------------------------------------- *
+ * C-3 新增形状：P05 分类层级 / P06 矩形树图 / P07 层级桑基（QC-27…QC-29）
+ *
+ * 重要：真实分类模型当前**没有 parentId**（QC-03）。C-3 的层级输入是一个显式
+ * 的「分类关系表」占位（`DraftCategoryRelation[]`，由未来的数据模型扩展或上层
+ * 投影提供）。C 绝不根据分类名称推断父子关系；没有真实关系时，结果必须带
+ * `isRealHierarchy=false`，展示层不得声称这是业务层级（owner 规格 §21/§23）。
+ * ------------------------------------------------------------------------- */
+
+/** 层级节点类型：root 是合成根；category 是真实分类；direct 是桑基里的「直接金额」终端。 */
+export type DraftHierarchyNodeKind = "root" | "category" | "direct";
+
+/** 分类层级关系的一行（占位输入，不是数据模型；见 QC-27）。 */
+export interface DraftCategoryRelation {
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  /** `null` = 顶层分类。 */
+  readonly parentCategoryId: string | null;
+}
+
+/** 层级树的一个节点；金额为币种最小单位，`subtree*` 含自身直接金额与全部后代。 */
+export interface DraftHierarchyNode {
+  readonly nodeId: string;
+  readonly parentId: string | null;
+  readonly depth: number;
+  readonly kind: DraftHierarchyNodeKind;
+  readonly label: string;
+  /** 该节点自身的直接交易金额（不含子级）。 */
+  readonly directAmountMinor: bigint;
+  readonly directCount: number;
+  /** 自己 + 全部后代的金额（同一笔交易只计入一个节点）。 */
+  readonly subtreeAmountMinor: bigint;
+  readonly subtreeCount: number;
+  readonly childCount: number;
+  readonly isLeaf: boolean;
+  /** 分类有效：记录里出现但关系表中没有该分类（历史/孤立节点）。 */
+  readonly hasMissingRelation: boolean;
+}
+
+export interface DraftHierarchyResult {
+  readonly rootId: string;
+  /** 指标：支出或收入（金额权威；笔数附带在节点上）。 */
+  readonly metric: "expense" | "income";
+  readonly currency: string;
+  readonly nodes: readonly DraftHierarchyNode[];
+  readonly maxDepth: number;
+  /** 关系表里至少有一条真实父子边，且没有被丢弃的孤儿父引用。 */
+  readonly isRealHierarchy: boolean;
+  /** 出现未声明的分类（不能保证层级完整）。 */
+  readonly hasUnknownCategories: boolean;
+  /** 父引用指向未声明分类的关系行；这些子分类按顶层处理并在此登记。 */
+  readonly orphanRelationCategoryIds: readonly string[];
+  readonly totalAmountMinor: bigint;
+  readonly totalCount: number;
+  readonly conservation: {
+    /** 根节点子树金额必须等于全部直接金额之和（不得重复计数）。 */
+    readonly rootSubtreeAmountMinor: bigint;
+    /** 逐节点校验 `subtree = direct + Σ children.subtree`。 */
+    readonly nodesConserved: boolean;
+    /** 无重复计数：Σ 所有节点 direct 必须等于根子树。 */
+    readonly noDoubleCounting: boolean;
+    /** 每个直接金额都在叶子或 direct 终端上结束了路径。 */
+    readonly edgesConserved: boolean;
+  };
+  readonly completeness: DraftCompleteness;
+}
+
+/** P07 桑基的一条连线：只表示真实层级归属（父级 → 子级 / 父级 → 直接金额终端）。 */
+export interface DraftSankeyLink {
+  readonly fromId: string;
+  readonly toId: string;
+  readonly amountMinor: bigint;
+  /** 占源节点子树金额的份额；源节点为 0 时为 null（不写 0）。 */
+  readonly shareOfSource: DraftRational | null;
+}
+
+export interface DraftSankeyNode {
+  readonly nodeId: string;
+  readonly label: string;
+  readonly depth: number;
+  readonly kind: DraftHierarchyNodeKind;
+  /** 流入金额：根为 0，分类为父级连线金额，direct 终端为其直接金额。 */
+  readonly inflowMinor: bigint;
+  readonly outflowMinor: bigint;
+  /** 终端（叶子或 direct 终端）不再向外流动。 */
+  readonly isTerminal: boolean;
+}
+
+export interface DraftSankeyResult {
+  readonly rootId: string;
+  readonly metric: "expense" | "income";
+  readonly currency: string;
+  readonly totalMinor: bigint;
+  readonly nodes: readonly DraftSankeyNode[];
+  readonly links: readonly DraftSankeyLink[];
+  readonly isRealHierarchy: boolean;
+  readonly hasUnknownCategories: boolean;
+  readonly conservation: {
+    readonly rootOutflowMatchesTotal: boolean;
+    readonly allInflowsMatch: boolean;
+    readonly outflowConserved: boolean;
+    readonly noNegativeLinks: boolean;
+  };
+  readonly completeness: DraftCompleteness;
+}
+

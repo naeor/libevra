@@ -463,3 +463,141 @@ export type CrossCubeAdapterResult =
   | { readonly ok: true; readonly input: CrossCubeTableInput }
   | { readonly ok: false; readonly reason: string; readonly reasonText: string };
 
+/* ------------------------------------------------------------------------- *
+ * C-3 新增图表输入：P05 分类层级 / P06 分类矩形树图 / P07 层级桑基
+ *
+ * 约束与前几批相同：
+ * - 金额来自 shared 结果（权威值），这里只做文本化与「仅用于坐标」的 number；
+ * - 几何/布局函数只接收已归一化的 number，不重算金额、占比、分位；
+ * - 数据模型当前**没有分类父子关系**（QC-03/QC-27）：没有真实层级时，这些输入
+ *   必须显式给出 `available=false` / `nestingText`，不得用分类名猜层级、
+ *   不得把平面分类画成业务层级（owner 规格 §21/§23）；
+ * - 这些结构是 DRAFT，待 S-01 v2 评审后决定是否并入公共协议（QC-27…QC-29）。
+ * ------------------------------------------------------------------------- */
+
+/** 层级表的一行：P05 的表格/可展开列表形态，也是旭日图的无障碍与降级替代表。 */
+export interface HierarchyTableRow {
+  readonly nodeId: string;
+  /** 1 = 顶层分类（0 是合成根，不在表格里显示）。 */
+  readonly depth: number;
+  readonly label: string;
+  readonly subtreeAmountMinor: bigint;
+  readonly subtreeAmountText: string;
+  readonly directAmountMinor: bigint;
+  readonly directAmountText: string;
+  readonly countText: string;
+  readonly shareOfParentText: string | null;
+  readonly shareOfTotalText: string | null;
+  readonly isLeaf: boolean;
+  readonly hasMissingRelation: boolean;
+}
+
+export interface HierarchyTableInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  /** 不可用时展示的原因（空范围、取数失败等）；可用时为 null。 */
+  readonly unavailableReason: string | null;
+  readonly rows: readonly HierarchyTableRow[];
+  readonly totalText: string;
+  readonly rowsTruncated: boolean;
+  /** 层级状态说明：无真实层级时必须显示「当前无分类层级（数据模型依赖）」。 */
+  readonly nestingText: string;
+}
+
+/** 旭日图的一个节点；角度与半径由 `geometry4.computeSunburstArcs` 计算。 */
+export interface SunburstArcDatum {
+  readonly nodeId: string;
+  readonly parentId: string | null;
+  readonly depth: number;
+  readonly kind: "root" | "category" | "direct";
+  readonly label: string;
+  readonly subtreeAmountMinor: bigint;
+  readonly subtreeAmountText: string;
+  /** 占父节点子树金额的份额（仅用于弧角）；根为 null。 */
+  readonly fractionOfParent: number | null;
+  readonly isLeaf: boolean;
+  readonly hasMissingRelation: boolean;
+}
+
+export interface SunburstInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly nodes: readonly SunburstArcDatum[];
+  readonly totalText: string;
+  readonly maxDepth: number;
+  readonly nestingText: string;
+}
+
+/** 旭日图门控：无真实层级 / 有未声明分类 / 范围不完整时拒绝画图并给原因。 */
+export type SunburstAdapterResult =
+  | { readonly ok: true; readonly input: SunburstInput }
+  | { readonly ok: false; readonly reason: string; readonly reasonText: string };
+
+/** 矩形树图的一个节点（P06；矩形面积 = 金额占比，由 geometry 计算）。 */
+export interface TreemapNodeDatum {
+  readonly nodeId: string;
+  readonly parentId: string | null;
+  readonly depth: number;
+  readonly label: string;
+  readonly amountMinor: bigint;
+  readonly amountText: string;
+  readonly fractionOfTotal: number | null;
+  readonly isLeaf: boolean;
+  readonly hasMissingRelation: boolean;
+}
+
+export interface TreemapInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly nodes: readonly TreemapNodeDatum[];
+  readonly totalText: string;
+  /** true = 无真实层级，只画一层分类（平面 Treemap），不得暗示父子关系。 */
+  readonly flattened: boolean;
+  readonly nestingText: string;
+}
+
+export type TreemapAdapterResult =
+  | { readonly ok: true; readonly input: TreemapInput }
+  | { readonly ok: false; readonly reason: string; readonly reasonText: string };
+
+/** 桑基图节点（P07；只表示真实层级金额归属，owner 规格 §23）。 */
+export interface SankeyNodeDatum {
+  readonly nodeId: string;
+  readonly label: string;
+  readonly depth: number;
+  readonly kind: "root" | "category" | "direct";
+  readonly inflowMinor: bigint;
+  readonly inflowText: string;
+  readonly outflowMinor: bigint;
+  readonly outflowText: string;
+  /** max(流入, 流出) / 总额，仅用于节点高度；总额为 0 时是 0。 */
+  readonly valueFraction: number;
+  readonly isTerminal: boolean;
+}
+
+/** 桑基连线；`fractionOfTotal` 仅用于连线厚度。 */
+export interface SankeyLinkDatum {
+  readonly fromId: string;
+  readonly toId: string;
+  readonly amountMinor: bigint;
+  readonly amountText: string;
+  readonly fractionOfTotal: number;
+  readonly shareOfSource: number | null;
+}
+
+export interface SankeyInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly nodes: readonly SankeyNodeDatum[];
+  readonly links: readonly SankeyLinkDatum[];
+  readonly totalText: string;
+}
+
+/** 桑基门控：无真实层级 / 有未声明分类 / 范围不完整时拒绝启用并给原因。 */
+export type SankeyAdapterResult =
+  | { readonly ok: true; readonly input: SankeyInput }
+  | { readonly ok: false; readonly reason: string; readonly reasonText: string };
+

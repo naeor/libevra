@@ -25,3 +25,5 @@ export * from "./pivot.js";
 export * from "./smallMultiples.js";
 export * from "./calendar.js";
 export * from "./crossCube.js";
+export * from "./hierarchy.js";
+export * from "./sankey.js";

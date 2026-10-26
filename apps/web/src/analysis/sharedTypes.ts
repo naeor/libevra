@@ -357,3 +357,82 @@ export type SharedCrossCubeOutcome =
   | { readonly ok: true; readonly result: SharedCrossCubeResult }
   | { readonly ok: false; readonly reason: string; readonly detail: string };
 
+/* ------------------------------------------------------------------------- *
+ * C-3 结构镜像：shared `advanced/draftTypes.ts` 的层级/桑基形状（DRAFT）。
+ * 只为 web 适配与几何提供结构类型；web 不重新计算金额与守恒，只读字段。
+ * ------------------------------------------------------------------------- */
+
+export interface SharedHierarchyNode {
+  readonly nodeId: string;
+  readonly parentId: string | null;
+  readonly depth: number;
+  readonly kind: "root" | "category" | "direct";
+  readonly label: string;
+  readonly directAmountMinor: bigint;
+  readonly directCount: number;
+  readonly subtreeAmountMinor: bigint;
+  readonly subtreeCount: number;
+  readonly childCount: number;
+  readonly isLeaf: boolean;
+  readonly hasMissingRelation: boolean;
+}
+
+export interface SharedHierarchyConservation {
+  readonly rootSubtreeAmountMinor: bigint;
+  readonly nodesConserved: boolean;
+  readonly noDoubleCounting: boolean;
+  readonly edgesConserved: boolean;
+}
+
+export interface SharedHierarchyResult {
+  readonly rootId: string;
+  readonly metric: "expense" | "income";
+  readonly currency: string;
+  readonly nodes: readonly SharedHierarchyNode[];
+  readonly maxDepth: number;
+  readonly isRealHierarchy: boolean;
+  readonly hasUnknownCategories: boolean;
+  readonly orphanRelationCategoryIds: readonly string[];
+  readonly totalAmountMinor: bigint;
+  readonly totalCount: number;
+  readonly conservation: SharedHierarchyConservation;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
+export interface SharedSankeyNode {
+  readonly nodeId: string;
+  readonly label: string;
+  readonly depth: number;
+  readonly kind: "root" | "category" | "direct";
+  readonly inflowMinor: bigint;
+  readonly outflowMinor: bigint;
+  readonly isTerminal: boolean;
+}
+
+export interface SharedSankeyLink {
+  readonly fromId: string;
+  readonly toId: string;
+  readonly amountMinor: bigint;
+  readonly shareOfSource: RatioLike | null;
+}
+
+export interface SharedSankeyConservation {
+  readonly rootOutflowMatchesTotal: boolean;
+  readonly allInflowsMatch: boolean;
+  readonly outflowConserved: boolean;
+  readonly noNegativeLinks: boolean;
+}
+
+export interface SharedSankeyResult {
+  readonly rootId: string;
+  readonly metric: "expense" | "income";
+  readonly currency: string;
+  readonly totalMinor: bigint;
+  readonly nodes: readonly SharedSankeyNode[];
+  readonly links: readonly SharedSankeyLink[];
+  readonly isRealHierarchy: boolean;
+  readonly hasUnknownCategories: boolean;
+  readonly conservation: SharedSankeyConservation;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
