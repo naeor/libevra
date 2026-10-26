@@ -573,5 +573,20 @@ B-5 是验收批次：**不新增结果形状、不改写协议本体**，只补
 5. **区间上限（S-01 §17）**：本批次不改端点 limit、不加截断；纯函数层保持「越界拒绝、不静默丢数据」的调用方契约（`maxAnalysisDays` 参数化待协议冻结后统一接入）。
 6. **不冻结**：`ANALYSIS_PROTOCOL_VERSION` 仍 `s01-draft`；B 的 `analysis/time.ts` 信封与 `SourceDescriptor.bucket` 填充仍待 S-01 v2 冻结后实现。
 
+---
+
+## 15. S-01 v2 B 侧提案（2026-10-27，draft，待 A 汇总进 v2）
+
+> 专项文档：[S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限.md](S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限.md)
+
+B 向 S-01 v2 提交两项 **additive** 提案（不改已登记形状、不改现有函数行为，唯一消费方 `fxView.ts` 零改动）：
+
+| 编号 | 提案 | 对应 v2 登记 |
+|---|---|---|
+| **B-S01v2-01** | 综合模式 `FxAggregate` **逐日/逐笔投影**（`aggregateFxDetailed`/`aggregateFxDetailedAsync`，`detail.daily` + 可选 `detail.entries`，逐笔与 `convertFx` 同源、超限 `fx_detail_limit` 不截断、异步取消不返回部分结果） | 新增 **G-16**；与 G-02/G-11 衔接 |
+| **B-S01v2-02** | 月键范围上限落位：`FX_MAX_RANGE_MONTHS = 36` + `fxRangeMonths(from,to,maxMonths)`；web `rangeMonths` 14→36 参数化（draft，W1 前不改页面） | **G-09 增补**；对应 Q-BA-12a（月份上限暂记 36 待所有者确认） |
+
+**冻结前规则**：新 API 在 docstring 标 “S-01 v2 draft”；W1 页面接入必须在 S-01 v2 冻结之后；B 不因此新增结果形状、不扩展只读端点（T2/G-11 不变）。性能验证计划见提案 §4（54,000 笔 / 36 月基准、`FX_PERF=1` 门控、单批 ≤50ms、`daily` 模式差异 ≤5%）。
+
 
 
