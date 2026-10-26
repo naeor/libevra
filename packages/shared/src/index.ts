@@ -555,3 +555,5 @@ export {
   type QuotedEventSnapshot,
   type QuotedTransactionSnapshot,
 } from "./messages.js";
+export * from "./fx.js";
+export * from "./fxHistory.js";

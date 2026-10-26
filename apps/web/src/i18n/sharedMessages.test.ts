@@ -48,6 +48,8 @@ const FULL_FILES = [
   "duplicateDetection.ts",
   "duplicateReview.ts",
   "export.ts",
+  "fx.ts",
+  "fxHistory.ts",
   "health.ts",
   "index.ts",
   "invites.ts",

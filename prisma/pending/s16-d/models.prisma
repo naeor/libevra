@@ -1,0 +1,23 @@
+// 待主线集成；独立片段不改变现有 Prisma Client / 迁移链。
+model FxSnapshot {
+  provider  String
+  rateDate  DateTime @map("rate_date") @db.Date
+  revision  String
+  base      String   @default("EUR") @db.VarChar(3)
+  rates     Json
+  fetchedAt DateTime @map("fetched_at") @db.Timestamptz(6)
+
+  @@id([provider, rateDate, revision])
+  @@index([provider, rateDate, fetchedAt(sort: Desc)], map: "fx_snapshots_recent")
+  @@map("fx_snapshots")
+}
+
+model FxResolution {
+  provider      String
+  requestedDate DateTime @map("requested_date") @db.Date
+  rateDate      DateTime @map("rate_date") @db.Date
+  checkedAt     DateTime @map("checked_at") @db.Timestamptz(6)
+
+  @@id([provider, requestedDate])
+  @@map("fx_resolutions")
+}
