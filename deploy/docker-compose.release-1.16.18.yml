@@ -1,0 +1,16 @@
+# Release 1.16.18: brand tagline, shared-ledger message quotes, avatar page polish.
+# Database migrations: 57 → 58 (20261026080000_message_quotes — nullable columns + kind checks).
+# Keep the independently operated relay on its existing known-good image.
+services:
+  migrate:
+    image: libevra-rc-api:1.16.18-20261026
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.16.18-20261026
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.16.18-20261026
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

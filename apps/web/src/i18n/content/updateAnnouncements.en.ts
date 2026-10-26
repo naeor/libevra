@@ -10,6 +10,46 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.16.18": {
+    title: "New brand tagline, message quotes and avatar page polish",
+    summary:
+      "Unifies the brand tagline as “Bookkeeping, your way.”; messages in shared ledgers can quote an entry or an edit, or start from the saved-entry screen; plus a set of refinements to the avatar picker and message board.",
+    sections: [
+      {
+        heading: "New features",
+        items: [
+          "Messages in shared ledgers can now be about an entry or an edit: tap the quote button beside the message box and pick one from recent entries or the edit history; you can also quote the entry you just saved from the save-success screen. Quoting stays optional — a plain message still works exactly as before.",
+        ],
+      },
+      {
+        heading: "Improvements",
+        items: [
+          "The brand tagline is now “Bookkeeping, your way.” in English (with its Chinese counterpart in the Chinese interface); the opening screen and the appearance preview use it too.",
+          "The message shortcut on the save-success screen moved into the success info block as a quiet “Message about this” pill; tapping it opens the message composer with the entry already quoted. Nothing is sent automatically and no empty message is created.",
+          "The quote icon is now a theme-colored light circle with a white opening quotation mark; the quote picker and message sheet slide up from the bottom and back down when closing.",
+          "The avatar picker centers its preview text with the artwork, wraps long captions naturally, orders special avatars by unlock state, desaturates locked avatars with a small lock badge, and keeps the save bar clear of the device safe area.",
+          "The message board now reads top-to-bottom with the newest message at the bottom, opens scrolled to the latest, and the ledger message card shows the two newest messages.",
+          "Chinese and English copy was updated together; category names on quote cards follow the interface language.",
+        ],
+      },
+      {
+        heading: "Bug fixes",
+        items: [
+          "Fixed “This page can’t be displayed” that could appear on the Ledger (collaboration) or message board page after upgrading: messages cached by the previous version had no quote field. The old cache is discarded on upgrade and a missing field is now treated as “no quote”.",
+          "Fixed the quote button, message box and send button not sharing the same height or bottom edge.",
+          "Fixed the ledger message card showing the two oldest messages instead of the two newest.",
+        ],
+      },
+      {
+        heading: "Notes",
+        items: [
+          "This update includes database migration 58, which only adds nullable columns and checks the reference kind; existing messages and ledger data stay unchanged, and the migration runs automatically.",
+          "The first load after upgrading refreshes this device's query cache; your signed-in state and ledger data are unaffected.",
+          "Older clients will show quoted messages as plain messages; the quote card appears after the app refreshes to this version.",
+        ],
+      },
+    ],
+  },
   "1.16.16": {
     title: "Back-navigation fix and copy tweaks",
     summary:
