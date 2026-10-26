@@ -33,7 +33,7 @@
 | A · 实现基线 | `packages/shared/src/analysis/`（types/rational/primitives/context/analyses/charts/adapters） | 26 项装配 + 图表输入；`s01-draft` |
 | B · 时间扩展 | `S17-Agent-B-S01-时间扩展协议草案.md`（B 工作区，只读） | B-0…B-4 已实现；`s17-b-time-v1`，未接 S-01 信封 |
 | B · S-01 v2 提案 | `S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限.md`（B 工作区 `9d77b06`，只读；提案 B-S01v2-01/02） | draft 提案，**additive**；已汇总至 §4.8/§4.9/§7 G-17（Lead Q-BP-3 统一编号）；未冻结 |
-| B · G-17 正式定义（§16） | 同文件 **§16「G-17 正式定义：FX 逐笔/逐日投影」**（B 工作区，首次落盘 `f3bd4d6`／回填 `a2539bd`，只读；Lead m02149 转发） | draft；A 已原样并入 v2 **§13**（含 A 的 `kind:"transfer"` 待裁定备注）；未冻结 |
+| B · G-17 正式定义（§16） | 同文件 **§16「G-17 正式定义：FX 逐笔/逐日投影」**（B 工作区；首次落盘 `f3bd4d6`／回填 `a2539bd`，**D-05 修订版 `7405194`／回填 `3792ace`，以 `7405194` 为准**；Lead m02149/m02412 转发，只读） | draft；A 已并入 v2 **§13**（含 D-05 裁定：`kind` 仅 `income\|expense`、删除 `transfer`、IV-G17-13、§13.5-4 未来扩展）；未冻结 |
 | C · G-16 正式定义 | `S17-Agent-C-S01-v2评审-C-2-分类层级模型正式定义.md`（C 工作区 `465d21e`／回填 `dc91f35`，只读；Lead m02188 转发） | draft；A 已并入 v2 **§14**（`DraftCategoryRelation` + `DraftHierarchyResult` + 桑基投影 + 守恒/门控/常量） |
 | C · C-4 FX 诊断定义 | `S17-Agent-C-S01-v2评审-C-4-FX诊断形状与常量定义.md`（C 工作区 `465d21e`；实现 `2f7a036`／回填 `6dfbf82`，只读） | draft；A 已并入 v2 **§15**（5 子形状判别联合 + QC-30 不同基规则 + 常量归属） |
 | C · 数据契约/公共协议 | `S17-Agent-C-C0-数据契约与公共协议-20261027.md`（C 工作区，只读） | C-0；QC-01…QC-17 |
@@ -129,8 +129,8 @@
 6. **A12 波动性口径（B-16 待裁定）**：均值精确分数、**总体** σ、CV 定点表示（位数待定）、均值±σ 带、`sufficientSample=false` 明示（样本阈值 7 天）、今天/进行中桶不入样（`todayExcluded`）、零收入月单独计数、**A20 最小样本 3 个月**（B 评审要求写入 v2）、**极值日 = 偏离均值 > N×总体 σ**（`extremeSigma`，默认 N=2，D-02 待所有者裁定）。→ 与 s01-draft §16.2 一致的部分标 👍，CV 定点位数/阈值/N 值标 🟡。
 7. **日历一致性（B-17 待裁定）**：**唯一实现归 B**——`timeCalendar.ts`（日历算术/桶键/五态）+ `calendarHeatmap.ts`（逐日强度分位 0–4、周一起始月矩阵）；`weekCount` = 与 ISO 周交叠的 Monday 起始行数、`leapYear` = 2 月天数；C 的 `calendar`（QC-24）只做投影/适配（`weekIndex` 由 `isoWeekOf` 派生、不重算分位、不另立五态）；强度以 B 分位等级为权威，C 的 `intensityMin/Max` 仅图例显示区间。
 8. **综合模式数据源：B-S01v2-01 `FxAggregate` 逐日/逐笔投影（additive，🟡 待裁定）**：B 提案在 `packages/shared/src/fx.ts` **新增**（不改既有函数）`FxDetailedAggregate extends FxAggregate`，含 `detail.daily`（业务日期 → `FxTotals`；只含至少一笔成功折算的日期，缺失日不出现≠0；`Σ daily = totals` 用 BigInt 精确守恒）与 `detail.entries`（`FxConvertedEntry[]`，逐笔金额直接取 `convertFx` 结果、输入序、失败笔不在其中），经 `aggregateFxDetailed`/`aggregateFxDetailedAsync` 暴露；`includeEntries` 默认 `false`，`FX_MAX_DETAIL_ENTRIES = 50_000`，超限抛 `fx_detail_limit`（不截断、不返回部分结果）；异步 `signal` 取消不返回部分结果；`complete=false` 时 `daily` 只表示「已成功折算部分」，时间分析必须把 `failures` 日期映射为 **unknown**（非 0）并降级整体完整性；`aggregateFx`/`aggregateFxAsync` 签名与唯一消费方 `fxView.ts` 零改动。**综合模式的时间/分类/来源分析只能消费该投影，不得在页面层另写一套折算**。
-   - **Lead Q-BP 最终裁定（2026-10-27）**：①字段名用可选 `detail`，类型 `FxAggregateDetail`/`FxDetailedAggregate` 保持、不更名；②`maxEntries` 默认 50,000 是**默认上限/保护值**，逐笔明细视图必须**显式传参**，文档须写明「默认值只是保护，不得作为业务契约」；③`maxEntries`(50k) 与 `maxAnalysisDays`(400) 属**不同轴，不强行对齐**，v2 并列登记、各自默认值；④`detail.daily` **恒输出**（稳定图表与守恒检查），`entries` 保持可选；⑤正式定义**已并入 §13**（B 提案 §16，首次落盘 `f3bd4d6`／回填 `a2539bd`，Lead m02149 转发；A 原样合并并加 `kind:"transfer"` 待裁定备注）；⑥性能规范采纳（异步批次 + `yieldControl`、**不得在渲染帧同步聚合**），引用 B 基线文档 `docs/specs/design/S17-B-性能基线.md`。
-9. **月键上限常量落位（B-S01v2-02，additive，🟡 待裁定）**：shared `fx.ts` 增 `FX_MAX_RANGE_MONTHS = 36` 与 `fxRangeMonths(from, to, maxMonths = FX_MAX_RANGE_MONTHS)`（含首尾月枚举、超限抛 `fx_range_too_long` 不截断、非法入参抛 `fx_range_invalid`）；web `rangeMonths` 委托 shared、默认上限 14 → 36（draft，W1 接入时生效；15–36 个月不再抛错是唯一行为变化；W1 页面行为由 B 在切分方案中明确）；与 s01-draft §17.1(a)/G-09 一致，日窗口 `maxAnalysisDays` 仍由 analysis 调用方传入；Lead 已批准「15–36 月不再抛错（draft，W1 接入生效）」。**正式定义与默认值表见 §13（B 提案 §16 @ `f3bd4d6`）：`fxRangeMonths.maxMonths` 默认 36、范围 1..1200。**
+   - **Lead Q-BP 最终裁定（2026-10-27）**：①字段名用可选 `detail`，类型 `FxAggregateDetail`/`FxDetailedAggregate` 保持、不更名；②`maxEntries` 默认 50,000 是**默认上限/保护值**，逐笔明细视图必须**显式传参**，文档须写明「默认值只是保护，不得作为业务契约」；③`maxEntries`(50k) 与 `maxAnalysisDays`(400) 属**不同轴，不强行对齐**，v2 并列登记、各自默认值；④`detail.daily` **恒输出**（稳定图表与守恒检查），`entries` 保持可选；⑤正式定义**已并入 §13**（B 提案 §16；首次落盘 `f3bd4d6`／回填 `a2539bd`，D-05 修订版 `7405194`／回填 `3792ace`，以 `7405194` 为准）；A 已按 Lead **D-05 裁定**将 `FxConvertedEntry.kind` 收窄为 `"income" | "expense"`、删除 `"transfer"`、补 IV-G17-13 与 §13.5-4 未来扩展条款；⑥性能规范采纳（异步批次 + `yieldControl`、**不得在渲染帧同步聚合**），引用 B 基线文档 `docs/specs/design/S17-B-性能基线.md`。
+9. **月键上限常量落位（B-S01v2-02，additive，🟡 待裁定）**：shared `fx.ts` 增 `FX_MAX_RANGE_MONTHS = 36` 与 `fxRangeMonths(from, to, maxMonths = FX_MAX_RANGE_MONTHS)`（含首尾月枚举、超限抛 `fx_range_too_long` 不截断、非法入参抛 `fx_range_invalid`）；web `rangeMonths` 委托 shared、默认上限 14 → 36（draft，W1 接入时生效；15–36 个月不再抛错是唯一行为变化；W1 页面行为由 B 在切分方案中明确）；与 s01-draft §17.1(a)/G-09 一致，日窗口 `maxAnalysisDays` 仍由 analysis 调用方传入；Lead 已批准「15–36 月不再抛错（draft，W1 接入生效）」。**正式定义与默认值表见 §13（B 提案 §16 @ `7405194`，D-05 修订版；首次落盘 `f3bd4d6`）：`fxRangeMonths.maxMonths` 默认 36、范围 1..1200。**
 10. **五态 → 9 态映射表（G-20，B 草案 §4.2 可核对版）**：
 
 | 时间桶 `state` | `completeness`（9 态） | 说明 |
@@ -202,7 +202,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | G-14 | 现有 R-01…R-10 收尾（DTO 收敛、float 比例、大额字符串化、离线、`coverageEnd?`、σ 字段名等） | s01-draft §11/§16 | 冻结稿 | Lead + Claude |
 | G-15 | 冻结版本命名与向后兼容：`s01-v2` 正式版本串、与 `s01-draft` 的差异清单、旧 draft 字段废除策略 | A | 冻结发布 | Lead |
 | G-16 | **`DraftCategoryRelation` 显式输入 DTO 组**（Lead Q-BP-3 裁定为 G-16；C 评审回执 C-2.2 请求）：作为独立冻结分组登记（父级关系模型未批准时的显式输入占位，QC-27）；**正式定义已并入 §14**（C 文档 @ `465d21e`／回填 `dc91f35`，Lead m02188 转发）：输入 DTO 三字段/输入拒绝行为/四项守恒/`hierarchyIsUsable` 门控/`MAX_HIERARCHY_NODES=2000`/`MAX_SANKEY_LINKS=4000` | C 2026-10-27 回执 | 层级/桑基（P05–P07） | Lead + C |
-| G-17 | **FX 逐笔/逐日投影（B-S01v2-01，Lead Q-BP-3 裁定为 G-17）**：`FxConvertedEntry`/`FxDetailOptions`/`FxAggregateDetail`/`FxDetailedAggregate` 类型与 `fxRangeMonths`/`FX_MAX_*` 常量口径；`detail` 为可选字段、类型不更名（Q-BP-1）；`maxEntries` 默认 50,000 仅作保护、逐笔视图必须显式传参（Q-BP-2）；与 `maxAnalysisDays`(400) 不同轴、不强行对齐（Q-BP-4）；`detail.daily` 恒输出、`entries` 可选（Q-BP-5）；超限 `fx_detail_limit` 不截断、异步取消不返回部分结果、Σdaily=totals 守恒、`complete=false` 时失败日期映射 unknown；性能验证计划（36 月×1500 笔=54,000 笔；总耗时 ≤3s、单批阻塞 ≤50ms、内存增量 ≤30MB、daily-only 相对现有 ≤5%；`fxDetail.performance.test.ts` 以 `FX_PERF=1` 门控，数字记入 `docs/specs/design/S17-B-性能基线.md`）；**正式定义已并入 §13**（B 提案 §16，首次落盘 `f3bd4d6`／回填 `a2539bd`，Lead m02149 转发；A 在 §13 标注 `kind:"transfer"` 待裁定） | B-S01v2-01 | B 的 `fx.ts`/`fxDetail` | Lead + A + B |
+| G-17 | **FX 逐笔/逐日投影（B-S01v2-01，Lead Q-BP-3 裁定为 G-17）**：`FxConvertedEntry`/`FxDetailOptions`/`FxAggregateDetail`/`FxDetailedAggregate` 类型与 `fxRangeMonths`/`FX_MAX_*` 常量口径；`detail` 为可选字段、类型不更名（Q-BP-1）；`maxEntries` 默认 50,000 仅作保护、逐笔视图必须显式传参（Q-BP-2）；与 `maxAnalysisDays`(400) 不同轴、不强行对齐（Q-BP-4）；`detail.daily` 恒输出、`entries` 可选（Q-BP-5）；超限 `fx_detail_limit` 不截断、异步取消不返回部分结果、Σdaily=totals 守恒、`complete=false` 时失败日期映射 unknown；性能验证计划（36 月×1500 笔=54,000 笔；总耗时 ≤3s、单批阻塞 ≤50ms、内存增量 ≤30MB、daily-only 相对现有 ≤5%；`fxDetail.performance.test.ts` 以 `FX_PERF=1` 门控，数字记入 `docs/specs/design/S17-B-性能基线.md`）；**正式定义已并入 §13**（B 提案 §16；首次落盘 `f3bd4d6`／回填 `a2539bd`，D-05 修订版 `7405194`／回填 `3792ace`，以 `7405194` 为准；Lead m02149/m02412 转发；A 按 Lead **D-05 裁定**将 `kind` 限定为 `income\|expense`、删除 `transfer`，并补 IV-G17-13 与 §13.5-4） | B-S01v2-01 | B 的 `fx.ts`/`fxDetail` | Lead + A + B |
 | G-18 | **`analysisLimit?` 统一承载**（B 缺口 1）：`maxAnalysisDays`/`maxMonths` 越界可追溯，进结果基类/`computation`；`maxEntries` 属 FX 投影轴、不同轴不强行对齐（Lead Q-BP-4） | B 评审 | 全部分析 | B + A |
 | G-19 | **A05 默认窗口政策**（`same-day-index` + `policyId`）待所有者确认；可选 `equal-length-window` 须显式且标题可见，不得静默切换（B 评审/D-03） | B 评审/§17.3 | A05 期间对比 | 所有者 |
 | G-20 | **五态 → 9 态映射表确认**：v2 §4.10 已落可核对映射表（B 草案 §4.2），B 复核后进冻结稿（不得只写「复用」） | B 评审 | 全部时间形状 | Lead + B |
@@ -218,7 +218,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 - **待所有者裁定（🟡）**：B-16/B-17、QC-10/11（字段名 R-10）、QC-18…25、QC-01/02/13、区间上限 G-09、dataVersion/coverageEnd G-10、**B 的 FxAggregate 逐日/逐笔投影（G-17）与月键上限参数化（G-09 增补）** 等（见 §7）。
 - **待实现确认（🔵）**：C 形状的实际 `types.ts` 字段、D 的建议字段（`contractVersion?` 等）、图表输入阈值/密度、C 的采样与上限常量。
 
-**冻结门槛**：G-01…G-23 **全部有结论**（允许"不纳入 v2"的明确否决；**G-16/G-17 按 Lead Q-BP-3 裁定为统一组号**，正式定义文本已分别并入 **§14**（C @ `465d21e`／`dc91f35`）与 **§13**（B @ `f3bd4d6`／`a2539bd`）；G-18 为 `analysisLimit?`、G-19 为 A05 窗口政策、G-20 为五态映射、G-21 为常量清单（C 已补 `C_*` 与 `FX_DRAFT_*` 正式定义 → §12 冻结清单 v1）、**G-22=QC-29 判别联合（Lead 已裁定）**、**G-23=QC-30 P16/P17 不同基（Lead 已裁定）**）→ Lead 组织 A/B/C/D 交叉评审 → **A 书面确认「哪些常量冻结、哪些可配置」（C-1 要求，见 §12）** → 所有者批准 → A 发布 `s01-v2` 并同步 `types.ts` 与各 Agent 实现。冻结前另需满足：§0 计数口径与 §12 常量清单已复核、`fx-diagnostic` 权威定义已引用 C-4 文档（C-3）、G-17 的 `kind:"transfer"` 待裁定项已由所有者/Lead 明确（未裁定前不得启用转账识别）。
+**冻结门槛**：G-01…G-23 **全部有结论**（允许"不纳入 v2"的明确否决；**G-16/G-17 按 Lead Q-BP-3 裁定为统一组号**，正式定义文本已分别并入 **§14**（C @ `465d21e`／`dc91f35`）与 **§13**（B D-05 修订版 @ `7405194`／`3792ace`，首次落盘 `f3bd4d6`／`a2539bd`）；G-18 为 `analysisLimit?`、G-19 为 A05 窗口政策、G-20 为五态映射、G-21 为常量清单（C 已补 `C_*` 与 `FX_DRAFT_*` 正式定义 → §12 冻结清单 v1）、**G-22=QC-29 判别联合（Lead 已裁定）**、**G-23=QC-30 P16/P17 不同基（Lead 已裁定）**）→ Lead 组织 A/B/C/D 交叉评审 → **A 书面确认「哪些常量冻结、哪些可配置」（C-1 要求，见 §12）** → 所有者批准 → A 发布 `s01-v2` 并同步 `types.ts` 与各 Agent 实现。冻结前另需满足：§0 计数口径与 §12 常量清单已复核、`fx-diagnostic` 权威定义已引用 C-4 文档（C-3）、G-17 的 `kind` 已由 Lead **D-05 裁定**为 `"income" | "expense"`（删除 `transfer`；未来需转账须另立合同并取得所有者批准、新增 G 组，不得以预留值写入冻结稿）。
 
 ---
 
@@ -238,7 +238,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 1.1 B 的 `S01 v2 提案`（G-17 / G-09 增补）已汇总进 §4.8/§4.9/§7；A 审阅意见（additive 边界、守恒/失败互斥、超限不截断、取消不返回部分结果、性能门控）已记录到评审意见汇总表 X-03。
 1.2 **C 的交叉评审回执（2026-10-27）已到**：C-1 高层无结构性问题、C-2 三点（桑基/旭日为 `HierarchyResult` 纯投影、`DraftCategoryRelation` 独立输入组、形状/输入/投影计数口径）、C-3 `fx-diagnostic` 权威来源与常量清单要求——已全部修订进本草案（§0 计数口径、§3.3/§3.4 投影归属、§4.10 映射表、§7 G-16/G-21、§8 冻结门槛、§12 常量清单），并在评审意见汇总表登记为 X-04 / G-16 / G-21。
 1.3 **Lead Q-BP-1～5 最终裁定（2026-10-27）已并入**：§4.8/§4.9 附「Lead Q-BP 最终裁定」要点、§7 G-17 行更新、G-16/G-17 统一组号（G-16 = `DraftCategoryRelation`、G-17 = FX 投影）、A05 窗口政策与五态映射顺延为 G-19/G-20；性能规范（异步批次 + `yieldControl`、不在渲染帧同步聚合）采纳并引用 `docs/specs/design/S17-B-性能基线.md`；评审意见汇总表登记 X-05（Lead 裁定）。
-1.4 **B 的 G-17 正式定义（B 提案 §16，`f3bd4d6`／回填 `a2539bd`，Lead m02149 转发）已并入 §13**：16.1 目的与边界、16.2 TS 契约、16.3 十二条不变量 IV-G17-01…12、16.4 默认值表、16.5 兼容性与冻结规则；A 备注 `FxConvertedEntry.kind` 含 `"transfer"` 待裁定（S-01 核心无转账合同、规格 §12 非目标），未裁定前不得据此启用转账识别。评审意见汇总表登记 X-06。
+1.4 **B 的 G-17 正式定义（B 提案 §16；首次落盘 `f3bd4d6`／回填 `a2539bd`，D-05 修订版 `7405194`／回填 `3792ace`，以 `7405194` 为准）已并入 §13**：16.1 目的与边界、16.2 TS 契约、16.3 **十三条**不变量 IV-G17-01…13（13 为交易类型域）、16.4 默认值表、16.5 兼容性与冻结规则（含第 4 条未来扩展）。**Lead D-05 裁定（2026-10-27）已应用**：`FxConvertedEntry.kind` 只允许 `"income" | "expense"`，删除 `"transfer"`（S-01 核心与 `TransactionKind` 仅此二者；所有者规格 §12「无转账合同/转账识别属非目标」；B 修订提交 `7405194` 已落实）；如未来需要转账须另立合同并取得所有者批准、新增 G 组，不得以预留值写入冻结稿。评审意见汇总表登记 X-06、D-05（已裁定）。
 1.5 **C 的收口材料（2026-10-27，`465d21e`；Lead m02188 转发）已并入**：①G-16 正式定义 → **§14**（`DraftCategoryRelation` 输入 DTO、输入拒绝行为、四项守恒、`hierarchyIsUsable` 门控、`DraftHierarchyResult`、桑基纯投影 QC-28、`HIERARCHY_ROOT_ID="__root__"`/`HIERARCHY_DIRECT_SUFFIX="::direct"`/`MAX_HIERARCHY_NODES=2000`/`MAX_SANKEY_LINKS=4000`）；②C-4 FX 诊断权威定义 → **§15**（5 子形状判别联合、公共子结构、字段映射表、`C_*`/`FX_DRAFT_*` 常量）；③**Lead QC-29 裁定**：采用判别联合（`diagnosticKind` 5 值），§3.3 行与 §15 按此更新，不再保留单形状备选；④**Lead QC-30 裁定**：P16 笔数份额与 P17 金额份额不同基，不得同屏合成单一「占比」，默认分开并各自标注分母；⑤常量按「C 侧展示契约归 C、FX 引擎常量归 B」归属并直接引用 C 给的常量名（§12 冻结清单 v1）。评审意见汇总表登记 X-07 与 G-22/G-23。
 2. A 汇总意见 → 修订本草案（仍 `s01-v2-draft`）。
 3. Lead 报所有者批准 §7 检查清单（重点 G-01/G-03/G-04/G-07/G-09/G-11/G-16/G-17/G-21）。
@@ -255,7 +255,9 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | 2026-10-27 | 汇总 B 的 `S01 v2 提案`（B-S01v2-01 `FxAggregate` 逐日/逐笔投影 additive、B-S01v2-02 月键上限 14→36 参数化）：§1 来源表、§4.8/§4.9 规则、§7 G-09 增补与新增 G-19（后按 Lead Q-BP-3 统一调整为 **G-17**）、§9 实现关系、§10 评审路径；均标 additive、draft、未冻结 | `s01-v2-draft` 更新，未冻结 |
 | 2026-10-27 | **修订 r1（纳入 C 评审回执 2026-10-27 + B/D 已登记意见）**：§0 计数口径（结果形状 25 / 输入 DTO 7 / 图表输入与投影另计）；§2 `analysisLimit?` 与 source 删 `timeBucket?`；§3.2 `calendar-heatmap` 来源改 B08/I19、§3.3 层级/桑基纯投影与 `fx-diagnostic` 权威来源引用、§3.4 新增 sankey 投影行；§4.2 total 口径收紧、§4.6 波动性补 A20/`extremeSigma`、§4.7 日历唯一实现归 B、§4.10 五态→9 态映射表；§6 D 契约加 X-01 注；§7 新增 G-16（A05 窗口）、G-17（五态映射）、G-20（`DraftCategoryRelation`）、G-21（常量清单）（**该轮编号后在 r2 按 Lead Q-BP-3 统一调整**：G-16=`DraftCategoryRelation`、G-17=FX 投影、A05→G-19、五态→G-20）；§8 冻结门槛 G-01…G-21 + C-1 常量书面确认；§10 评审路径更新；新增 §12 数值常量清单（冻结/可配置登记） | `s01-v2-draft` 更新，未冻结 |
 | 2026-10-27 | **修订 r2（纳入 Lead 的 B FX 提案最终裁定 Q-BP-1～5）**：§4.8 增「Lead Q-BP 最终裁定」要点（`detail` 可选、类型不更名；`maxEntries` 50,000 仅保护值、逐笔视图显式传参；`maxEntries` 与 `maxAnalysisDays` 不同轴不强行对齐；`detail.daily` 恒输出、`entries` 可选；异步批次 + `yieldControl`、不在渲染帧同步聚合、引用 B 性能基线文档）；§4.9 增 Lead 批准「15–36 月不再抛错（draft，W1 接入生效）、W1 页面行为由 B 切分方案明确」；§7 统一组号（G-16=`DraftCategoryRelation`、G-17=FX 逐笔/逐日投影、G-18=`analysisLimit?`、G-19=A05 窗口政策、G-20=五态→9 态、G-21=常量清单）；§8 冻结门槛与 §10 评审路径同步；§12 常量清单补 FX 常量口径（36 月、50,000 条目、不同轴说明）；评审意见汇总表新增 X-05（Lead 裁定）、D-04 结论更新 | `s01-v2-draft` 更新，未冻结 |
-| 2026-10-27 | **修订 r3（纳入 B 的 G-17 正式定义 + C 的 G-16/C-4 收口材料 + Lead QC-29/QC-30 裁定）**：①**新增 §13**（G-17 正式定义，B 提案 §16 @ `f3bd4d6`／回填 `a2539bd`：16.1–16.5 全文 + 12 条 IV-G17 不变量 + 默认值表；A 备注 `kind:"transfer"` 待裁定）；②**新增 §14**（G-16 正式定义，C 文档 @ `465d21e`／回填 `dc91f35`：`DraftCategoryRelation`/输入拒绝行为/四项守恒/`hierarchyIsUsable`/`DraftHierarchyResult`/桑基纯投影/常量）；③**新增 §15**（C-4 FX 诊断判别联合，C 文档 @ `465d21e`：5 子形状 + 公共子结构 + 9 项字段映射 + QC-30 不同基规则 + `FX_DRAFT_*`/`C_*` 常量）；④§3.3 `hierarchy`/`fx-diagnostic` 行指向 §14/§15，`fx-diagnostic` 改为判别联合；⑤§7 G-16/G-17 行更新、新增 **G-22（QC-29 已裁定）**/**G-23（QC-30 已裁定）**；⑥§8 冻结门槛扩至 **G-01…G-23** 并注明 G-16/G-17 正式文本已并入、`transfer` 待裁定；⑦§10 新增 1.4（B G-17）/1.5（C 收口 + Lead QC-29/30）；⑧§12 常量清单定稿为**「冻结清单 v1」**并按 Lead 规则标归属（C 侧展示契约归 C、FX 引擎常量归 B/A，直接引用 C 给的常量名）；⑨§1 来源表新增 C 两份材料行；⑩评审意见汇总表登记 X-06/X-07、G-22/G-23，任务文档同步 | `s01-v2-draft` 更新，未冻结 |
+| 2026-10-27 | **修订 r3（纳入 B 的 G-17 正式定义 + C 的 G-16/C-4 收口材料 + Lead QC-29/QC-30 裁定）**：①**新增 §13**（G-17 正式定义，B 提案 §16（首次落盘 `f3bd4d6`／回填 `a2539bd`；D-05 修订版 `7405194`／回填 `3792ace`）：16.1–16.5 全文 + 12 条 IV-G17 不变量（r3 定稿收口补 IV-G17-13，共 13 条）+ 默认值表；A 备注 `kind:"transfer"` 待裁定，后按 D-05 裁定删除，见 r3a）；②**新增 §14**（G-16 正式定义，C 文档 @ `465d21e`／回填 `dc91f35`：`DraftCategoryRelation`/输入拒绝行为/四项守恒/`hierarchyIsUsable`/`DraftHierarchyResult`/桑基纯投影/常量）；③**新增 §15**（C-4 FX 诊断判别联合，C 文档 @ `465d21e`：5 子形状 + 公共子结构 + 9 项字段映射 + QC-30 不同基规则 + `FX_DRAFT_*`/`C_*` 常量）；④§3.3 `hierarchy`/`fx-diagnostic` 行指向 §14/§15，`fx-diagnostic` 改为判别联合；⑤§7 G-16/G-17 行更新、新增 **G-22（QC-29 已裁定）**/**G-23（QC-30 已裁定）**；⑥§8 冻结门槛扩至 **G-01…G-23** 并注明 G-16/G-17 正式文本已并入、`transfer` 待裁定；⑦§10 新增 1.4（B G-17）/1.5（C 收口 + Lead QC-29/30）；⑧§12 常量清单定稿为**「冻结清单 v1」**并按 Lead 规则标归属（C 侧展示契约归 C、FX 引擎常量归 B/A，直接引用 C 给的常量名）；⑨§1 来源表新增 C 两份材料行；⑩评审意见汇总表登记 X-06/X-07、G-22/G-23，任务文档同步 | `s01-v2-draft` 更新，未冻结 |
+| 2026-10-27 | **应用 Lead D-05 裁定（G-17 `FxConvertedEntry.kind`）**：§13.2 `kind` 改为 `"income" \| "expense"`（删除 `"transfer"`），原待裁定备注改为裁定记录（附理由与「未来需转账须另立合同/新增 G 组」规则）；§1/§4.8/§7 G-17/§8/§10 1.4 相关表述同步；评审意见汇总表 D-05 记为「已裁定：删除 transfer」 | `s01-v2-draft` 更新，未冻结 |
+| 2026-10-27 | **r3 定稿收口（D-05 修订版并入）**：B 修订版 §16 `7405194`／回填 `3792ace` 已并入 §13——§13 来源引用更新为「B §16 @ `7405194`（含 D-05 修订；首次落盘 `f3bd4d6`）」；§13.2 `kind` 行补「继承交易自身 kind，与 `TransactionKind`（`TRANSACTION_KINDS`）对齐」注释；§13.3 新增 **IV-G17-13 交易类型域**（共 13 条）；§13.5 新增第 4 条「未来扩展（不在 S-01 v2 / 本组合同内）」；§1/§4.8/§4.9/§7 G-17/§8/§10 1.4/§12 表来源同步为 `7405194`；评审意见汇总表 D-05/G-17/X-06 同步 | `s01-v2-draft` → **定稿候选**（未冻结，待所有者批准）；提交号待回填 |
 
 ---
 
@@ -267,7 +269,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 |---|---|---|---|---|---|---|
 | `maxAnalysisDays`（`MAX_STATS_DAYS`） | 400 天（默认） | 自然日；A/B/C 日窗口默认上限 | 越界拒绝、不截断 | A（s01-draft §17.1）/Lead | O（G-09） | s01-draft §17.1 |
 | 日窗口绝对上限 | 3,660 天（候选） | 自然日；是否允许超 400 | 未定前按 400 | A/Lead | O（G-09） | s01-draft §17.1 待所有者 |
-| `maxMonths` / `FX_MAX_RANGE_MONTHS` | 36 个月 | 月；月键比较 | 超限 `fx_range_too_long` 不截断；范围 1..1200 | B（G-17）/A（G-09） | O（G-09）；B 已实现 draft | B §16.4 @ `f3bd4d6` |
+| `maxMonths` / `FX_MAX_RANGE_MONTHS` | 36 个月 | 月；月键比较 | 超限 `fx_range_too_long` 不截断；范围 1..1200 | B（G-17）/A（G-09） | O（G-09）；B 已实现 draft | B §16.4 @ `7405194`（D-05 修订版；首次落盘 `f3bd4d6`） |
 | `FX_MAX_DETAIL_ENTRIES` | 50,000 | 条；FX 逐笔投影 | 超限 `fx_detail_limit` 不截断；业务视图必须显式传参（默认值≠契约）；与 `maxAnalysisDays` 不同轴 | B（引擎）/Lead（Q-BP-4） | O（G-17；可配置） | B §16.4、Lead Q-BP-4 |
 | `detail.includeEntries` | `false` | 布尔；FX 逐笔 | `detail.daily` 恒输出，`entries` 可选 | B | F（G-17） | B §16.4 |
 | `aggregateFxDetailedAsync.batchSize` | 200 | 条/批 | 1..1000 越界 `fx_batch_size`；取消不返回部分结果 | B | F（G-17） | B §16.4 |
@@ -310,7 +312,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 
 ## 13. G-17 正式定义：FX 逐笔/逐日投影（B 提供，draft，待 S-01 v2 冻结）
 
-> 合并来源：B 的 `S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限.md` **§16**（首次落盘 `f3bd4d6`、回填 `a2539bd`，Lead m02149 转发）。本节由 A 原样并入 v2 供冻结评审；状态仍 **draft**，待 W1 接入；`G-17` 组名“FX 逐笔/逐日投影”。B 侧实现（`fx.ts` 新 API）在冻结前保持 docstring「draft，待冻结后由 W1 接入」。
+> 合并来源：B 的 `S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限.md` **§16**（首次落盘 `f3bd4d6`／回填 `a2539bd`；**D-05 修订版提交 `7405194`／回填 `3792ace`，以 `7405194` 为准**；Lead m02149/m02412 转发）。本节由 A 并入 v2 供冻结评审；状态仍 **draft**，待 W1 接入；`G-17` 组名“FX 逐笔/逐日投影”。B 侧实现（`fx.ts` 新 API）在冻结前保持 docstring「draft，待冻结后由 W1 接入」。
 
 ### 13.1 目的与边界
 
@@ -334,7 +336,7 @@ export interface FxConvertedEntry {
   readonly id: string;
   readonly bookId: string;
   readonly date: string;                                           // occurredLocalDate（YYYY-MM-DD）
-  readonly kind: "income" | "expense" | "transfer";
+  readonly kind: "income" | "expense";                             // 继承交易自身 kind，与 TransactionKind（TRANSACTION_KINDS）对齐
   readonly categoryId: string;
   readonly targetMinor: string;                                    // 折算后金额（目标币种最小单位，字符串）
   readonly originalMinor: number;                                  // 原币最小单位（沿用现有合同）
@@ -369,7 +371,7 @@ export async function aggregateFxDetailedAsync(
 export function fxRangeMonths(from: string, to: string, maxMonths?: number): string[];
 ```
 
-> ⚠ **合并备注（A，待裁定）**：B 文本 `FxConvertedEntry.kind` 含 `"transfer"`；S-01 核心现有合同只有 `income`/`expense`，且「转账自动识别/排除」在所有者规格 §12 属**非目标**（无转账合同、支付方式≠账户）。该字段值是否保留需所有者/Lead 裁定；未裁定前按 B 文本原样登记（不得据此在实现中启用转账识别或改变既有统计口径），A 已在评审意见汇总表登记待裁定项。
+> **A 备注（2026-10-27，Lead D-05 裁定已应用；B 修订版 §16 @ `7405194`／回填 `3792ace` 已并入）**：`FxConvertedEntry.kind` 只允许 `"income" | "expense"`，删除 `"transfer"`。依据：S-01 核心与 `TransactionKind` 目前仅 `income`/`expense`；所有者规格 §12 明确「无转账合同、转账识别属非目标」。如未来需要转账语义，须**另立转账数据合同并取得所有者批准**、届时新增 G 组，不得以「预留值」形式写入冻结稿。
 
 ### 13.3 不变量（冻结时必须逐条保留）
 
@@ -387,6 +389,7 @@ export function fxRangeMonths(from: string, to: string, maxMonths?: number): str
 | IV-G17-10 | **月键上限**：`fxRangeMonths(from,to,maxMonths=36)` 含首尾月、跨年连续、月键降序无关；`from>to`/非法日期抛 `fx_range_invalid`；月数 > `maxMonths` 抛 `fx_range_too_long`（**不截断**）；`maxMonths` 默认 36（draft），不得被页面各自写死。 |
 | IV-G17-11 | **不做跨轴强行对齐**：本组 `maxEntries=50_000` 与 S-01 §17 的 `maxAnalysisDays=400` 是不同轴（条目 vs 日期窗口），v2 并列登记，互不作为对方的默认值来源。 |
 | IV-G17-12 | **性能约束**：daily-only 用于图表取数；`includeEntries` 仅用于详情/导出类视图，且必须异步分批（`yieldControl`）执行；不得在渲染帧同步聚合（基线见 `S17-B-性能基线.md` §6：1M 笔 daily-only 13.6s、200k 笔逐笔 2.7s、10k×36 月 0.54s，≈13–14µs/笔）。 |
+| IV-G17-13 | **交易类型域（D-05 修订新增，B §16.3 @ `7405194`）**：`FxConvertedEntry.kind` 仅 `"income" \| "expense"`，继承交易自身 `kind`（`TRANSACTION_KINDS`/`TransactionKind`，见 `packages/shared/src/ledger.ts`）；其它值按既有 `invalid_input` 处理，**不预留任何其它值**（含 `transfer`）。 |
 
 ### 13.4 默认值与限制
 
@@ -403,6 +406,7 @@ export function fxRangeMonths(from: string, to: string, maxMonths?: number): str
 1. **兼容性**：纯 additive；现有 4 个消费方（`fxView.ts`、`FxStats`、离线路径、测试）不感知新字段；web `rangeMonths` 15–36 月不再抛错是**唯一行为变化**，标 draft，W1 页面接入时才生效，W1 切分方案需写明。
 2. **冻结规则**：S-01 v2 冻结前，`fx.ts` 新 API docstring 保持“draft，待冻结后由 W1 接入”；冻结时本节不变量进 S-01 正文，`fxDetail.test.ts`（12 条）+ `fxPerformance.test.ts`（3 条，`FX_PERF=1` 门控）作为验收证据。
 3. **登记结论**：G-17 组名“FX 逐笔/逐日投影”；G-16 为 C 的 `DraftCategoryRelation`；不新开 QC 编号。
+4. **未来扩展（不在 S-01 v2 / 本组合同内，B §16.5-4 @ `7405194`）**：转账（`transfer`）不在 S-01 v2 / 本组合同内——当前合同 `TRANSACTION_KINDS = ["expense","income"]`，所有者规格明确“无转账合同、转账识别属非目标”；若未来引入转账，须**另立合同**（含类型、方向、成对语义、汇率与统计口径）并经所有者批准，届时升协议版本，**不得在本联合成员中预留**。D-05 修订版已同步删除原 `transfer` 预留值（见 IV-G17-13）。
 
 ---
 
