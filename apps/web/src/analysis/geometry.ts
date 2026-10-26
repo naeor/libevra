@@ -513,3 +513,207 @@ export function computeBumpLines(
     return { from, to, points };
   });
 }
+
+/* ------------------------------------------------------------------------- *
+ * C-2 第二批几何：分类箱线（横向）/ 小多图网格 / 年度日历网格
+ *
+ * 与前面相同：只接收已归一化到 0..1 的位置，不接触金额、分位、占比。
+ * ------------------------------------------------------------------------- */
+
+/** 一组箱线的归一化位置（共同 domain 下）。 */
+export interface BoxplotGroupFractions {
+  readonly min: number;
+  readonly q1: number;
+  readonly median: number;
+  readonly q3: number;
+  readonly max: number;
+  readonly lowerFence: number;
+  readonly upperFence: number;
+  readonly outliers: readonly number[];
+}
+
+export interface BoxplotGroupRowLayout {
+  readonly index: number;
+  /** 该组横向箱体的纵向中心与高度。 */
+  readonly centerY: number;
+  readonly boxHeight: number;
+  readonly minX: number;
+  readonly q1X: number;
+  readonly medianX: number;
+  readonly q3X: number;
+  readonly maxX: number;
+  readonly lowerWhiskerX: number;
+  readonly upperWhiskerX: number;
+  readonly outlierXs: readonly number[];
+}
+
+export interface BoxplotGroupLayoutOptions {
+  readonly width: number;
+  readonly height: number;
+  readonly padding?: number;
+  /** 每组箱体高度占行高的比例；默认 0.55。 */
+  readonly rowRatio?: number;
+}
+
+/**
+ * 分类箱线图几何（横向）：每行一个分类，x 轴是共同 domain 的 0..1 位置。
+ *
+ * domain 由调用方（适配层）按 shared 的所有组 min..max 计算好；这里只摆位置。
+ */
+export function computeBoxplotGroupLayout(
+  groups: readonly BoxplotGroupFractions[],
+  options: BoxplotGroupLayoutOptions,
+): readonly BoxplotGroupRowLayout[] {
+  assertPositive(options.width, "width");
+  assertPositive(options.height, "height");
+
+  const padding = options.padding ?? 12;
+  const rowRatio = options.rowRatio ?? 0.55;
+  if (rowRatio <= 0 || rowRatio > 1) {
+    throw new RangeError(`rowRatio must be between 0 and 1, received: ${String(rowRatio)}`);
+  }
+
+  const drawableWidth = Math.max(1, options.width - padding * 2);
+  const drawableHeight = Math.max(1, options.height - padding * 2);
+  const rowHeight = drawableHeight / Math.max(1, groups.length);
+  const boxHeight = rowHeight * rowRatio;
+  const toX = (fraction: number): number => padding + clamp01(fraction) * drawableWidth;
+
+  return groups.map((group, index) => ({
+    index,
+    centerY: padding + rowHeight * (index + 0.5),
+    boxHeight,
+    minX: toX(group.min),
+    q1X: toX(group.q1),
+    medianX: toX(group.median),
+    q3X: toX(group.q3),
+    maxX: toX(group.max),
+    lowerWhiskerX: toX(group.lowerFence),
+    upperWhiskerX: toX(group.upperFence),
+    outlierXs: group.outliers.map(toX),
+  }));
+}
+
+export interface SmallMultiplesLayoutOptions {
+  readonly width: number;
+  readonly height: number;
+  /** 固定列数；不传时按 sqrt(panelCount) 自适应（上限 4 列）。 */
+  readonly columns?: number;
+  readonly gap?: number;
+}
+
+export interface SmallMultiplesPanelBox {
+  readonly index: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface SmallMultiplesLayout {
+  readonly columns: number;
+  readonly rows: number;
+  readonly panelWidth: number;
+  readonly panelHeight: number;
+  readonly panels: readonly SmallMultiplesPanelBox[];
+}
+
+/** 小多图网格：等宽等高面板，按行优先排列（共享纵轴时调用方用同一个纵轴域）。 */
+export function computeSmallMultiplesLayout(
+  panelCount: number,
+  options: SmallMultiplesLayoutOptions,
+): SmallMultiplesLayout {
+  assertPositive(options.width, "width");
+  assertPositive(options.height, "height");
+  if (!Number.isInteger(panelCount) || panelCount < 1) {
+    throw new RangeError(`panelCount must be a positive integer, received: ${String(panelCount)}`);
+  }
+
+  const gap = options.gap ?? 8;
+  if (gap < 0) throw new RangeError(`gap must be non-negative, received: ${String(gap)}`);
+
+  const columns = options.columns ?? Math.min(4, Math.max(1, Math.ceil(Math.sqrt(panelCount))));
+  if (!Number.isInteger(columns) || columns < 1) {
+    throw new RangeError(`columns must be a positive integer, received: ${String(columns)}`);
+  }
+  const rows = Math.ceil(panelCount / columns);
+  const panelWidth = (options.width - gap * (columns - 1)) / columns;
+  const panelHeight = (options.height - gap * (rows - 1)) / rows;
+  if (panelWidth <= 0 || panelHeight <= 0) {
+    throw new RangeError("gap is too large for the given canvas size");
+  }
+
+  const panels: SmallMultiplesPanelBox[] = [];
+  for (let index = 0; index < panelCount; index += 1) {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    panels.push({
+      index,
+      x: column * (panelWidth + gap),
+      y: row * (panelHeight + gap),
+      width: panelWidth,
+      height: panelHeight,
+    });
+  }
+
+  return { columns, rows, panelWidth, panelHeight, panels };
+}
+
+export interface CalendarCellsOptions {
+  /** 列数 = 年内周数（52/53）。 */
+  readonly weekCount: number;
+  readonly width: number;
+  readonly height: number;
+  readonly gap?: number;
+  readonly padding?: number;
+}
+
+export interface CalendarCellBox {
+  /** 0 基列（周）与行（ISO 星期 1..7 → 0..6）。 */
+  readonly column: number;
+  readonly row: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * 年度热力日历网格：7 行（周一到周日）× weekCount 列。
+ *
+ * 日期 → (weekIndex, weekday) 的映射由 shared 的 `annualCalendarOf` 给出，这里只摆格子。
+ */
+export function computeCalendarCells(options: CalendarCellsOptions): readonly CalendarCellBox[] {
+  assertPositive(options.width, "width");
+  assertPositive(options.height, "height");
+  if (!Number.isInteger(options.weekCount) || options.weekCount < 1) {
+    throw new RangeError(`weekCount must be a positive integer, received: ${String(options.weekCount)}`);
+  }
+
+  const gap = options.gap ?? 2;
+  const padding = options.padding ?? 8;
+  const calendarRows = 7;
+  const drawableWidth = Math.max(1, options.width - padding * 2 - gap * (options.weekCount - 1));
+  const drawableHeight = Math.max(1, options.height - padding * 2 - gap * (calendarRows - 1));
+  const cellWidth = drawableWidth / options.weekCount;
+  const cellHeight = drawableHeight / calendarRows;
+  if (cellWidth <= 0 || cellHeight <= 0) {
+    throw new RangeError("cell size collapsed: gap/padding too large for the given canvas");
+  }
+
+  const cells: CalendarCellBox[] = [];
+  for (let row = 0; row < calendarRows; row += 1) {
+    for (let column = 0; column < options.weekCount; column += 1) {
+      cells.push({
+        column,
+        row,
+        x: padding + column * (cellWidth + gap),
+        y: padding + row * (cellHeight + gap),
+        width: cellWidth,
+        height: cellHeight,
+      });
+    }
+  }
+
+  return cells;
+}

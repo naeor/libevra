@@ -210,3 +210,150 @@ export interface SharedBubbleResult {
   readonly completeness: "complete" | "no-transactions" | "unavailable";
 }
 
+/* ---------- C-2 第二批结构镜像（P12 箱线 / P13 透视 / P14 小多图 / P15 日历 / P21 立方） ---------- */
+
+export interface SharedBoxplotGroup {
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  readonly sampleCount: number;
+  readonly minMinor: bigint;
+  readonly maxMinor: bigint;
+  readonly q1: RatioLike;
+  readonly median: RatioLike;
+  readonly q3: RatioLike;
+  readonly iqr: RatioLike;
+  readonly lowerFence: RatioLike;
+  readonly upperFence: RatioLike;
+  readonly outlierCount: number;
+  readonly outlierMinors: readonly bigint[];
+  readonly reliable: boolean;
+}
+
+export interface SharedBoxplotResult {
+  readonly groups: readonly SharedBoxplotGroup[];
+  readonly minReliableSample: number;
+  readonly quantileMethod: "type7-linear";
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
+export type SharedPivotMetric = "amount" | "count" | "average" | "share";
+
+export interface SharedPivotAggregate {
+  readonly amountMinor: bigint;
+  readonly count: number;
+  readonly metricValue: RatioLike | null;
+}
+
+export interface SharedPivotCell extends SharedPivotAggregate {
+  readonly rowId: string;
+  readonly colId: string;
+}
+
+export interface SharedPivotResult {
+  readonly rowDimension: string;
+  readonly colDimension: string;
+  readonly metric: SharedPivotMetric;
+  readonly rowIds: readonly string[];
+  readonly colIds: readonly string[];
+  readonly rowLabels: ReadonlyMap<string, string>;
+  readonly colLabels: ReadonlyMap<string, string>;
+  readonly cells: readonly SharedPivotCell[];
+  readonly rowTotals: ReadonlyMap<string, SharedPivotAggregate>;
+  readonly colTotals: ReadonlyMap<string, SharedPivotAggregate>;
+  readonly grandTotal: SharedPivotAggregate;
+  readonly sampleCount: number;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+  readonly conservation: {
+    readonly amountsMatch: boolean;
+    readonly countsMatch: boolean;
+  };
+}
+
+export interface SharedSmallMultiplePoint {
+  readonly bucketKey: string;
+  readonly valueMinor: bigint;
+  readonly count: number;
+}
+
+export interface SharedSmallMultiplePanel {
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  readonly points: readonly SharedSmallMultiplePoint[];
+  readonly totalMinor: bigint;
+  readonly maxMinor: bigint;
+}
+
+export interface SharedSmallMultiplesResult {
+  readonly panels: readonly SharedSmallMultiplePanel[];
+  readonly bucketKeys: readonly string[];
+  readonly bucketLabels: readonly string[];
+  readonly sharedMaxMinor: bigint;
+  readonly panelMaxMinor: ReadonlyMap<string, bigint>;
+  readonly scaleMode: "shared" | "independent";
+  readonly topN: number;
+  readonly truncated: boolean;
+  readonly omittedCategoryCount: number;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
+export interface SharedCalendarDay {
+  readonly date: string;
+  readonly weekday: number;
+  readonly month: number;
+  readonly weekIndex: number;
+  readonly valueMinor: bigint;
+  readonly count: number;
+  readonly state: "complete" | "no-data" | "in-progress" | "future" | "unknown";
+}
+
+export interface SharedCalendarResult {
+  readonly year: number;
+  readonly metric: "expense" | "income" | "count";
+  readonly leapYear: boolean;
+  readonly dayCount: number;
+  readonly weekCount: number;
+  readonly days: readonly SharedCalendarDay[];
+  readonly monthStartWeekIndex: readonly number[];
+  readonly totalMinor: bigint;
+  readonly totalCount: number;
+  readonly recordCount: number;
+  readonly noDataDayCount: number;
+  readonly unknownDayCount: number;
+  readonly futureDayCount: number;
+  readonly inProgressDayCount: number;
+  readonly intensityMinMinor: bigint | null;
+  readonly intensityMaxMinor: bigint | null;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
+export interface SharedCubeAxis {
+  readonly dimension: string;
+  readonly values: readonly string[];
+  readonly labels: ReadonlyMap<string, string>;
+}
+
+export interface SharedCrossCubeCell {
+  readonly coords: readonly string[];
+  readonly amountMinor: bigint;
+  readonly count: number;
+}
+
+export interface SharedCrossCubeResult {
+  readonly metric: "amount" | "count";
+  readonly dimensions: readonly string[];
+  readonly axes: readonly SharedCubeAxis[];
+  readonly cells: readonly SharedCrossCubeCell[];
+  readonly totalMinor: bigint;
+  readonly totalCount: number;
+  readonly scaleNodeCount: readonly number[];
+  readonly combinations: number;
+  readonly filledCellCount: number;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+  readonly supportedDimensions: readonly string[];
+  readonly dimensionPositions: ReadonlyMap<string, number>;
+}
+
+export type SharedCrossCubeOutcome =
+  | { readonly ok: true; readonly result: SharedCrossCubeResult }
+  | { readonly ok: false; readonly reason: string; readonly detail: string };
+

@@ -300,3 +300,166 @@ export interface BubbleInput {
   readonly totalCount: number;
 }
 
+/* ------------------------------------------------------------------------- *
+ * C-2 第二批图表输入（P12 分类箱线 / P13 交叉表 / P14 小多图 / P15 全年日历 / P21 多维长表）
+ *
+ * 与前面相同：`*Text` / `*Fraction` 都是 shared 结果的展示派生，只用于排版与坐标；
+ * 金额、占比、分位、归因的权威值一律在 shared，几何层不得重算。
+ * ------------------------------------------------------------------------- */
+
+/** 箱线图的一组（一个分类），位置已按「所有组共同 domain」归一化。 */
+export interface BoxplotGroupDatum {
+  readonly categoryId: string;
+  readonly label: string;
+  readonly sampleCount: number;
+  /** 样本数达到 shared 的 minReliableSample；false 时展示层必须弱化箱体。 */
+  readonly reliable: boolean;
+  readonly minText: string;
+  readonly q1Text: string;
+  readonly medianText: string;
+  readonly q3Text: string;
+  readonly maxText: string;
+  readonly lowerFenceText: string;
+  readonly upperFenceText: string;
+  readonly outlierTexts: readonly string[];
+  readonly minFraction: number;
+  readonly q1Fraction: number;
+  readonly medianFraction: number;
+  readonly q3Fraction: number;
+  readonly maxFraction: number;
+  readonly lowerFenceFraction: number;
+  readonly upperFenceFraction: number;
+  readonly outlierFractions: readonly number[];
+}
+
+export interface BoxplotByCategoryInput {
+  readonly source: ChartSource;
+  readonly groups: readonly BoxplotGroupDatum[];
+  /** 例如「Type 7 线性插值」；分位方法必须全图一致。 */
+  readonly quantileMethodText: string;
+  readonly minReliableSample: number;
+  readonly domainMinText: string;
+  readonly domainMaxText: string;
+}
+
+/** 交叉表表头（行/列各一个方向）。 */
+export interface PivotHeaderCell {
+  readonly id: string;
+  readonly label: string;
+  /** 该行/列的合计文本（口径与单元格一致）。 */
+  readonly totalText: string;
+}
+
+export interface PivotBodyCell {
+  readonly rowIndex: number;
+  readonly colIndex: number;
+  readonly valueText: string;
+  /** 占比文本；仅当行合计可算（非 0）时给出，否则 null。 */
+  readonly shareText: string | null;
+  readonly isNegative: boolean;
+}
+
+/** 交叉表（P13；CF-10 表格家族，DOM 表格渲染，不需要 SVG 几何）。 */
+export interface PivotTableInput {
+  readonly source: ChartSource;
+  readonly rowDimensionText: string;
+  readonly colDimensionText: string;
+  readonly metricText: string;
+  readonly rowHeaders: readonly PivotHeaderCell[];
+  readonly colHeaders: readonly PivotHeaderCell[];
+  readonly cells: readonly PivotBodyCell[];
+  readonly grandTotalText: string;
+  /** 空单元格文本：表示「该组合没有发生」，不是金额 0。 */
+  readonly emptyCellText: string;
+  readonly filledCellCount: number;
+  /** 守恒校验失败时的说明；通过时为 null（展示层不得自行重算合计）。 */
+  readonly conservationText: string | null;
+}
+
+/** 小多图的一个时间点（P14）。 */
+export interface SmallMultiplePoint {
+  readonly bucketLabel: string;
+  readonly valueText: string;
+  /** 相对本图纵轴域最大值的位置（0..1）；共享尺度时即全局 sharedMax。 */
+  readonly fractionOfMax: number;
+}
+
+export interface SmallMultiplePanel {
+  readonly categoryId: string;
+  readonly label: string;
+  readonly totalText: string;
+  readonly maxText: string;
+  readonly points: readonly SmallMultiplePoint[];
+}
+
+export interface SmallMultiplesInput {
+  readonly source: ChartSource;
+  readonly panels: readonly SmallMultiplePanel[];
+  readonly bucketLabels: readonly string[];
+  readonly scaleMode: "shared" | "independent";
+  readonly sharedMaxText: string;
+  readonly truncated: boolean;
+  readonly omittedCategoryCount: number;
+  /** 截断/独立尺度等需要显式提示的文本；无提示时为 null。 */
+  readonly noteText: string | null;
+}
+
+/** 日历的一个日期（P15；CF-06 年度热力日历）。 */
+export interface CalendarHeatmapDay {
+  readonly date: string;
+  /** ISO 星期：周一 = 1 … 周日 = 7（行）。 */
+  readonly weekday: number;
+  /** 周一起始的年内周列号（0 基，列）。 */
+  readonly weekIndex: number;
+  readonly month: number;
+  readonly state: "complete" | "no-data" | "in-progress" | "future" | "unknown";
+  readonly valueText: string;
+  readonly countText: string;
+  /** 强度 0..1；无数据/未来/未知为 0（不得与真实零值混淆，靠 state 区分）。 */
+  readonly intensity: number;
+}
+
+export interface CalendarHeatmapInput {
+  readonly source: ChartSource;
+  readonly year: number;
+  readonly leapYear: boolean;
+  readonly weekCount: number;
+  readonly monthLabels: readonly string[];
+  /** 每月 1 号所在列（0 基，长度 12），用于月份标签定位。 */
+  readonly monthStartWeekIndex: readonly number[];
+  readonly days: readonly CalendarHeatmapDay[];
+  readonly totalText: string;
+  readonly maxText: string | null;
+  readonly noDataText: string;
+  readonly unknownText: string;
+  readonly futureText: string;
+}
+
+/** 多维长表的一列（P21：维度数 > 2 时不画矩阵，退回长表）。 */
+export interface CrossCubePathCell {
+  readonly dimensionText: string;
+  readonly label: string;
+}
+
+export interface CrossCubeRow {
+  readonly key: string;
+  readonly path: readonly CrossCubePathCell[];
+  readonly valueText: string;
+  readonly shareText: string | null;
+  readonly countText: string;
+}
+
+export interface CrossCubeTableInput {
+  readonly source: ChartSource;
+  readonly dimensionTexts: readonly string[];
+  readonly metricText: string;
+  readonly rows: readonly CrossCubeRow[];
+  readonly totalText: string;
+  readonly truncated: boolean;
+}
+
+/** 多维交叉的能力检查结果：被拒绝时给可展示原因，不抛异常给界面猜。 */
+export type CrossCubeAdapterResult =
+  | { readonly ok: true; readonly input: CrossCubeTableInput }
+  | { readonly ok: false; readonly reason: string; readonly reasonText: string };
+

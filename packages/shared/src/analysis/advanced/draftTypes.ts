@@ -251,3 +251,188 @@ export interface DraftBubbleResult {
   readonly completeness: DraftCompleteness;
 }
 
+/* ------------------------------------------------------------------------- *
+ * C-2 第二批：P12 / P13 / P14 / P15 / P21（QC-21…QC-25，待 S-01 v2 映射）
+ * ------------------------------------------------------------------------- */
+
+/**
+ * P12 分类箱线图的一组：单笔金额的 min / Q1 / 中位 / Q3 / max / IQR 与可选离群点。
+ * 分位与围栏用有理数精确表示；展示层只做 `minor-half-away-v1` 舍入后的文本。
+ */
+export interface DraftBoxplotGroup {
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  readonly sampleCount: number;
+  readonly minMinor: bigint;
+  readonly maxMinor: bigint;
+  readonly q1: DraftRational;
+  readonly median: DraftRational;
+  readonly q3: DraftRational;
+  readonly iqr: DraftRational;
+  readonly lowerFence: DraftRational;
+  readonly upperFence: DraftRational;
+  /** 离群点总数（可能大于 `outlierMinors.length`，后者受 maxOutliersPerGroup 限制）。 */
+  readonly outlierCount: number;
+  /** 回传的离群点（金额升序；最多 maxOutliersPerGroup 个）。 */
+  readonly outlierMinors: readonly bigint[];
+  /** 样本数达到 minReliableSample；false 时展示层必须弱化箱体，不得当作同等可信。 */
+  readonly reliable: boolean;
+}
+
+export interface DraftBoxplotResult {
+  readonly groups: readonly DraftBoxplotGroup[];
+  readonly minReliableSample: number;
+  /** 分位方法：所有分类必须一致（owner 规格 §28 正确性）。 */
+  readonly quantileMethod: "type7-linear";
+  readonly completeness: DraftCompleteness;
+}
+
+/** P13 交叉表指标（受控允许列表）。 */
+export type DraftPivotMetric = "amount" | "count" | "average" | "share";
+
+/** P13 的行/列/总计聚合：金额与笔数是权威，metricValue 是同一口径的派生。 */
+export interface DraftPivotAggregate {
+  readonly amountMinor: bigint;
+  readonly count: number;
+  /** 按 metric 派生：average 在笔数 0 时为 null，share 在总额 0 时为 null（不写 0）。 */
+  readonly metricValue: DraftRational | null;
+}
+
+export interface DraftPivotCell extends DraftPivotAggregate {
+  readonly rowId: string;
+  readonly colId: string;
+}
+
+export interface DraftPivotResult {
+  readonly rowDimension: import("./dimensions.js").AdvancedDimension;
+  readonly colDimension: import("./dimensions.js").AdvancedDimension;
+  readonly metric: DraftPivotMetric;
+  readonly rowIds: readonly string[];
+  readonly colIds: readonly string[];
+  readonly rowLabels: ReadonlyMap<string, string>;
+  readonly colLabels: ReadonlyMap<string, string>;
+  readonly cells: readonly DraftPivotCell[];
+  readonly rowTotals: ReadonlyMap<string, DraftPivotAggregate>;
+  readonly colTotals: ReadonlyMap<string, DraftPivotAggregate>;
+  readonly grandTotal: DraftPivotAggregate;
+  readonly sampleCount: number;
+  readonly completeness: DraftCompleteness;
+  /** Σ cells ⇔ 总计的守恒自检（展示层不得重算合计，只能消费）。 */
+  readonly conservation: {
+    readonly amountsMatch: boolean;
+    readonly countsMatch: boolean;
+  };
+}
+
+/** P14 小多图的一个时间点。 */
+export interface DraftSmallMultiplePoint {
+  readonly bucketKey: string;
+  readonly valueMinor: bigint;
+  readonly count: number;
+}
+
+export interface DraftSmallMultiplePanel {
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  readonly points: readonly DraftSmallMultiplePoint[];
+  readonly totalMinor: bigint;
+  readonly maxMinor: bigint;
+}
+
+export interface DraftSmallMultiplesResult {
+  readonly panels: readonly DraftSmallMultiplePanel[];
+  readonly bucketKeys: readonly string[];
+  readonly bucketLabels: readonly string[];
+  /** 共享纵轴的最大单桶值（所有回传面板）。 */
+  readonly sharedMaxMinor: bigint;
+  /** 每个分类自己的最大单桶值；仅在显式选择独立尺度时使用。 */
+  readonly panelMaxMinor: ReadonlyMap<string, bigint>;
+  readonly scaleMode: "shared" | "independent";
+  readonly topN: number;
+  readonly truncated: boolean;
+  readonly omittedCategoryCount: number;
+  readonly completeness: DraftCompleteness;
+}
+
+/** P15 日历指标。 */
+export type DraftCalendarMetric = "expense" | "income" | "count";
+
+/** P15 日期状态；`no-data` 是真实的零，`unknown` 是覆盖未知，二者不得混淆。 */
+export type DraftCalendarDayState = "complete" | "no-data" | "in-progress" | "future" | "unknown";
+
+export interface DraftCalendarDay {
+  /** `YYYY-MM-DD`。 */
+  readonly date: string;
+  /** ISO 星期：周一 = 1 … 周日 = 7。 */
+  readonly weekday: number;
+  readonly month: number;
+  /** 周一起始的年内周列号（0 基）。 */
+  readonly weekIndex: number;
+  /** 指标值：金额小单位（expense/income）或笔数（count）。 */
+  readonly valueMinor: bigint;
+  readonly count: number;
+  readonly state: DraftCalendarDayState;
+}
+
+export interface DraftCalendarResult {
+  readonly year: number;
+  readonly metric: DraftCalendarMetric;
+  readonly leapYear: boolean;
+  /** 365 或 366；`days.length` 必须等于它。 */
+  readonly dayCount: number;
+  /** 年度热力日历的列数（周数，52 或 53）。 */
+  readonly weekCount: number;
+  readonly days: readonly DraftCalendarDay[];
+  /** 每个月的 1 号落在第几列（0 基，长度 12）。 */
+  readonly monthStartWeekIndex: readonly number[];
+  readonly totalMinor: bigint;
+  readonly totalCount: number;
+  readonly recordCount: number;
+  readonly noDataDayCount: number;
+  readonly unknownDayCount: number;
+  readonly futureDayCount: number;
+  readonly inProgressDayCount: number;
+  /** 有数据日期的强度范围；无任何数据时为 null。 */
+  readonly intensityMinMinor: bigint | null;
+  readonly intensityMaxMinor: bigint | null;
+  readonly completeness: DraftCompleteness;
+}
+
+/** P21 能力检查的拒绝原因（可展示，不抛异常）。 */
+export type DraftCubeRejectionReason =
+  | "unsupported-dimension"
+  | "duplicate-dimension"
+  | "too-many-dimensions"
+  | "unsupported-metric"
+  | "mixed-currency"
+  | "too-many-combinations";
+
+export interface DraftCubeAxis {
+  readonly dimension: import("./dimensions.js").AdvancedDimension;
+  readonly values: readonly string[];
+  readonly labels: ReadonlyMap<string, string>;
+}
+
+export interface DraftCrossCubeCell {
+  /** 按 `dimensions` 顺序的维度键。 */
+  readonly coords: readonly string[];
+  readonly amountMinor: bigint;
+  readonly count: number;
+}
+
+export interface DraftCrossCubeResult {
+  readonly metric: "amount" | "count";
+  readonly dimensions: readonly import("./dimensions.js").AdvancedDimension[];
+  readonly axes: readonly DraftCubeAxis[];
+  readonly cells: readonly DraftCrossCubeCell[];
+  readonly totalMinor: bigint;
+  readonly totalCount: number;
+  readonly scaleNodeCount: readonly number[];
+  /** 维度取值的笛卡尔积大小（成本控制用）。 */
+  readonly combinations: number;
+  readonly filledCellCount: number;
+  readonly completeness: DraftCompleteness;
+  readonly supportedDimensions: readonly import("./dimensions.js").AdvancedDimension[];
+  readonly dimensionPositions: ReadonlyMap<import("./dimensions.js").AdvancedDimension, number>;
+}
+

@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-C-Advanced** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent C 自己。
-> 当前状态：**规格已收到（2026-10-27）；C-0 数据契约与公共协议已交付（2026-10-27）；C-1 排行/分布/变化贡献基础已交付（2026-10-27，提交 `0da1997`）；C-2 矩阵/排名迁移/散点/气泡函数与图表输入已交付本地候选（2026-10-27，提交 `dca9c9e`），等待 Lead 验收**。
+> 当前状态：**规格已收到（2026-10-27）；C-0 数据契约与公共协议已交付（2026-10-27）；C-1 排行/分布/变化贡献基础已交付（2026-10-27，提交 `0da1997`）；C-2 第一批（P01–P04、P08–P11）已交付本地候选（2026-10-27，提交 `dca9c9e`）；C-2 后半（P12–P15、P21）已交付本地候选（2026-10-27），等待 Lead 验收**。
 > **最后核对**：`dca9c9e` / 2026-10-27。
 
 ---
@@ -40,7 +40,7 @@
 - **A06–A11**：6 项深入分析（专业组）。
 - **A15–A17**：3 项深入分析（专业组）。
 - **P01–P24**：24 项专业探索。
-- 合计 **34 项**。状态：规格已收到（2026-10-27）；C-0 数据契约与公共协议已交付；**C-1 函数基础（I18 + A06–A11 + A15–A17 + 基础图表）已交付本地候选（2026-10-27）**；**C-2 矩阵/排名迁移/散点/气泡（P01–P04、P08–P11）已交付本地候选（2026-10-27）**；P12–P15、P21 属 C-2 后半，P05–P07 与依赖数据模型项归 C-3，P16–P20 归 C-4。见本文件 §2.2 规格登记与 §5 进度。
+- 合计 **34 项**。状态：规格已收到（2026-10-27）；C-0 数据契约与公共协议已交付；**C-1 函数基础（I18 + A06–A11 + A15–A17 + 基础图表）已交付本地候选（2026-10-27）**；**C-2 第一批（P01–P04、P08–P11）与 C-2 后半（P12–P15、P21）已交付本地候选（2026-10-27）**；P05–P07 与依赖数据模型项归 C-3，P16–P20 归 C-4。见本文件 §2.2 规格登记与 §5 进度。
 
 ### 2.2 开发阶段
 
@@ -50,6 +50,7 @@
 - **C-0 公共协议与数据能力确认**：已交付（2026-10-27），见 [`S17-Agent-C-C0-数据契约与公共协议-20261027.md`](S17-Agent-C-C0-数据契约与公共协议-20261027.md)。结论：34 项中 T1×3（A08、P08、P15）、T2×27（需 Q1–Q5 只读投影）、T3×1（A15 零金额语义）、T4×3（P05/P06/P07 分类层级）、T5×0；7 类结果协议草案 + 20 图表成本约束 + 测试矩阵已登记；QC-01/QC-02 阻塞 C-1 的来源验收与协议冻结。
 - **C-1 排行/分布/变化贡献基础**：已交付本地候选（2026-10-27）。范围经 Lead 2026-10-27 口径确认：**I18 + A06–A11 + A15–A17 的函数基础 + 基础图表（精确排行表/发散条/直方图/箱线/集中度/瀑布）**；先做不依赖未定接口的部分（纯数学函数 + 模拟数据、几何核心、适配器），draft 结构显式标注「待 S-01 v2 映射」。**数学权威在 shared、几何在 web；几何层不得重算金额/占比/分位。** 第二批「内容/故事与模板层」不在 C-1（Lead 已更正）。
 - **C-2 矩阵与分布扩展（第一批）**：已交付本地候选（2026-10-27）。范围经 Lead 2026-10-27 批准：**P01–P04（分类×月份 / 分类×星期 / 分类×支付方式矩阵、时间×支付方式堆叠）+ P08–P11（帕累托集中度曲线、排名迁移、散点、气泡）**；shared 新增 `migration/scatter/bubble` 三个数学模块并扩展 `draftTypes` 的 `Draft*` 命名空间；web 新增 5 类图表输入 + 适配器 + 热力/堆叠/散点/气泡/迁移几何。仍未接页面、未接 A 的 T2 端点、未冻结公共类型。**Lead 优先级：先 P01–P04 + P08–P11，再做 P12–P15、P21；A17 相关（QC-17）排 C-2 之后。**
+- **C-2 矩阵与分布扩展（后半）**：已交付本地候选（2026-10-27）。范围经 Lead 2026-10-27 批准：**P12 分类金额箱线图、P13 多指标交叉表、P14 分类周期小多图、P15 全年日历、P21 自定义多维**。shared 新增 `dimensions/boxplot/pivot/smallMultiples/calendar/crossCube` 六个模块并扩展 draft 命名空间（QC-21…QC-25）；web 新增 5 类图表输入 + `adapters3` + 箱线/小多图/日历几何。仍不接页面、不碰 A 的 T2 端点、不新增 API/schema/迁移、未冻结公共类型；真实数据夹具待 Lead 统一提供。
 - 后续阶段配合详情页、布局接入与集成。
 
 ### 2.3 预期计算函数（登记，待详细需求细化）
@@ -120,12 +121,13 @@
 | C-0 数据契约与公共协议 | **已完成（草案交付）** | 2026-10-27；见 C-0 文档与 §6.2 提交 |
 | C-1 排行/分布/变化贡献基础 | **已交付本地候选** | 2026-10-27；shared 数学层 + web 几何/适配器；shared 20 文件 410 测试、web 154 文件 1408 测试（含新增 23 条）；见 §6.2 |
 | C-2 矩阵/迁移/散点/气泡（第一批） | **已交付本地候选** | 2026-10-27；shared 新增 3 模块后 23 文件 421 测试、web 156 文件 1429 测试（含新增 11 + 21 条）；见 §6.2 |
+| C-2 箱线/交叉表/小多图/日历/多维（后半） | **已交付本地候选** | 2026-10-27；shared 6 模块后 24 文件 438 测试（新增 12）、web 158 文件 1454 测试（新增 25）；见 §6.2 |
 | I18 | **函数基础完成（C-1）** | 精确排行表数据/适配器已实现并测试；来源追溯仍待 Q1 记录级只读投影（QC-02） |
 | A06–A11 / A15–A17 | **函数基础完成（C-1）** | 贡献/分布/分位/箱线/集中度/瀑布数学与适配器已实现并测试；A10/A11 分位与离散度表示待 QC-10/QC-11 统一；A17 展示口径待 QC-17 |
-| P01–P24 | **P01–P04、P08–P11 函数基础完成（C-2）**；P12–P15、P21 待 C-2 后半；P05–P07 待 C-3 | P05/P06/P07 依赖分类层级模型（QC-03）；P16–P20 依赖 FX 诊断投影（QC-12） |
+| P01–P24 | **P01–P04、P08–P15、P21 函数基础完成（C-2）**；P05–P07 待 C-3；P16–P20 待 C-4 | P05/P06/P07 依赖分类层级模型（QC-03）；P16–P20 依赖 FX 诊断投影（QC-12）；P12–P15/P21 的 draft 形状待 S-01 v2 映射（QC-21…QC-25） |
 | S-01 参与评审 | **已提交 C 侧需求（QC-01）** | 7 类结果协议草案见 C-0 文档 §3.2，待 A/Lead 评审 |
 | W1 专业口径核对 | 等待基线 | 前置：1.16.23 发布（索引 B-1）不变 |
-| 复杂图表实现 | **基础图表（C-1）+ 矩阵/堆叠/散点/气泡/迁移（C-2）已实现** | 排行表/发散条/直方图/箱线/集中度/瀑布（C-1）；热力矩阵/堆叠柱/散点/气泡/排名迁移的输入与几何（C-2）；视觉组件与其余家族依赖 S-02 与 CF 编号（QC-15） |
+| 复杂图表实现 | **基础图表（C-1）+ 矩阵/堆叠/散点/气泡/迁移（C-2 第一批）+ 箱线/小多图/日历/交叉表/长表（C-2 后半）已实现** | 排行表/发散条/直方图/箱线/集中度/瀑布（C-1）；热力矩阵/堆叠柱/散点/气泡/排名迁移（C-2 第一批）；分类箱线/交叉表/小多图/年度日历/多维长表（C-2 后半）；视觉组件与其余家族依赖 S-02 与 CF 编号（QC-15） |
 
 ---
 
@@ -143,6 +145,7 @@
 | 2026-10-27 | 初始化确认：已阅读规格与边界，未开始开发 | 本文件 | 随初始化确认提交 | 未运行（本轮仅只读核实） | 无 | 见 §7 | 等待所有者第二轮详细需求 |
 | 2026-10-27 | **C-1 交付（函数基础 + 基础图表）**：Lead 口径确认范围为 I18 + A06–A11 + A15–A17 的函数基础 + 基础图表（精确排行表/发散条/直方图/箱线/集中度/瀑布）；shared 数学权威层（`advanced/draftTypes.ts` draft 命名空间，未冻结）+ web 几何/适配器；新增单测 33（shared）+ 23（web） | 本文件；`packages/shared/src/analysis/advanced/{draftTypes,rational,quantiles,distribution,contribution,matrix,ranking,index}.ts` + `{math,structures}.test.ts`；`apps/web/src/analysis/{types,format,sharedTypes,geometry,adapters}.ts` + `{geometry,adapters}.test.ts` | `0da1997` | `pnpm --filter @libellum/shared typecheck` EXIT 0；`pnpm --filter @libellum/shared test` 20 文件/410 测试全过；`pnpm --filter @libellum/web typecheck` EXIT 0；`pnpm --filter @libellum/web test` 154 文件/1408 测试全过（含新增 23）；`node tools/check-links.mjs`、`node tools/doc-audit.mjs` 提交前跑 | 新增 draft 类型命名空间（`Draft*` 前缀，文件头声明「不是公共协议、不得被其他 Agent 引用、待映射到 S-01 v2 = QC-16」）；未接入 A 的 T2 端点，未冻结公共类型；未新增迁移 | Type 7 分位与总体标准差表示待 QC-10/QC-11；A17 增长展示口径待 QC-17；真实 DB 只读抽样未做（凭据禁令，见 C-0 文档 §7 QC-14） | 回填提交号；等 Lead 验收 C-1 → 进入 C-2（P01–P04、P08–P15、P21） |
 | 2026-10-27 | **C-2 交付（矩阵/迁移/散点/气泡 + 图表输入）**：Lead 批准范围为 P01–P04 + P08–P11（先做），再做 P12–P15、P21；shared 新增 `migration/scatter/bubble` 数学模块并扩展 draft 命名空间，web 新增 5 类图表输入 + 适配器 + 几何；新增单测 11（shared）+ 21（web） | 本文件；`packages/shared/src/analysis/advanced/{draftTypes,index}.ts`、新增 `{migration,scatter,bubble}.ts` + `{migration,scatter,bubble}.test.ts`；`apps/web/src/analysis/{types,sharedTypes,adapters,geometry}.ts`、新增 `{adapters2,geometry2}.test.ts` | `dca9c9e` | `pnpm --filter @libellum/shared typecheck` EXIT 0；`pnpm --filter @libellum/shared test` 23 文件/421 测试全过（新增 11）；`pnpm --filter @libellum/web typecheck` EXIT 0；`pnpm --filter @libellum/web test` 156 文件/1429 测试全过（新增 21）；`node tools/check-links.mjs`、`node tools/doc-audit.mjs` 提交前跑 | 新增 `DraftRankMigrationResult`/`DraftScatterResult`/`DraftBubbleResult` 三个 draft 形状（QC-18/QC-19/QC-20，待 S-01 v2 映射）；web 新增 `Heatmap`/`StackedBars`/`RankMigration`/`Scatter`/`Bubble` 5 类输入；未冻结公共类型 | 首跑发现并修正 1 条测试断言（负金额行内占比应为 +1 非 -1，属测试错误非实现错误）；真实数据夹具待 Lead 提供；A17 增长展示口径待 QC-17 | 回填提交号；等 Lead 验收 C-2 → C-2 后半（P12–P15、P21）→ C-3 |
+| 2026-10-27 | **C-2 后半交付（P12–P15、P21）**：owner 规格 §47 C-2 范围；shared 新增 `dimensions/boxplot/pivot/smallMultiples/calendar/crossCube` 并扩展 draft 命名空间（QC-21…QC-25）；web 新增 5 类图表输入 + `adapters3` + 箱线/小多图/日历几何；新增单测 12（shared）+ 25（web） | 本文件；`packages/shared/src/analysis/advanced/{draftTypes,index}.ts`、新增 `{dimensions,boxplot,pivot,smallMultiples,calendar,crossCube}.ts` + `batch2.test.ts`；`apps/web/src/analysis/{types,sharedTypes,adapters3,geometry}.ts`、新增 `{adapters3,geometry3}.test.ts` | `<待回填>` | `pnpm --filter @libellum/shared typecheck` EXIT 0；`pnpm --filter @libellum/shared test` 24 文件/438 测试全过（新增 12）；`pnpm --filter @libellum/web typecheck` EXIT 0；`pnpm --filter @libellum/web test` 158 文件/1454 测试全过（新增 25）；`node tools/check-links.mjs`、`node tools/doc-audit.mjs` 提交前跑 | 新增 `DraftBoxplotResult`/`DraftPivotResult`/`DraftSmallMultiplesResult`/`DraftCalendarResult`/`DraftCrossCubeResult` 5 个 draft 形状（QC-21…QC-25，待 S-01 v2 映射）；web 新增 `BoxplotByCategory`/`PivotTable`/`SmallMultiples`/`CalendarHeatmap`/`CrossCubeTable` 输入；`DraftCrossCubeOutcome` 含显式拒绝分支；未冻结公共类型 | 首跑修正 2 条测试期望（箱线默认 padding 12 下 boxHeight=17.6；平均指标 1500 minor=15.00）；真实数据夹具待 Lead 提供；`BOXPLOT_MIN_RELIABLE_SAMPLE=5` 阈值待 A 确认 | 回填提交号；等 Lead 验收 → C-3（P05–P07 依赖模型）与 C-4（P16–P20）按 S-01 v2 / W3 安排 |
 
 ---
 
@@ -170,8 +173,13 @@
 | C-Q18 | **QC-18（C-2 新增）**：排名迁移（P09 Bump）结果形状 `RankMigrationResult`（上期/本期名次 + `amount-desc-id-asc-ties-share-rank` 并列策略 + moved/new/removed 计数）尚未在 S-01 v2 定义；C-2 以 `DraftRankMigrationResult` 承载 | C-2 P09；C-3 P22 同期瀑布可复用 | A + Lead（S-01 v2 统一收口） |
 | C-Q19 | **QC-19（C-2 新增）**：散点（P10）结果形状 `ScatterResult`（点数上限策略 `none`/`top-amount`、`omittedCount`、`complete`）尚未在 S-01 v2 定义；采样语义与完整性字段需统一 | C-2 P10；与 QC-06/QC-07 完整性合同相关 | A + Lead（S-01 v2 统一收口） |
 | C-Q20 | **QC-20（C-2 新增）**：气泡（P11）结果形状 `BubbleResult`（count/sum/mean/share；无笔数时 `mean`/`share` 为 null）尚未在 S-01 v2 定义 | C-2 P11 | A + Lead（S-01 v2 统一收口） |
+| C-Q21 | **QC-21（C-2 后半新增）**：箱线图结果形状 `BoxplotResult`（Type 7 线性分位、1.5×IQR 围栏、`BOXPLOT_MIN_RELIABLE_SAMPLE=5`、`BOXPLOT_DEFAULT_MAX_OUTLIERS=20`）尚未在 S-01 v2 定义；C 以 `DraftBoxplotResult` 承载；阈值 5 待 A 确认 | P12；与 QC-10/QC-11 分位与离散度口径同批收口 | A + Lead（S-01 v2） |
+| C-Q22 | **QC-22（C-2 后半新增）**：交叉表结果形状 `PivotResult`（amount/count/average/share 四指标；行/列/总合计由 shared 提供；`conservation` 守恒校验；稀疏空单元格语义=「未发生」非 0；`MAX_PIVOT_CELLS=2500`）尚未在 S-01 v2 定义 | P13；表格组件与导出 | A + Lead（S-01 v2） |
+| C-Q23 | **QC-23（C-2 后半新增）**：小多图结果形状 `SmallMultiplesResult`（`scaleMode` shared/independent、`topN` 默认 12 上限 24、`bucketKeys/bucketLabels` 须与 B 时间序列同口径、截断说明）尚未在 S-01 v2 定义 | P14；与 B 时间扩展同批对齐（QC-05 时间桶上限） | A/B + Lead |
+| C-Q24 | **QC-24（C-2 后半新增）**：年度日历结果形状 `CalendarResult`（五态 complete/no-data/in-progress/future/unknown、`weekIndex` 周一起始、`leapYear/weekCount`、`intensityMin/Max`）尚未在 S-01 v2 定义；须符合「与 B I12 日历同结果、不另立日历系统」 | P15；与 B I12 结果一致性 | A/B + Lead |
+| C-Q25 | **QC-25（C-2 后半新增）**：多维交叉结果形状 `CrossCubeResult`（受控维度/指标允许列表、最多 3 维、最多 5,000 组合、跨币种必须含 currency 维度、长表输出、拒绝原因枚举）尚未在 S-01 v2 定义；只读投影与 where 条件需权限评审（与 QC-13 同类） | P21；C 的自定义多维 | A/后端 + Lead（S-01 v2） |
 
-> 完整 QC-01…QC-20（含影响范围与是否阻塞）见 [`S17-Agent-C-C0-数据契约与公共协议-20261027.md`](S17-Agent-C-C0-数据契约与公共协议-20261027.md) §7；QC-18…QC-20 为 C-2 新增，仅登记、未实现公共类型。
+> 完整 QC-01…QC-20（含影响范围与是否阻塞）见 [`S17-Agent-C-C0-数据契约与公共协议-20261027.md`](S17-Agent-C-C0-数据契约与公共协议-20261027.md) §7；QC-18…QC-20 为 C-2 新增、QC-21…QC-25 为 C-2 后半新增，均仅登记、未实现公共类型。
 
 ---
 
@@ -190,6 +198,6 @@
 |---|---|
 | 文件 | [`S17-Agent-C-完整开发规格-所有者-20261027.md`](S17-Agent-C-完整开发规格-所有者-20261027.md)（28,600 字符，含 34 项定义、财务合同、数学规则、7 类结果协议、20 个图表家族、测试矩阵、C-0–C-5 批次与完成标准） |
 | 来源 | 所有者直接消息（2026-10-27）；由 Lead 从 DSH 会话日志逐字提取，未做摘要改写 |
-| 状态 | **已收到；C-0 已交付（2026-10-27）；C-1 已交付本地候选（2026-10-27）；C-2 第一批（P01–P04、P08–P11）已交付本地候选（2026-10-27）**，见 C-0 文档与 §6.2；待 Lead 验收后进入 C-2 后半 / C-3 |
+| 状态 | **已收到；C-0 已交付（2026-10-27）；C-1 已交付本地候选（2026-10-27）；C-2 第一批（P01–P04、P08–P11）与 C-2 后半（P12–P15、P21）已交付本地候选（2026-10-27）**，见 C-0 文档与 §6.2；待 Lead 验收后进入 C-3（P05–P07）与 C-4（P16–P20） |
 | C-0 交付文档 | [`S17-Agent-C-C0-数据契约与公共协议-20261027.md`](S17-Agent-C-C0-数据契约与公共协议-20261027.md)（数据契约 18 项 + 34 项状态 + 7 结果协议草案 + 20 图表成本 + 测试矩阵 + AC-C01 + QC-01…QC-17） |
 | 边界 | 只读访问授权：所有子 Agent 可只读读取本机绝大部分文件；**私钥/凭据等秘密文件绝对禁止读取**（见索引 §1.4） |
