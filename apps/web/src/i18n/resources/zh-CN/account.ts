@@ -107,7 +107,7 @@ const account = {
     discardTitle: "放弃这次头像选择？", discardDescription: "你已保存的头像不会改变。", discard: "放弃选择", continue: "继续挑选",
     imageLabel: "{{name}}头像",
     names: { flower: "初绽", sprout: "新芽", sun: "太阳", moon: "弦月", star: "晨星", wave: "海浪", coffee: "咖啡", "daoxuan-special": "倒悬", "descent-special": "降临", house: "小屋", car: "小车", bird: "小鸟", cloud: "云朵", tree: "树木", cat: "小猫", dog: "小狗", mushroom: "蘑菇", boat: "小船", lighthouse: "灯塔", fish: "小鱼", leaf: "叶子", mountain: "小山" },
-    descriptions: { flower: "开一朵小花，添一点美好。", sprout: "开开心心地发芽，开开心心地长大。", sun: "愿你如日光般美好。", moon: "愿你如月芒般闪耀。", star: "拂晓已至，不必再畏惧长夜的苦寒。", wave: "浪花起起伏伏，生活总有转机。", coffee: "咖啡香醇，但不要总熬夜哦。", "daoxuan-special": "或许世界本就颠倒，唯有倒悬之时，方能窥见真相。", "descent-special": "怀抱着热忱、高洁与善良，金色的流星自天外降临此世。" },
+    descriptions: { flower: "开一朵小花，添一点美好", sprout: "开开心心地发芽，开开心心地长大", sun: "愿你如日光般美好", moon: "愿你如月芒般闪耀", star: "拂晓已至，不必再畏惧长夜的苦寒", wave: "浪花起起伏伏，生活总有转机", coffee: "咖啡香醇，但不要总熬夜哦", "daoxuan-special": "或许世界本就颠倒，唯有倒悬之时，方能窥见真相", "descent-special": "怀抱着热忱、高洁与善良，金色的流星自天外降临此世" },
     locked: "未解锁",
     unlockFirstLogin: "首次登录后自动解锁",
     unlockPhilosophyDay: "每年 11 月第三个周四（世界哲学日）登录解锁",

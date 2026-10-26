@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearMissingTranslationKeys, missingTranslationKeys, t } from "../i18n/index.js";
-import { zhCN } from "../i18n/resources/index.js";
+import { enUS, zhCN } from "../i18n/resources/index.js";
 import { startLanguageRuntime } from "../lib/languageRuntime.js";
 import { ArchiveRecoveryPage } from "./ArchiveRecoveryPage.js";
 import { AccountDataPage, blockedReasonText, confirmationAccepted } from "./AccountDataPage.js";
@@ -176,7 +176,15 @@ describe("英文界面：账号页面", () => {
     expect(avatars).toContain("Classic Collection");
     expect(avatars).toContain("Special Collection");
     expect(avatars).toContain("First Bloom");
-    expect(avatars).toContain("Let a little flower bloom, and add a touch of beauty.");
+    // 2026-10-26: 头像题注去掉了句尾句号，让文字块视觉中轴与头像一致。
+    expect(avatars).toContain("Let a little flower bloom, and add a touch of beauty");
+    // 2026-10-26: 头像题注在预览区居中排版，句尾标点会把视觉墨迹中心推偏；中英统一不以句号结尾。
+    for (const descriptions of [zhCN.account.avatars.descriptions, enUS.account.avatars.descriptions]) {
+      for (const description of Object.values(descriptions)) {
+        expect(description).not.toMatch(/[。.]$/u);
+      }
+    }
+    expect(avatars).not.toContain("Let a little flower bloom, and add a touch of beauty.");
     expect(avatars).not.toContain("Tap to preview");
 
     expectNoChinese(render(<AccountDataPage />, "/settings/account-data"));
