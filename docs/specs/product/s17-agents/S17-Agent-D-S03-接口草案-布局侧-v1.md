@@ -1,7 +1,7 @@
-# S17 · Agent D · S-03 接口草案（布局侧，draft v0.2，**未冻结**）
+# S17 · Agent D · S-03 接口草案（布局侧，draft v0.3，**未冻结**）
 
-> 最后核对: `486c603` + 本轮 D-3 提交 / 2026-10-27
-> 状态：**DRAFT v0.2，未冻结**（Lead 已评审六问并裁定，记录见 §8；数值冻结仍待 W3；本文件不构成公共接口）
+> 最后核对: `486c603` + 本轮 D-4 提交 / 2026-10-27
+> 状态：**DRAFT v0.3，未冻结**（Lead 已评审六问并裁定，记录见 §8；D-4 已落地迁移链/缓存键/分享与存储纯函数，见 §4/§9；数值冻结仍待 W3；本文件不构成公共接口）
 > 提交方：`DS-S17-D-Layout`；评审方：Lead（S-03 组织者）、A（计算侧）、Codex（视觉侧）
 > 代码位置：`packages/shared/src/analysis/layout/`（**未接入** `packages/shared/src/index.ts`，接入需 S-03 评审通过）
 > 相关：[S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)、[S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)、[S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)、[S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md](./S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md)、图表与卡片规格 §5.6、总需求规格 §4。
@@ -86,15 +86,25 @@ interface ObjectSizeContract {
 
 **Lead 裁定（2026-10-27）**：迁移函数签名**纳入** S-03 的版本契约（纯函数、逐版本节点降级规则，见下方签名草案）；缓存键派生规则只作为实现约定登记，**不进冻结契约**。默认迁移策略 `size-first`（S）已按 OQ-LM-01 锁定，`position-first` 仅作对照。
 
-建议迁移纯函数签名（**未实现**，W2 契约冻结时补）：
+迁移纯函数签名（**D-4 已落地** 在 `migration-chain.ts`；S-03 冻结时以本节语义为准，实现可内部重构但行为不变）：
 
 ```ts
-type MigrateResult<T> = { ok: true; value: T } | { ok: false; issues: readonly DocumentValidationIssue[] };
-declare function migrateLayoutDocumentV(input: unknown): MigrateResult<LayoutDocumentV1>;
-declare function migrateContentDocumentV(input: unknown): MigrateResult<WorkbenchContentDocumentV1>;
+type MigrationStatus = "identity" | "migrated" | "degraded" | "failed" | "read-only-newer";
+interface MigrationStep<T> {
+  readonly from: number;
+  readonly to: number;
+  migrate(value: unknown): DocumentValidationResult<T>; // 纯函数，不抛异常
+}
+declare function runMigrationChain<T>(
+  value: unknown,
+  options: { steps: readonly MigrationStep<T>[]; targetVersion: number; validate(value: unknown): DocumentValidationResult<T> },
+): MigrationChainResult<T>;
+declare function migrateLayoutDocument(value: unknown): MigrationChainResult<LayoutDocumentV1>;
+declare function migrateContentDocument(value: unknown): MigrationChainResult<WorkbenchContentDocumentV1>;
 ```
 
-缓存键（实现约定，不进冻结契约）：`(权威布局版本, 算法版本, 目标列数, 约束档版本, 内容版本)`；派生结果永不写回权威布局（无累计漂移）。
+- 迁移步骤失败 → 保留**迁移前最后一个合法文档**（`degraded` + `migration-failed`）；缺步骤 → `failed`；较新 → `read-only-newer` + `schema-newer-readonly`（不回写、不删未知字段）；逐节点降级细则待 v2 形状确定后补（当前步表为空，v1 即最新）。
+- 缓存键（实现约定，不进冻结契约）：`(权威布局版本, 算法版本, 目标列数, 约束档版本, 内容版本, 策略)`，D-4 已实现 `deriveProjectionCacheKey`；派生结果永不写回权威布局（无累计漂移）。
 
 ---
 
@@ -160,5 +170,6 @@ declare function migrateContentDocumentV(input: unknown): MigrateResult<Workbenc
 |---|---|---|
 | 2026-10-27 | draft v0.1 | 初稿：引用/尺寸契约/版本迁移/容器占位/Spacer 紧凑边界 + 评审问题 |
 | 2026-10-27 | draft v0.2 | 记录 Lead 六问裁定（见 §8）；迁移签名纳入契约、缓存键降为实现约定；暂不拆 `ContainerGeometryContract`；容器只表达展开/折叠与占位；OQ-LM-01 锁定 S |
+| 2026-10-27 | draft v0.3 | D-4 落地版本契约实现：迁移链五状态与签名（§4）、缓存键派生、文档 IO、分享快照白名单/短码纯函数、导入校验管道、本地存储合并契约；仍 draft、未接包入口、不含服务端（详见 [D-4 记录](./S17-Agent-D-D4-前置-文档IO-迁移链-导入-存储契约-v1.md)） |
 
 > 本文件随 S-03 评审更新；任何字段形状变化须同时改代码、D0/D1/D2/D3 文档与测试，并在任务文档 §6.2 记录。

@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-D-Layout** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent D 自己。
-> 当前状态：**所有者规格已归档；D-0 评审通过（条件性）；D-1 完成（属性测试 10,400 场景、TC 夹具、序列化/损坏配置、真实 typecheck 与 65/65 vitest 通过）；D-2 前置完成（交互模型/状态机草案、S-03 布局侧 draft、编辑器命令/焦点/状态机纯逻辑；102/102 vitest 通过）；D-3 headless 完成（跨列迁移矩阵、确定性修复顺序、垂直紧凑可切换开关（默认关闭）、容器 presentation/expandedSize 语义；12 files / 150 tests 通过），待 Lead 评审；D-2 UI 等待 Codex 视觉规范**（2026-10-27）。
+> 当前状态：**所有者规格已归档；D-0 评审通过（条件性）；D-1 完成；D-2 前置完成（含 S-03 布局侧草案，Lead 评审通过）；D-3 headless 完成且 Lead 验收通过；D-4 前置 headless 完成（文档 IO、迁移链与缓存键、分享快照/短码纯函数、导入校验管道、本地存储契约；17 files / 209 tests 通过），待 Lead 评审；D-2 UI 等待 Codex 视觉规范**（2026-10-27）。
 
 ---
 
@@ -57,6 +57,10 @@
   - 同一目录新增 `compaction.ts`（垂直紧凑纯函数；默认不启用）、`repair.ts`（几何确定性修复与 `GEOMETRY_REPAIR_ORDER`）；`projection.ts` 接入可选 `ProjectOptions.verticalCompact`（默认 `false`）；`types.ts` 增该开关并锁定 size-first 注释。
   - 新增 `migration.test.ts`（18 项：3→4/4→3、列数矩阵、容器、Spacer、多跳无漂移、冲突贪心、非法输入）、`compaction.test.ts`（8 项含 800 场景属性测试）、`repair.test.ts`（10 项）、`container.test.ts`（12 项：折叠↔展开、expandedSize、撤销/重做、投影形态）。
   - [S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md](./S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md)：迁移矩阵、修复顺序与失败码、Spacer/紧凑边界、容器语义、测试结果、偏差与待决。
+- **D-4 前置交付物（2026-10-27，Lead 批准范围：不依赖 Codex 视觉/隐私裁决的部分）**：
+  - 同一目录新增 `document-io.ts`（加载/回退/往返一致性）、`migration-chain.ts`（五种迁移状态、迁移链、缓存键派生）、`share-snapshot.ts`（分享快照白名单构建/校验/解析、短码纯函数）、`import-pipeline.ts`（导入端到端校验管道：ID 重生成→修复→校验→待绑定→预览）、`storage-contract.ts`（本地记录结构、布局/内容合并纯函数、同步接口占位），及对应 5 个测试文件（59 项）；目录 barrel 追加五模块（**仍未接** `@libellum/shared` 包入口）。
+  - [S17-Agent-D-D4-前置-文档IO-迁移链-导入-存储契约-v1.md](./S17-Agent-D-D4-前置-文档IO-迁移链-导入-存储契约-v1.md)：IO/迁移/分享/导入/存储契约、失败码、测试矩阵、偏差与待决。
+  - S-03 布局侧接口草案同步升级 **draft v0.3**（迁移签名已落地、缓存键仍为实现约定、仍不冻结）。
 
 ### 2.3 不负责（明确）
 
@@ -110,10 +114,10 @@
 
 | 能力组 | 状态 | 备注 |
 |---|---|---|
-| W2 布局数据结构约束 | D-0 首提交完成，Lead 评审通过（条件性）；D-1 完成（属性测试/夹具/序列化/损坏配置）；D-2 前置完成（交互模型/状态机草案 + S-03 布局侧草案 + 编辑器命令/焦点/状态机）；**D-3 headless 完成（跨列迁移矩阵/确定性修复顺序/垂直紧凑开关/容器语义），待 Lead 评审** | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **12 files / 150 tests passed**（10,400 属性场景 + 编辑逻辑 + D-3 迁移/修复/紧凑/容器）；尺寸数值与 OQ-LM 仍待上游；D-2 UI 待 Codex 视觉 |
+| W2 布局数据结构约束 | D-0 首提交完成，Lead 评审通过（条件性）；D-1 完成（属性测试/夹具/序列化/损坏配置）；D-2 前置完成（交互模型/状态机草案 + S-03 布局侧草案 + 编辑器命令/焦点/状态机，Lead 评审通过）；D-3 headless 完成且 Lead 验收通过；**D-4 前置 headless 完成（文档 IO/迁移链与缓存键/分享快照与短码/导入管道/本地存储契约），待 Lead 评审** | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **17 files / 209 tests passed**（含 10,400 属性场景、编辑逻辑、D-3 迁移/修复/紧凑/容器、D-4 文档 IO/迁移链/分享/导入/合并）；尺寸数值与 OQ-LM 仍待上游；D-2 UI 待 Codex 视觉 |
 | W5 网格/模板/容器/编辑 | 未开始 | 依赖 Codex 视觉规范、S-03 与卡片清单；OQ-LM-03/04/05/06/07 仍待所有者（OQ-LM-01 已锁定 size-first） |
 | W6 配置/同步/分享 | 未开始 | 依赖同步与隐私合规决策；W2 已预留档案键/引用槽占位字段 |
-| 布局算法测试 | D-1 完成（属性测试 ≥10⁴、TC-07…26 纯算法部分、序列化与损坏配置）；D-3 新增迁移矩阵/修复顺序/紧凑/容器用例 | 累计 12 files / 150 tests；非纯算法用例（TC-15/18/19/21/23/24）留集成/UI 批次 |
+| 布局算法测试 | D-1 完成（属性测试 ≥10⁴、TC-07…26 纯算法部分、序列化与损坏配置）；D-3 新增迁移矩阵/修复顺序/紧凑/容器用例；D-4 新增文档 IO/迁移链/分享快照与短码/导入管道/合并契约用例（59 项） | 累计 17 files / 209 tests；非纯算法用例（TC-15/18/19/21/23/24）留集成/UI 批次；服务端同步与公开分享不测（未实现） |
 
 ---
 
@@ -134,7 +138,7 @@
 | 2026-10-27 | D-0 评审通过（条件性：先装依赖跑真实测试）；`pnpm install --frozen-lockfile --prefer-offline` 成功（313 包，lockfile 未改、node_modules 已忽略）；真实 typecheck 与 vitest 通过 | `node_modules/`（已忽略）、本文件 | `77f9796` | `pnpm --filter @libellum/shared typecheck` exit 0；`vitest run src/analysis/layout` 2 files/29 tests passed | 无 | 无 | D-1：属性测试 ≥10⁴、TC-07…22、序列化往返、损坏配置、S-03 对齐 |
 | 2026-10-27 | D-1 完成：新增 validation（校验/序列化/解析）、测试 PRNG 与夹具、属性测试 10,400 场景、TC-07…26 纯算法夹具、序列化/损坏数据测试；修复 `findEarliestFreeAnchor` 行尾起点越界崩溃；新增 D-1 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、D-1 文档 | `77f9796` | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **5 files / 65 tests passed**（含 10,400 属性场景），exit 0 | 目录内 barrel 追加 validation 导出；**仍未接** `@libellum/shared` 包入口，未冻结公共接口 | 非纯算法 TC-15/18/19/21/23/24 留集成/UI 批次；OQ-LM-01/03/04/05/06/07 仍待所有者；尺寸数值待 W3 | 等待 Codex 视觉规范与 D-2 接口澄清；把 `AnalysisReference`/`ObjectSizeContract` 草案提交 S-03 评审 |
 | 2026-10-27 | D-2 前置完成（Lead 批准范围：不依赖 Codex 视觉）：`commands.ts`/`focus.ts`/`machine.ts` + 测试；D-2 前置交互模型与状态机草案；S-03 布局侧接口草案（draft v0.1，未冻结）；D-2 UI 待 Codex 视觉规范另行批准 | `packages/shared/src/analysis/layout/*`、本文件、两份新文档 | `ddd2b9d` | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **8 files / 102 tests passed**（新增 37 项），exit 0 | 目录内 barrel 追加 commands/focus/machine；**仍未接** `@libellum/shared` 入口；S-03 侧仅 draft，未冻结 | 未实现垂直紧凑/写回/容器内部几何（OQ-LM-03/06/07/08 占位）；手势/视觉细节待 Codex；iOS Safari/PWA 真机未验证 | 待 Lead 评审两份文档；Codex 视觉规范后进入 D-2 UI；W5 前需所有者决定 OQ-LM-01/03/04/05/06/07 |
-| 2026-10-27 | D-3 headless 完成（Lead 批准：D-2 前置与 S-03 评审通过、OQ-LM-01 锁定 S）：新增 `compaction.ts`（垂直紧凑，默认关闭）、`repair.ts`（确定性修复顺序）；`projection.ts` 接 `verticalCompact` 开关；新增 migration/compaction/repair/container 四个测试文件（48 项，含 800 场景属性测试）；S-03 草案升级 v0.2 记录裁定；新增 D-3 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、S-03 草案、D-3 文档 | `2ca59eb`（+ 本记录提交） | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **12 files / 150 tests passed**，exit 0；文档检查 check-links 198 份/985 链接失效 0、doc-audit/check-status 通过 | 目录 barrel 追加 compaction/repair；`ProjectOptions.verticalCompact`（默认 false）；**仍未接** `@libellum/shared` 入口；S-03 仍 draft v0.2 | OQ-LM-03/04/06/09 待所有者；D-2 UI/视觉仍待 Codex；W5 前需定紧凑默认与容器入口 UI | 待 Lead 评审 D-3 与 S-03 v0.2；Codex 视觉规范后 D-2 UI；W5 前接入真实布局引擎 |
+| 2026-10-27 | D-4 前置 headless 完成（Lead 批准：文档 IO/迁移链与缓存键/分享快照与短码/导入管道/本地存储契约）：新增 `document-io.ts`/`migration-chain.ts`/`share-snapshot.ts`/`import-pipeline.ts`/`storage-contract.ts` 与 5 个测试文件（59 项）；S-03 草案升级 v0.3；新增 D-4 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、S-03 草案、D-4 文档 | 待本轮提交（补记见下一行） | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **17 files / 209 tests passed**，exit 0 | 目录 barrel 追加五模块 + `parseShareSnapshot`；**仍未接** `@libellum/shared` 入口；S-03 仍 draft v0.3 | OQ-CF-10 短码参数、OQ-CF-01 删除语义、OQ-CF-02 草稿落本地、B-6 隐私门未定；服务端同步仅接口占位 | 待 Lead 评审 D-4；Codex 视觉后 D-2 UI；W6 服务端同步需批准+迁移评审 |
 
 ---
 
@@ -151,7 +155,8 @@
 | D-Q7 | OQ-LM-03/04/05/06/07 待所有者决定，当前按规格默认值/占位实现，W5 前必须定 | 阻塞 W5 紧凑默认、Spacer 窄屏降级、容器入口 UI、收缩字段表现与跨列写回 | 所有者 |
 | D-Q8 | 卡片 `minSize`/`sizeLadder`/`compatSize`、Codex 视觉规范、S-01 冻结仍待上游 | 阻塞尺寸契约冻结、D-2 UI 与 S-03 对齐 | Lead / A/B/C / Codex |
 | D-Q9 | 索引 B-14（D 规格未下发）状态 | ~~仅索引一致性问题~~ **已解除（2026-10-27）**：Lead 已更新 orchestrator 索引（`3fc42db`） | 已解除 |
-| D-Q10 | D-3 headless 与 S-03 v0.2 待 Lead 评审；D-2 UI 待 Codex 视觉规范 | 阻塞 D-2 UI 与真实布局引擎接入（W5 前置） | Lead / Codex |
+| D-Q10 | D-3 headless 与 S-03 v0.2 待 Lead 评审；D-2 UI 待 Codex 视觉规范 | ~~阻塞~~ **D-3 与 S-03 v0.2 已解除（2026-10-27，Lead 验收通过并批准 D-4 前置）**；D-2 UI 仍待 Codex 视觉规范 | Lead / Codex |
+| D-Q12 | 分享短码参数（位数/字符集/限速/唯一性）与公开分享隐私合规（OQ-CF-10 / B-6） | 阻塞 W6 公开分享上线；D-4 已按候选 8–10 位去歧义字母表实现纯函数，参数可配置、未冻结 | 所有者（W6） |
 | D-Q11 | OQ-LM-01 默认迁移策略 | **已裁定（2026-10-27）**：锁定 `size-first`（S）；`position-first` 仅作对照保留 | 已解除 |
 
 ---
