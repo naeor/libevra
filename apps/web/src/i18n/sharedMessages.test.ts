@@ -63,6 +63,7 @@ const FULL_FILES = [
   "refs.ts",
   "spreadsheet.ts",
   "stats.ts",
+  "timeCalendar.ts",
   "version.ts",
   "voiceParsing.ts",
 ] as const;

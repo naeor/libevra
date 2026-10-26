@@ -86,6 +86,41 @@ export type {
 } from "./stats.js";
 
 export {
+  TIME_CONTRACT_VERSION,
+  WEEK_START_DAY,
+  assertCalendarDate,
+  bucketKeyOf,
+  bucketSpanOf,
+  bucketStartOf,
+  classifyBucket,
+  dayKey,
+  daySpan,
+  daysInSpan,
+  enumerateBuckets,
+  isCalendarDate,
+  isSpanValid,
+  isoDayOfWeek,
+  isoWeekKey,
+  isoWeekOf,
+  monthKey,
+  monthSpan,
+  nextBucketStart,
+  parseTimeSpan,
+  spanContains,
+  spanFromInclusiveDates,
+  spanToInclusive,
+  weekSpan,
+} from "./timeCalendar.js";
+
+export type {
+  BucketContext,
+  BucketState,
+  TimeBucket,
+  TimeGranularity,
+  TimeSpan,
+} from "./timeCalendar.js";
+
+export {
   chineseNumeralToDigits,
   findChineseAmount,
   isNumeralChar,

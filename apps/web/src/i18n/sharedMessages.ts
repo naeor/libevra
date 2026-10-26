@@ -90,6 +90,10 @@ const EXACT: ReadonlyMap<string, string> = new Map<string, string>([
   ["对比区间的起止日期必须同时提供", "Give both a start and an end date for the comparison period"],
   ["近一年", "Last 12 months"],
 
+  // ---- 时间合同（timeCalendar.ts） ----
+  ["时间区间不能为空", "The time range can’t be empty"],
+  ["不是该时间桶的起点", "That date isn’t the start of a time bucket"],
+
   // ---- 导出与编号（export.ts、refs.ts） ----
   ["月份格式应为 YYYY-MM", "Enter the month as YYYY-MM"],
   ["起始月份不能晚于结束月份", "The start month can’t be after the end month"],
