@@ -40,17 +40,19 @@
 | G-16 | **A05 默认窗口政策（`same-day-index` + `policyId`）待所有者确认**（B 评审建议单列冻结项；同 s01-draft §17.3/§17.4） | B | 已反馈（B 建议新增为独立冻结项，并列入需所有者裁定清单） | 待反馈 | 待反馈 | — | 待汇总（列入 §3 待裁定 D-03） | 需所有者 |
 | G-17 | **五态（`complete/in-progress/future/unknown/unavailable`）→ 9 态 `AnalysisCompleteness` 逐项映射表确认**（B 缺口 2：v2 冻结稿需引用 B 草案 §4.2 的可核对映射表，不得只写"复用"） | B | 已反馈（B 已给 §4.2 映射；要求 v2 收可核对映射表） | 待反馈 | 待反馈 | — | 待汇总（修订 v2 §4.2） | 已反馈（B） |
 | G-18 | **`analysisLimit?` 统一进结果基类/`computation`**（`maxAnalysisDays`/`maxMonths` 越界可追溯，而非仅在 s01-draft §17 定义；B 缺口 1） | B | 已反馈（B 要求 v2 冻结稿落 `analysisLimit?` 到结果基类） | 待反馈 | 待反馈 | — | 待汇总（修订 v2 §2/§4.1） | 已反馈（B） |
+| G-19 | **B-S01v2-01 `FxAggregate` 逐日/逐笔投影（additive）**：`detail.daily`/`detail.entries` 字段名与语义、`includeEntries` 默认 false、`FX_MAX_DETAIL_ENTRIES=50_000`、超限 `fx_detail_limit` 不截断、异步取消不返回部分结果、Σdaily=totals 守恒、`complete=false` 时失败日期映射 unknown、与 G-02/G-11 边界不扩 T2；性能验证计划见提案 §4 | B | 已反馈（B 已给完整契约、8 条规则与性能计划） | 待反馈 | 待反馈 | — | **已汇总进 v2 draft §4.8/§9/§7 G-19**（Lead m01900；A 审阅意见见 X-03） | 已反馈（B），A 已汇总 |
 
 ---
 
 ## 2. 跨项/其他意见（X-01…）
 
-> 不属于 G-01…G-15 的评审意见、发现的新冲突、遗漏形状/字段、文档与实现不一致等。
+> 不属于 G-01…G-19 的评审意见、发现的新冲突、遗漏形状/字段、文档与实现不一致等。
 
 | 编号 | 来源 | 意见摘要 | 涉及 v2 章节 | A 处理 | 状态 |
 |---|---|---|---|---|---|
 | X-01 | D | ①**合约一致性确认无冲突**：`AnalysisReference`/`ObjectSizeContract` 字段与 S-03 v0.2 及代码一致；S-01 v2 的四个接口点全部认可（只消费引用、`rangePolicy` 归分析定义、尺寸不影响权威金额、版本独立）；缓存键明确不进冻结契约。②**🔵 建议字段保持未实现**：§6.2 的 `contractVersion?`/`maxSize?`/`aspectRatioHint?` 保持「未实现」标记；`aspectRatioHint` 属 **OQ-LM-09（容器长宽比 / W5 视觉）**，不得在 S-01 冻结时变成布局契约；`contractVersion` 将来只作**尺寸声明版本**，不进权威布局。 | §6.2、§7 | 记录；修订 v2 时在 §6.2 加注「`aspectRatioHint` 归 OQ-LM-09/W5、`contractVersion` 仅尺寸声明版本」 | 已反馈（D） |
 | X-02 | B | ①**事实性错标**：v2 §3.2 `calendar-heatmap` 的来源应为 **B08/I19**（I12 是「支出分类构成」）。②**表述收紧**：§4.2 total 口径改为「`unknown`/`future` 不计入；`in-progress` 可计入但 `complete=false` 明示；存在 `unknown` 时 `total=null`」；§2 source **删 `timeBucket?` 只留 `bucket?`**（格式 `{ key, granularity, span:{ start, end } }`） | §3.2、§4.2/§4.1、§2 | 修订 v2 时按此改正（不提前改内容） | 已反馈（B） |
+| X-03 | B | **S-01 v2 提案（B 分支 `9d77b06`，B-S01v2-01/02，additive）**：①`FxAggregate` 增可选 `detail.daily`（日期→`FxTotals`，只含成功折算日期，BigInt 守恒）与 `detail.entries`（逐笔来自 `convertFx`、输入序），经新函数 `aggregateFxDetailed(Async)` 暴露，既有 `FxAggregate`/`aggregateFx(Async)`/唯一消费方 `fxView.ts` 零改动；②shared `FX_MAX_RANGE_MONTHS=36` + `fxRangeMonths(from,to,maxMonths=36)`，web `rangeMonths` 委托 shared、默认 14→36。**A 审阅意见**：接受 additive 边界与「不另写折算」；认可守恒/失败互斥/超限不截断/取消不返回部分结果/性能门控；Q-BP-1…5 按 B 建议采纳（短名 `daily`/`entries`、输入序、`maxEntries` 默认 50,000、逐笔不含 `version`/`deletedAt`、web 默认 36 为 draft）；两点提醒：①提案 §5 的测试基数为旧值（文中 shared 521/web 1467，rebase 后为 shared 638/web 1390），落地时更新；②`complete=false` 时时间分析须把失败日期映射 `unknown` 并在 `completeness` 降级（与 S-01 §5 一致），不得把部分折算当完整。 | §1、§4.8/§4.9、§7 G-09/G-19、§9 | **已汇总进 v2 draft**（§1 来源表、§4.8/§4.9、§7 G-09 增补与 G-19、§9、§10、§11）；等 C 意见到齐后一次性修订时并入修订记录 | 已审阅并汇总（A） |
 
 ---
 
@@ -91,3 +93,4 @@
 | 2026-10-27 | 初版骨架（应 Lead m01686：等待 B/C/D 评审期间先准备汇总表，不改 v2 内容） | 骨架 |
 | 2026-10-27 | 登记 **D 的第一批交叉评审意见**（Lead m01712 转达）：G-12 拆为 G-12a/G-12b/G-12c；X-01 记录合约一致性确认与 🔵 字段说明（`aspectRatioHint` 归 OQ-LM-09/W5、`contractVersion` 仅尺寸声明版本）。未改 v2 草案内容 | 已登记（D） |
 | 2026-10-27 | 登记 **B 的交叉评审意见**（Lead m01746 转达）：①G-05 补 `extremeSigma`（B 默认 2σ、默认值待所有者裁定）+ A20 最小样本 3 个月与零收入月计数；②G-06 记录 B-17 归属（`timeCalendar.ts`+`calendarHeatmap.ts` 唯一实现、C 只投影、`weekCount`/`leapYear` 定义、强度以 B 分位为权威）；③G-13 记录 CF-B01–B15 以 B `chartFamilies.ts` 为源；④新增 G-16（A05 默认窗口政策待所有者）、G-17（五态→9 态映射表）、G-18（`analysisLimit?` 统一进结果基类）；⑤X-02 记录事实性错标（§3.2 `calendar-heatmap` 来源 B08/I19）与表述收紧（total 口径、§2 删 `timeBucket?` 只留 `bucket?`）；⑥§3 新增 D-02（B-16 默认 N）、D-03（A05 窗口政策）。未改 v2 草案内容 | 已登记（B），待 C |
+| 2026-10-27 | 登记 **B 的 S-01 v2 提案**（Lead m01900 转达，B 分支 `9d77b06`，B-S01v2-01/02，additive）：§1 新增 G-19；§2 新增 X-03（含 A 审阅意见与两点提醒）；A 已把提案汇总进 v2 draft（§1 来源表、§4.8/§4.9、§7 G-09 增补与 G-19、§9、§10、§11），v2 仍 `s01-v2-draft` 未冻结，等 C 意见一次性修订 | 已登记（B）+ A 已汇总，待 C |

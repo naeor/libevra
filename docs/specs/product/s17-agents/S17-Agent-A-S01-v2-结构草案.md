@@ -25,6 +25,7 @@
 | A · S-01 s01-draft | `S17-Agent-A-S01-共享分析结果协议草案.md`（§1–§17，本工作区 `1989245`） | `s01-draft`，未冻结 |
 | A · 实现基线 | `packages/shared/src/analysis/`（types/rational/primitives/context/analyses/charts/adapters） | 26 项装配 + 图表输入；`s01-draft` |
 | B · 时间扩展 | `S17-Agent-B-S01-时间扩展协议草案.md`（B 工作区，只读） | B-0…B-4 已实现；`s17-b-time-v1`，未接 S-01 信封 |
+| B · S-01 v2 提案 | `S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限.md`（B 工作区 `9d77b06`，只读；提案 B-S01v2-01/02） | draft 提案，**additive**；已汇总至 §4.8/§4.9/§7 G-19；未冻结 |
 | C · 数据契约/公共协议 | `S17-Agent-C-C0-数据契约与公共协议-20261027.md`（C 工作区，只读） | C-0；QC-01…QC-17 |
 | C · 专业分析 | C-1/C-2 交付记录与 `Draft*` 类型（C 工作区，只读） | QC-18…QC-25 新增；`Draft*` 未冻结 |
 | D · 布局侧接口 | `S17-Agent-D-S03-接口草案-布局侧-v1.md`（D 工作区，只读） | S-03 draft v0.2；Lead 六问已裁定；数值待 W3 |
@@ -116,6 +117,8 @@
 5. **区间上限**：按 s01-draft §17——月键比较不设日上限（月数暂记 ≤36）、日窗口 `maxAnalysisDays` 默认 400、闰日 2 月末对齐逐条记录、A05 默认 `same-day-index` + `policyId`。
 6. **A12 波动性口径（B-16 待裁定）**：均值精确分数、**总体** σ、CV 定点表示（位数待定）、均值±σ 带、`sufficientSample=false` 明示（样本阈值 7 天）、今天/进行中桶不入样（`todayExcluded`）、零收入月单独计数。→ 与 s01-draft §16.2 一致的部分标 👍，CV 定点位数/阈值标 🟡。
 7. **日历一致性（B-17 待裁定）**：B 的日历热力与 C 的 `calendar`（P15）必须同结果、同五态、周一起始、闰年 `weekCount` 一致、强度归一化口径一致；v2 冻结前由 A/B 给出唯一实现归属（建议共用 B 的 `timeCalendar` 合同）。
+8. **综合模式数据源：B-S01v2-01 `FxAggregate` 逐日/逐笔投影（additive，🟡 待裁定）**：B 提案在 `packages/shared/src/fx.ts` **新增**（不改既有函数）`FxDetailedAggregate extends FxAggregate`，含 `detail.daily`（业务日期 → `FxTotals`；只含至少一笔成功折算的日期，缺失日不出现≠0；`Σ daily = totals` 用 BigInt 精确守恒）与 `detail.entries`（`FxConvertedEntry[]`，逐笔金额直接取 `convertFx` 结果、输入序、失败笔不在其中），经 `aggregateFxDetailed`/`aggregateFxDetailedAsync` 暴露；`includeEntries` 默认 `false`，`FX_MAX_DETAIL_ENTRIES = 50_000`，超限抛 `fx_detail_limit`（不截断、不返回部分结果）；异步 `signal` 取消不返回部分结果；`complete=false` 时 `daily` 只表示「已成功折算部分」，时间分析必须把 `failures` 日期映射为 **unknown**（非 0）并降级整体完整性；`aggregateFx`/`aggregateFxAsync` 签名与唯一消费方 `fxView.ts` 零改动。**综合模式的时间/分类/来源分析只能消费该投影，不得在页面层另写一套折算**。
+9. **月键上限常量落位（B-S01v2-02，additive，🟡 待裁定）**：shared `fx.ts` 增 `FX_MAX_RANGE_MONTHS = 36` 与 `fxRangeMonths(from, to, maxMonths = FX_MAX_RANGE_MONTHS)`（含首尾月枚举、超限抛 `fx_range_too_long` 不截断、非法入参抛 `fx_range_invalid`）；web `rangeMonths` 委托 shared、默认上限 14 → 36（draft，W1 接入时生效；15–36 个月不再抛错是唯一行为变化）；与 s01-draft §17.1(a)/G-09 一致，日窗口 `maxAnalysisDays` 仍由 analysis 调用方传入。
 
 ---
 
@@ -167,23 +170,24 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | G-06 | B-17 日历一致性：B 日历热力与 C `calendar`（P15）同结果/同五态/周一起始/`weekCount`/强度归一化，唯一实现归属 | B-17/QC-24 | B-2/C-2 日历 | Lead/A+B |
 | G-07 | QC-21…QC-25 映射：Boxplot/Pivot/SmallMultiples/Calendar/CrossCube 是否升正式形状；`BOXPLOT_MIN_RELIABLE_SAMPLE=5`、`MAX_PIVOT_CELLS=2500`、`topN≤24`、组合上限等阈值确认 | QC-21…25 | C-2 后半 | 所有者/Lead |
 | G-08 | `timeGranularity` 是否增加 `quarter`/`year`（Q-BC-1）；与 §15 的 `timeGranularity?` 建议合并 | Q-BC-1/QC-05 | B/C 时间定义 | Lead |
-| G-09 | 区间上限确认：月键比较月数上限（暂记 36）、日窗口 `maxAnalysisDays` 默认 400、是否调 3660 | Q-BA-12/§17 | A/B/C 长区间 | 所有者 |
+| G-09 | 区间上限确认：月键比较月数上限（暂记 36）、日窗口 `maxAnalysisDays` 默认 400、是否调 3660；**B-S01v2-02 月键常量落位**：`FX_MAX_RANGE_MONTHS = 36`、`fxRangeMonths(from,to,maxMonths=36)` 参数化、web `rangeMonths` 委托 shared（默认 14→36） | Q-BA-12/§17/B-S01v2-02 | A/B/C 长区间 | 所有者 |
 | G-10 | `dataVersion` 生产方/递增语义与 `coverageEnd` 合同（离线） | QC-06/07 | 全部完整性 | Lead/离线模块 |
 | G-11 | 记录级/FX 只读投影范围与权限（A 的 T2 端点当前只读范围：逐笔不含 note/tags/userId；极值 limited metrics）——C 的 I18/A16/P10/P12/P23 是否够用 | QC-02/QC-13/T2 | C 来源追溯 | Lead + 所有者 |
 | G-12 | D 的 `AnalysisReference.analysisId`/`analysisVersion` 冻结方式、`params` 白名单归属（S-01 还是分析目录） | S-03 | 布局/内容文档 | Lead + A/D |
 | G-13 | 图表家族编号映射：C 的 20 家族 ⇄ CF 编号 ⇄ Codex S-02，及三档密度/最小尺寸 | QC-15/S-02 | W3 卡片家族 | Lead/Codex |
 | G-14 | 现有 R-01…R-10 收尾（DTO 收敛、float 比例、大额字符串化、离线、`coverageEnd?`、σ 字段名等） | s01-draft §11/§16 | 冻结稿 | Lead + Claude |
 | G-15 | 冻结版本命名与向后兼容：`s01-v2` 正式版本串、与 `s01-draft` 的差异清单、旧 draft 字段废除策略 | A | 冻结发布 | Lead |
+| G-19 | **B-S01v2-01 `FxAggregate` 逐日/逐笔投影（additive）**：`FxDetailedAggregate.extends FxAggregate`、`detail.daily`/`detail.entries` 字段名与语义、`includeEntries` 默认 false、`FX_MAX_DETAIL_ENTRIES=50_000`、超限 `fx_detail_limit` 不截断、异步/取消不返回部分结果、守恒断言、`complete=false` 时 daily 仅覆盖已折算部分且失败日期映射 unknown、与 G-02/G-11 边界不扩 T2；性能验证计划（36 月×1500 笔=54,000 笔；总耗时 ≤3s、单批阻塞 ≤50ms、内存增量 ≤30MB、daily-only 相对现有 ≤5%；`fxDetail.performance.test.ts` 以 `FX_PERF=1` 门控，数字记入 `docs/specs/design/S17-B-性能基线.md`） | B-S01v2-01 | B 的 `fx.ts`/`fxDetail` | 所有者/Lead+A+B |
 
 ---
 
 ## 8. 三类标记统计与冻结门槛
 
 - **已定（👍）**：A 四形状 + 四图表输入；B 七形状中 5 个（time-series/multi-series/period-comparison 的未决项已收、calendar-heatmap 待 B-17、moving-average/anomaly）；C 的分位/σ 口径（§16 已登记）；D 两契约（draft v0.2 已被 Lead 评审接受）。
-- **待所有者裁定（🟡）**：B-16/B-17、QC-10/11（字段名 R-10）、QC-18…25、QC-01/02/13、区间上限 G-09、dataVersion/coverageEnd G-10 等（见 §7）。
+- **待所有者裁定（🟡）**：B-16/B-17、QC-10/11（字段名 R-10）、QC-18…25、QC-01/02/13、区间上限 G-09、dataVersion/coverageEnd G-10、**B 的 FxAggregate 逐日/逐笔投影（G-19）与月键上限参数化（G-09 增补）** 等（见 §7）。
 - **待实现确认（🔵）**：C 形状的实际 `types.ts` 字段、D 的建议字段（`contractVersion?` 等）、图表输入阈值/密度、C 的采样与上限常量。
 
-**冻结门槛**：G-01…G-15 **全部有结论**（允许"不纳入 v2"的明确否决）→ Lead 组织 A/B/C/D 交叉评审 → 所有者批准 → A 发布 `s01-v2` 并同步 `types.ts` 与各 Agent 实现。
+**冻结门槛**：G-01…G-19 **全部有结论**（允许"不纳入 v2"的明确否决；G-16…G-18 已在评审意见汇总表登记，本草案修订时并入）→ Lead 组织 A/B/C/D 交叉评审 → 所有者批准 → A 发布 `s01-v2` 并同步 `types.ts` 与各 Agent 实现。
 
 ---
 
@@ -191,6 +195,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 
 - 本草案**不新增/不修改任何代码**；现有 `packages/shared/src/analysis/` 仍按 `s01-draft` 实现，不受本草案影响。
 - B 的 `packages/shared/src/{periodComparison,multiMonthComparison,movingAverage,variability,seasonal,anomaly}.ts`、C 的 `analysis/advanced/` `Draft*` 类型均为**未冻结实现**，冻结后按本草案调整（由各自负责人执行，A 只提供协议）。
+- B 的 `S01 v2 提案`（B-S01v2-01/02）为 **additive draft**：`packages/shared/src/fx.ts` 计划新增 `aggregateFxDetailed`/`aggregateFxDetailedAsync`/`FX_MAX_DETAIL_ENTRIES`/`FX_MAX_RANGE_MONTHS`/`fxRangeMonths`，既有 `FxAggregate`/`aggregateFx`/`aggregateFxAsync` 与唯一消费方 `fxView.ts` 零改动；由 B 在 v2 冻结后实现，A 不实现、不扩展 T2 读取范围。
 - D 的 `packages/shared/src/analysis/layout/` 未接入 `index.ts`，接入需 S-03 评审（Lead）。
 - T2 只读扩展（`/analytics/transactions`、`/analytics/extremes`）为本协议来源追溯的读取基础，保持「已实现，待所有者验收（暂不合并）」；本草案不扩大其读取范围，G-11 若需要扩展须另行批准。
 
@@ -199,6 +204,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 ## 10. 评审路径与下一步
 
 1. Lead 把本草案转 **B/C/D 交叉评审**（各 Agent 只确认与自己形状/契约有关的部分，指出冲突与遗漏）。
+1.1 B 的 `S01 v2 提案`（G-19 / G-09 增补）已汇总进 §4.8/§4.9/§7；A 审阅意见（additive 边界、守恒/失败互斥、超限不截断、取消不返回部分结果、性能门控）已记录到评审意见汇总表 X-03；等 C 的评审意见到齐后**一次性修订**本草案并出修订记录。
 2. A 汇总意见 → 修订本草案（仍 `s01-v2-draft`）。
 3. Lead 报所有者批准 §7 检查清单（重点 G-01/G-03/G-04/G-07/G-09/G-11）。
 4. 冻结：A 发布正式 S-01 v2（版本串、`types.ts` 调整清单、差异说明），Lead 同步索引；之后各 Agent 按 v2 实现/接入。
@@ -211,3 +217,4 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | 日期 | 变更 | 状态 |
 |---|---|---|
 | 2026-10-27 | 初版：汇总 A s01-draft + B 时间七形状 + C 专业形状（含 QC-18…25 draft）+ D S-03 两契约；§7 冻结检查清单 15 项 | `s01-v2-draft`，未冻结 |
+| 2026-10-27 | 汇总 B 的 `S01 v2 提案`（B-S01v2-01 `FxAggregate` 逐日/逐笔投影 additive、B-S01v2-02 月键上限 14→36 参数化）：§1 来源表、§4.8/§4.9 规则、§7 G-09 增补与新增 G-19、§9 实现关系、§10 评审路径；均标 additive、draft、未冻结 | `s01-v2-draft` 更新，未冻结 |
