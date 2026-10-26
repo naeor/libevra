@@ -219,7 +219,7 @@ export interface ObjectSizeContract {
   readonly minFullCols?: number;
 }
 
-/** 迁移策略：尺寸优先（默认，OQ-LM-01 暂用 S）或位置优先（候选 P）。 */
+/** 迁移策略：尺寸优先（默认，**OQ-LM-01 已由 Lead 锁定 size-first**）或位置优先（仅对照策略保留）。 */
 export type MigrationStrategy = "size-first" | "position-first";
 
 /** 投影/降级的可观察原因，只用于 UI 提示与测试断言，不参与财务语义。 */
@@ -270,6 +270,13 @@ export interface ProjectOptions {
   readonly targetColumns: number;
   /** 尺寸契约表；缺失的卡片按 1×1 占位处理并记录 missing-contract。 */
   readonly contracts?: Readonly<Record<string, ObjectSizeContract>>;
-  /** 默认 size-first（OQ-LM-01 暂用 S，待所有者确认后可能改为可配置）。 */
+  /** 默认且已锁定 `size-first`（OQ-LM-01 由 Lead 裁定）；`position-first` 仅作对照，不用于生产。 */
   readonly strategy?: MigrationStrategy;
+  /**
+   * 是否在投影后执行垂直紧凑（OQ-LM-03 未决，**默认 false**）。
+   *
+   * 开启时：对象只向上平移、列不变、不改宽高/形态，Spacer 锚定不上浮、不得被穿过，
+   * 容器整体平移（内部结构不变）。默认关闭以保持源位置，待所有者确认后再定默认值。
+   */
+  readonly verticalCompact?: boolean;
 }

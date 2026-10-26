@@ -11,13 +11,19 @@ import type {
   GridSize,
   GridSplitConfig,
   GridSplitNode,
+  LayoutDocumentV1,
   LayoutGeometry,
+  LayoutProfile,
   ObjectGeometry,
   ObjectSizeContract,
   ProjectedObject,
   ProjectionResult,
   SpacerNode,
   WorkbenchContentDocumentV1,
+} from "./types.js";
+import {
+  LAYOUT_ALGORITHM_VERSION,
+  LAYOUT_SCHEMA_VERSION,
 } from "./types.js";
 
 export const UNIT: GridSize = { colSpan: 1, rowSpan: 1 };
@@ -103,6 +109,39 @@ export function object(
 
 export function geometry(baseCols: number, objects: readonly ObjectGeometry[]): LayoutGeometry {
   return { baseCols, objects };
+}
+
+export interface LayoutDocumentOptions {
+  readonly mode?: "unified" | "independent";
+  readonly profiles?: readonly LayoutProfile[];
+  readonly previousMain?: LayoutGeometry;
+}
+
+/** 构造一份合法的最小布局文档（版本号由调用方按需覆盖）。 */
+export function layoutOf(
+  main: LayoutGeometry,
+  options: LayoutDocumentOptions = {},
+): LayoutDocumentV1 {
+  const document: {
+    schemaVersion: number;
+    layoutAlgorithmVersion: number;
+    mode: "unified" | "independent";
+    main: LayoutGeometry;
+    profiles?: readonly LayoutProfile[];
+    previousMain?: LayoutGeometry;
+  } = {
+    schemaVersion: LAYOUT_SCHEMA_VERSION,
+    layoutAlgorithmVersion: LAYOUT_ALGORITHM_VERSION,
+    mode: options.mode ?? "unified",
+    main,
+  };
+  if (options.profiles !== undefined) {
+    document.profiles = options.profiles;
+  }
+  if (options.previousMain !== undefined) {
+    document.previousMain = options.previousMain;
+  }
+  return document;
 }
 
 export interface SizeContractOptions {

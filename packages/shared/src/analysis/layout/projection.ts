@@ -13,9 +13,10 @@
  * - 每次投影都从权威布局重算，因此链式转换（3→4→2→3）不会累计漂移。
  *
  * 待决（已在文档登记，勿当作已确认）：
- * - OQ-LM-01 行尾/冲突策略：现默认 `size-first`（S），`position-first`（P）为
- *   候选对照；L 同行左移尚未实现。
- * - OQ-LM-03 垂直紧凑：本版不自动紧凑（保持源位置），参数待所有者确认。
+ * - OQ-LM-01 行尾/冲突策略：**已由 Lead 锁定 `size-first`（S）**；`position-first`（P）
+ *   仅作对照策略保留；L 同行左移尚未实现。
+ * - OQ-LM-03 垂直紧凑：默认**不紧凑**（保持源位置）；仅当 `options.verticalCompact === true`
+ *   时在投影后调用 `compactVertically`，参数与默认值待所有者确认。
  * - OQ-LM-04 Spacer 窄屏降级：现用“夹宽到目标列数”。
  * - OQ-LM-06 自动/主动收缩：`presentation` 视为用户意图字段；自动收缩只存在于
  *   投影结果，不写回。
@@ -51,6 +52,7 @@ import {
   positionToRowCol,
   validateGeometry,
 } from "./grid.js";
+import { compactVertically } from "./compaction.js";
 
 interface SourceEntry {
   readonly geometry: ObjectGeometry;
@@ -373,7 +375,6 @@ export function projectLayout(
 
   const occupied = new Set<number>();
   const projected: ProjectedObject[] = [];
-
   for (const entry of entries) {
     const contract = options.contracts?.[entry.geometry.objectId];
     const candidates = buildCandidates(entry, contract, targetColumns);
@@ -418,8 +419,13 @@ export function projectLayout(
     });
   }
 
+  const compacted = options.verticalCompact === true
+    ? compactVertically(projected, targetColumns)
+    : undefined;
+  const finalObjects = compacted?.objects ?? projected;
+
   const validation = validateGeometry(
-    projected.map((object) => ({
+    finalObjects.map((object) => ({
       objectId: object.objectId,
       objectType: object.objectType,
       anchor: object.anchor,
@@ -436,7 +442,7 @@ export function projectLayout(
     });
   }
 
-  return { columns: targetColumns, objects: projected, issues };
+  return { columns: targetColumns, objects: finalObjects, issues };
 }
 
 /** 把投影结果转回几何（用于“无累计漂移”测试：再次投影必须幂等）。 */

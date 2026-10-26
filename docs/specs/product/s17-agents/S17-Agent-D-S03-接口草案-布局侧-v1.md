@@ -1,10 +1,10 @@
-# S17 · Agent D · S-03 接口草案（布局侧，draft v0.1，**未冻结**）
+# S17 · Agent D · S-03 接口草案（布局侧，draft v0.2，**未冻结**）
 
-> 最后核对: `486c603` + 本轮 D-2 前置提交 / 2026-10-27
-> 状态：**DRAFT，未冻结**（S-03 由 Lead 组织评审；本文件只是布局侧提交讨论的提案，不构成公共接口）
+> 最后核对: `486c603` + 本轮 D-3 提交 / 2026-10-27
+> 状态：**DRAFT v0.2，未冻结**（Lead 已评审六问并裁定，记录见 §8；数值冻结仍待 W3；本文件不构成公共接口）
 > 提交方：`DS-S17-D-Layout`；评审方：Lead（S-03 组织者）、A（计算侧）、Codex（视觉侧）
 > 代码位置：`packages/shared/src/analysis/layout/`（**未接入** `packages/shared/src/index.ts`，接入需 S-03 评审通过）
-> 相关：[S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)、[S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)、[S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)、图表与卡片规格 §5.6、总需求规格 §4。
+> 相关：[S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)、[S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)、[S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)、[S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md](./S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md)、图表与卡片规格 §5.6、总需求规格 §4。
 
 ---
 
@@ -35,7 +35,7 @@ interface AnalysisReference {
 - 布局/内容文档只存引用，**不得**存分析结果、金额、占比、序列或日期区间展开值；
 - `params` 只允许分析目录定义的白名单键（校验在内容文档层完成）；区间优先“相对/预设”写法（如近 30 天），绝对区间仅用于 `pinned`；
 - `pinned` 卡片（`rangePolicy: "pinned"`）必须带 `pinnedRange`（`from`/`to`），且标题必须可见标明区间（图表与卡片规格 §8）；
-- 未知 `analysisId`：保留占位（卡片位置保留，显示“暂不可用/请重新选择”），不得静默删除对象（分享导入待绑定场景同此规则，Q-15）；`analysisVersion` 不兼容时按“只读占位”处理，不自动改参数；
+- 未知 `analysisId`：保留占位（卡片位置保留，显示“暂不可用/请重新选择”），不得静默删除对象；**Lead 裁定（2026-10-27）：一律“只读占位 + 提示更新”，不回写、不删未知字段**；`analysisVersion` 不兼容时同样只读占位，不自动改参数。分享导入的兼容策略待 Q-15 绑定，先登记为 S-03 未决依赖；
 - 布局层**永不**按金额/结果/数据量改变对象顺序或尺寸（投影排序只依赖源位置与稳定 ID）。
 
 待 S-03 确认：目录 ID 与版本的冻结方式；参数规范化（键排序、数字/枚举）是否由 A 的 S-01 统一提供。
@@ -57,12 +57,12 @@ interface ObjectSizeContract {
 
 提案规则：
 
-- **声明方**：A/B/C 与 Codex 在 W3 随卡片家族提出数值（`minSize` 由原型/真机冻结，OQ-LM-02）；布局层只**执行**，不改卡片内容、不改金额口径。
+- **声明方（Lead 裁定 2026-10-27）**：卡片家族在 W3 批 1 声明数值、由原型/真机冻结（OQ-LM-02）；**W3 前只登记占位数值，任何数值不得被其他层发明**；布局层只**执行**，不改卡片内容、不改金额口径。
 - `sizeLadder` 顺序即降级顺序（推荐起点；OQ 未定前由家族声明）；布局层过滤掉宽/高小于 `minSize` 的档位。
 - 缺契约不阻塞可用性：布局层降级到 **compat 1×1 入口**并记录 `missing-contract`，不得白屏、不得丢卡片。
 - 降级/收缩只在“宽度不足”时发生（纵向无限、视口高度不参与投影）；兼容入口不得显示误导性数字（ACC 约束）。
 - 密度档（XS–XL，图表与卡片规格 §5.6 阈值候选）是**卡片家族内部**根据真实可用宽高选择的，不在布局文档中持久化；布局层只传真实格子尺寸与形态。
-- 容器同理使用 `minFullCols`/`collapsedSize` 字段（当前复用同一类型；若 S-03 认为需要独立 `ContainerGeometryContract`，可在 v1 协议中拆型，仍是 draft 变更）。
+- 容器**暂不拆** `ContainerGeometryContract`（Lead 裁定 2026-10-27）：沿用 `ObjectSizeContract`，容器专属字段（`presentation`/`expandedSize`）留在布局文档的对象级；W5 若复杂度上升再评估拆型。
 
 建议新增（**未实现**，供 S-03 决定）：`contractVersion?: number`、`maxSize?: GridSize`、`aspectRatioHint?`（仅提示，不锁比例）。
 
@@ -84,6 +84,8 @@ interface ObjectSizeContract {
 3. **较新**：只读尽力渲染、**不回写**、不删未知字段、提示更新（旧客户端不得覆盖新版）；
 4. **校验失败/超限**：回退默认工作台 + 保留原始损坏副本为“上一个布局”，绝不白屏。
 
+**Lead 裁定（2026-10-27）**：迁移函数签名**纳入** S-03 的版本契约（纯函数、逐版本节点降级规则，见下方签名草案）；缓存键派生规则只作为实现约定登记，**不进冻结契约**。默认迁移策略 `size-first`（S）已按 OQ-LM-01 锁定，`position-first` 仅作对照。
+
 建议迁移纯函数签名（**未实现**，W2 契约冻结时补）：
 
 ```ts
@@ -92,7 +94,7 @@ declare function migrateLayoutDocumentV(input: unknown): MigrateResult<LayoutDoc
 declare function migrateContentDocumentV(input: unknown): MigrateResult<WorkbenchContentDocumentV1>;
 ```
 
-缓存键提案：`(权威布局版本, 算法版本, 目标列数, 约束档版本, 内容版本)`；派生结果永不写回权威布局（无累计漂移）。
+缓存键（实现约定，不进冻结契约）：`(权威布局版本, 算法版本, 目标列数, 约束档版本, 内容版本)`；派生结果永不写回权威布局（无累计漂移）。
 
 ---
 
@@ -101,6 +103,7 @@ declare function migrateContentDocumentV(input: unknown): MigrateResult<Workbenc
 - 首版**深度 1**：工作台 → {卡片、Spacer、GridSplit、Carousel} → 卡片；容器内不再嵌容器（`CONTAINER_MAX_DEPTH = 1`）。
 - 布局文档只记录容器**外层**几何（锚点/宽高/presentation/expandedSize）；容器**内部结构**（子对象顺序、GridSplit 千分比、Carousel 页）属内容文档（配置与分享方案 §4.5 拆分），由布局层原样保留、从不拆散。
 - 内部卡片不参与外层迁移（迁移只处理容器整体）；容器收缩为 1×1 时内部配置逐字节保留，恢复后还原。
+- 容器**只表达展开/折叠与占位，不解释内部内容**（Lead 裁定 2026-10-27）：布局层只记录容器外层几何与 `presentation`/`expandedSize`，内部卡片内容、图表配置、筛选与分割比例归内容文档/卡片侧，布局层原样保留、从不拆散。
 - 容器详情（查看全部卡片）入口的“当前展示形态”（full/compact/collapsed）是投影派生值，不与用户主动 `presentation` 混淆（OQ-LM-05/06）。
 - 待 W5/Codex：容器内卡片按真实内容区选密度；容器分割线像素级行为由视觉规范决定。
 
@@ -109,7 +112,7 @@ declare function migrateContentDocumentV(input: unknown): MigrateResult<Workbenc
 ## 6. Spacer 与紧凑的交互边界
 
 - Spacer 是**用户主动创建的真实布局对象**：只存在于布局文档，无分析引用、无数据请求、参与迁移；自动紧凑不得把它当作普通空格消除。
-- 投影默认**不做垂直紧凑**（OQ-LM-03 未定），因此当前 Spacer 位置稳定；未来紧凑实现必须遵守：Spacer 锚定不上浮、不被穿过、不得因紧凑删除/永久降级（OQ-LM-04 暂用“夹宽”）。
+- 投影默认**不做垂直紧凑**（OQ-LM-03 未定）：D-3 已提供可切换开关 `ProjectOptions.verticalCompact`（默认 `false`，不改变未确认前的默认显示）；紧凑实现遵守：Spacer 锚定不上浮、不被穿过、不得因紧凑删除/永久降级（OQ-LM-04 暂用“夹宽”）。
 - Spacer 的临时不展示（空间不足）只能写派生标记（`shrunk`/`suppressed`），永不写回权威布局；用户删除才产生删除记录。
 
 ---
@@ -138,19 +141,24 @@ declare function migrateContentDocumentV(input: unknown): MigrateResult<Workbenc
 
 ---
 
-## 8. S-03 评审请求（具体问题）
+## 8. S-03 评审结果（Lead 裁定，2026-10-27）
 
-1. 是否接受上述 `AnalysisReference`/`ObjectSizeContract` 作为 S-03 v1 草案（保持 draft 直至 W3 数值冻结）？
-2. 卡片尺寸契约的**声明方与冻结时点**：W3 随批 1 家族声明、原型/真机冻结，是否符合 S-03 计划？
-3. 是否需要拆出 `ContainerGeometryContract`（容器专属字段）而不是复用 `ObjectSizeContract`？
-4. 容器内部几何（深度 1、内部结构归内容文档）是否与 S-01/C 侧卡片配置所有权一致？
-5. 迁移函数签名与缓存键（§4）是否纳入 S-03 的版本契约？
-6. 未知 `analysisId`/版本不兼容的“只读占位”行为是否与分享导入（Q-15 待绑定）统一？
+| # | 问题 | 裁定 |
+|---|---|---|
+| 1 | `AnalysisReference`/`ObjectSizeContract` 是否作为 S-03 v1 草案 | **接受**，保持 draft 直至 W3 数值冻结 |
+| 2 | 尺寸契约声明方与冻结时点 | **卡片家族 W3 批 1 声明、原型/真机冻结**；W3 前只登记占位数值，其他层不得发明数值 |
+| 3 | 是否拆 `ContainerGeometryContract` | **暂不拆**：容器沿用 `ObjectSizeContract`，`presentation`/`expandedSize` 留在布局文档对象级；W5 再评估 |
+| 4 | 容器内部几何与 C 侧所有权是否一致 | **一致**；补“容器只表达展开/折叠与占位，不解释内部内容” |
+| 5 | 迁移签名与缓存键是否纳入版本契约 | **迁移签名纳入**（纯函数、逐版本节点降级规则）；**缓存键仅实现约定**，不进冻结契约 |
+| 6 | 未知 `analysisId`/版本不兼容行为 | **只读占位 + 提示更新**，不回写、不删未知字段；分享导入兼容策略待 Q-15 绑定（S-03 未决依赖） |
+
+补充裁定：OQ-LM-01 默认布局算法**锁定 `size-first`（S）**；`position-first` 仅作对照策略保留，不必等裁定。
 
 ## 9. 状态与变更记录
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-10-27 | draft v0.1 | 初稿：引用/尺寸契约/版本迁移/容器占位/Spacer 紧凑边界 + 评审问题 |
+| 2026-10-27 | draft v0.2 | 记录 Lead 六问裁定（见 §8）；迁移签名纳入契约、缓存键降为实现约定；暂不拆 `ContainerGeometryContract`；容器只表达展开/折叠与占位；OQ-LM-01 锁定 S |
 
-> 本文件随 S-03 评审更新；任何字段形状变化须同时改代码、D0/D1/D2 文档与测试，并在任务文档 §6.2 记录。
+> 本文件随 S-03 评审更新；任何字段形状变化须同时改代码、D0/D1/D2/D3 文档与测试，并在任务文档 §6.2 记录。
