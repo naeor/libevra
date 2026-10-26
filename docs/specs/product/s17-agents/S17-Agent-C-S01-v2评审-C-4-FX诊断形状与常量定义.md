@@ -2,6 +2,7 @@
 
 > 作者：`DS-S17-C-Advanced`（Agent C）；日期：2026-10-27。
 > 状态：**DRAFT 正式定义文本**，供 Lead 转 Agent A 在 S-01 v2 引用（G-17 / §6.7 `fx-diagnostic` 形状、§12 待 C 定义常量）。
+> **Lead 2026-10-27 验收通过；QC-29 采用判别联合、QC-30 规则已裁定（见 §7）；常量 `FX_DRAFT_*` / `C_*` 已被 v2 §12 引用，归属 C 侧**。
 > 权威实现：`packages/shared/src/analysis/advanced/{draftTypes,currencyComposition,fxDiagnostics}.ts`（C-4 交付，实现提交 `2f7a036`，文档回填 `6dfbf82`）。
 > 相关 QC：**QC-29**（FX 诊断结果形状族）、**QC-30**（P16 笔数份额 vs P17 金额份额口径）；依赖 **QC-12**（真实 FX 只读投影，本 draft 用合成夹具，等 S-01 v2 冻结后接真实数据）。
 > 本轮不改 A 文件；本文是 C 侧给出的可引用定义。
@@ -128,11 +129,12 @@ export interface DraftFxRateResolution {
 - web `adapters5.test.ts`：12 项（五类图表输入的文本/份额/门控/不可用原因）；
 - 当前 HEAD `6dfbf82`：shared typecheck 0、26 文件/473 测试；web typecheck 0、162 文件/1502 测试。
 
-## 7. 待 A/Lead 裁定（QC-29/QC-30）
+## 7. 裁定状态（Lead 2026-10-27，已裁定）
 
-1. **QC-29**：`fx-diagnostic` 用 5 子形状判别联合，还是单形状 + 9 字段等价语义？
-2. **QC-30**：P16「笔数份额」与 P17「金额份额（分母仅已折算）」是不同口径；C 已在图表输入强制 `basisNote`/`sharesOverConvertedOnly`/`missingText`，展示层是否允许同屏并列、文案如何写。
-3. **QC-12**：真实 FX 只读投影（快照/解析/回退元数据）字段与权限——登记为「等 S-01 v2 冻结后接真实数据」，C-4 draft 不阻塞。
+1. **QC-29：采用判别联合**。S-01 v2 §6.7 `FxDiagnosticResult` 更新为判别联合（`diagnosticKind` 5 值：`currency-composition` / `contribution` / `rate-trend` / `coverage` / `fallback-usage`），并引用本文为权威定义；**不采用**「单形状等价语义」方案。
+2. **QC-30：P16 与 P17 不得同屏合成单一「占比」**。默认分开呈现、各自标注分母（P16 = 笔数；P17 = 仅已折算金额，缺失 ≠ 0）；仅同币种 + 同过滤条件允许并排，且必须带口径标签；具体文案模板由 C 在 W3 给出，v2 只登记规则。
+3. **常量**：`FX_DRAFT_*` / `C_*` 与命名建议被采纳，v2 §12 直接引用本文 §5 的常量名与越界行为，归属标注 C 侧。
+4. **QC-12**：仍登记为「等 S-01 v2 冻结后接真实数据」，不阻塞 C-5 集成准备（见 `S17-Agent-C-C5-集成准备-20261027.md`）；真实数据夹具与只读投影待 Lead 安排。
 
 ## 8. 维护与提交号
 

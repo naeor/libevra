@@ -1,7 +1,7 @@
 # S17 · Agent C · S-01 v2 评审材料：G-16 分类层级模型正式定义（C-2 / P05–P07）
 
 > 作者：`DS-S17-C-Advanced`（Agent C）；日期：2026-10-27。
-> 状态：**DRAFT 正式定义文本**，供 Lead 转 Agent A 合并进 `S17-Agent-A-S01-v2-结构草案.md`（G-16）。
+> 状态：**DRAFT 正式定义文本**，供 Lead 转 Agent A 合并进 `S17-Agent-A-S01-v2-结构草案.md`（G-16）。**Lead 2026-10-27 验收通过并已转 A 合并 v2（见 §11）**。
 > 权威实现：`packages/shared/src/analysis/advanced/{draftTypes,hierarchy,sankey}.ts`（C-3 交付，rebase 后实现提交 `c633d80`，文档回填 `d8970e1`）。
 > 相关 QC：**QC-26**（`HierarchyResult` 结果形状）、**QC-27**（`DraftCategoryRelation` 输入占位 / 依赖数据模型扩展）、**QC-28**（派生桑基形状与门控）。
 > 本轮不改 A 文件；本文是 C 侧给出的可引用定义，A 合并后以 A 的 v2 文本为准。
@@ -127,3 +127,9 @@ export interface DraftHierarchyResult {
 - 本文与代码的权威路径：`docs/specs/product/s17-agents/S17-Agent-C-S01-v2评审-C-2-分类层级模型正式定义.md`、`packages/shared/src/analysis/advanced/{draftTypes,hierarchy,sankey}.ts`；
 - 相关提交：C-3 实现 `11b31bb`（rebase 后 `c633d80`）、回填 `d8970e1`；本文所在提交见 §6.2 与 Lead 报告（不 push）。
 - 维护规则：A 合并进 v2 后，本文件保留为「C 侧来源」，不随 v2 修改而改写；差异由 v2 文本负责。
+
+## 11. Lead 验收与合并状态（2026-10-27）
+
+- Lead 2026-10-27 验收通过（提交 `465d21e`，回填 `dc91f35`）；G-16 采用本文 §9 文本转 Agent A 合并进 `S17-Agent-A-S01-v2-结构草案.md`（合并后以 A 的 v2 文本为准）。
+- QC-26/QC-28 随 v2 收口；**QC-27 依赖数据模型扩展（`Category.parentId`），仍待所有者批准**，C 侧保持 `DraftCategoryRelation` 显式输入占位与 `isRealHierarchy=false` 门控，不改库、不猜层级。
+- 本文不改写；若 v2 合并文本与本文有差异，以 v2 为准并在 `S17-Agent-C-C5-集成准备-20261027.md` §2 登记差异处理。
