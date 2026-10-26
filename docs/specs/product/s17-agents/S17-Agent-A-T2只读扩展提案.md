@@ -1,6 +1,6 @@
-# S17 · Agent A · T2 只读扩展提案（已批准 · 已实现）
+# S17 · Agent A · T2 只读扩展提案（已批准 · 已实现 · 待所有者验收）
 
-- 状态：**已批准（所有者 2026-10-27，经 Lead m01003 转达）· 已实现（2026-10-27）**。
+- 状态：**已批准（所有者 2026-10-27，经 Lead m01003 转达）· 已实现（2026-10-27）· 待所有者验收（暂不合并、不进入主线；Lead m01281 指示，验收口径 T2-Q1 哨兵与服务端不折算待确认）**。
   - 所有者原话：「只读扩展允许批准；只要不是修改就行……私钥等私密文件绝对不允许被读取。」
   - 实现位置：`packages/shared/src/analytics.ts`（共享契约）、`packages/shared/src/analysis/adapters/analytics.ts`（DTO → 计算形态）、`apps/api/src/routes/analytics.ts`（两个只读 GET）、`apps/api/src/app.ts`（以 `requireBookRead` 注册，**没有写路由、没有新权限规则**）。
   - 实现提交：`21c0438 feat(s17): Agent A T2 只读扩展（只读端点）`（本地提交，未推送；分支 `deepseek/s17-finance-category`）。
