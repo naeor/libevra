@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-A-Finance** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent A 自己。
-> 当前状态：**A-0 第一交付已完成（2026-10-27）：26 项理解与覆盖清单（§9）、18 问字段映射（§10）、S-01 协议草案（独立文件，未冻结）、计算原语与样本 A–O 测试骨架（`packages/shared/src/analysis/`）；等待 Lead/Claude 评审 S-01，随后进入 A-1。**
+> 当前状态：**A-0 已交付（2026-10-27）；A-1/A-2 装配层已完成（B01–B07、B15/B16、I01–I05、I17 纯计算装配 + 数值卡/构成/排行图表输入协议，132 项新增测试全绿），T2 只读扩展提案已提交评审（未批准前不实现）；等待 Lead/Claude 评审 S-01 草案（`s01-draft`，未冻结）。**
 
 ---
 
@@ -122,11 +122,11 @@
 
 | 能力组 | 状态 | 备注 |
 |---|---|---|
-| B01–B20 | 开发中：A-0 计算原语已实现（`packages/shared/src/analysis/primitives.ts`）；分析装配与数值卡在 A-1/A-3 | 规格 §6–§12；26 项状态见 §9.1 |
-| I01–I05、I17 | 开发中：A-0 原语已实现（`categoryTotals`/`paymentMethodTotals`/`foldRemainder`）；环图/条形/排行在 A-2 | 规格 §13–§16；I17 结构化字段已确认（`paymentMethodId` 可空，见 §10 问题 7） |
+| B01–B20 | 开发中：A-0 计算原语 + A-1 装配 B01–B07；B08–B14/B17–B20 装配在 A-3（原语已就绪） | 规格 §6–§12；26 项状态见 §9.1 |
+| I01–I05、I17 | 开发中：A-2 纯计算装配完成（I01/I02/I03/I04/I05/I17 + B15/B16），含测试；环图/条形/排行**视觉组件**待 S-02/S-03 | 规格 §13–§16；I17 结构化字段已确认（`paymentMethodId` 可空，见 §10 问题 7） |
 | W1 财务统计正确性 | 等待所有者细则与基线门禁 | 前置：1.16.23 发布（索引 B-1/A-Q2） |
-| S-01 分析结果协议 | 开发中：草案 `s01-draft` 已登记（独立文件，未冻结，待评审） | 评审前不得冻结；评审人 Lead/Claude/B/C/D |
-| W3 基础图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03；图表家族 CF-A01…CF-A07 已定义 |
+| S-01 分析结果协议 | 开发中：草案 `s01-draft` 已登记（独立文件，未冻结，待评审）；A-1/A-2 补充 exact-money、可空 value 与图表输入协议（§14） | 评审前不得冻结；评审人 Lead/Claude/B/C/D |
+| W3 基础图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03；CF-A01 数值卡**输入协议**已完成，视觉组件待 Codex |
 
 > 每次开发结束必须更新本表 + §6 交接记录。
 
@@ -147,7 +147,7 @@
 | 2026-10-27 | 工作区/分支/任务文档初始化（Lead 创建）；未开发 | 本文件 | 无（随分支初始化提交） | 未运行 | 无 | 见 §7 | 等待所有者第二轮需求（A 优先） |
 | 2026-10-27 | 初始化确认：已阅读规格与边界，未开始开发 | 本文件 | `docs(s17): Agent A 初始化确认`（本地提交，未推送） | 未运行（无代码改动） | 无 | 见 §7（A-Q1…A-Q6 均未变） | 等待所有者第二轮详细需求 |
 | 2026-10-26 | **Lead 登记所有者完整开发规格**（逐字原件落盘） | `S17-Agent-A-完整开发规格-所有者-20261026.md`、本文件 §2.2.1/§5/§9 | `docs(s17): 登记所有者完整开发规格与 26 项验收清单模板`（本地提交，未推送） | 未运行（无代码改动） | S-01 草案范围已明确（仍待评审冻结） | 见 §7 | Agent A：记录理解 + 填写 §9 覆盖清单，开始 A-0 |
-| 2026-10-27 | **A-0 第一交付**：S-01 协议草案（独立文件，`s01-draft` 未冻结）+ §10 字段映射 18 问 + §9 26 项理解/覆盖状态 + 计算原语（rational/primitives）+ 测试样本 A–O 骨架 | 本文件 §1/§5/§6.2/§7/§9/§10；新增 `S17-Agent-A-S01-共享分析结果协议草案.md`；新增 `packages/shared/src/analysis/{types,rational,primitives,fixtures,index}.ts` 与 `rational.test.ts`、`primitives.test.ts`；`packages/shared/src/index.ts` 追加 1 行导出 | 本地提交 `eec074a`（未推送，提交信息 `feat(s17): Agent A A-0 交付 S-01 协议草案与计算原语`） | `pnpm -r typecheck` 通过（shared/api/web；api 需先 `pnpm db:generate` 生成 Prisma 客户端）；`vitest run src/analysis` 72 passed；`pnpm --filter @libellum/shared test` 449 passed；`pnpm --filter @libellum/web test` 1385 passed；`pnpm check:docs`/`check:status` 通过；`apps/api` 集成测试需本机 PostgreSQL 测试库（本 worktree 无 `.env`/数据库，515 项失败为环境缺失，非本次改动；详见汇报） | 新增分析结果类型与计算原语（草案，未冻结；评审前不得据其固化对外 API） | §7 新增 A-Q10…A-Q18；S-01 评审中（R-01…R-08） | 等 Lead/Claude 评审 S-01；评审后进入 A-1（B01–B07 + CF-A01 数值卡） |
+| 2026-10-27 | **A-1/A-2 交付（Lead 批准并行）**：①分析装配层 `context.ts`（区间/筛选/币种/完整性解析）②B01–B07 装配（`analyses/basic.ts`）③B15/B16/I01–I05/I17 装配（`analyses/category.ts`，含“其他”折叠、未分类/未指定显式组、权限/完整性状态）④图表输入协议 `charts/{numericCard,composition,ranking}.ts`（数值卡 CF-A01、构成 CF-A03/A04/A05、排行 CF-A04/A07）⑤S-01 草案补充 exact-money/可空 value/§14 图表输入协议 ⑥T2 只读扩展提案（独立文件，待批准，未实现）⑦新增测试 `context.test.ts`（27）、`basic.test.ts`（22）、`category.test.ts`（21）、`charts.test.ts`（23） | 本文件 §1/§5/§6.2/§7/§9；`S17-Agent-A-S01-共享分析结果协议草案.md`（§7.3/§7.4/§9/§14）；新增 `S17-Agent-A-T2只读扩展提案.md`；新增 `analysis/{context.ts,analyses/basic.ts,analyses/category.ts,charts/numericCard.ts,charts/composition.ts,charts/ranking.ts,charts/index.ts}` 与 4 个测试文件；改动 `analysis/{types.ts,primitives.ts,index.ts}` | 本地提交 `待填`（未推送） | `pnpm --filter @libellum/shared exec tsc -p tsconfig.json --noEmit` 通过；`vitest run src/analysis` 6 files/165 passed；`pnpm --filter @libellum/shared test` 24 files/542 passed | `ScalarValue` 新增 `exact-money`（B06/B07 精确平均）；`ScalarResult.value` 允许 `null`（不可确定，禁止渲染 0）；`RankedGroup.secondary`；`AnalysisEntry.tagIds`；新增图表输入类型（`NumericCardInput`/`CompositionChartInput`/`RankingChartInput`）——均为 `s01-draft` 内改动，**未冻结** | §7 更新 A-Q13/A-Q17 并新增 A-Q19（T2 提案评审）；图表视觉组件与真实尺寸阈值待 S-02/S-03/Codex（A-Q5）；I 类“点击来源”依赖 T2 批准 | 等 Lead/Claude 评审 S-01 与 T2 提案；之后 A-3（B08–B14、B17–B20 装配 + 极值摘要/来源接口） |
 
 ---
 
@@ -167,12 +167,13 @@
 | A-Q10 | 阻塞（流程） | 本 Agent 是 delegated subagent，`create_goal` 被拒绝（`this goal operation requires a direct human turn on a top-level agent`），无法创建持久目标 | 长期目标无法自动续跑 | **Lead** | 目标表述已登记 §1；请 Lead 在顶层会话代建并把 goal id 回填 |
 | A-Q11 | 重要 | 现有 `averagePerDay`（`packages/shared/src/stats.ts`）返回**整最小单位**（`Math.round`），与 B06「日均允许高于最小单位中间精度」冲突 | 直接复用会提前舍入 | Lead + Claude | 建议旧接口保留给现有页面；分析层用 `averageMinor` 精确 `Ratio`，不互相替代（R-05） |
 | A-Q12 | 重要 | 现有 `byCategory.share` 是 **JS float**，S-01 权威比例用精确 `Ratio` | 权威比例无法从现有字段取得 | Lead + Claude | 协议内部一律 `Ratio`；旧 float 仅兼容/展示（R-06） |
-| A-Q13 | 阻塞 | 综合模式缺逐笔数据入口：现有 `GET /api/v1/stats` 不返回来源交易，而 `aggregateFxAsync` 需要逐笔 `FxEntry` | 综合模式完整性与来源无法实现 | Lead + 后端 | 建议 T2 只读扩展（新增逐笔范围查询，不改 schema、不改写入），待批准（R-03） |
+| A-Q13 | 阻塞 | 综合模式缺逐笔数据入口：现有 `GET /api/v1/stats` 不返回来源交易，而 `aggregateFxAsync` 需要逐笔 `FxEntry` | 综合模式完整性与来源无法实现 | Lead + 后端 | **T2 提案已写**（`S17-Agent-A-T2只读扩展提案.md`），待批准；批准前综合模式标 `fx-incomplete`/`unavailableReason`，不伪装完整（R-03） |
 | A-Q14 | 重要 | 大额 > `Number.MAX_SAFE_INTEGER` 经现有 `number` DTO 会丢精度（样本 G） | 极大金额验收 | Lead + 后端 | 分析层全 `bigint`；API 是否字符串化待评估（涉及 1.16.23 基线，R-07） |
 | A-Q15 | 一般 | 分类/支付方式删除后的历史引用：`Transaction.categoryId` 对 Category 为 `onDelete: Restrict`，分类只归档；需确认统计命名与未分类归属的既有语义 | B15/B16/I01 显示名 | 后端/所有者 W1 细则 | 按需 join 当前分类名；缺失显示「—」；系统「暂无分类」保留为真实组（§10 问题 5/6） |
 | A-Q16 | 重要 | 离线数据覆盖范围元信息当前不可得 | L 样本/「无支出记录天数」完整性 | Lead + 离线模块 | 协议先按 `offline-incomplete` 占位，等同步模块合同（R-08） |
-| A-Q17 | 重要 | 下钻来源不足：`GET /api/v1/transactions` 仅支持 `month` 过滤、无任意 from/to、无金额排序；B09/B10/B17 与 I 类来源需扩展 | 来源追溯/极值 | Lead + 后端 | 同 A-Q13 的 T2 只读扩展；未批准前极值先由服务端聚合（不含逐笔来源） |
+| A-Q17 | 重要 | 下钻来源不足：`GET /api/v1/transactions` 仅支持 `month` 过滤、无任意 from/to、无金额排序；B09/B10/B17 与 I 类来源需扩展 | 来源追溯/极值 | Lead + 后端 | 同 A-Q13 的 T2 提案（`/analytics/transactions` 区间逐笔 + `/analytics/extremes` 极值聚合）；未批准前极值先由服务端聚合（不含逐笔来源） |
 | A-Q18 | 一般 | 分类颜色稳定映射（分类 id→主题调色板）需要 Codex 视觉令牌配合 | 环形图/图例 | Lead/Codex（与 A-Q8 合并） | 协议 §10 已定"按稳定分类身份"原则 |
+| A-Q19 | 阻塞 | T2 只读扩展提案待评审（端点命名/字符串化金额/多币种逐笔/极值并列返回/实现归属，共 T2-Q1…T2-Q6） | 影响 B09/B10/B17、I 类来源、综合模式 | Lead + 所有者/后端 | 提案文档 `S17-Agent-A-T2只读扩展提案.md`；批准前不实现、不改 schema、不改既有端点响应 |
 
 ---
 
@@ -195,13 +196,13 @@
 
 | 编号 | 名称 | 图表家族 | 状态 | 实现位置 | 测试 | 偏差/问题 |
 |---|---|---|---|---|---|---|
-| B01 | 总支出 | CF-A01 | 开发中（A-0 原语完成） | `analysis/primitives.ts › totalsOf().expenseMinor` | `primitives.test.ts`（totalsOf/sample C、A、G） | 精确 `bigint`；空账本为真实零 |
-| B02 | 总收入 | CF-A01 | 开发中（A-0 原语完成） | `totalsOf().incomeMinor` | `primitives.test.ts`（sample B） | 与支出严格分开，不混淆退款语义 |
-| B03 | 账目收支差额 | CF-A01/CF-A06 | 开发中（A-0 原语完成） | `totalsOf().netMinor` | `primitives.test.ts`（sample C） | 收入−支出；不称余额；可负 |
-| B04 | 支出交易笔数 | CF-A01 | 开发中（A-0 原语完成） | `totalsOf().expenseCount` / `countByKind` | `primitives.test.ts`（sample C/O） | 整数；不得用分类组数代替 |
-| B05 | 收入交易笔数 | CF-A01 | 开发中（A-0 原语完成） | `totalsOf().incomeCount` | `primitives.test.ts`（sample B/O） | 同上 |
-| B06 | 日均支出 | CF-A01 | 开发中（A-0 原语完成；装配待 A-1） | `averageMinor(total, dayCount)`；`dayCount = daysBetween(from,to)` | `primitives.test.ts`（averageMinor） | 分母=自然日（`daysBetween` 含两端）；不整除用精确 `Ratio` |
-| B07 | 单笔平均支出 | CF-A01 | 开发中（A-0 原语完成） | `averageMinor(total, expenseCount)` | `primitives.test.ts`（averageMinor） | 零笔 → `null`（不可计算，不是 0） |
+| B01 | 总支出 | CF-A01 | 开发中（A-1 装配完成） | `analysis/analyses/basic.ts › assembleTotalExpense` | `analyses/basic.test.ts`（C/A/H/M/G/no-permission） | 精确 `bigint`；空账本真实零；阻塞态 value=null |
+| B02 | 总收入 | CF-A01 | 开发中（A-1 装配完成） | `assembleTotalIncome` | `analyses/basic.test.ts`（B/C） | 与支出严格分开，不混淆退款语义 |
+| B03 | 账目收支差额 | CF-A01/CF-A06 | 开发中（A-1 装配完成） | `assembleNetAmount`（notes 记 income/expense 组成） | `analyses/basic.test.ts`（B/C/A/N） | 收入−支出；不称余额；可负 |
+| B04 | 支出交易笔数 | CF-A01 | 开发中（A-1 装配完成） | `assembleExpenseCount` | `analyses/basic.test.ts`（C/B） | 整数；不得用分类组数代替 |
+| B05 | 收入交易笔数 | CF-A01 | 开发中（A-1 装配完成） | `assembleIncomeCount` | `analyses/basic.test.ts`（B） | 同上 |
+| B06 | 日均支出 | CF-A01 | 开发中（A-1 装配完成） | `assembleDailyAverageExpense`（exact-money；分母=period.dayCount） | `analyses/basic.test.ts`（C/N/fixed/A） | 分母=自然日（`daysBetween` 含两端）；不整除保持精确 `Ratio` |
+| B07 | 单笔平均支出 | CF-A01 | 开发中（A-1 装配完成） | `assembleAverageExpensePerTransaction`（exact-money） | `analyses/basic.test.ts`（C/B/A） | 零笔 → `value=null` 且 no-transactions（不可计算，不是 0） |
 | B08 | 单笔支出中位数 | CF-A01 | 开发中（A-0 原语完成） | `medianMinor(amounts)` | `primitives.test.ts`（medianMinor/sample N） | 偶数样本精确半单位 `Ratio`；`bigint` 排序 |
 | B09 | 最大单笔支出 | CF-A02 | 开发中（A-0 原语完成） | `extremeRecord(entries,"expense","max")` | `primitives.test.ts`（extremeRecord/sample D） | 金额→日期→id 确定性；`tieCount` |
 | B10 | 最小单笔支出 | CF-A02 | 开发中（A-0 原语完成） | `extremeRecord(entries,"expense","min")` | `primitives.test.ts`（extremeRecord） | 退款/负数/零金额语义待核查（A-Q3）；不得擅自过滤非正记录 |
@@ -209,8 +210,8 @@
 | B12 | 最高单日收入 | CF-A02 | 开发中（A-0 原语完成） | `peakDay(entries,"income")` | `primitives.test.ts`（peakDay） | 同 B11 |
 | B13 | 有支出记录的天数 | CF-A01/CF-A05 | 开发中（A-0 原语完成） | `distinctRecordedDays(entries)` | `primitives.test.ts`（distinctRecordedDays） | 按业务日期去重；缺汇率时区分原始/可折算 |
 | B14 | 无支出记录的天数 | CF-A01/CF-A05 | 开发中（A-0 原语完成） | `daysWithoutRecords(entries,from,to)` | `primitives.test.ts`（sample L） | 必须称"无记录"，覆盖不足时不完整（A-Q16） |
-| B15 | 最大支出分类 | CF-A02 | 开发中（A-0 原语完成；装配待 A-1） | `categoryTotals(entries,"expense")` 首项 | `primitives.test.ts`（categoryTotals） | 未分类显式入组、金额不丢（A-Q15） |
-| B16 | 分类总数量 | CF-A01 | 开发中（A-0 原语完成；装配待 A-1） | `categoryTotals().length`（真实分类去重） | `primitives.test.ts`（categoryTotals） | 未分类不计入真实分类数；系统分类标记 `isSystem` |
+| B15 | 最大支出分类 | CF-A02 | 开发中（A-2 装配完成） | `assembleMaxExpenseCategory`（record-extreme；`tieCount`=同金额组数） | `analyses/category.test.ts`（D/A） | 未分类显式入组、金额不丢（A-Q15） |
+| B16 | 分类总数量 | CF-A01 | 开发中（A-2 装配完成） | `assembleCategoryCount`（`isSystem` 真实标记；notes 记 realCategories/uncategorised） | `analyses/category.test.ts`（C/both/system） | 未分类不计入真实分类数；可选包含系统分类 |
 | B17 | 最大单笔收入 | CF-A02 | 开发中（A-0 原语完成） | `extremeRecord(entries,"income","max")` | `primitives.test.ts`（extremeRecord） | 同 B09 |
 | B18 | 收支比 | CF-A01/CF-A05 | 开发中（A-0 原语完成） | `ratioOf(expenseMinor, incomeMinor)` | `primitives.test.ts` + `rational.test.ts` | 分母零 `null`；可 >100% 不截断 |
 | B19 | 账面结余比例 | CF-A06 | 开发中（A-0 原语完成） | `ratioOf(netMinor, incomeMinor)` | `rational.test.ts` | 可负；不称储蓄率 |
@@ -220,25 +221,28 @@
 
 | 编号 | 名称 | 图表家族 | 状态 | 实现位置 | 测试 | 偏差/问题 |
 |---|---|---|---|---|---|---|
-| I01 | 支出分类构成 | CF-A03/CF-A04/CF-A05/CF-A07 | 开发中（A-0 原语完成；结果装配待 A-2） | `analysis/primitives.ts › categoryTotals` + `foldRemainder` | `primitives.test.ts`（categoryTotals/foldRemainder/sample C、F） | “其他”可展开、金额守恒；份额为精确 `Ratio` |
-| I02 | 收入分类构成 | CF-A03/CF-A04/CF-A07 | 开发中（A-0 原语完成；复用 I01 待 A-2） | `categoryTotals(entries,"income")` | `primitives.test.ts`（sample B） | 复用 I01 核心，不复制另一套 |
-| I03 | 支出分类排行 | CF-A04/CF-A07 | 开发中（A-0 原语完成；结果装配待 A-2） | `analysis/primitives.ts › categoryTotals`（金额降序→id 升序） | `primitives.test.ts`（categoryTotals） | 零基线、同值稳定排序 |
-| I04 | 收入分类排行 | CF-A04/CF-A07 | 开发中（A-0 原语完成；结果装配待 A-2） | `categoryTotals(entries,"income")` | `primitives.test.ts` | 复用 I03 核心 |
-| I05 | 分类交易频率 | CF-A04/CF-A07 | 开发中（A-0 原语提供 count；计数排序待 A-2 补） | `analysis/primitives.ts › categoryTotals().count` | `primitives.test.ts`（categoryTotals） | 与金额排行不同指标，不能复用 I03 冒充 |
-| I17 | 支付方式构成 | CF-A03/CF-A04 | 开发中（A-0 原语完成；字段能力已确认） | `analysis/primitives.ts › paymentMethodTotals`（null→未指定） | `primitives.test.ts`（paymentMethodTotals/sample O） | `paymentMethodId` 可空，未指定显式分组；不推导余额/负债（A-Q3） |
+| I01 | 支出分类构成 | CF-A03/CF-A04/CF-A05/CF-A07 | 开发中（A-2 装配完成） | `assembleExpenseCategoryComposition`（`maxParts` 折叠「其他」，金额守恒、`foldedGroupIds`） | `analyses/category.test.ts`（C/A/F/fx-incomplete）、`charts/charts.test.ts`（构成图输入） | “其他”可展开、金额守恒；份额为精确 `Ratio`；不完整时 total/share=null |
+| I02 | 收入分类构成 | CF-A03/CF-A04/CF-A07 | 开发中（A-2 装配完成） | `assembleIncomeCategoryComposition`（复用 I01 核心） | `analyses/category.test.ts`（B/C） | 复用 I01 核心，不复制另一套 |
+| I03 | 支出分类排行 | CF-A04/CF-A07 | 开发中（A-2 装配完成） | `assembleExpenseCategoryRanking`（`topN`；金额降序→id 升序） | `analyses/category.test.ts`（C/D/topN/partial） | 零基线、同值稳定排序、TopN 外不丢总额 |
+| I04 | 收入分类排行 | CF-A04/CF-A07 | 开发中（A-2 装配完成） | `assembleIncomeCategoryRanking`（复用 I03） | `analyses/category.test.ts`（B） | 复用 I03 核心 |
+| I05 | 分类交易频率 | CF-A04/CF-A07 | 开发中（A-2 装配完成） | `assembleCategoryFrequency`（primary=count、secondary=money、share=count/totalCount） | `analyses/category.test.ts`（O/C）、`charts/charts.test.ts`（count 排行） | 与金额排行不同指标，不能复用 I03 冒充 |
+| I17 | 支付方式构成 | CF-A03/CF-A04 | 开发中（A-2 装配完成） | `assemblePaymentMethodAnalysis`（`metric:"amount"\|"count"`，null→「未指定」） | `analyses/category.test.ts`（C 金额/笔数/income 空）、`charts/charts.test.ts` | `paymentMethodId` 可空，未指定显式分组；不推导余额/负债（A-Q3） |
 
 ### 9.3 交付物跟踪
 
 | 交付物 | 状态 | 位置 | 备注 |
 |---|---|---|---|
 | 真实字段映射表 | 已完成（A-0） | 本文档 §10 | 18 问逐条作答；缺字段单列 10.3 |
-| 标准分析结果协议（S-01 草案） | 草案已登记（未冻结） | `S17-Agent-A-S01-共享分析结果协议草案.md` + `packages/shared/src/analysis/types.ts` | `s01-draft`，待 Lead/Claude/B/C/D 评审 |
-| 基础计算原语 | 开发中（A-0 已完成首批） | `packages/shared/src/analysis/{rational,primitives}.ts` | 精确金额/分组/排序/比例/日期聚合；`rational.test.ts` 20 + `primitives.test.ts` 52 |
-| 图表家族 CF-A01…CF-A07 | 未开始（A-2/A-3） | 待定 | 与 Codex 视觉规范对齐（A-Q8） |
-| 尺寸密度（Compact/Medium/Expanded） | 未开始（W3） | 待定 | 真实容器尺寸优先 |
-| 测试样本 A–O | 骨架已完成（A-0） | `packages/shared/src/analysis/fixtures.ts` | 15 个样本，不入 barrel；图表断言待 A-2 |
+| 标准分析结果协议（S-01 草案） | 草案已登记（未冻结）；A-1/A-2 已补 exact-money/可空 value/§14 图表输入协议 | `S17-Agent-A-S01-共享分析结果协议草案.md` + `packages/shared/src/analysis/types.ts` | `s01-draft`，待 Lead/Claude/B/C/D 评审 |
+| 基础计算原语 | 已完成（A-0 首批 + A-2 补充） | `packages/shared/src/analysis/{rational,primitives}.ts` | 精确金额/分组/排序/比例/日期聚合；`rational.test.ts` 20 + `primitives.test.ts` 52 |
+| 分析装配层（A-1/A-2） | 开发中（B01–B07、B15/B16、I01–I05、I17 已完成） | `analysis/context.ts`、`analysis/analyses/{basic,category}.ts` | 区间/筛选/完整性解析 + 26 项中的 18 项装配；`context.test.ts` 27 + `basic.test.ts` 22 + `category.test.ts` 21 |
+| 图表输入协议（CF-A01/A03/A04/A05/A07） | 开发中（输入层完成，视觉组件未开始） | `analysis/charts/{numericCard,composition,ranking}.ts` | 数值卡三档密度（阈值临时占位，A-Q5）+ 构成图 + 排行图；`charts.test.ts` 23；视觉/尺寸待 S-02/S-03/Codex |
+| 图表家族 CF-A01…CF-A07 | 未开始（视觉组件） | 待 S-02/S-03 | 输入协议已完成，渲染组件归 Codex 共享设计系统 |
+| 尺寸密度（Compact/Medium/Expanded） | 输入层完成（视觉未开始，W3） | `analysis/charts/numericCard.ts` | 真实容器尺寸优先；阈值待 Codex 定稿 |
+| 测试样本 A–O | 骨架已完成（A-0）；A-1/A-2 已用于 165 项断言 | `packages/shared/src/analysis/fixtures.ts` | 15 个样本，不入 barrel |
+| T2 只读扩展提案 | 提案稿待评审（未批准，未实现） | `S17-Agent-A-T2只读扩展提案.md` | 区间逐笔查询 + 极值聚合；对应 A-Q13/A-Q17/A-Q19 |
 | 性能测量记录 | 未开始（A-4） | 待定 | 规格 §22 |
-| 给 B/C/D/Codex/Lead 的接口交接说明 | 待建（协议评审通过后） | 待建 | 规格 §24 |
+| 给 B/C/D/Codex/Lead 的接口交接说明 | 待建（协议评审通过后） | 待建（草案 §14 已给图表输入协议） | 规格 §24 |
 
 ## §10 字段映射表（A-0 产出，逐条回答规格 §2 的 18 个问题）
 

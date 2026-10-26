@@ -116,6 +116,18 @@ export type AnalysisCompleteness =
  */
 export type ScalarValue =
   | { readonly kind: "money"; readonly money: MoneyValue }
+  /**
+   * An exact average whose value may sit *between* two minor units (B06/B07):
+   * the amount is `numeratorMinor / denominator` minor units, kept exact so a
+   * chart never shows a pre-rounded number as the authoritative one.
+   */
+  | {
+      readonly kind: "exact-money";
+      readonly numeratorMinor: string;
+      readonly denominator: string;
+      readonly currency: string;
+      readonly decimals: number;
+    }
   | { readonly kind: "count"; readonly count: number }
   | { readonly kind: "days"; readonly days: number }
   | { readonly kind: "ratio"; readonly ratio: Ratio; readonly scale: "percent-100" | "fraction" };
@@ -222,10 +234,16 @@ export interface AnalysisResultBase {
 /**
  * One authoritative number (B01–B08, B13–B14, B16, B18–B19 in the owner
  * specification).
+ *
+ * `value` is `null` when the definition asks for something that cannot exist
+ * (an average over zero records, a ratio with a zero denominator) or when the
+ * data layer said the scope is not usable (`no-permission`, `request-failed`,
+ * `loading`). A `null` value must be rendered as "cannot be determined", never
+ * as zero — that distinction is the whole point of the completeness field.
  */
 export interface ScalarResult extends AnalysisResultBase {
   readonly shape: "scalar";
-  readonly value: ScalarValue;
+  readonly value: ScalarValue | null;
   readonly comparison?: ComparisonValue | undefined;
 }
 
@@ -235,6 +253,11 @@ export interface RankedGroup {
   readonly label: string;
   /** The authoritative value this group is ranked by (money or count). */
   readonly primary: ScalarValue;
+  /**
+   * A second exact value for the same group (I05 shows count *and* amount;
+   * amount ranking shows the record count). Display only — never re-sums.
+   */
+  readonly secondary?: ScalarValue | undefined;
   readonly count?: number | undefined;
   /** Exact share of the ranking total; `null` when the total is not usable. */
   readonly share: Ratio | null;

@@ -51,6 +51,8 @@ export interface AnalysisEntry {
   readonly categoryIsSystem?: boolean | undefined;
   readonly paymentMethodId?: string | null | undefined;
   readonly paymentMethodName?: string | null | undefined;
+  /** Tag identities, only needed when a definition filters by tag (FL-03). */
+  readonly tagIds?: readonly string[] | undefined;
   /** Soft-deleted records are never part of a statistic. */
   readonly deletedAt?: string | null | undefined;
 }

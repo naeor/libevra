@@ -4,8 +4,8 @@
 - 拟定：DS-S17-A-Finance（Agent A）
 - 评审：Lead、Claude（财务正确性）、Agent B、Agent C、Agent D、Codex 视觉侧（只读）
 - 依据：所有者《S17-Agent-A-完整开发规格-所有者-20261026.md》§2、§3、§4、§20、§21、§24；《S17-模块化财务分析工作台-总需求规格.md》§3、§4；《S17-分析能力目录.md》§10
-- 实现位置（草案代码，未接入 UI）：`packages/shared/src/analysis/{types.ts,rational.ts,primitives.ts,index.ts}`
-- 最后核对：分支 `deepseek/s17-finance-category`，提交 `2a4368e` 之后的工作区改动（见任务文档 §6.2）
+- 实现位置（草案代码，未接入 UI）：`packages/shared/src/analysis/{types.ts,rational.ts,primitives.ts,context.ts,index.ts}`、`analysis/analyses/{basic.ts,category.ts}`、`analysis/charts/{numericCard.ts,composition.ts,ranking.ts,index.ts}`（A-1/A-2 装配层）；测试见同目录 `*.test.ts`
+- 最后核对：分支 `deepseek/s17-finance-category`，提交 `f05838f` 之后的工作区改动（见任务文档 §6.2）
 
 > 本文件只**登记**接口与合同，供 B/C/D 评审与并行开发引用；**冻结前任何一方不得据此固化对外 API**。评审通过后由 Lead 在本文件标注【已冻结 + commit】，并同步索引 §2 的 S-01 行。
 
@@ -151,8 +151,8 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 
 | 形状 | 结构要点 | 使用分析（所有者编号） |
 |---|---|---|
-| `scalar` | `value: ScalarValue`（money/count/days/ratio 四选一）+ 可选 `comparison` | B01–B08、B13–B14、B16、B18–B19 |
-| `ranked-groups` | `groups[]{ id, label, primary: ScalarValue, count, share: Ratio\|null, isFolded? }` | I03–I05、B15 排行、I17 排行 |
+| `scalar` | `value: ScalarValue \| null`（**null=不可确定/阻塞态，禁止渲染为 0**）+ 可选 `comparison` | B01–B08、B13–B14、B16、B18–B19 |
+| `ranked-groups` | `groups[]{ id, label, primary: ScalarValue, count, share: Ratio\|null, secondary?: ScalarValue, isFolded? }`（`secondary` 供 I05 同时展示笔数与金额） | I03–I05、B15 排行、I17 排行 |
 | `composition` | `total: MoneyValue\|null`、`parts[]{ id, label, amount: MoneyValue, count, share: Ratio\|null, isFolded? }` | I01–I02、I17 构成、B13–B14 天数构成 |
 | `record-extreme` | 极值金额、业务日期、记录 id、分类、支付方式、安全摘要、`tieCount` | B09–B12、B15、B17、B20 |
 
@@ -162,7 +162,8 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 
 - `MoneyValue { amountMinor: string; currency: string; decimals: number }`：`amountMinor` 是整数的十进制字符串，跨 JSON 不丢精度；
 - `Ratio { numerator: bigint; denominator: bigint }`：只在进程内传递，跨 JSON 时由消费方转十进制文本（`ratioToDecimalText`/`ratioToPercentText`）；**不得**在协议边界放 `number` 比例；
-- `ScalarValue`：`money | count | days | ratio(scale: percent-100 | fraction)`；
+- `ScalarValue`：`money | count | days | ratio(scale: percent-100 | fraction) | exact-money`；
+  - `exact-money { numeratorMinor: string; denominator: string; currency: string; decimals: number }`：**精确有理数金额**（B06 日均、B07 单笔平均这类不整除结果），分子/分母都是整数十进制字符串，内部不提前舍入；显示时由 `ratioToDecimalText` 按显示精度做一次 half-away 舍入再 `formatMinorExact`（见 `charts/numericCard.ts › scalarText`）；
 - 日期一律 `YYYY-MM-DD` 字符串。
 
 > 复用优先：现有 `summaryResponseSchema`/`statsResponseSchema` 是展示 DTO（`number` 分），**不是** S-01 的权威结果；S-01 在计算层用 `bigint` 重新承载，展示层可继续用现有 DTO 的字段命名习惯。是否合并两套类型待评审（R-01）。
@@ -200,13 +201,13 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 
 | 编号 | 分析 | 形状 | 关键计算原语/说明 |
 |---|---|---|---|
-| B01 总支出 | scalar(money) | `totalsOf().expenseMinor` |
-| B02 总收入 | scalar(money) | `totalsOf().incomeMinor` |
-| B03 账目收支差额 | scalar(money) | `totalsOf().netMinor`（收入−支出；不称余额） |
-| B04 支出笔数 | scalar(count) | `totalsOf().expenseCount` |
-| B05 收入笔数 | scalar(count) | `totalsOf().incomeCount` |
-| B06 日均支出 | scalar(money 精确) + ratio 元数据 | `averageMinor(total, dayCount)`；分母=自然日非有交易日 |
-| B07 单笔平均支出 | scalar | `averageMinor(total, expenseCount)`；零笔不可计算 |
+| B01 总支出 | scalar(money) | `totalsOf().expenseMinor`；装配 `assembleTotalExpense`（analyses/basic.ts） |
+| B02 总收入 | scalar(money) | `totalsOf().incomeMinor`；装配 `assembleTotalIncome` |
+| B03 账目收支差额 | scalar(money) | `totalsOf().netMinor`（收入−支出；不称余额）；装配 `assembleNetAmount` |
+| B04 支出笔数 | scalar(count) | `totalsOf().expenseCount`；装配 `assembleExpenseCount` |
+| B05 收入笔数 | scalar(count) | `totalsOf().incomeCount`；装配 `assembleIncomeCount` |
+| B06 日均支出 | scalar(exact-money) + ratio 元数据 | `averageMinor(total, dayCount)`；分母=自然日非有交易日；装配 `assembleDailyAverageExpense` |
+| B07 单笔平均支出 | scalar(exact-money) | `averageMinor(total, expenseCount)`；零笔不可计算；装配 `assembleAverageExpensePerTransaction` |
 | B08 单笔支出中位数 | scalar | `medianMinor`（`bigint` 排序、偶数半单位） |
 | B09 最大单笔支出 | record-extreme | `extremeRecord(...,"max")` + tieCount/来源记录 |
 | B10 最小单笔支出 | record-extreme | `extremeRecord(...,"min")`；退款/负数语义待核查（A-Q3） |
@@ -214,18 +215,18 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 | B12 最高单日收入 | record-extreme | `peakDay(...,"income")` |
 | B13 有支出记录天数 | scalar(days) | `distinctRecordedDays`；缺汇率区分原始/可折算 |
 | B14 无支出记录天数 | scalar(days) | `daysWithoutRecords`；仅完整覆盖可信 |
-| B15 最大支出分类 | record-extreme 或 ranked-groups 首项 | `categoryTotals` + 未分类显式 |
-| B16 分类总数量 | scalar(count) | 真实分类去重；未分类不计入真实分类数 |
+| B15 最大支出分类 | record-extreme 或 ranked-groups 首项 | `categoryTotals` + 未分类显式；装配 `assembleMaxExpenseCategory`（analyses/category.ts，`tieCount`=同金额组数） |
+| B16 分类总数量 | scalar(count) | 真实分类去重；未分类不计入真实分类数；装配 `assembleCategoryCount`（`isSystem` 真实标记判定，notes 记 `realCategories`/`uncategorised-present\|absent`） |
 | B17 最大单笔收入 | record-extreme | `extremeRecord(...,"max")` |
 | B18 收支比 | scalar(ratio) | `ratioOf(expense, income)`；分母零 null；>100% 不截断 |
 | B19 账面结余比例 | scalar(ratio) | `ratioOf(net, income)`；可负；不称储蓄率 |
 | B20 交易记录最多的一天 | record-extreme | 业务日期计数（默认收入+支出） |
-| I01 支出分类构成 | composition | `categoryTotals` + `foldRemainder`；合计守恒 |
-| I02 收入分类构成 | composition | 复用 I01 计算/图表核心 |
-| I03 支出分类排行 | ranked-groups | `categoryTotals`（金额降序→id 升序） |
-| I04 收入分类排行 | ranked-groups | 复用 I03 |
-| I05 分类交易频率 | ranked-groups | 按分类计笔数；不得用 I03 金额排行冒充 |
-| I17 支付方式构成 | composition / ranked-groups | `paymentMethodTotals`；未指定显式分组 |
+| I01 支出分类构成 | composition | `categoryTotals` + `foldRemainder`；合计守恒；装配 `assembleExpenseCategoryComposition`（`maxParts` 折叠「其他」，total 仅在 complete 且 >0 时非 null） |
+| I02 收入分类构成 | composition | 复用 I01 计算/图表核心；装配 `assembleIncomeCategoryComposition` |
+| I03 支出分类排行 | ranked-groups | `categoryTotals`（金额降序→id 升序）；装配 `assembleExpenseCategoryRanking`（`topN`） |
+| I04 收入分类排行 | ranked-groups | 复用 I03；装配 `assembleIncomeCategoryRanking` |
+| I05 分类交易频率 | ranked-groups | 按分类计笔数；不得用 I03 金额排行冒充；装配 `assembleCategoryFrequency`（primary=count、secondary=money、share=count/totalCount） |
+| I17 支付方式构成 | composition / ranked-groups | `paymentMethodTotals`；未指定显式分组；装配 `assemblePaymentMethodAnalysis`（`metric: "amount"\|"count"` 为两种受支持参数，不混为同一指标） |
 
 ---
 
@@ -276,7 +277,96 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 - [ ] 完整性 9 状态覆盖 `complete/no-transactions/partial/fx-incomplete/offline-incomplete/loading/request-failed/no-permission/not-applicable` 且不混淆零与不可计算
 - [ ] 来源追溯字段足够 B/D 实现下钻且不扩大权限
 - [ ] 四种结果形状可覆盖 A 的 26 项，并为 B/C 扩展留出空间
+- [ ] `ScalarValue` 新增 `exact-money`（B06/B07 精确平均）且 `ScalarResult.value` 可为 `null`（不可确定，禁止渲染为 0）无异议
+- [ ] 图表输入协议（§14：numeric-card / composition-chart / ranking-chart）足够 Codex/B/C/D 直接消费，且绘图数值只从精确值派生
 - [ ] `AnalysisDefinition` 不含 presentation、不含账本 ID、首版币种只能 inherit
 - [ ] 与现有 `stats.ts`/`fx.ts`/`money.ts` 复用边界（R-01…R-08）有结论
+
+---
+
+## 14. 图表输入协议（A-1/A-2 装配层，草案）
+
+> 目的：把「权威分析结果」适配成「图表组件可直接消费的输入」，使 Codex/后续渲染层**不需要也不允许重算金额**（规格 §4.2、§24、ACC-02/ACC-08）。
+> 原则：输入里的每个数值文本都来自精确结果；绘图用 `number` 比例只作归一化，**不得**用比例反推金额；尺寸/密度只影响展示项，不改变权威值（ACC-02）。
+> 实现：`packages/shared/src/analysis/charts/{numericCard.ts,composition.ts,ranking.ts}`；测试 `charts/charts.test.ts`。
+
+### 14.1 数值指标卡 `NumericCardInput`（CF-A01，B01–B08/B13–B14/B16/B18–B19）
+
+```ts
+{
+  kind: "numeric-card";
+  analysisId: string;
+  density: "compact" | "medium" | "expanded";   // 由真实容器尺寸 chooseCardDensity(w,h) 决定
+  title: string;
+  valueText: string | null;                     // null = 不可确定（加载/失败/无权限），禁止显示 0
+  unit: "currency" | "count" | "days" | "percent" | "fraction";
+  currency: string | null;
+  sign: "positive" | "negative" | "zero" | "unknown";
+  auxiliary: { id: "count" | "days" | "total" | "comparison"; valueText: string }[];
+  completeness: AnalysisCompleteness;
+  unavailableReason?: string;
+  source: SourceDescriptor;
+}
+```
+
+- 密度阈值（**临时占位，A-Q5 待 Codex 定稿**）：`CARD_DENSITY_THRESHOLDS.medium = {minWidth:200,minHeight:120}`、`expanded = {minWidth:320,minHeight:200}`；compact 不展示辅助项、medium 最多 1 条、expanded 展示全部。
+- `valueText` 在三种密度下必须完全相同（同定义不同尺寸数值一致，ACC-02）。
+
+### 14.2 构成图 `CompositionChartInput`（CF-A03/A04/A05，I01/I02/I17）
+
+```ts
+{
+  kind: "composition-chart";
+  analysisId: string;
+  currency: string | null;
+  totalMinor: string | null;     // 精确最小单位；null = 不完整/无数据
+  totalText: string | null;
+  segments: {
+    id: string; label: string;
+    amountMinor: string;         // 权威金额（精确）
+    amountText: string;
+    share: Ratio | null;         // 权威比例（精确）；不完整时 null
+    shareText: string | null;    // 显示用（可四舍五入，但不得反向改金额）
+    fractionOfTotal: number | null;  // 仅供绘图归一化；仅 drawable 时非 null
+    isFolded: boolean;           // 「其他」折叠段
+  }[];
+  completeness: AnalysisCompleteness;
+  drawable: boolean;             // complete && total!==null && total>0n：缺汇率/无数据时不得伪装完整构成
+  source: SourceDescriptor;
+}
+```
+
+### 14.3 排行图 `RankingChartInput`（CF-A04/A07，I03–I05/I17/B15）
+
+```ts
+{
+  kind: "ranking-chart";
+  analysisId: string;
+  primaryKind: "money" | "count";
+  maxValue: string | null;       // 最大主值（精确，绘制归一化基准）
+  items: {
+    rank: number; id: string; label: string;
+    primaryKind: "money" | "count";
+    primaryMinor: string | null; // money 主值的精确最小单位；exact-money 主值不参与条形绘制（null）
+    count: number | null;
+    primaryText: string | null;
+    secondaryText: string | null;   // I05：笔数 + 金额同时呈现
+    share: Ratio | null;
+    shareText: string | null;
+    fractionOfMax: number | null;   // 仅供绘图归一化
+    isFolded: boolean;
+  }[];
+  completeness: AnalysisCompleteness;
+  source: SourceDescriptor;
+}
+```
+
+- `maxValue` 必须来自精确主值；条形长度 = 精确值比例，**不得**对非零截断或把极小值放大（规格 I03 规则）。
+- 折叠段（「其他」）同样携带精确金额与 `isFolded=true`，点击可展开到 `foldedGroupIds`（由结果形状提供）。
+
+### 14.4 与 CF 家族/尺寸的关系
+
+- 图表输入只描述**内容**（值/标签/份额/完整性/来源）；具体图表类型（环形/横向条/排行表/百分比条）、颜色、圆角、动画属于视觉与渲染层（Codex/S-02），不在本协议内。
+- 尺寸自适应：调用方按真实宽高选择 `NumericCardInput.density`；构成/排行图在容器过小或数据不可绘制时，由卡片层回退到摘要形态，**不得**缩小字号硬塞完整图表（规格 §18）。
 
 > 评审通过后：Lead 在本文件标注【已冻结（commit）】→ 通知 B/C/D/Codex → 索引 §2 S-01 行同步 → Agent A 按最终类型实现 A-1…A-4。
