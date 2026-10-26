@@ -1,12 +1,19 @@
 import { APP_VERSION } from "@libellum/shared";
+import { Pool } from "pg";
+import { PgFxRepository } from "./fx/repository.js";
+import { EcbFrankfurterProvider } from "./fx/provider.js";
+import { FxHistoryService, fxHistoryOptionsFromEnv } from "../../../packages/shared/src/fxHistory.js";
 import { buildApp } from "./app.js";
 import { createPrismaClient } from "./db.js";
 import { loadEnv } from "./env.js";
 
 const env = loadEnv();
 const prisma = createPrismaClient(env.databaseUrl);
+const fxPool = new Pool({ connectionString: env.databaseUrl, max: 2 });
+const fxService = new FxHistoryService(new PgFxRepository(fxPool), new EcbFrankfurterProvider(), fxHistoryOptionsFromEnv(process.env));
 
 const app = buildApp({
+  fxService,
   /**
    * ⚠️ **`/health` 报告的版本来自 `shared`，不是 `npm_package_version`。**
    *
@@ -30,6 +37,7 @@ const app = buildApp({
     return true;
   },
 });
+app.addHook("onClose", async () => { await fxPool.end(); });
 
 async function shutdown(signal: string): Promise<void> {
   app.log.info({ signal }, "shutting down");

@@ -40,6 +40,7 @@ export function LedgerEntryRow({
   conflicted,
   deleted,
   onActivate,
+  fx,
 }: {
   readonly entry: Transaction;
   readonly selecting: boolean;
@@ -48,6 +49,7 @@ export function LedgerEntryRow({
   readonly conflicted: boolean;
   readonly deleted: boolean;
   readonly onActivate: () => void;
+  readonly fx?: React.ReactNode;
 }): React.JSX.Element {
   const { t } = useI18n();
   /** 分类与支付方式只在**显示**时换成当前语言的预置名；数据本身不变。 */
@@ -99,12 +101,11 @@ export function LedgerEntryRow({
         </span>
 
         <span
-          className={`shrink-0 text-sm font-medium tabular-nums ${
+          className={`shrink-0 text-sm font-medium tabular-nums ${fx ? "max-w-40" : ""} ${
             entry.kind === "expense" ? "text-ink" : "text-brand-dark"
           }`}
         >
-          {entry.kind === "expense" ? "-" : "+"}
-          {formatMoney(entry.amountCents, entry.currency)}
+          {fx ?? <>{entry.kind === "expense" ? "-" : "+"}{formatMoney(entry.amountCents, entry.currency)}</>}
         </span>
       </button>
     </li>

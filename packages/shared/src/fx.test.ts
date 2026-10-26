@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aggregateFx, aggregateFxAsync, convertFx, FxResultCache, fxDate, type FxEntry, type FxLookup, type FxSnapshot } from "./fx.js";
-import { FxError, FxHistoryService, MemoryFxRepository, type FxProvider } from "./fxHistory.js";
+import { FxError, FxHistoryService, MemoryFxRepository, fxHistoryOptionsFromEnv, type FxProvider } from "./fxHistory.js";
 
 const now = Date.parse("2026-10-26T12:00:00Z");
 const snapshot: FxSnapshot = { base: "EUR", date: "2026-10-23", provider: "fixture", revision: "r1",
@@ -99,6 +99,11 @@ describe("缓存隔离与重建", () => {
 });
 
 describe("历史服务与离线", () => {
+  it("工程配置保留可配置性且前后端同名映射一致", () => {
+    expect(fxHistoryOptionsFromEnv({ FX_MAX_FALLBACK_DAYS: "3", FX_RECHECK_MS: "60000" })).toEqual({ maxFallbackDays: 3, recheckMs: 60000 });
+    expect(fxHistoryOptionsFromEnv({ VITE_FX_MAX_FALLBACK_DAYS: "3", VITE_FX_RECHECK_MS: "60000" }, "VITE_")).toEqual({ maxFallbackDays: 3, recheckMs: 60000 });
+    expect(() => fxHistoryOptionsFromEnv({ FX_RECHECK_MS: "invalid" })).toThrow();
+  });
   function fixture() {
     let calls = 0;
     let next = snapshot;

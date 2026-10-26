@@ -1,4 +1,3 @@
--- 待集成迁移：只新增公共参考数据。未加入主 migrations，未应用开发/生产库。
 CREATE TABLE fx_snapshots (
   provider text NOT NULL,
   rate_date date NOT NULL,
@@ -17,4 +16,3 @@ CREATE TABLE fx_resolutions (
   PRIMARY KEY (provider, requested_date),
   CHECK (rate_date <= requested_date AND requested_date - rate_date <= 7)
 );
--- resolution 指向日期而非旧 revision；同日修订对所有请求日期立即可见。

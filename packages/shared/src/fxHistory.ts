@@ -50,6 +50,19 @@ export interface FxHistoryOptions {
   maxJumpFactor?: number;
   now?: () => number;
 }
+/** 只读取汇率配置，不回显环境内容；Web 构建使用 VITE_ 前缀。 */
+export function fxHistoryOptionsFromEnv(env: Readonly<Record<string, string | undefined>>, prefix = ""): FxHistoryOptions {
+  const result: FxHistoryOptions = {};
+  for (const [field, key] of [["maxFallbackDays", "FX_MAX_FALLBACK_DAYS"], ["recheckMs", "FX_RECHECK_MS"],
+    ["historicalRecheckMs", "FX_HISTORICAL_RECHECK_MS"], ["maxJumpFactor", "FX_MAX_JUMP_FACTOR"]] as const) {
+    const raw = env[prefix + key];
+    if (raw === undefined || raw === "") continue;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) throw new RangeError(`Invalid ${prefix + key}`);
+    result[field] = value;
+  }
+  return result;
+}
 export class FxHistoryService {
   private readonly pending = new Map<string, Promise<FxLookup>>();
   private readonly now: () => number;

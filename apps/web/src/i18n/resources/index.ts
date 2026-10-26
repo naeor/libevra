@@ -8,6 +8,8 @@
  * 两份文案合计只有几十 KB（gzip 后更小），这个体积优先保证离线正确性。
  */
 import enAccount from "./en-US/account.js";
+import enFx from "./en-US/fx.js";
+import zhFx from "./zh-CN/fx.js";
 import enAdmin from "./en-US/admin.js";
 import enAnnouncements from "./en-US/announcements.js";
 import enAuth from "./en-US/auth.js";
@@ -62,6 +64,7 @@ import zhUpdate from "./zh-CN/update.js";
 import type { Messages } from "../types.js";
 
 export const zhCN = {
+  fx: zhFx,
   common: zhCommon,
   language: zhLanguage,
   format: zhFormat,
@@ -93,6 +96,7 @@ export const zhCN = {
 export type TranslationResource = typeof zhCN;
 
 export const enUS: Messages<TranslationResource> = {
+  fx: enFx,
   common: enCommon,
   language: enLanguage,
   format: enFormat,

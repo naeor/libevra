@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router";
+import { FxModeSetting } from "../components/FxDisplay.js";
 
 import { DuplicateDetectionSettingsCard } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
@@ -132,10 +133,10 @@ export function AppearancePage(): React.JSX.Element {
             to: "/settings/appearance/language",
           },
           { label: t("settings.appearance.theme.label"), hint: t("settings.appearance.theme.hint"), to: "/settings/appearance/theme" },
-          { label: t("settings.appearance.exchange.label"), hint: t("settings.appearance.exchange.hint") },
         ]}
         onNavigate={(to) => void navigate(to)}
       />
+      <FxModeSetting />
     </SettingsSubPage>
   );
 }

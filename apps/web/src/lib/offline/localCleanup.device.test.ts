@@ -17,7 +17,7 @@ vi.mock("./storage.js", () => ({
   removeValue: (key: string) => Promise.resolve(state.indexed.delete(key)),
 }));
 
-import { messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
+import { fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
 import { clearAccountLocalData, clearBookLocalData } from "./localCleanup.js";
 
 function fakeStorage(): Storage {
@@ -69,11 +69,15 @@ describe("local cleanup — device keys", () => {
     state.local.set("libellum.duplicate-detection.v1.guest", "{}");
     state.local.set(presentationSeenKey("user-a"), "1");
     state.local.set(presentationSeenKey("user-b"), "1");
+    state.local.set(fxModeKey("user-a"), "on");
+    state.local.set(fxModeKey("user-b"), "on");
     state.local.set(messagesSeenKey("book-a"), "1");
     state.local.set(sharedLedgerKey("book-a"), "1");
     state.local.set(messagesSeenKey("book-b"), "1");
 
     await clearAccountLocalData("user-a", ["book-a"]);
+    expect(state.local.has(fxModeKey("user-a"))).toBe(false);
+    expect(state.local.has(fxModeKey("user-b"))).toBe(true);
 
     expect(state.indexed.has("ledger-months:user-a:book-a")).toBe(false);
     expect(state.indexed.has("ledger-months:user-b:book-b")).toBe(true);

@@ -20,6 +20,7 @@ export const LIBEVRA_KEY_PREFIX = "libevra.";
 
 /** 比两个品牌都早的键：记住当前账本。 */
 export const CURRENT_BOOK_KEY = "current-book";
+export function fxModeKey(userId: string): string { return `libevra.fx-mode:${userId}`; }
 
 export const MESSAGES_SEEN_PREFIX = "libellum-messages-seen:";
 export const PRESENTATION_SEEN_PREFIX = "libellum-presentation-seen";

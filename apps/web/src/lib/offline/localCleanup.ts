@@ -1,5 +1,5 @@
 import { clearDuplicateSettings } from "../duplicateSettings.js";
-import { messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
+import { fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
 import { listKeys, removeValue } from "./storage.js";
 
 /** `localStorage` 在 Node 测试与隐私模式下可能不存在、访问即抛错；清理路径必须容忍。 */
@@ -72,6 +72,7 @@ export async function clearAccountLocalData(
     /** 存储不可用时忽略：服务端数据已删，本机偏好会在下次设置时覆盖。 */
   }
   removeDeviceKeys([
+    fxModeKey(accountId),
     presentationSeenKey(accountId),
     ...bookIds.flatMap((bookId) => [messagesSeenKey(bookId), sharedLedgerKey(bookId)]),
   ]);

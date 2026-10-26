@@ -38,6 +38,8 @@ import {
   toLocalIso,
 } from "../lib/datetime.js";
 import { currencyName, formatMoney, minorToInput, parseAmountInput } from "../lib/format.js";
+import { FxAmount } from "../components/FxDisplay.js";
+import { useFxMode } from "../lib/fxView.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import {
   useDeleteTransaction,
@@ -65,6 +67,7 @@ function displayLocalDate(localDate: string): string {
  * unrecoverable" instead would be a vaguer claim than the truth.
  */
 export function EntryDetailPage(): React.JSX.Element {
+  const fxMode = useFxMode();
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { showUndo } = useUndo();
@@ -463,8 +466,7 @@ export function EntryDetailPage(): React.JSX.Element {
       <section className="rounded-card border border-line bg-surface p-5">
         <p className="text-xs text-muted">{t(`common.kind.${data.kind}`)}</p>
         <p className="mt-1 text-3xl font-semibold text-ink tabular-nums">
-          {data.kind === "expense" ? "-" : "+"}
-          {formatMoney(data.amountCents, data.currency, { withCode: true })}
+          {fxMode.enabled && !editing ? <FxAmount entry={data} details /> : <>{data.kind === "expense" ? "-" : "+"}{formatMoney(data.amountCents, data.currency, { withCode: true })}</>}
         </p>
       </section>
 
@@ -472,6 +474,7 @@ export function EntryDetailPage(): React.JSX.Element {
         <>
           <section className="flex flex-col gap-2">
             <h2 className="px-1 text-card-title text-ink">{t("common.field.amount")}</h2>
+            {fxMode.enabled ? <p className="px-1 text-helper-relaxed text-muted">{t("fx.readOnly")}</p> : null}
             <input
               value={amountText}
               onChange={(event) => {

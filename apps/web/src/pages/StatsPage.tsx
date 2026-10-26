@@ -17,6 +17,8 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
+import { FxStats } from "../components/FxStats.js";
+import { useFxMode } from "../lib/fxView.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { CalendarHeatmap } from "../components/charts/CalendarHeatmap.js";
 import { CategoryDonut } from "../components/charts/CategoryDonut.js";
@@ -37,6 +39,8 @@ const HEAT_RANGES = ["7d", "month"] as const;
 export type HeatRange = (typeof HEAT_RANGES)[number];
 
 export function StatsPage(): React.JSX.Element {
+  const fxMode = useFxMode();
+  const [combined, setCombined] = useState(true);
   const navigate = useNavigate();
   const ledger = useLedger();
   const { user } = useAuth();
@@ -102,6 +106,12 @@ export function StatsPage(): React.JSX.Element {
     [main.data, kind],
   );
 
+  if (fxMode.enabled && combined) return <TabPage currentBookName={ledger.data?.book.name} active="stats" onNavigate={to => { void navigate(to); }}>
+    <TabPageHeader title={t("stats.title")} subtitle={t("fx.combined")} />
+    <div className="flex gap-3 px-6 pt-5"><span className="rounded-full bg-brand px-4 py-2 text-body text-on-brand">{t("fx.combined")}</span><button type="button" className="rounded-full bg-surface px-4 py-2 text-body text-ink" onClick={() => setCombined(false)}>{t("fx.separate")}</button></div>
+    <FxStats range={range} preset={preset} setPreset={setPreset} />
+  </TabPage>;
+
   return (
     <TabPage currentBookName={ledger.data?.book.name} active="stats" onNavigate={(to) => { navigate(to); }}>
       {/**
@@ -119,6 +129,7 @@ export function StatsPage(): React.JSX.Element {
         * answered, just once instead of twice.
         */}
       <TabPageHeader title={t("stats.title")} subtitle={t("stats.subtitle")} />
+      {fxMode.enabled ? <button type="button" onClick={() => setCombined(true)} className="mx-6 mt-5 self-start rounded-full bg-brand px-4 py-2 text-body text-on-brand">{t("fx.combined")}</button> : null}
 
       {/**
         * ⚠️ **`pt-6`, to match the first block on 账本／协作** — the owner's 7th point:

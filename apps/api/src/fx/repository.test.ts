@@ -28,7 +28,7 @@ describe.skipIf(!enabled)("PostgreSQL 独立 schema 迁移与存储", () => {
     await admin.query(`CREATE SCHEMA ${schema}`);
     pool = new Pool({ connectionString, options: `-c search_path=${schema}` });
     repository = new PgFxRepository(pool);
-    migration = await readFile(new URL("../../../../prisma/pending/s16-d/migration.sql", import.meta.url), "utf8");
+    migration = await readFile(new URL("../../../../prisma/migrations/20261026120000_fx_public_rates/migration.sql", import.meta.url), "utf8");
   });
   afterAll(async () => {
     if (pool) await pool.end();
