@@ -1,4 +1,4 @@
-# S17 · Agent D 任务文档：模块化布局与用户配置
+﻿# S17 · Agent D 任务文档：模块化布局与用户配置
 
 > 本文件是 **DS-S17-D-Layout** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent D 自己。
@@ -123,8 +123,8 @@
 | 2026-10-27 | 初始化确认：已阅读规格与边界，未开始开发 | 本文件 | 本轮本地提交 | 未运行（未开发） | 无 | 见 §7 | 等待所有者第二轮详细需求；W2 先交付布局数据结构约束草案 |
 | 2026-10-27 | 所有者完整开发规格下发（Lead 归档，3207 行）并提交进本分支永久文档；任务文档记录「规格已下发、D-0 启动」 | `docs/specs/product/s17-agents/S17-Agent-D-完整开发规格-所有者-20261027.md` | `ff09275` | 未运行（文档） | 新增本分支权威规格引用源 | D-Q1 已解除；文档校验（check-links / doc-audit / check-status）随后统一执行 | 按规格 §40 执行 D-0 |
 | 2026-10-27 | D-0 首提交：布局数据模型与纯函数（types/grid/projection + 单测）+ D-0 模型与接口文档；未接包入口、未加迁移 | `packages/shared/src/analysis/layout/*`、本文件、D-0 文档 | `32bb563` | Node v24.20.0 类型剥离冒烟 19/19 通过；**正式 vitest/tsc 未运行（环境限制：无 pnpm 依赖）** | 新增 `ObjectSizeContract` 草案与目录内导出（未接 `@libellum/shared` 入口） | 环境限制无 `node_modules`；OQ-LM 数值待上游；见 D-0 文档 §9/§10 | D-1：属性测试、TC-07…22、序列化往返、与 S-03 对齐契约 |
-| 2026-10-27 | D-0 评审通过（条件性：先装依赖跑真实测试）；`pnpm install --frozen-lockfile --prefer-offline` 成功（313 包，lockfile 未改、node_modules 已忽略）；真实 typecheck 与 vitest 通过 | `node_modules/`（已忽略）、本文件 | 待本轮 D-1 提交 | `pnpm --filter @libellum/shared typecheck` exit 0；`vitest run src/analysis/layout` 2 files/29 tests passed | 无 | 无 | D-1：属性测试 ≥10⁴、TC-07…22、序列化往返、损坏配置、S-03 对齐 |
-| 2026-10-27 | D-1 完成：新增 validation（校验/序列化/解析）、测试 PRNG 与夹具、属性测试 10,400 场景、TC-07…26 纯算法夹具、序列化/损坏数据测试；修复 `findEarliestFreeAnchor` 行尾起点越界崩溃；新增 D-1 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、D-1 文档 | 待本轮 D-1 提交 | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **5 files / 65 tests passed**（含 10,400 属性场景），exit 0 | 目录内 barrel 追加 validation 导出；**仍未接** `@libellum/shared` 包入口，未冻结公共接口 | 非纯算法 TC-15/18/19/21/23/24 留集成/UI 批次；OQ-LM-01/03/04/05/06/07 仍待所有者；尺寸数值待 W3 | 等待 Codex 视觉规范与 D-2 接口澄清；把 `AnalysisReference`/`ObjectSizeContract` 草案提交 S-03 评审 |
+| 2026-10-27 | D-0 评审通过（条件性：先装依赖跑真实测试）；`pnpm install --frozen-lockfile --prefer-offline` 成功（313 包，lockfile 未改、node_modules 已忽略）；真实 typecheck 与 vitest 通过 | `node_modules/`（已忽略）、本文件 | `77f9796` | `pnpm --filter @libellum/shared typecheck` exit 0；`vitest run src/analysis/layout` 2 files/29 tests passed | 无 | 无 | D-1：属性测试 ≥10⁴、TC-07…22、序列化往返、损坏配置、S-03 对齐 |
+| 2026-10-27 | D-1 完成：新增 validation（校验/序列化/解析）、测试 PRNG 与夹具、属性测试 10,400 场景、TC-07…26 纯算法夹具、序列化/损坏数据测试；修复 `findEarliestFreeAnchor` 行尾起点越界崩溃；新增 D-1 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、D-1 文档 | `77f9796` | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **5 files / 65 tests passed**（含 10,400 属性场景），exit 0 | 目录内 barrel 追加 validation 导出；**仍未接** `@libellum/shared` 包入口，未冻结公共接口 | 非纯算法 TC-15/18/19/21/23/24 留集成/UI 批次；OQ-LM-01/03/04/05/06/07 仍待所有者；尺寸数值待 W3 | 等待 Codex 视觉规范与 D-2 接口澄清；把 `AnalysisReference`/`ObjectSizeContract` 草案提交 S-03 评审 |
 
 ---
 
