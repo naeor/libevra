@@ -3,9 +3,9 @@
 - 状态：**已批准（所有者 2026-10-27，经 Lead m01003 转达）· 已实现（2026-10-27）**。
   - 所有者原话：「只读扩展允许批准；只要不是修改就行……私钥等私密文件绝对不允许被读取。」
   - 实现位置：`packages/shared/src/analytics.ts`（共享契约）、`packages/shared/src/analysis/adapters/analytics.ts`（DTO → 计算形态）、`apps/api/src/routes/analytics.ts`（两个只读 GET）、`apps/api/src/app.ts`（以 `requireBookRead` 注册，**没有写路由、没有新权限规则**）。
-  - 实现提交：本分支 `feat(s17): Agent A T2 只读扩展（只读端点）`（提交号由后续回填提交补记；分支 `deepseek/s17-finance-category`，未推送）。
-  - 测试：`packages/shared/src/analytics.test.ts`（20）、`packages/shared/src/analysis/adapters/analytics.test.ts`（6）、`apps/api/test/analytics.test.ts`（14，集成测试需 `TEST_DATABASE_URL`，本 worktree 无数据库，见 §8）。
-  - 实现记录与偏差登记见 §8；任务文档新增 §15 记录批准与实现。
+  - 实现提交：`21c0438 feat(s17): Agent A T2 只读扩展（只读端点）`（本地提交，未推送；分支 `deepseek/s17-finance-category`）。
+  - 测试：`packages/shared/src/analytics.test.ts`（20）、`packages/shared/src/analysis/adapters/analytics.test.ts`（6）、`apps/api/test/analytics.test.ts`（14，集成测试需 `TEST_DATABASE_URL`，本 worktree 无数据库，见 §9.5）。
+  - 实现记录与偏差登记见 §9；任务文档新增 §15 记录批准与实现。
 - 提出：DS-S17-A-Finance（Agent A）
 - 目的：补齐「来源追溯」与「综合模式逐笔折算」所缺的只读数据入口；对应任务文档 §7 的 A-Q13 / A-Q17
 - 依据：所有者《S17-Agent-A-完整开发规格》§21.4（来源一致性）、§24（接口）；《S17-模块化财务分析工作台-总需求规格》ACC-01/ACC-08/ACC-09；《S17-分析能力目录》§2 数据能力 T2 定义（只读扩展查询，无 schema 变更）
@@ -212,7 +212,7 @@ A 侧落地（已实现，2026-10-27）：`packages/shared/src/analysis/adapters
 | 注册 | `apps/api/src/app.ts`（`requireBookRead`，无写路由/无新权限规则） |
 | 测试 | `packages/shared/src/analytics.test.ts`（20）、`packages/shared/src/analysis/adapters/analytics.test.ts`（6）、`apps/api/test/analytics.test.ts`（14，集成） |
 
-- 实现提交：本分支 `feat(s17): Agent A T2 只读扩展（只读端点）`（提交号见任务文档 §6.2 回填；分支 `deepseek/s17-finance-category`，未推送）。
+- 实现提交：`21c0438 feat(s17): Agent A T2 只读扩展（只读端点）`（本地提交，未推送；分支 `deepseek/s17-finance-category`）。
 
 ### 9.3 与提案的偏差（评审可见）
 
