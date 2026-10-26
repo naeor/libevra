@@ -147,6 +147,63 @@ export type {
 } from "./timeSeries.js";
 
 export {
+  MOVING_AVERAGE_VERSION,
+  computeTrailingMovingAverage,
+  movingAverageSeries,
+} from "./movingAverage.js";
+
+export type {
+  MovingAverageGapReason,
+  MovingAverageOptions,
+  MovingAveragePoint,
+  MovingAverageResult,
+} from "./movingAverage.js";
+
+export {
+  VARIABILITY_VERSION,
+  computeDailyExpenseVariability,
+  computeIncomeStability,
+} from "./variability.js";
+
+export type {
+  AmountSummary,
+  DailyExpenseVariability,
+  IncomeStability,
+  VariabilityMetric,
+  VariabilityOptions,
+} from "./variability.js";
+
+export {
+  SEASONAL_COMPARISON_VERSION,
+  computeSeasonalComparison,
+} from "./seasonal.js";
+
+export type {
+  SeasonalComparisonResult,
+  SeasonalDescriptiveReason,
+  SeasonalGranularity,
+  SeasonalMonthCell,
+  SeasonalOptions,
+  SeasonalQuarterCell,
+  SeasonalYear,
+} from "./seasonal.js";
+
+export {
+  ANOMALY_VERSION,
+  anomalyThresholdReference,
+  detectDailyExpenseAnomalies,
+} from "./anomaly.js";
+
+export type {
+  AnomalyBaseline,
+  AnomalyMark,
+  AnomalyMethod,
+  AnomalyOptions,
+  AnomalyParameters,
+  AnomalyResult,
+} from "./anomaly.js";
+
+export {
   CATEGORY_SERIES_VERSION,
   OTHER_CATEGORY_KEY,
   computeCategorySeries,

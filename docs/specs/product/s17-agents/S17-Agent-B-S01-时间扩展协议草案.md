@@ -522,3 +522,30 @@ B-3 覆盖 A01–A05（周期比较族）。**这四个问题是四种不同的�
 7. **A04 保留月份显式性**：每个被选月份是自然月（`[1 日, 下月 1 日)`），未知/未来月份 `amountMinor = null` 且 `comparable = false`，不参与排行；跨年必须保留年份（`YYYY-MM` 键）；`ranking` 仅包含完整月。
 8. `sharedMessages` 只登记 shared 模块中的中文提示；`periodComparison.ts`/`multiMonthComparison.ts` 已加入 `sharedMessages.test.ts` 的 `FULL_FILES`，两者仅复用既有“金额必须是整数（以分为单位）”译文。
 
+---
+
+## 13. B-4 实现映射（2026-10-27，未冻结）
+
+B-4 覆盖 A12–A14、A18–A20（高级趋势与稳定性族）。**本组不引入新的数据来源与汇率路径**：A12/A13/A14/A18/A19 都建立在 B-1 的每日/每月支出投影上，A20 建立在 B-1 的每月收入投影上；共享层只做算术，图表层只做像素映射。
+
+| 能力 | 计算入口（shared） | 结果对象 | S-01 形状映射 | 图表（web） |
+|---|---|---|---|---|
+| A12 每日支出波动 | `computeDailyExpenseVariability`（`variability.ts`） | `DailyExpenseVariability`：均值（精确分数）/总体标准差/变异系数（定点）/均值±标准差带/min/max/极值日，样本不足时 `sufficientSample=false` | `VariabilityResult`（§3.12） | `VolatilityBandChart`（CF-B13 带宽 + 均值线） |
+| A13 七日移动平均 | `computeTrailingMovingAverage(..., {windowDays: 7})`（`movingAverage.ts`） | `MovingAverageResult`：逐日原始值 + 精确分数平均（`numeratorMinor/denominatorDays`）+ `gapReason`（`insufficient-history`/`window-incomplete`） | `MovingAverageResult`（§3.10） | `MovingAverageChart`（CF-B12 原始线 + 平均线） |
+| A14 三十日移动平均 | 同上，`windowDays: 30` | 同上（窗口长度不同，语义相同） | `MovingAverageResult` | `MovingAverageChart` |
+| A18 季节性消费比较 | `computeSeasonalComparison`（`seasonal.ts`） | `SeasonalComparisonResult`：每自然年 1–12 月（或 1–4 季）`amountMinor`/`state`/`comparable`/`outsideSpan`；`descriptiveOnly` 与原因；月份数上限（默认 36） | `MultiSeriesResult`（月份为分类轴）+ 表格 | `SeasonalComparisonChart`（CF-B14 每年一条线） |
+| A19 支出异常高峰 | `detectDailyExpenseAnomalies`（`anomaly.ts`） | `AnomalyResult`：`method`（`mad`/`iqr`/`zero-dispersion-quantile`）+ `parameters` + `baseline` + `marks[{date, amountMinor, deviationScaled, thresholdScaledMinor, rank}]` + `sufficientSample` + `todayExcluded` | `AnomalyResult`（§3.14） | `AnomalyMarkerChart`（CF-B15 折线 + 标记点 + 口径说明） |
+| A20 收入稳定性 | `computeIncomeStability`（`variability.ts`） | `IncomeStability`：逐月收入均值/总体标准差/变异系数/零收入月数/正收入月数/`judgedState`（样本不足时明确“样本不足”） | `VariabilityResult`（§3.12） | 复用 `VolatilityBandChart` 或摘要卡（CF-B13 复用，不新增形状） |
+
+**实现时固定下来的语义（后续改语义必须升版本号）**：
+
+1. **未知不等于零、未来不参与统计**：移动平均窗口内任一天未知/未来则该点不可算（`null`，不插值、不按 0 参与平均）；波动性/稳定性统计只纳入 `complete` 桶，并显式给出 `excludedUnknownCount`/`excludedInProgressCount`/`excludedFutureCount`。
+2. **今天不算完**：今天所在桶标记 `in-progress`，不参与 A12/A20 的统计、不参与 A19 的基线判定（`todayExcluded`）；图表上该点不画实心、不进入带/阈值。
+3. **平均是精确分数，不先转浮点**：`mean` 给 `numerator/denominator`；标准差是**总体标准差**；展示用 `*ScaledMinor` 为向下取整定点，仅用于显示，权威值仍为精确分数/`minor` 整数。
+4. **移动平均必须连续日历日**：`computeTrailingMovingAverage` 拒绝不连续的日序列；调用方需要历史窗口时**向外扩展查询区间**，而不是从区间第一天开始算假平均。
+5. **A18 是分类轴不是连续日期轴**：每自然年 1–12 月固定顺序；`outsideSpan`（区间外，不是零）、`unknown`（覆盖未知）、`in-progress`（当前期未结束）都不可与其它年份同名月直接比较（`comparable = false`）；跨年保留年份；月份数上限默认 36，越界抛错不截断（S-01 §17）。
+6. **A19 阈值全部可追溯**：`method`/`parameters`/`thresholdScaledMinor` 进入结果，UI 展示“按什么口径判定的异常”；MAD=0 时退化为 IQR，再退化为分位阈值（绝不硬编码“超过均值多少倍”）；样本不足时 `marks = []` 并给 `sufficientSample=false`，不得硬报异常。
+7. **A20 与 A12 共用 `AmountSummary`**：只是样本维度不同（A12 逐日支出、A20 逐月收入）；`judgedState` 明确“样本不足”，不得用 3 个月以下数据下“稳定/不稳定”结论；零收入月单独计数。
+8. **图表层口径**：图表层只消费 shared 结果，不自行判定异常、不自行分组、不自行改完整性；金额格式化仍在 web `format` 层，组件不产中文文案。
+
+
