@@ -125,7 +125,7 @@ export interface DraftHierarchyResult {
 ## 10. 维护与提交号
 
 - 本文与代码的权威路径：`docs/specs/product/s17-agents/S17-Agent-C-S01-v2评审-C-2-分类层级模型正式定义.md`、`packages/shared/src/analysis/advanced/{draftTypes,hierarchy,sankey}.ts`；
-- 相关提交：C-3 实现 `11b31bb`（rebase 后 `c633d80`）、回填 `d8970e1`；本文所在提交见 §6.2 与 Lead 报告（不 push）。
+- 相关提交：C-3 实现 `11b31bb`（rebase 后 `c633d80`）、回填 `d8970e1`；本文验收/合并状态补记随 `e3f57f1` 提交（不 push）。
 - 维护规则：A 合并进 v2 后，本文件保留为「C 侧来源」，不随 v2 修改而改写；差异由 v2 文本负责。
 
 ## 11. Lead 验收与合并状态（2026-10-27）

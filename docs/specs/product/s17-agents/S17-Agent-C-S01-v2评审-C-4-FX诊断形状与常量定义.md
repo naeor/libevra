@@ -139,4 +139,4 @@ export interface DraftFxRateResolution {
 ## 8. 维护与提交号
 
 - 权威路径：`docs/specs/product/s17-agents/S17-Agent-C-S01-v2评审-C-4-FX诊断形状与常量定义.md`；实现 `packages/shared/src/analysis/advanced/{draftTypes,currencyComposition,fxDiagnostics}.ts` + `apps/web/src/analysis/adapters5.ts`。
-- 提交：C-4 实现 `2f7a036`、回填 `6dfbf82`；本文所在提交见 Lead 报告（不 push）。
+- 提交：C-4 实现 `2f7a036`、回填 `6dfbf82`；本文 QC-29/QC-30 裁定补记随 `e3f57f1` 提交（不 push）。
