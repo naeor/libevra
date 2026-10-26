@@ -1,0 +1,17 @@
+# Release 1.16.19: avatar captions lose their trailing full stop so the caption's
+# visual ink centre lines up with the avatar's geometric centre.
+# Database migrations: none (schema stays at 58; 20261026080000_message_quotes already applied).
+# Keep the independently operated relay on its existing known-good image.
+services:
+  migrate:
+    image: libevra-rc-api:1.16.19-20261026
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.16.19-20261026
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.16.19-20261026
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
