@@ -542,3 +542,217 @@ export interface DraftSankeyResult {
   readonly completeness: DraftCompleteness;
 }
 
+/* ------------------------------------------------------------------------- *
+ * C-4 · P16–P20 汇率诊断草案（QC-12、QC-29）
+ *
+ * 权威来源约定（owner 规格 §32–§36、§49；S-01 v2 §6.7）：
+ * - 折算只能复用权威 FX 引擎（S16-D `aggregateFxAsync` 的逐笔舍入与 7 天
+ *   回退策略）；本草案用「合成汇率观测夹具」表达同一语义，不接入新服务、
+ *   不在图表层自行发明汇率。
+ * - 缺失汇率必须显式进入完整性状态，绝不当作 0 参与合计。
+ * - 不同原币金额不得直接相加；P16 只比较交易数量。
+ * - P18 只展示系统实际持有的离散观测，不插值生成完整行情。
+ * - 金额一律 bigint 最小单位；汇率用精确有理数 numerator/denominator。
+ * ------------------------------------------------------------------------- */
+
+/**
+ * FX 诊断完整性：比 C-1 的 `DraftCompleteness` 多一态「部分可折算」。
+ * `partial` 表示「有记录因缺汇率/未知汇率无法折算」——必须显式标注，
+ * 不能把无法折算的记录静默丢弃后按完整结果展示。
+ */
+export type DraftFxCompleteness = "complete" | "partial" | "no-transactions" | "unavailable";
+
+/** P16–P20 的交易视图：只含汇率诊断需要的字段（原币、方向、金额、业务日期）。 */
+export interface DraftFxRecord {
+  readonly id: string;
+  readonly kind: "expense" | "income";
+  readonly amountMinor: bigint;
+  readonly currency: string;
+  readonly occurredLocalDate: string;
+}
+
+/**
+ * 权威 FX 引擎的一条离散汇率观测（合成夹具用；真实来源由 S16-D / 只读投影提供）。
+ * `rateNumerator / rateDenominator`：1 个 base 币单位 = 该分数个 quote 币单位。
+ */
+export interface DraftFxRateObservation {
+  readonly provider: string;
+  readonly baseCurrency: string;
+  readonly quoteCurrency: string;
+  readonly rateDate: string;
+  readonly rateNumerator: bigint;
+  readonly rateDenominator: bigint;
+}
+
+/** 单笔交易的实际汇率解析结果（P17–P20 共用；缺失时无汇率、无回退天数）。 */
+export interface DraftFxRateResolution {
+  readonly currency: string;
+  readonly targetCurrency: string;
+  /** 交易业务日期（请求折算的日期）。 */
+  readonly requestedDate: string;
+  /** 实际使用的汇率日期；缺失时为 null。 */
+  readonly rateDate: string | null;
+  /** 0 = 直接命中；缺失时为 null；其余为向前回退的天数。 */
+  readonly fallbackDays: number | null;
+  readonly provider: string | null;
+  /** 实际使用的精确汇率（1 base = numerator/denominator）；identity 与 missing 时为 null。 */
+  readonly rateNumerator: bigint | null;
+  readonly rateDenominator: bigint | null;
+  readonly status: "identity" | "exact" | "fallback" | "missing";
+}
+
+/** P16 币种交易构成的一行：只比较交易数量；原币金额分币种显示。 */
+export interface DraftCurrencyCompositionRow {
+  readonly currency: string;
+  readonly recordCount: number;
+  readonly incomeCount: number;
+  readonly expenseCount: number;
+  /** 该币种原币收入合计（最小单位）；不得与其他币种相加。 */
+  readonly incomeAmountMinor: bigint;
+  /** 该币种原币支出合计（最小单位）；不得与其他币种相加。 */
+  readonly expenseAmountMinor: bigint;
+  /** recordCount / 总记录数；总数为 0 时为 null。 */
+  readonly recordShare: DraftRational | null;
+}
+
+export interface DraftCurrencyCompositionResult {
+  readonly rows: readonly DraftCurrencyCompositionRow[];
+  readonly totalRecordCount: number;
+  readonly currencyCount: number;
+  readonly completeness: DraftCompleteness;
+}
+
+/** P17 综合金额币种贡献的一行：已折算到目标币；缺汇率单独计数，不折算成 0。 */
+export interface DraftFxContributionRow {
+  readonly currency: string;
+  /** 该币种原币金额合计（最小单位，仅该币种内部相加）。 */
+  readonly originalSumMinor: bigint;
+  /** 成功折算到目标币的金额合计（最小单位）。 */
+  readonly convertedMinor: bigint;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly fallbackCount: number;
+  /** convertedMinor / 已折算总额；总额为 0 时为 null。 */
+  readonly shareOfConverted: DraftRational | null;
+}
+
+export interface DraftFxContributionResult {
+  readonly targetCurrency: string;
+  readonly rows: readonly DraftFxContributionRow[];
+  /** 仅「实际折算成功（含 identity）」的金额合计；缺汇率不计入。 */
+  readonly totalConvertedMinor: bigint;
+  readonly convertedCount: number;
+  readonly identityCount: number;
+  readonly fallbackCount: number;
+  readonly missingCount: number;
+  /** 份额分母只覆盖「已折算」部分——展示层必须写明，不得暗示覆盖全部金额。 */
+  readonly sharesOverConvertedOnly: true;
+  readonly missingRecords: readonly {
+    readonly id: string;
+    readonly currency: string;
+    readonly occurredLocalDate: string;
+  }[];
+  /** `missingRecords` 是否被截断（缺失总数仍以 missingCount 为准）。 */
+  readonly missingRecordsTruncated: boolean;
+  readonly completeness: DraftFxCompleteness;
+}
+
+/** P18 汇率趋势的一个离散观测点（只画真实观测，不插值）。 */
+export interface DraftFxRatePoint {
+  readonly currency: string;
+  readonly targetCurrency: string;
+  readonly rateDate: string;
+  readonly provider: string;
+  readonly rateNumerator: bigint;
+  readonly rateDenominator: bigint;
+  /** 汇率定点小数（6 位），仅展示用；权威值仍是上面的分数。 */
+  readonly rateScaled: DraftScaledDecimal;
+}
+
+export interface DraftFxRateTrendResult {
+  readonly currency: string;
+  readonly targetCurrency: string;
+  readonly points: readonly DraftFxRatePoint[];
+  readonly from: string;
+  readonly to: string;
+  readonly observationCount: number;
+  /** [from, to] 内无观测的自然日数量（趋势不得插值补点）。 */
+  readonly missingDateCount: number;
+  readonly missingDates: readonly string[];
+  readonly interpolation: "none";
+  /** (末点 - 首点) / 首点；少于两个观测时为 null。 */
+  readonly change: DraftRational | null;
+  readonly minPoint: DraftFxRatePoint | null;
+  readonly maxPoint: DraftFxRatePoint | null;
+  readonly completeness: DraftCompleteness;
+}
+
+/** P19 完整性矩阵单元格：按「币种 × 日期」的实际可折算状态。 */
+export interface DraftFxCoverageCell {
+  readonly currency: string;
+  readonly date: string;
+  readonly status: "exact" | "fallback" | "missing" | "not-needed";
+  readonly recordCount: number;
+}
+
+export interface DraftFxCoverageRow {
+  readonly currency: string;
+  readonly recordCount: number;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly exactCount: number;
+  readonly fallbackCount: number;
+  /** convertedCount / 需要折算的记录数；分母为 0 时为 null。 */
+  readonly coverage: DraftRational | null;
+}
+
+export interface DraftFxCoverageResult {
+  readonly targetCurrency: string;
+  readonly currencies: readonly string[];
+  readonly dates: readonly string[];
+  readonly cells: readonly DraftFxCoverageCell[];
+  readonly needsConversionCount: number;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly exactCount: number;
+  readonly fallbackCount: number;
+  readonly notNeededCount: number;
+  /** convertedCount / needsConversionCount；分母为 0 时为 null。 */
+  readonly coverageRatio: DraftRational | null;
+  /** 首版没有金额覆盖率：可用记录数不等于金额覆盖（owner 规格 §35）。 */
+  readonly amountCoverageAvailable: false;
+  readonly amountCoverageReason: string;
+  readonly missingCombinations: readonly {
+    readonly currency: string;
+    readonly date: string;
+    readonly recordCount: number;
+  }[];
+  readonly rows: readonly DraftFxCoverageRow[];
+  readonly completeness: DraftFxCompleteness;
+}
+
+/** P20 回退使用分析按币种的一行。 */
+export interface DraftFxFallbackRow {
+  readonly currency: string;
+  readonly directCount: number;
+  readonly fallbackCount: number;
+  readonly missingCount: number;
+  readonly fallbackDays: readonly { readonly fallbackDays: number; readonly count: number }[];
+}
+
+export interface DraftFxFallbackResult {
+  readonly targetCurrency: string;
+  readonly fallbackRecordCount: number;
+  readonly needsConversionCount: number;
+  readonly maxFallbackDays: number;
+  readonly fallbackDaysDistribution: readonly {
+    readonly fallbackDays: number;
+    readonly count: number;
+  }[];
+  readonly rows: readonly DraftFxFallbackRow[];
+  readonly providers: readonly { readonly provider: string; readonly count: number }[];
+  readonly dates: readonly { readonly date: string; readonly count: number }[];
+  readonly missingRateCount: number;
+  readonly completeness: DraftFxCompleteness;
+}
+

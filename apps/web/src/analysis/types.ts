@@ -601,3 +601,169 @@ export type SankeyAdapterResult =
   | { readonly ok: true; readonly input: SankeyInput }
   | { readonly ok: false; readonly reason: string; readonly reasonText: string };
 
+/* ------------------------------------------------------------------------- *
+ * C-4 新增图表输入：P16 币种交易构成 / P17 综合金额币种贡献 / P18 汇率历史趋势 /
+ * P19 汇率完整性 / P20 回退使用（DRAFT；QC-12 / QC-29）。
+ *
+ * 约束（owner 规格 §32–§36、§49）：
+ * - 只是 shared 草案结果的投影，不重算汇率/折算/完整性；
+ * - 金额文本一律 bigint + 币种小数位排版，几何比例才用 number；
+ * - 缺汇率、缺观测、状态不确定必须有显式可用性字段与原因，不得画成 0 或空白；
+ * - 每个输入都带 `basisNote`，渲染层必须原样显示计算依据（不得省略）。
+ * ------------------------------------------------------------------------- */
+
+/** P16 一行：某个原币的笔数构成（不折算，金额只在该币种内显示）。 */
+export interface CurrencyCompositionRowDatum {
+  readonly currency: string;
+  readonly recordCount: number;
+  readonly recordCountText: string;
+  readonly incomeCount: number;
+  readonly expenseCount: number;
+  /** 该币种原币收入合计文本（形如 `12.34 CNY`，只用于该币种内展示）。 */
+  readonly incomeText: string;
+  readonly expenseText: string;
+  /** 笔数份额（0..1），仅用于柱长/环弧；无数据为 null。 */
+  readonly recordShare: number | null;
+  readonly shareText: string;
+}
+
+export interface CurrencyCompositionInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly rows: readonly CurrencyCompositionRowDatum[];
+  readonly totalRecordCount: number;
+  readonly totalText: string;
+  readonly currencyCount: number;
+  /** 必须原样显示：按笔数构成，不代表金额份额、不折算、不跨币种相加。 */
+  readonly basisNote: string;
+}
+
+/** P17 一行：某个原始币种对「已折算金额」的贡献。 */
+export interface FxContributionRowDatum {
+  readonly currency: string;
+  readonly convertedMinor: bigint;
+  readonly convertedText: string;
+  /** 该币种原币合计文本（只用于「原币」列，不参与目标币合计）。 */
+  readonly originalText: string;
+  readonly convertedCount: number;
+  readonly fallbackCount: number;
+  readonly missingCount: number;
+  readonly shareOfConverted: number | null;
+  readonly shareText: string;
+}
+
+export interface FxContributionChartInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly targetCurrency: string;
+  readonly rows: readonly FxContributionRowDatum[];
+  readonly totalMinor: bigint;
+  readonly totalText: string;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  /** 明示「缺汇率 N 笔，未计入合计」；无缺失时为空串（不能隐藏丢失）。 */
+  readonly missingText: string;
+  readonly sharesOverConvertedOnly: true;
+  readonly basisNote: string;
+}
+
+/** P18 一个离散观测点（`xFraction`/`yFraction` 仅用于几何）。 */
+export interface FxRateTrendPointDatum {
+  readonly rateDate: string;
+  readonly rateText: string;
+  readonly provider: string;
+  readonly xFraction: number;
+  readonly yFraction: number;
+}
+
+export interface FxRateTrendInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly currency: string;
+  readonly targetCurrency: string;
+  readonly points: readonly FxRateTrendPointDatum[];
+  readonly observationCount: number;
+  readonly missingDateCount: number;
+  readonly missingDatesText: string;
+  readonly changeText: string | null;
+  /** 永远是 "none"：P18 只画离散观测，不插值。 */
+  readonly interpolation: "none";
+  readonly basisNote: string;
+}
+
+/** P19 单元格状态（与 shared 结果一一对应，不新增语义）。 */
+export type FxCoverageCellStatus = "exact" | "fallback" | "missing" | "not-needed";
+
+export interface FxCoverageCellDatum {
+  readonly currency: string;
+  readonly date: string;
+  readonly status: FxCoverageCellStatus;
+  readonly statusLabel: string;
+  readonly recordCount: number;
+}
+
+export interface FxCoverageRowDatum {
+  readonly currency: string;
+  readonly recordCount: number;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly coverageFraction: number | null;
+  readonly coverageText: string;
+}
+
+export interface FxCoverageMatrixInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly targetCurrency: string;
+  readonly rows: readonly FxCoverageRowDatum[];
+  readonly columns: readonly string[];
+  readonly cells: readonly FxCoverageCellDatum[];
+  readonly needsConversionCount: number;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly coverageFraction: number | null;
+  readonly coverageText: string;
+  /** 首版不提供金额覆盖率：渲染层必须显示原因，不得暗示金额覆盖。 */
+  readonly amountCoverageAvailable: false;
+  readonly amountCoverageReason: string;
+  readonly missingCombinationsText: readonly string[];
+  readonly basisNote: string;
+}
+
+/** P20 按币种的回退使用一行。 */
+export interface FxFallbackBarDatum {
+  readonly currency: string;
+  readonly directCount: number;
+  readonly fallbackCount: number;
+  readonly missingCount: number;
+  readonly fallbackText: string;
+}
+
+/** P20 回退天数分布的一柱（`fraction` 仅用于柱高）。 */
+export interface FxFallbackDistributionDatum {
+  readonly fallbackDays: number;
+  readonly label: string;
+  readonly count: number;
+  readonly fraction: number;
+}
+
+export interface FxFallbackUsageInput {
+  readonly source: ChartSource;
+  readonly available: boolean;
+  readonly unavailableReason: string | null;
+  readonly targetCurrency: string;
+  readonly rows: readonly FxFallbackBarDatum[];
+  readonly fallbackRecordCount: number;
+  readonly needsConversionCount: number;
+  readonly maxFallbackDays: number;
+  readonly distribution: readonly FxFallbackDistributionDatum[];
+  readonly providersText: string;
+  readonly datesText: string;
+  readonly missingRateCount: number;
+  readonly basisNote: string;
+}
+

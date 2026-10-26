@@ -436,3 +436,145 @@ export interface SharedSankeyResult {
   readonly completeness: "complete" | "no-transactions" | "unavailable";
 }
 
+/* ------------------------------------------------------------------------- *
+ * C-4 结构镜像：shared `advanced/draftTypes.ts` 的汇率诊断形状（DRAFT）。
+ * 与 shared 的 Draft* 返回类型逐字段对应；web 只读、不重算。
+ * ------------------------------------------------------------------------- */
+
+export type SharedFxCompleteness = "complete" | "partial" | "no-transactions" | "unavailable";
+
+export interface SharedCurrencyCompositionRow {
+  readonly currency: string;
+  readonly recordCount: number;
+  readonly incomeCount: number;
+  readonly expenseCount: number;
+  readonly incomeAmountMinor: bigint;
+  readonly expenseAmountMinor: bigint;
+  readonly recordShare: RatioLike | null;
+}
+
+export interface SharedCurrencyCompositionResult {
+  readonly rows: readonly SharedCurrencyCompositionRow[];
+  readonly totalRecordCount: number;
+  readonly currencyCount: number;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
+export interface SharedFxContributionRow {
+  readonly currency: string;
+  readonly originalSumMinor: bigint;
+  readonly convertedMinor: bigint;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly fallbackCount: number;
+  readonly shareOfConverted: RatioLike | null;
+}
+
+export interface SharedFxContributionResult {
+  readonly targetCurrency: string;
+  readonly rows: readonly SharedFxContributionRow[];
+  readonly totalConvertedMinor: bigint;
+  readonly convertedCount: number;
+  readonly identityCount: number;
+  readonly fallbackCount: number;
+  readonly missingCount: number;
+  readonly sharesOverConvertedOnly: true;
+  readonly missingRecords: readonly {
+    readonly id: string;
+    readonly currency: string;
+    readonly occurredLocalDate: string;
+  }[];
+  readonly missingRecordsTruncated: boolean;
+  readonly completeness: SharedFxCompleteness;
+}
+
+export interface SharedFxRatePoint {
+  readonly currency: string;
+  readonly targetCurrency: string;
+  readonly rateDate: string;
+  readonly provider: string;
+  readonly rateNumerator: bigint;
+  readonly rateDenominator: bigint;
+  readonly rateScaled: { readonly scaled: bigint; readonly decimals: number };
+}
+
+export interface SharedFxRateTrendResult {
+  readonly currency: string;
+  readonly targetCurrency: string;
+  readonly points: readonly SharedFxRatePoint[];
+  readonly from: string;
+  readonly to: string;
+  readonly observationCount: number;
+  readonly missingDateCount: number;
+  readonly missingDates: readonly string[];
+  readonly interpolation: "none";
+  readonly change: RatioLike | null;
+  readonly minPoint: SharedFxRatePoint | null;
+  readonly maxPoint: SharedFxRatePoint | null;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
+export interface SharedFxCoverageCell {
+  readonly currency: string;
+  readonly date: string;
+  readonly status: "exact" | "fallback" | "missing" | "not-needed";
+  readonly recordCount: number;
+}
+
+export interface SharedFxCoverageRow {
+  readonly currency: string;
+  readonly recordCount: number;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly exactCount: number;
+  readonly fallbackCount: number;
+  readonly coverage: RatioLike | null;
+}
+
+export interface SharedFxCoverageResult {
+  readonly targetCurrency: string;
+  readonly currencies: readonly string[];
+  readonly dates: readonly string[];
+  readonly cells: readonly SharedFxCoverageCell[];
+  readonly needsConversionCount: number;
+  readonly convertedCount: number;
+  readonly missingCount: number;
+  readonly exactCount: number;
+  readonly fallbackCount: number;
+  readonly notNeededCount: number;
+  readonly coverageRatio: RatioLike | null;
+  readonly amountCoverageAvailable: false;
+  readonly amountCoverageReason: string;
+  readonly missingCombinations: readonly {
+    readonly currency: string;
+    readonly date: string;
+    readonly recordCount: number;
+  }[];
+  readonly rows: readonly SharedFxCoverageRow[];
+  readonly completeness: SharedFxCompleteness;
+}
+
+export interface SharedFxFallbackRow {
+  readonly currency: string;
+  readonly directCount: number;
+  readonly fallbackCount: number;
+  readonly missingCount: number;
+  readonly fallbackDays: readonly { readonly fallbackDays: number; readonly count: number }[];
+}
+
+export interface SharedFxFallbackResult {
+  readonly targetCurrency: string;
+  readonly fallbackRecordCount: number;
+  readonly needsConversionCount: number;
+  readonly maxFallbackDays: number;
+  readonly fallbackDaysDistribution: readonly {
+    readonly fallbackDays: number;
+    readonly count: number;
+  }[];
+  readonly rows: readonly SharedFxFallbackRow[];
+  readonly providers: readonly { readonly provider: string; readonly count: number }[];
+  readonly dates: readonly { readonly date: string; readonly count: number }[];
+  readonly missingRateCount: number;
+  readonly completeness: SharedFxCompleteness;
+}
+
