@@ -15,7 +15,9 @@ vi.mock("../lib/queries.js", () => ({
 }));
 vi.mock("../lib/api.js", () => ({ errorMessage: (caught: unknown) => String(caught) }));
 
-const { markMessagesSeen, newMessageCount, clearMessageDraft } = await import("./MessageBoard.js");
+const { markMessagesSeen, messageReference, newMessageCount, clearMessageDraft } = await import(
+  "./MessageBoard.js"
+);
 
 /** A message as the board receives it — only `createdAt` matters to the count. */
 const at = (iso: string) => ({ createdAt: iso });
@@ -190,5 +192,36 @@ describe("留言草稿", () => {
     expect(() => {
       clearMessageDraft();
     }).not.toThrow();
+  });
+});
+
+describe("旧缓存里的留言没有引用字段", () => {
+  /**
+   * ⚠️ **This is the memory of a real failure, not a hypothetical.**
+   *
+   * `reference` arrived with the quote feature (1.16.18). A device cache written by 1.16.17 holds
+   * messages without the key, and the persistence layer can hydrate that cache **before the
+   * refetch replaces it**. Rendering used to read `message.reference === null` — false for
+   * `undefined` — then `.available` on nothing, which threw during render and sent the whole
+   * screen to the error boundary: the reader saw “页面无法显示” when tapping 协作.
+   *
+   * The buster bump discards old caches; this normalisation is the second line of defence.
+   */
+  it("把缺失的 reference 当作没有引用", () => {
+    expect(messageReference({} as never)).toBeNull();
+  });
+
+  it("null 引用仍是没有引用", () => {
+    expect(messageReference({ reference: null } as never)).toBeNull();
+  });
+
+  it("有引用时原样返回", () => {
+    const reference = {
+      kind: "transaction",
+      id: "00000000-0000-4000-8000-000000000000",
+      available: true,
+      snapshot: { kind: "transaction", id: "00000000-0000-4000-8000-000000000000" },
+    };
+    expect(messageReference({ reference } as never)).toBe(reference);
   });
 });

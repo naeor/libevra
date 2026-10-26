@@ -230,9 +230,26 @@ export function useMessageComposer(): MessageComposer {
   };
 }
 
+/**
+ * The quote on a message, normalised so "the field is missing" and "there is no quote" are the
+ * same answer.
+ *
+ * ⚠️ **The field arrived in 1.16.18, and old device caches still hold messages without it.**
+ * `buster` in `App.tsx` was bumped so those caches are discarded on upgrade, but this stays as
+ * defence in depth: a persisted response can still reach the board through a path nobody counted
+ * on, and `message.reference === null` does not catch `undefined` — it falls through to reading
+ * `.available` on nothing, throwing during render and taking the whole page to the error boundary.
+ * **A missing quote is a far smaller failure than a blank screen**, so read it as "no quote".
+ */
+export function messageReference(
+  message: Pick<BookMessage, "reference">,
+): MessageReferenceView | null {
+  return message.reference ?? null;
+}
+
 /** One message: who, when, and what — in that order, and nothing else. */
 function MessageRow({ message }: { readonly message: BookMessage }): React.JSX.Element {
-  const reference = message.reference;
+  const reference = messageReference(message);
 
   /**
    * ⚠️ **A quote links to the entry it is about, when there is one left to open.** A deleted entry is a

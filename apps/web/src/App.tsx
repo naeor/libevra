@@ -504,8 +504,13 @@ export default function App(): React.JSX.Element {
            * new field, and the app would read `undefined` from its own cache —
            * which is a class of bug that only ever appears on somebody else's
            * phone, after a deploy.
+           *
+           * ⚠️ **v2 (1.16.18)**: `/books/messages` gained a `reference` field. A
+           * cache written by 1.16.17 restores messages without it, and rendering
+           * one took the screen down before the refetch could replace it. Bumping
+           * the buster is the fix the paragraph above prescribes.
            */
-          buster: "v1",
+          buster: "v2",
         }}
       >
         <AuthProvider>
