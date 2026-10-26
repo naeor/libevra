@@ -210,13 +210,34 @@ export function GlobeIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
 }
 
 /**
- * **一条引用 —— 引号形状的一对逗号，不是「消息气泡」。**
+ * **一条引用 —— 浅色主题圆里的一对白色引号（m06693 定的形状）。**
  *
  * ⚠️ 留言引用的是**账目与修改记录**，不是回复某个人；用聊天的「回复箭头」会让这块区域看起来像一个
  * 私聊线程，而那正是所有者反复排除的形态。引号是「这里引用了别处的一句话」的通用记号，和
  * `QuoteReferenceCard` 的形态一致。
+ *
+ * ⚠️ **颜色全部走主题令牌，不写死**：圆底是 `fill-brand`、引号是 `fill-on-brand`（白色），七套色盘与
+ * 深浅模式都会自动跟随；`colors.test.ts` 也不允许在 token 文件之外出现十六进制字面量。
  */
 export function QuoteIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="12" className="fill-brand" />
+      {/*
+        ⚠️ **上引号，不是下引号**：材料里的引用符号默认尾巴朝下（收尾引用），旋转 180° 之后读作「开始
+        引用」。引号本身是一对很粗的逗号，位于圆内偏上的位置，缩到 20px 时仍然一眼是引号而不是两个点。
+      */}
+      <g transform="rotate(180 12 11.4)" className="fill-on-brand">
+        <path d="M8.2 7.4c-2 0-3.6 1.6-3.6 3.6 0 1.9 1.4 3.5 3.3 3.6-.2 1.1-.9 2-2 2.6v1.9c2.8-.5 4.6-2.4 4.6-5.5V7.4H8.2Zm7.6 0c-2 0-3.6 1.6-3.6 3.6 0 1.9 1.4 3.5 3.3 3.6-.2 1.1-.9 2-2 2.6v1.9c2.8-.5 4.6-2.4 4.6-5.5V7.4h-2.3Z" />
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * **一架纸飞机 —— 「就这笔留言」入口用**（m06693）。描边、跟随 `currentColor`，与其他图标同一粗细。
+ */
+export function SendIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -228,8 +249,8 @@ export function QuoteIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
       aria-hidden="true"
       {...props}
     >
-      <path d="M10 8.5c0 3-2 4.5-4.2 5.5M10 8.5H6.2A2.2 2.2 0 0 0 4 10.7v.8a2.2 2.2 0 0 0 2.2 2.2H10V8.5Z" />
-      <path d="M20 8.5c0 3-2 4.5-4.2 5.5M20 8.5h-3.8a2.2 2.2 0 0 0-2.2 2.2v.8a2.2 2.2 0 0 0 2.2 2.2H20V8.5Z" />
+      <path d="M21.3 2.7 11 13" />
+      <path d="M21.3 2.7 14.8 21a.5.5 0 0 1-.9 0l-2.9-8-8-2.9a.5.5 0 0 1 0-.9L21.3 2.7Z" />
     </svg>
   );
 }

@@ -142,15 +142,29 @@ describe("EntrySaved", () => {
      */
     const html = render({ onQuote: () => undefined });
 
-    expect(html).toContain("引用留言");
-    expect(render()).not.toContain("引用留言");
+    expect(html).toContain("就这笔留言");
+    expect(render()).not.toContain("就这笔留言");
   });
 
-  it("keeps the shortcut quote quieter than the undo", () => {
-    // It is an invitation, not a step: the eye should reach "record the next one" first.
-    const html = render({ onUndo: () => undefined, onQuote: () => undefined });
+  it("puts the shortcut inside the success info, above the primary actions", () => {
+    /**
+     * m06693：所有者要求把入口从「返回主页」下方移到金额/分类下方的成功信息区，「与「再记一笔」
+     * 「返回主页」两个主操作区分开」。所以它必须在金额之后、主按钮之前——而不是第三个操作。
+     */
+    const html = render({ onQuote: () => undefined });
+    const shortcut = html.indexOf("就这笔留言");
 
-    expect(html.indexOf("撤销这次记账")).toBeLessThan(html.indexOf("引用留言"));
+    expect(html.indexOf("20.00")).toBeLessThan(shortcut);
+    expect(shortcut).toBeLessThan(html.indexOf("再记一笔"));
+    expect(shortcut).toBeLessThan(html.indexOf("返回主页"));
+  });
+
+  it("swaps the shortcut for a quiet confirmation after the message is sent", () => {
+    // 发完之后同一屏不再提供第二次入口；账目仍然原样保存。
+    const html = render({ onQuote: () => undefined, quoteSent: true });
+
+    expect(html).toContain("留言已发送");
+    expect(html).not.toContain("就这笔留言");
   });
 
   it("announces itself to a screen reader", () => {
@@ -203,5 +217,6 @@ describe("EntrySaved in English", () => {
     applyLocale("en-US");
 
     expect(render({ onQuote: () => undefined })).toContain("Message about this");
+    expect(render({ onQuote: () => undefined, quoteSent: true })).toContain("Message sent");
   });
 });

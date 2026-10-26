@@ -1,4 +1,4 @@
-import type { Messages } from "../../types.js";
+﻿import type { Messages } from "../../types.js";
 import type zh from "../zh-CN/collab.js";
 
 /** `collab` (English). Must mirror zh-CN key for key. */
@@ -115,6 +115,12 @@ const collab: Messages<typeof zh> = {
     quoteEmptyEvents: "No edits yet.",
     quoteLoading: "Loading things you can quote…",
     quoteFailed: "Couldn’t load the quotable items.",
+    /** The composer that opens right after an entry is saved (entrance A, m06693). */
+    quoteAboutTitle: "Message about this",
+    quoteRemovedHint: "Quote removed — this will be sent as a plain message.",
+    quoteRestore: "Restore quote",
+    sendMessage: "Send message",
+    messageSent: "Message sent",
   },
   notifications: {
     heading: "Notifications",

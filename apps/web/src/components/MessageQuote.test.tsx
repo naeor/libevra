@@ -6,15 +6,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyLocale } from "../i18n/index.js";
 
 /**
- * ⚠️ **`useQuoteTargets` is mocked at the module boundary**: the picker is presentational — it renders
- * whatever the query returned and hands one row back — so the test supplies rows instead of a server.
+ * ⚠️ **The query hooks are mocked at the module boundary**: the quote surfaces are presentational — the
+ * picker renders whatever the query returned, and the composer renders the target the server resolved
+ * before it lets anyone send. The test supplies data instead of a server.
  */
 vi.mock("../lib/queries.js", () => ({
+  useQuoteTarget: vi.fn(),
   useQuoteTargets: vi.fn(),
+  useSendBookMessage: vi.fn(),
 }));
 
-const { useQuoteTargets } = await import("../lib/queries.js");
-const { QuotePickerSheet, QuoteReferenceCard, pickableEvents } = await import("./MessageQuote.js");
+const { useQuoteTarget, useQuoteTargets, useSendBookMessage } = await import("../lib/queries.js");
+const { QuoteMessageSheet, QuotePickerSheet, QuoteReferenceCard, pickableEvents } = await import(
+  "./MessageQuote.js"
+);
 
 const transactionSnapshot = {
   kind: "transaction" as const,
@@ -166,5 +171,82 @@ describe("选择引用的面板", () => {
 
   it("says quoting is optional", () => {
     expect(renderPicker()).toContain("引用是可选的");
+  });
+});
+
+describe("记账成功后的留言面板", () => {
+  function mockComposer(state: "ready" | "pending"): void {
+    vi.mocked(useQuoteTarget).mockReturnValue(
+      (state === "ready"
+        ? {
+            isPending: false,
+            isError: false,
+            isSuccess: true,
+            data: {
+              kind: "transaction" as const,
+              id: transactionSnapshot.id,
+              snapshot: transactionSnapshot,
+            },
+          }
+        : { isPending: true, isError: false, isSuccess: false, data: undefined }) as unknown as ReturnType<
+        typeof useQuoteTarget
+      >,
+    );
+    vi.mocked(useSendBookMessage).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as unknown as ReturnType<typeof useSendBookMessage>);
+  }
+
+  function renderComposer(): string {
+    return wrap(
+      <QuoteMessageSheet
+        transactionId={transactionSnapshot.id}
+        onClose={() => undefined}
+        onSent={() => undefined}
+      />,
+    );
+  }
+
+  it("opens with the saved entry already quoted and a send button", () => {
+    /**
+     * ⚠️ m06693：所有者要的是「点击后直接打开留言编辑界面，自动引用刚刚保存的这笔账目，展示简洁的
+     * 引用卡片。用户输入内容后，再点击「发送留言」正式提交」。所以面板一出现就必须已经有引用卡片，
+     * 且发送按钮在空内容时不可用。
+     */
+    mockComposer("ready");
+    const html = renderComposer();
+
+    expect(html).toContain("就这笔留言");
+    expect(html).toContain("买菜");
+    expect(html).toContain("86.00");
+    expect(html).toContain("发送留言");
+    expect(html).toContain("取消引用");
+    expect(html).toContain('aria-label="就这笔留言"');
+    expect(html).toContain("disabled");
+  });
+
+  it("animates in from the bottom — the panel carries the entrance animation class", () => {
+    // 入场类来自全局 `.sheet-in`（index.css 从下往上展开）；关闭时同一组件换成 `.sheet-out`。
+    mockComposer("ready");
+
+    expect(renderComposer()).toContain("sheet-in");
+  });
+
+  it("waits for the server-resolved entry before it lets anyone send", () => {
+    mockComposer("pending");
+    const html = renderComposer();
+
+    expect(html).toContain("正在读取");
+    expect(html).toContain("disabled");
+  });
+
+  it("is fully bilingual", () => {
+    mockComposer("ready");
+    applyLocale("en-US");
+    const html = renderComposer();
+
+    expect(html).toContain("Message about this");
+    expect(html).toContain("Send message");
   });
 });

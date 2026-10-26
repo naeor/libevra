@@ -1,4 +1,4 @@
-/**
+﻿/**
  * `collab` 文案：成员、邀请成员、分享链接、留言、提醒（源语言：简体中文）。键结构即全部语言的键定义。
  *
  * ⚠️ 只放界面文字。昵称、用户名、账号编号、账本名、留言正文、邀请附言都是用户数据，不进这里。
@@ -106,7 +106,7 @@ const collab = {
     quoteRemove: "取消引用",
     quoteOpen: "查看引用的内容",
     quoteUnavailable: "已删除或不可访问",
-    quickQuote: "引用留言",
+    quickQuote: "就这笔留言",
     quoteSheetTitle: "引用一条记录",
     quoteSheetClose: "关闭",
     quoteTabTransactions: "账目",
@@ -116,6 +116,12 @@ const collab = {
     quoteEmptyEvents: "还没有修改记录。",
     quoteLoading: "正在读取可引用的记录……",
     quoteFailed: "可引用的记录读取失败。",
+    /** 记账成功后的留言编辑面板（入口 A，m06693）。 */
+    quoteAboutTitle: "就这笔留言",
+    quoteRemovedHint: "已取消引用，将作为普通留言发送。",
+    quoteRestore: "恢复引用",
+    sendMessage: "发送留言",
+    messageSent: "留言已发送",
   },
   notifications: {
     heading: "提醒",

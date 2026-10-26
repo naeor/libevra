@@ -1,19 +1,19 @@
-/**
+﻿/**
  * E2E：共享账本留言的「账目引用」功能（m05272）。
  *
  * 覆盖：
  *  1. 留言页保持简单：普通留言可直接发送，引用按钮低调存在
  *  2. 入口 B：引用按钮展开选择面板 → 引用一笔账目 → 发送后卡片可见
  *  3. 引用某次修改：引用的是那次历史事实，后续再改不会改变已发出的卡片
- *  4. 入口 A：共享账本记账成功后出现「引用留言」，点击带着引用打开留言页，忽略时无任何干扰
- *  5. 个人账本没有「引用留言」入口
+ *  4. 入口 A：共享账本记账成功后出现「就这笔留言」胶囊，点开即引用刚保存的账目，忽略时无任何干扰
+ *  5. 个人账本没有「就这笔留言」入口
  *  6. 引用目标被删除后安全降级（卡片显示不可访问，页面不报错；新引用被服务端拒绝）
  *  7. 英文界面
  *  8. 深色主题 + 移动端底部输入区不被遮挡
  *
  * 运行前置：
  *  - API dev（http://127.0.0.1:3000）与 web dev（LIBELLUM_LAN=1，https://127.0.0.1:5173）
- *  - Chrome 以 --remote-debugging-port=9236 启动，且 --user-data-dir 必须是全新目录
+ *  - Chrome 以 --remote-debugging-port=9239 启动，且 --user-data-dir 必须是全新目录
  *    （旧 profile 的 IndexedDB 损坏会让 App 永远停在 Loading…，教训见 S16 头像页 E2E）
  *  - 夹具：共享账本 pn_270ce57（book bb832b1b…）、个人账本 pv_descent_a812d8（book 5abeff3a…）
  */
@@ -25,7 +25,7 @@ import { api, apiLogin, assert, openPage, runCase } from "./cdp.mjs";
 
 const WEB = "https://127.0.0.1:5173";
 const API = "http://127.0.0.1:3000/api/v1";
-const OUTPUT = join(process.env.USERPROFILE ?? ".", "Desktop", "工作", "记账程序", "记账程序v1", "_backups", "message-quotes-20261026");
+const OUTPUT = join(process.env.USERPROFILE ?? ".", "Desktop", "工作", "记账程序", "记账程序v1", "_backups", "quote-refine-20261026");
 
 const SHARED = {
   username: "pn_270ce57",
@@ -43,7 +43,7 @@ const SOLO = {
 mkdirSync(OUTPUT, { recursive: true });
 
 const results = [];
-const page = await openPage(9236);
+const page = await openPage(9239);
 await page.setViewport(390, 844, true);
 await page.send("Page.addScriptToEvaluateOnNewDocument", {
   source: `window.runtimeImport = (path) => import(path);`,
@@ -256,6 +256,25 @@ await runCase(results, "普通留言可以直接发送，不需要任何引用",
   return `${token} 已发送且不带引用`;
 });
 
+await runCase(results, "引用面板从下往上展开、从上往下收回（入场/退场动画类齐全）", async () => {
+  await clickQuoteButton();
+  await page.waitFor("document.querySelector('[role=\"dialog\"]') !== null", 5000);
+  const openClass = await page.evaluate("document.querySelector('[role=\"dialog\"]').className");
+  assert(openClass.includes("sheet-in"), `面板没有入场动画类：${openClass}`);
+  await shot("02b-sheet-open.png");
+
+  await page.evaluate(`(() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    const close = dialog?.querySelector('[aria-label="关闭"], [aria-label="Close"]');
+    close?.click();
+  })()`);
+  await sleep(60);
+  const closingClass = await page.evaluate(`document.querySelector('[role="dialog"]')?.className ?? ""`);
+  assert(closingClass.includes("sheet-out"), `面板没有收回动画类：${closingClass}`);
+  await page.waitFor("document.querySelector('[role=\"dialog\"]') === null", 5000);
+  return "入场 .sheet-in、退场 .sheet-out，动画播完才从 DOM 移除";
+});
+
 await runCase(results, "入口 B：引用按钮展开面板，引用一笔账目并发送", async () => {
   await clickQuoteButton();
   await page.waitFor("document.querySelector('[role=\"dialog\"]') !== null", 5000);
@@ -357,7 +376,10 @@ await runCase(results, "引用一次修改：之后账目再改，已发出的�
   return "修改引用保持 86→68，账目后续改到 70 不影响已发出的卡片";
 });
 
-await runCase(results, "入口 A：记账成功后出现「引用留言」，点击带着引用进入留言页", async () => {
+await runCase(results, "入口 A：保存成功后出现「就这笔留言」胶囊，点开即引用刚保存的账目", async () => {
+  const beforeMessages = await api(API, "/books/messages?limit=200", bookHeader);
+  const beforeCount = beforeMessages.data.messages.length;
+
   await page.navigate(`${WEB}/add`);
   await page.waitFor("document.readyState === 'complete'");
   await page.waitFor("document.body.innerText.includes('保存') || document.body.innerText.includes('记一笔')", 15000);
@@ -379,28 +401,78 @@ await runCase(results, "入口 A：记账成功后出现「引用留言」，点
   await page.waitFor("document.body.innerText.includes('已记账')", 10000);
   await sleep(300);
   const text = await bodyText();
-  assert(text.includes("引用留言"), "共享账本记账成功后没有「引用留言」入口");
+  assert(text.includes("就这笔留言"), "共享账本记账成功后没有「就这笔留言」入口");
+  assert(!text.includes("引用留言"), "旧入口文案「引用留言」不应再出现");
   assert(text.includes("再记一笔"), "保存成功页缺少「再记一笔」");
+  /**
+   * ⚠️ m06693：入口必须在「成功信息区」（金额/分类下方）而不是主按钮下方；它看起来像成功说明的一部分，
+   * 然后才是两个真正的动作。
+   */
+  assert(
+    text.indexOf("就这笔留言") < text.indexOf("再记一笔"),
+    "「就这笔留言」应在「再记一笔」之前（成功信息区里）",
+  );
   await shot("06-saved-shortcut.png");
 
-  const clicked = await clickText("引用留言");
-  assert(clicked, "点击「引用留言」失败");
-  await page.waitFor("location.pathname === '/ledger/messages'", 10000);
+  /* 打开面板：自动带上引用卡片 */
+  assert(await clickText("就这笔留言"), "点击「就这笔留言」失败");
+  await page.waitFor(
+    `document.querySelector('[role="dialog"][aria-label="就这笔留言"], [role="dialog"][aria-label="Message about this"]') !== null`,
+    10000,
+  );
   await waitQuoteCard();
-  const quoted = await page.evaluate("document.body.innerText");
-  assert(quoted.includes(`¥${amount}.00`), `快捷引用没有带上刚保存的账目金额：${quoted.slice(-80)}`);
-  await shot("07-quick-quote-composer.png");
+  const sheetText = await page.evaluate(`document.querySelector('[role="dialog"]').innerText`);
+  assert(sheetText.includes(`¥${amount}.00`), `面板里的引用卡片没有金额：${sheetText.slice(0, 120)}`);
+  assert(sheetText.includes("发送留言"), "面板没有「发送留言」按钮");
+  await shot("07-quote-message-sheet.png");
 
-  const token = uniqueToken("快捷引用");
+  /* 取消：不新增留言、不动账目 */
+  await page.evaluate(`(() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    const close = dialog?.querySelector('[aria-label="关闭"], [aria-label="Close"]');
+    close?.click();
+  })()`);
+  await page.waitFor(`document.querySelector('[role="dialog"]') === null`, 10000);
+  await sleep(300);
+  const afterCancel = await api(API, "/books/messages?limit=200", bookHeader);
+  assert(
+    afterCancel.data.messages.length === beforeCount,
+    `取消留言后不应新增留言：${beforeCount} → ${afterCancel.data.messages.length}`,
+  );
+  const afterCancelText = await bodyText();
+  assert(afterCancelText.includes("已记账"), "取消留言不应影响已保存账目");
+  assert(afterCancelText.includes("就这笔留言"), "取消后入口应恢复可用");
+  assert(afterCancelText.includes(`¥${amount}.00`), "取消后金额应原样保留");
+
+  /* 再打开：输入并发送留言 */
+  assert(await clickText("就这笔留言"), "第二次点击「就这笔留言」失败");
+  await page.waitFor(`document.querySelector('[role="dialog"]') !== null`, 10000);
+  await waitQuoteCard();
+  const token = uniqueToken("就这笔留言");
   await typeIntoComposer(token);
-  await sendMessage();
-  await waitForMessage(token);
+  assert(await clickText("发送留言"), "没有「发送留言」按钮");
+  await page.waitFor("document.body.innerText.includes('留言已发送')", 15000);
+  await shot("08-quote-sent.png");
+  const afterSendText = await bodyText();
+  assert(!afterSendText.includes("就这笔留言"), "发送后入口应换成「留言已发送」");
+  assert(afterSendText.includes(`¥${amount}.00`), "发送后成功屏金额应原样保留");
+
+  /* 到完整留言页核对：引用卡片与正文都在，且只发了一条 */
+  await page.navigate(`${WEB}/ledger/messages`);
+  await page.waitFor("document.readyState === 'complete'");
+  await page.waitFor("document.querySelector('textarea') !== null", 15000);
+  await page.waitFor(`document.body.innerText.includes(${JSON.stringify(token)})`, 15000);
   const row = await rowWith(token);
   assert(row && row.includes(`¥${amount}.00`), `快捷引用留言没有卡片：${row}`);
-  return "保存成功 → 引用留言 → 带引用打开留言页并发送成功";
+  const afterMessages = await api(API, "/books/messages?limit=200", bookHeader);
+  assert(
+    afterMessages.data.messages.length === beforeCount + 1,
+    `应只新增一条留言：${beforeCount} → ${afterMessages.data.messages.length}`,
+  );
+  return "保存 → 就这笔留言 → 面板引用 → 取消无副作用 → 再次发送 → 留言带引用且只发一条";
 });
 
-await runCase(results, "快捷引用可以被忽略：返回主页/再记一笔都没有额外步骤", async () => {
+await runCase(results, "快捷引用可以被忽略：「就这笔留言」外直接返回主页/再记一笔都没有额外步骤", async () => {
   await page.navigate(`${WEB}/add`);
   await page.waitFor("document.readyState === 'complete'");
   await page.waitFor("document.body.innerText.includes('保存')", 15000);
@@ -430,7 +502,7 @@ await runCase(results, "引用目标被删除后安全降级：卡片显示不�
   const row = await rowWith(groceryQuoteToken);
   assert(row, "引用过「买菜」的留言消失了");
   assert(row.includes("已删除或不可访问"), `被删除的引用目标没有降级提示：${row}`);
-  await shot("08-quote-unavailable.png");
+  await shot("09-quote-unavailable.png");
 
   // 新留言再引用这笔已删除账目，服务端必须拒绝（不能只靠前端）。
   const rejected = await api(API, "/books/messages", {
@@ -444,7 +516,7 @@ await runCase(results, "引用目标被删除后安全降级：卡片显示不�
 });
 
 /* ------------------------------------------------------------------ */
-await runCase(results, "个人账本没有「引用留言」入口", async () => {
+await runCase(results, "个人账本没有「就这笔留言」入口", async () => {
   const soloCookie = await apiLogin(API, SOLO.username, SOLO.password);
   await page.navigate(`${WEB}/`);
   await page.waitFor("document.readyState === 'complete'");
@@ -469,8 +541,8 @@ await runCase(results, "个人账本没有「引用留言」入口", async () =>
   await clickText("保存");
   await page.waitFor("document.body.innerText.includes('已记账')", 10000);
   const text = await bodyText();
-  assert(!text.includes("引用留言"), "个人账本不应该出现「引用留言」");
-  await shot("09-solo-saved.png");
+  assert(!text.includes("就这笔留言"), "个人账本不应该出现「就这笔留言」");
+  await shot("10-solo-saved.png");
   return "个人账本保存后没有引用入口";
 });
 
@@ -499,7 +571,7 @@ await runCase(results, "英文界面：引用流程与文案完整", async () =>
   const dialogText = await page.evaluate("document.querySelector('[role=\"dialog\"]').innerText");
   assert(dialogText.includes("Entries") && dialogText.includes("Edit history"), `英文面板文案不对：${dialogText}`);
   assert(!dialogText.includes("暂无分类"), `英文面板里出现了中文系统分类名：${dialogText}`);
-  await shot("10-en-picker.png");
+  await shot("11-en-picker.png");
   await closePicker();
   await setLocale("zh-CN");
   return "英文引用按钮/面板正常";
@@ -524,7 +596,7 @@ await runCase(results, "深色主题 + 移动端：底部输入区完整可见�
   assert(layout.theme === "dark", `深色主题没有生效：${layout.theme}`);
   assert(!layout.overflow, "深色/移动端出现了横向溢出");
   assert(layout.composerBottom !== null && layout.composerBottom <= layout.viewportHeight + 1, `输入区被截断：${JSON.stringify(layout)}`);
-  await shot("11-dark-mobile.png");
+  await shot("12-dark-mobile.png");
   return JSON.stringify(layout);
 });
 

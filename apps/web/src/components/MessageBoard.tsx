@@ -473,10 +473,11 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
         */}
       <div className="flex items-center gap-2 p-3">
         {/**
-          * ⚠️ **The quote entry is a thin icon, not a labelled button.** The owner asked for a
+          * ⚠️ **The quote entry is a small themed badge, not a labelled button.** The owner asked for a
           * "小型引用按钮" that stays "足够低调，不要成为留言区域最醒目的元素" — a word beside the
           * 发送 button would compete with it, and this is the one control whose whole job is to
-          * disappear until someone needs it.
+          * disappear until someone needs it. The badge itself (浅绿圆 + 白引号) carries the meaning;
+          * the container stays transparent so the icon is the only thing that shows.
           */}
         <button
           type="button"
@@ -485,9 +486,9 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
           onClick={() => {
             setPicking(true);
           }}
-          className="flex size-10 shrink-0 items-center justify-center rounded-field text-muted transition hover:bg-brand-soft hover:text-brand-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full transition hover:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >
-          <QuoteIcon className="size-5" />
+          <QuoteIcon className="size-7" />
         </button>
 
         <textarea
@@ -703,7 +704,7 @@ export function MessageBoardFull({
 
           <div className="flex items-end gap-2">
             {/**
-              * ⚠️ Same quiet icon as the card's — **one way to start a quote, whichever view the
+              * ⚠️ Same themed badge as the card's — **one way to start a quote, whichever view the
               * reader happens to be in.** The label is for the screen reader, not for the eye.
               */}
             <button
@@ -713,9 +714,9 @@ export function MessageBoardFull({
               onClick={() => {
                 setPicking(true);
               }}
-              className="flex size-11 shrink-0 items-center justify-center rounded-field text-muted transition hover:bg-brand-soft hover:text-brand-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full transition hover:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
             >
-              <QuoteIcon className="size-5" />
+              <QuoteIcon className="size-7" />
             </button>
 
             <textarea

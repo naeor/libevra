@@ -16,6 +16,7 @@ import { Alert } from "../components/Alert.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { EntrySaved } from "../components/EntrySaved.js";
+import { QuoteMessageSheet } from "../components/MessageQuote.js";
 import { AmountField } from "../components/entry/AmountField.js";
 import { CurrencySheet } from "../components/entry/CurrencySheet.js";
 import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
@@ -213,6 +214,14 @@ export function AddEntryPage(): React.JSX.Element {
    * back to /add must never resurrect a filled-in form.
    */
   const [saved, setSaved] = useState<Transaction | null>(null);
+  /**
+   * 「就这笔留言」面板（m06693）：记账成功后，用户可以就地写一条引用这笔账的留言。
+   *
+   * ⚠️ **打开面板不等于发留言**：关闭它不会动已保存的账目，也不会产生任何空留言；只有面板里
+   * 「发送留言」成功之后 `quoteSent` 才为 true，入口换成一句「留言已发送」。
+   */
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteSent, setQuoteSent] = useState(false);
   /** Set when the next render should put the cursor back in the amount field. */
   const focusAfterReset = useRef(false);
 
@@ -537,50 +546,71 @@ export function AddEntryPage(): React.JSX.Element {
 
   if (saved !== null) {
     return (
-      <EntrySaved
-        entry={saved}
-        categoryName={
-          /** 传存储的原名；`EntrySaved` 负责按当前语言显示预置名。 */
-          categories.find((category) => category.id === saved.categoryId)?.name ?? UNCATEGORISED_NAME
-        }
-        paymentName={
-          paymentMethods.find((method) => method.id === saved.paymentMethodId)?.name ?? null
-        }
-        // The manual form records one entry at a time, so nothing is ever
-        // waiting behind it and both ways onward are offered.
-        remaining={0}
-        onHome={() => {
-          void navigate("/");
-        }}
-        /**
-         * ⚠️ **Opens the message screen with this entry attached — it does not send anything.** The
-         * entry is already saved, so the quote is a reference to it (`?quote=transaction:<id>`), never
-         * a second write; the message screen resolves the id against the server before showing a card.
-         * Absent in a personal ledger (see `shared` above).
-         */
-        {...(shared
-          ? {
-              onQuote: () => {
-                void navigate(`/ledger/messages?quote=transaction:${saved.id}`);
-              },
-            }
-          : {})}
-        onAgain={() => {
-          const next = nextEntryFields(new Date());
+      <>
+        <EntrySaved
+          entry={saved}
+          categoryName={
+            /** 传存储的原名；`EntrySaved` 负责按当前语言显示预置名。 */
+            categories.find((category) => category.id === saved.categoryId)?.name ?? UNCATEGORISED_NAME
+          }
+          paymentName={
+            paymentMethods.find((method) => method.id === saved.paymentMethodId)?.name ?? null
+          }
+          // The manual form records one entry at a time, so nothing is ever
+          // waiting behind it and both ways onward are offered.
+          remaining={0}
+          onHome={() => {
+            void navigate("/");
+          }}
+          /**
+           * ⚠️ **打开的是就地写留言的面板，不是第二个写入步骤**（m06693）。账目早已保存；面板里的
+           * 引用只是 `{kind:"transaction", id}`，发送时由服务器重新取快照。个人账本传 `undefined`，
+           * 成功屏上连这枚胶囊都不出现。
+           */
+          onQuote={
+            shared
+              ? () => {
+                  setQuoteOpen(true);
+                }
+              : undefined
+          }
+          quoteSent={shared && quoteSent}
+          onAgain={() => {
+            const next = nextEntryFields(new Date());
 
-          focusAfterReset.current = true;
-          setAmountText(next.amountText);
-          setNote(next.note);
-          setTagIds([...next.tagIds]);
-          setOccurredAt(next.occurredAt);
-          setOccurredAtTouched(next.occurredAtTouched);
-          setMoreOpen(false);
-          setQuickOpen(false);
-          setInheritNotice(null);
-          setError(null);
-          setSaved(null);
-        }}
-      />
+            focusAfterReset.current = true;
+            setAmountText(next.amountText);
+            setNote(next.note);
+            setTagIds([...next.tagIds]);
+            setOccurredAt(next.occurredAt);
+            setOccurredAtTouched(next.occurredAtTouched);
+            setMoreOpen(false);
+            setQuickOpen(false);
+            setInheritNotice(null);
+            setError(null);
+            setQuoteOpen(false);
+            setQuoteSent(false);
+            setSaved(null);
+          }}
+        />
+
+        {/**
+         * 只有点了「就这笔留言」才挂载；关闭 / 取消只会把 `quoteOpen` 置回 false，**不动账目**。
+         * 发送成功之后换成「留言已发送」，同一屏不再提供第二次入口。
+         */}
+        {quoteOpen ? (
+          <QuoteMessageSheet
+            transactionId={saved.id}
+            onClose={() => {
+              setQuoteOpen(false);
+            }}
+            onSent={() => {
+              setQuoteOpen(false);
+              setQuoteSent(true);
+            }}
+          />
+        ) : null}
+      </>
     );
   }
 

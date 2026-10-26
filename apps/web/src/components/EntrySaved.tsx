@@ -1,7 +1,7 @@
 import type { Transaction } from "@libellum/shared";
 
 import { Button } from "./Button.js";
-import { QuoteIcon } from "./Icons.js";
+import { SendIcon } from "./Icons.js";
 import { useI18n } from "../i18n/index.js";
 import { formatMoney } from "../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
@@ -50,6 +50,7 @@ export function EntrySaved({
   onAgain,
   onUndo,
   onQuote,
+  quoteSent,
 }: {
   readonly entry: Transaction;
   readonly categoryName: string;
@@ -78,14 +79,21 @@ export function EntrySaved({
    */
   readonly onUndo?: (() => void) | undefined;
   /**
-   * **Start a message about this entry** — only a shared ledger passes this.
+   * **Open the message composer about this entry** — only a shared ledger passes this.
    *
-   * ⚠️ Optional by design: a personal ledger has nobody to tell, so the line is absent and the screen
-   * is exactly what it was. Even in a shared ledger it is a quiet line under the buttons, **not a
-   * dialog**: the owner's rule is that most saves must cost no extra step at all, and a control that
-   * asks "do you want to say something?" after every entry would make every save cost one.
+   * ⚠️ Optional by design: a personal ledger has nobody to tell, so neither the pill nor the space it
+   * would take exists there. Even in a shared ledger it is **an invitation inside the success info**
+   * (below the amount, above the primary actions — m06693), never a dialog that opens by itself: most
+   * saves must cost no extra step at all.
    */
   readonly onQuote?: (() => void) | undefined;
+  /**
+   * 留言已经发出去之后的状态（m06693）。
+   *
+   * ⚠️ **只把入口换成一句「留言已发送」，不关屏、不改账目**：成功屏仍然停留（用户可能还要再记一笔），
+   * 但同一笔账不允许被重复「再留言」，所以入口消失、留一句安静的确认。
+   */
+  readonly quoteSent?: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
   /**
@@ -122,6 +130,33 @@ export function EntrySaved({
 
       {detail === "" ? null : <p className="text-body text-muted">{detail}</p>}
 
+      {/*
+        **「就这笔留言」：成功信息区里的一枚浅色胶囊（m06693）。**
+
+        所有者看过第一版之后定的位置：*「将目前位于「返回主页」下方的「引用留言」入口移到上方的记账成功
+        信息区，放在金额、分类信息下方，与「再记一笔」「返回主页」两个主操作区分开」*。所以它既不在
+        主按钮下方、也不再是一行裸文字 —— **在金额/分类下面、主按钮上面**，纸飞机 + 一句话，看起来像
+        成功信息的一部分，而不是第三个操作。
+
+        ⚠️ 点击只打开留言编辑面板：不自动发送、不写第二笔账；关闭面板后这一屏原样还在。
+        个人账本不传 `onQuote`，**这一行连同留白都不存在**。
+      */}
+      {quoteSent === true ? (
+        <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-soft/50 px-3 py-1.5 text-helper text-brand-dark">
+          <SendIcon className="size-4" />
+          {t("collab.messages.messageSent")}
+        </p>
+      ) : onQuote === undefined ? null : (
+        <button
+          type="button"
+          onClick={onQuote}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-soft/60 px-3 py-1.5 text-helper text-brand-dark transition hover:bg-brand-soft focus-visible:ring-4 focus-visible:ring-focus-ring focus-visible:outline-none"
+        >
+          <SendIcon className="size-4" />
+          {t("collab.messages.quickQuote")}
+        </button>
+      )}
+
       <div className="mt-7 flex w-full max-w-xs flex-col gap-3">
         <Button onClick={onAgain}>
           {inBatch ? t("entry.saved.continueBatch", { count: remaining }) : t("entry.saved.again")}
@@ -157,23 +192,6 @@ export function EntrySaved({
             className="mt-1 text-helper text-muted underline transition hover:text-ink"
           >
             {t("entry.saved.undo")}
-          </button>
-        )}
-
-        {/**
-          * ⚠️ **The shortcut quote, quieter than the undo and below it.** It is an invitation, not a
-          * step: no dialog, no focus grab, no second save. Tapping it opens the ledger's message screen
-          * with this entry attached, **and the entry is already written — quoting never writes it
-          * again.**
-          */}
-        {onQuote === undefined ? null : (
-          <button
-            type="button"
-            onClick={onQuote}
-            className="mt-1 inline-flex items-center justify-center gap-1.5 text-helper text-muted transition hover:text-ink"
-          >
-            <QuoteIcon className="size-4" />
-            {t("collab.messages.quickQuote")}
           </button>
         )}
       </div>

@@ -509,7 +509,9 @@
 
   /* ⚠️ The bottom sheet is the other short vertical movement in the app — same rule, same reason. */
   .sheet-in,
-  .backdrop-in {
+  .sheet-out,
+  .backdrop-in,
+  .backdrop-out {
     animation: none;
   }
 }
@@ -548,6 +550,39 @@
 
 .backdrop-in {
   animation: libellum-backdrop-in 180ms ease-out;
+}
+
+/*
+  ⚠️ **收回也要走同一个方向**（m06693）。所有者对引用面板的要求是「从下往上展开、从上往下收回」，
+  所以入场是 260ms 出弦缓动、退场是 200ms 加速离开：**面板被推回它来的那条边，而不是在原处淡出**。
+  退场用 `forwards` 停在屏外，避免卸载前的一帧闪回原位；`BottomSheet` 在动画结束后才真正关掉。
+
+  ⚠️ 桌面端（`sm:`）面板居中，但位移仍然向下——同一个组件、同一种读法；只有遮罩的淡入淡出。
+*/
+@keyframes libellum-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes libellum-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.sheet-out {
+  animation: libellum-sheet-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.backdrop-out {
+  animation: libellum-backdrop-out 160ms ease-in forwards;
 }
 
 
