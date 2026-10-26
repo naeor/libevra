@@ -557,3 +557,4 @@ export {
 } from "./messages.js";
 export * from "./fx.js";
 export * from "./fxHistory.js";
+export * from "./analysis/index.js";
