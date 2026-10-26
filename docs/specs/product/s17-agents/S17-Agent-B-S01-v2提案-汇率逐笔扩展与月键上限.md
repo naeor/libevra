@@ -189,3 +189,102 @@ export function fxRangeMonths(from: string, to: string, maxMonths: number = FX_M
 | Q-BP-3 | `maxEntries` 默认 50,000 是否按设备下调 | 默认 50k；低端设备由调用方传 10k（不写死多套） |
 | Q-BP-4 | 逐笔投影是否需 `version`/`deletedAt` | 不需要：权限/软删由调用方预过滤（现有合同），逐笔只读投影不含敏感字段 |
 | Q-BP-5 | web `rangeMonths` 默认值是否先保持 14、W1 接入时显式传 36 | 按 Lead 口径直接 36（draft，W1 前无页面调用变化；测试覆盖 36/37 边界） |
+
+> **裁定结果（Lead 2026-10-27 最终口径，写入 S-01 v2 由 A 汇总）**：Q-BP-1 批准短名 `detail`/`daily`/`entries`，类型名不变；Q-BP-2 批准 `maxEntries` 默认 50,000 为**保护默认值**，逐笔明细类视图必须**显式传**，S-01 文档写明“默认值只是保护，不得作为业务契约”；Q-BP-3 登记为 **G-17**（G-16 = `DraftCategoryRelation`，由 C 提供正式定义），不另开 QC 编号，正式定义见 §16；Q-BP-4 **不作强行对齐**——`maxAnalysisDays=400`（日期窗口）与 `maxEntries=50_000`（逐笔条目上限）不同轴，v2 并列登记、各自保留默认值；Q-BP-5 批准 `daily` 恒输出、`entries` 可选；`fxRangeMonths` 15–36 月不再抛错（draft，W1 接入时生效），W1 页面行为在切分方案中明确；性能结论（异步批次 + `yieldControl`、不在渲染帧同步聚合）作为规范写入 v2 并引用 `S17-B-性能基线.md` §6。
+
+---
+
+## 16. G-17 正式定义：FX 逐笔/逐日投影（draft，待 S-01 v2 冻结）
+
+> 登记位置：S-01 v2 G 组 **G-17“FX 逐笔/逐日投影”**；状态 **draft**，待协议冻结后 W1 接入。正式定义文本由 B 提供（本节），A 合并进 v2。本小节首次随提交 `________` 落盘（回填见任务文档 §6.2）。
+
+### 16.1 目的与边界
+
+综合模式（汇率折算）下，24 项时间/比较/构成分析需要逐日桶与少量逐笔明细；现有 `FxAggregate` 只输出 `totals/months/categories/originalByCurrency/failures`，无法在不重算的前提下派生日序列。G-17 规定：在**同一次权威折算扫描**中额外输出逐日投影（恒输出）与可选逐笔投影，供图表输入层与来源跳转使用；不新增端点、不改变既有聚合语义、不引入二次舍入。
+
+### 16.2 形状（TypeScript 契约，additive）
+
+```ts
+// 常量
+export const FX_MAX_RANGE_MONTHS = 36;        // 月键比较上限（与 S-01 §17 G-09 增补一致）
+export const FX_MAX_DETAIL_ENTRIES = 50_000;  // 逐笔明细默认上限（保护值，见 16.4）
+
+// 逐日投影：只含“至少 1 笔成功折算”的业务日；缺失 ≠ 0
+export interface FxAggregateDetail {
+  readonly daily: Readonly<Record<string, FxTotals>>;              // key = YYYY-MM-DD（业务日）
+  readonly entries: readonly FxConvertedEntry[] | null;            // 未请求时为 null
+}
+
+// 逐笔投影：与 convertFx 同源；不含软删/未授权记录（调用方预过滤）
+export interface FxConvertedEntry {
+  readonly id: string;
+  readonly bookId: string;
+  readonly date: string;                                           // occurredLocalDate（YYYY-MM-DD）
+  readonly kind: "income" | "expense" | "transfer";
+  readonly categoryId: string;
+  readonly targetMinor: string;                                    // 折算后金额（目标币种最小单位，字符串）
+  readonly originalMinor: number;                                  // 原币最小单位（沿用现有合同）
+  readonly originalCurrency: string;
+  readonly rateDate: string | null;                                // 命中的汇率日；同快照内汇率不可用不可能出现在成功项
+  readonly rateCached: boolean;
+  readonly needsReview: boolean;
+}
+
+export interface FxDetailOptions {
+  readonly includeEntries?: boolean;                               // 默认 false
+  readonly maxEntries?: number;                                    // 默认 FX_MAX_DETAIL_ENTRIES；显式传值优先
+}
+
+export interface FxDetailedAggregate extends FxAggregate {
+  readonly detail: FxAggregateDetail;
+}
+
+export function aggregateFxDetailed(
+  accountId: string, bookId: string, entries: readonly FxEntry[], target: string,
+  rates: FxRateProvider, cache?: FxResultCache, detail?: FxDetailOptions
+): FxDetailedAggregate;
+
+export async function aggregateFxDetailedAsync(
+  accountId: string, bookId: string, entries: readonly FxEntry[], target: string,
+  rates: FxRateProvider,
+  options?: { batchSize?: number; signal?: AbortSignal; yieldControl?: () => Promise<void> },
+  detail?: FxDetailOptions
+): Promise<FxDetailedAggregate>;
+
+// 月键枚举（与 G-09 增补配套）
+export function fxRangeMonths(from: string, to: string, maxMonths?: number): string[];
+```
+
+### 16.3 不变量（冻结时必须逐条保留）
+
+| 编号 | 不变量 |
+|---|---|
+| IV-G17-01 | **additive**：`FxAggregate` 既有字段与 `aggregateFx`/`aggregateFxAsync` 行为、类型、返回形状零变化；`FxDetailedAggregate extends FxAggregate` 仅新增 `detail`。 |
+| IV-G17-02 | **单次扫描/同源**：`detail.entries[i].targetMinor === convertFx(同一快照下 entries[i]).convertedMinor`；不存在第二次扫描或二次舍入。 |
+| IV-G17-03 | **守恒**：`Σ detail.daily.values === totals`（income/expense/net 三值按字符串/整数精确相等）；`daily` 的日期键并集 ⊆ 成功折算笔的业务日集合。 |
+| IV-G17-04 | **缺失 ≠ 0**：折算失败/缺汇率笔**不进入** `daily` 与 `entries`；缺失日不伪造 0 桶；`failures`/`missingCount`/`complete`/`reviewDates` 语义与既有 `FxAggregate` 完全一致。 |
+| IV-G17-05 | **不截断、不静默**：请求 `includeEntries: true` 且成功笔数（或预过滤后的输入笔数，取协议实现中更严格者）超过 `maxEntries` 时，**抛 `fx_detail_limit`**，不返回部分数组、不静默丢弃；`maxEntries` 非法（非正整数/非安全整数）抛 `fx_detail_max_entries`。 |
+| IV-G17-06 | **保护默认值 ≠ 业务契约**：`FX_MAX_DETAIL_ENTRIES = 50_000` 仅作为缺省保护；逐笔明细类视图必须显式传 `maxEntries`（W1 接入清单逐项标注）。 |
+| IV-G17-07 | **异步=同步**：`aggregateFxDetailedAsync` 的分批合并结果（含 `daily`/`entries` 顺序=输入序）与同步逐字一致；取消（`signal.aborted`）时 reject 且**不返回部分结果**；`batchSize` 1..1000，越界抛 `fx_batch_size`。 |
+| IV-G17-08 | **范围与币种**：`fx_scope_mismatch`/`unsupported_currency`/`FX_MAX_FALLBACK_DAYS=7` 等既有规则不变；`daily` 键为业务日（`occurredLocalDate` 日历日，按记录本地时区语义，不做 UTC 换算）。 |
+| IV-G17-09 | **审查投影**：`needsReview`/`rateCached`/`rateDate` 逐笔透传；`reviewNeededCount`/`reviewDates` 仍由既有聚合规则得出。 |
+| IV-G17-10 | **月键上限**：`fxRangeMonths(from,to,maxMonths=36)` 含首尾月、跨年连续、月键降序无关；`from>to`/非法日期抛 `fx_range_invalid`；月数 > `maxMonths` 抛 `fx_range_too_long`（**不截断**）；`maxMonths` 默认 36（draft），不得被页面各自写死。 |
+| IV-G17-11 | **不做跨轴强行对齐**：本组 `maxEntries=50_000` 与 S-01 §17 的 `maxAnalysisDays=400` 是不同轴（条目 vs 日期窗口），v2 并列登记，互不作为对方的默认值来源。 |
+| IV-G17-12 | **性能约束**：daily-only 用于图表取数；`includeEntries` 仅用于详情/导出类视图，且必须异步分批（`yieldControl`）执行；不得在渲染帧同步聚合（基线见 `S17-B-性能基线.md` §6：1M 笔 daily-only 13.6s、200k 笔逐笔 2.7s、10k×36 月 0.54s，≈13–14µs/笔）。 |
+
+### 16.4 默认值与限制
+
+| 参数 | 默认 | 约束 | 说明 |
+|---|---|---|---|
+| `detail.includeEntries` | `false` | 视图显式开启 | 缺省只出 `daily`（恒输出） |
+| `detail.maxEntries` | `50_000` | 正整数安全整数；业务视图**必须显式传** | 保护值，非契约 |
+| `aggregateFxDetailedAsync.batchSize` | `200` | 1..1000 | 与既有 `aggregateFxAsync` 一致 |
+| `fxRangeMonths.maxMonths` | `36` | 1..1200 | draft 对齐 S-01 §17 月键上限（G-09 增补） |
+| `maxAnalysisDays`（分析层，不同轴） | `400` | 调用方传 | 并列登记，不与 `maxEntries` 互相推导 |
+
+### 16.5 兼容性与冻结规则
+
+1. **兼容性**：纯 additive；现有 4 个消费方（`fxView.ts`、`FxStats`、离线路径、测试）不感知新字段；web `rangeMonths` 15–36 月不再抛错是**唯一行为变化**，标 draft，W1 页面接入时才生效，W1 切分方案需写明。
+2. **冻结规则**：S-01 v2 冻结前，`fx.ts` 新 API docstring 保持“draft，待冻结后由 W1 接入”；冻结时本节不变量进 S-01 正文，`fxDetail.test.ts`（12 条）+ `fxPerformance.test.ts`（3 条，`FX_PERF=1` 门控）作为验收证据。
+3. **登记结论**：G-17 组名“FX 逐笔/逐日投影”；G-16 为 C 的 `DraftCategoryRelation`；不新开 QC 编号。
+

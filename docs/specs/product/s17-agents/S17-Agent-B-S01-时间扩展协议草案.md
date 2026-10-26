@@ -583,7 +583,7 @@ B 向 S-01 v2 提交两项 **additive** 提案（不改已登记形状、不改�
 
 | 编号 | 提案 | 对应 v2 登记 |
 |---|---|---|
-| **B-S01v2-01** | 综合模式 `FxAggregate` **逐日/逐笔投影**（`aggregateFxDetailed`/`aggregateFxDetailedAsync`，`detail.daily` + 可选 `detail.entries`，逐笔与 `convertFx` 同源、超限 `fx_detail_limit` 不截断、异步取消不返回部分结果） | 新增 **G-16**；与 G-02/G-11 衔接 |
+| **B-S01v2-01** | 综合模式 `FxAggregate` **逐日/逐笔投影**（`aggregateFxDetailed`/`aggregateFxDetailedAsync`，`detail.daily` + 可选 `detail.entries`，逐笔与 `convertFx` 同源、超限 `fx_detail_limit` 不截断、异步取消不返回部分结果） | 新增 **G-17「FX 逐笔/逐日投影」**（Lead 2026-10-27 裁定；G-16 归 C 的 `DraftCategoryRelation`）；与 G-02/G-11 衔接；正式定义见提案文档 §16 |
 | **B-S01v2-02** | 月键范围上限落位：`FX_MAX_RANGE_MONTHS = 36` + `fxRangeMonths(from,to,maxMonths)`；web `rangeMonths` 14→36 参数化（draft，W1 前不改页面） | **G-09 增补**；对应 Q-BA-12a（月份上限暂记 36 待所有者确认） |
 
 **冻结前规则**：新 API 在 docstring 标 “S-01 v2 draft”；W1 页面接入必须在 S-01 v2 冻结之后；B 不因此新增结果形状、不扩展只读端点（T2/G-11 不变）。性能验证计划见提案 §4（54,000 笔 / 36 月基准、`FX_PERF=1` 门控、单批 ≤50ms、`daily` 模式差异 ≤5%）。
@@ -603,6 +603,15 @@ B 向 S-01 v2 提交两项 **additive** 提案（不改已登记形状、不改�
 **W1 接入建议（冻结前不接页面）**：普通图表只请求 `daily`（≤36 个月）；逐笔明细仅在详情/导出视图请求并显式 `maxEntries`（默认 50,000，>50k 走异步批次 + `yieldControl`）；UI 侧不得在渲染帧同步执行 200k 以上聚合。
 
 **证据**：`packages/shared/src/fxDetail.test.ts`（12 用例）、`fxPerformance.test.ts`（3 用例，默认 skip）、web `fxView.test.tsx`（8 用例）；`pnpm --filter @libellum/shared test` 533 passed + 3 skipped；shared/web typecheck 0。
+
+### 15.2 G-17 登记与 Q-BP 裁定（2026-10-27，Lead 最终口径）
+
+- **G-17** = 「FX 逐笔/逐日投影」；**G-16** = `DraftCategoryRelation`（C 提供正式定义，不归 B）。正式定义（形状/12 条不变量/默认值/冻结规则）见提案文档 §16，交 A 合并进 v2；不另开 QC 编号。
+- Q-BP-1：`detail`/`daily`/`entries` 短名与 4 个类型名批准，不更名。
+- Q-BP-2：`maxEntries = 50_000` 为**保护默认值**；逐笔明细类视图必须显式传；S-01 文档写明“默认值只是保护，不得作为业务契约”。
+- Q-BP-4：`maxEntries=50_000` 与 `maxAnalysisDays=400` **不同轴，不作强行对齐**，v2 并列登记。
+- Q-BP-5：`daily` 恒输出（保证图表稳定与守恒检查），`entries` 可选。
+- 性能结论（异步批次 + `yieldControl`、不在渲染帧同步聚合）作为规范写入 v2，并引用 `S17-B-性能基线.md` §6。
 
 
 
