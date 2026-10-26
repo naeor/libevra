@@ -558,3 +558,5 @@ export {
 export * from "./fx.js";
 export * from "./fxHistory.js";
 export * from "./analysis/index.js";
+/** T2 read-only analytics endpoints (owner-approved 2026-10-27; see task doc §15). */
+export * from "./analytics.js";

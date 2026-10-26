@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-A-Finance** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent A 自己。
-> 当前状态：**A-3 已交付（2026-10-27）：B08–B14、B17–B20 装配 + CF-A02 极值摘要卡输入 + 来源接口占位，54 项新增测试全绿（analysis 219 / shared 596）；与 Agent B 时间扩展的 6 项对齐结论已登记 S-01 §15（待 Lead 转 B 与评审）。A-0/A-1/A-2 已交付；T2 只读扩展提案待批准（未实现）；S-01 仍 `s01-draft`，待 Lead/Claude 评审。**
+> 当前状态：**A-3 已交付（2026-10-27）：B08–B14、B17–B20 装配 + CF-A02 极值摘要卡输入 + 来源接口占位，54 项新增测试全绿（analysis 219 / shared 596）；与 Agent B 时间扩展的 6 项对齐结论已登记 S-01 §15（待 Lead 转 B 与评审）。A-0/A-1/A-2 已交付。T2 只读扩展已获所有者批准（Lead m01003）并实现：两个只读端点 + 共享契约/适配器 + 共享单测（shared 622）已完成，集成测试待 `TEST_DATABASE_URL` 环境，记录见 §15。S-01 仍 `s01-draft`，待 Lead/Claude 评审；A-4 待 S-01 冻结 + 1.16.23 基线门禁。**
 
 ---
 
@@ -127,6 +127,7 @@
 | W1 财务统计正确性 | 等待所有者细则与基线门禁 | 前置：1.16.23 发布（索引 B-1/A-Q2） |
 | S-01 分析结果协议 | 开发中：草案 `s01-draft` 已登记（独立文件，未冻结，待评审）；A-1/A-2 补 exact-money、可空 value 与 §14 图表输入协议；A-3 补 §14.5 极值卡 + §15 与 B 时间扩展对齐（六问已答复） | 评审前不得冻结；评审人 Lead/Claude/B/C/D |
 | W3 基础图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03；CF-A01 数值卡 + CF-A02 极值卡**输入协议**已完成，视觉组件待 Codex |
+| T2 只读扩展（来源/综合前置） | 开发中：**所有者已批准（2026-10-27，Lead m01003）**；共享契约 + 适配器 + 两个只读端点 + 共享单测已完成，集成测试需 `TEST_DATABASE_URL` 环境 | 提案 `S17-Agent-A-T2只读扩展提案.md` §9 有实现记录与偏差；实施记录见本文件 §15 |
 
 > 每次开发结束必须更新本表 + §6 交接记录。
 
@@ -150,6 +151,8 @@
 | 2026-10-27 | **A-1/A-2 交付（Lead 批准并行）**：①分析装配层 `context.ts`（区间/筛选/币种/完整性解析）②B01–B07 装配（`analyses/basic.ts`）③B15/B16/I01–I05/I17 装配（`analyses/category.ts`，含“其他”折叠、未分类/未指定显式组、权限/完整性状态）④图表输入协议 `charts/{numericCard,composition,ranking}.ts`（数值卡 CF-A01、构成 CF-A03/A04/A05、排行 CF-A04/A07）⑤S-01 草案补充 exact-money/可空 value/§14 图表输入协议 ⑥T2 只读扩展提案（独立文件，待批准，未实现）⑦新增测试 `context.test.ts`（27）、`basic.test.ts`（22）、`category.test.ts`（21）、`charts.test.ts`（23） | 本文件 §1/§5/§6.2/§7/§9；`S17-Agent-A-S01-共享分析结果协议草案.md`（§7.3/§7.4/§9/§14）；新增 `S17-Agent-A-T2只读扩展提案.md`；新增 `analysis/{context.ts,analyses/basic.ts,analyses/category.ts,charts/numericCard.ts,charts/composition.ts,charts/ranking.ts,charts/index.ts}` 与 4 个测试文件；改动 `analysis/{types.ts,primitives.ts,index.ts}` | 本地提交 `05ec5a2`（未推送，`feat(s17): Agent A A-1/A-2 装配层与图表输入协议`） | `pnpm --filter @libellum/shared exec tsc -p tsconfig.json --noEmit` 通过；`vitest run src/analysis` 6 files/165 passed；`pnpm --filter @libellum/shared test` 24 files/542 passed；`pnpm -r typecheck`（shared/api/web）通过；`pnpm check:build` 通过（636 modules，仅既有 chunk>500kB 警告）；`check-links`/`doc-audit`/`check-status` 均 exit 0 | `ScalarValue` 新增 `exact-money`（B06/B07 精确平均）；`ScalarResult.value` 允许 `null`（不可确定，禁止渲染 0）；`RankedGroup.secondary`；`AnalysisEntry.tagIds`；新增图表输入类型（`NumericCardInput`/`CompositionChartInput`/`RankingChartInput`）——均为 `s01-draft` 内改动，**未冻结** | §7 更新 A-Q13/A-Q17 并新增 A-Q19（T2 提案评审）；图表视觉组件与真实尺寸阈值待 S-02/S-03/Codex（A-Q5）；I 类“点击来源”依赖 T2 批准 | 等 Lead/Claude 评审 S-01 与 T2 提案；之后 A-3（B08–B14、B17–B20 装配 + 极值摘要/来源接口） |
 | 2026-10-27 | **A-3 交付（Lead 批准 m00736）**：①`analyses/statistics.ts`：B08 中位数(exact-money)、B09/B10/B17 单笔极值、B11/B12 单日高峰、B13/B14 有/无记录天数、B18/B19 比例(percent-100)、B20 交易最多一天（`peakRecordedDay` 按笔数）②`primitives.ts` 增 `peakRecordedDay`；`types.ts` 增 `RecordExtremeResult.extremeValue/countBreakdown`（B20 不把笔数装扮成金额）；`context.ts` 增 `makeExtreme` 统一极值信封与 `source.transactionIds` 占位 ③`charts/extremeCard.ts`：CF-A02 极值摘要卡输入（三档密度、aux 固定顺序 date→tie→category→收支笔数、值不随尺寸变）④S-01 草案更新 §7.3/§8/§9/§13/§14.5，并新增 **§15 与 B 时间扩展对齐**（Lead m00781 六问逐条答复 + Q-BA 合并结论，登记不冻结）⑤任务文档 §5/§6.2/§7/§9 更新（新增 A-Q20/A-Q21/A-Q22）⑥新增测试 `statistics.test.ts`(43)、`charts/extremeCard.test.ts`(8)，`primitives.test.ts` 增 `peakRecordedDay` 3 项 | 本文件 §5/§6.2/§7/§9；`S17-Agent-A-S01-共享分析结果协议草案.md`（§7.3/§8/§9/§13/§14.5/§15）；`analysis/{types,primitives,context}.ts`；新增 `analysis/analyses/statistics.ts`、`analysis/charts/extremeCard.ts`；`analysis/{charts/index.ts,index.ts}`；测试 3 个文件 | 本地提交 `655ea14`（未推送，`feat(s17): Agent A A-3 统计分析与极值摘要卡`） | `pnpm --filter @libellum/shared exec tsc -p tsconfig.json --noEmit` 通过；`vitest run src/analysis` 8 files/219 passed（原 165，+54）；`pnpm --filter @libellum/shared test` 26 files/596 passed（原 542）；`pnpm -r typecheck` exit 0；`pnpm check:build` ✓ 构建通过（638 modules，仅既有 chunk>500kB 警告）；`check-links`/`doc-audit`/`check-status` 均 exit 0 | `RecordExtremeResult` 增可选 `extremeValue`/`countBreakdown`（只增不改）；新增 `ExtremeCardInput`；S-01 §15 登记 `SourceDescriptor.bucket?`/`ComputationMetadata.coverageEnd?`（**仅登记，未实现**）；均为 `s01-draft` 内改动，**未冻结** | B20 的 `extreme`（金额）必须为 null；记录级来源取数待 T2（A-Q17/A-Q19）；时间扩展对齐结论待 Lead 转 B 评审（A-Q20）；`timeGranularity?` 与 `coverageEnd?` 待冻结（A-Q21/A-Q22） | 提交后回填提交号与全量校验结果；补「结果→图表输入」精简示例（Lead 可选项）；等 S-01/T2/1.16.23 基线/Codex 视觉门禁；A-4 整体回归交付 |
 
+| 2026-10-27 | **T2 只读扩展交付（所有者批准 m01003）**：①共享契约 `packages/shared/src/analytics.ts`（逐笔/极值 query+response schema、金额十进制字符串、`summarisePeakDay`/`summariseMostRecordedDay` 并列规则）②适配器 `packages/shared/src/analysis/adapters/analytics.ts`（DTO→`AnalysisEntry`/`FxEntry`；非 safe integer 抛 `RangeError`，不静默丢精度）③只读路由 `apps/api/src/routes/analytics.ts`：`GET /api/v1/analytics/transactions`（任意区间 ≤400 天、多币种可选、默认 200/上限 500、keyset 游标）与 `GET /api/v1/analytics/extremes`（`max`/`min`/`peak-day`/`active-days`/`most-recorded-day`，带 `unit`/`tieCount`/`completeness`）④`apps/api/src/app.ts` 以 `requireBookRead` 注册（无写路由、无新权限规则）⑤提案文档状态改「已批准·已实现」并新增 §9 实现记录与偏差 ⑥新增测试 3 个文件（20+6+14） | 本文件 §5/§6.2/§7/§9/§15；`S17-Agent-A-T2只读扩展提案.md`（header/§5/§9）；新增 `packages/shared/src/analytics.ts`、`packages/shared/src/analysis/adapters/analytics.ts`（+测试）、`apps/api/src/routes/analytics.ts`、`apps/api/test/analytics.test.ts`；改动 `packages/shared/src/analysis/index.ts`、`packages/shared/src/index.ts`、`apps/api/src/app.ts` | 本地提交 `feat(s17): Agent A T2 只读扩展（只读端点）`（未推送；提交号见回填提交） | `pnpm --filter @libellum/shared exec tsc -p tsconfig.json --noEmit` 通过；`vitest run src/analytics.test.ts src/analysis/adapters` 2 files/26 passed；`pnpm --filter @libellum/shared test` 28 files/622 passed（原 596，+26）；`pnpm -r typecheck`（shared/api/web）exit 0；`pnpm check:build` ✓ 构建通过（既存 chunk>500kB 警告）；`check-links`/`doc-audit`/`check-status` 均 exit 0；`apps/api` 集成 `test/analytics.test.ts`（14）需 `TEST_DATABASE_URL`，本 worktree 无数据库（环境限制：`SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string`） | **新增**只读端点与共享契约（`analyticsTransactionsQuerySchema`/`analyticsExtremesQuerySchema` 等）；既有 `/stats`、`/summary`、`/transactions` 响应不变；S-01 协议与 `AnalysisResult` 未改 | T2-Q1「未指定支付方式哨兵」未实现（登记待评审）；集成测试待有 DB 环境执行；服务端不折算（T2-Q4，折算仍由 `shared/fx.ts`）；无新增迁移、无 schema 变更 | 请 Lead 转所有者验收；T2 提案提交号回填；A-4 仍等 S-01 评审冻结 + 1.16.23 rebase 门禁 |
+
 ---
 
 ## 7. 未决问题（Agent A）
@@ -168,13 +171,13 @@
 | A-Q10 | 阻塞（流程） | 本 Agent 是 delegated subagent，`create_goal` 被拒绝（`this goal operation requires a direct human turn on a top-level agent`），无法创建持久目标 | 长期目标无法自动续跑 | **Lead** | 目标表述已登记 §1；请 Lead 在顶层会话代建并把 goal id 回填 |
 | A-Q11 | 重要 | 现有 `averagePerDay`（`packages/shared/src/stats.ts`）返回**整最小单位**（`Math.round`），与 B06「日均允许高于最小单位中间精度」冲突 | 直接复用会提前舍入 | Lead + Claude | 建议旧接口保留给现有页面；分析层用 `averageMinor` 精确 `Ratio`，不互相替代（R-05） |
 | A-Q12 | 重要 | 现有 `byCategory.share` 是 **JS float**，S-01 权威比例用精确 `Ratio` | 权威比例无法从现有字段取得 | Lead + Claude | 协议内部一律 `Ratio`；旧 float 仅兼容/展示（R-06） |
-| A-Q13 | 阻塞 | 综合模式缺逐笔数据入口：现有 `GET /api/v1/stats` 不返回来源交易，而 `aggregateFxAsync` 需要逐笔 `FxEntry` | 综合模式完整性与来源无法实现 | Lead + 后端 | **T2 提案已写**（`S17-Agent-A-T2只读扩展提案.md`），待批准；批准前综合模式标 `fx-incomplete`/`unavailableReason`，不伪装完整（R-03） |
+| A-Q13 | 已解决（T2 已批准并实现） | 综合模式缺逐笔数据入口：现有 `GET /api/v1/stats` 不返回来源交易，而 `aggregateFxAsync` 需要逐笔 `FxEntry` | 综合模式完整性与来源无法实现 | Lead + 后端 | **T2 已批准（所有者 2026-10-27，Lead m01003）并实现**：`/api/v1/analytics/transactions` 可返回多币种逐笔 + `analysis/adapters/analytics.ts › toFxEntry`；集成测试待 `TEST_DATABASE_URL` 环境；折算仍只走 `shared/fx.ts`（T2-Q4） |
 | A-Q14 | 重要 | 大额 > `Number.MAX_SAFE_INTEGER` 经现有 `number` DTO 会丢精度（样本 G） | 极大金额验收 | Lead + 后端 | 分析层全 `bigint`；API 是否字符串化待评估（涉及 1.16.23 基线，R-07） |
 | A-Q15 | 一般 | 分类/支付方式删除后的历史引用：`Transaction.categoryId` 对 Category 为 `onDelete: Restrict`，分类只归档；需确认统计命名与未分类归属的既有语义 | B15/B16/I01 显示名 | 后端/所有者 W1 细则 | 按需 join 当前分类名；缺失显示「—」；系统「暂无分类」保留为真实组（§10 问题 5/6） |
 | A-Q16 | 重要 | 离线数据覆盖范围元信息当前不可得 | L 样本/「无支出记录天数」完整性 | Lead + 离线模块 | 协议先按 `offline-incomplete` 占位，等同步模块合同（R-08） |
-| A-Q17 | 重要 | 下钻来源不足：`GET /api/v1/transactions` 仅支持 `month` 过滤、无任意 from/to、无金额排序；B09/B10/B17 与 I 类来源需扩展 | 来源追溯/极值 | Lead + 后端 | 同 A-Q13 的 T2 提案（`/analytics/transactions` 区间逐笔 + `/analytics/extremes` 极值聚合）；未批准前极值先由服务端聚合（不含逐笔来源） |
+| A-Q17 | 已解决（T2 已批准并实现） | 下钻来源不足：`GET /api/v1/transactions` 仅支持 `month` 过滤、无任意 from/to、无金额排序；B09/B10/B17 与 I 类来源需扩展 | 来源追溯/极值 | Lead + 后端 | **T2 已批准并实现**：`/api/v1/analytics/transactions`（任意区间 ≤400 天逐笔、金额字符串）与 `/api/v1/analytics/extremes`（max/min/peak-day/active-days/most-recorded-day，带 `tieCount`）；来源详情仍受权限与最小暴露约束；集成测试待 DB 环境 |
 | A-Q18 | 一般 | 分类颜色稳定映射（分类 id→主题调色板）需要 Codex 视觉令牌配合 | 环形图/图例 | Lead/Codex（与 A-Q8 合并） | 协议 §10 已定"按稳定分类身份"原则 |
-| A-Q19 | 阻塞 | T2 只读扩展提案待评审（端点命名/字符串化金额/多币种逐笔/极值并列返回/实现归属，共 T2-Q1…T2-Q6） | 影响 B09/B10/B17、I 类来源、综合模式 | Lead + 所有者/后端 | 提案文档 `S17-Agent-A-T2只读扩展提案.md`；批准前不实现、不改 schema、不改既有端点响应 |
+| A-Q19 | 已解决（T2 已批准并实现） | T2 只读扩展提案（端点命名/字符串化金额/多币种逐笔/极值并列返回/实现归属，共 T2-Q1…T2-Q6） | 影响 B09/B10/B17、I 类来源、综合模式 | 所有者（已批准，经 Lead m01003） | **已批准（2026-10-27）并实现**：`/api/v1/analytics/transactions` + `/api/v1/analytics/extremes`、共享契约/适配器/测试；与提案的偏差见提案 §9.3；T2-Q1「未指定支付方式哨兵」未实现、待评审；集成测试待 `TEST_DATABASE_URL` 环境 |
 | A-Q20 | 重要 | 与 Agent B 的时间扩展对齐（B-0 草案 `b23311c` 的 7 形状 + Q-BA-1…11；Lead m00781 六问） | B-1 起的实现一致性与 S-01 冻结 | Lead 转 B + Claude/所有者评审 | **结论已登记 S-01 §15**：7 形状登记进 `AnalysisResult` union、命名归 A（采纳 B 的英文名）；`dataVersion` 由计算入口（工作台数据层）生产、A 只透传；`SourceDescriptor.bucket?` 可选字段；闭区间保留 + `bucketToInclusive` 换算；图表输入=只读适配层（渲染不重算）；`coverageEnd` 复用 `AnalysisCompleteness`（`offline-incomplete`）。A 不修改 B 文件，待 Lead 转达 |
 | A-Q21 | 一般 | `AnalysisDefinition.groupBy` 是否新增 `"week"\|"month"`（B 的 Q-BA-5） | B 的时间分析定义表达 | Lead + B + Claude | 建议**不改 `groupBy`**（避免分组维度与时间桶混淆），改为可选 `timeGranularity?: "day"\|"week"\|"month"`；登记 S-01 §15.2，S-01 冻结时定，不影响 A 现有四形状 |
 | A-Q22 | 一般 | 离线覆盖 `coverageEnd` 的展示元数据（新增 R-09）：A 建议仅在 `ComputationMetadata` 增可选 `coverageEnd?: string\|null`，完整性判定仍只认 `completeness` | L 样本 / 离线覆盖显示 | Lead + 离线模块（A-Q16/R-08） | 未实现；等离线模块合同明确后再冻结，不在 A-3 擅自新增状态 |
@@ -244,7 +247,7 @@
 | 图表家族 CF-A01…CF-A07 | 未开始（视觉组件） | 待 S-02/S-03 | 输入协议已完成，渲染组件归 Codex 共享设计系统 |
 | 尺寸密度（Compact/Medium/Expanded） | 输入层完成（视觉未开始，W3） | `analysis/charts/numericCard.ts` | 真实容器尺寸优先；阈值待 Codex 定稿（A-Q5） |
 | 测试样本 A–O | 骨架已完成（A-0）；A-1/A-2/A-3 已用于 219 项断言 | `packages/shared/src/analysis/fixtures.ts` | 15 个样本，不入 barrel |
-| T2 只读扩展提案 | 提案稿待评审（未批准，未实现） | `S17-Agent-A-T2只读扩展提案.md` | 区间逐笔查询 + 极值聚合；对应 A-Q13/A-Q17/A-Q19 |
+| T2 只读扩展 | **已批准（所有者 2026-10-27，Lead m01003）并已实现**；共享单测通过，集成测试待 `TEST_DATABASE_URL` | `S17-Agent-A-T2只读扩展提案.md` §9；`packages/shared/src/analytics.ts`、`analysis/adapters/analytics.ts`、`apps/api/src/routes/analytics.ts`、`apps/api/test/analytics.test.ts` | 两个只读端点：区间逐笔 + 极值/天数聚合；对应 A-Q13/A-Q17/A-Q19（已解决）；实施记录见本文件 §15 |
 | 性能测量记录 | 未开始（A-4） | 待定 | 规格 §22 |
 | 给 B/C/D/Codex/Lead 的接口交接说明 | 部分完成（S-01 §14 图表输入、§15 对 B 六问答复）；独立交接说明待协议评审后建 | 草案 §14/§15 | 规格 §24；图表视觉组件与尺寸令牌归 Codex/D（A-Q5） |
 
@@ -401,6 +404,61 @@
 ```
 
 要点：B20「交易记录最多的一天」的 `unit` 是 `count`、`extreme` 金额字段为 `null`，`countBreakdown` 给收支笔数拆分——不得用金额卡伪装笔数。
+
+## §15 T2 只读扩展实施记录（已批准 + 实现提交）
+
+> 编号按 Lead m01003 指示使用 §15（本文件此前章节止于 §11；§12–§14 尚未建立，后续如需要再补，避免与 S-01 草案章节混淆）。状态：**已实现、待所有者验收**。
+
+### 15.1 批准信息
+
+- 所有者批准（2026-10-27，经 Lead m01003 转达），原话：「只读扩展允许批准；只要不是修改就行……私钥等私密文件绝对不允许被读取」。
+- 边界：严格只读；不改既有写入语义；不新增迁移/不改 schema/不改业务数据；不改既有端点响应；加权限/越权/只读测试；不读取/不写入私钥与凭据。
+
+### 15.2 交付内容
+
+| 层 | 文件 | 说明 |
+|---|---|---|
+| 共享契约 | `packages/shared/src/analytics.ts` | `analyticsTransactionsQuerySchema` / `analyticsExtremesQuerySchema` 及响应 schema；金额十进制字符串；`summarisePeakDay` / `summariseMostRecordedDay`（并列保留最早日期 + `tieCount`，与 `primitives.ts` 同规则） |
+| 适配器 | `packages/shared/src/analysis/adapters/analytics.ts` | `toAnalysisEntry`（`BigInt`）、`toFxEntry`（非 safe integer 抛 `RangeError`）、批量版本 |
+| API 路由 | `apps/api/src/routes/analytics.ts` | `GET /api/v1/analytics/transactions`（任意区间 ≤400 天、多币种可选、默认 200/上限 500、keyset 游标）；`GET /api/v1/analytics/extremes`（`max`/`min`/`peak-day`/`active-days`/`most-recorded-day`，含 `unit`/`tieCount`/`completeness`） |
+| 注册 | `apps/api/src/app.ts` | 复用 `requireBookRead`（viewer 可读；无写路由、无新权限规则） |
+| 测试 | `packages/shared/src/analytics.test.ts`（20）、`packages/shared/src/analysis/adapters/analytics.test.ts`（6）、`apps/api/test/analytics.test.ts`（14，集成） | 共享单测全绿；集成测试需 `TEST_DATABASE_URL` |
+
+### 15.3 提交
+
+- 实现提交：`feat(s17): Agent A T2 只读扩展（只读端点）`（本分支 `deepseek/s17-finance-category`，**未推送**）。
+- 提交号回填：见 §6.2 最后一行「T2 提交号回填」提交。
+
+### 15.4 与提案的偏差（同提案 §9.3）
+
+1. 极值响应新增 `unit`（`money`/`count`/`days`），避免客户端按 metric 名猜语义；
+2. `most-recorded-day` 允许 `kind` 省略或 `both`（B20 按收入+支出计数），其余指标必须单侧；
+3. `active-days` 返回 `value`=天数、`count:null`（避免与 value 重复）；
+4. T2-Q1「未指定支付方式哨兵」未实现，`paymentMethodId` 仅精确 id（登记待评审）；
+5. 服务端不折算（T2-Q4），折算仍只走 `shared/fx.ts`（`aggregateFxAsync`）。
+
+### 15.5 测试结果
+
+- `pnpm --filter @libellum/shared exec tsc -p tsconfig.json --noEmit` → exit 0；
+- `vitest run src/analytics.test.ts src/analysis/adapters` → 2 files / 26 passed；
+- `pnpm --filter @libellum/shared test` → 28 files / 622 passed（原 596，+26）；
+- `pnpm -r typecheck` → exit 0；`pnpm check:build` → ✓ 构建通过（仅既有 chunk>500kB 警告）；`check-links`/`doc-audit`/`check-status` → exit 0；
+- `apps/api` 集成测试 14 项：本 worktree 无数据库，报 `SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string`（环境性失败，非代码失败）；需在带 `TEST_DATABASE_URL` 的环境执行。
+
+### 15.6 只读核对清单
+
+- [x] 只新增 `GET`；无 `POST/PATCH/DELETE`；未写审计/未新增权限规则。
+- [x] 未改 `prisma/schema.prisma`、未新增迁移、未改交易写入/导入/恢复逻辑。
+- [x] 未改 `/stats`、`/summary`、`/transactions` 既有响应。
+- [x] 权限复用 `requireBook`（`write:false`）：viewer 可读、非成员 403、已删/删除中 410、归档 403。
+- [x] 不返回 `note`/`tags`/`valueHistory`/`userId`/`occurredTz`；金额字符串化无损（`> Number.MAX_SAFE_INTEGER` 有单测）。
+- [ ] 集成测试在带 `TEST_DATABASE_URL` 环境执行（本 worktree 无数据库）。
+
+### 15.7 后续
+
+- 请 Lead 转所有者验收；T2-Q1 哨兵、集成测试环境为剩余待办；
+- A-4 整体回归交付仍等 S-01 评审冻结 + 1.16.23 rebase 门禁（本项不改该门禁）。
+
 
 
 

@@ -1,6 +1,11 @@
-# S17 · Agent A · T2 只读扩展提案（等待批准）
+# S17 · Agent A · T2 只读扩展提案（已批准 · 已实现）
 
-- 状态：**提案稿 · 未批准**（2026-10-27）。**批准前不得实现任何端点、不得改 schema、不得改写入逻辑。**
+- 状态：**已批准（所有者 2026-10-27，经 Lead m01003 转达）· 已实现（2026-10-27）**。
+  - 所有者原话：「只读扩展允许批准；只要不是修改就行……私钥等私密文件绝对不允许被读取。」
+  - 实现位置：`packages/shared/src/analytics.ts`（共享契约）、`packages/shared/src/analysis/adapters/analytics.ts`（DTO → 计算形态）、`apps/api/src/routes/analytics.ts`（两个只读 GET）、`apps/api/src/app.ts`（以 `requireBookRead` 注册，**没有写路由、没有新权限规则**）。
+  - 实现提交：本分支 `feat(s17): Agent A T2 只读扩展（只读端点）`（提交号由后续回填提交补记；分支 `deepseek/s17-finance-category`，未推送）。
+  - 测试：`packages/shared/src/analytics.test.ts`（20）、`packages/shared/src/analysis/adapters/analytics.test.ts`（6）、`apps/api/test/analytics.test.ts`（14，集成测试需 `TEST_DATABASE_URL`，本 worktree 无数据库，见 §8）。
+  - 实现记录与偏差登记见 §8；任务文档新增 §15 记录批准与实现。
 - 提出：DS-S17-A-Finance（Agent A）
 - 目的：补齐「来源追溯」与「综合模式逐笔折算」所缺的只读数据入口；对应任务文档 §7 的 A-Q13 / A-Q17
 - 依据：所有者《S17-Agent-A-完整开发规格》§21.4（来源一致性）、§24（接口）；《S17-模块化财务分析工作台-总需求规格》ACC-01/ACC-08/ACC-09；《S17-分析能力目录》§2 数据能力 T2 定义（只读扩展查询，无 schema 变更）
@@ -148,7 +153,7 @@
 6. **口径一致**：`active-days`/`peak-day` 与 `GET /stats` 的 `series`/`totals` 对同一区间可逐项核对（A 在 A-3 提供对照用例）。
 7. **性能**：400 天、万级记录分页响应时间有上限（后端自定阈值并记录）。
 
-A 侧落地（批准后）：在 `packages/shared/src/analysis/adapters/` 增加只读适配器（`FxEntry` 映射、来源筛选构造），**不改**现有 `stats.ts`/`fx.ts`；来源筛选仍由 S-01 `SourceDescriptor.query` 表达。
+A 侧落地（已实现，2026-10-27）：`packages/shared/src/analysis/adapters/analytics.ts` 提供 DTO → `AnalysisEntry`/`FxEntry` 映射，`apps/api/src/routes/analytics.ts` 提供两个只读端点，**不改**现有 `stats.ts`/`fx.ts`；来源筛选仍由 S-01 `SourceDescriptor.query` 表达。
 
 ---
 
@@ -177,3 +182,69 @@ A 侧落地（批准后）：在 `packages/shared/src/analysis/adapters/` 增加
 
 - 本提案批准/驳回后，由 Agent A 在任务文档 §7（A-Q13/A-Q17）与 §9 对应行更新状态；批准后另起实现任务。
 - 变更记录：2026-10-27 初稿（基于基线 `f05838f` 工作区 + 1.16.22 生产代码实读）。
+
+---
+
+## 9. 实现记录（2026-10-27，所有者批准后由 Agent A 实施）
+
+### 9.1 已实现端点
+
+**`GET /api/v1/analytics/transactions`** — 区间逐笔（只读）
+
+- 参数：`from`、`to`（必填 `YYYY-MM-DD`，≤ 400 天）；`currency`（**省略 = 多币种返回**，供综合模式逐笔折算）；`kind` / `categoryId` / `paymentMethodId` / `tagId`（可选）；`limit`（默认 200，最大 500）；`cursor`（keyset 分页）。
+- 响应：`{items[{id,bookId,kind,amountMinor(十进制字符串),currency,occurredLocalDate,categoryId,categoryName,paymentMethodId,paymentMethodName,version}],nextCursor,range}`。
+- 口径：`where` 与 `/stats` 一致（`bookId` 来自查询层上下文、`deletedAt:null`、`occurredLocalDate` 闭区间）；排序 `occurredLocalDate desc, createdAt desc, id desc`。
+- 最小暴露：不返回 `note`/`tags`/`valueHistory`/`userId`/`occurredTz`。
+
+**`GET /api/v1/analytics/extremes`** — 极值与天数聚合（只读）
+
+- 参数：`from`、`to`、`currency`、`metric`（`max`/`min`/`peak-day`/`active-days`/`most-recorded-day`）、`kind`（`max`/`min`/`peak-day`/`active-days` 必须为 `income|expense`；`most-recorded-day` 可省略或 `both`）。
+- 响应：`{metric,kind,range,currency,unit("money"|"count"|"days"),value(字符串|null),occurredLocalDate,record{id,categoryId,categoryName,paymentMethodId,paymentMethodName}|null,count,incomeCount,expenseCount,tieCount,completeness("complete"|"no-transactions")}`。
+- 并列规则与 `packages/shared/src/analysis/primitives.ts` 完全一致：`max/min` 按「金额 → 业务日期升序 → id 升序」取稳定首项；`peak-day` 并列保留最早日期；`tieCount` 为并列数量。空区间返回 `no-transactions` 且 `value:null`，**不补 0**。
+
+### 9.2 实现文件
+
+| 层 | 文件 |
+|---|---|
+| 共享契约 | `packages/shared/src/analytics.ts`（schema + 类型 + `summarisePeakDay`/`summariseMostRecordedDay`） |
+| 适配器 | `packages/shared/src/analysis/adapters/analytics.ts`（`toAnalysisEntry`/`toFxEntry`/批量版本，非 safe integer 抛 `RangeError`） |
+| API 路由 | `apps/api/src/routes/analytics.ts`（两个 GET；游标与 `/transactions` 同形） |
+| 注册 | `apps/api/src/app.ts`（`requireBookRead`，无写路由/无新权限规则） |
+| 测试 | `packages/shared/src/analytics.test.ts`（20）、`packages/shared/src/analysis/adapters/analytics.test.ts`（6）、`apps/api/test/analytics.test.ts`（14，集成） |
+
+- 实现提交：本分支 `feat(s17): Agent A T2 只读扩展（只读端点）`（提交号见任务文档 §6.2 回填；分支 `deepseek/s17-finance-category`，未推送）。
+
+### 9.3 与提案的偏差（评审可见）
+
+| 项 | 提案 | 实现 | 理由 |
+|---|---|---|---|
+| `unit` 字段 | 未列 | 极值响应新增 `unit` | 客户端不该根据 metric 名猜字符串含义 |
+| `kind=both` | 未列 | `most-recorded-day` 允许省略/both | B20 按「收入+支出」合计计数，与单侧指标语义不同 |
+| `active-days` 形状 | 定义未细化 | `value`=日数、`count:null` | 与「天数」语义一致，避免 count 与 value 重复 |
+| 未指定支付方式哨兵 | T2-Q1 二选一 | **未实现**，`paymentMethodId` 只做精确 id | 待评审；不影响 I17（「未指定」组来自数据本身 `paymentMethodId=null`） |
+| 服务端折算 | T2-Q4 建议不折算 | 未折算 | 复用 `shared/fx.ts` 唯一实现，避免第二套汇率 |
+| 集成测试 | 要求 | `apps/api/test/analytics.test.ts` 已写；需 `TEST_DATABASE_URL` | 本 worktree 无本地数据库（环境限制，非跳过断言） |
+
+### 9.4 T2-Q 结论（实现口径）
+
+- T2-Q1：允许省略 `currency` = 多币种（已实现）；「未指定支付方式」哨兵未做，保留待评审。
+- T2-Q2：只返回 `tieCount` + 稳定首项（已实现）。
+- T2-Q3：新端点金额字符串化（已实现；既有端点响应不变）。
+- T2-Q4：服务端不折算（已实现）。
+- T2-Q5：独立 `/analytics/*` 命名空间（已实现）。
+- T2-Q6：由 Agent A 在本分支实现只读路由（所有者批准即授权）；A 不改写入/权限代码，只注册既有 `requireBookRead`。
+
+### 9.5 只读核对
+
+- [x] 只新增 `GET` 路由，无 `POST/PATCH/DELETE`。
+- [x] 未改 `prisma/schema.prisma`、未新增迁移。
+- [x] 未改交易写入/导入/恢复逻辑。
+- [x] 未改 `/stats`、`/summary`、`/transactions` 的既有响应。
+- [x] 权限复用 `requireBook`（`write:false`）：viewer 可读、非成员 403、已删/删除中 410、归档 403。
+- [x] 不返回敏感字段（见 9.1）。
+- [x] 金额字符串化，`> Number.MAX_SAFE_INTEGER` 无损（适配器另有 safe-integer 校验）。
+- [ ] 集成测试在带 `TEST_DATABASE_URL` 的环境执行（本 worktree 无数据库，见 9.3）。
+
+### 9.6 变更记录
+
+- 2026-10-27 批准并实现（所有者经 Lead m01003 转达；Lead 要求严格只读、不改写入语义、不加迁移、加权限/越权/只读测试）。
