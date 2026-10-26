@@ -31,7 +31,7 @@ Lead 批准的四项只读预研：
 
 ## 2. 现状快照（证据基础）
 
-- 分支 `deepseek/s17-layout-engine`，基线 `486c603`（1.16.22 发布记录，2026-10-26 16:19:26 +0800），HEAD `49eb04a`，工作树 clean，未 push、未 rebase。
+- 分支 `deepseek/s17-layout-engine`，基线 `486c603`（1.16.22 发布记录，2026-10-26 16:19:26 +0800），HEAD `49eb04a`，工作树 clean，未 push、未 rebase（预研时快照；2026-10-27 已按 Lead 指令 rebase 到 `d4e4fd8`，结果见 §6.4）。
 - `git diff --name-status 486c603..HEAD`：**42 个文件全部新增（A）**，0 修改。构成：8 个 `docs/specs/product/s17-agents/` 文档 + 34 个 `packages/shared/src/analysis/layout/` 代码/测试文件。
 - 测试：`pnpm.cmd --filter @libellum/shared typecheck` exit 0；`pnpm.cmd --filter @libellum/shared exec vitest run src/analysis/layout` → **17 files / 209 tests passed**（含 10,400 属性场景）。
 - 模块清单（34 文件）：
@@ -208,6 +208,14 @@ Lead 批准的四项只读预研：
   1. 主候选修改 `docs/STATUS.md`/`docs/00-索引.md`/`docs/changelog/1.16.md`，D 不修改这些文件 → 不冲突；但 D 文档中的链接若指向这些文件应保持相对路径稳定（现无依赖）。
   2. `packages/shared/src/version.ts` 由主候选改到 1.16.23，D 不修改 version.ts → 不冲突；doc-audit 的“版本号与代码一致”检查在 rebase 后需以新版本为准（D 文档不含硬编码版本号）。
   3. `packages/shared/src/index.ts`：主候选未修改，但 D 未来接入出口时会改动 → 与 W2/W3 的接入顺序需 Lead 协调（I-0）。
+
+### 6.4 执行结果（2026-10-27）
+
+Lead 于 m01046/m01047 通知生产已发布 1.16.23（`release/1.16.23` @ `d4e4fd8`，无迁移、60 迁移）并批准 D 在 D-5 提交后 rebase。执行结果：
+- 备份分支：Lead 建议名 `pre-1.16.23-20261027` 已存在且属 Agent A（指向 A 的 `6077d8d`），D 改用 `backup/agent-d-pre-1.16.23-20261027`（→ pre-rebase HEAD `932d4d1`）。
+- `git rebase d4e4fd8`：15 个提交全部重放、**零冲突**；`docs/00-索引.md` 无重叠；rebase 后 HEAD `61c1855`；`git diff --name-status d4e4fd8..HEAD` = 43 个文件全部新增（42 + 本 D-5 文档）。
+- 复验：`typecheck` exit 0；`vitest run src/analysis/layout` 17 files/209 tests passed；`check-links` 201 份/1006 链接失效 0；`doc-audit` 仅 4 条既存缺失路径告警；`check-status` 通过（版本 1.16.23、迁移 60）。
+- 结论：§6.3 的“零文件级冲突”预计成立；唯一差异是备份分支命名（因 A 已占用建议名），已记录在任务文档 §6.2。
 
 ---
 
