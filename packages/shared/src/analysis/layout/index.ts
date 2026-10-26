@@ -1,6 +1,6 @@
 /**
- * S17 工作台布局层（D-0/D-1）：布局对象类型、行优先网格几何、跨列投影、
- * 文档校验与序列化。
+ * S17 工作台布局层（D-0/D-1/D-2 前置）：布局对象类型、行优先网格几何、跨列投影、
+ * 文档校验与序列化、编辑器命令/焦点/状态机。
  *
  * 本目录是布局与配置能力的**纯数据与纯函数**内核：
  * - 不做任何财务计算，不读写账务数据；
@@ -15,3 +15,6 @@ export * from "./types.js";
 export * from "./grid.js";
 export * from "./projection.js";
 export * from "./validation.js";
+export * from "./commands.js";
+export * from "./focus.js";
+export * from "./machine.js";

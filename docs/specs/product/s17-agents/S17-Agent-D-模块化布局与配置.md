@@ -1,8 +1,8 @@
-﻿# S17 · Agent D 任务文档：模块化布局与用户配置
+# S17 · Agent D 任务文档：模块化布局与用户配置
 
 > 本文件是 **DS-S17-D-Layout** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent D 自己。
-> 当前状态：**所有者规格已归档；D-0 评审通过（条件性）；D-1 完成（属性测试 10,400 场景、TC 夹具、序列化/损坏配置、真实 typecheck 与 65/65 vitest 通过）；D-2（编辑器）等待 Codex 视觉规范与接口澄清**（2026-10-27）。
+> 当前状态：**所有者规格已归档；D-0 评审通过（条件性）；D-1 完成（属性测试 10,400 场景、TC 夹具、序列化/损坏配置、真实 typecheck 与 65/65 vitest 通过）；D-2 前置完成（交互模型/状态机草案、S-03 布局侧接口草案 draft、编辑器命令/焦点/状态机纯逻辑；真实 typecheck 与 102/102 vitest 通过）；D-2 UI 等待 Codex 视觉规范**（2026-10-27）。
 
 ---
 
@@ -49,6 +49,10 @@
 - 测试：布局算法（碰撞/补位/收缩/迁移）与配置迁移的单元/属性测试；跨分辨率/横屏/平板/桌面适配的回归（与 S18 边界另行确认）。
 - **D-0 交付物（2026-10-27）**：`packages/shared/src/analysis/layout/` 的类型/网格/投影纯函数 + 单元测试，以及 [S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)（数据模型、编号与几何、迁移阶段、尺寸契约、接口清单、待决登记）。代码尚未从 `@libellum/shared` 入口导出，接入属集成批次。
 - **D-1 交付物（2026-10-27）**：同一目录新增 `validation.ts`（文档校验/序列化/解析）、`test-prng.ts`/`test-support.ts`（测试专用 PRNG 与夹具构造器），新增 `property.test.ts`（4 组×2,600 = 10,400 场景）、`fixtures.test.ts`（TC-07…26 中不依赖 UI 的夹具）、`serialization.test.ts`；修复投影 `findEarliestFreeAnchor` 行尾起点越界崩溃。记录与口径见 [S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)。
+- **D-2 前置交付物（2026-10-27，Lead 批准范围：不依赖 Codex 视觉规范的部分）**：
+  - 同一目录新增 `commands.ts`（headless 编辑器状态、`applyCommand` 命令集与撤销栈）、`focus.ts`（焦点导航与键盘映射）、`machine.ts`（浏览/编辑状态机），及对应单元测试；目录 barrel 追加三个模块（**仍未接** `@libellum/shared` 包入口）。
+  - [S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)：模式与入口、编辑会话生命周期、命令表与失败码、焦点/键盘映射、拖拽与键盘并行、触摸 vs 鼠标、无障碍清单、待决项。
+  - [S17-Agent-D-S03-接口草案-布局侧-v1.md](./S17-Agent-D-S03-接口草案-布局侧-v1.md)：**draft v0.1，未冻结**；`AnalysisReference`/`ObjectSizeContract` 提案、版本与迁移契约、容器内部几何占位（深度 1）、Spacer 与紧凑边界、A/B/C/Codex 对接清单、6 个评审问题。
 
 ### 2.3 不负责（明确）
 
@@ -102,7 +106,7 @@
 
 | 能力组 | 状态 | 备注 |
 |---|---|---|
-| W2 布局数据结构约束 | D-0 首提交完成，Lead 评审通过（条件性）；D-1 完成（属性测试/夹具/序列化/损坏配置） | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` 5 files / 65 tests passed（10,400 属性场景）；尺寸数值与 OQ-LM 仍待上游 |
+| W2 布局数据结构约束 | D-0 首提交完成，Lead 评审通过（条件性）；D-1 完成（属性测试/夹具/序列化/损坏配置）；**D-2 前置完成（交互模型/状态机草案 + S-03 布局侧草案 + 编辑器命令/焦点/状态机）** | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **8 files / 102 tests passed**（10,400 属性场景 + 37 项编辑逻辑测试）；尺寸数值与 OQ-LM 仍待上游；D-2 UI 待 Codex 视觉 |
 | W5 网格/模板/容器/编辑 | 未开始 | 依赖 Codex 视觉规范、S-03 与卡片清单；前置 OQ-LM-01/03/04/05/06/07 待所有者 |
 | W6 配置/同步/分享 | 未开始 | 依赖同步与隐私合规决策；W2 已预留档案键/引用槽占位字段 |
 | 布局算法测试 | D-1 完成（属性测试 ≥10⁴、TC-07…26 纯算法部分、序列化与损坏配置） | 非纯算法用例（TC-15/18/19/21/23/24）留集成/UI 批次；修复 findEarliestFreeAnchor 越界缺陷 |
@@ -125,6 +129,7 @@
 | 2026-10-27 | D-0 首提交：布局数据模型与纯函数（types/grid/projection + 单测）+ D-0 模型与接口文档；未接包入口、未加迁移 | `packages/shared/src/analysis/layout/*`、本文件、D-0 文档 | `32bb563` | Node v24.20.0 类型剥离冒烟 19/19 通过；**正式 vitest/tsc 未运行（环境限制：无 pnpm 依赖）** | 新增 `ObjectSizeContract` 草案与目录内导出（未接 `@libellum/shared` 入口） | 环境限制无 `node_modules`；OQ-LM 数值待上游；见 D-0 文档 §9/§10 | D-1：属性测试、TC-07…22、序列化往返、与 S-03 对齐契约 |
 | 2026-10-27 | D-0 评审通过（条件性：先装依赖跑真实测试）；`pnpm install --frozen-lockfile --prefer-offline` 成功（313 包，lockfile 未改、node_modules 已忽略）；真实 typecheck 与 vitest 通过 | `node_modules/`（已忽略）、本文件 | `77f9796` | `pnpm --filter @libellum/shared typecheck` exit 0；`vitest run src/analysis/layout` 2 files/29 tests passed | 无 | 无 | D-1：属性测试 ≥10⁴、TC-07…22、序列化往返、损坏配置、S-03 对齐 |
 | 2026-10-27 | D-1 完成：新增 validation（校验/序列化/解析）、测试 PRNG 与夹具、属性测试 10,400 场景、TC-07…26 纯算法夹具、序列化/损坏数据测试；修复 `findEarliestFreeAnchor` 行尾起点越界崩溃；新增 D-1 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、D-1 文档 | `77f9796` | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **5 files / 65 tests passed**（含 10,400 属性场景），exit 0 | 目录内 barrel 追加 validation 导出；**仍未接** `@libellum/shared` 包入口，未冻结公共接口 | 非纯算法 TC-15/18/19/21/23/24 留集成/UI 批次；OQ-LM-01/03/04/05/06/07 仍待所有者；尺寸数值待 W3 | 等待 Codex 视觉规范与 D-2 接口澄清；把 `AnalysisReference`/`ObjectSizeContract` 草案提交 S-03 评审 |
+| 2026-10-27 | D-2 前置完成（Lead 批准范围：不依赖 Codex 视觉）：`commands.ts`/`focus.ts`/`machine.ts` + 测试；D-2 前置交互模型与状态机草案；S-03 布局侧接口草案（draft v0.1，未冻结）；D-2 UI 待 Codex 视觉规范另行批准 | `packages/shared/src/analysis/layout/*`、本文件、两份新文档 | 本轮本地提交（见下方提交补记） | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **8 files / 102 tests passed**（新增 37 项），exit 0 | 目录内 barrel 追加 commands/focus/machine；**仍未接** `@libellum/shared` 入口；S-03 侧仅 draft，未冻结 | 未实现垂直紧凑/写回/容器内部几何（OQ-LM-03/06/07/08 占位）；手势/视觉细节待 Codex；iOS Safari/PWA 真机未验证 | 待 Lead 评审两份文档；Codex 视觉规范后进入 D-2 UI；W5 前需所有者决定 OQ-LM-01/03/04/05/06/07 |
 
 ---
 
