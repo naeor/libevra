@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { addDays } from "./stats.js";
 import { computeTimeSeries, type TimeSeriesEntry } from "./timeSeries.js";
 import {
+  DEFAULT_EXTREME_SIGMA,
+  EXTREME_SIGMA_SCALE,
   VARIABILITY_VERSION,
   computeDailyExpenseVariability,
   computeIncomeStability,
@@ -64,6 +66,36 @@ describe("computeDailyExpenseVariability (A12)", () => {
     const daily = dailySeries("2026-01-01", [0, 0, 0, 0, 0, 0, 1000]);
     const result = computeDailyExpenseVariability(daily, { minSampleDays: 3 });
     expect(result.extremeDays).toEqual([{ date: "2026-01-07", amountMinor: "1000" }]);
+  });
+
+  it("records the default 2σ threshold as an explicit parameter (B-16)", () => {
+    const daily = dailySeries("2026-01-01", [0, 0, 0, 0, 0, 0, 1000]);
+    const result = computeDailyExpenseVariability(daily, { minSampleDays: 3 });
+    expect(DEFAULT_EXTREME_SIGMA).toBe(2);
+    expect(EXTREME_SIGMA_SCALE).toBe(1000);
+    expect(result.extremeSigmaScaled).toBe(2000);
+    expect(result.extremeThresholdFormula).toBe("abs-deviation-gt-sigma-multiple-v1");
+  });
+
+  it("lets the caller tighten or widen the extreme-day threshold", () => {
+    // 7 天：[100×6, 1000] → 均值 ≈ 228.57，总体 σ ≈ 314.9；1000 偏离约 2.45σ。
+    const daily = dailySeries("2026-01-01", [100, 100, 100, 100, 100, 100, 1000]);
+    const strict = computeDailyExpenseVariability(daily, { minSampleDays: 3, extremeSigma: 3 });
+    const loose = computeDailyExpenseVariability(daily, { minSampleDays: 3, extremeSigma: 2.5 });
+    const defaulted = computeDailyExpenseVariability(daily, { minSampleDays: 3 });
+    expect(strict.extremeDays).toEqual([]);
+    expect(loose.extremeDays).toEqual([]);
+    expect(defaulted.extremeDays).toEqual([{ date: "2026-01-07", amountMinor: "1000" }]);
+    expect(defaulted.extremeSigmaScaled).toBe(2000);
+    expect(loose.extremeSigmaScaled).toBe(2500);
+  });
+
+  it("rejects invalid extreme-day thresholds instead of silently falling back", () => {
+    const daily = dailySeries("2026-01-01", [100, 100, 100, 100, 100, 100, 1000]);
+    expect(() => computeDailyExpenseVariability(daily, { extremeSigma: 0 })).toThrow(RangeError);
+    expect(() => computeDailyExpenseVariability(daily, { extremeSigma: -1 })).toThrow(RangeError);
+    expect(() => computeDailyExpenseVariability(daily, { extremeSigma: Number.NaN })).toThrow(RangeError);
+    expect(() => computeDailyExpenseVariability(daily, { extremeSigma: Number.POSITIVE_INFINITY })).toThrow(RangeError);
   });
 
   it("excludes today's unfinished day and future days from the statistics", () => {

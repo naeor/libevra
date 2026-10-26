@@ -237,6 +237,10 @@ export function computeCategorySeries(
     });
 
     if (computable) total += accumulator.total.amount;
+    if (computable && includeOther) {
+      const otherAmount = accumulator.total.amount - selectedSum.amount;
+      totals[OTHER_CATEGORY_KEY] = (BigInt(totals[OTHER_CATEGORY_KEY] ?? "0") + otherAmount).toString();
+    }
 
     buckets.push({
       bucket,

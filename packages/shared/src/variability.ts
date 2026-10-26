@@ -24,6 +24,11 @@ export interface VariabilityOptions {
   readonly minSampleDays?: number;
   /** 展示定点小数位数，默认 6。 */
   readonly scale?: number;
+  /**
+   * A12 极端日阈值（偏离均值多少个总体标准差），默认 2（B-16，待所有者确认）。
+   * 只影响 `extremeDays` 的判定，不影响均值/标准差/波动带。非正数或非有限值抛 `RangeError`。
+   */
+  readonly extremeSigma?: number;
 }
 
 /** A12/A20 共用的金额统计摘要。 */
@@ -68,8 +73,12 @@ export interface AmountSummary {
 /** A12 每日支出波动性。 */
 export interface DailyExpenseVariability extends AmountSummary {
   readonly version: typeof VARIABILITY_VERSION;
-  /** 偏离均值超过 2 个总体标准差的完整日（规格 §24 “最大/最小是否极端”）。 */
+  /** 偏离均值超过 `extremeSigma` 个总体标准差的完整日（规格 §24 “最大/最小是否极端”）。 */
   readonly extremeDays: readonly { readonly date: string; readonly amountMinor: string }[];
+  /** 实际采用的阈值（σ 的定点整数，`EXTREME_SIGMA_SCALE` = 1000，如默认 2σ → 2000）。 */
+  readonly extremeSigmaScaled: number;
+  /** 极端日判定公式标识，保证结果可自解释（B-16 口径，待所有者确认）。 */
+  readonly extremeThresholdFormula: "abs-deviation-gt-sigma-multiple-v1";
   readonly sampleRange: TimeSpan;
 }
 
@@ -87,6 +96,30 @@ export interface IncomeStability extends AmountSummary {
 const DEFAULT_SCALE = 6;
 const DEFAULT_MIN_SAMPLE_DAYS = 7;
 const DEFAULT_MIN_SAMPLE_MONTHS = 3;
+
+/**
+ * A12 极端日阈值默认值：2σ（B-16，待所有者确认；规格 §24 “最大/最小是否极端”）。
+ * **只在此处定义一次**，`extremeDays` 判定与 UI 说明都必须引用本常量/结果字段，不得在多处硬编码。
+ */
+export const DEFAULT_EXTREME_SIGMA = 2;
+
+/** 阈值的定点放大倍数：使 1.5σ、2.5σ 这类非整数阈值也可走整数精确比较。 */
+export const EXTREME_SIGMA_SCALE = 1_000;
+
+/**
+ * 把调用方传入的 σ 阈值解析为定点整数；非法值抛 `RangeError`（不静默回退，避免“看起来是默认值”）。
+ */
+function resolveExtremeSigma(value: number | undefined): number {
+  const sigma = value ?? DEFAULT_EXTREME_SIGMA;
+  if (!Number.isFinite(sigma) || sigma <= 0) {
+    throw new RangeError("extremeSigma must be a positive finite number");
+  }
+  const scaled = Math.round(sigma * EXTREME_SIGMA_SCALE);
+  if (scaled <= 0) {
+    throw new RangeError("extremeSigma is too small to represent");
+  }
+  return scaled;
+}
 
 /** 整数平方根（向下取整），用于大整数精确开方。 */
 function integerSqrt(value: bigint): bigint {
@@ -220,12 +253,15 @@ export function computeDailyExpenseVariability(
   const count = BigInt(sample.amounts.length);
   const sum = BigInt(summary.sumMinor);
   const sumOfSquares = sample.amounts.reduce((total, item) => total + item.amountMinor * item.amountMinor, 0n);
-  // |x − mean| > 2σ ⇔ (N·x − Σx)² > 4·(N·Σx² − (Σx)²)：两侧均为非负整数，可精确比较。
+  // |x − mean| > k·σ ⇔ delta²·S² > (k·S)²·(N·Σx² − (Σx)²)：两侧均为非负整数，可精确比较（S = EXTREME_SIGMA_SCALE）。
   const varianceNumerator = count * sumOfSquares - sum * sum;
+  const extremeSigmaScaled = resolveExtremeSigma(options.extremeSigma);
+  const sigmaScaledSquared = BigInt(extremeSigmaScaled) * BigInt(extremeSigmaScaled);
+  const scaleSquared = BigInt(EXTREME_SIGMA_SCALE) * BigInt(EXTREME_SIGMA_SCALE);
   const extremeDays: { date: string; amountMinor: string }[] = [];
   for (const item of sample.amounts) {
     const delta = count * item.amountMinor - sum;
-    if (delta * delta > 4n * varianceNumerator) {
+    if (delta * delta * scaleSquared > sigmaScaledSquared * varianceNumerator) {
       extremeDays.push({ date: item.key, amountMinor: item.amountMinor.toString() });
     }
   }
@@ -233,6 +269,8 @@ export function computeDailyExpenseVariability(
     ...summary,
     version: VARIABILITY_VERSION,
     extremeDays,
+    extremeSigmaScaled,
+    extremeThresholdFormula: "abs-deviation-gt-sigma-multiple-v1",
   };
 }
 

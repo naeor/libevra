@@ -445,7 +445,8 @@ A 已在 `docs/specs/product/s17-agents/S17-Agent-A-S01-共享分析结果协议
 | B-1 | I06 每日支出、I07 每日收入、I08 每周支出、I09 每月支出、I10 每月收入、I19 交易频次、I20 累计支出 | `computeTimeSeries`（day/week/month × expense/income/count）+ `accumulateSeries`；图表输入 `timeSeriesChart.ts`：折线/面积/柱/Sparkline/累计 |
 | B-2 | I11–I16（构成、星期、热力、分类×时间） | `MultiSeriesResult` / `CalendarHeatmapResult` / `TimeSeriesResult` |
 | B-3 | A01–A05（同比、环比、周期比较） | `PeriodComparisonResult` |
-| B-4 | A12 移动平均、A13 累计节奏、A14 波动、A18 季节性、A19 收入稳定性、A20 异常 | `MovingAverageResult` / `TimeSeriesResult` / `VariabilityResult` / `MultiSeriesResult` / `AnomalyResult` |
+| B-4 | A12 每日支出波动、A13 七日移动平均、A14 三十日移动平均、A18 季节性消费比较、A19 支出异常高峰提示、A20 收入稳定性 | `VariabilityResult` / `MovingAverageResult` / `MultiSeriesResult`（分类轴）/ `AnomalyResult` |
+| B-5 | 性质测试、时间边界矩阵、CF-B12–B15 适配、§37/§44 验收对照 | 不新增结果形状；新增**图表家族能力注册表**（CF-B01–CF-B15）与验收证据文档（见 §14） |
 
 （能力编号与所有者规格一致；`AN-xxx` 旧目录映射仅参考，不改变所有者编号。）
 
@@ -547,5 +548,30 @@ B-4 覆盖 A12–A14、A18–A20（高级趋势与稳定性族）。**本组不�
 6. **A19 阈值全部可追溯**：`method`/`parameters`/`thresholdScaledMinor` 进入结果，UI 展示“按什么口径判定的异常”；MAD=0 时退化为 IQR，再退化为分位阈值（绝不硬编码“超过均值多少倍”）；样本不足时 `marks = []` 并给 `sufficientSample=false`，不得硬报异常。
 7. **A20 与 A12 共用 `AmountSummary`**：只是样本维度不同（A12 逐日支出、A20 逐月收入）；`judgedState` 明确“样本不足”，不得用 3 个月以下数据下“稳定/不稳定”结论；零收入月单独计数。
 8. **图表层口径**：图表层只消费 shared 结果，不自行判定异常、不自行分组、不自行改完整性；金额格式化仍在 web `format` 层，组件不产中文文案。
+
+---
+
+## 14. B-5 实现映射（2026-10-27，未冻结）
+
+B-5 是验收批次：**不新增结果形状、不改写协议本体**，只补性质测试、时间边界矩阵、图表家族能力声明与验收证据。按 Lead 指示（m01976）：S-01 v2 待所有者裁定后统一冻结，本节只登记 draft 映射。
+
+| 交付 | 位置 | 与 S-01 的关系 |
+|---|---|---|
+| 性质测试矩阵（§37 的 P-1～P-8） | `packages/shared/src/properties.test.ts`（8 用例） | 验证时间形状不变式 IV-01～IV-14；不改协议 |
+| 时间边界矩阵 | `docs/specs/design/S17-B-时间边界矩阵.md` | §3.7–§3.10、§19–§23、§24–§29 的边界证据索引 |
+| 性能基线 | `docs/specs/design/S17-B-性能基线.md` + `packages/shared/src/performance.test.ts` | §35.5/§36.12 的可追溯实测；`computation.sampling` 仍仅是渲染元信息 |
+| 图表家族能力注册表 | `apps/web/src/lib/chart/chartFamilies.ts`（+ 测试） | CF-B01–CF-B15 的 `resultShape`/`states`/`minSize`/`needsLegend` 能力声明；S-01 v2 的图表家族编号（G-13）以此为 B 侧来源 |
+| §37/§44 验收对照 | `docs/specs/design/S17-B-验收对照-37-44.md` | 24 项 → 实现/测试/文档/未完成项的如实索引 |
+| 跨 Agent 时间口径（B-17） | `docs/specs/design/S17-B-跨Agent时间口径.md` | 桶键/五态/闰年/周一起始的对外口径；P14 小多图与 P15 日历的复用点 |
+
+**B-5 锁定语义**：
+
+1. **性质测试是协议约束的回归**：分组守恒、桶分区互斥/覆盖、累计一致、比较一致、移动平均一致、确定性、分类合计守恒；任何一条失败视为协议实现回归，不是测试问题。
+2. **图表家族声明不引入新形状**：注册表只描述「某个结果形状可以由哪些家族渲染、需要哪些字段、能表达哪些状态、最小可读尺寸」；不得据此在 shared 层新增结果类型。
+3. **B-16 参数化**：A12 极值日口径已改为显式参数（`DEFAULT_EXTREME_SIGMA = 2`、`EXTREME_SIGMA_SCALE = 100`，结果记录 `extremeSigma` 与说明），默认值待所有者确认；不在多处硬编码 2σ。
+4. **B-17 唯一实现归属（建议）**：日历算术与五态归 `timeCalendar.ts`、日历热力分位与月矩阵归 `calendarHeatmap.ts`；C 的 `calendar`（QC-24）只做字段投影。若 S-01 v2 采纳，本句升为正式冻结语义。
+5. **区间上限（S-01 §17）**：本批次不改端点 limit、不加截断；纯函数层保持「越界拒绝、不静默丢数据」的调用方契约（`maxAnalysisDays` 参数化待协议冻结后统一接入）。
+6. **不冻结**：`ANALYSIS_PROTOCOL_VERSION` 仍 `s01-draft`；B 的 `analysis/time.ts` 信封与 `SourceDescriptor.bucket` 填充仍待 S-01 v2 冻结后实现。
+
 
 

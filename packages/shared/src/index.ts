@@ -160,6 +160,8 @@ export type {
 } from "./movingAverage.js";
 
 export {
+  DEFAULT_EXTREME_SIGMA,
+  EXTREME_SIGMA_SCALE,
   VARIABILITY_VERSION,
   computeDailyExpenseVariability,
   computeIncomeStability,
