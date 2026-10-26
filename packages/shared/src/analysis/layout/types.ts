@@ -38,6 +38,9 @@ export const MAX_CONTAINERS_PER_WORKBENCH = 12;
 export const MIN_CAROUSEL_PAGES = 2;
 export const MAX_CAROUSEL_PAGES = 6;
 
+/** 自由分割容器的槽位数量上限（首期对齐式，候选值；内部几何 W5 定）。 */
+export const MAX_GRID_SPLIT_CHILDREN = 4;
+
 /** 容器最大嵌套深度：首版工作台 → 卡片/Spacer/容器 → 卡片，容器内不再放容器。 */
 export const CONTAINER_MAX_DEPTH = 1;
 

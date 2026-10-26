@@ -121,6 +121,10 @@ export function findEarliestFreeAnchor(
   const lastOccupied = maxCell(occupied);
   const limit = lastOccupied + columns * (size.rowSpan + 1) + columns;
   for (let anchor = 1; anchor <= limit; anchor += 1) {
+    // 行尾放不下（列数不够）的起点必须跳过，不能当作占格参与碰撞判断。
+    if (!placementFitsColumns(anchor, size, columns)) {
+      continue;
+    }
     const occupiedCells = placementCells(anchor, size, columns);
     let collision = false;
     for (const cell of occupiedCells) {

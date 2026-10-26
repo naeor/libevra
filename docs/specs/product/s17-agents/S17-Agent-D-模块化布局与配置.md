@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-D-Layout** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent D 自己。
-> 当前状态：**所有者完整开发规格已下发并归档；D-0（布局数据结构与接口准备）首提交完成，等待 Lead 评审与上游 OQ 答复**（2026-10-27）。
+> 当前状态：**所有者规格已归档；D-0 评审通过（条件性）；D-1 完成（属性测试 10,400 场景、TC 夹具、序列化/损坏配置、真实 typecheck 与 65/65 vitest 通过）；D-2（编辑器）等待 Codex 视觉规范与接口澄清**（2026-10-27）。
 
 ---
 
@@ -48,6 +48,7 @@
 - 分享：导出/导入与短分享码的设计（合法性校验、权限、隐私合规评审）；服务端同步的存储模型设计（若需要迁移，由所有者批准）。
 - 测试：布局算法（碰撞/补位/收缩/迁移）与配置迁移的单元/属性测试；跨分辨率/横屏/平板/桌面适配的回归（与 S18 边界另行确认）。
 - **D-0 交付物（2026-10-27）**：`packages/shared/src/analysis/layout/` 的类型/网格/投影纯函数 + 单元测试，以及 [S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)（数据模型、编号与几何、迁移阶段、尺寸契约、接口清单、待决登记）。代码尚未从 `@libellum/shared` 入口导出，接入属集成批次。
+- **D-1 交付物（2026-10-27）**：同一目录新增 `validation.ts`（文档校验/序列化/解析）、`test-prng.ts`/`test-support.ts`（测试专用 PRNG 与夹具构造器），新增 `property.test.ts`（4 组×2,600 = 10,400 场景）、`fixtures.test.ts`（TC-07…26 中不依赖 UI 的夹具）、`serialization.test.ts`；修复投影 `findEarliestFreeAnchor` 行尾起点越界崩溃。记录与口径见 [S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)。
 
 ### 2.3 不负责（明确）
 
@@ -101,10 +102,10 @@
 
 | 能力组 | 状态 | 备注 |
 |---|---|---|
-| W2 布局数据结构约束 | D-0 首提交完成，待评审 | 代码与文档见 §2.2；需在 W3 前冻结并交接 A/B/C |
-| W5 网格/模板/容器/编辑 | 未开始 | 依赖 S-03 与卡片清单；前置 OQ-LM-01/03/04/05/06/07 待所有者 |
+| W2 布局数据结构约束 | D-0 首提交完成，Lead 评审通过（条件性）；D-1 完成（属性测试/夹具/序列化/损坏配置） | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` 5 files / 65 tests passed（10,400 属性场景）；尺寸数值与 OQ-LM 仍待上游 |
+| W5 网格/模板/容器/编辑 | 未开始 | 依赖 Codex 视觉规范、S-03 与卡片清单；前置 OQ-LM-01/03/04/05/06/07 待所有者 |
 | W6 配置/同步/分享 | 未开始 | 依赖同步与隐私合规决策；W2 已预留档案键/引用槽占位字段 |
-| 布局算法测试 | D-0 骨架 + 冒烟通过；正式 vitest 待 node_modules | 属性测试与 TC-07…22 属 D-1 |
+| 布局算法测试 | D-1 完成（属性测试 ≥10⁴、TC-07…26 纯算法部分、序列化与损坏配置） | 非纯算法用例（TC-15/18/19/21/23/24）留集成/UI 批次；修复 findEarliestFreeAnchor 越界缺陷 |
 
 ---
 
@@ -122,6 +123,8 @@
 | 2026-10-27 | 初始化确认：已阅读规格与边界，未开始开发 | 本文件 | 本轮本地提交 | 未运行（未开发） | 无 | 见 §7 | 等待所有者第二轮详细需求；W2 先交付布局数据结构约束草案 |
 | 2026-10-27 | 所有者完整开发规格下发（Lead 归档，3207 行）并提交进本分支永久文档；任务文档记录「规格已下发、D-0 启动」 | `docs/specs/product/s17-agents/S17-Agent-D-完整开发规格-所有者-20261027.md` | `ff09275` | 未运行（文档） | 新增本分支权威规格引用源 | D-Q1 已解除；文档校验（check-links / doc-audit / check-status）随后统一执行 | 按规格 §40 执行 D-0 |
 | 2026-10-27 | D-0 首提交：布局数据模型与纯函数（types/grid/projection + 单测）+ D-0 模型与接口文档；未接包入口、未加迁移 | `packages/shared/src/analysis/layout/*`、本文件、D-0 文档 | `32bb563` | Node v24.20.0 类型剥离冒烟 19/19 通过；**正式 vitest/tsc 未运行（环境限制：无 pnpm 依赖）** | 新增 `ObjectSizeContract` 草案与目录内导出（未接 `@libellum/shared` 入口） | 环境限制无 `node_modules`；OQ-LM 数值待上游；见 D-0 文档 §9/§10 | D-1：属性测试、TC-07…22、序列化往返、与 S-03 对齐契约 |
+| 2026-10-27 | D-0 评审通过（条件性：先装依赖跑真实测试）；`pnpm install --frozen-lockfile --prefer-offline` 成功（313 包，lockfile 未改、node_modules 已忽略）；真实 typecheck 与 vitest 通过 | `node_modules/`（已忽略）、本文件 | 待本轮 D-1 提交 | `pnpm --filter @libellum/shared typecheck` exit 0；`vitest run src/analysis/layout` 2 files/29 tests passed | 无 | 无 | D-1：属性测试 ≥10⁴、TC-07…22、序列化往返、损坏配置、S-03 对齐 |
+| 2026-10-27 | D-1 完成：新增 validation（校验/序列化/解析）、测试 PRNG 与夹具、属性测试 10,400 场景、TC-07…26 纯算法夹具、序列化/损坏数据测试；修复 `findEarliestFreeAnchor` 行尾起点越界崩溃；新增 D-1 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、D-1 文档 | 待本轮 D-1 提交 | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **5 files / 65 tests passed**（含 10,400 属性场景），exit 0 | 目录内 barrel 追加 validation 导出；**仍未接** `@libellum/shared` 包入口，未冻结公共接口 | 非纯算法 TC-15/18/19/21/23/24 留集成/UI 批次；OQ-LM-01/03/04/05/06/07 仍待所有者；尺寸数值待 W3 | 等待 Codex 视觉规范与 D-2 接口澄清；把 `AnalysisReference`/`ObjectSizeContract` 草案提交 S-03 评审 |
 
 ---
 
@@ -137,7 +140,7 @@
 | D-Q6 | 与 S18（跨屏幕适配）的边界：布局响应式 vs S18 全站适配 | 范围重叠 | 所有者 / Lead |
 | D-Q7 | OQ-LM-01/03/04/05/06/07 待所有者决定，当前按规格默认值/占位实现，W5 前必须定 | 阻塞 W5 写回与编辑表现 | 所有者 |
 | D-Q8 | 卡片 `minSize`/`sizeLadder`/`compatSize`、Codex 视觉规范、S-01 冻结仍待上游 | 阻塞尺寸契约冻结与 S-03 对齐 | Lead / A/B/C / Codex |
-| D-Q9 | 索引 B-14（D 规格未下发）状态待 Lead 更新 | 仅索引一致性问题 | Lead |
+| D-Q9 | 索引 B-14（D 规格未下发）状态 | ~~仅索引一致性问题~~ **已解除（2026-10-27）**：Lead 已更新 orchestrator 索引（`3fc42db`） | 已解除 |
 
 ---
 
