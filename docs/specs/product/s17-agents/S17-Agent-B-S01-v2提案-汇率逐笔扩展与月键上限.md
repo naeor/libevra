@@ -196,7 +196,7 @@ export function fxRangeMonths(from: string, to: string, maxMonths: number = FX_M
 
 ## 16. G-17 正式定义：FX 逐笔/逐日投影（draft，待 S-01 v2 冻结）
 
-> 登记位置：S-01 v2 G 组 **G-17“FX 逐笔/逐日投影”**；状态 **draft**，待协议冻结后 W1 接入。正式定义文本由 B 提供（本节），A 合并进 v2。本小节首次随提交 `f3bd4d6` 落盘（回填见任务文档 §6.2）。
+> 登记位置：S-01 v2 G 组 **G-17“FX 逐笔/逐日投影”**；状态 **draft**，待协议冻结后 W1 接入。正式定义文本由 B 提供（本节），A 合并进 v2。本小节首次随提交 `f3bd4d6` 落盘、D-05 修订（移除 `kind` 的 `transfer` 预留值）提交 `________`（回填见任务文档 §6.2）。
 
 ### 16.1 目的与边界
 
@@ -220,7 +220,7 @@ export interface FxConvertedEntry {
   readonly id: string;
   readonly bookId: string;
   readonly date: string;                                           // occurredLocalDate（YYYY-MM-DD）
-  readonly kind: "income" | "expense" | "transfer";
+  readonly kind: "income" | "expense";                             // 继承交易自身 kind，与 `TransactionKind`（TRANSACTION_KINDS）对齐
   readonly categoryId: string;
   readonly targetMinor: string;                                    // 折算后金额（目标币种最小单位，字符串）
   readonly originalMinor: number;                                  // 原币最小单位（沿用现有合同）
@@ -271,6 +271,7 @@ export function fxRangeMonths(from: string, to: string, maxMonths?: number): str
 | IV-G17-10 | **月键上限**：`fxRangeMonths(from,to,maxMonths=36)` 含首尾月、跨年连续、月键降序无关；`from>to`/非法日期抛 `fx_range_invalid`；月数 > `maxMonths` 抛 `fx_range_too_long`（**不截断**）；`maxMonths` 默认 36（draft），不得被页面各自写死。 |
 | IV-G17-11 | **不做跨轴强行对齐**：本组 `maxEntries=50_000` 与 S-01 §17 的 `maxAnalysisDays=400` 是不同轴（条目 vs 日期窗口），v2 并列登记，互不作为对方的默认值来源。 |
 | IV-G17-12 | **性能约束**：daily-only 用于图表取数；`includeEntries` 仅用于详情/导出类视图，且必须异步分批（`yieldControl`）执行；不得在渲染帧同步聚合（基线见 `S17-B-性能基线.md` §6：1M 笔 daily-only 13.6s、200k 笔逐笔 2.7s、10k×36 月 0.54s，≈13–14µs/笔）。 |
+| IV-G17-13 | **交易类型域**：`FxConvertedEntry.kind` 仅 `"income" \| "expense"`，继承交易自身 `kind`（`TRANSACTION_KINDS`/`TransactionKind`，见 `packages/shared/src/ledger.ts`）；其它值按既有 `invalid_input` 处理。 |
 
 ### 16.4 默认值与限制
 
@@ -287,4 +288,5 @@ export function fxRangeMonths(from: string, to: string, maxMonths?: number): str
 1. **兼容性**：纯 additive；现有 4 个消费方（`fxView.ts`、`FxStats`、离线路径、测试）不感知新字段；web `rangeMonths` 15–36 月不再抛错是**唯一行为变化**，标 draft，W1 页面接入时才生效，W1 切分方案需写明。
 2. **冻结规则**：S-01 v2 冻结前，`fx.ts` 新 API docstring 保持“draft，待冻结后由 W1 接入”；冻结时本节不变量进 S-01 正文，`fxDetail.test.ts`（12 条）+ `fxPerformance.test.ts`（3 条，`FX_PERF=1` 门控）作为验收证据。
 3. **登记结论**：G-17 组名“FX 逐笔/逐日投影”；G-16 为 C 的 `DraftCategoryRelation`；不新开 QC 编号。
+4. **未来扩展（不在 S-01 v2 范围内）**：转账（`transfer`）**不在 S-01 v2 / 本组合同内**——当前合同 `TRANSACTION_KINDS = ["expense","income"]`，所有者规格明确“无转账合同、转账识别属非目标”；若未来引入转账，须**另立合同**（含类型、方向、成对语义、汇率与统计口径）并经所有者批准，届时升协议版本，**不得在本联合成员中预留**。本节 D-05 修订（移除此前误写的 `transfer` 预留值）见任务文档 §6.2 提交记录。
 
