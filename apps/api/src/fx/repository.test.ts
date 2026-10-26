@@ -4,6 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { config } from "dotenv";
 import { Pool } from "pg";
 import { PgFxRepository } from "./repository.js";
+import { EcbFrankfurterProvider } from "./provider.js";
+import { FxHistoryService } from "../../../../packages/shared/src/fxHistory.js";
+import { convertFx } from "../../../../packages/shared/src/fx.js";
 import type { FxSnapshot } from "../../../../packages/shared/src/fx.js";
 
 // 显式开启；只允许回环地址的测试库，只操作随机 schema，不清空现有表。
@@ -62,5 +65,22 @@ describe.skipIf(!enabled)("PostgreSQL 独立 schema 迁移与存储", () => {
     await expect(pool.query(`INSERT INTO fx_resolutions(provider,requested_date,rate_date,checked_at)
       VALUES ('fixture','2020-01-01','2020-01-02',now())`)).rejects.toThrow();
     expect(await repository.get("fixture", "2020-01-01")).toBeNull();
+  });
+  it("真实历史响应入库、读回与离线计算一致", async () => {
+    const capture = JSON.parse(await readFile(new URL("./fixtures/live-20261026/requests.json", import.meta.url), "utf8")) as { records: { name: string; status: number; body: string }[] };
+    const samples = [["weekday", "2024-05-15", "2024-05-15"], ["weekend", "2024-05-19", "2024-05-17"], ["early", "1999-01-04", "1999-01-04"]];
+    for (const [name, date, actual] of samples) {
+      const record = capture.records.find(r => r.name === name)!;
+      const provider = new EcbFrankfurterProvider(async () => new Response(record.body, { status: record.status }));
+      const online = await new FxHistoryService(repository, provider).lookup(date!);
+      expect(online).toMatchObject({ status: "available", snapshot: { date: actual } });
+      const offline = await new FxHistoryService(new PgFxRepository(pool), provider).lookup(date!, { offline: true });
+      const entry = { id: "synthetic", bookId: "isolated", amountCents: 10000, currency: "USD", occurredLocalDate: date!, kind: "expense" as const, categoryId: "synthetic" };
+      expect(convertFx(entry, "CNY", online).convertedMinor).toBe(convertFx(entry, "CNY", offline).convertedMinor);
+      if (name === "early") expect(convertFx(entry, "CNY", offline).reason).toBe("missing_rate");
+      else expect(convertFx(entry, "CNY", offline).status).toBe("converted");
+    }
+    const stored = await repository.get("ecb-via-frankfurter-v2", "2024-05-15");
+    expect(stored?.snapshot.rates["CNY"]).toBe("7.8212");
   });
 });

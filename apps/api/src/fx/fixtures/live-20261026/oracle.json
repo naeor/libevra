@@ -1,0 +1,1016 @@
+{
+  "method": "Python Decimal precision=80, ROUND_HALF_UP; EUR reference bridge; no double arithmetic",
+  "officialAndV1Match": true,
+  "sampleMaxAdjacentRatio": "1.0097162097162097162097162097162097162097162097162097162097162097162097162097162",
+  "usdBaseComparisons": [
+    {
+      "quote": "CNY",
+      "derived": "7.2204579025110782865583456425406203840472673559822747415066469719350073855243722",
+      "directApi": "7.2205",
+      "absoluteDifference": "0.0000420974889217134416543574593796159527326440177252584933530280649926144756278",
+      "halfPublishedUnit": "0.00005"
+    },
+    {
+      "quote": "EUR",
+      "derived": "0.92319054652880354505169867060561299852289512555391432791728212703101920236336780",
+      "directApi": "0.92319",
+      "absoluteDifference": "5.4652880354505169867060561299852289512555391432791728212703101920236336780E-7",
+      "halfPublishedUnit": "0.000005"
+    },
+    {
+      "quote": "GBP",
+      "derived": "0.79246676514032496307237813884785819793205317577548005908419497784342688330871492",
+      "directApi": "0.79247",
+      "absoluteDifference": "0.00000323485967503692762186115214180206794682422451994091580502215657311669128508",
+      "halfPublishedUnit": "0.000005"
+    },
+    {
+      "quote": "HKD",
+      "derived": "7.8081610044313146233382570162481536189069423929098966026587887740029542097488922",
+      "directApi": "7.8082",
+      "absoluteDifference": "0.0000389955686853766617429837518463810930576070901033973412112259970457902511078",
+      "halfPublishedUnit": "0.00005"
+    },
+    {
+      "quote": "JPY",
+      "derived": "155.49298375184638109305760709010339734121122599704579025110782865583456425406204",
+      "directApi": "155.49",
+      "absoluteDifference": "0.00298375184638109305760709010339734121122599704579025110782865583456425406204",
+      "halfPublishedUnit": "0.005"
+    }
+  ],
+  "cases": [
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "CNY",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "CNY",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "1710"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "CNY",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "1578"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "CNY",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "2659"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "CNY",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "13350"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "CNY",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "1355"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "USD",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "89137"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "USD",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "USD",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "11397"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "USD",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "19196"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "USD",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "96392"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "USD",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "9783"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "EUR",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "96553"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "EUR",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "13372"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "EUR",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "EUR",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "20793"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "EUR",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "104412"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "EUR",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "10597"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "JPY",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "57325"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "JPY",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "7939"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "JPY",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "7329"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "JPY",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "JPY",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "61991"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "JPY",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "6292"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "HKD",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "11416"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "HKD",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "1581"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "HKD",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "1460"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "HKD",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "2458"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "HKD",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "HKD",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "1253"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "GBP",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "112480"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "GBP",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "15578"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "GBP",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "14381"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "GBP",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "24223"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "GBP",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "121635"
+    },
+    {
+      "sample": "weekday",
+      "date": "2024-05-15",
+      "rateDate": "2024-05-15",
+      "source": "GBP",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "CNY",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "CNY",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "CNY",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "CNY",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "CNY",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "CNY",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "USD",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "USD",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "USD",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "10472"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "USD",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "14004"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "USD",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "95639"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "USD",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "7446"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "EUR",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "EUR",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "14554"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "EUR",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "EUR",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "16509"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "EUR",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "112749"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "EUR",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "8779"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "JPY",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "JPY",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "10883"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "JPY",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "9231"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "JPY",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "JPY",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "84311"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "JPY",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "6564"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "HKD",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "HKD",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "1593"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "HKD",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "1352"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "HKD",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "1808"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "HKD",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "HKD",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "961"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "GBP",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": null
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "GBP",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "20466"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "GBP",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "17360"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "GBP",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "23216"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "GBP",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "158556"
+    },
+    {
+      "sample": "early",
+      "date": "1999-01-04",
+      "rateDate": "1999-01-04",
+      "source": "GBP",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "CNY",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "CNY",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "1851"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "CNY",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "1653"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "CNY",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "2902"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "CNY",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "14517"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "CNY",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "1384"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "USD",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "82344"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "USD",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "USD",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "11029"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "USD",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "19357"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "USD",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "96829"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "USD",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "9235"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "EUR",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "92168"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "EUR",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "13818"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "EUR",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "EUR",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "21667"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "EUR",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "108380"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "EUR",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "10336"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "JPY",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "52514"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "JPY",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "7873"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "JPY",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "7034"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "JPY",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "JPY",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "61752"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "JPY",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "5889"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "HKD",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "10498"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "HKD",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "1574"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "HKD",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "1406"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "HKD",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "2468"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "HKD",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "HKD",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "1177"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "GBP",
+      "target": "CNY",
+      "minor": 12345,
+      "expectedMinor": "110080"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "GBP",
+      "target": "USD",
+      "minor": 12345,
+      "expectedMinor": "16503"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "GBP",
+      "target": "EUR",
+      "minor": 12345,
+      "expectedMinor": "14744"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "GBP",
+      "target": "JPY",
+      "minor": 12345,
+      "expectedMinor": "25877"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "GBP",
+      "target": "HKD",
+      "minor": 12345,
+      "expectedMinor": "129444"
+    },
+    {
+      "sample": "adapter-recent",
+      "date": "2026-10-23",
+      "rateDate": "2026-10-23",
+      "source": "GBP",
+      "target": "GBP",
+      "minor": 12345,
+      "expectedMinor": "12345"
+    }
+  ]
+}

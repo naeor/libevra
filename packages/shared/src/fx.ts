@@ -4,7 +4,7 @@ import { decimalsFor } from "./money.js";
 /** 派生规则版本；不写回流水。参考汇率是每 EUR 的主币单位数。 */
 export const FX_POLICY = "minor-half-away-v1";
 export const FX_MAX_FALLBACK_DAYS = 7;
-export type FxReason = "invalid_input" | "unsupported_currency" | "missing_rate" | "stale_rate"
+export type FxReason = "invalid_input" | "unsupported_currency" | "missing_rate"
   | "invalid_rate" | "conflict" | "anomaly" | "timeout" | "network" | "api_error" | "storage_error";
 export interface FxSnapshot {
   readonly base: "EUR";
@@ -24,7 +24,8 @@ export interface FxEntry {
   readonly categoryId: string;
   readonly version?: number;
 }
-export type FxLookup = { readonly status: "available"; readonly snapshot: FxSnapshot; readonly cached: boolean }
+export interface FxReview { readonly checkedAt: string; readonly needsReview: boolean; readonly nextCheckAt: string; }
+export type FxLookup = { readonly status: "available"; readonly snapshot: FxSnapshot; readonly cached: boolean; readonly review?: FxReview }
   | { readonly status: "unavailable"; readonly reason: FxReason };
 export interface FxResult {
   readonly originalMinor: number;
@@ -41,6 +42,7 @@ export interface FxResult {
   readonly revision: string | null;
   readonly rateCached: boolean;
   readonly resultCached: boolean;
+  readonly review: FxReview | null;
   readonly policy: string;
 }
 export function fxDate(value: string): boolean {
@@ -81,7 +83,7 @@ export function convertFx(entry: FxEntry, target: string, lookup?: FxLookup): Fx
   const result: FxResult = {
     originalMinor: entry.amountCents, originalCurrency: entry.currency, targetCurrency: target,
     requestedDate: entry.occurredLocalDate, status: "unavailable", convertedMinor: null, reason: null,
-    rate: null, rateDate: null, provider: null, revision: null, rateCached: false, resultCached: false, policy: FX_POLICY,
+    rate: null, rateDate: null, provider: null, revision: null, rateCached: false, resultCached: false, review: null, policy: FX_POLICY,
   };
   const unavailable = (reason: FxReason): FxResult => ({ ...result, reason });
   // 既有流水语义：金额非负，收入/支出由 kind 表达；退款不擅自引入负流水。
@@ -102,7 +104,7 @@ export function convertFx(entry: FxEntry, target: string, lookup?: FxLookup): Fx
   const rounded = (n * 2n + d) / (2n * d);
   return { ...result, status: "converted", convertedMinor: rounded.toString(),
     rate: { numerator: numerator.toString(), denominator: denominator.toString() }, rateDate: snapshot.date,
-    provider: snapshot.provider, revision: snapshot.revision, rateCached: lookup.cached };
+    provider: snapshot.provider, revision: snapshot.revision, rateCached: lookup.cached, review: lookup.review ?? null };
 }
 
 /** 有界 LRU，只存派生结果；实例只能由上层在已授权的会话中持有。 */
@@ -135,6 +137,7 @@ export class FxResultCache {
 export interface FxTotals { incomeMinor: string; expenseMinor: string; netMinor: string; }
 export interface FxAggregate {
   targetCurrency: string; complete: boolean; missingCount: number; convertedCount: number;
+  reviewNeededCount: number; reviewDates: string[];
   totals: FxTotals; months: Record<string, FxTotals>; categories: Record<string, FxTotals>;
   originalByCurrency: Record<string, FxTotals>;
   failures: { id: string; bookId: string; date: string; currency: string; reason: FxReason }[];
@@ -153,6 +156,7 @@ export function aggregateFx(accountId: string, bookId: string, entries: readonly
   if (!accountId || !bookId || entries.some(entry => entry.bookId !== bookId)) throw new Error("fx_scope_mismatch");
   if (!fxCurrency(target)) throw new Error("unsupported_currency");
   const output: FxAggregate = { targetCurrency: target, complete: true, missingCount: 0, convertedCount: 0,
+    reviewNeededCount: 0, reviewDates: [],
     totals: emptyTotals(), months: Object.create(null) as Record<string, FxTotals>,
     categories: Object.create(null) as Record<string, FxTotals>, originalByCurrency: Object.create(null) as Record<string, FxTotals>, failures: [], shareDenominatorMinor: null };
   for (const entry of entries) {
@@ -169,11 +173,62 @@ export function aggregateFx(accountId: string, bookId: string, entries: readonly
       continue;
     }
     output.convertedCount++;
+    if (result.review?.needsReview) {
+      output.reviewNeededCount++;
+      if (!output.reviewDates.includes(entry.occurredLocalDate)) output.reviewDates.push(entry.occurredLocalDate);
+    }
     addTotal(output.totals, entry.kind, result.convertedMinor);
     addTotal(output.months[entry.occurredLocalDate.slice(0, 7)] ??= emptyTotals(), entry.kind, result.convertedMinor);
     addTotal(output.categories[entry.categoryId] ??= emptyTotals(), entry.kind, result.convertedMinor);
   }
   output.missingCount = output.failures.length; output.complete = output.missingCount === 0;
   if (output.complete) output.shareDenominatorMinor = output.totals.expenseMinor;
+  return output;
+}
+
+export interface FxAsyncOptions {
+  readonly batchSize?: number;
+  readonly signal?: AbortSignal;
+  readonly yieldControl?: () => Promise<void>;
+}
+/** MessageChannel 让出宏任务，避免 Windows 定时器粒度为每批额外增加十几毫秒。 */
+export function yieldFxControl(): Promise<void> {
+  return new Promise(resolve => {
+    if (typeof MessageChannel === "undefined") { setTimeout(resolve, 0); return; }
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => { channel.port1.close(); channel.port2.close(); resolve(); };
+    channel.port2.postMessage(null);
+  });
+}
+/** 大批量派生计算分批让出事件循环；未完成或被取消的结果不会作为完整统计返回。 */
+export async function aggregateFxAsync(accountId: string, bookId: string, entries: readonly FxEntry[], target: string,
+  rates: ReadonlyMap<string, FxLookup>, options: FxAsyncOptions = {}): Promise<FxAggregate> {
+  const batchSize = options.batchSize ?? 200;
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 1000) throw new RangeError("fx_batch_size");
+  const output = aggregateFx(accountId, bookId, [], target, rates);
+  const yieldControl = options.yieldControl ?? yieldFxControl;
+  const mergeTotals = (into: FxTotals, from: FxTotals): void => {
+    into.incomeMinor = (BigInt(into.incomeMinor) + BigInt(from.incomeMinor)).toString();
+    into.expenseMinor = (BigInt(into.expenseMinor) + BigInt(from.expenseMinor)).toString();
+    into.netMinor = (BigInt(into.incomeMinor) - BigInt(into.expenseMinor)).toString();
+  };
+  options.signal?.throwIfAborted();
+  for (let offset = 0; offset < entries.length; offset += batchSize) {
+    options.signal?.throwIfAborted();
+    const part = aggregateFx(accountId, bookId, entries.slice(offset, offset + batchSize), target, rates, new FxResultCache(1));
+    mergeTotals(output.totals, part.totals);
+    for (const group of ["months", "categories", "originalByCurrency"] as const) {
+      for (const [key, total] of Object.entries(part[group])) mergeTotals(output[group][key] ??= emptyTotals(), total);
+    }
+    output.failures.push(...part.failures);
+    output.convertedCount += part.convertedCount;
+    output.reviewNeededCount += part.reviewNeededCount;
+    for (const date of part.reviewDates) if (!output.reviewDates.includes(date)) output.reviewDates.push(date);
+    if (offset + batchSize < entries.length) await yieldControl();
+  }
+  options.signal?.throwIfAborted();
+  output.missingCount = output.failures.length;
+  output.complete = output.missingCount === 0;
+  output.shareDenominatorMinor = output.complete ? output.totals.expenseMinor : null;
   return output;
 }

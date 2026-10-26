@@ -42,9 +42,12 @@ export class EcbFrankfurterProvider implements FxProvider {
         if (!row || typeof row !== "object") throw new FxError("invalid_rate");
         const value = row as Record<string, unknown>;
         const day = value["date"], quote = value["quote"], raw = value["rate"];
-        if (typeof day !== "string" || !fxDate(day) || day > date || day < from || value["base"] !== "EUR"
+        if (typeof day !== "string" || !fxDate(day) || day > date || value["base"] !== "EUR"
           || typeof quote !== "string" || !(CURRENCIES as readonly string[]).includes(quote) || quote === "EUR"
           || (typeof raw !== "string" && typeof raw !== "number")) throw new FxError("invalid_rate");
+        // 真实区间接口会携带起点前的锚点（周日 from 可返回前一周五）。
+        // 这不是可用于扩大回退窗口的许可；跳过旧锚点，只在本窗口内选实际日期。
+        if (day < from) continue;
         const rate = String(raw);
         try { fxDecimal(rate); } catch { throw new FxError("invalid_rate"); }
         const rates = dates.get(day) ?? { EUR: "1" };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateFx, convertFx, FxResultCache, fxDate, type FxEntry, type FxLookup, type FxSnapshot } from "./fx.js";
+import { aggregateFx, aggregateFxAsync, convertFx, FxResultCache, fxDate, type FxEntry, type FxLookup, type FxSnapshot } from "./fx.js";
 import { FxError, FxHistoryService, MemoryFxRepository, type FxProvider } from "./fxHistory.js";
 
 const now = Date.parse("2026-10-26T12:00:00Z");
@@ -128,11 +128,24 @@ describe("历史服务与离线", () => {
     await expect(f.repository.save(snapshot.provider, "2026-10-24", { snapshot, checkedAt: snapshot.fetchedAt })).rejects.toThrow("conflict");
     await expect(f.repository.save(snapshot.provider, "2026-10-24", { snapshot: { ...revised, rates: { ...revised.rates, USD: "1.4" } }, checkedAt: revised.fetchedAt })).rejects.toThrow("conflict");
   });
-  it("过期缓存明确不可用，不按交易年代清除", async () => {
+  it("久未复核的历史汇率仍有效，离线明确待复核而不作废", async () => {
     const f = fixture(); await f.service.lookup(entry.occurredLocalDate);
     const later = new FxHistoryService(f.repository, f.provider, { now: () => now + 31 * 86400000 });
-    expect(await later.lookup(entry.occurredLocalDate, { offline: true })).toMatchObject({ reason: "stale_rate" });
+    const result = await later.lookup(entry.occurredLocalDate, { offline: true });
+    expect(result).toMatchObject({ status: "available", cached: true, review: { needsReview: true } });
+    expect(convertFx(entry, "CNY", result).convertedMinor).toBe("16000");
     expect((await f.repository.get(snapshot.provider, entry.occurredLocalDate))?.snapshot.date).toBe(snapshot.date);
+  });
+  it("历史与近期核对周期可配置；回退窗口可收紧", async () => {
+    const f = fixture(); await f.service.lookup(entry.occurredLocalDate);
+    const nextDay = new FxHistoryService(f.repository, f.provider, { now: () => now + 2 * 86400000 });
+    expect(await nextDay.lookup(entry.occurredLocalDate, { offline: true })).toMatchObject({ review: { needsReview: true } });
+    const oldDate = new FxHistoryService(f.repository, f.provider, { now: () => now + 10 * 86400000 });
+    expect(await oldDate.lookup(entry.occurredLocalDate, { offline: true })).toMatchObject({ review: { needsReview: false } });
+    const strict = new FxHistoryService(new MemoryFxRepository(), f.provider, { now: () => now, maxFallbackDays: 1 });
+    expect(await strict.lookup(entry.occurredLocalDate)).toMatchObject({ reason: "missing_rate" });
+    const strictCached = new FxHistoryService(f.repository, f.provider, { now: () => now, maxFallbackDays: 1 });
+    expect(await strictCached.lookup(entry.occurredLocalDate, { offline: true })).toMatchObject({ reason: "missing_rate" });
   });
   it("同日修订异常跳变隔离，旧数据仍保留", async () => {
     const f = fixture(); await f.service.lookup(entry.occurredLocalDate);
@@ -151,5 +164,27 @@ describe("历史服务与离线", () => {
     f.revise({ ...snapshot, rates: { EUR: "1", USD: "0" } });
     expect(await f.service.lookup(entry.occurredLocalDate)).toMatchObject({ reason: "invalid_rate" });
     expect(await f.repository.get(snapshot.provider, entry.occurredLocalDate)).toBeNull();
+  });
+});
+
+describe("分批计算与取消", () => {
+  it("让出事件循环且金额、缺项、月份、分类均与同步接口完全一致", async () => {
+    const rows = Array.from({ length: 405 }, (_, i) => ({ ...entry, id: String(i), occurredLocalDate: i % 7 ? entry.occurredLocalDate : "1990-01-01" }));
+    const rates = new Map([[entry.occurredLocalDate, lookup]]);
+    let yields = 0;
+    const result = await aggregateFxAsync("a", "b", rows, "CNY", rates, { batchSize: 100, yieldControl: async () => { yields++; } });
+    expect(result).toEqual(aggregateFx("a", "b", rows, "CNY", rates));
+    expect(yields).toBe(4);
+  });
+  it("待复核与统计缺项分开表达，异步接口保留警告", async () => {
+    const reviewed: FxLookup = { ...lookup, review: { checkedAt: snapshot.fetchedAt, needsReview: true, nextCheckAt: snapshot.fetchedAt } };
+    const rates = new Map([[entry.occurredLocalDate, reviewed]]);
+    const result = await aggregateFxAsync("a", "b", [entry, { ...entry, id: "e2" }], "CNY", rates, { batchSize: 1 });
+    expect(result).toMatchObject({ complete: true, missingCount: 0, reviewNeededCount: 2, reviewDates: [entry.occurredLocalDate] });
+  });
+  it("取消不能返回貌似完整的部分统计", async () => {
+    const controller = new AbortController();
+    await expect(aggregateFxAsync("a", "b", [entry, entry], "USD", new Map(), { batchSize: 1, signal: controller.signal,
+      yieldControl: async () => { controller.abort(); } })).rejects.toThrow();
   });
 });

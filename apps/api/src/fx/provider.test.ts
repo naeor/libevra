@@ -48,6 +48,11 @@ describe("ECB 单源适配器（无联网）", () => {
     const result = await new EcbFrankfurterProvider(reply([row, { ...row, date: "2026-10-22", quote: "CNY", rate: 8 }]), now).fetch("2026-10-25");
     expect(result.date).toBe("2026-10-23"); expect(result.rates["CNY"]).toBeUndefined();
   });
+  it("区间起点前锚点不能使整个响应失败，也不能突破七日窗口", async () => {
+    const provider = new EcbFrankfurterProvider(reply([{ ...row, date: "2024-05-10" }, { ...row, date: "2024-05-17" }]), now);
+    expect((await provider.fetch("2024-05-19")).date).toBe("2024-05-17");
+    await expect(new EcbFrankfurterProvider(reply([{ ...row, date: "2024-05-10" }]), now).fetch("2024-05-19")).rejects.toThrow("missing_rate");
+  });
 });
 
 describe("未启用的公共汇率路由插件", () => {

@@ -3,11 +3,12 @@ const storage = vi.hoisted(() => new Map<string, unknown>());
 const scope = vi.hoisted(() => ({ value: "a:b" }));
 vi.mock("./scope.js", () => ({ offlineScope: () => scope.value }));
 vi.mock("./storage.js", () => ({
-  readValue: async (key: string) => structuredClone(storage.get(key) ?? null),
-  writeValue: async (key: string, value: unknown) => { storage.set(key, structuredClone(value)); return true; },
+  readValue: vi.fn(async (key: string) => structuredClone(storage.get(key) ?? null)),
+  writeValue: vi.fn(async (key: string, value: unknown) => { storage.set(key, structuredClone(value)); return true; }),
 }));
 import { createOfflineFxService, OfflineFxCalculator, OfflineFxRepository, refillFxDates } from "./fx.js";
 import { convertFx, type FxSnapshot } from "../../../../../packages/shared/src/fx.js";
+import { readValue, writeValue } from "./storage.js";
 
 const snapshot: FxSnapshot = { base: "EUR", date: "2020-01-03", provider: "fixture", revision: "r1", fetchedAt: new Date().toISOString(), rates: { EUR: "1", USD: "1.25", CNY: "10" } };
 beforeEach(() => { storage.clear(); scope.value = "a:b"; });
@@ -35,6 +36,27 @@ describe("复用 IndexedDB kv 适配层", () => {
   it("损坏本地缓存降级缺失，不影响记账", async () => {
     storage.set("fx-public-rates-v1", { values: { '["fixture","2020-01-05"]': { snapshot: { rates: { USD: "0" } } } } });
     expect(await new OfflineFxRepository().get("fixture", "2020-01-05")).toBeNull();
+    await new OfflineFxRepository().save("fixture", "2020-01-05", { snapshot, checkedAt: snapshot.fetchedAt });
+    expect((await new OfflineFxRepository().get("fixture", "2020-01-05"))?.snapshot.revision).toBe("r1");
+  });
+  it("IndexedDB 无响应有界退出，下一次读取仍可恢复", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(readValue).mockReturnValueOnce(new Promise<never>(() => undefined));
+      const pending = expect(new OfflineFxRepository().get("fixture", "2020-01-05")).rejects.toThrow("fx_storage_timeout");
+      await vi.advanceTimersByTimeAsync(1600);
+      await pending;
+      expect(await new OfflineFxRepository().get("fixture", "2020-01-05")).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+  it("容量/写入失败明确返回存储错误且不污染原件，恢复后可以补齐", async () => {
+    storage.set("ledger-months:a:b", { sentinel: true });
+    vi.mocked(writeValue).mockResolvedValueOnce(false);
+    const provider = { id: "fixture", async fetch() { return snapshot; } };
+    const service = createOfflineFxService(provider);
+    expect(await service.lookup("2020-01-05")).toMatchObject({ status: "unavailable", reason: "storage_error" });
+    expect(storage.get("ledger-months:a:b")).toEqual({ sentinel: true });
+    expect(await service.lookup("2020-01-05")).toMatchObject({ status: "available" });
   });
   it("跨实例串行保存不丢日期，同日修订更新已有假日解析", async () => {
     const one = new OfflineFxRepository(), two = new OfflineFxRepository();
@@ -59,5 +81,19 @@ describe("复用 IndexedDB kv 适配层", () => {
     expect(() => calculator.aggregate([entry], "USD", new Map())).toThrow("fx_scope_mismatch");
     scope.value = "";
     expect(() => calculator.aggregate([entry], "USD", new Map())).toThrow("fx_scope_unresolved");
+  });
+  it("异步汇总途中切换账号/账本不返回旧财务结果", async () => {
+    const entry = { id: "e", bookId: "b", amountCents: 100, currency: "USD", occurredLocalDate: "2020-01-05", kind: "expense" as const, categoryId: "c" };
+    const calculator = new OfflineFxCalculator();
+    await expect(calculator.aggregateAsync([entry, entry], "USD", new Map(), { batchSize: 1,
+      yieldControl: async () => { scope.value = "other:another"; } })).rejects.toThrow("fx_scope_changed");
+  });
+  it("新目标币种请求或主动清理会废弃旧异步请求", async () => {
+    const entry = { id: "e", bookId: "b", amountCents: 100, currency: "USD", occurredLocalDate: "2020-01-05", kind: "expense" as const, categoryId: "c" };
+    const calculator = new OfflineFxCalculator();
+    await expect(calculator.aggregateAsync([entry, entry], "USD", new Map(), { batchSize: 1,
+      yieldControl: async () => { calculator.aggregate([entry], "CNY", new Map()); } })).rejects.toThrow("fx_request_superseded");
+    await expect(calculator.aggregateAsync([entry, entry], "USD", new Map(), { batchSize: 1,
+      yieldControl: async () => { calculator.clear(); } })).rejects.toThrow("fx_request_superseded");
   });
 });

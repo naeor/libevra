@@ -44,7 +44,8 @@ export class MemoryFxRepository implements FxRepository {
 export interface FxHistoryOptions {
   /** 修订重新核对周期；不是按交易日期驱逐历史汇率。 */
   recheckMs?: number;
-  offlineMaxAgeMs?: number;
+  historicalRecheckMs?: number;
+  maxFallbackDays?: number;
   /** 异常隔离阈值是工程防线，未经过产品验收不自动放行。 */
   maxJumpFactor?: number;
   now?: () => number;
@@ -53,7 +54,23 @@ export class FxHistoryService {
   private readonly pending = new Map<string, Promise<FxLookup>>();
   private readonly now: () => number;
   constructor(private readonly repository: FxRepository, private readonly provider: FxProvider,
-    private readonly options: FxHistoryOptions = {}) { this.now = options.now ?? Date.now; }
+    private readonly options: FxHistoryOptions = {}) {
+    this.now = options.now ?? Date.now;
+    for (const period of [options.recheckMs, options.historicalRecheckMs]) {
+      if (period !== undefined && (!Number.isFinite(period) || period < 0)) throw new RangeError("fx_recheck_period");
+    }
+    if (options.maxFallbackDays !== undefined && (!Number.isInteger(options.maxFallbackDays) || options.maxFallbackDays < 0 || options.maxFallbackDays > FX_MAX_FALLBACK_DAYS)) throw new RangeError("fx_fallback_days");
+    if (options.maxJumpFactor !== undefined && (!Number.isFinite(options.maxJumpFactor) || options.maxJumpFactor < 1)) throw new RangeError("fx_jump_factor");
+  }
+  private recheckPeriod(date: string): number {
+    const recent = rateAge(new Date(this.now()).toISOString().slice(0, 10), date) <= 7;
+    return recent ? (this.options.recheckMs ?? 86400000) : (this.options.historicalRecheckMs ?? 30 * 86400000);
+  }
+  private available(date: string, value: FxStored, cached: boolean): FxLookup {
+    const nextCheck = Date.parse(value.checkedAt) + this.recheckPeriod(date);
+    return { status: "available", snapshot: value.snapshot, cached,
+      review: { checkedAt: value.checkedAt, needsReview: this.now() >= nextCheck, nextCheckAt: new Date(nextCheck).toISOString() } };
+  }
   async lookup(date: string, options: { offline?: boolean; refresh?: boolean } = {}): Promise<FxLookup> {
     if (!fxDate(date) || date > new Date(this.now()).toISOString().slice(0, 10)) return { status: "unavailable", reason: "invalid_input" };
     let existing: FxStored | null;
@@ -65,11 +82,10 @@ export class FxHistoryService {
       const sinceCheck = this.now() - Date.parse(existing.checkedAt);
       const sinceFetch = this.now() - Date.parse(existing.snapshot.fetchedAt);
       if (!Number.isFinite(sinceCheck) || !Number.isFinite(sinceFetch) || sinceCheck < 0 || sinceFetch < 0
-        || age < 0 || age > FX_MAX_FALLBACK_DAYS || existing.snapshot.provider !== this.provider.id) return { status: "unavailable", reason: "invalid_rate" };
-      if (options.offline) return sinceFetch <= (this.options.offlineMaxAgeMs ?? 30 * 86400000)
-        ? { status: "available", snapshot: existing.snapshot, cached: true }
-        : { status: "unavailable", reason: "stale_rate" };
-      if (!options.refresh && sinceCheck < (this.options.recheckMs ?? 86400000)) return { status: "available", snapshot: existing.snapshot, cached: true };
+        || age < 0 || existing.snapshot.provider !== this.provider.id) return { status: "unavailable", reason: "invalid_rate" };
+      if (age > (this.options.maxFallbackDays ?? FX_MAX_FALLBACK_DAYS)) return { status: "unavailable", reason: "missing_rate" };
+      // 历史观察不会因下载时间较早失效；离线保留有效数据并明确提示待复核。
+      if (options.offline || (!options.refresh && sinceCheck < this.recheckPeriod(date))) return this.available(date, existing, true);
     }
     if (options.offline) return { status: "unavailable", reason: "missing_rate" };
     const pending = this.pending.get(date);
@@ -84,7 +100,7 @@ export class FxHistoryService {
       try { validateSnapshot(snapshot); } catch { throw new FxError("invalid_rate"); }
       const age = rateAge(date, snapshot.date);
       if (Date.parse(snapshot.fetchedAt) > this.now()) throw new FxError("invalid_rate");
-      if (snapshot.provider !== this.provider.id || age < 0 || age > FX_MAX_FALLBACK_DAYS) throw new FxError("missing_rate");
+      if (snapshot.provider !== this.provider.id || age < 0 || age > (this.options.maxFallbackDays ?? FX_MAX_FALLBACK_DAYS)) throw new FxError("missing_rate");
       // 同日修订和跨日跳变均隔离；比较的是已确认参考数据，不猜测正确值。
       const previousDay = new Date(Date.parse(`${snapshot.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
       const previous = existing ?? await this.repository.get(this.provider.id, previousDay);
@@ -100,7 +116,7 @@ export class FxHistoryService {
       }
       try { await this.repository.save(this.provider.id, date, { snapshot, checkedAt: new Date(this.now()).toISOString() }); }
       catch (error) { throw error instanceof FxError ? error : new FxError("storage_error"); }
-      return { status: "available", snapshot, cached: false };
+      return this.available(date, { snapshot, checkedAt: new Date(this.now()).toISOString() }, false);
     } catch (error) {
       return { status: "unavailable", reason: error instanceof FxError ? error.reason : "network" };
     }
