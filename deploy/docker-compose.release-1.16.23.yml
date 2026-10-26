@@ -1,0 +1,15 @@
+# 1.16.23：多币种分析页卡片与分析模式修复，无数据库迁移（保持 60）。
+# 只发布 api/web；relay 保持原有已验证镜像。
+services:
+  migrate:
+    image: libevra-rc-api:1.16.23-20261027
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.16.23-20261027
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.16.23-20261027
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type Transaction, type FxResult } from "@libellum/shared";
 import { useI18n } from "../i18n/index.js";
 import { fxMoney, useFxEntry, useFxMode, useFxRange } from "../lib/fxView.js";
@@ -48,16 +48,39 @@ export function FxAmount({ entry, details = false }: { entry: Transaction; detai
 }
 export function FxMonthSummary({ data: fx, compact = false }: { data: ReturnType<typeof useFxRange>; compact?: boolean }) {
   const { t } = useI18n();
-  if (compact) return <><p className="text-helper">{t("fx.combined")} · {fx.target}</p><p className="mt-2 text-base font-semibold tabular-nums">{fx.result ? fxMoney(fx.result.totals.expenseMinor, fx.target) : t(fx.error ? "fx.error" : "fx.loading")}</p>{fx.result && (!fx.result.complete || !fx.sourceComplete) ? <p className="text-helper">{t("fx.incomplete")}</p> : null}</>;
-  return <section className="rounded-card border border-line bg-surface p-4 text-ink">
+  const content = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const element = content.current, root = element?.closest<HTMLElement>(".detail-root");
+    if (compact || !element || !root) return;
+    // 测量自然内容，动画仍只读原有 --p；不在动画每帧写 React 状态。
+    const measure = () => {
+      const card = Math.max(128, Math.ceil(element.getBoundingClientRect().height));
+      const small = Math.max(74, ...Array.from(root.querySelectorAll<HTMLElement>("[data-currency-content]")).map(node => Math.ceil(node.getBoundingClientRect().height)));
+      root.style.setProperty("--card-tall", `${card}px`);
+      root.style.setProperty("--secondary-tall", `${small}px`);
+      root.style.setProperty("--hero-tall", `${360 + card - 128 + small - 74}px`);
+      root.style.setProperty("--hero-short", `${140 + small - 74}px`);
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    root.querySelectorAll("[data-currency-content]").forEach(node => observer?.observe(node));
+    return () => {
+      observer?.disconnect();
+      for (const name of ["--card-tall", "--secondary-tall", "--hero-tall", "--hero-short"]) root.style.removeProperty(name);
+    };
+  }, [compact, fx.result, fx.sourceComplete, fx.error, fx.target, t]);
+  if (compact) return <div data-currency-content className="flex min-w-0 flex-col justify-center gap-1 px-4 py-2.5 [overflow-wrap:anywhere]"><p className="text-helper">{t("fx.combined")} · {fx.target}</p><p className="text-base font-semibold tabular-nums">{fx.result ? fxMoney(fx.result.totals.expenseMinor, fx.target) : t(fx.error ? "fx.unavailable" : "fx.loading")}</p>{fx.result && (!fx.result.complete || !fx.sourceComplete) ? <p className="text-helper">{t("fx.incomplete")}</p> : null}</div>;
+  return <section ref={content} data-fx-hero className="detail-currency-card min-w-0 gap-1 px-5 py-4 text-on-brand [overflow-wrap:anywhere]">
     <p className="text-card-title">{t("fx.combined")} · {fx.target}</p>
-    {fx.offline ? <p className="mt-1 text-helper text-muted">{t("fx.offline")}</p> : null}
+    {fx.offline ? <p className="text-helper text-on-brand/80">{t("fx.offline")}</p> : null}
     {fx.result ? <>
-      <p className="mt-2 text-lg font-semibold tabular-nums">{t("fx.expense")} {fxMoney(fx.result.totals.expenseMinor, fx.target)}</p>
-      <p className="mt-1 text-helper">{t("fx.income")} {fxMoney(fx.result.totals.incomeMinor, fx.target)} · {t("fx.net")} {fxMoney(fx.result.totals.netMinor, fx.target)}</p>
-      {!fx.result.complete || !fx.sourceComplete ? <p className="mt-2 text-helper text-warn">{t("fx.incomplete")} · {t("fx.subtotal")}</p> : null}
-      {fx.result.reviewNeededCount ? <p className="text-helper text-muted">{t("fx.review")}</p> : null}
+      <p className="text-helper text-on-brand/80">{t("fx.expense")}</p>
+      <p className={`${fxMoney(fx.result.totals.expenseMinor, fx.target).length > 22 ? "text-base" : "detail-main-amount"} font-semibold tabular-nums`}>{fxMoney(fx.result.totals.expenseMinor, fx.target)}</p>
+      <dl className="flex min-w-0 flex-col gap-1 text-helper tabular-nums text-on-brand/80">{(["income", "net"] as const).map(key => <div key={key} className="flex min-w-0 flex-wrap justify-between gap-x-3"><dt>{t(`fx.${key}`)}</dt><dd className="min-w-0">{fxMoney(fx.result!.totals[`${key}Minor`], fx.target)}</dd></div>)}</dl>
+      {!fx.result.complete || !fx.sourceComplete ? <p className="mt-1 text-helper">{t("fx.incomplete")} · {t("fx.subtotal")}</p> : null}
+      {fx.result.reviewNeededCount ? <p className="text-helper">{t("fx.review")}</p> : null}
     </> : <p className="text-helper">{t(fx.error ? "fx.error" : "fx.loading")}</p>}
-    <button type="button" onClick={fx.refresh} className="mt-2 text-link text-brand-dark underline">{t(fx.error ? "fx.retry" : "fx.refresh")}</button>
+    <button type="button" onClick={fx.refresh} className="min-h-11 self-start text-link text-on-brand underline">{t(fx.error ? "fx.retry" : "fx.refresh")}</button>
   </section>;
 }

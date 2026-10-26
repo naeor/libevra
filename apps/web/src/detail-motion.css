@@ -389,6 +389,21 @@
   background: var(--color-glass-highlight);
 }
 
+/* 折算摘要的自然高度由内容测量；外壳只在既有收起过渡中裁切。 */
+.detail-fx-root .detail-hero { flex-shrink: 0; }
+.detail-fx-root .detail-small-card { min-width: 0; }
+.detail-fx-root [data-currency-content] {
+  height: auto;
+  min-height: 74px;
+  padding-block: 10px;
+}
+.detail-fx-root [data-currency-content] span {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.detail-fx-root [data-fx-hero] { width: 100%; }
+.detail-fx-root .detail-twin [data-currency-content] { width: 8.5rem; flex-shrink: 0; }
+
 /*
  * The month arrows.
  *

@@ -1,4 +1,5 @@
 export default {
+  analysisMode: "分析方式",
   title: "汇率折算模式", hint: "按交易日期的历史参考汇率，以你的默认币种查看。原始账目不变。",
   device: "仅保存在此设备，按账号独立设置。", saveError: "无法保存设置，请检查本机存储。",
   target: "统计货币：{{currency}}", combined: "综合统计", separate: "分币种分析", original: "原币",

@@ -1,11 +1,31 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { convertFx, type Transaction } from "@libellum/shared";
-import { FxAmountView } from "../components/FxDisplay.js";
+import { aggregateFx, convertFx, type Transaction } from "@libellum/shared";
+import { FxAmountView, FxMonthSummary } from "../components/FxDisplay.js";
 import { fxMoney, rangeMonths, readFxMode, saveFxMode, fxMonthCovered, fxMonthStored, mergeFxOriginals } from "./fxView.js";
 import { applyLocale } from "../i18n/index.js";
+import type { useFxRange } from "./fxView.js";
 const entry = { id: "synthetic", bookId: "b", kind: "expense", currency: "USD", amountCents: 2000, occurredLocalDate: "2026-10-23", categoryId: "c" } as unknown as Transaction;
 describe("折算显示语义", () => {
+  it("综合主卡保留超大金额和负差额，沿用逐笔汇总值", () => {
+    applyLocale("zh-CN");
+    const result = aggregateFx("a", "b", [{ ...entry, bookId: "b", currency: "CNY", amountCents: 1000000000000 }], "CNY", new Map());
+    const data = { target: "CNY", result, sourceComplete: true, refresh: () => {} } as unknown as ReturnType<typeof useFxRange>;
+    const html = renderToStaticMarkup(<FxMonthSummary data={data} />);
+    expect(html).toContain("10,000,000,000.00 CNY");
+    expect(html).toContain("−10,000,000,000.00 CNY");
+    expect(html).toContain("收支差额");
+    expect(html).not.toContain("统计不完整");
+  });
+  it("缺汇率和原件不完整分别保留小计提醒，不能伪装完整总额", () => {
+    applyLocale("zh-CN");
+    const missing = aggregateFx("a", "b", [{ ...entry, bookId: "b" }], "CNY", new Map());
+    const identity = aggregateFx("a", "b", [{ ...entry, bookId: "b" }], "USD", new Map());
+    for (const [result, target, sourceComplete] of [[missing, "CNY", true], [identity, "USD", false]] as const) {
+      const data = { target, result, sourceComplete, refresh: () => {} } as unknown as ReturnType<typeof useFxRange>;
+      expect(renderToStaticMarkup(<FxMonthSummary data={data} />)).toContain("成功折算部分的小计");
+    }
+  });
   it("整数字符串金额不丢精度，JPY 不放大100倍", () => {
     expect(fxMoney("18014398509481982", "CNY")).toBe("180,143,985,094,819.82 CNY");
     expect(fxMoney("1500", "JPY")).toBe("1,500 JPY");

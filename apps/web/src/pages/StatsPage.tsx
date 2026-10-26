@@ -13,8 +13,8 @@ import {
   type StatsRangeKey,
   type TransactionKind,
 } from "@libellum/shared";
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { FxStats } from "../components/FxStats.js";
@@ -33,6 +33,7 @@ import { formatLocalDate, toLocalDate } from "../lib/datetime.js";
 import { currencyName, formatMoney } from "../lib/format.js";
 import { useLedger, useStats } from "../lib/queries.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
+import { readStatsView, updateStatsView } from "../lib/statsView.js";
 
 /** The heat map's own two views: the last week, or the current month. */
 const HEAT_RANGES = ["7d", "month"] as const;
@@ -40,7 +41,13 @@ export type HeatRange = (typeof HEAT_RANGES)[number];
 
 export function StatsPage(): React.JSX.Element {
   const fxMode = useFxMode();
-  const [combined, setCombined] = useState(true);
+  const [params, setParams] = useSearchParams();
+  const { combined, preset, currency, month, kind, heatRange } = readStatsView(params);
+  const updateView = (patch: Readonly<Record<string, string | null>>) => setParams(previous => updateStatsView(previous, patch), { replace: true });
+  const setCombined = (value: boolean) => updateView({ analysis: value ? "combined" : "currency" });
+  const setPreset = (value: StatsRangeKey) => updateView({ range: value, month: null });
+  const setMonth = (value: string) => updateView({ month: value });
+  const setKind = (value: TransactionKind) => updateView({ kind: value });
   const navigate = useNavigate();
   const ledger = useLedger();
   const { user } = useAuth();
@@ -52,11 +59,6 @@ export function StatsPage(): React.JSX.Element {
   const showDate = (localDate: string): string => (isChineseLocale(locale) ? localDate : formatLocalDate(localDate));
   /** 热力图两个视图的名字：近 7 天 与时段按钮同名，本月单独一条。 */
   const heatRangeLabel = (option: HeatRange): string => (option === "7d" ? t("stats.range.7d") : t("stats.thisMonth"));
-
-  const [preset, setPreset] = useState<StatsRangeKey>("30d");
-  const [currency, setCurrency] = useState<Currency | null>(null);
-  const [kind, setKind] = useState<TransactionKind>("expense");
-  const [heatRange, setHeatRange] = useState<HeatRange>("month");
 
   /**
    * Today, from this device's clock.
@@ -70,8 +72,8 @@ export function StatsPage(): React.JSX.Element {
   const currencyInUse: Currency = currency ?? user?.defaultCurrency ?? "CNY";
 
   // The four buttons are a shortcut; everything below deals in dates.
-  const range = rangeForPreset(preset, today);
-  const bucket = bucketForPreset(preset);
+  const range = month ? { from: `${month}-01`, to: endOfMonth(`${month}-01`) } : rangeForPreset(preset, today);
+  const bucket = month ? "day" : bucketForPreset(preset);
   const comparison = comparisonRangeFor(range);
 
   const year = today.slice(0, 4);
@@ -106,10 +108,17 @@ export function StatsPage(): React.JSX.Element {
     [main.data, kind],
   );
 
+  const modeSwitch = fxMode.enabled ? <div role="group" aria-label={t("fx.analysisMode")} className="flex flex-wrap gap-2 px-6 pt-5">
+    {([true, false] as const).map(value => <button key={String(value)} type="button" aria-pressed={combined === value}
+      onClick={() => setCombined(value)} className={`min-h-11 rounded-full px-4 py-2 text-body transition ${combined === value ? "bg-brand text-on-brand" : "bg-surface text-ink"}`}>
+      {t(value ? "fx.combined" : "fx.separate")}
+    </button>)}
+  </div> : null;
+
   if (fxMode.enabled && combined) return <TabPage currentBookName={ledger.data?.book.name} active="stats" onNavigate={to => { void navigate(to); }}>
     <TabPageHeader title={t("stats.title")} subtitle={t("fx.combined")} />
-    <div className="flex gap-3 px-6 pt-5"><span className="rounded-full bg-brand px-4 py-2 text-body text-on-brand">{t("fx.combined")}</span><button type="button" className="rounded-full bg-surface px-4 py-2 text-body text-ink" onClick={() => setCombined(false)}>{t("fx.separate")}</button></div>
-    <FxStats range={range} preset={preset} setPreset={setPreset} />
+    {modeSwitch}
+    <FxStats range={range} preset={preset} setPreset={setPreset} month={month} setMonth={setMonth} kind={kind} setKind={setKind} />
   </TabPage>;
 
   return (
@@ -129,7 +138,7 @@ export function StatsPage(): React.JSX.Element {
         * answered, just once instead of twice.
         */}
       <TabPageHeader title={t("stats.title")} subtitle={t("stats.subtitle")} />
-      {fxMode.enabled ? <button type="button" onClick={() => setCombined(true)} className="mx-6 mt-5 self-start rounded-full bg-brand px-4 py-2 text-body text-on-brand">{t("fx.combined")}</button> : null}
+      {modeSwitch}
 
       {/**
         * ⚠️ **`pt-6`, to match the first block on 账本／协作** — the owner's 7th point:
@@ -160,7 +169,7 @@ export function StatsPage(): React.JSX.Element {
                 setPreset(option);
               }}
               className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${
-                preset === option ? "bg-brand text-on-brand" : "bg-surface text-muted hover:text-ink"
+                !month && preset === option ? "bg-brand text-on-brand" : "bg-surface text-muted hover:text-ink"
               }`}
             >
               {t(`stats.range.${option}`)}
@@ -174,7 +183,7 @@ export function StatsPage(): React.JSX.Element {
               key={option}
               type="button"
               onClick={() => {
-                setCurrency(option);
+                updateView({ currency: option });
               }}
               className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${
                 currencyInUse === option ? "bg-brand text-on-brand" : "bg-surface text-muted hover:text-ink"
@@ -185,6 +194,8 @@ export function StatsPage(): React.JSX.Element {
           ))}
         </div>
 
+        {fxMode.enabled ? <label className="flex flex-wrap items-center gap-3 text-body text-muted">{t("fx.month")}<input type="month" value={month} onChange={event => setMonth(event.target.value)} className="min-w-0 rounded-field border border-line bg-surface px-3 py-2 text-base text-ink" /></label> : null}
+        {month ? <button type="button" onClick={() => setMonth("")} className="self-start text-link text-brand-dark underline">{t("fx.clearMonth")}</button> : null}
         <p className="text-helper-relaxed text-muted">
           {t("stats.rangeSummary", {
             from: showDate(range.from),
@@ -276,7 +287,7 @@ export function StatsPage(): React.JSX.Element {
               key={option}
               type="button"
               onClick={() => {
-                setHeatRange(option);
+                updateView({ heat: option });
               }}
               className={`rounded-full px-4 py-1.5 text-sm transition ${
                 heatRange === option ? "bg-brand text-on-brand" : "bg-canvas text-muted hover:text-ink"

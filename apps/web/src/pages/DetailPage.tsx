@@ -765,7 +765,7 @@ export function DetailPage(): React.JSX.Element {
   }
 
   return (
-    <div ref={rootRef} className="detail-root flex h-dvh flex-col overflow-hidden">
+    <div ref={rootRef} className={`detail-root flex h-dvh flex-col overflow-hidden ${fxMode.enabled ? "detail-fx-root" : ""}`}>
       {/*
         ⚠️ **The ledger builds its own frame, so it needs its own banners.**
 
@@ -921,7 +921,7 @@ export function DetailPage(): React.JSX.Element {
                   width that never matched its neighbours. Two elements, each
                   doing one job, and all of it goes.
                 */}
-                {fxMode.enabled ? <div className="detail-main-card mt-4"><FxMonthSummary data={fxSummary} /></div> : <MainCard className="detail-main-card mt-4" summary={main} currency={mainCode} />}
+                {fxMode.enabled ? <div className="detail-main-card mt-4 min-w-0 shrink-0"><FxMonthSummary data={fxSummary} /></div> : <MainCard className="detail-main-card mt-4" summary={main} currency={mainCode} />}
 
                 {/*
                   One row, never wrapping: the hero card is not in it, so it has
@@ -931,11 +931,11 @@ export function DetailPage(): React.JSX.Element {
                 */}
                 <div
                   data-h-scroll
-                  className={`detail-strip flex flex-nowrap gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${others.length === 2 ? "detail-strip-fit-pair" : ""}`}
+                  className={`detail-strip flex flex-nowrap gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${!fxMode.enabled && others.length === 2 ? "detail-strip-fit-pair" : ""}`}
                 >
-                  {fxMode.enabled ? <div className="detail-twin detail-currency-card detail-small-card shrink-0 px-4 py-3 text-on-brand"><FxMonthSummary data={fxSummary} compact /></div> : <SmallCard className="detail-twin" summary={main} currency={mainCode} />}
+                  {fxMode.enabled ? <div className="detail-twin detail-currency-card detail-small-card shrink-0 text-on-brand"><FxMonthSummary data={fxSummary} compact /></div> : <SmallCard className="detail-twin" summary={main} currency={mainCode} />}
 
-                  {others.map((item) => (
+                  {(fxMode.enabled ? currencies : others).map((item) => (
                     <SmallCard key={item.currency} summary={item} currency={item.currency} />
                   ))}
 
@@ -1499,7 +1499,7 @@ function SmallCard({
      * state before anything had moved.
      */
     <div className={`detail-currency-card detail-small-card w-34 shrink-0 ${className}`}>
-      <div className="flex h-full flex-col justify-center px-4">
+      <div data-currency-content className="flex h-full flex-col justify-center px-4">
         <span className="text-[11px] whitespace-nowrap text-on-brand/70">{currencyName(currency)}</span>
         {summary === null ? (
           <span className="text-[11px] whitespace-nowrap text-on-brand/60">{t("ledger.detail.noData")}</span>

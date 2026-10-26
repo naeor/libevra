@@ -1,20 +1,18 @@
-import { useState } from "react";
-import { endOfMonth, STATS_RANGES, type DateRange, type StatsRangeKey } from "@libellum/shared";
+import { STATS_RANGES, type DateRange, type StatsRangeKey } from "@libellum/shared";
 import { Link } from "react-router";
 import { useI18n } from "../i18n/index.js";
 import { fxMoney, useFxRange } from "../lib/fxView.js";
 import { useLedger } from "../lib/queries.js";
 import { displayCategoryName } from "../lib/presetNames.js";
 
-export function FxStats({ range, preset, setPreset }: { range: DateRange; preset: StatsRangeKey; setPreset: (value: StatsRangeKey) => void }) {
-  const [month, setMonth] = useState(""), [kind, setKind] = useState<"income" | "expense">("expense");
-  const effective = month ? { from: `${month}-01`, to: endOfMonth(`${month}-01`) } : range;
+export function FxStats({ range, preset, setPreset, month, setMonth, kind, setKind }: { range: DateRange; preset: StatsRangeKey; setPreset: (value: StatsRangeKey) => void; month: string; setMonth: (value: string) => void; kind: "income" | "expense"; setKind: (value: "income" | "expense") => void }) {
+  const effective = range;
   const fx = useFxRange(effective.from, effective.to), ledger = useLedger(), { t } = useI18n();
   const result = fx.result, complete = result?.complete && fx.sourceComplete;
   const names = new Map(ledger.data?.categories.map(category => [category.id, displayCategoryName(category.name)]));
   return <section className="flex flex-col gap-5 px-6 pt-5 pb-8" data-fx-stats>
     <div className="flex flex-wrap gap-2">{STATS_RANGES.map(option => <button key={option} type="button"
-      onClick={() => { setMonth(""); setPreset(option); }} className={`rounded-full px-4 py-2 text-body ${!month && option === preset ? "bg-brand text-on-brand" : "bg-surface text-muted"}`}>{t(`stats.range.${option}`)}</button>)}</div>
+      onClick={() => setPreset(option)} className={`rounded-full px-4 py-2 text-body ${!month && option === preset ? "bg-brand text-on-brand" : "bg-surface text-muted"}`}>{t(`stats.range.${option}`)}</button>)}</div>
     <label className="flex flex-wrap items-center gap-3 text-body text-muted">{t("fx.month")}<input type="month" value={month} onChange={event => setMonth(event.target.value)}
       className="min-w-0 rounded-field border border-line bg-surface px-3 py-2 text-base text-ink" /></label>
     {month ? <button type="button" onClick={() => setMonth("")} className="self-start text-link text-brand-dark underline">{t("fx.clearMonth")}</button> : null}
