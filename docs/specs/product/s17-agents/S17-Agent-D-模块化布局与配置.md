@@ -142,7 +142,7 @@
 | 2026-10-27 | D-1 完成：新增 validation（校验/序列化/解析）、测试 PRNG 与夹具、属性测试 10,400 场景、TC-07…26 纯算法夹具、序列化/损坏数据测试；修复 `findEarliestFreeAnchor` 行尾起点越界崩溃；新增 D-1 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、D-1 文档 | `77f9796` | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **5 files / 65 tests passed**（含 10,400 属性场景），exit 0 | 目录内 barrel 追加 validation 导出；**仍未接** `@libellum/shared` 包入口，未冻结公共接口 | 非纯算法 TC-15/18/19/21/23/24 留集成/UI 批次；OQ-LM-01/03/04/05/06/07 仍待所有者；尺寸数值待 W3 | 等待 Codex 视觉规范与 D-2 接口澄清；把 `AnalysisReference`/`ObjectSizeContract` 草案提交 S-03 评审 |
 | 2026-10-27 | D-2 前置完成（Lead 批准范围：不依赖 Codex 视觉）：`commands.ts`/`focus.ts`/`machine.ts` + 测试；D-2 前置交互模型与状态机草案；S-03 布局侧接口草案（draft v0.1，未冻结）；D-2 UI 待 Codex 视觉规范另行批准 | `packages/shared/src/analysis/layout/*`、本文件、两份新文档 | `ddd2b9d` | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **8 files / 102 tests passed**（新增 37 项），exit 0 | 目录内 barrel 追加 commands/focus/machine；**仍未接** `@libellum/shared` 入口；S-03 侧仅 draft，未冻结 | 未实现垂直紧凑/写回/容器内部几何（OQ-LM-03/06/07/08 占位）；手势/视觉细节待 Codex；iOS Safari/PWA 真机未验证 | 待 Lead 评审两份文档；Codex 视觉规范后进入 D-2 UI；W5 前需所有者决定 OQ-LM-01/03/04/05/06/07 |
 | 2026-10-27 | D-4 前置 headless 完成（Lead 批准：文档 IO/迁移链与缓存键/分享快照与短码/导入管道/本地存储契约）：新增 `document-io.ts`/`migration-chain.ts`/`share-snapshot.ts`/`import-pipeline.ts`/`storage-contract.ts` 与 5 个测试文件（59 项）；S-03 草案升级 v0.3；新增 D-4 记录文档 | `packages/shared/src/analysis/layout/*`、本文件、S-03 草案、D-4 文档 | `b9f4d33`（+ 本记录提交） | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **17 files / 209 tests passed**，exit 0 | 目录 barrel 追加五模块 + `parseShareSnapshot`；**仍未接** `@libellum/shared` 入口；S-03 仍 draft v0.3 | OQ-CF-10 短码参数、OQ-CF-01 删除语义、OQ-CF-02 草稿落本地、B-6 隐私门未定；服务端同步仅接口占位 | 待 Lead 评审 D-4；Codex 视觉后 D-2 UI；W6 服务端同步需批准+迁移评审 |
-| 2026-10-27 | D-5 只读预研完成（Lead 批准 m00988）：W5/W6 集成批次与接入点清单（10 批次）、永久文档 30 项与最终交付 36 项逐项对照、1.16.23 候选影响面（主工作区/发布快照/预计零 rebase 文件冲突）、S-01 v2 中 D 契约条款复核（无变化）；新增 D-5 记录文档；未改代码、未 rebase、未接页面、未 push | 本文件、`docs/specs/product/s17-agents/S17-Agent-D-D5-只读预研-W5W6集成与规格对照-v1.md` | 待本轮提交 | 只读核对 + 文档检查（check-links/doc-audit/check-status）与 `typecheck`/`vitest` 复验（17 files / 209 tests） | 无接口变化（S-03 仍 draft v0.3） | 1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`）；待 Lead 汇总预研结论；OQ-LM/OQ-CF 与 Codex 视觉仍待上游 | D-5 提交后按 Lead 指令 rebase 到 `d4e4fd8` 并复验；Codex 视觉后进入 D-2 UI；按 I-0…I-10 批次推进集成 |
+| 2026-10-27 | D-5 只读预研完成（Lead 批准 m00988）：W5/W6 集成批次与接入点清单（10 批次）、永久文档 30 项与最终交付 36 项逐项对照、1.16.23 候选影响面（主工作区/发布快照/预计零 rebase 文件冲突）、S-01 v2 中 D 契约条款复核（无变化）；新增 D-5 记录文档；未改代码、未 rebase、未接页面、未 push | 本文件、`docs/specs/product/s17-agents/S17-Agent-D-D5-只读预研-W5W6集成与规格对照-v1.md` | `e73946b` | 只读核对 + 文档检查（check-links/doc-audit/check-status）与 `typecheck`/`vitest` 复验（17 files / 209 tests） | 无接口变化（S-03 仍 draft v0.3） | 1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`）；待 Lead 汇总预研结论；OQ-LM/OQ-CF 与 Codex 视觉仍待上游 | D-5 提交后按 Lead 指令 rebase 到 `d4e4fd8` 并复验；Codex 视觉后进入 D-2 UI；按 I-0…I-10 批次推进集成 |
 
 ---
 
@@ -151,7 +151,7 @@
 | 编号 | 问题 | 影响 | 需要谁决定 |
 |---|---|---|---|
 | D-Q1 | 布局/配置能力清单与细则未提供 | ~~无法开工~~ **已解决（2026-10-27）**：所有者规格已下发并归档（`ff09275`），按规格执行 | 已解除 |
-| D-Q2 | W1/基线要求 1.16.23 发布，目前为未提交候选 | D-0 不受阻；页面集成批次（D-2/D-3）需 Lead 统一 rebase | 所有者 / Lead（索引 B-1） |
+| D-Q2 | W1/基线与 1.16.23 发布提交 | **已解除（2026-10-27）**：1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`，无迁移）；Lead 指令 D-5 提交后由 D 自行 rebase（备份分支 `pre-1.16.23-20261027`）；页面集成批次仍由 Lead 统一协调 | 已解除（rebase 执行中） |
 | D-Q3 | 服务端同步的存储模型/隐私合规未决策（OQ privacy gate） | W6 分享能力 | 所有者 |
 | D-Q4 | 卡片最小/推荐尺寸需要 A/B/C 与 Codex 共同确认 | 已在 D-0 提出 `ObjectSizeContract` 草案；数值待 W3 | Lead 协调（S-03） |
 | D-Q5 | 跨设备布局迁移与“统一/独立布局”交互细节需所有者确认 | W6（OQ-LM-07/08） | 所有者 |
