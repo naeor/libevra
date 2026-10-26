@@ -590,7 +590,7 @@ B 向 S-01 v2 提交两项 **additive** 提案（不改已登记形状、不改�
 
 ### 15.1 实现状态（2026-10-27，draft，已在本分支实现并验证）
 
-**已落地**（`packages/shared/src/fx.ts`，提交 `待回填`；提案提交 `9d77b06`）：
+**已落地**（`packages/shared/src/fx.ts`，提交 `13428bd`；提案提交 `9d77b06`）：
 
 - `FX_MAX_RANGE_MONTHS = 36`、`FX_MAX_DETAIL_ENTRIES = 50_000`；
 - `FxConvertedEntry`/`FxDetailOptions`/`FxAggregateDetail`/`FxDetailedAggregate`；
