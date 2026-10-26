@@ -2,7 +2,7 @@
 
 > 本文件是 **DS-S17-B-Time** 的唯一权威任务文档。所有长期有效的职责、接口、进度、问题与交接必须写入本文件，不得只存在于聊天上下文。
 > 建立：2026-10-27（Lead 初始化）；维护者：Agent B 自己。
-> 当前状态：**B-0/B-1/B-2 已完成并本地提交（`b23311c`/`f4da5f8`/`888b62b`，未 push）；进入 B-3（A01–A05 同比环比与变异/异常）**。
+> 当前状态：**B-0/B-1/B-2/B-3 已完成并本地提交（`b23311c`/`f4da5f8`/`888b62b`/B-3 见 §6.2；未 push）；B-4（A12/A13/A14/A18/A19/A20）待 Lead 批准**。
 >
 > **所有者完整开发规格（权威全文）**：[S17-Agent-B-完整开发规格-所有者-20261027.md](S17-Agent-B-完整开发规格-所有者-20261027.md)（2,937 行；2026-10-27 由 Lead 逐字登记，与所有者原文一致）。开发定义、公式、图表家族、测试矩阵以该文件为准；本文件负责身份、边界、进度与交接。
 
@@ -70,6 +70,10 @@
 - 日/周/月聚合时间序列（支出、收入、结余、笔数），支持自定义起止与账本月份口径。
 - 累计收支曲线（running total，含负值、跨月边界）。
 - 同比/环比（需明确“去年同月/上月”在部分数据缺失时的语义，不允许把缺失当 0）。
+- **已实现（B-3）**：`packages/shared/src/periodComparison.ts`
+  - `computePeriodComparison(entries, request, options)`：`ComparisonKind = previous-period | month-over-month | year-over-year | month-to-date`；两侧收支 `currentMinor`/`previousMinor`/`differenceMinor`/`growth`/`complete` + `resolution`（观测窗口、天数、同长判定、上期裁剪、政策、闰日对齐记录）。
+  - 增长率只给精确分子/分母（`GrowthResult`），`previous <= 0` 给 `unavailable` 原因；A05 默认 `same-day-index`，可选 `equal-length-window`；A03 闰日对齐写入 `leapDayFallbacks`。
+  - `packages/shared/src/multiMonthComparison.ts`：`computeMultiMonthComparison`（自然月、跨年、完整性/可比性、只排完整月、`ranking`/`maxMonth`/`minMonth`）。
 - 移动平均（窗口大小、端点处理、量级保持一致）。
 - 星期分布、周期比较、日历热力图数据（按本地日期与账本时区；跨时区交易归属必须明确）。
 - 波动指标（标准差/最大最小/区间等——具体定义待所有者清单；注意规格 §5.7 的精确分数要求）。
@@ -82,7 +86,7 @@
 - **已实现（B-1）**：`apps/web/src/lib/chart/timeSeriesChart.ts` 产出图表几何模型（柱/线/面积、空态、全零、负值、断线），组件 `SeriesTrendChart`（折线/面积/柱）、`Sparkline`（1×1 迷你趋势）、`CumulativeTrendChart`（累计趋势 + 未知起点标注）。
 - 复用共享绘图核心（`ChartFrame/Axis/Legend/theme/scales/geometry/format`）与 Codex 视觉规范（S-02）；不得自创视觉体系；不复制仅指标不同的组件。
 - 时间轴、刻度与缺数据断点表现（缺失应可见，不画成 0；未知桶不画、不画 0、不连线）。
-- 后续：日历热力图、周期比较、移动平均/异常标注（B-2～B-4）。
+- 后续：移动平均/异常标注（B-4）；周期比较已于 B-3 落地（`PeriodComparisonBars`/`MonthComparisonChart`/`PeriodComparisonCard`）。
 
 ### 2.5 依赖接口
 
@@ -135,8 +139,10 @@
 | B-0 时间合同与共享接口 | **完成（2026-10-27）** | 交付：`packages/shared/src/timeCalendar.ts`（+18 测试）、20 项时间与财务合同核查表、S-01 时间扩展协议草案；待 A 对齐后进入 B-1 |
 | B-1 基础趋势与对应图表（I06–I10、I19–I20 + 折线/面积/柱/Sparkline/累计） | **完成（2026-10-27）** | 计算核心 `packages/shared/src/timeSeries.ts`（day/week/month × expense/income/count + 累计）；图表输入 `apps/web/src/lib/chart/timeSeriesChart.ts`；组件 `SeriesTrendChart`/`Sparkline`/`CumulativeTrendChart`；未改任何页面（不碰 1.16.23 冲突文件） |
 | B-2 构成/比较/热力/星期（I11–I16 + CF-B04/B05/B06/B08/B09） | **完成（2026-10-27）** | 计算核心 `flowSeries`（`timeSeries.ts` 扩展）/`categorySeries.ts`/`weekdayPattern.ts`/`calendarHeatmap.ts`；图表输入 `apps/web/src/lib/chart/categoryChart.ts`；组件 `IncomeExpenseBars`/`CategoryStackedBars`/`CategoryShareBands`/`WeekdayBars`/`CalendarHeatmapGrid`；未改页面、未接 S-01 信封 |
+| B-3 周期比较（A01–A05 + CF-B04 分组柱/CF-B10 对比卡） | **完成（2026-10-27）** | 计算核心 `periodComparison.ts`（previous-period/mom/yoy/month-to-date 四种比较、精确增长率分子分母与不可用原因、A05 双窗口政策、闰日对齐记录）、`multiMonthComparison.ts`（自然月、完整性/可比性、跨年、只排完整月）；图表输入 `apps/web/src/lib/chart/comparisonChart.ts`；组件 `PeriodComparisonBars`/`MonthComparisonChart`/`PeriodComparisonCard`；未改页面、未接 S-01 信封 |
 | I06–I16 / I19–I20 | **完成（B-1：I06–I10、I19–I20；B-2：I11–I16）** | 纯函数 + 图表输入层 + 组件；页面集成待 1.16.23 发布后 W1/W3 |
-| A01–A05 / A12–A14 / A18–A20 | 未开始（已入开发清单） | 按 B-3/B-4 分批 |
+| A01–A05 | **完成（2026-10-27，B-3）** | 四种比较（上期/环比/同比/本月至今同期）+ 多个月份比较；页面集成待 1.16.23 发布后 W1/W3 |
+| A12–A14 / A18–A20 | 未开始（已入开发清单） | 按 B-4 分批（A12 移动平均、A13 累计节奏、A14 波动、A18 季节性、A19 收入稳定性、A20 异常日期） |
 | S-01 参与评审 | 进行中（时间扩展已与 A 对齐，待评审冻结） | A §15 已答复 Q-BA-1/2/3/4/7/8；剩余 Q-BA-12（区间上限）待登记 |
 | W1 时间口径核对 | 未开始 | 前置：1.16.23 发布（索引 B-1）；B-0 核查表已提供口径证据 |
 | W3 时间图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03 |
@@ -160,6 +166,7 @@
 | 2026-10-27 | **B-1 完成**：①shared 计算核心 `timeSeries.ts`（按业务日期分桶：day/week/month × 支出/收入/笔数，精确 minor 金额，unknown/future/in-progress 三态，累计 `accumulateSeries` 未知向后传播、零变动平台不断线）；②图表只读适配层 `timeSeriesChart.ts`（柱/线/面积模型、空态、Y 轴 nice domain、全部为 0 判定，不反写权威值）；③组件 `SeriesTrendChart`/`Sparkline`/`CumulativeTrendChart`（复用 `ChartFrame/Axis/Legend/theme/scales`，44px 触摸目标、键盘 Arrow/Home/End、24px 触控高度、缺数据断线不得画 0）；④i18n 登记（`sharedMessages` 增加 `timeSeries.ts` 归类与 2 句译文）；⑤`bucketToInclusive`（A §15.1(4) 定名）接入 | `packages/shared/src/timeSeries.ts`、`timeSeries.test.ts`、`apps/web/src/lib/chart/timeSeriesChart.ts`、`timeSeriesChart.test.ts`、`apps/web/src/components/charts/SeriesTrendChart.tsx`、`Sparkline.tsx`、`CumulativeTrendChart.tsx`、`timeSeriesCharts.test.tsx`、`apps/web/src/lib/chart/format.ts`（`weekBucketLabel`）、`apps/web/src/i18n/sharedMessages*.ts`、`packages/shared/src/index.ts`、本文件、协议草案 | `f4da5f8`（本地；未 push） | `pnpm --filter @libellum/shared test`：20 文件/414 用例全过（含 `timeCalendar` 19、`timeSeries` 18）；web `vitest run`：154 文件/1405 用例全过（新增 27）；`pnpm --filter @libellum/shared typecheck` 0；`pnpm --filter @libellum/web typecheck` 0；`pnpm check:docs` 通过 | 新增公共导出 `timeSeries`（v1，未冻结）与 `bucketToInclusive`/`InclusivePeriod`；新增 web 图表适配层（非 S-01 信封）；未新增 HTTP/API 接口 | 已知：S-01 信封层 `analysis/time.ts` 与 `SourceDescriptor.bucket` 待协议冻结/合并后补；`MAX_STATS_DAYS=400` 与 I09 36 个月区间冲突待 A/Lead 登记（协议草案 Q-BA-12） | 跑全量 shared+web 测试后提交；发 B-1 结构化报告 Lead；准备 B-2（I11–I16） |
 | 2026-10-27 | **S-01 时间扩展对齐收敛**：A §15（`655ea14`/`5faaac1`）逐条答复 Q-BA-1/2/3/4/7/8；B 按结论更新协议草案 §7/§4.3/§8/§9（7 形状登记进 union、`bucketToInclusive`、`SourceDescriptor.bucket?`、dataVersion 由数据层透传、`timeGranularity?`=A-Q21、R-09 coverageEnd 展示元数据），并新增待评审项 Q-BA-12（分析区间上限） | `docs/specs/product/s17-agents/S17-Agent-B-S01-时间扩展协议草案.md`、本文件 | `f4da5f8`（本地；未 push） | 文档变更，无需单测 | 协议草案状态由“待 A 回复”改为“已对齐（待评审冻结）”；未冻结仍为 `s01-draft` | S-01 冻结由 Lead/Claude/所有者评审 | B-2 按对齐结论实现；协议冻结后补 `analysis/time.ts` 信封 |
 | 2026-10-27 | **B-2 完成**：①`flowSeries` 收支成对桶（差额 `differenceMinor` 仅两侧已知时给出）；②`categorySeries` 分类×时间（Top N + 其他、未知桶不补 0）；③`category shares` 桶内占比（分母=桶权威合计、零总额/未知不给占比）；④`weekdayPattern` 周一起 ISO 1..7 固定顺序、精确分数平均；⑤`calendarHeatmap` 日格子（分位 0–4、未知/未来不着色）；⑥`categoryChart.ts` 图表输入层（不重算金额）；⑦组件 `IncomeExpenseBars`/`CategoryStackedBars`/`CategoryShareBands`/`WeekdayBars`/`CalendarHeatmapGrid`；⑧协议草案新增 §11 映射与语义锁定 | `packages/shared/src/{categorySeries,weekdayPattern,calendarHeatmap}.ts`、`timeSeries.ts`（扩展）、`packages/shared/src/index.ts`、对应测试 3 个、`apps/web/src/lib/chart/categoryChart.ts`（+测试）、组件 5 个 + `categoryCharts.test.tsx`、本文件、协议草案 | `888b62b`（本地；未 push） | `pnpm --filter @libellum/shared test`：**444/444** 全过（23 文件，含新增 30 余用例）；web `vitest run`：**156 文件/1422 用例**全过（新增 12 模型 + 5 组件）；`pnpm --filter @libellum/web typecheck` 0；`sharedMessages` 归类测试 7/7；图表 i18n 测试 3/3；`pnpm check:docs` 通过 | 新增公共导出 `categorySeries`/`weekdayPattern`/`calendarHeatmap`/`flowSeries`（均为 v1，未冻结）；未新增 HTTP/API；S-01 信封仍未接 | 图表完整 hover/touch 读数、44px 触摸与页面集成随 W3；S-01 冻结后补 `analysis/time.ts` 与 `SourceDescriptor.bucket` | 发 B-2 结构化报告 Lead；B-3（A01–A05）随后 |
+| 2026-10-27 | **B-3 完成**（A01–A05 周期比较族）：①`periodComparison.ts` 四种比较（previous-period/mom/yoy/month-to-date）共用 resolver；增长率只给精确分子/分母，`previous<=0` 给不可用原因；A05 默认 `same-day-index`、可选 `equal-length-window` 且 `policyId` 入结果；A03 闰日对齐记 `leapDayFallbacks`；未完成自然期的上期取同期窗口；覆盖未知时金额/差额/增长率一律 null。②`multiMonthComparison.ts`：自然月键/跨年/每选中月显式/未知与未来不可比/`ranking` 只排完整月。③图表输入 `comparisonChart.ts`（未知侧不画柱、两侧共用 y 轴、不完整月不填色）+ 组件 `PeriodComparisonBars`/`MonthComparisonChart`/`PeriodComparisonCard`。④协议草案 §12 映射与 8 条锁定语义。⑤未改任何页面、未接 S-01 信封 | `packages/shared/src/{periodComparison,multiMonthComparison}.ts`（+测试 2 个）、`apps/web/src/lib/chart/comparisonChart.ts`（+测试）、组件 3 个 + `comparisonCharts.test.tsx`、`apps/web/src/i18n/sharedMessages*.ts`、`packages/shared/src/index.ts`、本文件、协议草案 | B-3 提交（见 §6.2 下一行回填） | shared：26 文件/**476 用例全过**（B-3 新增 18）；web：**158 文件/1438 用例全过**（新增 16）；shared/web `typecheck` 均 0；`check:docs`、`check:status` 通过 | 新增公共导出 `periodComparison`/`multiMonthComparison`（v1，未冻结）；新增 web 输入层 `comparisonChart.ts`（非 S-01 信封）；未新增 HTTP/API | A03 闰日对齐与 A05 默认政策已实现并登记 B-Q13/B-Q14 待所有者/A 确认；S-01 信封待冻结 | 发 B-3 结构化报告 Lead；B-4（A12/A13/A14/A18/A19/A20）待 Lead 批准 |
 
 ---
 
@@ -208,8 +215,14 @@
 | 分类图表输入层（B-2） | `apps/web/src/lib/chart/categoryChart.ts` | `buildFlowBarModel`/`buildStackedBarModel`/`buildShareStackModel`/`buildWeekdayModel`/`buildCalendarGridModel`：只把权威数字放到像素上，未知无几何，不重算分母/金额；`categoryChart.test.ts` 12 用例 |
 | 构成图表组件（B-2） | `apps/web/src/components/charts/IncomeExpenseBars.tsx`、`CategoryStackedBars.tsx`、`CategoryShareBands.tsx`、`WeekdayBars.tsx`、`CalendarHeatmapGrid.tsx` | 复用 `ChartFrame/Axis/Legend/theme/scales`；文案全部由 props 传入（组件不产中文）；`categoryCharts.test.tsx` 5 用例 |
 | B-2 协议映射与语义锁定 | `docs/specs/product/s17-agents/S17-Agent-B-S01-时间扩展协议草案.md` §11 | I11–I16 → S-01 形状映射；占比分母/零总额/未知桶/收支差额/星期顺序/热力着色的锁定语义 |
+| 周期比较计算核心（B-3） | `packages/shared/src/periodComparison.ts` | `PERIOD_COMPARISON_VERSION = "s17-b-period-comparison-v1"`；`computePeriodComparison` 四种 `ComparisonKind` 共用 resolver；`GrowthResult` 只给精确分子/分母（`previous <= 0` 给 `unavailable` 原因）；A05 `same-day-index`（默认）/`equal-length-window` 政策与 `policyId`；A03 `leapDayFallbacks`；`resolution` 记录观测窗口/天数/同长/裁剪 |
+| 多月份比较计算核心（B-3） | `packages/shared/src/multiMonthComparison.ts` | `MULTI_MONTH_COMPARISON_VERSION = "s17-b-multi-month-comparison-v1"`；`computeMultiMonthComparison`：自然月（`YYYY-MM` 键、保留年份）、跨年、每选中月显式、未知/未来不可比、`ranking` 只含完整月、`maxMonth`/`minMonth` |
+| 周期比较测试（B-3） | `packages/shared/src/periodComparison.test.ts`、`multiMonthComparison.test.ts` | 10 + 8 用例：四种比较的窗口推导/增长率边界（previous 为零/负/两侧为零）/A05 裁剪与加长窗口/闰日对齐/多月份完整性、跨年、排序与未知月 |
+| 比较图表输入层（B-3） | `apps/web/src/lib/chart/comparisonChart.ts` | `buildComparisonBarsModel`/`buildMonthComparisonModel`/`comparisonBarRect`/`monthBarRect`：未知侧不画柱（不是 0 高柱）、两侧共用 y 轴（含 0）、不完整月不填色；`comparisonChart.test.ts` 9 用例 |
+| 比较图表组件（B-3） | `apps/web/src/components/charts/PeriodComparisonBars.tsx`、`MonthComparisonChart.tsx`、`PeriodComparisonCard.tsx` | 复用 `ChartFrame/Axis/theme`；文案/数值格式全部 props 传入（组件不产中文）；`comparisonCharts.test.tsx` 7 用例 |
+| B-3 协议映射与语义锁定 | 协议草案 §12 | A01–A05 → S-01 形状映射；四类比较不混名、增长率精确分子分母、A05 双窗口政策、A03 闰日对齐、未完成期上期取同期、覆盖未知不算零、A04 月份显式性 |
 
-**环境说明（本地验证）**：本 worktree 首次使用需 `pnpm install --offline`（本地 pnpm store 已具备依赖）；Prisma 7 的 `prisma.config.ts` 要求 `DATABASE_URL` 环境变量存在，生成客户端用 `DATABASE_URL=postgresql://... pnpm db:generate`（生成不连库，生成物被 gitignore）。API 集成测试需要根目录 `.env` 的 `TEST_DATABASE_URL`（测试库名必须含 `test`，见 `apps/api/test/setup.ts` 的守卫）；本工作区 `.env` 为本地开发文件，**不入库**。
+**环境说明（本地验证）**：本 worktree 首次使用需 `pnpm install --offline`（本地 pnpm store 已具备依赖）；Prisma 7 的 `prisma.config.ts` 要求 `DATABASE_URL` 环境变量存在，生成客户端用 `DATABASE_URL=postgresql://... pnpm db:generate`（生成不连库，生成物 `apps/api/src/generated/prisma/**` 被 gitignore）。API 集成测试需要根目录 `.env` 的 `TEST_DATABASE_URL`（测试库名必须含 `test`，见 `apps/api/test/setup.ts` 的守卫）；本工作区 `.env` 为本地开发文件，**不入库**。Windows 下若 PowerShell 执行策略拦截 `pnpm.ps1`，改用 `$pnpm = Join-Path $env:APPDATA "npm\pnpm.cmd"; & $pnpm ...`。API 集成测试当前 611/612：唯一失败是本地测试库迁移落后 1.16.22 基线（`profile` 头像用例），与本分支改动无关，1.16.23 发布后统一 rebase 再跑（Lead 已确认）。
 
 ---
 
@@ -229,6 +242,8 @@
 | B-Q10 | I13 星期分布等无专用 shape 的呈现方式（用哪一图与尺寸组合） | **已实现（2026-10-27，B-2）**：按 A §15 结论用 7 桶模板轴（不新增 shape），`WeekdayBars` 提供 total/average 两口径；卡片尺寸组合仍待 C/Codex | 已实现；尺寸组合待 C/Codex |
 | B-Q11 | 1.16.23 候选未合并期间是否允许改 `StatsPage.tsx` 等冲突文件 | **已解决（2026-10-27）**：Lead 指示严格只读，B-1 只做纯函数与图表输入层；等 1.16.23 发布后统一 rebase 再改页面 | 已解决（Lead） |
 | B-Q12 | 分析区间上限：A 的 `makePeriod` 限制 `MAX_STATS_DAYS = 400`，与 I09（12/24/36 个月）、A01 同比、A12/A14 长样本冲突 | B-3 长区间可能被信封层拒绝；建议 S-01 增 `MAX_ANALYSIS_DAYS`（如 3660）或按分析类型给上限 | A + Lead（协议草案 Q-BA-12） |
+| B-Q13 | A03 同比的 2 月 29 日边界对齐规则 | **已按规格 §21 实现（2026-10-27）**：目标年无 2/29 时取该年 2 月最后一天并在 `resolution.leapDayFallbacks` 逐条记录（不静默丢日）；待所有者/A 确认“显式可测”的对齐是否符合预期 | 所有者/A |
+| B-Q14 | A05 本月至今同步比较的默认窗口政策 | **已实现（2026-10-27）**：默认 `same-day-index`（历史月较短时裁剪并在 `resolution.previousClipped` 标注），可选 `equal-length-window`（可能跨月、`comparisonMode = "equal-length"` 并提示）；规格 §23 要求第一版至少一个官方政策经所有者确认 | 所有者/A |
 
 ---
 

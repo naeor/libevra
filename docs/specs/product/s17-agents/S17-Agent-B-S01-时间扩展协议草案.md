@@ -496,3 +496,29 @@ B-2 的四个计算模块 + 五个图表组件完成后，I11–I16 与 S-01 形
 8. `sharedMessages.ts` 只登记 shared 模块内的用户可见中文提示（`categorySeries.ts`/`weekdayPattern.ts`/`calendarHeatmap.ts` 已加入 `sharedMessages.test.ts` 的 `FULL_FILES`）。
 
 **边界说明**：B-2 仍未接入 `StatsPage.tsx`/`FxStats.tsx`（1.16.23 候选冲突，Lead 指示只读），也未实现完整 hover/touch 读数（图表几何已带 `data-*` 与 `<title>` 精确读出任一；44px 触摸与键盘交互的完整方案随 W3 卡片集成）。
+
+---
+
+## 12. B-3 实现映射（2026-10-27，未冻结）
+
+B-3 覆盖 A01–A05（周期比较族）。**这四个问题是四种不同的问题，不共用“上个月比较”这个含混名字**（规格 §19–§23）。B 侧落地为两个纯函数模块 + 三个图表组件；S-01 信封仍待协议冻结后由 A 统一提供（同 §11 的边界）。
+
+| 能力 | 计算入口（shared） | 结果对象 | S-01 形状映射 | 图表（web） |
+|---|---|---|---|---|
+| A01 上期收支比较 | `computePeriodComparison`（`periodComparison.ts`，`kind: "previous-period"`） | `ComparisonResult`：收入/支出各 `currentMinor`/`previousMinor`/`differenceMinor`/`growth`/`complete`，`resolution` 说明上期如何得到 | `PeriodComparisonResult`（§3.7） | `PeriodComparisonBars` + `PeriodComparisonCard`（CF-B10） |
+| A02 环比增长率 | 同一 `computePeriodComparison`（`kind: "month-over-month"`） | `GrowthResult = {state:"computed", numeratorMinor, denominatorMinor} \| {state:"unavailable", reason}`；百分比只由调用方格式化 | `PeriodComparisonResult` | `PeriodComparisonCard` / `PeriodComparisonBars` |
+| A03 同比增长率 | 同一 `computePeriodComparison`（`kind: "year-over-year"`） | `resolution.leapDayFallbacks` 显式记录 2/29 无对应日时的对齐；`sameLength/comparisonMode` 保留 | `PeriodComparisonResult` | `PeriodComparisonBars` / `PeriodComparisonCard` |
+| A04 多个月份比较 | `computeMultiMonthComparison`（`multiMonthComparison.ts`） | `MultiMonthComparisonResult`：每 `YYYY-MM` 自然月一个 `amountMinor`/`state`/`comparable`/`unavailableReason`；`ranking` 只排完整月；`crossYear` | `MultiSeriesResult`（月份为分类，非连续轴）+ 表格 | `MonthComparisonChart`（CF-B04 柱/水平比较） |
+| A05 本月至今同期比较 | `computePeriodComparison`（`kind: "month-to-date"`，`monthToDatePolicy` 可选） | `resolution` 明确当前观测区/历史对比区/各自天数/`policyId`；`currentDayInProgress` 标记今天；`sameLength` 与 `previousClipped` 说明窗口关系 | `PeriodComparisonResult` | `PeriodComparisonCard` + `PeriodComparisonBars`（双柱/双折线） |
+
+**实现时固定下来的语义（后续改语义必须升版本号）**：
+
+1. **四种比较不混名**：`ComparisonKind` 有独立 discriminator（`previous-period`/`month-over-month`/`year-over-year`/`month-to-date`），UI 文案由调用方按 kind 给出，不得把同比标成“上个月”。
+2. **增长率只给精确分子/分母**：`GrowthResult` 不产出百分比，格式化在 web 层；`previous <= 0` 时给出 `unavailable` 原因（`previous-zero`/`both-zero`/`previous-negative`），不得显示 `+∞%`/`+100%` 之类编造值；金额差额与相对变化分开显示。
+3. **A05 的两种窗口政策显式化**：默认 `same-day-index`（本月 1–27 日 ↔ 上月 1–27 日，历史月较短时裁剪并在 `previousClipped` 标注）；可选 `equal-length-window`（等长窗口，可能跨月，`comparisonMode = "equal-length"` 并提示）；`policyId` 写入结果，不让每张卡自行选择。
+4. **A03 的 2/29 对齐**：每右移一年若 2/29 在目标年不存在，取该年 2 月最后一天，并逐条写入 `leapDayFallbacks[{date, alignedTo}]`；不静默丢日。
+5. **未完成自然期的“上期”取同期窗口而非完整上期**：当前自然月/周尚未结束时，`previous-period` 的对比窗口取上期相同观测天数（如本月 1–27 日 ↔ 上月 1–27 日），`resolution.sameLength`/`previousClipped` 说明真实关系。
+6. **覆盖未知不等于零**：任一侧观测窗口数据覆盖未知时，该侧金额为 `null`，差额与增长率随之不可用（`previous-unknown`/`current-unknown`），不得用 0 补齐后计算。
+7. **A04 保留月份显式性**：每个被选月份是自然月（`[1 日, 下月 1 日)`），未知/未来月份 `amountMinor = null` 且 `comparable = false`，不参与排行；跨年必须保留年份（`YYYY-MM` 键）；`ranking` 仅包含完整月。
+8. `sharedMessages` 只登记 shared 模块中的中文提示；`periodComparison.ts`/`multiMonthComparison.ts` 已加入 `sharedMessages.test.ts` 的 `FULL_FILES`，两者仅复用既有“金额必须是整数（以分为单位）”译文。
+

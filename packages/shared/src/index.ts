@@ -203,6 +203,52 @@ export type {
 } from "./calendarHeatmap.js";
 
 export {
+  PERIOD_COMPARISON_VERSION,
+  computePeriodComparison,
+  isComparisonRequestValid,
+  resolveComparison,
+} from "./periodComparison.js";
+
+export type {
+  ComparisonEntry,
+  ComparisonKind,
+  ComparisonMetric,
+  ComparisonMode,
+  ComparisonNote,
+  ComparisonOptions,
+  ComparisonRequest,
+  ComparisonResolution,
+  ComparisonResult,
+  GrowthResult,
+  GrowthUnavailableReason,
+  LeapDayFallback,
+  MonthToDatePolicy,
+  SideComparison,
+} from "./periodComparison.js";
+
+export {
+  MULTI_MONTH_COMPARISON_VERSION,
+  computeMultiMonthComparison,
+  daysInMonth,
+  isMonthKey,
+  isMultiMonthComparisonValid,
+  normalizeMonthKeys,
+} from "./multiMonthComparison.js";
+
+export type {
+  MonthComparisonNote,
+  MonthComparisonOptions,
+  MonthComparisonPoint,
+  MonthComparisonRequest,
+  MonthEntry,
+  MonthMetric,
+  MonthPointState,
+  MonthRankingEntry,
+  MonthUnavailableReason,
+  MultiMonthComparisonResult,
+} from "./multiMonthComparison.js";
+
+export {
   chineseNumeralToDigits,
   findChineseAmount,
   isNumeralChar,
