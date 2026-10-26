@@ -1,8 +1,10 @@
-import { CURRENCIES, type CurrencySummary, type Transaction, type TransactionKind } from "@libellum/shared";
+import { CURRENCIES, endOfMonth, type CurrencySummary, type Transaction, type TransactionKind } from "@libellum/shared";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
+import { FxAmount, FxMonthSummary } from "../components/FxDisplay.js";
+import { useFxMode, useFxRange } from "../lib/fxView.js";
 import { AvatarRewardBanner } from "../components/AvatarRewardBanner.js";
 import { CurrentBookCaption } from "../components/CurrentBookCaption.js";
 import { BottomNav } from "../components/BottomNav.js";
@@ -95,6 +97,7 @@ export function DetailPage(): React.JSX.Element {
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const fxMode = useFxMode();
   const guest = useGuestMode();
   const guestIdentity = useGuestIdentity();
   /**
@@ -159,6 +162,7 @@ export function DetailPage(): React.JSX.Element {
   const { offline } = useAccountOffline();
 
   const summary = useSummary(month);
+  const fxSummary = useFxRange(`${month}-01`, endOfMonth(`${month}-01`), fxMode.enabled);
   const ledger = useLedger();
 
   /**
@@ -917,7 +921,7 @@ export function DetailPage(): React.JSX.Element {
                   width that never matched its neighbours. Two elements, each
                   doing one job, and all of it goes.
                 */}
-                <MainCard className="detail-main-card mt-4" summary={main} currency={mainCode} />
+                {fxMode.enabled ? <div className="detail-main-card mt-4"><FxMonthSummary data={fxSummary} /></div> : <MainCard className="detail-main-card mt-4" summary={main} currency={mainCode} />}
 
                 {/*
                   One row, never wrapping: the hero card is not in it, so it has
@@ -929,7 +933,7 @@ export function DetailPage(): React.JSX.Element {
                   data-h-scroll
                   className={`detail-strip flex flex-nowrap gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${others.length === 2 ? "detail-strip-fit-pair" : ""}`}
                 >
-                  <SmallCard className="detail-twin" summary={main} currency={mainCode} />
+                  {fxMode.enabled ? <div className="detail-twin detail-currency-card detail-small-card shrink-0 px-4 py-3 text-on-brand"><FxMonthSummary data={fxSummary} compact /></div> : <SmallCard className="detail-twin" summary={main} currency={mainCode} />}
 
                   {others.map((item) => (
                     <SmallCard key={item.currency} summary={item} currency={item.currency} />
@@ -1125,6 +1129,7 @@ export function DetailPage(): React.JSX.Element {
                     <LedgerEntryRow
                       key={entry.id}
                       entry={entry}
+                      fx={fxMode.enabled ? <FxAmount entry={entry} /> : undefined}
                       selecting={selecting}
                       selected={selected.has(entry.id)}
                       pending={pending.has(entry.id)}

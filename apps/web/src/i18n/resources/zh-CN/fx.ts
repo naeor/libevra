@@ -1,0 +1,15 @@
+export default {
+  title: "汇率折算模式", hint: "按交易日期的历史参考汇率，以你的默认币种查看。原始账目不变。",
+  device: "仅保存在此设备，按账号独立设置。", saveError: "无法保存设置，请检查本机存储。",
+  target: "统计货币：{{currency}}", combined: "综合统计", separate: "分币种分析", original: "原币",
+  loading: "正在获取历史汇率…", unavailable: "汇率不可用", offline: "离线 · 使用本机数据", review: "历史汇率待复核",
+  source: "来源：ECB（经 Frankfurter）", date: "实际汇率日期：{{date}}", requested: "交易日期：{{date}}",
+  rate: "1 {{from}} ≈ {{rate}} {{to}}", reference: "参考折算，实际结算以银行成交价为准。",
+  incomplete: "统计不完整", subtotal: "以下为成功折算部分的小计", missing: "{{count}} 笔账目未折算", showMissing: "查看未折算账目",
+  dataIncomplete: "本机未保存完整时段的账目，不能将这些小计视为完整统计。",
+  error: "暂时无法读取此账本的数据，请重试。", retry: "重试", refresh: "刷新统计", month: "查看月份", clearMonth: "使用上方时段",
+  income: "收入", expense: "支出", net: "收支差额", category: "分类小计", trend: "月份趋势", complete: "已按逐笔显示金额汇总",
+  count: "已折算 {{count}} 笔", originalTotals: "原币统计", readOnly: "只改变显示，记账和编辑仍使用原始金额。",
+  capacityError: "此时段账目较多，请缩小时间范围。",
+  reasons: { missing_rate: "缺少历史汇率", unsupported_currency: "不支持的币种", invalid_input: "交易数据无效", invalid_rate: "汇率数据异常", conflict: "汇率版本冲突", anomaly: "汇率变化需核对", timeout: "汇率请求超时", network: "汇率服务无法连接", api_error: "汇率服务暂不可用", storage_error: "本机汇率存储不可用" },
+};

@@ -8,15 +8,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { api, apiLogin, assert, openPage, runCase } from "./cdp.mjs";
+import { localCandidate } from "./local-candidate.mjs";
 
-const DIR = join(tmpdir(), "libevra-e2e");
+const candidate = localCandidate();
+const DIR = candidate?.outputRoot ?? join(tmpdir(), "libevra-e2e");
 const state = JSON.parse(readFileSync(join(DIR, "state.json"), "utf8"));
-const API = "http://127.0.0.1:3100/api/v1";
-const WEB = "http://127.0.0.1:5175";
+const API = candidate?.api ?? "http://127.0.0.1:3100/api/v1";
+const WEB = candidate?.web ?? "http://127.0.0.1:5175";
 const results = [];
 
 const cookieA = await apiLogin(API, state.users.a.username, state.users.a.password);
-const browser = await openPage(9222);
+const browser = await openPage(candidate?.port ?? 9222, WEB);
 
 async function show(path) {
   await browser.navigate(`${WEB}${path}`);
@@ -65,8 +67,8 @@ async function readMarks() {
   })()`);
 }
 
-await browser.clearStorage();
-await browser.setCookie("libellum_session", cookieA);
+await browser.clearStorage(WEB);
+await browser.setCookie("libellum_session", cookieA, WEB);
 await browser.setViewport(1440, 900, false);
 await show("/");
 
@@ -93,7 +95,11 @@ await runCase(results, "个人账本：离线新建成功并产生待同步印�
     await browser.waitFor("navigator.onLine === false");
     const marksBefore = await readMarks();
     await browser.evaluate(`[...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "保存")?.click()`);
-    await browser.waitFor("document.body.innerText.includes('已记账') || document.body.innerText.includes('再记一笔')", 10000);
+    await browser.waitFor("document.body.innerText.includes('已记账') || document.body.innerText.includes('再记一笔')", 10000).catch(async error => {
+      await browser.screenshot(join(DIR, "screenshots", "offline-personal-failure.png"));
+      writeFileSync(join(DIR, "offline-failure.txt"), await browser.evaluate("document.body.innerText"));
+      throw error;
+    });
     const offlineText = await browser.evaluate("document.body.innerText");
     assert(offlineText.includes("已记账") || offlineText.includes("再记一笔"), "offline save did not report success");
     await browser.screenshot(join(DIR, "screenshots", "offline-personal-saved.png"));

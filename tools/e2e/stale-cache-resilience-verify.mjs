@@ -14,15 +14,17 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { api, apiLogin, assert, openPage, runCase } from "./cdp.mjs";
+import { localCandidate } from "./local-candidate.mjs";
 
-const WEB = "https://127.0.0.1:5173";
-const API = "http://127.0.0.1:3000/api/v1";
-const OUT = "_backups/stale-cache-resilience-20261026";
-const PORT = 9236;
+const candidate = localCandidate();
+const WEB = candidate?.web ?? "https://127.0.0.1:5173";
+const API = candidate?.api ?? "http://127.0.0.1:3000/api/v1";
+const OUT = candidate ? join(candidate.outputRoot, "stale-cache") : "_backups/stale-cache-resilience-20261026";
+const PORT = candidate?.port ?? 9236;
 
 mkdirSync(OUT, { recursive: true });
 
-const SHARED = {
+const SHARED = candidate?.shared ?? {
   username: "pn_270ce57",
   password: "Profile-7f0bf9f3-3027-4557-917d-e81707a02192",
   bookId: "bb832b1b-e397-49d0-a18d-780cd4b59061",
@@ -30,14 +32,14 @@ const SHARED = {
 
 const STALE_BODY = "旧缓存留言-no-reference";
 const results = [];
-const page = await openPage(PORT);
+const page = await openPage(PORT, WEB);
 await page.setViewport(390, 844, true);
 
 const session = await apiLogin(API, SHARED.username, SHARED.password);
 const me = await api(API, "/auth/me", { cookie: session });
 const userId = me.data.user.id;
 
-await page.setCookie("libellum_session", session);
+await page.setCookie("libellum_session", session, WEB);
 await page.send("Page.addScriptToEvaluateOnNewDocument", {
   source: `window.runtimeImport = (path) => import(path);`,
 });

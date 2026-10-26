@@ -2,13 +2,15 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { api, apiLogin, assert, openPage, runCase } from "./cdp.mjs";
+import { localCandidate } from "./local-candidate.mjs";
 
-const BASE = process.env.LIBEVRA_E2E_BASE ?? "https://127.0.0.1:5173";
-if (!["127.0.0.1", "localhost"].includes(new URL(BASE).hostname)) throw new Error("只允许本机测试");
-const API = "http://127.0.0.1:3000/api/v1";
-const OUT = process.env.LIBEVRA_E2E_OUT ?? "_backups/ledger-isolation-20261025";
+const candidate = localCandidate();
+const BASE = candidate?.web ?? process.env.LIBEVRA_E2E_BASE ?? "https://127.0.0.1:5173";
+if (!["127.0.0.1", "127.0.0.3", "localhost"].includes(new URL(BASE).hostname)) throw new Error("只允许本机测试");
+const API = candidate?.api ?? "http://127.0.0.1:3000/api/v1";
+const OUT = candidate ? candidate.outputRoot + "/isolation" : process.env.LIBEVRA_E2E_OUT ?? "_backups/ledger-isolation-20261025";
 mkdirSync(OUT, { recursive: true });
-const fixture = JSON.parse(readFileSync("_backups/avatar-page-copy-20261025/fixture.json", "utf8"));
+const fixture = candidate?.avatar ?? JSON.parse(readFileSync("_backups/avatar-page-copy-20261025/fixture.json", "utf8"));
 const session = await apiLogin(API, fixture.username, fixture.password);
 const call = (path, options = {}) => api(API, path, { cookie: session, ...options });
 const user = (await call("/auth/me")).data.user;
@@ -28,12 +30,12 @@ const cache = JSON.stringify({ timestamp: Date.now(), buster: "", clientState: {
     data: { pages: [{ items: [created.data], nextCursor: null }], pageParams: [null] }, status: "success", dataUpdatedAt: Date.now(),
   } },
 ] } });
-const page = await openPage(9241, BASE);
+const page = await openPage(candidate?.port ?? 9241, BASE);
 const results = [];
 try {
   await page.send("Page.addScriptToEvaluateOnNewDocument", { source: `window.runtimeImport = path => import(performance.getEntriesByType('resource').map(r=>r.name).findLast(url => new URL(url).pathname === path) ?? path);` });
   await page.send("Security.setIgnoreCertificateErrors", { ignore: true });
-  await page.setCookie("libellum_session", session);
+  await page.setCookie("libellum_session", session, BASE);
   await page.navigate(BASE + "/");
   await page.waitFor('document.body.innerText.includes("当前账本")', 15000);
   // 写入独立测试浏览器的历史缓存，模拟旧版创建新账本后的磁盘状态。

@@ -1780,7 +1780,8 @@ export function useCheckDuplicates(): UseMutationResult<
   Error,
   DuplicateCheckInput
 > {
-  return useMutation({ mutationFn: async (input: DuplicateCheckInput) => {
+  // 检测器已有本地回退；默认 online 会在调用它之前挂起，导致离线保存一直等待。
+  return useMutation({ networkMode: "always", mutationFn: async (input: DuplicateCheckInput) => {
     const bookId = duplicateBookId();
     /**
      * ⚠️ **返回整份结果，而不是只挑出历史账目。** 调用方需要 `scope` 才能诚实地说

@@ -17,12 +17,14 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { api, apiLogin, assert, openPage, runCase } from "./cdp.mjs";
+import { localCandidate } from "./local-candidate.mjs";
 
-const BASE = "https://127.0.0.1:5173";
-const API = "http://127.0.0.1:3000/api/v1";
-const CDP_PORT = Number(process.env["LIBEVRA_CDP_PORT"] ?? "9236");
-const OUT = "_backups/avatar-picker-ui-20261026";
-const FIXTURE = JSON.parse(readFileSync("_backups/avatar-page-copy-20261025/fixture.json", "utf8"));
+const candidate = localCandidate();
+const BASE = candidate?.web ?? "https://127.0.0.1:5173";
+const API = candidate?.api ?? "http://127.0.0.1:3000/api/v1";
+const CDP_PORT = candidate?.port ?? Number(process.env["LIBEVRA_CDP_PORT"] ?? "9236");
+const OUT = candidate ? path.join(candidate.outputRoot, "avatars") : "_backups/avatar-picker-ui-20261026";
+const FIXTURE = candidate?.avatar ?? JSON.parse(readFileSync("_backups/avatar-page-copy-20261025/fixture.json", "utf8"));
 
 const SPECIALS = ["daoxuan-special", "descent-special"];
 const NAMES = {
@@ -234,7 +236,7 @@ async function run() {
 
   const page = await openPage(CDP_PORT, `${BASE}/login`);
   await page.setViewport(390, 844);
-  await page.setCookie("libellum_session", session);
+  await page.setCookie("libellum_session", session, BASE);
 
   const zhOrder = NAMES[lockedId]["zh-CN"];
   const zhUnlockedName = NAMES[unlockedSpecialId]["zh-CN"];

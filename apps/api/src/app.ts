@@ -3,6 +3,8 @@ import multipart from "@fastify/multipart";
 import { MAX_RECOGNIZE_BYTES, MAX_RECOGNIZE_IMAGES, type RegistrationMode } from "@libellum/shared";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
+import { registerFxRoutes } from "./fx/routes.js";
+import type { FxHistoryService } from "../../../packages/shared/src/fxHistory.js";
 
 import { createRequireAdmin } from "./admin/guard.js";
 import { createRequireAuth, createRequireBook } from "./auth/guard.js";
@@ -48,6 +50,7 @@ import { registerVoiceRoutes } from "./routes/voice.js";
 import { VoiceService } from "./voice/client.js";
 
 export interface BuildAppOptions extends HealthDeps {
+  readonly fxService?: FxHistoryService;
   readonly logger?: FastifyServerOptions["logger"];
   /** Required for the auth routes; omit only in tests that do not touch accounts. */
   readonly prisma?: PrismaClient;
@@ -290,6 +293,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      * front of it. `POST /books/invite` moved next to the other ledger routes in `books.ts`.
      */
     registerDirectoryRoutes(app, { prisma: options.prisma, requireAuth });
+    const fxService = options.fxService;
+    if (fxService) void app.register(async scope => { await registerFxRoutes(scope, { requireAuth, service: fxService }); });
     registerNotificationRoutes(app, { prisma: options.prisma, requireAuth });
     /**
      * 特典头像奖励（S16）：账号级接口，挂普通 auth，不带账本头 —— 头像属于账户而不是某一本账。

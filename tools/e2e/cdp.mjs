@@ -120,20 +120,20 @@ export async function openPage(port, initialUrl = "https://127.0.0.1:5173/") {
     });
   }
 
-  async function setCookie(name, value) {
+  async function setCookie(name, value, origin = "http://127.0.0.1") {
     await send("Network.enable");
     await send("Network.setCookie", {
       name,
       value,
-      domain: "127.0.0.1",
+      url: origin,
       path: "/",
       httpOnly: true,
       sameSite: "Lax",
     });
   }
 
-  async function clearStorage() {
-    await send("Storage.clearDataForOrigin", { origin: "http://127.0.0.1:5175", storageTypes: "all" });
+  async function clearStorage(origin = "http://127.0.0.1:5175") {
+    await send("Storage.clearDataForOrigin", { origin, storageTypes: "all" });
   }
 
   async function setOffline(offline) {

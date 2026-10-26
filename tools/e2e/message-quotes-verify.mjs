@@ -22,18 +22,20 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { api, apiLogin, assert, openPage, runCase } from "./cdp.mjs";
+import { localCandidate } from "./local-candidate.mjs";
 
-const WEB = "https://127.0.0.1:5173";
-const API = "http://127.0.0.1:3000/api/v1";
-const OUTPUT = join(process.env.USERPROFILE ?? ".", "Desktop", "工作", "记账程序", "记账程序v1", "_backups", "quote-refine-20261026");
+const candidate = localCandidate();
+const WEB = candidate?.web ?? "https://127.0.0.1:5173";
+const API = candidate?.api ?? "http://127.0.0.1:3000/api/v1";
+const OUTPUT = candidate ? join(candidate.outputRoot, "quotes") : join(process.env.USERPROFILE ?? ".", "Desktop", "工作", "记账程序", "记账程序v1", "_backups", "quote-refine-20261026");
 
-const SHARED = {
+const SHARED = candidate?.shared ?? {
   username: "pn_270ce57",
   password: "Profile-7f0bf9f3-3027-4557-917d-e81707a02192",
   bookId: "bb832b1b-e397-49d0-a18d-780cd4b59061",
   bookName: "个人资料验收账本",
 };
-const SOLO = {
+const SOLO = candidate?.solo ?? {
   username: "pv_avatarcp",
   password: "AvatarCp-5dc6ea59909b49d3",
   bookId: "8fafe6c9-0815-48e5-a256-f526dca85963",
@@ -43,7 +45,7 @@ const SOLO = {
 mkdirSync(OUTPUT, { recursive: true });
 
 const results = [];
-const page = await openPage(9239);
+const page = await openPage(candidate?.port ?? 9239, WEB);
 await page.setViewport(390, 844, true);
 await page.send("Page.addScriptToEvaluateOnNewDocument", {
   source: `window.runtimeImport = (path) => import(path);`,
@@ -84,7 +86,7 @@ async function enterBook(bookId, bookName) {
 async function login(session, book) {
   await page.navigate(`${WEB}/`);
   await page.waitFor("document.readyState === 'complete'");
-  await page.setCookie("libellum_session", session);
+  await page.setCookie("libellum_session", session, WEB);
   await page.setViewport(390, 844, true);
   // 浏览器默认语言是 en-US；先钉住中文，后续再切英文用例。
   await page.evaluate(`localStorage.setItem("libevra.language", "zh-CN")`);
@@ -564,7 +566,7 @@ await runCase(results, "个人账本没有「就这笔留言」入口", async ()
   const soloCookie = await apiLogin(API, SOLO.username, SOLO.password);
   await page.navigate(`${WEB}/`);
   await page.waitFor("document.readyState === 'complete'");
-  await page.setCookie("libellum_session", soloCookie);
+  await page.setCookie("libellum_session", soloCookie, WEB);
   await page.setViewport(390, 844, true);
   await page.evaluate(`localStorage.setItem("libevra.language", "zh-CN")`);
   await page.navigate(`${WEB}/`);
@@ -594,7 +596,7 @@ await runCase(results, "英文界面：引用流程与文案完整", async () =>
   // 切回共享账本账号。
   await page.navigate(`${WEB}/`);
   await page.waitFor("document.readyState === 'complete'");
-  await page.setCookie("libellum_session", cookie);
+  await page.setCookie("libellum_session", cookie, WEB);
   await page.setViewport(390, 844, true);
   await page.navigate(`${WEB}/`);
   await page.waitFor("document.readyState === 'complete'");
