@@ -1,0 +1,15 @@
+# 1.16.22：四款经典头像与中英文更新公告，迁移 59 → 60。
+# 只发布 api/web；relay 保持原有已验证镜像。
+services:
+  migrate:
+    image: libevra-rc-api:1.16.22-20261026
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.16.22-20261026
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.16.22-20261026
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

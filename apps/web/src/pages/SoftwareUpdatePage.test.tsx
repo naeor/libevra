@@ -30,16 +30,16 @@ describe("software update announcements", () => {
     const html = renderAt("/update", <SoftwareUpdatePage />);
 
     expect(html).toContain(APP_VERSION);
-    expect(html).toContain("1.16.08");
-    expect(html).toContain("七套主题与深色外观");
-    expect(html).toContain("新增七套主题色与浅色、深色及跟随系统模式，并整理设置首页和外观预览。");
-    expect(html).toContain("2026年10月24日");
-    expect(html).toContain('href="/update/announcements/1.16.08"');
+    expect(html).toContain("1.16.22");
+    expect(html).toContain("四款新头像加入经典系列");
+    expect(html).toContain("经典系列新增玉净、幽幽、元宝和「太阳」，所有用户均可直接选择。");
+    expect(html).toContain("2026年10月26日");
+    expect(html).toContain('href="/update/announcements/1.16.22"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
     expect(html).toContain("账本数据隔离修复");
-    expect(html).toContain("问题修复");
+    expect(html).toContain("新增功能");
     expect(html).toContain("注意事项");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");

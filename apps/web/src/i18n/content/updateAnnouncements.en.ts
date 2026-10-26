@@ -10,6 +10,28 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.16.22": {
+    title: "Four new avatars join the Classic Collection",
+    summary: "Jade Vase, Boo, Ingot and 「Sun」 join the Classic Collection, available to everyone.",
+    sections: [
+      {
+        heading: "New features",
+        items: [
+          "Jade Vase: a slender vase resting above a gentle ripple. Caption: Gentle dew, a willow sprig, and a moment of peace.",
+          "Boo: a soft little ghost, floating gently by your side. Caption: Boo… don’t be scared!",
+          "Ingot: full, rounded and softly turned up at the sides. Caption: A little ingot, a little luck.",
+          "「Sun」: a simple fried egg; the 「」 brackets are part of its name. Caption: A little “sun” for breakfast, and warmth all day.",
+        ],
+      },
+      {
+        heading: "Notes",
+        items: [
+          "Open the avatar picker from Me → Profile, choose an avatar and save. All four belong to the Classic Collection and require no unlock.",
+          "The new avatars support all seven themes, light and dark appearances, and Chinese and English names and captions. Existing classic avatars, special avatars and unlock records are kept.",
+        ],
+      },
+    ],
+  },
   "1.16.21": {
     title: "Exchange-rate conversion and cross-currency totals",
     summary:
