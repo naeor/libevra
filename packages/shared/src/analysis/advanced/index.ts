@@ -16,3 +16,6 @@ export * from "./distribution.js";
 export * from "./contribution.js";
 export * from "./matrix.js";
 export * from "./ranking.js";
+export * from "./migration.js";
+export * from "./scatter.js";
+export * from "./bubble.js";

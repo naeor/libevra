@@ -134,3 +134,79 @@ export interface SharedConcentration {
     readonly coveredMinor: bigint;
   }[];
 }
+
+/* ------------------- C-2 结构镜像（矩阵/迁移/散点/气泡） ------------------- */
+
+export interface SharedMatrixCell {
+  readonly rowId: string;
+  readonly colId: string;
+  readonly amountMinor: bigint;
+  readonly count: number;
+}
+
+export interface SharedMatrixResult {
+  readonly rowIds: readonly string[];
+  readonly colIds: readonly string[];
+  readonly cells: readonly SharedMatrixCell[];
+  readonly rowTotals: ReadonlyMap<string, bigint>;
+  readonly colTotals: ReadonlyMap<string, bigint>;
+  readonly grandTotalMinor: bigint;
+  readonly grandTotalCount: number;
+  readonly filledCellCount: number;
+}
+
+export interface SharedRankMigrationRow {
+  readonly id: string;
+  readonly label: string;
+  readonly previousRank: number | null;
+  readonly currentRank: number | null;
+  readonly rankDelta: number | null;
+  readonly previousMinor: bigint;
+  readonly currentMinor: bigint;
+  readonly amountDeltaMinor: bigint;
+  readonly isNew: boolean;
+  readonly isRemoved: boolean;
+}
+
+export interface SharedRankMigrationResult {
+  readonly previousEntryCount: number;
+  readonly currentEntryCount: number;
+  readonly rows: readonly SharedRankMigrationRow[];
+  readonly movedCount: number;
+  readonly newCount: number;
+  readonly removedCount: number;
+}
+
+export interface SharedScatterPoint {
+  readonly id: string;
+  readonly occurredLocalDate: string;
+  readonly amountMinor: bigint;
+  readonly categoryId: string;
+}
+
+export interface SharedScatterResult {
+  readonly points: readonly SharedScatterPoint[];
+  readonly sampleCount: number;
+  readonly plottedCount: number;
+  readonly omittedCount: number;
+  readonly strategy: "none" | "top-amount";
+  readonly complete: boolean;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+
+export interface SharedBubbleDatum {
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  readonly count: number;
+  readonly sumMinor: bigint;
+  readonly meanMinor: RatioLike | null;
+  readonly shareOfTotal: RatioLike | null;
+}
+
+export interface SharedBubbleResult {
+  readonly bubbles: readonly SharedBubbleDatum[];
+  readonly totalMinor: bigint;
+  readonly totalCount: number;
+  readonly completeness: "complete" | "no-transactions" | "unavailable";
+}
+

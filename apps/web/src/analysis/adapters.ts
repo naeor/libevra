@@ -16,25 +16,44 @@ import {
 } from "./format.js";
 import type {
   BoxplotInput,
+  BubbleDatum,
+  BubbleInput,
   ChartSource,
   DivergingBarDatum,
   DivergingBarsInput,
+  HeatmapCell,
+  HeatmapColumn,
+  HeatmapInput,
+  HeatmapRow,
   HistogramBar,
   HistogramInput,
   ParetoInput,
   ParetoRow,
+  RankMigrationDatum,
+  RankMigrationInput,
   RankingTableInput,
   RankingTableRow,
+  ScatterDatum,
+  ScatterInput,
+  StackedBarsInput,
+  StackedBarsRow,
+  StackedBarSegment,
+  StackedBarSeries,
   WaterfallInput,
   WaterfallStep,
 } from "./types.js";
 import type {
+  SharedBubbleResult,
   SharedConcentration,
   SharedContributionResult,
   SharedDistributionSummary,
   SharedFenceResult,
   SharedHistogram,
+  SharedMatrixCell,
+  SharedMatrixResult,
+  SharedRankMigrationResult,
   SharedRankingResult,
+  SharedScatterResult,
 } from "./sharedTypes.js";
 
 export interface AdapterOptions {
@@ -355,4 +374,277 @@ export function toParetoInput(
 /** 排行表行数摘要（供界面拼接文案；不做翻译，翻译交给 i18n 层）。 */
 export function rankingCountSummary(input: RankingTableInput): string {
   return `${formatCountText(input.visibleCount)} 行`;
+}
+
+/* ------------------------------------------------------------------------- *
+ * C-2：矩阵 / 排名迁移 / 散点 / 气泡
+ * ------------------------------------------------------------------------- */
+
+export interface HeatmapLabels {
+  readonly row?: Readonly<Record<string, string>>;
+  readonly col?: Readonly<Record<string, string>>;
+}
+
+function labelOf(labels: Readonly<Record<string, string>> | undefined, id: string): string {
+  return labels?.[id] ?? id;
+}
+
+function matrixCellKey(rowId: string, colId: string): string {
+  return `${rowId}\u0000${colId}`;
+}
+
+function matrixCellMap(matrix: SharedMatrixResult): ReadonlyMap<string, SharedMatrixCell> {
+  const cells = new Map<string, SharedMatrixCell>();
+  for (const cell of matrix.cells) {
+    cells.set(matrixCellKey(cell.rowId, cell.colId), cell);
+  }
+  return cells;
+}
+
+/**
+ * 矩阵 → 热力矩阵输入（P01 分类×月份 / P02 分类×星期 / P03 分类×支付方式）。
+ *
+ * 强度 = |amount| / 全表最大 |amount|；行内占比 = amount / 行合计。
+ * 行合计为 0 时 shareOfRow=null（不写 0，也不除零）。
+ */
+export function toHeatmapInput(
+  matrix: SharedMatrixResult,
+  labels: HeatmapLabels,
+  options: AdapterOptions,
+): HeatmapInput {
+  const maxAbs = maxAbsBigInt(matrix.cells.map((cell) => cell.amountMinor));
+  const rows: HeatmapRow[] = matrix.rowIds.map((rowId) => ({
+    id: rowId,
+    label: labelOf(labels.row, rowId),
+    totalText: formatMinorText(matrix.rowTotals.get(rowId) ?? 0n, options.decimals),
+  }));
+  const cols: HeatmapColumn[] = matrix.colIds.map((colId) => ({
+    id: colId,
+    label: labelOf(labels.col, colId),
+  }));
+  const cells: HeatmapCell[] = matrix.cells.map((cell) => {
+    const rowTotal = matrix.rowTotals.get(cell.rowId) ?? 0n;
+    const absolute = cell.amountMinor < 0n ? -cell.amountMinor : cell.amountMinor;
+    return {
+      rowId: cell.rowId,
+      colId: cell.colId,
+      rowLabel: labelOf(labels.row, cell.rowId),
+      colLabel: labelOf(labels.col, cell.colId),
+      amountMinor: cell.amountMinor,
+      amountText: formatMinorText(cell.amountMinor, options.decimals),
+      count: cell.count,
+      shareOfRow: rowTotal === 0n ? null : fractionOf(cell.amountMinor, rowTotal),
+      intensity: fractionOf(absolute, maxAbs),
+      isNegative: cell.amountMinor < 0n,
+    };
+  });
+
+  return {
+    source: sourceOf(options, matrix.filledCellCount > 0),
+    rows,
+    cols,
+    cells,
+    maxText: formatMinorText(maxAbs, options.decimals),
+    totalText: formatMinorText(matrix.grandTotalMinor, options.decimals),
+    filledCellCount: matrix.filledCellCount,
+    emptyCellText: "—",
+  };
+}
+
+/**
+ * 矩阵 → 堆叠柱输入（P04 时间×支付方式：行=时间桶，列=支付方式）。
+ *
+ * 段占比 = amount / 行合计；行合计为 0 时全部为 0。累计偏移由适配层给出，
+ * 几何层只按 offsetFraction + fraction 摆位置。
+ */
+export function toStackedBarsInput(
+  matrix: SharedMatrixResult,
+  labels: HeatmapLabels,
+  options: AdapterOptions,
+): StackedBarsInput {
+  const lookup = matrixCellMap(matrix);
+  const seriesSegments: StackedBarSegment[][] = matrix.colIds.map(() => []);
+
+  const rows: StackedBarsRow[] = matrix.rowIds.map((rowId, rowIndex) => {
+    const total = matrix.rowTotals.get(rowId) ?? 0n;
+    let offset = 0;
+    matrix.colIds.forEach((colId, colIndex) => {
+      const cell = lookup.get(matrixCellKey(rowId, colId));
+      const amount = cell === undefined ? 0n : cell.amountMinor;
+      const fraction = total === 0n ? 0 : fractionOf(amount, total);
+      seriesSegments[colIndex]?.push({
+        rowIndex,
+        seriesId: colId,
+        amountMinor: amount,
+        amountText: formatMinorText(amount, options.decimals),
+        fraction,
+        offsetFraction: offset,
+      });
+      offset += fraction;
+    });
+    return {
+      bucketLabel: labelOf(labels.row, rowId),
+      totalText: formatMinorText(total, options.decimals),
+    };
+  });
+
+  const series: StackedBarSeries[] = matrix.colIds.map((colId, colIndex) => ({
+    id: colId,
+    label: labelOf(labels.col, colId),
+    segments: seriesSegments[colIndex] ?? [],
+  }));
+
+  return {
+    source: sourceOf(options, matrix.filledCellCount > 0),
+    rows,
+    series,
+    unitText: options.currency,
+  };
+}
+
+/**
+ * 排名迁移结果 → Bump/斜率图输入（P09）。
+ *
+ * 名次 → 纵向比例：1 名在顶部；新分类 currentFraction 有值、previousFraction=null；
+ * 消失分类相反。金额文本对消失分类取上期金额（不显示 0）。
+ */
+export function toRankMigrationInput(
+  result: SharedRankMigrationResult,
+  options: AdapterOptions,
+): RankMigrationInput {
+  const ranks: number[] = [];
+  for (const row of result.rows) {
+    if (row.previousRank !== null) ranks.push(row.previousRank);
+    if (row.currentRank !== null) ranks.push(row.currentRank);
+  }
+  let maxRank = 1;
+  for (const rank of ranks) {
+    if (rank > maxRank) maxRank = rank;
+  }
+  const fractionOfRank = (rank: number | null): number | null => {
+    if (rank === null) return null;
+    if (maxRank <= 1) return 1;
+    return 1 - (rank - 1) / (maxRank - 1);
+  };
+
+  const rows: RankMigrationDatum[] = result.rows.map((row) => {
+    let movement: RankMigrationDatum["movement"];
+    if (row.isNew) {
+      movement = "new";
+    } else if (row.isRemoved) {
+      movement = "removed";
+    } else if (row.rankDelta === null || row.rankDelta === 0) {
+      movement = "flat";
+    } else if (row.rankDelta > 0) {
+      movement = "up";
+    } else {
+      movement = "down";
+    }
+    return {
+      id: row.id,
+      label: row.label,
+      previousRank: row.previousRank,
+      currentRank: row.currentRank,
+      rankDelta: row.rankDelta,
+      movement,
+      amountText: formatMinorText(row.isRemoved ? row.previousMinor : row.currentMinor, options.decimals),
+      deltaText: formatSignedMinorText(row.amountDeltaMinor, options.decimals),
+      previousFraction: fractionOfRank(row.previousRank),
+      currentFraction: fractionOfRank(row.currentRank),
+    };
+  });
+
+  return {
+    source: sourceOf(options, rows.length > 0),
+    rows,
+    movedCount: result.movedCount,
+    newCount: result.newCount,
+    removedCount: result.removedCount,
+    maxRank,
+  };
+}
+
+/**
+ * 散点结果 → 散点图输入（P10：x=日期序数、y=单笔金额占比）。
+ *
+ * x 使用日期序数而非时间戳，保证同一业务日期的点共享同一 x 位置；
+ * yFraction 只用于坐标，金额文本仍来自 shared。
+ */
+export function toScatterInput(
+  result: SharedScatterResult,
+  options: AdapterOptions,
+): ScatterInput {
+  const dates = [...new Set(result.points.map((point) => point.occurredLocalDate))].sort();
+  const dateIndex = new Map<string, number>();
+  dates.forEach((date, index) => dateIndex.set(date, index));
+
+  let maxAmount = 0n;
+  let minAmount = 0n;
+  result.points.forEach((point, index) => {
+    if (index === 0 || point.amountMinor > maxAmount) maxAmount = point.amountMinor;
+    if (index === 0 || point.amountMinor < minAmount) minAmount = point.amountMinor;
+  });
+
+  const points: ScatterDatum[] = result.points.map((point) => ({
+    id: point.id,
+    dateIndex: dateIndex.get(point.occurredLocalDate) ?? 0,
+    dateLabel: point.occurredLocalDate,
+    amountMinor: point.amountMinor,
+    amountText: formatMinorText(point.amountMinor, options.decimals),
+    categoryId: point.categoryId,
+    yFraction: maxAmount === 0n ? 0 : fractionOf(point.amountMinor, maxAmount),
+  }));
+
+  return {
+    source: sourceOf(options, result.complete),
+    points,
+    sampleCount: result.sampleCount,
+    plottedCount: result.plottedCount,
+    omittedCount: result.omittedCount,
+    xLabels: dates,
+    minText: points.length === 0 ? null : formatMinorText(minAmount, options.decimals),
+    maxText: points.length === 0 ? null : formatMinorText(maxAmount, options.decimals),
+  };
+}
+
+/**
+ * 气泡结果 → 气泡图输入（P11：金额=半径、笔数=x、均值=y）。
+ *
+ * 半径按 sqrt(金额占比) 缩放（面积与金额成正比）；均值缺失时 yFraction=0，
+ * 但 meanText=null，界面必须显示「无可用笔数」，不得把 0 当真实均值。
+ */
+export function toBubbleInput(result: SharedBubbleResult, options: AdapterOptions): BubbleInput {
+  let maxCount = 0;
+  let maxMean = 0;
+  for (const bubble of result.bubbles) {
+    if (bubble.count > maxCount) maxCount = bubble.count;
+    if (bubble.meanMinor !== null) {
+      const mean = ratioToDisplayNumber(bubble.meanMinor);
+      if (mean > maxMean) maxMean = mean;
+    }
+  }
+
+  const bubbles: BubbleDatum[] = result.bubbles.map((bubble) => {
+    const mean = bubble.meanMinor === null ? null : ratioToDisplayNumber(bubble.meanMinor);
+    return {
+      id: bubble.categoryId,
+      label: bubble.categoryLabel,
+      count: bubble.count,
+      sumMinor: bubble.sumMinor,
+      sumText: formatMinorText(bubble.sumMinor, options.decimals),
+      countText: formatCountText(bubble.count),
+      meanText: bubble.meanMinor === null ? null : formatRatioMinorText(bubble.meanMinor, options.decimals),
+      shareText: bubble.shareOfTotal === null ? null : formatRatioPercent(bubble.shareOfTotal, 1),
+      radiusFraction: bubble.shareOfTotal === null ? 0 : Math.sqrt(Math.max(0, ratioToDisplayNumber(bubble.shareOfTotal))),
+      xFraction: maxCount === 0 ? 0 : bubble.count / maxCount,
+      yFraction: mean === null || maxMean === 0 ? 0 : mean / maxMean,
+    };
+  });
+
+  return {
+    source: sourceOf(options, result.completeness === "complete"),
+    bubbles,
+    totalText: formatMinorText(result.totalMinor, options.decimals),
+    totalCount: result.totalCount,
+  };
 }

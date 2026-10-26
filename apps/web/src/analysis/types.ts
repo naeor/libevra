@@ -151,3 +151,152 @@ export interface ParetoInput {
   readonly top3Text: string | null;
   readonly top5Text: string | null;
 }
+
+/* ------------------------------------------------------------------------- *
+ * C-2 新增图表输入（P01–P04 矩阵/堆叠、P09 排名迁移、P10 散点、P11 气泡）
+ *
+ * 与 C-1 相同：输入里的 *Text / *Fraction 都是 shared 结果的展示派生，
+ * 只用于排版与坐标；金额/占比/分位的权威值一律来自 shared。
+ * ------------------------------------------------------------------------- */
+
+/** 热力矩阵的一个单元格（P01 分类×月份 / P02 分类×星期 / P03 分类×支付方式）。 */
+export interface HeatmapCell {
+  readonly rowId: string;
+  readonly colId: string;
+  readonly rowLabel: string;
+  readonly colLabel: string;
+  readonly amountMinor: bigint;
+  readonly amountText: string;
+  readonly count: number;
+  /** amount / 行合计；行合计为 0 时为 null（不写 0）。 */
+  readonly shareOfRow: number | null;
+  /** |amount| / 全表最大 |amount|，仅用于色阶强度。 */
+  readonly intensity: number;
+  readonly isNegative: boolean;
+}
+
+export interface HeatmapRow {
+  readonly id: string;
+  readonly label: string;
+  readonly totalText: string;
+}
+
+export interface HeatmapColumn {
+  readonly id: string;
+  readonly label: string;
+}
+
+export interface HeatmapInput {
+  readonly source: ChartSource;
+  readonly rows: readonly HeatmapRow[];
+  readonly cols: readonly HeatmapColumn[];
+  readonly cells: readonly HeatmapCell[];
+  readonly maxText: string;
+  readonly totalText: string;
+  readonly filledCellCount: number;
+  /** 空单元格的显示文本（「该组合没有发生」，不是 0）。 */
+  readonly emptyCellText: string;
+}
+
+/** 堆叠柱的一个时间桶（P04 时间×支付方式；行=时间桶、列=支付方式）。 */
+export interface StackedBarsRow {
+  readonly bucketLabel: string;
+  readonly totalText: string;
+}
+
+export interface StackedBarSegment {
+  readonly rowIndex: number;
+  readonly seriesId: string;
+  readonly amountMinor: bigint;
+  readonly amountText: string;
+  /** amount / 该行合计；行合计为 0 时为 0（由适配层给出，几何直接使用）。 */
+  readonly fraction: number;
+  /** 该段之前的累计占比（0..1），几何直接使用。 */
+  readonly offsetFraction: number;
+}
+
+export interface StackedBarSeries {
+  readonly id: string;
+  readonly label: string;
+  readonly segments: readonly StackedBarSegment[];
+}
+
+export interface StackedBarsInput {
+  readonly source: ChartSource;
+  readonly rows: readonly StackedBarsRow[];
+  readonly series: readonly StackedBarSeries[];
+  readonly unitText: string;
+}
+
+/** 排名迁移一行（P09 Bump/斜率图）。 */
+export interface RankMigrationDatum {
+  readonly id: string;
+  readonly label: string;
+  readonly previousRank: number | null;
+  readonly currentRank: number | null;
+  readonly rankDelta: number | null;
+  readonly movement: "up" | "down" | "flat" | "new" | "removed";
+  /** 本期金额文本（消失分类显示上期金额）。 */
+  readonly amountText: string;
+  readonly deltaText: string;
+  /** 名次 → 纵向比例（1 = 第 1 名在顶部）；该期不存在时为 null。 */
+  readonly previousFraction: number | null;
+  readonly currentFraction: number | null;
+}
+
+export interface RankMigrationInput {
+  readonly source: ChartSource;
+  readonly rows: readonly RankMigrationDatum[];
+  readonly movedCount: number;
+  readonly newCount: number;
+  readonly removedCount: number;
+  readonly maxRank: number;
+}
+
+/** 散点图的一个点（P10）。 */
+export interface ScatterDatum {
+  readonly id: string;
+  /** 业务日期的序数（同一个日期共享同一个 x 位置）。 */
+  readonly dateIndex: number;
+  readonly dateLabel: string;
+  readonly amountMinor: bigint;
+  readonly amountText: string;
+  readonly categoryId: string;
+  /** amount / 最大金额（0..1），仅几何使用。 */
+  readonly yFraction: number;
+}
+
+export interface ScatterInput {
+  readonly source: ChartSource;
+  readonly points: readonly ScatterDatum[];
+  readonly sampleCount: number;
+  readonly plottedCount: number;
+  readonly omittedCount: number;
+  readonly xLabels: readonly string[];
+  readonly minText: string | null;
+  readonly maxText: string | null;
+}
+
+/** 气泡图的一个气泡（P11：金额=大小、笔数=x、均值=y）。 */
+export interface BubbleDatum {
+  readonly id: string;
+  readonly label: string;
+  readonly count: number;
+  readonly sumMinor: bigint;
+  readonly sumText: string;
+  readonly countText: string;
+  readonly meanText: string | null;
+  readonly shareText: string | null;
+  /** sqrt(金额占比)，仅用于半径。 */
+  readonly radiusFraction: number;
+  readonly xFraction: number;
+  readonly yFraction: number;
+}
+
+export interface BubbleInput {
+  readonly source: ChartSource;
+  readonly bubbles: readonly BubbleDatum[];
+  readonly totalText: string;
+  readonly totalCount: number;
+}
+

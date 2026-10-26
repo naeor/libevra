@@ -315,3 +315,201 @@ export function computeBoxplotLayout(
     centerX: options.width / 2,
   };
 }
+
+/* ------------------------------------------------------------------------- *
+ * C-2 几何：矩阵热力 / 堆叠柱 / 散点 / 气泡 / 排名迁移
+ *
+ * 与 C-1 相同：输入全是已归一化的小数（比例/力度），这里只摆位置、算像素，
+ * 不接触任何金额或统计量。
+ * ------------------------------------------------------------------------- */
+
+export interface HeatmapLayoutOptions extends BarLayoutOptions {
+  /** 单元格之间留白占单格宽/高的比例；0 表示贴边。 */
+  readonly gapRatio?: number;
+}
+
+export interface HeatmapCellLayout {
+  readonly rowIndex: number;
+  readonly colIndex: number;
+  readonly box: LayoutBox;
+}
+
+/** 矩阵热力：row × col 的单元格盒子，行自上而下、列自左而右。 */
+export function computeHeatmapCells(
+  rowCount: number,
+  colCount: number,
+  options: HeatmapLayoutOptions,
+): readonly (readonly HeatmapCellLayout[])[] {
+  assertPositive(options.width, "width");
+  assertPositive(options.height, "height");
+  if (rowCount <= 0 || colCount <= 0) return [];
+
+  const gapRatio = clamp01(options.gapRatio ?? 0.04);
+  const cellWidth = options.width / colCount;
+  const cellHeight = options.height / rowCount;
+  const gapX = cellWidth * gapRatio;
+  const gapY = cellHeight * gapRatio;
+
+  const rows: HeatmapCellLayout[][] = [];
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    const cells: HeatmapCellLayout[] = [];
+    for (let colIndex = 0; colIndex < colCount; colIndex += 1) {
+      cells.push({
+        rowIndex,
+        colIndex,
+        box: {
+          x: colIndex * cellWidth + gapX / 2,
+          y: rowIndex * cellHeight + gapY / 2,
+          width: cellWidth - gapX,
+          height: cellHeight - gapY,
+        },
+      });
+    }
+    rows.push(cells);
+  }
+  return rows;
+}
+
+export interface StackedBarsOptions extends BarLayoutOptions {
+  /** 桶与桶之间的间隙占槽位比例。 */
+  readonly gapRatio?: number;
+}
+
+export interface StackedBarBox {
+  readonly rowIndex: number;
+  readonly seriesIndex: number;
+  readonly box: LayoutBox;
+}
+
+/**
+ * 堆叠柱（纵向）：每个时间桶一根柱，段从底向上按 offsetFraction + fraction 堆叠。
+ * 超出 1 的累计被截断（数据异常时宁可少画，也不画出柱外）。
+ */
+export function computeStackedBarBoxes(
+  rows: readonly (readonly { fraction: number; offsetFraction: number }[])[],
+  options: StackedBarsOptions,
+): readonly (readonly StackedBarBox[])[] {
+  assertPositive(options.width, "width");
+  assertPositive(options.height, "height");
+  if (rows.length === 0) return [];
+
+  const gapRatio = clamp01(options.gapRatio ?? 0.2);
+  const slotWidth = options.width / rows.length;
+  const barWidth = slotWidth * (1 - gapRatio);
+
+  const layout: StackedBarBox[][] = [];
+  rows.forEach((segments, rowIndex) => {
+    const x = rowIndex * slotWidth + (slotWidth - barWidth) / 2;
+    const boxes: StackedBarBox[] = [];
+    segments.forEach((segment, seriesIndex) => {
+      const offset = clamp01(segment.offsetFraction);
+      const top = Math.min(1, offset + clamp01(segment.fraction));
+      const height = (top - offset) * options.height;
+      boxes.push({
+        rowIndex,
+        seriesIndex,
+        box: { x, y: options.height * (1 - top), width: barWidth, height },
+      });
+    });
+    layout.push(boxes);
+  });
+  return layout;
+}
+
+export interface ScatterLayoutOptions {
+  readonly width: number;
+  readonly height: number;
+  /** 绘图区内边距（像素）。 */
+  readonly padding?: number;
+}
+
+function drawablePadding(options: ScatterLayoutOptions): number {
+  const limit = Math.min(options.width, options.height) / 2;
+  const padding = options.padding ?? 12;
+  if (!Number.isFinite(padding) || padding < 0) return 0;
+  return Math.min(padding, limit);
+}
+
+/** 散点：xFraction 左→右，yFraction 自底向上（1 = 顶部）。 */
+export function computeScatterLayout(
+  points: readonly { readonly xFraction: number; readonly yFraction: number }[],
+  options: ScatterLayoutOptions,
+): readonly Point[] {
+  assertPositive(options.width, "width");
+  assertPositive(options.height, "height");
+  const padding = drawablePadding(options);
+  const drawableWidth = options.width - padding * 2;
+  const drawableHeight = options.height - padding * 2;
+  return points.map((point) => ({
+    x: padding + clamp01(point.xFraction) * drawableWidth,
+    y: padding + (1 - clamp01(point.yFraction)) * drawableHeight,
+  }));
+}
+
+export interface BubbleLayout {
+  readonly cx: number;
+  readonly cy: number;
+  readonly r: number;
+}
+
+export interface BubbleLayoutOptions extends ScatterLayoutOptions {
+  /** 最大半径（像素）；默认取画布短边的 12%。 */
+  readonly maxRadius?: number;
+}
+
+/** 气泡：圆心同散点，半径为 radiusFraction × maxRadius。 */
+export function computeBubbleLayout(
+  bubbles: readonly {
+    readonly xFraction: number;
+    readonly yFraction: number;
+    readonly radiusFraction: number;
+  }[],
+  options: BubbleLayoutOptions,
+): readonly BubbleLayout[] {
+  const centers = computeScatterLayout(bubbles, options);
+  const fallbackRadius = Math.min(options.width, options.height) * 0.12;
+  const maxRadius = options.maxRadius === undefined ? fallbackRadius : Math.max(0, options.maxRadius);
+  return centers.map((center, index) => {
+    const bubble = bubbles[index];
+    const fraction = bubble === undefined ? 0 : clamp01(bubble.radiusFraction);
+    return { cx: center.x, cy: center.y, r: fraction * maxRadius };
+  });
+}
+
+export interface BumpLineLayout {
+  /** 上期点（该分类上期不存在时为 null）。 */
+  readonly from: Point | null;
+  /** 本期点（该分类本期不存在时为 null）。 */
+  readonly to: Point | null;
+  /** 有两端时是两点连线；只有一端时是单个点（新/消失分类）。 */
+  readonly points: readonly Point[];
+}
+
+/**
+ * 排名迁移（Bump）：左列=上期名次、右列=本期名次，yFraction 1 = 第 1 名在顶部。
+ * 只有一端（新分类/消失分类）时 points 只含该端点，调用方据此画端点而非跳过。
+ */
+export function computeBumpLines(
+  rows: readonly {
+    readonly previousFraction: number | null;
+    readonly currentFraction: number | null;
+  }[],
+  options: ScatterLayoutOptions,
+): readonly BumpLineLayout[] {
+  assertPositive(options.width, "width");
+  assertPositive(options.height, "height");
+  const padding = drawablePadding(options);
+  const leftX = padding;
+  const rightX = options.width - padding;
+  const drawableHeight = options.height - padding * 2;
+  const toY = (fraction: number): number => padding + (1 - clamp01(fraction)) * drawableHeight;
+
+  return rows.map((row) => {
+    const from = row.previousFraction === null ? null : { x: leftX, y: toY(row.previousFraction) };
+    const to = row.currentFraction === null ? null : { x: rightX, y: toY(row.currentFraction) };
+    const points: Point[] = [];
+    if (from !== null) points.push(from);
+    if (to !== null) points.push(to);
+    return { from, to, points };
+  });
+}

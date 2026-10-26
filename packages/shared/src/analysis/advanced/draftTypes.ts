@@ -174,3 +174,80 @@ export interface DraftConcentration {
   /** TopN 占比；N 超过分类数时取全部分类。 */
   readonly ratios: readonly { readonly topN: number; readonly share: DraftRational; readonly coveredMinor: bigint }[];
 }
+
+/* ------------------------------------------------------------------------- *
+ * C-2 新增形状（P09 排名迁移 / P10 记录级散点 / P11 分类气泡）
+ *
+ * 与 C-1 相同的约束：全部是草稿，不得被其他 Agent 引用；正式形状在 S-01 v2
+ * 评审时统一映射（QC-18）。金额权威仍是 bigint，展示派生只在 web 适配层做。
+ * ------------------------------------------------------------------------- */
+
+/** P09 排名迁移的一行：两期名次与金额变化。 */
+export interface DraftRankMigrationRow {
+  readonly id: string;
+  readonly label: string;
+  /** 上期名次（1 起）；上期不存在该分类时为 null。 */
+  readonly previousRank: number | null;
+  /** 本期名次（1 起）；本期不存在该分类时为 null。 */
+  readonly currentRank: number | null;
+  /** 上期名次 - 本期名次；正数=名次上升；任一期缺失时为 null（不是 0）。 */
+  readonly rankDelta: number | null;
+  readonly previousMinor: bigint;
+  readonly currentMinor: bigint;
+  readonly amountDeltaMinor: bigint;
+  readonly isNew: boolean;
+  readonly isRemoved: boolean;
+}
+
+export interface DraftRankMigrationResult {
+  readonly previousEntryCount: number;
+  readonly currentEntryCount: number;
+  readonly rows: readonly DraftRankMigrationRow[];
+  /** 两期都存在且名次变化的分类数。 */
+  readonly movedCount: number;
+  readonly newCount: number;
+  readonly removedCount: number;
+  /** 名次口径：金额降序、同额按 id 升序、同额共享名次（competition rank）。 */
+  readonly rankingPolicy: "amount-desc-id-asc-ties-share-rank";
+}
+
+/** P10 记录级散点的一个点（只含来源键与原始金额，不含展示字段）。 */
+export interface DraftScatterPoint {
+  readonly id: string;
+  readonly occurredLocalDate: string;
+  readonly amountMinor: bigint;
+  readonly categoryId: string;
+}
+
+export interface DraftScatterResult {
+  readonly points: readonly DraftScatterPoint[];
+  readonly sampleCount: number;
+  readonly plottedCount: number;
+  /** 因超过 maxPoints 而未绘制的记录数；必须是显式事实，不允许静默丢弃。 */
+  readonly omittedCount: number;
+  /** none = 全量绘制；top-amount = 按金额取前 N 后按日期排序（确定性抽样）。 */
+  readonly strategy: "none" | "top-amount";
+  /** omittedCount === 0 时为 true。 */
+  readonly complete: boolean;
+  readonly completeness: DraftCompleteness;
+}
+
+/** P11 分类气泡的一个气泡：金额、笔数与派生均值（均值是权威计算，份额是展示派生）。 */
+export interface DraftBubbleDatum {
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  readonly count: number;
+  readonly sumMinor: bigint;
+  /** sum / count；count = 0 时为 null（不写 0）。 */
+  readonly meanMinor: DraftRational | null;
+  /** sum / total；total = 0 时为 null。 */
+  readonly shareOfTotal: DraftRational | null;
+}
+
+export interface DraftBubbleResult {
+  readonly bubbles: readonly DraftBubbleDatum[];
+  readonly totalMinor: bigint;
+  readonly totalCount: number;
+  readonly completeness: DraftCompleteness;
+}
+
