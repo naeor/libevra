@@ -285,6 +285,7 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 - [ ] 极值摘要卡输入（§14.5 extreme-card）足够 CF-A02 消费；B20 的笔数以 `unit:"count"` 呈现、不装扮成金额
 - [ ] `RecordExtremeResult` 新增 `extremeValue?`/`countBreakdown?` 只增不改，不破坏 B09–B12/B15/B17 现有字段语义
 - [ ] 与 B 的时间扩展登记（§15：7 形状命名归 A、`dataVersion` 生产方与递增语义、`SourceDescriptor.bucket?`、半开↔闭区间换算、图表输入契约、`coverageEnd` 复用完整性）已评审；R-09/A-Q21 有结论
+- [ ] 统计口径登记（§16：Type 7 分位、总体 vs 样本方差/标准差、σ 表示与舍入、CV 定义与零均值边界）已评审；R-10 有结论
 - [ ] `AnalysisDefinition` 不含 presentation、不含账本 ID、首版币种只能 inherit
 - [ ] 与现有 `stats.ts`/`fx.ts`/`money.ts` 复用边界（R-01…R-08）有结论
 
@@ -436,3 +437,87 @@ S-01 用一个**结果信封**统一回答这些问题，并允许 B/C 在信封
 - 新增待评审项：**R-09**（`ComputationMetadata.coverageEnd?` 展示元数据）、**A-Q21**（`timeGranularity?` 字段）；A 不据此实现 B 的形状，也不修改 B 的工作区。
 
 > 评审通过后：Lead 在本文件标注【已冻结（commit）】→ 通知 B/C/D/Codex → 索引 §2 S-01 行同步 → Agent A 按最终类型实现 A-1…A-4。
+
+## 16. 统计口径：分位数与离散度（登记，不冻结，2026-10-27 应 Lead m01444 补）
+
+> 背景：Agent C 的 C-1 已按《S17-Agent-A-完整开发规格》§5 实现 **Type 7 分位**与**总体方差/总体标准差（σ）/CV**（提交 `0a51ac3`，C 分支，未 push）。Lead m01444 要求 A 在 S-01 中登记统一口径，避免 A/B/C 三方各写一套。
+> 边界：本节只登记口径，**不改 A 侧代码/测试，不改变已登记四形状语义**；S-01 仍 `s01-draft`。C 的 7 类高级结果形状（RankedRecords/Distribution/Contribution/Matrix/Hierarchy/Scatter/FXDiagnostic）未来进 S-01 v2，由 Lead 汇总，本节不预先登记它们的结构。
+
+### 16.1 分位数：Type 7（线性插值，R 默认 / Hyndman-Fan Type 7）
+
+**定义（1-based 排序）**：样本 `x₁ ≤ x₂ ≤ … ≤ xₙ`（按精确最小单位 `bigint` 排序；**不得**转 `number` 排序），概率 `p ∈ [0,1]`：
+
+- `h = (n − 1)·p + 1`
+- `k = floor(h)`，`γ = h − k`
+- `Q(p) = xₖ + γ·(xₖ₊₁ − xₖ)`；边界：`k = n` 或 `p = 1` 时 `Q(p) = xₙ`，`p = 0` 时 `Q(0) = x₁`
+- `n = 0`：**不可计算**（`null`），不补 0；`n = 1`：`Q(p) = x₁`（任意 p）
+
+**精确实现要求（禁止浮点权威值）**：
+
+- `p` 以精确分数 `p = a/b` 传入（`b > 0`，`0 ≤ a ≤ b`）；`h` 的分子 `H = (n−1)·a + b`、分母 `b`；`k = H div b`，余数 `r = H mod b`，`γ = r/b`。
+- `Q(p) = (xₖ·b + r·(xₖ₊₁ − xₖ)) / b`，结果为精确有理数（`Ratio{ numerator: bigint; denominator: bigint }`，自动约分）。金额标签显示时**一次性**按 `minor-half-away-v1` 舍入（与 §3/§7.4 一致），不得提前舍入中间量。
+- 等价关系：`p = 1/2` 的 Type 7 结果与 A 的 `medianMinor`（奇数取中、偶数取两中位数均值）**完全一致**（B08 即此口径）；两者不得互相替代实现另一套算法。
+- 原币/综合：样本必须同一币种同一折算口径；原币模式不跨币种；综合模式用 `aggregateFxAsync` 逐笔折算后的精确最小单位序列，**不得**用显示文本或 `number` 反推。
+- 排序稳定性：金额相同按「金额 → 业务日期 → 交易 id」稳定排序（与 §10 一致），保证分位可复现；分位本身对相同值不敏感，但分组/来源过滤需一致。
+- 支持范围：首版支持 **p ∈ [0,1] 的精确分数**（如 0.25=1/4、0.9=9/10、0.95=19/20）；不支持加权分位；如后续需要 P25/P50/P75/P90/P95/P99 固定档，用对应分数，不引入浮点参数。非法 `p`（<0、>1、分母 0）属**协议层错误**（拒绝请求），不得静默返回 0 或空。
+
+**A/B/C 分工**：A 的 B08 中位数已符合本节（`Ratio` 精确）；B 的时间分析若用分位（如移动分位/分布桶）须引用本节；C 的分布类分析（`Distribution` 形状）在 S-01 v2 登记时引用本节，不改定义。
+
+### 16.2 方差、标准差与 CV：总体 vs 样本
+
+只对同一币种/同一折算口径的精确最小单位序列 `x₁…xₙ`（`bigint`）计算；`n = 0` 不可计算；`n = 1` 时方差为 0（总体定义），标准差 0，CV 仍按均值判定（见下）。
+
+| 量 | 总体（population，**C-1 已实现、默认口径**） | 样本（sample，仅显式要求时） |
+|---|---|---|
+| 均值 | `μ = (Σxᵢ)/n`（精确 `Ratio`） | 同左 |
+| 方差 | `σ² = Σ(xᵢ − μ)² / n` | `s² = Σ(xᵢ − μ)² / (n − 1)`（`n ≥ 2`） |
+| 标准差 | `σ = √(σ²)` | `s = √(s²)` |
+| 适用 | 统计期内全部符合条件交易，视作完整总体（Libevra 分析场景默认） | 仅当分析定义明确声明“样本估计”时；不得与总体混用 |
+
+**区分与命名（强制）**：
+
+- 结果必须带显式口径字段：`varianceKind: "population"`（默认）或 `"sample"`；同一结果内 σ/σ²/CV 必须同一口径。
+- 名称不得混用：`populationVariance`/`populationStandardDeviation`（σ）/`sampleVariance`/`sampleStandardDeviation`（s）不得互换；中文「总体方差/总体标准差」「样本方差/样本标准差」与之一一对应。
+- σ 记号：正文用 **σ**（U+03C3）与 **σ²**；代码/字段用 `populationStandardDeviation`、`populationVariance`，避免 `SD`、`std`、`stdev` 等多种缩写。
+
+**数值表示（关键，禁止浮点冒充权威值）**：
+
+- 均值 `μ`、方差 `σ²`/`s²`：精确有理数 `Ratio`（`σ²` 的单位是「最小单位²」；跨 HTTP 按 §15.2 Q-BA-8 序列化为 `{ numerator: string; denominator: string }`）。
+- 标准差 `σ`/`s` 含开方，一般**无理数**，不能用一个有理数精确表示；登记表示：
+
+  ```ts
+  interface SqrtValue {
+    readonly radicand: Ratio;      // σ² 或 s² 的精确有理数
+    readonly decimalText: string;  // 按显示规则一次性舍入后的十进制文本（带符号，不含单位符号）
+    readonly decimals: number;     // 显示小数位
+  }
+  ```
+
+  - `radicand` 是权威值；`decimalText` 是**展示派生**，由 `radicand` 开方后一次性 half-away-from-zero 舍入得到；**不得**把 `decimalText` 回写 `radicand`，不得用 `decimalText` 参与金额校验。
+  - 显示位数默认：金额单位用 `decimalsFor(currency)`（JPY 为 0），比率类按 CF 家族规定；协议冻结时由 Lead/Claude 确认统一位数（登记 **R-10**）。
+- CV（变异系数）= **总体 σ ÷ μ**（同一口径；若 `varianceKind:"sample"` 则用 `s ÷ μ`）：
+
+  ```ts
+  interface CoefficientsOfVariation {
+    readonly standardDeviation: SqrtValue; // 与 varianceKind 一致
+    readonly mean: Ratio;                  // 同一批样本的精确均值
+    readonly scale: "fraction" | "percent-100";
+    readonly decimalText: string;          // 显示派生，一次性舍入
+  }
+  ```
+
+  - **仅当 `μ > 0` 时 CV 可计算**；`μ = 0` → `null`（不得显示 ∞、0 或 NaN）；`μ < 0` 在金额场景不应出现（账目金额非负、同 kind），若出现按既有财务合同处理并标不可计算/异常，不得用绝对值掩盖符号。
+  - CV 只表达相对离散程度，**不表示金额**，不得渲染为货币金额卡；单位显示按 `scale`（百分比或小数），默认 `percent-100`、1 位小数（显示派生）。
+  - CV 与均值/σ 必须来自同一数据版本戳（`dataVersion`）与同一 `resolvedFilters`/`resolvedPeriod`；跨期比较时不得各自用不同分母。
+
+### 16.3 与现有实现/其他 Agent 的关系
+
+- **A**：`medianMinor`（B08）与 §16.1 的 `p=1/2` 一致；A 的 26 项中没有方差/σ/CV 结果，**不新增代码**（Lead m01444：只登记口径）。
+- **B**：时间序列/波动性（`Variability` 形状）若输出方差/σ/CV，必须引用 §16.2 的 `varianceKind` 与 `SqrtValue`，不得把 σ 直接当金额 `MoneyValue`。
+- **C**：C-1 已实现总体口径（Type 7 分位 + 总体 σ/CV）；S-01 v2 的 `Distribution`/`RankedRecords` 形状登记时引用本节；C 可继续用当前实现，待 S-01 冻结后核对字段命名。
+- **渲染**：图表输入（§14）只接收 §16.2 的展示派生文本与 `fractionOf*` 绘图数值；渲染层不得自行开方或重算方差。
+
+### 16.4 待评审（R-10，登记）
+
+- **R-10**：`SqrtValue`/`CoefficientsOfVariation` 的字段命名、`decimalText` 位数默认（金额 vs 比率）、CV 的 `scale` 默认值；以及「分位参数 p 的输入形式（精确分数 vs 分子/分母二元组）」——由 Lead/Claude/C 评审后随 S-01 冻结一并确定。
+- 本节为**登记项**：不修改 A 侧代码/测试（保持 A-4 未启动），不修改 C/B 工作区；S-01 保持 `s01-draft`。
