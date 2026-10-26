@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="currentColor" style="color:var(--avatar-color,var(--color-brand,#55997a))" role="img" aria-label="幽幽">
+<ellipse cx="48" cy="80" rx="13" ry="2.3" fill-opacity=".12"/>
+<path d="M25 47C25 33 34 24 48 24C62 24 71 33 71 47V65C71 70 68 72 64 70C60 67 58 67 54 70C50 73 46 73 42 70C38 67 36 67 32 70C28 72 25 70 25 65Z" fill-opacity=".5"/>
+<g fill-opacity=".96"><circle cx="40" cy="46" r="2.7"/><circle cx="56" cy="46" r="2.7"/></g>
+<path d="M44 55Q48 58.5 52 55" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-opacity=".9"/>
+</svg>

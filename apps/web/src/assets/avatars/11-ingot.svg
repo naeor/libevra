@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="currentColor" style="color:var(--avatar-color,var(--color-brand,#55997a))" role="img" aria-label="元宝">
+<path d="M19 38C18 34 22 34 25 38C32 43 39 45 48 45C57 45 64 43 71 38C74 34 78 34 77 38C73 50 63 56 48 56C33 56 23 50 19 38Z" fill-opacity=".3"/>
+<path d="M30 48C31 35 37 29 48 29C59 29 65 35 66 48Q48 57 30 48Z" fill-opacity=".86"/>
+<path d="M19 38C18 34 22 34 25 38C31 47 39 51 48 51C57 51 65 47 71 38C74 34 78 34 77 38C75 59 65 70 48 70C31 70 21 59 19 38Z" fill-opacity=".86"/>
+</svg>

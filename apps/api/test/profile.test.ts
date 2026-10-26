@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { AVATAR_IDS } from "@libellum/shared";
-import { makeApp, prisma, resetDatabase, signUp } from "./support.js";
+import { makeApp, prisma, resetDatabase, signUp, cookieFrom } from "./support.js";
 
 let app: FastifyInstance;
 let cookie: string;
@@ -18,9 +18,31 @@ afterAll(async () => { await prisma.$disconnect(); });
 
 describe("账户资料：鉴权、并发与身份稳定性", () => {
   it("数据库头像 CHECK 与共享白名单一致", () => {
-    const sql = readFileSync(new URL("../../../prisma/migrations/20261025050000_descent_avatar/migration.sql", import.meta.url), "utf8");
+    const sql = readFileSync(new URL("../../../prisma/migrations/20261026160000_classic_avatars_round_two/migration.sql", import.meta.url), "utf8");
     const check = sql.slice(sql.indexOf("CHECK"));
     expect([...check.matchAll(/'([^']+)'/g)].map(m => m[1])).toEqual([...AVATAR_IDS]);
+  });
+  it("四款经典无解锁条件，旧账号可切换、新会话与协作成员保留独立 ID", async () => {
+    await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie } });
+    const unlocks = await prisma.avatarUnlock.findMany({ where: { userId: id }, orderBy: { id: "asc" } });
+    let previousValue = "flower";
+    for (const value of ["jade", "ghost", "ingot", "breakfast-sun"]) {
+      const saved = await patch({ field: "avatarId", value, previousValue });
+      expect(saved.statusCode).toBe(200);
+      expect(saved.json().user.avatarId).toBe(value);
+      const login = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { username: "profile_one", password: "correct-horse-battery" } });
+      expect(login.statusCode).toBe(200);
+      const session = cookieFrom(login.headers);
+      const me = await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: { cookie: session } });
+      expect(me.json().user.avatarId).toBe(value);
+      const members = await app.inject({ method: "GET", url: "/api/v1/books/members", headers: { cookie: session } });
+      expect(members.json().members).toEqual(expect.arrayContaining([expect.objectContaining({ userId: id, avatarId: value })]));
+      expect((await prisma.user.findUniqueOrThrow({ where: { id } })).avatarId).toBe(value);
+      previousValue = value;
+    }
+    expect(await prisma.avatarUnlock.findMany({ where: { userId: id }, orderBy: { id: "asc" } })).toEqual(unlocks);
+    expect((await patch({ field: "avatarId", value: "「太阳」", previousValue })).statusCode).toBe(400);
+    expect((await patch({ field: "avatarId", value: "sun", previousValue })).statusCode).toBe(200);
   });
   it("新芽与海浪可保存，旧头像 ID 继续兼容而不被重新映射", async () => {
     let previousValue = "flower";

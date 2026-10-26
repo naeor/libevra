@@ -8,13 +8,17 @@ import wave from "../assets/avatars/05-wave.svg?raw";
 import coffee from "../assets/avatars/06-coffee.svg?raw";
 import daoxuanSpecial from "../assets/avatars/07-daoxuan-special.svg?raw";
 import descentSpecial from "../assets/avatars/08-descent-special.svg?raw";
+import jade from "../assets/avatars/09-jade.svg?raw";
+import ghost from "../assets/avatars/10-ghost.svg?raw";
+import ingot from "../assets/avatars/11-ingot.svg?raw";
+import breakfastSun from "../assets/avatars/12-breakfast-sun.svg?raw";
 import { LegacyUserAvatar, type LegacyAvatarId } from "./LegacyUserAvatar.js";
 import { t } from "../i18n/index.js";
 
 export function avatarLabel(id: AvatarId): string { return t(`account.avatars.names.${id}`); }
 
-// 只有这九款有新文案；早期兼容头像不添加描述，避免把内部旧 ID 写进界面。
-const DESCRIBED_AVATAR_IDS = ["flower", "sprout", "sun", "moon", "star", "wave", "coffee", "daoxuan-special", "descent-special"] as const;
+// 已审核头像提供题注；早期兼容头像不添加描述，避免把内部旧 ID 写进界面。
+const DESCRIBED_AVATAR_IDS = ["flower", "sprout", "sun", "moon", "star", "wave", "coffee", "daoxuan-special", "descent-special", "jade", "ghost", "ingot", "breakfast-sun"] as const;
 type DescribedAvatarId = (typeof DESCRIBED_AVATAR_IDS)[number];
 
 export function avatarDescription(id: AvatarId): string {
@@ -24,7 +28,7 @@ export function avatarDescription(id: AvatarId): string {
 }
 
 // 只有打包时导入的、已审核的本地 SVG 可成为 HTML；账户输入只能查白名单 ID。
-const APPROVED_SVG = { sprout, sun, moon, star, wave, coffee, "daoxuan-special": daoxuanSpecial, "descent-special": descentSpecial } as const;
+const APPROVED_SVG = { sprout, sun, moon, star, wave, coffee, "daoxuan-special": daoxuanSpecial, "descent-special": descentSpecial, jade, ghost, ingot, "breakfast-sun": breakfastSun } as const;
 const ART = Object.fromEntries(Object.entries(APPROVED_SVG).map(([id, source]) => [
   id, source.replace(/^<svg\b[^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(/<title\b[^>]*>[\s\S]*?<\/title>/, ""),
 ])) as Record<keyof typeof APPROVED_SVG, string>;

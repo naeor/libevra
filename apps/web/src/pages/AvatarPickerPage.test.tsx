@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startLanguageRuntime } from "../lib/languageRuntime.js";
 import { AvatarPickerPage } from "./AvatarPickerPage.js";
+import { avatarLabel, avatarDescription } from "../components/UserAvatar.js";
+import { isClassicAvatarId, isSpecialAvatarId, SELECTABLE_AVATAR_IDS } from "@libellum/shared";
 
 /**
  * **S16 头像选择页 UI：特典排序与锁定状态。**
@@ -55,6 +57,42 @@ vi.mock("../lib/profileDraft.js", () => ({
 }));
 
 const runtime = startLanguageRuntime();
+
+describe("第二批经典头像", () => {
+  const confirmed = [
+    ["jade", "玉净", "甘露妙法，杨枝玉净。"],
+    ["ghost", "幽幽", "呜呜呜……别被吓到哦～"],
+    ["ingot", "元宝", "摸摸元宝，招财进宝。"],
+    ["breakfast-sun", "「太阳」", "吃下一枚“太阳”，一整天都会更温暖。"],
+  ] as const;
+  for (const [id, name, caption] of confirmed) {
+    it(`${id} 默认可选，名称题注逐字保留，未归入特典`, () => {
+      state.avatarId = id;
+      expect(SELECTABLE_AVATAR_IDS).toContain(id);
+      expect(isClassicAvatarId(id)).toBe(true);
+      expect(isSpecialAvatarId(id)).toBe(false);
+      expect(avatarLabel(id)).toBe(name);
+      expect(avatarDescription(id)).toBe(caption);
+      const html = render();
+      const classic = html.split('id="avatars-basic"')[1]!.split('id="avatars-special"')[0]!;
+      expect(classic).toContain(`aria-label="${name}"`);
+      expect(classic).not.toContain('data-locked="true"');
+      expect(html).toContain(caption);
+      expect(html).not.toContain("尚未解锁，暂不可使用");
+    });
+  }
+  it("英文名称保留 U+300C/U+300D，旧太阳和特典保持独立", () => {
+    runtime.choose("en-US");
+    state.avatarId = "breakfast-sun";
+    expect(avatarLabel("breakfast-sun")).toBe("「Sun」");
+    expect([...avatarLabel("breakfast-sun")].map(c => c.codePointAt(0))).toEqual([0x300c, 0x53, 0x75, 0x6e, 0x300d]);
+    expect(avatarLabel("sun")).toBe("Sun");
+    expect(isSpecialAvatarId("daoxuan-special")).toBe(true);
+    expect(isSpecialAvatarId("descent-special")).toBe(true);
+    expect(render()).toContain("A little “sun” for breakfast, and warmth all day.");
+    expect(render()).not.toMatch(/[\u3400-\u9fff]/u);
+  });
+});
 
 function render(): string {
   return renderToStaticMarkup(

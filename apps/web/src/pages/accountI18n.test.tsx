@@ -178,10 +178,10 @@ describe("英文界面：账号页面", () => {
     expect(avatars).toContain("First Bloom");
     // 2026-10-26: 头像题注去掉了句尾句号，让文字块视觉中轴与头像一致。
     expect(avatars).toContain("Let a little flower bloom, and add a touch of beauty");
-    // 2026-10-26: 头像题注在预览区居中排版，句尾标点会把视觉墨迹中心推偏；中英统一不以句号结尾。
+    // 旧九款保留去句号规则；第二批按所有者确认原文保留句号，不套用旧文案约束。
     for (const descriptions of [zhCN.account.avatars.descriptions, enUS.account.avatars.descriptions]) {
-      for (const description of Object.values(descriptions)) {
-        expect(description).not.toMatch(/[。.]$/u);
+      for (const id of ["flower", "sprout", "sun", "moon", "star", "wave", "coffee", "daoxuan-special", "descent-special"] as const) {
+        expect(descriptions[id]).not.toMatch(/[。.]$/u);
       }
     }
     expect(avatars).not.toContain("Let a little flower bloom, and add a touch of beauty.");

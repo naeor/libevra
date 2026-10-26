@@ -1,6 +1,7 @@
 import { AVATAR_IDS, APPROVED_AVATAR_IDS } from "@libellum/shared";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { UserAvatar, avatarLabel } from "./UserAvatar.js";
@@ -15,13 +16,26 @@ describe("系统头像素材", () => {
     expect(html).toContain('translate(33 56) scale(.85) rotate(-8)');
     expect(html.match(/data-layer="flower"/g)).toHaveLength(2);
   });
-  it("新旧 22 个稳定身份均可访问，不引入外部图像请求", () => {
-    expect(AVATAR_IDS).toHaveLength(22);
+  it("新旧 26 个稳定身份均可访问，不引入外部图像请求", () => {
+    expect(AVATAR_IDS).toHaveLength(26);
     for (const id of AVATAR_IDS) {
       const html = renderToStaticMarkup(<UserAvatar avatarId={id} />);
       expect(html).toContain(`data-avatar-id="${id}"`);
       expect(html).toContain(`${avatarLabel(id)}头像`);
       expect(html).not.toContain("<image");
+    }
+  });
+  it("第二批素材与已确认的 R4 哈希一致，不重新绘制或取早期稿", () => {
+    const expected = {
+      "09-jade.svg": "bc8bce5326eb2f15dc3f560b777c629115bb97be9b6718ef38328f2252862afa",
+      "10-ghost.svg": "671715f0d91708394471ede60606fb4db4684b7f3304c60ee419a83850e9a8bc",
+      "11-ingot.svg": "aef14e06399f6b575f94b8f80c892e59bfe00e81df63aa5f49327bbad3430c4e",
+      "12-breakfast-sun.svg": "f7c2a33c758f994235c53b4a658fe83e07c84219c9d6de38ebd7bb29a75b8015",
+    };
+    for (const [file, hash] of Object.entries(expected)) {
+      const asset = readFileSync(resolve(import.meta.dirname, "../assets/avatars", file));
+      expect(createHash("sha256").update(asset).digest("hex")).toBe(hash);
+      expect(asset.toString()).not.toMatch(/<script|<foreignObject|<image|\bon\w+=|href=/i);
     }
   });
   it("六款素材与最终审核原型逐字一致，界面只消费主题变量", () => {

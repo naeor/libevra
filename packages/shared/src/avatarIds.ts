@@ -34,10 +34,14 @@ export const AVATAR_IDS = [
   "wave",
   "daoxuan-special",
   "descent-special",
+  "jade",
+  "ghost",
+  "ingot",
+  "breakfast-sun",
 ] as const;
 
-/** 审核通过的第一批；旧 ID 继续兼容，但不重新上架未审核素材。 */
-export const APPROVED_AVATAR_IDS = ["sprout", "sun", "moon", "star", "wave", "coffee"] as const;
+/** 审核通过的经典素材；旧 ID 继续兼容，但不重新上架未审核素材。 */
+export const APPROVED_AVATAR_IDS = ["sprout", "sun", "moon", "star", "wave", "coffee", "jade", "ghost", "ingot", "breakfast-sun"] as const;
 
 export const SELECTABLE_AVATAR_IDS = ["flower", ...APPROVED_AVATAR_IDS, "daoxuan-special", "descent-special"] as const;
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { AVATAR_IDS, APPROVED_AVATAR_IDS, SELECTABLE_AVATAR_IDS, avatarIdSchema, updateProfileRequestSchema } from "./profile.js";
 
 describe("资料契约", () => {
-  it("22 个稳定身份兼容旧选择，两款特典与六款审核稿、默认小花上架", () => {
-    expect(new Set(AVATAR_IDS).size).toBe(22);
-    expect(APPROVED_AVATAR_IDS).toEqual(["sprout", "sun", "moon", "star", "wave", "coffee"]);
+  it("26 个稳定身份兼容旧选择，新增四款经典且保留两款特典", () => {
+    expect(new Set(AVATAR_IDS).size).toBe(26);
+    expect(APPROVED_AVATAR_IDS).toEqual(["sprout", "sun", "moon", "star", "wave", "coffee", "jade", "ghost", "ingot", "breakfast-sun"]);
     expect(SELECTABLE_AVATAR_IDS).toEqual(["flower", ...APPROVED_AVATAR_IDS, "daoxuan-special", "descent-special"]);
     expect(AVATAR_IDS).toEqual(expect.arrayContaining(["leaf", "boat", "cat"]));
     for (const id of AVATAR_IDS) expect(avatarIdSchema.parse(id)).toBe(id);
