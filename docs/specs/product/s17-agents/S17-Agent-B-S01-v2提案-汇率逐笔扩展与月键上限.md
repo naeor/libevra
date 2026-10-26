@@ -196,7 +196,7 @@ export function fxRangeMonths(from: string, to: string, maxMonths: number = FX_M
 
 ## 16. G-17 正式定义：FX 逐笔/逐日投影（draft，待 S-01 v2 冻结）
 
-> 登记位置：S-01 v2 G 组 **G-17“FX 逐笔/逐日投影”**；状态 **draft**，待协议冻结后 W1 接入。正式定义文本由 B 提供（本节），A 合并进 v2。本小节首次随提交 `f3bd4d6` 落盘、D-05 修订（移除 `kind` 的 `transfer` 预留值）提交 `________`（回填见任务文档 §6.2）。
+> 登记位置：S-01 v2 G 组 **G-17“FX 逐笔/逐日投影”**；状态 **draft**，待协议冻结后 W1 接入。正式定义文本由 B 提供（本节），A 合并进 v2。本小节首次随提交 `f3bd4d6` 落盘、D-05 修订（移除 `kind` 的 `transfer` 预留值）提交 `7405194`（回填见任务文档 §6.2）。
 
 ### 16.1 目的与边界
 
