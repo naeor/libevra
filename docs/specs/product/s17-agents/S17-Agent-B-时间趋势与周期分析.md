@@ -61,23 +61,28 @@
 - **W3 分析页面与时间卡片**：折线图、面积图、柱状图、日历热力图等（按所有者清单与批次）。
 - 后续阶段配合卡片接入、详情页与集成。
 
-### 2.3 预期计算函数（登记，待详细需求细化）
+### 2.3 计算函数（B-1 已实现，B-2～B-4 追加）
 
+- **已实现（B-1）**：`packages/shared/src/timeSeries.ts`
+  - `computeTimeSeries(entries, { metric, granularity, span, today, coverageEnd, countKind })`：按业务日期分桶（日/周/月）× 支出/收入/笔数；金额为 minor 整数，精确；`unknown`（覆盖不足）/`in-progress`（当前周期未结束）/`future`（晚于今天）三态；存在未知桶时 `total` 为 null（不得当 0）。
+  - `accumulateSeries(series)`：累计支出/收入（I20/I10 累计语义）；未知向后传播（后续累计不可信）、零变动平台保留、负调整允许（不强制单调）。
+  - `isTimeSeriesOptionsValid(options)`：入参校验（区间合法性、metric 与 countKind 匹配）。
 - 日/周/月聚合时间序列（支出、收入、结余、笔数），支持自定义起止与账本月份口径。
 - 累计收支曲线（running total，含负值、跨月边界）。
 - 同比/环比（需明确“去年同月/上月”在部分数据缺失时的语义，不允许把缺失当 0）。
 - 移动平均（窗口大小、端点处理、量级保持一致）。
 - 星期分布、周期比较、日历热力图数据（按本地日期与账本时区；跨时区交易归属必须明确）。
-- 波动指标（标准差/最大最小/区间等——具体定义待所有者清单）。
+- 波动指标（标准差/最大最小/区间等——具体定义待所有者清单；注意规格 §5.7 的精确分数要求）。
 - 多币种：按币种分别成序列；不得不同原币直接相加；折算只走 S16-D 合同（只读汇率 + 客户端折算）。
 - 金额精度沿用 shared money（最小货币单位整数），不得为了绘图另定精度。
 - 空数据/缺数据/软删除/退款/转账对时间序列的影响必须显式定义并与现有 API 统计一致（差异报告，不静默改语义）。
 
-### 2.4 预期绘图函数（登记，待详细需求细化）
+### 2.4 绘图函数（B-1 已实现基础图；B-2 起扩展）
 
-- 折线图、面积图（累计/趋势）、柱状图（时间维度）、日历热力图。
-- 复用共享绘图核心与 Codex 视觉规范（S-02）；不得自创视觉体系；不复制仅指标不同的组件。
-- 时间轴、刻度与缺数据断点表现（缺失应可见，不画成 0）。
+- **已实现（B-1）**：`apps/web/src/lib/chart/timeSeriesChart.ts` 产出图表几何模型（柱/线/面积、空态、全零、负值、断线），组件 `SeriesTrendChart`（折线/面积/柱）、`Sparkline`（1×1 迷你趋势）、`CumulativeTrendChart`（累计趋势 + 未知起点标注）。
+- 复用共享绘图核心（`ChartFrame/Axis/Legend/theme/scales/geometry/format`）与 Codex 视觉规范（S-02）；不得自创视觉体系；不复制仅指标不同的组件。
+- 时间轴、刻度与缺数据断点表现（缺失应可见，不画成 0；未知桶不画、不画 0、不连线）。
+- 后续：日历热力图、周期比较、移动平均/异常标注（B-2～B-4）。
 
 ### 2.5 依赖接口
 
@@ -98,12 +103,13 @@
 
 ---
 
-## 3. 输入与输出协议（待统一确认）
+## 3. 输入与输出协议（S-01 已对齐，待冻结）
 
-> **本轮未冻结任何公共接口。** 以下为登记，最终以 S-01 统一评审为准。
+> **S-01 仍未冻结（`s01-draft`）。** B 的时间扩展已与 A 对齐（A §15，2026-10-27），结论见协议草案 §7；最终以 Lead/Claude/所有者评审冻结为准。
 
-- 输入（预期）：账本 ID、权限上下文、时间范围/粒度（日/周/月）、时区口径、币种/过滤、数据版本。
-- 输出（预期）：时间序列结构（等距或非等距时间点 + 值 + 币种 + 单位 + 缺失标记 + 来源追溯 + 数据版本），不含 DOM/尺寸/布局。
+- 输入（预期）：账本 ID、权限上下文、时间范围/粒度（日/周/月）、时区口径（业务日期以记录 `occurredLocalDate` 为准，不做 UTC 转换）、币种/过滤、`dataVersion`（由数据层透传，B 不自造）。
+- 输出（预期）：时间序列结构（桶 + 值 + 币种 + 单位 + 未知/未来/未完成标记 + 来源追溯 + 数据版本），不含 DOM/尺寸/布局。
+- 时间桶内部半开 `[start,end)`；对外/来源跳转用 `bucketToInclusive` 转闭区间；不新增日期类型。
 - 时间点必须显式包含“无数据”与“数据不完整”的区分；不得用 0 静默填充。
 - 同一定义同数据版本内结果可复用；图表层不得重算。
 
@@ -127,10 +133,10 @@
 |---|---|---|
 | 所有者完整规格登记 | 完成（2026-10-27） | 2,937 行规格已落盘并引用 |
 | B-0 时间合同与共享接口 | **完成（2026-10-27）** | 交付：`packages/shared/src/timeCalendar.ts`（+18 测试）、20 项时间与财务合同核查表、S-01 时间扩展协议草案；待 A 对齐后进入 B-1 |
-| B-1 基础趋势与对应图表（I06–I10、I19–I20 + 折线/面积/柱/Sparkline/累计） | 未开始 | 依赖 A 对时间形状的确认（Q-BA-1/2/3/4/7/8）与 1.16.23 发布 |
-| I06–I16 / I19–I20 | 未开始（已入开发清单） | 按 B-1/B-2 分批 |
+| B-1 基础趋势与对应图表（I06–I10、I19–I20 + 折线/面积/柱/Sparkline/累计） | **完成（2026-10-27）** | 计算核心 `packages/shared/src/timeSeries.ts`（day/week/month × expense/income/count + 累计）；图表输入 `apps/web/src/lib/chart/timeSeriesChart.ts`；组件 `SeriesTrendChart`/`Sparkline`/`CumulativeTrendChart`；未改任何页面（不碰 1.16.23 冲突文件） |
+| I06–I16 / I19–I20 | 进行中（B-1 已完成 I06–I10、I19–I20；I11–I16 属 B-2） | 按 B-1/B-2 分批 |
 | A01–A05 / A12–A14 / A18–A20 | 未开始（已入开发清单） | 按 B-3/B-4 分批 |
-| S-01 参与评审 | 进行中 | 时间扩展草案已提交（协议草案 §7 的 11 个问题）；冻结前不得依赖 |
+| S-01 参与评审 | 进行中（时间扩展已与 A 对齐，待评审冻结） | A §15 已答复 Q-BA-1/2/3/4/7/8；剩余 Q-BA-12（区间上限）待登记 |
 | W1 时间口径核对 | 未开始 | 前置：1.16.23 发布（索引 B-1）；B-0 核查表已提供口径证据 |
 | W3 时间图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03 |
 
@@ -150,6 +156,8 @@
 | 2026-10-27 | 收到所有者完整开发规格（24 项、48 节、图表家族 CF-B01–B15、B-0～B-5 顺序、风险分级审核、永久文档要求）；已逐字落盘并开始 B-0 | 本文件 + 规格文件 | 随本次提交（待提交） | 尚未运行 | 无（尚未定义接口） | 基线仍为 486c603；W1 待 1.16.23 | 开始 B-0：时间合同核查 + 时间桶/结果协议草案 + 与 A 对齐 S-01 |
 | 2026-10-27 | **B-0 完成**：①时间合同实现（半开区间/周一起自然周/ISO 周键/自然月/桶枚举/完整性状态）；②20 项时间与财务数据合同核查表；③S-01 时间扩展协议草案（7 形状 + 11 个对齐问题）；④未开始任何业务分析（24 项仍 0 实现） | `packages/shared/src/timeCalendar.ts`、`timeCalendar.test.ts`、`packages/shared/src/index.ts`、`apps/web/src/i18n/sharedMessages*.ts`、核查表、协议草案、本文件、`docs/00-索引.md` | `b23311c`（本地；未 push） | `pnpm --filter @libellum/shared test` 395/395；web `vitest run` 152 文件/1385 用例全过；`pnpm typecheck` 三包全过；`pnpm check:docs` 通过（195 文/970 链接）；API 集成 611/612（唯一失败为本地库迁移落后 2 个版本的 `profile` 头像用例，与本分支改动无关，已在报告中说明） | 新增公共导出 `timeCalendar`（v1，未冻结）及 `TimeBucket/BucketState/TimeSpan` 等类型；S-01 时间形状仅为草案（A 未合并） | R-B-02 离线覆盖元数据、R-B-04 stats 失效/dataVersion；Q-BA-1/2/3/4/7/8 待 A | 向 Lead 首份 B-0 报告；A 对齐后进入 B-1（I06–I10、I19–I20 + 折线/面积/柱/Sparkline/累计） |
 | 2026-10-27 | B-0 验证结果与索引回填（`docs/00-索引.md` 增加 4 条 S17 文档入口） | 本文件、`docs/00-索引.md` | 随本次提交 | 同上 | 无 | 无 | 等待 A 对协议草案的回复；准备 B-1 开发清单 |
+| 2026-10-27 | **B-1 完成（本地待提交）**：①shared 计算核心 `timeSeries.ts`（按业务日期分桶：day/week/month × 支出/收入/笔数，精确 minor 金额，unknown/future/in-progress 三态，累计 `accumulateSeries` 未知向后传播、零变动平台不断线）；②图表只读适配层 `timeSeriesChart.ts`（柱/线/面积模型、空态、Y 轴 nice domain、全部为 0 判定，不反写权威值）；③组件 `SeriesTrendChart`/`Sparkline`/`CumulativeTrendChart`（复用 `ChartFrame/Axis/Legend/theme/scales`，44px 触摸目标、键盘 Arrow/Home/End、24px 触控高度、缺数据断线不得画 0）；④i18n 登记（`sharedMessages` 增加 `timeSeries.ts` 归类与 2 句译文）；⑤`bucketToInclusive`（A §15.1(4) 定名）接入 | `packages/shared/src/timeSeries.ts`、`timeSeries.test.ts`、`apps/web/src/lib/chart/timeSeriesChart.ts`、`timeSeriesChart.test.ts`、`apps/web/src/components/charts/SeriesTrendChart.tsx`、`Sparkline.tsx`、`CumulativeTrendChart.tsx`、`timeSeriesCharts.test.tsx`、`apps/web/src/lib/chart/format.ts`（`weekBucketLabel`）、`apps/web/src/i18n/sharedMessages*.ts`、`packages/shared/src/index.ts`、本文件、协议草案 | 随本次提交 | `pnpm --filter @libellum/shared test`：37/37（`timeCalendar` 19 + `timeSeries` 18）；web 新增 27/27（`timeSeriesChart` 12、`timeSeriesCharts` 8、`sharedMessages` 7）；`pnpm --filter @libellum/shared typecheck` 0；`pnpm --filter @libellum/web typecheck` 0 | 新增公共导出 `timeSeries`（v1，未冻结）与 `bucketToInclusive`/`InclusivePeriod`；新增 web 图表适配层（非 S-01 信封）；未新增 HTTP/API 接口 | 已知：S-01 信封层 `analysis/time.ts` 与 `SourceDescriptor.bucket` 待协议冻结/合并后补；`MAX_STATS_DAYS=400` 与 I09 36 个月区间冲突待 A/Lead 登记（协议草案 Q-BA-12） | 跑全量 shared+web 测试后提交；发 B-1 结构化报告 Lead；准备 B-2（I11–I16） |
+| 2026-10-27 | **S-01 时间扩展对齐收敛**：A §15（`655ea14`/`5faaac1`）逐条答复 Q-BA-1/2/3/4/7/8；B 按结论更新协议草案 §7/§4.3/§8/§9（7 形状登记进 union、`bucketToInclusive`、`SourceDescriptor.bucket?`、dataVersion 由数据层透传、`timeGranularity?`=A-Q21、R-09 coverageEnd 展示元数据），并新增待评审项 Q-BA-12（分析区间上限） | `docs/specs/product/s17-agents/S17-Agent-B-S01-时间扩展协议草案.md`、本文件 | 随本次提交 | 文档变更，无需单测 | 协议草案状态由“待 A 回复”改为“已对齐（待评审冻结）”；未冻结仍为 `s01-draft` | S-01 冻结由 Lead/Claude/所有者评审 | B-2 按对齐结论实现；协议冻结后补 `analysis/time.ts` 信封 |
 
 ---
 
@@ -177,16 +185,20 @@
 
 **即时结论**：①开发顺序按 B-0 → B-5；②B-0 可立即开始（时间合同核查、时间桶/结果协议草案、与 A 的 S-01 对齐）；③W1 正式落地仍依赖 1.16.23 发布，登记为环境条件（索引 B-1），不阻塞 B-0 的只读核查与纯算法工作；④24 项能力编号与所有者规格一致（I06–I16、I19–I20、A01–A05、A12–A14、A18–A20），此前 `AN-xxx` 目录映射仅为参考，不改变所有者编号。
 
-### 6.4 B-0 交付物索引（2026-10-27）
+### 6.4 交付物索引（B-0 2026-10-27；B-1 追加）
 
 | 交付物 | 路径 | 说明 |
 |---|---|---|
-| 时间合同实现 | `packages/shared/src/timeCalendar.ts` | `TIME_CONTRACT_VERSION = "s17-b-time-v1"`；半开 `[start,end)`、周一起自然周、ISO 周键、自然月、桶枚举/裁剪、`BucketState` 完整性状态 |
-| 时间合同测试 | `packages/shared/src/timeCalendar.test.ts` | 18 个用例：ISO 周/周跨月跨年、闰年 2 月、半开边界、桶裁剪与连续性、future/in-progress/unknown/complete 判定 |
-| 公共导出 | `packages/shared/src/index.ts` | 新增 `timeCalendar` 值/类型导出块（未冻结） |
+| 时间合同实现 | `packages/shared/src/timeCalendar.ts` | `TIME_CONTRACT_VERSION = "s17-b-time-v1"`；半开 `[start,end)`、周一起自然周、ISO 周键、自然月、桶枚举/裁剪、`BucketState` 完整性状态、`bucketToInclusive`（A §15 定名） |
+| 时间合同测试 | `packages/shared/src/timeCalendar.test.ts` | 19 个用例：ISO 周/周跨月跨年、闰年 2 月、半开边界、桶裁剪与连续性、future/in-progress/unknown/complete 判定、桶→闭区间换算 |
+| 时间序列计算核心（B-1） | `packages/shared/src/timeSeries.ts` | `TIME_SERIES_VERSION = "s17-b-time-series-v1"`；`computeTimeSeries`（day/week/month × 支出/收入/笔数，金额为 minor 整数，`unknown/in-progress/future` 三态，`total` 在存在未知桶时为 null）、`accumulateSeries`（累计语义：未知向后传播、零变动平台、负调整允许）、`isTimeSeriesOptionsValid` |
+| 时间序列测试 | `packages/shared/src/timeSeries.test.ts` | 18 个用例：日/周/月分桶、跨年与闰月、当前月未结束、未来桶、覆盖不足 unknown、大整数、笔数、累计传播/平台/负值、参数校验 |
+| 图表只读适配层（B-1） | `apps/web/src/lib/chart/timeSeriesChart.ts` | `buildTimeSeriesModel`/`buildCumulativeModel`：只做显示派生（像素比例、柱/线/面积几何、Y 轴 nice domain、全零/空态），**不重算金额、不改完整性**；`timeSeriesChart.test.ts` 12 用例 |
+| 时间图表组件（B-1） | `apps/web/src/components/charts/SeriesTrendChart.tsx`、`Sparkline.tsx`、`CumulativeTrendChart.tsx` | 复用 `ChartFrame/Axis/Legend/theme/scales/geometry/format`；缺数据断线不画 0；未来/未知态；键盘 Arrow/Home/End；累计图标注“未知起点”；`timeSeriesCharts.test.tsx` 8 用例 |
+| 公共导出 | `packages/shared/src/index.ts` | 新增 `timeCalendar`、`timeSeries` 值/类型导出块（均未冻结） |
 | 20 项核查表 | `docs/specs/design/S17-B-时间与财务数据合同核查表.md` | 对应规格 §2；含 T-01–T-20、可复用清单、风险 R-B-01–R-B-06 |
-| S-01 时间扩展草案 | `docs/specs/product/s17-agents/S17-Agent-B-S01-时间扩展协议草案.md` | 7 个结果形状、完整性映射、不变式 IV-01–IV-14、逐桶来源合同、11 个待 A 对齐问题 |
-| i18n 登记 | `apps/web/src/i18n/sharedMessages.ts`（+ `sharedMessages.test.ts` 文件归类） | `timeCalendar.ts` 的 5 句提示中 2 句新增英文译文，其余复用既有译文 |
+| S-01 时间扩展草案 | `docs/specs/product/s17-agents/S17-Agent-B-S01-时间扩展协议草案.md` | 7 个结果形状、完整性映射、不变式 IV-01–IV-14、逐桶来源合同；§7 已按 A §15 收敛（已对齐、待冻结） |
+| i18n 登记 | `apps/web/src/i18n/sharedMessages.ts`（+ `sharedMessages.test.ts` 文件归类） | `timeCalendar.ts`/`timeSeries.ts` 的中文提示登记英文译文；测试扫描 `packages/shared` 全部源文件的 CJK 提示归类 |
 
 **环境说明（本地验证）**：本 worktree 首次使用需 `pnpm install --offline`（本地 pnpm store 已具备依赖）；Prisma 7 的 `prisma.config.ts` 要求 `DATABASE_URL` 环境变量存在，生成客户端用 `DATABASE_URL=postgresql://... pnpm db:generate`（生成不连库，生成物被 gitignore）。API 集成测试需要根目录 `.env` 的 `TEST_DATABASE_URL`（测试库名必须含 `test`，见 `apps/api/test/setup.ts` 的守卫）；本工作区 `.env` 为本地开发文件，**不入库**。
 
@@ -202,11 +214,12 @@
 | B-Q4 | 同比/环比在缺月、部分数据缺失时的显示语义 | 指标可信度 | 所有者细则 |
 | B-Q5 | 时间序列结果形状如何纳入 S-01（等距/非等距、空点表达） | 协议冻结 | Lead + A |
 | B-Q6 | 卡片尺寸/视觉规范未定（D/Codex） | W3 无法开工 | Lead 协调 |
-| B-Q7 | S-01 时间扩展对齐：桶半开区间、`dataVersion` 定义、逐桶来源、7 个形状命名（草案 §7 的 Q-BA-1～Q-BA-4、Q-BA-7/Q-BA-8） | B-1/B-3/B-4 无法定稿、无法冻结 | A + Lead（草案已提交等待回复） |
-| B-Q8 | 离线数据覆盖元数据（`BucketContext.coverageEnd` 的真实来源） | 离线时间桶完整性只能 `unknown` | D/S16 + Lead（R-B-02） |
-| B-Q9 | 写后 `["stats"]` 失效策略与 `dataVersion` 生产方 | 时间卡片可能陈旧（R-B-04） | D/S16 + A + Lead |
-| B-Q10 | I13 星期分布等无专用 shape 的呈现方式（用哪一图与尺寸组合） | B-2 设计 | C/Codex + Lead |
-| B-Q11 | 1.16.23 候选未合并期间是否允许改 `StatsPage.tsx` 等冲突文件 | B-1 实施节奏 | Lead（索引 B-1/B-2） |
+| B-Q7 | S-01 时间扩展对齐：桶半开区间、`dataVersion` 定义、逐桶来源、7 个形状命名（草案 §7 的 Q-BA-1～Q-BA-4、Q-BA-7/Q-BA-8） | **已解决（2026-10-27）**：A §15 逐条答复——7 形状登记进 union（命名归 A 逐字不变）、`bucketToInclusive` 定名、`SourceDescriptor.bucket?` 由 A 扩字段、dataVersion 由数据层透传、桶级复用 `AnalysisCompleteness`、Ratio 跨 HTTP 用分子分母字符串；S-01 仍 `s01-draft` 待评审冻结 | 已解决（A + Lead） |
+| B-Q8 | 离线数据覆盖元数据（`BucketContext.coverageEnd` 的真实来源） | Lead 指示：记录即可，B-1 按 `unknown` 处理；W1/集成阶段统一（R-B-02） | D/S16 + Lead |
+| B-Q9 | 写后 `["stats"]` 失效策略与 `dataVersion` 生产方 | Lead 指示：记录即可，W1/集成阶段统一处理（R-B-04）；A §15 定 dataVersion 由数据层透传 | D/S16 + A + Lead |
+| B-Q10 | I13 星期分布等无专用 shape 的呈现方式（用哪一图与尺寸组合） | A §15 答复：先用 `TimeSeriesResult` + weekday 7 桶模板轴，不新增形状；B-2 实现 | C/Codex + Lead |
+| B-Q11 | 1.16.23 候选未合并期间是否允许改 `StatsPage.tsx` 等冲突文件 | **已解决（2026-10-27）**：Lead 指示严格只读，B-1 只做纯函数与图表输入层；等 1.16.23 发布后统一 rebase 再改页面 | 已解决（Lead） |
+| B-Q12 | 分析区间上限：A 的 `makePeriod` 限制 `MAX_STATS_DAYS = 400`，与 I09（12/24/36 个月）、A01 同比、A12/A14 长样本冲突 | B-3 长区间可能被信封层拒绝；建议 S-01 增 `MAX_ANALYSIS_DAYS`（如 3660）或按分析类型给上限 | A + Lead（协议草案 Q-BA-12） |
 
 ---
 

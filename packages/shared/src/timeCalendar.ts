@@ -192,6 +192,36 @@ export function spanToInclusive(span: TimeSpan): { readonly from: string; readon
   return { from: checked.start, to: addDays(checked.end, -1) };
 }
 
+/** An inclusive business-date period, the shape S-01 resolves (`ResolvedPeriod`). */
+export interface InclusivePeriod {
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * S-01 §15.1(4): the agreed half-open-bucket → inclusive-period converter.
+ *
+ * Results and user-visible ranges stay inclusive (`[from, to]`, exactly what
+ * `ResolvedPeriod` holds); buckets are half-open internally (`[start, end)`).
+ * This is the single conversion point, so a drill-down never has to guess
+ * whether a date is "the end" or "the day after the end".
+ *
+ * Pass a bucket's `span` for the analysed (possibly clipped) slice, or its
+ * `naturalSpan` when the natural calendar period is what should be queried:
+ * day `2026-10-27` → `{ from: "2026-10-27", to: "2026-10-27" }`; week
+ * `2026-10-26..2026-11-02` → `{ from: "2026-10-26", to: "2026-11-01" }`.
+ */
+export function bucketToInclusive(bucket: {
+  readonly granularity: TimeGranularity;
+  readonly span: TimeSpan;
+}): InclusivePeriod {
+  // `granularity` documents intent and keeps the converter total: every
+  // bucket type ends the same way, at `end - 1 day`.
+  void bucket.granularity;
+
+  return spanToInclusive(bucket.span);
+}
+
 /** Number of calendar dates inside a span. */
 export function daysInSpan(span: TimeSpan): number {
   const checked = parseTimeSpan(span);

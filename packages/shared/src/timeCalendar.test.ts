@@ -5,6 +5,7 @@ import {
   WEEK_START_DAY,
   bucketKeyOf,
   bucketSpanOf,
+  bucketToInclusive,
   classifyBucket,
   dayKey,
   daySpan,
@@ -53,6 +54,24 @@ describe("spans are half-open", () => {
       from: "2026-10-01",
       to: "2026-10-31",
     });
+  });
+
+  it("converts buckets to the inclusive period S-01 expects", () => {
+    expect(bucketToInclusive({ granularity: "day", span: daySpan("2026-10-27") })).toEqual({
+      from: "2026-10-27",
+      to: "2026-10-27",
+    });
+    // A week ends on Sunday, never on the next Monday.
+    expect(
+      bucketToInclusive({ granularity: "week", span: weekSpan("2026-10-28") }),
+    ).toEqual({ from: "2026-10-26", to: "2026-11-01" });
+    expect(
+      bucketToInclusive({ granularity: "month", span: monthSpan("2026-02-10") }),
+    ).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    // Clipped slice: the drill-down must query only the analysed days.
+    expect(
+      bucketToInclusive({ granularity: "month", span: { start: "2026-10-14", end: "2026-10-31" } }),
+    ).toEqual({ from: "2026-10-14", to: "2026-10-30" });
   });
 
   it("contains the start but not the end", () => {

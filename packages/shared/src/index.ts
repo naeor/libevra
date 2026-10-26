@@ -92,6 +92,7 @@ export {
   bucketKeyOf,
   bucketSpanOf,
   bucketStartOf,
+  bucketToInclusive,
   classifyBucket,
   dayKey,
   daySpan,
@@ -115,10 +116,30 @@ export {
 export type {
   BucketContext,
   BucketState,
+  InclusivePeriod,
   TimeBucket,
   TimeGranularity,
   TimeSpan,
 } from "./timeCalendar.js";
+
+export {
+  TIME_SERIES_VERSION,
+  accumulateSeries,
+  computeTimeSeries,
+  isTimeSeriesOptionsValid,
+} from "./timeSeries.js";
+
+export type {
+  CountKind,
+  CumulativeBucketPoint,
+  CumulativeResult,
+  TimeSeriesBucketPoint,
+  TimeSeriesEntry,
+  TimeSeriesMetric,
+  TimeSeriesOptions,
+  TimeSeriesResult,
+  UnknownReason,
+} from "./timeSeries.js";
 
 export {
   chineseNumeralToDigits,

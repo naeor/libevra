@@ -357,7 +357,7 @@ B-1 起，B 在 `packages/shared/src/analysis/time.ts` 提供构造这些结果�
 ### 4.3 半开桶 ↔ 闭区间 `ResolvedPeriod`
 
 - `ResolvedPeriod.from/to` 保持闭区间（A 已定义，勿改）。
-- B 的桶内部一律半开；构造结果时用 `timeCalendar.spanToInclusive` / `spanFromInclusiveDates` 在边界处转换。
+- B 的桶内部一律半开；统一转换器为 **`bucketToInclusive(bucket) → {from, to}`**（A §15.1(4) 命名，已实现于 `packages/shared/src/timeCalendar.ts`，日粒度 `to = end-1`，周/月取自然桶末日；`spanToInclusive` 为其底层）。
 - 序列总 `total` 必须等于各桶值之和（complete 桶）；unknown/future 桶为 null 且**不计入** total 的分母，total 为 null 时在 `computation.notes` 记录原因。
 
 ---
@@ -409,23 +409,32 @@ export interface SourceDescriptor {
 
 ---
 
-## 7. 与 Agent A 的待决对齐问题
+## 7. 与 Agent A 的对齐问题（2026-10-27 已收敛，登记于 A §15）
 
-| 编号 | 问题 | B 的建议 | 是否阻塞 S-01 冻结 | 决定人 |
-|---|---|---|---|---|
-| Q-BA-1 | 7 个时间形状放哪、`AnalysisResult` union 是否由 A 扩展 | A 在 `types.ts` 定义并合并；B 只提供草案与实现 | 是 | A + Lead |
-| Q-BA-2 | 桶用半开，`ResolvedPeriod` 用闭区间 | 保持现状；在类型注释中声明转换函数 | 是 | A |
-| Q-BA-3 | `SourceDescriptor` 是否增加 `bucket` 作用域 | 增加可选 `bucket`，不影响现有消费者 | 是 | A |
-| Q-BA-4 | `dataVersion` 由谁生产、格式与失效规则（规格 §35） | 由计算入口传入（书级数据版本令牌）；B 只透传 | 是 | A + Lead |
-| Q-BA-5 | `AnalysisDefinition.groupBy` 是否新增 `"week" \| "month"` | 新增（时间分析必须能按周/月登记定义） | 否（B-1 前） | A |
-| Q-BA-6 | `analysisType` 命名空间 | B 用 `time.*`（如 `time.daily-expense-trend`）；与 C/D 统一规则 | 否 | Lead + A/C/D |
-| Q-BA-7 | 桶级能否复用 `AnalysisCompleteness` | 复用，不新增枚举；映射见 §4.2 | 是 | A |
-| Q-BA-8 | `Ratio` 的 JSON 传输（bigint 不能直接过 HTTP） | 协议是进程内共享类型；HTTP 序列化统一由 A/Lead 定（字符串或分子分母对象） | 是 | A + Lead |
-| Q-BA-9 | `TimeAxisHint` 是否属于结果（而非展示层） | 属于结果：轴语义是计算口径的一部分 | 否 | A |
-| Q-BA-10 | 综合模式完整性能否直接引用 FX 聚合的 `missingCount/reviewDates` | 是；B 透传，不重算 | 否 | A |
-| Q-BA-11 | I13 星期分布没有独立 shape，是否用 `TimeSeriesResult` 的"周模板轴" | B-2 前确认；可先用 `MultiSeriesResult`+7 桶轴 | 否 | A + C |
+A 已在 `docs/specs/product/s17-agents/S17-Agent-A-S01-共享分析结果协议草案.md` §15 逐条答复（A 分支 `655ea14`/`5faaac1`，只读参考）。S-01 仍为 `s01-draft`，待 Lead/Claude/所有者评审冻结。
 
-**下一步**：B 在 B-1 冻结前把本草案的 Q-BA-1/2/3/4/7/8 提交 Lead 转 A；A 回复后 B 按定稿实现 `analysis/time.ts`。
+| 编号 | 结论（A §15） | B 的落地 |
+|---|---|---|
+| Q-BA-1 | 7 形状**登记进** `AnalysisResult` union；命名归 A，`time-series` 等 discriminator 逐字不变；B 负责 data/dev 实现；A 不预先实现 B 的形状 | B-1 已完成时间类计算结果与图表输入层；`analysis/time.ts` 的 S-01 信封构造待 A 的协议合并后补（不阻塞 B-1） |
+| Q-BA-2 | 结果/用户区间保持闭区间 `ResolvedPeriod`；桶内部半开；统一转换器命名 **`bucketToInclusive`**；不新增日期类型 | 已实现 `timeCalendar.bucketToInclusive(bucket) → {from,to}`（含单测）；`spanToInclusive` 为底层 |
+| Q-BA-3 | `SourceDescriptor.bucket?` 可选字段 `{key, granularity, from, to(闭区间), clippedStart?, clippedEnd?}`；A 扩字段、B 填 | 本文件 §6 已按此收敛；待协议合并后由结果构造层填充 |
+| Q-BA-4 | `dataVersion` 属 S-01：由工作台数据层/查询入口生成并透传（`WorkbenchState.dataVersion` → `prepareScope`），格式由 W1/W2 定；B/C/D 不得自造 | B 不生成、不携带；由信封层负责 |
+| Q-BA-5 | 不在 `groupBy` 混入时间粒度；建议新增 `timeGranularity?: "day"\|"week"\|"month"`（A-Q21，冻结时定） | 时间分析用 `analysisType: time.*` + `timeGranularity` 表达；`computeTimeSeries` 的 `granularity` 即其来源 |
+| Q-BA-6 | 同意 `time.*`，扩为 `<domain>.<name>`（domain ∈ basic\|category\|time\|dist\|cross\|record） | 已按 `time.*` 命名（如 `time.daily-expense-trend`） |
+| Q-BA-7 | 桶级复用 `AnalysisCompleteness`，不新增枚举；映射按 B §4.2 | 已按本文件 §4.2 映射（`BUCKET_COMPLETENESS` 常量属信封层） |
+| Q-BA-8 | `Ratio` 进程内 bigint；跨 HTTP 序列化 `{numerator: string; denominator: string}` | B 不新增 Ratio 传输格式，照此实现 |
+| Q-BA-9 | `TimeAxisHint` 属于结果 | 本文件 §3 已按此声明 |
+| Q-BA-10 | 综合模式直接引用 FX 聚合完整性，不重算 | B-1 只做原币；综合模式沿用 `aggregateFx` |
+| Q-BA-11 | I13 星期分布先用 `TimeSeriesResult` + weekday 7 桶模板轴，不新增形状 | B-2 实现时采用 |
+
+### 7.1 新增待评审项（B 提出，待 A/Lead 登记）
+
+- **Q-BA-12（影响 B-3 长区间）**：A 的 `makePeriod` 用 `MAX_STATS_DAYS = 400` 限制区间；但 I09 要求 12/24/36 个月、A01 同比需跨 ≥1 年、A12/A14 需长样本。建议 S-01 增 `MAX_ANALYSIS_DAYS`（如 3660，覆盖 10 年日粒度），或允许时间分析定义自带上限。B 的 `computeTimeSeries` 不设上限（由调用方按定义校验），请在 S-01 冻结前定。
+- **R-09**：`ComputationMetadata.coverageEnd?` 为展示元数据（A 已登记）；B 的 `BucketContext.coverageEnd` 是计算输入，不写入结果信封。
+- **A-Q21**：`AnalysisDefinition.timeGranularity?`（A 已登记，冻结时定）。
+- **S-01 §14.6（A 已预留）**：B 的 `apps/web/src/lib/chart/timeSeriesChart.ts` 即时间图表的只读适配层（允许字段裁剪/提升用于渲染，不重算金额、不改完整性状态），待协议合并后登记。
+
+**下一步**：B-1 实现不依赖 S-01 冻结（已按上述结论落地）；协议冻结由 Lead/Claude/所有者评审后通知，B 再补 `analysis/time.ts` 信封构造与 `SourceDescriptor.bucket` 填充。
 
 ---
 
@@ -433,7 +442,7 @@ export interface SourceDescriptor {
 
 | 批次 | 能力 | 形状 |
 |---|---|---|
-| B-1 | I06 每日支出趋势、I07 每日收入趋势、I08 结余趋势、I09 每月支出趋势、I10 累计支出、I19、I20 | `TimeSeriesResult`（I10/I19 `cumulative: true`） |
+| B-1 | I06 每日支出、I07 每日收入、I08 每周支出、I09 每月支出、I10 每月收入、I19 交易频次、I20 累计支出 | `computeTimeSeries`（day/week/month × expense/income/count）+ `accumulateSeries`；图表输入 `timeSeriesChart.ts`：折线/面积/柱/Sparkline/累计 |
 | B-2 | I11–I16（构成、星期、热力、分类×时间） | `MultiSeriesResult` / `CalendarHeatmapResult` / `TimeSeriesResult` |
 | B-3 | A01–A05（同比、环比、周期比较） | `PeriodComparisonResult` |
 | B-4 | A12 移动平均、A13 累计节奏、A14 波动、A18 季节性、A19 收入稳定性、A20 异常 | `MovingAverageResult` / `TimeSeriesResult` / `VariabilityResult` / `MultiSeriesResult` / `AnomalyResult` |
@@ -444,16 +453,18 @@ export interface SourceDescriptor {
 
 ## 9. 版本与冻结建议
 
+- **状态（2026-10-27）**：已与 A 对齐（A §15 逐条答复）；S-01 仍为 `s01-draft`，待 Lead/Claude/所有者评审冻结。B-1 按对齐结论落地，不等待冻结。
 - 本草案基于 `ANALYSIS_PROTOCOL_VERSION = "s01-draft"`。A 合并后建议升为 `"s01-freeze-1"` 或 `"s01-v1"`，并写明"时间形状已并入"。
 - 冻结后 B 的 `timeCalendar.ts` 语义不得轻改；如需改语义，必须升 `TIME_CONTRACT_VERSION` 并重跑 B-5 日期边界矩阵。
-- 本文件随 B-0 提交；A 回复后由 B 在任务文档 §6.2 记录结论，并更新本文件状态为"已对齐/已冻结"。
+- 本文件 B-0 提交、B-1 对齐后更新；冻结时由 A 标注【已冻结（commit）】并通知。
 
 ---
 
 ## 10. 参考
 
 - 所有者规格：`docs/specs/product/s17-agents/S17-Agent-B-完整开发规格-所有者-20261027.md` §3、§4、§5、§35、§37、§40
-- A 的 S-01 草案：`packages/shared/src/analysis/types.ts`、`rational.ts`（A 工作区 `deepseek/s17-finance-analysis`，未合并）
+- A 的 S-01 草案：`packages/shared/src/analysis/types.ts`、`rational.ts`、`context.ts`（A 工作区 `deepseek/s17-finance-analysis`，未合并；A §15 审计结论 commit `655ea14`/`5faaac1`）
 - B 的时间合同：`packages/shared/src/timeCalendar.ts`、`timeCalendar.test.ts`
+- B 的时间序列计算与图表输入：`packages/shared/src/timeSeries.ts`、`apps/web/src/lib/chart/timeSeriesChart.ts`
 - 现有统计：`packages/shared/src/stats.ts`、`apps/api/src/routes/stats.ts`、`apps/web/src/lib/offline/localStats.ts`
 - 核查表：`docs/specs/design/S17-B-时间与财务数据合同核查表.md`
