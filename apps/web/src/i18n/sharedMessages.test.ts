@@ -45,6 +45,8 @@ const FULL_FILES = [
   "admin.ts",
   "auth.ts",
   "billImport.ts",
+  "calendarHeatmap.ts",
+  "categorySeries.ts",
   "duplicateDetection.ts",
   "duplicateReview.ts",
   "export.ts",
@@ -67,6 +69,7 @@ const FULL_FILES = [
   "timeSeries.ts",
   "version.ts",
   "voiceParsing.ts",
+  "weekdayPattern.ts",
 ] as const;
 /** 识别规则文件：大量中文是关键词（不翻译），只检查以“。”结尾的提示句。 */
 const SENTENCE_FILES = ["categoryMatch.ts", "chineseNumerals.ts", "speech.ts", "transactionText.ts"] as const;

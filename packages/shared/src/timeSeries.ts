@@ -317,3 +317,115 @@ export function isTimeSeriesOptionsValid(options: TimeSeriesOptions): boolean {
 
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// I11：收入与支出比较
+// ---------------------------------------------------------------------------
+
+/** 收入/支出对比结果版本。 */
+export const FLOW_SERIES_VERSION = "s17-b-flow-series-v1" as const;
+
+export interface FlowSeriesOptions {
+  readonly granularity: TimeGranularity;
+  /** 半开区间 `[start, end)`；收入与支出必须共用同一区间与桶边界。 */
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly coverageEnd: string | null;
+}
+
+export interface FlowSeriesBucketPoint {
+  readonly bucket: TimeBucket;
+  readonly incomeMinor: string | null;
+  readonly expenseMinor: string | null;
+  /**
+   * `income − expense`。
+   *
+   * 只有两侧都可计算时才有值：差额不是猜出来的，任一侧未知就是 `null`。
+   */
+  readonly differenceMinor: string | null;
+  readonly incomeCount: number | null;
+  readonly expenseCount: number | null;
+}
+
+export interface FlowSeriesResult {
+  readonly version: typeof FLOW_SERIES_VERSION;
+  readonly granularity: TimeGranularity;
+  readonly span: TimeSpan;
+  readonly buckets: readonly FlowSeriesBucketPoint[];
+  readonly totalIncomeMinor: string | null;
+  readonly totalExpenseMinor: string | null;
+  readonly totalDifferenceMinor: string | null;
+  readonly complete: boolean;
+  readonly unknownBucketCount: number;
+  readonly inProgressBucketCount: number;
+  readonly futureBucketCount: number;
+}
+
+/**
+ * 同一时间轴上的收入与支出（I11）。
+ *
+ * 复用 `computeTimeSeries` 的两次计算再按桶对齐，而不是另写一套累加——
+ * 收入、支出必须使用**完全相同的日期区间、币种口径、覆盖状态与桶边界**，
+ * 否则画出来的比较图没有意义（规格 §11 明确禁止“收入十二个月 vs 支出本年”
+ * 这种拼出来的图）。
+ */
+export function computeFlowSeries(
+  entries: readonly TimeSeriesEntry[],
+  options: FlowSeriesOptions,
+): FlowSeriesResult {
+  const income = computeTimeSeries(entries, {
+    metric: "income",
+    granularity: options.granularity,
+    span: options.span,
+    today: options.today,
+    coverageEnd: options.coverageEnd,
+  });
+  const expense = computeTimeSeries(entries, {
+    metric: "expense",
+    granularity: options.granularity,
+    span: options.span,
+    today: options.today,
+    coverageEnd: options.coverageEnd,
+  });
+  const expenseByKey = new Map(expense.buckets.map((point) => [point.bucket.key, point]));
+
+  const buckets: FlowSeriesBucketPoint[] = income.buckets.map((incomePoint) => {
+    const expensePoint = expenseByKey.get(incomePoint.bucket.key);
+    const incomeMinor = incomePoint.amountMinor;
+    const expenseMinor = expensePoint?.amountMinor ?? null;
+    const differenceMinor =
+      incomeMinor !== null && expenseMinor !== null
+        ? (BigInt(incomeMinor) - BigInt(expenseMinor)).toString()
+        : null;
+
+    return {
+      bucket: incomePoint.bucket,
+      incomeMinor,
+      expenseMinor,
+      differenceMinor,
+      incomeCount: incomePoint.transactionCount,
+      expenseCount: expensePoint?.transactionCount ?? null,
+    };
+  });
+
+  const totalIncomeMinor = income.totalMinor;
+  const totalExpenseMinor = expense.totalMinor;
+  const totalDifferenceMinor =
+    totalIncomeMinor !== null && totalExpenseMinor !== null
+      ? (BigInt(totalIncomeMinor) - BigInt(totalExpenseMinor)).toString()
+      : null;
+
+  return {
+    version: FLOW_SERIES_VERSION,
+    granularity: options.granularity,
+    span: income.span,
+    buckets,
+    totalIncomeMinor,
+    totalExpenseMinor,
+    totalDifferenceMinor,
+    complete: income.complete && expense.complete,
+    unknownBucketCount: Math.max(income.unknownBucketCount, expense.unknownBucketCount),
+    inProgressBucketCount: Math.max(income.inProgressBucketCount, expense.inProgressBucketCount),
+    futureBucketCount: Math.max(income.futureBucketCount, expense.futureBucketCount),
+  };
+}

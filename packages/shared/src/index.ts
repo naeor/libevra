@@ -123,8 +123,10 @@ export type {
 } from "./timeCalendar.js";
 
 export {
+  FLOW_SERIES_VERSION,
   TIME_SERIES_VERSION,
   accumulateSeries,
+  computeFlowSeries,
   computeTimeSeries,
   isTimeSeriesOptionsValid,
 } from "./timeSeries.js";
@@ -133,6 +135,9 @@ export type {
   CountKind,
   CumulativeBucketPoint,
   CumulativeResult,
+  FlowSeriesBucketPoint,
+  FlowSeriesOptions,
+  FlowSeriesResult,
   TimeSeriesBucketPoint,
   TimeSeriesEntry,
   TimeSeriesMetric,
@@ -140,6 +145,62 @@ export type {
   TimeSeriesResult,
   UnknownReason,
 } from "./timeSeries.js";
+
+export {
+  CATEGORY_SERIES_VERSION,
+  OTHER_CATEGORY_KEY,
+  computeCategorySeries,
+  computeCategoryShares,
+  isCategorySeriesOptionsValid,
+  isCompositionComplete,
+  topCategoriesByTotal,
+} from "./categorySeries.js";
+
+export type {
+  CategorySeriesBucket,
+  CategorySeriesEntry,
+  CategorySeriesOptions,
+  CategorySeriesPoint,
+  CategorySeriesResult,
+  CategoryShareBucket,
+  CategorySharePoint,
+  CategoryShareResult,
+  CategoryShareState,
+  CategoryUnknownReason,
+  ShareRatio,
+} from "./categorySeries.js";
+
+export {
+  WEEKDAY_MIN_SAMPLE_DAYS,
+  WEEKDAY_PATTERN_VERSION,
+  computeWeekdayPattern,
+  isWeekdayPatternOptionsValid,
+} from "./weekdayPattern.js";
+
+export type {
+  Weekday,
+  WeekdayAverage,
+  WeekdayPatternOptions,
+  WeekdayPatternResult,
+  WeekdayPoint,
+} from "./weekdayPattern.js";
+
+export {
+  CALENDAR_HEAT_LEVELS,
+  CALENDAR_HEATMAP_VERSION,
+  computeCalendarHeatmap,
+  isCalendarHeatmapOptionsValid,
+} from "./calendarHeatmap.js";
+
+export type {
+  CalendarDayCell,
+  CalendarHeatmapIntensity,
+  CalendarHeatmapOptions,
+  CalendarHeatmapResult,
+  CalendarMetric,
+  CalendarMonth,
+  CalendarWeek,
+} from "./calendarHeatmap.js";
 
 export {
   chineseNumeralToDigits,

@@ -468,3 +468,31 @@ A 已在 `docs/specs/product/s17-agents/S17-Agent-A-S01-共享分析结果协议
 - B 的时间序列计算与图表输入：`packages/shared/src/timeSeries.ts`、`apps/web/src/lib/chart/timeSeriesChart.ts`
 - 现有统计：`packages/shared/src/stats.ts`、`apps/api/src/routes/stats.ts`、`apps/web/src/lib/offline/localStats.ts`
 - 核查表：`docs/specs/design/S17-B-时间与财务数据合同核查表.md`
+
+---
+
+## 11. B-2 实现映射（2026-10-27，未冻结）
+
+B-2 的四个计算模块 + 五个图表组件完成后，I11–I16 与 S-01 形状的对应关系如下。**它们仍使用 §3 已登记的形状语义**（时间桶、完整性、逐桶来源），但当前只落地为 B 侧的纯函数结果对象；S-01 信封（含 `analysisType` 注册与 `SourceDescriptor.bucket`）待协议冻结后由 A 统一提供。
+
+| 能力 | 计算入口（shared） | 结果对象 | S-01 形状映射 | 图表（web） |
+|---|---|---|---|---|
+| I11 收入与支出比较 | `computeFlowSeries`（`timeSeries.ts`） | `FlowSeriesResult`：每桶 `incomeMinor`/`expenseMinor`/`differenceMinor`，区间合计与完整性 | `MultiSeriesResult`（两条序列：收入、支出；桶轴共享） | `IncomeExpenseBars`（CF-B04 成对柱） |
+| I12 日历热力 | `computeCalendarHeatmap`（`calendarHeatmap.ts`） | `CalendarHeatmapResult`：逐日 `valueMinor`/`transactionCount`/`level`，单月与跨月均按周一起始 | `CalendarHeatmapResult`（§3.5） | `CalendarHeatmapGrid`（CF-B08，DOM 网格） |
+| I13 星期分布 | `computeWeekdayPattern`（`weekdayPattern.ts`） | 固定 ISO 1..7（周一→周日）七桶；`total` 精确 minor，`average` 为精确分数 `numeratorMinor/denominatorDays`（只对实际出现的该星期日期求平均） | `TimeSeriesResult` + 7 桶模板轴（A §15 结论，不新增形状） | `WeekdayBars`（CF-B09） |
+| I14 分类构成 | `computeCategorySeries`（`categorySeries.ts`） | 每桶每分类精确金额；`totalMinor` 存在未知桶时为 `null`；`includeOther` 追加“其他”序列 | `MultiSeriesResult`（分类为序列） | `CategoryStackedBars`（CF-B05 堆叠柱） |
+| I15 分类占比 | `computeCategoryShares`（`categorySeries.ts`） | 每桶每分类 `ShareRatio`（分子/分母均为精确 minor 字符串），分母 = 该桶权威合计；`zero-total`/`unknown`/`future` 桶不给占比 | `MultiSeriesResult` + `Ratio` 占比序列 | `CategoryShareBands`（CF-B06 100% 堆叠带） |
+| I16 分类×时间 | `computeCategorySeries` + `topCategoriesByTotal` | 同一长表按时间桶展开；Top N 顺序即图例顺序 | `MultiSeriesResult`（分类×时间桶） | `CategoryStackedBars` / `CategoryShareBands` 复用 |
+
+**实现时固定下来的语义（后续改语义必须升版本号）**：
+
+1. **占比分母**：`share = 该分类金额 / 该桶全部分类合计`，分母来自 `computeCategorySeries.totalMinor`，图表不重算、不改分母（满足规格 §31 兼容性表对“构成”的要求）。
+2. **零总额桶**：`state = "zero-total"`，所有 `share = null`；不得写成 0%（0% 会与“没有支出”混淆）。
+3. **未知桶**：所有 `share = null` 且桶 `state = "unknown"`；100% 堆叠带在该桶处断开，不补 0、不跨过去连线。
+4. **收入/支出成对柱**：`differenceMinor = income − expense`，任何一侧未知时 `differenceMinor = null`（差额不得由半截数据得出）；两侧共用同一套桶边界与零点基线（规格 §11）。
+5. **星期桶顺序**：固定 `weekday = 1..7` 表示周一→周日，**不按语言重排**；语言差异只影响标签文案（由组件 props 传入），不改变桶顺序。
+6. **日历热力着色**：`level` 为 0–4 分位；只对“完整日”参与分位计算，`unknown`/`future`/`in-progress` 的格子不着色（`level = null`），也不参与 min/max 图例；“已知为 0”的完整日为 `level 0`，与“未知”视觉上可区分。
+7. **图表组件不产出文案**：所有标签、标题、图例文字、tooltip 格式由调用方按当前语言传入；组件只输出数字与结构（因此 `sharedMessages` 无需为组件登记中文）。
+8. `sharedMessages.ts` 只登记 shared 模块内的用户可见中文提示（`categorySeries.ts`/`weekdayPattern.ts`/`calendarHeatmap.ts` 已加入 `sharedMessages.test.ts` 的 `FULL_FILES`）。
+
+**边界说明**：B-2 仍未接入 `StatsPage.tsx`/`FxStats.tsx`（1.16.23 候选冲突，Lead 指示只读），也未实现完整 hover/touch 读数（图表几何已带 `data-*` 与 `<title>` 精确读出任一；44px 触摸与键盘交互的完整方案随 W3 卡片集成）。
