@@ -80,6 +80,7 @@ isAnalysisReferenceShape(value: unknown): boolean
 - `prepareShareImport` 第一步即检查门：关闭则返回 `{ ok:false, issues:[share_import_closed] }`，**不解析客户端输入**（避免在门关闭期间处理外部布局/参数）。
 - 门放行后：原有快照校验 → ID 重生成 → 修复 → 双文档校验 → 逐卡 `validateAnalysisParams`（`invalid` → 导入失败；`readonly` 仅提示不阻断）。G-12b 的 `resolveAnalysisVersion` 非 `current` 时跳过 params 版本校验，避免重复报同一问题。
 - 放行条件（依据 G-12a §9）：D 校验实现 + 30 用例全过（本批完成）、B/C 受影响接口核对、Lead 复核后置 `shareImportAllowed=true`；放行后仍走同一校验。
+- **Lead 裁定（2026-10-27，D-6 验收时）：本 S-01 v2 冻结周期不决策放行，`shareImportAllowed=false` 维持关闭。** 未来放行需同时满足：(a) A r7 发布后 G-12a 表数据同步（T-8 `timeFixed`/`pinnedRange` 说明、T-7 C 系列白名单占位）；(b) B/C 对 G-12a v2 的核对；(c) 集成导入真实接线 + 权限/容量测试——三者均不在本冻结范围内。
 
 ---
 
@@ -109,7 +110,7 @@ isAnalysisReferenceShape(value: unknown): boolean
 | `analysisVersion` 排序 | 仅等值比较（G-15 版本串/排序未冻结前的保守占位） | S-01 冻结（Lead/A） |
 | `timeFixed` 语义 | 按 G-12a v1 现值实现；T-8 由 A r7 微调说明 | A r7 / Lead |
 | 账本存在性与权限 | 本层不查（只校验 UUID 形状），由查询层 `requireBook` 执行 | B/C + 集成 |
-| 分享放行 | `shareImportAllowed` 仍由调用方传 `false`；D 不会自行放行 | Lead（G-12a §9 检查单） |
+| 分享放行 | **维持关闭**（Lead 2026-10-27 裁定：本冻结周期不决策放行；放行三条件见 §4）；D 不会自行放行 | Lead（A r7 + B/C 核对 + 集成接线后） |
 | G-12a 表变更同步 | A 发布 v2 时 D 只更新表数据，不改校验结构；新增键=新 analysisVersion | A / Lead |
 | UI 提示文案/i18n | 未实现（错误码→文案映射属 UI 批次） | Codex/集成 |
 
@@ -126,6 +127,6 @@ isAnalysisReferenceShape(value: unknown): boolean
 
 ## 9. 下一步
 
-1. 等 Lead 复核本批并决定分享导入门放行（G-12a §9）。
-2. A r7 发布后同步 G-12a 表数据的微调（T-8 说明）。
+1. 分享导入门：**维持关闭**（Lead 2026-10-27 裁定，本冻结周期不决策放行）。
+2. 等 A r7 发布后做参数白名单表数据/枚举引用的**小同步**（T-8 说明、T-7 C 系列白名单占位；不改校验结构、不改 params 表结构）。
 3. 继续等待真实 Codex 视觉规范与 Lead 对 D-2 UI/后续 headless 批次的批准；不自行接页面/入口。
