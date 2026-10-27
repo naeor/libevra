@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  computationOf,
   filterEntries,
   isBlocking,
   makeDefinition,
   makePeriod,
+  makeScalar,
   prepareScope,
   resolveDefinitionPeriod,
   resolveFilters,
@@ -355,5 +357,60 @@ describe("prepareScope", () => {
     expect(() => prepareScope(usdOnly, definition(), OCTOBER, "expense")).toThrow(
       /currency_mismatch/,
     );
+  });
+});
+
+describe("computation optional protocol fields (v2.0.3 additive alignment)", () => {
+  it("carries method/sampling/coverageEnd/analysisLimit through the envelope and JSON", () => {
+    const scope = prepareScope(
+      SAMPLE_C_EXPENSE_ONLY.entries,
+      definition(),
+      workbench("2026-10-01", "2026-10-31", { dataVersion: "dv-v203" }),
+      "expense",
+    );
+    const computation = computationOf({
+      method: "quantile-type7",
+      sampling: { strategy: "visual-first-n", omittedCount: 12, isVisualOnly: true },
+      coverageEnd: "2026-10-20",
+      analysisLimit: { limit: "maxAnalysisDays", value: 400, requested: 731 },
+    });
+    const result = makeScalar(definition(), scope, null, computation);
+
+    expect(result.computation.method).toBe("quantile-type7");
+    expect(result.computation.sampling).toEqual({
+      strategy: "visual-first-n",
+      omittedCount: 12,
+      isVisualOnly: true,
+    });
+    expect(result.computation.coverageEnd).toBe("2026-10-20");
+    expect(result.computation.analysisLimit).toEqual({
+      limit: "maxAnalysisDays",
+      value: 400,
+      requested: 731,
+    });
+
+    const serialised = JSON.parse(JSON.stringify(result)) as {
+      computation: Record<string, unknown>;
+    };
+    expect(serialised.computation).toEqual({
+      rounding: "minor-half-away-v1",
+      method: "quantile-type7",
+      sampling: { strategy: "visual-first-n", omittedCount: 12, isVisualOnly: true },
+      coverageEnd: "2026-10-20",
+      analysisLimit: { limit: "maxAnalysisDays", value: 400, requested: 731 },
+    });
+  });
+
+  it("keeps the four fields optional so legacy computations stay valid", () => {
+    const scope = prepareScope(
+      SAMPLE_C_EXPENSE_ONLY.entries,
+      definition(),
+      workbench("2026-10-01", "2026-10-31"),
+      "expense",
+    );
+    const result = makeScalar(definition(), scope, null);
+
+    expect(result.computation).toEqual({ rounding: "minor-half-away-v1" });
+    expect(result.version).toBe("s01-v2");
   });
 });

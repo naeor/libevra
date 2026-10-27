@@ -168,6 +168,43 @@ export interface SourceDescriptor {
   readonly dataVersion: string | null;
 }
 
+/**
+ * Sampling metadata that may accompany a computation.
+ *
+ * The authoritative sampling facts live in the result layer (an analysis
+ * records its own sampling strategy / omitted / sample counts / completeness);
+ * this object exists only so a display layer can annotate a *visual* sampling
+ * decision. It must never be re-computed from, nor override, the result layer
+ * (S-01 v2 §2, XC-08/XC-35).
+ */
+export interface SamplingMetadata {
+  /** Sampling strategy the display layer applied (open string). */
+  readonly strategy?: string | undefined;
+  /** How many points the visual layer left out. */
+  readonly omittedCount?: number | undefined;
+  /** Always `true`: marks this object as visual-only metadata. */
+  readonly isVisualOnly: true;
+}
+
+/**
+ * A limit that bounded an analysis (B/C limits).
+ *
+ * Carried through `computation.analysisLimit` so a consumer can explain why a
+ * result is bounded instead of silently presenting a truncated scope as
+ * complete (S-01 v2 §2 / G-18 / XC-09).
+ */
+export interface AnalysisLimitMetadata {
+  /**
+   * Name of the limit constant, e.g. `maxAnalysisDays` / `maxMonths` /
+   * `MAX_PIVOT_CELLS`.
+   */
+  readonly limit: string;
+  /** The effective limit value. */
+  readonly value: number;
+  /** The requested value that exceeded the limit, when known. */
+  readonly requested?: number | undefined;
+}
+
 /** What a display layer needs to explain a derived number honestly. */
 export interface ComputationMetadata {
   readonly rounding: typeof ANALYSIS_ROUNDING_POLICY;
@@ -180,6 +217,23 @@ export interface ComputationMetadata {
   readonly convertedWithFx?: boolean | undefined;
   readonly fxPolicy?: string | undefined;
   readonly notes?: readonly string[] | undefined;
+  /**
+   * Algorithm name for derived statistics (open string).
+   *
+   * Registered values are frozen in S-01 v2.0.1 (e.g. `quantile-type7`,
+   * `population-stddev`, `sample-cv-fixedpoint`); unknown values are passed
+   * through untouched and never re-computed (S-01 v2 §2, B-V2-10).
+   */
+  readonly method?: string | undefined;
+  /** Visual-layer sampling annotation only (see `SamplingMetadata`). */
+  readonly sampling?: SamplingMetadata | undefined;
+  /**
+   * End of offline coverage (`YYYY-MM-DD` business date), when the underlying
+   * data is clipped (S-01 v2 §2 / G-10).
+   */
+  readonly coverageEnd?: string | undefined;
+  /** Limit that bounded this analysis, for traceable truncation. */
+  readonly analysisLimit?: AnalysisLimitMetadata | undefined;
 }
 
 /**
