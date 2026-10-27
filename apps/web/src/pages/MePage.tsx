@@ -9,7 +9,7 @@ import { ListGroup, ListRow } from "../components/ui/List.js";
 import { useI18n } from "../i18n/index.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useBooks, useCurrentBookId } from "../lib/queries.js";
-import { APP_VERSION } from "../lib/version.js";
+import { formatAppVersion } from "../lib/version.js";
 import { GuestMePage } from "./GuestMePage.js";
 
 /**
@@ -82,7 +82,7 @@ function AccountMePage(): React.JSX.Element {
      * right place — a version screen is consulted when the program is misbehaving, and the
      * account screen is where the other "about this device and this account" rows live.
      */
-    { to: "/update", label: t("account.me.updates"), hint: t("account.me.updatesHint", { version: APP_VERSION }) },
+    { to: "/update", label: t("account.me.updates"), hint: t("account.me.updatesHint", { version: formatAppVersion() }) },
     { to: "/settings", label: t("account.me.settings"), hint: t("account.me.settingsHint") },
   ];
 

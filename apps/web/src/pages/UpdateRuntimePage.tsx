@@ -7,6 +7,7 @@ import { Button } from "../components/Button.js";
 import { useI18n } from "../i18n/index.js";
 import { formatBytes } from "../lib/offline/persistence.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
+import { formatAppVersion } from "../lib/version.js";
 import {
   formatRuntimeReport,
   networkLabel,
@@ -70,7 +71,7 @@ export function UpdateRuntimePage(): React.JSX.Element {
             <h2 className="text-sm font-semibold text-ink">{t("update.runtime.app")}</h2>
             <dl className={grid}>
               <dt className="text-muted">{t("update.runtime.appVersion")}</dt>
-              <dd className="text-right font-mono text-ink">{snapshot.version}</dd>
+              <dd className="text-right font-mono text-ink">{formatAppVersion(snapshot.version)}</dd>
               <dt className="text-muted">{t("update.runtime.buildLocal")}</dt>
               <dd className="text-right text-ink [overflow-wrap:anywhere]">{snapshot.buildStampLocal}</dd>
               <dt className="text-muted">{t("update.runtime.buildStamp")}</dt>

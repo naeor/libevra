@@ -11,7 +11,7 @@ import { clearAllDeviceData } from "../lib/guest/cleanup.js";
 import { readGuestIdentity } from "../lib/guest/identity.js";
 import { useLanguagePreference } from "../lib/languageRuntime.js";
 import { useLedger } from "../lib/queries.js";
-import { APP_VERSION } from "../lib/version.js";
+import { formatAppVersion } from "../lib/version.js";
 
 /**
  * 我的 · guest variant.
@@ -182,7 +182,7 @@ export function GuestMePage(): React.JSX.Element {
           <p className="mt-3 px-1 text-helper-relaxed text-muted">{t("account.guestMe.noBackup")}</p>
         </section>
 
-        <p className="text-center text-helper text-muted">Libevra {APP_VERSION}</p>
+        <p className="text-center text-helper text-muted">Libevra {formatAppVersion()}</p>
       </div>
 
       <ConfirmDialog

@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { t } from "../i18n/index.js";
-import { APP_VERSION, buildStamp, buildStampLocal } from "./version.js";
+import { APP_VERSION, buildStamp, buildStampLocal, formatAppVersion } from "./version.js";
 import { readOfflineLog } from "./offline/diagnostics.js";
 import { cacheFootprint } from "./offline/downloadManager.js";
 
@@ -85,7 +85,7 @@ export function networkLabel(snapshot: Pick<RuntimeSnapshot, "online" | "offline
 
 export function formatRuntimeReport(snapshot: RuntimeSnapshot): string {
   return [
-    `Libevra ${snapshot.version}`,
+    `Libevra ${formatAppVersion(snapshot.version)}`,
     t("update.report.buildLocal", { value: snapshot.buildStampLocal }),
     t("update.report.buildUtc", { value: snapshot.buildStamp }),
     t("update.report.serviceWorker", { value: snapshot.serviceWorker }),

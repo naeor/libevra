@@ -4,7 +4,7 @@ import { BrandMark } from "../components/BrandMark.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow, ProseSection } from "../components/ui/List.js";
 import { useI18n } from "../i18n/index.js";
-import { APP_VERSION } from "../lib/version.js";
+import { formatAppVersion } from "../lib/version.js";
 
 /**
  * What the project promises, in the user's own words rather than the
@@ -50,7 +50,7 @@ export function AboutPage(): React.JSX.Element {
         <span className="flex min-w-0 flex-col gap-1">
           <span className="text-body-relaxed text-ink">{t("common.tagline")}</span>
           <Link to="/update" className="self-start text-helper text-brand transition hover:text-brand-dark">
-            {t("update.about.versionLink", { version: APP_VERSION })}
+            {t("update.about.versionLink", { version: formatAppVersion() })}
           </Link>
         </span>
       </section>

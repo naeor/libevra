@@ -6,7 +6,7 @@ import { MoreIcon } from "../components/Icons.js";
 import { UpdateMoreSheet } from "../components/UpdateMoreSheet.js";
 import { localizeUpdateAnnouncement } from "../i18n/content/index.js";
 import { useI18n } from "../i18n/index.js";
-import { APP_VERSION } from "../lib/version.js";
+import { APP_VERSION, formatAppVersion } from "../lib/version.js";
 import { RecordList, RecordRow } from "../components/ui/RecordList.js";
 import {
   compareVersions,
@@ -112,7 +112,7 @@ export function SoftwareUpdatePage(): React.JSX.Element {
       <section aria-label={t("update.home.statusLabel")} className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="flex min-w-0 items-baseline gap-2">
-            <span aria-label={t("update.home.currentVersion", { version: APP_VERSION })} className="text-3xl font-semibold tracking-tight text-ink tabular-nums">{APP_VERSION}</span>
+            <span aria-label={t("update.home.currentVersion", { version: formatAppVersion() })} className="text-3xl font-semibold tracking-tight text-ink tabular-nums">{formatAppVersion()}</span>
           </div>
           <span className="shrink-0 rounded-full bg-brand-soft px-2.5 py-1 text-micro font-medium text-brand-dark">
             {statusLabel}

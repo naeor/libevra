@@ -13,7 +13,7 @@ import { OceanBackdrop } from "../components/OceanBackdrop.js";
 import { SkeletonRows } from "../components/States.js";
 import { useI18n } from "../i18n/index.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
-import { APP_VERSION } from "../lib/version.js";
+import { formatAppVersion } from "../lib/version.js";
 import { errorMessage } from "../lib/api.js";
 import { markPresentationSeen, readSeenPresentation, useSpaceTransition } from "../lib/spaceTransition.js";
 import {
@@ -717,7 +717,7 @@ function ProjectFooter(): React.JSX.Element {
 
       <p className="text-center leading-relaxed text-muted">
         {t("books.space.footer.tagline")}
-        <span className="ml-1 font-mono">v{APP_VERSION}</span>
+        <span className="ml-1 font-mono">v{formatAppVersion()}</span>
       </p>
     </footer>
   );

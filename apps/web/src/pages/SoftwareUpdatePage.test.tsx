@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
 
-import { APP_VERSION } from "../lib/version.js";
+import { APP_VERSION, formatAppVersion } from "../lib/version.js";
 import { SoftwareUpdatePage } from "./SoftwareUpdatePage.js";
 import { UpdateAnnouncementDetailPage } from "./UpdateAnnouncementDetailPage.js";
 import { UpdateAnnouncementsPage } from "./UpdateAnnouncementsPage.js";
@@ -29,7 +29,8 @@ describe("software update announcements", () => {
   it("shows the running build and the latest released normal announcement", () => {
     const html = renderAt("/update", <SoftwareUpdatePage />);
 
-    expect(html).toContain(APP_VERSION);
+    expect(html).toContain(formatAppVersion(APP_VERSION));
+    expect(html).not.toContain(APP_VERSION);
     expect(html).toContain("1.16.22");
     expect(html).toContain("四款新头像加入经典系列");
     expect(html).toContain("经典系列新增玉净、幽幽、元宝和「太阳」，所有用户均可直接选择。");

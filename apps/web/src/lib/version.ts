@@ -74,7 +74,25 @@ import { t } from "../i18n/index.js";
  * constant, so "which version is deployed" now has one answer instead of two. Keeping a second
  * literal here is exactly the drift this project keeps recording as a bug.
  */
-export { APP_VERSION } from "@libellum/shared";
+import { APP_VERSION } from "@libellum/shared";
+
+export { APP_VERSION };
+
+/**
+ * 用户界面上的版本号：补丁段统一两位补零（`1.17.3` → `1.17.03`）。
+ *
+ * 所有者 2026-10-27 明确要求：所有用户可见的版本名称都用两位补零（1.17.03、1.17.04…），
+ * 但 `package.json` / 构建系统等要求严格 SemVer 的地方不能写 `1.17.03` 这种非法版本号。
+ * 因此 `APP_VERSION` 继续保存合法的 `1.17.3`，只在展示时调用本函数；两者同源，不会各说各话。
+ */
+export function formatAppVersion(version: string = APP_VERSION): string {
+  const parts = version.split(".");
+  if (parts.length !== 3) return version;
+  const major = parts[0] ?? "";
+  const minor = parts[1] ?? "";
+  const patch = parts[2] ?? "";
+  return `${major}.${minor}.${patch.padStart(2, "0")}`;
+}
 
 /**
  * When this bundle was built.
