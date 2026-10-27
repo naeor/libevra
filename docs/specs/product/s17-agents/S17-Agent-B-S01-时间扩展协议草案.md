@@ -613,5 +613,33 @@ B 向 S-01 v2 提交两项 **additive** 提案（不改已登记形状、不改�
 - Q-BP-5：`daily` 恒输出（保证图表稳定与守恒检查），`entries` 可选。
 - 性能结论（异步批次 + `yieldControl`、不在渲染帧同步聚合）作为规范写入 v2，并引用 `S17-B-性能基线.md` §6。
 
+---
+
+## 17. W1-S1 消费层映射（2026-10-27，draft；不新增形状）
+
+S1 不新增 S-01 形状，也不改动 §3.7 的七个时间形状：它把已存在的形状**从"纯函数"接到"卡片"**，并且只走 `apps/web/src/lib/analysisData.ts` 这一个入口（S0 已确立）。因此本节的映射是消费层契约，不是新协议。
+
+| 能力 | 生成入口（web，S0/S1） | 复用形状 | 卡片组件 | 说明 |
+|---|---|---|---|---|
+| I06 每日支出趋势 | `deriveTimeAnalysis`（metric=expense, day） | `TimeSeriesResult` | `DailyExpenseTrendCard`（S0） | 既有 S0 链路 |
+| I07 每日收入趋势 | `deriveTimeAnalysis`（metric=income, day） | `TimeSeriesResult` | `TimeSeriesCard` | 与 I06 同一引擎、同一口径，仅 metric 不同 |
+| I08 每周支出趋势 | `deriveTimeAnalysis`（week）+ `trailingWeekWindow` | `TimeSeriesResult` | `TimeSeriesCard`（bar/line） | 桶为周一起自然周，末桶裁剪并标 in-progress |
+| I09 每月支出趋势 | `deriveTimeAnalysis`（month）+ `trailingMonthWindow` | `TimeSeriesResult` | `TimeSeriesCard`（bar/line） | 自然月，跨年保留年份 |
+| I10 每月收入趋势 | `deriveTimeAnalysis`（month, income） | `TimeSeriesResult` | `TimeSeriesCard` | 复用 I09 核心 |
+| I19 每日交易笔数 | `deriveTimeAnalysis`（metric=count） | `TimeSeriesResult` | `TimeSeriesCard`（line/bar） | 笔数轴；不混入金额轴（金额与笔数不同轴原则见规格 §34.2） |
+| I20 累计支出 | `deriveCumulativeAnalysis` | `CumulativeResult`（由 `accumulateSeries` 派生） | `CumulativeExpenseCard` | 从区间起点累计；未知桶后全部 null、不画自信线 |
+| I11 收支对比 | `deriveFlowAnalysis` + `useFlowAnalysis` | `FlowSeriesResult`（`computeFlowSeries`） | `IncomeExpenseCard` | 收入/支出同轴同桶；两个独立总额不合并为"结余" |
+
+**S1 锁定语义**：
+
+1. 窗口函数只决定**区间**（`trailingWeekWindow` 周一起、`trailingMonthWindow` 自然月），分桶与裁剪仍由 `computeTimeSeries`/`timeCalendar` 决定，web 层不重算桶边界。
+2. 所有卡片只渲染传入的权威结果：总额、说明、格式化函数由调用方从同一结果生成；组件不重算金额、不补零、不折算汇率。
+3. 累计（I20）与移动平均（I13/I14，B-4）是不同分析：前者从区间起点累计，后者是固定窗口的尾随平均；不得互相替代或共用同一张卡片的语义标签。
+4. I11 不把收入−支出画成"结余趋势"（那是 I12 之外的另一个能力）；本批只画同轴收支与两个独立总额。
+5. 设备本地 `today`、账本口径、`coverageEnd` 双策略均沿用 S0/B-Q17；卡片 caption 必须能说明"设备账本口径"与"进行中"。
+6. 页面接线（`StatsPage.tsx`/`FxStats.tsx`）仍由 Lead 在集成 worktree 统一完成；S1 只交付适配层、hooks、卡片与单测。
+
+**测试证据**：`apps/web/src/lib/analysisData.test.ts`（23 用例）、`apps/web/src/components/charts/timeSeriesCards.test.tsx`（5 用例）、`useTimeAnalysis.test.ts`（8 用例）；web 全量 166 文件/1508 用例。
+
 
 

@@ -23,12 +23,18 @@
  */
 
 import {
+  accumulateSeries,
   addDays,
   assertCalendarDate,
+  computeFlowSeries,
   computeTimeSeries,
   daysInSpan,
   isSpanValid,
+  monthSpan,
+  weekSpan,
   type CountKind,
+  type CumulativeResult,
+  type FlowSeriesResult,
   type TimeGranularity,
   type TimeSeriesEntry,
   type TimeSeriesMetric,
@@ -281,3 +287,123 @@ export function deriveTimeAnalysis(
 
 /** Re-exported so cards read one module, not two. */
 export { isSpanValid };
+
+// ---------------------------------------------------------------------------
+// S1 — 时间趋势族默认窗口与派生入口（I07–I10 / I19 / I20 / I11）
+// ---------------------------------------------------------------------------
+
+/**
+ * Default week window: the last `weeks` natural weeks (Monday-first) ending in
+ * today's week.
+ *
+ * The last bucket is clipped at `today` by the series engine and reported as
+ * in-progress; the first bucket is a full natural week as long as `weeks >= 1`.
+ * Borders are explicit so the caption can state the real range.
+ */
+export function trailingWeekWindow(weeks: number, today: string): AnalysisWindow {
+  if (!Number.isInteger(weeks) || weeks < 1) {
+    throw new AnalysisRangeError("analysis-range-invalid", "周数必须是正整数");
+  }
+  assertCalendarDate(today);
+  const currentWeek = weekSpan(today);
+  return { from: addDays(currentWeek.start, -(weeks - 1) * 7), to: today };
+}
+
+/** Default month window: the last `months` natural months ending in today's month. */
+export function trailingMonthWindow(months: number, today: string): AnalysisWindow {
+  if (!Number.isInteger(months) || months < 1) {
+    throw new AnalysisRangeError("analysis-range-invalid", "月数必须是正整数");
+  }
+  assertCalendarDate(today);
+  const currentMonth = monthSpan(today);
+  return { from: shiftMonthStart(currentMonth.start, -(months - 1)), to: today };
+}
+
+/**
+ * Move a `YYYY-MM-01` string by whole months.
+ *
+ * Business dates are plain calendar strings here (never `Date` with a timezone),
+ * so month arithmetic is string/index arithmetic, exactly like `timeCalendar`.
+ */
+function shiftMonthStart(firstOfMonth: string, months: number): string {
+  const year = Number(firstOfMonth.slice(0, 4));
+  const month = Number(firstOfMonth.slice(5, 7));
+  const index = year * 12 + (month - 1) + months;
+  const shiftedYear = Math.floor(index / 12);
+  const shiftedMonth = index % 12;
+  const monthText = String(shiftedMonth + 1).padStart(2, "0");
+  return `${String(shiftedYear).padStart(4, "0")}-${monthText}-01`;
+}
+
+/** A single series plus its cumulative view (I20). */
+export interface CumulativeAnalysisView {
+  readonly series: TimeSeriesResult;
+  readonly result: CumulativeResult;
+  readonly input: AnalysisInput;
+}
+
+/**
+ * Cumulative expense trend (I20): the same authoritative series, accumulated from
+ * the start of the analysed range.
+ *
+ * The cumulative value is only defined while every preceding bucket is computable;
+ * the engine reports the first unknown bucket and nulls everything after it, so the
+ * card cannot draw a confident line over a gap. No rolling window is involved —
+ * that is `computeTrailingMovingAverage` (I13/I14), a different analysis.
+ */
+export function deriveCumulativeAnalysis(
+  transactions: readonly Transaction[],
+  query: TimeAnalysisQuery,
+): CumulativeAnalysisView {
+  const view = deriveTimeAnalysis(transactions, query);
+  return { series: view.result, result: accumulateSeries(view.result), input: view.input };
+}
+
+/** What an income/expense comparison card (I11) asks the analysis layer for. */
+export interface FlowAnalysisQuery {
+  readonly granularity: TimeGranularity;
+  /** Half-open business-date span `[start, end)`. */
+  readonly span: TimeSpan;
+  /**
+   * Device-local business "today". The engine uses it to mark the current bucket
+   * as in-progress instead of a finished zero.
+   */
+  readonly today: string;
+  /** S-01 v2 §17 override; defaults to `MAX_ANALYSIS_DAYS` (400). */
+  readonly maxDays?: number;
+  /** Coverage policy; see `TimeAnalysisQuery.coverage`. */
+  readonly coverage?: "local-ledger" | "unknown";
+}
+
+export interface FlowAnalysisView {
+  readonly result: FlowSeriesResult;
+  readonly input: AnalysisInput;
+}
+
+/**
+ * Income vs expense on one shared time axis (I11).
+ *
+ * Both sides use the same span and the same bucket boundaries by construction —
+ * that invariant lives in `computeFlowSeries`, not in the card.
+ */
+export function deriveFlowAnalysis(
+  transactions: readonly Transaction[],
+  query: FlowAnalysisQuery,
+): FlowAnalysisView {
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const entries = toTimeSeriesEntries(transactions);
+  const input: AnalysisInput = {
+    entries,
+    coverageEnd:
+      query.coverage === "unknown" ? coverageOf() : localLedgerCoverageEnd(span, query.today),
+    dataVersion: analysisDataVersion(),
+  };
+  const result = computeFlowSeries(entries, {
+    granularity: query.granularity,
+    span,
+    today: query.today,
+    coverageEnd: input.coverageEnd,
+  });
+  return { result, input };
+}
+
