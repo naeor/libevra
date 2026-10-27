@@ -1,4 +1,4 @@
-# S17 · Agent D · S-03 接口草案（布局侧，draft v0.4，**未冻结**）
+# S17 · Agent D · S-03 接口草案（布局侧，draft v0.6，**未冻结**）
 
 > 最后核对: `7d9f9fc`（1.16.23 rebase 后）；评审修订记录整理 2026-10-27；D-3.1 档案引擎 2026-10-27
 > 状态：**DRAFT v0.4，未冻结**（Lead 六问裁定记录见 §8；OQ-LM 待决项逐条登记见 §8.2；D-3.1 已落地独立档案/模式迁移与 G-12b，见 §4.5/§9；D-4 已落地迁移链/缓存键/分享与存储纯函数，见 §4/§9；数值冻结仍待 W3；本文件不构成公共接口）
@@ -130,6 +130,7 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 - 内部卡片不参与外层迁移（迁移只处理容器整体）；容器收缩为 1×1 时内部配置逐字节保留，恢复后还原。
 - 容器**只表达展开/折叠与占位，不解释内部内容**（Lead 裁定 2026-10-27）：布局层只记录容器外层几何与 `presentation`/`expandedSize`，内部卡片内容、图表配置、筛选与分割比例归内容文档/卡片侧，布局层原样保留、从不拆散。
 - 容器详情（查看全部卡片）入口的“当前展示形态”（full/compact/collapsed）是投影派生值，不与用户主动 `presentation` 混淆（OQ-LM-05/06）。
+- **D-3.2 数据模型已落地（headless，非接口冻结）**：`containers.ts` 提供 GridSplit 千分比归一化/槽位语义、子树结构校验失败码（数量/重复/引用/嵌套）、展示形态派生 `deriveContainerDisplay`、1×1 折叠↔恢复纯数据函数（`collapseContainerGeometry`/`restoreContainerGeometry`）；仍不做视觉与容器内编辑，明细见 [D-3.2 记录](./S17-Agent-D-D3-2-容器数据模型与迁移固定案例-v1.md)。
 - 待 W5/Codex：容器内卡片按真实内容区选密度；容器分割线像素级行为由视觉规范决定。
 
 ---
@@ -213,5 +214,7 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 | 2026-10-27 | draft v0.4 | 记录所有者 2026-10-27 OQ 方向核对结果：OQ-LM-04/06 落实为正式决定（D-OQ-04/06）；OQ-LM-03/05 部分落实并保留差异（DIFF-01/02）；OQ-LM-07 方向未覆盖原问题、保持待所有者（DIFF-03）；§6 紧凑/Spacer 口径同步更新；明细见 [OQ 落实与差异清单](./S17-Agent-D-OQ落实与差异清单-v1.md) |
 
 | 2026-10-27 | draft v0.5 | D-3.1 落地独立档案/模式迁移契约（§4.5）：`resolveProfile`/`materializeProfile`/`switchLayoutMode`/`adoptProfileAsMain`/`findUnplacedContentObjects`、`cols-*` 档案键占位（OQ-LM-08 未决）；导入侧 G-12b `resolveAnalysisVersion` 只读占位（`analysis-version-readonly`）；18 files / 234 tests 通过；明细见 [D-3.1 记录](./S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md) |
+
+| 2026-10-27 | draft v0.6 | D-3.2 落地容器数据模型与占位语义（§5 补充）：GridSplit 比例归一化/槽位、子树校验失败码、展示形态派生、1×1 折叠↔恢复纯数据函数；补跨列迁移固定案例回归表（3→4/4→3/冲突/降级/容器/Spacer/无漂移）；20 files / 265 tests 通过；明细见 [D-3.2 记录](./S17-Agent-D-D3-2-容器数据模型与迁移固定案例-v1.md) |
 
 > 本文件随 S-03 评审更新；任何字段形状变化须同时改代码、D0/D1/D2/D3 文档与测试，并在任务文档 §6.2 记录。
