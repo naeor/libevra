@@ -37,6 +37,7 @@ import {
 import type { DocumentValidationIssue } from "./validation.js";
 import { validateContentDocumentV1, validateLayoutDocumentV1 } from "./validation.js";
 import { projectLayout } from "./projection.js";
+import { checkShareImportGate, validateAnalysisParams } from "./params-validation.js";
 import { repairLayoutGeometry } from "./repair.js";
 import type { ShareContainerPayload, ShareSnapshotV1 } from "./share-snapshot.js";
 import { parseShareSnapshot, parseShareSnapshotJson } from "./share-snapshot.js";
@@ -63,6 +64,15 @@ export interface ShareImportOptions {
   ) => "current" | "newer" | "unknown";
   /** 可选：接收者已知图表家族；缺失/未知时记录提示（降级由投影执行）。 */
   readonly knownChartFamilies?: readonly string[];
+  /**
+   * 必填：分享导入门（G-12a §5-7 / Lead 裁定）。`shareImportAllowed=false` 期间
+   * 直接拒绝任何导入并提示「分享导入尚未开放」；只有 Lead 放行后才允许为 `true`。
+   */
+  readonly shareImportAllowed: boolean;
+  /** 可选：当前分析目录版本串（G-12a：非等值版本按较新只读占位处理）。 */
+  readonly currentAnalysisVersion?: string;
+  /** 可选：覆盖接收者已知 analysisId 集合（默认 G-12a v1 的 26 项）。 */
+  readonly knownAnalysisIds?: readonly string[];
 }
 
 /** 待绑定占位：引用缺失，需用户重选（Q-15），不自动绑定。 */
@@ -243,6 +253,15 @@ export function prepareShareImport(
   input: string | unknown,
   options: ShareImportOptions,
 ): ShareImportResult {
+  // G-12a §5-7：分享导入门关闭时直接拒绝（不解析、不信任客户端输入）。
+  const gate = checkShareImportGate({ shareImportAllowed: options.shareImportAllowed });
+  if (!gate.ok) {
+    return {
+      ok: false,
+      issues: gate.issues.map((item) => issue(item.path, item.code, item.detail)),
+      rebindRequests: [],
+    };
+  }
   const parsed =
     typeof input === "string" ? parseShareSnapshotJson(input) : parseShareSnapshot(input);
   if (!parsed.ok) {
@@ -292,6 +311,43 @@ export function prepareShareImport(
   if (!layoutValidated.ok) {
     return { ok: false, issues: [...issues, ...layoutValidated.issues], rebindRequests: [] };
   }
+
+  // G-12a v1：逐卡 params 白名单校验（失败即拒绝，不静默补默认/不猜测）。
+  // 只读占位（未知分析/较新版本）保留原配置，只提示，不阻断导入（导入为新副本）。
+  const paramsIssues: DocumentValidationIssue[] = [];
+  let paramsInvalid = false;
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index];
+    if (card === undefined) {
+      continue;
+    }
+    const versionStatus = options.resolveAnalysisVersion?.(card.analysis);
+    if (versionStatus !== undefined && versionStatus !== "current") {
+      // 已在 G-12b 段落登记 analysis-version-readonly，这里不重复校验。
+      continue;
+    }
+    const parsedParams = validateAnalysisParams(card.analysis, {
+      ...(options.currentAnalysisVersion !== undefined
+        ? { currentAnalysisVersion: options.currentAnalysisVersion }
+        : {}),
+      ...(options.knownAnalysisIds !== undefined
+        ? { knownAnalysisIds: options.knownAnalysisIds }
+        : {}),
+    });
+    for (const item of parsedParams.issues) {
+      const suffix = item.path === "$" ? "" : item.path.replace(/^\$params/, "");
+      paramsIssues.push(
+        issue(`$.cards[${String(index)}].analysis.params${suffix}`, item.code, item.detail),
+      );
+    }
+    if (parsedParams.status === "invalid") {
+      paramsInvalid = true;
+    }
+  }
+  if (paramsInvalid) {
+    return { ok: false, issues: [...issues, ...paramsIssues], rebindRequests: [] };
+  }
+  issues.push(...paramsIssues);
 
   // 跨文档一致性：布局对象必须对应内容文档对象（Spacer 除外）。
   const contentIds = new Set<string>([
