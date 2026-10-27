@@ -119,6 +119,8 @@ Lead 批准（2026-10-27）的 D-4 前置范围：
 
 返回 `ShareImportResult{ok, content?, layout?, issues, rebindRequests, preview?}`；`ok=true` 仅表示“校验通过且可生成文档”，待绑定/家族提示不阻断导入。`isWithinImportLimits(snapshot)` 用于对象数量快速上限检查。
 
+> **集成导入门（2026-10-27 登记，Lead 裁定）**：`shareImportAllowed=false` 期间，任何导入/分享入口必须拒绝接收外部布局/params 并提示 `share_import_closed`；本纯函数管道只做校验，不实现门本身，门由集成批次在入口检查（G-12a v1 §9 放行条件；S-03 §2/§7 已同步登记）。Lead 放行后仍走同一校验，失败不得写回。
+
 ---
 
 ## 7. 本地存储契约草案（`storage-contract.ts`）

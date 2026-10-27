@@ -1,7 +1,7 @@
-# S17 · Agent D · S-03 接口草案（布局侧，draft v0.6，**未冻结**）
+# S17 · Agent D · S-03 接口草案（布局侧，draft v0.7，**未冻结**）
 
-> 最后核对: `7d9f9fc`（1.16.23 rebase 后）；评审修订记录整理 2026-10-27；D-3.1 档案引擎 2026-10-27
-> 状态：**DRAFT v0.4，未冻结**（Lead 六问裁定记录见 §8；OQ-LM 待决项逐条登记见 §8.2；D-3.1 已落地独立档案/模式迁移与 G-12b，见 §4.5/§9；D-4 已落地迁移链/缓存键/分享与存储纯函数，见 §4/§9；数值冻结仍待 W3；本文件不构成公共接口）
+> 最后核对: `d4e4fd8`（1.16.23 基线）+ 本轮 v0.7 提交 / 2026-10-27；评审修订记录整理 2026-10-27；D-3.1 档案引擎 2026-10-27；D-3.2 容器模型 2026-10-27；S-01 v2 r6 针对性复核与 v0.7 文档同步 2026-10-27（不改代码/契约）
+> 状态：**DRAFT v0.7，未冻结**（Lead 六问裁定记录见 §8；S-01 v2 r6 针对性复核结论：D 侧无阻塞冻结、Lead 已接受（§9 v0.7）；G-12a v1 已登记为 D 校验输入，分享导入门见 §2/§7；OQ-LM 待决项逐条登记见 §8.2；D-3.1 已落地独立档案/模式迁移与 G-12b，见 §4.5/§9；D-4 已落地迁移链/缓存键/分享与存储纯函数，见 §4/§9；数值冻结仍待 W3；本文件不构成公共接口）
 > 提交方：`DS-S17-D-Layout`；评审方：Lead（S-03 组织者）、A（计算侧）、Codex（视觉侧）
 > 代码位置：`packages/shared/src/analysis/layout/`（**未接入** `packages/shared/src/index.ts`，接入需 S-03 评审通过）
 > 相关：[S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)、[S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)、[S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)、[S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md](./S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md)、[S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md](./S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md)、图表与卡片规格 §5.6、总需求规格 §4。
@@ -24,7 +24,7 @@
 
 ```ts
 interface AnalysisReference {
-  readonly analysisId: string;        // 分析能力目录 ID（如 "an-b01"）
+  readonly analysisId: string;        // 分析能力目录 ID（如 "AN-B01"；大写、大小写敏感，以目录发布字面为准）
   readonly analysisVersion?: number;  // 目录版本（可选；省略=按当前实现）
   readonly params: Readonly<Record<string, unknown>>; // 规范化参数（相对/预设优先）
 }
@@ -33,9 +33,10 @@ interface AnalysisReference {
 提案规则：
 
 - 布局/内容文档只存引用，**不得**存分析结果、金额、占比、序列或日期区间展开值；
-- `params` 只允许分析目录定义的白名单键（校验在内容文档层完成）；区间优先“相对/预设”写法（如近 30 天），绝对区间仅用于 `pinned`；
+- `params` 只允许分析目录定义的白名单键（**D 在内容文档层实现纯函数校验；布局层只引用/只读占位**）；区间优先“相对/预设”写法（如近 30 天），**绝对区间一律由卡片级 `pinnedRange` 承载，`params` 内 `timeFixed` 仅保留相对/预设语义**（冻结包待办 **T-8**：A r7 微调 G-12a v1 说明，不改校验结构）；
 - `pinned` 卡片（`rangePolicy: "pinned"`）必须带 `pinnedRange`（`from`/`to`），且标题必须可见标明区间（图表与卡片规格 §8）；
 - 未知 `analysisId`：保留占位（卡片位置保留，显示“暂不可用/请重新选择”），不得静默删除对象；**Lead 裁定（2026-10-27）：一律“只读占位 + 提示更新”，不回写、不删未知字段**；`analysisVersion` 不兼容时同样只读占位，不自动改参数。分享导入的兼容策略待 Q-15 绑定，先登记为 S-03 未决依赖；
+- `params` 白名单校验的**输入形态以 A 发布物** `S17-Agent-A-G12a-params白名单发布形态-v1.md` 为准（v1，随 S-01 v2，A worktree 只读引用）：26 个 analysisId 白名单、通用键/值约束、隐私黑名单、9 错误码、30 用例；**`shareImportAllowed=false` 期间任何导入/分享不得接收外部布局或 params**，集成批次必须在导入入口检查并拒绝（`share_import_closed`），Lead 放行后才开放；D 按发布物形态校验、不重新冻结协议。
 - 布局层**永不**按金额/结果/数据量改变对象顺序或尺寸（投影排序只依赖源位置与稳定 ID）。
 
 待 S-03 确认：目录 ID 与版本的冻结方式；参数规范化（键排序、数字/枚举）是否由 A 的 S-01 统一提供。
@@ -105,6 +106,9 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 
 - 迁移步骤失败 → 保留**迁移前最后一个合法文档**（`degraded` + `migration-failed`）；缺步骤 → `failed`；较新 → `read-only-newer` + `schema-newer-readonly`（不回写、不删未知字段）；逐节点降级细则待 v2 形状确定后补（当前步表为空，v1 即最新）。
 - 缓存键（实现约定，不进冻结契约）：`(权威布局版本, 算法版本, 目标列数, 约束档版本, 内容版本, 策略)`，D-4 已实现 `deriveProjectionCacheKey`；派生结果永不写回权威布局（无累计漂移）。
+- **边界（v0.7 补充，Lead 2026-10-27 裁定）**：
+  1. S-01 的 `analysisVersion` 差异与兼容（S-01 v2 §16.5）归**分析协议**负责；D 只在卡片引用处执行 G-12b 只读占位，**布局迁移链不迁移分析版本/params**（分析结果缓存键含 `dataVersion`，布局投影缓存键按上一条、不含 `dataVersion`）。
+  2. G-12a 发布物自身版本化与白名单演进以 **A 发布物 v1** 为准（`paramsSchemaVersion` 独立于本契约的 `schemaVersion`/`layoutAlgorithmVersion`）；D 按发布物形态校验、不重新冻结协议。
 
 ---
 
@@ -149,6 +153,7 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 **A（分析/结果协议）**
 - 布局只消费 `analysisId`(+/`analysisVersion`) 与 `params`；不消费 `AnalysisResult`；`dataVersion` 由计算入口生成，布局不得伪造/缓存替代。
 - 布局层不读交易表、不调用统计函数（`packages/shared/src/analysis/layout/` 的静态守卫测试在集成批次加）。
+- `params` 白名单校验输入以 A 的 **G-12a 发布物 v1** 为准（见 §2）；`shareImportAllowed=false` 期间导入入口拒绝并提示 `share_import_closed`（集成批次检查）。
 
 **B（时间/区间）**
 - `rangePolicy`：`inherit`（默认，跟随工作台全局筛选）或 `pinned`（必须带相对/预设区间；标题标明）。
@@ -165,6 +170,7 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 **Lead / 集成**
 - 本目录只从目录内 barrel 导出；接入 `packages/shared/src/index.ts`、页面与路由由集成批次（Lead/S-03）执行。
 - 静态守卫、性能预算、跨设备回归在集成批次补。
+- **集成导入必须检查 `shareImportAllowed`（G-12a v1）**：关闭时拒绝并提示 `share_import_closed`，放行后仍走同一校验、失败不得写回。
 
 ---
 
@@ -183,7 +189,7 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 
 ### 8.1 裁定版本说明
 
-- 六问裁定针对 **v0.1 初稿**（D-2 前置提交时评审）；此后文档按裁定与实现更新为 v0.2（裁定记录）与 v0.3（D-4 实现记录），**版本递增不改变“保持 draft、未冻结”的性质**。
+- 六问裁定针对 **v0.1 初稿**（D-2 前置提交时评审）；此后文档按裁定与实现更新为 v0.2…v0.7（裁定记录、D-4/D-3.1/D-3.2 实现记录、S-01 v2 r6 复核后 v0.7 文档同步），**版本递增不改变“保持 draft、未冻结”的性质**。
 - 冻结时点：W3 卡片家族尺寸数值由原型/真机冻结后，随 S-03 一并评审升版；在此之前任何字段形状变化仍须同步代码、D0–D4 文档与测试，并在任务文档 §6.2 记录。
 - 本文件不代表公共接口已冻结；不存在“保持 v0.1 文本不变”的约束——v0.1 仅作为评审基线在 §9 留痕。
 
@@ -216,5 +222,7 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 | 2026-10-27 | draft v0.5 | D-3.1 落地独立档案/模式迁移契约（§4.5）：`resolveProfile`/`materializeProfile`/`switchLayoutMode`/`adoptProfileAsMain`/`findUnplacedContentObjects`、`cols-*` 档案键占位（OQ-LM-08 未决）；导入侧 G-12b `resolveAnalysisVersion` 只读占位（`analysis-version-readonly`）；18 files / 234 tests 通过；明细见 [D-3.1 记录](./S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md) |
 
 | 2026-10-27 | draft v0.6 | D-3.2 落地容器数据模型与占位语义（§5 补充）：GridSplit 比例归一化/槽位、子树校验失败码、展示形态派生、1×1 折叠↔恢复纯数据函数；补跨列迁移固定案例回归表（3→4/4→3/冲突/降级/容器/Spacer/无漂移）；20 files / 265 tests 通过；明细见 [D-3.2 记录](./S17-Agent-D-D3-2-容器数据模型与迁移固定案例-v1.md) |
+
+| 2026-10-27 | draft v0.7 | 纯文档同步（Lead 批准；**不改代码/契约，不影响 S-01 v2 冻结**）：S-01 v2 r6 针对性复核结论（D 侧 ✅ 无阻塞、Lead 已接受）落记；§2 `analysisId` 示例统一 `AN-B01`（大写、大小写敏感、以目录发布字面为准）；§2/§7 登记 G-12a v1 为 D 校验输入与 `shareImportAllowed=false` 导入门；§2 明确绝对区间走卡片级 `pinnedRange`、`params.timeFixed` 仅相对/预设语义（冻结包待办 T-8 由 A r7 微调 G-12a v1）；§4 补「分析协议版本/迁移归 S-01」「G-12a 版本化以 A 发布物为准」两条边界注；header 状态修正为 DRAFT v0.7 |
 
 > 本文件随 S-03 评审更新；任何字段形状变化须同时改代码、D0/D1/D2/D3 文档与测试，并在任务文档 §6.2 记录。
