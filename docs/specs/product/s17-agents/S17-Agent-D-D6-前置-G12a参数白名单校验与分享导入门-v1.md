@@ -142,4 +142,4 @@ isAnalysisReferenceShape(value: unknown): boolean
 - **测试变更**：`params-validation.test.ts` 由 51 项 → 55 项（#19/#20 改预设通过；新增 #31–35：旧合法绝对对象→`params_type`、旧逆序对象→`params_type`、枚举外→`params_type`、timeFixed+timePreset→`params_conflict`、timeFixed+allowLongRange→`params_out_of_range`；删除过期绝对区间边界用例）。
 - **真实结果**：`typecheck` exit 0；`vitest run src/analysis/layout` **21 files / 327 tests passed**。
 - **接口/契约**：无接口形状变化；`shareImportAllowed` 维持关闭；S-03 由 v0.7 升 v0.8（纯文档引用同步）。
-- **提交**：代码+测试+文档提交（待回填），`docs(s17)` 记录提交（待回填）。
+- **提交**：`7ec7810`（feat(s17): Agent D 同步 G-12a v1.1（T-8）参数表数据与用例（headless），5 files +178/−171），`docs(s17)` 记录提交（本记录提交）。
