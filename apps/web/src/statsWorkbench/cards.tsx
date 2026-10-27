@@ -317,7 +317,7 @@ function AgentAView({
   }
 }
 
-export function scalarText(value: ScalarValue | null, t: ReturnType<typeof useI18n>["t"]): string {
+export function scalarText(value: ScalarValue | null, t: ReturnType<typeof useI18n>["t"], analysisId?: string): string {
   if (value === null) return t("statsWorkbench.states.undetermined");
   switch (value.kind) {
     case "money":
@@ -325,7 +325,9 @@ export function scalarText(value: ScalarValue | null, t: ReturnType<typeof useI1
     case "exact-money":
       return exactMoneyText(value.numeratorMinor, value.denominator, value.currency);
     case "count":
-      return t("statsWorkbench.values.count", { count: value.count });
+      return analysisId === "AN-B16"
+        ? t("statsWorkbench.values.categories", { count: value.count })
+        : t("statsWorkbench.values.count", { count: value.count });
     case "days":
       return t("statsWorkbench.values.days", { count: value.days });
     case "ratio":
@@ -339,7 +341,7 @@ function ScalarView({ result, density, note: noteOverride }: { readonly result: 
   const negative = result.value?.kind === "money" && result.value.money.amountMinor.startsWith("-");
   return (
     <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-      <FitAmount text={scalarText(result.value, t)} start={density === "compact" ? 1 : 0} className={negative ? "text-data-expense" : "text-ink"} />
+      <FitAmount text={scalarText(result.value, t, result.analysisId)} start={density === "compact" ? 1 : 0} className={negative ? "text-data-expense" : "text-ink"} />
       {note === null ? null : <p className="text-helper text-muted">{note}</p>}
     </div>
   );

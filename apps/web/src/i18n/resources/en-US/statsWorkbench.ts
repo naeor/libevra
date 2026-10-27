@@ -108,6 +108,8 @@ const statsWorkbench: Messages<typeof zh> = {
     weekdays: "M,T,W,T,F,S,S",
     count_one: "{{count}} entry",
     count_other: "{{count}} entries",
+    categories_one: "{{count}} category",
+    categories_other: "{{count}} categories",
     days_one: "{{count}} day",
     days_other: "{{count}} days",
     more_one: "{{count}} more — open to see all",

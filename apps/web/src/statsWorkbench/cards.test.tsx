@@ -61,6 +61,12 @@ describe("卡片内容", () => {
     expect(html).not.toContain("0.44");
   });
 
+  it("「有支出的分类数」用「个」而不是「笔」", () => {
+    const html = renderToStaticMarkup(<CardBody card={newCard("AN-B16")} scope={scope()} density="medium" />);
+    expect(html).toContain("1 个");
+    expect(html).not.toContain("1 笔");
+  });
+
   it("没有记录时说明「没有记录」，不画成一个看似完整的图表", () => {
     const html = renderToStaticMarkup(<CardBody card={newCard("AN-I03")} scope={scope({ entries: [] })} density="expanded" />);
     expect(html).toContain("这段时间没有记录");

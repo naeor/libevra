@@ -109,6 +109,8 @@ const statsWorkbench = {
     weekdays: "一,二,三,四,五,六,日",
     count_one: "{{count}} 笔",
     count_other: "{{count}} 笔",
+    categories_one: "{{count}} 个",
+    categories_other: "{{count}} 个",
     days_one: "{{count}} 天",
     days_other: "{{count}} 天",
     more_one: "另有 {{count}} 项，点开查看全部",
