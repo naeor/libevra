@@ -323,6 +323,16 @@
 - σ 展示：按货币最小单位格式（现有 half-away 一次舍入的 `formatExactAmount` 路径）；CV 展示：按 `percent-100` 1 位小数（与 A r6 §16.6 一致）。`VariabilityCard` 只接收调用方格式化好的 `metrics: {label, value, note?}[]`（`VariabilityCard.tsx:6/22/85`），卡片内无任何舍入逻辑，因此展示调整只发生在页面/metric 组装层，**B 侧无实现差异**。
 - 附：`formula.stdDev = "population-standard-deviation-v1"`、`formula.coefficientOfVariation = "coefficient-of-variation-v1"`（`variability.ts:234-235`），与 Lead 采纳的规范 method 串一致。
 
+### 6.5.4 r7 受影响接口核对（2026-10-27，A r7 `9d82e81`）
+
+**结论：B 受影响接口核对通过（r7 `9d82e81`）。** 仅核对 r7 涉及 B 的三项，未完整重评。
+
+1. **#3 窗口三层事实（§16.7/§12/§7 G-09）→ ✅ 一致**：
+   - r7 三层（S16-D 现状 14 月 → B draft 36 未生效 → 分析窗口默认 36/上限 60）与 B 实现/回执一致。逐点核对：①生产 1.16.23 基线 `apps/web/src/lib/fxView.ts:62-70`（`rangeMonths` 硬编码 `result.length > 14` 抛 `fx_range_too_long`，git `d4e4fd8` 版本）——r7 引「`fxView.ts:61-69`」行号指生产基线，事实正确；②B 工作分支 draft 已把 `rangeMonths` 委托 shared（`fxView.ts:62-64` → `fxRangeMonths`，`FX_MAX_RANGE_MONTHS=36`，`packages/shared/src/fx.ts:8/90-104`），未接入生产，与「draft 未生效」一致；③原币模式不受 FX 读取上限约束（B W1 全原币路径，见 §6.5.1）；④折算超当时生效上限必须显式拒绝（`fx_range_too_long`/`analysisLimit`）或整结果 `fx-incomplete`，禁止静默部分——与 B §6.5.1 回执、`fx.ts:96` 实现一致。
+   - **文档级备注（非冲突）**：r7 行文中「web 实际仍 14」指 1.16.23 生产基线；B 工作分支（draft、未接入）中该函数已参数化为 36。建议 r7 补「生产基线」字样，避免与 B draft 分支混淆。
+2. **G-27 映射行 → ✅ 一致**：r7「`partial→fx-incomplete` 仅汇率缺失/折算失败根因；fallback 成功不计 missing；P15/P16/P18 无 `partial`」与 B 五态映射（协议草案 §4.2：`unavailable` 依原因细分 `fx-incomplete`/`request-failed`/`no-permission`；`unknown`→`offline-incomplete`；`in-progress≠partial`）无冲突。B 侧唯一待补仍是 §4.2 一行 C→B 映射说明（冻结后最小批次）。
+3. **σ/CV（§16.6）→ ✅ 口径一致，表示法备注**：r7「σ 最小单位定点（6 位小数）、CV 无量纲 `Ratio`；σ 按币种小数位一次 `minor-half-away-v1`、CV `percent-100` 1 位、不套货币舍入」与 B `variability.ts:189-235`（σ=`stdDevScaledMinor` scale 6；CV=`coefficientOfVariationScaled` fraction×10^scale，无量纲）一致。**表示法备注（非冲突）**：B 的 A12 结果用 `coefficientOfVariationScaled`（定点字符串）而非 `Ratio` 对象；r7 引用的 `formatRatioPercent`/`formatRatioMinorText` 在 B 仓库当前不存在（web 等价 `apps/web/src/lib/chart/format.ts:57 formatPercent(ratio,digits)`）——符号统一属 Codex 单一来源（G-31）/冻结后最小批次，展示口径一致。
+
 > 证据均为只读核对（2026-10-27，HEAD 工作区）；本回执未改任何实现代码、未冻结任何接口。
 
 ---
