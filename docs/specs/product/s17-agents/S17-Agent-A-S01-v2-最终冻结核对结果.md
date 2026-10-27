@@ -1,9 +1,9 @@
-# S-01 v2 最终冻结核对结果（一页，2026-10-27，r6）
+# S-01 v2 最终冻结核对结果（一页，2026-10-27，r7）
 
-> 状态：`s01-v2-draft`，**未冻结**。本页为 r6 完成后给 Lead/所有者/D 的快速核对结果；细节见 `S17-Agent-A-S01-v2-r6-记录.md` 与 v2 §12/§16。
-> 依据：所有者裁定（`f215fa9`，Lead m03434）；r5 已过 D 单点复核（「无阻塞，可提交所有者签认冻结」）。
+> 状态：`s01-v2-draft`，**未冻结**。本页为 r7 完成后给 Lead/所有者/D 的快速核对结果；细节见 `S17-Agent-A-S01-v2-r7-记录.md`、`S17-Agent-A-S01-v2-结构草案.md` §12/§16。
+> 依据：所有者签认（orchestrator `3760675`，Lead m03659 转发）；C 侧冻结前证据回执（C `bf6de96`，Lead 验收 `5b5bb0c`）；r5 已过 D 单点复核（「无阻塞，可提交所有者签认冻结」）。
 
-## A. D 冲突项状态（r5 已修正，r6 复核，不重做）
+## A. D 冲突项状态（r5 已修正，r6/r7 复核，不重做）
 
 | 项 | 状态 | 位置 |
 |---|---|---|
@@ -16,25 +16,25 @@
 | D-V2-07 S-03 引用版本 | ✅ 已吸收 | §1/§6/§8 |
 | D-V2-08 G-12a 可实施发布物 | ✅ 已产出 | `S17-Agent-A-G12a-params白名单发布形态-v1.md` |
 
-## B. C-1 37 项常量最终分类（明细见 v2 §12；此处列汇总）
+## B. C-1 37 项常量最终分类（明细见 v2 §12；r7 后状态）
 
-- **F（冻结）**：maxAnalysisDays=400、FX_POLICY、FX_MAX_FALLBACK_DAYS=7、FX_MAX_DETAIL_ENTRIES=50,000、MAX_SANKEY_LINKS=4000（唯一来源）、HIERARCHY_ROOT_ID/DIRECT_SUFFIX、MAX_HIERARCHY_NODES、移动平均 7/30、季节性 36、波动性 7 有效日、A20 3 个月、1.5×IQR、箱线 5（最低计算门槛）、MAX_PIVOT_CELLS/小多图/交叉表计算上限、日历强度 0–4、周一起始、$maxMonths$ 默认 36、includeEntries=false、batchSize=200 等 **20 项**。
-- **C（可配置）**：日窗口绝对上限 3,660（显式请求+性能保护）、extremeSigma=2σ、BOXPLOT_DEFAULT_MAX_OUTLIERS=20、C_MAX_VISIBLE_SERIES=30（技术上限）等 **4 项**。
-- **O（未定不冻结）**：maxMonths 可配置上限（建议 60，待确认）、C_AMOUNT_DISPLAY_TIERS_MINOR（暂缓）、PIVOT_METRICS/ADVANCED_DIMENSIONS、method 串、G-24…G-31 等 **约 11 项**。
-- **P（占位不冻结）**：CARD_DENSITY_THRESHOLDS.medium 200×120 / expanded 320×200（Codex W3 真机验收后决定）、其他实现层常量 **2 项**。
+- **F（冻结）**：`maxAnalysisDays=400`、`FX_POLICY`、`FX_MAX_FALLBACK_DAYS=7`、`FX_MAX_DETAIL_ENTRIES=50,000`、`MAX_SANKEY_LINKS=4000`（唯一来源）、`HIERARCHY_ROOT_ID/DIRECT_SUFFIX`、`MAX_HIERARCHY_NODES`、移动平均 7/30、季节性 36、波动性 7 有效日、A20 3 个月、1.5×IQR、箱线 5（最低计算门槛，标注调整 T-4）、`MAX_PIVOT_CELLS`/小多图/交叉表计算上限、日历强度 0–4（缺失≠零）、周一起始、`maxMonths` **默认 36/上限 60**（#3 签认，**分析窗口**；S16-D 现状 FX 读取上限 14 个月、B draft 36 未生效，见 §16.7）、`detail.includeEntries=false`、`batchSize=200`、**`PIVOT_METRICS` 4 值**、**`ADVANCED_DIMENSIONS` 7 值**、`rankingPolicy`、`MAX_SMALL_MULTIPLES_TOP_N`、`method` 串（`histogram-nice-bin-width` 已支持；`histogram-sturges` 仅候选）。
+- **C（可配置）**：日窗口绝对上限 3,660（显式请求+性能保护）、`extremeSigma=2σ`（默认 2σ）、`BOXPLOT_DEFAULT_MAX_OUTLIERS=20`（仅展示上限）、`C_MAX_VISIBLE_SERIES=30`（技术上限，非默认展示数）。
+- **O（未定不冻结）**：`C_AMOUNT_DISPLAY_TIERS_MINOR`（#13 保持 O，不写数值）、Codex 单一契约来源（G-31，集成期）；另 `categorySeries` 其他分类归并阈值（B 待定义）。
+- **P（占位不冻结）**：`CARD_DENSITY_THRESHOLDS.medium=200×120`/`expanded=320×200`（Codex W3 真机验收后决定，D 只执行 S-03）、其他实现层常量。
 - **不虚构**：所有 O/P 均标注待确认来源与责任方；无「已冻结但无裁定」项。
 
-## C. Q1–Q8 落点
+## C. Q1–Q8 落点（r7 更新）
 
 | Q | 落点 |
 |---|---|
-| Q1 σ/CV 定义/单位/小数位/旧版映射 | §16.6 |
-| Q2 36 月默认/闰日映射 2 月末/A05 边界 | §16.7 |
-| Q3 2σ | §12 extremeSigma（C，默认 2σ） |
+| Q1 σ/CV 定义/单位/小数位/旧版映射 | §16.6（**r7 闭合**：σ=最小单位定点 6 位、CV=无量纲 `Ratio`；CV 走 `formatRatioPercent`，不套货币最小单位；字段名待所有者批准） |
+| Q2 36 月默认/闰日映射 2 月末/A05 边界 | §16.7（**r7 闭合**：分析窗口 36/60；**S16-D 现状读取上限 14 个月**、B draft `FX_MAX_RANGE_MONTHS=36` 未生效 三层区分；折算不得超当时生效上限、不得静默部分结果） |
+| Q3 2σ | §12 `extremeSigma`（C，默认 2σ） |
 | Q4 A05 保留 policyId、禁止静默混用 | §16.7 |
 | Q5 版本差异+迁移+未知降级 | §16.5 |
 | Q6 G-16/G-17 字段与测试核对 | §16.8 + r6 记录 §3（核对通过） |
-| Q7 F/C/O/P 按裁定执行 | §12 已更新 |
+| Q7 F/C/O/P 按裁定执行 | §12 已更新（r7 再落 G-24/25/26/30 与 #3） |
 | Q8 唯一权威协议 | §16.3 Q8 + 冻结流程（§16.9 末） |
 
 ## D. 四个「特别明确」点
@@ -49,12 +49,21 @@
 - **G-17**：字段与 B `7405194` §16.2 逐字一致（无 transfer）；13 条不变量入 §13.3；B 测试证据 `fxDetail.test.ts` 12 + `fxPerformance.test.ts` 3（门控）— **通过**。
 - **G-16**：字段与 C `465d21e`（回填 `dc91f35`）正式定义一致；守恒/门控一致；C 测试证据在 `advanced/` 实现与测试清单 — **通过**。
 
-## F. 未决项与原因（不重复已裁定项）
+## F. r7 闭合状态（四项闭合 + 落定项）
 
-见 v2 §16.9（12 项）：G-24 直方图算法、G-25 分位点集合、G-26 P13 归属、G-27 C partial 映射、G-28a P16 三/四态、G-28b P20 available、G-29 B/C 日历归属、G-30 枚举白名单、G-31 Codex 单一来源、#13 金额缩写、#3 月窗口上限、T2 签认。原因：属所有者/Lead 待裁定或需 Codex/D 输入，A 不自行裁决。
+| 项 | 状态 | 证据/位置 |
+|---|---|---|
+| G-28a P16 三态 | **已闭合**：`complete｜no-transactions｜unavailable`（无 partial）；纯函数只产生 2 态、`unavailable` 仅上游 | §5.1-8、§15.2/§15.3/§15.4；C `currencyComposition.ts:91` |
+| G-30 枚举 | **已闭合**：`PIVOT_METRICS` 4 值、`ADVANCED_DIMENSIONS` 7 值，逐值实现核对无重复 | §12/§3.4；C `pivot.ts:34`、`dimensions.ts:37-45` |
+| #3 maxMonths | **已闭合**：分析窗口默认 36、上限 60；**S16-D 现状读取上限 14 个月**（`fxView.ts:61-69`）、B draft 36 未生效 三层区分；折算不得超当时生效上限、不得静默部分结果（Lead m03807 修正） | §16.7、§12、§7 G-09 |
+| σ/CV 精度与单位 | **已闭合**：σ=最小单位定点（6 位）、CV=无量纲 `Ratio`；CV 不套货币舍入 | §16.6；C `fxDiagnostics.ts` |
+| G-24/25/26/27/28b/29 | 已落定（直方图/分位点/P13 归属/partial 规则/P20 available/B 日历） | §3.3/§3.4/§5.1/§7 |
+| #13 金额缩写 | 保持 O（签认不冻结数值） | §12 |
+| G-31 Codex 单一来源 | 集成期（Lead/Codex） | §16.4 |
+| G-32 G-12a 实现 | 待 D 实现+测试后 Lead 放行分享导入（当前关闭） | G-12a 发布物 §9 |
 
 ## G. 结论与下一步
 
-- r6 已完成：D 项复核无遗漏、C-1 分类落实、Q1–Q8 落点、G-12a 发布物产出、核对结果成页。
-- **请求**：Lead 转 D 针对性复核（仅阻塞项/受影响布局接口）+ B/C 受影响接口核对；所有者签认后 Lead 正式冻结并统一版本口径（`s01-v2`）。
-- 边界：r6 未新增协议字段、未 push、未冻结、未触碰集成/主工作区；v2 保持 `s01-v2-draft`。
+- r7 已完成：四项闭合（G-28a/G-30/#3/σ-CV）+ G-24/25/26/27/28b/29 落定；C 回执证据已引用；D 项复核无遗漏；C-1 分类与 §16 同步。
+- **请求**：Lead 转 **D 单点复核**（仅 r7 增量/受影响布局接口）；**B/C 受影响接口核对**（C 已回 G-27/G-30/σ-CV；B 待确认 §16.7 窗口规则）；全部回执后由 Lead 标记 `s01-v2`。
+- 边界：r7 仅文档，未新增协议字段、未改代码/测试/迁移、未 push、未冻结、未触碰集成/主工作区；v2 保持 `s01-v2-draft`。
