@@ -396,7 +396,7 @@ S-01 v2 与 S-03 的边界：**S-01 负责分析结果/定义；S-03 负责引�
 | `rankingPolicy` | `"amount-desc-id-asc-ties-share-rank"` | C | F（G-30 原则同意；C 回执确认值） | XC-26/G-30 |
 | `MAX_SMALL_MULTIPLES_TOP_N` | `24`（默认 12） | C | F（G-30 原则同意；C 回执确认值） | XC-43/G-30 |
 | `C_SANKEY_MAX_LINKS` / `MAX_SANKEY_LINKS` | `4000`（同值双名） | C / shared 计算 | F | XC-37 |
-| `method` 字符串 | `type7-linear`、`population-stddev`、`histogram-nice-bin-width`（**已支持**）；`histogram-sturges` **仅候选、不列入已支持** | A/C | **F（G-24 已裁定；`histogram-sturges` 不得宣称已支持）** | XC-41/G-24 |
+| `method` 字符串 | `type7-linear`、`population-stddev`、`histogram-nice-bin-width`（**已支持**）；`histogram-sturges` **仅候选、不列入已支持**；**v2.0.1 澄清**：已登记值必须逐字使用冻结值、不得加后缀；B `-v1` 规范串映射见 `S17-Agent-A-S01v2-变更记录-v2.0.1-method串取值裁定.md` | A/C | **F（G-24 已裁定；`histogram-sturges` 不得宣称已支持；v2.0.1 澄清）** | XC-41/G-24 |
 | `FX_DRAFT_AMOUNT_COVERAGE_REASON` | C 的 P19 文案常量 | C（展示） | 不进协议（登记为展示文案） | XC-42 |
 | `WEEKDAY_LABELS` / `UNSPECIFIED_PAYMENT_METHOD_LABEL` / `DIRECT_LABEL_SUFFIX` | C/web 展示文案 | C/B | 不进协议（归 i18n/S-02） | XC-39 |
 | `BOXPLOT_DEFAULT_MAX_OUTLIERS` | `20` | C | C（可配置） | XC-44 |
@@ -744,7 +744,7 @@ export interface DraftFxRateResolution {
 - **实现与量纲（C 回执 `bf6de96`，`fxDiagnostics.ts`）**：σ 以**最小单位定点**表示（`standardDeviationScaled`，6 位小数，`{scaled,decimals:6}`）；CV 为**无量纲 `Ratio`**（`coefficientOfVariation`；μ>0 才可算）。σ/CV 均为**派生展示量**，不回写权威金额/统计。
 - **展示精度与单位（r7 闭合）**：σ 为货币/计数单位，展示按币种小数位（`CURRENCY_DECIMALS`；JPY 0 位）由定点值一次 `minor-half-away-v1` 舍入；跨币种展示需先归一到统计币种（归 W3 图表层，不在协议层做）。**CV 无量纲**，按 `percent-100` **1 位小数**展示（`formatRatioPercent`）；**不得把货币最小单位舍入套用到 CV，不得用 `formatRatioMinorText`**（该函数只用于最小单位量纲的有理数金额）。比例类文本一律走 `formatRatioPercent`；`C_AMOUNT_DISPLAY_TIERS_MINOR` 类金额缩略只用于金额。**命名说明（r7.1，B 核对）**：上述 `formatRatioPercent`/`formatRatioMinorText` 函数名以 C/web 现有实现为参照，集成时（G-31）统一命名；B 侧 `coefficientOfVariationScaled` 为定点字符串表示，与本文 CV 口径等价（仅命名/表示差异，不动口径）。B/C 在展示层核对。
 - **旧版映射**：s01-draft 无 σ/CV 字段；`s01-v2-draft` 的 `ComputationMetadata.method` 扩展值为 `population-stddev`/`sample-cv-fixedpoint`；旧工具读取时缺失即 `null`，不得补 0。
-- **表示**：σ 精确开方不可有理数表示时使用 `SqrtValue{radicand:Ratio, decimalText, decimals}`（§16.6 沿用 s01-draft §16.2）；`decimalText` 仅展示派生、不得回写或参与校验。**字段名待所有者批准（Q1 明确暂不盲目定名）**。
+- **表示**：σ 精确开方不可有理数表示时使用 `SqrtValue{radicand:Ratio, decimalText, decimals}`（§16.6 沿用 s01-draft §16.2）；`decimalText` 仅展示派生、不得回写或参与校验。**字段名待所有者批准（Q1 明确暂不盲目定名）**。**v2.0.1 澄清（Lead m04164）**：`decimalText` **允许空串 `""` 或 `null`**（表示未预生成展示串；**非契约必需、非缺陷**，不影响完整性/质量状态）；展示层必须由 `radicand` 按 `decimals`（σ 默认 6）一次 `minor-half-away-v1` 展开，不得因缺失改权威值；若提供非空值，必须与 `radicand` 展开一致（同一舍入口径），否则以 `radicand` 为准。详见 `S17-Agent-A-S01v2-变更记录-v2.0.1-method串取值裁定.md` §3。
 
 ### 16.7 A05 默认窗口与闰日算法边界（Q2/Q4）
 
@@ -783,3 +783,4 @@ export interface DraftFxRateResolution {
 
 - 2026-10-27 r6：依据所有者裁定（`f215fa9`）更新 §12 常量分类（F/C/O/P）、§16 新增（D 项复核、C-1 落实、Q1–Q8 落点、四特别明确点、版本差异/迁移、σ/CV 定义、A05/闰日边界、G-16/G-17 核对、最小待确认清单）；新增 `S17-Agent-A-G12a-params白名单发布形态-v1.md`、`S17-Agent-A-S01-v2-r6-记录.md`、`S17-Agent-A-S01-v2-最终冻结核对结果.md`。
 - 2026-10-27 r7：依据所有者签认（`3760675`，Lead m03659 / m03807 事实修正）与 C 回执（`bf6de96`/Lead 验收 `5b5bb0c`）——闭合 G-28a（P16 三态/无 partial/触发规则）、G-30（4+7 枚举列值 + C 逐值核对）、#3（分析窗口 36/60 与 **生产基线（1.16.23）web 读取上限 14 个月**/B draft 36 未生效 三层区分 +「不得静默部分结果」规则）、σ/CV（最小单位定点 vs 无量纲 `Ratio` 展示规则）；落定 G-24/G-25/G-26/G-27/G-28b/G-29；更新 §1（所有者签认/C 回执/r7 配套文件三行）、§3.3/§3.4、§5.1-3/-8/-9/-10、§7 G-09/G-24…G-30、§8 r7 进展、§10 1.10、§12 枚举与常量状态、§13.4/§13.5、§15.2/§15.3/§15.4、§16.2/§16.6/§16.7/§16.9；新增 `S17-Agent-A-S01-v2-r7-记录.md`，更新最终冻结核对结果 r7 版。r7 仅文档、不改协议字段、未 push、未冻结。
+- 2026-10-27 **v2.0.1（冻结后澄清，依据 Lead m04164 + B 最小批次 `6a94608`/`78b9d05` 的 `canonicalMethod` `-v1` 规范串；本地提交待回填）**：①`method` 保持开放字符串（未知值透传、不重算），但**已登记取值必须逐字使用冻结值、不得加后缀、不得新增未登记枚举值**——已支持 `type7-linear`/`population-stddev`/`histogram-nice-bin-width`；已登记 `sample-cv-fixedpoint`/`mad-median`/`iqr-quantile`；`histogram-sturges` 仅候选、不列已支持；B `-v1` 规范串映射（`population-standard-deviation-v1→population-stddev`、`coefficient-of-variation-v1→sample-cv-fixedpoint`、`mad-median-v1→mad-median`、`iqr-quantile-v1→iqr-quantile`、分位 `percentile-threshold-v1→type7-linear` 或按独立阈值标开放扩展、`exact-mean-v1` 等未登记=B 开放扩展不宣称已支持）；未登记扩展可用 `-v1` 但必须标注（§8 `method` 行已加注）。②σ `SqrtValue.decimalText` 允许空串/`null`（展示派生、由 `radicand` 按 `decimals` 展开，非契约必需、非缺陷；§16.6 已加注）。③新增 `S17-Agent-A-S01v2-变更记录-v2.0.1-method串取值裁定.md`（含映射表、R-1…R-6、冻结记录行供 Lead 代填）。**不改结构/字段/枚举/26 项 specs，冻结基线 `b39b27a`+`782b036` 不变，无需重新冻结。**
