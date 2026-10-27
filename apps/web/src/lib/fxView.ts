@@ -60,13 +60,29 @@ export function fxMoney(minor: string, currency: string): string {
 export function rangeMonths(from: string, to: string, maxMonths: number = FX_MAX_RANGE_MONTHS): string[] {
   return fxRangeMonths(from, to, maxMonths);
 }
-/** 工作台可独立选择综合统计；不修改明细金额的设备显示偏好。 */
-export function useFxRange(from: string, to: string, active = true, options?: { readonly enabled?: boolean }) {
+/**
+ * 工作台可独立选择综合统计；不修改明细金额的设备显示偏好。
+ *
+ * ⚠️ **W5 维度筛选**：`filter` 在折算之前作用于本次读取的账目（`sourceEntries`），
+ * 因此「缺汇率」的影响范围只统计筛选后仍保留的账目（任务 §7.2）；`filterKey` 是筛选条件的
+ * 稳定序列化，必须随 `filter` 一起传入，才能让缓存与重算识别条件变化。
+ */
+export function useFxRange(
+  from: string,
+  to: string,
+  active = true,
+  options?: {
+    readonly enabled?: boolean;
+    readonly filter?: (entry: Transaction & { readonly bookId: string }) => boolean;
+    readonly filterKey?: string;
+  },
+) {
   const mode = useFxMode(), bookId = useCurrentBookId(), { offline } = useAccountOffline();
   const enabled = options?.enabled ?? mode.enabled;
   const source = useAnalysisRange({ from, to }, enabled && active);
   const sourceVersion = useMemo(() => source.data?.entries.map(row => `${row.id}:${row.version}`).sort().join("|") ?? "", [source.data]);
-  const key = JSON.stringify([mode.userId, bookId, mode.target, from, to, enabled, active, offline, sourceVersion, source.data?.sourceComplete, source.data?.offline]);
+  const filterSignature = options?.filterKey ?? "";
+  const key = JSON.stringify([mode.userId, bookId, mode.target, from, to, enabled, active, offline, sourceVersion, source.data?.sourceComplete, source.data?.offline, filterSignature]);
   const [state, setState] = useState<{
     key: string; result?: FxAggregate; sourceComplete?: boolean; offline?: boolean; error?: boolean; reason?: "capacity" | "read" | "permission";
     /** 逐日/逐笔折算投影（S-01 v2 §4.8-8 / §13）；超过 `FX_MAX_DETAIL_ENTRIES` 时为 `undefined`，聚合结果仍可用。 */
@@ -86,7 +102,10 @@ export function useFxRange(from: string, to: string, active = true, options?: { 
       check();
       // 现有 DTO 不含 bookId；归属来自已鉴权请求与捕获的离线作用域，不由流水自行声明。
       const { entries, sourceComplete, offline: local } = source.data!;
-      const filtered = entries.map(row => ({ ...row, bookId }));
+      const filter = options?.filter;
+      const filtered = entries
+        .map(row => ({ ...row, bookId }))
+        .filter(row => (filter === undefined ? true : filter(row)));
       const lookups = new Map<string, FxLookup>();
       for (const date of new Set(filtered.filter(row => row.currency !== mode.target).map(row => row.occurredLocalDate))) {
         check(); lookups.set(date, await rates.lookup(date, { offline: local }));

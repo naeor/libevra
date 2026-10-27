@@ -39,9 +39,9 @@ import { currenciesUsed } from "../statsWorkbench/compute.js";
 import { defaultWorkbench, newCard, newObjectId } from "../statsWorkbench/defaults.js";
 import { cellAt, useDragController, type DragPayload, type DragState } from "../statsWorkbench/dnd.js";
 import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWorkbench/Drawer.js";
-import { FilterPanel, timeLabel } from "../statsWorkbench/FilterPanel.js";
+import { FilterPanel, timeLabel, type FilterOption } from "../statsWorkbench/FilterPanel.js";
 import { FxStatus } from "../statsWorkbench/FxStatus.js";
-import { customRangeProblem, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
+import { customRangeProblem, filterIds, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
 import { BrowseGrid, EditGrid, GRID_GAP, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
 import { useScope, useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import {
@@ -135,6 +135,20 @@ function AccountWorkbench(): React.JSX.Element {
     }
   }, [filters]);
   const draftPending = !sameFilters(draft, filters);
+
+  // ---- W5 维度筛选的候选项：来自账本元数据（不是从交易里现猜），标签带颜色。 ----
+  const categoryOptions = useMemo<readonly FilterOption[]>(
+    () => (ledger.data?.categories ?? []).map((category) => ({ id: category.id, name: category.name, archived: category.isArchived })),
+    [ledger.data?.categories],
+  );
+  const paymentMethodOptions = useMemo<readonly FilterOption[]>(
+    () => (ledger.data?.paymentMethods ?? []).map((method) => ({ id: method.id, name: method.name, archived: method.isArchived })),
+    [ledger.data?.paymentMethods],
+  );
+  const tagOptions = useMemo<readonly FilterOption[]>(
+    () => (ledger.data?.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color })),
+    [ledger.data?.tags],
+  );
 
   // ---- 编辑会话 ----
   const [session, setSession] = useState<EditorState | null>(null);
@@ -624,7 +638,20 @@ function AccountWorkbench(): React.JSX.Element {
   const summary = `${timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
     from: formatLocalDate(scope.range.from),
     to: formatLocalDate(scope.range.to),
-  })} · ${scope.combined ? t("statsWorkbench.summary.combined", { currency: scope.currency }) : t("statsWorkbench.summary.original", { currency: currencyName(scope.currency) })}`;
+  })} · ${scope.combined ? t("statsWorkbench.summary.combined", { currency: scope.currency }) : t("statsWorkbench.summary.original", { currency: currencyName(scope.currency) })}${dimensionSummaryOf(filters)}`;
+
+  /**
+   * W5：生效条件摘要必须让用户知道「排除了什么」。维度不限时不写，空集写 0，
+   * 否则同屏合计无法解释（能力目录 §4.1 / ACC-02）。
+   */
+  function dimensionSummaryOf(current: WorkbenchFilters): string {
+    const ids = filterIds(current);
+    const parts: string[] = [];
+    if (ids.categoryIds !== null) parts.push(t("statsWorkbench.summary.categoryCount", { count: ids.categoryIds.length }));
+    if (ids.paymentMethodIds !== null) parts.push(t("statsWorkbench.summary.paymentMethodCount", { count: ids.paymentMethodIds.length }));
+    if (ids.tagIds !== null) parts.push(t("statsWorkbench.summary.tagCount", { count: ids.tagIds.length }));
+    return parts.length === 0 ? "" : ` · ${parts.join(" · ")}`;
+  }
 
   const menuObject = menuFor === null || session === null ? null : geometryOf(session, menuFor);
   const configCard = configFor === null || session === null ? undefined : cardOf(session, configFor);
@@ -761,7 +788,10 @@ function AccountWorkbench(): React.JSX.Element {
                     fxAvailable={scope.fxAvailable}
                     fxTarget={scope.combined ? scope.currency : scope.defaultCurrency}
                     defaultCurrency={scope.defaultCurrency}
-                    currenciesInLedger={currenciesUsed(scope.entries)}
+                    currenciesInLedger={scope.ledgerCurrencies ?? currenciesUsed(scope.entries)}
+                    categories={categoryOptions}
+                    paymentMethods={paymentMethodOptions}
+                    tags={tagOptions}
                     onDraft={setDraft}
                     onApply={applyFilters}
                     onRevert={() => setDraft(filters)}

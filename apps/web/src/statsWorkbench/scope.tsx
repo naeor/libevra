@@ -12,7 +12,7 @@
  * ⚠️ **综合折算（汇率）只走既有 S16-D 路径**（`useFxRange` → `aggregateFxAsync`，ACC-04），
  * 不另写折算；只有声明了综合结果的卡片在综合模式下显示数字，其余明确显示「暂不支持」。
  */
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createContext, useContext } from "react";
 import type { AnalysisCompleteness, Currency, DateRange, StatsBucket, Transaction } from "@libellum/shared";
 
@@ -24,8 +24,15 @@ import { useGuestIdentity } from "../lib/guest/session.js";
 import { ledgerSnapshotValue, readLocalTransactions, subscribeLedger } from "../lib/offline/localLedger.js";
 import { refreshPending } from "../lib/offline/write.js";
 import { useLedger } from "../lib/queries.js";
-import { liveEntries } from "./compute.js";
-import { bucketFor, resolveRange, type WorkbenchFilters } from "./filters.js";
+import { currenciesUsed, liveEntries } from "./compute.js";
+import {
+  bucketFor,
+  filterKey,
+  filterWorkbenchEntries,
+  matchesWorkbenchFilters,
+  resolveRange,
+  type WorkbenchFilters,
+} from "./filters.js";
 
 export type FxRangeView = ReturnType<typeof useFxRange>;
 
@@ -41,8 +48,10 @@ export interface WorkbenchScope {
   /** 原币模式的币种，或综合模式的目标币种。 */
   readonly currency: Currency;
   readonly defaultCurrency: Currency;
-  /** 当前账本、未删除的账目。 */
+  /** 当前账本、未删除、且通过 W5 维度筛选（分类/支付方式/标签）的账目。 */
   readonly entries: readonly Transaction[];
+  /** 当前账本未筛的币种清单：筛选面板的币种候选不应随分类/标签筛选收窄（W5）。 */
+  readonly ledgerCurrencies?: readonly string[];
   /** 本机账目是否已经读过一次（读之前显示加载，而不是「没有记录」）。 */
   readonly loaded: boolean;
   readonly fx: FxRangeView | null;
@@ -102,8 +111,25 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
   const defaultCurrency: Currency = user?.defaultCurrency ?? "CNY";
   const currency: Currency = combined ? defaultCurrency : (filters.currency ?? defaultCurrency);
   const source = useAnalysisRange(range, user !== null && !combined);
-  const entries = useMemo(() => liveEntries(user !== null && !combined ? source.data?.entries ?? [] : all), [all, source.data?.entries, user, combined]);
-  const fx = useFxRange(range.from, range.to, combined, { enabled: fxAvailable });
+  const unfilteredEntries = useMemo(
+    () => liveEntries(user !== null && !combined ? source.data?.entries ?? [] : all),
+    [all, source.data?.entries, user, combined],
+  );
+  /**
+   * ⚠️ **W5 维度筛选必须发生在所有读取/折算入口之前**：卡片、趋势、热力、上期比较都只看 `entries`；
+   * 综合折算的 `sourceEntries` 也要经过同一谓词，缺汇率影响范围才会随筛选变化（任务 §7.2）。
+   */
+  const entries = useMemo(() => filterWorkbenchEntries(unfilteredEntries, filters), [unfilteredEntries, filters]);
+  const ledgerCurrencies = useMemo(() => currenciesUsed(unfilteredEntries), [unfilteredEntries]);
+  const fxFilter = useCallback(
+    (entry: Transaction) => matchesWorkbenchFilters(entry, filters),
+    [filters],
+  );
+  const fx = useFxRange(range.from, range.to, combined, {
+    enabled: fxAvailable,
+    filter: fxFilter,
+    filterKey: filterKey(filters),
+  });
 
   const accountScope = user !== null ? `user:${user.id}` : guestId !== null ? `guest:${guestId}` : null;
 
@@ -117,6 +143,7 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
     currency,
     defaultCurrency,
     entries,
+    ledgerCurrencies,
     loaded: user !== null && !combined ? source.data !== undefined || source.error : readOnce || all.length > 0,
     fx: combined ? fx : null,
     coverageGap: null,

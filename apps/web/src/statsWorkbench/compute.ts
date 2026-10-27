@@ -33,6 +33,7 @@ import {
   getAnalysisCatalogEntry,
   type CatalogAnalysisId,
 } from "@libellum/shared/analysis/catalog";
+import type { ResolvedFilters } from "@libellum/shared/workbench/envelope";
 
 import {
   deriveCategoryAnalysis,
@@ -155,9 +156,28 @@ export function analysisEntries(entries: readonly Transaction[]): readonly Analy
       categoryIsSystem: entry.categoryIsSystem,
       paymentMethodId: entry.paymentMethodId,
       paymentMethodName: entry.paymentMethodName,
+      tagIds: (entry.tags ?? []).map((tag) => tag.id),
       deletedAt: entry.deletedAt ?? null,
     })),
   );
+}
+
+/**
+ * 协议信封用 `null` 表示「不限」，而 A 的分析定义用「字段缺省」表示同一件事。
+ * 这里做一次显式转换，避免把 `null` 当成「空集」传进 A（那会把结果筛成 0）。
+ */
+function definitionFilters(filters: ResolvedFilters): {
+  readonly kind: ResolvedFilters["kind"];
+  readonly categoryIds?: readonly string[];
+  readonly paymentMethodIds?: readonly string[];
+  readonly tagIds?: readonly string[];
+} {
+  return {
+    kind: filters.kind,
+    ...(filters.categoryIds === null ? {} : { categoryIds: filters.categoryIds }),
+    ...(filters.paymentMethodIds === null ? {} : { paymentMethodIds: filters.paymentMethodIds }),
+    ...(filters.tagIds === null ? {} : { tagIds: filters.tagIds }),
+  };
 }
 
 export function isAgentAAnalysis(id: string): id is CatalogAnalysisId {
@@ -178,12 +198,22 @@ export function agentAResult(
   unavailableReason?: string,
   /** 综合折算：账目已是目标币种的折算金额，信封写 `aggregate` 而不是 `original`。 */
   aggregate = false,
+  /**
+   * ⚠️ W5：实际生效的维度筛选。调用方传入前**必须已经按同一组条件过滤过 `entries`**；
+   * 这里只把条件写进 A 的 `resolvedFilters` 供结果追溯（A 内部会再按同一集合过滤，幂等）。
+   * 未传时保持旧行为（等价于三维不限），供既有测试与旧调用点使用。
+   */
+  filters?: ResolvedFilters,
 ): AnalysisResult {
-  return cached(entries, `a:${id}:${range.from}:${range.to}:${currency}:${completeness}:${unavailableReason ?? ""}:${String(aggregate)}`, () => {
+  const filtersKey = filters === undefined
+    ? ""
+    : `:${JSON.stringify([filters.categoryIds, filters.paymentMethodIds, filters.tagIds, filters.currency, filters.kind])}`;
+  return cached(entries, `a:${id}:${range.from}:${range.to}:${currency}:${completeness}:${unavailableReason ?? ""}:${String(aggregate)}${filtersKey}`, () => {
     const entry = getAnalysisCatalogEntry(id);
     if (entry === null) throw new RangeError(`unknown_analysis_id:${id}`);
     // A 的装配层只断言「单一币种」而不替调用方筛选（混币直接拒绝）；原币模式在这里先按币种取账目。
-    return entry.assemble(analysisEntries(entriesInCurrency(entries, currency)), defaultDefinitionFor(id), {
+    const definition = defaultDefinitionFor(id);
+    return entry.assemble(analysisEntries(entriesInCurrency(entries, currency)), filters === undefined ? definition : { ...definition, filters: definitionFilters(filters) }, {
       period: makePeriod(range.from, range.to),
       today,
       currency: aggregate ? { mode: "aggregate", targetCurrency: currency } : { mode: "original", currency },
@@ -229,10 +259,15 @@ export function fxAgentAResult(
   today: string,
   dataCompleteness: AnalysisCompleteness,
   unavailableReason?: string,
+  /** ⚠️ W5：实际生效的维度筛选；折算输入已按同一条件过滤，这里只写进结果信封。 */
+  filters?: ResolvedFilters,
 ): FxAgentAOutcome {
   const policy = fxPolicyFor(id);
   if (policy === null) throw new RangeError(`fx_policy_missing:${id}`);
-  const key = `${id}:${range.from}:${range.to}:${today}:${dataCompleteness}:${unavailableReason ?? ""}`;
+  const filtersKey = filters === undefined
+    ? ""
+    : `:${JSON.stringify([filters.categoryIds, filters.paymentMethodIds, filters.tagIds, filters.currency, filters.kind])}`;
+  const key = `${id}:${range.from}:${range.to}:${today}:${dataCompleteness}:${unavailableReason ?? ""}${filtersKey}`;
   let byKey = fxOutcomes.get(projection);
   if (byKey === undefined) {
     byKey = new Map();
@@ -246,7 +281,7 @@ export function fxAgentAResult(
   const nothingKnown = missingCount > 0 && !known;
   const completeness: AnalysisCompleteness = dataCompleteness !== "complete" ? dataCompleteness : missingCount > 0 ? "fx-incomplete" : "complete";
   const reason = unavailableReason ?? (completeness === "fx-incomplete" ? "fx-rates-missing" : undefined);
-  let result = agentAResult(policy.class === "count" ? projection.all : projection.converted, id, range, projection.target, today, completeness, reason, true);
+  let result = agentAResult(policy.class === "count" ? projection.all : projection.converted, id, range, projection.target, today, completeness, reason, true, filters);
   if (policy.class === "count") result = withoutSecondary(result);
   else result = { ...result, computation: { ...result.computation, convertedWithFx: true, fxPolicy: FX_POLICY } };
   if (policy.class === "undetermined" && missingCount > 0) result = nullifyValue(result);

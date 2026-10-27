@@ -45,10 +45,10 @@
 | 更新公告／重大公告／账号注销 | [`specs/features/`](docs/specs/features/) 对应设计决定 |
 | 账本导入（含撤销/锁） | [`specs/features/S14-D-账本导入-设计草案.md`](docs/specs/features/S14-D-账本导入-设计草案.md) §13A–§13E |
 | OCR 多笔／概览页面 | [`specs/features/S15-B-OCR多笔交易与概览页面-设计方向.md`](docs/specs/features/S15-B-OCR多笔交易与概览页面-设计方向.md) |
-| 分析页面／统计图表／分析工作台（S17） | [`specs/product/S17-模块化财务分析工作台-总需求规格.md`](docs/specs/product/S17-模块化财务分析工作台-总需求规格.md)（数据原则 ACC-01…15、六层架构）；汇率折算另读 [`S16-D`](docs/specs/features/S16-D-历史汇率与折算基础设施.md) |
+| 分析页面／统计图表／分析工作台（S17） | [`specs/product/S17-模块化财务分析工作台-总需求规格.md`](docs/specs/product/S17-模块化财务分析工作台-总需求规格.md)（数据原则 ACC-01…15、六层架构）；汇率折算另读 [`S16-D`](docs/specs/features/S16-D-历史汇率与折算基础设施.md)；**动筛选维度 / 38 卡筛选兼容 / 综合折算先筛后折前**另读 [`S17 筛选与过滤权威语义清单`](docs/specs/product/S17-筛选与过滤权威语义清单-20261028.md)（五维语义、URL 契约、支持矩阵与待所有者决定项） |
 | S18-B 跨设备自适应布局 / 交互（宽屏导航、绿色加号、响应式页面） | [`specs/design/S18-B-跨设备自适应布局与交互-设计讨论记录-20261027.md`](docs/specs/design/S18-B-跨设备自适应布局与交互-设计讨论记录-20261027.md)（**§8 所有者草图确认门禁**）+ [`specs/product/S17-S18-新路线图.md`](docs/specs/product/S17-S18-新路线图.md) §4.3（任务编号、设备矩阵与验收） |
 | 部署／发布／备份／灾备 | [`docs/03-运维手册.md`](docs/03-运维手册.md) + [`ops/`](docs/ops/) |
-| 判断某功能做没做 | [`changelog/`](docs/changelog/)（1.14 现行 / 1.10-1.13 冻结）【2026-10-27 更正：现行版本记录是 [`changelog/1.16.md`](docs/changelog/1.16.md)（含 1.16.22）；1.10–1.14 均已冻结，1.15 为上一系列；[`changelog/1.17.md`](docs/changelog/1.17.md) 记本地候选 1.17.3 / 1.17.4 / 1.17.5 / 1.17.6（未发布生产）】 |
+| 判断某功能做没做 | [`changelog/`](docs/changelog/)（1.14 现行 / 1.10-1.13 冻结）【2026-10-27 更正：现行版本记录是 [`changelog/1.16.md`](docs/changelog/1.16.md)（含 1.16.22）；1.10–1.14 均已冻结，1.15 为上一系列；[`changelog/1.17.md`](docs/changelog/1.17.md) 记本地候选 1.17.3 / 1.17.4 / 1.17.5 / 1.17.6 / 1.17.7（均未发布生产；1.17.7 = W5 完整筛选）】 |
 | 查离线历史读取上限 / 更新主目录与 localhost | [`specs/features/离线历史读取容量上限与长期优化-20261028.md`](docs/specs/features/离线历史读取容量上限与长期优化-20261028.md)；[`specs/features/本地开发工作区与主目录更新规范-20261028.md`](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md)（**§4 WIP 保护强制门禁**） |
 | 追问"为什么当初这么定" | [`adr/README.md`](docs/adr/README.md) → ADR 正文 |
 | 查一段历史 | [`archive/`](docs/archive/README.md)（**历史，不要照着做**） |

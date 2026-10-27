@@ -50,9 +50,16 @@ function entry(overrides: Partial<Transaction> = {}): Transaction {
 }
 
 describe("筛选：地址栏是生效条件的唯一出处", () => {
-  it("缺省是近 30 天、跟随默认币种、开启折算时默认综合（与 1.16.23 一致）", () => {
+  it("缺省是近 30 天、跟随默认币种、开启折算时默认综合，且三个维度筛选均不限（与 1.16.23 一致）", () => {
     const filters = readFilters(new URLSearchParams(""));
-    expect(filters).toEqual({ time: { kind: "preset", preset: "30d" }, currency: null, combined: true });
+    expect(filters).toEqual({
+      time: { kind: "preset", preset: "30d" },
+      currency: null,
+      combined: true,
+      categoryIds: null,
+      paymentMethodIds: null,
+      tagIds: null,
+    });
   });
 
   it("旧分析页的参数（range / month / currency / analysis）继续有效", () => {

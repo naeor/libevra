@@ -12,6 +12,9 @@ const statsWorkbench: Messages<typeof zh> = {
     original: "Original {{currency}}",
     pending: "Changes not applied",
     open: "Current filter: {{summary}}. Open filters",
+    categoryCount: "Categories: {{count}}",
+    paymentMethodCount: "Payment methods: {{count}}",
+    tagCount: "Tags: {{count}}",
   },
   time: {
     "7d": "Last 7 days",
@@ -29,6 +32,11 @@ const statsWorkbench: Messages<typeof zh> = {
   filter: {
     title: "Filters",
     time: "Time",
+    category: "Categories",
+    paymentMethod: "Payment methods",
+    tag: "Tags",
+    all: "All",
+    emptySelection: "Nothing is selected: this dimension shows no entries.",
     currency: "Currency",
     mode: "How to total",
     original: "Original currency",

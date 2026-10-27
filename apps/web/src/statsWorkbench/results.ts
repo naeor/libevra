@@ -7,6 +7,7 @@
 import { FX_POLICY, makePeriod, type DateRange, type FxAggregate } from "@libellum/shared";
 import { getAnalysisCatalogEntry } from "@libellum/shared/analysis/catalog";
 import { ANALYSIS_PROTOCOL_VERSION, ANALYSIS_ROUNDING_POLICY, type AnalysisResultBase, type AnalysisCompleteness, type ResolvedFilters } from "@libellum/shared/workbench/envelope";
+import { filterIds } from "./filters.js";
 import type { WorkbenchScope } from "./scope.js";
 
 export interface NativeResultBridge<T> {
@@ -21,6 +22,24 @@ export function originalCompleteness(scope: WorkbenchScope, range: DateRange): A
   return "complete";
 }
 
+/**
+ * ⚠️ W5：把工作台的当前筛选翻译成冻结协议的 `ResolvedFilters`。
+ *
+ * - 三维 `null` = 不限、`[]` = 空集，原样透传（`filterIds` 已规范化）；
+ * - `currency` 只描述「原币模式看的是哪个币种」；综合折算模式下所有金额都已是目标币种，
+ *   没有单一原始币种可声明，按协议写 `null`。
+ */
+export function scopeResolvedFilters(scope: WorkbenchScope, kind: ResolvedFilters["kind"]): ResolvedFilters {
+  const ids = filterIds(scope.filters);
+  return {
+    kind,
+    categoryIds: ids.categoryIds,
+    paymentMethodIds: ids.paymentMethodIds,
+    tagIds: ids.tagIds,
+    currency: scope.combined ? null : scope.currency,
+  };
+}
+
 function metadata(
   id: string,
   scope: WorkbenchScope,
@@ -30,7 +49,11 @@ function metadata(
   descriptor: { readonly analysisType: string; readonly metric: string; readonly kind: ResolvedFilters["kind"]; readonly groupBy: string | null },
 ): AnalysisResultBase {
   const period = makePeriod(range.from, range.to);
-  const filters: ResolvedFilters = { kind: descriptor.kind, categoryIds: null, paymentMethodIds: null, tagIds: null, currency: scope.combined ? null : scope.currency };
+  /**
+   * ⚠️ W5：卡片结果必须如实声明**实际生效的维度筛选**（`null` 不限、`[]` 空集），
+   * 否则「标题/指标说明/计算数据/筛选条件」对不上（任务 §6.1）。
+   */
+  const filters = scopeResolvedFilters(scope, descriptor.kind);
   return {
     version: ANALYSIS_PROTOCOL_VERSION,
     analysisId: id,

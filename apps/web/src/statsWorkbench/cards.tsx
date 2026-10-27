@@ -22,6 +22,7 @@ import {
   type ScalarResult,
   type ScalarValue,
   type TimeBucket,
+  type Transaction,
 } from "@libellum/shared";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 import { Component, createContext, useContext } from "react";
@@ -43,6 +44,7 @@ import { formatLocalDate } from "../lib/datetime.js";
 import { useAnalysisRange } from "../lib/analysisRange.js";
 import { useFxRange } from "../lib/fxView.js";
 import { displayCategoryName } from "../lib/presetNames.js";
+import { defaultKindFor } from "@libellum/shared/analysis/catalog";
 import { cardType, type CardType, type ChartFamily } from "./catalog.js";
 import {
   agentAResult,
@@ -59,12 +61,12 @@ import {
   timeSeriesFor,
   type FxAgentAOutcome,
 } from "./compute.js";
-import { bucketFor, customRangeProblem } from "./filters.js";
+import { bucketFor, customRangeProblem, filterKey, filterWorkbenchEntries, matchesWorkbenchFilters } from "./filters.js";
 import { fxPolicyFor, type FxCardPolicy } from "./fxPolicy.js";
 import { projectFxCached, type FxProjection, type FxProjectionState } from "./fxProjection.js";
 import { FxStatus } from "./FxStatus.js";
 import type { FxRangeView, WorkbenchScope } from "./scope.js";
-import { fxResultBridge, originalCompleteness, timeResultBridge } from "./results.js";
+import { fxResultBridge, originalCompleteness, scopeResolvedFilters, timeResultBridge } from "./results.js";
 import type { AnalysisResultBase } from "@libellum/shared/workbench/envelope";
 import { exactMoneyText, FitAmount, moneyText, ratioFraction, ratioPercentText, type Density } from "./ui.js";
 
@@ -144,20 +146,28 @@ function RangeCardBody(props: CardBodyProps & { readonly range: DateRange }): Re
   const previousRange = comparisonRangeFor(range);
   const current = useAnalysisRange(range, !scope.combined);
   const previous = useAnalysisRange(previousRange, comparison);
-  const fx = useFxRange(range.from, range.to, scope.combined, { enabled: scope.fxAvailable });
+  /**
+   * ⚠️ **W5：卡片自己读取的范围也必须应用同一组维度筛选**（固定窗口、上期比较、综合折算），
+   * 否则顶部筛了分类却只对全局范围生效，固定窗口卡会算进被排除的账目（任务 §6.2/§6.3）。
+   */
+  const fxFilter = (entry: Transaction & { readonly bookId: string }) => matchesWorkbenchFilters(entry, scope.filters);
+  const fxKey = filterKey(scope.filters);
+  const fx = useFxRange(range.from, range.to, scope.combined, { enabled: scope.fxAvailable, filter: fxFilter, filterKey: fxKey });
   // 综合折算的「上期比较」要读上一周期自己的折算：当期的金额不能替代它，也不能拿全局范围冒充。
-  const previousFx = useFxRange(previousRange.from, previousRange.to, scope.combined && isComparison, { enabled: scope.fxAvailable });
+  const previousFx = useFxRange(previousRange.from, previousRange.to, scope.combined && isComparison, { enabled: scope.fxAvailable, filter: fxFilter, filterKey: fxKey });
   const data = current.data;
+  const currentEntries = filterWorkbenchEntries(data?.entries ?? [], scope.filters);
+  const previousEntries = filterWorkbenchEntries(previous.data?.entries ?? [], scope.filters);
   const resolved: WorkbenchScope = scope.combined ? {
     ...scope, range, bucket: bucketFor(range), fx, previousFx: isComparison ? previousFx : null,
     loaded: !fx.loading, repairing: false, coverageGap: null,
     rangeSourceComplete: fx.sourceComplete === true,
   } : {
-    ...scope, range, bucket: bucketFor(range), entries: data?.entries ?? [],
+    ...scope, range, bucket: bucketFor(range), entries: currentEntries,
     loaded: data !== undefined || current.error, repairing: false, coverageGap: null,
     rangeReadState: current.permissionDenied ? "no-permission" : current.error ? "request-failed" : current.loading ? "loading" : data?.sourceComplete === true ? "complete" : "offline-incomplete",
     rangeSourceComplete: data?.sourceComplete === true,
-    ...(comparison ? { comparisonRead: { entries: previous.data?.entries ?? [], verified: !previous.error && previous.data?.sourceComplete === true } } : {}),
+    ...(comparison ? { comparisonRead: { entries: previousEntries, verified: !previous.error && previous.data?.sourceComplete === true } } : {}),
   };
   return <><CardBodyInner {...props} scope={resolved} />{props.detail && scope.combined ? <FxStatus fx={fx} /> : null}</>;
 }
@@ -186,7 +196,7 @@ function CardBodyInner({ card, scope, density, detail = false, height, width }: 
   const id = type.id;
   if (isAgentAAnalysis(id)) {
     const completeness = originalCompleteness(scope, range);
-    const result = agentAResult(scope.entries, id, range, scope.currency, scope.today, completeness, completeness === "complete" ? undefined : "local-range-coverage-unverified");
+    const result = agentAResult(scope.entries, id, range, scope.currency, scope.today, completeness, completeness === "complete" ? undefined : "local-range-coverage-unverified", false, scopeResolvedFilters(scope, defaultKindFor(id)));
     const body = <AgentAView result={result} family={family} density={density} detail={detail} currency={scope.currency} />;
     return result.shape === "composition" || result.shape === "ranked-groups" ? <ResultState metadata={result}>{body}</ResultState> : body;
   }
@@ -899,7 +909,7 @@ function CombinedCard({
   const missing = projection.missingByScope[policy.kinds];
 
   if (isAgentAAnalysis(type.id)) {
-    const outcome = fxAgentAResult(projection, type.id, range, scope.today, dataCompleteness, dataCompleteness === "complete" ? undefined : "fx-source-coverage-missing");
+    const outcome = fxAgentAResult(projection, type.id, range, scope.today, dataCompleteness, dataCompleteness === "complete" ? undefined : "fx-source-coverage-missing", scopeResolvedFilters(scope, defaultKindFor(type.id)));
     return <FxAgentAView outcome={outcome} family={family} density={density} detail={detail} currency={projection.target} />;
   }
 

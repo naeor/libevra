@@ -13,6 +13,9 @@ const statsWorkbench = {
     original: "{{currency}}原币",
     pending: "有未应用的修改",
     open: "当前条件：{{summary}}。打开筛选",
+    categoryCount: "分类 {{count}} 项",
+    paymentMethodCount: "支付方式 {{count}} 项",
+    tagCount: "标签 {{count}} 项",
   },
   time: {
     "7d": "近 7 天",
@@ -30,6 +33,11 @@ const statsWorkbench = {
   filter: {
     title: "筛选",
     time: "时间",
+    category: "分类",
+    paymentMethod: "支付方式",
+    tag: "标签",
+    all: "全部",
+    emptySelection: "没有选择任何项：这个维度下不会显示任何账目。",
     currency: "币种",
     mode: "统计方式",
     original: "原币",

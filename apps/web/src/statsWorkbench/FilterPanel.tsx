@@ -13,8 +13,25 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "../i18n/index.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
-import { customRangeProblem, resolveRange, sameFilters, type TimeChoice, type WorkbenchFilters } from "./filters.js";
+import {
+  customRangeProblem,
+  filterIds,
+  resolveRange,
+  sameFilters,
+  toggleFilterId,
+  type TimeChoice,
+  type WorkbenchFilters,
+} from "./filters.js";
 import "./filters.css";
+
+/** 筛选面板里的一个可选项（分类 / 支付方式 / 标签）。 */
+export interface FilterOption {
+  readonly id: string;
+  readonly name: string;
+  readonly archived?: boolean;
+  /** 标签色值（`#RRGGBB`），只有标签会用到。 */
+  readonly color?: string;
+}
 
 /** 滚动提示只在还有隐藏选项时出现，放在选择栏外，不遮住选项。 */
 function ChoiceRow({ children, label }: { readonly children: ReactNode; readonly label: string }): React.JSX.Element {
@@ -55,6 +72,9 @@ export function FilterPanel({
   fxTarget,
   defaultCurrency,
   currenciesInLedger,
+  categories = [],
+  paymentMethods = [],
+  tags = [],
   onDraft,
   onApply,
   onRevert,
@@ -68,6 +88,10 @@ export function FilterPanel({
   readonly fxTarget: string;
   readonly defaultCurrency: Currency;
   readonly currenciesInLedger: readonly string[];
+  /** 账本现有分类（归档分类也列出，允许查看历史；是否可选由 W5 规格继续明确）。 */
+  readonly categories?: readonly FilterOption[];
+  readonly paymentMethods?: readonly FilterOption[];
+  readonly tags?: readonly FilterOption[];
   readonly onDraft: (next: WorkbenchFilters) => void;
   readonly onApply: () => void;
   readonly onRevert: () => void;
@@ -81,6 +105,7 @@ export function FilterPanel({
   const problem = custom === null ? null : customRangeProblem(custom.from, custom.to);
   const range = problem === null ? resolveRange(time, today) : null;
   const combined = fxAvailable && draft.combined;
+  const ids = filterIds(draft);
 
   const currencies = useMemo(() => {
     const preferred = new Set<string>([defaultCurrency, ...currenciesInLedger]);
@@ -90,6 +115,56 @@ export function FilterPanel({
 
   const setTime = (next: TimeChoice) => onDraft({ ...draft, time: next });
   const isTime = (candidate: TimeChoice) => JSON.stringify(candidate) === JSON.stringify(time);
+
+  type DimensionKey = "categoryIds" | "paymentMethodIds" | "tagIds";
+  const toggle = (key: DimensionKey, id: string): void => {
+    onDraft({ ...draft, [key]: toggleFilterId(ids[key], id) });
+  };
+  const clearDimension = (key: DimensionKey): void => onDraft({ ...draft, [key]: null });
+
+  const dimension = (
+    key: DimensionKey,
+    legend: string,
+    options: readonly FilterOption[],
+  ): React.ReactNode => {
+    if (options.length === 0) return null;
+    const selected = ids[key];
+    return (
+      <fieldset className="flex min-w-0 flex-col gap-2" data-filter-dimension={key}>
+        <legend className="pb-1.5 text-helper text-muted">{legend}</legend>
+        <ChoiceRow label={legend}>
+          <button
+            type="button"
+            aria-pressed={selected === null}
+            className={`sw-chip ${selected === null ? "sw-chip-on" : ""}`}
+            onClick={() => clearDimension(key)}
+          >
+            {t("statsWorkbench.filter.all")}
+          </button>
+          {options.map((option) => {
+            const on = selected !== null && selected.includes(option.id);
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={on}
+                className={`sw-chip ${on ? "sw-chip-on" : ""}`}
+                onClick={() => toggle(key, option.id)}
+              >
+                {option.color === undefined ? null : (
+                  <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: option.color }} />
+                )}
+                {option.name}
+              </button>
+            );
+          })}
+        </ChoiceRow>
+        {selected !== null && selected.length === 0 ? (
+          <p role="alert" className="text-helper text-danger">{t("statsWorkbench.filter.emptySelection")}</p>
+        ) : null}
+      </fieldset>
+    );
+  };
 
   return (
     <section id={id} className="sw-filter-panel mx-6 mt-4 rounded-card border border-line bg-surface" aria-label={t("statsWorkbench.filter.title")}>
@@ -142,6 +217,10 @@ export function FilterPanel({
             <p role="alert" className="text-helper text-danger">{t(`statsWorkbench.filter.problems.${problem}`)}</p>
           )}
         </fieldset>
+
+        {dimension("categoryIds", t("statsWorkbench.filter.category"), categories)}
+        {dimension("paymentMethodIds", t("statsWorkbench.filter.paymentMethod"), paymentMethods)}
+        {dimension("tagIds", t("statsWorkbench.filter.tag"), tags)}
 
         <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.filter.currency")}</legend>
