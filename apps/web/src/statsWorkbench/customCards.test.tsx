@@ -8,8 +8,13 @@ import { ChartGlyph } from "./ui.js";
 
 describe("单分析自定义卡片", () => {
   it("只能选择正式登记的能力及其合法展示，配置不存金额或账本身份", () => {
-    expect(CUSTOM_CARD_TYPES.length).toBe(26);
-    for (const type of CUSTOM_CARD_TYPES) expect(validateAnalysisParams({ analysisId: type.id, params: {} }).status).toBe("valid");
+    expect(CUSTOM_CARD_TYPES.length).toBe(50);
+    for (const type of CUSTOM_CARD_TYPES) {
+      const check = validateAnalysisParams({ analysisId: type.id, params: {} });
+      // A 协议能力走正式 G-12a 白名单；B 第二批的高级分析不带布局参数，登记为只读类型即可。
+      if (type.source === "agent-a") expect(check.status).toBe("valid");
+      else expect(check.status).toBe("readonly");
+    }
     const card = createCustomCard({ analysisId: "AN-I01", family: "table", name: "  分类明细  " }, "custom-table");
     expect(card).toMatchObject({ analysis: { analysisId: "AN-I01", params: {} }, chart: { chartFamily: "table" }, title: { kind: "custom", text: "分类明细" }, rangePolicy: "inherit" });
     expect(JSON.stringify(card)).not.toMatch(/amount|bookId|ledgerId|transaction/i);

@@ -72,6 +72,19 @@ export const FX_CARD_POLICIES: Readonly<Record<string, FxCardPolicy>> = {
   "AN-I19": { class: "count", kinds: N },
   "AN-I20": { class: "series", kinds: E },
   "AN-A01": { class: "series", kinds: B },
+  // ---- S17-B 第二批（1.17.8）：口径只描述「缺汇率会怎样影响这张卡」 ----
+  "AN-I13": { class: "series", kinds: E },
+  "AN-I14": { class: "series", kinds: E },
+  "AN-A02": { class: "undetermined", kinds: B },
+  "AN-A03": { class: "undetermined", kinds: B },
+  "AN-A04": { class: "series", kinds: E },
+  "AN-A05": { class: "undetermined", kinds: B },
+  "AN-A12": { class: "undetermined", kinds: E },
+  "AN-A13": { class: "series", kinds: E },
+  "AN-A14": { class: "series", kinds: E },
+  "AN-A18": { class: "series", kinds: E },
+  "AN-A19": { class: "series", kinds: E },
+  "AN-A20": { class: "undetermined", kinds: I },
 };
 
 export function fxPolicyFor(id: string): FxCardPolicy | null {

@@ -4,8 +4,46 @@ import { CARD_TYPES, cardType, type ChartFamily } from "./catalog.js";
 import { newCard } from "./defaults.js";
 import { customRangeProblem } from "./filters.js";
 
-/** 仅开放已有正式参数登记的能力；B/C 待登记后自然进入，不绕过 G-12a。 */
-export const CUSTOM_CARD_TYPES = CARD_TYPES.filter((type) => validateAnalysisParams({ analysisId: type.id, params: {} }).status === "valid");
+/**
+ * 自定义卡片可选的指标。
+ *
+ * 两类来源：
+ * 1. A 协议分析（26 项）——必须通过 G-12a 的 params 白名单校验才开放，不绕过冻结协议；
+ * 2. 工作台自己派生、**不接受任何布局参数**的分析（B 的 24 项，含本次接入的 12 项）——
+ *    它们的卡片只保存分析编号与展示方式，参数恒为 `{}`，因此不涉及 G-12a 参数语义；
+ *    这里用显式集合登记，未知编号仍按只读占位处理。
+ */
+const LEGACY_CUSTOMIZABLE_IDS: ReadonlySet<string> = new Set([
+  "AN-I06",
+  "AN-I07",
+  "AN-I08",
+  "AN-I09",
+  "AN-I10",
+  "AN-I11",
+  "AN-I12",
+  "AN-I13",
+  "AN-I14",
+  "AN-I15",
+  "AN-I16",
+  "AN-I19",
+  "AN-I20",
+  "AN-A01",
+  "AN-A02",
+  "AN-A03",
+  "AN-A04",
+  "AN-A05",
+  "AN-A12",
+  "AN-A13",
+  "AN-A14",
+  "AN-A18",
+  "AN-A19",
+  "AN-A20",
+]);
+
+/** 仅开放「正式参数登记 + 无参数派生」两类已有能力；C 的 34 项待各自接入后再进入。 */
+export const CUSTOM_CARD_TYPES = CARD_TYPES.filter(
+  (type) => LEGACY_CUSTOMIZABLE_IDS.has(type.id) || validateAnalysisParams({ analysisId: type.id, params: {} }).status === "valid",
+);
 
 export interface CustomCardDraft {
   readonly analysisId: string;

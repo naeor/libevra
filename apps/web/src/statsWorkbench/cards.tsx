@@ -45,6 +45,7 @@ import { useAnalysisRange } from "../lib/analysisRange.js";
 import { useFxRange } from "../lib/fxView.js";
 import { displayCategoryName } from "../lib/presetNames.js";
 import { defaultKindFor } from "@libellum/shared/analysis/catalog";
+import { ADVANCED_CARD_IDS, AdvancedCardView } from "./advancedCards.js";
 import { cardType, type CardType, type ChartFamily } from "./catalog.js";
 import {
   agentAResult,
@@ -536,6 +537,10 @@ function TimeView({
   const height = heightFor(density, detail, available);
   const axis = (value: number) => formatAxisAmount(value, currency);
   const chartKind = family === "area" ? "area" : family === "bar" ? "bar" : "line";
+  // S17-B 第二批：这些分析自己的派生层已经算好结果，只需选择数据范围与格式化。
+  if (ADVANCED_CARD_IDS.has(id)) {
+    return <AdvancedCardView id={id} family={family} scope={scope} range={range} density={density} detail={detail} available={available} fx={fx} />;
+  }
   const stop = (event: React.MouseEvent) => {
     event.stopPropagation();
   };

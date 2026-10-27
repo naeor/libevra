@@ -59,10 +59,10 @@ function render(id: string, fx: WorkbenchScope["fx"], over: Partial<WorkbenchSco
 const ALL_IDS = CARD_TYPES.map((type) => type.id);
 const complete = buildFxView({ entries: MIXED_ENTRIES });
 
-describe("38 张卡片在综合折算下都有真实结果（无「暂不支持」、无原币数字冒充）", () => {
-  it("目录共 38 张，全部 combined，且都有缺汇率策略", () => {
-    expect(ALL_IDS).toHaveLength(38);
-    expect(new Set(ALL_IDS).size).toBe(38);
+describe("50 张卡片在综合折算下都有真实结果（无「暂不支持」、无原币数字冒充）", () => {
+  it("目录共 50 张，全部 combined，且都有缺汇率策略", () => {
+    expect(ALL_IDS).toHaveLength(50);
+    expect(new Set(ALL_IDS).size).toBe(50);
     for (const id of ALL_IDS) {
       expect(FX_CARD_POLICIES[id], id).toBeDefined();
       expect(CARD_TYPES.find((type) => type.id === id)?.combined, id).toBe(true);
