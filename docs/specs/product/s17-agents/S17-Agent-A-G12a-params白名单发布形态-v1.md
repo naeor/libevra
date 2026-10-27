@@ -1,7 +1,7 @@
-# G-12a 正式发布物：params 白名单发布形态 v1.1（S-01 v2，2026-10-27）
+# G-12a 正式发布物：params 白名单发布形态 v1.1（S-01 v2，**已冻结 `s01-v2`**，2026-10-27）
 
-> 状态：**发布形态 v1.1（draft 随 S-01 v2，未冻结；v1.1 落实 T-8，供 D 实施/同步）**。
-> 依据：所有者裁定 2026-10-27（`f215fa9`）§1.4「G-12a 的 params 白名单必须形成可供 D 实施的正式发布物；未完成校验与测试前，不开放不安全的分享导入行为」；Lead m03434；v2 §7 G-12a、§8、§16.5；**T-8 单一来源裁定（2026-10-27 冻结包，Lead m04039 转达）：`timeFixed` 与卡片级 `pinnedRange` 单一来源——绝对区间一律走 `pinnedRange`，params `timeFixed` 仅相对/预设语义**；D 单点复核 r7（`7725659`）确认 v1 该缺口。
+> 状态：**已冻结（`s01-v2`，2026-10-27）**；冻结基线 = r7.2 + G-12a v1.1（`b39b27a` + `782b036`）。v1.1 落实 T-8，供 D 实施/同步。
+> 依据：所有者裁定 2026-10-27（`f215fa9`）§1.4「G-12a 的 params 白名单必须形成可供 D 实施的正式发布物；未完成校验与测试前，不开放不安全的分享导入行为」；Lead m03434；v2 §7 G-12a、§8、§16.5；**T-8 单一来源裁定（2026-10-27 冻结包，Lead m04039 转达）：`timeFixed` 与卡片级 `pinnedRange` 单一来源——绝对区间一律走 `pinnedRange`，params `timeFixed` 仅相对/预设语义**；D 单点复核 r7（`7725659`）确认 v1 该缺口；冻结记录 orchestrator `2b6a869`/`0aee9d8`。
 > 适用范围：布局卡片实例 `AnalysisReference.params`（D 的 S-03 契约，只作引用/校验，不解释财务语义）。
 > **分享导入门：关闭（`shareImportAllowed = false`）**。本发布物+D 的校验实现与测试通过前，任何导入/分享路径不得接收外部布局或 params；待 Lead 放行后再开。
 
@@ -113,7 +113,7 @@
 
 ## 7. 版本与演进
 
-- 本发布物版本：**v1.1**（`paramsSchemaVersion` 保持 `"1"`：v1.1 是未冻结 draft 的语义修订，不改 schema 版本字面量）；随 S-01 v2 冻结后由 Lead 统一版本口径。
+- 本发布物版本：**v1.1**（`paramsSchemaVersion` 保持 `"1"`：v1.1 是 `s01-v2` 冻结基线内的语义修订，不改 schema 版本字面量）；已随 `s01-v2` 冻结（2026-10-27，冻结记录 orchestrator `2b6a869`/`0aee9d8`）。
 - **v1.1 相对 v1 的变更（T-8）**：`timeFixed` 由 `{from,to}` 绝对区间改为相对/预设枚举（6 值）；取消 `timeFixed` 嵌套对象例外。其余键、枚举、范围、错误码、隐私黑名单、26 项白名单不变。
 - 白名单随分析目录/`analysisVersion` 演进：新增键=新 `analysisVersion`，旧版本卡片只读占位；禁止在不升版本的情况下改变键语义。
 - D 按本发布物校验，不重新冻结协议；如发现白名单缺键，走最小修订单（Lead 裁定），不得自行扩展。
@@ -171,6 +171,7 @@
 
 - 2026-10-27 v1：随所有者裁定（`f215fa9`）产出，供 D 实施；shareImportAllowed=false。
 - 2026-10-27 v1.1：落实 **T-8**（冻结包裁定，Lead m04039 转达）——`timeFixed` 由 `{from,to}` 绝对区间改为相对/预设枚举（6 值），绝对日期区间统一由卡片级 `pinnedRange` 承载；旧绝对输入按 `params_type` 拒绝、不静默转换；取消 `timeFixed` 嵌套对象例外；新增用例 31–35 与 §11 D 同步表数据差异清单。依据：D 单点复核 r7（`7725659`）发现的冻结前门禁。
+- 2026-10-27 冻结同步：状态改为**已冻结（`s01-v2`）**；新增 **§12「C 侧待登记清单占位（T-7）」**——仅登记 C 专属键暂定名与待定标注，不改 §3 的 26 项 `ANALYSIS_PARAM_SPECS`、不改 §5 校验结构、不改已冻结的 `PIVOT_METRICS`/`ADVANCED_DIMENSIONS`。
 
 ## 11. D 同步表数据差异清单（v1.1，供 D 只改表数据/用例）
 
@@ -185,3 +186,32 @@
 | `allowLongRange` | 区间 >400 天才可为 true | 同左；`timeFixed` 预设 ≤366 天，故与 `timeFixed` 同 true → `params_out_of_range` | 若实现按字面约束已覆盖则无改动，仅补用例 35 |
 | 测试用例 | `#19/#20` 为绝对区间 out_of_range | `#19/#20` 改预设通过；新增 `#31–35`（旧绝对对象/枚举外/互斥/长区间拒绝） | 改写 19/20、新增 31–35；其余用例不变 |
 | 校验结构/接口 | 纯函数、返回类型、错误码、只读占位逻辑 | **不变** | 不需要改校验器签名/返回类型；仅 `timeFixed` 分支改枚举校验（或保留对象分支为不可达死代码后删除） |
+
+---
+
+## 12. C 侧待登记清单占位（T-7，非规范；待 C 分析目录冻结后登记为 G-12a v2）
+
+> 依据：冻结包 **T-7**——C 的 34 项分析与专属参数键，在 C 分析目录冻结后补登记为 G-12a v2。本小节**只是占位**：不写实现、不改 §3 的 26 项 `ANALYSIS_PARAM_SPECS`、不改 §5 校验结构、不改已冻结的 `PIVOT_METRICS`/`ADVANCED_DIMENSIONS`（G-30）。下表的键名/类型/枚举/默认值均为**暂定、待定**，以 C 后续提供的冻结目录为准；未登记前不得作为已支持的 params 使用。
+
+| # | 暂定键名 | 所属分析/形状（C） | 待定标注 |
+|---|---|---|---|
+| 1 | `pivotMetric` | P13 `pivot` | 取值引用已冻结 `PIVOT_METRICS`（`amount`/`count`/`average`/`share`）；参数键名、是否开放待 C 定 |
+| 2 | `pivotRowDim` / `pivotColDim` | P13 `pivot` | 维度取值待定；不得重复定义 `ADVANCED_DIMENSIONS`（只可引用） |
+| 3 | `cubeDimensions` | P21 `cross-cube` | 取值引用 `ADVANCED_DIMENSIONS`（7 值，已冻结）；≤3 维约束是否进 params 待 C 定 |
+| 4 | `cubeMetrics` | P21 `cross-cube` | 指标集合/键名待 C 定 |
+| 5 | `matrixDims` | P01–P04 `matrix` | 分类×时间/支付方式；键名与枚举待定 |
+| 6 | `rankPolicy` | P09 `rank-migration` | 引用已冻结 `rankingPolicy`（单值）；是否进 params 待 C 定 |
+| 7 | `scatterStrategy` / `scatterMaxPoints` | P10 `scatter` | 实现取值 `none`/`top-amount`；是否开放、上限值待 C 定 |
+| 8 | `bubbleSizeMetric` | P11 `bubble` | `count`/`sum`/`mean`/`share`；键名待定 |
+| 9 | `boxplotMaxOutliers` | P12 `boxplot` | 引用 `BOXPLOT_DEFAULT_MAX_OUTLIERS=20`（仅展示上限）；是否开放待 C 定 |
+| 10 | `histogramBinWidth` / `histogramBins` | distribution（P12/P23） | G-24：默认 `nice-bin-width`；`histogram-sturges` 仅候选、不得宣称；参数形式待 C 定 |
+| 11 | `quantileSet` | distribution（P12/P23） | G-25：P25/P50/P75+IQR 必填、P10/P90 仅显式；键名/取值待 C 定 |
+| 12 | `varianceKind` | distribution / σ-CV | 总体/样本；§16.6 口径已冻结，params 键名待 C 定 |
+| 13 | `scaleMode` | P14 `small-multiples` | 取值待 C 定；`topN≤24` 已冻结为计算上限 |
+| 14 | `hierarchyMode` | P05–P07 `hierarchy` | 依赖分类层级模型（QC-03 未批准）；单层退化/投影模式待定 |
+| 15 | `calendarProjection` | P15 `calendar`（纯投影） | B `calendar-heatmap` 为唯一冻结形状，C 投影不单独冻结；键待定 |
+| 16 | `contributionMode` | P22/P24 `contribution` | previous/current/delta 等；键名待 C 定 |
+| 17 | `fxDiagnosticKind` / `fxTrendDays` | P16–P20 `fx-diagnostic` | `diagnosticKind` 5 值已在形状层冻结；是否开放为 params 待 C 定；P18 区间 ≤400 天（`FX_DRAFT_MAX_TREND_DAYS`） |
+| 18 | 计算上限键（`maxCells`/`maxNodes`/`maxLinks`/`maxTopN`） | pivot/hierarchy/sankey/small-multiples | **不开放为 params**；仅通过结果 `analysisLimit?` 回报（已冻结语义），不得由卡片改上限 |
+
+> 登记规则（T-7 执行口径）：①C 分析目录冻结时，由 C 提供逐项 `analysisId`/键名/类型/枚举/默认值/互斥关系；②A 据此把本占位升级为 G-12a **v2**（新增 §3 行、§8 用例、§11 差异清单），保持 §2/§4/§5 通用结构与错误码不变（仅新增键，不改 26 项 A 分析行）；③v2 发布前，C 卡片 params 仅允许 §2 通用键，C 专属键一律 `params_unknown_key` 拒绝——不得以“占位键”先行实现/导入；④分享导入门仍关闭，直到 v2 发布 + D 校验通过。
