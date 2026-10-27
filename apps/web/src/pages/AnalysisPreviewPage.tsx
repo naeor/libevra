@@ -21,15 +21,33 @@ import { formatMoney } from "../lib/format.js";
 
 const PREVIEW_WINDOWS = [7, 30] as const;
 const PREVIEW_VISIBLE_DAYS = 30;
-const PREVIEW_TRANSACTION_LIMIT = "100";
+const PREVIEW_PAGE_SIZE = "100";
+const PREVIEW_MAX_PAGES = 20;
+
+/**
+ * K3 fix: the preview must see the whole read window, not a fixed "latest 100".
+ * B's audit showed that a 100-row cut makes the early days of the 30-day window
+ * look like confirmed zero (the 30-day card read ¥201.10 instead of ¥246.43).
+ * Cursor paging keeps the loaded slice covering the ledger's earliest entry.
+ */
+async function fetchAllPreviewTransactions(): Promise<TransactionListResponse> {
+  const items: Transaction[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < PREVIEW_MAX_PAGES; page += 1) {
+    const response: TransactionListResponse = await apiFetch<TransactionListResponse>("/transactions", {
+      query: cursor === null ? { limit: PREVIEW_PAGE_SIZE } : { limit: PREVIEW_PAGE_SIZE, cursor },
+    });
+    items.push(...response.items);
+    cursor = response.nextCursor;
+    if (cursor === null) break;
+  }
+  return { items, nextCursor: null };
+}
 
 function usePreviewTransactions() {
   return useQuery({
     queryKey: ["analysis-preview-transactions"],
-    queryFn: async (): Promise<TransactionListResponse> =>
-      apiFetch<TransactionListResponse>("/transactions", {
-        query: { limit: PREVIEW_TRANSACTION_LIMIT },
-      }),
+    queryFn: fetchAllPreviewTransactions,
     staleTime: 60_000,
   });
 }
@@ -63,6 +81,16 @@ export function AnalysisPreviewPage() {
     () => allTransactions.filter((row) => row.currency === currency),
     [allTransactions, currency],
   );
+  /** Integrity check for the preview: the loaded slice must start at or before the read window. */
+  const loadedRange = useMemo(() => {
+    let earliest: string | null = null;
+    let latest: string | null = null;
+    for (const row of allTransactions) {
+      if (earliest === null || row.occurredLocalDate < earliest) earliest = row.occurredLocalDate;
+      if (latest === null || row.occurredLocalDate > latest) latest = row.occurredLocalDate;
+    }
+    return { earliest, latest };
+  }, [allTransactions]);
   const today = useMemo(() => toLocalDate(new Date()), []);
   const span = useMemo(() => analysisSpan(trailingWindow(PREVIEW_VISIBLE_DAYS, today)), [today]);
   const views = useMemo(
@@ -83,8 +111,14 @@ export function AnalysisPreviewPage() {
       </p>
       <p className="mt-1 text-helper text-muted" data-testid="analysis-preview-currency">
         Single-currency (原币) series: {currency} · {String(transactions.length)} of{" "}
-        {String(allTransactions.length)} loaded transactions
+        {String(allTransactions.length)} loaded transactions · loaded {loadedRange.earliest ?? "none"} to{" "}
+        {loadedRange.latest ?? "none"} · read window starts {span.start}
       </p>
+      {loadedRange.earliest !== null && loadedRange.earliest > span.start ? (
+        <p className="mt-1 text-helper text-danger" data-testid="analysis-preview-truncated">
+          ⚠ Loaded transactions start after the read window start; early days may read as confirmed zero.
+        </p>
+      ) : null}
 
       {query.isLoading ? <p className="mt-6 text-body text-muted">Loading transactions…</p> : null}
       {query.isError ? (
