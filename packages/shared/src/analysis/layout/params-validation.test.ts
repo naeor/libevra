@@ -1,8 +1,9 @@
 /**
- * D-6 前置：G-12a v1 params 白名单校验测试。
+ * D-6 前置：G-12a v1.1 params 白名单校验测试。
  *
- * 覆盖 A 的发布物 §8 的 30 条用例（编号注释对应）、只读占位（未知分析/较新版本）、
- * 错误码与路径稳定性、分享导入门，以及若干边界（键数上限、嵌套对象、自由文本、
+ * 覆盖 A 的发布物 v1.1 §8 的 35 条用例（编号注释对应；v1.1 落实 T-8：timeFixed 由
+ * 绝对区间对象改为 6 值预设枚举，绝对区间归卡片级 pinnedRange）、只读占位（未知分析/
+ * 较新版本）、错误码与路径稳定性、分享导入门，以及若干边界（键数上限、嵌套对象、
  * 通用键在各分析的复用）。
  *
  * 边界：不查账本权限/分类是否存在（属查询层）；纯函数、无时钟/随机/存储依赖。
@@ -140,20 +141,16 @@ describe("params-validation：G-12a §8 的 30 条用例", () => {
     expect(codes(result)).toContain("params_out_of_range");
   });
 
-  it("19) timeFixed 逆序区间 拒绝 params_out_of_range", () => {
-    const result = validateAnalysisParams(
-      ref("AN-B01", { timeFixed: { from: "2026-10-01", to: "2026-09-01" } }),
-    );
-    expect(result.status).toBe("invalid");
-    expect(codes(result)).toContain("params_out_of_range");
+  it("19) {timeFixed:'this-year'} 通过（日历对齐预设；解析回写 resolvedPeriod 由数据层完成）", () => {
+    const result = validateAnalysisParams(ref("AN-B01", { timeFixed: "this-year" }));
+    expect(result.status).toBe("valid");
+    expect(result.value).toEqual({ timeFixed: "this-year" });
   });
 
-  it("20) timeFixed 非法日期 2026-02-30 拒绝 params_out_of_range", () => {
-    const result = validateAnalysisParams(
-      ref("AN-B01", { timeFixed: { from: "2026-02-30", to: "2026-03-01" } }),
-    );
-    expect(result.status).toBe("invalid");
-    expect(codes(result)).toContain("params_out_of_range");
+  it("20) {timeFixed:'last-3-months'} 通过（含本月近 3 个自然月，非 90 天滚动）", () => {
+    const result = validateAnalysisParams(ref("AN-B01", { timeFixed: "last-3-months" }));
+    expect(result.status).toBe("valid");
+    expect(result.value).toEqual({ timeFixed: "last-3-months" });
   });
 
   it("21) {maxParts:0} on I01 拒绝 params_out_of_range", () => {
@@ -225,6 +222,44 @@ describe("params-validation：G-12a §8 的 30 条用例", () => {
         },
       ],
     });
+  });
+
+  it("31) 旧 v1 合法绝对区间对象 → 拒绝 params_type（不静默转换）", () => {
+    const result = validateAnalysisParams(
+      ref("AN-B01", { timeFixed: { from: "2026-10-01", to: "2026-10-31" } }),
+    );
+    expect(result.status).toBe("invalid");
+    expect(codes(result)).toEqual(["params_type"]);
+  });
+
+  it("32) 旧逆序绝对区间对象 → 拒绝 params_type（不再按 out_of_range）", () => {
+    const result = validateAnalysisParams(
+      ref("AN-B01", { timeFixed: { from: "2026-10-01", to: "2026-09-01" } }),
+    );
+    expect(result.status).toBe("invalid");
+    expect(codes(result)).toEqual(["params_type"]);
+  });
+
+  it("33) {timeFixed:'last-10-years'}（枚举外取值）→ 拒绝 params_type", () => {
+    const result = validateAnalysisParams(ref("AN-B01", { timeFixed: "last-10-years" }));
+    expect(result.status).toBe("invalid");
+    expect(codes(result)).toContain("params_type");
+  });
+
+  it("34) {timeFixed:'this-year', timePreset:'30d'} → 拒绝 params_conflict", () => {
+    const result = validateAnalysisParams(
+      ref("AN-B01", { timeFixed: "this-year", timePreset: "30d" }),
+    );
+    expect(result.status).toBe("invalid");
+    expect(codes(result)).toContain("params_conflict");
+  });
+
+  it("35) {timeFixed:'last-year', allowLongRange:true} → 拒绝 params_out_of_range（预设 ≤366 天）", () => {
+    const result = validateAnalysisParams(
+      ref("AN-B01", { timeFixed: "last-year", allowLongRange: true }),
+    );
+    expect(result.status).toBe("invalid");
+    expect(codes(result)).toContain("params_out_of_range");
   });
 });
 
@@ -318,20 +353,12 @@ describe("params-validation：通用键与边界", () => {
     expect(codes(result)).toContain("params_unknown_key");
   });
 
-  it("timeFixed 超 400 天须 allowLongRange；显式后可到 3660", () => {
-    const tooLong = validateAnalysisParams(
-      ref("AN-B01", { timeFixed: { from: "2020-01-01", to: "2021-12-31" } }),
+  it("timeFixed 旧绝对对象（含额外键）→ params_type，不静默转换", () => {
+    const result = validateAnalysisParams(
+      ref("AN-B01", { timeFixed: { from: "2020-01-01", to: "2021-12-31", tz: "UTC" } }),
     );
-    expect(tooLong.status).toBe("invalid");
-    expect(codes(tooLong)).toContain("params_out_of_range");
-
-    const allowed = validateAnalysisParams(
-      ref("AN-B01", {
-        timeFixed: { from: "2020-01-01", to: "2021-12-31" },
-        allowLongRange: true,
-      }),
-    );
-    expect(allowed.status).toBe("valid");
+    expect(result.status).toBe("invalid");
+    expect(codes(result)).toEqual(["params_type"]);
   });
 
   it("allowLongRange=true 但区间不足 400 天 → params_out_of_range（发布物字面约束）", () => {
@@ -340,14 +367,6 @@ describe("params-validation：通用键与边界", () => {
     );
     expect(result.status).toBe("invalid");
     expect(codes(result)).toContain("params_out_of_range");
-  });
-
-  it("timeFixed 只允许 from/to（额外键报 params_unknown_key）", () => {
-    const result = validateAnalysisParams(
-      ref("AN-B01", { timeFixed: { from: "2026-01-01", to: "2026-01-02", tz: "UTC" } }),
-    );
-    expect(result.status).toBe("invalid");
-    expect(codes(result)).toContain("params_unknown_key");
   });
 
   it("B16 允许三种 kind（含 both）", () => {

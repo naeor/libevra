@@ -1,9 +1,9 @@
 /**
- * D-6 前置：G-12a v1 params 白名单校验（headless，纯函数）。
+ * D-6 前置：G-12a v1.1 params 白名单校验（headless，纯函数）。
  *
- * 依据：A 的《G-12a 正式发布物：params 白名单发布形态 v1》（2026-10-27，draft 随
- * S-01 v2，未冻结；供 D 实施准备）与 S-03 布局侧接口草案（AnalysisReference 只存
- * 引用与参数，不解释财务语义）。
+ * 依据：A 的《G-12a 正式发布物：params 白名单发布形态 v1.1》（2026-10-27，draft 随
+ * S-01 v2，未冻结；v1.1 落实 T-8，供 D 实施/同步）与 S-03 布局侧接口草案
+ * （AnalysisReference 只存引用与参数，不解释财务语义）。
  *
  * 边界：
  * - **纯函数**：不读时钟/随机数/网络/存储；不查账本权限、不查分类是否存在
@@ -18,9 +18,10 @@
  * - `analysisVersion` 为字符串版本串，S-01 v2 的 G-15 精确命名/排序未冻结；本实现
  *   只做**等值比较**：提供 `currentAnalysisVersion` 时，非等值即按“较新/未知”只读
  *   占位（保守策略，不猜测版本顺序）；
- * - `timeFixed` 的绝对区间语义按 G-12a v1 实现；Lead 已裁定（T-8）绝对区间应走
- *   卡片级 `pinnedRange`、`timeFixed` 仅保留相对/预设语义，待 A r7 微调发布物后
- *   只改表/语义说明，不改校验结构。
+ * - `timeFixed` 按 G-12a v1.1（T-8）：仅接受 6 值预设枚举（相对/预设语义，日历对齐，
+ *   运行时相对工作台 `today` 解析并回写结果 `resolvedPeriod`）；绝对日期区间一律走
+ *   卡片级 `pinnedRange`（S-03 `rangePolicy:"pinned"`），旧 `{from,to}` 对象输入按
+ *   `params_type` 拒绝、不静默转换（v1.1 §5-8）。
  */
 
 import type { AnalysisReference } from "./types.js";
@@ -37,7 +38,7 @@ export const MAX_ANALYSIS_PARAMS_ID_ITEMS = 50;
 /** 相对/固定区间默认天数上限（超过须显式 allowLongRange）。 */
 export const MAX_RELATIVE_DAYS = 400;
 
-/** 绝对区间默认天数上限（与 MAX_RELATIVE_DAYS 同值，语义分开登记）。 */
+/** 相对区间默认天数上限（超过须显式 allowLongRange；timeFixed 预设均 ≤366 天）。 */
 export const MAX_ABSOLUTE_RANGE_DAYS = 400;
 
 /** 显式 allowLongRange 后的天数上限（性能保护 C-1 #2）。 */
@@ -45,6 +46,20 @@ export const MAX_LONG_RANGE_DAYS = 3660;
 
 export const TIME_PRESETS = ["7d", "30d", "90d", "365d"] as const;
 export type TimePreset = (typeof TIME_PRESETS)[number];
+
+/**
+ * G-12a v1.1（T-8）：`timeFixed` 预设枚举（相对/预设语义，日历对齐，不含绝对日期）。
+ * 绝对日期区间由卡片级 `pinnedRange` 承载，见 S-03 `rangePolicy:"pinned"`。
+ */
+export const TIME_FIXED_PRESETS = [
+  "this-month",
+  "last-month",
+  "this-year",
+  "last-year",
+  "last-3-months",
+  "last-6-months",
+] as const;
+export type TimeFixedPreset = (typeof TIME_FIXED_PRESETS)[number];
 
 export const COMPARISON_POLICIES = ["same-day-index", "equal-length-window"] as const;
 export type ComparisonPolicy = (typeof COMPARISON_POLICIES)[number];
@@ -207,7 +222,6 @@ const ANALYSIS_PARAM_SPEC_BY_ID: ReadonlyMap<string, AnalysisParamSpec> = new Ma
 const INTERVAL_KEYS: readonly string[] = ["timePreset", "timeRelativeDays", "timeFixed"];
 
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function isParamsErrorCode(value: string): value is AnalysisParamsErrorCode {
   return (ANALYSIS_PARAMS_ERROR_CODES as readonly string[]).includes(value);
@@ -234,38 +248,12 @@ function isTimePreset(value: string): value is TimePreset {
   return (TIME_PRESETS as readonly string[]).includes(value);
 }
 
+function isTimeFixedPreset(value: string): value is TimeFixedPreset {
+  return (TIME_FIXED_PRESETS as readonly string[]).includes(value);
+}
+
 function isComparisonPolicy(value: string): value is ComparisonPolicy {
   return (COMPARISON_POLICIES as readonly string[]).includes(value);
-}
-
-/** 真实日历日期（拒绝 2026-02-30 等）。 */
-function isValidCalendarDate(value: string): boolean {
-  const match = DATE_PATTERN.exec(value);
-  if (match === null) {
-    return false;
-  }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) {
-    return false;
-  }
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  );
-}
-
-/** 闭区间天数（含首尾；日期已通过 isValidCalendarDate）。 */
-function inclusiveDayCount(from: string, to: string): number {
-  const fromMatch = DATE_PATTERN.exec(from);
-  const toMatch = DATE_PATTERN.exec(to);
-  if (fromMatch === null || toMatch === null) {
-    return Number.POSITIVE_INFINITY;
-  }
-  const fromMs = Date.UTC(Number(fromMatch[1]), Number(fromMatch[2]) - 1, Number(fromMatch[3]));
-  const toMs = Date.UTC(Number(toMatch[1]), Number(toMatch[2]) - 1, Number(toMatch[3]));
-  return Math.floor((toMs - fromMs) / 86_400_000) + 1;
 }
 
 /** 已知 analysisId（默认 G-12a v1 的 26 项）。 */
@@ -320,7 +308,6 @@ function validateIdArray(
 
 interface ParamValueChecks {
   relativeDays?: number;
-  fixedDays?: number;
   allowLongRange?: boolean;
   intervalCount: number;
 }
@@ -352,8 +339,20 @@ function validateParamValues(
       issues.push(fail(path, "params_unknown_key", `${spec.analysisId} 不支持参数 ${key}`));
       continue;
     }
-    if (isRecord(value) && key !== "timeFixed") {
-      issues.push(fail(path, "params_private_data", `${key} 不允许嵌套对象（仅 timeFixed 例外）`));
+    if (isRecord(value)) {
+      if (key === "timeFixed") {
+        // v1.1（T-8）：timeFixed 仅接受枚举字符串；旧 {from,to} 绝对区间输入按
+        // params_type 拒绝、不静默转换，提示改用卡片级 pinnedRange。
+        issues.push(
+          fail(
+            path,
+            "params_type",
+            "timeFixed 只接受预设枚举字符串；绝对日期区间请使用卡片级 pinnedRange",
+          ),
+        );
+      } else {
+        issues.push(fail(path, "params_private_data", `${key} 不允许嵌套对象`));
+      }
       continue;
     }
     switch (key) {
@@ -408,9 +407,14 @@ function validateParamValues(
         break;
       }
       case "timeFixed": {
-        const fixed = validateTimeFixed(value, issues);
-        if (fixed !== undefined) {
-          checks.fixedDays = fixed;
+        if (typeof value !== "string" || !isTimeFixedPreset(value)) {
+          issues.push(
+            fail(
+              path,
+              "params_type",
+              "timeFixed 只允许预设枚举：this-month/last-month/this-year/last-year/last-3-months/last-6-months；绝对日期区间请使用卡片级 pinnedRange",
+            ),
+          );
         }
         break;
       }
@@ -471,13 +475,18 @@ function validateParamValues(
     );
   }
 
+  // v1.1（T-8）：timeFixed 预设窗口均 ≤366 天，不是长区间合理来源；
+  // 其与 allowLongRange=true 同时出现按 params_out_of_range 拒绝（见下）。
   const effectiveLongRange =
-    (checks.relativeDays !== undefined && checks.relativeDays > MAX_ABSOLUTE_RANGE_DAYS) ||
-    (checks.fixedDays !== undefined && checks.fixedDays > MAX_ABSOLUTE_RANGE_DAYS);
+    checks.relativeDays !== undefined && checks.relativeDays > MAX_ABSOLUTE_RANGE_DAYS;
 
   if (checks.allowLongRange === true && !effectiveLongRange) {
     issues.push(
-      fail("$params.allowLongRange", "params_out_of_range", "allowLongRange 仅在区间超过 400 天时允许为 true"),
+      fail(
+        "$params.allowLongRange",
+        "params_out_of_range",
+        "allowLongRange 仅在区间超过 400 天时允许为 true（timeFixed 预设均 ≤366 天，不得与 allowLongRange 同用）",
+      ),
     );
   }
   if (effectiveLongRange && checks.allowLongRange !== true) {
@@ -493,51 +502,8 @@ function validateParamValues(
   return { issues, checks };
 }
 
-function validateTimeFixed(
-  value: unknown,
-  issues: AnalysisParamsIssue[],
-): number | undefined {
-  if (!isRecord(value)) {
-    issues.push(fail("$params.timeFixed", "params_type", "timeFixed 必须是 {from,to} 对象"));
-    return undefined;
-  }
-  for (const key of Object.keys(value)) {
-    if (key !== "from" && key !== "to") {
-      issues.push(
-        fail(`$params.timeFixed.${key}`, "params_unknown_key", "timeFixed 只允许 from/to 两个键"),
-      );
-    }
-  }
-  const from = value["from"];
-  const to = value["to"];
-  if (typeof from !== "string" || typeof to !== "string") {
-    issues.push(fail("$params.timeFixed", "params_type", "timeFixed.from/to 必须是 YYYY-MM-DD 字符串"));
-    return undefined;
-  }
-  if (!isValidCalendarDate(from) || !isValidCalendarDate(to)) {
-    issues.push(fail("$params.timeFixed", "params_out_of_range", "timeFixed 含非法日历日期"));
-    return undefined;
-  }
-  if (from > to) {
-    issues.push(fail("$params.timeFixed", "params_out_of_range", "timeFixed.from 不能晚于 to"));
-    return undefined;
-  }
-  const days = inclusiveDayCount(from, to);
-  if (days > MAX_LONG_RANGE_DAYS) {
-    issues.push(
-      fail(
-        "$params.timeFixed",
-        "params_out_of_range",
-        `timeFixed 天数超过上限 ${String(MAX_LONG_RANGE_DAYS)}`,
-      ),
-    );
-    return undefined;
-  }
-  return days;
-}
-
 /**
- * 校验一个 `AnalysisReference` 的 params（G-12a v1）。
+ * 校验一个 `AnalysisReference` 的 params（G-12a v1.1）。
  *
  * @param reference 任意输入（`{analysisId, analysisVersion?, params}`）；形状非法时 status="invalid"。
  */
