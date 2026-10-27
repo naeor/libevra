@@ -57,7 +57,7 @@
 > orchestrator 工作区对 A 只读；请 Lead 将下行填入 `S17-S01v2-冻结核定-20261027.md`「变更记录」小节：
 
 ```markdown
-- 2026-10-27 **v2.0.2 冻结后一致性修正**（A，提交 `<A 提交号>`）：G-1 §2 信封 `version` 更正为 `s01-v2`、新增唯一冻结字段清单（与 `AnalysisResultBase` 一致）+ Legacy 对照（`ok`/`data`/`calculation` 非 v2 字段：状态由 `completeness`+`unavailableReason?`、结果由 §3、计算元信息由 `computation` 承载）；G-2 `ANALYSIS_PROTOCOL_VERSION = "s01-v2"`（旧标识仅历史、无兼容 shim；typecheck 0、shared 31 files/690 tests 通过）。不改结构/字段/枚举/26 项 specs，无需重新冻结；D 可继续 I-1b 信封接线。
+- 2026-10-27 **v2.0.2 冻结后一致性修正**（A，提交 `ed50876`）：G-1 §2 信封 `version` 更正为 `s01-v2`、新增唯一冻结字段清单（与 `AnalysisResultBase` 一致）+ Legacy 对照（`ok`/`data`/`calculation` 非 v2 字段：状态由 `completeness`+`unavailableReason?`、结果由 §3、计算元信息由 `computation` 承载）；G-2 `ANALYSIS_PROTOCOL_VERSION = "s01-v2"`（旧标识仅历史、无兼容 shim；typecheck 0、shared 31 files/690 tests 通过）。不改结构/字段/枚举/26 项 specs，无需重新冻结；D 可继续 I-1b 信封接线。
 ```
 
 ## 5. 下一步
