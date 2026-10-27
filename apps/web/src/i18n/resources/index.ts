@@ -34,6 +34,7 @@ import enPresets from "./en-US/presets.js";
 import enRewards from "./en-US/rewards.js";
 import enSettings from "./en-US/settings.js";
 import enStats from "./en-US/stats.js";
+import enStatsWorkbench from "./en-US/statsWorkbench.js";
 import enUpdate from "./en-US/update.js";
 import zhAccount from "./zh-CN/account.js";
 import zhAdmin from "./zh-CN/admin.js";
@@ -60,6 +61,7 @@ import zhPresets from "./zh-CN/presets.js";
 import zhRewards from "./zh-CN/rewards.js";
 import zhSettings from "./zh-CN/settings.js";
 import zhStats from "./zh-CN/stats.js";
+import zhStatsWorkbench from "./zh-CN/statsWorkbench.js";
 import zhUpdate from "./zh-CN/update.js";
 import type { Messages } from "../types.js";
 
@@ -77,6 +79,7 @@ export const zhCN = {
   ledger: zhLedger,
   entry: zhEntry,
   stats: zhStats,
+  statsWorkbench: zhStatsWorkbench,
   books: zhBooks,
   manage: zhManage,
   capture: zhCapture,
@@ -109,6 +112,7 @@ export const enUS: Messages<TranslationResource> = {
   ledger: enLedger,
   entry: enEntry,
   stats: enStats,
+  statsWorkbench: enStatsWorkbench,
   books: enBooks,
   manage: enManage,
   capture: enCapture,

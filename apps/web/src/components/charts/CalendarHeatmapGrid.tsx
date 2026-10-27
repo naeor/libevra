@@ -39,9 +39,10 @@ export function CalendarHeatmapGrid({
           <div className="grid grid-cols-7 gap-1">
             {month.weeks.map((week, weekIndex) => (
               <div key={`${month.monthKey}:${String(weekIndex)}`} className="contents">
-                {week.days.map((cell) =>
+                {week.days.map((cell, dayIndex) =>
                   cell === null ? (
-                    <span key={`${String(weekIndex)}:blank`} aria-hidden="true" />
+                    // 同一周可能有多个空格（月初/月末），键里带上星期序号，避免 React 重复键。
+                    <span key={`${String(weekIndex)}:blank:${String(dayIndex)}`} aria-hidden="true" />
                   ) : (
                     <button
                       key={cell.date}

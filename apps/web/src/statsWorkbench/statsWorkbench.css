@@ -1,0 +1,639 @@
+/**
+ * S17 分析工作台的局部样式。**只用语义 token**（颜色、圆角、字号都来自 index.css 的 @theme），
+ * 七套主题与深浅模式因此自动跟随；没有新的色值。
+ *
+ * 编辑态的视觉（总需求规格 §8 / 交互补充 §5）：低对比度格线、半透明品牌浅底、柔和虚线边界，
+ * 合法落点用克制的品牌绿发光，非法落点用危险色；浏览态不出现任何格线或编辑控件。
+ */
+
+.sw-grid {
+  --sw-row: 7.25rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-auto-rows: var(--sw-row);
+  position: relative;
+}
+
+.sw-grid-edit {
+  touch-action: pan-y;
+}
+
+/* ---- 浏览态卡片 ---- */
+
+.sw-card {
+  overflow: hidden;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.sw-card:hover {
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-line));
+}
+
+.sw-card-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sw-card-hit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-interactive {
+  position: relative;
+  z-index: 1;
+}
+
+.sw-amount {
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.sw-skeleton {
+  display: block;
+  border-radius: 999px;
+  background: var(--color-canvas);
+  animation: sw-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sw-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.sw-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.sw-bar {
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--color-canvas);
+  overflow: hidden;
+}
+
+.sw-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.sw-page-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--color-line-strong);
+  opacity: 0.45;
+  transition: width 180ms ease, opacity 180ms ease;
+}
+
+.sw-page-dot-active {
+  width: 0.9rem;
+  background: var(--color-brand);
+  opacity: 1;
+}
+
+.sw-carousel {
+  touch-action: pan-y;
+  overflow: hidden;
+}
+
+/* ---- 页头按钮（与账本页通知铃铛同一种按钮语言） ---- */
+
+.sw-head-button {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.sw-head-button:hover {
+  background: var(--color-canvas);
+}
+
+.sw-head-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-head-button-on {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+.sw-badge-dot {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-warn);
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+/* ---- 筛选区：在文档流里展开，下方卡片自然下移 ---- */
+
+.sw-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sw-collapse-open {
+  grid-template-rows: 1fr;
+}
+
+.sw-filter-panel {
+  animation: sw-fade-in 200ms ease-out;
+}
+
+@keyframes sw-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+.sw-summary {
+  min-height: 1.75rem;
+}
+
+.sw-summary:hover span:first-child {
+  color: var(--color-ink);
+}
+
+/* ---- 通用小控件 ---- */
+
+.sw-chip {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.375rem 0.875rem;
+  background: var(--color-canvas);
+  color: var(--color-muted);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  transition: background-color 160ms ease, color 160ms ease;
+  white-space: nowrap;
+}
+
+.sw-chip:hover {
+  color: var(--color-ink);
+}
+
+.sw-chip-on,
+.sw-chip-on:hover {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.sw-pill {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 0 1rem;
+  color: var(--color-ink);
+  font-size: var(--text-button);
+  font-weight: var(--text-button--font-weight);
+  white-space: nowrap;
+  transition: background-color 160ms ease, opacity 160ms ease;
+}
+
+.sw-pill:hover {
+  background: var(--color-canvas);
+}
+
+.sw-pill-primary,
+.sw-pill-primary:hover {
+  border-color: transparent;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.sw-pill-primary:hover {
+  background: var(--color-brand-dark);
+}
+
+.sw-pill-danger,
+.sw-pill-danger:hover {
+  border-color: transparent;
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.sw-pill:disabled,
+.sw-icon-button:disabled,
+.sw-chip:disabled,
+.sw-tile:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.sw-pill:focus-visible,
+.sw-chip:focus-visible,
+.sw-icon-button:focus-visible,
+.sw-tile:focus-visible,
+.sw-add-button:focus-visible,
+.sw-drawer-handle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-link {
+  color: var(--color-brand-dark);
+  font-size: var(--text-link);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.sw-icon-button {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--color-ink);
+  transition: background-color 160ms ease;
+}
+
+.sw-icon-button:hover:not(:disabled) {
+  background: var(--color-canvas);
+}
+
+.sw-segment {
+  display: inline-flex;
+  gap: 0.125rem;
+  border-radius: 999px;
+  background: var(--color-canvas);
+  padding: 0.2rem;
+}
+
+.sw-segment > button {
+  min-height: 2rem;
+  border-radius: 999px;
+  padding: 0 0.875rem;
+  color: var(--color-muted);
+  font-size: var(--text-body);
+  transition: background-color 160ms ease, color 160ms ease;
+  white-space: nowrap;
+}
+
+.sw-segment > .sw-segment-on {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-card);
+}
+
+.sw-order {
+  display: inline-flex;
+  width: 1.375rem;
+  height: 1.375rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font-size: var(--text-helper);
+  font-variant-numeric: tabular-nums;
+}
+
+.sw-mini-grid {
+  display: grid;
+  gap: 2px;
+}
+
+.sw-mini-grid > span {
+  border-radius: 3px;
+  background: var(--color-brand);
+}
+
+/* ---- 编辑态 ---- */
+
+.sw-edit-bar {
+  backdrop-filter: saturate(1.4) blur(10px);
+}
+
+.sw-cell {
+  z-index: 0;
+  border-radius: var(--radius-field);
+  border: 1px dashed color-mix(in srgb, var(--color-line-strong) 35%, transparent);
+  background: color-mix(in srgb, var(--color-canvas) 60%, transparent);
+}
+
+.sw-cell-target {
+  cursor: pointer;
+  border: 1.5px solid color-mix(in srgb, var(--color-brand) 55%, transparent);
+  background: color-mix(in srgb, var(--color-brand-soft) 80%, transparent);
+  animation: sw-glow 1.6s ease-in-out infinite;
+}
+
+.sw-cell-target:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-edit-tile {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-radius: var(--radius-card);
+  border: 1.5px dashed color-mix(in srgb, var(--color-brand) 45%, transparent);
+  background: color-mix(in srgb, var(--color-brand-soft) 72%, transparent);
+  padding: 0.75rem;
+  text-align: left;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.sw-edit-tile:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-brand) 70%, transparent);
+}
+
+.sw-edit-tile:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-edit-selected {
+  border-style: solid;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 22%, transparent);
+}
+
+.sw-edit-dragging {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.sw-edit-faded {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sw-edit-spacer {
+  border-color: color-mix(in srgb, var(--color-line-strong) 55%, transparent);
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--color-line) 55%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.sw-edit-pending {
+  border-style: solid;
+  border-color: var(--color-brand);
+  animation: sw-glow 1.6s ease-in-out infinite;
+}
+
+.sw-size-badge {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  padding: 0.05rem 0.45rem;
+  color: var(--color-muted);
+  font-size: var(--text-helper);
+  font-variant-numeric: tabular-nums;
+}
+
+.sw-drop {
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-card);
+  pointer-events: none;
+  font-size: var(--text-helper);
+  font-weight: 500;
+}
+
+.sw-drop-legal {
+  border: 2px solid var(--color-brand);
+  background: color-mix(in srgb, var(--color-brand-soft) 70%, transparent);
+  color: var(--color-brand-dark);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-brand) 18%, transparent), 0 0 24px color-mix(in srgb, var(--color-brand) 30%, transparent);
+}
+
+.sw-drop-illegal {
+  border: 2px dashed var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger-soft) 75%, transparent);
+  color: var(--color-danger-dark);
+}
+
+@keyframes sw-glow {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-brand) 16%, transparent);
+  }
+}
+
+.sw-ghost {
+  position: fixed;
+  z-index: 70;
+  max-width: 14rem;
+  overflow: hidden;
+  transform: translate(-50%, -140%);
+  border-radius: 999px;
+  background: var(--color-ink);
+  padding: 0.375rem 0.875rem;
+  color: var(--color-on-ink);
+  font-size: var(--text-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-sheet);
+}
+
+.sw-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  width: min(calc(100% - 2rem), 26rem);
+  align-items: center;
+  gap: 0.75rem;
+  transform: translateX(-50%);
+  border-radius: var(--radius-field);
+  background: var(--color-ink);
+  padding: 0.625rem 1rem;
+  color: var(--color-on-ink);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  box-shadow: var(--shadow-sheet);
+  animation: sw-fade-in 180ms ease-out;
+}
+
+.sw-toast-edit {
+  top: calc(4.25rem + env(safe-area-inset-top, 0px));
+  bottom: auto;
+}
+
+.sw-toast-action {
+  color: var(--color-on-ink);
+  font-weight: 500;
+}
+
+/* ---- 底部卡片抽屉 ---- */
+
+.sw-drawer {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  border-top-left-radius: var(--radius-sheet);
+  border-top-right-radius: var(--radius-sheet);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: var(--shadow-sheet);
+  transition: height 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sw-drawer-expanded {
+  height: min(48dvh, 27rem);
+}
+
+.sw-drawer-collapsed {
+  height: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.sw-drawer-handle {
+  display: flex;
+  width: 100%;
+  height: 1.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+}
+
+.sw-drawer-handle > span {
+  width: 2.25rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--color-line-strong);
+  opacity: 0.55;
+}
+
+.sw-drawer-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 1rem;
+  padding-top: 0.5rem;
+}
+
+.sw-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+@media (max-width: 22rem) {
+  .sw-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sw-tile {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.625rem;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.sw-tile:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-line));
+}
+
+.sw-draggable {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.sw-add-button {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+.sw-new-custom {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-field);
+  border: 1.5px dashed color-mix(in srgb, var(--color-brand) 55%, transparent);
+  color: var(--color-brand-dark);
+  font-size: var(--text-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-collapse,
+  .sw-drawer,
+  .sw-edit-tile,
+  .sw-page-dot,
+  .sw-chip,
+  .sw-pill {
+    transition: none;
+  }
+
+  .sw-filter-panel,
+  .sw-toast,
+  .sw-skeleton,
+  .sw-cell-target,
+  .sw-edit-pending {
+    animation: none;
+  }
+}
+
+.sw-icon-button-sm {
+  width: 1.75rem;
+  height: 1.75rem;
+}

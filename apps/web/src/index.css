@@ -2,6 +2,7 @@
 @import "./detail-motion.css";
 @import "./book-card.css";
 @import "./consent.css";
+@import "./statsWorkbench/statsWorkbench.css";
 
 /*
  * No rubber-banding on the ledger's scrolling region.

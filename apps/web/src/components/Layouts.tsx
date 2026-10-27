@@ -143,6 +143,7 @@ export function TabPage({
   rootRef,
   rootClassName = "",
   currentBookName,
+  bottom,
 }: {
   readonly active: string;
   readonly onNavigate: (to: string) => void;
@@ -157,8 +158,27 @@ export function TabPage({
   readonly rootRef?: React.RefObject<HTMLDivElement | null>;
   readonly rootClassName?: string;
   readonly currentBookName?: string | undefined;
+  /**
+   * ⚠️ **S17：只有分析工作台的布局编辑态会传它。** 编辑态下底部换成卡片抽屉（草图第三屏），
+   * 主导航暂时让位——既给抽屉留出空间，也避免在未保存的编辑中途误点到别的 Tab。
+   * 不传时（所有其它页面，以及分析页的浏览态）与以前完全一样。
+   */
+  readonly bottom?: React.ReactNode;
 }): React.JSX.Element {
   const menu = useEntryMenu();
+
+  if (bottom !== undefined) {
+    return (
+      <div ref={rootRef} className={`flex h-dvh flex-col overflow-hidden ${rootClassName}`}>
+        <SyncBanner />
+        <OfflineStatus />
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+          <div className={`mx-auto flex w-full max-w-md flex-col pb-6 ${className}`}>{children}</div>
+        </div>
+        {bottom}
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className={`flex h-dvh flex-col overflow-hidden ${rootClassName}`}>

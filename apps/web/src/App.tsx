@@ -60,6 +60,7 @@ import { AvatarPickerPage } from "./pages/AvatarPickerPage.js";
 import { LedgerSpacePage } from "./pages/LedgerSpacePage.js";
 import { StatsPage } from "./pages/StatsPage.js";
 import { AnalysisPreviewPage } from "./pages/AnalysisPreviewPage.js";
+import { StatsCardDetailPage } from "./pages/StatsCardDetailPage.js";
 import { RecoverPage } from "./pages/RecoverPage.js";
 import { RegisterPage } from "./pages/RegisterPage.js";
 import { LegalPage } from "./pages/LegalPage.js";
@@ -270,6 +271,15 @@ function AppRoutes(): React.JSX.Element {
         element={
           <RequireSession>
             <StatsPage />
+          </RequireSession>
+        }
+      />
+      {/* S17：分析工作台卡片实例详情（同一会话门槛；游客也可查看自己本机账本的分析）。 */}
+      <Route
+        path="/stats/cards/:objectId"
+        element={
+          <RequireSession>
+            <StatsCardDetailPage />
           </RequireSession>
         }
       />
