@@ -86,6 +86,245 @@ export type {
 } from "./stats.js";
 
 export {
+  TIME_CONTRACT_VERSION,
+  WEEK_START_DAY,
+  assertCalendarDate,
+  bucketKeyOf,
+  bucketSpanOf,
+  bucketStartOf,
+  bucketToInclusive,
+  classifyBucket,
+  dayKey,
+  daySpan,
+  daysInSpan,
+  enumerateBuckets,
+  isCalendarDate,
+  isSpanValid,
+  isoDayOfWeek,
+  isoWeekKey,
+  isoWeekOf,
+  monthKey,
+  monthSpan,
+  nextBucketStart,
+  parseTimeSpan,
+  spanContains,
+  spanFromInclusiveDates,
+  spanToInclusive,
+  weekSpan,
+} from "./timeCalendar.js";
+
+export type {
+  BucketContext,
+  BucketState,
+  InclusivePeriod,
+  TimeBucket,
+  TimeGranularity,
+  TimeSpan,
+} from "./timeCalendar.js";
+
+export {
+  FLOW_SERIES_VERSION,
+  TIME_SERIES_VERSION,
+  accumulateSeries,
+  computeFlowSeries,
+  computeTimeSeries,
+  isTimeSeriesOptionsValid,
+} from "./timeSeries.js";
+
+export type {
+  CountKind,
+  CumulativeBucketPoint,
+  CumulativeResult,
+  FlowSeriesBucketPoint,
+  FlowSeriesOptions,
+  FlowSeriesResult,
+  TimeSeriesBucketPoint,
+  TimeSeriesEntry,
+  TimeSeriesMetric,
+  TimeSeriesOptions,
+  TimeSeriesResult,
+  UnknownReason,
+} from "./timeSeries.js";
+
+export {
+  MOVING_AVERAGE_VERSION,
+  computeTrailingMovingAverage,
+  movingAverageSeries,
+} from "./movingAverage.js";
+
+export type {
+  MovingAverageGapReason,
+  MovingAverageOptions,
+  MovingAveragePoint,
+  MovingAverageResult,
+} from "./movingAverage.js";
+
+export {
+  DEFAULT_EXTREME_SIGMA,
+  EXTREME_SIGMA_SCALE,
+  VARIABILITY_VERSION,
+  computeDailyExpenseVariability,
+  computeIncomeStability,
+} from "./variability.js";
+
+export type {
+  AmountSummary,
+  CoefficientsOfVariation,
+  DailyExpenseVariability,
+  IncomeStability,
+  Ratio,
+  SqrtValue,
+  VariabilityMetric,
+  VariabilityOptions,
+  VarianceKind,
+} from "./variability.js";
+
+export {
+  ANALYSIS_METHOD,
+  ANOMALY_METHOD_STRINGS,
+  FROZEN_METHOD_ALIASES,
+  anomalyMethodString,
+  canonicalMethodString,
+} from "./analysisMethod.js";
+
+export type {
+  AnomalyMethodString,
+  CanonicalMethodString,
+} from "./analysisMethod.js";
+
+export {
+  SEASONAL_COMPARISON_VERSION,
+  computeSeasonalComparison,
+} from "./seasonal.js";
+
+export type {
+  SeasonalComparisonResult,
+  SeasonalDescriptiveReason,
+  SeasonalGranularity,
+  SeasonalMonthCell,
+  SeasonalOptions,
+  SeasonalQuarterCell,
+  SeasonalYear,
+} from "./seasonal.js";
+
+export {
+  ANOMALY_VERSION,
+  anomalyThresholdReference,
+  detectDailyExpenseAnomalies,
+} from "./anomaly.js";
+
+export type {
+  AnomalyBaseline,
+  AnomalyMark,
+  AnomalyMethod,
+  AnomalyOptions,
+  AnomalyParameters,
+  AnomalyResult,
+} from "./anomaly.js";
+
+export {
+  CATEGORY_SERIES_VERSION,
+  OTHER_CATEGORY_KEY,
+  computeCategorySeries,
+  computeCategoryShares,
+  isCategorySeriesOptionsValid,
+  isCompositionComplete,
+  topCategoriesByTotal,
+} from "./categorySeries.js";
+
+export type {
+  CategorySeriesBucket,
+  CategorySeriesEntry,
+  CategorySeriesOptions,
+  CategorySeriesPoint,
+  CategorySeriesResult,
+  CategoryShareBucket,
+  CategorySharePoint,
+  CategoryShareResult,
+  CategoryShareState,
+  CategoryUnknownReason,
+  ShareRatio,
+} from "./categorySeries.js";
+
+export {
+  WEEKDAY_MIN_SAMPLE_DAYS,
+  WEEKDAY_PATTERN_VERSION,
+  computeWeekdayPattern,
+  isWeekdayPatternOptionsValid,
+} from "./weekdayPattern.js";
+
+export type {
+  Weekday,
+  WeekdayAverage,
+  WeekdayPatternOptions,
+  WeekdayPatternResult,
+  WeekdayPoint,
+} from "./weekdayPattern.js";
+
+export {
+  CALENDAR_HEAT_LEVELS,
+  CALENDAR_HEATMAP_VERSION,
+  computeCalendarHeatmap,
+  isCalendarHeatmapOptionsValid,
+} from "./calendarHeatmap.js";
+
+export type {
+  CalendarDayCell,
+  CalendarHeatmapIntensity,
+  CalendarHeatmapOptions,
+  CalendarHeatmapResult,
+  CalendarMetric,
+  CalendarMonth,
+  CalendarWeek,
+} from "./calendarHeatmap.js";
+
+export {
+  PERIOD_COMPARISON_VERSION,
+  computePeriodComparison,
+  isComparisonRequestValid,
+  resolveComparison,
+} from "./periodComparison.js";
+
+export type {
+  ComparisonEntry,
+  ComparisonKind,
+  ComparisonMetric,
+  ComparisonMode,
+  ComparisonNote,
+  ComparisonOptions,
+  ComparisonRequest,
+  ComparisonResolution,
+  ComparisonResult,
+  GrowthResult,
+  GrowthUnavailableReason,
+  LeapDayFallback,
+  MonthToDatePolicy,
+  SideComparison,
+} from "./periodComparison.js";
+
+export {
+  MULTI_MONTH_COMPARISON_VERSION,
+  computeMultiMonthComparison,
+  daysInMonth,
+  isMonthKey,
+  isMultiMonthComparisonValid,
+  normalizeMonthKeys,
+} from "./multiMonthComparison.js";
+
+export type {
+  MonthComparisonNote,
+  MonthComparisonOptions,
+  MonthComparisonPoint,
+  MonthComparisonRequest,
+  MonthEntry,
+  MonthMetric,
+  MonthPointState,
+  MonthRankingEntry,
+  MonthUnavailableReason,
+  MultiMonthComparisonResult,
+} from "./multiMonthComparison.js";
+
+export {
   chineseNumeralToDigits,
   findChineseAmount,
   isNumeralChar,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { aggregateFxAsync, convertFx, decimalsFor, FxError, FxHistoryService, FxResultCache, fxHistoryOptionsFromEnv, type FxAggregate, type FxLookup, type Transaction, type TransactionListResponse } from "@libellum/shared";
+import { aggregateFxAsync, convertFx, decimalsFor, FxError, FxHistoryService, FxResultCache, fxHistoryOptionsFromEnv, fxRangeMonths, FX_MAX_RANGE_MONTHS, type FxAggregate, type FxLookup, type Transaction, type TransactionListResponse } from "@libellum/shared";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { apiFetch, ApiRequestError } from "./api.js";
 import { useCurrentBookId } from "./queries.js";
@@ -58,14 +58,9 @@ export function fxMoney(minor: string, currency: string): string {
   const whole = digits ? text.slice(0, -digits) : text;
   return `${negative ? "−" : ""}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${digits ? "." + text.slice(-digits) : ""} ${currency}`;
 }
-export function rangeMonths(from: string, to: string): string[] {
-  const result: string[] = [];
-  for (let month = from.slice(0, 7); month <= to.slice(0, 7);) {
-    result.push(month);
-    const date = new Date(`${month}-01T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() + 1); month = date.toISOString().slice(0, 7);
-    if (result.length > 14) throw new Error("fx_range_too_long");
-  }
-  return result;
+/** 月键枚举（S-01 v2 draft，B-S01v2-02）：默认上限 36（对齐 S-01 §17.1(a)），按月拆分请求。 */
+export function rangeMonths(from: string, to: string, maxMonths: number = FX_MAX_RANGE_MONTHS): string[] {
+  return fxRangeMonths(from, to, maxMonths);
 }
 /** 线性核对，避免数万笔时 receipt × 原件的双重扫描。 */
 export function fxMonthStored(rows: readonly Transaction[], stored: readonly Transaction[]): boolean {

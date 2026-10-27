@@ -97,6 +97,16 @@ const EXACT: ReadonlyMap<string, string> = new Map<string, string>([
     "“Most recorded day” counts income and expense together, so kind must be both or omitted",
   ],
   ["该指标必须指定 kind=income 或 kind=expense", "This metric requires kind=income or kind=expense"],
+  // ---- 时间合同（timeCalendar.ts） ----
+  ["时间区间不能为空", "The time range can’t be empty"],
+  ["不是该时间桶的起点", "That date isn’t the start of a time bucket"],
+
+  // ---- 时间序列（timeSeries.ts） ----
+  [
+    "金额必须是整数（以分为单位）",
+    "The amount must be a whole number in the currency’s smallest unit",
+  ],
+  ["金额超出可安全表示的整数范围", "The amount is more than can be represented exactly"],
 
   // ---- 导出与编号（export.ts、refs.ts） ----
   ["月份格式应为 YYYY-MM", "Enter the month as YYYY-MM"],

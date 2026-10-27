@@ -1,4 +1,4 @@
-import { decimalsFor, formatMinor } from "@libellum/shared";
+import { addDays, decimalsFor, formatMinor } from "@libellum/shared";
 
 import { currentLocale, isChineseLocale } from "../../i18n/index.js";
 
@@ -107,8 +107,7 @@ export function bucketLabel(bucket: string, kind: "day" | "month"): string {
 }
 
 /** A full date for a tooltip, where there is room to be unambiguous. */
-export function bucketFullLabel(bucket: string, kind: "day" | "month"): string {
-  if (kind === "month") {
+export function bucketFullLabel(bucket: string, kind: "day" | "month"): string {  if (kind === "month") {
     if (!isChineseLocale()) {
       const date = new Date(Number(bucket.slice(0, 4)), Number(bucket.slice(5, 7)) - 1, 1);
       return new Intl.DateTimeFormat(currentLocale(), { year: "numeric", month: "short" }).format(date);
@@ -117,4 +116,14 @@ export function bucketFullLabel(bucket: string, kind: "day" | "month"): string {
   }
 
   return `${bucket.slice(0, 4)}-${bucket.slice(5, 7)}-${bucket.slice(8, 10)}`;
+}
+
+/**
+ * 周的短标签：`10/26–11/1`。
+ *
+ * I08 要求周标签显示真实日期区间，而不是“第 44 周”——大多数人并不知道
+ * 第 44 周是哪几天。起止都复用日标签，因此中英文各自按当地习惯显示。
+ */
+export function weekBucketLabel(span: { readonly start: string; readonly end: string }): string {
+  return `${bucketLabel(span.start, "day")}–${bucketLabel(addDays(span.end, -1), "day")}`;
 }
