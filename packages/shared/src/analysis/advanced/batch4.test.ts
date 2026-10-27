@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { currencyCompositionOf } from "./currencyComposition.js";
 import type { DraftFxRateObservation, DraftFxRecord } from "./draftTypes.js";
 import {
+  FX_DRAFT_FALLBACK_UNAVAILABLE_NO_CONVERSION_NEEDED,
+  FX_DRAFT_FALLBACK_UNAVAILABLE_NO_TRANSACTIONS,
   FX_DRAFT_MAX_FALLBACK_DAYS,
   FX_DRAFT_RATE_DECIMALS,
   assertFxRecord,
@@ -346,7 +348,43 @@ describe("fxFallbackUsageOf · P20 回退使用", () => {
     expect(result.completeness).toBe("partial");
   });
 
-  it("空输入为 no-transactions", () => {
-    expect(fxFallbackUsageOf([], observations, "CNY").completeness).toBe("no-transactions");
+  it("空输入为 no-transactions，available=false 且原因码为 no-transactions", () => {
+    const result = fxFallbackUsageOf([], observations, "CNY");
+    expect(result.completeness).toBe("no-transactions");
+    expect(result.available).toBe(false);
+    expect(result.unavailableReason).toBe(FX_DRAFT_FALLBACK_UNAVAILABLE_NO_TRANSACTIONS);
+  });
+
+  it("G-28b：无折算需求时 available=false（no-conversion-needed），有折算需求时 available=true", () => {
+    const identityOnly = fxFallbackUsageOf(
+      [record("cny-identity", "CNY", 100n, "2026-10-05")],
+      observations,
+      "CNY",
+    );
+    expect(identityOnly.needsConversionCount).toBe(0);
+    expect(identityOnly.available).toBe(false);
+    expect(identityOnly.unavailableReason).toBe(
+      FX_DRAFT_FALLBACK_UNAVAILABLE_NO_CONVERSION_NEEDED,
+    );
+    expect(identityOnly.fallbackRecordCount).toBe(0);
+
+    const needed = fxFallbackUsageOf(
+      [record("usd-1", "USD", 100n, "2026-10-05")],
+      observations,
+      "CNY",
+    );
+    expect(needed.needsConversionCount).toBe(1);
+    expect(needed.available).toBe(true);
+    expect(needed.unavailableReason).toBeNull();
+  });
+
+  it("存在回退记录时 available=true 且不带有不可用原因", () => {
+    const result = fxFallbackUsageOf(
+      [record("usd-fallback", "USD", 100n, "2026-10-05")],
+      observations,
+      "CNY",
+    );
+    expect(result.available).toBe(true);
+    expect(result.unavailableReason).toBeNull();
   });
 });

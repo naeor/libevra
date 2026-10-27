@@ -753,6 +753,16 @@ export interface DraftFxFallbackResult {
   readonly providers: readonly { readonly provider: string; readonly count: number }[];
   readonly dates: readonly { readonly date: string; readonly count: number }[];
   readonly missingRateCount: number;
+  /**
+   * 本结果在给定输入下是否存在「折算需求」（`available === true` 才允许给出回退使用结论）。
+   *
+   * 冻结依据（`s01-v2`，G-28b；A `S17-Agent-A-S01-v2-结构草案.md` §5.1-8）：
+   * 无折算需求时 `available === false`，展示层不得显示「0 次回退」的可靠结论；
+   * 权威来源在本结果层，web 适配层只消费、不独立推导。
+   */
+  readonly available: boolean;
+  /** `available === false` 的机器可读原因码；可用时为 `null`。 */
+  readonly unavailableReason: string | null;
   readonly completeness: DraftFxCompleteness;
 }
 

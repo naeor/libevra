@@ -49,6 +49,18 @@ export const FX_DRAFT_MAX_TREND_DAYS = 400;
 /** 单次贡献结果最多回传的缺失记录条数（总数仍以 missingCount 为准）。 */
 export const FX_DRAFT_MAX_MISSING_RECORDS = 200;
 
+/**
+ * P20 `available === false` 的原因码（`s01-v2` 冻结，G-28b）：所选范围内没有任何交易，
+ * 回退使用分析不适用。
+ */
+export const FX_DRAFT_FALLBACK_UNAVAILABLE_NO_TRANSACTIONS = "no-transactions";
+
+/**
+ * P20 `available === false` 的原因码（`s01-v2` 冻结，G-28b）：所选范围内没有需要折算的
+ * 交易（全部已是目标币种），不得显示「0 次回退」的可靠结论。
+ */
+export const FX_DRAFT_FALLBACK_UNAVAILABLE_NO_CONVERSION_NEEDED = "no-conversion-needed";
+
 /** 金额覆盖率不可用的原因（P19 必须显式写出来，不能含糊）。 */
 export const FX_DRAFT_AMOUNT_COVERAGE_REASON =
   "首版只统计「记录覆盖率」；金额覆盖率需要以权威折算金额口径另行设计（owner 规格 §35），不在 C-4 草案内。";
@@ -892,8 +904,19 @@ export function fxFallbackUsageOf(
     .map(([date, count]) => ({ date, count }))
     .sort((left, right) => (left.date < right.date ? -1 : left.date > right.date ? 1 : 0));
 
+  // G-28b（`s01-v2` 冻结）：available/unavailableReason 由结果层权威给出，
+  // 无折算需求时不得让展示层把「零回退」当作可靠结论。
+  const available = needsConversionCount > 0;
+  const unavailableReason: string | null = available
+    ? null
+    : records.length === 0
+      ? FX_DRAFT_FALLBACK_UNAVAILABLE_NO_TRANSACTIONS
+      : FX_DRAFT_FALLBACK_UNAVAILABLE_NO_CONVERSION_NEEDED;
+
   return {
     targetCurrency: target,
+    available,
+    unavailableReason,
     fallbackRecordCount,
     needsConversionCount,
     maxFallbackDays: fallbackDaysDistribution.reduce(
