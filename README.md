@@ -33,7 +33,7 @@ required with a third party — just your own server and your own data.
 | Offline | **Recording, editing, deleting, reading history and statistics all work with no signal**; the queue drains by itself when the network returns, idempotently; two devices that changed the same entry get the non-conflicting fields merged and are asked only about the fields that really disagree |
 | Export / import | CSV / XLSX out, CSV back in, with `In-` / `Out-` traceable references |
 | Collaboration | Several ledgers per account, owner / editor / viewer, invites with an expiry and a seat count, book messages, share links |
-| Not built yet | Chinese-English switch, dark mode and theme-colour picker, public read-only demo account |
+| Not built yet | ~~Chinese-English switch, dark mode and theme-colour picker,~~ public read-only demo account (corrected 2026-10-27: language switch, dark mode and seven theme palettes have shipped; only the demo account remains) |
 
 ## How data stays traceable
 

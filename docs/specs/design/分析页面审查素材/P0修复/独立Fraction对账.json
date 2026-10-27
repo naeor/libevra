@@ -1,0 +1,22 @@
+[
+  {
+    "target": "USD",
+    "count": 60,
+    "expectedMinor": {
+      "income": 1097116,
+      "expense": 633256,
+      "net": 463860
+    },
+    "displayMatches": true
+  },
+  {
+    "target": "JPY",
+    "count": 60,
+    "expectedMinor": {
+      "income": 1595804,
+      "expense": 921090,
+      "net": 674714
+    },
+    "displayMatches": true
+  }
+]

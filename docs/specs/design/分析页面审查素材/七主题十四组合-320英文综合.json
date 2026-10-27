@@ -1,0 +1,100 @@
+[
+  {
+    "color": "Forest",
+    "mode": "light",
+    "background": "rgb(250, 252, 251)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Forest",
+    "mode": "dark",
+    "background": "rgb(23, 24, 26)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Honey",
+    "mode": "light",
+    "background": "rgb(250, 252, 251)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Honey",
+    "mode": "dark",
+    "background": "rgb(23, 24, 26)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Walnut",
+    "mode": "light",
+    "background": "rgb(250, 252, 251)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Walnut",
+    "mode": "dark",
+    "background": "rgb(23, 24, 26)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Mist",
+    "mode": "light",
+    "background": "rgb(250, 252, 251)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Mist",
+    "mode": "dark",
+    "background": "rgb(23, 24, 26)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Dusk",
+    "mode": "light",
+    "background": "rgb(250, 252, 251)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Dusk",
+    "mode": "dark",
+    "background": "rgb(23, 24, 26)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Ember",
+    "mode": "light",
+    "background": "rgb(250, 252, 251)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Ember",
+    "mode": "dark",
+    "background": "rgb(23, 24, 26)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Celadon",
+    "mode": "light",
+    "background": "rgb(250, 252, 251)",
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "color": "Celadon",
+    "mode": "dark",
+    "background": "rgb(23, 24, 26)",
+    "scrollWidth": 320,
+    "width": 320
+  }
+]

@@ -13,7 +13,7 @@
 | 项目 | **Libevra**（原名 Libellum，2026-10-14 更名）—— **离线优先**的个人/家庭记账程序 |
 | 技术栈 | React 19 + Vite 8 + Tailwind 4（web）；Fastify 5 + Prisma 7 + PostgreSQL 17（api）；OCR/语音是 Python sidecar |
 | 线上 | <https://libevra.com>（**生产源码靠 `git archive` 上传，不是 git clone**） |
-| 工作区 | `C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1`（**唯一**工作区，单分支 `s14-integration`） |
+| 工作区 | 主工作区 `C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1`；各任务另有并列 worktree `记账程序v1-<主题>-<日期>`（分支名不固定，以 `git worktree list` 与 STATUS「分支 / 远程」「工作区」两行为准；旧写法“唯一工作区、单分支 `s14-integration`”已于 2026-10-26 核对为过时） |
 | 语言 | 所有回复、文档、提交信息用**中文** |
 | 当前状态 | **不要在这里找——读 [`docs/STATUS.md`](docs/STATUS.md)** |
 
@@ -45,8 +45,10 @@
 | 更新公告／重大公告／账号注销 | [`specs/features/`](docs/specs/features/) 对应设计决定 |
 | 账本导入（含撤销/锁） | [`specs/features/S14-D-账本导入-设计草案.md`](docs/specs/features/S14-D-账本导入-设计草案.md) §13A–§13E |
 | OCR 多笔／概览页面 | [`specs/features/S15-B-OCR多笔交易与概览页面-设计方向.md`](docs/specs/features/S15-B-OCR多笔交易与概览页面-设计方向.md) |
+| 分析页面／统计图表／分析工作台（S17） | [`specs/product/S17-模块化财务分析工作台-总需求规格.md`](docs/specs/product/S17-模块化财务分析工作台-总需求规格.md)（数据原则 ACC-01…15、六层架构）；汇率折算另读 [`S16-D`](docs/specs/features/S16-D-历史汇率与折算基础设施.md) |
+| S18-B 跨设备自适应布局 / 交互（宽屏导航、绿色加号、响应式页面） | [`specs/design/S18-B-跨设备自适应布局与交互-设计讨论记录-20261027.md`](docs/specs/design/S18-B-跨设备自适应布局与交互-设计讨论记录-20261027.md)（**§8 所有者草图确认门禁**）+ [`specs/product/S17-S18-新路线图.md`](docs/specs/product/S17-S18-新路线图.md) §4.3（任务编号、设备矩阵与验收） |
 | 部署／发布／备份／灾备 | [`docs/03-运维手册.md`](docs/03-运维手册.md) + [`ops/`](docs/ops/) |
-| 判断某功能做没做 | [`changelog/`](docs/changelog/)（1.14 现行 / 1.10-1.13 冻结） |
+| 判断某功能做没做 | [`changelog/`](docs/changelog/)（1.14 现行 / 1.10-1.13 冻结）【2026-10-27 更正：现行版本记录是 [`changelog/1.16.md`](docs/changelog/1.16.md)（含 1.16.22）；1.10–1.14 均已冻结，1.15 为上一系列；[`changelog/1.17.md`](docs/changelog/1.17.md) 记本地候选 1.17.3 / 1.17.4（未发布生产）】 |
 | 追问"为什么当初这么定" | [`adr/README.md`](docs/adr/README.md) → ADR 正文 |
 | 查一段历史 | [`archive/`](docs/archive/README.md)（**历史，不要照着做**） |
 
@@ -70,7 +72,7 @@
 
 > 所有者原话：**"我们现在做的所有改动，在由 agent 自己判断并检查完有没有问题之后，默认是直接同步到 localhost 界面的……但是所有的这些改动在得到我的明确指令之前，不能同步到服务器上。"**
 
-- **本地默认同步**：Agent 自检 + Lead 独立复核通过后，改动**默认合并到本机主工作区**（`记账程序v1`，分支 `s14-integration`），所有者在 `localhost` 页面直接看到；**不需要每次询问**。
+- **本地默认同步**：Agent 自检 + Lead 独立复核通过后，改动**默认合并到本机主工作区**（`记账程序v1`；当前分支名见 STATUS，不再固定为 `s14-integration`），所有者在 `localhost` 页面直接看到；**不需要每次询问**。
 - **远端必须当次批准**：GitHub（push / PR / tag）、生产服务器（部署 / SSH / 写数据）、任何外部服务，一律按 §4 执行——未获**当次**明确批准，不动。
 - **合并由 Lead 统一执行**：Agent 只提交自己的分支 + 交接报告；Lead 复核后合并进主工作区，避免多个 Agent 同时改主工作区。
 - **合并前留快照**：把分支合进 localhost 前，先建本地 tag/branch 快照；所有者一句话即可回滚到上一版。
@@ -92,7 +94,7 @@
 
 | 规矩 | 为什么 |
 |---|---|
-| 用户可见改动 → 升版本号 + `changelog/1.14.md` 一条（改了什么/为什么/怎么验证） | 版本号是区分构建的唯一手段 |
+| 用户可见改动 → 升版本号 + `changelog/1.14.md` 一条（改了什么/为什么/怎么验证）【2026-10-27 更正：现行文件是 `changelog/1.16.md`，`1.14.md` 已冻结只读】 | 版本号是区分构建的唯一手段 |
 | **`pnpm check:build` 不能省** | typecheck 与测试拦不住"整个应用起不来"（发生过） |
 | 改完 grep 验证真的落地了 | 写过但没接线（`lessons.md` §8.1） |
 | **不许用 shell 做 UTF-8 源码字符串替换** | 本项目因此出过两次事故 |
@@ -124,13 +126,13 @@ README.md / README.zh-CN.md ← 对外介绍
 docs/
 ├─ STATUS.md               ★ 唯一"当前状态"
 ├─ 00-索引.md                索引与阅读顺序
-├─ 01-规划.md                路线图 + 待办（S15–S17 现行；S0–S14 只留索引表）
+├─ 01-规划.md                路线图 + 待办（S15–S19 现行；S0–S14 只留索引表）
 ├─ 02-技术方案.md             架构/数据库/API
 ├─ 03-运维手册.md             生产运维（含日常速查与零基础入门）
 ├─ 04-交接.md                怎么跑 / 代码结构 / 协作方式
 ├─ specs/design|product|features/   当前生效规格（改相关代码前必读）
 ├─ ops/                    备份/发布/灾备规格
-├─ changelog/              版本记录（1.14 现行 + 1.10-1.13 冻结）
+├─ changelog/              版本记录（1.14 现行 + 1.10-1.13 冻结；【2026-10-27 更正：现行为 1.16，1.10–1.14 冻结】）
 ├─ adr/                    决策记录索引
 ├─ lessons.md              教训（只留硬规则 + 索引）
 ├─ 阅读版/                 生成物（PDF），AI 不读
