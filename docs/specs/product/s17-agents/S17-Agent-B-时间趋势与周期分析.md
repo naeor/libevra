@@ -305,6 +305,7 @@
 | v2.0.1 澄清对齐（2026-10-27） | 协议草案 §23.2（重写）/§23.4（decimalText）/§23.5（新） | 冻结 method 字面量逐字、内部 id 不外泄、`type7-linear` 不冒充、`decimalText` 不强制（若提供 `decimals=6` 一次 half-away）；三层结构记录 + 本批修正依据（Lead m05439、A `492b1b6`/`6f72f9f`） |
 | s01-v2 协议映射（2026-10-27） | 协议草案 §4.2（G-27 一行）、§23（新） | §4.2 补 C `partial` 仅 FX 不完整 → `unavailable`/`fx-incomplete`、非 FX 按自身原因、P16 三态不引入 `partial`；§23 记录 23.1 σ/CV 表、23.2 method 串与别名表、23.3 G-27 指针、23.4 本批未做 |
 | s01-v2 归类登记（2026-10-27） | `apps/web/src/i18n/sharedMessages.test.ts` | `FULL_FILES` 加 `analysisMethod.ts`（仅注释中文，扫描器跳过注释，无需新译文） |
+| 移动平均卡接口说明（2026-10-27，给 Claude 前端适配层） | `docs/specs/product/s17-agents/S17-Agent-B-移动平均卡接口说明-20261027.md`（新，只读文档） | 卡片 props 表 + DOM 契约、`deriveMovingAverage` 输入输出与 8 条不变式、`useMovingAverage` 数据源/查询键、冻结契约 vs UI 投影、3 个真实数据示例（来源 `s4b.analysisData.test.ts`）、最小集成验收挂载点与检查清单、明确不做 FX/不重算/不改 DOM 契约；**不改代码/形状/API** |
 
 **环境说明（本地验证）**：本 worktree 首次使用需 `pnpm install --offline`（本地 pnpm store 已具备依赖）；Prisma 7 的 `prisma.config.ts` 要求 `DATABASE_URL` 环境变量存在，生成客户端用 `DATABASE_URL=postgresql://... pnpm db:generate`（生成不连库，生成物 `apps/api/src/generated/prisma/**` 被 gitignore）。API 集成测试需要根目录 `.env` 的 `TEST_DATABASE_URL`（测试库名必须含 `test`，见 `apps/api/test/setup.ts` 的守卫）；本工作区 `.env` 为本地开发文件，**不入库**。Windows 下若 PowerShell 执行策略拦截 `pnpm.ps1`，改用 `$pnpm = Join-Path $env:APPDATA "npm\pnpm.cmd"; & $pnpm ...`。API 集成测试当前 611/612：唯一失败是本地测试库迁移落后 1.16.22 基线（`profile` 头像用例），与本分支改动无关，1.16.23 发布后统一 rebase 再跑（Lead 已确认）。
 
