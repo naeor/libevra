@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { TransactionListResponse } from "@libellum/shared";
+import { collectMonthPages, type PageOfEntries } from "./fillCoverage.js";
 
 /**
  * ⚠️ **The test that found the defect behind "下载全部点了没有反应".**
@@ -19,7 +19,9 @@ import type { TransactionListResponse } from "@libellum/shared";
  * would have been silently short, and — worse — a month ever cached with only a first
  * page could never be completed, because every later run saw "data exists" and stopped.
  *
- * The loop below is the one the fill now runs, written out so the behaviour is pinned.
+ * This file used to **copy** the loop; it now calls the shipped collector, so the test
+ * fails if the two diverge again. The boundary numbers live in
+ * `fillCoverage.test.ts`; this file pins the pagination behaviour itself.
  */
 describe("filling one month", () => {
   interface Page {
@@ -28,7 +30,7 @@ describe("filling one month", () => {
   }
 
   /** A fake API that behaves like the real one: a cursor until the month runs out. */
-  function fakeApi(total: number, pageSize: number) {
+  function fakeApi(total: number, pageSize = 100) {
     const calls: (string | undefined)[] = [];
 
     const fetchPage = async (cursor: string | undefined): Promise<Page> => {
@@ -46,44 +48,25 @@ describe("filling one month", () => {
     return { fetchPage, calls };
   }
 
-  /** The fill's loop, verbatim in shape. */
-  async function fillMonth(
-    fetchPage: (cursor: string | undefined) => Promise<Page>,
-    maxPages: number,
-  ): Promise<readonly Page[]> {
-    const pages: Page[] = [];
-    let cursor: string | undefined;
-
-    for (let page = 0; page < maxPages; page += 1) {
-      const fetched = await fetchPage(cursor);
-      pages.push(fetched);
-
-      if (fetched.nextCursor === null) break;
-
-      cursor = fetched.nextCursor;
-    }
-
-    return pages;
-  }
-
   it("fetches every page, not just the first", async () => {
     // 161 entries at 100 a page: two requests, and the second is the one the old
     // implementation never made.
-    const api = fakeApi(161, 100);
+    const api = fakeApi(161);
 
-    const pages = await fillMonth(api.fetchPage, 40);
+    const collected = await collectMonthPages<Page["items"][number]>(api.fetchPage);
 
-    expect(pages).toHaveLength(2);
-    expect(pages.flatMap((page) => page.items)).toHaveLength(161);
+    expect(collected.pages).toHaveLength(2);
+    expect(collected.entries).toBe(161);
+    expect(collected.complete).toBe(true);
     expect(api.calls).toEqual([undefined, "100"]);
   });
 
   it("stops after one request when the month fits", async () => {
-    const api = fakeApi(20, 100);
+    const api = fakeApi(20);
 
-    const pages = await fillMonth(api.fetchPage, 40);
+    const collected = await collectMonthPages<Page["items"][number]>(api.fetchPage);
 
-    expect(pages).toHaveLength(1);
+    expect(collected.pages).toHaveLength(1);
     expect(api.calls).toEqual([undefined]);
   });
 
@@ -91,59 +74,52 @@ describe("filling one month", () => {
     // A month nobody spent anything in is still a month that has been downloaded, and
     // it must cost one request rather than none — otherwise the download manager
     // cannot tell it apart from a month never fetched.
-    const api = fakeApi(0, 100);
+    const api = fakeApi(0);
 
-    const pages = await fillMonth(api.fetchPage, 40);
+    const collected = await collectMonthPages<Page["items"][number]>(api.fetchPage);
 
-    expect(pages).toHaveLength(1);
-    expect(pages[0]?.nextCursor).toBeNull();
+    expect(collected.pages).toHaveLength(1);
+    expect(collected.pages[0]?.nextCursor).toBeNull();
   });
 
-  it("stops at the page cap even if the server keeps offering a cursor", async () => {
+  it("stops at the page cap and says the month is incomplete", async () => {
     // A guard, not a calculation: the only thing it protects against is a server that
-    // never stops, which would otherwise spin for ever on somebody's phone.
+    // never stops, which would otherwise spin for ever on somebody's phone. The
+    // difference from the old code is the `complete: false` — that is what keeps the
+    // short month out of the local ledger.
     const calls: (string | undefined)[] = [];
     const neverEnds = async (cursor: string | undefined): Promise<Page> => {
       calls.push(cursor);
       return { items: [{ id: "x" }], nextCursor: String(calls.length) };
     };
 
-    const pages = await fillMonth(neverEnds, 3);
+    const collected = await collectMonthPages<Page["items"][number]>(neverEnds, { maxPages: 3 });
 
-    expect(pages).toHaveLength(3);
+    expect(collected.pages).toHaveLength(3);
+    expect(collected.complete).toBe(false);
     expect(calls).toHaveLength(3);
   });
 
-  it("⚠️ treats a finished month as finished and a partial one as not", () => {
+  it("⚠️ treats a finished month as finished and a partial one as not", async () => {
     // The rule that decides whether to fetch at all. `fetchInfiniteQuery` — and any
     // "is it cached" check — resolves immediately when *some* data exists, so a month
     // ever cached with one page stayed half-downloaded for ever without this.
-    const finished = { pages: [{ items: [], nextCursor: null }] };
-    const partial = { pages: [{ items: [], nextCursor: "100" }] };
+    const finished = await collectMonthPages<Page["items"][number]>(fakeApi(20).fetchPage);
+    const partial = await collectMonthPages<Page["items"][number]>(fakeApi(200).fetchPage, { maxPages: 1 });
 
-    const isComplete = (cached: { readonly pages?: readonly Page[] }): boolean =>
-      cached.pages !== undefined &&
-      cached.pages.length > 0 &&
-      cached.pages[cached.pages.length - 1]?.nextCursor === null;
-
-    expect(isComplete(finished)).toBe(true);
-    expect(isComplete(partial)).toBe(false);
-    expect(isComplete({})).toBe(false);
-    expect(isComplete({ pages: [] })).toBe(false);
+    expect(finished.complete).toBe(true);
+    expect(partial.complete).toBe(false);
   });
 
   it("keeps the assembled value in the shape the screen reads", async () => {
     // `{ pages, pageParams }` is what `useInfiniteQuery` expects. A plain array under
     // the same key would leave the screen finding data it cannot read.
-    const api = fakeApi(150, 100);
-    const pages = await fillMonth(api.fetchPage, 40);
+    const api = fakeApi(150);
+    const collected = await collectMonthPages<Page["items"][number]>(api.fetchPage);
 
-    const cached = { pages, pageParams: pages.map(() => undefined as string | undefined) };
+    const cached = { pages: collected.pages, pageParams: collected.pages.map(() => undefined as string | undefined) };
 
     expect(Array.isArray(cached.pages)).toBe(true);
-    expect(cached.pages.flatMap((page) => page.items)).toHaveLength(150);
+    expect(cached.pages.flatMap((page: PageOfEntries<Page["items"][number]>) => page.items)).toHaveLength(150);
   });
 });
-
-/** Unused type import kept meaningful: the fill's pages are list responses. */
-type _AssertShape = TransactionListResponse;

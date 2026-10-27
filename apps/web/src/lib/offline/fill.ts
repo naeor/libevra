@@ -1,4 +1,4 @@
-import type { TransactionListResponse } from "@libellum/shared";
+import type { Transaction, TransactionListResponse } from "@libellum/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -6,6 +6,13 @@ import { apiFetch } from "../api.js";
 import { queryKeys, transactionFilters } from "../queries.js";
 import { logOffline } from "./diagnostics.js";
 import { readNeverMonths } from "./downloadManager.js";
+import {
+  collectMonthPages,
+  FILL_MONTH_ENTRY_LIMIT,
+  FILL_PAGE_SIZE,
+  readPartialMonths,
+  recordPartialMonth,
+} from "./fillCoverage.js";
 import { storeMonth } from "./localLedger.js";
 import { offlineScope, scopedKey } from "./scope.js";
 
@@ -107,30 +114,16 @@ export function isMeteredConnection(): boolean {
 }
 
 /**
- * How many entries to ask for per request.
+ * The page size and the per-month ceiling live in `fillCoverage.ts`.
  *
- * ⚠️ **Not the screen's default of 50, and this is not a tuning choice.**
- *
- * Measured against the real ledger: October 2026 holds **61 entries**, and the
- * default page returns the first 50 with a cursor for the rest. So filling a month
- * with the default limit would have left eleven entries on the server — offline,
- * the month would simply be short, with a subtotal that did not add up and nothing
- * to say so. **A quietly incomplete ledger is the worst failure this feature can
- * have**, because the user's whole reason for keeping one is that it is right.
- *
- * The API's own ceiling, so a month is usually one request and never more than a
- * few.
+ * ⚠️ **They moved because "how many pages to ask for" and "is the month complete" are
+ * the same question.** The old guard here was `MAX_FILL_PAGES = 40` — forty pages of a
+ * hundred entries, so four thousand a month — and when a month had more, the loop simply
+ * ended and wrote those four thousand as if they were the month. That is the quietest
+ * possible way to be short of money in a ledger. The ceiling and the completion answer
+ * are now defined together, and hitting the ceiling is recorded instead of being called
+ * success.
  */
-const FILL_PAGE_SIZE = 100;
-
-/**
- * How many pages one month may need.
- *
- * A guard rather than a calculation: a month is a few pages at the API's ceiling, and
- * the only thing this protects against is a server that keeps offering a cursor and
- * would otherwise spin for ever on somebody's phone.
- */
-const MAX_FILL_PAGES = 40;
 
 /** 下载提前停下的原因：`partial` = 出错但已取回一部分（有 Error）；`interrupted` = 其它中断。 */
 export type OfflineFillStop = "partial" | "interrupted";
@@ -280,6 +273,17 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
        */
       const never = await readNeverMonths();
 
+      /**
+       * ⚠️ **Months already known to be over the ceiling are not retried automatically.**
+       *
+       * A month that hit the limit last time will hit it again — it is the same data and
+       * the same ceiling — so retrying on every launch would spend five hundred requests
+       * to learn nothing. The record from the last attempt is the reason to stand down;
+       * a manual "下载全部" (`force`) still goes through, because somebody pressing the
+       * button is asking for a fresh attempt.
+       */
+      const partialMonths = await readPartialMonths();
+
       let finished = 0;
 
       try {
@@ -309,6 +313,15 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
          */
         const filters = transactionFilters({ month });
         const key = queryKeys.transactions(filters);
+
+        const partial = partialMonths[month];
+
+        if (!refresh && partial !== undefined && partial.entries >= partial.limit) {
+          await logOffline("跳过（未完整且已到单月上限）", month); // i18n-ignore：诊断日志
+          finished += 1;
+          setDone(finished);
+          continue;
+        }
 
         /**
          * ⚠️ **The month is fetched page by page, in a loop of our own.**
@@ -355,54 +368,83 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
             queryClient.removeQueries({ queryKey: key, exact: true });
           }
 
-          const pages: TransactionListResponse[] = [];
-          let cursor: string | undefined;
-
-          for (let page = 0; page < MAX_FILL_PAGES; page += 1) {
-            const fetched = await apiFetch<TransactionListResponse>("/transactions", {
-              bookId,
-              query: { ...filters, limit: FILL_PAGE_SIZE, cursor },
-            });
-
-            if (scopedKey("ledger-months") !== context) return;
-            pages.push(fetched);
-
-            /**
-             * Written after **each** request, in the `{ pages, pageParams }` shape the
-             * screen reads. Two reasons: an interrupted fill keeps what it did get, so
-             * the next launch continues rather than starting over; and the screen can
-             * read a half-finished month rather than finding nothing.
-             */
-            queryClient.setQueryData(key, {
-              pages: [...pages],
-              pageParams: pages.map(() => cursor),
-            });
-
-            if (fetched.nextCursor === null) break;
-
-            cursor = fetched.nextCursor;
-          }
-
           /**
-           * ⚠️ **And written to our own store, which nothing else can decide to drop.**
+           * ⚠️ **Pages are collected by a function that also answers "is the month complete".**
            *
-           * This is the point of the whole exercise, and the owner said it plainly: "数据保存到本地，
-           * 然后它就可以直接拿这些本地的数据去计算去显示，毕竟我用电脑直接调一个本地的文件可没出现过
-           * 这么多问题."
-           *
-           * `setQueryData` above puts the month where the *screens* can read it; the query cache is a
-           * view of memory, and the persistence layer rewrites it wholesale — which is how sixty
-           * downloaded months became six. **This writes the same entries to a plain month-keyed map that
-           * is only ever added to.** No expiry, no eviction, no dehydrate/hydrate, no throttled
-           * whole-file rewrite.
-           *
-           * ⚠️ **Written once per month, after its last page** — so a month is stored complete or not
-           * stored at all, and an interrupted download never leaves a half-month that would look
-           * finished next time.
+           * The loop that used to live here stopped after `MAX_FILL_PAGES` and then wrote
+           * whatever it had, as if that were the whole month — so a month with more entries
+           * was silently short on this device, and the next launch repeated the same
+           * forty pages for ever. The completion answer now comes from the last page
+           * saying there is no next cursor; reaching the ceiling is a different outcome,
+           * with its own record and its own sentence on screen.
            */
-          await storeMonth(month, pages.flatMap((page) => page.items));
+          const collected = await collectMonthPages<Transaction>(
+            (cursor) =>
+              apiFetch<TransactionListResponse>("/transactions", {
+                bookId,
+                query: { ...filters, limit: FILL_PAGE_SIZE, cursor },
+              }),
+            {
+              shouldStop: () => scopedKey("ledger-months") !== context,
+              /**
+               * Written after **each** request, in the `{ pages, pageParams }` shape the
+               * screen reads. Two reasons: an interrupted fill keeps what it did get, so
+               * the next launch continues rather than starting over; and the screen can
+               * read a half-finished month rather than finding nothing.
+               */
+              onPage: (pagesSoFar) => {
+                queryClient.setQueryData(key, {
+                  pages: [...pagesSoFar],
+                  pageParams: pagesSoFar.map((_, index) =>
+                    index === 0 ? undefined : (pagesSoFar[index - 1]?.nextCursor ?? undefined),
+                  ),
+                });
+              },
+            },
+          );
 
-          await logOffline("取回", `${month}：${pages.length} 页 / ${pages.reduce((n, page) => n + page.items.length, 0)} 条`); // i18n-ignore：诊断日志
+          if (scopedKey("ledger-months") !== context) return;
+
+          if (collected.complete) {
+            /**
+             * ⚠️ **And written to our own store, which nothing else can decide to drop.**
+             *
+             * This is the point of the whole exercise, and the owner said it plainly: "数据保存到本地，
+             * 然后它就可以直接拿这些本地的数据去计算去显示，毕竟我用电脑直接调一个本地的文件可没出现过
+             * 这么多问题."
+             *
+             * `setQueryData` above puts the month where the *screens* can read it; the query cache is a
+             * view of memory, and the persistence layer rewrites it wholesale — which is how sixty
+             * downloaded months became six. **This writes the same entries to a plain month-keyed map that
+             * is only ever added to.** No expiry, no eviction, no dehydrate/hydrate, no throttled
+             * whole-file rewrite.
+             *
+             * ⚠️ **Written once per month, after its last page** — so a month is stored complete or not
+             * stored at all, and an interrupted download never leaves a half-month that would look
+             * finished next time.
+             */
+            await storeMonth(month, collected.pages.flatMap((page) => page.items));
+
+            await logOffline("取回", `${month}：${collected.pages.length} 页 / ${collected.entries} 条`); // i18n-ignore：诊断日志
+          } else {
+            /**
+             * ⚠️ **A truncated month is not a downloaded month.**
+             *
+             * The entries stay in the query cache (so an online screen can still read what
+             * was fetched), but they are **not** written to the authoritative local ledger:
+             * a local ledger is what offline statistics read, and half a month there is
+             * exactly the "页面正常但金额少算" failure this round exists to prevent.
+             *
+             * The record is what lets the download manager and the offline strip say
+             * "this month is incomplete" instead of showing a green tick.
+             */
+            await recordPartialMonth(month, collected.entries);
+
+            await logOffline(
+              "停止（单月上限）", // i18n-ignore：诊断日志
+              `${month}：已取回 ${collected.entries} 条，达到上限 ${FILL_MONTH_ENTRY_LIMIT} 条，未写入本地账本`,
+            );
+          }
         }
 
         finished += 1;

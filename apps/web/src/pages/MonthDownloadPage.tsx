@@ -8,6 +8,12 @@ import { InnerPage } from "../components/Layouts.js";
 import { useI18n } from "../i18n/index.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import {
+  FILL_MONTH_ENTRY_LIMIT,
+  forgetPartialMonth,
+  readPartialMonths,
+  type PartialMonth,
+} from "../lib/offline/fillCoverage.js";
+import {
   bytesForMonth,
   forgetMonth,
   monthLabel,
@@ -46,6 +52,8 @@ export function MonthDownloadPage(): React.JSX.Element {
   const [stored, setStored] = useState(false);
   const [entryCount, setEntryCount] = useState(0);
   const [bytes, setBytes] = useState(0);
+  /** 这个月是否触到单月读取上限、没取完（见 `fillCoverage.ts`）。 */
+  const [partial, setPartial] = useState<PartialMonth | null>(null);
   const [never, setNever] = useState(false);
   const [usage, setUsage] = useState<number | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
@@ -60,15 +68,23 @@ export function MonthDownloadPage(): React.JSX.Element {
     setLoading(true);
 
     try {
-      const [transactions, storedSet, neverList, report] = await Promise.all([
+      const [transactions, storedSet, neverList, report, partials] = await Promise.all([
         readLocalTransactions(),
         Promise.resolve(storedMonthsIn(queryClient)),
         readNeverMonths(),
         storageReport(),
+        readPartialMonths(),
       ]);
 
+      const record = partials[month] ?? null;
+
       setStored(storedSet.has(month));
-      setEntryCount(transactions.filter((entry) => entry.occurredLocalDate.slice(0, 7) === month).length);
+      setPartial(record);
+      setEntryCount(
+        record === null
+          ? transactions.filter((entry) => entry.occurredLocalDate.slice(0, 7) === month).length
+          : record.entries,
+      );
       setBytes(bytesForMonth(transactions, month));
       setNever(neverList.includes(month));
       setUsage(report.usageBytes);
@@ -105,12 +121,30 @@ export function MonthDownloadPage(): React.JSX.Element {
       */}
       {persisted === false ? <Alert tone="info">{t("offline.downloads.notPersisted")}</Alert> : null}
 
+      {/*
+        ⚠️ **「没取完」必须在这页说清楚，而不是显示成「已下载」。**
+
+        这是这个月自己的事实：触到单月读取上限，本地没有写入完整的一个月。离线统计因此
+        不含它——说清楚原因，比让用户对着一个缺失的月份猜要诚实得多。
+      */}
+      {partial === null ? null : (
+        <Alert tone="info">
+          {t("offline.month.partialNotice", { count: partial.entries, limit: partial.limit })}
+        </Alert>
+      )}
+
       {/* 标签 + 值：标签 `min-w-0` 可换行，值不换行（英文标签更长）。 */}
       <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-4 text-sm">
         <div className="flex items-baseline justify-between gap-3">
           <span className="min-w-0 text-muted">{t("offline.month.status")}</span>
           <span className="shrink-0 text-ink">
-            {loading ? t("offline.month.loading") : stored ? t("offline.month.stored") : t("offline.month.missing")}
+            {loading
+              ? t("offline.month.loading")
+              : partial !== null
+                ? t("offline.month.partial")
+                : stored
+                  ? t("offline.month.stored")
+                  : t("offline.month.missing")}
           </span>
         </div>
 
@@ -122,7 +156,13 @@ export function MonthDownloadPage(): React.JSX.Element {
         <div className="flex items-baseline justify-between gap-3">
           <span className="min-w-0 text-muted">{t("offline.month.size")}</span>
           <span className="shrink-0 text-ink">
-            {loading ? "…" : stored ? formatBytes(bytes) : t("offline.month.estimate", { size: formatBytes(bytes) })}
+            {loading
+              ? "…"
+              : partial !== null
+                ? "…"
+                : stored
+                  ? formatBytes(bytes)
+                  : t("offline.month.estimate", { size: formatBytes(bytes) })}
           </span>
         </div>
 
@@ -172,7 +212,15 @@ export function MonthDownloadPage(): React.JSX.Element {
             disabled={working || running}
             onClick={() => {
               setWorking(true);
-              void Promise.resolve(forgetMonth(queryClient, month))
+              /**
+               * ⚠️ **The "not finished" record goes with the month.**
+               *
+               * Deleting the downloaded copy of a month removes the reason the download
+               * manager says it is incomplete. Leaving the record behind would make the
+               * next automatic fill skip a month that has nothing on this device any more.
+               */
+              void forgetPartialMonth(month)
+                .then(() => Promise.resolve(forgetMonth(queryClient, month)))
                 .then(() => load())
                 .finally(() => {
                   setWorking(false);
@@ -207,7 +255,11 @@ export function MonthDownloadPage(): React.JSX.Element {
         )}
 
         <p className="text-helper-relaxed text-muted">
-          {stored ? t("offline.month.deleteHint") : t("offline.month.downloadHint")}
+          {partial !== null
+            ? t("offline.month.partialHint", { limit: FILL_MONTH_ENTRY_LIMIT })
+            : stored
+              ? t("offline.month.deleteHint")
+              : t("offline.month.downloadHint")}
         </p>
       </section>
 

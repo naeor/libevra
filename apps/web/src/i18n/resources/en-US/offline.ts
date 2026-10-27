@@ -19,6 +19,8 @@ const offline: Messages<typeof zh> = {
       "This device has {{count}} entry (stored {{stored}} / query cache {{disk}} / memory {{live}}). It will sync automatically once you’re online.",
     localCounts_other:
       "This device has {{count}} entries (stored {{stored}} / query cache {{disk}} / memory {{live}}). They’ll sync automatically once you’re online.",
+    partialMonths:
+      "{{count}} month(s) on this device weren’t fully downloaded (over the temporary {{limit}} entries-a-month limit). Offline totals don’t include them.",
   },
   banner: {
     sharedReadOnly:
@@ -99,6 +101,9 @@ const offline: Messages<typeof zh> = {
     rowStored_other: "Downloaded · {{count}} entries · {{size}}",
     rowNever: "Never download",
     rowMissing: "Not downloaded · about {{size}}",
+    rowPartial: "Incomplete · {{count}} entries (limit {{limit}})",
+    partialNotice:
+      "{{count}} month(s) have more than {{limit}} entries, the temporary per-month limit for this device, so only part was downloaded. Those months aren’t written to the local ledger, and offline totals will show as incomplete.",
   },
   month: {
     subtitle: "Offline storage settings for this month.",
@@ -106,6 +111,11 @@ const offline: Messages<typeof zh> = {
     loading: "Loading…",
     stored: "Downloaded",
     missing: "Not downloaded",
+    partial: "Incomplete",
+    partialNotice:
+      "This month has more than {{limit}} entries, the temporary per-month limit for this device, so only {{count}} were downloaded. To avoid undercounting, it isn’t written to the local ledger and offline totals leave it out.",
+    partialHint:
+      "The per-month limit ({{limit}} entries) is a temporary boundary of what this device reads at once. Viewing the whole month offline needs the long-term paging plan.",
     entries: "Entries this month",
     size: "Space used",
     estimate: "About {{size}}",

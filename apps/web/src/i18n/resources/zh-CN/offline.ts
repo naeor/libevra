@@ -20,6 +20,7 @@ const offline = {
       "本机共有 {{count}} 条记录（本机存储 {{stored}} 条 / 查询缓存 {{disk}} 条 / 内存 {{live}} 条）。联网后会自动同步。",
     localCounts_other:
       "本机共有 {{count}} 条记录（本机存储 {{stored}} 条 / 查询缓存 {{disk}} 条 / 内存 {{live}} 条）。联网后会自动同步。",
+    partialMonths: "有 {{count}} 个月的本地记录没有取完（超过单月 {{limit}} 条上限），离线统计不包含这些月份。",
   },
   banner: {
     sharedReadOnly: "当前离线，共享账本暂时只能查看。恢复网络后可以继续修改；之前尚未同步的改动会保留。",
@@ -94,6 +95,9 @@ const offline = {
     rowStored_other: "已下载 · {{count}} 笔 · {{size}}",
     rowNever: "永不下载",
     rowMissing: "未下载 · 预计 {{size}}",
+    rowPartial: "未完整 · {{count}} 笔（单月上限 {{limit}} 条）",
+    partialNotice:
+      "有 {{count}} 个月的记录超过单月 {{limit}} 条读取上限，本地只取回了其中一部分。这些月份不会写入本地账本，离线统计会显示为不完整。",
   },
   month: {
     subtitle: "这一个月的离线保存设置。",
@@ -101,6 +105,11 @@ const offline = {
     loading: "读取中…",
     stored: "已下载",
     missing: "未下载",
+    partial: "未完整下载",
+    partialNotice:
+      "这个月超过单月 {{limit}} 条读取上限，本地只取回了 {{count}} 条。为避免算少金额，这个月没有写入本地账本；离线统计不包含它。",
+    partialHint:
+      "单月上限是这台设备一次读取能力的临时边界（{{limit}} 条）。要离线看完整的一个月，需要等长期方案支持完整分页。",
     entries: "这个月的记录",
     size: "占用空间",
     estimate: "预计 {{size}}",

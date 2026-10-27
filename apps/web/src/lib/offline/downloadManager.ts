@@ -39,7 +39,11 @@ export interface MonthRow {
    * A screen that outlives a language switch should call `monthLabel(row.month)` instead.
    */
   readonly label: string;
-  readonly state: "stored" | "missing" | "never";
+  /**
+   * `partial` = 这个月从服务器取回过，但**没有取完**（触到单月读取上限）。
+   * 它不该显示成「已下载」：离线统计不会用这些数据，本地账本里也没有它。
+   */
+  readonly state: "stored" | "partial" | "missing" | "never";
   readonly entryCount: number;
   /** Measured for a stored month, estimated from the average for a missing one. */
   readonly bytes: number;
@@ -130,6 +134,14 @@ export function monthRows(
   stored: ReadonlySet<string>,
   now: Date,
   count: number = MANAGER_MONTHS,
+  /**
+   * 未取完的月份 → 已取回的条数。
+   *
+   * ⚠️ **单独的输入，而不是从 `stored` 猜。** 「在 query cache 里」与「取完了」是两件
+   * 事：达到单月上限时前者为真、后者为假，而把这种月份显示成「已下载」正是这次要修的
+   * 静默截断观感。调用方从 `fillCoverage.readPartialMonths()` 读出后传进来。
+   */
+  partial: ReadonlyMap<string, number> = new Map(),
 ): readonly MonthRow[] {
   const counts = new Map<string, number>();
 
@@ -151,12 +163,14 @@ export function monthRows(
 
   return managerMonths(now, count).map((month): MonthRow => {
     const isStored = stored.has(month);
+    const partialEntries = partial.get(month);
+    const isPartial = isStored && partialEntries !== undefined;
 
     return {
       month,
       label: monthLabel(month),
-      state: neverSet.has(month) ? "never" : isStored ? "stored" : "missing",
-      entryCount: counts.get(month) ?? 0,
+      state: neverSet.has(month) ? "never" : isPartial ? "partial" : isStored ? "stored" : "missing",
+      entryCount: partialEntries ?? counts.get(month) ?? 0,
       bytes: isStored ? bytesForMonth(transactions, month) : average,
       bytesEstimated: !isStored,
     };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useI18n } from "../i18n/index.js";
+import { FILL_MONTH_ENTRY_LIMIT, readPartialMonths } from "../lib/offline/fillCoverage.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
@@ -66,6 +67,31 @@ export function OfflineStatus(): React.JSX.Element | null {
    * a countdown needs to ask.
    */
   const [offlineSince, setOfflineSince] = useState<number | null>(null);
+
+  /**
+   * 有多少个月因为单月读取上限而没有取完。
+   *
+   * ⚠️ **这个数字只对离线状态有意义，所以在这里读。** 联网时分析走服务器，不依赖本地
+   * 副本；断网后统计只能看本地，缺一个月的账就会少算金额。提示条是"这条链路真的出了问题"
+   * 的兜底发声处——分析页自己的 incomplete 提示可能来不及渲染，这里不会。
+   */
+  const [partialCount, setPartialCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void readPartialMonths()
+      .then((months) => {
+        if (!cancelled) setPartialCount(Object.keys(months).length);
+      })
+      .catch(() => {
+        // 读不到状态本身不是要报给用户的事；下载管理页会显示读错误。
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [offline, justFinishedAt]);
 
   useEffect(() => {
     if (!offline) {
@@ -185,6 +211,10 @@ export function OfflineStatus(): React.JSX.Element | null {
                   live: read.liveEntries,
                 })}
           </p>
+          {/* 少算金额的原因要说出来：不是"没有数据"，是"超过单月上限、没取完"。 */}
+          {partialCount === 0 ? null : (
+            <p>{t("offline.status.partialMonths", { count: partialCount, limit: FILL_MONTH_ENTRY_LIMIT })}</p>
+          )}
         </>
       ) : null}
     </div>

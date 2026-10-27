@@ -19,6 +19,7 @@ import {
   type MonthRow,
 } from "../lib/offline/downloadManager.js";
 import { isMeteredConnection } from "../lib/offline/fill.js";
+import { FILL_MONTH_ENTRY_LIMIT, forgetAllPartialMonths, readPartialMonths } from "../lib/offline/fillCoverage.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import { readLocalTransactions } from "../lib/offline/localLedger.js";
 import { canStoreOffline, formatBytes, requestPersistentStorage } from "../lib/offline/persistence.js";
@@ -57,14 +58,22 @@ export function DownloadManagerPage(): React.JSX.Element {
     setLoading(true);
 
     try {
-      const [transactions, never] = await Promise.all([readLocalTransactions(), readNeverMonths()]);
+      const [transactions, never, partials] = await Promise.all([
+        readLocalTransactions(),
+        readNeverMonths(),
+        readPartialMonths(),
+      ]);
 
       /**
        * ⚠️ **Asked of the live query client, not the stored blob.** The blob says what was
        * saved at some point; memory is what the app is using, and memory is what gets written
        * over the blob next. See `storedMonthsIn`.
        */
-      setRows(monthRows(transactions, never, storedMonthsIn(queryClient), new Date()));
+      const partial = new Map(
+        Object.entries(partials).map(([month, record]) => [month, record.entries] as const),
+      );
+
+      setRows(monthRows(transactions, never, storedMonthsIn(queryClient), new Date(), undefined, partial));
     } catch {
       setError("read");
     } finally {
@@ -87,8 +96,9 @@ export function DownloadManagerPage(): React.JSX.Element {
     if (!fillRunning && fillDone > 0) void load();
   }, [fillRunning, fillDone, load]);
 
-  const storedCount = rows.filter((row) => row.state === "stored").length;
+  const storedCount = rows.filter((row) => row.state === "stored" || row.state === "partial").length;
   const missingCount = rows.filter((row) => row.state === "missing").length;
+  const partialCount = rows.filter((row) => row.state === "partial").length;
 
   /**
    * What a full download is likely to cost, from the months already here.
@@ -122,6 +132,19 @@ export function DownloadManagerPage(): React.JSX.Element {
       {canStoreOffline() ? null : <Alert tone="info">{t("offline.downloads.unsupported")}</Alert>}
 
       {persisted === false ? <Alert tone="info">{t("offline.downloads.notPersisted")}</Alert> : null}
+
+      {/*
+        ⚠️ **几个月没取完，要在主页就说出来。**
+
+        单月上限是本机读取能力的边界，不是"这个月没有数据"。如果不说，用户只会看到一个
+        进度条走完、列表里却少了一个月的数字，然后把原因归给别处。句子给出上限数字，让
+        「为什么停在这里」有答案。
+      */}
+      {partialCount === 0 ? null : (
+        <Alert tone="info">
+          {t("offline.downloads.partialNotice", { count: partialCount, limit: FILL_MONTH_ENTRY_LIMIT })}
+        </Alert>
+      )}
 
       <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 text-sm">
         <p className="text-ink">
@@ -180,7 +203,7 @@ export function DownloadManagerPage(): React.JSX.Element {
              */
             const cleared = forgetAllMonths(queryClient);
             void logOffline("删除全部", `清除了 ${String(cleared)} 个月`); // i18n-ignore：诊断日志（存本机，给开发者看）
-            void load();
+            void forgetAllPartialMonths().then(() => load());
           }}
         >
           {t("offline.downloads.deleteAll")}
@@ -216,9 +239,11 @@ export function DownloadManagerPage(): React.JSX.Element {
                   <span className="text-micro text-muted">
                     {row.state === "stored"
                       ? t("offline.downloads.rowStored", { count: row.entryCount, size: formatBytes(row.bytes) })
-                      : row.state === "never"
-                        ? t("offline.downloads.rowNever")
-                        : t("offline.downloads.rowMissing", { size: formatBytes(row.bytes) })}
+                      : row.state === "partial"
+                        ? t("offline.downloads.rowPartial", { count: row.entryCount, limit: FILL_MONTH_ENTRY_LIMIT })
+                        : row.state === "never"
+                          ? t("offline.downloads.rowNever")
+                          : t("offline.downloads.rowMissing", { size: formatBytes(row.bytes) })}
                   </span>
                 </span>
 

@@ -238,4 +238,26 @@ describe("the download manager's table", () => {
   it("estimates nothing when nothing is stored", () => {
     expect(estimateBytes([])).toBe(0);
   });
+
+  /**
+   * ⚠️ **「在缓存里」不是「取完了」。**
+   *
+   * 达到单月读取上限时，一个月的页面确实在 query cache 里，但它不是完整的一个月，也
+   * 没有写进本地账本。把它显示成「已下载」正是这次修掉的静默截断观感，所以这里用一个
+   * 单独的状态把它区分出来，并显示实际取回的条数。
+   */
+  it("marks a month that hit the per-month limit as partial, with the count it did fetch", () => {
+    const rows = monthRows([], [], new Set(["2026-09"]), new Date(2026, 9, 11), 2, new Map([["2026-09", 50_000]]));
+    const september = rows.find((row) => row.month === "2026-09");
+
+    expect(september?.state).toBe("partial");
+    expect(september?.entryCount).toBe(50_000);
+  });
+
+  it("does not mark a month partial when it is not downloaded at all", () => {
+    // 记录残留但本地已删除（或换了账本）：它应该是「未下载」，不是「未完整」。
+    const rows = monthRows([], [], new Set(), new Date(2026, 9, 11), 2, new Map([["2026-09", 50_000]]));
+
+    expect(rows.find((row) => row.month === "2026-09")?.state).toBe("missing");
+  });
 });
