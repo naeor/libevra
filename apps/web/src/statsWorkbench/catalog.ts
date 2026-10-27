@@ -75,7 +75,7 @@ const S23: GridSize = { colSpan: 2, rowSpan: 3 };
 const NUMBER_SIZES = [S11, S21, S12, S22] as const;
 const CHART_SIZES = [S21, S12, S22, S23] as const;
 
-function numberCard(id: string, group: CardGroup, recommended: boolean, combined = false): CardType {
+function numberCard(id: string, group: CardGroup, recommended: boolean): CardType {
   return {
     id,
     group,
@@ -84,7 +84,7 @@ function numberCard(id: string, group: CardGroup, recommended: boolean, combined
     defaultSize: S11,
     minSize: S11,
     sizes: NUMBER_SIZES,
-    combined,
+    combined: true,
     source: "agent-a",
   };
 }
@@ -98,16 +98,16 @@ function extremeCard(id: string, recommended: boolean): CardType {
     defaultSize: S11,
     minSize: S11,
     sizes: NUMBER_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-a",
   };
 }
 
 export const CARD_TYPES: readonly CardType[] = [
   // ---- 基础（Agent A） ----
-  numberCard("AN-B01", "basic", true, true),
-  numberCard("AN-B02", "basic", true, true),
-  numberCard("AN-B03", "basic", true, true),
+  numberCard("AN-B01", "basic", true),
+  numberCard("AN-B02", "basic", true),
+  numberCard("AN-B03", "basic", true),
   numberCard("AN-B04", "basic", false),
   numberCard("AN-B05", "basic", false),
   numberCard("AN-B06", "basic", true),
@@ -178,7 +178,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-a",
   },
   {
@@ -189,7 +189,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S23,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-a",
   },
   // ---- 常用分析：时间（Agent B） ----
@@ -201,7 +201,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-b",
   },
   {
@@ -212,7 +212,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-b",
   },
   {
@@ -223,7 +223,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-b",
   },
   {
@@ -234,7 +234,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     ownWindow: "12m",
     source: "agent-b",
   },
@@ -246,7 +246,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     ownWindow: "12m",
     source: "agent-b",
   },
@@ -258,7 +258,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "legacy",
   },
   {
@@ -269,7 +269,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S23,
     minSize: S23,
     sizes: [S23],
-    combined: false,
+    combined: true,
     source: "legacy",
   },
   {
@@ -280,7 +280,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S22,
     sizes: [S22, S23],
-    combined: false,
+    combined: true,
     source: "agent-b",
   },
   {
@@ -291,7 +291,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S22,
     sizes: [S22, S23],
-    combined: false,
+    combined: true,
     source: "agent-b",
   },
   {
@@ -302,7 +302,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-b",
   },
   {
@@ -313,7 +313,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S21,
     sizes: CHART_SIZES,
-    combined: false,
+    combined: true,
     source: "agent-b",
   },
   // ---- 深入分析 ----
@@ -325,7 +325,7 @@ export const CARD_TYPES: readonly CardType[] = [
     defaultSize: S22,
     minSize: S22,
     sizes: [S22, S23],
-    combined: false,
+    combined: true,
     source: "legacy",
   },
 ];

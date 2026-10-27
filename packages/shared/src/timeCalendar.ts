@@ -107,6 +107,13 @@ export interface BucketContext {
   readonly today: string;
   /** Inclusive last date with confirmed complete data, or `null` when unknown. */
   readonly coverageEnd: string | null;
+  /**
+   * Business dates inside the span whose amounts cannot be determined although the
+   * rows were read — e.g. at least one record has no usable FX rate (S17 综合折算).
+   * A bucket whose analysed slice contains such a date is `unknown`; it is never drawn as a
+   * complete-looking number or zero. Optional and additive: omitted means "none".
+   */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
 }
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -372,6 +379,14 @@ export function classifyBucket(
   const clipped = parseTimeSpan(bucket.span);
 
   if (natural.start > today) return "future";
+  // A date with undeterminable amounts outranks "in progress": a half-known number must not be drawn as a
+  // running total. (Dates after today never reach here, so the future rule above is unaffected.)
+  const unknownDates = context.unknownDates;
+  if (unknownDates !== undefined && unknownDates.size > 0) {
+    for (let date = clipped.start; date < clipped.end; date = addDays(date, 1)) {
+      if (unknownDates.has(date)) return "unknown";
+    }
+  }
   if (natural.start <= today && today < natural.end) return "in-progress";
 
   if (context.coverageEnd === null) return "unknown";

@@ -86,6 +86,8 @@ export function timeResultBridge<T>(
   descriptor: { readonly metric: string; readonly kind: ResolvedFilters["kind"]; readonly groupBy: string | null },
   noTransactions = false,
   additionalCoverageVerified = true,
+  /** 综合折算：影响这张卡片口径的缺汇率账目数；时间段因此未知时整卡是 `fx-incomplete`，不是本机覆盖问题。 */
+  fxMissing = 0,
 ): NativeResultBridge<T> {
   let completeness = originalCompleteness(scope, range);
   let reason: string | undefined = completeness === "loading" ? "local-records-loading" : completeness === "offline-incomplete" ? "local-range-coverage-unverified" : completeness === "no-permission" ? "analysis-book-permission-denied" : completeness === "request-failed" ? "analysis-range-read-failed" : undefined;
@@ -93,7 +95,8 @@ export function timeResultBridge<T>(
     if (!additionalCoverageVerified) {
       completeness = "offline-incomplete"; reason = "comparison-previous-range-unverified";
     } else if ((status.unknownBucketCount ?? 0) > 0) {
-      completeness = "offline-incomplete"; reason = "time-bucket-coverage-missing";
+      completeness = fxMissing > 0 ? "fx-incomplete" : "offline-incomplete";
+      reason = fxMissing > 0 ? "fx-rates-missing" : "time-bucket-coverage-missing";
     } else if (!status.complete) {
       completeness = "partial"; reason = "time-buckets-in-progress-or-future";
     } else if (noTransactions) {

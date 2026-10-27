@@ -1,10 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { aggregateFx, type Transaction } from "@libellum/shared";
+import type { Transaction } from "@libellum/shared";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { applyLocale } from "../i18n/index.js";
 import { CardBody, cardSubtitle, cardTitle } from "./cards.js";
 import { newCard } from "./defaults.js";
+import { buildFxView } from "./fxTestSupport.js";
 import type { WorkbenchScope } from "./scope.js";
 import { t } from "../i18n/index.js";
 
@@ -73,8 +74,9 @@ describe("卡片内容", () => {
     expect(html).not.toContain("¥0.00");
   });
 
-  it("综合折算下没有权威综合结果的卡片明确说明暂不支持", () => {
+  it("综合折算下读不到折算状态时显示加载或明确说明，绝不退回原币数字冒充", () => {
     const html = renderToStaticMarkup(<CardBody card={newCard("AN-I06")} scope={scope({ combined: true, fxAvailable: true })} density="expanded" />);
+    expect(html).not.toContain("¥1,234.56");
     expect(html).toContain("综合折算下暂不支持这张卡片");
   });
 
@@ -96,17 +98,15 @@ describe("卡片内容", () => {
   it("固定时间卡片不把全局筛选金额冒充成固定区间的综合折算", () => {
     const card = { ...newCard("AN-B01"), rangePolicy: "pinned" as const, pinnedRange: { from: "2026-10-01", to: "2026-10-02" } };
     const html = renderToStaticMarkup(<CardBody card={card} scope={scope({ combined: true, fxAvailable: true })} density="medium" />);
-    expect(html).toContain("独立时间范围");
+    expect(html).toContain("还没有读取到");
     expect(html).not.toContain("正在按历史汇率折算");
   });
 
   it("全缺汇率时数字与分类均为未知，不显示0元或没有记录", () => {
-    const rows = [{ ...entry({ currency: "USD" }), bookId: "fixture-book" }];
-    const result = aggregateFx("fixture-account", "fixture-book", rows, "CNY", new Map());
-    const fx = { result, loading: false, sourceComplete: true, refresh: () => {} } as NonNullable<WorkbenchScope["fx"]>;
+    const fx = buildFxView({ entries: [entry({ currency: "USD" })], missingCurrencies: ["USD"] });
     for (const id of ["AN-B01", "AN-I01"]) {
       const html = renderToStaticMarkup(<CardBody card={newCard(id)} scope={scope({ combined: true, fxAvailable: true, fx })} density="expanded" />);
-      expect(html).toContain("缺少汇率");
+      expect(html).toContain("缺汇率");
       expect(html).toContain("无法确定");
       expect(html).not.toContain("¥0.00");
       expect(html).not.toContain("这段时间没有记录");
@@ -114,11 +114,10 @@ describe("卡片内容", () => {
   });
 
   it("来源覆盖缺失与缺汇率分开提示，金额只显示已知小计", () => {
-    const result = aggregateFx("fixture-account", "fixture-book", [{ ...entry(), bookId: "fixture-book" }], "CNY", new Map());
-    const fx = { result, loading: false, sourceComplete: false, refresh: () => {} } as NonNullable<WorkbenchScope["fx"]>;
+    const fx = buildFxView({ entries: [entry()], sourceComplete: false });
     const html = renderToStaticMarkup(<CardBody card={newCard("AN-B01")} scope={scope({ combined: true, fxAvailable: true, fx })} density="medium" />);
     expect(html).toContain("¥1,234.56");
-    expect(html).not.toContain("有 0 笔缺少汇率");
-    expect(html).toContain(t("fx.dataIncomplete"));
+    expect(html).not.toContain("缺汇率");
+    expect(html).toContain(t("statsWorkbench.states.partial"));
   });
 });

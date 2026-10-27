@@ -12,6 +12,7 @@ import {
   comparisonRangeFor,
   endOfMonth,
   startOfMonth,
+  type AnalysisCompleteness,
   type AnalysisResult,
   type CategoryTotal,
   type CompositionResult,
@@ -50,14 +51,19 @@ import {
   heatmapFor,
   entriesInCurrency,
   flowFor,
+  fxAgentAResult,
   granularityFor,
   isAgentAAnalysis,
+  mergedEntries,
   statsFor,
   timeSeriesFor,
+  type FxAgentAOutcome,
 } from "./compute.js";
 import { bucketFor, customRangeProblem } from "./filters.js";
+import { fxPolicyFor, type FxCardPolicy } from "./fxPolicy.js";
+import { projectFxCached, type FxProjection, type FxProjectionState } from "./fxProjection.js";
 import { FxStatus } from "./FxStatus.js";
-import type { WorkbenchScope } from "./scope.js";
+import type { FxRangeView, WorkbenchScope } from "./scope.js";
 import { fxResultBridge, originalCompleteness, timeResultBridge } from "./results.js";
 import type { AnalysisResultBase } from "@libellum/shared/workbench/envelope";
 import { exactMoneyText, FitAmount, moneyText, ratioFraction, ratioPercentText, type Density } from "./ui.js";
@@ -133,14 +139,17 @@ export function CardBody(props: CardBodyProps): React.JSX.Element {
 /** 固定/自带窗口和上期比较按真实日期复用W5原件链，不拿全局范围的金额替代。 */
 function RangeCardBody(props: CardBodyProps & { readonly range: DateRange }): React.JSX.Element {
   const { scope, card, range } = props;
-  const comparison = card.analysis.analysisId === "AN-A01" && !scope.combined;
+  const isComparison = card.analysis.analysisId === "AN-A01";
+  const comparison = isComparison && !scope.combined;
   const previousRange = comparisonRangeFor(range);
   const current = useAnalysisRange(range, !scope.combined);
   const previous = useAnalysisRange(previousRange, comparison);
   const fx = useFxRange(range.from, range.to, scope.combined, { enabled: scope.fxAvailable });
+  // 综合折算的「上期比较」要读上一周期自己的折算：当期的金额不能替代它，也不能拿全局范围冒充。
+  const previousFx = useFxRange(previousRange.from, previousRange.to, scope.combined && isComparison, { enabled: scope.fxAvailable });
   const data = current.data;
   const resolved: WorkbenchScope = scope.combined ? {
-    ...scope, range, bucket: bucketFor(range), fx,
+    ...scope, range, bucket: bucketFor(range), fx, previousFx: isComparison ? previousFx : null,
     loaded: !fx.loading, repairing: false, coverageGap: null,
     rangeSourceComplete: fx.sourceComplete === true,
   } : {
@@ -166,11 +175,12 @@ function CardBodyInner({ card, scope, density, detail = false, height, width }: 
 
   if (scope.combined) {
     if (!type.combined) return <CombinedUnsupported />;
-    // S16-D 的结果只对应已请求的日期，不能用全局金额冒充固定时间卡片的结果。
+    // 折算结果只对应它请求过的日期：固定窗口 / 上期比较由 `RangeCardBody` 为这张卡片自己读取；
+    // 走到这里范围却对不上，说明接线有错——显式失败，绝不拿全局金额冒充。
     if (range.from !== scope.range.from || range.to !== scope.range.to) {
-      return <Note text={t("statsWorkbench.states.fxRangeUnavailable")} tone="warn" />;
+      return <Note text={t("statsWorkbench.states.fxRangeNotRead")} tone="warn" />;
     }
-    return <CombinedBody type={type} family={family} scope={scope} density={density} detail={detail} />;
+    return <CombinedCard type={type} family={family} scope={scope} range={range} density={density} detail={detail} height={height} width={width} />;
   }
 
   const id = type.id;
@@ -231,13 +241,17 @@ export function Note({ text, tone = "muted" }: { readonly text: string; readonly
   );
 }
 
-/** 卡片统一消费 A 的完整性字段；B 的原生桶状态不在展示层重算。 */
-function ResultState({ metadata, children }: { readonly metadata: AnalysisResultBase; readonly children: React.ReactNode }): React.JSX.Element {
+/**
+ * 卡片统一消费 A 的完整性字段；B 的原生桶状态不在展示层重算。
+ * `partialText`：综合折算下缺汇率时用更具体的说明替换通用的「数据不完整」。
+ */
+function ResultState({ metadata, children, partialText }: { readonly metadata: AnalysisResultBase; readonly children: React.ReactNode; readonly partialText?: string | null | undefined }): React.JSX.Element {
   const { t } = useI18n();
   if (metadata.completeness === "loading") return <Skeleton />;
   if (metadata.completeness === "no-transactions") return <Note text={t("statsWorkbench.states.empty")} />;
   if (metadata.completeness === "request-failed" || metadata.completeness === "no-permission" || metadata.completeness === "not-applicable") return <Note text={t("statsWorkbench.states.undetermined")} tone="warn" />;
-  return <div className="flex h-full min-h-0 flex-col gap-1">{metadata.completeness === "complete" ? null : <Note text={t("statsWorkbench.states.partial")} tone="warn" />}{children}</div>;
+  const note = metadata.completeness === "complete" ? null : partialText ?? t("statsWorkbench.states.partial");
+  return <div className="flex h-full min-h-0 flex-col gap-1">{note === null ? null : <Note text={note} tone="warn" />}{children}</div>;
 }
 
 function completenessNote(result: AnalysisResult, t: ReturnType<typeof useI18n>["t"]): string | null {
@@ -319,9 +333,9 @@ export function scalarText(value: ScalarValue | null, t: ReturnType<typeof useI1
   }
 }
 
-function ScalarView({ result, density }: { readonly result: ScalarResult; readonly density: Density }): React.JSX.Element {
+function ScalarView({ result, density, note: noteOverride }: { readonly result: ScalarResult; readonly density: Density; readonly note?: string | null }): React.JSX.Element {
   const { t } = useI18n();
-  const note = completenessNote(result, t);
+  const note = noteOverride === undefined ? completenessNote(result, t) : noteOverride;
   const negative = result.value?.kind === "money" && result.value.money.amountMinor.startsWith("-");
   return (
     <div className="flex h-full min-h-0 flex-col justify-end gap-1">
@@ -331,7 +345,7 @@ function ScalarView({ result, density }: { readonly result: ScalarResult; readon
   );
 }
 
-function ExtremeView({ result, density }: { readonly result: RecordExtremeResult; readonly density: Density }): React.JSX.Element {
+function ExtremeView({ result, density, note }: { readonly result: RecordExtremeResult; readonly density: Density; readonly note?: string | null }): React.JSX.Element {
   const { t } = useI18n();
   if (result.completeness === "no-transactions" || (result.extreme === null && result.extremeValue === undefined)) {
     return <Note text={completenessNote(result, t) ?? t("statsWorkbench.states.empty")} />;
@@ -351,6 +365,7 @@ function ExtremeView({ result, density }: { readonly result: RecordExtremeResult
       <FitAmount text={value} start={density === "compact" ? 1 : 0} className="text-ink" />
       {where === "" ? null : <p className="truncate text-helper text-muted">{where}</p>}
       {result.tieCount > 1 ? <p className="text-helper text-muted">{t("statsWorkbench.values.tie", { count: result.tieCount })}</p> : null}
+      {note === undefined || note === null ? null : <p className="text-helper text-warn-dark">{note}</p>}
     </div>
   );
 }
@@ -412,7 +427,10 @@ function PartsView({
   const limit = detail ? rows.length : density === "compact" ? 2 : density === "medium" ? 4 : 6;
   const shown = rows.slice(0, limit);
   const hidden = rows.length - shown.length;
-  const maxShare = Math.max(...rows.map((row) => ratioFraction(row.share)), 0.0001);
+  // 缺汇率时没有占比：条形长度改按小计的相对大小画（只是几何，不代表占比，也不显示百分比）。
+  const byAmount = rows.length > 0 && rows.every((row) => row.share === null && row.minor !== null && /^\d+$/.test(row.minor));
+  const weightOf = (row: PartRow): number => (byAmount ? Number(row.minor) : ratioFraction(row.share));
+  const maxShare = Math.max(...rows.map(weightOf), 0.0001);
   const table = family === "table";
   return (
     <div className="flex min-h-0 flex-col gap-1.5">
@@ -434,7 +452,7 @@ function PartsView({
             </div>
             {table ? null : (
               <span className="sw-bar mt-1 block" aria-hidden="true">
-                <span style={{ width: `${String(Math.max(2, (ratioFraction(row.share) / maxShare) * 100))}%`, backgroundColor: colorFor(row.id) }} />
+                <span style={{ width: `${String(Math.max(2, (weightOf(row) / maxShare) * 100))}%`, backgroundColor: colorFor(row.id) }} />
               </span>
             )}
           </li>
@@ -461,6 +479,17 @@ function labelFor(bucket: TimeBucket): string {
   return bucketLabel(bucket.key, bucket.granularity === "month" ? "month" : "day");
 }
 
+/** 综合折算下时间类卡片需要的额外信息。 */
+interface FxTimeContext {
+  readonly projection: FxProjection;
+  readonly policy: FxCardPolicy;
+  /** 含缺汇率账目的日期（按本卡片的口径）；`undefined` = 此卡片不受汇率缺失影响。 */
+  readonly unknownDates: ReadonlySet<string> | undefined;
+  readonly missingCount: number;
+  /** 仅「上期比较」使用：上一周期的折算状态。 */
+  readonly previous: FxProjectionState | null;
+}
+
 function TimeView({
   id,
   family,
@@ -470,6 +499,7 @@ function TimeView({
   detail,
   available,
   availableWidth,
+  fx,
 }: {
   readonly id: string;
   readonly family: ChartFamily;
@@ -479,9 +509,17 @@ function TimeView({
   readonly detail: boolean;
   readonly available: number | undefined;
   readonly availableWidth: number | undefined;
+  /** 综合折算：`scope.entries` 已是目标币种的折算账目；这里带上缺汇率信息，其余路径与原币完全一致。 */
+  readonly fx?: FxTimeContext;
 }): React.JSX.Element {
   const { t } = useI18n();
   const currency = scope.currency;
+  const fxMissing = fx?.missingCount ?? 0;
+  const unknownDates = fx?.unknownDates;
+  const seriesNote = (completeness: string): string | undefined =>
+    completeness === "fx-incomplete" ? t("statsWorkbench.states.fxSeries", { count: fxMissing }) : undefined;
+  const emptyOrPartial = (completeness: string, emptyStates: readonly string[]): string =>
+    emptyStates.includes(completeness) ? t("statsWorkbench.states.empty") : seriesNote(completeness) ?? t("statsWorkbench.states.partial");
   const entries = entriesInCurrency(scope.entries, currency);
   const height = heightFor(density, detail, available);
   const axis = (value: number) => formatAxisAmount(value, currency);
@@ -499,15 +537,15 @@ function TimeView({
     case "AN-I19": {
       const metric = id === "AN-I07" || id === "AN-I10" ? "income" : id === "AN-I19" ? "count" : "expense";
       const granularity = id === "AN-I08" ? "week" : id === "AN-I09" || id === "AN-I10" ? "month" : granularityFor(scope.bucket);
-      const native = timeSeriesFor(entries, metric, granularity, range, scope.today);
-      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric, kind: metric === "count" ? "both" : metric, groupBy: granularity }, native.result.totalCount === 0);
+      const native = timeSeriesFor(entries, metric, granularity, range, scope.today, unknownDates);
+      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric, kind: metric === "count" ? "both" : metric, groupBy: granularity }, native.result.totalCount === 0, true, fxMissing);
       const view = bridge.nativeResult;
       const total = view.result.totalMinor;
       if (view.result.buckets.every((point) => point.transactionCount === 0 || point.transactionCount === null) && metric !== "count") {
-        return <Note text={t(bridge.metadata.completeness === "complete" || bridge.metadata.completeness === "no-transactions" ? "statsWorkbench.states.empty" : "statsWorkbench.states.partial")} />;
+        return <Note text={emptyOrPartial(bridge.metadata.completeness, ["complete", "no-transactions"])} />;
       }
       return (
-        <ResultState metadata={bridge.metadata}><div className="flex min-h-0 flex-col gap-1">
+        <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}><div className="flex min-h-0 flex-col gap-1">
           {total === null || metric === "count" ? null : (
             <p className="sw-amount text-base font-semibold tabular-nums text-ink">{moneyText(total, currency)}</p>
           )}
@@ -533,7 +571,9 @@ function TimeView({
       );
     }
     case "AN-I11": {
-      if (family === "flow-lines") {
+      // 折线图画不出「未知」的时间段，缺汇率时改用能标示未知的柱状图并说明，而不是把缺失画成 0。
+      const lineFallback = family === "flow-lines" && unknownDates !== undefined && unknownDates.size > 0;
+      if (family === "flow-lines" && !lineFallback) {
         const native = statsFor(entries, range, currency, scope.bucket);
         const bridge = timeResultBridge(id, native, { complete: true }, scope, range, { metric: "income-expense", kind: "both", groupBy: granularityFor(scope.bucket) }, native.totals.count === 0);
         const stats = bridge.nativeResult;
@@ -543,15 +583,15 @@ function TimeView({
           </div></ResultState>
         );
       }
-      const native = flowFor(entries, granularityFor(scope.bucket), range, scope.today);
-      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric: "income-expense", kind: "both", groupBy: granularityFor(scope.bucket) });
+      const native = flowFor(entries, granularityFor(scope.bucket), range, scope.today, unknownDates);
+      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric: "income-expense", kind: "both", groupBy: granularityFor(scope.bucket) }, false, true, fxMissing);
       const view = bridge.nativeResult;
       // 整段都没有收支记录：说「没有记录」，不画一张刻度全是 0 的空图。
       if (view.result.buckets.every((point) => (point.incomeCount ?? 0) === 0 && (point.expenseCount ?? 0) === 0)) {
-        return <Note text={t(bridge.metadata.completeness === "complete" ? "statsWorkbench.states.empty" : "statsWorkbench.states.partial")} />;
+        return <Note text={emptyOrPartial(bridge.metadata.completeness, ["complete"])} />;
       }
       return (
-        <ResultState metadata={bridge.metadata}><div className="sw-interactive min-h-0" onClick={stop}>
+        <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}>{lineFallback ? <Note text={t("statsWorkbench.states.fxChartFallback")} /> : null}<div className="sw-interactive min-h-0" onClick={stop}>
           <IncomeExpenseBars
             buckets={view.result.buckets}
             title={t("statsWorkbench.cards.AN-I11.title")}
@@ -567,7 +607,9 @@ function TimeView({
     case "AN-I12": {
       // 日历热力只画一个月的格子：区间超过 6 周时取结束日所在的月份（在副标题写明实际日期）。
       const span = heatmapRange(range);
-      if (detail) {
+      // 详情页的旧版热力图画不出「未知」的日子：这个月里有缺汇率的日期时，详情也用能标示未知的日历格。
+      const spanHasUnknown = unknownDates !== undefined && [...unknownDates].some((date) => date >= span.from && date <= span.to);
+      if (detail && !spanHasUnknown) {
         const native = statsFor(entries, span, currency, "day");
         const bridge = timeResultBridge(id, native, { complete: true }, scope, span, { metric: "expense", kind: "expense", groupBy: "day" }, native.totals.count === 0);
         const stats = bridge.nativeResult;
@@ -578,8 +620,8 @@ function TimeView({
         );
       }
       // 卡片里用 Agent B 的日历格（I12）：按卡片真实高度算格子边长，整月放得下，不裁切、不缩放文字。
-      const native = heatmapFor(entries, span, scope.today);
-      const bridge = timeResultBridge(id, native, { complete: native.complete, unknownBucketCount: native.unknownDayCount, inProgressBucketCount: native.inProgressDayCount, futureBucketCount: native.futureDayCount }, scope, span, { metric: "expense", kind: "expense", groupBy: "day" });
+      const native = heatmapFor(entries, span, scope.today, unknownDates);
+      const bridge = timeResultBridge(id, native, { complete: native.complete, unknownBucketCount: native.unknownDayCount, inProgressBucketCount: native.inProgressDayCount, futureBucketCount: native.futureDayCount }, scope, span, { metric: "expense", kind: "expense", groupBy: "day" }, false, true, fxMissing);
       const heatmap = bridge.nativeResult;
       const weeks = heatmap.months.reduce((sum, month) => sum + month.weeks.length, 0);
       const rows = weeks + 2;
@@ -588,7 +630,7 @@ function TimeView({
       const cell = Math.max(14, Math.floor(Math.min(fromHeight, fromWidth)));
       const weekdays = t("statsWorkbench.values.weekdays").split(",");
       return (
-        <ResultState metadata={bridge.metadata}><div className="sw-interactive mx-auto min-h-0" style={{ maxWidth: cell * 7 + 24 }} onClick={stop}>
+        <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}><div className="sw-interactive mx-auto min-h-0" style={{ maxWidth: cell * 7 + 24 }} onClick={stop}>
           <CalendarHeatmapGrid
             heatmap={heatmap}
             title={t("statsWorkbench.cards.AN-I12.title")}
@@ -604,12 +646,12 @@ function TimeView({
       );
     }
     case "AN-I15": {
-      const native = categorySeriesFor(entries, granularityFor(scope.bucket), range, scope.today);
-      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric: "expense", kind: "expense", groupBy: "category" });
+      const native = categorySeriesFor(entries, granularityFor(scope.bucket), range, scope.today, 4, unknownDates);
+      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric: "expense", kind: "expense", groupBy: "category" }, false, true, fxMissing);
       const view = bridge.nativeResult;
-      if (view.result.categoryIds.length === 0) return <Note text={t(bridge.metadata.completeness === "complete" ? "statsWorkbench.states.empty" : "statsWorkbench.states.partial")} />;
+      if (view.result.categoryIds.length === 0) return <Note text={emptyOrPartial(bridge.metadata.completeness, ["complete"])} />;
       return (
-        <ResultState metadata={bridge.metadata}><div className="sw-interactive min-h-0" onClick={stop}>
+        <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}><div className="sw-interactive min-h-0" onClick={stop}>
           <CategorySeriesChart
             series={view.result}
             title={t("statsWorkbench.cards.AN-I15.title")}
@@ -624,12 +666,12 @@ function TimeView({
       );
     }
     case "AN-I16": {
-      const native = categorySeriesFor(entries, granularityFor(scope.bucket), range, scope.today);
-      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric: "expense", kind: "expense", groupBy: "category" });
+      const native = categorySeriesFor(entries, granularityFor(scope.bucket), range, scope.today, 4, unknownDates);
+      const bridge = timeResultBridge(id, native, native.result, scope, range, { metric: "expense", kind: "expense", groupBy: "category" }, false, true, fxMissing);
       const view = bridge.nativeResult;
-      if (view.result.categoryIds.length === 0) return <Note text={t(bridge.metadata.completeness === "complete" ? "statsWorkbench.states.empty" : "statsWorkbench.states.partial")} />;
+      if (view.result.categoryIds.length === 0) return <Note text={emptyOrPartial(bridge.metadata.completeness, ["complete"])} />;
       return (
-        <ResultState metadata={bridge.metadata}><div className="sw-interactive min-h-0" onClick={stop}>
+        <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}><div className="sw-interactive min-h-0" onClick={stop}>
           <CategoryShareBands
             shares={view.shares}
             title={t("statsWorkbench.cards.AN-I16.title")}
@@ -642,12 +684,12 @@ function TimeView({
       );
     }
     case "AN-I20": {
-      const native = cumulativeFor(entries, range, scope.today);
-      const bridge = timeResultBridge(id, native, native.series, scope, range, { metric: "expense", kind: "expense", groupBy: granularityFor(scope.bucket) }, native.series.totalCount === 0);
+      const native = cumulativeFor(entries, range, scope.today, unknownDates);
+      const bridge = timeResultBridge(id, native, native.series, scope, range, { metric: "expense", kind: "expense", groupBy: granularityFor(scope.bucket) }, native.series.totalCount === 0, true, fxMissing);
       const view = bridge.nativeResult;
-      if (view.series.totalCount === 0) return <Note text={t(bridge.metadata.completeness === "complete" || bridge.metadata.completeness === "no-transactions" ? "statsWorkbench.states.empty" : "statsWorkbench.states.partial")} />;
+      if (view.series.totalCount === 0) return <Note text={emptyOrPartial(bridge.metadata.completeness, ["complete", "no-transactions"])} />;
       return (
-        <ResultState metadata={bridge.metadata}><div className="flex min-h-0 flex-col gap-1">
+        <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}><div className="flex min-h-0 flex-col gap-1">
           {view.result.totalMinor === null ? null : (
             <p className="sw-amount text-base font-semibold tabular-nums text-ink">{moneyText(view.result.totalMinor, currency)}</p>
           )}
@@ -666,6 +708,7 @@ function TimeView({
       );
     }
     case "AN-A01": {
+      if (fx !== undefined) return <FxComparisonView id={id} scope={scope} range={range} detail={detail} fx={fx} />;
       const comparisonEntries = scope.comparisonRead === undefined ? entries : entriesInCurrency([...new Map([...scope.comparisonRead.entries, ...scope.entries].map(entry => [entry.id, entry])).values()], currency);
       const native = statsFor(comparisonEntries, range, currency, scope.bucket, true);
       const bridge = timeResultBridge(id, native, { complete: true }, scope, range, { metric: "income-expense", kind: "both", groupBy: null }, false, scope.comparisonRead?.verified === true || scope.accountScope?.startsWith("guest:") === true);
@@ -690,6 +733,64 @@ function TimeView({
   }
 }
 
+/**
+ * 综合折算的「上期比较」：当期与上一周期各自读取并折算；任意一期缺汇率或不完整，都不显示增减
+ * （不拿残缺的一期去比完整的一期，更不编造增长率）。当期自己的数字只要完整就照常显示。
+ */
+function FxComparisonView({
+  id,
+  scope,
+  range,
+  detail,
+  fx,
+}: {
+  readonly id: string;
+  readonly scope: WorkbenchScope;
+  readonly range: DateRange;
+  readonly detail: boolean;
+  readonly fx: FxTimeContext;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  const previousState = fx.previous;
+  if (previousState === null) return <Note text={t("statsWorkbench.states.fxProjectionInvalid")} tone="warn" />;
+  if (previousState.status === "loading") return <Note text={t("statsWorkbench.states.fxLoading")} />;
+  const previous = previousState.status === "ready" ? previousState.projection : null;
+  const currency = scope.currency;
+  const currentMissing = fx.projection.missing.length;
+  const previousMissing = previous?.missing.length ?? 0;
+  const previousUsable = previous !== null && previous.sourceComplete;
+  const comparable = previousUsable && currentMissing === 0 && previousMissing === 0 && scope.rangeSourceComplete === true;
+  const native = statsFor(previous === null ? scope.entries : mergedEntries(scope.entries, previous.converted), range, currency, scope.bucket, true);
+  // 对比面板用的是整数 number：任何合计超出安全整数就不显示，而不是显示被舍入的数字。
+  const safe = [native.totals.incomeMinor, native.totals.expenseMinor, native.totals.netMinor, native.comparison?.totals.incomeMinor ?? 0, native.comparison?.totals.expenseMinor ?? 0].every(Number.isSafeInteger);
+  if (!safe) return <Note text={t("statsWorkbench.states.undetermined")} tone="warn" />;
+  const bridge = timeResultBridge(id, native, { complete: currentMissing === 0, unknownBucketCount: currentMissing > 0 ? 1 : 0 }, scope, range, { metric: "income-expense", kind: "both", groupBy: null }, false, true, currentMissing);
+  const stats = bridge.nativeResult;
+  const previousTotals = comparable ? stats.comparison?.totals ?? null : null;
+  const previousNote = comparable
+    ? undefined
+    : !previousUsable
+      ? t("statsWorkbench.states.fxComparisonPreviousFailed")
+      : currentMissing + previousMissing > 0
+        ? t("statsWorkbench.states.fxComparisonUnavailable", { count: currentMissing + previousMissing })
+        : t("statsWorkbench.states.fxComparisonPreviousFailed");
+  return (
+    <ResultState metadata={bridge.metadata} partialText={bridge.metadata.completeness === "fx-incomplete" ? t("statsWorkbench.states.fxSeries", { count: currentMissing }) : undefined}>
+      <div className={`min-h-0 ${detail ? "" : "sw-compare-compact"}`}>
+        <ComparisonPanel
+          current={stats.totals}
+          previous={previousTotals}
+          monthToDate={range.to < endOfMonth(range.to)}
+          currentDays={stats.range.days}
+          previousDays={previousTotals === null || stats.comparison === null ? 0 : daysIn(stats.comparison.range)}
+          currency={currency}
+          {...(previousNote === undefined ? {} : { previousNote })}
+        />
+      </div>
+    </ResultState>
+  );
+}
+
 function daysIn(range: DateRange): number {
   let days = 0;
   for (let date = range.from; date <= range.to && days < 1000; date = addDays(date, 1)) days += 1;
@@ -709,10 +810,165 @@ function categoryName(scope: WorkbenchScope, categoryId: string, t: ReturnType<t
 }
 
 // ---------------------------------------------------------------------------
-// 综合折算（S16-D 既有路径）
+// 综合折算：统一适配层（fxProjection）→ 已验收的 A / B 计算入口
 // ---------------------------------------------------------------------------
 
-function CombinedBody({
+/** 逐笔条数超出上限时，这些卡片仍可由 S16-D 的聚合结果（不依赖逐笔投影）给出，行为与适配前一致。 */
+const FX_AGGREGATE_ONLY: ReadonlySet<string> = new Set(["AN-B01", "AN-B02", "AN-B03", "AN-I01", "AN-I02", "AN-I03", "AN-I04"]);
+
+type Translate = ReturnType<typeof useI18n>["t"];
+
+/** 缺汇率对这张卡片的数字意味着什么，用一句话说清；与金额无关的计数类、或不受影响时为 `null`。 */
+export function fxNoteFor(policy: FxCardPolicy, missing: number, t: Translate): string | null {
+  if (missing <= 0) return null;
+  switch (policy.class) {
+    case "sum":
+      return t("statsWorkbench.states.fxSubtotal", { count: missing });
+    case "partial":
+      return t("statsWorkbench.states.fxPartialAverage", { count: missing });
+    case "undetermined":
+      return t("statsWorkbench.states.fxUndetermined", { count: missing });
+    case "extreme":
+      return t("statsWorkbench.states.fxExtreme", { count: missing });
+    case "composition":
+      return t("statsWorkbench.states.fxComposition", { count: missing });
+    case "ranking":
+      return t("statsWorkbench.states.fxRanking", { count: missing });
+    case "series":
+      return t("statsWorkbench.states.fxSeries", { count: missing });
+    case "count":
+      return null;
+  }
+}
+
+function RetryNote({ text, onRetry }: { readonly text: string; readonly onRetry: (() => void) | undefined }): React.JSX.Element {
+  const { t } = useI18n();
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <Note text={text} tone="warn" />
+      {onRetry === undefined ? null : (
+        <button type="button" className="sw-link" onClick={(event) => { event.stopPropagation(); onRetry(); }}>
+          {t("statsWorkbench.states.retry")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CombinedCard({
+  type,
+  family,
+  scope,
+  range,
+  density,
+  detail,
+  height,
+  width,
+}: {
+  readonly type: CardType;
+  readonly family: ChartFamily;
+  readonly scope: WorkbenchScope;
+  readonly range: DateRange;
+  readonly density: Density;
+  readonly detail: boolean;
+  readonly height: number | undefined;
+  readonly width: number | undefined;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  const fx = scope.fx;
+  const policy = fxPolicyFor(type.id);
+  if (fx === null || policy === null) return <CombinedUnsupported />;
+  const state = projectFxCached(fx);
+  switch (state.status) {
+    case "loading":
+      return <Note text={t("statsWorkbench.states.fxLoading")} />;
+    case "no-permission":
+      return <Note text={t("errors.api.book_forbidden")} tone="warn" />;
+    case "request-failed":
+      return <RetryNote text={t("statsWorkbench.states.fxError")} onRetry={fx.refresh} />;
+    case "invalid":
+      return <RetryNote text={t("statsWorkbench.states.fxProjectionInvalid")} onRetry={fx.refresh} />;
+    case "entry-limit":
+      // 不截断、不提高上限：逐笔分析显式失败；仅靠聚合就能精确给出的卡片照旧显示。
+      return FX_AGGREGATE_ONLY.has(type.id)
+        ? <CombinedAggregateBody type={type} family={family} scope={scope} density={density} detail={detail} />
+        : <Note text={t("statsWorkbench.states.fxEntryLimit", { limit: state.limit })} tone="warn" />;
+    case "ready":
+      break;
+  }
+  const projection = state.projection;
+  const dataCompleteness: AnalysisCompleteness = fx.sourceComplete === true ? "complete" : "offline-incomplete";
+  const missing = projection.missingByScope[policy.kinds];
+
+  if (isAgentAAnalysis(type.id)) {
+    const outcome = fxAgentAResult(projection, type.id, range, scope.today, dataCompleteness, dataCompleteness === "complete" ? undefined : "fx-source-coverage-missing");
+    return <FxAgentAView outcome={outcome} family={family} density={density} detail={detail} currency={projection.target} />;
+  }
+
+  // B 的时间类：账目换成目标币种的折算账目，范围覆盖与原币模式一样由数据层给；缺汇率的日期传给引擎标为未知。
+  const fxScope: WorkbenchScope = {
+    ...scope,
+    entries: policy.class === "count" ? projection.all : projection.converted,
+    currency: projection.target,
+    loaded: true,
+    repairing: false,
+    coverageGap: null,
+    rangeReadState: dataCompleteness,
+    rangeSourceComplete: fx.sourceComplete === true,
+  };
+  const previous = type.id === "AN-A01" ? (scope.previousFx === undefined || scope.previousFx === null ? null : projectFxCached(scope.previousFx)) : null;
+  return (
+    <TimeView
+      id={type.id}
+      family={family}
+      scope={fxScope}
+      range={range}
+      density={density}
+      detail={detail}
+      available={height}
+      availableWidth={width}
+      fx={{ projection, policy, unknownDates: missing.count > 0 ? missing.dates : undefined, missingCount: missing.count, previous }}
+    />
+  );
+}
+
+/** Agent A 结果的综合折算展示：标量 / 极值 / 构成 / 排行，缺汇率时按卡片类别如实说明。 */
+function FxAgentAView({
+  outcome,
+  family,
+  density,
+  detail,
+  currency,
+}: {
+  readonly outcome: FxAgentAOutcome;
+  readonly family: ChartFamily;
+  readonly density: Density;
+  readonly detail: boolean;
+  readonly currency: string;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  const { result, policy, missingCount, nothingKnown } = outcome;
+  if (nothingKnown) return <Note text={t("statsWorkbench.states.fxNothingKnown", { count: missingCount })} tone="warn" />;
+  // 这段时间确实没有记录：说「没有记录」，不在综合折算下摆出一个看似结果的 0（与适配前的综合卡片一致）。
+  if (result.completeness === "no-transactions") return <Note text={t("statsWorkbench.states.empty")} />;
+  const fxText = fxNoteFor(policy, missingCount, t);
+  const body = <AgentAView result={result} family={family} density={density} detail={detail} currency={currency} />;
+  switch (result.shape) {
+    case "scalar": {
+      // 数据层不完整（本机覆盖不足）与缺汇率可以同时存在：两句都说。
+      const base = result.completeness === "fx-incomplete" ? null : completenessNote(result, t);
+      const note = [base, fxText].filter((part): part is string => part !== null).join(" ");
+      return <ScalarView result={result} density={density} note={note === "" ? null : note} />;
+    }
+    case "record-extreme":
+      return <ExtremeView result={result} density={density} note={fxText} />;
+    default:
+      return <ResultState metadata={result} partialText={result.completeness === "fx-incomplete" ? fxText : undefined}>{body}</ResultState>;
+  }
+}
+
+/** 逐笔条数超限时的聚合路径（S16-D `FxAggregate`，与改造前一致）。 */
+function CombinedAggregateBody({
   type,
   family,
   scope,

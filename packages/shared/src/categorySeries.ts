@@ -59,6 +59,8 @@ export interface CategorySeriesOptions {
   readonly span: TimeSpan;
   readonly today: string;
   readonly coverageEnd: string | null;
+  /** 金额无法确定的业务日期（例如综合折算缺汇率）；含这些日期的桶是 unknown，不画成 0。 */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
   /** `true` 时追加一条“其他”序列（= 该桶全部合计 − 选中分类合计）。 */
   readonly includeOther?: boolean;
 }
@@ -157,7 +159,7 @@ export function computeCategorySeries(
   );
   const includeOther = categoryIds.includes(OTHER_CATEGORY_KEY);
 
-  const bucketList = enumerateBuckets(options.granularity, span, { today, coverageEnd });
+  const bucketList = enumerateBuckets(options.granularity, span, { today, coverageEnd, unknownDates: options.unknownDates });
   const byKey = new Map<
     string,
     { total: AmountAndCount; categories: Map<string, AmountAndCount> }

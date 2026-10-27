@@ -67,6 +67,8 @@ export interface TimeSeriesOptions {
   readonly coverageEnd: string | null;
   /** 仅 `metric: "count"` 使用；默认 `"all"`。 */
   readonly countKind?: CountKind;
+  /** 金额无法确定的业务日期（例如综合折算缺汇率）；含这些日期的桶是 unknown，不画成 0。 */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
 }
 
 /** 一个时间桶的权威结果。 */
@@ -149,7 +151,7 @@ export function computeTimeSeries(
   const coverageEnd = options.coverageEnd === null ? null : assertCalendarDate(options.coverageEnd);
 
   const countKind: CountKind = options.countKind ?? "all";
-  const bucketList = enumerateBuckets(options.granularity, span, { today, coverageEnd });
+  const bucketList = enumerateBuckets(options.granularity, span, { today, coverageEnd, unknownDates: options.unknownDates });
 
   const byKey = new Map<string, Accumulator>();
   for (const bucket of bucketList) byKey.set(bucket.key, { amount: 0n, count: 0 });
@@ -331,6 +333,8 @@ export interface FlowSeriesOptions {
   readonly span: TimeSpan;
   readonly today: string;
   readonly coverageEnd: string | null;
+  /** 同 `TimeSeriesOptions.unknownDates`；收入与支出共用同一组未知日期。 */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
 }
 
 export interface FlowSeriesBucketPoint {
@@ -379,6 +383,7 @@ export function computeFlowSeries(
     span: options.span,
     today: options.today,
     coverageEnd: options.coverageEnd,
+    unknownDates: options.unknownDates,
   });
   const expense = computeTimeSeries(entries, {
     metric: "expense",
@@ -386,6 +391,7 @@ export function computeFlowSeries(
     span: options.span,
     today: options.today,
     coverageEnd: options.coverageEnd,
+    unknownDates: options.unknownDates,
   });
   const expenseByKey = new Map(expense.buckets.map((point) => [point.bucket.key, point]));
 

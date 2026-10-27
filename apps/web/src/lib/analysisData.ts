@@ -285,6 +285,8 @@ export interface TimeAnalysisQuery {
    * by any card that must not claim completeness.
    */
   readonly coverage?: "local-ledger" | "unknown";
+  /** Dates whose amounts cannot be determined (综合折算缺汇率)；包含它们的桶是 unknown。 */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
 }
 
 export interface TimeAnalysisView {
@@ -315,6 +317,7 @@ export function deriveTimeAnalysis(
     span,
     today: query.today,
     coverageEnd: input.coverageEnd,
+    unknownDates: query.unknownDates,
     ...(query.countKind === undefined ? {} : { countKind: query.countKind }),
   });
   return { result, input };
@@ -408,6 +411,8 @@ export interface FlowAnalysisQuery {
   readonly maxDays?: number;
   /** Coverage policy; see `TimeAnalysisQuery.coverage`. */
   readonly coverage?: "local-ledger" | "unknown";
+  /** See `TimeAnalysisQuery.unknownDates`. */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
 }
 
 export interface FlowAnalysisView {
@@ -438,6 +443,7 @@ export function deriveFlowAnalysis(
     span,
     today: query.today,
     coverageEnd: input.coverageEnd,
+    unknownDates: query.unknownDates,
   });
   return { result, input };
 }
@@ -486,6 +492,8 @@ export interface CategoryAnalysisQuery {
   readonly today: string;
   readonly maxDays?: number;
   readonly coverage?: "local-ledger" | "unknown";
+  /** See `TimeAnalysisQuery.unknownDates`. */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
 }
 
 export interface CategoryAnalysisView {
@@ -522,6 +530,7 @@ export function deriveCategoryAnalysis(
     span,
     today: query.today,
     coverageEnd: input.coverageEnd,
+    unknownDates: query.unknownDates,
     ...(query.includeOther === undefined ? {} : { includeOther: query.includeOther }),
   });
   return { result, shares: computeCategoryShares(result), input };

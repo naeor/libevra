@@ -15,6 +15,7 @@
 import {
   addDays,
   computeCalendarHeatmap,
+  FX_POLICY,
   comparisonRangeFor,
   makePeriod,
   type AnalysisCompleteness,
@@ -47,6 +48,8 @@ import {
   type TimeAnalysisView,
 } from "../lib/analysisData.js";
 import { computeStats } from "../lib/offline/localStats.js";
+import { fxPolicyFor, type FxCardPolicy } from "./fxPolicy.js";
+import type { FxProjection } from "./fxProjection.js";
 
 type Cache = Map<string, unknown>;
 
@@ -62,6 +65,43 @@ function cached<T>(entries: readonly Transaction[], key: string, make: () => T):
   const value = make();
   cache.set(key, value);
   return value;
+}
+
+const unknownDateIds = new WeakMap<ReadonlySet<string>, number>();
+let nextUnknownDateId = 1;
+
+/** 缓存键里代表「未知日期集合」：同一个集合对象恒得同一个键；空集合等同于没有。 */
+function unknownKey(dates: ReadonlySet<string> | undefined): string {
+  if (dates === undefined || dates.size === 0) return "";
+  let id = unknownDateIds.get(dates);
+  if (id === undefined) {
+    id = nextUnknownDateId;
+    nextUnknownDateId += 1;
+    unknownDateIds.set(dates, id);
+  }
+  return `u${String(id)}`;
+}
+
+/** 空集合不传给引擎（保持与原币模式逐位相同的路径）。 */
+function unknownOf(dates: ReadonlySet<string> | undefined): { readonly unknownDates: ReadonlySet<string> } | Record<string, never> {
+  return dates === undefined || dates.size === 0 ? {} : { unknownDates: dates };
+}
+
+const mergedPairs = new WeakMap<readonly Transaction[], WeakMap<readonly Transaction[], readonly Transaction[]>>();
+
+/** 上期比较的两个周期的账目合并成一个稳定数组（同一对输入恒得同一个数组，缓存键才稳定）。 */
+export function mergedEntries(left: readonly Transaction[], right: readonly Transaction[]): readonly Transaction[] {
+  let inner = mergedPairs.get(left);
+  if (inner === undefined) {
+    inner = new WeakMap();
+    mergedPairs.set(left, inner);
+  }
+  let merged = inner.get(right);
+  if (merged === undefined) {
+    merged = [...left, ...right];
+    inner.set(right, merged);
+  }
+  return merged;
 }
 
 /** 软删除的账目永远不进统计（与 A/B 的筛选规则一致，这里提前一次，省得每张卡各筛一遍）。 */
@@ -136,19 +176,83 @@ export function agentAResult(
   today: string,
   completeness: AnalysisCompleteness = "complete",
   unavailableReason?: string,
+  /** 综合折算：账目已是目标币种的折算金额，信封写 `aggregate` 而不是 `original`。 */
+  aggregate = false,
 ): AnalysisResult {
-  return cached(entries, `a:${id}:${range.from}:${range.to}:${currency}:${completeness}:${unavailableReason ?? ""}`, () => {
+  return cached(entries, `a:${id}:${range.from}:${range.to}:${currency}:${completeness}:${unavailableReason ?? ""}:${String(aggregate)}`, () => {
     const entry = getAnalysisCatalogEntry(id);
     if (entry === null) throw new RangeError(`unknown_analysis_id:${id}`);
     // A 的装配层只断言「单一币种」而不替调用方筛选（混币直接拒绝）；原币模式在这里先按币种取账目。
     return entry.assemble(analysisEntries(entriesInCurrency(entries, currency)), defaultDefinitionFor(id), {
       period: makePeriod(range.from, range.to),
       today,
-      currency: { mode: "original", currency },
+      currency: aggregate ? { mode: "aggregate", targetCurrency: currency } : { mode: "original", currency },
       completeness,
       ...(unavailableReason === undefined ? {} : { unavailableReason }),
     });
   });
+}
+
+/** 综合折算下一张 Agent A 卡片的结果，附带「缺汇率对这张卡片意味着什么」。 */
+export interface FxAgentAOutcome {
+  readonly result: AnalysisResult;
+  readonly policy: FxCardPolicy;
+  /** 影响这张卡片口径的缺汇率账目数；0 表示这张卡片的数字不受汇率缺失影响。 */
+  readonly missingCount: number;
+  /** 有缺汇率账目、且该口径下没有任何一笔成功折算：什么都不能说，不显示 0。 */
+  readonly nothingKnown: boolean;
+}
+
+const fxOutcomes = new WeakMap<FxProjection, Map<string, FxAgentAOutcome>>();
+
+function nullifyValue(result: AnalysisResult): AnalysisResult {
+  return result.shape === "scalar" ? { ...result, value: null } : result;
+}
+
+/** 计数类排行不暴露「次要金额」：其中未折算账目是占位 0，不是真实小计。 */
+function withoutSecondary(result: AnalysisResult): AnalysisResult {
+  if (result.shape !== "ranked-groups") return result;
+  return { ...result, groups: result.groups.map(({ secondary: _secondary, ...group }) => group) };
+}
+
+/**
+ * 综合折算的 Agent A 入口：**统一适配层 → 已验收的 A 装配函数**，不写任何新公式。
+ *
+ * - `count` 类用全部账目（精确，不受汇率影响）；其余用已成功折算的账目。
+ * - 数据层完整性优先：本机覆盖不全等状态原样透传；只有数据层是 `complete` 时才叠加 `fx-incomplete`。
+ * - `undetermined` 类缺汇率时把数值置空（A 的「无法确定」语义），不拿部分数据的比值冒充结果。
+ */
+export function fxAgentAResult(
+  projection: FxProjection,
+  id: CatalogAnalysisId,
+  range: DateRange,
+  today: string,
+  dataCompleteness: AnalysisCompleteness,
+  unavailableReason?: string,
+): FxAgentAOutcome {
+  const policy = fxPolicyFor(id);
+  if (policy === null) throw new RangeError(`fx_policy_missing:${id}`);
+  const key = `${id}:${range.from}:${range.to}:${today}:${dataCompleteness}:${unavailableReason ?? ""}`;
+  let byKey = fxOutcomes.get(projection);
+  if (byKey === undefined) {
+    byKey = new Map();
+    fxOutcomes.set(projection, byKey);
+  }
+  const hit = byKey.get(key);
+  if (hit !== undefined) return hit;
+
+  const missingCount = projection.missingByScope[policy.kinds].count;
+  const known = policy.kinds === "none" || projection.converted.some((entry) => policy.kinds === "both" || entry.kind === policy.kinds);
+  const nothingKnown = missingCount > 0 && !known;
+  const completeness: AnalysisCompleteness = dataCompleteness !== "complete" ? dataCompleteness : missingCount > 0 ? "fx-incomplete" : "complete";
+  const reason = unavailableReason ?? (completeness === "fx-incomplete" ? "fx-rates-missing" : undefined);
+  let result = agentAResult(policy.class === "count" ? projection.all : projection.converted, id, range, projection.target, today, completeness, reason, true);
+  if (policy.class === "count") result = withoutSecondary(result);
+  else result = { ...result, computation: { ...result.computation, convertedWithFx: true, fxPolicy: FX_POLICY } };
+  if (policy.class === "undetermined" && missingCount > 0) result = nullifyValue(result);
+  const outcome: FxAgentAOutcome = { result, policy, missingCount, nothingKnown };
+  byKey.set(key, outcome);
+  return outcome;
 }
 
 /** 闭区间 → B 的半开区间 `[from, to + 1)`。 */
@@ -162,21 +266,28 @@ export function timeSeriesFor(
   granularity: TimeGranularity,
   range: DateRange,
   today: string,
+  unknownDates?: ReadonlySet<string>,
 ): TimeAnalysisView {
-  return cached(entries, `ts:${metric}:${granularity}:${range.from}:${range.to}:${today}`, () =>
+  return cached(entries, `ts:${metric}:${granularity}:${range.from}:${range.to}:${today}:${unknownKey(unknownDates)}`, () =>
     deriveTimeAnalysis(entries, {
       metric,
       granularity,
       span: span(range),
       today,
       ...(metric === "count" ? { countKind: "all" as const } : {}),
+      ...unknownOf(unknownDates),
     }),
   );
 }
 
-export function cumulativeFor(entries: readonly Transaction[], range: DateRange, today: string): CumulativeAnalysisView {
-  return cached(entries, `cum:${range.from}:${range.to}:${today}`, () =>
-    deriveCumulativeAnalysis(entries, { metric: "expense", granularity: "day", span: span(range), today }),
+export function cumulativeFor(
+  entries: readonly Transaction[],
+  range: DateRange,
+  today: string,
+  unknownDates?: ReadonlySet<string>,
+): CumulativeAnalysisView {
+  return cached(entries, `cum:${range.from}:${range.to}:${today}:${unknownKey(unknownDates)}`, () =>
+    deriveCumulativeAnalysis(entries, { metric: "expense", granularity: "day", span: span(range), today, ...unknownOf(unknownDates) }),
   );
 }
 
@@ -185,9 +296,10 @@ export function flowFor(
   granularity: TimeGranularity,
   range: DateRange,
   today: string,
+  unknownDates?: ReadonlySet<string>,
 ): FlowAnalysisView {
-  return cached(entries, `flow:${granularity}:${range.from}:${range.to}:${today}`, () =>
-    deriveFlowAnalysis(entries, { granularity, span: span(range), today }),
+  return cached(entries, `flow:${granularity}:${range.from}:${range.to}:${today}:${unknownKey(unknownDates)}`, () =>
+    deriveFlowAnalysis(entries, { granularity, span: span(range), today, ...unknownOf(unknownDates) }),
   );
 }
 
@@ -201,8 +313,9 @@ export function categorySeriesFor(
   range: DateRange,
   today: string,
   top = 4,
+  unknownDates?: ReadonlySet<string>,
 ): CategoryAnalysisView {
-  return cached(entries, `cat:${granularity}:${range.from}:${range.to}:${today}:${String(top)}`, () => {
+  return cached(entries, `cat:${granularity}:${range.from}:${range.to}:${today}:${String(top)}:${unknownKey(unknownDates)}`, () => {
     const all = deriveCategoryAnalysis(entries, {
       kind: "expense",
       categoryIds: [...new Set(entries.filter((entry) => entry.kind === "expense").map((entry) => entry.categoryId))],
@@ -210,6 +323,7 @@ export function categorySeriesFor(
       granularity,
       span: span(range),
       today,
+      ...unknownOf(unknownDates),
     });
     const ranked = rankCategories(all, top).map((row) => row.categoryId);
     return deriveCategoryAnalysis(entries, {
@@ -219,19 +333,26 @@ export function categorySeriesFor(
       granularity,
       span: span(range),
       today,
+      ...unknownOf(unknownDates),
     });
   });
 }
 
 /** 日历热力（Agent B，I12）：支出按日；本机账本口径的覆盖终点与 B 的时间序列一致。 */
-export function heatmapFor(entries: readonly Transaction[], range: DateRange, today: string): CalendarHeatmapResult {
-  return cached(entries, `heat:${range.from}:${range.to}:${today}`, () => {
+export function heatmapFor(
+  entries: readonly Transaction[],
+  range: DateRange,
+  today: string,
+  unknownDates?: ReadonlySet<string>,
+): CalendarHeatmapResult {
+  return cached(entries, `heat:${range.from}:${range.to}:${today}:${unknownKey(unknownDates)}`, () => {
     const half = span(range);
     return computeCalendarHeatmap(toTimeSeriesEntries(entries), {
       metric: "expense",
       span: half,
       today,
       coverageEnd: localLedgerCoverageEnd(half, today),
+      ...unknownOf(unknownDates),
     });
   });
 }

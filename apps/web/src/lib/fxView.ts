@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { aggregateFxAsync, convertFx, decimalsFor, FxError, FxHistoryService, FxResultCache, fxHistoryOptionsFromEnv, fxRangeMonths, FX_MAX_RANGE_MONTHS, type FxAggregate, type FxLookup, type Transaction } from "@libellum/shared";
+import { aggregateFxAsync, aggregateFxDetailedAsync, convertFx, decimalsFor, FxError, FxHistoryService, FxResultCache, fxHistoryOptionsFromEnv, fxRangeMonths, FX_MAX_DETAIL_ENTRIES, FX_MAX_RANGE_MONTHS, type FxAggregate, type FxAggregateDetail, type FxLookup, type Transaction } from "@libellum/shared";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { apiFetch } from "./api.js";
 import { useCurrentBookId } from "./queries.js";
@@ -67,7 +67,15 @@ export function useFxRange(from: string, to: string, active = true, options?: { 
   const source = useAnalysisRange({ from, to }, enabled && active);
   const sourceVersion = useMemo(() => source.data?.entries.map(row => `${row.id}:${row.version}`).sort().join("|") ?? "", [source.data]);
   const key = JSON.stringify([mode.userId, bookId, mode.target, from, to, enabled, active, offline, sourceVersion, source.data?.sourceComplete, source.data?.offline]);
-  const [state, setState] = useState<{ key: string; result?: FxAggregate; sourceComplete?: boolean; offline?: boolean; error?: boolean; reason?: "capacity" | "read" | "permission" }>({ key: "" });
+  const [state, setState] = useState<{
+    key: string; result?: FxAggregate; sourceComplete?: boolean; offline?: boolean; error?: boolean; reason?: "capacity" | "read" | "permission";
+    /** 逐日/逐笔折算投影（S-01 v2 §4.8-8 / §13）；超过 `FX_MAX_DETAIL_ENTRIES` 时为 `undefined`，聚合结果仍可用。 */
+    detail?: FxAggregateDetail;
+    /** 本次折算的全部原币账目（已确认属于当前账本）：投影按 id 回连它取得分类/支付方式等元数据，不重新读取。 */
+    sourceEntries?: readonly (Transaction & { readonly bookId: string })[];
+    /** 逐笔条数超出保护上限：不截断、不拿前 N 笔冒充完整，聚合金额之外的逐笔分析必须显示「无法计算」。 */
+    entryLimitExceeded?: boolean;
+  }>({ key: "" });
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (!enabled || !active || !mode.userId || !bookId || source.data === undefined || source.error) return;
@@ -83,8 +91,18 @@ export function useFxRange(from: string, to: string, active = true, options?: { 
       for (const date of new Set(filtered.filter(row => row.currency !== mode.target).map(row => row.occurredLocalDate))) {
         check(); lookups.set(date, await rates.lookup(date, { offline: local }));
       }
-      check(); const result = await aggregateFxAsync(mode.userId, bookId, filtered, mode.target, lookups, { signal: controller.signal });
-      check(); setState({ key, result, sourceComplete, offline: local });
+      // 逐笔投影是综合分析卡片的统一输入；超过保护上限时不截断、不提高上限，退回仅聚合并明确标记。
+      let result: FxAggregate, detail: FxAggregateDetail | undefined, entryLimitExceeded = false;
+      try {
+        const detailed = await aggregateFxDetailedAsync(mode.userId, bookId, filtered, mode.target, lookups, { signal: controller.signal }, { includeEntries: true, maxEntries: FX_MAX_DETAIL_ENTRIES });
+        const { detail: projected, ...aggregate } = detailed;
+        result = aggregate; detail = projected;
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== "fx_detail_limit") throw error;
+        entryLimitExceeded = true;
+        result = await aggregateFxAsync(mode.userId, bookId, filtered, mode.target, lookups, { signal: controller.signal });
+      }
+      check(); setState({ key, result, sourceComplete, offline: local, sourceEntries: filtered, ...(detail === undefined ? {} : { detail }), ...(entryLimitExceeded ? { entryLimitExceeded } : {}) });
     })().catch(() => { if (!controller.signal.aborted && offlineScope() === scope) setState({ key, error: true, reason: "read" }); });
     return () => controller.abort();
   // 原件变化会触发重算；写入现有月份副本不改变原始财务事实。

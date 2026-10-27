@@ -28,6 +28,7 @@ export function ComparisonPanel({
   currentDays,
   previousDays,
   currency,
+  previousNote,
 }: {
   readonly current: PeriodTotals;
   readonly previous: PeriodTotals | null;
@@ -35,6 +36,8 @@ export function ComparisonPanel({
   readonly currentDays: number;
   readonly previousDays: number;
   readonly currency: string;
+  /** 上期不可比时的具体原因（例如综合折算缺汇率）；缺省时沿用「没有历史」的说明。 */
+  readonly previousNote?: string;
 }): React.JSX.Element {
   const { t } = useI18n();
   const rows = [
@@ -76,7 +79,7 @@ export function ComparisonPanel({
 
       <p className="text-helper-relaxed text-muted">
         {previous === null
-          ? t("stats.comparison.noHistory")
+          ? previousNote ?? t("stats.comparison.noHistory")
           : monthToDate
             ? t("stats.comparison.monthToDate", days)
             : t("stats.comparison.fullPeriod", days)}

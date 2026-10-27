@@ -5,6 +5,7 @@ import { applyLocale } from "../i18n/index.js";
 import { CardBody } from "./cards.js";
 import { agentAResult, timeSeriesFor } from "./compute.js";
 import { newCard } from "./defaults.js";
+import { buildFxView } from "./fxTestSupport.js";
 import { fxResultBridge, originalCompleteness, timeResultBridge } from "./results.js";
 import type { FxRangeView, WorkbenchScope } from "./scope.js";
 
@@ -94,12 +95,11 @@ describe("W2/W3公共元数据桥接（不冒充完整shape投影）", () => {
     const noPermission = renderToStaticMarkup(<CardBody card={newCard("AN-B01")} scope={scope({ fx: { ...completeFx, result: undefined, error: true, reason: "permission" } as unknown as FxRangeView })} density="medium" />);
     expect(noPermission).toContain("无权访问该账本");
     expect(noPermission).not.toContain("¥0.00");
-    const missing = aggregateFx("a", "b", [{ ...fxEntry, currency: "USD" }], "CNY", new Map());
-    const html = renderToStaticMarkup(<CardBody card={newCard("AN-I01")} scope={scope({ fx: { ...completeFx, result: missing } })} density="expanded" />);
+    const missingView = buildFxView({ entries: [{ ...transaction, currency: "USD" }], missingCurrencies: ["USD"] });
+    const html = renderToStaticMarkup(<CardBody card={newCard("AN-I01")} scope={scope({ fx: missingView })} density="expanded" />);
     expect(html).toContain("无法确定");
     expect(html).not.toContain("这段时间没有记录");
-    const empty = aggregateFx("a", "b", [], "CNY", new Map());
-    const noTransactions = renderToStaticMarkup(<CardBody card={newCard("AN-B01")} scope={scope({ fx: { ...completeFx, result: empty } })} density="medium" />);
+    const noTransactions = renderToStaticMarkup(<CardBody card={newCard("AN-B01")} scope={scope({ fx: buildFxView({ entries: [] }) })} density="medium" />);
     expect(noTransactions).toContain("这段时间没有记录");
     expect(noTransactions).not.toContain("¥0.00");
   });

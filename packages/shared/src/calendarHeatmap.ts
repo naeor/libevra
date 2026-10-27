@@ -43,6 +43,8 @@ export interface CalendarHeatmapOptions {
   readonly span: TimeSpan;
   readonly today: string;
   readonly coverageEnd: string | null;
+  /** 金额无法确定的业务日期（例如综合折算缺汇率）：该日是 unknown，不画成 0。 */
+  readonly unknownDates?: ReadonlySet<string> | undefined;
 }
 
 export interface CalendarDayCell {
@@ -166,7 +168,7 @@ export function computeCalendarHeatmap(
     const date = cursor;
     // 单个日期就是它自己的桶：覆盖判定只关心这一天是否被数据覆盖。
     const day = daySpan(date);
-    const state = classifyBucket({ naturalSpan: day, span: day }, { today, coverageEnd });
+    const state = classifyBucket({ naturalSpan: day, span: day }, { today, coverageEnd, unknownDates: options.unknownDates });
     const count = countByDate.get(date) ?? 0;
     const amount = amountByDate.get(date) ?? 0n;
     const known = state !== "unknown" && state !== "unavailable" && state !== "future";

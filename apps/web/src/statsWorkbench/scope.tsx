@@ -46,6 +46,8 @@ export interface WorkbenchScope {
   /** 本机账目是否已经读过一次（读之前显示加载，而不是「没有记录」）。 */
   readonly loaded: boolean;
   readonly fx: FxRangeView | null;
+  /** 综合折算下「上期比较」卡片自己读取的上一周期折算；其它卡片为 `null`/缺省。 */
+  readonly previousFx?: FxRangeView | null;
   /** 服务器同条件笔数多于本机时给出两边笔数；否则为 `null`。 */
   readonly coverageGap: { readonly server: number; readonly local: number } | null;
   /** 正在把缺的月份取回本机（取完 store 更新，卡片自动重算）。 */
