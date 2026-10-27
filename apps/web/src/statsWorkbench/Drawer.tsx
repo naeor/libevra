@@ -15,7 +15,7 @@ import { cardTitle } from "./cards.js";
 import { CARD_TYPES, CONTAINER_DEFAULT_SIZE, type CardGroup, type CardType, type LayoutObjectChoice } from "./catalog.js";
 import type { DragController, DragPayload } from "./dnd.js";
 import {
-  CardGlyph,
+  ChartGlyph,
   CarouselGlyph,
   ChevronDown,
   ChevronUp,
@@ -44,6 +44,9 @@ export function Drawer({
   onAddCard,
   onAddLayout,
   onCustom,
+  customCards = [],
+  onConfigureCustom,
+  onDuplicateCustom,
   containerScope,
   onScopeAdd,
   onScopeMove,
@@ -58,6 +61,9 @@ export function Drawer({
   readonly onAddCard: (analysisId: string) => void;
   readonly onAddLayout: (choice: LayoutObjectChoice) => void;
   readonly onCustom: () => void;
+  readonly customCards?: readonly AnalysisCardNode[];
+  readonly onConfigureCustom?: (objectId: string) => void;
+  readonly onDuplicateCustom?: (card: AnalysisCardNode) => void;
   readonly containerScope: ContainerScopeView | null;
   readonly onScopeAdd: (analysisId: string) => void;
   readonly onScopeMove: (index: number, delta: -1 | 1) => void;
@@ -156,7 +162,19 @@ export function Drawer({
                   ) : null}
                   {group === "mine" ? (
                     <div className="flex flex-col gap-3 px-5 pt-3">
-                      <p className="text-helper-relaxed text-muted">{t("statsWorkbench.drawer.mineEmpty")}</p>
+                      <p className="text-helper-relaxed text-muted">{t(customCards.length === 0 ? "statsWorkbench.drawer.mineEmpty" : "statsWorkbench.custom.libraryHint")}</p>
+                      {customCards.map((card) => (
+                        <div key={card.objectId} className="sw-tile">
+                          <ChartGlyph family={card.chart.chartFamily} className="shrink-0 text-brand-dark" />
+                          <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onConfigureCustom?.(card.objectId)}>
+                            <span className="block truncate text-body font-medium text-ink">{cardTitle(card, t)}</span>
+                            <span className="block truncate text-helper text-muted">{t("statsWorkbench.config.title")}</span>
+                          </button>
+                          <button type="button" className="sw-add-button" aria-label={t("statsWorkbench.drawer.add", { name: cardTitle(card, t) })} onClick={() => onDuplicateCustom?.(card)}>
+                            <PlusGlyph width={18} height={18} />
+                          </button>
+                        </div>
+                      ))}
                       <button type="button" className="sw-new-custom" onClick={onCustom}>
                         <PlusGlyph />
                         <span>{t("statsWorkbench.drawer.newCustom")}</span>
@@ -235,7 +253,7 @@ export function Drawer({
             <div className="sw-tiles px-5">
               {CARD_TYPES.filter((type) => type.recommended).map((type) => (
                 <button key={type.id} type="button" className="sw-tile" disabled={full} onClick={() => onScopeAdd(type.id)} aria-label={t("statsWorkbench.drawer.add", { name: t(`statsWorkbench.cards.${type.id as "AN-B01"}.title`) })}>
-                  <CardGlyph className="shrink-0 text-brand-dark" />
+                  <ChartGlyph family={type.families[0] ?? "number"} className="shrink-0 text-brand-dark" />
                   <span className="min-w-0 flex-1 text-left">
                     <span className="block truncate text-helper font-medium text-ink">{t(`statsWorkbench.cards.${type.id as "AN-B01"}.title`)}</span>
                   </span>
@@ -256,7 +274,7 @@ function LibraryTile({ type, combined, drag, onAdd }: { readonly type: CardType;
   const payload = (): DragPayload => ({ kind: "new-card", analysisId: type.id, size: type.defaultSize, label: title });
   return (
     <div className="sw-tile sw-draggable" {...drag.sourceProps(payload)}>
-      <CardGlyph className="shrink-0 text-brand-dark" />
+      <ChartGlyph family={type.families[0] ?? "number"} className="shrink-0 text-brand-dark" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-helper font-medium text-ink">{title}</span>
         <span className="block truncate text-helper text-muted">

@@ -1,15 +1,6 @@
 /**
- * 布局编辑会话：**Agent D 的编辑器状态 + 命令**，加上 D 自己列为「待扩展」的几项操作的过渡适配。
- *
- * ⚠️ **不是第二套布局引擎。** 位置是否合法、是否重叠、是否越界，全部由 D 的
- * `applyCommand` / `validateGeometry` / `validateContentDocumentV1` 判断；撤销/重做用 D 的
- * `EditorState.history` 快照栈（上限同 D，50 步）。
- *
- * D 的命令目前只有 select / move / move-by / resize / set-presentation / insert-card /
- * insert-spacer / delete / undo / redo。D 设计稿 §6 自己登记了缺口：插入容器、容器内部增删排序、
- * 整组复制、配置面板提交。在 D 交付这些命令之前，下面的 `transact*` 函数把它们实现为
- * 「整份文档的一次转换 → 用 D 的校验器检查 → 合法才入撤销栈」，失败时状态原样返回。
- * D 交付正式命令后，只需把这些函数换成对应命令，界面不变。
+ * 页面会话只转发 D 的正式命令；所有文档转换、校验、历史提交由 D 统一处理。
+ * 复制时页面仅提供新身份，复用 insert-card/insert-container，不自行维护快照栈。
  */
 import {
   applyCommand,
@@ -21,13 +12,13 @@ import {
   type ContainerNode,
   type EditorState,
   type GridSize,
+  type GridSplitConfig,
   type LayoutCommand,
   type LayoutDocumentV1,
   type ObjectGeometry,
-  type WorkbenchContentDocumentV1,
 } from "@libellum/shared/analysis/layout";
 
-import { documentsProblems, type WorkbenchDocuments } from "./storage.js";
+import type { WorkbenchDocuments } from "./storage.js";
 import { newObjectId } from "./defaults.js";
 
 export type { EditorState };
@@ -50,22 +41,6 @@ export function sessionDocuments(state: EditorState): WorkbenchDocuments {
 export function command(state: EditorState, next: LayoutCommand): SessionResult {
   const result = applyCommand(state, next);
   return { ok: result.ok, state: result.state, problem: result.issues[0]?.code ?? null };
-}
-
-/** 与 D 的 `recordChange` 相同的语义：入栈当前快照、清空重做、限制深度。 */
-function transact(
-  state: EditorState,
-  content: WorkbenchContentDocumentV1,
-  layout: LayoutDocumentV1,
-  selection: string | null,
-): SessionResult {
-  const problems = documentsProblems({ content, layout });
-  if (problems.length > 0) {
-    return { ok: false, state, problem: problems[0]?.split(":").pop() ?? "invalid" };
-  }
-  const limit = state.history.limit;
-  const past = [...state.history.past, { content: state.content, layout: state.layout, selection: state.selection }].slice(-limit);
-  return { ok: true, state: { content, layout, selection, history: { past, future: [], limit } }, problem: null };
 }
 
 export function geometryOf(state: EditorState, objectId: string): ObjectGeometry | undefined {
@@ -143,17 +118,12 @@ function anchorAfter(layout: LayoutDocumentV1, from: number, size: GridSize): nu
 }
 
 // ---------------------------------------------------------------------------
-// D 尚未提供的操作（过渡适配，见文件头）
+// D 正式文档命令的页面适配
 // ---------------------------------------------------------------------------
 
 /** 修改卡片自身的配置（标题、展示方式、时间策略、参数）；几何不变。 */
 export function updateCard(state: EditorState, card: AnalysisCardNode): SessionResult {
-  if (cardOf(state, card.objectId) === undefined) return { ok: false, state, problem: "unknown-object" };
-  const content: WorkbenchContentDocumentV1 = {
-    ...state.content,
-    cards: state.content.cards.map((existing) => (existing.objectId === card.objectId ? card : existing)),
-  };
-  return transact(state, content, state.layout, state.selection);
+  return command(state, { type: "update-card", card });
 }
 
 /**
@@ -167,24 +137,7 @@ export function insertContainer(
   anchor: number | null,
   size: GridSize,
 ): SessionResult {
-  const place = anchor ?? earliestAnchor(state.layout, size);
-  if (place === null) return { ok: false, state, problem: "invalid-anchor" };
-  const content: WorkbenchContentDocumentV1 = {
-    ...state.content,
-    cards: [...state.content.cards, ...children],
-    containers: [...state.content.containers, container],
-  };
-  const layout: LayoutDocumentV1 = {
-    ...state.layout,
-    main: {
-      ...state.layout.main,
-      objects: [
-        ...state.layout.main.objects,
-        { objectId: container.objectId, objectType: container.type, anchor: place, colSpan: size.colSpan, rowSpan: size.rowSpan },
-      ],
-    },
-  };
-  return transact(state, content, layout, container.objectId);
+  return command(state, { type: "insert-container", container, children, size, collisionPolicy: "reflow", ...(anchor === null ? {} : { anchor }) });
 }
 
 /**
@@ -195,41 +148,14 @@ export function replaceContainerChildren(
   state: EditorState,
   containerId: string,
   children: readonly AnalysisCardNode[],
+  split?: GridSplitConfig,
 ): SessionResult {
-  const container = containerOf(state, containerId);
-  if (container === undefined) return { ok: false, state, problem: "unknown-object" };
-  const keep = new Set(children.map((child) => child.objectId));
-  const removed = new Set(container.children.filter((id) => !keep.has(id)));
-  const existing = new Set(state.content.cards.map((card) => card.objectId));
-  const updated = new Map(children.map((child) => [child.objectId, child] as const));
-  const content: WorkbenchContentDocumentV1 = {
-    ...state.content,
-    cards: [
-      ...state.content.cards.filter((card) => !removed.has(card.objectId)).map((card) => updated.get(card.objectId) ?? card),
-      ...children.filter((child) => !existing.has(child.objectId)),
-    ],
-    containers: state.content.containers.map((item) =>
-      item.objectId === containerId ? { ...item, children: children.map((child) => child.objectId) } : item,
-    ),
-  };
-  return transact(state, content, state.layout, containerId);
+  return command(state, { type: "replace-container-children", containerId, children, ...(split === undefined ? {} : { split }) });
 }
 
 /** 删除：卡片/Spacer 走 D 的 delete；容器连同内部卡片整组删除（一步撤销即可整组恢复）。 */
 export function removeObject(state: EditorState, objectId: string): SessionResult {
-  const container = containerOf(state, objectId);
-  if (container === undefined) return command(state, { type: "delete", objectId });
-  const children = new Set(container.children);
-  const content: WorkbenchContentDocumentV1 = {
-    ...state.content,
-    cards: state.content.cards.filter((card) => !children.has(card.objectId)),
-    containers: state.content.containers.filter((item) => item.objectId !== objectId),
-  };
-  const layout: LayoutDocumentV1 = {
-    ...state.layout,
-    main: { ...state.layout.main, objects: state.layout.main.objects.filter((object) => object.objectId !== objectId) },
-  };
-  return transact(state, content, layout, null);
+  return command(state, { type: "delete", objectId });
 }
 
 /**

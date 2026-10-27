@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type SVGProps } from "rea
 import { decimalsFor, type Ratio } from "@libellum/shared";
 
 import { currencySymbol, numberSeparators } from "../lib/format.js";
+import { formalChartFamily } from "./catalog.js";
 
 /** 按卡片**自身内容盒**的宽高定档（卡片规格 §5.1：不按屏幕或列数）。阈值是原型候选。 */
 export type Density = "compact" | "medium" | "expanded";
@@ -166,6 +167,32 @@ export const PencilIcon = (props: IconProps) => <Icon {...props} d="m4.5 15.5-.9
 export const UndoIcon = (props: IconProps) => <Icon {...props} d="M9 7 4.5 11.5 9 16M5 11.5h9.5a5 5 0 0 1 0 10H12" />;
 export const RedoIcon = (props: IconProps) => <Icon {...props} d="m15 7 4.5 4.5L15 16m4-4.5H9.5a5 5 0 0 0 0 10H12" />;
 export const CardGlyph = (props: IconProps) => <Icon {...props} d="M4 5h16v14H4V5Zm4 10v1m4-5v5m4-8v8" />;
+
+/** 图标按当前 chartFamily 的正式归属选取；未知家族保留通用只读卡片图标。 */
+export function ChartGlyph({ family, ...props }: IconProps & { readonly family: string }): React.JSX.Element {
+  const formal = formalChartFamily(family);
+  const paths: Readonly<Record<string, string>> = {
+    "CF-A01": "M5 5h14v14H5V5Zm3 5h3m-1.5-1.5v3M14 10h3M8 15h3m3 0h3",
+    "CF-A02": "M5 19V9h4v10m3 0V4h4v15M3 19h18m-7-15 2-2 2 2",
+    "CF-A03": "M12 3v9h9A9 9 0 0 0 12 3Zm-3 1.5A9 9 0 1 0 19.5 15H9V4.5Z",
+    "CF-A04": "M4 5h15v3H4V5Zm0 6h11v3H4v-3Zm0 6h7v3H4v-3Z",
+    "CF-A05": "M3 8h18v8H3V8Zm6 0v8m6-8v8",
+    "CF-A06": "M12 3v18M4 7h8v4H4V7Zm8 6h8v4h-8",
+    "CF-A07": "M3 4h18v16H3V4Zm0 5h18M3 14h18M9 4v16",
+    "CF-B01": "M3 4v16h18M6 15l4-5 4 3 6-8",
+    "CF-B02": "M3 4v16h18M6 18v-3l4-5 4 3 6-8v13H6Z",
+    "CF-B03": "M3 20h18M6 17v-5h3v5H6Zm5 0V7h3v10h-3Zm5 0V3h3v14h-3Z",
+    "CF-B04": "M3 20h18M5 17V8h3v9H5Zm4 0v-5h3v5H9Zm5 0V4h3v13h-3Zm4 0V9h3v8h-3Z",
+    "CF-B05": "M4 20h16M5 18V9h5v9H5Zm0-4h5m4 2V4h5v14h-5Zm0-7h5",
+    "CF-B06": "M3 5h18v14H3V5Zm0 6 6-2 6 4 6-2M9 5v14m6-14v14",
+    "CF-B08": "M4 5h16v15H4V5Zm3-2v4m10-4v4M4 10h16M8 13h1m4 0h1m-6 4h1m4 0h1m4-4h1",
+    "CF-B09": "M3 20h18M5 17V9m3 8V6m3 11V3m3 14v-6m3 6V8m3 9v-4",
+    "CF-B10": "M4 6h16v4H4V6Zm0 8h11v4H4v-4m14 0v5m-2-2 2 2 2-2",
+    "CF-B11": "M3 4v16h18M5 17h4v-4h5V9h4V4h3",
+  };
+  const path = paths[formal] ?? (formal === "CF-B07" || formal === "CF-B12" || formal === "CF-B13" || formal === "CF-B14" || formal === "CF-B15" ? paths["CF-B01"] : undefined);
+  return path === undefined ? <CardGlyph {...props} /> : <Icon {...props} data-chart-family={formal} d={path} />;
+}
 export const CarouselGlyph = (props: IconProps) => <Icon {...props} d="M7 5h10v14H7V5ZM3.5 8v8M20.5 8v8" />;
 export const SplitGlyph = (props: IconProps) => <Icon {...props} d="M4 4h16v16H4V4Zm8 0v16M4 12h16" />;
 export const SpacerGlyph = (props: IconProps) => <Icon {...props} d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4" />;

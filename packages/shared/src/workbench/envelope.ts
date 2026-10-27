@@ -7,15 +7,7 @@
  * - **不定义 B 的形状专有字段**：载荷通过泛型 `TPayload` 原样携带（pass-through）；
  * - 纯函数、无 I/O / DOM / 时钟 / 随机依赖；不改输入对象。
  *
- * ## 类型来源与偏离说明（重要，集成批次需替换）
- *
- * 权威类型定义在 A 的 `packages/shared/src/analysis/types.ts`（S-01 v2.0.3）。
- * 但 D 分支（`deepseek/s17-layout-engine`，基线 1.16.23）**尚无 `analysis/` 目录**
- * （该文件只存在于 A 工作区分支）。为了让本批能在 D 分支独立 typecheck/测试，
- * 下方 `@internalMirror` 按 A v2.0.3 **逐字段镜像**了组装最小所需类型。
- * **集成批次（Lead 统一合并 A 的 analysis 协议后）应改为
- * `import type { AnalysisResultBase, ... } from "../analysis/types.js"` 并删除镜像段。**
- * 该偏离已在 I-1b 回执中报告 Lead。
+ * 公共类型与常量直接来自 Agent A 的冻结协议，不保留集成前的镜像类型。
  *
  * 契约口径（见 `S17-Agent-D-D2-集成前检查清单` 与 I-1 映射文档）：
  * - `shape` 逐字使用 B 协议已登记的形状名（移动平均 = `moving-average`）；
@@ -23,119 +15,17 @@
  * - `computation` 可含 v2.0.3 的 `method? / sampling? / coverageEnd? / analysisLimit?`。
  */
 
-// ---------------------------------------------------------------------------
-// @internalMirror：镜像 A `packages/shared/src/analysis/types.ts`（v2.0.3）
-// 仅包含信封组装所需的最小类型；集成批次替换为 import type。
-// ---------------------------------------------------------------------------
-
-/** S-01 v2 冻结协议版本串（A `ANALYSIS_PROTOCOL_VERSION`）。 */
-export const ANALYSIS_PROTOCOL_VERSION = "s01-v2" as const;
-
-/** 权威金额的舍入方向（A `ANALYSIS_ROUNDING_POLICY`）。 */
-export const ANALYSIS_ROUNDING_POLICY = "minor-half-away-v1" as const;
-
-/** 数据完整性 9 态：`complete=false` 的语义绝不能被渲染成 0。 */
-export type AnalysisCompleteness =
-  | "complete"
-  | "no-transactions"
-  | "partial"
-  | "fx-incomplete"
-  | "offline-incomplete"
-  | "loading"
-  | "request-failed"
-  | "no-permission"
-  | "not-applicable";
-
-/** 币种处理：原币（不跨币种相加）或按记录折算后聚合。 */
-export type ResolvedCurrency =
-  | { readonly mode: "original"; readonly currency: string }
-  | { readonly mode: "aggregate"; readonly targetCurrency: string };
-
-/** 计算实际使用的闭区间业务日期（两端都算）。 */
-export interface ResolvedPeriod {
-  readonly from: string;
-  readonly to: string;
-  /** 日历天数（含首尾）。 */
-  readonly dayCount: number;
-}
-
-/** 计算实际应用的筛选；`null`=不限制，`[]`=限制到空集，两者不等价。 */
-export interface ResolvedFilters {
-  readonly kind: "expense" | "income" | "both";
-  readonly categoryIds: readonly string[] | null;
-  readonly paymentMethodIds: readonly string[] | null;
-  readonly tagIds: readonly string[] | null;
-  readonly currency: string | null;
-}
-
-/** 展示层采样注释（仅视觉，不可回算、不可覆盖结果层）。 */
-export interface SamplingMetadata {
-  readonly strategy?: string | undefined;
-  readonly omittedCount?: number | undefined;
-  readonly isVisualOnly: true;
-}
-
-/** 截断/上限元数据（G-18 / XC-09）。 */
-export interface AnalysisLimitMetadata {
-  readonly limit: string;
-  readonly value: number;
-  readonly requested?: number | undefined;
-}
-
-/** 展示层解释派生数字所需的计算元数据（v2.0.3 含四可选字段）。 */
-export interface ComputationMetadata {
-  readonly rounding: typeof ANALYSIS_ROUNDING_POLICY;
-  readonly numeratorMinor?: string | undefined;
-  readonly denominator?: number | undefined;
-  readonly denominatorDays?: number | undefined;
-  readonly sampleCount?: number | undefined;
-  readonly tieCount?: number | undefined;
-  readonly convertedWithFx?: boolean | undefined;
-  readonly fxPolicy?: string | undefined;
-  readonly notes?: readonly string[] | undefined;
-  /** 派生统计的算法名（开放字符串，未知值透传不重算）。 */
-  readonly method?: string | undefined;
-  /** 仅视觉层采样注释。 */
-  readonly sampling?: SamplingMetadata | undefined;
-  /** 离线覆盖终点（业务日期 `YYYY-MM-DD`）。 */
-  readonly coverageEnd?: string | undefined;
-  /** 限定本次分析的上限，便于解释截断。 */
-  readonly analysisLimit?: AnalysisLimitMetadata | undefined;
-}
-
-/** 结果来源地址（只给「如何再次取数」，不含权限承诺）。 */
-export interface SourceDescriptor {
-  readonly analysisId: string;
-  readonly period: ResolvedPeriod;
-  readonly filters: ResolvedFilters;
-  readonly groupBy: string | null;
-  readonly query: {
-    readonly kind: "stats" | "transactions";
-    readonly from: string;
-    readonly to: string;
-    readonly currency: string | null;
-    readonly categoryId?: string | null;
-    readonly paymentMethodId?: string | null;
-  };
-  readonly transactionIds?: readonly string[] | undefined;
-  readonly dataVersion: string | null;
-}
-
-/** 每个结果都携带的公共字段（A `AnalysisResultBase`，v2.0.3）。 */
-export interface AnalysisResultBase {
-  readonly version: typeof ANALYSIS_PROTOCOL_VERSION;
-  readonly analysisId: string;
-  readonly analysisType: string;
-  readonly metric: string;
-  readonly resolvedFilters: ResolvedFilters;
-  readonly resolvedPeriod: ResolvedPeriod;
-  readonly resolvedCurrency: ResolvedCurrency;
-  readonly completeness: AnalysisCompleteness;
-  readonly unavailableReason?: string | undefined;
-  readonly dataVersion: string | null;
-  readonly computation: ComputationMetadata;
-  readonly source: SourceDescriptor;
-}
+import { ANALYSIS_PROTOCOL_VERSION, ANALYSIS_ROUNDING_POLICY } from "../analysis/types.js";
+import type {
+  AnalysisResultBase, AnalysisCompleteness, ResolvedCurrency, ResolvedPeriod,
+  ResolvedFilters, ComputationMetadata, SourceDescriptor,
+} from "../analysis/types.js";
+export { ANALYSIS_PROTOCOL_VERSION, ANALYSIS_ROUNDING_POLICY } from "../analysis/types.js";
+export type {
+  AnalysisResultBase, AnalysisCompleteness, ResolvedCurrency, ResolvedPeriod,
+  ResolvedFilters, SamplingMetadata, AnalysisLimitMetadata, ComputationMetadata,
+  SourceDescriptor,
+} from "../analysis/types.js";
 
 // ---------------------------------------------------------------------------
 // I-1b 信封

@@ -6,26 +6,25 @@
  * 账目，所有卡片随之重算，**不会短暂显示上一账本的数字**（ACC-14）。共享账本的权限由既有读取路径
  * 保证，这里不新增任何读取接口（ACC-12）。
  *
- * ⚠️ **本机覆盖核对（ACC-13）。** 原币模式下仍按旧页面的方式向服务器要一次同条件统计
- * （`useStats`，联网时是服务器结果）。服务器那边的笔数多于本机时，页面明确提示「本机还缺账目」，
- * 而不是把本机小计说成全部。离线时 `useStats` 自己回退到本机，不会误报。
+ * ⚠️ **范围覆盖核对（ACC-13/W5）。** 原币与FX共用useAnalysisRange的完整月份分页、空月下载
+ * 凭据与离线原件核对。未核实完整覆盖时明确显示小计，不再维护第二条逐月补读路径。
  *
  * ⚠️ **综合折算（汇率）只走既有 S16-D 路径**（`useFxRange` → `aggregateFxAsync`，ACC-04），
  * 不另写折算；只有声明了综合结果的卡片在综合模式下显示数字，其余明确显示「暂不支持」。
  */
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createContext, useContext } from "react";
-import type { Currency, DateRange, StatsBucket, Transaction } from "@libellum/shared";
+import type { AnalysisCompleteness, Currency, DateRange, StatsBucket, Transaction } from "@libellum/shared";
 
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { toLocalDate } from "../lib/datetime.js";
-import { useFxMode, useFxRange } from "../lib/fxView.js";
+import { useAnalysisRange } from "../lib/analysisRange.js";
+import { useFxRange } from "../lib/fxView.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
 import { ledgerSnapshotValue, readLocalTransactions, subscribeLedger } from "../lib/offline/localLedger.js";
-import { syncMonth } from "../lib/offline/sync.js";
 import { refreshPending } from "../lib/offline/write.js";
-import { useLedger, useStats } from "../lib/queries.js";
-import { liveEntries, statsFor } from "./compute.js";
+import { useLedger } from "../lib/queries.js";
+import { liveEntries } from "./compute.js";
 import { bucketFor, resolveRange, type WorkbenchFilters } from "./filters.js";
 
 export type FxRangeView = ReturnType<typeof useFxRange>;
@@ -36,7 +35,7 @@ export interface WorkbenchScope {
   readonly filters: WorkbenchFilters;
   readonly range: DateRange;
   readonly bucket: StatsBucket;
-  /** 实际生效的综合折算（设备开启了汇率折算 **且** 筛选选了综合）。 */
+  /** 工作台综合统计独立于明细金额的设备显示偏好；游客保留原币离线流程。 */
   readonly combined: boolean;
   readonly fxAvailable: boolean;
   /** 原币模式的币种，或综合模式的目标币种。 */
@@ -53,6 +52,12 @@ export interface WorkbenchScope {
   readonly repairing: boolean;
   /** 工作台配置的账号作用域（Q-02：每账号一套）。 */
   readonly accountScope: string | null;
+  /** 正式账号会话允许卡片按独立范围复用W5原件读取；游客继续只读本机。 */
+  readonly readRanges?: boolean;
+  /** 卡片独立范围的读取状态与覆盖证明，不写入布局。 */
+  readonly rangeReadState?: AnalysisCompleteness;
+  readonly rangeSourceComplete?: boolean;
+  readonly comparisonRead?: { readonly entries: readonly Transaction[]; readonly verified: boolean };
 }
 
 export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
@@ -64,7 +69,6 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
    * 返回新对象；放进依赖会让「重读本机 → 发布新快照 → 重渲染 → 又重读」无限循环（游客模式下页面卡死）。
    */
   const guestId = guest?.id ?? null;
-  const fxMode = useFxMode();
   const all = useSyncExternalStore(subscribeLedger, ledgerSnapshotValue, ledgerSnapshotValue);
   const [readOnce, setReadOnce] = useState(false);
   /**
@@ -91,58 +95,15 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
   const today = useMemo(() => toLocalDate(new Date()), []);
   const range = useMemo(() => resolveRange(filters.time, today), [filters.time, today]);
   const bucket = bucketFor(range);
-  const combined = fxMode.enabled && filters.combined;
+  const fxAvailable = user !== null;
+  const combined = fxAvailable && filters.combined;
   const defaultCurrency: Currency = user?.defaultCurrency ?? "CNY";
-  const currency: Currency = combined ? (fxMode.target as Currency) : (filters.currency ?? defaultCurrency);
-  const entries = useMemo(() => liveEntries(all), [all]);
-
-  const fx = useFxRange(range.from, range.to, combined);
-
-  // ACC-13：同条件向服务器要一次统计；离线时 useStats 回退本机，两边一致，不会误报。
-  const server = useStats({ from: range.from, to: range.to, bucket, currency });
-  const local = statsFor(entries, range, currency, bucket);
-  const serverCount = server.data?.totals.count;
-  const coverageGap =
-    !combined && serverCount !== undefined && serverCount > local.totals.count
-      ? { server: serverCount, local: local.totals.count }
-      : null;
+  const currency: Currency = combined ? defaultCurrency : (filters.currency ?? defaultCurrency);
+  const source = useAnalysisRange(range, user !== null && !combined);
+  const entries = useMemo(() => liveEntries(user !== null && !combined ? source.data?.entries ?? [] : all), [all, source.data?.entries, user, combined]);
+  const fx = useFxRange(range.from, range.to, combined, { enabled: fxAvailable });
 
   const accountScope = user !== null ? `user:${user.id}` : guestId !== null ? `guest:${guestId}` : null;
-
-  /**
-   * ⚠️ **本机缺账目时先补齐，再提示。** 新设备、刚清过缓存、或后台下载还没把月份发布到 store 时，
-   * 本机笔数会少于服务器。做法与明细页「刷新本月」相同：先重读本机（后台已下载的月份会被发布），
-   * 仍不够就按月调用既有 `syncMonth`（只读 `/transactions`，同一套鉴权）把这段时间的月份取回本机；
-   * 每个账号每个月本次打开只试一次，失败就保留提示，不反复请求。
-   */
-  const [repairing, setRepairing] = useState(false);
-  const gapKey =
-    coverageGap === null || accountScope === null || bookId === null ? null : `${accountScope}:${bookId}:${range.from}:${range.to}:${currency}`;
-  useEffect(() => {
-    if (gapKey === null || guestId !== null || coverageGap === null || attemptedRanges.has(gapKey)) return;
-    attemptedRanges.add(gapKey);
-    let alive = true;
-    setRepairing(true);
-    void (async () => {
-      try {
-        const reread = liveEntries(await readLocalTransactions());
-        if (statsFor(reread, range, currency, bucket).totals.count >= coverageGap.server) return;
-        for (const month of monthsIn(range)) {
-          const key = `${accountScope ?? ""}:${bookId ?? ""}:${month}`;
-          if (attemptedMonths.has(key)) continue;
-          attemptedMonths.add(key);
-          await syncMonth(month);
-        }
-      } finally {
-        if (alive) setRepairing(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-    // range 由 gapKey 表达
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gapKey, guestId]);
 
   return {
     today,
@@ -150,32 +111,21 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
     range,
     bucket,
     combined,
-    fxAvailable: fxMode.enabled,
+    fxAvailable,
     currency,
     defaultCurrency,
     entries,
-    loaded: readOnce || all.length > 0,
+    loaded: user !== null && !combined ? source.data !== undefined || source.error : readOnce || all.length > 0,
     fx: combined ? fx : null,
-    coverageGap,
-    repairing,
+    coverageGap: null,
+    repairing: user !== null && !combined && source.loading,
     accountScope,
+    readRanges: user !== null,
+    ...(user !== null && !combined ? {
+      rangeSourceComplete: source.data?.sourceComplete === true,
+      rangeReadState: source.permissionDenied ? "no-permission" as const : source.error ? "request-failed" as const : source.loading ? "loading" as const : source.data?.sourceComplete === true ? "complete" as const : "offline-incomplete" as const,
+    } : {}),
   };
-}
-
-const attemptedRanges = new Set<string>();
-const attemptedMonths = new Set<string>();
-
-/** 区间覆盖的自然月（`YYYY-MM`），最多 14 个（400 天上限内）。 */
-function monthsIn(range: DateRange): readonly string[] {
-  const months: string[] = [];
-  let cursor = range.from.slice(0, 7);
-  const last = range.to.slice(0, 7);
-  while (cursor <= last && months.length < 14) {
-    months.push(cursor);
-    const [year = 0, month = 1] = cursor.split("-").map(Number);
-    cursor = month === 12 ? `${String(year + 1).padStart(4, "0")}-01` : `${String(year).padStart(4, "0")}-${String(month + 1).padStart(2, "0")}`;
-  }
-  return months;
 }
 
 const ScopeContext = createContext<WorkbenchScope | null>(null);

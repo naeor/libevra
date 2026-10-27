@@ -352,6 +352,7 @@
 }
 
 .sw-cell-target {
+  z-index: 2;
   cursor: pointer;
   border: 1.5px solid color-mix(in srgb, var(--color-brand) 55%, transparent);
   background: color-mix(in srgb, var(--color-brand-soft) 80%, transparent);
@@ -385,6 +386,37 @@
 
 .sw-edit-tile:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-brand) 70%, transparent);
+}
+
+.sw-edit-glyph {
+  width: 2rem;
+  height: 2rem;
+}
+
+/* 已保存的三列布局在窄屏仍可编辑；标题保留字号，尺寸标识不足一行时自然落到图标下方。 */
+.sw-edit-tile > span:first-child {
+  flex-wrap: wrap;
+  column-gap: 0.25rem;
+  row-gap: 0;
+}
+
+.sw-edit-title {
+  font-size: var(--text-section-title);
+  line-height: var(--text-section-title--line-height);
+}
+
+.sw-edit-tile[data-size="1×1"] {
+  gap: 0.5rem;
+}
+
+@media (max-width: 22rem) {
+  .sw-edit-glyph { width: 1.625rem; height: 1.625rem; }
+  .sw-edit-title {
+    font-size: var(--text-card-title);
+    line-height: var(--text-card-title--line-height);
+  }
+  .sw-edit-tile { padding: 0.5rem; }
+  .sw-size-badge { padding-inline: 0.3rem; flex-shrink: 0; }
 }
 
 .sw-edit-tile:focus-visible {

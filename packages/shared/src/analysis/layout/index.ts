@@ -16,6 +16,7 @@
 
 export * from "./types.js";
 export * from "./grid.js";
+export * from "./placement.js";
 export * from "./projection.js";
 export * from "./validation.js";
 export * from "./commands.js";

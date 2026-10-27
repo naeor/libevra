@@ -694,6 +694,17 @@ export type StoredMonths = Record<string, readonly Transaction[]>;
  * persisted contents are a report about the past, and the ledger being edited is the present.
  */
 const memory = new Map<string, unknown>();
+/** 单标签页按账本串行整个月存储修改；底层写入真正结束前不释放，避免超时后迟到覆盖。 */
+const monthWrites = new Map<string, Promise<void>>();
+function withMonthWrite(key: string, write: () => Promise<void>): Promise<void> {
+  const task = (monthWrites.get(key) ?? Promise.resolve()).catch(() => {}).then(async () => {
+    if (ledgerMonthsKey() !== key) return;
+    await write();
+  });
+  monthWrites.set(key, task);
+  void task.finally(() => { if (monthWrites.get(key) === task) monthWrites.delete(key); }).catch(() => {});
+  return task;
+}
 
 /** Read one of our stores from memory, loading it once per session. */
 async function readOwn<T>(key: string): Promise<T | null> {
@@ -726,22 +737,27 @@ export async function readStoredMonths(): Promise<StoredMonths> {
 /**
  * Write one month's entries.
  *
- * ⚠️ **Read-modify-write, and it goes through `writeValue`, which is serialised per key** — so two
- * months finishing at once cannot lose each other. That is the bug this file has already been bitten by
- * once in the cache layer, and it is not going to be repeated here.
+ * 整个read-modify-write按账本串行，而不只是末尾writeValue排队；否则不同月份会各自读取旧all，
+ * 后写的一份吞掉另一月份。与upsertEntry共用锁，下载不能覆盖锁等待期间的本机记账。
  */
 export async function storeMonth(month: string, entries: readonly Transaction[]): Promise<void> {
   const key = ledgerMonthsKey();
-  const all = await readStoredMonths();
-
-  // A download must not replace edits or conflict candidates awaiting a decision.
-  const marks = await readMarks();
-  const merged = new Map(entries.map(entry => [entry.id, entry]));
-  for (const entry of all[month] ?? []) {
-    if (marks[entry.id]?.pending === true || marks[entry.id]?.deleted === true) merged.set(entry.id, entry);
-  }
-  if (ledgerMonthsKey() !== key) return;
-  await writeOwn(key, { ...all, [month]: [...merged.values()] });
+  return withMonthWrite(key, async () => {
+    const all = await readStoredMonths();
+    if (ledgerMonthsKey() !== key) return;
+    const marks = await readMarks();
+    const merged = new Map<string, Transaction>();
+    for (const entry of entries) {
+      if ((merged.get(entry.id)?.version ?? -1) <= entry.version) merged.set(entry.id, entry);
+    }
+    for (const entry of all[month] ?? []) {
+      const incoming = merged.get(entry.id);
+      if (marks[entry.id]?.pending === true || marks[entry.id]?.deleted === true ||
+          (incoming !== undefined && entry.version > incoming.version)) merged.set(entry.id, entry);
+    }
+    if (ledgerMonthsKey() !== key) return;
+    await writeOwn(key, { ...all, [month]: [...merged.values()] });
+  });
 }
 
 /**
@@ -752,14 +768,14 @@ export async function storeMonth(month: string, entries: readonly Transaction[])
  */
 export async function upsertEntry(entry: Transaction): Promise<void> {
   const key = ledgerMonthsKey();
-  const month = entry.occurredLocalDate.slice(0, 7);
-  const all = await readStoredMonths();
-  const existing = all[month] ?? [];
-
-  const without = existing.filter((candidate) => candidate.id !== entry.id);
-
-  if (ledgerMonthsKey() !== key) return;
-  await writeOwn(key, { ...all, [month]: [...without, entry] });
+  return withMonthWrite(key, async () => {
+    const month = entry.occurredLocalDate.slice(0, 7);
+    const all = await readStoredMonths();
+    const existing = all[month] ?? [];
+    const without = existing.filter((candidate) => candidate.id !== entry.id);
+    if (ledgerMonthsKey() !== key) return;
+    await writeOwn(key, { ...all, [month]: [...without, entry] });
+  });
 }
 
 /**

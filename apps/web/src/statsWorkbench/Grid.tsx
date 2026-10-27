@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 import {
   placementCells,
+  planSmartPlacement,
   positionToRowCol,
   projectLayout,
   type AnalysisCardNode,
@@ -21,12 +22,12 @@ import {
 } from "@libellum/shared/analysis/layout";
 
 import { useI18n } from "../i18n/index.js";
-import { CardBody, cardSubtitle, cardTitle } from "./cards.js";
+import { CardBody, cardSubtitle, cardTitle, familyOf } from "./cards.js";
 import { cardType, CONTAINER_SIZES, sizeKey } from "./catalog.js";
 import type { WorkbenchScope } from "./scope.js";
 import { lastRow } from "./session.js";
 import {
-  CardGlyph,
+  ChartGlyph,
   CarouselGlyph,
   ChevronLeft,
   ChevronRight,
@@ -315,6 +316,8 @@ export interface DropPreview {
   readonly anchor: number;
   readonly size: GridSize;
   readonly legal: boolean;
+  readonly layout?: LayoutDocumentV1;
+  readonly targetId?: string;
 }
 
 export function EditGrid({
@@ -348,12 +351,21 @@ export function EditGrid({
 }): React.JSX.Element {
   const { t } = useI18n();
   const columns = layout.main.baseCols;
+  const pendingPlan = pendingPlaceholder === null ? null : planSmartPlacement(layout.main, {
+    objectId: "__pending-container__", objectType: "spacer", anchor: pendingPlaceholder.anchor,
+    colSpan: pendingPlaceholder.size.colSpan, rowSpan: pendingPlaceholder.size.rowSpan,
+  });
+  const shownLayout = preview?.legal === true && preview.layout !== undefined
+    ? preview.layout
+    : pendingPlan?.ok === true
+      ? { ...layout, main: { ...pendingPlan.geometry, objects: pendingPlan.geometry.objects.filter((item) => item.objectId !== "__pending-container__") } }
+      : layout;
   const pendingRows = pendingPlaceholder === null ? 0 : positionToRowCol(pendingPlaceholder.anchor, columns).row + pendingPlaceholder.size.rowSpan - 1;
-  const rows = Math.max(lastRow(layout), pendingRows) + 2;
+  const rows = Math.max(lastRow(layout), lastRow(shownLayout), pendingRows) + 2;
   const cards = new Map(content.cards.map((card) => [card.objectId, card] as const));
   const containers = new Map(content.containers.map((item) => [item.objectId, item] as const));
   const covered = new Set<number>();
-  for (const object of layout.main.objects) {
+  for (const object of shownLayout.main.objects) {
     if (object.objectId === draggingId) continue;
     for (const cell of placementCells(object.anchor, { colSpan: object.colSpan, rowSpan: object.rowSpan }, columns)) covered.add(cell);
   }
@@ -387,7 +399,7 @@ export function EditGrid({
         );
       })}
 
-      {layout.main.objects.map((object) => {
+      {shownLayout.main.objects.map((object) => {
         const size = { colSpan: object.colSpan, rowSpan: object.rowSpan };
         const card = object.objectType === "analysis-card" ? cards.get(object.objectId) : undefined;
         const container = containers.get(object.objectId);
@@ -399,11 +411,11 @@ export function EditGrid({
               : container !== undefined
                 ? containerName(container, t)
                 : object.objectId;
-        const Glyph = object.objectType === "spacer" ? SpacerGlyph : object.objectType === "carousel" ? CarouselGlyph : object.objectType === "grid-split" ? SplitGlyph : CardGlyph;
+        const Glyph = object.objectType === "spacer" ? SpacerGlyph : object.objectType === "carousel" ? CarouselGlyph : object.objectType === "grid-split" ? SplitGlyph : null;
         const faded = dimmed === "all" || (dimmed !== null && dimmed !== object.objectId);
         const kindLabel =
           object.objectType === "analysis-card"
-            ? t(`statsWorkbench.drawer.groups.${cardType(card?.analysis.analysisId ?? "")?.group ?? "basic"}`)
+            ? t(`statsWorkbench.config.families.${card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))}`)
             : container !== undefined
               ? t("statsWorkbench.containers.children", { count: container.children.length })
               : t("statsWorkbench.containers.spacerShort");
@@ -412,7 +424,8 @@ export function EditGrid({
             key={object.objectId}
             type="button"
             data-object-id={object.objectId}
-            className={`sw-edit-tile ${object.objectType === "spacer" ? "sw-edit-spacer" : ""} ${selection === object.objectId ? "sw-edit-selected" : ""} ${draggingId === object.objectId ? "sw-edit-dragging" : ""} ${faded ? "sw-edit-faded" : ""}`}
+            data-size={sizeKey(size)}
+            className={`sw-edit-tile ${object.objectType === "spacer" ? "sw-edit-spacer" : ""} ${selection === object.objectId || preview?.targetId === object.objectId ? "sw-edit-selected" : ""} ${draggingId === object.objectId ? "sw-edit-dragging" : ""} ${faded ? "sw-edit-faded" : ""}`}
             style={placementStyle(object.anchor, object.colSpan, object.rowSpan, columns)}
             aria-label={t("statsWorkbench.edit.objectLabel", { name: label, size: sizeKey(size) })}
             aria-haspopup="dialog"
@@ -421,12 +434,12 @@ export function EditGrid({
             {...objectProps(object.objectId, label, size)}
           >
             <span className="flex items-start justify-between gap-2">
-              <Glyph className="shrink-0 text-brand-dark" />
+              {Glyph === null ? <ChartGlyph family={card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))} className="sw-edit-glyph shrink-0 text-brand-dark" /> : <Glyph className="sw-edit-glyph shrink-0 text-brand-dark" />}
               <span className="sw-size-badge">{sizeKey(size)}</span>
             </span>
             <span className="mt-auto flex min-w-0 flex-col items-start text-left">
-              <span className="line-clamp-2 w-full text-helper font-medium break-words text-ink">{label}</span>
-              <span className="w-full truncate text-helper text-muted">{object.presentation === "collapsed" ? t("statsWorkbench.edit.collapsedTag") : kindLabel}</span>
+              <span className="sw-edit-title line-clamp-2 w-full font-medium break-words text-ink">{label}</span>
+              {object.colSpan * object.rowSpan <= 1 ? null : <span className="w-full truncate text-helper text-muted">{object.presentation === "collapsed" ? t("statsWorkbench.edit.collapsedTag") : kindLabel}</span>}
             </span>
           </button>
         );

@@ -33,6 +33,17 @@ export type ChartFamily =
   | "heatmap"
   | "comparison";
 
+/** 页面既有展示别名 → A/B 权威图表家族；仅作读取适配，不另造图表类别。 */
+export const FORMAL_CHART_FAMILIES: Readonly<Record<ChartFamily, string>> = {
+  number: "CF-A01", extreme: "CF-A02", donut: "CF-A03", ranking: "CF-A04", table: "CF-A07",
+  line: "CF-B01", area: "CF-B02", bar: "CF-B03", "flow-bars": "CF-B04", "flow-lines": "CF-B01",
+  stacked: "CF-B05", "share-bands": "CF-B06", cumulative: "CF-B11", heatmap: "CF-B08", comparison: "CF-B10",
+};
+
+export function formalChartFamily(family: string): string {
+  return FORMAL_CHART_FAMILIES[family as ChartFamily] ?? family;
+}
+
 /** 分析库中的分组（与能力目录 Basic / Insight / Advanced 对齐）。 */
 export type CardGroup = "basic" | "insight" | "advanced";
 

@@ -8,7 +8,8 @@ import type { AnalysisCardNode, ContainerNode, GridSize } from "@libellum/shared
 import { BottomSheet } from "../components/BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
 import { cardTitle } from "./cards.js";
-import { cardType, sizeKey } from "./catalog.js";
+import { cardType, sizeKey, type ChartFamily } from "./catalog.js";
+import { CUSTOM_CARD_TYPES, createCustomCard, customCardProblem } from "./customCards.js";
 import { customRangeProblem, previousMonth } from "./filters.js";
 import { endOfMonth, startOfMonth } from "@libellum/shared";
 import {
@@ -19,6 +20,7 @@ import {
   ResizeGlyph,
   SlidersGlyph,
   TrashGlyph,
+  ChartGlyph,
 } from "./ui.js";
 
 function SheetHeader({ title, subtitle }: { readonly title: string; readonly subtitle?: string }): React.JSX.Element {
@@ -142,23 +144,26 @@ export function SizeSheet({
 export function ConfigSheet({
   card,
   today,
+  size,
   onSave,
   onClose,
 }: {
   readonly card: AnalysisCardNode;
   readonly today: string;
-  readonly onSave: (card: AnalysisCardNode) => void;
+  readonly size?: GridSize | undefined;
+  readonly onSave: (card: AnalysisCardNode) => void | boolean;
   readonly onClose: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const type = cardType(card.analysis.analysisId);
+  const [analysisId, setAnalysisId] = useState(card.analysis.analysisId);
+  const type = cardType(analysisId);
   const [name, setName] = useState(card.title?.kind === "custom" ? (card.title.text ?? "") : "");
   const [family, setFamily] = useState(card.chart.chartFamily);
   const [pinned, setPinned] = useState(card.rangePolicy === "pinned");
   const [from, setFrom] = useState(card.pinnedRange?.from ?? startOfMonth(today));
   const [to, setTo] = useState(card.pinnedRange?.to ?? today);
   const problem = pinned ? customRangeProblem(from, to) : null;
-  const preset = { ...card, title: { kind: "preset" as const } };
+  const preset = { ...card, analysis: { ...card.analysis, analysisId }, title: { kind: "preset" as const } };
   const defaultName = cardTitle(preset, t);
   const lastMonth = previousMonth(today);
 
@@ -174,18 +179,29 @@ export function ConfigSheet({
             const next: AnalysisCardNode = {
               objectId: card.objectId,
               type: "analysis-card",
-              analysis: card.analysis,
+              analysis: analysisId === card.analysis.analysisId ? card.analysis : { analysisId, params: {} },
               chart: { ...card.chart, chartFamily: family },
               title: trimmed === "" ? { kind: "preset" } : { kind: "custom", text: trimmed.slice(0, 40) },
               rangePolicy: pinned ? "pinned" : "inherit",
               ...(pinned ? { pinnedRange: { from, to } } : {}),
             };
-            onSave(next);
-            close();
+            if (onSave(next) !== false) close();
           }}
         >
           <SheetHeader title={t("statsWorkbench.config.title")} subtitle={defaultName} />
           <div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-6 pb-4">
+            {card.title?.kind === "custom" && size !== undefined ? <label className="flex flex-col gap-1.5 text-helper text-muted">
+              {t("statsWorkbench.custom.analysis")}
+              <select value={analysisId} onChange={(event) => {
+                const nextType = cardType(event.target.value);
+                if (nextType === null) return;
+                setAnalysisId(nextType.id);
+                if (!nextType.families.includes(family as ChartFamily)) setFamily(nextType.families[0] ?? "number");
+              }} className="min-h-11 rounded-field border border-line bg-surface px-3 py-2 text-base text-ink">
+                {CUSTOM_CARD_TYPES.filter((option) => option.id === analysisId || (option.minSize.colSpan <= size.colSpan && option.minSize.rowSpan <= size.rowSpan)).map((option) => <option key={option.id} value={option.id}>{t(`statsWorkbench.cards.${option.id as "AN-B01"}.title`)}</option>)}
+              </select>
+              <span>{t("statsWorkbench.custom.sizeHint")}</span>
+            </label> : null}
             <label className="flex flex-col gap-1.5 text-helper text-muted">
               {t("statsWorkbench.config.name")}
               <input
@@ -367,29 +383,80 @@ export function DiscardSheet({ onDiscard, onClose }: { readonly onDiscard: () =>
   );
 }
 
-/** 自定义卡片：保留正式入口与接口说明；完整创建器等所有者确认流程后再做（不擅自设计复杂页面）。 */
-export function CustomCardSheet({ onClose }: { readonly onClose: () => void }): React.JSX.Element {
+/** 单分析创建闭环；复用正式能力引用与展示配置，多指标编排仍待所有者确认。 */
+export function CustomCardSheet({ today, onCreate, onClose }: {
+  readonly today: string;
+  readonly onCreate: (card: AnalysisCardNode) => boolean;
+  readonly onClose: () => void;
+}): React.JSX.Element {
   const { t } = useI18n();
+  const [analysisId, setAnalysisId] = useState("AN-B01");
+  const [family, setFamily] = useState<ChartFamily>("number");
+  const [name, setName] = useState("");
+  const [pinned, setPinned] = useState(false);
+  const [from, setFrom] = useState(startOfMonth(today));
+  const [to, setTo] = useState(today);
+  const [submitted, setSubmitted] = useState(false);
+  const type = cardType(analysisId);
+  const draft = { analysisId, family, name, ...(pinned ? { pinnedRange: { from, to } } : {}) };
+  const problem = customCardProblem(draft);
   return (
     <BottomSheet label={t("statsWorkbench.custom.title")} onClose={onClose}>
       {(close) => (
-        <>
+        <form className="flex min-h-0 flex-col" onSubmit={(event) => {
+          event.preventDefault();
+          setSubmitted(true);
+          const card = createCustomCard(draft);
+          if (card !== null && onCreate(card)) close();
+        }}>
           <SheetHeader title={t("statsWorkbench.custom.title")} subtitle={t("statsWorkbench.custom.body")} />
-          <ol className="flex flex-col gap-2 px-6 pb-2">
-            {(["step1", "step2", "step3", "step4", "step5"] as const).map((step, index) => (
-              <li key={step} className="flex gap-3 text-body text-ink">
-                <span className="sw-order">{index + 1}</span>
-                <span>{t(`statsWorkbench.custom.${step}`)}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="px-6 pt-2 text-helper-relaxed text-muted">{t("statsWorkbench.custom.pending")}</p>
-          <div className="px-6 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
-            <button type="button" className="sw-pill sw-pill-primary w-full" onClick={close}>
-              {t("statsWorkbench.custom.close")}
-            </button>
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pb-4">
+            <label className="flex flex-col gap-1.5 text-helper text-muted">
+              {t("statsWorkbench.custom.analysis")}
+              <select value={analysisId} onChange={(event) => {
+                const next = cardType(event.target.value);
+                if (next === null) return;
+                setAnalysisId(next.id);
+                setFamily(next.families[0] ?? "number");
+              }} className="min-h-11 rounded-field border border-line bg-surface px-3 py-2 text-base text-ink">
+                {CUSTOM_CARD_TYPES.map((option) => <option key={option.id} value={option.id}>{t(`statsWorkbench.cards.${option.id as "AN-B01"}.title`)}</option>)}
+              </select>
+              <span>{t(`statsWorkbench.cards.${analysisId as "AN-B01"}.desc`)}</span>
+              {type?.combined === false ? <span>{t("statsWorkbench.drawer.originalOnly")}</span> : null}
+            </label>
+            <fieldset>
+              <legend className="pb-2 text-helper text-muted">{t("statsWorkbench.config.display")}</legend>
+              <div className="flex flex-wrap gap-2">
+                {type?.families.map((option) => <button key={option} type="button" aria-pressed={family === option} className={`sw-chip inline-flex items-center gap-2 ${family === option ? "sw-chip-on" : ""}`} onClick={() => setFamily(option)}>
+                  <ChartGlyph family={option} width={18} height={18} />{t(`statsWorkbench.config.families.${option}`)}
+                </button>)}
+              </div>
+            </fieldset>
+            <label className="flex flex-col gap-1.5 text-helper text-muted">
+              {t("statsWorkbench.config.name")}
+              <input value={name} maxLength={40} required onChange={(event) => setName(event.target.value)} className="min-h-11 rounded-field border border-line bg-surface px-3 py-2 text-base text-ink" />
+            </label>
+            <fieldset>
+              <legend className="pb-2 text-helper text-muted">{t("statsWorkbench.config.time")}</legend>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" aria-pressed={!pinned} className={`sw-chip ${!pinned ? "sw-chip-on" : ""}`} onClick={() => setPinned(false)}>{t("statsWorkbench.config.inherit")}</button>
+                <button type="button" aria-pressed={pinned} className={`sw-chip ${pinned ? "sw-chip-on" : ""}`} onClick={() => setPinned(true)}>{t("statsWorkbench.config.pinned")}</button>
+              </div>
+              {pinned ? <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="flex min-w-0 flex-col gap-1 text-helper text-muted">{t("statsWorkbench.time.from")}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="min-h-11 min-w-0 rounded-field border border-line bg-surface px-2 text-base text-ink" /></label>
+                <label className="flex min-w-0 flex-col gap-1 text-helper text-muted">{t("statsWorkbench.time.to")}<input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="min-h-11 min-w-0 rounded-field border border-line bg-surface px-2 text-base text-ink" /></label>
+              </div> : null}
+            </fieldset>
+            {submitted && problem !== null ? <p role="alert" className="text-helper text-danger">{t(`statsWorkbench.custom.problems.${problem}`)}</p> : null}
+            <p className="text-helper-relaxed text-muted">{t("statsWorkbench.custom.pending")}</p>
           </div>
-        </>
+          <footer className="flex gap-3 border-t border-line px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+            <button type="button" className="sw-pill flex-1" onClick={close}>{t("statsWorkbench.edit.cancel")}</button>
+            <button type="submit" className="sw-pill sw-pill-primary flex-1">
+              {t("statsWorkbench.custom.create")}
+            </button>
+          </footer>
+        </form>
       )}
     </BottomSheet>
   );

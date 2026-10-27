@@ -135,8 +135,9 @@ export function agentAResult(
   currency: string,
   today: string,
   completeness: AnalysisCompleteness = "complete",
+  unavailableReason?: string,
 ): AnalysisResult {
-  return cached(entries, `a:${id}:${range.from}:${range.to}:${currency}:${completeness}`, () => {
+  return cached(entries, `a:${id}:${range.from}:${range.to}:${currency}:${completeness}:${unavailableReason ?? ""}`, () => {
     const entry = getAnalysisCatalogEntry(id);
     if (entry === null) throw new RangeError(`unknown_analysis_id:${id}`);
     // A 的装配层只断言「单一币种」而不替调用方筛选（混币直接拒绝）；原币模式在这里先按币种取账目。
@@ -145,6 +146,7 @@ export function agentAResult(
       today,
       currency: { mode: "original", currency },
       completeness,
+      ...(unavailableReason === undefined ? {} : { unavailableReason }),
     });
   });
 }

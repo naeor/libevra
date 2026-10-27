@@ -93,8 +93,10 @@ export function useDragController({
           const scroller = scrollRef.current;
           if (!active || scroller === null) return;
           const rect = scroller.getBoundingClientRect();
+          const previousTop = scroller.scrollTop;
           if (last.y < rect.top + EDGE) scroller.scrollTop -= Math.ceil((rect.top + EDGE - last.y) / 6);
           else if (last.y > rect.bottom - EDGE && last.y < rect.bottom + EDGE) scroller.scrollTop += Math.ceil((last.y - (rect.bottom - EDGE)) / 6);
+          if (scroller.scrollTop !== previousTop && dragRef.current !== null) handlers.current.onMove?.(dragRef.current);
           frame = requestAnimationFrame(autoScroll);
         };
 
@@ -106,6 +108,7 @@ export function useDragController({
           dragRef.current = state;
           setDrag(state);
           handlers.current.onStart?.(payload);
+          handlers.current.onMove?.(state);
           if (touch && typeof navigator.vibrate === "function") navigator.vibrate(8);
           frame = requestAnimationFrame(autoScroll);
         };
@@ -136,7 +139,7 @@ export function useDragController({
           const state = dragRef.current;
           if (active && state !== null) {
             suppressUntil.current = Date.now() + 450;
-            handlers.current.onDrop(state);
+            handlers.current.onDrop({ ...state, x: upEvent.clientX, y: upEvent.clientY });
           }
           finish();
         };
@@ -152,6 +155,7 @@ export function useDragController({
 
         const keydown = (keyEvent: KeyboardEvent) => {
           if (keyEvent.key === "Escape" && active) {
+            suppressUntil.current = Date.now() + 450;
             handlers.current.onCancel?.();
             finish();
           }

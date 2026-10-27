@@ -13,14 +13,18 @@
  * ⚠️ 只存布局与分析定义的引用，**不存任何金额、交易或账本 ID**（总需求规格 §3.3）。
  */
 import {
-  validateContentDocumentV1,
-  validateLayoutDocumentV1,
   validateGeometry,
   WORKBENCH_LOCAL_STORE_SCHEMA_VERSION,
+  LAYOUT_SCHEMA_VERSION,
+  migrateContentDocument,
+  migrateLayoutDocument,
+  roundTripContentDocument,
+  roundTripLayoutDocument,
   type LayoutDocumentV1,
   type WorkbenchContentDocumentV1,
   type WorkbenchLocalRecordV1,
 } from "@libellum/shared/analysis/layout";
+import { runLayoutPipeline } from "@libellum/shared/workbench/pipeline";
 
 import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
 import { defaultWorkbench } from "./defaults.js";
@@ -37,29 +41,14 @@ export interface WorkbenchDocuments {
 export type LoadOutcome =
   | { readonly status: "missing" }
   | { readonly status: "ok"; readonly documents: WorkbenchDocuments; readonly version: number }
-  | { readonly status: "unreadable" };
+  | { readonly status: "unreadable"; readonly version?: number };
 
 /** 两份文档 + 交叉引用都合法才算合法（与 D 的命令层同一套判断）。 */
 export function documentsProblems(documents: WorkbenchDocuments): readonly string[] {
-  const problems: string[] = [];
-  const content = validateContentDocumentV1(documents.content);
-  if (!content.ok) problems.push(...content.issues.map((issue) => `${issue.path}:${issue.code}`));
-  const layout = validateLayoutDocumentV1(documents.layout);
-  if (!layout.ok) problems.push(...layout.issues.map((issue) => `${issue.path}:${issue.code}`));
-  if (problems.length > 0) return problems;
-  problems.push(
-    ...validateGeometry(documents.layout.main.objects, documents.layout.main.baseCols).map(
-      (issue) => `geometry:${issue.code}`,
-    ),
-  );
-  const cards = new Set(documents.content.cards.map((card) => card.objectId));
-  const containers = new Set(documents.content.containers.map((container) => container.objectId));
-  for (const object of documents.layout.main.objects) {
-    if (object.objectType === "analysis-card" && !cards.has(object.objectId)) problems.push(`orphan:${object.objectId}`);
-    if ((object.objectType === "carousel" || object.objectType === "grid-split") && !containers.has(object.objectId)) {
-      problems.push(`orphan:${object.objectId}`);
-    }
-  }
+  // 参数白名单、交叉引用、序列化均复用D正式管线；warning保留未知分析，不擅自删除。
+  const pipeline = runLayoutPipeline(documents, { targetColumns: documents.layout?.main?.baseCols ?? 2 });
+  const problems = pipeline.issues.filter(issue => issue.severity === "error").map(issue => `${issue.path}:${issue.code}`);
+  if (pipeline.layout !== undefined) problems.push(...validateGeometry(pipeline.layout.main.objects, pipeline.layout.main.baseCols).map(issue => `geometry:${issue.code}`));
   return problems;
 }
 
@@ -86,10 +75,19 @@ export function loadWorkbench(accountScope: string): LoadOutcome {
     if (record.storeSchemaVersion !== WORKBENCH_LOCAL_STORE_SCHEMA_VERSION || record.userId !== accountScope) {
       return { status: "unreadable" };
     }
-    const documents = { content: record.content?.document, layout: record.layout?.document } as WorkbenchDocuments;
-    if (documents.content === undefined || documents.layout === undefined) return { status: "unreadable" };
-    if (documentsProblems(documents).length > 0) return { status: "unreadable" };
-    return { status: "ok", documents, version: record.content?.version ?? 0 };
+    if (!Number.isSafeInteger(record.content?.version) || (record.content?.version ?? -1) < 0 ||
+        !Number.isSafeInteger(record.layout?.version) || (record.layout?.version ?? -1) < 0) {
+      return { status: "unreadable" };
+    }
+    const version = Math.max(record.content?.version ?? 0, record.layout?.version ?? 0);
+    // D 的正式逐版本迁移链：较新 schema 只读保留；失败不拿回退空文档冒充用户布局。
+    const content = migrateContentDocument(record.content?.document);
+    const layout = migrateLayoutDocument(record.layout?.document);
+    if (!content.ok || content.status === "read-only-newer" || content.value === undefined ||
+        !layout.ok || layout.status === "read-only-newer" || layout.value === undefined) return { status: "unreadable", version };
+    const documents = { content: content.value, layout: layout.value };
+    if (documentsProblems(documents).length > 0) return { status: "unreadable", version };
+    return { status: "ok", documents, version };
   } catch {
     return { status: "unreadable" };
   }
@@ -97,21 +95,59 @@ export function loadWorkbench(accountScope: string): LoadOutcome {
 
 /** 保存成功返回新版本号；不合法的文档拒绝保存（返回 `null`），绝不写入半成品。 */
 export function saveWorkbench(accountScope: string, documents: WorkbenchDocuments, previousVersion: number): number | null {
+  if (!Number.isSafeInteger(previousVersion) || previousVersion < 0 || previousVersion >= Number.MAX_SAFE_INTEGER) return null;
   if (documentsProblems(documents).length > 0) return null;
+  // 由 D 序列化/解析往返检查后再落盘，不能只校验内存结构。
+  const content = roundTripContentDocument(documents.content);
+  const layout = roundTripLayoutDocument(documents.layout);
+  if (!content.ok || content.document === undefined || !layout.ok || layout.document === undefined) return null;
   const store = storage();
   if (store === null) return null;
   const version = previousVersion + 1;
   const record: WorkbenchLocalRecordV1 = {
     storeSchemaVersion: WORKBENCH_LOCAL_STORE_SCHEMA_VERSION,
     userId: accountScope,
-    content: { version, document: documents.content },
-    layout: { version, document: documents.layout },
+    content: { version, document: content.document },
+    layout: { version, document: layout.document },
     updatedAt: new Date().toISOString(),
     pendingSync: true,
   };
   try {
-    store.setItem(workbenchStorageKey(accountScope), JSON.stringify(record));
+    // 显式保存也先保留旧原文；损坏/较新记录可恢复，写备份失败则不覆盖。
+    const key = workbenchStorageKey(accountScope);
+    const previous = store.getItem(key);
+    if (previous !== null) {
+      let preserveUnreadable = false;
+      try {
+        const saved = JSON.parse(previous) as Partial<WorkbenchLocalRecordV1>;
+        // 较新格式只读；旧标签页不能用过期版本覆盖另一标签页的新保存。
+        if (saved.storeSchemaVersion !== WORKBENCH_LOCAL_STORE_SCHEMA_VERSION || saved.userId !== accountScope) return null;
+        if ((saved.content?.document?.schemaVersion ?? 0) > LAYOUT_SCHEMA_VERSION ||
+            (saved.layout?.document?.schemaVersion ?? 0) > LAYOUT_SCHEMA_VERSION) return null;
+        const currentVersion = Math.max(saved.content?.version ?? 0, saved.layout?.version ?? 0);
+        if (Number.isSafeInteger(currentVersion) && currentVersion !== previousVersion) return null;
+        preserveUnreadable = loadWorkbench(accountScope).status === "unreadable";
+      } catch {
+        // 损坏原文必须先备份，用户显式保存才允许恢复可用布局。
+        preserveUnreadable = true;
+      }
+      if (preserveUnreadable && store.getItem(`${key}:unreadable`) === null) store.setItem(`${key}:unreadable`, previous);
+    }
+    if (previous !== null) store.setItem(`${key}:previous`, previous);
+    store.setItem(key, JSON.stringify(record));
     return version;
+  } catch {
+    return null;
+  }
+}
+
+/** 支持 Web Locks 的浏览器按账号串行保存；锁内重读版本，避免两个标签页同时写同一版本。 */
+export async function saveWorkbenchSafely(accountScope: string, documents: WorkbenchDocuments, previousVersion: number): Promise<number | null> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.locks !== undefined) {
+      return await navigator.locks.request(workbenchStorageKey(accountScope), () => saveWorkbench(accountScope, documents, previousVersion));
+    }
+    return saveWorkbench(accountScope, documents, previousVersion);
   } catch {
     return null;
   }
@@ -130,13 +166,15 @@ export function readStored(accountScope: string | null): Stored {
   if (accountScope === null) return { accountScope, documents: defaultWorkbench(), version: 0, unreadable: false };
   const outcome = loadWorkbench(accountScope);
   if (outcome.status === "ok") return { accountScope, documents: outcome.documents, version: outcome.version, unreadable: false };
-  return { accountScope, documents: defaultWorkbench(), version: 0, unreadable: outcome.status === "unreadable" };
+  return { accountScope, documents: defaultWorkbench(), version: outcome.status === "unreadable" ? outcome.version ?? 0 : 0, unreadable: outcome.status === "unreadable" };
 }
 
 /** 「恢复默认」：删掉自己的记录即可，下次读取得到默认工作台。 */
 export function clearWorkbench(accountScope: string): void {
   try {
     storage()?.removeItem(workbenchStorageKey(accountScope));
+    storage()?.removeItem(`${workbenchStorageKey(accountScope)}:previous`);
+    storage()?.removeItem(`${workbenchStorageKey(accountScope)}:unreadable`);
   } catch {
     // 存储不可用时没有可清除的东西。
   }

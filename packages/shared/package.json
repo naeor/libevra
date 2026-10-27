@@ -19,6 +19,14 @@
     "./analysis/catalog": {
       "types": "./src/analysis/analysisCatalog.ts",
       "default": "./src/analysis/analysisCatalog.ts"
+    },
+    "./workbench/envelope": {
+      "types": "./src/workbench/envelope.ts",
+      "default": "./src/workbench/envelope.ts"
+    },
+    "./workbench/pipeline": {
+      "types": "./src/workbench/pipeline.ts",
+      "default": "./src/workbench/pipeline.ts"
     }
   },
   "scripts": {

@@ -34,8 +34,8 @@ export interface WorkbenchFilters {
   /** 原币模式下查看的币种；`null` = 跟随账号默认币种。 */
   readonly currency: Currency | null;
   /**
-   * 是否综合折算。**只有用户在设置里开启了汇率折算（设备偏好）才有意义**；未开启时一律按原币。
-   * 缺省值沿用 1.16.23 的分析页：开启折算后默认看综合（`analysis=currency` 才是原币）。
+   * 是否综合折算。工作台默认综合统计，独立于明细金额的设备显示偏好。
+   * `analysis=currency` 表示原币；游客仍使用原币离线数据，不触发汇率网络请求。
    */
   readonly combined: boolean;
 }
@@ -59,6 +59,11 @@ export function customRangeProblem(from: string, to: string): "invalid" | "order
   return null;
 }
 
+/** 无效旧链接不能悄悄冒充完整的自定义范围；页面同时说明回退到近 30 天。 */
+export function filterUrlProblem(params: URLSearchParams): ReturnType<typeof customRangeProblem> {
+  return params.get("range") === "custom" ? customRangeProblem(params.get("from") ?? "", params.get("to") ?? "") : null;
+}
+
 /** 从地址栏读出生效条件；无法识别的值退回默认，而不是报错白屏。 */
 export function readFilters(params: URLSearchParams): WorkbenchFilters {
   const range = params.get("range");
@@ -68,7 +73,9 @@ export function readFilters(params: URLSearchParams): WorkbenchFilters {
   const currency = params.get("currency");
 
   let time: TimeChoice = DEFAULT_TIME;
-  if (range === "custom" && customRangeProblem(from, to) === null) time = { kind: "custom", from, to };
+  if (range === "custom") {
+    if (customRangeProblem(from, to) === null) time = { kind: "custom", from, to };
+  }
   else if (MONTH.test(month) && !month.startsWith("0000")) time = { kind: "month", month };
   else if (range === "this-month") time = { kind: "this-month" };
   else if (STATS_RANGES.includes(range as StatsRangeKey)) time = { kind: "preset", preset: range as StatsRangeKey };

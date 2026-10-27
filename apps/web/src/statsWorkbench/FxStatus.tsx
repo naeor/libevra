@@ -27,7 +27,7 @@ export function FxStatus({ fx }: { readonly fx: FxRangeView }): React.JSX.Elemen
         </button>
       </div>
       {fx.loading ? <p role="status" className="text-helper text-muted">{t("fx.loading")}</p> : null}
-      {fx.error === true ? <p role="alert" className="text-helper text-danger">{t(fx.reason === "capacity" ? "fx.capacityError" : "fx.error")}</p> : null}
+      {fx.error === true ? <p role="alert" className="text-helper text-danger">{t(fx.reason === "permission" ? "errors.api.book_forbidden" : fx.reason === "capacity" ? "fx.capacityError" : "fx.error")}</p> : null}
       {result !== undefined && !complete ? (
         <div role="alert" className="rounded-field bg-warn-soft px-3 py-2 text-helper-relaxed text-ink">
           <p className="font-medium">{t("fx.incomplete")}</p>
@@ -45,7 +45,7 @@ export function FxStatus({ fx }: { readonly fx: FxRangeView }): React.JSX.Elemen
           <ul className="mt-2 flex flex-col gap-1.5">
             {result.failures.map((row) => (
               <li key={row.id} className="text-helper-relaxed text-muted">
-                <Link className="text-brand-dark underline" to={`/transactions/${row.id}`}>
+                <Link className="text-brand-dark underline" to={`/transactions/${encodeURIComponent(row.id)}`}>
                   {row.date} · {row.currency}
                 </Link>{" "}
                 · {t(`fx.reasons.${row.reason}`)}

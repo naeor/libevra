@@ -8,12 +8,30 @@
  * - 「撤销修改」把草稿恢复成当前生效的条件，面板保持打开。
  */
 import { CURRENCIES, STATS_RANGES, type Currency } from "@libellum/shared";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useI18n } from "../i18n/index.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
-import { customRangeProblem, previousMonth, resolveRange, sameFilters, type TimeChoice, type WorkbenchFilters } from "./filters.js";
+import { customRangeProblem, resolveRange, sameFilters, type TimeChoice, type WorkbenchFilters } from "./filters.js";
+import "./filters.css";
+
+/** 滚动提示只在还有隐藏选项时出现，放在选择栏外，不遮住选项。 */
+function ChoiceRow({ children, label }: { readonly children: ReactNode; readonly label: string }): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const row = ref.current;
+    if (row === null) return;
+    const update = () => setMore(row.scrollWidth > row.clientWidth + row.scrollLeft + 2);
+    update();
+    row.addEventListener("scroll", update, { passive: true });
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    resize?.observe(row);
+    return () => { row.removeEventListener("scroll", update); resize?.disconnect(); };
+  }, [children]);
+  return <div className="sw-choice-wrap"><div ref={ref} className="sw-choice-row" role="group" aria-label={label}>{children}</div>{more ? <span aria-hidden="true" className="sw-choice-more text-muted">›</span> : null}</div>;
+}
 
 export function timeLabel(time: TimeChoice, t: ReturnType<typeof useI18n>["t"]): string {
   switch (time.kind) {
@@ -58,11 +76,11 @@ export function FilterPanel({
   const { t } = useI18n();
   const dirty = !sameFilters(draft, effective);
   const time = draft.time;
-  const custom = time.kind === "custom" ? time : null;
+  // 老链接的月范围仍有效，但入口统一呈现为自定义日期。
+  const custom = time.kind === "custom" ? time : time.kind !== "preset" ? { kind: "custom" as const, ...resolveRange(time, today) } : null;
   const problem = custom === null ? null : customRangeProblem(custom.from, custom.to);
   const range = problem === null ? resolveRange(time, today) : null;
   const combined = fxAvailable && draft.combined;
-  const lastMonth = previousMonth(today);
 
   const currencies = useMemo(() => {
     const preferred = new Set<string>([defaultCurrency, ...currenciesInLedger]);
@@ -83,44 +101,26 @@ export function FilterPanel({
       </header>
 
       <div className="flex flex-col gap-4 px-4 pt-3 pb-4">
-        <fieldset className="flex flex-col gap-2">
+        <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.filter.time")}</legend>
-          <div className="flex flex-wrap gap-2">
-            {STATS_RANGES.map((preset) => (
-              <button key={preset} type="button" aria-pressed={isTime({ kind: "preset", preset })} className={`sw-chip ${isTime({ kind: "preset", preset }) ? "sw-chip-on" : ""}`} onClick={() => setTime({ kind: "preset", preset })}>
-                {t(`statsWorkbench.time.${preset}`)}
-              </button>
-            ))}
-            <button type="button" aria-pressed={isTime({ kind: "this-month" })} className={`sw-chip ${isTime({ kind: "this-month" }) ? "sw-chip-on" : ""}`} onClick={() => setTime({ kind: "this-month" })}>
-              {t("statsWorkbench.time.thisMonth")}
-            </button>
-            <button type="button" aria-pressed={isTime({ kind: "month", month: lastMonth })} className={`sw-chip ${isTime({ kind: "month", month: lastMonth }) ? "sw-chip-on" : ""}`} onClick={() => setTime({ kind: "month", month: lastMonth })}>
-              {t("statsWorkbench.time.lastMonth")}
-            </button>
+          <ChoiceRow label={t("statsWorkbench.filter.time")}>
             <button
               type="button"
-              aria-pressed={time.kind === "custom"}
-              className={`sw-chip ${time.kind === "custom" ? "sw-chip-on" : ""}`}
+              aria-pressed={custom !== null}
+              className={`sw-chip ${custom !== null ? "sw-chip-on" : ""}`}
               onClick={() => {
-                const current = resolveRange(time.kind === "custom" ? effective.time : time, today);
+                const current = resolveRange(time, today);
                 setTime({ kind: "custom", from: current.from, to: current.to });
               }}
             >
               {t("statsWorkbench.time.custom")}
             </button>
-          </div>
-          <label className="flex flex-wrap items-center gap-3 text-helper text-muted">
-            {t("statsWorkbench.time.pickMonth")}
-            <input
-              type="month"
-              value={time.kind === "month" ? time.month : ""}
-              max={today.slice(0, 7)}
-              onChange={(event) => {
-                if (/^\d{4}-\d{2}$/.test(event.target.value)) setTime({ kind: "month", month: event.target.value });
-              }}
-              className="min-h-11 min-w-0 rounded-field border border-line bg-surface px-3 py-2 text-base text-ink"
-            />
-          </label>
+            {STATS_RANGES.map((preset) => (
+              <button key={preset} type="button" aria-pressed={isTime({ kind: "preset", preset })} className={`sw-chip ${isTime({ kind: "preset", preset }) ? "sw-chip-on" : ""}`} onClick={() => setTime({ kind: "preset", preset })}>
+                {t(`statsWorkbench.time.${preset}`)}
+              </button>
+            ))}
+          </ChoiceRow>
           {custom === null ? null : (
             <div className="grid grid-cols-2 gap-2">
               <label className="flex min-w-0 flex-col gap-1 text-helper text-muted">
@@ -133,6 +133,7 @@ export function FilterPanel({
               </label>
             </div>
           )}
+          {custom === null ? null : <p className="text-helper text-muted">{t("statsWorkbench.filter.rangeLimit")}</p>}
           {problem === null ? (
             range === null ? null : (
               <p className="text-helper text-muted">{t("statsWorkbench.summary.dates", { from: formatLocalDate(range.from), to: formatLocalDate(range.to) })}</p>
@@ -142,35 +143,25 @@ export function FilterPanel({
           )}
         </fieldset>
 
-        <fieldset className="flex flex-col gap-2">
+        <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.filter.currency")}</legend>
-          {fxAvailable ? (
-            <div className="sw-segment self-start" role="radiogroup" aria-label={t("statsWorkbench.filter.mode")}>
-              <button type="button" role="radio" aria-checked={!combined} className={!combined ? "sw-segment-on" : ""} onClick={() => onDraft({ ...draft, combined: false })}>
-                {t("statsWorkbench.filter.original")}
-              </button>
-              <button type="button" role="radio" aria-checked={combined} className={combined ? "sw-segment-on" : ""} onClick={() => onDraft({ ...draft, combined: true })}>
-                {t("statsWorkbench.filter.combined")}
-              </button>
-            </div>
-          ) : null}
-          {combined ? (
-            <p className="text-helper-relaxed text-muted">{t("statsWorkbench.filter.combinedHint", { currency: currencyName(fxTarget) })}</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
+          <ChoiceRow label={t("statsWorkbench.filter.currency")}>
+              {fxAvailable ? <button type="button" aria-pressed={combined} className={`sw-chip ${combined ? "sw-chip-on" : ""}`} onClick={() => onDraft({ ...draft, combined: true })}>
+                {t("statsWorkbench.filter.combinedOption", { currency: fxTarget })}
+              </button> : null}
               {currencies.map((currency) => (
                 <button
                   key={currency}
                   type="button"
-                  aria-pressed={selectedCurrency === currency}
-                  className={`sw-chip ${selectedCurrency === currency ? "sw-chip-on" : ""}`}
-                  onClick={() => onDraft({ ...draft, currency: currency === defaultCurrency ? null : currency })}
+                  aria-pressed={!combined && selectedCurrency === currency}
+                  className={`sw-chip ${!combined && selectedCurrency === currency ? "sw-chip-on" : ""}`}
+                  onClick={() => onDraft({ ...draft, combined: false, currency: currency === defaultCurrency ? null : currency })}
                 >
                   {currencyName(currency)}
                 </button>
               ))}
-            </div>
-          )}
+          </ChoiceRow>
+          {combined ? <p className="text-helper-relaxed text-muted">{t("statsWorkbench.filter.combinedHint", { currency: currencyName(fxTarget) })}</p> : null}
         </fieldset>
 
         <footer className="flex items-center justify-end gap-2 border-t border-line pt-3">

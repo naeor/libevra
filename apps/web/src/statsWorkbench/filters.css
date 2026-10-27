@@ -1,0 +1,5 @@
+/* 选择项始终单行；剩余方向提示在滚动区域之外，不覆盖可点击文字。 */
+.sw-choice-wrap { display: flex; min-width: 0; align-items: center; gap: 4px; }
+.sw-choice-row { display: flex; flex-wrap: nowrap; min-width: 0; flex: 1; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+.sw-choice-row > button { flex: none; white-space: nowrap; }
+.sw-choice-more { flex: none; width: 12px; text-align: center; }

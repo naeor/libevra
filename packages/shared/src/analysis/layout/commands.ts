@@ -16,7 +16,9 @@
 
 import type {
   AnalysisCardNode,
+  ContainerNode,
   GridSize,
+  GridSplitConfig,
   LayoutDocumentV1,
   LayoutGeometry,
   LayoutValidationIssue,
@@ -40,6 +42,7 @@ import {
 } from "./grid.js";
 import { validateContentDocumentV1, validateLayoutDocumentV1 } from "./validation.js";
 import { projectLayout } from "./projection.js";
+import { planSmartPlacement } from "./placement.js";
 
 /** 撤销栈上限候选值（布局规格 §6：10–50，先取 50；最终由所有者/原型确认）。 */
 export const DEFAULT_UNDO_LIMIT = 50;
@@ -96,10 +99,10 @@ export function createEditorState(
   };
 }
 
-/** 编辑命令（草案）。insert/delete 只覆盖空对象与卡片；容器插入留 W5（见 D-2 文档）。 */
+/** 编辑命令：所有操作经统一校验与历史提交；reflow 显式启用交互智能落位。 */
 export type LayoutCommand =
   | { readonly type: "select"; readonly objectId: string | null }
-  | { readonly type: "move"; readonly objectId: string; readonly anchor: number }
+  | { readonly type: "move"; readonly objectId: string; readonly anchor: number; readonly collisionPolicy?: "reflow" }
   | {
       readonly type: "move-by";
       readonly objectId: string;
@@ -119,16 +122,21 @@ export type LayoutCommand =
     }
   | {
       readonly type: "insert-card";
+      readonly collisionPolicy?: "reflow";
       readonly card: AnalysisCardNode;
       readonly anchor?: number;
       readonly size?: GridSize;
     }
   | {
       readonly type: "insert-spacer";
+      readonly collisionPolicy?: "reflow";
       readonly objectId: string;
       readonly anchor?: number;
       readonly size?: GridSize;
     }
+  | { readonly type: "insert-container"; readonly container: ContainerNode; readonly children: readonly AnalysisCardNode[]; readonly anchor?: number; readonly size: GridSize; readonly collisionPolicy?: "reflow" }
+  | { readonly type: "replace-container-children"; readonly containerId: string; readonly children: readonly AnalysisCardNode[]; readonly split?: GridSplitConfig }
+  | { readonly type: "update-card"; readonly card: AnalysisCardNode }
   | { readonly type: "delete"; readonly objectId: string }
   | { readonly type: "undo" }
   | { readonly type: "redo" };
@@ -314,6 +322,12 @@ export function applyCommand(
       if (target.anchor === command.anchor) {
         return { ok: true, state, issues: [] };
       }
+      if (command.collisionPolicy === "reflow") {
+        const plan = planSmartPlacement(state.layout.main, { ...target, anchor: command.anchor });
+        return plan.ok
+          ? commitMutation(state, state.content, withMain(state.layout, plan.geometry), command.objectId, options)
+          : failure(state, plan.issues);
+      }
       const main = withMain(state.layout, {
         ...state.layout.main,
         objects: state.layout.main.objects.map((object) =>
@@ -463,6 +477,12 @@ export function applyCommand(
         colSpan: placement.size.colSpan,
         rowSpan: placement.size.rowSpan,
       };
+      if (command.collisionPolicy === "reflow") {
+        const plan = planSmartPlacement(state.layout.main, geometry);
+        return plan.ok
+          ? commitMutation(state, nextContent, withMain(state.layout, plan.geometry), command.card.objectId, options)
+          : failure(state, plan.issues);
+      }
       const main = withMain(state.layout, {
         ...state.layout.main,
         objects: [...state.layout.main.objects, geometry],
@@ -487,6 +507,12 @@ export function applyCommand(
         colSpan: placement.size.colSpan,
         rowSpan: placement.size.rowSpan,
       };
+      if (command.collisionPolicy === "reflow") {
+        const plan = planSmartPlacement(state.layout.main, geometry);
+        return plan.ok
+          ? commitMutation(state, state.content, withMain(state.layout, plan.geometry), command.objectId, options)
+          : failure(state, plan.issues);
+      }
       const main = withMain(state.layout, {
         ...state.layout.main,
         objects: [...state.layout.main.objects, geometry],
@@ -494,14 +520,85 @@ export function applyCommand(
       return commitMutation(state, state.content, main, command.objectId, options);
     }
 
+    case "insert-container": {
+      const incoming = [command.container.objectId, ...command.children.map((child) => child.objectId)];
+      const existing = new Set([
+        ...state.layout.main.objects.map((item) => item.objectId),
+        ...state.content.cards.map((card) => card.objectId),
+        ...state.content.containers.map((item) => item.objectId),
+      ]);
+      if (new Set(incoming).size !== incoming.length || incoming.some((id) => existing.has(id))) {
+        return failure(state, [issue("duplicate-object-id", "新容器或子卡片编号已存在", command.container.objectId)]);
+      }
+      const childIds = new Set(command.children.map((child) => child.objectId));
+      if (command.container.children.length !== childIds.size || command.container.children.some((id) => !childIds.has(id))) {
+        return failure(state, [issue("child-not-found", "容器子引用必须与本次提供的新卡片对应", command.container.objectId)]);
+      }
+      if (state.content.containers.length >= MAX_CONTAINERS_PER_WORKBENCH) {
+        return failure(state, [issue("too-many-containers", `容器数量超过上限 ${MAX_CONTAINERS_PER_WORKBENCH}`)]);
+      }
+      const placement = resolveInsertion(state.layout.main, command.size, command.anchor);
+      if (!placement.ok) return failure(state, placement.issues);
+      const candidate: ObjectGeometry = {
+        objectId: command.container.objectId, objectType: command.container.type,
+        anchor: placement.anchor, ...placement.size,
+      };
+      const content: WorkbenchContentDocumentV1 = {
+        ...state.content, cards: [...state.content.cards, ...command.children],
+        containers: [...state.content.containers, command.container],
+      };
+      if (command.collisionPolicy === "reflow") {
+        const plan = planSmartPlacement(state.layout.main, candidate);
+        return plan.ok
+          ? commitMutation(state, content, withMain(state.layout, plan.geometry), candidate.objectId, options)
+          : failure(state, plan.issues);
+      }
+      return commitMutation(state, content, withMain(state.layout, { ...state.layout.main, objects: [...state.layout.main.objects, candidate] }), candidate.objectId, options);
+    }
+
+    case "replace-container-children": {
+      const container = state.content.containers.find((item) => item.objectId === command.containerId);
+      if (container === undefined) return failure(state, [issue("unknown-object", "容器不存在", command.containerId)]);
+      const previousIds = new Set(container.children);
+      const reused = command.children.find((child) => !previousIds.has(child.objectId) && state.content.cards.some((card) => card.objectId === child.objectId));
+      if (reused !== undefined) return failure(state, [issue("duplicate-object-id", "不能占用其他位置的卡片身份", reused.objectId)]);
+      const keep = new Set(command.children.map((child) => child.objectId));
+      const removed = new Set(container.children.filter((id) => !keep.has(id)));
+      const updated = new Map(command.children.map((child) => [child.objectId, child] as const));
+      const content: WorkbenchContentDocumentV1 = {
+        ...state.content,
+        cards: [
+          ...state.content.cards.filter((card) => !removed.has(card.objectId)).map((card) => updated.get(card.objectId) ?? card),
+          ...command.children.filter((child) => !previousIds.has(child.objectId)),
+        ],
+        containers: state.content.containers.map((item) => item.objectId === container.objectId ? {
+          ...item, children: command.children.map((child) => child.objectId),
+          ...(item.type === "grid-split" && command.split !== undefined ? { split: command.split } : {}),
+        } : item),
+      };
+      return commitMutation(state, content, state.layout, container.objectId, options);
+    }
+
+    case "update-card": {
+      if (!state.content.cards.some((card) => card.objectId === command.card.objectId)) {
+        return failure(state, [issue("unknown-object", "配置对象不在内容中", command.card.objectId)]);
+      }
+      const content: WorkbenchContentDocumentV1 = {
+        ...state.content, cards: state.content.cards.map((card) => card.objectId === command.card.objectId ? command.card : card),
+      };
+      return commitMutation(state, content, state.layout, state.selection, options);
+    }
+
     case "delete": {
       const target = findGeometry(state.layout, command.objectId);
       if (target === undefined) {
         return failure(state, [issue("unknown-object", "删除对象不在布局中", command.objectId)]);
       }
+      const container = state.content.containers.find((item) => item.objectId === command.objectId);
+      const removedIds = new Set([command.objectId, ...(container?.children ?? [])]);
       const nextContent: WorkbenchContentDocumentV1 = {
         ...state.content,
-        cards: state.content.cards.filter((card) => card.objectId !== command.objectId),
+        cards: state.content.cards.filter((card) => !removedIds.has(card.objectId)),
         containers: state.content.containers.filter(
           (container) => container.objectId !== command.objectId,
         ),

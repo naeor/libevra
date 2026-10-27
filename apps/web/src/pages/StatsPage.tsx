@@ -17,6 +17,8 @@ import { useNavigate, useSearchParams } from "react-router";
 import { endOfMonth, rangeForPreset, startOfMonth, type DateRange } from "@libellum/shared";
 import {
   compactVertically,
+  planSmartPlacement,
+  placementCells,
   projectLayout,
   projectionToGeometry,
   type AnalysisCardNode,
@@ -39,9 +41,9 @@ import { cellAt, useDragController, type DragPayload, type DragState } from "../
 import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWorkbench/Drawer.js";
 import { FilterPanel, timeLabel } from "../statsWorkbench/FilterPanel.js";
 import { FxStatus } from "../statsWorkbench/FxStatus.js";
-import { followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
+import { customRangeProblem, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
 import { BrowseGrid, EditGrid, GRID_GAP, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
-import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
+import { useScope, useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import {
   canRedo,
   canUndo,
@@ -63,7 +65,8 @@ import {
   type SessionResult,
 } from "../statsWorkbench/session.js";
 import { CollapsedContainerSheet, ConfigSheet, CustomCardSheet, DiscardSheet, LayoutSheet, ObjectMenuSheet, SizeSheet, type MenuAction } from "../statsWorkbench/Sheets.js";
-import { readStored, saveWorkbench, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
+import { customCardsIn } from "../statsWorkbench/customCards.js";
+import { readStored, saveWorkbenchSafely, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
 import { FunnelIcon, GridGlyph, PencilIcon, RedoIcon, UndoIcon, useElementSize } from "../statsWorkbench/ui.js";
 
 type ContainerEdit =
@@ -84,12 +87,21 @@ interface Toast {
 }
 
 export function StatsPage(): React.JSX.Element {
+  const [params] = useSearchParams();
+  const filters = useMemo(() => readFilters(params), [params]);
+  const scope = useWorkbenchScope(filters);
+  // 账号/游客身份改变即销毁整份编辑状态；旧账号草稿不可显示或保存到新账号。
+  return <WorkbenchScopeProvider value={scope}><AccountWorkbench key={scope.accountScope ?? "pending"} /></WorkbenchScopeProvider>;
+}
+
+function AccountWorkbench(): React.JSX.Element {
   const { t } = useI18n();
   const navigate = useNavigate();
   const ledger = useLedger();
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
-  const scope = useWorkbenchScope(filters);
+  const urlProblem = filterUrlProblem(params);
+  const scope = useScope();
   const cardActions = useMemo<CardActions>(
     () => ({
       // 卡片上的「改用原币查看」：只改生效筛选；没动过的筛选草稿会跟着变（见下方草稿同步）。
@@ -126,6 +138,11 @@ export function StatsPage(): React.JSX.Element {
 
   // ---- 编辑会话 ----
   const [session, setSession] = useState<EditorState | null>(null);
+  const latestSession = useRef(session);
+  latestSession.current = session;
+  const [saving, setSaving] = useState(false);
+  const saveAlive = useRef(true);
+  useEffect(() => { saveAlive.current = true; return () => { saveAlive.current = false; }; }, []);
   const [startDocs, setStartDocs] = useState<WorkbenchDocuments | null>(null);
   const editing = session !== null;
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -140,6 +157,10 @@ export function StatsPage(): React.JSX.Element {
   const drawerBeforeDrag = useRef<DrawerHeight | null>(null);
   const [containerEdit, setContainerEdit] = useState<ContainerEdit | null>(null);
   const [preview, setPreview] = useState<DropPreview | null>(null);
+  const dragBaseline = useRef<EditorState | null>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewAnchor = useRef<number | null>(null);
+  useEffect(() => () => { if (previewTimer.current !== null) clearTimeout(previewTimer.current); }, []);
   const [toast, setToast] = useState<Toast | null>(null);
   const [carouselPages, setCarouselPages] = useState<ReadonlyMap<string, number>>(() => new Map(carouselMemory));
 
@@ -200,12 +221,13 @@ export function StatsPage(): React.JSX.Element {
 
   const anchorFor = (state: DragState): { anchor: number; size: GridSize } | null => {
     const grid = gridRef.current;
-    if (grid === null || session === null) return null;
-    const columns = session.layout.main.baseCols;
+    const baseline = dragBaseline.current ?? session;
+    if (grid === null || baseline === null) return null;
+    const columns = baseline.layout.main.baseCols;
     const cell = cellAt(grid, columns, state.x, state.y);
     if (cell === null) return null;
     const payload = state.payload;
-    const size = { colSpan: Math.min(payload.size.colSpan, columns), rowSpan: payload.size.rowSpan };
+    const size = payload.size;
     const grab = payload.kind === "object" ? payload.grab : { row: 0, col: 0 };
     const col = Math.max(1, Math.min(columns - size.colSpan + 1, cell.col - grab.col));
     const row = Math.max(1, cell.row - grab.row);
@@ -215,6 +237,8 @@ export function StatsPage(): React.JSX.Element {
   const drag = useDragController({
     scrollRef,
     onStart: (payload) => {
+      dragBaseline.current = session;
+      previewAnchor.current = null;
       setMenuFor(null);
       if (payload.kind !== "object") {
         // 从抽屉拖出时先把抽屉收起，给工作台留出放置空间（拖完恢复）。
@@ -224,20 +248,64 @@ export function StatsPage(): React.JSX.Element {
     },
     onMove: (state) => {
       const target = anchorFor(state);
-      if (target === null || session === null) return setPreview(null);
-      const id = state.payload.kind === "object" ? state.payload.objectId : null;
-      setPreview({ anchor: target.anchor, size: target.size, legal: placementProblem(session.layout, id, target.anchor, target.size) === null });
+      const baseline = dragBaseline.current;
+      if (target === null || baseline === null) { clearDropPreview(); return; }
+      if (previewAnchor.current === target.anchor) return;
+      if (previewTimer.current !== null) clearTimeout(previewTimer.current);
+      previewAnchor.current = target.anchor;
+      const payload = state.payload;
+      const result = previewDrop(baseline, payload, target.anchor, target.size);
+      const sourceId = payload.kind === "object" ? payload.objectId : null;
+      const targetId = baseline.layout.main.objects.find((item) => item.objectId !== sourceId &&
+        placementCells(item.anchor, item, baseline.layout.main.baseCols).includes(target.anchor))?.objectId;
+      const hint: DropPreview = { anchor: target.anchor, size: target.size, legal: result.ok, ...(targetId === undefined ? {} : { targetId }) };
+      setPreview(hint);
+      // 命中只取拖动起点的网格坐标；预览移动的卡片不会反过来改变目标。
+      if (result.ok) previewTimer.current = setTimeout(() => {
+        const rootIds = new Set(baseline.layout.main.objects.map((item) => item.objectId));
+        setPreview({ ...hint, layout: { ...result.state.layout, main: { ...result.state.layout.main, objects: result.state.layout.main.objects.filter((item) => rootIds.has(item.objectId)) } } });
+      }, 140);
     },
     onDrop: (state) => {
-      setPreview(null);
+      clearDropPreview();
       restoreDrawer();
       dropAt(state);
+      dragBaseline.current = null;
     },
     onCancel: () => {
-      setPreview(null);
+      clearDropPreview();
+      dragBaseline.current = null;
       restoreDrawer();
     },
   });
+
+  function clearDropPreview(): void {
+    if (previewTimer.current !== null) clearTimeout(previewTimer.current);
+    previewTimer.current = null;
+    previewAnchor.current = null;
+    setPreview(null);
+  }
+
+  /** 预览直接预演D命令，包含文档容量校验；不把结果提交到会话或历史。 */
+  function previewDrop(baseline: EditorState, payload: DragPayload, anchor: number, size: GridSize): SessionResult {
+    if (payload.kind === "object") return command(baseline, { type: "move", objectId: payload.objectId, anchor, collisionPolicy: "reflow" });
+    const usedIds = new Set([...baseline.content.cards, ...baseline.content.containers, ...baseline.layout.main.objects].map((item) => item.objectId));
+    const temporaryId = (prefix: string): string => {
+      let id = prefix;
+      while (usedIds.has(id)) id += "_";
+      usedIds.add(id);
+      return id;
+    };
+    const objectId = temporaryId("__drop-preview__");
+    if (payload.kind === "new-card") return command(baseline, { type: "insert-card", card: newCard(payload.analysisId, objectId), anchor, size, collisionPolicy: "reflow" });
+    if (payload.choice === "spacer") return command(baseline, { type: "insert-spacer", objectId, anchor, size, collisionPolicy: "reflow" });
+    // 新容器先检查最少两张卡片能否建立；后续内部选卡仍逐次校验正式上限。
+    const children = [newCard("AN-B01", temporaryId("__preview-child-one__")), newCard("AN-B02", temporaryId("__preview-child-two__"))];
+    const container: ContainerNode = payload.choice === "carousel"
+      ? { objectId, type: "carousel", children: children.map((card) => card.objectId) }
+      : { objectId, type: "grid-split", children: children.map((card) => card.objectId), split: splitFor(2) };
+    return command(baseline, { type: "insert-container", container, children, anchor, size, collisionPolicy: "reflow" });
+  }
 
   function restoreDrawer(): void {
     if (drawerBeforeDrag.current !== null) {
@@ -248,6 +316,8 @@ export function StatsPage(): React.JSX.Element {
 
   function dropAt(state: DragState): void {
     if (session === null) return;
+    // 预览期间若通过其他入口编辑过文档，取消这次拖放，避免把旧快照覆盖回来。
+    if (dragBaseline.current !== null && session !== dragBaseline.current) return;
     const target = anchorFor(state);
     if (target === null) {
       say(t("statsWorkbench.edit.droppedOutside"));
@@ -255,7 +325,7 @@ export function StatsPage(): React.JSX.Element {
     }
     const payload = state.payload;
     if (payload.kind === "object") {
-      apply(command(session, { type: "move", objectId: payload.objectId, anchor: target.anchor }));
+      apply(command(session, { type: "move", objectId: payload.objectId, anchor: target.anchor, collisionPolicy: "reflow" }));
       return;
     }
     if (payload.kind === "new-card") {
@@ -270,23 +340,32 @@ export function StatsPage(): React.JSX.Element {
     const type = cardType(analysisId);
     if (type === null) return;
     const columns = session.layout.main.baseCols;
-    const size = { colSpan: Math.min(type.defaultSize.colSpan, columns), rowSpan: type.defaultSize.rowSpan };
+    const size = anchor === undefined ? { colSpan: Math.min(type.defaultSize.colSpan, columns), rowSpan: type.defaultSize.rowSpan } : type.defaultSize;
     const card = newCard(analysisId);
     const ok = apply(
-      command(session, { type: "insert-card", card, size, ...(anchor === undefined ? {} : { anchor }) }),
+      command(session, { type: "insert-card", card, size, collisionPolicy: "reflow", ...(anchor === undefined ? {} : { anchor }) }),
       t("statsWorkbench.drawer.added", { name: cardTitle(card, t) }),
     );
     if (ok) revealLater(card.objectId);
+  }
+
+  function addCustomCard(card: AnalysisCardNode): boolean {
+    if (session === null) return false;
+    const type = cardType(card.analysis.analysisId);
+    if (type === null) return false;
+    const ok = apply(command(session, { type: "insert-card", card, size: type.defaultSize }), t("statsWorkbench.drawer.added", { name: cardTitle(card, t) }));
+    if (ok) revealLater(card.objectId);
+    return ok;
   }
 
   function addLayoutObject(choice: LayoutObjectChoice, anchor?: number): void {
     if (session === null) return;
     const columns = session.layout.main.baseCols;
     const base = CONTAINER_DEFAULT_SIZE[choice];
-    const size = { colSpan: Math.min(base.colSpan, columns), rowSpan: base.rowSpan };
+    const size = anchor === undefined ? { colSpan: Math.min(base.colSpan, columns), rowSpan: base.rowSpan } : base;
     if (choice === "spacer") {
       const objectId = newObjectId("gap");
-      if (apply(command(session, { type: "insert-spacer", objectId, size, ...(anchor === undefined ? {} : { anchor }) }), t("statsWorkbench.drawer.added", { name: t("statsWorkbench.containers.spacer") }))) {
+      if (apply(command(session, { type: "insert-spacer", objectId, size, collisionPolicy: "reflow", ...(anchor === undefined ? {} : { anchor }) }), t("statsWorkbench.drawer.added", { name: t("statsWorkbench.containers.spacer") }))) {
         revealLater(objectId);
       }
       return;
@@ -301,8 +380,9 @@ export function StatsPage(): React.JSX.Element {
         }
       }
     }
-    if (place === null || placementProblem(session.layout, null, place, size) !== null) {
-      say(t("statsWorkbench.problems.overlap"));
+    const plan = place === null ? null : previewDrop(session, { kind: "new-layout", choice, size, label: "" }, place, size);
+    if (place === null || plan === null || !plan.ok) {
+      say(describe(plan?.problem ?? "invalid-anchor"));
       return;
     }
     setContainerEdit({ kind: "new", type: choice, anchor: place, size, children: [] });
@@ -328,6 +408,8 @@ export function StatsPage(): React.JSX.Element {
   }
 
   function leaveEdit(): void {
+    clearDropPreview();
+    dragBaseline.current = null;
     setSession(null);
     setStartDocs(null);
     setMenuFor(null);
@@ -336,8 +418,8 @@ export function StatsPage(): React.JSX.Element {
     setPreview(null);
   }
 
-  function save(): void {
-    if (session === null) return;
+  async function save(): Promise<void> {
+    if (session === null || saving) return;
     if (!dirty) {
       leaveEdit();
       return;
@@ -347,12 +429,21 @@ export function StatsPage(): React.JSX.Element {
       return;
     }
     const docs = sessionDocuments(session);
-    const version = saveWorkbench(scope.accountScope, docs, stored.version);
+    setSaving(true);
+    const version = await saveWorkbenchSafely(scope.accountScope, docs, stored.version);
+    if (!saveAlive.current) return;
+    setSaving(false);
     if (version === null) {
       say(t("statsWorkbench.edit.saveFailed"));
       return;
     }
     setStored({ accountScope: scope.accountScope, documents: docs, version, unreadable: false });
+    // 等待跨标签页锁时若继续编辑，只确认刚保存的快照，不丢弃随后产生的编辑。
+    if (latestSession.current !== session) {
+      if (latestSession.current !== null) setStartDocs(docs);
+      say(t("statsWorkbench.edit.saved"));
+      return;
+    }
     leaveEdit();
     say(t("statsWorkbench.edit.saved"));
   }
@@ -414,12 +505,11 @@ export function StatsPage(): React.JSX.Element {
     if (session === null || moveFor === null) return null;
     const geometry = geometryOf(session, moveFor);
     if (geometry === undefined) return null;
-    const size = { colSpan: geometry.colSpan, rowSpan: geometry.rowSpan };
     const columns = session.layout.main.baseCols;
     const targets = new Set<number>();
     const limit = (lastRow(session.layout) + 2) * columns;
     for (let anchor = 1; anchor <= limit; anchor += 1) {
-      if (anchor !== geometry.anchor && placementProblem(session.layout, moveFor, anchor, size) === null) targets.add(anchor);
+      if (anchor !== geometry.anchor && planSmartPlacement(session.layout.main, { ...geometry, anchor }).ok) targets.add(anchor);
     }
     return targets;
   }, [session, moveFor]);
@@ -459,16 +549,8 @@ export function StatsPage(): React.JSX.Element {
       }
       return;
     }
-    let result = replaceContainerChildren(session, containerEdit.containerId, containerEdit.children);
-    if (result.ok && containerEdit.type === "grid-split") {
-      // 分割方式随子卡片数量调整（两张左右分，三到四张田字格）。
-      const container = containerOf(result.state, containerEdit.containerId);
-      if (container !== undefined && container.type === "grid-split") {
-        const next = { ...container, split: splitFor(container.children.length) };
-        const content = { ...result.state.content, containers: result.state.content.containers.map((item) => (item.objectId === next.objectId ? next : item)) };
-        result = { ok: true, problem: null, state: { ...result.state, content } };
-      }
-    }
+    const result = replaceContainerChildren(session, containerEdit.containerId, containerEdit.children,
+      containerEdit.type === "grid-split" ? splitFor(containerEdit.children.length) : undefined);
     if (apply(result)) setContainerEdit(null);
   }
 
@@ -535,13 +617,14 @@ export function StatsPage(): React.JSX.Element {
   }
 
   const applyFilters = () => {
+    if (draft.time.kind === "custom" && customRangeProblem(draft.time.from, draft.time.to) !== null) return;
     setParams((previous) => writeFilters(previous, draft), { replace: true });
   };
 
   const summary = `${timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
     from: formatLocalDate(scope.range.from),
     to: formatLocalDate(scope.range.to),
-  })} · ${scope.combined ? t("statsWorkbench.summary.combined", { currency: scope.currency }) : currencyName(scope.currency)}`;
+  })} · ${scope.combined ? t("statsWorkbench.summary.combined", { currency: scope.currency }) : t("statsWorkbench.summary.original", { currency: currencyName(scope.currency) })}`;
 
   const menuObject = menuFor === null || session === null ? null : geometryOf(session, menuFor);
   const configCard = configFor === null || session === null ? undefined : cardOf(session, configFor);
@@ -578,6 +661,9 @@ export function StatsPage(): React.JSX.Element {
       onAddCard={(analysisId) => addCard(analysisId)}
       onAddLayout={(choice) => addLayoutObject(choice)}
       onCustom={() => setCustomOpen(true)}
+      customCards={customCardsIn(session?.content.cards ?? [])}
+      onConfigureCustom={setConfigFor}
+      onDuplicateCustom={(card) => addCustomCard({ ...card, objectId: newObjectId("card") })}
       containerScope={view}
       onScopeAdd={(analysisId) =>
         setContainerEdit((current) => (current === null || current.children.length >= LIMITS[current.type].max ? current : { ...current, children: [...current.children, newCard(analysisId)] }))
@@ -633,7 +719,7 @@ export function StatsPage(): React.JSX.Element {
             <button type="button" className="sw-pill" onClick={cancel}>
               {t("statsWorkbench.edit.cancel")}
             </button>
-            <button type="button" className="sw-pill sw-pill-primary" onClick={save} disabled={containerEdit !== null}>
+            <button type="button" className="sw-pill sw-pill-primary" onClick={() => { void save(); }} disabled={containerEdit !== null || saving}>
               {t("statsWorkbench.edit.done")}
             </button>
           </header>
@@ -688,6 +774,7 @@ export function StatsPage(): React.JSX.Element {
               <span className="min-w-0 flex-1 truncate text-helper text-muted">{summary}</span>
               {draftPending ? <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-helper text-warn-dark">{t("statsWorkbench.summary.pending")}</span> : null}
             </button>
+            {urlProblem === null ? null : <p role="alert" className="mx-6 mt-3 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-ink">{t("statsWorkbench.filter.invalidUrl")} {t(`statsWorkbench.filter.problems.${urlProblem}`)}</p>}
             {scope.fx === null ? null : <FxStatus fx={scope.fx} />}
             {scope.coverageGap === null ? null : scope.repairing ? (
               <p role="status" className="mx-6 mt-3 rounded-field bg-brand-soft px-4 py-3 text-helper-relaxed text-ink">
@@ -739,7 +826,7 @@ export function StatsPage(): React.JSX.Element {
               }}
               onPickTarget={(anchor) => {
                 if (moveFor === null) return;
-                if (apply(command(session, { type: "move", objectId: moveFor, anchor }))) setMoveFor(null);
+                if (apply(command(session, { type: "move", objectId: moveFor, anchor, collisionPolicy: "reflow" }))) setMoveFor(null);
               }}
             />
           ) : (
@@ -794,7 +881,7 @@ export function StatsPage(): React.JSX.Element {
         ) : null}
 
         {configCard === undefined || session === null ? null : (
-          <ConfigSheet card={configCard} today={scope.today} onSave={(card) => apply(updateCard(session, card), t("statsWorkbench.config.saved"))} onClose={() => setConfigFor(null)} />
+          <ConfigSheet card={configCard} size={geometryOf(session, configCard.objectId)} today={scope.today} onSave={(card) => apply(updateCard(session, card), t("statsWorkbench.config.saved"))} onClose={() => setConfigFor(null)} />
         )}
 
         {sizeObject === undefined || session === null || sizeFor === null ? null : (
@@ -821,7 +908,7 @@ export function StatsPage(): React.JSX.Element {
         ) : null}
 
         {discardOpen ? <DiscardSheet onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
-        {customOpen ? <CustomCardSheet onClose={() => setCustomOpen(false)} /> : null}
+        {customOpen ? <CustomCardSheet today={scope.today} onCreate={addCustomCard} onClose={() => setCustomOpen(false)} /> : null}
         {collapsedOpen === null ? null : (
           <CollapsedContainerSheetFor
             documents={documents}
