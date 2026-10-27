@@ -32,7 +32,7 @@ const I: FxKindScope = "income";
 const B: FxKindScope = "both";
 const N: FxKindScope = "none";
 
-/** 与 `CARD_TYPES` 一一对应（`fxPolicy.test.ts` 守护：缺一张就失败）。 */
+/** 与 `CARD_TYPES` 一一对应（`fxCards.test.tsx` 守护：缺一张就失败）。 */
 export const FX_CARD_POLICIES: Readonly<Record<string, FxCardPolicy>> = {
   "AN-B01": { class: "sum", kinds: E },
   "AN-B02": { class: "sum", kinds: I },

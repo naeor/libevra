@@ -464,6 +464,33 @@ describe("综合 ↔ 原币、默认币种变化", () => {
   });
 });
 
+describe("同币种账本：综合折算与原币逐字一致（恒等折算不得改变任何一张卡片的输出）", () => {
+  // 只有人民币账目：折算是恒等（不需要任何汇率），综合折算路径的输出必须与原币路径完全相同。
+  const cnyOnly = MIXED_ENTRIES.filter((entry) => entry.currency === "CNY");
+  const previousCny = PREVIOUS_ENTRIES.filter((entry) => entry.currency === "CNY");
+  // 原币路径的「上期比较」从 comparisonRead 读上一周期；综合折算从 previousFx 读——两边喂同样的上期账目。
+  const originalText = (id: string): string =>
+    text(renderToStaticMarkup(
+      <CardBody
+        card={newCard(id)}
+        scope={scope(null, { combined: false, fxAvailable: false, entries: cnyOnly, comparisonRead: { entries: previousCny, verified: true } })}
+        density="expanded"
+      />,
+    ));
+
+  it("每一张卡片：综合折算（全部为人民币）= 人民币原币", () => {
+    const view = buildFxView({ entries: cnyOnly });
+    const previousFx = buildFxView({ entries: previousCny });
+    const differing: string[] = [];
+    for (const id of ALL_IDS) {
+      if (id === "AN-I09" || id === "AN-I10") continue; // 固定窗口：数据来自各自窗口，见「固定窗口」一节
+      const combined = render(id, view, { entries: cnyOnly, previousFx });
+      if (combined !== originalText(id)) differing.push(`${id}\n  综合: ${combined}\n  原币: ${originalText(id)}`);
+    }
+    expect(differing, differing.join("\n")).toEqual([]);
+  });
+});
+
 describe("规模与不变性", () => {
   it("两万笔账目的投影与汇总在合理时间内完成，且不改动输入", () => {
     const rows = Array.from({ length: 20_000 }, (_, index) =>
