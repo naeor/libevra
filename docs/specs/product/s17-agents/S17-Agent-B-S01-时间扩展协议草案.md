@@ -766,18 +766,24 @@ S4c 同 S1–S4b：**不新增、不修改任何 S-01 形状**。A18/A19 消费 
 
 ### 23.2 method 串统一（`packages/shared/src/analysisMethod.ts`）
 
-s01-v2 冻结指定 B 为 method 串规范来源（A r7 已把旧版映射表读向 B 的规范串）。本批建立**规范串**与**旧串别名**的单一映射：
+s01-v2 v2.0.1（A `492b1b6`/`6f72f9f`）把方法串口径澄清为**三层、不得混用**：
 
-| 规范串（`ANALYSIS_METHOD`） | 旧串别名（输入解析兼容，输出不出现） |
+1. **`ANALYSIS_METHOD`（B 内部 id）**：结果 `formula` 字段使用（如 `population-standard-deviation-v1`），**不是**对外支持列表；
+2. **`FROZEN_METHODS`（冻结登记值，可对外宣称）**：逐字 `population-stddev`/`sample-cv-fixedpoint`/`mad-median`/`iqr-quantile`；`canonicalMethodString` 对这些方法只输出冻结值；
+3. **`OPEN_EXTENSION_METHODS`（B 开放扩展，不宣称已支持）**：`exact-mean-v1`、`robust-z-score-v1`、`tukey-fence-v1`、`quantile-threshold`、`abs-deviation-gt-sigma-multiple-v1`，集中标注、与冻结值分表。
+
+| 输入形态（B 内部 id / 冻结别名） | 对外输出（冻结值） |
 |---|---|
-| `exact-mean-v1` | `mean-aware`, `exact-mean` |
-| `population-standard-deviation-v1` | `population-stddev`, `stddev-population` |
-| `coefficient-of-variation-v1` | `sample-cv-fixedpoint`, `cv-fixedpoint` |
-| `mad-median-v1` | `mad`, `median-mad` |
-| `iqr-quantile-v1` | `iqr`, `quantile-iqr` |
-| `percentile-threshold-v1` | `quantile-threshold`, `percentile-threshold` |
+| `population-standard-deviation-v1`、`population-stddev` | `population-stddev` |
+| `coefficient-of-variation-v1`、`sample-cv-fixedpoint` | `sample-cv-fixedpoint` |
+| `robust-z-score-v1`、`mad-median` | `mad-median` |
+| `tukey-fence-v1`、`iqr-quantile` | `iqr-quantile` |
+| `percentile-threshold-v1`、`quantile-threshold` | `quantile-threshold`（开放扩展） |
+| `exact-mean-v1`、`abs-deviation-gt-sigma-multiple-v1` 等 | 原样（开放扩展，标注不宣称已支持） |
+| `type7-linear` | **未实现**：B 分位阈值是 nearest-rank（`ceil(n·q)−1`），非 Type 7 线性插值，**不得冒充**；输入 `type7-linear` 原样返回、登记状态 `unregistered` |
+| 未知开放串（如 `histogram-nice-bin-width`） | 原样返回（不拒绝、不静默替换） |
 
-规则：①对外结果只写规范串；②`canonicalMethod(value)` 只在**输入**解析旧串时归一，未知串原样保留（不猜测、不抛错）；③`AnomalyResult.methodString` 仍写方法名（`"mad"` 等，s01-v2 形状要求），由 `anomalyMethodString(method)` 映射到规范串供说明文字使用；④完整 method 串注册表（含后续新增方法）待下一批次与 A 对齐后再扩，本批不自行新增第四种口径。
+规则：①对外输出只用冻结值或标注后的开放扩展名；②`canonicalMethodString(value)` 只做输入解析归一（同一方法的所有历史形态→同一输出），未知串原样；③`methodSupport(value)` 返回 `frozen`/`open-extension`/`unregistered`，`isFrozenMethod` 便捷判断；④`AnomalyResult.methodString` 由 `anomalyMethodString(method)` 给出：`mad`→`mad-median`、`iqr`→`iqr-quantile`、`zero-dispersion-quantile`→`quantile-threshold`（开放扩展）；⑤完整注册表扩展待下一批与 A 对齐，本批不自行新增口径。
 
 ### 23.3 G-27 映射（文档级，写入 §4.2）
 
@@ -786,10 +792,20 @@ s01-v2 冻结指定 B 为 method 串规范来源（A r7 已把旧版映射表读
 ### 23.4 本批未做（显式声明）
 
 - 未改任何 `TimeSeriesResult`/`VariabilityResult`/`AnomalyResult` 的既有字段语义与数值；新字段均为 additive。
-- 未实现 `SqrtValue.decimalText` 的精确十进制生成器（现由调用方/展示层按 `radicand` 展开；`decimalText` 允许为空串占位，冻结后如 A 要求精确串再补）。
+- `SqrtValue.decimalText` 按 v2.0.1 **不强制**：允许 `null`/空串占位；如提供非空值，必须等于 `radicand` 按 `decimals = 6` 一次 `minor-half-away-v1` 展开（不得用浮点、不得二次舍入），本批不生成精确长展开。
 - 未改 `S01_PROTOCOL_VERSION`（版本串由 Lead 统一发布），未接页面、未碰 `StatsPage.tsx`/`FxStats.tsx`。
 
-**测试证据**：`packages/shared/src/analysisMethod.test.ts`（10 用例：规范串逐字、旧串别名归一、未知串原样、`anomalyMethodString`）；`variability.test.ts` 新增精确 σ/CV 用例（总体方差 66666666.67 → radicand 精确、μ=0 → `standardDeviation = null`、`varianceKind = "population"`）；`anomaly.test.ts` 新增 `methodString` 对应；shared 全量 **34 文件/543 用例通过，3 skipped**（`FX_PERF` 门控）；web 全量 **174 文件/1582 用例通过**；`tsc -b packages/shared apps/web` exit 0。
+**测试证据**：`packages/shared/src/analysisMethod.test.ts`（7 用例：内部 id 与冻结值分表、冻结字面量逐字、旧串归一、`type7-linear` 不冒充、开放扩展与未注册标记、`anomalyMethodString`、别名表只含冻结输出）；`variability.test.ts` 新增精确 σ/CV 用例（总体方差 66666666.67 → radicand 精确、μ=0 → `standardDeviation = null`、`varianceKind = "population"`）；`anomaly.test.ts` 新增 `methodString` 对应；shared 全量 **34 文件/546 用例通过，3 skipped**（`FX_PERF` 门控）；web 全量 **174 文件/1582 用例通过**；`tsc -b packages/shared apps/web` exit 0。
+
+### 23.5 v2.0.1 澄清对齐（2026-10-27，A `492b1b6`/`6f72f9f`；回应 Lead m05439）
+
+A 发布 s01-v2 v2.0.1 澄清后，B 暂停批次，逐条核对并修正 `analysisMethod.ts`（不新增/修改任何形状，不改财务数值语义）：
+
+1. **冻结 method 字面量**：对外支持值严格为 `population-stddev` / `sample-cv-fixedpoint` / `mad-median` / `iqr-quantile`；B 内部 `formula` id（`population-standard-deviation-v1` 等）与冻结值**分表**，不得输出到对外字段。
+2. **`type7-linear` 禁止冒充**：B 的 A19 分位阈值实现是 nearest-rank（`ceil(n·q)−1`），与 Type 7 线性插值不等价，故 `type7-linear` **不计入已实现方法**（状态 `unregistered`，原样返回），`quantile-threshold` 明确标注为开放扩展，不与冻结值混列。
+3. **`SqrtValue.decimalText` 不强制**：见 §23.4；如提供必须按 `decimals=6` 一次 half-away 展开。
+4. 冻结值只出现在对外宣称/展示层；B 结果内部字段（`formula`/`methodString`）保持既有形状，`methodString` 仍为 `"mad"`/`"iqr"`/`"zero-dispersion-quantile"`。
+5. 修正后 shared 全量、`tsc -b` 与 web 全量重跑为唯一验收证据；提交号见任务文档 §6.6 回填行。
 
 
 
