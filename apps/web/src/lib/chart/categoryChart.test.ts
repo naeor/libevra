@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildCalendarGridModel,
+  buildCategorySeriesModel,
   buildFlowBarModel,
   buildShareStackModel,
   buildStackedBarModel,
@@ -249,5 +250,68 @@ describe("calendar grid (CF-B08)", () => {
     expect(cells[15]?.level).toBeNull();
     expect(cells[15]?.valueMinor).toBeNull();
     expect(cells[15]?.state).toBe("unknown");
+  });
+});
+
+describe("multi-category comparison (CF-B03 / I15)", () => {
+  const series = computeCategorySeries(
+    [
+      { occurredLocalDate: "2026-08-03", categoryId: "food", kind: "expense", amountMinor: 3_000 },
+      { occurredLocalDate: "2026-08-04", categoryId: "rent", kind: "expense", amountMinor: 7_000 },
+      { occurredLocalDate: "2026-10-02", categoryId: "food", kind: "expense", amountMinor: 5_000 },
+    ],
+    { ...CATEGORY_OPTIONS, span: spanFromInclusiveDates("2026-08-01", "2026-10-31") },
+  );
+
+  it("draws one line per selected category on a shared axis", () => {
+    const model = buildCategorySeriesModel(series, { box: BOX, kind: "lines" });
+
+    expect(model.lines).toHaveLength(2);
+    expect(model.lines.map((line) => line.categoryId)).toEqual(["food", "rent"]);
+    // Every bucket contributes one point per category; zero amounts are known zeros, not gaps.
+    expect(model.lines[0]?.segments.flat()).toHaveLength(series.buckets.length);
+    expect(model.lines[1]?.segments.flat()).toHaveLength(series.buckets.length);
+    expect(model.bars).toHaveLength(0);
+    expect(model.empty).toBe(false);
+  });
+
+  it("breaks the line at an unknown bucket instead of connecting over it", () => {
+    const gapped = computeCategorySeries(
+      [
+        { occurredLocalDate: "2026-08-03", categoryId: "food", kind: "expense", amountMinor: 3_000 },
+        { occurredLocalDate: "2026-10-02", categoryId: "food", kind: "expense", amountMinor: 5_000 },
+      ],
+      {
+        ...CATEGORY_OPTIONS,
+        categoryIds: ["food"],
+        span: spanFromInclusiveDates("2026-08-01", "2026-10-31"),
+        coverageEnd: "2026-08-31",
+      },
+    );
+    const model = buildCategorySeriesModel(gapped, { box: BOX, kind: "lines" });
+
+    expect(model.hasUnknown).toBe(true);
+    expect(model.lines[0]?.segments).toHaveLength(1);
+    expect(model.lines[0]?.segments[0]).toHaveLength(1);
+  });
+
+  it("grouped bars put one bar per category inside each bucket slot", () => {
+    const model = buildCategorySeriesModel(series, { box: BOX, kind: "grouped-bars" });
+
+    expect(model.bars).toHaveLength(series.buckets.length * 2);
+    expect(model.bars.map((bar) => bar.categoryId)).toEqual([
+      "food",
+      "rent",
+      "food",
+      "rent",
+      "food",
+      "rent",
+    ]);
+    // Same bucket, two categories: bars do not overlap and sit on the zero line.
+    const foodAugust = model.bars[0];
+    const rentAugust = model.bars[1];
+    expect(foodAugust?.x).toBeLessThan(rentAugust?.x ?? 0);
+    expect((foodAugust?.y ?? 0) + (foodAugust?.height ?? 0)).toBeCloseTo(model.zeroY, 0);
+    expect(model.lines).toHaveLength(0);
   });
 });

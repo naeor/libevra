@@ -26,15 +26,22 @@ import {
   accumulateSeries,
   addDays,
   assertCalendarDate,
+  computeCategorySeries,
+  computeCategoryShares,
   computeFlowSeries,
   computeTimeSeries,
   daysInSpan,
   isSpanValid,
   monthSpan,
+  OTHER_CATEGORY_KEY,
   weekSpan,
+  type CategorySeriesEntry,
+  type CategorySeriesResult,
+  type CategoryShareResult,
   type CountKind,
   type CumulativeResult,
   type FlowSeriesResult,
+  type ShareRatio,
   type TimeGranularity,
   type TimeSeriesEntry,
   type TimeSeriesMetric,
@@ -406,4 +413,201 @@ export function deriveFlowAnalysis(
   });
   return { result, input };
 }
+
+// ---------------------------------------------------------------------------
+// S2 — 分类区（I14 / I15 / I16）
+// ---------------------------------------------------------------------------
+
+/**
+ * Category composition needs the stable category id, which `TimeSeriesEntry` does
+ * not carry. Same validation rules as `toTimeSeriesEntries`; the only addition is
+ * the category identity, so I14–I16 never have to re-derive it from names.
+ */
+export function toCategoryEntries(transactions: readonly Transaction[]): CategorySeriesEntry[] {
+  const entries: CategorySeriesEntry[] = [];
+  for (const transaction of transactions) {
+    if (transaction.deletedAt !== null && transaction.deletedAt !== undefined) continue;
+    assertCalendarDate(transaction.occurredLocalDate);
+    if (!Number.isInteger(transaction.amountCents) || transaction.amountCents < 0) {
+      throw new AnalyzeEntryError(`金额不合法：${transaction.id}`);
+    }
+    if (transaction.kind !== "expense" && transaction.kind !== "income") {
+      throw new AnalyzeEntryError(`未知的收支类型：${transaction.id}`);
+    }
+    entries.push({
+      occurredLocalDate: transaction.occurredLocalDate,
+      kind: transaction.kind,
+      amountMinor: transaction.amountCents,
+      categoryId: transaction.categoryId,
+    });
+  }
+  return entries;
+}
+
+/** What a category card (I14 / I15 / I16) asks the analysis layer for. */
+export interface CategoryAnalysisQuery {
+  /** I14/I15 are expense-side or income-side, never mixed in one composition. */
+  readonly kind: "expense" | "income";
+  /** Stable category ids, in legend/table order. */
+  readonly categoryIds: readonly string[];
+  /** Append the authoritative remainder as the `__other__` series. */
+  readonly includeOther?: boolean;
+  readonly granularity: TimeGranularity;
+  /** Half-open business-date span `[start, end)`. */
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly maxDays?: number;
+  readonly coverage?: "local-ledger" | "unknown";
+}
+
+export interface CategoryAnalysisView {
+  readonly result: CategorySeriesResult;
+  /** Authoritative in-bucket shares (I16); computed from `result`, never from pixels. */
+  readonly shares: CategoryShareResult;
+  readonly input: AnalysisInput;
+}
+
+/**
+ * Category composition over time (I14/I15/I16).
+ *
+ * The denominator of every share is the bucket's authoritative total (all
+ * categories after the kind filter), so selected categories + the remainder add up
+ * to 100% — verifiable, not normalised to look complete. Unknown buckets keep
+ * `null` amounts and `null` shares; they are never turned into zero.
+ */
+export function deriveCategoryAnalysis(
+  transactions: readonly Transaction[],
+  query: CategoryAnalysisQuery,
+): CategoryAnalysisView {
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const entries = toCategoryEntries(transactions);
+  const input: AnalysisInput = {
+    entries,
+    coverageEnd:
+      query.coverage === "unknown" ? coverageOf() : localLedgerCoverageEnd(span, query.today),
+    dataVersion: analysisDataVersion(),
+  };
+  const result = computeCategorySeries(entries, {
+    kind: query.kind,
+    categoryIds: query.categoryIds,
+    granularity: query.granularity,
+    span,
+    today: query.today,
+    coverageEnd: input.coverageEnd,
+    ...(query.includeOther === undefined ? {} : { includeOther: query.includeOther }),
+  });
+  return { result, shares: computeCategoryShares(result), input };
+}
+
+/** What a single-category trend (I14) asks the analysis layer for. */
+export interface CategoryTrendQuery {
+  readonly categoryId: string;
+  readonly kind: "expense" | "income";
+  readonly granularity: TimeGranularity;
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly maxDays?: number;
+  readonly coverage?: "local-ledger" | "unknown";
+}
+
+/**
+ * One category's authoritative time series (I14).
+ *
+ * Implemented by filtering the entries and reusing the single-series engine, so
+ * the numbers are exactly the `points` the composition result would show for that
+ * category. Category identity is the stable id; renaming a category never splits
+ * its history and two same-named categories are never merged.
+ */
+export function deriveCategoryTrend(
+  transactions: readonly Transaction[],
+  query: CategoryTrendQuery,
+): TimeAnalysisView {
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const filtered = transactions.filter(
+    (transaction) =>
+      transaction.categoryId === query.categoryId && transaction.kind === query.kind,
+  );
+  const entries = toTimeSeriesEntries(filtered);
+  const input: AnalysisInput = {
+    entries,
+    coverageEnd:
+      query.coverage === "unknown" ? coverageOf() : localLedgerCoverageEnd(span, query.today),
+    dataVersion: analysisDataVersion(),
+  };
+  const result = computeTimeSeries(entries, {
+    metric: query.kind,
+    granularity: query.granularity,
+    span,
+    today: query.today,
+    coverageEnd: input.coverageEnd,
+  });
+  return { result, input };
+}
+
+/** One row of the I16 ranking table (competition ranking, ties share a rank). */
+export interface CategoryRankingRow {
+  readonly categoryId: string;
+  /** 1-based competition rank: `1, 1, 3` for a tie at the top. */
+  readonly rank: number;
+  /** `true` when this row ties the row above it (展示“并列”). */
+  readonly tiedWithPrevious: boolean;
+  /** Exact total (minor units) over the analysed span; `null` = unknown. */
+  readonly amountMinor: string | null;
+  /** Share of the whole-range authoritative total; `null` = total unknown/zero. */
+  readonly share: ShareRatio | null;
+}
+
+/**
+ * Rank categories by their authoritative range total (I16 ranking / Top N).
+ *
+ * Uses the same `totalMinor` denominator as the in-bucket shares; returns the
+ * remainder (`__other__`) only if it was explicitly requested — it is not a real
+ * category and must not appear in a category ranking.
+ */
+export function rankCategories(
+  view: CategoryAnalysisView,
+  limit = 10,
+): CategoryRankingRow[] {
+  const usable = view.result.categoryIds.filter((id) => id !== OTHER_CATEGORY_KEY);
+  const rangeTotal = view.result.totalMinor;
+
+  const rows = usable
+    .map((categoryId) => ({
+      categoryId,
+      amount: view.result.totals[categoryId] ?? null,
+    }))
+    .sort((left, right) => {
+      if (left.amount === null && right.amount === null) return 0;
+      if (left.amount === null) return 1;
+      if (right.amount === null) return -1;
+      const a = BigInt(left.amount);
+      const b = BigInt(right.amount);
+      return a > b ? -1 : a < b ? 1 : 0;
+    });
+
+  const ranked: CategoryRankingRow[] = [];
+  let previousAmount: string | null = null;
+  let previousRank = 0;
+
+  rows.forEach((row, index) => {
+    const tied = row.amount !== null && previousAmount !== null && row.amount === previousAmount;
+    const rank = tied ? previousRank : index + 1;
+    previousRank = rank;
+    previousAmount = row.amount;
+
+    ranked.push({
+      categoryId: row.categoryId,
+      rank,
+      tiedWithPrevious: tied,
+      amountMinor: row.amount,
+      share:
+        row.amount === null || rangeTotal === null || BigInt(rangeTotal) === 0n
+          ? null
+          : { numeratorMinor: row.amount, denominatorMinor: rangeTotal },
+    });
+  });
+
+  return ranked.slice(0, Math.max(0, limit));
+}
+
 

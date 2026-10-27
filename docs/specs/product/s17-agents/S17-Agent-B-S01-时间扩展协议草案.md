@@ -641,5 +641,26 @@ S1 不新增 S-01 形状，也不改动 §3.7 的七个时间形状：它把已�
 
 **测试证据**：`apps/web/src/lib/analysisData.test.ts`（23 用例）、`apps/web/src/components/charts/timeSeriesCards.test.tsx`（5 用例）、`useTimeAnalysis.test.ts`（8 用例）；web 全量 166 文件/1508 用例。
 
+## 18. W1-S2 消费层映射（2026-10-27，draft；不新增形状）
+
+S2 同 S1：**不新增、不修改任何 S-01 形状**。I14–I16 直接消费 B-2 已交付的 `CategorySeriesResult` / `CategoryShareResult`（`computeCategorySeries` / `computeCategoryShares`），经 `apps/web/src/lib/analysisData.ts` 一个入口适配为卡片可渲染的数据。
+
+| 能力 | 生成入口（web，S2） | 复用形状 | 卡片组件 | 说明 |
+|---|---|---|---|---|
+| I14 单分类历史趋势 | `deriveCategoryTrend`（单 `categoryId` × 粒度） | `CategorySeriesResult`（单分类） | `CategoryCompositionCard` / `CategoryTrendsCard` | 与 I15 同一引擎：单分类趋势的每桶金额 = 多分类结果里该分类的对应点（有测试断言） |
+| I15 多分类金额对比 | `deriveCategoryAnalysis` | `CategorySeriesResult` | `CategoryTrendsCard`（多折线/分组柱）、`CategoryCompositionCard`（堆叠） | 分类身份只用稳定 `categoryId`；未知桶不画点/不画段 |
+| I16 分类占比 | `computeCategoryShares`（复用 §11 的 `CategoryShareResult`）+ `deriveCategoryAnalysis` | `CategoryShareResult` | `CategoryShareCard`（100% 带）、`CategoryDataTable`（占比/金额表格） | 占比分母 = 权威桶总额；不重算、不重归一化 |
+
+**S2 锁定语义**：
+
+1. **"其他"不是推断分类**：`includeOther` 时 `__other__ = 桶总额 − 选中分类合计`，选中分类 + 其他 = 权威总额；`__other__` 不进入排行、不可点击钻取（不知道具体分类）。
+2. **占比分母永远用权威桶总额**：部分分类未选中时（`partial`）占比照常以总额为分母，不把"选中合计"当 100%；未知桶的占比为 `null`（不是 0），零总额桶 `state = "zero-total"` 且占比为 `null`——**不得伪造 0%**（B-2 的 `computeCategoryShares` 已守住，S2 只渲染）。
+3. **I14 与 I15 数字必须互相对得上**：单分类趋势的桶金额与多分类序列中该分类的点逐桶相等（`analysisData.test.ts` 有断言）。
+4. **排行**：按区间总额降序；并列共享排名（1、1、3）；`limit` 在"其他"剔除后生效；份额 = 该分类总额 / 权威总额。
+5. 卡片只渲染传入结果，不重算金额、不补零、不折算汇率；未知/未来由权威 `state` 决定渲染（未知不画、未来不画）。
+6. 页面接线仍由 Lead 在集成 worktree 统一完成；本批不接页面、不改 API/版本、不碰 `StatsPage.tsx`/`FxStats.tsx`。
+
+**测试证据**：`analysisData.test.ts`（S2 新增 7 用例）、`categoryChart.test.ts`（多分类模型 3 用例）、`categoryCards.test.tsx`（7 用例）；web 全量 167 文件/1526 用例、`tsc -b` exit 0。
+
 
 

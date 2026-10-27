@@ -2,6 +2,7 @@ import type {
   BucketState,
   CalendarHeatmapResult,
   CategorySeriesBucket,
+  CategorySeriesResult,
   CategoryShareResult,
   FlowSeriesBucketPoint,
   WeekdayPatternResult,
@@ -527,5 +528,147 @@ export function buildCalendarGridModel(
     gap,
     months,
     empty: months.every((month) => month.cells.length === 0),
+  };
+}
+
+/** 多分类对比图（I15）的点。 */
+export interface CategorySeriesPointBox {
+  readonly bucketKey: string;
+  readonly x: number;
+  readonly y: number;
+  readonly amountMinor: string;
+}
+
+export interface CategorySeriesLine {
+  readonly categoryId: string;
+  readonly colorIndex: number;
+  /** 未知/未来处断开；每段至少 1 个点。 */
+  readonly segments: readonly (readonly CategorySeriesPointBox[])[];
+}
+
+/** 分组柱（I15）的一根柱。 */
+export interface CategoryGroupBar {
+  readonly key: string;
+  readonly categoryId: string;
+  readonly colorIndex: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly amountMinor: string;
+}
+
+export type CategorySeriesChartKind = "lines" | "area" | "grouped-bars";
+
+export interface CategorySeriesModel {
+  readonly kind: CategorySeriesChartKind;
+  readonly slotWidth: number;
+  readonly yDomain: readonly [number, number];
+  readonly ticks: readonly number[];
+  readonly scale: LinearScale;
+  readonly zeroY: number;
+  readonly lines: readonly CategorySeriesLine[];
+  readonly bars: readonly CategoryGroupBar[];
+  readonly empty: boolean;
+  readonly hasUnknown: boolean;
+}
+
+/** 分组柱总宽度占槽位的比例。 */
+const GROUP_WIDTH = 0.72;
+
+/**
+ * 多分类金额对比（I15）：多折线 / 多序列面积 / 分组柱共用同一个权威结果。
+ *
+ * 这里是“绝对金额”的视图；占比视图（I16）用 `buildShareStackModel`，两者不互相
+ * 替代。未知桶的点不画也不连线（`null` 代表不可确认，不是 0）。
+ */
+export function buildCategorySeriesModel(
+  series: CategorySeriesResult,
+  options: { readonly box: ChartBox; readonly kind: CategorySeriesChartKind },
+): CategorySeriesModel {
+  const { box, kind } = options;
+  const bucketCount = series.buckets.length;
+  const slotWidth = bucketCount === 0 ? box.innerWidth : box.innerWidth / bucketCount;
+
+  const categoryIds = series.categoryIds;
+  const values: number[] = [];
+  for (const bucket of series.buckets) {
+    for (const point of bucket.points) {
+      if (point.amountMinor === null) continue;
+      values.push(Number(point.amountMinor));
+    }
+  }
+
+  const extent = extentOf(values);
+  const yDomain = extent === null ? ([0, 1] as const) : niceDomain(extent[0], extent[1], 4);
+  const scale = createLinearScale(yDomain, [box.padding.top + box.innerHeight, box.padding.top]);
+  const zeroY = scale(0);
+
+  const lines: CategorySeriesLine[] = [];
+  if (kind !== "grouped-bars") {
+    categoryIds.forEach((categoryId, colorIndex) => {
+      const segments: CategorySeriesPointBox[][] = [];
+      let current: CategorySeriesPointBox[] = [];
+
+      series.buckets.forEach((bucket, index) => {
+        const point = bucket.points.find((candidate) => candidate.categoryId === categoryId);
+        if (point === undefined || point.amountMinor === null) {
+          if (current.length > 0) segments.push(current);
+          current = [];
+          return;
+        }
+        const x = box.padding.left + slotWidth * (index + 0.5);
+        current.push({
+          bucketKey: bucket.bucket.key,
+          x,
+          y: scale(Number(point.amountMinor)),
+          amountMinor: point.amountMinor,
+        });
+      });
+
+      if (current.length > 0) segments.push(current);
+      lines.push({ categoryId, colorIndex, segments });
+    });
+  }
+
+  const bars: CategoryGroupBar[] = [];
+  if (kind === "grouped-bars" && categoryIds.length > 0) {
+    const groupWidth = Math.max(slotWidth * GROUP_WIDTH, 1);
+    const barWidth = Math.max(groupWidth / categoryIds.length, 1);
+
+    series.buckets.forEach((bucket, bucketIndex) => {
+      categoryIds.forEach((categoryId, categoryIndex) => {
+        const point = bucket.points.find((candidate) => candidate.categoryId === categoryId);
+        if (point === undefined || point.amountMinor === null) return;
+        const center = box.padding.left + slotWidth * (bucketIndex + 0.5);
+        const left = center - groupWidth / 2 + barWidth * categoryIndex;
+        const y = scale(Number(point.amountMinor));
+        bars.push({
+          key: `${bucket.bucket.key}:${categoryId}`,
+          categoryId,
+          colorIndex: categoryIndex,
+          x: left,
+          y: Math.min(y, zeroY),
+          width: barWidth,
+          height: Math.max(Math.abs(zeroY - y), 1),
+          amountMinor: point.amountMinor,
+        });
+      });
+    });
+  }
+
+  return {
+    kind,
+    slotWidth,
+    yDomain,
+    ticks: ticksFor(yDomain, 4),
+    scale,
+    zeroY,
+    lines,
+    bars,
+    empty: values.length === 0,
+    hasUnknown: series.buckets.some((bucket) =>
+      bucket.points.some((point) => point.amountMinor === null),
+    ),
   };
 }

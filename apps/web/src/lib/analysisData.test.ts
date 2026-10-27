@@ -9,8 +9,11 @@ import {
   analysisSpan,
   assertSupportedGranularity,
   buildAnalysisInput,
+  deriveCategoryAnalysis,
+  deriveCategoryTrend,
   deriveCumulativeAnalysis,
   deriveFlowAnalysis,
+  rankCategories,
   toTimeSeriesEntries,
   trailingMonthWindow,
   trailingWeekWindow,
@@ -237,5 +240,122 @@ describe("deriveFlowAnalysis", () => {
     expect(view.result.totalIncomeMinor).toBeNull();
     expect(view.result.totalExpenseMinor).toBeNull();
     expect(view.result.complete).toBe(false);
+  });
+});
+
+describe("S2 分类区（I14 / I15 / I16）", () => {
+  const transactions = [
+    entry({ occurredLocalDate: "2026-10-01", categoryId: "food", amountCents: 300 }),
+    entry({ occurredLocalDate: "2026-10-01", categoryId: "food", amountCents: 200 }),
+    entry({ occurredLocalDate: "2026-10-01", categoryId: "rent", amountCents: 1_000 }),
+    entry({ occurredLocalDate: "2026-10-02", categoryId: "food", amountCents: 500 }),
+    entry({ occurredLocalDate: "2026-10-02", kind: "income", categoryId: "salary", amountCents: 9_000 }),
+    entry({ occurredLocalDate: "2026-10-03", categoryId: "food", amountCents: 1 }),
+  ];
+
+  const query = {
+    kind: "expense" as const,
+    categoryIds: ["food", "rent"],
+    granularity: "day" as const,
+    span: { start: "2026-10-01", end: "2026-10-04" },
+    today: "2026-10-04",
+    coverage: "local-ledger" as const,
+  };
+
+  it("只按 kind 过滤，按分类稳定 ID 聚合（I15）", () => {
+    const view = deriveCategoryAnalysis(transactions, query);
+    expect(view.result.kind).toBe("expense");
+    expect(view.result.buckets).toHaveLength(3);
+    expect(view.result.totals.food).toBe("1001");
+    expect(view.result.totals.rent).toBe("1000");
+    expect(view.result.totalMinor).toBe("2001");
+    expect(view.result.complete).toBe(true);
+  });
+
+  it("includeOther 的“其他”等于桶总额减选中分类合计（I15）", () => {
+    const view = deriveCategoryAnalysis(transactions, {
+      ...query,
+      categoryIds: ["food"],
+      includeOther: true,
+    });
+    expect(view.result.categoryIds).toEqual(["food", "__other__"]);
+    expect(view.result.totals.__other__).toBe("1000");
+    expect(view.result.totalMinor).toBe("2001");
+  });
+
+  it("桶内占比的分母是权威总额，选中分类 + 其他 = 100%（I16）", () => {
+    const view = deriveCategoryAnalysis(transactions, {
+      ...query,
+      categoryIds: ["food"],
+      includeOther: true,
+      span: { start: "2026-10-01", end: "2026-10-02" },
+      today: "2026-10-02",
+    });
+    const first = view.shares.buckets[0];
+    expect(first?.totalMinor).toBe("1500");
+    expect(first?.points[0]?.share).toEqual({ numeratorMinor: "500", denominatorMinor: "1500" });
+    expect(first?.points[1]?.share).toEqual({ numeratorMinor: "1000", denominatorMinor: "1500" });
+    expect(first?.state).toBe("ok");
+  });
+
+  it("未知覆盖时分类金额与占比都为 null，不是 0", () => {
+    const view = deriveCategoryAnalysis(transactions, { ...query, coverage: "unknown" });
+    expect(view.result.totals.food).toBeNull();
+    expect(view.result.totalMinor).toBeNull();
+    expect(view.shares.buckets[0]?.state).toBe("unknown");
+    expect(view.shares.buckets[0]?.points[0]?.share).toBeNull();
+  });
+
+  it("I14 单分类趋势的数字与分类序列该点一致", () => {
+    const trend = deriveCategoryTrend(transactions, {
+      categoryId: "food",
+      kind: "expense",
+      granularity: "day",
+      span: { start: "2026-10-01", end: "2026-10-04" },
+      today: "2026-10-04",
+      coverage: "local-ledger",
+    });
+    const composition = deriveCategoryAnalysis(transactions, query);
+
+    expect(trend.result.buckets.map((bucket) => bucket.amountMinor)).toEqual(["500", "500", "1"]);
+    expect(trend.result.buckets.map((bucket) => bucket.amountMinor)).toEqual(
+      composition.result.buckets.map(
+        (bucket) => bucket.points.find((point) => point.categoryId === "food")?.amountMinor ?? null,
+      ),
+    );
+    expect(trend.result.totalMinor).toBe("1001");
+  });
+
+  it("排行按区间总额降序，并列共享排名（I16 排行）", () => {
+    const tied = [
+      entry({ occurredLocalDate: "2026-10-01", categoryId: "a", amountCents: 100 }),
+      entry({ occurredLocalDate: "2026-10-01", categoryId: "b", amountCents: 100 }),
+      entry({ occurredLocalDate: "2026-10-01", categoryId: "c", amountCents: 50 }),
+      entry({ occurredLocalDate: "2026-10-01", categoryId: "d", amountCents: 0 }),
+    ];
+    const view = deriveCategoryAnalysis(tied, {
+      kind: "expense",
+      categoryIds: ["a", "b", "c", "d"],
+      granularity: "day",
+      span: { start: "2026-10-01", end: "2026-10-02" },
+      today: "2026-10-02",
+      coverage: "local-ledger",
+    });
+    const rows = rankCategories(view);
+
+    expect(rows.map((row) => [row.categoryId, row.rank, row.tiedWithPrevious])).toEqual([
+      ["a", 1, false],
+      ["b", 1, true],
+      ["c", 3, false],
+      ["d", 4, false],
+    ]);
+    expect(rows[0]?.share).toEqual({ numeratorMinor: "100", denominatorMinor: "250" });
+  });
+
+  it("排行的 limit 生效且不混入“其他”", () => {
+    const view = deriveCategoryAnalysis(transactions, { ...query, includeOther: true });
+    const rows = rankCategories(view, 1);
+    expect(rows).toHaveLength(1);
+    expect(rows.every((row) => row.categoryId !== "__other__")).toBe(true);
   });
 });
