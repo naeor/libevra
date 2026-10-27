@@ -662,5 +662,28 @@ S2 同 S1：**不新增、不修改任何 S-01 形状**。I14–I16 直接消费
 
 **测试证据**：`analysisData.test.ts`（S2 新增 7 用例）、`categoryChart.test.ts`（多分类模型 3 用例）、`categoryCards.test.tsx`（7 用例）；web 全量 167 文件/1526 用例、`tsc -b` exit 0。
 
+## 19. W1-S3 消费层映射（2026-10-27，draft；不新增形状）
+
+S3 同 S1/S2：**不新增、不修改任何 S-01 形状**。A01–A05 直接消费 B-3 已交付的 `ComparisonResult`（`computePeriodComparison`/`resolveComparison`）与 `MultiMonthComparisonResult`（`computeMultiMonthComparison`），经 `apps/web/src/lib/analysisData.ts` 一个入口适配；比较卡与双柱/月份柱复用 B-3 组件（`PeriodComparisonCard`/`PeriodComparisonBars`/`MonthComparisonChart`），本批仅新增 A04 的卡框架 `MonthComparisonCard`。
+
+| 能力 | 生成入口（web，S3） | 复用形状 | 卡片组件 | 说明 |
+|---|---|---|---|---|
+| A01 上期收支比较 | `derivePeriodComparison`（`kind: "previous-period"`） | `PeriodComparisonResult` | `PeriodComparisonCard` + `PeriodComparisonBars` | 上期窗口（同日数滚动）与 `sameLength`/`previousClipped` 由 shared `resolution` 决定 |
+| A02 环比增长率 | 同一入口（`month-over-month`） | `PeriodComparisonResult` | `PeriodComparisonCard` | 只给精确 `numeratorMinor/denominatorMinor`；百分比由调用方格式化 |
+| A03 同比增长率 | 同一入口（`year-over-year`） | `PeriodComparisonResult` | `PeriodComparisonBars` / `PeriodComparisonCard` | `leapDayFallbacks` 随结果上传，卡片必须显示对齐口径 |
+| A04 多个月份比较 | `deriveMultiMonthComparison` | `MultiMonthComparisonResult` | `MonthComparisonCard`（新卡框架）+ `MonthComparisonChart` | 月份键 `YYYY-MM` 保序、去重；排行只含完整月；未完成月金额 `null` |
+| A05 本月至今同期 | 同一入口（`month-to-date`，`monthToDatePolicy` 可选） | `PeriodComparisonResult` | `PeriodComparisonCard` + `PeriodComparisonBars` | 默认 `same-day-index`；`currentDayInProgress`/`policyId` 进结果 |
+
+**S3 锁定语义**：
+
+1. **“不可比/不完整”不得被装作完整**：任一侧覆盖未知时该侧金额 `null`、差额与增长率 `unavailable`；覆盖未知的适配规则是“只声明覆盖到最早窗口的前一天”（shared 的 `coverageEnd: null` 表示“无约束”，不能表达 unknown），因此绝不会出现看似完整的数字。
+2. **A04 的月份数与上限**：`assertComparisonMonthCount` 在适配层按 S-01 v2 §17 draft 限制 36 个唯一月份，越界抛 `AnalysisRangeError('analysis-range-too-long')`，不截断、不静默丢月份。
+3. **A04 总额只在全部月份完整时才显示**：含进行中/未知月时 `totalMinor = null`，卡片 `totalText` 必须传 `null`；不显示“只覆盖完整月”的小计。
+4. **比较窗口与 kind 一一对应**：文案由调用方按 `result.kind` 给出，不把同比标成“上个月”；`resolution` 中的真实区间、`sameLength`、`previousClipped`、`policyId` 必须可展示。
+5. 卡片只渲染传入结果，不重算金额、不补零、不折算汇率；页面接线仍由 Lead 在集成 worktree 统一完成；本批不接页面、不改 API/版本、不碰 `StatsPage.tsx`/`FxStats.tsx`。
+
+**测试证据**：`analysisData.test.ts`（S3 新增 6 用例，含 unknown/上限/闰日对齐）、`comparisonCards.test.tsx`（6 用例，覆盖双柱空状态、比较卡、A04 卡进行中/未知）；定向 2 文件 46 用例、web 全量见本批报告。
+
+
 
 

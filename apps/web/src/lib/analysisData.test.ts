@@ -13,6 +13,8 @@ import {
   deriveCategoryTrend,
   deriveCumulativeAnalysis,
   deriveFlowAnalysis,
+  deriveMultiMonthComparison,
+  derivePeriodComparison,
   rankCategories,
   toTimeSeriesEntries,
   trailingMonthWindow,
@@ -357,5 +359,181 @@ describe("S2 分类区（I14 / I15 / I16）", () => {
     const rows = rankCategories(view, 1);
     expect(rows).toHaveLength(1);
     expect(rows.every((row) => row.categoryId !== "__other__")).toBe(true);
+  });
+});
+
+describe("derivePeriodComparison（S3 A01/A02/A03/A05）", () => {
+  const transactions = [
+    entry({ occurredLocalDate: "2026-09-10", amountCents: 500 }),
+    entry({ occurredLocalDate: "2026-10-10", amountCents: 800 }),
+    entry({ occurredLocalDate: "2026-09-20", kind: "income", amountCents: 1_000 }),
+    entry({ occurredLocalDate: "2026-10-20", kind: "income", amountCents: 2_000 }),
+  ];
+  const october = analysisSpan({ from: "2026-10-01", to: "2026-10-27" });
+
+  it("上期收支比较：金额、差额与上期区间都由 shared 结果给出（A01）", () => {
+    const view = derivePeriodComparison(transactions, {
+      kind: "previous-period",
+      current: october,
+      today: "2026-10-27",
+      coverage: "local-ledger",
+    });
+
+    expect(view.result.kind).toBe("previous-period");
+    expect(view.result.expense).toMatchObject({
+      metric: "expense",
+      currentMinor: "800",
+      previousMinor: "500",
+      differenceMinor: "300",
+    });
+    expect(view.result.income).toMatchObject({
+      metric: "income",
+      currentMinor: "2000",
+      previousMinor: "1000",
+      differenceMinor: "1000",
+    });
+    // Previous-period uses a same-length rolling window: 27 days ending the day before
+    // the current period starts (2026-09-04 → 2026-10-01).
+    expect(view.result.resolution.previous).toEqual({ start: "2026-09-04", end: "2026-10-01" });
+    expect(view.result.resolution.sameLength).toBe(true);
+  });
+
+  it("增长率只给精确分子/分母，百分比与文案留给调用方（A02）", () => {
+    const view = derivePeriodComparison(transactions, {
+      kind: "month-over-month",
+      current: october,
+      today: "2026-10-27",
+    });
+
+    expect(view.result.expense.growth.state).toBe("computed");
+    if (view.result.expense.growth.state === "computed") {
+      expect(String(view.result.expense.growth.numeratorMinor)).toBe("300");
+      expect(String(view.result.expense.growth.denominatorMinor)).toBe("500");
+    }
+  });
+
+  it("同比把 2/29 对齐到目标年 2 月最后一天并留下记录，不静默丢日（A03）", () => {
+    const view = derivePeriodComparison([], {
+      kind: "year-over-year",
+      // 2028-02-01 → 2028-02-29 half-open: the exclusive end 2028-02-29 has no
+      // counterpart in 2027, so it is aligned to 2027-02-28 and recorded.
+      current: analysisSpan({ from: "2028-02-01", to: "2028-02-28" }),
+      today: "2028-02-28",
+    });
+
+    expect(view.result.resolution.leapDayFallbacks).toEqual([
+      { date: "2028-02-29", alignedTo: "2027-02-28" },
+    ]);
+  });
+
+  it("本月至今默认同序号窗口：本月 1–27 日对上月 1–27 日（A05）", () => {
+    const view = derivePeriodComparison(transactions, {
+      kind: "month-to-date",
+      today: "2026-10-27",
+    });
+
+    expect(view.result.resolution.current).toEqual({ start: "2026-10-01", end: "2026-10-28" });
+    expect(view.result.resolution.previous).toEqual({ start: "2026-09-01", end: "2026-09-28" });
+    expect(view.result.resolution.currentDayInProgress).toBe(true);
+    expect(view.result.expense.currentMinor).toBe("800");
+    expect(view.result.expense.previousMinor).toBe("500");
+  });
+
+  it("日窗口上限由调用方传入，越界拒绝而不是截断（S-01 v2 §17）", () => {
+    expect(() =>
+      derivePeriodComparison(transactions, {
+        kind: "previous-period",
+        current: october,
+        today: "2026-10-27",
+        maxDays: 10,
+      }),
+    ).toThrow(AnalysisRangeError);
+  });
+
+  it("覆盖未知时金额为 null，差额与增长率不伪造为 0", () => {
+    const view = derivePeriodComparison(transactions, {
+      kind: "previous-period",
+      current: october,
+      today: "2026-10-27",
+      coverage: "unknown",
+    });
+
+    expect(view.result.expense.currentMinor).toBeNull();
+    expect(view.result.expense.previousMinor).toBeNull();
+    expect(view.result.expense.differenceMinor).toBeNull();
+    expect(view.result.expense.growth.state).toBe("unavailable");
+  });
+});
+
+describe("deriveMultiMonthComparison（S3 A04）", () => {
+  const transactions = [
+    entry({ occurredLocalDate: "2026-07-05", amountCents: 100 }),
+    entry({ occurredLocalDate: "2026-09-05", amountCents: 50 }),
+    entry({ occurredLocalDate: "2026-10-05", amountCents: 30 }),
+  ];
+
+  it("逐月金额、完整月排行与进行中月不可比（A04）", () => {
+    const view = deriveMultiMonthComparison(transactions, {
+      months: ["2026-07", "2026-08", "2026-09", "2026-10"],
+      metric: "expense",
+      today: "2026-10-27",
+      coverage: "local-ledger",
+    });
+
+    expect(view.result.months.map((month) => month.amountMinor)).toEqual([
+      "100",
+      "0",
+      "50",
+      // The current month is still running: its amount is unconfirmed, not 30.
+      null,
+    ]);
+    expect(view.result.months[3]?.comparable).toBe(false);
+    expect(view.result.ranking?.map((entry) => entry.month)).toEqual([
+      "2026-07",
+      "2026-09",
+      "2026-08",
+    ]);
+    // A total that includes a running month is not confirmed, so it is null rather
+    // than "150" (sum of the complete months only would be a different statement).
+    expect(view.result.totalMinor).toBeNull();
+    expect(view.result.completeMonths).toBe(3);
+    expect(view.result.complete).toBe(false);
+  });
+
+  it("跨年月份保留年份并给出 cross-year 提示", () => {
+    const view = deriveMultiMonthComparison(transactions, {
+      months: ["2025-11", "2026-01"],
+      metric: "expense",
+      today: "2026-10-27",
+    });
+    expect(view.result.crossYear).toBe(true);
+    expect(view.result.months.map((month) => month.month)).toEqual(["2025-11", "2026-01"]);
+  });
+
+  it("月份数超过 36 拒绝而不是截断（S-01 v2 §17 draft）", () => {
+    const months: string[] = [];
+    for (let index = 0; index < 37; index += 1) {
+      const year = 2023 + Math.floor(index / 12);
+      const month = (index % 12) + 1;
+      months.push(`${year}-${String(month).padStart(2, "0")}`);
+    }
+    expect(() =>
+      deriveMultiMonthComparison(transactions, {
+        months,
+        metric: "expense",
+        today: "2026-10-27",
+      }),
+    ).toThrow(AnalysisRangeError);
+  });
+
+  it("覆盖未知时逐月金额与总额都是 null", () => {
+    const view = deriveMultiMonthComparison(transactions, {
+      months: ["2026-07", "2026-09"],
+      metric: "expense",
+      today: "2026-10-27",
+      coverage: "unknown",
+    });
+    expect(view.result.months.every((month) => month.amountMinor === null)).toBe(true);
+    expect(view.result.totalMinor).toBeNull();
   });
 });

@@ -24,10 +24,16 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import {
   deriveCumulativeAnalysis,
   deriveFlowAnalysis,
+  deriveMultiMonthComparison,
+  derivePeriodComparison,
   deriveTimeAnalysis,
   type CumulativeAnalysisView,
   type FlowAnalysisQuery,
   type FlowAnalysisView,
+  type MultiMonthComparisonQuery,
+  type MultiMonthComparisonView,
+  type PeriodComparisonQuery,
+  type PeriodComparisonView,
   type TimeAnalysisQuery,
   type TimeAnalysisView,
 } from "./analysisData.js";
@@ -39,6 +45,8 @@ import {
 
 export type { TimeAnalysisQuery, TimeAnalysisView };
 export type { CumulativeAnalysisView, FlowAnalysisQuery, FlowAnalysisView };
+export type { PeriodComparisonQuery, PeriodComparisonView };
+export type { MultiMonthComparisonQuery, MultiMonthComparisonView };
 export { deriveTimeAnalysis };
 
 /**
@@ -117,5 +125,53 @@ export function useFlowAnalysis(query: FlowAnalysisQuery): FlowAnalysisView {
         ...(coverage === undefined ? {} : { coverage }),
       }),
     [all, granularity, span.start, span.end, today, maxDays, coverage],
+  );
+}
+
+/**
+ * S3 — A01/A02/A03/A05: one resolved period comparison per render.
+ *
+ * The card decides how to word it (`kind`); the hook never re-derives a "previous
+ * period" on its own, so a label can never drift away from the numbers.
+ */
+export function usePeriodComparison(query: PeriodComparisonQuery): PeriodComparisonView {
+  const all = useLedgerStore();
+
+  const { kind, current, today, monthToDatePolicy, maxDays, coverage } = query;
+
+  return useMemo(
+    () =>
+      derivePeriodComparison(all, {
+        kind,
+        today,
+        ...(current === undefined ? {} : { current }),
+        ...(monthToDatePolicy === undefined ? {} : { monthToDatePolicy }),
+        ...(maxDays === undefined ? {} : { maxDays }),
+        ...(coverage === undefined ? {} : { coverage }),
+      }),
+    [all, kind, current?.start, current?.end, today, monthToDatePolicy, maxDays, coverage],
+  );
+}
+
+/** S3 — A04: month-key comparison; the selection is compared by content, not identity. */
+export function useMultiMonthComparison(
+  query: MultiMonthComparisonQuery,
+): MultiMonthComparisonView {
+  const all = useLedgerStore();
+
+  const { months, metric, today, coverage } = query;
+  const selection = months.join("|");
+
+  return useMemo(
+    () =>
+      deriveMultiMonthComparison(all, {
+        months,
+        metric,
+        today,
+        ...(coverage === undefined ? {} : { coverage }),
+      }),
+    // `selection` is the content of `months`; the array identity changes every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, selection, metric, today, coverage],
   );
 }
