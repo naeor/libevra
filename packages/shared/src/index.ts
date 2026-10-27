@@ -557,3 +557,283 @@ export {
 } from "./messages.js";
 export * from "./fx.js";
 export * from "./fxHistory.js";
+
+// ---- S17 工作台布局层（Agent D · I-0；Lead m02333 批准） ----
+// additive 精选导出：只导出集成/卡片/编辑器需要的公共面；**禁止 `export *` 全量并入**。
+// 低层辅助与测试符号（test-support/test-prng、*_PLACEHOLDER、迁移步骤表、修复顺序表、
+// findForbiddenKey/sharePayloadByteLength 等）只留在 `./analysis/layout/*` 子路径。
+// 布局层为纯数据/纯函数：不做财务计算、不读写账务、无 I/O/DOM/时钟/随机（随机源由调用方注入）。
+// 静态守卫见 `./analysis/layout/export-surface.test.ts`。
+
+// 1) 布局文档模型与常量
+export {
+  LAYOUT_SCHEMA_VERSION,
+  LAYOUT_ALGORITHM_VERSION,
+  MIN_COLUMNS,
+  MAX_COLUMNS,
+  MAX_ROW_SPAN,
+  MAX_OBJECTS_PER_WORKBENCH,
+  MAX_CONTAINERS_PER_WORKBENCH,
+  MIN_CAROUSEL_PAGES,
+  MAX_CAROUSEL_PAGES,
+  MAX_GRID_SPLIT_CHILDREN,
+  CONTAINER_MAX_DEPTH,
+  type GridSize,
+  type LayoutObjectKind,
+  type LayoutMode,
+  type AnalysisReference,
+  type ChartPresentation,
+  type CardTitleSpec,
+  type TitleKind,
+  type RangePolicy,
+  type AnalysisCardNode,
+  type GridSplitConfig,
+  type GridSplitNode,
+  type CarouselNode,
+  type ContainerNode,
+  type SpacerNode,
+  type WorkbenchNode,
+  type WorkbenchContentDocumentV1,
+  type ObjectGeometry,
+  type LayoutGeometry,
+  type LayoutProfile,
+  type LayoutDocumentV1,
+} from "./analysis/layout/types.js";
+
+// 2) 尺寸契约与投影类型
+export type {
+  DisplayForm,
+  ObjectSizeContract,
+  MigrationStrategy,
+  DegradeReason,
+  ProjectedObject,
+  ProjectionIssue,
+  ProjectionResult,
+  LayoutValidationIssue,
+  ProjectOptions,
+} from "./analysis/layout/types.js";
+
+// 3) 行优先网格几何与投影
+export {
+  isPositiveInteger,
+  isCoordinateInColumn,
+  positionToRowCol,
+  rowColToPosition,
+  placementFitsColumns,
+  placementCells,
+  placementCellsOverlap,
+  toCellSet,
+  findEarliestFreeAnchor,
+  validateGeometry,
+} from "./analysis/layout/grid.js";
+
+export { projectLayout, projectionToGeometry } from "./analysis/layout/projection.js";
+
+// 4) 文档校验 / 序列化 / 损坏容错
+export {
+  emptyLayoutDocument,
+  emptyContentDocument,
+  loadLayoutDocument,
+  loadContentDocument,
+  roundTripLayoutDocument,
+  roundTripContentDocument,
+  type DocumentLoadResult,
+  type DocumentRoundTripResult,
+} from "./analysis/layout/document-io.js";
+
+export {
+  validateLayoutDocumentV1,
+  validateContentDocumentV1,
+  serializeContentDocumentV1,
+  serializeLayoutDocumentV1,
+  parseContentDocumentV1,
+  parseLayoutDocumentV1,
+  type DocumentValidationIssue,
+  type DocumentValidationResult,
+} from "./analysis/layout/validation.js";
+
+// 5) 配置版本迁移链与投影缓存键
+export {
+  readDeclaredSchemaVersion,
+  runMigrationChain,
+  migrateLayoutDocument,
+  migrateContentDocument,
+  deriveProjectionCacheKey,
+  type MigrationStatus,
+  type MigrationStep,
+  type MigrationChainResult,
+  type MigrationChainOptions,
+  type ProjectionCacheKeyInput,
+} from "./analysis/layout/migration-chain.js";
+
+// 6) 独立布局档案与统一/独立模式迁移
+export {
+  isValidProfileKey,
+  profileKeyForColumns,
+  profileKeyForWidth,
+  findProfile,
+  isProfileMaterialized,
+  listProfileKeys,
+  resolveProfile,
+  materializeProfile,
+  switchLayoutMode,
+  adoptProfileAsMain,
+  findUnplacedContentObjects,
+  type ProfileProjectionOptions,
+  type ProfileResolution,
+  type MaterializeProfileResult,
+  type ModeSwitchResult,
+  type AdoptProfileResult,
+} from "./analysis/layout/profiles.js";
+
+// 7) 容器数据模型 / 1×1 占位语义 / 垂直紧凑 / 确定性修复
+export {
+  normalizeGridSplitRatios,
+  describeGridSplitSlots,
+  containerChildBounds,
+  validateContainerTree,
+  deriveContainerDisplay,
+  collapseContainerGeometry,
+  restoreContainerGeometry,
+  isUserCollapsed,
+  isPlaceholderForm,
+  type ContainerFailureCode,
+  type ContainerIssue,
+  type GridSplitSlots,
+  type ContainerDisplay,
+} from "./analysis/layout/containers.js";
+
+export { compactVertically, type CompactionResult } from "./analysis/layout/compaction.js";
+
+export {
+  repairLayoutGeometry,
+  type GeometryRepairCode,
+  type GeometryRepair,
+  type GeometryRepairResult,
+} from "./analysis/layout/repair.js";
+
+// 8) 编辑器（headless 命令/焦点/状态机）
+export {
+  createEditorState,
+  applyCommand,
+  type EditorSnapshot,
+  type EditorHistory,
+  type EditorState,
+  type CreateEditorStateOptions,
+  type CommandResult,
+  type LayoutCommand,
+  type ApplyCommandOptions,
+} from "./analysis/layout/commands.js";
+
+export {
+  focusedGeometry,
+  currentFocus,
+  findDirectionalNeighbor,
+  moveFocus,
+  commandForKey,
+  type GridDirection,
+  type KeyInput,
+} from "./analysis/layout/focus.js";
+
+export {
+  INITIAL_EDITOR_MACHINE_STATE,
+  transitionEditorMachine,
+  type EditorMode,
+  type EditorPhase,
+  type EditorMachineState,
+  type EditorEffect,
+  type EditorMachineTransition,
+  type EditorMachineEvent,
+} from "./analysis/layout/machine.js";
+
+// 9) G-12a v1.1 分析参数白名单校验与分享导入门
+export {
+  ANALYSIS_PARAMS_SCHEMA_VERSION,
+  MAX_ANALYSIS_PARAMS_KEYS,
+  MAX_ANALYSIS_PARAMS_ID_ITEMS,
+  MAX_RELATIVE_DAYS,
+  MAX_ABSOLUTE_RANGE_DAYS,
+  MAX_LONG_RANGE_DAYS,
+  TIME_PRESETS,
+  TIME_FIXED_PRESETS,
+  COMPARISON_POLICIES,
+  ANALYSIS_KINDS,
+  isAnalysisParamsErrorCode,
+  isKnownAnalysisId,
+  analysisParamsKeys,
+  validateAnalysisParams,
+  checkShareImportGate,
+  isAcceptableAnalysisReference,
+  type TimePreset,
+  type TimeFixedPreset,
+  type ComparisonPolicy,
+  type AnalysisKind,
+  type AnalysisParamsErrorCode,
+  type AnalysisParamsIssue,
+  type AnalysisParamsStatus,
+  type AnalysisParamsReadonlyReason,
+  type AnalysisParamsValidationResult,
+  type AnalysisParamsValidationOptions,
+  type ShareImportGateResult,
+} from "./analysis/layout/params-validation.js";
+
+// 10) 分享快照纯函数 / 导入管道 / 本地存储契约（W6 前只登记契约）
+export {
+  SHARE_SNAPSHOT_SCHEMA_VERSION,
+  MAX_SHARE_PAYLOAD_BYTES,
+  MAX_SHARE_TEMPLATE_NAME_LENGTH,
+  MAX_SHARE_TEMPLATE_DESCRIPTION_LENGTH,
+  MAX_SHARE_LANGUAGE_LENGTH,
+  SHARE_CODE_ALPHABET,
+  SHARE_CODE_MIN_LENGTH,
+  SHARE_CODE_MAX_LENGTH,
+  SHARE_CODE_DEFAULT_LENGTH,
+  buildShareSnapshot,
+  validateShareSnapshot,
+  parseShareSnapshot,
+  parseShareSnapshotJson,
+  serializeShareSnapshot,
+  exportShareSnapshot,
+  normalizeShareCode,
+  isValidShareCode,
+  createShareCode,
+  type ShareTemplateInfo,
+  type ShareCardPayload,
+  type ShareGridSplitPayload,
+  type ShareCarouselPayload,
+  type ShareContainerPayload,
+  type ShareGeometryPayload,
+  type ShareProfilePayload,
+  type ShareLayoutPayload,
+  type ShareSnapshotV1,
+  type ShareExportOptions,
+  type ShareSerializeResult,
+  type ShareCodeRandomSource,
+} from "./analysis/layout/share-snapshot.js";
+
+export {
+  prepareShareImport,
+  isWithinImportLimits,
+  type ImportObjectIdFactory,
+  type ShareImportOptions,
+  type ImportRebindRequest,
+  type ImportPreview,
+  type ShareImportResult,
+} from "./analysis/layout/import-pipeline.js";
+
+export {
+  WORKBENCH_LOCAL_STORE_SCHEMA_VERSION,
+  createEmptyLocalRecord,
+  mergeLayoutDocuments,
+  mergeContentDocuments,
+  type VersionedDocument,
+  type WorkbenchLocalRecordV1,
+  type DocumentMergeConflict,
+  type LayoutMergeResult,
+  type ContentMergeResult,
+  type SyncPushResult,
+  type SyncPullResult,
+  type WorkbenchSyncTransport,
+  type WorkbenchLocalStore,
+} from "./analysis/layout/storage-contract.js";
+
