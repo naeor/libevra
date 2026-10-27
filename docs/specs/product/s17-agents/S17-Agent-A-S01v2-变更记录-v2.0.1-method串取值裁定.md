@@ -56,7 +56,7 @@
 > orchestrator 工作区为 A 只读，A 不写该文件；请 Lead 将下行填入 `S17-S01v2-冻结核定-20261027.md`（建议 §3 冻结后规则下新增「变更记录」小节）：
 
 ```markdown
-- 2026-10-27 **v2.0.1 冻结后澄清**（A，提交 `<A 提交号>`）：`method` 保持开放字符串，但已登记值必须逐字使用冻结值（`type7-linear`/`population-stddev`/`histogram-nice-bin-width` 已支持；`sample-cv-fixedpoint`/`mad-median`/`iqr-quantile` 已登记；`histogram-sturges` 仅候选）；B `-v1` 规范串映射：`population-standard-deviation-v1→population-stddev`、`coefficient-of-variation-v1→sample-cv-fixedpoint`、`mad-median-v1→mad-median`、`iqr-quantile-v1→iqr-quantile`、分位 `percentile-threshold-v1→type7-linear`（或独立阈值则标开放扩展）、`exact-mean-v1` 等未登记 = B 开放扩展、不宣称已支持；未登记扩展可用 `-v1` 但必须标注。σ `SqrtValue.decimalText` 允许空串/`null`（展示派生，由 `radicand` 展开；非契约必需、非缺陷）。不改结构/字段/枚举/26 项 specs，无需重新冻结；受影响回执：B/C。
+- 2026-10-27 **v2.0.1 冻结后澄清**（A，提交 `492b1b6`）：`method` 保持开放字符串，但已登记值必须逐字使用冻结值（`type7-linear`/`population-stddev`/`histogram-nice-bin-width` 已支持；`sample-cv-fixedpoint`/`mad-median`/`iqr-quantile` 已登记；`histogram-sturges` 仅候选）；B `-v1` 规范串映射：`population-standard-deviation-v1→population-stddev`、`coefficient-of-variation-v1→sample-cv-fixedpoint`、`mad-median-v1→mad-median`、`iqr-quantile-v1→iqr-quantile`、分位 `percentile-threshold-v1→type7-linear`（或独立阈值则标开放扩展）、`exact-mean-v1` 等未登记 = B 开放扩展、不宣称已支持；未登记扩展可用 `-v1` 但必须标注。σ `SqrtValue.decimalText` 允许空串/`null`（展示派生，由 `radicand` 展开；非契约必需、非缺陷）。不改结构/字段/枚举/26 项 specs，无需重新冻结；受影响回执：B/C。
 ```
 
 ## 6. 下一步
