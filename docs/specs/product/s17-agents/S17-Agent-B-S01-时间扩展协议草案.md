@@ -705,6 +705,26 @@ S4a 同 S1–S3：**不新增、不修改任何 S-01 形状**。I12/A12、A20、
 
 **测试证据**：`s4a.analysisData.test.ts`（8 用例，含 unknown 覆盖、样本不足、非法 `extremeSigma`）、`stabilityCards.test.tsx`（6 用例，含空状态、样本句、mode 渲染）；web 全量 170 文件/1556 用例、`tsc -b` exit 0。
 
+## 21. W1-S4b 消费层映射（2026-10-27，draft；不新增形状）
+
+S4b 同 S1–S4a：**不新增、不修改任何 S-01 形状**。A13/A14 消费 B-4 已交付的 `computeTrailingMovingAverage`（`MovingAverageResult`），经 `apps/web/src/lib/analysisData.ts` 的 `deriveMovingAverage` 适配；卡片为 `MovingAverageCard`（内嵌 `MovingAverageChart`，原始折线 + 移动平均折线/点）。
+
+| 能力 | 生成入口（web，S4b） | 复用形状 | 卡片组件 | 说明 |
+|---|---|---|---|---|
+| A13 七日移动平均 | `deriveMovingAverage({ windowDays: 7 })` | `MovingAverageResult`（`trailing: true`、`granularity: "day"`、`gapPolicy: "require-complete-window"`） | `MovingAverageCard` + `MovingAverageChart` | 尾随 7 个**日历日**；读取区间向历史扩展 `windowDays-1` 天（用户可见区间不变），扩展后第一个可见点即可计算 |
+| A14 三十日移动平均 | `deriveMovingAverage({ windowDays: 30 })` | 同上 | 同上，`data-window={30}` | 不是“最近一个自然月”，也不等于固定四周；与 A13 同图时复用两份已算结果，不重复分桶 |
+
+**S4b 锁定语义**：
+
+1. **历史扩展只改读取范围，不改可见范围**：`readSpan = [span.start-(windowDays-1), span.end)`；`result.points`、计数与 `visibleFrom` 全部裁剪回可见区间，并在视图层重算 `observedDays/computablePoints/unknownWindowPoints/missingHistoryPoints/complete`——不造数、不改变任何点的值。
+2. **窗口必须完整**：含未知/未来日的窗口 `average = null`、`gapReason = "window-incomplete"`；距序列起点不足一个窗口的可见点 `insufficient-history`；不填 0、不插值、不跨缺口平均。
+3. **进行中的今天按 shared 口径参与**：B-4 的 `computeTimeSeries` 把「包含 today 的桶」视为部分日（有金额、可计算），因此今天的 MA 点含当天部分金额；卡片必须通过 `bucket.state === "in-progress"` 识别并在 `sampleText` 里显式说明。这与 S4a 波动/稳定性“只取 complete 桶”不同，是两套分析各自锁定的口径，不得互相套用。
+4. **精确分数**：均值为 `numeratorMinor / denominatorDays`，`averageScaledMinor` 只是展示用定点展开；卡片与图例不得把缩放值当权威金额，提示/无障碍名称用 `formatValue` 提供的精确展示。
+5. **窗口身份**：`data-window` 明示 7/30；A13/A14 各自一张卡，不把 7 日结果渲染成 30 日。
+6. 卡片只渲染传入结果，不重算平均、不补零、不折算汇率；页面接线由 Lead 在集成 worktree 统一完成；本批不接页面、不改 API/版本、不碰 `StatsPage.tsx`/`FxStats.tsx`。
+
+**测试证据**：`s4b.analysisData.test.ts`（7 用例：历史扩展、可见计数、30 日窗口、进行中今天、unknown 覆盖、scale、非法窗口）、`movingAverageCards.test.tsx`（3 用例：双序列图例与样本行、`data-window=30` 区分、空状态）；web 全量 172 文件/1566 用例、`tsc -b` exit 0。
+
 
 
 

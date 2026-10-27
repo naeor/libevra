@@ -27,6 +27,7 @@ import {
   deriveFlowAnalysis,
   deriveIncomeStability,
   deriveMultiMonthComparison,
+  deriveMovingAverage,
   derivePeriodComparison,
   deriveTimeAnalysis,
   deriveWeekdayAnalysis,
@@ -35,6 +36,8 @@ import {
   type FlowAnalysisView,
   type IncomeStabilityQuery,
   type IncomeStabilityView,
+  type MovingAverageAnalysisQuery,
+  type MovingAverageAnalysisView,
   type MultiMonthComparisonQuery,
   type MultiMonthComparisonView,
   type PeriodComparisonQuery,
@@ -59,6 +62,7 @@ export type { MultiMonthComparisonQuery, MultiMonthComparisonView };
 export type { VariabilityAnalysisQuery, VariabilityAnalysisView };
 export type { IncomeStabilityQuery, IncomeStabilityView };
 export type { WeekdayAnalysisQuery, WeekdayAnalysisView };
+export type { MovingAverageAnalysisQuery, MovingAverageAnalysisView };
 export { deriveTimeAnalysis };
 
 /**
@@ -244,5 +248,25 @@ export function useWeekdayAnalysis(query: WeekdayAnalysisQuery): WeekdayAnalysis
         ...(coverage === undefined ? {} : { coverage }),
       }),
     [all, kind, span.start, span.end, today, maxDays, coverage],
+  );
+}
+
+/** S4b — A13/A14: trailing moving average over the visible span (7 / 30 days). */
+export function useMovingAverage(query: MovingAverageAnalysisQuery): MovingAverageAnalysisView {
+  const all = useLedgerStore();
+
+  const { span, today, windowDays, maxDays, coverage, scale } = query;
+
+  return useMemo(
+    () =>
+      deriveMovingAverage(all, {
+        span,
+        today,
+        windowDays,
+        ...(maxDays === undefined ? {} : { maxDays }),
+        ...(coverage === undefined ? {} : { coverage }),
+        ...(scale === undefined ? {} : { scale }),
+      }),
+    [all, span.start, span.end, today, windowDays, maxDays, coverage, scale],
   );
 }

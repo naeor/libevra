@@ -34,6 +34,7 @@ import {
   computeMultiMonthComparison,
   computePeriodComparison,
   computeTimeSeries,
+  computeTrailingMovingAverage,
   computeWeekdayPattern,
   daysInSpan,
   isSpanValid,
@@ -58,6 +59,8 @@ import {
   type MonthMetric,
   type MonthToDatePolicy,
   type MultiMonthComparisonResult,
+  type MovingAveragePoint,
+  type MovingAverageResult,
   type ShareRatio,
   type TimeGranularity,
   type TimeSeriesBucketPoint,
@@ -945,6 +948,106 @@ export function deriveWeekdayAnalysis(
   });
   return {
     result,
+    input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
+  };
+}
+
+/** A13/A14 — the two owner-specified trailing windows (7 / 30 calendar days). */
+export const MOVING_AVERAGE_WINDOWS = [7, 30] as const;
+
+/** A13/A14 — trailing moving average on the visible span, with real history padding. */
+export interface MovingAverageAnalysisQuery {
+  /** Half-open visible span `[start, end)` — the only days the card shows. */
+  readonly span: TimeSpan;
+  readonly today: string;
+  /** Trailing window in calendar days: 7 (A13) or 30 (A14). */
+  readonly windowDays: number;
+  readonly maxDays?: number;
+  readonly coverage?: AnalysisCoverage;
+  /** Decimal places for `averageScaledMinor` (display only); shared default 4. */
+  readonly scale?: number;
+}
+
+export interface MovingAverageAnalysisView {
+  /** Visible-range result: points and counters cover `query.span` only. */
+  readonly result: MovingAverageResult;
+  /** The visible points (same objects the chart plots). */
+  readonly points: readonly MovingAveragePoint[];
+  /** Calendar days of history read before the visible span to fill the first windows. */
+  readonly historyDays: number;
+  /** First visible calendar date (the card's axis start); the window may start earlier. */
+  readonly visibleFrom: string;
+  /** `null` unless no visible day has a confirmed amount (nothing truthful to draw). */
+  readonly unavailableReason: "no-complete-observations" | null;
+  readonly input: AnalysisInput;
+}
+
+/**
+ * Keep only the visible buckets of a moving-average result.
+ *
+ * The shared engine was fed a series that starts `windowDays - 1` days before the
+ * visible span (spec §25/§26 recommend reading real history so the first visible
+ * points are computable). Its counters would then describe that padded range, so the
+ * adapter re-derives them over the visible points — no number is invented, each one
+ * is a count of the same shared points.
+ */
+function visibleMovingAverage(result: MovingAverageResult, span: TimeSpan): MovingAverageResult {
+  const points = result.points.filter((point) => point.bucket.key >= span.start);
+  const computablePoints = points.filter((point) => point.average !== null).length;
+  return {
+    ...result,
+    points,
+    observedDays: points.filter((point) => point.rawMinor !== null).length,
+    computablePoints,
+    unknownWindowPoints: points.filter((point) => point.gapReason === "window-incomplete").length,
+    missingHistoryPoints: points.filter((point) => point.gapReason === "insufficient-history").length,
+    complete: points.length > 0 && computablePoints === points.length,
+  };
+}
+
+/**
+ * A13/A14. The shared engine computes the exact trailing average; this adapter only
+ * decides the read range (visible span plus `windowDays - 1` real history days) and
+ * which points the card may show. Unknown days are never treated as zero by the
+ * engine, so a window containing an unknown day stays uncomputable
+ * (`gapReason: "window-incomplete"`).
+ */
+export function deriveMovingAverage(
+  transactions: readonly Transaction[],
+  query: MovingAverageAnalysisQuery,
+): MovingAverageAnalysisView {
+  if (!Number.isInteger(query.windowDays) || query.windowDays < 1) {
+    throw new AnalysisRangeError("analysis-range-invalid", "移动平均窗口必须是正整数天");
+  }
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const entries = toTimeSeriesEntries(transactions);
+  const historyDays = query.windowDays - 1;
+  const readSpan: TimeSpan = { start: addDays(span.start, -historyDays), end: span.end };
+  // Coverage is decided on the read span: with `unknown` coverage the padded history is
+  // unknown too, so no window may be computed and the card shows the unknown state.
+  const coverageEnd = coverageEndFor({
+    span: readSpan,
+    today: query.today,
+    ...(query.coverage === undefined ? {} : { coverage: query.coverage }),
+  });
+  const series = computeTimeSeries(entries, {
+    metric: "expense",
+    granularity: "day",
+    span: readSpan,
+    today: query.today,
+    coverageEnd,
+  });
+  const full = computeTrailingMovingAverage(series.buckets, {
+    windowDays: query.windowDays,
+    ...(query.scale === undefined ? {} : { scale: query.scale }),
+  });
+  const result = visibleMovingAverage(full, span);
+  return {
+    result,
+    points: result.points,
+    historyDays,
+    visibleFrom: span.start,
+    unavailableReason: result.observedDays === 0 ? "no-complete-observations" : null,
     input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
   };
 }
