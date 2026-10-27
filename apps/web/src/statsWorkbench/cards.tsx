@@ -22,7 +22,7 @@ import {
   type TimeBucket,
 } from "@libellum/shared";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
-import { Component } from "react";
+import { Component, createContext, useContext } from "react";
 
 import { CalendarHeatmap } from "../components/charts/CalendarHeatmap.js";
 import { CalendarHeatmapGrid } from "../components/charts/CalendarHeatmapGrid.js";
@@ -54,7 +54,7 @@ import {
 } from "./compute.js";
 import { customRangeProblem } from "./filters.js";
 import type { WorkbenchScope } from "./scope.js";
-import { exactMoneyText, moneyText, ratioFraction, ratioPercentText, type Density } from "./ui.js";
+import { exactMoneyText, FitAmount, moneyText, ratioFraction, ratioPercentText, type Density } from "./ui.js";
 
 export interface CardBodyProps {
   readonly card: AnalysisCardNode;
@@ -130,7 +130,7 @@ function CardBodyInner({ card, scope, density, detail = false, height, width }: 
   const family = familyOf(card, type);
 
   if (scope.combined) {
-    if (!type.combined) return <Note text={t("statsWorkbench.states.combinedUnsupported")} />;
+    if (!type.combined) return <CombinedUnsupported />;
     return <CombinedBody type={type} family={family} scope={scope} density={density} detail={detail} />;
   }
 
@@ -152,6 +152,32 @@ export function Skeleton(): React.JSX.Element {
     <div role="status" aria-label={t("statsWorkbench.states.loading")} className="flex h-full flex-col justify-end gap-2">
       <span className="sw-skeleton h-6 w-2/3" />
       <span className="sw-skeleton h-3 w-1/2" />
+    </div>
+  );
+}
+
+/**
+ * 卡片可以触发的页面级动作。由分析页 / 详情页提供；没有提供（如静态渲染测试）时，卡片只显示说明、不显示按钮。
+ * 动作只改**生效筛选**（地址栏），不碰布局文档与账目。
+ */
+export interface CardActions {
+  /** 从综合折算切回原币（默认币种），让暂不支持的卡片立刻可看。 */
+  readonly showOriginalCurrency?: () => void;
+}
+
+export const CardActionsContext = createContext<CardActions>({});
+
+function CombinedUnsupported(): React.JSX.Element {
+  const { t } = useI18n();
+  const actions = useContext(CardActionsContext);
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <Note text={t("statsWorkbench.states.combinedUnsupported")} />
+      {actions.showOriginalCurrency === undefined ? null : (
+        <button type="button" className="sw-link" onClick={actions.showOriginalCurrency}>
+          {t("statsWorkbench.states.showOriginal")}
+        </button>
+      )}
     </div>
   );
 }
@@ -249,13 +275,7 @@ function ScalarView({ result, density }: { readonly result: ScalarResult; readon
   const negative = result.value?.kind === "money" && result.value.money.amountMinor.startsWith("-");
   return (
     <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-      <p
-        className={`sw-amount break-all font-semibold tabular-nums ${negative ? "text-data-expense" : "text-ink"} ${
-          density === "compact" ? "text-xl" : "text-2xl"
-        }`}
-      >
-        {result.completeness === "no-transactions" && result.value?.kind === "money" ? scalarText(result.value, t) : scalarText(result.value, t)}
-      </p>
+      <FitAmount text={scalarText(result.value, t)} start={density === "compact" ? 1 : 0} className={negative ? "text-data-expense" : "text-ink"} />
       {note === null ? null : <p className="text-helper text-muted">{note}</p>}
     </div>
   );
@@ -278,7 +298,7 @@ function ExtremeView({ result, density }: { readonly result: RecordExtremeResult
     .join(" · ");
   return (
     <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-      <p className={`sw-amount break-all font-semibold tabular-nums text-ink ${density === "compact" ? "text-xl" : "text-2xl"}`}>{value}</p>
+      <FitAmount text={value} start={density === "compact" ? 1 : 0} className="text-ink" />
       {where === "" ? null : <p className="truncate text-helper text-muted">{where}</p>}
       {result.tieCount > 1 ? <p className="text-helper text-muted">{t("statsWorkbench.values.tie", { count: result.tieCount })}</p> : null}
     </div>
@@ -470,6 +490,10 @@ function TimeView({
         );
       }
       const view = flowFor(entries, granularityFor(scope.bucket), range, scope.today);
+      // 整段都没有收支记录：说「没有记录」，不画一张刻度全是 0 的空图。
+      if (view.result.buckets.every((point) => (point.incomeCount ?? 0) === 0 && (point.expenseCount ?? 0) === 0)) {
+        return <Note text={t("statsWorkbench.states.empty")} />;
+      }
       return (
         <div className="sw-interactive min-h-0" onClick={stop}>
           <IncomeExpenseBars
@@ -555,6 +579,7 @@ function TimeView({
     }
     case "AN-I20": {
       const view = cumulativeFor(entries, range, scope.today);
+      if (view.result.totalMinor === "0") return <Note text={t("statsWorkbench.states.empty")} />;
       return (
         <div className="flex min-h-0 flex-col gap-1">
           {view.result.totalMinor === null ? null : (
@@ -577,8 +602,9 @@ function TimeView({
     case "AN-A01": {
       const stats = statsFor(entries, range, currency, scope.bucket, true);
       const previous = stats.comparison;
+      // 对比面板本身没有可点的东西：卡片里点它就是打开详情；说明文字在卡片里最多两行，详情页完整显示。
       return (
-        <div className="sw-interactive min-h-0" onClick={stop}>
+        <div className={`min-h-0 ${detail ? "" : "sw-compare-compact"}`}>
           <ComparisonPanel
             current={stats.totals}
             previous={previous?.totals ?? null}
@@ -654,9 +680,7 @@ function CombinedBody({
     const key = type.id === "AN-B01" ? "expenseMinor" : type.id === "AN-B02" ? "incomeMinor" : "netMinor";
     return (
       <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-        <p className={`sw-amount break-all font-semibold tabular-nums text-ink ${density === "compact" ? "text-xl" : "text-2xl"}`}>
-          {moneyText(result.totals[key], target)}
-        </p>
+        <FitAmount text={moneyText(result.totals[key], target)} start={density === "compact" ? 1 : 0} className="text-ink" />
         {warning}
       </div>
     );

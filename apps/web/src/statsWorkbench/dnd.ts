@@ -198,7 +198,9 @@ export function cellAt(
   const rect = grid.getBoundingClientRect();
   const style = getComputedStyle(grid);
   const gap = Number.parseFloat(style.columnGap) || 0;
-  const rowHeight = Number.parseFloat(style.getPropertyValue("--sw-row")) || 120;
+  // 行高取实际排版结果（第一行轨道的 px），不读 CSS 变量本身（那是 rem）。
+  const firstTrack = style.gridTemplateRows.split(" ")[0] ?? "";
+  const rowHeight = firstTrack.endsWith("px") ? Number.parseFloat(firstTrack) : 116;
   if (x < rect.left - gap || x > rect.right + gap || y < rect.top - gap) return null;
   const colWidth = (rect.width - gap * (columns - 1)) / columns;
   const col = Math.min(columns, Math.max(1, Math.floor((x - rect.left + gap / 2) / (colWidth + gap)) + 1));

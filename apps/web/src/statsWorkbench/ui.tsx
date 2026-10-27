@@ -4,7 +4,7 @@
  * 金额一律从「整数最小单位的十进制字符串」直接格式化（BigInt），**不经过 Number**——
  * 卡片规格 §5.5：大金额不得为了显示损失精度。颜色只用语义 token（currentColor），不写色值。
  */
-import { useEffect, useRef, useState, type SVGProps } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type SVGProps } from "react";
 import { decimalsFor, type Ratio } from "@libellum/shared";
 
 import { currencySymbol, numberSeparators } from "../lib/format.js";
@@ -38,6 +38,56 @@ export function useElementSize<T extends HTMLElement>(): {
     };
   }, []);
   return { ref, ...size };
+}
+
+const AMOUNT_STEPS = ["text-2xl", "text-xl", "text-lg", "text-base"] as const;
+
+/**
+ * 卡片里的大号金额：**始终一行**，放不下就逐级缩小字号（2xl → base），仍放不下才省略。
+ * 窄屏（320px）的 1×1 卡片里，「¥12,500.00」折成两行会被误读成两个数。
+ */
+export function FitAmount({
+  text,
+  start = 0,
+  className = "",
+}: {
+  readonly text: string;
+  readonly start?: number;
+  readonly className?: string;
+}): React.JSX.Element {
+  const ref = useRef<HTMLParagraphElement | null>(null);
+  const [step, setStep] = useState(start);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (element === null || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect !== undefined) setWidth(Math.round(rect.width));
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // 文字或可用宽度变了：从最大字号重新试。
+  useLayoutEffect(() => {
+    setStep(start);
+  }, [text, width, start]);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (element === null) return;
+    if (element.scrollWidth > element.clientWidth + 1 && step < AMOUNT_STEPS.length - 1) setStep(step + 1);
+  }, [step, text, width]);
+
+  return (
+    <p ref={ref} title={text} className={`sw-amount truncate font-semibold tabular-nums ${AMOUNT_STEPS[Math.min(step, AMOUNT_STEPS.length - 1)]} ${className}`}>
+      {text}
+    </p>
+  );
 }
 
 function groupThousands(digits: string, group: string): string {

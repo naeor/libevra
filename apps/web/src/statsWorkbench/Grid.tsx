@@ -179,11 +179,14 @@ export function CardTile({
         aria-label={t("statsWorkbench.card.openNamed", { name: title })}
         onClick={onOpen}
       />
-      <header className="pointer-events-none relative min-w-0">
-        <h3 className="truncate text-helper font-medium text-ink">{title}</h3>
-        {subtitle === "" ? null : <p className="truncate text-helper text-muted">{subtitle}</p>}
+      <header className="pointer-events-none relative flex min-w-0 items-start gap-2">
+        <span className="min-w-0 flex-1">
+          <h3 className="line-clamp-2 text-helper font-medium break-words text-ink">{title}</h3>
+          {subtitle === "" ? null : <p className="truncate text-helper text-muted">{subtitle}</p>}
+        </span>
+        <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />
       </header>
-      <div ref={body.ref} className="relative mt-2 min-h-0 flex-1 overflow-hidden">
+      <div ref={body.ref} className="sw-card-body relative mt-2 min-h-0 flex-1 overflow-hidden">
         {compat ? (
           <p className="text-helper text-muted">{t("statsWorkbench.states.tooSmall")}</p>
         ) : body.width === 0 ? null : (
@@ -422,7 +425,7 @@ export function EditGrid({
               <span className="sw-size-badge">{sizeKey(size)}</span>
             </span>
             <span className="mt-auto flex min-w-0 flex-col items-start text-left">
-              <span className="w-full truncate text-helper font-medium text-ink">{label}</span>
+              <span className="line-clamp-2 w-full text-helper font-medium break-words text-ink">{label}</span>
               <span className="w-full truncate text-helper text-muted">{object.presentation === "collapsed" ? t("statsWorkbench.edit.collapsedTag") : kindLabel}</span>
             </span>
           </button>

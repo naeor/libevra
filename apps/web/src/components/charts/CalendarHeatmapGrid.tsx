@@ -27,8 +27,8 @@ export function CalendarHeatmapGrid({
   return (
     <div role="group" aria-label={title} data-metric={heatmap.metric}>
       <div className="grid grid-cols-7 gap-1 pb-1">
-        {weekdayLabels.map((label) => (
-          <span key={label} className="text-center text-[10px] leading-4 text-muted">
+        {weekdayLabels.map((label, index) => (
+          <span key={`${String(index)}:${label}`} className="text-center text-[10px] leading-4 text-muted">
             {label}
           </span>
         ))}

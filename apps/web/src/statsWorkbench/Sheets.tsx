@@ -8,7 +8,7 @@ import type { AnalysisCardNode, ContainerNode, GridSize } from "@libellum/shared
 import { BottomSheet } from "../components/BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
 import { cardTitle } from "./cards.js";
-import { cardType, sizeKey, type ChartFamily } from "./catalog.js";
+import { cardType, sizeKey } from "./catalog.js";
 import { customRangeProblem, previousMonth } from "./filters.js";
 import { endOfMonth, startOfMonth } from "@libellum/shared";
 import {
@@ -138,9 +138,6 @@ export function SizeSheet({
     </BottomSheet>
   );
 }
-
-const FAMILY_LABELS: readonly ChartFamily[] = [];
-void FAMILY_LABELS;
 
 export function ConfigSheet({
   card,

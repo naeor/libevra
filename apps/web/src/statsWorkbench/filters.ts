@@ -130,6 +130,14 @@ export function sameFilters(a: WorkbenchFilters, b: WorkbenchFilters): boolean {
   return sameTime(a.time, b.time) && a.currency === b.currency && a.combined === b.combined;
 }
 
+/**
+ * 生效条件被外部改变（返回、刷新、卡片上的「改用原币查看」）时，草稿怎么办：
+ * **没改动过的草稿跟着新条件走；改动过的草稿原样保留**（收起面板不丢草稿，见交互补充 §3）。
+ */
+export function followDraft(draft: WorkbenchFilters, previousEffective: WorkbenchFilters, nextEffective: WorkbenchFilters): WorkbenchFilters {
+  return sameFilters(draft, previousEffective) ? nextEffective : draft;
+}
+
 /** 本月的前一个月（「上月」快捷项）。 */
 export function previousMonth(today: string): string {
   return startOfMonth(addDays(startOfMonth(today), -1)).slice(0, 7);

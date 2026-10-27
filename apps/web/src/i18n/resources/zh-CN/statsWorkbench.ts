@@ -68,6 +68,7 @@ const statsWorkbench = {
     partial: "数据不完整，以下只是已知部分。",
     undetermined: "无法确定",
     combinedUnsupported: "综合折算下暂不支持这张卡片，可在筛选里切换为原币查看。",
+    showOriginal: "改用原币查看",
     fxLoading: "正在按历史汇率折算…",
     fxError: "暂时无法完成折算。",
     retry: "重试",
@@ -255,6 +256,7 @@ const statsWorkbench = {
   detail: {
     conditions: "条件",
     range: "时间：{{from}} 至 {{to}}",
+    currency: "币种：{{currency}}",
     ledger: "账本：{{name}}",
     method: "计算方法",
     methods: {

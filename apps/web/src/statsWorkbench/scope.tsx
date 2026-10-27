@@ -59,6 +59,11 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
   const auth = useAuthOptional();
   const user = auth?.user ?? null;
   const guest = useGuestIdentity();
+  /**
+   * ⚠️ **依赖里只能放游客 id，不能放身份对象。** `useGuestIdentity()` 每次渲染都重新解析 localStorage，
+   * 返回新对象；放进依赖会让「重读本机 → 发布新快照 → 重渲染 → 又重读」无限循环（游客模式下页面卡死）。
+   */
+  const guestId = guest?.id ?? null;
   const fxMode = useFxMode();
   const all = useSyncExternalStore(subscribeLedger, ledgerSnapshotValue, ledgerSnapshotValue);
   const [readOnce, setReadOnce] = useState(false);
@@ -74,13 +79,13 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
     let alive = true;
     void (async () => {
       await readLocalTransactions();
-      if (guest === null) await refreshPending();
+      if (guestId === null) await refreshPending();
       if (alive) setReadOnce(true);
     })();
     return () => {
       alive = false;
     };
-  }, [guest, bookId]);
+  }, [guestId, bookId]);
 
   // 「今天」按设备时钟取一次；跨午夜由页面重新进入时更新（与旧页一致）。
   const today = useMemo(() => toLocalDate(new Date()), []);
@@ -102,7 +107,7 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
       ? { server: serverCount, local: local.totals.count }
       : null;
 
-  const accountScope = user !== null ? `user:${user.id}` : guest !== null ? `guest:${guest.id}` : null;
+  const accountScope = user !== null ? `user:${user.id}` : guestId !== null ? `guest:${guestId}` : null;
 
   /**
    * ⚠️ **本机缺账目时先补齐，再提示。** 新设备、刚清过缓存、或后台下载还没把月份发布到 store 时，
@@ -114,7 +119,7 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
   const gapKey =
     coverageGap === null || accountScope === null || bookId === null ? null : `${accountScope}:${bookId}:${range.from}:${range.to}:${currency}`;
   useEffect(() => {
-    if (gapKey === null || guest !== null || coverageGap === null || attemptedRanges.has(gapKey)) return;
+    if (gapKey === null || guestId !== null || coverageGap === null || attemptedRanges.has(gapKey)) return;
     attemptedRanges.add(gapKey);
     let alive = true;
     setRepairing(true);
@@ -137,7 +142,7 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
     };
     // range 由 gapKey 表达
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gapKey, guest]);
+  }, [gapKey, guestId]);
 
   return {
     today,

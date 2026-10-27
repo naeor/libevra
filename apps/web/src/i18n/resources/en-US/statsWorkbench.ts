@@ -67,6 +67,7 @@ const statsWorkbench: Messages<typeof zh> = {
     partial: "Data is incomplete; this shows only the known part.",
     undetermined: "Can’t be determined",
     combinedUnsupported: "This card isn’t available in converted mode yet. Switch to original currency in Filters to see it.",
+    showOriginal: "Show in original currency",
     fxLoading: "Converting at historical rates…",
     fxError: "The conversion can’t be completed right now.",
     retry: "Retry",
@@ -254,6 +255,7 @@ const statsWorkbench: Messages<typeof zh> = {
   detail: {
     conditions: "Conditions",
     range: "Time: {{from}} – {{to}}",
+    currency: "Currency: {{currency}}",
     ledger: "Ledger: {{name}}",
     method: "How it’s calculated",
     methods: {

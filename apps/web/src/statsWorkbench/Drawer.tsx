@@ -129,8 +129,10 @@ export function Drawer({
             </button>
           </header>
 
-          {expanded ? (
-            <div className="sw-drawer-body">
+          {/* 收起时内容仍保留在页面里（高度为 0）：从抽屉拖出时抽屉会自动收起，若此时卸载拖动源，
+              触摸事件就再也传不回来，拖动会中途失效。 */}
+          {(
+            <div className="sw-drawer-body" aria-hidden={expanded ? undefined : true}>
               {tab === "analysis" ? (
                 <>
                   <div className="flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -188,7 +190,7 @@ export function Drawer({
                 </div>
               )}
             </div>
-          ) : null}
+          )}
         </>
       ) : (
         <>

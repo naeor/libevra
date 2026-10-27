@@ -31,7 +31,7 @@ import { useI18n } from "../i18n/index.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
 import { useLedger } from "../lib/queries.js";
-import { cardTitle } from "../statsWorkbench/cards.js";
+import { CardActionsContext, cardTitle, type CardActions } from "../statsWorkbench/cards.js";
 import { cardType, CONTAINER_DEFAULT_SIZE, CONTAINER_SIZES, type LayoutObjectChoice } from "../statsWorkbench/catalog.js";
 import { currenciesUsed } from "../statsWorkbench/compute.js";
 import { defaultWorkbench, newCard, newObjectId } from "../statsWorkbench/defaults.js";
@@ -39,7 +39,7 @@ import { cellAt, useDragController, type DragPayload, type DragState } from "../
 import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWorkbench/Drawer.js";
 import { FilterPanel, timeLabel } from "../statsWorkbench/FilterPanel.js";
 import { FxStatus } from "../statsWorkbench/FxStatus.js";
-import { readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
+import { followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
 import { BrowseGrid, EditGrid, GRID_GAP, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
 import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import {
@@ -64,7 +64,7 @@ import {
 } from "../statsWorkbench/session.js";
 import { CollapsedContainerSheet, ConfigSheet, CustomCardSheet, DiscardSheet, LayoutSheet, ObjectMenuSheet, SizeSheet, type MenuAction } from "../statsWorkbench/Sheets.js";
 import { readStored, saveWorkbench, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
-import { FunnelIcon, PencilIcon, RedoIcon, UndoIcon, useElementSize } from "../statsWorkbench/ui.js";
+import { FunnelIcon, GridGlyph, PencilIcon, RedoIcon, UndoIcon, useElementSize } from "../statsWorkbench/ui.js";
 
 type ContainerEdit =
   | { readonly kind: "new"; readonly type: "carousel" | "grid-split"; readonly anchor: number; readonly size: GridSize; readonly children: readonly AnalysisCardNode[] }
@@ -90,6 +90,15 @@ export function StatsPage(): React.JSX.Element {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
   const scope = useWorkbenchScope(filters);
+  const cardActions = useMemo<CardActions>(
+    () => ({
+      // 卡片上的「改用原币查看」：只改生效筛选；没动过的筛选草稿会跟着变（见下方草稿同步）。
+      showOriginalCurrency: () => {
+        setParams((previous) => writeFilters(previous, { ...readFilters(previous), combined: false }), { replace: true });
+      },
+    }),
+    [setParams],
+  );
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridBox = useElementSize<HTMLDivElement>();
@@ -106,8 +115,10 @@ export function StatsPage(): React.JSX.Element {
   const lastEffective = useRef(filters);
   useEffect(() => {
     // 生效条件被外部改变（返回、刷新）时，没有改动过的草稿跟着走；改动过的草稿保留。
-    if (!sameFilters(lastEffective.current, filters)) {
-      setDraft((current) => (sameFilters(current, lastEffective.current) ? filters : current));
+    const previous = lastEffective.current;
+    if (!sameFilters(previous, filters)) {
+      // 注意：更新函数在下一次渲染时才执行，必须比较「变化前」的生效条件（不能在函数里读 ref，它已被改成新值）。
+      setDraft((current) => followDraft(current, previous, filters));
       lastEffective.current = filters;
     }
   }, [filters]);
@@ -589,6 +600,7 @@ export function StatsPage(): React.JSX.Element {
 
   return (
     <WorkbenchScopeProvider value={scope}>
+      <CardActionsContext.Provider value={cardActions}>
       <TabPage
         active="stats"
         onNavigate={(to) => {
@@ -599,9 +611,17 @@ export function StatsPage(): React.JSX.Element {
         bottom={drawer}
       >
         {editing ? (
-          <header className="sw-edit-bar sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-canvas px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3">
-            <button type="button" className="sw-pill" onClick={() => setLayoutOpen(true)} disabled={containerEdit !== null}>
-              {t("statsWorkbench.edit.adjust")}
+          <header className="sw-edit-bar sticky top-0 z-20 flex items-center gap-1.5 border-b border-line bg-canvas px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3 min-[380px]:gap-2">
+            {/* 窄屏（< 380px，如 320px 宽的旧手机、英文界面）只留图标，保证「取消 / 完成」始终可见。 */}
+            <button
+              type="button"
+              className="sw-pill sw-pill-adjust"
+              aria-label={t("statsWorkbench.edit.adjust")}
+              onClick={() => setLayoutOpen(true)}
+              disabled={containerEdit !== null}
+            >
+              <GridGlyph width={16} height={16} className="shrink-0" />
+              <span className="max-[379px]:sr-only">{t("statsWorkbench.edit.adjust")}</span>
             </button>
             <button type="button" className="sw-icon-button" aria-label={t("statsWorkbench.edit.undo")} disabled={!canUndo(session) || containerEdit !== null} onClick={() => apply(command(session, { type: "undo" }))}>
               <UndoIcon />
@@ -811,6 +831,7 @@ export function StatsPage(): React.JSX.Element {
           />
         )}
       </TabPage>
+      </CardActionsContext.Provider>
     </WorkbenchScopeProvider>
   );
 }

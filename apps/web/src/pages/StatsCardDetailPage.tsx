@@ -7,18 +7,18 @@
  * - 依据：计算来源、数据来源（本机当前账本）与覆盖提示；可以进入对应月份的账目列表。
  */
 import { useMemo } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
 import { useI18n } from "../i18n/index.js";
 import { formatLocalDate } from "../lib/datetime.js";
+import { currencyName } from "../lib/format.js";
 import { useLedger } from "../lib/queries.js";
 import { CardBody, cardRange, cardSubtitle, cardTitle } from "../statsWorkbench/cards.js";
 import { cardType } from "../statsWorkbench/catalog.js";
 import { readFilters } from "../statsWorkbench/filters.js";
 import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import { readStored } from "../statsWorkbench/storage.js";
-import { Link } from "react-router";
 
 export function StatsCardDetailPage(): React.JSX.Element {
   const { t } = useI18n();
@@ -51,11 +51,17 @@ export function StatsCardDetailPage(): React.JSX.Element {
           <p className="text-helper text-muted">
             {t("statsWorkbench.detail.range", { from: formatLocalDate(range.from), to: formatLocalDate(range.to) })}
           </p>
+          <p className="text-helper text-muted">
+            {t("statsWorkbench.detail.currency", {
+              currency: scope.combined ? t("statsWorkbench.summary.combined", { currency: scope.currency }) : currencyName(scope.currency),
+            })}
+          </p>
           <p className="text-helper text-muted">{t("statsWorkbench.detail.ledger", { name: ledger.data?.book.name ?? "—" })}</p>
           {type?.ownWindow === "12m" ? <p className="text-helper text-muted">{t("statsWorkbench.config.ownWindow")}</p> : null}
         </section>
 
         <section className="min-h-0 rounded-card border border-line bg-surface p-4" aria-label={cardTitle(card, t)}>
+          {/* 详情不改筛选（返回后工作台原样恢复），所以这里不提供「改用原币」之类的动作。 */}
           <CardBody card={card} scope={scope} density="expanded" detail />
         </section>
 

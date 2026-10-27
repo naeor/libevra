@@ -225,6 +225,12 @@
   background: var(--color-canvas);
 }
 
+@media (max-width: 379px) {
+  .sw-edit-bar .sw-pill {
+    padding: 0 0.75rem;
+  }
+}
+
 .sw-pill-primary,
 .sw-pill-primary:hover {
   border-color: transparent;
@@ -636,4 +642,41 @@
 .sw-icon-button-sm {
   width: 1.75rem;
   height: 1.75rem;
+}
+
+.sw-drawer {
+  overflow: hidden;
+}
+
+.sw-drawer-collapsed .sw-drawer-body {
+  padding: 0;
+}
+
+/* 卡片正文里不可交互的部分把点击交给整卡的「查看详情」；图表的选中、读数区域（.sw-interactive）自己处理。 */
+.sw-card-body {
+  pointer-events: none;
+}
+
+.sw-card-body .sw-interactive,
+.sw-card-body button,
+.sw-card-body a {
+  pointer-events: auto;
+}
+
+/* 卡片里的期间对比：说明文字最多两行（窄屏英文会更长），完整说明在详情页。 */
+.sw-compare-compact > div > p:last-child {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.sw-card-chevron {
+  opacity: 0.55;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.sw-card:hover .sw-card-chevron {
+  opacity: 1;
+  transform: translateX(1px);
 }
