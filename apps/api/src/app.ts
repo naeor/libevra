@@ -23,6 +23,7 @@ import { forbidden, registerErrorHandlers } from "./lib/errors.js";
 import { OcrService } from "./ocr/client.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerAdminLifecycleRoutes } from "./routes/adminLifecycle.js";
+import { registerAnalyticsRoutes } from "./routes/analytics.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerAvatarRewardRoutes } from "./routes/avatarRewards.js";
 import { registerBooksRoutes } from "./routes/books.js";
@@ -368,6 +369,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       requireRead: requireBookRead,
     });
     registerStatsRoutes(app, { prisma: options.prisma, requireAuth: requireBookRead });
+    /**
+     * T2 只读扩展（S17，所有者 2026-10-27 批准）：分析层读区间逐笔与极值。
+     * **read strength**——viewer 也能读；没有写路由、没有新权限规则。
+     */
+    registerAnalyticsRoutes(app, { prisma: options.prisma, requireAuth: requireBookRead });
     registerClassificationRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
     /**
      * S15-E3 关系记忆：读挂 read（viewer 也能看），写挂 write（viewer 被拒）。

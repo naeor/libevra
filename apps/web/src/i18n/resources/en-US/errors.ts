@@ -29,6 +29,7 @@ const errors: Messages<typeof zh> = {
     cursor_invalid: "This list is out of date. Reload it and try again.",
     month_invalid: "Enter the month as YYYY-MM.",
     kind_invalid: "Choose expense or income.",
+    kind_required: "Choose income or expense for this metric.",
     invalid_timezone: "The time zone isn’t valid. Check your device’s time zone setting.",
     missing_timezone: "The time zone is missing. Please upload the file again.",
     confirmation_mismatch: "The confirmation text doesn’t match. Type it exactly as shown and try again.",

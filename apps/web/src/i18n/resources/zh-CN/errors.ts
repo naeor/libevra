@@ -35,6 +35,7 @@ const errors = {
     cursor_invalid: "分页参数无效，请重新加载。",
     month_invalid: "月份格式应为 YYYY-MM。",
     kind_invalid: "收支类型不正确。",
+    kind_required: "该指标必须指定收入或支出。",
     invalid_timezone: "时区无效，请检查设备时区设置。",
     missing_timezone: "缺少时区，请重新上传文件。",
     confirmation_mismatch: "确认文字不一致，请按提示输入后再确认这次操作。",

@@ -90,6 +90,14 @@ const EXACT: ReadonlyMap<string, string> = new Map<string, string>([
   ["对比区间的起止日期必须同时提供", "Give both a start and an end date for the comparison period"],
   ["近一年", "Last 12 months"],
 
+  // ---- T2 只读扩展（analytics.ts） ----
+  ["金额最小单位应为十进制整数字符串", "The amount must be a whole number in the currency’s smallest unit"],
+  [
+    "「交易记录最多的一天」按收入+支出合计计数，kind 只能是 both 或省略",
+    "“Most recorded day” counts income and expense together, so kind must be both or omitted",
+  ],
+  ["该指标必须指定 kind=income 或 kind=expense", "This metric requires kind=income or kind=expense"],
+
   // ---- 导出与编号（export.ts、refs.ts） ----
   ["月份格式应为 YYYY-MM", "Enter the month as YYYY-MM"],
   ["起始月份不能晚于结束月份", "The start month can’t be after the end month"],
@@ -263,6 +271,9 @@ const PATTERNS: readonly (readonly [RegExp, Replacement])[] = [
   // ---- 统计（stats.ts） ----
   [/^统计区间最长 (\d+) 天$/, (days) => `The period can be at most ${plural(days, "# day", "# days")}`],
   [/^近 (\d+) 天$/, "Last $1 days"],
+
+  // ---- T2 只读扩展（analytics.ts） ----
+  [/^分析区间最长 (\d+) 天$/, (days) => `The analysis period can be at most ${plural(days, "# day", "# days")}`],
 
   // ---- 疑似重复：设置校验（duplicateDetection.ts） ----
   [/^缺少设置项：(\w+)。$/, "Missing setting: $1."],

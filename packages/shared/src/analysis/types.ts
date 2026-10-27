@@ -1,0 +1,398 @@
+/**
+ * S-01 v2 — the shared analysis result protocol (frozen `s01-v2`, 2026-10-27).
+ *
+ * Registered by Agent A; frozen baseline = S-01 v2 r7.2 + G-12a v1.1
+ * (freeze record `2b6a869`/`0aee9d8`). The owner's
+ * specification §4 asks for one result envelope that every layer can pass
+ * around without re-deriving finance:
+ *
+ *   query → calculation (exact) → result envelope → chart adapter → component
+ *
+ * The envelope answers five questions a bare number cannot: which filters were
+ * really applied, which period was really used, which currency/aggregation
+ * produced the number, how complete the data is, and where the user can see
+ * the source records.
+ *
+ * Rules encoded here (owner specification §3, §4, §20):
+ *  * amounts are exact integers in the minor unit, serialised as decimal
+ *    strings so no `bigint` ever crosses JSON;
+ *  * a share/average is an exact fraction, not a float;
+ *  * "no transactions" and "cannot be determined" are different states;
+ *  * a result that cannot be trusted carries an `unavailableReason` instead of
+ *    a plausible-looking number.
+ */
+
+import type { Ratio } from "./rational.js";
+
+/**
+ * Version of the result protocol itself.
+ *
+ * Frozen value: `s01-v2` (2026-10-27). Pre-freeze draft strings
+ * (`s01-draft` / `s01-v2-draft`) are legacy history only: this module never
+ * produces them; readers accept old data per S-01 v2 §16.5's compatibility
+ * rules. Bumped only by a post-freeze protocol change record (v2.x).
+ */
+export const ANALYSIS_PROTOCOL_VERSION = "s01-v2";
+
+/** Rounding direction of every authoritative amount in this protocol. */
+export const ANALYSIS_ROUNDING_POLICY = "minor-half-away-v1";
+
+/**
+ * Currency handling of a result.
+ *
+ * `original`: every amount is in one original currency; cross-currency
+ * addition never happened (owner specification §3.4).
+ * `aggregate`: the source entries were converted per record by the existing
+ * FX engine and summed in `targetCurrency`; completeness tells whether every
+ * record could be converted.
+ */
+export type ResolvedCurrency =
+  | { readonly mode: "original"; readonly currency: string }
+  | { readonly mode: "aggregate"; readonly targetCurrency: string };
+
+/**
+ * The period the calculation really used, resolved from the card's inherited
+ * period (owner specification §3.5).
+ *
+ * `from`/`to` are inclusive business dates (`occurredLocalDate` semantics).
+ * The database query behind them is half-open `[from, to + 1 day)`; the UI and
+ * the source list use the inclusive pair so "10 days" means ten dates.
+ */
+export interface ResolvedPeriod {
+  readonly from: string;
+  readonly to: string;
+  /** Number of calendar days, both ends counted. */
+  readonly dayCount: number;
+}
+
+/**
+ * The filters the calculation really applied.
+ *
+ * `null` means "not restricted by this dimension"; `[]` means "restricted to
+ * nothing" — the two are not interchangeable, which is why an empty array is
+ * kept instead of collapsing to null.
+ */
+export interface ResolvedFilters {
+  readonly kind: "expense" | "income" | "both";
+  readonly categoryIds: readonly string[] | null;
+  readonly paymentMethodIds: readonly string[] | null;
+  readonly tagIds: readonly string[] | null;
+  /** Original currency used for the query, or `null` for aggregate mode. */
+  readonly currency: string | null;
+}
+
+/** An exact amount in a currency's minor unit. */
+export interface MoneyValue {
+  /** Decimal string of the integer minor amount — never a JS float. */
+  readonly amountMinor: string;
+  readonly currency: string;
+  /** Minor-unit decimals of `currency` (JPY is 0, most are 2). */
+  readonly decimals: number;
+}
+
+/**
+ * Completeness of the underlying data (owner specification §3.6).
+ *
+ * Deliberately not a boolean: "zero because nothing was recorded" and "zero
+ * because data is missing" must never look the same. Consumers decide whether
+ * they may render a number, a partial-results hint or an empty state.
+ */
+export type AnalysisCompleteness =
+  | "complete"
+  | "no-transactions"
+  | "partial"
+  | "fx-incomplete"
+  | "offline-incomplete"
+  | "loading"
+  | "request-failed"
+  | "no-permission"
+  | "not-applicable";
+
+/**
+ * A scalar value that is meaningful without interpretation.
+ *
+ * Ratios are exact fractions (`Ratio`) with an explicit `scale`; counts and
+ * days are integers. The envelope never carries a rounded float, because the
+ * display layer is the only place allowed to round.
+ */
+export type ScalarValue =
+  | { readonly kind: "money"; readonly money: MoneyValue }
+  /**
+   * An exact average whose value may sit *between* two minor units (B06/B07):
+   * the amount is `numeratorMinor / denominator` minor units, kept exact so a
+   * chart never shows a pre-rounded number as the authoritative one.
+   */
+  | {
+      readonly kind: "exact-money";
+      readonly numeratorMinor: string;
+      readonly denominator: string;
+      readonly currency: string;
+      readonly decimals: number;
+    }
+  | { readonly kind: "count"; readonly count: number }
+  | { readonly kind: "days"; readonly days: number }
+  | { readonly kind: "ratio"; readonly ratio: Ratio; readonly scale: "percent-100" | "fraction" };
+
+/** Optional comparison against the comparable previous period. */
+export interface ComparisonValue {
+  readonly range: { readonly from: string; readonly to: string };
+  readonly value: ScalarValue;
+  /** Difference in the same unit as `value`, or `null` if not computable. */
+  readonly difference: ScalarValue | null;
+}
+
+/**
+ * How to fetch the records behind a result again (owner specification §3.7).
+ *
+ * This is a *address*, not a promise that the caller has permission to read
+ * them: the query layer re-checks the book role, so tracing a chart can never
+ * widen access (owner specification ACC-08/ACC-12).
+ */
+export interface SourceDescriptor {
+  readonly analysisId: string;
+  readonly period: ResolvedPeriod;
+  readonly filters: ResolvedFilters;
+  readonly groupBy: string | null;
+  /** Which existing read path the values came from. */
+  readonly query: {
+    readonly kind: "stats" | "transactions";
+    readonly from: string;
+    readonly to: string;
+    readonly currency: string | null;
+    readonly categoryId?: string | null;
+    readonly paymentMethodId?: string | null;
+  };
+  /** Record ids, when the analysis returned individual records. */
+  readonly transactionIds?: readonly string[] | undefined;
+  /** Data version stamp shared by cards analysing the same definition. */
+  readonly dataVersion: string | null;
+}
+
+/**
+ * Sampling metadata that may accompany a computation.
+ *
+ * The authoritative sampling facts live in the result layer (an analysis
+ * records its own sampling strategy / omitted / sample counts / completeness);
+ * this object exists only so a display layer can annotate a *visual* sampling
+ * decision. It must never be re-computed from, nor override, the result layer
+ * (S-01 v2 §2, XC-08/XC-35).
+ */
+export interface SamplingMetadata {
+  /** Sampling strategy the display layer applied (open string). */
+  readonly strategy?: string | undefined;
+  /** How many points the visual layer left out. */
+  readonly omittedCount?: number | undefined;
+  /** Always `true`: marks this object as visual-only metadata. */
+  readonly isVisualOnly: true;
+}
+
+/**
+ * A limit that bounded an analysis (B/C limits).
+ *
+ * Carried through `computation.analysisLimit` so a consumer can explain why a
+ * result is bounded instead of silently presenting a truncated scope as
+ * complete (S-01 v2 §2 / G-18 / XC-09).
+ */
+export interface AnalysisLimitMetadata {
+  /**
+   * Name of the limit constant, e.g. `maxAnalysisDays` / `maxMonths` /
+   * `MAX_PIVOT_CELLS`.
+   */
+  readonly limit: string;
+  /** The effective limit value. */
+  readonly value: number;
+  /** The requested value that exceeded the limit, when known. */
+  readonly requested?: number | undefined;
+}
+
+/** What a display layer needs to explain a derived number honestly. */
+export interface ComputationMetadata {
+  readonly rounding: typeof ANALYSIS_ROUNDING_POLICY;
+  /** Exact numerator in the minor unit, when the value is a division. */
+  readonly numeratorMinor?: string | undefined;
+  readonly denominator?: number | undefined;
+  readonly denominatorDays?: number | undefined;
+  readonly sampleCount?: number | undefined;
+  readonly tieCount?: number | undefined;
+  readonly convertedWithFx?: boolean | undefined;
+  readonly fxPolicy?: string | undefined;
+  readonly notes?: readonly string[] | undefined;
+  /**
+   * Algorithm name for derived statistics (open string).
+   *
+   * Registered values are frozen in S-01 v2.0.1 (e.g. `quantile-type7`,
+   * `population-stddev`, `sample-cv-fixedpoint`); unknown values are passed
+   * through untouched and never re-computed (S-01 v2 §2, B-V2-10).
+   */
+  readonly method?: string | undefined;
+  /** Visual-layer sampling annotation only (see `SamplingMetadata`). */
+  readonly sampling?: SamplingMetadata | undefined;
+  /**
+   * End of offline coverage (`YYYY-MM-DD` business date), when the underlying
+   * data is clipped (S-01 v2 §2 / G-10).
+   */
+  readonly coverageEnd?: string | undefined;
+  /** Limit that bounded this analysis, for traceable truncation. */
+  readonly analysisLimit?: AnalysisLimitMetadata | undefined;
+}
+
+/**
+ * An analysis definition: what to compute, independent of presentation
+ * (owner specification §4.1).
+ *
+ * Presentation (chart type, density, colour) is deliberately absent: the same
+ * definition must be drawable in any family and any size without the numbers
+ * changing (owner specification ACC-02).
+ */
+export interface AnalysisDefinition {
+  readonly version: typeof ANALYSIS_PROTOCOL_VERSION;
+  readonly analysisId: string;
+  readonly analysisType: string;
+  readonly metric: string;
+  readonly aggregation?: "sum" | "count" | "average" | "median" | "extreme" | "share" | "ratio";
+  readonly groupBy?: "category" | "paymentMethod" | "day" | "record";
+  readonly filters?: {
+    readonly kind: "expense" | "income" | "both";
+    readonly categoryIds?: readonly string[];
+    readonly paymentMethodIds?: readonly string[];
+    readonly tagIds?: readonly string[];
+  };
+  /** Time inheritance. A card may pin a period, never a currency (first version). */
+  readonly time: {
+    readonly mode: "inherit" | "preset" | "fixed" | "relative";
+    readonly preset?: "7d" | "30d" | "90d" | "365d";
+    readonly from?: string;
+    readonly to?: string;
+    readonly days?: number;
+  };
+  /** First version: a card always inherits the workbench currency mode. */
+  readonly currency: { readonly mode: "inherit" };
+}
+
+/** Fields every result carries, regardless of its shape. */
+export interface AnalysisResultBase {
+  readonly version: typeof ANALYSIS_PROTOCOL_VERSION;
+  readonly analysisId: string;
+  readonly analysisType: string;
+  readonly metric: string;
+  readonly resolvedFilters: ResolvedFilters;
+  readonly resolvedPeriod: ResolvedPeriod;
+  readonly resolvedCurrency: ResolvedCurrency;
+  readonly completeness: AnalysisCompleteness;
+  /** Present when `completeness` says the value cannot be trusted. */
+  readonly unavailableReason?: string | undefined;
+  readonly dataVersion: string | null;
+  readonly computation: ComputationMetadata;
+  readonly source: SourceDescriptor;
+}
+
+/**
+ * One authoritative number (B01–B08, B13–B14, B16, B18–B19 in the owner
+ * specification).
+ *
+ * `value` is `null` when the definition asks for something that cannot exist
+ * (an average over zero records, a ratio with a zero denominator) or when the
+ * data layer said the scope is not usable (`no-permission`, `request-failed`,
+ * `loading`). A `null` value must be rendered as "cannot be determined", never
+ * as zero — that distinction is the whole point of the completeness field.
+ */
+export interface ScalarResult extends AnalysisResultBase {
+  readonly shape: "scalar";
+  readonly value: ScalarValue | null;
+  readonly comparison?: ComparisonValue | undefined;
+}
+
+/** One ranked group: category ranking, payment-method ranking, frequency. */
+export interface RankedGroup {
+  readonly id: string;
+  readonly label: string;
+  /** The authoritative value this group is ranked by (money or count). */
+  readonly primary: ScalarValue;
+  /**
+   * A second exact value for the same group (I05 shows count *and* amount;
+   * amount ranking shows the record count). Display only — never re-sums.
+   */
+  readonly secondary?: ScalarValue | undefined;
+  readonly count?: number | undefined;
+  /** Exact share of the ranking total; `null` when the total is not usable. */
+  readonly share: Ratio | null;
+  /** True when this group is a display-only fold ("其他"), not a real entity. */
+  readonly isFolded?: boolean | undefined;
+}
+
+/**
+ * A ranked list (I03–I05, B15 ranking, I17 ranking).
+ *
+ * `total` is the exact total the shares divide by, so a chart never has to
+ * re-sum the groups it was given.
+ */
+export interface RankedGroupsResult extends AnalysisResultBase {
+  readonly shape: "ranked-groups";
+  readonly groups: readonly RankedGroup[];
+  /** Groups folded into a display-only bucket, by original group id. */
+  readonly foldedGroupIds?: readonly string[] | undefined;
+}
+
+/** One part of a composition (I01/I02/I17). */
+export interface CompositionPart {
+  readonly id: string;
+  readonly label: string;
+  readonly amount: MoneyValue;
+  readonly count: number;
+  readonly share: Ratio | null;
+  readonly isFolded?: boolean | undefined;
+}
+
+/**
+ * A whole/parts composition (I01/I02/I17, B13–B14 day composition).
+ *
+ * `total` is `null` when a full composition cannot be claimed (FX incomplete,
+ * no transactions) — then `parts` must not be drawn as 100% of anything.
+ */
+export interface CompositionResult extends AnalysisResultBase {
+  readonly shape: "composition";
+  readonly total: MoneyValue | null;
+  readonly parts: readonly CompositionPart[];
+  readonly foldedGroupIds?: readonly string[] | undefined;
+}
+
+/**
+ * One extreme record (B09–B12, B15, B17, B20).
+ *
+ * `tieCount` makes equal-value ties explicit and deterministic instead of
+ * letting refresh order decide which record is shown.
+ *
+ * `extreme` is a money value for the money-shaped extremes (B09/B10/B11/B12/
+ * B15/B17). B20's extreme is a *record count*, so it fills the additive
+ * `extremeValue` scalar instead and leaves `extreme` null — a count is never
+ * dressed up as money (owner specification ACC-10, B20).
+ */
+export interface RecordExtremeResult extends AnalysisResultBase {
+  readonly shape: "record-extreme";
+  readonly extreme: MoneyValue | null;
+  /** Authoritative value when the extreme is not money (B20 record count). */
+  readonly extremeValue?: ScalarValue | undefined;
+  /** B20 breakdown of the peak day: income + expense records = count. */
+  readonly countBreakdown?:
+    | {
+        readonly total: number;
+        readonly income: number;
+        readonly expense: number;
+      }
+    | undefined;
+  readonly occurredLocalDate: string | null;
+  readonly recordId: string | null;
+  readonly categoryId: string | null;
+  readonly categoryLabel: string | null;
+  readonly paymentMethodLabel: string | null;
+  /** Safe human-readable summary; never a full note dump. */
+  readonly summary: string | null;
+  readonly tieCount: number;
+}
+
+/** The union every consumer of S-01 may depend on. */
+export type AnalysisResult =
+  | ScalarResult
+  | RankedGroupsResult
+  | CompositionResult
+  | RecordExtremeResult;
