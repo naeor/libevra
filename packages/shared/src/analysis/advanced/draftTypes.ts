@@ -53,6 +53,14 @@ export interface DraftHistogram {
   readonly zeroCount: number;
   readonly minMinor: bigint;
   readonly maxMinor: bigint;
+  /**
+   * H-1 `dominantBins`（`s01-v2` v2.0.4 additive，A `S17-Agent-A-S01-v2-结构草案.md` §17）：
+   * `count` 等于最大 `count` 的**全部桶**，按 `index` 升序，最多 `HISTOGRAM_DOMINANT_MAX_BINS` 个。
+   * 纯派生投影：随 histogram 一起重算、不独立缓存；`histogram === null` 时不出现（本类型不存在）。
+   */
+  readonly dominantBins: readonly DraftHistogramBin[];
+  /** 满足 dominant 判定的桶**真实总数**（截断前）；非空 histogram 时 ≥ 1。 */
+  readonly dominantBinCount: number;
 }
 
 /** 定点小数（如标准差）：scaled / 10^decimals，四舍五入的舍入误差由计算层记录。 */
