@@ -354,6 +354,8 @@ B-1 起，B 在 `packages/shared/src/analysis/time.ts` 提供构造这些结果�
 
 注意：`in-progress` **不等于** `partial`。`partial` 留给"区间内部分数据缺失"（如某些天未下载）；`in-progress` 是日历事实（规格 §3.10）。
 
+**C 侧映射（G-27，2026-10-27 冻结后补）**：C `partial` **仅当根因是 FX 不完整**（汇率缺失/折算失败）→ B `unavailable` + `fx-incomplete`；非 FX 原因 → 按自身原因映射（离线覆盖不全 → `unknown` + `offline-incomplete`，其余保持 `unavailable` 原因细分）。P16 三态（`complete`/`no-transactions`/`unavailable`）**不引入** `partial`；`in-progress` 是周期未完、不是完整性缺失。
+
 ### 4.3 半开桶 ↔ 闭区间 `ResolvedPeriod`
 
 - `ResolvedPeriod.from/to` 保持闭区间（A 已定义，勿改）。
@@ -744,6 +746,50 @@ S4c 同 S1–S4b：**不新增、不修改任何 S-01 形状**。A18/A19 消费 
 6. 卡片只渲染传入结果，不重算金额、不补零、不折算汇率；页面接线由 Lead 在集成 worktree 统一完成；本批不接页面、不改 API/版本、不碰 `StatsPage.tsx`/`FxStats.tsx`；σ/CV 与 `method` 串仍标「待冻结核对」。
 
 **测试证据**：`s4c.analysisData.test.ts`（9 用例：跨年同月、单年描述性、unknown 覆盖、"当前月保留部分金额且不可比"、36 月上限、按季分组、MAD 标记、今天不入样本、样本不足、无 complete 日）；`seasonalAnomalyCards.test.tsx`（5 用例：月视图卡、描述性说明、标记 + 排行、无基线空状态、无异常日文案）；web 全量 174 文件/1582 用例、`tsc -b` exit 0。
+
+## 23. s01-v2 冻结后 B 侧对齐（2026-10-27；只做表示法/串对齐，不新增、不修改任何形状）
+
+**依据**：`s01-v2` 冻结（Lead m05153）+ 业主签认的两件映射/范围问题（Lead m05018）与 r7.2（`b39b27a`）；本批严格按 A §16.6 与 r7.2 口径实现，未改任何财务数值语义。
+
+### 23.1 σ/CV 表示法映射（`SqrtValue` / `Ratio` / `CoefficientsOfVariation`）
+
+`packages/shared/src/variability.ts` 在既有 `stdDevScaledMinor`/`stdDev` 之外**追加**冻结字段（不删除、不改既有字段值，保持向后兼容）：
+
+| s01-v2 字段 | B 实现（`variability.ts`） | 规则 |
+|---|---|---|
+| `standardDeviation` | `standardDeviation: SqrtValue \| null` | 总体方差 `Σ(xᵢ−μ)²/n` 保持精确：`radicand = { numerator, denominator }` 为方差有理数；`decimalText` 为展示用十进制展开；μ=0 或 n=0 → `null`（不补 0） |
+| `varianceKind` | `varianceKind: "population"` | 仅总体口径；样本口径（`sample`，n−1）只允许后续显式请求，本批不实现 |
+| `coefficientsOfVariation` | `coefficientsOfVariation: CoefficientsOfVariation \| null` | `standardDeviation`、`mean` 均为精确有理数；`scale: "fraction"`（无量纲比例）、`decimalText`；CV 展示默认 `percent-100` 由展示层换算，契约值不套货币最小单位舍入 |
+| 兼容别名 | `standardDeviationScaled: string` | 与既有 `stdDevScaledMinor` 同值（保留给旧消费方），**权威值以上表 `SqrtValue`/`CoefficientsOfVariation` 为准** |
+
+**不变量**：σ 与数据同单位（货币最小单位），CV 无量纲；中间值全程整数/有理数，不出现 IEEE754 浮点；`decimalText` 仅展示、不参与计算；sample 方差不得冒充总体方差。
+
+### 23.2 method 串统一（`packages/shared/src/analysisMethod.ts`）
+
+s01-v2 冻结指定 B 为 method 串规范来源（A r7 已把旧版映射表读向 B 的规范串）。本批建立**规范串**与**旧串别名**的单一映射：
+
+| 规范串（`ANALYSIS_METHOD`） | 旧串别名（输入解析兼容，输出不出现） |
+|---|---|
+| `exact-mean-v1` | `mean-aware`, `exact-mean` |
+| `population-standard-deviation-v1` | `population-stddev`, `stddev-population` |
+| `coefficient-of-variation-v1` | `sample-cv-fixedpoint`, `cv-fixedpoint` |
+| `mad-median-v1` | `mad`, `median-mad` |
+| `iqr-quantile-v1` | `iqr`, `quantile-iqr` |
+| `percentile-threshold-v1` | `quantile-threshold`, `percentile-threshold` |
+
+规则：①对外结果只写规范串；②`canonicalMethod(value)` 只在**输入**解析旧串时归一，未知串原样保留（不猜测、不抛错）；③`AnomalyResult.methodString` 仍写方法名（`"mad"` 等，s01-v2 形状要求），由 `anomalyMethodString(method)` 映射到规范串供说明文字使用；④完整 method 串注册表（含后续新增方法）待下一批次与 A 对齐后再扩，本批不自行新增第四种口径。
+
+### 23.3 G-27 映射（文档级，写入 §4.2）
+
+见 §4.2 末尾「C 侧映射（G-27）」：C `partial` 仅 FX 不完整 → B `unavailable` + `fx-incomplete`；非 FX 原因按自身原因；P16 三态不引入 `partial`。B 的 W1 适配层走原币路径、不消费 FX 聚合，故本批无代码改动；未来 converted 模式 >36 月须显式 `fx-incomplete`/`analysisLimit`，不得静默返回不完整折算结果（§6.5.1 回执）。
+
+### 23.4 本批未做（显式声明）
+
+- 未改任何 `TimeSeriesResult`/`VariabilityResult`/`AnomalyResult` 的既有字段语义与数值；新字段均为 additive。
+- 未实现 `SqrtValue.decimalText` 的精确十进制生成器（现由调用方/展示层按 `radicand` 展开；`decimalText` 允许为空串占位，冻结后如 A 要求精确串再补）。
+- 未改 `S01_PROTOCOL_VERSION`（版本串由 Lead 统一发布），未接页面、未碰 `StatsPage.tsx`/`FxStats.tsx`。
+
+**测试证据**：`packages/shared/src/analysisMethod.test.ts`（10 用例：规范串逐字、旧串别名归一、未知串原样、`anomalyMethodString`）；`variability.test.ts` 新增精确 σ/CV 用例（总体方差 66666666.67 → radicand 精确、μ=0 → `standardDeviation = null`、`varianceKind = "population"`）；`anomaly.test.ts` 新增 `methodString` 对应；shared 全量 **34 文件/543 用例通过，3 skipped**（`FX_PERF` 门控）；web 全量 **174 文件/1582 用例通过**；`tsc -b packages/shared apps/web` exit 0。
 
 
 

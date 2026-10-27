@@ -169,11 +169,28 @@ export {
 
 export type {
   AmountSummary,
+  CoefficientsOfVariation,
   DailyExpenseVariability,
   IncomeStability,
+  Ratio,
+  SqrtValue,
   VariabilityMetric,
   VariabilityOptions,
+  VarianceKind,
 } from "./variability.js";
+
+export {
+  ANALYSIS_METHOD,
+  ANOMALY_METHOD_STRINGS,
+  FROZEN_METHOD_ALIASES,
+  anomalyMethodString,
+  canonicalMethodString,
+} from "./analysisMethod.js";
+
+export type {
+  AnomalyMethodString,
+  CanonicalMethodString,
+} from "./analysisMethod.js";
 
 export {
   SEASONAL_COMPARISON_VERSION,

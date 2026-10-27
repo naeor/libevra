@@ -165,3 +165,60 @@ describe("computeIncomeStability (A20)", () => {
     expect(result.judgedState).toBe("insufficient-sample");
   });
 });
+
+describe("S-01 v2 σ/CV mapping (§16.6, s01-v2 frozen)", () => {
+  it("exposes the exact variance as SqrtValue.radicand and an exact mean Ratio", () => {
+    const daily = dailySeries("2026-01-01", [100, 200]);
+    const result = computeDailyExpenseVariability(daily);
+    // N = n·Σx² − (Σx)² = 2·50000 − 90000 = 10000；σ² = N / n² = 2500。
+    expect(result.varianceKind).toBe("population");
+    expect(result.standardDeviation.radicand).toEqual({ numerator: 2500n, denominator: 1n });
+    expect(result.standardDeviation.decimals).toBe(6);
+    expect(result.standardDeviation.decimalText).toBe("50.000000");
+    expect(result.meanRatio).toEqual({ numerator: 150n, denominator: 1n });
+  });
+
+  it("rounds sqrt decimalText half-away once (never floors)", () => {
+    // [0,1,1]：σ = √2/3 ≈ 0.471404520791…；6 位 half-away → 0.471405（向下取整会是 …404）。
+    const daily = dailySeries("2026-01-01", [0, 1, 1]);
+    const result = computeDailyExpenseVariability(daily, { minSampleDays: 2 });
+    expect(result.standardDeviation.radicand).toEqual({ numerator: 2n, denominator: 9n });
+    expect(result.standardDeviation.decimalText).toBe("0.471405");
+    // CV = σ / μ = (√2/3) / (2/3) = √2/2 ≈ 70.710678…% → percent-100, 1 位 → 70.7。
+    expect(result.coefficientOfVariation?.scale).toBe("percent-100");
+    expect(result.coefficientOfVariation?.decimalText).toBe("70.7");
+  });
+
+  it("keeps CV null when μ = 0 instead of inventing zero/infinity", () => {
+    const daily = dailySeries("2026-01-01", [0, 0, 0]);
+    const result = computeDailyExpenseVariability(daily, { minSampleDays: 3 });
+    expect(result.coefficientOfVariation).toBeNull();
+    expect(result.cvUnavailableReason).toBe("mean-zero");
+    // σ 仍然可算（0），不因 CV 不可算而丢失。
+    expect(result.standardDeviation.radicand).toEqual({ numerator: 0n, denominator: 1n });
+    expect(result.standardDeviation.decimalText).toBe("0.000000");
+  });
+
+  it("maps the income stability summary with the same population semantics", () => {
+    const monthly = (() => {
+      const entries = ["1000", "3000", "2000"].map((value, index) => ({
+        occurredLocalDate: `2025-0${index + 1}-15`,
+        kind: "income" as const,
+        amountMinor: BigInt(value),
+      }));
+      return computeTimeSeries(entries, {
+        metric: "income",
+        granularity: "month",
+        span: { start: "2025-01-01", end: "2025-04-01" },
+        today: "2026-01-31",
+        coverageEnd: "2025-03-31",
+      }).buckets;
+    })();
+    const result = computeIncomeStability(monthly);
+    expect(result.varianceKind).toBe("population");
+    // 均值 2000 分；σ = √((1000² + 1000² + 0²)/3) ≈ 816.4965809 → 6 位 → 816.496581。
+    expect(result.meanRatio).toEqual({ numerator: 2000n, denominator: 1n });
+    expect(result.standardDeviation.decimalText).toBe("816.496581");
+    expect(result.coefficientOfVariation?.decimalText).toBe("40.8");
+  });
+});

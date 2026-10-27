@@ -157,6 +157,7 @@
 | W1-S4a 新增分析区（I12/A12 波动、A20 收入稳定、I13 星期分布） | **完成（2026-10-27）** | 适配层 `analysisData.ts`：`deriveDailyExpenseVariability`（I12/A12，先 `computeTimeSeries` day 再 `computeDailyExpenseVariability`，`extremeSigma` 可配）、`deriveIncomeStability`（A20，month、`minSampleMonths`）、`deriveWeekdayAnalysis`（I13，`computeWeekdayPattern`，kind all/expense/income）；新增 `AnalysisCoverage`/`coverageEndFor`/`hasCompleteObservation`，unknown 覆盖按“区间起点前一天”收窄；hooks `useDailyExpenseVariability`/`useIncomeStability`/`useWeekdayAnalysis`；卡片 `VariabilityCard`（内嵌 `VolatilityBandChart`，result 可 null + 样本句）、`IncomeStabilityCard`（`judgedState`/样本句必显）、`WeekdayPatternCard`（total/average 双模式、`data-mode` 明示）；协议草案 §20；未改 shared、未接页面、不碰 `StatsPage.tsx`/`FxStats.tsx`；下一步 S4b（A13/A14） |
 | W1-S4b 移动平均（A13/A14） | **完成（2026-10-27）** | 适配层 `analysisData.ts`：`deriveMovingAverage`（`windowDays` 7/30，读取区间向历史扩展 `windowDays-1` 天、可见区间不变，`visibleMovingAverage` 把 points/计数裁剪回可见范围；`MOVING_AVERAGE_WINDOWS`）；`analysisData` 校验正整数窗口抛 `AnalysisRangeError("analysis-range-invalid")`；hook `useMovingAverage`；卡片 `MovingAverageCard`（内嵌 B-4 `MovingAverageChart`，原始 + 平均双序列，`data-window` 明示 7/30，result 可 null + `sampleText` 必显）；协议草案 §21；**B-Q20 裁定后修正**：进行中今天不入样本、`todayExcluded`/`excludedInProgressDays` + 卡片 `excludedTodayText`（独立小提交）；未改 shared、未接页面、不碰 `StatsPage.tsx`/`FxStats.tsx`；下一步 S4c（A18/A19） |
 | W1-S4c 季节性/异常峰值（A18/A19） | **完成（2026-10-27）** | 适配层 `analysisData.ts`：`SEASONAL_MAX_MONTHS = 36`、`SeasonalAnalysisQuery`/`SeasonalAnalysisView` + `deriveSeasonalComparison`（按自然月跨度预检 36 月、越界抛 `AnalysisRangeError("analysis-range-too-long")` 不截断；`coverageEndFor` 收窄未知覆盖；消费 shared `computeSeasonalComparison` month view）；`AnomalyAnalysisQuery`/`AnomalyAnalysisView` + `deriveAnomalyAnalysis`（`assertAnalysisSpan` 400 日上限、只取 complete 日喂 `detectDailyExpenseAnomalies`、`unavailableReason = "no-complete-observations"` 当 observedDays=0）；hooks `useSeasonalAnalysis`/`useAnomalyAnalysis`；卡片 `SeasonalComparisonCard`（内嵌 `SeasonalComparisonChart`，`data-descriptive-only` 明示描述性、进行中月保留部分金额但不可比、只画月视图）、`AnomalyPeaksCard`（内嵌 `AnomalyMarkerChart` + 排行列表，无基线空状态、无异常日文案）；协议草案 §22；未改 shared、未接页面、不碰 `StatsPage.tsx`/`FxStats.tsx`；下一步待命（S-01 v2 冻结后最小批次） |
+| s01-v2 冻结后最小批次（σ/CV 映射 + method 串统一 + G-27 文档行） | **完成（2026-10-27）** | ①`packages/shared/src/variability.ts` 追加 `Ratio`/`SqrtValue`/`VarianceKind`/`CoefficientsOfVariation` 与 `standardDeviation`/`varianceKind`/`coefficientsOfVariation`/`standardDeviationScaled`（additive；不再使用的旧字段 `stdDevScaledMinor`/`coefficientOfVariationScaled` 保留兼容），σ 保持总体口径精确有理数、μ=0/n=0 → `null`（不补 0）、CV 无量纲 `fraction` 不套货币舍入；②新增 `packages/shared/src/analysisMethod.ts`：规范串（`exact-mean-v1`/`population-standard-deviation-v1`/`coefficient-of-variation-v1`/`mad-median-v1`/`iqr-quantile-v1`/`percentile-threshold-v1`）+ 旧串别名归一 + `anomalyMethodString`；`anomaly.ts` 结果增 `methodString`（`mad-median-v1` 等）；③协议 §4.2 补 G-27 一行（C `partial` 仅 FX 不完整 → `unavailable`/`fx-incomplete`，非 FX 按自身原因，P16 三态不引入 `partial`）+ 新增 §23 表示法映射与「本批未做」；④未改任何形状/字段语义、未改版本串、未接页面、不碰 `StatsPage.tsx`/`FxStats.tsx`；shared 34 文件/543 用例（+新增）全过、web 174 文件/1582 用例全过、`tsc -b` 0；下一步待命（等下一批指令或 W3） |
 | W3 时间图表/卡片 | 未开始 | 依赖 S-01/S-02/S-03 |
 
 ---
@@ -194,6 +195,7 @@
 | 2026-10-27 | **W1-S4b B-Q20 修正**（Lead 裁定「今天/进行中桶不入统计样本」落地）：`analysisData.deriveMovingAverage` 把 `state === "in-progress"` 桶按未知（`amountMinor=null`、`transactionCount=null`）喂给 shared 引擎，含该日窗口明确 `window-incomplete`、不补零；`MovingAverageAnalysisView` 新增 `todayExcluded`/`excludedInProgressDays`；`MovingAverageCard` 新增 `excludedInProgress`/`excludedTodayText`（排除时强制渲染）；协议 §21 第 3 条改写；测试 ①今天进行中→样本不含今天且说明必显 ②无进行中→行为不变 | `apps/web/src/lib/analysisData.ts`、`components/charts/MovingAverageCard.tsx`、`lib/s4b.analysisData.test.ts`、`components/charts/movingAverageCards.test.tsx`、本文件、协议草案 §21 | `07f1be5` | `s4b.analysisData.test.ts` 8/8；`movingAverageCards.test.tsx` 4/4；定向 2 文件 12/12；`tsc -b` exit 0；`apps/web` 全量 vitest **172 文件/1568 用例全过** | 仅新增 view/卡片可选字段（向后兼容；旧调用不传 `excludedInProgress` 时行为不变） | 完整日窗口数值不变；仅排除进行中桶后受影响窗口转 unknown；S-01 v2 文字由 A 在冻结后最小批次补 | 发 Lead；随后 S4c（A18/A19） |
 | 2026-10-27 | **W1-S4b 完成**（A13 七日移动平均、A14 三十日移动平均卡片化）：①`analysisData` 新增 `MOVING_AVERAGE_WINDOWS`（7/30）、`MovingAverageAnalysisQuery`/`MovingAverageAnalysisView`、`deriveMovingAverage`（读取区间向历史扩展 `windowDays-1` 天、`visibleMovingAverage` 裁剪回可见区间并重算 `observedDays/computablePoints/unknownWindowPoints/missingHistoryPoints/complete`；非正整数窗口抛 `AnalysisRangeError("analysis-range-invalid")`）、`useMovingAverage` hook；②卡片 `MovingAverageCard`（内嵌 B-4 `MovingAverageChart`，原始 + 移动平均双序列，`data-window` 明示 7/30，`result` 可 null 只渲空状态、`sampleText` 必显）；③协议草案 §21 锁定语义（历史扩展只改读取不改可见、窗口必须完整不补零不插值、精确分数、A13/A14 各自一卡、页面接线归 Lead） | `apps/web/src/lib/analysisData.ts`、`useTimeAnalysis.ts`、`components/charts/MovingAverageCard.tsx`、`lib/s4b.analysisData.test.ts`、`components/charts/movingAverageCards.test.tsx`、本文件、协议草案 §21 | `3484321` | `s4b.analysisData.test.ts` 7/7；`movingAverageCards.test.tsx` 3/3；`tsc -b` exit 0；`apps/web` 全量 vitest **172 文件/1566 用例全过** | 无公共接口变化；仅新增 web 层适配/hook/卡片（S0 单一入口，未接 S-01 信封；不新增/修改形状） | 进行中今天原按 shared 部分日口径参与；已被 B-Q20 裁定修正（见上一行）；页面接线归 Lead | 发 S4b 结构化报告 Lead；随后 S4c（A18/A19） |
 | 2026-10-27 | **W1-S4c 完成**（A18 季节性描述性比较、A19 支出异常峰值卡片化）：①`analysisData` 新增 `SEASONAL_MAX_MONTHS = 36`、`SeasonalAnalysisQuery`/`SeasonalAnalysisView`/`deriveSeasonalComparison`（自然月跨度预检、越界 `analysis-range-too-long` 不截断；month view；`descriptiveOnly`/`descriptiveReason` 随 shared 结果透出）；`AnomalyAnalysisQuery`/`AnomalyAnalysisView`/`deriveAnomalyAnalysis`（400 日上限、只取 complete 日、`todayExcluded`/`sufficientSample`、样本不足空 marks）；②`useTimeAnalysis` 新增 `useSeasonalAnalysis`/`useAnomalyAnalysis`；③卡片 `SeasonalComparisonCard`（`SeasonalComparisonChart` 跨年同月轴、`data-descriptive-only`、进行中月保留部分金额但不可比）、`AnomalyPeaksCard`（`AnomalyMarkerChart` 标记 + 排行列表、无基线空状态、无异常日文案）；④协议草案 §22 锁定语义（只描述不推断、上限显式拒绝、只画月视图、今天不入样本、判定口径全部来自 shared、页面接线归 Lead） | `apps/web/src/lib/analysisData.ts`、`apps/web/src/lib/useTimeAnalysis.ts`、`apps/web/src/components/charts/SeasonalComparisonCard.tsx`、`AnomalyPeaksCard.tsx`、`apps/web/src/lib/s4c.analysisData.test.ts`、`apps/web/src/components/charts/seasonalAnomalyCards.test.tsx`、本文件、协议草案 §22 | `041d7ec` | `s4c.analysisData.test.ts` 9/9；`seasonalAnomalyCards.test.tsx` 5/5；`tsc -b` exit 0；`apps/web` 全量 vitest **174 文件/1582 用例全过** | 无公共接口变化；仅新增 web 层适配/hooks/卡片（S0 单一入口，未接 S-01 信封；不新增/修改形状） | A18 本批只出月视图卡（季度分组 shared 支持但不出卡）；A19 基线只用完整日、进行中今天永不成为标记；σ/CV 与 method 串仍标「待冻结核对」；页面接线归 Lead | 发 S4c 结构化报告 Lead；之后待命，等 S-01 v2 冻结后最小批次（σ/CV 映射 + method 串统一） |
+| 2026-10-27 | **s01-v2 冻结后最小批次完成**（B 侧表示法/串对齐，additive；不改任何财务数值语义）：①`variability.ts` 追加 `Ratio`/`SqrtValue`/`VarianceKind`/`CoefficientsOfVariation` 与 `standardDeviation`/`varianceKind`/`coefficientsOfVariation`/`standardDeviationScaled`（σ 总体口径精确有理数、`decimalText` 展示用、μ=0/n=0 → `null` 不补 0；CV 无量纲 `fraction`；旧 `stdDevScaledMinor`/`coefficientOfVariationScaled` 保留兼容）；②新增 `analysisMethod.ts`（9 个规范串 + 旧串别名输入归一 + `anomalyMethodString`），`anomaly.ts` 结果增 `methodString`（`mad-median-v1`/`iqr-quantile-v1`/`percentile-threshold-v1`，`method` 不变）；③协议草案 §4.2 补 G-27 一行（C `partial` 仅 FX 不完整 → `unavailable`/`fx-incomplete`；非 FX → 按自身原因；P16 三态不引入 `partial`），新增 §23 表示法与 method 串映射；④未改形状/字段语义/版本串/页面/API | `packages/shared/src/variability.ts`、`variability.test.ts`、`analysisMethod.ts`、`analysisMethod.test.ts`、`anomaly.ts`、`anomaly.test.ts`、`packages/shared/src/index.ts`、`apps/web/src/i18n/sharedMessages.test.ts`、协议草案 §4.2/§23、本文件 | `待回填` | shared 34 文件/**543 用例全过**（3 skipped，FX_PERF 门控）；web 全量 **174 文件/1582 用例全过**；`tsc -b packages/shared apps/web` exit 0；`check:docs`/`check:status` 通过 | 新增公共导出：`analysisMethod`（`ANALYSIS_METHOD`/`canonicalMethod`/`anomalyMethodString`/别名表）与 variability 的 `Ratio`/`SqrtValue`/`CoefficientsOfVariation`/`VarianceKind` 字段；全部为新增，未删/未改既有语义；`S01_PROTOCOL_VERSION` 未改（由 Lead 统一发布） | 未实现 `SqrtValue.decimalText` 精确十进制生成器（现由调用方/展示层按 `radicand` 展开，`decimalText` 允许空串占位）；完整 method 注册表待与 A 下一批对齐；页面接线归 Lead | 待命（等下一批指令/W3）；W3 依赖 S-01/S-02/S-03 |
 
 ---
 
@@ -295,6 +297,11 @@
 | W1-S4c 卡片（2026-10-27） | `apps/web/src/components/charts/SeasonalComparisonCard.tsx`、`AnomalyPeaksCard.tsx` | 内嵌 B-4 `SeasonalComparisonChart`（12 月分类轴、跨年同月）与 `AnomalyMarkerChart`（标记 + 折线）；`data-descriptive-only` 明示描述性；进行中月保留“已确认部分金额”（`data-partial`）但标注不可比；无基线只渲 `emptyText`、样本不足/无异常用调用方文案；标记/阈值/排名全部来自 shared，组件不判异、不产中文 |
 | W1-S4c 协议映射（2026-10-27） | 协议草案 §22 | A18/A19 消费层映射；上限显式拒绝不截断、只描述不推断、进行中月不可比、只画月视图、今天不入样本（`todayExcluded`）、判定口径全部来自 shared、页面接线归 Lead |
 | W1-S4c 测试（2026-10-27） | `apps/web/src/lib/s4c.analysisData.test.ts`（9 用例）、`apps/web/src/components/charts/seasonalAnomalyCards.test.tsx`（5 用例） | 覆盖：跨年同月 14 月、单年描述性、unknown 覆盖、当前月保留部分金额不可比、36 月上限、按季分组、MAD 标记、今天不入样本、样本不足空 marks、无 complete 日、卡片月视图/描述性说明/空状态/无异常文案/排行 |
+| s01-v2 σ/CV 表示法（2026-10-27） | `packages/shared/src/variability.ts`（扩展）、`variability.test.ts`（+3 用例） | `Ratio { numerator, denominator }`、`SqrtValue { radicand, decimalText, decimals }`、`VarianceKind = "population"`、`CoefficientsOfVariation { standardDeviation, mean, scale: "fraction", decimalText }`；`AmountSummary.standardDeviation/varianceKind/coefficientsOfVariation/standardDeviationScaled` 新增（旧 `stdDevScaledMinor`/`coefficientOfVariationScaled` 保留）；σ² 精确有理数、μ=0/n=0 → null、不补 0、不出现浮点 |
+| analysisMethod 规范串（2026-10-27） | `packages/shared/src/analysisMethod.ts`（新）、`analysisMethod.test.ts`（新，10 用例）、`packages/shared/src/index.ts` | `ANALYSIS_METHOD` 9 个规范串（`exact-mean-v1` 等）、`canonicalMethod` 旧串别名归一（未知串原样不抛错）、`anomalyMethodString`；`index.ts` 导出块 |
+| anomaly methodString（2026-10-27） | `packages/shared/src/anomaly.ts`、`anomaly.test.ts` | `AnomalyResult.methodString` 新增（`method` 与 `methodString` 并存，不同源）；`mad`→`mad-median-v1`、`iqr`→`iqr-quantile-v1`、`zero-dispersion-quantile`→`percentile-threshold-v1` |
+| s01-v2 协议映射（2026-10-27） | 协议草案 §4.2（G-27 一行）、§23（新） | §4.2 补 C `partial` 仅 FX 不完整 → `unavailable`/`fx-incomplete`、非 FX 按自身原因、P16 三态不引入 `partial`；§23 记录 23.1 σ/CV 表、23.2 method 串与别名表、23.3 G-27 指针、23.4 本批未做 |
+| s01-v2 归类登记（2026-10-27） | `apps/web/src/i18n/sharedMessages.test.ts` | `FULL_FILES` 加 `analysisMethod.ts`（仅注释中文，扫描器跳过注释，无需新译文） |
 
 **环境说明（本地验证）**：本 worktree 首次使用需 `pnpm install --offline`（本地 pnpm store 已具备依赖）；Prisma 7 的 `prisma.config.ts` 要求 `DATABASE_URL` 环境变量存在，生成客户端用 `DATABASE_URL=postgresql://... pnpm db:generate`（生成不连库，生成物 `apps/api/src/generated/prisma/**` 被 gitignore）。API 集成测试需要根目录 `.env` 的 `TEST_DATABASE_URL`（测试库名必须含 `test`，见 `apps/api/test/setup.ts` 的守卫）；本工作区 `.env` 为本地开发文件，**不入库**。Windows 下若 PowerShell 执行策略拦截 `pnpm.ps1`，改用 `$pnpm = Join-Path $env:APPDATA "npm\pnpm.cmd"; & $pnpm ...`。API 集成测试当前 611/612：唯一失败是本地测试库迁移落后 1.16.22 基线（`profile` 头像用例），与本分支改动无关，1.16.23 发布后统一 rebase 再跑（Lead 已确认）。
 
@@ -338,9 +345,40 @@
 1. **无影响**：B 仓库对 `timeFixed`/`pinnedRange`/`analysisDefinition`/`params_type` **零引用**（检索 `packages/shared/src`、`apps/web/src/lib`、`apps/web/src/components/charts`、`apps/web/src/pages` 无命中）；B 的 W1 分析由调用方直接传 `TimeSpan`（`analysisData.ts` 的 `AnalysisSpan`/`trailingWindow`/`assertAnalysisSpan`），**不经 analysisDefinition params、不自算卡片区间**，因此不依赖旧绝对 `timeFixed` 解析口径，无迁移/兼容动作。
 2. **`resolvedPeriod` 暂无消费方，不阻塞**：B 时间序列结果使用自身 `span: TimeSpan` + 半开桶 key（`timeSeries.ts`），未消费结果级 `resolvedPeriod` 字段。B 已有只读对齐工具：`spanToInclusive(span) → {from,to}`（`packages/shared/src/timeCalendar.ts:189`，index 导出 `:112`）与 `bucketToInclusive(bucket)`（`:214`，index `:95`）；冻结后如需把 B 桶映射为 A 的 `ResolvedPeriod`（闭区间），可直接复用，**无需新增/修改 S-01 形状**。
 
-> 证据均为只读核对；本回执未改实现代码。
-
 > 证据均为只读核对（2026-10-27，HEAD 工作区）；本回执未改任何实现代码、未冻结任何接口。
+
+### 6.6 s01-v2 冻结后最小批次（2026-10-27，B 侧表示法/串对齐；不改财务语义）
+
+**依据**：Lead m05153（`s01-v2` 冻结 + 最小批次）与 m05203（批准范围）——只做三件：①σ/CV 表示法映射到 `SqrtValue`；②method 串以 B 的规范串为准、旧串改名；③G-27 文档行。**不新增/不修改任何 S-01 形状、不接页面、不改版本串、不碰 `StatsPage.tsx`/`FxStats.tsx`/API/Prisma。**
+
+**1. σ/CV 表示法（`packages/shared/src/variability.ts`，additive）**
+
+| 字段 | 类型 | 规则 |
+|---|---|---|
+| `standardDeviation` | `SqrtValue \| null` | `radicand = { numerator: bigint, denominator: bigint }` = 总体方差 `Σ(xᵢ−μ)²/n` 精确有理数；`decimalText` 展示用；`decimals`；μ=0 或 n=0 → `null`（不补 0） |
+| `varianceKind` | `"population"` | 只实现总体口径；样本口径（n−1）需后续显式请求，本批不做 |
+| `coefficientsOfVariation` | `CoefficientsOfVariation \| null` | `{ standardDeviation: Ratio, mean: Ratio, scale: "fraction", decimalText }`；无量纲，展示默认 `percent-100` 1 位小数由展示层换算，**不套货币最小单位舍入** |
+| `standardDeviationScaled` | `string` | 兼容别名（与 `stdDevScaledMinor` 同值）；权威值以上表为准 |
+
+旧字段 `stdDevScaledMinor`/`coefficientOfVariationScaled` **保留**（不删除、不改语义），避免既有消费方破坏；新字段全部 additive。`decimalText` 精确十进制生成器本批**未实现**（允许空串占位，由调用方按 `radicand` 展开；等 A 确认是否需要精确串）。
+
+**2. method 串统一（`packages/shared/src/analysisMethod.ts`，新）**
+
+- 规范串 `ANALYSIS_METHOD`：`exact-mean-v1`、`population-standard-deviation-v1`、`coefficient-of-variation-v1`、`mad-median-v1`、`iqr-quantile-v1`、`percentile-threshold-v1` 等 9 个。
+- `canonicalMethod(value)`：**输入**解析旧串别名（如 `mad`→`mad-median-v1`、`sample-cv-fixedpoint`→`coefficient-of-variation-v1`）；未知串**原样返回、不抛错**；对外结果只写规范串。
+- `anomalyMethodString(method)`：`mad`→`mad-median-v1`、`iqr`→`iqr-quantile-v1`、`zero-dispersion-quantile`→`percentile-threshold-v1`；`AnomalyResult.methodString` 新增（`method` 保留原枚举值，二者并存）。
+- 未做：完整 method 注册表（后续方法）待下一批与 A 对齐；A r7 旧版映射表改指 B 规范串的对应关系由 A 更新（B 不改 A 文档）。
+
+**3. G-27 文档行（协议草案 §4.2，文档级）**
+
+`C partial` **仅当根因是 FX 不完整** → B `unavailable` + `fx-incomplete`；非 FX 原因 → 按自身原因（`unknown`/`offline-incomplete` 等）；P16 三态（`complete`/`no-transactions`/`unavailable`）**不引入** `partial`；`in-progress` 是周期未完、不是完整性缺失。B 的 W1 适配层走原币路径、不消费 FX 聚合，故**无代码改动**；未来 converted 模式 >36 月须显式 `fx-incomplete`/`analysisLimit`（见 §6.5.1）。协议草案新增 §23 记录完整映射与「本批未做」。
+
+**验证与边界**
+
+- `pnpm --filter @libellum/shared test` → **34 文件/543 用例全过**（3 skipped：`fxPerformance.test.ts` 按 `FX_PERF` 门控）；新增 `analysisMethod.test.ts` 10 用例 + `variability.test.ts` 3 个 σ/CV 用例 + `anomaly.test.ts` methodString 用例。
+- `apps/web` 全量 `vitest run` → **174 文件/1582 用例全过**（`sharedMessages.test.ts` 归类加 `analysisMethod.ts` 后复跑）；`tsc -b packages/shared apps/web` exit 0；`check:docs`/`check:status` 见报告。
+- 边界：未接页面、未改 `StatsPage.tsx`/`FxStats.tsx`/API/Prisma/版本号；未 merge/push/部署；工作区仅本批文件。
+- 提交：`待回填`（feat 提交 + 本回填）。
 
 ---
 

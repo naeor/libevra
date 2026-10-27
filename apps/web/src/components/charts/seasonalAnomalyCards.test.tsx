@@ -108,6 +108,7 @@ function anomalyResult(overrides: Partial<AnomalyResult> = {}): AnomalyResult {
   return {
     version: ANOMALY_VERSION,
     method: "mad",
+    methodString: "mad-median",
     parameters: {
       method: "mad",
       madMultiplier: "3.5",

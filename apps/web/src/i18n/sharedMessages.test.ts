@@ -43,6 +43,7 @@ const CJK = /[㐀-鿿豈-﫿]/u;
 /** shared 每个源文件的处理方式。新增文件必须在这里归类（见最后一条测试）。 */
 const FULL_FILES = [
   "admin.ts",
+  "analysisMethod.ts",
   "anomaly.ts",
   "auth.ts",
   "billImport.ts",

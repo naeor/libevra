@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addDays } from "./stats.js";
 import { computeTimeSeries, type TimeSeriesEntry } from "./timeSeries.js";
 import { ANOMALY_VERSION, anomalyThresholdReference, detectDailyExpenseAnomalies } from "./anomaly.js";
+import { ANOMALY_METHOD_STRINGS } from "./analysisMethod.js";
 
 const TODAY = "2026-03-31";
 
@@ -89,5 +90,47 @@ describe("detectDailyExpenseAnomalies (A19)", () => {
     const reference = anomalyThresholdReference(result);
     expect(reference.method).toBe(result.method);
     expect(["3.5", "1.5", "0.95"]).toContain(reference.multiplier);
+  });
+});
+
+describe("S-01 v2 methodString mapping (s01-v2 frozen)", () => {
+  it("maps the three descriptive methods to the frozen method strings", () => {
+    const madSeries = series([
+      ...Array.from({ length: 15 }, (_, index) => (index % 2 === 0 ? 100 : 200)),
+      50000,
+    ]);
+    expect(detectDailyExpenseAnomalies(madSeries, { minimumSampleDays: 10 }).methodString).toBe(
+      "mad-median",
+    );
+
+    // 中位数绝对偏差为 0 且 IQR > 0 → 退化链进入 IQR 分支（10×0 + 20×100 + 1×900）。
+    const iqrResult = detectDailyExpenseAnomalies(
+      series([...Array.from({ length: 10 }, () => 0), ...Array.from({ length: 20 }, () => 100), 900]),
+    );
+    expect(["iqr", "zero-dispersion-quantile"]).toContain(iqrResult.method);
+    expect(iqrResult.methodString).toBe(ANOMALY_METHOD_STRINGS[iqrResult.method]);
+
+    // IQR 也为 0 → 分位兜底（B 开放扩展串，未在冻结枚举内）。
+    const quantileSeries = series(Array.from({ length: 29 }, () => 0).concat(500));
+    const quantileResult = detectDailyExpenseAnomalies(quantileSeries);
+    expect(quantileResult.method).toBe("zero-dispersion-quantile");
+    expect(quantileResult.methodString).toBe("quantile-threshold");
+  });
+
+  it("keeps methodString and formula stable when the sample is insufficient or empty", () => {
+    const insufficient = detectDailyExpenseAnomalies(series([100, 200, 300]));
+    expect(insufficient.methodString).toBe("mad-median");
+    expect(insufficient.formula.mad).toBe("robust-z-score-v1");
+
+    const buckets = computeTimeSeries([], {
+      metric: "expense",
+      granularity: "day",
+      span: { start: "2026-03-30", end: "2026-04-02" },
+      today: "2026-03-31",
+      coverageEnd: null,
+    }).buckets;
+    const empty = detectDailyExpenseAnomalies(buckets);
+    expect(empty.methodString).toBe("mad-median");
+    expect(empty.formula.quantile).toBe("percentile-threshold-v1");
   });
 });

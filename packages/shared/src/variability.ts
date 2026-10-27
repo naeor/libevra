@@ -1,5 +1,6 @@
 import type { TimeSpan } from "./timeCalendar.js";
 import type { TimeSeriesBucketPoint } from "./timeSeries.js";
+import { ANALYSIS_METHOD } from "./analysisMethod.js";
 
 /**
  * **波动性与稳定性（B-4，A12 + A20）**——对已算好的金额序列做精确统计。
@@ -31,6 +32,36 @@ export interface VariabilityOptions {
   readonly extremeSigma?: number;
 }
 
+/**
+ * S-01 v2 冻结的精确有理数（进程内 `bigint`；跨 HTTP 序列化为十进制字符串）。
+ * 与 A 的 `Ratio` 同构，B 不依赖 A 的实现基线。
+ */
+export interface Ratio {
+  readonly numerator: bigint;
+  readonly denominator: bigint;
+}
+
+/**
+ * S-01 v2 冻结的标准差表示：`radicand` 是精确 σ²（权威值），`decimalText` 是
+ * **只做一次**“√ 后按固定小数位 half-away”的派生展示值（不得回写/参与校验）。
+ */
+export interface SqrtValue {
+  readonly radicand: Ratio;
+  readonly decimalText: string;
+  readonly decimals: number;
+}
+
+/** S-01 v2 冻结的变异系数表示（无量纲；`scale` 决定展示形态）。 */
+export interface CoefficientsOfVariation {
+  readonly standardDeviation: SqrtValue;
+  readonly mean: Ratio;
+  readonly scale: "fraction" | "percent-100";
+  readonly decimalText: string;
+}
+
+/** 方差口径：B 的统计默认总体口径（样本口径仅在显式要求时提供，当前未实现）。 */
+export type VarianceKind = "population" | "sample";
+
 /** A12/A20 共用的金额统计摘要。 */
 export interface AmountSummary {
   readonly metric: VariabilityMetric;
@@ -46,7 +77,15 @@ export interface AmountSummary {
   readonly rangeMinor: string;
   /** 精确均值 = numeratorMinor / denominatorCount（分）。 */
   readonly mean: { readonly numeratorMinor: string; readonly denominatorCount: number };
+  /** 精确均值（S-01 v2 `Ratio` 形态；与 `mean` 同口径、同值）。 */
+  readonly meanRatio: Ratio;
   readonly meanScaledMinor: string;
+  /** 方差口径：B 统计默认总体口径。 */
+  readonly varianceKind: VarianceKind;
+  /** 总体标准差（S-01 v2 `SqrtValue`；`decimalText` 为 6 位定点，展示层再按币种小数位一次舍入）。 */
+  readonly standardDeviation: SqrtValue;
+  /** 变异系数（S-01 v2 `CoefficientsOfVariation`；均值为 0 时为 `null`，不补 0）。 */
+  readonly coefficientOfVariation: CoefficientsOfVariation | null;
   /** 总体标准差（定点小数，向下取整）。 */
   readonly stdDevScaledMinor: string;
   /** 变异系数 = 标准差 / 均值（定点小数，向下取整）；均值为 0 时为 `null`。 */
@@ -134,6 +173,71 @@ function integerSqrt(value: bigint): bigint {
   return x;
 }
 
+/** 最大公约数（用于把精确分数约分）。 */
+function gcd(a: bigint, b: bigint): bigint {
+  let left = a < 0n ? -a : a;
+  let right = b < 0n ? -b : b;
+  while (right !== 0n) {
+    const remainder = left % right;
+    left = right;
+    right = remainder;
+  }
+  return left;
+}
+
+/** 把精确分数约分为 S-01 v2 `Ratio`（分母恒正、互素）。 */
+function reduceRatio(numerator: bigint, denominator: bigint): Ratio {
+  if (denominator === 0n) throw new RangeError("ratio denominator must not be zero");
+  const sign = denominator < 0n ? -1n : 1n;
+  const signedNumerator = numerator * sign;
+  const signedDenominator = denominator * sign;
+  const divisor = gcd(signedNumerator, signedDenominator);
+  return {
+    numerator: signedNumerator / divisor,
+    denominator: signedDenominator / divisor,
+  };
+}
+
+/** 把定点整数格式化为固定小数位的十进制文本（不含单位、不做货币舍入）。 */
+function formatScaledDecimal(scaled: bigint, decimals: number): string {
+  const units = 10n ** BigInt(decimals);
+  const negative = scaled < 0n;
+  const absolute = negative ? -scaled : scaled;
+  const whole = absolute / units;
+  const fraction = absolute % units;
+  const text =
+    decimals === 0
+      ? whole.toString()
+      : `${whole.toString()}.${fraction.toString().padStart(decimals, "0")}`;
+  return negative ? `-${text}` : text;
+}
+
+/**
+ * 计算 `round_half_away(multiplier · √numerator / divisor × 10^decimals)` 的定点整数。
+ *
+ * 用于 S-01 v2 的 `SqrtValue.decimalText` / CV 展示文本：**只做一次** half-away
+ * （不是向下取整）；`radicand` 始终保留精确值。
+ */
+function roundedSqrtScaled(
+  numerator: bigint,
+  multiplier: bigint,
+  divisor: bigint,
+  decimals: number,
+): bigint {
+  if (numerator < 0n) throw new RangeError("cannot take the square root of a negative number");
+  if (divisor <= 0n) throw new RangeError("sqrt divisor must be positive");
+  const scaledUnits = 10n ** BigInt(decimals);
+  // value × 10^decimals = √(multiplier² · numerator · 10^(2·decimals)) / divisor
+  const scaledNumerator = multiplier * multiplier * numerator * scaledUnits * scaledUnits;
+  const denominator = divisor * divisor;
+  const floor = integerSqrt(scaledNumerator / denominator);
+  const twicePlusOne = 2n * floor + 1n;
+  if (twicePlusOne * twicePlusOne * denominator <= 4n * scaledNumerator) {
+    return floor + 1n;
+  }
+  return floor;
+}
+
 interface AmountSample {
   readonly amounts: readonly { readonly key: string; readonly amountMinor: bigint }[];
   readonly excludedUnknownCount: number;
@@ -203,6 +307,30 @@ function summarize(
   const varianceNumerator = count * sumOfSquares - sum * sum;
   const stdDevScaled = integerSqrt(varianceNumerator * scaledUnits * scaledUnits) / count;
   const cvScaled = sum > 0n ? integerSqrt(varianceNumerator * scaledUnits * scaledUnits) / sum : null;
+  // S-01 v2 §16.6：σ/CV 以“精确 radicand + 一次 half-away 的展示文本”表示。
+  const meanRatio = reduceRatio(sum, count);
+  const varianceRatio = reduceRatio(varianceNumerator, count * count);
+  const deviationDecimals = 6;
+  const standardDeviation: SqrtValue = {
+    radicand: varianceRatio,
+    decimalText: formatScaledDecimal(
+      roundedSqrtScaled(varianceNumerator, 1n, count, deviationDecimals),
+      deviationDecimals,
+    ),
+    decimals: deviationDecimals,
+  };
+  const coefficientOfVariation: CoefficientsOfVariation | null =
+    sum > 0n
+      ? {
+          standardDeviation,
+          mean: meanRatio,
+          scale: "percent-100",
+          decimalText: formatScaledDecimal(
+            roundedSqrtScaled(varianceNumerator, 100n, sum, 1),
+            1,
+          ),
+        }
+      : null;
   const sampleRange: TimeSpan = {
     start: points[0]?.bucket.span.start ?? "",
     end: points[points.length - 1]?.bucket.span.end ?? "",
@@ -218,7 +346,11 @@ function summarize(
     maxMinor: max.toString(),
     rangeMinor: (max - min).toString(),
     mean: { numeratorMinor: sum.toString(), denominatorCount: amounts.length },
+    meanRatio,
     meanScaledMinor: meanScaled.toString(),
+    varianceKind: "population",
+    standardDeviation,
+    coefficientOfVariation,
     stdDevScaledMinor: stdDevScaled.toString(),
     coefficientOfVariationScaled: cvScaled === null ? null : cvScaled.toString(),
     cvUnavailableReason: cvScaled === null ? "mean-zero" : null,
@@ -230,9 +362,9 @@ function summarize(
     sufficientSample: amounts.length >= minSample,
     sampleRange,
     formula: {
-      mean: "exact-mean-v1",
-      stdDev: "population-standard-deviation-v1",
-      coefficientOfVariation: "coefficient-of-variation-v1",
+      mean: ANALYSIS_METHOD.exactMean,
+      stdDev: ANALYSIS_METHOD.populationStandardDeviation,
+      coefficientOfVariation: ANALYSIS_METHOD.coefficientOfVariation,
     },
   };
 }
@@ -270,7 +402,7 @@ export function computeDailyExpenseVariability(
     version: VARIABILITY_VERSION,
     extremeDays,
     extremeSigmaScaled,
-    extremeThresholdFormula: "abs-deviation-gt-sigma-multiple-v1",
+    extremeThresholdFormula: ANALYSIS_METHOD.extremeThreshold,
   };
 }
 

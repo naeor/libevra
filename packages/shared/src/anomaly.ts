@@ -1,5 +1,10 @@
 import type { TimeSpan } from "./timeCalendar.js";
 import type { TimeSeriesBucketPoint } from "./timeSeries.js";
+import {
+  ANALYSIS_METHOD,
+  anomalyMethodString,
+  type AnomalyMethodString,
+} from "./analysisMethod.js";
 
 /**
  * **异常高峰提示（B-4，A19）**——“哪些日期相对自己的历史统计偏高”。
@@ -67,6 +72,11 @@ export interface AnomalyMark {
 export interface AnomalyResult {
   readonly version: typeof ANOMALY_VERSION;
   readonly method: AnomalyMethod;
+  /**
+   * 结果级方法串（S-01 v2 冻结后的规范命名）：`mad-median` / `iqr-quantile` /
+   * `quantile-threshold`（最后一项为 B 开放扩展，未在冻结枚举内，不宣称已支持）。
+   */
+  readonly methodString: AnomalyMethodString;
   readonly parameters: AnomalyParameters;
   /** 全部完整日（基线样本）的统计。样本为 0 时 `null`。 */
   readonly baseline: AnomalyBaseline | null;
@@ -79,9 +89,9 @@ export interface AnomalyResult {
   readonly todayExcluded: boolean;
   /** 公式标识；UI 用它把“怎么算的”讲清楚。 */
   readonly formula: {
-    readonly mad: "robust-z-score-v1";
-    readonly iqr: "tukey-fence-v1";
-    readonly quantile: "percentile-threshold-v1";
+    readonly mad: typeof ANALYSIS_METHOD.anomalyMad;
+    readonly iqr: typeof ANALYSIS_METHOD.anomalyIqr;
+    readonly quantile: typeof ANALYSIS_METHOD.anomalyQuantile;
   };
 }
 
@@ -184,9 +194,9 @@ export function detectDailyExpenseAnomalies(
     targetRange,
     todayExcluded,
     formula: {
-      mad: "robust-z-score-v1",
-      iqr: "tukey-fence-v1",
-      quantile: "percentile-threshold-v1",
+      mad: ANALYSIS_METHOD.anomalyMad,
+      iqr: ANALYSIS_METHOD.anomalyIqr,
+      quantile: ANALYSIS_METHOD.anomalyQuantile,
     },
   } as const;
 
@@ -194,6 +204,7 @@ export function detectDailyExpenseAnomalies(
     return {
       ...baseResult,
       method: "mad",
+      methodString: anomalyMethodString("mad"),
       parameters,
       baseline: null,
       marks: [],
@@ -228,6 +239,7 @@ export function detectDailyExpenseAnomalies(
     return {
       ...baseResult,
       method: "mad",
+      methodString: anomalyMethodString("mad"),
       parameters,
       baseline,
       marks: [],
@@ -314,6 +326,7 @@ export function detectDailyExpenseAnomalies(
   return {
     ...baseResult,
     method,
+    methodString: anomalyMethodString(method),
     parameters: { ...parameters, method },
     baseline,
     marks,
