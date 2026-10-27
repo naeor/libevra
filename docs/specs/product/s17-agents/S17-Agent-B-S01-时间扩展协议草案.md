@@ -725,6 +725,26 @@ S4b 同 S1–S4a：**不新增、不修改任何 S-01 形状**。A13/A14 消费 
 
 **测试证据**：`s4b.analysisData.test.ts`（8 用例：历史扩展、可见计数、30 日窗口、B-Q20 今天排除 + 无进行中行为不变、unknown 覆盖、scale、非法窗口）、`movingAverageCards.test.tsx`（4 用例：双序列图例与样本行、`data-window=30` 区分、B-Q20 排除说明、空状态）；web 全量 172 文件/1566 用例、`tsc -b` exit 0（B-Q20 修正后定向 2 文件 12 用例全过）。
 
+## 22. W1-S4c 消费层映射（2026-10-27，draft；不新增形状）
+
+S4c 同 S1–S4b：**不新增、不修改任何 S-01 形状**。A18/A19 消费 B-4 已交付的 `computeSeasonalComparison`（`SeasonalComparisonResult`）与 `detectDailyExpenseAnomalies`（`AnomalyResult`），经 `apps/web/src/lib/analysisData.ts` 的 `deriveSeasonalComparison`/`deriveAnomalyAnalysis` 适配；卡片为 `SeasonalComparisonCard`（内嵌 `SeasonalComparisonChart`，跨年同月分类轴）与 `AnomalyPeaksCard`（内嵌 `AnomalyMarkerChart`，异常标记 + 排行列表）。
+
+| 能力 | 生成入口（web，S4c） | 复用形状 | 卡片组件 | 说明 |
+|---|---|---|---|---|
+| A18 季节性消费比较 | `deriveSeasonalComparison`（`computeTimeSeries` 逐月桶 → `computeSeasonalComparison`） | `SeasonalComparisonResult` | `SeasonalComparisonCard` + `SeasonalComparisonChart` | 自然年 × 1–12 月分类轴；月份上限 `SEASONAL_MAX_MONTHS = 36`，越界拒绝不截断 |
+| A19 支出异常高峰 | `deriveAnomalyAnalysis`（`computeTimeSeries` day 桶 → `detectDailyExpenseAnomalies`） | `AnomalyResult` | `AnomalyPeaksCard` + `AnomalyMarkerChart` | 只用 `complete` 日建基线；进行中的今天 `todayExcluded` 且从不成为标记；样本不足 `marks = []` |
+
+**S4c 锁定语义**：
+
+1. **上限显式、越界拒绝**：`deriveSeasonalComparison` 先按自然月跨度预检（默认 `SEASONAL_MAX_MONTHS = 36`，可传 `maxMonths`），超限抛 `AnalysisRangeError("analysis-range-too-long")`；shared 引擎同样拒绝 >36，适配层不截断、不静默丢月。
+2. **A18 只做描述性比较**：`descriptiveOnly`/`descriptiveReason` 由 shared 结果给出，卡片用 `data-descriptive-only` 明示并可显示调用方 `descriptiveText`；区间外（`outside-span`）、未知、进行中的月 `comparable = false`。进行中的当前月保留“已确认部分金额”（`amountMinor` 非空），卡片不得把它当完整月与其它年份直接对比。
+3. **A18 卡片只画月视图**：`SeasonalComparisonCard` 的 result 类型收窄为 `SeasonalMonthComparisonResult`（`granularity: "month"`）；按季分组由 shared 支持并有适配层测试，本批不单独出季视图卡片，避免把季度结果画成 12 个月。
+4. **A19 的样本与今天**：检测器只吃 `complete` 日；进行中的今天只上报 `todayExcluded`，永不进入基线或标记；`sufficientSample = false` 时 `marks = []`（不硬报异常）；`baseline = null` 时卡片只渲染 `emptyText`，不画图、不造基线。
+5. **判定口径全部来自 shared**：`method`/`parameters`/`thresholdScaledMinor`/`rank` 随结果上传，卡片不自行判定异常、不重算阈值；“按什么口径判定”的说明由调用方按 `method`/`parameters` 提供（图表 `description`）。
+6. 卡片只渲染传入结果，不重算金额、不补零、不折算汇率；页面接线由 Lead 在集成 worktree 统一完成；本批不接页面、不改 API/版本、不碰 `StatsPage.tsx`/`FxStats.tsx`；σ/CV 与 `method` 串仍标「待冻结核对」。
+
+**测试证据**：`s4c.analysisData.test.ts`（9 用例：跨年同月、单年描述性、unknown 覆盖、"当前月保留部分金额且不可比"、36 月上限、按季分组、MAD 标记、今天不入样本、样本不足、无 complete 日）；`seasonalAnomalyCards.test.tsx`（5 用例：月视图卡、描述性说明、标记 + 排行、无基线空状态、无异常日文案）；web 全量 174 文件/1582 用例、`tsc -b` exit 0。
+
 
 
 

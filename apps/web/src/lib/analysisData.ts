@@ -33,7 +33,9 @@ import {
   computeIncomeStability,
   computeMultiMonthComparison,
   computePeriodComparison,
+  computeSeasonalComparison,
   computeTimeSeries,
+  detectDailyExpenseAnomalies,
   computeTrailingMovingAverage,
   computeWeekdayPattern,
   daysInSpan,
@@ -61,6 +63,10 @@ import {
   type MultiMonthComparisonResult,
   type MovingAveragePoint,
   type MovingAverageResult,
+  type AnomalyOptions,
+  type AnomalyResult,
+  type SeasonalComparisonResult,
+  type SeasonalGranularity,
   type ShareRatio,
   type TimeGranularity,
   type TimeSeriesBucketPoint,
@@ -1074,6 +1080,131 @@ export function deriveMovingAverage(
     unavailableReason: result.observedDays === 0 ? "no-complete-observations" : null,
     excludedInProgressDays,
     todayExcluded,
+    input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S4c — 跨年同月比较（A18）与异常峰值（A19）的单一入口
+// ---------------------------------------------------------------------------
+
+/** A18 default history cap (owner spec §27: at most 36 months of history). */
+export const SEASONAL_MAX_MONTHS = 36;
+
+export interface SeasonalAnalysisQuery {
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly coverage?: AnalysisCoverage;
+  readonly granularity?: SeasonalGranularity;
+  readonly maxMonths?: number;
+}
+
+export interface SeasonalAnalysisView {
+  readonly result: SeasonalComparisonResult;
+  readonly input: AnalysisInput;
+}
+
+function countCalendarMonths(span: TimeSpan): number {
+  const last = addDays(span.end, -1);
+  const startIndex = Number(span.start.slice(0, 4)) * 12 + Number(span.start.slice(5, 7)) - 1;
+  const endIndex = Number(last.slice(0, 4)) * 12 + Number(last.slice(5, 7)) - 1;
+  return endIndex - startIndex + 1;
+}
+
+/**
+ * A18. The shared engine compares the same natural month/quarter across years; this
+ * adapter only enforces the caller's history cap (spec §27: at most 36 months) and
+ * routes coverage. It never re-labels the comparison as statistical seasonality: the
+ * result carries `descriptiveOnly` for the card to surface.
+ *
+ * The result is expense-only, matching the accepted W1 scope; income seasonality stays
+ * a separate, later decision (no new shape is added here).
+ */
+export function deriveSeasonalComparison(
+  transactions: readonly Transaction[],
+  query: SeasonalAnalysisQuery,
+): SeasonalAnalysisView {
+  if (!isSpanValid(query.span)) {
+    throw new AnalysisRangeError("analysis-range-invalid", "季节比较的区间不合法");
+  }
+  const maxMonths = query.maxMonths ?? SEASONAL_MAX_MONTHS;
+  if (!Number.isInteger(maxMonths) || maxMonths < 1) {
+    throw new AnalysisRangeError("analysis-range-invalid", "季节比较的月份上限必须是正整数");
+  }
+  const months = countCalendarMonths(query.span);
+  if (months > maxMonths) {
+    throw new AnalysisRangeError(
+      "analysis-range-too-long",
+      `季节比较包含 ${months} 个月，超过上限 ${maxMonths} 个月（不截断）`,
+    );
+  }
+  const entries = toTimeSeriesEntries(transactions);
+  const coverageEnd = coverageEndFor({
+    span: query.span,
+    today: query.today,
+    ...(query.coverage === undefined ? {} : { coverage: query.coverage }),
+  });
+  const result = computeSeasonalComparison(entries, {
+    metric: "expense",
+    span: query.span,
+    today: query.today,
+    coverageEnd,
+    ...(query.granularity === undefined ? {} : { granularity: query.granularity }),
+    maxMonths,
+  });
+  return { result, input: { entries, coverageEnd, dataVersion: analysisDataVersion() } };
+}
+
+export interface AnomalyAnalysisQuery {
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly maxDays?: number;
+  readonly coverage?: AnalysisCoverage;
+  readonly options?: AnomalyOptions;
+}
+
+export interface AnomalyAnalysisView {
+  readonly result: AnomalyResult;
+  /** The daily expense points the chart plots (same series the sampler saw). */
+  readonly points: readonly TimeSeriesBucketPoint[];
+  /** Complete days that entered the baseline sample (in-progress day excluded). */
+  readonly observedDays: number;
+  /** `null` unless no complete day exists (nothing truthful to detect against). */
+  readonly unavailableReason: "no-complete-observations" | null;
+  readonly input: AnalysisInput;
+}
+
+/**
+ * A19. The shared detector computes median/MAD (or the configured fallback) on
+ * complete days only and never labels an unfinished day a spike. This adapter only
+ * routes entries, enforces the day limit, and exposes how many days were sampled so
+ * the card can show the minimum-sample state instead of inventing a baseline.
+ */
+export function deriveAnomalyAnalysis(
+  transactions: readonly Transaction[],
+  query: AnomalyAnalysisQuery,
+): AnomalyAnalysisView {
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const entries = toTimeSeriesEntries(transactions);
+  const coverageEnd = coverageEndFor({
+    span,
+    today: query.today,
+    ...(query.coverage === undefined ? {} : { coverage: query.coverage }),
+  });
+  const series = computeTimeSeries(entries, {
+    metric: "expense",
+    granularity: "day",
+    span,
+    today: query.today,
+    coverageEnd,
+  });
+  const result = detectDailyExpenseAnomalies(series.buckets, query.options ?? {});
+  const observedDays = series.buckets.filter((point) => point.bucket.state === "complete").length;
+  return {
+    result,
+    points: series.buckets,
+    observedDays,
+    unavailableReason: observedDays === 0 ? "no-complete-observations" : null,
     input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
   };
 }

@@ -29,8 +29,12 @@ import {
   deriveMultiMonthComparison,
   deriveMovingAverage,
   derivePeriodComparison,
+  deriveSeasonalComparison,
+  deriveAnomalyAnalysis,
   deriveTimeAnalysis,
   deriveWeekdayAnalysis,
+  type AnomalyAnalysisQuery,
+  type AnomalyAnalysisView,
   type CumulativeAnalysisView,
   type FlowAnalysisQuery,
   type FlowAnalysisView,
@@ -42,6 +46,8 @@ import {
   type MultiMonthComparisonView,
   type PeriodComparisonQuery,
   type PeriodComparisonView,
+  type SeasonalAnalysisQuery,
+  type SeasonalAnalysisView,
   type TimeAnalysisQuery,
   type TimeAnalysisView,
   type VariabilityAnalysisQuery,
@@ -63,6 +69,8 @@ export type { VariabilityAnalysisQuery, VariabilityAnalysisView };
 export type { IncomeStabilityQuery, IncomeStabilityView };
 export type { WeekdayAnalysisQuery, WeekdayAnalysisView };
 export type { MovingAverageAnalysisQuery, MovingAverageAnalysisView };
+export type { SeasonalAnalysisQuery, SeasonalAnalysisView };
+export type { AnomalyAnalysisQuery, AnomalyAnalysisView };
 export { deriveTimeAnalysis };
 
 /**
@@ -268,5 +276,43 @@ export function useMovingAverage(query: MovingAverageAnalysisQuery): MovingAvera
         ...(scale === undefined ? {} : { scale }),
       }),
     [all, span.start, span.end, today, windowDays, maxDays, coverage, scale],
+  );
+}
+
+/** S4c — A18: cross-year same-month/quarter comparison (descriptive, expense only). */
+export function useSeasonalAnalysis(query: SeasonalAnalysisQuery): SeasonalAnalysisView {
+  const all = useLedgerStore();
+
+  const { span, today, coverage, granularity, maxMonths } = query;
+
+  return useMemo(
+    () =>
+      deriveSeasonalComparison(all, {
+        span,
+        today,
+        ...(coverage === undefined ? {} : { coverage }),
+        ...(granularity === undefined ? {} : { granularity }),
+        ...(maxMonths === undefined ? {} : { maxMonths }),
+      }),
+    [all, span.start, span.end, today, coverage, granularity, maxMonths],
+  );
+}
+
+/** S4c — A19: descriptive daily-expense spike detection (never an accusation). */
+export function useAnomalyAnalysis(query: AnomalyAnalysisQuery): AnomalyAnalysisView {
+  const all = useLedgerStore();
+
+  const { span, today, maxDays, coverage, options } = query;
+
+  return useMemo(
+    () =>
+      deriveAnomalyAnalysis(all, {
+        span,
+        today,
+        ...(maxDays === undefined ? {} : { maxDays }),
+        ...(coverage === undefined ? {} : { coverage }),
+        ...(options === undefined ? {} : { options }),
+      }),
+    [all, span.start, span.end, today, maxDays, coverage, options],
   );
 }
