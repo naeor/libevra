@@ -59,7 +59,6 @@ import { ProfilePage } from "./pages/ProfilePage.js";
 import { AvatarPickerPage } from "./pages/AvatarPickerPage.js";
 import { LedgerSpacePage } from "./pages/LedgerSpacePage.js";
 import { StatsPage } from "./pages/StatsPage.js";
-import { AnalysisPreviewPage } from "./pages/AnalysisPreviewPage.js";
 import { StatsCardDetailPage } from "./pages/StatsCardDetailPage.js";
 import { RecoverPage } from "./pages/RecoverPage.js";
 import { RegisterPage } from "./pages/RegisterPage.js";
@@ -291,9 +290,6 @@ function AppRoutes(): React.JSX.Element {
           </RequireSession>
         }
       />
-      {/* S17 K3：集成分支上的真实数据卡片预览页（临时；Claude 页面合入后移除）。 */}
-      <Route path="/analysis-preview" element={<RequireAuth><AnalysisPreviewPage /></RequireAuth>} />
-
       <Route
         path="/transactions/:id"
         element={
