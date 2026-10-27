@@ -29,3 +29,4 @@ export * from "./hierarchy.js";
 export * from "./sankey.js";
 export * from "./currencyComposition.js";
 export * from "./fxDiagnostics.js";
+export * from "./fxProjection.js";
