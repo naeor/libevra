@@ -979,6 +979,15 @@ export interface MovingAverageAnalysisView {
   readonly visibleFrom: string;
   /** `null` unless no visible day has a confirmed amount (nothing truthful to draw). */
   readonly unavailableReason: "no-complete-observations" | null;
+  /**
+   * Visible days excluded from every window sample because the day had not finished
+   * yet (`state: "in-progress"`). B-Q20 ruling: an unfinished day never enters the
+   * moving-average sample, so it is passed to the shared engine as `null` (unknown),
+   * never as zero — the affected windows become `window-incomplete`.
+   */
+  readonly excludedInProgressDays: number;
+  /** `true` when the read range contained an unfinished day that was excluded (B-Q20). */
+  readonly todayExcluded: boolean;
   readonly input: AnalysisInput;
 }
 
@@ -1037,7 +1046,22 @@ export function deriveMovingAverage(
     today: query.today,
     coverageEnd,
   });
-  const full = computeTrailingMovingAverage(series.buckets, {
+  // B-Q20 (Lead ruling): a day that is still running (`in-progress`, normally today)
+  // must never enter a moving-average window sample. Feeding it as an unknown `null`
+  // keeps the exact `numeratorMinor`/`denominatorDays` untouched for complete windows
+  // and makes only the affected windows explicitly uncomputable (`window-incomplete`).
+  const excludedInProgressDays = series.buckets.filter(
+    (point) => point.bucket.key >= span.start && point.bucket.state === "in-progress",
+  ).length;
+  const todayExcluded = series.buckets.some((point) => point.bucket.state === "in-progress");
+  const sampleBuckets = todayExcluded
+    ? series.buckets.map((point) =>
+        point.bucket.state === "in-progress"
+          ? { ...point, amountMinor: null, transactionCount: null }
+          : point,
+      )
+    : series.buckets;
+  const full = computeTrailingMovingAverage(sampleBuckets, {
     windowDays: query.windowDays,
     ...(query.scale === undefined ? {} : { scale: query.scale }),
   });
@@ -1048,6 +1072,8 @@ export function deriveMovingAverage(
     historyDays,
     visibleFrom: span.start,
     unavailableReason: result.observedDays === 0 ? "no-complete-observations" : null,
+    excludedInProgressDays,
+    todayExcluded,
     input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
   };
 }

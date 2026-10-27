@@ -29,6 +29,14 @@ export interface MovingAverageCardProps {
   readonly caption?: string | null;
   /** Exact sample statement, formatted by the caller (visible days / gaps). */
   readonly sampleText: string;
+  /**
+   * `true` when the adapter excluded an unfinished day (normally today) from every
+   * window sample (B-Q20). The caller must then also pass `excludedTodayText` so the
+   * exclusion is stated in the UI, never only implied by a gap.
+   */
+  readonly excludedInProgress?: boolean;
+  /** Exact statement that the running day is excluded from the sample (caller i18n). */
+  readonly excludedTodayText?: string | null;
   /** Shown instead of the chart when `result` is null. */
   readonly emptyText: string;
   readonly notice?: string | null;
@@ -53,6 +61,8 @@ export function MovingAverageCard({
   formatAxis,
   caption = null,
   sampleText,
+  excludedInProgress = false,
+  excludedTodayText = null,
   emptyText,
   notice = null,
   height,
@@ -110,6 +120,15 @@ export function MovingAverageCard({
           </p>
         </>
       )}
+      {excludedInProgress && excludedTodayText !== null ? (
+        <p
+          className="mt-1 text-helper text-muted"
+          data-testid="moving-average-card-excluded-today"
+          data-excluded-today="true"
+        >
+          {excludedTodayText}
+        </p>
+      ) : null}
     </section>
   );
 }

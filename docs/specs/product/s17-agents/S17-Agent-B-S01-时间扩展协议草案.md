@@ -718,12 +718,12 @@ S4b 同 S1–S4a：**不新增、不修改任何 S-01 形状**。A13/A14 消费 
 
 1. **历史扩展只改读取范围，不改可见范围**：`readSpan = [span.start-(windowDays-1), span.end)`；`result.points`、计数与 `visibleFrom` 全部裁剪回可见区间，并在视图层重算 `observedDays/computablePoints/unknownWindowPoints/missingHistoryPoints/complete`——不造数、不改变任何点的值。
 2. **窗口必须完整**：含未知/未来日的窗口 `average = null`、`gapReason = "window-incomplete"`；距序列起点不足一个窗口的可见点 `insufficient-history`；不填 0、不插值、不跨缺口平均。
-3. **进行中的今天按 shared 口径参与**：B-4 的 `computeTimeSeries` 把「包含 today 的桶」视为部分日（有金额、可计算），因此今天的 MA 点含当天部分金额；卡片必须通过 `bucket.state === "in-progress"` 识别并在 `sampleText` 里显式说明。这与 S4a 波动/稳定性“只取 complete 桶”不同，是两套分析各自锁定的口径，不得互相套用。
+3. **进行中的今天不入窗口样本（B-Q20 裁定，2026-10-27）**：适配层把 `state === "in-progress"` 的桶按未知（`amountMinor = null`、`transactionCount = null`）喂给 shared 引擎；含该日的窗口明确 `gapReason = "window-incomplete"`，不补零、不插值，完整日窗口的 `numeratorMinor/denominatorDays` 不变。`MovingAverageAnalysisView` 用 `todayExcluded`/`excludedInProgressDays` 上报排除事实，卡片在 `excludedInProgress` 时**必须**渲染 `excludedTodayText`（不得只靠缺口暗示）。该口径为 Lead 裁定：统计类分析统一“进行中桶不入样本”（与 S-01 v2 A12 `todayExcluded` 一致），S4a 波动/稳定性原本只取 complete 桶、口径一致。S-01 v2 文字由 A 在冻结后最小批次补一行，B 不改 A 文档。
 4. **精确分数**：均值为 `numeratorMinor / denominatorDays`，`averageScaledMinor` 只是展示用定点展开；卡片与图例不得把缩放值当权威金额，提示/无障碍名称用 `formatValue` 提供的精确展示。
 5. **窗口身份**：`data-window` 明示 7/30；A13/A14 各自一张卡，不把 7 日结果渲染成 30 日。
 6. 卡片只渲染传入结果，不重算平均、不补零、不折算汇率；页面接线由 Lead 在集成 worktree 统一完成；本批不接页面、不改 API/版本、不碰 `StatsPage.tsx`/`FxStats.tsx`。
 
-**测试证据**：`s4b.analysisData.test.ts`（7 用例：历史扩展、可见计数、30 日窗口、进行中今天、unknown 覆盖、scale、非法窗口）、`movingAverageCards.test.tsx`（3 用例：双序列图例与样本行、`data-window=30` 区分、空状态）；web 全量 172 文件/1566 用例、`tsc -b` exit 0。
+**测试证据**：`s4b.analysisData.test.ts`（8 用例：历史扩展、可见计数、30 日窗口、B-Q20 今天排除 + 无进行中行为不变、unknown 覆盖、scale、非法窗口）、`movingAverageCards.test.tsx`（4 用例：双序列图例与样本行、`data-window=30` 区分、B-Q20 排除说明、空状态）；web 全量 172 文件/1566 用例、`tsc -b` exit 0（B-Q20 修正后定向 2 文件 12 用例全过）。
 
 
 

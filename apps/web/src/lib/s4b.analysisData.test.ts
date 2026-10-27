@@ -88,8 +88,11 @@ describe("deriveMovingAverage（S4b A13/A14）", () => {
     expect(view.result.complete).toBe(true);
   });
 
-  it("进行中的今天按 shared 口径计入（部分日），桶状态保留为 in-progress 供卡片标注", () => {
-    const transactions = [entry({ occurredLocalDate: "2026-10-20", amountCents: 10_000 })];
+  it("B-Q20：进行中的今天被排除出窗口样本，受影响窗口转 window-incomplete 且不补零", () => {
+    const transactions = [
+      entry({ occurredLocalDate: "2026-10-20", amountCents: 10_000 }),
+      entry({ occurredLocalDate: "2026-10-27", amountCents: 5_000 }),
+    ];
     const view = deriveMovingAverage(transactions, {
       span: { start: "2026-10-20", end: "2026-10-28" },
       today: "2026-10-27",
@@ -97,15 +100,37 @@ describe("deriveMovingAverage（S4b A13/A14）", () => {
       coverage: "local-ledger",
     });
 
+    expect(view.excludedInProgressDays).toBe(1);
+    expect(view.todayExcluded).toBe(true);
     const keys = view.points.map((point) => point.bucket.key);
     expect(keys[keys.length - 1]).toBe("2026-10-27");
-    // shared B-4 把「进行中的今天」当作部分日参与窗口（与未来日不同）；
-    // 卡片必须通过桶状态判断并在 sampleText 里说明，不能把它写成完整日。
     const last = view.points[view.points.length - 1]!;
     expect(last.bucket.state).toBe("in-progress");
-    expect(last.average).not.toBeNull();
-    expect(view.points.filter((point) => point.bucket.state === "in-progress")).toHaveLength(1);
-    expect(view.result.unknownWindowPoints).toBe(0);
+    // 今天未结束：金额不进入图与样本（不是 0，是 null）。
+    expect(last.rawMinor).toBeNull();
+    expect(last.average).toBeNull();
+    expect(last.gapReason).toBe("window-incomplete");
+    // 只有“今天”这个尾点自己的 7 日窗口包含今天；更早的尾点窗口不含今天，仍可算。
+    expect(view.result.unknownWindowPoints).toBe(1);
+    expect(view.result.computablePoints).toBe(7);
+    expect(view.result.complete).toBe(false);
+    // 10-20 的窗口是 10-14..10-20，分子只有 10000，不含今天。
+    expect(view.points[0]!.average).toEqual({ numeratorMinor: "10000", denominatorDays: 7 });
+  });
+
+  it("B-Q20：区间不含进行中日期时行为不变（所有可见点仍可计算）", () => {
+    const transactions = [entry({ occurredLocalDate: "2026-10-07", amountCents: 7_000 })];
+    const view = deriveMovingAverage(transactions, {
+      span: { start: "2026-10-07", end: "2026-10-10" },
+      today: "2026-10-27",
+      windowDays: 7,
+      coverage: "local-ledger",
+    });
+
+    expect(view.excludedInProgressDays).toBe(0);
+    expect(view.todayExcluded).toBe(false);
+    expect(view.points.every((point) => point.average !== null)).toBe(true);
+    expect(view.result.complete).toBe(true);
   });
 
   it("覆盖未知时全部窗口不可计算，且不伪造空样本结论", () => {

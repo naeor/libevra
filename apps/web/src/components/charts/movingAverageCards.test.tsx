@@ -107,6 +107,36 @@ describe("MovingAverageCard（S4b A13/A14）", () => {
     expect(html).not.toContain('data-window="7"');
   });
 
+  it("B-Q20：排除进行中的今天时，卡片必须单独说明（不靠缺口暗示）", () => {
+    const excluded = deriveMovingAverage(
+      [entry({ occurredLocalDate: "2026-10-20", amountCents: 10_000 })],
+      {
+        span: { start: "2026-10-20", end: "2026-10-28" },
+        today: "2026-10-27",
+        windowDays: 7,
+        coverage: "local-ledger",
+      },
+    );
+    const html = renderToStaticMarkup(
+      <MovingAverageCard
+        windowDays={7}
+        title="Daily expense and 7-day average"
+        result={excluded.result}
+        labels={labels}
+        formatValue={(point) => (point.rawMinor === null ? "no confirmed amount" : `¥${point.rawMinor}`)}
+        formatAxis={(value) => `¥${String(value)}`}
+        sampleText="8 visible days · 7 unknown-window · 0 missing-history · 1 running"
+        excludedInProgress={excluded.excludedInProgressDays > 0}
+        excludedTodayText="The running day is excluded from every window sample."
+        emptyText="No confirmed day in this range"
+      />,
+    );
+    expect(html).toContain('data-testid="moving-average-card-excluded-today"');
+    expect(html).toContain('data-excluded-today="true"');
+    expect(html).toContain("The running day is excluded from every window sample.");
+    expect(/[\u4e00-\u9fff]/.test(html)).toBe(false);
+  });
+
   it("无确认日期时显示 emptyText，不伪造平均线或零值指标", () => {
     const html = renderWeekly({ result: null });
     expect(html).toContain('data-testid="moving-average-card-empty"');
