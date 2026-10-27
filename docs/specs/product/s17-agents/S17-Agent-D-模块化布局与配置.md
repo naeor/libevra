@@ -6,6 +6,8 @@
 
 > 2026-10-27 完成 **I-1 待命期只读交叉核对**（Lead m02502）：新增 [S17-Agent-D-I1-集成契约映射-v1.md](./S17-Agent-D-I1-集成契约映射-v1.md)——（a）D/C/A 三方类型可组合性三分法（6 条直接可用、4 条需适配器、4 条缺口登记）；（b）I-1 最小接线顺序（I-1a 纯数据链路可立即启动，I-1b 等 A 信封落地 + Codex，I-1c/1d/1e 依次）；（c）不变量核对结论「无冲突」（I-0 静态守卫、C 唯一读取入口/无部分输出、A `partial` 语义一致，仅 C `ok:false` 与 A `completeness` 双轨表达由适配器统一）。只读：未改 A/B/C/D 代码或契约、未接包入口/页面、未 push。
 
+> 2026-10-27 完成 **I-1a 集成胶水层**（Lead m02598 批准执行）：新建 `packages/shared/src/workbench/pipeline.ts` + `pipeline.test.ts`（本地夹具 21 项，覆盖 `AnalysisReference`→`validateAnalysisParams`→`projectLayout`→文档 serialize/parse/roundTrip 全链路）；真实 `typecheck` exit 0、shared 全量 `vitest` **41 files / 732 tests passed**；未接包入口/页面/路由/API、未改 `analysis/**`、未 push。**方向补充（所有者 m11382，Lead m02654）**：最终工作台 UI 由 **Claude** 在现有分析 Tab 内实现（不再等 Codex Demo）；**D 的布局引擎是唯一实现**，Claude 通过 [I-1 集成契约映射](./S17-Agent-D-I1-集成契约映射-v1.md) 消费布局文档/投影；**D-2 阻塞条件改为「等 Claude 视觉/适配要求 + Lead 验收」**（原「等 Codex 视觉规范」失效，Codex 材料仅历史参考）；I-1b 起含 C draft→A 信封适配；最小集成验收=真实分析 Tab + D 布局能力 + 至少一张 A/B/C 真实数据链路卡片（首选 B 移动平均卡）。
+
 ---
 
 ## 1. Agent 身份
@@ -110,6 +112,13 @@
   - §4 不变量核对：**无冲突**——I-0 静态守卫与 C 纯函数/注入式 rangeGuard 一致；C 唯一读取入口/无部分输出与 A `completeness`/`unavailableReason` 语义一致（双轨表达由 A-1 适配器统一，D 不实现）；A `partial`（整结果层 9 态）与 C `DraftFxCompleteness.partial`（P17/P19/P20 missingCount>0）映射规则 G-27 已定。
   - 边界：只读 A/B/C 工作区（A `6f72f9f`、B `78b9d05`、C `a1f792f`），未改任何代码/契约、未接包入口/页面、未 push。
 
+- **I-1a 集成胶水层（2026-10-27，Lead m02598 批准；纯数据链路，无查询无 UI）**：
+  - 新建 `packages/shared/src/workbench/pipeline.ts`：`runLayoutPipeline(input, options)` 把「`AnalysisReference`→`validateAnalysisParams`→`projectLayout`→文档 serialize/parse/validate/roundTrip」串成纯函数管道。步骤：文档加载（JSON 字符串→D-1 parser；对象→validator；错误路径加 `content.`/`layout.` 前缀）→ 逐卡分析引用校验（`invalid`→error；`readonly`→warning `pipeline-readonly-analysis`）→ 跨文档一致性（重复布局对象 / spacer 与内容同 ID / 孤儿 / 类型不一致 / 内容未放置 warning）→ 目标列数 1–12 校验 → `projectLayout(layout.main, content, …)` → 双文档序列化与 roundTrip；`ok=无 error`、输入不修改、不写回。
+  - 新建 `pipeline.test.ts`（21 项，本地夹具，不依赖 `analysis/layout/test-support`）：合法链路/文档往返/输入不变/确定性/JSON 输入/空文档；内容/布局文档非法（路径前缀）与损坏 JSON；非法 params/未知 analysisId/较新版本/白名单外键；孤儿、spacer 同 ID、类型不一致、未放置 warning、GridSplit 容器投影；目标列数非法（error 且安全 2 列投影）、跨列 2/3/4 稳定、独立模式 `profiles` 序列化保留。**21/21 通过**。
+  - 验证：真实 `pnpm.cmd --filter @libellum/shared typecheck` exit 0；shared 全量 `vitest` **41 files / 732 tests passed**；`pnpm.cmd -r exec tsc -b` 仅 `apps/api` 因未生成 Prisma client（`apps/api/src/generated` 不存在）与既有测试隐式 any 失败（与本批无关；`--filter @libellum/shared exec tsc -b` exit 0）。
+  - 边界：未改 `packages/shared/src/index.ts` 顶层公开面、未改 `analysis/**` 既有文件/契约、未接 `apps/web`/路由/API/迁移、未 push。回退=删除 `packages/shared/src/workbench/`（或单提交 revert）。
+  - 方向补充（所有者 m11382，Lead m02654）：最终工作台 UI 由 Claude 接管、D-2 不再等 Codex 视觉；**D-2 阻塞条件改为「等 Claude 视觉/适配要求 + Lead 验收」**；布局引擎唯一实现=Agent D，Claude 通过 I-1 文档消费布局能力；I-1b 起含 C draft→A 信封适配。
+
 ### 2.3 不负责（明确）
 
 - 不实现任何财务计算函数或图表绘制（金额、统计、趋势、汇率折算等均由 A/B/C 负责）。
@@ -118,9 +127,9 @@
 
 ### 2.4 依赖接口
 
-- S-03 卡片注册与 AnalysisDefinition 协议：与 Lead、A、Codex 对齐；D 提供尺寸/布局侧契约。
+- S-03 卡片注册与 AnalysisDefinition 协议：与 Lead、A、Claude（工作台 UI 实现方）对齐；D 提供尺寸/布局侧契约。
 - 需要 A/B/C 提供卡片的“最小尺寸/推荐尺寸/内容密度”声明；D 不替他们定义财务内容。
-- Codex 视觉规范：卡片外观/间距/动画；D 不自创视觉体系。
+- 视觉规范（所有者 m11382 / Lead m02654 更新）：最终工作台 UI 由 **Claude** 接管，视觉规范改为 **Claude 正式页面视觉 + 卡片适配要求**（不再等 Codex Demo；Codex 材料仅历史参考）；D 不自创视觉体系，且 D 的布局引擎是唯一实现——Claude 通过 I-1 集成契约映射文档消费布局文档/投影。
 - 个人配置存储：本地优先（现有 IndexedDB/持久化风格）→ 服务端同步方案需所有者批准；隐私与合规（OQ privacy gate）。
 - 分享短码：需要随机、不可枚举、限流与失效策略；禁止泄露账务数据。
 
@@ -162,10 +171,10 @@
 
 | 能力组 | 状态 | 备注 |
 |---|---|---|
-| W2 布局数据结构约束 | D-0 首提交完成，Lead 评审通过（条件性）；D-1 完成（属性测试/夹具/序列化/损坏配置）；D-2 前置完成（交互模型/状态机草案 + S-03 布局侧草案 + 编辑器命令/焦点/状态机，Lead 评审通过）；D-3 headless 完成且 Lead 验收通过；**D-4 前置 headless 完成且 Lead 验收通过（m00988）**；**D-5 只读预研完成，待 Lead 汇总（集成清单/30+36 项对照/1.16.23 影响面/S-01 v2 复核）**；**D-6 前置 headless 完成并 Lead 验收（G-12a v1.1 params 白名单校验 + 分享导入门，21 files/327 tests；T-8 已落）** | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **21 files / 327 tests passed**（含 10,400 属性场景、编辑逻辑、D-3 迁移/修复/紧凑/容器、D-4 文档 IO/迁移链/分享/导入/合并）；尺寸数值与 OQ-LM 仍待上游；D-2 UI 待 Codex 视觉；1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`），Lead 指令 D-5 提交后 rebase；2026-10-27 所有者八项 OQ 方向核对完成（OQ-LM-04/06 等落实为正式决定；OQ-LM-03/05 部分落实；OQ-LM-07 方向未覆盖原问题；差异 7 项见 [OQ 落实与差异清单](./S17-Agent-D-OQ落实与差异清单-v1.md)），新增 [布局与交互设计稿](./S17-Agent-D-布局与交互设计稿-v1.md)（10 条交互方向），仅文档未改代码；2026-10-27 D-3.1 独立档案/模式迁移引擎完成（`profiles.ts` 22 项 + G-12b 3 项；18 files / 234 tests；S-03 draft v0.5）；2026-10-27 D-3.2 容器数据模型/占位语义与迁移固定案例完成（`containers.ts` 19 项 + `migration-cases.test.ts` 12 项；20 files / 265 tests；S-03 draft v0.6）；2026-10-27 S-01 v2 r6 针对性复核（只读，D 侧无阻塞）+ S-03 v0.7 纯文档同步（不改代码/契约）；2026-10-27 D-6 G-12a v1 params 白名单校验纯函数 + 分享导入门实现（`params-validation.ts` 51 项 + `import-pipeline.ts` 门与逐卡校验；21 files / 323 tests；仍未接包入口、分享门不放行、不改 S-01/S-03 契约）；Lead 验收 D-6（`d96f232`）并裁定分享导入门本冻结周期维持关闭；2026-10-27 A 发布 G-12a v1.1（T-8）与 r7.2，D 完成 T-8 表数据/用例同步（`params-validation.ts` 55 项、21 files / 327 tests；只改表数据/用例、不改校验结构；S-03 升 draft v0.8）；**I-0 完成（2026-10-27，Lead m02293 批准）：包入口 10 组精选具名导出 + 静态守卫测试，shared 全量 40 files / 711 tests、`check:build` exit 0，仍未接页面/未加迁移、未改契约** |
-| W5 网格/模板/容器/编辑 | 未开始 | 依赖 Codex 视觉规范、S-03 与卡片清单；OQ-LM-03/04/05/06/07 仍待所有者（OQ-LM-01 已锁定 size-first） |
+| W2 布局数据结构约束 | D-0 首提交完成，Lead 评审通过（条件性）；D-1 完成（属性测试/夹具/序列化/损坏配置）；D-2 前置完成（交互模型/状态机草案 + S-03 布局侧草案 + 编辑器命令/焦点/状态机，Lead 评审通过）；D-3 headless 完成且 Lead 验收通过；**D-4 前置 headless 完成且 Lead 验收通过（m00988）**；**D-5 只读预研完成，待 Lead 汇总（集成清单/30+36 项对照/1.16.23 影响面/S-01 v2 复核）**；**D-6 前置 headless 完成并 Lead 验收（G-12a v1.1 params 白名单校验 + 分享导入门，21 files/327 tests；T-8 已落）** | 真实 `typecheck` exit 0；`vitest run src/analysis/layout` **21 files / 327 tests passed**（含 10,400 属性场景、编辑逻辑、D-3 迁移/修复/紧凑/容器、D-4 文档 IO/迁移链/分享/导入/合并）；尺寸数值与 OQ-LM 仍待上游；D-2 UI 待 Codex 视觉；1.16.23 已发布（`release/1.16.23` @ `d4e4fd8`），Lead 指令 D-5 提交后 rebase；2026-10-27 所有者八项 OQ 方向核对完成（OQ-LM-04/06 等落实为正式决定；OQ-LM-03/05 部分落实；OQ-LM-07 方向未覆盖原问题；差异 7 项见 [OQ 落实与差异清单](./S17-Agent-D-OQ落实与差异清单-v1.md)），新增 [布局与交互设计稿](./S17-Agent-D-布局与交互设计稿-v1.md)（10 条交互方向），仅文档未改代码；2026-10-27 D-3.1 独立档案/模式迁移引擎完成（`profiles.ts` 22 项 + G-12b 3 项；18 files / 234 tests；S-03 draft v0.5）；2026-10-27 D-3.2 容器数据模型/占位语义与迁移固定案例完成（`containers.ts` 19 项 + `migration-cases.test.ts` 12 项；20 files / 265 tests；S-03 draft v0.6）；2026-10-27 S-01 v2 r6 针对性复核（只读，D 侧无阻塞）+ S-03 v0.7 纯文档同步（不改代码/契约）；2026-10-27 D-6 G-12a v1 params 白名单校验纯函数 + 分享导入门实现（`params-validation.ts` 51 项 + `import-pipeline.ts` 门与逐卡校验；21 files / 323 tests；仍未接包入口、分享门不放行、不改 S-01/S-03 契约）；Lead 验收 D-6（`d96f232`）并裁定分享导入门本冻结周期维持关闭；2026-10-27 A 发布 G-12a v1.1（T-8）与 r7.2，D 完成 T-8 表数据/用例同步（`params-validation.ts` 55 项、21 files / 327 tests；只改表数据/用例、不改校验结构；S-03 升 draft v0.8）；**I-0 完成（2026-10-27，Lead m02293 批准）：包入口 10 组精选具名导出 + 静态守卫测试，shared 全量 40 files / 711 tests、`check:build` exit 0，仍未接页面/未加迁移、未改契约；**I-1a 完成（2026-10-27，Lead m02598 批准）：`packages/shared/src/workbench/pipeline.ts` + `pipeline.test.ts` 21 项，shared 全量 41 files / 732 tests、`typecheck` exit 0，仍未接页面/包入口顶层/迁移** |
+| W5 网格/模板/容器/编辑 | 未开始 | 依赖 Claude 视觉/适配要求（所有者 m11382 起工作台 UI 由 Claude 接管；原 Codex 视觉规范不再作为阻塞）、S-03 与卡片清单；OQ-LM-03/04/05/06/07 仍待所有者（OQ-LM-01 已锁定 size-first） |
 | W6 配置/同步/分享 | 未开始 | 依赖同步与隐私合规决策；W2 已预留档案键/引用槽占位字段 |
-| 布局算法测试 | D-1 完成（属性测试 ≥10⁴、TC-07…26 纯算法部分、序列化与损坏配置）；D-3 新增迁移矩阵/修复顺序/紧凑/容器用例；D-4 新增文档 IO/迁移链/分享快照与短码/导入管道/合并契约用例（59 项）；D-3.1 新增独立档案/模式迁移与 G-12b 用例（25 项）；D-3.2 新增容器数据模型/占位语义与迁移固定案例用例（31 项）；D-6 新增 G-12a params 白名单校验（51 项 → T-8 同步后 55 项）与分享导入门用例（7 项） | 累计 21 files / 327 tests；非纯算法用例（TC-15/18/19/21/23/24）留集成/UI 批次；服务端同步与公开分享不测（未实现） |
+| 布局算法测试 | D-1 完成（属性测试 ≥10⁴、TC-07…26 纯算法部分、序列化与损坏配置）；D-3 新增迁移矩阵/修复顺序/紧凑/容器用例；D-4 新增文档 IO/迁移链/分享快照与短码/导入管道/合并契约用例（59 项）；D-3.1 新增独立档案/模式迁移与 G-12b 用例（25 项）；D-3.2 新增容器数据模型/占位语义与迁移固定案例用例（31 项）；D-6 新增 G-12a params 白名单校验（51 项 → T-8 同步后 55 项）与分享导入门用例（7 项）；I-1a 新增 `src/workbench/pipeline.test.ts` 21 项 | 累计 `src/analysis/layout` 21 files / 327 tests；shared 全量（含 `src/workbench`）41 files / 732 tests；非纯算法用例（TC-15/18/19/21/23/24）留集成/UI 批次；服务端同步与公开分享不测（未实现） |
 
 ---
 
@@ -204,6 +213,7 @@
 | 2026-10-27 | **D-2 集成前检查清单（待命期间只读准备，Lead m02293）**：`s01-v2` 已冻结（Lead 验收 T-8 同步）后 D 进入待命；产出只读准备清单：基线（布局目录 41 文件 / 21 测试文件 / 327 tests / typecheck exit 0）、导出面（barrel 17 个 `export *`、**248 个导出标识符**、候选名冲突 0、建议最小导出面与 I-0 不变量）、权限检查（不做鉴权/不加权限/静态守卫属 I-0）、容量检查（列 1–12、卡片 40、容器 12、深度 1、params 键 ≤12、快照 ≤64KB 等）、回退路径（仅包入口单提交 revert，无数据/迁移/服务端变更）、待确认与不启动声明（I-0、D-2 UI、命令扩展均不启动）；未改代码/契约/包入口、未 push | 新增 `S17-Agent-D-D2-集成前检查清单-v1.md` + 本文件 | `37644d5` + 本记录提交 | 未运行（纯文档；引用 T-8 后实测 21 files/327 tests） | 无 | 无（I-0 未启动；B-6 分享门仍关闭） | 报 Lead：s01-v2 验收确认 + 待命准备清单已提交；继续待命（D-2 UI 等真实 Codex 视觉；I-0 待 Lead 批准） |
 | 2026-10-27 | **I-0 包入口精选导出 + 静态守卫（Lead m02293 批准）**：`packages/shared/src/index.ts` 在 `fxHistory` 导出后追加 10 组精选具名导出（additive、显式 `export type`、约 214 个公开符号，**未用 `export *` 全量并入**；低层占位常量/调试函数/测试辅助不导出）；新增 `packages/shared/src/analysis/layout/export-surface.test.ts` 8 项静态守卫（入口段与无全量 export*/布局 248 标识符重名=0 与 reserved word=0/内部符号不泄漏/21 个函数与目录 barrel 同源/`import type` 可用/生产模块 17 个无 I/O-DOM-网络-时钟-随机-框架依赖且不反向 import 包入口/投影不写回且确定）；未改布局源文件、未改 S-01/S-03 契约、未加迁移/页面/API、未改版本号、未 push | `packages/shared/src/index.ts`、`packages/shared/src/analysis/layout/export-surface.test.ts`、本文件 | `005046d`（+ 本记录提交） | 真实 `typecheck` exit 0；shared 全量 `vitest` **40 files / 711 tests passed**；`pnpm check:build` exit 0（真实 web 构建通过） | 包入口新增约 214 个 layout 公开符号（additive，既有导出签名/行为未改；内部辅助不导出，回退=单提交 revert `index.ts`） | 重名/保留字检查 0 冲突；`apps/web` 侧尚未 import 这些符号（I-1+ 批次再接）；测试文件使用 `/// <reference types="node" />` 仅为守卫测试自身需求 | 回执 Lead（导出组清单/守卫用例/验证证据/提交号/回退说明）；等 Lead 批准后续集成批次；D-2 UI 仍等真实 Codex 视觉规范 |
 | 2026-10-27 | **I-1 待命期只读交叉核对（Lead m02502）**：新增 `S17-Agent-D-I1-集成契约映射-v1.md`——D/C/A 三方类型可组合性三分法（直接可用 6 / 需适配器 4 / 缺口 4：信封 version 串、A 代码常量 `s01-draft`、C 未进包入口、记录级来源通道）、I-1 最小接线顺序（I-1a 可立即启动；I-1b/c/d/e 依次等 A 信封/Codex 视觉/分享放行）、不变量核对结论「**无冲突**」（I-0 守卫 vs C 纯函数、C `ok:false` vs A `completeness` 双轨由适配器统一、A `partial` vs C `DraftFxCompleteness.partial` 按 G-27 映射）。只读 A/B/C 工作区（A `6f72f9f`/B `78b9d05`/C `a1f792f`），未改代码/契约、未接包入口/页面、未 push | 新增 I-1 文档 + 本文件 | `47eae0c` | 未运行（只读文档核对）；`check-links` 209 份/1038 链接失效 0、`doc-audit` exit 0、`check-status` 通过（1.16.23/60） | 无接口变化 | 缺口 G-1…G-4 已登记（不实现）；I-1a 建议可启动但需 Lead 批准；D-2 UI 等 Codex | 回 Lead 提交号 + 摘要；等 Lead 决定 I-1a 启动与缺口收口责任 |
+| 2026-10-27 | **I-1a 集成胶水层（Lead m02598 批准；纯数据链路）**：新建 `packages/shared/src/workbench/pipeline.ts`（`runLayoutPipeline`：文档加载/校验→逐卡 `validateAnalysisParams`→跨文档一致性→`projectLayout`→序列化/roundTrip；`ok=无 error`、输入不修改）与 `pipeline.test.ts`（本地夹具 21 项）；未改 `analysis/**`、未接 `packages/shared/src/index.ts` 顶层公开面、未接 apps/web/路由/API/迁移；所有者 m11382 方向补充：工作台 UI 由 Claude 接管、D-2 阻塞条件改为「等 Claude 视觉/适配要求 + Lead 验收」 | 新建 `packages/shared/src/workbench/*` + 本文件 | 本轮 feat 提交（待回填） | 真实 `typecheck` exit 0；shared 全量 `vitest` **41 files / 732 tests passed**；`pnpm.cmd -r exec tsc -b` 仅 `apps/api` 因未生成 Prisma client 与既有测试隐式 any 失败（与本批无关；shared 单包 `tsc -b` exit 0） | 新增 API 仅 `packages/shared/src/workbench/pipeline.ts`（未接包入口）；夹具本地构造未新增 test-support | 缺口 G-1…G-4 未变；I-1b 需 G-1/G-2 收口 + C→A 适配 + Claude 视觉；D-2 不再等 Codex | 回执 Lead（文件清单/API/测试证据/提交号/链路对应/I-1b 前置判断）；等 Lead 安排 I-1b 与 Claude 视觉对接 |
 
 ---
 
@@ -220,7 +230,7 @@
 | D-Q7 | OQ-LM-03/04/05/06/07 状态（2026-10-27 所有者方向核对后） | OQ-LM-04/06 **已落实为正式决定**（D-OQ-04/06）；OQ-LM-03/05 **部分落实**、余项待所有者（DIFF-01/02）；OQ-LM-07 所给方向未覆盖原 M1/M2/M3 问题（DIFF-03），需重新明确；明细见 [OQ 落实与差异清单](./S17-Agent-D-OQ落实与差异清单-v1.md) 与 S-03 §8.2 | 所有者（差异答复） |
 | D-Q8 | 卡片 `minSize`/`sizeLadder`/`compatSize`、Codex 视觉规范、S-01 冻结仍待上游 | 阻塞尺寸契约冻结、D-2 UI 与 S-03 对齐 | Lead / A/B/C / Codex |
 | D-Q9 | 索引 B-14（D 规格未下发）状态 | ~~仅索引一致性问题~~ **已解除（2026-10-27）**：Lead 已更新 orchestrator 索引（`3fc42db`） | 已解除 |
-| D-Q10 | D-3 headless 与 S-03 v0.2 待 Lead 评审；D-2 UI 待 Codex 视觉规范 | ~~阻塞~~ **D-3 与 S-03 v0.2 已解除（2026-10-27，Lead 验收通过并批准 D-4 前置）**；D-2 UI 仍待 Codex 视觉规范 | Lead / Codex |
+| D-Q10 | D-3 headless 与 S-03 v0.2 待 Lead 评审；D-2 UI 待 Codex 视觉规范 | ~~阻塞~~ **D-3 与 S-03 v0.2 已解除（2026-10-27，Lead 验收通过并批准 D-4 前置）**；**D-2 UI 阻塞条件已更新（所有者 m11382，Lead m02654）：等 Claude 视觉/适配要求 + Lead 验收**（工作台 UI 由 Claude 接管；D 布局引擎是唯一实现，Claude 通过 I-1 文档消费；不再等 Codex 视觉规范） | Lead / Claude |
 | D-Q12 | 分享短码参数（位数/字符集/限速/唯一性）与公开分享隐私合规（OQ-CF-10 / B-6） | 阻塞 W6 公开分享上线；D-4 已按候选 8–10 位去歧义字母表实现纯函数，参数可配置、未冻结 | 所有者（W6） |
 | D-Q11 | OQ-LM-01 默认迁移策略 | **已裁定（2026-10-27）**：锁定 `size-first`（S）；`position-first` 仅作对照保留 | 已解除 |
 | D-Q13 | OQ-CF-01 布局文档合并粒度：所有者要求“避免整份覆盖、尽量安全合并”，与现行“布局文档整体替换 + `previousMain`”冲突（DIFF-04） | W6 同步合并实现与验收 | 所有者（W6 前；在此之前维持推荐口径并标注待定） |
@@ -229,7 +239,7 @@
 | D-Q16 | “对照已有同步架构”前提不成立：W6 服务端同步尚未实现（仅契约占位）（DIFF-07） | OQ-CF-01 最小可行实现只能到契约级 | Lead（W6 批准后组织实现评审） |
 | D-Q17 | S-01 v2 冻结依赖 A 修订 D 侧 3 项阻塞项（D-V2-01 §2 桶级 completeness 文字、D-V2-02 §6 布局契约权威/冻结范围、D-V2-03 G-13 密度/最小尺寸门槛）；另 2 项部分覆盖（D-V2-04 缓存键域、D-V2-06 analysisVersion 正文规则）建议同轮文字修订 | **已裁定（2026-10-27 所有者书面裁定 `f215fa9`）**：D-V2-01/02/03 全部接受（桶级五态、S-01 布局部分非规范性引用/S-03 唯一权威、G-13a 进冻结/G-13b 归 W3）；D-V2-04～08 原则接受。A 最终修订到达后 D 只做针对性复核（等 Lead 复核清单） | A 最终修订 + Lead 清单（D 单点复核）；A r6 已到达，D 针对性复核四项 ✅、无阻塞（2026-10-27），Lead 接受 4 条 🟡 裁定 → **本项已解除（2026-10-27；A r7 如需仅微调 T-8 说明）** |
 | D-Q18 | G-12a params 白名单**正式发布物**与 G-13b 密度/最小尺寸数值 | 所有者裁定：G-12a 要成为可供 D 实施的正式发布物（A 负责出，未完成校验测试前分享导入关闭）；G-13b 由 W3 原型+真机决定；卡片密度正式定义归 Codex 视觉规范 | A（发布物，已产出 v1）/ W3 / Codex；G-12a v1 已产出（draft 随 S-01 v2），D 已在 S-03 v0.7 登记为校验输入与导入门；**D-6 已于 2026-10-27 实现 G-12a v1 校验纯函数（51 项测试，含 30 条逐条覆盖）与 `shareImportAllowed` 导入门**，待 B/C 核对与 Lead 复核后放行；G-12a 升版时 D 只同步表数据、不改校验结构；**Lead 2026-10-27 裁定：分享导入门本冻结周期维持关闭、不决策放行**（放行需 A r7 表同步 + B/C 核对 + 集成导入真实接线/权限容量测试）；D-6 已完成 G-12a v1 校验实现与 51 项测试，等 r7 做表数据小同步（不改结构）。**2026-10-27 A 已补 G-12a v1.1（`782b036`）与 r7.2（`b39b27a`）；D 同日完成 T-8 表数据/用例同步（`timeFixed` 6 预设枚举、旧绝对对象拒绝；`params-validation.test.ts` 55 项、21 files/327 tests），只改表数据/用例、未改校验结构 → 本项已解除（剩分享门放行待 Lead/B/C 核对与集成接线）** |
-| D-Q19 | 容器槽位与 children 的分配策略（GridSplit 哪个子对象进哪个槽位）、容器内部编辑命令、1×1 入口最终 UI | 已由 D-3.2 落地数据语义与占位/恢复；分配策略与内部编辑属 W5/编辑器批次（依 Codex 视觉） | Lead / Codex（W5） |
+| D-Q19 | 容器槽位与 children 的分配策略（GridSplit 哪个子对象进哪个槽位）、容器内部编辑命令、1×1 入口最终 UI | 已由 D-3.2 落地数据语义与占位/恢复；分配策略与内部编辑属 W5/编辑器批次（**依 Claude 视觉/适配要求**，所有者 m11382 起 UI 由 Claude 接管；原 Codex 视觉不再作为阻塞） | Lead / Claude（W5） |
 
 ---
 
