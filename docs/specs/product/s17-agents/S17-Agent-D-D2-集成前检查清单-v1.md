@@ -109,4 +109,5 @@
 - **守卫交付物**：`packages/shared/src/analysis/layout/export-surface.test.ts`（8 项）——入口段与无全量 export*、全量标识符重名/保留字、内部符号不泄漏、精选函数与目录 barrel 同源、`import type` 可用、生产模块无 I/O-DOM-网络-时钟-随机/框架依赖且不反向 import 包入口、投影不写回权威布局且确定性。
 - **真实验证**：`pnpm --filter @libellum/shared typecheck` exit 0；shared 全量 `vitest` **40 files / 711 tests passed**；文档检查通过；`pnpm check:build` exit 0（真实 web 构建通过）。
 - **回退**：单提交 revert `packages/shared/src/index.ts`（无数据/迁移/服务端变更）。
+- **提交**：`005046d`（I-0 代码+守卫测试+文档；本清单文档随回填提交）。
 - **未做**：未接页面/路由/API、未改布局目录源文件、未改 S-01/S-03 契约、未加迁移、未改版本号、未 push；`apps/web` 侧 import 留 I-1+ 批次。
