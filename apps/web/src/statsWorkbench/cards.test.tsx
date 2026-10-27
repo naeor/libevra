@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import type { Transaction } from "@libellum/shared";
+import { aggregateFx, type Transaction } from "@libellum/shared";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { applyLocale } from "../i18n/index.js";
@@ -91,5 +91,34 @@ describe("卡片内容", () => {
     expect(cardTitle(custom, t)).toBe("本月开销");
     const pinned = { ...newCard("AN-B01"), rangePolicy: "pinned" as const, pinnedRange: { from: "2026-10-01", to: "2026-10-31" } };
     expect(cardSubtitle(pinned, scope(), t)).toContain("Fixed");
+  });
+
+  it("固定时间卡片不把全局筛选金额冒充成固定区间的综合折算", () => {
+    const card = { ...newCard("AN-B01"), rangePolicy: "pinned" as const, pinnedRange: { from: "2026-10-01", to: "2026-10-02" } };
+    const html = renderToStaticMarkup(<CardBody card={card} scope={scope({ combined: true, fxAvailable: true })} density="medium" />);
+    expect(html).toContain("独立时间范围");
+    expect(html).not.toContain("正在按历史汇率折算");
+  });
+
+  it("全缺汇率时数字与分类均为未知，不显示0元或没有记录", () => {
+    const rows = [{ ...entry({ currency: "USD" }), bookId: "fixture-book" }];
+    const result = aggregateFx("fixture-account", "fixture-book", rows, "CNY", new Map());
+    const fx = { result, loading: false, sourceComplete: true, refresh: () => {} } as NonNullable<WorkbenchScope["fx"]>;
+    for (const id of ["AN-B01", "AN-I01"]) {
+      const html = renderToStaticMarkup(<CardBody card={newCard(id)} scope={scope({ combined: true, fxAvailable: true, fx })} density="expanded" />);
+      expect(html).toContain("缺少汇率");
+      expect(html).toContain("无法确定");
+      expect(html).not.toContain("¥0.00");
+      expect(html).not.toContain("这段时间没有记录");
+    }
+  });
+
+  it("来源覆盖缺失与缺汇率分开提示，金额只显示已知小计", () => {
+    const result = aggregateFx("fixture-account", "fixture-book", [{ ...entry(), bookId: "fixture-book" }], "CNY", new Map());
+    const fx = { result, loading: false, sourceComplete: false, refresh: () => {} } as NonNullable<WorkbenchScope["fx"]>;
+    const html = renderToStaticMarkup(<CardBody card={newCard("AN-B01")} scope={scope({ combined: true, fxAvailable: true, fx })} density="medium" />);
+    expect(html).toContain("¥1,234.56");
+    expect(html).not.toContain("有 0 笔缺少汇率");
+    expect(html).toContain(t("fx.dataIncomplete"));
   });
 });
