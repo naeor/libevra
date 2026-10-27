@@ -1,8 +1,8 @@
 /**
- * S-01 draft — the shared analysis result protocol (2026-10-27).
+ * S-01 v2 — the shared analysis result protocol (frozen `s01-v2`, 2026-10-27).
  *
- * Registered by Agent A for review by Lead, Claude, Agent B, Agent C and
- * Agent D. **Not frozen yet** (`ANALYSIS_PROTOCOL_VERSION`). The owner's
+ * Registered by Agent A; frozen baseline = S-01 v2 r7.2 + G-12a v1.1
+ * (freeze record `2b6a869`/`0aee9d8`). The owner's
  * specification §4 asks for one result envelope that every layer can pass
  * around without re-deriving finance:
  *
@@ -27,11 +27,12 @@ import type { Ratio } from "./rational.js";
 /**
  * Version of the result protocol itself.
  *
- * Bumped when a shape changes in a way that breaks consumers. The owner's
- * specification allows the draft to be extended (time series, distribution,
- * matrix) without breaking scalar/grouped results.
+ * Frozen value: `s01-v2` (2026-10-27). Pre-freeze draft strings
+ * (`s01-draft` / `s01-v2-draft`) are legacy history only: this module never
+ * produces them; readers accept old data per S-01 v2 §16.5's compatibility
+ * rules. Bumped only by a post-freeze protocol change record (v2.x).
  */
-export const ANALYSIS_PROTOCOL_VERSION = "s01-draft";
+export const ANALYSIS_PROTOCOL_VERSION = "s01-v2";
 
 /** Rounding direction of every authoritative amount in this protocol. */
 export const ANALYSIS_ROUNDING_POLICY = "minor-half-away-v1";

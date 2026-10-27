@@ -51,22 +51,24 @@
 
 ---
 
-## 2. 统一结果信封（v2 冻结候选）
+## 2. 统一结果信封（v2 冻结，唯一一份；`s01-v2`）
 
 沿用 s01-draft `AnalysisResultBase`，v2 只做**只增不改**的扩展：
 
 | 字段 | v2 口径 | 状态 |
 |---|---|---|
-| `version` | `"s01-v2-draft"`（冻结时定正式版本串） | 🟡 版本号命名待 Lead 定 |
+| `version` | **`"s01-v2"`（已冻结，唯一正式版本串）**；`s01-draft`/`s01-v2-draft` 仅历史标识，A 侧模块不再产出，旧数据按 §16.5 兼容读取 | 👍 冻结（G-15 已解决） |
 | `analysisId` / `analysisType` / `metric` | 沿用；`analysisType` 命名空间 `<domain>.<name>`，domain ∈ `basic\|category\|time\|dist\|cross\|record\|fx`（开放，**`fx` 由 XC-02 补入**：P16–P20 的 FX 诊断以 `analysisType="fx.*"` 自描述，不依赖单值枚举；未知域允许 `<domain>.<name>` 形式）；**`metric` 允许 `count`**（计数类序列用整数，`MoneyValue` 不适用；也允许 `<domain>.<name>` 形式，未知 metric 必须带 `unavailableReason`，不得静默当 0）——B-V2-05 澄清已采纳 | 👍（B-V2-05、XC-02） |
 | `resolvedFilters` / `resolvedPeriod` / `resolvedCurrency` | 沿用；`resolvedPeriod` 仍为**闭区间**；月键比较另带比较键元数据 | 👍 |
 | `completeness` | 沿用 9 态，**9 态仅用于整结果层**；**时间桶级使用五态 `state`（不新增桶级枚举）**，与 §4.10/B-V2-04 同一表述；桶级可带 `unavailableReason?`，不得用 9 态覆盖桶状态（**D-V2-01** 采纳，与 §4.10 合并） | 👍（D-V2-01、B-V2-04） |
-| `dataVersion` | 书级数据版本令牌，由计算入口提供、A 只透传；**分析结果缓存键**必须包含 `dataVersion`；**布局投影缓存键**由 S-03 §4 作为实现约定定义（不含 `dataVersion`，几何投影不依赖分析结果版本）——**D-V2-04** 澄清。**B-V2-08 澄清**：web 客户端本地计算路径当前无服务端入口，允许 `string \| null`（`null`=客户端本地计算、非权威），取值规则由 **G-10** 裁定；冻结前不得把客户端令牌当权威 | 🟡 G-10（B-V2-08 已登记） |
-| `computation` | 增可选 `method`（如 `quantile-type7`/`population-stddev`/`histogram-sturges`；**B-V2-10 补充取值**：`population-stddev`/`sample-cv-fixedpoint`/`mad-median`/`iqr-quantile`，开放字符串、未知值透传不重算；**XC-07/XC-41**：直方图算法名与算法本体待所有者裁定——C 现实现为 `histogram-nice-bin-width`（非 Sturges），分位名 C 用 `type7-linear`，v2 暂登记两候选、冻结前统一）、`sampling?`（仅**视觉层**采样元信息，不可回算；**XC-08/XC-35**：结果层可追溯采样字段（如 `strategy`/`omittedCount`/`sampleCount`/`complete`）为权威，`computation.sampling` 只作视觉标注且不得与结果层冲突）、`coverageEnd?`、**`analysisLimit?`**（`maxAnalysisDays`/`maxMonths` 及 C 的 `MAX_*` 越界可追溯，B 缺口 1 / G-18 / **XC-09**） | 🟡 字段名/是否进冻结待评审（R-09） |
-| `source` | `SourceDescriptor.query.kind` 增 `"analysis-records"`、`"fx"`（记录级/FX 只读投影）；`bucket?`（B 时间桶，格式 `{ key, granularity, span: { start, end } }`）；按 B X-02 **删除 `timeBucket?`**，不保留两套桶引用；**B-V2-06 收窄映射见 §4.4**（`stats`/`transactions`/`analysis-records`/`fx`，允许 `kind: string`+可选 `params`，未知 kind 必须报 `unavailableReason`） | 🟡 待裁定（QC-01/QC-13/G-02） |
+| `dataVersion` | 书级数据版本令牌，由计算入口提供、A 只透传；**分析结果缓存键**必须包含 `dataVersion`；**布局投影缓存键**由 S-03 §4 作为实现约定定义（不含 `dataVersion`，几何投影不依赖分析结果版本）——**D-V2-04** 澄清。**B-V2-08 澄清**：web 客户端本地计算路径当前无服务端入口，允许 `string \| null`（`null`=客户端本地计算、非权威），取值规则由 **G-10** 裁定；冻结前不得把客户端令牌当权威 | 👍 冻结（`string | null` 按本行口径；`null`=客户端本地计算、非权威，规则见 §16.5/结果缓存键） |
+| `computation` | 增可选 `method`（如 `quantile-type7`/`population-stddev`/`histogram-sturges`；**B-V2-10 补充取值**：`population-stddev`/`sample-cv-fixedpoint`/`mad-median`/`iqr-quantile`，开放字符串、未知值透传不重算；**XC-07/XC-41**：直方图算法名与算法本体待所有者裁定——C 现实现为 `histogram-nice-bin-width`（非 Sturges），分位名 C 用 `type7-linear`，v2 暂登记两候选、冻结前统一）、`sampling?`（仅**视觉层**采样元信息，不可回算；**XC-08/XC-35**：结果层可追溯采样字段（如 `strategy`/`omittedCount`/`sampleCount`/`complete`）为权威，`computation.sampling` 只作视觉标注且不得与结果层冲突）、`coverageEnd?`、**`analysisLimit?`**（`maxAnalysisDays`/`maxMonths` 及 C 的 `MAX_*` 越界可追溯，B 缺口 1 / G-18 / **XC-09**） | 👍 冻结（字段名按本表；`method` 取值口径见 v2.0.1 裁定；`sampling` 仅视觉层；`coverageEnd`/`analysisLimit` 可追溯） |
+| `source` | `SourceDescriptor.query.kind` 增 `"analysis-records"`、`"fx"`（记录级/FX 只读投影）；`bucket?`（B 时间桶，格式 `{ key, granularity, span: { start, end } }`）；按 B X-02 **删除 `timeBucket?`**，不保留两套桶引用；**B-V2-06 收窄映射见 §4.4**（`stats`/`transactions`/`analysis-records`/`fx`，允许 `kind: string`+可选 `params`，未知 kind 必须报 `unavailableReason`） | 👍 冻结（`kind` 映射见 §4.4；未知 kind 必须报 `unavailableReason`） |
 | `Ratio` 序列化 | 进程内 `bigint`；跨 HTTP 统一 `{ numerator: string; denominator: string }` | 👍 |
 | 金额 | `MoneyValue{amountMinor:string,currency,decimals}`；平均值 `exact-money`；禁止浮点权威值 | 👍 |
 | 缺失≠0 | 不可计算一律 `null` + `unavailableReason`，禁止补 0 | 👍 |
+
+**冻结信封字段清单（唯一一份，`s01-v2`；字段以实现 `packages/shared/src/analysis/types.ts` 的 `AnalysisResultBase` 为准）**：`version`（固定 `"s01-v2"`）、`analysisId`、`analysisType`、`metric`、`resolvedFilters`、`resolvedPeriod`、`resolvedCurrency`、`completeness`（整结果层 9 态）、`unavailableReason?`、`dataVersion`（`string | null`）、`computation{rounding, method?, sampling?, coverageEnd?, analysisLimit?}`、`source`；结果负载字段按 §3 形状表（A 四形状 / 全量 25 形状）。**v2.0.2 一致性修正（G-1，D I-1 契约映射 `47eae0c` 核对发现）**：上表即 v2 唯一信封字段口径；此前 Legacy m02502 表述中出现的 `ok` / `data` / `calculation` **不是 v2 字段**——v2 中「成功/不可用状态」由 `completeness`（+`unavailableReason?`）承载、「结果数据」由 §3 结果负载承载、「计算过程元信息」由 `computation` 承载；**Legacy 对照，不适用 v2**，不得在 v2 结果信封外另加这三个字段。
 
 ---
 
@@ -734,7 +736,7 @@ export interface DraftFxRateResolution {
 
 - **版本标识**：冻结后 `S01_PROTOCOL_VERSION = "s01-v2"`（冻结时由 Lead 统一给出最终串，A 不提前定名）。
 - **与 s01-draft / s01-v2-draft 差异清单**：新增形状（B 7、C 7 + C-2 8、C-4 5 子形状 + 诊断判别联合）、新增可选字段（`extremeValue`/`countBreakdown`/`secondary`/`analysisLimit?`/`coverageEnd?`/`bucket?`/`method`/`sampling?`）、`completeness` 语义收紧（桶级五态）、G-17/G-16 正式定义、D 契约引用 v0.4、常量分类（§12）、σ/CV（§16.6）。
-- **兼容迁移策略**：s01-draft 数据（无版本串）按 `s01-v2-draft` 兼容读取（必填字段校验通过即接受）；`s01-v2-draft` → `s01-v2` 只做版本串升级；旧字段废除采用「先只读后移除」窗；`s01-draft` 与 `s01-v2-draft` **不并行维护**。
+- **兼容迁移策略**：s01-draft 数据（无版本串）按 `s01-v2` 兼容读取（必填字段校验通过即接受、不重算）；`s01-v2-draft` → `s01-v2` 只做版本串升级（v2.0.2 起 A 侧 `ANALYSIS_PROTOCOL_VERSION = "s01-v2"`）；旧字段废除采用「先只读后移除」窗；`s01-draft` / `s01-v2-draft` 均为历史标识，**不并行维护**。
 - **未知/较新版本安全降级**：版本未知 → 只读占位 + 提示更新；较新版本 → 保留配置、不迁移/不删除、不回写、不自动改参数（§6.1 G-12b）。
 - **G-12a 发布物版本化**：params 白名单随分析目录/`analysisVersion` 演进，发布物带自身版本号；D 按形态校验，不重新冻结协议。
 
@@ -784,3 +786,4 @@ export interface DraftFxRateResolution {
 - 2026-10-27 r6：依据所有者裁定（`f215fa9`）更新 §12 常量分类（F/C/O/P）、§16 新增（D 项复核、C-1 落实、Q1–Q8 落点、四特别明确点、版本差异/迁移、σ/CV 定义、A05/闰日边界、G-16/G-17 核对、最小待确认清单）；新增 `S17-Agent-A-G12a-params白名单发布形态-v1.md`、`S17-Agent-A-S01-v2-r6-记录.md`、`S17-Agent-A-S01-v2-最终冻结核对结果.md`。
 - 2026-10-27 r7：依据所有者签认（`3760675`，Lead m03659 / m03807 事实修正）与 C 回执（`bf6de96`/Lead 验收 `5b5bb0c`）——闭合 G-28a（P16 三态/无 partial/触发规则）、G-30（4+7 枚举列值 + C 逐值核对）、#3（分析窗口 36/60 与 **生产基线（1.16.23）web 读取上限 14 个月**/B draft 36 未生效 三层区分 +「不得静默部分结果」规则）、σ/CV（最小单位定点 vs 无量纲 `Ratio` 展示规则）；落定 G-24/G-25/G-26/G-27/G-28b/G-29；更新 §1（所有者签认/C 回执/r7 配套文件三行）、§3.3/§3.4、§5.1-3/-8/-9/-10、§7 G-09/G-24…G-30、§8 r7 进展、§10 1.10、§12 枚举与常量状态、§13.4/§13.5、§15.2/§15.3/§15.4、§16.2/§16.6/§16.7/§16.9；新增 `S17-Agent-A-S01-v2-r7-记录.md`，更新最终冻结核对结果 r7 版。r7 仅文档、不改协议字段、未 push、未冻结。
 - 2026-10-27 **v2.0.1（冻结后澄清，依据 Lead m04164 + B 最小批次 `6a94608`/`78b9d05` 的 `canonicalMethod` `-v1` 规范串；本地提交 `492b1b6`）**：①`method` 保持开放字符串（未知值透传、不重算），但**已登记取值必须逐字使用冻结值、不得加后缀、不得新增未登记枚举值**——已支持 `type7-linear`/`population-stddev`/`histogram-nice-bin-width`；已登记 `sample-cv-fixedpoint`/`mad-median`/`iqr-quantile`；`histogram-sturges` 仅候选、不列已支持；B `-v1` 规范串映射（`population-standard-deviation-v1→population-stddev`、`coefficient-of-variation-v1→sample-cv-fixedpoint`、`mad-median-v1→mad-median`、`iqr-quantile-v1→iqr-quantile`、分位 `percentile-threshold-v1→type7-linear` 或按独立阈值标开放扩展、`exact-mean-v1` 等未登记=B 开放扩展不宣称已支持）；未登记扩展可用 `-v1` 但必须标注（§8 `method` 行已加注）。②σ `SqrtValue.decimalText` 允许空串/`null`（展示派生、由 `radicand` 按 `decimals` 展开，非契约必需、非缺陷；§16.6 已加注）。③新增 `S17-Agent-A-S01v2-变更记录-v2.0.1-method串取值裁定.md`（含映射表、R-1…R-6、冻结记录行供 Lead 代填）。**不改结构/字段/枚举/26 项 specs，冻结基线 `b39b27a`+`782b036` 不变，无需重新冻结。**
+- 2026-10-27 **v2.0.2（冻结后一致性修正，G-1/G-2；依据 Lead m04214 + D I-1 契约映射 `47eae0c`；本地提交待回填）**：①**G-1 信封**：§2 `version` 由 `"s01-v2-draft"` 更正为冻结值 **`"s01-v2"`**；§2 标题改「（v2 冻结，唯一一份；`s01-v2`）」；`dataVersion`/`computation`/`source` 三行残留 🟡 状态更新为冻结口径；新增「冻结信封字段清单（唯一一份）」+ Legacy 对照注（`ok`/`data`/`calculation` **非 v2 字段**：状态由 `completeness`+`unavailableReason?`、结果数据由 §3 结果负载、计算元信息由 `computation` 承载；Legacy 对照，不适用 v2）；§16.5 兼容迁移策略同步（旧数据按 `s01-v2` 读取、旧标识仅历史、不并行维护）。②**G-2 协议标识**：`packages/shared/src/analysis/types.ts` 的 `ANALYSIS_PROTOCOL_VERSION` 由 `"s01-draft"` 改为 **`"s01-v2"`**（文件头注释同步「frozen `s01-v2`」）；唯一受影响测试 `w1Boundary.test.ts` 改用常量导入（`version: ANALYSIS_PROTOCOL_VERSION`）；改动面评估：仅 `types.ts`（常量+注释）/`context.ts`（透传常量，无需改）/`analysisCatalog.test.ts`（用常量）/`w1Boundary.test.ts`（字面量改常量），`apps/**` 无引用 → **直接替换，无需兼容读取 shim**（无生产持久化分析结果；旧数据读取按 §16.5 规则）。③新增 `S17-Agent-A-S01v2-变更记录-v2.0.2-冻结一致性修正.md`。**不改结构/字段/枚举/26 项 specs；冻结基线 `b39b27a`+`782b036` 不变，无需重新冻结。**

@@ -34,6 +34,7 @@ import {
   type InclusiveRange,
   type TimeKeyGranularity,
 } from "./timeKeys.js";
+import { ANALYSIS_PROTOCOL_VERSION, type AnalysisDefinition } from "./types.js";
 
 /** 合成样本账目（非 fixtures 库数据；仅 W1 边界测试使用）。 */
 function tx(
@@ -259,8 +260,8 @@ describe("W1 边界：逐桶求和守恒（合成样本，非 fixtures 库数据
       currency: { mode: "original", currency: "CNY" },
       dataVersion: "dv-w1-001",
     };
-    const definition = {
-      version: "s01-draft" as const,
+    const definition: AnalysisDefinition = {
+      version: ANALYSIS_PROTOCOL_VERSION,
       analysisId: "AN-B01",
       analysisType: "scalar",
       metric: "expense-total",
