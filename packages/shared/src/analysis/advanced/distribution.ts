@@ -26,6 +26,12 @@ import {
 } from "./rational.js";
 import { iqrOf, medianOf, quantilesOf, quartileProbabilities, sortMinorAscending } from "./quantiles.js";
 
+/**
+ * H-1（`s01-v2` v2.0.4 additive，A §17.3 / §12.1）：`histogram.dominantBins` 最多返回的
+ * 主桶数；超出按 `index` 升序截断，`dominantBinCount` 保留真实总数（不拒绝、不新增 omitted）。
+ */
+export const HISTOGRAM_DOMINANT_MAX_BINS = 8;
+
 /** 向下取整除法（处理负数；`floorDiv(-1n, 5n) = -1n`）。 */
 export function floorDiv(numerator: bigint, denominator: bigint): bigint {
   if (denominator <= 0n) {
@@ -213,6 +219,17 @@ export function buildHistogram(
     );
   }
 
+  // H-1（`s01-v2` v2.0.4 additive，A §17.2–§17.4）：dominant = count 等于最大 count 的全部桶；
+  // 按 index 升序（bins 本身即升序），超过上限按 index 升序截断，dominantBinCount 保留真实总数。
+  const maxCount = counts.reduce((max, count) => (count > max ? count : max), 0);
+  const dominantBins = bins
+    .filter((bin) => bin.count === maxCount)
+    .slice(0, HISTOGRAM_DOMINANT_MAX_BINS);
+
+  if (dominantBins.length === 0) {
+    throw new Error("Histogram dominant bins are inconsistent: non-empty histogram has no dominant bin");
+  }
+
   return {
     binWidthMinor,
     bins,
@@ -220,6 +237,8 @@ export function buildHistogram(
     zeroCount,
     minMinor,
     maxMinor,
+    dominantBins,
+    dominantBinCount: bins.filter((bin) => bin.count === maxCount).length,
   };
 }
 
@@ -333,8 +352,32 @@ export function summariseDistribution(
   };
 }
 
-/** 直方图守恒自检：样本数 = Σ 箱计数。 */
+/** 直方图守恒自检：样本数 = Σ 箱计数，且 H-1 `dominantBins` 是父桶的一致派生投影。 */
 export function histogramIsConserved(histogram: DraftHistogram): boolean {
   const total = histogram.bins.reduce((sum, bin) => sum + bin.count, 0);
-  return total === histogram.sampleCount;
+  if (total !== histogram.sampleCount) return false;
+
+  if (histogram.dominantBinCount < 1) return false;
+  if (
+    histogram.dominantBins.length !==
+    Math.min(histogram.dominantBinCount, HISTOGRAM_DOMINANT_MAX_BINS)
+  ) {
+    return false;
+  }
+
+  const maxCount = histogram.bins.reduce((max, bin) => (bin.count > max ? bin.count : max), 0);
+  let previousIndex = -1;
+
+  for (const bin of histogram.dominantBins) {
+    const parent = histogram.bins[bin.index];
+    if (parent === undefined) return false;
+    if (bin.index <= previousIndex) return false;
+    if (bin.count !== maxCount) return false;
+    if (bin.count !== parent.count) return false;
+    if (bin.lowerMinor !== parent.lowerMinor) return false;
+    if (bin.upperMinor !== parent.upperMinor) return false;
+    previousIndex = bin.index;
+  }
+
+  return true;
 }
