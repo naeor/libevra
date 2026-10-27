@@ -333,6 +333,13 @@
 2. **G-27 映射行 → ✅ 一致**：r7「`partial→fx-incomplete` 仅汇率缺失/折算失败根因；fallback 成功不计 missing；P15/P16/P18 无 `partial`」与 B 五态映射（协议草案 §4.2：`unavailable` 依原因细分 `fx-incomplete`/`request-failed`/`no-permission`；`unknown`→`offline-incomplete`；`in-progress≠partial`）无冲突。B 侧唯一待补仍是 §4.2 一行 C→B 映射说明（冻结后最小批次）。
 3. **σ/CV（§16.6）→ ✅ 口径一致，表示法备注**：r7「σ 最小单位定点（6 位小数）、CV 无量纲 `Ratio`；σ 按币种小数位一次 `minor-half-away-v1`、CV `percent-100` 1 位、不套货币舍入」与 B `variability.ts:189-235`（σ=`stdDevScaledMinor` scale 6；CV=`coefficientOfVariationScaled` fraction×10^scale，无量纲）一致。**表示法备注（非冲突）**：B 的 A12 结果用 `coefficientOfVariationScaled`（定点字符串）而非 `Ratio` 对象；r7 引用的 `formatRatioPercent`/`formatRatioMinorText` 在 B 仓库当前不存在（web 等价 `apps/web/src/lib/chart/format.ts:57 formatPercent(ratio,digits)`）——符号统一属 Codex 单一来源（G-31）/冻结后最小批次，展示口径一致。
 
+### 6.5.5 T-8（`params.timeFixed` 枚举 / `resolvedPeriod`）快速回执（2026-10-27，A G-12a v1.1 `782b036` / r7.2 `b39b27a`）
+
+1. **无影响**：B 仓库对 `timeFixed`/`pinnedRange`/`analysisDefinition`/`params_type` **零引用**（检索 `packages/shared/src`、`apps/web/src/lib`、`apps/web/src/components/charts`、`apps/web/src/pages` 无命中）；B 的 W1 分析由调用方直接传 `TimeSpan`（`analysisData.ts` 的 `AnalysisSpan`/`trailingWindow`/`assertAnalysisSpan`），**不经 analysisDefinition params、不自算卡片区间**，因此不依赖旧绝对 `timeFixed` 解析口径，无迁移/兼容动作。
+2. **`resolvedPeriod` 暂无消费方，不阻塞**：B 时间序列结果使用自身 `span: TimeSpan` + 半开桶 key（`timeSeries.ts`），未消费结果级 `resolvedPeriod` 字段。B 已有只读对齐工具：`spanToInclusive(span) → {from,to}`（`packages/shared/src/timeCalendar.ts:189`，index 导出 `:112`）与 `bucketToInclusive(bucket)`（`:214`，index `:95`）；冻结后如需把 B 桶映射为 A 的 `ResolvedPeriod`（闭区间），可直接复用，**无需新增/修改 S-01 形状**。
+
+> 证据均为只读核对；本回执未改实现代码。
+
 > 证据均为只读核对（2026-10-27，HEAD 工作区）；本回执未改任何实现代码、未冻结任何接口。
 
 ---
