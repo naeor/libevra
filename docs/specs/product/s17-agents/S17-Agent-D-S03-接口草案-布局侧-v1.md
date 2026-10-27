@@ -1,10 +1,10 @@
-# S17 · Agent D · S-03 接口草案（布局侧，draft v0.3，**未冻结**）
+# S17 · Agent D · S-03 接口草案（布局侧，draft v0.4，**未冻结**）
 
-> 最后核对: `7d9f9fc`（1.16.23 rebase 后）；评审修订记录整理 2026-10-27
-> 状态：**DRAFT v0.3，未冻结**（Lead 六问裁定记录见 §8；OQ-LM 待决项逐条登记见 §8.2；D-4 已落地迁移链/缓存键/分享与存储纯函数，见 §4/§9；数值冻结仍待 W3；本文件不构成公共接口）
+> 最后核对: `7d9f9fc`（1.16.23 rebase 后）；评审修订记录整理 2026-10-27；D-3.1 档案引擎 2026-10-27
+> 状态：**DRAFT v0.4，未冻结**（Lead 六问裁定记录见 §8；OQ-LM 待决项逐条登记见 §8.2；D-3.1 已落地独立档案/模式迁移与 G-12b，见 §4.5/§9；D-4 已落地迁移链/缓存键/分享与存储纯函数，见 §4/§9；数值冻结仍待 W3；本文件不构成公共接口）
 > 提交方：`DS-S17-D-Layout`；评审方：Lead（S-03 组织者）、A（计算侧）、Codex（视觉侧）
 > 代码位置：`packages/shared/src/analysis/layout/`（**未接入** `packages/shared/src/index.ts`，接入需 S-03 评审通过）
-> 相关：[S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)、[S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)、[S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)、[S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md](./S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md)、图表与卡片规格 §5.6、总需求规格 §4。
+> 相关：[S17-Agent-D-D0-布局数据模型与接口-v1.md](./S17-Agent-D-D0-布局数据模型与接口-v1.md)、[S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](./S17-Agent-D-D1-布局引擎测试与文档校验-v1.md)、[S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](./S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md)、[S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md](./S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md)、[S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md](./S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md)、图表与卡片规格 §5.6、总需求规格 §4。
 
 ---
 
@@ -108,6 +108,21 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 
 ---
 
+## 4.5 独立布局档案与模式迁移（D-3.1 实现，仍 draft）
+
+- 模式：`LayoutMode = "unified" | "independent"`；`main` 为唯一权威主布局，`profiles[]`（`{ profileKey, geometry }`）为可选档案；`previousMain` 只用于保留上一个布局。
+- 解析：`resolveProfile(layout, content, { targetColumns, profileKey?, contracts?, verticalCompact? })` → `{ targetColumns, profileKey, projection, geometry, source: "profile" | "main-projection", issues }`。
+  - 统一模式：始终由 `main` 投影（即使存在档案也不使用）；独立模式：有对应档案用档案几何，无档案从 `main` 投影且**不物化**。
+  - 非法 `targetColumns` → 2 + `invalid-columns`；空/非法 `profileKey` → 派生占位键 + `invalid-profile-key`；投影问题映射为 `projection-<reason>`；纯函数，不改输入。
+- 物化（写时复制）：`materializeProfile(...)` → `{ layout, created, issues }`；首次保存才写入档案，已有档案幂等返回 `created=false`；档案键不可派生 → `profile-key-unavailable`；结果过 D-1 校验。
+- 模式切换：`switchLayoutMode(layout, mode)` 保留 `main`/`profiles` 数据（统一→独立不物化；独立→统一档案保留但不用）；`adoptProfileAsMain(layout, profileKey)` 以档案为新 `main`、`previousMain` 留旧布局、`profiles` 保留；缺档案 → `missing-profile`。
+- 诊断：`findUnplacedContentObjects(content, layout)` 列出无几何条目的内容对象（排序），只提示、不自动补位。
+- 档案键占位（OQ-LM-08 未决）：默认 `exact-columns`（`cols-<n>`）；宽度档表为空时 `profileKeyForWidth` 返回 `null`，**不猜阈值**；档案内分割比例当前按内容文档共用。
+- G-12b：`ShareImportOptions.resolveAnalysisVersion` 返回 `newer`/`unknown` 时导入不失败、保留引用/参数、登记 `analysis-version-readonly`（只读占位），与 `resolveAnalysis`（`analysis-needs-rebind`）互补。
+- 明细见 [D-3.1 记录](./S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md)。
+
+---
+
 ## 5. 容器内部几何占位
 
 - 首版**深度 1**：工作台 → {卡片、Spacer、GridSplit、Carousel} → 卡片；容器内不再嵌容器（`CONTAINER_MAX_DEPTH = 1`）。
@@ -196,5 +211,7 @@ declare function migrateContentDocument(value: unknown): MigrationChainResult<Wo
 | 2026-10-27 | draft v0.3（评审修订记录整理） | 按 Lead 指令整理 §8：保留六项裁定 + 新增 §8.1 裁定版本说明（裁定针对 v0.1，现内容累计 v0.2/v0.3，性质仍为 draft 未冻结）与 §8.2 OQ-LM 待决项登记表（OQ-LM-01/03/04/05/06/07 的状态/阻塞阶段/占位口径/裁定方）；无接口内容实质变化 |
 
 | 2026-10-27 | draft v0.4 | 记录所有者 2026-10-27 OQ 方向核对结果：OQ-LM-04/06 落实为正式决定（D-OQ-04/06）；OQ-LM-03/05 部分落实并保留差异（DIFF-01/02）；OQ-LM-07 方向未覆盖原问题、保持待所有者（DIFF-03）；§6 紧凑/Spacer 口径同步更新；明细见 [OQ 落实与差异清单](./S17-Agent-D-OQ落实与差异清单-v1.md) |
+
+| 2026-10-27 | draft v0.5 | D-3.1 落地独立档案/模式迁移契约（§4.5）：`resolveProfile`/`materializeProfile`/`switchLayoutMode`/`adoptProfileAsMain`/`findUnplacedContentObjects`、`cols-*` 档案键占位（OQ-LM-08 未决）；导入侧 G-12b `resolveAnalysisVersion` 只读占位（`analysis-version-readonly`）；18 files / 234 tests 通过；明细见 [D-3.1 记录](./S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md) |
 
 > 本文件随 S-03 评审更新；任何字段形状变化须同时改代码、D0/D1/D2/D3 文档与测试，并在任务文档 §6.2 记录。

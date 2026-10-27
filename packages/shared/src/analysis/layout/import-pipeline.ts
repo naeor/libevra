@@ -53,6 +53,14 @@ export interface ShareImportOptions {
   readonly contracts?: Readonly<Record<string, ObjectSizeContract>>;
   /** 可选：接收者分析目录解析；返回 unknown 的加入待绑定清单。 */
   readonly resolveAnalysis?: (reference: AnalysisReference) => "known" | "unknown";
+  /**
+   * 可选：分析定义版本解析（S-01 v2 §6.1 / G-12b）。
+   * 返回 `newer`/`unknown` 时按**只读占位**处理：保留引用与参数、不自动改版本、
+   * 不回写、不删未知字段，只提示用户更新（导入为新副本，不改现有工作台）。
+   */
+  readonly resolveAnalysisVersion?: (
+    reference: AnalysisReference,
+  ) => "current" | "newer" | "unknown";
   /** 可选：接收者已知图表家族；缺失/未知时记录提示（降级由投影执行）。 */
   readonly knownChartFamilies?: readonly string[];
 }
@@ -315,6 +323,24 @@ export function prepareShareImport(
       }
     }
   }
+  // G-12b：未知/较新分析定义版本只读占位——保留引用与参数、不自动改版本、不回写、不删未知字段。
+  if (options.resolveAnalysisVersion !== undefined) {
+    for (const card of cards) {
+      const versionStatus = options.resolveAnalysisVersion(card.analysis);
+      if (versionStatus !== "current") {
+        issues.push(
+          issue(
+            "$.cards",
+            "analysis-version-readonly",
+            versionStatus === "newer"
+              ? `分析定义版本较新，按只读占位渲染并提示更新：${card.analysis.analysisId}`
+              : `分析定义版本未知，按只读占位渲染并提示更新：${card.analysis.analysisId}`,
+          ),
+        );
+      }
+    }
+  }
+
   if (options.knownChartFamilies !== undefined) {
     const known = new Set(options.knownChartFamilies);
     for (const card of cards) {

@@ -119,6 +119,67 @@ describe("import-pipeline：待绑定占位与提示（Q-15）", () => {
   });
 });
 
+describe("import-pipeline：G-12b 未知/较新分析定义版本（只读占位）", () => {
+  const VERSIONED_CONTENT = contentOf([
+    {
+      ...analysisCard("a"),
+      analysis: { analysisId: "an-b01", analysisVersion: "s01-v2", params: {} },
+    },
+    analysisCard("b"),
+  ]);
+  const VERSIONED_LAYOUT = layoutOf(
+    geometry(2, [
+      object("a", "analysis-card", 1, 1, 1),
+      object("b", "analysis-card", 2, 1, 1),
+    ]),
+  );
+
+  function versionedJson(): string {
+    const exported = exportShareSnapshot(VERSIONED_CONTENT, VERSIONED_LAYOUT);
+    expect(exported.ok).toBe(true);
+    return exported.json ?? "";
+  }
+
+  it("较新版本 → 只读占位提示，保留引用与参数、不自动改版本", () => {
+    const result = prepareShareImport(versionedJson(), {
+      generateObjectId: newFactory(),
+      resolveAnalysisVersion: (reference) =>
+        reference.analysisVersion === undefined ? "current" : "newer",
+    });
+    expect(result.ok).toBe(true);
+    const readonlyIssues = result.issues.filter((item) => item.code === "analysis-version-readonly");
+    expect(readonlyIssues).toHaveLength(1);
+    expect(readonlyIssues[0]?.detail).toContain("较新");
+    const card = result.content?.cards.find((item) => item.analysis.analysisId === "an-b01");
+    expect(card?.analysis.analysisVersion).toBe("s01-v2");
+    expect(card?.analysis.params).toEqual({});
+  });
+
+  it("未知版本 → 只读占位提示（未知文案）", () => {
+    const result = prepareShareImport(versionedJson(), {
+      generateObjectId: newFactory(),
+      resolveAnalysisVersion: () => "unknown",
+    });
+    expect(result.ok).toBe(true);
+    const readonlyIssues = result.issues.filter((item) => item.code === "analysis-version-readonly");
+    expect(readonlyIssues).toHaveLength(2);
+    expect(readonlyIssues[0]?.detail).toContain("未知");
+  });
+
+  it("全部 current → 无只读占位问题；不传解析器 → 向后兼容无该问题", () => {
+    const current = prepareShareImport(versionedJson(), {
+      generateObjectId: newFactory(),
+      resolveAnalysisVersion: () => "current",
+    });
+    expect(current.ok).toBe(true);
+    expect(current.issues.map((item) => item.code)).not.toContain("analysis-version-readonly");
+
+    const legacy = prepareShareImport(versionedJson(), { generateObjectId: newFactory() });
+    expect(legacy.ok).toBe(true);
+    expect(legacy.issues.map((item) => item.code)).not.toContain("analysis-version-readonly");
+  });
+});
+
 describe("import-pipeline：非法输入与边界", () => {
   it("ID 工厂返回重复 ID → 拒绝", () => {
     const result = prepareShareImport(exportedJson(), { generateObjectId: () => "dup" });

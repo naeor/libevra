@@ -1,7 +1,7 @@
 /**
- * S17 工作台布局层（D-0/D-1/D-2 前置/D-3/D-4 前置）：布局对象类型、行优先网格几何、跨列投影、
+ * S17 工作台布局层（D-0/D-1/D-2 前置/D-3/D-3.1/D-4 前置）：布局对象类型、行优先网格几何、跨列投影、
  * 文档校验与序列化、编辑器命令/焦点/状态机、垂直紧凑、确定性修复、迁移链、
- * 分享快照纯函数与本地存储契约草案。
+ * 独立布局档案与模式迁移、分享快照纯函数与本地存储契约草案。
  *
  * 本目录是布局与配置能力的**纯数据与纯函数**内核：
  * - 不做任何财务计算，不读写账务数据；
@@ -22,6 +22,7 @@ export * from "./focus.js";
 export * from "./machine.js";
 export * from "./compaction.js";
 export * from "./repair.js";
+export * from "./profiles.js";
 export * from "./document-io.js";
 export * from "./migration-chain.js";
 export * from "./share-snapshot.js";
