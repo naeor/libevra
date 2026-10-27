@@ -684,6 +684,27 @@ S3 同 S1/S2：**不新增、不修改任何 S-01 形状**。A01–A05 直接消
 
 **测试证据**：`analysisData.test.ts`（S3 新增 6 用例，含 unknown/上限/闰日对齐）、`comparisonCards.test.tsx`（6 用例，覆盖双柱空状态、比较卡、A04 卡进行中/未知）；定向 2 文件 46 用例、web 全量见本批报告。
 
+## 20. W1-S4a 消费层映射（2026-10-27，draft；不新增形状）
+
+S4a 同 S1–S3：**不新增、不修改任何 S-01 形状**。I12/A12、A20、I13 直接消费 B-4 已交付的共享引擎——`computeDailyExpenseVariability`（`AmountSummary`/`DailyExpenseVariability`）、`computeIncomeStability`（`IncomeStabilityResult`）、`computeWeekdayPattern`（`WeekdayPatternResult`），经 `apps/web/src/lib/analysisData.ts` 一个入口适配；卡片为 `VariabilityCard`（内嵌 `VolatilityBandChart`）、`IncomeStabilityCard`、`WeekdayPatternCard`（内嵌 `WeekdayBars`）。
+
+| 能力 | 生成入口（web，S4a） | 复用形状 | 卡片组件 | 说明 |
+|---|---|---|---|---|
+| I12 / A12 每日支出波动 | `deriveDailyExpenseVariability`（先 `computeTimeSeries` day 取桶，再 `computeDailyExpenseVariability`） | `DailyExpenseVariability`（含 `AmountSummary`） | `VariabilityCard` + `VolatilityBandChart` | σ 用 B-4 的总体标准差（`scale=6` 的缩放整数）；`extremeSigma` 默认 2、可配置 |
+| A20 收入稳定性 | `deriveIncomeStability`（month 粒度） | `IncomeStabilityResult` | `IncomeStabilityCard` | 月样本数低于 `minSampleMonths` 时 `judgedState = "insufficient-sample"`，卡片必须显示样本句 |
+| I13 星期分布 | `deriveWeekdayAnalysis`（入口 `computeWeekdayPattern`，`kind` 可 all/expense/income） | `WeekdayPatternResult` | `WeekdayPatternCard` + `WeekdayBars` | `mode: "total" \| "average"` 由调用方决定，卡片 `data-mode` 明示；平均分母 = 区间内该星期出现的自然日数 |
+
+**S4a 锁定语义**：
+
+1. **无完整观测不造数**：`result` 为 `null` 时卡片只渲染 `emptyText`，`unavailableReason` 仅 `"no-complete-observations"`；覆盖未知的适配规则与 S3 相同（`coverageEnd = 区间起点前一天`），shared `coverageEnd: null`（无约束）不得被当成 unknown。
+2. **样本必须可见**：`VariabilityCard` 必传 `sampleText`/`stateText`；`IncomeStabilityCard` 必传 `sampleText`/`stateText`（`positiveMonths`/`minSampleMonths` 由调用方拼句）；`WeekdayPatternCard` 必显 `observedDayCount`、`sufficientSample` 与 σ 口径。
+3. **σ/CV 口径**：S4a 只用 B-4 自有总体标准差（缩放整数、`formula.stdDev = "population-standard-deviation-v1"`），**不引用** S-01 v2 §16.6 中 A 侧的 σ/CV 字段；在 v2 冻结前如需跨 Agent 对比，一律标「待冻结核对」，不得互相换算。
+4. **mode 不混用**：星期分布 `total` 与 `average` 是两种展示，同一卡片一次只画一种，`data-mode` 明示；平均值的分母是“该星期在区间内出现的自然日数”，不是“有支出的天数”。
+5. **时间口径**：半开区间、自然周周一起、自然月；进行中的今天桶不进入波动/稳定性统计（只取 complete 桶）；卡片 caption 必须能说明“设备账本口径/进行中”。
+6. 卡片只渲染传入结果，不重算统计量、不补零、不折算汇率；页面接线由 Lead 在集成 worktree 统一完成；本批不接页面、不改 API/版本、不碰 `StatsPage.tsx`/`FxStats.tsx`。
+
+**测试证据**：`s4a.analysisData.test.ts`（8 用例，含 unknown 覆盖、样本不足、非法 `extremeSigma`）、`stabilityCards.test.tsx`（6 用例，含空状态、样本句、mode 渲染）；web 全量 170 文件/1556 用例、`tsc -b` exit 0。
+
 
 
 

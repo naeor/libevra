@@ -28,10 +28,13 @@ import {
   assertCalendarDate,
   computeCategorySeries,
   computeCategoryShares,
+  computeDailyExpenseVariability,
   computeFlowSeries,
+  computeIncomeStability,
   computeMultiMonthComparison,
   computePeriodComparison,
   computeTimeSeries,
+  computeWeekdayPattern,
   daysInSpan,
   isSpanValid,
   monthSpan,
@@ -47,7 +50,9 @@ import {
   type ComparisonRequest,
   type CountKind,
   type CumulativeResult,
+  type DailyExpenseVariability,
   type FlowSeriesResult,
+  type IncomeStability,
   type MonthComparisonRequest,
   type MonthEntry,
   type MonthMetric,
@@ -55,11 +60,13 @@ import {
   type MultiMonthComparisonResult,
   type ShareRatio,
   type TimeGranularity,
+  type TimeSeriesBucketPoint,
   type TimeSeriesEntry,
   type TimeSeriesMetric,
   type TimeSeriesResult,
   type TimeSpan,
   type Transaction,
+  type WeekdayPatternResult,
 } from "@libellum/shared";
 
 /** Mirrors the existing `MAX_STATS_DAYS` limit (S-01 v2 §17 / G-18; default 400). */
@@ -765,6 +772,177 @@ export function deriveMultiMonthComparison(
     today: query.today,
   };
   const result = computeMultiMonthComparison(entries, request, { coverageEnd });
+  return {
+    result,
+    input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S4a — 稳定性与分布（I12 / A12、A20、I13）
+// ---------------------------------------------------------------------------
+
+/** Coverage policy shared by the S4 cards (same meaning as `TimeAnalysisQuery.coverage`). */
+export type AnalysisCoverage = "local-ledger" | "unknown";
+
+/** True when at least one bucket is both complete and known — the shared minimum sample. */
+function hasCompleteObservation(points: readonly TimeSeriesBucketPoint[]): boolean {
+  return points.some((point) => point.bucket.state === "complete" && point.amountMinor !== null);
+}
+
+/**
+ * Coverage policy for the S4 cards. With `coverage: "unknown"` the caller is telling us
+ * no day is confirmed, so coverage ends before the span starts: every bucket is then
+ * `unknown` and no number is produced. (`coverageEnd: null` would mean "no constraint"
+ * in the shared time-series contract, which is the opposite of what we want here.)
+ */
+function coverageEndFor(
+  query: { readonly span: TimeSpan; readonly today: string; readonly coverage?: AnalysisCoverage },
+): string | null {
+  if (query.coverage === "unknown") return addDays(query.span.start, -1);
+  return localLedgerCoverageEnd(query.span, query.today);
+}
+
+/** I12 / A12 — daily expense variability over a business-date span. */
+export interface VariabilityAnalysisQuery {
+  /** Half-open business-date span `[start, end)` — the days that enter the statistics. */
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly maxDays?: number;
+  readonly coverage?: AnalysisCoverage;
+  /** A12 extreme-day threshold in population standard deviations (B-16, default 2). */
+  readonly extremeSigma?: number;
+}
+
+export interface VariabilityAnalysisView {
+  /**
+   * `null` when no day is confirmed (`coverage: "unknown"` or no complete bucket): the
+   * shared engine refuses to summarize an empty sample, and this layer must not fake a
+   * zero-row statistic. `unavailableReason` tells the card why it is empty.
+   */
+  readonly result: DailyExpenseVariability | null;
+  readonly unavailableReason: "no-complete-observations" | null;
+  /** The daily series that was summarized (same objects the chart plots). */
+  readonly points: readonly TimeSeriesBucketPoint[];
+  readonly input: AnalysisInput;
+}
+
+/**
+ * I12 / A12. The shared engine computes the numbers; this adapter only decides which
+ * entries and which coverage policy feed it. Unknown or running days are excluded by
+ * `computeDailyExpenseVariability` itself (never counted as zero).
+ */
+export function deriveDailyExpenseVariability(
+  transactions: readonly Transaction[],
+  query: VariabilityAnalysisQuery,
+): VariabilityAnalysisView {
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const entries = toTimeSeriesEntries(transactions);
+  const coverageEnd = coverageEndFor({ span, today: query.today, ...(query.coverage === undefined ? {} : { coverage: query.coverage }) });
+  const series = computeTimeSeries(entries, {
+    metric: "expense",
+    granularity: "day",
+    span,
+    today: query.today,
+    coverageEnd,
+  });
+  const result = hasCompleteObservation(series.buckets)
+    ? computeDailyExpenseVariability(
+        series.buckets,
+        query.extremeSigma === undefined ? {} : { extremeSigma: query.extremeSigma },
+      )
+    : null;
+  return {
+    result,
+    unavailableReason: result === null ? "no-complete-observations" : null,
+    points: series.buckets,
+    input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
+  };
+}
+
+/** A20 — month-to-month income stability (complete natural months only). */
+export interface IncomeStabilityQuery {
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly maxDays?: number;
+  readonly coverage?: AnalysisCoverage;
+  /** Minimum complete months before a stability description is offered (default 3). */
+  readonly minSampleMonths?: number;
+}
+
+export interface IncomeStabilityView {
+  /** `null` when no natural month is confirmed; never a fabricated zero sample. */
+  readonly result: IncomeStability | null;
+  readonly unavailableReason: "no-complete-observations" | null;
+  readonly points: readonly TimeSeriesBucketPoint[];
+  readonly input: AnalysisInput;
+}
+
+/**
+ * A20. Income is summarized on **natural months** (the label literally says 月);
+ * a running month is excluded by the shared engine rather than treated as partial
+ * income. `judgedState` tells the card whether a conclusion may be drawn.
+ */
+export function deriveIncomeStability(
+  transactions: readonly Transaction[],
+  query: IncomeStabilityQuery,
+): IncomeStabilityView {
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const entries = toTimeSeriesEntries(transactions);
+  const coverageEnd = coverageEndFor({ span, today: query.today, ...(query.coverage === undefined ? {} : { coverage: query.coverage }) });
+  const series = computeTimeSeries(entries, {
+    metric: "income",
+    granularity: "month",
+    span,
+    today: query.today,
+    coverageEnd,
+  });
+  const result = hasCompleteObservation(series.buckets)
+    ? computeIncomeStability(
+        series.buckets,
+        query.minSampleMonths === undefined ? {} : { minSampleMonths: query.minSampleMonths },
+      )
+    : null;
+  return {
+    result,
+    unavailableReason: result === null ? "no-complete-observations" : null,
+    points: series.buckets,
+    input: { entries, coverageEnd, dataVersion: analysisDataVersion() },
+  };
+}
+
+/** I13 — weekday distribution of one kind (expense or income). */
+export interface WeekdayAnalysisQuery {
+  readonly kind: "expense" | "income";
+  readonly span: TimeSpan;
+  readonly today: string;
+  readonly maxDays?: number;
+  readonly coverage?: AnalysisCoverage;
+}
+
+export interface WeekdayAnalysisView {
+  readonly result: WeekdayPatternResult;
+  readonly input: AnalysisInput;
+}
+
+/**
+ * I13. The adapter passes the same filtered entries as every other card; the shared
+ * module is responsible for observed-day denominators and for never counting an
+ * unobserved day as zero. Totals and per-weekday averages stay two separate numbers.
+ */
+export function deriveWeekdayAnalysis(
+  transactions: readonly Transaction[],
+  query: WeekdayAnalysisQuery,
+): WeekdayAnalysisView {
+  const span = assertAnalysisSpan(query.span, query.maxDays);
+  const entries = toTimeSeriesEntries(transactions);
+  const coverageEnd = coverageEndFor({ span, today: query.today, ...(query.coverage === undefined ? {} : { coverage: query.coverage }) });
+  const result = computeWeekdayPattern(entries, {
+    kind: query.kind,
+    span,
+    today: query.today,
+    coverageEnd,
+  });
   return {
     result,
     input: { entries, coverageEnd, dataVersion: analysisDataVersion() },

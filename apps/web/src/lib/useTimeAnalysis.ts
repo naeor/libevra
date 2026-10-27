@@ -23,19 +23,28 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import {
   deriveCumulativeAnalysis,
+  deriveDailyExpenseVariability,
   deriveFlowAnalysis,
+  deriveIncomeStability,
   deriveMultiMonthComparison,
   derivePeriodComparison,
   deriveTimeAnalysis,
+  deriveWeekdayAnalysis,
   type CumulativeAnalysisView,
   type FlowAnalysisQuery,
   type FlowAnalysisView,
+  type IncomeStabilityQuery,
+  type IncomeStabilityView,
   type MultiMonthComparisonQuery,
   type MultiMonthComparisonView,
   type PeriodComparisonQuery,
   type PeriodComparisonView,
   type TimeAnalysisQuery,
   type TimeAnalysisView,
+  type VariabilityAnalysisQuery,
+  type VariabilityAnalysisView,
+  type WeekdayAnalysisQuery,
+  type WeekdayAnalysisView,
 } from "./analysisData.js";
 import {
   ledgerSnapshotValue,
@@ -47,6 +56,9 @@ export type { TimeAnalysisQuery, TimeAnalysisView };
 export type { CumulativeAnalysisView, FlowAnalysisQuery, FlowAnalysisView };
 export type { PeriodComparisonQuery, PeriodComparisonView };
 export type { MultiMonthComparisonQuery, MultiMonthComparisonView };
+export type { VariabilityAnalysisQuery, VariabilityAnalysisView };
+export type { IncomeStabilityQuery, IncomeStabilityView };
+export type { WeekdayAnalysisQuery, WeekdayAnalysisView };
 export { deriveTimeAnalysis };
 
 /**
@@ -173,5 +185,64 @@ export function useMultiMonthComparison(
     // `selection` is the content of `months`; the array identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [all, selection, metric, today, coverage],
+  );
+}
+
+/** S4a — I12/A12: daily expense variability on the device ledger. */
+export function useDailyExpenseVariability(
+  query: VariabilityAnalysisQuery,
+): VariabilityAnalysisView {
+  const all = useLedgerStore();
+
+  const { span, today, maxDays, coverage, extremeSigma } = query;
+
+  return useMemo(
+    () =>
+      deriveDailyExpenseVariability(all, {
+        span,
+        today,
+        ...(maxDays === undefined ? {} : { maxDays }),
+        ...(coverage === undefined ? {} : { coverage }),
+        ...(extremeSigma === undefined ? {} : { extremeSigma }),
+      }),
+    [all, span.start, span.end, today, maxDays, coverage, extremeSigma],
+  );
+}
+
+/** S4a — A20: income stability over complete natural months. */
+export function useIncomeStability(query: IncomeStabilityQuery): IncomeStabilityView {
+  const all = useLedgerStore();
+
+  const { span, today, maxDays, coverage, minSampleMonths } = query;
+
+  return useMemo(
+    () =>
+      deriveIncomeStability(all, {
+        span,
+        today,
+        ...(maxDays === undefined ? {} : { maxDays }),
+        ...(coverage === undefined ? {} : { coverage }),
+        ...(minSampleMonths === undefined ? {} : { minSampleMonths }),
+      }),
+    [all, span.start, span.end, today, maxDays, coverage, minSampleMonths],
+  );
+}
+
+/** S4a — I13: weekday distribution for one kind. */
+export function useWeekdayAnalysis(query: WeekdayAnalysisQuery): WeekdayAnalysisView {
+  const all = useLedgerStore();
+
+  const { kind, span, today, maxDays, coverage } = query;
+
+  return useMemo(
+    () =>
+      deriveWeekdayAnalysis(all, {
+        kind,
+        span,
+        today,
+        ...(maxDays === undefined ? {} : { maxDays }),
+        ...(coverage === undefined ? {} : { coverage }),
+      }),
+    [all, kind, span.start, span.end, today, maxDays, coverage],
   );
 }
