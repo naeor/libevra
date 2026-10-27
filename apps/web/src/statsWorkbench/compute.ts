@@ -255,6 +255,50 @@ export function fxAgentAResult(
   return outcome;
 }
 
+/** 综合折算的上期比较：当期与上一周期各自折算后合成一个可比较的结果。 */
+export interface FxComparisonModel {
+  readonly native: StatsResponse;
+  readonly currentMissing: number;
+  readonly previousMissing: number;
+  /** 上期合计；任意一期缺汇率、上期不可用或来源不完整时为 `null`（不拿残缺的一期去比，不编造增长率）。 */
+  readonly previousTotals: StatsResponse["totals"] | null;
+  /** `null` = 可比较；`previous-unusable` = 上期没读到/覆盖不全；`current-incomplete` = 本期账目覆盖不全；`missing-rates` = 某一期缺汇率。 */
+  readonly previousIssue: null | "previous-unusable" | "current-incomplete" | "missing-rates";
+  /** 对比面板用 number：任何合计超出安全整数就判不安全，不显示被舍入的数字。 */
+  readonly safe: boolean;
+}
+
+export function fxComparisonModel(
+  currentEntries: readonly Transaction[],
+  current: FxProjection,
+  previous: FxProjection | null,
+  range: DateRange,
+  bucket: StatsBucket,
+  currency: string,
+  currentSourceComplete: boolean,
+): FxComparisonModel {
+  const currentMissing = current.missing.length;
+  const previousMissing = previous?.missing.length ?? 0;
+  const previousUsable = previous !== null && previous.sourceComplete;
+  const comparable = previousUsable && currentMissing === 0 && previousMissing === 0 && currentSourceComplete;
+  const native = statsFor(previous === null ? currentEntries : mergedEntries(currentEntries, previous.converted), range, currency, bucket, true);
+  const totals = [native.totals.incomeMinor, native.totals.expenseMinor, native.totals.netMinor, native.comparison?.totals.incomeMinor ?? 0, native.comparison?.totals.expenseMinor ?? 0];
+  return {
+    native,
+    currentMissing,
+    previousMissing,
+    previousTotals: comparable ? native.comparison?.totals ?? null : null,
+    previousIssue: comparable
+      ? null
+      : !previousUsable
+        ? "previous-unusable"
+        : currentMissing + previousMissing > 0
+          ? "missing-rates"
+          : "current-incomplete",
+    safe: totals.every(Number.isSafeInteger),
+  };
+}
+
 /** 闭区间 → B 的半开区间 `[from, to + 1)`。 */
 function span(range: DateRange): { readonly start: string; readonly end: string } {
   return { start: range.from, end: addDays(range.to, 1) };

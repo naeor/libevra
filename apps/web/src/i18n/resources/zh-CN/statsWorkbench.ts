@@ -100,6 +100,7 @@ const statsWorkbench = {
     fxComparisonUnavailable_one: "本期或上期有缺汇率的账目（共 {{count}} 笔），不显示增减比较。",
     fxComparisonUnavailable_other: "本期或上期有缺汇率的账目（共 {{count}} 笔），不显示增减比较。",
     fxComparisonPreviousFailed: "上期的折算或账目不完整，不显示增减比较。",
+    fxComparisonCurrentIncomplete: "本期的账目覆盖不完整，不显示增减比较。",
     fxChartFallback: "折线图无法标示缺汇率的时间段，已改用能标示「未知」的图形。",
     donutFallback: "分母不完整或分项太少，改用排行显示。",
     tooSmall: "空间不足，点开查看",

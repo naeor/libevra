@@ -52,9 +52,9 @@ import {
   entriesInCurrency,
   flowFor,
   fxAgentAResult,
+  fxComparisonModel,
   granularityFor,
   isAgentAAnalysis,
-  mergedEntries,
   statsFor,
   timeSeriesFor,
   type FxAgentAOutcome,
@@ -756,26 +756,22 @@ function FxComparisonView({
   if (previousState.status === "loading") return <Note text={t("statsWorkbench.states.fxLoading")} />;
   const previous = previousState.status === "ready" ? previousState.projection : null;
   const currency = scope.currency;
-  const currentMissing = fx.projection.missing.length;
-  const previousMissing = previous?.missing.length ?? 0;
-  const previousUsable = previous !== null && previous.sourceComplete;
-  const comparable = previousUsable && currentMissing === 0 && previousMissing === 0 && scope.rangeSourceComplete === true;
-  const native = statsFor(previous === null ? scope.entries : mergedEntries(scope.entries, previous.converted), range, currency, scope.bucket, true);
+  const model = fxComparisonModel(scope.entries, fx.projection, previous, range, scope.bucket, currency, scope.rangeSourceComplete === true);
+  const { native, currentMissing, previousTotals, previousIssue } = model;
   // 对比面板用的是整数 number：任何合计超出安全整数就不显示，而不是显示被舍入的数字。
-  const safe = [native.totals.incomeMinor, native.totals.expenseMinor, native.totals.netMinor, native.comparison?.totals.incomeMinor ?? 0, native.comparison?.totals.expenseMinor ?? 0].every(Number.isSafeInteger);
-  if (!safe) return <Note text={t("statsWorkbench.states.undetermined")} tone="warn" />;
+  if (!model.safe) return <Note text={t("statsWorkbench.states.undetermined")} tone="warn" />;
   const bridge = timeResultBridge(id, native, { complete: currentMissing === 0, unknownBucketCount: currentMissing > 0 ? 1 : 0 }, scope, range, { metric: "income-expense", kind: "both", groupBy: null }, false, true, currentMissing);
   const stats = bridge.nativeResult;
-  const previousTotals = comparable ? stats.comparison?.totals ?? null : null;
-  const previousNote = comparable
-    ? undefined
-    : !previousUsable
-      ? t("statsWorkbench.states.fxComparisonPreviousFailed")
-      : currentMissing + previousMissing > 0
-        ? t("statsWorkbench.states.fxComparisonUnavailable", { count: currentMissing + previousMissing })
-        : t("statsWorkbench.states.fxComparisonPreviousFailed");
+  const previousNote =
+    previousIssue === null
+      ? undefined
+      : previousIssue === "previous-unusable"
+        ? t("statsWorkbench.states.fxComparisonPreviousFailed")
+        : previousIssue === "current-incomplete"
+          ? t("statsWorkbench.states.fxComparisonCurrentIncomplete")
+          : t("statsWorkbench.states.fxComparisonUnavailable", { count: model.currentMissing + model.previousMissing });
   return (
-    <ResultState metadata={bridge.metadata} partialText={bridge.metadata.completeness === "fx-incomplete" ? t("statsWorkbench.states.fxSeries", { count: currentMissing }) : undefined}>
+    <ResultState metadata={bridge.metadata} partialText={bridge.metadata.completeness === "fx-incomplete" ? t("statsWorkbench.states.fxSubtotal", { count: currentMissing }) : undefined}>
       <div className={`min-h-0 ${detail ? "" : "sw-compare-compact"}`}>
         <ComparisonPanel
           current={stats.totals}
@@ -960,8 +956,12 @@ function FxAgentAView({
       const note = [base, fxText].filter((part): part is string => part !== null).join(" ");
       return <ScalarView result={result} density={density} note={note === "" ? null : note} />;
     }
-    case "record-extreme":
-      return <ExtremeView result={result} density={density} note={fxText} />;
+    case "record-extreme": {
+      // 极值同样要说清「本机覆盖不全」与「缺汇率」两件事；原币模式的极值卡不变。
+      const base = result.completeness === "fx-incomplete" ? null : completenessNote(result, t);
+      const note = [base, fxText].filter((part): part is string => part !== null).join(" ");
+      return <ExtremeView result={result} density={density} note={note === "" ? null : note} />;
+    }
     default:
       return <ResultState metadata={result} partialText={result.completeness === "fx-incomplete" ? fxText : undefined}>{body}</ResultState>;
   }

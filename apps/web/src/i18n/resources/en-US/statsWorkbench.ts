@@ -99,6 +99,7 @@ const statsWorkbench: Messages<typeof zh> = {
     fxComparisonUnavailable_one: "This or the previous period has an entry without a rate ({{count}}), so no change is shown.",
     fxComparisonUnavailable_other: "This or the previous period has entries without a rate ({{count}}), so no change is shown.",
     fxComparisonPreviousFailed: "The previous period’s conversion or entries are incomplete, so no change is shown.",
+    fxComparisonCurrentIncomplete: "This period’s entries are not fully covered, so no change is shown.",
     fxChartFallback: "A line chart can’t mark periods without a rate, so a chart that can show “unknown” is used instead.",
     donutFallback: "The total is incomplete or there are too few parts, so a ranking is shown instead.",
     tooSmall: "Not enough room — tap to view",
