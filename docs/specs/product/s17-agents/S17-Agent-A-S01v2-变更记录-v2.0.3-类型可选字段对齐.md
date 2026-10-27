@@ -101,7 +101,7 @@ export interface ComputationMetadata {
 
 ## 8. 冻结记录行（供 Lead 补入 orchestrator 冻结记录 §5；A 只读，不代填）
 
-> **v2.0.3（2026-10-27，additive 类型对齐）**：A 的 `ComputationMetadata` 补齐协议 §2 已冻结的可选字段 `method?`/`sampling?`/`coverageEnd?`/`analysisLimit?` 与辅助接口 `SamplingMetadata`/`AnalysisLimitMetadata`；不新增契约、不改字段语义/序列化/既有结构；验证 typecheck 0、shared 全量测试通过、check-links/check-status 0；提交 `<A 提交号>`（记录文件 `S17-Agent-A-S01v2-变更记录-v2.0.3-类型可选字段对齐.md`）。
+> **v2.0.3（2026-10-27，additive 类型对齐）**：A 的 `ComputationMetadata` 补齐协议 §2 已冻结的可选字段 `method?`/`sampling?`/`coverageEnd?`/`analysisLimit?` 与辅助接口 `SamplingMetadata`/`AnalysisLimitMetadata`；不新增契约、不改字段语义/序列化/既有结构；验证 typecheck 0、shared 全量测试通过、check-links/check-status 0；提交 `7ef34e6`（记录文件 `S17-Agent-A-S01v2-变更记录-v2.0.3-类型可选字段对齐.md`）。
 
 ## 9. 边界
 
