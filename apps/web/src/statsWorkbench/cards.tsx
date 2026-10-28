@@ -50,7 +50,7 @@ import { ADVANCED_CARD_IDS, AdvancedCardView } from "./advancedCards.js";
 import { C_CARD_IDS, CCardView } from "./cCards.js";
 import { cardType, resolveDisplay, type CardType, type ChartFamily } from "./catalog.js";
 import { isMultiSlot, readComposition } from "./composition.js";
-import { useSlotMode } from "./slotContext.js";
+import { CardSpaceContext, useCardSpace, useSlotMode } from "./slotContext.js";
 import {
   agentAResult,
   categorySeriesFor,
@@ -232,7 +232,16 @@ export function SlotBody(props: CardBodyProps): React.JSX.Element {
   );
 }
 
-function CardBodyInner({ card, scope, density, detail = false, height, width }: CardBodyProps): React.JSX.Element {
+function CardBodyInner(props: CardBodyProps): React.JSX.Element {
+  // 详情页不限高度（完整显示）；卡片与组合小格把正文像素交给深层视图决定画多少。
+  return (
+    <CardSpaceContext.Provider value={{ width: props.width, height: props.detail === true ? undefined : props.height }}>
+      <CardBodyContent {...props} />
+    </CardSpaceContext.Provider>
+  );
+}
+
+function CardBodyContent({ card, scope, density, detail = false, height, width }: CardBodyProps): React.JSX.Element {
   const { t } = useI18n();
   const type = cardType(card.analysis.analysisId);
   if (type === null) return <Note text={t("statsWorkbench.card.unknownHint")} />;
@@ -331,15 +340,27 @@ export function Note({ text, tone = "muted" }: { readonly text: string; readonly
 function ResultState({ metadata, children, partialText }: { readonly metadata: AnalysisResultBase; readonly children: React.ReactNode; readonly partialText?: string | null | undefined }): React.JSX.Element {
   const { t } = useI18n();
   const mode = useSlotMode();
+  const space = useCardSpace();
   if (metadata.completeness === "loading") return <Skeleton />;
   if (metadata.completeness === "no-transactions") return <Note text={t("statsWorkbench.states.empty")} />;
   if (metadata.completeness === "request-failed" || metadata.completeness === "no-permission" || metadata.completeness === "not-applicable") return <Note text={t("statsWorkbench.states.undetermined")} tone="warn" />;
   const note = metadata.completeness === "complete" ? null : partialText ?? t("statsWorkbench.states.partial");
   if (mode === "spark" || mode === "chart") {
-    // 组合卡片里的图表格：说明收成一行（完整说明在 title 与详情页），把高度留给图表，而不是让一段话挤掉整张图。
+    // 组合卡片里的图表格：说明收成右上角的提示标记（完整说明在 title / 读屏文字与详情页），
+    // 不占图表的高度——槽位的高度是按图表算的，多一行说明就会把图挤出格子。
     return (
-      <div className="flex h-full min-h-0 flex-col gap-0.5">
-        {note === null ? null : <p role="status" title={note} className="truncate text-helper text-warn-dark">{note}</p>}
+      <div className="relative flex h-full min-h-0 flex-col">
+        {children}
+        {note === null ? null : <span role="img" aria-label={note} title={note} className="sw-stat-mark sw-stat-mark-warn absolute top-0 right-0">!</span>}
+      </div>
+    );
+  }
+  // 工作台卡片里说明收成一行（完整文字在 title 与详情页）：图表高度按「一行说明」预留（`heightFor`），
+  // 说明再长也不会把图挤出卡片。详情页（不限高度）照常完整显示。
+  if (space?.height !== undefined) {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-1">
+        {note === null ? null : <p role="status" title={note} className="shrink-0 truncate text-helper text-warn-dark">{note}</p>}
         {children}
       </div>
     );
@@ -536,13 +557,20 @@ function PartsView({
   readonly kind: "expense" | "income";
 }): React.JSX.Element {
   const { t } = useI18n();
+  const space = useCardSpace();
   const donutAllowed =
     family === "donut" &&
     total !== null &&
     rows.length >= 2 &&
     rows.every((row) => row.minor !== null && /^\d+$/.test(row.minor) && Number.isSafeInteger(Number(row.minor)));
+  // 卡片里：环按高度缩小（96–160px），图例只画放得下的行（每行约 41px），其余写「另有 N 项」；
+  // 连两行图例都放不下时改用排行条（同一份构成结果），而不是把图例裁掉。详情页不限高度，完整显示。
+  const cardHeight = detail ? undefined : space?.height;
+  const ringHeight = cardHeight === undefined ? 188 : Math.max(96, Math.min(160, Math.round(cardHeight * 0.5)));
+  const legendRows = cardHeight === undefined ? undefined : Math.floor((cardHeight - ringHeight - 12 - 22) / 41);
+  const donutFits = legendRows === undefined || legendRows >= 2;
 
-  if (family === "donut" && donutAllowed && density !== "compact") {
+  if (family === "donut" && donutAllowed && density !== "compact" && donutFits) {
     const totals: CategoryTotal[] = rows.map((row) => ({
       categoryId: row.id,
       name: row.label,
@@ -552,7 +580,7 @@ function PartsView({
     }));
     return (
       <div className="sw-interactive min-h-0" onClick={(event) => event.stopPropagation()}>
-        <CategoryDonut totals={totals} currency={currency} />
+        <CategoryDonut totals={totals} currency={currency} height={ringHeight} {...(legendRows === undefined ? {} : { maxLegendRows: legendRows, moreText: (count: number) => t("statsWorkbench.values.more", { count }) })} />
       </div>
     );
   }
@@ -648,10 +676,11 @@ export function SeriesTable({
   );
 }
 
-function heightFor(density: Density, detail: boolean, available: number | undefined): number {
+function heightFor(density: Density, detail: boolean, available: number | undefined, slot = false): number {
   if (detail) return 240;
-  // 留出合计一行（约 28px）；其余高度全部给图表，最低 72px。
-  if (available !== undefined && available > 0) return Math.max(72, Math.min(260, available - 30));
+  // 留出合计一行（约 28px）与一行不完整说明（22px，组合小格里说明是角标，不占高度）；其余高度全部给图表，最低 56px。
+  // 尺寸太小、连最低高度都放不下时由 `singlePresentation` / 槽位排布改成迷你趋势或「空间不足」，不会走到这里。
+  if (available !== undefined && available > 0) return Math.max(56, Math.min(260, available - 30 - (slot ? 0 : 22)));
   return density === "expanded" ? 170 : density === "medium" ? 130 : 96;
 }
 
@@ -703,7 +732,9 @@ function TimeView({
   const emptyOrPartial = (completeness: string, emptyStates: readonly string[]): string =>
     emptyStates.includes(completeness) ? t("statsWorkbench.states.empty") : seriesNote(completeness) ?? t("statsWorkbench.states.partial");
   const entries = entriesInCurrency(scope.entries, currency);
-  const height = heightFor(density, detail, available);
+  const height = heightFor(density, detail, available, slotMode !== null);
+  // 表格按行数适配：扣掉合计一行（24）与卡片里一行不完整说明（22，小格里是角标）。
+  const tableRoom = (withTotal: boolean): number | undefined => (available === undefined ? undefined : available - (withTotal ? 24 : 0) - (slotMode === null ? 22 : 0));
   const axis = (value: number) => formatAxisAmount(value, currency);
   const chartKind = family === "area" ? "area" : family === "bar" ? "bar" : "line";
   // S17-B 第二批：这些分析自己的派生层已经算好结果，只需选择数据范围与格式化。
@@ -745,15 +776,17 @@ function TimeView({
         return (
           <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}>
             {total === null || metric === "count" ? null : <p className="sw-amount text-base font-semibold tabular-nums text-ink">{moneyText(total, currency)}</p>}
-            <SeriesTable rows={view.result.buckets.filter((point) => point.bucket.state !== "future").map((point) => ({ key: point.bucket.key, label: labelFor(point.bucket), value: pointText(point) }))} detail={detail} available={available} />
+            <SeriesTable rows={view.result.buckets.filter((point) => point.bucket.state !== "future").map((point) => ({ key: point.bucket.key, label: labelFor(point.bucket), value: pointText(point) }))} detail={detail} available={tableRoom(total !== null && metric !== "count")} />
           </ResultState>
         );
       }
       if (slotMode === "spark") {
+        // 迷你趋势格：合计一行（22）+ 迷你线；不完整的说明是右上角的标记，不占高度。
+        const showTotal = total !== null && metric !== "count";
         return (
           <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}>
-            {total === null || metric === "count" ? null : <p className="sw-amount truncate text-sm font-semibold tabular-nums text-ink" title={moneyText(total, currency)}>{moneyText(total, currency)}</p>}
-            <Sparkline points={view.result.buckets} metric={metric} title={t(`statsWorkbench.cards.${id as "AN-I06"}.title`)} height={Math.max(28, (available ?? 60) - (metric === "count" ? 4 : 24))} />
+            {showTotal ? <p className="sw-amount shrink-0 truncate pr-5 text-sm leading-5 font-semibold tabular-nums text-ink" title={moneyText(total, currency)}>{moneyText(total, currency)}</p> : null}
+            <Sparkline points={view.result.buckets} metric={metric} title={t(`statsWorkbench.cards.${id as "AN-I06"}.title`)} height={Math.max(20, (available ?? 60) - (showTotal ? 22 : 0) - 2)} />
           </ResultState>
         );
       }
@@ -798,7 +831,7 @@ function TimeView({
               columns={[t("common.kind.income"), t("common.kind.expense")]}
               rows={view.result.buckets.filter((point) => point.bucket.state !== "future").map((point) => ({ key: point.bucket.key, label: labelFor(point.bucket), value: side(point.incomeMinor), second: side(point.expenseMinor) }))}
               detail={detail}
-              available={available}
+              available={tableRoom(false)}
             />
           </ResultState>
         );
@@ -811,7 +844,8 @@ function TimeView({
         const stats = bridge.nativeResult;
         return (
           <ResultState metadata={bridge.metadata}><div className="sw-interactive min-h-0" onClick={stop}>
-            <TrendChart points={stats.series} currency={currency} bucket={scope.bucket} hasEntries={stats.totals.count > 0} />
+            {/* 卡片与组合小格按正文高度画（图例约 40px；卡片里再留一行说明 22px），不再用固定 190px 撑出卡片。 */}
+            <TrendChart points={stats.series} currency={currency} bucket={scope.bucket} hasEntries={stats.totals.count > 0} {...(detail || available === undefined ? {} : { height: Math.max(56, available - 40 - (slotMode === null ? 22 : 0)) })} />
           </div></ResultState>
         );
       }
@@ -856,14 +890,18 @@ function TimeView({
       const bridge = timeResultBridge(id, native, { complete: native.complete, unknownBucketCount: native.unknownDayCount, inProgressBucketCount: native.inProgressDayCount, futureBucketCount: native.futureDayCount }, scope, span, { metric: "expense", kind: "expense", groupBy: "day" }, false, true, fxMissing);
       const heatmap = bridge.nativeResult;
       const weeks = heatmap.months.reduce((sum, month) => sum + month.weeks.length, 0);
-      const rows = weeks + 2;
-      const fromHeight = available === undefined ? 40 : (available - rows * 4 - 28) / (weeks + 1);
+      const months = Math.max(1, heatmap.months.length);
+      // 按 1.17.10 浏览器实测：星期行 20px；每个月份标题 20px + 月间距 8px；同一个月内的周行间距 4px。
+      // 格子边长按剩余高度均分，整月放得下、不被裁掉（不缩小文字，格子最小 14px，再小就由排布推荐更大尺寸）。
+      const fromHeight = available === undefined ? 40 : (available - 20 - months * 28 - Math.max(0, weeks - months) * 4 - 4) / Math.max(1, weeks);
       const fromWidth = availableWidth === undefined ? 40 : (availableWidth - 24) / 7;
-      const cell = Math.max(14, Math.floor(Math.min(fromHeight, fromWidth)));
+      // 卡片里格子不小于 16px（`compact` 网格的最小高度）；再小就由排布判定为放不下。
+      const cell = Math.max(detail ? 14 : 16, Math.floor(Math.min(fromHeight, fromWidth)));
       const weekdays = t("statsWorkbench.values.weekdays").split(",");
       return (
         <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}><div className="sw-interactive mx-auto min-h-0" style={{ maxWidth: cell * 7 + 24 }} onClick={stop}>
           <CalendarHeatmapGrid
+            compact={!detail}
             heatmap={heatmap}
             title={t("statsWorkbench.cards.AN-I12.title")}
             monthLabel={(monthKey) => formatLocalDate(`${monthKey}-01`, { year: "numeric", month: "long" })}

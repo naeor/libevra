@@ -32,12 +32,15 @@ export function TrendChart({
   currency,
   bucket,
   hasEntries,
+  height = PLOT_HEIGHT,
 }: {
   readonly points: readonly StatsSeriesPoint[];
   readonly currency: string;
   readonly bucket: StatsBucket;
   /** Whether any entry exists in this currency and period — see `chartNotice`. */
   readonly hasEntries: boolean;
+  /** Plot height; composite-card slots pass their own (the legend sits below it). */
+  readonly height?: number;
 }): React.JSX.Element {
   const { t } = useI18n();
   const [active, setActive] = useState<number | null>(null);
@@ -70,7 +73,7 @@ export function TrendChart({
   return (
     <>
       <ChartFrame
-        height={PLOT_HEIGHT}
+        height={height}
         padding={{ top: 14, right: 12, bottom: 26, left: 42 }}
         title={t("stats.trend.chartTitle", { currency: currencyName(currency) })}
         notice={chartNotice(hasEntries, [...expenses, ...incomes], "flow")}

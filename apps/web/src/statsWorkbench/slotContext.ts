@@ -14,3 +14,13 @@ export const SlotPresentationContext = createContext<{ readonly mode: SlotMode }
 export function useSlotMode(): SlotMode | null {
   return useContext(SlotPresentationContext)?.mode ?? null;
 }
+
+/**
+ * 卡片（或组合卡片小格）正文的像素空间，给需要按空间决定「画多少」的深层视图用（例如环形图的图例行数）。
+ * 详情页不提供（`undefined` = 不限高度，完整显示）。
+ */
+export const CardSpaceContext = createContext<{ readonly width: number | undefined; readonly height: number | undefined } | null>(null);
+
+export function useCardSpace(): { readonly width: number | undefined; readonly height: number | undefined } | null {
+  return useContext(CardSpaceContext);
+}

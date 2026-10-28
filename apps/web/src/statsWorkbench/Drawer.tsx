@@ -174,7 +174,7 @@ export function Drawer({
                           <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onConfigureCustom?.(card.objectId)}>
                             <span className="block truncate text-body font-medium text-ink">{cardTitle(card, t)}</span>
                             <span className="block truncate text-helper text-muted">
-                              {multi ? t("statsWorkbench.composite.editTile", { count: read.slots.length, template: t(`statsWorkbench.composite.templates.${read.template}.short`) }) : t("statsWorkbench.editor.titleEdit")}
+                              {multi ? t("statsWorkbench.composite.editTile", { count: read.slots.length, template: t(`statsWorkbench.composite.templates.${read.template}.name`) }) : t("statsWorkbench.editor.titleEdit")}
                             </span>
                           </button>
                           <button type="button" className="sw-add-button" aria-label={t("statsWorkbench.drawer.add", { name: cardTitle(card, t) })} onClick={() => onDuplicateCustom?.(card)}>

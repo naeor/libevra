@@ -25,8 +25,9 @@ import { useI18n } from "../i18n/index.js";
 import { CardBody, cardSubtitle, cardTitle, familyOf } from "./cards.js";
 import { cardType, CONTAINER_SIZES, sizeKey } from "./catalog.js";
 import { CompositeBody } from "./CompositeCard.js";
-import { cardSizing, isMultiSlot, readComposition, type GridMetrics } from "./composition.js";
+import { cardSizing, isMultiSlot, readComposition, singlePresentation, slotSpecs, type GridMetrics } from "./composition.js";
 import type { WorkbenchScope } from "./scope.js";
+import { SlotPresentationContext } from "./slotContext.js";
 import { lastRow } from "./session.js";
 import {
   ChartGlyph,
@@ -218,11 +219,25 @@ export function CardTile({
         ) : body.width === 0 ? null : isMultiSlot(card) ? (
           <CompositeBody card={card} scope={scope} width={body.width} height={body.height} />
         ) : (
-          <CardBody card={card} scope={scope} density={densityFor(body.width, body.height)} height={body.height} width={body.width} />
+          <SingleCardBody card={card} scope={scope} width={body.width} height={body.height} />
         )}
       </div>
     </article>
   );
+}
+
+/**
+ * 单项卡片正文：图表放不下完整绘图区时，时间趋势改画迷你趋势，其它图形写「空间不足，点开查看」，
+ * 不把图裁掉（与编辑器的尺寸检查同一判断，见 `singlePresentation`）。
+ */
+function SingleCardBody({ card, scope, width, height }: { readonly card: AnalysisCardNode; readonly scope: WorkbenchScope; readonly width: number; readonly height: number }): React.JSX.Element {
+  const { t } = useI18n();
+  const read = readComposition(card);
+  const spec = slotSpecs(read.slots)[0];
+  const presentation = spec === undefined ? "full" : singlePresentation(spec, width, height);
+  if (presentation === "too-small") return <p className="text-helper text-muted">{t("statsWorkbench.states.tooSmall")}</p>;
+  const body = <CardBody card={card} scope={scope} density={densityFor(width, height)} height={height} width={width} />;
+  return presentation === "spark" ? <SlotPresentationContext.Provider value={{ mode: "spark" }}>{body}</SlotPresentationContext.Provider> : body;
 }
 
 function containerName(container: ContainerNode, t: ReturnType<typeof useI18n>["t"]): string {
@@ -444,7 +459,7 @@ export function EditGrid({
         const kindLabel =
           object.objectType === "analysis-card"
             ? composite !== null
-              ? t("statsWorkbench.composite.editTile", { count: composite.slots.length, template: t(`statsWorkbench.composite.templates.${composite.template}.short`) })
+              ? t("statsWorkbench.composite.editTile", { count: composite.slots.length, template: t(`statsWorkbench.composite.templates.${composite.template}.name`) })
               : t(`statsWorkbench.config.families.${card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))}`)
             : container !== undefined
               ? t("statsWorkbench.containers.children", { count: container.children.length })

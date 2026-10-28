@@ -16,12 +16,15 @@ export function CalendarHeatmapGrid({
   weekdayLabels,
   formatDay,
   onSelectDate,
+  compact = false,
 }: {
   readonly heatmap: CalendarHeatmapResult;
   readonly title: string;
   readonly monthLabel: (monthKey: string) => string;
   readonly weekdayLabels: readonly string[];
   readonly formatDay: (cell: CalendarDayCell) => string;
+  /** 卡片里格子不可点（点卡片进详情），最小高度从 24px 降到 16px，整月放得进 2×2；详情页保持 24px 触控目标。 */
+  readonly compact?: boolean;
   readonly onSelectDate?: (cell: CalendarDayCell) => void;
 }): React.JSX.Element {
   return (
@@ -54,7 +57,7 @@ export function CalendarHeatmapGrid({
                       title={formatDay(cell)}
                       disabled={onSelectDate === undefined}
                       onClick={onSelectDate === undefined ? undefined : () => onSelectDate(cell)}
-                      className="aspect-square min-h-6 w-full rounded-[2px] border-none p-0"
+                      className={`aspect-square ${compact ? "min-h-4" : "min-h-6"} w-full rounded-[2px] border-none p-0`}
                       style={{
                         backgroundColor:
                           cell.level === null ? "var(--color-chart-rule)" : heatColor(cell.level),

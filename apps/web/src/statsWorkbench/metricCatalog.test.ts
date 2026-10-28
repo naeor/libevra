@@ -36,6 +36,17 @@ describe("目录完整性", () => {
   });
 });
 
+describe("名称", () => {
+  it("每项指标的名称在中英文里都唯一（目录与搜索里不会混淆两项）", () => {
+    for (const locale of ["zh-CN", "en-US"] as const) {
+      applyLocale(locale);
+      const titles = CARD_TYPES.map((type) => i18n.t(`statsWorkbench.cards.${type.id}.title` as never) as string);
+      expect(new Set(titles).size, locale).toBe(titles.length);
+    }
+    applyLocale("zh-CN");
+  });
+});
+
 describe("搜索", () => {
   it("按名称、说明、分类名与编号都能找到，结果不重复", () => {
     expect(searchDirectory("帕累托", t).map((type) => type.id)).toEqual(["AN-P08"]);

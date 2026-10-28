@@ -16,6 +16,7 @@ import {
   readComposition,
   recommendSize,
   recommendTemplate,
+  singlePresentation,
   slotCard,
   slotSpecs,
   templateFit,
@@ -142,6 +143,47 @@ describe("模板推荐与兼容（任务 §3.3 / §6）", () => {
     expect(draftProblem(draft)).toBeNull();
     const card = buildCard(draft, undefined, "twice")!;
     expect(readComposition(card).slots.map((item) => `${item.analysisId}:${item.family}`)).toEqual(["AN-I06:line", "AN-I06:table"]);
+  });
+});
+
+describe("放不下就不画（预览与卡片同一判断，1.17.10 浏览器全量测量后的回归保护）", () => {
+  const s = (id: string, analysisId: string, family: string): CompositionSlot => ({ id, analysisId, family: family as CompositionSlot["family"] });
+
+  it("单项卡片：时间趋势在矮卡片里画迷你趋势；其它图形写「空间不足」；数字与 S17-A 列表照常完整显示", () => {
+    const [line] = slotSpecs([s("s1", "AN-I06", "line")]);
+    const [table] = slotSpecs([s("s1", "AN-I06", "table")]);
+    const [weekday] = slotSpecs([s("s1", "AN-I13", "bar")]);
+    const [ranking] = slotSpecs([s("s1", "AN-I03", "ranking")]);
+    const [boxplot] = slotSpecs([s("s1", "AN-A10", "boxplot")]);
+    const [number] = slotSpecs([s("s1", "AN-B01", "number")]);
+    // 手机 2×1 正文约 312 × 62
+    expect(singlePresentation(line!, 312, 62)).toBe("spark");
+    expect(singlePresentation(table!, 312, 62)).toBe("too-small");
+    expect(singlePresentation(weekday!, 312, 62)).toBe("too-small");
+    expect(singlePresentation(ranking!, 312, 62)).toBe("full");
+    expect(singlePresentation(boxplot!, 312, 58)).toBe("full");
+    expect(singlePresentation(number!, 150, 40)).toBe("full");
+    // 手机 2×2 正文约 312 × 190：日历热力（卡片里格子 16px）放得下
+    const [heatmap] = slotSpecs([s("s1", "AN-I12", "heatmap")]);
+    expect(singlePresentation(heatmap!, 312, 190)).toBe("full");
+    expect(singlePresentation(heatmap!, 312, 120)).toBe("too-small");
+  });
+
+  it("迷你趋势只对线 / 面积 / 柱：表格、累计曲线不会被塞进迷你格", () => {
+    expect(slotSpecs([s("s1", "AN-I06", "line")])[0]!.spark).toBe(true);
+    expect(slotSpecs([s("s1", "AN-I06", "table")])[0]!.spark).toBe(false);
+    expect(slotSpecs([s("s1", "AN-B01", "cumulative")])[0]!.spark).toBe(false);
+  });
+
+  it("需要更高绘图区的图形：格子不够高时不放（写「另有 N 项」），编辑器据此推荐更大的尺寸", () => {
+    const pair = [s("s1", "AN-A01", "comparison"), s("s2", "AN-B01", "number")];
+    const specs = slotSpecs(pair);
+    expect(specs[0]!.minHeight).toBe(196);
+    const tight = layoutComposition("T6", specs, 312, 150);
+    expect(tight.hidden).toEqual(["s1"]);
+    const roomy = layoutComposition("T6", specs, 312, 318);
+    expect(roomy.fits).toBe(true);
+    expect(recommendSize("T6", pair, PHONE)).toEqual({ colSpan: 2, rowSpan: 3 });
   });
 });
 

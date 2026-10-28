@@ -102,7 +102,8 @@ export const CARD_TEMPLATES: readonly CardTemplate[] = [
   { id: "T3", numbers: [2, 2], charts: [1, 1], arrangement: "chart-numbers", sizes: [S12, S22, S23] },
   { id: "T4", numbers: [3, 6], charts: [1, 1], arrangement: "chart-numbers", sizes: [S22, S23, S24] },
   { id: "T5", numbers: [0, 0], charts: [2, 2], arrangement: "charts", sizes: [S22, S23, S24] },
-  { id: "T6", numbers: [1, 1], charts: [1, 1], arrangement: "number-chart", sizes: [S21, S22, S12] },
+  // 2×3 留给需要较高绘图区的图形（日历热力、上期比较等）。
+  { id: "T6", numbers: [1, 1], charts: [1, 1], arrangement: "number-chart", sizes: [S21, S22, S12, S23] },
   { id: "T7", numbers: [3, 6], charts: [0, 0], arrangement: "numbers", sizes: [S21, S12, S22, S23] },
   { id: "T8", numbers: [0, 6], charts: [2, 4], arrangement: "mixed", sizes: [S22, S23, S24] },
 ];
@@ -403,16 +404,59 @@ export interface SlotSpec {
   readonly spark: boolean;
   /** 数字带第二行说明（例如环比同时给支出与收入）。 */
   readonly tall: boolean;
+  /** 这种图形在槽位里（含名称一行）至少要多高才不被裁切；没有时用通用的图表下限。 */
+  readonly minHeight?: number;
 }
+
+/** 迷你趋势只对线 / 面积 / 柱这类「一条序列」的图形有意义；表格、累计曲线等放不下就不画。 */
+const SPARK_FAMILIES: ReadonlySet<ChartFamily> = new Set(["line", "area", "bar"]);
+
+/**
+ * 需要比通用下限更高的图形（含槽位名称一行，按 1.17.10 浏览器逐项测量：日历热力的格子不小于 14px、
+ * 上期比较带说明段落、小多图每个分类至少一行小图）。
+ */
+const FAMILY_MIN_SLOT_HEIGHT: Partial<Record<ChartFamily, number>> = {
+  // 卡片里的日历格子最小 16px 高（卡片里格子不可点）：6 周的月份正文约 168px，再加名称一行。
+  heatmap: 190,
+  comparison: 196,
+  "small-multiples": 150,
+  // 箱线图横向一条箱体 + 一行数轴说明即可读（单组约 44px），比通用下限低：2×1 也能完整显示。
+  boxplot: 64,
+};
+
+/** 单项卡片（不是组合卡片）在给定正文尺寸下怎么画：完整图表 / 迷你趋势 / 空间不足（点开看）。 */
+export type SinglePresentation = "full" | "spark" | "too-small";
+
+/**
+ * 单项卡片的展示判断，与组合小格同一套可读下限（单项卡片没有槽位名称那一行，所以下限少 16px）。
+ * 编辑器的「放得下」检查、工作台卡片与预览都用它，三处结论一致。
+ */
+export function singlePresentation(spec: SlotSpec, width: number, height: number): SinglePresentation {
+  if (spec.kind === "number") return "full";
+  const minHeight = (spec.minHeight ?? READABLE.chart.minHeight) - 16;
+  if (width >= READABLE.chart.minWidth && height >= minHeight) return "full";
+  if (spec.spark && width >= READABLE.spark.minWidth && height >= READABLE.spark.minHeight - 16) return "spark";
+  return "too-small";
+}
+
+/**
+ * S17-A 的构成 / 排行 / 列表视图按密度只画放得下的行数（紧凑时 2 行），矮卡片（2×1）也能完整显示，
+ * 下限比通用图表低（按 1.17.10 浏览器逐项测量）。
+ */
+const ADAPTIVE_LIST_FAMILIES: ReadonlySet<ChartFamily> = new Set(["ranking", "table", "donut"]);
+const ADAPTIVE_LIST_MIN = 64;
 
 export function slotSpecs(slots: readonly CompositionSlot[]): readonly SlotSpec[] {
   return slots.map((slot) => {
     const shown = resolveDisplay(slot.analysisId, slot.family);
+    const adaptive = ADAPTIVE_LIST_FAMILIES.has(slot.family) && cardType(shown.analysisId)?.source === "agent-a";
+    const minHeight = adaptive ? ADAPTIVE_LIST_MIN : FAMILY_MIN_SLOT_HEIGHT[slot.family];
     return {
       id: slot.id,
       kind: slotKindOf(slot.family),
-      spark: SPARK_CAPABLE_IDS.has(shown.analysisId) && slotKindOf(slot.family) === "chart",
+      spark: SPARK_CAPABLE_IDS.has(shown.analysisId) && SPARK_FAMILIES.has(slot.family),
       tall: TALL_NUMBER_IDS.has(shown.analysisId),
+      ...(minHeight === undefined ? {} : { minHeight }),
     };
   });
 }
@@ -489,14 +533,8 @@ function numbersBandHeight(specs: readonly SlotSpec[], width: number, preferStac
   return best?.height ?? null;
 }
 
-function chartMinimum(spec: SlotSpec, allowSpark: boolean): { readonly width: number; readonly height: number } {
-  return allowSpark && spec.spark
-    ? { width: READABLE.spark.minWidth, height: READABLE.spark.minHeight }
-    : { width: READABLE.chart.minWidth, height: READABLE.chart.minHeight };
-}
-
 function chartPlacement(spec: SlotSpec, region: Region): SlotPlacement | null {
-  const full = region.width >= READABLE.chart.minWidth && region.height >= READABLE.chart.minHeight;
+  const full = region.width >= READABLE.chart.minWidth && region.height >= (spec.minHeight ?? READABLE.chart.minHeight);
   if (full) return { slotId: spec.id, ...region, mode: "chart" };
   const spark = spec.spark && region.width >= READABLE.spark.minWidth && region.height >= READABLE.spark.minHeight;
   return spark ? { slotId: spec.id, ...region, mode: "spark" } : null;
@@ -563,9 +601,9 @@ export function layoutComposition(template: TemplateId, specs: readonly SlotSpec
     case "single": {
       const spec = specs[0]!;
       if (spec.kind === "number") return finish({ placements: [{ slotId: spec.id, ...box, mode: "full" }], hidden: [] });
-      const min = chartMinimum(spec, true);
-      const fits = box.width >= Math.min(min.width, READABLE.chart.minWidth) && box.height >= min.height - 16;
-      return { placements: [{ slotId: spec.id, ...box, mode: "full" }], hidden: [], fits };
+      // 与工作台卡片同一判断：迷你趋势也算「完整显示」（只是更紧凑的形态），「空间不足」才算放不下。
+      const presentation = singlePresentation(spec, box.width, box.height);
+      return { placements: [{ slotId: spec.id, ...box, mode: presentation === "spark" ? "spark" : "full" }], hidden: [], fits: presentation !== "too-small" };
     }
     case "numbers":
       return finish(solveNumbers(specs, box));

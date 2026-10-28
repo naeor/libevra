@@ -39,10 +39,18 @@ export function CategoryDonut({
   totals,
   currency,
   onSelectCategory,
+  height = 188,
+  maxLegendRows,
+  moreText,
 }: {
   readonly totals: readonly CategoryTotal[];
   readonly currency: string;
   readonly onSelectCategory?: (categoryId: string) => void;
+  /** Ring height; workbench cards pass a smaller one so the ring and legend fit the card. */
+  readonly height?: number;
+  /** Legend rows to show; the rest are summarised by `moreText` (the detail page shows all). */
+  readonly maxLegendRows?: number;
+  readonly moreText?: (count: number) => string;
 }): React.JSX.Element {
   const { t } = useI18n();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -59,7 +67,7 @@ export function CategoryDonut({
   return (
     <>
       <ChartFrame
-        height={188}
+        height={height}
         padding={{ top: 8, right: 8, bottom: 8, left: 8 }}
         title={t("stats.donut.chartTitle", { currency })}
         notice={emptyStateMessage(summary.state, "expense")}
@@ -113,7 +121,7 @@ export function CategoryDonut({
       </ChartFrame>
 
       <ul className="mt-3 flex flex-col">
-        {slices.map((slice) => {
+        {(maxLegendRows === undefined ? slices : slices.slice(0, Math.max(0, maxLegendRows))).map((slice) => {
           const share = total === 0 ? 0 : slice.minor / total;
           const tappable = slice.id !== null && onSelectCategory !== undefined;
 
@@ -140,6 +148,9 @@ export function CategoryDonut({
           );
         })}
       </ul>
+      {maxLegendRows !== undefined && slices.length > maxLegendRows && moreText !== undefined ? (
+        <p className="text-helper text-muted">{moreText(slices.length - Math.max(0, maxLegendRows))}</p>
+      ) : null}
     </>
   );
 }

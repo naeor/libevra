@@ -703,6 +703,11 @@
   overflow: hidden;
 }
 
+/* 组合卡片的小格更窄：对比说明只留一行（完整说明在详情页）。 */
+.sw-slot .sw-compare-compact > div > p:last-child {
+  -webkit-line-clamp: 1;
+}
+
 .sw-card-chevron {
   opacity: 0.55;
   transition: opacity 160ms ease, transform 160ms ease;

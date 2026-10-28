@@ -111,12 +111,23 @@ function Shell({ notes, info = [], children }: { readonly notes: readonly (strin
   const mode = useSlotMode();
   const shown = notes.filter((note): note is string => note !== null && note !== "");
   const facts = info.filter((note): note is string => note !== null && note !== "");
+  if (mode !== null) {
+    // 组合卡片的小格：降级提示收成右上角的标记（完整文字在 title / 读屏与详情页），口径说明收成一行。
+    const warning = shown.join(" ");
+    return (
+      <div className="relative flex h-full min-h-0 flex-col gap-1">
+        {facts.length === 0 ? null : <p title={facts.join(" · ")} className="shrink-0 truncate pr-5 text-helper text-muted">{facts.join(" · ")}</p>}
+        <div className="sw-interactive min-h-0 flex-1" onClick={(event) => event.stopPropagation()}>{children}</div>
+        {warning === "" ? null : <span role="img" aria-label={warning} title={warning} className="sw-stat-mark sw-stat-mark-warn absolute top-0 right-0">!</span>}
+      </div>
+    );
+  }
   return (
     <div className="flex h-full min-h-0 flex-col gap-1">
       {shown.map((note) => (
-        <p key={note} role="status" title={note} className={`text-helper text-warn-dark ${mode === null ? "" : "truncate"}`}>{note}</p>
+        <p key={note} role="status" title={note} className="shrink-0 text-helper text-warn-dark">{note}</p>
       ))}
-      {facts.length === 0 ? null : <p title={facts.join(" · ")} className={`text-helper text-muted ${mode === null ? "" : "truncate"}`}>{facts.join(" · ")}</p>}
+      {facts.length === 0 ? null : <p title={facts.join(" · ")} className="shrink-0 text-helper text-muted">{facts.join(" · ")}</p>}
       <div className="sw-interactive min-h-0 flex-1" onClick={(event) => event.stopPropagation()}>{children}</div>
     </div>
   );
@@ -143,12 +154,14 @@ function CNumber({ text, note, density, warn = false }: { readonly text: string;
 
 export function CCardView({ id, family, scope, range, density, detail, available, availableWidth, fx }: CCardProps): React.JSX.Element {
   const { t } = useI18n();
+  const slotMode = useSlotMode();
   const currency = scope.currency;
   const money = (minor: bigint) => moneyText(minor.toString(), currency);
   const percent = (value: { readonly numerator: bigint; readonly denominator: bigint } | null) => (value === null || value.denominator === 0n ? t("statsWorkbench.states.undetermined") : ratioPercentText(value));
   const more = (count: number) => t("statsWorkbench.values.more", { count });
   const height = detail ? 240 : available !== undefined && available > 0 ? Math.max(64, Math.min(320, available - 24)) : density === "expanded" ? 170 : density === "medium" ? 130 : 96;
-  const rowsFit = (rowHeight: number) => (detail ? 500 : Math.max(2, Math.floor(((available ?? 140) - 24) / rowHeight)));
+  // `lines`：图表上方的说明行数（组合卡片小格里每类说明最多一行）；每行 18px + 间隙。
+  const rowsFit = (rowHeight: number, lines = 0) => (detail ? 500 : Math.max(1, Math.floor(((available ?? 140) - 24 - lines * 20) / rowHeight)));
   const title = t(`statsWorkbench.cards.${id as "AN-I18"}.title`);
   const unspecified = t("statsWorkbench.cAnalysis.unspecifiedPayment");
   const sourceEntries = scope.entries;
@@ -178,7 +191,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         return (
           <Shell notes={notes}>
             {/* 缺汇率时分母只是已折算部分，不显示占比。 */}
-            <BarRows title={title} limit={rowsFit(30)} moreText={more} rows={result.items.map((item) => ({ id: item.id, label: `${formatLocalDate(item.occurredLocalDate)} · ${item.categoryLabel}`, valueText: money(item.amountMinor), fraction: ratio(item.amountMinor, max), secondary: item.share === null || missing > 0 ? null : percent(item.share) }))} />
+            <BarRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={result.items.map((item) => ({ id: item.id, label: `${formatLocalDate(item.occurredLocalDate)} · ${item.categoryLabel}`, valueText: money(item.amountMinor), fraction: ratio(item.amountMinor, max), secondary: item.share === null || missing > 0 ? null : percent(item.share) }))} />
           </Shell>
         );
       }
@@ -186,7 +199,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         <Shell notes={notes}>
           <DataTable
             title={title}
-            limit={rowsFit(22) - 1}
+            limit={rowsFit(22, 1) - 1}
             moreText={more}
             columns={[{ label: "#" }, { label: t("statsWorkbench.cAnalysis.date") }, { label: t("statsWorkbench.cAnalysis.category") }, ...(availableWidth !== undefined && availableWidth < 300 && !detail ? [] : [{ label: t("statsWorkbench.cAnalysis.payment") }]), { label: t("statsWorkbench.cAnalysis.amount"), align: "right" as const }]}
             rows={result.items.map((item) => ({ key: item.id, cells: [String(item.rank), formatLocalDate(item.occurredLocalDate), item.categoryLabel, ...(availableWidth !== undefined && availableWidth < 300 && !detail ? [] : [item.paymentMethodLabel ?? unspecified]), money(item.amountMinor)] }))}
@@ -208,7 +221,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "table") {
         return (
           <Shell notes={[partial]}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.amount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.cumulativeShare"), align: "right" }]} rows={result.rows.map((row) => ({ key: row.id, cells: [row.label, money(row.amountMinor), percent(row.cumulativeShare)] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.amount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.cumulativeShare"), align: "right" }]} rows={result.rows.map((row) => ({ key: row.id, cells: [row.label, money(row.amountMinor), percent(row.cumulativeShare)] }))} />
           </Shell>
         );
       }
@@ -230,7 +243,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "record-table") {
         return (
           <Shell notes={[partial]}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: "#" }, { label: t("statsWorkbench.cAnalysis.transaction") }, { label: t("statsWorkbench.cAnalysis.amount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.cumulativeShare"), align: "right" }]} rows={result.rows.map((row, index) => ({ key: row.id, cells: [String(index + 1), row.label, money(row.amountMinor), percent(row.cumulativeShare)] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: "#" }, { label: t("statsWorkbench.cAnalysis.transaction") }, { label: t("statsWorkbench.cAnalysis.amount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.cumulativeShare"), align: "right" }]} rows={result.rows.map((row, index) => ({ key: row.id, cells: [String(index + 1), row.label, money(row.amountMinor), percent(row.cumulativeShare)] }))} />
           </Shell>
         );
       }
@@ -299,10 +312,14 @@ export function CCardView({ id, family, scope, range, density, detail, available
         outliers: result.outliers.map(at),
       };
       const outlierText = result.outliers.length === 0 ? null : t("statsWorkbench.cAnalysis.outliersBeyond", { count: result.outliers.length, max: money(summary.maxMinor) });
-      const boxHeight = Math.max(28, (detail ? 140 : available ?? 100) - 20 - (partial === null ? 0 : 18) - (outlierText === null ? 0 : 16));
+      // 矮卡片（2×1）：离群说明并进数轴那一行（完整文字在 title），把高度留给箱体。
+      const compact = !detail && (available ?? 100) < 80;
+      const axisText = [compact ? outlierText : null, `${money(low)} – ${money(high)}`, group.summaryText].filter((part): part is string => part !== null).join(" · ");
+      const reserved = 20 + (partial === null || slotMode !== null ? 0 : 20) + (compact || outlierText === null ? 0 : 20);
+      const boxHeight = Math.max(24, (detail ? 140 : available ?? 100) - reserved);
       return (
-        <Shell notes={[partial]} info={[outlierText]}>
-          <BoxplotChart title={title} height={boxHeight} groups={[group]} axisText={`${money(low)} – ${money(high)} · ${group.summaryText}`} unreliableText={t("statsWorkbench.cAnalysis.unreliable", { count: 5 })} />
+        <Shell notes={[partial]} info={[compact ? null : outlierText]}>
+          <BoxplotChart title={title} height={boxHeight} groups={[group]} axisText={axisText} unreliableText={t("statsWorkbench.cAnalysis.unreliable", { count: 5 })} />
         </Shell>
       );
     }
@@ -316,7 +333,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         if (result.streaks.length === 0) return <Notice text={t("statsWorkbench.cAnalysis.noStreak")} />;
         return (
           <Shell notes={[unknownNote]}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.from") }, { label: t("statsWorkbench.cAnalysis.to") }, { label: t("statsWorkbench.cAnalysis.days"), align: "right" }]} rows={result.streaks.map((streak) => ({ key: streak.from, cells: [formatLocalDate(streak.from), formatLocalDate(streak.to), t("statsWorkbench.values.days", { count: streak.days })] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.from") }, { label: t("statsWorkbench.cAnalysis.to") }, { label: t("statsWorkbench.cAnalysis.days"), align: "right" }]} rows={result.streaks.map((streak) => ({ key: streak.from, cells: [formatLocalDate(streak.from), formatLocalDate(streak.to), t("statsWorkbench.values.days", { count: streak.days })] }))} />
           </Shell>
         );
       }
@@ -346,14 +363,14 @@ export function CCardView({ id, family, scope, range, density, detail, available
         const maxSum = result.bubbles.reduce((max, bubble) => (bubble.sumMinor > max ? bubble.sumMinor : max), 0n);
         return (
           <Shell notes={notes}>
-            <BarRows title={title} limit={rowsFit(30)} moreText={more} rows={result.bubbles.map((bubble) => ({ id: bubble.categoryId, label: bubble.categoryLabel, valueText: money(bubble.sumMinor), fraction: ratio(bubble.sumMinor, maxSum) }))} />
+            <BarRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={result.bubbles.map((bubble) => ({ id: bubble.categoryId, label: bubble.categoryLabel, valueText: money(bubble.sumMinor), fraction: ratio(bubble.sumMinor, maxSum) }))} />
           </Shell>
         );
       }
       if (family === "table") {
         return (
           <Shell notes={notes}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.amount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: t("statsWorkbench.cAnalysis.average"), align: "right" }]} rows={result.bubbles.map((bubble) => ({ key: bubble.categoryId, cells: [bubble.categoryLabel, money(bubble.sumMinor), String(bubble.count), bubble.meanMinor === null ? "—" : money(roundRational(bubble.meanMinor))] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.amount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: t("statsWorkbench.cAnalysis.average"), align: "right" }]} rows={result.bubbles.map((bubble) => ({ key: bubble.categoryId, cells: [bubble.categoryLabel, money(bubble.sumMinor), String(bubble.count), bubble.meanMinor === null ? "—" : money(roundRational(bubble.meanMinor))] }))} />
           </Shell>
         );
       }
@@ -373,13 +390,15 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (result === null || result.groups.length === 0) return <Notice text={empty} />;
       // 放不下全部分组时：分类箱线保留样本最多的前几组（shared 已排序），月度箱线保留**最近**的几个月；
       // 省略的组数写在说明里，详情页显示全部。
-      const fitGroups = detail ? 24 : Math.max(1, Math.floor(((available ?? 160) - 48) / 26));
+      // 绘图区 = 正文 − 数轴一行（20）− 可能的「另有 N 组」一行（20）− 卡片里的不完整说明（20）；每组至少 26px。
+      const plotRoom = (available ?? 160) - 20 - 20 - (partial === null || slotMode !== null ? 0 : 20);
+      const fitGroups = detail ? 24 : Math.max(1, Math.floor(plotRoom / 26));
       const groups = id === "AN-P23" ? result.groups.slice(-fitGroups) : result.groups.slice(0, fitGroups);
       const hiddenGroups = result.groups.length - groups.length;
       if (family === "table") {
         return (
           <Shell notes={[partial]}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: id === "AN-P12" ? t("statsWorkbench.cAnalysis.category") : t("statsWorkbench.cAnalysis.month") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: "Q1", align: "right" }, { label: t("statsWorkbench.cAnalysis.median"), align: "right" }, { label: "Q3", align: "right" }]} rows={result.groups.map((group) => ({ key: group.categoryId, cells: [group.categoryLabel, String(group.sampleCount), money(roundRational(group.q1)), money(roundRational(group.median)), money(roundRational(group.q3))] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: id === "AN-P12" ? t("statsWorkbench.cAnalysis.category") : t("statsWorkbench.cAnalysis.month") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: "Q1", align: "right" }, { label: t("statsWorkbench.cAnalysis.median"), align: "right" }, { label: "Q3", align: "right" }]} rows={result.groups.map((group) => ({ key: group.categoryId, cells: [group.categoryLabel, String(group.sampleCount), money(roundRational(group.q1)), money(roundRational(group.median)), money(roundRational(group.q3))] }))} />
           </Shell>
         );
       }
@@ -396,7 +415,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         <Shell notes={[partial]} info={[hiddenGroups > 0 ? more(hiddenGroups) : null]}>
           <BoxplotChart
             title={title}
-            height={Math.max(60, height - 36 - (hiddenGroups > 0 ? 18 : 0))}
+            height={detail ? Math.max(120, groups.length * 30 + 20) : Math.max(24, plotRoom + (hiddenGroups > 0 ? 0 : 20))}
             axisText={t("statsWorkbench.cAnalysis.boxAxis", { min: money(min), max: money(max) })}
             unreliableText={t("statsWorkbench.cAnalysis.unreliable", { count: result.minReliableSample })}
             groups={groups.map((group) => ({
@@ -441,7 +460,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         <Shell notes={notes}>
           <HeatMatrix
             title={title}
-            maxRows={rowsFit(20) - 1}
+            maxRows={rowsFit(20, 1) - 1}
             moreText={more}
             emptyTitle={t("statsWorkbench.cAnalysis.emptyCell")}
             rows={result.matrix.rowIds.map((rowId) => ({ id: rowId, label: result.rowLabels.get(rowId) ?? rowId, totalText: money(result.matrix.rowTotals.get(rowId) ?? 0n) }))}
@@ -463,7 +482,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "table") {
         return (
           <Shell notes={notes}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: result.bucket === "month" ? t("statsWorkbench.cAnalysis.month") : t("statsWorkbench.cAnalysis.week") }, ...result.matrix.colIds.slice(0, 4).map((colId) => ({ label: result.seriesLabels.get(colId) ?? colId, align: "right" as const }))]} rows={result.matrix.rowIds.map((rowId) => ({ key: rowId, cells: [label(rowId), ...result.matrix.colIds.slice(0, 4).map((colId) => { const cell = cells.get(`${rowId}\u0001${colId}`); return cell === undefined ? "—" : money(cell.amountMinor); })] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: result.bucket === "month" ? t("statsWorkbench.cAnalysis.month") : t("statsWorkbench.cAnalysis.week") }, ...result.matrix.colIds.slice(0, 4).map((colId) => ({ label: result.seriesLabels.get(colId) ?? colId, align: "right" as const }))]} rows={result.matrix.rowIds.map((rowId) => ({ key: rowId, cells: [label(rowId), ...result.matrix.colIds.slice(0, 4).map((colId) => { const cell = cells.get(`${rowId}\u0001${colId}`); return cell === undefined ? "—" : money(cell.amountMinor); })] }))} />
           </Shell>
         );
       }
@@ -484,7 +503,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         <Shell notes={notes}>
           <DataTable
             title={title}
-            limit={rowsFit(22) - 2}
+            limit={rowsFit(22, 1) - 2}
             moreText={more}
             columns={[{ label: t("statsWorkbench.cAnalysis.category") }, ...cols.map((colId) => ({ label: monthLabel(colId), align: "right" as const })), { label: t("statsWorkbench.cAnalysis.total"), align: "right" }]}
             rows={result.rowIds.map((rowId) => ({ key: rowId, cells: [result.rowLabels.get(rowId) ?? rowId, ...cols.map((colId) => { const cell = cells.get(`${rowId}\u0001${colId}`); return cell === undefined ? "—" : money(cell.amountMinor); }), money(result.rowTotals.get(rowId)?.amountMinor ?? 0n)] }))}
@@ -500,11 +519,15 @@ export function CCardView({ id, family, scope, range, density, detail, available
       // 含缺汇率账目的月份是「未知」：折线在那里断开，分类合计不给（与时间序列卡片同一口径）。
       const unknownMonths = new Set([...(fx?.unknownDates ?? [])].map((date) => date.slice(0, 7)));
       const columns = (availableWidth ?? 320) >= 420 || detail ? 3 : 2;
-      const rows = Math.ceil(result.panels.length / columns);
-      const panelHeight = Math.max(24, Math.min(60, Math.floor(((available ?? 200) - 40) / Math.max(1, rows)) - 22));
+      // 每个小图 = 名称行 18 + 至少 24 高的线 + 行距 8；放不下全部分类时少画几行并写「另有 N 项」，不把线压扁。
+      const room = (available ?? 200) - 22 - 20;
+      const maxRows = detail ? Infinity : Math.max(1, Math.floor((room + 8) / (18 + 24 + 8)));
+      const panels = result.panels.slice(0, Math.min(result.panels.length, maxRows * columns));
+      const rows = Math.ceil(panels.length / columns);
+      const panelHeight = detail ? 60 : Math.max(24, Math.min(60, Math.floor((room + 8) / Math.max(1, rows)) - 18 - 8));
       return (
-        <Shell notes={notes} info={[t("statsWorkbench.cAnalysis.sharedScale", { max: money(result.sharedMaxMinor) })]}>
-          <SmallMultiplesGrid title={title} columns={columns} panelHeight={panelHeight} panels={result.panels.map((panel) => ({ id: panel.categoryId, label: panel.categoryLabel, totalText: unknownMonths.size > 0 ? "—" : money(panel.totalMinor), points: panel.points.map((point) => (unknownMonths.has(point.bucketKey) ? null : ratio(point.valueMinor, result.sharedMaxMinor))) }))} />
+        <Shell notes={notes} info={[t("statsWorkbench.cAnalysis.sharedScale", { max: money(result.sharedMaxMinor) }), panels.length < result.panels.length ? more(result.panels.length - panels.length) : null]}>
+          <SmallMultiplesGrid title={title} columns={columns} panelHeight={panelHeight} panels={panels.map((panel) => ({ id: panel.categoryId, label: panel.categoryLabel, totalText: unknownMonths.size > 0 ? "—" : money(panel.totalMinor), points: panel.points.map((point) => (unknownMonths.has(point.bucketKey) ? null : ratio(point.valueMinor, result.sharedMaxMinor))) }))} />
         </Shell>
       );
     }
@@ -547,7 +570,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "ranking" || missing > 0) {
         return (
           <Shell notes={notes}>
-            <BarRows title={title} limit={rowsFit(30)} moreText={more} rows={totals.map((row) => ({ id: row.id, label: row.label, valueText: money(row.minor), fraction: ratio(row.minor, max) }))} />
+            <BarRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={totals.map((row) => ({ id: row.id, label: row.label, valueText: money(row.minor), fraction: ratio(row.minor, max) }))} />
           </Shell>
         );
       }
@@ -564,7 +587,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "table") {
         return (
           <Shell notes={notes}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, ...result.months.map((month) => ({ label: monthLabel(month), align: "right" as const }))]} rows={result.lines.map((line) => ({ key: line.id, cells: [line.label, ...line.ranks.map((rank) => (rank === null ? "—" : `#${String(rank)}`))] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, ...result.months.map((month) => ({ label: monthLabel(month), align: "right" as const }))]} rows={result.lines.map((line) => ({ key: line.id, cells: [line.label, ...line.ranks.map((rank) => (rank === null ? "—" : `#${String(rank)}`))] }))} />
           </Shell>
         );
       }
@@ -625,7 +648,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         if (family === "table") {
           return (
             <Shell notes={[]} info={[periodText]}>
-              <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.previous"), align: "right" }, { label: t("statsWorkbench.cAnalysis.current"), align: "right" }, { label: t("statsWorkbench.cAnalysis.shareChange"), align: "right" }]} rows={shares.map((row) => ({ key: row.id, cells: [row.label, row.previous === null ? "—" : percent(row.previous), row.current === null ? "—" : percent(row.current), row.change === null ? "—" : ppText(row.change, t)] }))} />
+              <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.previous"), align: "right" }, { label: t("statsWorkbench.cAnalysis.current"), align: "right" }, { label: t("statsWorkbench.cAnalysis.shareChange"), align: "right" }]} rows={shares.map((row) => ({ key: row.id, cells: [row.label, row.previous === null ? "—" : percent(row.previous), row.current === null ? "—" : percent(row.current), row.change === null ? "—" : ppText(row.change, t)] }))} />
             </Shell>
           );
         }
@@ -633,7 +656,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         const ordered = [...shares].sort((a, b) => Math.abs(fraction(b.change)) - Math.abs(fraction(a.change)));
         return (
           <Shell notes={[]} info={[periodText]}>
-            <DivergingRows title={title} limit={rowsFit(30)} moreText={more} rows={ordered.map((row) => ({ id: row.id, label: row.label, valueText: row.change === null ? "—" : ppText(row.change, t), fraction: fraction(row.change) / maxChange, secondary: row.current === null ? null : percent(row.current) }))} />
+            <DivergingRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={ordered.map((row) => ({ id: row.id, label: row.label, valueText: row.change === null ? "—" : ppText(row.change, t), fraction: fraction(row.change) / maxChange, secondary: row.current === null ? null : percent(row.current) }))} />
           </Shell>
         );
       }
@@ -641,7 +664,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
         if (family === "table") {
           return (
             <Shell notes={[]} info={[periodText]}>
-              <DataTable title={title} limit={rowsFit(22) - 2} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.previous"), align: "right" }, { label: t("statsWorkbench.cAnalysis.current"), align: "right" }, { label: t("statsWorkbench.cAnalysis.change"), align: "right" }]} rows={rowsByDelta.map((row) => ({ key: row.categoryId, cells: [row.categoryLabel, money(row.previousMinor), money(row.currentMinor), signed(row.deltaMinor)] }))} footer={[t("statsWorkbench.cAnalysis.total"), money(contribution.previousTotalMinor), money(contribution.currentTotalMinor), signed(contribution.totalDeltaMinor)]} />
+              <DataTable title={title} limit={rowsFit(22, 1) - 2} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.previous"), align: "right" }, { label: t("statsWorkbench.cAnalysis.current"), align: "right" }, { label: t("statsWorkbench.cAnalysis.change"), align: "right" }]} rows={rowsByDelta.map((row) => ({ key: row.categoryId, cells: [row.categoryLabel, money(row.previousMinor), money(row.currentMinor), signed(row.deltaMinor)] }))} footer={[t("statsWorkbench.cAnalysis.total"), money(contribution.previousTotalMinor), money(contribution.currentTotalMinor), signed(contribution.totalDeltaMinor)]} />
             </Shell>
           );
         }
@@ -672,14 +695,14 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "table") {
         return (
           <Shell notes={[]} info={[periodText]}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.change"), align: "right" }, { label: t("statsWorkbench.cAnalysis.growth"), align: "right" }]} rows={[...contribution.rows].sort((a, b) => (a.deltaMinor === b.deltaMinor ? 0 : a.deltaMinor > b.deltaMinor ? -1 : 1)).map((row) => ({ key: row.categoryId, cells: [row.categoryLabel, signed(row.deltaMinor), row.growth === null ? tag(row) ?? "—" : percent(row.growth)] }))} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.category") }, { label: t("statsWorkbench.cAnalysis.change"), align: "right" }, { label: t("statsWorkbench.cAnalysis.growth"), align: "right" }]} rows={[...contribution.rows].sort((a, b) => (a.deltaMinor === b.deltaMinor ? 0 : a.deltaMinor > b.deltaMinor ? -1 : 1)).map((row) => ({ key: row.categoryId, cells: [row.categoryLabel, signed(row.deltaMinor), row.growth === null ? tag(row) ?? "—" : percent(row.growth)] }))} />
           </Shell>
         );
       }
       const ordered = id === "AN-A17" ? [...contribution.rows].sort((a, b) => (a.deltaMinor === b.deltaMinor ? (a.categoryId < b.categoryId ? -1 : 1) : a.deltaMinor > b.deltaMinor ? -1 : 1)) : rowsByDelta;
       return (
         <Shell notes={[]} info={[t("statsWorkbench.cAnalysis.totalChange", { value: signed(contribution.totalDeltaMinor) }), periodText]}>
-          <DivergingRows title={title} limit={rowsFit(30)} moreText={more} rows={ordered.map((row) => ({ id: row.categoryId, label: row.categoryLabel, valueText: signed(row.deltaMinor), fraction: maxDelta === 0n ? 0 : Number(row.deltaMinor) / Number(maxDelta), secondary: id === "AN-A17" ? (row.growth === null ? tag(row) : percent(row.growth)) : tag(row) }))} />
+          <DivergingRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={ordered.map((row) => ({ id: row.categoryId, label: row.categoryLabel, valueText: signed(row.deltaMinor), fraction: maxDelta === 0n ? 0 : Number(row.deltaMinor) / Number(maxDelta), secondary: id === "AN-A17" ? (row.growth === null ? tag(row) : percent(row.growth)) : tag(row) }))} />
         </Shell>
       );
     }
@@ -692,12 +715,12 @@ export function CCardView({ id, family, scope, range, density, detail, available
       const max = result.rows.reduce((value, row) => Math.max(value, row.recordCount), 0);
       if (family === "table") {
         return (
-          <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.currency") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: t("common.kind.expense"), align: "right" }, { label: t("common.kind.income"), align: "right" }]} rows={result.rows.map((row) => ({ key: row.currency, cells: [row.currency, String(row.recordCount), String(row.expenseCount), String(row.incomeCount)] }))} />
+          <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.currency") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: t("common.kind.expense"), align: "right" }, { label: t("common.kind.income"), align: "right" }]} rows={result.rows.map((row) => ({ key: row.currency, cells: [row.currency, String(row.recordCount), String(row.expenseCount), String(row.incomeCount)] }))} />
         );
       }
       return (
         <Shell notes={[]} info={[t("statsWorkbench.cAnalysis.countsOnly")]}>
-          <BarRows title={title} limit={rowsFit(30)} moreText={more} rows={result.rows.map((row) => ({ id: row.currency, label: row.currency, valueText: t("statsWorkbench.values.count", { count: row.recordCount }), fraction: max === 0 ? 0 : row.recordCount / max, secondary: row.recordShare === null ? null : percent(row.recordShare) }))} />
+          <BarRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={result.rows.map((row) => ({ id: row.currency, label: row.currency, valueText: t("statsWorkbench.values.count", { count: row.recordCount }), fraction: max === 0 ? 0 : row.recordCount / max, secondary: row.recordShare === null ? null : percent(row.recordShare) }))} />
         </Shell>
       );
     }
@@ -711,13 +734,13 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "table") {
         return (
           <Shell notes={notes}>
-            <DataTable title={title} limit={rowsFit(22) - 2} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.originalCurrency") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: t("statsWorkbench.cAnalysis.converted", { currency }), align: "right" }]} rows={result.rows.map((row) => ({ key: row.currency, cells: [row.currency, String(row.count), money(row.minor)] }))} footer={[t("statsWorkbench.cAnalysis.total"), String(result.rows.reduce((sum, row) => sum + row.count, 0)), money(result.totalMinor)]} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 2} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.originalCurrency") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }, { label: t("statsWorkbench.cAnalysis.converted", { currency }), align: "right" }]} rows={result.rows.map((row) => ({ key: row.currency, cells: [row.currency, String(row.count), money(row.minor)] }))} footer={[t("statsWorkbench.cAnalysis.total"), String(result.rows.reduce((sum, row) => sum + row.count, 0)), money(result.totalMinor)]} />
           </Shell>
         );
       }
       return (
         <Shell notes={notes}>
-          <BarRows title={title} limit={rowsFit(30)} moreText={more} rows={result.rows.map((row) => ({ id: row.currency, label: row.currency, valueText: money(row.minor), fraction: ratio(row.minor, max), secondary: complete && result.totalMinor > 0n ? percent({ numerator: row.minor, denominator: result.totalMinor }) : null }))} />
+          <BarRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={result.rows.map((row) => ({ id: row.currency, label: row.currency, valueText: money(row.minor), fraction: ratio(row.minor, max), secondary: complete && result.totalMinor > 0n ? percent({ numerator: row.minor, denominator: result.totalMinor }) : null }))} />
         </Shell>
       );
     }
@@ -735,7 +758,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
       const span = Math.max(1, dayIndex(range.to, first));
       const pointText = (date: string, rate: { readonly numerator: bigint; readonly denominator: bigint }) => `${formatLocalDate(date)} · ${t("statsWorkbench.cAnalysis.rate", { currency: foreign, rate: rationalText(rate, 4), target })}`;
       if (family === "table") {
-        return <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.rateDate") }, { label: `${foreign} → ${target}`, align: "right" }]} rows={[...points].reverse().map((point) => ({ key: point.date, cells: [formatLocalDate(point.date), rationalText(point.rate, 4)] }))} />;
+        return <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.rateDate") }, { label: `${foreign} → ${target}`, align: "right" }]} rows={[...points].reverse().map((point) => ({ key: point.date, cells: [formatLocalDate(point.date), rationalText(point.rate, 4)] }))} />;
       }
       return (
         <Shell notes={[]} info={[t("statsWorkbench.cAnalysis.observationsOnly", { count: points.length })]}>
@@ -756,13 +779,13 @@ export function CCardView({ id, family, scope, range, density, detail, available
         const maxMissing = rows.reduce((max, row) => Math.max(max, ...row.missingByMonth.values()), 1);
         return (
           <Shell notes={[]} info={[summary]}>
-            <HeatMatrix title={title} maxRows={rowsFit(20) - 1} moreText={more} emptyTitle={t("statsWorkbench.cAnalysis.noMissing")} rows={rows.map((row) => ({ id: row.currency, label: row.currency, totalText: `${String(row.missing)}/${String(row.needed)}` }))} cols={months.map((month) => ({ id: month, label: monthLabel(month) }))} cell={(rowId, colId) => { const value = rows.find((row) => row.currency === rowId)?.missingByMonth.get(colId); return value === undefined ? null : { text: String(value), intensity: value / maxMissing, title: `${rowId} · ${monthLabel(colId)} · ${t("statsWorkbench.cAnalysis.missingCount", { count: value })}` }; }} />
+            <HeatMatrix title={title} maxRows={rowsFit(20, 1) - 1} moreText={more} emptyTitle={t("statsWorkbench.cAnalysis.noMissing")} rows={rows.map((row) => ({ id: row.currency, label: row.currency, totalText: `${String(row.missing)}/${String(row.needed)}` }))} cols={months.map((month) => ({ id: month, label: monthLabel(month) }))} cell={(rowId, colId) => { const value = rows.find((row) => row.currency === rowId)?.missingByMonth.get(colId); return value === undefined ? null : { text: String(value), intensity: value / maxMissing, title: `${rowId} · ${monthLabel(colId)} · ${t("statsWorkbench.cAnalysis.missingCount", { count: value })}` }; }} />
           </Shell>
         );
       }
       return (
         <Shell notes={[]} info={[summary, t("statsWorkbench.cAnalysis.countNotAmount")]}>
-          <DataTable title={title} limit={rowsFit(22) - 2} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.originalCurrency") }, { label: t("statsWorkbench.cAnalysis.needed"), align: "right" }, { label: t("statsWorkbench.cAnalysis.convertedCount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.missingRate"), align: "right" }]} rows={rows.map((row) => ({ key: row.currency, cells: [row.currency, String(row.needed), String(row.converted), String(row.missing)] }))} />
+          <DataTable title={title} limit={rowsFit(22, 1) - 2} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.originalCurrency") }, { label: t("statsWorkbench.cAnalysis.needed"), align: "right" }, { label: t("statsWorkbench.cAnalysis.convertedCount"), align: "right" }, { label: t("statsWorkbench.cAnalysis.missingRate"), align: "right" }]} rows={rows.map((row) => ({ key: row.currency, cells: [row.currency, String(row.needed), String(row.converted), String(row.missing)] }))} />
         </Shell>
       );
     }
@@ -779,7 +802,7 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (family === "table") {
         return (
           <Shell notes={[]} info={[summary]}>
-            <DataTable title={title} limit={rowsFit(22) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.rateSource") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }]} rows={[...daysList.map((days) => ({ key: String(days), cells: [label(days), String(usage.byDays.get(days) ?? 0)] })), ...(usage.missing > 0 ? [{ key: "missing", cells: [t("statsWorkbench.cAnalysis.missingRate"), String(usage.missing)] }] : [])]} />
+            <DataTable title={title} limit={rowsFit(22, 1) - 1} moreText={more} columns={[{ label: t("statsWorkbench.cAnalysis.rateSource") }, { label: t("statsWorkbench.cAnalysis.count"), align: "right" }]} rows={[...daysList.map((days) => ({ key: String(days), cells: [label(days), String(usage.byDays.get(days) ?? 0)] })), ...(usage.missing > 0 ? [{ key: "missing", cells: [t("statsWorkbench.cAnalysis.missingRate"), String(usage.missing)] }] : [])]} />
           </Shell>
         );
       }
