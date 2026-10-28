@@ -30,6 +30,7 @@ import {
 export function NotificationBell({
   showHeading = true,
   extraAction,
+  panelClassName,
 }: {
   readonly showHeading?: boolean;
   /**
@@ -41,6 +42,8 @@ export function NotificationBell({
    * it does; this component only owns the row it sits in.
    */
   readonly extraAction?: ReactNode;
+  /** 吸顶栏中的面板作为浮层，避免通知内容改变标题栏的测量高度。 */
+  readonly panelClassName?: string;
 } = {}): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const inbox = useNotifications();
@@ -103,7 +106,7 @@ export function NotificationBell({
         </div>
       </div>
 
-      {open ? <NotificationPanel /> : null}
+      {open ? <div className={panelClassName} data-header-panel={panelClassName ? "" : undefined}><NotificationPanel /></div> : null}
     </div>
   );
 }

@@ -102,6 +102,7 @@ export function LedgerPage(): React.JSX.Element {
            */
           <NotificationBell
             showHeading={false}
+            panelClassName="tab-page-header-panel"
             extraAction={
               <button
                 type="button"

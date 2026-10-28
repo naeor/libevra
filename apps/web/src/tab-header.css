@@ -1,0 +1,60 @@
+/* 固定文档流高度 + 负 sticky 偏移：不会因收缩触发滚动高度反馈。 */
+.tab-page-header {
+  --header-p: 0;
+  --header-range: 64px;
+  --header-safe: env(safe-area-inset-top, 0px);
+  position: sticky;
+  top: calc(-1 * var(--header-range));
+  z-index: 20;
+  flex-shrink: 0;
+  padding: calc(32px + var(--header-safe)) 24px 24px;
+  overflow-anchor: none;
+}
+.tab-page-header-row {
+  min-height: 40px;
+  position: relative;
+  z-index: 1;
+  transform: translate3d(0, calc(var(--header-p) * (var(--header-range) - 20px)), 0);
+}
+.tab-page-header-extra {
+  opacity: calc(1 - clamp(0, var(--header-p) * 2, 1));
+}
+.tab-page-header-actions {
+  position: relative;
+  flex-shrink: 0;
+}
+.tab-page-header-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(20rem, calc(100vw - 48px));
+  max-height: 60dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+.tab-page-header-row h1 {
+  transform: translateY(calc(var(--header-p) * 6px));
+}
+.tab-page-header-profile {
+  padding: 0;
+  min-height: calc(256px + var(--header-safe));
+}
+.tab-page-header-profile .tab-page-header-row {
+  position: absolute;
+  top: calc(12px + var(--header-safe));
+  left: 24px;
+  right: 24px;
+  opacity: clamp(0, calc((var(--header-p) - 0.5) * 2), 1);
+  transform: translate3d(0, calc(var(--header-p) * var(--header-range)), 0);
+}
+.tab-page-header-profile .tab-page-header-row h1 {
+  transform: translateY(6px);
+}
+.tab-page-header-profile .tab-page-header-extra {
+  padding-top: var(--header-safe);
+}

@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { UserAvatar } from "../components/UserAvatar.js";
 import { TabPage } from "../components/Layouts.js";
+import { TabPageHeader } from "../components/TabPageHeader.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
 import { useI18n } from "../i18n/index.js";
 import { useGuestMode } from "../lib/guest/session.js";
@@ -94,11 +95,16 @@ function AccountMePage(): React.JSX.Element {
         The min-height is what keeps the visual weight in the middle of the
         colour instead of at its top.
       */}
-      <header className="flex min-h-64 flex-col items-center justify-center gap-3 bg-brand px-6 py-10 text-on-brand">
-        <UserAvatar avatarId={user.avatarId} className="size-24 ring-4 ring-on-brand" />
-        <p className="mt-1 truncate text-page-title">{user.displayName}</p>
-        <p className="text-xs text-on-brand/75">@{user.username}</p>
-      </header>
+      <TabPageHeader
+        title={t("nav.tabs.me")}
+        expanded={
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 py-10">
+            <UserAvatar avatarId={user.avatarId} className="size-24 ring-4 ring-on-brand" />
+            <p className="mt-1 truncate text-page-title">{user.displayName}</p>
+            <p className="text-xs text-on-brand/75">@{user.username}</p>
+          </div>
+        }
+      />
 
       <nav className="px-6 pt-5">
         {/**

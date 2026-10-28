@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./detail-motion.css";
+@import "./tab-header.css";
 @import "./book-card.css";
 @import "./consent.css";
 @import "./statsWorkbench/statsWorkbench.css";
