@@ -754,7 +754,7 @@ function AccountWorkbench(): React.JSX.Element {
     <WorkbenchScopeProvider value={scope}>
       <CardActionsContext.Provider value={cardActions}>
       <TabPage
-        active="stats"
+        active="/stats"
         onNavigate={(to) => {
           void navigate(to);
         }}

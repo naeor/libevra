@@ -34,7 +34,15 @@ const GUEST_IDENTITY = JSON.stringify({
   lastPath: null,
 });
 
-function renderNav({ open = true, guest = false }: { readonly open?: boolean; readonly guest?: boolean } = {}): string {
+function renderNav({
+  open = true,
+  guest = false,
+  active = "/",
+}: {
+  readonly open?: boolean;
+  readonly guest?: boolean;
+  readonly active?: string;
+} = {}): string {
   if (guest) {
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => (key === GUEST_IDENTITY_STORAGE_KEY ? GUEST_IDENTITY : null),
@@ -53,7 +61,7 @@ function renderNav({ open = true, guest = false }: { readonly open?: boolean; re
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/"]}>
         <BottomNav
-          active="/"
+          active={active}
           onNavigate={() => undefined}
           cards={{ mode: "toggle", expanded: open, active: false, onToggle: () => undefined }}
         />
@@ -177,7 +185,8 @@ describe("中央 + 菜单的五个入口", () => {
     // Five `size-6` icons and five captions, not four plus an outlier.
     expect((html.match(/<span aria-hidden="true" class="whitespace-nowrap text-micro">/g) ?? []).length).toBe(5);
     // Menu icons plus the four destination-tab icons. The raised `+` is `size-8` on purpose.
-    expect((html.match(/class="size-6"/g) ?? []).length).toBe(5 + 4);
+    // 选中 Tab 的图标多了 `relative z-10`（压在圆形底之上），所以按 token 计数而不是整串 class。
+    expect((html.match(/\bsize-6\b/g) ?? []).length).toBe(5 + 4);
   });
 });
 
@@ -228,6 +237,52 @@ describe("菜单开合", () => {
   });
 });
 
+describe("底部 Tab 的选中态", () => {
+  /** The whole button element of the one tab carrying `aria-current`, label included. */
+  function activeTabTag(html: string): string {
+    const marker = 'aria-current="page"';
+    const at = html.indexOf(marker);
+    if (at < 0) return "";
+
+    return html.slice(html.lastIndexOf("<", at), html.indexOf("</button>", at) + "</button>".length);
+  }
+
+  /** Only the destination-tab row: the entry cards above it keep their own colours. */
+  function tabRow(html: string): string {
+    return /<ul class="mx-auto flex w-full max-w-md items-end justify-around[^"]*">([\s\S]*?)<\/ul>/.exec(html)?.[1] ?? "";
+  }
+
+  it("把当前路由的 Tab 标成主题色圆形底，其他 Tab 保持 muted", () => {
+    const html = renderNav({ active: "/stats" });
+    const tag = activeTabTag(html);
+
+    expect(tag).not.toBe("");
+    // 森林绿的浅色主题靠这个钩子把选中文字再压深一级，保证对比度 ≥ 4.5。
+    expect(tag).toContain("bottom-tab-active");
+    expect(tag).toContain("text-brand-dark");
+    expect(tag).toContain("font-medium");
+    // 选中底是一枚以图标+文字整体中心为圆心的圆，不是矩形药丸。
+    expect(tag).toContain("aspect-square");
+    expect(tag).toContain("rounded-full");
+    expect(tag).toContain("bg-brand-soft");
+    expect(tag).not.toContain("rounded-xl");
+    // The selected tab is 分析; exactly one tab may claim the current page.
+    expect(tag).toContain(">分析</span></button>");
+    expect((html.match(/aria-current="page"/g) ?? []).length).toBe(1);
+    // Three unselected destinations keep the quiet treatment.
+    expect((tabRow(html).match(/\btext-muted\b/g) ?? []).length).toBe(3);
+  });
+
+  it("明细页以 / 为 active，仍然点亮明细而不是分析（回归：分析页曾传 stats）", () => {
+    const html = renderNav({ active: "/" });
+    expect(activeTabTag(html)).toContain(">明细</span></button>");
+    const tabs = tabRow(html);
+    // 分析 still renders, just inactive this time.
+    expect(tabs).toContain(">分析</span></button>");
+    expect((tabs.match(/text-brand-dark/g) ?? []).length).toBe(1);
+  });
+});
+
 describe("英文界面（S16）", () => {
   const CJK = /[㐀-鿿]/;
 
@@ -256,7 +311,7 @@ describe("英文界面（S16）", () => {
     expect(tagWithLabel(html, "Manual entry")).toContain('href="/add"');
     expect(html).toContain('aria-label="Hide ways to add"');
     for (const tab of ["Entries", "Insights", "Ledger", "Me"]) {
-      expect(html).toContain(`>${tab}</button>`);
+      expect(html).toContain(`>${tab}</span></button>`);
     }
   });
 

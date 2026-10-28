@@ -574,19 +574,29 @@ export function BottomNav({
           }
 
           return (
-            <li key={tab.to} className="flex-1">
+            <li key={tab.to} className="flex-1 px-0.5">
               <button
                 type="button"
                 onClick={() => {
                   onNavigate(destination);
                 }}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex w-full flex-col items-center gap-1 py-2.5 text-micro transition ${
-                  isActive ? "text-brand-dark" : "text-muted"
+                className={`relative flex w-full flex-col items-center gap-1 py-2.5 text-micro transition ${
+                  isActive
+                    ? "bottom-tab-active font-medium text-brand-dark"
+                    : "text-muted"
                 }`}
               >
-                <Icon className="size-6" />
-                {label}
+                {/* 选中底是一枚圆：圆心落在图标与文字整块的重心（按钮上下留白对称，
+                    所以按钮中心就是内容块中心），半径刚好罩住图标与文字，不碰底栏上下边。 */}
+                {isActive ? (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute left-1/2 top-1/2 z-0 aspect-square h-[calc(100%-0.75rem)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-soft"
+                  />
+                ) : null}
+                <Icon className="relative z-10 size-6" />
+                <span className="relative z-10">{label}</span>
               </button>
             </li>
           );

@@ -1191,7 +1191,19 @@ html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green
 html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) :is(input:not([type=checkbox]):not([type=radio]),textarea,select),
 html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .rounded-field.border-line:has(>input),
 html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"]) .rounded-field.border-line:has(>button[aria-expanded]) { border-color: var(--color-line-strong); }
-html[data-theme-mode="light"]:is([data-theme-palette="yellow"],[data-theme-palette="red"],[data-theme-palette="purple"]) header.bg-brand [class*="bg-on-brand/"] { background: transparent; }
+/* 浅色黄盘：金色页头配深色图标，圆形操作底要改成奶油色，不能变透明。
+   浅红/紫的 on-brand 仍是白色，恢复默认的白色半透明圆底；透明会让按钮只剩图标。 */
+html[data-theme-mode="light"][data-theme-palette="yellow"] header.bg-brand [class*="bg-on-brand/"],
+html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-hero [class*="bg-on-brand/"] { background-color: var(--color-brand-soft); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] header.bg-brand [class*="bg-on-brand/"]:hover,
+html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-hero [class*="bg-on-brand/"]:hover { background-color: color-mix(in srgb,var(--color-brand-soft) 82%,var(--color-brand)); }
+html[data-theme-mode="light"][data-theme-palette="yellow"] header.bg-brand [class*="bg-on-brand/"]:active,
+html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-hero [class*="bg-on-brand/"]:active { background-color: color-mix(in srgb,var(--color-brand-soft) 70%,var(--color-brand)); }
+
+/* 森林绿浅色：brand-dark（#447d63）在 brand-soft（#edf5f0）上只有 4.34，
+   为底部 Tab 选中文字补一级更深的绿（#3f745b → 4.90），其余色盘不变。 */
+html[data-theme-mode="light"]:not([data-theme-palette]) .bottom-tab-active,
+html[data-theme-mode="light"][data-theme-palette="green"] .bottom-tab-active { color: #3f745b; }
 
 /* 蜜金黄：金色填充配深字，深金负责链接、边界与焦点。 */
 html[data-theme-mode="light"][data-theme-palette="yellow"] .text-brand { color: var(--color-brand-dark); }
