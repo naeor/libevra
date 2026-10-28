@@ -369,6 +369,11 @@ describe("保存、重新加载与编辑（D 命令 + 本机存储）", () => {
     const placed = geometryOf(result.state, "pair")!;
     expect(placed).toMatchObject({ colSpan: 2, rowSpan: 1 });
     expect((placed.anchor - 1) % baseCols).toBe(0);
+    // 仍在原来那一行（不是被挪到工作区末尾）；原来左边的邻居顺延到它后面
+    const before = geometryOf(moved.state, "pair")!;
+    expect(Math.ceil(placed.anchor / baseCols)).toBe(Math.ceil(before.anchor / baseCols));
+    const neighbour = moved.state.layout.main.objects.find((object) => object.anchor === before.anchor - 1);
+    if (neighbour !== undefined) expect(geometryOf(result.state, neighbour.objectId)!.anchor).toBeGreaterThan(placed.anchor);
     expect(readComposition(result.state.content.cards.find((item) => item.objectId === "pair")!).slots).toEqual([INCOME, EXPENSE, DAILY_AVG]);
     // 一步撤销回到编辑前
     const undone = command(result.state, { type: "undo" });

@@ -41,10 +41,11 @@ export function useElementSize<T extends HTMLElement>(): {
   return { ref, ...size };
 }
 
-const AMOUNT_STEPS = ["text-2xl", "text-xl", "text-lg", "text-base"] as const;
+const AMOUNT_STEPS = ["text-2xl", "text-xl", "text-lg", "text-base", "text-sm"] as const;
 
 /**
- * 卡片里的大号金额：**始终一行**，放不下就逐级缩小字号（2xl → base），仍放不下才省略。
+ * 卡片里的大号金额：**始终一行**，放不下就逐级缩小字号（2xl → sm），仍放不下才省略。
+ * 最后一级 sm 只在组合卡片的窄数字列（3–4 个数字并排）里才会用到。
  * 窄屏（320px）的 1×1 卡片里，「¥12,500.00」折成两行会被误读成两个数。
  */
 export function FitAmount({
@@ -81,7 +82,8 @@ export function FitAmount({
   useLayoutEffect(() => {
     const element = ref.current;
     if (element === null) return;
-    if (element.scrollWidth > element.clientWidth + 1 && step < AMOUNT_STEPS.length - 1) setStep(step + 1);
+    // 严格比较：截断样式下多出 1px 也会出现省略号（1.17.10 浏览器验收发现 ¥14,222.41 被截成「¥14,222....」）。
+    if (element.scrollWidth > element.clientWidth && step < AMOUNT_STEPS.length - 1) setStep(step + 1);
   }, [step, text, width]);
 
   return (
