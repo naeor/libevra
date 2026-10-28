@@ -4,9 +4,17 @@ import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { UserAvatar, avatarLabel } from "./UserAvatar.js";
+import { UserAvatar, avatarLabel, avatarDescription } from "./UserAvatar.js";
 
 describe("系统头像素材", () => {
+  it("万圣沿用确认的 80% 几何，孔洞真实挖空且不添加五官装饰", () => {
+    const html = renderToStaticMarkup(<UserAvatar avatarId="halloween-special" />);
+    expect(html).toContain('translate(48 48) scale(.8) translate(-48 -48)');
+    expect(html).toContain('fill-rule="evenodd"');
+    expect(html).not.toMatch(/gradient|<image|filter=/i);
+    for (const id of AVATAR_IDS) expect(avatarDescription(id)).not.toMatch(/[。. ]$/u);
+    expect(avatarDescription("halloween-special")).toBe("不给糖就捣蛋！");
+  });
   it("降临多个实例的蒙版与裁切互不引用，完整五瓣花仅自然遮挡", () => {
     const html = renderToStaticMarkup(<><UserAvatar avatarId="descent-special" /><UserAvatar avatarId="descent-special" /></>);
     const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
@@ -16,8 +24,8 @@ describe("系统头像素材", () => {
     expect(html).toContain('translate(33 56) scale(.85) rotate(-8)');
     expect(html.match(/data-layer="flower"/g)).toHaveLength(2);
   });
-  it("新旧 26 个稳定身份均可访问，不引入外部图像请求", () => {
-    expect(AVATAR_IDS).toHaveLength(26);
+  it("新旧 27 个稳定身份均可访问，不引入外部图像请求", () => {
+    expect(AVATAR_IDS).toHaveLength(27);
     for (const id of AVATAR_IDS) {
       const html = renderToStaticMarkup(<UserAvatar avatarId={id} />);
       expect(html).toContain(`data-avatar-id="${id}"`);

@@ -1,0 +1,16 @@
+# 1.17.11：S17 分析工作台整线首次生产发布（38 卡 / 三维筛选 / 81 指标与组合卡片 /
+# 离线读取上限 50000）+ 万圣限定头像；包含第 61 号数据库迁移。
+# 只发布 api/web；relay 保持原有已验证镜像。
+services:
+  migrate:
+    image: libevra-rc-api:1.17.11-20261028
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.17.11-20261028
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.17.11-20261028
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

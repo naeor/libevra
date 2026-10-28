@@ -38,12 +38,13 @@ export const AVATAR_IDS = [
   "ghost",
   "ingot",
   "breakfast-sun",
+  "halloween-special",
 ] as const;
 
 /** 审核通过的经典素材；旧 ID 继续兼容，但不重新上架未审核素材。 */
 export const APPROVED_AVATAR_IDS = ["sprout", "sun", "moon", "star", "wave", "coffee", "jade", "ghost", "ingot", "breakfast-sun"] as const;
 
-export const SELECTABLE_AVATAR_IDS = ["flower", ...APPROVED_AVATAR_IDS, "daoxuan-special", "descent-special"] as const;
+export const SELECTABLE_AVATAR_IDS = ["flower", ...APPROVED_AVATAR_IDS, "daoxuan-special", "descent-special", "halloween-special"] as const;
 
 export const avatarIdSchema = z.enum(AVATAR_IDS);
 

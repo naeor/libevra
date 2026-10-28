@@ -19,7 +19,7 @@ import { z } from "zod";
 import { avatarIdSchema } from "./avatarIds.js";
 
 /** 需要解锁才能使用的特典头像。经典头像不在此列。 */
-export const SPECIAL_AVATAR_IDS = ["daoxuan-special", "descent-special"] as const;
+export const SPECIAL_AVATAR_IDS = ["daoxuan-special", "descent-special", "halloween-special"] as const;
 
 export type SpecialAvatarId = (typeof SPECIAL_AVATAR_IDS)[number];
 
@@ -33,7 +33,7 @@ export type AvatarRewardSource = (typeof AVATAR_REWARD_SOURCES)[number];
 export const avatarRewardSourceSchema = z.enum(AVATAR_REWARD_SOURCES);
 
 /** 活动规则类别。 */
-export const AVATAR_REWARD_RULE_KINDS = ["first_login", "yearly_nth_weekday"] as const;
+export const AVATAR_REWARD_RULE_KINDS = ["first_login", "yearly_nth_weekday", "yearly_fixed_date"] as const;
 
 export type AvatarRewardRuleKind = (typeof AVATAR_REWARD_RULE_KINDS)[number];
 
@@ -43,7 +43,8 @@ export type AvatarRewardRule =
    * 每年重复的纪念日：`month` 月第 `nth` 个星期 `weekday`（1=周一 … 7=周日）。
    * 按账户时区的当地日期判定，而不是按 UTC 日期。
    */
-  | { readonly kind: "yearly_nth_weekday"; readonly month: number; readonly weekday: number; readonly nth: number };
+  | { readonly kind: "yearly_nth_weekday"; readonly month: number; readonly weekday: number; readonly nth: number }
+  | { readonly kind: "yearly_fixed_date"; readonly month: number; readonly day: number };
 
 /** 一个奖励活动的全部配置。 */
 export interface AvatarRewardActivity {
@@ -57,10 +58,11 @@ export interface AvatarRewardActivity {
 }
 
 /**
- * 首批两个活动。
+ * 特典活动（年度活动使用稳定 ID，跨年不重复发放）。
  *
  * 「降临」：首次登录（以及老用户第一次在线请求）自动获得。
  * 「倒悬」：每年 11 月第三个星期四（世界哲学日）按账户当地日期发放。
+ * 「万圣」：每年 10 月 31 日按账户当地日期登录领取，不开放补领。
  */
 export const AVATAR_REWARD_ACTIVITIES: readonly AvatarRewardActivity[] = [
   {
@@ -75,6 +77,13 @@ export const AVATAR_REWARD_ACTIVITIES: readonly AvatarRewardActivity[] = [
     avatarId: "daoxuan-special",
     rule: { kind: "yearly_nth_weekday", month: 11, weekday: 4, nth: 3 },
     allowMakeUp: true,
+    ended: false,
+  },
+  {
+    id: "halloween-login",
+    avatarId: "halloween-special",
+    rule: { kind: "yearly_fixed_date", month: 10, day: 31 },
+    allowMakeUp: false,
     ended: false,
   },
 ];

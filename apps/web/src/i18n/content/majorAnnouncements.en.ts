@@ -94,6 +94,46 @@ export const MAJOR_ANNOUNCEMENTS_EN: Readonly<Record<string, MajorAnnouncementTe
     ],
   },
 
+  "major-1.17.11": {
+    title: "Libevra 1.17.11",
+    summary: "Turn every entry into a financial workbench of your own.",
+    sections: [
+      {
+        heading: "The analysis workbench arrives",
+        items: [
+          "Insights is now a financial workbench you can shape: all 38 analysis cards read real data, and browse, filter and edit are three states of the same page.",
+          "Cards can be dragged, swapped, resized, copied and deleted; the layout is saved on this device per account and survives a refresh.",
+          "Every card explains the data behind it, and opening one shows its details; going back restores your previous scroll position.",
+        ],
+      },
+      {
+        heading: "Filters, custom cards and composite cards",
+        items: [
+          "Three new multi-select filters — category, payment method and tag — now apply together with time and currency to the summary, all cards, cards with fixed windows and previous-period comparisons; filters live in the address bar, so links can be shared, refreshed and opened directly.",
+          "Custom cards offer 81 / 84 metrics and 31 chart families, and composite cards place several numbers and charts in one card, preview at the device's real grid pixel size whether everything fits, and show the rest on the details page.",
+          "Exchange-rate conversion covers all 38 cards; when rates are missing, totals show only the converted subtotal, counts and days still count, ratios and extremes explain their uncertainty, and trends and the heatmap mark unknown periods as “unknown” instead of 0.",
+        ],
+      },
+      {
+        heading: "Offline, details and the Halloween limited avatar",
+        items: [
+          "The monthly offline history limit rises from 4,000 to about 50,000 entries and now distinguishes complete from truncated, so a partial month is never written into the local ledger as a full month.",
+          "Fixed the “Categories with spending” unit, amount truncation from auto-shrink, narrow-screen legends and number columns, negative ratio rounding and right-column composite-card saves; the daily startup scripts now always open http://localhost:5173 and no longer drift to 5174.",
+          "The special collection adds a “Halloween” limited avatar: sign in on October 31 in your account's local time to claim it permanently; it cannot be claimed later, and it shows as locked until unlocked.",
+        ],
+      },
+      {
+        heading: "Before you upgrade",
+        items: [
+          "This update includes database migration 61, which only widens the CHECK allowlists for avatar choices, unlock records and reward notices; no tables, entries, ledgers or member permissions change, and it runs automatically.",
+          "About 50,000 entries per month is a temporary offline limit, not a permanent specification; a month over the limit is explicitly marked incomplete and analyses depending on it report an incomplete source.",
+          "Exchange-rate conversion still protects the per-entry 50,000 limit and never truncates; S17-C's P05 / P07 / P21, cross-device sync (W6) and site-wide adaptive layout (S18) are not in this version.",
+          "Older clients show halloween-special as the “flower” avatar as a safe fallback, without errors or data loss; refresh once after upgrading to load the new assets. The service restarts briefly during release, and saved data is unaffected.",
+        ],
+      },
+    ],
+  },
+
   "local-test-major-2026-10": {
     title: "Important update test announcement",
     summary:

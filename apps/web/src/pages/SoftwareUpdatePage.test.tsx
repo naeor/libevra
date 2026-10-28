@@ -31,17 +31,19 @@ describe("software update announcements", () => {
 
     expect(html).toContain(formatAppVersion(APP_VERSION));
     // 只有补零后与内部版本号不同（如 1.17.9 → 1.17.09）时，才能断言页面不显示内部写法；
-    // 两位数补丁号（1.17.10）两种写法相同。
+    // 两位数补丁号（1.17.10 / 1.17.11）两种写法相同。
     if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
-    expect(html).toContain("1.16.22");
-    expect(html).toContain("四款新头像加入经典系列");
-    expect(html).toContain("经典系列新增玉净、幽幽、元宝和「太阳」，所有用户均可直接选择。");
-    expect(html).toContain("2026年10月26日");
-    expect(html).toContain('href="/update/announcements/1.16.22"');
+    expect(html).toContain("1.17.11");
+    expect(html).toContain("分析工作台与万圣限定头像");
+    expect(html).toContain(
+      "「分析」升级为可自定义的财务工作台：38 张分析卡片、分类 / 支付方式 / 标签筛选、81 项自定义指标与组合卡片正式上线；离线历史读取提高到每月约 50,000 笔并明确标注「未完整」；另新增万圣限定头像与多项启动、布局修复。",
+    );
+    expect(html).toContain("2026年10月28日");
+    expect(html).toContain('href="/update/announcements/1.17.11"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("账本数据隔离修复");
+    expect(html).toContain("38 张分析卡片全部接通真实数据");
     expect(html).toContain("新增功能");
     expect(html).toContain("注意事项");
     expect(html).not.toContain('role="dialog"');

@@ -1,4 +1,4 @@
-﻿import { readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { activeMajorAnnouncements } from "@libellum/shared";
 import { selectDisplayedMajorAnnouncement } from "./majorAnnouncementVisibility.js";
@@ -32,16 +32,22 @@ describe("version announcements", () => {
     expect(major.map(({ id, version, publishedAt, testOnly }) => ({ id, version, publishedAt, testOnly }))).toEqual([
       { id: "major-1.14.18", version: "1.14.18", publishedAt: "2026-10-19T08:31:24.000Z", testOnly: false },
       { id: "major-1.15.00", version: "1.15.00", publishedAt: "2026-10-21T01:21:05.000Z", testOnly: false },
+      { id: "major-1.17.11", version: "1.17.11", publishedAt: "2026-10-28T06:00:00.000Z", testOnly: false },
     ]);
-    for (const notice of major) {
+    for (const notice of major.slice(0, 2)) {
       expect(selectDisplayedMajorAnnouncement(notice, "1.16.04")).toBeNull();
       expect(selectDisplayedMajorAnnouncement(notice, notice.version)).toBe(notice);
     }
+    const newest = major[2]!;
+    expect(selectDisplayedMajorAnnouncement(newest, "1.16.04")).toBe(newest);
+    expect(selectDisplayedMajorAnnouncement(newest, "1.17.11")).toBe(newest);
+    expect(selectDisplayedMajorAnnouncement(newest, "1.17.12")).toBeNull();
     expect(selectDisplayedMajorAnnouncement(null, "1.16.04")).toBeNull();
   });
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.17.11",
       "1.16.22",
       "1.16.21",
       "1.16.18",
@@ -72,8 +78,9 @@ describe("version announcements", () => {
     expect(released.filter((entry) => originalVersions.has(entry.version)).map(identity)).toEqual(
       original.announcements.map(identity),
     );
-    expect(released[0]?.version).toBe("1.16.22");
+    expect(released[0]?.version).toBe("1.17.11");
     expect(released.filter((entry) => !originalVersions.has(entry.version)).map((entry) => entry.version)).toEqual([
+      "1.17.11",
       "1.16.22",
       "1.16.21",
       "1.16.18",
@@ -100,7 +107,10 @@ describe("version announcements", () => {
       expect(section.items.length).toBeGreaterThan(0);
       expect(section.items.every(item => item.trim().length > 0)).toBe(true);
     }
-    if (entry.version === "1.16.22" || entry.version === "1.16.21") {
+    if (entry.version === "1.17.11") {
+      expect(entry.releasedAt).toBe("2026-10-28");
+      expect(entry.revisedAt).toBeUndefined();
+    } else if (entry.version === "1.16.22" || entry.version === "1.16.21") {
       expect(entry.releasedAt).toBe("2026-10-26");
       expect(entry.revisedAt).toBeUndefined();
     } else if (entry.version === "1.16.18") {
@@ -163,6 +173,8 @@ describe("version announcements", () => {
   });
 
   it("answers with the latest applicable release for a running version", () => {
+    expect(latestApplicableAnnouncement("1.17.11")?.version).toBe("1.17.11");
+    expect(latestApplicableAnnouncement("1.17.10")?.version).toBe("1.16.22");
     expect(latestApplicableAnnouncement("1.16.21")?.version).toBe("1.16.21");
     expect(latestApplicableAnnouncement("1.16.20")?.version).toBe("1.16.18");
     expect(latestApplicableAnnouncement("1.16.19")?.version).toBe("1.16.18");
@@ -216,7 +228,8 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.16.19")).toBe(true);
     expect(hasNewerReleasedVersion("1.16.20")).toBe(true);
     expect(hasNewerReleasedVersion("1.16.21")).toBe(true);
-    expect(hasNewerReleasedVersion("1.16.22")).toBe(false);
+    expect(hasNewerReleasedVersion("1.16.22")).toBe(true);
+    expect(hasNewerReleasedVersion("1.17.11")).toBe(false);
   });
 
   it("returns all actual releases and leaves the first page to the UI", () => {
@@ -236,7 +249,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.16.22").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.17.11").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.17.11").older?.version).toBe("1.16.22");
+    expect(adjacentReleasedAnnouncements("1.16.22").newer?.version).toBe("1.17.11");
     expect(adjacentReleasedAnnouncements("1.16.22").older?.version).toBe("1.16.21");
     expect(adjacentReleasedAnnouncements("1.16.21").newer?.version).toBe("1.16.22");
     expect(adjacentReleasedAnnouncements("1.16.21").older?.version).toBe("1.16.18");

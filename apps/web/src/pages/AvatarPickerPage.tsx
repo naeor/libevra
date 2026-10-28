@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import {
   AVATAR_REWARD_ACTIVITIES,
   SELECTABLE_AVATAR_IDS,
+  SPECIAL_AVATAR_IDS,
   avatarIdSchema,
   isSpecialAvatarId,
   type AvatarId,
@@ -51,7 +52,7 @@ export function AvatarPickerPage(): React.JSX.Element {
    * 特典系列内部按真实解锁状态排序：已解锁在前，未解锁在后（S16 头像页 UI 优化）。
    * 顺序每次渲染都从服务端状态算，不写死「某款永远在最后」。
    */
-  const orderedSpecialIds = (["daoxuan-special", "descent-special"] as const)
+  const orderedSpecialIds = [...SPECIAL_AVATAR_IDS]
     .map(id => id as SpecialAvatarId)
     .sort((first, second) => Number(unlockedIds.includes(second)) - Number(unlockedIds.includes(first)));
   const selectedUnlock = unlocked.find(entry => entry.avatarId === selected);
@@ -108,6 +109,8 @@ export function AvatarPickerPage(): React.JSX.Element {
 
   const unlockHint = ((): string | null => {
     if (!locked) return null;
+
+    if (selectedActivity?.id === "halloween-login") return t("account.avatars.unlockHalloween");
 
     return selectedActivity?.rule.kind === "first_login"
       ? t("account.avatars.unlockFirstLogin")

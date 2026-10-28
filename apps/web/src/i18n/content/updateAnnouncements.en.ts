@@ -10,6 +10,64 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.17.11": {
+    title: "The analysis workbench and the Halloween limited avatar",
+    summary:
+      "Insights becomes a financial workbench you can shape: 38 analysis cards, category / payment method / tag filters, 81 custom metrics and composite cards now available; offline history reading rises to about 50,000 entries per month with an explicit “incomplete” state; plus a Halloween limited avatar and a group of startup and layout fixes.",
+    sections: [
+      {
+        heading: "New features",
+        items: [
+          "Insights is now a modular financial workbench: the bottom Insights tab opens it directly, and browse / filter / edit are three states of the same page. Cards can be dragged, swapped, resized, copied and deleted; the layout is saved on this device per account and survives a refresh. Opening a card shows its details, and going back restores your previous scroll position.",
+          "All 38 analysis cards read real data: total expense, total income, net, daily average, largest single entry, category breakdown and ranking, trends over time, cumulative totals, calendar heatmap, payment-method breakdown, multi-category history and previous-period comparison. Each card's title, explanation and numbers come from the same filter scope.",
+          "Exchange-rate conversion covers all 38 cards: each entry is converted once at the historical rate for its date before analysis. When rates are missing, totals show only the converted subtotal, counts and days still count, averages, medians and ratios are reported as indeterminate, extremes note they may not be the global result, and trends and the heatmap mark dates with missing rates as “unknown” instead of 0.",
+          "Three new multi-select filters — category, payment method and tag — now apply together with time and currency to the summary, all 38 cards, cards with fixed windows and previous-period comparisons. Filters are stored in the address bar, so links can be shared, refreshed and opened directly; choosing an empty set shows “nothing selected” instead of all data.",
+          "Custom cards grow from 50 to 81 / 84 metrics and from a handful to 31 chart families: number, line, area, bar, donut, ranked bars, table, calendar heatmap, histogram, box plot, scatter, bubble, treemap, Pareto, small multiples and more.",
+          "Composite cards are new: several numbers and charts live in one card, and the editor browses or searches metrics by group (numbers / trends and time / breakdown and ranking / distribution and relationships / advanced and combined), with multi-select, reorder, replace and delete. T1–T8 recommended templates, a live preview at the device's real grid pixel size that marks “fits / N items don't fit”, remaining items shown on the card as “N more · open to view”, and everything shown in full on the details page.",
+          "31 S17-C analyses join the workbench: large-expense details, change attribution, share change, category and large-expense concentration, expense distribution, streak of no-spend days, category change ranking, category × month / weekday / payment method matrices, payment-method trends, treemap, Pareto, rank change, scatter, bubble, category box plots, monthly pivot table, small multiples, full-year calendar, currency counts, converted currency mix, rate observations / coverage / fallback, change waterfall, monthly box plots and share slope.",
+          "The monthly offline history limit rises from 4,000 to about 50,000 entries (500 pages × 100 at most) and now distinguishes “complete” from “truncated”: when the limit is reached, an incomplete state is recorded and the fetched count is kept for resuming and retrying, so a partial month is never written into the local ledger as if it were the whole month.",
+          "The special collection adds a “Halloween” limited avatar: sign in on October 31 in your account's local time to claim it, and it is yours permanently. Until unlocked, the avatar picker shows it as locked and saving it is refused.",
+        ],
+      },
+      {
+        heading: "Improvements",
+        items: [
+          "Time filtering is unified as custom, last 7 / 30 / 90 days, last year and a specific month; custom dates expand on demand, ranges over 400 days are explicitly refused, and time and currency collapse into one horizontally scrolling row instead of taking up card space.",
+          "The edit-state bottom tab becomes an expandable card drawer (cards: Recommended / All analyses / My custom; containers: sliding group / split group / blank placeholder), with valid and invalid drop previews while dragging, and a “+” to place a card into the first empty slot.",
+          "Amounts and charts adapt to the available space: amounts in narrow cards shrink to a size that shows them in full (one smaller step is new), charts are drawn to the card's body height, the “incomplete data” note collapses into a “!” badge in small cells, donut charts shrink with height and list only the fitting legend, charts that need a taller plot have a minimum height and suggest a larger size, and single-item cards show a mini trend at short heights.",
+          "The unit of “Categories with spending” (B16) changes from entries to categories; other count cards still say entries.",
+          "The Chinese and English captions of Jade Vase, Ingot and “Sun” lose their trailing period; Boo's tilde and exclamation mark stay.",
+          "The daily startup scripts are rewritten: they open http://localhost:5173 and wait for the API health check before opening the browser, keep the window open, show the running service's version when 5173 is already in use instead of starting a second instance, and fail explicitly on a port conflict instead of silently moving to 5174.",
+          "A new start-dev-lan-https.cmd is only for phones on the same Wi-Fi that need a secure context for recording or offline features; when certificates are missing it prints how to create them and exits instead of opening an HTTP port over HTTPS.",
+        ],
+      },
+      {
+        heading: "Bug fixes",
+        items: [
+          "Fixed the startup window closing after about 6 seconds and Edge opening https://localhost:5173 with ERR_SSL_PROTOCOL_ERROR, leaving no error message.",
+          "Fixed Vite silently switching to port 5174 when 5173 was taken by an old process, which made the page show an old version for a long time.",
+          "Fixed “Save changes” failing on a right-column 1×1 composite card that needed to grow to 2×1: it now moves to the start of the row and pushes its neighbour along, still as one undo step, and a failed save explains itself instead of failing silently.",
+          "Fixed the amount auto-shrink leaving a 1px margin, which cut “¥14,222.41” down to “¥14,222....” at desktop widths; the check is now strict and one smaller font step was added.",
+          "Fixed composite cards at 320px: multi-category legends wrapping, amount truncation from a too-narrow number column, and 1×1 double numbers showing only “N more”.",
+          "Fixed negative rounding in ratio text (−50% appeared as −49.9%) and the software-update page's handling of two-digit patch numbers (1.17.09 / 1.17.10).",
+          "Fixed entries in a personal ledger staying in the saving state when offline or on an unstable network because the duplicate check waited for a connection; detection and saving now happen locally first and sync once back online.",
+        ],
+      },
+      {
+        heading: "Notes",
+        items: [
+          "This update includes database migration 61, which only widens the CHECK allowlists for user avatar choices, unlock records and reward notices (adding halloween-special); it changes no tables, entries, ledgers or member permissions and runs automatically.",
+          "The Halloween avatar is granted only when you sign in (or authenticate online) on October 31 in your account's local time, and cannot be claimed later; not signing in that day does not grant or backfill it.",
+          "Older clients show halloween-special as the “flower” avatar as a safe fallback, without errors or data loss; refresh once after upgrading to load the new assets.",
+          "The roughly 50,000 entries per month offline limit is a temporary increase, not a permanent specification; a month over the limit is marked “incomplete”, is never treated as a full month, and analyses depending on it report an incomplete source.",
+          "Exchange-rate conversion still protects the per-entry 50,000 limit: cards that depend on per-entry data explain the limit and never truncate, while cards whose aggregates are exact keep their results.",
+          "Among S17-C analyses, P05 / P07 (which need a category hierarchy model) and P21 (which needs per-slot dimension parameters) are not available in this release; per-slot time and filters in composite cards, cross-device sync (W6) and site-wide adaptive layout (S18) are not in this version either.",
+          "This update restarts the service briefly (seconds to about half a minute); saved data is unaffected. If a page is blank, make sure your local service is running and refresh; PWA users only need one refresh after upgrading to load the new version.",
+          "Reference rates are for viewing and totals; the amount actually settled by your bank or payment provider may differ.",
+        ],
+      },
+    ],
+  },
   "1.16.22": {
     title: "Four new avatars join the Classic Collection",
     summary: "Jade Vase, Boo, Ingot and 「Sun」 join the Classic Collection, available to everyone.",

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   RELEASE_MAJOR_ANNOUNCEMENT_1_14_18,
-  RELEASE_MAJOR_ANNOUNCEMENT_1_15_00,
+  RELEASE_MAJOR_ANNOUNCEMENT_1_17_11,
   TEST_MAJOR_ANNOUNCEMENT,
 } from "@libellum/shared";
 
@@ -175,7 +175,7 @@ describe("consent and major announcements", () => {
     expect((newStatus.json() as { majorAnnouncement: unknown }).majorAnnouncement).toBeNull();
   });
 
-  it("offers the real 1.15.00 major announcement once per account and skips accounts created after it", async () => {
+  it("offers the real 1.17.11 major announcement once per account and skips accounts created after it", async () => {
     const plainApp = makeApp();
     const cookie = await makeAccountWithAgreements(plainApp, "real_major_user");
     const user = await prisma.user.findUniqueOrThrow({ where: { username: "real_major_user" } });
@@ -190,15 +190,15 @@ describe("consent and major announcements", () => {
       headers: { cookie },
     });
     expect((before.json() as { majorAnnouncement: { id: string } | null }).majorAnnouncement).toMatchObject({
-      id: RELEASE_MAJOR_ANNOUNCEMENT_1_15_00.id,
-      version: RELEASE_MAJOR_ANNOUNCEMENT_1_15_00.version,
+      id: RELEASE_MAJOR_ANNOUNCEMENT_1_17_11.id,
+      version: RELEASE_MAJOR_ANNOUNCEMENT_1_17_11.version,
     });
 
     const ack = await plainApp.inject({
       method: "POST",
-      url: `/api/v1/account/major-announcements/${RELEASE_MAJOR_ANNOUNCEMENT_1_15_00.id}/ack`,
+      url: `/api/v1/account/major-announcements/${RELEASE_MAJOR_ANNOUNCEMENT_1_17_11.id}/ack`,
       headers: { cookie },
-      payload: { version: RELEASE_MAJOR_ANNOUNCEMENT_1_15_00.version, action: "acknowledged" },
+      payload: { version: RELEASE_MAJOR_ANNOUNCEMENT_1_17_11.version, action: "acknowledged" },
     });
     expect(ack.statusCode).toBe(200);
     const after = await plainApp.inject({

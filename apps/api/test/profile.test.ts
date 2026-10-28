@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { AVATAR_IDS } from "@libellum/shared";
 import { makeApp, prisma, resetDatabase, signUp, cookieFrom } from "./support.js";
 
@@ -18,8 +18,18 @@ afterAll(async () => { await prisma.$disconnect(); });
 
 describe("账户资料：鉴权、并发与身份稳定性", () => {
   it("数据库头像 CHECK 与共享白名单一致", () => {
-    const sql = readFileSync(new URL("../../../prisma/migrations/20261026160000_classic_avatars_round_two/migration.sql", import.meta.url), "utf8");
-    const check = sql.slice(sql.indexOf("CHECK"));
+    // 头像白名单会随版本扩充，校验必须读取「最近一次」改写 users.avatar_id CHECK 的迁移。
+    const migrations = new URL("../../../prisma/migrations/", import.meta.url);
+    const sql = readdirSync(migrations, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+      .map((name) => readFileSync(new URL(`${name}/migration.sql`, migrations), "utf8"))
+      .filter((text) => text.includes('ADD CONSTRAINT "users_avatar_id_check"'))
+      .at(-1) ?? "";
+    const start = sql.indexOf('"avatar_id" IN');
+    const end = sql.indexOf("));", start);
+    const check = sql.slice(start, end >= 0 ? end : undefined);
     expect([...check.matchAll(/'([^']+)'/g)].map(m => m[1])).toEqual([...AVATAR_IDS]);
   });
   it("四款经典无解锁条件，旧账号可切换、新会话与协作成员保留独立 ID", async () => {

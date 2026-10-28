@@ -35,6 +35,7 @@ import { conflict } from "../lib/errors.js";
 import {
   FALLBACK_TIME_ZONE,
   instantToLocalDate,
+  localDateTime,
   isYearlyRuleDate,
   latestPastYearlyRuleDate,
   normalizeTimeZone,
@@ -197,6 +198,13 @@ export async function evaluateAvatarRewards(
     if (activity.ended || ownedIds.has(activity.avatarId)) continue;
     if (activity.rule.kind === "first_login") {
       await prisma.$transaction(tx => grantActivity(tx, { userId, activity, source: "first_login", now }));
+      continue;
+    }
+    if (activity.rule.kind === "yearly_fixed_date") {
+      const today = localDateTime(now, timeZone);
+      if (today.month === activity.rule.month && today.day === activity.rule.day) {
+        await prisma.$transaction(tx => grantActivity(tx, { userId, activity, source: "anniversary", now }));
+      }
       continue;
     }
     const yearlyRule: YearlyNthWeekdayRule = activity.rule;

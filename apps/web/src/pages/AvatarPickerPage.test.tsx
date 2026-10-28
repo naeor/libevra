@@ -60,10 +60,10 @@ const runtime = startLanguageRuntime();
 
 describe("第二批经典头像", () => {
   const confirmed = [
-    ["jade", "玉净", "甘露妙法，杨枝玉净。"],
+    ["jade", "玉净", "甘露妙法，杨枝玉净"],
     ["ghost", "幽幽", "呜呜呜……别被吓到哦～"],
-    ["ingot", "元宝", "摸摸元宝，招财进宝。"],
-    ["breakfast-sun", "「太阳」", "吃下一枚“太阳”，一整天都会更温暖。"],
+    ["ingot", "元宝", "摸摸元宝，招财进宝"],
+    ["breakfast-sun", "「太阳」", "吃下一枚“太阳”，一整天都会更温暖"],
   ] as const;
   for (const [id, name, caption] of confirmed) {
     it(`${id} 默认可选，名称题注逐字保留，未归入特典`, () => {
@@ -89,7 +89,7 @@ describe("第二批经典头像", () => {
     expect(avatarLabel("sun")).toBe("Sun");
     expect(isSpecialAvatarId("daoxuan-special")).toBe(true);
     expect(isSpecialAvatarId("descent-special")).toBe(true);
-    expect(render()).toContain("A little “sun” for breakfast, and warmth all day.");
+    expect(render()).toContain("A little “sun” for breakfast, and warmth all day");
     expect(render()).not.toMatch(/[\u3400-\u9fff]/u);
   });
 });
@@ -135,6 +135,17 @@ describe("特典系列排序", () => {
 });
 
 describe("未解锁头像的可见状态", () => {
+  it("万圣归入特典，题注与万圣节领取条件准确显示", () => {
+    state.avatarId = "halloween-special";
+    const html = render();
+    expect(html).toContain("不给糖就捣蛋！");
+    expect(html).toContain("每年 10 月 31 日（万圣节）登录即可领取");
+    expect(html).toContain("尚未解锁，暂不可使用");
+    expect(html.split('id="avatars-special"')[1]).toContain('aria-label="万圣"');
+    runtime.choose("en-US");
+    expect(render()).toContain("Trick or treat!");
+    expect(render()).toContain("Sign in on October 31 (Halloween) each year to claim");
+  });
   it("未解锁的头像带锁定标记，保存提示为「尚未解锁，暂不可使用」", () => {
     state.avatarId = "daoxuan-special";
     const html = render();
@@ -158,8 +169,8 @@ describe("未解锁头像的可见状态", () => {
     state.unlocked = [{ avatarId: "descent-special", source: "first_login", unlockedAt: "2026-10-26T00:00:00.000Z" }];
     const html = render();
 
-    // 另一款特典仍未解锁，网格里应恰好只剩一个锁定标记。
-    expect((html.match(/data-locked="true"/g) ?? []).length).toBe(1);
+    // 倒悬与万圣仍未解锁。
+    expect((html.match(/data-locked="true"/g) ?? []).length).toBe(2);
     expect(html).not.toContain("尚未解锁，暂不可使用");
     expect(html).toContain("已于");
   });

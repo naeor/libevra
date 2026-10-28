@@ -119,6 +119,39 @@ afterAll(async () => {
 });
 
 describe("首次登录自动获得「降临」", () => {
+  it("万圣按账户当地 10 月 31 日发放，午夜边界准确且领取后永久保留", async () => {
+    await prepareAccount({ timeZone: "Asia/Shanghai" });
+    const check = (now: string) => runAvatarRewardCheck(prisma, { userId, headerZone: "Asia/Shanghai", now: new Date(now) });
+    const count = () => prisma.avatarUnlock.count({ where: { userId, avatarId: "halloween-special" } });
+    expect((await patchProfile({ field: "avatarId", value: "halloween-special", previousValue: "flower" })).statusCode).toBe(409);
+    await check("2026-10-30T15:59:59.999Z");
+    expect(await count()).toBe(0);
+    await Promise.all(Array.from({ length: 4 }, () => check("2026-10-30T16:00:00.000Z")));
+    expect(await count()).toBe(1);
+    expect(await prisma.avatarRewardEvent.count({ where: { userId, avatarId: "halloween-special" } })).toBe(1);
+    expect((await patchProfile({ field: "avatarId", value: "halloween-special", previousValue: "flower" })).statusCode).toBe(200);
+    const session = await login("rewards_one");
+    expect((await me(session)).json().user.avatarId).toBe("halloween-special");
+    await check("2026-10-31T16:00:00.000Z");
+    await check("2027-10-31T04:00:00.000Z");
+    expect(await count()).toBe(1);
+    expect((await makeUp("halloween-special")).statusCode).toBe(409);
+  });
+
+  it("西半球按当地日期领取，不按 UTC 日期提前发放", async () => {
+    const check = (now: string) => runAvatarRewardCheck(prisma, { userId, headerZone: "America/Los_Angeles", now: new Date(now) });
+    await check("2026-10-31T06:59:59.999Z");
+    expect(await prisma.avatarUnlock.count({ where: { userId, avatarId: "halloween-special" } })).toBe(0);
+    await check("2026-11-01T06:59:59.999Z");
+    expect(await prisma.avatarUnlock.count({ where: { userId, avatarId: "halloween-special" } })).toBe(1);
+  });
+
+  it("错过万圣节不补发，不能绕过锁定直接保存或补领", async () => {
+    await runAvatarRewardCheck(prisma, { userId, headerZone: "Asia/Shanghai", now: new Date("2026-10-31T16:00:00.000Z") });
+    expect(await prisma.avatarUnlock.count({ where: { userId, avatarId: "halloween-special" } })).toBe(0);
+    expect((await makeUp("halloween-special")).statusCode).toBe(409);
+    expect((await patchProfile({ field: "avatarId", value: "halloween-special", previousValue: "flower" })).statusCode).toBe(409);
+  });
   it("新账户第一次带着认证请求打开 App 时自动解锁并返回待通知事件", async () => {
     const response = await me();
     expect(response.statusCode).toBe(200);

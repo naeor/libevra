@@ -187,6 +187,64 @@ export const RELEASE_MAJOR_ANNOUNCEMENT_1_15_00: MajorAnnouncement = {
 };
 
 /**
+ * The real 1.17.11 major update: the first production release of the S17 analysis workbench line,
+ * also carrying the Halloween limited avatar.
+ *
+ * ⚠️ **The user-visible facts must stay identical to the same version's entry in
+ * `apps/web/src/lib/updateAnnouncements.ts`**: the popup is driven by this server-side list, while
+ * the update history/detail pages are driven by the web bundle. One version, one story; the two
+ * files are the two halves of the same announcement.
+ *
+ * Accounts created after the publication instant are intentionally excluded by the server; this is
+ * a change notice for accounts that existed before it, not an onboarding message.
+ */
+export const RELEASE_MAJOR_ANNOUNCEMENT_1_17_11: MajorAnnouncement = {
+  id: "major-1.17.11",
+  version: "1.17.11",
+  title: "Libevra 1.17.11",
+  summary: "把每一笔账，变成你自己的分析工作台。",
+  sections: [
+    {
+      heading: "分析工作台正式登场",
+      items: [
+        "「分析」页升级为可自定义的财务工作台：38 张分析卡片全部接通真实数据，浏览、筛选、编辑在同一页切换。",
+        "卡片可以拖动、换位、调整尺寸、复制与删除，布局按账号保存在本机，刷新后仍然保持。",
+        "每张卡片都有对应的数据口径说明，点开可进入详情页；返回时恢复原来的滚动位置。",
+      ],
+    },
+    {
+      heading: "筛选、自定义与组合卡片",
+      items: [
+        "新增分类、支付方式、标签三个可多选筛选维度，与时间、币种一起作用于摘要、全部卡片、固定窗口卡与上期比较；筛选条件写在地址栏，可分享、可刷新、可直达。",
+        "自定义卡片可选 81 / 84 项指标与 31 个图表家族，并新增组合卡片：多个数字与图表可同卡排列，按真实格子像素预览「放得下 / 放不下」，放不下的内容点开完整查看。",
+        "综合折算覆盖全部 38 张卡片；缺少汇率时合计只给已折算小计，笔数与天数照常计数，比率与极值如实说明不确定性，趋势与热力图把未知时段标为「未知」而不是 0。",
+      ],
+    },
+    {
+      heading: "离线、细节与万圣限定头像",
+      items: [
+        "离线历史镜像单月读取上限从 4,000 笔提高到约 50,000 笔，并区分「已取完」与「被截断」，部分月份不再被当成整月写入本地账本。",
+        "修正「有支出的分类数」单位、金额缩字号截断、窄屏图例与数字列、比率负数四舍五入、右列组合卡片保存失败等问题；日常启动脚本固定打开 http://localhost:5173，不再静默漂移到 5174。",
+        "特典系列新增「万圣」限定头像：每年账户当地 10 月 31 日登录即可领取并永久持有，不开放补领；未解锁时在头像选择页显示锁定态。",
+      ],
+    },
+    {
+      heading: "升级须知",
+      items: [
+        "本次更新包含第 61 号数据库迁移：只扩充用户头像选择、解锁记录与奖励通知的 CHECK 白名单，不改动表结构、账目、账本或成员权限，升级时自动完成。",
+        "约 50,000 笔 / 月是临时提高的离线读取上限，不是永久规格；某月超过上限会显式标记「未完整」，依赖该月的统计也会标记来源不完整。",
+        "综合折算的逐笔条数仍受 50,000 保护，超限时依赖逐笔数据的卡片会明确说明、绝不截断；S17-C 的 P05 / P07 / P21、跨设备同步（W6）与 S18 全站自适应不在本版本内。",
+        "旧版本客户端遇到 halloween-special 会安全回退显示为「小花」，不会报错也不会丢数据；升级后刷新页面即可加载新素材。发布过程会短暂重启服务，已保存数据不受影响。",
+      ],
+    },
+  ],
+  // 2026-10-28 14:00 CST, before the planned 1.17.11 production deployment; accounts created after
+  // this instant (including any account created by the new build) are onboarding, not change notices.
+  publishedAt: "2026-10-28T06:00:00.000Z",
+  testOnly: false,
+};
+
+/**
  * Documents that currently require acceptance.
  *
  * Test-only documents are returned only when the caller explicitly enables local test mode. A
@@ -200,6 +258,7 @@ export function activeMajorAnnouncements(includeTest: boolean): readonly MajorAn
   const announcements: MajorAnnouncement[] = [
     RELEASE_MAJOR_ANNOUNCEMENT_1_14_18,
     RELEASE_MAJOR_ANNOUNCEMENT_1_15_00,
+    RELEASE_MAJOR_ANNOUNCEMENT_1_17_11,
   ];
   if (includeTest) announcements.push(TEST_MAJOR_ANNOUNCEMENT);
   return announcements;

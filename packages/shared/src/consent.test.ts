@@ -5,6 +5,7 @@ import {
   majorAnnouncementById,
   RELEASE_MAJOR_ANNOUNCEMENT_1_14_18,
   RELEASE_MAJOR_ANNOUNCEMENT_1_15_00,
+  RELEASE_MAJOR_ANNOUNCEMENT_1_17_11,
 } from "./consent.js";
 
 /**
@@ -32,19 +33,38 @@ describe("major announcements (production policy)", () => {
     ]);
   });
 
+  it("ships the 1.17.11 update as a non-test major announcement", () => {
+    const entry = majorAnnouncementById("major-1.17.11", false);
+
+    expect(entry).not.toBeNull();
+    expect(entry?.version).toBe("1.17.11");
+    expect(entry?.testOnly).toBe(false);
+    expect(entry?.title).toBe("Libevra 1.17.11");
+    expect(entry?.summary).toBe("把每一笔账，变成你自己的分析工作台。");
+    expect(entry?.sections.map((section) => section.heading)).toEqual([
+      "分析工作台正式登场",
+      "筛选、自定义与组合卡片",
+      "离线、细节与万圣限定头像",
+      "升级须知",
+    ]);
+  });
+
   it("keeps the production policy free of test notices and newer than 1.14.18", () => {
     const production = activeMajorAnnouncements(false);
 
     expect(production.every((entry) => entry.testOnly === false)).toBe(true);
     expect(production.some((entry) => entry.id === RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.id)).toBe(true);
 
-    // 服务器按 publishedAt 取最新一条作为待确认公告；1.15.00 必须比 1.14.18 新。
+    // 服务器按 publishedAt 取最新一条作为待确认公告；1.17.11 必须比 1.15.00 与 1.14.18 新。
     const newest = [...production].sort((left, right) =>
       right.publishedAt.localeCompare(left.publishedAt),
     )[0];
-    expect(newest?.id).toBe(RELEASE_MAJOR_ANNOUNCEMENT_1_15_00.id);
+    expect(newest?.id).toBe(RELEASE_MAJOR_ANNOUNCEMENT_1_17_11.id);
     expect(
-      new Date(RELEASE_MAJOR_ANNOUNCEMENT_1_15_00.publishedAt).getTime(),
+      new Date(RELEASE_MAJOR_ANNOUNCEMENT_1_17_11.publishedAt).getTime(),
+    ).toBeGreaterThan(new Date(RELEASE_MAJOR_ANNOUNCEMENT_1_15_00.publishedAt).getTime());
+    expect(
+      new Date(RELEASE_MAJOR_ANNOUNCEMENT_1_17_11.publishedAt).getTime(),
     ).toBeGreaterThan(new Date(RELEASE_MAJOR_ANNOUNCEMENT_1_14_18.publishedAt).getTime());
   });
 
