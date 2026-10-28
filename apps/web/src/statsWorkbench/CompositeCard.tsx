@@ -83,19 +83,25 @@ export function CompositeBody({
   const specs = slotSpecs(read.slots);
   const full = layoutComposition(read.template, specs, width, height);
   // 放不下全部内容时，底部留一行写「另有 N 项」，并按扣掉这一行后的高度重新排布，提示不压在数字上。
-  const layout = full.hidden.length === 0 ? full : layoutComposition(read.template, specs, width, Math.max(0, height - MORE_LINE));
+  // 若留出这一行会让能显示的项变少（例如窄屏 1×1 只放得下一个数字），就不留行，改成右下角的「+N」角标。
+  const reserved = full.hidden.length === 0 ? full : layoutComposition(read.template, specs, width, Math.max(0, height - MORE_LINE));
+  const useBadge = full.hidden.length > 0 && reserved.placements.length < full.placements.length;
+  const layout = useBadge ? full : reserved;
   const byId = new Map(views.map((view) => [view.slot.id, view] as const));
+  const moreText = t("statsWorkbench.composite.more", { count: layout.hidden.length });
   return (
     <div className="sw-composite relative h-full w-full" data-template={read.template}>
       {layout.placements.map((placement) => {
         const view = byId.get(placement.slotId);
         return view === undefined ? null : <SlotCell key={placement.slotId} placement={placement} view={view} />;
       })}
-      {layout.hidden.length > 0 ? (
-        <p className="sw-composite-more absolute right-0 bottom-0 left-0 truncate text-right text-helper text-muted">
-          {t("statsWorkbench.composite.more", { count: layout.hidden.length })}
-        </p>
-      ) : null}
+      {layout.hidden.length === 0 ? null : useBadge ? (
+        <span role="img" aria-label={moreText} title={moreText} className="sw-composite-more absolute top-0 right-0 text-helper font-medium text-muted">
+          +{layout.hidden.length}
+        </span>
+      ) : (
+        <p className="sw-composite-more absolute right-0 bottom-0 left-0 truncate text-right text-helper text-muted">{moreText}</p>
+      )}
     </div>
   );
 }

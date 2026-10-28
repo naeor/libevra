@@ -733,6 +733,8 @@ function TimeView({
     emptyStates.includes(completeness) ? t("statsWorkbench.states.empty") : seriesNote(completeness) ?? t("statsWorkbench.states.partial");
   const entries = entriesInCurrency(scope.entries, currency);
   const height = heightFor(density, detail, available, slotMode !== null);
+  // 多分类图例（4–5 项）窄于 300px 时折成两行，多约 22px（1.17.10 在 320px 屏实测）。
+  const legendWrap = !detail && (availableWidth ?? 400) < 300 ? 22 : 0;
   // 表格按行数适配：扣掉合计一行（24）与卡片里一行不完整说明（22，小格里是角标）。
   const tableRoom = (withTotal: boolean): number | undefined => (available === undefined ? undefined : available - (withTotal ? 24 : 0) - (slotMode === null ? 22 : 0));
   const axis = (value: number) => formatAxisAmount(value, currency);
@@ -845,7 +847,8 @@ function TimeView({
         return (
           <ResultState metadata={bridge.metadata}><div className="sw-interactive min-h-0" onClick={stop}>
             {/* 卡片与组合小格按正文高度画（图例约 40px；卡片里再留一行说明 22px），不再用固定 190px 撑出卡片。 */}
-            <TrendChart points={stats.series} currency={currency} bucket={scope.bucket} hasEntries={stats.totals.count > 0} {...(detail || available === undefined ? {} : { height: Math.max(56, available - 40 - (slotMode === null ? 22 : 0)) })} />
+            {/* 图例两项：窄于 300px 时会折成两行（约 64px），否则一行（约 40px）。 */}
+            <TrendChart points={stats.series} currency={currency} bucket={scope.bucket} hasEntries={stats.totals.count > 0} {...(detail || available === undefined ? {} : { height: Math.max(56, available - ((availableWidth ?? 400) < 300 ? 64 : 40) - (slotMode === null ? 22 : 0)) })} />
           </div></ResultState>
         );
       }
@@ -929,7 +932,7 @@ function TimeView({
             formatAxis={axis}
             labelFor={labelFor}
             kind={family === "line" ? "lines" : "area"}
-            height={height}
+            height={height - legendWrap}
             formatValue={(amountMinor) => moneyText(amountMinor, currency)}
           />
         </div></ResultState>
@@ -948,7 +951,7 @@ function TimeView({
             categoryLabel={(categoryId) => categoryName(scope, categoryId, t)}
             formatShare={(fraction) => `${(fraction * 100).toFixed(0)}%`}
             labelFor={labelFor}
-            height={height}
+            height={height - legendWrap}
           />
         </div></ResultState>
       );

@@ -623,7 +623,8 @@ export function layoutComposition(template: TemplateId, specs: readonly SlotSpec
       }
       // B：图表在左、数字竖排在右（横长卡）；混合模板的多图表不做左右分，避免图表被压窄。
       if (declared.arrangement !== "mixed" || charts.length === 1) {
-        const numberWidth = Math.max(READABLE.stacked.minWidth, Math.min(Math.round(box.width * 0.36), 200));
+        // 数字列至少约 42% 宽：320px 窄屏上「¥14,222.41」这类金额在最小字号下也能完整显示。
+        const numberWidth = Math.max(READABLE.stacked.minWidth, Math.min(Math.round(box.width * 0.42), 200));
         const chartWidth = box.width - numberWidth - SLOT_GAP;
         if (chartWidth >= READABLE.spark.minWidth) {
           const side = solveNumbers(numbers, { x: chartWidth + SLOT_GAP, y: 0, width: numberWidth, height: box.height });

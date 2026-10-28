@@ -105,7 +105,8 @@ export function TrendChart({
             <>
               <YAxis
                 layout={layout}
-                ticks={ticksFor(domain, 4)}
+                // Short plots (workbench slots) get fewer labels so they never overlap.
+                ticks={ticksFor(domain, layout.innerHeight < 90 ? 2 : 4)}
                 scale={y}
                 format={(value) => formatAxisAmount(value, currency)}
               />

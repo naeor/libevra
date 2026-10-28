@@ -140,8 +140,13 @@ describe("组合卡片：多个内容、一张卡片", () => {
   it("放不下的内容不硬塞：显示「另有 N 项」，详情页完整列出", () => {
     const six = [s("s1", "AN-B02", "number"), s("s2", "AN-B01", "number"), s("s3", "AN-B03", "number"), s("s4", "AN-B06", "number"), s("s5", "AN-B04", "number"), s("s6", "AN-B05", "number")];
     const card = composite("T7", six);
-    const tight = text(wrap(<CompositeBody card={card} scope={scope(ENTRIES)} width={314} height={62} />));
-    expect(tight).toMatch(/另有 \d 项/);
+    // 2×1 只放得下 4 个：留出「另有」一行会少放，所以改成右下角「+2」角标（读屏名称是完整说明）。
+    const tightHtml = wrap(<CompositeBody card={card} scope={scope(ENTRIES)} width={314} height={62} />);
+    expect(tightHtml).toContain('aria-label="另有 2 项 · 点开查看"');
+    expect(text(tightHtml)).toContain("+2");
+    // 留出一行仍能放下同样多的项时，照常写一行「另有 N 项」。
+    const roomy = text(wrap(<CompositeBody card={card} scope={scope(ENTRIES)} width={314} height={80} />));
+    expect(roomy).toMatch(/另有 \d 项/);
     const detail = text(wrap(<CompositeDetail card={card} scope={scope(ENTRIES)} />));
     for (const label of ["总收入", "总支出", "收支差额", "日均支出", "支出笔数", "收入笔数"]) expect(detail).toContain(label);
   });

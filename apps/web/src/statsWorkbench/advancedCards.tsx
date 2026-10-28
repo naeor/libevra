@@ -25,6 +25,7 @@ import { useI18n } from "../i18n/index.js";
 import type { ChartFamily } from "./catalog.js";
 import { entriesInCurrency, granularityFor } from "./compute.js";
 import type { WorkbenchScope } from "./scope.js";
+import { useCardSpace } from "./slotContext.js";
 import { moneyText, ratioPercentText, type Density } from "./ui.js";
 import type { DateRange, TimeBucket, TimeSpan } from "@libellum/shared";
 
@@ -73,6 +74,7 @@ export interface AdvancedCardProps {
 
 export function AdvancedCardView({ id, family, scope, range, density, detail, available, fx }: AdvancedCardProps): React.JSX.Element {
   const { t } = useI18n();
+  const space = useCardSpace();
   const currency = scope.currency;
   const title = titleFor(t, id);
   const span = spanFor(range);
@@ -101,7 +103,9 @@ export function AdvancedCardView({ id, family, scope, range, density, detail, av
     return <ChartNote text={noDataText} />;
   }
   const insufficient = t("statsWorkbench.advanced.insufficientSample");
-  const height = detail ? 240 : available !== undefined && available > 0 ? Math.max(72, Math.min(260, available - 30)) : density === "expanded" ? 170 : density === "medium" ? 130 : 96;
+  // 窄于 300px 时多分类图例会折成两行（多约 22px），按实测扣掉，避免图例被卡片裁掉。
+  const narrowLegend = !detail && (space?.width ?? 400) < 300 ? 22 : 0;
+  const height = detail ? 240 : available !== undefined && available > 0 ? Math.max(72, Math.min(260, available - 30 - narrowLegend)) : density === "expanded" ? 170 : density === "medium" ? 130 : 96;
 
   switch (id) {
     case "AN-I13": {
