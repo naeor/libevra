@@ -214,6 +214,7 @@ export function registerAccountConsentRoutes(
   // -------------------------------------------------------------------------
   app.get("/api/v1/account/export", { preHandler: requireSession }, async (request, reply) => {
     const userId = request.currentUser!.id;
+    const workbench = await prisma.workbenchConfiguration.findUnique({ where: { userId } });
 
     const memberships = await prisma.bookMember.findMany({
       where: { userId, leftAt: null },
@@ -223,7 +224,7 @@ export function registerAccountConsentRoutes(
 
     const bookIds = memberships.map((membership) => membership.bookId);
     if (bookIds.length === 0) {
-      return reply.send(emptyAccountExport(request.currentUser!));
+      return reply.send({ ...(emptyAccountExport(request.currentUser!) as object), workbench });
     }
 
     const total = await prisma.transaction.count({ where: { bookId: { in: bookIds } } });
@@ -247,6 +248,7 @@ export function registerAccountConsentRoutes(
       )
       .send({
         format: "libevra-account-export/v1",
+        workbench,
         generatedAt: new Date().toISOString(),
         scope:
           "本文件包含账号资料，以及该账号当前可访问账本中的全部账目（包含共享账本中其他成员记录的账目和软删除条目）。它不是仅包含单一成员记录的子集。",

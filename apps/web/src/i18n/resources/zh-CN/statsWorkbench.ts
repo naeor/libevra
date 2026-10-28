@@ -3,6 +3,14 @@
  * 源语言：简体中文。卡片名称沿用 S-01 v2 能力编号（`AN-…`）作键，名称本身随界面语言显示。
  */
 const statsWorkbench = {
+  trace: { open: "查看来源区间账目", title: "来源区间账目（{{count}} 笔）", context: "按本卡片的日期、币种和筛选条件列出原始账目。变化、分位数等派生指标还会使用其计算方法说明中的比较或分组规则。", denied: "无权读取这个账本的账目。", more: "再显示 50 笔" },
+  sync: {
+    title: "工作台同步", local: "仅保存在本机", pending: "等待同步", syncing: "正在同步…", synced: "已同步", failed: "同步失败，本机配置已保留", conflict: "配置冲突", newer: "云端配置来自更新版本，请先更新应用", invalid: "本机配置无法读取，原文件已保留", retry: "同步",
+    conflictHint: "本机与云端都有修改。选择前可导出本机副本；采用云端时也会保留本机恢复副本。", finishEditing: "请先完成或退出编辑，再处理冲突。", useCloud: "使用云端版本", useLocal: "保留并提交本机版本", backupLocal: "导出本机副本",
+  },
+  transfer: {
+    title: "配置文件", workspaceName: "我的工作台", exportWorkspace: "导出已保存工作台", exportPresets: "导出全部个人预设", exportPreset: "导出此预设", importFile: "导入布局文件", empty: "没有可导出的个人预设", exported: "已开始保存配置文件", invalid: "配置文件损坏、版本不受支持或包含非法字段；原工作台未改动。", tooLarge: "配置文件不能超过 2 MB", bindingHint: "预览按当前账本计算。分类、支付方式和标签引用不会随文件转移，请在导入后重新选择。", summary: "{{cards}} 张卡片 · {{containers}} 个容器", addPreset: "添加为新的个人预设", apply: "应用到当前工作台", confirmApply: "确认替换编辑会话中的布局？可以撤销，仍需点「完成」才正式保存。", applied: "已应用到编辑会话，点「完成」保存", imported: "已添加预设「{{name}}」", unsupported: "此项无法导入：{{reason}}",
+  },
   header: {
     filter: "筛选",
     edit: "编辑工作台",

@@ -12,6 +12,7 @@ import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 
 import { useI18n } from "../i18n/index.js";
 import { cardRange, COMPARISON_IDS, displayCard, needsOwnRange, SlotBody, SlotPresentationContext, slotTitle, useCardScope } from "./cards.js";
+import { SourceEntries } from "./SourceEntries.js";
 import { cardType } from "./catalog.js";
 import { layoutComposition, readComposition, slotCard, slotSpecs, type CompositionSlot, type SlotPlacement } from "./composition.js";
 import type { WorkbenchScope } from "./scope.js";
@@ -148,6 +149,7 @@ export function CompositeDetail({ card, scope }: { readonly card: AnalysisCardNo
         <section key={view.slot.id} className="min-h-0 rounded-card border border-line bg-surface p-4" aria-label={view.label}>
           <h2 className="pb-2 text-card-title text-ink">{view.label}</h2>
           <SlotBody card={view.card} scope={view.scope} density="expanded" detail />
+          <SourceEntries card={view.card} scope={view.scope} />
         </section>
       ))}
     </div>

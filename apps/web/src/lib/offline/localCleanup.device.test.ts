@@ -46,6 +46,21 @@ beforeEach(() => {
 });
 
 describe("local cleanup — device keys", () => {
+  it("只清理目标账号的工作台、预设、同步元数据和恢复副本", async () => {
+    for (const kind of ["stats-workbench", "stats-workbench-presets", "stats-workbench-sync"]) {
+      state.local.set(`libevra.${kind}:v1:user:user-a`, "{}");
+      state.local.set(`libevra.${kind}:v1:user:user-a:recovery`, "{}");
+      state.local.set(`libevra.${kind}:v1:user:user-ab`, "{}");
+      state.local.set(`libevra.${kind}:v1:guest:user-a`, "{}");
+    }
+    await clearAccountLocalData("user-a");
+    for (const kind of ["stats-workbench", "stats-workbench-presets", "stats-workbench-sync"]) {
+      expect(state.local.has(`libevra.${kind}:v1:user:user-a`)).toBe(false);
+      expect(state.local.has(`libevra.${kind}:v1:user:user-a:recovery`)).toBe(false);
+      expect(state.local.has(`libevra.${kind}:v1:user:user-ab`)).toBe(true);
+      expect(state.local.has(`libevra.${kind}:v1:guest:user-a`)).toBe(true);
+    }
+  });
   it("clears the per-ledger device flags together with the ledger's offline copy", async () => {
     state.indexed.set("ledger-months:user-a:book-a", []);
     state.indexed.set("ledger-months:user-a:book-b", []);

@@ -11,7 +11,7 @@ import {
   type Transaction,
 } from "@libellum/shared";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { tagFillStyle } from "../lib/tagColors.js";
@@ -24,6 +24,7 @@ import { useUndo } from "../components/UndoProvider.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
+import { useGoBack } from "../lib/connectivity.js";
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
@@ -70,6 +71,8 @@ export function EntryDetailPage(): React.JSX.Element {
   const fxMode = useFxMode();
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const goBackToAnalysis = useGoBack("/stats", "parent");
   const { showUndo } = useUndo();
   const { t } = useI18n();
 
@@ -437,6 +440,7 @@ export function EntryDetailPage(): React.JSX.Element {
       title={editing ? t("entry.detail.editTitle") : t("entry.detail.title")}
       onBack={() => {
         if (editing) setEditing(false);
+        else if ((location.state as { fromAnalysis?: unknown } | null)?.fromAnalysis === true) goBackToAnalysis();
         else void navigate("/");
       }}
       actions={

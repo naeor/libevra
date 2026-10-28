@@ -8,6 +8,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
+    "./workbench/configuration": {
+      "types": "./src/workbench/configuration.ts",
+      "default": "./src/workbench/configuration.ts"
+    },
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"

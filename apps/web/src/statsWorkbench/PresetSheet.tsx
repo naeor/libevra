@@ -12,6 +12,10 @@ import { positionToRowCol, type LayoutDocumentV1, type WorkbenchContentDocumentV
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BottomSheet } from "../components/BottomSheet.js";
+import { ExchangePanel } from "./ExchangePanel.js";
+import { SyncControls } from "./SyncControls.js";
+import { WORKBENCH_INSTALLED } from "./configEvents.js";
+import { downloadWorkspaceFile, exportWorkspaceFile, presetEntry } from "./exchange.js";
 import { currentLocale, useI18n } from "../i18n/index.js";
 import { BrowseGrid, browseColumnsFor } from "./Grid.js";
 import {
@@ -92,6 +96,11 @@ export function PresetSheet({
   // 系统预设的文档按当前语言生成一次（标题写入卡片）；只用于缩略图与预览，应用时另换新 ID。
   const systemDocs = useMemo(() => new Map(SYSTEM_PRESET_IDS.map((id) => [id, buildSystemPreset(id, translate)] as const)), [t]);
   const reload = () => setStore(loadPresets(accountScope));
+  useEffect(() => {
+    const installed = (event: Event) => { if ((event as CustomEvent<string>).detail === accountScope) setStore(loadPresets(accountScope)); };
+    window.addEventListener(WORKBENCH_INSTALLED, installed);
+    return () => window.removeEventListener(WORKBENCH_INSTALLED, installed);
+  }, [accountScope]);
   const say = (text: string, tone: "ok" | "warn" = "ok") => setStatus({ text, tone, key: Date.now() });
   const problemText = (problem: PresetWriteProblem) =>
     problem === "full"
@@ -159,6 +168,7 @@ export function PresetSheet({
           <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {view.kind === "list" ? (
               <div className="flex flex-col gap-5 pt-3 pb-6">
+                <div className="px-5 sm:px-6"><SyncControls /></div>
                 <section aria-labelledby="sw-presets-system" className="flex flex-col gap-2.5">
                   <h3 id="sw-presets-system" className="px-5 text-helper font-medium text-muted sm:px-6">{t("statsWorkbench.presets.system")}</h3>
                   <PresetRail label={t("statsWorkbench.presets.system")} wide>
@@ -213,6 +223,7 @@ export function PresetSheet({
                     ))}
                   </PresetRail>
                 </section>
+                <ExchangePanel accountScope={accountScope} scope={scope} onApply={onApply} onChanged={reload} />
               </div>
             ) : view.kind === "preview" ? (
               <PresetPreview
@@ -259,6 +270,12 @@ export function PresetSheet({
                 onRename={() => go({ kind: "form", mode: "rename", presetId: view.presetId, back: { kind: "list" } })}
                 onUpdate={() => go({ kind: "confirm", action: "update", presetId: view.presetId })}
                 onDelete={() => go({ kind: "confirm", action: "delete", presetId: view.presetId })}
+                onExport={() => {
+                  const preset = presetById(view.presetId);
+                  if (!preset) return;
+                  try { downloadWorkspaceFile(exportWorkspaceFile("preset", [presetEntry(preset)])); say(t("statsWorkbench.transfer.exported")); }
+                  catch { say(t("statsWorkbench.transfer.invalid"), "warn"); }
+                }}
               />
             ) : (
               <ConfirmPanel
@@ -629,16 +646,19 @@ function PresetActions({
   onRename,
   onUpdate,
   onDelete,
+  onExport,
 }: {
   readonly preset: UserPreset | undefined;
   readonly onPreview: () => void;
   readonly onRename: () => void;
   readonly onUpdate: () => void;
   readonly onDelete: () => void;
+  readonly onExport: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
   if (preset === undefined) return <p className="px-5 py-6 text-body text-muted">{t("statsWorkbench.presets.problems.missing")}</p>;
   const items = [
+    { key: "export", label: t("statsWorkbench.transfer.exportPreset"), icon: <SaveGlyph />, onClick: onExport, danger: false },
     { key: "preview", label: `${t("statsWorkbench.presets.preview")} / ${t("statsWorkbench.presets.apply")}`, icon: <ChevronRight />, onClick: onPreview, danger: false },
     { key: "rename", label: t("statsWorkbench.presets.rename"), icon: <PencilGlyph />, onClick: onRename, danger: false },
     { key: "update", label: t("statsWorkbench.presets.update"), icon: <SaveGlyph />, onClick: onUpdate, danger: false },

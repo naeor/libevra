@@ -17,6 +17,11 @@ const errors: Messages<typeof zh> = {
     unknownServer: "That didn’t go through. Please try again, and contact an administrator if it keeps failing.",
   },
   api: {
+    unauthorized: "Your session ended. Sign in again.",
+    workbench_invalid: "Workspace configuration is invalid or unsupported.",
+    workbench_newer: "Update the app before changing this newer cloud configuration.",
+    workbench_conflict: "Another device updated this workspace. Choose which configuration to keep.",
+    workbench_account_changed: "The account changed. Reopen the workspace.",
     // ---- 通用 ----
     validation_failed: "Please check what you entered.",
     bad_request: "The request couldn’t be understood.",

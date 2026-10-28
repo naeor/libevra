@@ -23,6 +23,11 @@ const errors = {
     unknownServer: "操作未完成，请重试。若仍然失败，请联系管理员。",
   },
   api: {
+    unauthorized: "登录状态已失效，请重新登录。",
+    workbench_invalid: "工作台配置格式无效或版本不受支持。",
+    workbench_newer: "云端配置来自更新版本，请先更新应用。",
+    workbench_conflict: "其他设备已更新工作台，请选择要保留的配置。",
+    workbench_account_changed: "账号已切换，请重新打开工作台。",
     // ---- 通用 ----
     validation_failed: "请检查填写的内容。",
     bad_request: "请求格式无法识别。",

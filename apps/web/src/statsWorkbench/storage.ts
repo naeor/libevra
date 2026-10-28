@@ -1,5 +1,5 @@
 /**
- * 工作台配置的本机保存（Q-03：本地优先 + 服务端同步；**本轮只有本地这一半**）。
+ * 工作台配置的本机保存；W6 的账号同步与冲突处理在 `sync.ts`，游客仍只在本机。
  *
  * ⚠️ **作用域 = 账号（Q-02）。** 键里带用户 ID（游客带游客身份 ID），同一台设备上换账号不会读到
  * 别人的工作台；切换账本只让卡片用新账本的数据重算，工作台本身不变。键以 `libevra.` 开头，所以
@@ -7,8 +7,8 @@
  *
  * ⚠️ **记录形状用 Agent D 的 `WorkbenchLocalRecordV1`，校验也用 D 的校验器**：保存前、读取后都过一遍。
  * 读出来的内容无法通过校验（损坏、或来自更新版本）时，**不覆盖、不删除**，界面退回默认工作台并说明；
- * 用户下次主动保存时才会写入新记录。服务端同步（W6）需要新的存储与迁移，另行评审，这里
- * `pendingSync` 恒为 `true`，如实表示「只在本机」。
+ * 用户下次主动保存时才会写入新记录。正式保存先标记 `pendingSync`；实际同步状态由 W6 的
+ * 服务端基版本与基配置决定，不能用本机的内容 / 布局版本冒充服务端并发版本。
  *
  * ⚠️ 只存布局与分析定义的引用，**不存任何金额、交易或账本 ID**（总需求规格 §3.3）。
  */
@@ -28,6 +28,7 @@ import { runLayoutPipeline } from "@libellum/shared/workbench/pipeline";
 
 import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
 import { defaultWorkbench } from "./defaults.js";
+import { notifyWorkbenchChange } from "./configEvents.js";
 
 export function workbenchStorageKey(accountScope: string): string {
   return `${LIBEVRA_KEY_PREFIX}stats-workbench:v1:${accountScope}`;
@@ -135,6 +136,7 @@ export function saveWorkbench(accountScope: string, documents: WorkbenchDocument
     }
     if (previous !== null) store.setItem(`${key}:previous`, previous);
     store.setItem(key, JSON.stringify(record));
+    notifyWorkbenchChange(accountScope);
     return version;
   } catch {
     return null;

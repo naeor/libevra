@@ -10,6 +10,7 @@ import { OfflineStatus } from "./OfflineStatus.js";
 import { SyncBanner } from "./SyncBanner.js";
 import { useGoBack, type BackMode } from "../lib/connectivity.js";
 import { useI18n } from "../i18n/index.js";
+import { WorkbenchSyncBridge } from "../statsWorkbench/SyncBridge.js";
 
 /**
  * Whether the entry cards are open, and who may close them.
@@ -112,8 +113,10 @@ export function AppShell({ children }: { readonly children: React.ReactNode }): 
 
   return (
     <EntryMenuContext.Provider value={value}>
+      <WorkbenchSyncBridge>
       {children}
       <GuestWelcome />
+      </WorkbenchSyncBridge>
     </EntryMenuContext.Provider>
   );
 }

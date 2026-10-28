@@ -2,6 +2,14 @@ import type { Messages } from "../../types.js";
 import type zh from "../zh-CN/statsWorkbench.js";
 
 const statsWorkbench: Messages<typeof zh> = {
+  trace: { open: "View source-period entries", title: "Source-period entries ({{count}})", context: "Original entries use this card’s dates, currency and filters. Derived metrics also use the comparison or grouping rules described in their calculation method.", denied: "You do not have access to this ledger’s entries.", more: "Show 50 more" },
+  sync: {
+    title: "Workspace sync", local: "Stored on this device", pending: "Waiting to sync", syncing: "Syncing…", synced: "Synced", failed: "Sync failed; local configuration kept", conflict: "Configuration conflict", newer: "Cloud configuration needs a newer app version", invalid: "Local configuration unreadable; original kept", retry: "Sync",
+    conflictHint: "Both local and cloud copies have changes. Export a local copy before choosing. Using the cloud copy also keeps a local recovery copy.", finishEditing: "Finish or cancel editing before resolving this conflict.", useCloud: "Use cloud version", useLocal: "Keep and submit local version", backupLocal: "Export local copies",
+  },
+  transfer: {
+    title: "Configuration files", workspaceName: "My workspace", exportWorkspace: "Export saved workspace", exportPresets: "Export all personal presets", exportPreset: "Export this preset", importFile: "Import layout file", empty: "No personal presets to export", exported: "Configuration download started", invalid: "Invalid, unsupported or unsafe configuration file. Your workspace was kept.", tooLarge: "Configuration files must be no larger than 2 MB", bindingHint: "Preview uses the current ledger. Category, payment method and tag references are not transferred; select them again after importing.", summary: "{{cards}} cards · {{containers}} containers", addPreset: "Add as a new personal preset", apply: "Apply to current workspace", confirmApply: "Replace the layout in this editing session? You can undo. Choose Done to save it permanently.", applied: "Applied to editor; choose Done to save", imported: "Added preset “{{name}}”", unsupported: "This item cannot be imported: {{reason}}",
+  },
   header: {
     filter: "Filter",
     edit: "Edit workspace",

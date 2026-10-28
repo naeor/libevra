@@ -48,7 +48,19 @@ datasource db {
 // Accounts
 // ---------------------------------------------------------------------------
 
+model WorkbenchConfiguration {
+  userId String @id @map("user_id") @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schemaVersion Int @default(1) @map("schema_version")
+  version Int @default(1)
+  configuration Json
+  previousConfiguration Json? @map("previous_configuration")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@map("workbench_configurations")
+}
+
 model User {
+  workbenchConfiguration WorkbenchConfiguration?
   id           String   @id @default(uuid()) @db.Uuid
   username     String   @unique
   /// Eight-digit public account number, for example `48213907`.

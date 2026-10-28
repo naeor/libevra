@@ -292,6 +292,7 @@ export async function deleteAccountData(
       orderBy: { joinedAt: "asc" },
     });
     const currentById = new Map(memberships.map((membership) => [membership.book.id, membership.book]));
+    if (input.all) await tx.workbenchConfiguration.deleteMany({ where: { userId: input.userId } });
 
     const selected: Book[] = [];
     const alreadyHandled: { bookId: string; action: "already_left" | "already_deleted" }[] = [];
@@ -692,6 +693,7 @@ export async function closeAccount(
       data: { revokedAt: now },
     });
     await tx.notificationQuota.deleteMany({ where: { userId: input.userId } });
+    await tx.workbenchConfiguration.deleteMany({ where: { userId: input.userId } });
     await tx.notification.deleteMany({ where: { recipientId: input.userId } });
     await tx.notification.deleteMany({
       where: { senderId: input.userId, status: "pending" },

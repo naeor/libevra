@@ -6,7 +6,7 @@
  * - 内容：同一份计算结果的完整密度版本（排行显示全部项，不折叠）；
  * - 依据：计算来源、数据来源（本机当前账本）与覆盖提示；可以进入对应月份的账目列表。
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
@@ -21,6 +21,8 @@ import { isMultiSlot, readComposition } from "../statsWorkbench/composition.js";
 import { readFilters } from "../statsWorkbench/filters.js";
 import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import { readStored } from "../statsWorkbench/storage.js";
+import { SourceEntries } from "../statsWorkbench/SourceEntries.js";
+import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
 
 export function StatsCardDetailPage(): React.JSX.Element {
   const { t } = useI18n();
@@ -29,7 +31,13 @@ export function StatsCardDetailPage(): React.JSX.Element {
   const filters = useMemo(() => readFilters(params), [params]);
   const scope = useWorkbenchScope(filters);
   const ledger = useLedger();
-  const documents = useMemo(() => readStored(scope.accountScope).documents, [scope.accountScope]);
+  const [configurationRevision, setConfigurationRevision] = useState(0);
+  useEffect(() => {
+    const installed = (event: Event) => { if ((event as CustomEvent<string>).detail === scope.accountScope) setConfigurationRevision(value => value + 1); };
+    window.addEventListener(WORKBENCH_INSTALLED, installed);
+    return () => window.removeEventListener(WORKBENCH_INSTALLED, installed);
+  }, [scope.accountScope]);
+  const documents = useMemo(() => readStored(scope.accountScope).documents, [scope.accountScope, configurationRevision]);
   const card = documents.content.cards.find((item) => item.objectId === objectId);
   const search = params.toString();
   const backTo = `/stats${search === "" ? "" : `?${search}`}`;
@@ -69,6 +77,7 @@ export function StatsCardDetailPage(): React.JSX.Element {
           <section className="min-h-0 rounded-card border border-line bg-surface p-4" aria-label={cardTitle(card, t)}>
             {/* 详情不改筛选（返回后工作台原样恢复），所以这里不提供「改用原币」之类的动作。 */}
             <CardBody card={card} scope={scope} density="expanded" detail />
+            <SourceEntries card={card} scope={scope} />
           </section>
         )}
 

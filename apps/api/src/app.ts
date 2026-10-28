@@ -48,6 +48,7 @@ import { registerRecognizeRoutes } from "./routes/recognize.js";
 import { registerStatsRoutes } from "./routes/stats.js";
 import { registerTransactionRoutes } from "./routes/transactions.js";
 import { registerVoiceRoutes } from "./routes/voice.js";
+import { registerWorkbenchRoutes } from "./routes/workbench.js";
 import { VoiceService } from "./voice/client.js";
 
 export interface BuildAppOptions extends HealthDeps {
@@ -302,6 +303,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      * 判定/发放全部在服务端；失败不能挡住登录与通知，所以路由自己兜底成“这轮没看到”。
      */
     registerAvatarRewardRoutes(app, { prisma: options.prisma, requireAuth });
+    registerWorkbenchRoutes(app, { prisma: options.prisma, requireAuth });
 
     /**
      * ⚠️ **Share links are registered with plain auth, and each route resolves its own ledger.**

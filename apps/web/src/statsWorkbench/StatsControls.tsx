@@ -12,6 +12,7 @@ import { CURRENCIES, type Currency } from "@libellum/shared";
 import { useMemo } from "react";
 
 import { BottomSheet } from "../components/BottomSheet.js";
+import { SyncControls } from "./SyncControls.js";
 import { useI18n } from "../i18n/index.js";
 import { currencyName } from "../lib/format.js";
 import { FxStatus } from "./FxStatus.js";
@@ -103,6 +104,7 @@ export function StatsSettingsSheet({
         <>
           <SheetHeader title={t("statsWorkbench.controls.settingsTitle")} />
           <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
+            <SyncControls />
             <section className="flex flex-col gap-2" aria-labelledby="sw-settings-mode">
               <h3 id="sw-settings-mode" className="text-helper font-medium text-muted">{t("statsWorkbench.controls.modeTitle")}</h3>
               <div className="flex flex-wrap gap-2">

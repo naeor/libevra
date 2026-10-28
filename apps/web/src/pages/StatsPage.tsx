@@ -71,6 +71,8 @@ import { CardEditor } from "../statsWorkbench/CardEditor.js";
 import { cardSizing, readComposition, recommendSize, type GridMetrics } from "../statsWorkbench/composition.js";
 import { customCardsIn } from "../statsWorkbench/customCards.js";
 import { readStored, saveWorkbenchSafely, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
+import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
+import { useWorkspaceSync } from "../statsWorkbench/SyncBridge.js";
 import { FunnelIcon, GridGlyph, PencilIcon, RedoIcon, UndoIcon, useElementSize } from "../statsWorkbench/ui.js";
 
 type ContainerEdit =
@@ -120,6 +122,14 @@ function AccountWorkbench(): React.JSX.Element {
 
   // ---- 文档（每账号一套） ----
   const [stored, setStored] = useState<Stored>(() => readStored(scope.accountScope));
+  const { engine: workspaceSync } = useWorkspaceSync();
+  useEffect(() => {
+    const installed = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === scope.accountScope) setStored(readStored(scope.accountScope));
+    };
+    window.addEventListener(WORKBENCH_INSTALLED, installed);
+    return () => window.removeEventListener(WORKBENCH_INSTALLED, installed);
+  }, [scope.accountScope]);
   useEffect(() => {
     if (stored.accountScope !== scope.accountScope) setStored(readStored(scope.accountScope));
   }, [scope.accountScope, stored.accountScope]);
@@ -162,6 +172,12 @@ function AccountWorkbench(): React.JSX.Element {
   useEffect(() => { saveAlive.current = true; return () => { saveAlive.current = false; }; }, []);
   const [startDocs, setStartDocs] = useState<WorkbenchDocuments | null>(null);
   const editing = session !== null;
+  useEffect(() => {
+    if (!workspaceSync) return;
+    workspaceSync.editing = editing;
+    if (!editing) void workspaceSync.run();
+    return () => { workspaceSync.editing = false; };
+  }, [editing, workspaceSync]);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   /** 自定义卡片编辑器：`cardId === null` 为新建，否则编辑这张卡片（任何卡片都可以在这里加内容、换形式）。 */
   const [editor, setEditor] = useState<{ readonly cardId: string | null } | null>(null);
@@ -443,6 +459,8 @@ function AccountWorkbench(): React.JSX.Element {
 
   // ---- 进入 / 退出编辑 ----
   function enterEdit(): void {
+    // 先取得编辑所有权，不能等 effect 才阻止已经在途的云端响应安装。
+    if (workspaceSync) workspaceSync.editing = true;
     setFilterOpen(false);
     const docs = stored.documents;
     setStartDocs(docs);

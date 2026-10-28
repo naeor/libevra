@@ -9,7 +9,7 @@
  * - **应用**：先预览；确认后整体替换编辑会话里的工作台（一步撤销），对象 ID 全部重新生成（布局对象 ID 永不复用）；
  *   仍要点「完成」才保存工作台。删除预设只删预设本身，不动工作台、卡片定义与账本。
  *
- * 保存位置：本机、按账号（与工作台同一作用域与前缀 `libevra.`，「清除本机全部数据」会一并清掉）；跨设备同步属于 W6。
+ * 保存位置：本机、按账号（与工作台同一作用域与前缀 `libevra.`，「清除本机全部数据」会一并清掉）；W6 在正式操作后排队同步完整快照集合。
  */
 import {
   migrateContentDocument,
@@ -24,6 +24,7 @@ import {
 } from "@libellum/shared/analysis/layout";
 
 import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
+import { notifyWorkbenchChange } from "./configEvents.js";
 import type { ChartFamily } from "./catalog.js";
 import type { TemplateId } from "./composition.js";
 import { buildCard } from "./customCards.js";
@@ -253,7 +254,11 @@ export function reidentify(documents: WorkbenchDocuments, makeId: (prefix: "card
   for (const card of documents.content.cards) map.set(card.objectId, makeId("card"));
   for (const container of documents.content.containers) map.set(container.objectId, makeId("box"));
   for (const object of documents.layout.main.objects) if (!map.has(object.objectId)) map.set(object.objectId, makeId(object.objectType === "spacer" ? "gap" : object.objectType === "analysis-card" ? "card" : "box"));
+  for (const geometry of [...(documents.layout.profiles ?? []).map(profile => profile.geometry), ...(documents.layout.previousMain ? [documents.layout.previousMain] : [])]) {
+    for (const object of geometry.objects) if (!map.has(object.objectId)) map.set(object.objectId, makeId(object.objectType === "spacer" ? "gap" : object.objectType === "analysis-card" ? "card" : "box"));
+  }
   const remap = (id: string) => map.get(id) ?? id;
+  const remapGeometry = (geometry: LayoutDocumentV1["main"]): LayoutDocumentV1["main"] => ({ ...geometry, objects: geometry.objects.map(object => ({ ...object, objectId: remap(object.objectId) })) });
   return {
     content: {
       ...documents.content,
@@ -263,6 +268,8 @@ export function reidentify(documents: WorkbenchDocuments, makeId: (prefix: "card
     layout: {
       ...documents.layout,
       main: { ...documents.layout.main, objects: documents.layout.main.objects.map((object) => ({ ...object, objectId: remap(object.objectId) })) },
+      ...(documents.layout.profiles ? { profiles: documents.layout.profiles.map(profile => ({ ...profile, geometry: remapGeometry(profile.geometry) })) } : {}),
+      ...(documents.layout.previousMain ? { previousMain: remapGeometry(documents.layout.previousMain) } : {}),
     },
   };
 }
@@ -394,6 +401,7 @@ function writeItems(accountScope: string, update: (items: readonly unknown[]) =>
   if (typeof next === "string") return next;
   try {
     store.setItem(presetStorageKey(accountScope), JSON.stringify({ v: STORE_VERSION, userId: accountScope, items: next }));
+    notifyWorkbenchChange(accountScope);
     return null;
   } catch {
     return "storage";

@@ -76,5 +76,15 @@ export async function clearAccountLocalData(
     presentationSeenKey(accountId),
     ...bookIds.flatMap((bookId) => [messagesSeenKey(bookId), sharedLedgerKey(bookId)]),
   ]);
+  const store = deviceStorage();
+  if (store) {
+    const prefixes = ["stats-workbench", "stats-workbench-presets", "stats-workbench-sync"].map(kind => `libevra.${kind}:v1:user:${accountId}`);
+    const owned: string[] = [];
+    for (let index = 0; index < store.length; index++) {
+      const key = store.key(index);
+      if (key && prefixes.some(prefix => key === prefix || key.startsWith(`${prefix}:`))) owned.push(key);
+    }
+    removeDeviceKeys(owned);
+  }
   return removed;
 }
