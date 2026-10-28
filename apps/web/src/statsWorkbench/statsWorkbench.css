@@ -712,3 +712,171 @@
   opacity: 1;
   transform: translateX(1px);
 }
+
+/* ==========================================================================
+   S17 组合卡片（1.17.10）：卡片内部槽位与自定义卡片编辑器。
+   只用既有语义 token；不新增颜色或字号体系（最终视觉由所有者草图决定）。
+   ========================================================================== */
+
+.sw-slot-label {
+  display: block;
+  min-height: 1.125rem;
+  color: var(--color-muted);
+  font-size: var(--text-helper);
+  line-height: 1.125rem;
+}
+
+.sw-slot[data-slot-mode="stacked"] {
+  border-left: 2px solid color-mix(in srgb, var(--color-brand) 30%, transparent);
+  padding-left: 0.5rem;
+}
+
+.sw-slot[data-slot-mode="inline"] + .sw-slot[data-slot-mode="inline"]::before {
+  content: "";
+  position: absolute;
+  top: -0.25rem;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.sw-stat-mark {
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-canvas);
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.sw-stat-mark-warn {
+  background: var(--color-warn-soft);
+  color: var(--color-warn-dark);
+}
+
+.sw-composite-more {
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 0 0.375rem;
+}
+
+/* ---- 编辑器 ---- */
+
+.sw-editor-body {
+  overscroll-behavior: contain;
+}
+
+.sw-chip-row {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 0.125rem;
+}
+
+.sw-chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.sw-chip-sm {
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  font-size: var(--text-helper);
+}
+
+.sw-slot-row {
+  border-radius: var(--radius-field);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 0.5rem 0.5rem 0.625rem 0.625rem;
+  transition: border-color 160ms ease;
+}
+
+.sw-slot-row-replacing {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.sw-icon-button-on {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+.sw-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.sw-template {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.sw-template:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-line));
+}
+
+.sw-template-on,
+.sw-template-on:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.sw-template:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.sw-template:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-sketch-number {
+  fill: color-mix(in srgb, var(--color-brand) 22%, var(--color-surface));
+  stroke: var(--color-brand);
+  stroke-width: 0.8;
+}
+
+.sw-sketch-chart {
+  fill: var(--color-canvas);
+  stroke: var(--color-line-strong);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 1.5;
+}
+
+.sw-catalog-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+}
+
+.sw-preview .sw-card {
+  box-shadow: var(--shadow-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-slot-row,
+  .sw-template {
+    transition: none;
+  }
+}

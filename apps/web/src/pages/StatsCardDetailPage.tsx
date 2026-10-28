@@ -16,6 +16,8 @@ import { currencyName } from "../lib/format.js";
 import { useLedger } from "../lib/queries.js";
 import { CardBody, cardRange, cardSubtitle, cardTitle } from "../statsWorkbench/cards.js";
 import { cardType } from "../statsWorkbench/catalog.js";
+import { CompositeDetail } from "../statsWorkbench/CompositeCard.js";
+import { isMultiSlot, readComposition } from "../statsWorkbench/composition.js";
 import { readFilters } from "../statsWorkbench/filters.js";
 import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import { readStored } from "../statsWorkbench/storage.js";
@@ -60,10 +62,15 @@ export function StatsCardDetailPage(): React.JSX.Element {
           {type?.ownWindow === "12m" ? <p className="text-helper text-muted">{t("statsWorkbench.config.ownWindow")}</p> : null}
         </section>
 
-        <section className="min-h-0 rounded-card border border-line bg-surface p-4" aria-label={cardTitle(card, t)}>
-          {/* 详情不改筛选（返回后工作台原样恢复），所以这里不提供「改用原币」之类的动作。 */}
-          <CardBody card={card} scope={scope} density="expanded" detail />
-        </section>
+        {isMultiSlot(card) ? (
+          // 组合卡片：每项内容一节，完整密度（卡片上放不下而收起的内容在这里全部显示）。
+          <CompositeDetail card={card} scope={scope} />
+        ) : (
+          <section className="min-h-0 rounded-card border border-line bg-surface p-4" aria-label={cardTitle(card, t)}>
+            {/* 详情不改筛选（返回后工作台原样恢复），所以这里不提供「改用原币」之类的动作。 */}
+            <CardBody card={card} scope={scope} density="expanded" detail />
+          </section>
+        )}
 
         {scope.coverageGap !== null ? (
           <p role="status" className="rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-ink">
@@ -74,10 +81,23 @@ export function StatsCardDetailPage(): React.JSX.Element {
         <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
           <div>
             <h2 className="text-card-title text-ink">{t("statsWorkbench.detail.method")}</h2>
-            <p className="mt-1 text-helper-relaxed text-muted">
-              {type === null ? t("statsWorkbench.card.unknownHint") : t(`statsWorkbench.detail.methods.${type.source}`)}
-              {type === null ? "" : ` · ${type.id}`}
-            </p>
+            {isMultiSlot(card) ? (
+              <ul className="mt-1 flex flex-col gap-1 text-helper-relaxed text-muted">
+                {readComposition(card).slots.map((slot) => {
+                  const slotType = cardType(slot.analysisId);
+                  return (
+                    <li key={slot.id}>
+                      {slotType === null ? t("statsWorkbench.card.unknownHint") : `${t(`statsWorkbench.cards.${slotType.id as "AN-B01"}.title`)}：${t(`statsWorkbench.detail.methods.${slotType.source}`)} · ${slotType.id}`}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-1 text-helper-relaxed text-muted">
+                {type === null ? t("statsWorkbench.card.unknownHint") : t(`statsWorkbench.detail.methods.${type.source}`)}
+                {type === null ? "" : ` · ${type.id}`}
+              </p>
+            )}
           </div>
           <div>
             <h2 className="text-card-title text-ink">{t("statsWorkbench.detail.source")}</h2>

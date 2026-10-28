@@ -94,6 +94,7 @@ export function buildFxView(options: FxViewOptions): FxRangeView {
     sourceComplete: options.sourceComplete ?? true,
     offline: false,
     sourceEntries: rows,
+    lookups,
     ...(detail === undefined ? {} : { detail }),
     ...(entryLimitExceeded ? { entryLimitExceeded } : {}),
   } as unknown as FxRangeView;

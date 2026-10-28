@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { applyLocale } from "../i18n/index.js";
-import { CardBody, cardRange } from "./cards.js";
+import { CardBody, cardRange, COMPARISON_IDS } from "./cards.js";
 import { CARD_TYPES } from "./catalog.js";
 import { cumulativeFor, flowFor, heatmapFor, timeSeriesFor, categorySeriesFor } from "./compute.js";
 import { newCard } from "./defaults.js";
@@ -52,17 +52,23 @@ function scope(fx: WorkbenchScope["fx"], over: Partial<WorkbenchScope> = {}): Wo
 const text = (html: string): string => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
 function render(id: string, fx: WorkbenchScope["fx"], over: Partial<WorkbenchScope> = {}): string {
-  const previousFx = id === "AN-A01" && over.previousFx === undefined ? buildFxView({ entries: PREVIOUS_ENTRIES }) : over.previousFx;
+  const previousFx = COMPARISON_IDS.has(id) && over.previousFx === undefined ? buildFxView({ entries: PREVIOUS_ENTRIES }) : over.previousFx;
   return text(renderToStaticMarkup(<CardBody card={newCard(id)} scope={scope(fx, { ...over, ...(previousFx === undefined ? {} : { previousFx }) })} density="expanded" />));
 }
 
 const ALL_IDS = CARD_TYPES.map((type) => type.id);
+/** 自带窗口（近 12 个月 / 全年）的卡片读各自的日期，见「固定窗口」一节。 */
+const OWN_WINDOW = new Set(CARD_TYPES.filter((type) => type.ownWindow !== undefined).map((type) => type.id));
+/** 只在综合折算下有意义的汇率诊断卡片（S17-C P17–P20）：原币模式明确说明，不与原币逐字比较。 */
+const COMBINED_ONLY = new Set(CARD_TYPES.filter((type) => type.requiresCombined === true).map((type) => type.id));
 const complete = buildFxView({ entries: MIXED_ENTRIES });
 
-describe("50 张卡片在综合折算下都有真实结果（无「暂不支持」、无原币数字冒充）", () => {
-  it("目录共 50 张，全部 combined，且都有缺汇率策略", () => {
-    expect(ALL_IDS).toHaveLength(50);
-    expect(new Set(ALL_IDS).size).toBe(50);
+describe("全部卡片在综合折算下都有真实结果（无「暂不支持」、无原币数字冒充）", () => {
+  it("目录共 81 张（S17-A/B 50 + S17-C 31），全部 combined，且都有缺汇率策略", () => {
+    expect(ALL_IDS).toHaveLength(81);
+    expect(new Set(ALL_IDS).size).toBe(81);
+    expect([...OWN_WINDOW].sort()).toEqual(["AN-I09", "AN-I10", "AN-P15"]);
+    expect([...COMBINED_ONLY].sort()).toEqual(["AN-P17", "AN-P18", "AN-P19", "AN-P20"]);
     for (const id of ALL_IDS) {
       expect(FX_CARD_POLICIES[id], id).toBeDefined();
       expect(CARD_TYPES.find((type) => type.id === id)?.combined, id).toBe(true);
@@ -71,14 +77,17 @@ describe("50 张卡片在综合折算下都有真实结果（无「暂不支持�
 
   it("完整折算：每张卡片都渲染出内容，没有「暂不支持」「无法计算」，I09/I10 以外也不会因为区间不同而缺数据", () => {
     for (const id of ALL_IDS) {
-      if (id === "AN-I09" || id === "AN-I10") continue; // 自带 12 个月窗口，见「固定窗口」一节
+      if (OWN_WINDOW.has(id)) continue; // 自带 12 个月窗口，见「固定窗口」一节
       const html = render(id, complete);
       expect(html.length, id).toBeGreaterThan(0);
       expect(html, id).not.toContain("暂不支持");
       expect(html, id).not.toContain("无法计算");
       expect(html, id).not.toContain("还没有读取到");
-      expect(html, id).not.toContain("缺汇率");
+      // 汇率诊断卡片的职责就是报告缺汇率情况（表头「缺汇率」、计数 0），不算降级提示。
+      if (!COMBINED_ONLY.has(id)) expect(html, id).not.toContain("缺汇率");
     }
+    // 手算：MIXED_ENTRIES 里 8 笔外币（USD/HKD/JPY）全部有汇率。
+    expect(render("AN-P19", complete)).toContain("需折算 8 笔，已折算 8 笔");
   });
 });
 
@@ -359,7 +368,7 @@ describe("缺汇率 · 全部缺失：不显示 0，也不说「没有记录」"
 
   it("每张卡片都不说「这段时间没有记录」；非时间序列卡片不出现 ¥0.00（序列里没有任何记录的日子是真的 0，另测）", () => {
     for (const id of ALL_IDS) {
-      if (id === "AN-I09" || id === "AN-I10") continue;
+      if (OWN_WINDOW.has(id)) continue;
       const html = render(id, none);
       expect(html, id).not.toContain("这段时间没有记录");
       if (FX_CARD_POLICIES[id]?.class !== "series") expect(html, id).not.toContain("¥0.00");
@@ -389,7 +398,7 @@ describe("逐笔条数超限 · 不截断、不冒充完整", () => {
 
   it("仅靠聚合就精确的 7 张卡片照常显示完整结果；其余明确说明超过上限、无法计算", () => {
     for (const id of ALL_IDS) {
-      if (id === "AN-I09" || id === "AN-I10") continue;
+      if (OWN_WINDOW.has(id)) continue;
       const html = render(id, limited);
       if (AGGREGATE_ONLY.includes(id)) {
         expect(html, id).toBe(render(id, complete));
@@ -404,7 +413,7 @@ describe("逐笔条数超限 · 不截断、不冒充完整", () => {
 describe("读取状态 · 加载 / 失败 / 无权限 / 对不上 都是显式状态", () => {
   it("所有卡片：加载中不是 0，无权限不显示金额，失败可重试", () => {
     for (const id of ALL_IDS) {
-      if (id === "AN-I09" || id === "AN-I10") continue;
+      if (OWN_WINDOW.has(id)) continue;
       expect(render(id, buildFxView({ entries: [], loading: true })), id).toContain("正在按历史汇率折算");
       expect(render(id, buildFxView({ entries: [], error: { reason: "permission" } })), id).toContain("无权访问该账本");
       const failed = render(id, buildFxView({ entries: [], error: { reason: "read" } }));
@@ -483,7 +492,8 @@ describe("同币种账本：综合折算与原币逐字一致（恒等折算不�
     const previousFx = buildFxView({ entries: previousCny });
     const differing: string[] = [];
     for (const id of ALL_IDS) {
-      if (id === "AN-I09" || id === "AN-I10") continue; // 固定窗口：数据来自各自窗口，见「固定窗口」一节
+      if (OWN_WINDOW.has(id)) continue; // 固定窗口：数据来自各自窗口，见「固定窗口」一节
+      if (COMBINED_ONLY.has(id)) continue; // 汇率诊断：原币模式明确说明「只在综合折算下有意义」，另测
       const combined = render(id, view, { entries: cnyOnly, previousFx });
       if (combined !== originalText(id)) differing.push(`${id}\n  综合: ${combined}\n  原币: ${originalText(id)}`);
     }

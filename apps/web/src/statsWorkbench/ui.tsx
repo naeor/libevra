@@ -128,9 +128,11 @@ export function ratioPercentText(ratio: Ratio): string {
   const numerator = BigInt(ratio.numerator);
   const denominator = BigInt(ratio.denominator);
   if (denominator === 0n) return "—";
-  const tenths = (numerator * 2000n + denominator) / (denominator * 2n);
-  const negative = tenths < 0n;
-  const abs = negative ? -tenths : tenths;
+  // 先取绝对值再半入（远离零）：BigInt 除法向零截断，直接对负数做「+0.5 再除」会把 −50% 显示成 −49.9%。
+  const absNumerator = numerator < 0n ? -numerator : numerator;
+  const absDenominator = denominator < 0n ? -denominator : denominator;
+  const abs = (absNumerator * 2000n + absDenominator) / (absDenominator * 2n);
+  const negative = (numerator < 0n) !== (denominator < 0n) && abs !== 0n;
   const { decimal } = numberSeparators();
   return `${negative ? "−" : ""}${(abs / 10n).toString()}${decimal}${(abs % 10n).toString()}%`;
 }
@@ -189,11 +191,32 @@ export function ChartGlyph({ family, ...props }: IconProps & { readonly family: 
     "CF-B09": "M3 20h18M5 17V9m3 8V6m3 11V3m3 14v-6m3 6V8m3 9v-4",
     "CF-B10": "M4 6h16v4H4V6Zm0 8h11v4H4v-4m14 0v5m-2-2 2 2 2-2",
     "CF-B11": "M3 4v16h18M5 17h4v-4h5V9h4V4h3",
+    // ---- S17-C 专业图形（1.17.10） ----
+    "CF-C01": "M4 5h16M4 10h16M4 15h16M4 20h16M8 3v18",
+    "CF-C02": "M12 3v18M12 6H6v4h6m0 4h7v4h-7",
+    "CF-C03": "M3 20h18M5 20v-8h3v8m2-8V7h3v5m2 0v-3h3v11",
+    "CF-C04": "M3 20h18M5 17V6h3v11H5Zm5 0V10h3v7h-3Zm5 0v-4h3v4h-3ZM6 6l5 3 5 2 4 1",
+    "CF-C05": "M3 20h18M4 17v-3h3v3m0 0v-8h3v8m0 0V5h3v12m0 0v-6h3v6m0 0v-2h3v2",
+    "CF-C06": "M12 3v4m0 10v4M7 7h10v10H7V7Zm0 5h10",
+    "CF-C08": "M3 4h18v16H3V4Zm6 0v16m6-16v16M3 9h18M3 15h18",
+    "CF-C09": "M3 20h18M6 17v-4h3v4m0-4V8h-3v5m8 4v-6h3v6m0-6V5h-3v6",
+    "CF-C11": "M3 4h18v16H3V4Zm9 0v16M3 13h9m3 0v7m0-7h6",
+    "CF-C13": "M4 7h4l4 5h4l4-6M4 12h4l4-5h4l4 10M4 17h4l4 0h4",
+    "CF-C14": "M3 4v16h18M7 15h.01M10 9h.01M14 13h.01M17 7h.01M12 17h.01",
+    "CF-C15": "M3 4v16h18M8 14a2 2 0 1 0 0-.01M15 8a3.5 3.5 0 1 0 0-.01M17 16a1.5 1.5 0 1 0 0-.01",
+    "CF-C16": "M3 4h18v16H3V4Zm0 5h18M8 4v16m5-16v16m4-16v16",
+    "CF-C17": "M3 3h8v8H3V3Zm10 0h8v8h-8V3ZM3 13h8v8H3v-8Zm10 0h8v8h-8v-8ZM4 9l3-3 3 2m4 1 3-2 3 1M4 19l3-2 3 1m4 1 3-4 3 2",
+    "CF-C18": "M3 5h18v15H3V5Zm2 3h2m2 0h2m2 0h2m2 0h2M5 12h2m2 0h2m2 0h2m2 0h2M5 16h2m2 0h2m2 0h2",
+    "CF-C20": "M6 4v16m12-16v16M6 8l12 4M6 14l12-6M6 18l12 0",
   };
   const path = paths[formal] ?? (formal === "CF-B07" || formal === "CF-B12" || formal === "CF-B13" || formal === "CF-B14" || formal === "CF-B15" ? paths["CF-B01"] : undefined);
   return path === undefined ? <CardGlyph {...props} /> : <Icon {...props} data-chart-family={formal} d={path} />;
 }
 export const CarouselGlyph = (props: IconProps) => <Icon {...props} d="M7 5h10v14H7V5ZM3.5 8v8M20.5 8v8" />;
+/** 组合卡片：一张卡片里的数字与图表（与「分割卡片组」的贯穿分割线区分）。 */
+export const ComposeGlyph = (props: IconProps) => <Icon {...props} d="M4 4h16v16H4V4Zm3 4h4m-4 3h4m3-3h3v6h-3V8ZM7 16l3-2 3 1 4-3" />;
+export const SearchGlyph = (props: IconProps) => <Icon {...props} d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm4.6-1.9L20 20" />;
+export const SwapGlyph = (props: IconProps) => <Icon {...props} d="M7 7h12l-3-3m3 3-3 3M17 17H5l3 3m-3-3 3-3" />;
 export const SplitGlyph = (props: IconProps) => <Icon {...props} d="M4 4h16v16H4V4Zm8 0v16M4 12h16" />;
 export const SpacerGlyph = (props: IconProps) => <Icon {...props} d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4" />;
 export const GridGlyph = (props: IconProps) => <Icon {...props} d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" />;

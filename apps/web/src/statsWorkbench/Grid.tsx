@@ -24,6 +24,8 @@ import {
 import { useI18n } from "../i18n/index.js";
 import { CardBody, cardSubtitle, cardTitle, familyOf } from "./cards.js";
 import { cardType, CONTAINER_SIZES, sizeKey } from "./catalog.js";
+import { CompositeBody } from "./CompositeCard.js";
+import { cardSizing, isMultiSlot, readComposition, type GridMetrics } from "./composition.js";
 import type { WorkbenchScope } from "./scope.js";
 import { lastRow } from "./session.js";
 import {
@@ -31,6 +33,7 @@ import {
   CarouselGlyph,
   ChevronLeft,
   ChevronRight,
+  ComposeGlyph,
   densityFor,
   SpacerGlyph,
   SplitGlyph,
@@ -38,6 +41,25 @@ import {
 } from "./ui.js";
 
 export const GRID_GAP = 12;
+/** 行高（px），与 `.sw-grid { --sw-row: 7.25rem }` 一致。 */
+export const GRID_ROW_HEIGHT = 116;
+
+/**
+ * 当前设备上工作台网格的像素度量（组合卡片的尺寸推荐与「能否完整显示」按它算）。
+ * 卡片外框：内边距 14px（≥ 640px 时 16px）、标题一行约 18px、标题与内容间距 8px。
+ */
+export function gridMetricsFor(gridWidth: number, columns: number, viewportWidth: number): GridMetrics | null {
+  if (gridWidth <= 0 || columns <= 0) return null;
+  const padding = viewportWidth >= 640 ? 16 : 14;
+  return {
+    columnWidth: (gridWidth - GRID_GAP * (columns - 1)) / columns,
+    rowHeight: GRID_ROW_HEIGHT,
+    gap: GRID_GAP,
+    columns,
+    chromeWidth: padding * 2,
+    chromeHeight: padding * 2 + 18 + 8,
+  };
+}
 
 /** 每个对象对布局层声明的尺寸约束（卡片规格 §5.6；数值为首版原型值）。 */
 export function sizeContracts(content: WorkbenchContentDocumentV1, layout: LayoutDocumentV1): Record<string, ObjectSizeContract> {
@@ -45,11 +67,12 @@ export function sizeContracts(content: WorkbenchContentDocumentV1, layout: Layou
   const ladder = (sizes: readonly GridSize[]) =>
     [...sizes].sort((a, b) => b.colSpan * b.rowSpan - a.colSpan * a.rowSpan || b.colSpan - a.colSpan);
   for (const card of content.cards) {
-    const type = cardType(card.analysis.analysisId);
+    // 组合卡片按模板的尺寸约束；单项卡片按分析与展示形式（数字选成图表时用图表尺寸）。未知分析按 1×1 占位。
+    const sizing = cardType(card.analysis.analysisId) === null && !isMultiSlot(card) ? null : cardSizing(card);
     contracts[card.objectId] = {
       objectId: card.objectId,
-      minSize: type?.minSize ?? { colSpan: 1, rowSpan: 1 },
-      sizeLadder: ladder(type?.sizes ?? [{ colSpan: 1, rowSpan: 1 }]),
+      minSize: sizing?.minSize ?? { colSpan: 1, rowSpan: 1 },
+      sizeLadder: ladder(sizing?.sizes ?? [{ colSpan: 1, rowSpan: 1 }]),
       compatSize: { colSpan: 1, rowSpan: 1 },
     };
   }
@@ -182,7 +205,9 @@ export function CardTile({
       />
       <header className="pointer-events-none relative flex min-w-0 items-start gap-2">
         <span className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-helper font-medium break-words text-ink">{title}</h3>
+          {/* 组合卡片的标题收成一行（完整名称在 aria-label 与 title 里）：内容排布按一行标题计算，
+              自动标题较长时换行会挤掉槽位。 */}
+          <h3 className={`${isMultiSlot(card) ? "truncate" : "line-clamp-2 break-words"} text-helper font-medium text-ink`} title={isMultiSlot(card) ? title : undefined}>{title}</h3>
           {subtitle === "" ? null : <p className="truncate text-helper text-muted">{subtitle}</p>}
         </span>
         <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />
@@ -190,7 +215,9 @@ export function CardTile({
       <div ref={body.ref} className="sw-card-body relative mt-2 min-h-0 flex-1 overflow-hidden">
         {compat ? (
           <p className="text-helper text-muted">{t("statsWorkbench.states.tooSmall")}</p>
-        ) : body.width === 0 ? null : (
+        ) : body.width === 0 ? null : isMultiSlot(card) ? (
+          <CompositeBody card={card} scope={scope} width={body.width} height={body.height} />
+        ) : (
           <CardBody card={card} scope={scope} density={densityFor(body.width, body.height)} height={body.height} width={body.width} />
         )}
       </div>
@@ -413,9 +440,12 @@ export function EditGrid({
                 : object.objectId;
         const Glyph = object.objectType === "spacer" ? SpacerGlyph : object.objectType === "carousel" ? CarouselGlyph : object.objectType === "grid-split" ? SplitGlyph : null;
         const faded = dimmed === "all" || (dimmed !== null && dimmed !== object.objectId);
+        const composite = card !== undefined && isMultiSlot(card) ? readComposition(card) : null;
         const kindLabel =
           object.objectType === "analysis-card"
-            ? t(`statsWorkbench.config.families.${card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))}`)
+            ? composite !== null
+              ? t("statsWorkbench.composite.editTile", { count: composite.slots.length, template: t(`statsWorkbench.composite.templates.${composite.template}.short`) })
+              : t(`statsWorkbench.config.families.${card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))}`)
             : container !== undefined
               ? t("statsWorkbench.containers.children", { count: container.children.length })
               : t("statsWorkbench.containers.spacerShort");
@@ -434,7 +464,7 @@ export function EditGrid({
             {...objectProps(object.objectId, label, size)}
           >
             <span className="flex items-start justify-between gap-2">
-              {Glyph === null ? <ChartGlyph family={card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))} className="sw-edit-glyph shrink-0 text-brand-dark" /> : <Glyph className="sw-edit-glyph shrink-0 text-brand-dark" />}
+              {Glyph === null ? composite !== null ? <ComposeGlyph className="sw-edit-glyph shrink-0 text-brand-dark" /> : <ChartGlyph family={card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))} className="sw-edit-glyph shrink-0 text-brand-dark" /> : <Glyph className="sw-edit-glyph shrink-0 text-brand-dark" />}
               <span className="sw-size-badge">{sizeKey(size)}</span>
             </span>
             <span className="mt-auto flex min-w-0 flex-col items-start text-left">

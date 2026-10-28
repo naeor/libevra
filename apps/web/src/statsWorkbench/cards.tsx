@@ -35,6 +35,7 @@ import { CategoryShareBands } from "../components/charts/CategoryShareBands.js";
 import { CumulativeTrendChart } from "../components/charts/CumulativeTrendChart.js";
 import { IncomeExpenseBars } from "../components/charts/IncomeExpenseBars.js";
 import { SeriesTrendChart } from "../components/charts/SeriesTrendChart.js";
+import { Sparkline } from "../components/charts/Sparkline.js";
 import { ComparisonPanel } from "../components/charts/SummaryPanel.js";
 import { TrendChart } from "../components/charts/TrendChart.js";
 import { useI18n } from "../i18n/index.js";
@@ -46,7 +47,10 @@ import { useFxRange } from "../lib/fxView.js";
 import { displayCategoryName } from "../lib/presetNames.js";
 import { defaultKindFor } from "@libellum/shared/analysis/catalog";
 import { ADVANCED_CARD_IDS, AdvancedCardView } from "./advancedCards.js";
-import { cardType, type CardType, type ChartFamily } from "./catalog.js";
+import { C_CARD_IDS, CCardView } from "./cCards.js";
+import { cardType, resolveDisplay, type CardType, type ChartFamily } from "./catalog.js";
+import { isMultiSlot, readComposition } from "./composition.js";
+import { useSlotMode } from "./slotContext.js";
 import {
   agentAResult,
   categorySeriesFor,
@@ -82,6 +86,18 @@ export interface CardBodyProps {
   readonly width?: number;
 }
 
+/**
+ * 卡片（或组合卡片的槽位）**实际交给哪项分析去画**：展示别名（例如「总支出」选了折线 → 每日支出趋势）
+ * 在这里统一解析，计算、时间范围、综合折算策略都随之使用目标分析，标题仍由调用方按原指标显示。
+ */
+export function displayCard(card: AnalysisCardNode): AnalysisCardNode {
+  const shown = resolveDisplay(card.analysis.analysisId, card.chart.chartFamily as ChartFamily);
+  if (shown.analysisId === card.analysis.analysisId) return card;
+  return { ...card, analysis: { analysisId: shown.analysisId, params: {} }, chart: { chartFamily: shown.family } };
+}
+
+export { SlotPresentationContext } from "./slotContext.js";
+
 /** 卡片实际使用的时间范围：卡片自带窗口 > 用户固定的区间 > 顶部筛选。 */
 export function cardRange(card: AnalysisCardNode, scope: WorkbenchScope): DateRange {
   const type = cardType(card.analysis.analysisId);
@@ -90,6 +106,13 @@ export function cardRange(card: AnalysisCardNode, scope: WorkbenchScope): DateRa
     let from = thisMonth;
     for (let i = 0; i < 11; i += 1) from = startOfMonth(addDays(from, -1));
     return { from, to: scope.today };
+  }
+  if (type?.ownWindow === "year") {
+    // 全年日历：所选时间（或固定区间）结束日所在的自然年；今年只读到今天，未来日期由日历标为「未来」。
+    const base = card.rangePolicy === "pinned" && card.pinnedRange !== undefined && customRangeProblem(card.pinnedRange.from, card.pinnedRange.to) === null ? card.pinnedRange.to : scope.range.to;
+    const year = base.slice(0, 4);
+    const end = `${year}-12-31`;
+    return { from: `${year}-01-01`, to: end < scope.today ? end : scope.today };
   }
   const pinned = card.pinnedRange;
   if (card.rangePolicy === "pinned" && pinned !== undefined && customRangeProblem(pinned.from, pinned.to) === null) {
@@ -127,25 +150,41 @@ export class CardErrorBoundary extends Component<{ readonly fallback: string; re
 
 export function CardBody(props: CardBodyProps): React.JSX.Element {
   const { t } = useI18n();
-  const { card, scope } = props;
+  const scope = props.scope;
+  const card = displayCard(props.card);
   const range = cardRange(card, scope);
-  const type = cardType(card.analysis.analysisId);
-  const needsRange = scope.readRanges === true && type !== null && (!scope.combined || type.combined) &&
-    (range.from !== scope.range.from || range.to !== scope.range.to || card.analysis.analysisId === "AN-A01");
+  const needsRange = needsOwnRange(card, scope);
   return (
     <CardErrorBoundary key={`${card.objectId}:${scope.range.from}:${scope.range.to}:${scope.currency}:${String(scope.combined)}`} fallback={t("statsWorkbench.states.failed")}>
-      {needsRange ? <RangeCardBody {...props} range={range} /> : <CardBodyInner {...props} />}
+      {needsRange ? <RangeCardBody {...props} card={card} range={range} /> : <CardBodyInner {...props} card={card} />}
     </CardErrorBoundary>
   );
 }
 
-/** 固定/自带窗口和上期比较按真实日期复用W5原件链，不拿全局范围的金额替代。 */
-function RangeCardBody(props: CardBodyProps & { readonly range: DateRange }): React.JSX.Element {
-  const { scope, card, range } = props;
-  const isComparison = card.analysis.analysisId === "AN-A01";
+/** 需要读取上一可比周期的分析（上期比较与 S17-C 的两期分析）。 */
+export const COMPARISON_IDS: ReadonlySet<string> = new Set(["AN-A01", "AN-A06", "AN-A07", "AN-A17", "AN-P22", "AN-P24"]);
+
+/** 卡片（已解析展示别名）是否要按自己的日期单独读取，而不是用工作台全局范围的账目。 */
+export function needsOwnRange(card: AnalysisCardNode, scope: WorkbenchScope): boolean {
+  const range = cardRange(card, scope);
+  const type = cardType(card.analysis.analysisId);
+  return scope.readRanges === true && type !== null && (!scope.combined || type.combined) &&
+    (range.from !== scope.range.from || range.to !== scope.range.to || COMPARISON_IDS.has(card.analysis.analysisId));
+}
+
+/**
+ * 固定/自带窗口和两期比较按真实日期复用 W5 原件链，不拿全局范围的金额替代。
+ *
+ * 抽成 hook 是为了**组合卡片共享读取**：同一张卡片里多个槽位用同一段日期时只读一次、只折算一次
+ * （`useFxRange` 的折算状态挂在 hook 实例上，多实例会重复折算），槽位各自只做轻量的结果计算。
+ * `active === false` 时不读取，原样返回工作台作用域。
+ */
+export function useCardScope(range: DateRange, scope: WorkbenchScope, options: { readonly active: boolean; readonly comparison: boolean }): WorkbenchScope {
+  const active = options.active;
+  const isComparison = active && options.comparison;
   const comparison = isComparison && !scope.combined;
   const previousRange = comparisonRangeFor(range);
-  const current = useAnalysisRange(range, !scope.combined);
+  const current = useAnalysisRange(range, active && !scope.combined);
   const previous = useAnalysisRange(previousRange, comparison);
   /**
    * ⚠️ **W5：卡片自己读取的范围也必须应用同一组维度筛选**（固定窗口、上期比较、综合折算），
@@ -153,13 +192,14 @@ function RangeCardBody(props: CardBodyProps & { readonly range: DateRange }): Re
    */
   const fxFilter = (entry: Transaction & { readonly bookId: string }) => matchesWorkbenchFilters(entry, scope.filters);
   const fxKey = filterKey(scope.filters);
-  const fx = useFxRange(range.from, range.to, scope.combined, { enabled: scope.fxAvailable, filter: fxFilter, filterKey: fxKey });
-  // 综合折算的「上期比较」要读上一周期自己的折算：当期的金额不能替代它，也不能拿全局范围冒充。
+  const fx = useFxRange(range.from, range.to, active && scope.combined, { enabled: scope.fxAvailable, filter: fxFilter, filterKey: fxKey });
+  // 综合折算的两期比较要读上一周期自己的折算：当期的金额不能替代它，也不能拿全局范围冒充。
   const previousFx = useFxRange(previousRange.from, previousRange.to, scope.combined && isComparison, { enabled: scope.fxAvailable, filter: fxFilter, filterKey: fxKey });
+  if (!active) return scope;
   const data = current.data;
   const currentEntries = filterWorkbenchEntries(data?.entries ?? [], scope.filters);
   const previousEntries = filterWorkbenchEntries(previous.data?.entries ?? [], scope.filters);
-  const resolved: WorkbenchScope = scope.combined ? {
+  return scope.combined ? {
     ...scope, range, bucket: bucketFor(range), fx, previousFx: isComparison ? previousFx : null,
     loaded: !fx.loading, repairing: false, coverageGap: null,
     rangeSourceComplete: fx.sourceComplete === true,
@@ -170,7 +210,26 @@ function RangeCardBody(props: CardBodyProps & { readonly range: DateRange }): Re
     rangeSourceComplete: data?.sourceComplete === true,
     ...(comparison ? { comparisonRead: { entries: previousEntries, verified: !previous.error && previous.data?.sourceComplete === true } } : {}),
   };
-  return <><CardBodyInner {...props} scope={resolved} />{props.detail && scope.combined ? <FxStatus fx={fx} /> : null}</>;
+}
+
+function RangeCardBody(props: CardBodyProps & { readonly range: DateRange }): React.JSX.Element {
+  const { scope, card, range } = props;
+  const resolved = useCardScope(range, scope, { active: true, comparison: COMPARISON_IDS.has(card.analysis.analysisId) });
+  return <><CardBodyInner {...props} scope={resolved} />{props.detail && scope.combined && resolved.fx !== null ? <FxStatus fx={resolved.fx} /> : null}</>;
+}
+
+/**
+ * 已经解析好作用域的单个分析（组合卡片的槽位用它：读取由整张卡片共享，槽位只算结果）。
+ * 单个槽位出错只影响这一格。
+ */
+export function SlotBody(props: CardBodyProps): React.JSX.Element {
+  const { t } = useI18n();
+  const card = displayCard(props.card);
+  return (
+    <CardErrorBoundary key={`${card.objectId}:${props.scope.range.from}:${props.scope.range.to}:${props.scope.currency}:${String(props.scope.combined)}`} fallback={t("statsWorkbench.states.failed")}>
+      <CardBodyInner {...props} card={card} />
+    </CardErrorBoundary>
+  );
 }
 
 function CardBodyInner({ card, scope, density, detail = false, height, width }: CardBodyProps): React.JSX.Element {
@@ -210,6 +269,8 @@ function CardBodyInner({ card, scope, density, detail = false, height, width }: 
 
 export function Skeleton(): React.JSX.Element {
   const { t } = useI18n();
+  const mode = useSlotMode();
+  if (mode === "inline" || mode === "stacked") return <span role="status" aria-label={t("statsWorkbench.states.loading")} className="sw-skeleton block h-4 w-16" />;
   return (
     <div role="status" aria-label={t("statsWorkbench.states.loading")} className="flex h-full flex-col justify-end gap-2">
       <span className="sw-skeleton h-6 w-2/3" />
@@ -245,6 +306,17 @@ function CombinedUnsupported(): React.JSX.Element {
 }
 
 export function Note({ text, tone = "muted" }: { readonly text: string; readonly tone?: "muted" | "warn" }): React.JSX.Element {
+  const mode = useSlotMode();
+  // 组合卡片的数字单元格只有一两行：用「—」占位并给出提示标记（完整文字在标记的读屏名称、title 与详情页里），
+  // 不把半句截断的说明塞进格子，也不把它画成 0。
+  if (mode === "inline" || mode === "stacked") {
+    return (
+      <span role="status" className="flex min-w-0 items-center justify-end gap-1" title={text}>
+        <span className="text-base text-muted">—</span>
+        <span role="img" aria-label={text} className={`sw-stat-mark ${tone === "warn" ? "sw-stat-mark-warn" : ""}`}>{tone === "warn" ? "!" : "i"}</span>
+      </span>
+    );
+  }
   return (
     <p role="status" className={`text-helper-relaxed ${tone === "warn" ? "text-warn-dark" : "text-muted"}`}>
       {text}
@@ -258,10 +330,20 @@ export function Note({ text, tone = "muted" }: { readonly text: string; readonly
  */
 function ResultState({ metadata, children, partialText }: { readonly metadata: AnalysisResultBase; readonly children: React.ReactNode; readonly partialText?: string | null | undefined }): React.JSX.Element {
   const { t } = useI18n();
+  const mode = useSlotMode();
   if (metadata.completeness === "loading") return <Skeleton />;
   if (metadata.completeness === "no-transactions") return <Note text={t("statsWorkbench.states.empty")} />;
   if (metadata.completeness === "request-failed" || metadata.completeness === "no-permission" || metadata.completeness === "not-applicable") return <Note text={t("statsWorkbench.states.undetermined")} tone="warn" />;
   const note = metadata.completeness === "complete" ? null : partialText ?? t("statsWorkbench.states.partial");
+  if (mode === "spark" || mode === "chart") {
+    // 组合卡片里的图表格：说明收成一行（完整说明在 title 与详情页），把高度留给图表，而不是让一段话挤掉整张图。
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-0.5">
+        {note === null ? null : <p role="status" title={note} className="truncate text-helper text-warn-dark">{note}</p>}
+        {children}
+      </div>
+    );
+  }
   return <div className="flex h-full min-h-0 flex-col gap-1">{note === null ? null : <Note text={note} tone="warn" />}{children}</div>;
 }
 
@@ -346,10 +428,42 @@ export function scalarText(value: ScalarValue | null, t: ReturnType<typeof useI1
   }
 }
 
+/**
+ * 组合卡片里的数值单元：单行时固定正文字号、放不下就截断并在 title 里给全文；两行时沿用逐级缩小的大号金额
+ * （下限是正文字号，不会无限缩小）。说明文字收成一个提示标记，完整说明在标记的读屏文字与详情页里。
+ */
+function StatValue({ text, note, noteTone, negative, mode }: {
+  readonly text: string;
+  readonly note: string | null;
+  readonly noteTone: "muted" | "warn";
+  readonly negative: boolean;
+  readonly mode: "inline" | "stacked";
+}): React.JSX.Element {
+  const color = negative ? "text-data-expense" : "text-ink";
+  return (
+    <span className="flex min-w-0 items-center justify-end gap-1">
+      {mode === "stacked" ? (
+        <span className="min-w-0 flex-1"><FitAmount text={text} start={1} className={color} /></span>
+      ) : (
+        <span title={text} className={`sw-amount min-w-0 truncate text-base font-semibold tabular-nums ${color}`}>{text}</span>
+      )}
+      {note === null ? null : (
+        <span role="img" aria-label={note} title={note} className={`sw-stat-mark ${noteTone === "warn" ? "sw-stat-mark-warn" : ""}`}>
+          {noteTone === "warn" ? "!" : "i"}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function ScalarView({ result, density, note: noteOverride }: { readonly result: ScalarResult; readonly density: Density; readonly note?: string | null }): React.JSX.Element {
   const { t } = useI18n();
+  const mode = useSlotMode();
   const note = noteOverride === undefined ? completenessNote(result, t) : noteOverride;
   const negative = result.value?.kind === "money" && result.value.money.amountMinor.startsWith("-");
+  if (mode === "inline" || mode === "stacked") {
+    return <StatValue text={scalarText(result.value, t, result.analysisId)} note={note} noteTone={result.completeness === "no-transactions" ? "muted" : "warn"} negative={negative} mode={mode} />;
+  }
   return (
     <div className="flex h-full min-h-0 flex-col justify-end gap-1">
       <FitAmount text={scalarText(result.value, t, result.analysisId)} start={density === "compact" ? 1 : 0} className={negative ? "text-data-expense" : "text-ink"} />
@@ -360,6 +474,7 @@ function ScalarView({ result, density, note: noteOverride }: { readonly result: 
 
 function ExtremeView({ result, density, note }: { readonly result: RecordExtremeResult; readonly density: Density; readonly note?: string | null }): React.JSX.Element {
   const { t } = useI18n();
+  const mode = useSlotMode();
   if (result.completeness === "no-transactions" || (result.extreme === null && result.extremeValue === undefined)) {
     return <Note text={completenessNote(result, t) ?? t("statsWorkbench.states.empty")} />;
   }
@@ -373,6 +488,11 @@ function ExtremeView({ result, density, note }: { readonly result: RecordExtreme
   ]
     .filter((part): part is string => part !== null)
     .join(" · ");
+  if (mode === "inline" || mode === "stacked") {
+    const tie = result.tieCount > 1 ? t("statsWorkbench.values.tie", { count: result.tieCount }) : null;
+    const extra = [where === "" ? null : where, tie, note ?? null].filter((part): part is string => part !== null).join(" · ");
+    return <StatValue text={value} note={extra === "" ? null : extra} noteTone={note === undefined || note === null ? "muted" : "warn"} negative={false} mode={mode} />;
+  }
   return (
     <div className="flex h-full min-h-0 flex-col justify-end gap-1">
       <FitAmount text={value} start={density === "compact" ? 1 : 0} className="text-ink" />
@@ -480,6 +600,54 @@ function PartsView({
 // 时间序列（Agent B）与既有统计图（旧分析页同一实现）
 // ---------------------------------------------------------------------------
 
+/**
+ * 时间桶表格（CF-10 形态）：最新的桶在上；卡片里按可用高度显示前几行并写明「其余 N 项」，
+ * 详情页全部列出。金额来自同一份结果，不重新汇总。
+ */
+export function SeriesTable({
+  rows,
+  columns,
+  detail,
+  available,
+}: {
+  readonly rows: readonly { readonly key: string; readonly label: string; readonly value: string; readonly second?: string }[];
+  readonly columns?: readonly [string, string];
+  readonly detail: boolean;
+  readonly available: number | undefined;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  const ordered = [...rows].reverse();
+  const rowHeight = 22;
+  const fit = detail ? ordered.length : Math.max(1, Math.floor(((available ?? 120) - 28 - (columns === undefined ? 0 : rowHeight)) / rowHeight));
+  const shown = ordered.slice(0, fit);
+  const hidden = ordered.length - shown.length;
+  return (
+    <div className="min-h-0">
+      <table className="w-full table-fixed text-helper">
+        {columns === undefined ? null : (
+          <thead>
+            <tr className="text-muted">
+              <th className="w-2/5 py-0.5 text-left font-normal"><span className="sr-only">{t("statsWorkbench.composite.period")}</span></th>
+              <th className="py-0.5 text-right font-normal">{columns[0]}</th>
+              <th className="py-0.5 text-right font-normal">{columns[1]}</th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          {shown.map((row) => (
+            <tr key={row.key} className="border-t border-line first:border-t-0">
+              <th scope="row" className="truncate py-0.5 text-left font-normal text-muted">{row.label}</th>
+              <td className="truncate py-0.5 text-right tabular-nums text-ink" title={row.value}>{row.value}</td>
+              {row.second === undefined ? null : <td className="truncate py-0.5 text-right tabular-nums text-ink" title={row.second}>{row.second}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {hidden > 0 ? <p className="text-helper text-muted">{t("statsWorkbench.values.more", { count: hidden })}</p> : null}
+    </div>
+  );
+}
+
 function heightFor(density: Density, detail: boolean, available: number | undefined): number {
   if (detail) return 240;
   // 留出合计一行（约 28px）；其余高度全部给图表，最低 72px。
@@ -526,6 +694,7 @@ function TimeView({
   readonly fx?: FxTimeContext;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const slotMode = useSlotMode();
   const currency = scope.currency;
   const fxMissing = fx?.missingCount ?? 0;
   const unknownDates = fx?.unknownDates;
@@ -540,6 +709,10 @@ function TimeView({
   // S17-B 第二批：这些分析自己的派生层已经算好结果，只需选择数据范围与格式化。
   if (ADVANCED_CARD_IDS.has(id)) {
     return <AdvancedCardView id={id} family={family} scope={scope} range={range} density={density} detail={detail} available={available} fx={fx} />;
+  }
+  // S17-C：深入与专业分析，计算在 `cAnalyses.ts`（S17-C 共享草案数学），这里只选数据范围。
+  if (C_CARD_IDS.has(id)) {
+    return <CCardView id={id} family={family} scope={scope} range={range} density={density} detail={detail} available={available} availableWidth={availableWidth} fx={fx === undefined ? undefined : { projection: fx.projection, missingCount: fxMissing, unknownDates, previous: fx.previous }} />;
   }
   const stop = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -560,6 +733,29 @@ function TimeView({
       const total = view.result.totalMinor;
       if (view.result.buckets.every((point) => point.transactionCount === 0 || point.transactionCount === null) && metric !== "count") {
         return <Note text={emptyOrPartial(bridge.metadata.completeness, ["complete", "no-transactions"])} />;
+      }
+      const pointText = (point: (typeof view.result.buckets)[number]): string =>
+        point.amountMinor === null
+          ? t("statsWorkbench.states.undetermined")
+          : metric === "count"
+            ? t("statsWorkbench.values.count", { count: point.transactionCount ?? 0 })
+            : moneyText(point.amountMinor, currency);
+      if (family === "table") {
+        // 表格（CF-10）是任何时间图的可访问兜底形态：同一份桶结果，逐行列出，未知桶写「无法确定」不写 0。
+        return (
+          <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}>
+            {total === null || metric === "count" ? null : <p className="sw-amount text-base font-semibold tabular-nums text-ink">{moneyText(total, currency)}</p>}
+            <SeriesTable rows={view.result.buckets.filter((point) => point.bucket.state !== "future").map((point) => ({ key: point.bucket.key, label: labelFor(point.bucket), value: pointText(point) }))} detail={detail} available={available} />
+          </ResultState>
+        );
+      }
+      if (slotMode === "spark") {
+        return (
+          <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}>
+            {total === null || metric === "count" ? null : <p className="sw-amount truncate text-sm font-semibold tabular-nums text-ink" title={moneyText(total, currency)}>{moneyText(total, currency)}</p>}
+            <Sparkline points={view.result.buckets} metric={metric} title={t(`statsWorkbench.cards.${id as "AN-I06"}.title`)} height={Math.max(28, (available ?? 60) - (metric === "count" ? 4 : 24))} />
+          </ResultState>
+        );
       }
       return (
         <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}><div className="flex min-h-0 flex-col gap-1">
@@ -588,6 +784,25 @@ function TimeView({
       );
     }
     case "AN-I11": {
+      if (family === "table") {
+        const native = flowFor(entries, granularityFor(scope.bucket), range, scope.today, unknownDates);
+        const bridge = timeResultBridge(id, native, native.result, scope, range, { metric: "income-expense", kind: "both", groupBy: granularityFor(scope.bucket) }, false, true, fxMissing);
+        const view = bridge.nativeResult;
+        if (view.result.buckets.every((point) => (point.incomeCount ?? 0) === 0 && (point.expenseCount ?? 0) === 0)) {
+          return <Note text={emptyOrPartial(bridge.metadata.completeness, ["complete"])} />;
+        }
+        const side = (minor: string | null) => (minor === null ? t("statsWorkbench.states.undetermined") : moneyText(minor, currency));
+        return (
+          <ResultState metadata={bridge.metadata} partialText={seriesNote(bridge.metadata.completeness)}>
+            <SeriesTable
+              columns={[t("common.kind.income"), t("common.kind.expense")]}
+              rows={view.result.buckets.filter((point) => point.bucket.state !== "future").map((point) => ({ key: point.bucket.key, label: labelFor(point.bucket), value: side(point.incomeMinor), second: side(point.expenseMinor) }))}
+              detail={detail}
+              available={available}
+            />
+          </ResultState>
+        );
+      }
       // 折线图画不出「未知」的时间段，缺汇率时改用能标示未知的柱状图并说明，而不是把缺失画成 0。
       const lineFallback = family === "flow-lines" && unknownDates !== undefined && unknownDates.size > 0;
       if (family === "flow-lines" && !lineFallback) {
@@ -849,6 +1064,8 @@ export function fxNoteFor(policy: FxCardPolicy, missing: number, t: Translate): 
       return t("statsWorkbench.states.fxRanking", { count: missing });
     case "series":
       return t("statsWorkbench.states.fxSeries", { count: missing });
+    case "subset":
+      return t("statsWorkbench.states.fxSubset", { count: missing });
     case "count":
       return null;
   }
@@ -929,7 +1146,7 @@ function CombinedCard({
     rangeReadState: dataCompleteness,
     rangeSourceComplete: fx.sourceComplete === true,
   };
-  const previous = type.id === "AN-A01" ? (scope.previousFx === undefined || scope.previousFx === null ? null : projectFxCached(scope.previousFx)) : null;
+  const previous = COMPARISON_IDS.has(type.id) ? (scope.previousFx === undefined || scope.previousFx === null ? null : projectFxCached(scope.previousFx)) : null;
   return (
     <TimeView
       id={type.id}
@@ -1061,19 +1278,39 @@ function CombinedAggregateBody({
   );
 }
 
-/** 卡片标题：自定义标题原样显示；预置标题随界面语言。 */
+/** 某项分析的名称（随界面语言）；未知编号说明来自更新版本。 */
+export function analysisTitle(analysisId: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const type = cardType(analysisId);
+  return type === null ? t("statsWorkbench.card.unknown") : t(`statsWorkbench.cards.${type.id as "AN-B01"}.title`);
+}
+
+/**
+ * 卡片标题：自定义标题原样显示；预置标题随界面语言。组合卡片没有自定义名称时，用前两项内容的名称
+ * 自动组成（「总收入 · 总支出」「总收入 · 总支出等 4 项」），用户不必为简单组合专门起名。
+ */
 export function cardTitle(card: AnalysisCardNode, t: ReturnType<typeof useI18n>["t"]): string {
   if (card.title?.kind === "custom" && card.title.text !== undefined && card.title.text.trim() !== "") return card.title.text;
-  const type = cardType(card.analysis.analysisId);
-  return type === null ? t("statsWorkbench.card.unknown") : t(`statsWorkbench.cards.${type.id as "AN-B01"}.title`);
+  const read = readComposition(card);
+  if (read.source === "composite" && read.slots.length > 1) {
+    const names = read.slots.slice(0, 2).map((slot) => analysisTitle(slot.analysisId, t)).join(" · ");
+    return read.slots.length > 2 ? t("statsWorkbench.composite.autoTitleMore", { names, count: read.slots.length }) : names;
+  }
+  return analysisTitle(card.analysis.analysisId, t);
 }
 
 /** 副标题：说明这张卡片**实际**用的时间与币种（固定区间必须可见标明，卡片规格 §4.4）。 */
 export function cardSubtitle(card: AnalysisCardNode, scope: WorkbenchScope, t: ReturnType<typeof useI18n>["t"]): string {
-  const type = cardType(card.analysis.analysisId);
+  if (isMultiSlot(card)) {
+    // 组合卡片：共享的固定区间写在卡片副标题；自带窗口的槽位在自己的名称后注明。
+    return card.rangePolicy === "pinned" && card.pinnedRange !== undefined
+      ? t("statsWorkbench.card.pinned", { from: formatLocalDate(card.pinnedRange.from), to: formatLocalDate(card.pinnedRange.to) })
+      : "";
+  }
+  const type = cardType(displayCard(card).analysis.analysisId);
   if (type === null) return "";
   const parts: string[] = [];
   if (type.ownWindow === "12m") parts.push(t("statsWorkbench.card.ownWindow12m"));
+  else if (type.ownWindow === "year") parts.push(t("statsWorkbench.card.ownWindowYear", { year: cardRange(card, scope).from.slice(0, 4) }));
   else if (card.rangePolicy === "pinned" && card.pinnedRange !== undefined) {
     parts.push(t("statsWorkbench.card.pinned", { from: formatLocalDate(card.pinnedRange.from), to: formatLocalDate(card.pinnedRange.to) }));
   } else if (type.id === "AN-I12") {

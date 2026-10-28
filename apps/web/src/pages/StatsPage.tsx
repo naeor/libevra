@@ -42,7 +42,7 @@ import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWork
 import { FilterPanel, timeLabel, type FilterOption } from "../statsWorkbench/FilterPanel.js";
 import { FxStatus } from "../statsWorkbench/FxStatus.js";
 import { customRangeProblem, filterIds, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
-import { BrowseGrid, EditGrid, GRID_GAP, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
+import { BrowseGrid, EditGrid, GRID_GAP, gridMetricsFor, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
 import { useScope, useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import {
   canRedo,
@@ -60,11 +60,13 @@ import {
   replaceContainerChildren,
   sessionDocuments,
   startSession,
-  updateCard,
+  reconfigureCard,
   type EditorState,
   type SessionResult,
 } from "../statsWorkbench/session.js";
-import { CollapsedContainerSheet, ConfigSheet, CustomCardSheet, DiscardSheet, LayoutSheet, ObjectMenuSheet, SizeSheet, type MenuAction } from "../statsWorkbench/Sheets.js";
+import { CollapsedContainerSheet, DiscardSheet, LayoutSheet, ObjectMenuSheet, SizeSheet, type MenuAction } from "../statsWorkbench/Sheets.js";
+import { CardEditor } from "../statsWorkbench/CardEditor.js";
+import { cardSizing, readComposition, recommendSize, type GridMetrics } from "../statsWorkbench/composition.js";
 import { customCardsIn } from "../statsWorkbench/customCards.js";
 import { readStored, saveWorkbenchSafely, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
 import { FunnelIcon, GridGlyph, PencilIcon, RedoIcon, UndoIcon, useElementSize } from "../statsWorkbench/ui.js";
@@ -160,12 +162,12 @@ function AccountWorkbench(): React.JSX.Element {
   const [startDocs, setStartDocs] = useState<WorkbenchDocuments | null>(null);
   const editing = session !== null;
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [configFor, setConfigFor] = useState<string | null>(null);
+  /** 自定义卡片编辑器：`cardId === null` 为新建，否则编辑这张卡片（任何卡片都可以在这里加内容、换形式）。 */
+  const [editor, setEditor] = useState<{ readonly cardId: string | null } | null>(null);
   const [sizeFor, setSizeFor] = useState<string | null>(null);
   const [moveFor, setMoveFor] = useState<string | null>(null);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const [customOpen, setCustomOpen] = useState(false);
   const [collapsedOpen, setCollapsedOpen] = useState<string | null>(null);
   const [drawerHeight, setDrawerHeight] = useState<DrawerHeight>("expanded");
   const drawerBeforeDrag = useRef<DrawerHeight | null>(null);
@@ -226,6 +228,7 @@ function AccountWorkbench(): React.JSX.Element {
   const width = gridBox.width;
   const maxColumns = width === 0 ? 2 : Math.max(1, Math.min(3, Math.floor((width + GRID_GAP) / (MIN_COLUMN_WIDTH + GRID_GAP))));
   const browseColumns = Math.max(1, Math.min(documents.layout.main.baseCols, maxColumns));
+  const gridMetrics: GridMetrics | null = gridMetricsFor(width, browseColumns, typeof window === "undefined" ? 0 : window.innerWidth);
 
   // ---- 拖放 ----
   const objectSize = (id: string): GridSize | null => {
@@ -363,13 +366,21 @@ function AccountWorkbench(): React.JSX.Element {
     if (ok) revealLater(card.objectId);
   }
 
-  function addCustomCard(card: AnalysisCardNode): boolean {
+  /** 自定义卡片放到第一个空位；尺寸由编辑器按当前设备推荐（或用户选择），复制品按同一规则推荐。 */
+  function addCustomCard(card: AnalysisCardNode, size?: GridSize): boolean {
     if (session === null) return false;
-    const type = cardType(card.analysis.analysisId);
-    if (type === null) return false;
-    const ok = apply(command(session, { type: "insert-card", card, size: type.defaultSize }), t("statsWorkbench.drawer.added", { name: cardTitle(card, t) }));
+    const read = readComposition(card);
+    const columns = session.layout.main.baseCols;
+    const chosen = size ?? recommendSize(read.template, read.slots, gridMetrics);
+    const fitted = { colSpan: Math.min(chosen.colSpan, columns), rowSpan: chosen.rowSpan };
+    const ok = apply(command(session, { type: "insert-card", card, size: fitted, collisionPolicy: "reflow" }), t("statsWorkbench.drawer.added", { name: cardTitle(card, t) }));
     if (ok) revealLater(card.objectId);
     return ok;
+  }
+
+  function saveEditedCard(card: AnalysisCardNode, size: GridSize): boolean {
+    if (session === null) return false;
+    return apply(reconfigureCard(session, card, size), t("statsWorkbench.config.saved"));
   }
 
   function addLayoutObject(choice: LayoutObjectChoice, anchor?: number): void {
@@ -476,7 +487,7 @@ function AccountWorkbench(): React.JSX.Element {
     const name = objectName(objectId);
     switch (action) {
       case "configure":
-        setConfigFor(objectId);
+        setEditor({ cardId: objectId });
         return;
       case "resize":
         setSizeFor(objectId);
@@ -654,7 +665,8 @@ function AccountWorkbench(): React.JSX.Element {
   }
 
   const menuObject = menuFor === null || session === null ? null : geometryOf(session, menuFor);
-  const configCard = configFor === null || session === null ? undefined : cardOf(session, configFor);
+  const editorCard = editor === null || editor.cardId === null || session === null ? undefined : cardOf(session, editor.cardId);
+  const editorGeometry = editorCard === undefined || session === null ? undefined : geometryOf(session, editorCard.objectId);
   const sizeObject = sizeFor === null || session === null ? undefined : geometryOf(session, sizeFor);
 
   const objectProps = (objectId: string, label: string, size: GridSize): Record<string, unknown> => {
@@ -687,10 +699,13 @@ function AccountWorkbench(): React.JSX.Element {
       drag={drag}
       onAddCard={(analysisId) => addCard(analysisId)}
       onAddLayout={(choice) => addLayoutObject(choice)}
-      onCustom={() => setCustomOpen(true)}
+      onCustom={() => setEditor({ cardId: null })}
       customCards={customCardsIn(session?.content.cards ?? [])}
-      onConfigureCustom={setConfigFor}
-      onDuplicateCustom={(card) => addCustomCard({ ...card, objectId: newObjectId("card") })}
+      onConfigureCustom={(objectId) => setEditor({ cardId: objectId })}
+      onDuplicateCustom={(card) => {
+        const geometry = session === null ? undefined : geometryOf(session, card.objectId);
+        addCustomCard({ ...card, objectId: newObjectId("card") }, geometry === undefined ? undefined : { colSpan: geometry.colSpan, rowSpan: geometry.rowSpan });
+      }}
       containerScope={view}
       onScopeAdd={(analysisId) =>
         setContainerEdit((current) => (current === null || current.children.length >= LIMITS[current.type].max ? current : { ...current, children: [...current.children, newCard(analysisId)] }))
@@ -910,14 +925,23 @@ function AccountWorkbench(): React.JSX.Element {
           />
         ) : null}
 
-        {configCard === undefined || session === null ? null : (
-          <ConfigSheet card={configCard} size={geometryOf(session, configCard.objectId)} today={scope.today} onSave={(card) => apply(updateCard(session, card), t("statsWorkbench.config.saved"))} onClose={() => setConfigFor(null)} />
+        {editor === null || session === null || (editor.cardId !== null && editorCard === undefined) ? null : (
+          <CardEditor
+            key={editor.cardId ?? "new"}
+            card={editorCard}
+            currentSize={editorGeometry === undefined ? undefined : { colSpan: editorGeometry.colSpan, rowSpan: editorGeometry.rowSpan }}
+            today={scope.today}
+            scope={scope}
+            metrics={gridMetrics}
+            onSave={(card, size) => (editorCard === undefined ? addCustomCard(card, size) : saveEditedCard(card, size))}
+            onClose={() => setEditor(null)}
+          />
         )}
 
         {sizeObject === undefined || session === null || sizeFor === null ? null : (
           <SizeSheet
             current={{ colSpan: sizeObject.colSpan, rowSpan: sizeObject.rowSpan }}
-            sizes={(sizeObject.objectType === "analysis-card" ? (cardType(cardOf(session, sizeFor)?.analysis.analysisId ?? "")?.sizes ?? []) : CONTAINER_SIZES[sizeObject.objectType]).filter(
+            sizes={(sizeObject.objectType === "analysis-card" ? (() => { const card = cardOf(session, sizeFor); return card === undefined ? [] : cardSizing(card).sizes; })() : CONTAINER_SIZES[sizeObject.objectType]).filter(
               (size) => size.colSpan <= session.layout.main.baseCols,
             )}
             problemFor={(size) => placementProblem(session.layout, sizeFor, sizeObject.anchor, size)}
@@ -938,7 +962,6 @@ function AccountWorkbench(): React.JSX.Element {
         ) : null}
 
         {discardOpen ? <DiscardSheet onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
-        {customOpen ? <CustomCardSheet today={scope.today} onCreate={addCustomCard} onClose={() => setCustomOpen(false)} /> : null}
         {collapsedOpen === null ? null : (
           <CollapsedContainerSheetFor
             documents={documents}

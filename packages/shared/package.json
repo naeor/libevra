@@ -20,6 +20,10 @@
       "types": "./src/analysis/analysisCatalog.ts",
       "default": "./src/analysis/analysisCatalog.ts"
     },
+    "./analysis/advanced": {
+      "types": "./src/analysis/advanced/index.ts",
+      "default": "./src/analysis/advanced/index.ts"
+    },
     "./workbench/envelope": {
       "types": "./src/workbench/envelope.ts",
       "default": "./src/workbench/envelope.ts"

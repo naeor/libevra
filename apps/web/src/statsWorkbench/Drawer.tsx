@@ -14,8 +14,10 @@ import { useI18n } from "../i18n/index.js";
 import { cardTitle } from "./cards.js";
 import { CARD_TYPES, CONTAINER_DEFAULT_SIZE, type CardGroup, type CardType, type LayoutObjectChoice } from "./catalog.js";
 import type { DragController, DragPayload } from "./dnd.js";
+import { readComposition } from "./composition.js";
 import {
   ChartGlyph,
+  ComposeGlyph,
   CarouselGlyph,
   ChevronDown,
   ChevronUp,
@@ -88,7 +90,7 @@ export function Drawer({
   }, [group, query, t]);
 
   const grouped = useMemo(() => {
-    const order: CardGroup[] = ["basic", "insight", "advanced"];
+    const order: CardGroup[] = ["basic", "insight", "advanced", "professional"];
     return order.map((key) => ({ key, items: library.filter((type) => type.group === key) })).filter((section) => section.items.length > 0);
   }, [library]);
 
@@ -163,18 +165,24 @@ export function Drawer({
                   {group === "mine" ? (
                     <div className="flex flex-col gap-3 px-5 pt-3">
                       <p className="text-helper-relaxed text-muted">{t(customCards.length === 0 ? "statsWorkbench.drawer.mineEmpty" : "statsWorkbench.custom.libraryHint")}</p>
-                      {customCards.map((card) => (
+                      {customCards.map((card) => {
+                        const read = readComposition(card);
+                        const multi = read.source === "composite" && read.slots.length > 1;
+                        return (
                         <div key={card.objectId} className="sw-tile">
-                          <ChartGlyph family={card.chart.chartFamily} className="shrink-0 text-brand-dark" />
+                          {multi ? <ComposeGlyph className="shrink-0 text-brand-dark" /> : <ChartGlyph family={card.chart.chartFamily} className="shrink-0 text-brand-dark" />}
                           <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onConfigureCustom?.(card.objectId)}>
                             <span className="block truncate text-body font-medium text-ink">{cardTitle(card, t)}</span>
-                            <span className="block truncate text-helper text-muted">{t("statsWorkbench.config.title")}</span>
+                            <span className="block truncate text-helper text-muted">
+                              {multi ? t("statsWorkbench.composite.editTile", { count: read.slots.length, template: t(`statsWorkbench.composite.templates.${read.template}.short`) }) : t("statsWorkbench.editor.titleEdit")}
+                            </span>
                           </button>
                           <button type="button" className="sw-add-button" aria-label={t("statsWorkbench.drawer.add", { name: cardTitle(card, t) })} onClick={() => onDuplicateCustom?.(card)}>
                             <PlusGlyph width={18} height={18} />
                           </button>
                         </div>
-                      ))}
+                        );
+                      })}
                       <button type="button" className="sw-new-custom" onClick={onCustom}>
                         <PlusGlyph />
                         <span>{t("statsWorkbench.drawer.newCustom")}</span>

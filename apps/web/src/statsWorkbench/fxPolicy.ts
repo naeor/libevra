@@ -13,13 +13,14 @@
  * - `composition`  构成：给已折算部分的小计，不给占比（分母不完整），图形退化为排行。
  * - `ranking`      排行：给已折算部分的小计排行，明确「排名可能因缺汇率账目而变化」。
  * - `series`       时间序列：含缺汇率账目的日期所在的时间段标记为「未知」，不画成 0，也不参与合计。
+ * - `subset`       逐笔分布（直方、散点）：只画已折算的账目，明确写出另有 N 笔缺汇率未画入（S17-C）。
  *
  * 每类还带 `kinds`：缺汇率只影响它的口径——缺汇率的**支出**不影响收入类分析，反之亦然；
  * 这让「收入合计」在只有支出缺汇率时仍可以诚实地宣称完整。
  */
 import type { FxKindScope } from "./fxProjection.js";
 
-export type FxCardClass = "count" | "sum" | "partial" | "undetermined" | "extreme" | "composition" | "ranking" | "series";
+export type FxCardClass = "count" | "sum" | "partial" | "undetermined" | "extreme" | "composition" | "ranking" | "series" | "subset";
 
 export interface FxCardPolicy {
   readonly class: FxCardClass;
@@ -85,6 +86,38 @@ export const FX_CARD_POLICIES: Readonly<Record<string, FxCardPolicy>> = {
   "AN-A18": { class: "series", kinds: E },
   "AN-A19": { class: "series", kinds: E },
   "AN-A20": { class: "undetermined", kinds: I },
+  // ---- S17-C（1.17.10）：归因、份额、分位缺一笔就可能改变结论 → 无法确定；逐笔分布只画已折算部分 ----
+  "AN-I18": { class: "extreme", kinds: E },
+  "AN-A06": { class: "undetermined", kinds: E },
+  "AN-A07": { class: "undetermined", kinds: E },
+  "AN-A08": { class: "undetermined", kinds: E },
+  "AN-A09": { class: "subset", kinds: E },
+  "AN-A10": { class: "undetermined", kinds: E },
+  "AN-A11": { class: "undetermined", kinds: E },
+  "AN-A15": { class: "count", kinds: N },
+  "AN-A16": { class: "undetermined", kinds: E },
+  "AN-A17": { class: "undetermined", kinds: E },
+  "AN-P01": { class: "composition", kinds: E },
+  "AN-P02": { class: "composition", kinds: E },
+  "AN-P03": { class: "composition", kinds: E },
+  "AN-P04": { class: "composition", kinds: E },
+  "AN-P06": { class: "composition", kinds: E },
+  "AN-P08": { class: "undetermined", kinds: E },
+  "AN-P09": { class: "ranking", kinds: E },
+  "AN-P10": { class: "subset", kinds: E },
+  "AN-P11": { class: "composition", kinds: E },
+  "AN-P12": { class: "undetermined", kinds: E },
+  "AN-P13": { class: "composition", kinds: E },
+  "AN-P14": { class: "series", kinds: E },
+  "AN-P15": { class: "series", kinds: E },
+  "AN-P16": { class: "count", kinds: N },
+  "AN-P17": { class: "composition", kinds: E },
+  "AN-P18": { class: "count", kinds: N },
+  "AN-P19": { class: "count", kinds: N },
+  "AN-P20": { class: "count", kinds: N },
+  "AN-P22": { class: "undetermined", kinds: E },
+  "AN-P23": { class: "undetermined", kinds: E },
+  "AN-P24": { class: "undetermined", kinds: E },
 };
 
 export function fxPolicyFor(id: string): FxCardPolicy | null {

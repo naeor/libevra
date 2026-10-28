@@ -127,6 +127,32 @@ export function updateCard(state: EditorState, card: AnalysisCardNode): SessionR
 }
 
 /**
+ * 自定义卡片编辑器的「保存修改」：卡片配置与（必要时的）新尺寸作为**一步**撤销。
+ *
+ * - 尺寸不变：就是一次 `update-card`；
+ * - 尺寸变了：先 `update-card`，再在原位置 `resize`；原位置放不下（邻居挡住）时，用 D 的正式命令在
+ *   **同一锚点**重新放入并让后面的对象顺延（`delete` + `insert-card` reflow），卡片身份不变；
+ * - 三条命令的历史合并为一条，撤销一次就回到修改前（D 的命令负责全部几何校验，这里不自行改几何）。
+ */
+export function reconfigureCard(state: EditorState, card: AnalysisCardNode, size: GridSize): SessionResult {
+  const geometry = geometryOf(state, card.objectId);
+  // 容器里的卡片没有自己的网格位置：只更新配置，尺寸由容器决定。
+  if (geometry === undefined) return command(state, { type: "update-card", card });
+  const updated = command(state, { type: "update-card", card });
+  if (!updated.ok) return updated;
+  if (geometry.colSpan === size.colSpan && geometry.rowSpan === size.rowSpan) return updated;
+  let resized = command(updated.state, { type: "resize", objectId: card.objectId, colSpan: size.colSpan, rowSpan: size.rowSpan });
+  if (!resized.ok) {
+    const removed = command(updated.state, { type: "delete", objectId: card.objectId });
+    if (!removed.ok) return { ok: false, state, problem: removed.problem };
+    resized = command(removed.state, { type: "insert-card", card, anchor: geometry.anchor, size, collisionPolicy: "reflow" });
+    if (!resized.ok) return { ok: false, state, problem: resized.problem };
+  }
+  const past = [...state.history.past, { content: state.content, layout: state.layout, selection: state.selection }].slice(-state.history.limit);
+  return { ok: true, state: { ...resized.state, history: { ...resized.state.history, past, future: [] } }, problem: null };
+}
+
+/**
  * 插入一个**已填好子卡片**的容器（Carousel 2–6 张、GridSplit 2–4 张，D 的校验规则）。
  * 空容器先在界面的「待填充」草稿里组装，满足最少张数后再一次性插入（OQ-UI-10 的过渡做法）。
  */

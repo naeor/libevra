@@ -30,7 +30,9 @@ describe("software update announcements", () => {
     const html = renderAt("/update", <SoftwareUpdatePage />);
 
     expect(html).toContain(formatAppVersion(APP_VERSION));
-    expect(html).not.toContain(APP_VERSION);
+    // 只有补零后与内部版本号不同（如 1.17.9 → 1.17.09）时，才能断言页面不显示内部写法；
+    // 两位数补丁号（1.17.10）两种写法相同。
+    if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
     expect(html).toContain("1.16.22");
     expect(html).toContain("四款新头像加入经典系列");
     expect(html).toContain("经典系列新增玉净、幽幽、元宝和「太阳」，所有用户均可直接选择。");

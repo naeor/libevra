@@ -51,7 +51,7 @@
 | 判断某功能做没做 | [`changelog/`](docs/changelog/)（1.14 现行 / 1.10-1.13 冻结）【2026-10-27 更正：现行版本记录是 [`changelog/1.16.md`](docs/changelog/1.16.md)（含 1.16.22）；1.10–1.14 均已冻结，1.15 为上一系列；[`changelog/1.17.md`](docs/changelog/1.17.md) 记本地候选 1.17.3 / 1.17.4 / 1.17.5 / 1.17.6 / 1.17.7 / 1.17.8（均未发布生产；1.17.7 = W5 完整筛选；1.17.8 = 自定义卡片指标与图表展示补齐）】 |
 | 查离线历史读取上限 / 更新主目录与 localhost | [`specs/features/离线历史读取容量上限与长期优化-20261028.md`](docs/specs/features/离线历史读取容量上限与长期优化-20261028.md)；[`specs/features/本地开发工作区与主目录更新规范-20261028.md`](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md)（**§4 WIP 保护强制门禁**） |
 | 本地日常启动 / `localhost:5173` 打不开 / 端口或 HTTPS 问题 | [`ops/本地开发环境与5173.md`](docs/ops/本地开发环境与5173.md)（**唯一启动入口 `start-dev-lan.cmd`、HTTP 地址、HTTPS 何时用、端口冲突与窗口不消失的排查**）+ [`specs/features/本地开发工作区与主目录更新规范-20261028.md`](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md) §2 规则 5–7 |
-| 查自定义卡片指标 / 展示方式 / 图表家族 | [`specs/features/S17-自定义卡片指标与展示能力-20261028.md`](docs/specs/features/S17-自定义卡片指标与展示能力-20261028.md)（50 项可选指标、15 个图表家族、C 34 项未接入原因；改指标白名单或 family 前读） |
+| 查自定义卡片指标 / 展示方式 / 图表家族 / 组合卡片 | [`specs/features/S17-自定义卡片指标与展示能力-20261028.md`](docs/specs/features/S17-自定义卡片指标与展示能力-20261028.md)（81 / 84 项可选指标、31 个图表家族、组合卡片模板 T1–T8 与保存形状、P05 / P07 / P21 未开放原因；改指标白名单、family、模板或编辑器前读） |
 | 追问"为什么当初这么定" | [`adr/README.md`](docs/adr/README.md) → ADR 正文 |
 | 查一段历史 | [`archive/`](docs/archive/README.md)（**历史，不要照着做**） |
 

@@ -89,6 +89,11 @@ export function useFxRange(
     detail?: FxAggregateDetail;
     /** 本次折算的全部原币账目（已确认属于当前账本）：投影按 id 回连它取得分类/支付方式等元数据，不重新读取。 */
     sourceEntries?: readonly (Transaction & { readonly bookId: string })[];
+    /**
+     * 本次折算**实际使用**的逐日汇率查询结果（键 = 交易日期；快照日期不同即发生了回退）。
+     * 只读地交给 S17-C 的汇率诊断卡片（P18–P20），不重新查询、不另建汇率来源（1.17.10，additive）。
+     */
+    lookups?: ReadonlyMap<string, FxLookup>;
     /** 逐笔条数超出保护上限：不截断、不拿前 N 笔冒充完整，聚合金额之外的逐笔分析必须显示「无法计算」。 */
     entryLimitExceeded?: boolean;
   }>({ key: "" });
@@ -121,7 +126,7 @@ export function useFxRange(
         entryLimitExceeded = true;
         result = await aggregateFxAsync(mode.userId, bookId, filtered, mode.target, lookups, { signal: controller.signal });
       }
-      check(); setState({ key, result, sourceComplete, offline: local, sourceEntries: filtered, ...(detail === undefined ? {} : { detail }), ...(entryLimitExceeded ? { entryLimitExceeded } : {}) });
+      check(); setState({ key, result, sourceComplete, offline: local, sourceEntries: filtered, lookups, ...(detail === undefined ? {} : { detail }), ...(entryLimitExceeded ? { entryLimitExceeded } : {}) });
     })().catch(() => { if (!controller.signal.aborted && offlineScope() === scope) setState({ key, error: true, reason: "read" }); });
     return () => controller.abort();
   // 原件变化会触发重算；写入现有月份副本不改变原始财务事实。

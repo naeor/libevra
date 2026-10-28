@@ -7,6 +7,7 @@ import { FX_CARD_POLICIES } from "./fxPolicy.js";
 import { projectFx, type FxProjection, type FxProjectionInput } from "./fxProjection.js";
 import { buildFxView, tx } from "./fxTestSupport.js";
 import { CARD_TYPES } from "./catalog.js";
+import { C_CARD_IDS } from "./cCards.js";
 
 function ready(input: FxProjectionInput): FxProjection {
   const state = projectFx(input);
@@ -154,7 +155,9 @@ describe("计数类分析与金额无关：缺汇率账目照常计数（不被�
   const COUNT_IDS = Object.entries(FX_CARD_POLICIES)
     .filter(([, policy]) => policy.class === "count")
     .map(([id]) => id)
-    .filter((id) => id !== "AN-I19");
+    .filter((id) => id !== "AN-I19")
+    // S17-C 的计数类（A15 连续无支出、P16 币种笔数、P18–P20 汇率诊断）不走 Agent A 入口，由 `cCards.test.tsx` 覆盖。
+    .filter((id) => !C_CARD_IDS.has(id));
 
   it("计数类卡片集合与目录一致", () => {
     expect(COUNT_IDS.sort()).toEqual(["AN-B04", "AN-B05", "AN-B13", "AN-B14", "AN-B16", "AN-B20", "AN-I05"]);
@@ -216,8 +219,8 @@ describe("计数类分析与金额无关：缺汇率账目照常计数（不被�
 });
 
 describe("每张卡片都有缺汇率策略，目录开关与策略表一致", () => {
-  it("50 张卡片逐一有策略", () => {
-    expect(CARD_TYPES).toHaveLength(50);
+  it("81 张卡片逐一有策略", () => {
+    expect(CARD_TYPES).toHaveLength(81);
     for (const type of CARD_TYPES) {
       expect(FX_CARD_POLICIES[type.id], type.id).toBeDefined();
       expect(type.combined, type.id).toBe(true);

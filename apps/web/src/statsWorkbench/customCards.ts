@@ -1,78 +1,101 @@
-/** 单分析自定义卡片：使用正式 AnalysisCardNode；不另存结果、模板或账本信息。 */
+/**
+ * 自定义卡片（1.17.10 起为**组合卡片**）：一张卡片可以放一个或多个内容槽位，配一个卡片内容模板。
+ *
+ * 只保存「分析引用 + 展示形式 + 模板 + 名称 + 时间策略」，**不存金额、汇率、账本身份**；形状与旧配置的
+ * 兼容规则见 `composition.ts`。卡片仍是 Agent D 的正式 `AnalysisCardNode`，插入、更新、撤销全部走 D 的命令。
+ */
 import { validateAnalysisParams, type AnalysisCardNode } from "@libellum/shared/analysis/layout";
-import { CARD_TYPES, cardType, type ChartFamily } from "./catalog.js";
+
+import { CARD_TYPES, cardType, type CardType } from "./catalog.js";
+import {
+  countSlots,
+  isCustomCard,
+  readComposition,
+  templateFit,
+  templateOf,
+  withComposition,
+  type CompositionSlot,
+  type TemplateId,
+} from "./composition.js";
 import { newCard } from "./defaults.js";
 import { customRangeProblem } from "./filters.js";
 
 /**
- * 自定义卡片可选的指标。
+ * 自定义卡片可选的指标：目录里**全部已正式实现**的分析。
  *
- * 两类来源：
- * 1. A 协议分析（26 项）——必须通过 G-12a 的 params 白名单校验才开放，不绕过冻结协议；
- * 2. 工作台自己派生、**不接受任何布局参数**的分析（B 的 24 项，含本次接入的 12 项）——
- *    它们的卡片只保存分析编号与展示方式，参数恒为 `{}`，因此不涉及 G-12a 参数语义；
- *    这里用显式集合登记，未知编号仍按只读占位处理。
+ * A 协议分析必须通过 G-12a 的 params 白名单（`valid`）才开放，不绕过冻结协议；B / C 的分析不接受任何
+ * 布局参数（`params` 恒为 `{}`），在 G-12a 里是只读登记（`readonly`），卡片只存编号与展示方式。
  */
-const LEGACY_CUSTOMIZABLE_IDS: ReadonlySet<string> = new Set([
-  "AN-I06",
-  "AN-I07",
-  "AN-I08",
-  "AN-I09",
-  "AN-I10",
-  "AN-I11",
-  "AN-I12",
-  "AN-I13",
-  "AN-I14",
-  "AN-I15",
-  "AN-I16",
-  "AN-I19",
-  "AN-I20",
-  "AN-A01",
-  "AN-A02",
-  "AN-A03",
-  "AN-A04",
-  "AN-A05",
-  "AN-A12",
-  "AN-A13",
-  "AN-A14",
-  "AN-A18",
-  "AN-A19",
-  "AN-A20",
-]);
-
-/** 仅开放「正式参数登记 + 无参数派生」两类已有能力；C 的 34 项待各自接入后再进入。 */
-export const CUSTOM_CARD_TYPES = CARD_TYPES.filter(
-  (type) => LEGACY_CUSTOMIZABLE_IDS.has(type.id) || validateAnalysisParams({ analysisId: type.id, params: {} }).status === "valid",
+export const CUSTOM_CARD_TYPES: readonly CardType[] = CARD_TYPES.filter(
+  (type) => type.source !== "agent-a" || validateAnalysisParams({ analysisId: type.id, params: {} }).status === "valid",
 );
 
-export interface CustomCardDraft {
-  readonly analysisId: string;
-  readonly family: ChartFamily;
+const SELECTABLE = new Set(CUSTOM_CARD_TYPES.map((type) => type.id));
+
+export function isSelectableAnalysis(analysisId: string): boolean {
+  return SELECTABLE.has(analysisId);
+}
+
+export const CUSTOM_NAME_MAX = 40;
+
+export interface CompositeDraft {
+  readonly template: TemplateId;
+  readonly slots: readonly CompositionSlot[];
+  /** 留空 = 自动名称（随界面语言，按内容生成）。 */
   readonly name: string;
   readonly pinnedRange?: { readonly from: string; readonly to: string };
 }
 
-export function customCardProblem(draft: CustomCardDraft): "analysis" | "family" | "name" | "range" | null {
-  const type = cardType(draft.analysisId);
-  if (type === null || !CUSTOM_CARD_TYPES.some((entry) => entry.id === draft.analysisId)) return "analysis";
-  if (!type.families.includes(draft.family)) return "family";
-  if (draft.name.trim().length === 0 || draft.name.trim().length > 40) return "name";
+export type DraftProblem = "empty" | "analysis" | "family" | "template" | "name" | "range";
+
+/** 草稿能不能保存；不能时给出第一个问题（界面据此说明，不静默修正）。 */
+export function draftProblem(draft: CompositeDraft): DraftProblem | null {
+  if (draft.slots.length === 0) return "empty";
+  for (const slot of draft.slots) {
+    const type = cardType(slot.analysisId);
+    if (type === null || !SELECTABLE.has(slot.analysisId)) return "analysis";
+    if (!type.families.includes(slot.family)) return "family";
+  }
+  const template = templateOf(draft.template);
+  if (template === null || templateFit(template, countSlots(draft.slots)).status !== "ok") return "template";
+  if (draft.name.trim().length > CUSTOM_NAME_MAX) return "name";
   if (draft.pinnedRange !== undefined && customRangeProblem(draft.pinnedRange.from, draft.pinnedRange.to) !== null) return "range";
   return null;
 }
 
-export function createCustomCard(draft: CustomCardDraft, objectId?: string): AnalysisCardNode | null {
-  if (customCardProblem(draft) !== null) return null;
-  return {
-    ...newCard(draft.analysisId, objectId),
-    chart: { chartFamily: draft.family },
-    title: { kind: "custom", text: draft.name.trim() },
+/**
+ * 由草稿生成卡片。
+ * - 新建（没有 `base`）：总是写入组合配置，这张卡片因此出现在「我的自定义」里；
+ * - 编辑：保留原卡片的 objectId 与其它字段；原来是普通单项卡片、编辑后仍是单项时**不**写组合配置
+ *   （行为与旧版「配置卡片」一致，不把目录卡片悄悄变成自定义卡片）。
+ */
+export function buildCard(draft: CompositeDraft, base?: AnalysisCardNode, objectId?: string): AnalysisCardNode | null {
+  if (draftProblem(draft) !== null) return null;
+  const first = draft.slots[0]!;
+  const trimmed = draft.name.trim();
+  const origin: AnalysisCardNode = base ?? newCard(first.analysisId, objectId);
+  const scoped: AnalysisCardNode = {
+    objectId: origin.objectId,
+    type: "analysis-card",
+    analysis: origin.analysis,
+    chart: origin.chart,
+    title: trimmed === "" ? { kind: "preset" } : { kind: "custom", text: trimmed },
     rangePolicy: draft.pinnedRange === undefined ? "inherit" : "pinned",
     ...(draft.pinnedRange === undefined ? {} : { pinnedRange: draft.pinnedRange }),
   };
+  const keepPlain = base !== undefined && readComposition(base).source === "plain" && draft.template === "single";
+  if (keepPlain) {
+    const sameAnalysis = scoped.analysis.analysisId === first.analysisId;
+    return {
+      ...scoped,
+      analysis: sameAnalysis ? scoped.analysis : { analysisId: first.analysisId, params: {} },
+      chart: { ...scoped.chart, chartFamily: first.family },
+    };
+  }
+  return withComposition(scoped, draft.template, draft.slots);
 }
 
 /** 「我的自定义」是已保存卡片实例的视图；删除实例即删除该项，不假装是独立模板库。 */
 export function customCardsIn(cards: readonly AnalysisCardNode[]): readonly AnalysisCardNode[] {
-  return cards.filter((card) => card.title?.kind === "custom");
+  return cards.filter(isCustomCard);
 }
