@@ -222,6 +222,8 @@ export const SwapGlyph = (props: IconProps) => <Icon {...props} d="M7 7h12l-3-3m
 export const SplitGlyph = (props: IconProps) => <Icon {...props} d="M4 4h16v16H4V4Zm8 0v16M4 12h16" />;
 export const SpacerGlyph = (props: IconProps) => <Icon {...props} d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4" />;
 export const GridGlyph = (props: IconProps) => <Icon {...props} d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" />;
+/** 工作台布局预设：高低错落的整页排布（与「调整行列」的等分方格区分开）。 */
+export const PresetGlyph = (props: IconProps) => <Icon {...props} d="M4 4h7v9H4V4Zm9 0h7v5h-7V4Zm0 7h7v9h-7v-9ZM4 15h7v5H4v-5Z" />;
 export const MoveGlyph = (props: IconProps) => <Icon {...props} d="M12 3v18M3 12h18M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" />;
 export const ResizeGlyph = (props: IconProps) => <Icon {...props} d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />;
 export const TrashGlyph = (props: IconProps) => <Icon {...props} d="M5 7h14M10 7V4.5h4V7m-7.5 0 1 13h9l1-13M10 11v6m4-6v6" />;
@@ -233,4 +235,6 @@ export const ChevronDown = (props: IconProps) => <Icon {...props} d="m6 9 6 6 6-
 export const ChevronLeft = (props: IconProps) => <Icon {...props} d="m15 6-6 6 6 6" />;
 export const ChevronRight = (props: IconProps) => <Icon {...props} d="m9 6 6 6-6 6" />;
 export const PlusGlyph = (props: IconProps) => <Icon {...props} d="M12 5v14M5 12h14" />;
+export const RefreshGlyph = (props: IconProps) => <Icon {...props} d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" />;
+export const InfoGlyph = (props: IconProps) => <Icon {...props} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-10.5V16m0-8.5v.01" />;
 export const XGlyph = (props: IconProps) => <Icon {...props} d="M6 6l12 12M18 6 6 18" />;

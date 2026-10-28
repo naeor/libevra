@@ -185,16 +185,28 @@ describe("编辑器静态渲染", () => {
   it("新建：显示空状态、五个目录分类与可选指标，默认在「数字指标」", () => {
     const html = text(wrap(<CardEditor today="2026-10-27" scope={scope(ENTRIES)} metrics={null} onSave={() => true} onClose={() => undefined} />));
     expect(html).toContain("新建自定义卡片");
-    for (const section of ["数字指标", "趋势与时间", "构成与排行", "分布与关系", "高级与综合"]) expect(html).toContain(section);
+    for (const section of ["数字指标", "趋势与时间", "构成与排行", "分布与关系", "其他专业分析"]) expect(html).toContain(section);
     expect(html).toContain("总支出");
-    expect(html).toContain("可展示为");
+    expect(html).toContain("还没有选择指标");
+  });
+
+  it("精简：默认不显示长说明、指标总数、技术上限与每项的展示方式清单（按需在说明里看）", () => {
+    const html = text(wrap(<CardEditor today="2026-10-27" scope={scope(ENTRIES)} metrics={null} onSave={() => true} onClose={() => undefined} />));
+    for (const removed of ["系统会推荐合适的卡片模板与尺寸", "最多 6 个数字", "从下方目录点", "共 81 项指标", "可展示为", "所选时间内的支出合计", "请先从目录里选择", "结果是一个数值的统计"]) {
+      expect(html, removed).not.toContain(removed);
+    }
+    // 每项都有「说明」按钮，定义与展示方式在那里按需展开。
+    const raw = wrap(<CardEditor today="2026-10-27" scope={scope(ENTRIES)} metrics={null} onSave={() => true} onClose={() => undefined} />);
+    expect(raw).toContain("「总支出」的说明");
+    expect(raw).toContain("搜索指标");
   });
 
   it("编辑组合卡片：已选内容、推荐模板与预览都在同一面板", () => {
     const card = composite("T3", [s("s1", "AN-I06", "line"), s("s2", "AN-B01", "number"), s("s3", "AN-B06", "number")]);
     const metrics = { columnWidth: 165, rowHeight: 116, gap: 12, columns: 2, chromeWidth: 28, chromeHeight: 54 };
     const html = text(wrap(<CardEditor card={card} currentSize={{ colSpan: 1, rowSpan: 2 }} today="2026-10-27" scope={scope(ENTRIES)} metrics={metrics} onSave={() => true} onClose={() => undefined} />));
-    expect(html).toContain("卡片内容（3 项）");
+    expect(html).toContain("已选内容");
+    expect(html).toContain("每日支出趋势");
     expect(html).toContain("图表 + 双数字");
     expect(html).toContain("推荐");
     expect(html).toContain("预览");

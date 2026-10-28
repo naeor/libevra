@@ -8,7 +8,7 @@
  * - 换模板、换展示形式、调整顺序、替换某一项都**不清空**其它配置；
  * - 只有点「添加到工作台 / 保存修改」才生成卡片；工作台本身仍要点「完成」才保存到本机。
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { endOfMonth, startOfMonth } from "@libellum/shared";
 import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layout";
 
@@ -39,7 +39,7 @@ import { customRangeProblem, previousMonth } from "./filters.js";
 import { CardTile } from "./Grid.js";
 import { directorySections, primarySectionOf, searchDirectory, type DirectorySectionId } from "./metricCatalog.js";
 import type { WorkbenchScope } from "./scope.js";
-import { ChartGlyph, ChevronDown, ChevronUp, ComposeGlyph, PlusGlyph, SearchGlyph, SwapGlyph, XGlyph } from "./ui.js";
+import { ChartGlyph, ChevronDown, ChevronUp, ComposeGlyph, InfoGlyph, PlusGlyph, SearchGlyph, SwapGlyph, XGlyph } from "./ui.js";
 
 export interface CardEditorProps {
   /** 编辑已有卡片；缺省为新建。 */
@@ -78,6 +78,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
   const [query, setQuery] = useState("");
   const [replacing, setReplacing] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [allTemplates, setAllTemplates] = useState(false);
   const catalogRef = useRef<HTMLDivElement | null>(null);
@@ -125,8 +126,15 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
     return buildCard(previewDraft, card, "preview");
   }, [slots, previewTemplate, name, pinned, from, to, card, rangeProblem]);
 
+  /** 需要用户看见的提示（超出上限、模板被替换、保存失败）。 */
   function say(text: string): void {
     setNotice(text);
+  }
+
+  /** 只读给读屏的操作结果（已添加 / 已移除 / 已替换）：画面上已经能看到变化，不再多一行字。 */
+  function announce(text: string): void {
+    setNotice(null);
+    setAnnouncement(text);
   }
 
   /** 加内容或改展示形式后，手动模板装不下了：退回推荐模板并说明（内容一项不丢）。 */
@@ -171,7 +179,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
       setSlots(next);
       afterChange(next);
       setReplacing(null);
-      say(t("statsWorkbench.editor.replaced", { from: analysisTitle(target.analysisId, t), to: analysisTitle(type.id, t) }));
+      announce(t("statsWorkbench.editor.replaced", { from: analysisTitle(target.analysisId, t), to: analysisTitle(type.id, t) }));
       return;
     }
     const blocked = limitProblem(family, null);
@@ -182,7 +190,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
     const next = [...slots, { id: nextSlotId(slots), analysisId: type.id, family }];
     setSlots(next);
     afterChange(next);
-    say(t("statsWorkbench.editor.added", { name: analysisTitle(type.id, t), count: next.length }));
+    announce(t("statsWorkbench.editor.added", { name: analysisTitle(type.id, t), count: next.length }));
   }
 
   function setFamily(slotId: string, family: ChartFamily): void {
@@ -213,13 +221,24 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
     const next = slots.filter((slot) => slot.id !== slotId);
     setSlots(next);
     if (replacing === slotId) setReplacing(null);
-    if (target !== undefined) say(t("statsWorkbench.editor.removed", { name: analysisTitle(target.analysisId, t) }));
+    if (target !== undefined) announce(t("statsWorkbench.editor.removed", { name: analysisTitle(target.analysisId, t) }));
   }
 
   function startReplace(slotId: string): void {
     setReplacing(slotId);
     requestAnimationFrame(() => catalogRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }
+
+  /** 容量只在接近或达到上限时提示（平时不展示技术上限）。 */
+  const capacityNote = (() => {
+    if (slots.length >= MAX_SLOTS) return t("statsWorkbench.editor.atLimitTotal", { count: MAX_SLOTS });
+    if (counts.numbers >= MAX_NUMBER_SLOTS) return t("statsWorkbench.editor.atLimitNumbers", { count: MAX_NUMBER_SLOTS });
+    if (counts.charts >= MAX_CHART_SLOTS) return t("statsWorkbench.editor.atLimitCharts", { count: MAX_CHART_SLOTS });
+    if (MAX_SLOTS - slots.length === 1) return t("statsWorkbench.editor.nearLimitTotal");
+    if (MAX_NUMBER_SLOTS - counts.numbers === 1) return t("statsWorkbench.editor.nearLimitNumbers");
+    if (MAX_CHART_SLOTS - counts.charts === 1) return t("statsWorkbench.editor.nearLimitCharts");
+    return null;
+  })();
 
   const problemText = (() => {
     if (readOnly) return t("statsWorkbench.editor.futureVersion");
@@ -230,6 +249,16 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
     }
     return t(`statsWorkbench.custom.problems.${problem}`);
   })();
+
+  // 底部只显示真正需要处理的问题：来自更新版本（只读）、提交时的配置错误、以及 say() 的提示。
+  // 「还没选内容」不算错误——添加按钮禁用即可。
+  const footerMessage: { readonly text: string; readonly tone: "error" | "warn" } | null = readOnly && problemText !== null
+    ? { text: problemText, tone: "warn" }
+    : submitted && problemText !== null && problem !== "empty"
+      ? { text: problemText, tone: "error" }
+      : notice === null
+        ? null
+        : { text: notice, tone: "warn" };
 
   return (
     <BottomSheet label={card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")} onClose={onClose} dialogClassName="sw-editor h-[94dvh] max-h-[94dvh] sm:h-[88dvh] sm:max-h-[88dvh] md:max-w-5xl">
@@ -247,12 +276,9 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
             else say(t("statsWorkbench.editor.saveFailed"));
           }}
         >
-          <header className="flex items-start gap-3 px-5 pt-4 pb-2 sm:px-6">
-            <span className="mt-0.5 shrink-0 text-brand-dark"><ComposeGlyph /></span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-section-title text-ink">{card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")}</h2>
-              <p className="mt-0.5 text-helper-relaxed text-muted">{t("statsWorkbench.editor.subtitle")}</p>
-            </div>
+          <header className="flex items-center gap-3 px-5 pt-4 pb-2 sm:px-6">
+            <span className="shrink-0 text-brand-dark"><ComposeGlyph /></span>
+            <h2 className="min-w-0 flex-1 truncate text-section-title text-ink">{card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")}</h2>
             <button type="button" className="sw-icon-button shrink-0" aria-label={t("statsWorkbench.edit.cancel")} onClick={close}>
               <XGlyph />
             </button>
@@ -262,12 +288,12 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
             {/* ---- 右栏（窄屏在上）：已选内容、模板、尺寸、预览、名称与时间 ---- */}
             <div className="flex min-h-0 flex-col gap-5 md:order-2 md:overflow-y-auto md:pb-4">
               <section aria-labelledby="sw-editor-selected" className="flex flex-col gap-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 id="sw-editor-selected" className="text-body font-medium text-ink">{t("statsWorkbench.editor.selected", { count: slots.length })}</h3>
-                  <span className="text-helper text-muted">{t("statsWorkbench.editor.limits", { numbers: MAX_NUMBER_SLOTS, charts: MAX_CHART_SLOTS })}</span>
+                <div className="flex items-center gap-2">
+                  <h3 id="sw-editor-selected" className="text-body font-medium text-ink">{t("statsWorkbench.editor.selectedTitle")}</h3>
+                  {slots.length === 0 ? null : <span className="sw-count-badge" aria-label={t("statsWorkbench.editor.selectedCount", { count: slots.length })}>{slots.length}</span>}
                 </div>
                 {slots.length === 0 ? (
-                  <p className="rounded-field border border-dashed border-line px-4 py-3 text-helper-relaxed text-muted">{t("statsWorkbench.editor.emptyHint")}</p>
+                  <p className="text-helper text-muted">{t("statsWorkbench.editor.emptyLight")}</p>
                 ) : (
                   <ol className="flex flex-col gap-2" aria-label={t("statsWorkbench.editor.selectedList")}>
                     {slots.map((slot, index) => (
@@ -286,6 +312,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                     ))}
                   </ol>
                 )}
+                {capacityNote === null ? null : <p className="text-helper text-muted">{capacityNote}</p>}
               </section>
 
               {slots.length === 0 ? null : (
@@ -304,6 +331,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                             role="radio"
                             aria-checked={active}
                             disabled={readOnly || fit.status === "excess"}
+                            title={t(`statsWorkbench.composite.templates.${id}.desc`)}
                             className={`sw-template ${active ? "sw-template-on" : ""}`}
                             onClick={() => setChosenTemplate(id === recommended && fit.status === "ok" ? null : id)}
                           >
@@ -321,7 +349,6 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                         {allTemplates ? t("statsWorkbench.editor.hideTemplates") : t("statsWorkbench.editor.showTemplates", { count: hiddenTemplates })}
                       </button>
                     ) : null}
-                    <p className="text-helper-relaxed text-muted">{t(`statsWorkbench.composite.templates.${template}.desc`)}</p>
                   </section>
 
                   <section aria-labelledby="sw-editor-size" className="flex flex-col gap-2">
@@ -345,14 +372,10 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                         );
                       })}
                     </div>
-                    <p className="text-helper-relaxed text-muted">
-                      {size === null
-                        ? null
-                        : sizeCheck === undefined || sizeCheck.fits
-                          ? t("statsWorkbench.editor.sizeOk", { size: sizeKey(size) })
-                          : t("statsWorkbench.editor.sizeWarn", { size: sizeKey(size), count: sizeCheck.hidden })}
-                      {recommendedSize !== null && size !== null && !sameSize(recommendedSize, size) ? ` ${t("statsWorkbench.editor.sizeRecommended", { size: sizeKey(recommendedSize) })}` : ""}
-                    </p>
+                    {/* 放得下时不再重复说明（尺寸按钮上已标「完整显示」）；放不下时才说清后果。 */}
+                    {size === null || sizeCheck === undefined || sizeCheck.fits ? null : (
+                      <p className="text-helper-relaxed text-warn-dark">{t("statsWorkbench.editor.sizeWarn", { size: sizeKey(size), count: sizeCheck.hidden })}</p>
+                    )}
                   </section>
 
                   <section aria-labelledby="sw-editor-preview" className="flex flex-col gap-2">
@@ -373,7 +396,6 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                         placeholder={previewCard === null ? "" : cardTitle({ ...previewCard, title: { kind: "preset" } }, t)}
                         className="min-h-11 rounded-field border border-line bg-surface px-3.5 py-2 text-base text-ink outline-none placeholder:text-muted focus:border-brand"
                       />
-                      <span>{t("statsWorkbench.editor.nameHint")}</span>
                     </label>
                     <fieldset className="flex flex-col gap-2" disabled={readOnly}>
                       <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.config.time")}</legend>
@@ -381,7 +403,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                         <button type="button" aria-pressed={!pinned} className={`sw-chip ${!pinned ? "sw-chip-on" : ""}`} onClick={() => setPinned(false)}>{t("statsWorkbench.config.inherit")}</button>
                         <button type="button" aria-pressed={pinned} className={`sw-chip ${pinned ? "sw-chip-on" : ""}`} onClick={() => setPinned(true)}>{t("statsWorkbench.config.pinned")}</button>
                       </div>
-                      {pinned ? <PinnedRange today={today} from={from} to={to} onFrom={setFrom} onTo={setTo} problem={rangeProblem} /> : <p className="text-helper-relaxed text-muted">{t("statsWorkbench.editor.sharedScope")}</p>}
+                      {pinned ? <PinnedRange today={today} from={from} to={to} onFrom={setFrom} onTo={setTo} problem={rangeProblem} /> : null}
                     </fieldset>
                   </section>
                 </>
@@ -406,9 +428,15 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
           </div>
 
           <footer className="flex flex-col gap-2 border-t border-line px-5 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:px-6">
-            <p role="status" aria-live="polite" className={`min-h-5 text-helper ${submitted && problemText !== null ? "text-danger" : "text-muted"}`}>
-              {submitted && problemText !== null ? problemText : notice ?? (problemText ?? t("statsWorkbench.editor.ready", { count: slots.length, template: t(`statsWorkbench.composite.templates.${template}.name`), size: size === null ? "" : sizeKey(size) }))}
-            </p>
+            {/* 平时只有「取消 / 添加」：没选内容时按钮禁用即可，不再常驻一行提示。
+                真正的问题（提交时的配置错误、超出上限、模板被替换、保存失败、来自更新版本）才显示出来；
+                添加 / 移除 / 替换的结果只读给读屏。 */}
+            {footerMessage === null ? null : (
+              <p role={footerMessage.tone === "error" ? "alert" : "status"} className={`text-helper ${footerMessage.tone === "error" ? "text-danger" : "text-warn-dark"}`}>
+                {footerMessage.text}
+              </p>
+            )}
+            <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
             <div className="flex gap-3">
               <button type="button" className="sw-pill flex-1" onClick={close}>{t("statsWorkbench.edit.cancel")}</button>
               <button type="submit" className="sw-pill sw-pill-primary flex-1" disabled={readOnly || slots.length === 0}>
@@ -477,7 +505,7 @@ function SlotRow({
         </button>
       </div>
       {families.length > 1 ? (
-        <div className="sw-chip-row mt-2" role="radiogroup" aria-label={t("statsWorkbench.editor.displayFor", { name: title })}>
+        <ScrollRail className="mt-2" role="radiogroup" label={t("statsWorkbench.editor.displayFor", { name: title })}>
           {families.map((family) => (
             <button
               key={family}
@@ -492,7 +520,7 @@ function SlotRow({
               {t(`statsWorkbench.config.families.${family}`)}
             </button>
           ))}
-        </div>
+        </ScrollRail>
       ) : (
         <p className="mt-1 pl-8 text-helper text-muted">{t("statsWorkbench.editor.onlyForm", { form: t(`statsWorkbench.config.families.${slot.family}`) })}</p>
       )}
@@ -528,15 +556,27 @@ function Catalog({
   const results = useMemo(() => searchDirectory(query, (key) => t(key as never)), [query, t]);
   const searching = query.trim() !== "";
   const active = sections.find((item) => item.id === section) ?? sections[0];
-  const totalMetrics = useMemo(() => new Set(sections.flatMap((item) => item.subgroups.flatMap((group) => group.ids))).size, [sections]);
+  const [sectionInfo, setSectionInfo] = useState(false);
+  const [openInfo, setOpenInfo] = useState<string | null>(null);
   const used = new Map<string, number>();
   for (const slot of slots) used.set(slot.analysisId, (used.get(slot.analysisId) ?? 0) + 1);
+  const item = (type: CardType, sectionTag: DirectorySectionId | null) => (
+    <CatalogItem
+      key={type.id}
+      type={type}
+      used={used.get(type.id) ?? 0}
+      combined={combined}
+      replacing={replacingName !== null}
+      disabled={disabled}
+      sectionTag={sectionTag}
+      infoOpen={openInfo === type.id}
+      onInfo={() => setOpenInfo((current) => (current === type.id ? null : type.id))}
+      onPick={() => onPick(type)}
+    />
+  );
   return (
     <section aria-labelledby="sw-editor-catalog" className="flex flex-col gap-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 id="sw-editor-catalog" className="text-body font-medium text-ink">{t("statsWorkbench.editor.catalog")}</h3>
-        <span className="text-helper text-muted">{t("statsWorkbench.editor.catalogCount", { count: totalMetrics })}</span>
-      </div>
+      <h3 id="sw-editor-catalog" className="text-body font-medium text-ink">{t("statsWorkbench.editor.catalog")}</h3>
       {replacingName === null ? null : (
         <p className="flex items-center gap-2 rounded-field bg-brand-soft px-3 py-2 text-helper text-ink">
           <SwapGlyph width={16} height={16} className="shrink-0 text-brand-dark" />
@@ -556,34 +596,45 @@ function Catalog({
         />
       </label>
       {searching ? null : (
-        <div className="sw-chip-row" role="tablist" aria-label={t("statsWorkbench.editor.sections")}>
-          {sections.map((item) => (
-            <button key={item.id} type="button" role="tab" aria-selected={active?.id === item.id} className={`sw-chip shrink-0 ${active?.id === item.id ? "sw-chip-on" : ""}`} onClick={() => onSection(item.id)}>
-              {t(`statsWorkbench.directory.sections.${item.id}`)}
+        <div className="flex items-center gap-1">
+          <ScrollRail className="min-w-0 flex-1" role="tablist" label={t("statsWorkbench.editor.sections")}>
+            {sections.map((entry) => (
+              <button key={entry.id} type="button" role="tab" aria-selected={active?.id === entry.id} className={`sw-chip shrink-0 ${active?.id === entry.id ? "sw-chip-on" : ""}`} onClick={() => { onSection(entry.id); setSectionInfo(false); }}>
+                {t(`statsWorkbench.directory.sections.${entry.id}`)}
+              </button>
+            ))}
+          </ScrollRail>
+          {active === undefined ? null : (
+            <button
+              type="button"
+              className={`sw-icon-button sw-icon-button-sm text-muted ${sectionInfo ? "sw-icon-button-on" : ""}`}
+              aria-expanded={sectionInfo}
+              aria-label={t("statsWorkbench.editor.sectionInfo", { name: t(`statsWorkbench.directory.sections.${active.id}`) })}
+              onClick={() => setSectionInfo((value) => !value)}
+            >
+              <InfoGlyph width={16} height={16} />
             </button>
-          ))}
+          )}
         </div>
       )}
       {searching ? (
         results.length === 0 ? (
           <p className="text-helper text-muted">{t("statsWorkbench.drawer.noMatches")}</p>
         ) : (
-          <ul className="flex flex-col gap-2" aria-label={t("statsWorkbench.editor.searchResults", { count: results.length })}>
-            {results.map((type) => (
-              <CatalogItem key={type.id} type={type} used={used.get(type.id) ?? 0} combined={combined} replacing={replacingName !== null} disabled={disabled} sectionTag={primarySectionOf(type.id)} onPick={() => onPick(type)} />
-            ))}
+          <ul className="sw-catalog-list" aria-label={t("statsWorkbench.editor.searchResults", { count: results.length })}>
+            {results.map((type) => item(type, primarySectionOf(type.id)))}
           </ul>
         )
       ) : active === undefined ? null : (
         <div className="flex flex-col gap-4" role="tabpanel">
-          <p className="text-helper-relaxed text-muted">{t(`statsWorkbench.directory.sectionDesc.${active.id}`)}</p>
+          {sectionInfo ? <p className="rounded-field bg-canvas px-3 py-2 text-helper-relaxed text-muted">{t(`statsWorkbench.directory.sectionDesc.${active.id}`)}</p> : null}
           {active.subgroups.map((group) => (
-            <div key={group.id} className="flex flex-col gap-2">
+            <div key={group.id} className="flex flex-col gap-1">
               <h4 className="text-helper font-medium text-muted">{t(`statsWorkbench.directory.subgroups.${group.id}` as "statsWorkbench.directory.subgroups.totals")}</h4>
-              <ul className="flex flex-col gap-2">
+              <ul className="sw-catalog-list">
                 {group.ids.map((id) => {
                   const type = cardType(id);
-                  return type === null ? null : <CatalogItem key={id} type={type} used={used.get(id) ?? 0} combined={combined} replacing={replacingName !== null} disabled={disabled} sectionTag={null} onPick={() => onPick(type)} />;
+                  return type === null ? null : item(type, null);
                 })}
               </ul>
             </div>
@@ -594,6 +645,41 @@ function Catalog({
   );
 }
 
+/**
+ * 横向滑轨：可以横向滑动，按项吸附；后面还有内容时右侧淡出提示（左侧同理），
+ * 用户不容易误以为分类只有屏幕上看到的那几个。
+ */
+export function ScrollRail({ children, className = "", role, label }: { readonly children: React.ReactNode; readonly className?: string; readonly role?: string; readonly label?: string }): React.JSX.Element {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [edges, setEdges] = useState({ start: false, end: false });
+  useEffect(() => {
+    const element = ref.current;
+    if (element === null) return;
+    const update = () => {
+      const max = element.scrollWidth - element.clientWidth;
+      setEdges({ start: element.scrollLeft > 2, end: element.scrollLeft < max - 2 });
+    };
+    update();
+    element.addEventListener("scroll", update, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(element);
+    return () => {
+      element.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+  }, []);
+  return (
+    <div
+      ref={ref}
+      role={role}
+      aria-label={label}
+      className={`sw-rail ${edges.start ? "sw-rail-fade-start" : ""} ${edges.end ? "sw-rail-fade-end" : ""} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 function CatalogItem({
   type,
   used,
@@ -601,6 +687,8 @@ function CatalogItem({
   replacing,
   disabled,
   sectionTag,
+  infoOpen,
+  onInfo,
   onPick,
 }: {
   readonly type: CardType;
@@ -609,6 +697,8 @@ function CatalogItem({
   readonly replacing: boolean;
   readonly disabled: boolean;
   readonly sectionTag: DirectorySectionId | null;
+  readonly infoOpen: boolean;
+  readonly onInfo: () => void;
   readonly onPick: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
@@ -616,30 +706,46 @@ function CatalogItem({
   const forms = type.families.map((family) => t(`statsWorkbench.config.families.${family}`)).join(t("statsWorkbench.editor.listSeparator"));
   const needsCombined = type.requiresCombined === true && !combined;
   const selectable = isSelectableAnalysis(type.id);
+  // 默认只有图标、名称与添加；只在必要时加一句很短的辅助说明（搜索结果标出所属分类、需综合折算）。
+  const helper = [sectionTag === null ? null : t(`statsWorkbench.directory.sections.${sectionTag}`), needsCombined ? t("statsWorkbench.editor.needsCombined") : null].filter((part): part is string => part !== null).join(" · ");
+  const infoId = `sw-metric-info-${type.id}`;
   return (
     <li className="sw-catalog-item">
-      <ChartGlyph family={type.families[0] ?? "number"} className="mt-0.5 shrink-0 text-brand-dark" width={20} height={20} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2">
-          <span className="min-w-0 truncate text-body text-ink">{title}</span>
-          {used > 0 ? <span className="shrink-0 rounded-full bg-brand-soft px-1.5 text-helper text-brand-dark">{t("statsWorkbench.editor.usedCount", { count: used })}</span> : null}
+      <div className="flex min-h-11 items-center gap-2.5">
+        <ChartGlyph family={type.families[0] ?? "number"} className="shrink-0 text-brand-dark" width={20} height={20} />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 truncate text-body text-ink">{title}</span>
+            {used > 0 ? <span className="shrink-0 rounded-full bg-brand-soft px-1.5 text-helper text-brand-dark">{t("statsWorkbench.editor.usedCount", { count: used })}</span> : null}
+          </span>
+          {helper === "" ? null : <span className="block truncate text-helper text-muted">{helper}</span>}
         </span>
-        <span className="block text-helper-relaxed text-muted">{t(`statsWorkbench.cards.${type.id as "AN-B01"}.desc`)}</span>
-        <span className="block truncate text-helper text-muted">
-          {sectionTag === null ? "" : `${t(`statsWorkbench.directory.sections.${sectionTag}`)} · `}
-          {t("statsWorkbench.editor.forms", { forms })}
-          {needsCombined ? ` · ${t("statsWorkbench.editor.needsCombined")}` : ""}
-        </span>
-      </span>
-      <button
-        type="button"
-        className="sw-add-button mt-0.5"
-        disabled={disabled || !selectable}
-        aria-label={replacing ? t("statsWorkbench.editor.replaceWith", { name: title }) : t("statsWorkbench.drawer.add", { name: title })}
-        onClick={onPick}
-      >
-        {replacing ? <SwapGlyph width={18} height={18} /> : <PlusGlyph width={18} height={18} />}
-      </button>
+        <button
+          type="button"
+          className={`sw-icon-button sw-icon-button-sm text-muted ${infoOpen ? "sw-icon-button-on" : ""}`}
+          aria-expanded={infoOpen}
+          aria-controls={infoId}
+          aria-label={t("statsWorkbench.editor.itemInfo", { name: title })}
+          onClick={onInfo}
+        >
+          <InfoGlyph width={16} height={16} />
+        </button>
+        <button
+          type="button"
+          className="sw-add-button"
+          disabled={disabled || !selectable}
+          aria-label={replacing ? t("statsWorkbench.editor.replaceWith", { name: title }) : t("statsWorkbench.drawer.add", { name: title })}
+          onClick={onPick}
+        >
+          {replacing ? <SwapGlyph width={18} height={18} /> : <PlusGlyph width={18} height={18} />}
+        </button>
+      </div>
+      {infoOpen ? (
+        <div id={infoId} className="pb-2 pl-[1.875rem] text-helper-relaxed text-muted">
+          <p>{t(`statsWorkbench.cards.${type.id as "AN-B01"}.desc`)}</p>
+          <p>{t("statsWorkbench.editor.forms", { forms })}</p>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -693,11 +799,7 @@ function PinnedRange({ today, from, to, onFrom, onTo, problem }: {
           <input type="date" value={to} onChange={(event) => onTo(event.target.value)} className="min-h-11 min-w-0 rounded-field border border-line bg-surface px-3 py-2 text-base text-ink" />
         </label>
       </div>
-      {problem === null ? (
-        <p className="text-helper text-muted">{t("statsWorkbench.config.pinnedHint")}</p>
-      ) : (
-        <p role="alert" className="text-helper text-danger">{t(`statsWorkbench.filter.problems.${problem as "invalid"}`)}</p>
-      )}
+      {problem === null ? null : <p role="alert" className="text-helper text-danger">{t(`statsWorkbench.filter.problems.${problem as "invalid"}`)}</p>}
     </div>
   );
 }

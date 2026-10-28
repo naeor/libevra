@@ -15,6 +15,7 @@ import { cardTitle } from "./cards.js";
 import { CARD_TYPES, CONTAINER_DEFAULT_SIZE, type CardGroup, type CardType, type LayoutObjectChoice } from "./catalog.js";
 import type { DragController, DragPayload } from "./dnd.js";
 import { readComposition } from "./composition.js";
+import { useDrawerGesture } from "./drawerGesture.js";
 import {
   ChartGlyph,
   ComposeGlyph,
@@ -22,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   PlusGlyph,
+  PresetGlyph,
   SpacerGlyph,
   SplitGlyph,
   XGlyph,
@@ -55,6 +57,7 @@ export function Drawer({
   onScopeRemove,
   onScopeDone,
   onScopeCancel,
+  onPresets,
 }: {
   readonly height: DrawerHeight;
   readonly onHeight: (height: DrawerHeight) => void;
@@ -72,6 +75,8 @@ export function Drawer({
   readonly onScopeRemove: (index: number) => void;
   readonly onScopeDone: () => void;
   readonly onScopeCancel: () => void;
+  /** 工作台布局预设入口（标题栏右侧的轻量按钮）；不传则不显示。 */
+  readonly onPresets?: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
   const [tab, setTab] = useState<"analysis" | "layout">("analysis");
@@ -96,47 +101,89 @@ export function Drawer({
 
   const scope = containerScope;
   const full = scope !== null && scope.children.length >= scope.max;
+  const gesture = useDrawerGesture({ expanded, onEnd: onHeight });
+  const toggleLabel = expanded ? t("statsWorkbench.drawer.collapse") : t("statsWorkbench.drawer.expand");
 
   return (
     <section
-      className={`sw-drawer ${expanded ? "sw-drawer-expanded" : "sw-drawer-collapsed"}`}
+      ref={gesture.sectionRef as React.RefObject<HTMLElement>}
+      className="sw-drawer"
+      data-state={expanded ? "expanded" : "collapsed"}
       aria-label={scope === null ? t("statsWorkbench.drawer.title") : t("statsWorkbench.containers.insideTitle", { name: scope.name })}
     >
-      <button
-        type="button"
-        className="sw-drawer-handle"
-        aria-expanded={expanded}
-        aria-label={expanded ? t("statsWorkbench.drawer.collapse") : t("statsWorkbench.drawer.expand")}
-        onClick={() => onHeight(expanded ? "collapsed" : "expanded")}
-      >
-        <span aria-hidden="true" />
-      </button>
+      {/* 把手 + 标题栏：整条都能上下拖动（跟手、松手吸附）；点标题或箭头切换。收起时只剩这一条，
+          不露出下面的标签与列表——是一条专门设计的「已收起工具栏」，不是被裁切的完整面板。 */}
+      <div className="sw-drawer-grab" {...gesture.grabProps}>
+        <span className="sw-drawer-grip" aria-hidden="true" />
+        <div className="sw-drawer-head">
+          <div className="sw-drawer-layers">
+            <button
+              type="button"
+              className="sw-drawer-title"
+              inert={expanded}
+              aria-expanded={false}
+              onClick={() => onHeight("expanded")}
+            >
+              <span className="sw-drawer-title-icon" aria-hidden="true">
+                <PlusGlyph width={16} height={16} />
+              </span>
+              <span className="min-w-0 truncate">
+                {scope === null ? t("statsWorkbench.drawer.collapsedTitle") : t("statsWorkbench.containers.insideTitle", { name: scope.name })}
+              </span>
+            </button>
+            <div className="sw-drawer-open-layer" inert={!expanded}>
+              {scope === null ? (
+                <div className="sw-segment" role="tablist" aria-label={t("statsWorkbench.drawer.title")}>
+                  {(["analysis", "layout"] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab === key}
+                      className={tab === key ? "sw-segment-on" : ""}
+                      onClick={() => setTab(key)}
+                    >
+                      {t(`statsWorkbench.drawer.${key}`)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="min-w-0">
+                  <p className="truncate text-body font-medium text-ink">{t("statsWorkbench.containers.insideTitle", { name: scope.name })}</p>
+                  <p className="truncate text-helper text-muted">
+                    {scope.children.length < scope.min
+                      ? t("statsWorkbench.containers.needMore", { count: scope.min - scope.children.length })
+                      : t("statsWorkbench.containers.range", { count: scope.children.length, max: scope.max })}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+          {scope === null ? (
+            onPresets === undefined ? null : (
+              <button type="button" className="sw-drawer-preset" onClick={onPresets}>
+                <PresetGlyph width={16} height={16} aria-hidden="true" />
+                <span>{t("statsWorkbench.presets.entry")}</span>
+              </button>
+            )
+          ) : (
+            <div className="flex shrink-0 gap-2">
+              <button type="button" className="sw-pill sw-pill-sm" onClick={onScopeCancel}>
+                {scope.isNew ? t("statsWorkbench.containers.cancelNew") : t("statsWorkbench.edit.cancel")}
+              </button>
+              <button type="button" className="sw-pill sw-pill-sm sw-pill-primary" disabled={scope.children.length < scope.min} onClick={onScopeDone}>
+                {t("statsWorkbench.edit.done")}
+              </button>
+            </div>
+          )}
+          <button type="button" className="sw-icon-button sw-drawer-toggle" aria-expanded={expanded} aria-label={toggleLabel} onClick={() => onHeight(expanded ? "collapsed" : "expanded")}>
+            <ChevronUp className="sw-drawer-chevron" />
+          </button>
+        </div>
+      </div>
 
       {scope === null ? (
         <>
-          <header className="flex items-center justify-between gap-3 px-5">
-            <div className="sw-segment" role="tablist" aria-label={t("statsWorkbench.drawer.title")}>
-              {(["analysis", "layout"] as const).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === key}
-                  className={tab === key ? "sw-segment-on" : ""}
-                  onClick={() => {
-                    setTab(key);
-                    onHeight("expanded");
-                  }}
-                >
-                  {t(`statsWorkbench.drawer.${key}`)}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="sw-icon-button" aria-label={expanded ? t("statsWorkbench.drawer.collapse") : t("statsWorkbench.drawer.expand")} onClick={() => onHeight(expanded ? "collapsed" : "expanded")}>
-              {expanded ? <ChevronDown /> : <ChevronUp />}
-            </button>
-          </header>
-
           {/* 收起时内容仍保留在页面里（高度为 0）：从抽屉拖出时抽屉会自动收起，若此时卸载拖动源，
               触摸事件就再也传不回来，拖动会中途失效。 */}
           {(
@@ -220,25 +267,7 @@ export function Drawer({
         </>
       ) : (
         <>
-          <header className="flex items-center justify-between gap-3 px-5">
-            <div className="min-w-0">
-              <p className="truncate text-body font-medium text-ink">{t("statsWorkbench.containers.insideTitle", { name: scope.name })}</p>
-              <p className="text-helper text-muted">
-                {scope.children.length < scope.min
-                  ? t("statsWorkbench.containers.needMore", { count: scope.min - scope.children.length })
-                  : t("statsWorkbench.containers.range", { count: scope.children.length, max: scope.max })}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button type="button" className="sw-pill" onClick={onScopeCancel}>
-                {scope.isNew ? t("statsWorkbench.containers.cancelNew") : t("statsWorkbench.edit.cancel")}
-              </button>
-              <button type="button" className="sw-pill sw-pill-primary" disabled={scope.children.length < scope.min} onClick={onScopeDone}>
-                {t("statsWorkbench.edit.done")}
-              </button>
-            </div>
-          </header>
-          <div className="sw-drawer-body">
+          <div className="sw-drawer-body" aria-hidden={expanded ? undefined : true}>
             <ol className="flex flex-col gap-2 px-5 pt-2" aria-label={t("statsWorkbench.containers.childrenList")}>
               {scope.children.length === 0 ? <li className="text-helper text-muted">{t("statsWorkbench.containers.emptyHint")}</li> : null}
               {scope.children.map((child, index) => (

@@ -261,8 +261,7 @@
 .sw-chip:focus-visible,
 .sw-icon-button:focus-visible,
 .sw-tile:focus-visible,
-.sw-add-button:focus-visible,
-.sw-drawer-handle:focus-visible {
+.sw-add-button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 4px var(--color-focus-ring);
 }
@@ -541,45 +540,261 @@
   font-weight: 500;
 }
 
+/* ---- 统计控制条（分析主页默认一行） ---- */
+
+.sw-statbar {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 0.25rem 0.25rem 0.25rem 0.375rem;
+}
+
+.sw-statbar-main {
+  display: flex;
+  min-width: 0;
+  min-height: 2.25rem;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: calc(var(--radius-field) - 0.25rem);
+  padding: 0 0.5rem;
+  text-align: left;
+  transition: background-color 160ms ease;
+}
+
+.sw-statbar-main:hover {
+  background: var(--color-canvas);
+}
+
+.sw-statbar-currency {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  padding: 0.0625rem 0.5rem;
+  color: var(--color-brand-dark);
+  font-size: var(--text-helper);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.sw-statbar-action {
+  display: inline-flex;
+  min-height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0 0.625rem;
+  color: var(--color-brand-dark);
+  font-size: var(--text-helper);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 160ms ease;
+}
+
+.sw-statbar-action:hover:not(:disabled) {
+  background: var(--color-brand-soft);
+}
+
+.sw-statbar-action:disabled {
+  opacity: 0.6;
+}
+
+.sw-statbar-settings {
+  color: var(--color-muted);
+}
+
+.sw-statbar-notice {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-field);
+  background: var(--color-warn-soft);
+  padding: 0.5rem 0.875rem;
+  color: var(--color-ink);
+  font-size: var(--text-helper);
+  line-height: 1.45;
+}
+
+.sw-statbar-main:focus-visible,
+.sw-statbar-action:focus-visible,
+.sw-statbar-notice:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-spin {
+  animation: sw-spin 900ms linear infinite;
+}
+
+@keyframes sw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-spin {
+    animation: none;
+  }
+}
+
 /* ---- 底部卡片抽屉 ---- */
 
+/*
+ * 高度由进度 --sw-drawer-p（0 收起 · 1 展开）在两端之间插值：拖动时由手势逐帧写入内联变量（跟手，
+ * 不过渡），松手后撤掉内联值，按 data-state 吸附到一端（高度过渡）。收起端恰好容纳把手 + 标题栏，
+ * 下面的标签与列表被裁在 overflow 里，不再露出半截面板。底部安全区（iPhone 主屏指示条）始终留出。
+ */
 .sw-drawer {
+  --sw-drawer-min: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  --sw-drawer-max: min(48dvh, 27rem);
+  --sw-drawer-p: 0;
   display: flex;
+  /* 与工作台同宽（max-w-md）：宽屏上不再拉满整行，标题与箭头留在内容两侧。 */
+  width: 100%;
+  max-width: 28rem;
+  margin-inline: auto;
   flex-shrink: 0;
   flex-direction: column;
+  overflow: hidden;
+  height: calc(var(--sw-drawer-min) + (var(--sw-drawer-max) - var(--sw-drawer-min)) * var(--sw-drawer-p));
   border-top-left-radius: var(--radius-sheet);
   border-top-right-radius: var(--radius-sheet);
-  border-top: 1px solid var(--color-line);
+  border: 1px solid var(--color-line);
+  border-bottom-width: 0;
   background: var(--color-surface);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow: var(--shadow-sheet);
-  transition: height 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: height 280ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.sw-drawer-expanded {
-  height: min(48dvh, 27rem);
+.sw-drawer[data-state="expanded"] {
+  --sw-drawer-p: 1;
 }
 
-.sw-drawer-collapsed {
-  height: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+.sw-drawer[data-dragging],
+.sw-drawer[data-dragging] .sw-drawer-title,
+.sw-drawer[data-dragging] .sw-drawer-open-layer,
+.sw-drawer[data-dragging] .sw-drawer-chevron,
+.sw-drawer[data-dragging] .sw-drawer-body {
+  transition: none;
 }
 
-.sw-drawer-handle {
+/* 把手 + 标题栏：整条认领上下拖动（touch-action: none 让手机浏览器不把它当页面滚动）。 */
+.sw-drawer-grab {
   display: flex;
-  width: 100%;
-  height: 1.25rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.sw-drawer[data-dragging] .sw-drawer-grab {
+  cursor: grabbing;
+}
+
+.sw-drawer-grip {
+  display: block;
+  width: 2.25rem;
+  height: 0.25rem;
+  margin: 0.5rem auto 0.25rem;
+  border-radius: 999px;
+  background: var(--color-line-strong);
+  opacity: 0.6;
+}
+
+.sw-drawer-head {
+  display: flex;
+  height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem 0 1.25rem;
+}
+
+/* 收起标题与展开标签叠在同一格里，按进度交叉淡入（拖动时随手指，点击时随过渡）。 */
+.sw-drawer-layers {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+}
+
+.sw-drawer-layers > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.sw-drawer-title {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.625rem;
+  justify-self: start;
+  max-width: 100%;
+  border-radius: 999px;
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  font-weight: 500;
+  opacity: clamp(0, calc(1 - var(--sw-drawer-p) * 2), 1);
+  transition: opacity 200ms ease;
+}
+
+.sw-drawer-title-icon {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
 }
 
-.sw-drawer-handle > span {
-  width: 2.25rem;
-  height: 0.25rem;
+.sw-drawer-open-layer {
+  display: flex;
+  align-items: center;
+  opacity: clamp(0, calc(var(--sw-drawer-p) * 2 - 1), 1);
+  transition: opacity 200ms ease;
+}
+
+.sw-drawer-chevron {
+  transform: rotate(calc(var(--sw-drawer-p) * 180deg));
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* 「预设」：次级、轻量，不与「完成」争强调；窄屏也只占一个短按钮。 */
+.sw-drawer-preset {
+  display: inline-flex;
+  min-height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.375rem;
   border-radius: 999px;
-  background: var(--color-line-strong);
-  opacity: 0.55;
+  padding: 0 0.75rem;
+  color: var(--color-brand-dark);
+  font-size: var(--text-helper);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 160ms ease;
+}
+
+.sw-drawer-preset:hover {
+  background: var(--color-brand-soft);
+}
+
+.sw-drawer-title:focus-visible,
+.sw-drawer-preset:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
 }
 
 .sw-drawer-body {
@@ -589,6 +804,13 @@
   overscroll-behavior: contain;
   padding-bottom: 1rem;
   padding-top: 0.5rem;
+  opacity: clamp(0, calc(var(--sw-drawer-p) * 1.6 - 0.4), 1);
+  transition: opacity 200ms ease;
+}
+
+.sw-pill-sm {
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
 }
 
 .sw-tiles {
@@ -655,6 +877,10 @@
 @media (prefers-reduced-motion: reduce) {
   .sw-collapse,
   .sw-drawer,
+  .sw-drawer-title,
+  .sw-drawer-open-layer,
+  .sw-drawer-chevron,
+  .sw-drawer-body,
   .sw-edit-tile,
   .sw-page-dot,
   .sw-chip,
@@ -865,14 +1091,71 @@
   stroke-dasharray: 2 1.5;
 }
 
-.sw-catalog-item {
+/* 指标目录：一组紧凑的行（不再每项一张带边框的卡片），行间细分隔线。 */
+.sw-catalog-list {
   display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
+  flex-direction: column;
   border-radius: var(--radius-field);
   border: 1px solid var(--color-line);
   background: var(--color-surface);
-  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+}
+
+.sw-catalog-item {
+  padding: 0.125rem 0.5rem 0.125rem 0.75rem;
+}
+
+.sw-catalog-item + .sw-catalog-item {
+  border-top: 1px solid var(--color-line);
+}
+
+.sw-catalog-item .sw-add-button {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.sw-count-badge {
+  display: inline-flex;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  padding: 0 0.375rem;
+  color: var(--color-brand-dark);
+  font-size: var(--text-helper);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 横向滑轨：按项吸附；还有内容的一侧淡出，提示可以继续滑。 */
+.sw-rail {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-bottom: 0.125rem;
+  --sw-rail-fade-start: 0px;
+  --sw-rail-fade-end: 0px;
+  /* 遮罩只看不透明度：用任一不透明的语义色即可（不写颜色字面量）。 */
+  mask-image: linear-gradient(to right, transparent 0, var(--color-ink) var(--sw-rail-fade-start), var(--color-ink) calc(100% - var(--sw-rail-fade-end)), transparent 100%);
+}
+
+.sw-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.sw-rail > * {
+  scroll-snap-align: start;
+}
+
+.sw-rail-fade-start {
+  --sw-rail-fade-start: 1.5rem;
+}
+
+.sw-rail-fade-end {
+  --sw-rail-fade-end: 2.25rem;
 }
 
 .sw-preview .sw-card {

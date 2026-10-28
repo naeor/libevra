@@ -31,7 +31,6 @@ import { TabPage } from "../components/Layouts.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { useI18n } from "../i18n/index.js";
 import { formatLocalDate } from "../lib/datetime.js";
-import { currencyName } from "../lib/format.js";
 import { useLedger } from "../lib/queries.js";
 import { CardActionsContext, cardTitle, type CardActions } from "../statsWorkbench/cards.js";
 import { cardType, CONTAINER_DEFAULT_SIZE, CONTAINER_SIZES, type LayoutObjectChoice } from "../statsWorkbench/catalog.js";
@@ -40,7 +39,7 @@ import { defaultWorkbench, newCard, newObjectId } from "../statsWorkbench/defaul
 import { cellAt, useDragController, type DragPayload, type DragState } from "../statsWorkbench/dnd.js";
 import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWorkbench/Drawer.js";
 import { FilterPanel, timeLabel, type FilterOption } from "../statsWorkbench/FilterPanel.js";
-import { FxStatus } from "../statsWorkbench/FxStatus.js";
+import { StatBar, StatsSettingsSheet } from "../statsWorkbench/StatsControls.js";
 import { customRangeProblem, filterIds, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
 import { BrowseGrid, EditGrid, GRID_GAP, gridMetricsFor, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
 import { useScope, useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
@@ -168,6 +167,7 @@ function AccountWorkbench(): React.JSX.Element {
   const [moveFor, setMoveFor] = useState<string | null>(null);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsedOpen, setCollapsedOpen] = useState<string | null>(null);
   const [drawerHeight, setDrawerHeight] = useState<DrawerHeight>("expanded");
   const drawerBeforeDrag = useRef<DrawerHeight | null>(null);
@@ -646,10 +646,11 @@ function AccountWorkbench(): React.JSX.Element {
     setParams((previous) => writeFilters(previous, draft), { replace: true });
   };
 
+  // 币种与统计方式在下方统计控制条上显示，这里只写时间与维度，不重复。
   const summary = `${timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
     from: formatLocalDate(scope.range.from),
     to: formatLocalDate(scope.range.to),
-  })} · ${scope.combined ? t("statsWorkbench.summary.combined", { currency: scope.currency }) : t("statsWorkbench.summary.original", { currency: currencyName(scope.currency) })}${dimensionSummaryOf(filters)}`;
+  })}${dimensionSummaryOf(filters)}`;
 
   /**
    * W5：生效条件摘要必须让用户知道「排除了什么」。维度不限时不写，空集写 0，
@@ -820,7 +821,8 @@ function AccountWorkbench(): React.JSX.Element {
               {draftPending ? <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-helper text-warn-dark">{t("statsWorkbench.summary.pending")}</span> : null}
             </button>
             {urlProblem === null ? null : <p role="alert" className="mx-6 mt-3 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-ink">{t("statsWorkbench.filter.invalidUrl")} {t(`statsWorkbench.filter.problems.${urlProblem}`)}</p>}
-            {scope.fx === null ? null : <FxStatus fx={scope.fx} />}
+            {/* 统计控制区默认一行：币种与方式、刷新、设置入口；来源、原币合计、未折算清单等在「统计设置」里。 */}
+            <StatBar scope={scope} onSettings={() => setSettingsOpen(true)} />
             {scope.coverageGap === null ? null : scope.repairing ? (
               <p role="status" className="mx-6 mt-3 rounded-field bg-brand-soft px-4 py-3 text-helper-relaxed text-ink">
                 {t("statsWorkbench.coverage.repairing")}
@@ -962,6 +964,17 @@ function AccountWorkbench(): React.JSX.Element {
         ) : null}
 
         {discardOpen ? <DiscardSheet onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
+        {settingsOpen ? (
+          <StatsSettingsSheet
+            scope={scope}
+            currenciesInLedger={scope.ledgerCurrencies ?? currenciesUsed(scope.entries)}
+            onChoose={({ combined, currency }) => {
+              // 统计方式与币种立即生效，写入地址栏（与筛选面板同一组参数）；未应用的筛选草稿跟着生效条件走。
+              setParams((previous) => writeFilters(previous, { ...readFilters(previous), combined, currency }), { replace: true });
+            }}
+            onClose={() => setSettingsOpen(false)}
+          />
+        ) : null}
         {collapsedOpen === null ? null : (
           <CollapsedContainerSheetFor
             documents={documents}

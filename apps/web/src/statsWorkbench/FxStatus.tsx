@@ -11,12 +11,12 @@ import { useI18n } from "../i18n/index.js";
 import { fxMoney } from "../lib/fxView.js";
 import type { FxRangeView } from "./scope.js";
 
-export function FxStatus({ fx }: { readonly fx: FxRangeView }): React.JSX.Element {
+export function FxStatus({ fx, embedded = false }: { readonly fx: FxRangeView; readonly embedded?: boolean }): React.JSX.Element {
   const { t } = useI18n();
   const result = fx.result;
   const complete = result !== undefined && result.complete && fx.sourceComplete === true;
   return (
-    <section className="mx-6 mt-3 flex flex-col gap-2 rounded-field border border-line bg-surface px-4 py-3" aria-label={t("fx.title")}>
+    <section className={`${embedded ? "" : "mx-6 mt-3 "}flex flex-col gap-2 rounded-field border border-line bg-surface px-4 py-3`} aria-label={t("fx.title")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-helper text-muted">
           {t("fx.target", { currency: fx.target })}

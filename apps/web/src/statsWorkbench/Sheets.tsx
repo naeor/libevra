@@ -19,7 +19,7 @@ import {
   TrashGlyph,
 } from "./ui.js";
 
-function SheetHeader({ title, subtitle }: { readonly title: string; readonly subtitle?: string }): React.JSX.Element {
+export function SheetHeader({ title, subtitle }: { readonly title: string; readonly subtitle?: string }): React.JSX.Element {
   return (
     <header className="px-6 pt-5 pb-2">
       <span className="mx-auto mb-3 block h-1 w-10 rounded-full bg-line" aria-hidden="true" />
