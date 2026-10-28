@@ -354,6 +354,27 @@ describe("保存、重新加载与编辑（D 命令 + 本机存储）", () => {
     expect(undone.state.layout).toBe(moved.state.layout);
   });
 
+  it("右列的 1×1 组合卡片加内容后变成 2×1：放到同一行行首并重排，保存成功（1.17.10 浏览器验收发现的回归）", () => {
+    const card = buildCard({ template: "T1", slots: [INCOME, EXPENSE], name: "" }, undefined, "pair")!;
+    const start = startSession(defaultWorkbench());
+    const baseCols = start.layout.main.baseCols;
+    const inserted = command(start, { type: "insert-card", card, size: { colSpan: 1, rowSpan: 1 }, collisionPolicy: "reflow" });
+    // 放到第二列（右列）
+    const moved = command(inserted.state, { type: "move", objectId: "pair", anchor: 2, collisionPolicy: "reflow" });
+    expect(moved.ok).toBe(true);
+    expect((geometryOf(moved.state, "pair")!.anchor - 1) % baseCols).toBe(1);
+    const edited = buildCard({ template: "T7", slots: [INCOME, EXPENSE, DAILY_AVG], name: "" }, moved.state.content.cards.find((item) => item.objectId === "pair"))!;
+    const result = reconfigureCard(moved.state, edited, { colSpan: 2, rowSpan: 1 });
+    expect(result.ok).toBe(true);
+    const placed = geometryOf(result.state, "pair")!;
+    expect(placed).toMatchObject({ colSpan: 2, rowSpan: 1 });
+    expect((placed.anchor - 1) % baseCols).toBe(0);
+    expect(readComposition(result.state.content.cards.find((item) => item.objectId === "pair")!).slots).toEqual([INCOME, EXPENSE, DAILY_AVG]);
+    // 一步撤销回到编辑前
+    const undone = command(result.state, { type: "undo" });
+    expect(undone.state.layout).toBe(moved.state.layout);
+  });
+
   it("编辑普通目录卡片且仍是单项时不写组合配置（不把目录卡片变成自定义卡片）", () => {
     const plain = newCard("AN-I06", "plain");
     const edited = buildCard({ template: "single", slots: [slot("s1", "AN-I06", "table")], name: "" }, plain)!;

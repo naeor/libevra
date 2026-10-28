@@ -241,7 +241,10 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
             setSubmitted(true);
             if (readOnly || problem !== null || size === null) return;
             const built = buildCard(draft, card);
-            if (built !== null && onSave(built, size)) close();
+            if (built === null) return;
+            // 工作台放不下时面板不关，并在面板里说明（页面的提示条在面板下面看不到）。
+            if (onSave(built, size)) close();
+            else say(t("statsWorkbench.editor.saveFailed"));
           }}
         >
           <header className="flex items-start gap-3 px-5 pt-4 pb-2 sm:px-6">

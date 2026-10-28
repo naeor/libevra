@@ -365,6 +365,7 @@ const statsWorkbench = {
     added: "已添加「{{name}}」（共 {{count}} 项）",
     replaced: "已把「{{from}}」换成「{{to}}」",
     removed: "已移除「{{name}}」",
+    saveFailed: "工作台里放不下这个尺寸，没有保存。请换一个尺寸，或先在工作台里腾出位置。",
     futureVersion: "这张卡片来自更新的版本，为避免覆盖新内容，请在新版本中编辑。",
     ready: "{{count}} 项内容 · {{template}} · {{size}}",
     save: "保存修改",

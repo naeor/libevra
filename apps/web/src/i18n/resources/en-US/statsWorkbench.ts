@@ -364,6 +364,7 @@ const statsWorkbench: Messages<typeof zh> = {
     added: "Added “{{name}}” ({{count}} items)",
     replaced: "Replaced “{{from}}” with “{{to}}”",
     removed: "Removed “{{name}}”",
+    saveFailed: "That size doesn’t fit the workspace, so nothing was saved. Pick another size or make room first.",
     futureVersion: "This card comes from a newer version. Edit it there so its newer content is not overwritten.",
     ready: "{{count}} items · {{template}} · {{size}}",
     save: "Save changes",

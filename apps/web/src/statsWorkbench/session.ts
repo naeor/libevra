@@ -145,7 +145,14 @@ export function reconfigureCard(state: EditorState, card: AnalysisCardNode, size
   if (!resized.ok) {
     const removed = command(updated.state, { type: "delete", objectId: card.objectId });
     if (!removed.ok) return { ok: false, state, problem: removed.problem };
-    resized = command(removed.state, { type: "insert-card", card, anchor: geometry.anchor, size, collisionPolicy: "reflow" });
+    // 放回原位置；变宽后从原列放不下（例如右列的 1×1 改成 2×1）就放到同一行的行首，再不行交给 D 找最早的空位。
+    const baseCols = removed.state.layout.main.baseCols;
+    const rowStart = geometry.anchor - ((geometry.anchor - 1) % baseCols);
+    const anchors: (number | undefined)[] = [geometry.anchor, ...(rowStart === geometry.anchor ? [] : [rowStart]), undefined];
+    for (const anchor of anchors) {
+      resized = command(removed.state, { type: "insert-card", card, size, collisionPolicy: "reflow", ...(anchor === undefined ? {} : { anchor }) });
+      if (resized.ok) break;
+    }
     if (!resized.ok) return { ok: false, state, problem: resized.problem };
   }
   const past = [...state.history.past, { content: state.content, layout: state.layout, selection: state.selection }].slice(-state.history.limit);
