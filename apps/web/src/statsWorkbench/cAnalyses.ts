@@ -13,6 +13,8 @@ import {
   annualCalendarOf,
   boxplotByCategory,
   bubblesOf,
+  buildHierarchy,
+  buildHierarchySankey,
   buildHistogram,
   buildMatrix,
   contributionBetween,
@@ -23,11 +25,13 @@ import {
   noExpenseStreaksOf,
   paretoOf,
   pivotOf,
+  quantileOfSorted,
   rankMigration,
   rankRecords,
   scatterOf,
   shareChangeOf,
   smallMultiplesOf,
+  sortMinorAscending,
   summariseDistribution,
   type AdvancedRecord,
   type DraftBoxplotResult,
@@ -41,6 +45,7 @@ import {
   type DraftPivotResult,
   type DraftRankingResult,
   type DraftRational,
+  type DraftSankeyResult,
   type DraftScatterResult,
   type DraftSmallMultiplesResult,
   type NoExpenseDay,
@@ -172,6 +177,27 @@ export function expenseDistribution(records: readonly AdvancedRecord[]): { reado
   const histogram = buildHistogram(values, { targetBins: 10 });
   const fences = iqrFences(values);
   return { summary, histogram, upperFence: fences.upperFence, lowerFence: fences.lowerFence, outliers: fences.outliers };
+}
+
+/**
+ * P06 的桑基读法（1.17.12）：用 shared 的层级计算（`buildHierarchy` + `buildHierarchySankey`）画「支出总额 → 分类」。
+ * 当前分类只有一层，关系表为空：结果 `isRealHierarchy = false`，界面写明「分类目前只有一层」；守恒校验不通过时不画。
+ * 不画「收入 → 支付方式 → 分类」之类拼接出来的资金流向（所有者规格 §23）。
+ */
+export function categorySankey(records: readonly AdvancedRecord[]): DraftSankeyResult | null {
+  const expenses = records.filter((record) => record.kind === "expense");
+  if (expenses.length === 0) return null;
+  return buildHierarchySankey(buildHierarchy(expenses, [], { metric: "expense" }));
+}
+
+/**
+ * A10 的「第 90 百分位」读法（1.17.12）：单笔支出升序后按 Type 7 线性插值取 p = 9/10，
+ * 与四分位、中位数同一方法（shared `quantileOfSorted`），不另写分位公式。没有支出时为 `null`。
+ */
+export function expensePercentile(records: readonly AdvancedRecord[], numerator: bigint, denominator: bigint): { readonly value: DraftRational; readonly sampleCount: number } | null {
+  const sorted = sortMinorAscending(records.filter((record) => record.kind === "expense").map((record) => record.amountMinor));
+  const value = quantileOfSorted(sorted, { numerator, denominator });
+  return value === null ? null : { value, sampleCount: sorted.length };
 }
 
 export function quartile(summary: DraftDistributionSummary, numerator: bigint, denominator: bigint): DraftRational | null {

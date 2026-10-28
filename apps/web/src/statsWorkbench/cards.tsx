@@ -47,10 +47,12 @@ import { useFxRange } from "../lib/fxView.js";
 import { displayCategoryName } from "../lib/presetNames.js";
 import { defaultKindFor } from "@libellum/shared/analysis/catalog";
 import { ADVANCED_CARD_IDS, AdvancedCardView } from "./advancedCards.js";
-import { C_CARD_IDS, CCardView } from "./cCards.js";
+import { C_CARD_IDS, CCardView, CNumber } from "./cCards.js";
+import { CumulativeCompareChart } from "../components/charts/AdvancedCharts.js";
 import { cardType, resolveDisplay, type CardType, type ChartFamily } from "./catalog.js";
 import { isMultiSlot, readComposition } from "./composition.js";
 import { CardSpaceContext, useCardSpace, useSlotMode } from "./slotContext.js";
+import { cardWindow, resolveWindow, windowOptions, type RelativeWindow } from "./timeWindows.js";
 import {
   agentAResult,
   categorySeriesFor,
@@ -93,14 +95,19 @@ export interface CardBodyProps {
 export function displayCard(card: AnalysisCardNode): AnalysisCardNode {
   const shown = resolveDisplay(card.analysis.analysisId, card.chart.chartFamily as ChartFamily);
   if (shown.analysisId === card.analysis.analysisId) return card;
-  return { ...card, analysis: { analysisId: shown.analysisId, params: {} }, chart: { chartFamily: shown.family } };
+  // 相对时间窗口随卡片走（交给别名分析画时也按同一段日期读取）。
+  return { ...card, analysis: { analysisId: shown.analysisId, params: {} }, chart: { chartFamily: shown.family, ...windowOptions(card) } };
 }
 
 export { SlotPresentationContext } from "./slotContext.js";
 
-/** 卡片实际使用的时间范围：卡片自带窗口 > 用户固定的区间 > 顶部筛选。 */
+/**
+ * 卡片实际使用的时间范围：分析自带窗口（近 12 个月 / 全年）> 卡片的相对窗口（1.17.12，例如「本月至今」）
+ * > 用户固定的区间 > 顶部筛选。
+ */
 export function cardRange(card: AnalysisCardNode, scope: WorkbenchScope): DateRange {
   const type = cardType(card.analysis.analysisId);
+  const window = cardWindow(card);
   if (type?.ownWindow === "12m") {
     const thisMonth = startOfMonth(scope.today);
     let from = thisMonth;
@@ -108,12 +115,15 @@ export function cardRange(card: AnalysisCardNode, scope: WorkbenchScope): DateRa
     return { from, to: scope.today };
   }
   if (type?.ownWindow === "year") {
-    // 全年日历：所选时间（或固定区间）结束日所在的自然年；今年只读到今天，未来日期由日历标为「未来」。
-    const base = card.rangePolicy === "pinned" && card.pinnedRange !== undefined && customRangeProblem(card.pinnedRange.from, card.pinnedRange.to) === null ? card.pinnedRange.to : scope.range.to;
+    // 全年日历：所选时间（相对窗口或固定区间）结束日所在的自然年；今年只读到今天，未来日期由日历标为「未来」。
+    const base = window !== null
+      ? resolveWindow(window, scope.today).to
+      : card.rangePolicy === "pinned" && card.pinnedRange !== undefined && customRangeProblem(card.pinnedRange.from, card.pinnedRange.to) === null ? card.pinnedRange.to : scope.range.to;
     const year = base.slice(0, 4);
     const end = `${year}-12-31`;
     return { from: `${year}-01-01`, to: end < scope.today ? end : scope.today };
   }
+  if (window !== null) return resolveWindow(window, scope.today);
   const pinned = card.pinnedRange;
   if (card.rangePolicy === "pinned" && pinned !== undefined && customRangeProblem(pinned.from, pinned.to) === null) {
     return pinned;
@@ -486,8 +496,9 @@ function ScalarView({ result, density, note: noteOverride }: { readonly result: 
     return <StatValue text={scalarText(result.value, t, result.analysisId)} note={note} noteTone={result.completeness === "no-transactions" ? "muted" : "warn"} negative={negative} mode={mode} />;
   }
   return (
-    <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-      <FitAmount text={scalarText(result.value, t, result.analysisId)} start={density === "compact" ? 1 : 0} className={negative ? "text-data-expense" : "text-ink"} />
+    // 放不下时从上往下排（`safe`）：金额永远完整可见，说明被截在下方；之前底对齐会把金额顶出卡片。
+    <div className="flex h-full min-h-0 flex-col justify-end-safe gap-1">
+      <FitAmount text={scalarText(result.value, t, result.analysisId)} start={density === "compact" ? 1 : 0} className={`shrink-0 ${negative ? "text-data-expense" : "text-ink"}`} />
       {note === null ? null : <p className="text-helper text-muted">{note}</p>}
     </div>
   );
@@ -515,8 +526,8 @@ function ExtremeView({ result, density, note }: { readonly result: RecordExtreme
     return <StatValue text={value} note={extra === "" ? null : extra} noteTone={note === undefined || note === null ? "muted" : "warn"} negative={false} mode={mode} />;
   }
   return (
-    <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-      <FitAmount text={value} start={density === "compact" ? 1 : 0} className="text-ink" />
+    <div className="flex h-full min-h-0 flex-col justify-end-safe gap-1">
+      <FitAmount text={value} start={density === "compact" ? 1 : 0} className="shrink-0 text-ink" />
       {where === "" ? null : <p className="truncate text-helper text-muted">{where}</p>}
       {result.tieCount > 1 ? <p className="text-helper text-muted">{t("statsWorkbench.values.tie", { count: result.tieCount })}</p> : null}
       {note === undefined || note === null ? null : <p className="text-helper text-warn-dark">{note}</p>}
@@ -981,12 +992,31 @@ function TimeView({
       );
     }
     case "AN-A01": {
-      if (fx !== undefined) return <FxComparisonView id={id} scope={scope} range={range} detail={detail} fx={fx} />;
+      if (fx !== undefined) return <FxComparisonView id={id} family={family} scope={scope} range={range} detail={detail} fx={fx} available={available} />;
       const comparisonEntries = scope.comparisonRead === undefined ? entries : entriesInCurrency([...new Map([...scope.comparisonRead.entries, ...scope.entries].map(entry => [entry.id, entry])).values()], currency);
       const native = statsFor(comparisonEntries, range, currency, scope.bucket, true);
       const bridge = timeResultBridge(id, native, { complete: true }, scope, range, { metric: "income-expense", kind: "both", groupBy: null }, false, scope.comparisonRead?.verified === true || scope.accountScope?.startsWith("guest:") === true);
       const stats = bridge.nativeResult;
       const previous = stats.comparison;
+      // 1.17.12：「较上期变化」数字与「逐日累计对比」——同一次两期读取；上期不完整时不比较（与对比面板同一判断）。
+      const comparable = bridge.metadata.completeness === "complete" && previous !== null;
+      const previousNote = comparable ? null : bridge.metadata.completeness === "no-transactions" ? t("statsWorkbench.states.empty") : t("statsWorkbench.cAnalysis.previousIncomplete");
+      if (family === "number") {
+        return <PeriodChangeNumber currentMinor={stats.totals.expenseMinor} previousMinor={comparable ? previous.totals.expenseMinor : null} previousNote={previousNote} currency={currency} density={density} />;
+      }
+      if (family === "cumulative-compare") {
+        return (
+          <CumulativeCompareView
+            current={cumulativeExpenses(comparisonEntries, range)}
+            previous={comparable ? cumulativeExpenses(comparisonEntries, previous.range) : null}
+            previousNote={previousNote}
+            range={range}
+            previousRange={previous?.range ?? null}
+            currency={currency}
+            height={height}
+          />
+        );
+      }
       // 对比面板本身没有可点的东西：卡片里点它就是打开详情；说明文字在卡片里最多两行，详情页完整显示。
       return (
         <ResultState metadata={bridge.metadata}><div className={`min-h-0 ${detail ? "" : "sw-compare-compact"}`}>
@@ -1012,18 +1042,23 @@ function TimeView({
  */
 function FxComparisonView({
   id,
+  family,
   scope,
   range,
   detail,
   fx,
+  available,
 }: {
   readonly id: string;
+  readonly family: ChartFamily;
   readonly scope: WorkbenchScope;
   readonly range: DateRange;
   readonly detail: boolean;
   readonly fx: FxTimeContext;
+  readonly available: number | undefined;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const slotMode = useSlotMode();
   const previousState = fx.previous;
   if (previousState === null) return <Note text={t("statsWorkbench.states.fxProjectionInvalid")} tone="warn" />;
   if (previousState.status === "loading") return <Note text={t("statsWorkbench.states.fxLoading")} />;
@@ -1043,6 +1078,25 @@ function FxComparisonView({
         : previousIssue === "current-incomplete"
           ? t("statsWorkbench.states.fxComparisonCurrentIncomplete")
           : t("statsWorkbench.states.fxComparisonUnavailable", { count: model.currentMissing + model.previousMissing });
+  // 1.17.12：两种新读法与对比面板同一个比较模型——任意一期缺汇率或不完整都不比较，只说明原因。
+  if (family === "number") {
+    return <PeriodChangeNumber currentMinor={currentMissing === 0 ? stats.totals.expenseMinor : null} previousMinor={previousTotals?.expenseMinor ?? null} previousNote={previousNote ?? null} currency={currency} density={detail ? "expanded" : "medium"} />;
+  }
+  if (family === "cumulative-compare") {
+    const comparisonRange = stats.comparison?.range ?? null;
+    const usable = previousTotals !== null && previous !== null && comparisonRange !== null;
+    return (
+      <CumulativeCompareView
+        current={cumulativeExpenses(scope.entries, range)}
+        previous={usable ? cumulativeExpenses(previous.converted, comparisonRange) : null}
+        previousNote={previousNote ?? null}
+        range={range}
+        previousRange={comparisonRange}
+        currency={currency}
+        height={heightFor(detail ? "expanded" : "medium", detail, available, slotMode !== null)}
+      />
+    );
+  }
   return (
     <ResultState metadata={bridge.metadata} partialText={bridge.metadata.completeness === "fx-incomplete" ? t("statsWorkbench.states.fxSubtotal", { count: currentMissing }) : undefined}>
       <div className={`min-h-0 ${detail ? "" : "sw-compare-compact"}`}>
@@ -1057,6 +1111,84 @@ function FxComparisonView({
         />
       </div>
     </ResultState>
+  );
+}
+
+/**
+ * 「较上期变化」（A01 的数字读法）：本期支出相对上一可比期的增减百分比；上期不可比（不完整、缺汇率）
+ * 或上期没有支出时不给百分比，只说明原因——不编造增长率。
+ */
+function PeriodChangeNumber({ currentMinor, previousMinor, previousNote, currency, density }: {
+  readonly currentMinor: number | null;
+  readonly previousMinor: number | null;
+  readonly previousNote: string | null;
+  readonly currency: string;
+  readonly density: Density;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  if (currentMinor === null || previousMinor === null) {
+    return <CNumber text="—" note={previousNote ?? t("statsWorkbench.states.undetermined")} density={density} warn />;
+  }
+  const amounts = t("statsWorkbench.card.changeAmounts", { previous: moneyText(String(previousMinor), currency), current: moneyText(String(currentMinor), currency) });
+  if (previousMinor === 0) return <CNumber text="—" note={`${t("statsWorkbench.card.noPreviousExpense")} · ${amounts}`} density={density} />;
+  const delta = BigInt(currentMinor) - BigInt(previousMinor);
+  const text = `${delta > 0n ? "+" : ""}${ratioPercentText({ numerator: delta, denominator: BigInt(previousMinor) })}`;
+  return <CNumber text={text} note={amounts} density={density} />;
+}
+
+/** 区间内逐日累计支出（整数最小单位）；第 i 个值 = 起点到第 i 天的合计。 */
+export function cumulativeExpenses(entries: readonly Transaction[], range: DateRange): bigint[] {
+  const byDay = new Map<string, bigint>();
+  for (const entry of entries) {
+    if (entry.kind !== "expense" || entry.occurredLocalDate < range.from || entry.occurredLocalDate > range.to) continue;
+    byDay.set(entry.occurredLocalDate, (byDay.get(entry.occurredLocalDate) ?? 0n) + BigInt(entry.amountCents));
+  }
+  const out: bigint[] = [];
+  let running = 0n;
+  for (let date = range.from; date <= range.to && out.length < 400; date = addDays(date, 1)) {
+    running += byDay.get(date) ?? 0n;
+    out.push(running);
+  }
+  return out;
+}
+
+/**
+ * 「逐日累计对比」（A01 的图形读法）：本期与上一可比期按第几天对齐的累计支出线。上期不可比时只说明原因；
+ * 上方一行写两期合计（完整读数在详情页的对比面板）。
+ */
+function CumulativeCompareView({ current, previous, previousNote, range, previousRange, currency, height }: {
+  readonly current: readonly bigint[];
+  readonly previous: readonly bigint[] | null;
+  readonly previousNote: string | null;
+  readonly range: DateRange;
+  readonly previousRange: DateRange | null;
+  readonly currency: string;
+  readonly height: number;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  if (previous === null || previousRange === null) return <Note text={previousNote ?? t("statsWorkbench.states.undetermined")} tone="warn" />;
+  const currentTotal = current[current.length - 1] ?? 0n;
+  const previousTotal = previous[previous.length - 1] ?? 0n;
+  const max = currentTotal > previousTotal ? currentTotal : previousTotal;
+  if (max === 0n) return <Note text={t("statsWorkbench.states.empty")} />;
+  const toFraction = (value: bigint) => Number((value * 10_000n) / max) / 10_000;
+  const short = (date: string) => formatLocalDate(date, { month: "numeric", day: "numeric" });
+  const summary = t("statsWorkbench.card.cumulativeSummary", { current: moneyText(currentTotal.toString(), currency), previous: moneyText(previousTotal.toString(), currency) });
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-1">
+      <p title={summary} className="shrink-0 truncate text-helper text-muted">{summary}</p>
+      <CumulativeCompareChart
+        title={summary}
+        height={Math.max(56, height - 20)}
+        current={current.map(toFraction)}
+        previous={previous.map(toFraction)}
+        currentLabel={t("statsWorkbench.card.currentPeriod", { from: short(range.from), to: short(range.to) })}
+        previousLabel={t("statsWorkbench.card.previousPeriod", { from: short(previousRange.from), to: short(previousRange.to) })}
+        maxText={moneyText(max.toString(), currency)}
+        startText={t("statsWorkbench.card.dayOne")}
+        endText={t("statsWorkbench.card.dayN", { count: Math.max(current.length, previous.length) })}
+      />
+    </div>
   );
 }
 
@@ -1287,8 +1419,8 @@ function CombinedAggregateBody({
   if (type.id === "AN-B01" || type.id === "AN-B02" || type.id === "AN-B03") {
     const key = type.id === "AN-B01" ? "expenseMinor" : type.id === "AN-B02" ? "incomeMinor" : "netMinor";
     return (
-      <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-        <FitAmount text={moneyText(result.totals[key], target)} start={density === "compact" ? 1 : 0} className="text-ink" />
+      <div className="flex h-full min-h-0 flex-col justify-end-safe gap-1">
+        <FitAmount text={moneyText(result.totals[key], target)} start={density === "compact" ? 1 : 0} className="shrink-0 text-ink" />
         {warning}
       </div>
     );
@@ -1326,6 +1458,20 @@ export function analysisTitle(analysisId: string, t: ReturnType<typeof useI18n>[
 }
 
 /**
+ * 某些展示形式是同一结果的「另一种问法」（1.17.12）：例如分类变化排行选「增加最多」时，读者看到的应是
+ * 「增加最多的分类」而不是排行的名称。只登记这些形式；其它一律用分析本身的名称。
+ */
+const FAMILY_TITLES: ReadonlySet<string> = new Set([
+  "AN-A01|number", "AN-A01|cumulative-compare", "AN-A17|top-rise", "AN-A17|top-fall", "AN-A10|p90",
+  "AN-A06|insights", "AN-P06|sankey", "AN-P16|status", "AN-P19|status",
+]);
+
+export function slotTitle(analysisId: string, family: string, t: ReturnType<typeof useI18n>["t"]): string {
+  if (FAMILY_TITLES.has(`${analysisId}|${family}`)) return t(`statsWorkbench.familyTitles.${analysisId}.${family}` as never);
+  return analysisTitle(analysisId, t);
+}
+
+/**
  * 卡片标题：自定义标题原样显示；预置标题随界面语言。组合卡片没有自定义名称时，用前两项内容的名称
  * 自动组成（「总收入 · 总支出」「总收入 · 总支出等 4 项」），用户不必为简单组合专门起名。
  */
@@ -1333,16 +1479,18 @@ export function cardTitle(card: AnalysisCardNode, t: ReturnType<typeof useI18n>[
   if (card.title?.kind === "custom" && card.title.text !== undefined && card.title.text.trim() !== "") return card.title.text;
   const read = readComposition(card);
   if (read.source === "composite" && read.slots.length > 1) {
-    const names = read.slots.slice(0, 2).map((slot) => analysisTitle(slot.analysisId, t)).join(" · ");
+    const names = read.slots.slice(0, 2).map((slot) => slotTitle(slot.analysisId, slot.family, t)).join(" · ");
     return read.slots.length > 2 ? t("statsWorkbench.composite.autoTitleMore", { names, count: read.slots.length }) : names;
   }
-  return analysisTitle(card.analysis.analysisId, t);
+  return slotTitle(card.analysis.analysisId, card.chart.chartFamily, t);
 }
 
 /** 副标题：说明这张卡片**实际**用的时间与币种（固定区间必须可见标明，卡片规格 §4.4）。 */
 export function cardSubtitle(card: AnalysisCardNode, scope: WorkbenchScope, t: ReturnType<typeof useI18n>["t"]): string {
+  const window = cardWindow(card);
   if (isMultiSlot(card)) {
-    // 组合卡片：共享的固定区间写在卡片副标题；自带窗口的槽位在自己的名称后注明。
+    // 组合卡片：共享的相对窗口 / 固定区间写在卡片副标题；自带窗口的槽位在自己的名称后注明。
+    if (window !== null) return windowSubtitle(window, scope.today, t);
     return card.rangePolicy === "pinned" && card.pinnedRange !== undefined
       ? t("statsWorkbench.card.pinned", { from: formatLocalDate(card.pinnedRange.from), to: formatLocalDate(card.pinnedRange.to) })
       : "";
@@ -1352,6 +1500,7 @@ export function cardSubtitle(card: AnalysisCardNode, scope: WorkbenchScope, t: R
   const parts: string[] = [];
   if (type.ownWindow === "12m") parts.push(t("statsWorkbench.card.ownWindow12m"));
   else if (type.ownWindow === "year") parts.push(t("statsWorkbench.card.ownWindowYear", { year: cardRange(card, scope).from.slice(0, 4) }));
+  else if (window !== null) parts.push(windowSubtitle(window, scope.today, t));
   else if (card.rangePolicy === "pinned" && card.pinnedRange !== undefined) {
     parts.push(t("statsWorkbench.card.pinned", { from: formatLocalDate(card.pinnedRange.from), to: formatLocalDate(card.pinnedRange.to) }));
   } else if (type.id === "AN-I12") {
@@ -1360,6 +1509,13 @@ export function cardSubtitle(card: AnalysisCardNode, scope: WorkbenchScope, t: R
   }
   // 币种与统计方式已写在页面顶部的条件摘要里，卡片不再逐张重复；只有与摘要不同的条件才写出来。
   return parts.join(" · ");
+}
+
+/** 相对窗口的副标题：窗口名称 + 解析出的实际日期（同年省略年份），不让人误读成顶部筛选的时间。 */
+export function windowSubtitle(window: RelativeWindow, today: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const range = resolveWindow(window, today);
+  const short = (date: string) => formatLocalDate(date, date.slice(0, 4) === today.slice(0, 4) ? { month: "numeric", day: "numeric" } : { year: "numeric", month: "numeric", day: "numeric" });
+  return t("statsWorkbench.card.window", { window: t(`statsWorkbench.windows.${window}`), from: short(range.from), to: short(range.to) });
 }
 
 export type { CompositionResult, RankedGroupsResult };

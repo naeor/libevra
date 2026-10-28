@@ -41,7 +41,9 @@ import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWork
 import { FilterPanel, timeLabel, type FilterOption } from "../statsWorkbench/FilterPanel.js";
 import { StatBar, StatsSettingsSheet } from "../statsWorkbench/StatsControls.js";
 import { customRangeProblem, filterIds, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
-import { BrowseGrid, EditGrid, GRID_GAP, gridMetricsFor, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
+import { browseColumnsFor, BrowseGrid, EditGrid, gridMetricsFor, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
+import { PresetSheet } from "../statsWorkbench/PresetSheet.js";
+import { reidentify } from "../statsWorkbench/presets.js";
 import { useScope, useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import {
   canRedo,
@@ -60,6 +62,7 @@ import {
   sessionDocuments,
   startSession,
   reconfigureCard,
+  replaceDocuments,
   type EditorState,
   type SessionResult,
 } from "../statsWorkbench/session.js";
@@ -75,7 +78,6 @@ type ContainerEdit =
   | { readonly kind: "existing"; readonly containerId: string; readonly type: "carousel" | "grid-split"; readonly children: readonly AnalysisCardNode[] };
 
 const LIMITS = { carousel: { min: 2, max: 6 }, "grid-split": { min: 2, max: 4 } } as const;
-const MIN_COLUMN_WIDTH = 104;
 
 /** 从详情返回时恢复滚动位置与焦点（浏览状态，不写回布局）。 */
 let returnPoint: { readonly accountScope: string | null; readonly top: number; readonly cardId: string } | null = null;
@@ -168,6 +170,7 @@ function AccountWorkbench(): React.JSX.Element {
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [collapsedOpen, setCollapsedOpen] = useState<string | null>(null);
   const [drawerHeight, setDrawerHeight] = useState<DrawerHeight>("expanded");
   const drawerBeforeDrag = useRef<DrawerHeight | null>(null);
@@ -226,8 +229,9 @@ function AccountWorkbench(): React.JSX.Element {
 
   // ---- 列数：浏览态按可用宽度投影（D），编辑态在权威主布局上操作 ----
   const width = gridBox.width;
-  const maxColumns = width === 0 ? 2 : Math.max(1, Math.min(3, Math.floor((width + GRID_GAP) / (MIN_COLUMN_WIDTH + GRID_GAP))));
-  const browseColumns = Math.max(1, Math.min(documents.layout.main.baseCols, maxColumns));
+  /** 当前宽度最多能放几列（「调整行列」的上限）；浏览态再受布局保存时的列数限制。 */
+  const maxColumns = browseColumnsFor(width, 3);
+  const browseColumns = browseColumnsFor(width, documents.layout.main.baseCols);
   const gridMetrics: GridMetrics | null = gridMetricsFor(width, browseColumns, typeof window === "undefined" ? 0 : window.innerWidth);
 
   // ---- 拖放 ----
@@ -376,6 +380,20 @@ function AccountWorkbench(): React.JSX.Element {
     const ok = apply(command(session, { type: "insert-card", card, size: fitted, collisionPolicy: "reflow" }), t("statsWorkbench.drawer.added", { name: cardTitle(card, t) }));
     if (ok) revealLater(card.objectId);
     return ok;
+  }
+
+  /**
+   * 应用布局预设：整份工作台换成预设（对象 ID 全部重新生成），一步撤销；仍要点「完成」才保存。
+   * 用户选择「同时使用保存时的筛选条件」时，生效筛选一起换成预设里保存的那一组。
+   */
+  function applyPreset(next: WorkbenchDocuments, name: string, presetFilters: string | null): boolean {
+    if (session === null) return false;
+    setContainerEdit(null);
+    const ok = apply(replaceDocuments(session, reidentify(next)), t("statsWorkbench.presets.applied", { name }), true);
+    if (!ok) return false;
+    if (presetFilters !== null) setParams((previous) => writeFilters(previous, readFilters(new URLSearchParams(presetFilters))), { replace: true });
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
+    return true;
   }
 
   function saveEditedCard(card: AnalysisCardNode, size: GridSize): boolean {
@@ -701,6 +719,11 @@ function AccountWorkbench(): React.JSX.Element {
       onAddCard={(analysisId) => addCard(analysisId)}
       onAddLayout={(choice) => addLayoutObject(choice)}
       onCustom={() => setEditor({ cardId: null })}
+      onPresets={() => {
+        setMenuFor(null);
+        setMoveFor(null);
+        setPresetsOpen(true);
+      }}
       customCards={customCardsIn(session?.content.cards ?? [])}
       onConfigureCustom={(objectId) => setEditor({ cardId: objectId })}
       onDuplicateCustom={(card) => {
@@ -964,6 +987,16 @@ function AccountWorkbench(): React.JSX.Element {
         ) : null}
 
         {discardOpen ? <DiscardSheet onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
+        {presetsOpen && session !== null ? (
+          <PresetSheet
+            accountScope={scope.accountScope}
+            current={sessionDocuments(session)}
+            filters={writeFilters(new URLSearchParams(), filters).toString()}
+            scope={scope}
+            onApply={applyPreset}
+            onClose={() => setPresetsOpen(false)}
+          />
+        ) : null}
         {settingsOpen ? (
           <StatsSettingsSheet
             scope={scope}

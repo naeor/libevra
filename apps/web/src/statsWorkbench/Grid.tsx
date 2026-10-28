@@ -7,7 +7,7 @@
  * - 编辑态：对象统一换成「结构编辑形态」：类型图标、名称、占格 `宽×高`、半透明底色与柔和虚线，
  *   **不渲染图表**，也不把未渲染当成 0。
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   placementCells,
   planSmartPlacement,
@@ -22,6 +22,7 @@ import {
 } from "@libellum/shared/analysis/layout";
 
 import { useI18n } from "../i18n/index.js";
+import { resistedOffset, swipeAxis, swipeTarget, type SwipeAxis } from "./carouselGesture.js";
 import { CardBody, cardSubtitle, cardTitle, familyOf } from "./cards.js";
 import { cardType, CONTAINER_SIZES, sizeKey } from "./catalog.js";
 import { CompositeBody } from "./CompositeCard.js";
@@ -44,6 +45,14 @@ import {
 export const GRID_GAP = 12;
 /** 行高（px），与 `.sw-grid { --sw-row: 7.25rem }` 一致。 */
 export const GRID_ROW_HEIGHT = 116;
+/** 浏览态每列至少这么宽；可用宽度放不下保存时的列数时由 D 投影成更少的列。 */
+export const MIN_COLUMN_WIDTH = 104;
+
+/** 浏览态在给定网格宽度下的列数（最多 3 列，且不超过布局保存时的列数）。工作台与预设预览同一规则。 */
+export function browseColumnsFor(gridWidth: number, baseCols: number): number {
+  const maxColumns = gridWidth === 0 ? 2 : Math.max(1, Math.min(3, Math.floor((gridWidth + GRID_GAP) / (MIN_COLUMN_WIDTH + GRID_GAP))));
+  return Math.max(1, Math.min(baseCols, maxColumns));
+}
 
 /**
  * 当前设备上工作台网格的像素度量（组合卡片的尺寸推荐与「能否完整显示」按它算）。
@@ -143,7 +152,7 @@ export function BrowseGrid({
           if (card === undefined) return null;
           return (
             <div key={object.objectId} style={style} className="min-h-0 min-w-0">
-              <CardTile card={card} scope={scope} compat={object.form === "compat"} onOpen={() => onOpenCard(card.objectId)} />
+              <CardTile card={card} scope={scope} compat={object.form === "compat"} oneRow={object.rowSpan === 1} onOpen={() => onOpenCard(card.objectId)} />
             </div>
           );
         }
@@ -180,6 +189,8 @@ export function CardTile({
   compat = false,
   onOpen,
   bare = false,
+  aside,
+  oneRow = false,
 }: {
   readonly card: AnalysisCardNode;
   readonly scope: WorkbenchScope;
@@ -187,15 +198,24 @@ export function CardTile({
   readonly onOpen: () => void;
   /** 在容器里时不再画外框（容器自己有）。 */
   readonly bare?: boolean;
+  /** 标题行右侧换成别的内容（横向滑动抽屉的页码点），代替「查看详情」箭头。 */
+  readonly aside?: React.ReactNode;
+  /**
+   * 只占一行高（1×1 / 2×1）：标题收成一行（完整名称在 title 与读屏名称里）。320px 窄屏上 7 个字的标题会
+   * 折成两行，带时间副标题的一行高卡片就放不下数值了（1.17.12 浏览器实测）。
+   */
+  readonly oneRow?: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
   const body = useElementSize<HTMLDivElement>();
   const title = cardTitle(card, t);
   const subtitle = cardSubtitle(card, scope, t);
+  const singleLineTitle = oneRow || isMultiSlot(card);
   return (
     <article
-      className={`sw-card group relative flex h-full min-h-0 flex-col ${bare ? "px-3.5 pt-3 pb-0" : "rounded-card border border-line bg-surface p-3.5 sm:p-4"}`}
+      className={`sw-card group relative flex h-full min-h-0 flex-col ${bare ? "px-3.5 pt-3 pb-2" : "rounded-card border border-line bg-surface p-3.5 sm:p-4"}`}
       aria-label={title}
+      data-one-row={oneRow ? "" : undefined}
     >
       <button
         type="button"
@@ -208,10 +228,10 @@ export function CardTile({
         <span className="min-w-0 flex-1">
           {/* 组合卡片的标题收成一行（完整名称在 aria-label 与 title 里）：内容排布按一行标题计算，
               自动标题较长时换行会挤掉槽位。 */}
-          <h3 className={`${isMultiSlot(card) ? "truncate" : "line-clamp-2 break-words"} text-helper font-medium text-ink`} title={isMultiSlot(card) ? title : undefined}>{title}</h3>
+          <h3 className={`${singleLineTitle ? "truncate" : "line-clamp-2 break-words"} text-helper font-medium text-ink`} title={singleLineTitle ? title : undefined}>{title}</h3>
           {subtitle === "" ? null : <p className="truncate text-helper text-muted">{subtitle}</p>}
         </span>
-        <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />
+        {aside ?? <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />}
       </header>
       <div ref={body.ref} className="sw-card-body relative mt-2 min-h-0 flex-1 overflow-hidden">
         {compat ? (
@@ -258,9 +278,24 @@ function CollapsedContainer({ container, count, onOpen }: { readonly container: 
   );
 }
 
+interface Swipe {
+  readonly pointerId: number;
+  readonly x: number;
+  readonly y: number;
+  readonly time: number;
+  readonly width: number;
+  axis: SwipeAxis;
+  dx: number;
+}
+
 /**
- * 滑动卡片组：同一位置左右切换。**只切页，不聚合**；切页是浏览状态，不写回布局。
- * 横滑与页面纵滚先判方向（横向位移明显大于纵向才算翻页），同时提供按钮与页码点，不只靠手势。
+ * 横向滑动抽屉：同一位置左右切换。**只切页，不聚合**；切页是浏览状态，不写回布局。
+ *
+ * - 手机：手指左右滑动，卡片**跟手**移动，松手吸附到相邻一页或弹回（`carouselGesture.ts`）；先判方向，
+ *   纵向滑动照常滚动页面（`touch-action: pan-y`）。拖动中不触发 React 渲染，位移写到 CSS 变量。
+ * - 页码点在卡片标题行右侧（克制，不另占一行，留给图表的高度不变）；点它可以直接跳页。
+ * - 桌面：鼠标悬停时两侧出现上一张 / 下一张按钮；键盘焦点在抽屉里时左右方向键翻页。
+ * - 只渲染当前页与相邻两页，其它页留空位（不提前计算看不到的卡片）。
  */
 export function CarouselView({
   container,
@@ -278,41 +313,111 @@ export function CarouselView({
   readonly onOpenCard: (cardId: string) => void;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const [start, setStart] = useState<{ x: number; y: number } | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const swipe = useRef<Swipe | null>(null);
+  const swallowClick = useRef(false);
   const index = Math.max(0, Math.min(page, cards.length - 1));
-  const current = cards[index];
   const go = (next: number) => onPage(Math.max(0, Math.min(cards.length - 1, next)));
+  const setOffset = (px: number, dragging: boolean) => {
+    const track = trackRef.current;
+    if (track === null) return;
+    track.style.setProperty("--sw-carousel-offset", `${String(px)}px`);
+    if (dragging) track.dataset["dragging"] = "";
+    else delete track.dataset["dragging"];
+  };
+  const end = (commit: boolean) => {
+    const current = swipe.current;
+    swipe.current = null;
+    if (current === null || current.axis !== "x") return;
+    swallowClick.current = true;
+    setOffset(0, false);
+    if (commit) go(swipeTarget(index, cards.length, current.dx, performance.now() - current.time, current.width));
+  };
+  const dots = (
+    <span className="sw-carousel-dots" role="group" aria-label={t("statsWorkbench.card.carouselPage", { page: index + 1, total: cards.length })}>
+      {cards.map((card, dot) => (
+        <button
+          key={card.objectId}
+          type="button"
+          className="sw-carousel-dot"
+          aria-label={t("statsWorkbench.card.carouselPage", { page: dot + 1, total: cards.length })}
+          aria-current={dot === index ? "true" : undefined}
+          onClick={(event) => {
+            event.stopPropagation();
+            go(dot);
+          }}
+        >
+          <span className={`sw-page-dot ${dot === index ? "sw-page-dot-active" : ""}`} aria-hidden="true" />
+        </button>
+      ))}
+    </span>
+  );
   return (
     <section
-      className="sw-carousel flex h-full min-h-0 flex-col rounded-card border border-line bg-surface"
+      className="sw-carousel relative flex h-full min-h-0 flex-col rounded-card border border-line bg-surface"
       aria-roledescription="carousel"
       aria-label={containerName(container, t)}
-      onPointerDown={(event) => setStart({ x: event.clientX, y: event.clientY })}
-      onPointerUp={(event) => {
-        if (start === null) return;
-        const dx = event.clientX - start.x;
-        const dy = event.clientY - start.y;
-        setStart(null);
-        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) go(index + (dx < 0 ? 1 : -1));
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft" && index > 0) {
+          event.preventDefault();
+          go(index - 1);
+        } else if (event.key === "ArrowRight" && index < cards.length - 1) {
+          event.preventDefault();
+          go(index + 1);
+        }
       }}
-      onPointerCancel={() => setStart(null)}
+      onPointerDown={(event) => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        swallowClick.current = false;
+        swipe.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, time: performance.now(), width: event.currentTarget.clientWidth, axis: null, dx: 0 };
+      }}
+      onPointerMove={(event) => {
+        const current = swipe.current;
+        if (current === null || current.pointerId !== event.pointerId) return;
+        const dx = event.clientX - current.x;
+        if (current.axis === null) {
+          current.axis = swipeAxis(dx, event.clientY - current.y);
+          if (current.axis === "y") {
+            swipe.current = null;
+            return;
+          }
+          if (current.axis === "x") event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        if (current.axis !== "x") return;
+        current.dx = dx;
+        setOffset(resistedOffset(dx, index, cards.length), true);
+      }}
+      onPointerUp={(event) => {
+        if (swipe.current?.pointerId === event.pointerId) end(true);
+      }}
+      onPointerCancel={(event) => {
+        if (swipe.current?.pointerId === event.pointerId) end(false);
+      }}
+      onClickCapture={(event) => {
+        // 横滑翻页后松手的那一下不是「点开卡片」。
+        if (!swallowClick.current) return;
+        swallowClick.current = false;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
     >
-      <div className="min-h-0 flex-1" key={current?.objectId}>
-        {current === undefined ? null : <CardTile card={current} scope={scope} bare onOpen={() => onOpenCard(current.objectId)} />}
-      </div>
-      <footer className="flex h-7 shrink-0 items-center justify-between gap-2 px-1.5 pb-1">
-        <button type="button" className="sw-icon-button sw-icon-button-sm" aria-label={t("statsWorkbench.card.previous")} disabled={index === 0} onClick={() => go(index - 1)}>
-          <ChevronLeft width={14} height={14} />
-        </button>
-        <span className="flex items-center gap-1.5" role="status" aria-label={t("statsWorkbench.card.carouselPage", { page: index + 1, total: cards.length })}>
-          {cards.map((card, dot) => (
-            <span key={card.objectId} className={`sw-page-dot ${dot === index ? "sw-page-dot-active" : ""}`} aria-hidden="true" />
+      <div className="sw-carousel-viewport min-h-0 flex-1">
+        <div ref={trackRef} className="sw-carousel-track" style={{ "--sw-carousel-index": index } as React.CSSProperties}>
+          {cards.map((card, slide) => (
+            <div key={card.objectId} className="sw-carousel-slide" inert={slide !== index} aria-hidden={slide !== index ? "true" : undefined}>
+              {Math.abs(slide - index) > 1 ? null : (
+                <CardTile card={card} scope={scope} bare onOpen={() => onOpenCard(card.objectId)} aside={dots} />
+              )}
+            </div>
           ))}
-        </span>
-        <button type="button" className="sw-icon-button sw-icon-button-sm" aria-label={t("statsWorkbench.card.next")} disabled={index >= cards.length - 1} onClick={() => go(index + 1)}>
-          <ChevronRight width={14} height={14} />
-        </button>
-      </footer>
+        </div>
+      </div>
+      <button type="button" className="sw-carousel-arrow sw-carousel-arrow-start" aria-label={t("statsWorkbench.card.previous")} disabled={index === 0} onClick={() => go(index - 1)}>
+        <ChevronLeft width={14} height={14} />
+      </button>
+      <button type="button" className="sw-carousel-arrow sw-carousel-arrow-end" aria-label={t("statsWorkbench.card.next")} disabled={index >= cards.length - 1} onClick={() => go(index + 1)}>
+        <ChevronRight width={14} height={14} />
+      </button>
     </section>
   );
 }

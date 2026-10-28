@@ -14,7 +14,8 @@ import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layou
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
-import { analysisTitle, cardTitle } from "./cards.js";
+import { analysisTitle, cardTitle, windowSubtitle } from "./cards.js";
+import { cardWindow, RELATIVE_WINDOWS, type RelativeWindow } from "./timeWindows.js";
 import { cardType, sizeKey, type CardType, type ChartFamily } from "./catalog.js";
 import {
   CARD_TEMPLATES,
@@ -70,7 +71,11 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
   const [slots, setSlots] = useState<readonly CompositionSlot[]>(() => initial?.slots ?? []);
   const [chosenTemplate, setChosenTemplate] = useState<TemplateId | null>(() => (initial !== null && initial.source === "composite" ? initial.template : null));
   const [name, setName] = useState(card?.title?.kind === "custom" ? (card.title.text ?? "") : "");
-  const [pinned, setPinned] = useState(card?.rangePolicy === "pinned");
+  const initialWindow = card === undefined ? null : cardWindow(card);
+  const [timeMode, setTimeMode] = useState<"inherit" | "relative" | "pinned">(initialWindow !== null ? "relative" : card?.rangePolicy === "pinned" ? "pinned" : "inherit");
+  const [relativeWindow, setRelativeWindow] = useState<RelativeWindow>(initialWindow ?? "month-to-date");
+  const pinned = timeMode === "pinned";
+  const windowDraft = timeMode === "relative" ? { window: relativeWindow } : {};
   const [from, setFrom] = useState(card?.pinnedRange?.from ?? startOfMonth(today));
   const [to, setTo] = useState(card?.pinnedRange?.to ?? today);
   const [chosenSize, setChosenSize] = useState<GridSize | null>(null);
@@ -88,7 +93,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
   // 用户手动选的模板：还能装下（ok / 还需再加）就保留；装不下才退回推荐模板。
   const chosenFit = chosenTemplate === null ? null : templateFit(CARD_TEMPLATES.find((item) => item.id === chosenTemplate)!, counts);
   const template: TemplateId = chosenTemplate !== null && chosenFit !== null && chosenFit.status !== "excess" ? chosenTemplate : (recommended ?? "single");
-  const draft: CompositeDraft = { template, slots, name, ...(pinned ? { pinnedRange: { from, to } } : {}) };
+  const draft: CompositeDraft = { template, slots, name, ...(pinned ? { pinnedRange: { from, to } } : {}), ...windowDraft };
   const problem = slots.length === 0 ? "empty" : draftProblem(draft);
   const rangeProblem = pinned ? customRangeProblem(from, to) : null;
 
@@ -122,9 +127,10 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
       slots,
       name: name.slice(0, CUSTOM_NAME_MAX),
       ...(pinned && rangeProblem === null ? { pinnedRange: { from, to } } : {}),
+      ...(timeMode === "relative" ? { window: relativeWindow } : {}),
     };
     return buildCard(previewDraft, card, "preview");
-  }, [slots, previewTemplate, name, pinned, from, to, card, rangeProblem]);
+  }, [slots, previewTemplate, name, pinned, from, to, card, rangeProblem, timeMode, relativeWindow]);
 
   /** 需要用户看见的提示（超出上限、模板被替换、保存失败）。 */
   function say(text: string): void {
@@ -400,9 +406,24 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                     <fieldset className="flex flex-col gap-2" disabled={readOnly}>
                       <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.config.time")}</legend>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" aria-pressed={!pinned} className={`sw-chip ${!pinned ? "sw-chip-on" : ""}`} onClick={() => setPinned(false)}>{t("statsWorkbench.config.inherit")}</button>
-                        <button type="button" aria-pressed={pinned} className={`sw-chip ${pinned ? "sw-chip-on" : ""}`} onClick={() => setPinned(true)}>{t("statsWorkbench.config.pinned")}</button>
+                        {(["inherit", "relative", "pinned"] as const).map((mode) => (
+                          <button key={mode} type="button" aria-pressed={timeMode === mode} className={`sw-chip ${timeMode === mode ? "sw-chip-on" : ""}`} onClick={() => setTimeMode(mode)}>
+                            {t(`statsWorkbench.config.${mode}`)}
+                          </button>
+                        ))}
                       </div>
+                      {timeMode === "relative" ? (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("statsWorkbench.config.relative")}>
+                            {RELATIVE_WINDOWS.map((window) => (
+                              <button key={window} type="button" role="radio" aria-checked={relativeWindow === window} className={`sw-chip sw-chip-sm ${relativeWindow === window ? "sw-chip-on" : ""}`} onClick={() => setRelativeWindow(window)}>
+                                {t(`statsWorkbench.windows.${window}`)}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-helper text-muted">{windowSubtitle(relativeWindow, today, t)}</p>
+                        </div>
+                      ) : null}
                       {pinned ? <PinnedRange today={today} from={from} to={to} onFrom={setFrom} onTo={setTo} problem={rangeProblem} /> : null}
                     </fieldset>
                   </section>

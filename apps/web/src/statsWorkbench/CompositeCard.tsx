@@ -11,7 +11,7 @@
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 
 import { useI18n } from "../i18n/index.js";
-import { analysisTitle, cardRange, COMPARISON_IDS, displayCard, needsOwnRange, SlotBody, SlotPresentationContext, useCardScope } from "./cards.js";
+import { cardRange, COMPARISON_IDS, displayCard, needsOwnRange, SlotBody, SlotPresentationContext, slotTitle, useCardScope } from "./cards.js";
 import { cardType } from "./catalog.js";
 import { layoutComposition, readComposition, slotCard, slotSpecs, type CompositionSlot, type SlotPlacement } from "./composition.js";
 import type { WorkbenchScope } from "./scope.js";
@@ -59,10 +59,10 @@ export function useCompositeSlots(card: AnalysisCardNode, scope: WorkbenchScope)
     card: entry.card,
     scope: entry.window === "12m" ? windowScope : entry.window === "year" ? yearScope : mainScope,
     label: entry.window === "12m"
-      ? `${analysisTitle(entry.slot.analysisId, t)} · ${t("statsWorkbench.card.ownWindow12m")}`
+      ? `${slotTitle(entry.slot.analysisId, entry.slot.family, t)} · ${t("statsWorkbench.card.ownWindow12m")}`
       : entry.window === "year"
-        ? `${analysisTitle(entry.slot.analysisId, t)} · ${t("statsWorkbench.card.ownWindowYear", { year: yearRange.from.slice(0, 4) })}`
-        : analysisTitle(entry.slot.analysisId, t),
+        ? `${slotTitle(entry.slot.analysisId, entry.slot.family, t)} · ${t("statsWorkbench.card.ownWindowYear", { year: yearRange.from.slice(0, 4) })}`
+        : slotTitle(entry.slot.analysisId, entry.slot.family, t),
   }));
 }
 

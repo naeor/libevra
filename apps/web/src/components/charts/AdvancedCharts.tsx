@@ -839,6 +839,156 @@ export function ObservationDots({ points, height, title, minText, maxText }: {
 }
 
 // ---------------------------------------------------------------------------
+// 桑基（CF-C12，1.17.12）：只画「支出总额 → 分类」这一真实归属关系（shared 层级桑基），
+// 左侧一根总额柱，右侧各分类按金额占高度，带状连线宽度 = 该分类金额。比例只用于几何。
+// ---------------------------------------------------------------------------
+
+export interface SankeyTarget {
+  readonly id: string;
+  readonly label: string;
+  /** 0–1：占总额的比例（只用于几何）。 */
+  readonly fraction: number;
+  readonly valueText: string;
+}
+
+export function SankeyChart({ sourceLabel, sourceText, targets, height, title, otherLabel }: {
+  readonly sourceLabel: string;
+  readonly sourceText: string;
+  readonly targets: readonly SankeyTarget[];
+  readonly height: number;
+  readonly title: string;
+  /** 放不下的小分类合并成一段的名称（只合并几何，读数仍逐项列在 title 里）。 */
+  readonly otherLabel: string;
+}): React.JSX.Element {
+  return (
+    <ChartFrame height={height} title={title} padding={{ top: 4, right: 0, bottom: 4, left: 0 }}>
+      {(layout) => {
+        if (layout.width <= 0) return null;
+        const top = layout.padding.top;
+        const usable = layout.innerHeight;
+        const gap = 3;
+        // 每段至少约 12px 才放得下名称；放不下的尾部合并成「其他」一段（读数逐项写进那一段的 title）。
+        const maxNodes = Math.max(1, Math.min(8, Math.floor((usable + gap) / (12 + gap))));
+        const shown = targets.length <= maxNodes ? targets : targets.slice(0, maxNodes - 1);
+        const rest = targets.slice(shown.length);
+        const nodes = rest.length === 0
+          ? shown
+          : [...shown, { id: "__rest__", label: otherLabel, fraction: rest.reduce((sum, item) => sum + item.fraction, 0), valueText: rest.map((item) => `${item.label} ${item.valueText}`).join(" · ") }];
+        const totalGap = gap * Math.max(0, nodes.length - 1);
+        const room = Math.max(1, usable - totalGap);
+        // 右侧节点：每段先给 12px 放名称，剩下的高度按金额比例分；左侧总额柱上的带宽严格按比例。
+        const minHeight = Math.min(12, room / Math.max(1, nodes.length));
+        const sum = nodes.reduce((total, node) => total + clamp01(node.fraction), 0) || 1;
+        const spare = Math.max(0, room - minHeight * nodes.length);
+        const sourceX = 0;
+        const sourceWidth = 8;
+        const targetWidth = 8;
+        const labelSpace = Math.min(150, Math.max(70, layout.width * 0.4));
+        const targetX = layout.width - labelSpace - targetWidth;
+        let cursorSource = top;
+        let cursorTarget = top;
+        return (
+          <>
+            <rect x={sourceX} y={top} width={sourceWidth} height={usable} rx={2} fill={EXPENSE_COLOR}>
+              <title>{`${sourceLabel} · ${sourceText}`}</title>
+            </rect>
+            {nodes.map((node, index) => {
+              const share = clamp01(node.fraction) / sum;
+              const h = minHeight + spare * share;
+              const s0 = cursorSource;
+              const t0 = cursorTarget;
+              cursorSource += share * usable;
+              cursorTarget += h + gap;
+              const s1 = s0 + share * usable;
+              const t1 = t0 + h;
+              const x0 = sourceX + sourceWidth;
+              const x1 = targetX;
+              const mid = (x0 + x1) / 2;
+              const color = node.id === "__rest__" ? MUTED : categoricalColor(index);
+              const showLabel = h >= 9;
+              return (
+                <g key={node.id}>
+                  <path d={`M${x0} ${s0} C${mid} ${s0} ${mid} ${t0} ${x1} ${t0} L${x1} ${t1} C${mid} ${t1} ${mid} ${s1} ${x0} ${s1} Z`} fill={color} fillOpacity={0.28}>
+                    <title>{`${sourceLabel} → ${node.label} · ${node.valueText}`}</title>
+                  </path>
+                  <rect x={targetX} y={t0} width={targetWidth} height={h} rx={2} fill={color}>
+                    <title>{`${node.label} · ${node.valueText}`}</title>
+                  </rect>
+                  {showLabel ? (
+                    <text x={targetX + targetWidth + 5} y={t0 + h / 2 + 3.5} fontSize={10.5} fill="var(--color-ink)">
+                      {fits(node.label, labelSpace - 8, 6.6) ? node.label : `${node.label.slice(0, 3)}…`}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
+          </>
+        );
+      }}
+    </ChartFrame>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 逐日累计对比（1.17.12）：本期与上一可比期按「第几天」对齐的两条累计线；未知的日子断线。
+// ---------------------------------------------------------------------------
+
+export function CumulativeCompareChart({ current, previous, height, title, currentLabel, previousLabel, maxText, startText, endText }: {
+  /** 0–1 的累计比例（相对两条线共同的最大值）；`null` = 未知或尚未发生，断线。 */
+  readonly current: readonly (number | null)[];
+  readonly previous: readonly (number | null)[];
+  readonly height: number;
+  readonly title: string;
+  readonly currentLabel: string;
+  readonly previousLabel: string;
+  readonly maxText: string;
+  readonly startText: string;
+  readonly endText: string;
+}): React.JSX.Element {
+  const days = Math.max(current.length, previous.length, 2);
+  const path = (values: readonly (number | null)[], x: (index: number) => number, y: (value: number) => number): string => {
+    let d = "";
+    let pen = false;
+    values.forEach((value, index) => {
+      if (value === null) {
+        pen = false;
+        return;
+      }
+      d += `${pen ? "L" : "M"}${x(index).toFixed(1)} ${y(clamp01(value)).toFixed(1)} `;
+      pen = true;
+    });
+    return d.trim();
+  };
+  return (
+    <div className="flex min-h-0 flex-col gap-1">
+      <ChartFrame height={Math.max(40, height - 22)} title={title} padding={{ top: 10, right: 8, bottom: 16, left: 8 }}>
+        {(layout) => {
+          const x = (index: number) => layout.padding.left + (index / (days - 1)) * layout.innerWidth;
+          const y = (value: number) => layout.padding.top + (1 - value) * layout.innerHeight;
+          const baseline = layout.padding.top + layout.innerHeight;
+          return (
+            <>
+              <line x1={layout.padding.left} x2={layout.padding.left + layout.innerWidth} y1={baseline} y2={baseline} stroke={RULE} />
+              <line x1={layout.padding.left} x2={layout.padding.left + layout.innerWidth} y1={layout.padding.top} y2={layout.padding.top} stroke={LINE} strokeDasharray="2 3" />
+              <text x={layout.padding.left} y={layout.padding.top - 2} fontSize={9} fill={MUTED}>{maxText}</text>
+              <path d={path(previous, x, y)} fill="none" stroke={MUTED} strokeWidth={1.5} strokeDasharray="4 3">
+                <title>{previousLabel}</title>
+              </path>
+              <path d={path(current, x, y)} fill="none" stroke={EXPENSE_COLOR} strokeWidth={2}>
+                <title>{currentLabel}</title>
+              </path>
+              <text x={layout.padding.left} y={layout.height - 3} fontSize={9} fill={MUTED}>{startText}</text>
+              <text x={layout.padding.left + layout.innerWidth} y={layout.height - 3} fontSize={9} fill={MUTED} textAnchor="end">{endText}</text>
+            </>
+          );
+        }}
+      </ChartFrame>
+      <Legend items={[{ id: "current", label: currentLabel, color: EXPENSE_COLOR }, { id: "previous", label: previousLabel, color: MUTED }]} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 数据表（CF-10 / CF-C01 / CF-C16）：任何图表的可访问兜底形态
 // ---------------------------------------------------------------------------
 

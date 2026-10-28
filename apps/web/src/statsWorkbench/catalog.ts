@@ -48,7 +48,21 @@ export type ChartFamily =
   | "pivot"
   | "small-multiples"
   | "calendar-year"
-  | "slope";
+  | "slope"
+  // ---- 1.17.12：布局预设需要的展示形式（同一计算结果的另一种读法，不新增分析编号） ----
+  /** 两期变化里增加最多 / 减少最多的一个分类（A17）。 */
+  | "top-rise"
+  | "top-fall"
+  /** 单笔支出的第 90 百分位（A10，与四分位同一 Type 7 分位方法）。 */
+  | "p90"
+  /** 两条简短观察：总变化与最大贡献分类（A06 归因结果的文字读法）。 */
+  | "insights"
+  /** 支出总额 → 分类的归属流向（P06 分类结构的桑基读法；shared 层级桑基，守恒校验）。 */
+  | "sankey"
+  /** 数据状态卡：笔数与完整性（P16）/ 汇率覆盖率（P19）。 */
+  | "status"
+  /** 本期与上一可比期的逐日累计支出对比（A01）。 */
+  | "cumulative-compare";
 
 /** 页面既有展示别名 → A/B 权威图表家族；仅作读取适配，不另造图表类别。 */
 export const FORMAL_CHART_FAMILIES: Readonly<Record<ChartFamily, string>> = {
@@ -59,6 +73,9 @@ export const FORMAL_CHART_FAMILIES: Readonly<Record<ChartFamily, string>> = {
   boxplot: "CF-C06", matrix: "CF-C08", "stacked-bars": "CF-C09", treemap: "CF-C11", bump: "CF-C13",
   scatter: "CF-C14", bubble: "CF-C15", pivot: "CF-C16", "small-multiples": "CF-C17", "calendar-year": "CF-C18",
   slope: "CF-C20",
+  // 1.17.12：极值 / 数值 / 累计沿用既有家族编号；桑基按 C0 §3.4 的 CF-C12；文字观察与状态卡暂编 CF-A10 / CF-A11（QC-15 待统一）。
+  "top-rise": "CF-A02", "top-fall": "CF-A02", p90: "CF-A01", insights: "CF-A10", sankey: "CF-C12", status: "CF-A11",
+  "cumulative-compare": "CF-B11",
 };
 
 export function formalChartFamily(family: string): string {
@@ -349,7 +366,8 @@ export const CARD_TYPES: readonly CardType[] = [
     id: "AN-A01",
     group: "advanced",
     recommended: true,
-    families: ["comparison"],
+    // 1.17.12：「较上期变化」数字与「逐日累计对比」两种读法，同一套两期读取（本期 + comparisonRangeFor）。
+    families: ["comparison", "number", "cumulative-compare"],
     defaultSize: S22,
     minSize: S22,
     sizes: [S22, S23],
@@ -495,20 +513,22 @@ export const CARD_TYPES: readonly CardType[] = [
   // P05 分类层级结构、P07 分类层级桑基需要真实的父子分类模型（当前分类只有一级，C0 QC-03 待所有者决定），
   // 不按名称猜层级，**不登记**；P21 自定义多维分析需要每个槽位的维度参数，本轮未开放（见能力说明 §7）。
   cCard("AN-I18", "advanced", ["record-table", "ranking"], S22, S21, CHART_SIZES),
-  cCard("AN-A06", "advanced", ["diverging", "waterfall"], S22, S21, CHART_SIZES),
+  cCard("AN-A06", "advanced", ["diverging", "waterfall", "insights"], S22, S21, CHART_SIZES),
   cCard("AN-A07", "advanced", ["diverging", "slope"], S22, S21, CHART_SIZES),
   cCard("AN-A08", "advanced", ["number", "pareto"], S11, S11, NUMBER_SIZES),
   cCard("AN-A09", "advanced", ["histogram"], S22, S21, CHART_SIZES),
-  cCard("AN-A10", "advanced", ["boxplot", "number"], S21, S21, CHART_SIZES),
+  cCard("AN-A10", "advanced", ["boxplot", "number", "p90"], S21, S21, CHART_SIZES),
   cCard("AN-A11", "advanced", ["number", "histogram"], S11, S11, NUMBER_SIZES),
   cCard("AN-A15", "advanced", ["number", "table"], S11, S11, NUMBER_SIZES),
   cCard("AN-A16", "advanced", ["number", "pareto", "record-table"], S11, S11, NUMBER_SIZES),
-  cCard("AN-A17", "advanced", ["diverging", "table"], S22, S21, CHART_SIZES),
+  cCard("AN-A17", "advanced", ["diverging", "table", "top-rise", "top-fall"], S22, S21, CHART_SIZES),
   cCard("AN-P01", "professional", ["matrix"], S22, S22, [S22, S23, S24]),
   cCard("AN-P02", "professional", ["matrix"], S22, S22, [S22, S23, S24]),
   cCard("AN-P03", "professional", ["matrix", "stacked-bars"], S22, S22, [S22, S23, S24]),
   cCard("AN-P04", "professional", ["stacked-bars", "table"], S22, S21, CHART_SIZES),
-  cCard("AN-P06", "professional", ["treemap", "ranking"], S22, S21, CHART_SIZES),
+  // 桑基读法（1.17.12）只画「支出总额 → 分类」这一真实归属关系（shared `buildHierarchy` + `buildHierarchySankey`）；
+  // 所有者规格 §23 不允许把「收入 → 支付方式 → 分类」连成资金流向，分类层级（P07）等 QC-03。
+  cCard("AN-P06", "professional", ["treemap", "ranking", "sankey"], S22, S21, CHART_SIZES),
   cCard("AN-P08", "professional", ["pareto", "table"], S22, S21, CHART_SIZES),
   cCard("AN-P09", "professional", ["bump", "table"], S22, S22, [S22, S23]),
   cCard("AN-P10", "professional", ["scatter"], S22, S21, CHART_SIZES),
@@ -518,10 +538,10 @@ export const CARD_TYPES: readonly CardType[] = [
   cCard("AN-P14", "professional", ["small-multiples"], S23, S22, [S22, S23, S24]),
   // 53 周 × 7 天在手机宽度下每格约 6–7 像素，2×1 的高度放不下日历与合计行，默认 2×2。
   { ...cCard("AN-P15", "professional", ["calendar-year"], S22, S21, [S21, S22]), ownWindow: "year" },
-  cCard("AN-P16", "professional", ["ranking", "table"], S22, S21, CHART_SIZES),
+  cCard("AN-P16", "professional", ["ranking", "table", "status"], S22, S21, CHART_SIZES),
   { ...cCard("AN-P17", "professional", ["ranking", "table"], S22, S21, CHART_SIZES), requiresCombined: true },
   { ...cCard("AN-P18", "professional", ["scatter", "table"], S22, S21, CHART_SIZES), requiresCombined: true },
-  { ...cCard("AN-P19", "professional", ["table", "matrix"], S22, S21, CHART_SIZES), requiresCombined: true },
+  { ...cCard("AN-P19", "professional", ["table", "matrix", "status"], S22, S21, CHART_SIZES), requiresCombined: true },
   { ...cCard("AN-P20", "professional", ["bar", "table"], S22, S21, CHART_SIZES), requiresCombined: true },
   cCard("AN-P22", "professional", ["waterfall", "table"], S22, S21, CHART_SIZES),
   cCard("AN-P23", "professional", ["boxplot", "table"], S23, S22, [S22, S23, S24]),

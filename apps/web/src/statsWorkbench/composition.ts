@@ -35,6 +35,7 @@
 import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layout";
 
 import { cardType, resolveDisplay, SPARK_CAPABLE_IDS, TALL_NUMBER_IDS, type ChartFamily } from "./catalog.js";
+import { windowOptions } from "./timeWindows.js";
 
 export const COMPOSITION_VERSION = 1;
 export const MAX_SLOTS = 8;
@@ -44,7 +45,8 @@ export const MAX_CHART_SLOTS = 4;
 /** 槽位内容的种类：数字（单值，可紧凑排列）或图表（需要绘图区）。 */
 export type SlotKind = "number" | "chart";
 
-const NUMBER_FAMILIES: ReadonlySet<string> = new Set(["number", "extreme"]);
+/** 结果是「一个值」的展示形式（含 1.17.12 的增减最多分类、P90、数据状态）：在组合卡片里占数字格。 */
+const NUMBER_FAMILIES: ReadonlySet<string> = new Set(["number", "extreme", "top-rise", "top-fall", "p90", "status"]);
 
 export function slotKindOf(family: string): SlotKind {
   return NUMBER_FAMILIES.has(family) ? "number" : "chart";
@@ -304,7 +306,8 @@ export function slotCard(card: AnalysisCardNode, slot: CompositionSlot): Analysi
     objectId: `${card.objectId}#${slot.id}`,
     type: "analysis-card",
     analysis: { analysisId: slot.analysisId, params: {} },
-    chart: { chartFamily: slot.family },
+    // 相对时间窗口（1.17.12）由整张卡片共享，和固定区间一样传给每个槽位。
+    chart: { chartFamily: slot.family, ...windowOptions(card) },
     title: { kind: "preset" },
     rangePolicy: card.rangePolicy,
     ...(card.pinnedRange === undefined ? {} : { pinnedRange: card.pinnedRange }),
@@ -422,6 +425,10 @@ const FAMILY_MIN_SLOT_HEIGHT: Partial<Record<ChartFamily, number>> = {
   "small-multiples": 150,
   // 箱线图横向一条箱体 + 一行数轴说明即可读（单组约 44px），比通用下限低：2×1 也能完整显示。
   boxplot: 64,
+  // 两条观察各一行（2 × 20px + 4px 间距）+ 名称一行：带时间副标题的 2×1 也能完整显示。
+  insights: 62,
+  // 桑基：左右各几段节点与连线，低于约 120px 时节点名称会互相压住。
+  sankey: 140,
 };
 
 /** 单项卡片（不是组合卡片）在给定正文尺寸下怎么画：完整图表 / 迷你趋势 / 空间不足（点开看）。 */
@@ -630,6 +637,26 @@ export function layoutComposition(template: TemplateId, specs: readonly SlotSpec
           const side = solveNumbers(numbers, { x: chartWidth + SLOT_GAP, y: 0, width: numberWidth, height: box.height });
           const chartPart = solveCharts(charts, { x: 0, y: 0, width: chartWidth, height: box.height });
           best = better(best, { placements: [...chartPart.placements, ...side.placements], hidden: [...chartPart.hidden, ...side.hidden], chartArea: chartPart.chartArea });
+        }
+      }
+      // C：图表被挤掉时，少放几个数字给图表让位——图表是这类卡片的主体，收起的数字仍在「另有 N 项」与详情页里
+      // （1.17.12：320px 窄屏上「趋势图 + 三个数字」原来会收起图表、只剩数字）。收起的项数不比 A / B 多才采用。
+      if (best !== null && charts.some((spec) => best?.hidden.includes(spec.id) === true)) {
+        for (let keep = numbers.length - 1; keep >= 1; keep -= 1) {
+          const shown = numbers.slice(0, keep);
+          const top = numbersBandHeight(shown, box.width, declared.arrangement !== "mixed");
+          if (top === null) continue;
+          const rest = { x: 0, y: top + SLOT_GAP, width: box.width, height: box.height - top - SLOT_GAP };
+          if (rest.height <= 0) continue;
+          const chartPart = solveCharts(charts, rest);
+          if (chartPart.hidden.length > 0) continue;
+          const band = solveNumbers(shown, { ...box, height: top });
+          best = better(best, {
+            placements: [...band.placements, ...chartPart.placements],
+            hidden: [...band.hidden, ...numbers.slice(keep).map((spec) => spec.id)],
+            chartArea: chartPart.chartArea,
+          });
+          break;
         }
       }
       return finish(best ?? { placements: [], hidden: specs.map((spec) => spec.id), chartArea: 0 });

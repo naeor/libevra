@@ -385,3 +385,87 @@ describe("空数据与英文", () => {
     expect(html).toContain("Total expense +¥1,120.00");
   });
 });
+
+describe("1.17.12 新增读法（布局预设用，手算）", () => {
+  // 本期支出：房租 1,000 / 购物 200 / 餐饮 80 / 交通 10，合计 1,290；上期（9/1–9/27）：餐饮 50 / 交通 20 / 旅行 100，合计 170。
+  it("A17 增加最多：房租 +¥1,000.00（上期没有，标「新出现」）；减少最多：旅行 −¥100.00", () => {
+    const rise = render("AN-A17", "top-rise");
+    expect(rise).toContain("房租");
+    expect(rise).toContain("+¥1,000.00");
+    expect(rise).toContain("新出现");
+    const fall = render("AN-A17", "top-fall");
+    expect(fall).toContain("旅行");
+    expect(fall).toContain("−¥100.00");
+  });
+
+  it("A17 没有方向上的变化时说明，而不是写 0", () => {
+    // 本期只有一笔餐饮 10.00，上期餐饮 50.00：没有任何分类增加。
+    const html = render("AN-A17", "top-rise", {}, [entry("only", "2026-10-02", "expense", 1000, FOOD, WECHAT)]);
+    expect(html).toContain("没有比上期增加的分类");
+    expect(html).not.toContain("¥0.00");
+  });
+
+  it("A06 要点：支出比上期多 ¥1,120.00（658.8%）；增加最多的是「房租」，多了 ¥1,000.00", () => {
+    const html = render("AN-A06", "insights");
+    expect(html).toContain("支出比上期多 ¥1,120.00（658.8%）");
+    expect(html).toContain("增加最多的是「房租」，多了 ¥1,000.00");
+  });
+
+  it("A10 第 90 百分位：Type 7，h = 1 + 7 × 0.9 = 7.3 → 200 + 0.3 × 800 = ¥440.00，8 笔样本较少", () => {
+    const html = render("AN-A10", "p90");
+    expect(html).toContain("¥440.00");
+    expect(html).toContain("共 8 笔");
+    expect(html).toContain("样本较少");
+  });
+
+  it("P06 支出流向：支出总额 ¥1,290.00 → 4 个分类（shared 层级桑基守恒）", () => {
+    const html = render("AN-P06", "sankey");
+    expect(html).toContain("支出总额 ¥1,290.00 → 4 个分类");
+    expect(html).toContain("分类目前只有一层");
+  });
+
+  it("P16 数据状态：9 笔、1 种币种、数据完整；本机覆盖不完整时如实说明", () => {
+    const html = render("AN-P16", "status");
+    expect(html).toContain("9 笔");
+    expect(html).toContain("数据完整");
+    expect(html).toContain("1 种币种");
+    expect(render("AN-P16", "status", { rangeSourceComplete: false })).toContain("本机数据不完整");
+  });
+
+  it("P19 汇率覆盖：原币模式说明只在综合折算下有意义；全部人民币时「无需折算」", () => {
+    expect(render("AN-P19", "status")).toContain("综合折算");
+    const combined = text(renderToStaticMarkup(<CardBody card={card("AN-P19", "status")} scope={scope(ENTRIES, { combined: true, fx: buildFxView({ entries: ENTRIES }) })} density="expanded" detail />));
+    expect(combined).toContain("无需折算");
+  });
+});
+
+describe("1.17.12 A01 的两种新读法（手算）", () => {
+  it("较上期变化：本期支出 ¥1,290.00 对上期 ¥170.00 → +658.8%", () => {
+    const html = render("AN-A01", "number");
+    expect(html).toContain("+658.8%");
+    expect(html).toContain("上期 ¥170.00 → 本期 ¥1,290.00");
+  });
+
+  it("上期未完整读取：不给增幅，说明原因", () => {
+    const html = render("AN-A01", "number", { comparisonRead: { entries: PREVIOUS, verified: false } });
+    expect(html).not.toContain("%");
+    expect(html).toContain("—");
+  });
+
+  it("累计对比：两期合计写在上方，图里有两条线", () => {
+    const html = renderToStaticMarkup(<CardBody card={card("AN-A01", "cumulative-compare")} scope={scope(ENTRIES)} density="expanded" detail />);
+    expect(text(html)).toContain("本期 ¥1,290.00 · 上期同期 ¥170.00");
+    expect((html.match(/<path /g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("1.17.12 A01 新读法 · 综合折算", () => {
+  const combinedScope = () => scope(ENTRIES, { combined: true, fx: buildFxView({ entries: ENTRIES }), previousFx: buildFxView({ entries: PREVIOUS }) });
+  it("较上期变化与累计对比在综合折算下同样手算一致", () => {
+    const number = text(renderToStaticMarkup(<CardBody card={card("AN-A01", "number")} scope={combinedScope()} density="expanded" detail />));
+    expect(number).toContain("+658.8%");
+    const cumulative = text(renderToStaticMarkup(<CardBody card={card("AN-A01", "cumulative-compare")} scope={combinedScope()} density="expanded" detail />));
+    expect(cumulative).toContain("本期 ¥1,290.00 · 上期同期 ¥170.00");
+    for (const html of [number, cumulative]) for (const bad of ["NaN", "undefined", "Infinity"]) expect(html).not.toContain(bad);
+  });
+});

@@ -8,6 +8,7 @@
  * - 卡片空间小时少画行数并写明「另有 N 项」，详情页给全量。
  */
 import { comparisonRangeFor, decimalsFor, type DateRange, type Transaction } from "@libellum/shared";
+import { sankeyIsConserved } from "@libellum/shared/analysis/advanced";
 
 import {
   BarRows,
@@ -20,6 +21,7 @@ import {
   HeatMatrix,
   ObservationDots,
   ParetoChart,
+  SankeyChart,
   ScatterChart,
   SlopeChart,
   SmallMultiplesGrid,
@@ -38,11 +40,13 @@ import {
   categoryConcentration,
   categoryMatrix,
   categoryMonthPivot,
+  categorySankey,
   categorySmallMultiples,
   categoryTotals,
   convertedByOriginalCurrency,
   currencyCounts,
   expenseDistribution,
+  expensePercentile,
   expenseScatter,
   fraction,
   fxCoverage,
@@ -134,7 +138,7 @@ function Shell({ notes, info = [], children }: { readonly notes: readonly (strin
 }
 
 /** 数字形态（A08 / A10 / A11 / A15 / A16）：与 A 的数值卡同样的大号金额与说明，组合卡片里收成单元格。 */
-function CNumber({ text, note, density, warn = false }: { readonly text: string; readonly note: string | null; readonly density: Density; readonly warn?: boolean }): React.JSX.Element {
+export function CNumber({ text, note, density, warn = false }: { readonly text: string; readonly note: string | null; readonly density: Density; readonly warn?: boolean }): React.JSX.Element {
   const mode = useSlotMode();
   if (mode === "inline" || mode === "stacked") {
     return (
@@ -145,9 +149,78 @@ function CNumber({ text, note, density, warn = false }: { readonly text: string;
     );
   }
   return (
-    <div className="flex h-full min-h-0 flex-col justify-end gap-1">
-      <FitAmount text={text} start={density === "compact" ? 1 : 0} className="text-ink" />
+    // 放不下时从上往下排（`safe`）：数值永远完整可见，说明被截在下方。
+    <div className="flex h-full min-h-0 flex-col justify-end-safe gap-1">
+      <FitAmount text={text} start={density === "compact" ? 1 : 0} className="shrink-0 text-ink" />
       {note === null ? null : <p className={`text-helper ${warn ? "text-warn-dark" : "text-muted"}`}>{note}</p>}
+    </div>
+  );
+}
+
+/**
+ * 「增加 / 减少最多的分类」（A17 的读法）：分类名称 + 变化金额 + 一行口径（增幅、比较的两段日期）。
+ * 组合卡片的小格里只放「分类 变化金额」一行。
+ */
+function ChangeHighlight({ label, value, note, rising, density, tight }: { readonly label: string; readonly value: string; readonly note: string; readonly rising: boolean; readonly density: Density; readonly tight: boolean }): React.JSX.Element {
+  const mode = useSlotMode();
+  const arrow = rising ? "↑" : "↓";
+  if (mode === "inline" || mode === "stacked") {
+    return (
+      <span className="flex min-w-0 items-center justify-end gap-1.5" title={`${label} ${value} · ${note}`}>
+        <span className="min-w-0 truncate text-helper text-muted">{label}</span>
+        <span className="sw-amount shrink-0 text-base font-semibold tabular-nums text-ink">{value}</span>
+      </span>
+    );
+  }
+  return (
+    // 矮卡片（带时间副标题的 1×1）：名称改小一号、不写第二行说明（完整说明在 title 与详情页）。
+    <div className="flex h-full min-h-0 flex-col justify-end-safe gap-0.5" title={tight ? note : undefined}>
+      <p className={`flex min-w-0 items-center gap-1.5 font-medium text-ink ${tight ? "text-helper" : "text-body"}`}>
+        <span aria-hidden="true" className={rising ? "text-data-expense" : "text-brand-dark"}>{arrow}</span>
+        <span className="min-w-0 truncate">{label}</span>
+      </p>
+      <FitAmount text={value} start={tight ? 3 : density === "compact" ? 2 : 1} className="shrink-0 text-ink" />
+      {tight ? null : <p title={note} className="truncate text-helper text-muted">{note}</p>}
+    </div>
+  );
+}
+
+/** 两条简短观察（A06 的文字读法）：每条一行，前面是方向记号；放不下时截断，完整文字在 title 与详情页。 */
+function InsightLines({ lines, tight }: { readonly lines: readonly { readonly text: string; readonly direction: "up" | "down" | "flat" }[]; readonly tight: boolean }): React.JSX.Element {
+  return (
+    <ul className="flex h-full min-h-0 flex-col justify-center gap-1">
+      {lines.map((line) => (
+        <li key={line.text} title={line.text} className="flex min-w-0 items-start gap-2 text-helper-relaxed text-ink">
+          <span aria-hidden="true" className={`mt-0.5 shrink-0 ${line.direction === "up" ? "text-data-expense" : line.direction === "down" ? "text-brand-dark" : "text-muted"}`}>
+            {line.direction === "up" ? "↑" : line.direction === "down" ? "↓" : "→"}
+          </span>
+          <span className={`min-w-0 ${tight ? "truncate" : "line-clamp-2"}`}>{line.text}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** 数据状态卡（P16 笔数与完整性 / P19 汇率覆盖）：一个值 + 一行带状态色点的结论 + 可选说明。 */
+function StatusView({ value, line, tone, note, density, tight }: { readonly value: string; readonly line: string; readonly tone: "ok" | "warn" | "muted"; readonly note: string | null; readonly density: Density; readonly tight: boolean }): React.JSX.Element {
+  const mode = useSlotMode();
+  const dot = tone === "ok" ? "sw-status-dot-ok" : tone === "warn" ? "sw-status-dot-warn" : "sw-status-dot-muted";
+  if (mode === "inline" || mode === "stacked") {
+    return (
+      <span className="flex min-w-0 items-center justify-end gap-1.5" title={[line, note].filter((part): part is string => part !== null).join(" · ")}>
+        <span className={`sw-status-dot ${dot}`} aria-hidden="true" />
+        <span className="sw-amount min-w-0 truncate text-base font-semibold tabular-nums text-ink">{value}</span>
+      </span>
+    );
+  }
+  return (
+    <div className="flex h-full min-h-0 flex-col justify-end-safe gap-0.5">
+      <FitAmount text={value} start={tight ? 2 : density === "compact" ? 1 : 0} className="shrink-0 text-ink" />
+      <p className={`flex min-w-0 items-center gap-1.5 text-helper ${tone === "warn" ? "text-warn-dark" : "text-muted"}`}>
+        <span className={`sw-status-dot ${dot}`} aria-hidden="true" />
+        <span className="min-w-0 truncate" title={note === null ? line : `${line} · ${note}`}>{line}</span>
+      </p>
+      {note === null || tight ? null : <p title={note} className="truncate text-helper text-muted">{note}</p>}
     </div>
   );
 }
@@ -160,6 +233,8 @@ export function CCardView({ id, family, scope, range, density, detail, available
   const percent = (value: { readonly numerator: bigint; readonly denominator: bigint } | null) => (value === null || value.denominator === 0n ? t("statsWorkbench.states.undetermined") : ratioPercentText(value));
   const more = (count: number) => t("statsWorkbench.values.more", { count });
   const height = detail ? 240 : available !== undefined && available > 0 ? Math.max(64, Math.min(320, available - 24)) : density === "expanded" ? 170 : density === "medium" ? 130 : 96;
+  // 矮卡片（例如带时间副标题的 1×1 / 2×1）：文字读法收成一行、不写第二行说明。
+  const tight = !detail && available !== undefined && available > 0 && available < 64;
   // `lines`：图表上方的说明行数（组合卡片小格里每类说明最多一行）；每行 18px + 间隙。
   const rowsFit = (rowHeight: number, lines = 0) => (detail ? 500 : Math.max(1, Math.floor(((available ?? 140) - 24 - lines * 20) / rowHeight)));
   const title = t(`statsWorkbench.cards.${id as "AN-I18"}.title`);
@@ -277,6 +352,13 @@ export function CCardView({ id, family, scope, range, density, detail, available
       const median = summary.median;
       const q1 = quartile(summary, 1n, 4n);
       const q3 = quartile(summary, 3n, 4n);
+      if (family === "p90") {
+        // 与四分位同一 Type 7 方法；样本少于 10 笔时第 90 百分位基本就是最大的几笔之一，如实提示。
+        const p90 = expensePercentile(records, 9n, 10n);
+        if (p90 === null) return <Notice text={empty} />;
+        const note = [partial, t("statsWorkbench.cAnalysis.p90Note", { count: p90.sampleCount }), p90.sampleCount < 10 ? t("statsWorkbench.cAnalysis.smallSample") : null].filter((part): part is string => part !== null).join(" · ");
+        return <CNumber density={density} text={money(roundRational(p90.value))} note={note} warn={partial !== null} />;
+      }
       if (id === "AN-A11") {
         const cv = summary.coefficientOfVariation;
         const sd = summary.standardDeviation;
@@ -566,11 +648,31 @@ export function CCardView({ id, family, scope, range, density, detail, available
       if (totals.length === 0) return <Notice text={noRecords ? empty : t("statsWorkbench.states.fxNothingKnown", { count: missing })} />;
       const notes = [partial, fxNote("fxComposition")];
       const max = totals[0]!.minor;
-      // 缺汇率时分母不完整：面积会暗示占比，所以退成不带占比的排行。
+      // 缺汇率时分母不完整：面积 / 带宽会暗示占比，所以退成不带占比的排行。
       if (family === "ranking" || missing > 0) {
         return (
           <Shell notes={notes}>
             <BarRows title={title} limit={rowsFit(30, 1)} moreText={more} rows={totals.map((row) => ({ id: row.id, label: row.label, valueText: money(row.minor), fraction: ratio(row.minor, max) }))} />
+          </Shell>
+        );
+      }
+      if (family === "sankey") {
+        const sankey = categorySankey(records);
+        if (sankey === null) return <Notice text={empty} />;
+        if (!sankeyIsConserved(sankey)) return <Notice text={t("statsWorkbench.cAnalysis.notConserved")} tone="warn" />;
+        const labels = new Map(sankey.nodes.map((node) => [node.nodeId, node.label] as const));
+        const links = sankey.links.filter((link) => link.fromId === sankey.rootId).sort((a, b) => (a.amountMinor === b.amountMinor ? (a.toId < b.toId ? -1 : 1) : a.amountMinor > b.amountMinor ? -1 : 1));
+        const totalText = money(sankey.totalMinor);
+        return (
+          <Shell notes={notes} info={[t("statsWorkbench.cAnalysis.sankeySummary", { total: totalText, count: links.length }), detail && !sankey.isRealHierarchy ? t("statsWorkbench.cAnalysis.sankeyFlat") : null]}>
+            <SankeyChart
+              title={title}
+              height={Math.max(60, height - 30)}
+              sourceLabel={t("statsWorkbench.cAnalysis.sankeySource")}
+              sourceText={totalText}
+              otherLabel={t("statsWorkbench.values.other")}
+              targets={links.map((link) => ({ id: link.toId, label: labels.get(link.toId) ?? link.toId, fraction: ratio(link.amountMinor, sankey.totalMinor), valueText: `${money(link.amountMinor)}${link.shareOfSource === null ? "" : ` · ${percent(link.shareOfSource)}`}` }))}
+            />
           </Shell>
         );
       }
@@ -634,6 +736,38 @@ export function CCardView({ id, family, scope, range, density, detail, available
       const maxDelta = contribution.rows.reduce((max, row) => { const abs = row.deltaMinor < 0n ? -row.deltaMinor : row.deltaMinor; return abs > max ? abs : max; }, 0n);
       const rowsByDelta = [...contribution.rows].sort((a, b) => { const absA = a.deltaMinor < 0n ? -a.deltaMinor : a.deltaMinor; const absB = b.deltaMinor < 0n ? -b.deltaMinor : b.deltaMinor; return absA === absB ? (a.categoryId < b.categoryId ? -1 : 1) : absA > absB ? -1 : 1; });
       const tag = (row: (typeof contribution.rows)[number]) => (row.isNew ? t("statsWorkbench.cAnalysis.newCategory") : row.isRemoved ? t("statsWorkbench.cAnalysis.removedCategory") : null);
+      const abs = (minor: bigint) => (minor < 0n ? -minor : minor);
+      if (family === "top-rise" || family === "top-fall") {
+        // 两期变化排行里「增加 / 减少最多」的一个分类：同一份归因结果，只取方向上绝对值最大的一行（并列按分类编号）。
+        const rising = family === "top-rise";
+        const best = contribution.rows
+          .filter((row) => (rising ? row.deltaMinor > 0n : row.deltaMinor < 0n))
+          .sort((a, b) => (abs(a.deltaMinor) === abs(b.deltaMinor) ? (a.categoryId < b.categoryId ? -1 : 1) : abs(a.deltaMinor) > abs(b.deltaMinor) ? -1 : 1))[0];
+        if (best === undefined) return <Notice text={t(rising ? "statsWorkbench.cAnalysis.noRise" : "statsWorkbench.cAnalysis.noFall")} />;
+        const growth = best.growth === null ? tag(best) : `${best.deltaMinor > 0n ? "+" : ""}${percent(best.growth)}`;
+        return <ChangeHighlight label={best.categoryLabel} value={signed(best.deltaMinor)} note={[growth, periodText].filter((part): part is string => part !== null).join(" · ")} rising={rising} density={density} tight={tight} />;
+      }
+      if (family === "insights") {
+        // 两条简短观察：总支出比上期多 / 少多少；变化主要来自哪个分类。都是归因结果的文字读法，不另算。
+        const total = contribution.totalDeltaMinor;
+        const previousTotal = contribution.previousTotalMinor;
+        const growth = previousTotal > 0n && total !== 0n ? percent({ numerator: abs(total), denominator: previousTotal }) : null;
+        const first = total === 0n
+          ? t("statsWorkbench.cAnalysis.insightFlat")
+          : t(total > 0n ? "statsWorkbench.cAnalysis.insightUp" : "statsWorkbench.cAnalysis.insightDown", { amount: money(abs(total)), growth: growth ?? "—" });
+        const driver = rowsByDelta.find((row) => (total >= 0n ? row.deltaMinor > 0n : row.deltaMinor < 0n));
+        const second = driver === undefined
+          ? null
+          : t(driver.deltaMinor > 0n ? "statsWorkbench.cAnalysis.insightDriverUp" : "statsWorkbench.cAnalysis.insightDriverDown", { name: driver.categoryLabel, amount: money(abs(driver.deltaMinor)) });
+        const lines: { readonly text: string; readonly direction: "up" | "down" | "flat" }[] = [{ text: first, direction: total > 0n ? "up" : total < 0n ? "down" : "flat" }];
+        if (second !== null && driver !== undefined) lines.push({ text: second, direction: driver.deltaMinor > 0n ? "up" : "down" });
+        return (
+          // 矮卡片（2×1）不写比较区间这一行：两条观察优先；区间在卡片副标题与详情页里。
+          <Shell notes={[]} info={[slotMode === null && !tight ? periodText : null]}>
+            <InsightLines lines={lines} tight={tight} />
+          </Shell>
+        );
+      }
       if (id === "AN-A07" || id === "AN-P24") {
         const shares = change.shares;
         if (family === "slope") {
@@ -711,6 +845,21 @@ export function CCardView({ id, family, scope, range, density, detail, available
     case "AN-P16": {
       const entries = scope.combined ? sourceOf(scope) : sourceEntries;
       const result = currencyCounts(entries.filter((entry) => entry.occurredLocalDate >= range.from && entry.occurredLocalDate <= range.to));
+      if (family === "status") {
+        // 数据状态：统计依据的笔数 + 这段时间的数据是否完整（本机覆盖、缺汇率）。笔数与汇率无关，缺汇率只影响金额。
+        const count = result === null ? 0 : result.rows.reduce((sum, row) => sum + row.recordCount, 0);
+        const fxMissing = scope.combined ? fx?.projection.missing.length ?? 0 : 0;
+        const incomplete = scope.rangeSourceComplete === false;
+        const line = incomplete
+          ? t("statsWorkbench.cAnalysis.statusIncomplete")
+          : fxMissing > 0
+            ? t("statsWorkbench.cAnalysis.statusFxMissing", { count: fxMissing })
+            : count === 0
+              ? empty
+              : t("statsWorkbench.cAnalysis.statusComplete");
+        const facts = result === null ? null : t("statsWorkbench.cAnalysis.statusCurrencies", { count: result.rows.length });
+        return <StatusView value={t("statsWorkbench.values.count", { count })} line={line} tone={incomplete || fxMissing > 0 ? "warn" : count === 0 ? "muted" : "ok"} note={facts} density={density} tight={tight} />;
+      }
       if (result === null) return <Notice text={empty} />;
       const max = result.rows.reduce((value, row) => Math.max(value, row.recordCount), 0);
       if (family === "table") {
@@ -769,10 +918,27 @@ export function CCardView({ id, family, scope, range, density, detail, available
     case "AN-P19": {
       if (fx === undefined) return <Notice text={t("statsWorkbench.cAnalysis.combinedOnly")} />;
       const rows = fxCoverage(sourceOf(scope), new Set(fx.projection.missing.map((record) => record.id)), fx.projection.target);
+      if (family === "status" && rows.length === 0) {
+        return <StatusView value={t("statsWorkbench.cAnalysis.statusNoForeignValue")} line={t("statsWorkbench.cAnalysis.noForeign")} tone="ok" note={null} density={density} tight={tight} />;
+      }
       if (rows.length === 0) return <Notice text={t("statsWorkbench.cAnalysis.noForeign")} />;
       const needed = rows.reduce((sum, row) => sum + row.needed, 0);
       const converted = rows.reduce((sum, row) => sum + row.converted, 0);
       const summary = t("statsWorkbench.cAnalysis.coverageSummary", { converted, needed });
+      if (family === "status") {
+        // 汇率覆盖：需要折算的外币账目里已折算的比例（按笔数，不是金额）。
+        const missingCount = needed - converted;
+        return (
+          <StatusView
+            value={percent({ numerator: BigInt(converted), denominator: BigInt(needed) })}
+            line={missingCount > 0 ? t("statsWorkbench.cAnalysis.statusFxMissing", { count: missingCount }) : t("statsWorkbench.cAnalysis.statusFxComplete")}
+            tone={missingCount > 0 ? "warn" : "ok"}
+            note={summary}
+            density={density}
+            tight={tight}
+          />
+        );
+      }
       if (family === "matrix") {
         const months = [...new Set(rows.flatMap((row) => [...row.missingByMonth.keys()]))].sort();
         if (months.length === 0) return <Notice text={`${summary} ${t("statsWorkbench.cAnalysis.noMissing")}`} />;

@@ -19,6 +19,7 @@ import {
 } from "./composition.js";
 import { newCard } from "./defaults.js";
 import { customRangeProblem } from "./filters.js";
+import { withWindow, type RelativeWindow } from "./timeWindows.js";
 
 /**
  * 自定义卡片可选的指标：目录里**全部已正式实现**的分析。
@@ -44,6 +45,8 @@ export interface CompositeDraft {
   /** 留空 = 自动名称（随界面语言，按内容生成）。 */
   readonly name: string;
   readonly pinnedRange?: { readonly from: string; readonly to: string };
+  /** 相对时间窗口（与固定区间互斥；两者都没有 = 跟随顶部筛选）。 */
+  readonly window?: RelativeWindow;
 }
 
 export type DraftProblem = "empty" | "analysis" | "family" | "template" | "name" | "range";
@@ -84,15 +87,17 @@ export function buildCard(draft: CompositeDraft, base?: AnalysisCardNode, object
     ...(draft.pinnedRange === undefined ? {} : { pinnedRange: draft.pinnedRange }),
   };
   const keepPlain = base !== undefined && readComposition(base).source === "plain" && draft.template === "single";
+  // 时间：固定区间优先；否则相对窗口；都没有就跟随顶部筛选（并去掉原来的窗口）。
+  const window = draft.pinnedRange === undefined ? draft.window ?? null : null;
   if (keepPlain) {
     const sameAnalysis = scoped.analysis.analysisId === first.analysisId;
-    return {
+    return withWindow({
       ...scoped,
       analysis: sameAnalysis ? scoped.analysis : { analysisId: first.analysisId, params: {} },
       chart: { ...scoped.chart, chartFamily: first.family },
-    };
+    }, window);
   }
-  return withComposition(scoped, draft.template, draft.slots);
+  return withWindow(withComposition(scoped, draft.template, draft.slots), window);
 }
 
 /** 「我的自定义」是已保存卡片实例的视图；删除实例即删除该项，不假装是独立模板库。 */

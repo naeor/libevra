@@ -210,6 +210,10 @@ export function ChartGlyph({ family, ...props }: IconProps & { readonly family: 
     "CF-C17": "M3 3h8v8H3V3Zm10 0h8v8h-8V3ZM3 13h8v8H3v-8Zm10 0h8v8h-8v-8ZM4 9l3-3 3 2m4 1 3-2 3 1M4 19l3-2 3 1m4 1 3-4 3 2",
     "CF-C18": "M3 5h18v15H3V5Zm2 3h2m2 0h2m2 0h2m2 0h2M5 12h2m2 0h2m2 0h2m2 0h2M5 16h2m2 0h2m2 0h2",
     "CF-C20": "M6 4v16m12-16v16M6 8l12 4M6 14l12-6M6 18l12 0",
+    // ---- 1.17.12 ----
+    "CF-A10": "M4 6h1m3 0h12M4 12h1m3 0h9M4 18h1m3 0h11",
+    "CF-A11": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-4-9 2.8 2.8L16 9.5",
+    "CF-C12": "M3 4h3v7H3V4Zm0 10h3v6H3v-6Zm15-10h3v5h-3V4Zm0 8h3v8h-3v-8ZM6 7c6 0 6-1 12-1M6 17c6 0 6-2 12-2M6 9c6 0 6 6 12 6",
   };
   const path = paths[formal] ?? (formal === "CF-B07" || formal === "CF-B12" || formal === "CF-B13" || formal === "CF-B14" || formal === "CF-B15" ? paths["CF-B01"] : undefined);
   return path === undefined ? <CardGlyph {...props} /> : <Icon {...props} data-chart-family={formal} d={path} />;
@@ -238,3 +242,12 @@ export const PlusGlyph = (props: IconProps) => <Icon {...props} d="M12 5v14M5 12
 export const RefreshGlyph = (props: IconProps) => <Icon {...props} d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" />;
 export const InfoGlyph = (props: IconProps) => <Icon {...props} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-10.5V16m0-8.5v.01" />;
 export const XGlyph = (props: IconProps) => <Icon {...props} d="M6 6l12 12M18 6 6 18" />;
+export const MoreGlyph = (props: IconProps) => <Icon {...props} d="M6 12h.01M12 12h.01M18 12h.01" />;
+export const PencilGlyph = (props: IconProps) => <Icon {...props} d="M4 20h4L19 9l-4-4L4 16v4Zm9-13 4 4" />;
+export const SaveGlyph = (props: IconProps) => <Icon {...props} d="M5 4h11l3 3v13H5V4Zm3 0v5h7V4M8 20v-6h8v6" />;
+/** 布局预设：新手（嫩芽，起步）。 */
+export const SproutGlyph = (props: IconProps) => <Icon {...props} d="M12 21v-9m0 0c0-3.5-2.5-6-7-6 0 4 2.5 6 7 6Zm0-1c0-3 2-5.5 6.5-5.5 0 3.8-2.4 5.5-6.5 5.5Z" />;
+/** 布局预设：进阶（上升的趋势曲线）。 */
+export const TrendGlyph = (props: IconProps) => <Icon {...props} d="M3 19h18M4 15c3 0 4-6 7-6s3.5 3 6 3c1.6 0 2.6-2 3-4M17 8h3v3" />;
+/** 布局预设：专业（散点与连线的网络）。 */
+export const NetworkGlyph = (props: IconProps) => <Icon {...props} d="M5.5 18.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm12-9a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM16 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM8 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm-.8 9.3 6.8.6m-6.6-2.7L15.8 8.6M16.8 15v-3.6M8.8 7.2l6.8 4.6" />;

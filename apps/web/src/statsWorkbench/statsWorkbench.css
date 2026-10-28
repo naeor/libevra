@@ -29,6 +29,14 @@
   border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-line));
 }
 
+/* 一行高的卡片（1×1 / 2×1）：正文里的说明只留一行，不在半行处被截断（完整说明在详情页）。 */
+.sw-card[data-one-row] .sw-card-body p.text-helper {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
 .sw-card-hit {
   position: absolute;
   inset: 0;
@@ -105,6 +113,106 @@
 .sw-carousel {
   touch-action: pan-y;
   overflow: hidden;
+}
+
+/* 横向滑动抽屉：一条横向轨道，按页码平移；拖动时 `--sw-carousel-offset` 跟手（不经过 React 渲染）。 */
+.sw-carousel-viewport {
+  overflow: hidden;
+}
+
+.sw-carousel-track {
+  --sw-carousel-index: 0;
+  --sw-carousel-offset: 0px;
+  display: flex;
+  height: 100%;
+  transform: translateX(calc(var(--sw-carousel-index) * -100% + var(--sw-carousel-offset)));
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+.sw-carousel-track[data-dragging] {
+  transition: none;
+}
+
+.sw-carousel-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+/* 页码点在卡片标题行右侧；每个点是可点的按钮（点击区比点本身大）。 */
+.sw-carousel-dots {
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  margin-top: -0.25rem;
+  margin-right: -0.25rem;
+}
+
+.sw-carousel-dot {
+  display: inline-flex;
+  height: 1.5rem;
+  align-items: center;
+  padding-inline: 0.1875rem;
+  border-radius: 999px;
+}
+
+.sw-carousel-dot:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+/* 桌面：悬停或键盘聚焦时两侧出现上一张 / 下一张；触屏上不显示（用手势与页码点）。 */
+.sw-carousel-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: none;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-ink) 12%, transparent);
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.sw-carousel-arrow-start {
+  left: 0.375rem;
+}
+
+.sw-carousel-arrow-end {
+  right: 0.375rem;
+}
+
+.sw-carousel-arrow:disabled {
+  visibility: hidden;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sw-carousel-arrow {
+    display: inline-flex;
+  }
+
+  .sw-carousel:hover .sw-carousel-arrow,
+  .sw-carousel-arrow:focus-visible {
+    opacity: 1;
+  }
+}
+
+.sw-carousel-arrow:focus-visible {
+  display: inline-flex;
+  opacity: 1;
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
 }
 
 /* ---- 页头按钮（与账本页通知铃铛同一种按钮语言） ---- */
@@ -540,6 +648,28 @@
   font-weight: 500;
 }
 
+/* ---- 数据状态卡的状态点（颜色不是唯一信息：旁边总有文字结论） ---- */
+
+.sw-status-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.sw-status-dot-ok {
+  background: var(--color-brand);
+}
+
+.sw-status-dot-warn {
+  background: var(--color-warn);
+}
+
+.sw-status-dot-muted {
+  background: var(--color-line-strong);
+}
+
 /* ---- 统计控制条（分析主页默认一行） ---- */
 
 .sw-statbar {
@@ -883,6 +1013,8 @@
   .sw-drawer-body,
   .sw-edit-tile,
   .sw-page-dot,
+  .sw-carousel-track,
+  .sw-carousel-arrow,
   .sw-chip,
   .sw-pill {
     transition: none;
@@ -1167,4 +1299,199 @@
   .sw-template {
     transition: none;
   }
+}
+
+/* ---- 布局预设（1.17.12）：一页两条横向滑轨 ---- */
+.sw-preset-rail {
+  gap: 0.75rem;
+  padding-inline: 1.25rem;
+  scroll-padding-inline: 1.25rem;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .sw-preset-rail {
+    padding-inline: 1.5rem;
+    scroll-padding-inline: 1.5rem;
+  }
+}
+
+/* 宽屏：三套系统预设并排，不再横滑。 */
+@media (min-width: 768px) {
+  .sw-preset-rail-wide {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+    mask-image: none;
+  }
+
+  .sw-preset-rail-wide > .sw-preset-card {
+    width: auto;
+  }
+}
+
+.sw-preset-card {
+  position: relative;
+  display: flex;
+  width: 11.75rem;
+  min-height: 15.5rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  padding: 0.875rem;
+  box-shadow: var(--shadow-card);
+  transition: border-color 160ms ease;
+}
+
+.sw-preset-card:hover {
+  border-color: color-mix(in srgb, var(--color-brand) 40%, var(--color-line));
+}
+
+.sw-preset-card-muted {
+  background: var(--color-canvas);
+  box-shadow: none;
+}
+
+.sw-preset-icon {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+}
+
+.sw-preset-thumb {
+  display: block;
+  width: 100%;
+  height: 6.5rem;
+  border-radius: 0.5rem;
+  background: var(--color-canvas);
+  padding: 0.375rem;
+}
+
+.sw-thumb-card {
+  fill: color-mix(in srgb, var(--color-brand) 16%, var(--color-surface));
+  stroke: color-mix(in srgb, var(--color-brand) 45%, transparent);
+  stroke-width: 0.35;
+}
+
+.sw-thumb-drawer {
+  fill: color-mix(in srgb, var(--color-brand) 30%, var(--color-surface));
+  stroke: var(--color-brand);
+  stroke-width: 0.35;
+}
+
+.sw-thumb-spacer {
+  fill: none;
+  stroke: var(--color-line-strong);
+  stroke-width: 0.3;
+  stroke-dasharray: 1 1;
+}
+
+.sw-thumb-dot {
+  fill: var(--color-brand-dark);
+}
+
+.sw-preset-add-wrap {
+  padding: 0;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-line));
+  background: color-mix(in srgb, var(--color-brand-soft) 60%, var(--color-surface));
+  box-shadow: none;
+}
+
+.sw-preset-add {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: inherit;
+  padding: 1rem;
+  text-align: center;
+}
+
+.sw-preset-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sw-preset-add:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.sw-preset-add-icon {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+/* 桌面：滑轨两端的左右按钮（还有内容可滚时才出现）；触屏不显示，用手指横滑。 */
+.sw-preset-rail-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: none;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-ink) 14%, transparent);
+  transform: translateY(-50%);
+}
+
+.sw-preset-rail-arrow-start {
+  left: 0.5rem;
+}
+
+.sw-preset-rail-arrow-end {
+  right: 0.5rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sw-preset-rail-arrow {
+    display: inline-flex;
+  }
+}
+
+.sw-preset-rail-arrow:focus-visible {
+  display: inline-flex;
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
+}
+
+/* 预览区与工作台同底色；内边距尽量小，让预览的列宽接近真实工作台。 */
+.sw-preset-preview {
+  border-radius: var(--radius-card);
+  background: var(--color-canvas);
+  padding: 0.5rem;
+}
+
+.sw-preset-footer {
+  position: sticky;
+  bottom: 0;
+  /* 盖住预览里图表的可交互层（`.sw-interactive` 是 z-index 1）。 */
+  z-index: 3;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface);
 }

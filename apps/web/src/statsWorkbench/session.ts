@@ -18,7 +18,7 @@ import {
   type ObjectGeometry,
 } from "@libellum/shared/analysis/layout";
 
-import type { WorkbenchDocuments } from "./storage.js";
+import { documentsProblems, type WorkbenchDocuments } from "./storage.js";
 import { newObjectId } from "./defaults.js";
 
 export type { EditorState };
@@ -218,6 +218,17 @@ export function duplicateObject(state: EditorState, objectId: string): SessionRe
     .map((card) => ({ ...structuredClone(card), objectId: newObjectId("card") }));
   const copy: ContainerNode = { ...structuredClone(container), objectId: newObjectId("box"), children: children.map((child) => child.objectId) };
   return insertContainer(state, copy, children, anchor, size);
+}
+
+/**
+ * 应用布局预设：整份工作台（内容 + 布局）换成预设文档，作为**一步**撤销。
+ * 文档先经 D 正式管线校验，不合法就不动编辑会话；仍要点「完成」才保存工作台。
+ */
+export function replaceDocuments(state: EditorState, documents: WorkbenchDocuments): SessionResult {
+  const problems = documentsProblems(documents);
+  if (problems.length > 0) return { ok: false, state, problem: problems[0] ?? "invalid" };
+  const past = [...state.history.past, { content: state.content, layout: state.layout, selection: state.selection }].slice(-state.history.limit);
+  return { ok: true, state: { content: documents.content, layout: documents.layout, selection: null, history: { ...state.history, past, future: [] } }, problem: null };
 }
 
 export function canUndo(state: EditorState): boolean {

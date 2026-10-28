@@ -103,7 +103,10 @@ export function XAxis({
   readonly approxLabelWidth?: number;
 }): React.JSX.Element {
   const baseline = y ?? layout.padding.top + layout.innerHeight;
-  const step = labelStep(labels.length, slotWidth * labels.length, approxLabelWidth);
+  // 标签本身较长时（例如按周的「9/28–10/4」）按最长标签估宽：数字与连接号约 0.6 em。只会让标签更稀，
+  // 不会更密；短标签（「10/1」「3月」）仍按调用方给的宽度。窄屏上周标签原来会挤在一起（1.17.12）。
+  const longest = labels.reduce((max, label) => Math.max(max, label.length), 0);
+  const step = labelStep(labels.length, slotWidth * labels.length, Math.max(approxLabelWidth, Math.ceil(longest * LABEL_SIZE * 0.6) + 6));
 
   return (
     <g>
