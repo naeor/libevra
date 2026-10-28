@@ -1,88 +1,79 @@
 @echo off
-title Libevra dev server (LAN - phone testing)
+setlocal
+title Libevra dev server (LAN, HTTP)
 cd /d "%~dp0"
 
-rem Makes the web dev server listen on every interface so a phone on the same
-rem Wi-Fi can reach it. The API stays on loopback: the phone only ever talks to
-rem this server, and Vite forwards /api to the API locally.
-set LIBELLUM_LAN=1
+rem ==========================================================================
+rem  DAILY ENTRY. Binds Vite to every interface so a phone on the same Wi-Fi
+rem  can open the app. The API stays on loopback; Vite proxies /api locally.
+rem
+rem  The page is HTTP on purpose:  http://localhost:5173
+rem  Phone secure-context features (recording/offline) need the separate
+rem  start-dev-lan-https.cmd.
+rem
+rem  This file is deliberately pure ASCII. Chinese text inside a .cmd file
+rem  gets mangled by cmd.exe code pages and can break parsing.
+rem ==========================================================================
 
-for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' -and $_.InterfaceAlias -notlike '*Radmin*' } | Select-Object -First 1).IPAddress"`) do set LANIP=%%i
+set "LIBELLUM_LAN=1"
+set "WEB_URL=http://localhost:5173"
+set "API_HEALTH=http://127.0.0.1:5173/api/v1/health"
+set "LANIP="
 
-rem Double-clicking twice is an easy mistake, and the second run would only
-rem report a port conflict. Say what is already true and get out of the way.
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' -and $_.InterfaceAlias -notlike '*Radmin*' } | Select-Object -First 1).IPAddress"`) do set "LANIP=%%i"
+if not defined LANIP set "LANIP=<LAN-IP>"
+
+rem Double-clicking twice is an easy mistake. Never start a second server:
+rem it would either fail (strict port) or, worse, leave the browser on an old
+rem instance. Say what is running, open the right address, keep the window open.
 netstat -an | findstr /r /c:"TCP .*:5173 .*LISTENING" >nul 2>&1
 if not errorlevel 1 (
   echo.
-  echo   The server is ALREADY RUNNING - nothing to start.
+  echo   Port 5173 is already in use - not starting a second server.
   echo.
-  echo     On this computer:      https://localhost:5173
-  echo     On your phone:         https://%LANIP%:5173
+  powershell -NoProfile -Command "try { $h = Invoke-RestMethod -Uri '%API_HEALTH%' -TimeoutSec 3; '   Running version: ' + $h.version + '   database: ' + $h.database } catch { '   It did not answer /api/v1/health - probably an old or unrelated process.' }" 2>nul
   echo.
-  echo   Opening the browser. To stop the server, close its other window.
+  echo   If that is NOT the version you expected, close the OLD server window
+  echo   first, then run this file again. This window stays open on purpose.
   echo.
-  start "" "https://localhost:5173"
-  timeout /t 6 >nul
+  start "" "%WEB_URL%"
+  echo   Opened %WEB_URL%
+  pause
   exit /b 0
 )
 
-rem Reached from a phone, the browser only defines the recording and offline APIs
-rem on a SECURE origin. Over plain http those APIs do not exist at all, and --
-rem this is the part that misleads -- no permission prompt appears, because there
-rem is nothing to prompt for. The dev server therefore serves https, using a
-rem self-signed certificate that has to be trusted once on the phone.
-if not exist "apps\web\.certs\dev-cert.pem" (
+netstat -an | findstr /r /c:"TCP .*:3000 .*LISTENING" >nul 2>&1
+if not errorlevel 1 (
   echo.
-  echo   ================================================================
-  echo     NO CERTIFICATE - running on http
-  echo   ================================================================
+  echo   WARNING: port 3000 is already in use. The API may fail to start.
+  echo   Close the old server window if the page shows stale data.
   echo.
-  echo     On the phone this means:
-  echo       - recording will say the address is not secure
-  echo       - offline mode will not work
-  echo       - and NO permission prompt will appear, because the browser
-  echo         does not provide the API at all over http
-  echo.
-  echo     To fix it, run this once:
-  echo.
-  echo         pnpm dev:cert
-  echo.
-  echo     Then run this file again. See docs\README.md for the one-time
-  echo     trust step on the phone.
-  echo   ================================================================
-  echo.
-  timeout /t 8 >nul
 )
 
 echo.
 echo   ================================================================
-echo     Libevra - LAN mode (for testing on your phone)
+echo     Libevra - daily dev server (LAN, HTTP)
 echo   ================================================================
 echo.
-echo     On this computer:      https://localhost:5173
-echo     On your phone:         https://%LANIP%:5173
+echo     This computer:  %WEB_URL%
+echo     Phone:          http://%LANIP%:5173
+echo     API:            http://127.0.0.1:3000/api/v1/health
 echo.
-echo     NOTE the https. Over http the phone cannot record -- see above.
-echo.
-echo     Your phone must be on the SAME Wi-Fi as this computer.
-echo.
-echo     The first visit shows a certificate warning. That is expected for
-echo     a self-signed certificate; the one-time trust step is in
-echo     docs\README.md.
-echo.
-echo     Windows may ask once whether to allow Node.js through the
-echo     firewall. Choose Allow. If it does not ask, the rule from a
-echo     previous run is already in place.
-echo.
-echo     Keep THIS window open while testing - closing it stops
-echo     everything. To stop: close this window, or press Ctrl+C.
+echo     The browser opens automatically once the API answers.
+echo     Keep THIS window open. Closing it (or Ctrl+C) stops the server.
+echo     If startup fails, the error stays on screen - this window will
+echo     not disappear on you.
 echo   ================================================================
 echo.
 
-start "" /min powershell -NoProfile -Command "Start-Sleep -Seconds 15; Start-Process 'https://localhost:5173'"
+rem Open the browser only after the API answers, instead of guessing "15s".
+start "" /min powershell -NoProfile -Command "for ($i=0; $i -lt 90; $i++) { try { $h = Invoke-RestMethod -Uri '%API_HEALTH%' -TimeoutSec 2; if ($h.ok) { Start-Process '%WEB_URL%'; break } } catch {} ; Start-Sleep -Seconds 1 }"
 
 call pnpm.cmd dev
+set "EXITCODE=%ERRORLEVEL%"
 
 echo.
-echo   Dev server stopped.
+echo   Dev server stopped. Exit code: %EXITCODE%
+echo   If an error is shown above, fix it and run this file again.
+echo   Otherwise you can close this window.
 pause

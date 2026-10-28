@@ -15,11 +15,26 @@ import { themePrepaintPlugin } from "./theme-prepaint-plugin.js";
  * (with Vite's own debug endpoints) to whatever network the laptop is on —
  * which is worth avoiding in a café.
  *
- * For phone testing on the same Wi-Fi, run `pnpm dev:lan` instead. The API
- * stays on loopback even then: the phone talks to this server only, and the
- * proxy below forwards /api to the API on the machine's own loopback.
+ * For phone testing on the same Wi-Fi, run `start-dev-lan.cmd` (HTTP, daily
+ * LAN entry) or `start-dev-lan-https.cmd` (HTTPS, needed for recording/offline
+ * on the phone). The API stays on loopback even then: the phone talks to this
+ * server only, and the proxy below forwards /api to the API on loopback.
  */
 const LAN = process.env["LIBELLUM_LAN"] === "1";
+
+/**
+ * Whether the LAN dev server also serves HTTPS.
+ *
+ * ⚠️ **Off by default — the daily entry is HTTP `http://localhost:5173`.**
+ *
+ * Phone secure-context features (speech recording, service workers) are only
+ * defined over HTTPS or on `localhost`, so testing those on a phone still needs
+ * HTTPS. That is a separate, explicit mode (`start-dev-lan-https.cmd`), because
+ * making the *daily* entry HTTPS was confusing: the owner's browser remembered
+ * `https://localhost:5173` and reported `ERR_SSL_PROTOCOL_ERROR` whenever a
+ * plain-HTTP server occupied the port. One address, one scheme, by default.
+ */
+const HTTPS = process.env["LIBELLUM_HTTPS"] === "1";
 
 /**
  * Which local API this dev server proxies `/api` to.
@@ -41,7 +56,7 @@ const API_TARGET = process.env["LIBELLUM_API_TARGET"] ?? "http://127.0.0.1:3000"
 const WEB_PORT = Number(process.env["LIBELLUM_WEB_PORT"] ?? "5173");
 
 /**
- * ⚠️ **The LAN server is HTTPS, and it has to be.**
+ * ⚠️ **HTTPS mode (`LIBELLUM_HTTPS=1`) exists only for phone secure-context APIs.**
  *
  * `getUserMedia`, `MediaRecorder`, `crypto.randomUUID` and service workers are
  * all *secure-context* APIs: a browser only defines them over HTTPS or on
@@ -54,13 +69,14 @@ const WEB_PORT = Number(process.env["LIBELLUM_WEB_PORT"] ?? "5173");
  * it perfectly — **with no permission prompt, because there was no API to prompt
  * for.** Both sent the reader looking at the browser rather than at the URL.
  *
- * The certificate is self-signed and made by `pnpm dev:cert`. `docs/README.md`
- * explains the one-time trust step on a phone. It is written to a gitignored
- * directory, because a private key does not belong in a public repository even
- * when it is worthless.
+ * The daily desktop entry stays HTTP on purpose: one address, one scheme. The
+ * certificate is self-signed and made by `pnpm dev:cert`; the HTTPS script
+ * explains the one-time trust step. It is written to a gitignored directory,
+ * because a private key does not belong in a public repository even when it is
+ * worthless.
  */
 function httpsConfig(): { key: Buffer; cert: Buffer } | undefined {
-  if (!LAN) return undefined;
+  if (!HTTPS) return undefined;
 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const keyPath = path.join(here, ".certs", "dev-key.pem");
@@ -100,7 +116,13 @@ function serverOptions(): Record<string, unknown> {
     // some Windows setups, which makes http://127.0.0.1:5173 unreachable.
     host: LAN ? "0.0.0.0" : "127.0.0.1",
     port: WEB_PORT,
-    strictPort: process.env["LIBELLUM_WEB_PORT"] !== undefined,
+    /**
+     * ⚠️ **Always strict.** Silently drifting to 5174 when 5173 is taken is how
+     * the browser ends up showing an old server while the new one is "running".
+     * Failing loudly with "Port 5173 is already in use" is the honest outcome —
+     * `start-dev*.cmd` turns that into an actionable message.
+     */
+    strictPort: true,
     // Proxy API calls to the local API server so the browser sees one origin.
     // This is why the API needs no CORS configuration at all, and why exposing
     // this port is enough to use the whole application from a phone.
