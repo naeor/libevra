@@ -51,11 +51,24 @@ if (m && Number(m[1]) !== migrationCount) {
 // --- 其它硬性检查 ---
 if (!/最后核对/.test(status)) problems.push("STATUS.md 缺少「最后核对」行");
 
+// ---- STATUS 必须覆盖式更新，不能变回历史日志（2026-10-29 新增）----
+// 整理前的 STATUS 堆了 5 段「最后核对补充」、单元格里写满历次分支流水，长到 45 KB，
+// 每个 Agent 开工都要读一遍。现在只允许一行「最后核对」，并给体量设上限；历史写 changelog / archive。
+const checkedLines = status.split(/\r?\n/).filter((l) => /^\s*(>\s*)?(\|\s*)?\**最后核对/.test(l));
+if (checkedLines.length > 1) {
+  problems.push(`STATUS.md 有 ${checkedLines.length} 行「最后核对」——只保留一行并覆盖旧值（历史进 changelog / archive）`);
+}
+const STATUS_MAX_BYTES = 20000;
+const statusBytes = Buffer.byteLength(status, "utf8");
+if (statusBytes > STATUS_MAX_BYTES) {
+  problems.push(`STATUS.md 有 ${statusBytes} 字节，超过 ${STATUS_MAX_BYTES}：把过程、证据与历史移到 changelog / archive，表格单元格只写当前值`);
+}
+
 // 唯一性：其它文档不应再声明"当前版本 = x.y.z"
 const mdFiles = [];
 (function walk(dir) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (["node_modules", ".git", "dist", "_backups", ".venv", "__pycache__"].includes(e.name)) continue;
+    if (["node_modules", ".git", "dist", "_backups", ".venv", "__pycache__", "阅读版"].includes(e.name)) continue;
     const full = join(dir, e.name);
     if (e.isDirectory()) walk(full);
     else if (e.name.endsWith(".md")) mdFiles.push(full);
@@ -79,6 +92,8 @@ if (existsSync(APP_TSX)) {
   const actualRoutes = (app.match(/<Route\b/g) || []).length;
   for (const f of mdFiles) {
     const rel = f.slice(ROOT.length + 1).split("\\").join("/");
+    // 历史记录里的旧路由条数是当时的事实，不是对现在的声明（2026-10-29）。
+    if (rel.startsWith("docs/archive/") || rel.startsWith("docs/changelog/")) continue;
     const text = readFileSync(f, "utf8");
     const m = text.match(/路由总表（(\d+)\s*条/);
     if (m && Number(m[1]) !== actualRoutes) {
@@ -89,7 +104,7 @@ if (existsSync(APP_TSX)) {
 }
 if (offenders.length) problems.push("以下文档仍在写「当前版本」（应改为指向 STATUS.md）：\n  - " + offenders.join("\n  - "));
 
-notes.push(`代码版本 ${codeVersion}；迁移 ${migrationCount} 个`);
+notes.push(`代码版本 ${codeVersion}；迁移 ${migrationCount} 个；STATUS ${Math.round(statusBytes / 1000)} KB`);
 
 if (problems.length) {
   console.error("✗ check:status 失败：");

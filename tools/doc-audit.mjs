@@ -1,6 +1,11 @@
 // Documentation staleness scan — run it after any change to a design token.
 //
-//     node tools/doc-audit.mjs
+//     node tools/doc-audit.mjs             # 只打印发现的问题与一行汇总（默认，供 Agent / CI）
+//     node tools/doc-audit.mjs --verbose   # 另外打印全部 token 值与按修改时间排序的文档清单（人工排查用）
+//
+// ⚠️ 2026-10-29：默认输出改为“只报问题”。原来每次都打印全部 token 与约 300 份文档的修改时间（≈27 KB），
+// Agent 每跑一次就要读一遍；这些信息只在人工排查时有用，所以放到 --verbose。
+// 同日修复第 ② 项在 Linux / CI 上把所有路径当作不存在的问题（见下方 existsSync 处）。
 //
 // ⚠️ **Why this exists as a tool rather than a habit.** The 2026-10-14 documentation pass found that
 // `颜色清单.md` had been carrying two colour values the code had stopped using a day earlier, and that
@@ -65,7 +70,15 @@ const RECORD_FILES = new Set([
 ]);
 
 /** 归档、以及上面列出的记录文件 —— 它们说的是"当时"，不是"现在"。 */
-const isRecord = (rel) => rel.startsWith("archive/") || RECORD_FILES.has(rel);
+// 2026-10-29：changelog 整个目录都是记录；`s17-agents/` 是 S17 实施过程资料（协议冻结时引用的是当时的文件路径），
+// 也按记录处理——它们不描述“现在”。见 docs/specs/product/s17-agents/README.md。
+const isRecord = (rel) =>
+  rel.startsWith("archive/") ||
+  rel.startsWith("changelog/") ||
+  rel.startsWith("specs/product/s17-agents/") ||
+  RECORD_FILES.has(rel);
+
+const VERBOSE = process.argv.includes("--verbose");
 
 // ---------------------------------------------------------------------------
 // Ground truth, read from the source rather than remembered
@@ -96,20 +109,24 @@ const version = /APP_VERSION = "([^"]+)"/.exec(
   readFileSync(join(ROOT, "packages", "shared", "src", "version.ts"), "utf8"),
 )?.[1];
 
-console.log("================ 代码现状（ground truth） ================");
-console.log(`  版本号：${String(version)}`);
-console.log(`  颜色 token：${String(colorTokens.size)} 个`);
-for (const [k, v] of colorTokens) console.log(`    ${k} = ${v}`);
-console.log(`  圆角 token：${String(radiusTokens.size)} 个`);
-for (const [k, v] of radiusTokens) console.log(`    ${k} = ${v}`);
+console.log(`doc-audit：代码版本 ${String(version)}；颜色 token ${String(colorTokens.size)} 个；圆角 token ${String(radiusTokens.size)} 个`);
+if (VERBOSE) {
+  for (const [k, v] of colorTokens) console.log(`    ${k} = ${v}`);
+  for (const [k, v] of radiusTokens) console.log(`    ${k} = ${v}`);
+}
 
 // ---------------------------------------------------------------------------
 // Walk every markdown file
 // ---------------------------------------------------------------------------
+/**
+ * ⚠️ `archive/` 与生成物目录不进扫描：下面每一项检查都会跳过记录文件，扫描它们只会拖慢速度。
+ * （`archive/` 的链接仍由 check-links 检查。）
+ */
+const SKIP_DIRS = new Set(["archive", "阅读版", "阅读报告"]);
 function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
-    if (statSync(p).isDirectory()) { walk(p, out); continue; }
+    if (statSync(p).isDirectory()) { if (!SKIP_DIRS.has(e)) walk(p, out); continue; }
     if (e.endsWith(".md")) out.push(p);
   }
   return out;
@@ -120,7 +137,7 @@ const files = walk(DOCS);
 // ---------------------------------------------------------------------------
 // 1 & 2. Documented token values that disagree with @theme
 // ---------------------------------------------------------------------------
-console.log("\n\n================ ① 文档里的 token 值与代码不符 ================");
+console.log("① token 值与代码不符：");
 
 /** A doc row/line that names a token and a hex value — check the pair. */
 const mismatches = [];
@@ -216,7 +233,7 @@ for (const m of mismatches) {
       if (/#[0-9a-fA-F]{6}/.test(line)) examined += 1;
     }
   }
-  console.log(`  （实际检查了 ${String(examined)} 行带色值的正文）`);
+  if (VERBOSE) console.log(`  （实际检查了 ${String(examined)} 行带色值的正文）`);
   if (examined < 20) {
     console.log("  ❌ 检查到的行数过少——跳过规则可能吞掉了整份文件，请复核 HISTORICAL_SECTION。");
     process.exitCode = 1;
@@ -226,7 +243,7 @@ for (const m of mismatches) {
 // ---------------------------------------------------------------------------
 // 3. Referenced files that no longer exist
 // ---------------------------------------------------------------------------
-console.log("\n\n================ ② 引用了不存在的文件 ================");
+console.log("② 引用了不存在的文件：");
 const missing = [];
 /**
   * ⚠️ **A sentence saying a path is GONE is correct, and flagging it would delete the warning.**
@@ -255,7 +272,8 @@ for (const path of files) {
     for (const m of line.matchAll(/`((?:apps|packages|tools|prisma|docs)\/[A-Za-z0-9_./\u4e00-\u9fa5-]+)`/g)) {
       const target = m[1];
       if (/[*?]/.test(target)) continue; // globs are not claims about one file
-      const abs = join(ROOT, target.replace(/\//g, "\\"));
+      // ⚠️ 按 "/" 拆开再 join：原来把 "/" 换成 "\\" 只在 Windows 上成立，Linux / CI 上每条路径都被判为不存在（≈900 条假警告）。
+      const abs = join(ROOT, ...target.split("/").filter(Boolean));
       if (!existsSync(abs)) missing.push(`${rel}:${String(index + 1)} → ${target}`);
     }
   });
@@ -267,7 +285,7 @@ if (missing.length > 30) console.log(`  …还有 ${missing.length - 30} 处`);
 // ---------------------------------------------------------------------------
 // 4. Version numbers stated in docs
 // ---------------------------------------------------------------------------
-console.log("\n\n================ ③ 文档里写死的版本号 ================");
+console.log("③ 文档里写死的「当前版本」：");
 const versionClaims = [];
 for (const path of files) {
   const rel = relative(DOCS, path).replace(/\\/g, "/");
@@ -286,7 +304,8 @@ for (const x of versionClaims) console.log("  ⚠️ " + x);
 // ---------------------------------------------------------------------------
 // 5. Named components / routes that no longer exist
 // ---------------------------------------------------------------------------
-console.log("\n\n================ ④ 引用了已删除的组件或页面 ================");
+console.log("④ 引用了已删除的组件或页面：");
+let removedHits = 0;
 const REMOVED = ["CollaboratorsPage", "collab.ts", "account_level_collaborators"];
 for (const path of files) {
   const rel = relative(DOCS, path).replace(/\\/g, "/");
@@ -307,16 +326,19 @@ for (const path of files) {
       if (!line.includes(name)) continue;
       // ⚠️ A changelog entry saying "we removed X" is correct, not stale.
       if (/删除|移除|废弃|remove|不再/.test(line)) continue;
+      removedHits += 1;
       console.log(`  ⚠️ ${rel}:${String(i + 1)} 提到 ${name}`);
     }
   });
 }
-console.log("  （只报非「已删除」语境的引用）");
+if (removedHits === 0) console.log("  ✅ 没有发现");
+if (VERBOSE) console.log("  （只报非「已删除」语境的引用）");
 
 // ---------------------------------------------------------------------------
 // 6. Which docs look stale by date
 // ---------------------------------------------------------------------------
-console.log("\n\n================ ⑤ 按最后修改时间排序（早于最近三轮的需人工看） ================");
+if (VERBOSE) {
+console.log("⑤ 按最后修改时间排序（早于最近三轮的需人工看）：");
 const dated = files.map((p) => ({
   rel: relative(DOCS, p).replace(/\\/g, "/"),
   mtime: statSync(p).mtime,
@@ -324,3 +346,5 @@ const dated = files.map((p) => ({
 for (const d of dated) {
   console.log(`  ${d.mtime.toISOString().slice(0, 16).replace("T", " ")}  ${d.rel}`);
 }
+}
+console.log(`doc-audit 完成：扫描 ${String(files.length)} 份现行文档（不含 archive/）；①${String(mismatches.length)} ②${String(missing.length)} ③${String(versionClaims.length)} ④${String(removedHits)}（警告不阻断，只有扫描失效时退出码非 0）`);

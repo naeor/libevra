@@ -563,7 +563,7 @@ B-5 是验收批次：**不新增结果形状、不改写协议本体**，只补
 | 时间边界矩阵 | `docs/specs/design/S17-B-时间边界矩阵.md` | §3.7–§3.10、§19–§23、§24–§29 的边界证据索引 |
 | 性能基线 | `docs/specs/design/S17-B-性能基线.md` + `packages/shared/src/performance.test.ts` | §35.5/§36.12 的可追溯实测；`computation.sampling` 仍仅是渲染元信息 |
 | 图表家族能力注册表 | `apps/web/src/lib/chart/chartFamilies.ts`（+ 测试） | CF-B01–CF-B15 的 `resultShape`/`states`/`minSize`/`needsLegend` 能力声明；S-01 v2 的图表家族编号（G-13）以此为 B 侧来源 |
-| §37/§44 验收对照 | `docs/specs/design/S17-B-验收对照-37-44.md` | 24 项 → 实现/测试/文档/未完成项的如实索引 |
+| §37/§44 验收对照 | `docs/archive/design/S17-B-验收对照-37-44.md` | 24 项 → 实现/测试/文档/未完成项的如实索引 |
 | 跨 Agent 时间口径（B-17） | `docs/specs/design/S17-B-跨Agent时间口径.md` | 桶键/五态/闰年/周一起始的对外口径；P14 小多图与 P15 日历的复用点 |
 
 **B-5 锁定语义**：

@@ -2,7 +2,7 @@
 
 > 最后核对：2026-10-27（Lead m02818；分支 `deepseek/s17-finance-category`）
 > 状态：**处理记录，不构成公共接口**；目标文档 `S17-Agent-A-S01-v2-结构草案.md` 仍为 `s01-v2-draft`，未冻结。
-> 范围：①B 的正式冲突检查（B worktree `docs/specs/design/S17-B-S01-v2冲突检查意见.md`，提交 `b7daa74`，只读）②C 的冻结前交叉核验清单（C worktree `docs/specs/product/s17-agents/S17-Agent-C-S01-v2冻结前交叉核验清单-20261027.md`，HEAD `fe9b939`，XC-01…XC-50，只读）。
+> 范围：①B 的正式冲突检查（B worktree `docs/archive/design/S17-B-S01-v2冲突检查意见.md`，提交 `b7daa74`，只读）②C 的冻结前交叉核验清单（C worktree `docs/specs/product/s17-agents/S17-Agent-C-S01-v2冻结前交叉核验清单-20261027.md`，HEAD `fe9b939`，XC-01…XC-50，只读）。
 > 判定词：**接受修订**（已直接改 v2）｜**澄清后无冲突**（口径一致，仅登记）｜**需所有者决策**（列入最小问题集，v2 标注待裁定）。
 > 说明：本记录只汇总与提出建议，**不代替所有者结论**；A 不改 B/C 工作区文件。
 
