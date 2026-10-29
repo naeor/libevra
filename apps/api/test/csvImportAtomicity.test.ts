@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+﻿import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { makeApp, prisma, resetDatabase, signUp } from "./support.js";
 
@@ -41,7 +41,7 @@ describe("CSV file import atomicity and ledger-lock compatibility", () => {
       },
     });
 
-    const csv = "日期,金额,分类,标签\r\n2026-10-18,12.34,餐饮,锁定测试标签\r\n";
+    const csv = "日期,金额,分类,标签\r\n2026-10-18,12.34,工资,锁定测试标签\r\n";
     const { boundary, body } = multipart(csv);
     const response = await app.inject({
       method: "POST",
@@ -75,7 +75,7 @@ describe("CSV file import atomicity and ledger-lock compatibility", () => {
       select: { id: true },
     });
 
-    const csv = "日期,金额,分类,标签\r\n2026-10-18,12.34,餐饮,正常测试标签\r\n";
+    const csv = "日期,金额,分类,标签\r\n2026-10-18,12.34,工资,正常测试标签\r\n";
     const { boundary, body } = multipart(csv);
     const response = await app.inject({
       method: "POST",

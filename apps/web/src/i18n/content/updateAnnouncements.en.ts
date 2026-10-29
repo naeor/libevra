@@ -31,7 +31,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
           "Insights, Ledger and Me (including guest mode) share one collapsing sticky header: it follows the scroll and snaps to the expanded or compact end when released. The compact state keeps the title and actions, scrolling back to the top expands it, Me keeps its expanded avatar layout, and reduced motion and safe areas are respected.",
           "The Insights editing toolbar becomes a bottom drawer, the stats controls collapse into one row with a “Statistics settings” panel, the metric catalogue is more compact, and the fifth group is renamed “Other professional analyses”.",
           "Layout presets are new: system presets for beginners, advanced and professional use, plus up to 10 personal presets; preview then apply, swipe horizontally to switch, and relative time windows resolve when the preset is applied.",
-          "Custom metrics grow from 50 to 81 / 84 items and chart families to 31; the active bottom tab is marked with a light circular background centred on the combined icon and label.",
+          "Custom cards grow from 50 to 81 selectable metrics (83 in the full catalogue) and chart families to 31; the active bottom tab is marked with a light circular background centred on the combined icon and label.",
           "Theme details are corrected: on light themes such as Honey Gold the detail-page action buttons regain a clear circular background, the Insights tab shows its theme-selected colour like other pages, and buttons, selected states and text contrast were checked across all seven palettes in light and dark appearance.",
         ],
       },
@@ -43,6 +43,7 @@ export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncement
           "Fixed category hierarchy edge cases: historical paths and filter encodings stay consistent after moving a subtree, and zero-amount descendants no longer break Sankey conservation.",
           "Fixed workbench configuration being silently overwritten when both sides changed at once: conflicts now let you choose the cloud or local version and keep a recovery copy of the other.",
           "Fixed personal workbench configuration, sync metadata and recovery copies being left behind after account deletion.",
+          "CSV import now matches categories by both income/expense direction and category path; older files without a “Type” column that name a category opposite to the direction inferred from the amount sign now fail with a clear row-numbered error instead of importing an entry into the wrong direction.",
         ],
       },
       {
