@@ -553,18 +553,28 @@ export function registerTransactionRoutes(
     const bookId = request.book!.bookId;
 
     const query = request.query as Record<string, unknown>;
-    const month = readString(query["month"]) ?? currentMonth();
-    if (!MONTH_PATTERN.test(month)) {
+    /**
+     * `scope=all`（1.17.17）：明细页月份选择里的「全部」——整本账从第一笔到现在的累计，
+     * 不按月份截取。只读，和按月同一条 groupBy，只是去掉日期条件；其它取值一律按月份处理。
+     */
+    const allTime = readString(query["scope"]) === "all";
+    const month = allTime ? "all" : (readString(query["month"]) ?? currentMonth());
+    if (!allTime && !MONTH_PATTERN.test(month)) {
       throw badRequest("month_invalid", "月份格式应为 YYYY-MM。");
     }
 
-    const { start, end } = monthRange(month);
+    const dateWhere = allTime
+      ? {}
+      : (() => {
+          const { start, end } = monthRange(month);
+          return { occurredLocalDate: { gte: start, lt: end } };
+        })();
 
     // Grouped in the database rather than summed in JavaScript: the rows never
     // travel, and the totals come from the same integer column they describe.
     const grouped = await prisma.transaction.groupBy({
       by: ["currency", "kind"],
-      where: { bookId, deletedAt: null, occurredLocalDate: { gte: start, lt: end } },
+      where: { bookId, deletedAt: null, ...dateWhere },
       _sum: { amountCents: true },
       _count: { _all: true },
     });

@@ -29,6 +29,14 @@ describe("refreshMessage", () => {
     );
   });
 
+  it("「全部」时不说「当前月」", () => {
+    expect(refreshMessage({ ...base, delivered: 1, pulled: 40, allMonths: true })).toBe(
+      "已向云端投递 1 条，并更新了全部记录（40 条来自云端）。",
+    );
+    expect(refreshMessage({ ...base, pulled: 40, allMonths: true })).toBe("已更新全部记录（40 条来自云端）。");
+    expect(refreshMessage({ ...base, delivered: 2, allMonths: true })).not.toContain("当前月");
+  });
+
   it("does not claim the month was updated when nothing came back", () => {
     const message = refreshMessage({ ...base, delivered: 2 });
 

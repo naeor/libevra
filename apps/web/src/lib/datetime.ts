@@ -38,6 +38,18 @@ export function toLocalIso(date: Date): string {
   );
 }
 
+/**
+ * 明细页月份选择里的「全部」（1.17.17）：不按月份截取，显示整本账。
+ *
+ * 和 `YYYY-MM` 共用同一个 `month` 状态 / URL 参数（`?month=all`），所以凡是拿它当月份算的地方
+ * 都要先用 `isAllMonths` 分开处理。
+ */
+export const ALL_MONTHS = "all";
+
+export function isAllMonths(month: string): boolean {
+  return month === ALL_MONTHS;
+}
+
 /** `YYYY-MM` of the user's current month. */
 export function currentMonth(now: Date = new Date()): string {
   return `${String(now.getFullYear())}-${pad(now.getMonth() + 1)}`;

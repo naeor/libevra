@@ -42,6 +42,8 @@ export function refreshMessage(input: {
    * exactly that pair of facts on one screen: red rows, and a refresh that reported nothing to do.
    */
   readonly waiting: number;
+  /** 明细页选的是「全部」（1.17.17）：拉取的是全部记录而不是当前月，句子不能说「当前月」。 */
+  readonly allMonths?: boolean;
 }): string {
   /**
    * ⚠️ **Said in every branch where it is true**, rather than only in the empty one: changes left behind
@@ -62,19 +64,31 @@ export function refreshMessage(input: {
     return withNote(t("ledger.refresh.offline"), waitingNote);
   }
 
+  const all = input.allMonths === true;
+
   if (input.delivered > 0 && input.pulled > 0) {
     return withNote(
-      t("ledger.refresh.deliveredAndPulled", { count: input.delivered, pulled: input.pulled }),
+      all
+        ? t("ledger.refresh.deliveredAndPulledAll", { count: input.delivered, pulled: input.pulled })
+        : t("ledger.refresh.deliveredAndPulled", { count: input.delivered, pulled: input.pulled }),
       waitingNote,
     );
   }
 
   if (input.delivered > 0) {
-    return withNote(t("ledger.refresh.delivered", { count: input.delivered }), waitingNote);
+    return withNote(
+      all
+        ? t("ledger.refresh.deliveredAll", { count: input.delivered })
+        : t("ledger.refresh.delivered", { count: input.delivered }),
+      waitingNote,
+    );
   }
 
   if (input.pulled > 0) {
-    return withNote(t("ledger.refresh.pulled", { pulled: input.pulled }), waitingNote);
+    return withNote(
+      all ? t("ledger.refresh.pulledAll", { pulled: input.pulled }) : t("ledger.refresh.pulled", { pulled: input.pulled }),
+      waitingNote,
+    );
   }
 
   if (waitingNote !== "") return t("ledger.refresh.reloadedWaiting", { note: waitingNote });

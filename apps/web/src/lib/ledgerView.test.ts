@@ -1,7 +1,7 @@
 import type { Transaction, TransactionListResponse } from "@libellum/shared";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { mergeLedgerEntries, updateTransactionViews } from "./ledgerView.js";
+import { limitToWholeDays, mergeLedgerEntries, updateTransactionViews } from "./ledgerView.js";
 
 function row(id: string, kind: "income" | "expense", changes: Partial<Transaction> = {}): Transaction {
   return { id, kind, amountCents: 2000, currency: "CNY", categoryId: "cat", categoryName: "分类",
@@ -55,5 +55,21 @@ describe("ledger view isolation", () => {
     const ids = views.map(filters => client.getQueryData<{ pages: TransactionListResponse[] }>(["transactions", filters])!.pages[0]!.items.map(entry => entry.id));
     expect(ids).toEqual([["expense", "usd"], ["income"], ["usd"], ["usd"]]);
     client.clear();
+  });
+});
+
+describe("明细「全部」（1.17.17）", () => {
+  it("不带月份的视图合并本机与服务器的所有月份", () => {
+    const october = row("oct", "expense");
+    const older = row("old", "expense", { occurredAt: "2023-02-01T08:00:00Z", occurredLocalDate: "2023-02-01" });
+    expect(mergeLedgerEntries([october], [older], new Set(), { kind: "expense" }).map((entry) => entry.id).sort()).toEqual(["oct", "old"]);
+  });
+
+  it("分批渲染时把最后一天补完整，不切开同一天", () => {
+    const days = ["2026-10-11", "2026-10-11", "2026-10-10", "2026-10-10", "2026-10-10", "2026-10-09"];
+    const entries = days.map((day, index) => row(`e${String(index)}`, "expense", { occurredLocalDate: day }));
+    expect(limitToWholeDays(entries, 3).map((entry) => entry.id)).toEqual(["e0", "e1", "e2", "e3", "e4"]);
+    expect(limitToWholeDays(entries, 2).map((entry) => entry.id)).toEqual(["e0", "e1"]);
+    expect(limitToWholeDays(entries, 10)).toBe(entries);
   });
 });

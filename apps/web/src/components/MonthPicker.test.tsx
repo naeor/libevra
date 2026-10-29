@@ -48,6 +48,19 @@ describe("MonthPicker", () => {
     expect(html).toContain('aria-label="Previous year"');
   });
 
+  it("offers「全部」only where it is allowed, and marks it as the selection", () => {
+    expect(render()).not.toContain(">全部<");
+
+    const all = renderToStaticMarkup(
+      <MonthPicker open month="all" maxMonth="2026-10" allowAll onSelect={() => undefined} onClose={() => undefined} />,
+    );
+    const button = all.slice(all.lastIndexOf("<button", all.indexOf(">全部<")), all.indexOf(">全部<"));
+    expect(button).toContain('aria-pressed="true"');
+    // 选了「全部」时没有哪个月份是选中的，年份显示当前年。
+    expect(all.match(/aria-pressed="true"/g)).toHaveLength(1);
+    expect(all).toContain("2026 年");
+  });
+
   it("still disables the months after the last allowed one", () => {
     const html = render();
     const november = html.slice(html.lastIndexOf("<button", html.indexOf(">11 月<")), html.indexOf(">11 月<"));

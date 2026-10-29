@@ -43,7 +43,7 @@ import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { categoryBranchIds } from "@libellum/shared";
 import { errorMessage } from "../lib/api.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
-import { currentMonth, formatDayLabel, formatInstant, formatMonthLabel } from "../lib/datetime.js";
+import { currentMonth, formatDayLabel, formatInstant, formatMonthLabel, isAllMonths } from "../lib/datetime.js";
 import { readSession, useDetailTransition, writeSession } from "../lib/detailTransition.js";
 import { currencyName, formatMoney } from "../lib/format.js";
 import { displayCategoryName } from "../lib/presetNames.js";
@@ -55,6 +55,7 @@ import {
   pendingEntriesValue,
   readLocalTransactions,
   readMarks,
+  readStoredMonths,
   subscribeLedger,
   type ConflictRecord,
   conflictsValue,
@@ -64,7 +65,7 @@ import {
 } from "../lib/offline/localLedger.js";
 import { logOffline } from "../lib/offline/diagnostics.js";
 import { markPresentationSeen } from "../lib/spaceTransition.js";
-import { mergeLedgerEntries } from "../lib/ledgerView.js";
+import { limitToWholeDays, mergeLedgerEntries } from "../lib/ledgerView.js";
 import { syncMonth } from "../lib/offline/sync.js";
 import { pendingCount, retryAbandonedWrites, syncNow } from "../lib/offline/syncController.js";
 import { deleteEntry, resolveConflict, updateEntry } from "../lib/offline/write.js";
@@ -116,6 +117,8 @@ export function DetailPage(): React.JSX.Element {
   const [month, setMonth] = useState(
     () => searchParams.get("month") ?? saved.month ?? currentMonth(),
   );
+  /** 月份选择里选了「全部」（1.17.17）：整本账，不按月份截取。 */
+  const allMonths = isAllMonths(month);
   const [kind, setKind] = useState<TransactionKind>(() => saved.kind ?? "expense");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
@@ -163,7 +166,13 @@ export function DetailPage(): React.JSX.Element {
   const { offline } = useAccountOffline();
 
   const summary = useSummary(month);
-  const fxSummary = useFxRange(`${month}-01`, endOfMonth(`${month}-01`), fxMode.enabled);
+  /**
+   * ⚠️ 「全部」不做综合折算：折算读取有跨度上限（按月拆分、最多 36 个月），整本账会超出；
+   * 这时顶部按原币分别累计，并有一行说明（`allFxOriginal`）。逐笔金额旁的折算仍照常显示。
+   */
+  const fxActive = fxMode.enabled && !allMonths;
+  const fxMonth = allMonths ? currentMonth() : month;
+  const fxSummary = useFxRange(`${fxMonth}-01`, endOfMonth(`${fxMonth}-01`), fxActive);
   const ledger = useLedger();
 
   /**
@@ -175,7 +184,7 @@ export function DetailPage(): React.JSX.Element {
    */
   const categoryBranch=categoryId!==null&&searchParams.get("categoryScope")==="branch";
   const categoryIds=useMemo(()=>categoryBranch?categoryBranchIds(ledger.data?.categories??[],[categoryId!]):undefined,[categoryBranch,categoryId,ledger.data?.categories]);
-  const filters = { month, kind, categoryId: categoryId ?? undefined, ...(categoryIds===undefined?{}:{categoryIds}) };
+  const filters = { month: allMonths ? undefined : month, kind, categoryId: categoryId ?? undefined, ...(categoryIds===undefined?{}:{categoryIds}) };
   const list = useTransactions(filters);
 
   /**
@@ -397,7 +406,16 @@ export function DetailPage(): React.JSX.Element {
        * ⚠️ **His own description of what this moment should be**: "理论上在点击它的一瞬间，它里面的数据应该跟服务器的
        * 同步（大部分情况下服务器覆盖，小部分情况有冲突）."
        */
-      pulled = await syncMonth(month);
+      if (allMonths) {
+        /**
+         * 「全部」（1.17.17）：不把整本账下载进本机（下载范围由「我的 → 下载管理」决定），
+         * 只让列表和汇总重新问一次服务器。
+         */
+        const [answer] = await Promise.all([list.refetch(), summary.refetch()]);
+        pulled = (answer.data?.pages ?? []).reduce((count, page) => count + page.items.length, 0);
+      } else {
+        pulled = await syncMonth(month);
+      }
     } catch (caught) {
       /**
        * ⚠️ **A failure is reported, not swallowed.** The previous version let it escape as an
@@ -451,6 +469,7 @@ export function DetailPage(): React.JSX.Element {
           failed: failure !== null,
           error: failure,
           waiting,
+          allMonths,
         }),
       );
       setRefreshing(false);
@@ -461,7 +480,7 @@ export function DetailPage(): React.JSX.Element {
      * scroll position, and any import in flight — and it would bypass the conflict and idempotency
      * paths this button is supposed to exercise.
      */
-  }, [refreshing, month, offline, guest]);
+  }, [refreshing, month, allMonths, offline, guest, list.refetch, summary.refetch]);
 
   const entries = useMemo(() => {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
@@ -485,10 +504,23 @@ export function DetailPage(): React.JSX.Element {
    */
   const ordered = useMemo(() => sortByTime(entries), [entries]);
 
+  /**
+   * 「全部」（1.17.17）分批渲染：整本账可能有几千笔，一次画完会卡；先画最近的一批，滚到底再加一批，
+   * 本机这批画完了再向服务器要下一页（见下方 `loadMore`）。只影响画多少，不影响数据与合计。
+   */
+  const [renderLimit, setRenderLimit] = useState(ALL_RENDER_STEP);
+  const viewKey = `${month}|${kind}|${categoryId ?? ""}|${String(categoryBranch)}`;
+
+  useEffect(() => {
+    setRenderLimit(ALL_RENDER_STEP);
+  }, [viewKey]);
+
+  const shown = useMemo(() => (allMonths ? limitToWholeDays(ordered, renderLimit) : ordered), [allMonths, ordered, renderLimit]);
+
   const grouped = useMemo(() => {
     const groups = new Map<string, Transaction[]>();
 
-    for (const entry of ordered) {
+    for (const entry of shown) {
       const bucket = groups.get(entry.occurredLocalDate) ?? [];
       bucket.push(entry);
       groups.set(entry.occurredLocalDate, bucket);
@@ -500,7 +532,67 @@ export function DetailPage(): React.JSX.Element {
      * its contents have to agree about which end is newest.**
      */
     return [...groups.entries()].sort(([left], [right]) => (left < right ? 1 : -1));
-  }, [ordered]);
+  }, [shown]);
+
+  const moreToRender = allMonths && shown.length < ordered.length;
+  const canLoadMore = moreToRender || list.hasNextPage;
+  const loadMore = useCallback(() => {
+    if (moreToRender) {
+      setRenderLimit((limit) => limit + ALL_RENDER_STEP);
+      return;
+    }
+    if (list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage();
+  }, [moreToRender, list.hasNextPage, list.isFetchingNextPage, list.fetchNextPage]);
+
+  /**
+   * 「全部」滚到底自动加载：底部哨兵进入视口就继续 `loadMore`，直到画完、服务器也没有下一页。
+   * 哨兵仍在视口内时（新的一页恰好全是本机已有的账目，页面没有变长）会继续取下一页，不会停住。
+   */
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [sentinelVisible, setSentinelVisible] = useState(false);
+
+  useEffect(() => {
+    const element = sentinelRef.current;
+    if (!allMonths || element === null || typeof IntersectionObserver === "undefined") {
+      setSentinelVisible(false);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (records) => {
+        setSentinelVisible(records.some((record) => record.isIntersecting));
+      },
+      { root: scrollRef.current, rootMargin: "0px 0px 600px 0px" },
+    );
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [allMonths, canLoadMore, scrollRef]);
+
+  useEffect(() => {
+    if (allMonths && sentinelVisible && canLoadMore && !list.isFetchingNextPage) loadMore();
+  }, [allMonths, sentinelVisible, canLoadMore, list.isFetchingNextPage, loadMore, shown.length]);
+
+  /** 离线时的「全部」只是本机已下载的部分：读出下载了几个月，好让提示说清楚。 */
+  const [storedMonthCount, setStoredMonthCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!allMonths || !offline || guest) {
+      setStoredMonthCount(null);
+      return;
+    }
+    let cancelled = false;
+    void readStoredMonths()
+      .then((stored) => {
+        if (!cancelled) setStoredMonthCount(Object.keys(stored).length);
+      })
+      .catch(() => {
+        if (!cancelled) setStoredMonthCount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allMonths, offline, guest]);
 
   /**
    * ⚠️ **Batch mode is a state of this screen, not another screen.**
@@ -869,6 +961,7 @@ export function DetailPage(): React.JSX.Element {
                   <ArrowButton
                     direction="left"
                     tabbable={atList}
+                    disabled={allMonths}
                     onClick={() => {
                       setMonth(shiftMonth(month, -1));
                     }}
@@ -882,7 +975,7 @@ export function DetailPage(): React.JSX.Element {
                   }}
                   className="detail-month inline-flex items-center text-base text-on-brand/95"
                 >
-                  {headerMonthLabel(month)}
+                  {allMonths ? t("ledger.detail.allTime") : headerMonthLabel(month)}
                   <span className="detail-caret ml-1 text-[10px] text-on-brand/75" aria-hidden="true">
                     ▼
                   </span>
@@ -892,6 +985,7 @@ export function DetailPage(): React.JSX.Element {
                   <ArrowButton
                     direction="right"
                     tabbable={atList}
+                    disabled={allMonths}
                     onClick={() => {
                       setMonth(shiftMonth(month, 1));
                     }}
@@ -926,7 +1020,7 @@ export function DetailPage(): React.JSX.Element {
                   width that never matched its neighbours. Two elements, each
                   doing one job, and all of it goes.
                 */}
-                {fxMode.enabled ? <div className="detail-main-card mt-4 min-w-0 shrink-0"><FxMonthSummary data={fxSummary} /></div> : <MainCard className="detail-main-card mt-4" summary={main} currency={mainCode} />}
+                {fxActive ? <div className="detail-main-card mt-4 min-w-0 shrink-0"><FxMonthSummary data={fxSummary} /></div> : <MainCard className="detail-main-card mt-4" summary={main} currency={mainCode} allMonths={allMonths} />}
 
                 {/*
                   One row, never wrapping: the hero card is not in it, so it has
@@ -936,11 +1030,11 @@ export function DetailPage(): React.JSX.Element {
                 */}
                 <div
                   data-h-scroll
-                  className={`detail-strip flex flex-nowrap gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${!fxMode.enabled && others.length === 2 ? "detail-strip-fit-pair" : ""}`}
+                  className={`detail-strip flex flex-nowrap gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${!fxActive && others.length === 2 ? "detail-strip-fit-pair" : ""}`}
                 >
-                  {fxMode.enabled ? <div className="detail-twin detail-currency-card detail-small-card shrink-0 text-on-brand"><FxMonthSummary data={fxSummary} compact /></div> : <SmallCard className="detail-twin" summary={main} currency={mainCode} />}
+                  {fxActive ? <div className="detail-twin detail-currency-card detail-small-card shrink-0 text-on-brand"><FxMonthSummary data={fxSummary} compact /></div> : <SmallCard className="detail-twin" summary={main} currency={mainCode} />}
 
-                  {(fxMode.enabled ? currencies : others).map((item) => (
+                  {(fxActive ? currencies : others).map((item) => (
                     <SmallCard key={item.currency} summary={item} currency={item.currency} />
                   ))}
 
@@ -1109,6 +1203,16 @@ export function DetailPage(): React.JSX.Element {
               once, which is the point: one message that is read beats two that
               contradict each other.
             */}
+            {allMonths && fxMode.enabled ? (
+              <p className="pt-2 text-xs text-muted">{t("ledger.detail.allFxOriginal")}</p>
+            ) : null}
+
+            {allMonths && storedMonthCount !== null ? (
+              <p className="pt-2 text-xs text-muted">
+                {t("ledger.detail.allOfflinePartial", { count: storedMonthCount })}
+              </p>
+            ) : null}
+
             {list.isError && !(offline && entries.length > 0) ? (
               <ErrorState
                 message={errorMessage(list.error)}
@@ -1120,15 +1224,22 @@ export function DetailPage(): React.JSX.Element {
 
             {isEmptyMonth ? (
               <EmptyState
-                title={kind === "expense" ? t("ledger.detail.emptyExpense") : t("ledger.detail.emptyIncome")}
+                title={
+                  kind === "expense"
+                    ? t(allMonths ? "ledger.detail.emptyExpenseAll" : "ledger.detail.emptyExpense")
+                    : t(allMonths ? "ledger.detail.emptyIncomeAll" : "ledger.detail.emptyIncome")
+                }
                 description={t("ledger.detail.emptyHint")}
                 actionLabel={t("ledger.detail.emptyAction")}
                 onAction={() => void navigate("/add")}
               />
             ) : null}
 
-            {grouped.map(([day, dayEntries]) => (
+            {grouped.map(([day, dayEntries], index) => (
               <section key={day}>
+                {allMonths && (index === 0 || grouped[index - 1]![0].slice(0, 7) !== day.slice(0, 7)) ? (
+                  <h3 className="pt-4 pb-1 text-sm font-medium text-ink">{headerMonthLabel(day.slice(0, 7))}</h3>
+                ) : null}
                 <h2 className="py-2 text-xs text-muted">{formatDayLabel(day)}</h2>
                 <ul className="overflow-hidden rounded-card bg-surface">
                   {dayEntries.map((entry) => (
@@ -1178,16 +1289,17 @@ export function DetailPage(): React.JSX.Element {
               </section>
             ))}
 
-            {list.hasNextPage ? (
+            {canLoadMore ? (
               <button
                 type="button"
                 disabled={list.isFetchingNextPage}
-                onClick={() => void list.fetchNextPage()}
+                onClick={loadMore}
                 className="my-4 w-full rounded-field bg-surface py-3 text-sm text-muted transition hover:text-ink disabled:opacity-45"
               >
                 {list.isFetchingNextPage ? t("common.status.loading") : t("ledger.detail.loadEarlier")}
               </button>
             ) : null}
+            {allMonths ? <div ref={sentinelRef} aria-hidden="true" className="h-px" /> : null}
           </div>
         </div>
       </div>
@@ -1318,6 +1430,7 @@ export function DetailPage(): React.JSX.Element {
         open={pickerOpen}
         month={month}
         maxMonth={currentMonth()}
+        allowAll
         onSelect={setMonth}
         onClose={() => {
           setPickerOpen(false);
@@ -1328,6 +1441,7 @@ export function DetailPage(): React.JSX.Element {
         <AllCurrenciesSheet
           currencies={currencies}
           mainCode={mainCode}
+          allMonths={allMonths}
           onClose={() => {
             setShowAllCurrencies(false);
           }}
@@ -1399,10 +1513,13 @@ function LedgerNav({
 function ArrowButton({
   direction,
   tabbable,
+  disabled = false,
   onClick,
 }: {
   readonly direction: "left" | "right";
   readonly tabbable: boolean;
+  /** 「全部」时没有上一个 / 下一个月：保留位置（不让月份标签跳动），但不能点。 */
+  readonly disabled?: boolean;
   readonly onClick: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
@@ -1411,10 +1528,11 @@ function ArrowButton({
     <button
       type="button"
       onClick={onClick}
-      tabIndex={tabbable ? 0 : -1}
+      disabled={disabled}
+      tabIndex={tabbable && !disabled ? 0 : -1}
       aria-hidden={!tabbable}
       aria-label={direction === "left" ? t("ledger.detail.previousMonth") : t("ledger.detail.nextMonth")}
-      className="detail-arrow rounded-full p-1.5 text-on-brand/85 transition"
+      className="detail-arrow rounded-full p-1.5 text-on-brand/85 transition disabled:opacity-30"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5">
         <path
@@ -1439,10 +1557,13 @@ function MainCard({
   summary,
   currency,
   className = "",
+  allMonths = false,
 }: {
   readonly summary: CurrencySummary | null;
   readonly currency: string;
   readonly className?: string;
+  /** 「全部」时空卡片不说「本月」。 */
+  readonly allMonths?: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
 
@@ -1451,7 +1572,7 @@ function MainCard({
       <span className="detail-main-name text-xs text-on-brand/75">{currencyName(currency)}</span>
 
       {summary === null ? (
-        <span className="mt-1 text-sm text-on-brand/80">{t("ledger.detail.noDataThisMonth")}</span>
+        <span className="mt-1 text-sm text-on-brand/80">{allMonths ? t("ledger.detail.noData") : t("ledger.detail.noDataThisMonth")}</span>
       ) : (
         <>
           <span className="detail-main-amount font-semibold tabular-nums">
@@ -1528,10 +1649,12 @@ function SmallCard({
 function AllCurrenciesSheet({
   currencies,
   mainCode,
+  allMonths = false,
   onClose,
 }: {
   readonly currencies: readonly CurrencySummary[];
   readonly mainCode: string;
+  readonly allMonths?: boolean;
   readonly onClose: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
@@ -1561,7 +1684,7 @@ function AllCurrenciesSheet({
                 </span>
 
                 {row === undefined ? (
-                  <span className="shrink-0 text-xs text-muted">{t("ledger.detail.nothingThisMonth")}</span>
+                  <span className="shrink-0 text-xs text-muted">{allMonths ? t("ledger.detail.noData") : t("ledger.detail.nothingThisMonth")}</span>
                 ) : (
                   <span className="shrink-0 text-sm tabular-nums text-ink">
                     {formatMoney(row.expenseCents, row.currency)}
@@ -1595,6 +1718,9 @@ function headerMonthLabel(month: string): string {
   const date = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
   return formatInstant(date, { month: "short", year: "numeric" });
 }
+
+/** 「全部」每批渲染的账目数（1.17.17）。 */
+const ALL_RENDER_STEP = 200;
 
 /** Move a `YYYY-MM` string by whole months. */
 function shiftMonth(month: string, delta: number): string {

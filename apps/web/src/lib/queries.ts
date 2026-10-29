@@ -45,6 +45,7 @@ import { updateTransactionViews } from "./ledgerView.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { t } from "../i18n/index.js";
 import { ApiRequestError, apiFetch, apiFetchFile, currentBookIdHeader } from "./api.js";
+import { isAllMonths } from "./datetime.js";
 import { currentBookId, selectBookForReload, setCurrentBook, subscribeCurrentBook } from "./currentBook.js";
 import { publishGuestSnapshot, requireGuestId } from "./guest/bridge.js";
 import {
@@ -1206,22 +1207,32 @@ export function transactionsIn(queryClient: QueryClient): readonly Transaction[]
  * is offline when **either** the browser says so **or** a request failed to get an answer.
  */
 
+/** `summaryFor` 的「全部」范围：日期是 `YYYY-MM-DD` 字符串比较，这两端包住任何真实日期。 */
+const ALL_TIME_RANGE = { from: "0000-01-01", to: "9999-12-31" } as const;
+
 export function useSummary(month: string) {
   const guest = useGuestMode();
 
   return useQuery({
     queryKey: guest ? guestQueryKeys.summary(month) : queryKeys.summary(month),
     queryFn: async () => {
+      /**
+       * 「全部」（1.17.17）：服务器按整本账累计（`scope=all`）；离线时只能累计本机已下载的部分，
+       * 页面另有一行提示说明这一点，这里不假装完整。
+       */
+      const all = isAllMonths(month);
+      const range = all ? ALL_TIME_RANGE : monthRange(month);
+
       if (guest) {
         const data = await loadGuestData();
-        return summaryFor(sortedTransactions(data), month, monthRange(month));
+        return summaryFor(sortedTransactions(data), month, range);
       }
 
       return withLocalFallback({
         label: `summary ${month}`,
         network: (timeoutMs) =>
-          apiFetch<SummaryResponse>("/summary", { query: { month }, timeoutMs }),
-        local: async () => summaryFor(await readLocalTransactions(), month, monthRange(month)),
+          apiFetch<SummaryResponse>("/summary", { query: all ? { scope: "all" } : { month }, timeoutMs }),
+        local: async () => summaryFor(await readLocalTransactions(), month, range),
       });
     },
   });

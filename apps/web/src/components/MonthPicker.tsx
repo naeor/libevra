@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
+
 import { isChineseLocale, useI18n } from "../i18n/index.js";
-import { currentMonth, formatInstant } from "../lib/datetime.js";
+import { ALL_MONTHS, currentMonth, formatInstant, isAllMonths } from "../lib/datetime.js";
 
 /** 十二个月份按钮，顺序固定；名字在渲染时按当前语言取（见 `monthName`）。 */
 const MONTH_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
@@ -32,6 +34,9 @@ function yearLabel(year: number): string {
  *
  * The year steps independently, so going back a year is one tap rather than
  * twelve.
+ *
+ * `allowAll`（1.17.17，明细页）：底部多一个「全部」，选中后 `month` 为 `ALL_MONTHS`。
+ * 此时没有选中的月份，左右箭头只翻看年份、不改选择；点某个月份才离开「全部」。
  */
 export function MonthPicker({
   open,
@@ -39,6 +44,7 @@ export function MonthPicker({
   onSelect,
   onClose,
   maxMonth,
+  allowAll = false,
 }: {
   readonly open: boolean;
   readonly month: string;
@@ -46,14 +52,28 @@ export function MonthPicker({
   readonly onClose: () => void;
   /** Months after this one are shown but cannot be chosen. */
   readonly maxMonth: string;
+  /** Offer「全部」(every month) below the grid. */
+  readonly allowAll?: boolean;
 }): React.JSX.Element | null {
   const { t } = useI18n();
+  const all = isAllMonths(month);
+  /** Only used while「全部」is selected: the year being looked at, not a selection. */
+  const [browseYear, setBrowseYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setBrowseYear(null);
+  }, [open, month]);
+
   if (!open) return null;
 
-  const year = Number(month.slice(0, 4));
+  const year = all ? (browseYear ?? Number(maxMonth.slice(0, 4))) : Number(month.slice(0, 4));
 
   const step = (delta: number): void => {
     const next = year + delta;
+    if (all) {
+      setBrowseYear(next);
+      return;
+    }
     // Keep the month, clamp to something that exists.
     onSelect(`${String(next)}-${month.slice(5, 7)}`);
   };
@@ -130,16 +150,36 @@ export function MonthPicker({
           })}
         </ul>
 
-        <button
-          type="button"
-          onClick={() => {
-            onSelect(currentMonth());
-            onClose();
-          }}
-          className="mt-4 w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
-        >
-          {t("ledger.monthPicker.thisMonth")}
-        </button>
+        <div className={`mt-4 grid gap-2 ${allowAll ? "grid-cols-3" : "grid-cols-1"}`}>
+          {allowAll ? (
+            <button
+              type="button"
+              aria-pressed={all}
+              onClick={() => {
+                onSelect(ALL_MONTHS);
+                onClose();
+              }}
+              className={`w-full rounded-field py-3 text-sm transition ${
+                all ? "bg-brand text-on-brand" : "bg-canvas text-ink hover:bg-brand-soft"
+              }`}
+            >
+              {t("ledger.monthPicker.all")}
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => {
+              onSelect(currentMonth());
+              onClose();
+            }}
+            className={`w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20 ${
+              allowAll ? "col-span-2" : ""
+            }`}
+          >
+            {t("ledger.monthPicker.thisMonth")}
+          </button>
+        </div>
       </div>
     </div>
   );

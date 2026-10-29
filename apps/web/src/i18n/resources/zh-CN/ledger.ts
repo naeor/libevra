@@ -26,6 +26,13 @@ const ledger = {
     previousMonth: "上一个月",
     nextMonth: "下一个月",
     noDataThisMonth: "本月暂无数据",
+    /** 月份选择为「全部」时（1.17.17）：顶部月份位置的字、空列表与提示。 */
+    allTime: "全部时间",
+    emptyExpenseAll: "还没有支出",
+    emptyIncomeAll: "还没有收入",
+    allOfflinePartial_one: "离线中：只显示本机已下载的 {{count}} 个月，联网后显示全部。",
+    allOfflinePartial_other: "离线中：只显示本机已下载的 {{count}} 个月，联网后显示全部。",
+    allFxOriginal: "「全部时间」按原币分别累计；综合折算请选择具体月份。",
     incomeAmount: "入账 {{amount}}",
     netAmount: "结余 {{amount}}",
     noData: "暂无数据",
@@ -214,6 +221,11 @@ const ledger = {
     delivered_one: "已向云端投递 {{count}} 条；当前月没有从云端取回新的数据。",
     delivered_other: "已向云端投递 {{count}} 条；当前月没有从云端取回新的数据。",
     pulled: "已更新当前月（{{pulled}} 条来自云端）。",
+    deliveredAndPulledAll_one: "已向云端投递 {{count}} 条，并更新了全部记录（{{pulled}} 条来自云端）。",
+    deliveredAndPulledAll_other: "已向云端投递 {{count}} 条，并更新了全部记录（{{pulled}} 条来自云端）。",
+    deliveredAll_one: "已向云端投递 {{count}} 条；没有从云端取回新的数据。",
+    deliveredAll_other: "已向云端投递 {{count}} 条；没有从云端取回新的数据。",
+    pulledAll: "已更新全部记录（{{pulled}} 条来自云端）。",
     reloadedWaiting: "已重新读取本机账目；{{note}}",
     nothing: "已重新读取本机账目；没有待投递的改动，也没有从云端取回新的数据。",
   },
@@ -223,6 +235,7 @@ const ledger = {
     previousYear: "上一年",
     nextYear: "下一年",
     thisMonth: "回到本月",
+    all: "全部",
   },
   /** 编辑历史（`HistoryList`、`LedgerHistoryPage`）。 */
   history: {

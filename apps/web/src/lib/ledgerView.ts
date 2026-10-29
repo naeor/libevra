@@ -40,3 +40,15 @@ export function updateTransactionViews(client: QueryClient, entries: readonly Tr
     client.setQueryData(query.queryKey, { pages: [asLocalPage(filterLocally(entries, filters))], pageParams: [undefined] });
   }
 }
+
+/**
+ * 取前 `limit` 笔，再把最后那一天补完整：日分组的标题下不能只画半天的账目。
+ * `entries` 已按时间从新到旧排好（`sortByTime`）。
+ */
+export function limitToWholeDays(entries: readonly Transaction[], limit: number): readonly Transaction[] {
+  if (entries.length <= limit) return entries;
+  let end = limit;
+  const lastDay = entries[limit - 1]?.occurredLocalDate;
+  while (end < entries.length && entries[end]!.occurredLocalDate === lastDay) end += 1;
+  return entries.slice(0, end);
+}

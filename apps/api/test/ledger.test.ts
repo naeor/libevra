@@ -900,6 +900,47 @@ describe("GET /api/v1/summary", () => {
     });
     expect(body.currencies[1]).toMatchObject({ currency: "USD", expenseCents: 900 });
   });
+
+  it("scope=all totals every month of the ledger, and a single month still excludes the others", async () => {
+    const cookie = await signUp("mama");
+
+    await record(cookie, { kind: "expense", amountCents: 100_000, currency: "CNY" });
+    await record(cookie, {
+      kind: "expense",
+      amountCents: 2_500,
+      currency: "CNY",
+      occurredLocalDate: "2025-03-14",
+    });
+    await record(cookie, {
+      kind: "income",
+      amountCents: 7_000,
+      currency: "CNY",
+      occurredLocalDate: "2024-12-31",
+    });
+
+    const all = await app.inject({ method: "GET", url: "/api/v1/summary?scope=all", headers: { cookie } });
+    expect(all.statusCode).toBe(200);
+    expect(all.json()).toMatchObject({
+      month: "all",
+      currencies: [
+        {
+          currency: "CNY",
+          expenseCents: 102_500,
+          incomeCents: 7_000,
+          balanceCents: -95_500,
+          expenseCount: 2,
+          incomeCount: 1,
+        },
+      ],
+    });
+
+    const october = await app.inject({ method: "GET", url: "/api/v1/summary?month=2026-10", headers: { cookie } });
+    expect(october.json()).toMatchObject({ currencies: [{ currency: "CNY", expenseCents: 100_000, incomeCents: 0 }] });
+
+    // 「全部」之外的取值不会被当成全部：坏月份照旧拒绝。
+    const bad = await app.inject({ method: "GET", url: "/api/v1/summary?scope=everything&month=2026-13x", headers: { cookie } });
+    expect(bad.statusCode).toBe(400);
+  });
 });
 
 describe("PATCH and DELETE /api/v1/transactions/:id", () => {
