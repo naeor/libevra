@@ -239,6 +239,7 @@ export function registerAccountConsentRoutes(
       where: { bookId: { in: bookIds } },
       orderBy: [{ occurredAt: "asc" }, { createdAt: "asc" }],
     });
+    const categories=await prisma.category.findMany({where:{bookId:{in:bookIds}}});
 
     return reply
       .header("content-type", "application/json; charset=utf-8")
@@ -261,6 +262,7 @@ export function registerAccountConsentRoutes(
           defaultCurrency: request.currentUser!.defaultCurrency,
         },
         ledgers: memberships.map((membership) => ({
+          categories:categories.filter(category=>category.bookId===membership.bookId),
           book: {
             id: membership.book.id,
             name: membership.book.name,

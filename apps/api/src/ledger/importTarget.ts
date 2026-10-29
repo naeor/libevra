@@ -23,6 +23,7 @@ function fromDateOnly(value: Date): string {
 }
 
 function toCategory(row: {
+  parentId?: string | null; icon?: string | null; color?: string | null;
   id: string;
   name: string;
   kind: "expense" | "income";
@@ -33,6 +34,7 @@ function toCategory(row: {
 }): GuestImportCategory {
   return {
     id: row.id,
+    parentId:row.parentId??null,icon:row.icon??null,color:row.color??null,
     name: row.name,
     kind: row.kind,
     description: row.description,
@@ -69,6 +71,7 @@ export async function loadTargetSnapshot(client: ImportDbClient, bookId: string)
     client.category.findMany({
       where: { bookId },
       select: {
+        parentId:true, icon:true, color:true,
         id: true,
         name: true,
         kind: true,

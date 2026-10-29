@@ -1,5 +1,5 @@
 /**
- * Agent C · C-3（P07 分类层级关系桑基图）的数学权威层（DRAFT，未冻结）。
+ * Agent C · C-3（P07 分类层级关系桑基图）的数学权威层，W7 接入真实分类关系。
  *
  * 桑基图**只表示真实分类层级之间的金额归属关系**（owner 规格 §23）：
  * 支出总额 → 分类大类 → 分类子类；不允许把「收入来源 → 支付方式 → 消费分类」
@@ -89,7 +89,8 @@ export function buildHierarchySankey(result: DraftHierarchyResult): DraftSankeyR
       pushLink(node.nodeId, child.nodeId, child.subtreeAmountMinor, node.subtreeAmountMinor);
     }
 
-    if (children.length > 0 && node.directAmountMinor > 0n) {
+    // 零金额子树在 hierarchy 中省略，但结构上的父节点仍须有直接金额终端。
+    if (node.childCount > 0 && node.directAmountMinor > 0n) {
       const directId = `${node.nodeId}${HIERARCHY_DIRECT_SUFFIX}`;
       directNodes.push({
         nodeId: directId,

@@ -219,8 +219,8 @@ describe("计数类分析与金额无关：缺汇率账目照常计数（不被�
 });
 
 describe("每张卡片都有缺汇率策略，目录开关与策略表一致", () => {
-  it("81 张卡片逐一有策略", () => {
-    expect(CARD_TYPES).toHaveLength(81);
+  it("83 张卡片逐一有策略", () => {
+    expect(CARD_TYPES).toHaveLength(83);
     for (const type of CARD_TYPES) {
       expect(FX_CARD_POLICIES[type.id], type.id).toBeDefined();
       expect(type.combined, type.id).toBe(true);

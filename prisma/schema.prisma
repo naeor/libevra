@@ -958,11 +958,15 @@ enum TransactionKind {
 /// Categories are archived, never deleted: past entries keep pointing at them
 /// and must still render correctly.
 model Category {
+  parentId   String? @map("parent_id") @db.Uuid
+  color      String?
+  parent     Category? @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children   Category[] @relation("CategoryTree")
   id         String          @id @default(uuid()) @db.Uuid
   bookId     String          @map("book_id") @db.Uuid
   name       String
   kind       TransactionKind
-  /// Unused in v1 (no icons by decision), kept so adding them needs no migration.
+  /// W7 可选纯文本图标；不参与分类身份与层级判断。
   icon       String?
   /// Plain-language explanation of what belongs in this category.
   ///
@@ -985,7 +989,8 @@ model Category {
   book         Book          @relation(fields: [bookId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
-  @@unique([bookId, kind, name])
+  @@index([bookId, kind, name])
+  @@index([parentId])
   @@index([bookId, kind, isArchived])
   @@map("categories")
 }

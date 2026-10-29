@@ -5,6 +5,9 @@
  * `displayPaymentMethodName` 显示，用户自建的原样显示；新增时提交的永远是用户输入的原文。
  */
 const manage = {
+  treePan:"左右滑动查看各层级",
+  treeRecords:"{{count}} 笔",
+  tree: { toggle:"展开或收起「{{name}}」", actions:"「{{name}}」的操作", edit:"编辑分类", addChild:"添加子分类", name:"名称", organize:"层级与外观", parent:"所属分类", root:"无（根分类）", order:"排序", icon:"图标（可选）", color:"颜色（可选）", invalid:"所属分类无效、存在循环、超出 64 层或同级重名。", promote:"子分类将提升到上一级；后代与账目保留。", search:"搜索分类", back:"上一级", branch:"包含子分类", direct:"直接归入", total:"分支合计", currentTree:"历史交易按当前分类结构汇总；移动分类不会改变交易的分类 ID。" },
   common: {
     add: "添加",
     archive: "归档",

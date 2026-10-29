@@ -9,6 +9,7 @@ import {
 } from "@libellum/shared";
 
 import type { Prisma } from "../generated/prisma/client.js";
+import {categoryPath} from "@libellum/shared";
 import type { PrismaClient } from "../db.js";
 import { badRequest, conflict } from "../lib/errors.js";
 
@@ -88,6 +89,7 @@ function matchesTarget(
   return (
     sourceCategory?.name === targetCategory?.name &&
     sourceCategory?.kind === targetCategory?.kind &&
+    JSON.stringify(categoryPath(source.categories,transaction.categoryId).map(n=>n.name))===JSON.stringify(categoryPath(target.categories,targetTransaction.categoryId).map(n=>n.name)) &&
     sourcePayment?.name === targetPayment?.name &&
     sourceTags.join("\u0000") === targetTags.join("\u0000") &&
     transaction.kind === targetTransaction.kind &&

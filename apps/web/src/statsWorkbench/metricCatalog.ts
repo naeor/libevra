@@ -50,7 +50,7 @@ export const DIRECTORY: readonly DirectorySection[] = [
   {
     id: "composition",
     subgroups: [
-      { id: "categories", ids: ["AN-I01", "AN-I02", "AN-P06", "AN-I16"] },
+      { id: "categories", ids: ["AN-I01", "AN-I02", "AN-P05", "AN-P06", "AN-P07", "AN-I16"] },
       { id: "rankings", ids: ["AN-I03", "AN-I04", "AN-I05", "AN-I18", "AN-A17", "AN-B15"] },
       { id: "methods", ids: ["AN-I17", "AN-P03", "AN-P04", "AN-P16"] },
       { id: "concentration", ids: ["AN-A08", "AN-P08", "AN-A16"] },

@@ -10,6 +10,7 @@
  * 来源指纹、目标指纹与账本权限。不把“客户端说成功”当成成功。
  */
 import { z } from "zod";
+import { categoryPath, validateCategoryTree } from "./categoryTree.js";
 
 import {
   amountCentsSchema,
@@ -32,6 +33,9 @@ export const IMPORT_BATCH_THRESHOLD = 200;
 
 
 export const guestImportCategorySchema = z.object({
+  parentId: uuid.nullable().optional(),
+  icon: z.string().max(32).nullable().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   id: uuid,
   name: objectName,
   kind: transactionKindSchema,
@@ -93,7 +97,7 @@ export const guestImportSourceSchema = z.object({
   paymentMethods: z.array(guestImportPaymentMethodSchema).max(100),
   tags: z.array(guestImportTagSchema).max(200),
   transactions: z.array(guestImportTransactionSchema).max(MAX_IMPORT_TRANSACTIONS),
-});
+}).superRefine((value,ctx)=>{try{validateCategoryTree(value.categories);}catch{ctx.addIssue({code:"custom",message:"category_tree_invalid"});}});
 export type GuestImportSource = z.infer<typeof guestImportSourceSchema>;
 
 export const taxonomyResolutionSchema = z.object({
@@ -506,6 +510,8 @@ function canonicalSource(source: GuestImportSource): string {
     ...(source.guestBookId === undefined ? { version: 1 } : { version: 2, guestBookId: source.guestBookId }),
     name: source.name,
     categories: sortedById(source.categories).map((item) => ({
+      ...(item.parentId ? { parentId:item.parentId } : {}),
+      ...(item.icon ? {icon:item.icon} : {}), ...(item.color ? {color:item.color} : {}),
       id: item.id,
       name: item.name,
       kind: item.kind,
@@ -548,6 +554,8 @@ function canonicalTarget(target: ImportTargetSnapshot): string {
     name: target.name,
     bookNumber: target.bookNumber,
     categories: sortedById(target.categories).map((item) => ({
+      ...(item.parentId ? { parentId:item.parentId } : {}),
+      ...(item.icon ? {icon:item.icon} : {}), ...(item.color ? {color:item.color} : {}),
       id: item.id,
       name: item.name,
       kind: item.kind,
@@ -637,6 +645,7 @@ export async function fingerprintImportSourceRecord(
           ? null
           : {
               id: category.id,
+              ...(category.parentId?{parentPath:categoryPath(source.categories,category.id).map(n=>({id:n.id,name:n.name,parentId:n.parentId??null}))}:{}),
               name: category.name,
               kind: category.kind,
               description: category.description ?? null,

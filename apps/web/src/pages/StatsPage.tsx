@@ -30,6 +30,8 @@ import {
 import { TabPage } from "../components/Layouts.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { useI18n } from "../i18n/index.js";
+import { categoryPath } from "@libellum/shared";
+import { displayCategoryName } from "../lib/presetNames.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { useLedger } from "../lib/queries.js";
 import { CardActionsContext, cardTitle, type CardActions } from "../statsWorkbench/cards.js";
@@ -151,7 +153,7 @@ function AccountWorkbench(): React.JSX.Element {
 
   // ---- W5 维度筛选的候选项：来自账本元数据（不是从交易里现猜），标签带颜色。 ----
   const categoryOptions = useMemo<readonly FilterOption[]>(
-    () => (ledger.data?.categories ?? []).map((category) => ({ id: category.id, name: category.name, archived: category.isArchived })),
+    () => (ledger.data?.categories ?? []).map((category) => ({ id: category.id, name: categoryPath(ledger.data?.categories??[],category.id).map(c=>displayCategoryName(c.name)).join(" / "), archived: category.isArchived })),
     [ledger.data?.categories],
   );
   const paymentMethodOptions = useMemo<readonly FilterOption[]>(
@@ -696,6 +698,7 @@ function AccountWorkbench(): React.JSX.Element {
     const ids = filterIds(current);
     const parts: string[] = [];
     if (ids.categoryIds !== null) parts.push(t("statsWorkbench.summary.categoryCount", { count: ids.categoryIds.length }));
+    if(current.categoryBranchIds !== undefined)parts.push(t("manage.tree.branch"));
     if (ids.paymentMethodIds !== null) parts.push(t("statsWorkbench.summary.paymentMethodCount", { count: ids.paymentMethodIds.length }));
     if (ids.tagIds !== null) parts.push(t("statsWorkbench.summary.tagCount", { count: ids.tagIds.length }));
     return parts.length === 0 ? "" : ` · ${parts.join(" · ")}`;
@@ -847,6 +850,7 @@ function AccountWorkbench(): React.JSX.Element {
                     defaultCurrency={scope.defaultCurrency}
                     currenciesInLedger={scope.ledgerCurrencies ?? currenciesUsed(scope.entries)}
                     categories={categoryOptions}
+                    categoryHierarchy={ledger.data?.categories.some(c=>c.parentId)===true}
                     paymentMethods={paymentMethodOptions}
                     tags={tagOptions}
                     onDraft={setDraft}

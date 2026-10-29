@@ -14,7 +14,7 @@
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createContext, useContext } from "react";
-import type { AnalysisCompleteness, Currency, DateRange, StatsBucket, Transaction } from "@libellum/shared";
+import { categoryBranchIds, type Category, type AnalysisCompleteness, type Currency, type DateRange, type StatsBucket, type Transaction } from "@libellum/shared";
 
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { toLocalDate } from "../lib/datetime.js";
@@ -37,6 +37,7 @@ import {
 export type FxRangeView = ReturnType<typeof useFxRange>;
 
 export interface WorkbenchScope {
+  readonly categories?: readonly Category[];
   /** 设备当地的「今天」（不问服务器，见旧分析页的说明）。 */
   readonly today: string;
   readonly filters: WorkbenchFilters;
@@ -71,7 +72,7 @@ export interface WorkbenchScope {
   readonly comparisonRead?: { readonly entries: readonly Transaction[]; readonly verified: boolean };
 }
 
-export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
+export function useWorkbenchScope(requestedFilters: WorkbenchFilters): WorkbenchScope {
   const auth = useAuthOptional();
   const user = auth?.user ?? null;
   const guest = useGuestIdentity();
@@ -88,6 +89,7 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
    * 以 `useLedger` 成功为信号，正是作用域已就绪的时刻。
    */
   const ledgerMeta = useLedger();
+  const filters = useMemo(()=>requestedFilters.categoryBranchIds !== undefined ? {...requestedFilters, expandedCategoryIds:ledgerMeta.data===undefined?[]:[...(requestedFilters.categoryIds ?? []),...categoryBranchIds(ledgerMeta.data.categories,requestedFilters.categoryBranchIds)]} : requestedFilters,[requestedFilters,ledgerMeta.data]);
   const bookId = ledgerMeta.data?.book.id ?? null;
 
   useEffect(() => {
@@ -134,6 +136,7 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
   const accountScope = user !== null ? `user:${user.id}` : guestId !== null ? `guest:${guestId}` : null;
 
   return {
+    categories: ledgerMeta.data?.categories ?? [],
     today,
     filters,
     range,
@@ -144,7 +147,7 @@ export function useWorkbenchScope(filters: WorkbenchFilters): WorkbenchScope {
     defaultCurrency,
     entries,
     ledgerCurrencies,
-    loaded: user !== null && !combined ? source.data !== undefined || source.error : readOnce || all.length > 0,
+    loaded: (requestedFilters.categoryBranchIds===undefined||ledgerMeta.data!==undefined) && (user !== null && !combined ? source.data !== undefined || source.error : readOnce || all.length > 0),
     fx: combined ? fx : null,
     coverageGap: null,
     repairing: user !== null && !combined && source.loading,

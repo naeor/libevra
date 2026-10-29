@@ -63,6 +63,7 @@ export function registerLedgerRoutes(app: FastifyInstance, options: LedgerRouteO
         where: { bookId },
         orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
         select: {
+          parentId: true, icon: true, color: true,
           id: true,
           name: true,
           kind: true,

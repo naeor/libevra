@@ -106,16 +106,17 @@ function render(id: string, family?: ChartFamily, over: Partial<WorkbenchScope> 
 
 const C_TYPES = CARD_TYPES.filter((type) => C_CARD_IDS.has(type.id));
 
-describe("S17-C 目录：31 张卡片全部登记、全部有缺汇率策略与文案", () => {
+describe("S17-C 目录：33 张卡片全部登记、全部有缺汇率策略与文案", () => {
   it("登记数量与编号", () => {
-    expect(C_TYPES).toHaveLength(31);
-    expect(C_CARD_IDS.size).toBe(31);
+    expect(C_TYPES).toHaveLength(33);
+    expect(C_CARD_IDS.size).toBe(33);
     for (const type of C_TYPES) {
       expect(FX_CARD_POLICIES[type.id], type.id).toBeDefined();
       expect(type.source, type.id).toBe("agent-c");
     }
-    // 需要分类层级的 P05 / P07 与需要维度参数的 P21 本轮没有登记（不作为可选项出现）。
-    for (const id of ["AN-P05", "AN-P07", "AN-P21"]) expect(CARD_TYPES.some((type) => type.id === id), id).toBe(false);
+    // W7 已提供真实层级，P05/P07 开放；P21 仍需要独立维度参数。
+    for (const id of ["AN-P05", "AN-P07"]) expect(CARD_TYPES.some((type) => type.id === id), id).toBe(true);
+    expect(CARD_TYPES.some(type=>type.id==="AN-P21")).toBe(false);
   });
 
   it("每张卡片的每种展示方式都能渲染：没有 NaN / undefined / Infinity，没有「卡片来自更新的版本」", () => {

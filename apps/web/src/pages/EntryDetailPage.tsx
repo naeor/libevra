@@ -14,6 +14,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
+import { categoryPath } from "@libellum/shared";
+import { CategoryPicker } from "../components/CategoryPicker.js";
 import { tagFillStyle } from "../lib/tagColors.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
@@ -492,7 +494,7 @@ export function EntryDetailPage(): React.JSX.Element {
           <section className="flex flex-col gap-2">
             <h2 className="px-1 text-card-title text-ink">{t("common.field.category")}</h2>
             {/* S16：中文固定三列；英文等更长的语言按最小宽度自动排列（320px 下两列），避免分类名在词中间断开。 */}
-            <div className="choice-grid-3 grid gap-2">
+            {ownCategories.some(c=>c.parentId)?<CategoryPicker categories={ownCategories} allCategories={ledger.data?.categories??ownCategories} onSelect={setCategoryId}/>:<div className="choice-grid-3 grid gap-2">
               {ownCategories.map((category) => (
                 <button
                   key={category.id}
@@ -507,7 +509,7 @@ export function EntryDetailPage(): React.JSX.Element {
                   {displayCategoryName(category.name)}
                 </button>
               ))}
-            </div>
+            </div>}
           </section>
 
           <section className="flex flex-col gap-2">
@@ -637,6 +639,7 @@ export function EntryDetailPage(): React.JSX.Element {
             <dt className="text-card-title text-ink">{t("common.field.category")}</dt>
             <dd className="text-right text-ink">
               {displayCategoryName(data.categoryIsSystem ? UNCATEGORISED_NAME : data.categoryName)}
+              {ledger.data?.categories.find(c=>c.id===data.categoryId)?.parentId?<span className="mt-1 block text-helper text-muted">{categoryPath(ledger.data.categories,data.categoryId).map(c=>displayCategoryName(c.name)).join(" / ")}</span>:null}
             </dd>
 
             <dt className="text-card-title text-ink">{t("common.field.paymentMethod")}</dt>

@@ -54,6 +54,7 @@ export const EXPORT_COLUMNS = [
   { key: "fileId", header: "流水编号" },
   { key: "sourceRef", header: "来源编号" },
   { key: "exportRef", header: "导出编号" },
+  { key: "categoryPath", header: "分类路径JSON" },
 ] as const;
 
 export type ExportColumnKey = (typeof EXPORT_COLUMNS)[number]["key"];

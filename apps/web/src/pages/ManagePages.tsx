@@ -1,5 +1,6 @@
 import {
   UNCATEGORISED_NAME,
+  categoryPath,
   type Category,
   type ClassificationUsageResponse,
   type PaymentMethod,
@@ -9,6 +10,7 @@ import { useState } from "react";
 import { useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
+import { CategoryTreeList } from "../components/CategoryTreeList.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
@@ -455,18 +457,13 @@ function CategoriesView({
             }}
           /> : null}
 
-          <ArchivableList
-            items={active.map(categoryRow)}
+          <CategoryTreeList
+            items={active}
+            allItems={categories}
             readOnly={!canWrite}
-            busyId={archive.isPending ? (pendingArchive?.id ?? null) : null}
-            lockedIds={systemIds}
+            onSave={(id,input)=>id===null?create.mutateAsync(input):update.mutateAsync({id,...input})}
             onArchive={(item) => {
               setPendingArchive(item);
-            }}
-            onRestore={(item) => {
-              void update.mutateAsync({ id: item.id, isArchived: false }).catch((caught: unknown) => {
-                setError(errorMessage(caught));
-              });
             }}
             onDelete={(item) => {
               setNotice(null);
@@ -519,7 +516,7 @@ function CategoriesView({
         onConfirm={() => {
           const target = pendingArchive;
           setPendingArchive(null);
-          if (target) void archive.mutateAsync(target.id);
+          if (target) void archive.mutateAsync(target.id).catch(caught=>setError(errorMessage(caught)));
         }}
       />
 
@@ -536,6 +533,7 @@ function CategoriesView({
         }
         consequences={[
           t("manage.common.entriesUnchanged"),
+          ...(allCategories.some(c=>c.parentId===pendingDelete?.id)?[t("manage.tree.promote")]:[]),
           t("manage.categories.deleteReassign"),
           t("manage.categories.deleteFinal"),
           ...(shared ? [t("manage.common.sharedWarning")] : []),
@@ -552,6 +550,7 @@ function CategoriesView({
           void permanentDelete
             .mutateAsync({
               id: target.id,
+              childrenPolicy: "promote",
               ...(replacementId === "" ? {} : { replacementCategoryId: replacementId }),
             })
             .then((result) => {
@@ -577,7 +576,7 @@ function CategoriesView({
           label={t("manage.categories.replacementLabel")}
           value={replacementId}
           onChange={setReplacementId}
-          options={replacementOptions.map((option) => ({ id: option.id, name: displayCategoryName(option.name) }))}
+          options={replacementOptions.map((option) => ({ id: option.id, name: categoryPath(allCategories,option.id).map(c=>displayCategoryName(c.name)).join(" / ") }))}
           fallbackLabel={t("manage.categories.replacementFallback")}
         />
       </ConfirmDialog>

@@ -65,8 +65,8 @@ const complete = buildFxView({ entries: MIXED_ENTRIES });
 
 describe("全部卡片在综合折算下都有真实结果（无「暂不支持」、无原币数字冒充）", () => {
   it("目录共 81 张（S17-A/B 50 + S17-C 31），全部 combined，且都有缺汇率策略", () => {
-    expect(ALL_IDS).toHaveLength(81);
-    expect(new Set(ALL_IDS).size).toBe(81);
+    expect(ALL_IDS).toHaveLength(83);
+    expect(new Set(ALL_IDS).size).toBe(83);
     expect([...OWN_WINDOW].sort()).toEqual(["AN-I09", "AN-I10", "AN-P15"]);
     expect([...COMBINED_ONLY].sort()).toEqual(["AN-P17", "AN-P18", "AN-P19", "AN-P20"]);
     for (const id of ALL_IDS) {

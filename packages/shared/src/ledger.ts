@@ -80,6 +80,9 @@ export const bookRoleSchema = z.enum(["owner", "editor", "viewer"]);
 export const UNCATEGORISED_NAME = "暂无分类";
 
 export const categorySchema = z.object({
+  parentId: z.string().nullable().optional(),
+  icon: z.string().max(32).nullable().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   id: z.string(),
   name: z.string(),
   kind: transactionKindSchema,
@@ -164,6 +167,9 @@ export const categoryNameSchema = z
   .max(20, "分类名称最多 20 个字符");
 
 export const createCategorySchema = z.object({
+  parentId: z.string().uuid().nullable().optional(),
+  icon: z.string().max(32).nullable().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   name: categoryNameSchema,
   kind: transactionKindSchema,
   sortOrder: sortOrderSchema.optional(),
@@ -171,6 +177,9 @@ export const createCategorySchema = z.object({
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 
 export const updateCategorySchema = z.object({
+  parentId: z.string().uuid().nullable().optional(),
+  icon: z.string().max(32).nullable().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   name: categoryNameSchema.optional(),
   sortOrder: sortOrderSchema.optional(),
   /** Archiving hides it from the picker; restoring brings it back. */
@@ -246,6 +255,7 @@ const optionalReplacementId = z
   .optional();
 
 export const permanentDeleteCategorySchema = z.object({
+  childrenPolicy: z.literal("promote").optional(),
   /**
    * 把历史账目换成哪个分类。省略 → 服务器选同 `kind` 的 `暂无分类`。
    * 必须是**同一本账**、**同一个 `kind`**，且不能是它自己。

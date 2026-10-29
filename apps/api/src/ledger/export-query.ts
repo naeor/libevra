@@ -1,4 +1,4 @@
-import { decimalsFor, formatTransactionNumber } from "@libellum/shared";
+import { categoryPath, decimalsFor, formatTransactionNumber } from "@libellum/shared";
 
 import type { PrismaClient } from "../db.js";
 
@@ -41,6 +41,7 @@ export interface ExportRow {
   readonly amount: number;
   readonly currency: string;
   readonly categoryName: string;
+  readonly categoryPath?: string;
   readonly paymentMethodName: string | null;
   readonly note: string | null;
   readonly tagNames: readonly string[];
@@ -116,6 +117,7 @@ function buildWhere(bookId: string, filters: ExportFilters): Record<string, unkn
 
 /** The fields the file needs, and nothing else. */
 const SELECT = {
+  categoryId: true,
   id: true,
   /** ⚠️ The printed number (`#000001`). Read from the column, **never recomputed** — see §8.12. */
   seq: true,
@@ -145,6 +147,7 @@ export async function* iterateExportRows(
   bookId: string,
   filters: ExportFilters,
 ): AsyncGenerator<ExportRow> {
+  const categories=await prisma.category.findMany({where:{bookId}});
   let cursor: { occurredLocalDate: Date; createdAt: Date; id: string } | null = null;
 
   for (;;) {
@@ -192,6 +195,7 @@ export async function* iterateExportRows(
         amount: Number(row.amountCents) / 10 ** decimalsFor(row.currency),
         currency: row.currency,
         categoryName: row.category.name,
+        categoryPath:JSON.stringify(categoryPath(categories,row.categoryId).map(c=>c.name)),
         paymentMethodName: row.paymentMethod?.name ?? null,
         note: row.note,
         tagNames: row.tags.map((link) => link.tag.name),

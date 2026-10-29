@@ -41,6 +41,16 @@ const TARGET = {
   tags: [tag("t-trip", "出差", "#111111"), tag("t-reimb", "报销", "#222222")],
 };
 
+it("按完整路径映射同名子分类，独立分支不合并、不被无关名称迫使改名",()=>{
+ const source={categories:[category("sa","甲","expense"),category("sb","乙","expense"),{...category("sc","同名","expense"),parentId:"sa"},{...category("sd","同名","expense"),parentId:"sb"}],paymentMethods:[],tags:[]};
+ const target={categories:[category("ta","甲","expense"),category("tb","乙","expense"),{...category("tc","同名","expense"),parentId:"ta"},{...category("td","同名","expense"),parentId:"tb"}],paymentMethods:[],tags:[]};
+ const plan=buildTaxonomyMappingPlan(source,target);
+ expect(plan.categories.find(c=>c.source.id==="sc")?.targetId).toBe("tc");
+ expect(plan.categories.find(c=>c.source.id==="sd")?.targetId).toBe("td");
+ const fresh=buildTaxonomyMappingPlan(source,{categories:[],paymentMethods:[],tags:[]});
+ expect(fresh.categories.filter(c=>["sc","sd"].includes(c.source.id)).map(c=>c.createName)).toEqual(["同名","同名"]);
+});
+
 const SOURCE = {
   categories: [
     category("s-sys-exp", "暂无分类", "expense", { isSystem: true }),

@@ -14,7 +14,7 @@ import { cardRange, displayCard } from "./cards.js";
 
 export function sourceEntriesFor(card: AnalysisCardNode, scope: WorkbenchScope, rows: readonly Transaction[]): readonly Transaction[] {
   const range = cardRange(displayCard(card), scope);
-  const kind = card.analysis.params["kind"] ?? getAnalysisCatalogEntry(card.analysis.analysisId)?.defaultKind ?? "both";
+  const kind = card.analysis.params["kind"] ?? getAnalysisCatalogEntry(card.analysis.analysisId)?.defaultKind ?? (["AN-P05","AN-P07"].includes(card.analysis.analysisId)?"expense":"both");
   return rows.filter(entry => {
     const date = entry.occurredLocalDate;
     return !entry.deletedAt && date >= range.from && date <= range.to &&

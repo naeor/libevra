@@ -50,6 +50,7 @@ const FULL_FILES = [
   "billImport.ts",
   "calendarHeatmap.ts",
   "categorySeries.ts",
+  "categoryTree.ts",
   "duplicateDetection.ts",
   "duplicateReview.ts",
   "export.ts",

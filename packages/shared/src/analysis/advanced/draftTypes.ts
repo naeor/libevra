@@ -447,16 +447,15 @@ export interface DraftCrossCubeResult {
 /* ------------------------------------------------------------------------- *
  * C-3 新增形状：P05 分类层级 / P06 矩形树图 / P07 层级桑基（QC-27…QC-29）
  *
- * 重要：真实分类模型当前**没有 parentId**（QC-03）。C-3 的层级输入是一个显式
- * 的「分类关系表」占位（`DraftCategoryRelation[]`，由未来的数据模型扩展或上层
- * 投影提供）。C 绝不根据分类名称推断父子关系；没有真实关系时，结果必须带
+ * W7 已提供真实 Category.parentId；输入仍使用显式关系投影，保留 Draft 前缀兼容。
+ * C 绝不根据分类名称推断父子关系；没有真实关系时，结果必须带
  * `isRealHierarchy=false`，展示层不得声称这是业务层级（owner 规格 §21/§23）。
  * ------------------------------------------------------------------------- */
 
 /** 层级节点类型：root 是合成根；category 是真实分类；direct 是桑基里的「直接金额」终端。 */
 export type DraftHierarchyNodeKind = "root" | "category" | "direct";
 
-/** 分类层级关系的一行（占位输入，不是数据模型；见 QC-27）。 */
+/** 分类层级关系的一行，由真实分类模型投影而来。 */
 export interface DraftCategoryRelation {
   readonly categoryId: string;
   readonly categoryLabel: string;

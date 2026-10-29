@@ -1189,6 +1189,7 @@ export function localCountForMonth(transactions: readonly Transaction[], month: 
 
 /** What a screen is asking for. Mirrors `TransactionFilters`. */
 export interface LocalFilters {
+  readonly categoryIds?: readonly string[] | undefined;
   readonly month?: string | undefined;
   readonly kind?: "income" | "expense" | undefined;
   readonly categoryId?: string | undefined;
@@ -1223,7 +1224,7 @@ export function filterLocally(
     }
 
     if (filters.kind !== undefined && transaction.kind !== filters.kind) return false;
-    if (filters.categoryId !== undefined && transaction.categoryId !== filters.categoryId) return false;
+    if (filters.categoryIds !== undefined ? !filters.categoryIds.includes(transaction.categoryId) : filters.categoryId !== undefined && transaction.categoryId !== filters.categoryId) return false;
     if (filters.currency !== undefined && transaction.currency !== filters.currency) return false;
 
     return true;

@@ -40,6 +40,10 @@ export type TimeChoice =
   | { readonly kind: "custom"; readonly from: string; readonly to: string };
 
 export interface WorkbenchFilters {
+  /** 新参数显式表示分支；旧 category 参数仍精确匹配。 */
+  readonly categoryBranchIds?: readonly string[] | undefined;
+  /** 运行时从当前账本关系展开，不写入 URL 或个人配置。 */
+  readonly expandedCategoryIds?: readonly string[];
   readonly time: TimeChoice;
   /** 原币模式下查看的币种；`null` = 跟随账号默认币种。 */
   readonly currency: Currency | null;
@@ -95,7 +99,7 @@ export function filterUrlProblem(params: URLSearchParams): ReturnType<typeof cus
 /** 把三个维度的可选字段规范化成 `null`/数组；缺省与 `null` 都表示「不限」。 */
 export function filterIds(filters: WorkbenchFilters): WorkbenchFilterIds {
   return {
-    categoryIds: normalizeIds(filters.categoryIds),
+    categoryIds: filters.expandedCategoryIds ?? (filters.categoryBranchIds===undefined?normalizeIds(filters.categoryIds):[...new Set([...(normalizeIds(filters.categoryIds)??[]),...(normalizeIds(filters.categoryBranchIds)??[])])]),
     paymentMethodIds: normalizeIds(filters.paymentMethodIds),
     tagIds: normalizeIds(filters.tagIds),
   };
@@ -171,7 +175,7 @@ export function filterWorkbenchEntries(
 /** 综合折算的缓存键：维度条件变了就要重新折算（缺汇率影响范围会随之变化）。 */
 export function filterKey(filters: WorkbenchFilters): string {
   const { categoryIds, paymentMethodIds, tagIds } = filterIds(filters);
-  return JSON.stringify([categoryIds, paymentMethodIds, tagIds]);
+  return JSON.stringify([categoryIds, paymentMethodIds, tagIds, ...(filters.categoryBranchIds !== undefined ? [filters.categoryBranchIds] : [])]);
 }
 
 /** 从地址栏读出生效条件；无法识别的值退回默认，而不是报错白屏。 */
@@ -192,6 +196,7 @@ export function readFilters(params: URLSearchParams): WorkbenchFilters {
 
   return {
     time,
+    ...(params.has("categoryBranch") ? {categoryBranchIds:readIdList(params,"categoryBranch") ?? []}:{}),
     currency: CURRENCIES.includes(currency as Currency) ? (currency as Currency) : null,
     combined: params.get("analysis") !== "currency",
     categoryIds: readIdList(params, FILTER_PARAM.categoryIds),
@@ -203,7 +208,7 @@ export function readFilters(params: URLSearchParams): WorkbenchFilters {
 /** 把生效条件写回地址栏；不认识的其它参数原样保留。 */
 export function writeFilters(previous: URLSearchParams, filters: WorkbenchFilters): URLSearchParams {
   const next = new URLSearchParams(previous);
-  for (const key of ["range", "month", "from", "to", "currency", "analysis", ...Object.values(FILTER_PARAM)]) {
+  for (const key of ["range", "month", "from", "to", "currency", "analysis", "categoryBranch", ...Object.values(FILTER_PARAM)]) {
     next.delete(key);
   }
 
@@ -225,6 +230,7 @@ export function writeFilters(previous: URLSearchParams, filters: WorkbenchFilter
   writeIdList(next, FILTER_PARAM.categoryIds, filters.categoryIds);
   writeIdList(next, FILTER_PARAM.paymentMethodIds, filters.paymentMethodIds);
   writeIdList(next, FILTER_PARAM.tagIds, filters.tagIds);
+  if (filters.categoryBranchIds !== undefined) writeIdList(next,"categoryBranch",filters.categoryBranchIds);
   return next;
 }
 
@@ -257,6 +263,7 @@ export function sameFilters(a: WorkbenchFilters, b: WorkbenchFilters): boolean {
   const right = filterIds(b);
   return (
     sameIds(left.categoryIds, right.categoryIds) &&
+    sameIds(a.categoryBranchIds ?? null, b.categoryBranchIds ?? null) &&
     sameIds(left.paymentMethodIds, right.paymentMethodIds) &&
     sameIds(left.tagIds, right.tagIds)
   );

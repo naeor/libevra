@@ -382,7 +382,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
             (cursor) =>
               apiFetch<TransactionListResponse>("/transactions", {
                 bookId,
-                query: { ...filters, limit: FILL_PAGE_SIZE, cursor },
+                query: { month:filters.month,kind:filters.kind,categoryId:filters.categoryId,currency:filters.currency, limit: FILL_PAGE_SIZE, cursor },
               }),
             {
               shouldStop: () => scopedKey("ledger-months") !== context,

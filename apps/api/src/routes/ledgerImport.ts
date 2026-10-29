@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { categoryTreeRows, validateCategoryTree } from "@libellum/shared";
+import { lockCategoryTree } from "../ledger/categoryTree.js";
 
 import {
   fingerprintGuestSource,
@@ -168,6 +170,8 @@ export async function resolveTaxonomy(
   resolutions: readonly TaxonomyResolution[],
   targetIsNew: boolean,
 ): Promise<ResolvedTaxonomy> {
+  await lockCategoryTree(tx,targetBookId);
+  try{validateCategoryTree(source.categories);}catch{throw badRequest("category_tree_invalid","来源分类层级无效。");}
   const byKey = new Map(resolutions.map((item) => [resolutionKey(item.type, item.sourceId), item]));
   const categoryIds = new Map<string, string>();
   const paymentMethodIds = new Map<string, string>();
@@ -177,10 +181,7 @@ export async function resolveTaxonomy(
   const reused = { categories: 0, paymentMethods: 0, tags: 0 };
 
   const categories = new Map(target.categories.map((item) => [item.id, item]));
-  const categoryByName = new Map(
-    target.categories.map((item) => [`${item.kind}\u0000${normalizeName(item.name)}`, item]),
-  );
-  const categoryNames = new Set(target.categories.map((item) => normalizeName(item.name)));
+  let categoryNames = new Set(target.categories.map((item) => normalizeName(item.name)));
   const paymentById = new Map(target.paymentMethods.map((item) => [item.id, item]));
   const paymentByName = new Map(target.paymentMethods.map((item) => [normalizeName(item.name), item]));
   const paymentNames = new Set(target.paymentMethods.map((item) => normalizeName(item.name)));
@@ -191,7 +192,10 @@ export async function resolveTaxonomy(
   let nextCategoryOrder = Math.max(0, ...target.categories.map((item) => item.sortOrder)) + 1;
   let nextPaymentOrder = Math.max(0, ...target.paymentMethods.map((item) => item.sortOrder)) + 1;
 
-  for (const category of source.categories) {
+  for (const {node:category} of categoryTreeRows(source.categories)) {
+    const parentId=category.parentId?categoryIds.get(category.parentId):null;
+    if(category.parentId&&!parentId)throw badRequest("category_tree_invalid","来源父分类尚未正确映射。");
+    categoryNames = new Set([...categories.values()].filter(item=>(item.parentId??null)===(parentId??null)&&item.kind===category.kind).map(item=>normalizeName(item.name)));
     const decision = findResolution(byKey, "category", category.id);
     if (!targetIsNew && decision.action === "auto") {
       throw badRequest("taxonomy_auto_invalid", "已有目标账本不能使用自动映射。");
@@ -203,13 +207,14 @@ export async function resolveTaxonomy(
         throw badRequest("taxonomy_target_missing", "目标分类不存在或类型不匹配，请重新预览。");
       }
       categoryIds.set(category.id, existing.id);
+      if((existing.parentId??null)!==(parentId??null))throw badRequest("category_tree_invalid","目标分类层级与来源不一致，请重新选择映射。");
       reused.categories += 1;
       continue;
     }
     if (targetIsNew) {
       const match = category.isSystem
         ? target.categories.find((item) => item.kind === category.kind && item.isSystem)
-        : categoryByName.get(`${category.kind}\u0000${normalizeName(category.name)}`);
+        : [...categories.values()].find(item=>item.kind===category.kind&&(item.parentId??null)===(parentId??null)&&normalizeName(item.name)===normalizeName(category.name));
       if (match !== undefined) {
         categoryIds.set(category.id, match.id);
         reused.categories += 1;
@@ -226,6 +231,7 @@ export async function resolveTaxonomy(
     }
     const createdCategory = await tx.category.create({
       data: {
+        parentId:parentId??null,icon:category.icon??null,color:category.color??null,
         id: randomUUID(),
         bookId: targetBookId,
         name,
@@ -240,6 +246,7 @@ export async function resolveTaxonomy(
     nextCategoryOrder += 1;
     categoryNames.add(normalizeName(name));
     categories.set(createdCategory.id, {
+      parentId:parentId??null,icon:category.icon??null,color:category.color??null,
       id: createdCategory.id,
       name,
       kind: category.kind,
@@ -248,7 +255,6 @@ export async function resolveTaxonomy(
       isArchived: category.isArchived,
       isSystem: false,
     });
-    categoryByName.set(`${category.kind}\u0000${normalizeName(name)}`, categories.get(createdCategory.id)!);
     categoryIds.set(category.id, createdCategory.id);
     created.categories += 1;
     createdIds.categories.push(createdCategory.id);

@@ -102,6 +102,8 @@ export const FX_CARD_POLICIES: Readonly<Record<string, FxCardPolicy>> = {
   "AN-P03": { class: "composition", kinds: E },
   "AN-P04": { class: "composition", kinds: E },
   "AN-P06": { class: "composition", kinds: E },
+  "AN-P05": { class: "composition", kinds: E },
+  "AN-P07": { class: "composition", kinds: E },
   "AN-P08": { class: "undetermined", kinds: E },
   "AN-P09": { class: "ranking", kinds: E },
   "AN-P10": { class: "subset", kinds: E },

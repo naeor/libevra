@@ -221,6 +221,7 @@ async function loadGuestData(): Promise<GuestData> {
 }
 
 export interface TransactionFilters {
+  readonly categoryIds?: readonly string[] | undefined;
   readonly month?: string | undefined;
   readonly kind?: "income" | "expense" | undefined;
   readonly categoryId?: string | undefined;
@@ -244,6 +245,7 @@ export interface TransactionFilters {
  */
 export function transactionFilters(given: TransactionFilters = {}): TransactionFilters {
   return {
+    ...(given.categoryIds===undefined?{}:{categoryIds:given.categoryIds}),
     month: given.month,
     kind: given.kind,
     categoryId: given.categoryId,
@@ -1388,6 +1390,7 @@ export function useTransactions(given: TransactionFilters) {
               month: filters.month,
               kind: filters.kind,
               categoryId: filters.categoryId,
+              ...(filters.categoryIds===undefined?{}:{categoryScope:"branch"}),
               currency: filters.currency,
               cursor: pageParam,
             },
@@ -1948,6 +1951,7 @@ export function useCategoryMutations(bookId?: string) {
   const invalidateUsage = useClassificationUsageInvalidator(bookId);
 
   const create = useMutation({
+    networkMode: "always",
     mutationFn: async (input: CreateCategoryInput) => {
       if (guest) {
         const category = await createGuestCategory(input);
@@ -1965,6 +1969,7 @@ export function useCategoryMutations(bookId?: string) {
   });
 
   const update = useMutation({
+    networkMode: "always",
     mutationFn: async ({ id, ...input }: UpdateCategoryInput & { id: string }) => {
       if (guest) {
         const category = await updateGuestCategory(id, input);
@@ -1983,6 +1988,7 @@ export function useCategoryMutations(bookId?: string) {
   });
 
   const archive = useMutation({
+    networkMode: "always",
     mutationFn: async (id: string) => {
       if (guest) {
         const category = await archiveGuestCategory(id);
@@ -2004,6 +2010,7 @@ export function useCategoryMutations(bookId?: string) {
    * category. One endpoint cannot mean both without a flag that someone will eventually forget.
    */
   const permanentDelete = useMutation({
+    networkMode: "always",
     mutationFn: async ({ id, ...input }: PermanentDeleteCategoryInput & { id: string }) => {
       if (guest) {
         const report = await deleteGuestCategory(id, input.replacementCategoryId);

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { EXPORT_COLUMNS, type BillImportCandidate } from "@libellum/shared";
+import { categoryPath, EXPORT_COLUMNS, type BillImportCandidate } from "@libellum/shared";
 
 import {
   cleanText,
@@ -56,9 +56,6 @@ export function parseLibevraCsv(
     throw new BillParseError("missing_column", "Libevra 账单缺少日期或金额列。");
   }
 
-  const categoryByName = new Map(
-    context.categories.filter((category) => !category.isArchived).map((category) => [category.name, category]),
-  );
   const paymentByName = new Map(
     context.paymentMethods
       .filter((method) => !method.isArchived)
@@ -111,7 +108,11 @@ export function parseLibevraCsv(
     }
 
     const categoryName = values.get("category") ?? "";
-    const category = categoryName ? categoryByName.get(categoryName) : undefined;
+    const pathRaw=values.get("categoryPath");
+    let pathNames:unknown=null;
+    if(pathRaw){try{pathNames=JSON.parse(pathRaw);}catch{/* 无效路径不回退到同名节点 */}}
+    const matching=context.categories.filter(c=>!c.isArchived&&c.kind===kind&&(pathRaw?Array.isArray(pathNames)&&pathNames.length<=64&&pathNames.every(n=>typeof n==="string")&&JSON.stringify(categoryPath(context.categories,c.id).map(n=>n.name))===JSON.stringify(pathNames):c.name===categoryName));
+    const category=matching.length===1?matching[0]:undefined;
     if (categoryName && category === undefined) {
       rowWarnings.push(`分类「${categoryName}」不在账本中，导入时将使用系统分类。`);
     }

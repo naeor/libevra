@@ -17,6 +17,9 @@ const errors: Messages<typeof zh> = {
     unknownServer: "That didn’t go through. Please try again, and contact an administrator if it keeps failing.",
   },
   api: {
+    category_tree_permission:"Your category management permissions have changed. Reopen the ledger.",
+    category_tree_invalid:"Invalid parent, excessive depth, cycle, or duplicate sibling name. Choose again.",
+    category_children:"Move subcategories first, or confirm moving them up one level.",
     unauthorized: "Your session ended. Sign in again.",
     workbench_invalid: "Workspace configuration is invalid or unsupported.",
     workbench_newer: "Update the app before changing this newer cloud configuration.",

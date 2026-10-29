@@ -73,6 +73,7 @@ export function FilterPanel({
   defaultCurrency,
   currenciesInLedger,
   categories = [],
+  categoryHierarchy = false,
   paymentMethods = [],
   tags = [],
   onDraft,
@@ -90,6 +91,7 @@ export function FilterPanel({
   readonly currenciesInLedger: readonly string[];
   /** 账本现有分类（归档分类也列出，允许查看历史；是否可选由 W5 规格继续明确）。 */
   readonly categories?: readonly FilterOption[];
+  readonly categoryHierarchy?: boolean;
   readonly paymentMethods?: readonly FilterOption[];
   readonly tags?: readonly FilterOption[];
   readonly onDraft: (next: WorkbenchFilters) => void;
@@ -118,9 +120,10 @@ export function FilterPanel({
 
   type DimensionKey = "categoryIds" | "paymentMethodIds" | "tagIds";
   const toggle = (key: DimensionKey, id: string): void => {
+    if(key==="categoryIds"&&draft.categoryBranchIds !== undefined){onDraft({...draft,categoryBranchIds:toggleFilterId(draft.categoryBranchIds,id),categoryIds:null});return;}
     onDraft({ ...draft, [key]: toggleFilterId(ids[key], id) });
   };
-  const clearDimension = (key: DimensionKey): void => onDraft({ ...draft, [key]: null });
+  const clearDimension = (key: DimensionKey): void => onDraft({ ...draft, [key]: null, ...(key==="categoryIds"?{categoryBranchIds:undefined}: {}) });
 
   const dimension = (
     key: DimensionKey,
@@ -128,7 +131,7 @@ export function FilterPanel({
     options: readonly FilterOption[],
   ): React.ReactNode => {
     if (options.length === 0) return null;
-    const selected = ids[key];
+    const selected = key==="categoryIds"&&draft.categoryBranchIds !== undefined?draft.categoryBranchIds:ids[key];
     return (
       <fieldset className="flex min-w-0 flex-col gap-2" data-filter-dimension={key}>
         <legend className="pb-1.5 text-helper text-muted">{legend}</legend>
@@ -219,6 +222,7 @@ export function FilterPanel({
         </fieldset>
 
         {dimension("categoryIds", t("statsWorkbench.filter.category"), categories)}
+        {categoryHierarchy?<label className="flex items-center gap-2 text-helper text-muted"><input type="checkbox" checked={draft.categoryBranchIds !== undefined} disabled={!draft.categoryIds?.length&&draft.categoryBranchIds === undefined} onChange={e=>onDraft({...draft,categoryBranchIds:e.target.checked?[...(draft.categoryIds??[])]:undefined,categoryIds:e.target.checked?null:[...(draft.categoryBranchIds??[])]})}/>{t("manage.tree.branch")}</label>:null}
         {dimension("paymentMethodIds", t("statsWorkbench.filter.paymentMethod"), paymentMethods)}
         {dimension("tagIds", t("statsWorkbench.filter.tag"), tags)}
 

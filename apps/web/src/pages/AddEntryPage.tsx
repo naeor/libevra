@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
+import { CategoryPicker } from "../components/CategoryPicker.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { EntrySaved } from "../components/EntrySaved.js";
@@ -768,7 +769,7 @@ export function AddEntryPage(): React.JSX.Element {
               <ChevronIcon up={categoryOpen} className="text-muted" />
             </button>
 
-            {categoryOpen ? (
+            {categoryOpen && categories.some(c=>c.parentId) ? <CategoryPicker categories={categories} allCategories={ledger.data?.categories??categories} onSelect={id=>{setCategoryId(id);setCategoryOpen(false);}}/> : categoryOpen ? (
               <ul className="max-h-64 overflow-y-auto border-t border-line">
                 <li>
                   <button

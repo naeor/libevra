@@ -152,6 +152,7 @@ function snapshotToGuestSource(name: string, snapshot: ImportTargetSnapshot): Gu
   return {
     name,
     categories: snapshot.categories.map((item) => ({
+      parentId:item.parentId??null,icon:item.icon??null,color:item.color??null,
       id: item.id,
       name: item.name,
       kind: item.kind,

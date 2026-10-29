@@ -674,6 +674,8 @@ const statsWorkbench: Messages<typeof zh> = {
     "AN-P03": { title: "Category × payment method", desc: "How each category was paid" },
     "AN-P04": { title: "Payment method trend", desc: "Expense by payment method over time" },
     "AN-P06": { title: "Category treemap", desc: "Compare category expense by area (single level)" },
+    "AN-P05": { title: "Category hierarchy", desc: "Direct expenses, branch totals and actual category relationships" },
+    "AN-P07": { title: "Category hierarchy Sankey", desc: "Trace spending through actual categories, including direct parent expenses" },
     "AN-P08": { title: "Category Pareto", desc: "Categories from largest to smallest with cumulative share" },
     "AN-P09": { title: "Category rank changes", desc: "How the top categories’ monthly ranks move" },
     "AN-P10": { title: "Expense scatter", desc: "Each expense as a point by date and amount" },

@@ -12,18 +12,18 @@ applyLocale("zh-CN");
 const t = (key: string): string => i18n.t(key as never);
 
 describe("目录完整性", () => {
-  it("可选指标 81 项全部在目录里，目录里没有重复与无效项", () => {
-    expect(CUSTOM_CARD_TYPES).toHaveLength(81);
+  it("可选指标 83 项全部在目录里，目录里没有重复与无效项", () => {
+    expect(CUSTOM_CARD_TYPES).toHaveLength(83);
     expect(directoryProblems()).toEqual([]);
   });
 
-  it("目录只显示已实现的指标：P21（需要维度参数）列在规划里但不出现；P05 / P07（需要分类层级）不在目录", () => {
+  it("目录开放 P05/P07，P21 仍不出现；每项都指向已实现指标", () => {
     const shown = new Set(directorySections().flatMap((section) => section.subgroups.flatMap((group) => group.ids)));
     expect(shown.has("AN-P21")).toBe(false);
-    expect(shown.has("AN-P05")).toBe(false);
-    expect(shown.has("AN-P07")).toBe(false);
+    expect(shown.has("AN-P05")).toBe(true);
+    expect(shown.has("AN-P07")).toBe(true);
     for (const id of shown) expect(CARD_TYPES.some((type) => type.id === id), id).toBe(true);
-    expect(shown.size).toBe(81);
+    expect(shown.size).toBe(83);
   });
 
   it("五个用户分类都有内容；同一指标可在多个分类出现但只有一个主分类", () => {

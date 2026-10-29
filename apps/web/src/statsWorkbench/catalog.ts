@@ -529,6 +529,8 @@ export const CARD_TYPES: readonly CardType[] = [
   // 桑基读法（1.17.12）只画「支出总额 → 分类」这一真实归属关系（shared `buildHierarchy` + `buildHierarchySankey`）；
   // 所有者规格 §23 不允许把「收入 → 支付方式 → 分类」连成资金流向，分类层级（P07）等 QC-03。
   cCard("AN-P06", "professional", ["treemap", "ranking", "sankey"], S22, S21, CHART_SIZES),
+  cCard("AN-P05", "professional", ["table"], S22, S21, CHART_SIZES),
+  cCard("AN-P07", "professional", ["sankey", "table"], S22, S21, CHART_SIZES),
   cCard("AN-P08", "professional", ["pareto", "table"], S22, S21, CHART_SIZES),
   cCard("AN-P09", "professional", ["bump", "table"], S22, S22, [S22, S23]),
   cCard("AN-P10", "professional", ["scatter"], S22, S21, CHART_SIZES),

@@ -297,6 +297,8 @@ export function matchCategory(
   } | null = null;
 
   for (const category of usable) {
+    // 同名节点无法仅凭自然语言区分；不猜测某一个内部 ID。
+    if (usable.filter(candidate => candidate.name === category.name).length > 1) continue;
     const evidence = new Map<string, number>();
     let score = 0;
     let firstAction = Number.POSITIVE_INFINITY;

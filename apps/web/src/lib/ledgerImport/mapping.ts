@@ -8,6 +8,7 @@
  * D1 预览会把它们列出来，D3 在写入前让用户决定。这里的 targetId 只是暂定复用，不是最终决定。
  */
 import type { Category, PaymentMethod, Tag } from "@libellum/shared";
+import { categoryPath } from "@libellum/shared";
 
 import { t } from "../../i18n/index.js";
 import { displayCategoryName, displayPaymentMethodName } from "../presetNames.js";
@@ -113,10 +114,11 @@ function mapCategory(
   source: Category,
   targetCategories: readonly Category[],
   reservedNames: Set<string>,
+  sourceCategories: readonly Category[],
 ): { mapping: TaxonomyMapping<Category, Category>; conflicts: TaxonomyConflict[] } {
   const conflicts: TaxonomyConflict[] = [];
   const sameName = targetCategories.find(
-    (target) => target.kind === source.kind && normalizeObjectName(target.name) === normalizeObjectName(source.name),
+    (target) => target.kind === source.kind && JSON.stringify(categoryPath(targetCategories,target.id).map(n=>normalizeObjectName(n.name))) === JSON.stringify(categoryPath(sourceCategories,source.id).map(n=>normalizeObjectName(n.name))),
   );
 
   if (source.isSystem) {
@@ -365,22 +367,21 @@ export function buildTaxonomyMappingPlan(
   },
   resolutions?: TaxonomyResolutionMap,
 ): TaxonomyMappingPlan {
-  const reservedCategoryNames = new Set(
-    target.categories.filter((item) => item.kind === "expense").map((item) => normalizeObjectName(item.name)),
-  );
-  const reservedIncomeNames = new Set(
-    target.categories.filter((item) => item.kind === "income").map((item) => normalizeObjectName(item.name)),
-  );
   const reservedPaymentNames = new Set(target.paymentMethods.map((item) => normalizeObjectName(item.name)));
   const reservedTagNames = new Set(target.tags.map((item) => normalizeObjectName(item.name)));
 
   const categories: TaxonomyMapping<Category, Category>[] = [];
+  const siblingNames=new Map<string,Set<string>>();
   const conflicts: TaxonomyConflict[] = [];
   for (const item of source.categories) {
+    const parentPath=JSON.stringify(categoryPath(source.categories,item.id).slice(0,-1).map(c=>normalizeObjectName(c.name)));
+    const groupKey=JSON.stringify([item.kind,item.parentId??null]);
+    if(!siblingNames.has(groupKey))siblingNames.set(groupKey,new Set(target.categories.filter(c=>c.kind===item.kind&&JSON.stringify(categoryPath(target.categories,c.id).slice(0,-1).map(n=>normalizeObjectName(n.name)))===parentPath).map(c=>normalizeObjectName(c.name))));
     const result = mapCategory(
       item,
       target.categories,
-      item.kind === "income" ? reservedIncomeNames : reservedCategoryNames,
+      siblingNames.get(groupKey)!,
+      source.categories,
     );
     categories.push(
       applyResolution(result.mapping, resolutions?.get(taxonomyResolutionKey("category", item.id))),

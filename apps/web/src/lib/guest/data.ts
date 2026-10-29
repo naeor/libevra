@@ -38,6 +38,7 @@ import {
 } from "@libellum/shared";
 
 import { t } from "../../i18n/index.js";
+import { validateCategoryTree } from "@libellum/shared";
 import { createDefaultGuestLedger, type GuestLedger } from "./ledger.js";
 import { guestKey, readGuestValue, writeGuestValue } from "./storage.js";
 
@@ -604,11 +605,12 @@ export async function createGuestCategory(input: CreateCategoryInput): Promise<C
   const data = await requireData();
   const name = input.name.trim();
   assertUniqueName(
-    data.categories.filter((category) => category.kind === input.kind),
+    data.categories.filter((category) => category.kind === input.kind && (category.parentId ?? null) === (input.parentId ?? null)),
     name,
   );
 
   const category: Category = {
+    parentId: input.parentId ?? null, icon: input.icon ?? null, color: input.color ?? null,
     id: newId(),
     name,
     kind: input.kind,
@@ -618,6 +620,7 @@ export async function createGuestCategory(input: CreateCategoryInput): Promise<C
     sortOrder: input.sortOrder ?? nextSortOrder(data.categories.filter((entry) => entry.kind === input.kind)),
   };
 
+  validateCategoryTree([...data.categories, category]);
   await persist({ ...data, categories: [...data.categories, category] });
   return category;
 }
@@ -633,23 +636,25 @@ export async function updateGuestCategory(
 
   const name = input.name === undefined ? current.name : input.name.trim();
   assertUniqueName(
-    data.categories.filter((category) => category.kind === current.kind),
+    data.categories.filter((category) => category.kind === current.kind && (category.parentId ?? null) === (input.parentId === undefined ? current.parentId ?? null : input.parentId)),
     name,
     id,
   );
 
   const updated: Category = {
     ...current,
+    ...(input.parentId === undefined ? {} : {parentId:input.parentId}),
+    ...(input.icon === undefined ? {} : {icon:input.icon}),
+    ...(input.color === undefined ? {} : {color:input.color}),
     name,
     description: input.name === undefined ? current.description : null,
     isArchived: input.isArchived ?? current.isArchived,
     sortOrder: input.sortOrder ?? current.sortOrder,
   };
 
-  await persist({
-    ...data,
-    categories: data.categories.map((category) => (category.id === id ? updated : category)),
-  });
+  const categories = data.categories.map((category) => (category.id === id ? updated : category));
+  validateCategoryTree(categories);
+  await persist({ ...data, categories });
   return updated;
 }
 
@@ -696,9 +701,11 @@ export async function deleteGuestCategory(
       : entry,
   );
 
+  const categories = data.categories.filter(category => category.id !== id).map(category => category.parentId === id ? {...category,parentId:current.parentId ?? null} : category);
+  validateCategoryTree(categories);
   await persist({
     ...data,
-    categories: data.categories.filter((category) => category.id !== id),
+    categories,
     transactions,
     deleted,
   });

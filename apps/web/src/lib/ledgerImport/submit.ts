@@ -32,6 +32,7 @@ export function guestSourceOfSource(source: ImportPreview["source"]): GuestImpor
     name: source.identity.name,
     ...(source.kind === "guest" ? { guestBookId: source.bookId } : {}),
     categories: source.categories.map((item) => ({
+      parentId:item.parentId??null,icon:item.icon??null,color:item.color??null,
       id: item.id,
       name: item.name,
       kind: item.kind,
@@ -74,6 +75,7 @@ export function targetSnapshotOf(preview: ImportPreview): ImportTargetSnapshot {
     name: target.identity.name,
     bookNumber: target.identity.bookNumber,
     categories: target.categories.map((item) => ({
+      parentId:item.parentId??null,icon:item.icon??null,color:item.color??null,
       id: item.id,
       name: item.name,
       kind: item.kind,

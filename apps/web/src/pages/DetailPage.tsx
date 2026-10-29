@@ -40,6 +40,7 @@ import {
 } from "../components/ledger/batch.js";
 import { refreshMessage } from "../components/ledger/refreshFeedback.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
+import { categoryBranchIds } from "@libellum/shared";
 import { errorMessage } from "../lib/api.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { currentMonth, formatDayLabel, formatInstant, formatMonthLabel } from "../lib/datetime.js";
@@ -172,7 +173,9 @@ export function DetailPage(): React.JSX.Element {
    * disagreed, a screen with data would show placeholder rows, which is the bug this whole change
    * is about.
    */
-  const filters = { month, kind, categoryId: categoryId ?? undefined };
+  const categoryBranch=categoryId!==null&&searchParams.get("categoryScope")==="branch";
+  const categoryIds=useMemo(()=>categoryBranch?categoryBranchIds(ledger.data?.categories??[],[categoryId!]):undefined,[categoryBranch,categoryId,ledger.data?.categories]);
+  const filters = { month, kind, categoryId: categoryId ?? undefined, ...(categoryIds===undefined?{}:{categoryIds}) };
   const list = useTransactions(filters);
 
   /**
@@ -217,6 +220,7 @@ export function DetailPage(): React.JSX.Element {
   const clearCategoryFilter = (): void => {
     const next = new URLSearchParams(searchParams);
     next.delete("categoryId");
+    next.delete("categoryScope");
     setSearchParams(next, { replace: true });
   };
 
@@ -463,7 +467,7 @@ export function DetailPage(): React.JSX.Element {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
 
     return mergeLedgerEntries(localEntries, fromQuery, pending, filters, deleted);
-  }, [list.data, localEntries, pending, month, kind, categoryId, deleted]);
+  }, [list.data, localEntries, pending, month, kind, categoryId, categoryIds, deleted]);
 
   /**
    * ⚠️ **One explicit sort, applied to whatever the sources produced.**
@@ -1019,6 +1023,7 @@ export function DetailPage(): React.JSX.Element {
 
           {categoryId === null ? null : (
             <div className="px-6 pt-3">
+              {ledger.data?.categories.some(c=>c.parentId===categoryId)?<label className="mb-2 flex items-center gap-2 text-helper text-muted"><input type="checkbox" checked={categoryBranch} onChange={e=>{const next=new URLSearchParams(searchParams);if(e.target.checked)next.set("categoryScope","branch");else next.delete("categoryScope");setSearchParams(next);}}/>{t("manage.tree.branch")}</label>:null}
               <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-xs text-brand-dark">
                 <span className="min-w-0">
                   {t("ledger.detail.filteredCategory", {
@@ -1699,6 +1704,7 @@ function useLocalEntries(filters: TransactionFilters): readonly Transaction[] {
   const month = filters.month ?? "";
   const kind = filters.kind ?? "";
   const categoryId = filters.categoryId ?? "";
+  const categoryIdsKey=JSON.stringify(filters.categoryIds);
   const currency = filters.currency ?? "";
 
   useEffect(() => {
@@ -1716,9 +1722,10 @@ function useLocalEntries(filters: TransactionFilters): readonly Transaction[] {
         ...(month === "" ? {} : { month }),
         ...(kind === "" ? {} : { kind: kind as Transaction["kind"] }),
         ...(categoryId === "" ? {} : { categoryId }),
+        ...(filters.categoryIds===undefined?{}:{categoryIds:filters.categoryIds}),
         ...(currency === "" ? {} : { currency }),
       }),
-    [all, month, kind, categoryId, currency],
+    [all, month, kind, categoryId, categoryIdsKey, currency],
   );
 }
 

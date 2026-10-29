@@ -16,6 +16,7 @@ import {
   type TransactionKind,
 } from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { categoryBranchIds } from "@libellum/shared";
 
 import type { PrismaClient } from "../db.js";
 import { dateTimeToInstant } from "../import/common.js";
@@ -500,6 +501,10 @@ export function registerTransactionRoutes(
     }
     if (kind) where["kind"] = kind;
     if (readString(query["categoryId"])) where["categoryId"] = query["categoryId"];
+    if (readString(query["categoryId"]) && query["categoryScope"] === "branch") {
+      const categories=await prisma.category.findMany({where:{bookId}});
+      where["categoryId"]={in:categoryBranchIds(categories,[String(query["categoryId"])])};
+    }
     if (readString(query["paymentMethodId"])) where["paymentMethodId"] = query["paymentMethodId"];
     if (readString(query["currency"])) where["currency"] = query["currency"];
     if (readString(query["tagId"])) where["tags"] = { some: { tagId: query["tagId"] } };

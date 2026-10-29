@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { t as translate, useI18n } from "../../i18n/index.js";
+import { categoryPath } from "@libellum/shared";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { Alert } from "../Alert.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
@@ -395,6 +396,7 @@ export function BatchAddSheet({
                     categories={(ledgerData?.categories ?? []).filter(
                       (category) => category.kind === draft.kind && !category.isArchived,
                     )}
+                    allCategories={ledgerData?.categories??[]}
                     paymentMethods={(ledgerData?.paymentMethods ?? []).filter(
                       (method) => !method.isArchived,
                     )}
@@ -486,6 +488,7 @@ function BatchCard({
   draft,
   index,
   categories,
+  allCategories=categories,
   paymentMethods,
   tags,
   error,
@@ -497,6 +500,7 @@ function BatchCard({
   readonly draft: BatchEntryDraft;
   readonly index: number;
   readonly categories: readonly BatchCategory[];
+  readonly allCategories?: readonly BatchCategory[];
   readonly paymentMethods: readonly BatchPaymentMethod[];
   readonly tags: readonly BatchTag[];
   readonly error: string | undefined;
@@ -583,7 +587,7 @@ function BatchCard({
             <option value="">{t("entry.batch.uncategorized")}</option>
             {categoryOptions.map((category) => (
               <option key={category.id} value={category.id}>
-                {displayCategoryName(category.name)}
+                {categoryPath(allCategories,category.id).map(c=>displayCategoryName(c.name)).join(" / ")}
               </option>
             ))}
           </select>

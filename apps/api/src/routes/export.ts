@@ -141,6 +141,8 @@ function rowValues(row: ExportRow, exportRef: string): (string | number)[] {
         return row.currency;
       case "category":
         return row.categoryName;
+      case "categoryPath":
+        return row.categoryPath ?? JSON.stringify([row.categoryName]);
       case "paymentMethod":
         return row.paymentMethodName ?? "";
       case "note":

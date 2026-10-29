@@ -23,6 +23,9 @@ const errors = {
     unknownServer: "操作未完成，请重试。若仍然失败，请联系管理员。",
   },
   api: {
+    category_tree_permission:"分类管理权限已变化，请重新打开账本。",
+    category_tree_invalid:"所属分类无效、层级过深、存在循环或同级重名，请重新选择。",
+    category_children:"请先移动子分类，或确认将子分类提升到上一级。",
     unauthorized: "登录状态已失效，请重新登录。",
     workbench_invalid: "工作台配置格式无效或版本不受支持。",
     workbench_newer: "云端配置来自更新版本，请先更新应用。",

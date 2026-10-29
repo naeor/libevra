@@ -12,6 +12,7 @@ import {
   type ImportRowError,
 } from "@libellum/shared";
 import { createHash, randomUUID } from "node:crypto";
+import { categoryPath } from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
@@ -279,8 +280,11 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
       }
 
       const categoryName = row.values.get("category") ?? "";
+      const pathJson=row.values.get("categoryPath");
       if (categoryName !== "") {
-        const exists = categories.some((category) => category.name === categoryName);
+        const inferredKind=kindText==="收入"||kindText==="income"?"income":kindText==="支出"||kindText==="expense"?"expense":Number((row.values.get("amount")??"0").replace(/,/g,""))<0?"expense":"income";
+        const matches=categories.filter(category=>category.name===categoryName&&category.kind===inferredKind&&(!pathJson||JSON.stringify(categoryPath(categories,category.id).map(c=>c.name))===pathJson));
+        const exists = matches.length===1;
         if (!exists) {
           errors.push({
             line: row.line,
@@ -428,7 +432,7 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
       const category =
         categoryName === ""
           ? categories.find((item) => item.kind === kind && item.name === UNCATEGORISED_NAME && item.isSystem)
-          : categories.find((item) => item.kind === kind && item.name === categoryName);
+          : categories.find((item) => item.kind === kind && item.name === categoryName && (!row.values.get("categoryPath")||JSON.stringify(categoryPath(categories,item.id).map(c=>c.name))===row.values.get("categoryPath")));
 
       const paymentName = row.values.get("paymentMethod") ?? "";
       const paymentMethod = paymentName === "" ? null : paymentMethods.find((item) => item.name === paymentName) ?? null;

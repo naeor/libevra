@@ -1080,3 +1080,4 @@ export {
 export * from "./analysis/index.js";
 /** T2 read-only analytics endpoints (owner-approved 2026-10-27; see task doc §15). */
 export * from "./analytics.js";
+export * from "./categoryTree.js";

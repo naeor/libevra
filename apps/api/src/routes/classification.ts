@@ -14,6 +14,8 @@ import {
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
+import { randomUUID } from "node:crypto";
+import { checkCategoryTree, checkCategoryWriter, lockCategoryTree } from "../ledger/categoryTree.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { recordOperation } from "../ledger/operations.js";
 import { AppError, badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
@@ -24,6 +26,7 @@ export interface ClassificationRouteOptions {
 }
 
 const CATEGORY_FIELDS = {
+  parentId: true, icon: true, color: true,
   id: true,
   name: true,
   kind: true,
@@ -187,15 +190,21 @@ export function registerClassificationRoutes(
     });
 
     try {
-      const created = await prisma.category.create({
+      const created = await prisma.$transaction(async tx => {
+        await lockCategoryTree(tx, bookId);
+        await checkCategoryWriter(tx,bookId,request.currentUser!.id);
+        const id = randomUUID();
+        await checkCategoryTree(tx, bookId, { id, name: body.name, kind: body.kind, parentId: body.parentId ?? null });
+        return tx.category.create({
         data: {
+          id, parentId: body.parentId ?? null, icon: body.icon ?? null, color: body.color ?? null,
           bookId,
           name: body.name,
           kind: body.kind,
           sortOrder: body.sortOrder ?? (highest._max.sortOrder ?? -1) + 1,
         },
         select: CATEGORY_FIELDS,
-      });
+      }); });
 
       reply.status(201);
       return created;
@@ -230,9 +239,20 @@ export function registerClassificationRoutes(
     }
     if (body.sortOrder !== undefined) data["sortOrder"] = body.sortOrder;
     if (body.isArchived !== undefined) data["isArchived"] = body.isArchived;
+    if (body.parentId !== undefined) data["parentId"] = body.parentId;
+    if (body.icon !== undefined) data["icon"] = body.icon;
+    if (body.color !== undefined) data["color"] = body.color;
 
     try {
-      return await prisma.category.update({ where: { id }, data, select: CATEGORY_FIELDS });
+      return await prisma.$transaction(async tx => {
+        await lockCategoryTree(tx, bookId);
+        await checkCategoryWriter(tx,bookId,request.currentUser!.id);
+        const current = await tx.category.findFirst({where:{id,bookId}});
+        if (!current) throw notFound("category_missing", "找不到该分类。");
+        if (current.isSystem) throw forbidden("category_system", "系统分类不可修改。");
+        await checkCategoryTree(tx, bookId, {id, ...(body.parentId === undefined ? {} : {parentId:body.parentId}), ...(body.name === undefined ? {} : {name:body.name})});
+        return tx.category.update({ where: { id }, data, select: CATEGORY_FIELDS });
+      });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw conflict("category_exists", "同类型下已经有同名分类了。");
@@ -300,14 +320,22 @@ export function registerClassificationRoutes(
 
       try {
         const result = await prisma.$transaction(async (tx) => {
+          await lockCategoryTree(tx, bookId);
+          await checkCategoryWriter(tx,bookId,request.currentUser!.id);
           const target = await tx.category.findFirst({
             where: { id, bookId },
-            select: { id: true, name: true, kind: true, isSystem: true },
+            select: { id: true, name: true, kind: true, isSystem: true, parentId: true },
           });
 
           if (!target) throw notFound("category_missing", "找不到该分类。");
           // 系统分类是账本的基础设施 —— 保护规则在永久删除上同样生效。
           if (target.isSystem) throw forbidden("category_system", "系统分类不可删除。");
+          const children = await tx.category.findMany({where:{parentId:id}});
+          if (children.length && body.childrenPolicy !== "promote") throw conflict("category_children", "请先移动子分类，或确认将子分类提升到上一级。");
+          for (const child of children) {
+            await checkCategoryTree(tx, bookId, {id:child.id,parentId:target.parentId});
+            await tx.category.update({where:{id:child.id},data:{parentId:target.parentId}});
+          }
 
           /** What the user is told: live entries only, the same rule the list uses. */
           const affectedEntries = await tx.transaction.count({

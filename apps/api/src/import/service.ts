@@ -190,7 +190,7 @@ export class BillImportService {
     const [categories, paymentMethods] = await Promise.all([
       this.prisma.category.findMany({
         where: { bookId },
-        select: { id: true, name: true, kind: true, isArchived: true, isSystem: true },
+        select: { id: true, name: true, kind: true, parentId:true, isArchived: true, isSystem: true },
       }),
       this.prisma.paymentMethod.findMany({
         where: { bookId },
@@ -209,6 +209,7 @@ export class BillImportService {
 
     return {
       categories: categories.map((category) => ({
+        parentId:category.parentId,
         id: category.id,
         name: category.name,
         kind: category.kind,

@@ -42,6 +42,7 @@ export interface ExtractedDocument {
 }
 
 export interface CategoryOption {
+  readonly parentId?: string | null | undefined;
   readonly id: string;
   readonly name: string;
   readonly kind: "expense" | "income";

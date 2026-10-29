@@ -26,7 +26,7 @@ export function portableEntry(entry: ExchangeEntry): ExchangeEntry {
     for (const key of ["categoryIds", "paymentMethodIds", "tagIds"]) delete params[key];
   }
   const filters = entry.filters === null ? null : new URLSearchParams(entry.filters);
-  for (const key of ["category", "payment", "tag", "book", "bookId", "userId", "accountId"]) filters?.delete(key);
+  for (const key of ["category", "categoryBranch", "payment", "tag", "book", "bookId", "userId", "accountId"]) filters?.delete(key);
   return { ...entry, documents: parseWorkspaceDocuments(documents), filters: filters?.toString() ?? null };
 }
 export function exportWorkspaceFile(kind: "workspace" | "preset" | "presets", entries: readonly ExchangeEntry[], now = new Date()): string {

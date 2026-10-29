@@ -104,15 +104,14 @@ function defaultCategoryId(
 ): string | null {
   if (!item.isTransfer) return null;
   const kind = item.direction === "income" ? "income" : "expense";
-  return (
-    categories.find(
+  const matches=categories.filter(
       (category) =>
         category.name === TRANSFER_CATEGORY_NAME &&
         category.kind === kind &&
         !category.isArchived &&
         category.isSystem !== true,
-    )?.id ?? null
-  );
+    );
+  return matches.length===1?matches[0]!.id:null;
 }
 
 /**

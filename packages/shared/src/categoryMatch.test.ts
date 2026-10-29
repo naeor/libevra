@@ -28,6 +28,10 @@ const LEDGER: readonly CategoryCandidate[] = [
   category("c-transfer", "转账", "income"),
 ];
 
+it("不同分支存在同名候选时不随机选择分类 ID",()=>{
+  expect(matchCategory("午饭餐饮三十八",[category("a","餐饮"),category("b","餐饮")],"expense")).toBe(null);
+});
+
 describe("matchCategory", () => {
   it("picks 餐饮 when food was mentioned", () => {
     // The owner's own example.

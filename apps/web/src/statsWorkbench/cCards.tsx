@@ -75,11 +75,12 @@ import { entriesInCurrency } from "./compute.js";
 import type { FxProjection } from "./fxProjection.js";
 import type { WorkbenchScope } from "./scope.js";
 import { FitAmount, moneyText, ratioPercentText, type Density } from "./ui.js";
+import { HierarchyView } from "./HierarchyView.js";
 
-/** 由本文件接线的 S17-C 分析编号（P05、P07 需要分类层级模型、P21 需要维度参数，未登记）。 */
+/** S17-C 正式接线 33 项；P05/P07 使用真实分类关系，P21 仍不登记。 */
 export const C_CARD_IDS: ReadonlySet<string> = new Set([
   "AN-I18", "AN-A06", "AN-A07", "AN-A08", "AN-A09", "AN-A10", "AN-A11", "AN-A15", "AN-A16", "AN-A17",
-  "AN-P01", "AN-P02", "AN-P03", "AN-P04", "AN-P06", "AN-P08", "AN-P09", "AN-P10", "AN-P11", "AN-P12",
+  "AN-P01", "AN-P02", "AN-P03", "AN-P04", "AN-P05", "AN-P06", "AN-P07", "AN-P08", "AN-P09", "AN-P10", "AN-P11", "AN-P12",
   "AN-P13", "AN-P14", "AN-P15", "AN-P16", "AN-P17", "AN-P18", "AN-P19", "AN-P20", "AN-P22", "AN-P23", "AN-P24",
 ]);
 
@@ -256,6 +257,10 @@ export function CCardView({ id, family, scope, range, density, detail, available
   }
 
   switch (id) {
+    case "AN-P05":
+    case "AN-P07":
+      if(noRecords)return <Notice text={empty}/>;
+      return <Shell notes={[partial,fxNote("fxComposition")]}><HierarchyView records={records} categories={scope.categories??[]} currency={currency} range={range} detail={detail} sankey={id==="AN-P07"&&family==="sankey"} complete={missing===0&&scope.rangeSourceComplete!==false} height={height}/></Shell>;
     // ---------------- 排行与集中度 ----------------
     case "AN-I18": {
       const result = largestExpenses(records, detail ? 50 : 20);

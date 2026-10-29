@@ -47,9 +47,9 @@ const configurationShape = z.strictObject({ schemaVersion: z.literal(1), workspa
 function assertFilters(value: string | null): void {
   if (value === null) return;
   const params = new URLSearchParams(value);
-  const allowed = new Set(["range", "month", "from", "to", "currency", "analysis", "category", "payment", "tag"]);
+  const allowed = new Set(["range", "month", "from", "to", "currency", "analysis", "category", "categoryBranch", "payment", "tag"]);
   for (const [key, item] of params) if (!allowed.has(key) || item.length > 128) throw new Error("filters");
-  for (const key of allowed) if (params.getAll(key).length > (["category", "payment", "tag"].includes(key) ? 50 : 1)) throw new Error("filters");
+  for (const key of allowed) if (params.getAll(key).length > (["category", "categoryBranch", "payment", "tag"].includes(key) ? 50 : 1)) throw new Error("filters");
 }
 
 /** 校验前限制复杂度并拒绝原型键；不允许未知字段夹带交易、结果或凭据。 */
