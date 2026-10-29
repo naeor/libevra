@@ -172,13 +172,14 @@ export function TabPage({
 
   if (bottom !== undefined) {
     return (
-      <div ref={rootRef} className={`flex h-dvh flex-col overflow-hidden ${rootClassName}`}>
+      <div ref={rootRef} className={`relative flex h-dvh flex-col overflow-hidden ${rootClassName}`}>
         <SyncBanner />
         <OfflineStatus />
         <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
-          <div className={`mx-auto flex w-full max-w-md flex-col pb-6 ${className}`}>{children}</div>
+          {/* 固定保留展开抽屉的空间；抽屉动画不改变滚动视口和拖放命中坐标。 */}
+          <div className={`mx-auto flex w-full max-w-md flex-col pb-[calc(min(48dvh,27rem)+1.5rem)] ${className}`}>{children}</div>
         </div>
-        {bottom}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 [&>*]:pointer-events-auto">{bottom}</div>
       </div>
     );
   }

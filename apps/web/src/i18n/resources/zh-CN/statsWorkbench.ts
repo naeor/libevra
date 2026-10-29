@@ -9,6 +9,7 @@ const statsWorkbench = {
     conflictHint: "本机与云端都有修改。选择前可导出本机副本；采用云端时也会保留本机恢复副本。", finishEditing: "请先完成或退出编辑，再处理冲突。", useCloud: "使用云端版本", useLocal: "保留并提交本机版本", backupLocal: "导出本机副本",
   },
   transfer: {
+    export: "导出", exportSelected: "导出选定的个人预设", choosePreset: "选择个人预设",
     title: "配置文件", workspaceName: "我的工作台", exportWorkspace: "导出已保存工作台", exportPresets: "导出全部个人预设", exportPreset: "导出此预设", importFile: "导入布局文件", empty: "没有可导出的个人预设", exported: "已开始保存配置文件", invalid: "配置文件损坏、版本不受支持或包含非法字段；原工作台未改动。", tooLarge: "配置文件不能超过 2 MB", bindingHint: "预览按当前账本计算。分类、支付方式和标签引用不会随文件转移，请在导入后重新选择。", summary: "{{cards}} 张卡片 · {{containers}} 个容器", addPreset: "添加为新的个人预设", apply: "应用到当前工作台", confirmApply: "确认替换编辑会话中的布局？可以撤销，仍需点「完成」才正式保存。", applied: "已应用到编辑会话，点「完成」保存", imported: "已添加预设「{{name}}」", unsupported: "此项无法导入：{{reason}}",
   },
   header: {
@@ -317,7 +318,8 @@ const statsWorkbench = {
     delete: "删除",
     actions: "「{{name}}」的更多操作",
     add: "添加自定义预设",
-    addHint: "把当前工作台存成预设",
+    addHint: "创建布局、保存当前布局或导入文件",
+    createLayout: "创建新布局", createLayoutHint: "返回工作台继续编辑，保留已有布局。", saveCurrent: "保存当前布局",
     full_one: "已达上限 {{count}} 个",
     full_other: "已达上限 {{count}} 个",
     updatedAt: "更新于 {{date}}",

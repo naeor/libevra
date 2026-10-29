@@ -191,7 +191,6 @@ function AccountWorkbench(): React.JSX.Element {
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [collapsedOpen, setCollapsedOpen] = useState<string | null>(null);
   const [drawerHeight, setDrawerHeight] = useState<DrawerHeight>("expanded");
-  const drawerBeforeDrag = useRef<DrawerHeight | null>(null);
   const [containerEdit, setContainerEdit] = useState<ContainerEdit | null>(null);
   const [preview, setPreview] = useState<DropPreview | null>(null);
   const dragBaseline = useRef<EditorState | null>(null);
@@ -275,15 +274,12 @@ function AccountWorkbench(): React.JSX.Element {
 
   const drag = useDragController({
     scrollRef,
-    onStart: (payload) => {
+    onStart: () => {
+      endTemporaryMode(false);
       dragBaseline.current = session;
       previewAnchor.current = null;
       setMenuFor(null);
-      if (payload.kind !== "object") {
-        // 从抽屉拖出时先把抽屉收起，给工作台留出放置空间（拖完恢复）。
-        drawerBeforeDrag.current = drawerHeight;
-        setDrawerHeight("collapsed");
-      }
+      setDrawerHeight("collapsed");
     },
     onMove: (state) => {
       const target = anchorFor(state);
@@ -307,14 +303,12 @@ function AccountWorkbench(): React.JSX.Element {
     },
     onDrop: (state) => {
       clearDropPreview();
-      restoreDrawer();
       dropAt(state);
       dragBaseline.current = null;
     },
     onCancel: () => {
       clearDropPreview();
       dragBaseline.current = null;
-      restoreDrawer();
     },
   });
 
@@ -346,11 +340,15 @@ function AccountWorkbench(): React.JSX.Element {
     return command(baseline, { type: "insert-container", container, children, anchor, size, collisionPolicy: "reflow" });
   }
 
-  function restoreDrawer(): void {
-    if (drawerBeforeDrag.current !== null) {
-      setDrawerHeight(drawerBeforeDrag.current);
-      drawerBeforeDrag.current = null;
-    }
+  /** 未确认的移动/拖放只存在于选择与预览中；清理不回退已经提交的命令历史。 */
+  function endTemporaryMode(cancelDrag = true): void {
+    if (cancelDrag) drag.cancel();
+    clearDropPreview();
+    dragBaseline.current = null;
+    setMenuFor(null);
+    setMoveFor(null);
+    setSizeFor(null);
+    setContainerEdit(null);
   }
 
   function dropAt(state: DragState): void {
@@ -420,6 +418,7 @@ function AccountWorkbench(): React.JSX.Element {
   }
 
   function addLayoutObject(choice: LayoutObjectChoice, anchor?: number): void {
+    endTemporaryMode();
     if (session === null) return;
     const columns = session.layout.main.baseCols;
     const base = CONTAINER_DEFAULT_SIZE[choice];
@@ -471,14 +470,9 @@ function AccountWorkbench(): React.JSX.Element {
   }
 
   function leaveEdit(): void {
-    clearDropPreview();
-    dragBaseline.current = null;
+    endTemporaryMode();
     setSession(null);
     setStartDocs(null);
-    setMenuFor(null);
-    setMoveFor(null);
-    setContainerEdit(null);
-    setPreview(null);
   }
 
   async function save(): Promise<void> {
@@ -519,7 +513,7 @@ function AccountWorkbench(): React.JSX.Element {
   // ---- 菜单动作 ----
   function onMenu(objectId: string, action: MenuAction): void {
     // 菜单先关：删除后再撤销时，对象回来了，菜单不能跟着「复活」。
-    setMenuFor(null);
+    endTemporaryMode();
     if (session === null) return;
     const geometry = geometryOf(session, objectId);
     const name = objectName(objectId);
@@ -528,9 +522,11 @@ function AccountWorkbench(): React.JSX.Element {
         setEditor({ cardId: objectId });
         return;
       case "resize":
+        setDrawerHeight("collapsed");
         setSizeFor(objectId);
         return;
       case "move":
+        setDrawerHeight("collapsed");
         setMoveFor(objectId);
         say(t("statsWorkbench.edit.movingHint", { name }));
         return;
@@ -737,17 +733,17 @@ function AccountWorkbench(): React.JSX.Element {
       onHeight={setDrawerHeight}
       combined={scope.combined}
       drag={drag}
-      onAddCard={(analysisId) => addCard(analysisId)}
+      onAddCard={(analysisId) => { endTemporaryMode(); addCard(analysisId); }}
       onAddLayout={(choice) => addLayoutObject(choice)}
-      onCustom={() => setEditor({ cardId: null })}
+      onCustom={() => { endTemporaryMode(); setEditor({ cardId: null }); }}
       onPresets={() => {
-        setMenuFor(null);
-        setMoveFor(null);
+        endTemporaryMode();
         setPresetsOpen(true);
       }}
       customCards={customCardsIn(session?.content.cards ?? [])}
-      onConfigureCustom={(objectId) => setEditor({ cardId: objectId })}
+      onConfigureCustom={(objectId) => { endTemporaryMode(); setEditor({ cardId: objectId }); }}
       onDuplicateCustom={(card) => {
+        endTemporaryMode();
         const geometry = session === null ? undefined : geometryOf(session, card.objectId);
         addCustomCard({ ...card, objectId: newObjectId("card") }, geometry === undefined ? undefined : { colSpan: geometry.colSpan, rowSpan: geometry.rowSpan });
       }}
@@ -790,25 +786,28 @@ function AccountWorkbench(): React.JSX.Element {
               type="button"
               className="sw-pill sw-pill-adjust"
               aria-label={t("statsWorkbench.edit.adjust")}
-              onClick={() => setLayoutOpen(true)}
+              onClick={() => { endTemporaryMode(); setLayoutOpen(true); }}
               disabled={containerEdit !== null}
             >
               <GridGlyph width={16} height={16} className="shrink-0" />
               <span className="max-[379px]:sr-only">{t("statsWorkbench.edit.adjust")}</span>
             </button>
-            <button type="button" className="sw-icon-button" aria-label={t("statsWorkbench.edit.undo")} disabled={!canUndo(session) || containerEdit !== null} onClick={() => apply(command(session, { type: "undo" }))}>
+            <button type="button" className="sw-icon-button" aria-label={t("statsWorkbench.edit.undo")} disabled={!canUndo(session) || containerEdit !== null} onClick={() => { endTemporaryMode(); apply(command(session, { type: "undo" })); }}>
               <UndoIcon />
             </button>
-            <button type="button" className="sw-icon-button" aria-label={t("statsWorkbench.edit.redo")} disabled={!canRedo(session) || containerEdit !== null} onClick={() => apply(command(session, { type: "redo" }))}>
+            <button type="button" className="sw-icon-button" aria-label={t("statsWorkbench.edit.redo")} disabled={!canRedo(session) || containerEdit !== null} onClick={() => { endTemporaryMode(); apply(command(session, { type: "redo" })); }}>
               <RedoIcon />
             </button>
             <span className="flex-1" />
-            <button type="button" className="sw-pill" onClick={cancel}>
+            {moveFor !== null ? <button type="button" className="sw-pill" onClick={() => endTemporaryMode()}>
+              {t("statsWorkbench.edit.cancelMove")}
+            </button> : <><button type="button" className="sw-pill" onClick={cancel}>
               {t("statsWorkbench.edit.cancel")}
             </button>
             <button type="button" className="sw-pill sw-pill-primary" onClick={() => { void save(); }} disabled={containerEdit !== null || saving}>
               {t("statsWorkbench.edit.done")}
             </button>
+            </>}
           </header>
         ) : (
           <TabPageHeader
@@ -890,11 +889,6 @@ function AccountWorkbench(): React.JSX.Element {
               : containerEdit !== null
                 ? t("statsWorkbench.containers.insideHint")
                 : t("statsWorkbench.edit.hint")}
-            {moveFor !== null ? (
-              <button type="button" className="sw-link ml-2" onClick={() => setMoveFor(null)}>
-                {t("statsWorkbench.edit.cancelMove")}
-              </button>
-            ) : null}
           </p>
         )}
 

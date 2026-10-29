@@ -1,450 +1,51 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { TransactionKind } from "@libellum/shared";
+import { DRAG_DISTANCE, LATE_THRESHOLD, clamp01 } from "./transitionPhysics.js";
+import { bindNativeHeaderScroll } from "./nativeHeaderScroll.js";
 
-/**
- * Where the ledger screen is between its two shapes.
- *
- * `0` is the display state — the tall green summary, the screen a reader lands
- * on. `1` is the list state — a compact bar and the entries filling the page.
- * Everything in between is a real position, not a transition between two
- * finished layouts: the month is genuinely halfway across, the main card is
- * genuinely half its height.
- *
- * The value lives in a **ref**, not React state, and is written to the DOM as a
- * CSS custom property on every frame. That is the whole point: a phone fires
- * scroll and touch events at 60–120 Hz, and re-rendering the ledger that often
- * is how a transition starts to stutter. React is told only when the screen
- * *settles* into one end or the other, which happens twice per gesture.
- */
-export interface DetailTransition {
-  /** Attach to the element that carries `--p` and the derived variables. */
-  readonly rootRef: React.RefObject<HTMLDivElement | null>;
-  /** Attach to the scrolling region. */
-  readonly scrollRef: React.RefObject<HTMLDivElement | null>;
-  /** True once settled at the list end. React may use this for labels. */
-  readonly atList: boolean;
-  /**
-   * The strip that switches between wrapping and scrolling. Handed back so the
-   * transition can toggle it directly.
-   */
-  readonly stripRef: React.RefObject<HTMLDivElement | null>;
-  /** Move to one end without a gesture — used by "查看全部" and the back control. */
-  readonly goTo: (progress: number) => void;
-}
-
-/**
- * State that outlives the screen.
- *
- * Held in a module variable rather than a context so it survives the remount
- * that happens when the reader switches tabs and comes back: they left the
- * ledger showing March, scrolled to the 12th, and that is what they should find
- * on returning. A full reload starts a new module, which resets it to the
- * display state — which is also what the owner asked for.
- */
-interface Session {
-  progress: number;
-  month: string | null;
-  kind: TransactionKind | null;
-  scrollTop: number;
-}
-
+interface Session { progress: number; month: string | null; kind: TransactionKind | null; scrollTop: number }
 const session: Session = { progress: 0, month: null, kind: null, scrollTop: 0 };
+export function readSession(): Readonly<Session> { return session; }
+export function writeSession(patch: Partial<Session>): void { Object.assign(session, patch); }
 
-export function readSession(): Readonly<Session> {
-  return session;
-}
-
-export function writeSession(patch: Partial<Session>): void {
-  Object.assign(session, patch);
-}
-
-/**
- * ⚠️ **The arithmetic now lives in `transitionPhysics.ts`, where it is tested.**
- *
- * These constants and the decisions built on them were tuned over several rounds of the owner
- * reporting jolts, reversals and a swallowed scroll — and **every one of those conclusions was a
- * comment in this file that no test could reach.** They are pure functions of numbers, so they did
- * not need a DOM; they only needed to be somewhere a test could call them.
- *
- * The hook below keeps what a DOM is actually required for: refs, listeners, animation frames.
+/** 原生滚动始终拥有整次触摸；只在滚动结束后复用原有弹簧吸附。
+ * --p 仍驱动原来的明细动画，补偿区抵消过渡区的滚动距离，财务摘要不被额外卷走。
  */
-import {
-  DRAG_DISTANCE,
-  FLICK_VELOCITY,
-  LATE_THRESHOLD,
-  MAX_SPEED,
-  SETTLED,
-  SPRING_DAMPING,
-  SPRING_STIFFNESS,
-  WHEEL_IDLE_MS,
-  WHEEL_SCALE,
-  carryVelocity,
-  clamp01,
-  clampOvershoot,
-  claimsGesture,
-  decideTarget,
-  hasSettled,
-  springStep,
-  wheelFlick,
-} from "./transitionPhysics.js";
-
-export function useDetailTransition(initial: number): DetailTransition {
+export function useDetailTransition(initial: number) {
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
-
-  const progress = useRef(initial);
-  const velocity = useRef(0);
-  const target = useRef(initial);
-  const frame = useRef<number | null>(null);
-  const lastTick = useRef(0);
-
-  /**
-   * Which animation owns the value.
-   *
-   * `stop()` cannot be trusted on its own: a frame that has already been
-   * dispatched will still run, and a spring that is mid-step will schedule
-   * itself again from inside its own callback — so cancelling the handle and
-   * then starting a new spring could leave two of them writing progress, one
-   * of them to a target nobody wants any more. The owner's friend named this
-   * first and it is the most likely cause of a fast flick stepping backwards.
-   *
-   * Every spring carries the number it was started with and stops the moment
-   * that number is no longer current. There is exactly one owner at any time.
-   */
-  const generation = useRef(0);
-
   const [atList, setAtList] = useState(initial >= 1);
-  const lateState = useRef(initial >= LATE_THRESHOLD);
+  const navigate = useRef<(p: number) => void>(() => {});
+  const goTo = useCallback((p: number) => navigate.current(p), []);
 
-  /**
-   * Paint the current value.
-   *
-   * One DOM write, and deliberately no React state. The strip used to be
-   * switched by a `setState` from here, and the owner's friend found the
-   * consequence: it fired exactly as the transition crossed 0.72, which during
-   * a fast flick is while the spring is still in the air, and the re-render
-   * showed up as a stall or a step backwards. Nothing in the middle of an
-   * animation may enter React.
-   */
-  const paint = useCallback((): void => {
-    const value = progress.current;
-    rootRef.current?.style.setProperty("--p", value.toFixed(4));
-
-    const crossed = value >= LATE_THRESHOLD;
-    if (crossed !== lateState.current) {
-      lateState.current = crossed;
-      const strip = stripRef.current;
-      if (strip !== null) {
-        strip.classList.toggle("flex-nowrap", crossed);
-        strip.classList.toggle("flex-wrap", !crossed);
-      }
-    }
-  }, []);
-
-  const stop = useCallback((): void => {
-    if (frame.current !== null) {
-      window.cancelAnimationFrame(frame.current);
-      frame.current = null;
-    }
-  }, []);
-
-  /**
-   * The spring.
-   *
-   * Integrated in real time rather than stepped per frame, so the motion takes
-   * the same wall-clock time whether the device draws sixty frames a second or
-   * a hundred and twenty.
-   */
-  const run = useCallback((): void => {
-    stop();
-    generation.current += 1;
-    const mine = generation.current;
-    lastTick.current = performance.now();
-
-    const step = (now: number): void => {
-      // This spring is no longer the owner: a newer gesture took over. It must
-      // not write, and above all it must not schedule itself again.
-      if (mine !== generation.current) return;
-
-      const elapsed = Math.min((now - lastTick.current) / 1000, 1 / 30);
-      lastTick.current = now;
-
-      // ⚠️ The arithmetic lives in `transitionPhysics.ts`, where it is tested — see the import.
-      const stepped = springStep(progress.current, velocity.current, target.current, elapsed);
-      const end = target.current === 0 ? 0 : 1;
-      const clamped = clampOvershoot(stepped.progress, end);
-      /**
-       * ⚠️ **A clamped step means the spring reached the end, so its speed is spent.**
-       *
-       * My first version wrote this as a comparison against `progress.current` — two floats compared
-       * for equality, reading as if it were asking something else. **The question is "did the clamp
-       * change the value", so that is what is asked now.**
-       */
-      const hitEnd = clamped !== stepped.progress;
-      progress.current = clamped;
-      velocity.current = hitEnd ? 0 : stepped.velocity;
-
-      paint();
-
-      if (hasSettled(progress.current, velocity.current, target.current)) {
-        progress.current = target.current;
-        velocity.current = 0;
-        paint();
-        setAtList(target.current >= 1);
-        writeSession({ progress: target.current });
-        frame.current = null;
-        return;
-      }
-
-      frame.current = window.requestAnimationFrame(step);
+  useLayoutEffect(() => {
+    const root = rootRef.current, scroller = scrollRef.current;
+    if (!root || !scroller) return;
+    let settled = initial >= 1;
+    const paint = () => {
+      const p = clamp01(scroller.scrollTop / DRAG_DISTANCE);
+      root.style.setProperty("--p", p.toFixed(4));
+      root.style.setProperty("--detail-scroll-travel", `${p * DRAG_DISTANCE}px`);
+      const late = p >= LATE_THRESHOLD;
+      stripRef.current?.classList.toggle("flex-nowrap", late);
+      stripRef.current?.classList.toggle("flex-wrap", !late);
+      const next = p >= 1;
+      if (next !== settled) { settled = next; setAtList(next); }
     };
-
-    frame.current = window.requestAnimationFrame(step);
-  }, [paint, stop]);
-
-  const goTo = useCallback(
-    (next: number): void => {
-      target.current = clamp01(next);
-      run();
-    },
-    [run],
-  );
-
-  /** Follow the finger directly; no spring while it is down. */
-  const dragTo = useCallback(
-    (next: number): void => {
-      // A gesture takes ownership: whatever spring was running is retired, not
-      // merely cancelled.
-      generation.current += 1;
-      stop();
-      progress.current = clamp01(next);
-      velocity.current = 0;
-      paint();
-    },
-    [paint, stop],
-  );
-
-  const release = useCallback(
-    (flick: number): void => {
-      // A quick flick decides it, otherwise where the finger stopped does.
-      const fast = Math.abs(flick) > FLICK_VELOCITY;
-      const wantsList = fast ? flick < 0 : progress.current > 0.5;
-
-      target.current = wantsList ? 1 : 0;
-      /*
-       * Carry the finger's speed into the spring, so the snap continues the
-       * gesture instead of restarting from a standstill — but never against the
-       * direction the spring is travelling.
-       *
-       * The owner saw the animation reverse briefly in the middle. Whatever the
-       * velocity reading is, a spring heading for one end must not be launched
-       * with speed pointing at the other; that is not a gesture, it is a
-       * contradiction, and it shows as a jolt.
-       */
-      const heading = target.current >= 1 ? -1 : 1;
-      const carried = fast && Math.sign(flick) === heading ? flick : 0;
-      // Even the finger's own speed is capped, so a hard flick cannot outrun
-      // the limit before the spring has had a chance to take over.
-      velocity.current = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, carried));
-      run();
-    },
-    [run],
-  );
-
-  useEffect(() => {
+    const controller = bindNativeHeaderScroll(scroller, () => DRAG_DISTANCE, paint);
+    navigate.current = controller.goTo;
+    const content = scroller.firstElementChild as HTMLElement;
+    const oldMinHeight = content.style.minHeight;
+    const measure = () => { content.style.minHeight = `${scroller.clientHeight + DRAG_DISTANCE}px`; };
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller); measure();
+    scroller.scrollTop = Math.max(initial * DRAG_DISTANCE, session.scrollTop);
     paint();
-    return stop;
-  }, [paint, stop]);
-
-  /**
-   * The gesture.
-   *
-   * Attached to the root rather than to a handle, because the whole screen is
-   * the handle: at the display end there is nothing to scroll, so an upward
-   * drag has exactly one meaning. Touch events rather than pointer events
-   * because only touch events can be made non-passive and cancelled when the
-   * list is at its top and the reader keeps pulling.
-   */
-  useEffect(() => {
-    const root = rootRef.current;
-    const scroller = scrollRef.current;
-    if (root === null || scroller === null) return;
-
-    let tracking = false;
-    let startY = 0;
-    let startTime = 0;
-    let startProgress = 0;
-
-    /**
-     * The gesture's speed, taken as an average over the whole touch.
-     *
-     * The owner proposed this after two attempts at reading a recent sample
-     * both failed him, and he was right about why. A recent sample is the
-     * noisiest thing available: fingers slow and drift in the last few
-     * milliseconds before they lift, so the final delta is often tiny and
-     * sometimes points the wrong way — and the spring then reverses briefly
-     * before finishing. A one-frame smoothing pass did not fix it because there
-     * was only ever a handful of frames to smooth.
-     *
-     * The average over the gesture cannot do that. It cannot be flipped by the
-     * last stray sample, and it means the same thing as the question being
-     * asked: how fast did the reader move, on the whole. Where a pause makes it
-     * small, the progress the finger reached decides instead.
-     */
-    let flick = 0;
-
-    /**
-     * Which zone the finger landed in decides what the gesture means.
-     *
-     * The owner proposed this after the axis-detection version failed him three
-     * times, and he was right: deciding by direction meant guessing from the
-     * first few pixels, getting it wrong, and either killing the transition or
-     * blocking an ordinary scroll. Where the finger *starts* is not a guess.
-     *
-     * A strip that scrolls sideways marks itself `data-h-scroll`; a gesture
-     * beginning inside one belongs to it entirely and the screen does not
-     * intercept a single event. Anywhere else, the gesture is the screen's.
-     */
-    const onStart = (event: TouchEvent): void => {
-      if (event.touches.length !== 1) return;
-
-      const target = event.target;
-      const inStrip =
-        target instanceof Element && target.closest("[data-h-scroll]") !== null;
-
-      tracking = !inStrip;
-      startY = event.touches[0]!.clientY;
-      startTime = performance.now();
-      startProgress = progress.current;
-      flick = 0;
-      stop();
-    };
-
-    const onMove = (event: TouchEvent): void => {
-      if (!tracking || event.touches.length !== 1) return;
-
-      const dy = event.touches[0]!.clientY - startY;
-      const atTop = scroller.scrollTop <= 0;
-
-      /*
-       * Past the end of the transition the list belongs to the browser.
-       *
-       * The only gesture claimed here is a *downward* pull at the very top —
-       * the one with nowhere else to go. Everything else is an ordinary
-       * scroll, including an upward drag at the top, which is how a reader
-       * moves further down a list.
-       *
-       * The previous version checked "at the top" but not the direction, so an
-       * upward drag there was swallowed: prevented from scrolling and driven
-       * into a progress that was already at its end. The list jolted and went
-       * nowhere.
-       */
-      if (progress.current >= 1) {
-        if (!atTop || dy <= 0) return;
-
-        event.preventDefault();
-        dragTo(1 - dy / DRAG_DISTANCE);
-        return;
-      }
-
-      // At the top of the display state there is nothing above to pull down to.
-      if (progress.current <= 0 && dy > 0) return;
-
-      const now = performance.now();
-      const elapsed = now - startTime;
-      const moved = event.touches[0]!.clientY - startY;
-
-      if (elapsed > 0) {
-        flick = ((moved / elapsed) * 1000) / DRAG_DISTANCE;
-      }
-
-      event.preventDefault();
-      dragTo(startProgress - moved / DRAG_DISTANCE);
-    };
-
-    const onEnd = (): void => {
-      if (!tracking) return;
-      tracking = false;
-      release(flick);
-    };
-
-    root.addEventListener("touchstart", onStart, { passive: true });
-    root.addEventListener("touchmove", onMove, { passive: false });
-    root.addEventListener("touchend", onEnd);
-    root.addEventListener("touchcancel", onEnd);
-
-    /*
-     * The same gesture with a wheel.
-     *
-     * Not a nicety: without it the screen has two shapes and no way to reach
-     * the second one on a desktop, where there is no touch to listen for. The
-     * wheel is also the only way I can test the transition myself, since the
-     * machine I work on has a mouse.
-     *
-     * Deltas are accumulated rather than applied per event — a trackpad emits
-     * dozens per gesture and a wheel notch is about a hundred pixels, so
-     * dividing each event by the full drag distance would jump the whole way in
-     * one flick.
-     */
-    let wheelIdle: number | null = null;
-
-    /**
-     * How many wheel pixels carry the transition from one end to the other.
-     *
-     * Tuned so a few notches move it visibly and one hard flick does not cross
-     * the whole range: the wheel should feel like pushing the screen, not like
-     * pressing a switch.
-     */
-    const WHEEL_SCALE = 2400;
-
-    const onWheel = (event: WheelEvent): void => {
-      // Horizontal currency scrolling belongs to the card sequence, not the header transition.
-      if (
-        event.target instanceof Element &&
-        event.target.closest("[data-h-scroll]") !== null &&
-        (Math.abs(event.deltaX) > Math.abs(event.deltaY) || event.shiftKey)
-      ) return;
-
-      // Only the pull past the top drives the reverse transition; everywhere
-      // else the list scrolls normally and this stays out of the way.
-      if (progress.current >= 1 && scroller.scrollTop > 0) return;
-
-      event.preventDefault();
-      dragTo(progress.current + event.deltaY / WHEEL_SCALE);
-
-      if (wheelIdle !== null) window.clearTimeout(wheelIdle);
-      wheelIdle = window.setTimeout(() => {
-        release(event.deltaY / 400);
-      }, 90);
-    };
-
-    root.addEventListener("wheel", onWheel, { passive: false });
-
     return () => {
-      root.removeEventListener("touchstart", onStart);
-      root.removeEventListener("touchmove", onMove);
-      root.removeEventListener("touchend", onEnd);
-      root.removeEventListener("touchcancel", onEnd);
-      root.removeEventListener("wheel", onWheel);
-      if (wheelIdle !== null) window.clearTimeout(wheelIdle);
-    };
-  }, [dragTo, release, stop]);
-
-  /**
-   * Remember where the reader was, so returning to the tab finds the screen as
-   * they left it. Written on the way out rather than on every scroll event.
-   */
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (scroller === null) return;
-
-    const element = scroller;
-
-    return () => {
-      writeSession({ scrollTop: element.scrollTop, progress: target.current });
+      writeSession({ progress: clamp01(scroller.scrollTop / DRAG_DISTANCE), scrollTop: scroller.scrollTop });
+      controller.destroy(); observer.disconnect(); content.style.minHeight = oldMinHeight; navigate.current = () => {};
     };
   }, []);
-
   return { rootRef, scrollRef, stripRef, atList, goTo };
 }

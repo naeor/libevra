@@ -114,7 +114,7 @@ export function Drawer({
       {/* 把手 + 标题栏：整条都能上下拖动（跟手、松手吸附）；点标题或箭头切换。收起时只剩这一条，
           不露出下面的标签与列表——是一条专门设计的「已收起工具栏」，不是被裁切的完整面板。 */}
       <div className="sw-drawer-grab" {...gesture.grabProps}>
-        <span className="sw-drawer-grip" aria-hidden="true" />
+        <button type="button" className="sw-drawer-grip" aria-label={toggleLabel} aria-expanded={expanded} onClick={() => onHeight(expanded ? "collapsed" : "expanded")} />
         <div className="sw-drawer-head">
           <div className="sw-drawer-layers">
             <button
@@ -176,9 +176,6 @@ export function Drawer({
               </button>
             </div>
           )}
-          <button type="button" className="sw-icon-button sw-drawer-toggle" aria-expanded={expanded} aria-label={toggleLabel} onClick={() => onHeight(expanded ? "collapsed" : "expanded")}>
-            <ChevronUp className="sw-drawer-chevron" />
-          </button>
         </div>
       </div>
 

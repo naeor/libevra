@@ -103,12 +103,18 @@
 
 /* A. The green area. One contained reflow, at the very top of the page. */
 .detail-hero {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   contain: layout paint style;
   padding-top: var(--hero-pad-top);
   padding-bottom: var(--hero-pad-bottom);
   height: calc(var(--hero-tall) - var(--p) * (var(--hero-tall) - var(--hero-short)));
   overflow: visible;
 }
+
+/* 抵消原生滚动在过渡区的位移，保留原有摘要收缩的视觉轨迹。 */
+.detail-scroll-travel { height: var(--detail-scroll-travel, 0px); flex-shrink: 0; }
 
 /*
  * It stays put once it has collapsed.

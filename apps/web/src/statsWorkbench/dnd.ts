@@ -37,6 +37,7 @@ const LONG_PRESS_MS = 300;
 const EDGE = 64;
 
 export interface DragController {
+  readonly cancel: () => void;
   readonly drag: DragState | null;
   /** 给可拖对象的指针事件。`payload` 在开始拖动时才取，可以读最新状态。 */
   readonly sourceProps: (payload: (event: { clientX: number; clientY: number }) => DragPayload | null) => {
@@ -80,6 +81,8 @@ export function useDragController({
         const pointerId = event.pointerId;
         const touch = event.pointerType !== "mouse";
         const start = { x: event.clientX, y: event.clientY };
+        const source = event.currentTarget;
+        if (touch) source.classList.add("sw-press-pending");
         let active = false;
         let last = { x: event.clientX, y: event.clientY };
         let timer: ReturnType<typeof setTimeout> | null = null;
@@ -101,6 +104,7 @@ export function useDragController({
         };
 
         const begin = () => {
+          source.classList.remove("sw-press-pending");
           const payload = payloadFor({ clientX: start.x, clientY: start.y });
           if (payload === null) return finish();
           active = true;
@@ -162,6 +166,7 @@ export function useDragController({
         };
 
         function finish(): void {
+          source.classList.remove("sw-press-pending");
           if (timer !== null) clearTimeout(timer);
           cancelAnimationFrame(frame);
           window.removeEventListener("pointermove", move);
@@ -189,7 +194,11 @@ export function useDragController({
 
   const consumeClick = useCallback(() => Date.now() < suppressUntil.current, []);
 
-  return { drag, sourceProps, consumeClick };
+  const cancel = useCallback(() => {
+    if (dragRef.current) handlers.current.onCancel?.();
+    cleanup.current?.();
+  }, []);
+  return { drag, sourceProps, consumeClick, cancel };
 }
 
 /** 指针 → 网格格子（1 起）；在网格外返回 `null`。 */

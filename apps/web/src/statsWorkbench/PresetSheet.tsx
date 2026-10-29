@@ -56,6 +56,9 @@ type Source = { readonly kind: "system"; readonly id: SystemPresetId } | { reado
 
 type View =
   | { readonly kind: "list" }
+  | { readonly kind: "add" }
+  | { readonly kind: "import" }
+  | { readonly kind: "export" }
   | { readonly kind: "preview"; readonly source: Source }
   | { readonly kind: "form"; readonly mode: "create" | "rename"; readonly presetId?: string; readonly back: View }
   | { readonly kind: "actions"; readonly presetId: string }
@@ -139,7 +142,8 @@ export function PresetSheet({
                 <button type="button" className="sw-icon-button sw-icon-button-sm text-muted" aria-label={t("statsWorkbench.presets.helpButton")} aria-expanded={helpOpen} onClick={() => setHelpOpen((open) => !open)}>
                   <InfoGlyph width={16} height={16} />
                 </button>
-                <button type="button" className="sw-pill sw-pill-sm ml-auto" onClick={close}>
+                <button type="button" className="sw-pill sw-pill-sm ml-auto" onClick={() => go({ kind: "export" })}>{t("statsWorkbench.transfer.export")}</button>
+                <button type="button" className="sw-pill sw-pill-sm" onClick={close}>
                   {t("common.action.done")}
                 </button>
               </div>
@@ -160,6 +164,9 @@ export function PresetSheet({
                   ? t("statsWorkbench.presets.previewTitle", { name: view.source.kind === "system" ? systemName(view.source.id) : presetById(view.source.id)?.name ?? "" })
                   : view.kind === "form"
                     ? t(view.mode === "create" ? "statsWorkbench.presets.form.createTitle" : "statsWorkbench.presets.form.renameTitle")
+                    : view.kind === "add" ? t("statsWorkbench.presets.add")
+                    : view.kind === "import" ? t("statsWorkbench.transfer.importFile")
+                    : view.kind === "export" ? t("statsWorkbench.transfer.export")
                     : presetById(view.presetId)?.name ?? store.unreadable.find((item) => item.id === view.presetId)?.name ?? ""}
               </h2>
             </header>
@@ -196,9 +203,7 @@ export function PresetSheet({
                   </h3>
                   <PresetRail label={t("statsWorkbench.presets.mine")}>
                     <AddPresetCard
-                      full={store.presets.length + store.unreadable.length >= MAX_USER_PRESETS}
-                      locked={store.locked || accountScope === null}
-                      onAdd={() => go({ kind: "form", mode: "create", back: { kind: "list" } })}
+                      onAdd={() => go({ kind: "add" })}
                     />
                     {store.presets.map((preset) => (
                       <PresetCard
@@ -223,8 +228,17 @@ export function PresetSheet({
                     ))}
                   </PresetRail>
                 </section>
-                <ExchangePanel accountScope={accountScope} scope={scope} onApply={onApply} onChanged={reload} />
               </div>
+            ) : view.kind === "add" ? (
+              <div className="flex flex-col items-start gap-3 px-5 pb-5">
+                <button type="button" className="sw-pill" onClick={close}>{t("statsWorkbench.presets.createLayout")}</button>
+                <p className="text-helper text-muted">{t("statsWorkbench.presets.createLayoutHint")}</p>
+                <button type="button" className="sw-pill" disabled={store.locked || accountScope === null || store.presets.length + store.unreadable.length >= MAX_USER_PRESETS} onClick={() => go({ kind: "form", mode: "create", back: { kind: "list" } })}>{t("statsWorkbench.presets.saveCurrent")}</button>
+                {store.locked || accountScope === null ? <p className="text-helper text-muted">{problemText("locked")}</p> : store.presets.length + store.unreadable.length >= MAX_USER_PRESETS ? <p className="text-helper text-muted">{problemText("full")}</p> : null}
+                <button type="button" className="sw-pill" onClick={() => go({ kind: "import" })}>{t("statsWorkbench.transfer.importFile")}</button>
+              </div>
+            ) : view.kind === "import" || view.kind === "export" ? (
+              <ExchangePanel mode={view.kind} accountScope={accountScope} scope={scope} onApply={(docs, name, filters) => { const ok = onApply(docs, name, filters); if (ok) close(); return ok; }} onChanged={reload} />
             ) : view.kind === "preview" ? (
               <PresetPreview
                 key={view.source.kind === "system" ? view.source.id : view.source.id}
@@ -430,18 +444,17 @@ function PresetCard({
   );
 }
 
-function AddPresetCard({ full, locked, onAdd }: { readonly full: boolean; readonly locked: boolean; readonly onAdd: () => void }): React.JSX.Element {
+function AddPresetCard({ onAdd }: { readonly onAdd: () => void }): React.JSX.Element {
   const { t } = useI18n();
-  const disabled = full || locked;
   return (
     <div role="listitem" className="sw-preset-card sw-preset-add-wrap">
-      <button type="button" className="sw-preset-add" disabled={disabled} onClick={onAdd}>
+      <button type="button" className="sw-preset-add" onClick={onAdd}>
         <span className="sw-preset-add-icon" aria-hidden="true">
           <PlusGlyph width={18} height={18} />
         </span>
         <span className="text-body font-medium text-ink">{t("statsWorkbench.presets.add")}</span>
         <span className="text-helper text-muted">
-          {full ? t("statsWorkbench.presets.full", { count: MAX_USER_PRESETS }) : locked ? t("statsWorkbench.presets.problems.locked") : t("statsWorkbench.presets.addHint")}
+          {t("statsWorkbench.presets.addHint")}
         </span>
       </button>
     </div>

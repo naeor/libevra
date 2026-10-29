@@ -787,6 +787,7 @@ export function DetailPage(): React.JSX.Element {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col pb-24">
+          <div className="detail-scroll-travel" aria-hidden="true" />
           {/*
             The green area. Its height is the one place a layout size animates,
             and it is contained so the reflow stops here instead of reaching

@@ -8,6 +8,7 @@ const statsWorkbench: Messages<typeof zh> = {
     conflictHint: "Both local and cloud copies have changes. Export a local copy before choosing. Using the cloud copy also keeps a local recovery copy.", finishEditing: "Finish or cancel editing before resolving this conflict.", useCloud: "Use cloud version", useLocal: "Keep and submit local version", backupLocal: "Export local copies",
   },
   transfer: {
+    export: "Export", exportSelected: "Export a selected personal preset", choosePreset: "Choose a personal preset",
     title: "Configuration files", workspaceName: "My workspace", exportWorkspace: "Export saved workspace", exportPresets: "Export all personal presets", exportPreset: "Export this preset", importFile: "Import layout file", empty: "No personal presets to export", exported: "Configuration download started", invalid: "Invalid, unsupported or unsafe configuration file. Your workspace was kept.", tooLarge: "Configuration files must be no larger than 2 MB", bindingHint: "Preview uses the current ledger. Category, payment method and tag references are not transferred; select them again after importing.", summary: "{{cards}} cards · {{containers}} containers", addPreset: "Add as a new personal preset", apply: "Apply to current workspace", confirmApply: "Replace the layout in this editing session? You can undo. Choose Done to save it permanently.", applied: "Applied to editor; choose Done to save", imported: "Added preset “{{name}}”", unsupported: "This item cannot be imported: {{reason}}",
   },
   header: {
@@ -316,7 +317,8 @@ const statsWorkbench: Messages<typeof zh> = {
     delete: "Delete",
     actions: "More actions for “{{name}}”",
     add: "Add custom preset",
-    addHint: "Save the current workbench as a preset",
+    addHint: "Create a layout, save this layout or import a file",
+    createLayout: "Create a new layout", createLayoutHint: "Continue editing your workbench, keeping the existing layout.", saveCurrent: "Save current layout",
     full_one: "Limit of {{count}} reached",
     full_other: "Limit of {{count}} reached",
     updatedAt: "Updated {{date}}",
