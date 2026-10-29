@@ -1,0 +1,16 @@
+# 1.17.15：W7 多层级分类与 P05/P07、W6 工作台同步与配置交换、1.17.13 收缩吸顶栏、
+# 1.17.12 布局预设与主题修正；包含第 62、63 号数据库迁移。
+# 只发布 api/web；relay 保持原有已验证镜像。
+services:
+  migrate:
+    image: libevra-rc-api:1.17.15-20261029
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.17.15-20261029
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.17.15-20261029
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

@@ -33,17 +33,17 @@ describe("software update announcements", () => {
     // 只有补零后与内部版本号不同（如 1.17.9 → 1.17.09）时，才能断言页面不显示内部写法；
     // 两位数补丁号（1.17.10 / 1.17.11）两种写法相同。
     if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
-    expect(html).toContain("1.17.11");
-    expect(html).toContain("分析工作台与万圣限定头像");
+    expect(html).toContain("1.17.15");
+    expect(html).toContain("多层级分类、工作台同步与吸顶栏");
     expect(html).toContain(
-      "「分析」升级为可自定义的财务工作台：38 张分析卡片、分类 / 支付方式 / 标签筛选、81 项自定义指标与组合卡片正式上线；离线历史读取提高到每月约 50,000 笔并明确标注「未完整」；另新增万圣限定头像与多项启动、布局修复。",
+      "分类升级为可嵌套的多层级结构，并新增层级结构与层级桑基分析；工作台布局与个人预设开始按账号同步，支持配置文件导入导出；分析、账本、我的页共用可收缩吸顶栏，底部选中提示与主题按钮一并修正。",
     );
-    expect(html).toContain("2026年10月28日");
-    expect(html).toContain('href="/update/announcements/1.17.11"');
+    expect(html).toContain("2026年10月29日");
+    expect(html).toContain('href="/update/announcements/1.17.15"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("38 张分析卡片全部接通真实数据");
+    expect(html).toContain("分类支持多层级");
     expect(html).toContain("新增功能");
     expect(html).toContain("注意事项");
     expect(html).not.toContain('role="dialog"');

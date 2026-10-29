@@ -10,6 +10,54 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.17.15": {
+    title: "Nested categories, workbench sync and a collapsing header",
+    summary:
+      "Categories can now be nested into a hierarchy, with new hierarchy structure and hierarchy Sankey analyses; workbench layouts and personal presets start syncing per account, with JSON configuration import and export; Entries, Insights, Ledger and Me share a collapsing sticky header, and the bottom-tab highlight and theme buttons are corrected.",
+    sections: [
+      {
+        heading: "New features",
+        items: [
+          "Categories support multiple levels: edit a category, create a child or move a whole subtree from its “More” menu, up to 64 levels. Existing category and entry IDs stay unchanged; duplicates are refused within the same parent, while the same name may appear in different branches.",
+          "Adds P05 “Category hierarchy structure” and P07 “Category hierarchy Sankey”, with parent-category roll-ups and hierarchy flows calculated from the same scope; the official metric list grows to 83 items.",
+          "Workbench layouts and personal presets start syncing per account: the main layout, independent archives, composite card slots and templates, drawer position and fixed or relative time windows are saved to the server with the account; offline edits still work locally and merge once the connection returns.",
+          "The workbench supports configuration files: export the saved workbench, a single personal preset or a preset collection as versioned JSON; imports are validated item by item with a preview, and can be added as a new preset or applied to the current editing session.",
+          "Account export includes the personal workbench configuration; deleting an account also clears the configuration, sync metadata and recovery copies on the server and on this device.",
+        ],
+      },
+      {
+        heading: "Improvements",
+        items: [
+          "Insights, Ledger and Me (including guest mode) share one collapsing sticky header: it follows the scroll and snaps to the expanded or compact end when released. The compact state keeps the title and actions, scrolling back to the top expands it, Me keeps its expanded avatar layout, and reduced motion and safe areas are respected.",
+          "The Insights editing toolbar becomes a bottom drawer, the stats controls collapse into one row with a “Statistics settings” panel, the metric catalogue is more compact, and the fifth group is renamed “Other professional analyses”.",
+          "Layout presets are new: system presets for beginners, advanced and professional use, plus up to 10 personal presets; preview then apply, swipe horizontally to switch, and relative time windows resolve when the preset is applied.",
+          "Custom metrics grow from 50 to 81 / 84 items and chart families to 31; the active bottom tab is marked with a light circular background centred on the combined icon and label.",
+          "Theme details are corrected: on light themes such as Honey Gold the detail-page action buttons regain a clear circular background, the Insights tab shows its theme-selected colour like other pages, and buttons, selected states and text contrast were checked across all seven palettes in light and dark appearance.",
+        ],
+      },
+      {
+        heading: "Bug fixes",
+        items: [
+          "Fixed the Insights bottom tab not showing its selected state.",
+          "Fixed detail-page top action buttons losing their background and showing only icons on light themes such as Honey Gold, Red and Purple.",
+          "Fixed category hierarchy edge cases: historical paths and filter encodings stay consistent after moving a subtree, and zero-amount descendants no longer break Sankey conservation.",
+          "Fixed workbench configuration being silently overwritten when both sides changed at once: conflicts now let you choose the cloud or local version and keep a recovery copy of the other.",
+          "Fixed personal workbench configuration, sync metadata and recovery copies being left behind after account deletion.",
+        ],
+      },
+      {
+        heading: "Notes",
+        items: [
+          "This update includes database migrations 62 and 63: a new workbench configuration table, plus parent and colour columns and a hierarchy validation trigger for categories. Migrations run automatically during the upgrade and do not rewrite existing categories or entries.",
+          "If the service later needs to be rolled back to 1.17.11, nested categories and workbench configurations created in the meantime are kept; the older interface does not show the hierarchy or sync features, and entries and ledgers are unaffected.",
+          "The category hierarchy supports up to 64 levels; deleting a parent category asks for confirmation and by default promotes its children one level up while keeping their entries.",
+          "Workbench sync is an account-level feature of the installed app; there is no public share code or template marketplace yet. Imported configuration files are validated item by item, and damaged, unknown or oversized files are rejected without touching the existing configuration.",
+          "The hierarchy, collapsing header and sync flows have not been verified on iOS Safari or a real PWA device; desktop or Android is recommended for now.",
+          "This update restarts the service briefly (seconds to about half a minute); saved data is unaffected. PWA users only need one refresh after upgrading to load the new version.",
+        ],
+      },
+    ],
+  },
   "1.17.11": {
     title: "The analysis workbench and the Halloween limited avatar",
     summary:
