@@ -29,6 +29,15 @@ function scroll(top: number) {
   scroller.dispatchEvent(new Event("scroll"));
 }
 function settle() { vi.advanceTimersByTime(2500); }
+/**
+ * 一次手指移动：1.17.16 起顶栏不再拦截触摸、不替浏览器移动页面——滚动由浏览器原生完成，
+ * hook 只读滚动位置与手势速度。测试替身不会自己滚，所以这里同时派发 touchmove 与浏览器会产生的 scroll。
+ */
+function drag(fromY: number, toY: number) {
+  const move = touch("touchmove", 100, toY);
+  scroll(scroller.scrollTop + (fromY - toY));
+  return move;
+}
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 16));
@@ -72,11 +81,11 @@ describe("共用顶栏的真实滚动与两端吸附", () => {
     scroll(0);
     expect(extra.inert).toBe(false);
   });
-  it("慢拖未过中线，手指停住时保持进度，松手后展开", () => {
+  it("慢拖未过中线，手指停住时保持进度，松手后展开；拖动时不拦截原生滚动", () => {
     touch("touchstart", 100, 400);
     vi.advanceTimersByTime(800);
-    const move = touch("touchmove", 100, 365);
-    expect(move.defaultPrevented).toBe(true);
+    const move = drag(400, 365);
+    expect(move.defaultPrevented).toBe(false);
     settle();
     expect(scroller.scrollTop).toBe(35);
     touch("touchend", 100, 365, 0);
@@ -86,7 +95,7 @@ describe("共用顶栏的真实滚动与两端吸附", () => {
   it("慢拖过中线，松手后收缩并在继续滚动时保持紧凑", () => {
     touch("touchstart", 100, 400);
     vi.advanceTimersByTime(2000);
-    touch("touchmove", 100, 330);
+    drag(400, 330);
     touch("touchend", 100, 330, 0);
     settle();
     expect(scroller.scrollTop).toBe(100);
@@ -98,12 +107,13 @@ describe("共用顶栏的真实滚动与两端吸附", () => {
   it("快速上滑末帧轻微回移，仍按整体方向收缩且不反弹", () => {
     touch("touchstart", 100, 400);
     vi.advanceTimersByTime(35);
-    touch("touchmove", 100, 370);
+    drag(400, 370);
     vi.advanceTimersByTime(10);
-    touch("touchmove", 100, 372);
+    drag(370, 372);
     touch("touchend", 100, 372, 0);
     let previous = scroller.scrollTop;
-    for (let i = 0; i < 160; i++) {
+    // 松手后先等约 120ms 确认原生惯性已停，再由弹簧收到端点，所以给足帧数。
+    for (let i = 0; i < 200; i++) {
       vi.advanceTimersByTime(16);
       expect(scroller.scrollTop).toBeGreaterThanOrEqual(previous);
       previous = scroller.scrollTop;
@@ -123,12 +133,14 @@ describe("共用顶栏的真实滚动与两端吸附", () => {
     expect(touch("touchmove", 200, 390).defaultPrevented).toBe(false);
     expect(scroller.scrollTop).toBe(0);
   });
-  it("减少动态效果时松手直接吸附，不运行后续动画", () => {
+  it("减少动态效果时，松手等原生滚动停稳（约 120ms）后直接落到端点，不运行动画帧", () => {
     reduced = true;
     touch("touchstart", 100, 400);
     vi.advanceTimersByTime(2000);
-    touch("touchmove", 100, 330);
+    drag(400, 330);
     touch("touchend", 100, 330, 0);
+    expect(scroller.scrollTop).toBe(70);
+    vi.advanceTimersByTime(120);
     expect(scroller.scrollTop).toBe(100);
     expect(vi.getTimerCount()).toBe(0);
   });
