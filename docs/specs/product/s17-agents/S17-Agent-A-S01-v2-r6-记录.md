@@ -1,7 +1,7 @@
 # S-01 v2 修订 r6 记录：所有者裁定落实（2026-10-27）
 
 > 状态：随 `s01-v2-draft`，**未冻结**。
-> 依据：所有者书面裁定（Lead 登记 `C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1-s17-orchestrator\docs\specs\product\s17-agents\S17-所有者裁定-20261027-S01v2冻结方向与C1常量分类.md`，orchestrator `f215fa9`；Lead m03434 转发）。
+> 依据：所有者书面裁定（Lead 登记 `C:\Users\<本机用户>\Desktop\工作\记账程序\记账程序v1-s17-orchestrator\docs\specs\product\s17-agents\S17-所有者裁定-20261027-S01v2冻结方向与C1常量分类.md`，orchestrator `f215fa9`；Lead m03434 转发）。
 > 基线：v2 r5（`bc5fe85`）；本 r6 为**增量修订**，不重写 r5。
 
 ## 1. 范围与不重复修改声明

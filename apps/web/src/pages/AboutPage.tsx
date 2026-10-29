@@ -7,9 +7,11 @@ import { useI18n } from "../i18n/index.js";
 import { formatAppVersion } from "../lib/version.js";
 
 /**
- * What the project promises, in the user's own words rather than the
- * repository's. Kept short: nobody reads a licence page, but everybody
- * deserves to be told plainly where their data goes.
+ * Describes naeor's personal, non-commercial project, its public-release
+ * boundary and how implemented features handle data. This page does not
+ * imply a company, an operating team or a public cloud offering.
+ * Copy lives in the zh-CN/en-US update resources; claims must match the
+ * implementation and must not present planned capabilities as available.
  *
  * ⚠️ **The way back depends on how the reader arrived, and the owner reported the bug that shows why**
  * (2026-10-13): *"从关于退出会进到设置，从设置退出又会回到关于界面."* This screen is reachable from
@@ -38,7 +40,7 @@ export function AboutPage(): React.JSX.Element {
         * 2. 三段说明各自一个小标题，靠留白分节，不加外框；
         * 3. 最后是真正可以点的两项（协议文本），用列表行表达"可以去那里"。
         *
-        * 文字内容没有改动，只换了排列。
+        * 布局沿用 S16-A 的排列；项目性质、公开发布边界及数据说明按事实更新。
         */}
       <section className="flex items-center gap-4">
         <span
