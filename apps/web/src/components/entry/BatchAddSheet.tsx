@@ -349,7 +349,7 @@ export function BatchAddSheet({
         role="dialog"
         aria-modal="true"
         aria-label={t("entry.batch.title")}
-        className="sheet-in fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(100dvh-12px)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-canvas shadow-sheet"
+        className="sheet-in fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(var(--lv-vh)*100_-_12px)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-canvas shadow-sheet"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-5 py-3">
           <h2 className="min-w-0 text-base font-medium text-ink">{t("entry.batch.title")}</h2>
@@ -377,10 +377,6 @@ export function BatchAddSheet({
         ) : (
           <>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-              <p className="pb-3 text-helper-relaxed text-muted">
-                {t("entry.batch.intro")}
-              </p>
-
               {error === null ? null : (
                 <div className="pb-3">
                   <Alert>{error}</Alert>
@@ -461,7 +457,6 @@ export function BatchAddSheet({
       <ConfirmDialog
         open={removeCandidate !== null}
         title={t("entry.batch.removeTitle")}
-        description={t("entry.batch.removeDescription")}
         consequences={[t("entry.batch.removeConsequence")]}
         confirmLabel={t("entry.batch.removeConfirm")}
         onConfirm={confirmRemove}

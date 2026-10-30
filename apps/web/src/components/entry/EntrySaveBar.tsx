@@ -46,6 +46,7 @@ export function EntrySaveBar({
       data-entry-actions="sticky"
       style={keyboardInset > 0 ? { bottom: keyboardInset } : undefined}
       className="sticky bottom-0 z-0 mt-5 bg-canvas"
+      data-lv-bottom-bar=""
     >
       <div className="border-t border-line px-6 pt-3 pb-5">{children}</div>
     </div>

@@ -1,4 +1,5 @@
 import { useI18n } from "../i18n/index.js";
+import { useForeignBookId } from "../lib/workspaceLedger.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
@@ -26,7 +27,16 @@ import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
  * rather than alarming: the data on screen is real, it came from this device, and anything
  * recorded now is kept until it can be sent.
  */
+/**
+ * S18：离线下载与同步状态都属于**设备当前账本**；工作区在查看另一本账时不显示（那里的读写只走在线，
+ * 这里的说明会误导）。
+ */
 export function SyncBanner(): React.JSX.Element | null {
+  const foreign = useForeignBookId();
+  return foreign === null ? <SyncBannerForDevice /> : null;
+}
+
+function SyncBannerForDevice(): React.JSX.Element | null {
   const { t } = useI18n();
   const guest = useGuestMode();
   const { offline, reason } = useAccountOffline();

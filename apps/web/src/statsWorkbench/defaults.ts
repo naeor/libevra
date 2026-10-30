@@ -1,19 +1,20 @@
 /**
- * 默认工作台（布局规格 §9「日常总览」）与对象 ID。
+ * 默认工作台与对象 ID。
  *
- * ⚠️ **第一次打开分析页不需要任何配置**（总需求规格 §7）：没有保存过布局的账号直接看到这一套。
- * 默认模板只是「内容文档 + 布局文档」两份普通数据，交给 Agent D 的校验器检查；用户编辑后保存的是
- * 自己的副本，「恢复默认」不会覆盖除工作台以外的任何设置。
+ * ⚠️ **第一次打开分析页不需要任何配置**（总需求规格 §7）：没有保存过布局的账号直接看到系统默认。
+ * **1.17.23 起系统默认 = 「新手」系统预设**（第一张是「支出分类」），不再是旧版的「日常总览」。
+ * 默认工作台不写进存储：没有保存过的账号每次都按当前代码与界面语言生成，所以新账号、从未改过布局的
+ * 旧账号、以及被识别为「仍是旧版默认」而迁移为 `workspace: null` 的账号（见
+ * `@libellum/shared/workbench/legacyDefault`）看到的是同一套。用户编辑后保存的是自己的副本；
+ * 「恢复默认」只换编辑会话里的工作台，点「完成」才保存。
  */
-import type {
-  AnalysisCardNode,
-  CarouselNode,
-  LayoutDocumentV1,
-  ObjectGeometry,
-  WorkbenchContentDocumentV1,
-} from "@libellum/shared/analysis/layout";
+import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
+import { LEGACY_DEFAULT_WORKSPACE } from "@libellum/shared/workbench/legacyDefault";
 
+import { t } from "../i18n/index.js";
 import { cardType, type ChartFamily } from "./catalog.js";
+import { buildSystemPreset } from "./presets.js";
+import type { WorkbenchDocuments } from "./storage.js";
 
 /**
  * 新对象的稳定 ID。用 `getRandomValues` 而不是 `randomUUID`：后者只在安全上下文存在，局域网
@@ -39,53 +40,18 @@ export function newCard(analysisId: string, objectId: string = newObjectId("card
   };
 }
 
-function place(objectId: string, objectType: ObjectGeometry["objectType"], anchor: number, colSpan: number, rowSpan: number): ObjectGeometry {
-  return { objectId, objectType, anchor, colSpan, rowSpan };
+/**
+ * 系统默认工作台：「新手」系统预设（对象 ID 固定为 `preset-beginner-*`，卡片标题按**调用时**的界面语言生成）。
+ * 只在没有保存过工作台时显示；一旦保存，就是用户自己的副本。
+ */
+export function defaultWorkbench(): WorkbenchDocuments {
+  return buildSystemPreset("beginner", (key) => t(key as never));
 }
 
 /**
- * 「日常总览」：先看收入、支出、差额，再看趋势与构成，最后是一个滑动卡片组（演示容器：
- * 同一位置左右切换三张极值卡）、上期比较与日历热力。两列、行优先编号。
+ * 旧版系统默认「日常总览」的一份副本：只用于识别与测试夹具，**不再作为默认显示**。
+ * 冻结的原文在 `@libellum/shared/workbench/legacyDefault`（服务器一次性迁移用同一份）。
  */
-export function defaultWorkbench(): { readonly content: WorkbenchContentDocumentV1; readonly layout: LayoutDocumentV1 } {
-  const cards: AnalysisCardNode[] = [
-    newCard("AN-B01", "default-b01"),
-    newCard("AN-B02", "default-b02"),
-    newCard("AN-B03", "default-b03"),
-    newCard("AN-B06", "default-b06"),
-    newCard("AN-I11", "default-i11"),
-    newCard("AN-I01", "default-i01"),
-    newCard("AN-B09", "default-b09"),
-    newCard("AN-B11", "default-b11"),
-    newCard("AN-B15", "default-b15"),
-    newCard("AN-A01", "default-a01"),
-    newCard("AN-I12", "default-i12"),
-  ];
-  const carousel: CarouselNode = {
-    objectId: "default-extremes",
-    type: "carousel",
-    children: ["default-b09", "default-b11", "default-b15"],
-  };
-  return {
-    content: { schemaVersion: 1, cards, containers: [carousel] },
-    layout: {
-      schemaVersion: 1,
-      layoutAlgorithmVersion: 1,
-      mode: "unified",
-      main: {
-        baseCols: 2,
-        objects: [
-          place("default-b01", "analysis-card", 1, 1, 1),
-          place("default-b02", "analysis-card", 2, 1, 1),
-          place("default-b03", "analysis-card", 3, 1, 1),
-          place("default-b06", "analysis-card", 4, 1, 1),
-          place("default-i11", "analysis-card", 5, 2, 2),
-          place("default-i01", "analysis-card", 9, 2, 3),
-          place("default-extremes", "carousel", 15, 2, 1),
-          place("default-a01", "analysis-card", 17, 2, 2),
-          place("default-i12", "analysis-card", 21, 2, 3),
-        ],
-      },
-    },
-  };
+export function legacyDefaultWorkbench(): WorkbenchDocuments {
+  return JSON.parse(JSON.stringify(LEGACY_DEFAULT_WORKSPACE)) as WorkbenchDocuments;
 }

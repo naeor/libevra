@@ -24,6 +24,8 @@ import {
   type WorkbenchContentDocumentV1,
   type WorkbenchLocalRecordV1,
 } from "@libellum/shared/analysis/layout";
+import { configurationFingerprint } from "@libellum/shared/workbench/configuration";
+import { isLegacyDefaultWorkspace } from "@libellum/shared/workbench/legacyDefault";
 import { runLayoutPipeline } from "@libellum/shared/workbench/pipeline";
 
 import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
@@ -50,6 +52,10 @@ export function documentsProblems(documents: WorkbenchDocuments): readonly strin
   const pipeline = runLayoutPipeline(documents, { targetColumns: documents.layout?.main?.baseCols ?? 2 });
   const problems = pipeline.issues.filter(issue => issue.severity === "error").map(issue => `${issue.path}:${issue.code}`);
   if (pipeline.layout !== undefined) problems.push(...validateGeometry(pipeline.layout.main.objects, pipeline.layout.main.baseCols).map(issue => `geometry:${issue.code}`));
+  // 1.18.01：列数专属布局（`profiles`）每一份也必须是合法几何（与服务器端 `parseWorkspaceDocuments` 同一要求）。
+  for (const profile of documents.layout?.profiles ?? []) {
+    problems.push(...validateGeometry(profile.geometry.objects, profile.geometry.baseCols).map(issue => `profile:${issue.code}`));
+  }
   return problems;
 }
 
@@ -163,15 +169,80 @@ export interface Stored {
   readonly unreadable: boolean;
 }
 
-/** 读取账号的工作台；没有保存过（或读不出）时给默认工作台。 */
+/**
+ * 本机保存的工作台若与旧版系统默认「日常总览」**完全一致**（只可能来自旧版「恢复默认工作台」再点「完成」），
+ * 视为「没有自定义」：原记录先备份到 `<键>:legacy-default`，再移除，界面随即显示当前系统默认（新手布局）；
+ * 登录账号的同步随后把云端也对齐为「跟随系统默认」（`sync.ts` 用同一识别规则）。识别规则与服务器一次性
+ * 迁移相同（`@libellum/shared/workbench/legacyDefault`）；任何一处不同的布局、损坏或来自更新版本的记录都不动。
+ * 幂等：移除后再调用不会有任何动作。返回是否做了改动。
+ */
+export function retireLegacyDefault(accountScope: string): boolean {
+  const outcome = loadWorkbench(accountScope);
+  if (outcome.status !== "ok" || !isLegacyDefaultWorkspace(outcome.documents)) return false;
+  const store = storage();
+  if (store === null) return false;
+  const key = workbenchStorageKey(accountScope);
+  try {
+    const raw = store.getItem(key);
+    if (raw === null) return false;
+    // 备份写不进去就不移除（宁可继续显示旧布局，也不丢原文）。
+    store.setItem(`${key}:legacy-default`, raw);
+    store.removeItem(key);
+  } catch {
+    return false;
+  }
+  // 可能在渲染期间被调用（`readStored` 是 useState 的初始值），通知放到微任务里，不在渲染中更新别的组件。
+  queueMicrotask(() => notifyWorkbenchChange(accountScope));
+  return true;
+}
+
+/** 文档是否与**当前**系统默认（新手布局，按当前界面语言生成）完全一致。 */
+export function isSystemDefault(documents: WorkbenchDocuments): boolean {
+  const fingerprint = (workspace: WorkbenchDocuments) => configurationFingerprint({ schemaVersion: 1, workspace, presets: [] });
+  try {
+    return fingerprint(documents) === fingerprint(defaultWorkbench());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 「恢复默认工作台」后点「完成」：内容与当前系统默认完全一致时，**不另存一份副本**，而是删掉自己的记录
+ * （= 跟随系统默认；同步时云端也变成 `workspace: null`）。以后系统默认再调整，这个账号会跟着用新的默认，
+ * 不会像 1.17.23 之前那样「停在旧默认」。与 `saveWorkbench` 同样的版本保护：本机记录已被别的标签页改过、
+ * 损坏或来自更新版本时不动，返回 `null`；成功返回新的版本号 0。原记录先留一份在 `<键>:previous`。
+ */
+export function followSystemDefault(accountScope: string, previousVersion: number): number | null {
+  const store = storage();
+  if (store === null) return null;
+  const key = workbenchStorageKey(accountScope);
+  try {
+    const previous = store.getItem(key);
+    if (previous !== null) {
+      const saved = JSON.parse(previous) as Partial<WorkbenchLocalRecordV1>;
+      if (saved.storeSchemaVersion !== WORKBENCH_LOCAL_STORE_SCHEMA_VERSION || saved.userId !== accountScope) return null;
+      const currentVersion = Math.max(saved.content?.version ?? 0, saved.layout?.version ?? 0);
+      if (currentVersion !== previousVersion) return null;
+      store.setItem(`${key}:previous`, previous);
+      store.removeItem(key);
+    }
+  } catch {
+    return null;
+  }
+  notifyWorkbenchChange(accountScope);
+  return 0;
+}
+
+/** 读取账号的工作台；没有保存过（或读不出）时给默认工作台。仍是旧版系统默认的记录先按上面的规则移除。 */
 export function readStored(accountScope: string | null): Stored {
   if (accountScope === null) return { accountScope, documents: defaultWorkbench(), version: 0, unreadable: false };
+  retireLegacyDefault(accountScope);
   const outcome = loadWorkbench(accountScope);
   if (outcome.status === "ok") return { accountScope, documents: outcome.documents, version: outcome.version, unreadable: false };
   return { accountScope, documents: defaultWorkbench(), version: outcome.status === "unreadable" ? outcome.version ?? 0 : 0, unreadable: outcome.status === "unreadable" };
 }
 
-/** 「恢复默认」：删掉自己的记录即可，下次读取得到默认工作台。 */
+/** 删掉自己的记录，下次读取得到默认工作台（测试与清理用；界面上的「恢复默认」只换编辑会话）。 */
 export function clearWorkbench(accountScope: string): void {
   try {
     storage()?.removeItem(workbenchStorageKey(accountScope));

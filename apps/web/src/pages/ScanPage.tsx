@@ -646,7 +646,6 @@ export function ScanPage(): React.JSX.Element {
       <ChoiceDialog
         open={nothingReadable}
         title={t("capture.scan.nothingReadable.title")}
-        description={t("capture.scan.nothingReadable.description")}
         choices={choices.nothingReadable}
         onChoose={(choice) => {
           setNothingReadable(false);
@@ -799,12 +798,10 @@ const NOTHING_READABLE_CHOICES: readonly ChoiceDefinition<"retry" | "manual" | "
   {
     id: "manual",
     label: () => translate("capture.scan.nothingReadable.manual"),
-    hint: () => translate("capture.scan.nothingReadable.manualHint"),
   },
   {
     id: "back",
     label: () => translate("capture.scan.nothingReadable.back"),
-    hint: () => translate("capture.scan.nothingReadable.backHint"),
     dismissive: true,
   },
 ];
@@ -849,12 +846,10 @@ const UNKNOWN_PAGE_CHOICES: readonly ChoiceDefinition<"single" | "multi" | "back
   {
     id: "multi",
     label: () => translate("capture.scan.unknownPage.multi"),
-    hint: () => translate("capture.scan.unknownPage.multiHint"),
   },
   {
     id: "back",
     label: () => translate("capture.scan.unknownPage.back"),
-    hint: () => translate("capture.scan.unknownPage.backHint"),
     dismissive: true,
   },
 ];
@@ -907,7 +902,6 @@ const DUPLICATE_CHOICES: readonly ChoiceDefinition<"save" | "confirmNotDuplicate
   {
     id: "save",
     label: () => translate("duplicates.reminder.save"),
-    hint: () => translate("duplicates.reminder.saveHintScan"),
     primary: true,
   },
   {
@@ -937,7 +931,6 @@ const UNDONE_CHOICES: readonly ChoiceDefinition<"restore" | "dismiss">[] = [
   {
     id: "restore",
     label: () => translate("capture.undone.restore"),
-    hint: () => translate("capture.undone.restoreHint"),
     primary: true,
   },
   { id: "dismiss", label: () => translate("capture.undone.dismiss"), dismissive: true },
@@ -1095,8 +1088,9 @@ function PickStep({
             several pictures the picker has already saved the trips that mattered,
             so one deliberate confirmation is cheap; the saving was never worth
             the uncertainty. Now the choice is visible, and 开始识别 confirms it.
+            (1.17.23: the line that said "tap 开始识别 below" is gone — the button
+            right under the choice says it.)
           */}
-          <p className="text-helper text-muted">{t("capture.scan.pick.modeNext")}</p>
         </section>
       ) : null}
 
@@ -1104,7 +1098,7 @@ function PickStep({
         {t("capture.scan.pick.start")}
       </Button>
 
-      <button type="button" onClick={onManual} className="text-helper text-muted underline">
+      <button type="button" onClick={onManual} className="touch-target self-center text-helper text-muted underline">
         {t("capture.manualFallback")}
       </button>
 
@@ -1148,13 +1142,12 @@ function ModeOption({
 function WorkingStep({ total }: { readonly total: number }): React.JSX.Element {
   const { t } = useI18n();
 
+  // 1.17.23：只说正在识别几张；「截图识别后丢弃」已在页面副标题说过一次，预计耗时没有实测依据，都不再重复。
   return (
     <div className="flex flex-col items-center gap-4 py-10">
       <div className="size-10 animate-spin rounded-full border-3 border-brand-soft border-t-brand" />
       <p className="text-body text-ink">{t("capture.recognizing")}</p>
-      <p className="text-center text-helper text-muted">
-        {t("capture.scan.working", { count: total })}
-      </p>
+      {total > 1 ? <p className="text-center text-helper text-muted">{t("capture.scan.workingCount", { count: total })}</p> : null}
     </div>
   );
 }

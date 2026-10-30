@@ -50,6 +50,8 @@ vi.mock("@tanstack/react-query", async (original) => ({
 }));
 vi.mock("../auth/AuthProvider.js", () => ({ useAuthOptional: () => ({ user: { id: "a" } }) }));
 vi.mock("./queries.js", () => ({ useCurrentBookId: () => "b" }));
+// S18：工作区账本（这里只测设备当前账本这一路）。
+vi.mock("./workspaceLedger.js", () => ({ useForeignBookId: () => null, foreignKey: (...parts: unknown[]) => ["ws-ledger", ...parts] }));
 vi.mock("./offline/connectivity.js", () => ({ useAccountOffline: () => ({ offline: false }) }));
 vi.mock("./offline/scope.js", () => ({ offlineScope: () => "a:b" }));
 vi.mock("./offline/localLedger.js", () => ({

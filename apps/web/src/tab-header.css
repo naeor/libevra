@@ -28,7 +28,7 @@
   top: calc(100% + 12px);
   right: 0;
   width: min(20rem, calc(100vw - 48px));
-  max-height: 60dvh;
+  max-height: calc(var(--lv-vh, 1dvh) * 60);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 12px;

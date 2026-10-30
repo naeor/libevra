@@ -427,6 +427,23 @@
     color: var(--color-ink);
   }
 
+  /**
+   * 1.17.23：**触屏点击区至少 44×44 CSS px，但不改变按钮的视觉尺寸。** 用一个透明的伪元素把可点范围
+   * 向四周扩到 44px（比元素本身大时才扩），文字链接式的小按钮（「取消」「改为手动记账」等）也好点中。
+   * 相邻的两个小按钮之间至少留 8px，扩出的范围才不会互相覆盖。
+   */
+  .touch-target {
+    position: relative;
+  }
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
 }
 
 /*
@@ -587,6 +604,20 @@
   animation: libellum-backdrop-out 160ms ease-in forwards;
 }
 
+/*
+  ⚠️ **S18（审查 U09）：减少动态必须写在动画声明之后。** 上面那组媒体查询与这四个类优先级相同、
+  位置更早，于是被这里的 `animation` 覆盖——开启「减少动态」后面板仍然整段滑入滑出。规则不变，
+  只是在同一份文件里放到能生效的位置。
+*/
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in,
+  .sheet-out,
+  .backdrop-in,
+  .backdrop-out {
+    animation: none;
+  }
+}
+
 
 html,
 body,
@@ -702,10 +733,10 @@ body {
 
 /* /start: a single flow layout; only the lower content region scrolls. */
 .ledger-space {
-  --sea-short: max(15dvh, calc(116px + env(safe-area-inset-top, 0px) * 1.7));
-  --sea-h: calc(80dvh * (1 - var(--p)) + var(--sea-short) * var(--p));
+  --sea-short: max(calc(var(--lv-vh, 1dvh) * 15), calc(116px + env(safe-area-inset-top, 0px) * 1.7));
+  --sea-h: calc(var(--lv-vh, 1dvh) * 80 * (1 - var(--p)) + var(--sea-short) * var(--p));
   position: relative;
-  height: 100dvh;
+  height: calc(var(--lv-vh, 1dvh) * 100);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -834,7 +865,7 @@ body {
 /* p=0: full presentation; p=1: ledger list. The cue is outside the sea clip. */
 .space-cue-window {
   position: absolute;
-  inset: 80dvh 0 0;
+  inset: calc(var(--lv-vh, 1dvh) * 80) 0 0;
   z-index: 3;
   pointer-events: none;
   display: flex;
@@ -860,7 +891,7 @@ body {
 .space-scroll {
   min-height: 0;
   flex: 1;
-  margin-top: calc(20dvh * (1 - clamp(0, var(--p), 1)));
+  margin-top: calc(var(--lv-vh, 1dvh) * 20 * (1 - clamp(0, var(--p), 1)));
   overflow-y: auto;
   overscroll-behavior-y: none;
   overflow-anchor: none;

@@ -220,7 +220,7 @@ export function BookManageSheet({
           startY.current = null;
         }}
         style={dragY === 0 ? undefined : { transform: `translateY(${String(dragY)}px)` }}
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md max-h-[calc(var(--lv-vh)*100_-_24px)] overflow-y-auto overscroll-contain rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
           dragY === 0 ? "sheet-in" : ""
         }`}
       >

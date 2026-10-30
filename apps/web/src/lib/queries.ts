@@ -75,7 +75,8 @@ import {
 } from "./guest/data.js";
 import { installGuestWriteListener, isGuestRuntime } from "./guest/runtime.js";
 import { useGuestMode } from "./guest/session.js";
-import { CACHE_KEY } from "./offline/cache.js";
+import { CACHE_KEY, VOLATILE } from "./offline/cache.js";
+import { foreignKey, FOREIGN_KEY, useForeignBookId, useScopedBook } from "./workspaceLedger.js";
 import { prepareOfflineBook, scopedKey } from "./offline/scope.js";
 import {
   asLocalPage,
@@ -493,6 +494,8 @@ export interface DirectoryAccount {
  * those should be asked on purpose, and it carries a tighter rate limit than the rest.
  */
 export function useLookupAccount() {
+  /** S18：「是否已是成员 / 能否邀请」按本工作区查看的那本账回答（与 `useInviteToBook` 同一本）。 */
+  const bookId = useScopedBook(undefined);
   return useMutation({
     mutationFn: (input: { accountNumber?: string; username?: string }) => {
       const params = new URLSearchParams(
@@ -505,7 +508,7 @@ export function useLookupAccount() {
         canInvite: boolean;
         /** ⚠️ The invitation already outstanding for this person, so the screen can say its state. */
         invitation: { id: string; status: "pending" | "accepted" | "declined"; createdAt: string } | null;
-      }>(`/directory/lookup?${params.toString()}`);
+      }>(`/directory/lookup?${params.toString()}`, bookId === undefined ? {} : { bookId });
     },
   });
 }
@@ -591,6 +594,8 @@ export function useMarkNotificationsRead() {
  */
 export function useInviteToBook() {
   const queryClient = useQueryClient();
+  /** S18：邀请进本工作区查看的那本账。 */
+  const bookId = useScopedBook(undefined);
 
   return useMutation({
     mutationFn: (input: {
@@ -600,7 +605,7 @@ export function useInviteToBook() {
     }) =>
       apiFetch<{ ok: boolean; notificationId: string; refreshed: boolean; role: "editor" | "viewer" }>(
         "/books/invite",
-        { method: "POST", body: input },
+        { method: "POST", ...(bookId === undefined ? {} : { bookId }), body: input },
       ),
     /**
      * ⚠️ **The lookup is invalidated, not a list**, because there is no list any more. The state the
@@ -652,8 +657,12 @@ export interface ShareLinkView {
  *
  * ⚠️ **The key carries the ledger**, so two ledgers' links cannot share a cache entry.
  */
-export function useShareLinks(bookId?: string) {
+export function useShareLinks(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   return useQuery({
+    /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
+    ...(given === undefined && bookId !== undefined ? { meta: VOLATILE } : {}),
     queryKey: bookId === undefined ? queryKeys.shareLinks : [...queryKeys.shareLinks, bookId],
     queryFn: () => apiFetch<{ links: readonly ShareLinkView[] }>("/share/links", { ...(bookId === undefined ? {} : { bookId }) }),
     staleTime: 0,
@@ -661,7 +670,9 @@ export function useShareLinks(bookId?: string) {
 }
 
 /** Mint one. **The token in the response is the only time it exists** — the screen must show it. */
-export function useCreateShareLink(bookId?: string) {
+export function useCreateShareLink(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -675,7 +686,9 @@ export function useCreateShareLink(bookId?: string) {
   });
 }
 
-export function useRevokeShareLink(bookId?: string) {
+export function useRevokeShareLink(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -780,10 +793,14 @@ export interface LedgerHistoryEntry {
 }
 
 export function useLedgerHistory(limit: number) {
+  const bookId = useScopedBook(undefined);
   return useQuery({
-    queryKey: queryKeys.ledgerHistory(limit),
+    /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
+    ...(bookId !== undefined ? { meta: VOLATILE } : {}),
+    queryKey: bookId === undefined ? queryKeys.ledgerHistory(limit) : [...queryKeys.ledgerHistory(limit), bookId],
     queryFn: () => apiFetch<{ entries: readonly LedgerHistoryEntry[]; total: number }>(
       `/ledger/history?limit=${String(limit)}`,
+      bookId === undefined ? {} : { bookId },
     ),
     /**
      * ⚠️ **Always fresh.** Somebody else's edit is exactly what this screen reports, and they act on
@@ -826,10 +843,14 @@ export interface BookMemberView {
  * ⚠️ **The cache key carries the ledger**, because otherwise the second ledger's members would be
  * served from the first ledger's cache — the cross-ledger leak this project treats as the worst kind.
  */
-export function useBookMembers(bookId?: string) {
+export function useBookMembers(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const guest = useGuestMode();
 
   return useQuery({
+    /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
+    ...(given === undefined && bookId !== undefined ? { meta: VOLATILE } : {}),
     queryKey: guest
       ? ["guest", "book-members"]
       : bookId === undefined
@@ -907,6 +928,8 @@ export function useRenameBook() {
        */
       void queryClient.invalidateQueries({ queryKey: ["ledger-history"] });
       void queryClient.invalidateQueries({ queryKey: [...queryKeys.bookMembers, input.bookId] });
+      // S18：这本账正在某个工作区里被查看（账本名在那里的标题、侧栏与标签上）。
+      void queryClient.invalidateQueries({ queryKey: [FOREIGN_KEY, input.bookId] });
     },
   });
 }
@@ -922,7 +945,9 @@ export function useRenameBook() {
  * and history; without one it refreshes the current ledger's. Refreshing the wrong one would leave the
  * screen showing a name it just changed, which reads as the save having failed.
  */
-export function useChangeMemberRole(bookId?: string) {
+export function useChangeMemberRole(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -938,12 +963,15 @@ export function useChangeMemberRole(bookId?: string) {
       });
       /** ⚠️ The tab's own label comes from the member count, so it has to be refreshed too. */
       void queryClient.invalidateQueries({ queryKey: queryKeys.ledger });
+      if (bookId !== undefined) void queryClient.invalidateQueries({ queryKey: [FOREIGN_KEY, bookId] });
       void queryClient.invalidateQueries({ queryKey: ["ledger-history"] });
     },
   });
 }
 
-export function useRemoveMember(bookId?: string) {
+export function useRemoveMember(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -957,6 +985,7 @@ export function useRemoveMember(bookId?: string) {
         queryKey: bookId === undefined ? queryKeys.bookMembers : [...queryKeys.bookMembers, bookId],
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.ledger });
+      if (bookId !== undefined) void queryClient.invalidateQueries({ queryKey: [FOREIGN_KEY, bookId] });
       void queryClient.invalidateQueries({ queryKey: ["ledger-history"] });
     },
   });
@@ -987,10 +1016,13 @@ export interface BookMessageView {
 }
 
 export function useBookMessages() {
+  const bookId = useScopedBook(undefined);
   return useQuery({
-    queryKey: queryKeys.bookMessages,
+    /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
+    ...(bookId !== undefined ? { meta: VOLATILE } : {}),
+    queryKey: bookId === undefined ? queryKeys.bookMessages : [...queryKeys.bookMessages, bookId],
     queryFn: () =>
-      apiFetch<{ messages: readonly BookMessageView[]; total: number }>("/books/messages?limit=100"),
+      apiFetch<{ messages: readonly BookMessageView[]; total: number }>("/books/messages?limit=100", bookId === undefined ? {} : { bookId }),
     /**
      * ⚠️ **Always fresh.** Somebody else's message is the entire point, and they send it from their
      * own device — **a cached board is a board that stops at the last thing you said.**
@@ -1001,6 +1033,7 @@ export function useBookMessages() {
 
 export function useSendBookMessage() {
   const queryClient = useQueryClient();
+  const bookId = useScopedBook(undefined);
 
   return useMutation({
     /**
@@ -1012,6 +1045,7 @@ export function useSendBookMessage() {
       const reference = typeof input === "string" ? null : input.reference;
       return apiFetch<{ ok: boolean; id: string }>("/books/messages", {
         method: "POST",
+        ...(bookId === undefined ? {} : { bookId }),
         body: reference === null ? { body } : { body, reference },
       });
     },
@@ -1026,18 +1060,24 @@ export function useSendBookMessage() {
  * that was just added or edited on somebody's other device, and a stale picker would simply not offer it.
  */
 export function useQuoteTargets() {
+  const bookId = useScopedBook(undefined);
   return useQuery({
-    queryKey: queryKeys.quoteTargets,
-    queryFn: () => apiFetch<QuoteTargetsResponse>("/books/quote-targets"),
+    /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
+    ...(bookId !== undefined ? { meta: VOLATILE } : {}),
+    queryKey: bookId === undefined ? queryKeys.quoteTargets : [...queryKeys.quoteTargets, bookId],
+    queryFn: () => apiFetch<QuoteTargetsResponse>("/books/quote-targets", bookId === undefined ? {} : { bookId }),
     staleTime: 0,
   });
 }
 
 /** One target by id — used by the "quote this entry" shortcut after saving a new entry. */
 export function useQuoteTarget(kind: QuoteReferenceKind, id: string, enabled = true) {
+  const bookId = useScopedBook(undefined);
   return useQuery({
-    queryKey: queryKeys.quoteTarget(kind, id),
-    queryFn: () => apiFetch<QuoteTargetView>(`/books/quote-targets/${kind}/${id}`),
+    /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
+    ...(bookId !== undefined ? { meta: VOLATILE } : {}),
+    queryKey: bookId === undefined ? queryKeys.quoteTarget(kind, id) : [...queryKeys.quoteTarget(kind, id), bookId],
+    queryFn: () => apiFetch<QuoteTargetView>(`/books/quote-targets/${kind}/${id}`, bookId === undefined ? {} : { bookId }),
     enabled: enabled && id !== "",
     staleTime: 0,
     /** ⚠️ The shortcut needs to *read* that a target is gone, not retry it into an error screen. */
@@ -1120,11 +1160,18 @@ export function useLedger() {
    * the cross-identity leak this branch exists to avoid.
    */
   const guest = useGuestMode();
+  /**
+   * ⚠️ **S18：工作区查看的是另一本账时，读那本账的元数据**（单次请求头覆盖、独立查询键、不落离线副本），
+   * 并且**不做下面任何一件「设备进入这本账」的事**——不改当前账本、不准备离线作用域、不改写入策略。
+   */
+  const foreign = useForeignBookId();
 
   return useQuery({
-    queryKey: guest ? guestQueryKeys.ledger() : queryKeys.ledger,
+    queryKey: guest ? guestQueryKeys.ledger() : foreign !== null ? foreignKey(foreign, "ledger") : queryKeys.ledger,
+    ...(foreign !== null ? { meta: VOLATILE } : {}),
     queryFn: async () => {
       if (guest) return guestLedgerMeta(await loadGuestData());
+      if (foreign !== null) return apiFetch<LedgerMetaResponse>("/ledger", { bookId: foreign });
 
       const ledger = await apiFetch<LedgerMetaResponse>("/ledger");
 
@@ -1212,9 +1259,11 @@ const ALL_TIME_RANGE = { from: "0000-01-01", to: "9999-12-31" } as const;
 
 export function useSummary(month: string) {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
 
   return useQuery({
-    queryKey: guest ? guestQueryKeys.summary(month) : queryKeys.summary(month),
+    queryKey: guest ? guestQueryKeys.summary(month) : foreign !== null ? foreignKey(foreign, "summary", month) : queryKeys.summary(month),
+    ...(foreign !== null ? { meta: VOLATILE } : {}),
     queryFn: async () => {
       /**
        * 「全部」（1.17.17）：服务器按整本账累计（`scope=all`）；离线时只能累计本机已下载的部分，
@@ -1226,6 +1275,11 @@ export function useSummary(month: string) {
       if (guest) {
         const data = await loadGuestData();
         return summaryFor(sortedTransactions(data), month, range);
+      }
+
+      // S18：外部账本只在线读取，没有本机副本可回退（也绝不拿当前账本的副本冒充）。
+      if (foreign !== null) {
+        return apiFetch<SummaryResponse>("/summary", { query: all ? { scope: "all" } : { month }, bookId: foreign });
       }
 
       return withLocalFallback({
@@ -1281,6 +1335,7 @@ export function hasLocalTransactions(filters: TransactionFilters): boolean {
 
 export function useTransactions(given: TransactionFilters) {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   /**
    * ⚠️ **Normalised here, at the boundary**, so every caller gets the same key
    * whether they passed three fields or four. See `transactionFilters`.
@@ -1365,6 +1420,8 @@ export function useTransactions(given: TransactionFilters) {
   const viewCurrency = filters.currency ?? "";
 
   useEffect(() => {
+    /** S18：外部账本没有本机副本，也不应该为它读当前账本的副本。 */
+    if (foreign !== null) return;
     /**
      * ⚠️ **The queue is republished alongside the read**, so the pending colour survives a reload without
      * anything having to be written first. **The colour comes from the queue, and the queue is on disk.**
@@ -1379,10 +1436,15 @@ export function useTransactions(given: TransactionFilters) {
       await readLocalTransactions();
       await refreshPending();
     })();
-  }, [guest, viewMonth, viewKind, viewCategory, viewCurrency]);
+  }, [guest, foreign, viewMonth, viewKind, viewCategory, viewCurrency]);
 
   return useInfiniteQuery({
-    queryKey: guest ? guestQueryKeys.transactions(filters) : queryKeys.transactions(filters),
+    queryKey: guest
+      ? guestQueryKeys.transactions(filters)
+      : foreign !== null
+        ? foreignKey(foreign, "transactions", filters)
+        : queryKeys.transactions(filters),
+    ...(foreign !== null ? { meta: VOLATILE } : {}),
     queryFn: async ({ pageParam }) => {
       /**
        * ⚠️ **S14-C: a guest list is answered from `libellum-guest`, never from the network.**
@@ -1391,6 +1453,20 @@ export function useTransactions(given: TransactionFilters) {
        */
       if (guest) {
         return asLocalPage(filterLocally(sortedTransactions(await loadGuestData()), filters));
+      }
+
+      if (foreign !== null) {
+        return apiFetch<TransactionListResponse>("/transactions", {
+          bookId: foreign,
+          query: {
+            month: filters.month,
+            kind: filters.kind,
+            categoryId: filters.categoryId,
+            ...(filters.categoryIds===undefined?{}:{categoryScope:"branch"}),
+            currency: filters.currency,
+            cursor: pageParam,
+          },
+        });
       }
 
       return withLocalFallback({
@@ -1450,6 +1526,7 @@ export function useTransactions(given: TransactionFilters) {
 
 export function useTransaction(id: string) {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   /**
    * ⚠️ **The device's snapshot, so this screen cannot be held hostage by the query.**
    *
@@ -1461,13 +1538,16 @@ export function useTransaction(id: string) {
    */
   const local = useSyncExternalStore(subscribeLedger, ledgerSnapshotValue, ledgerSnapshotValue);
   const query = useQuery({
-    queryKey: guest ? guestQueryKeys.transaction(id) : queryKeys.transaction(id),
+    queryKey: guest ? guestQueryKeys.transaction(id) : foreign !== null ? foreignKey(foreign, "transaction", id) : queryKeys.transaction(id),
+    ...(foreign !== null ? { meta: VOLATILE } : {}),
     queryFn: async () => {
       if (guest) {
         const found = sortedTransactions(await loadGuestData()).find((entry) => entry.id === id);
         if (found === undefined) throw new Error(t("ledger.queries.notInGuest"));
         return found;
       }
+
+      if (foreign !== null) return apiFetch<Transaction>(`/transactions/${id}`, { bookId: foreign });
 
       return withLocalFallback({
         label: `transaction ${id.slice(0, 8)}`,
@@ -1489,7 +1569,7 @@ export function useTransaction(id: string) {
   });
 
   return useMemo(() => {
-    if (query.data !== undefined) return query;
+    if (query.data !== undefined || foreign !== null) return query;
 
     const found = local.find((entry) => entry.id === id);
 
@@ -1503,7 +1583,7 @@ export function useTransaction(id: string) {
     if (found === undefined) return query;
 
     return { ...query, data: found, isPending: false, isError: false, error: null, status: "success" as const };
-  }, [query, local, id]);
+  }, [query, local, id, foreign]);
 }
 
 /**
@@ -1523,6 +1603,7 @@ const STATS_COMPUTE_DELAY_MS = 1_000;
 
 export function useStats(query: StatsQuery) {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   /**
    * ⚠️ **The ledger store, not a second store of our own.**
    *
@@ -1560,7 +1641,8 @@ export function useStats(query: StatsQuery) {
   }, [guest]);
 
   const result = useQuery({
-    queryKey: guest ? guestQueryKeys.stats(query) : queryKeys.stats(query),
+    queryKey: guest ? guestQueryKeys.stats(query) : foreign !== null ? foreignKey(foreign, "stats", query) : queryKeys.stats(query),
+    ...(foreign !== null ? { meta: VOLATILE } : {}),
     queryFn: async () => {
       if (guest) {
         const data = await loadGuestData();
@@ -1572,6 +1654,20 @@ export function useStats(query: StatsQuery) {
           currency: query.currency,
           compareFrom: query.compareFrom,
           compareTo: query.compareTo,
+        });
+      }
+
+      if (foreign !== null) {
+        return apiFetch<StatsResponse>("/stats", {
+          bookId: foreign,
+          query: {
+            from: query.from,
+            to: query.to,
+            bucket: query.bucket,
+            currency: query.currency,
+            compareFrom: query.compareFrom,
+            compareTo: query.compareTo,
+          },
         });
       }
 
@@ -1613,7 +1709,8 @@ export function useStats(query: StatsQuery) {
    */
   return useMemo(() => {
     if (result.data !== undefined) return result;
-    if (all.length === 0) return result;
+    // 本机副本是当前账本的；外部账本不能拿它来算。
+    if (all.length === 0 || foreign !== null) return result;
 
     return {
       ...result,
@@ -1630,7 +1727,7 @@ export function useStats(query: StatsQuery) {
       error: null,
       status: "success" as const,
     };
-  }, [result, all, query.from, query.to, query.bucket, query.currency, query.compareFrom, query.compareTo]);
+  }, [result, all, foreign, query.from, query.to, query.bucket, query.currency, query.compareFrom, query.compareTo]);
 }
 
 /** Amounts offered as one-tap shortcuts. */
@@ -1649,11 +1746,13 @@ const QUICK_AMOUNT_WINDOW_DAYS = 30;
  */
 export function useQuickAmounts(): number[] {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   const query = useQuery({
-    queryKey: guest ? guestQueryKeys.quickAmounts() : ["quick-amounts"],
+    queryKey: guest ? guestQueryKeys.quickAmounts() : foreign !== null ? foreignKey(foreign, "quick-amounts") : ["quick-amounts"],
+    ...(foreign !== null ? { meta: VOLATILE } : {}),
     queryFn: async (): Promise<TransactionListResponse> => {
       if (guest) return { items: [...sortedTransactions(await loadGuestData())], nextCursor: null };
-      return apiFetch<TransactionListResponse>("/transactions", { query: { limit: 100 } });
+      return apiFetch<TransactionListResponse>("/transactions", { query: { limit: 100 }, ...(foreign !== null ? { bookId: foreign } : {}) });
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -1686,8 +1785,15 @@ export function useQuickAmounts(): number[] {
 /** Anything that changes money must refresh the list *and* the totals. */
 export function useMoneyInvalidator(bookId?: string): () => Promise<void> {
   const client = useQueryClient();
+  const foreign = useForeignBookId();
 
   return async () => {
+    /** S18：外部账本的写入只刷新那本账的查询，当前账本的列表与汇总不受影响。 */
+    if (foreign !== null && bookId === undefined) {
+      await client.invalidateQueries({ queryKey: [FOREIGN_KEY, foreign] });
+      return;
+    }
+
     /**
      * ⚠️ **S14-C: a guest write invalidates guest views only.** The account keys are untouched —
      * they belong to another identity, and invalidating them here would invite a refetch that could
@@ -1711,7 +1817,11 @@ export function useMoneyInvalidator(bookId?: string): () => Promise<void> {
      * ledger — the old `/categories` route, or settings for the ledger you are in — the refresh
      * happens exactly as before.
      */
-    if (bookId !== undefined && bookId !== currentBookIdHeader()) return;
+    if (bookId !== undefined && bookId !== currentBookIdHeader()) {
+      // S18：那本账正在某个工作区里被查看——刷新它的工作区查询。
+      await client.invalidateQueries({ queryKey: [FOREIGN_KEY, bookId] });
+      return;
+    }
 
     await Promise.all([
       client.invalidateQueries({ queryKey: ["transactions"] }),
@@ -1723,6 +1833,7 @@ export function useMoneyInvalidator(bookId?: string): () => Promise<void> {
 
 export function useCreateTransaction(): UseMutationResult<Transaction, Error, CreateTransactionInput> {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
@@ -1733,7 +1844,7 @@ export function useCreateTransaction(): UseMutationResult<Transaction, Error, Cr
         return entry;
       }
 
-      return apiFetch<Transaction>("/transactions", { method: "POST", body: input });
+      return apiFetch<Transaction>("/transactions", { method: "POST", body: input, ...(foreign !== null ? { bookId: foreign } : {}) });
     },
     onSuccess: () => void invalidate(),
   });
@@ -1743,6 +1854,7 @@ export function useUpdateTransaction(
   id: string,
 ): UseMutationResult<Transaction, Error, UpdateTransactionInput> {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
@@ -1754,7 +1866,7 @@ export function useUpdateTransaction(
         return entry;
       }
 
-      return apiFetch<Transaction>(`/transactions/${id}`, { method: "PATCH", body: input });
+      return apiFetch<Transaction>(`/transactions/${id}`, { method: "PATCH", body: input, ...(foreign !== null ? { bookId: foreign } : {}) });
     },
     onSuccess: () => void invalidate(),
   });
@@ -1762,6 +1874,7 @@ export function useUpdateTransaction(
 
 export function useDeleteTransaction(): UseMutationResult<unknown, Error, string> {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
@@ -1772,7 +1885,7 @@ export function useDeleteTransaction(): UseMutationResult<unknown, Error, string
         return { ok: true };
       }
 
-      return apiFetch<unknown>(`/transactions/${id}`, { method: "DELETE" });
+      return apiFetch<unknown>(`/transactions/${id}`, { method: "DELETE", ...(foreign !== null ? { bookId: foreign } : {}) });
     },
     onSuccess: () => void invalidate(),
   });
@@ -1846,6 +1959,7 @@ export function useTranscribe(): UseMutationResult<TranscribeResponse, Error, Bl
 /** Undo for a delete: restores the same row, not a copy of it. */
 export function useRestoreTransaction(): UseMutationResult<Transaction, Error, string> {
   const guest = useGuestMode();
+  const foreign = useForeignBookId();
   const invalidate = useMoneyInvalidator();
 
   return useMutation({
@@ -1857,7 +1971,7 @@ export function useRestoreTransaction(): UseMutationResult<Transaction, Error, s
         return entry;
       }
 
-      return apiFetch<Transaction>(`/transactions/${id}/restore`, { method: "POST" });
+      return apiFetch<Transaction>(`/transactions/${id}/restore`, { method: "POST", ...(foreign !== null ? { bookId: foreign } : {}) });
     },
     onSuccess: () => void invalidate(),
   });
@@ -1896,6 +2010,7 @@ function useLedgerInvalidator(bookId?: string): () => Promise<void> {
     }
 
     await client.invalidateQueries({ queryKey: [...queryKeys.ledgerMeta, bookId] });
+    await client.invalidateQueries({ queryKey: [FOREIGN_KEY, bookId] });
 
     if (bookId === currentBookIdHeader()) {
       await client.invalidateQueries({ queryKey: queryKeys.ledger });
@@ -1917,10 +2032,14 @@ const classificationUsageKey = (bookId?: string): readonly unknown[] => [
   bookId ?? "current",
 ];
 
-export function useClassificationUsage(bookId?: string) {
+export function useClassificationUsage(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const guest = useGuestMode();
 
   return useQuery({
+    /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
+    ...(given === undefined && bookId !== undefined ? { meta: VOLATILE } : {}),
     queryKey: guest ? guestQueryKeys.classificationUsage() : classificationUsageKey(bookId),
     queryFn: async () => {
       if (guest) {
@@ -1955,7 +2074,9 @@ function useClassificationUsageInvalidator(bookId?: string): () => Promise<void>
  * `useBookMembers` — `apiFetch`'s existing per-call header override carries it, so the global
  * "当前账本" is not touched. Omitting it keeps the original behaviour: the ledger the reader is in.
  */
-export function useCategoryMutations(bookId?: string) {
+export function useCategoryMutations(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const guest = useGuestMode();
   const invalidate = useLedgerInvalidator(bookId);
   const invalidateMoney = useMoneyInvalidator(bookId);
@@ -2041,7 +2162,9 @@ export function useCategoryMutations(bookId?: string) {
   return { create, update, archive, permanentDelete };
 }
 
-export function usePaymentMethodMutations(bookId?: string) {
+export function usePaymentMethodMutations(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const guest = useGuestMode();
   const invalidate = useLedgerInvalidator(bookId);
   const invalidateMoney = useMoneyInvalidator(bookId);
@@ -2122,7 +2245,9 @@ export function usePaymentMethodMutations(bookId?: string) {
   return { create, update, archive, permanentDelete };
 }
 
-export function useTagMutations(bookId?: string) {
+export function useTagMutations(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   const guest = useGuestMode();
   const invalidate = useLedgerInvalidator(bookId);
   const invalidateMoney = useMoneyInvalidator(bookId);
@@ -2293,7 +2418,9 @@ export async function fetchTemplate(bookId?: string): Promise<ExportedFile> {
  * The bare key stays for the current ledger, so existing invalidation (`["export-log"]`) still
  * matches both through prefix matching.
  */
-export function useExportLog(bookId?: string) {
+export function useExportLog(given?: string) {
+  /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
+  const bookId = useScopedBook(given);
   return useQuery({
     queryKey: bookId === undefined ? ["export-log"] : ["export-log", bookId],
     queryFn: () =>

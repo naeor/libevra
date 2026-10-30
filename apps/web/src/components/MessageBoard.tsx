@@ -691,7 +691,7 @@ export function MessageBoardFull({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-line bg-surface">
+      <div className="shrink-0 border-t border-line bg-surface" data-lv-bottom-bar="">
         <div className="mx-auto flex w-full max-w-md flex-col gap-2 px-4 py-3">
           {composer.error !== null ? (
             <p role="alert" className="rounded-field bg-danger-soft px-4 py-3 text-body text-danger">

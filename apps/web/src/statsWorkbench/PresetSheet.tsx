@@ -17,7 +17,7 @@ import { SyncControls } from "./SyncControls.js";
 import { WORKBENCH_INSTALLED } from "./configEvents.js";
 import { downloadWorkspaceFile, exportWorkspaceFile, presetEntry } from "./exchange.js";
 import { currentLocale, useI18n } from "../i18n/index.js";
-import { BrowseGrid, browseColumnsFor } from "./Grid.js";
+import { autoColumnsFor, BrowseGrid, displayFor, gridTrack } from "./Grid.js";
 import {
   buildSystemPreset,
   createPreset,
@@ -131,7 +131,7 @@ export function PresetSheet({
   };
 
   return (
-    <BottomSheet label={t("statsWorkbench.presets.title")} onClose={onClose} dialogClassName="sw-presets h-[92dvh] max-h-[92dvh] sm:h-[86dvh] sm:max-h-[86dvh] md:max-w-4xl">
+    <BottomSheet label={t("statsWorkbench.presets.title")} onClose={onClose} dialogClassName="sw-presets h-[calc(var(--lv-vh)*92)] max-h-[calc(var(--lv-vh)*92)] sm:h-[calc(var(--lv-vh)*86)] sm:max-h-[calc(var(--lv-vh)*86)] md:max-w-4xl">
       {(close) => (
         <div className="flex h-full min-h-0 flex-col">
           {view.kind === "list" ? (
@@ -522,7 +522,9 @@ function PresetPreview({
   const [pages, setPages] = useState<ReadonlyMap<string, number>>(new Map());
   const [useFilters, setUseFilters] = useState(false);
   if (documents === null) return <p className="px-5 py-6 text-body text-muted">{t("statsWorkbench.presets.problems.missing")}</p>;
-  const columns = browseColumnsFor(box.width, documents.layout.main.baseCols);
+  // 预览与工作台同一规则：按预览框的实际宽度自动选列数（不受本工作区的手动列数影响）。
+  const columns = autoColumnsFor(documents, box.width);
+  const track = gridTrack(box.width, columns);
   return (
     <div className="flex min-h-full flex-col">
       <div className="px-4 pb-2 sm:px-6">
@@ -532,8 +534,8 @@ function PresetPreview({
         {box.width === 0 ? null : (
           <BrowseGrid
             content={documents.content}
-            layout={documents.layout}
-            columns={columns}
+            display={displayFor(documents, columns)}
+            rowHeight={track.rowHeight}
             scope={scope}
             onOpenCard={() => undefined}
             onOpenCollapsed={() => undefined}

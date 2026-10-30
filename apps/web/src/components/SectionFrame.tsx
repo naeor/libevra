@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { DraggableLink, plainText } from "../workspace/openDrag.js";
 
 /**
  * **A functional block on a first-level page: a heading row, then one frame.**
@@ -93,10 +93,11 @@ export function FrameAction({
   const className = "text-brand transition hover:text-brand-dark";
 
   if (to !== undefined) {
+    // S18 第二轮：「查看全部」这类去往别处的入口，大屏上可以拖到另一个工作区打开。
     return (
-      <Link to={to} className={className}>
+      <DraggableLink to={to} title={plainText(children)} className={className}>
         {children}
-      </Link>
+      </DraggableLink>
     );
   }
 

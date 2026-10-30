@@ -2,7 +2,7 @@
   "name": "libevra",
   "version": "0.1.0",
   "private": true,
-  "description": "Libevra - the free, open ledger (formerly Libellum)",
+  "description": "Libevra - an independent, non-commercial personal finance project; not publicly released",
   "license": "AGPL-3.0-only",
   "type": "module",
   "packageManager": "pnpm@12.10.1",

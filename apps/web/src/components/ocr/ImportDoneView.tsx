@@ -78,9 +78,12 @@ export function ImportDoneView({
             sizes to its content, so a longer sentence would run off the screen instead
             of wrapping (the partial-import subtitle did exactly that).
           */}
-          <p className={`w-full text-body-relaxed ${SUBTITLE_TONES[status]}`}>
-            {t(`ocr.done.subtitle.${status}`)}
-          </p>
+          {/* 1.17.23：全部成功时标题与下面的批次行已经说清楚，不再加一句副标题。 */}
+          {status === "success" ? null : (
+            <p className={`w-full text-body-relaxed ${SUBTITLE_TONES[status]}`}>
+              {t(`ocr.done.subtitle.${status}`)}
+            </p>
+          )}
         </header>
 
         {/*
@@ -125,7 +128,7 @@ export function ImportDoneView({
         list scrolls, and it stays in the layout so nothing is covered. Safe-area padding
         lives on the opaque bar itself, matching the bottom bars elsewhere.
       */}
-      <div className="sticky bottom-0 border-t border-line bg-surface px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+      <div className="sticky bottom-0 border-t border-line bg-surface px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]" data-lv-bottom-bar="">
         {/*
           ⚠️ S16-A: side by side instead of stacked. Two full-width buttons on top of each other
           took ~120px of a phone's height for two choices; one row keeps both large (≥44px) and

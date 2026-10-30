@@ -25,6 +25,7 @@ export * from "./machine.js";
 export * from "./compaction.js";
 export * from "./repair.js";
 export * from "./profiles.js";
+export * from "./responsive.js";
 export * from "./containers.js";
 export * from "./document-io.js";
 export * from "./migration-chain.js";

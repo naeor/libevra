@@ -1,11 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Suspense, lazy, useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes } from "react-router";
 
 import { AuthProvider, useAuth } from "./auth/AuthProvider.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
-import { AppShell } from "./components/Layouts.js";
+import { AppShell, PaneShell } from "./components/Layouts.js";
 import { ConsentGate } from "./components/ConsentGate.js";
 import { OfflineFillProvider } from "./components/OfflineFillProvider.js";
 import { UndoProvider } from "./components/UndoProvider.js";
@@ -78,6 +78,9 @@ import { ThemeAppearancePage } from "./pages/ThemeAppearancePage.js";
 import { AppearancePage, PreferencesPage, SecurityPage } from "./pages/SettingsSubPages.js";
 import { useI18n, useLanguageRerender } from "./i18n/index.js";
 import { LanguagePage } from "./pages/LanguagePage.js";
+import { WorkspaceStartPage } from "./pages/WorkspaceStartPage.js";
+import { WorkspaceShell } from "./workspace/WorkspaceShell.js";
+import { CurrentLedgerOnly } from "./workspace/CurrentLedgerOnly.js";
 
 /**
  * The chart foundation's development harness.
@@ -195,7 +198,11 @@ function RequireAuthKeepingPath({ children }: { readonly children: React.ReactNo
   return <>{children}</>;
 }
 
-function AppRoutes(): React.JSX.Element {
+/**
+ * ⚠️ **全局只运行一次的副作用**（设备 id、同步触发器）。S18 起路由在每个工作区里各渲染一份，
+ * 这些副作用不能跟着路由翻倍，所以从 `AppRoutes` 里搬出来，单独挂在外壳之外。
+ */
+function AppRuntime(): null {
   const { status, user } = useAuth();
 
   /**
@@ -235,6 +242,12 @@ function AppRoutes(): React.JSX.Element {
     if (status !== "ready" || user === null) return;
     return startSyncTriggers();
   }, [status, user]);
+
+  return null;
+}
+
+function AppRoutes(): React.JSX.Element {
+  const { status } = useAuth();
 
   // Wait for the first /auth/me before deciding where to send the visitor,
   // otherwise a signed-in user would flash the login screen on every reload.
@@ -290,6 +303,15 @@ function AppRoutes(): React.JSX.Element {
           </RequireSession>
         }
       />
+      {/* S18：辅助工作区的起始页（只在大屏外壳里出现；直达时同样可用）。 */}
+      <Route
+        path="/workspace/start"
+        element={
+          <RequireSession>
+            <WorkspaceStartPage />
+          </RequireSession>
+        }
+      />
       <Route
         path="/transactions/:id"
         element={
@@ -299,27 +321,27 @@ function AppRoutes(): React.JSX.Element {
         }
       />
 
-      <Route path="/scan" element={<RequireAuth><ScanPage /></RequireAuth>} />
-        <Route path="/record" element={<RequireAuth><RecordPage /></RequireAuth>} />
-        <Route path="/paste" element={<RequireAuth><PastePage /></RequireAuth>} />
-        <Route path="/ledger/more" element={<RequireAuth><LedgerMorePage /></RequireAuth>} />
-        <Route path="/voice/review" element={<RequireAuth><VoiceReviewPage /></RequireAuth>} />
-        <Route path="/paste/review" element={<RequireAuth><VoiceReviewPage /></RequireAuth>} />
+      <Route path="/scan" element={<RequireAuth><CurrentLedgerOnly><ScanPage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/record" element={<RequireAuth><CurrentLedgerOnly><RecordPage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/paste" element={<RequireAuth><CurrentLedgerOnly><PastePage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/ledger/more" element={<RequireAuth><CurrentLedgerOnly><LedgerMorePage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/voice/review" element={<RequireAuth><CurrentLedgerOnly><VoiceReviewPage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/paste/review" element={<RequireAuth><CurrentLedgerOnly><VoiceReviewPage /></CurrentLedgerOnly></RequireAuth>} />
         {/* S15-B：批量识别结果的概览与单笔核对（数据只在浏览器临时层，确认前不写账）。 */}
-        <Route path="/ocr/overview" element={<RequireAuth><OcrOverviewPage /></RequireAuth>} />
-        <Route path="/ocr/overview/:candidateId" element={<RequireAuth><OcrReviewDetailPage /></RequireAuth>} />
-      <Route path="/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
-      <Route path="/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
-      <Route path="/import-ledger" element={<RequireAuth><LedgerImportPage /></RequireAuth>} />
+        <Route path="/ocr/overview" element={<RequireAuth><CurrentLedgerOnly><OcrOverviewPage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/ocr/overview/:candidateId" element={<RequireAuth><CurrentLedgerOnly><OcrReviewDetailPage /></CurrentLedgerOnly></RequireAuth>} />
+      <Route path="/export" element={<RequireAuth><CurrentLedgerOnly><ExportPage /></CurrentLedgerOnly></RequireAuth>} />
+      <Route path="/import" element={<RequireAuth><CurrentLedgerOnly><ImportPage /></CurrentLedgerOnly></RequireAuth>} />
+      <Route path="/import-ledger" element={<RequireAuth><CurrentLedgerOnly><LedgerImportPage /></CurrentLedgerOnly></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
       <Route path="/profile/avatar" element={<RequireAuth><AvatarPickerPage /></RequireAuth>} />
-      <Route path="/downloads" element={<RequireAuth><DownloadManagerPage /></RequireAuth>} />
-        <Route path="/downloads/more" element={<RequireAuth><DownloadMorePage /></RequireAuth>} />
+      <Route path="/downloads" element={<RequireAuth><CurrentLedgerOnly><DownloadManagerPage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/downloads/more" element={<RequireAuth><CurrentLedgerOnly><DownloadMorePage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/update" element={<RequireAuth><SoftwareUpdatePage /></RequireAuth>} />
         <Route path="/update/announcements" element={<RequireAuth><UpdateAnnouncementsPage /></RequireAuth>} />
         <Route path="/update/announcements/:version" element={<RequireAuth><UpdateAnnouncementDetailPage /></RequireAuth>} />
         <Route path="/update/runtime" element={<RequireAuth><UpdateRuntimePage /></RequireAuth>} />
-        <Route path="/downloads/:month" element={<RequireAuth><MonthDownloadPage /></RequireAuth>} />
+        <Route path="/downloads/:month" element={<RequireAuth><CurrentLedgerOnly><MonthDownloadPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
       {/**
         * ⚠️ **设置首页的三张分类子页（S13-E）。** 首页只列分类，每张卡片打开自己的短页面；
@@ -541,18 +563,24 @@ export default function App(): React.JSX.Element {
           */}
           <OfflineFillProvider>
             <UndoProvider>
-            <BrowserRouter>
+              <AppRuntime />
               {/*
-                Inside the router, because the recording menu folds itself when
-                the reader moves to another screen — which it can only notice
-                from the location.
+                ⚠️ **S18：路由不再由一个全局 `BrowserRouter` 承载。** `WorkspaceShell` 给每个工作区实例
+                一个自己的路由上下文（主区写地址栏，辅助区在内存里），两边渲染同一套 `AppRoutes`、共用同一份
+                查询缓存与登录状态。手机尺寸下只有主区，行为与以前的 `BrowserRouter` 相同。
+
+                记账菜单在每个工作区里各一份（`PaneShell`），因为它随所在工作区的路由折叠。
               */}
               <AppShell>
-                <ConsentGate>
-                  <AppRoutes />
-                </ConsentGate>
+                <WorkspaceShell
+                  renderRoutes={() => (
+                    <PaneShell>
+                      <AppRoutes />
+                    </PaneShell>
+                  )}
+                  wrapChrome={(children) => <ConsentGate>{children}</ConsentGate>}
+                />
               </AppShell>
-            </BrowserRouter>
             </UndoProvider>
           </OfflineFillProvider>
         </AuthProvider>

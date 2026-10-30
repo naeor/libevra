@@ -40,7 +40,7 @@ export function BatchActionBar({
   const disabled = selectedCount === 0 || blockedReason !== null || busy;
 
   return (
-    <div className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
+    <div className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]" data-lv-bottom-bar="">
       <div className="mx-auto w-full max-w-md px-6 pt-3">
         {summary === null ? null : (
           <div
@@ -87,7 +87,7 @@ export function BatchActionBar({
         </div>
 
         <p className="mt-1 pb-3 text-helper text-muted">
-          {blockedReason ?? (selectedCount === 0 ? t("ledger.batch.selectFirst") : t("ledger.batch.onlyTicked"))}
+          {blockedReason ?? (selectedCount === 0 ? t("ledger.batch.selectFirst") : null)}
         </p>
       </div>
     </div>

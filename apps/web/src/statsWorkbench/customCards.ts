@@ -100,7 +100,12 @@ export function buildCard(draft: CompositeDraft, base?: AnalysisCardNode, object
   return withWindow(withComposition(scoped, draft.template, draft.slots), window);
 }
 
-/** 「我的自定义」是已保存卡片实例的视图；删除实例即删除该项，不假装是独立模板库。 */
+/**
+ * 「我的自定义」是已保存卡片实例的视图；删除实例即删除该项，不假装是独立模板库。
+ *
+ * 1.17.23：系统默认工作台（新手布局）里的卡片对象 ID 以 `preset-` 开头，是系统给的，不算「我的自定义」
+ * （否则从没改过布局的新账号会在这里看到一整列系统卡片）。复制出来的卡片换了新 ID，照常算自定义。
+ */
 export function customCardsIn(cards: readonly AnalysisCardNode[]): readonly AnalysisCardNode[] {
-  return cards.filter(isCustomCard);
+  return cards.filter((card) => isCustomCard(card) && !card.objectId.startsWith("preset-"));
 }

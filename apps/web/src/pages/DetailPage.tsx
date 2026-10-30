@@ -79,6 +79,13 @@ import {
 } from "../lib/queries.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
+import { useFollowedPath, usePane } from "../workspace/context.js";
+import { useForeignBookId } from "../lib/workspaceLedger.js";
+
+/** S18：工作区查看外部账本时，设备的本机副本与待同步标记都属于另一本账，一律当作空。 */
+const NO_LOCAL_ENTRIES: readonly Transaction[] = [];
+const NO_MARKS: ReadonlySet<string> = new Set<string>();
+const NO_CONFLICTS: readonly ConflictRecord[] = [];
 
 /**
  * The ledger screen, in one of two shapes.
@@ -108,11 +115,19 @@ export function DetailPage(): React.JSX.Element {
    * browser, and the wave's first-run state would be wrong in both directions.
    */
   const presentationOwnerId = guestIdentity?.id ?? user?.id;
+  /**
+   * ⚠️ **S18：明细在哪个工作区里。** 月份、收支切换与滚动位置按工作区实例各存一份（主区与辅助区可以同时
+   * 打开明细而互不覆盖）；大屏工作区里主导航与记账入口在全局侧栏，这一页不再画底部导航。
+   */
+  const pane = usePane();
+  const wide = pane.shell === "wide";
+  /** 跟随模式下辅助区正在显示的那一笔：在列表里标出来。 */
+  const followedPath = useFollowedPath();
 
   // Read once, on the first render. The session outlives a tab switch but not
   // a reload, which is exactly what the owner asked for: leaving the ledger and
   // coming back finds it as it was, quitting the app starts fresh.
-  const saved = useRef(readSession()).current;
+  const saved = useRef(readSession(pane.instance)).current;
 
   const [month, setMonth] = useState(
     () => searchParams.get("month") ?? saved.month ?? currentMonth(),
@@ -124,7 +139,7 @@ export function DetailPage(): React.JSX.Element {
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
 
   const categoryId = searchParams.get("categoryId");
-  const { rootRef, scrollRef, stripRef, atList, goTo } = useDetailTransition(saved.progress);
+  const { rootRef, scrollRef, stripRef, atList, goTo } = useDetailTransition(saved.progress, pane.instance);
 
   /**
    * The entry menu is shared with every other screen.
@@ -146,8 +161,8 @@ export function DetailPage(): React.JSX.Element {
   }, [atList]);
 
   useEffect(() => {
-    writeSession({ month, kind });
-  }, [month, kind]);
+    writeSession({ month, kind }, pane.instance);
+  }, [month, kind, pane.instance]);
 
   // Put the reader back where they were, but only if they were reading the
   // list — somebody returning to the display state should see it from the top.
@@ -269,14 +284,21 @@ export function DetailPage(): React.JSX.Element {
    * It took three rounds to see that the "立刻" part had to bypass the query, because the query is
    * precisely the component that was failing.
    */
-  const localEntries = useLocalEntries(filters);
+  /**
+   * ⚠️ **S18 账本隔离**：这个工作区查看的是另一本账（不是设备当前账本）时，本机副本、待同步标记与冲突
+   * 都属于设备当前账本，不能混进这本账的列表；列表与汇总只来自那本账的在线读取。
+   */
+  const foreign = useForeignBookId();
+  const deviceEntries = useLocalEntries(filters);
+  const localEntries = foreign === null ? deviceEntries : NO_LOCAL_ENTRIES;
 
   /**
    * ⚠️ **The pending set comes from the same store mechanism as the ledger**, for the reason this
    * project spent four hours learning: a value that travels through a React state update can be dropped
    * on the device that needs it most.
    */
-  const pending = useSyncExternalStore(subscribePending, pendingEntriesValue, pendingEntriesValue);
+  const devicePending = useSyncExternalStore(subscribePending, pendingEntriesValue, pendingEntriesValue);
+  const pending = foreign === null ? devicePending : NO_MARKS;
 
   /**
    * ⚠️ **What was deleted on this device, and therefore must not appear — whatever the query still holds.**
@@ -286,7 +308,8 @@ export function DetailPage(): React.JSX.Element {
    * anything** — which is why the entry the owner deleted stayed on screen: the merge combined the device's
    * list with the query's, and the query still had it.
    */
-  const deleted = useSyncExternalStore(subscribeDeleted, deletedEntriesValue, deletedEntriesValue);
+  const deviceDeleted = useSyncExternalStore(subscribeDeleted, deletedEntriesValue, deletedEntriesValue);
+  const deleted = foreign === null ? deviceDeleted : NO_MARKS;
 
   /**
    * ⚠️ **Conflicts are a state of their own, and the green mark could not say so.**
@@ -296,7 +319,8 @@ export function DetailPage(): React.JSX.Element {
    * it is retrying a request the server keeps refusing. **There was nothing on screen to tell him a decision was
    * waiting, so there was nothing to tap.**
    */
-  const conflicts = useSyncExternalStore(subscribeConflicts, conflictsValue, conflictsValue);
+  const deviceConflicts = useSyncExternalStore(subscribeConflicts, conflictsValue, conflictsValue);
+  const conflicts = foreign === null ? deviceConflicts : NO_CONFLICTS;
 
   /** Entry ids waiting for a decision, so a row can say so instead of looking merely unsent. */
   const conflicted = useMemo(
@@ -360,6 +384,16 @@ export function DetailPage(): React.JSX.Element {
     setRefreshing(true);
     setTurnKey((count) => count + 1);
     setRefreshNote(null);
+
+    /** S18：外部账本没有本机队列可投递，也没有本机副本可重读——只重新向服务器读取这本账。 */
+    if (foreign !== null) {
+      try {
+        await Promise.all([list.refetch(), summary.refetch()]);
+      } finally {
+        setRefreshing(false);
+      }
+      return;
+    }
 
     /**
      * ⚠️ **The offline signal is read at the press, not afterwards.** The merged signal changes
@@ -480,7 +514,7 @@ export function DetailPage(): React.JSX.Element {
      * scroll position, and any import in flight — and it would bypass the conflict and idempotency
      * paths this button is supposed to exercise.
      */
-  }, [refreshing, month, allMonths, offline, guest, list.refetch, summary.refetch]);
+  }, [refreshing, month, allMonths, offline, guest, foreign, list.refetch, summary.refetch]);
 
   const entries = useMemo(() => {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
@@ -577,7 +611,7 @@ export function DetailPage(): React.JSX.Element {
   const [storedMonthCount, setStoredMonthCount] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!allMonths || !offline || guest) {
+    if (!allMonths || !offline || guest || foreign !== null) {
       setStoredMonthCount(null);
       return;
     }
@@ -592,7 +626,7 @@ export function DetailPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [allMonths, offline, guest]);
+  }, [allMonths, offline, guest, foreign]);
 
   /**
    * ⚠️ **Batch mode is a state of this screen, not another screen.**
@@ -878,7 +912,7 @@ export function DetailPage(): React.JSX.Element {
       <OfflineStatus />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col pb-24">
+        <div className={`mx-auto flex w-full flex-col ${wide ? "max-w-[60rem] pb-10" : "max-w-md pb-24"}`}>
           <div className="detail-scroll-travel" aria-hidden="true" />
           {/*
             The green area. Its height is the one place a layout size animates,
@@ -891,6 +925,13 @@ export function DetailPage(): React.JSX.Element {
           >
             <div className="flex h-9 items-center justify-between">
               <div className="flex min-w-0 items-center gap-2">
+                {/**
+                  * ⚠️ **S18：大屏上品牌在全局侧栏左上角，这里不再重复 Libevra**（所有者规格 §16.1），
+                  * 换成页面名「明细」；字号与位置不变，所以随滚动收起的动画照旧。
+                  */}
+                {wide ? (
+                  <h1 className="detail-title -ml-1 px-1 text-2xl font-semibold tracking-tight">{t("nav.tabs.entries")}</h1>
+                ) : (
                 <button
                   type="button"
                   onClick={() => {
@@ -902,6 +943,7 @@ export function DetailPage(): React.JSX.Element {
                 >
                   Libevra
                 </button>
+                )}
                 {/**
                   * ⚠️ **The guest badge leaves on the same clock as the wordmark** (S14-C UI fix,
                   * 1.14.05). It used to stay in the header row while the title faded and the month
@@ -935,7 +977,7 @@ export function DetailPage(): React.JSX.Element {
               <DetailTools
                 refreshing={refreshing}
                 turnKey={turnKey}
-                guest={guest}
+                guest={guest || foreign !== null}
                 selecting={selecting}
                 onRefresh={() => {
                   void refresh();
@@ -1170,7 +1212,7 @@ export function DetailPage(): React.JSX.Element {
                 sentence is a screen contradicting itself — one part saying "coming soon" while the
                 other says "this is not coming". When the wait is over, the wait indicator goes.
               */}
-              {entries.length === 0 && list.isPending && !hasLocalTransactions(filters) && !waitedTooLong ? (
+              {entries.length === 0 && list.isPending && !(foreign === null && hasLocalTransactions(filters)) && !waitedTooLong ? (
                 <SkeletonRows />
               ) : null}
 
@@ -1229,7 +1271,6 @@ export function DetailPage(): React.JSX.Element {
                     ? t(allMonths ? "ledger.detail.emptyExpenseAll" : "ledger.detail.emptyExpense")
                     : t(allMonths ? "ledger.detail.emptyIncomeAll" : "ledger.detail.emptyIncome")
                 }
-                description={t("ledger.detail.emptyHint")}
                 actionLabel={t("ledger.detail.emptyAction")}
                 onAction={() => void navigate("/add")}
               />
@@ -1252,6 +1293,8 @@ export function DetailPage(): React.JSX.Element {
                       pending={pending.has(entry.id)}
                       conflicted={conflicted.has(entry.id)}
                       deleted={deleted.has(entry.id)}
+                      current={followedPath === `/transactions/${entry.id}`}
+                      dragPath={`/transactions/${entry.id}`}
                       onActivate={() => {
                         /**
                          * ⚠️ **One decision, in one pure function** (`entryTapAction`), so batch mode
@@ -1360,6 +1403,8 @@ export function DetailPage(): React.JSX.Element {
             setConfirmBatchDelete(true);
           }}
         />
+      ) : pane.nav !== "bottom" ? (
+        <CurrentBookCaption name={ledger.data?.book.name} />
       ) : (
         <>
           <CurrentBookCaption name={ledger.data?.book.name} hidden={entryOpen} />

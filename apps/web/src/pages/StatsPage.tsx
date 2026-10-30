@@ -12,22 +12,30 @@
  * 分层（总需求规格 §4）：计算在 compute.ts（只调 A/B/既有实现）、展示在 cards.tsx、布局几何与命令全部
  * 交给 Agent D（session.ts 只做 D 尚未提供的组合操作的过渡适配）、保存在 storage.ts（本机、按账号）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { endOfMonth, rangeForPreset, startOfMonth, type DateRange } from "@libellum/shared";
 import {
+  columnOverrideFor,
+  commitLayoutEdit,
   compactVertically,
+  displayGeometry,
+  editingLayout,
   planSmartPlacement,
   placementCells,
   projectLayout,
-  projectionToGeometry,
+  reflowLayout,
+  sameCardStructure,
   type AnalysisCardNode,
   type ContainerNode,
+  type DisplayLayoutSource,
+  type EditOrigin,
   type GridSize,
   type LayoutDocumentV1,
 } from "@libellum/shared/analysis/layout";
 
 import { TabPage } from "../components/Layouts.js";
+import { usePane } from "../workspace/context.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { useI18n } from "../i18n/index.js";
 import { categoryPath } from "@libellum/shared";
@@ -43,7 +51,9 @@ import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWork
 import { FilterPanel, timeLabel, type FilterOption } from "../statsWorkbench/FilterPanel.js";
 import { StatBar, StatsSettingsSheet } from "../statsWorkbench/StatsControls.js";
 import { customRangeProblem, filterIds, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
-import { browseColumnsFor, BrowseGrid, EditGrid, gridMetricsFor, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
+import { autoColumnsFor, BrowseGrid, columnLimitFor, displayFor, EditGrid, gridMetricsFor, gridTrack, layoutLooksSparse, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
+import { effectiveColumns, useColumnPreference, type ColumnPreference } from "../statsWorkbench/columns.js";
+import { EditOrigins } from "../statsWorkbench/editOrigins.js";
 import { PresetSheet } from "../statsWorkbench/PresetSheet.js";
 import { reidentify } from "../statsWorkbench/presets.js";
 import { useScope, useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
@@ -68,11 +78,11 @@ import {
   type EditorState,
   type SessionResult,
 } from "../statsWorkbench/session.js";
-import { CollapsedContainerSheet, DiscardSheet, LayoutSheet, ObjectMenuSheet, SizeSheet, type MenuAction } from "../statsWorkbench/Sheets.js";
+import { CollapsedContainerSheet, DiscardSheet, LayoutSheet, ObjectMenuSheet, SizeSheet, type LayoutArrangement, type MenuAction } from "../statsWorkbench/Sheets.js";
 import { CardEditor } from "../statsWorkbench/CardEditor.js";
 import { cardSizing, readComposition, recommendSize, type GridMetrics } from "../statsWorkbench/composition.js";
 import { customCardsIn } from "../statsWorkbench/customCards.js";
-import { readStored, saveWorkbenchSafely, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
+import { documentsProblems, followSystemDefault, isSystemDefault, readStored, saveWorkbenchSafely, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
 import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
 import { useWorkspaceSync } from "../statsWorkbench/SyncBridge.js";
 import { FunnelIcon, GridGlyph, PencilIcon, RedoIcon, UndoIcon, useElementSize } from "../statsWorkbench/ui.js";
@@ -82,6 +92,30 @@ type ContainerEdit =
   | { readonly kind: "existing"; readonly containerId: string; readonly type: "carousel" | "grid-split"; readonly children: readonly AnalysisCardNode[] };
 
 const LIMITS = { carousel: { min: 2, max: 6 }, "grid-split": { min: 2, max: 4 } } as const;
+
+/** 编辑的起点：完整文档 + 编辑列数下看到的那一份几何 + 它的来源（专属 / 基础 / 自动排列）。 */
+type FrameOrigin = EditOrigin & { readonly documents: WorkbenchDocuments; readonly source: DisplayLayoutSource };
+
+/**
+ * 1.18.01：一次编辑会话**固定**的列数（重构提示 §11）。编辑的是看到的那一份几何；保存时由
+ * `commitLayoutEdit` 按编辑行为决定写到基础布局、这个列数的专属布局，还是整份成为新的基础布局。
+ * 编辑中拖动分界线、旋转设备只改变格子的像素大小，不改变编辑列数，所以不会把修改存到别的列数。
+ * `stored`：编辑开始时（或会话中途保存后）的已保存文档；套用模板 / 恢复默认的起点随编辑历史登记在
+ * `EditOrigins` 里（撤销 / 重做后仍对应正确的起点）。
+ */
+interface EditFrame {
+  readonly columns: number;
+  readonly stored: FrameOrigin;
+}
+
+function originAt(documents: WorkbenchDocuments, columns: number): FrameOrigin {
+  const shown = displayFor(documents, columns);
+  return { documents, start: displayGeometry(shown, documents.layout, documents.content), source: shown.source };
+}
+
+function workingDocuments(origin: FrameOrigin): WorkbenchDocuments {
+  return { content: origin.documents.content, layout: editingLayout(origin.documents.layout, origin.start) };
+}
 
 /** 从详情返回时恢复滚动位置与焦点（浏览状态，不写回布局）。 */
 let returnPoint: { readonly accountScope: string | null; readonly top: number; readonly cardId: string } | null = null;
@@ -93,6 +127,11 @@ interface Toast {
   readonly key: number;
 }
 
+/** 减少动态时直接跳到目标位置，而不是平滑滚动（审查 U09）。 */
+function scrollBehavior(): ScrollBehavior {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
 export function StatsPage(): React.JSX.Element {
   const [params] = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
@@ -102,8 +141,11 @@ export function StatsPage(): React.JSX.Element {
 }
 
 function AccountWorkbench(): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const pane = usePane();
+  /** S18：两个工作区各有一份分析页，面板 id 不能相同。 */
+  const filterPanelId = useId();
   const ledger = useLedger();
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
@@ -167,8 +209,26 @@ function AccountWorkbench(): React.JSX.Element {
 
   // ---- 编辑会话 ----
   const [session, setSession] = useState<EditorState | null>(null);
+  const [frame, setFrame] = useState<EditFrame | null>(null);
+  const [origins] = useState(() => new EditOrigins<FrameOrigin>());
+  /** 当前编辑结果的起点（见 `EditOrigins`）。 */
+  const originOf = (state: EditorState, editFrame: EditFrame): FrameOrigin => origins.originOf(state, editFrame.stored);
+  // 每个新的编辑状态出现时登记它的起点（此时它的前一个状态一定还在撤销历史里），超过 50 步也不丢。
+  useEffect(() => {
+    if (session !== null && frame !== null) origins.originOf(session, frame.stored);
+  }, [session, frame, origins]);
   const latestSession = useRef(session);
   latestSession.current = session;
+  /**
+   * 没有保存过工作台时显示的是系统默认（新手布局），卡片标题按生成时的界面语言写；切换语言后只重新生成默认文档
+   * （不重读存储，不影响保存时的版本检查）。编辑中不动，编辑会话里的标题等「完成」时再按当时的语言保存。
+   */
+  const shownLocale = useRef(locale);
+  useEffect(() => {
+    if (shownLocale.current === locale || session !== null) return;
+    shownLocale.current = locale;
+    setStored((current) => (current.version === 0 && !current.unreadable ? { ...current, documents: defaultWorkbench() } : current));
+  }, [locale, session]);
   const [saving, setSaving] = useState(false);
   const saveAlive = useRef(true);
   useEffect(() => { saveAlive.current = true; return () => { saveAlive.current = false; }; }, []);
@@ -190,7 +250,7 @@ function AccountWorkbench(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [collapsedOpen, setCollapsedOpen] = useState<string | null>(null);
-  const [drawerHeight, setDrawerHeight] = useState<DrawerHeight>("expanded");
+  const [drawerHeight, setDrawerHeight] = useState<DrawerHeight>("collapsed");
   const [containerEdit, setContainerEdit] = useState<ContainerEdit | null>(null);
   const [preview, setPreview] = useState<DropPreview | null>(null);
   const dragBaseline = useRef<EditorState | null>(null);
@@ -227,7 +287,8 @@ function AccountWorkbench(): React.JSX.Element {
     returnPoint = null;
     requestAnimationFrame(() => {
       if (scrollRef.current !== null) scrollRef.current.scrollTop = point.top;
-      document.getElementById(`sw-card-${point.cardId}`)?.focus({ preventScroll: true });
+      // S18：两个工作区可以同时打开分析，只在本页范围里找这张卡。
+      scrollRef.current?.querySelector<HTMLElement>(`[id="sw-card-${CSS.escape(point.cardId)}"]`)?.focus({ preventScroll: true });
     });
   }, [scope.accountScope]);
 
@@ -244,12 +305,37 @@ function AccountWorkbench(): React.JSX.Element {
     return true;
   };
 
-  // ---- 列数：浏览态按可用宽度投影（D），编辑态在权威主布局上操作 ----
+  // ---- 列数（1.18.01）：浏览态按网格的实际宽度自动选择（或本工作区记住的手动列数），编辑态固定 ----
+  /**
+   * ⚠️ **按网格容器的实际宽度（ResizeObserver），不按整个窗口。** 大屏上两个工作区各自只有一部分宽度，
+   * 各算各的；拖动分界线、旋转只改变显示，不写回任何布局。
+   */
   const width = gridBox.width;
-  /** 当前宽度最多能放几列（「调整行列」的上限）；浏览态再受布局保存时的列数限制。 */
-  const maxColumns = browseColumnsFor(width, 3);
-  const browseColumns = browseColumnsFor(width, documents.layout.main.baseCols);
-  const gridMetrics: GridMetrics | null = gridMetricsFor(width, browseColumns, typeof window === "undefined" ? 0 : window.innerWidth);
+  /** 这个宽度最多能选几列（编辑器滑条的上限）。 */
+  const columnLimit = columnLimitFor(width);
+  const [columnPreference, setColumnPreference] = useColumnPreference(pane.role);
+  /** 上一次自动选出的列数：分数接近时保持不变，避免宽度在阈值附近时来回跳。 */
+  const [previousAuto, setPreviousAuto] = useState<number | null>(null);
+  const autoColumns = useMemo(() => autoColumnsFor(stored.documents, width, previousAuto), [stored.documents, width, previousAuto]);
+  useEffect(() => {
+    if (width > 0 && autoColumns !== previousAuto) setPreviousAuto(autoColumns);
+  }, [autoColumns, previousAuto, width]);
+  const browseColumns = effectiveColumns(columnPreference, autoColumns, columnLimit);
+  const browseDisplay = useMemo(() => displayFor(stored.documents, browseColumns), [stored.documents, browseColumns]);
+  /** 正在显示的列数：编辑中是会话固定的列数。 */
+  const viewColumns = frame?.columns ?? browseColumns;
+  const track = gridTrack(width, viewColumns);
+  // 卡片内边距由 `sm:`（视口）决定，度量与 CSS 保持同一个依据。
+  const gridMetrics: GridMetrics | null = gridMetricsFor(width, viewColumns, typeof window === "undefined" ? 0 : window.innerWidth);
+  /** 编辑中这一份排列是什么（「调整行列」里显示，并决定是否提供「恢复此列数的自动排列」）。 */
+  const layoutArrangement = useMemo<LayoutArrangement | null>(() => {
+    if (session === null || frame === null) return null;
+    const origin = origins.originOf(session, frame.stored);
+    if (!sameCardStructure(origin.documents.content, session.content)) return { kind: "rebase", base: frame.columns };
+    const base = origin.documents.layout.main.baseCols;
+    if (frame.columns === base) return { kind: "canonical", base };
+    return { kind: columnOverrideFor(origin.documents.layout, session.content, frame.columns) === null ? "projection" : "override", base };
+  }, [session, frame, origins]);
 
   // ---- 拖放 ----
   const objectSize = (id: string): GridSize | null => {
@@ -279,7 +365,7 @@ function AccountWorkbench(): React.JSX.Element {
       dragBaseline.current = session;
       previewAnchor.current = null;
       setMenuFor(null);
-      setDrawerHeight("collapsed");
+      // 保持卡片库来源、滚动区与 Safari 当前触摸会话稳定。
     },
     onMove: (state) => {
       const target = anchorFor(state);
@@ -405,11 +491,23 @@ function AccountWorkbench(): React.JSX.Element {
   function applyPreset(next: WorkbenchDocuments, name: string, presetFilters: string | null): boolean {
     if (session === null) return false;
     setContainerEdit(null);
-    const ok = apply(replaceDocuments(session, reidentify(next)), t("statsWorkbench.presets.applied", { name }), true);
-    if (!ok) return false;
+    if (!replaceBase(reidentify(next), t("statsWorkbench.presets.applied", { name }))) return false;
     if (presetFilters !== null) setParams((previous) => writeFilters(previous, readFilters(new URLSearchParams(presetFilters))), { replace: true });
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0, behavior: scrollBehavior() }));
     return true;
+  }
+
+  /**
+   * 整份替换（套用模板 / 恢复默认，重构提示 §5.4）：编辑器显示这份文档在**当前编辑列数**下的样子
+   * （它自己的专属布局 → 它的基础布局 → 自动排列），保存时以它自己的基础布局与专属布局为起点。一步撤销。
+   */
+  function replaceBase(next: WorkbenchDocuments, message: string): boolean {
+    if (session === null || frame === null) return false;
+    const origin = originAt(next, frame.columns);
+    const working = workingDocuments(origin);
+    // 先登记：替换后的状态（以及从它推出的状态、撤销 / 重做回到它时）都以这份文档为起点。
+    origins.register(working.layout, origin);
+    return apply(replaceDocuments(session, working), message, true);
   }
 
   function saveEditedCard(card: AnalysisCardNode, size: GridSize): boolean {
@@ -448,35 +546,55 @@ function AccountWorkbench(): React.JSX.Element {
     setContainerEdit({ kind: "new", type: choice, anchor: place, size, children: [] });
     setDrawerHeight("expanded");
     requestAnimationFrame(() => {
-      document.querySelector("[data-pending-container]")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      scrollRef.current?.querySelector("[data-pending-container]")?.scrollIntoView({ block: "center", behavior: scrollBehavior() });
     });
   }
 
   function revealLater(objectId: string): void {
     requestAnimationFrame(() => {
-      document.querySelector(`[data-object-id="${objectId}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      scrollRef.current?.querySelector(`[data-object-id="${CSS.escape(objectId)}"]`)?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
     });
   }
 
   // ---- 进入 / 退出编辑 ----
-  function enterEdit(): void {
+  /**
+   * 进入编辑：编辑**当前看到的列数**下的那一份排列（这个列数的专属布局 / 基础布局 / 自动排列），不会突然
+   * 跳回基础列数的画面。进入编辑本身不写任何东西（不提前创建专属布局）。
+   */
+  function enterEdit(columns = browseColumns): void {
+    const docs = stored.documents;
     // 先取得编辑所有权，不能等 effect 才阻止已经在途的云端响应安装。
     if (workspaceSync) workspaceSync.editing = true;
     setFilterOpen(false);
-    const docs = stored.documents;
-    setStartDocs(docs);
-    setSession(startSession(docs));
-    setDrawerHeight("expanded");
+    const origin = originAt(docs, columns);
+    const working = workingDocuments(origin);
+    origins.register(working.layout, origin);
+    setFrame({ columns, stored: origin });
+    setStartDocs(working);
+    setSession(startSession(working));
+    setDrawerHeight("collapsed");
   }
 
   function leaveEdit(): void {
     endTemporaryMode();
     setSession(null);
+    setFrame(null);
     setStartDocs(null);
   }
 
+  /** 编辑结果要保存成的完整文档（基础布局 + 专属布局），见 `commitLayoutEdit`。 */
+  function committedDocuments(state: EditorState, editFrame: EditFrame): WorkbenchDocuments {
+    const edited = sessionDocuments(state);
+    return commitLayoutEdit({
+      columns: editFrame.columns,
+      origin: originOf(state, editFrame),
+      edited,
+      contracts: sizeContracts(edited.content, edited.layout),
+    }).documents;
+  }
+
   async function save(): Promise<void> {
-    if (session === null || saving) return;
+    if (session === null || frame === null || saving) return;
     if (!dirty) {
       leaveEdit();
       return;
@@ -485,9 +603,16 @@ function AccountWorkbench(): React.JSX.Element {
       say(t("statsWorkbench.edit.saveNoAccount"));
       return;
     }
-    const docs = sessionDocuments(session);
+    const docs = committedDocuments(session, frame);
+    if (documentsProblems(docs).length > 0) {
+      say(t("statsWorkbench.problems.invalid"));
+      return;
+    }
     setSaving(true);
-    const version = await saveWorkbenchSafely(scope.accountScope, docs, stored.version);
+    // 与当前系统默认完全一致（「恢复默认」后没再改）：不存副本，跟随系统默认（见 `followSystemDefault`）。
+    const version = isSystemDefault(docs)
+      ? followSystemDefault(scope.accountScope, stored.version)
+      : await saveWorkbenchSafely(scope.accountScope, docs, stored.version);
     if (!saveAlive.current) return;
     setSaving(false);
     if (version === null) {
@@ -497,7 +622,13 @@ function AccountWorkbench(): React.JSX.Element {
     setStored({ accountScope: scope.accountScope, documents: docs, version, unreadable: false });
     // 等待跨标签页锁时若继续编辑，只确认刚保存的快照，不丢弃随后产生的编辑。
     if (latestSession.current !== session) {
-      if (latestSession.current !== null) setStartDocs(docs);
+      if (latestSession.current !== null) {
+        // 刚保存的那一份成为新的起点：之后的修改（从这个状态推出的）都以它为准。
+        const saved: FrameOrigin = { documents: docs, start: session.layout.main, source: displayFor(docs, frame.columns).source };
+        origins.register(session.layout, saved);
+        setStartDocs(sessionDocuments(session));
+        setFrame((current) => (current === null ? null : { columns: current.columns, stored: saved }));
+      }
       say(t("statsWorkbench.edit.saved"));
       return;
     }
@@ -613,23 +744,32 @@ function AccountWorkbench(): React.JSX.Element {
     if (apply(result)) setContainerEdit(null);
   }
 
-  // ---- 「调整行列」：列数迁移、紧凑排列与恢复默认，全部交给 D 的投影 / 紧凑函数 ----
-  function changeColumns(columns: number): void {
-    if (session === null || columns === session.layout.main.baseCols) return;
-    const projection = projectLayout(session.layout.main, session.content, { targetColumns: columns, contracts: sizeContracts(session.content, session.layout) });
-    const geometry = projectionToGeometry(projection);
-    const presentations = new Map(session.layout.main.objects.map((object) => [object.objectId, object] as const));
-    const layout: LayoutDocumentV1 = {
-      ...session.layout,
-      main: {
-        baseCols: geometry.baseCols,
-        objects: geometry.objects.map((object) => {
-          const before = presentations.get(object.objectId);
-          return before?.presentation === "collapsed" ? { ...object, presentation: "collapsed" as const, ...(before.expandedSize === undefined ? {} : { expandedSize: before.expandedSize }) } : object;
-        }),
-      },
-    };
-    applyLayout(layout, t("statsWorkbench.layout.columnsChanged", { count: columns }));
+  // ---- 「调整行列」：列数（显示偏好）、恢复此列数的自动排列、紧凑排列与恢复默认 ----
+  /**
+   * 滑条 / 自动开关（1.18.01，只在编辑器里，所有者 2026-10-30）：改的是**本工作区的列数显示偏好**，
+   * 不改任何布局。编辑中换列数 = 换一份要编辑的排列，所以有未保存的修改时不允许切换（界面上滑条禁用并说明），
+   * 否则修改会被存到用户以为的列数之外。
+   */
+  function chooseColumns(preference: ColumnPreference): void {
+    if (session === null || frame === null || dirty) return;
+    setColumnPreference(preference);
+    const columns = effectiveColumns(preference, autoColumns, columnLimit);
+    if (columns === frame.columns) return;
+    endTemporaryMode();
+    enterEdit(columns);
+  }
+
+  /**
+   * 「恢复此列数的自动排列」（场景 K）：把编辑列数下的排列换回从基础布局自动排出的结果，一步撤销；
+   * 点「完成」后删除这个列数的专属布局（基础布局与其它列数的专属布局不动）。
+   */
+  function restoreAutomatic(): void {
+    if (session === null || frame === null) return;
+    const origin = originOf(session, frame);
+    if (!sameCardStructure(origin.documents.content, session.content)) return;
+    const automatic = reflowLayout(origin.documents.layout.main, session.content, { targetColumns: frame.columns, contracts: sizeContracts(session.content, session.layout) });
+    const geometry = displayGeometry({ columns: frame.columns, source: "projection", projection: automatic }, origin.documents.layout, session.content);
+    applyLayout(editingLayout(session.layout, geometry), t("statsWorkbench.layout.restoredAuto"), true);
   }
 
   function compact(): void {
@@ -644,7 +784,7 @@ function AccountWorkbench(): React.JSX.Element {
     applyLayout(layout, t("statsWorkbench.layout.compacted", { count: result.movedCount }));
   }
 
-  function applyLayout(layout: LayoutDocumentV1, message: string): void {
+  function applyLayout(layout: LayoutDocumentV1, message: string, undoable = false): void {
     if (session === null) return;
     const problems = placementSafe(layout);
     if (!problems) {
@@ -653,7 +793,7 @@ function AccountWorkbench(): React.JSX.Element {
     }
     const past = [...session.history.past, { content: session.content, layout: session.layout, selection: session.selection }].slice(-session.history.limit);
     setSession({ ...session, layout, history: { ...session.history, past, future: [] } });
-    say(message);
+    say(message, undoable);
   }
 
   function placementSafe(layout: LayoutDocumentV1): boolean {
@@ -661,11 +801,7 @@ function AccountWorkbench(): React.JSX.Element {
   }
 
   function resetToDefault(): void {
-    if (session === null) return;
-    const docs = defaultWorkbench();
-    const past = [...session.history.past, { content: session.content, layout: session.layout, selection: session.selection }].slice(-session.history.limit);
-    setSession({ content: docs.content, layout: docs.layout, selection: null, history: { ...session.history, past, future: [] } });
-    say(t("statsWorkbench.layout.resetDone"), true);
+    replaceBase(defaultWorkbench(), t("statsWorkbench.layout.resetDone"));
   }
 
   // ---- 浏览态动作 ----
@@ -778,6 +914,7 @@ function AccountWorkbench(): React.JSX.Element {
         currentBookName={ledger.data?.book.name}
         scrollRef={scrollRef}
         bottom={drawer}
+        wideWidth="full"
       >
         {editing ? (
           <header className="sw-edit-bar sticky top-0 z-20 flex items-center gap-1.5 border-b border-line bg-canvas px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3 min-[380px]:gap-2">
@@ -820,13 +957,13 @@ function AccountWorkbench(): React.JSX.Element {
                   className={`sw-head-button relative ${filterOpen ? "sw-head-button-on" : ""}`}
                   aria-label={t("statsWorkbench.header.filter")}
                   aria-expanded={filterOpen}
-                  aria-controls="sw-filter-panel"
+                  aria-controls={filterPanelId}
                   onClick={() => setFilterOpen((open) => !open)}
                 >
                   <FunnelIcon />
                   {draftPending ? <span className="sw-badge-dot" aria-hidden="true" /> : null}
                 </button>
-                <button type="button" className="sw-head-button" aria-label={t("statsWorkbench.header.edit")} onClick={enterEdit}>
+                <button type="button" className="sw-head-button" aria-label={t("statsWorkbench.header.edit")} onClick={() => enterEdit()}>
                   <PencilIcon />
                 </button>
               </div>
@@ -840,7 +977,7 @@ function AccountWorkbench(): React.JSX.Element {
               <div className="min-h-0 overflow-hidden">
                 {filterOpen ? (
                   <FilterPanel
-                    id="sw-filter-panel"
+                    id={filterPanelId}
                     draft={draft}
                     effective={filters}
                     today={scope.today}
@@ -897,6 +1034,7 @@ function AccountWorkbench(): React.JSX.Element {
             <EditGrid
               content={session.content}
               layout={session.layout}
+              rowHeight={track.rowHeight}
               selection={menuFor ?? moveFor}
               dimmed={containerEdit === null ? null : containerEdit.kind === "existing" ? containerEdit.containerId : "all"}
               draggingId={moveFor ?? (drag.drag?.payload.kind === "object" ? drag.drag.payload.objectId : null)}
@@ -917,9 +1055,9 @@ function AccountWorkbench(): React.JSX.Element {
             />
           ) : (
             <BrowseGrid
-              content={documents.content}
-              layout={documents.layout}
-              columns={browseColumns}
+              content={stored.documents.content}
+              display={browseDisplay}
+              rowHeight={track.rowHeight}
               scope={scope}
               onOpenCard={openCard}
               onOpenCollapsed={setCollapsedOpen}
@@ -991,11 +1129,16 @@ function AccountWorkbench(): React.JSX.Element {
           />
         )}
 
-        {layoutOpen && session !== null ? (
+        {layoutOpen && session !== null && frame !== null ? (
           <LayoutSheet
-            columns={session.layout.main.baseCols}
-            maxColumns={maxColumns}
-            onColumns={changeColumns}
+            columns={frame.columns}
+            maxColumns={columnLimit}
+            automatic={columnPreference === "auto"}
+            locked={dirty}
+            sparse={layoutLooksSparse(session.layout.main, track)}
+            arrangement={layoutArrangement}
+            onColumns={chooseColumns}
+            onRestoreAutomatic={layoutArrangement?.kind === "override" ? restoreAutomatic : null}
             onCompact={compact}
             onReset={resetToDefault}
             onClose={() => setLayoutOpen(false)}
@@ -1006,7 +1149,7 @@ function AccountWorkbench(): React.JSX.Element {
         {presetsOpen && session !== null ? (
           <PresetSheet
             accountScope={scope.accountScope}
-            current={sessionDocuments(session)}
+            current={frame === null ? sessionDocuments(session) : committedDocuments(session, frame)}
             filters={writeFilters(new URLSearchParams(), filters).toString()}
             scope={scope}
             onApply={applyPreset}

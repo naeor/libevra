@@ -24,6 +24,7 @@ import { useGuestIdentity } from "../lib/guest/session.js";
 import { ledgerSnapshotValue, readLocalTransactions, subscribeLedger } from "../lib/offline/localLedger.js";
 import { refreshPending } from "../lib/offline/write.js";
 import { useLedger } from "../lib/queries.js";
+import { useForeignBookId } from "../lib/workspaceLedger.js";
 import { currenciesUsed, liveEntries } from "./compute.js";
 import {
   bucketFor,
@@ -112,10 +113,16 @@ export function useWorkbenchScope(requestedFilters: WorkbenchFilters): Workbench
   const combined = fxAvailable && filters.combined;
   const defaultCurrency: Currency = user?.defaultCurrency ?? "CNY";
   const currency: Currency = combined ? defaultCurrency : (filters.currency ?? defaultCurrency);
-  const source = useAnalysisRange(range, user !== null && !combined);
+  /**
+   * S18：工作区查看外部账本时，设备的本机副本（`all`）属于另一本账，综合折算模式下也必须改用那本账的
+   * 在线范围读取。
+   */
+  const foreign = useForeignBookId();
+  const ranged = user !== null && (!combined || foreign !== null);
+  const source = useAnalysisRange(range, ranged);
   const unfilteredEntries = useMemo(
-    () => liveEntries(user !== null && !combined ? source.data?.entries ?? [] : all),
-    [all, source.data?.entries, user, combined],
+    () => liveEntries(ranged ? source.data?.entries ?? [] : all),
+    [all, source.data?.entries, ranged],
   );
   /**
    * ⚠️ **W5 维度筛选必须发生在所有读取/折算入口之前**：卡片、趋势、热力、上期比较都只看 `entries`；
@@ -147,13 +154,13 @@ export function useWorkbenchScope(requestedFilters: WorkbenchFilters): Workbench
     defaultCurrency,
     entries,
     ledgerCurrencies,
-    loaded: (requestedFilters.categoryBranchIds===undefined||ledgerMeta.data!==undefined) && (user !== null && !combined ? source.data !== undefined || source.error : readOnce || all.length > 0),
+    loaded: (requestedFilters.categoryBranchIds===undefined||ledgerMeta.data!==undefined) && (ranged ? source.data !== undefined || source.error : readOnce || all.length > 0),
     fx: combined ? fx : null,
     coverageGap: null,
-    repairing: user !== null && !combined && source.loading,
+    repairing: ranged && source.loading,
     accountScope,
     readRanges: user !== null,
-    ...(user !== null && !combined ? {
+    ...(ranged ? {
       rangeSourceComplete: source.data?.sourceComplete === true,
       rangeReadState: source.permissionDenied ? "no-permission" as const : source.error ? "request-failed" as const : source.loading ? "loading" as const : source.data?.sourceComplete === true ? "complete" as const : "offline-incomplete" as const,
     } : {}),

@@ -250,7 +250,7 @@ export function RecordPage(): React.JSX.Element {
       <button
         type="button"
         onClick={() => void navigate("/add")}
-        className="text-helper text-muted underline"
+        className="touch-target self-center text-helper text-muted underline"
       >
         {t("capture.record.manualFallback")}
       </button>

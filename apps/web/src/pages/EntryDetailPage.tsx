@@ -22,6 +22,7 @@ import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionS
 import { BatchAddSheet } from "../components/entry/BatchAddSheet.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ErrorState, SkeletonRows } from "../components/States.js";
+import { StickyActionBar } from "../components/StickyActionBar.js";
 import { useUndo } from "../components/UndoProvider.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
@@ -30,7 +31,7 @@ import { useGoBack } from "../lib/connectivity.js";
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
-import { deleteEntry, updateEntry } from "../lib/offline/write.js";
+import { useLedgerWriter } from "../lib/ledgerWriter.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
   formatDateTimeInZone,
@@ -51,6 +52,7 @@ import {
   useTransaction,
   useUpdateTransaction,
 } from "../lib/queries.js";
+import { usePaneDirty } from "../workspace/context.js";
 
 /**
  * 日历日（`YYYY-MM-DD`）给人看：中文界面保留原来的 `2026-10-21` 写法（与国际化之前一致），
@@ -84,8 +86,19 @@ export function EntryDetailPage(): React.JSX.Element {
   const remove = useDeleteTransaction();
   const restore = useRestoreTransaction();
   const { readOnly: sharedOfflineReadOnly } = useSharedLedgerOfflineReadOnly();
+  /**
+   * ⚠️ **S18 写入安全**：修改与删除写到**这个工作区查看的那本账**——设备当前账本走原来的离线队列，
+   * 外部账本在线直接写到那本账（带账本 id），绝不会落进另一本账。
+   */
+  const writer = useLedgerWriter();
+  const foreignLedger = writer.foreign !== null;
 
   const [editing, setEditing] = useState(false);
+  /**
+   * ⚠️ **S18：编辑中就是一份未保存的修改。** 辅助工作区里开始编辑会自动切到独立模式；即使之后手动切回跟随，
+   * 主区的下一次点击也不会替换掉这一页（详情改在主区打开），草稿不会因为跟随而丢失。
+   */
+  usePaneDirty(editing);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchSavedCount, setBatchSavedCount] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -169,7 +182,7 @@ export function EntryDetailPage(): React.JSX.Element {
 
   if (data.deletedAt !== null && data.deletedAt !== undefined) {
     return (
-      <InnerPage title={t("entry.detail.title")} subtitle={t("entry.detail.deletedSubtitle")} backTo="/ledger/history">
+      <InnerPage title={t("entry.detail.title")} backTo="/ledger/history">
         <section className="rounded-card border border-line bg-surface px-5 py-5">
           <p className="text-helper text-muted">{t("entry.detail.deletedLine", { kind: t(`common.kind.${data.kind}`) })}</p>
           <p className="mt-1 text-3xl font-semibold text-ink">
@@ -264,7 +277,7 @@ export function EntryDetailPage(): React.JSX.Element {
        * as its base.** Sending only what changed is what makes the local entry identical to the server's once
        * the queue drains, instead of a second shape that has to be reconciled.
        */
-      const outcome = await updateEntry(
+      const outcome = await writer.update(
         id,
         {
           version: data.version,
@@ -315,6 +328,8 @@ export function EntryDetailPage(): React.JSX.Element {
             tagIds,
           };
         },
+        // 外部账本据此算出「从哪个值改成哪个值」（服务器按它写入金额、分类等字段）。
+        data,
       );
 
       /**
@@ -367,7 +382,7 @@ export function EntryDetailPage(): React.JSX.Element {
        * restores from the server, so it needs a connection; **its button is honest about that rather than
        * pretending to work.**
        */
-      await deleteEntry(id);
+      await writer.remove(id);
       await navigate("/");
       showUndo({
         message: t("entry.detail.deletedUndo"),
@@ -612,7 +627,11 @@ export function EntryDetailPage(): React.JSX.Element {
             </section>
           ) : null}
 
+          {/* 1.17.23：保存修改固定在底部，手机上不用先滚到底。 */}
+          <StickyActionBar>
           <div className="flex gap-2">
+            {/* S18：批量添加写进设备的离线队列（当前账本），外部账本里不提供。 */}
+            {foreignLedger ? null : (
             <button
               type="button"
               disabled={sharedOfflineReadOnly || update.isPending}
@@ -623,6 +642,7 @@ export function EntryDetailPage(): React.JSX.Element {
             >
               {t("entry.detail.batchAdd")}
             </button>
+            )}
             <button
               type="button"
               disabled={sharedOfflineReadOnly || update.isPending}
@@ -632,6 +652,7 @@ export function EntryDetailPage(): React.JSX.Element {
               {update.isPending ? t("common.action.saving") : t("entry.detail.saveChanges")}
             </button>
           </div>
+          </StickyActionBar>
         </>
       ) : (
         <>
@@ -717,6 +738,7 @@ export function EntryDetailPage(): React.JSX.Element {
            * 放在“复制这一笔”之后、删除之前：它不是主操作，但比删除更常被需要；
            * 点一下只对**这一笔**检查，不会开始一次全账本扫描。
            */}
+          {foreignLedger ? null : (
           <details className="rounded-field border border-line bg-surface">
             <summary className="cursor-pointer px-4 py-3 text-body font-medium">{t("common.action.more")}</summary>
             <div className="flex flex-col gap-3 border-t border-line px-4 py-3">
@@ -788,6 +810,7 @@ export function EntryDetailPage(): React.JSX.Element {
               )}
             </div>
           </details>
+          )}
 
           <button
             type="button"
@@ -820,7 +843,7 @@ export function EntryDetailPage(): React.JSX.Element {
         description={t("entry.detail.deleteDescription", {
           amount: formatMoney(data.amountCents, data.currency, { withCode: true }),
         })}
-        consequences={[t("entry.detail.deleteRestore"), t("entry.detail.deleteRecalc"), t("entry.detail.deleteUndo")]}
+        consequences={[t("entry.detail.deleteRestore"), t("entry.detail.deleteUndo")]}
         confirmLabel={t("entry.detail.confirmDelete")}
         onCancel={() => {
           setConfirmDelete(false);

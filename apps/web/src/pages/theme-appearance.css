@@ -7,7 +7,7 @@
 }
 @supports (height: 100dvh) {
   .appearance-preview {
-    --preview-height: clamp(6rem, calc(100dvh - 21rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)), 18rem);
+    --preview-height: clamp(6rem, calc(var(--lv-vh, 1dvh) * 100 - 21rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)), 18rem);
   }
 }
 

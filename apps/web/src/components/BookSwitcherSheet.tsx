@@ -159,7 +159,7 @@ export function BookSwitcherSheet({
          * The list gets its own scroll area (`min-h-0 flex-1 overflow-y-auto`) so growth never
          * pushes the title or the safe-area padding off screen.
          */
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[clamp(18rem,52dvh,34rem)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[clamp(18rem,calc(var(--lv-vh)*52),34rem)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
           dragY === 0 ? "sheet-in" : ""
         }`}
       >

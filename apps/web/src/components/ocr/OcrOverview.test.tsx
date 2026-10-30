@@ -193,7 +193,7 @@ describe("OcrOverview summary", () => {
     expect(summaryNumber(html, "已标记无效")).toBe(String(counts.invalid));
     expect(html).toContain("你已核对过");
     expect(summaryNumber(html, "你已核对过")).toBe(String(counts.reviewed));
-    expect(html).toContain("不代表已入账");
+    expect(html).toContain("与自动检查的「已确认」不同");
   });
 
   it("does not inflate 可导入 when a candidate still has an import blocker", () => {
@@ -264,7 +264,8 @@ describe("OcrOverview filters", () => {
     });
 
     expect(html).toContain("当前筛选下没有交易。");
-    expect(html).toContain("当前筛选：疑似重复 · 来源 支付宝。");
+    // 1.17.23：不再重复列出筛选条件（上方的筛选标签与「已筛选：」一行已经显示）。
+    expect(html).not.toContain("当前筛选：");
     expect(html).toContain("显示全部交易");
   });
 
@@ -291,8 +292,24 @@ describe("OcrOverview cards", () => {
     expect(html).toContain("账户：零钱");
     expect(html).toContain("已识别");
     expect(html).not.toContain("⚠");
-    expect(html.split("20.00").length - 1).toBe(1);
+    // 看得见的文字里金额只出现一次（按钮的读屏名称里另有一次，用来区分各张卡片）。
+    const visible = html.replace(/aria-label="[^"]*"/g, "");
+    expect(visible.split("20.00").length - 1).toBe(1);
     expect(html.split("查看详情").length - 1).toBe(1);
+  });
+
+  it("整张卡片是进入详情的点击区：唯一的按钮铺满卡片，读屏名称带上金额与商户", () => {
+    const html = render({ items: [CLEAN], counts: countBatchItems([CLEAN]) });
+    const article = /<article class="([^"]*)"/.exec(html)?.[1] ?? "";
+    expect(article.split(" ")).toContain("relative");
+    const buttons = html.match(/<button[^>]*data-card-open[^>]*>/g) ?? [];
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toContain("after:absolute");
+    expect(buttons[0]).toContain("after:inset-0");
+    expect(buttons[0]).toMatch(/aria-label="查看详情：[^"]*20\.00[^"]*老王便利店"/);
+    // 卡片里没有别的可交互控件会被这层点击区盖住。
+    const inside = /<article[\s\S]*?<\/article>/.exec(html)?.[0] ?? "";
+    expect(inside.match(/<(button|input|select|a)\b/g)).toEqual(["<button"]);
   });
 
   it("labels an order platform as its Chinese source, not a raw enum", () => {
@@ -373,7 +390,9 @@ describe("OcrOverview cards", () => {
     const html = render({ items: [INVALID], counts: countBatchItems([INVALID]) });
 
     expect(html).toContain("已排除的店");
-    expect(html).toContain("已标记无效，确认导入时不会计入。");
+    // 1.17.23：状态标签「无效」与整张卡片变淡已经说明，不再另写一行。
+    expect(html).toContain("opacity-70");
+    expect(html).not.toContain("已标记无效，确认导入时不会计入。");
   });
 
   it("marks the reviewed record without calling it imported", () => {

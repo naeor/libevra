@@ -218,8 +218,9 @@ describe("AddEntryPage 移动端布局（S15-C）", () => {
 
   it("支付方式、备注与标签默认收在「更多选项」里，入口明确", () => {
     const html = renderPage();
+    // S18：展开区域的 id 由 useId 生成（两个工作区可同时打开记账页），按按钮里的文字找入口。
     const toggle =
-      /<button[^>]*aria-controls="entry-more-options"[^>]*>/.exec(html)?.[0] ?? "";
+      /<button[^>]*aria-controls="[^"]+"[^>]*>(?=<span[^>]*>更多选项)/.exec(html)?.[0] ?? "";
 
     expect(html).toContain("更多选项");
     expect(toggle).toContain('aria-expanded="false"');
@@ -281,14 +282,15 @@ describe("AddEntryPage 第二轮（S15-C 第二轮）", () => {
   it("快捷金额默认收起，金额下方只有一行两个入口", () => {
     const html = renderPage();
     const quickToggle =
-      /<button[^>]*aria-controls="entry-quick-amounts"[^>]*>/.exec(html)?.[0] ?? "";
+      /<button[^>]*aria-controls="[^"]+"[^>]*>(?=快捷金额)/.exec(html)?.[0] ?? "";
+    const quickId = /aria-controls="([^"]+)"/.exec(quickToggle)?.[1] ?? "missing";
     const amountCard = html.indexOf('data-entry-amount="card"');
 
     expect(quickToggle).toContain('aria-expanded="false"');
     expect(html).toContain("快捷金额");
     expect(html).toContain("沿用上一笔");
     // 收起 = 五个金额按钮不在 DOM 里；展开后的结构由 EntryQuickActions 的用例覆盖。
-    expect(html).not.toContain('id="entry-quick-amounts"');
+    expect(html).not.toContain(`id="${quickId}"`);
     // 这一行在金额卡之后、分类之前。
     expect(amountCard).toBeGreaterThan(-1);
     expect(html.indexOf("沿用上一笔")).toBeGreaterThan(amountCard);
@@ -432,8 +434,10 @@ describe("AddEntryPage 第四轮（S15-C 第四轮）", () => {
     expect(bottomNavSource).not.toContain("z-30");
     expect(bottomNavSource).not.toContain("z-40");
 
-    // 公共层没被改：TabPage 仍保留 pb-24，页面用既有 className 覆盖；没有保存条的定位补丁。
-    expect(layoutsSource).toContain("mx-auto flex w-full max-w-md flex-col pb-24");
+    // 公共层没被改：手机外壳下 TabPage 仍是 max-w-md + pb-24（S18 起大屏工作区里没有底部导航，才换成 pb-10），
+    // 页面用既有 className 覆盖；没有保存条的定位补丁。
+    expect(layoutsSource).toContain('pane.shell === "wide" ? WIDE_MAX[wide] : "max-w-md"');
+    expect(layoutsSource).toContain('bottomNav ? "pb-24" : "pb-10"');
     expect(layoutsSource).not.toContain("data-entry-actions");
     expect(layoutsSource).not.toContain("bottom-5");
     expect(pageSource).toContain('className="min-h-full pb-0!"');
@@ -602,7 +606,8 @@ describe("CurrencySheet", () => {
     expect(html).toContain('role="listbox"');
     expect(html).toContain("fixed inset-0 z-40");
     expect(html).toContain("fixed inset-x-0 bottom-0 z-50");
-    expect(html).toContain("max-h-[calc(100dvh-24px)]");
+    // S18：高度单位是 --lv-vh（手机上等于 dvh，大屏工作区里是工作区自己的高度）。
+    expect(html).toContain("max-h-[calc(var(--lv-vh)*100_-_24px)]");
     expect(html).toContain("overflow-y-auto");
     expect(html).toContain("pb-[env(safe-area-inset-bottom,0px)]");
   });
@@ -953,14 +958,15 @@ describe("EntryQuickActions", () => {
     expect(closed).toContain("沿用上一笔");
     expect(closed).toContain("快捷金额");
     expect(closed).toContain('aria-expanded="false"');
-    expect(closed).not.toContain('id="entry-quick-amounts"');
+    expect(closed).not.toContain('class="flex flex-wrap gap-2"');
     expect(closed).not.toContain("10.00");
     expect((closed.match(/<button/g) ?? []).length).toBe(2);
   });
 
   it("展开后是原来那五个金额，再点收起即消失", () => {
     const open = renderBar(true);
-    const amountsArea = /<div id="entry-quick-amounts"[\s\S]*?<\/div>/.exec(open)?.[0] ?? "";
+    const controls = /aria-controls="([^"]+)"/.exec(open)?.[1] ?? "missing";
+    const amountsArea = new RegExp(`<div id="${controls}"[\\s\\S]*?<\\/div>`).exec(open)?.[0] ?? "";
 
     expect(open).toContain('aria-expanded="true"');
     expect((amountsArea.match(/<button/g) ?? []).length).toBe(amounts.length);
@@ -970,7 +976,7 @@ describe("EntryQuickActions", () => {
     }
 
     // 收起就是同一个 `open` 的另一个值——没有内部状态，所以再点一定回到收起。
-    expect(renderBar(false)).not.toContain('id="entry-quick-amounts"');
+    expect(renderBar(false)).not.toContain("10.00");
   });
 
   it("提示只在传进来时出现", () => {
@@ -1098,7 +1104,8 @@ describe("EntryMoreOptions", () => {
     const open = renderPanel(true);
 
     expect(open).toContain('aria-expanded="true"');
-    expect(open).toContain('id="entry-more-options"');
+    const controls = /aria-controls="([^"]+)"/.exec(open)?.[1] ?? "missing";
+    expect(open).toContain(`id="${controls}"`);
     expect(open).toContain(">支付方式<");
     // 归档过滤由页面负责；传进来几个就渲染几个，选中态仍是原来的绿底。
     expect(open).toContain("微信");
@@ -1272,7 +1279,7 @@ describe("manualDuplicateDescription", () => {
     expect(manualDuplicateChoices().map((choice) => choice.label)).toEqual([
       "仍然保存",
       "确认不是同一笔",
-      "取消，我再看看",
+      "取消",
     ]);
   });
 });
@@ -1317,7 +1324,7 @@ describe("AddEntryPage in English", () => {
     expect(manualDuplicateChoices().map((choice) => choice.label)).toEqual([
       "Save anyway",
       "Not a duplicate",
-      "Cancel, let me check",
+      "Cancel",
     ]);
     expect(
       manualDuplicateDescription({ existing: existingEntries(3), pairs: [], scope: "local" }),

@@ -10,10 +10,10 @@
 
 | 项 | 值 |
 |---|---|
-| 项目 | **Libevra**（原名 Libellum，2026-10-14 更名）—— **离线优先**的个人/家庭记账程序 |
+| 项目 | **Libevra**（原名 Libellum，2026-10-14 更名）—— naeor 个人主导、AI 工具辅助的非商业记账项目，离线优先，尚未正式向公众发布 |
 | 技术栈 | React 19 + Vite 8 + Tailwind 4（web）；Fastify 5 + Prisma 7 + PostgreSQL 17（api）；OCR/语音是 Python sidecar |
-| 线上 | <https://libevra.com>（**生产源码靠 `git archive` 上传，不是 git clone**） |
-| 工作区 | 主工作区 `C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1`；**日常开发默认就在这里**（见 §4.2）。worktree 只在所有者明确要求或任务必须隔离时使用；当前分支见 STATUS「分支 / 远程」 |
+| 私人部署 | <https://libevra.com>（仅个人使用与内部测试，不代表公众服务；**生产源码靠 `git archive` 上传，不是 git clone**） |
+| 工作区 | 主工作区 `C:\Users\<本机用户>\Desktop\工作\记账程序\记账程序v1`；**日常开发默认就在这里**（见 §4.2）。worktree 只在所有者明确要求或任务必须隔离时使用；当前分支见 STATUS「分支 / 远程」 |
 | 语言 | 所有回复、文档、提交信息用**中文** |
 | 当前状态 | **不要在这里找——读 [`docs/STATUS.md`](docs/STATUS.md)** |
 
@@ -47,14 +47,14 @@
 | OCR 多笔／概览页面 | [`specs/features/S15-B-OCR多笔交易与概览页面-设计方向.md`](docs/specs/features/S15-B-OCR多笔交易与概览页面-设计方向.md) |
 | 分析工作台（S17） | [`S17 总需求规格`](docs/specs/product/S17-模块化财务分析工作台-总需求规格.md)（ACC-01…15、六层架构）；汇率折算另读 [`S16-D`](docs/specs/features/S16-D-历史汇率与折算基础设施.md) 与[综合折算支持清单](docs/specs/product/s17-agents/S17-分析卡片综合折算支持清单-20261027.md)；筛选另读[筛选与过滤权威语义清单](docs/specs/product/S17-筛选与过滤权威语义清单-20261028.md) |
 | 自定义卡片指标／图表家族／组合卡片 | [`S17-自定义卡片指标与展示能力`](docs/specs/features/S17-自定义卡片指标与展示能力-20261028.md)（83 项可选指标、组合模板 T1–T8、P21 未开放原因）；编号定义见[分析能力目录](docs/specs/features/S17-分析能力目录.md) |
-| 工作台布局／预设／配置同步与导入导出 | [布局规格](docs/specs/design/S17-工作台布局与格式模板规格.md)（§12–§20 迁移与测试矩阵）、[布局预设](docs/specs/features/S17-工作台布局预设-20261028.md)、[配置与分享方案 §4.5 / §11](docs/specs/product/S17-工作台个人配置与布局分享-方案草案.md) |
+| 工作台布局／预设／配置同步与导入导出 | [S18 响应式布局引擎](docs/specs/features/S18-分析工作台响应式布局引擎-20261030.md)（列数、跨列数排布、基础 / 专属布局与保存规则）、[布局规格](docs/specs/design/S17-工作台布局与格式模板规格.md)（§12–§20 同列数迁移与测试矩阵）、[布局预设](docs/specs/features/S17-工作台布局预设-20261028.md)、[配置与分享方案 §4.5 / §11](docs/specs/product/S17-工作台个人配置与布局分享-方案草案.md) |
 | 分类层级 | [`S17-W7-多层级分类-实现说明`](docs/specs/features/S17-W7-多层级分类-实现说明.md) |
 | S18 跨设备 UI 适配 | [设计讨论记录](docs/specs/design/S18-B-跨设备自适应布局与交互-设计讨论记录-20261027.md)（**§8 所有者草图确认门禁**）+ [新路线图 §4.3](docs/specs/product/S17-S18-新路线图.md) |
 | 改路线 / 阶段规划 | [`01-规划.md`](docs/01-规划.md) 顶部「现行路线」+ [新路线图](docs/specs/product/S17-S18-新路线图.md) |
 | 部署／发布／备份／灾备 | [`docs/03-运维手册.md`](docs/03-运维手册.md) + [`ops/`](docs/ops/) |
 | 本地启动 / `localhost:5173` 打不开 / 端口或 HTTPS | [`ops/本地开发环境与5173.md`](docs/ops/本地开发环境与5173.md) + [主目录更新规范](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md) §2 规则 5–7（**§4 WIP 保护强制门禁**） |
 | 离线历史读取上限 | [`离线历史读取容量上限与长期优化`](docs/specs/features/离线历史读取容量上限与长期优化-20261028.md) |
-| 判断某功能做没做 | [`changelog/1.17.md`](docs/changelog/1.17.md)（现行；1.10–1.16 已冻结） |
+| 判断某功能做没做 | [`changelog/1.18.md`](docs/changelog/1.18.md)（现行；1.10–1.17 已冻结） |
 | 追问"为什么当初这么定" | [`adr/README.md`](docs/adr/README.md) → ADR 正文 |
 | 查一段历史 | [`archive/`](docs/archive/README.md)（**历史，不要照着做**） |
 
@@ -102,7 +102,7 @@
 
 ## 5. 生产边界
 
-**长期公开发行门禁**：S18–S25 只规划产品开发、内部测试、验证与发行准备；S26 统一决定正式公开发布。开发完成或内部验证不授权公众下载、公众注册、官方云服务开放、正式安装包或自部署镜像公开分发。外部真实用户测试分发及 F-1 身份等合规问题单独确认，不预断免费分发合法或违法。S26 仍须所有者当次明确批准及适用法律、安全、技术条件；§4 外部上传限制始终有效。完整规则只定义于[路线图 §0](docs/specs/product/S17-S18-新路线图.md)，规划更新不授权任何实际网络操作。
+**长期公开发行门禁**：S18–S25 只规划产品开发、内部测试、验证与发行准备；S26 统一决定正式公开发布。开发完成或内部验证不授权公众下载、公众注册、官方云服务开放、正式安装包或自部署镜像公开分发。外部真实用户测试分发及适用的身份合规问题单独确认，不预断免费分发合法或违法。S26 仍须所有者当次明确批准及适用法律、安全、技术条件；§4 外部上传限制始终有效。完整规则只定义于[路线图 §0](docs/specs/product/S17-S18-新路线图.md)，规划更新不授权任何实际网络操作。
 
 **GitHub 更新 ≠ 生产更新。** `push` 只到 GitHub；上线必须有人在服务器上跑 `deploy.sh --version X.Y.Z`。
 
@@ -116,7 +116,7 @@
 
 | 规矩 | 为什么 |
 |---|---|
-| 用户可见改动 → 升版本号（`packages/shared/src/version.ts`）+ [`changelog/1.17.md`](docs/changelog/1.17.md) 一条（改了什么 / 为什么 / 怎么验证，几行即可） | 版本号是区分构建的唯一手段 |
+| 用户可见改动 → 升版本号（`packages/shared/src/version.ts`）+ [`changelog/1.18.md`](docs/changelog/1.18.md) 一条（改了什么 / 为什么 / 怎么验证，几行即可） | 版本号是区分构建的唯一手段 |
 | **web 有改动，提交前 `pnpm check:build` 不能省**（它已包含 web 的 `tsc`，不必再单独 typecheck web） | typecheck 与测试拦不住"整个应用起不来"（发生过） |
 | 改完 grep 验证真的落地了 | 写过但没接线（`lessons.md` §8.1） |
 | **不许用 shell 做 UTF-8 源码字符串替换** | 本项目因此出过两次事故 |
@@ -155,7 +155,7 @@ pnpm check:db         # 开发库 / 测试库迁移一致
 
 ## 7. 文档体系
 
-`AGENTS.md`（规则）· `docs/STATUS.md`（★ 唯一当前状态，覆盖式短表）· `docs/00-索引.md`（导航与阅读分级）· `docs/01-规划.md`（顶部「现行路线」）· `docs/specs/`（现行规格）· `docs/ops/`（可复用运维手册）· `docs/changelog/1.17.md`（现行版本记录）· `docs/archive/`（只读历史，AI 默认不读）。完整目录与每份文档的用途见 [`docs/00-索引.md`](docs/00-索引.md)。
+`AGENTS.md`（规则）· `docs/STATUS.md`（★ 唯一当前状态，覆盖式短表）· `docs/00-索引.md`（导航与阅读分级）· `docs/01-规划.md`（顶部「现行路线」）· `docs/specs/`（现行规格）· `docs/ops/`（可复用运维手册）· `docs/changelog/1.18.md`（现行版本记录）· `docs/archive/`（只读历史，AI 默认不读）。完整目录与每份文档的用途见 [`docs/00-索引.md`](docs/00-索引.md)。
 
 ### 7.1 写入规则
 

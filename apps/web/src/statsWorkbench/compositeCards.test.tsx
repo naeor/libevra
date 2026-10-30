@@ -121,7 +121,7 @@ describe("组合卡片：多个内容、一张卡片", () => {
     const html = wrap(<CompositeBody card={card} scope={scope(ENTRIES)} width={314} height={190} />);
     const plain = text(html);
     expect(plain).toContain("每日支出趋势");
-    expect(plain).toContain("支出分类构成");
+    expect(plain).toContain("支出分类");
     expect(plain).toContain("餐饮");
     expect(html).toContain("<svg");
   });

@@ -115,6 +115,15 @@
 
 /* 抵消原生滚动在过渡区的位移，保留原有摘要收缩的视觉轨迹。 */
 .detail-scroll-travel { height: var(--detail-scroll-travel, 0px); flex-shrink: 0; }
+/*
+ * ⚠️ **与绿色顶部区域同色**（S18 第三轮，所有者 iPad 视频里的「快速上滑时整页被往下拉一下再归位」）。
+ * 补偿区的高度由主线程在 scroll 事件里写入，而 iPad 的滚动在合成线程上先走：快速往上滑回展示态时，
+ * 补偿区还停在上一帧较高的值，绿色顶部区域被它往下推了一两帧，露出上面一条白底——那就是闪。
+ * 平时补偿区正好被滚出视口、看不见；涂成顶部区域的颜色后，即使慢了一两帧，露出来的也是同一片绿色，
+ * 不再是白色闪烁。（深色模式的顶部区域就是底色，透明即可。）
+ */
+.detail-scroll-travel { background-color: var(--color-brand); }
+html[data-theme-mode="dark"] .detail-scroll-travel { background-color: transparent; }
 
 /*
  * It stays put once it has collapsed.

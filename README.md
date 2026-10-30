@@ -1,13 +1,12 @@
 # Libevra
 
-**The free, open ledger.**
+**An independent, non-commercial personal finance project.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-live-brightgreen.svg)](https://libevra.com)
 
-> **Status: live at <https://libevra.com>** (self-hosted, registration is invite-only).
-> **It is not open for public sign-up** — the owner runs it for one family, and invites are
-> issued by hand. Where development stands right now: [docs/STATUS.md](docs/STATUS.md); the roadmap: [docs/01-规划.md](docs/01-规划.md).
+> **Project scope:** Libevra is led and independently developed by [naeor](https://github.com/naeor), with assistance from AI tools. It is a personal, non-commercial project, with no company or operating organization behind it.
+> **Not publicly released:** existing private deployments are for personal use and internal testing. They do not constitute a public service or an official cloud offering. Public registration and native client downloads are not available.
+> Development status: [docs/STATUS.md](docs/STATUS.md); roadmap: [docs/01-规划.md](docs/01-规划.md).
 >
 > **⚠️ Formerly Libellum.** Renamed on 2026-10-14 for domain reasons. Which names changed,
 > which were deliberately kept, and what still needs a human: [docs/specs/product/Libevra品牌迁移记录.md](docs/specs/product/Libevra品牌迁移记录.md).
@@ -16,11 +15,11 @@
 > **Deploying or operating it?** Read [docs/03-运维手册.md](docs/03-运维手册.md) — it says how to query the
 > *current* state rather than trust a number in a document, and what never to run.
 
-Libevra is an open-source, self-hosted expense tracker for individuals and families. It aims to be
-the kind of tool you can hand to a family member: fast on a phone, no ads, no tracking, no account
-required with a third party — just your own server and your own data.
+Libevra is a personal finance application for individuals and families, with source code publicly available under AGPL-3.0-only. The current Web application supports self-hosting and offline ledger operations. A complete account-free local PWA, Android and iOS clients, and a packaged self-hosted distribution are planned, not released products.
 
-## What works today
+## Implemented for internal use and testing
+
+The table describes implemented functionality, not public availability or a guarantee that every scenario has been verified. Remaining checks are tracked in [docs/STATUS.md](docs/STATUS.md).
 
 | Area | State |
 |---|---|
@@ -28,12 +27,20 @@ required with a third party — just your own server and your own data.
 | Recording | Income and expenses, multi-level categories, payment methods, tags, multiple currencies per ledger, notes, exact time and time zone |
 | Detail screen | Per-currency monthly totals, income/expense switch, day-grouped list, filters, soft delete with a 5-second undo |
 | Analysis | A modular analysis workbench: ready-made analysis cards, filters, optional multi-currency conversion, custom and composite cards, editable layouts with presets, layouts synced per account — all charts drawn as hand-written SVG |
-| Screenshot recognition | Upload a payment screenshot, read the fields locally with OCR, confirm or correct, save. Images are never written to disk and never leave the server |
+| Screenshot recognition | Send a payment screenshot to the configured server for local OCR inference, review or correct the result, then save. This is server-side recognition, not offline recognition on the device |
 | Offline | **Recording, editing, deleting, reading history and statistics all work with no signal**; the queue drains by itself when the network returns, idempotently; two devices that changed the same entry get the non-conflicting fields merged and are asked only about the fields that really disagree |
 | Export / import | CSV / XLSX out, CSV back in, with `In-` / `Out-` traceable references |
 | Collaboration | Several ledgers per account, owner / editor / viewer, invites with an expiry and a seat count, book messages, share links |
 | Appearance | Chinese / English, light / dark / system, seven theme palettes |
 | Not built yet | Public read-only demo account |
+
+## Contributions and AI assistance
+
+| Human contributor | AI assistance tools |
+|---|---|
+| [naeor](https://github.com/naeor) · Project lead, developer and maintainer | Claude; ChatGPT / Codex; DeepSeek |
+
+naeor is responsible for the project’s direction, decisions and maintenance. The AI names acknowledge tools used during development, not human team members or participation in project operations or endorsement by their providers.
 
 ## Running it locally
 
@@ -83,14 +90,12 @@ be written in the first place. Details in
 | [docs/01-规划.md](docs/01-规划.md) | Roadmap (the current one-page plan is at the top) |
 | [docs/02-技术方案.md](docs/02-技术方案.md) | Technical plan: architecture, data model, API, security, deployment, cost |
 | [docs/04-交接.md](docs/04-交接.md) | Handover: how to run it, how the code is organised, how to work with the owner |
-| [docs/changelog/1.17.md](docs/changelog/1.17.md) | What each version changed |
+| [docs/changelog/1.18.md](docs/changelog/1.18.md) | What each version changed |
 | [docs/specs/product/Libevra品牌迁移记录.md](docs/specs/product/Libevra品牌迁移记录.md) | The rename from Libellum: what changed, what was kept, what is still manual |
 
 ## Privacy
 
-Libevra ships no analytics and no advertising SDKs. It does not sell data. The only data it holds is
-what you enter yourself, on a server you control. Payment screenshots used for recognition are
-decoded in memory, never written to disk, and never sent to a third-party service.
+The application includes no third-party analytics or advertising SDKs. Guest ledgers and offline copies are stored on the device; account data is stored on the configured server. OCR and voice recognition use that server and its local recognition processes, so they are not fully offline device features. Recognition inputs are designed to be processed in memory without persistent storage. These implementation choices are not a blanket security guarantee: formal privacy documentation and release checks remain pending, and end-to-end encryption is not an available capability.
 
 ## License
 

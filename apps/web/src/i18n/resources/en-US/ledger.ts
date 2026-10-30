@@ -14,7 +14,6 @@ const ledger: Messages<typeof zh> = {
     clearCategoryFilter: "Clear category filter",
     emptyExpense: "No expenses yet this month",
     emptyIncome: "No income yet this month",
-    emptyHint: "Tap the Add button in the middle of the bar below to add your first entry.",
     emptyAction: "Add entry",
     loadEarlier: "Load earlier entries",
     previousMonth: "Previous month",
@@ -116,7 +115,6 @@ const ledger: Messages<typeof zh> = {
       description: "A batch delete can’t be undone in one tap.",
       restore:
         "You can restore entries one by one from the edit history, as long as the ledger still exists and you have edit access",
-      recalc: "This month’s totals, entry count and net are recalculated right away",
       offline: "If you’re offline, the change is kept on this device and synced once you’re online",
       confirm: "Delete",
     },
@@ -158,8 +156,6 @@ const ledger: Messages<typeof zh> = {
       title: "Batch edit",
       selectedCount_one: "{{count}} selected",
       selectedCount_other: "{{count}} selected",
-      intro:
-        "Only the fields you check are changed; everything else stays as it is. Amount, type, currency and time are never changed in a batch.",
       changeCategory: "Change category",
       mixedKinds:
         "The selected entries mix expenses and income, so their category can’t be changed together. Select entries of one type only.",
@@ -180,12 +176,10 @@ const ledger: Messages<typeof zh> = {
     edit: "Edit",
     delete: "Delete",
     selectFirst: "Select at least one entry first.",
-    onlyTicked: "Only the fields you check will change.",
     selectTitle: "Select entries",
     deselectAll: "Deselect all",
     selectLoaded_one: "Select the {{count}} loaded entry",
     selectLoaded_other: "Select all {{count}} loaded entries",
-    selectScope: "Only entries loaded under the current filter are selected, never the whole ledger",
   },
   tools: {
     exitBatch: "Exit batch mode",

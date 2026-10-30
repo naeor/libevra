@@ -139,7 +139,7 @@ export function ChoiceSheet<Value extends string>({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="sheet-in fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(100dvh-24px)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet"
+        className="sheet-in fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(var(--lv-vh)*100_-_24px)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet"
       >
         <div className="flex justify-center pt-3 pb-1">
           <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />

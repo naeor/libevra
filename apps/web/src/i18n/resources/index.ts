@@ -36,6 +36,7 @@ import enSettings from "./en-US/settings.js";
 import enStats from "./en-US/stats.js";
 import enStatsWorkbench from "./en-US/statsWorkbench.js";
 import enUpdate from "./en-US/update.js";
+import enWorkspace from "./en-US/workspace.js";
 import zhAccount from "./zh-CN/account.js";
 import zhAdmin from "./zh-CN/admin.js";
 import zhAnnouncements from "./zh-CN/announcements.js";
@@ -63,6 +64,7 @@ import zhSettings from "./zh-CN/settings.js";
 import zhStats from "./zh-CN/stats.js";
 import zhStatsWorkbench from "./zh-CN/statsWorkbench.js";
 import zhUpdate from "./zh-CN/update.js";
+import zhWorkspace from "./zh-CN/workspace.js";
 import type { Messages } from "../types.js";
 
 export const zhCN = {
@@ -94,6 +96,7 @@ export const zhCN = {
   admin: zhAdmin,
   announcements: zhAnnouncements,
   rewards: zhRewards,
+  workspace: zhWorkspace,
 };
 
 export type TranslationResource = typeof zhCN;
@@ -127,4 +130,5 @@ export const enUS: Messages<TranslationResource> = {
   admin: enAdmin,
   announcements: enAnnouncements,
   rewards: enRewards,
+  workspace: enWorkspace,
 };

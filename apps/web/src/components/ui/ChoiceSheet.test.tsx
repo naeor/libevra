@@ -52,7 +52,8 @@ describe("ChoiceSheet", () => {
     // 遮罩与面板都在 z-50 以下/之上，父容器的 overflow 裁不到它们。
     expect(html).toContain("fixed inset-0 z-40");
     expect(html).toContain("fixed inset-x-0 bottom-0 z-50");
-    expect(html).toContain("max-h-[calc(100dvh-24px)]");
+    // S18：高度单位是 --lv-vh（手机上等于 dvh，大屏工作区里是工作区自己的高度）。
+    expect(html).toContain("max-h-[calc(var(--lv-vh)*100_-_24px)]");
     expect(html).toContain("overflow-y-auto");
     expect(html).toContain("overscroll-contain");
     expect(html).toContain("rounded-t-sheet");

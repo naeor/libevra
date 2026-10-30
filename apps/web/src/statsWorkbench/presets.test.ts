@@ -62,7 +62,10 @@ describe("系统预设：按所有者模块表搭建、文档合法", () => {
   it("新手：4×13 的位置与尺寸（2 列主网格：整行 = 2 列、半行 = 1 列）", () => {
     const { layout } = buildSystemPreset("beginner", translate);
     const geometry = (key: string) => layout.main.objects.find((object) => object.objectId === `preset-beginner-${key}`);
-    expect(geometry("overview")).toMatchObject({ anchor: 1, colSpan: 2, rowSpan: 2 });
+    // 1.17.23：「支出分类」（原「钱主要花在哪里」）移到第一位，概览移到第 3–4 行；其余位置不变。
+    expect(geometry("where")).toMatchObject({ anchor: 1, colSpan: 2, rowSpan: 2 });
+    expect(geometry("overview")).toMatchObject({ anchor: 5, colSpan: 2, rowSpan: 2 });
+    expect(geometry("daily")).toMatchObject({ anchor: 9, colSpan: 2, rowSpan: 2 });
     expect(geometry("rise")).toMatchObject({ anchor: 13, colSpan: 1, rowSpan: 1 });
     expect(geometry("fall")).toMatchObject({ anchor: 14, colSpan: 1, rowSpan: 1 });
     expect(geometry("details")).toMatchObject({ anchor: 15, colSpan: 2, rowSpan: 2, objectType: "carousel" });
@@ -79,7 +82,10 @@ describe("系统预设：按所有者模块表搭建、文档合法", () => {
   it("标题按当前语言写入（组合卡片用模块名），之后不随语言变化", () => {
     const { content } = buildSystemPreset("beginner", translate);
     const overview = content.cards.find((card) => card.objectId === "preset-beginner-overview")!;
-    expect(overview.title).toEqual({ kind: "custom", text: "本周财务概览" });
+    expect(overview.title).toEqual({ kind: "custom", text: "近 7 天概览" });
+    // 第一张「支出分类」用分析自身名称，不写死模块名（随界面语言变化）。
+    expect(content.cards[0]!.objectId).toBe("preset-beginner-where");
+    expect(content.cards[0]!.title).toEqual({ kind: "preset" });
     const rise = content.cards.find((card) => card.objectId === "preset-beginner-rise")!;
     expect(rise.title).toEqual({ kind: "preset" });
   });

@@ -4,10 +4,10 @@
  * - 两类入口：分析卡片（系统推荐 / 全部分析 / 我的自定义）与布局容器（滑动卡片组 / 分割卡片组 /
  *   留白——留白只是放在这个分组里，不是容器）；
  * - 每一项都有「点 ＋ 放到第一个空位」的非拖动路径；拖动是快捷方式（触摸需长按，见 dnd.ts）；
- * - 可以展开、收起：收起时只留一条标题栏，把空间还给上方的工作台；从抽屉拖出时自动收起；
+ * - 默认收起为胶囊工具条，展开按所属工作区限宽限高；拖动来源 DOM 始终保留；
  * - 进入容器内部编辑时，抽屉切换成「正在编辑：某容器」，只提供首版允许放进容器的分析卡片。
  */
-import { useMemo, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 
 import { useI18n } from "../i18n/index.js";
@@ -16,6 +16,8 @@ import { CARD_TYPES, CONTAINER_DEFAULT_SIZE, type CardGroup, type CardType, type
 import type { DragController, DragPayload } from "./dnd.js";
 import { readComposition } from "./composition.js";
 import { useDrawerGesture } from "./drawerGesture.js";
+import { usePane, usePaneSize } from "../workspace/context.js";
+import { drawerGeometry, drawerModeFor, type DrawerMode } from "./drawerLayout.js";
 import {
   ChartGlyph,
   ComposeGlyph,
@@ -83,6 +85,22 @@ export function Drawer({
   const [group, setGroup] = useState<"recommended" | "all" | "mine">("recommended");
   const [query, setQuery] = useState("");
   const expanded = height === "expanded";
+  const pane = usePane();
+  const paneSize = usePaneSize();
+  const [mode, setMode] = useState<DrawerMode>(() => drawerModeFor(paneSize.width));
+  useEffect(() => setMode((previous) => drawerModeFor(paneSize.width, previous)), [paneSize.width]);
+  const geometry = drawerGeometry(paneSize.width || 320, paneSize.height || 640);
+  const bodyId = useId();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const positions = useRef(new Map<string, number>());
+  const restoreFocus = useRef(false);
+  const scrollKey = containerScope === null ? `${tab}:${group}` : "scope";
+  useLayoutEffect(() => {
+    if (expanded && scrollRef.current !== null) scrollRef.current.scrollTop = positions.current.get(scrollKey) ?? 0;
+  }, [expanded, scrollKey]);
+  const rememberScroll = () => {
+    if (expanded && scrollRef.current !== null) positions.current.set(scrollKey, scrollRef.current.scrollTop);
+  };
 
   const library = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -101,37 +119,71 @@ export function Drawer({
 
   const scope = containerScope;
   const full = scope !== null && scope.children.length >= scope.max;
-  const gesture = useDrawerGesture({ expanded, onEnd: onHeight });
+  const gesture = useDrawerGesture({ expanded, onEnd: (end) => {
+    if (end === "collapsed") restoreFocus.current = gesture.sectionRef.current?.contains(document.activeElement) ?? false;
+    onHeight(end);
+  } });
+  useLayoutEffect(() => {
+    const section = gesture.sectionRef.current;
+    if (expanded) section?.querySelector<HTMLButtonElement>(".sw-drawer-expanded-head button")?.focus();
+    else if (restoreFocus.current) section?.querySelector<HTMLButtonElement>("[data-drawer-opener]")?.focus();
+    restoreFocus.current = false;
+  }, [expanded, gesture.sectionRef]);
   const toggleLabel = expanded ? t("statsWorkbench.drawer.collapse") : t("statsWorkbench.drawer.expand");
+  const close = () => {
+    if (drag.drag !== null) return;
+    const section = gesture.sectionRef.current;
+    restoreFocus.current = section?.contains(document.activeElement) ?? false;
+    onHeight("collapsed");
+  };
+  useEffect(() => {
+    if (!expanded) return;
+    const outside = (event: PointerEvent) => {
+      const section = gesture.sectionRef.current;
+      const target = event.target;
+      if (drag.drag !== null || !(target instanceof Node) || section?.contains(target)) return;
+      if (section?.closest("[data-workbench-frame]")?.contains(target)) onHeight("collapsed");
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [expanded, drag.drag, onHeight, gesture.sectionRef]);
+  const style = {
+    "--sw-drawer-max": `${geometry.expanded}px`,
+    "--sw-drawer-min": `${geometry.collapsed}px`,
+    "--sw-library-width": `${geometry.width}px`,
+    "--sw-safe-bottom": pane.split === "column" && pane.role === "primary" ? "0px" : "env(safe-area-inset-bottom, 0px)",
+  } as CSSProperties;
 
   return (
     <section
       ref={gesture.sectionRef as React.RefObject<HTMLElement>}
       className="sw-drawer"
+      style={style}
+      data-mode={mode}
+      data-icon-only={paneSize.width > 0 && paneSize.width < 360 ? "true" : undefined}
+      data-lv-bottom-bar=""
       data-state={expanded ? "expanded" : "collapsed"}
       aria-label={scope === null ? t("statsWorkbench.drawer.title") : t("statsWorkbench.containers.insideTitle", { name: scope.name })}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && expanded && drag.drag === null) {
+          event.preventDefault(); event.stopPropagation(); close();
+        }
+      }}
     >
-      {/* 把手 + 标题栏：整条都能上下拖动（跟手、松手吸附）；点标题或箭头切换。收起时只剩这一条，
-          不露出下面的标签与列表——是一条专门设计的「已收起工具栏」，不是被裁切的完整面板。 */}
-      <div className="sw-drawer-grab" {...gesture.grabProps}>
-        <button type="button" className="sw-drawer-grip" aria-label={toggleLabel} aria-expanded={expanded} onClick={() => onHeight(expanded ? "collapsed" : "expanded")} />
-        <div className="sw-drawer-head">
-          <div className="sw-drawer-layers">
-            <button
-              type="button"
-              className="sw-drawer-title"
-              inert={expanded}
-              aria-expanded={false}
-              onClick={() => onHeight("expanded")}
-            >
-              <span className="sw-drawer-title-icon" aria-hidden="true">
-                <PlusGlyph width={16} height={16} />
-              </span>
-              <span className="min-w-0 truncate">
-                {scope === null ? t("statsWorkbench.drawer.collapsedTitle") : t("statsWorkbench.containers.insideTitle", { name: scope.name })}
-              </span>
+      <div className="sw-drawer-heading">
+        <div className="sw-drawer-toolbar" inert={expanded} aria-hidden={expanded ? true : undefined}>
+          <button type="button" data-drawer-opener aria-label={scope === null ? t("statsWorkbench.drawer.addCards") : t("statsWorkbench.containers.insideTitle", { name: scope.name })} title={scope === null ? t("statsWorkbench.drawer.addCards") : scope.name} aria-controls={bodyId} aria-expanded={expanded} onClick={() => { setTab("analysis"); onHeight("expanded"); }}>
+            <PlusGlyph /><span>{scope === null ? t("statsWorkbench.drawer.addCards") : t("statsWorkbench.containers.insideTitle", { name: scope.name })}</span>
+          </button>
+          {scope !== null ? null : <>
+            <button type="button" aria-label={t("statsWorkbench.drawer.layout")} title={t("statsWorkbench.drawer.layout")} aria-controls={bodyId} aria-expanded={expanded} onClick={() => { setTab("layout"); onHeight("expanded"); }}>
+              <SplitGlyph /><span>{t("statsWorkbench.drawer.compactLayout")}</span>
             </button>
-            <div className="sw-drawer-open-layer" inert={!expanded}>
+            {onPresets === undefined ? null : <button type="button" aria-label={t("statsWorkbench.presets.entry")} title={t("statsWorkbench.presets.entry")} onClick={onPresets}><PresetGlyph /><span>{t("statsWorkbench.presets.entry")}</span></button>}
+          </>}
+        </div>
+        <div className="sw-drawer-expanded-head sw-drawer-grab" {...gesture.grabProps} inert={!expanded} aria-hidden={!expanded ? true : undefined}>
+            <div className="sw-drawer-open-layer">
               {scope === null ? (
                 <div className="sw-segment" role="tablist" aria-label={t("statsWorkbench.drawer.title")}>
                   {(["analysis", "layout"] as const).map((key) => (
@@ -158,16 +210,15 @@ export function Drawer({
                 </div>
               )}
             </div>
-          </div>
           {scope === null ? (
             onPresets === undefined ? null : (
-              <button type="button" className="sw-drawer-preset" onClick={onPresets}>
+              <button type="button" className="sw-drawer-preset" aria-label={t("statsWorkbench.presets.entry")} onClick={onPresets}>
                 <PresetGlyph width={16} height={16} aria-hidden="true" />
                 <span>{t("statsWorkbench.presets.entry")}</span>
               </button>
             )
           ) : (
-            <div className="flex shrink-0 gap-2">
+            <div className="sw-drawer-scope-actions">
               <button type="button" className="sw-pill sw-pill-sm" onClick={onScopeCancel}>
                 {scope.isNew ? t("statsWorkbench.containers.cancelNew") : t("statsWorkbench.edit.cancel")}
               </button>
@@ -176,24 +227,25 @@ export function Drawer({
               </button>
             </div>
           )}
+          <button type="button" className="sw-drawer-close" aria-label={toggleLabel} aria-controls={bodyId} aria-expanded={expanded} onClick={close}><ChevronDown /></button>
         </div>
       </div>
 
       {scope === null ? (
         <>
-          {/* 收起时内容仍保留在页面里（高度为 0）：从抽屉拖出时抽屉会自动收起，若此时卸载拖动源，
-              触摸事件就再也传不回来，拖动会中途失效。 */}
+          {/* 保留列表 DOM 和滚动位置；收起时 inert，不留下可点的透明层。拖动时不自动收起。 */}
           {(
-            <div className="sw-drawer-body" aria-hidden={expanded ? undefined : true}>
+            <div id={bodyId} className="sw-drawer-body" inert={!expanded} aria-hidden={expanded ? undefined : true}>
               {tab === "analysis" ? (
                 <>
-                  <div className="flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="sw-drawer-categories">
                     {(["recommended", "all", "mine"] as const).map((key) => (
                       <button key={key} type="button" aria-pressed={group === key} className={`sw-chip ${group === key ? "sw-chip-on" : ""}`} onClick={() => setGroup(key)}>
                         {t(`statsWorkbench.drawer.${key}`)}
                       </button>
                     ))}
                   </div>
+                  <div ref={scrollRef} className="sw-drawer-scroll" onScroll={rememberScroll}>
                   {group === "all" ? (
                     <div className="px-5 pt-2">
                       <input
@@ -248,9 +300,10 @@ export function Drawer({
                       ))}
                     </>
                   )}
+                  </div>
                 </>
               ) : (
-                <div className="px-5 pt-1">
+                <div ref={scrollRef} className="sw-drawer-scroll px-5 pt-1" onScroll={rememberScroll}>
                   <div className="sw-tiles">
                     {(["carousel", "grid-split", "spacer"] as const).map((choice) => (
                       <LayoutTile key={choice} choice={choice} drag={drag} onAdd={() => onAddLayout(choice)} />
@@ -264,7 +317,8 @@ export function Drawer({
         </>
       ) : (
         <>
-          <div className="sw-drawer-body" aria-hidden={expanded ? undefined : true}>
+          <div id={bodyId} className="sw-drawer-body" inert={!expanded} aria-hidden={expanded ? undefined : true}>
+            <div ref={scrollRef} className="sw-drawer-scroll" onScroll={rememberScroll}>
             <ol className="flex flex-col gap-2 px-5 pt-2" aria-label={t("statsWorkbench.containers.childrenList")}>
               {scope.children.length === 0 ? <li className="text-helper text-muted">{t("statsWorkbench.containers.emptyHint")}</li> : null}
               {scope.children.map((child, index) => (
@@ -294,6 +348,7 @@ export function Drawer({
                   <PlusGlyph className="shrink-0 text-brand" />
                 </button>
               ))}
+            </div>
             </div>
           </div>
         </>

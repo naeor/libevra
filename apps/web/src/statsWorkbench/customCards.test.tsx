@@ -5,7 +5,7 @@ import { validateAnalysisParams } from "@libellum/shared/analysis/layout";
 import { CARD_TYPES } from "./catalog.js";
 import { readComposition } from "./composition.js";
 import { buildCard, CUSTOM_CARD_TYPES, customCardsIn, draftProblem } from "./customCards.js";
-import { defaultWorkbench, newCard } from "./defaults.js";
+import { legacyDefaultWorkbench, newCard } from "./defaults.js";
 import { command, sessionDocuments, startSession, updateCard } from "./session.js";
 import { ChartGlyph } from "./ui.js";
 
@@ -34,7 +34,7 @@ describe("自定义卡片（组合卡片）草稿", () => {
 
   it("创建、统一撤销、重配置及文档序列化保持同一实例配置", () => {
     const card = buildCard({ template: "single", slots: [{ id: "s1", analysisId: "AN-I01", family: "table" }], name: "分类明细", pinnedRange: { from: "2026-10-01", to: "2026-10-27" } }, undefined, "custom-table")!;
-    const inserted = command(startSession(defaultWorkbench()), { type: "insert-card", card, size: { colSpan: 2, rowSpan: 2 } });
+    const inserted = command(startSession(legacyDefaultWorkbench()), { type: "insert-card", card, size: { colSpan: 2, rowSpan: 2 } });
     expect(inserted.ok).toBe(true);
     const restored = JSON.parse(JSON.stringify(sessionDocuments(inserted.state))) as ReturnType<typeof sessionDocuments>;
     expect(customCardsIn(restored.content.cards)).toEqual([card]);

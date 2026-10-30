@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { Link } from "react-router";
+import { DraggableLink, plainText } from "../../workspace/openDrag.js";
 
 /**
  * **S16-A：记录的列表——编辑记录、更新公告这类"按时间排列、逐条浏览"的内容。**
@@ -143,9 +143,10 @@ export function RecordRow({
   return (
     <li className="border-b border-line last:border-b-0">
       {to !== undefined ? (
-        <Link to={to} className={`${base} ${interactive}`}>
+        // S18 第二轮：大屏上可以长按 / 拖动到另一个工作区打开。
+        <DraggableLink to={to} title={title ?? plainText(primary)} className={`${base} ${interactive}`}>
           {body}
-        </Link>
+        </DraggableLink>
       ) : onClick !== undefined ? (
         <button type="button" onClick={onClick} className={`w-full text-left ${base} ${interactive}`}>
           {body}

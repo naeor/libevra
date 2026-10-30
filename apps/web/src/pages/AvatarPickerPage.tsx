@@ -210,7 +210,7 @@ export function AvatarPickerPage(): React.JSX.Element {
           </div>
         </section>
       ))}
-      <div className="sticky bottom-0 z-10 -mx-2 mt-auto border-t border-line bg-canvas px-2 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+      <div className="sticky bottom-0 z-10 -mx-2 mt-auto border-t border-line bg-canvas px-2 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]" data-lv-bottom-bar="">
         {error ? (
           <p role="alert" className="mb-3 text-helper text-danger">
             {error}

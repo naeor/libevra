@@ -4,6 +4,8 @@ import {
   type Tag,
 } from "@libellum/shared";
 
+import { useId } from "react";
+
 import { t as translate, useI18n } from "../../i18n/index.js";
 import { displayPaymentMethodName } from "../../lib/presetNames.js";
 import { ChevronIcon } from "../Icons.js";
@@ -62,6 +64,8 @@ export function EntryMoreOptions({
   readonly onToggleTag: (tagId: string) => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  /** S18：两个工作区可以同时打开记账页，展开区域的 id 每个实例唯一。 */
+  const optionsId = useId();
   const paymentMethodName =
     paymentMethods.find((method) => method.id === paymentMethodId)?.name ?? null;
   const summary = moreOptionsSummary({
@@ -76,7 +80,7 @@ export function EntryMoreOptions({
         <button
           type="button"
           aria-expanded={open}
-          aria-controls="entry-more-options"
+          aria-controls={optionsId}
           onClick={onToggle}
           className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-canvas"
         >
@@ -102,7 +106,7 @@ export function EntryMoreOptions({
 
         {open ? (
           <div
-            id="entry-more-options"
+            id={optionsId}
             className="flex flex-col gap-4 border-t border-line px-4 py-4"
           >
             <div className="flex flex-col gap-2">
@@ -136,7 +140,6 @@ export function EntryMoreOptions({
                   onNoteChange(event.target.value);
                 }}
                 maxLength={200}
-                placeholder={t("entry.more.notePlaceholder")}
                 className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
               />
             </label>

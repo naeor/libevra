@@ -410,7 +410,6 @@ export function batchDeleteConfirmation(count: number): {
     description: t("ledger.batch.deleteConfirm.description"),
     consequences: [
       t("ledger.batch.deleteConfirm.restore"),
-      t("ledger.batch.deleteConfirm.recalc"),
       t("ledger.batch.deleteConfirm.offline"),
     ],
     confirmLabel: t("ledger.batch.deleteConfirm.confirm"),

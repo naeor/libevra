@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { useI18n } from "../../i18n/index.js";
 import { copyText } from "../../lib/clipboard.js";
 import { ChevronIcon } from "../Icons.js";
+import { DraggableLink, plainText } from "../../workspace/openDrag.js";
 
 /**
  * **S16-A：二级/三级页面的列表与分节积木。**
@@ -137,6 +138,17 @@ export function ListRow({
   );
 
   if (to !== undefined && !disabled) {
+    /**
+     * S18 第二轮：去往别的页面的行可以长按 / 拖动到另一个工作区打开（大屏）。带着页面状态或替换历史的
+     * 行属于某个进行中的流程，保持普通链接。
+     */
+    if (state === undefined && replace === undefined && dataAttributes === undefined) {
+      return (
+        <DraggableLink to={to} title={plainText(label)} className={`${ROW_BASE} ${ROW_INTERACTIVE}`}>
+          {body}
+        </DraggableLink>
+      );
+    }
     return (
       <Link
         to={to}

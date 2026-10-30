@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n/index.js";
 import { formatTimeWithZone } from "../../lib/datetime.js";
 import { formatMoney } from "../../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
+import { useOpenDrag } from "../../workspace/openDrag.js";
 
 /**
  * One entry in the ledger's list, with the selection state batch mode adds.
@@ -41,6 +42,8 @@ export function LedgerEntryRow({
   deleted,
   onActivate,
   fx,
+  current = false,
+  dragPath,
 }: {
   readonly entry: Transaction;
   readonly selecting: boolean;
@@ -50,10 +53,19 @@ export function LedgerEntryRow({
   readonly deleted: boolean;
   readonly onActivate: () => void;
   readonly fx?: React.ReactNode;
+  /** S18：跟随模式下这笔正显示在辅助工作区（列表里标为当前选中项）。 */
+  readonly current?: boolean;
+  /** S18 第二轮：这一笔的详情页；给了就可以在大屏上长按 / 拖动到另一个工作区打开（多选时不参与）。 */
+  readonly dragPath?: string;
 }): React.JSX.Element {
   const { t } = useI18n();
   /** 分类与支付方式只在**显示**时换成当前语言的预置名；数据本身不变。 */
   const categoryLabel = displayCategoryName(entry.categoryIsSystem ? UNCATEGORISED_NAME : entry.categoryName);
+  const drag = useOpenDrag({
+    path: dragPath ?? "",
+    title: `${categoryLabel} ${entry.kind === "expense" ? "-" : "+"}${formatMoney(entry.amountCents, entry.currency)}`,
+    disabled: selecting || dragPath === undefined,
+  });
   const toneClass = deleted
     ? "bg-danger-soft line-through decoration-danger/40"
     : conflicted
@@ -72,6 +84,7 @@ export function LedgerEntryRow({
          * toggle; announcing it as an unpressed toggle would be a lie about what pressing it does.
          */
         aria-pressed={selecting ? selected : undefined}
+        aria-current={!selecting && current ? "true" : undefined}
         aria-label={
           selecting
             ? t("ledger.row.selectionLabel", {
@@ -81,7 +94,14 @@ export function LedgerEntryRow({
               })
             : undefined
         }
-        className="flex w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left transition last:border-b-0 hover:bg-canvas"
+        /**
+         * ⚠️ **S18：在宽工作区里（容器 ≥ 48rem）只留一行**：图标、分类与备注、金额（1.17.24 按所有者意见去掉了
+         * 支付方式与时间两列——列多了反而杂乱）。容器查询只在大屏工作区里成立，手机上与以前完全相同。
+         */
+        className={`relative flex w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left transition last:border-b-0 hover:bg-canvas @3xl/lvpane:gap-4 @3xl/lvpane:px-5 @3xl/lvpane:py-3 ${
+          !selecting && current ? "bg-brand-soft/70 before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r-full before:bg-brand" : ""
+        } ${drag.bind === null ? "" : "lv-draggable"}`}
+        {...drag.bind}
       >
         {selecting ? <SelectionBox selected={selected} /> : null}
 
@@ -94,20 +114,21 @@ export function LedgerEntryRow({
             {categoryLabel}
             {entry.note ? <span className="text-muted"> · {entry.note}</span> : null}
           </span>
-          <span className="truncate text-xs text-muted">
+          <span className="truncate text-xs text-muted @3xl/lvpane:hidden">
             {formatTimeWithZone(entry.occurredAt, entry.occurredTz)}
             {entry.paymentMethodName ? ` · ${displayPaymentMethodName(entry.paymentMethodName)}` : ""}
           </span>
         </span>
 
         <span
-          className={`shrink-0 text-sm font-medium tabular-nums ${fx ? "max-w-40" : ""} ${
+          className={`shrink-0 text-sm font-medium tabular-nums @3xl/lvpane:min-w-28 @3xl/lvpane:text-right ${fx ? "max-w-40 @3xl/lvpane:max-w-56" : ""} ${
             entry.kind === "expense" ? "text-ink" : "text-brand-dark"
           }`}
         >
           {fx ?? <>{entry.kind === "expense" ? "-" : "+"}{formatMoney(entry.amountCents, entry.currency)}</>}
         </span>
       </button>
+      {drag.menu}
     </li>
   );
 }

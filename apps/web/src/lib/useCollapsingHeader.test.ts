@@ -133,14 +133,15 @@ describe("共用顶栏的真实滚动与两端吸附", () => {
     expect(touch("touchmove", 200, 390).defaultPrevented).toBe(false);
     expect(scroller.scrollTop).toBe(0);
   });
-  it("减少动态效果时，松手等原生滚动停稳（约 120ms）后直接落到端点，不运行动画帧", () => {
+  it("减少动态效果时，松手等原生滚动停稳（约 120ms，再隔两帧核对位置没动）后直接落到端点，不运行弹簧动画", () => {
     reduced = true;
     touch("touchstart", 100, 400);
     vi.advanceTimersByTime(2000);
     drag(400, 330);
     touch("touchend", 100, 330, 0);
     expect(scroller.scrollTop).toBe(70);
-    vi.advanceTimersByTime(120);
+    // S18 第二轮：计时器只是「开始核对」，两帧之内位置不变才算停稳（见 nativeHeaderScroll.ts）。
+    vi.advanceTimersByTime(120 + 2 * 16);
     expect(scroller.scrollTop).toBe(100);
     expect(vi.getTimerCount()).toBe(0);
   });

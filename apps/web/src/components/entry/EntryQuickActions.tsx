@@ -1,4 +1,5 @@
 import type { Currency } from "@libellum/shared";
+import { useId } from "react";
 
 import { useI18n } from "../../i18n/index.js";
 import { minorToInput } from "../../lib/format.js";
@@ -38,6 +39,8 @@ export function EntryQuickActions({
   readonly notice: string | null;
 }): React.JSX.Element {
   const { t } = useI18n();
+  /** S18：两个工作区可以同时打开记账页，展开区域的 id 每个实例唯一。 */
+  const amountsId = useId();
 
   return (
     <div className="flex flex-col gap-2 pt-3">
@@ -49,7 +52,8 @@ export function EntryQuickActions({
         <button
           type="button"
           onClick={onInherit}
-          className="shrink-0 rounded-full border border-brand-soft bg-brand-soft px-3 py-1 text-body text-brand-dark transition hover:border-brand"
+          /** S18（审查 U08）：看起来仍是一枚小胶囊，实际可点范围向上下各扩 8px（约 44px 高）。 */
+          className="relative shrink-0 rounded-full border border-brand-soft bg-brand-soft px-3 py-1 text-body text-brand-dark transition before:absolute before:-inset-y-2 before:inset-x-0 before:content-[''] hover:border-brand"
         >
           {t("entry.quick.inherit")}
         </button>
@@ -57,9 +61,9 @@ export function EntryQuickActions({
         <button
           type="button"
           aria-expanded={open}
-          aria-controls="entry-quick-amounts"
+          aria-controls={amountsId}
           onClick={onToggle}
-          className="flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-body text-muted transition hover:text-brand-dark"
+          className="relative flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-body text-muted transition before:absolute before:-inset-y-2 before:inset-x-0 before:content-[''] hover:text-brand-dark"
         >
           {t("entry.quick.amounts")}
           <ChevronIcon up={open} />
@@ -72,7 +76,7 @@ export function EntryQuickActions({
         这里只控制可见性，不做动画，也不新增状态。
       */}
       {open ? (
-        <div id="entry-quick-amounts" className="flex flex-wrap gap-2">
+        <div id={amountsId} className="flex flex-wrap gap-2">
           {amounts.map((cents) => (
             <button
               key={cents}

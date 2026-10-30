@@ -25,7 +25,7 @@ import { SourceEntries } from "../statsWorkbench/SourceEntries.js";
 import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
 
 export function StatsCardDetailPage(): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { objectId = "" } = useParams();
   const [params] = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
@@ -37,7 +37,9 @@ export function StatsCardDetailPage(): React.JSX.Element {
     window.addEventListener(WORKBENCH_INSTALLED, installed);
     return () => window.removeEventListener(WORKBENCH_INSTALLED, installed);
   }, [scope.accountScope]);
-  const documents = useMemo(() => readStored(scope.accountScope).documents, [scope.accountScope, configurationRevision]);
+  // 没保存过的默认工作台按当前语言生成卡片标题，所以语言也是依赖（1.17.23）。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const documents = useMemo(() => readStored(scope.accountScope).documents, [scope.accountScope, configurationRevision, locale]);
   const card = documents.content.cards.find((item) => item.objectId === objectId);
   const search = params.toString();
   const backTo = `/stats${search === "" ? "" : `?${search}`}`;

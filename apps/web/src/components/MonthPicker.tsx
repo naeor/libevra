@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useDialogFocus } from "../lib/dialogFocus.js";
 
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { ALL_MONTHS, currentMonth, formatInstant, isAllMonths } from "../lib/datetime.js";
@@ -64,6 +66,26 @@ export function MonthPicker({
     setBrowseYear(null);
   }, [open, month]);
 
+  /**
+   * ⚠️ **S18（审查 U04）：焦点进入月份选择、Esc 关闭、关闭后回到触发它的月份按钮。** 大屏工作区里按工作区
+   * 宽度变成居中的小对话框（`lv-sheet*`，见 `workspace.css`），窄工作区与手机上仍是底部面板。
+   */
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const layer = useDialogFocus(dialogRef, open);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape" && layer.owns(event)) {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [layer, onClose, open]);
+
   if (!open) return null;
 
   const year = all ? (browseYear ?? Number(maxMonth.slice(0, 4))) : Number(month.slice(0, 4));
@@ -79,7 +101,7 @@ export function MonthPicker({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="lv-sheet-backdrop fixed inset-0 z-50 flex items-end justify-center">
       <button
         type="button"
         aria-label={t("ledger.monthPicker.close")}
@@ -88,9 +110,12 @@ export function MonthPicker({
       />
 
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label={t("ledger.monthPicker.title")}
-        className="relative w-full max-w-md rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl"
+        tabIndex={-1}
+        className="lv-sheet relative w-full max-w-md overflow-y-auto rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl outline-none"
       >
         <div className="mb-4 flex items-center justify-between">
           <button

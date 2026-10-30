@@ -170,7 +170,7 @@ export function QuotePickerSheet({
     <BottomSheet
       label={tr("collab.messages.quoteSheetTitle")}
       onClose={onClose}
-      dialogClassName="max-h-[78dvh] sm:max-h-[70dvh]"
+      dialogClassName="max-h-[calc(var(--lv-vh)*78)] sm:max-h-[calc(var(--lv-vh)*70)]"
     >
       {(close) => (
         <>
@@ -360,7 +360,7 @@ export function QuoteMessageSheet({
     <BottomSheet
       label={tr("collab.messages.quoteAboutTitle")}
       onClose={onClose}
-      dialogClassName="max-h-[80dvh] sm:max-h-[72dvh]"
+      dialogClassName="max-h-[calc(var(--lv-vh)*80)] sm:max-h-[calc(var(--lv-vh)*72)]"
     >
       {(close) => (
         <>

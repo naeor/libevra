@@ -38,8 +38,8 @@ export function travelFor(element: HTMLElement, grab: HTMLElement, expanded: boo
   const padding = Number.parseFloat(style.paddingBottom) || 0;
   const collapsedPx = grab.offsetHeight + padding;
   const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  const viewport = typeof window === "undefined" ? 800 : window.innerHeight;
-  const expandedPx = expanded ? element.offsetHeight : Math.min(viewport * 0.48, 27 * rem);
+  const measured = Number.parseFloat(style.getPropertyValue("--sw-drawer-max"));
+  const expandedPx = expanded ? element.offsetHeight : (Number.isFinite(measured) ? measured : 27 * rem);
   return Math.max(MIN_TRAVEL, expandedPx - collapsedPx);
 }
 

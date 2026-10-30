@@ -10,7 +10,7 @@ import zh from "../i18n/resources/zh-CN/statsWorkbench.js";
 import en from "../i18n/resources/en-US/statsWorkbench.js";
 import { CARD_TYPES, cardType } from "./catalog.js";
 import { agentAResult, entriesInCurrency, statsFor, liveEntries } from "./compute.js";
-import { defaultWorkbench, newCard } from "./defaults.js";
+import { defaultWorkbench, legacyDefaultWorkbench, newCard } from "./defaults.js";
 import { customRangeProblem, followDraft, readFilters, resolveRange, sameFilters, writeFilters } from "./filters.js";
 import {
   command,
@@ -25,7 +25,9 @@ import {
   startSession,
   updateCard,
 } from "./session.js";
-import { documentsProblems, loadWorkbench, readStored, saveWorkbench, workbenchStorageKey } from "./storage.js";
+import { documentsProblems, followSystemDefault, isSystemDefault, loadWorkbench, readStored, retireLegacyDefault, saveWorkbench, workbenchStorageKey } from "./storage.js";
+import { reidentify } from "./presets.js";
+import { customCardsIn } from "./customCards.js";
 
 let nextId = 1;
 function entry(overrides: Partial<Transaction> = {}): Transaction {
@@ -161,15 +163,30 @@ describe("卡片目录", () => {
 });
 
 describe("默认工作台与编辑会话（D 的命令 + 过渡适配）", () => {
-  it("默认工作台通过 D 的校验", () => {
+  it("默认工作台（新手布局）与旧版「日常总览」都通过 D 的校验", () => {
+    for (const docs of [defaultWorkbench(), legacyDefaultWorkbench()]) {
+      expect(validateContentDocumentV1(docs.content).ok).toBe(true);
+      expect(validateLayoutDocumentV1(docs.layout).ok).toBe(true);
+      expect(documentsProblems(docs)).toEqual([]);
+    }
+  });
+
+  it("系统默认是新手预设：第一张是「支出分类」（整行 2×2，环形图，本月至今），手机与宽屏同一顺序", () => {
     const docs = defaultWorkbench();
-    expect(validateContentDocumentV1(docs.content).ok).toBe(true);
-    expect(validateLayoutDocumentV1(docs.layout).ok).toBe(true);
-    expect(documentsProblems(docs)).toEqual([]);
+    const first = [...docs.layout.main.objects].sort((a, b) => a.anchor - b.anchor)[0]!;
+    expect(first).toMatchObject({ objectId: "preset-beginner-where", anchor: 1, colSpan: 2, rowSpan: 2 });
+    // 内容文档里也排第一（详情页、读屏顺序与布局一致）。
+    expect(docs.content.cards[0]!.objectId).toBe("preset-beginner-where");
+    const card = docs.content.cards[0]!;
+    expect(card.analysis.analysisId).toBe("AN-I01");
+    expect(card.chart.chartFamily).toBe("donut");
+    // 标题用分析自身的名称（随界面语言变化），不写死模块名。
+    expect(card.title).toEqual({ kind: "preset" });
+    expect(card.chart.options?.["window"]).toBe("month-to-date");
   });
 
   it("移动到已占用的位置失败且状态不变；合法位置成功并可撤销", () => {
-    const start = startSession(defaultWorkbench());
+    const start = startSession(legacyDefaultWorkbench());
     const bad = command(start, { type: "move", objectId: "default-b06", anchor: 1 });
     expect(bad.ok).toBe(false);
     expect(bad.state).toBe(start);
@@ -177,13 +194,13 @@ describe("默认工作台与编辑会话（D 的命令 + 过渡适配）", () =>
     expect(placementProblem(start.layout, "default-b06", free, { colSpan: 1, rowSpan: 1 })).toBeNull();
     const moved = command(start, { type: "move", objectId: "default-b06", anchor: free });
     expect(moved.ok).toBe(true);
-    expect(isDirty(moved.state, defaultWorkbench())).toBe(true);
+    expect(isDirty(moved.state, legacyDefaultWorkbench())).toBe(true);
     const undone = command(moved.state, { type: "undo" });
     expect(undone.state.layout).toBe(start.layout);
   });
 
   it("空容器不能直接写入（D 要求 2 张起）；凑够张数后一次插入，整组删除、整组撤销", () => {
-    const start = startSession(defaultWorkbench());
+    const start = startSession(legacyDefaultWorkbench());
     const empty = insertContainer(start, { objectId: "box-x", type: "carousel", children: [] }, [], 40, { colSpan: 2, rowSpan: 1 });
     expect(empty.ok).toBe(false);
     const a = newCard("AN-B01", "card-a");
@@ -198,7 +215,7 @@ describe("默认工作台与编辑会话（D 的命令 + 过渡适配）", () =>
   });
 
   it("容器内部编辑一次提交：新增、排序、移出；少于 2 张被拒绝", () => {
-    const start = startSession(defaultWorkbench());
+    const start = startSession(legacyDefaultWorkbench());
     const current = containerOf(start, "default-extremes");
     expect(current?.children).toHaveLength(3);
     const cards = start.content.cards.filter((card) => current?.children.includes(card.objectId));
@@ -213,7 +230,7 @@ describe("默认工作台与编辑会话（D 的命令 + 过渡适配）", () =>
   });
 
   it("复制容器是整组深复制：新容器、新子卡片 ID，配置独立", () => {
-    const start = startSession(defaultWorkbench());
+    const start = startSession(legacyDefaultWorkbench());
     const copy = duplicateObject(start, "default-extremes");
     expect(copy.ok).toBe(true);
     const copied = copy.state.content.containers.find((item) => item.objectId !== "default-extremes");
@@ -223,7 +240,7 @@ describe("默认工作台与编辑会话（D 的命令 + 过渡适配）", () =>
   });
 
   it("配置只改卡片定义，不改几何；固定区间被如实保存", () => {
-    const start = startSession(defaultWorkbench());
+    const start = startSession(legacyDefaultWorkbench());
     const card = start.content.cards.find((item) => item.objectId === "default-b01") as AnalysisCardNode;
     const next = updateCard(start, { ...card, title: { kind: "custom", text: "本月开销" }, rangePolicy: "pinned", pinnedRange: { from: "2026-10-01", to: "2026-10-31" } });
     expect(next.ok).toBe(true);
@@ -247,7 +264,7 @@ describe("本机保存：按账号隔离、读不出时不覆盖", () => {
   });
 
   it("保存后同一账号读回同一份文档，另一账号仍是默认工作台", () => {
-    const docs = defaultWorkbench();
+    const docs = legacyDefaultWorkbench();
     const moved = command(startSession(docs), { type: "move", objectId: "default-b06", anchor: 40 });
     const version = saveWorkbench("user:a", sessionDocuments(moved.state), 0);
     expect(version).toBe(1);
@@ -256,8 +273,59 @@ describe("本机保存：按账号隔离、读不出时不覆盖", () => {
     expect(readStored("user:b").documents.layout).toEqual(defaultWorkbench().layout);
   });
 
+  it("本机保存的仍是旧版「日常总览」：备份后移除，显示新手布局；之后照常保存；重复读取不再动作", () => {
+    expect(saveWorkbench("user:a", legacyDefaultWorkbench(), 0)).toBe(1);
+    const raw = store.get(workbenchStorageKey("user:a"));
+    const stored = readStored("user:a");
+    expect(stored.documents).toEqual(defaultWorkbench());
+    expect(stored.version).toBe(0);
+    expect(stored.unreadable).toBe(false);
+    expect(store.has(workbenchStorageKey("user:a"))).toBe(false);
+    expect(store.get(`${workbenchStorageKey("user:a")}:legacy-default`)).toBe(raw);
+    expect(retireLegacyDefault("user:a")).toBe(false);
+    // 迁移后用户再编辑保存：版本从 0 起，不被旧记录挡住。
+    const moved = command(startSession(stored.documents), { type: "move", objectId: "preset-beginner-rise", anchor: 40 });
+    expect(moved.ok).toBe(true);
+    expect(saveWorkbench("user:a", sessionDocuments(moved.state), stored.version)).toBe(1);
+    expect(readStored("user:a").documents).toEqual(sessionDocuments(moved.state));
+  });
+
+  it("「恢复默认」后保存：不存副本，删掉自己的记录跟随系统默认；版本被别处改过时不动", () => {
+    const moved = command(startSession(defaultWorkbench()), { type: "move", objectId: "preset-beginner-rise", anchor: 40 });
+    expect(saveWorkbench("user:a", sessionDocuments(moved.state), 0)).toBe(1);
+    const raw = store.get(workbenchStorageKey("user:a"));
+    expect(isSystemDefault(defaultWorkbench())).toBe(true);
+    expect(isSystemDefault(sessionDocuments(moved.state))).toBe(false);
+    // 应用「新手」系统预设得到的是换了新 ID 的副本，是用户自己的选择，不当作系统默认。
+    expect(isSystemDefault(reidentify(defaultWorkbench()))).toBe(false);
+    expect(followSystemDefault("user:a", 0)).toBeNull();
+    expect(store.get(workbenchStorageKey("user:a"))).toBe(raw);
+    expect(followSystemDefault("user:a", 1)).toBe(0);
+    expect(store.has(workbenchStorageKey("user:a"))).toBe(false);
+    expect(store.get(`${workbenchStorageKey("user:a")}:previous`)).toBe(raw);
+    expect(readStored("user:a")).toMatchObject({ version: 0, unreadable: false });
+    expect(readStored("user:a").documents).toEqual(defaultWorkbench());
+  });
+
+  it("系统默认里的卡片不出现在「我的自定义」里；复制出来的卡片照常算", () => {
+    const docs = defaultWorkbench();
+    expect(customCardsIn(docs.content.cards)).toEqual([]);
+    const copy = { ...docs.content.cards[1]!, objectId: "card-copy" };
+    expect(customCardsIn([...docs.content.cards, copy])).toEqual([copy]);
+  });
+
+  it("与旧版默认只差一处的布局（用户改过）原样保留", () => {
+    const moved = command(startSession(legacyDefaultWorkbench()), { type: "move", objectId: "default-b06", anchor: 40 });
+    expect(saveWorkbench("user:a", sessionDocuments(moved.state), 0)).toBe(1);
+    const raw = store.get(workbenchStorageKey("user:a"));
+    expect(retireLegacyDefault("user:a")).toBe(false);
+    expect(readStored("user:a").documents).toEqual(sessionDocuments(moved.state));
+    expect(store.get(workbenchStorageKey("user:a"))).toBe(raw);
+    expect(store.has(`${workbenchStorageKey("user:a")}:legacy-default`)).toBe(false);
+  });
+
   it("记录里没有任何金额或交易 ID", () => {
-    saveWorkbench("user:a", defaultWorkbench(), 0);
+    saveWorkbench("user:a", legacyDefaultWorkbench(), 0);
     const raw = store.get(workbenchStorageKey("user:a")) ?? "";
     expect(raw).not.toMatch(/amount|Minor|transaction/i);
   });
@@ -270,7 +338,7 @@ describe("本机保存：按账号隔离、读不出时不覆盖", () => {
   });
 
   it("不合法的文档拒绝保存", () => {
-    const docs = defaultWorkbench();
+    const docs = legacyDefaultWorkbench();
     const broken = { ...docs, content: { ...docs.content, containers: [{ objectId: "x", type: "carousel" as const, children: [] }] } };
     expect(saveWorkbench("user:a", broken, 0)).toBeNull();
   });

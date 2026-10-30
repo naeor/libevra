@@ -64,7 +64,7 @@ export function GuestMePage(): React.JSX.Element {
   }
 
   return (
-    <TabPage active="me" onNavigate={(to) => void navigate(to)} currentBookName={ledger.data?.book.name}>
+    <TabPage active="/me" onNavigate={(to) => void navigate(to)} currentBookName={ledger.data?.book.name}>
       <TabPageHeader title={t("account.guestMe.title")} subtitle={t("account.guestMe.subtitle")} />
 
       <div className="flex flex-col gap-6 px-6 py-6">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useI18n } from "../i18n/index.js";
+import { useForeignBookId } from "../lib/workspaceLedger.js";
 import { FILL_MONTH_ENTRY_LIMIT, readPartialMonths } from "../lib/offline/fillCoverage.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import { useGuestMode } from "../lib/guest/session.js";
@@ -42,7 +43,16 @@ const LINGER_MS = 10_000;
 /** How long the account has to be cut off before the strip admits it. */
 const OFFLINE_NOTICE_MS = 4_000;
 
+/**
+ * S18：离线下载与同步状态都属于**设备当前账本**；工作区在查看另一本账时不显示（那里的读写只走在线，
+ * 这里的说明会误导）。
+ */
 export function OfflineStatus(): React.JSX.Element | null {
+  const foreign = useForeignBookId();
+  return foreign === null ? <OfflineStatusForDevice /> : null;
+}
+
+function OfflineStatusForDevice(): React.JSX.Element | null {
   const { t } = useI18n();
   const guest = useGuestMode();
   const { fill, ready } = useOfflineFillStatus();

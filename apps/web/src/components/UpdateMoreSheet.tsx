@@ -112,7 +112,7 @@ export function UpdateMoreSheet({
         role="dialog"
         aria-modal="true"
         aria-label={t("update.more.label")}
-        className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet sheet-in"
+        className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md max-h-[calc(var(--lv-vh)*100_-_24px)] overflow-y-auto overscroll-contain rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet sheet-in"
       >
         <div className="flex justify-center pt-3 pb-1">
           <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />

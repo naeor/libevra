@@ -114,19 +114,22 @@ describe("粘贴页的入口、隐私说明与手动输入", () => {
     const html = renderPage();
 
     expect(html).toContain("粘贴识别");
-    expect(html).toContain("粘贴交易文字，自动识别金额、日期和分类。");
-    expect(html).toContain('id="paste-text"');
+    // 1.17.23：标题、输入框标签与按钮已经说明这一页做什么，不再加副标题。
+    expect(html).not.toContain("粘贴交易文字，自动识别金额、日期和分类。");
+    // S18：输入框的 id 由 useId 生成；标签仍然指向这个输入框。
+    const inputId = /<label for="([^"]+)"/.exec(html)?.[1] ?? "missing";
+    expect(html).toContain(`id="${inputId}"`);
     expect(html).toContain("从剪贴板粘贴");
     expect(html).toContain("识别交易");
     expect(html).toContain("清空");
   });
 
-  it("明确说明不会自动读剪贴板、不发外部 AI、确认前不写入", () => {
+  it("明确说明不会自动读剪贴板、只在本机识别、不发外部 AI（隐私说明保留）", () => {
     const html = renderPage();
 
     expect(html).toContain("不会自动读取剪贴板");
+    expect(html).toContain("识别只在本机完成");
     expect(html).toContain("不会把文字发给外部 AI");
-    expect(html).toContain("不会在确认前写入账本");
   });
 });
 

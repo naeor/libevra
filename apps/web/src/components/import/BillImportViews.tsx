@@ -838,7 +838,7 @@ export function BillCommitBar({
   const disabled = importableCount === 0 || blockers.length > 0 || busy || dirty;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="">
       <div className="mx-auto w-full max-w-md px-6 pt-2.5 pb-3">
         {/* ⚠️ 英文的按钮文字更长：窄屏允许数量说明与按钮分两行，不挤压、不溢出。 */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
+import { useDialogFocus } from "../lib/dialogFocus.js";
+import { useKeyboardInset } from "./entry/keyboardInset.js";
+
 /**
  * **从底部升起的半屏面板 —— 一个负责「进 / 出」两层动画的外壳**（m06693）。
  *
@@ -37,6 +40,18 @@ export function BottomSheet({
 }): React.JSX.Element {
   const [closing, setClosing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * ⚠️ **S18（审查 U04）：焦点进入面板、Tab 圈在面板里、关闭后回到打开它的控件。** 多层面板时只有最上面
+   * 那一层响应 Esc——以前每一层都在 `window` 上听 Esc，按一次会把叠着的面板全部关掉。
+   */
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const focus = useDialogFocus(dialogRef);
+  /**
+   * ⚠️ **S18（审查 U07）：软键盘弹出时面板整体抬到键盘之上。** 与记账页保存条同一套测量
+   * （`visualViewport` 的可视区底边 vs 遮罩底边），面板高度同步减去被盖住的部分，输入框与按钮都还能看见。
+   */
+  const backdropRef = useRef<HTMLDivElement | null>(null);
+  const keyboard = useKeyboardInset(backdropRef);
 
   const requestClose = useCallback(() => {
     if (closing) return;
@@ -54,7 +69,10 @@ export function BottomSheet({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") requestClose();
+      if (event.key === "Escape" && focus.owns(event)) {
+        event.preventDefault();
+        requestClose();
+      }
     };
 
     window.addEventListener("keydown", onKey);
@@ -62,26 +80,35 @@ export function BottomSheet({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [requestClose]);
+  }, [focus, requestClose]);
 
   return (
+    /**
+     * ⚠️ **S18：高度单位是 `--lv-vh`**——手机上等于 `dvh`；大屏工作区里是工作区自己的高度，面板只盖住
+     * 自己所在的工作区（`lv-sheet*` 按工作区宽度选择底部面板或居中对话框，见 `workspace.css`）。
+     */
     <div
+      ref={backdropRef}
       role="presentation"
       onClick={requestClose}
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-ink/45 sm:items-center ${
+      style={keyboard > 0 ? { paddingBottom: keyboard } : undefined}
+      className={`lv-sheet-backdrop fixed inset-0 z-50 flex items-end justify-center bg-ink/45 sm:items-center ${
         closing ? "backdrop-out" : "backdrop-in"
       }`}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={label}
+        tabIndex={-1}
+        style={keyboard > 0 ? { maxHeight: `calc(var(--lv-vh) * 88 - ${String(keyboard)}px)` } : undefined}
         onClick={(event) => {
           event.stopPropagation();
         }}
-        className={`flex max-h-[88dvh] w-full max-w-md flex-col rounded-t-sheet bg-surface shadow-sheet ${
+        className={`lv-sheet flex max-h-[calc(var(--lv-vh)*88)] w-full max-w-md flex-col rounded-t-sheet bg-surface shadow-sheet outline-none ${
           closing ? "sheet-out" : "sheet-in"
-        } sm:max-h-[80dvh] sm:rounded-card ${dialogClassName}`}
+        } sm:max-h-[calc(var(--lv-vh)*80)] sm:rounded-card ${dialogClassName}`}
       >
         {typeof children === "function" ? children(requestClose) : children}
       </div>

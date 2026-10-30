@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
+import { gridRowHeight } from "@libellum/shared/analysis/layout";
 import { WORKSPACE_MAX_BYTES } from "@libellum/shared/workbench/configuration";
 import { useI18n } from "../i18n/index.js";
-import { BrowseGrid } from "./Grid.js";
+import { BrowseGrid, displayFor } from "./Grid.js";
 import { createPreset, loadPresets, reidentify, MAX_USER_PRESETS } from "./presets.js";
 import { readStored } from "./storage.js";
 import type { WorkbenchScope } from "./scope.js";
@@ -75,7 +76,7 @@ export function ExchangePanel({ accountScope, scope, onApply, onChanged, mode }:
       {item.entry ? <>
         <p className="text-helper text-muted">{t("statsWorkbench.transfer.summary", { cards: item.entry.documents.content.cards.length, containers: item.entry.documents.content.containers.length })}</p>
         <details><summary className="cursor-pointer text-helper text-brand-dark">{t("statsWorkbench.presets.preview")}</summary>
-          <div className="max-h-80 overflow-y-auto"><BrowseGrid content={item.entry.documents.content} layout={item.entry.documents.layout} columns={2} scope={scope} onOpenCard={() => {}} onOpenCollapsed={() => {}} carouselPages={pages} onCarouselPage={(id, page) => setPages(current => new Map(current).set(id, page))} /></div>
+          <div className="max-h-80 overflow-y-auto"><BrowseGrid content={item.entry.documents.content} display={displayFor(item.entry.documents, 2)} rowHeight={gridRowHeight(0)} scope={scope} onOpenCard={() => {}} onOpenCollapsed={() => {}} carouselPages={pages} onCarouselPage={(id, page) => setPages(current => new Map(current).set(id, page))} /></div>
         </details>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="sw-pill sw-pill-sm" disabled={!accountScope} onClick={() => add(index)}>{t("statsWorkbench.transfer.addPreset")}</button>

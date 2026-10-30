@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseWorkspaceConfiguration, parseWorkspaceDocuments, configurationFingerprint, type WorkspaceConfiguration, type WorkspaceRemote } from "@libellum/shared/workbench/configuration";
 import { WorkspaceSync, localConfiguration, syncStorageKey, type SyncTransport } from "./sync.js";
-import { defaultWorkbench } from "./defaults.js";
+import { defaultWorkbench, legacyDefaultWorkbench } from "./defaults.js";
 import { buildSystemPreset, createPreset, deletePreset, loadPresets, presetStorageKey, reidentify } from "./presets.js";
 import { loadWorkbench, saveWorkbench, workbenchStorageKey } from "./storage.js";
 import { ApiRequestError } from "../lib/api.js";
@@ -167,5 +167,94 @@ describe("W6 本地优先同步状态机", () => {
     const sync = new WorkspaceSync(scope, store, { ...remote, read: () => new Promise(r => { resolve = r; }) });
     const running = sync.run(); sync.dispose(); sync.activate(); resolve(cloud); await running;
     expect(loadWorkbench(scope).status).toBe("missing");
+  });
+});
+
+describe("1.17.23 旧版系统默认「日常总览」→ 跟随系统默认（新手布局）", () => {
+  const legacy = () => legacyDefaultWorkbench();
+  const remoteWith = (version: number, workspace: WorkspaceConfiguration["workspace"], presets: WorkspaceConfiguration["presets"] = []): WorkspaceRemote =>
+    ({ version, schemaVersion: 1, updatedAt: new Date().toISOString(), configuration: { schemaVersion: 1, workspace, presets } });
+  /** 本机已与云端同步的旧版默认：本机记录 + 同步基准都是旧版默认。 */
+  function syncedLegacy(version: number): void {
+    saveWorkbench(scope, legacy(), 0);
+    store.setItem(syncStorageKey(scope), JSON.stringify({ v: 1, version, base: { schemaVersion: 1, workspace: legacy(), presets: [] } }));
+  }
+
+  it("服务器已迁移（null，版本 +1）、本机还是旧版默认：本机备份后移除，不冲突、不写云端", async () => {
+    syncedLegacy(1);
+    cloud = remoteWith(2, null);
+    const sync = engine(); await sync.run();
+    expect(sync.getSnapshot().status).toBe("synced");
+    expect(writes).toBe(0);
+    expect(loadWorkbench(scope).status).toBe("missing");
+    expect(store.getItem(`${workbenchStorageKey(scope)}:legacy-default`)).not.toBeNull();
+    expect((JSON.parse(store.getItem(syncStorageKey(scope))!) as { version: number }).version).toBe(2);
+  });
+
+  it("服务器还没迁移、两边都是旧版默认：本机显示新手布局，云端不被改写，也不会把旧版默认装回来", async () => {
+    syncedLegacy(1);
+    cloud = remoteWith(1, legacy());
+    const sync = engine(); await sync.run(); await sync.run();
+    expect(sync.getSnapshot().status).toBe("synced");
+    expect(writes).toBe(0);
+    expect(loadWorkbench(scope).status).toBe("missing");
+  });
+
+  it("新设备第一次登录、云端是旧版默认：不安装旧版默认；我的预设照常下载", async () => {
+    const preset = { id: "p1", name: "月度复盘", description: "", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), documents: defaultWorkbench(), filters: null };
+    cloud = remoteWith(3, legacy(), [preset]);
+    const sync = engine(); await sync.run();
+    expect(sync.getSnapshot().status).toBe("synced");
+    expect(loadWorkbench(scope).status).toBe("missing");
+    expect(loadPresets(scope).presets.map(p => p.name)).toEqual(["月度复盘"]);
+    expect(writes).toBe(0);
+  });
+
+  it("本机是旧版默认、云端已被另一台设备改成自定义布局：直接安装云端，不误报冲突", async () => {
+    syncedLegacy(1);
+    const custom = buildSystemPreset("advanced", key => key.slice(-12));
+    cloud = remoteWith(3, custom);
+    const sync = engine(); await sync.run();
+    expect(sync.getSnapshot().status).toBe("synced");
+    const loaded = loadWorkbench(scope);
+    expect(loaded.status === "ok" ? loaded.documents : null).toEqual(custom);
+    expect(writes).toBe(0);
+  });
+
+  it("服务器迁移让版本 +1、本机有尚未同步的自定义：内容上云端没变，直接上传，不误报冲突", async () => {
+    syncedLegacy(1);
+    cloud = remoteWith(2, null);
+    const custom = buildSystemPreset("advanced", key => key.slice(-12));
+    saveWorkbench(scope, custom, 1);
+    const sync = engine(); await sync.run();
+    expect(sync.getSnapshot().status).toBe("synced");
+    expect(writes).toBe(1);
+    expect(cloud!.version).toBe(3);
+    expect(cloud!.configuration.workspace).toEqual(custom);
+  });
+
+  it("本机备份写不进去、旧版默认没能移走：仍按「跟随系统默认」比较，不会反复写回云端", async () => {
+    syncedLegacy(1);
+    cloud = remoteWith(2, null);
+    const original = store.setItem.bind(store);
+    vi.spyOn(store, "setItem").mockImplementation((key, value) => {
+      if (key.endsWith(":legacy-default")) throw Error("quota");
+      original(key, value);
+    });
+    const sync = engine(); await sync.run(); await sync.run(); await sync.run();
+    expect(sync.getSnapshot().status).toBe("synced");
+    expect(writes).toBe(0);
+    expect(cloud!.version).toBe(2);
+  });
+
+  it("基准是旧版默认、本机已改成自定义：照常上传自定义（用户布局优先）", async () => {
+    syncedLegacy(1);
+    cloud = remoteWith(1, legacy());
+    const custom = buildSystemPreset("professional", key => key.slice(-12));
+    saveWorkbench(scope, custom, 1);
+    const sync = engine(); await sync.run();
+    expect(sync.getSnapshot().status).toBe("synced");
+    expect(writes).toBe(1);
+    expect(cloud!.configuration.workspace).toEqual(custom);
   });
 });

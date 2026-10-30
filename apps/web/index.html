@@ -29,7 +29,13 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta name="description" content="Libevra - the free, open ledger" />
+    <!--
+      1.17.24：关掉 Safari 对页面文字的自动识别（电话号码、日期、地址、邮箱会被悄悄变成链接）。
+      账目的备注里常有这类数字；变成链接后，长按那一笔会触发系统的链接手势（预览、拖出链接），
+      与「长按拖到另一个工作区」抢同一次触摸。
+    -->
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+    <meta name="description" content="Libevra：个人独立开发、AI 工具辅助的非商业记账项目，尚未正式向公众发布。" />
     <title>Libevra</title>
   </head>
   <body>

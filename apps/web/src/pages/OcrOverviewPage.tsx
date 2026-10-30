@@ -69,6 +69,7 @@ import {
 } from "../lib/ocr/types.js";
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
+import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { useBooks, useLedger, useLedgerMeta } from "../lib/queries.js";
 import { uuidV7 } from "../lib/uuid.js";
 
@@ -101,7 +102,6 @@ function historyDuplicateChoices(): readonly Choice<HistoryDuplicateChoice>[] {
     {
       id: "review",
       label: translate("ocr.overview.historyReview"),
-      hint: translate("ocr.overview.historyReviewHint"),
       dismissive: true,
     },
   ];
@@ -117,7 +117,6 @@ function historyDuplicateDescription(found: NewCandidatesResult): string {
     }),
     ...shown,
     rest > 0 ? translate("ocr.overview.historyMore", { count: rest }) : "",
-    translate("ocr.overview.historyNote"),
   ]
     .filter((line) => line !== "")
     .join(" ");
@@ -129,6 +128,7 @@ export function OcrOverviewPage(): React.JSX.Element {
   const ledger = useLedger();
   const books = useBooks();
   const { readOnly } = useSharedLedgerOfflineReadOnly();
+  const { offline } = useAccountOffline();
   const duplicateSettings = useDuplicateDetectionSettings();
 
   const [batch, setBatch] = useState<OcrBatch | null>(() => {
@@ -450,7 +450,6 @@ export function OcrOverviewPage(): React.JSX.Element {
   return (
     <InnerPage
       title={t("ocr.overview.title")}
-      subtitle={t("ocr.overview.subtitle")}
       backTo="/scan"
       actions={
         <Button
@@ -560,14 +559,12 @@ export function OcrOverviewPage(): React.JSX.Element {
       <ConfirmDialog
         open={confirmOpen}
         title={t("ocr.overview.confirmTitle", { count: importableCount })}
-        description={t("ocr.overview.confirmDescription")}
         consequences={[
           t("ocr.overview.confirmCounts", { confirmed: counts.confirmed, pending: counts.pending }),
-          counts.duplicates > 0
-            ? t("ocr.overview.confirmDuplicates", { count: counts.duplicates })
-            : t("ocr.overview.confirmNoDuplicates"),
+          counts.duplicates > 0 ? t("ocr.overview.confirmDuplicates", { count: counts.duplicates }) : "",
           counts.invalid > 0 ? t("ocr.overview.confirmInvalid", { count: counts.invalid }) : "",
-          t("ocr.overview.confirmOffline"),
+          // 离线时说明写入去向（在线时不提）。
+          offline ? t("ocr.overview.confirmOffline") : "",
         ].filter((line) => line !== "")}
         confirmLabel={t("ocr.bar.confirm", { count: importableCount })}
         tone="default"
@@ -599,7 +596,7 @@ export function OcrOverviewPage(): React.JSX.Element {
         open={cancelOpen}
         title={t("ocr.overview.cancelTitle")}
         description={t("ocr.overview.cancelDescription")}
-        consequences={[t("ocr.overview.cancelImported"), t("ocr.overview.cancelReupload")]}
+        consequences={[t("ocr.overview.cancelReupload")]}
         confirmLabel={t("ocr.overview.cancelConfirm")}
         cancelLabel={t("ocr.overview.cancelKeep")}
         onConfirm={cancelBatch}

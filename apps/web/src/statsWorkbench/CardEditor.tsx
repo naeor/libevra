@@ -267,7 +267,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
         : { text: notice, tone: "warn" };
 
   return (
-    <BottomSheet label={card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")} onClose={onClose} dialogClassName="sw-editor h-[94dvh] max-h-[94dvh] sm:h-[88dvh] sm:max-h-[88dvh] md:max-w-5xl">
+    <BottomSheet label={card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")} onClose={onClose} dialogClassName="sw-editor h-[calc(var(--lv-vh)*94)] max-h-[calc(var(--lv-vh)*94)] sm:h-[calc(var(--lv-vh)*88)] sm:max-h-[calc(var(--lv-vh)*88)] md:max-w-5xl">
       {(close) => (
         <form
           className="flex min-h-0 flex-1 flex-col"

@@ -21,6 +21,7 @@ import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
+import { StickyActionBar } from "../components/StickyActionBar.js";
 import { TextField } from "../components/TextField.js";
 import { ocrChannelLabel, ocrDirectionLabel, ocrIssueText } from "../components/ocr/OcrOverview.js";
 import { useI18n } from "../i18n/index.js";
@@ -38,7 +39,6 @@ import { findSuspectedDuplicates, groupsForCandidate } from "../lib/ocr/duplicat
 import {
   categorySourceOf,
   deriveIssues,
-  isItemComplete,
   type OcrBatch,
   type OcrBatchCandidate,
   type OcrCategorySource,
@@ -264,7 +264,6 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   return (
     <InnerPage
       title={t("ocr.detail.title")}
-      subtitle={t("ocr.detail.subtitle")}
       backTo="/ocr/overview"
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
@@ -285,11 +284,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
       {duplicateGroups.length > 0 ? (
         <Alert tone="info">
-          {t("ocr.detail.duplicateNote", {
-            reasons: duplicateGroups
-              .map((group) => t("ocr.detail.duplicateReason", { reason: group.reason }))
-              .join(" "),
-          })}
+          {duplicateGroups.map((group) => t("ocr.detail.duplicateReason", { reason: group.reason })).join(" ")}
         </Alert>
       ) : null}
 
@@ -387,7 +382,6 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <TextField
           label={t("ocr.detail.merchant")}
           value={form.merchant}
-          placeholder={t("ocr.detail.merchantPlaceholder")}
           onChange={(event) => { patch({ merchant: event.target.value }); }}
         />
 
@@ -434,7 +428,6 @@ export function OcrReviewDetailPage(): React.JSX.Element {
           value={form.account}
           placeholder={t("ocr.detail.accountPlaceholder")}
           onChange={(event) => { patch({ account: event.target.value }); }}
-          hint={t("ocr.detail.accountHint")}
         />
 
         <fieldset className="flex flex-col gap-2">
@@ -478,7 +471,6 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             maxLength={200}
             className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={form.note}
-            placeholder={t("ocr.detail.notePlaceholder")}
             onChange={(event) => { patch({ note: event.target.value }); }}
           />
           <span className="text-helper text-muted">{t("ocr.detail.noteHint")}</span>
@@ -496,16 +488,14 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             </ul>
           </div>
         )}
-
-        <p className="text-helper text-muted">
-          {isItemComplete(preview)
-            ? t("ocr.detail.complete")
-            : t("ocr.detail.incomplete")}
-        </p>
       </section>
 
-      <div className="flex flex-col gap-2">
+      {/* 1.17.23：主要操作固定在底部，手机上不用先滚到底；标记无效、不保存返回留在内容末尾。 */}
+      <StickyActionBar>
         <Button onClick={save}>{t("ocr.detail.save")}</Button>
+      </StickyActionBar>
+
+      <div className="flex flex-col gap-2">
         <Button variant={item.invalid ? "secondary" : "danger-quiet"} onClick={markInvalid}>
           {item.invalid ? t("ocr.detail.restoreValid") : t("ocr.detail.markInvalid")}
         </Button>

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { aggregateFxAsync, aggregateFxDetailedAsync, convertFx, decimalsFor, FxError, FxHistoryService, FxResultCache, fxHistoryOptionsFromEnv, fxRangeMonths, FX_MAX_DETAIL_ENTRIES, FX_MAX_RANGE_MONTHS, type FxAggregate, type FxAggregateDetail, type FxLookup, type Transaction } from "@libellum/shared";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { apiFetch } from "./api.js";
-import { useCurrentBookId } from "./queries.js";
+import { useForeignBookId, useViewBookId } from "./workspaceLedger.js";
 import { useAccountOffline } from "./offline/connectivity.js";
 import { OfflineFxRepository } from "./offline/fx.js";
 import { offlineScope } from "./offline/scope.js";
@@ -38,7 +38,8 @@ const rates = new FxHistoryService(new OfflineFxRepository(), {
 }, fxHistoryOptionsFromEnv(import.meta.env ?? {}, "VITE_"));
 export function useFxEntry(entry: Transaction) {
   const mode = useFxMode(), { offline } = useAccountOffline();
-  const bookId = useCurrentBookId();
+  /** S18：按这一笔所在工作区查看的账本（外部账本或当前账本）计算缓存归属。 */
+  const bookId = useViewBookId();
   const cache = useMemo(() => new FxResultCache(1), [mode.userId, bookId]);
   const query = useQuery({ queryKey: ["fx-public-rate", entry.occurredLocalDate, offline],
     queryFn: () => rates.lookup(entry.occurredLocalDate, { offline }), staleTime: 60000,
@@ -77,7 +78,7 @@ export function useFxRange(
     readonly filterKey?: string;
   },
 ) {
-  const mode = useFxMode(), bookId = useCurrentBookId(), { offline } = useAccountOffline();
+  const mode = useFxMode(), bookId = useViewBookId(), foreign = useForeignBookId(), { offline } = useAccountOffline();
   const enabled = options?.enabled ?? mode.enabled;
   const source = useAnalysisRange({ from, to }, enabled && active);
   const sourceVersion = useMemo(() => source.data?.entries.map(row => `${row.id}:${row.version}`).sort().join("|") ?? "", [source.data]);
@@ -101,7 +102,8 @@ export function useFxRange(
   useEffect(() => {
     if (!enabled || !active || !mode.userId || !bookId || source.data === undefined || source.error) return;
     const controller = new AbortController(), scope = `${mode.userId}:${bookId}`;
-    const check = () => { controller.signal.throwIfAborted(); if (offlineScope() !== scope) throw new Error("fx_scope_changed"); };
+    // 外部账本不经过设备的离线作用域；只有当前账本需要复核「读取期间是否换了账本」。
+    const check = () => { controller.signal.throwIfAborted(); if (foreign === null && offlineScope() !== scope) throw new Error("fx_scope_changed"); };
     setState({ key });
     void (async () => {
       check();
@@ -127,7 +129,7 @@ export function useFxRange(
         result = await aggregateFxAsync(mode.userId, bookId, filtered, mode.target, lookups, { signal: controller.signal });
       }
       check(); setState({ key, result, sourceComplete, offline: local, sourceEntries: filtered, lookups, ...(detail === undefined ? {} : { detail }), ...(entryLimitExceeded ? { entryLimitExceeded } : {}) });
-    })().catch(() => { if (!controller.signal.aborted && offlineScope() === scope) setState({ key, error: true, reason: "read" }); });
+    })().catch(() => { if (!controller.signal.aborted && (foreign !== null || offlineScope() === scope)) setState({ key, error: true, reason: "read" }); });
     return () => controller.abort();
   // 原件变化会触发重算；写入现有月份副本不改变原始财务事实。
   }, [key, source.data, source.error, retry]);

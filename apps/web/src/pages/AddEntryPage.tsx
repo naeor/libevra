@@ -9,7 +9,7 @@ import {
   type Transaction,
   type TransactionKind,
 } from "@libellum/shared";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -23,6 +23,7 @@ import { CurrencySheet } from "../components/entry/CurrencySheet.js";
 import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
+import { usePaneDirty } from "../workspace/context.js";
 import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/inheritLast.js";
 import { ChevronIcon } from "../components/Icons.js";
 import { InfoIcon } from "../components/InfoHint.js";
@@ -42,6 +43,7 @@ import { currencyName, minorToInput, parseAmountInput } from "../lib/format.js";
 import { createNotDuplicateRelations, notDuplicateConfirmationForEntry } from "../lib/notDuplicateRelations.js";
 import { displayCategoryDescription, displayCategoryName } from "../lib/presetNames.js";
 import { createEntry as createLocally, localEntry } from "../lib/offline/write.js";
+import { useLedgerWriter } from "../lib/ledgerWriter.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
   useBookMembers,
@@ -69,7 +71,7 @@ const DEFAULT_PAYMENT_METHOD_NAME = "其他"; // i18n-ignore：与数据库里�
  */
 export function manualDuplicateChoices(): readonly Choice<"save" | "confirmNotDuplicate" | "cancel">[] {
   return [
-    { id: "save", label: translate("entry.duplicate.save"), hint: translate("entry.duplicate.saveHint"), primary: true },
+    { id: "save", label: translate("entry.duplicate.save"), primary: true },
     {
       id: "confirmNotDuplicate",
       label: translate("entry.duplicate.confirmNotDuplicate"),
@@ -144,6 +146,11 @@ export function AddEntryPage(): React.JSX.Element {
    * 这里只决定“问不问、怎么问”。检测失败不阻止写入——提醒是礼貌，不是关卡。
    */
   const checkDuplicates = useCheckDuplicates();
+  /**
+   * ⚠️ **S18 写入安全**：新的一笔写到**这个工作区查看的那本账**。外部账本只能在线写入，失败时报告
+   * 错误，**绝不**退回设备当前账本的离线队列（那会把这一笔记进另一本账）。
+   */
+  const writer = useLedgerWriter();
   const duplicateSettings = useDuplicateDetectionSettings();
   /**
    * ⚠️ **Shared ledger + offline = read-only**, the owner's S13-E rule. The write layer refuses it
@@ -207,6 +214,13 @@ export function AddEntryPage(): React.JSX.Element {
   const [note, setNote] = useState("");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * ⚠️ **S18：已经填了金额或备注，就是一份未保存的草稿。** 在辅助工作区里，登记后外壳会切到独立模式，
+   * 跟随导航不会把这页替换掉；收起、关闭或交换工作区都只隐藏这一页，草稿原样保留。
+   */
+  usePaneDirty(amountText.trim() !== "" || note.trim() !== "");
+  /** S18：两个工作区可以同时打开记账页，输入框与标签的关联用实例唯一的 id。 */
+  const timeId = useId();
   /**
    * The entry just saved, or null while the form is showing.
    *
@@ -441,6 +455,8 @@ export function AddEntryPage(): React.JSX.Element {
      * ⚠️ 检测失败一律静默放行：拿不到提醒不是丢掉一笔账的理由。数据范围由
      * `found.scope` 说明——离线时只比对了本机已知记录。
      */
+    // 重复检测读的是设备当前账本的记录；外部账本里不做（不会拿另一本账的记录来比）。
+    if (writer.foreign === null) {
     try {
       const found = await checkDuplicates.mutateAsync({
         kind,
@@ -470,6 +486,7 @@ export function AddEntryPage(): React.JSX.Element {
     } catch {
       // Deliberately silent: see above.
     }
+    }
 
     await write(input);
   }
@@ -485,6 +502,14 @@ export function AddEntryPage(): React.JSX.Element {
     setWriting(true);
     try {
       let entry: Transaction;
+      if (writer.foreign !== null) {
+        try {
+          entry = (await writer.create(input, localEntry(input, ledger.data))).entry;
+        } catch (caught) {
+          setError(errorMessage(caught));
+          return;
+        }
+      } else {
       try {
         const outcome = await createLocally(input, localEntry(input, ledger.data));
         entry = outcome.entry;
@@ -504,6 +529,7 @@ export function AddEntryPage(): React.JSX.Element {
           setError(errorMessage(caught));
           return;
         }
+      }
       }
 
       /**
@@ -633,6 +659,7 @@ export function AddEntryPage(): React.JSX.Element {
        * 底栏；长内容时 `flex-1` 的 `min-height:auto` 不会压缩表单，滚动行为不变。
        */
       className="min-h-full pb-0!"
+      wideWidth="reading"
     >
       <form
         className="flex flex-1 flex-col"
@@ -641,7 +668,7 @@ export function AddEntryPage(): React.JSX.Element {
           void save();
         }}
       >
-        <header className="flex flex-col gap-4 bg-brand px-6 pt-8 pb-6 text-on-brand">
+        <header className="flex flex-col gap-4 bg-brand px-6 pt-8 pb-6 text-on-brand @3xl/lvpane:mt-6 @3xl/lvpane:rounded-card">
           {/**
             * ⚠️ **The guest identity is deliberately not shown on this screen** (S14-C UI fix,
             * 1.14.05). It shared this row with the 支出/收入 switch and broke its balance; the owner
@@ -842,11 +869,11 @@ export function AddEntryPage(): React.JSX.Element {
         */}
         <section className="flex flex-col gap-2 px-6 pt-5">
           <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-field border border-line bg-surface px-4">
-            <label htmlFor="entry-time" className="text-card-title text-ink">
+            <label htmlFor={timeId} className="text-card-title text-ink">
               {t("common.field.time")}
             </label>
             <input
-              id="entry-time"
+              id={timeId}
               type="datetime-local"
               step="1"
               aria-label={t("common.field.time")}

@@ -4,7 +4,7 @@ import type zh from "../zh-CN/legal.js";
 /** `legal` 文案（English）。必须与 zh-CN 的键结构完全一致。协议正文不翻译，见 zh-CN 文件头。 */
 const legal: Messages<typeof zh> = {
   chineseOnly:
-    "This document is available in Chinese only. The Chinese version is the one that applies; an English translation is under review.",
+    "This document is available in Chinese only. The Chinese version is the one that applies; an English translation is not yet available.",
   placeholder: {
     mustCover: "What the final text needs to cover",
     pending: "The final text is still being prepared and will replace this page when it’s ready.",

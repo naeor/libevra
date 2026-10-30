@@ -27,7 +27,7 @@ import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
 import { notifyWorkbenchChange } from "./configEvents.js";
 import type { ChartFamily } from "./catalog.js";
 import type { TemplateId } from "./composition.js";
-import { buildCard } from "./customCards.js";
+import { buildCard, CUSTOM_NAME_MAX } from "./customCards.js";
 import { newObjectId } from "./defaults.js";
 import { documentsProblems, type WorkbenchDocuments } from "./storage.js";
 import type { RelativeWindow } from "./timeWindows.js";
@@ -97,28 +97,29 @@ export const SYSTEM_PRESETS: readonly SystemPresetSpec[] = [
     id: "beginner",
     rows: 13,
     modules: [
-      // C1–4 / R1–2 本周财务概览：总支出、较前期变化、日均支出、笔数（四数字）
-      { kind: "card", key: "overview", row: 1, ...full, rows: 2, template: "T2", slots: [["AN-B01", "number"], ["AN-A01", "number"], ["AN-B06", "number"], ["AN-B04", "number"]], window: "last-7-days", titled: true },
-      // C1–4 / R3–4 钱主要花在哪里：支出分类环形图 + 前几名分类排行。整行 2×2 的环形图自带按金额排序的
-      // 分类图例（前几名 + 「另有 N 项」），就是「环形 + 排行」；拆成两个半宽槽位时手机上环形图会退成
-      // 列表、与排行重复（1.17.12 浏览器实测），所以用一张单项卡片。
-      { kind: "card", key: "where", row: 3, ...full, rows: 2, template: "single", slots: [["AN-I01", "donut"]], window: "month-to-date", titled: true },
-      // C1–4 / R5–6 每日消费变化：七日柱状图 + 两项摘要数字
+      // C1–4 / R1–2 支出分类（原「钱主要花在哪里」；1.17.23 起按所有者要求放在第一位，标题用分析自身名称）：
+      // 支出分类环形图 + 前几名分类排行。整行 2×2 的环形图自带按金额排序的分类图例（前几名 + 「另有 N 项」），
+      // 就是「环形 + 排行」；拆成两个半宽槽位时手机上环形图会退成列表、与排行重复（1.17.12 浏览器实测），
+      // 所以用一张单项卡片。
+      { kind: "card", key: "where", row: 1, ...full, rows: 2, template: "single", slots: [["AN-I01", "donut"]], window: "month-to-date", titled: false },
+      // C1–4 / R3–4 近 7 天概览：总支出、较前期变化、日均支出、笔数（四数字）
+      { kind: "card", key: "overview", row: 3, ...full, rows: 2, template: "T2", slots: [["AN-B01", "number"], ["AN-A01", "number"], ["AN-B06", "number"], ["AN-B04", "number"]], window: "last-7-days", titled: true },
+      // C1–4 / R5–6 每日支出：七日柱状图 + 两项摘要数字
       { kind: "card", key: "daily", row: 5, ...full, rows: 2, template: "T3", slots: [["AN-I06", "bar"], ["AN-B01", "number"], ["AN-B11", "extreme"]], window: "last-7-days", titled: true },
       // C1–2 / R7 增加最多的分类；C3–4 / R7 减少最多的分类（本月至今对比上月同期）
       { kind: "card", key: "rise", row: 7, ...left, rows: 1, template: "single", slots: [["AN-A17", "top-rise"]], window: "month-to-date", titled: false },
       { kind: "card", key: "fall", row: 7, ...right, rows: 1, template: "single", slots: [["AN-A17", "top-fall"]], window: "month-to-date", titled: false },
-      // C1–4 / R8–9 消费细节（横向滑动抽屉）：大额支出排行、分类变化、星期消费规律
+      // C1–4 / R8–9 横向滑动抽屉：大额支出、分类变化、按星期支出
       {
         kind: "drawer", key: "details", row: 8, rows: 2, children: [
-          { key: "large", analysisId: "AN-I18", family: "ranking", window: "month-to-date", titled: true },
+          { key: "large", analysisId: "AN-I18", family: "ranking", window: "month-to-date", titled: false },
           { key: "change", analysisId: "AN-A17", family: "diverging", window: "month-to-date", titled: true },
           { key: "weekday", analysisId: "AN-I13", family: "bar", window: "last-4-weeks", titled: false },
         ],
       },
       // C1–4 / R10–11 本月收支：趋势图 + 收入、支出、差额
       { kind: "card", key: "month", row: 10, ...full, rows: 2, template: "T4", slots: [["AN-I11", "flow-bars"], ["AN-B02", "number"], ["AN-B01", "number"], ["AN-B03", "number"]], window: "month-to-date", titled: true },
-      // C1–4 / R12–13 近四周支出变化：周度对比柱状图
+      // C1–4 / R12–13 每周支出：最近 4 周的周度对比柱状图
       { kind: "card", key: "weeks", row: 12, ...full, rows: 2, template: "single", slots: [["AN-I08", "bar"]], window: "last-4-weeks", titled: true },
     ],
   },
@@ -132,9 +133,9 @@ export const SYSTEM_PRESETS: readonly SystemPresetSpec[] = [
       { kind: "card", key: "trend", row: 3, ...full, rows: 2, template: "T3", slots: [["AN-I11", "flow-lines"], ["AN-B03", "number"], ["AN-B19", "number"]], window: "last-6-months", titled: true },
       // C1–4 / R5–6 支出变化来源：分类变化排行 + 双数字
       { kind: "card", key: "sources", row: 5, ...full, rows: 2, template: "T3", slots: [["AN-A17", "diverging"], ["AN-A01", "number"], ["AN-B01", "number"]], window: "month-to-date", titled: true },
-      // C1–2 / R7 最大单笔支出；C3–4 / R7 支出集中度
+      // C1–2 / R7 最大单笔支出；C3–4 / R7 前三分类占比（A08；标题用分析自身名称）
       { kind: "card", key: "largest", row: 7, ...left, rows: 1, template: "single", slots: [["AN-B09", "extreme"]], window: "month-to-date", titled: false },
-      { kind: "card", key: "concentration", row: 7, ...right, rows: 1, template: "single", slots: [["AN-A08", "number"]], window: "month-to-date", titled: true },
+      { kind: "card", key: "concentration", row: 7, ...right, rows: 1, template: "single", slots: [["AN-A08", "number"]], window: "month-to-date", titled: false },
       // C1–4 / R8–9 消费规律（横向滑动抽屉）：消费日历热力图、星期规律、支付方式构成
       {
         kind: "drawer", key: "patterns", row: 8, rows: 2, children: [
@@ -201,7 +202,8 @@ export function buildSystemPreset(id: SystemPresetId, t: Translate): WorkbenchDo
   const cards: AnalysisCardNode[] = [];
   const containers: ContainerNode[] = [];
   const objects: ObjectGeometry[] = [];
-  const titleOf = (key: string) => t(`statsWorkbench.presets.modules.${id}.${key}`);
+  // 卡片名称有长度上限（`CUSTOM_NAME_MAX`）；某种语言的译文偶然超长时截断，而不是让整个默认工作台生成失败。
+  const titleOf = (key: string) => Array.from(t(`statsWorkbench.presets.modules.${id}.${key}`).trim()).slice(0, CUSTOM_NAME_MAX).join("");
   for (const module of spec.modules) {
     if (module.kind === "card") {
       const objectId = `preset-${id}-${module.key}`;

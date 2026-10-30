@@ -82,16 +82,12 @@ export function BatchEditSheet({
       <div
         role="dialog"
         aria-label={t("ledger.batch.sheet.title")}
-        className="relative flex max-h-[85dvh] w-full max-w-md flex-col overflow-y-auto rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        className="relative flex max-h-[calc(var(--lv-vh)*85)] w-full max-w-md flex-col overflow-y-auto rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
       >
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="min-w-0 text-base font-medium text-ink">{t("ledger.batch.sheet.title")}</h2>
           <span className="shrink-0 text-helper text-muted">{t("ledger.batch.sheet.selectedCount", { count })}</span>
         </div>
-
-        <p className="mt-1 text-helper-relaxed text-muted">
-          {t("ledger.batch.sheet.intro")}
-        </p>
 
         {blockedReason === null ? null : (
           <p role="alert" className="mt-3 rounded-field bg-warn-soft px-3 py-2 text-helper-relaxed text-ink">

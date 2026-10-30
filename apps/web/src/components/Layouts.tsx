@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
@@ -11,6 +11,7 @@ import { SyncBanner } from "./SyncBanner.js";
 import { useGoBack, type BackMode } from "../lib/connectivity.js";
 import { useI18n } from "../i18n/index.js";
 import { WorkbenchSyncBridge } from "../statsWorkbench/SyncBridge.js";
+import { usePane, useMarkBack } from "../workspace/context.js";
 
 /**
  * Whether the entry cards are open, and who may close them.
@@ -81,9 +82,24 @@ export function menuAfter(open: boolean, event: MenuEvent): boolean {
 }
 
 /**
- * Holds the menu for every tab, and folds it when the reader moves on.
+ * The app-wide pieces that exist once, whatever the layout: workbench sync and the guest welcome.
+ *
+ * ⚠️ **S18：记账菜单的状态搬到了每个工作区自己的 `PaneShell` 里**——大屏上两个工作区各有自己的页面与
+ * 导航，一边的菜单不应该被另一边的路由变化折叠，也不应该在另一边弹出。手机上只有一个工作区，行为不变。
  */
 export function AppShell({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
+  return (
+    <WorkbenchSyncBridge>
+      {children}
+      <GuestWelcome />
+    </WorkbenchSyncBridge>
+  );
+}
+
+/**
+ * Holds the menu for one workspace's tabs, and folds it when that workspace moves on.
+ */
+export function PaneShell({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
 
@@ -111,14 +127,24 @@ export function AppShell({ children }: { readonly children: React.ReactNode }): 
     [open],
   );
 
-  return (
-    <EntryMenuContext.Provider value={value}>
-      <WorkbenchSyncBridge>
-      {children}
-      <GuestWelcome />
-      </WorkbenchSyncBridge>
-    </EntryMenuContext.Provider>
-  );
+  return <EntryMenuContext.Provider value={value}>{children}</EntryMenuContext.Provider>;
+}
+
+/**
+ * ⚠️ **S18：页面主体在大屏工作区里的最大宽度。** 手机外壳下一律是原来的 `max-w-md`（448px 窄列）；
+ * 在大屏工作区里按内容选择——说明文字与表单保持合理行宽，列表与图表利用更宽的工作区——而不是把所有
+ * 内容无差别拉满。工作区本身比这个窄时，内容就跟着工作区（`w-full`）。
+ */
+export type WideWidth = "reading" | "content" | "full";
+
+const WIDE_MAX: Record<WideWidth, string> = {
+  reading: "max-w-[40rem]",
+  content: "max-w-[56rem]",
+  full: "max-w-none",
+};
+
+export function frameWidthClass(pane: { readonly shell: "phone" | "wide" }, wide: WideWidth): string {
+  return pane.shell === "wide" ? WIDE_MAX[wide] : "max-w-md";
 }
 
 /**
@@ -147,6 +173,7 @@ export function TabPage({
   rootClassName = "",
   currentBookName,
   bottom,
+  wideWidth = "content",
 }: {
   readonly active: string;
   readonly onNavigate: (to: string) => void;
@@ -167,19 +194,24 @@ export function TabPage({
    * 不传时（所有其它页面，以及分析页的浏览态）与以前完全一样。
    */
   readonly bottom?: React.ReactNode;
+  /** S18：在大屏工作区里的最大宽度（手机上始终是原来的窄列）。 */
+  readonly wideWidth?: WideWidth;
 }): React.JSX.Element {
-  const menu = useEntryMenu();
+  const pane = usePane();
+  const width = frameWidthClass(pane, wideWidth);
+  /** 底部导航只在手机外壳的主区存在；大屏上主导航在全局侧栏，辅助区没有主导航。 */
+  const bottomNav = pane.nav === "bottom";
 
   if (bottom !== undefined) {
     return (
-      <div ref={rootRef} className={`relative flex h-dvh flex-col overflow-hidden ${rootClassName}`}>
+      <div ref={rootRef} data-workbench-frame className={`relative flex h-dvh flex-col overflow-hidden ${rootClassName}`}>
         <SyncBanner />
         <OfflineStatus />
         <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
-          {/* 固定保留展开抽屉的空间；抽屉动画不改变滚动视口和拖放命中坐标。 */}
-          <div className={`mx-auto flex w-full max-w-md flex-col pb-[calc(min(48dvh,27rem)+1.5rem)] ${className}`}>{children}</div>
+          {/* 只给紧凑工具条留尾部空间；展开／拖动不改变网格和滚动视口尺寸。 */}
+          <div className={`mx-auto flex w-full ${width} flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] ${className}`}>{children}</div>
         </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 [&>*]:pointer-events-auto">{bottom}</div>
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 [&>*]:pointer-events-auto">{bottom}</div>
       </div>
     );
   }
@@ -192,9 +224,28 @@ export function TabPage({
       <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
         {/* pb-24 leaves room for the raised entry button, which reaches up
             above the bar and would otherwise cover the last row of a list. */}
-        <div className={`mx-auto flex w-full max-w-md flex-col pb-24 ${className}`}>{children}</div>
+        <div className={`mx-auto flex w-full ${width} flex-col ${bottomNav ? "pb-24" : "pb-10"} ${className}`}>{children}</div>
       </div>
 
+      {/* 大屏工作区没有底部导航，但仍在底边说明这个工作区查看的是哪本账（两个工作区各自一行）。 */}
+      {bottomNav ? <TabPageNav active={active} onNavigate={onNavigate} currentBookName={currentBookName} /> : <CurrentBookCaption name={currentBookName} />}
+    </div>
+  );
+}
+
+/** 手机外壳的底部：当前账本说明、记账卡片的留位、底部导航。 */
+function TabPageNav({
+  active,
+  onNavigate,
+  currentBookName,
+}: {
+  readonly active: string;
+  readonly onNavigate: (to: string) => void;
+  readonly currentBookName?: string | undefined;
+}): React.JSX.Element {
+  const menu = useEntryMenu();
+  return (
+    <>
       <CurrentBookCaption name={currentBookName} hidden={menu.open} />
       {/*
         Real space for the cards, not a floating layer over the list.
@@ -214,9 +265,10 @@ export function TabPage({
         onNavigate={onNavigate}
         cards={{ mode: "toggle", expanded: menu.open, active: false, onToggle: menu.toggle }}
       />
-    </div>
+    </>
   );
 }
+
 /**
  * Frame for screens reached *from* a tab: back control at the top, no bottom
  * bar, because a form is a place you leave, not a place you switch away from.
@@ -244,6 +296,7 @@ export function InnerPage({
   onBack,
   actions,
   children,
+  wideWidth = "reading",
 }: {
   readonly title: string;
   /**
@@ -262,9 +315,22 @@ export function InnerPage({
   readonly onBack?: () => void;
   readonly actions?: React.ReactNode;
   readonly children: React.ReactNode;
+  /** S18：在大屏工作区里的最大宽度。二级页多是表单与说明，默认保持阅读宽度。 */
+  readonly wideWidth?: WideWidth;
 }): React.JSX.Element {
   const goBack = useGoBack(backTo, backMode);
-  const handleBack = onBack ?? goBack;
+  const pane = usePane();
+  const width = frameWidthClass(pane, wideWidth);
+  /**
+   * S18：页面左上角的「返回」先告诉工作区外壳「这是返回」——有的页面返回是打开声明的上级页（push），
+   * 跟随模式下不能因此被当成用户主动打开新页面而切成独立。没有外壳时什么都不做。
+   */
+  const markBack = useMarkBack();
+  const back = onBack ?? goBack;
+  const handleBack = useCallback(() => {
+    markBack();
+    back();
+  }, [back, markBack]);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const condensed = useTitleScrolledAway(titleRef);
 
@@ -293,13 +359,13 @@ export function InnerPage({
       */}
       <OfflineStatus />
 
-      <PageNavBar title={title} condensed={condensed} onBack={handleBack} actions={actions}>
+      <PageNavBar title={title} condensed={condensed} onBack={handleBack} actions={actions} widthClass={width}>
         {/* ⚠️ The offline banner is itself `sticky top-0`; inside the bar's sticky group it stays
             pinned *with* the bar instead of being covered by it. */}
         <SyncBanner />
       </PageNavBar>
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 pt-1 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))]">
+      <main className={`mx-auto flex w-full ${width} flex-1 flex-col gap-6 px-6 pt-1 ${pane.shell === "wide" ? "pb-10" : "pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))]"}`}>
         <header>
           <h1 ref={titleRef} className="flex items-center gap-2 text-page-title text-ink">
             {title}
@@ -338,6 +404,7 @@ function PageNavBar({
   onBack,
   actions,
   children,
+  widthClass,
 }: {
   readonly title: string;
   readonly condensed: boolean;
@@ -345,6 +412,7 @@ function PageNavBar({
   readonly actions?: React.ReactNode;
   /** Pinned above the bar inside the same sticky group (the offline banner). */
   readonly children?: React.ReactNode;
+  readonly widthClass: string;
 }): React.JSX.Element {
   const { t } = useI18n();
   return (
@@ -356,7 +424,7 @@ function PageNavBar({
       }`}
     >
       {children}
-      <nav aria-label={t("nav.page.nav")} className="relative mx-auto flex h-12 w-full max-w-md items-center justify-between gap-3 px-6">
+      <nav aria-label={t("nav.page.nav")} className={`relative mx-auto flex h-12 w-full ${widthClass} items-center justify-between gap-3 px-6`}>
         {/* Deliberately generous: this is the control a thumb reaches for on a phone, and a small
             target means missed taps. 44px high, and the chevron sits on the content's 24px edge. */}
         <button

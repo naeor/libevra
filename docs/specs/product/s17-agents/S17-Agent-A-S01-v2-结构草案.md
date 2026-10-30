@@ -691,7 +691,7 @@ export interface DraftFxRateResolution {
 
 ## 16. 所有者裁定 2026-10-27 落实（r6，增量修订；来源 `f215fa9`）
 
-> 来源：`C:\Users\ZhuanZ（无密码）\Desktop\工作\记账程序\记账程序v1-s17-orchestrator\docs\specs\product\s17-agents\S17-所有者裁定-20261027-S01v2冻结方向与C1常量分类.md`（orchestrator `f215fa9`；Lead m03434 转发）。性质：**增量修订**，不重写 r5；r6 仍 `s01-v2-draft`，**未冻结**。逐项处理记录见 `S17-Agent-A-S01-v2-r6-记录.md`；冻结前核对结果见 `S17-Agent-A-S01-v2-最终冻结核对结果.md`。
+> 来源：`C:\Users\<本机用户>\Desktop\工作\记账程序\记账程序v1-s17-orchestrator\docs\specs\product\s17-agents\S17-所有者裁定-20261027-S01v2冻结方向与C1常量分类.md`（orchestrator `f215fa9`；Lead m03434 转发）。性质：**增量修订**，不重写 r5；r6 仍 `s01-v2-draft`，**未冻结**。逐项处理记录见 `S17-Agent-A-S01-v2-r6-记录.md`；冻结前核对结果见 `S17-Agent-A-S01-v2-最终冻结核对结果.md`。
 
 ### 16.1 D 冲突项复核（r5 已修正，不重做）
 

@@ -132,7 +132,7 @@ describe("DetailTools", () => {
 });
 
 describe("SelectionBar", () => {
-  it("names the loaded count in the select-all control, and says what the scope is", () => {
+  it("names the loaded count in the select-all control", () => {
     const html = renderToStaticMarkup(
       <SelectionBar
         selectedCount={3}
@@ -145,8 +145,9 @@ describe("SelectionBar", () => {
 
     expect(html).toContain("选择账目");
     expect(html).toContain("已选 3 条");
+    // 按钮名「全选已加载的 N 条」已经说明范围，1.17.23 起不再另加一句。
     expect(html).toContain("全选已加载的 12 条");
-    expect(html).toContain("不会扩大到整本账");
+    expect(html).not.toContain("不会扩大到整本账");
   });
 
   it("turns into 取消全选 when everything loaded is selected", () => {
@@ -286,7 +287,7 @@ describe("BatchEditSheet", () => {
     expect(html).toBe("");
   });
 
-  it("offers only the three safe fields and says what it will not touch", () => {
+  it("offers only the three safe fields", () => {
     const html = renderToStaticMarkup(
       <BatchEditSheet
         open
@@ -304,8 +305,8 @@ describe("BatchEditSheet", () => {
       />,
     );
 
-    expect(html).toContain("只改动你勾选的字段，未勾选的字段保持原值");
-    expect(html).toContain("金额、收支方向、币种和时间不会被批量修改");
+    // 面板只列出三个可勾选的字段，1.17.23 起不再用一段话复述。
+    expect(html).not.toContain("只改动你勾选的字段");
     expect(html).toContain("修改分类");
     expect(html).toContain("修改标签");
     expect(html).toContain("修改支付方式");

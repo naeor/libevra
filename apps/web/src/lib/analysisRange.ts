@@ -10,10 +10,12 @@ import { apiFetch, ApiRequestError } from "./api.js";
 import { mergeLedgerEntries } from "./ledgerView.js";
 import { useCurrentBookId } from "./queries.js";
 import { useAccountOffline } from "./offline/connectivity.js";
+import { VOLATILE } from "./offline/cache.js";
 import { withDeadline } from "./offline/deadline.js";
 import { ledgerSnapshotValue, readLocalTransactions, readMarks, readStoredMonths, storeMonth, subscribeLedger } from "./offline/localLedger.js";
 import { offlineScope } from "./offline/scope.js";
 import { readValue, writeValue } from "./offline/storage.js";
+import { foreignKey, useForeignBookId } from "./workspaceLedger.js";
 
 export type AnalysisMarks = Readonly<Record<string, { readonly pending?: boolean; readonly deleted?: boolean }>>;
 export type AnalysisCoverage = Readonly<Record<string, readonly string[]>>;
@@ -149,20 +151,48 @@ const productionIo: AnalysisRangeIo = {
   },
 };
 
+/**
+ * S18：工作区查看外部账本时的读取方式——只在线读取那本账，不写、也不读设备的离线副本（那是当前账本的）。
+ * 作用域固定为那本账，所以「切换了账本」的复核仍然成立。
+ */
+export function foreignAnalysisIo(scope: string): AnalysisRangeIo {
+  return {
+    scope: () => scope,
+    fetchMonth: productionIo.fetchMonth,
+    storeMonth: async () => {},
+    readStored: async () => ({}),
+    readOriginals: async () => [],
+    readMarks: async () => ({}),
+    readCoverage: async () => null,
+    saveReceipt: async () => {},
+  };
+}
+
 /** 相同账号/账本/范围共享请求；目标币种不进入原件读取键。 */
 export function useAnalysisRange(range: DateRange, active = true) {
   const accountId = useAuthOptional()?.user?.id ?? "";
-  const bookId = useCurrentBookId();
+  const foreign = useForeignBookId();
+  const current = useCurrentBookId();
+  const bookId = foreign ?? current;
   const { offline } = useAccountOffline();
   const client = useQueryClient();
   const snapshot = useSyncExternalStore(subscribeLedger, ledgerSnapshotValue, ledgerSnapshotValue);
   const revision = useMemo(() => active ? entriesInAnalysisRange(snapshot, range).map(row => `${row.id}:${row.version}`).sort().join("|") : "", [snapshot, range.from, range.to, active]);
-  const queryKey = useMemo(() => ["analysis-range", accountId, bookId, range.from, range.to, offline] as const, [accountId, bookId, range.from, range.to, offline]);
-  const ready = accountId !== "" && bookId !== null && offlineScope() === `${accountId}:${bookId}`;
+  // 外部账本的读取（只在线、不合并本机标记）用单独的键，不与同一本账作为设备当前账本时的结果混用。
+  const queryKey = useMemo(
+    () => (foreign === null ? ["analysis-range", accountId, bookId, range.from, range.to, offline] : foreignKey(foreign, "analysis-range", accountId, range.from, range.to)),
+    [accountId, bookId, foreign, range.from, range.to, offline],
+  );
+  const ready = accountId !== "" && bookId !== null && (foreign !== null || offlineScope() === `${accountId}:${bookId}`);
   const enabled = active && ready;
   const query = useQuery({
     queryKey,
-    queryFn: ({ signal }) => readAnalysisRange({ accountId, bookId: bookId ?? "", range, offline, signal }, productionIo),
+    // 外部账本：在 `ws-ledger` 前缀下（写入后随那本账一起失效），也不写进设备的离线缓存。
+    ...(foreign !== null ? { meta: VOLATILE } : {}),
+    queryFn: ({ signal }) =>
+      foreign !== null
+        ? readAnalysisRange({ accountId, bookId: foreign, range, offline: false, signal }, foreignAnalysisIo(`${accountId}:${foreign}`))
+        : readAnalysisRange({ accountId, bookId: bookId ?? "", range, offline, signal }, productionIo),
     enabled, networkMode: "always", retry: false, staleTime: 30_000,
     meta: { volatile: true },
   });
@@ -170,7 +200,8 @@ export function useAnalysisRange(range: DateRange, active = true) {
   latest.current = query.data;
   const remoteEntries = query.data?.remoteEntries;
   useEffect(() => {
-    if (!enabled || query.data === undefined || query.isError || query.isFetching || bookId === null) return;
+    // 外部账本没有本机待同步改动可合并。
+    if (!enabled || foreign !== null || query.data === undefined || query.isError || query.isFetching || bookId === null) return;
     let alive = true;
     const scope = `${accountId}:${bookId}`;
     void (async () => {

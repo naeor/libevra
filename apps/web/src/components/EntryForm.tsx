@@ -1,5 +1,5 @@
 import { UNCATEGORISED_NAME, type Currency, type TransactionKind } from "@libellum/shared";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { useI18n } from "../i18n/index.js";
 import { amountPlaceholder } from "../lib/format.js";
@@ -7,6 +7,7 @@ import { displayCategoryName, displayPaymentMethodName } from "../lib/presetName
 
 import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
+import { StickyActionBar } from "./StickyActionBar.js";
 
 /**
  * The form that confirms an entry before it is saved.
@@ -54,6 +55,7 @@ export function ReviewStep({
 }): React.JSX.Element {
   const { t } = useI18n();
   const [value, setValue] = useState<ReviewDraft>(draft);
+  const amountId = useId();
 
   const usableCategories = categories.filter(
     (category) => category.kind === value.kind && !category.isArchived,
@@ -83,13 +85,13 @@ export function ReviewStep({
       {/* The amount is the thing being checked, so it is the largest control
           on the screen and the first thing the eye lands on. */}
       <section className="flex flex-col gap-2">
-        <label htmlFor="scan-amount" className="text-helper text-muted">
+        <label htmlFor={amountId} className="text-helper text-muted">
           {t("common.field.amount")}
         </label>
         <div className="flex items-baseline gap-2 rounded-card border border-line bg-surface px-5 py-4">
           <span className="text-xl text-muted">¥</span>
           <input
-            id="scan-amount"
+            id={amountId}
             value={value.amount}
             onChange={(event) => {
               patch({ amount: event.target.value });
@@ -208,7 +210,6 @@ export function ReviewStep({
         <input
           value={value.note}
           maxLength={200}
-          placeholder={t("entry.review.notePlaceholder")}
           onChange={(event) => {
             patch({ note: event.target.value });
           }}
@@ -216,16 +217,19 @@ export function ReviewStep({
         />
       </Field>
 
-      <Button
-        disabled={busy}
-        onClick={() => {
-          onSave(value);
-        }}
-      >
-        {busy ? t("common.action.saving") : t("entry.review.confirmSave")}
-      </Button>
+      {/* 1.17.23：确认按钮固定在底部，手机上不用先滚到底；改为手动记账留在内容末尾。 */}
+      <StickyActionBar>
+        <Button
+          disabled={busy}
+          onClick={() => {
+            onSave(value);
+          }}
+        >
+          {busy ? t("common.action.saving") : t("entry.review.confirmSave")}
+        </Button>
+      </StickyActionBar>
 
-      <button type="button" onClick={onManual} className="text-helper text-muted underline">
+      <button type="button" onClick={onManual} className="touch-target self-center text-helper text-muted underline">
         {t("entry.review.switchToManual")}
       </button>
     </div>

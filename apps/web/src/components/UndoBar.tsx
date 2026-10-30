@@ -33,7 +33,7 @@ export function UndoBar({
   }, [durationMs, onDismiss, message]);
 
   return (
-    <div className="fixed inset-x-0 bottom-28 z-50 flex justify-center px-5">
+    <div className="fixed inset-x-0 bottom-28 z-50 flex justify-center px-5" data-lv-bottom-bar="">
       <div className="flex w-full max-w-md items-center justify-between gap-4 rounded-field bg-ink px-4 py-3 text-sm text-on-ink shadow-lg">
         <span className="min-w-0">{message}</span>
         <button

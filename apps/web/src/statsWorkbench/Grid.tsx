@@ -1,27 +1,39 @@
 /**
- * 工作台网格：浏览态画 **D 投影后的布局**，编辑态画 **D 的权威主布局**加辅助格线与落位预览。
+ * 工作台网格：浏览态画**解析后的显示布局**，编辑态画**编辑列数下的那一份几何**加辅助格线与落位预览。
  *
- * - 浏览态：`projectLayout(main, content, { targetColumns })`——屏幕可用列数少于保存时的列数时，
- *   由 D 的确定性迁移重排（不写回、不累计漂移）；容器空间不足时 D 给出 `collapsed` 形态，这里画成
- *   1×1 入口，内容不丢。
+ * - 浏览态（1.18.01）：列数由容器的实际宽度决定（自动，或本工作区记住的手动列数），布局由 D 的
+ *   `resolveDisplayLayout` 解析——这个列数的专属布局 → 基础布局原样 → 从基础布局响应式排出（见
+ *   `@libellum/shared/analysis/layout` 的 `responsive.ts`）。不写回、不链式派生；容器空间不足时给出
+ *   `collapsed` 形态，这里画成 1×1 入口，内容不丢。
+ * - 行高随格宽变化（`gridRowHeight`），浏览与编辑用同一套轨道，所以编辑时看到的格子就是浏览时的格子。
  * - 编辑态：对象统一换成「结构编辑形态」：类型图标、名称、占格 `宽×高`、半透明底色与柔和虚线，
  *   **不渲染图表**，也不把未渲染当成 0。
  */
-import { useMemo, useRef, useState } from "react";
+import { useContext, useMemo, useRef, useState } from "react";
 import {
+  chooseAutoColumns,
+  geometryQuality,
+  gridCellWidth,
+  gridColumnLimit,
+  gridRowHeight,
   placementCells,
   planSmartPlacement,
   positionToRowCol,
-  projectLayout,
+  resolveDisplayLayout,
   type AnalysisCardNode,
   type ContainerNode,
+  type DisplayLayout,
   type GridSize,
   type LayoutDocumentV1,
+  type LayoutGeometry,
   type ObjectSizeContract,
   type WorkbenchContentDocumentV1,
 } from "@libellum/shared/analysis/layout";
 
+import { UNSAFE_LocationContext } from "react-router";
+
 import { useI18n } from "../i18n/index.js";
+import { useOpenDrag } from "../workspace/openDrag.js";
 import { resistedOffset, swipeAxis, swipeTarget, type SwipeAxis } from "./carouselGesture.js";
 import { CardBody, cardSubtitle, cardTitle, familyOf } from "./cards.js";
 import { cardType, CONTAINER_SIZES, sizeKey } from "./catalog.js";
@@ -43,15 +55,47 @@ import {
 } from "./ui.js";
 
 export const GRID_GAP = 12;
-/** 行高（px），与 `.sw-grid { --sw-row: 7.25rem }` 一致。 */
-export const GRID_ROW_HEIGHT = 116;
-/** 浏览态每列至少这么宽；可用宽度放不下保存时的列数时由 D 投影成更少的列。 */
-export const MIN_COLUMN_WIDTH = 104;
 
-/** 浏览态在给定网格宽度下的列数（最多 3 列，且不超过布局保存时的列数）。工作台与预设预览同一规则。 */
-export function browseColumnsFor(gridWidth: number, baseCols: number): number {
-  const maxColumns = gridWidth === 0 ? 2 : Math.max(1, Math.min(3, Math.floor((gridWidth + GRID_GAP) / (MIN_COLUMN_WIDTH + GRID_GAP))));
-  return Math.max(1, Math.min(baseCols, maxColumns));
+/** 一份工作台文档（内容 + 布局），与 `storage.ts` 的 `WorkbenchDocuments` 同形。 */
+interface GridDocuments {
+  readonly content: WorkbenchContentDocumentV1;
+  readonly layout: LayoutDocumentV1;
+}
+
+/**
+ * 自动列数：按**网格容器的实际宽度**（ResizeObserver 测得，不是窗口宽度；两个工作区各算各的）评分选择，
+ * 不是「能放几列就放几列」（见 `chooseAutoColumns`）。`previous` 是上一次的结果，分数接近时保持，避免抖动。
+ * 宽度还没测出来时（首帧）沿用基础列数（最多 2 列），与以前的首帧一致。
+ */
+export function autoColumnsFor(documents: GridDocuments, gridWidth: number, previous: number | null = null): number {
+  return chooseAutoColumns(documents.layout, documents.content, {
+    width: gridWidth,
+    gap: GRID_GAP,
+    contracts: sizeContracts(documents.content, documents.layout),
+    previous,
+  });
+}
+
+/** 这个宽度最多能选几列（每格不窄于可读下限，最多 8 列；窄到放不下两列时是 1 列）。 */
+export function columnLimitFor(gridWidth: number): number {
+  return gridColumnLimit(gridWidth, GRID_GAP);
+}
+
+/** 某个列数下要显示的布局：专属布局 → 基础布局原样 → 从基础布局排出（规则 A / B / C）。 */
+export function displayFor(documents: GridDocuments, columns: number): DisplayLayout {
+  return resolveDisplayLayout(documents.layout, documents.content, { targetColumns: columns, contracts: sizeContracts(documents.content, documents.layout) });
+}
+
+/** 网格轨道：每格宽度与行高。行高随格宽变（手机上仍是 116px），浏览与编辑共用。 */
+export interface GridTrack {
+  readonly columns: number;
+  readonly cellWidth: number;
+  readonly rowHeight: number;
+}
+
+export function gridTrack(gridWidth: number, columns: number): GridTrack {
+  const cellWidth = gridCellWidth(gridWidth, columns, GRID_GAP);
+  return { columns, cellWidth, rowHeight: gridRowHeight(cellWidth) };
 }
 
 /**
@@ -61,14 +105,39 @@ export function browseColumnsFor(gridWidth: number, baseCols: number): number {
 export function gridMetricsFor(gridWidth: number, columns: number, viewportWidth: number): GridMetrics | null {
   if (gridWidth <= 0 || columns <= 0) return null;
   const padding = viewportWidth >= 640 ? 16 : 14;
+  const track = gridTrack(gridWidth, columns);
   return {
-    columnWidth: (gridWidth - GRID_GAP * (columns - 1)) / columns,
-    rowHeight: GRID_ROW_HEIGHT,
+    columnWidth: track.cellWidth,
+    rowHeight: track.rowHeight,
     gap: GRID_GAP,
     columns,
     chromeWidth: padding * 2,
     chromeHeight: padding * 2 + 18 + 8,
   };
+}
+
+/** 卡片在这条轨道上的宽高比超过它就算「扁长 / 细高」（滑条附近的提示据此判断）。 */
+const SPARSE_ASPECT = 4;
+/** 空洞与整列空白合计达到排布面积的这个比例，也算宽松。 */
+const SPARSE_BLANK = 0.2;
+/** 每格宽过它（约为自动列数目标格宽的 1.75 倍）：卡片里的内容会显得空旷。 */
+const SPARSE_CELL = 300;
+
+/**
+ * 当前列数下排布是否明显宽松：每格过宽、有卡片被拉成很扁或很高的形状，或大片空白（例如三列里全是两格宽的
+ * 卡片，右边整列空着）。只用于编辑器滑条旁的非阻断提示，判断依据是实际像素尺寸与排布，不是「列数是不是 2」。
+ */
+export function layoutLooksSparse(geometry: LayoutGeometry, track: GridTrack): boolean {
+  if (track.cellWidth <= 0) return false;
+  if (track.cellWidth > SPARSE_CELL) return true;
+  const quality = geometryQuality(geometry);
+  if (quality.holeRatio + quality.tailRatio >= SPARSE_BLANK) return true;
+  return geometry.objects.some((object) => {
+    if (object.objectType === "spacer") return false;
+    const width = object.colSpan * track.cellWidth + (object.colSpan - 1) * GRID_GAP;
+    const height = object.rowSpan * track.rowHeight + (object.rowSpan - 1) * GRID_GAP;
+    return width / height > SPARSE_ASPECT || height / width > SPARSE_ASPECT;
+  });
 }
 
 /** 每个对象对布局层声明的尺寸约束（卡片规格 §5.6；数值为首版原型值）。 */
@@ -118,8 +187,8 @@ function placementStyle(anchor: number, colSpan: number, rowSpan: number, column
 
 export function BrowseGrid({
   content,
-  layout,
-  columns,
+  display,
+  rowHeight,
   scope,
   onOpenCard,
   onOpenCollapsed,
@@ -127,23 +196,27 @@ export function BrowseGrid({
   onCarouselPage,
 }: {
   readonly content: WorkbenchContentDocumentV1;
-  readonly layout: LayoutDocumentV1;
-  readonly columns: number;
+  /** 已解析的显示布局（`displayFor`）：这里只画，不再自己决定列数或位置。 */
+  readonly display: DisplayLayout;
+  /** 行高（px，`gridTrack`）。 */
+  readonly rowHeight: number;
   readonly scope: WorkbenchScope;
   readonly onOpenCard: (cardId: string) => void;
   readonly onOpenCollapsed: (containerId: string) => void;
   readonly carouselPages: ReadonlyMap<string, number>;
   readonly onCarouselPage: (containerId: string, page: number) => void;
 }): React.JSX.Element {
-  const projection = useMemo(
-    () => projectLayout(layout.main, content, { targetColumns: columns, contracts: sizeContracts(content, layout) }),
-    [layout, content, columns],
-  );
+  const projection = display.projection;
   const cards = useMemo(() => new Map(content.cards.map((card) => [card.objectId, card] as const)), [content]);
   const containers = useMemo(() => new Map(content.containers.map((item) => [item.objectId, item] as const)), [content]);
 
   return (
-    <div className="sw-grid" style={{ gridTemplateColumns: `repeat(${String(projection.columns)}, minmax(0, 1fr))` }}>
+    <div
+      className="sw-grid"
+      data-columns={projection.columns}
+      data-layout-source={display.source}
+      style={{ gridTemplateColumns: `repeat(${String(projection.columns)}, minmax(0, 1fr))`, ["--sw-row" as string]: `${String(rowHeight)}px` }}
+    >
       {projection.objects.map((object) => {
         const style = placementStyle(object.anchor, object.colSpan, object.rowSpan, projection.columns);
         if (object.objectType === "spacer") return <div key={object.objectId} aria-hidden="true" style={style} />;
@@ -152,7 +225,7 @@ export function BrowseGrid({
           if (card === undefined) return null;
           return (
             <div key={object.objectId} style={style} className="min-h-0 min-w-0">
-              <CardTile card={card} scope={scope} compat={object.form === "compat"} oneRow={object.rowSpan === 1} onOpen={() => onOpenCard(card.objectId)} />
+              <CardTile card={card} scope={scope} compat={object.form === "compat"} oneRow={object.rowSpan === 1} draggable onOpen={() => onOpenCard(card.objectId)} />
             </div>
           );
         }
@@ -191,6 +264,7 @@ export function CardTile({
   bare = false,
   aside,
   oneRow = false,
+  draggable = false,
 }: {
   readonly card: AnalysisCardNode;
   readonly scope: WorkbenchScope;
@@ -205,10 +279,18 @@ export function CardTile({
    * 折成两行，带时间副标题的一行高卡片就放不下数值了（1.17.12 浏览器实测）。
    */
   readonly oneRow?: boolean;
+  /**
+   * S18 第二轮：浏览态卡片可以在大屏上长按 / 拖动到另一个工作区打开它的详情（带着当前筛选）。编辑态、
+   * 编辑器里的预览不参与——那里的拖动属于 S17 的卡片排版。
+   */
+  readonly draggable?: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
   const body = useElementSize<HTMLDivElement>();
   const title = cardTitle(card, t);
+  // 编辑器里的静态预览不在路由里：那里没有位置，也不参与拖动。
+  const search = (useContext(UNSAFE_LocationContext) as { location?: { search?: string } } | null)?.location?.search ?? "";
+  const drag = useOpenDrag({ path: `/stats/cards/${encodeURIComponent(card.objectId)}${search}`, title, disabled: !draggable });
   const subtitle = cardSubtitle(card, scope, t);
   const singleLineTitle = oneRow || isMultiSlot(card);
   return (
@@ -220,10 +302,12 @@ export function CardTile({
       <button
         type="button"
         id={`sw-card-${card.objectId}`}
-        className="sw-card-hit"
+        className={drag.bind === null ? "sw-card-hit" : "sw-card-hit lv-draggable"}
         aria-label={t("statsWorkbench.card.openNamed", { name: title })}
         onClick={onOpen}
+        {...drag.bind}
       />
+      {drag.menu}
       <header className="pointer-events-none relative flex min-w-0 items-start gap-2">
         <span className="min-w-0 flex-1">
           {/* 组合卡片的标题收成一行（完整名称在 aria-label 与 title 里）：内容排布按一行标题计算，
@@ -406,7 +490,7 @@ export function CarouselView({
           {cards.map((card, slide) => (
             <div key={card.objectId} className="sw-carousel-slide" inert={slide !== index} aria-hidden={slide !== index ? "true" : undefined}>
               {Math.abs(slide - index) > 1 ? null : (
-                <CardTile card={card} scope={scope} bare onOpen={() => onOpenCard(card.objectId)} aside={dots} />
+                <CardTile card={card} scope={scope} bare draggable onOpen={() => onOpenCard(card.objectId)} aside={dots} />
               )}
             </div>
           ))}
@@ -443,7 +527,7 @@ export function SplitView({
     <div className="grid h-full min-h-0 gap-2" style={{ gridTemplateColumns: colTemplate, gridTemplateRows: rowTemplate }}>
       {cards.slice(0, cols * rows).map((card) => (
         <div key={card.objectId} className="min-h-0 min-w-0">
-          <CardTile card={card} scope={scope} onOpen={() => onOpenCard(card.objectId)} />
+          <CardTile card={card} scope={scope} draggable onOpen={() => onOpenCard(card.objectId)} />
         </div>
       ))}
     </div>
@@ -470,6 +554,7 @@ export interface DropPreview {
 export function EditGrid({
   content,
   layout,
+  rowHeight,
   selection,
   dimmed,
   draggingId,
@@ -482,7 +567,10 @@ export function EditGrid({
   onPickTarget,
 }: {
   readonly content: WorkbenchContentDocumentV1;
+  /** 编辑会话的布局文档：`main` 是编辑列数下的那一份几何（`main.baseCols` = 编辑列数）。 */
   readonly layout: LayoutDocumentV1;
+  /** 行高（px），与浏览态同一条轨道（`gridTrack`）。 */
+  readonly rowHeight: number;
   readonly selection: string | null;
   /** 容器内部编辑时，外层对象变淡且不可点（父容器暂停编辑）。 */
   readonly dimmed: string | null | "all";
@@ -524,7 +612,8 @@ export function EditGrid({
     <div
       ref={gridRef}
       className="sw-grid sw-grid-edit"
-      style={{ gridTemplateColumns: `repeat(${String(columns)}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${String(rows)}, var(--sw-row))` }}
+      data-columns={columns}
+      style={{ gridTemplateColumns: `repeat(${String(columns)}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${String(rows)}, var(--sw-row))`, ["--sw-row" as string]: `${String(rowHeight)}px` }}
     >
       {Array.from({ length: rows * columns }, (_, index) => {
         const anchor = index + 1;

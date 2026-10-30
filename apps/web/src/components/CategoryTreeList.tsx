@@ -28,7 +28,7 @@ function CategoryEditor({items,category,parentId:initialParent,kind,onClose,onSa
   const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null);
   const excluded=new Set(category?categoryBranchIds(items,[category.id]):[]);
   const inputClass="min-w-0 w-full rounded-field border border-line bg-surface px-3 py-3 text-base text-ink";
-  return <BottomSheet label={t(category?"manage.tree.edit":"manage.tree.addChild")} onClose={onClose} dialogClassName="w-full max-w-lg rounded-t-sheet bg-canvas p-6 sm:rounded-sheet max-h-[85dvh] overflow-y-auto">
+  return <BottomSheet label={t(category?"manage.tree.edit":"manage.tree.addChild")} onClose={onClose} dialogClassName="w-full max-w-lg rounded-t-sheet bg-canvas p-6 sm:rounded-sheet max-h-[calc(var(--lv-vh)*85)] overflow-y-auto">
     <form className="flex flex-col gap-4" onSubmit={event=>{event.preventDefault();const input={name:name.trim(),kind,parentId:parentId||null,icon:icon||null,color:color||null,sortOrder};
       try{validateCategoryTree([...items.filter(n=>n.id!==category?.id),{...input,id:category?.id??"new"}]);}catch{setError(t("manage.tree.invalid"));return;}
       setBusy(true);void onSave(category?.id??null,input).then(onClose).catch(caught=>setError(errorMessage(caught))).finally(()=>setBusy(false));}}>

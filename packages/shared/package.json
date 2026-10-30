@@ -12,6 +12,10 @@
       "types": "./src/workbench/configuration.ts",
       "default": "./src/workbench/configuration.ts"
     },
+    "./workbench/legacyDefault": {
+      "types": "./src/workbench/legacyDefault.ts",
+      "default": "./src/workbench/legacyDefault.ts"
+    },
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"

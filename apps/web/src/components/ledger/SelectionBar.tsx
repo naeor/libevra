@@ -39,12 +39,10 @@ export function SelectionBar({
           onClick={onToggleAll}
           disabled={loadedCount === 0}
           aria-pressed={allSelected}
-          className="text-helper font-medium text-brand-dark transition hover:underline disabled:opacity-45 disabled:hover:no-underline"
+          className="touch-target text-helper font-medium text-brand-dark transition hover:underline disabled:opacity-45 disabled:hover:no-underline"
         >
           {allSelected ? t("ledger.batch.deselectAll") : t("ledger.batch.selectLoaded", { count: loadedCount })}
         </button>
-
-        <span className="text-micro text-muted">{t("ledger.batch.selectScope")}</span>
       </div>
 
       {notice === null ? null : (

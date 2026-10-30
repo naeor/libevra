@@ -380,10 +380,10 @@ describe("batchDeleteConfirmation", () => {
     expect(confirmation.consequences.join(" ")).toContain("账本须仍然存在，且你有编辑权限");
   });
 
-  it("mentions the recalculation and the offline queue", () => {
+  it("mentions the offline queue, not the obvious recalculation", () => {
     const joined = batchDeleteConfirmation(2).consequences.join(" ");
 
-    expect(joined).toContain("本月总额");
+    expect(joined).not.toContain("本月总额");
     expect(joined).toContain("离线时先保存在本机，联网后同步");
   });
 });

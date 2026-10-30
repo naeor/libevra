@@ -254,11 +254,10 @@ export function VoiceReviewPage(): React.JSX.Element {
   if (spoken === null) {
     return (
       <InnerPage title={t("capture.review.title")} subtitle={t("capture.review.emptySubtitle")} backTo="/">
-        <Alert tone="info">{t("capture.review.emptyBody")}</Alert>
         <button
           type="button"
           onClick={() => void navigate("/record")}
-          className="text-body text-brand-dark underline"
+          className="touch-target self-start text-body text-brand-dark underline"
         >
           {t("capture.review.goRecord")}
         </button>
@@ -322,11 +321,6 @@ export function VoiceReviewPage(): React.JSX.Element {
   return (
     <InnerPage
       title={t("capture.review.title")}
-      subtitle={
-        spoken.source === "paste"
-          ? t("capture.review.subtitlePaste")
-          : t("capture.review.subtitleVoice")
-      }
       backTo={origin}
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
@@ -343,21 +337,9 @@ export function VoiceReviewPage(): React.JSX.Element {
       </p>
 
       {/*
-        What the parser is unsure about, in its own words.
-        A weak match is not the same as a reading, and the review screen is the
-        last place where the difference can still change the saved row.
-        The words come from the shared parser (Chinese) and are looked up by text.
+        What the parser is unsure about is shown once, inside the form (`ReviewStep`'s
+        `warnings`) — 1.17.23 removed a second copy that used to sit here above it.
       */}
-      {parsed !== null && parsed.issues.length > 0 ? (
-        <div className="flex flex-col gap-1 rounded-field border border-line px-4 py-3">
-          {parsed.issues.map((issue) => (
-            <p key={`${issue.field}:${issue.code}`} className="text-helper text-muted">
-              {issue.severity === "ambiguous" ? t("capture.issue.ambiguous") : t("capture.issue.warning")}
-              {translateSharedMessage(issue.message)}
-            </p>
-          ))}
-        </div>
-      ) : null}
 
       {/*
         Why the category is already filled in.
@@ -536,7 +518,6 @@ const MANUAL_DUPLICATE_CHOICES: readonly ChoiceDefinition<"save" | "confirmNotDu
   {
     id: "save",
     label: () => translate("duplicates.reminder.save"),
-    hint: () => translate("duplicates.reminder.saveHintVoice"),
     primary: true,
   },
   {
@@ -599,7 +580,6 @@ const UNDONE_CHOICES: readonly ChoiceDefinition<"restore" | "dismiss">[] = [
   {
     id: "restore",
     label: () => translate("capture.undone.restore"),
-    hint: () => translate("capture.undone.restoreHint"),
     primary: true,
   },
   { id: "dismiss", label: () => translate("capture.undone.dismiss"), dismissive: true },

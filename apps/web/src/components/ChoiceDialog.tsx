@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 /**
  * A dialog that offers a small number of named ways forward.
@@ -45,12 +45,16 @@ export function ChoiceDialog<Id extends string>({
 }: {
   readonly open: boolean;
   readonly title: string;
-  readonly description: string;
+  /** 1.17.23 起可省略：选项本身已经说清楚时，不再补一句说明。 */
+  readonly description?: string;
   readonly choices: readonly Choice<Id>[];
   readonly onChoose: (id: Id) => void;
 }): React.JSX.Element | null {
   const firstRef = useRef<HTMLButtonElement>(null);
   const dismiss = choices.find((choice) => choice.dismissive === true);
+  /** S18：两个工作区可能同时开着对话框，标题 / 说明的 id 每个实例唯一。 */
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -91,16 +95,18 @@ export function ChoiceDialog<Id extends string>({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="choice-title"
-        aria-describedby="choice-description"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         className="w-full max-w-sm rounded-card border border-line bg-surface p-6 shadow-lg"
       >
-        <h2 id="choice-title" className="text-base font-semibold text-ink">
+        <h2 id={titleId} className="text-base font-semibold text-ink">
           {title}
         </h2>
-        <p id="choice-description" className="mt-2 text-body-relaxed text-muted">
-          {description}
-        </p>
+        {description ? (
+          <p id={descriptionId} className="mt-2 text-body-relaxed text-muted">
+            {description}
+          </p>
+        ) : null}
 
         <div className="mt-6 flex flex-col gap-2.5">
           {choices.map((choice, index) => (

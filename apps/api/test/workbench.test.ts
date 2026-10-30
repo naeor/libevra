@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { LEGACY_DEFAULT_WORKSPACE } from "@libellum/shared/workbench/legacyDefault";
 import { makeApp, prisma, resetDatabase, signUp, cookieFrom } from "./support.js";
 
 let app: FastifyInstance;
@@ -26,6 +30,19 @@ describe("W6 真实数据库个人配置 API", () => {
     expect(second.statusCode).toBe(200); expect(second.json().record.version).toBe(2);
     const saved = await prisma.workbenchConfiguration.findFirstOrThrow();
     expect(saved.previousConfiguration).toEqual(config());
+  });
+  it("1.18.01 列数专属布局（independent + cols-N）原样写入与读回；专属布局几何非法时整份拒绝", async () => {
+    const withOverride = config();
+    const override = { baseCols: 6, objects: [{ objectId: "card-1", objectType: "analysis-card", anchor: 4, colSpan: 1, rowSpan: 1 }] };
+    (withOverride.workspace.layout as Record<string, unknown>)["mode"] = "independent";
+    (withOverride.workspace.layout as Record<string, unknown>)["profiles"] = [{ profileKey: "cols-6", geometry: override }];
+    const saved = await write(0, withOverride);
+    expect(saved.statusCode).toBe(200);
+    expect((await read()).json().record.configuration).toEqual(withOverride);
+    const broken = structuredClone(withOverride);
+    (broken.workspace.layout as unknown as { profiles: { geometry: { objects: { colSpan: number }[] } }[] }).profiles[0]!.geometry.objects[0]!.colSpan = 7;
+    expect((await write(1, broken)).statusCode).toBe(400);
+    expect((await read()).json().record.version).toBe(1);
   });
   it("并行 CAS 只能成功一份，拒绝旧版本与伪造身份字段", async () => {
     await write(0);
@@ -74,5 +91,55 @@ describe("W6 真实数据库个人配置 API", () => {
     expect(closed.statusCode, closed.body).toBe(200);
     expect(await prisma.workbenchConfiguration.count()).toBe(0);
     expect((await read()).statusCode).toBe(401);
+  });
+});
+
+/**
+ * 1.17.23 一次性数据迁移 `20261030120000_workbench_legacy_default_to_beginner`：在真实 PostgreSQL 上执行
+ * 迁移文件原文，确认只有「与旧版默认完全一致」的工作台被改成 `null`，其余账号、预设与版本都不动。
+ */
+describe("1.17.23 旧版默认工作台的一次性迁移（真实数据库）", () => {
+  const migrationSql = readFileSync(
+    fileURLToPath(new URL("../../../prisma/migrations/20261030120000_workbench_legacy_default_to_beginner/migration.sql", import.meta.url)),
+    "utf8",
+  );
+  const runMigration = () => prisma.$executeRawUnsafe(migrationSql.replace(/^--.*$/gm, "").trim());
+  const legacy = () => structuredClone(LEGACY_DEFAULT_WORKSPACE);
+  const preset = { id: "preset-1", name: "我的布局", description: "", documents: legacy(), filters: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+
+  it("旧版默认 → 跟随系统默认（null）；版本 +1、旧配置留在 previous；预设保留；重复执行不再改动", async () => {
+    expect((await write(0, { schemaVersion: 1, workspace: legacy(), presets: [preset] })).statusCode).toBe(200);
+    expect((await write(1, { schemaVersion: 1, workspace: legacy(), presets: [preset] })).statusCode).toBe(200);
+    const before = await prisma.workbenchConfiguration.findFirstOrThrow();
+    expect(before.version).toBe(2);
+
+    expect(await runMigration()).toBe(1);
+    const after = await prisma.workbenchConfiguration.findFirstOrThrow();
+    expect(after.version).toBe(3);
+    expect((after.configuration as { workspace: unknown }).workspace).toBeNull();
+    // 「我的预设」里即使存着同一份旧布局，也是用户自己保存的，原样保留。
+    expect((after.configuration as { presets: unknown[] }).presets).toEqual(JSON.parse(JSON.stringify([preset])));
+    expect(after.previousConfiguration).toEqual(before.configuration);
+
+    // 幂等：再执行一次不匹配任何行，版本不再变化。
+    expect(await runMigration()).toBe(0);
+    expect((await prisma.workbenchConfiguration.findFirstOrThrow()).version).toBe(3);
+    // 客户端照常读到「跟随系统默认」，并能在此基础上继续保存（CAS 版本连续）。
+    expect((await read()).json().record).toMatchObject({ version: 3, configuration: { workspace: null } });
+    expect((await write(3)).statusCode).toBe(200);
+  });
+
+  it("用户改过的布局、系统预设与其它账号一律不动", async () => {
+    const moved = legacy();
+    (moved.layout.main.objects[3] as { anchor: number }).anchor = 27; // 日均支出移到最下面一行
+    expect((await write(0, { schemaVersion: 1, workspace: moved, presets: [] })).statusCode).toBe(200);
+    const other = await signUp(app, "workspace_other");
+    expect((await write(0, config(), other)).statusCode).toBe(200);
+    const third = await signUp(app, "workspace_third");
+    expect((await write(0, { schemaVersion: 1, workspace: null, presets: [] }, third)).statusCode).toBe(200);
+    const snapshot = await prisma.workbenchConfiguration.findMany({ orderBy: { userId: "asc" } });
+
+    expect(await runMigration()).toBe(0);
+    expect(await prisma.workbenchConfiguration.findMany({ orderBy: { userId: "asc" } })).toEqual(snapshot);
   });
 });

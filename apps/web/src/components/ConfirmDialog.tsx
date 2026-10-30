@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+
+import { useDialogFocus } from "../lib/dialogFocus.js";
 
 import { useI18n } from "../i18n/index.js";
 
@@ -30,7 +32,8 @@ export function ConfirmDialog({
 }: {
   readonly open: boolean;
   readonly title: string;
-  readonly description: string;
+  /** 1.17.23 起可省略：标题与后果列表已经说清楚时，不再补一句说明。 */
+  readonly description?: string;
   readonly consequences?: readonly string[];
   readonly confirmLabel?: string;
   readonly cancelLabel?: string;
@@ -57,6 +60,14 @@ export function ConfirmDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  /**
+   * ⚠️ **S18：标题与说明的 id 每个实例唯一。** 大屏上两个工作区可能同时开着确认框，固定的
+   * `confirm-title` 会让读屏软件把一个对话框的标题读成另一个的。
+   */
+  const titleId = useId();
+  const descriptionId = useId();
+  /** 与通用面板共用一个层级栈：叠在面板上的确认框按 Esc 只关自己，关闭后焦点回到原控件。 */
+  const layer = useDialogFocus(dialogRef, open);
 
   /**
    * ⚠️ **Focus the safe choice once, when the dialog opens.**
@@ -77,6 +88,8 @@ export function ConfirmDialog({
     if (!open) return;
 
     function onKeyDown(event: KeyboardEvent): void {
+      // 共用层级栈：已被更上层（或焦点管理）处理过的按键、另一个工作区里的按键，这里都不再处理。
+      if (!layer.owns(event)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCancel();
@@ -129,13 +142,13 @@ export function ConfirmDialog({
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onCancel]);
+  }, [open, onCancel, layer]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-soft px-5 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-soft px-5 py-4 backdrop-blur-[2px]"
       onClick={(event) => {
         if (event.target === event.currentTarget) onCancel();
       }}
@@ -144,16 +157,23 @@ export function ConfirmDialog({
         ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-describedby="confirm-description"
-        className="w-full max-w-sm rounded-card border border-line bg-surface p-6 shadow-lg"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
+        /**
+         * ⚠️ **S18（审查 U05）：高度有上限，内容在框内滚动。** 长说明、附加字段、横屏低高度或系统字体
+         * 放大时，确认 / 取消按钮仍在可视范围内可以点到。
+         */
+        className="max-h-full w-full max-w-sm overflow-y-auto overscroll-contain rounded-card border border-line bg-surface p-6 shadow-lg outline-none"
       >
-        <h2 id="confirm-title" className="text-base font-semibold text-ink">
+        <h2 id={titleId} className="text-base font-semibold text-ink">
           {title}
         </h2>
-        <p id="confirm-description" className="mt-2 text-body-relaxed text-muted">
-          {description}
-        </p>
+        {description ? (
+          <p id={descriptionId} className="mt-2 text-body-relaxed text-muted">
+            {description}
+          </p>
+        ) : null}
 
         {consequences.length > 0 ? (
           <ul className="mt-4 flex flex-col gap-1.5 rounded-field bg-canvas px-4 py-3 text-helper-relaxed text-muted">

@@ -22,6 +22,7 @@ import {
 import { Trans } from "react-i18next";
 
 import { isChineseLocale, t as translate, useI18n } from "../../i18n/index.js";
+import { ChevronIcon } from "../Icons.js";
 import type zhOcr from "../../i18n/resources/zh-CN/ocr.js";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { groupsForCandidate, type OcrDuplicateGroup } from "../../lib/ocr/duplicates.js";
@@ -208,22 +209,6 @@ function secondaryFilterText(
   return parts.join(translate("ocr.list.filterSeparator"));
 }
 
-function primaryFilterText(filter: OcrOverviewFilter): string {
-  return translate(`ocr.list.primary.${filter}`);
-}
-
-/** 当前空列表的筛选说明；没有任何次级筛选时为空串。 */
-function activeFilterText(
-  filter: OcrOverviewFilter,
-  source: OcrSourceFilter,
-  direction: OcrDirectionFilter,
-): string {
-  const parts = [primaryFilterText(filter)];
-  const secondary = secondaryFilterText(source, direction);
-  if (secondary !== "") parts.push(secondary);
-  return parts.join(translate("ocr.list.filterSeparator"));
-}
-
 export function OcrOverview({
   items,
   counts,
@@ -247,7 +232,6 @@ export function OcrOverview({
 }: OcrOverviewProps): React.JSX.Element {
   const { t } = useI18n();
   const extras = secondaryFilterCount(source, direction);
-  const filterDetail = activeFilterText(filter, source, direction);
 
   function clearSecondaryFilters(): void {
     onSourceChange("all");
@@ -283,7 +267,6 @@ export function OcrOverview({
             <li>{t("ocr.list.helpRecognized")}</li>
             <li>{t("ocr.list.helpPending")}</li>
             <li>{t("ocr.list.helpReviewed")}</li>
-            <li>{t("ocr.list.helpFilters")}</li>
           </ul>
 
           {note === undefined ? null : <p className="mt-2 text-helper text-muted">{note}</p>}
@@ -433,14 +416,13 @@ export function OcrOverview({
           </p>
           {counts.total === 0 ? null : (
             <>
-              <p className="mt-1 text-helper text-muted">{t("ocr.list.currentFilters", { filters: filterDetail })}</p>
               <button
                 type="button"
                 onClick={() => {
                   onFilterChange("all");
                   clearSecondaryFilters();
                 }}
-                className="mt-2 text-helper text-brand-dark underline-offset-2 hover:underline"
+                className="touch-target mt-2 text-helper text-brand-dark underline-offset-2 hover:underline"
               >
                 {t("ocr.list.showAll")}
               </button>
@@ -553,9 +535,18 @@ function OcrOverviewCard({
    */
   const showImportBlocker = importBlocker !== null && status === "recognized";
 
+  /**
+   * 1.17.23：**整张卡片都是进入这一笔详情的点击区域**（原来只有右下角一个小小的「查看详情」）。
+   * 做法是卡片里唯一的按钮用一个铺满卡片的透明伪元素扩大点击范围：键盘仍只有一个焦点（Tab 到卡片、
+   * 回车 / 空格打开），读屏念出「查看详情：金额 商户」，鼠标、触屏点卡片任何地方都打开详情。
+   * 点卡片只进入详情，不会核对、确认或导入任何东西。
+   * ⚠️ 以后若在卡片里加独立的按钮 / 复选框 / 菜单，给它们 `relative z-10`，否则会被这层点击区盖住。
+   */
+  const summary = [amountText(item), fieldText(item.merchant, t("ocr.list.merchantPending"))].join(" ");
+
   return (
     <article
-      className={`flex flex-col gap-1.5 rounded-card border border-line bg-surface px-4 py-3 shadow-card ${
+      className={`relative flex flex-col gap-1.5 rounded-card border border-line bg-surface px-4 py-3 shadow-card transition-colors hover:border-brand/40 active:bg-canvas has-[[data-card-open]:focus-visible]:ring-4 has-[[data-card-open]:focus-visible]:ring-focus-ring ${
         item.invalid ? "opacity-70" : ""
       }`}
     >
@@ -594,7 +585,7 @@ function OcrOverviewCard({
 
       <p className="break-words text-body text-ink">{fieldText(item.merchant, t("ocr.list.merchantPending"))}</p>
 
-      {/* S16：说明文字 `min-w-0` + 允许断行，英文较长时不把「查看详情」挤出卡片。 */}
+      {/* S16：说明文字 `min-w-0` + 允许断行，英文较长时不把右侧的箭头挤出卡片。 */}
       <div className="flex items-end justify-between gap-3">
         <p className="min-w-0 text-helper text-muted [overflow-wrap:anywhere]">
           {[
@@ -608,12 +599,14 @@ function OcrOverviewCard({
         </p>
         <button
           type="button"
+          data-card-open=""
+          aria-label={t("ocr.list.viewDetailsFor", { summary })}
           onClick={() => {
             onOpenDetail(item.candidateId);
           }}
-          className="shrink-0 rounded-field px-2 py-1 text-link text-brand-dark underline-offset-2 hover:underline"
+          className="flex size-6 shrink-0 items-center justify-center text-muted outline-none after:absolute after:inset-0 after:rounded-card after:content-['']"
         >
-          {t("ocr.list.viewDetails")}
+          <ChevronIcon direction="right" />
         </button>
       </div>
 
@@ -646,10 +639,6 @@ function OcrOverviewCard({
 
       {showImportBlocker ? (
         <p className="text-helper-relaxed text-warn-dark">{t("ocr.list.cannotImport", { reason: importBlocker })}</p>
-      ) : null}
-
-      {item.invalid ? (
-        <p className="text-helper text-muted">{t("ocr.list.markedInvalid")}</p>
       ) : null}
     </article>
   );
@@ -688,7 +677,7 @@ export function OcrImportBar({
   const disabled = importableCount === 0 || blockedReason !== null || busy;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="">
       <div className="mx-auto w-full max-w-md px-6 pt-2.5 pb-3">
         {/* S16：英文的按钮文字更长（“Import 12 entries”），计数允许收缩换行，按钮保持一行。 */}
         <div className="flex items-center gap-3">
@@ -720,7 +709,7 @@ export function OcrImportBar({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="shrink-0 text-helper text-muted underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+            className="touch-target shrink-0 text-helper text-muted underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-45"
           >
             {cancelLabel ?? t("ocr.bar.cancel")}
           </button>

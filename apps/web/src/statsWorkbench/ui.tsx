@@ -60,6 +60,11 @@ export function FitAmount({
   const ref = useRef<HTMLParagraphElement | null>(null);
   const [step, setStep] = useState(start);
   const [width, setWidth] = useState(0);
+  /**
+   * ⚠️ **S18（审查 U06）：最小字号仍放不下时换行，而不是省略。** 窄工作区或很大的金额下，
+   * 以前最后一档仍会显示「¥1,234,5…」，`title` 在触摸屏上又读不到——金额必须完整可读。
+   */
+  const [wrap, setWrap] = useState(false);
 
   useEffect(() => {
     const element = ref.current;
@@ -77,17 +82,21 @@ export function FitAmount({
   // 文字或可用宽度变了：从最大字号重新试。
   useLayoutEffect(() => {
     setStep(start);
+    setWrap(false);
   }, [text, width, start]);
 
   useLayoutEffect(() => {
     const element = ref.current;
-    if (element === null) return;
+    if (element === null || wrap) return;
     // 严格比较：截断样式下多出 1px 也会出现省略号（1.17.10 浏览器验收发现 ¥14,222.41 被截成「¥14,222....」）。
-    if (element.scrollWidth > element.clientWidth && step < AMOUNT_STEPS.length - 1) setStep(step + 1);
-  }, [step, text, width]);
+    if (element.scrollWidth > element.clientWidth) {
+      if (step < AMOUNT_STEPS.length - 1) setStep(step + 1);
+      else setWrap(true);
+    }
+  }, [step, text, width, wrap]);
 
   return (
-    <p ref={ref} title={text} className={`sw-amount truncate font-semibold tabular-nums ${AMOUNT_STEPS[Math.min(step, AMOUNT_STEPS.length - 1)]} ${className}`}>
+    <p ref={ref} title={text} className={`sw-amount ${wrap ? "whitespace-normal break-all leading-tight" : "truncate"} font-semibold tabular-nums ${AMOUNT_STEPS[Math.min(step, AMOUNT_STEPS.length - 1)]} ${className}`}>
       {text}
     </p>
   );

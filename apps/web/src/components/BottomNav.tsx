@@ -3,12 +3,13 @@ import { useLedger } from "../lib/queries.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useRef, type ReactNode } from "react";
 import { Link } from "react-router";
+import { usePane } from "../workspace/context.js";
 
 interface IconProps {
   readonly className?: string;
 }
 
-function ListIcon({ className }: IconProps): React.JSX.Element {
+export function ListIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
       <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
@@ -16,7 +17,7 @@ function ListIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
-function ChartIcon({ className }: IconProps): React.JSX.Element {
+export function ChartIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
       <path d="M5 19V11M12 19V5M19 19v-6" strokeLinecap="round" />
@@ -24,7 +25,7 @@ function ChartIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
-function PeopleIcon({ className }: IconProps): React.JSX.Element {
+export function PeopleIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
       <circle cx="9" cy="8" r="3.2" />
@@ -34,7 +35,7 @@ function PeopleIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
-function PersonIcon({ className }: IconProps): React.JSX.Element {
+export function PersonIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
       <circle cx="12" cy="8" r="3.4" />
@@ -51,7 +52,7 @@ export function PlusIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
-function MicrophoneIcon({ className }: IconProps): React.JSX.Element {
+export function MicrophoneIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
       <rect x="9" y="3" width="6" height="11" rx="3" />
@@ -60,7 +61,7 @@ function MicrophoneIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
-function PenIcon({ className }: IconProps): React.JSX.Element {
+export function PenIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
       <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z" strokeLinejoin="round" />
@@ -82,7 +83,7 @@ export function CameraIcon({ className }: IconProps): React.JSX.Element {
 }
 
 /** A clipboard with two lines: pasted transaction text. */
-function ClipboardIcon({ className }: IconProps): React.JSX.Element {
+export function ClipboardIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
       <rect x="5" y="4" width="14" height="17" rx="2" />
@@ -98,7 +99,7 @@ function ClipboardIcon({ className }: IconProps): React.JSX.Element {
  * ⚠️ It goes here rather than in `Icons.tsx` because it has one home: the entry
  * menu. `Icons.tsx` is for icons more than one screen needs.
  */
-function FileUpIcon({ className }: IconProps): React.JSX.Element {
+export function FileUpIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
       <path
@@ -155,7 +156,7 @@ export function ledgerTabLabel(memberCount: number | undefined): string {
   return memberCount !== undefined && memberCount >= 2 ? translate("nav.tabs.shared") : translate("nav.tabs.ledger");
 }
 
-interface EntryAction {
+export interface EntryAction {
   /**
    * 稳定 ID（S16）。完整名在 `nav.entry.<id>.label`，窄屏可见短名在 `nav.entry.<id>.short`。
    *
@@ -219,7 +220,7 @@ interface EntryAction {
  * until the recorder shipped; 粘贴识别 is the newest, and 手动记账 sits in the
  * visual centre because it is the fallback that always works.
  */
-const ENTRY_ACTIONS: readonly EntryAction[] = [
+export const ENTRY_ACTIONS: readonly EntryAction[] = [
   {
     id: "paste",
     icon: <ClipboardIcon className="size-6" />,
@@ -304,7 +305,7 @@ export function BottomNav({
    * screen that has not opted in, and it keeps the card useful rather than dead.
    */
   readonly onPickImages?: ((files: File[]) => void) | undefined;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const { t, locale } = useI18n();
   /**
    * ⚠️ **完整名只在中文下有位置显示（S16）。** 中文完整名是四个字（11px 字号约 44px），≥420px 时
@@ -321,6 +322,12 @@ export function BottomNav({
    * the query cache, so this is not an extra request — see `ledgerTabLabel`.
    */
   const ledger = useLedger();
+  /**
+   * ⚠️ **S18：大屏的主导航与记账入口在全局侧栏里**（`workspace/GlobalRail`），辅助工作区没有自己的
+   * 主导航。只有手机外壳的主区（`nav === "bottom"`）才画这条底栏——与以前完全一样。
+   */
+  const pane = usePane();
+  if (pane.nav !== "bottom") return null;
   return (
     // Not `fixed`: the frame that owns this bar is the full dynamic viewport
     // height and only scrolls its middle region, so the bar never ends up

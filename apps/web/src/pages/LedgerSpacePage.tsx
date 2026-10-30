@@ -14,6 +14,7 @@ import { SkeletonRows } from "../components/States.js";
 import { useI18n } from "../i18n/index.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { formatAppVersion } from "../lib/version.js";
+import { usePaneLedgerEntry } from "../workspace/context.js";
 import { errorMessage } from "../lib/api.js";
 import { markPresentationSeen, readSeenPresentation, useSpaceTransition } from "../lib/spaceTransition.js";
 import {
@@ -109,6 +110,11 @@ export function LedgerSpacePage(): React.JSX.Element {
   const createBook = useCreateBook();
   const activateBook = useActivateBook();
   const restoreBook = useRestoreBook();
+  /**
+   * S18：「进入账本」只影响本工作区——辅助区只换它自己的账本；主区（手机上就是唯一的工作区）仍走下面
+   * 同一条整页切换，只是外壳先把其它工作区钉在原来的账本上。没有工作区外壳（组件测试）时为 `null`。
+   */
+  const paneEntry = usePaneLedgerEntry();
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -143,6 +149,23 @@ export function LedgerSpacePage(): React.JSX.Element {
     }
 
     setError(null);
+
+    /**
+     * ⚠️ **S18 大屏：进入账本只属于这个工作区**（第二轮 · 账本隔离）。辅助区只换它自己查看的账本，
+     * 主区与设备当前账本不动；主区换设备当前账本前，外壳先把辅助区钉在它原来那本账上，再交给下面
+     * 同一条「服务器激活 + 整页重新载入」路径。
+     */
+    if (paneEntry !== null) {
+      paneEntry(bookId, () => {
+        void activateAndReload(bookId);
+      });
+      return;
+    }
+
+    await activateAndReload(bookId);
+  }
+
+  async function activateAndReload(bookId: string): Promise<void> {
     setSwitching(true);
 
     try {

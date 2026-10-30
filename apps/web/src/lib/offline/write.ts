@@ -589,6 +589,25 @@ function fieldValue(entry: Transaction, field: string): unknown {
 }
 
 /**
+ * **S18：一次在线修改的字段变化**（外部账本的工作区直接在线写入，不经过本机队列）。
+ *
+ * ⚠️ 服务器只按 `changes`（每个字段「从哪个值改成哪个值」）判断并写入可能冲突的字段（金额、分类、币种……），
+ * 只带新值的请求只会让版本号加一。离线队列从本机标记里的链条构造它（`sync.ts` 的 `updateBody`）；在线
+ * 直接写入时，链条就是「用户看到的值 → 用户改成的值」这一步，与 `extendChain` 同一套字段与比较方式。
+ */
+export function onlineChanges(
+  before: Transaction,
+  after: Transaction,
+): { readonly field: string; readonly base: unknown; readonly wanted: unknown; readonly chain: readonly unknown[] }[] {
+  return Object.entries(extendChain(undefined, before, after)).map(([field, values]) => ({
+    field,
+    base: values[0],
+    wanted: values[values.length - 1],
+    chain: values,
+  }));
+}
+
+/**
  * Extend the record of what this device changed, one chain per field.
  *
  * ⚠️ **The first link never moves.** A device that edits the amount twice while offline reports `[30, 40, 50]` —

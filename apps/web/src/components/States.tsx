@@ -13,14 +13,15 @@ export function EmptyState({
   onAction,
 }: {
   readonly title: string;
-  readonly description: string;
+  /** 1.17.23 起可省略：下面已经有操作按钮时，不再用一句话解释怎么点。 */
+  readonly description?: string;
   readonly actionLabel?: string;
   readonly onAction?: () => void;
 }): React.JSX.Element {
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
       <p className="text-base font-medium text-ink">{title}</p>
-      <p className="max-w-xs text-body-relaxed text-muted">{description}</p>
+      {description ? <p className="max-w-xs text-body-relaxed text-muted">{description}</p> : null}
       {actionLabel && onAction ? (
         <button
           type="button"

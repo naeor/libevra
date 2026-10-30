@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
 
+import { useMarkBack } from "../workspace/context.js";
 import { recordBackPress } from "./backFallback.js";
 
 /**
@@ -83,12 +84,15 @@ export function parentBackAction(key: string): "pop" | "replace" {
 export function useGoBack(fallback: string, mode: BackMode = "history"): () => void {
   const navigate = useNavigate();
   const location = useLocation();
+  /** S18：告诉工作区外壳下面这次导航是「返回」（跟随模式不因此切成独立）。 */
+  const markBack = useMarkBack();
 
   /** ⚠️ Read defensively: this state is set by callers, and an untyped `unknown` must not crash a screen. */
   const declared = (location.state as { from?: unknown } | null)?.from;
   const from = typeof declared === "string" ? declared : null;
 
   return useCallback(() => {
+    markBack();
     // Five presses in a row with nothing else touched: the user is stuck
     // rather than navigating, so send them somewhere real instead of letting
     // them bounce between two screens.
@@ -152,5 +156,5 @@ export function useGoBack(fallback: string, mode: BackMode = "history"): () => v
       * replace 不给自己留影子，也如实回答"深链没有可回的历史"。
       */
     void navigate(fallback, { replace: true });
-  }, [navigate, location.key, fallback, from, mode]);
+  }, [navigate, location.key, fallback, from, mode, markBack]);
 }

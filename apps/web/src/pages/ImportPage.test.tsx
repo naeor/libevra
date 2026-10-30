@@ -128,7 +128,8 @@ describe("ImportPage 的骨架与文案", () => {
 describe("入口与路由仍然指向 ImportPage", () => {
   it("App.tsx 的 /import 没被改道", () => {
     const app = source("../App.tsx");
-    expect(app).toContain('<Route path="/import" element={<RequireAuth><ImportPage /></RequireAuth>} />');
+    // S18 第二轮：外层多了「只作用于设备当前账本」的工作区出口，路由本身不变。
+    expect(app).toContain('<Route path="/import" element={<RequireAuth><CurrentLedgerOnly><ImportPage /></CurrentLedgerOnly></RequireAuth>} />');
   });
 
   it("中央 + 菜单第 4 项仍是 /import?from=nav", () => {

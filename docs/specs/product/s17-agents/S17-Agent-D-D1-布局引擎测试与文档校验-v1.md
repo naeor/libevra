@@ -124,7 +124,7 @@ D-1 的目标：把 D-0 的纯函数骨架补成**可验收、可回归、可确
 ## 8. 真实执行（命令与数字）
 
 环境：Node v24.20.0；pnpm 12.10.1（PowerShell 执行策略禁止 `pnpm.ps1`，统一用
-`C:\Users\ZhuanZ（无密码）\AppData\Roaming\npm\pnpm.cmd`）。
+`C:\Users\<本机用户>\AppData\Roaming\npm\pnpm.cmd`）。
 
 | 命令 | 结果 |
 |---|---|

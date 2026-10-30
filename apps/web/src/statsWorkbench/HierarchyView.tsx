@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
+import { UNSAFE_LocationContext, UNSAFE_NavigationContext } from "react-router";
 import { buildHierarchy, buildHierarchySankey, sankeyIsConserved, type AdvancedRecord, type DraftHierarchyNode } from "@libellum/shared/analysis/advanced";
 import { categoryTreeRows, type Category, type DateRange } from "@libellum/shared";
 import { useI18n } from "../i18n/index.js";
@@ -8,6 +9,11 @@ import { ratio } from "./cAnalyses.js";
 
 export function HierarchyView({records,categories,currency,range,detail,sankey,complete,height}:{readonly records:readonly AdvancedRecord[];readonly categories:readonly Category[];readonly currency:string;readonly range:DateRange;readonly detail:boolean;readonly sankey:boolean;readonly complete:boolean;readonly height:number}):React.JSX.Element {
   const {t}=useI18n();const [collapsed,setCollapsed]=useState<readonly string[]>([]);
+  /**
+   * S18：用所在工作区自己的地址与导航（两个工作区可以各开一份分析）。不在路由里（静态渲染、预设预览）时
+   * 退回浏览器地址与普通链接，行为与以前相同。
+   */
+  const routerLocation=useContext(UNSAFE_LocationContext);const routerNavigation=useContext(UNSAFE_NavigationContext);
   let result:ReturnType<typeof buildHierarchy>,flow:ReturnType<typeof buildHierarchySankey>;
   try{result=buildHierarchy(records,categories.filter(c=>c.kind==="expense").map(c=>({categoryId:c.id,parentCategoryId:c.parentId??null,categoryLabel:displayCategoryName(c.name)})));flow=buildHierarchySankey(result);}
   catch{return <p role="alert" className="text-helper text-muted">{t("statsWorkbench.advanced.unavailable")}</p>;}
@@ -17,7 +23,7 @@ export function HierarchyView({records,categories,currency,range,detail,sankey,c
   const hidden=(n:DraftHierarchyNode)=>{let parent=n.parentId;while(parent){if(collapsed.includes(parent))return true;parent=byId.get(parent)?.parentId??null;}return false;};
   const visible=nodes.filter(n=>!hidden(n)&&(detail||n.depth===1));
   const shown=detail?visible:visible.slice(0,Math.max(1,Math.floor(height/38)));
-  const href=(id:string)=>{const p=new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);p.delete("category");p.delete("categoryBranch");p.delete("month");p.set("categoryBranch",id);p.set("range","custom");p.set("from",range.from);p.set("to",range.to);return `/stats?${p}`;};
+  const href=(id:string)=>{const p=new URLSearchParams(routerLocation!==null?routerLocation.location.search:typeof window === "undefined" ? "" : window.location.search);p.delete("category");p.delete("categoryBranch");p.delete("month");p.set("categoryBranch",id);p.set("range","custom");p.set("from",range.from);p.set("to",range.to);return `/stats?${p}`;};
   const money=(n:bigint)=>moneyText(n.toString(),currency);
   const percent=(n:bigint)=>`${(ratio(n,result.totalAmountMinor)*100).toFixed(1)}%`;
   return <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
@@ -26,7 +32,7 @@ export function HierarchyView({records,categories,currency,range,detail,sankey,c
     {detail&&sankey&&complete&&result.totalAmountMinor>0n?<p className="text-helper text-muted">{t("manage.treePan")}</p>:null}
     {!sankey||detail||!complete?<ul className={detail?"divide-y divide-line":"min-h-0 overflow-hidden"}>{shown.map(n=><li key={n.nodeId} className="flex min-w-0 items-center gap-2 py-2 text-helper" style={{paddingLeft:detail?Math.min(n.depth-1,5)*12:0}}>
       {detail&&nodes.some(child=>child.parentId===n.nodeId)?<button type="button" className="min-h-11 min-w-8" aria-label={t("manage.tree.toggle",{name:n.label})} aria-expanded={!collapsed.includes(n.nodeId)} onClick={()=>setCollapsed(value=>value.includes(n.nodeId)?value.filter(id=>id!==n.nodeId):[...value,n.nodeId])}>{collapsed.includes(n.nodeId)?"›":"⌄"}</button>:null}
-      <a className="min-w-0 flex-1 truncate text-brand-dark" href={href(n.nodeId)}>{n.label}</a><span className="shrink-0 tabular-nums" title={`${t("manage.tree.total")} · ${t("manage.treeRecords",{count:n.subtreeCount})}`}>{money(n.subtreeAmountMinor)}{complete&&result.totalAmountMinor>0n?` · ${percent(n.subtreeAmountMinor)}`:""}{detail?<span className="block text-right text-muted">{t("manage.tree.direct")} {money(n.directAmountMinor)} · {t("manage.treeRecords",{count:n.directCount})}</span>:null}</span>
+      <a className="min-w-0 flex-1 truncate text-brand-dark" href={href(n.nodeId)} onClick={event=>{if(routerNavigation===null||event.metaKey||event.ctrlKey||event.shiftKey||event.button!==0)return;event.preventDefault();routerNavigation.navigator.push(href(n.nodeId));}}>{n.label}</a><span className="shrink-0 tabular-nums" title={`${t("manage.tree.total")} · ${t("manage.treeRecords",{count:n.subtreeCount})}`}>{money(n.subtreeAmountMinor)}{complete&&result.totalAmountMinor>0n?` · ${percent(n.subtreeAmountMinor)}`:""}{detail?<span className="block text-right text-muted">{t("manage.tree.direct")} {money(n.directAmountMinor)} · {t("manage.treeRecords",{count:n.directCount})}</span>:null}</span>
     </li>)}</ul>:null}
     {!detail&&nodes.length>shown.length?<p className="text-helper text-muted">{t("statsWorkbench.values.more",{count:nodes.length-shown.length})}</p>:null}
   </div>;

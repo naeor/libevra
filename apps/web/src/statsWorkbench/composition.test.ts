@@ -25,7 +25,7 @@ import {
   type GridMetrics,
 } from "./composition.js";
 import { buildCard, customCardsIn, draftProblem } from "./customCards.js";
-import { defaultWorkbench, newCard } from "./defaults.js";
+import { legacyDefaultWorkbench, newCard } from "./defaults.js";
 import { command, geometryOf, reconfigureCard, sessionDocuments, startSession } from "./session.js";
 import { loadWorkbench, saveWorkbench } from "./storage.js";
 
@@ -322,7 +322,7 @@ describe("保存、重新加载与编辑（D 命令 + 本机存储）", () => {
 
   it("组合卡片插入、保存、刷新（重新读取）后内容、顺序、展示形式、模板不变", () => {
     const card = buildCard({ template: "T3", slots: [DAILY_LINE, EXPENSE, DAILY_AVG], name: "" }, undefined, "combo")!;
-    const inserted = command(startSession(defaultWorkbench()), { type: "insert-card", card, size: { colSpan: 2, rowSpan: 2 }, collisionPolicy: "reflow" });
+    const inserted = command(startSession(legacyDefaultWorkbench()), { type: "insert-card", card, size: { colSpan: 2, rowSpan: 2 }, collisionPolicy: "reflow" });
     expect(inserted.ok).toBe(true);
     expect(saveWorkbench("user:a", sessionDocuments(inserted.state), 0)).toBe(1);
     const loaded = loadWorkbench("user:a");
@@ -335,7 +335,7 @@ describe("保存、重新加载与编辑（D 命令 + 本机存储）", () => {
 
   it("编辑已有组合卡片：换内容 + 换尺寸是一步撤销；外部移动布局不清空内部配置", () => {
     const card = buildCard({ template: "T1", slots: [INCOME, EXPENSE], name: "收支" }, undefined, "pair")!;
-    const start = startSession(defaultWorkbench());
+    const start = startSession(legacyDefaultWorkbench());
     const inserted = command(start, { type: "insert-card", card, size: { colSpan: 1, rowSpan: 1 }, collisionPolicy: "reflow" });
     expect(inserted.ok).toBe(true);
     const moved = command(inserted.state, { type: "move", objectId: "pair", anchor: 1, collisionPolicy: "reflow" });
@@ -356,7 +356,7 @@ describe("保存、重新加载与编辑（D 命令 + 本机存储）", () => {
 
   it("右列的 1×1 组合卡片加内容后变成 2×1：放到同一行行首并重排，保存成功（1.17.10 浏览器验收发现的回归）", () => {
     const card = buildCard({ template: "T1", slots: [INCOME, EXPENSE], name: "" }, undefined, "pair")!;
-    const start = startSession(defaultWorkbench());
+    const start = startSession(legacyDefaultWorkbench());
     const baseCols = start.layout.main.baseCols;
     const inserted = command(start, { type: "insert-card", card, size: { colSpan: 1, rowSpan: 1 }, collisionPolicy: "reflow" });
     // 放到第二列（右列）

@@ -163,10 +163,10 @@ describe("bottom import bar wiring", () => {
     expect(PAGE_SOURCE).toContain("className={BOTTOM_BAR_CLEARANCE}");
   });
 
-  it("keeps the explanatory text to one short line", () => {
-    // S16: the subtitle comes from the `ocr` resources; the Chinese wording is unchanged.
-    expect(PAGE_SOURCE).toContain('subtitle={t("ocr.overview.subtitle")}');
-    expect(zhCN.ocr.overview.subtitle).toBe("只核对有疑问的；确认前不写账本。");
+  it("没有页面副标题：「确认前不写账本」只在底部操作条说一次（1.17.23 文案精简）", () => {
+    expect(PAGE_SOURCE).not.toContain("subtitle=");
+    expect("subtitle" in zhCN.ocr.overview).toBe(false);
+    expect(zhCN.ocr.bar.nothingWritten).toBe("确认前不会写入账本。");
   });
 
   it("reads the batch's own ledger categories and applies the shared matcher", () => {

@@ -137,49 +137,108 @@ export function SizeSheet({
   );
 }
 
+/** 编辑中这一份排列的来源（`StatsPage` 按 `commitLayoutEdit` 的同一判断算出）。 */
+export interface LayoutArrangement {
+  /** canonical = 基础排列；override = 这个列数的专属排列；projection = 由基础排列自动生成；rebase = 卡片有增删。 */
+  readonly kind: "canonical" | "override" | "projection" | "rebase";
+  /** 基础排列的列数。 */
+  readonly base: number;
+}
+
+/**
+ * 「调整行列」（1.18.01）：自动调整列数开关 + 离散整数滑条（取代原来的 2 / 3 列按钮）。
+ * 改的是本工作区的列数显示偏好，不改布局；滑条上限由当前宽度决定。有未保存的修改时禁用（说明原因），
+ * 保证每次保存针对的列数就是用户正在看的列数。
+ */
 export function LayoutSheet({
   columns,
   maxColumns,
+  automatic,
+  locked,
+  sparse,
+  arrangement,
   onColumns,
+  onRestoreAutomatic,
   onCompact,
   onReset,
   onClose,
 }: {
   readonly columns: number;
   readonly maxColumns: number;
-  readonly onColumns: (columns: number) => void;
+  readonly automatic: boolean;
+  /** 有未保存的修改：不能切换列数。 */
+  readonly locked: boolean;
+  /** 当前列数下有卡片被拉得很扁或很高：滑条旁给出非阻断提示。 */
+  readonly sparse: boolean;
+  readonly arrangement: LayoutArrangement | null;
+  readonly onColumns: (preference: "auto" | number) => void;
+  /** 这个列数有专属排列时才提供。 */
+  readonly onRestoreAutomatic: (() => void) | null;
   readonly onCompact: () => void;
   readonly onReset: () => void;
   readonly onClose: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const upper = Math.max(maxColumns, columns);
   return (
     <BottomSheet label={t("statsWorkbench.layout.title")} onClose={onClose}>
       {(close) => (
         <>
           <SheetHeader title={t("statsWorkbench.layout.title")} />
           <div className="flex flex-col gap-5 px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
-            <fieldset className="flex flex-col gap-2">
-              <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.layout.columns")}</legend>
-              <div className="flex gap-2">
-                {[2, 3].map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    aria-pressed={columns === option}
-                    disabled={option > maxColumns}
-                    className={`sw-chip ${columns === option ? "sw-chip-on" : ""}`}
-                    onClick={() => {
-                      onColumns(option);
-                      close();
-                    }}
-                  >
-                    {t("statsWorkbench.layout.columnsCount", { count: option })}
-                  </button>
-                ))}
+            <fieldset className="flex flex-col gap-3" disabled={locked}>
+              <legend className="flex w-full items-baseline justify-between pb-1.5 text-helper text-muted">
+                <span>{t("statsWorkbench.layout.columns")}</span>
+                <span className="text-body font-medium tabular-nums text-ink" data-testid="layout-columns-value">
+                  {t("statsWorkbench.layout.columnsCount", { count: columns })}
+                </span>
+              </legend>
+              <label className="flex min-h-11 items-center gap-3 text-body text-ink">
+                <input
+                  type="checkbox"
+                  className="size-5 shrink-0 accent-brand"
+                  checked={automatic}
+                  onChange={(event) => onColumns(event.target.checked ? "auto" : columns)}
+                />
+                {t("statsWorkbench.layout.automatic")}
+              </label>
+              <div className="flex items-center gap-3">
+                <span aria-hidden="true" className="w-4 text-center text-helper tabular-nums text-muted">1</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={upper}
+                  step={1}
+                  value={columns}
+                  disabled={locked || upper <= 1}
+                  aria-label={t("statsWorkbench.layout.slider")}
+                  aria-valuetext={t("statsWorkbench.layout.columnsCount", { count: columns })}
+                  className="min-h-11 flex-1 accent-brand"
+                  onChange={(event) => onColumns(Number(event.target.value))}
+                />
+                <span aria-hidden="true" className="w-4 text-center text-helper tabular-nums text-muted">{upper}</span>
               </div>
-              <p className="text-helper-relaxed text-muted">{t("statsWorkbench.layout.columnsHint")}</p>
+              {locked ? <p className="text-helper-relaxed text-muted">{t("statsWorkbench.layout.locked")}</p> : null}
+              {sparse ? <p role="status" className="text-helper-relaxed text-warn-dark">{t("statsWorkbench.layout.sparse")}</p> : null}
+              {arrangement === null ? null : (
+                <p className="text-helper-relaxed text-muted" data-testid="layout-arrangement" data-kind={arrangement.kind}>
+                  {t(`statsWorkbench.layout.arrangement.${arrangement.kind}`, { columns, base: arrangement.base })}
+                </p>
+              )}
             </fieldset>
+            {onRestoreAutomatic === null ? null : (
+              <button
+                type="button"
+                className="flex min-h-12 flex-col items-start rounded-field border border-line px-4 py-2.5 text-left transition hover:bg-canvas"
+                onClick={() => {
+                  onRestoreAutomatic();
+                  close();
+                }}
+              >
+                <span className="text-body text-ink">{t("statsWorkbench.layout.restoreAuto")}</span>
+                <span className="text-helper text-muted">{t("statsWorkbench.layout.restoreAutoHint", { columns })}</span>
+              </button>
+            )}
             <button
               type="button"
               className="flex min-h-12 flex-col items-start rounded-field border border-line px-4 py-2.5 text-left transition hover:bg-canvas"

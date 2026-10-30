@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   splitTransactionTexts,
   parseTransactionText,
@@ -66,6 +66,8 @@ export function PastePage(): React.JSX.Element {
   const { t } = useI18n();
   const ledger = useLedger();
   const [text, setText] = useState("");
+  /** S18：两个工作区可以同时打开粘贴识别。 */
+  const textId = useId();
   const [candidates, setCandidates] = useState<readonly PasteCandidate[] | null>(null);
   const [clipboardError, setClipboardError] = useState<string | null>(null);
 
@@ -108,17 +110,16 @@ export function PastePage(): React.JSX.Element {
   return (
     <InnerPage
       title={t("capture.paste.title")}
-      subtitle={t("capture.paste.subtitle")}
       backTo="/"
     >
       {clipboardError === null ? null : <Alert tone="info">{clipboardError}</Alert>}
 
       <section className="flex flex-col gap-3">
-        <label htmlFor="paste-text" className="text-card-title text-ink">
+        <label htmlFor={textId} className="text-card-title text-ink">
           {t("capture.paste.label")}
         </label>
         <textarea
-          id="paste-text"
+          id={textId}
           value={text}
           onChange={(event) => {
             setText(event.target.value);
@@ -199,7 +200,7 @@ export function PastePage(): React.JSX.Element {
       <button
         type="button"
         onClick={() => void navigate("/add")}
-        className="text-helper text-muted underline"
+        className="touch-target self-center text-helper text-muted underline"
       >
         {t("capture.manualFallback")}
       </button>

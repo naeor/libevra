@@ -14,6 +14,7 @@ import { SkeletonRows } from "../components/States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useBookMembers, useBooks, useInviteToBook, useLeaveBook, useLedger } from "../lib/queries.js";
+import { useForeignBookId } from "../lib/workspaceLedger.js";
 
 /**
  * **账本 / 协作 —— 第四个主 Tab，和明细、分析、账户同级。**
@@ -613,6 +614,9 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
   const { user } = useAuth();
   const members = useBookMembers();
   const leave = useLeaveBook();
+  const navigate = useNavigate();
+  /** S18：这个工作区在看的是另一本账（不是设备当前账本）。 */
+  const foreign = useForeignBookId();
   const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -647,6 +651,14 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
               void leave
                 .mutateAsync(bookId)
                 .then(() => {
+                  /**
+                   * S18：退出的是工作区里查看的外部账本——设备当前账本没变，不必整页重新载入；
+                   * 账本列表刷新后外壳会把这个工作区带回设备当前账本。
+                   */
+                  if (foreign !== null) {
+                    void navigate("/", { replace: true });
+                    return;
+                  }
                   /**
                    * ⚠️ **A reload, for the same reason entering a ledger is one**: leaving changes
                    * which ledger every later request addresses and which slice of the offline copy is
