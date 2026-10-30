@@ -38,6 +38,7 @@
 # 口令走 `PGPASSWORD` 环境变量，**不进命令行**——命令行参数会出现在进程列表里。
 
 set -euo pipefail
+set +x
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -99,6 +100,7 @@ write_status() {
   cat > "$STATUS_FILE.tmp" <<JSON
 {
   "kind": "local",
+  "runId": "${BACKUP_RUN_ID:-standalone}",
   "startedAt": "$STARTED_AT",
   "finishedAt": "$finished_at",
   "localOk": $LOCAL_OK,

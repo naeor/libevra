@@ -25,7 +25,8 @@
 #
 # 用法：
 #   ./backup-all.sh                      # 完整流程（定时任务跑这个）
-#   ./backup-all.sh --skip-offsite       # 只做本地（异地未配置时）
+#   ./backup-all.sh --skip-offsite       # 维护：只做本地，partial/退出 2，不发 Daily 心跳
+#   ./backup-all.sh --no-restore-drill   # 维护：跳过恢复验证，partial/退出 2，不发 Daily 心跳
 #   ./backup-all.sh --skip-heartbeat     # 不发送心跳（本地调试用）
 #   ./backup-all.sh --skip-notify        # 不发告警（本地调试用）
 #
@@ -36,13 +37,14 @@
 #   .backup-heartbeat.env  外部心跳：HEARTBEAT_URL
 #   ⚠️ **恢复身份不在这里**：`COS_RESTORE_*` 只在你自己的机器上，服务器不常驻。
 
+set +x
 set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 BACKUP_DIR="$SCRIPT_DIR/backups"
-mkdir -p "$BACKUP_DIR"
 
 STATUS_FILE="$BACKUP_DIR/last-run.json"
 LOCAL_STATUS="$BACKUP_DIR/last-local.json"
@@ -51,6 +53,7 @@ LOCK_FILE="$SCRIPT_DIR/.backup.lock"
 SKIP_OFFSITE=0
 SKIP_HEARTBEAT=0
 SKIP_NOTIFY=0
+SKIP_RESTORE=0
 PASSTHROUGH=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -58,21 +61,25 @@ while [ $# -gt 0 ]; do
     --skip-heartbeat) SKIP_HEARTBEAT=1 ;;
     --skip-notify) SKIP_NOTIFY=1 ;;
     --keep) PASSTHROUGH+=(--keep "${2:?--keep needs a number}"); shift ;;
-    --no-restore-drill) PASSTHROUGH+=(--no-restore-drill) ;;
-    *) echo "未知参数：$1" >&2; exit 2 ;;
+    --no-restore-drill) SKIP_RESTORE=1; PASSTHROUGH+=(--no-restore-drill) ;;
+    *) echo "未知备份参数" >&2; exit 2 ;;
   esac
   shift
 done
 
-# ⚠️ 并发保护：systemd 不让同一 unit 并发，但**手动执行**很常见。
-exec 9> "$LOCK_FILE"
-if ! flock -n 9; then
-  echo "❌ 已经有一次备份在运行（$LOCK_FILE 被占用）。本次退出。" >&2
-  exit 0
-fi
-
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 FINAL_ERROR=""
+RESULT=failed
+DATA_COMPLETE=false
+EXIT_CODE=0
+FAILURE_HANDLED=0
+HEARTBEAT_ATTEMPTED=false
+HEARTBEAT_DELIVERY=not_attempted
+RUNTIME_DIR=""
+STATUS_TMP=""
+LOCK_HELD=0
+STAGE=preflight
+BACKUP_RUN_ID=""
 
 LOCAL_OK=false
 RESTORE_OK=false
@@ -89,42 +96,57 @@ OFFSITE_ERROR=""
 OFFSITE_REF=""
 REMOTE_SIZE=""
 LOCAL_ENC_SIZE=""
-# ⚠️ 同一个备份只写一行 backup_logs：cleanup 里靠它判断"意外退出"是否还需要补写。
-DB_LOG_ATTEMPTED=0
-
-# ---------------------------------------------------------------------------
-# 载入秘密（缺失不报错：可能还没配置）
-# ---------------------------------------------------------------------------
-if [ -f .backup.env ]; then
-  # shellcheck disable=SC1091
-  set -a; . ./.backup.env; set +a
-fi
-if [ -f .backup-mail.env ]; then
-  # shellcheck disable=SC1091
-  set -a; . ./.backup-mail.env; set +a
-fi
-if [ -f .backup-heartbeat.env ]; then
-  # shellcheck disable=SC1091
-  set -a; . ./.backup-heartbeat.env; set +a
-fi
-
-[ -n "${HEARTBEAT_URL:-}" ] && HEARTBEAT_CONFIGURED=true
-if [ -f .backup-mail.env ] && [ -n "${MAIL_API_KEY:-}" ] && [ -n "${MAIL_TO:-}" ] && [ -n "${MAIL_FROM:-}" ]; then
-  NOTIFY_CONFIGURED=true
-fi
+# EXIT 是唯一失败通知入口；不记录原始命令或第三方 stderr，防止凭据泄漏。
+cleanup() {
+  local code=$?
+  trap - EXIT HUP INT TERM
+  set +e
+  EXIT_CODE=$code
+  if [ "$code" -ne 0 ] && [ "$RESULT" != partial ] && [ "$DATA_COMPLETE" != true ]; then
+    RESULT=failed
+    [ -n "$FINAL_ERROR" ] || FINAL_ERROR="backup stage $STAGE failed (exit $code)"
+    if [ "$FAILURE_HANDLED" -eq 0 ]; then
+      FAILURE_HANDLED=1
+      log_backup_result --fail --stage "$STAGE" --note "$FINAL_ERROR" --started-at "$STARTED_AT" --file-ref "${DUMP:-}"
+      ping_heartbeat fail "$FINAL_ERROR"
+      notify_failure "$STAGE" "$FINAL_ERROR"
+    fi
+  fi
+  # 只清理由本次 mktemp 创建的目录，不碰旧文件或其它运行的配置。
+  if [ -n "$RUNTIME_DIR" ]; then
+    if ! rm -f -- "$RUNTIME_DIR/rclone.conf"; then echo "backup: sensitive temporary cleanup failed" >&2; fi
+    if ! rmdir -- "$RUNTIME_DIR"; then echo "backup: runtime directory cleanup failed" >&2; fi
+  fi
+  # 锁冲突自行撤销 trap；锁获取失败不覆盖正在运行任务的状态。
+  if [ "$LOCK_HELD" -eq 1 ]; then
+    write_final_status || echo "backup: final status persistence failed" >&2
+  fi
+  [ -z "$STATUS_TMP" ] || rm -f -- "$STATUS_TMP"
+  echo "backup: result=$RESULT exitCode=$code heartbeat=$HEARTBEAT_DELIVERY"
+  exit "$code"
+}
+trap cleanup EXIT
+trap 'STAGE=signal-HUP; exit 129' HUP
+trap 'STAGE=signal-INT; exit 130' INT
+trap 'STAGE=signal-TERM; exit 143' TERM
 
 write_final_status() {
   local finished_at local_json="{}"
-  local monthlyMonthValue="${MONTHLY_MONTH:-}" monthlyRefValue="${MONTHLY_REF:-}"
-  finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  [ -f "$LOCAL_STATUS" ] && local_json="$(cat "$LOCAL_STATUS")"
+  finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return $?
+  if [ -n "$BACKUP_RUN_ID" ] && [ -f "$LOCAL_STATUS" ] && grep -Fq "\"runId\": \"$BACKUP_RUN_ID\"" "$LOCAL_STATUS"; then
+    local_json="$(cat "$LOCAL_STATUS")" || return $?
+  fi
 
-  cat > "$STATUS_FILE.tmp" <<JSON
+  STATUS_TMP="$(mktemp "$BACKUP_DIR/.last-run.XXXXXX")" || return $?
+  cat > "$STATUS_TMP" <<JSON
 {
   "kind": "full",
   "schemaVersion": 2,
   "startedAt": "$STARTED_AT",
   "finishedAt": "$finished_at",
+  "result": "$RESULT",
+  "exitCode": $EXIT_CODE,
+  "dataComplete": $DATA_COMPLETE,
   "local": $local_json,
   "encryptOk": $ENCRYPT_OK,
   "offsite": {
@@ -141,7 +163,9 @@ write_final_status() {
   },
   "heartbeat": {
     "configured": $HEARTBEAT_CONFIGURED,
-    "ok": $HEARTBEAT_OK
+    "ok": $HEARTBEAT_OK,
+    "attempted": $HEARTBEAT_ATTEMPTED,
+    "delivery": "$HEARTBEAT_DELIVERY"
   },
   "notify": {
     "configured": $NOTIFY_CONFIGURED,
@@ -150,12 +174,23 @@ write_final_status() {
   "error": $(if [ -n "$FINAL_ERROR" ]; then printf '"%s"' "$(printf '%s' "$FINAL_ERROR" | tr -d '"' | tr '\n' ' ')"; else printf 'null'; fi)
 }
 JSON
-  mv "$STATUS_FILE.tmp" "$STATUS_FILE"
+  local code=$?
+  if [ "$code" -ne 0 ]; then rm -f -- "$STATUS_TMP"; STATUS_TMP=""; return "$code"; fi
+  if mv -f -- "$STATUS_TMP" "$STATUS_FILE"; then :; else
+    code=$?
+    rm -f -- "$STATUS_TMP"
+    STATUS_TMP=""
+    return "$code"
+  fi
+  STATUS_TMP=""
 }
 
 last_success_at() {
   if [ -f "$STATUS_FILE" ]; then
-    grep -o '"finishedAt": *"[^"]*"' "$STATUS_FILE" | head -1 | sed 's/.*"finishedAt": *"//; s/"$//'
+    # 不把上次失败的 finishedAt 宣称为最近成功；旧 schema 不猜测。
+    if grep -q '"dataComplete": true' "$STATUS_FILE"; then
+      grep -o '"finishedAt": *"[^"]*"' "$STATUS_FILE" | head -1 | sed 's/.*"finishedAt": *"//; s/"$//'
+    fi
   fi
 }
 
@@ -165,18 +200,22 @@ notify_failure() {
   if [ "$SKIP_NOTIFY" -eq 1 ]; then return 0; fi
   local prev
   prev="$(last_success_at)"
-  if ./alert-mail.sh --stage "$stage" --error "$message" --last-success "${prev:-未知}"; then
+  if bash "$SCRIPT_DIR/alert-mail.sh" --stage "$stage" --error "$message" --last-success "${prev:-未知}" >/dev/null 2>&1; then
     NOTIFY_OK=true
+  else
+    echo "backup: failure mail delivery failed" >&2
   fi
 }
 
 ping_heartbeat() {
   local mode="$1" reason="${2:-}"
-  if [ "$SKIP_HEARTBEAT" -eq 1 ]; then return 0; fi
+  if [ "$SKIP_HEARTBEAT" -eq 1 ]; then HEARTBEAT_DELIVERY=skipped; return 0; fi
+  [ "$HEARTBEAT_ATTEMPTED" = false ] || return 0
+  HEARTBEAT_ATTEMPTED=true
   if [ "$mode" = "ok" ]; then
-    if ./heartbeat.sh --ok; then HEARTBEAT_OK=true; fi
+    if bash "$SCRIPT_DIR/heartbeat.sh" --ok; then HEARTBEAT_OK=true; HEARTBEAT_DELIVERY=sent; else HEARTBEAT_DELIVERY=failed; fi
   else
-    ./heartbeat.sh --fail "$reason" || true
+    if bash "$SCRIPT_DIR/heartbeat.sh" --fail "$reason"; then HEARTBEAT_OK=true; HEARTBEAT_DELIVERY=sent; else HEARTBEAT_DELIVERY=failed; fi
   fi
 }
 
@@ -185,35 +224,48 @@ ping_heartbeat() {
 #   这里再用 `|| true` 兜一层，**任何情况下都不让它改变备份的退出码**。
 #   ⚠️ 只记"备份链路的结论"，不记心跳是否送达（两件事，见文首）。
 log_backup_result() {
-  DB_LOG_ATTEMPTED=1
-  bash "$SCRIPT_DIR/backup-log.sh" "$@" || true
+  bash "$SCRIPT_DIR/backup-log.sh" "$@" >/dev/null 2>&1 || true
 }
 
-# 任何一步失败：通知 + 失败心跳 + 写状态 + 非零退出
+# 显式失败只设置阶段与原始退出码；统一由 EXIT 记录与通知。
 fail_stage() {
-  local stage="$1" message="$2"
+  local stage="$1" message="$2" code="${3:-1}"
+  STAGE="$stage"
   FINAL_ERROR="$message"
   echo "❌ [$stage] $message" >&2
-  log_backup_result --fail --stage "$stage" --note "$message" \
-    --started-at "$STARTED_AT" --file-ref "${DUMP:-}"
-  notify_failure "$stage" "$message"
-  ping_heartbeat fail "$message"
-  exit 1
-}
-
-cleanup() {
-  local code=$?
-  rm -f "$SCRIPT_DIR/.rclone.conf.tmp" 2>/dev/null || true
-  # ⚠️ `set -e` 直接在某个命令上炸掉时，fail_stage 不会被走到；
-  #   这里补一条失败记录（仍 best-effort）。已经写过任何一行就不再写第二条。
-  if [ "$code" -ne 0 ] && [ "$DB_LOG_ATTEMPTED" -eq 0 ]; then
-    log_backup_result --fail --stage "unexpected" \
-      --note "脚本意外退出（退出码 $code）" --started-at "$STARTED_AT" --file-ref "${DUMP:-}"
-  fi
-  write_final_status
   exit "$code"
 }
-trap cleanup EXIT
+
+# 函数与 trap 在此之前都已就绪；配置加载错误、mkdir/锁权限失败也走统一出口。
+for config in .backup-heartbeat.env .backup-mail.env .backup.env; do
+  if [ -f "$config" ]; then
+    set -a
+    . "./$config" >/dev/null 2>&1
+    set +a
+  fi
+done
+[ -n "${HEARTBEAT_URL:-}" ] && HEARTBEAT_CONFIGURED=true
+if [ -n "${MAIL_API_KEY:-}" ] && [ -n "${MAIL_TO:-}" ] && [ -n "${MAIL_FROM:-}" ]; then NOTIFY_CONFIGURED=true; fi
+mkdir -p "$BACKUP_DIR"
+[ ! -L "$LOCK_FILE" ] || fail_stage preflight "unsafe lock symlink" 73
+exec 9> "$LOCK_FILE"
+set +e
+flock -n 9
+LOCK_EXIT=$?
+set -e
+if [ "$LOCK_EXIT" -eq 1 ]; then
+  trap - EXIT HUP INT TERM
+  echo 'backup: result=skipped exitCode=75 reason=lock-busy (no notification)'
+  exit 75
+elif [ "$LOCK_EXIT" -ne 0 ]; then
+  fail_stage lock "lock acquisition failed" "$LOCK_EXIT"
+fi
+LOCK_HELD=1
+bash "$SCRIPT_DIR/backup-preflight.sh"
+RUNTIME_DIR="$(mktemp -d "$BACKUP_DIR/.runtime.XXXXXX")"
+chmod 700 "$RUNTIME_DIR"
+export BACKUP_RUN_ID="${RUNTIME_DIR##*/}"
+STAGE=local
 
 echo "=== Libevra 完整备份 $(date '+%Y-%m-%d %H:%M:%S %Z') ==="
 echo
@@ -222,7 +274,7 @@ echo
 # 1. 本地备份 + 隔离恢复演练
 # ---------------------------------------------------------------------------
 set +e
-./backup.sh "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
+bash "$SCRIPT_DIR/backup.sh" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
 LOCAL_EXIT=$?
 set -e
 
@@ -232,7 +284,14 @@ if [ -f "$LOCAL_STATUS" ]; then
 fi
 
 if [ "$LOCAL_EXIT" -ne 0 ] || [ "$LOCAL_OK" != "true" ]; then
-  fail_stage "local" "本地备份失败（backup.sh 退出码 $LOCAL_EXIT）"
+  [ "$LOCAL_EXIT" -ne 0 ] || LOCAL_EXIT=1
+  fail_stage "local" "本地备份失败（backup.sh 退出码 $LOCAL_EXIT）" "$LOCAL_EXIT"
+fi
+if ! grep -Fq "\"runId\": \"$BACKUP_RUN_ID\"" "$LOCAL_STATUS"; then
+  fail_stage local "local status does not belong to this execution"
+fi
+if [ "$RESTORE_OK" != true ] && [ "$SKIP_RESTORE" -eq 0 ]; then
+  fail_stage restore "restore validation did not pass"
 fi
 
 echo
@@ -251,22 +310,20 @@ if [ "$SKIP_OFFSITE" -eq 1 ]; then
   echo "→ 已按参数跳过异地（不加密、不上传）"
   # ⚠️ 调试运行不是"完整备份"，不写 backup_logs；否则管理台会把一次本地调试
   #   当成"备份成功（含异地）"。
-  ping_heartbeat ok
+  RESULT=partial
+  FINAL_ERROR="maintenance run: offsite skipped"
+  HEARTBEAT_DELIVERY=skipped
+  log_backup_result --fail --stage partial --note "$FINAL_ERROR" --started-at "$STARTED_AT" --file-ref "$DUMP"
   echo
   echo "🎉 本地备份成功（异地未参与）。"
-  exit 0
+  exit 2
 fi
 
 if [ -z "${COS_UPLOAD_ID:-}" ] || [ -z "${COS_UPLOAD_KEY:-}" ] || [ -z "${COS_BUCKET:-}" ]; then
   echo
   echo "⚠️ **异地未配置**（deploy/.backup.env 缺 COS_UPLOAD_ID/COS_UPLOAD_KEY/COS_BUCKET）"
   echo "   本地备份有效，但它会随这台服务器一起消失。"
-  FINAL_ERROR="异地未配置"
-  # ⚠️ 整体不算成功：管理台要能看出"这次没有完成异地备份"。
-  log_backup_result --fail --stage "offsite" \
-    --note "异地未配置（本地备份与恢复演练通过）" --started-at "$STARTED_AT" --file-ref "${DUMP:-}"
-  ping_heartbeat fail "异地未配置"
-  exit 0
+  fail_stage offsite "异地未配置（本地备份与恢复演练通过）"
 fi
 OFFSITE_CONFIGURED=true
 
@@ -286,12 +343,13 @@ OFFSITE_REF="$REF"
 
 echo
 echo "→ 加密（AES-256 + MDC 完整性校验，口令来自 .backup.key）…"
+STAGE=encrypt
 rm -f "$ENCRYPTED"
-if ! gpg --batch --yes --quiet --pinentry-mode loopback \
+if gpg --batch --yes --quiet --pinentry-mode loopback \
       --passphrase-file .backup.key \
       --symmetric --cipher-algo AES256 \
-      --output "$ENCRYPTED" "$BACKUP_DIR/$DUMP"; then
-  fail_stage "encrypt" "gpg 加密失败"
+      --output "$ENCRYPTED" "$BACKUP_DIR/$DUMP" 2>/dev/null; then :; else
+  fail_stage "encrypt" "gpg 加密失败" "$?"
 fi
 
 LOCAL_ENC_SIZE="$(stat -c%s "$ENCRYPTED" 2>/dev/null || echo 0)"
@@ -304,7 +362,8 @@ echo "✅ 已加密：$(du -h "$ENCRYPTED" | cut -f1)"
 # ---------------------------------------------------------------------------
 # 3. 上传（上传身份：只有写权限）
 # ---------------------------------------------------------------------------
-RCLONE_CONF="$SCRIPT_DIR/.rclone.conf.tmp"
+STAGE=upload-config
+RCLONE_CONF="$RUNTIME_DIR/rclone.conf"
 umask 077
 cat > "$RCLONE_CONF" <<RCLONE
 [cos]
@@ -322,11 +381,13 @@ chmod 600 "$RCLONE_CONF"
 
 echo
 echo "→ 上传到 COS：${REF}"
-if ! rclone --config "$RCLONE_CONF" copyto --s3-no-check-bucket --retries 2 \
-      "$ENCRYPTED" "cos:${COS_BUCKET}/${REF}" 2>&1; then
+STAGE=upload
+if rclone --config "$RCLONE_CONF" copyto --s3-no-check-bucket --retries 2 \
+      "$ENCRYPTED" "cos:${COS_BUCKET}/${REF}" >/dev/null 2>&1; then :; else
+  UPLOAD_EXIT=$?
   OFFSITE_ERROR="上传 COS 失败"
   rm -f "$RCLONE_CONF"
-  fail_stage "upload" "$OFFSITE_ERROR"
+  fail_stage "upload" "$OFFSITE_ERROR" "$UPLOAD_EXIT"
 fi
 UPLOAD_OK=true
 echo "✅ 已上传"
@@ -335,7 +396,11 @@ echo "✅ 已上传"
 # 4. 远端元数据校验（HeadObject；**不下载内容**，因为上传身份没有读权限）
 # ---------------------------------------------------------------------------
 echo "→ 远端校验（对象存在 + 大小一致）…"
-REMOTE_JSON="$(rclone --config "$RCLONE_CONF" lsjson --stat "cos:${COS_BUCKET}/${REF}" 2>/dev/null || true)"
+STAGE=remote-meta
+if REMOTE_JSON="$(rclone --config "$RCLONE_CONF" lsjson --stat "cos:${COS_BUCKET}/${REF}" 2>/dev/null)"; then :; else
+  META_EXIT=$?
+  fail_stage remote-meta "远端元数据读取失败" "$META_EXIT"
+fi
 REMOTE_SIZE="$(printf '%s' "$REMOTE_JSON" | sed -n 's/.*"Size"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1)"
 [ -z "$REMOTE_SIZE" ] && REMOTE_SIZE=0
 
@@ -361,7 +426,7 @@ echo "✅ 远端一致（${REMOTE_SIZE} 字节）"
 #   · 生命周期：`monthly/` 保留 **365 天**（独立规则，不受 daily/ 影响）；
 #   · 失败不会删除它；只有时间会（所以永远有一份一年内的月度长期）。
 HKT_MONTH="$(TZ=Asia/Hong_Kong date '+%Y-%m')"
-PREV_MONTHLY_MONTH="$(grep -o '"monthlyMonth"[[:space:]]*:[[:space:]]*"[^"]*"' "$STATUS_FILE" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
+PREV_MONTHLY_MONTH="$(grep -o '"monthlyMonth"[[:space:]]*:[[:space:]]*"[^"]*"' "$STATUS_FILE" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
 MONTHLY_MONTH="${PREV_MONTHLY_MONTH:-}"
 MONTHLY_REF=""
 
@@ -369,7 +434,7 @@ if [ "$PREV_MONTHLY_MONTH" != "$HKT_MONTH" ]; then
   MONTHLY_REF="monthly/${HKT_MONTH}/${BASE_NAME}.dump.gpg"
   echo "→ 本月尚无月度长期备份，额外上传一份：${MONTHLY_REF}"
   if rclone --config "$RCLONE_CONF" copyto --s3-no-check-bucket --retries 2 \
-        "$ENCRYPTED" "cos:${COS_BUCKET}/${MONTHLY_REF}" 2>&1; then
+        "$ENCRYPTED" "cos:${COS_BUCKET}/${MONTHLY_REF}" >/dev/null 2>&1; then
     BASE_JSON="$(rclone --config "$RCLONE_CONF" lsjson --stat "cos:${COS_BUCKET}/${MONTHLY_REF}" 2>/dev/null || true)"
     BASE_SIZE="$(printf '%s' "$BASE_JSON" | sed -n 's/.*"Size"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1)"
     if [ "${BASE_SIZE:-0}" = "$LOCAL_ENC_SIZE" ]; then
@@ -397,6 +462,26 @@ fi
 # ---------------------------------------------------------------------------
 # ⚠️ 位置在"心跳"之前：**成功状态描述的是备份数据链路的结论，不是监控是否收到信号。**
 #   心跳发送失败时退出码仍然是 0、这里仍然是 true——这正是要分开记录的原因。
+if [ "$RESTORE_OK" != true ]; then
+  RESULT=partial
+  FINAL_ERROR="maintenance run: restore validation skipped"
+  HEARTBEAT_DELIVERY=skipped
+  log_backup_result --fail --stage partial --note "$FINAL_ERROR" --started-at "$STARTED_AT" --file-ref "$DUMP"
+  exit 2
+fi
+STAGE=record
+rm -f -- "$RUNTIME_DIR/rclone.conf"
+rmdir -- "$RUNTIME_DIR"
+RUNTIME_DIR=""
+RESULT=full
+DATA_COMPLETE=true
+# 正式成功心跳之前，必须原子落盘完整结果。数据库审计仍为 best-effort。
+if write_final_status; then :; else
+  RECORD_EXIT=$?
+  DATA_COMPLETE=false
+  RESULT=failed
+  fail_stage record "final backup status persistence failed" "$RECORD_EXIT"
+fi
 log_backup_result --ok --started-at "$STARTED_AT" --file-ref "${DUMP:-}" \
   --note "local+restore+encrypt+upload+remote-meta ok; monthly=${MONTHLY_MONTH:-not-done}"
 
@@ -404,6 +489,7 @@ log_backup_result --ok --started-at "$STARTED_AT" --file-ref "${DUMP:-}" \
 # 7. 成功心跳（只有整条流程成功才发）
 # ---------------------------------------------------------------------------
 echo
+STAGE=heartbeat
 ping_heartbeat ok
 
 echo

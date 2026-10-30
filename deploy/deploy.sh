@@ -53,6 +53,16 @@ echo "=== Libevra 发布 ==="
 echo "目标版本：$VERSION"
 echo
 
+# 按定时任务身份检查；root 能写不代表 ubuntu 能写。不修权限、不运行完整备份。
+check_backup_access() {
+  if [ "$(id -un)" = ubuntu ]; then
+    bash "$SCRIPT_DIR/backup-preflight.sh"
+  else
+    sudo -n -u ubuntu -- bash "$SCRIPT_DIR/backup-preflight.sh"
+  fi
+}
+check_backup_access
+
 # ---------------------------------------------------------------------------
 # 1. 记录当前版本，供回滚用
 # ---------------------------------------------------------------------------
@@ -143,6 +153,7 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTHY" -eq 1 ] && [ "$WEB_OK" -eq 1 ]; then
+  check_backup_access
   echo "$VERSION" > "$STATE_FILE"
   echo
   echo "✅ 发布成功：$VERSION"

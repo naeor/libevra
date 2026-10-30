@@ -37,6 +37,9 @@ echo "ARGS: $*" >> "$MOCK_LOG"
 OUT=""
 URL=""
 prev=""
+if [[ " $* " = *' --config - '* ]]; then
+  URL="$(sed -n 's/^url = "\(.*\)"$/\1/p')"
+fi
 for a in "$@"; do
   case "$prev" in
     -o) OUT="$a" ;;
@@ -470,6 +473,11 @@ fi
 
 # ---------------------------------------------------------------------------
 echo
+if "${PYTHON:-python3}" "$DEPLOY/tests/backup_reliability_test.py"; then
+  ok "完整编排与心跳的隔离行为测试"
+else
+  bad "完整编排与心跳的隔离行为测试失败"
+fi
 echo "================================"
 echo "  通过 $PASS 项，失败 $FAIL 项"
 echo "================================"

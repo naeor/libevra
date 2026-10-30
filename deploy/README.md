@@ -331,11 +331,34 @@ git push ──────────────────▶
 | `offsite-fetch.sh` | **灾难恢复用**：从 COS 取回并解密（只读，不碰数据库） |
 | `alert-mail.sh` | **邮件告警**（Resend HTTPS API，带去重与恢复通知） |
 | `heartbeat.sh` | **外部心跳**（Healthchecks.io；服务器彻底失效时由外部报警） |
+| `backup-preflight.sh` | **只读权限检查**：必须按实际备份用户执行，不改属主或权限；`deploy.sh` 在发布前后调用 |
 | `verify-dump.sh` | 把任意 dump 恢复到**隔离临时库**并与记录的行数对照 |
 | `monthly-offsite-drill.sh` | **月度异地演练**：取回→解密→隔离恢复→对照（在你自己的机器上跑） |
 | `systemd/` | `libevra-backup.service` / `.timer`（**仓库副本，安装见下**） |
 
-### 三个秘密文件（**不进仓库**，权限 `600`）
+### 运行结果与权限门禁
+
+`last-run.json` 保留 schemaVersion 2，增量记录 `result`、`exitCode`、`dataComplete`、`heartbeat.attempted/delivery`。完整成功必须包含当次导出、归档验证、隔离恢复、加密、上传、远端校验及原子状态落盘；之后才尝试成功心跳。数据库 `backup_logs` 仍为 best-effort 审计，不替代状态文件。
+
+| 情况 | 退出码 / 结果 | Daily Backup 心跳 |
+|---|---|---|
+| 完整数据链路与必要状态记录成功 | `0` / `full`、`dataComplete=true` | 尝试一次成功投递；收到 2xx 即停止重试 |
+| `--skip-offsite` 或 `--no-restore-drill` | `2` / `partial` | 不发成功或失败 Ping；数据库审计为 `ok=false`、`[partial]` |
+| 锁忙 | `75` / `skipped`（journal 明确记录） | 不投递、不覆盖持锁任务状态、不重复告警 |
+| 必要步骤失败／意外退出 | 原始非零码 / `failed` | EXIT 统一尝试失败投递与邮件，不覆盖原始码 |
+| 数据完整、心跳投递失败 | 仍 `0` / `full`，`heartbeat.delivery=failed` | 投递错误单独记录，不能误记为数据备份失败 |
+
+`--skip-heartbeat` / `--skip-notify` 继续作为显式维护选项。异地未配置是失败，不返回 0。信号 HUP/INT/TERM 分别保留 129/130/143；SIGKILL、断电等无法 trap，仍靠外部失联监控发现。
+
+敏感 rclone 配置仅放在 `backups/.runtime.XXXXXX/rclone.conf`（目录 700、文件 600），由本次运行创建、退出时清理；不再写固定 `.rclone.conf.tmp`。`deploy/` 只需可读／可遍历，`backups/` 与现有状态／锁须允许备份用户写入；凭据须可读且不向组／其他用户开放。不要递归 chmod/chown 整个部署目录。
+
+源码解包仍需由操作者保留必要属主；最初改变属主的操作未被证实，`deploy.sh` 没有解包或 chown 路径。本地新增发布前后门禁，不能替代对绕过该脚本的手工发布检查。每次解包前后、应用切换前均运行：`sudo -n -u ubuntu -- bash /srv/libevra/deploy/backup-preflight.sh`。门禁只读，不触发备份或网络请求。新增 helper 须与编排、心跳和本地备份脚本一起安装；systemd unit/timer 未改，不需要 daemon-reload 或重启。
+
+心跳最多 3 次，每次连接超时 5 秒、整体请求超时 15 秒，重试间隔 2 秒（请求预算最多约 49 秒）。只对临时 HTTP/传输错误重试，永久 HTTP 错误直接停止；仅记录 HTTP 状态、curl 返回码与错误类别，不输出 URL 或请求配置。网络丢失响应时无法保证服务端恰好接收一次，不能将有界重试称为网络层 exactly-once。
+
+本地验证：`bash deploy/tests/run.sh`，包含 Python 隔离行为测试，全部外部命令使用替身；Windows 可设置 `PYTHON` 与 `BACKUP_TEST_BASH`，`BACKUP_TEST_SIGNALS=1` 可启用 Git Bash 信号检查。NTFS 下 Unix mode 读取使用替身，真实 DAC/flock 语义仍需 Linux 隔离环境验收。
+
+### 秘密文件（**不进仓库**，权限 `600`）
 
 | 文件 | 内容 |
 |---|---|

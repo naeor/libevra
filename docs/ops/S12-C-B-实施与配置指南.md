@@ -351,6 +351,7 @@ journalctl -u libevra-backup -n 100 --no-pager
 
 | 字段 | 含义 |
 |---|---|
+| `result` / `exitCode` / `dataComplete` | 完整、部分完成、失败与数据链路结论；锁忙仅记 journal 的 skipped，避免覆盖持锁任务。完整语义与维护参数以 [部署说明](../../deploy/README.md#运行结果与权限门禁) 为准 |
 | `local.localOk` | 本地导出成功 |
 | `local.restoreOk` | 隔离恢复演练通过 |
 | `encryptOk` | 加密成功 |
@@ -358,11 +359,22 @@ journalctl -u libevra-backup -n 100 --no-pager
 | `offsite.remoteMetaOk` | 远端对象存在且大小一致 |
 | `offsite.contentVerified` | **内容级验证**（月度演练才有，日常恒为 `false`） |
 | `heartbeat.ok` | 外部心跳是否送出 |
+| `heartbeat.attempted` / `heartbeat.delivery` | 是否尝试，以及 sent / failed / skipped / not_attempted；不能用它替代数据备份结论 |
 | `notify.ok` | 失败告警是否被服务商接受 |
 
 ---
 
 ## 5. 月度异地演练（每月一次，**在你自己的电脑/临时机器上**）
+
+### 2026-10-30 对象的隔离演练方案（未执行）
+
+1. 在所有者电脑／临时机器准备独立 PostgreSQL 17 实例与独立恢复身份，不连接生产、不复制生产 `.env`；确认 `.backup.key` 的离线副本可用，所有网络／恢复操作另行批准。
+2. 固定对象为 `daily/2026/10/libevra_prod-20261030-030001-3afc52.dump.gpg`，使用 `offsite-fetch.sh --ref <上述对象>`，仅 GET／HEAD，不覆盖服务器备份。先检查加密文件大小 **86,734 B**，解密时验证 GPG 完整性。
+3. 解密 dump 应为 **211,675 B**，SHA-256 必须为 `07eae204b452913c13d6da5c478d269ec32f0a78cf53ec718bf2ff1d0b489d33`。这一步将远端内容绑定到已完成恢复演练的本地 dump，而非只比大小。
+4. 先保存与该对象严格对应的 10 月 30 日 `last-local.json`（52 表行数基准）；若该文件已被后续运行覆盖，不能拿新状态冒充旧基准。改用同一 SHA 的本地 dump 建立独立对照，或明确标为缺少历史行数基准。
+5. 明确核验隔离数据库连接目标后执行 `verify-dump.sh <dump> --expect <该对象对应状态文件>`，检查恢复错误、表／约束／索引及逐表行数；只清理本次临时库，原始下载与验证记录保留。方案不等于已验证远端可恢复。
+
+### 通用执行步骤
 
 ```bash
 # 1. 恢复身份（只在你这台机器上，临时）

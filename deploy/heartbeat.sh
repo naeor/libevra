@@ -23,14 +23,15 @@
 #
 # ⚠️ **心跳只是一次 HTTPS GET，不带任何数据** —— 不接触数据库内容、不上传备份文件。
 
-set -uo pipefail
+set +x
+set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 BACKUP_DIR="$SCRIPT_DIR/backups"
 STATE_FILE="$BACKUP_DIR/heartbeat-state.json"
-mkdir -p "$BACKUP_DIR"
 
 MODE=""
 REASON=""
@@ -40,14 +41,14 @@ while [ $# -gt 0 ]; do
     --ok) MODE="ok" ;;
     --fail) MODE="fail"; REASON="${2:-备份流程失败}"; shift ;;
     --check) MODE="check" ;;
-    *) echo "未知参数：$1" >&2; exit 2 ;;
+    *) echo "未知心跳参数" >&2; exit 2 ;;
   esac
   shift
 done
 
 if [ -f .backup-heartbeat.env ]; then
   # shellcheck disable=SC1091
-  set -a; . ./.backup-heartbeat.env; set +a
+  set -a; . ./.backup-heartbeat.env >/dev/null 2>&1; set +a
 fi
 
 if [ -z "${HEARTBEAT_URL:-}" ]; then
@@ -57,7 +58,7 @@ if [ -z "${HEARTBEAT_URL:-}" ]; then
 fi
 
 if [ "$MODE" = "check" ]; then
-  echo "✅ 心跳已配置：$(printf '%s' "$HEARTBEAT_URL" | sed 's#/[^/]*$#/<已隐藏>#')"
+  echo "✅ 心跳已配置（地址隐藏）"
   exit 0
 fi
 
@@ -67,28 +68,60 @@ case "$MODE" in
   *) echo "❌ 必须指定 --ok / --fail / --check" >&2; exit 2 ;;
 esac
 
-# ⚠️ 心跳失败**不应该**让备份本身算失败（备份成功了就是成功了），
-# 但必须被记录下来 —— 否则"监控悄悄失效"没人知道。
-HTTP_CODE="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || echo "000")"
-
-# ⚠️ 状态写作用纯 bash —— 备份告警链路上每多一个依赖，就多一种"关键时刻缺它"的可能。
-NOW="$(date +%s)"
+# 拒绝 curl 配置注入；地址只从 stdin 传给 curl，不出现在 argv 或日志中。
+case "$URL" in https://*) ;; *) echo "heartbeat: invalid HTTPS configuration" >&2; exit 2 ;; esac
+case "$URL" in *'"'*|*'\'*|*$'\n'*|*$'\r'*) echo "heartbeat: invalid URL characters" >&2; exit 2 ;; esac
+HTTP_CODE=000
+CURL_EXIT=0
+ERROR_CLASS=none
+ATTEMPTS=0
 OK=false
-case "$HTTP_CODE" in 2??) OK=true ;; esac
+while [ "$ATTEMPTS" -lt 3 ]; do
+  ATTEMPTS=$((ATTEMPTS + 1))
+  if HTTP_CODE="$(printf 'url = "%s"\n' "$URL" | curl --config - -sS --connect-timeout 5 --max-time 15 -o /dev/null -w '%{http_code}' 2>/dev/null)"; then CURL_EXIT=0; else CURL_EXIT=$?; fi
+  case "$HTTP_CODE" in [0-9][0-9][0-9]) ;; *) HTTP_CODE=000 ;; esac
+  RETRY=false
+  if [ "$CURL_EXIT" -eq 0 ] && [[ "$HTTP_CODE" = 2?? ]]; then
+    OK=true; ERROR_CLASS=none; break
+  elif [ "$CURL_EXIT" -eq 28 ]; then ERROR_CLASS=timeout; RETRY=true
+  elif [ "$CURL_EXIT" -eq 6 ] || [ "$CURL_EXIT" -eq 7 ]; then ERROR_CLASS=network; RETRY=true
+  elif [ "$CURL_EXIT" -ne 0 ]; then ERROR_CLASS=transport; RETRY=true
+  else
+    ERROR_CLASS=http
+    case "$HTTP_CODE" in 408|429|5??) RETRY=true ;; esac
+  fi
+  echo "heartbeat: attempt=$ATTEMPTS category=$ERROR_CLASS curlExit=$CURL_EXIT http=$HTTP_CODE" >&2
+  [ "$RETRY" = true ] && [ "$ATTEMPTS" -lt 3 ] || break
+  sleep 2
+done
+
+# 投递结果与备份结果独立。失败写入也必须返回非零，不能静默声称已记录。
+mkdir -p "$BACKUP_DIR"
+STATE_TMP="$(mktemp "$BACKUP_DIR/.heartbeat.XXXXXX")"
+trap 'rm -f -- "$STATE_TMP"' EXIT
+NOW="$(date +%s)"
+PREVIOUS_SUCCESS=""
+if [ -f "$STATE_FILE" ]; then
+  PREVIOUS_SUCCESS="$(sed -n 's/.*"lastSuccessAt": *\([0-9][0-9]*\).*/\1/p' "$STATE_FILE" | head -1)"
+fi
+[ "$OK" != true ] || PREVIOUS_SUCCESS="$NOW"
 {
   printf '{\n'
   printf '  "lastMode": "%s",\n' "$MODE"
   printf '  "lastHttpStatus": "%s",\n' "$HTTP_CODE"
   printf '  "lastAttemptAt": %s,\n' "$NOW"
   printf '  "ok": %s,\n' "$OK"
-  [ "$OK" = true ] && printf '  "lastSuccessAt": %s,\n' "$NOW"
-  [ -n "$REASON" ] && printf '  "lastReason": "%s",\n' "$(printf '%s' "$REASON" | tr -d '"')"
+  printf '  "attempts": %s,\n' "$ATTEMPTS"
+  printf '  "curlExit": %s,\n' "$CURL_EXIT"
+  printf '  "errorCategory": "%s",\n' "$ERROR_CLASS"
+  if [ -n "$PREVIOUS_SUCCESS" ]; then printf '  "lastSuccessAt": %s,\n' "$PREVIOUS_SUCCESS"; fi
+  # 不存调用方的自由文本（可能含连接信息）；备份阶段详见 last-run.json。
   printf '  "updatedAt": %s\n' "$NOW"
   printf '}\n'
-} > "$STATE_FILE.tmp"
-mv "$STATE_FILE.tmp" "$STATE_FILE"
+} > "$STATE_TMP"
+mv -f -- "$STATE_TMP" "$STATE_FILE"
 
-if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+if [ "$OK" = true ]; then
   echo "✅ 心跳已发送（$MODE，HTTP $HTTP_CODE）"
   exit 0
 fi
