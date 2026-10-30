@@ -352,7 +352,9 @@ git push ──────────────────▶
 
 敏感 rclone 配置仅放在 `backups/.runtime.XXXXXX/rclone.conf`（目录 700、文件 600），由本次运行创建、退出时清理；不再写固定 `.rclone.conf.tmp`。`deploy/` 只需可读／可遍历，`backups/` 与现有状态／锁须允许备份用户写入；凭据须可读且不向组／其他用户开放。不要递归 chmod/chown 整个部署目录。
 
-源码解包仍需由操作者保留必要属主；最初改变属主的操作未被证实，`deploy.sh` 没有解包或 chown 路径。本地新增发布前后门禁，不能替代对绕过该脚本的手工发布检查。每次解包前后、应用切换前均运行：`sudo -n -u ubuntu -- bash /srv/libevra/deploy/backup-preflight.sh`。门禁只读，不触发备份或网络请求。新增 helper 须与编排、心跳和本地备份脚本一起安装；systemd unit/timer 未改，不需要 daemon-reload 或重启。
+源码解包仍需由操作者保留必要属主；最初改变属主的操作未被证实，`deploy.sh` 没有解包或 chown 路径。脚本内发布前检查不能替代手工解包前后的检查。每次解包前后、应用切换前均运行：`sudo -n -u ubuntu -- bash /srv/libevra/deploy/backup-preflight.sh`。门禁只读，不触发备份或网络请求。新增 helper 须与编排、心跳和本地备份脚本一起安装；systemd unit/timer 未改，不需要 daemon-reload 或重启。
+
+私有暂存目录可保持 700，但源码文件须保留可信 `git archive` 的原始模式：在严格 `umask` 下解包使用 `tar --same-permissions --no-same-owner`，再以容器实际非 root 用户检查根清单、Prisma 配置与 schema 可读。源码权限与生产凭据权限分开处理；只同步归档包含的源码，不递归 chmod/chown 运行目录，不包含 `.env`、密钥或备份。
 
 心跳最多 3 次，每次连接超时 5 秒、整体请求超时 15 秒，重试间隔 2 秒（请求预算最多约 49 秒）。只对临时 HTTP/传输错误重试，永久 HTTP 错误直接停止；仅记录 HTTP 状态、curl 返回码与错误类别，不输出 URL 或请求配置。网络丢失响应时无法保证服务端恰好接收一次，不能将有界重试称为网络层 exactly-once。
 
@@ -360,7 +362,7 @@ git push ──────────────────▶
 
 ### Linux 隔离验收与备份脚本独立交付
 
-**2026-10-30 验证限制**：本机 WSL 无已安装发行版，Docker／Podman 不可用；真实 Linux 与 systemd 验收未执行。下面是可执行入口，不是已通过记录。不得转而在生产服务器运行验收脚本。
+原生 DAC/flock 与 systemd 必须在隔离 Linux 验证，不得以 Windows 模拟结果代替；实际执行证据集中在 [1.18.02 发布记录](../docs/archive/releases/1.18.02-S18与备份可靠性-生产发布-20261030.md)。安装后可执行只使用临时假配置的 `backup_reliability_test.py` 行为回归，禁止将生产目录、凭据或数据当作测试夹具；需要 root 的原生权限验收仍只在隔离环境执行。
 
 在一次性、断网的 Linux VM／预备容器中准备 Bash、Python 3.10+、GNU coreutils、util-linux（flock）；源码只读，临时目录使用 Linux 文件系统，禁止挂载生产 `.env`、密钥、Docker socket 或生产卷。运行：
 
