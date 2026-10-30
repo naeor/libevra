@@ -1,0 +1,15 @@
+# 既有私人部署的 S18 / 备份可靠性整合版本；不改变端口、环境或数据卷。
+# migrate 单独执行，确认后只更新 api/web；relay 使用原已验证镜像。
+services:
+  migrate:
+    image: libevra-rc-api:1.18.02-20261030
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.18.02-20261030
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.18.02-20261030
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
