@@ -358,6 +358,41 @@ git push ──────────────────▶
 
 本地验证：`bash deploy/tests/run.sh`，包含 Python 隔离行为测试，全部外部命令使用替身；Windows 可设置 `PYTHON` 与 `BACKUP_TEST_BASH`，`BACKUP_TEST_SIGNALS=1` 可启用 Git Bash 信号检查。NTFS 下 Unix mode 读取使用替身，真实 DAC/flock 语义仍需 Linux 隔离环境验收。
 
+### Linux 隔离验收与备份脚本独立交付
+
+**2026-10-30 验证限制**：本机 WSL 无已安装发行版，Docker／Podman 不可用；真实 Linux 与 systemd 验收未执行。下面是可执行入口，不是已通过记录。不得转而在生产服务器运行验收脚本。
+
+在一次性、断网的 Linux VM／预备容器中准备 Bash、Python 3.10+、GNU coreutils、util-linux（flock）；源码只读，临时目录使用 Linux 文件系统，禁止挂载生产 `.env`、密钥、Docker socket 或生产卷。运行：
+
+```bash
+python3 deploy/tests/backup_reliability_test.py
+sudo python3 deploy/tests/linux_backup_acceptance.py
+```
+
+第二条入口只在 Linux 接受执行。控制进程以 root 设置**自己创建的临时夹具**属主，实际备份子进程始终降至 UID/GID 65534，不创建系统用户。外部数据库／加密／COS／心跳／邮件均使用假配置和替身；flock、stat、chmod、mktemp、mv 使用原生工具。9 项验收覆盖：非 root 的 700/600 与清理、只读 root 属主 deploy、错误属主／不可写 backups、真实并发锁与 75 状态保护、上传／HEAD／校验失败、敏感配置创建后的 HUP/INT/TERM、维护模式、心跳有限重试。权限被拒时状态目录本身可能不可写，应检查 journal/stdout 的失败结论，不能要求它凭空写出 JSON。
+
+systemd 另在 **PID 1 为 systemd 的一次性 VM** 验证。普通容器中没有 systemd 时，不得把脚本退出码当成 systemd 实测。使用仅含 `Type=oneshot`、`Restart=no` 的临时单元分别执行 `exit 0/1/2/75`，记录 `Result`、`ExecMainStatus`、`NRestarts`；下面只可在该 VM 运行：
+
+```bash
+for code in 0 1 2 75; do
+  unit="libevra-backup-acceptance-${code}"
+  sudo systemd-run --wait --unit="$unit" --property=Type=oneshot --property=Restart=no /bin/sh -c "exit $code"
+  sudo systemctl show "$unit" -p Result -p ExecMainStatus -p NRestarts
+done
+```
+
+循环应在不启用 `set -e` 的交互 shell 中执行；非零结果是验收输入。仓库 unit 未设置 `SuccessExitStatus`，预计 0 为 success，1/2/75 为 exit-code，且无自动重启；这是静态预期，仍需上述实测。75 用 journal 的 skipped 区分，不配置 `SuccessExitStatus=75` 来伪装完整备份成功；无 `OnFailure`，脚本锁忙路径不通知。timer 规则无需改动，真实 timer／触发行为仍在 Linux VM 核查。
+
+**集成与交付边界**：`7538e111` 的改动仅含 deploy、测试与两处运维记录，无 S18 UI。2026-10-30 对主工作区只读 `git apply --check`：deploy 范围可应用，完整提交因已有 `docs/changelog/1.17.md` WIP 冲突而不能直接应用。不得覆盖该 WIP；待集成授权后，保留原修复提交，在单独集成 worktree 手工合并 changelog，复核差异后再由所有者安排进入 S18 主工作区。本轮不执行合并、重置或 worktree 清理。
+
+**生产最小步骤（待批准，不执行）**：
+
+1. Linux 与 systemd 验收通过后，仅从已确认提交归档 `backup-all.sh`、`backup.sh`、`heartbeat.sh`、`backup-preflight.sh`、`deploy.sh` 五个生产脚本，并附哈希清单；先确认既有 `backup-log.sh` / `alert-mail.sh` 依赖。不要打包整个应用，不使用会构建／迁移／重启应用的 `deploy.sh` 来安装本次备份补丁。
+2. 单独批准脚本上传／替换及短暂暂停 timer 的维护窗口，避开 03:00；记录原 timer 状态，确认 service inactive。安装过程非阻塞取得同一 `.backup.lock`，忙则终止；该锁只保护安装，**不得在持锁时启动备份脚本**。
+3. 先备份现有五个脚本的字节、属主、mode 与哈希，注明新增 helper 原先是否存在；在独立暂存目录验证包完整性、`bash -n` 和 helper 包含情况。暂停调度且持锁期间替换整套文件，避免新 wrapper 搭配旧 `backup.sh`（缺 runId）或缺 helper 的窗口。文件按既有 ubuntu 身份和适当 mode 安装，不递归改变目录，不触碰凭据与备份。
+4. 按 ubuntu 身份运行权限预检查，核对五文件哈希后释放安装锁，恢复原 timer 状态。unit/timer 未改，不需 daemon-reload 或应用重启；不要把 systemd start 备份嵌套在安装锁内。真实完整备份验证必须在部署授权范围明确后单独执行或等待自然定时，并核查数据结果与心跳。
+5. 回滚时同样避开活动备份、暂停调度并锁住安装窗口，恢复备份的脚本集与元数据；若 helper 是新增，可暂留但不调用，删除需另行批准。不回滚数据库，不删除备份／状态文件。新状态增加的字段与旧读取方式兼容，但新旧 wrapper／backup 必须成套切换。SIGKILL 留下的私有运行目录只报告，不自动清理。
+
 ### 秘密文件（**不进仓库**，权限 `600`）
 
 | 文件 | 内容 |
