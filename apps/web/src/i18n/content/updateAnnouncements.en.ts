@@ -10,6 +10,28 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.18.06": {
+    title: "Sidebar entry menus and workspace navigation",
+    summary: "The entry menu adapts to the sidebar, Follow mode opens recording in the secondary workspace, ledgers can be dragged to view Entries, and portrait navigation is simpler.",
+    sections: [
+      { heading: "New features", items: [
+        "With only the main workspace open and enough space, opening an entry or Insights detail automatically opens the secondary workspace in Follow mode while keeping the original list. Drag a sidebar ledger into a workspace to view its Entries directly.",
+      ] },
+      { heading: "Improvements", items: [
+        "An expanded sidebar reveals five recording methods below Add, with Manual first. A collapsed sidebar uses a smaller menu to its right, with a subtle rounded connection to the sidebar edge.",
+        "In dual-workspace Follow mode, the method picker and recording flow open in the secondary workspace, showing the target ledger and retaining confirmation before replacing unsaved work. Independent and single-workspace recording still starts in the main workspace.",
+        "The portrait secondary sidebar keeps its title, Close, navigation and ledger entries, without a duplicate logo, sidebar toggle or Back button. Secondary pages with Back on phones retain it at the top left of their own workspace.",
+        "The Insights editor's Add card button now uses a capsule outline matching the toolbar, with a clear emphasis colour and matching text.",
+      ] },
+      { heading: "Bug fixes", items: [
+        "Closing the secondary navigation consistently restores its light background. The brand button no longer keeps a selected background after a tap.",
+        "Improves the recording picker during rotation and divider resizing, preventing temporary size changes from closing it. Workspaces retain their own ledger context and back history.",
+      ] },
+      { heading: "Notes", items: [
+        "Scan, Voice, Paste and Import retain the existing device-current-ledger rules and never switch ledgers silently. Phone bottom navigation keeps its existing behaviour.",
+      ] },
+    ],
+  },
   "1.18.02": {
     title: "Dual workspaces on tablets and adaptive Insights layouts",
     summary: "Compare different ledgers in two tablet workspaces, with Insights cards arranged for the space available; the editing toolbar is lighter, and iPad dragging and backup alerts are improved.",

@@ -34,16 +34,16 @@ describe("software update announcements", () => {
     // 两位数补丁号（1.17.10 / 1.17.11）两种写法相同。
     if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
     expect(html).toContain("1.17.15");
-    expect(html).toContain("平板双工作区与自适应分析布局");
+    expect(html).toContain("侧栏记账与双工作区导航优化");
     expect(html).toContain(
-      "平板支持双工作区对照查看不同账本，分析卡片随工作区大小排列；编辑工具栏更轻巧，并改进 iPad 拖拽和自动备份告警。",
+      "记一笔菜单随侧栏形态展开，跟随记账进入辅助工作区；账本支持拖入查看明细，竖屏辅助导航更简洁。",
     );
-    expect(html).toContain("2026年10月30日");
-    expect(html).toContain('href="/update/announcements/1.18.02"');
+    expect(html).toContain("2026年10月31日");
+    expect(html).toContain('href="/update/announcements/1.18.06"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("两个工作区可分别查看不同账本");
+    expect(html).toContain("原列表保留");
     expect(html).toContain("新增功能");
     expect(html).toContain("注意事项");
     expect(html).not.toContain('role="dialog"');
