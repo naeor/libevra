@@ -581,6 +581,8 @@ export function WorkspaceShell({
           // 没有指定账本 = 目标工作区自己的账本（替换第一页时那一页原有的记录账本也要清掉）。
           markEntryLedger(id, target.location.key, options?.ledger ?? null);
           dispatch({ type: "openSecondary", independent: true });
+          // 拖入整本账等同于在目标区切换账本；后续主导航继续使用这本账。
+          if (path === "/" && options?.ledger !== undefined) dispatch({ type: "setLedger", instance: id, ledger: options.ledger });
         });
       },
       openInPrimary: (path: string, options?: OpenOptions) => {
@@ -592,6 +594,7 @@ export function WorkspaceShell({
             target.open(path);
           });
           markEntryLedger(current.primary, target.location.key, options?.ledger ?? null);
+          if (path === "/" && options?.ledger !== undefined) dispatch({ type: "setLedger", instance: current.primary, ledger: options.ledger });
         });
       },
       enterLedger: (instance: InstanceId, bookId: string, reload: () => void) => {

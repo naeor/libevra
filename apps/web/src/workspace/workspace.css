@@ -639,7 +639,6 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
     box-shadow 160ms ease;
   -webkit-tap-highlight-color: transparent;
 }
-.lv-fab:hover,
 .lv-fab[aria-expanded="true"] {
   background-color: var(--color-brand);
   color: var(--color-on-brand);
@@ -1033,7 +1032,7 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   transition: background-color 150ms ease;
   -webkit-tap-highlight-color: transparent;
 }
-.lv-rail-brand-button:hover {
+.lv-rail-brand-button:active {
   background-color: color-mix(in srgb, var(--color-brand-soft) 55%, transparent);
 }
 .lv-rail-brand-button:focus-visible {

@@ -19,6 +19,7 @@ const workspace: Messages<typeof zh> = {
     itemMenu: "More actions for {{label}}",
     bookDetail: "Ledger details",
     bookDetailInSecondary: "Ledger details in side workspace",
+    bookWorkspaceInSecondary: "Open entries in side workspace",
     switchTo: "Switch to this ledger",
     secondaryNav: "Side workspace: {{title}}",
     secondaryNavLabel: "Side workspace navigation",

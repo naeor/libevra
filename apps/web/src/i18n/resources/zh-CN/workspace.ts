@@ -19,6 +19,7 @@ const workspace = {
     itemMenu: "{{label}}的更多操作",
     bookDetail: "查看账本详情",
     bookDetailInSecondary: "在辅助工作区查看账本详情",
+    bookWorkspaceInSecondary: "在辅助工作区打开明细",
     switchTo: "切换到这本账",
     secondaryNav: "辅助工作区：{{title}}",
     secondaryNavLabel: "辅助工作区导航",

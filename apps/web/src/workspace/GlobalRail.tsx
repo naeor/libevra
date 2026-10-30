@@ -27,6 +27,7 @@ import { GUTTER, type Orientation } from "./geometry.js";
 import { BookIcon, CaretIcon, CheckIcon, SidebarIcon } from "./icons.js";
 import type { RailPreference } from "./model.js";
 import { FloatingMenu, useOpenDrag } from "./openDrag.js";
+import type { OpenOptions } from "./context.js";
 import { DestinationIcon, useDestinations, type DestinationItem } from "./SecondaryNav.js";
 
 
@@ -39,7 +40,7 @@ interface RailProps {
   readonly secondaryPath: string | null;
   readonly onNavigate: (path: string) => void;
   readonly onNavigateSecondary: (path: string) => void;
-  readonly onOpenInSecondary: (path: string) => void;
+  readonly onOpenInSecondary: (path: string, options?: OpenOptions) => void;
   readonly onSetRail: (rail: RailPreference) => void;
   /** 主工作区进入一本账（见 `WorkspaceActions.enterLedger`）。 */
   readonly onEnterLedger: (bookId: string, reload: () => void) => void;
@@ -331,7 +332,7 @@ function RailBooks({
 }: {
   readonly compact: boolean;
   readonly onNavigate: (path: string) => void;
-  readonly onOpenInSecondary: (path: string) => void;
+  readonly onOpenInSecondary: (path: string, options?: OpenOptions) => void;
   readonly onEnterLedger: (bookId: string, reload: () => void) => void;
   readonly canSplit: boolean;
 }): React.JSX.Element {
@@ -381,39 +382,10 @@ function RailBooks({
       {list.map((book) => {
         const current = book.id === currentId;
         return (
-          <li key={book.id}>
-            <button
-              type="button"
-              className="lv-rail-book"
-              aria-current={current ? "true" : undefined}
-              title={book.name}
-              disabled={activate.isPending}
-              onClick={() => {
-                setPopover(false);
-                void enter(book.id);
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setMenu({ id: book.id, name: book.name, x: event.clientX, y: event.clientY });
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
-                  event.preventDefault();
-                  const box = event.currentTarget.getBoundingClientRect();
-                  setMenu({ id: book.id, name: book.name, x: box.right, y: box.top + box.height / 2 });
-                }
-              }}
-            >
-              <span className="lv-rail-book-dot" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">{book.name}</span>
-              {current ? (
-                <span className="lv-rail-book-current">
-                  <CheckIcon className="size-4" />
-                  <span className="sr-only">{t("workspace.rail.current")}</span>
-                </span>
-              ) : null}
-            </button>
-          </li>
+          <RailBook key={book.id} book={book} current={current} disabled={activate.isPending}
+            onEnter={() => { setPopover(false); void enter(book.id); }}
+            onDropComplete={() => setPopover(false)}
+            onMenu={(point) => setMenu({ id: book.id, name: book.name, ...point })} />
         );
       })}
       {guest ? null : (
@@ -498,6 +470,11 @@ function RailBooks({
             setMenu(null);
           }}
           items={[
+            {
+              label: t("workspace.rail.bookWorkspaceInSecondary"),
+              disabled: !canSplit,
+              run: () => { setPopover(false); onOpenInSecondary("/", { ledger: menu.id }); },
+            },
             ...(menu.id === currentId || guest
               ? []
               : [
@@ -593,6 +570,25 @@ function AnchoredPanel({
       {children}
     </div>
   );
+}
+
+function RailBook({ book, current, disabled, onEnter, onMenu, onDropComplete }: {
+  readonly book: { readonly id: string; readonly name: string };
+  readonly current: boolean;
+  readonly disabled: boolean;
+  readonly onEnter: () => void;
+  readonly onMenu: (point: { readonly x: number; readonly y: number }) => void;
+  readonly onDropComplete: () => void;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  const drag = useOpenDrag({ path: "/", title: book.name, ledger: book.id, fromRail: true, disabled, onMenu, onDropComplete });
+  return <li><button type="button" className="lv-rail-book lv-draggable" aria-current={current ? "true" : undefined} title={book.name} disabled={disabled}
+    {...drag.bind} onClick={onEnter}
+    onContextMenu={drag.bind?.onContextMenu ?? ((event) => { event.preventDefault(); onMenu({ x: event.clientX, y: event.clientY }); })}>
+    <span className="lv-rail-book-dot" aria-hidden="true" />
+    <span className="min-w-0 flex-1 truncate">{book.name}</span>
+    {current ? <span className="lv-rail-book-current"><CheckIcon className="size-4" /><span className="sr-only">{t("workspace.rail.current")}</span></span> : null}
+  </button></li>;
 }
 
 function NewBookSheet({ onClose, onCreated }: { readonly onClose: () => void; readonly onCreated: (id: string) => void }): React.JSX.Element {

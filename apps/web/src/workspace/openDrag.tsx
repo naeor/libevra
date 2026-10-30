@@ -63,6 +63,19 @@ export interface OpenDragOptions {
   readonly disabled?: boolean;
   /** 侧栏里的入口不属于任何工作区。 */
   readonly fromRail?: boolean;
+  readonly ledger?: string | null;
+  /** 账本行保留自己的完整菜单。 */
+  readonly onMenu?: (point: { readonly x: number; readonly y: number }) => void;
+  readonly onDropComplete?: () => void;
+}
+
+export function openDragPayload(options: OpenDragOptions, instance: "w1" | "w2", viewBook: string | null): DragPayload {
+  return {
+    path: options.path,
+    title: options.title,
+    ledger: options.ledger !== undefined ? options.ledger : options.fromRail === true || !isLedgerScopedPath(options.path) ? null : viewBook,
+    source: options.fromRail === true ? null : instance,
+  };
 }
 
 export interface OpenDragBinding {
@@ -118,13 +131,13 @@ export function useOpenDrag(options: OpenDragOptions): {
 
   const payload = useCallback((): DragPayload => {
     const current = latest.current;
-    return {
-      path: current.path,
-      title: current.title,
-      ledger: current.fromRail === true || !isLedgerScopedPath(current.path) ? null : viewBook,
-      source: current.fromRail === true ? null : pane.instance,
-    };
+    return openDragPayload(current, pane.instance, viewBook);
   }, [pane.instance, viewBook]);
+
+  const showMenu = useCallback((point: { readonly x: number; readonly y: number }) => {
+    if (latest.current.onMenu !== undefined) latest.current.onMenu(point);
+    else setMenu(point);
+  }, []);
 
   const reset = useCallback(() => {
     const current = gesture.current;
@@ -162,10 +175,10 @@ export function useOpenDrag(options: OpenDragOptions): {
   finish.current = (current, x, y) => {
     if (current.dragging) {
       suppressClick.current = true;
-      navDrag.end(true);
+      if (navDrag.end(true)) latest.current.onDropComplete?.();
     } else if (current.long) {
       suppressClick.current = true;
-      setMenu({ x, y });
+      showMenu({ x, y });
     }
     reset();
   };
@@ -342,7 +355,7 @@ export function useOpenDrag(options: OpenDragOptions): {
           if (gesture.current?.dragging === true) return;
           reset();
           suppressClick.current = false;
-          setMenu({ x: event.clientX, y: event.clientY });
+          showMenu({ x: event.clientX, y: event.clientY });
         },
         onClickCapture: (event) => {
           if (!suppressClick.current) return;
@@ -354,7 +367,7 @@ export function useOpenDrag(options: OpenDragOptions): {
           if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
             event.preventDefault();
             const box = event.currentTarget.getBoundingClientRect();
-            setMenu({ x: box.left + Math.min(box.width - 8, 48), y: box.top + box.height / 2 });
+            showMenu({ x: box.left + Math.min(box.width - 8, 48), y: box.top + box.height / 2 });
           }
         },
         // 链接与图片的原生拖拽（iPad 长按拖出链接）与这里的拖动抢同一个手势。
