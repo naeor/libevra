@@ -3,7 +3,7 @@
  *
  * - 单工作区时完整显示（约 232px），双工作区时自动收成紧凑形态（约 68px），用户也可手动展开 / 收起；
  *   收起只是换形态，功能不消失（账本切换、记账入口、拖动导航项都还在）。
- * - **侧栏默认控制主工作区**：点导航项、记一笔、切账本都作用于主区。
+ * - **侧栏默认控制主工作区**；双区跟随时，记一笔交给辅助区，竖屏下半段导航只控制辅助区。
  * - 竖屏双工作区时侧栏仍是**一整条**：内部一条横线与工作区分界线处于同一高度（读同一个 CSS 变量，
  *   拖动时同步移动），上半段控制主区，下半段是辅助区的简洁导航入口。
  * - 导航项**长按（触摸）或按住拖动（鼠标）**可以拖进辅助工作区；长按松手 / 右键 / 菜单键给出同样的
@@ -11,20 +11,24 @@
  *
  * ⚠️ 绿色记账按钮沿用 Libevra 的加号语言（设计记录 P-09）：点开仍是五种记账方式，不把它们变成五个导航页。
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { Button } from "../components/Button.js";
-import { ENTRY_ACTIONS, PlusIcon } from "../components/BottomNav.js";
+import { PlusIcon } from "../components/BottomNav.js";
+import type { EntryNavigate } from "./entryMenu.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useGuestMode } from "../lib/guest/session.js";
+import { useViewBookId, ViewLedgerContext } from "../lib/workspaceLedger.js";
 import { useActivateBook, useBooks, useCreateBook, useLedger } from "../lib/queries.js";
-import { handOverForScan } from "../lib/scanHandoff.js";
+import { EntryMethodList } from "./RailEntryMenu.js";
+import { entryMenuPosition } from "./entryMenu.js";
 import { BrandMark } from "../components/BrandMark.js";
 import { destinationOf } from "./follow.js";
 import { GUTTER, type Orientation } from "./geometry.js";
-import { BookIcon, CaretIcon, CheckIcon, SidebarIcon } from "./icons.js";
+import { BackIcon, BookIcon, CaretIcon, CheckIcon, SidebarIcon, XIcon } from "./icons.js";
 import type { RailPreference } from "./model.js";
 import { FloatingMenu, useOpenDrag } from "./openDrag.js";
 import type { OpenOptions } from "./context.js";
@@ -38,13 +42,23 @@ interface RailProps {
   readonly preference: RailPreference;
   readonly primaryPath: string;
   readonly secondaryPath: string | null;
+  readonly secondaryLedger: string | null;
+  readonly onEnterSecondaryLedger: (bookId: string, reload: () => void) => void;
+  readonly onBackSecondary: () => void;
+  readonly canBackSecondary: boolean;
+  readonly onCloseSecondary: () => void;
   readonly onNavigate: (path: string) => void;
+  readonly onNavigateEntry: EntryNavigate;
   readonly onNavigateSecondary: (path: string) => void;
   readonly onOpenInSecondary: (path: string, options?: OpenOptions) => void;
   readonly onSetRail: (rail: RailPreference) => void;
   /** 主工作区进入一本账（见 `WorkspaceActions.enterLedger`）。 */
   readonly onEnterLedger: (bookId: string, reload: () => void) => void;
   readonly canSplit: boolean;
+  readonly followEntry: boolean;
+  readonly entryMenuOpen: boolean;
+  readonly onToggleEntry: () => void;
+  readonly onCloseEntry: () => void;
 }
 
 export function GlobalRail(props: RailProps): React.JSX.Element {
@@ -112,7 +126,7 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
           ))}
         </ul>
 
-        <AddEntryButton compact={compact} onNavigate={props.onNavigate} />
+        <AddEntryButton compact={compact} onNavigate={props.onNavigateEntry} follow={props.followEntry} followOpen={props.entryMenuOpen} onToggleFollow={props.onToggleEntry} onCloseFollow={props.onCloseEntry} />
 
         <RailBooks
           compact={compact}
@@ -126,28 +140,7 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
       {portraitSplit && props.secondaryPath !== null ? (
         <>
           <span className="lv-rail-split" aria-hidden="true" />
-          <div className="lv-rail-section" data-section="secondary" role="group" aria-label={t("workspace.rail.secondaryNavLabel")}>
-            <ul className="lv-rail-nav">
-              {destinations.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="lv-rail-item"
-                    aria-current={destinationOf(props.secondaryPath ?? "") === item.id ? "page" : undefined}
-                    aria-label={t("workspace.rail.secondaryNav", { title: item.label })}
-                    title={t("workspace.rail.secondaryNav", { title: item.label })}
-                    onClick={() => {
-                      props.onNavigateSecondary(item.path);
-                    }}
-                  >
-                    <span className="lv-rail-item-icon">
-                      <DestinationIcon page={item.id} className="size-6" />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ViewLedgerContext.Provider value={props.secondaryLedger}><PortraitSecondaryRail {...props} /></ViewLedgerContext.Provider>
         </>
       ) : null}
     </nav>
@@ -158,19 +151,45 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
 // 导航项：轻点导航、长按 / 拖动进辅助区、右键菜单
 // ---------------------------------------------------------------------------
 
+/** 竖屏下方工作区共用侧栏宽度与账本组件；没有第二个记账入口。 */
+export function PortraitSecondaryRail(props: RailProps): React.JSX.Element {
+  const { t } = useI18n();
+  const destinations = useDestinations();
+  const viewing = useViewBookId();
+  return <div className="lv-rail-section" data-section="secondary" role="group" aria-label={t("workspace.rail.secondaryNavLabel")}>
+    <div className="lv-rail-brand">
+      <button type="button" className="lv-rail-brand-button" aria-label={props.compact ? t("workspace.rail.expand") : t("workspace.rail.secondaryHome")} title={props.compact ? t("workspace.rail.expand") : t("workspace.rail.secondaryHome")}
+        onClick={() => { if (props.compact) props.onSetRail("expanded"); else if (props.secondaryPath !== "/") props.onNavigateSecondary("/"); }}>
+        <span className="lv-rail-mark" aria-hidden="true"><BrandMark className="size-6" /></span>
+        <span className="lv-rail-wordmark lv-rail-fade" aria-hidden="true">Libevra</span>
+      </button>
+      <button type="button" className="lv-rail-icon-button lv-rail-collapse lv-rail-fade" aria-label={t("workspace.rail.collapse")} tabIndex={props.compact ? -1 : undefined} aria-hidden={props.compact ? true : undefined} onClick={() => props.onSetRail("auto")}><SidebarIcon className="size-5" /></button>
+    </div>
+    <div className="lv-rail-secondary-tools">
+      <button type="button" className="lv-rail-icon-button" aria-label={t("workspace.secondary.back")} title={t("workspace.secondary.back")} disabled={!props.canBackSecondary} onClick={props.onBackSecondary}><BackIcon className="size-5" /></button>
+      <span className="lv-rail-fade min-w-0 flex-1 truncate text-helper text-muted">{t("workspace.pane.secondary")}</span>
+      <button type="button" className="lv-rail-icon-button" aria-label={t("workspace.secondary.close")} title={t("workspace.secondary.close")} onClick={props.onCloseSecondary}><XIcon className="size-5" /></button>
+    </div>
+    <ul className="lv-rail-nav">{destinations.map((item) => <RailNavItem key={item.id} item={item} compact={props.compact} active={destinationOf(props.secondaryPath ?? "") === item.id} onOpen={props.onNavigateSecondary} ledger={viewing} />)}</ul>
+    <RailBooks compact={props.compact} onNavigate={props.onNavigateSecondary} onOpenInSecondary={props.onOpenInSecondary} onEnterLedger={props.onEnterSecondaryLedger} canSplit={props.canSplit} />
+  </div>;
+}
+
 function RailNavItem({
   item,
   compact,
   active,
   onOpen,
+  ledger,
 }: {
   readonly item: DestinationItem;
   readonly compact: boolean;
   readonly active: boolean;
   readonly onOpen: (path: string) => void;
+  readonly ledger?: string | null;
 }): React.JSX.Element {
   /** 长按 / 拖动 / 右键菜单与工作区里的其它入口是同一套（`useOpenDrag`）。 */
-  const drag = useOpenDrag({ path: item.path, title: item.label, fromRail: true });
+  const drag = useOpenDrag({ path: item.path, title: item.label, fromRail: true, ...(ledger === undefined ? {} : { ledger }) });
 
   return (
     <li>
@@ -200,128 +219,88 @@ function RailNavItem({
 // 记一笔：绿色加号，点开五种记账方式（与手机端同一组入口）
 // ---------------------------------------------------------------------------
 
-function AddEntryButton({ compact, onNavigate }: { readonly compact: boolean; readonly onNavigate: (path: string) => void }): React.JSX.Element {
-  const { t } = useI18n();
-  const guest = useGuestMode();
-  const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement | null>(null);
-  const panel = useRef<HTMLDivElement | null>(null);
-  const picker = useRef<HTMLInputElement | null>(null);
-  const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
-  const menuId = useId();
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const box = button.current?.getBoundingClientRect();
-    const sheet = panel.current?.getBoundingClientRect();
-    if (box === undefined) return;
-    const height = sheet?.height ?? 320;
-    setAnchor({
-      left: box.right + 12,
-      top: Math.max(12, Math.min(box.top + box.height / 2 - height / 2, window.innerHeight - height - 12)),
-    });
-    panel.current?.querySelector<HTMLElement>("a,button:not([disabled])")?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
-        event.preventDefault();
-        setOpen(false);
-        button.current?.focus();
-      }
-    };
-    const onPointer = (event: PointerEvent): void => {
-      const target = event.target as Node;
-      if (panel.current?.contains(target) === true || button.current?.contains(target) === true) return;
-      setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer, true);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer, true);
-    };
-  }, [open]);
-
-  return (
-    <div className="lv-rail-add-wrap">
-      <input
-        ref={picker}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(event) => {
-          const chosen = [...(event.target.files ?? [])];
-          event.target.value = "";
-          if (chosen.length > 0) {
-            handOverForScan(chosen);
-            onNavigate("/scan");
-          }
-        }}
-      />
-      <button
-        ref={button}
-        type="button"
-        className="lv-rail-add"
-        data-compact={compact ? "true" : "false"}
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        aria-label={open ? t("workspace.rail.closeAddMenu") : t("workspace.rail.addMenu")}
-        title={compact ? t("workspace.rail.add") : undefined}
-        onClick={() => {
-          setOpen((value) => !value);
-        }}
-      >
-        <PlusIcon className={`size-6 transition-transform duration-200 ${open ? "rotate-45" : "rotate-0"}`} />
-        {compact ? null : <span>{t("workspace.rail.add")}</span>}
-      </button>
-      {open ? (
-        <div
-          ref={panel}
-          id={menuId}
-          className="lv-popover lv-add-menu"
-          role="menu"
-          aria-label={t("workspace.rail.addMenu")}
-          style={{ position: "fixed", left: anchor?.left ?? -9999, top: anchor?.top ?? 0 }}
-        >
-          {ENTRY_ACTIONS.map((action) => {
-            const label = t(`nav.entry.${action.id}.label`);
-            const disabled = guest && action.id !== "manual";
-            return (
-              <button
-                key={action.id}
-                type="button"
-                role="menuitem"
-                className="lv-add-item"
-                data-primary={action.id === "manual" ? "true" : undefined}
-                disabled={disabled}
-                aria-label={disabled ? t("nav.entry.needsAccount", { label }) : label}
-                onClick={() => {
-                  setOpen(false);
-                  if (action.picksImages === true) {
-                    picker.current?.click();
-                    return;
-                  }
-                  if (action.to !== undefined) onNavigate(action.to);
-                }}
-              >
-                <span className="lv-add-item-icon">{action.icon}</span>
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // 账本快速切换
 // ---------------------------------------------------------------------------
+
+export function AddEntryButton({ compact, onNavigate, follow, followOpen, onToggleFollow, onCloseFollow }: {
+  readonly compact: boolean;
+  readonly onNavigate: EntryNavigate;
+  readonly follow: boolean;
+  readonly followOpen: boolean;
+  readonly onToggleFollow: () => void;
+  readonly onCloseFollow: () => void;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  const guest = useGuestMode();
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = follow ? followOpen : localOpen;
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<ReturnType<typeof entryMenuPosition> | null>(null);
+  const menuId = useId();
+  const close = (): void => { setLocalOpen(false); if (followOpen) onCloseFollow(); };
+
+  useEffect(() => { setLocalOpen(false); }, [follow]);
+  useLayoutEffect(() => {
+    if (!open || follow) return;
+    const update = (): void => {
+      const trigger = button.current;
+      const own = panel.current;
+      if (trigger === null || own === null) return;
+      const box = trigger.getBoundingClientRect();
+      const rail = trigger.closest(".lv-rail");
+      // 工作区真实左边缘包含侧栏与内容间的留边；不依赖屏幕固定 x 坐标。
+      const content = rail?.closest(".lv-shell")?.querySelector<HTMLElement>('.lv-pane[data-role="primary"]');
+      const edge = content?.getBoundingClientRect().left ?? rail?.getBoundingClientRect().right ?? box.right;
+      setAnchor(entryMenuPosition(box, edge, { width: window.innerWidth, height: window.innerHeight }, own.scrollHeight));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    if (button.current !== null) observer.observe(button.current);
+    const rail = button.current?.closest(".lv-rail");
+    if (rail !== null && rail !== undefined) observer.observe(rail);
+    if (panel.current !== null) observer.observe(panel.current);
+    window.addEventListener("resize", update);
+    document.addEventListener("scroll", update, true);
+    panel.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus({ preventScroll: true });
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); document.removeEventListener("scroll", update, true); };
+  }, [open, compact, follow]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault(); close(); button.current?.focus({ preventScroll: true });
+    };
+    const onPointer = (event: PointerEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Element) || panel.current?.contains(target) || button.current?.contains(target) || (follow && target.closest("[data-entry-chooser], .lv-divider"))) return;
+      close();
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer, true);
+    return () => { window.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onPointer, true); };
+  });
+
+  const choices = <div ref={panel} id={menuId} className={compact ? "lv-entry-popover" : "lv-entry-inline"} data-open={open && !follow ? "true" : "false"}
+    inert={!open || follow} aria-hidden={!open || follow} style={compact ? { position: "fixed", left: anchor?.left ?? -9999, top: anchor?.top ?? 0, width: anchor?.width ?? 224, maxHeight: anchor?.maxHeight, "--lv-entry-max-height": `${anchor?.maxHeight ?? 520}px`, "--lv-entry-connector": `${anchor?.connector ?? 24}px` } as React.CSSProperties : undefined}>
+    <div className="lv-entry-clip"><div className="lv-entry-methods" role="menu" aria-label={t("workspace.rail.addMenu")}><EntryMethodList disabledFor={(action) => {
+      const disabled = guest && action.id !== "manual";
+      return disabled;
+    }} onNavigate={onNavigate} onSelected={() => { setLocalOpen(false); button.current?.focus({ preventScroll: true }); }} /></div></div>
+  </div>;
+  return <div className="lv-rail-add-wrap">
+    <button ref={button} type="button" className="lv-rail-add" data-compact={compact ? "true" : "false"} aria-expanded={open}
+      aria-controls={open ? follow ? "lv-follow-entry-menu" : menuId : undefined} aria-haspopup="menu"
+      aria-label={open ? t("workspace.rail.closeAddMenu") : t("workspace.rail.addMenu")} title={compact ? t("workspace.rail.add") : undefined}
+      onClick={() => { if (follow) onToggleFollow(); else setLocalOpen((value) => !value); }}>
+      <PlusIcon className={`size-6 lv-entry-plus ${open ? "rotate-45" : "rotate-0"}`} />{compact ? null : <span>{t("workspace.rail.add")}</span>}
+    </button>
+    {compact ? createPortal(choices, document.body) : choices}
+  </div>;
+}
 
 function RailBooks({
   compact,

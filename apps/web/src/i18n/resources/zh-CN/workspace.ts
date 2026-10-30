@@ -25,6 +25,7 @@ const workspace = {
     secondaryNavLabel: "辅助工作区导航",
     booksCurrent: "{{label}}：{{name}}",
     home: "主工作区回到明细",
+    secondaryHome: "辅助工作区回到明细",
   },
   pane: {
     primary: "主工作区",
@@ -42,6 +43,10 @@ const workspace = {
       other: "页面",
       start: "辅助工作区",
     },
+  },
+  entry: {
+    target: "记入账本：{{name}}",
+    loading: "正在读取…",
   },
   secondary: {
     back: "辅助工作区返回上一页",

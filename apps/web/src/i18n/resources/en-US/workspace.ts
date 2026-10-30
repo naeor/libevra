@@ -25,6 +25,7 @@ const workspace: Messages<typeof zh> = {
     secondaryNavLabel: "Side workspace navigation",
     booksCurrent: "{{label}}: {{name}}",
     home: "Go to Entries in the main workspace",
+    secondaryHome: "Go to Entries in the side workspace",
   },
   pane: {
     primary: "Main workspace",
@@ -41,6 +42,10 @@ const workspace: Messages<typeof zh> = {
       other: "Page",
       start: "Side workspace",
     },
+  },
+  entry: {
+    target: "Save to ledger: {{name}}",
+    loading: "Loading…",
   },
   secondary: {
     back: "Back in side workspace",

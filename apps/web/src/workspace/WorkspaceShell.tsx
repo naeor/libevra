@@ -46,6 +46,8 @@ import {
   type ShellMode,
 } from "./geometry.js";
 import { GlobalRail } from "./GlobalRail.js";
+import { FollowEntryChooser } from "./RailEntryMenu.js";
+import { entrySourceLedger, entryTarget, FollowEntryFlow } from "./entryMenu.js";
 import {
   INITIAL_WORKSPACE,
   otherInstance,
@@ -307,6 +309,14 @@ export function WorkspaceShell({
   const latest = useRef({ state, splitVisible, canSplit: chrome && fits });
   latest.current = { state, splitVisible, canSplit: chrome && fits };
   const dirty = useRef<Record<InstanceId, boolean>>({ w1: false, w2: false });
+  const [entryMenu, setEntryMenu] = useState<{ readonly instance: InstanceId; readonly source: InstanceId; readonly sourceKey: string; readonly ledger: string | null } | null>(null);
+  const [entryFlow] = useState(() => new FollowEntryFlow());
+  const followEntry = splitVisible && state.mode === "follow";
+  // 旋转、缩放只改变面板尺寸；只有目标隐藏／角色或来源页改变时才关闭选择界面。
+  useEffect(() => {
+    // ResizeObserver 尚未追上横竖屏尺寸时，splitVisible 会短暂为 false；暂隐面板即可，不清掉用户选择。
+    if (entryMenu !== null && (!state.secondaryOpen || state.mode !== "follow" || entryMenu.instance !== state.secondary || entryMenu.source !== state.primary || entryMenu.sourceKey !== primarySnap.location.key)) setEntryMenu(null);
+  }, [entryMenu, state.secondaryOpen, state.mode, state.secondary, state.primary, primarySnap.location.key]);
   const shellNavigating = useRef(false);
   const lastShellNav = useRef(0);
   const [toast, setToast] = useState<{ readonly id: number; readonly text: string } | null>(null);
@@ -368,7 +378,7 @@ export function WorkspaceShell({
       const current = latest.current;
       const target = followTargetFor({ ...current.state, splitVisible: current.splitVisible, canSplit: current.canSplit }, request.from.pathname, request.to.pathname);
       if (target === null) return false;
-      if (dirty.current[other.id as InstanceId]) {
+      if (dirty.current[other.id as InstanceId] || entryFlow.has(other.id as InstanceId, other.location.key)) {
         // 辅助区有尚未保存的修改：跟随不能替换掉它，详情改在主区打开。
         say(t("workspace.toast.followBlocked"));
         return false;
@@ -393,7 +403,7 @@ export function WorkspaceShell({
     return () => {
       primary.setInterceptor(null);
     };
-  }, [histories, state.primary, say, shellNav, t, markEntryLedger]);
+  }, [histories, state.primary, say, shellNav, t, markEntryLedger, entryFlow]);
 
   /**
    * 「返回」的意图（第三轮）：页面的返回按钮有时并不是后退一步，而是打开声明的上级页面（例如账单详情的
@@ -441,6 +451,9 @@ export function WorkspaceShell({
         return;
       }
 
+      // 主导航发起的记账链路继续跟随；显式辅助区导航仍由原来的动作切换为独立。
+      if (entryFlow.continue(secondaryId, before.key, navigation.location)) return;
+
       const filterChange =
         navigation.action === "REPLACE" &&
         navigation.location.pathname === before.pathname &&
@@ -451,7 +464,7 @@ export function WorkspaceShell({
         say(t("workspace.mode.autoIndependent"));
       }
     });
-  }, [histories, secondaryId, say, t, shellNav]);
+  }, [histories, secondaryId, say, t, shellNav, entryFlow]);
 
   // ---- 会话内保存 ----
   const persistNow = useCallback(() => {
@@ -518,38 +531,40 @@ export function WorkspaceShell({
   const allowUnload = useRef(false);
   const guardSecondary = useCallback((run: () => void) => {
     const secondary = latest.current.state.secondary;
-    if (secondary !== null && dirty.current[secondary]) {
+    // 识别／录音等既有页面不全登记字段级 dirty；跟随发起的未结束流程也按草稿保护。
+    if (secondary !== null && (dirty.current[secondary] || entryFlow.has(secondary, histories[secondary].location.key))) {
       setPendingDiscard({ kind: "secondary", run });
       return;
     }
     run();
-  }, []);
+  }, [entryFlow, histories]);
   /** 拖到主区 / 菜单「在主工作区打开」会替换主区当前页：有未保存修改时同样先问。 */
   const guardPrimary = useCallback((run: () => void) => {
-    if (dirty.current[latest.current.state.primary]) {
+    const primary = latest.current.state.primary;
+    if (dirty.current[primary] || entryFlow.has(primary, histories[primary].location.key)) {
       setPendingDiscard({ kind: "primary", run });
       return;
     }
     run();
-  }, []);
+  }, [entryFlow, histories]);
 
   const confirmReload = useCallback((run: () => void) => {
     const go = (): void => {
       allowUnload.current = true;
       run();
     };
-    if (dirty.current.w1 || dirty.current.w2) {
+    if (dirty.current.w1 || dirty.current.w2 || INSTANCES.some((id) => entryFlow.has(id, histories[id].location.key))) {
       setPendingDiscard({ kind: "reload", run: go });
       return;
     }
     go();
-  }, []);
+  }, [entryFlow, histories]);
 
   /** 有两个工作区实例、且任一边有未保存修改时，整页重新载入 / 关闭页面先由浏览器确认。 */
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent): void => {
       if (allowUnload.current || latest.current.state.secondary === null) return;
-      if (!dirty.current.w1 && !dirty.current.w2) return;
+      if (!dirty.current.w1 && !dirty.current.w2 && !INSTANCES.some((id) => entryFlow.has(id, histories[id].location.key))) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -557,7 +572,7 @@ export function WorkspaceShell({
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, []);
+  }, [entryFlow, histories]);
 
   const actions = useMemo<WorkspaceActions & {
     readonly collapse: (side: "primary" | "secondary") => void;
@@ -655,7 +670,7 @@ export function WorkspaceShell({
         if (dirty.current[instance] === value) return;
         dirty.current = { ...dirty.current, [instance]: value };
         const current = latest.current.state;
-        if (value && instance === current.secondary && current.mode === "follow" && latest.current.splitVisible) {
+        if (value && instance === current.secondary && current.mode === "follow" && latest.current.splitVisible && !entryFlow.has(instance, histories[instance].location.key)) {
           dispatch({ type: "setMode", mode: "independent" });
         }
       },
@@ -695,8 +710,34 @@ export function WorkspaceShell({
       },
       confirmReload,
     }),
-    [beginExit, confirmReload, guardPrimary, guardSecondary, histories, markEntryLedger, persistNow, shellNav],
+    [beginExit, confirmReload, guardPrimary, guardSecondary, histories, markEntryLedger, persistNow, shellNav, entryFlow],
   );
+
+  const closeEntryMenu = (): void => { setEntryMenu(null); };
+  const toggleEntryMenu = (): void => {
+    if (entryMenu !== null) { closeEntryMenu(); return; }
+    const current = latest.current;
+    const id = entryTarget({ ...current.state, splitVisible: current.splitVisible });
+    if (id === current.state.primary) return;
+    const source = histories[current.state.primary].location;
+    setEntryMenu({ instance: id, source: current.state.primary, sourceKey: source.key,
+      ledger: entrySourceLedger(current.state.primary, source.key, entryLedgersRef.current, current.state.ledgers, currentBookId()) });
+  };
+  const navigateEntry = (path: string, prepare?: () => void): void => {
+    const request = entryMenu;
+    if (request === null) return;
+    guardSecondary(() => {
+      const current = latest.current;
+      // 等待草稿确认期间若目标已改变，不覆盖新的工作区。
+      if (!current.splitVisible || current.state.mode !== "follow" || current.state.secondary !== request.instance || current.state.primary !== request.source || histories[request.source].location.key !== request.sourceKey) return;
+      const target = histories[request.instance];
+      prepare?.();
+      shellNav(() => { target.open(path); });
+      markEntryLedger(request.instance, target.location.key, request.ledger);
+      entryFlow.start(request.instance, target.location.key);
+      setEntryMenu(null);
+    });
+  };
 
   const followedPath =
     splitVisible && state.mode === "follow" && isFollowDetail(secondarySnap.location.pathname)
@@ -809,9 +850,27 @@ export function WorkspaceShell({
           preference={state.rail}
           primaryPath={primarySnap.location.pathname}
           secondaryPath={secondaryId === null ? null : secondarySnap.location.pathname}
+          secondaryLedger={secondaryId === null ? null : chosenLedger(secondaryId, secondarySnap.location.key)}
+          onEnterSecondaryLedger={(bookId, reload) => { if (secondaryId !== null) actions.enterLedger(secondaryId, bookId, reload); }}
+          canBackSecondary={secondaryId !== null && histories[secondaryId].canGoBack}
+          onBackSecondary={() => { if (secondaryId !== null) guardSecondary(() => { actions.markBack(secondaryId); histories[secondaryId].go(-1); }); }}
+          onCloseSecondary={actions.closeSecondary}
           onNavigate={actions.navigatePrimary}
+          onNavigateEntry={(path, prepare) => {
+            const sourceLedger = entrySourceLedger(state.primary, primarySnap.location.key, entryLedgersRef.current, state.ledgers, currentBookId());
+            guardPrimary(() => {
+              const target = histories[latest.current.state.primary];
+              prepare?.();
+              shellNav(() => { target.open(path); });
+              markEntryLedger(latest.current.state.primary, target.location.key, sourceLedger);
+            });
+          }}
           onNavigateSecondary={actions.navigateSecondary}
           onOpenInSecondary={actions.openInSecondary}
+          followEntry={followEntry}
+          entryMenuOpen={entryMenu !== null}
+          onToggleEntry={toggleEntryMenu}
+          onCloseEntry={closeEntryMenu}
           onSetRail={actions.setRail}
           onEnterLedger={(bookId, reload) => {
             actions.enterLedger(latest.current.state.primary, bookId, reload);
@@ -851,7 +910,8 @@ export function WorkspaceShell({
               ledger={chosen}
               foreign={foreignBookFor(chosen, deviceBook, guest !== null)}
               drag={chrome && dragKey !== "idle" ? (dragKey === role ? "target" : "other") : "idle"}
-              fab={chrome && role === "secondary" && splitVisible}
+              fab={chrome && role === "secondary" && splitVisible && orientation !== "portrait"}
+              entryMenu={entryMenu?.instance === id && followEntry ? <ViewLedgerContext.Provider value={entryMenu.ledger}><FollowEntryChooser onNavigate={navigateEntry} onClose={() => { closeEntryMenu(); shellRef.current?.querySelector<HTMLElement>('.lv-rail-add')?.focus({ preventScroll: true }); }} /></ViewLedgerContext.Provider> : null}
               register={(element) => {
                 paneElements.current[id] = element;
               }}
@@ -981,6 +1041,7 @@ function Pane({
   foreign,
   drag,
   fab,
+  entryMenu,
   register,
   children,
 }: {
@@ -998,6 +1059,7 @@ function Pane({
   readonly drag: "idle" | "other" | "target";
   /** 辅助区右下角的导航按钮。 */
   readonly fab: boolean;
+  readonly entryMenu: React.ReactNode;
   /** 外壳按真实矩形判断落点，需要拿到这个工作区的元素。 */
   readonly register: (element: HTMLElement | null) => void;
   readonly children: React.ReactNode;
@@ -1072,11 +1134,12 @@ function Pane({
           <PaneRouter history={history} nested>
             <ViewLedgerContext.Provider value={ledger}>
               {/* ⚠️ 换账本 = 页面重新挂载：筛选、缓存的选中项、未保存的表单都属于原来那本账，不能带进另一本。 */}
-              <div key={foreign ?? "device"} className="lv-pane-scroll" data-ledger={foreign === null ? undefined : "foreign"}>
+              <div key={foreign ?? "device"} className="lv-pane-scroll" data-ledger={foreign === null ? undefined : "foreign"} inert={entryMenu !== null}>
                 {children}
               </div>
+              {entryMenu}
               {drag !== "idle" && mode === "box" && !hidden ? <PaneTag history={history} role={info.role} target={drag === "target"} /> : null}
-              {fab && mode === "box" && !hidden ? <SecondaryFab history={history} /> : null}
+              {fab && entryMenu === null && mode === "box" && !hidden ? <SecondaryFab history={history} /> : null}
             </ViewLedgerContext.Provider>
           </PaneRouter>
         </PaneSizeContext.Provider>
