@@ -28,7 +28,7 @@ import { entryMenuPosition } from "./entryMenu.js";
 import { BrandMark } from "../components/BrandMark.js";
 import { destinationOf } from "./follow.js";
 import { GUTTER, type Orientation } from "./geometry.js";
-import { BackIcon, BookIcon, CaretIcon, CheckIcon, SidebarIcon, XIcon } from "./icons.js";
+import { BookIcon, CaretIcon, CheckIcon, SidebarIcon, XIcon } from "./icons.js";
 import type { RailPreference } from "./model.js";
 import { FloatingMenu, useOpenDrag } from "./openDrag.js";
 import type { OpenOptions } from "./context.js";
@@ -44,8 +44,6 @@ interface RailProps {
   readonly secondaryPath: string | null;
   readonly secondaryLedger: string | null;
   readonly onEnterSecondaryLedger: (bookId: string, reload: () => void) => void;
-  readonly onBackSecondary: () => void;
-  readonly canBackSecondary: boolean;
   readonly onCloseSecondary: () => void;
   readonly onNavigate: (path: string) => void;
   readonly onNavigateEntry: EntryNavigate;
@@ -157,16 +155,7 @@ export function PortraitSecondaryRail(props: RailProps): React.JSX.Element {
   const destinations = useDestinations();
   const viewing = useViewBookId();
   return <div className="lv-rail-section" data-section="secondary" role="group" aria-label={t("workspace.rail.secondaryNavLabel")}>
-    <div className="lv-rail-brand">
-      <button type="button" className="lv-rail-brand-button" aria-label={props.compact ? t("workspace.rail.expand") : t("workspace.rail.secondaryHome")} title={props.compact ? t("workspace.rail.expand") : t("workspace.rail.secondaryHome")}
-        onClick={() => { if (props.compact) props.onSetRail("expanded"); else if (props.secondaryPath !== "/") props.onNavigateSecondary("/"); }}>
-        <span className="lv-rail-mark" aria-hidden="true"><BrandMark className="size-6" /></span>
-        <span className="lv-rail-wordmark lv-rail-fade" aria-hidden="true">Libevra</span>
-      </button>
-      <button type="button" className="lv-rail-icon-button lv-rail-collapse lv-rail-fade" aria-label={t("workspace.rail.collapse")} tabIndex={props.compact ? -1 : undefined} aria-hidden={props.compact ? true : undefined} onClick={() => props.onSetRail("auto")}><SidebarIcon className="size-5" /></button>
-    </div>
     <div className="lv-rail-secondary-tools">
-      <button type="button" className="lv-rail-icon-button" aria-label={t("workspace.secondary.back")} title={t("workspace.secondary.back")} disabled={!props.canBackSecondary} onClick={props.onBackSecondary}><BackIcon className="size-5" /></button>
       <span className="lv-rail-fade min-w-0 flex-1 truncate text-helper text-muted">{t("workspace.pane.secondary")}</span>
       <button type="button" className="lv-rail-icon-button" aria-label={t("workspace.secondary.close")} title={t("workspace.secondary.close")} onClick={props.onCloseSecondary}><XIcon className="size-5" /></button>
     </div>

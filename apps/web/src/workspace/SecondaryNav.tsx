@@ -1,7 +1,7 @@
 /**
  * **辅助工作区的导航**（第二轮）：辅助区内部右下角一个小小的圆角按钮，点开是一个轻量浮层。
  *
- * - 浮层里是：顶部一行「返回 · 这个工作区现在是什么（页面 · 账本）· 收起」；四个主目的地（带当前选中
+ * - 浮层里是：顶部一行「这个工作区现在是什么（页面 · 账本）· 收起」；四个主目的地（带当前选中
  *   状态）；这个工作区查看的账本。（第三轮按所有者意见去掉了「这里浏览过」与「设为主工作区」。）
  * - 选择一项**只改变辅助工作区**（主区不变），并自动切换为独立模式——用户已经明确让辅助区承担这项任务，
  *   之后主区的点击不应该覆盖它（规格 §9.3 / §10）。同一种功能允许两边各开一次（主区明细 + 辅区明细）。
@@ -16,9 +16,9 @@ import { currentBookId } from "../lib/currentBook.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useBooks, useLedger } from "../lib/queries.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
-import { usePane, usePaneLedgerEntry, useWorkspaceActions } from "./context.js";
+import { usePaneLedgerEntry, useWorkspaceActions } from "./context.js";
 import { destinationOf } from "./follow.js";
-import { BackIcon, BookIcon, CheckIcon, GridIcon, MenuIcon, SplitIcon, XIcon } from "./icons.js";
+import { BookIcon, CheckIcon, GridIcon, MenuIcon, SplitIcon, XIcon } from "./icons.js";
 import type { PaneHistory } from "./paneHistory.js";
 import { usePaneIdentity, type PageKey } from "./paneTitle.js";
 
@@ -200,7 +200,6 @@ export function SecondaryNavPanel({
   const enterLedger = usePaneLedgerEntry();
   const viewing = useViewBookId();
   const snapshot = useSyncExternalStore(history.subscribe, () => history.snapshot, () => history.snapshot);
-  const { instance } = usePane();
   const panel = useRef<HTMLDivElement | null>(null);
   const current = destinationOf(snapshot.location.pathname);
 
@@ -243,22 +242,8 @@ export function SecondaryNavPanel({
 
   return (
     <div ref={panel} className="lv-popover lv-secondary-nav" role="dialog" aria-label={t("workspace.rail.secondaryNavLabel")}>
-      {/* 顶部一行：左边返回，中间是这个工作区的身份，右边收起。 */}
+      {/* 返回沿用各次级页面左上角入口；导航只保留工作区身份与关闭。 */}
       <div className="lv-secondary-head">
-        <button
-          type="button"
-          className="lv-secondary-action"
-          disabled={!history.canGoBack}
-          aria-label={t("workspace.secondary.back")}
-          title={t("workspace.secondary.back")}
-          onClick={() => {
-            closeRef.current(false);
-            actions?.markBack(instance);
-            history.go(-1);
-          }}
-        >
-          <BackIcon className="size-5" />
-        </button>
         <p className="lv-secondary-identity" title={title}>
           <span className="lv-secondary-role">{t("workspace.pane.secondary")}</span>
           <span className="min-w-0 max-w-full truncate">{title}</span>

@@ -25,7 +25,6 @@ const workspace = {
     secondaryNavLabel: "辅助工作区导航",
     booksCurrent: "{{label}}：{{name}}",
     home: "主工作区回到明细",
-    secondaryHome: "辅助工作区回到明细",
   },
   pane: {
     primary: "主工作区",

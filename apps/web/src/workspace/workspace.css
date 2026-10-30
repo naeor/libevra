@@ -1005,8 +1005,14 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   gap: 4px;
 }
 .lv-rail[data-compact="true"] .lv-rail-secondary-tools { flex-direction: column; }
-.lv-rail[data-compact="true"] .lv-rail-secondary-tools > span { display: none; }
-.lv-rail-secondary-tools button:disabled { opacity: 0.4; }
+.lv-rail[data-compact="true"] .lv-rail-secondary-tools > span {
+  display: block;
+  flex: none;
+  width: 100%;
+  opacity: 1;
+  white-space: normal;
+  text-align: center;
+}
 .lv-rail-secondary-tools .lv-rail-icon-button,
 .lv-entry-chooser .lv-rail-icon-button { width: 44px; height: 44px; flex: none; }
 
@@ -1313,10 +1319,10 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   transform-origin: bottom right;
   animation: lv-pop-up 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-/* 顶部一行：左返回 · 中间标题（居中）· 右收起。 */
+/* 顶部一行：工作区身份与关闭；返回属于页面自己的左上角。 */
 .lv-secondary-head {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) 36px;
   align-items: center;
   gap: 6px;
   padding: 2px 2px 8px;

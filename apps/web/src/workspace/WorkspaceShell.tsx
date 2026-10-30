@@ -852,8 +852,6 @@ export function WorkspaceShell({
           secondaryPath={secondaryId === null ? null : secondarySnap.location.pathname}
           secondaryLedger={secondaryId === null ? null : chosenLedger(secondaryId, secondarySnap.location.key)}
           onEnterSecondaryLedger={(bookId, reload) => { if (secondaryId !== null) actions.enterLedger(secondaryId, bookId, reload); }}
-          canBackSecondary={secondaryId !== null && histories[secondaryId].canGoBack}
-          onBackSecondary={() => { if (secondaryId !== null) guardSecondary(() => { actions.markBack(secondaryId); histories[secondaryId].go(-1); }); }}
           onCloseSecondary={actions.closeSecondary}
           onNavigate={actions.navigatePrimary}
           onNavigateEntry={(path, prepare) => {

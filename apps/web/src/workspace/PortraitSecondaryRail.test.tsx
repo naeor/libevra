@@ -10,25 +10,26 @@ function render(compact: boolean): string {
   const noop = (): void => {};
   const props: ComponentProps<typeof PortraitSecondaryRail> = {
     compact, orientation: "portrait", splitVisible: true, preference: compact ? "collapsed" : "expanded", primaryPath: "/", secondaryPath: "/stats", secondaryLedger: "aux",
-    onNavigate: noop, onNavigateEntry: noop, onNavigateSecondary: noop, onEnterSecondaryLedger: noop, onBackSecondary: noop, canBackSecondary: false, onCloseSecondary: noop, onOpenInSecondary: noop, onSetRail: noop,
+    onNavigate: noop, onNavigateEntry: noop, onNavigateSecondary: noop, onEnterSecondaryLedger: noop, onCloseSecondary: noop, onOpenInSecondary: noop, onSetRail: noop,
     onEnterLedger: noop, canSplit: true, followEntry: false, entryMenuOpen: false, onToggleEntry: noop, onCloseEntry: noop,
   };
   return renderToStaticMarkup(<QueryClientProvider client={client}><ViewLedgerContext.Provider value="aux"><PortraitSecondaryRail {...props} /></ViewLedgerContext.Provider></QueryClientProvider>);
 }
 
 describe("竖屏辅助区完整侧栏", () => {
-  it("展开后显示四项文字、自己的账本列表、品牌首页、返回与收起，不增加记账入口", () => {
+  it("展开后只显示标题、关闭、四项文字及账本列表，没有品牌、侧栏切换与返回", () => {
     const html = render(false);
-    for (const label of ["明细", "分析", "协作", "我的", "辅助账本", "主区账本", "辅助工作区回到明细", "辅助工作区返回上一页", "收起辅助工作区"]) expect(html).toContain(label);
+    for (const label of ["明细", "分析", "协作", "我的", "辅助账本", "主区账本", "辅助工作区", "收起辅助工作区"]) expect(html).toContain(label);
     expect(html.match(/lv-rail-item-label lv-rail-fade/g)).toHaveLength(4);
     expect(html).toContain('aria-current="page"');
     expect(html).not.toContain("lv-rail-add");
     expect(html).not.toContain("lv-fab");
-    expect(html).toContain('disabled=""'); // 没有返回历史。
+    for (const absent of ["Libevra", "lv-rail-brand", "收起侧栏", "返回上一页"]) expect(html).not.toContain(absent);
   });
   it("紧凑模式保留同一组导航与账本入口，读屏仍有名称", () => {
     const html = render(true);
-    expect(html).toContain("展开侧栏");
+    expect(html).not.toContain("展开侧栏");
+    expect(html).toContain("辅助工作区");
     expect(html).toContain("我的账本：辅助账本");
     expect(html.match(/lv-rail-item-label lv-rail-fade/g)).toHaveLength(4);
     expect(html).not.toContain("lv-rail-add");

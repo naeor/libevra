@@ -25,7 +25,6 @@ const workspace: Messages<typeof zh> = {
     secondaryNavLabel: "Side workspace navigation",
     booksCurrent: "{{label}}: {{name}}",
     home: "Go to Entries in the main workspace",
-    secondaryHome: "Go to Entries in the side workspace",
   },
   pane: {
     primary: "Main workspace",
