@@ -17,8 +17,8 @@ describe("浮动工具面板按所属工作区适配", () => {
         expect(box.collapsed).toBeLessThanOrEqual(box.expanded);
       }
     }
-    expect(drawerGeometry(1100, 820)).toEqual({ width: 440, expanded: 448, collapsed: 52 });
-    expect(drawerGeometry(320, 240)).toEqual({ width: 296, expanded: 160, collapsed: 52 });
+    expect(drawerGeometry(1100, 820)).toEqual({ width: 440, expanded: 448, collapsed: 54 });
+    expect(drawerGeometry(320, 240)).toEqual({ width: 296, expanded: 160, collapsed: 54 });
   });
 
   it("连续调整分隔线时有迟滞，不在420/700附近反复换档", () => {

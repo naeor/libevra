@@ -32,7 +32,7 @@ import {
   type WorkspaceActions,
   type WorkspaceView,
 } from "./context.js";
-import { followsToSecondary, isFollowDetail, isStandalonePath } from "./follow.js";
+import { followTargetFor, isFollowDetail, isStandalonePath } from "./follow.js";
 import {
   GUTTER,
   layoutPanes,
@@ -304,8 +304,8 @@ export function WorkspaceShell({
   const layout = layoutPanes(area, orientation, splitVisible, state.ratio);
 
   // ---- 草稿登记、跟随拦截、自动独立 ----
-  const latest = useRef({ state, splitVisible });
-  latest.current = { state, splitVisible };
+  const latest = useRef({ state, splitVisible, canSplit: chrome && fits });
+  latest.current = { state, splitVisible, canSplit: chrome && fits };
   const dirty = useRef<Record<InstanceId, boolean>>({ w1: false, w2: false });
   const shellNavigating = useRef(false);
   const lastShellNav = useRef(0);
@@ -366,8 +366,8 @@ export function WorkspaceShell({
     other.setInterceptor(null);
     primary.setInterceptor((request) => {
       const current = latest.current;
-      if (current.state.mode !== "follow" || !current.splitVisible) return false;
-      if (!followsToSecondary(request.from.pathname, request.to.pathname)) return false;
+      const target = followTargetFor({ ...current.state, splitVisible: current.splitVisible, canSplit: current.canSplit }, request.from.pathname, request.to.pathname);
+      if (target === null) return false;
       if (dirty.current[other.id as InstanceId]) {
         // 辅助区有尚未保存的修改：跟随不能替换掉它，详情改在主区打开。
         say(t("workspace.toast.followBlocked"));
@@ -376,6 +376,7 @@ export function WorkspaceShell({
       // 跟随打开的详情属于主区正在看的那本账（辅助区可以在看另一本）。
       const source = entryLedgersRef.current[entryKey(primary.id as InstanceId, request.from.key)] ?? current.state.ledgers[primary.id as InstanceId] ?? currentBookId();
       shellNav(() => {
+        if (target === "open-secondary" && current.state.secondary === null) other.reset(START_PATH);
         // 连续点开：替换上一条跟随详情，而不是越叠越深；第一次压在辅助区原有页面之上，按返回能回去。
         other.open(entryPath(request.to), {
           replace: isFollowDetail(other.location.pathname),
@@ -383,6 +384,10 @@ export function WorkspaceShell({
         });
       });
       markEntryLedger(other.id as InstanceId, other.location.key, source);
+      if (target === "open-secondary") {
+        dispatch({ type: "openSecondary", independent: false });
+        dispatch({ type: "setMode", mode: "follow" });
+      }
       return true;
     });
     return () => {

@@ -11,6 +11,17 @@ const STATS_CARD = /^\/stats\/cards\/[^/]+$/;
 const BOOK = /^\/books\/[^/]+$/;
 const ANNOUNCEMENT = /^\/update\/announcements\/[^/]+$/;
 
+/** 只有显式单区才自动展开；空间不足而暂隐的双区、双区独立模式均保持原意图。 */
+export function followTargetFor(
+  view: { readonly canSplit: boolean; readonly splitVisible: boolean; readonly secondaryOpen: boolean; readonly mode: "follow" | "independent" },
+  from: string,
+  to: string,
+): "open-secondary" | "secondary" | null {
+  if (!view.canSplit || !followsToSecondary(from, to)) return null;
+  if (view.splitVisible) return view.mode === "follow" ? "secondary" : null;
+  return view.secondaryOpen ? null : "open-secondary";
+}
+
 /** 主区从 `from` push 到 `to` 时，跟随模式下是否改在辅助区打开。 */
 export function followsToSecondary(from: string, to: string): boolean {
   if (from === to) return false;

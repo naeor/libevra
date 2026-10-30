@@ -782,7 +782,7 @@
  * 下面的标签与列表被裁在 overflow 里，不再露出半截面板。底部安全区（iPhone 主屏指示条）始终留出。
  */
 .sw-drawer {
-  --sw-drawer-min: 52px;
+  --sw-drawer-min: 54px;
   --sw-drawer-max: 320px;
   --sw-drawer-p: 0;
   display: flex;
@@ -826,11 +826,21 @@
   font-weight: 500;
   white-space: nowrap;
 }
-.sw-drawer-toolbar > button:first-child { background: var(--color-brand-soft); }
 .sw-drawer-toolbar > button span { overflow: hidden; text-overflow: ellipsis; }
 .sw-drawer-toolbar > button svg { flex-shrink: 0; }
 .sw-drawer[data-icon-only="true"] .sw-drawer-toolbar > button span { display: none; }
 .sw-drawer-toolbar > button:hover, .sw-drawer-close:hover { background: var(--color-brand-soft); }
+.sw-drawer-toolbar > button:first-child,
+.sw-drawer-toolbar > button:first-child:hover {
+  border-radius: 999px;
+  background: var(--sw-drawer-action-bg, var(--color-brand));
+  color: var(--color-on-brand);
+}
+.sw-drawer-toolbar > button:first-child:hover { filter: brightness(0.94); }
+/* 浅色绿色主题按所有者要求深绿白字；其它色盘与深色模式沿用各自的主按钮前景配对。 */
+html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-theme-palette])) .sw-drawer {
+  --sw-drawer-action-bg: var(--color-brand-dark);
+}
 .sw-drawer-toolbar > button:focus-visible, .sw-drawer-close:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
 .sw-drawer-close { padding: 0; flex-shrink: 0; }
 .sw-drawer-expanded-head.sw-drawer-grab { position: absolute; inset: 0; display: flex; flex-direction: row; align-items: center; gap: 0.25rem; padding-inline: 0.5rem; opacity: 0; transition: opacity 160ms ease; }

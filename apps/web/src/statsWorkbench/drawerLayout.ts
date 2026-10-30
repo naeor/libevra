@@ -10,5 +10,6 @@ export function drawerModeFor(width: number, previous?: DrawerMode): DrawerMode 
 
 export function drawerGeometry(width: number, height: number): { width: number; expanded: number; collapsed: number } {
   const expanded = Math.min(Math.max(0, height - 80), Math.max(184, Math.min(448, height * 0.56)));
-  return { width: Math.max(0, Math.min(440, width - 24)), expanded, collapsed: Math.min(52, expanded) };
+  // 44px 点击区 + 上下各 4px 内边距 + 上下各 1px 边框，胶囊内外保持同心。
+  return { width: Math.max(0, Math.min(440, width - 24)), expanded, collapsed: Math.min(54, expanded) };
 }
