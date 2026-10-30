@@ -10,6 +10,30 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.18.02": {
+    title: "Dual workspaces on tablets and adaptive Insights layouts",
+    summary: "Compare different ledgers in two tablet workspaces, with Insights cards arranged for the space available; the editing toolbar is lighter, and iPad dragging and backup alerts are improved.",
+    sections: [
+      { heading: "New features", items: [
+        "Tablets support side-by-side workspaces in landscape and stacked workspaces in portrait. Each can show a different ledger with independent navigation and scrolling. Follow or browse independently, resize the split, collapse and restore a workspace, or swap primary and secondary roles.",
+        "Long-press a navigation item or entry and drag it into the target workspace. The secondary workspace also has compact navigation; phones keep their existing entry points.",
+        "Improves flashing and unexpected cancellation when long-pressing and dragging entries in iPad Safari, while preserving ordinary taps, scrolling and drag cancellation.",
+      ] },
+      { heading: "Improvements", items: [
+        "Insights cards arrange automatically using their workspace's actual width, reducing misplaced cards and large gaps on wide screens. The editor offers automatic columns or a slider for manual adjustment.",
+        "Position and size changes can be saved for the current column count. Adding or removing a card establishes a new base layout from the current arrangement. Changing devices or rotating the screen does not automatically rewrite saved layouts.",
+        "The editing toolbar starts collapsed and opens the card library when needed. Its width and height fit the workspace, retaining categories, search, custom cards, containers, presets and drag-to-add. Frequent confirmation buttons on review screens are also easier to reach.",
+      ] },
+      { heading: "Bug fixes", items: [
+        "Unexpected backup exits use one failure-alert path. Runs that skip required steps or cannot acquire the lock are no longer treated as complete successes.",
+        "Backups check permissions in advance and use a private directory for sensitive temporary configuration, with cleanup on exit. Monitor requests have bounded retries, and delivery problems are recorded separately from the backup result.",
+      ] },
+      { heading: "Notes", items: [
+        "Accounts still using the complete old default Insights layout follow the new beginner layout, while customized layouts are kept.",
+        "The server briefly restarts during this update; existing registration and access controls do not change.",
+      ] },
+    ],
+  },
   "1.17.15": {
     title: "Nested categories, workbench sync and a collapsing header",
     summary:
