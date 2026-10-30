@@ -13,7 +13,7 @@
 | 项目 | **Libevra**（原名 Libellum，2026-10-14 更名）—— naeor 个人主导、AI 工具辅助的非商业记账项目，离线优先，尚未正式向公众发布 |
 | 技术栈 | React 19 + Vite 8 + Tailwind 4（web）；Fastify 5 + Prisma 7 + PostgreSQL 17（api）；OCR/语音是 Python sidecar |
 | 私人部署 | <https://libevra.com>（仅个人使用与内部测试，不代表公众服务；**生产源码靠 `git archive` 上传，不是 git clone**） |
-| 工作区 | 主工作区 `C:\Users\<本机用户>\Desktop\工作\记账程序\记账程序v1`；**日常开发默认就在这里**（见 §4.2）。worktree 只在所有者明确要求或任务必须隔离时使用；当前分支见 STATUS「分支 / 远程」 |
+| 工作区 | 主工作区 `C:\Users\<本机用户>\Desktop\工作\记账程序\记账程序v1`；**日常开发默认就在这里**（见 §4.2）。各任务 worktree `记账程序v1-<主题>-<日期>` 只在所有者明确要求或任务必须隔离时使用；当前分支与工作区见 `git worktree list` 及 STATUS「分支 / 远程」「工作区」 |
 | 语言 | 所有回复、文档、提交信息用**中文** |
 | 当前状态 | **不要在这里找——读 [`docs/STATUS.md`](docs/STATUS.md)** |
 
