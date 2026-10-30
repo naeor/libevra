@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 
 import { AVATAR_REWARD_ACTIVITIES } from "@libellum/shared";
@@ -103,7 +103,12 @@ const utcEarlyMorning = new Date("2026-11-18T17:00:00.000Z"); // 东八区 2026-
 
 const yearlyRule: YearlyNthWeekdayRule = { kind: "yearly_nth_weekday", month: 11, weekday: 4, nth: 3 };
 
-beforeEach(async () => {
+beforeEach(async ({ task }) => {
+  // 仅这个普通首次登录接口场景固定为非节日；其余用例保留自身的时间与排序语义。
+  if (task.name === "GET /avatar-rewards 返回活动、解锁、待通知事件与时区状态") {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-29T04:00:00.000Z"));
+  }
   await resetDatabase();
   app = makeApp();
   cookie = await signUp(app, "rewards_one");
@@ -112,6 +117,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await app.close();
+  vi.useRealTimers();
 });
 
 afterAll(async () => {
