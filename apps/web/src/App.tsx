@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { Suspense, lazy, useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router";
+import { Suspense, lazy, useEffect, useRef } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router";
 
 import { AuthProvider, useAuth } from "./auth/AuthProvider.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
@@ -80,6 +80,14 @@ import { useI18n, useLanguageRerender } from "./i18n/index.js";
 import { LanguagePage } from "./pages/LanguagePage.js";
 import { WorkspaceStartPage } from "./pages/WorkspaceStartPage.js";
 import { WorkspaceShell } from "./workspace/WorkspaceShell.js";
+import { isStandalonePath } from "./workspace/follow.js";
+import { DesktopShell } from "./desktop/DesktopShell.js";
+import { DesktopSection } from "./desktop/DesktopSection.js";
+import { DesktopDashboardPage } from "./desktop/DesktopDashboardPage.js";
+import { DesktopEntriesPage } from "./desktop/DesktopEntriesPage.js";
+import { DesktopStatsPage } from "./desktop/DesktopStatsPage.js";
+import { useShellKind } from "./desktop/useShellKind.js";
+import { markTabVisited, readTabVisited, shouldLandOnDashboard } from "./desktop/landing.js";
 import { CurrentLedgerOnly } from "./workspace/CurrentLedgerOnly.js";
 
 /**
@@ -503,6 +511,40 @@ function AppRoutes(): React.JSX.Element {
   );
 }
 
+/**
+ * **电脑版路由**：总览、明细与分析有专门的桌面页面；其余地址仍由 `AppRoutes` 渲染同一批页面，
+ * 只是放进电脑版的外框（设置分类、协作分页或主展示区），登录与权限检查完全相同。
+ */
+function DesktopRoutes(): React.JSX.Element {
+  const { status } = useAuth();
+  const location = useLocation();
+  const previous = useRef<string | null>(null);
+  const tabVisited = useRef(readTabVisited());
+  useEffect(() => {
+    if (status === "loading") return;
+    previous.current = location.pathname;
+    if (!isStandalonePath(location.pathname)) markTabVisited();
+  });
+  if (status === "loading") return <Splash />;
+  // 这个标签第一次打开或刚登录进来（地址是根路径）时先到总览；其它时候 `/` 就是明细（刷新、切换账本后留在明细）。
+  const land = shouldLandOnDashboard({
+    previous: previous.current,
+    previousStandalone: previous.current !== null && isStandalonePath(previous.current),
+    pathname: location.pathname,
+    search: location.search,
+    tabVisited: tabVisited.current,
+  });
+  if (land) return <Navigate to="/dashboard" replace />;
+  return (
+    <Routes>
+      <Route path="/dashboard" element={<RequireSession><DesktopDashboardPage /></RequireSession>} />
+      <Route path="/" element={<RequireSession><DesktopEntriesPage /></RequireSession>} />
+      <Route path="/stats" element={<RequireSession><DesktopStatsPage /></RequireSession>} />
+      <Route path="*" element={<DesktopSection><AppRoutes /></DesktopSection>} />
+    </Routes>
+  );
+}
+
 export default function App(): React.JSX.Element {
   /**
    * ⚠️ **订阅界面语言（S16 国际化）。** 切换语言时 App 重新渲染，整棵树随之刷新，所有文案与
@@ -510,6 +552,7 @@ export default function App(): React.JSX.Element {
    * 查询缓存、登录状态与离线队列都保留，也不会整页刷新。
    */
   useLanguageRerender();
+  const shell = useShellKind();
   return (
     <ErrorBoundary>
       <PersistQueryClientProvider
@@ -572,14 +615,29 @@ export default function App(): React.JSX.Element {
                 记账菜单在每个工作区里各一份（`PaneShell`），因为它随所在工作区的路由折叠。
               */}
               <AppShell>
-                <WorkspaceShell
-                  renderRoutes={() => (
-                    <PaneShell>
-                      <AppRoutes />
-                    </PaneShell>
-                  )}
-                  wrapChrome={(children) => <ConsentGate>{children}</ConsentGate>}
-                />
+                {/*
+                  电脑版（鼠标为主、窗口够大）与手机 / 平板外壳二选一，见 `desktop/shellKind.ts`。
+                  两者渲染同一批页面、共用同一份数据；电脑版有自己的导航与页面结构。
+                */}
+                {shell === "desktop" ? (
+                  <DesktopShell
+                    renderRoutes={() => (
+                      <PaneShell>
+                        <DesktopRoutes />
+                      </PaneShell>
+                    )}
+                    wrapChrome={(children) => <ConsentGate>{children}</ConsentGate>}
+                  />
+                ) : (
+                  <WorkspaceShell
+                    renderRoutes={() => (
+                      <PaneShell>
+                        <AppRoutes />
+                      </PaneShell>
+                    )}
+                    wrapChrome={(children) => <ConsentGate>{children}</ConsentGate>}
+                  />
+                )}
               </AppShell>
             </UndoProvider>
           </OfflineFillProvider>

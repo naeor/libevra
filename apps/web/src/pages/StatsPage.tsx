@@ -132,15 +132,16 @@ function scrollBehavior(): ScrollBehavior {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
-export function StatsPage(): React.JSX.Element {
+/** `onOpenCard`：电脑版把点开的卡片放进右侧辅助栏，而不是跳到卡片详情页。 */
+export function StatsPage({ onOpenCard }: { readonly onOpenCard?: (cardId: string) => void } = {}): React.JSX.Element {
   const [params] = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
   const scope = useWorkbenchScope(filters);
   // 账号/游客身份改变即销毁整份编辑状态；旧账号草稿不可显示或保存到新账号。
-  return <WorkbenchScopeProvider value={scope}><AccountWorkbench key={scope.accountScope ?? "pending"} /></WorkbenchScopeProvider>;
+  return <WorkbenchScopeProvider value={scope}><AccountWorkbench key={scope.accountScope ?? "pending"} {...(onOpenCard === undefined ? {} : { onOpenCard })} /></WorkbenchScopeProvider>;
 }
 
-function AccountWorkbench(): React.JSX.Element {
+function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: string) => void }): React.JSX.Element {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const pane = usePane();
@@ -806,6 +807,10 @@ function AccountWorkbench(): React.JSX.Element {
 
   // ---- 浏览态动作 ----
   function openCard(cardId: string): void {
+    if (onOpenCard !== undefined) {
+      onOpenCard(cardId);
+      return;
+    }
     returnPoint = { accountScope: scope.accountScope, top: scrollRef.current?.scrollTop ?? 0, cardId };
     const search = params.toString();
     void navigate(`/stats/cards/${encodeURIComponent(cardId)}${search === "" ? "" : `?${search}`}`);

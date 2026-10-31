@@ -174,6 +174,8 @@ describe("返回模式：默认历史，按需声明父级", () => {
       */
     expect(found).toEqual([
       "components/Layouts.tsx",
+      // 电脑版的 `InnerPage` 画框：原样转交 `InnerPage` 的 `backMode`，自己不声明固定父级。
+      "desktop/DesktopFrames.tsx",
       "lib/connectivity.ts",
       "pages/BookSettingsPage.tsx",
     ]);

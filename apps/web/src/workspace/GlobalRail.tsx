@@ -584,7 +584,7 @@ function RailBook({ book, current, disabled, onEnter, onMenu, onDropComplete }: 
   </button></li>;
 }
 
-function NewBookSheet({ onClose, onCreated }: { readonly onClose: () => void; readonly onCreated: (id: string) => void }): React.JSX.Element {
+export function NewBookSheet({ onClose, onCreated }: { readonly onClose: () => void; readonly onCreated: (id: string) => void }): React.JSX.Element {
   const { t } = useI18n();
   const create = useCreateBook();
   const [name, setName] = useState("");

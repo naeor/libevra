@@ -71,9 +71,13 @@ function displayLocalDate(localDate: string): string {
  * bring it back through the interface on their own**, and saying "may be
  * unrecoverable" instead would be a vaguer claim than the truth.
  */
-export function EntryDetailPage(): React.JSX.Element {
+/**
+ * `entryId`：电脑版在明细右侧辅助栏里显示某一笔时直接给出 id（地址仍是明细页）；不给时照旧读路由参数。
+ */
+export function EntryDetailPage({ entryId }: { readonly entryId?: string } = {}): React.JSX.Element {
   const fxMode = useFxMode();
-  const { id = "" } = useParams();
+  const routeParams = useParams();
+  const id = entryId ?? routeParams.id ?? "";
   const navigate = useNavigate();
   const location = useLocation();
   const goBackToAnalysis = useGoBack("/stats", "parent");

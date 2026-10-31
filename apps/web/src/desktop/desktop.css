@@ -1,0 +1,1119 @@
+/*
+ * Libevra 电脑版外壳与桌面页面。
+ *
+ * 只用现有主题令牌（canvas / surface / ink / muted / line / brand…），不新增颜色；七套色盘与深浅模式自动跟随。
+ * 分区优先靠留白、对齐、细分隔线与轻微的底色差，不层层套框；动效克制（悬停与展开 ≤150ms），
+ * 并在「减少动态」时关闭。
+ */
+
+html[data-shell="desktop"],
+html[data-shell="desktop"] body {
+  background-color: var(--color-canvas);
+}
+
+@media (pointer: fine) {
+  html[data-shell="desktop"] {
+    overscroll-behavior: none;
+  }
+}
+
+/* ---------------------------------------------------------------- 外框 */
+
+.lv-desktop {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--color-canvas);
+}
+
+.lv-desktop-content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100dvh;
+  overflow: hidden;
+  container: lvpane / inline-size;
+  --lv-desk-pad: 2rem;
+}
+
+@container lvpane (max-width: 720px) {
+  .lv-desk-main,
+  .lv-desk-toolbar,
+  .lv-desk-entries,
+  .lv-dash {
+    --lv-desk-pad: 1.25rem;
+  }
+}
+
+.lv-desk-scroll {
+  scroll-padding-top: 4.5rem;
+  scroll-padding-bottom: 4rem;
+}
+
+/* ---------------------------------------------------------------- 窄导航 */
+
+.lv-desk-nav {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 72px;
+  height: 100dvh;
+  padding: 14px 0 14px;
+  border-right: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+}
+
+.lv-desk-nav-brand,
+.lv-desk-nav-item,
+.lv-desk-nav-account {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 44px;
+  border-radius: var(--radius-field);
+  color: var(--color-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lv-desk-nav-brand {
+  height: 48px;
+  margin-bottom: 4px;
+  color: var(--color-brand);
+}
+
+.lv-desk-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lv-desk-nav-item[aria-current="page"] {
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+.lv-desk-nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background-color: var(--color-brand);
+}
+
+.lv-desk-nav-ledger {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 2px 0 4px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: var(--text-section-title);
+  font-weight: 600;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.lv-desk-nav-ledger[aria-expanded="true"] {
+  border-color: var(--color-brand);
+}
+
+.lv-desk-nav-sep {
+  width: 28px;
+  height: 1px;
+  margin: 4px 0;
+  background-color: var(--color-line);
+}
+
+.lv-desk-nav-add {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-brand) 30%, transparent);
+  transition: background-color 120ms ease;
+}
+
+.lv-desk-nav-account {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+}
+
+@media (hover: hover) {
+  .lv-desk-nav-item:hover,
+  .lv-desk-nav-account:hover,
+  .lv-desk-nav-brand:hover {
+    background-color: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    color: var(--color-ink);
+  }
+  .lv-desk-nav-item[aria-current="page"]:hover {
+    background-color: var(--color-brand-soft);
+    color: var(--color-brand-dark);
+  }
+  .lv-desk-nav-ledger:hover {
+    border-color: var(--color-line-strong);
+    background-color: var(--color-surface);
+  }
+  .lv-desk-nav-add:hover {
+    background-color: var(--color-brand-dark);
+  }
+}
+
+/* ---------------------------------------------------------------- 弹出面板与菜单 */
+
+.lv-desk-popover {
+  position: fixed;
+  z-index: 70;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--color-ink) 14%, transparent), 0 2px 6px color-mix(in srgb, var(--color-ink) 6%, transparent);
+  animation: lv-fade-in 100ms ease-out;
+}
+
+.lv-desk-popover-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--color-line);
+}
+
+.lv-desk-menu-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  text-align: left;
+  transition: background-color 120ms ease;
+}
+
+.lv-desk-menu-row[aria-current="true"] {
+  background-color: var(--color-brand-soft);
+}
+
+.lv-desk-menu-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lv-desk-entry-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+}
+
+.lv-desk-link {
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: var(--color-brand-dark);
+  font-size: var(--text-helper);
+  font-weight: 500;
+}
+
+.lv-desk-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lv-desk-ledger-badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .lv-desk-menu-row:not(:disabled):hover {
+    background-color: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  }
+  .lv-desk-menu-row[aria-current="true"]:hover {
+    background-color: var(--color-brand-soft);
+  }
+  .lv-desk-link:not(:disabled):hover {
+    background-color: var(--color-brand-soft);
+  }
+}
+
+/* ---------------------------------------------------------------- 控件 */
+
+.lv-desk-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-size: var(--text-button);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.lv-desk-btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-helper);
+}
+
+.lv-desk-btn-primary {
+  border-color: transparent;
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.lv-desk-btn:disabled,
+.lv-desk-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lv-desk-icon-btn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-field);
+  color: var(--color-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lv-desk-icon-btn[aria-pressed="true"] {
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+@media (hover: hover) {
+  .lv-desk-btn:not(:disabled):hover {
+    border-color: var(--color-line-strong);
+    background-color: color-mix(in srgb, var(--color-ink) 3%, var(--color-surface));
+  }
+  .lv-desk-btn-primary:not(:disabled):hover {
+    border-color: transparent;
+    background-color: var(--color-brand-dark);
+  }
+  .lv-desk-icon-btn:not(:disabled):hover {
+    background-color: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    color: var(--color-ink);
+  }
+}
+
+.lv-desk-seg {
+  display: inline-flex;
+  flex: none;
+  padding: 3px;
+  border-radius: calc(var(--radius-field) + 2px);
+  background-color: color-mix(in srgb, var(--color-ink) 6%, transparent);
+}
+
+.lv-desk-seg > button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: calc(var(--radius-field) - 2px);
+  color: var(--color-muted);
+  font-size: var(--text-helper);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lv-desk-seg > button[aria-checked="true"] {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 12%, transparent);
+}
+
+.lv-desk-seg-sm > button {
+  height: 24px;
+  padding: 0 8px;
+}
+
+@media (hover: hover) {
+  .lv-desk-seg > button[aria-checked="false"]:hover {
+    color: var(--color-ink);
+  }
+}
+
+.lv-desk-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+  transition: border-color 120ms ease;
+}
+
+.lv-desk-search:focus-within {
+  border-color: var(--color-brand);
+}
+
+.lv-desk-search input {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  outline: none;
+}
+
+.lv-desk-search input::placeholder {
+  color: var(--color-muted);
+}
+
+.lv-desk-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.lv-desk-check-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+}
+
+/* 统一的键盘焦点环（鼠标点击不出现）。 */
+.lv-desktop :is(.lv-desk-btn, .lv-desk-icon-btn, .lv-desk-seg > button, .lv-desk-nav-item, .lv-desk-nav-brand, .lv-desk-nav-ledger, .lv-desk-nav-add, .lv-desk-nav-account, .lv-desk-row, .lv-desk-tab, .lv-desk-settings-item, .lv-desk-link, .lv-desk-menu-row, .lv-desk-splitter, .lv-dash-row):focus-visible,
+.lv-desk-popover :is(.lv-desk-menu-row, .lv-desk-link, .lv-add-item):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- 工具栏 */
+
+.lv-desk-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 16px;
+  min-height: 60px;
+  padding: 10px var(--lv-desk-pad, 2rem);
+  border-bottom: 1px solid var(--color-line);
+  background-color: var(--color-canvas);
+}
+
+.lv-desk-toolbar[data-level="section"] {
+  min-height: 52px;
+}
+
+.lv-desk-toolbar-title {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-direction: column;
+}
+
+.lv-desk-toolbar-center {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+}
+
+.lv-desk-toolbar-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.lv-desk-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* 分析页等原来放在绿色大标题上的按钮，在桌面工具栏里改成普通图标按钮。 */
+.lv-desk-tabheader-actions .sw-head-button {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-field);
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--color-muted);
+}
+
+@media (hover: hover) {
+  .lv-desk-tabheader-actions .sw-head-button:hover {
+    background-color: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    color: var(--color-ink);
+  }
+}
+
+.lv-desk-tabheader-actions .sw-head-button-on {
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+/* ---------------------------------------------------------------- 页面框架 */
+
+.lv-desk-main {
+  padding: 24px var(--lv-desk-pad, 2rem) 40px;
+}
+
+.lv-desk-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  margin: 0 calc(var(--lv-desk-pad, 2rem) * -1);
+  padding: 12px var(--lv-desk-pad, 2rem);
+  border-top: 1px solid var(--color-line);
+  background-color: color-mix(in srgb, var(--color-canvas) 94%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.lv-desk-panel-page {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  --lv-desk-pad: 1.25rem;
+}
+
+.lv-desk-panel-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 8px 1.25rem;
+  border-bottom: 1px solid var(--color-line);
+  background-color: var(--color-canvas);
+}
+
+.lv-desk-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px 1.25rem 32px;
+}
+
+/* ---------------------------------------------------------------- 主展示区 + 辅助栏 */
+
+.lv-desk-split {
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.lv-desk-split[data-dragging="true"] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.lv-desk-split-main {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+}
+
+.lv-desk-split-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  overflow-y: auto;
+  background-color: var(--color-canvas);
+}
+
+.lv-desk-splitter {
+  position: relative;
+  z-index: 5;
+  flex: none;
+  width: 1px;
+  background-color: var(--color-line);
+  cursor: col-resize;
+  outline: none;
+}
+
+/* 看不见的较宽命中区，平时只有一条细线。 */
+.lv-desk-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0 -5px;
+}
+
+.lv-desk-splitter::after {
+  content: "";
+  position: absolute;
+  inset: 0 -1px;
+  background-color: transparent;
+  transition: background-color 120ms ease;
+}
+
+.lv-desk-split[data-dragging="true"] .lv-desk-splitter::after,
+.lv-desk-splitter:focus-visible::after {
+  background-color: var(--color-brand);
+}
+
+@media (hover: hover) {
+  .lv-desk-splitter:hover::after {
+    background-color: var(--color-line-strong);
+  }
+}
+
+.lv-desk-panel {
+  flex: none;
+  height: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background-color: color-mix(in srgb, var(--color-ink) 1.5%, var(--color-canvas));
+}
+
+/* ---------------------------------------------------------------- 设置 */
+
+.lv-desk-settings {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.lv-desk-settings-nav {
+  flex: none;
+  width: 212px;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 12px 24px;
+  border-right: 1px solid var(--color-line);
+}
+
+.lv-desk-settings-item {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  transition: background-color 120ms ease;
+}
+
+.lv-desk-settings-item[aria-current="page"] {
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font-weight: 500;
+}
+
+@media (hover: hover) {
+  .lv-desk-settings-item:not([aria-current="page"]):hover {
+    background-color: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  }
+}
+
+.lv-desk-settings-content {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* ---------------------------------------------------------------- 协作分页 */
+
+.lv-desk-tabs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lv-desk-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--color-muted);
+  font-size: var(--text-body);
+  font-weight: 500;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lv-desk-tab[aria-current="page"] {
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+@media (hover: hover) {
+  .lv-desk-tab:not([aria-current="page"]):hover {
+    background-color: color-mix(in srgb, var(--color-ink) 5%, transparent);
+    color: var(--color-ink);
+  }
+}
+
+/* ---------------------------------------------------------------- 明细 */
+
+.lv-desk-month {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.lv-desk-month-label {
+  height: 34px;
+  min-width: 7.5rem;
+  padding: 0 8px;
+  border-radius: var(--radius-field);
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .lv-desk-month-label:hover {
+    background-color: color-mix(in srgb, var(--color-ink) 6%, transparent);
+  }
+}
+
+.lv-desk-batchbar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px var(--lv-desk-pad, 2rem);
+  border-bottom: 1px solid var(--color-line);
+  background-color: var(--color-brand-soft);
+}
+
+.lv-desk-entries {
+  display: flex;
+  max-width: 68rem;
+  flex-direction: column;
+  gap: 20px;
+  margin: 0 auto;
+  padding: 20px var(--lv-desk-pad, 2rem) 48px;
+  container-type: inline-size;
+}
+
+.lv-desk-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 36px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.lv-desk-trend {
+  height: 32px;
+  min-width: 140px;
+  max-width: 280px;
+  flex: 1;
+  margin-left: auto;
+}
+
+.lv-desk-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px 6px;
+  color: var(--color-muted);
+  font-size: var(--text-helper);
+}
+
+.lv-desk-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 14px;
+  min-height: 48px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  text-align: left;
+  transition: background-color 100ms ease;
+}
+
+.lv-desk-row[aria-current="true"],
+.lv-desk-row[aria-pressed="true"] {
+  background-color: var(--color-brand-soft);
+}
+
+.lv-desk-row[data-state="pending"] .lv-desk-row-badge {
+  box-shadow: inset 0 0 0 2px var(--color-brand);
+}
+
+@media (hover: hover) {
+  .lv-desk-row:not([aria-current="true"]):not([aria-pressed="true"]):hover {
+    background-color: color-mix(in srgb, var(--color-ink) 4%, transparent);
+  }
+}
+
+.lv-desk-row-badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background-color: var(--color-line);
+  color: var(--color-category-ink);
+  font-size: var(--text-helper);
+  font-weight: 600;
+}
+
+.lv-desk-row-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+}
+
+.lv-desk-row-main > .truncate:first-child {
+  flex: none;
+  max-width: 45%;
+}
+
+.lv-desk-row-meta {
+  flex: none;
+  width: 7.5rem;
+  color: var(--color-muted);
+  font-size: var(--text-helper);
+}
+
+.lv-desk-row-time {
+  width: 3.5rem;
+  text-align: right;
+}
+
+.lv-desk-row-amount {
+  flex: none;
+  min-width: 7rem;
+  font-size: var(--text-body);
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@container (max-width: 560px) {
+  .lv-desk-row-meta {
+    display: none;
+  }
+}
+
+.lv-desk-chip {
+  flex: none;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font-size: var(--text-micro);
+}
+
+.lv-desk-chip[data-tone="warn"] {
+  background-color: var(--color-warn-soft);
+  color: var(--color-warn-dark);
+}
+
+.lv-desk-check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--color-line-strong);
+  background-color: var(--color-surface);
+}
+
+.lv-desk-check[data-on="true"] {
+  border-color: var(--color-brand);
+  background: var(--color-brand) center / 12px no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 5 5 9-10'/%3E%3C/svg%3E");
+}
+
+/* ---------------------------------------------------------------- 总览 */
+
+.lv-dash {
+  display: flex;
+  max-width: 88rem;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 auto;
+  padding: 24px var(--lv-desk-pad, 2rem) 48px;
+}
+
+.lv-dash-grid {
+  display: grid;
+  grid-auto-rows: 164px;
+  grid-auto-flow: row dense;
+  gap: 16px;
+}
+
+.lv-dash-cell {
+  min-width: 0;
+  min-height: 0;
+}
+
+.lv-dash-card {
+  position: relative;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px 18px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+}
+
+/* 内容区单独做尺寸容器：编辑时底部工具条占位，内容按剩余空间取舍，不被工具条盖住。 */
+.lv-dash-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  container-type: size;
+}
+
+.lv-dash-grid[data-editing="true"] .lv-dash-card {
+  border-style: dashed;
+  border-color: var(--color-line-strong);
+}
+
+.lv-dash-edit {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 10px -10px -8px;
+  padding: 6px 4px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.lv-dash-ledger,
+.lv-dash-cross,
+.lv-dash-list,
+.lv-dash-quick {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lv-dash-ledger-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lv-dash-metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.lv-dash-figure {
+  color: var(--color-ink);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 2rem;
+  white-space: nowrap;
+}
+
+.lv-dash-metrics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+
+.lv-dash-trend {
+  width: 100%;
+  height: 28px;
+  flex: none;
+}
+
+.lv-dash-ledger-recent {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+  overflow: hidden;
+}
+
+.lv-dash-ledger-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+}
+
+/* 卡片内层按实际大小取舍内容：矮的卡片只留名称与主要数字。 */
+@container (max-height: 180px) {
+  .lv-dash-metrics-row,
+  .lv-dash-trend,
+  .lv-dash-ledger-recent {
+    display: none;
+  }
+}
+
+@container (max-height: 300px) {
+  .lv-dash-ledger-recent {
+    display: none;
+  }
+}
+
+@container (max-width: 260px) {
+  .lv-dash-figure {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+}
+
+.lv-dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.lv-dash-table th,
+.lv-dash-table td {
+  padding: 4px 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lv-dash-table thead th {
+  color: var(--color-muted);
+  font-size: var(--text-helper);
+  font-weight: 400;
+}
+
+.lv-dash-table tbody th {
+  text-align: left;
+  color: var(--color-muted);
+  font-size: var(--text-helper);
+  font-weight: 500;
+}
+
+.lv-dash-table td {
+  color: var(--color-ink);
+  font-size: var(--text-body);
+}
+
+.lv-dash-note {
+  margin-top: auto;
+}
+
+@container (max-height: 180px) {
+  .lv-dash-note {
+    display: none;
+  }
+}
+
+.lv-dash-list > ul {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.lv-dash-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 4px 8px;
+  margin: 0 -8px;
+  border-radius: 10px;
+  transition: background-color 100ms ease;
+}
+
+@media (hover: hover) {
+  a.lv-dash-row:hover {
+    background-color: color-mix(in srgb, var(--color-ink) 4%, transparent);
+  }
+}
+
+.lv-dash-pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background-color: var(--color-brand-soft);
+}
+
+.lv-dash-pending[data-tone="warn"] {
+  background-color: var(--color-warn-soft);
+}
+
+.lv-dash-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.lv-dash-quick-grid .lv-add-item,
+.lv-dash-quick-grid .lv-add-item[data-import="true"] {
+  gap: 8px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-field);
+}
+
+.lv-desk-panel .lv-dash-list > ul {
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lv-desk-popover {
+    animation: none;
+  }
+  .lv-desktop *,
+  .lv-desk-popover * {
+    transition-duration: 0ms !important;
+  }
+}

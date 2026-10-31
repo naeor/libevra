@@ -22,6 +22,7 @@ import { BatchRoleProbe } from "../components/ledger/BatchRoleProbe.js";
 import { DetailTools } from "../components/ledger/DetailTools.js";
 import { LedgerEntryRow } from "../components/ledger/LedgerEntryRow.js";
 import { SelectionBar } from "../components/ledger/SelectionBar.js";
+import { useLedgerBatch } from "../components/ledger/useLedgerBatch.js";
 import {
   EMPTY_BATCH_DRAFT,
   allLoadedSelected,
@@ -639,207 +640,45 @@ export function DetailPage(): React.JSX.Element {
    * Everything below is deliberately local state. Nothing is persisted: leaving the screen, changing
    * the filter or pressing 取消 puts the ledger back exactly as it was.
    */
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set<string>());
-  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
-  const [batchEditOpen, setBatchEditOpen] = useState(false);
-  const [batchDraft, setBatchDraft] = useState<BatchEditDraft>(EMPTY_BATCH_DRAFT);
-  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
-  const [batchBusy, setBatchBusy] = useState(false);
-  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
-  const [roleState, setRoleState] = useState<BatchRoleState>({ status: "idle" });
-
-  /**
-   * ⚠️ **The existing write gate, reused rather than re-implemented.** Shared ledger + offline =
-   * read-only is the project's own rule (`writePolicy.ts`), and it is the same fact the write layer
-   * refuses on. A second, separately-computed answer is how a button ends up enabled over a
-   * guaranteed failure.
-   */
-  const { readOnly: sharedOfflineReadOnly, shared } = useSharedLedgerOfflineReadOnly();
-
-  const permission = batchPermission({ guest, shared, sharedOfflineReadOnly, role: roleState });
-
-  /** Every entry the list currently holds — the whole of what "全选" may mean. */
-  const loadedIds = useMemo(() => ordered.map((entry) => entry.id), [ordered]);
-  const selectedIds = useMemo(
-    () => selectedLoadedIds(loadedIds, selected),
-    [loadedIds, selected],
-  );
-  const selectedEntries = useMemo(
-    () => ordered.filter((entry) => selected.has(entry.id)),
-    [ordered, selected],
-  );
-  const selectedKinds = useMemo(
-    () => [...new Set(selectedEntries.map((entry) => entry.kind))],
-    [selectedEntries],
-  );
-  const everythingLoadedSelected = allLoadedSelected(loadedIds, selected);
-
-  const ledgerIndex = useMemo(
-    () => ({
-      categories: ledger.data?.categories ?? [],
-      paymentMethods: ledger.data?.paymentMethods ?? [],
-      tags: ledger.data?.tags ?? [],
-    }),
-    [ledger.data],
-  );
-
-  const enterBatch = (): void => {
-    /** The entry cards belong to the other mode; two open modes at once is one too many. */
-    menu.close();
-    setSelecting(true);
-    setSelected(new Set<string>());
-    setSelectionNotice(null);
-    setBatchSummary(null);
-    setBatchDraft(EMPTY_BATCH_DRAFT);
-    setRoleState(shared ? { status: "loading" } : { status: "idle" });
-  };
-
-  const exitBatch = (): void => {
-    setSelecting(false);
-    setSelected(new Set<string>());
-    setSelectionNotice(null);
-    setBatchEditOpen(false);
-    setConfirmBatchDelete(false);
-    setBatchSummary(null);
-    setBatchDraft(EMPTY_BATCH_DRAFT);
-    setRoleState({ status: "idle" });
-  };
-
-  /**
-   * ⚠️ **Leaving the current filter clears the selection, and says so.**
-   *
-   * A tick that is no longer on screen is a tick nobody can check before pressing 删除. The
-   * alternative — keeping it and acting on it — is the "看不见的选中项被误操作" case the owner
-   * asked to rule out. The notice exists so the reset reads as a rule rather than as a glitch.
-   */
-  const filterKey = `${month}|${kind}|${categoryId ?? ""}`;
-  const previousFilterKey = useRef(filterKey);
-
-  useEffect(() => {
-    if (previousFilterKey.current === filterKey) return;
-
-    previousFilterKey.current = filterKey;
-    setSelected(new Set<string>());
-    setSelectionNotice(t("ledger.detail.filterChanged"));
-    setBatchSummary(null);
-  }, [filterKey]);
-
-  /**
-   * ⚠️ **One entry at a time, through the existing single-entry write path.**
-   *
-   * No batch endpoint, no schema change: each entry goes through `updateEntry`, which is the same
-   * function the entry screen uses — so the offline queue, the idempotency and the conflict chain
-   * all behave exactly as they already do. The loop is the only new thing, and it is what allows a
-   * per-entry result instead of one opaque success.
-   */
-  const applyBatchEdit = async (draft: BatchEditDraft): Promise<void> => {
-    if (!permission.allowed || selectedEntries.length === 0 || batchBusy) return;
-
-    setBatchBusy(true);
-    const results: BatchItemResult[] = [];
-
-    try {
-      for (const entry of selectedEntries) {
-        /**
-         * ⚠️ **A conflicted entry is refused rather than edited.** Its mark says "waiting for the
-         * user's choice"; a new edit on top would be a third version, and the sync layer would hold
-         * it back until that choice is made — work that looks done and is not.
-         */
-        if (conflicted.has(entry.id)) {
-          results.push({
-            id: entry.id,
-            status: "failed",
-            reason: t("ledger.detail.conflictPending"),
-          });
-          continue;
-        }
-
-        const plan = buildBatchEdit(entry, draft, ledgerIndex);
-
-        if (plan.kind === "blocked") {
-          results.push({ id: entry.id, status: "failed", reason: plan.reason });
-          continue;
-        }
-
-        if (plan.kind === "unchanged") {
-          results.push({ id: entry.id, status: "unchanged" });
-          continue;
-        }
-
-        try {
-          const outcome = await updateEntry(entry.id, plan.input, plan.apply);
-
-          results.push(
-            outcome === null
-              ? { id: entry.id, status: "failed", reason: t("ledger.detail.notOnDevice") }
-              : { id: entry.id, status: "ok", pending: outcome.pending },
-          );
-        } catch (caught) {
-          results.push({ id: entry.id, status: "failed", reason: errorMessage(caught) });
-        }
-      }
-    } finally {
-      setBatchSummary(summarizeBatch(results, "edit"));
-      /** ⚠️ Only the failures stay selected, so a retry starts from the right rows. */
-      setSelected(new Set(results.filter((result) => result.status === "failed").map((result) => result.id)));
-      setBatchEditOpen(false);
-      setBatchBusy(false);
-    }
-  };
-
-  const runBatchDelete = async (): Promise<void> => {
-    setConfirmBatchDelete(false);
-
-    if (!permission.allowed || selectedEntries.length === 0 || batchBusy) return;
-
-    setBatchBusy(true);
-    let results: BatchItemResult[] = [];
-
-    try {
-      for (const entry of selectedEntries) {
-        if (conflicted.has(entry.id)) {
-          results.push({
-            id: entry.id,
-            status: "failed",
-            reason: t("ledger.detail.conflictPending"),
-          });
-          continue;
-        }
-
-        try {
-          /** ⚠️ The existing soft-delete path, per entry: marked first, then delivered if it can be. */
-          await deleteEntry(entry.id);
-          results.push({ id: entry.id, status: "ok", pending: offline });
-        } catch (caught) {
-          results.push({ id: entry.id, status: "failed", reason: errorMessage(caught) });
-        }
-      }
-    } finally {
-      /**
-       * ⚠️ **"Queued" is read from the marks afterwards, not assumed from the offline flag.**
-       *
-       * A delete that the server refused is still pending too — the mark is the honest record of
-       * "this device has asked and the server has not agreed yet" — and a summary that called it
-       * "deleted" would be reporting a request as a fact.
-       */
-      try {
-        const marks = await readMarks();
-
-        results = results.map((result) =>
-          result.status === "ok"
-            ? { id: result.id, status: "ok", pending: marks[result.id]?.pending === true }
-            : result,
-        );
-      } catch {
-        /** Reading the marks failed: the offline flag already gives the conservative answer. */
-      }
-
-      setBatchSummary(summarizeBatch(results, "delete"));
-      setSelected(new Set(results.filter((result) => result.status === "failed").map((result) => result.id)));
-      setBatchBusy(false);
-    }
-  };
+  const { readOnly: sharedOfflineReadOnly } = useSharedLedgerOfflineReadOnly();
+  const batch = useLedgerBatch({
+    ordered,
+    conflicted,
+    ledger: ledger.data,
+    guest,
+    offline,
+    filterKey: `${month}|${kind}|${categoryId ?? ""}`,
+    onEnter: () => {
+      menu.close();
+    },
+  });
+  const {
+    selecting,
+    selected,
+    setSelected,
+    selectionNotice,
+    batchEditOpen,
+    setBatchEditOpen,
+    batchDraft,
+    setBatchDraft,
+    confirmBatchDelete,
+    setConfirmBatchDelete,
+    batchBusy,
+    batchSummary,
+    setRoleState,
+    shared,
+    permission,
+    loadedIds,
+    selectedIds,
+    selectedKinds,
+    everythingLoadedSelected,
+    ledgerIndex,
+    enterBatch,
+    exitBatch,
+    applyBatchEdit,
+    runBatchDelete,
+    deleteConfirmation,
+  } = batch;
 
   const isEmptyMonth = list.isSuccess && entries.length === 0;
 
@@ -847,7 +686,6 @@ export function DetailPage(): React.JSX.Element {
    * ⚠️ **The confirmation is built from the count that is on screen right now**, so the dialog can
    * never describe a different number of entries from the ones the bar reported.
    */
-  const deleteConfirmation = batchDeleteConfirmation(selectedIds.length);
 
   /**
    * ⚠️ **The choice is shown in place of the list, and that is deliberate.**
@@ -1758,7 +1596,7 @@ function AllCurrenciesSheet({
  * 中文沿用 `formatMonthLabel`（`2026 年 10 月`，与以前逐字一致）；其它语言用月份简称（`Oct 2026`）：
  * 列表态里月份和右上角三个工具按钮挤在同一行，320px 宽时放不下 `September 2026` 这样的全称。
  */
-function headerMonthLabel(month: string): string {
+export function headerMonthLabel(month: string): string {
   if (isChineseLocale()) return formatMonthLabel(month);
   const date = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
   return formatInstant(date, { month: "short", year: "numeric" });
@@ -1768,7 +1606,7 @@ function headerMonthLabel(month: string): string {
 const ALL_RENDER_STEP = 200;
 
 /** Move a `YYYY-MM` string by whole months. */
-function shiftMonth(month: string, delta: number): string {
+export function shiftMonth(month: string, delta: number): string {
   const year = Number(month.slice(0, 4));
   const index = Number(month.slice(5, 7)) - 1 + delta;
   const nextYear = year + Math.floor(index / 12);
@@ -1858,7 +1696,7 @@ export function sortByTime(entries: readonly Transaction[]): readonly Transactio
  * hundred-kilobyte blob on a timer is the cost that made the tablet struggle in the first place**, and
  * the data only changes when the user does something.
  */
-function useLocalEntries(filters: TransactionFilters): readonly Transaction[] {
+export function useLocalEntries(filters: TransactionFilters): readonly Transaction[] {
   /**
    * ⚠️ **The stored value is the whole ledger**, so this subscribes to that and filters on read.
    *

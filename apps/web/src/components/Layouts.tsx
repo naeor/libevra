@@ -12,6 +12,8 @@ import { useGoBack, type BackMode } from "../lib/connectivity.js";
 import { useI18n } from "../i18n/index.js";
 import { WorkbenchSyncBridge } from "../statsWorkbench/SyncBridge.js";
 import { usePane, useMarkBack } from "../workspace/context.js";
+import { DesktopInnerPage, DesktopTabPage } from "../desktop/DesktopFrames.js";
+import { useDesktopSurface } from "../desktop/surface.js";
 
 /**
  * Whether the entry cards are open, and who may close them.
@@ -163,7 +165,19 @@ export function frameWidthClass(pane: { readonly shell: "phone" | "wide" }, wide
  * reader is, and the camera and voice routes have no other home. What a tab does
  * *not* get is the menu left open behind it — see `AppShell`.
  */
-export function TabPage({
+export type TabPageProps = Parameters<typeof MobileTabPage>[0];
+export type InnerPageProps = Parameters<typeof MobileInnerPage>[0];
+
+/** 电脑版外壳里换成桌面框架（见 `desktop/surface.tsx`）；手机与平板不变。 */
+export function TabPage(props: TabPageProps): React.JSX.Element {
+  return useDesktopSurface() === null ? <MobileTabPage {...props} /> : <DesktopTabPage {...props} />;
+}
+
+export function InnerPage(props: InnerPageProps): React.JSX.Element {
+  return useDesktopSurface() === null ? <MobileInnerPage {...props} /> : <DesktopInnerPage {...props} />;
+}
+
+function MobileTabPage({
   active,
   onNavigate,
   children,
@@ -288,7 +302,7 @@ function TabPageNav({
  * history, and only a deep link falls back to `backTo` — see `useGoBack`. **The default stays
  * `history`, so every other screen behaves exactly as before.**
  */
-export function InnerPage({
+function MobileInnerPage({
   title,
   subtitle,
   backTo = "/",

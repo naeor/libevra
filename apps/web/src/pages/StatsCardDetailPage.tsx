@@ -24,9 +24,11 @@ import { readStored } from "../statsWorkbench/storage.js";
 import { SourceEntries } from "../statsWorkbench/SourceEntries.js";
 import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
 
-export function StatsCardDetailPage(): React.JSX.Element {
+/** `objectId`：电脑版在分析页右侧辅助栏里显示选中的卡片时直接给出；不给时照旧读路由参数。 */
+export function StatsCardDetailPage({ objectId: given }: { readonly objectId?: string } = {}): React.JSX.Element {
   const { t, locale } = useI18n();
-  const { objectId = "" } = useParams();
+  const routeParams = useParams();
+  const objectId = given ?? routeParams.objectId ?? "";
   const [params] = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
   const scope = useWorkbenchScope(filters);

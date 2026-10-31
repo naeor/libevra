@@ -1,15 +1,22 @@
 import { GuestModeBadge } from "./GuestModeBadge.js";
 import { useCollapsingHeader } from "../lib/useCollapsingHeader.js";
+import { DesktopTabHeader } from "../desktop/DesktopFrames.js";
+import { useDesktopSurface } from "../desktop/surface.js";
 
-/** 一级页共用顶栏，同一组标题 / 操作节点避免收缩时重挂载和焦点丢失。 */
-export function TabPageHeader({ title, subtitle, action, expanded, className = "bg-brand text-on-brand" }: {
+type TabPageHeaderProps = {
   readonly title: string;
   readonly subtitle?: string;
   readonly action?: React.ReactNode;
-  /** 我的页保留头像资料版式，紧凑态显示标题行。 */
   readonly expanded?: React.ReactNode;
   readonly className?: string;
-}): React.JSX.Element {
+};
+
+/** 电脑版外壳里换成稳定的桌面工具栏（不收缩、没有绿色背景），见 `desktop/DesktopFrames.tsx`。 */
+export function TabPageHeader(props: TabPageHeaderProps): React.JSX.Element {
+  return useDesktopSurface() === null ? <MobileTabPageHeader {...props} /> : <DesktopTabHeader title={props.title} subtitle={props.subtitle} action={props.action} />;
+}
+
+function MobileTabPageHeader({ title, subtitle, action, expanded, className = "bg-brand text-on-brand" }: TabPageHeaderProps): React.JSX.Element {
   const ref = useCollapsingHeader();
   return (
     <header ref={ref} className={`tab-page-header ${expanded ? "tab-page-header-profile" : ""} ${className}`}>

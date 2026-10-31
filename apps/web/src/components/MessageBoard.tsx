@@ -11,6 +11,7 @@ import { errorMessage } from "../lib/api.js";
 import { formatInstant } from "../lib/datetime.js";
 import { useGoBack } from "../lib/connectivity.js";
 import { isImeComposing } from "../lib/desktopInput.js";
+import { useDesktopSurface } from "../desktop/surface.js";
 import { useBookMessages, useQuoteTarget, useSendBookMessage, type BookMessageView } from "../lib/queries.js";
 
 /**
@@ -644,8 +645,11 @@ export function MessageBoardFull({
     scroller.scrollTop = scroller.scrollHeight;
   }, [messages.data?.messages.length, composer.sending]);
 
+  /** 电脑版：放在主展示区或辅助栏里时没有自己的返回栏，高度跟随外框，宽度按位置。 */
+  const desk = useDesktopSurface();
+  const columnWidth = desk === null ? "max-w-md" : desk.surface === "panel" ? "max-w-none" : "max-w-[46rem]";
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-canvas">
+    <div className={`flex ${desk === null ? "h-dvh" : "h-full min-h-0"} flex-col overflow-hidden bg-canvas`}>
       {/*
         ⚠️ S16-A: the same top bar as every other secondary screen (back on the left, the title
         centred, a hairline under it) instead of a green band. The green band is the first-level
@@ -653,7 +657,7 @@ export function MessageBoardFull({
         own frame — `h-dvh` with the history scrolling between a fixed bar and a fixed composer —
         because the on-screen keyboard needs exactly that (see the note above).
       */}
-      <header className="shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top,0px)]">
+      {desk !== null ? null : <header className="shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top,0px)]">
         <div className="relative mx-auto flex h-14 w-full max-w-md items-center px-6">
           <button
             type="button"
@@ -669,10 +673,10 @@ export function MessageBoardFull({
             <p className="max-w-full truncate text-helper text-muted">{bookName}</p>
           </div>
         </div>
-      </header>
+      </header>}
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col pb-4">
+        <div className={`mx-auto flex w-full ${columnWidth} flex-col pb-4`}>
           {messages.isPending ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loading")}</p> : null}
           {messages.isError ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loadFailed")}</p> : null}
 
@@ -694,7 +698,7 @@ export function MessageBoardFull({
       </div>
 
       <div className="shrink-0 border-t border-line bg-surface" data-lv-bottom-bar="">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-2 px-4 py-3">
+        <div className={`mx-auto flex w-full ${columnWidth} flex-col gap-2 px-4 py-3`}>
           {composer.error !== null ? (
             <p role="alert" className="rounded-field bg-danger-soft px-4 py-3 text-body text-danger">
               {composer.error}
