@@ -375,6 +375,12 @@ export function WorkspaceShell({
     const other = histories[otherInstance(state.primary)];
     other.setInterceptor(null);
     primary.setInterceptor((request) => {
+      // 返回上级可能也是一次 push；它属于主区自己的返回，不能被当成新打开的子页面。
+      const intent = backIntent.current;
+      if (intent?.instance === primary.id) {
+        backIntent.current = null;
+        if (Date.now() - intent.at < 1500) return false;
+      }
       const current = latest.current;
       const target = followTargetFor({ ...current.state, splitVisible: current.splitVisible, canSplit: current.canSplit }, request.from.pathname, request.to.pathname);
       if (target === null) return false;
@@ -400,7 +406,12 @@ export function WorkspaceShell({
       }
       return true;
     });
+    const clearBackIntent = primary.onNavigate(() => {
+      // POP / REPLACE 不经过 push 拦截器；返回完成后立即消费标记，避免紧接着的点击被误当成返回。
+      if (backIntent.current?.instance === primary.id) backIntent.current = null;
+    });
     return () => {
+      clearBackIntent();
       primary.setInterceptor(null);
     };
   }, [histories, state.primary, say, shellNav, t, markEntryLedger, entryFlow]);

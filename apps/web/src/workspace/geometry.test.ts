@@ -111,16 +111,16 @@ describe("拖动分界线：越界收起预览与迟滞", () => {
   });
 });
 
-describe("跟随模式只接管「列表 → 下级详情」", () => {
-  it("明细列表点账单 → 辅助区；详情里再点另一笔不跟随", () => {
+describe("双区跟随接管主区打开的普通子页面", () => {
+  it("明细列表与主区详情里再点另一笔都进入辅助区", () => {
     expect(followsToSecondary("/", "/transactions/t1")).toBe(true);
     expect(followsToSecondary("/stats", "/transactions/t1")).toBe(true);
-    expect(followsToSecondary("/transactions/t1", "/transactions/t2")).toBe(false);
+    expect(followsToSecondary("/transactions/t1", "/transactions/t2")).toBe(true);
   });
 
-  it("切换主导航目的地、进入设置等不跟随", () => {
+  it("设置参与跟随，主导航与录入流程不参与", () => {
     expect(followsToSecondary("/", "/stats")).toBe(false);
-    expect(followsToSecondary("/me", "/settings")).toBe(false);
+    expect(followsToSecondary("/me", "/settings")).toBe(true);
     expect(followsToSecondary("/", "/add")).toBe(false);
   });
 
@@ -128,7 +128,7 @@ describe("跟随模式只接管「列表 → 下级详情」", () => {
     expect(followsToSecondary("/stats", "/stats/cards/c1")).toBe(true);
     expect(followsToSecondary("/start", "/books/b1")).toBe(true);
     expect(followsToSecondary("/ledger", "/books/b1")).toBe(true);
-    expect(followsToSecondary("/books/b1", "/books/b1/settings")).toBe(false);
+    expect(followsToSecondary("/books/b1", "/books/b1/settings")).toBe(true);
     expect(followsToSecondary("/update/announcements", "/update/announcements/1.17.0")).toBe(true);
   });
 
