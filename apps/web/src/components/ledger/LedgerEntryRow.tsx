@@ -2,9 +2,30 @@ import { UNCATEGORISED_NAME, type Transaction } from "@libellum/shared";
 
 import { useI18n } from "../../i18n/index.js";
 import { formatTimeWithZone } from "../../lib/datetime.js";
+import { openInNewTab, wantsNewTab } from "../../lib/desktopInput.js";
 import { formatMoney } from "../../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
+import { useForeignBookId } from "../../lib/workspaceLedger.js";
 import { useOpenDrag } from "../../workspace/openDrag.js";
+
+/**
+ * 电脑端：中键或 Ctrl / ⌘ + 点击账目行，在新标签页打开它的详情（与链接的浏览器习惯一致）。
+ *
+ * 只在新标签页能**原样**打开时给出路径：多选时这一下是切换勾选；冲突行要先经过版本选择；
+ * 未同步的新建 / 删除行和外部账本工作区里的账目依赖本页的上下文，新标签页里没有——这些情况
+ * 返回 `undefined`，点击照旧走 `onActivate`。
+ */
+export function entryNewTabPath(row: {
+  readonly path: string | undefined;
+  readonly selecting: boolean;
+  readonly conflicted: boolean;
+  readonly pending: boolean;
+  readonly deleted: boolean;
+  readonly foreignBook: string | null;
+}): string | undefined {
+  if (row.path === undefined || row.selecting || row.conflicted || row.pending || row.deleted || row.foreignBook !== null) return undefined;
+  return row.path;
+}
 
 /**
  * One entry in the ledger's list, with the selection state batch mode adds.
@@ -66,6 +87,7 @@ export function LedgerEntryRow({
     title: `${categoryLabel} ${entry.kind === "expense" ? "-" : "+"}${formatMoney(entry.amountCents, entry.currency)}`,
     disabled: selecting || dragPath === undefined,
   });
+  const newTabPath = entryNewTabPath({ path: dragPath, selecting, conflicted, pending, deleted, foreignBook: useForeignBookId() });
   const toneClass = deleted
     ? "bg-danger-soft line-through decoration-danger/40"
     : conflicted
@@ -78,7 +100,23 @@ export function LedgerEntryRow({
     <li className={toneClass === "" ? undefined : toneClass}>
       <button
         type="button"
-        onClick={onActivate}
+        onClick={(event) => {
+          if (newTabPath !== undefined && wantsNewTab(event)) {
+            event.preventDefault();
+            openInNewTab(newTabPath);
+            return;
+          }
+          onActivate();
+        }}
+        onMouseDown={(event) => {
+          // Windows 上中键按下会进入「自动滚动」；这里中键是「新标签页打开」，先拦下。
+          if (event.button === 1 && newTabPath !== undefined) event.preventDefault();
+        }}
+        onAuxClick={(event) => {
+          if (newTabPath === undefined || !wantsNewTab(event)) return;
+          event.preventDefault();
+          openInNewTab(newTabPath);
+        }}
         /**
          * ⚠️ **`aria-pressed` only exists in batch mode.** A normal row is a link to an entry, not a
          * toggle; announcing it as an unpressed toggle would be a lie about what pressing it does.

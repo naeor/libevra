@@ -10,6 +10,7 @@ import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { formatInstant } from "../lib/datetime.js";
 import { useGoBack } from "../lib/connectivity.js";
+import { isImeComposing } from "../lib/desktopInput.js";
 import { useBookMessages, useQuoteTarget, useSendBookMessage, type BookMessageView } from "../lib/queries.js";
 
 /**
@@ -508,7 +509,8 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
            * `h-11` 控件对齐。
            */
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            // 拼音组字时的 Enter 是上屏，不是发送（Firefox / Safari 会把它报成 Enter）。
+            if (event.key === "Enter" && !event.shiftKey && !isImeComposing(event.nativeEvent)) {
               event.preventDefault();
               if (composer.canSend) {
                 void composer.send().then((sent) => {

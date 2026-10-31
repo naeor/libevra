@@ -7,6 +7,7 @@ import { MemberList } from "../components/MemberList.js";
 import { TextField } from "../components/TextField.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { isImeComposing } from "../lib/desktopInput.js";
 import { useInviteToBook, useLedger, useLookupAccount, type DirectoryAccount } from "../lib/queries.js";
 
 /**
@@ -141,7 +142,7 @@ export function LedgerInvitePage(): React.JSX.Element {
             setQuery(event.target.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter") runLookup();
+            if (event.key === "Enter" && !isImeComposing(event.nativeEvent)) runLookup();
           }}
           placeholder={t("collab.invite.queryPlaceholder")}
           hint={t("collab.invite.queryHint")}

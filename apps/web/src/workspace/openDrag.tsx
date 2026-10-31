@@ -34,7 +34,8 @@ import { useViewBookId } from "../lib/workspaceLedger.js";
 import { useWorkspaceView, usePane } from "./context.js";
 import { navDrag, type DragPayload } from "./navDrag.js";
 
-export const LONG_PRESS_MS = 380;
+/** 所有者 2026-10-31 iPad 实测「要停留较长时间」：由 380 缩到 300，与工作台布局编辑的长按一致。 */
+export const LONG_PRESS_MS = 300;
 export const DRAG_SLOP = 8;
 
 /**

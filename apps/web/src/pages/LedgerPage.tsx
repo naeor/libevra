@@ -13,6 +13,7 @@ import { TabPageHeader } from "../components/TabPageHeader.js";
 import { SkeletonRows } from "../components/States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { isImeComposing } from "../lib/desktopInput.js";
 import { useBookMembers, useBooks, useInviteToBook, useLeaveBook, useLedger } from "../lib/queries.js";
 import { useForeignBookId } from "../lib/workspaceLedger.js";
 
@@ -336,7 +337,7 @@ function QuickInvite({ bookName }: { readonly bookName: string }): React.JSX.Ele
             setQuery(event.target.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter") send();
+            if (event.key === "Enter" && !isImeComposing(event.nativeEvent)) send();
           }}
           placeholder={t("ledger.page.invitePlaceholder")}
           aria-label={t("ledger.page.inviteWho")}

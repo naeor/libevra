@@ -16,6 +16,7 @@ import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { formatAppVersion } from "../lib/version.js";
 import { usePaneLedgerEntry } from "../workspace/context.js";
 import { errorMessage } from "../lib/api.js";
+import { isImeComposing } from "../lib/desktopInput.js";
 import { markPresentationSeen, readSeenPresentation, useSpaceTransition } from "../lib/spaceTransition.js";
 import {
   useActivateBook,
@@ -616,7 +617,7 @@ function NewBookForm({
             onName(event.target.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter") onSubmit();
+            if (event.key === "Enter" && !isImeComposing(event.nativeEvent)) onSubmit();
           }}
           /** ⚠️ The same 40 the server enforces — a longer name would be refused after typing it. */
           maxLength={40}

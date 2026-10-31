@@ -26,6 +26,7 @@ import { historyChangeText } from "./HistoryList.js";
 import { CloseIcon, SendIcon } from "./Icons.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { isImeComposing } from "../lib/desktopInput.js";
 import { formatMoney } from "../lib/format.js";
 import { displayCategoryName } from "../lib/presetNames.js";
 import { useQuoteTarget, useQuoteTargets, useSendBookMessage } from "../lib/queries.js";
@@ -416,7 +417,7 @@ export function QuoteMessageSheet({
                 setDraft(event.target.value);
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.key === "Enter" && !event.shiftKey && !isImeComposing(event.nativeEvent)) {
                   event.preventDefault();
                   void submit();
                 }

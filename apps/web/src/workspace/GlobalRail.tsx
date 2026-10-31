@@ -20,7 +20,9 @@ import { PlusIcon } from "../components/BottomNav.js";
 import type { EntryNavigate } from "./entryMenu.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { openInNewTab, wantsNewTab } from "../lib/desktopInput.js";
 import { useGuestMode } from "../lib/guest/session.js";
+import { useRailTip } from "./RailTip.js";
 import { useViewBookId, ViewLedgerContext } from "../lib/workspaceLedger.js";
 import { useActivateBook, useBooks, useCreateBook, useLedger } from "../lib/queries.js";
 import { EntryMethodList } from "./RailEntryMenu.js";
@@ -65,6 +67,7 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
   const destinations = useDestinations();
   const active = destinationOf(props.primaryPath);
   const portraitSplit = orientation === "portrait" && splitVisible;
+  const brandTip = useRailTip(t("workspace.rail.expand"), compact);
 
   return (
     <nav className="lv-rail" data-compact={compact ? "true" : "false"} data-portrait-split={portraitSplit ? "true" : "false"} aria-label={t("workspace.rail.label")}>
@@ -80,7 +83,8 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
             type="button"
             className="lv-rail-brand-button"
             aria-label={compact ? t("workspace.rail.expand") : t("workspace.rail.home")}
-            title={compact ? t("workspace.rail.expand") : t("workspace.rail.home")}
+            title={compact ? undefined : t("workspace.rail.home")}
+            {...brandTip.bind}
             onClick={() => {
               if (compact) {
                 props.onSetRail("expanded");
@@ -97,6 +101,7 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
               Libevra
             </span>
           </button>
+          {brandTip.tip}
           <button
             type="button"
             className="lv-rail-icon-button lv-rail-collapse lv-rail-fade"
@@ -179,6 +184,9 @@ function RailNavItem({
 }): React.JSX.Element {
   /** 长按 / 拖动 / 右键菜单与工作区里的其它入口是同一套（`useOpenDrag`）。 */
   const drag = useOpenDrag({ path: item.path, title: item.label, fromRail: true, ...(ledger === undefined ? {} : { ledger }) });
+  const tip = useRailTip(item.label, compact);
+  /** 中键 / Ctrl(⌘)+点击：新标签页打开这个目的地。指定了另一本账的入口依赖工作区上下文，不参与。 */
+  const newTab = ledger === undefined || ledger === null;
 
   return (
     <li>
@@ -187,10 +195,23 @@ function RailNavItem({
         className="lv-rail-item lv-draggable"
         aria-current={active ? "page" : undefined}
         aria-haspopup="menu"
-        title={compact ? item.label : undefined}
-        onClick={() => {
+        onClick={(event) => {
+          if (newTab && wantsNewTab(event)) {
+            event.preventDefault();
+            openInNewTab(item.path);
+            return;
+          }
           onOpen(item.path);
         }}
+        onMouseDown={(event) => {
+          if (event.button === 1 && newTab) event.preventDefault();
+        }}
+        onAuxClick={(event) => {
+          if (!newTab || !wantsNewTab(event)) return;
+          event.preventDefault();
+          openInNewTab(item.path);
+        }}
+        {...tip.bind}
         {...drag.bind}
       >
         <span className="lv-rail-item-icon">
@@ -199,6 +220,7 @@ function RailNavItem({
         {/* 紧凑形态只显示图标：名字留在 DOM 里作为读屏名，视觉上随宽度淡出（不改变 DOM 结构）。 */}
         <span className="lv-rail-item-label lv-rail-fade">{item.label}</span>
       </button>
+      {tip.tip}
       {drag.menu}
     </li>
   );
@@ -226,6 +248,7 @@ export function AddEntryButton({ compact, onNavigate, follow, followOpen, onTogg
   const [localOpen, setLocalOpen] = useState(false);
   const open = follow ? followOpen : localOpen;
   const button = useRef<HTMLButtonElement>(null);
+  const tip = useRailTip(t("workspace.rail.add"), compact && !open);
   const panel = useRef<HTMLDivElement>(null);
   const [anchor, setAnchor] = useState<ReturnType<typeof entryMenuPosition> | null>(null);
   const menuId = useId();
@@ -283,10 +306,12 @@ export function AddEntryButton({ compact, onNavigate, follow, followOpen, onTogg
   return <div className="lv-rail-add-wrap">
     <button ref={button} type="button" className="lv-rail-add" data-compact={compact ? "true" : "false"} aria-expanded={open}
       aria-controls={open ? follow ? "lv-follow-entry-menu" : menuId : undefined} aria-haspopup="menu"
-      aria-label={open ? t("workspace.rail.closeAddMenu") : t("workspace.rail.addMenu")} title={compact ? t("workspace.rail.add") : undefined}
+      aria-label={open ? t("workspace.rail.closeAddMenu") : t("workspace.rail.addMenu")}
+      {...tip.bind}
       onClick={() => { if (follow) onToggleFollow(); else setLocalOpen((value) => !value); }}>
       <PlusIcon className={`size-6 lv-entry-plus ${open ? "rotate-45" : "rotate-0"}`} />{compact ? null : <span>{t("workspace.rail.add")}</span>}
     </button>
+    {tip.tip}
     {compact ? createPortal(choices, document.body) : choices}
   </div>;
 }

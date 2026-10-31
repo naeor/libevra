@@ -24,6 +24,7 @@ import {
   suspendAdminUser,
 } from "../lib/admin.js";
 import { errorMessage } from "../lib/api.js";
+import { isImeComposing } from "../lib/desktopInput.js";
 import { formatInstant } from "../lib/datetime.js";
 import type {
   AdminAuditListResponse,
@@ -696,7 +697,7 @@ export function AdminUsersPage(): React.JSX.Element {
             onChange={(event) => { setQuery(event.target.value); }}
             placeholder={t("admin.users.queryPlaceholder")}
             onKeyDown={(event) => {
-              if (event.key === "Enter") search();
+              if (event.key === "Enter" && !isImeComposing(event.nativeEvent)) search();
             }}
           />
           <Button disabled={busy} onClick={search}>

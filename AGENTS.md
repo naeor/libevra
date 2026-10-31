@@ -50,6 +50,7 @@
 | 工作台布局／预设／配置同步与导入导出 | [S18 响应式布局引擎](docs/specs/features/S18-分析工作台响应式布局引擎-20261030.md)（列数、跨列数排布、基础 / 专属布局与保存规则）、[布局规格](docs/specs/design/S17-工作台布局与格式模板规格.md)（§12–§20 同列数迁移与测试矩阵）、[布局预设](docs/specs/features/S17-工作台布局预设-20261028.md)、[配置与分享方案 §4.5 / §11](docs/specs/product/S17-工作台个人配置与布局分享-方案草案.md) |
 | 分类层级 | [`S17-W7-多层级分类-实现说明`](docs/specs/features/S17-W7-多层级分类-实现说明.md) |
 | S18 跨设备 UI 适配 | [设计讨论记录](docs/specs/design/S18-B-跨设备自适应布局与交互-设计讨论记录-20261027.md)（**§8 所有者草图确认门禁**）+ [新路线图 §4.3](docs/specs/product/S17-S18-新路线图.md) |
+| 电脑端 / 键鼠交互（悬停、右键、快捷键、焦点、选择、拖放、tooltip、信息密度、多工作区） | 项目 skill `.claude/skills/libevra-desktop-ui/SKILL.md`（Claude Code 自动加载；其它 Agent 直接读该文件及其 `references/`、`pages/`）。标【规范默认】的平台惯例所有者已同意直接实施；标【候选】的首次落地前确认；具体布局仍按 S18-B §8 |
 | 改路线 / 阶段规划 | [`01-规划.md`](docs/01-规划.md) 顶部「现行路线」+ [新路线图](docs/specs/product/S17-S18-新路线图.md) |
 | 部署／发布／备份／灾备 | [`docs/03-运维手册.md`](docs/03-运维手册.md) + [`ops/`](docs/ops/) |
 | 本地启动 / `localhost:5173` 打不开 / 端口或 HTTPS | [`ops/本地开发环境与5173.md`](docs/ops/本地开发环境与5173.md) + [主目录更新规范](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md) §2 规则 5–7（**§4 WIP 保护强制门禁**） |

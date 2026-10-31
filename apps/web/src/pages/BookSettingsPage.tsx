@@ -12,6 +12,7 @@ import { SkeletonRows } from "../components/States.js";
 import { TextField } from "../components/TextField.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { isImeComposing } from "../lib/desktopInput.js";
 import { bookLifecycleAction, fetchBookLifecycle, type BookLifecycleSummary } from "../lib/lifecycle.js";
 import { clearBookLocalData } from "../lib/offline/localCleanup.js";
 import {
@@ -477,7 +478,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
               setDraft(event.target.value);
             }}
             onKeyDown={(event) => {
-              if (event.key === "Enter") submitRename();
+              if (event.key === "Enter" && !isImeComposing(event.nativeEvent)) submitRename();
             }}
           />
         </div>

@@ -1134,6 +1134,21 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   gap: 2px;
 }
 
+/* 紧凑侧栏图标的名称提示（RailTip.tsx）：挂在 body 上、fixed 定位，不被侧栏的 overflow 裁掉。 */
+.lv-rail-tip {
+  position: fixed;
+  z-index: 75;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  animation: lv-fade-in 100ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lv-rail-tip {
+    animation: none;
+  }
+}
+
 .lv-rail-item {
   position: relative;
   display: flex;
