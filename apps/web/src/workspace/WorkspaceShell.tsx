@@ -58,7 +58,7 @@ import {
   type WorkspaceState,
 } from "./model.js";
 import { entryKey, parseEntryLedgers, pruneEntryLedgers, withoutInstance, type EntryLedgers } from "./entryLedgers.js";
-import { navDrag, type DropTarget } from "./navDrag.js";
+import { navDrag, secondaryModeForDrag, type DropTarget } from "./navDrag.js";
 import { entryFromPath, entryPath, PaneHistory, type SerializedPaneHistory } from "./paneHistory.js";
 import { PaneRouter } from "./PaneRouter.js";
 import { START_PATH } from "./paneTitle.js";
@@ -596,6 +596,7 @@ export function WorkspaceShell({
           // 没有指定账本 = 目标工作区自己的账本（替换第一页时那一页原有的记录账本也要清掉）。
           markEntryLedger(id, target.location.key, options?.ledger ?? null);
           dispatch({ type: "openSecondary", independent: true });
+          if (options?.mode !== undefined) dispatch({ type: "setMode", mode: options.mode });
           // 拖入整本账等同于在目标区切换账本；后续主导航继续使用这本账。
           if (path === "/" && options?.ledger !== undefined) dispatch({ type: "setLedger", instance: id, ledger: options.ledger });
         });
@@ -793,7 +794,7 @@ export function WorkspaceShell({
       drop: (target: Exclude<DropTarget, "cancel">, payload) => {
         const options = payload.ledger === null ? {} : { ledger: payload.ledger };
         if (target === "primary") actions.openInPrimary(payload.path, options);
-        else actions.openInSecondary(payload.path, options);
+        else actions.openInSecondary(payload.path, { ...options, mode: secondaryModeForDrag(payload, latest.current.state.primary) });
       },
     });
   }, [actions, chrome]);
@@ -908,6 +909,7 @@ export function WorkspaceShell({
               ledger={chosen}
               foreign={foreignBookFor(chosen, deviceBook, guest !== null)}
               drag={chrome && dragKey !== "idle" ? (dragKey === role ? "target" : "other") : "idle"}
+              dragPreview={chrome && !splitVisible && canSplit && role === "primary" ? layoutPanes(area, orientation, true, state.ratio).primary : null}
               fab={chrome && role === "secondary" && splitVisible && orientation !== "portrait"}
               entryMenu={entryMenu?.instance === id && followEntry ? <ViewLedgerContext.Provider value={entryMenu.ledger}><FollowEntryChooser onNavigate={navigateEntry} onClose={() => { closeEntryMenu(); shellRef.current?.querySelector<HTMLElement>('.lv-rail-add')?.focus({ preventScroll: true }); }} /></ViewLedgerContext.Provider> : null}
               register={(element) => {
@@ -1039,6 +1041,7 @@ function Pane({
   foreign,
   drag,
   fab,
+  dragPreview,
   entryMenu,
   register,
   children,
@@ -1055,6 +1058,7 @@ function Pane({
   readonly foreign: string | null;
   /** 「在指定工作区打开」拖动中：`target` = 指针正落在这个工作区上。 */
   readonly drag: "idle" | "other" | "target";
+  readonly dragPreview: Rect | null;
   /** 辅助区右下角的导航按钮。 */
   readonly fab: boolean;
   readonly entryMenu: React.ReactNode;
@@ -1136,7 +1140,7 @@ function Pane({
                 {children}
               </div>
               {entryMenu}
-              {drag !== "idle" && mode === "box" && !hidden ? <PaneTag history={history} role={info.role} target={drag === "target"} /> : null}
+              {drag !== "idle" && mode === "box" && !hidden ? <PaneTag history={history} role={info.role} target={drag === "target"} preview={dragPreview} /> : null}
               {fab && entryMenu === null && mode === "box" && !hidden ? <SecondaryFab history={history} /> : null}
             </ViewLedgerContext.Provider>
           </PaneRouter>
@@ -1151,7 +1155,7 @@ function Pane({
  * 遮罩本身负责模糊下面的内容（`backdrop-filter`，见 workspace.css「在指定工作区打开」）：它是 `.lv-pane-scroll`
  * 的兄弟，拖动开始时只是加上它，不改动手指按着的那一行所在的滚动区（iPad 上改动它会打断这次触摸）。
  */
-function PaneTag({ history, role, target }: { readonly history: PaneHistory; readonly role: "primary" | "secondary"; readonly target: boolean }): React.JSX.Element {
+function PaneTag({ history, role, target, preview }: { readonly history: PaneHistory; readonly role: "primary" | "secondary"; readonly target: boolean; readonly preview: Rect | null }): React.JSX.Element {
   const { t } = useI18n();
   const snapshot = useSnapshot(history);
   const identity = usePaneIdentity(snapshot.location.pathname);
@@ -1162,10 +1166,46 @@ function PaneTag({ history, role, target }: { readonly history: PaneHistory; rea
       : t("workspace.drop.inSecondary")
     : t("workspace.pane.label", { pane, page: identity.title });
   return (
-    <div className="lv-pane-tag" data-target={target ? "true" : undefined} aria-hidden="true">
+    <div className="lv-pane-tag" data-target={target ? "true" : undefined} data-preview={preview !== null ? "true" : undefined} aria-hidden="true">
+      {preview !== null ? <PrimaryDragPreview rect={preview} /> : null}
+      <div className="lv-pane-tag-label" style={preview === null ? undefined : { left: preview.x, top: preview.y, width: preview.w, height: preview.h }}>
       <span className="lv-tag" data-target={target ? "true" : undefined}>
         <span className="lv-tag-text">{text}</span>
       </span>
+      </div>
     </div>
   );
+}
+
+/** 只缩放 inert 的 DOM 副本。真实页面及来源滚动区保持原样，避免重现 1.17.24 的 Safari 触摸中断。 */
+function PrimaryDragPreview({ rect }: { readonly rect: Rect }): React.JSX.Element {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const host = ref.current;
+    const source = host?.closest('.lv-pane')?.querySelector<HTMLElement>(':scope > .lv-pane-scroll');
+    if (host === null || source === undefined || source === null) return;
+    const copy = source.cloneNode(true) as HTMLElement;
+    // 副本不注册路由、事件或状态；移除身份属性，所有控件由 inert 隔离。
+    for (const element of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) {
+      element.removeAttribute('id');
+      element.removeAttribute('name');
+      element.removeAttribute('data-lv-open-drag');
+    }
+    const scale = Math.min(rect.w / source.clientWidth, rect.h / source.clientHeight);
+    copy.style.cssText = `position:absolute;inset:0 auto auto 0;width:${rect.w / scale}px;height:${rect.h / scale}px;transform:scale(${scale});transform-origin:top left;pointer-events:none;`;
+    host.append(copy);
+    const originals = [source, ...source.querySelectorAll<HTMLElement>('*')];
+    const copies = [copy, ...copy.querySelectorAll<HTMLElement>('*')];
+    originals.forEach((element, i) => {
+      const replica = copies[i];
+      if (replica === undefined) return;
+      replica.scrollTop = element.scrollTop;
+      replica.scrollLeft = element.scrollLeft;
+      if (element instanceof HTMLCanvasElement && replica instanceof HTMLCanvasElement) replica.getContext('2d')?.drawImage(element, 0, 0);
+    });
+    return () => { copy.remove(); };
+  }, [rect.x, rect.y, rect.w, rect.h]);
+  return <div className="lv-drag-primary" style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}>
+    <div ref={ref} className="lv-preview-snapshot" inert />
+  </div>;
 }

@@ -104,8 +104,15 @@ const utcEarlyMorning = new Date("2026-11-18T17:00:00.000Z"); // 东八区 2026-
 const yearlyRule: YearlyNthWeekdayRule = { kind: "yearly_nth_weekday", month: 11, weekday: 4, nth: 3 };
 
 beforeEach(async ({ task }) => {
-  // 仅这个普通首次登录接口场景固定为非节日；其余用例保留自身的时间与排序语义。
-  if (task.name === "GET /avatar-rewards 返回活动、解锁、待通知事件与时区状态") {
+  // 普通首次登录场景固定为非节日，避免万圣当天同时发放节日奖励干扰数量断言。
+  // 节日、时区和补领场景仍使用各自注入的日期。
+  if ([
+    "GET /avatar-rewards 返回活动、解锁、待通知事件与时区状态",
+    "新账户第一次带着认证请求打开 App 时自动解锁并返回待通知事件",
+    "已解锁后不会重复发放，也不再产生新事件",
+    "两台设备同时第一次请求，只会发一次、只留一条解锁",
+    "待通知事件会被重复下发直到界面确认；确认后不再下发",
+  ].includes(task.name)) {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-29T04:00:00.000Z"));
   }

@@ -10,6 +10,21 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.18.08": {
+    title: "Workspace dragging and scroll animation improvements",
+    summary: "Drag previews stay closer to your finger and keep their size between workspaces. A single workspace shows two separate preview areas, the drag source determines Follow or Independent mode, and slow momentum scrolling no longer repeatedly rewinds header animations.",
+    sections: [
+      { heading: "Improvements", items: [
+        "Dragged cards sit closer to your finger and retain their size across workspace boundaries, changing only the destination hint. Near the top-right Cancel area, the preview no longer jumps below your finger.",
+        "When only the main workspace is open, dragging shows a smaller main-workspace preview and a separate area for a new secondary workspace. The Cancel area is larger, with its icon and text centred.",
+        "Dragging from the main workspace into the secondary workspace, or opening there through the same entry's menu, switches to Follow mode. Sidebar entries switch to Independent mode. These rules also apply when creating the secondary workspace, and unsaved work still requires confirmation before replacement.",
+      ] },
+      { heading: "Bug fixes", items: [
+        "Fixes repeated rewinding of the logo and card animations during slow momentum scrolling on Entries and collapsing headers. Snapping now waits until scrolling has stopped.",
+        "Retains the touch-event fallback for iPad long-press dragging. Thumbnail previews do not scale or blur the actual page, keeping the active touch surface unchanged.",
+      ] },
+    ],
+  },
   "1.18.06": {
     title: "Sidebar entry menus and workspace navigation",
     summary: "The entry menu adapts to the sidebar, Follow mode opens recording in the secondary workspace, ledgers can be dragged to view Entries, and portrait navigation is simpler.",

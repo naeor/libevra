@@ -537,12 +537,11 @@ export function DropPreview({
           </span>
         </div>
       ) : null}
-      {/* 靠近屏幕左右边缘时把卡片往里挪一点，不让它被裁掉一半；贴近顶部（例如移向右上角的「取消」）时改到指针下方。 */}
+      {/* 固定锚点紧跟指针；不因顶部或取消区切换到手指另一侧。 */}
       <div
         className="lv-drag-ghost"
         data-target={drag.target ?? "none"}
-        data-below={drag.y < 96 ? "true" : undefined}
-        style={{ left: Math.min(Math.max(drag.x, 148), window.innerWidth - 148), top: drag.y }}
+        style={{ left: drag.x, top: drag.y }}
         aria-hidden="true"
       >
         <span className="lv-drag-ghost-icon">
@@ -550,7 +549,7 @@ export function DropPreview({
         </span>
         <span className="lv-drag-ghost-text">
           <span className="lv-drag-ghost-title">{drag.payload.title}</span>
-          {hint === null ? null : <span className="lv-drag-ghost-hint">{hint}</span>}
+          <span className="lv-drag-ghost-hint" style={{ visibility: hint === null ? "hidden" : undefined }}>{hint ?? "\u00a0"}</span>
         </span>
       </div>
       <span className="sr-only" aria-live="polite">

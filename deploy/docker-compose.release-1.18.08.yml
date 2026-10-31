@@ -1,0 +1,14 @@
+# 既有私人部署的拖动与滚动 UI 补丁；仅切换 api/web，数据库与 relay 不重建。
+services:
+  migrate:
+    image: libevra-rc-api:1.18.08-20261031
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.18.08-20261031
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.18.08-20261031
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { NavDragController, type DragPayload, type DropTarget } from "./navDrag.js";
+import { NavDragController, secondaryModeForDrag, type DragPayload, type DropTarget } from "./navDrag.js";
 
 const payload: DragPayload = { path: "/transactions/t1", title: "午饭 -¥30.00", ledger: "travel", source: "w1" };
 
@@ -10,6 +10,13 @@ function zone(resolve: (x: number, y: number) => DropTarget | null) {
 }
 
 describe("在指定工作区打开：落点与松手", () => {
+  it("主区来源进入跟随，侧栏与辅助区来源进入独立；按实际角色而不是固定 w1 判断", () => {
+    for (const primary of ["w1", "w2"] as const) {
+      expect(secondaryModeForDrag({ ...payload, source: primary }, primary)).toBe("follow");
+      expect(secondaryModeForDrag({ ...payload, source: null }, primary)).toBe("independent");
+      expect(secondaryModeForDrag({ ...payload, source: primary === "w1" ? "w2" : "w1" }, primary)).toBe("independent");
+    }
+  });
   it("没有工作区外壳（手机界面）时不进入拖动", () => {
     const controller = new NavDragController();
     controller.start(payload, 10, 10);

@@ -796,38 +796,55 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
     -webkit-backdrop-filter 180ms ease,
     backdrop-filter 180ms ease;
 }
-.lv-pane-tag[data-target="true"] {
+.lv-pane-tag-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.lv-pane-tag[data-preview="true"] {
+  background: var(--lv-area-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.lv-drag-primary {
+  position: absolute;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-canvas);
+  box-shadow: 0 0 0 1px var(--color-line), 0 8px 24px color-mix(in srgb, var(--color-ink) 6%, transparent);
+}
+.lv-preview-snapshot {
+  position: absolute;
+  inset: 0;
+  filter: blur(8px) saturate(0.85);
+  pointer-events: none;
+}
+.lv-pane-tag[data-preview="true"][data-target="true"] .lv-drag-primary {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand) 72%, transparent), 0 14px 34px color-mix(in srgb, var(--color-brand) 14%, transparent);
+}
+.lv-pane-tag[data-target="true"]:not([data-preview="true"]) {
   background-color: color-mix(in srgb, var(--color-brand) 5%, transparent);
   -webkit-backdrop-filter: blur(6px) saturate(0.95);
   backdrop-filter: blur(6px) saturate(0.95);
-}
-/* 单区时拖到预留位：主区让一让。 */
-.lv-shell[data-drop="create"] .lv-pane[data-mode="box"][data-role="primary"] .lv-pane-tag {
-  background-color: color-mix(in srgb, var(--color-canvas) 34%, transparent);
-}
-/* 单区时右侧 / 下方是「新建辅助工作区」的预留位：主区的标签居中在剩下的那一块里。 */
-.lv-shell[data-split="false"][data-orientation="landscape"] .lv-pane[data-role="primary"] .lv-pane-tag {
-  padding-right: calc((100cqw - 18px) * (1 - var(--lv-ratio, 0.55)) + 24px);
-}
-.lv-shell[data-split="false"][data-orientation="portrait"] .lv-pane[data-role="primary"] .lv-pane-tag {
-  padding-bottom: calc((100cqh - 18px) * (1 - var(--lv-ratio, 0.55)) + 24px);
 }
 
 /* 单区时「新建辅助工作区」的预留位：与真正打开后的辅助区同一块位置。 */
 .lv-drop-slot {
   position: absolute;
-  z-index: 30;
+  z-index: 45;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  border-radius: 18px;
-  background-color: color-mix(in srgb, var(--color-surface) 62%, transparent);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
   box-shadow:
     0 0 0 1px var(--color-line),
     0 12px 30px color-mix(in srgb, var(--color-ink) 8%, transparent);
   pointer-events: none;
-  transform: scale(0.97);
+  transform: none;
   transform-origin: right center;
   animation: lv-slot-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
   transition:
@@ -840,7 +857,7 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
 }
 .lv-drop-slot[data-over="true"] {
   transform: scale(1);
-  background-color: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  background-color: var(--color-surface);
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--color-brand) 72%, transparent),
     0 14px 34px color-mix(in srgb, var(--color-brand) 14%, transparent);
@@ -853,7 +870,8 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: 280px;
+  width: 216px;
+  height: 64px;
   padding: 7px 14px 7px 7px;
   border-radius: 16px;
   background-color: var(--color-surface);
@@ -861,7 +879,7 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   box-shadow:
     0 0 0 1px var(--color-line),
     0 12px 28px color-mix(in srgb, var(--color-ink) 16%, transparent);
-  transform: translate(-50%, calc(-100% - 18px));
+  transform: translate(-50%, calc(-50% - 8px));
   pointer-events: none;
   animation: lv-ghost-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -879,6 +897,7 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
 .lv-drag-ghost-title {
   overflow: hidden;
@@ -890,14 +909,13 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   font-size: var(--text-helper);
   color: var(--color-brand-dark);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 20px;
+  min-height: 20px;
 }
 .lv-drag-ghost[data-target="none"] {
   opacity: 0.92;
-}
-/* 指针贴近屏幕顶部（例如移到右上角的「取消」）时，卡片改到指针下方，不被顶边裁掉、也不盖住「取消」。 */
-.lv-drag-ghost[data-below="true"] {
-  transform: translate(-50%, 22px);
-  animation-name: lv-ghost-in-below;
 }
 
 /*
@@ -906,16 +924,17 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
  */
 .lv-drop-cancel {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 18px);
+  right: calc(env(safe-area-inset-right, 0px) + 18px);
   z-index: 85;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  min-width: 112px;
-  height: 52px;
-  padding: 0 18px 0 14px;
-  border-radius: 18px;
+  width: 168px;
+  height: 64px;
+  padding: 0 18px;
+  border-radius: var(--radius-card);
   background-color: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
   color: var(--color-danger);
   font-weight: 600;
@@ -923,16 +942,14 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
     0 0 0 1.5px color-mix(in srgb, var(--color-danger) 45%, transparent),
     0 8px 22px color-mix(in srgb, var(--color-danger) 14%, transparent);
   pointer-events: none;
-  animation: lv-slot-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: lv-fade-in 160ms ease-out;
   transition:
     background-color 150ms ease,
-    color 150ms ease,
-    transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+    color 150ms ease;
 }
 .lv-drop-cancel[data-over="true"] {
   background-color: var(--color-danger);
   color: var(--color-on-danger);
-  transform: scale(1.06);
 }
 .lv-drag-ghost[data-target="cancel"] .lv-drag-ghost-hint {
   color: var(--color-danger);
@@ -1592,13 +1609,6 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
 @keyframes lv-ghost-in {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-100% - 10px)) scale(0.92);
-  }
-}
-@keyframes lv-ghost-in-below {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 14px) scale(0.92);
   }
 }
 @keyframes lv-toast-in {

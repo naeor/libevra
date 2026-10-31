@@ -109,6 +109,8 @@ export interface OpenOptions {
    * **主区那本账**里的这一笔，而不是辅助区当前账本里同 id 的记录（并不存在）。省略 = 目标工作区自己的账本。
    */
   readonly ledger?: string | null;
+  /** 拖动来源决定辅助区模式；省略时沿用显式打开的独立模式。 */
+  readonly mode?: FollowMode;
 }
 
 /** 外壳的动作（引用稳定，不随状态变化而重建）。 */

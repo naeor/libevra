@@ -22,6 +22,11 @@ export interface DragPayload {
   readonly source: "w1" | "w2" | null;
 }
 
+/** 主区内容交给辅助区继续跟随；全局侧栏及辅助区自己的入口作为独立任务打开。角色交换后同样成立。 */
+export function secondaryModeForDrag(payload: DragPayload, primary: "w1" | "w2"): "follow" | "independent" {
+  return payload.source === primary ? "follow" : "independent";
+}
+
 export interface NavDragSnapshot {
   readonly active: boolean;
   readonly payload: DragPayload | null;
