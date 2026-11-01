@@ -3,7 +3,11 @@ import type zh from "../zh-CN/ledger.js";
 
 /** `ledger` 文案（English）。必须与 zh-CN 的键结构完全一致。 */
 const ledger: Messages<typeof zh> = {
+ cards: {"sampleFood":"Food","sampleTravel":"Transport","sampleShopping":"Shopping","grouped":"Grouped into consecutive periods","edit":"Edit overview cards","editHint":"Customize your personal layout for this book and sync it across your devices.","main":"Main card","first":"Left card","second":"Right card","overview":"Income and expenses","expense":"Expenses","income":"Income","balance":"Balance","daily":"Daily spending","count":"Entries","reset":"Restore defaults","saveFailed":"Could not save settings. Try again.","days":"Over {{count}} days","chooseRange":"Select a date range","search":"Search entries","placeholder":"Search notes, categories, tags or amounts","scope":"Search in: {{scope}}","back":"Back","save":"Save","current":"Editing card","add":"Add content","metricSearch":"Search metrics","numbers":"Numbers","trends":"Trends & time","ranking":"Composition & ranking","onlyMain":"Main card only","full":"Card is full","added":"Added","remove":"Remove {{name}}","discard":"Discard unsaved changes?","discardAction":"Discard","sample":"Sample data","capacity":"Two numbers or one chart in the main card; one number in each small card.","expenseTrend":"Expense trend","incomeTrend":"Income trend","expenseBars":"Daily expenses","categoryRank":"Top expense categories","chartEmpty":"No chart data for this range","chartPartial":"Showing loaded data only","peak":"Peak {{value}}","noMetrics":"No matching metrics","syncPending":"Saved locally; waiting to sync","syncConflict":"Another device updated this layout","keepLocal":"Use local layout","useRemote":"Use cloud layout","syncError":"Not synced; retry when online","invalid":"This configuration cannot be edited. Update the app and try again.","mainHint":"Main card","preview":"Card preview","numericHint":"Number","lineHint":"Single-color line","barsHint":"Rounded bars","rankHint":"Top three horizontal bars"},
+  filters: {"title":"Filter","time":"Time","categories":"Categories","tags":"Tags","payments":"Payment","currencies":"Currency","attachments":"Attachments","month":"Month","all":"All time","range":"Date range","from":"Start date","to":"End date","dateHint":"YYYY-MM-DD, e.g. 2026-10-01","invalidDates":"Enter valid dates. The end date must not precede the start date.","reset":"Reset","apply":"View results","close":"Close filters","clear":"Remove {{name}} filter","unlimited":"Any","search":"Search options","noOptions":"No matching options","selected":"Selected filters","multiple":"Filters · {{count}}","values":"{{name}} · {{count}}","branch":"Include subcategories","expand":"Expand {{name}}","collapse":"Collapse {{name}}","nonePayment":"Unspecified","dateRange":"Date range","noResults":"No matching entries","loading":"Loading filtered entries…","failed":"Some entries could not be loaded. Try again.","retry":"Retry","previousYear":"Previous year","nextYear":"Next year"},
   detail: {
+    emptyAll: "No entries yet",
+    emptyMonth: "No entries this month",
     backToEntries: "← Back to entries",
     goToLedgers: "Go to your ledgers",
     moreCurrencies: "More currencies",
@@ -32,7 +36,7 @@ const ledger: Messages<typeof zh> = {
     mainCurrency: "Default",
     nothingThisMonth: "Nothing this month",
     filterChanged: "The filter changed, so the selection was cleared.",
-    conflictPending: "This entry is waiting for you to pick a version on the conflict screen. Resolve that first.",
+    conflictPending: "This entry has a conflict. Choose the version to keep on the conflicts page first.",
     notOnDevice: "This entry isn’t on this device, so it can’t be changed.",
     stuck: {
       nothingStored: "This device has no entries for this period, and the server can’t be reached right now.",
@@ -48,8 +52,8 @@ const ledger: Messages<typeof zh> = {
   page: {
     titleShared: "Shared",
     titleSolo: "Ledger",
-    subtitleShared: "Several people keep this ledger together.",
-    subtitleSolo: "Only you are using this ledger right now.",
+    subtitleShared: "Shared ledger",
+    subtitleSolo: "Personal ledger",
     settings: "Ledger settings",
     factsShort_one: "{{count}} entry",
     factsShort_other: "{{count}} entries",
@@ -59,13 +63,13 @@ const ledger: Messages<typeof zh> = {
     viewAll: "View all ›",
     historyEmpty: "No edits yet. Changes made before this feature existed aren’t recorded.",
     invite: "Invite members",
-    inviteSent: "Invite sent. They’ll see it in their notifications and become a member of “{{book}}” once they accept.",
+    inviteSent: "Invitation sent. The recipient will join “{{book}}” after accepting.",
     invitePlaceholder: "Account number or username",
     inviteWho: "Who to invite",
     sending: "Sending…",
     inviteButton: "Invite",
     inviteHint:
-      "It’s just you in this ledger. Enter someone’s account number or username to send them an invite. They join only after they accept.",
+      "Enter an account number or username to send an invitation. The recipient joins the ledger after accepting.",
     inviteMore: "Choose their access, or see sent invites ›",
     currentBook: "Current ledger",
     noNumber: "(no number yet)",
@@ -79,9 +83,9 @@ const ledger: Messages<typeof zh> = {
     memberCount_one: "{{count}} person",
     memberCount_other: "{{count}} people",
     manageMembers: "Manage members ›",
-    leaveTitle: "Leave this ledger",
+    leaveTitle: "Leave ledger",
     leaveExplain:
-      "Once you leave, this ledger disappears from your list and you won’t see its entries. Entries you added stay, and the history keeps a record that you left.",
+      "You’ll lose access to this ledger. Your entries and activity history will remain.",
     leaving: "Leaving…",
     leaveConfirm: "Leave",
   },
@@ -89,24 +93,24 @@ const ledger: Messages<typeof zh> = {
     permission: {
       guest: "Guest ledgers can only be edited one entry at a time. Batch actions aren’t available yet.",
       offline: "You’re offline, so this shared ledger is view-only. You can edit or delete in batches once you’re back online.",
-      viewer: "You have view-only access to this ledger, so you can’t edit or delete entries.",
-      error: "Couldn’t confirm your access to this ledger, so batch editing isn’t available right now. Try again once you’re online.",
-      checking: "Checking your access to this ledger…",
+      viewer: "You have view-only access and can’t edit or delete entries.",
+      error: "Can’t verify ledger permissions. Connect to the internet and try the batch edit again.",
+      checking: "Checking ledger permissions…",
     },
     blocked: {
       nothingTicked: "No fields are checked yet.",
       chooseCategory: "Choose the category to apply first.",
-      categoryMissing: "The chosen category isn’t in this ledger.",
+      categoryMissing: "The selected category isn’t in this ledger.",
       archived: "“{{name}}” is archived and can’t be used.",
       wrongKind: {
         expense: "“{{name}}” isn’t an expense category, so it doesn’t match this entry.",
         income: "“{{name}}” isn’t an income category, so it doesn’t match this entry.",
       },
       choosePayment: "Choose the payment method to apply first.",
-      paymentMissing: "The chosen payment method isn’t in this ledger.",
+      paymentMissing: "The selected payment method isn’t in this ledger.",
       chooseTagsToAdd: "Choose the tags to add first.",
       chooseTagsToRemove: "Choose the tags to remove first.",
-      tagMissing: "A chosen tag isn’t in this ledger.",
+      tagMissing: "The selected tag isn’t in this ledger.",
       tooManyTags: "Adding these tags would go over the limit of {{max}} per entry.",
     },
     deleteConfirm: {
@@ -125,9 +129,9 @@ const ledger: Messages<typeof zh> = {
         noneSucceeded_one: "No entries were changed; {{count}} failed.",
         noneSucceeded_other: "No entries were changed; {{count}} failed.",
         allQueued_one:
-          "Changed {{count}} entry on this device. It hasn’t reached the cloud yet and will be sent once you’re online.",
+          "{{count}} entry edited on this device. Changes will sync when connected.",
         allQueued_other:
-          "Changed {{count}} entries on this device. They haven’t reached the cloud yet and will be sent once you’re online.",
+          "{{count}} entries edited on this device. Changes will sync when connected.",
         done_one: "Changed {{count}} entry.",
         done_other: "Changed {{count}} entries.",
       },
@@ -135,9 +139,9 @@ const ledger: Messages<typeof zh> = {
         noneSucceeded_one: "No entries were deleted; {{count}} failed.",
         noneSucceeded_other: "No entries were deleted; {{count}} failed.",
         allQueued_one:
-          "Deleted {{count}} entry on this device. It hasn’t reached the cloud yet and will be sent once you’re online.",
+          "{{count}} entry deleted on this device. Changes will sync when connected.",
         allQueued_other:
-          "Deleted {{count}} entries on this device. They haven’t reached the cloud yet and will be sent once you’re online.",
+          "{{count}} entries deleted on this device. Changes will sync when connected.",
         done_one: "Deleted {{count}} entry.",
         done_other: "Deleted {{count}} entries.",
       },
@@ -158,13 +162,13 @@ const ledger: Messages<typeof zh> = {
       selectedCount_other: "{{count}} selected",
       changeCategory: "Change category",
       mixedKinds:
-        "The selected entries mix expenses and income, so their category can’t be changed together. Select entries of one type only.",
+        "The selected entries have different transaction types. Select entries of the same type to change their category together.",
       chooseCategory: "Choose category",
       chooseCategoryOption: "Choose category…",
       changeTags: "Change tags",
       tagAdd: "Add",
       tagRemove: "Remove",
-      noTags: "This ledger has no tags yet.",
+      noTags: "No tags in this ledger.",
       changePayment: "Change payment method",
       choosePayment: "Choose payment method",
       choosePaymentOption: "Choose payment method…",
@@ -200,13 +204,13 @@ const ledger: Messages<typeof zh> = {
   },
   refresh: {
     waiting_one:
-      "{{count}} change hasn’t reached the cloud yet. It’s kept on this device and will be retried next time you’re online.",
+      "{{count}} change is saved on this device, waiting to sync.",
     waiting_other:
-      "{{count}} changes haven’t reached the cloud yet. They’re kept on this device and will be retried next time you’re online.",
+      "{{count}} changes are saved on this device, waiting to sync.",
     unknownReason: "The reason is unknown.",
     failed: "Sync didn’t finish. {{reason}} Reloaded the entries on this device.",
     guest: "Reloaded the entries on this device (guest ledgers have no cloud to sync with).",
-    offline: "You’re offline and couldn’t reach the cloud. Reloaded the entries on this device.",
+    offline: "You’re offline. Entries have been reloaded from this device.",
     deliveredAndPulled_one: "Sent {{count}} change to the cloud and updated this month ({{pulled}} from the cloud).",
     deliveredAndPulled_other: "Sent {{count}} changes to the cloud and updated this month ({{pulled}} from the cloud).",
     delivered_one: "Sent {{count}} change to the cloud. Nothing new came back for this month.",
@@ -221,6 +225,10 @@ const ledger: Messages<typeof zh> = {
     nothing: "Reloaded the entries on this device. Nothing was waiting to be sent, and nothing new came from the cloud.",
   },
   monthPicker: {
+    loading: "Checking months…",
+    empty: "No entries this month",
+    emptyHint: "Months without entries are unavailable.",
+    unknown: "Some months could not be checked. You can still open them.",
     close: "Close month picker",
     title: "Choose month",
     previousYear: "Previous year",
@@ -232,7 +240,7 @@ const ledger: Messages<typeof zh> = {
     loading: "Loading history…",
     failed: "Couldn’t load the history.",
     recentLabel: "Recent edits",
-    totalNote: "Showing the latest {{shown}} of {{total}} changes.",
+    totalNote: "{{total}} records. Showing the latest {{shown}}.",
     moreChanges_one: "{{count}} more change",
     moreChanges_other: "{{count}} more changes",
     change: "{{label}}: {{from}} → {{to}}",
@@ -248,8 +256,8 @@ const ledger: Messages<typeof zh> = {
       deleted: "deleted",
       restored: "restored",
     },
-    memberChanged: "{{actor}} changed this ledger’s members",
-    bookChanged: "{{actor}} changed this ledger",
+    memberChanged: "{{actor}} updated ledger members",
+    bookChanged: "{{actor}} updated the ledger",
     anEntry: "an entry",
     entryNumber: "entry {{number}}",
     serverLabels: {

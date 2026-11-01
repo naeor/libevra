@@ -1,0 +1,79 @@
+.lv-filter-panel { display:flex; flex-direction:column; height:min(560px, calc(var(--lv-vh, 1vh) * 78)); min-height:0; color:var(--color-ink); }
+.lv-filter-heading { display:flex; align-items:center; justify-content:space-between; padding:8px 16px 0; flex:none; }
+.lv-filter-icon { display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; border-radius:var(--radius-field); flex:none; }
+.lv-filter-icon svg { width:18px; height:18px; }
+.lv-filter-icon:hover { background:var(--color-brand-soft); }
+.lv-filter-icon:disabled { opacity:.35; }
+.lv-filter-chips { display:flex; gap:8px; overflow:auto; padding:8px 16px 16px; flex:none; }
+.lv-filter-chips button { display:flex; align-items:center; gap:8px; max-width:240px; flex:none; padding:6px 12px; border-radius:999px; background:var(--color-brand-soft); color:var(--color-brand-dark); }
+.lv-filter-chips button span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lv-filter-content { display:grid; grid-template-columns:112px minmax(0,1fr); min-height:0; flex:1; border-block:1px solid var(--color-line); }
+.lv-filter-nav { padding:8px 4px; border-right:1px solid var(--color-line); overflow:auto; }
+.lv-filter-nav button > span:first-child { white-space:nowrap; }
+.lv-filter-nav button { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:48px; padding:8px; border-radius:var(--radius-field); text-align:left; color:var(--color-muted); }
+.lv-filter-nav button[aria-selected=true] { background:var(--color-brand-soft); color:var(--color-brand-dark); }
+.lv-filter-dot { width:5px; height:5px; border-radius:50%; background:var(--color-brand); flex:none; }
+.lv-filter-options { padding:16px; min-width:0; overflow:auto; overscroll-behavior:contain; }
+.lv-filter-empty { margin-top:12px; padding-inline:12px; }
+.lv-filter-all-time { margin-top:12px; }
+.lv-filter-segments,.lv-filter-choices { display:flex; flex-wrap:wrap; gap:4px; }
+.lv-filter-segments button,.lv-filter-choices button { padding:8px 12px; min-height:44px; border-radius:var(--radius-field); color:var(--color-muted); }
+.lv-filter-segments button[aria-pressed=true],.lv-filter-choices button[aria-pressed=true],.lv-filter-months button[aria-pressed=true],.lv-filter-option[aria-pressed=true] { color:var(--color-brand-dark); background:var(--color-brand-soft); }
+.lv-filter-year { display:flex; align-items:center; justify-content:space-between; margin:12px 0 8px; }
+.lv-filter-months { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.lv-filter-months button { min-height:44px; padding:8px; border-radius:var(--radius-field); }
+.lv-filter-months button:disabled { color:var(--color-muted); opacity:.4; cursor:default; }
+.lv-filter-search,.lv-filter-date-range input,.lv-filter-size input { width:100%; min-width:0; min-height:44px; padding:8px 12px; border:1px solid var(--color-line); border-radius:var(--radius-field); background:var(--color-surface); color:var(--color-ink); }
+.lv-filter-search { margin-bottom:12px; }
+.lv-filter-option { display:flex; align-items:center; gap:8px; justify-content:space-between; min-height:44px; width:100%; padding:10px 12px; border-radius:var(--radius-field); text-align:left; overflow-wrap:anywhere; }
+.lv-filter-option-row { display:flex; align-items:center; margin:4px 0; }
+.lv-filter-option-row[data-child=true] { padding-left:12px; }
+.lv-filter-branch { display:flex; align-items:center; min-height:44px; gap:8px; padding-left:12px; color:var(--color-muted); }
+.lv-filter-branch input { accent-color:var(--color-brand); }
+.lv-filter-attachment { display:flex; flex-direction:column; gap:24px; }
+.lv-filter-attachment legend { margin-bottom:8px; }
+.lv-filter-size { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.lv-filter-size input,.lv-filter-date-range input { margin-top:8px; }
+.lv-filter-date-range { display:flex; flex-direction:column; gap:16px; margin-top:20px; }
+.lv-filter-footer { flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; }
+.lv-filter-footer button { min-height:44px; padding:8px 16px; }
+.lv-filter-apply { background:var(--color-brand); color:var(--color-on-brand); border-radius:var(--radius-field); }
+.lv-sheet.lv-filter-sheet { width:100%; max-width:680px; padding:0; }
+.lv-filter-trigger { gap:6px; min-width:0; }
+.lv-filter-trigger > span:first-of-type { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lv-filter-trigger[data-filtered=true] { background:var(--color-brand-soft); color:var(--color-brand-dark); border-radius:var(--radius-field); }
+.detail-month.lv-filter-trigger { max-width:clamp(110px, calc(100cqw - 210px), 220px); min-height:32px; padding-inline:6px; }
+/* 普通时间文字对齐页头的 24px 基准；带背景的筛选标签保留内部留白。 */
+.detail-month.lv-filter-trigger:not([data-filtered=true]) { padding-inline-start:0; }
+.detail-month.lv-filter-trigger svg { flex:none; }
+.lv-desk-month-label.lv-filter-trigger { max-width:240px; }
+.lv-filter-panel button:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+@media (max-width:639px) {
+  .lv-filter-content { grid-template-columns:96px minmax(0,1fr); }
+  .lv-filter-options { padding:12px; }
+  .lv-filter-segments { gap:0; }
+  .lv-filter-segments button { padding-inline:6px; }
+  .lv-filter-footer { padding-bottom:max(16px, env(safe-area-inset-bottom)); }
+}
+@container lvpane (max-width:639px) {
+  .lv-filter-content { grid-template-columns:96px minmax(0,1fr); }
+  .lv-filter-options { padding:12px; }
+  .lv-filter-segments { gap:0; }
+  .lv-filter-segments button { padding-inline:6px; }
+  .lv-filter-footer { padding-bottom:max(16px, env(safe-area-inset-bottom)); }
+}
+/* 桌面面板使用正文密度，触屏仍保留 44px 操作高度与输入字号。 */
+.lv-filter-panel[data-desktop=true] { font-size:var(--text-body); line-height:var(--text-body--line-height); }
+.lv-filter-panel[data-desktop=true] .lv-filter-nav button { min-height:40px; }
+.lv-filter-panel[data-desktop=true] .lv-filter-icon { min-width:32px; min-height:32px; }
+.lv-filter-panel[data-desktop=true] :is(.lv-filter-option,.lv-filter-months button,.lv-filter-segments button,.lv-filter-choices button,.lv-filter-footer button) { min-height:36px; padding-block:8px; }
+.lv-filter-panel[data-desktop=true] :is(.lv-filter-search,.lv-filter-date-range input,.lv-filter-size input) { min-height:36px; padding-block:6px; font-size:var(--text-body); line-height:var(--text-body--line-height); }
+.lv-filter-panel[data-desktop=true] .lv-filter-option-row { margin-block:2px; }
+.lv-filter-panel[data-desktop=true] .lv-filter-footer { padding-block:12px; }
+/* 极窄明细页保留可读的时间入口，避免挤占右侧工具。 */
+@media (max-width:360px) {
+  .detail-month.lv-filter-trigger { max-width:126px; }
+}
+@container lvpane (max-width:360px) {
+  .detail-month.lv-filter-trigger { max-width:126px; }
+}

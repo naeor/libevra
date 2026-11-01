@@ -244,6 +244,7 @@ describe("sections：电脑版页面分组", () => {
     expect(sectionFor("/ledger")).toBe("collab");
     expect(sectionFor("/ledger/members/u1")).toBe("collab");
     expect(sectionFor("/ledger/more")).toBe("plain");
+    expect(sectionFor("/ledger/cards")).toBe("plain");
     expect(sectionFor("/stats")).toBe("plain");
     expect(sectionFor("/settingsx")).toBe("plain");
   });

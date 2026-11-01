@@ -32,7 +32,7 @@ const settings = {
     title: "账号与安全",
     password: { label: "更改密码", hint: "修改后，其它设备上的登录状态将失效" },
     recoveryCode: { label: "生成新的恢复码", hint: "生成后，原有恢复码将立即失效" },
-    referral: { label: "邀请码", hint: "让别人注册 Libevra 账号，与你的账本无关" },
+    referral: { label: "邀请码", hint: "用于注册账号，不授予账本访问权限" },
   },
   theme: {
     title: "外观",

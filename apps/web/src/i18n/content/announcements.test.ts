@@ -6,7 +6,7 @@ import {
 } from "@libellum/shared";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { formatReleaseDate, releasedAnnouncementByVersion, releasedAnnouncements } from "../../lib/updateAnnouncements.js";
+import { ALL_ANNOUNCEMENTS, formatReleaseDate, releasedAnnouncementByVersion, releasedAnnouncements } from "../../lib/updateAnnouncements.js";
 import { applyLocale } from "../index.js";
 import { localizeMajorAnnouncement, localizeUpdateAnnouncement, sameAnnouncementShape } from "./index.js";
 import { MAJOR_ANNOUNCEMENTS_EN } from "./majorAnnouncements.en.js";
@@ -67,8 +67,16 @@ describe("更新公告译文", () => {
   });
 
   it("没有多余的译文（版本号拼错或公告已撤下）", () => {
-    const versions = new Set(released.map((announcement) => announcement.version));
+    const versions = new Set(ALL_ANNOUNCEMENTS.map((announcement) => announcement.version));
     expect(Object.keys(UPDATE_ANNOUNCEMENTS_EN).filter((version) => !versions.has(version))).toEqual([]);
+  });
+
+  it("待发布公告也有完整译文，且不会提前出现在正式公告中", () => {
+    for (const draft of ALL_ANNOUNCEMENTS.filter((item) => item.status === "development")) {
+      expect(draft.releasedAt).toBeNull();
+      expect(sameAnnouncementShape(draft, UPDATE_ANNOUNCEMENTS_EN[draft.version]!)).toBe(true);
+      expect(releasedAnnouncementByVersion(draft.version)).toBeNull();
+    }
   });
 
   it("中文界面原样返回；英文只替换文字，事实字段不变", () => {

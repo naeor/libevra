@@ -448,6 +448,7 @@ export interface ConflictRecord {
 }
 
 export interface EntryMark {
+  readonly deviceEdits?: readonly { at: string; changes: Record<string, { from: unknown; to: unknown }> }[];
   readonly pending?: boolean;
   readonly deleted?: boolean;
   /** `false` when the server has never accepted this entry. */

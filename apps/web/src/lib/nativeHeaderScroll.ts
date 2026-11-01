@@ -144,8 +144,9 @@ export function bindNativeHeaderScroll(scroller: HTMLElement, range: () => numbe
   };
   const schedule = () => { clearTimeout(idle); cancelProbe(); idle = window.setTimeout(() => check(), quietNeeded()); };
   const scroll = () => {
-    paint();
+    // 先读后写：paint 会改变顶栏和补偿区高度，之后再读会强制同步布局。
     const top = scroller.scrollTop;
+    paint();
     if (frame) {
       // 弹簧运行中，位置却不是弹簧写的：惯性或手指还在推动——让出，等这次运动停下。
       if (Math.abs(top - written) > FOREIGN_PX) yieldToNative();
@@ -199,7 +200,7 @@ export function bindNativeHeaderScroll(scroller: HTMLElement, range: () => numbe
   scroller.addEventListener("touchcancel", end);
   scroller.addEventListener("wheel", interrupt, { passive: true });
   scroller.addEventListener("keydown", interrupt);
-  return { goTo, destroy() {
+  return { goTo, cancel: stop, destroy() {
     stop();
     scroller.removeEventListener("scroll", scroll);
     scroller.removeEventListener("scrollend", ended);

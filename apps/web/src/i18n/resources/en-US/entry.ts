@@ -18,7 +18,7 @@ const entry: Messages<typeof zh> = {
     duplicateTitle: "Looks like you’ve already added this",
     notDuplicateNoBook: "Couldn’t find the current ledger, so “Not a duplicate” wasn’t saved.",
     notDuplicateNoPair: "There’s no pair of entries to remember.",
-    notDuplicateFailed: "The entry was saved, but “Not a duplicate” wasn’t remembered. {{reason}}",
+    notDuplicateFailed: "Entry saved, but the not-duplicate decision couldn’t be saved: {{reason}}",
   },
   duplicate: {
     save: "Save anyway",

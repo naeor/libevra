@@ -12,13 +12,13 @@ const ledgerImport: Messages<typeof zh> = {
   title: "Import ledger",
   subtitle: {
     select:
-      "Import this device’s guest ledger, or another account ledger that only you use, into a target ledger. First choose the source and the target.",
-    preview: "Check the direction, mapping and possible duplicates. Previewing and reviewing don’t change any ledger.",
+      "Select the source and destination ledgers. Sources can be a guest ledger on this device or another personal account ledger.",
+    preview: "Review the source, destination, category mapping, and possible duplicates. Previewing and reviewing don’t change ledgers.",
     review:
-      "Review source changes and possible duplicates. Only target entries you explicitly choose to update will change — the import never silently overwrites anything.",
+      "Review source changes and possible duplicates. Existing destination entries are updated only as you confirm.",
     jobActive:
-      "The import is running on the server. Closing this page won’t stop it; reopen it to see the actual progress.",
-    confirm: "Nothing is written until you confirm the final summary. The source ledger’s data is kept.",
+      "The import is running on the server. You can close this page and return to check progress.",
+    confirm: "Confirm to write to the destination ledger. Source data is retained.",
   },
   badge: {
     done: "Completed",
@@ -67,7 +67,7 @@ const ledgerImport: Messages<typeof zh> = {
       "The server finished the import, but the result doesn’t match what was expected. Take a screenshot of this page and check the target ledger. Don’t submit again.",
     incrementalUnavailable:
       "Couldn’t read the history of earlier imports, so the import hasn’t started. Refresh and try again.",
-    otherAccount: "This import belongs to a different account. Sign in to that account to keep checking it.",
+    otherAccount: "This import belongs to another account. Sign in with that account to view it.",
     waitExtended: "Waiting time extended. Automatic progress checks don’t extend the deadline.",
     chooseSource: "Choose a source ledger.",
     formalNeedsTarget: "When the source is an account ledger, choose a different existing account ledger as the target.",
@@ -92,10 +92,10 @@ const ledgerImport: Messages<typeof zh> = {
   removalDialog: {
     title: "Delete the selected target entries and import?",
     descriptionFallback:
-      "This import will delete the target entries you chose to remove. You can restore them from edit history.",
+      "The selected destination entries will be deleted. You can restore them from edit history.",
     description: "This will delete {{removed}} and import {{imported}}.",
     consequence: {
-      onlyMarked: "Only target entries you marked “Remove” on the review step are deleted",
+      onlyMarked: "Only destination entries marked as “Remove” during review will be deleted",
       restorable:
         "Removed entries can be restored from edit history with the same numbers, as long as the ledger still exists and you can edit it",
       sourceKept: "Nothing in the source ledger is deleted",
@@ -106,23 +106,23 @@ const ledgerImport: Messages<typeof zh> = {
   },
   undoDialog: {
     title: "Undo this import?",
-    description: "Undoing reverses the changes this import has already made — it doesn’t just stop the rest of it.",
+    description: "Undo stops the import and reverses changes already made by this import.",
     consequence: {
       targetReverted: "Entries this import added to the target are removed, and entries it updated go back to their previous values",
       stateReverted: "Categories, tags, source status and import results it wrote go back to how they were before the import",
       othersKept: "Other ledgers, and offline changes on other devices that are waiting to sync, aren’t deleted",
       failureLocked: "If the undo fails, the ledger stays locked for editing and this page shows the failure",
-      editAfter: "You can edit this ledger again only after the undo finishes",
+      editAfter: "Editing resumes when undo is complete",
     },
     confirm: "Undo import",
-    progress: "{{batches}} submitted — {{added}} added and {{updated}} updated. All of these changes will be reversed exactly.",
+    progress: "Submitted {{batches}}; added {{added}}, updated {{updated}}. Undo restores the state before the import.",
   },
   finishDialog: {
     title: "Finish this import?",
     description: "Once you finish, this import can’t be undone.",
     consequence: {
       serverChecks: "The server checks the final result and saves an import record",
-      removalsApplied: "Target entries you chose to remove are deleted at this point",
+      removalsApplied: "Delete destination entries selected for removal",
       unlocks: "Once it’s finished, the ledger can be edited again",
       cleanupAfter: "Only after finishing can you clean up migrated guest entries or retire the source ledger",
       failureWaits: "If finishing fails, the import keeps waiting for confirmation and the ledger stays locked for editing",
@@ -151,10 +151,10 @@ const ledgerImport: Messages<typeof zh> = {
     progress:
       "Processed {{done}} of {{batches}}: {{added}} added · {{updated}} updated · {{skipped}} skipped. {{total}} from the source in total.",
     lockNote:
-      "Until you finish the import, this ledger is locked for editing — on other devices too. Undoing the import reverses the changes already made; it doesn’t just stop the rest.",
+      "Editing is paused on all devices until final confirmation. Undo stops the import and reverses changes already made.",
     waiting: "Waiting for confirmation.",
     countdown:
-      "Finish or undo within {{minutes}} min {{seconds}} sec. If time runs out, the import is safely undone automatically.",
+      "Confirm or undo within {{minutes}} min {{seconds}} sec. The import will be undone automatically when time runs out.",
     pausedCountdown_one:
       "Paused. If time runs out, the import is safely undone automatically (about {{count}} second left). You can resume it first.",
     pausedCountdown_other:
@@ -164,7 +164,7 @@ const ledgerImport: Messages<typeof zh> = {
     undoableBatches_other:
       "The {{count}} batches already submitted can be fully undone. The ledger won’t be unlocked before the undo.",
     undoFailed:
-      "The undo didn’t finish, so the ledger is still locked. Try undoing again. A failed undo is never shown as a success, and the ledger is never simply unlocked.",
+      "Undo is incomplete and editing remains paused. Try undoing again.",
     undone: "Everything this import added or updated, and the source status, has been restored. The ledger is unlocked.",
     expired:
       "This older import was paused past its recovery deadline and its source snapshot was cleared. Entries already imported are kept.",
@@ -180,7 +180,7 @@ const ledgerImport: Messages<typeof zh> = {
   },
   pending: {
     title: "An import hasn’t confirmed its result yet",
-    body: "{{source}} → {{target}}. Continuing only checks with the server using the same import ID — no entries will be created twice.",
+    body: "{{source}} → {{target}}. Resume checking this task without importing again.",
     resume: "Check the result",
     drop: "Discard on this device",
     dropNote: "Discarding only clears the record on this device. It doesn’t delete entries that were already imported.",
@@ -213,25 +213,25 @@ const ledgerImport: Messages<typeof zh> = {
     sameAsSource: "Same as the source — can’t be chosen",
     noSources: "There’s no guest ledger on this device, and no other ledger that only you use to import from.",
     formalSourceNote:
-      "From an account ledger, only the entries you confirm in the preview are imported. Nothing in the source ledger is deleted, and the source ledger isn’t closed.",
+      "Only records confirmed in the preview will be imported. The source ledger and its entries will remain.",
     guestSourceNote:
       "Guest data isn’t read or sent until you upload it, and it isn’t deleted automatically after the import.",
     formalTargetNote:
       "An account ledger can only be imported into another existing account ledger that only you use. You can’t create a new target ledger or choose the source itself.",
     createTargetFirst:
-      "Importing doesn’t create a target ledger. First create an empty ledger as usual in <link>Your ledgers</link>, then come back and choose it as the target.",
+      "Create an empty ledger in <link>Your ledgers</link> first, then select it as the destination. Importing doesn’t create a ledger automatically.",
     importInto: "Importing into “{{name}}” · {{account}}",
     importIntoWithNumber: "Importing into “{{name}}” · {{account}} · No. {{number}}",
     accountFallback: "Your account",
     continue: "See preview",
     rules:
-      "You can import from this device’s guest ledger or from another ledger in your account that only you use. For an account ledger, both ledgers must have you as their only active member, with no pending invites or active share links. This is checked at preview and again on import. Importing never deletes or empties the source ledger.",
+      "Import from a guest ledger on this device or another personal ledger in this account. For account ledgers, both must have only your account as an active member, with no pending invitations or active share links. Eligibility is checked during preview and submission. Source data is retained.",
   },
   preview: {
     direction: "Direction",
     guestNote: "The source is this device’s guest ledger. Its data stays on this device after the import.",
     formalNote:
-      "The source is an account ledger that only you use. Its data is kept after the import and isn’t deleted or closed automatically.",
+      "The source is a personal account ledger. It and its data will remain after importing.",
     whatHappens: "What this import will do",
     metric: {
       source: "Source entries",
@@ -263,7 +263,7 @@ const ledgerImport: Messages<typeof zh> = {
     reviewGroups_other: "Review {{count}} duplicate groups",
     reviewIncremental: "Review earlier imports and source changes",
     noDuplicates: "No possible duplicates found.",
-    resolveConflictsFirst: "Resolve every conflict above before continuing.",
+    resolveConflictsFirst: "Resolve all property conflicts first.",
     reviewDuplicatesButton: "Review possible duplicates",
     reviewIncrementalButton: "Review changes since the last import",
     continue: "Continue",
@@ -332,12 +332,12 @@ const ledgerImport: Messages<typeof zh> = {
     keepSkipped: "Keep skipped",
     importNow: "Import this time",
     protectNote:
-      "To protect existing data, this import only keeps the target — nothing is overwritten, restored or deleted. If you need to change it, check it manually in the target ledger first.",
+      "Destination entries will remain unchanged. Review them manually in the destination ledger if needed.",
   },
   retention: {
     title: "Source safety & cleanup",
     intro:
-      "A successful import doesn’t mean the source can be cleaned up automatically. Everything here is separate and manual, and keeps data by default. Entries that weren’t migrated are never cleaned up or retired.",
+      "Source data is kept by default. Cleanup and abandonment are separate actions. Cleanup includes only records confirmed as migrated.",
     guest: {
       title: "The guest source ledger is still on this device",
       note:
@@ -369,11 +369,11 @@ const ledgerImport: Messages<typeof zh> = {
     },
     reason: {
       allMigrated:
-        "This source ledger can be retired now, and every entry in it can be found in the target ledger. After retiring, you can still restore it before the recovery deadline.",
+        "Eligible for abandonment. All source entries are present in the destination. The ledger can be restored within the recovery period.",
       someUnmigrated:
-        "This source ledger can be retired now, but some of its entries weren’t migrated to the target ledger. Retiring won’t delete them, but you’ll need to restore the source to see them.",
+        "Eligible for abandonment, but some entries haven’t been migrated. Data will remain, but you’ll need to restore the ledger to view it.",
       blocked:
-        "This source ledger can’t be retired right now — it may have other members, active invites or share links, it may already be retired, or it may have a pending recovery request.",
+        "Not eligible for abandonment. The ledger may have collaborators, active invitations, share links, archived status, or a pending recovery request.",
     },
     guestDialog: {
       title: "Clean up migrated guest entries?",
@@ -420,7 +420,7 @@ const ledgerImport: Messages<typeof zh> = {
     changed: "This group changed after the preview was reloaded. Review it again.",
     quickTitle: "Quick picks",
     quickNote:
-      "These only fill in the choices below — nothing is deleted directly. Check whether to keep or remove each entry in the target ledger.",
+      "Bulk selection changes only the options below. Review whether to keep or remove each destination entry.",
     preset: {
       keep_a: { label: "Keep target", hint: "Skip source, keep target" },
       keep_b: { label: "Keep source", hint: "Import source, remove target" },
@@ -469,7 +469,7 @@ const ledgerImport: Messages<typeof zh> = {
     byCurrency: "By currency",
     nothingToImport: "No entries to import.",
     noRemovals:
-      "This import won’t delete any existing entries in the target ledger. New entries get their numbers from the server. The source ledger’s data isn’t deleted automatically after a successful import either.",
+      "All existing destination entries will remain. New entries receive IDs automatically. Source data won’t change.",
     removalsSummary_one: "{{count}} target entry will be deleted (expand to check)",
     removalsSummary_other: "{{count}} target entries will be deleted (expand to check)",
     removalsNote:
@@ -488,21 +488,21 @@ const ledgerImport: Messages<typeof zh> = {
     pausedTitle: "It’s safe to retry",
     errorTitle: "Needs another review",
     pausedBody:
-      "The server may have finished, or may not have started yet. Checking again with the same import ID won’t create entries twice.",
-    errorBody: "Nothing was written to the target ledger this time. Go back to the preview, confirm again, then start.",
+      "The task result hasn’t been confirmed. Checking again won’t duplicate entries.",
+    errorBody: "No entries were written to the destination. Return to the preview, review, and try again.",
     checkResult: "Check the result",
   },
   result: {
     eyebrow: "Import complete",
     imported_one: "Imported {{count}} entry",
     imported_other: "Imported {{count}} entries",
-    updated_one: "Also updated {{count}} existing target entry, as you explicitly chose.",
-    updated_other: "Also updated {{count}} existing target entries, as you explicitly chose.",
+    updated_one: "Updated {{count}} destination entry as confirmed.",
+    updated_other: "Updated {{count}} destination entries as confirmed.",
     into: "Into “{{name}}”",
     intoWithNumber: "Into “{{name}}” · No. {{number}}",
     createdSuffix: " (created for this import)",
-    skipped_one: "Skipped {{count}} source entry, as you chose during review.",
-    skipped_other: "Skipped {{count}} source entries, as you chose during review.",
+    skipped_one: "Skipped {{count}} source entry as confirmed.",
+    skipped_other: "Skipped {{count}} source entries as confirmed.",
     removed_one:
       "Deleted {{count}} target entry, as you chose. You can restore it from edit history, as long as the ledger still exists and you can edit it.",
     removed_other:
@@ -520,7 +520,7 @@ const ledgerImport: Messages<typeof zh> = {
     byCurrency: "By currency (currencies are never added together)",
     currencyTotals: "{{currency}}: Expense {{expense}} · Income {{income}}",
     serverChecked:
-      "The server checked these numbers against what was actually written. The source ledger’s data is still kept and won’t be deleted automatically.",
+      "The imported results have been verified. Source ledger data remains unchanged.",
     openTarget: "Open target ledger",
     done: "Done",
   },
@@ -538,7 +538,7 @@ const ledgerImport: Messages<typeof zh> = {
     targetExisting_other:
       "The target ledger already has {{count}} entries. The import only adds entries or handles duplicates the way you choose — it never silently changes existing ones.",
     guest:
-      "This is the guest ledger on this device. Neither the preview nor the import deletes guest data automatically; cleanup is a separate step.",
+      "The source is a guest ledger on this device. Previewing and importing keep guest data. Cleanup is a separate action.",
   },
   submitError: {
     noMapping: "A source item has no mapping.",

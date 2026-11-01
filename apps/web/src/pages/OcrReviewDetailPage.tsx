@@ -1,3 +1,4 @@
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 /**
  * 单笔核对/编辑页（S15-B §3.3）。
  *
@@ -116,6 +117,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   const item = batch === null || candidateId === undefined ? null : batchItem(batch, candidateId);
   const [form, setForm] = useState<FormState | null>(() => (item === null ? null : initialForm(item)));
   const [error, setError] = useState<string | null>(null);
+  const attachments = useCaptureAttachments(batch?.bookId ?? null, "photo", batch?.items.filter(item => !item.invalid).map((item, index) => ({ id: item.candidateId, label: `${index + 1}. ${item.amount ?? "—"} ${item.currency ?? ""} · ${item.merchant ?? ""}` })) ?? [], !batch || !batchBelongsToBook(batch, ledger.data?.book.id ?? null));
 
   if (batch === null || item === null || form === null) {
     return (
@@ -262,7 +264,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   }
 
   return (
-    <InnerPage
+    <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("ocr.detail.title")}
       backTo="/ocr/overview"
     >
@@ -288,7 +290,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         </Alert>
       ) : null}
 
-      <section className="flex flex-col gap-4 rounded-card border border-line bg-surface p-4 shadow-card">
+      <section className="lv-capture-ocr-fields flex flex-col gap-4 rounded-card border border-line bg-surface p-4 shadow-card">
         <div className="flex flex-wrap gap-1.5">
           <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
             {ocrDirectionLabel(item.direction)}
@@ -508,7 +510,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
           {t("ocr.detail.backWithoutSaving")}
         </Button>
       </div>
-    </InnerPage>
+      <CaptureMobileAttachments panel={attachments.panel} />
+    </InnerPage></CaptureLayout>
   );
 }
 

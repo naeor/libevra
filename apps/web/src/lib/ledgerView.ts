@@ -24,7 +24,16 @@ export function mergeLedgerEntries(
   const byId = new Map(remote.map(entry => [entry.id, entry]));
   for (const entry of local) {
     const server = byId.get(entry.id);
-    if (server === undefined || pending.has(entry.id) || entry.version >= server.version) byId.set(entry.id, entry);
+    if (server === undefined || pending.has(entry.id) || entry.version >= server.version) {
+      // 附件与空间由服务器独立维护；本机未同步的金额等字段仍按原规则保留。
+      // 同一账目版本的本机副本不能把刚上传的附件数量覆盖回旧值。
+      byId.set(entry.id, server === undefined ? entry : {
+        ...entry,
+        ...(server.attachmentCount === undefined ? {} : { attachmentCount: server.attachmentCount }),
+        ...(server.attachmentTypes === undefined ? {} : { attachmentTypes: server.attachmentTypes }),
+        ...(server.storageBytes === undefined ? {} : { storageBytes: server.storageBytes }),
+      });
+    }
   }
   return filterLocally([...byId.values()], filters).filter((entry) => !deleted.has(entry.id));
 }

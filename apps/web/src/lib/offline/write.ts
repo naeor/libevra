@@ -414,7 +414,8 @@ export async function updateEntry(
 
   await upsertEntry(next);
   /** ⚠️ synced: true because the server already has this entry, so a sync changes it rather than creating it. */
-  await setMark(id, { pending: true, synced: true, chain });
+  const auditChanges = deviceAuditChanges(current, next);
+  await setMark(id, { pending: true, synced: previousMark?.synced !== false, chain, deviceEdits: [...(previousMark?.deviceEdits ?? []), { at: new Date().toISOString(), changes: auditChanges }] });
   await afterWrite();
 
   if (isAccountOffline()) {
@@ -580,6 +581,16 @@ const EDITABLE_FIELDS: readonly string[] = [
   "note",
   "tagIds",
 ];
+
+/** 设备历史也保留日期与时区；它们不参与既有的字段冲突判定。 */
+export function deviceAuditChanges(before: Transaction, after: Transaction): Record<string, { from: unknown; to: unknown }> {
+  return Object.fromEntries(
+    [...EDITABLE_FIELDS, "occurredAt", "occurredLocalDate", "occurredTz"].flatMap(field => {
+      const from = fieldValue(before, field), to = fieldValue(after, field);
+      return JSON.stringify(from) === JSON.stringify(to) ? [] : [[field, { from, to }]];
+    }),
+  );
+}
 
 /** One field's value, in the form the server compares — tags as ids, not as objects. */
 function fieldValue(entry: Transaction, field: string): unknown {

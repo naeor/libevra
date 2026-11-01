@@ -191,9 +191,9 @@ describe("OcrOverview summary", () => {
     expect(summaryNumber(html, "未标记无效")).toBe(String(counts.valid));
     expect(summaryNumber(html, "已确认")).toBe(String(counts.confirmed));
     expect(summaryNumber(html, "已标记无效")).toBe(String(counts.invalid));
-    expect(html).toContain("你已核对过");
-    expect(summaryNumber(html, "你已核对过")).toBe(String(counts.reviewed));
-    expect(html).toContain("与自动检查的「已确认」不同");
+    expect(html).toContain("已核对");
+    expect(summaryNumber(html, "已核对")).toBe(String(counts.reviewed));
+    expect(html).toContain("“已确认”表示通过自动检查");
   });
 
   it("does not inflate 可导入 when a candidate still has an import blocker", () => {
@@ -405,7 +405,7 @@ describe("OcrOverview cards", () => {
 
   it("shows an empty state instead of an empty list", () => {
     expect(render({ items: [], counts: countBatchItems([]) })).toContain(
-      "这次识别没有切分出任何交易",
+      "未识别到交易",
     );
   });
 

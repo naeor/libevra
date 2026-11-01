@@ -53,6 +53,8 @@ export interface SpokenDraftHandover {
   readonly parsed: TransactionTextResult;
   /** Which entrance produced the draft, so the review screen can speak honestly. */
   readonly source: "voice" | "paste";
+  readonly attachmentTarget?: string | undefined;
+  readonly attachmentTargets?: import("./captureAttachments.js").AttachmentTarget[];
 }
 
 let pendingSpoken: SpokenDraftHandover | null = null;

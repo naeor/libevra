@@ -89,7 +89,7 @@ describe("卡片内容", () => {
   it("来自新版本的未知卡片只读占位，不报错", () => {
     const card = { ...newCard("AN-B01"), analysis: { analysisId: "AN-Z99", params: {} } };
     const html = renderToStaticMarkup(<CardBody card={card} scope={scope()} density="medium" />);
-    expect(html).toContain("更新应用后即可显示");
+    expect(html).toContain("需要更新版本的应用");
   });
 
   it("预置标题随界面语言，自定义标题原样显示；固定区间写在副标题", () => {
@@ -104,7 +104,7 @@ describe("卡片内容", () => {
   it("固定时间卡片不把全局筛选金额冒充成固定区间的综合折算", () => {
     const card = { ...newCard("AN-B01"), rangePolicy: "pinned" as const, pinnedRange: { from: "2026-10-01", to: "2026-10-02" } };
     const html = renderToStaticMarkup(<CardBody card={card} scope={scope({ combined: true, fxAvailable: true })} density="medium" />);
-    expect(html).toContain("还没有读取到");
+    expect(html).toContain("尚未读取");
     expect(html).not.toContain("正在按历史汇率折算");
   });
 
@@ -112,8 +112,8 @@ describe("卡片内容", () => {
     const fx = buildFxView({ entries: [entry({ currency: "USD" })], missingCurrencies: ["USD"] });
     for (const id of ["AN-B01", "AN-I01"]) {
       const html = renderToStaticMarkup(<CardBody card={newCard(id)} scope={scope({ combined: true, fxAvailable: true, fx })} density="expanded" />);
-      expect(html).toContain("缺汇率");
-      expect(html).toContain("无法确定");
+      expect(html).toContain("缺少汇率");
+      expect(html).toContain("无法计算");
       expect(html).not.toContain("¥0.00");
       expect(html).not.toContain("这段时间没有记录");
     }
@@ -123,7 +123,7 @@ describe("卡片内容", () => {
     const fx = buildFxView({ entries: [entry()], sourceComplete: false });
     const html = renderToStaticMarkup(<CardBody card={newCard("AN-B01")} scope={scope({ combined: true, fxAvailable: true, fx })} density="medium" />);
     expect(html).toContain("¥1,234.56");
-    expect(html).not.toContain("缺汇率");
+    expect(html).not.toMatch(/缺(?:少)?汇率/);
     expect(html).toContain(t("statsWorkbench.states.partial"));
   });
 });

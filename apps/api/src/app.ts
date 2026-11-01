@@ -1,3 +1,8 @@
+import { registerStorageReconciliation } from "./ledger/storageReconcile.js";
+import { registerEntryNoticeRoutes } from "./routes/entryNotices.js";
+import { registerStorageAdminRoutes } from "./routes/storageAdmin.js";
+import { registerAttachmentRoutes } from "./routes/attachments.js";
+import { registerAuditContext } from "./ledger/auditContext.js";
 import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import { MAX_RECOGNIZE_BYTES, MAX_RECOGNIZE_IMAGES, type RegistrationMode } from "@libellum/shared";
@@ -115,6 +120,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     trustProxy: true,
   });
 
+  registerAuditContext(app);
+  if (options.prisma) registerStorageReconciliation(app, options.prisma);
   registerErrorHandlers(app);
   configureCriticalEvents(options.criticalEvents ?? createRuntimeFromEnv());
 
@@ -217,6 +224,9 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      * owner can add real documents to the shared policy when they are reviewed.
      */
     const requireAdmin = createRequireAdmin(prisma, requireAuth);
+    registerAttachmentRoutes(app, { prisma, requireAuth });
+    registerEntryNoticeRoutes(app, { prisma, requireAuth });
+    registerStorageAdminRoutes(app, { prisma, requireAdmin });
 
     /**
      * Started on first use, not here.

@@ -1,3 +1,6 @@
+import { DashboardMessages } from "./DashboardMessages.js";
+import { BookNotificationBell } from "../components/BookNotificationBell.js";
+import { NotificationBell } from "../components/Notifications.js";
 /**
  * **总览（Dashboard）**：整个 Libevra 的个人化首页——各账本的本月概况、跨账本收支、最近账目、待处理与
  * 快捷操作，不必进入某个账本就能知道最近发生了什么。它不是某个账本的分析页，也不代替左侧导航。
@@ -15,6 +18,8 @@ import { UNCATEGORISED_NAME, type CurrencySummary, type Transaction } from "@lib
 type SummaryResponse = { readonly month: string; readonly currencies: readonly CurrencySummary[] };
 
 import { useAuth } from "../auth/AuthProvider.js";
+import { LedgerMonthPicker } from "../components/LedgerMonthPicker.js";
+import { ChevronIcon } from "../components/Icons.js";
 import { useI18n } from "../i18n/index.js";
 import { currentMonth, formatDayLabel } from "../lib/datetime.js";
 import { formatMoney } from "../lib/format.js";
@@ -132,6 +137,8 @@ export function DesktopDashboardPage(): React.JSX.Element {
   const currentBookId = useCurrentBookId();
   const [month, setMonth] = useState(() => { try { const value = readSession("libevra.dashboard.month"); return value !== null && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : currentMonth(); } catch { return currentMonth(); } });
   const mainCode = user?.defaultCurrency ?? "CNY";
+  const monthAnchor = useRef<HTMLButtonElement | null>(null);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
   const bookList: readonly BookInfo[] = useMemo(() => (books.data?.books ?? []).map((book) => ({ id: book.id, name: book.name, memberCount: book.memberCount })), [books.data]);
   const bookIds = useMemo(() => bookList.map((book) => book.id), [bookList]);
@@ -164,7 +171,9 @@ export function DesktopDashboardPage(): React.JSX.Element {
     });
   }, []);
 
-  const hiddenCards = config.cards.filter((card) => card.hidden === true);
+  const hiddenCards = config.cards.filter((card) => card.hidden === true && card.kind !== "quick");
+  // 快捷操作固定在侧栏；仅派生显示配置，不删除用户保存的卡片配置。
+  const mainConfig = useMemo(() => ({ ...config, cards: config.cards.filter(card => card.kind !== "quick") }), [config]);
   const scopeIds = config.crossScope === "all" ? bookIds : config.crossScope;
 
   const books_ = { list: bookList, byId: new Map(bookList.map((book) => [book.id, book])) };
@@ -206,21 +215,26 @@ export function DesktopDashboardPage(): React.JSX.Element {
                 </button>
               </>
             ) : (
-              <button type="button" className="lv-desk-btn" onClick={() => { baseline.current = readRawConfig(owner); setUndo([]); setRedo([]); setSaveError(false); setDraft(config); }}>
+              <><NotificationBell showHeading={false} panelClassName="lv-account-notice-panel" /><button type="button" className="lv-desk-btn" onClick={() => { baseline.current = readRawConfig(owner); setUndo([]); setRedo([]); setSaveError(false); setDraft(config); }}>
                 {t("desktop.dashboard.edit")}
-              </button>
+              </button></>
             )
           }
         >
-          <label className="lv-dash-month text-helper">{t("desktop.entries.month")}<input type="month" value={month} max={currentMonth()} onChange={(event) => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) { setMonth(event.target.value); writeSession("libevra.dashboard.month", event.target.value); } }} /></label>
+          <button ref={monthAnchor} type="button" className="lv-desk-btn lv-month-trigger" aria-haspopup="dialog" aria-expanded={monthPickerOpen} title={t("ledger.monthPicker.title")} onClick={() => setMonthPickerOpen(value => !value)}>
+            {headerMonthLabel(month)}<ChevronIcon up={monthPickerOpen} className="size-4 text-brand" />
+          </button>
+          <LedgerMonthPicker open={monthPickerOpen} month={month} maxMonth={currentMonth()} bookIds={bookIds} anchor={monthAnchor}
+            onClose={() => setMonthPickerOpen(false)} onSelect={value => { setMonth(value); writeSession("libevra.dashboard.month", value); }} />
         </DesktopToolbar>
+        <div className="lv-dash-workspace">
         <div ref={scrollRef} onScroll={(event) => writeSession("libevra.dashboard.scroll", String(event.currentTarget.scrollTop))} className="lv-desk-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="lv-dash">
             {editing ? <p className="text-helper-relaxed text-muted">{t("desktop.dashboard.editHint")}</p> : null}
             {saveError && editing ? <p role="alert" className="text-helper text-danger">{t("desktop.dashboard.saveError")}</p> : null}
             {books.isPending ? <p className="text-body text-muted">{t("desktop.common.loading")}</p> : null}
             {books.isError ? <div role="alert" className="flex items-center gap-4"><p className="text-body text-danger">{t("desktop.dashboard.readFailed")}</p><button className="lv-desk-btn" onClick={() => void books.refetch()}>{t("common.action.retry")}</button></div> : null}
-            <DashboardGrid config={config} editing={editing} onChange={edit} scrollRef={scrollRef}
+            <DashboardGrid config={mainConfig} editing={editing} onChange={next => edit({ ...next, cards: [...next.cards, ...config.cards.filter(card => card.kind === "quick")] })} scrollRef={scrollRef}
               tools={(card) => card.kind === "ledger" || card.kind === "cross" ? <CardSettings key={card.id} card={card} books={bookList} config={config} onChange={edit} /> : null}
               render={(card) => (
                     <CardFrame
@@ -246,6 +260,8 @@ export function DesktopDashboardPage(): React.JSX.Element {
                     </CardFrame>
               )} />
           </div>
+        </div>
+        <aside className="lv-dash-sidebar" aria-label={t("desktop.dashboard.aside")}><QuickActions /><DashboardMessages books={bookList} /></aside>
         </div>
       </div>
     </>
@@ -448,6 +464,7 @@ function LedgerCardBody({ card, books, snapshots, currentBookId, mainCode, month
           <h2 className="text-card-title text-ink"><button className="lv-dash-title" disabled={editing || switcher.busy} onClick={() => open()}>{book?.name ?? "—"}</button></h2>
           <p className="text-helper text-muted">{current ? t("desktop.dashboard.currentLedger") : t("desktop.ledgerPicker.members", { count: book?.memberCount ?? 1 })}</p>
         </div>
+        {book && !editing ? <BookNotificationBell bookId={book.id} /> : null}
       </header>
       {snapshot?.summary === undefined ? <p className="text-helper text-muted">{t(snapshot?.failed ? "desktop.dashboard.readFailed" : "desktop.common.loading")}</p> : main === null ?
         <p className="text-helper text-muted">{t("desktop.dashboard.noData")}</p> : <>

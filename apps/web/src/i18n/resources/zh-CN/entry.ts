@@ -21,7 +21,7 @@ const entry = {
     duplicateTitle: "这笔账好像已经记过了",
     notDuplicateNoBook: "找不到当前账本，无法记录「不是同一笔」。",
     notDuplicateNoPair: "没有可记录的交易对。",
-    notDuplicateFailed: "这笔账已保存，但「不是同一笔」没有记住：{{reason}}",
+    notDuplicateFailed: "账目已保存，但未能保存“不是同一笔”标记：{{reason}}",
   },
   /** 手动记账的疑似重复轻提醒。 */
   duplicate: {

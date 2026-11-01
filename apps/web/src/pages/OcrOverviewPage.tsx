@@ -1,3 +1,4 @@
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 /**
  * 「批量识别结果」概览页（S15-B B3）。
  *
@@ -173,6 +174,7 @@ export function OcrOverviewPage(): React.JSX.Element {
   const currentBookId = ledger.data?.book.id ?? null;
   const role = books.data?.books.find((book) => book.id === currentBookId)?.role ?? null;
   const wrongBook = batch !== null && !batchBelongsToBook(batch, currentBookId);
+  const attachments = useCaptureAttachments(batch?.bookId ?? currentBookId, "photo", items.filter(item => !item.invalid).map((item, index) => ({ id: item.candidateId, label: `${index + 1}. ${item.amount ?? "—"} ${item.currency ?? ""} · ${item.merchant ?? item.note ?? ""}` })), wrongBook || readOnly || importing);
 
   /**
    * 批次所属账本的分类/支付方式/标签。批次有 `bookId` 就按它读；没有（旧批次/无账本
@@ -389,6 +391,7 @@ export function OcrOverviewPage(): React.JSX.Element {
         return;
       }
 
+      await attachments.commit(Object.fromEntries(result.succeeded.map(entry => [entry.candidateId, assigned.importIds[entry.candidateId]!] )));
       const succeededIds = result.succeeded.map((entry) => entry.candidateId);
 
       if (result.failed.length === 0) {
@@ -448,7 +451,7 @@ export function OcrOverviewPage(): React.JSX.Element {
   }
 
   return (
-    <InnerPage
+    <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("ocr.overview.title")}
       backTo="/scan"
       actions={
@@ -604,7 +607,8 @@ export function OcrOverviewPage(): React.JSX.Element {
           setCancelOpen(false);
         }}
       />
-    </InnerPage>
+      <CaptureMobileAttachments panel={attachments.panel} />
+    </InnerPage></CaptureLayout>
   );
 }
 

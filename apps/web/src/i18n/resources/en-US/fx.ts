@@ -2,7 +2,7 @@ import type { Messages } from "../../types.js";
 import type zh from "../zh-CN/fx.js";
 const fx: Messages<typeof zh> = {
   analysisMode: "Analysis mode",
-  title: "Currency conversion", hint: "View amounts in your default currency using historical reference rates. Original entries stay unchanged.",
+  title: "Currency conversion", hint: "Convert to the default currency using historical reference rates for each transaction date. Original entries remain unchanged.",
   device: "Saved on this device, separately for each account.", saveError: "Could not save this setting. Check local storage.",
   target: "Reporting currency: {{currency}}", combined: "Combined analysis", separate: "By currency", original: "Original",
   loading: "Loading historical rates…", unavailable: "Rate unavailable", offline: "Offline · using local data", review: "Historical rates need review",

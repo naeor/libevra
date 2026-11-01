@@ -14,6 +14,8 @@ import { z } from "zod";
 
 /** The management actions that can appear in the audit log. Stable identifiers, not sentences. */
 export const AUDIT_ACTIONS = [
+  "storage.policy",
+  "storage.limit",
   "invite.create",
   "invite.revoke",
   "account.suspend",

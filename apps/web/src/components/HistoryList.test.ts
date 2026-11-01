@@ -92,7 +92,7 @@ describe("history wording by language", () => {
     ).toBe("naeor added an entry");
     expect(
       historySentenceText(event({ kind: "member_changed", transactionSeq: null, summary: "naeor 变更了这本账的成员" })),
-    ).toBe("naeor changed this ledger’s members");
+    ).toBe("naeor updated ledger members");
   });
 
   it("translates the server's field names and fixed values only where the server writes them", () => {

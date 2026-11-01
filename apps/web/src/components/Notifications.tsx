@@ -1,6 +1,7 @@
+import { BookNotificationBell } from "./BookNotificationBell.js";
 import { useState, type ReactNode } from "react";
 
-import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
+import { t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import {
   useDecideNotification,
@@ -27,12 +28,19 @@ import {
  * things read (the dot clears), but a notification stays in the pending list until it is answered —
  * **clearing a dot must never look like answering a question.**
  */
-export function NotificationBell({
+export function NotificationBell(props: { showHeading?: boolean; extraAction?: ReactNode; panelClassName?: string; bookId?: string; trigger?: ReactNode } = {}): React.JSX.Element {
+  if (props.bookId) return <div className="flex items-center gap-2"><BookNotificationBell bookId={props.bookId} />{props.extraAction}</div>;
+  return <AccountNotificationBell {...props} />;
+}
+
+function AccountNotificationBell({
   showHeading = true,
   extraAction,
   panelClassName,
+  trigger,
 }: {
   readonly showHeading?: boolean;
+  readonly trigger?: ReactNode;
   /**
    * ⚠️ **One button next to the bell, not a second bell.**
    *
@@ -82,7 +90,7 @@ export function NotificationBell({
                * the panel must appear at once, and a failed "mark read" is not a reason to keep the
                * reader waiting. The next load reports the truth either way.
                */
-              if (next && unread > 0) void markRead.mutateAsync().catch(() => undefined);
+              if (next && unread > 0) void markRead.mutateAsync(inbox.data?.notifications.map(n => n.id) ?? []).catch(() => undefined);
               return next;
             });
           }}
@@ -92,13 +100,13 @@ export function NotificationBell({
               ? t("collab.notifications.bellUnread", { count: unread })
               : t("collab.notifications.bell")
           }
-          className="relative flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-ink transition hover:bg-canvas"
+          className={trigger ? "lv-dash-message-link" : "relative flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-ink transition hover:bg-canvas"}
         >
-          <BellIcon />
+          {trigger ?? <BellIcon />}
           {unread > 0 ? (
             <span
               data-testid="notification-dot"
-              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-surface"
+              className={trigger ? "lv-dash-message-dot" : "absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-surface"}
             />
           ) : null}
           </button>
@@ -277,12 +285,11 @@ function titleOf(notification: NotificationView): string {
  * The text under the sender line.
  *
  * ⚠️ S16：`book_invite` 的附言是邀请人自己写的话（用户数据），原样显示。`referral_reminder` 的正文
- * 却是**服务器用中文写成的固定句子**（`apps/api/src/collab/referral.ts`）：中文界面照旧显示原文，
- * 其它语言按通知类型换成同义译文，人名取发出邀请码的人（即发送者）。
+ * 是系统模板，按通知类型显示当前语言的界面文案，保留服务器历史记录；人名取发送者。
  */
 function messageOf(notification: NotificationView): string | null {
   if (notification.message === null) return null;
-  if (notification.kind === "referral_reminder" && !isChineseLocale()) {
+  if (notification.kind === "referral_reminder") {
     return translate("collab.notifications.referralMessage", { name: notification.sender.displayName });
   }
   return notification.message;

@@ -71,10 +71,10 @@ describe("分析页图表（中文，默认）", () => {
   it("keeps the original Chinese sentences", () => {
     const html = renderAll();
 
-    expect(html).toContain("对比为“上月同期”：本期 9 天，对比上期 1 天。本期尚未结束，与完整月份比较会失真。");
+    expect(html).toContain("与上月同期比较：本期 9 天，上期 1 天。本期尚未结束，未与完整月份比较。");
     expect(html).toContain("所选时段没有可对比的历史数据，因此不显示变化幅度。");
     expect(html).toContain("42 笔");
-    expect(html).toContain("颜色表示“在本期内的相对高低”。");
+    expect(html).toContain("颜色表示本期内支出的相对高低。");
     expect(html).toContain("人民币支出最多的一天是 2026-10-28，");
     expect(html).toContain("所选时段暂无收支记录。");
     expect(html).toContain("其它 1 项");
@@ -89,7 +89,7 @@ describe("分析页图表（英文）", () => {
     const html = renderAll();
 
     expect(html).not.toMatch(CJK);
-    expect(html).toContain("Compared with the same days last month: 9 days this period, 1 day before.");
+    expect(html).toContain("Month-to-date comparison: current 9 days, previous 1 day.");
     expect(html).toContain("42 entries");
     expect(html).toContain("No income or spending recorded in this period.");
     expect(html).toContain("No spending recorded in this period.");

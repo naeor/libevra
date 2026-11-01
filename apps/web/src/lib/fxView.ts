@@ -137,3 +137,12 @@ export function useFxRange(
   return { ...mode, enabled, ...(state.key === key && !source.error ? state : {}), ...sourceFailure, loading: enabled && active && !source.error && (source.loading || state.key !== key || (!state.result && !state.error)),
     refresh: () => { source.refresh(); setRetry(value => value + 1); } };
 }
+
+/** 明细排序复用逐笔折算及同一历史汇率来源。 */
+export async function entrySortAmounts(entries: readonly Transaction[], target: string, bookId: string, offline: boolean, signal: AbortSignal): Promise<Record<string, string | null>> {
+  const lookups = new Map<string, FxLookup>();
+  for (const date of new Set(entries.filter(e => e.currency !== target).map(e => e.occurredLocalDate))) {
+    signal.throwIfAborted(); lookups.set(date, await rates.lookup(date, { offline }));
+  }
+  return Object.fromEntries(entries.map(e => [e.id, convertFx({ ...e, bookId }, target, lookups.get(e.occurredLocalDate)).convertedMinor]));
+}

@@ -1,3 +1,4 @@
+import { AccountStorageSummary } from "../components/Attachments.js";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -290,6 +291,7 @@ export function AccountDataPage(): React.JSX.Element {
 
   return (
     <InnerPage title={t("account.data.title")} backTo="/settings">
+      <AccountStorageSummary />
       {/**
         * ⚠️ **S16-A：反馈贴着页面顶部，但不再整段铺开。** 服务器的错误说明可能有好几行（例如注销
         * 前需要交接的账本），原来的 `Alert` 会把下面的三组内容整体推出首屏。`InlineMessage` 默认显示

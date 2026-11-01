@@ -67,7 +67,7 @@ export function ReviewStep({
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="lv-review-form flex flex-col gap-5">
       {warnings.length === 0 ? null : (
         <Alert tone="info">
           <ul className="flex flex-col gap-1">

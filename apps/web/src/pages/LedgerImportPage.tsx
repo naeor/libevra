@@ -144,13 +144,13 @@ function isJobErrorCode(code: string): code is JobErrorCode {
 /**
  * 任务表里服务器写下的失败说明（`lastErrorMessage`）在当前语言下怎么显示。
  *
- * 中文界面：与以前一样显示服务器原文。其它语言：先按 `lastErrorCode` 查本模块的译文，再查
+ * 中文界面：精确映射已审定的固定提示，其余保留服务器原文。其它语言先按 `lastErrorCode` 查本模块的译文，再查
  * `errors.api.<code>`，再查 shared 原文对照表；都没有就给一句通用说明——不把中文原文塞进英文界面。
  */
 function jobErrorText(job: Pick<ImportJobStatus, "lastErrorCode" | "lastErrorMessage">): string | null {
   const message = job.lastErrorMessage;
   if (message === null) return null;
-  if (isChineseLocale()) return message;
+  if (isChineseLocale()) return translateSharedMessage(message);
   const code = job.lastErrorCode ?? "";
   if (isJobErrorCode(code)) return t(`ledgerImport.jobError.${code}`);
   const apiKey = `errors.api.${code}`;
@@ -161,11 +161,11 @@ function jobErrorText(job: Pick<ImportJobStatus, "lastErrorCode" | "lastErrorMes
 }
 
 /**
- * 正式来源的处置说明。中文界面显示服务器原文；其它语言按服务器给的结构化字段（能否弃置、
+ * 正式来源的处置说明。中文界面精确映射固定原文；其它语言按服务器给的结构化字段（能否弃置、
  * 未迁入数量）选择译文，与服务器生成原文的条件完全相同（`apps/api/src/ledger/importCleanup.ts`）。
  */
 function dispositionReason(disposition: FormalSourceDisposition): string {
-  if (isChineseLocale()) return disposition.reason;
+  if (isChineseLocale()) return translateSharedMessage(disposition.reason);
   if (!disposition.canArchive) return t("ledgerImport.retention.reason.blocked");
   return disposition.unmigratedCount === 0
     ? t("ledgerImport.retention.reason.allMigrated")

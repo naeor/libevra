@@ -45,7 +45,7 @@ describe("真实本地审查分页", () => {
     const chunk = await fetchReviewChunk(mock.book, settings, 0);
     await expect(fetchReviewChunk(mock.book, { ...settings, timeWindowSeconds: 300 }, 0, 0, chunk.continuation!)).rejects.toThrow("快照已失效");
     mock.book = "book-2";
-    await expect(fetchReviewChunk("book-1", settings, 0, 0, chunk.continuation!)).rejects.toThrow("本机没有这本账");
+    await expect(fetchReviewChunk("book-1", settings, 0, 0, chunk.continuation!)).rejects.toThrow("本机无此账本的检测数据");
   });
   it("从另一账本设置在线检查时显式使用目标账本，不要求切换当前账本", async () => {
     vi.stubGlobal("navigator", { onLine: true });

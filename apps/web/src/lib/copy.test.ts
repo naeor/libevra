@@ -281,10 +281,10 @@ describe("guest mode copy (S14-C)", () => {
   it("separates guest data from a formal account and warns about no cloud backup", () => {
     const accountCopy = visibleText("../i18n/resources/zh-CN/account.ts");
     expect(guestMe).toContain('t("account.guestMe.formalNote")');
-    expect(accountCopy).toContain("创建或登录正式账号后");
-    expect(accountCopy).toContain("游客账本不会自动上传、合并或删除");
+    expect(accountCopy).toContain("游客账本不会随登录自动上传、合并或删除");
+    expect(accountCopy).toContain("游客账本不会随登录自动上传、合并或删除");
     expect(guestMe).toContain('t("account.guestMe.noBackup")');
-    expect(accountCopy).toContain("游客数据没有云端备份");
+    expect(accountCopy).toContain("游客数据仅保存在本机");
     expect(guestMe).toContain('t("account.guestMe.clearGuest")');
     expect(accountCopy).toContain('clearGuest: "清除游客数据"');
     expect(guestMe).toContain('t("account.guestMe.clearAll")');

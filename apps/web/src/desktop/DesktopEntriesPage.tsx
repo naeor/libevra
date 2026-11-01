@@ -1,3 +1,8 @@
+import { readSession, writeSession } from "../lib/detailTransition.js";
+import { usePane } from "../workspace/context.js";
+import { formatStorageBytes } from "@libellum/shared";
+import { EntrySortControls, useEntryPresentation } from "../components/EntrySortControls.js";
+import { AttachmentPanel } from "../components/Attachments.js";
 /**
  * **电脑版明细**：找到、查看与处理账目。
  *
@@ -18,7 +23,8 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { ConflictScreen } from "../components/ConflictScreen.js";
 import { FxAmount } from "../components/FxDisplay.js";
-import { MonthPicker } from "../components/MonthPicker.js";
+import { EntryFilterPanel, FilterIcon, useDetailFilters } from "../components/EntryFilterPanel.js";
+import { summaryFor } from "../lib/offline/localStats.js";
 import { OfflineStatus } from "../components/OfflineStatus.js";
 import { SyncBanner } from "../components/SyncBanner.js";
 import { BatchActionBar } from "../components/ledger/BatchActionBar.js";
@@ -53,7 +59,7 @@ import { pendingCount, retryAbandonedWrites, syncNow } from "../lib/offline/sync
 import { resolveConflict } from "../lib/offline/write.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import { useLedger, useSummary, useTransactions } from "../lib/queries.js";
-import { headerMonthLabel, shiftMonth, sortByTime, useLocalEntries } from "../pages/DetailPage.js";
+import { useLocalEntries } from "../pages/DetailPage.js";
 import { EntryDetailPage } from "../pages/EntryDetailPage.js";
 import { DesktopPopover } from "./DesktopPopover.js";
 import { DesktopSplit } from "./DesktopSplit.js";
@@ -97,6 +103,7 @@ const NO_ENTRIES: readonly Transaction[] = [];
 export function DesktopEntriesPage(): React.JSX.Element {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const pane = usePane();
   const { user } = useAuth();
   const guest = useGuestMode();
   const fxMode = useFxMode();
@@ -105,10 +112,11 @@ export function DesktopEntriesPage(): React.JSX.Element {
   const selectedId = params.get(ENTRY_PARAM);
 
   const saved = useRef(readJson<{ month?: string; kind?: EntryKindFilter }>("session", SESSION_KEY, {})).current;
-  const [month, setMonth] = useState(() => saved.month ?? currentMonth());
+  const [month, setMonth] = useState(() => params.get("month") ?? saved.month ?? currentMonth());
   const [kind, setKind] = useState<EntryKindFilter>(() => saved.kind ?? "all");
   const [query, setQuery] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const monthAnchor = useRef<HTMLButtonElement | null>(null);
   const [prefs, setPrefs] = useState<SummaryPrefs>(() => readJson("local", SUMMARY_KEY, DEFAULT_SUMMARY));
   const [settling, setSettling] = useState<ConflictRecord | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -125,6 +133,7 @@ export function DesktopEntriesPage(): React.JSX.Element {
 
   const ledger = useLedger();
   const summary = useSummary(month);
+  const filter = useDetailFilters(month, setMonth, params, setParams, ledger.data);
   const filters = useMemo(() => ({ month: allMonths ? undefined : month, kind: kind === "all" ? undefined : kind }), [allMonths, month, kind]);
   const list = useTransactions(filters);
   const local = useLocalEntries(filters);
@@ -133,23 +142,26 @@ export function DesktopEntriesPage(): React.JSX.Element {
   const conflicts = useSyncExternalStore(subscribeConflicts, conflictsValue, conflictsValue);
   const conflicted = useMemo(() => new Set(conflicts.map((conflict) => conflict.mine.id)), [conflicts]);
 
-  // 一个月的账目一次读完（月份视图条目有限）；「全部月份」时按需再读。
-  useEffect(() => {
-    if (!allMonths && list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage();
-  }, [allMonths, list.hasNextPage, list.isFetchingNextPage, list.fetchNextPage]);
-
   const entries = useMemo(() => {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
     return mergeLedgerEntries(local, fromQuery, pending, filters, deleted);
   }, [list.data, local, pending, filters, deleted]);
-  const ordered = useMemo(() => sortByTime(entries), [entries]);
-  const shown = useMemo(() => (query.trim() === "" ? ordered : ordered.filter((entry) => entryMatches(entry, query))), [ordered, query]);
-  const groups = useMemo(() => groupByDay(shown), [shown]);
+  const filtered = useMemo(() => entries.filter(filter.predicate), [entries, filter.predicate]);
+  const presentation = useEntryPresentation(filtered, !list.hasNextPage && !list.isPending && !list.isError, undefined, filter.extended);
+  const ordered = presentation.ordered;
+  // 一个月的账目一次读完（月份视图条目有限）；「全部月份」时按需再读。
+  useEffect(() => {
+    if ((!allMonths || presentation.extended) && list.hasNextPage && !list.isFetchingNextPage && !list.isFetchNextPageError) void list.fetchNextPage();
+  }, [allMonths, presentation.extended, list.hasNextPage, list.isFetchingNextPage, list.isFetchNextPageError, list.fetchNextPage]);
 
-  const batch = useLedgerBatch({ ordered: shown, conflicted, ledger: ledger.data, guest, offline, filterKey: `${month}|${kind}` });
+
+  const shown = useMemo(() => (query.trim() === "" ? ordered : ordered.filter((entry) => entryMatches(entry, query))), [ordered, query]);
+  const groups = useMemo(() => presentation.flat ? [{ date: "", entries: shown }] : groupByDay(shown), [shown, presentation.flat]);
+
+  const batch = useLedgerBatch({ ordered: shown, conflicted, ledger: ledger.data, guest, offline, filterKey: `${filter.key}|${kind}` });
 
   const mainCode = user?.defaultCurrency ?? "CNY";
-  const currencies = summary.data?.currencies ?? [];
+  const currencies = filter.extended ? (presentation.waiting ? [] : summaryFor(filtered, month, { from: "0000-01-01", to: "9999-12-31" }).currencies) : summary.data?.currencies ?? [];
   const main = currencies.find((item) => item.currency === mainCode) ?? currencies[0] ?? null;
   const otherCount = currencies.filter((item) => item !== main).length;
   const trend = useMemo(
@@ -289,8 +301,14 @@ export function DesktopEntriesPage(): React.JSX.Element {
       <EntryDetailPage key={selectedId} entryId={selectedId} />
     ) : null;
 
-  const monthLabel = allMonths ? t("ledger.detail.allTime") : headerMonthLabel(month);
+  const monthLabel = filter.label;
   const searching = query.trim() !== "";
+
+  useEffect(() => {
+    if (!readSession(pane.instance).syncRequested) return;
+    writeSession({ syncRequested: false }, pane.instance);
+    void refresh();
+  });
 
   return (
     <DesktopSplit panel={panel} panelLabel={t("desktop.entries.panel")} panelDisabled={batch.selecting} disabledMessage={t("desktop.entries.panelPaused")} onClosePanel={() => select(null)}>
@@ -330,20 +348,8 @@ export function DesktopEntriesPage(): React.JSX.Element {
           {/* 放不下时搜索框换到第二行，月份与收支切换不被挤压或遮住。 */}
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <div className="lv-desk-month" role="group" aria-label={t("desktop.entries.month")}>
-              <button type="button" className="lv-desk-icon-btn" disabled={allMonths} onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t("desktop.entries.prevMonth")}>
-                <ChevronIcon direction="left" className="size-4" />
-              </button>
-              <button type="button" className="lv-desk-month-label" onClick={() => setPickerOpen(true)} aria-haspopup="dialog">
-                {monthLabel}
-              </button>
-              <button
-                type="button"
-                className="lv-desk-icon-btn"
-                disabled={allMonths || month >= currentMonth()}
-                onClick={() => setMonth(shiftMonth(month, 1))}
-                aria-label={t("desktop.entries.nextMonth")}
-              >
-                <ChevronIcon direction="right" className="size-4" />
+              <button ref={monthAnchor} type="button" className="lv-desk-month-label lv-month-trigger lv-filter-trigger" data-filtered={filter.extended || undefined} onClick={() => setPickerOpen(value => !value)} aria-haspopup="dialog" aria-expanded={pickerOpen} title={t("ledger.filters.title")}>
+                {filter.extended ? <FilterIcon /> : null}<span>{monthLabel}</span><ChevronIcon up={pickerOpen} className="size-4 text-brand" />
               </button>
             </div>
             <div className="lv-desk-seg" role="radiogroup" aria-label={t("desktop.entries.kind")}>
@@ -353,7 +359,7 @@ export function DesktopEntriesPage(): React.JSX.Element {
                 </button>
               ))}
             </div>
-            <label className="lv-desk-search min-w-44 flex-1 basis-44">
+            <label className="lv-desk-search min-w-32 flex-1 basis-32">
               <SearchIcon className="size-4 shrink-0 text-muted" />
               <input
                 type="search"
@@ -369,6 +375,7 @@ export function DesktopEntriesPage(): React.JSX.Element {
                 aria-label={t("desktop.entries.search")}
               />
             </label>
+            <EntrySortControls state={presentation} mode="sort" />
           </div>
         </DesktopToolbar>
 
@@ -397,6 +404,9 @@ export function DesktopEntriesPage(): React.JSX.Element {
 
         <div className="lv-desk-scroll min-h-0 flex-1 overflow-y-auto" onKeyDown={onListKey}>
           <div className="lv-desk-entries">
+            <EntrySortControls state={presentation} mode="status" />
+            {filter.extended && (list.isError || list.isFetchNextPageError) ? <p role="alert" className="text-helper text-danger">{t("ledger.filters.failed")} <button type="button" className="text-brand" onClick={() => { if (list.isFetchNextPageError) void list.fetchNextPage(); else void list.refetch(); }}>{t("ledger.filters.retry")}</button></p> : null}
+            {batch.selecting && batch.selectedIds.length > 0 ? <AttachmentPanel bookId={ledger.data?.book.id ?? null} entryIds={batch.selectedIds} readOnly={!!batch.permission.reason} /> : null}
             {prefs.show && main !== null ? (
               <section className="lv-desk-summary" aria-label={t("desktop.entries.summary")}>
                 {prefs.expense ? <SummaryFigure label={t("desktop.entries.expense")} value={formatMoney(main.expenseCents, main.currency)} /> : null}
@@ -412,23 +422,25 @@ export function DesktopEntriesPage(): React.JSX.Element {
             )}
 
             {list.isPending && entries.length === 0 ? <p className="py-10 text-center text-body text-muted">{t("desktop.common.loading")}</p> : null}
-            {!list.isPending && shown.length === 0 ? (
+            {!list.isPending && !presentation.waiting && !list.isError && shown.length === 0 ? (
               <p className="py-12 text-center text-body text-muted">
-                {searching ? t("desktop.entries.emptySearch", { query: query.trim() }) : t("desktop.entries.empty")}
+                {searching ? t("desktop.entries.emptySearch", { query: query.trim() }) : filter.extended ? t("ledger.filters.noResults") : t("desktop.entries.empty")}
               </p>
             ) : null}
 
             {groups.map((group) => (
               <section key={group.date} className="lv-desk-day">
-                <h2 className="lv-desk-day-head">
+                {!presentation.flat ? <h2 className="lv-desk-day-head">
                   <span>{formatDayLabel(group.date)}</span>
                   <span className="tabular-nums">{dayTotalsLabel(group.entries, mainCode, t)}</span>
-                </h2>
+                </h2> : null}
                 <ul>
                   {group.entries.map((entry) => (
                     <li key={entry.id}>
                       <EntryRow
                         entry={entry}
+                        flat={presentation.flat}
+                        space={presentation.options.order.startsWith("storage")}
                         selected={batch.selecting ? batch.selected.has(entry.id) : entry.id === selectedId}
                         selecting={batch.selecting}
                         pending={pending.has(entry.id)}
@@ -478,7 +490,7 @@ export function DesktopEntriesPage(): React.JSX.Element {
         onCancel={() => batch.setConfirmBatchDelete(false)}
         onConfirm={() => void batch.runBatchDelete()}
       />
-      <MonthPicker open={pickerOpen} month={month} maxMonth={currentMonth()} allowAll onSelect={setMonth} onClose={() => setPickerOpen(false)} />
+      <EntryFilterPanel open={pickerOpen} value={filter.value} ledger={ledger.data} anchor={monthAnchor} onApply={filter.apply} onClose={() => setPickerOpen(false)} />
     </DesktopSplit>
   );
 }
@@ -520,7 +532,7 @@ function DailyBars({ values, label }: { readonly values: readonly number[]; read
 }
 
 function EntryRow({
-  entry,
+  entry, flat, space,
   selected,
   selecting,
   pending,
@@ -529,6 +541,8 @@ function EntryRow({
   onActivate,
 }: {
   readonly entry: Transaction;
+  readonly flat: boolean;
+  readonly space: boolean;
   readonly selected: boolean;
   readonly selecting: boolean;
   readonly pending: boolean;
@@ -561,6 +575,7 @@ function EntryRow({
         <span className="truncate text-body text-ink">{category}</span>
         {entry.note ? <span className="truncate text-body text-muted"> · {entry.note}</span> : null}
         {conflicted ? <span className="lv-desk-chip" data-tone="warn">{t("desktop.entries.conflict")}</span> : pending ? <span className="lv-desk-chip">{t("desktop.entries.pending")}</span> : null}
+      <span className="text-helper text-muted">{flat ? entry.occurredLocalDate : ""}{(entry.attachmentCount ?? 0) > 0 ? ` · 📎 ${entry.attachmentCount}` : ""}{space ? ` · ${formatStorageBytes(entry.storageBytes ?? 0)}` : ""}</span>
       </span>
       <span className="lv-desk-row-meta truncate">{entry.paymentMethodName ? displayPaymentMethodName(entry.paymentMethodName) : ""}</span>
       <span className="lv-desk-row-meta lv-desk-row-time tabular-nums">{formatTimeWithZone(entry.occurredAt, entry.occurredTz)}</span>

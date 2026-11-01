@@ -1,3 +1,4 @@
+import { withStorageGrowth } from "../ledger/storage.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
@@ -484,7 +485,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
       refSnapshot = target.snapshot as unknown as Prisma.InputJsonValue;
     }
 
-    const created = await prisma.bookMessage.create({
+    const created = await withStorageGrowth(prisma, userId, book.bookId, tx => tx.bookMessage.create({
       data: (() => {
         const data: Prisma.BookMessageUncheckedCreateInput = {
           bookId: book.bookId,
@@ -504,7 +505,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
         return data;
       })(),
       select: { id: true, createdAt: true },
-    });
+    }));
 
     void reply.code(201);
     return { ok: true, id: created.id, createdAt: created.createdAt.toISOString() };

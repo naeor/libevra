@@ -1,9 +1,19 @@
+import { useAnalysisRange } from "../lib/analysisRange.js";
+import { mainDetailMetrics, isDetailChart } from "../lib/detailCards.js";
+import "../components/ledger/detail-overview.css";
+import { flushSync } from "react-dom";
+import { DetailOverview } from "../components/ledger/DetailOverview.js";
+import { useDetailCards, detailDayCount } from "../lib/detailCards.js";
+import { entryMatches } from "../desktop/entriesView.js";
+import { EntrySortControls, useEntryPresentation } from "../components/EntrySortControls.js";
+import { ChevronIcon } from "../components/Icons.js";
+import { AttachmentPanel } from "../components/Attachments.js";
 import { CURRENCIES, endOfMonth, type CurrencySummary, type Transaction, type TransactionKind } from "@libellum/shared";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
-import { FxAmount, FxMonthSummary } from "../components/FxDisplay.js";
+import { FxAmount } from "../components/FxDisplay.js";
 import { useFxMode, useFxRange } from "../lib/fxView.js";
 import { AvatarRewardBanner } from "../components/AvatarRewardBanner.js";
 import { CurrentBookCaption } from "../components/CurrentBookCaption.js";
@@ -11,7 +21,8 @@ import { BottomNav } from "../components/BottomNav.js";
 import { useEntryMenu } from "../components/Layouts.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { GuestModeBadge } from "../components/GuestModeBadge.js";
-import { MonthPicker } from "../components/MonthPicker.js";
+import { EntryFilterPanel, FilterIcon, useDetailFilters } from "../components/EntryFilterPanel.js";
+import { summaryFor } from "../lib/offline/localStats.js";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/States.js";
 import { OfflineStatus } from "../components/OfflineStatus.js";
 import { ConflictScreen } from "../components/ConflictScreen.js";
@@ -41,10 +52,10 @@ import {
 } from "../components/ledger/batch.js";
 import { refreshMessage } from "../components/ledger/refreshFeedback.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
-import { categoryBranchIds } from "@libellum/shared";
+
 import { errorMessage } from "../lib/api.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
-import { currentMonth, formatDayLabel, formatInstant, formatMonthLabel, isAllMonths } from "../lib/datetime.js";
+import { currentMonth, formatDayLabel, formatInstant, formatMonthLabel, isAllMonths, toLocalDate } from "../lib/datetime.js";
 import { readSession, useDetailTransition, writeSession } from "../lib/detailTransition.js";
 import { currencyName, formatMoney } from "../lib/format.js";
 import { displayCategoryName } from "../lib/presetNames.js";
@@ -88,19 +99,8 @@ const NO_LOCAL_ENTRIES: readonly Transaction[] = [];
 const NO_MARKS: ReadonlySet<string> = new Set<string>();
 const NO_CONFLICTS: readonly ConflictRecord[] = [];
 
-/**
- * The ledger screen, in one of two shapes.
- *
- * It is a single page and a single tree. Nothing is added, removed or swapped
- * as the reader moves between the two ends — every element that exists in the
- * display state also exists in the list state, at a different size or in a
- * different place, and `--p` interpolates between them. That is what makes the
- * change read as one thing contracting rather than two screens trading places,
- * and it is why the month never disappears and reappears somewhere else.
- *
- * The owner asked for the whole move to feel like a finger's: it follows the
- * touch, then settles with a slight spring. The mechanism is in
- * `lib/detailTransition.ts`; the geometry is in `detail-motion.css`.
+/** 展示态呈现固定槽位的收支摘要；滚动进入明细态后隐藏卡片。
+ * 搜索与收起同步进行，输入焦点不等待动画，工作区各自保留查询与滚动位置。
  */
 export function DetailPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -135,12 +135,47 @@ export function DetailPage(): React.JSX.Element {
   );
   /** 月份选择里选了「全部」（1.17.17）：整本账，不按月份截取。 */
   const allMonths = isAllMonths(month);
-  const [kind, setKind] = useState<TransactionKind>(() => saved.kind ?? "expense");
+  const [kind, setKind] = useState<TransactionKind | "all">(() => saved.kind ?? "all");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
 
-  const categoryId = searchParams.get("categoryId");
-  const { rootRef, scrollRef, stripRef, atList, goTo } = useDetailTransition(saved.progress, pane.instance);
+  const cardConfig = useDetailCards(presentationOwnerId ?? "local");
+  const [searchOpen, setSearchOpen] = useState(saved.searchOpen ?? false);
+  const [query, setQuery] = useState(saved.search ?? "");
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchButton = useRef<HTMLButtonElement>(null);
+  const searchSpace = useRef<HTMLSpanElement>(null);
+  const searchOrigin = useRef(saved.searchOrigin ?? saved.scrollTop);
+  const monthAnchor = useRef<HTMLButtonElement>(null);
+  const { rootRef, scrollRef, atList, goTo, lockSearch } = useDetailTransition(saved.progress, pane.instance, saved.searchOpen);
+  useLayoutEffect(() => {
+    const root = rootRef.current, slot = searchSpace.current;
+    if (!root || !slot || searchOpen) return;
+    const row = slot.closest<HTMLElement>(".detail-header-row")!;
+    const measure = () => {
+      let left = 0, node: HTMLElement | null = slot;
+      while (node && node !== row) { left += node.offsetLeft; node = node.offsetParent as HTMLElement | null; }
+      row.style.setProperty("--search-left", `${left}px`);
+      row.style.setProperty("--search-right", `calc(100% - ${left + slot.offsetWidth}px)`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(row); observer.observe(slot.parentElement!);
+    return () => observer.disconnect();
+  }, [searchOpen, guest, wide]);
+  useLayoutEffect(() => {
+    const root = rootRef.current, overview = root?.querySelector<HTMLElement>(".detail-overview");
+    if (!root || !overview) return;
+    const main = overview.querySelector<HTMLElement>(".detail-overview-main")!, small = overview.querySelector<HTMLElement>(".detail-overview-small")!;
+    const measure = () => {
+      const mainHeight = Math.max(128, main.offsetHeight);
+      const smallHeight = Math.max(74, ...Array.from(small.children).map(e => e.scrollHeight));
+      root.style.setProperty("--card-tall", `${mainHeight}px`);
+      root.style.setProperty("--secondary-tall", `${smallHeight}px`);
+      root.style.setProperty("--hero-tall", `${160 + mainHeight + smallHeight}px`);
+    };
+    const observer = new ResizeObserver(measure); observer.observe(main); Array.from(small.children).forEach(e => observer.observe(e)); measure();
+    return () => observer.disconnect();
+  }, []);
 
   /**
    * The entry menu is shared with every other screen.
@@ -151,6 +186,20 @@ export function DetailPage(): React.JSX.Element {
    * down into the list — the summary has just collapsed to give the entries
    * room, and leaving a menu open would spend exactly what was won.
    */
+  const openSearch = () => {
+    if (searchOpen) { searchInput.current?.focus({ preventScroll: true }); return; }
+    searchOrigin.current = scrollRef.current?.scrollTop ?? 0;
+    flushSync(() => setSearchOpen(true));
+    searchInput.current?.focus({ preventScroll: true });
+    lockSearch(true);
+  };
+  const closeSearch = () => {
+    searchInput.current?.blur();
+    flushSync(() => { setSearchOpen(false); setQuery(""); });
+    lockSearch(false, searchOrigin.current);
+    searchButton.current?.focus({ preventScroll: true });
+  };
+  useEffect(() => { writeSession({ search: query, searchOpen, searchOrigin: searchOrigin.current }, pane.instance); }, [query, searchOpen, pane.instance]);
   const menu = useEntryMenu();
   const entryOpen = menu.open;
 
@@ -188,8 +237,10 @@ export function DetailPage(): React.JSX.Element {
    */
   const fxActive = fxMode.enabled && !allMonths;
   const fxMonth = allMonths ? currentMonth() : month;
-  const fxSummary = useFxRange(`${fxMonth}-01`, endOfMonth(`${fxMonth}-01`), fxActive);
+
   const ledger = useLedger();
+  const filter = useDetailFilters(month, setMonth, searchParams, setSearchParams, ledger.data);
+  const fxSummary = useFxRange(`${fxMonth}-01`, endOfMonth(`${fxMonth}-01`), fxActive, { filter: row => filter.predicate(row) && entryMatches(row, query) && (kind === "all" || row.kind === kind), filterKey: `${filter.key}|${kind}|${query}` });
 
   /**
    * ⚠️ **Named once, so the query and the loading gate cannot drift apart.**
@@ -198,9 +249,7 @@ export function DetailPage(): React.JSX.Element {
    * disagreed, a screen with data would show placeholder rows, which is the bug this whole change
    * is about.
    */
-  const categoryBranch=categoryId!==null&&searchParams.get("categoryScope")==="branch";
-  const categoryIds=useMemo(()=>categoryBranch?categoryBranchIds(ledger.data?.categories??[],[categoryId!]):undefined,[categoryBranch,categoryId,ledger.data?.categories]);
-  const filters = { month: allMonths ? undefined : month, kind, categoryId: categoryId ?? undefined, ...(categoryIds===undefined?{}:{categoryIds}) };
+  const filters = { month: allMonths ? undefined : month, kind: kind === "all" ? undefined : kind };
   const list = useTransactions(filters);
 
   /**
@@ -242,15 +291,6 @@ export function DetailPage(): React.JSX.Element {
     };
   }, []);
 
-  const clearCategoryFilter = (): void => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("categoryId");
-    next.delete("categoryScope");
-    setSearchParams(next, { replace: true });
-  };
-
-  const filteredCategory =
-    categoryId === null ? undefined : ledger.data?.categories.find((item) => item.id === categoryId);
 
   /**
    * The main card is the account's own currency, always — even in a month with
@@ -261,12 +301,6 @@ export function DetailPage(): React.JSX.Element {
    * People learn where to look, and moving it is what confuses them.
    */
   const mainCode = user?.defaultCurrency ?? "CNY";
-  const currencies = summary.data?.currencies ?? [];
-  const main = currencies.find((item) => item.currency === mainCode) ?? null;
-  const others = useMemo(
-    () => currencies.filter((item) => item.currency !== mainCode),
-    [currencies, mainCode],
-  );
 
   /**
    * ⚠️ **A copy of this month that does not depend on the query layer at all.**
@@ -372,18 +406,10 @@ export function DetailPage(): React.JSX.Element {
     };
   }, [refreshNote]);
 
-  /**
-   * ⚠️ **A counter, because a CSS animation runs when the class is *added*.** Toggling the same class off and on
-   * again can be coalesced into no change at all, **so a second press would turn nothing** — and the whole point of
-   * the one-turn animation is that it reports an event.
-   */
-  const [turnKey, setTurnKey] = useState(0);
-
   const refresh = useCallback(async () => {
     if (refreshing) return;
 
     setRefreshing(true);
-    setTurnKey((count) => count + 1);
     setRefreshNote(null);
 
     /** S18：外部账本没有本机队列可投递，也没有本机副本可重读——只重新向服务器读取这本账。 */
@@ -517,11 +543,18 @@ export function DetailPage(): React.JSX.Element {
      */
   }, [refreshing, month, allMonths, offline, guest, foreign, list.refetch, summary.refetch]);
 
+  // 明细更多只提交一次入口请求；实际同步继续使用本页原有刷新流程。
+  useEffect(() => {
+    if (!readSession(pane.instance).syncRequested) return;
+    writeSession({ syncRequested: false }, pane.instance);
+    void refresh();
+  }, [pane.instance, refresh]);
+
   const entries = useMemo(() => {
     const fromQuery = (list.data?.pages ?? []).flatMap((page) => page.items);
 
     return mergeLedgerEntries(localEntries, fromQuery, pending, filters, deleted);
-  }, [list.data, localEntries, pending, month, kind, categoryId, categoryIds, deleted]);
+  }, [list.data, localEntries, pending, month, kind, deleted]);
 
   /**
    * ⚠️ **One explicit sort, applied to whatever the sources produced.**
@@ -537,22 +570,34 @@ export function DetailPage(): React.JSX.Element {
    * It runs whenever the entries change, which covers both halves of what he asked for: opening the screen
    * sorts what the device holds, and any write changes the entries so the sort runs again.
    */
-  const ordered = useMemo(() => sortByTime(entries), [entries]);
+  const filtered = useMemo(() => entries.filter(entry => filter.predicate(entry) && entryMatches(entry, query)), [entries, filter.predicate, query]);
+  const cardFrom = filter.value.from || (!allMonths ? month + "-01" : "");
+  const cardTo = filter.value.to || (!allMonths ? endOfMonth(month) : "");
+  const chartSource = useAnalysisRange({ from: cardFrom || currentMonth() + "-01", to: cardTo || endOfMonth(currentMonth()) }, !guest && !fxActive && !!cardFrom && !!cardTo && mainDetailMetrics(cardConfig.value).some(isDetailChart));
+  const chartEntries = (chartSource.data?.entries ?? filtered).filter(e => filter.predicate(e) && entryMatches(e, query) && (kind === "all" || e.kind === kind));
+  const presentation = useEntryPresentation(filtered, !list.hasNextPage && !list.isPending && !list.isError, { order: saved.presentation?.order ?? "timeDesc", attachment: "any", type: "", minMB: "", maxMB: "" }, filter.extended || query.trim() !== "" || kind !== "all");
+  const currencies = filter.extended || query.trim() !== "" || kind !== "all" ? (presentation.waiting ? [] : summaryFor(filtered, month, { from: "0000-01-01", to: "9999-12-31" }).currencies) : summary.data?.currencies ?? [];
+  const main = currencies.find(item => item.currency === mainCode) ?? null;
+
+  useEffect(() => { writeSession({ presentation: presentation.options }, pane.instance); }, [presentation.options, pane.instance]);
+  const ordered = presentation.ordered;
+  useEffect(() => { if (presentation.extended && list.hasNextPage && !list.isFetchingNextPage && !list.isFetchNextPageError) void list.fetchNextPage(); }, [presentation.extended, list.hasNextPage, list.isFetchingNextPage, list.isFetchNextPageError, list.fetchNextPage]);
 
   /**
    * 「全部」（1.17.17）分批渲染：整本账可能有几千笔，一次画完会卡；先画最近的一批，滚到底再加一批，
    * 本机这批画完了再向服务器要下一页（见下方 `loadMore`）。只影响画多少，不影响数据与合计。
    */
   const [renderLimit, setRenderLimit] = useState(ALL_RENDER_STEP);
-  const viewKey = `${month}|${kind}|${categoryId ?? ""}|${String(categoryBranch)}`;
+  const viewKey = `${filter.key}|${query}|${kind}|${JSON.stringify(presentation.options)}`;
 
   useEffect(() => {
     setRenderLimit(ALL_RENDER_STEP);
   }, [viewKey]);
 
-  const shown = useMemo(() => (allMonths ? limitToWholeDays(ordered, renderLimit) : ordered), [allMonths, ordered, renderLimit]);
+  const shown = useMemo(() => (allMonths ? (presentation.flat ? ordered.slice(0, renderLimit) : limitToWholeDays(ordered, renderLimit)) : ordered), [allMonths, ordered, renderLimit, presentation.flat]);
 
   const grouped = useMemo(() => {
+    if (presentation.flat) return [["", shown] as [string, Transaction[]]];
     const groups = new Map<string, Transaction[]>();
 
     for (const entry of shown) {
@@ -566,8 +611,8 @@ export function DetailPage(): React.JSX.Element {
      * without this the sections would follow whatever the entries happened to arrive in. **The heading and
      * its contents have to agree about which end is newest.**
      */
-    return [...groups.entries()].sort(([left], [right]) => (left < right ? 1 : -1));
-  }, [shown]);
+    return [...groups.entries()];
+  }, [shown, presentation.flat]);
 
   const moreToRender = allMonths && shown.length < ordered.length;
   const canLoadMore = moreToRender || list.hasNextPage;
@@ -647,7 +692,7 @@ export function DetailPage(): React.JSX.Element {
     ledger: ledger.data,
     guest,
     offline,
-    filterKey: `${month}|${kind}|${categoryId ?? ""}`,
+    filterKey: `${filter.key}|${kind}`,
     onEnter: () => {
       menu.close();
     },
@@ -733,7 +778,7 @@ export function DetailPage(): React.JSX.Element {
   }
 
   return (
-    <div ref={rootRef} className={`detail-root flex h-dvh flex-col overflow-hidden ${fxMode.enabled ? "detail-fx-root" : ""}`}>
+    <div ref={rootRef} data-searching={searchOpen} className={`detail-root detail-redesign flex h-dvh flex-col overflow-hidden ${fxMode.enabled ? "detail-fx-root" : ""}`}>
       {/*
         ⚠️ **The ledger builds its own frame, so it needs its own banners.**
 
@@ -749,7 +794,7 @@ export function DetailPage(): React.JSX.Element {
       <SyncBanner />
       <OfflineStatus />
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain" style={{ overflowAnchor: "none" }}>
         <div className={`mx-auto flex w-full flex-col ${wide ? "max-w-[60rem] pb-10" : "max-w-md pb-24"}`}>
           <div className="detail-scroll-travel" aria-hidden="true" />
           {/*
@@ -761,7 +806,8 @@ export function DetailPage(): React.JSX.Element {
             className="detail-hero relative bg-brand px-6 text-on-brand"
             data-pinned={atList}
           >
-            <div className="flex h-9 items-center justify-between">
+            <div className="detail-header-row">
+<div className="detail-header-title" inert={searchOpen} aria-hidden={searchOpen}>
               <div className="flex min-w-0 items-center gap-2">
                 {/**
                   * ⚠️ **S18：大屏上品牌在全局侧栏左上角，这里不再重复 Libevra**（所有者规格 §16.1），
@@ -799,33 +845,27 @@ export function DetailPage(): React.JSX.Element {
                 </span>
               </div>
 
-              {/*
-                ⚠️ **刷新 / 批量操作 / 更多.**
-
-                导出 moved into 更多 (the owner's instruction) and the batch button took its place:
-                exporting is a destination visited rarely, choosing several entries is something you
-                do while looking at the list. The row's size, shape and position are unchanged — see
-                `DetailTools`, which also carries the two icons.
-
-                ⚠️ A guest still sees 刷新 alone, which is the same rule the old 导出/更多 pair used:
-                guest mode is hidden from those two entry points, so the batch button is hidden with
-                them rather than becoming a third path with its own permissions to reason about.
-                Editing and deleting a single entry stay available to a guest on the entry screen.
-              */}
+              {/* 排序 / 批量操作 / 更多；服务器同步入口在明细更多。 */}
+              </div><div className="detail-header-actions" inert={searchOpen} aria-hidden={searchOpen}><span ref={searchSpace} className="detail-search-space" />
               <DetailTools
-                refreshing={refreshing}
-                turnKey={turnKey}
+                sortControl={<EntrySortControls state={presentation} mode="compact" />}
                 guest={guest || foreign !== null}
                 selecting={selecting}
-                onRefresh={() => {
-                  void refresh();
-                }}
                 onBatch={enterBatch}
                 onMore={() => {
+                  writeSession({ syncReturnPath: `/${searchParams.size ? `?${searchParams.toString()}` : ""}` }, pane.instance);
                   void navigate("/ledger/more");
                 }}
                 onExitSelection={exitBatch}
               />
+              </div>
+              <div className="detail-search-shell" data-open={searchOpen}>
+                <button ref={searchButton} type="button" className="detail-search-icon" aria-label={t("ledger.cards.search")} aria-expanded={searchOpen} disabled={selecting} tabIndex={searchOpen ? -1 : 0} onPointerDown={e => e.preventDefault()} onClick={openSearch}>
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5" strokeLinecap="round"/></svg>
+                </button>
+                <input ref={searchInput} type="search" value={query} readOnly={!searchOpen} tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} aria-label={t("ledger.cards.search")} placeholder={t("ledger.cards.placeholder")} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape" && !e.nativeEvent.isComposing) closeSearch(); }} />
+                <button type="button" className="detail-search-cancel" tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} onClick={closeSearch}>{t("common.action.cancel")}</button>
+              </div>
             </div>
 
             {/*
@@ -835,114 +875,26 @@ export function DetailPage(): React.JSX.Element {
               being vacated rather than crossing anything. Left-aligned in both
               states: centred, it took horizontal room the currency cards need.
             */}
-            <div className="detail-month-row relative mt-2 h-8">
+            <div className="detail-month-row relative mt-2 h-8" inert={searchOpen} aria-hidden={searchOpen}>
               <div className="detail-month-controls flex items-center">
-                <span className="detail-arrow-slot">
-                  <ArrowButton
-                    direction="left"
-                    tabbable={atList}
-                    disabled={allMonths}
-                    onClick={() => {
-                      setMonth(shiftMonth(month, -1));
-                    }}
-                  />
-                </span>
-
                 <button
                   type="button"
                   onClick={() => {
                     setPickerOpen(true);
                   }}
-                  className="detail-month inline-flex items-center text-base text-on-brand/95"
+                  ref={monthAnchor}
+                  aria-haspopup="dialog" aria-expanded={pickerOpen} aria-label={filter.label.startsWith(t("ledger.filters.title")) ? filter.label : `${t("ledger.filters.title")} · ${filter.label}`}
+                  data-filtered={filter.extended || undefined}
+                  className="detail-month lv-filter-trigger inline-flex items-center text-base text-on-brand/95"
                 >
-                  {allMonths ? t("ledger.detail.allTime") : headerMonthLabel(month)}
-                  <span className="detail-caret ml-1 text-[10px] text-on-brand/75" aria-hidden="true">
-                    ▼
-                  </span>
+                  {filter.extended ? <FilterIcon /> : null}<span>{filter.label}</span>
+                  <ChevronIcon up={pickerOpen} className="size-4 text-on-brand/75" />
                 </button>
-
-                <span className="detail-arrow-slot">
-                  <ArrowButton
-                    direction="right"
-                    tabbable={atList}
-                    disabled={allMonths}
-                    onClick={() => {
-                      setMonth(shiftMonth(month, 1));
-                    }}
-                  />
-                </span>
               </div>
             </div>
 
-            {summary.isPending ? (
-              <div className="mt-4 h-28 animate-pulse rounded-card bg-on-brand/15 motion-reduce:animate-none" />
-            ) : (
-              /*
-               * One strip holding every currency, primary first.
-               *
-               * It used to be two rows with the primary card above and the rest
-               * beside, and the owner worked out why that kept misbehaving: the
-               * primary card was not in the strip, so it did not scroll with the
-               * others and its width never matched theirs. It is the first child
-               * now, and the only thing that changes is its share of the line —
-               * a full line while the screen is a home page, and a third of one
-               * once it is a list.
-               */
-              <>
-                {/*
-                  The hero card. It only ever leaves — it shrinks and slides off
-                  the left edge — and it never has to become one card among
-                  equals.
-
-                  The owner proposed this arrangement after watching every fault
-                  that comes of asking one element to be two things: text that
-                  overflowed, a balance line that faded but kept its space, a
-                  width that never matched its neighbours. Two elements, each
-                  doing one job, and all of it goes.
-                */}
-                {fxActive ? <div className="detail-main-card mt-4 min-w-0 shrink-0"><FxMonthSummary data={fxSummary} /></div> : <MainCard className="detail-main-card mt-4" summary={main} currency={mainCode} allMonths={allMonths} />}
-
-                {/*
-                  One row, never wrapping: the hero card is not in it, so it has
-                  only ever to lay out small cards. Its first item is the
-                  primary currency's twin, which is nothing until the hero card
-                  has gone and then grows into the row.
-                */}
-                <div
-                  data-h-scroll
-                  className={`detail-strip flex flex-nowrap gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${!fxActive && others.length === 2 ? "detail-strip-fit-pair" : ""}`}
-                >
-                  {fxActive ? <div className="detail-twin detail-currency-card detail-small-card shrink-0 text-on-brand"><FxMonthSummary data={fxSummary} compact /></div> : <SmallCard className="detail-twin" summary={main} currency={mainCode} />}
-
-                  {(fxActive ? currencies : others).map((item) => (
-                    <SmallCard key={item.currency} summary={item} currency={item.currency} />
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAllCurrencies(true);
-                    }}
-                    aria-label={t("ledger.detail.moreCurrencies")}
-                    className="detail-more-currency detail-currency-card detail-small-card w-34 shrink-0 whitespace-nowrap px-4 text-left text-xs text-on-brand/90"
-                  >
-                    {/*
-                      两个 inline-block 是为了窄卡片里「更多 / 币种」各占一行、不在词中间断开。
-                      S16：词组从文案里按 `|` 拆出来；英文只有一个短词（见 en-US 的说明）。
-                    */}
-                    <span>
-                      {t("ledger.detail.moreCurrenciesCard")
-                        .split("|")
-                        .map((part) => (
-                          <span key={part} className="inline-block">
-                            {part}
-                          </span>
-                        ))}
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
+            {searchOpen ? <p className="detail-search-scope text-helper text-on-brand/75">{t("ledger.cards.scope", { scope: filter.label })}</p> : null}
+            <DetailOverview syncStatus={cardConfig.conflict ? "syncConflict" : cardConfig.syncError ? "syncError" : cardConfig.dirty ? "syncPending" : undefined} onEdit={() => void navigate("/ledger/cards")} entries={chartEntries} chartFrom={cardFrom} chartTo={cardTo} chartComplete={guest ? !list.hasNextPage : chartSource.data?.sourceComplete === true} config={cardConfig.value} summary={main} currency={mainCode} label={filter.label} days={detailDayCount(month, filter.value.from, filter.value.to, toLocalDate(new Date()))} fx={fxActive ? fxSummary : null} onCurrencies={() => setShowAllCurrencies(true)} hidden={atList || searchOpen} loading={summary.isPending || summary.isError || presentation.waiting || !!presentation.error} />
           </header>
 
           {/*
@@ -952,7 +904,7 @@ export function DetailPage(): React.JSX.Element {
           */}
           <div className={`detail-toggle-bar px-6 pt-4 ${atList ? "detail-toggle-sticky" : ""}`}>
             <div className="flex gap-1 rounded-full bg-line/70 p-1">
-              {(["expense", "income"] as const).map((option) => (
+              {(["all", "expense", "income"] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -966,23 +918,22 @@ export function DetailPage(): React.JSX.Element {
                       : "text-muted hover:text-ink"
                   }`}
                 >
-                  {t(`common.kind.${option}`)}
+                  {option === "all" ? t("desktop.entries.kindAll") : t(`common.kind.${option}`)}
                 </button>
               ))}
             </div>
 
-            {/*
-              ⚠️ **The report sits here, under the seam, and that placement is deliberate.**
-              The refresh button is in the pinned header, so the sentence has to appear at the top of
-              the reading area the user is looking at — a toast at the bottom competes with the
-              navigation, and a message below the list is off screen the moment anybody scrolls.
-            */}
+            {/* 从更多返回后，在列表上方显示同步进度和结果。 */}
+            {refreshing ? <p role="status" className="mt-2 text-helper text-muted">{t("books.more.syncing")}</p> : null}
             {refreshNote === null ? null : (
               <p role="status" className="mt-2 text-helper-relaxed text-muted">
                 {refreshNote}
               </p>
             )}
 
+            <EntrySortControls state={presentation} mode="status" />
+            {filter.extended && (list.isError || list.isFetchNextPageError) ? <p role="alert" className="text-helper text-danger">{t("ledger.filters.failed")} <button type="button" className="text-brand" onClick={() => { if (list.isFetchNextPageError) void list.fetchNextPage(); else void list.refetch(); }}>{t("ledger.filters.retry")}</button></p> : null}
+            {selecting && selectedIds.length > 0 ? <AttachmentPanel bookId={ledger.data?.book.id ?? null} entryIds={selectedIds} readOnly={!!permission.reason} /> : null}
             {selecting ? (
               <SelectionBar
                 selectedCount={selectedIds.length}
@@ -995,30 +946,6 @@ export function DetailPage(): React.JSX.Element {
               />
             ) : null}
           </div>
-
-          {categoryId === null ? null : (
-            <div className="px-6 pt-3">
-              {ledger.data?.categories.some(c=>c.parentId===categoryId)?<label className="mb-2 flex items-center gap-2 text-helper text-muted"><input type="checkbox" checked={categoryBranch} onChange={e=>{const next=new URLSearchParams(searchParams);if(e.target.checked)next.set("categoryScope","branch");else next.delete("categoryScope");setSearchParams(next);}}/>{t("manage.tree.branch")}</label>:null}
-              <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-xs text-brand-dark">
-                <span className="min-w-0">
-                  {t("ledger.detail.filteredCategory", {
-                    name:
-                      filteredCategory === undefined
-                        ? t("ledger.detail.loading")
-                        : displayCategoryName(filteredCategory.name),
-                  })}
-                </span>
-                <button
-                  type="button"
-                  onClick={clearCategoryFilter}
-                  aria-label={t("ledger.detail.clearCategoryFilter")}
-                  className="px-1 text-brand-dark/70 transition hover:text-brand-dark"
-                >
-                  ✕
-                </button>
-              </span>
-            </div>
-          )}
 
           <div className="detail-body flex flex-col px-6">
             {/*
@@ -1102,10 +1029,11 @@ export function DetailPage(): React.JSX.Element {
               />
             ) : null}
 
-            {isEmptyMonth ? (
+            {!presentation.waiting && !list.isError && (filter.extended || query.trim() !== "") && ordered.length === 0 ? <p className="py-10 text-center text-body text-muted">{t("ledger.filters.noResults")}</p> : null}
+            {!filter.extended && isEmptyMonth ? (
               <EmptyState
                 title={
-                  kind === "expense"
+                  kind === "all" ? t(allMonths ? "ledger.detail.emptyAll" : "ledger.detail.emptyMonth") : kind === "expense"
                     ? t(allMonths ? "ledger.detail.emptyExpenseAll" : "ledger.detail.emptyExpense")
                     : t(allMonths ? "ledger.detail.emptyIncomeAll" : "ledger.detail.emptyIncome")
                 }
@@ -1116,15 +1044,17 @@ export function DetailPage(): React.JSX.Element {
 
             {grouped.map(([day, dayEntries], index) => (
               <section key={day}>
-                {allMonths && (index === 0 || grouped[index - 1]![0].slice(0, 7) !== day.slice(0, 7)) ? (
+                {!presentation.flat && allMonths && (index === 0 || grouped[index - 1]![0].slice(0, 7) !== day.slice(0, 7)) ? (
                   <h3 className="pt-4 pb-1 text-sm font-medium text-ink">{headerMonthLabel(day.slice(0, 7))}</h3>
                 ) : null}
-                <h2 className="py-2 text-xs text-muted">{formatDayLabel(day)}</h2>
+                {!presentation.flat ? <h2 className="py-2 text-xs text-muted">{formatDayLabel(day)}</h2> : null}
                 <ul className="overflow-hidden rounded-card bg-surface">
                   {dayEntries.map((entry) => (
                     <LedgerEntryRow
                       key={entry.id}
                       entry={entry}
+                      flat={presentation.flat}
+                      space={presentation.options.order.startsWith("storage")}
                       fx={fxMode.enabled ? <FxAmount entry={entry} /> : undefined}
                       selecting={selecting}
                       selected={selected.has(entry.id)}
@@ -1309,16 +1239,7 @@ export function DetailPage(): React.JSX.Element {
         }}
       />
 
-      <MonthPicker
-        open={pickerOpen}
-        month={month}
-        maxMonth={currentMonth()}
-        allowAll
-        onSelect={setMonth}
-        onClose={() => {
-          setPickerOpen(false);
-        }}
-      />
+      <EntryFilterPanel open={pickerOpen} value={filter.value} ledger={ledger.data} anchor={monthAnchor} onApply={filter.apply} onClose={() => setPickerOpen(false)} />
 
       {showAllCurrencies ? (
         <AllCurrenciesSheet
@@ -1386,147 +1307,6 @@ function LedgerNav({
   );
 }
 
-/**
- * The month arrows.
- *
- * The slot around them is what collapses, not their opacity — see `.detail-arrow-slot` — so the
- * month sits flush with the wordmark in the display state and the arrows arrive by taking their
- * room rather than by appearing in it.
- */
-function ArrowButton({
-  direction,
-  tabbable,
-  disabled = false,
-  onClick,
-}: {
-  readonly direction: "left" | "right";
-  readonly tabbable: boolean;
-  /** 「全部」时没有上一个 / 下一个月：保留位置（不让月份标签跳动），但不能点。 */
-  readonly disabled?: boolean;
-  readonly onClick: () => void;
-}): React.JSX.Element {
-  const { t } = useI18n();
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      tabIndex={tabbable && !disabled ? 0 : -1}
-      aria-hidden={!tabbable}
-      aria-label={direction === "left" ? t("ledger.detail.previousMonth") : t("ledger.detail.nextMonth")}
-      className="detail-arrow rounded-full p-1.5 text-on-brand/85 transition disabled:opacity-30"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5">
-        <path
-          d={direction === "left" ? "M15 5 8 12l7 7" : "M9 5l7 7-7 7"}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </button>
-  );
-}
-
-/**
- * The account's own currency, given the most room on the screen.
- *
- * With nothing in it for the month it says so, and it stays the same currency.
- * The owner was clear that swapping in whichever currency happened to have
- * entries would cost people the one thing a home screen is for, which is
- * knowing where to look.
- */
-function MainCard({
-  summary,
-  currency,
-  className = "",
-  allMonths = false,
-}: {
-  readonly summary: CurrencySummary | null;
-  readonly currency: string;
-  readonly className?: string;
-  /** 「全部」时空卡片不说「本月」。 */
-  readonly allMonths?: boolean;
-}): React.JSX.Element {
-  const { t } = useI18n();
-
-  return (
-    <section className={`${className} detail-currency-card px-5`}>
-      <span className="detail-main-name text-xs text-on-brand/75">{currencyName(currency)}</span>
-
-      {summary === null ? (
-        <span className="mt-1 text-sm text-on-brand/80">{allMonths ? t("ledger.detail.noData") : t("ledger.detail.noDataThisMonth")}</span>
-      ) : (
-        <>
-          <span className="detail-main-amount font-semibold tabular-nums">
-            {formatMoney(summary.expenseCents, summary.currency)}
-          </span>
-
-          <span className="detail-main-detail mt-1 flex gap-4 text-xs text-on-brand/80 tabular-nums">
-            <span>{t("ledger.detail.incomeAmount", { amount: formatMoney(summary.incomeCents, summary.currency) })}</span>
-            <span>{t("ledger.detail.netAmount", { amount: formatMoney(summary.balanceCents, summary.currency) })}</span>
-          </span>
-        </>
-      )}
-    </section>
-  );
-}
-
-/**
- * One small currency card.
- *
- * Every card in the strip is this, including the primary currency's twin, so
- * they cannot drift apart in size, type or content — which is what the owner
- * kept seeing when the primary card was also trying to be one of them.
- *
- * A fixed width rather than a share of the row: a percentage is measured
- * against the row's content box, and a card that changes width when a
- * neighbour appears is a card that looks smaller the more there are. The ones
- * that do not fit run off the right edge instead.
- *
- * A currency with nothing in it this month says so, rather than showing zero —
- * the twin exists in both states, and in a month with no entries it would
- * otherwise claim the account had spent nothing.
- */
-function SmallCard({
-  summary,
-  currency,
-  className = "",
-}: {
-  readonly summary: CurrencySummary | null;
-  readonly currency: string;
-  readonly className?: string;
-}): React.JSX.Element {
-  const { t } = useI18n();
-
-  return (
-    /*
-     * The padding lives inside, not on the card.
-     *
-     * On the card it is part of its width, so the twin — which is nothing until
-     * the hero card has left — still measured thirty-two pixels and left a hole
-     * in front of the first real card. The owner saw that hole in the display
-     * state before anything had moved.
-     */
-    <div className={`detail-currency-card detail-small-card w-34 shrink-0 ${className}`}>
-      <div data-currency-content className="flex h-full flex-col justify-center px-4">
-        <span className="text-[11px] whitespace-nowrap text-on-brand/70">{currencyName(currency)}</span>
-        {summary === null ? (
-          <span className="text-[11px] whitespace-nowrap text-on-brand/60">{t("ledger.detail.noData")}</span>
-        ) : (
-          <>
-            <span className="text-base font-medium tabular-nums whitespace-nowrap">
-              {formatMoney(summary.expenseCents, summary.currency)}
-            </span>
-            <span className="text-[11px] whitespace-nowrap text-on-brand/70 tabular-nums">
-              {t("ledger.detail.netAmount", { amount: formatMoney(summary.balanceCents, summary.currency) })}
-            </span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /** Every currency the account can use, including the ones with nothing in them. */
 function AllCurrenciesSheet({
@@ -1605,14 +1385,6 @@ export function headerMonthLabel(month: string): string {
 /** 「全部」每批渲染的账目数（1.17.17）。 */
 const ALL_RENDER_STEP = 200;
 
-/** Move a `YYYY-MM` string by whole months. */
-export function shiftMonth(month: string, delta: number): string {
-  const year = Number(month.slice(0, 4));
-  const index = Number(month.slice(5, 7)) - 1 + delta;
-  const nextYear = year + Math.floor(index / 12);
-  const nextIndex = ((index % 12) + 12) % 12;
-  return `${String(nextYear)}-${String(nextIndex + 1).padStart(2, "0")}`;
-}
 
 /**
  * Put the ledger in the order it is always shown in: newest first, oldest last.

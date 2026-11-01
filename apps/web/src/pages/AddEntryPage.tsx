@@ -1,3 +1,5 @@
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
+import { useDesktopActive } from "../desktop/surface.js";
 import {
   MAX_TAGS_PER_TRANSACTION,
   UNCATEGORISED_NAME,
@@ -139,6 +141,7 @@ export function AddEntryPage(): React.JSX.Element {
   const quickAmounts = useQuickAmounts();
   const recent = useTransactions({});
   const createEntry = useCreateTransaction();
+  const desktop = useDesktopActive();
   /**
    * 写之前先问一句（S15-E4）：手动记账**轻提醒**，不进入分组核对页。
    *
@@ -218,7 +221,7 @@ export function AddEntryPage(): React.JSX.Element {
    * ⚠️ **S18：已经填了金额或备注，就是一份未保存的草稿。** 在辅助工作区里，登记后外壳会切到独立模式，
    * 跟随导航不会把这页替换掉；收起、关闭或交换工作区都只隐藏这一页，草稿原样保留。
    */
-  usePaneDirty(amountText.trim() !== "" || note.trim() !== "");
+
   /** S18：两个工作区可以同时打开记账页，输入框与标签的关联用实例唯一的 id。 */
   const timeId = useId();
   /**
@@ -266,6 +269,9 @@ export function AddEntryPage(): React.JSX.Element {
 
   /** 保存按钮的忙碌态：检测、写入、或正在等待用户回答“像不像”。 */
   const busy = writing || checkDuplicates.isPending || createEntry.isPending || pendingDuplicate !== null;
+  // 附件草稿与表单一起保留工作区。
+  const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, "manual", [{ id: "entry", label: t("attachments.capture.current") }], busy);
+  usePaneDirty(amountText.trim() !== "" || note.trim() !== "" || attachments.files.length > 0);
 
   /**
    * 同方向的最近记录，只给「沿用上一笔」用。
@@ -539,6 +545,9 @@ export function AddEntryPage(): React.JSX.Element {
        * device. The only difference is the marker the ledger puts on the row: **silently reporting a write
        * that has not left the device is how somebody loses spending they believe they recorded.**
        */
+      try {
+        await attachments.commit({ entry: entry.id });
+      } catch (caught) { setError(errorMessage(caught)); }
       setSaved(entry);
       setPendingDuplicate(null);
 
@@ -574,6 +583,7 @@ export function AddEntryPage(): React.JSX.Element {
   if (saved !== null) {
     return (
       <>
+        {error ? <Alert tone="error">{error}</Alert> : null}
         <EntrySaved
           entry={saved}
           categoryName={
@@ -642,7 +652,7 @@ export function AddEntryPage(): React.JSX.Element {
   }
 
   return (
-    <TabPage
+    <CaptureLayout panel={attachments.panel}><TabPage
       active="/add"
       onNavigate={(to) => void navigate(to)}
       scrollRef={scrollRef}
@@ -662,7 +672,7 @@ export function AddEntryPage(): React.JSX.Element {
       wideWidth="reading"
     >
       <form
-        className="flex flex-1 flex-col"
+        className="lv-manual-form flex flex-1 flex-col"
         onSubmit={(event) => {
           event.preventDefault();
           void save();
@@ -676,6 +686,7 @@ export function AddEntryPage(): React.JSX.Element {
             * original full-width proportions. It remains in the header of 明细 / 分析 / 账本空间 /
             * 我的.
             */}
+          <div className="lv-manual-heading"><h1 className="text-page-title">{t("attachments.capture.manual")}</h1><p className="text-helper text-muted">{ledger.data?.book.name}</p></div>
           <div data-entry-kind-switch className="flex gap-2">
             {(["expense", "income"] as const).map((option) => (
               <button
@@ -715,7 +726,7 @@ export function AddEntryPage(): React.JSX.Element {
           fold, and the frame is a boundary the scroll has to cross rather than a place the cursor can sit
           ambiguously.
         */}
-        <section className="bg-canvas px-6 pt-4">
+        <section className="lv-manual-amount bg-canvas px-6 pt-4">
           {/*
             ⚠️ **S15-C 第三轮：金额卡右侧的币种从"一句说明"变成"一个入口"。**
             同时删掉了金额旁那行提示——金额框本来就是全屏最显眼的输入框，
@@ -777,7 +788,7 @@ export function AddEntryPage(): React.JSX.Element {
           高频核心在前，常用次级合并，低频收起。
         */}
 
-        <section className="flex flex-col gap-2 px-6 pt-5">
+        <section className="lv-manual-category flex flex-col gap-2 px-6 pt-5">
           <h2 className="text-card-title text-ink">{t("common.field.category")}</h2>
 
           <div className="overflow-hidden rounded-field border border-line bg-surface">
@@ -867,7 +878,7 @@ export function AddEntryPage(): React.JSX.Element {
 
           右侧对齐与上一轮一致：标签在左、值在右，整行最小 48px，手指好点。
         */}
-        <section className="flex flex-col gap-2 px-6 pt-5">
+        <section className="lv-manual-time flex flex-col gap-2 px-6 pt-5">
           <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-field border border-line bg-surface px-4">
             <label htmlFor={timeId} className="text-card-title text-ink">
               {t("common.field.time")}
@@ -910,7 +921,9 @@ export function AddEntryPage(): React.JSX.Element {
           （`支付宝 · 有备注 · 2 个标签`；未填的那项用灰色字段名占位），
           所以沿用或复制进来的内容不用展开也看得见，还能看出这里剩下什么可填。
         */}
+        <CaptureMobileAttachments panel={attachments.panel} />
         <EntryMoreOptions
+          expanded={desktop}
           open={moreOpen}
           onToggle={() => {
             setMoreOpen((open) => !open);
@@ -960,7 +973,7 @@ export function AddEntryPage(): React.JSX.Element {
           ) : null}
           <button
             type="submit"
-            disabled={sharedOfflineReadOnly || busy || amountText.trim() === ""}
+            disabled={sharedOfflineReadOnly || busy || attachments.working || amountText.trim() === ""}
             className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
           >
             {busy ? t("common.action.saving") : t("common.action.save")}
@@ -995,7 +1008,7 @@ export function AddEntryPage(): React.JSX.Element {
           // "cancel": 表单原样留着，用户回到刚才的位置继续改。
         }}
       />
-    </TabPage>
+    </TabPage></CaptureLayout>
   );
 }
 

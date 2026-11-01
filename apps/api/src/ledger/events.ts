@@ -1,21 +1,8 @@
+import { currentAuditContext } from "./auditContext.js";
+import { assertStorageGrowth, lockAccountStorage } from "./storage.js";
 import type { Prisma } from "../generated/prisma/client.js";
 
-/**
- * Recording the ledger's history: **who changed what, and when**.
- *
- * ⚠️ **The owner's framing is the design**: *"编辑历史的主要目的**不是复杂的版本管理**，而是让用户
- * 能够明确知道：谁在什么时候，对哪一笔账目做了什么修改."* So this writes **sentences a person
- * reads**, not a version store to roll back to.
- *
- * ⚠️ **Written by the server, on the server's clock.** Offline edits produce their event at **sync
- * time**, not when the person tapped save — the same placement as the entry number
- * (`allocateTransactionSeq`), and for the same reason: **the server is where an offline change first
- * becomes a fact the ledger knows about.**
- *
- * ⚠️ **Every call takes the transaction client.** An event written outside the transaction that
- * caused it can survive a rollback — **"somebody edited this" with no edit behind it** — or be lost
- * when the edit succeeded. Both are worse than not recording it.
- */
+/** 业务保存与完整历史、创建者提醒同事务提交。设备时间单独记录，服务器接收时间不被覆盖。 */
 
 type Tx = Prisma.TransactionClient;
 
@@ -58,6 +45,10 @@ export interface RecordEventInput {
   /** Which fields changed, and what they were. Omitted for created/deleted/restored. */
   readonly changes?: Record<string, FieldChange> | null;
   readonly at?: Date;
+  readonly operationId?: string;
+  readonly beforeSnapshot?: unknown;
+  readonly offlineChanges?: unknown;
+  readonly deviceEdits?: readonly { at: string; changes: Record<string, { from: unknown; to: unknown }> }[];
 }
 
 /**
@@ -68,8 +59,28 @@ export interface RecordEventInput {
  * it. **The history says who did it at the time**, which is the only answer that stays true.
  */
 export async function recordEvent(tx: Tx, input: RecordEventInput): Promise<void> {
-  await tx.transactionEvent.create({
+  if (input.operationId && await tx.transactionEvent.findFirst({ where: { bookId: input.bookId, transactionId: input.transactionId ?? null, operationId: input.operationId }, select: { id: true } })) return;
+  const entry = input.transactionId ? await tx.transaction.findUnique({
+    where: { id: input.transactionId },
+    include: { category: { select: { id: true, name: true } }, paymentMethod: { select: { id: true, name: true } },
+      tags: { include: { tag: { select: { id: true, name: true, color: true } } } } },
+  }) : null;
+  const snapshot = entry ? JSON.parse(JSON.stringify({
+    after: { id: entry.id, seq: entry.seq, creatorId: entry.userId, amountCents: entry.amountCents.toString(),
+      currency: entry.currency, kind: entry.kind, occurredAt: entry.occurredAt, occurredLocalDate: entry.occurredLocalDate,
+      occurredTz: entry.occurredTz, note: entry.note, category: entry.category, paymentMethod: entry.paymentMethod,
+      tags: entry.tags.map(({ tag }) => tag), deletedAt: entry.deletedAt },
+    ...(input.beforeSnapshot === undefined ? {} : { before: auditSnapshot(input.beforeSnapshot) }),
+    ...(input.deviceEdits?.length ? { deviceEdits: input.deviceEdits } : {}),
+    ...(input.offlineChanges === undefined ? {} : { acceptedDeviceChanges: input.offlineChanges }),
+  }, (_key, value: unknown) => typeof value === "bigint" ? value.toString() : value)) as Prisma.InputJsonValue : undefined;
+  const event = await tx.transactionEvent.create({
     data: {
+      ...currentAuditContext(),
+      ...(input.operationId ? { operationId: input.operationId } : {}),
+      entryVersion: entry?.version ?? null,
+      deviceRecordedAt: input.deviceEdits?.length ? new Date(input.deviceEdits.at(-1)!.at) : null,
+      ...(snapshot === undefined ? {} : { snapshot }),
       bookId: input.bookId,
       transactionId: input.transactionId ?? null,
       transactionSeq: input.transactionSeq ?? null,
@@ -89,6 +100,22 @@ export async function recordEvent(tx: Tx, input: RecordEventInput): Promise<void
     },
     select: { id: true },
   });
+  if (entry && input.kind === "updated" && Object.keys(input.changes ?? {}).length > 0 && input.actorId && entry.userId !== input.actorId) {
+    const member = await tx.bookMember.findUnique({
+      where: { bookId_userId: { bookId: input.bookId, userId: entry.userId } },
+      select: { leftAt: true },
+    });
+    if (member && member.leftAt === null) {
+      await tx.entryChangeNotice.create({ data: {
+        bookId: input.bookId, recipientId: entry.userId, eventId: event.id,
+      } });
+    }
+  }
+  if (input.kind === "created" && input.actorId) {
+    await lockAccountStorage(tx, input.actorId);
+    // 本次业务内容和历史均已计入；超限时整个事务回滚。
+    await assertStorageGrowth(tx, input.actorId, input.bookId, 0n);
+  }
 }
 
 /** The fields the history tracks, and how each is named on screen. */
@@ -101,6 +128,9 @@ const TRACKED_FIELDS: readonly { readonly key: string; readonly label: string }[
   { key: "occurredAt", label: "时间" },
   { key: "occurredTz", label: "时区" },
   { key: "note", label: "备注" },
+  { key: "tags", label: "标签" },
+  { key: "attachments", label: "附件" },
+  { key: "occurredLocalDate", label: "日期" },
   /**
    * ⚠️ **A ledger's name is not an entry field, and it is in this table anyway** (1.10.08).
    *
@@ -186,5 +216,12 @@ function normalise(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "string") return value;
+  if (Array.isArray(value)) return JSON.stringify(value.map(v => JSON.stringify(v)).sort());
   return JSON.stringify(value) ?? "";
+}
+
+/** 只保留业务快照，避免把有限冲突缓存或派生容量复制进长期历史。 */
+function auditSnapshot(input: unknown): Record<string, unknown> {
+  const row = input as Record<string, unknown>;
+  return Object.fromEntries(["id","seq","userId","kind","amountCents","currency","categoryId","category","paymentMethodId","paymentMethod","note","tags","occurredAt","occurredLocalDate","occurredTz","deletedAt","version"].filter(key => key in row).map(key => [key,row[key]]));
 }

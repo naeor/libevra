@@ -108,7 +108,7 @@ describe("billFileProblem", () => {
 
   it("认不出的格式在选择阶段就拒绝，并说明支持什么", () => {
     const problem = billFileProblem({ name: "notes.txt", size: 1024 });
-    expect(problem).toContain("只支持 CSV、XLSX、PDF");
+    expect(problem).toContain("支持微信 XLSX、支付宝 CSV、银行 PDF");
     expect(problem).toContain("微信");
   });
 });
@@ -265,7 +265,7 @@ describe("billCommitCheck", () => {
     const broken = candidate();
     const problem = checkOf([broken], true, new Map([[broken.id, "请确认交易日期。"]]));
     expect(problem.problems).toEqual([{ id: broken.id, message: "请确认交易日期。" }]);
-    expect(problem.blockers[0]).toContain("有 1 笔需要先改好");
+    expect(problem.blockers[0]).toContain("1 笔账目的金额、币种、收支类型或日期需要修正");
     expect(problem.importableCount).toBe(0);
 
     const unacknowledged = checkOf(
@@ -278,7 +278,7 @@ describe("billCommitCheck", () => {
       }),
     );
     expect(unacknowledged.needsAcknowledgement).toBe(true);
-    expect(unacknowledged.blockers[0]).toContain("我已了解上面的提示");
+    expect(unacknowledged.blockers[0]).toContain("已了解文件提示");
   });
 
   it("文件级提示 + 对账差异 = 需要确认；两者都没有就不需要", () => {
@@ -403,8 +403,8 @@ describe("展示文案", () => {
     const notes = billRowNotes(item, "请确认交易日期。", ["tx-1"]);
     expect(notes).toContain("分类没认出来");
     expect(notes).toContain("请确认交易日期。");
-    expect(notes.join(" ")).toContain("与账本里已有的账目相似");
-    expect(notes.join(" ")).toContain("来源身份已存在");
+    expect(notes.join(" ")).toContain("与已有账目相似");
+    expect(notes.join(" ")).toContain("此来源记录已导入，默认跳过");
 
     expect(billRowWarnings(candidate(), null)).toEqual([]);
     expect(billRowWarnings(candidate(), "请确认币种。")).toEqual(["请确认币种。"]);

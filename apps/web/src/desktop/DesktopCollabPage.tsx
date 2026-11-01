@@ -1,3 +1,4 @@
+import { BookNotificationBell } from "../components/BookNotificationBell.js";
 import { useState } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 import { MessageBoardFull } from "../components/MessageBoard.js";
@@ -36,6 +37,7 @@ function CollabContent(): React.JSX.Element {
   if (ledger.isError) return <div className="p-6"><p role="alert" className="text-danger">{t("collab.messages.ledgerLoadFailed")}</p><button className="lv-desk-btn mt-4" onClick={() => void ledger.refetch()}>{t("common.action.retry")}</button></div>;
   return <div ref={box.ref} className="flex h-full min-h-0 flex-col">
     <DesktopToolbar title={t("desktop.collab.title")} meta={ledger.data?.book.name} actions={<>
+      {bookId ? <BookNotificationBell bookId={bookId} /> : null}
       <button className="lv-desk-btn" aria-expanded={management === "invite"} onClick={() => setManagement(management === "invite" ? null : "invite")}>{t("desktop.collab.tabs.invite")}</button>
       {bookId === null ? null : <Link className="lv-desk-btn" to={"/books/" + bookId}>{t("books.detail.title")}</Link>}
       {!fits ? <button className="lv-desk-btn" onClick={() => setShowMessages((value) => !value)}>{t(showMessages ? "desktop.collab.tabs.history" : "desktop.collab.tabs.messages")}</button> : null}

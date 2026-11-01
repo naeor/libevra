@@ -352,7 +352,7 @@ describe("AddEntryPage 第三轮（S15-C 第三轮）", () => {
     // 尾部那段不再需要，所以本页用既有的 className 入口覆盖掉（未改 Layouts.tsx）。
     expect(html).toContain("min-h-full pb-0!");
     // 表单纵向撑满，多余高度由保存条前面的弹性空白吸收。
-    expect(html).toContain('class="flex flex-1 flex-col"');
+    expect(html).toContain('class="lv-manual-form flex flex-1 flex-col"');
     expect(html).toContain('<div aria-hidden="true" class="flex-1"></div>');
   });
 

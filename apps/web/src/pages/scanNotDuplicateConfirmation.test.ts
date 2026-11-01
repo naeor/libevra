@@ -27,7 +27,7 @@ describe("拍照记账的不重复确认入口", () => {
     expect(PAGE_SOURCE).toContain('translate("duplicates.reminder.confirmNotDuplicate")');
     expect(PAGE_SOURCE).toContain('translate("duplicates.reminder.confirmNotDuplicateHint")');
     expect(zhCN.duplicates.reminder.confirmNotDuplicate).toBe("确认不是同一笔");
-    expect(zhCN.duplicates.reminder.confirmNotDuplicateHint).toContain("以后不再提示");
+    expect(zhCN.duplicates.reminder.confirmNotDuplicateHint).toContain("后续忽略这组重复提醒");
   });
 
   it("「仍然保存」分支不传关系参数（不自动推断）", () => {

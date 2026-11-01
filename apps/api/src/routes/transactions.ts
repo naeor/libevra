@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { lockBookStorage } from "../ledger/storage.js";
 import { registerDuplicateReviewRoutes, duplicateWhere, candidateFromTransaction, suppressConfirmed } from "./duplicateReview.js";
 import {
   DEFAULT_DUPLICATE_DETECTION_SETTINGS,
@@ -63,12 +65,15 @@ export interface TransactionRouteOptions {
 
 /** Everything the list and detail views render, in one shape. */
 const TRANSACTION_INCLUDE = {
+  attachmentLinks: { where: { deletedAt: null, attachment: { deletedAt: null, state: "ready" } }, select: { attachment: { select: { mediaType: true } } } },
   category: { select: { id: true, name: true, isSystem: true } },
   paymentMethod: { select: { id: true, name: true } },
   tags: { include: { tag: { select: { id: true, name: true, color: true } } } },
 } as const;
 
 interface TransactionRow {
+  storageBytes?: bigint;
+  attachmentLinks?: { attachment: { mediaType: string } }[];
   id: string;
   /** ⚠️ The number a person reads (`#000001`). Server-assigned; no request schema accepts it. */
   seq: number;
@@ -222,6 +227,9 @@ function toDto(row: TransactionRow): TransactionDto {
      * about exactly that: one fact implemented in two places comes to disagree with itself.
      */
     seq: row.seq,
+    storageBytes: Number(row.storageBytes ?? 0n),
+    attachmentCount: row.attachmentLinks?.length ?? 0,
+    attachmentTypes: [...new Set(row.attachmentLinks?.map(l => l.attachment.mediaType) ?? [])],
     kind: row.kind,
     // Stored as bigint, handed out as a number: the amount ceiling in the
     // shared schema keeps every value inside the safe integer range.
@@ -348,6 +356,7 @@ export function registerTransactionRoutes(
        * the placement rather than being enforced by a separate check.
        */
       const created = await prisma.$transaction(async (tx) => {
+      await lockBookStorage(tx, bookId);
         const seq = await allocateTransactionSeq(tx, bookId);
 
         const row = await tx.transaction.create({
@@ -372,6 +381,7 @@ export function registerTransactionRoutes(
           actorId: userId,
           actorName: request.currentUser!.displayName,
           kind: "created",
+          ...(body.deviceEdits ? { deviceEdits: body.deviceEdits } : {}),
         });
 
         return row;
@@ -881,7 +891,8 @@ export function registerTransactionRoutes(
      * The user's choices are exactly the fields this request moves.
      */
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.transaction.update({ where: { id }, data, include: TRANSACTION_INCLUDE });
+      await lockBookStorage(tx, bookId);
+      const result = await tx.transaction.update({ where: { id, version: existing.version }, data, include: TRANSACTION_INCLUDE });
       if (settling) await settleConflicts(tx, {
         transactionId: id, bookId, deviceId: deviceIdFrom(request), settled: write,
       });
@@ -900,7 +911,14 @@ export function registerTransactionRoutes(
        */
       const changed = diffEntry(existing as unknown as Record<string, unknown>, result as unknown as Record<string, unknown>);
 
-      if (Object.keys(changed).length > 0) {
+      const acceptedEdits = body.deviceEdits?.map(edit => ({
+        at: edit.at,
+        changes: Object.fromEntries(Object.entries(edit.changes).filter(([field]) =>
+          movedFields.has(field) || (movedFields.has("occurredAt") && (field === "occurredLocalDate" || field === "occurredTz")),
+        )),
+      })).filter(edit => Object.values(edit.changes).some(v => JSON.stringify(v.from) !== JSON.stringify(v.to)));
+      const deviceHistory = !!acceptedEdits?.length;
+      if (Object.keys(changed).length > 0 || deviceHistory) {
         await recordEvent(tx, {
           bookId,
           transactionId: result.id,
@@ -909,6 +927,10 @@ export function registerTransactionRoutes(
           actorName: request.currentUser!.displayName,
           kind: "updated",
           changes: changed,
+          beforeSnapshot: existing,
+          ...(body.deviceEdits?.length ? { operationId: "device:" + createHash("sha256").update(JSON.stringify([id, deviceIdFrom(request), body.deviceEdits])).digest("hex") } : {}),
+          offlineChanges: changes.filter((change) => movedFields.has(change.field)),
+          ...(acceptedEdits ? { deviceEdits: acceptedEdits } : {}),
         });
       }
 
@@ -933,6 +955,9 @@ export function registerTransactionRoutes(
       }
 
       return result;
+    }).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2025") throw conflict("transaction_retry", "账目刚刚更新，请重试。");
+      throw error;
     });
     request.log.info({ transactionId: id, deviceId: deviceIdFrom(request), settlesConflict: settling,
       writtenFields: Object.keys(write) }, "conflict-write-confirmed");
@@ -1055,6 +1080,7 @@ export function registerTransactionRoutes(
     if (!existing) throw notFound("transaction_missing", "找不到这笔记账。");
 
     await prisma.$transaction(async (tx) => {
+      await lockBookStorage(tx, bookId);
       // A tombstone, never a real delete: an offline device that still holds this
       // entry must be able to learn that it is gone, instead of re-uploading it.
       await tx.transaction.update({
@@ -1113,6 +1139,7 @@ export function registerTransactionRoutes(
     }
 
     const restored = await prisma.$transaction(async (tx) => {
+      await lockBookStorage(tx, bookId);
       const row = await tx.transaction.update({
         where: { id },
         data: { deletedAt: null, version: existing.version + 1 },

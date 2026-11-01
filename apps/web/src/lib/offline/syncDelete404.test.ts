@@ -5,6 +5,7 @@ import { ApiRequestError, apiFetch } from "../api.js";
 import { readMarks, setMark, upsertEntry } from "./localLedger.js";
 import { retryAbandonedWrites, syncAll } from "./sync.js";
 import { setOfflineScope } from "./scope.js";
+import { deviceAuditChanges, onlineChanges } from "./write.js";
 
 /**
  * The two halves of "为什么删掉的行一直是红色的" (owner, 2026-10-20, localhost, network up).
@@ -121,5 +122,28 @@ describe("trying again after the program gave up", () => {
 
     expect(apiFetch).toHaveBeenCalledTimes(6);
     expect((await readMarks())[id]).toBeUndefined();
+  });
+});
+
+
+describe("离线更正历史随队列传输", () => {
+  it("日期与时区中间更正进入历史，不加入原有冲突字段", () => {
+    const before = entry();
+    const after = { ...before, occurredAt: "2026-10-21T08:00:00.000Z", occurredLocalDate: "2026-10-21", occurredTz: "UTC" };
+    expect(deviceAuditChanges(before, after)).toEqual({
+      occurredAt: { from: before.occurredAt, to: after.occurredAt },
+      occurredLocalDate: { from: before.occurredLocalDate, to: after.occurredLocalDate },
+      occurredTz: { from: before.occurredTz, to: after.occurredTz },
+    });
+    expect(onlineChanges(before, after)).toEqual([]);
+  });
+  it.each([false, true])("synced=%s 时创建和更新都携带全部设备更正；失败仍保留原记录", async (synced) => {
+    const deviceEdits = [{ at: "2026-11-01T10:00:00Z", changes: { amountCents: { from: 1000, to: 1500 } } }, { at: "2026-11-01T11:00:00Z", changes: { amountCents: { from: 1500, to: 2000 } } }];
+    const mark = { pending: true, synced, chain: { amountCents: [1000,1500,2000] }, deviceEdits };
+    await setMark(id, mark);
+    vi.mocked(apiFetch).mockRejectedValue(new ApiRequestError(503, "offline", "服务暂不可用"));
+    await syncAll();
+    expect(apiFetch).toHaveBeenCalledWith(synced ? "/transactions/" + id : "/transactions", expect.objectContaining({ body: expect.objectContaining({ deviceEdits }) }));
+    expect((await readMarks())[id]).toEqual(mark);
   });
 });

@@ -1,35 +1,18 @@
-/**
- * The ledger's top-right tools: 刷新 / 批量操作 / 更多.
- *
- * ⚠️ **导出 moved into 更多, and the reason is how often each one is pressed.** Export is a
- * destination somebody visits rarely and deliberately; batch mode is a thing you reach for while
- * looking at the list. The top row is the space for the second kind. The export screen itself is
- * untouched — 更多 now links to it.
- *
- * Extracted from `DetailPage` so the row can be checked by rendering it: a test can prove that the
- * batch button exists, that export is no longer a top-level tool, and that a guest still sees only
- * 刷新. None of that needs a DOM or a click.
- */
 import type { ReactNode } from "react";
 
 import { useI18n } from "../../i18n/index.js";
 
 export function DetailTools({
-  refreshing,
-  turnKey,
+  sortControl,
   guest,
   selecting,
-  onRefresh,
   onBatch,
   onMore,
   onExitSelection,
 }: {
-  readonly refreshing: boolean;
-  /** Bumped on every refresh, so the one-turn animation reports an event. */
-  readonly turnKey: number;
+  readonly sortControl: ReactNode;
   readonly guest: boolean;
   readonly selecting: boolean;
-  readonly onRefresh: () => void;
   readonly onBatch: () => void;
   readonly onMore: () => void;
   readonly onExitSelection: () => void;
@@ -53,20 +36,7 @@ export function DetailTools({
         </button>
       ) : (
         <>
-          <ToolButton
-            /**
-             * ⚠️ **The icon spins while the sync runs, because "slow" and "nothing is happening" are the
-             * same thing on screen.** The owner's note was "联网的自动刷新比较慢" — and a slow operation
-             * with no sign of activity is indistinguishable from a broken one, which is one of this
-             * project's own lessons: **"没有反馈"和"没有生效"在用户看来没有区别.** The spin continues for at
-             * least as long as the work does, so the button is never silent.
-             */
-            icon={<RefreshIcon key={turnKey} spinning={refreshing} />}
-            label={t("ledger.tools.refresh")}
-            hint={t("ledger.tools.refreshHint")}
-            busy={refreshing}
-            onClick={onRefresh}
-          />
+          {sortControl}
           {guest ? null : (
             <>
               <ToolButton
@@ -132,34 +102,6 @@ function ToolButton({
     >
       {icon}
     </button>
-  );
-}
-
-/**
- * A circular arrow, matching the weight and size of the two beside it.
- *
- * ⚠️ **Same stroke, same box, same `size-[18px]` as `BatchIcon` and `MoreIcon`** — the owner asked for the
- * animation and weight to match the other two, and a button that looks subtly different from its neighbours
- * reads as a different kind of control.
- */
-function RefreshIcon({ spinning = false }: { readonly spinning?: boolean }): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      /**
-       * ⚠️ **`refresh-turn` on the icon, and the rotation is the whole feedback.** A refresh that takes a
-       * second and shows nothing looks like a button that does not work — **and the user then presses it
-       * again**, which is why the handler also ignores a second press while one is running.
-       */
-      className={`size-[18px] ${spinning ? "refresh-turn" : ""}`}
-      aria-hidden="true"
-    >
-      <path d="M20 12a8 8 0 1 1-2.6-5.9" strokeLinecap="round" />
-      <path d="M20 4v4.5h-4.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 

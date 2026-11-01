@@ -22,6 +22,16 @@ describe("原生滚动与顶栏两端吸附", () => {
     const controller = bindNativeHeaderScroll(scroller as unknown as HTMLElement, () => 100, paint);
     return { scroller, paint, ...controller };
   }
+  it("滚动事件先读取位置再绘制，避免写入收起高度后强制重新布局", () => {
+    const scroller = new Scroller();
+    const operations: string[] = [];
+    Object.defineProperty(scroller, "scrollTop", { get: () => { operations.push("read"); return 50; } });
+    const controller = bindNativeHeaderScroll(scroller as unknown as HTMLElement, () => 100, () => operations.push("paint"));
+    operations.length = 0;
+    scroller.dispatchEvent(new Event("scroll"));
+    expect(operations).toEqual(["read", "paint"]);
+    controller.destroy();
+  });
   it("同一次按住跨过收缩端点后仍不取消原生滚动，也不抢写位置", () => {
     const c = setup();
     touch(c.scroller, "touchstart", 500);

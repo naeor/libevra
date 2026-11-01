@@ -30,8 +30,8 @@ const stats: Messages<typeof zh> = {
   comparison: {
     noHistory: "There’s no earlier data to compare this period with, so no change is shown.",
     monthToDate:
-      "Compared with the same days last month: {{current}} this period, {{previous}} before. This period isn’t over yet, so comparing it with a full month would be misleading.",
-    fullPeriod: "Compared with the previous full period: {{current}} this period, {{previous}} before.",
+      "Month-to-date comparison: current {{current}}, previous {{previous}}. The current period is incomplete, so a full-month comparison isn’t used.",
+    fullPeriod: "Previous full-period comparison: current {{current}}, previous {{previous}}.",
     flat: "No change",
   },
   year: {
@@ -69,9 +69,9 @@ const stats: Messages<typeof zh> = {
     more: "More",
     leftmostNone: "Leftmost = no spending",
     summary_one:
-      "Spending on {{count}} day this period, {{total}} in total. Colors show how heavy a day was compared with the rest of this period.",
+      "Expenses on {{count}} day, totaling {{total}}. Colors show relative spending within this period.",
     summary_other:
-      "Spending on {{count}} days this period, {{total}} in total. Colors show how heavy a day was compared with the rest of this period.",
+      "Expenses on {{count}} days, totaling {{total}}. Colors show relative spending within this period.",
     selected: "{{date}}: spent {{amount}} (level {{level}})",
     peak: "Your highest {{currency}} spending was on {{date}}: {{amount}}.",
   },

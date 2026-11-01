@@ -1,3 +1,6 @@
+import { AttachmentPanel } from "./Attachments.js";
+import { useViewBookId } from "../lib/workspaceLedger.js";
+import { useState } from "react";
 import type { Transaction } from "@libellum/shared";
 
 import { Button } from "./Button.js";
@@ -96,6 +99,8 @@ export function EntrySaved({
   readonly quoteSent?: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const bookId = useViewBookId();
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   /**
    * S16：调用方传的是**存储的原名**（拍照、语音、手动三处都是）；预置分类 / 支付方式在这里按当前语言
    * 显示，自建名字原样显示。已经是显示名的字符串再过一遍也不会变。
@@ -157,6 +162,8 @@ export function EntrySaved({
         </button>
       )}
 
+      {bookId ? <button className="lv-desk-link mt-3" onClick={() => setAttachmentsOpen(v => !v)}>{t("attachments.add")}</button> : null}
+      {attachmentsOpen ? <div className="w-full max-w-xl max-h-[40dvh] overflow-y-auto"><AttachmentPanel bookId={bookId} entryIds={[entry.id]} /></div> : null}
       <div className="mt-7 flex w-full max-w-xs flex-col gap-3">
         <Button onClick={onAgain}>
           {inBatch ? t("entry.saved.continueBatch", { count: remaining }) : t("entry.saved.again")}

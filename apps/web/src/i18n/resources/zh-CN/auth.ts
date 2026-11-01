@@ -51,7 +51,7 @@ const auth = {
     passwordMismatch: "两次输入的密码不一致。",
     agreementsRequired: "请先阅读并分别同意每一份当前适用的协议。",
     subtitleInvite: "创建账号需要邀请码。",
-    subtitleOpen: "创建你的 Libevra 账号。",
+    subtitleOpen: "创建 Libevra 账号。",
     inviteHint: "由已有账号在「设置 → 账号安全」生成，或由管理员发放。",
     usernameHint: "3–20 位字母、数字或下划线，用于登录，全站唯一",
     /** `<link>` 是协议文件的链接，`{{title}}` 是协议文件自己的标题（中文原文，不翻译）。 */
@@ -79,7 +79,7 @@ const auth = {
   archive: {
     title: "恢复归档账本",
     intro:
-      "账号注销时如果选择了保留归档账本，会得到一条一次性恢复凭证。提交后需要管理员核验，不会仅凭账本编号直接恢复。",
+      "请使用注销账号时获得的恢复凭证申请恢复归档账本。申请需经管理员核验，仅提供账本编号无法恢复。",
     accountNumber: "原账号编号",
     credential: "一次性恢复凭证",
     bookNumber: "原账本编号",

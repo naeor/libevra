@@ -60,6 +60,10 @@ model WorkbenchConfiguration {
 }
 
 model User {
+  storageBytes BigInt @default(0) @map("storage_bytes")
+  storageLimitBytes BigInt? @map("storage_limit_bytes")
+  entryChangeNotices EntryChangeNotice[]
+
   workbenchConfiguration WorkbenchConfiguration?
   id           String   @id @default(uuid()) @db.Uuid
   username     String   @unique
@@ -570,6 +574,13 @@ model BookShareLink {
 /// **deleting an entry must not delete the record that it was deleted.** Note that
 /// `TransactionConflict` uses `CASCADE` — the two look alike and mean opposite things.
 model TransactionEvent {
+  sourceIp String? @map("source_ip") @db.VarChar(64)
+  operationId String? @map("operation_id") @db.VarChar(128)
+  entryVersion Int? @map("entry_version")
+  snapshot Json?
+  deviceRecordedAt DateTime? @map("device_recorded_at") @db.Timestamptz(6)
+  notice EntryChangeNotice?
+
   id     String @id @default(uuid()) @db.Uuid
   /// Which ledger. Required: history always belongs to a ledger.
   bookId String @map("book_id") @db.Uuid
@@ -765,6 +776,13 @@ model Counter {
 /// book switcher and the 首页 that lists them arrive with the collaboration
 /// stage; the table has been shaped for sharing since the first migration.
 model Book {
+  pendingStorage BookStoragePending?
+
+  storageBytes BigInt @default(0) @map("storage_bytes")
+  storageLimitBytes BigInt? @map("storage_limit_bytes")
+  attachments EntryAttachment[]
+  entryChangeNotices EntryChangeNotice[]
+
   id        String   @id @default(uuid()) @db.Uuid
   name      String
   createdBy String   @map("created_by") @db.Uuid
@@ -1044,6 +1062,9 @@ model Tag {
 ///  * `version` plus `deleted_at` (a tombstone, never a hard delete) let a
 ///    device that was offline learn what changed without resurrecting data
 model Transaction {
+  storageBytes BigInt @default(0) @map("storage_bytes")
+  attachmentLinks EntryAttachmentLink[]
+
   id     String @id @db.Uuid
   bookId String @map("book_id") @db.Uuid
   /// Who recorded it.
@@ -2073,4 +2094,84 @@ model UserTimeZoneChange {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("user_time_zone_changes")
+}
+
+
+/// 用户可见业务容量，使用十进制 MB / GB。账户和账本可单独覆盖总额。
+model StoragePolicy {
+  id String @id @default("global") @db.VarChar(16)
+  accountBytes BigInt @default(1000000000) @map("account_bytes")
+  bookBytes BigInt @default(500000000) @map("book_bytes")
+  fileBytes BigInt @default(100000000) @map("file_bytes")
+  entryBytes BigInt @default(200000000) @map("entry_bytes")
+  entryFiles Int @default(10) @map("entry_files")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("storage_policy")
+}
+
+/// uploading 状态同时代表容量预留；失败或到期删除该临时对象及分块。
+model EntryAttachment {
+  id String @id @db.Uuid
+  bookId String @map("book_id") @db.Uuid
+  uploaderId String @map("uploader_id") @db.Uuid
+  uploaderName String @map("uploader_name") @db.VarChar(64)
+  name String @db.VarChar(255)
+  mediaType String @map("media_type") @db.VarChar(100)
+  sizeBytes BigInt @map("size_bytes")
+  receivedBytes BigInt @default(0) @map("received_bytes")
+  sha256 String? @db.VarChar(64)
+  state String @default("uploading") @db.VarChar(16)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  book Book @relation(fields:[bookId], references:[id], onDelete:Cascade)
+  links EntryAttachmentLink[]
+  chunks EntryAttachmentChunk[]
+  @@index([bookId, createdAt(sort:Desc)])
+  @@index([state, expiresAt])
+  @@map("entry_attachments")
+}
+
+/// 小分块使上传、Range 下载和数据库备份无需整文件驻留内存。
+model EntryAttachmentChunk {
+  attachmentId String @map("attachment_id") @db.Uuid
+  position Int
+  data Bytes
+  attachment EntryAttachment @relation(fields:[attachmentId], references:[id], onDelete:Cascade)
+  @@id([attachmentId, position])
+  @@map("entry_attachment_chunks")
+}
+
+model EntryAttachmentLink {
+  attachmentId String @map("attachment_id") @db.Uuid
+  transactionId String @map("transaction_id") @db.Uuid
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  attachment EntryAttachment @relation(fields:[attachmentId], references:[id], onDelete:Cascade)
+  transaction Transaction @relation(fields:[transactionId], references:[id], onDelete:Cascade)
+  @@id([attachmentId, transactionId])
+  @@index([transactionId])
+  @@map("entry_attachment_links")
+}
+
+/// 站内系统提醒独立于邀请的决定、到期、发送配额和撤回机制。
+model EntryChangeNotice {
+  id String @id @default(uuid()) @db.Uuid
+  bookId String @map("book_id") @db.Uuid
+  recipientId String @map("recipient_id") @db.Uuid
+  eventId String @unique @map("event_id") @db.Uuid
+  readAt DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  book Book @relation(fields:[bookId], references:[id], onDelete:Cascade)
+  recipient User @relation(fields:[recipientId], references:[id], onDelete:Cascade)
+  event TransactionEvent @relation(fields:[eventId], references:[id], onDelete:Cascade)
+  @@index([recipientId, bookId, createdAt(sort:Desc)])
+  @@map("entry_change_notices")
+}
+
+/// 导入业务锁期间暂存容量差值；解锁后原子合并，不改动既有写入保护。
+model BookStoragePending {
+  bookId String @id @map("book_id") @db.Uuid
+  bytes BigInt @default(0)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  @@map("book_storage_pending")
 }

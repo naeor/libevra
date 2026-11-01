@@ -19,6 +19,14 @@ describe("ledger view isolation", () => {
     const pending = { ...expense, amountCents: 8000 };
     expect(mergeLedgerEntries([pending], [expense, income], new Set([expense.id]), { kind: "expense" })).toEqual([pending]);
   });
+  it("刷新附件与空间统计，同时保留本机待同步金额", () => {
+    const local = row("attachments", "expense", { version: 2, amountCents: 9000, attachmentCount: 1, attachmentTypes: ["image/png"], storageBytes: 1000 });
+    const server = row("attachments", "expense", { version: 2, attachmentCount: 4, attachmentTypes: ["image/png", "application/pdf"], storageBytes: 45000 });
+    for (const pending of [new Set<string>(), new Set([local.id])]) {
+      expect(mergeLedgerEntries([local], [server], pending, {})).toEqual([{ ...local, attachmentCount: 4, attachmentTypes: server.attachmentTypes, storageBytes: 45000 }]);
+    }
+    expect(mergeLedgerEntries([local], [row(local.id, "expense")], new Set([local.id]), {})).toEqual([local]);
+  });
   it("hides deletion tombstones, queued or acknowledged, from the list", () => {
     // ⚠️ The owner's report (S15-C, 2026-10-20): "被删掉的东西还在" — the stored copy of a
     // deleted entry was merged back into the view because nothing applied the deletion to the

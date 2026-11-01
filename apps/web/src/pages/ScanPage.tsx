@@ -1,3 +1,4 @@
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import {
   CURRENCIES,
   MAX_RECOGNIZE_IMAGES,
@@ -131,6 +132,7 @@ export function ScanPage(): React.JSX.Element {
   /** Results that could be read, and where we are among them. */
   const [items, setItems] = useState<OcrItemResult[]>([]);
   const [cursor, setCursor] = useState(0);
+  const [attachmentBatchId, setAttachmentBatchId] = useState(() => crypto.randomUUID());
 
   const categories = ledger.data?.categories ?? [];
   const paymentMethods = ledger.data?.paymentMethods ?? [];
@@ -217,6 +219,7 @@ export function ScanPage(): React.JSX.Element {
     if (files.length === 0) return;
 
     setError(null);
+    setAttachmentBatchId(crypto.randomUUID());
     setStep({ name: "working", index: 1, total: files.length });
 
     try {
@@ -351,6 +354,7 @@ export function ScanPage(): React.JSX.Element {
 
   /** How many are still waiting, including the one on screen. */
   const remaining = mode === "single" ? 1 : items.length - cursor;
+  const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, "photo", step.name === "review" ? [{ id: `single:${attachmentBatchId}:${cursor}`, label: t("attachments.capture.current") }] : [], step.name === "working");
 
   async function save(draft: ReviewDraft): Promise<void> {
     setError(null);
@@ -485,6 +489,7 @@ export function ScanPage(): React.JSX.Element {
         }
       }
 
+      await attachments.commit({ [`single:${attachmentBatchId}:${cursor}`]: entry.id });
       setStep({ name: "saved", entry });
     } catch (caught) {
       setError(errorMessage(caught));
@@ -507,7 +512,7 @@ export function ScanPage(): React.JSX.Element {
   );
 
   return (
-    <InnerPage
+    <CaptureLayout panel={attachments.panel}><InnerPage
       title={desktop ? t("desktop.nav.photoRecognition") : t("capture.scan.title")}
       subtitle={t("capture.scan.subtitle")}
       backTo="/"
@@ -774,7 +779,8 @@ export function ScanPage(): React.JSX.Element {
           });
         }}
       />
-    </InnerPage>
+      <CaptureMobileAttachments panel={attachments.panel} />
+    </InnerPage></CaptureLayout>
   );
 }
 

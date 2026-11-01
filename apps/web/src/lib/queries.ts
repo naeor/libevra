@@ -540,6 +540,7 @@ export interface NotificationView {
 export function useNotifications() {
   return useQuery({
     queryKey: queryKeys.notifications,
+    refetchInterval: 30_000,
     queryFn: () =>
       apiFetch<{
         notifications: readonly NotificationView[];
@@ -577,7 +578,7 @@ export function useMarkNotificationsRead() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => apiFetch<{ ok: boolean; marked: number }>("/notifications/read-all", { method: "POST" }),
+    mutationFn: (ids: readonly string[] = []) => apiFetch<{ ok: boolean }>("/notifications/read-visible", { method: "POST", body: { ids } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }

@@ -83,7 +83,7 @@ const FULL_FILES = [
 /** 识别规则文件：大量中文是关键词（不翻译），只检查以“。”结尾的提示句。 */
 const SENTENCE_FILES = ["categoryMatch.ts", "chineseNumerals.ts", "speech.ts", "transactionText.ts"] as const;
 /** 不经过本表的文件：预置名称走 `lib/presetNames.ts`；公告走 `i18n/content/`，法律文本不翻译。 */
-const EXCLUDED_FILES = ["consent.ts", "presets.ts", "avatarIds.ts", "rewards.ts"] as const;
+const EXCLUDED_FILES = ["detailCards.ts", "attachments.ts", "consent.ts", "presets.ts", "avatarIds.ts", "rewards.ts"] as const;
 
 /** 不是界面文字的中文：导出文件表头（文件格式不随语言变化）、系统分类的名字（数据）。 */
 const NOT_UI_TEXT = new Set<string>([...EXPORT_COLUMNS.map((column) => column.header), UNCATEGORISED_NAME]);
@@ -418,13 +418,15 @@ describe("shared 提示的译文", () => {
     expect(SERVER_MESSAGES.filter((message) => !hasSharedTranslation(message))).toEqual([]);
   });
 
-  it("英文下没有残留中文，中文下原样返回", () => {
+  it("英文下没有残留中文，中文仅改写已审定的固定提示", () => {
     const all = [...sharedMessages.keys(), ...SERVER_MESSAGES, ...realSharedOutputs()];
     applyLocale("en-US");
     const leaked = all.map((message) => [message, translateSharedMessage(message)] as const).filter(([, text]) => CJK.test(text));
     expect(leaked).toEqual([]);
     applyLocale("zh-CN");
-    expect(all.filter((message) => translateSharedMessage(message) !== message)).toEqual([]);
+    const revised = "该邀请码已过期，请向邀请你的人再要一个。";
+    expect([...new Set(all.filter((message) => translateSharedMessage(message) !== message))]).toEqual([revised]);
+    expect(translateSharedMessage(revised)).toBe("邀请码已过期，请联系邀请人获取新码。");
   });
 
   it("带数字、清单与单复数的句子按英文语法拼出", () => {

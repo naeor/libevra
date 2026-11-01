@@ -1,3 +1,7 @@
+import { useCaptureTextDraft } from "../lib/captureTextDraft.js";
+import { useAuth } from "../auth/AuthProvider.js";
+import { usePane } from "../workspace/context.js";
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import { useId, useState } from "react";
 import {
   splitTransactionTexts,
@@ -65,13 +69,16 @@ export function PastePage(): React.JSX.Element {
   const navigate = useNavigate();
   const { t } = useI18n();
   const ledger = useLedger();
-  const [text, setText] = useState("");
+  const { user } = useAuth();
+  const pane = usePane();
+  const { text, setText, candidates, setCandidates, batchId } = useCaptureTextDraft(`${user?.id}:${ledger.data?.book.id}:${pane.instance}`);
   /** S18：两个工作区可以同时打开粘贴识别。 */
   const textId = useId();
-  const [candidates, setCandidates] = useState<readonly PasteCandidate[] | null>(null);
   const [clipboardError, setClipboardError] = useState<string | null>(null);
 
   const categories = ledger.data?.categories ?? [];
+  const attachmentTargets = candidates?.map((item, index) => ({ id: `${batchId}:${index}`, label: `${index + 1}. ${item.sourceText}` })) ?? [];
+  const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, "text", attachmentTargets);
 
   async function pasteFromClipboard(): Promise<void> {
     setClipboardError(null);
@@ -108,7 +115,7 @@ export function PastePage(): React.JSX.Element {
   }
 
   return (
-    <InnerPage
+    <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("capture.paste.title")}
       backTo="/"
     >
@@ -189,6 +196,8 @@ export function PastePage(): React.JSX.Element {
                   text: candidate.sourceText,
                   parsed: candidate.parsed,
                   source: "paste",
+                  attachmentTarget: attachmentTargets[index]?.id,
+                  attachmentTargets,
                 });
                 void navigate("/paste/review");
               }}
@@ -204,7 +213,8 @@ export function PastePage(): React.JSX.Element {
       >
         {t("capture.manualFallback")}
       </button>
-    </InnerPage>
+      <CaptureMobileAttachments panel={attachments.panel} />
+    </InnerPage></CaptureLayout>
   );
 }
 

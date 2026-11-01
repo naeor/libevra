@@ -49,7 +49,7 @@ describe("重复交易检测设置节", () => {
     expect(html).toContain("分类匹配");
     expect(html).toContain("支付方式匹配");
     expect(html).toContain("恢复默认设置");
-    expect(html).toContain("关闭提醒不影响防止重复提交");
+    expect(html).toContain("其他重复提交检查和同步规则保持不变");
   });
 
   it("十个开关里默认开启金额、币种、方向、时间、分类与支付方式，时间窗口默认 1 分钟", () => {

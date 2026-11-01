@@ -1,3 +1,5 @@
+import { BookAttachmentSummary } from "../components/Attachments.js";
+import { BookNotificationBell } from "../components/BookNotificationBell.js";
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useI18n } from "../i18n/index.js";
@@ -30,6 +32,7 @@ function BookContent({ bookId, children }: { readonly bookId: string; readonly c
   const open = (value: string) => void navigate(root + (value === "" ? "" : "?section=" + value));
   return <div className="flex h-full min-h-0 flex-col">
     <DesktopToolbar title={t("books.detail.title")} actions={<>
+      <BookNotificationBell bookId={bookId} />
       <select className="lv-dash-select rounded-field border border-line bg-surface text-base" aria-label={t("desktop.book.viewLedger")} value={bookId} onChange={(event) => void navigate("/books/" + event.target.value)}>
         {(books.data?.books ?? []).map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}
       </select>
@@ -57,6 +60,7 @@ function BookContent({ bookId, children }: { readonly bookId: string; readonly c
           {shared ? <Link className="lv-desk-btn" to={"/ledger?book=" + encodeURIComponent(bookId)}>{t("desktop.book.openCollab")}</Link> :
             <button className="lv-desk-btn" onClick={() => open("invite")}>{t("desktop.collab.tabs.invite")}</button>}
         </section>
+        <BookAttachmentSummary bookId={bookId} />
       </aside>
       <main className="lv-desk-book-main">
         <nav className="lv-desk-book-localnav" aria-label={t("desktop.book.sections")}>

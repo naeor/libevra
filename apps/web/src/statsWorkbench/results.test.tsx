@@ -97,7 +97,7 @@ describe("W2/W3公共元数据桥接（不冒充完整shape投影）", () => {
     expect(noPermission).not.toContain("¥0.00");
     const missingView = buildFxView({ entries: [{ ...transaction, currency: "USD" }], missingCurrencies: ["USD"] });
     const html = renderToStaticMarkup(<CardBody card={newCard("AN-I01")} scope={scope({ fx: missingView })} density="expanded" />);
-    expect(html).toContain("无法确定");
+    expect(html).toContain("无法计算");
     expect(html).not.toContain("这段时间没有记录");
     const noTransactions = renderToStaticMarkup(<CardBody card={newCard("AN-B01")} scope={scope({ fx: buildFxView({ entries: [] }) })} density="medium" />);
     expect(noTransactions).toContain("这段时间没有记录");

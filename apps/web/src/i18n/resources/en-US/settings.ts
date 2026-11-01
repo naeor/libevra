@@ -35,7 +35,7 @@ const settings: Messages<typeof zh> = {
     title: "Account & security",
     password: { label: "Change password", hint: "Other devices will be signed out" },
     recoveryCode: { label: "New recovery code", hint: "Your current recovery code stops working right away" },
-    referral: { label: "Invite codes", hint: "Let someone create a Libevra account. This doesn’t share your ledgers." },
+    referral: { label: "Invite codes", hint: "For account registration; does not grant ledger access" },
   },
   theme: {
     title: "Appearance",

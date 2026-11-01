@@ -1,23 +1,22 @@
 /**
  * `ledgerImport` 文案：账本导入（`/import-ledger`，S14-D）（源语言：简体中文）。键结构即全部语言的键定义。
  *
- * ⚠️ 这是高风险流程（导入、冲突处理、10 分钟确认窗口、撤销、账本锁）。中文原文一字未改地从页面搬来；
- * 其中几处中文后面带一个空格（如「批； 新增」），是原来 JSX 换行拼接时就有的，保持原样以免界面变化。
+ * ⚠️ 文案修订必须保留导入、冲突、确认窗口、撤销和账本锁的实际条件，不改变操作行为。
  *
  * 数量写法：句子里的「N 笔 / N 条 / N 组 / N 批」统一用 `count.*` 生成后再插进句子（`{{removed}}` 等），
  * 这样英文能按数量选单复数、也能调整语序；中文拼出来与原文完全相同。
  *
- * `jobError.*` 与 `retention.reason.*` 的中文是**服务器原文的对照**：中文界面直接显示服务器给的原文
- * （与以前一致），其它语言按错误码 / 结构化字段取这里的译文。
+ * `jobError.*` 与 `retention.reason.*` 对应服务器说明；中文通过 sharedMessages 精确映射已审定的固定提示，
+ * 未匹配原文保持不变。其它语言按错误码 / 结构化字段取译文。
  */
 const ledgerImport = {
   title: "导入账本",
   subtitle: {
-    select: "把本机游客账本或另一本正式单人账本导入目标账本。先确认来源和目标。",
-    preview: "确认方向、映射和重复候选。预览和核对都不会修改任何账本。",
-    review: "核对来源变化与可能重复的账目；只有你明确选择更新的目标才会改变，自动导入不会静默覆盖。",
-    jobActive: "导入任务已在服务器执行；关闭页面不会中断，重新打开可继续查看真实进度。",
-    confirm: "确认最终摘要后才会真正写入。来源账本数据会保留。",
+    select: "选择来源和目标账本。支持本机游客账本及其他正式单人账本。",
+    preview: "确认来源、目标、分类映射及疑似重复。预览和核对不会修改账本。",
+    review: "核对来源变更和疑似重复账目。已有目标账目仅按确认的选择更新。",
+    jobActive: "导入任务正在服务器执行。关闭页面不影响进度，可稍后返回查看。",
+    confirm: "确认后写入目标账本，来源数据保留。",
   },
   badge: {
     done: "已完成",
@@ -65,7 +64,7 @@ const ledgerImport = {
     noGuest: "本机没有可用的游客账本。",
     resultMismatch: "服务器已完成提交，但结果与预期不一致。请截图保留本页，并打开目标账本核对，不要重复提交。",
     incrementalUnavailable: "无法读取增量历史，暂不开始导入；请刷新后重试。",
-    otherAccount: "这个导入任务属于另一个账号。请先登录原账号，再继续检查。",
+    otherAccount: "此导入任务属于其他账号，请登录原账号后查看。",
     waitExtended: "已延长等待时间；自动轮询不会延长期限。",
     chooseSource: "请选择来源账本。",
     formalNeedsTarget: "正式账本来源需要选择另一本现有正式账本作为目标。",
@@ -84,10 +83,10 @@ const ledgerImport = {
   },
   removalDialog: {
     title: "删除所选目标账目并导入？",
-    descriptionFallback: "本次导入会删除你选择移除的目标账目，可从编辑历史恢复。",
+    descriptionFallback: "将删除选定的目标账目，删除后可从编辑历史恢复。",
     description: "将删除 {{removed}}，并导入 {{imported}}。",
     consequence: {
-      onlyMarked: "仅删除你在核对页明确标记为「移除」的目标账目",
+      onlyMarked: "仅删除核对页中标记为“移除”的目标账目",
       restorable: "可从编辑历史恢复被移除的账目，编号不变；账本须仍然存在，且你有编辑权限",
       sourceKept: "来源账本数据不会因此被删除",
       atomic: "本次提交失败时会恢复原状，不会只删除目标账目而未导入来源账目",
@@ -96,23 +95,23 @@ const ledgerImport = {
   },
   undoDialog: {
     title: "撤销本次导入？",
-    description: "撤销会恢复本次导入已完成的变更，不只是停止后续导入。",
+    description: "撤销将停止导入，并恢复本次导入已完成的变更。",
     consequence: {
       targetReverted: "本任务新增的目标账目会被移除，更新过的目标账目会恢复原值",
       stateReverted: "本次写入的分类、标签、来源状态和导入结果会恢复到导入前状态",
       othersKept: "其他账本、其他设备的离线待同步数据不会被删除",
       failureLocked: "撤销失败时账本仍暂停编辑，页面会提示失败",
-      editAfter: "撤销完成后才能再次编辑这本账本",
+      editAfter: "撤销完成后恢复账本编辑",
     },
     confirm: "确认撤销导入",
-    progress: "已提交 {{batches}}，新增 {{added}}、更新 {{updated}}；这些变化都会被精确恢复。",
+    progress: "已提交 {{batches}}，新增 {{added}}、更新 {{updated}}；撤销后恢复至导入前状态。",
   },
   finishDialog: {
     title: "确认完成这次导入？",
     description: "确认完成后，本次导入将无法撤销。",
     consequence: {
       serverChecks: "服务器会核对最终结果并保存导入记录",
-      removalsApplied: "你选择移除的目标账目将在此时删除",
+      removalsApplied: "删除已选定移除的目标账目",
       unlocks: "确认成功后，账本恢复编辑",
       cleanupAfter: "确认完成后，才可清理已迁入的游客账目或弃置来源账本",
       failureWaits: "确认失败时仍等待确认，账本继续暂停编辑",
@@ -139,14 +138,14 @@ const ledgerImport = {
     },
     batchBadge: "{{done}} / {{batches}}",
     progress: "已处理 {{done}} / {{batches}}； 新增 {{added}} · 更新 {{updated}} · 跳过 {{skipped}}。 总来源 {{total}}。",
-    lockNote: "最终确认前，这本账本暂停编辑，其他设备也无法修改。撤销导入会恢复已完成的变更，不只是停止后续导入。",
+    lockNote: "最终确认前，所有设备均暂停编辑此账本。撤销将停止导入并恢复已完成的变更。",
     waiting: "等待确认。",
-    countdown: "请在 {{minutes}} 分 {{seconds}} 秒内确认或撤销；超时将自动安全撤销。",
+    countdown: "请在 {{minutes}} 分 {{seconds}} 秒内确认或撤销，超时后自动撤销。",
     pausedCountdown_one: "暂停中，超时后会自动安全撤销（约剩 {{count}} 秒）。可以先继续任务。",
     pausedCountdown_other: "暂停中，超时后会自动安全撤销（约剩 {{count}} 秒）。可以先继续任务。",
     undoableBatches_one: "已提交的 {{count}} 个批次可以完整撤销；撤销前不会释放账本锁。",
     undoableBatches_other: "已提交的 {{count}} 个批次可以完整撤销；撤销前不会释放账本锁。",
-    undoFailed: "撤销未完成，账本仍保持锁定；请重试撤销。系统不会把失败显示为成功，也不会直接解锁。",
+    undoFailed: "撤销未完成，账本仍暂停编辑。请重试撤销。",
     undone: "本次导入造成的新增、更新和来源状态已恢复；账本锁已释放。",
     expired: "旧版任务暂停超过恢复期限，来源快照已清理；已经导入的账目仍保留。",
     action: {
@@ -161,7 +160,7 @@ const ledgerImport = {
   },
   pending: {
     title: "有一次导入还没有确认结果",
-    body: "{{source}} → {{target}}。继续只会用同一个任务编号向服务器确认，不会重复生成账目。",
+    body: "{{source}} → {{target}}。继续查看此任务，不会重复导入。",
     resume: "继续检查结果",
     drop: "放弃本机记录",
     dropNote: "放弃只清除本机任务记录，不会删除已经导入的账目。",
@@ -192,20 +191,20 @@ const ledgerImport = {
     formalOption: "正式账本 · {{name}}",
     sameAsSource: "就是来源账本，不能选",
     noSources: "本机没有游客账本，也没有可作为来源的其他单人账本。",
-    formalSourceNote: "正式来源只会导入你在预览中确认的记录；不会删除来源账本的账目，也不会关闭来源账本。",
+    formalSourceNote: "仅导入预览中确认的记录。来源账本及其账目会保留。",
     guestSourceNote: "来源游客数据在上传前不会被读取或发送；导入后也不会自动删除。",
     formalTargetNote: "正式来源只能导入另一本现有正式单人账本；不能新建目标账本，也不能选来源自己。",
-    createTargetFirst: "导入不会新建目标账本。请先在<link>账本空间</link>正常创建一个空账本，再回到这里选择它作为目标。",
+    createTargetFirst: "请先在<link>账本空间</link>创建空账本，再选择为导入目标。导入不会自动新建账本。",
     importInto: "导入到「{{name}}」 · {{account}}",
     importIntoWithNumber: "导入到「{{name}}」 · {{account}} · 编号 {{number}}",
     accountFallback: "正式账号",
     continue: "查看预览",
-    rules: "可从本机游客账本或当前账号的另一本单人账本导入。使用正式账本时，两本账本都须仅有你一名有效成员， 且没有待接受邀请或可用分享链接。预览和提交时都会检查，导入不会删除或清空来源账本。",
+    rules: "支持本机游客账本或当前账号的其他单人账本。使用正式账本时，两本账本均须仅有当前账号一名有效成员，且无待接受邀请或有效分享链接。预览及提交时检查条件，来源数据保留。",
   },
   preview: {
     direction: "导入方向",
     guestNote: "来源是本机游客账本；导入后本机数据仍会保留。",
-    formalNote: "来源是正式单人账本；导入后来源账本的数据仍会保留，不会自动删除或关闭。",
+    formalNote: "来源为正式单人账本，导入后保留来源账本及其数据。",
     whatHappens: "这次会发生什么",
     metric: {
       source: "来源",
@@ -234,7 +233,7 @@ const ledgerImport = {
     reviewGroups_other: "去核对这 {{count}} 组重复项",
     reviewIncremental: "去核对此前导入与来源变化",
     noDuplicates: "没有发现可能重复的账目。",
-    resolveConflictsFirst: "请先处理完全部属性冲突，再继续。",
+    resolveConflictsFirst: "请先处理所有属性冲突。",
     reviewDuplicatesButton: "去核对可能重复的账目",
     reviewIncrementalButton: "去核对增量变化",
     continue: "继续确认",
@@ -296,11 +295,11 @@ const ledgerImport = {
     legacyLocked: "旧记录身份未确认，禁止直接覆盖",
     keepSkipped: "保持跳过",
     importNow: "本次导入",
-    protectNote: "为保护已有数据，本次只保留目标，不覆盖、不恢复、不删除；如果你需要处理，请先在目标账本中手动核对。",
+    protectNote: "本次保留目标账目，不作修改。如需处理，请在目标账本中手动核对。",
   },
   retention: {
     title: "来源安全与清理",
-    intro: "导入成功不等于可以自动清理来源。这里的所有操作都是独立、手动、默认保留；未迁移记录不会被清理或弃置。",
+    intro: "导入后默认保留来源数据。清理或弃置需单独操作；清理仅处理已确认迁移的记录。",
     guest: {
       title: "游客来源账本仍在本机",
       note: "导入不会自动删除游客数据。可以检查哪些记录已确认迁入目标；未迁移、已跳过、已变化或目标校验不通过的记录会保留。",
@@ -327,9 +326,9 @@ const ledgerImport = {
     },
     /** 服务器 `FormalSourceDisposition.reason` 的对照；中文界面显示服务器原文。 */
     reason: {
-      allMigrated: "来源账本当前满足 S13 弃置条件，且所有来源账目都能在目标账本中找到。弃置后仍可在恢复期限内恢复。",
-      someUnmigrated: "来源账本当前满足 S13 弃置条件，但仍有账目没有迁入目标账本；弃置不会删除它们，但查看来源需要恢复操作。",
-      blocked: "来源账本当前不满足 S13 弃置条件（可能已有协作者、可用邀请/分享链接、已归档或待恢复请求）。",
+      allMigrated: "符合弃置条件，全部来源账目均已迁入目标。弃置后可在恢复期限内恢复。",
+      someUnmigrated: "符合弃置条件，但部分账目尚未迁入目标。弃置后数据保留，需恢复账本才能查看。",
+      blocked: "暂不符合弃置条件，可能存在协作者、有效邀请、分享链接、归档状态或待处理的恢复申请。",
     },
     guestDialog: {
       title: "清理已迁入的游客记录？",
@@ -371,7 +370,7 @@ const ledgerImport = {
     nextShort: "下一组",
     changed: "这一组在重新预览后发生了变化，需要重新核对。",
     quickTitle: "快捷建议",
-    quickNote: "这里只填充下面的逐条选择，不会直接删除任何记录；请核对目标账本中每一笔账目的去留。",
+    quickNote: "批量选择仅更改下方选项。请逐笔核对目标账目的保留或移除状态。",
     preset: {
       keep_a: { label: "保留目标账本", hint: "来源跳过，目标保留" },
       keep_b: { label: "保留来源账本", hint: "来源导入，目标移除" },
@@ -415,7 +414,7 @@ const ledgerImport = {
     taxonomy: "分类/支付/标签：复用 {{reuse}} 个 · 新建 {{create}} 个。同名属性冲突已按你的选择处理。",
     byCurrency: "按币种预览",
     nothingToImport: "没有可导入的账目。",
-    noRemovals: "本轮不会删除目标账本的任何已有账目；新账目由服务器分配编号。导入成功后也不会自动删除来源账本的数据。",
+    noRemovals: "本次保留全部已有目标账目，新增账目自动分配编号。来源数据不受影响。",
     removalsSummary_one: "将删除 {{count}} 笔目标账目（展开核对）",
     removalsSummary_other: "将删除 {{count}} 笔目标账目（展开核对）",
     removalsNote: "仅删除上面列出的账目，可从编辑历史恢复，不会永久删除。来源账本不受影响。",
@@ -430,21 +429,21 @@ const ledgerImport = {
     errorEyebrow: "导入没有完成",
     pausedTitle: "可以安全重试",
     errorTitle: "需要重新核对",
-    pausedBody: "服务器可能已经完成，也可能还没有执行。重新检查同一个任务编号不会创建第二份账目。",
-    errorBody: "本轮没有写入任何目标账目。请返回预览重新确认后再开始。",
+    pausedBody: "任务结果尚未确认。重新检查不会重复导入账目。",
+    errorBody: "未写入目标账目。请返回预览，核对后重试。",
     checkResult: "继续检查结果",
   },
   result: {
     eyebrow: "导入完成",
     imported_one: "已导入 {{count}} 笔",
     imported_other: "已导入 {{count}} 笔",
-    updated_one: "并按你的明确选择更新了 {{count}} 笔已有目标账目。",
-    updated_other: "并按你的明确选择更新了 {{count}} 笔已有目标账目。",
+    updated_one: "已按确认的选择更新 {{count}} 笔目标账目。",
+    updated_other: "已按确认的选择更新 {{count}} 笔目标账目。",
     into: "到「{{name}}」",
     intoWithNumber: "到「{{name}}」 · 编号 {{number}}",
     createdSuffix: "（这次新建的账本）",
-    skipped_one: "按你的核对选择，跳过了 {{count}} 笔来源记录。",
-    skipped_other: "按你的核对选择，跳过了 {{count}} 笔来源记录。",
+    skipped_one: "已按确认的选择跳过 {{count}} 笔来源账目。",
+    skipped_other: "已按确认的选择跳过 {{count}} 笔来源账目。",
     removed_one: "已按你的选择删除 {{count}} 笔目标账目。可从编辑历史逐笔恢复；账本须仍然存在，且你有编辑权限。",
     removed_other: "已按你的选择删除 {{count}} 笔目标账目。可从编辑历史逐笔恢复；账本须仍然存在，且你有编辑权限。",
     checkTitle: "对账",
@@ -459,7 +458,7 @@ const ledgerImport = {
     targetChange: "{{before}} → {{after}}",
     byCurrency: "按币种核对（不会跨币种相加）",
     currencyTotals: "{{currency}}：支出 {{expense}} · 收入 {{income}}",
-    serverChecked: "服务器已按实际写入结果核对；来源账本数据仍然保留，不会自动删除。",
+    serverChecked: "已核对实际导入结果。来源账本数据保留。",
     openTarget: "打开目标账本",
     done: "完成",
   },
@@ -472,7 +471,7 @@ const ledgerImport = {
     duplicates: "发现 {{groups}}可能重复的账目（来源 {{source}}、目标 {{target}}），需要逐组核对后再写入。",
     targetExisting_one: "目标账本已有 {{count}} 条账目，导入只会追加或按你的选择处理重复项，不会静默修改它们。",
     targetExisting_other: "目标账本已有 {{count}} 条账目，导入只会追加或按你的选择处理重复项，不会静默修改它们。",
-    guest: "这是本机游客账本；预览和导入都不会自动删除游客数据，清理仍是单独操作。",
+    guest: "来源为本机游客账本，预览和导入均保留游客数据。如需清理，请单独操作。",
   },
   /** `lib/ledgerImport/submit.ts` 构造请求时的自检错误。 */
   submitError: {

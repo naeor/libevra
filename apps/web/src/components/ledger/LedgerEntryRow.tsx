@@ -1,4 +1,4 @@
-import { UNCATEGORISED_NAME, type Transaction } from "@libellum/shared";
+import { formatStorageBytes, UNCATEGORISED_NAME, type Transaction } from "@libellum/shared";
 
 import { useI18n } from "../../i18n/index.js";
 import { formatTimeWithZone } from "../../lib/datetime.js";
@@ -55,7 +55,7 @@ export function entryNewTabPath(row: {
  * list before this point. The red state stays supported because an entry can be deleted while visible.
  */
 export function LedgerEntryRow({
-  entry,
+  entry, flat = false, space = false,
   selecting,
   selected,
   pending,
@@ -67,6 +67,8 @@ export function LedgerEntryRow({
   dragPath,
 }: {
   readonly entry: Transaction;
+  readonly flat?: boolean;
+  readonly space?: boolean;
   readonly selecting: boolean;
   readonly selected: boolean;
   readonly pending: boolean;
@@ -152,6 +154,7 @@ export function LedgerEntryRow({
             {categoryLabel}
             {entry.note ? <span className="text-muted"> · {entry.note}</span> : null}
           </span>
+          <span className="truncate text-helper text-muted">{flat ? entry.occurredLocalDate : ""}{(entry.attachmentCount ?? 0) > 0 ? ` · 📎 ${entry.attachmentCount}` : ""}{space ? ` · ${formatStorageBytes(entry.storageBytes ?? 0)}` : ""}</span>
           <span className="truncate text-xs text-muted @3xl/lvpane:hidden">
             {formatTimeWithZone(entry.occurredAt, entry.occurredTz)}
             {entry.paymentMethodName ? ` · ${displayPaymentMethodName(entry.paymentMethodName)}` : ""}

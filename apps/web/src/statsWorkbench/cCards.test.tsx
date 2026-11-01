@@ -304,7 +304,7 @@ describe("综合折算", () => {
   it("缺汇率时构成类不显示占比、树图退化为排行；P06 不画面积", () => {
     const html = combined("AN-P06", fxMissing);
     expect(html).toContain("不显示占比");
-    expect(html).not.toContain("分类目前只有一层");
+    expect(html).not.toContain("分类仅有一层");
   });
 
   it("P19 汇率覆盖：需折算 2 笔，已折算 1 笔；P17 折算后币种构成：USD 1 笔折算 ¥32.00", () => {
@@ -326,7 +326,7 @@ describe("综合折算", () => {
   });
 
   it("原币模式下 P17–P20 明确说明只在综合折算下有意义", () => {
-    for (const id of ["AN-P17", "AN-P18", "AN-P19", "AN-P20"]) expect(render(id), id).toContain("只在「综合折算」模式下有意义");
+    for (const id of ["AN-P17", "AN-P18", "AN-P19", "AN-P20"]) expect(render(id), id).toContain("请启用“综合折算”");
   });
 
   it("A15 是计数类：缺汇率不影响连续无支出天数", () => {
@@ -368,7 +368,7 @@ describe("空数据与英文", () => {
     for (const id of ["AN-I18", "AN-A09", "AN-P01", "AN-P10", "AN-P13"]) {
       const html = render(id, undefined, {}, incomeOnly);
       expect(html, id).toContain("这段时间没有记录");
-      expect(html, id).not.toContain("缺汇率");
+      expect(html, id).not.toMatch(/缺(?:少)?汇率/);
     }
     expect(render("AN-P09", undefined, { range: { from: "2026-08-01", to: "2026-10-27" } }, incomeOnly)).not.toContain("两个月");
   });
@@ -409,7 +409,7 @@ describe("1.17.12 新增读法（布局预设用，手算）", () => {
   it("A06 要点：支出比上期多 ¥1,120.00（658.8%）；增加最多的是「房租」，多了 ¥1,000.00", () => {
     const html = render("AN-A06", "insights");
     expect(html).toContain("支出比上期多 ¥1,120.00（658.8%）");
-    expect(html).toContain("增加最多的是「房租」，多了 ¥1,000.00");
+    expect(html).toContain("“房租”增加最多：¥1,000.00");
   });
 
   it("A10 第 90 百分位：Type 7，h = 1 + 7 × 0.9 = 7.3 → 200 + 0.3 × 800 = ¥440.00，8 笔样本较少", () => {
@@ -422,7 +422,7 @@ describe("1.17.12 新增读法（布局预设用，手算）", () => {
   it("P06 支出流向：支出总额 ¥1,290.00 → 4 个分类（shared 层级桑基守恒）", () => {
     const html = render("AN-P06", "sankey");
     expect(html).toContain("支出总额 ¥1,290.00 → 4 个分类");
-    expect(html).toContain("分类目前只有一层");
+    expect(html).toContain("分类仅有一层");
   });
 
   it("P16 数据状态：9 笔、1 种币种、数据完整；本机覆盖不完整时如实说明", () => {

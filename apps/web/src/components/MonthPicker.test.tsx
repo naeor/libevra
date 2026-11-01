@@ -67,4 +67,21 @@ describe("MonthPicker", () => {
 
     expect(november).toContain('disabled=""');
   });
+
+  it("空月置灰并禁用，未知月份保持可选", () => {
+    const html = renderToStaticMarkup(<MonthPicker open month="2026-03" maxMonth="2026-10" availability={{ "2026-03": false, "2026-04": true }} onSelect={() => undefined} onClose={() => undefined} />);
+    const button = (label: string) => html.slice(html.lastIndexOf("<button", html.indexOf(`>${label}<`)), html.indexOf(`>${label}<`));
+    expect(button("3 月")).toContain('disabled=""');
+    expect(button("3 月")).toContain("text-muted/40");
+    expect(button("3 月")).not.toContain("bg-brand text-on-brand");
+    expect(button("4 月")).not.toContain('disabled=""');
+    expect(button("5 月")).not.toContain('disabled=""');
+  });
+
+  it("等待检查时禁用未知月份，但保留已知有账月份", () => {
+    const html = renderToStaticMarkup(<MonthPicker open month="2026-03" maxMonth="2026-10" loading availability={{ "2026-04": true }} onSelect={() => undefined} onClose={() => undefined} />);
+    const button = (label: string) => html.slice(html.lastIndexOf("<button", html.indexOf(`>${label}<`)), html.indexOf(`>${label}<`));
+    expect(button("3 月")).toContain('disabled=""');
+    expect(button("4 月")).not.toContain('disabled=""');
+  });
 });

@@ -93,10 +93,10 @@ describe("BillPickCard", () => {
 
     expect(markup).toContain("选择账单文件");
     expect(markup).toContain("微信 XLSX · 支付宝 CSV · 银行 PDF · Libevra CSV");
-    expect(markup).toContain("单个文件最大 10 MB；电脑上也可以把文件拖进来");
-    expect(markup).toContain("识别和判重是怎么做的");
-    expect(markup).toContain("格式按文件内容识别，不看文件名");
-    expect(markup).toContain("之前导入过的同一份来源会标成「来源已存在」并跳过");
+    expect(markup).toContain("单个文件最大 10 MB，电脑端支持拖入文件。");
+    expect(markup).toContain("识别与重复检测");
+    expect(markup).toContain("根据文件内容识别格式");
+    expect(markup).toContain("已导入的来源记录会标记为“来源已存在”并跳过");
     expect(markup).toContain("下载 Libevra CSV 模板");
   });
 
@@ -348,7 +348,7 @@ describe("BillRowCard", () => {
     expect(markup).toContain('aria-label="支付方式"');
     expect(markup).toContain('aria-label="备注"');
     expect(markup).toContain('aria-label="标签"');
-    expect(markup).toContain("按账单上的当地时间填写；时区在下面单独确认。");
+    expect(markup).toContain("填写账单上的当地时间，并确认下方时区。");
     expect(markup).toContain("IANA 名称，例如 Asia/Shanghai、America/New_York");
     expect(markup).toContain("工作 报销");
     // 裸 select 必须带 rounded-field（uiConsistency 守卫的另一半）。
@@ -397,9 +397,9 @@ describe("BillDuplicateSection", () => {
     );
 
     expect(markup).toContain('aria-label="疑似重复"');
-    expect(markup).toContain("疑似重复，需要你判断");
+    expect(markup).toContain("核对疑似重复");
     expect(markup).toContain("同一份文件里的第 1 组（2 笔）");
-    expect(markup).toContain("系统不会替你删掉或合并任何一笔");
+    expect(markup).toContain("账目不会自动删除或合并");
     expect(markup).toContain('aria-label="保留 第 3 行"');
     expect(markup).toContain('aria-label="保留 第 4 行"');
   });
@@ -419,7 +419,7 @@ describe("BillDuplicateSection", () => {
     );
 
     expect(markup).toContain("和账本里已有账目相似");
-    expect(markup).toContain("已有账目不会被改动");
+    expect(markup).toContain("已有账目不受影响");
     expect(markup).toContain("已有账目编号");
     expect(markup).toContain("tx-old-1、tx-old-2");
   });
@@ -680,7 +680,7 @@ describe("S16 英文界面", () => {
     expect(markup).toContain("Choose a statement file");
     expect(markup).toContain("WeChat XLSX · Alipay CSV · Bank PDF · Libevra CSV");
     // 模板按钮在句子中间（<Trans>），按钮本身仍是可点的 <button>。
-    expect(markup).toMatch(/Starting from scratch\? <button[^>]*>Download the Libevra CSV template<\/button> and fill/);
+    expect(markup).toMatch(/To prepare a statement manually, <button[^>]*>Download the Libevra CSV template<\/button> and fill/);
     expect(markup).toContain("13 KB · XLSX · Recognized as WeChat Pay statement");
   });
 

@@ -1,3 +1,5 @@
+import { lockBookStorage, assertStorageGrowth, withStorageGrowth } from "../ledger/storage.js";
+import { recordEvent } from "../ledger/events.js";
 import {
   UNCATEGORISED_NAME,
   classificationDeleteResponseSchema,
@@ -191,11 +193,12 @@ export function registerClassificationRoutes(
 
     try {
       const created = await prisma.$transaction(async tx => {
+        await lockBookStorage(tx, bookId);
         await lockCategoryTree(tx, bookId);
         await checkCategoryWriter(tx,bookId,request.currentUser!.id);
         const id = randomUUID();
         await checkCategoryTree(tx, bookId, { id, name: body.name, kind: body.kind, parentId: body.parentId ?? null });
-        return tx.category.create({
+        const row = await tx.category.create({
         data: {
           id, parentId: body.parentId ?? null, icon: body.icon ?? null, color: body.color ?? null,
           bookId,
@@ -204,7 +207,7 @@ export function registerClassificationRoutes(
           sortOrder: body.sortOrder ?? (highest._max.sortOrder ?? -1) + 1,
         },
         select: CATEGORY_FIELDS,
-      }); });
+      }); await assertStorageGrowth(tx, request.currentUser!.id, bookId, 0n); return row; });
 
       reply.status(201);
       return created;
@@ -245,6 +248,7 @@ export function registerClassificationRoutes(
 
     try {
       return await prisma.$transaction(async tx => {
+        await lockBookStorage(tx, bookId);
         await lockCategoryTree(tx, bookId);
         await checkCategoryWriter(tx,bookId,request.currentUser!.id);
         const current = await tx.category.findFirst({where:{id,bookId}});
@@ -320,6 +324,7 @@ export function registerClassificationRoutes(
 
       try {
         const result = await prisma.$transaction(async (tx) => {
+      await lockBookStorage(tx, bookId);
           await lockCategoryTree(tx, bookId);
           await checkCategoryWriter(tx,bookId,request.currentUser!.id);
           const target = await tx.category.findFirst({
@@ -355,11 +360,14 @@ export function registerClassificationRoutes(
           let movedRows = 0;
 
           if (replacement !== null) {
-            const moved = await tx.transaction.updateMany({
+            const beforeRows = await tx.transaction.findMany({ where: { categoryId: id } });
+        const moved = await tx.transaction.updateMany({
               where: { categoryId: id },
-              data: { categoryId: replacement.id },
+              data: { categoryId: replacement.id, version: { increment: 1 } },
             });
             movedRows = moved.count;
+            for (const row of beforeRows) await recordEvent(tx, { bookId, transactionId: row.id, transactionSeq: row.seq, actorId, actorName, kind: "updated",
+              beforeSnapshot: { ...row, category: { id: target.id, name: target.name } }, changes: { categoryId: { from: { id: target.id, name: target.name }, to: { id: replacement.id, name: replacement.name } } } });
           }
 
           const removed = await tx.category.deleteMany({ where: { id, bookId } });
@@ -438,14 +446,14 @@ export function registerClassificationRoutes(
     });
 
     try {
-      const created = await prisma.paymentMethod.create({
+      const created = await withStorageGrowth(prisma, request.currentUser!.id, bookId, tx => tx.paymentMethod.create({
         data: {
           bookId,
           name: body.name,
           sortOrder: body.sortOrder ?? (highest._max.sortOrder ?? -1) + 1,
         },
         select: PAYMENT_METHOD_FIELDS,
-      });
+      }));
 
       reply.status(201);
       return created;
@@ -521,6 +529,7 @@ export function registerClassificationRoutes(
       const actorName = request.currentUser!.displayName;
 
       const result = await prisma.$transaction(async (tx) => {
+      await lockBookStorage(tx, bookId);
         const target = await tx.paymentMethod.findFirst({
           where: { id, bookId },
           select: { id: true, name: true },
@@ -549,11 +558,14 @@ export function registerClassificationRoutes(
           }
         }
 
+        const beforePayments = await tx.transaction.findMany({ where: { paymentMethodId: id } });
         const moved = await tx.transaction.updateMany({
           where: { paymentMethodId: id },
-          data: { paymentMethodId: replacement?.id ?? null },
+          data: { paymentMethodId: replacement?.id ?? null, version: { increment: 1 } },
         });
 
+        for (const row of beforePayments) await recordEvent(tx, { bookId, transactionId: row.id, transactionSeq: row.seq, actorId, actorName, kind: "updated",
+          beforeSnapshot: { ...row, paymentMethod: { id: target.id, name: target.name } }, changes: { paymentMethodId: { from: { id: target.id, name: target.name }, to: replacement ? { id: replacement.id, name: replacement.name } : null } } });
         const removed = await tx.paymentMethod.deleteMany({ where: { id, bookId } });
 
         if (removed.count === 0) {
@@ -598,10 +610,10 @@ export function registerClassificationRoutes(
     const bookId = request.book!.bookId;
 
     try {
-      const created = await prisma.tag.create({
+      const created = await withStorageGrowth(prisma, request.currentUser!.id, bookId, tx => tx.tag.create({
         data: { bookId, name: body.name, color: body.color },
         select: TAG_FIELDS,
-      });
+      }));
 
       reply.status(201);
       return created;
@@ -654,6 +666,7 @@ export function registerClassificationRoutes(
     const actorName = request.currentUser!.displayName;
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockBookStorage(tx, bookId);
       const target = await tx.tag.findFirst({
         where: { id, bookId },
         select: { id: true, name: true },
@@ -670,8 +683,12 @@ export function registerClassificationRoutes(
         where: { tagId: id, transaction: { deletedAt: null } },
       });
 
+      const beforeTags = await tx.transaction.findMany({ where: { tags: { some: { tagId: id } } }, include: { tags: { include: { tag: true } } } });
       const unlinked = await tx.transactionTag.deleteMany({ where: { tagId: id } });
+      await tx.transaction.updateMany({ where: { id: { in: beforeTags.map(row => row.id) } }, data: { version: { increment: 1 } } });
 
+      for (const row of beforeTags) await recordEvent(tx, { bookId, transactionId: row.id, transactionSeq: row.seq, actorId, actorName, kind: "updated", beforeSnapshot: row,
+        changes: { tags: { from: row.tags.map(l => l.tag), to: row.tags.filter(l => l.tagId !== id).map(l => l.tag) } } });
       const removed = await tx.tag.deleteMany({ where: { id, bookId } });
 
       if (removed.count === 0) {

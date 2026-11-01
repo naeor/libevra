@@ -136,7 +136,7 @@ describe("保存与读取", () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("设置不合法");
+    expect(result.error).toContain("设置无效");
     expect(storage.values.size).toBe(0);
   });
 
@@ -163,7 +163,7 @@ describe("保存与读取", () => {
     const result = saveDuplicateSettings(ACCOUNT_A, custom(), storage);
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("写入失败");
+    expect(result.error).toContain("无法保存设置");
   });
 });
 

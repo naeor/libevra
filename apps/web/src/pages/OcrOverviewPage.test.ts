@@ -100,7 +100,7 @@ describe("importDisabledReason", () => {
         readOnly: false,
         isViewer: true,
       }),
-    ).toContain("只读成员");
+    ).toContain("查看权限");
   });
 
   it("refuses when everything is marked invalid", () => {

@@ -70,21 +70,20 @@ const PAYMENT_METHODS: readonly PaymentMethod[] = [
 const TAGS: readonly Tag[] = [{ id: "t-a", name: "朋友", color: "#123456" }];
 
 describe("DetailTools", () => {
-  it("offers 刷新 / 批量操作 / 更多, and no longer 导出", () => {
+  it("offers 排序 / 批量操作 / 更多, and no longer 导出", () => {
     const html = renderToStaticMarkup(
       <DetailTools
-        refreshing={false}
-        turnKey={0}
+        sortControl={<button aria-label="sort" />}
         guest={false}
         selecting={false}
-        onRefresh={noop}
         onBatch={noop}
         onMore={noop}
         onExitSelection={noop}
       />,
     );
 
-    expect(html).toContain("刷新，重新读取并同步账目");
+    expect(html).toContain('aria-label="sort"');
+    expect(html).not.toContain("刷新，");
     expect(html).toContain("批量操作，批量修改或删除账目");
     expect(html).toContain("更多，导出账目与数据维护");
 
@@ -92,21 +91,19 @@ describe("DetailTools", () => {
     expect(html).not.toContain("导出，");
   });
 
-  it("keeps a guest on 刷新 alone, the same rule the old 导出/更多 pair used", () => {
+  it("keeps the sort entry for a guest without changing batch/more permissions", () => {
     const html = renderToStaticMarkup(
       <DetailTools
-        refreshing={false}
-        turnKey={0}
+        sortControl={<button aria-label="sort" />}
         guest
         selecting={false}
-        onRefresh={noop}
         onBatch={noop}
         onMore={noop}
         onExitSelection={noop}
       />,
     );
 
-    expect(html).toContain("刷新，");
+    expect(html).toContain('aria-label="sort"');
     expect(html).not.toContain("批量操作");
     expect(html).not.toContain("更多，");
   });
@@ -114,11 +111,9 @@ describe("DetailTools", () => {
   it("replaces the tools with 取消 while selecting", () => {
     const html = renderToStaticMarkup(
       <DetailTools
-        refreshing={false}
-        turnKey={0}
+        sortControl={<button aria-label="sort" />}
         guest={false}
         selecting
-        onRefresh={noop}
         onBatch={noop}
         onMore={noop}
         onExitSelection={noop}
@@ -258,7 +253,7 @@ describe("BatchActionBar", () => {
      * so — "已在本机修改" and "联网后会自动投递", never a bare "已修改" that reads as delivered.
      */
     expect(html).toContain("已在本机修改 1 笔");
-    expect(html).toContain("联网后会自动投递");
+    expect(html).toContain("联网后自动同步");
     expect(html).toContain("有 1 笔失败");
     expect(html).toContain("分类已归档");
     expect(html).not.toContain("已修改 1 笔。");
@@ -331,7 +326,7 @@ describe("BatchEditSheet", () => {
       />,
     );
 
-    expect(html).toContain("收支方向不同，不能统一改分类");
+    expect(html).toContain("包含不同收支类型");
     expect(tagWith(html, 'aria-label="修改分类"')).toContain('disabled=""');
   });
 
@@ -439,11 +434,9 @@ describe("batch screens in English", () => {
 
     const tools = renderToStaticMarkup(
       <DetailTools
-        refreshing={false}
-        turnKey={0}
+        sortControl={<button aria-label="sort" />}
         guest={false}
         selecting={false}
-        onRefresh={noop}
         onBatch={noop}
         onMore={noop}
         onExitSelection={noop}
@@ -451,11 +444,9 @@ describe("batch screens in English", () => {
     );
     const exit = renderToStaticMarkup(
       <DetailTools
-        refreshing={false}
-        turnKey={0}
+        sortControl={<button aria-label="sort" />}
         guest={false}
         selecting
-        onRefresh={noop}
         onBatch={noop}
         onMore={noop}
         onExitSelection={noop}
@@ -492,7 +483,8 @@ describe("batch screens in English", () => {
 
     for (const html of [tools, exit, selection, bar]) expect(html).not.toMatch(CJK);
 
-    expect(tools).toContain("Refresh: Reload and sync entries");
+    expect(tools).toContain('aria-label="sort"');
+    expect(tools).not.toContain("Refresh:");
     expect(exit).toContain("Cancel");
     expect(selection).toContain("Select all 12 loaded entries");
     expect(selection).toContain("1 selected");
@@ -500,7 +492,7 @@ describe("batch screens in English", () => {
     expect(summary.message).toBe(
       "Changed 2 entries. 1 of them is still queued on this device and will be sent once you’re online. 1 failed: “Transport” is archived and can’t be used.",
     );
-    expect(bar).toContain("Checking your access to this ledger…");
+    expect(bar).toContain("Checking ledger permissions…");
   });
 
   it("renders the edit sheet, the row and the delete confirmation without Chinese", () => {

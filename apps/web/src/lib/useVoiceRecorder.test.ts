@@ -79,7 +79,7 @@ describe("describeBlocker", () => {
     // the URL, and naming it costs one string.
     const message = describeBlocker("insecure-context") ?? "";
 
-    expect(message).toContain("https");
+    expect(message).toContain("HTTPS");
     expect(message).not.toContain("这个浏览器不支持");
   });
 

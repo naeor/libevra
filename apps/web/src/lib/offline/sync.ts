@@ -493,6 +493,7 @@ function createBody(entry: Transaction, mark: EntryMark): CreateTransactionInput
   return {
     id: entry.id,
     idempotencyKey: entry.id,
+    ...(mark.deviceEdits?.length ? { deviceEdits: [...mark.deviceEdits] } : {}),
     kind: entry.kind,
     amountCents: entry.amountCents,
     currency: entry.currency,
@@ -541,6 +542,7 @@ function updateBody(entry: Transaction, mark: EntryMark) {
      */
     version: entry.version,
     settlesConflict: mark.settlesConflict === true,
+    ...(mark.deviceEdits?.length ? { deviceEdits: [...mark.deviceEdits] } : {}),
     kind: entry.kind,
     tagIds: entry.tags.map(tag => tag.id),
     amountCents: entry.amountCents,

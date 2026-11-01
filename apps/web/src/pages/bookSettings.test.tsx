@@ -124,7 +124,7 @@ describe("账本设置页渲染出来只剩一次", () => {
     expect(count(html, NUMBER)).toBe(1);
     // The card is still the only identity block, and it offers the rename entry.
     expect(html).toContain("修改账本名称");
-    expect(html).not.toContain("只有查看权限");
+    expect(html).not.toContain("仅有查看权限");
   });
 
   it("viewer 看到：一句说明，没有可点的改名入口", () => {
@@ -134,8 +134,8 @@ describe("账本设置页渲染出来只剩一次", () => {
     expect(html).not.toContain("账本资料");
     expect(count(html, NAME)).toBe(1);
     expect(count(html, NUMBER)).toBe(1);
-    expect(html).not.toContain("修改账本名称");
-    expect(html).toContain("只有查看权限");
+    expect((html.match(/<button\b[\s\S]*?<\/button>/g) ?? []).some((button) => button.includes("修改账本名称"))).toBe(false);
+    expect(html).toContain("仅有查看权限");
   });
 
   it("两个角色都还有完整的三个区域", () => {
@@ -219,7 +219,7 @@ describe("改名入口搬进了顶部卡片", () => {
     // S16：句子在 `books.settings.viewerNotice`（中文原文不变），页面按键取。
     const viewerNotice = 't("books.settings.viewerNotice")';
 
-    expect(stripped("../i18n/resources/zh-CN/books.ts")).toContain("只有查看权限");
+    expect(stripped("../i18n/resources/zh-CN/books.ts")).toContain("仅有查看权限");
     expect(settings).toContain(viewerNotice);
     expect(settings.indexOf(viewerNotice)).toBeGreaterThan(settings.indexOf("<BookIdentityCard"));
   });

@@ -475,7 +475,7 @@ describe("账本导入页 · 英文界面", () => {
     expect(all).toContain("Work");
     // 英文按数量选择单复数，后果与时限写明。
     expect(all).toContain("The source ledger has 2 deleted entries, which won’t be imported.");
-    expect(all).toMatch(/Finish or undo within \d+ min \d+ sec\. If time runs out, the import is safely undone automatically\./);
+    expect(all).toMatch(/Confirm or undo within \d+ min \d+ sec\. The import will be undone automatically when time runs out\./);
     expect(all).toMatch(/about \d+ seconds left/);
     expect(all).toContain("The import made no progress for too long and was paused.");
     expect(all).toContain("Something went wrong with this import.");

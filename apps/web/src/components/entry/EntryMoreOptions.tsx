@@ -40,6 +40,7 @@ import { tagFillStyle } from "../../lib/tagColors.js";
  */
 export function EntryMoreOptions({
   open,
+  expanded = false,
   onToggle,
   paymentMethods,
   paymentMethodId,
@@ -51,6 +52,7 @@ export function EntryMoreOptions({
   onToggleTag,
 }: {
   readonly open: boolean;
+  readonly expanded?: boolean;
   readonly onToggle: () => void;
   /** 已按归档规则过滤过；顺序也是页面给的顺序。 */
   readonly paymentMethods: readonly PaymentMethod[];
@@ -66,6 +68,7 @@ export function EntryMoreOptions({
   const { t } = useI18n();
   /** S18：两个工作区可以同时打开记账页，展开区域的 id 每个实例唯一。 */
   const optionsId = useId();
+  const NoteField = expanded ? "textarea" : "input";
   const paymentMethodName =
     paymentMethods.find((method) => method.id === paymentMethodId)?.name ?? null;
   const summary = moreOptionsSummary({
@@ -75,9 +78,9 @@ export function EntryMoreOptions({
   });
 
   return (
-    <section className="flex flex-col gap-2 px-6 pt-5">
+    <section className={`flex flex-col gap-2 px-6 pt-5 ${expanded ? "lv-entry-more-expanded" : ""}`}>
       <div className="overflow-hidden rounded-field border border-line bg-surface">
-        <button
+        {expanded ? null : <button
           type="button"
           aria-expanded={open}
           aria-controls={optionsId}
@@ -102,9 +105,9 @@ export function EntryMoreOptions({
             </span>
             <ChevronIcon up={open} className="text-muted" />
           </span>
-        </button>
+        </button>}
 
-        {open ? (
+        {open || expanded ? (
           <div
             id={optionsId}
             className="flex flex-col gap-4 border-t border-line px-4 py-4"
@@ -133,7 +136,8 @@ export function EntryMoreOptions({
 
             <label className="flex flex-col gap-2">
               <span className="text-card-title text-ink">{t("common.field.note")}</span>
-              <input
+              <NoteField
+                {...(expanded ? { rows: 4 } : {})}
                 aria-label={t("common.field.note")}
                 value={note}
                 onChange={(event) => {
@@ -144,11 +148,12 @@ export function EntryMoreOptions({
               />
             </label>
 
-            {tags.length > 0 ? (
+            {tags.length > 0 || expanded ? (
               <div className="flex flex-col gap-2">
                 <h3 className="text-card-title text-ink">
                   {t("entry.more.tagsHeading", { max: MAX_TAGS_PER_TRANSACTION, selected: selectedTagIds.length })}
                 </h3>
+                {tags.length === 0 ? <p className="text-helper text-muted">{t("attachments.capture.noTags")}</p> : null}
                 <div className="flex flex-wrap gap-2">
                   {tags.map((tag) => {
                     const selected = selectedTagIds.includes(tag.id);

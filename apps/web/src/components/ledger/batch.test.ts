@@ -172,7 +172,7 @@ describe("batchPermission", () => {
     });
 
     expect(permission.allowed).toBe(false);
-    expect(permission.reason).toContain("仅查看");
+    expect(permission.reason).toContain("查看权限");
   });
 
   it("allows an editor and an owner in a shared ledger", () => {

@@ -9,13 +9,14 @@ describe("two-device conflict HTTP protocol", () => {
   it.each([2000, 8000])("settles test十 to %s cents and removes the shared conflict", async (chosen: number) => {
     const id = "12345678-1234-4123-8123-123456789012";
     const categoryId = "12345678-1234-4123-8123-123456789013";
-    let row = { id, bookId: "book", kind: "expense", amountCents: 1000n, currency: "CNY", categoryId,
+    let row = { id, userId: "user", bookId: "book", kind: "expense", amountCents: 1000n, currency: "CNY", categoryId,
       paymentMethodId: null, occurredAt: new Date("2026-10-11T12:00:00Z"), occurredLocalDate: new Date("2026-10-11"),
       occurredTz: "Asia/Shanghai", note: "test十", version: 1, valueHistory: [],
       category: { id: categoryId, name: "餐饮", isSystem: false }, paymentMethod: null, tags: [] };
     let conflicts: Record<string, any>[] = [];
     const resolutions: Record<string, any>[] = [];
     const prisma = {
+      $queryRaw: async () => [],
       bookMember: {
         /**
          * ⚠️ **`findUnique` is what the permission layer calls**, and the two methods answer
@@ -35,6 +36,7 @@ describe("two-device conflict HTTP protocol", () => {
       category: { findFirst: async () => ({ ...row.category, kind: row.kind }) },
       transaction: {
         findFirst: async () => row,
+        findUnique: async () => row,
         findMany: async () => [row],
         update: async ({ data }: { data: Record<string, unknown> }) => { row = { ...row, ...data }; return row; },
       },

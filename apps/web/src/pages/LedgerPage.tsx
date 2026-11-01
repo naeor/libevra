@@ -103,6 +103,7 @@ export function LedgerPage(): React.JSX.Element {
            * language on this green header, not a new button style per action.
            */
           <NotificationBell
+            {...(ledger.data?.book.id ? { bookId: ledger.data.book.id } : {})}
             showHeading={false}
             panelClassName="tab-page-header-panel"
             extraAction={

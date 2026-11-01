@@ -87,14 +87,14 @@ describe("refreshMessage", () => {
 
     expect(message).toContain("已重新读取本机账目");
     expect(message).not.toContain("没有待投递的改动");
-    expect(message).toContain("还有 2 条改动没有送到云端");
+    expect(message).toContain("2 条改动已保存在本机，等待联网同步");
   });
 
   it("still reports the ones left behind after a partial delivery", () => {
     const message = refreshMessage({ ...base, delivered: 1, waiting: 3 });
 
     expect(message).toContain("已向云端投递 1 条");
-    expect(message).toContain("还有 3 条改动没有送到云端");
+    expect(message).toContain("3 条改动已保存在本机，等待联网同步");
   });
 
   it("keeps the empty sentence when nothing is waiting", () => {
@@ -111,7 +111,7 @@ describe("refreshMessage", () => {
       applyLocale("en-US");
 
       expect(refreshMessage({ ...base, delivered: 1, waiting: 2 })).toBe(
-        "Sent 1 change to the cloud. Nothing new came back for this month. 2 changes haven’t reached the cloud yet. They’re kept on this device and will be retried next time you’re online.",
+        "Sent 1 change to the cloud. Nothing new came back for this month. 2 changes are saved on this device, waiting to sync.",
       );
       expect(refreshMessage({ ...base, delivered: 3, pulled: 12 })).toBe(
         "Sent 3 changes to the cloud and updated this month (12 from the cloud).",

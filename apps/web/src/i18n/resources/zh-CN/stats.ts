@@ -33,8 +33,8 @@ const stats = {
   days_other: "{{count}} 天",
   comparison: {
     noHistory: "所选时段没有可对比的历史数据，因此不显示变化幅度。",
-    monthToDate: "对比为“上月同期”：本期 {{current}}，对比上期 {{previous}}。本期尚未结束，与完整月份比较会失真。",
-    fullPeriod: "对比为上一完整周期：本期 {{current}}，对比上期 {{previous}}。",
+    monthToDate: "与上月同期比较：本期 {{current}}，上期 {{previous}}。本期尚未结束，未与完整月份比较。",
+    fullPeriod: "与上一完整周期比较：本期 {{current}}，上期 {{previous}}。",
     flat: "持平",
   },
   year: {
@@ -72,8 +72,8 @@ const stats = {
     less: "少",
     more: "多",
     leftmostNone: "最左为无支出",
-    summary_one: "本期共 {{count}} 天有支出，合计 {{total}}。颜色表示“在本期内的相对高低”。",
-    summary_other: "本期共 {{count}} 天有支出，合计 {{total}}。颜色表示“在本期内的相对高低”。",
+    summary_one: "{{count}} 天有支出，合计 {{total}}。颜色表示本期内支出的相对高低。",
+    summary_other: "{{count}} 天有支出，合计 {{total}}。颜色表示本期内支出的相对高低。",
     selected: "{{date}} 支出 {{amount}}（第 {{level}} 档）",
     peak: "{{currency}}支出最多的一天是 {{date}}，{{amount}}。",
   },

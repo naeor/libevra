@@ -55,6 +55,8 @@ vi.mock("../auth/AuthProvider.js", async (importOriginal) => ({
 
 /** 只替换这些页面用到的查询；数据用英文，避免把「数据里的中文」误判为漏翻。 */
 vi.mock("../lib/queries.js", () => ({
+  useNotifications: () => ({ data: { items: [] } }),
+  useMarkNotificationsRead: () => ({ mutate: vi.fn() }),
   useLedger: () => ({ data: undefined }),
   useBooks: () => ({ data: { books: [{ id: "book-1", name: "Family" }] } }),
   useCurrentBookId: () => "book-1",

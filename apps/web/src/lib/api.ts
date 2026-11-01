@@ -370,13 +370,13 @@ const CLIENT_ERROR_KEYS = {
 /**
  * 一个请求错误在**当前界面语言**下该怎么说。
  *
- * ⚠️ **中文界面：与以前完全相同，显示服务器给的原文。** 其它语言：先按错误码查 `errors.api.<code>`，
+ * 中文界面仅改写已核对的固定提示，其余保留服务器原文及动态详情。其它语言先按错误码查 `errors.api.<code>`，
  * 再试 shared 原文对照表（zod 校验信息等），都没有就给一句通用说明——**不把中文原文塞进英文界面**。
  * 错误码本身（`error.code`）从不改变，页面里按错误码做的判断不受语言影响。
  */
 export function localizedApiErrorMessage(error: ApiRequestError): string {
   if (error.code in CLIENT_ERROR_KEYS) return t(CLIENT_ERROR_KEYS[error.code as keyof typeof CLIENT_ERROR_KEYS]);
-  if (isChineseLocale()) return error.message;
+  if (isChineseLocale()) return translateSharedMessage(error.message);
   /**
    * 校验失败时服务器给的往往是 shared 里的具体原因（“密码至少 8 位”）；先查原文对照表，
    * 查得到就显示具体原因，查不到再用错误码的通用说明。

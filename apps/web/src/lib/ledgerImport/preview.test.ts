@@ -211,7 +211,7 @@ describe("buildImportPreview", () => {
       source([transaction("s1", { occurredAt: "2026-10-18T10:00:00+08:00" })]),
       target([]),
     );
-    expect(preview.warnings.some((warning) => warning.includes("清理仍是单独操作"))).toBe(true);
+    expect(preview.warnings.some((warning) => warning.includes("预览和导入均保留游客数据。如需清理，请单独操作"))).toBe(true);
     expect(preview.source.kind).toBe("guest");
   });
 

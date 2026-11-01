@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useDialogFocus } from "../lib/dialogFocus.js";
+import { DesktopPopover } from "../desktop/DesktopPopover.js";
+import type { MonthAvailability } from "../lib/monthAvailability.js";
+import { ChevronIcon } from "./Icons.js";
 
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { ALL_MONTHS, currentMonth, formatInstant, isAllMonths } from "../lib/datetime.js";
@@ -37,8 +40,8 @@ function yearLabel(year: number): string {
  * The year steps independently, so going back a year is one tap rather than
  * twelve.
  *
- * `allowAll`（1.17.17，明细页）：底部多一个「全部」，选中后 `month` 为 `ALL_MONTHS`。
- * 此时没有选中的月份，左右箭头只翻看年份、不改选择；点某个月份才离开「全部」。
+ * `allowAll`（明细页）：底部多一个「全部」，选中后 `month` 为 `ALL_MONTHS`。
+ * 左右箭头始终只翻看年份、不改选择；点某个月份才提交选择。
  */
 export function MonthPicker({
   open,
@@ -47,6 +50,12 @@ export function MonthPicker({
   onClose,
   maxMonth,
   allowAll = false,
+  availability,
+  loading = false,
+  statusNote,
+  year: controlledYear,
+  onYearChange,
+  anchor,
 }: {
   readonly open: boolean;
   readonly month: string;
@@ -56,10 +65,17 @@ export function MonthPicker({
   readonly maxMonth: string;
   /** Offer「全部」(every month) below the grid. */
   readonly allowAll?: boolean;
+  readonly availability?: MonthAvailability;
+  readonly loading?: boolean;
+  readonly statusNote?: string;
+  readonly year?: number;
+  readonly onYearChange?: (year: number) => void;
+  /** 桌面端锚定月份入口；触屏端继续使用底部面板。 */
+  readonly anchor?: React.RefObject<HTMLElement | null>;
 }): React.JSX.Element | null {
   const { t } = useI18n();
   const all = isAllMonths(month);
-  /** Only used while「全部」is selected: the year being looked at, not a selection. */
+  /** 翻页只浏览年份，点击月份才修改页面选择。 */
   const [browseYear, setBrowseYear] = useState<number | null>(null);
 
   useEffect(() => {
@@ -71,9 +87,9 @@ export function MonthPicker({
    * 宽度变成居中的小对话框（`lv-sheet*`，见 `workspace.css`），窄工作区与手机上仍是底部面板。
    */
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const layer = useDialogFocus(dialogRef, open);
+  const layer = useDialogFocus(dialogRef, open && anchor === undefined);
   useEffect(() => {
-    if (!open) return;
+    if (!open || anchor !== undefined) return;
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === "Escape" && layer.owns(event)) {
         event.preventDefault();
@@ -84,49 +100,41 @@ export function MonthPicker({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [layer, onClose, open]);
+  }, [layer, onClose, open, anchor]);
 
   if (!open) return null;
 
-  const year = all ? (browseYear ?? Number(maxMonth.slice(0, 4))) : Number(month.slice(0, 4));
+  const year = controlledYear ?? browseYear ?? Number((all ? maxMonth : month).slice(0, 4));
 
   const step = (delta: number): void => {
     const next = year + delta;
-    if (all) {
-      setBrowseYear(next);
-      return;
-    }
-    // Keep the month, clamp to something that exists.
-    onSelect(`${String(next)}-${month.slice(5, 7)}`);
+    setBrowseYear(next);
+    onYearChange?.(next);
+  };
+  const disabled = (value: string): boolean => value > maxMonth || availability?.[value] === false || (loading && availability?.[value] !== true);
+  const choose = (value: string): void => {
+    if (disabled(value)) return;
+    onSelect(value);
+    onClose();
+    anchor?.current?.focus({ preventScroll: true });
   };
 
-  return (
-    <div className="lv-sheet-backdrop fixed inset-0 z-50 flex items-end justify-center">
-      <button
-        type="button"
-        aria-label={t("ledger.monthPicker.close")}
-        onClick={onClose}
-        className="absolute inset-0 bg-overlay"
-      />
-
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("ledger.monthPicker.title")}
-        tabIndex={-1}
-        className="lv-sheet relative w-full max-w-md overflow-y-auto rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl outline-none"
-      >
+  const content = <>
+        <div className="mb-2 flex items-center justify-between gap-4">
+          <span className="text-section-title text-ink">{t("ledger.monthPicker.title")}</span>
+          <button type="button" aria-label={t("ledger.monthPicker.close")} className="rounded-field px-3 py-2 text-muted hover:bg-canvas" onClick={() => { onClose(); anchor?.current?.focus({ preventScroll: true }); }}>×</button>
+        </div>
         <div className="mb-4 flex items-center justify-between">
           <button
             type="button"
             aria-label={t("ledger.monthPicker.previousYear")}
+            disabled={year <= 1}
             onClick={() => {
               step(-1);
             }}
-            className="rounded-full px-3 py-2 text-muted transition hover:text-ink"
+            className="rounded-full px-3 py-2 text-muted transition hover:text-ink disabled:opacity-30"
           >
-            ‹
+            <ChevronIcon direction="left" />
           </button>
 
           <span className="text-base font-medium tabular-nums text-ink">{yearLabel(year)}</span>
@@ -134,37 +142,38 @@ export function MonthPicker({
           <button
             type="button"
             aria-label={t("ledger.monthPicker.nextYear")}
+            disabled={year >= Number(maxMonth.slice(0, 4))}
             onClick={() => {
               step(1);
             }}
-            className="rounded-full px-3 py-2 text-muted transition hover:text-ink"
+            className="rounded-full px-3 py-2 text-muted transition hover:text-ink disabled:opacity-30"
           >
-            ›
+            <ChevronIcon direction="right" />
           </button>
         </div>
 
         <ul className="grid grid-cols-3 gap-2">
           {MONTH_INDEXES.map((index) => {
             const name = monthName(year, index);
-            const value = `${String(year)}-${String(index + 1).padStart(2, "0")}`;
+            const value = `${String(year).padStart(4, "0")}-${String(index + 1).padStart(2, "0")}`;
             const selected = value === month;
-            const future = value > maxMonth;
+            const unavailable = disabled(value);
 
             return (
               <li key={value}>
                 <button
                   type="button"
-                  disabled={future}
+                  disabled={unavailable}
+                  title={availability?.[value] === false ? t("ledger.monthPicker.empty") : undefined}
                   aria-pressed={selected}
                   onClick={() => {
-                    onSelect(value);
-                    onClose();
+                    choose(value);
                   }}
                   className={`w-full rounded-field py-3 text-sm transition ${
-                    selected
+                    unavailable
+                      ? "text-muted/40 cursor-not-allowed"
+                      : selected
                       ? "bg-brand text-on-brand"
-                      : future
-                        ? "text-muted/40"
                         : "bg-canvas text-ink hover:bg-brand-soft"
                   }`}
                 >
@@ -183,6 +192,7 @@ export function MonthPicker({
               onClick={() => {
                 onSelect(ALL_MONTHS);
                 onClose();
+                anchor?.current?.focus({ preventScroll: true });
               }}
               className={`w-full rounded-field py-3 text-sm transition ${
                 all ? "bg-brand text-on-brand" : "bg-canvas text-ink hover:bg-brand-soft"
@@ -194,17 +204,31 @@ export function MonthPicker({
 
           <button
             type="button"
+            disabled={disabled(currentMonth())}
             onClick={() => {
-              onSelect(currentMonth());
-              onClose();
+              choose(currentMonth());
             }}
-            className={`w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20 ${
+            className={`w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark transition hover:bg-brand/20 disabled:bg-canvas disabled:text-muted/40 disabled:cursor-not-allowed ${
               allowAll ? "col-span-2" : ""
             }`}
           >
             {t("ledger.monthPicker.thisMonth")}
           </button>
         </div>
+        {statusNote ? <p role="status" className="mt-3 text-helper-relaxed text-muted">{statusNote}</p> : null}
+  </>;
+
+  if (anchor !== undefined) return (
+    <DesktopPopover anchor={anchor} label={t("ledger.monthPicker.title")} placement="bottom-start" width={320} onClose={onClose}>
+      <div className="p-3">{content}</div>
+    </DesktopPopover>
+  );
+  return (
+    <div className="lv-sheet-backdrop fixed inset-0 z-50 flex items-end justify-center">
+      <button type="button" aria-label={t("ledger.monthPicker.close")} onClick={onClose} className="absolute inset-0 bg-overlay" />
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={t("ledger.monthPicker.title")} tabIndex={-1}
+        className="lv-sheet relative w-full max-w-md overflow-y-auto rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl outline-none">
+        {content}
       </div>
     </div>
   );

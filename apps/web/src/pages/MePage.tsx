@@ -1,3 +1,4 @@
+import { NotificationBell } from "../components/Notifications.js";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -97,6 +98,7 @@ function AccountMePage(): React.JSX.Element {
       */}
       <TabPageHeader
         title={t("nav.tabs.me")}
+        action={<NotificationBell />}
         expanded={
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 py-10">
             <UserAvatar avatarId={user.avatarId} className="size-24 ring-4 ring-on-brand" />

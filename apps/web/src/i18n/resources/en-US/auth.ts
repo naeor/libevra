@@ -49,7 +49,7 @@ const auth: Messages<typeof zh> = {
     passwordMismatch: "The passwords don’t match.",
     agreementsRequired: "Read and accept each of the current agreements first.",
     subtitleInvite: "You need an invite code to create an account.",
-    subtitleOpen: "Create your Libevra account.",
+    subtitleOpen: "Create a Libevra account.",
     inviteHint: "An existing user can create one in Settings → Account & security, or an admin can give you one.",
     usernameHint: "3–20 letters, numbers or underscores. Used to sign in; must be unique.",
     agree: "I have read and agree to <link>{{title}}</link>.",
@@ -75,7 +75,7 @@ const auth: Messages<typeof zh> = {
   archive: {
     title: "Recover an archived ledger",
     intro:
-      "If you chose to keep archived ledgers when you closed your account, you received a one-time recovery credential. Requests are checked by an admin; a ledger number alone can’t recover anything.",
+      "Use the recovery credential issued when you closed your account to request recovery of an archived ledger. Administrator verification is required; a ledger number alone isn’t sufficient.",
     accountNumber: "Original account number",
     credential: "One-time recovery credential",
     bookNumber: "Original ledger number",

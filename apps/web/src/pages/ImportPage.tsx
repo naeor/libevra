@@ -1,3 +1,5 @@
+import { billAttachmentMapping } from "../lib/captureAttachments.js";
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import type { BillImportCandidate, BillImportPreview, ImportReport } from "@libellum/shared";
 import { useRef, useState, type DragEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -237,6 +239,7 @@ function ImportView({
   const itemsById = preview === null ? new Map<string, BillImportCandidate>() : billItemsById(preview);
   const ackReasons = preview === null ? [] : billAcknowledgementReasons(preview);
   const problemsById = new Map(items.map((item) => [item.id, problemOf(item)]));
+  const attachments = useCaptureAttachments(bookId, "import", items.filter(item => item.selected && !item.identityDuplicate).map(item => ({ id: item.id, label: `${item.line}. ${item.amount} ${item.currency} · ${item.note}` })), busy !== null || failure !== null || step.name === "done");
   const check =
     preview === null ? null : billCommitCheck(items, preview, acknowledged, problemsById);
 
@@ -370,6 +373,7 @@ function ImportView({
     setError(null);
     try {
       const report = await commitBill(previewToCommit, bookId, acknowledged);
+      await attachments.commit(billAttachmentMapping(previewToCommit.candidates, report));
       // 写入成功后刷新明细与汇总；目标账本不是当前账本时这个 invalidator 什么也不做。
       await invalidateMoney();
       setStep({ name: "done", preview: previewToCommit, report });
@@ -385,7 +389,7 @@ function ImportView({
   }
 
   return (
-    <InnerPage
+    <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("dataio.import.title")}
       subtitle={t("dataio.import.subtitle")}
       backTo={backTo}
@@ -679,6 +683,7 @@ function ImportView({
             : []
         }
       />
-    </InnerPage>
+      <CaptureMobileAttachments panel={attachments.panel} />
+    </InnerPage></CaptureLayout>
   );
 }

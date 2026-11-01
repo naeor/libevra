@@ -1,3 +1,5 @@
+import { recordEvent } from "../ledger/events.js";
+import { assertStorageGrowth, lockBookStorage } from "../ledger/storage.js";
 import {
   CURRENCIES,
   EXPORT_COLUMNS,
@@ -496,6 +498,7 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
     // They are created inside the same transaction as the entries and the import log, so a
     // failure (including a phase-4 ledger lock) rolls back every part of the CSV import.
     await prisma.$transaction(async (tx) => {
+      await lockBookStorage(tx, bookId);
       for (const item of toInsert) {
         for (const name of item.tagNames) {
           if (tagIdByName.has(name)) continue;
@@ -521,7 +524,7 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
       for (const item of toInsert) {
         const seq = await allocateTransactionSeq(tx, bookId);
 
-        await tx.transaction.create({
+        const createdEntry = await tx.transaction.create({
           data: {
             id: item.id,
             seq,
@@ -547,6 +550,7 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
             },
           },
         });
+        await recordEvent(tx, { bookId, transactionId: createdEntry.id, transactionSeq: createdEntry.seq, actorId: userId, actorName: request.currentUser!.displayName, kind: "created" });
       }
 
       await tx.importLog.create({
@@ -563,6 +567,7 @@ export function registerImportRoutes(app: FastifyInstance, options: ImportRouteO
           skippedCount: skippedLines.length,
         },
       });
+      await assertStorageGrowth(tx, userId, bookId, 0n);
     });
 
     return importReportSchema.parse({

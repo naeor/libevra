@@ -1,3 +1,5 @@
+import { AttachmentPanel } from "../components/Attachments.js";
+import { ViewLedgerContext, useViewBookId } from "../lib/workspaceLedger.js";
 import {
   decimalsFor,
   CURRENCIES,
@@ -74,7 +76,8 @@ function displayLocalDate(localDate: string): string {
 /**
  * `entryId`：电脑版在明细右侧辅助栏里显示某一笔时直接给出 id（地址仍是明细页）；不给时照旧读路由参数。
  */
-export function EntryDetailPage({ entryId }: { readonly entryId?: string } = {}): React.JSX.Element {
+function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): React.JSX.Element {
+  const attachmentBookId = useViewBookId();
   const fxMode = useFxMode();
   const routeParams = useParams();
   const id = entryId ?? routeParams.id ?? "";
@@ -498,6 +501,7 @@ export function EntryDetailPage({ entryId }: { readonly entryId?: string } = {})
 
       {editing ? (
         <>
+          <AttachmentPanel bookId={attachmentBookId} entryIds={[id]} />
           <section className="flex flex-col gap-2">
             <h2 className="px-1 text-card-title text-ink">{t("common.field.amount")}</h2>
             {fxMode.enabled ? <p className="px-1 text-helper-relaxed text-muted">{t("fx.readOnly")}</p> : null}
@@ -708,6 +712,7 @@ export function EntryDetailPage({ entryId }: { readonly entryId?: string } = {})
             )}
           </dl>
 
+          <AttachmentPanel bookId={attachmentBookId} entryIds={[id]} />
           <section className="flex flex-col gap-2">
             <h2 className="px-1 text-card-title text-ink">{t("common.field.tags")}</h2>
             {data.tags.length === 0 ? (
@@ -857,4 +862,10 @@ export function EntryDetailPage({ entryId }: { readonly entryId?: string } = {})
       />
     </InnerPage>
   );
+}
+
+export function EntryDetailPage(props: { readonly entryId?: string } = {}): React.JSX.Element {
+  const location = useLocation();
+  const book = new URLSearchParams(location.search).get("book");
+  return book ? <ViewLedgerContext.Provider value={book}><EntryDetailContent {...props} /></ViewLedgerContext.Provider> : <EntryDetailContent {...props} />;
 }

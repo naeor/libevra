@@ -9,7 +9,7 @@ const language: Messages<typeof zh> = {
   system: "Use device language",
   systemHint: "Follows your browser or system language. Currently: {{language}}.",
   current: "Current: {{language}}",
-  note: "Only the app’s text changes. Your entries, category names, notes and currencies stay as they are.",
+  note: "The interface language does not change entries, category names, notes or currencies.",
   switchTo: "Switch to {{language}}",
   switchLabel: "Display language",
 };

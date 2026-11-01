@@ -1,3 +1,4 @@
+import { AccountStorageSummary, LocalAttachmentStorage } from "../components/Attachments.js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { Trans } from "react-i18next";
@@ -127,6 +128,8 @@ export function DownloadManagerPage(): React.JSX.Element {
         </button>
       }
     >
+      <LocalAttachmentStorage />
+      <AccountStorageSummary />
       {error === null ? null : <Alert tone="error">{t("offline.downloads.readError")}</Alert>}
 
       {canStoreOffline() ? null : <Alert tone="info">{t("offline.downloads.unsupported")}</Alert>}

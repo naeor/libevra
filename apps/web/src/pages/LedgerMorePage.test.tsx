@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("../auth/AuthProvider.js", async importOriginal => ({ ...await importOriginal<typeof import("../auth/AuthProvider.js")>(), useAuth: () => ({ user: { id: "card-editor-test" } }) }));
 
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { applyLocale } from "../i18n/index.js";
@@ -29,20 +30,22 @@ function renderPage(): string {
 }
 
 describe("LedgerMorePage", () => {
-  it("groups the screen into 导出账目 / 筛选与查找 / 数据维护", () => {
+  it("groups the screen into 导出账目 / 编辑展示卡片 / 数据维护", () => {
     const html = renderPage();
 
     expect(html).toContain("导出账目");
     expect(html).toContain("导出为文件");
-    expect(html).toContain("筛选与查找");
+    expect(html).not.toContain("筛选与查找");
+    expect(html).toContain("编辑展示卡片");
     expect(html).toContain("数据维护");
   });
 
-  it("is honest that there is no text search yet", () => {
+  it("describes the available filters without denying desktop search", () => {
     const html = renderPage();
 
-    expect(html).toContain("暂不支持文字搜索");
-    expect(html).toContain("回到明细页筛选");
+    expect(html).not.toContain("暂不支持文字搜索");
+    expect(html).toContain("自定义此账本的个人显示方案");
+    expect(html).not.toContain("回到明细页筛选");
   });
 
   it("warns that pending changes stop submitting and conflicts use the server version", () => {
@@ -78,8 +81,7 @@ describe("RELOAD_CONFIRMATION", () => {
   it("states that nothing is deleted or cleared", () => {
     const joined = RELOAD_CONFIRMATION.consequences.join(" ");
 
-    expect(joined).toContain("不会清除本机账目");
-    expect(joined).toContain("不会删除服务器上的任何数据");
+    expect(joined).toContain("本机账目和服务器数据均保留");
   });
 
   it("does not promise a cache clear or a database repair", () => {

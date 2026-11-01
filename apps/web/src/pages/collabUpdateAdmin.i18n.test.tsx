@@ -258,12 +258,12 @@ describe("英文界面：协作", () => {
     expect(share).toContain("7 days · 1/10 joined · 9 spots left");
     expect(share).toContain("1 day · 0/1 joined");
     expect(share).toContain("Revoked");
-    expect(share).toContain("1 link is active.");
+    expect(share).toContain("1 active link.");
 
     const panel = render(<NotificationPanel />);
     expect(panel).toContain("Invitation to join “Trip”");
-    expect(panel).toContain("2 items are waiting for you.");
-    expect(panel).toContain("You signed up with Sam’s invite code.");
+    expect(panel).toContain("2 pending notifications.");
+    expect(panel).toContain("Registered with Sam’s code.");
     expect(panel).toContain("Join us for the trip budget");
 
     const board = render(<MessageBoardFull bookName="Family budget" />);
@@ -286,12 +286,12 @@ describe("英文界面：协作", () => {
 
     const share = render(<ShareSection bookId="b1" />);
     expect(share).toContain("7 天 · 已加入 1/10 人 · 还剩 9 个名额");
-    expect(share).toContain("生效中 1 条。");
+    expect(share).toContain("1 条链接生效中。");
 
     const panel = render(<NotificationPanel />);
     expect(panel).toContain("邀请你加入「Trip」");
-    expect(panel).toContain("你是用 Sam 的邀请码注册的。");
-    expect(panel).toContain("有 2 条等着你处理。");
+    expect(panel).toContain("已通过 Sam 的邀请码注册。");
+    expect(panel).toContain("2 条待处理通知");
 
     const board = render(<MessageBoardFull bookName="Family budget" />);
     expect(board).toMatch(/今天 \d{2}:\d{2}/);

@@ -1,3 +1,5 @@
+import enAttachments from "./en-US/attachments.js";
+import zhAttachments from "./zh-CN/attachments.js";
 /**
  * 全部文案资源的装配点。
  *
@@ -70,6 +72,7 @@ import zhDesktop from "./zh-CN/desktop.js";
 import type { Messages } from "../types.js";
 
 export const zhCN = {
+  attachments: zhAttachments,
   fx: zhFx,
   common: zhCommon,
   language: zhLanguage,
@@ -105,6 +108,7 @@ export const zhCN = {
 export type TranslationResource = typeof zhCN;
 
 export const enUS: Messages<TranslationResource> = {
+  attachments: enAttachments,
   fx: enFx,
   common: enCommon,
   language: enLanguage,

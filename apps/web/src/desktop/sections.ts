@@ -12,6 +12,7 @@ function under(pathname: string, prefix: string): boolean {
 }
 
 export function sectionFor(pathname: string): DesktopSection {
+  if (pathname === "/ledger/cards") return "plain";
   if (SETTINGS_EXACT.includes(pathname) || SETTINGS_PREFIXES.some((prefix) => under(pathname, prefix))) return "settings";
   // `/ledger/more` 是记账流程的一部分，不放进协作分页。
   if (under(pathname, "/ledger") && pathname !== "/ledger/more") return "collab";

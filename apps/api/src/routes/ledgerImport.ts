@@ -1,3 +1,4 @@
+import { assertStorageGrowth, lockBookStorage, lockAccountStorage } from "../ledger/storage.js";
 import { createHash, randomUUID } from "node:crypto";
 import { categoryTreeRows, validateCategoryTree } from "@libellum/shared";
 import { lockCategoryTree } from "../ledger/categoryTree.js";
@@ -509,6 +510,8 @@ async function executeImport(
         }
       }
 
+      await lockBookStorage(tx, targetBookId);
+      await lockAccountStorage(tx, userId);
       const targetFingerprint = await fingerprintTargetSnapshot(targetSnapshot);
 
       const taxonomy = await resolveTaxonomy(
@@ -608,6 +611,7 @@ async function executeImport(
             },
           },
         });
+        await recordEvent(tx, { bookId: targetBookId, transactionId: targetTransactionId, transactionSeq: seq, actorId: userId, actorName, kind: "created" });
         imported.push({ sourceTransactionId: item.id, targetTransactionId, targetSeq: seq });
       }
 
@@ -702,6 +706,7 @@ async function executeImport(
           result: receipt,        },
       });
 
+      await assertStorageGrowth(tx, userId, targetBookId, 0n);
       return receipt;
     }, {
       /**

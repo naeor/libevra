@@ -1,3 +1,4 @@
+import { StorageAdmin } from "../components/StorageAdmin.js";
 import { useCallback, useEffect, useState } from "react";
 import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -196,6 +197,7 @@ export function AdminOverviewPage(): React.JSX.Element {
       {state.kind === "loading" ? <SkeletonRows rows={5} /> : null}
       {state.kind === "error" ? <ErrorState message={state.message} onRetry={reload} /> : null}
       {state.kind === "ready" ? <OverviewBody data={state.data} onNavigate={navigate} /> : null}
+      {state.kind === "ready" ? <StorageAdmin /> : null}
     </Shell>
   );
 }

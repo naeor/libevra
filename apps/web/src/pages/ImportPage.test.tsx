@@ -28,7 +28,7 @@ describe("ImportPage 的骨架与文案", () => {
     expect(PAGE).toContain('title={t("dataio.import.title")}');
     expect(t("dataio.import.title")).toBe("导入账单");
     expect(PAGE).toContain('subtitle={t("dataio.import.subtitle")}');
-    expect(t("dataio.import.subtitle")).toBe("微信、支付宝、银行结单都可以。先识别，核对后再写入。");
+    expect(t("dataio.import.subtitle")).toBe("支持微信、支付宝和银行结单。识别后核对，再确认导入。");
   });
 
   it("文件输入是 sr-only（不是 hidden），带 aria-label，并在 onChange 里清空 value", () => {
@@ -95,7 +95,7 @@ describe("ImportPage 的骨架与文案", () => {
     expect(PAGE).toContain('t("dataio.import.target", { target: target.label })');
     expect(t("dataio.import.target", { target: "家庭账本（00000001）" })).toBe("导入到「家庭账本（00000001）」");
     expect(PAGE).toContain('t("dataio.import.targetHint")');
-    expect(t("dataio.import.targetHint")).toContain("请先确认这是你要写入的账本");
+    expect(t("dataio.import.targetHint")).toContain("请确认目标账本");
     expect(PAGE).toContain('t("dataio.common.bookLabel", { name, number: bookNumber })');
     expect(t("dataio.common.bookLabel", { name: "家庭账本", number: "00000001" })).toBe("家庭账本（00000001）");
   });

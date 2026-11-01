@@ -6,7 +6,7 @@ const language = {
   system: "跟随系统",
   systemHint: "按浏览器或系统语言显示，当前为{{language}}",
   current: "当前：{{language}}",
-  note: "只改变界面文字。账目、分类名称、备注和币种不会因为切换语言而改变。",
+  note: "界面语言不影响账目、分类名称、备注或币种。",
   switchTo: "切换到{{language}}",
   switchLabel: "界面语言",
 };

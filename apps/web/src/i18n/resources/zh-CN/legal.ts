@@ -60,11 +60,11 @@ const legal = {
     exportCancelled: "已取消导出。",
     exportDone: "账号数据已导出。文件包含账号资料和当前可访问账本的全部账目。",
     help: {
-      title: "如果你暂时不同意",
+      title: "暂不接受协议",
       eyebrow: "账户与数据处理",
       signOut: "退出登录",
       backToAgreement: "返回协议确认",
-      intro: "你可以先导出或处理账号中的数据，稍后再决定。",
+      intro: "可先导出或处理账号数据，稍后再决定。",
       export: "导出我的数据",
       deleteTitle: "删除服务器存储的数据",
       deleteBody: "需要先退出协作、处理或归档每一本账本。打开「账号与数据」逐本查看影响范围并确认。",

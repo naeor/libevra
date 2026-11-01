@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { readSession, writeSession } from "../lib/detailTransition.js";
+import { usePane } from "../workspace/context.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
@@ -59,6 +61,7 @@ export function LedgerMorePage(): React.JSX.Element {
   const { t } = useI18n();
   const reload = reloadConfirmation();
   const navigate = useNavigate();
+  const pane = usePane();
   const [cleared, setCleared] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [counts, setCounts] = useState<{ readonly months: number; readonly entries: number } | null>(null);
@@ -100,7 +103,7 @@ export function LedgerMorePage(): React.JSX.Element {
             })}
       </p>
 
-      <ListGroup title={t("books.more.exportGroup")}>
+      <ListGroup className="[&>.lv-settings-heading]:px-0" title={t("books.more.exportGroup")}>
         <ListRow
           label={t("books.more.exportRow.label")}
           detail={t("books.more.exportRow.detail")}
@@ -110,17 +113,12 @@ export function LedgerMorePage(): React.JSX.Element {
         />
       </ListGroup>
 
-      <ListGroup title={t("books.more.filterGroup")}>
-        <ListRow
-          label={t("books.more.filterRow.label")}
-          detail={t("books.more.filterRow.detail")}
-          onClick={() => {
-            void navigate("/");
-          }}
-        />
+      <ListGroup className="[&>.lv-settings-heading]:px-0" title={t("books.more.displayGroup")}>
+        <ListRow label={t("ledger.cards.edit")} detail={t("ledger.cards.editHint")} onClick={() => void navigate("/ledger/cards")} />
       </ListGroup>
 
-      <ListGroup title={t("books.more.maintenanceGroup")}>
+      <ListGroup className="[&>.lv-settings-heading]:px-0" title={t("books.more.maintenanceGroup")}>
+        <ListRow tone="action" label={t("books.more.serverSync")} detail={t("ledger.tools.refreshHint")} onClick={() => { writeSession({ syncRequested: true }, pane.instance); void navigate(readSession(pane.instance).syncReturnPath ?? "/"); }} />
         <ListRow
           tone="action"
           label={cleared ? t("books.more.cleared") : t("books.more.clearMarks")}

@@ -490,7 +490,7 @@ describe("permanent delete and history re-pointing", () => {
     });
     expect(logs[0]?.detail).toMatchObject({ mode: "replacement", movedRows: 1 });
     expect(await prisma.transactionEvent.count({ where: { bookId: mama.bookId } })).toBe(
-      eventsBefore,
+      eventsBefore + 1,
     );
   });
 

@@ -59,7 +59,7 @@ describe("test十: iPad 20 / phone 80 conflict delivery", () => {
     const html = renderToStaticMarkup(createElement(ConflictScreen, { conflict, onResolve: () => undefined, onLater: () => undefined }));
     expect(html).toContain("20.00");
     expect(html).toContain("80.00");
-    expect(html).toContain("还有 1 处没选");
+    expect(html).toContain("1 处待选择");
   });
   it.each([2000, 8000])("transmits the settlement flag and closes the conflict when choosing %s cents", async (amount: number) => {
     await pullConflicts();
@@ -102,7 +102,7 @@ describe("test十: iPad 20 / phone 80 conflict delivery", () => {
   it("keeps the user's choice queued and reports failure when the network fails during saving", async () => {
     await pullConflicts();
     vi.mocked(apiFetch).mockRejectedValue(new ApiRequestError(0, "offline", "离线"));
-    await expect(resolveConflict(id, entry(2000), server)).rejects.toThrow("服务器尚未确认");
+    await expect(resolveConflict(id, entry(2000), server)).rejects.toThrow("尚未获得服务器确认");
     expect((await readMarks())[id]?.settlesConflict).toBe(true);
     expect((await readStoredMonths())["2026-10"]?.find(row => row.id === id)?.amountCents).toBe(2000);
   });

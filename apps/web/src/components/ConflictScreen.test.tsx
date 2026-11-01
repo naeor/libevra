@@ -55,11 +55,11 @@ describe("the conflict screen", () => {
       at: 0,
     });
 
-    expect(markup).toContain("已经自动合好的地方");
+    expect(markup).toContain("已自动合并");
     expect(markup).toContain("金额");
-    expect(markup).toContain("用你的");
+    expect(markup).toContain("已采用本机值");
     expect(markup).toContain("备注");
-    expect(markup).toContain("用服务器上的");
+    expect(markup).toContain("已采用服务器值");
   });
 
   it("⚠️ says which side each automatic value came from", () => {
@@ -74,7 +74,7 @@ describe("the conflict screen", () => {
       at: 0,
     });
 
-    expect(markup).toContain("用你的");
+    expect(markup).toContain("已采用本机值");
   });
 
   it("shows amounts in the entry’s own currency, not a fixed one", () => {
@@ -109,7 +109,7 @@ describe("the conflict screen", () => {
       at: 0,
     });
 
-    expect(markup).toContain("需要你选的地方");
+    expect(markup).toContain("待选择");
     expect(markup).toContain("这台设备");
     expect(markup).toContain("服务器");
   });
@@ -135,7 +135,7 @@ describe("the conflict screen", () => {
       at: 0,
     });
 
-    expect(markup).toContain("还有 1 处没选");
+    expect(markup).toContain("1 处待选择");
     expect(markup).toContain("disabled");
   });
 
@@ -148,7 +148,7 @@ describe("the conflict screen", () => {
     });
 
     expect(markup).toContain("稍后再处理");
-    expect(markup).toContain("两份都留着");
+    expect(markup).toContain("保留两个版本");
   });
 
   it("says so when there is nothing to merge automatically", () => {
@@ -197,17 +197,17 @@ describe("the conflict screen in English", () => {
 
     expect(markup).not.toMatch(CJK);
     expect(markup).toContain("Merged automatically (2)");
-    expect(markup).toContain("Kept yours");
-    expect(markup).toContain("Kept the server’s");
+    expect(markup).toContain("Kept this device’s value");
+    expect(markup).toContain("Kept the server’s value");
     expect(markup).toContain("taxi home");
     // 预置分类“其他”显示为英文；值本身（id）不变。
     expect(markup).toContain(">Other<");
-    expect(markup).toContain("Your choice needed (1)");
+    expect(markup).toContain("Choices required (1)");
     expect(markup).toContain("This device");
     expect(markup).toContain("Server");
     expect(markup).toContain("If you don’t, the server’s version is kept.");
-    expect(markup).toContain("1 still to choose");
+    expect(markup).toContain("Choices remaining: 1");
     expect(markup).toContain("Decide later");
-    expect(markup).toContain("both versions are kept");
+    expect(markup).toContain("keep both versions");
   });
 });

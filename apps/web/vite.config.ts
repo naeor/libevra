@@ -6,6 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { themePrepaintPlugin } from "./theme-prepaint-plugin.js";
+import { pdfAssetsPlugin } from "./pdf-assets-plugin.js";
 
 /**
  * Whether the dev server is reachable from other devices on the network.
@@ -159,7 +160,7 @@ export default defineConfig({
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
   },
-  plugins: [themePrepaintPlugin(), react(), tailwindcss()],
+  plugins: [themePrepaintPlugin(), pdfAssetsPlugin(), react(), tailwindcss()],
   server: serverOptions(),
   /**
    * Chunk strategy: keep the entry lean and let rarely-changing code be cached separately.
@@ -181,6 +182,7 @@ export default defineConfig({
           const normalized = id.replaceAll("\\", "/");
           if (normalized.includes("/src/i18n/resources/")) return "i18n-resources";
           if (!normalized.includes("node_modules")) return undefined;
+          if (normalized.includes("/pdfjs-dist/")) return "vendor-pdf";
           if (normalized.includes("react-router")) return "vendor-router";
           if (normalized.includes("@tanstack/")) return "vendor-query";
           if (normalized.includes("i18next") || normalized.includes("@babel/runtime")) {

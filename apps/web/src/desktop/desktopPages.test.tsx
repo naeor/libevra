@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useContext } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
@@ -28,7 +29,7 @@ vi.mock("../pages/BookSettingsPage.js", () => ({ BookSettingsPage: ({ targetBook
 vi.mock("../pages/LedgerInvitePage.js", () => ({ LedgerInvitePage: () => <div data-invite-scope={useContext(ViewLedgerContext)}>邀请表单</div> }));
 
 function book(path: string): string {
-  return renderToStaticMarkup(<MemoryRouter initialEntries={[path]}><DesktopBookPage bookId="target"><div data-child-editor>分类管理</div></DesktopBookPage></MemoryRouter>);
+  return renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[path]}><DesktopBookPage bookId="target"><div data-child-editor>分类管理</div></DesktopBookPage></MemoryRouter></QueryClientProvider>);
 }
 
 describe("桌面详情和协作的账本上下文", () => {
@@ -53,7 +54,7 @@ describe("桌面详情和协作的账本上下文", () => {
   it("共享详情保留协作链接；协作页历史与留言只出现一份且同属目标账本", () => {
     state.members = 2; state.historyScopes = [];
     expect(book("/books/target")).toContain('href="/ledger?book=target"');
-    const html = renderToStaticMarkup(<MemoryRouter initialEntries={["/ledger?book=target"]}><DesktopCollabPage /></MemoryRouter>);
+    const html = renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/ledger?book=target"]}><DesktopCollabPage /></MemoryRouter></QueryClientProvider>);
     expect(state.historyScopes).toEqual(["target"]);
     expect(html.match(/唯一留言模块/g)).toHaveLength(1);
     expect(html.match(/成员甲 添加了一笔测试账目/g)).toHaveLength(1);

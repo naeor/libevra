@@ -44,22 +44,22 @@ describe("全账本重复检查页", () => {
     const html = renderPage();
 
     expect(html).toContain("重复账目检测");
-    expect(html).toContain("判断规则与你当前的重复提醒设置一致");
+    expect(html).toContain("按当前重复提醒规则检测");
     expect(html).toContain("开始检查");
   });
 
   it("明确“只提示”，并说明删不删、留几笔都由用户决定", () => {
     const html = renderPage();
 
-    expect(html).toContain("疑似重复只是提示");
-    expect(html).toContain("删不删、留几笔都由你决定");
+    expect(html).toContain("按组查看疑似重复账目");
+    expect(html).toContain("账目仅在确认后删除");
   });
 
   it("明确“不会自动删除或合并”，不把删除写成这一页的动作", () => {
     const html = renderPage();
 
     // 只允许出现“不会自动删除或合并”这种否定句；没有“自动删除/自动合并”的承诺。
-    expect(html).toContain("不会自动删除或合并任何账目");
+    expect(html).toContain("检测不会自动删除或合并账目");
     expect(html).not.toContain("自动删除了");
     expect(html).not.toContain("已合并");
   });
@@ -75,7 +75,7 @@ describe("全账本重复检查页（英文界面，S16）", () => {
     const html = renderPage().replace(/<nav[\s\S]*?<\/nav>/g, "");
 
     expect(html).toContain("Duplicate detection");
-    expect(html).toContain("These follow your current duplicate alert settings");
+    expect(html).toContain("Uses the current duplicate-alert rules");
     expect(html).toContain("Start check");
     expect(html).not.toMatch(/[㐀-鿿]/);
   });

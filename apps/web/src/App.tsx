@@ -1,3 +1,6 @@
+import { DetailCardEditor } from "./components/ledger/DetailCardEditor.js";
+import { AttachmentTransfers } from "./components/Attachments.js";
+import { AttachmentsPage } from "./pages/AttachmentsPage.js";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Suspense, lazy, useEffect, useRef } from "react";
@@ -332,6 +335,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/scan" element={<RequireAuth><CurrentLedgerOnly><ScanPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/record" element={<RequireAuth><CurrentLedgerOnly><RecordPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/paste" element={<RequireAuth><CurrentLedgerOnly><PastePage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/ledger/cards" element={<RequireAuth><CurrentLedgerOnly><DetailCardEditor /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/ledger/more" element={<RequireAuth><CurrentLedgerOnly><LedgerMorePage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/voice/review" element={<RequireAuth><CurrentLedgerOnly><VoiceReviewPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/paste/review" element={<RequireAuth><CurrentLedgerOnly><VoiceReviewPage /></CurrentLedgerOnly></RequireAuth>} />
@@ -394,6 +398,7 @@ function AppRoutes(): React.JSX.Element {
         * ⚠️ **它们必须排在下面的通配路由之前**，否则会被送回首页。
         */}
       <Route path="/books/:bookId" element={<RequireAuth><BookDetailPage /></RequireAuth>} />
+      <Route path="/books/:bookId/attachments" element={<RequireAuth><AttachmentsPage /></RequireAuth>} />
       <Route path="/books/:bookId/settings" element={<RequireAuth><BookSettingsPage /></RequireAuth>} />
       {/**
         * ⚠️ **The three organisers and the two data screens now have a per-ledger address.** The same
@@ -606,7 +611,7 @@ export default function App(): React.JSX.Element {
           */}
           <OfflineFillProvider>
             <UndoProvider>
-              <AppRuntime />
+              <AppRuntime /><AttachmentTransfers />
               {/*
                 ⚠️ **S18：路由不再由一个全局 `BrowserRouter` 承载。** `WorkspaceShell` 给每个工作区实例
                 一个自己的路由上下文（主区写地址栏，辅助区在内存里），两边渲染同一套 `AppRoutes`、共用同一份

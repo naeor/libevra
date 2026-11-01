@@ -1,3 +1,5 @@
+import { recordEvent } from "../ledger/events.js";
+import { assertStorageGrowth, lockBookStorage } from "../ledger/storage.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -684,6 +686,7 @@ export class BillImportService {
     let outcome: { readonly report: ImportReport };
     try {
       outcome = await this.prisma.$transaction(async (tx) => {
+        await lockBookStorage(tx, input.bookId);
         // 同一文件并发提交（双击/重试）串行化；锁到事务结束自动释放。
         // 强转 text：Prisma 无法反序列化 void 类型的返回值。
         await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`import:${input.bookId}:${record.fingerprint}`}))::text`;
@@ -805,7 +808,7 @@ export class BillImportService {
             throw new Error("标签创建后未能取回 id");
           }
           const seq = await allocateTransactionSeq(tx, input.bookId);
-          await tx.transaction.create({
+          const createdEntry = await tx.transaction.create({
             data: {
               id: candidate.id,
               seq,
@@ -828,6 +831,8 @@ export class BillImportService {
               },
             },
           });
+          await recordEvent(tx, { bookId: input.bookId, transactionId: createdEntry.id, transactionSeq: createdEntry.seq, actorId: input.userId,
+            actorName: (await tx.user.findUniqueOrThrow({ where: { id: input.userId }, select: { displayName: true } })).displayName, kind: "created" });
           importedCount += 1;
         }
 
@@ -850,6 +855,7 @@ export class BillImportService {
           });
         }
 
+        await assertStorageGrowth(tx, input.userId, input.bookId, 0n);
         const importedIds = new Set(toInsert.map((row) => row.candidate.id));
         const skippedLines = merged
           .filter(

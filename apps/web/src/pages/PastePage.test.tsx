@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   parseTransactionText,
@@ -22,6 +22,8 @@ import { PastePage, recognisePastedText } from "./PastePage.js";
  * 仓库的 vitest 跑在 Node 环境（没有 DOM），所以交互（点击、剪贴板授权）留给
  * 真实浏览器验收；这里不假装测过它们。
  */
+
+vi.mock("../auth/AuthProvider.js", () => ({ useAuth: () => ({ user: null, status: "ready" }), useAuthOptional: () => null }));
 
 const NOW = new Date(2026, 9, 22, 10, 30, 0);
 
@@ -127,9 +129,9 @@ describe("粘贴页的入口、隐私说明与手动输入", () => {
   it("明确说明不会自动读剪贴板、只在本机识别、不发外部 AI（隐私说明保留）", () => {
     const html = renderPage();
 
-    expect(html).toContain("不会自动读取剪贴板");
-    expect(html).toContain("识别只在本机完成");
-    expect(html).toContain("不会把文字发给外部 AI");
+    expect(html).toContain("剪贴板仅在点击读取时访问");
+    expect(html).toContain("文本仅在本机识别");
+    expect(html).toContain("不发送至外部 AI 服务");
   });
 });
 

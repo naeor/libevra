@@ -3,7 +3,7 @@
  *
  * shared 包同时被服务器和浏览器使用，它的 zod 校验信息、识别提示等是中文原文，服务器也会把同一句话
  * 原样放进错误响应。本轮不改 shared 的契约（API 文案不能因为翻译而变），所以在浏览器端按**原文**
- * 查表翻译：中文界面原样返回；英文界面查到就用英文，查不到就原样返回（并在开发环境告警，
+ * 查表翻译：已审定的固定提示先取界面资源，其余中文原样返回；英文查到就用英文，查不到就原样返回（并在开发环境告警，
  * 便于补齐）。带数字的句子用正则条目匹配。
  *
  * 收录范围（S16）：
@@ -15,7 +15,36 @@
  * 不收录：识别关键词与正则、导出文件表头、预置分类名（见 `lib/presetNames.ts`）、法律文本。
  * 覆盖情况由 `sharedMessages.test.ts` 扫描 shared 源码检查。
  */
-import { isChineseLocale } from "./index.js";
+import type { ParseKeys } from "i18next";
+import { isChineseLocale, t } from "./index.js";
+
+/** 仅改写已核对的固定界面提示；原始服务端消息、动态详情和历史记录不变。 */
+const DISPLAY_COPY_KEYS: ReadonlyMap<string, ParseKeys> = new Map([
+  ["你已经拥有这个头像了。", "errors.api.avatar_already_owned"],
+  ["这是你自己的账号。", "errors.api.account_is_self"],
+  ["该邀请码已过期，请向邀请你的人再要一个。", "errors.api.invite_expired"],
+  ["这个邀请码已经被注册使用了。作废它不会关闭已经注册的账户——账户仍需你单独处理。请确认后重试。", "errors.api.invite_used_needs_acknowledgement"],
+  ["邀请码不再有「直接加为协作者」这个选项了。账本邀请请直接邀请对方加入账本。", "errors.api.referral_flag_removed"],
+  ["你没有修改这本账的权限。", "errors.api.book_read_only"],
+  ["这本账还没有其他可管理的编辑者。请先添加成员或设置编辑者，再退出。", "errors.api.book_needs_successor"],
+  ["这本账本正在进行导入、确认或撤销，暂时不能修改；请等待操作完成后再试。", "errors.api.ledger_locked"],
+  ["这个人已经在这本账里了。", "errors.api.already_member"],
+  ["这个人不在这本账里。", "errors.api.member_missing"],
+  ["你不在这本账里。", "errors.api.not_a_member"],
+  ["这条分享链接的可加入人数已经用完了，请让邀请你的人再生成一条。", "errors.api.share_link_full"],
+  ["文档解析服务暂时不可用，请稍后再试。你的文件没有被保存。", "errors.api.import_parser_unavailable"],
+  ["这次核对已经更新（可能在其他窗口重新检查过），请刷新核对页后再提交。", "errors.api.preview_revision_mismatch"],
+  ["核对之后候选内容发生了变化，请先重新检查疑似重复，再提交。", "errors.api.preview_stale"],
+  ["一对多/多对多组不能用一个组级选择批量删除 A 记录，请逐条确认删除范围。", "errors.api.group_removal_not_explicit"],
+  ["同步导入入口已停用。请先在账本空间正常创建空账本，再使用可撤销的分批导入任务；旧客户端不能绕过最终确认、时间锁或撤销。", "errors.api.legacy_import_disabled"],
+  ["这是旧版导入任务，没有可按批次恢复的反向日志，不能安全撤销；请使用旧版停止接口或等待其完成。", "errors.api.legacy_import_not_undoable"],
+  ["图片识别服务暂时不可用，请稍后再试。你的图片没有被保存。", "errors.api.ocr_unavailable"],
+  ["语音识别服务暂时不可用，请稍后再试。你的录音没有被保存。", "errors.api.voice_unavailable"],
+  ["来源账本当前满足 S13 弃置条件，且所有来源账目都能在目标账本中找到。弃置后仍可在恢复期限内恢复。", "ledgerImport.retention.reason.allMigrated"],
+  ["来源账本当前满足 S13 弃置条件，但仍有账目没有迁入目标账本；弃置不会删除它们，但查看来源需要恢复操作。", "ledgerImport.retention.reason.someUnmigrated"],
+  ["来源账本当前不满足 S13 弃置条件（可能已有协作者、可用邀请/分享链接、已归档或待恢复请求）。", "ledgerImport.retention.reason.blocked"],
+]);
+
 
 /** 疑似重复依据里的字段名（句中用小写，单独显示时首字母大写）。 */
 const FIELD_LABELS: Readonly<Record<string, string>> = {
@@ -486,6 +515,8 @@ function matchPattern(message: string): string | null {
 const reported = new Set<string>();
 
 export function translateSharedMessage(message: string): string {
+  const displayKey = DISPLAY_COPY_KEYS.get(message);
+  if (displayKey !== undefined) return t(displayKey);
   if (isChineseLocale()) return message;
   const exact = EXACT.get(message);
   if (exact !== undefined) return exact;
@@ -500,5 +531,5 @@ export function translateSharedMessage(message: string): string {
 
 /** 测试用：查表是否命中（不看当前语言）。 */
 export function hasSharedTranslation(message: string): boolean {
-  return EXACT.has(message) || PATTERNS.some(([pattern]) => pattern.test(message));
+  return DISPLAY_COPY_KEYS.has(message) || EXACT.has(message) || PATTERNS.some(([pattern]) => pattern.test(message));
 }

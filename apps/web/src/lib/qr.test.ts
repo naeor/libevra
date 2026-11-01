@@ -63,7 +63,7 @@ describe("QR encoder", () => {
      * bytes of a URL **scans successfully** and takes the person somewhere wrong. Throwing is the
      * only honest answer.
      */
-    expect(() => encodeQr("x".repeat(300))).toThrow(/太长/);
+    expect(() => encodeQr("x".repeat(300))).toThrow(/超出二维码容量/);
   });
 
   it("grows the version as the text gets longer", () => {

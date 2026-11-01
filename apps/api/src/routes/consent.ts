@@ -1,3 +1,4 @@
+import { registerAttachmentExport } from "./attachmentExport.js";
 import {
   acceptedAgreementSchema,
   type LegalDocument,
@@ -63,6 +64,7 @@ export function registerAccountConsentRoutes(
   app: FastifyInstance,
   { prisma, requireSession, policy }: AccountConsentOptions,
 ): void {
+  registerAttachmentExport(app, prisma, requireSession);
   // -------------------------------------------------------------------------
   // GET /api/v1/account/consent
   // -------------------------------------------------------------------------

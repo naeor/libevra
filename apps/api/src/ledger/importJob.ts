@@ -1,3 +1,4 @@
+import { assertStorageGrowth, lockAccountStorage } from "./storage.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -395,6 +396,7 @@ export async function createImportJob(
   await prisma.$transaction(
     async (tx) => {
       await acquireLedgerLocks(tx, body.importId, lockedBooks);
+      await lockAccountStorage(tx, userId);
       await tx.ledgerImportJob.create({
         data: {
           id: body.importId,
@@ -421,6 +423,7 @@ export async function createImportJob(
           payload: payload as unknown as Prisma.InputJsonValue,
         },
       });
+      await assertStorageGrowth(tx, userId, targetBookId, 0n);
       await recordJobEvent(tx, {
         jobId: body.importId,
         kind: "queued",
@@ -483,6 +486,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
         targetSnapshot = target.snapshot;
       }
 
+      await lockAccountStorage(tx, job.userId);
       const source = payload.source;
       if (source === null) throw badRequest("source_missing", "任务来源快照已被清理，不能继续执行。");
       const guestBookId = source.guestBookId ?? null;
@@ -572,6 +576,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
               tags: { create: tagIds.map((tagId) => ({ tagId })) },
             },
           });
+          await recordEvent(tx, { bookId: job.targetBookId, transactionId: targetTransactionId, transactionSeq: seq, actorId: job.userId, actorName: (await tx.user.findUnique({ where: { id: job.userId }, select: { displayName: true } }))?.displayName ?? null, kind: "created" });
           imported.push({ sourceTransactionId: item.id, targetTransactionId, targetSeq: seq });
           undoOps.push({ kind: "delete_created_transaction", transactionId: targetTransactionId });
           await writeSourceState(tx, {
@@ -668,7 +673,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
               occurredLocalDate: row.occurredLocalDate,
               occurredTz: row.occurredTz,
               note: row.note,
-              tagIds: row.tags.map((tag) => tag.tagId).sort(),
+              tags: row.tags.map((tag) => tag.tagId).sort(),
             },
             {
               kind: changed.kind,
@@ -680,7 +685,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
               occurredLocalDate: changed.occurredLocalDate,
               occurredTz: changed.occurredTz,
               note: changed.note,
-              tagIds: changed.tags.map((tag) => tag.tagId).sort(),
+              tags: changed.tags.map((tag) => tag.tagId).sort(),
             },
           );
           await recordEvent(tx, {
@@ -690,6 +695,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
             actorId: job.userId,
             actorName: null,
             kind: "updated",
+            beforeSnapshot: transactionBefore,
             changes: {
               ...changes,
               importId: { from: null, to: jobId },
@@ -775,7 +781,7 @@ async function runBatch(prisma: PrismaClient, jobId: string): Promise<void> {
           lastErrorMessage: null,
         },
       });
-
+      await assertStorageGrowth(tx, job.userId, job.targetBookId, 0n);
     },
     { maxWait: 10_000, timeout: 60_000 },
   );

@@ -162,6 +162,22 @@ describe("服务器错误码的译文", () => {
 });
 
 describe("校验失败时优先显示具体原因（S16 整合）", () => {
+  it("固定提示使用修订文案，原始错误及带具体原因的消息保持完整", () => {
+    const original = "这个邀请码已经被注册使用了。作废它不会关闭已经注册的账户——账户仍需你单独处理。请确认后重试。";
+    const error = new ApiRequestError(409, "invite_used_needs_acknowledgement", original);
+    expect(localizedApiErrorMessage(error)).toBe("邀请码已用于注册。撤销后，关联账号仍可使用；如需停用，请单独处理。确认后重试。");
+    expect(error.message).toBe(original);
+    expect(error.code).toBe("invite_used_needs_acknowledgement");
+
+    const detailed = `${original} 关联账号：10000001。`;
+    expect(localizedApiErrorMessage(new ApiRequestError(409, error.code, detailed))).toBe(detailed);
+    expect(localizedApiErrorMessage(new ApiRequestError(429, "password_throttled", "密码尝试次数过多，请 37 秒后再试。")))
+      .toBe("密码尝试次数过多，请 37 秒后再试。");
+
+    applyLocale("en-US");
+    expect(localizedApiErrorMessage(error)).toBe(enUS.errors.api.invite_used_needs_acknowledgement);
+  });
+
   afterEach(() => {
     applyLocale("zh-CN");
   });

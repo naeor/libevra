@@ -7,7 +7,7 @@
 const manage = {
   treePan:"左右滑动查看各层级",
   treeRecords:"{{count}} 笔",
-  tree: { toggle:"展开或收起「{{name}}」", actions:"「{{name}}」的操作", edit:"编辑分类", addChild:"添加子分类", name:"名称", organize:"层级与外观", parent:"所属分类", root:"无（根分类）", order:"排序", icon:"图标（可选）", color:"颜色（可选）", invalid:"所属分类无效、存在循环、超出 64 层或同级重名。", promote:"子分类将提升到上一级；后代与账目保留。", search:"搜索分类", back:"上一级", branch:"包含子分类", direct:"直接归入", total:"分支合计", currentTree:"历史交易按当前分类结构汇总；移动分类不会改变交易的分类 ID。" },
+  tree: { toggle:"展开或收起「{{name}}」", actions:"「{{name}}」的操作", edit:"编辑分类", addChild:"添加子分类", name:"名称", organize:"层级与外观", parent:"所属分类", root:"无（根分类）", order:"排序", icon:"图标（可选）", color:"颜色（可选）", invalid:"所属分类无效、存在循环、超出 64 层或同级重名。", promote:"子分类将提升到上一级；后代与账目保留。", search:"搜索分类", back:"上一级", branch:"包含子分类", direct:"直接归入", total:"分支合计", currentTree:"历史账目按当前分类结构汇总。移动分类不会改变账目的分类归属。" },
   common: {
     add: "添加",
     archive: "归档",
@@ -20,12 +20,12 @@ const manage = {
     /** `名称（编号）`：区分两本同名账本。 */
     bookLabel: "{{name}}（{{number}}）",
     managing: "正在管理「{{book}}」",
-    unreadable: "读不到这本账。它可能已被弃置，或者你已经不在其中。",
+    unreadable: "无法读取账本。账本可能已被弃置或访问权限已移除。",
     loadingLedger: "正在读取账本……",
     countingUsage: "正在统计受影响的记录……",
     archiveTitle: "归档「{{name}}」？",
     archiveDescription: "归档不会删除任何数据。",
-    restoreAnytime: "你随时可以在这里把它恢复",
+    restoreAnytime: "可随时恢复",
     deleteTitle: "永久删除「{{name}}」？",
     entriesUnchanged: "账目本身、金额与日期都不会改变",
     sharedWarning: "这是共享账本，删除与替换会影响所有协作者看到的历史记录",
@@ -35,7 +35,7 @@ const manage = {
   categories: {
     title: "分类管理",
     hint: "归档后不再出现在记账选项中。已有记录仍会显示该分类的名称，可随时恢复。",
-    viewerNotice: "你是这本账的查看者，只能查看分类，不能新增、改名、归档或删除。",
+    viewerNotice: "仅有查看权限，无法新增、修改、归档或删除分类。",
     expense: "支出分类",
     income: "收入分类",
     newPlaceholder: "新分类名称",
@@ -54,7 +54,7 @@ const manage = {
   paymentMethods: {
     title: "支付方式",
     hint: "记录款项的支付渠道。归档后不再出现在记账选项中，已有记录不受影响。",
-    viewerNotice: "你是这本账的查看者，只能查看支付方式，不能新增、改名、归档或删除。",
+    viewerNotice: "仅有查看权限，无法新增、修改、归档或删除支付方式。",
     newPlaceholder: "新支付方式",
     archiveGone: "它会从记账时的支付方式选项中消失",
     archiveKeepsName: "已有的记录仍然显示这个支付方式",
@@ -73,7 +73,7 @@ const manage = {
   tags: {
     title: "标签",
     hint: "标签用于跨分类标注，例如「出差」「可报销」。每条记录最多添加 10 个标签。",
-    viewerNotice: "你是这本账的查看者，只能查看标签，不能新增或删除。",
+    viewerNotice: "仅有查看权限，无法新增或删除标签。",
     newPlaceholder: "新标签名称",
     color: "颜色 {{color}}",
     add: "添加标签",
@@ -83,8 +83,8 @@ const manage = {
     deleteUsage_one: "有 {{count}} 笔记账正在使用这个标签，删除后会解除这些关联。",
     deleteUsage_other: "有 {{count}} 笔记账正在使用这个标签，删除后会解除这些关联。",
     deleteDetach: "使用过这个标签的记账会失去该标签，账目本身完整保留",
-    deleteFinal: "删除后，你无法在应用里自行恢复这个标签",
-    deleteRecreate: "如果需要，之后可以重新创建一个同名标签，但不会自动贴回原来的记账",
+    deleteFinal: "删除后无法在应用中恢复",
+    deleteRecreate: "可重新创建同名标签，但不会恢复与原账目的关联",
     sharedWarning: "这是共享账本，删除会影响所有协作者看到的历史记录",
     confirmDelete: "确认删除",
     deleted: "已删除标签「{{name}}」。",

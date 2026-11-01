@@ -10,6 +10,34 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.18.32": {
+    title: "Entry attachments, collaboration notifications and filters",
+    summary: "Add and preview entry attachments, receive change notifications, manage storage, and use updated filters, sorting and entry forms across devices.",
+    sections: [
+      { heading: "New features", items: [
+        "Attach images, PDFs, recordings and other files when recording, confirming a batch or editing entries. One attachment can be linked to multiple entries in the same ledger, with preview, download and export support.",
+        "Ledger details include attachment previews and an All attachments view. Storage usage is shown for accounts, ledgers and entries, and administrators can adjust storage and attachment limits.",
+        "Entry creators receive a notification when someone else edits their entry, showing who changed it, when and what changed. The Dashboard account bell shows invitations and other account messages; each ledger card has its own notification bell.",
+        "Combine filters for time, categories, tags, payment methods, currencies and attachments. Sort the results by time, amount or storage, with separate controls for the sort field and ascending or descending order.",
+      ] },
+      { heading: "Improvements", items: [
+        "Phone and tablet Entries now show income and expense cards. A dedicated editor offers numbers and monochrome mini charts, with personal layouts synced per ledger across your devices. Expand the search button to search within the current filters.",
+        "Desktop entry forms use columns and keep payment methods, notes and tags visible. An attachment sidebar provides image and PDF previews and lets you choose which batch entries each file belongs to.",
+        "Desktop Dashboard shortcuts move to the right-hand panel alongside new messages. Entries sorting moves to the right of the search field.",
+        "Phone Entries now offers All, Expense and Income, with a round sorting button. Server sync moves to More. Filters open at the bottom on phones, within the active workspace on tablets, and in an anchored panel on desktop.",
+        "Custom month selectors dim months confirmed to have no entries. Select All time in the month view or switch to a date range. Header month arrows are removed, with adjusted button heights, text sizes and hint spacing.",
+        "Shorter Chinese and English messages use consistent terms while retaining important information about deletion, recovery and permissions. Attachment list selectors and PDF zoom now use in-app controls.",
+      ] },
+      { heading: "Bug fixes", items: [
+        "Fixes blank PDF attachment previews, attachment counts lost after some cache updates, and incomplete attachment links when retrying partially saved batches.",
+        "Fixes overlapping header controls and misaligned time labels on narrow Entries screens.",
+      ] },
+      { heading: "Notes", items: [
+        "Default limits are 1 GB per account, 500 MB per ledger, 100 MB per file, and 10 attachments totalling up to 200 MB per entry. Each member's account counts the full size of a shared ledger. Recoverable attachments still count toward storage.",
+        "Attachments remain when their uploader leaves. Deleting an entry also moves its attachments into a recoverable state; restoring the entry restores them. When storage is full, existing entries can still be corrected and data cleaned up, but new attachments cannot be added.",
+      ] },
+    ],
+  },
   "1.18.15": {
     title: "Desktop Dashboard, ledger management and collaboration layouts",
     summary: "An adjustable desktop Dashboard grid and side-by-side ledger and collaboration views, with updates to navigation, the detail panel, recording shortcuts and Settings.",

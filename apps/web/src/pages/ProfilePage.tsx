@@ -1,3 +1,4 @@
+import { NotificationBell } from "../components/Notifications.js";
 import { displayNameSchema, usernameSchema, type SessionUser } from "@libellum/shared";
 import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -83,7 +84,7 @@ export function ProfilePage(): React.JSX.Element {
     { label: t("account.profile.accountNumber"), value: user.accountNumber, accountNumber: true },
     { label: t("account.profile.createdAt"), value: formatInstant(user.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) },
   ];
-  return <InnerPage title={t("account.profile.title")} backTo="/me" onBack={() => editing ? finish() : void navigate("/me")} actions={<Button variant="ghost" fullWidth={false} disabled={busy} onClick={() => editing ? finish() : setParams({ edit: "1" }, { replace: true })}>{editing ? t("account.profile.done") : t("account.profile.edit")}</Button>}>
+  return <InnerPage title={t("account.profile.title")} backTo="/me" onBack={() => editing ? finish() : void navigate("/me")} actions={<><NotificationBell showHeading={false} panelClassName="lv-account-notice-panel" /><Button variant="ghost" fullWidth={false} disabled={busy} onClick={() => editing ? finish() : setParams({ edit: "1" }, { replace: true })}>{editing ? t("account.profile.done") : t("account.profile.edit")}</Button></>}>
     <ProfilePreview user={user} editable={editing} onAvatar={() => askLeave(() => void navigate("/profile/avatar"))} />
     <dl className={`lv-settings-profile lv-settings-flat rounded-card border border-line bg-surface px-5 ${editing ? "divide-y divide-line" : ""}`}>
       {rows.map(row => <div key={row.label} className={editing && row.field ? "py-4" : "flex min-h-8 items-center gap-4 py-4 text-body"}>

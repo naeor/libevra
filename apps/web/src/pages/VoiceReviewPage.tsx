@@ -1,3 +1,4 @@
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import { useMemo, useState } from "react";
 import {
   UNCATEGORISED_NAME,
@@ -150,6 +151,7 @@ export function VoiceReviewPage(): React.JSX.Element {
    */
   const [spoken] = useState(() => takeSpokenHandover());
 
+  const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, spoken?.source === "paste" ? "text" : "voice", spoken?.attachmentTargets ?? [{ id: "entry", label: t("attachments.capture.current") }]);
   const [saved, setSaved] = useState<Transaction | null>(null);
   const [undone, setUndone] = useState<Transaction | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -225,6 +227,7 @@ export function VoiceReviewPage(): React.JSX.Element {
   ): Promise<void> {
     try {
       const entry = await createEntry.mutateAsync(input);
+      await attachments.commit({ [spoken?.attachmentTarget ?? "entry"]: entry.id });
       setSaved(entry);
       setPendingDuplicate(null);
 
@@ -319,7 +322,7 @@ export function VoiceReviewPage(): React.JSX.Element {
   }
 
   return (
-    <InnerPage
+    <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("capture.review.title")}
       backTo={origin}
     >
@@ -504,7 +507,8 @@ export function VoiceReviewPage(): React.JSX.Element {
           // "cancel": 表单还在，用户可以继续改。
         }}
       />
-    </InnerPage>
+      <CaptureMobileAttachments panel={attachments.panel} />
+    </InnerPage></CaptureLayout>
   );
 }
 

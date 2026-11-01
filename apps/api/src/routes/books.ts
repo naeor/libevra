@@ -1,3 +1,4 @@
+import { assertStorageGrowth, lockAccountStorage } from "../ledger/storage.js";
 import { bookRoleSchema } from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -172,9 +173,12 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
      * categories and payment methods — copying the other one's would silently duplicate every
      * customisation into a book that was meant to be separate.
      */
-    const bookId = await prisma.$transaction((tx) =>
-      createDefaultLedger(tx, userId, body.name ?? defaultBookNameFor(request.headers["accept-language"])),
-    );
+    const bookId = await prisma.$transaction(async tx => {
+      await lockAccountStorage(tx, userId);
+      const id = await createDefaultLedger(tx, userId, body.name ?? defaultBookNameFor(request.headers["accept-language"]));
+      await assertStorageGrowth(tx, userId, id, 0n);
+      return id;
+    });
 
     /**
      * ⚠️ **Making a ledger is entering it.** Creating one and then leaving the person in the old

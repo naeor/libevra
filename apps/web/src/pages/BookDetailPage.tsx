@@ -1,3 +1,5 @@
+import { BookAttachmentSummary } from "../components/Attachments.js";
+import { BookNotificationBell } from "../components/BookNotificationBell.js";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
@@ -51,11 +53,12 @@ export function BookDetailPage(): React.JSX.Element {
   const createdLabel = isChineseLocale(locale) ? createdDate : formatLocalDate(createdDate);
 
   return (
-    <InnerPage title={t("books.detail.title")} backTo="/start">
+    <InnerPage title={t("books.detail.title")} backTo="/start" actions={<BookNotificationBell bookId={bookId} />}>
       {meta.isPending ? <SkeletonRows rows={4} /> : null}
 
       {meta.isSuccess ? (
         <>
+          <BookAttachmentSummary bookId={bookId} />
           <BookIdentityCard
             bookId={bookId}
             name={name ?? ""}
@@ -87,12 +90,7 @@ export function BookDetailPage(): React.JSX.Element {
                   * ⚠️ **"约" stays.** An estimate shown beside three exact figures is read as exact,
                   * and somebody will eventually reconcile against it — see `estimateBytes`.
                   */}
-                <FactRow
-                  label={t("books.detail.storage")}
-                  value={t("books.detail.storageValue", {
-                    size: formatBytes(estimateBytes(stats.transactionCount, stats.eventCount)),
-                  })}
-                />
+
               </>
             )}
           </ListGroup>

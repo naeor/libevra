@@ -58,11 +58,11 @@ const legal: Messages<typeof zh> = {
     exportCancelled: "Export canceled.",
     exportDone: "Your account data has been exported. The file contains your profile and every entry in the ledgers you can access.",
     help: {
-      title: "If you don’t agree yet",
+      title: "Not ready to accept",
       eyebrow: "Your account and data",
       signOut: "Sign out",
       backToAgreement: "Back to the agreement",
-      intro: "You can export or deal with your account data first and decide later.",
+      intro: "You can export or manage account data before deciding.",
       export: "Export my data",
       deleteTitle: "Delete data stored on the server",
       deleteBody:

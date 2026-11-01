@@ -66,7 +66,10 @@ export function DesktopPopover({
     };
   }, [anchor, placement]);
 
+  const positioned = position !== null;
   useEffect(() => {
+    // 初次渲染尚未定位，visibility:hidden 的面板不能接收焦点。
+    if (!positioned) return;
     const panel = ref.current;
     const first = panel?.querySelector<HTMLElement>("[data-autofocus], input, button:not([disabled]), a[href]");
     first?.focus({ preventScroll: true });
@@ -89,7 +92,7 @@ export function DesktopPopover({
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointer, true);
     };
-  }, [anchor, onClose]);
+  }, [anchor, onClose, positioned]);
 
   return createPortal(
     <div

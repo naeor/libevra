@@ -104,8 +104,8 @@ describe("已忽略的重复交易管理区", () => {
     expect(markup).toContain("#000013");
     expect(markup).toContain("2026-10-21");
     expect(markup).toContain("确认人：小明");
-    expect(markup).toContain("生效中：重复提示会忽略这一对");
-    expect(markup).toContain("撤销这条判断");
+    expect(markup).toContain("生效中：忽略这组重复提醒");
+    expect(markup).toContain("撤销标记");
     // 可写 + 在线 → 按钮没有 disabled（class 里的 `disabled:` 变体不算）。
     expect(markup).not.toContain('disabled=""');
   });
@@ -113,7 +113,7 @@ describe("已忽略的重复交易管理区", () => {
   it("viewer 看到只读说明，撤销按钮被禁用", () => {
     const markup = html({ canWrite: false });
 
-    expect(markup).toContain("你是这本账的查看者");
+    expect(markup).toContain("仅有查看权限，无法撤销标记");
     expect(markup).toContain('disabled=""');
   });
 
@@ -139,7 +139,7 @@ describe("已忽略的重复交易管理区", () => {
     });
 
     expect(markup).toContain("已撤销：小红");
-    expect(markup).not.toContain("撤销这条判断");
+    expect(markup).not.toContain("撤销标记");
   });
 
   it("关键字段变化的行说明失效字段，并说明重新参与提示", () => {
@@ -161,8 +161,8 @@ describe("已忽略的重复交易管理区", () => {
   });
 
   it("空态区分「生效中」与「含已撤销」", () => {
-    expect(html({ items: [] })).toContain("还没有确认过「不是同一笔」的交易");
-    expect(html({ items: [], showRevoked: true })).toContain("还没有撤销过的「不重复」判断");
+    expect(html({ items: [] })).toContain("暂无“不是同一笔”记录。");
+    expect(html({ items: [], showRevoked: true })).toContain("暂无已撤销的记录。");
   });
 
   it("读取中与错误分别渲染", () => {

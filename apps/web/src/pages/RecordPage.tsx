@@ -1,3 +1,4 @@
+import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import { useEffect, useMemo, useState } from "react";
 import { MAX_SPEECH_SECONDS, isSpeechless, parseTransactionText } from "@libellum/shared";
 import { useNavigate } from "react-router";
@@ -48,6 +49,7 @@ export function RecordPage(): React.JSX.Element {
   const { t } = useI18n();
   const transcribe = useTranscribe();
   const ledger = useLedger();
+  const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, "voice", [{ id: "entry", label: t("attachments.capture.current") }]);
   const categories = useMemo(() => ledger.data?.categories ?? [], [ledger.data?.categories]);
 
   const recorder = useVoiceRecorder((recording: Recording) => {
@@ -94,7 +96,7 @@ export function RecordPage(): React.JSX.Element {
   const busy = recorder.state === "starting" || recorder.state === "stopping" || transcribe.isPending;
 
   return (
-    <InnerPage
+    <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("capture.record.title")}
       subtitle={t("capture.record.subtitle", { example: SPOKEN_EXAMPLE })}
       backTo="/"
@@ -254,6 +256,7 @@ export function RecordPage(): React.JSX.Element {
       >
         {t("capture.record.manualFallback")}
       </button>
-    </InnerPage>
+      <CaptureMobileAttachments panel={attachments.panel} />
+    </InnerPage></CaptureLayout>
   );
 }

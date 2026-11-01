@@ -82,9 +82,9 @@ describe("全部卡片在综合折算下都有真实结果（无「暂不支持�
       expect(html.length, id).toBeGreaterThan(0);
       expect(html, id).not.toContain("暂不支持");
       expect(html, id).not.toContain("无法计算");
-      expect(html, id).not.toContain("还没有读取到");
+      expect(html, id).not.toContain("尚未读取");
       // 汇率诊断卡片的职责就是报告缺汇率情况（表头「缺汇率」、计数 0），不算降级提示。
-      if (!COMBINED_ONLY.has(id)) expect(html, id).not.toContain("缺汇率");
+      if (!COMBINED_ONLY.has(id)) expect(html, id).not.toMatch(/缺(?:少)?汇率/);
     }
     // 手算：MIXED_ENTRIES 里 8 笔外币（USD/HKD/JPY）全部有汇率。
     expect(render("AN-P19", complete)).toContain("需折算 8 笔，已折算 8 笔");
@@ -154,7 +154,7 @@ describe("完整折算 · 手算金额与统计量（独立复核）", () => {
   it("区间最后一天是今天：最后一个桶「进行中」，如实提示（与原币模式一致），但不是汇率问题", () => {
     const html = render("AN-I06", complete, { today: LIVE });
     expect(html).toContain("数据不完整");
-    expect(html).not.toContain("缺汇率");
+    expect(html).not.toMatch(/缺(?:少)?汇率/);
   });
 });
 
@@ -230,9 +230,9 @@ describe("缺汇率 · 各类卡片如实降级（10-02 的 USD 与 HKD 支出�
   const missing = buildFxView({ entries: MIXED_ENTRIES, missingDates: ["2026-10-02"] });
   // 缺 e02(7898) + e03(600)：已折算支出 = 383199 − 8498 = 374701；净额 = 644000 − 374701 = 269299
   it("金额合计：给「已成功折算部分的小计」并标注，不是总额；收入合计不受缺的支出影响，仍完整", () => {
-    expect(render("AN-B01", missing)).toBe("¥3,747.01 已成功折算部分的小计；另有 2 笔缺汇率未计入，不是总额。");
+    expect(render("AN-B01", missing)).toBe("¥3,747.01 仅显示已折算小计，2 笔缺少汇率未计入。");
     expect(render("AN-B02", missing)).toBe("¥6,440.00");
-    expect(render("AN-B03", missing)).toBe("¥2,692.99 已成功折算部分的小计；另有 2 笔缺汇率未计入，不是总额。");
+    expect(render("AN-B03", missing)).toBe("¥2,692.99 仅显示已折算小计，2 笔缺少汇率未计入。");
   });
 
   it("计数类：缺汇率账目照常计数，结果与完整时逐字相同，且不提示不完整", () => {
@@ -309,7 +309,7 @@ describe("缺汇率 · 各类卡片如实降级（10-02 的 USD 与 HKD 支出�
     for (const id of ["AN-I06", "AN-I08", "AN-I11", "AN-I12", "AN-I15", "AN-I16", "AN-I20"]) {
       expect(render(id, missing), id).toContain("含缺汇率账目的时间段已标为未知");
     }
-    expect(render("AN-I07", missing)).not.toContain("缺汇率");
+    expect(render("AN-I07", missing)).not.toMatch(/缺(?:少)?汇率/);
     // 日记账笔数与金额无关：缺汇率不影响
     expect(render("AN-I19", missing)).toBe(render("AN-I19", complete));
   });
@@ -326,7 +326,7 @@ describe("缺汇率 · 各类卡片如实降级（10-02 的 USD 与 HKD 支出�
     expect(html).toContain("支出 ¥3,747.01");
     expect(html).not.toMatch(/[↑↓]/);
     expect(html).toContain("本期或上期有缺汇率的账目（共 2 笔），不显示增减比较");
-    expect(html).toContain("已成功折算部分的小计");
+    expect(html).toContain("仅显示已折算小计");
   });
 
   it("上期缺汇率（本期完整）：本期数字照常显示，只是不给增减", () => {
@@ -336,7 +336,7 @@ describe("缺汇率 · 各类卡片如实降级（10-02 的 USD 与 HKD 支出�
     expect(html).toContain("收入 ¥6,440.00");
     expect(html).not.toMatch(/[↑↓]/);
     expect(html).toContain("本期或上期有缺汇率的账目（共 1 笔），不显示增减比较");
-    expect(html).not.toContain("已成功折算部分的小计");
+    expect(html).not.toContain("仅显示已折算小计");
   });
 
   it("上期读取失败 / 加载中 / 来源不全：不比较，且原因说得对", () => {
@@ -353,7 +353,7 @@ describe("缺汇率 · 收入方向（10-05 的 USD 收入缺汇率：e07）", (
   const missing = buildFxView({ entries: MIXED_ENTRIES, missingDates: ["2026-10-05"] });
   it("收入合计只给小计；支出合计与支出类卡片不受影响", () => {
     // 已折算收入 = 500000 + 80000 = 580000
-    expect(render("AN-B02", missing)).toBe("¥5,800.00 已成功折算部分的小计；另有 1 笔缺汇率未计入，不是总额。");
+    expect(render("AN-B02", missing)).toBe("¥5,800.00 仅显示已折算小计，1 笔缺少汇率未计入。");
     expect(render("AN-B01", missing)).toBe("¥3,831.99");
     expect(render("AN-B06", missing)).toBe("¥141.93");
     expect(render("AN-I01", missing)).toBe(render("AN-I01", complete));
@@ -384,7 +384,7 @@ describe("缺汇率 · 全部缺失：不显示 0，也不说「没有记录」"
 
   it("金额类卡片说明「没有任何已折算的账目，无法确定」；计数类仍精确（1 笔支出）", () => {
     for (const id of ["AN-B01", "AN-B06", "AN-B09", "AN-B15", "AN-I01", "AN-I03", "AN-I17"]) {
-      expect(render(id, none), id).toContain("没有任何已折算的账目，无法确定");
+      expect(render(id, none), id).toContain("无已折算账目，无法计算");
     }
     expect(render("AN-B04", none)).toBe("1 笔");
     expect(render("AN-B05", none)).toBe("1 笔");
@@ -403,7 +403,7 @@ describe("逐笔条数超限 · 不截断、不冒充完整", () => {
       if (AGGREGATE_ONLY.includes(id)) {
         expect(html, id).toBe(render(id, complete));
       } else {
-        expect(html, id).toContain("超过逐笔分析上限（50000 笔）");
+        expect(html, id).toContain("超过 50000 笔逐笔分析上限");
         expect(html, id).not.toContain("¥");
       }
     }
@@ -431,7 +431,7 @@ describe("固定窗口 · 卡片读自己的时间窗，不拿全局范围冒充
   it("自带 12 个月窗口的卡片：窗口与全局范围不同时明确说明尚未读取，不显示全局金额", () => {
     for (const id of ["AN-I09", "AN-I10"]) {
       const html = render(id, complete);
-      expect(html, id).toContain("还没有读取到");
+      expect(html, id).toContain("尚未读取");
       expect(html, id).not.toContain("¥3,831.99");
       expect(html, id).not.toContain("¥6,440.00");
     }
@@ -447,7 +447,7 @@ describe("固定窗口 · 卡片读自己的时间窗，不拿全局范围冒充
     expect(expense).toContain("¥3,831.99");
     expect(income).toContain("¥6,440.00");
     // 窗口末月（11 月）仍在进行中：如实提示；不是汇率问题
-    expect(expense).not.toContain("缺汇率");
+    expect(expense).not.toMatch(/缺(?:少)?汇率/);
   });
 
   it("固定窗口里缺汇率：对应月份未知，不是 0", () => {
