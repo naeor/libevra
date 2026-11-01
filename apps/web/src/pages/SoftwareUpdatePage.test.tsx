@@ -33,7 +33,7 @@ describe("software update announcements", () => {
     // 只有补零后与内部版本号不同（如 1.17.9 → 1.17.09）时，才能断言页面不显示内部写法；
     // 两位数补丁号（1.17.10 / 1.17.11）两种写法相同。
     if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
-    expect(html).toContain("1.17.15");
+    expect(html).toContain("1.18.34");
     expect(html).toContain("桌面总览、账本管理与协作布局更新");
     expect(html).toContain(
       "账目支持添加和预览附件，新增变更提醒与容量管理，并统一各端的筛选、排序和记账界面。",
@@ -43,9 +43,9 @@ describe("software update announcements", () => {
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("独立编辑页支持数字与单色微型图表");
-    expect(html).toContain("调整及优化");
-    expect(html).toContain("问题修复");
+    expect(html).toContain("已添加的指标支持再次点击取消");
+    expect(html).toContain("界面与操作");
+    expect(html).toContain("修复编辑页返回循环");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
   });
