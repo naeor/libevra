@@ -36,14 +36,14 @@ describe("software update announcements", () => {
     expect(html).toContain("1.17.15");
     expect(html).toContain("桌面总览、账本管理与协作布局更新");
     expect(html).toContain(
-      "电脑端新增可调整的总览网格，账本详情与协作支持并排查看；导航、辅助栏、记账入口和设置页面同步调整。",
+      "账目支持添加和预览附件，新增变更提醒与容量管理，并统一各端的筛选、排序和记账界面。",
     );
     expect(html).toContain("2026年11月1日");
     expect(html).toContain('href="/update/announcements/1.18.15"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("在网格内移动、调整卡片大小");
+    expect(html).toContain("独立编辑页支持数字与单色微型图表");
     expect(html).toContain("调整及优化");
     expect(html).toContain("问题修复");
     expect(html).not.toContain('role="dialog"');
