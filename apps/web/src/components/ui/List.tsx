@@ -18,14 +18,14 @@ import { DraggableLink, plainText } from "../../workspace/openDrag.js";
  * | 去往下一页 / 触发一个操作 | `ListRow`（有 `to` 或 `onClick`）：整行可点，末尾是统一的 `›` 图标 |
  * | 设置项 | `ListRow` 的 `value`：名称在左、**当前值在右**、怎么改由末尾决定（`›` 或开关） |
  * | 只读资料 | `FactRow`：标签在左、值在右，**没有箭头也没有按下态**——它不是按钮 |
- * | 一组同类条目 | `ListGroup`：一个外框，行与行之间的分隔线贯通外框（布局规范 §15） |
+ * | 一组同类条目 | `ListGroup`：触屏保留分组外框，桌面轻分区按布局规范 §16.2 |
  * | 说明文字 | `ListGroup` 的 `footer` 或 `ProseSection`：**贴着它解释的东西**，不单独成框 |
  *
  * ⚠️ **行的水平内边距是 `px-5`（20px）**，与设置页、分类页已经确立的列表约定一致；外框本身不加内边距。
  * ⚠️ **分组标题与行内文字左对齐**（`px-5`），读起来是"这一组的名字"，而不是又一个页面标题。
  */
 
-/** 一组同类条目：可选的组名、一个外框、可选的脚注。 */
+/** 一组同类条目：可选组名、响应式分组容器、可选脚注。 */
 export function ListGroup({
   title,
   footer,
@@ -47,26 +47,26 @@ export function ListGroup({
   const Frame = as;
 
   return (
-    <section className={`flex flex-col gap-2 ${className}`.trim()}>
+    <section data-section-title={title === undefined ? undefined : ""} className={`lv-settings-section flex flex-col gap-2 ${className}`.trim()}>
       {title === undefined && action === undefined ? null : (
-        <div className="flex items-baseline justify-between gap-3 px-5">
+        <div className="lv-settings-heading flex items-baseline justify-between gap-3 px-5">
           {title === undefined ? <span /> : <h2 className="text-card-title text-ink">{title}</h2>}
           {action === undefined ? null : <span className="shrink-0 text-helper">{action}</span>}
         </div>
       )}
 
-      <Frame className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+      <Frame className="lv-settings-body lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
         {children}
       </Frame>
 
       {footer === undefined || footer === null ? null : (
-        <div className="px-5 text-helper-relaxed text-muted">{footer}</div>
+        <div className="lv-settings-footer px-5 text-helper-relaxed text-muted">{footer}</div>
       )}
     </section>
   );
 }
 
-const ROW_BASE = "flex min-h-13 w-full items-center gap-3 px-5 py-3 text-left";
+const ROW_BASE = "lv-settings-row flex min-h-13 w-full items-center gap-3 px-5 py-3 text-left";
 const ROW_INTERACTIVE =
   "transition-colors hover:bg-canvas active:bg-brand-soft/60 focus-visible:bg-brand-soft focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45";
 
@@ -90,6 +90,8 @@ export function ListRow({
   leading,
   trailing,
   dataAttributes,
+  desktopActionLabel,
+  desktopMeta,
 }: {
   readonly label: React.ReactNode;
   readonly detail?: React.ReactNode;
@@ -112,6 +114,10 @@ export function ListRow({
   /** 自定义末尾内容（开关、徽标）。给了它就不再画 `›`，除非 `chevron` 明确为 `true`。 */
   readonly trailing?: React.ReactNode;
   readonly dataAttributes?: Readonly<Record<`data-${string}`, string>>;
+  /** 电脑端把动作名称放在行尾；点击与禁用仍由同一个行元素负责。 */
+  readonly desktopActionLabel?: React.ReactNode;
+  /** 对象列表的对齐列，窄屏继续使用 detail。 */
+  readonly desktopMeta?: React.ReactNode;
 }): React.JSX.Element {
   const interactive = to !== undefined || onClick !== undefined;
   const showChevron = chevron ?? (interactive && trailing === undefined && tone !== "action");
@@ -121,16 +127,18 @@ export function ListRow({
   const body = (
     <>
       {leading === undefined ? null : <span className="flex shrink-0 items-center">{leading}</span>}
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="lv-settings-row-label flex min-w-0 flex-1 flex-col gap-1">
         <span className={`text-card-title ${labelTone}`}>{label}</span>
         {detail === undefined || detail === null ? null : (
-          <span className="text-helper-relaxed text-muted">{detail}</span>
+          <span data-desktop-meta={desktopMeta === undefined ? undefined : ""} className="text-helper-relaxed text-muted">{detail}</span>
         )}
       </span>
+      {desktopMeta === undefined ? null : <span className="lv-settings-object-meta">{desktopMeta}</span>}
       {value === undefined || value === null ? null : (
         <span className="max-w-[45%] shrink-0 truncate text-right text-body text-muted tabular-nums">{value}</span>
       )}
       {trailing === undefined ? null : <span className="flex shrink-0 items-center">{trailing}</span>}
+      {desktopActionLabel === undefined ? null : <span aria-hidden="true" className={`lv-settings-action ${labelTone}`}>{desktopActionLabel}</span>}
       {showChevron ? (
         <ChevronIcon direction="right" className={`size-4 ${tone === "danger" ? "text-danger/70" : "text-muted/70"}`} />
       ) : null}
@@ -206,7 +214,7 @@ export function FactRow({
   readonly action?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-5 py-3">
+    <div className="lv-settings-fact grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-5 py-3">
       <dt className="min-h-7 content-center text-card-title text-ink">{label}</dt>
       <dd
         className={`flex min-w-0 items-center justify-end gap-2 text-right text-body text-ink tabular-nums ${mono ? "font-mono tracking-wide" : ""}`}

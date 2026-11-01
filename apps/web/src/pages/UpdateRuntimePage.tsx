@@ -67,7 +67,7 @@ export function UpdateRuntimePage(): React.JSX.Element {
 
       {snapshot === null ? null : (
         <>
-          <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
+          <section className="lv-settings-flat lv-settings-runtime flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
             <h2 className="text-sm font-semibold text-ink">{t("update.runtime.app")}</h2>
             <dl className={grid}>
               <dt className="text-muted">{t("update.runtime.appVersion")}</dt>
@@ -83,7 +83,7 @@ export function UpdateRuntimePage(): React.JSX.Element {
             </dl>
           </section>
 
-          <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
+          <section className="lv-settings-flat lv-settings-runtime flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
             <h2 className="text-sm font-semibold text-ink">{t("update.runtime.cache")}</h2>
             <dl className={grid}>
               <dt className="text-muted">{t("update.runtime.cacheEntries")}</dt>
@@ -97,7 +97,7 @@ export function UpdateRuntimePage(): React.JSX.Element {
             </dl>
           </section>
 
-          <section className="flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
+          <section className="lv-settings-flat lv-settings-runtime flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
             <h2 className="text-sm font-semibold text-ink">{t("update.runtime.page")}</h2>
             <dl className={grid}>
               <dt className="text-muted">{t("update.runtime.pageUrl")}</dt>

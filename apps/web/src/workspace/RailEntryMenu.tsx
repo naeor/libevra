@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { ENTRY_ACTIONS } from "../components/BottomNav.js";
+import { useDesktopActive } from "../desktop/surface.js";
 import { useI18n } from "../i18n/index.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useLedger } from "../lib/queries.js";
@@ -10,6 +11,7 @@ import { XIcon } from "./icons.js";
 /** 与手机共用已有五种功能定义；只为侧栏调整顺序与密度。 */
 export function EntryMethodList({ onNavigate, onSelected, disabledFor }: { readonly onNavigate: EntryNavigate; readonly onSelected?: () => void; readonly disabledFor: (action: typeof ENTRY_ACTIONS[number]) => boolean }): React.JSX.Element {
   const { t } = useI18n();
+  const desktop = useDesktopActive();
   const picker = useRef<HTMLInputElement>(null);
   const actions = [...ENTRY_ACTIONS].sort((a, b) => Number(b.id === "manual") - Number(a.id === "manual"));
   const onMenuKey = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
@@ -31,7 +33,7 @@ export function EntryMethodList({ onNavigate, onSelected, disabledFor }: { reado
       onSelected?.();
     }} />
     {actions.map((action) => {
-      const label = t(`nav.entry.${action.id}.label`);
+      const label = desktop && action.id === "scan" ? t("desktop.nav.photoRecognition") : t(`nav.entry.${action.id}.label`);
       const disabled = disabledFor(action);
       return <button key={action.id} type="button" role="menuitem" className="lv-add-item" data-import={action.id === "import" ? "true" : undefined} disabled={disabled} onKeyDown={onMenuKey}
         aria-label={disabled ? t("nav.entry.needsAccount", { label }) : label} onClick={() => {

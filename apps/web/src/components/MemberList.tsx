@@ -85,7 +85,7 @@ export function MemberList({
         </p>
       ) : null}
 
-      <ul className="overflow-hidden rounded-card border border-line bg-surface">
+      <ul className="lv-settings-list lv-settings-members overflow-hidden rounded-card border border-line bg-surface">
         {list.map((member) => (
           <li key={member.userId} className="border-b border-line last:border-b-0">
             <MemberRow
@@ -148,14 +148,14 @@ function MemberRow({
   const roleLabel = member.role === "viewer" ? t("collab.role.viewer") : t("collab.role.editor");
 
   return (
-    <div className="flex flex-col gap-2 px-5 py-4">
+    <div className="lv-settings-member-row flex flex-col gap-2 px-5 py-4">
       {/**
         * S16：长昵称 + 英文角色标签时，名字一栏可以换行，操作按钮放不下就换到下一行，
         * 不再把名字挤出卡片。
         */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <UserAvatar avatarId={member.avatarId} className="size-10" />
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="lv-settings-member-name flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink">
             <span className="min-w-0 [overflow-wrap:anywhere]">{member.displayName}</span>
             {member.isCreator ? (

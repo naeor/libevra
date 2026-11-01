@@ -54,7 +54,7 @@ export function ThemeAppearanceView({
         ))}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="lv-settings-theme-options flex flex-col gap-2">
         <h2 className="text-section-title text-ink">{t("settings.theme.mode")}</h2>
         <div role="group" aria-label={t("settings.theme.mode")} className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
           {MODES.map((value) => (
@@ -75,7 +75,7 @@ export function ThemeAppearanceView({
         </div>
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="lv-settings-theme-options flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-section-title text-ink">{t("settings.theme.palette")}</h2>
           <span aria-live="polite" className="text-helper text-muted">

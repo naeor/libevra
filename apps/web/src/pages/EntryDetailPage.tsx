@@ -458,6 +458,7 @@ export function EntryDetailPage({ entryId }: { readonly entryId?: string } = {})
 
   return (
     <InnerPage
+      desktopActionsAtBottom
       title={editing ? t("entry.detail.editTitle") : t("entry.detail.title")}
       onBack={() => {
         if (editing) setEditing(false);

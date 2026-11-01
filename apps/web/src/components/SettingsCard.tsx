@@ -116,7 +116,7 @@ export function CurrencyQuickPick({
   readonly hint?: string;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="lv-settings-currency flex flex-col gap-2.5">
       {/**
        * ⚠️ **`aria-pressed`, not a radio group.** The pills are buttons that save
        * on press — a radio would promise a form and a submit button that do not
@@ -233,7 +233,7 @@ export function SettingsToggle({
   readonly testId?: string;
 }): React.JSX.Element {
   return (
-    <div className={`flex justify-between gap-4 ${hint === undefined ? "items-center" : "items-start"}`}>
+    <div className={`lv-settings-toggle flex justify-between gap-4 ${hint === undefined ? "items-center" : "items-start"}`}>
       <span className="flex min-w-0 flex-col gap-1">
         <span className="text-card-title text-ink">{label}</span>
         {hint === undefined ? null : (
@@ -286,7 +286,7 @@ export function SettingsRowList({
   readonly onNavigate: (to: string) => void;
 }): React.JSX.Element {
   return (
-    <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+    <ul className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
       {rows.map((row) => (
         <li key={row.label}>
           <button

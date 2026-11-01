@@ -102,7 +102,7 @@ const capture: Messages<typeof zh> = {
     failed: "Couldn’t start recording. You can add the entry manually.",
   },
   paste: {
-    title: "Paste text",
+    title: "Text recognition",
     clipboardEmpty: "There’s no text on the clipboard. You can paste it into the box below.",
     clipboardDenied: "The browser didn’t allow clipboard access. Paste the text into the box below.",
     label: "Transaction text",

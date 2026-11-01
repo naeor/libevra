@@ -42,10 +42,12 @@ export function DesktopTabPage({ children, className = "", scrollRef, rootRef, r
   );
 }
 
-export function DesktopInnerPage({ title, subtitle, backTo = "/", backMode = "history", onBack, actions, children, wideWidth = "reading" }: InnerPageProps): React.JSX.Element {
+export function DesktopInnerPage({ title, subtitle, backTo = "/", backMode = "history", onBack, actions, children, wideWidth = "reading", desktopActionsAtBottom = false }: InnerPageProps): React.JSX.Element {
   const { t } = useI18n();
   const surface = useSurface();
   const goBack = useGoBack(backTo, backMode);
+  const headerActions = desktopActionsAtBottom ? null : actions;
+  const bottomActions = desktopActionsAtBottom && actions != null ? <div className="lv-desk-detail-actions">{actions}</div> : null;
   const back = useCallback(() => {
     (surface.onBack ?? onBack ?? goBack)();
   }, [surface.onBack, onBack, goBack]);
@@ -60,7 +62,7 @@ export function DesktopInnerPage({ title, subtitle, backTo = "/", backMode = "hi
             </button>
           )}
           <h2 className="min-w-0 flex-1 truncate text-section-title text-ink">{title}</h2>
-          {actions === undefined || actions === null ? null : <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+          {headerActions == null ? null : <div className="flex shrink-0 items-center gap-1">{headerActions}</div>}
           {surface.onClose === undefined ? null : (
             <button type="button" className="lv-desk-icon-btn -mr-1.5" onClick={surface.onClose} aria-label={t("desktop.panel.close")}>
               <XIcon className="size-4" />
@@ -71,6 +73,7 @@ export function DesktopInnerPage({ title, subtitle, backTo = "/", backMode = "hi
           {subtitle ? <p className="text-helper-relaxed text-muted">{subtitle}</p> : null}
           {children}
         </div>
+        {bottomActions}
       </div>
     );
   }
@@ -81,7 +84,7 @@ export function DesktopInnerPage({ title, subtitle, backTo = "/", backMode = "hi
       {surface.bar === "toolbar" ? (
         <div className="lv-desk-sticky">
           <SyncBanner />
-          <DesktopToolbar title={<span className="inline-flex items-center gap-2">{title}<GuestModeBadge /></span>} onBack={back} actions={actions} />
+          <DesktopToolbar title={<span className="inline-flex items-center gap-2">{title}<GuestModeBadge /></span>} onBack={back} actions={headerActions} />
         </div>
       ) : (
         <SyncBanner />
@@ -96,12 +99,13 @@ export function DesktopInnerPage({ title, subtitle, backTo = "/", backMode = "hi
               </h1>
               {subtitle ? <p className="mt-1 text-body-relaxed text-muted">{subtitle}</p> : null}
             </div>
-            {actions === undefined || actions === null ? null : <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+            {headerActions == null ? null : <div className="flex shrink-0 items-center gap-2">{headerActions}</div>}
           </header>
         ) : null}
-        {surface.bar === "none" && actions !== undefined && actions !== null ? <div className="flex justify-end gap-2">{actions}</div> : null}
+        {surface.bar === "none" && headerActions != null ? <div className="flex justify-end gap-2">{headerActions}</div> : null}
         {surface.bar !== "heading" && subtitle ? <p className="text-body-relaxed text-muted">{subtitle}</p> : null}
         {children}
+        {bottomActions}
       </main>
     </div>
   );

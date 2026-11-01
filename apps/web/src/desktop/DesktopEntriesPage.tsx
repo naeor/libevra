@@ -293,7 +293,7 @@ export function DesktopEntriesPage(): React.JSX.Element {
   const searching = query.trim() !== "";
 
   return (
-    <DesktopSplit panel={panel} panelLabel={t("desktop.entries.panel")} onClosePanel={() => select(null)}>
+    <DesktopSplit panel={panel} panelLabel={t("desktop.entries.panel")} panelDisabled={batch.selecting} disabledMessage={t("desktop.entries.panelPaused")} onClosePanel={() => select(null)}>
       <div className="flex h-full min-h-0 flex-col">
         <SyncBanner />
         <OfflineStatus />
@@ -314,7 +314,6 @@ export function DesktopEntriesPage(): React.JSX.Element {
                 onClick={() => {
                   if (batch.selecting) batch.exitBatch();
                   else {
-                    select(null);
                     batch.enterBatch();
                   }
                 }}
@@ -599,9 +598,10 @@ function SummarySettings({ prefs, onChange }: { readonly prefs: SummaryPrefs; re
         <SlidersIcon className="size-[18px]" />
       </button>
       {open ? (
-        <DesktopPopover anchor={anchor} label={t("desktop.entries.summaryEdit")} onClose={close} placement="bottom-end" width={220}>
-          <fieldset className="flex flex-col gap-1 p-3">
-            <legend className="px-1 pb-1 text-card-title text-ink">{t("desktop.entries.summaryEdit")}</legend>
+        <DesktopPopover anchor={anchor} label={t("desktop.entries.summaryEdit")} onClose={close} placement="bottom-end" width={248}>
+          <div className="p-4">
+          <fieldset className="flex min-w-0 flex-col gap-1">
+            <legend className="mb-3 px-1 text-card-title text-ink">{t("desktop.entries.summaryEdit")}</legend>
             {options.map((option) => (
               <label key={option.key} className={`lv-desk-check-row ${option.key !== "show" && !prefs.show ? "opacity-45" : ""}`}>
                 <input
@@ -614,6 +614,7 @@ function SummarySettings({ prefs, onChange }: { readonly prefs: SummaryPrefs; re
               </label>
             ))}
           </fieldset>
+          </div>
         </DesktopPopover>
       ) : null}
     </>

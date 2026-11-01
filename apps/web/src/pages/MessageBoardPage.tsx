@@ -11,7 +11,7 @@ import { useLedger } from "../lib/queries.js";
  * the only thing that crosses a navigation, so this is the one place the request is decoded — and a
  * malformed link must degrade to an ordinary composer rather than fail the screen.
  */
-function readQuoteRequest(params: URLSearchParams): { kind: QuoteReferenceKind; id: string } | undefined {
+export function readQuoteRequest(params: URLSearchParams): { kind: QuoteReferenceKind; id: string } | undefined {
   const raw = params.get("quote");
   if (raw === null) return undefined;
   const [kind, id] = raw.split(":");

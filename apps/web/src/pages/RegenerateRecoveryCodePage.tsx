@@ -61,7 +61,7 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
       subtitle={t("account.recoveryCode.subtitle")}
       backTo="/settings"
     >
-      <Card>
+      <Card className="lv-settings-task">
         <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
           {error ? <Alert>{error}</Alert> : null}
 

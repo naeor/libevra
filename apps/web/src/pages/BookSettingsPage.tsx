@@ -55,8 +55,9 @@ import {
  * 于是详情按 `-1` 会落回子页。现在 `parent` 有历史就 pop，连同这一页的记录一起消耗掉；
  * 只有直接从地址打开（会话第一条）时才 `replace` 到父级。**目的地没变，变的是不留影子。**
  */
-export function BookSettingsPage(): React.JSX.Element {
-  const { bookId = "" } = useParams<{ bookId: string }>();
+export function BookSettingsPage({ targetBookId }: { readonly targetBookId?: string } = {}): React.JSX.Element {
+  const { bookId: routeBookId = "" } = useParams<{ bookId: string }>();
+  const bookId = targetBookId ?? routeBookId;
 
   /**
    * ⚠️ **Keyed by the ledger, so switching targets cannot carry a half-finished edit across.**
@@ -280,9 +281,9 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
           )}
 
           {/* ---------------------------------------------------------------- */}
-          <section className="flex flex-col gap-2">
-            <h2 className="px-5 text-helper font-medium text-muted">{t("books.settings.section.bookkeeping")}</h2>
-            <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+          <section className="lv-settings-section flex flex-col gap-2" data-section-title="">
+            <h2 className="lv-settings-heading px-5 text-helper font-medium text-muted">{t("books.settings.section.bookkeeping")}</h2>
+            <ul className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
               <NavRow
                 label={t("books.settings.row.categories.label")}
                 hint={t("books.settings.row.categories.hint")}
@@ -302,9 +303,9 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
           </section>
 
           {/* ---------------------------------------------------------------- */}
-          <section className="flex flex-col gap-2">
-            <h2 className="px-5 text-helper font-medium text-muted">{t("books.settings.section.data")}</h2>
-            <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+          <section className="lv-settings-section flex flex-col gap-2" data-section-title="">
+            <h2 className="lv-settings-heading px-5 text-helper font-medium text-muted">{t("books.settings.section.data")}</h2>
+            <ul className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
               <NavRow
                 label={t("books.settings.row.export.label")}
                 hint={t("books.settings.row.export.hint")}
@@ -345,10 +346,10 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
           <NotDuplicateRelationsSection bookId={bookId} canWrite={canWrite} />
 
           {/* ---------------------------------------------------------------- */}
-          <section className="flex flex-col gap-2">
-            <h2 className="px-5 text-helper font-medium text-muted">{t("books.settings.section.danger")}</h2>
+          <section className="lv-settings-section flex flex-col gap-2" data-section-title="">
+            <h2 className="lv-settings-heading px-5 text-helper font-medium text-muted">{t("books.settings.section.danger")}</h2>
 
-            <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+            <div className="lv-settings-body lv-settings-fields flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
               {error === null ? null : <Alert>{error}</Alert>}
               {lifecycle === null ? (
                 <p className="text-body-relaxed text-muted">{t("books.settings.lifecycleLoading")}</p>
@@ -406,7 +407,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
             </div>
           </section>
 
-          <p className="text-helper-relaxed text-muted">
+          <p data-book-members-hint className="text-helper-relaxed text-muted">
             {t("books.settings.membersElsewhere")}
           </p>
         </>

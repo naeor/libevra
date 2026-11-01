@@ -2,28 +2,29 @@
  * 电脑版里没有专门桌面页面的地址，按分组放进合适的外框：
  *
  * - **设置**：固定的设置分类栏 + 具体设置内容（不另加辅助栏）。分类按项目现有设置组织，不新造设置项。
- * - **成员与协作**：顶部分页（概况、留言、成员、邀请、动态）；多人账本时右侧辅助栏放留言，
- *   可以一边看成员与账本信息一边讨论。
+ * - **账本详情**：左侧资料、右侧设置与单人账本历史 / 邀请。
+ * - **成员与协作**：共享账本页头成员摘要，左侧编辑记录、右侧独立留言。
  * - 其它页面直接放进主展示区，用桌面工具栏代替手机返回栏。
  */
 import { Link, Navigate, useLocation } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
-import { MessageBoardFull } from "../components/MessageBoard.js";
+import { DesktopBookPage } from "./DesktopBookPage.js";
+import { DesktopCollabPage } from "./DesktopCollabPage.js";
 import { useI18n } from "../i18n/index.js";
 import { useAdminEntry } from "../lib/admin.js";
 import { useGuestMode } from "../lib/guest/session.js";
-import { useLedger } from "../lib/queries.js";
-import { DesktopSplit } from "./DesktopSplit.js";
-import { DesktopToolbar } from "./DesktopToolbar.js";
-import { activeCollabTab, activeSettingsItem, COLLAB_TABS, sectionFor, settingsItems } from "./sections.js";
+import { activeSettingsItem, sectionFor, settingsItems } from "./sections.js";
 import { DesktopSurfaceProvider } from "./surface.js";
 
 export function DesktopSection({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
   const { pathname } = useLocation();
   const section = sectionFor(pathname);
+  const { user } = useAuth();
+  const bookMatch = /^\/books\/([^/]+)(?:\/settings(?:\/.*)?)?$/.exec(pathname);
+  if (user !== null && bookMatch?.[1]) return <DesktopBookPage bookId={bookMatch[1]}>{children}</DesktopBookPage>;
   if (section === "settings") return <SettingsChrome>{children}</SettingsChrome>;
-  if (section === "collab") return <CollabChrome>{children}</CollabChrome>;
+  if (section === "collab" && user !== null && ["/ledger", "/ledger/history", "/ledger/messages", "/ledger/invite", "/ledger/members"].includes(pathname)) return <DesktopCollabPage />;
   return <div className="lv-desk-scroll h-full overflow-y-auto">{children}</div>;
 }
 
@@ -60,51 +61,6 @@ function SettingsChrome({ children }: { readonly children: React.ReactNode }): R
         <DesktopSurfaceProvider surface="main" bar={top ? "heading" : "toolbar"}>
           {children}
         </DesktopSurfaceProvider>
-      </div>
-    </div>
-  );
-}
-
-function CollabChrome({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
-  const { t } = useI18n();
-  const { pathname } = useLocation();
-  const ledger = useLedger();
-  const active = activeCollabTab(pathname);
-  const shared = (ledger.data?.book.memberCount ?? 1) > 1;
-  const messagesAside = shared && active !== "messages" && ledger.data !== undefined;
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <DesktopToolbar title={t("desktop.collab.title")} meta={ledger.data?.book.name}>
-        <nav className="lv-desk-tabs" aria-label={t("desktop.collab.nav")}>
-          {COLLAB_TABS.map((tab) => (
-            <Link key={tab.id} to={tab.to} className="lv-desk-tab" aria-current={active === tab.id ? "page" : undefined}>
-              {t(`desktop.collab.tabs.${tab.id}`)}
-            </Link>
-          ))}
-        </nav>
-      </DesktopToolbar>
-      <div className="min-h-0 flex-1">
-        <DesktopSplit
-          whenNarrow="hide"
-          panelLabel={t("desktop.collab.messagesPanel")}
-          panel={
-            messagesAside && ledger.data !== undefined ? (
-              <div className="flex h-full min-h-0 flex-col">
-                <p className="lv-desk-panel-bar text-section-title text-ink">{t("desktop.collab.messagesPanel")}</p>
-                <div className="min-h-0 flex-1">
-                  <MessageBoardFull bookName={ledger.data.book.name} />
-                </div>
-              </div>
-            ) : null
-          }
-        >
-          <div className={`lv-desk-scroll h-full ${active === "messages" ? "overflow-hidden" : "overflow-y-auto"}`}>
-            <DesktopSurfaceProvider surface="main" bar="none">
-              {children}
-            </DesktopSurfaceProvider>
-          </div>
-        </DesktopSplit>
       </div>
     </div>
   );

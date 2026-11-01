@@ -100,7 +100,7 @@ const capture = {
     failed: "没能开始录音。可以改用手动记账。",
   },
   paste: {
-    title: "粘贴识别",
+    title: "文本识别",
     clipboardEmpty: "剪贴板里没有文字，可以直接在下面手动粘贴。",
     clipboardDenied: "浏览器没有允许读取剪贴板，请在下面手动粘贴。",
     label: "交易文字",

@@ -1,0 +1,14 @@
+# 桌面 UI 私人部署；仅切换 api/web，数据库与 relay 保留。
+services:
+  migrate:
+    image: libevra-rc-api:1.18.15-20261101
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.18.15-20261101
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.18.15-20261101
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never

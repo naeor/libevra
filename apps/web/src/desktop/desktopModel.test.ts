@@ -86,14 +86,14 @@ describe("popoverPosition：弹出面板不超出视口", () => {
 });
 
 describe("dashboardModel：总览布局", () => {
-  it("一本账时账本卡片扩展；多本账时按数量变紧凑，最近与待处理默认在辅助栏", () => {
+  it("一本账时账本卡片扩展；多本账时按数量变紧凑，最近与待处理默认在网格", () => {
     const single = defaultDashboard(["a"]);
     expect(single.cards[0]).toMatchObject({ id: ledgerCardId("a"), size: "expanded" });
     expect(single.cards.find((card) => card.kind === "cross")?.hidden).toBe(true);
     expect(defaultDashboard(["a", "b"]).cards.filter((card) => card.kind === "ledger").every((card) => card.size === "standard")).toBe(true);
     expect(defaultDashboard(["a", "b", "c", "d", "e"]).cards[0]?.size).toBe("compact");
     const multi = defaultDashboard(["a", "b"]);
-    expect(multi.cards.find((card) => card.kind === "recent")?.hidden).toBe(true);
+    expect(multi.cards.find((card) => card.kind === "recent")?.hidden).toBeUndefined();
     expect(multi.cards.find((card) => card.kind === "cross")?.hidden).toBeUndefined();
   });
 
@@ -134,7 +134,7 @@ describe("dashboardModel：总览布局", () => {
       crossScope: ["gone"],
     };
     const resolved = resolveDashboard(saved, ["a", "b"]);
-    expect(resolved.cards.map((card) => card.id)).toEqual(["quick", ledgerCardId("a"), ledgerCardId("b"), "cross", "recent", "pending"]);
+    expect(resolved.cards.map((card) => card.id)).toEqual(["quick", ledgerCardId("a"), ledgerCardId("b"), "cross", "recent", "pending", "trend"]);
     expect(resolved.cards.find((card) => card.id === "recent")?.hidden).toBe(true);
     // 指定的账本都不在了：回到「全部」，而不是变成空范围。
     expect(resolved.crossScope).toBe("all");
@@ -146,17 +146,17 @@ describe("dashboardModel：总览布局", () => {
     const moved = moveCard(config, ledgerCardId("b"), -1);
     expect(moved.cards.slice(0, 2).map((card) => card.id)).toEqual([ledgerCardId("b"), ledgerCardId("a")]);
     expect(moveCard(config, ledgerCardId("a"), -1)).toBe(config);
-    // quick 后面只有隐藏卡片：不能再后移。
-    expect(moveCard(config, "quick", 1)).toBe(config);
+    // 最后一张待处理卡片不能再后移。
+    expect(moveCard(config, "pending", 1)).toBe(config);
     const shown = updateCard(config, "recent", { hidden: false });
     expect("hidden" in (shown.cards.find((card) => card.id === "recent") ?? {})).toBe(false);
   });
 
-  it("列数按宽度、最多 6 列；卡片跨度不超过列数", () => {
-    expect(dashboardColumns(0)).toBe(4);
+  it("列数按宽度、最多 8 列；卡片跨度不超过列数", () => {
+    expect(dashboardColumns(0)).toBe(6);
     expect(dashboardColumns(200)).toBe(1);
     expect(dashboardColumns(472)).toBe(2);
-    expect(dashboardColumns(5000)).toBe(6);
+    expect(dashboardColumns(5000)).toBe(8);
     expect(cardSpan("expanded", 1)).toEqual({ columns: 1, rows: 2 });
     expect(cardSpan("standard", 4)).toEqual({ columns: 2, rows: 1 });
     expect(cardSpan("compact", 4)).toEqual({ columns: 1, rows: 1 });

@@ -17,6 +17,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const now = new Date();
 const minutesAgo = (minutes: number): string => new Date(now.getTime() - minutes * 60_000).toISOString();
 
+vi.mock("../auth/AuthProvider.js", async (original) => ({ ...await original<typeof import("../auth/AuthProvider.js")>(), useAuth: () => ({ user: { id: "u1" } }) }));
+
 const fakes = vi.hoisted(() => ({ ledgerName: "Family budget" }));
 
 vi.mock("../components/Layouts.js", async (importOriginal) => ({

@@ -101,10 +101,10 @@ describe("中央 + 菜单的五个入口", () => {
     const cards = menuCards(html);
 
     expect(cards).toHaveLength(5);
-    for (const label of ["粘贴识别", "语音记账", "手动记账", "拍照识别", "导入账单"]) {
+    for (const label of ["文本识别", "语音记账", "手动记账", "拍照识别", "导入账单"]) {
       expect(html).toContain(`>${label}</span>`);
     }
-    for (const label of ["粘贴", "语音", "手动", "拍照", "导入"]) {
+    for (const label of ["文本", "语音", "手动", "拍照", "导入"]) {
       expect(html).toContain(`>${label}</span>`);
     }
 
@@ -117,8 +117,8 @@ describe("中央 + 菜单的五个入口", () => {
   it("shows short captions below 420px and full captions at 420px+", () => {
     const html = renderNav();
     const cards = menuCards(html);
-    const shortNames = ["粘贴", "语音", "手动", "拍照", "导入"];
-    const fullNames = ["粘贴识别", "语音记账", "手动记账", "拍照识别", "导入账单"];
+    const shortNames = ["文本", "语音", "手动", "拍照", "导入"];
+    const fullNames = ["文本识别", "语音记账", "手动记账", "拍照识别", "导入账单"];
 
     expect(cards).toHaveLength(5);
     for (let index = 0; index < cards.length; index += 1) {
@@ -144,7 +144,7 @@ describe("中央 + 菜单的五个入口", () => {
   it("keeps every destination, including the new paste screen", () => {
     const html = renderNav();
 
-    expect(tagWithLabel(html, "粘贴识别")).toContain('href="/paste"');
+    expect(tagWithLabel(html, "文本识别")).toContain('href="/paste"');
     expect(tagWithLabel(html, "语音记账")).toContain('href="/record"');
     expect(tagWithLabel(html, "手动记账")).toContain('href="/add"');
     expect(tagWithLabel(html, "拍照识别")).toContain('href="/scan"');
@@ -191,10 +191,10 @@ describe("中央 + 菜单的五个入口", () => {
 });
 
 describe("访客下的入口", () => {
-  it("disables the server-backed cards, including 粘贴识别, and links nowhere", () => {
+  it("disables the server-backed cards, including 文本识别, and links nowhere", () => {
     const html = renderNav({ guest: true });
 
-    const pasteCard = tagWithLabel(html, "粘贴识别，需要正式账号");
+    const pasteCard = tagWithLabel(html, "文本识别，需要正式账号");
     expect(pasteCard.startsWith("<button")).toBe(true);
     expect(pasteCard).toContain('disabled=""');
 
@@ -294,8 +294,8 @@ describe("英文界面（S16）", () => {
     expect(html).not.toMatch(CJK);
     expect(cards).toHaveLength(5);
 
-    const full = ["Paste text", "Voice entry", "Manual entry", "Scan a receipt", "Import a statement"];
-    const short = ["Paste", "Voice", "Manual", "Scan", "Import"];
+    const full = ["Text recognition", "Voice entry", "Manual entry", "Scan a receipt", "Import a statement"];
+    const short = ["Text", "Voice", "Manual", "Scan", "Import"];
     for (let index = 0; index < cards.length; index += 1) {
       const card = cards[index] ?? "";
       expect(card).toContain(`aria-label="${full[index] ?? ""}"`);
@@ -321,7 +321,7 @@ describe("英文界面（S16）", () => {
 
     // 以前是 `label !== "手动记账"`：切到英文后所有卡都会被当成"非手动"而禁用。
     expect(html).toContain('href="/add"');
-    expect(tagWithLabel(html, "Paste text, needs a full account")).toContain('disabled=""');
+    expect(tagWithLabel(html, "Text recognition, needs a full account")).toContain('disabled=""');
     expect(html).not.toContain('href="/paste"');
     expect(html).not.toMatch(CJK);
   });

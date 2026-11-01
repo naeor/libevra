@@ -103,9 +103,9 @@ export function GuestMePage(): React.JSX.Element {
           </div>
         </section>
 
-        <section>
-          <h2 className="mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.ledgerSettings")}</h2>
-          <div className="overflow-hidden rounded-card border border-line bg-surface">
+        <section className="lv-settings-section" data-section-title="">
+          <h2 className="lv-settings-heading mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.ledgerSettings")}</h2>
+          <div className="lv-settings-body lv-settings-list overflow-hidden rounded-card border border-line bg-surface">
             {(
               [
                 { label: t("account.guestMe.categories"), tail: "/settings/categories" },
@@ -135,9 +135,9 @@ export function GuestMePage(): React.JSX.Element {
           * 行的写法与上面的账本设置行一致。标题在非英文界面附上 “Language”，
           * 切到看不懂的语言后也能找回这一行（与设置页的语言行相同）。
           */}
-        <section>
-          <h2 className="mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.display")}</h2>
-          <div className="overflow-hidden rounded-card border border-line bg-surface">
+        <section className="lv-settings-section" data-section-title="">
+          <h2 className="lv-settings-heading mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.display")}</h2>
+          <div className="lv-settings-body lv-settings-list overflow-hidden rounded-card border border-line bg-surface">
             <button
               type="button"
               data-testid="guest-language-row"
@@ -155,9 +155,9 @@ export function GuestMePage(): React.JSX.Element {
           </div>
         </section>
 
-        <section>
-          <h2 className="mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.deviceData")}</h2>
-          <div className="overflow-hidden rounded-card border border-line bg-surface">
+        <section className="lv-settings-section" data-section-title="">
+          <h2 className="lv-settings-heading mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.deviceData")}</h2>
+          <div className="lv-settings-body lv-settings-list overflow-hidden rounded-card border border-line bg-surface">
             <button
               type="button"
               onClick={() => {
@@ -179,7 +179,7 @@ export function GuestMePage(): React.JSX.Element {
               <ChevronIcon direction="right" className="size-4 shrink-0 text-danger/70" />
             </button>
           </div>
-          <p className="mt-3 px-1 text-helper-relaxed text-muted">{t("account.guestMe.noBackup")}</p>
+          <p className="lv-settings-footer mt-3 px-1 text-helper-relaxed text-muted">{t("account.guestMe.noBackup")}</p>
         </section>
 
         <p className="text-center text-helper text-muted">Libevra {formatAppVersion()}</p>

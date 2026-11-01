@@ -322,6 +322,7 @@ export function AccountDataPage(): React.JSX.Element {
       <ListGroup title={t("account.data.groupData")}>
         <ListRow
           label={t("account.data.export")}
+          desktopActionLabel={t("desktop.settings.export")}
           detail={t("account.data.exportDetail")}
           onClick={() => void onExport()}
           disabled={busy}
@@ -365,7 +366,9 @@ export function AccountDataPage(): React.JSX.Element {
               </Button>
             </div>
           ) : (
-            activeBooks.map((book) => (
+            <>
+            <div className="lv-settings-ledger-head" aria-hidden="true"><span>{t("desktop.settings.ledgerName")}</span><span className="lv-settings-object-meta"><span>{t("desktop.settings.ledgerNumber")}</span><span>{t("desktop.settings.ledgerType")}</span><span>{t("desktop.settings.memberCount")}</span></span><span className="lv-settings-ledger-action">{t("desktop.settings.manage")}</span></div>
+            {activeBooks.map((book) => (
               <ListRow
                 key={book.bookId}
                 label={<span className="block truncate">{book.name}</span>}
@@ -374,9 +377,12 @@ export function AccountDataPage(): React.JSX.Element {
                     ? t("account.data.sharedLedger", { count: book.memberCount })
                     : t("account.data.soloLedger")
                 }`}
+                desktopMeta={<><span className="font-mono">{book.bookNumber ?? "—"}</span><span>{t(book.memberCount > 1 ? "desktop.settings.shared" : "desktop.settings.solo")}</span><span className="tabular-nums">{book.memberCount}</span></>}
+                desktopActionLabel={t("desktop.settings.manage")}
                 onClick={() => void navigate(`/books/${book.bookId}/settings`)}
               />
-            ))
+            ))}
+            </>
           )}
         </ListGroup>
       )}
@@ -415,6 +421,7 @@ export function AccountDataPage(): React.JSX.Element {
       <ListGroup title={t("account.data.danger")}>
         <ListRow
           label={t("account.data.deleteServerData")}
+          desktopActionLabel={t("desktop.settings.selectData")}
           tone="danger"
           detail={t("account.data.deleteServerDataDetail")}
           disabled={busy}
@@ -422,6 +429,7 @@ export function AccountDataPage(): React.JSX.Element {
         />
         <ListRow
           label={t("account.data.closeAccount")}
+          desktopActionLabel={t("desktop.settings.closeAccount")}
           tone="danger"
           detail={
             <>

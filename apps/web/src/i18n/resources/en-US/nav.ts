@@ -13,7 +13,7 @@ const nav: Messages<typeof zh> = {
   },
   mainNav: "Main navigation",
   entry: {
-    paste: { label: "Paste text", short: "Paste" },
+    paste: { label: "Text recognition", short: "Text" },
     voice: { label: "Voice entry", short: "Voice" },
     manual: { label: "Manual entry", short: "Manual" },
     scan: { label: "Scan a receipt", short: "Scan" },

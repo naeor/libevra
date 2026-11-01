@@ -279,7 +279,7 @@ export function LedgerInvitePage(): React.JSX.Element {
         */}
       <p className="text-helper-relaxed text-muted">{t("collab.invite.otherWays")}</p>
 
-      <Link to="/ledger" className="text-body text-brand transition hover:text-brand-dark">
+      <Link data-invite-back to="/ledger" className="text-body text-brand transition hover:text-brand-dark">
         {t("collab.invite.backToLedger")}
       </Link>
     </InnerPage>

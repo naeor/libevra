@@ -5,7 +5,7 @@
  * 数据全部来自现有查询：每本账的本月汇总与账目（当前账本走本机优先的读取，其它账本在线读取，权限由服务器
  * 按账本检查）。跨账本金额只按币种分别相加，不折算、不去重，并在卡片上说明。
  *
- * 自定义比分析工作台简单：卡片只有紧凑 / 标准 / 扩展三档，可以前后移动、隐藏与加回，账本卡片可选主要指标，
+ * 外层复用分析工作台的网格落位和拖动，可自由移动、缩放、隐藏与加回；账本卡片可选主要指标与内容开关，
  * 跨账本卡片可选范围。按「完成」才保存到本机；窗口变化只改变排布。
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -28,12 +28,11 @@ import { ViewLedgerContext } from "../lib/workspaceLedger.js";
 import { headerMonthLabel, sortByTime } from "../pages/DetailPage.js";
 import { EntryMethodList } from "../workspace/RailEntryMenu.js";
 import { DesktopPopover } from "./DesktopPopover.js";
-import { DesktopSplit, useElementWidth } from "./DesktopSplit.js";
+import { DashboardGrid } from "./DashboardGrid.js";
+import { dashboardDestination } from "./dashboardNavigation.js";
 import { DesktopToolbar } from "./DesktopToolbar.js";
 import { desktopEntryDisabled, useEnterLedger } from "./DesktopNav.js";
 import {
-  cardSpan,
-  dashboardColumns,
   moveCard,
   parseDashboard,
   resolveDashboard,
@@ -47,8 +46,11 @@ import {
 import { dailyTotals } from "./entriesView.js";
 
 interface BookSnapshot {
+  readonly month: string;
   readonly summary: SummaryResponse | undefined;
   readonly entries: readonly Transaction[] | undefined;
+  readonly recent: readonly Transaction[] | undefined;
+  readonly complete: boolean;
   readonly failed: boolean;
 }
 
@@ -62,6 +64,18 @@ function storageKey(owner: string): string {
   return `libevra.desktop.dashboard:v1:${owner}`;
 }
 
+function readRawConfig(owner: string | null): string | null | undefined {
+  if (owner === null) return null;
+  try { return window.localStorage.getItem(storageKey(owner)); } catch { return undefined; }
+}
+
+function readSession(key: string): string | null {
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function writeSession(key: string, value: string): void {
+  try { sessionStorage.setItem(key, value); } catch { /* 仅影响下次恢复位置。 */ }
+}
+
 function readConfig(owner: string | null): DashboardConfig | null {
   if (owner === null) return null;
   try {
@@ -72,13 +86,14 @@ function readConfig(owner: string | null): DashboardConfig | null {
   }
 }
 
-function writeConfig(owner: string | null, config: DashboardConfig | null): void {
-  if (owner === null) return;
+function writeConfig(owner: string | null, config: DashboardConfig | null): boolean {
+  if (owner === null) return false;
   try {
     if (config === null) window.localStorage.removeItem(storageKey(owner));
     else window.localStorage.setItem(storageKey(owner), JSON.stringify(config));
+    return true;
   } catch {
-    // 存不下时本次编辑仍然生效，下次打开回到上次保存的样子。
+    return false;
   }
 }
 
@@ -94,11 +109,17 @@ function BookProbe({ bookId, month, onSnapshot }: { readonly bookId: string; rea
 function BookProbeInner({ bookId, month, onSnapshot }: { readonly bookId: string; readonly month: string; readonly onSnapshot: (bookId: string, snapshot: BookSnapshot) => void }): null {
   const summary = useSummary(month);
   const list = useTransactions({ month });
+  const recentList = useTransactions({});
   const entries = useMemo(() => (list.data === undefined ? undefined : list.data.pages.flatMap((page) => page.items)), [list.data]);
-  const failed = summary.isError || list.isError;
+  const recent = useMemo(() => recentList.data?.pages.flatMap((page) => page.items), [recentList.data]);
+  const complete = list.isSuccess && !list.hasNextPage;
   useEffect(() => {
-    onSnapshot(bookId, { summary: summary.data, entries, failed });
-  }, [bookId, summary.data, entries, failed, onSnapshot]);
+    if (list.hasNextPage && !list.isFetchingNextPage && !list.isFetchNextPageError) void list.fetchNextPage();
+  }, [list.hasNextPage, list.isFetchingNextPage, list.isFetchNextPageError, list.fetchNextPage]);
+  const failed = summary.isError || list.isError || list.isFetchNextPageError;
+  useEffect(() => {
+    onSnapshot(bookId, { month, summary: summary.data, entries, recent, complete, failed });
+  }, [bookId, month, summary.data, entries, recent, complete, failed, onSnapshot]);
   return null;
 }
 
@@ -109,7 +130,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
   const owner = user !== null ? `user:${user.id}` : guestIdentity !== null ? `guest:${guestIdentity.id}` : null;
   const books = useBooks();
   const currentBookId = useCurrentBookId();
-  const month = currentMonth();
+  const [month, setMonth] = useState(() => { try { const value = readSession("libevra.dashboard.month"); return value !== null && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : currentMonth(); } catch { return currentMonth(); } });
   const mainCode = user?.defaultCurrency ?? "CNY";
 
   const bookList: readonly BookInfo[] = useMemo(() => (books.data?.books ?? []).map((book) => ({ id: book.id, name: book.name, memberCount: book.memberCount })), [books.data]);
@@ -118,36 +139,40 @@ export function DesktopDashboardPage(): React.JSX.Element {
   const [saved, setSaved] = useState<DashboardConfig | null>(() => readConfig(owner));
   const [draft, setDraft] = useState<DashboardConfig | null>(null);
   const editing = draft !== null;
+  const [undo, setUndo] = useState<DashboardConfig[]>([]);
+  const [redo, setRedo] = useState<DashboardConfig[]>([]);
+  const [saveError, setSaveError] = useState(false);
+  const baseline = useRef<string | null | undefined>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { setSaved(readConfig(owner)); setDraft(null); }, [owner]);
+  useEffect(() => {
+    const changed = (event: StorageEvent) => { if (owner !== null && event.key === storageKey(owner) && draft === null) setSaved(readConfig(owner)); };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [owner, draft]);
+  useEffect(() => { const top = Number(readSession("libevra.dashboard.scroll") ?? 0); if (scrollRef.current !== null) scrollRef.current.scrollTop = top; }, [books.isSuccess]);
   const config = useMemo(() => resolveDashboard(draft ?? saved, bookIds), [draft, saved, bookIds]);
 
   const [snapshots, setSnapshots] = useState<ReadonlyMap<string, BookSnapshot>>(new Map());
   const onSnapshot = useCallback((bookId: string, snapshot: BookSnapshot) => {
     setSnapshots((current) => {
       const previous = current.get(bookId);
-      if (previous !== undefined && previous.summary === snapshot.summary && previous.entries === snapshot.entries && previous.failed === snapshot.failed) return current;
+      if (previous !== undefined && previous.month === snapshot.month && previous.summary === snapshot.summary && previous.entries === snapshot.entries && previous.recent === snapshot.recent && previous.complete === snapshot.complete && previous.failed === snapshot.failed) return current;
       const next = new Map(current);
       next.set(bookId, snapshot);
       return next;
     });
   }, []);
 
-  const grid = useElementWidth<HTMLDivElement>();
-  const columns = dashboardColumns(grid.width);
-  const visible = config.cards.filter((card) => card.hidden !== true);
   const hiddenCards = config.cards.filter((card) => card.hidden === true);
   const scopeIds = config.crossScope === "all" ? bookIds : config.crossScope;
 
-  const asideKinds = (["pending", "recent"] as const).filter((kind) => !visible.some((card) => card.kind === kind));
   const books_ = { list: bookList, byId: new Map(bookList.map((book) => [book.id, book])) };
 
-  const edit = (next: DashboardConfig): void => setDraft(next);
-
-  const panel = editing || asideKinds.length === 0 ? null : (
-    <DashboardAside kinds={asideKinds} books={books_.byId} snapshots={snapshots} currentBookId={currentBookId} scopeIds={bookIds} />
-  );
+  const edit = (next: DashboardConfig): void => { setUndo((values) => [...values, config]); setRedo([]); setDraft(next); };
 
   return (
-    <DesktopSplit panel={panel} panelLabel={t("desktop.dashboard.aside")} whenNarrow="hide">
+    <>
       {bookIds.map((bookId) => (
         <BookProbe key={bookId} bookId={bookId} month={month} onSnapshot={onSnapshot} />
       ))}
@@ -159,17 +184,20 @@ export function DesktopDashboardPage(): React.JSX.Element {
             editing ? (
               <>
                 {hiddenCards.length > 0 ? <AddCardMenu cards={hiddenCards} books={books_.byId} onAdd={(id) => edit(updateCard(config, id, { hidden: false }))} /> : null}
-                <button type="button" className="lv-desk-btn" onClick={() => setDraft(resolveDashboard(null, bookIds))}>
+                <button type="button" className="lv-desk-btn" disabled={undo.length === 0} onClick={() => { const previous = undo.at(-1); if (previous) { setRedo((values) => [...values, config]); setDraft(previous); setUndo((values) => values.slice(0, -1)); } }}>{t("desktop.dashboard.undo")}</button>
+                <button type="button" className="lv-desk-btn" disabled={redo.length === 0} onClick={() => { const next = redo.at(-1); if (next) { setUndo((values) => [...values, config]); setDraft(next); setRedo((values) => values.slice(0, -1)); } }}>{t("desktop.dashboard.redo")}</button>
+                <button type="button" className="lv-desk-btn" onClick={() => edit(resolveDashboard(null, bookIds))}>
                   {t("desktop.dashboard.reset")}
                 </button>
-                <button type="button" className="lv-desk-btn" onClick={() => setDraft(null)}>
+                <button type="button" className="lv-desk-btn" onClick={() => { setDraft(null); setSaved(readConfig(owner)); setSaveError(false); }}>
                   {t("desktop.common.cancel")}
                 </button>
                 <button
                   type="button"
                   className="lv-desk-btn lv-desk-btn-primary"
                   onClick={() => {
-                    writeConfig(owner, config);
+                    if (owner === null || readRawConfig(owner) !== baseline.current || !writeConfig(owner, config)) { setSaveError(true); return; }
+                    setSaveError(false);
                     setSaved(config);
                     setDraft(null);
                   }}
@@ -178,26 +206,28 @@ export function DesktopDashboardPage(): React.JSX.Element {
                 </button>
               </>
             ) : (
-              <button type="button" className="lv-desk-btn" onClick={() => setDraft(config)}>
+              <button type="button" className="lv-desk-btn" onClick={() => { baseline.current = readRawConfig(owner); setUndo([]); setRedo([]); setSaveError(false); setDraft(config); }}>
                 {t("desktop.dashboard.edit")}
               </button>
             )
           }
-        />
-        <div className="lv-desk-scroll min-h-0 flex-1 overflow-y-auto">
+        >
+          <label className="lv-dash-month text-helper">{t("desktop.entries.month")}<input type="month" value={month} max={currentMonth()} onChange={(event) => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) { setMonth(event.target.value); writeSession("libevra.dashboard.month", event.target.value); } }} /></label>
+        </DesktopToolbar>
+        <div ref={scrollRef} onScroll={(event) => writeSession("libevra.dashboard.scroll", String(event.currentTarget.scrollTop))} className="lv-desk-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="lv-dash">
             {editing ? <p className="text-helper-relaxed text-muted">{t("desktop.dashboard.editHint")}</p> : null}
+            {saveError && editing ? <p role="alert" className="text-helper text-danger">{t("desktop.dashboard.saveError")}</p> : null}
             {books.isPending ? <p className="text-body text-muted">{t("desktop.common.loading")}</p> : null}
-            <div ref={grid.ref} className="lv-dash-grid" style={{ gridTemplateColumns: `repeat(${String(columns)}, minmax(0, 1fr))` }} data-editing={editing ? "true" : undefined}>
-              {visible.map((card, index) => {
-                const span = cardSpan(card.size, columns);
-                return (
-                  <div key={card.id} className="lv-dash-cell" style={{ gridColumn: `span ${String(span.columns)}`, gridRow: `span ${String(span.rows)}` }}>
+            {books.isError ? <div role="alert" className="flex items-center gap-4"><p className="text-body text-danger">{t("desktop.dashboard.readFailed")}</p><button className="lv-desk-btn" onClick={() => void books.refetch()}>{t("common.action.retry")}</button></div> : null}
+            <DashboardGrid config={config} editing={editing} onChange={edit} scrollRef={scrollRef}
+              tools={(card) => card.kind === "ledger" || card.kind === "cross" ? <CardSettings key={card.id} card={card} books={bookList} config={config} onChange={edit} /> : null}
+              render={(card) => (
                     <CardFrame
                       card={card}
-                      editing={editing}
-                      first={index === 0}
-                      last={index === visible.length - 1}
+                      editing={false}
+                      first={false}
+                      last={false}
                       books={bookList}
                       config={config}
                       onChange={edit}
@@ -214,14 +244,11 @@ export function DesktopDashboardPage(): React.JSX.Element {
                         editing={editing}
                       />
                     </CardFrame>
-                  </div>
-                );
-              })}
-            </div>
+              )} />
           </div>
         </div>
       </div>
-    </DesktopSplit>
+    </>
   );
 }
 
@@ -303,6 +330,7 @@ function CardSettings({ card, books, config, onChange }: { readonly card: Dashbo
                   <span className="text-body text-ink">{t(`desktop.entries.${metric}`)}</span>
                 </label>
               ))}
+              {(["showTrend", "showRecent"] as const).map((key) => <label key={key} className="lv-desk-check-row"><input type="checkbox" checked={card[key] !== false} onChange={(event) => onChange(updateCard(config, card.id, { [key]: event.target.checked }))} /><span className="text-body">{t(`desktop.dashboard.${key}`)}</span></label>)}
             </fieldset>
           ) : (
             <fieldset className="flex flex-col gap-1 p-3">
@@ -389,108 +417,86 @@ function CardBody(props: {
 }): React.JSX.Element {
   const { card } = props;
   if (card.kind === "ledger") return <LedgerCardBody {...props} />;
+  if (card.kind === "trend") return <TrendCardBody {...props} />;
   if (card.kind === "cross") return <CrossCardBody {...props} />;
-  if (card.kind === "recent") return <RecentList books={props.books} snapshots={props.snapshots} currentBookId={props.currentBookId} scopeIds={props.bookIds} limit={8} />;
+  if (card.kind === "recent") return <RecentList books={props.books} snapshots={props.snapshots} scopeIds={props.bookIds} limit={24} />;
   if (card.kind === "pending") return <PendingList />;
   return <QuickActions />;
 }
 
 function LedgerCardBody({ card, books, snapshots, currentBookId, mainCode, month, editing }: Parameters<typeof CardBody>[0]): React.JSX.Element {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const switcher = useEnterLedger();
   const book = books.get(card.bookId ?? "");
-  const snapshot = snapshots.get(card.bookId ?? "");
+  const raw = snapshots.get(card.bookId ?? "");
+  const snapshot = raw?.month === month ? raw : undefined;
   const { main, others } = pickCurrency(snapshot?.summary, mainCode);
   const metric = card.metric ?? "expense";
   const current = card.bookId === currentBookId;
-  const trend = useMemo(() => (main === null || snapshot?.entries === undefined ? [] : dailyTotals(snapshot.entries, month, main.currency)), [main, snapshot?.entries, month]);
-  const recent = useMemo(() => (snapshot?.entries === undefined ? [] : sortByTime(snapshot.entries).slice(0, 4)), [snapshot?.entries]);
-
+  const recent = raw?.recent === undefined ? [] : sortByTime(raw.recent).slice(0, 24);
+  const open = (chart = false) => {
+    if (!editing && book !== undefined) switcher.enter(book.id, undefined, dashboardDestination(month, chart ? "expense" : undefined, main?.currency ?? mainCode));
+  };
   return (
-    <div className="lv-dash-ledger">
+    <div className="lv-dash-ledger" data-link={!editing || undefined} onClick={(event) => {
+      if (!(event.target instanceof Element) || event.target.closest("button,a,input,select")) return;
+      open();
+    }}>
       <header className="lv-dash-ledger-head">
         <span className="lv-desk-ledger-badge" aria-hidden="true">{Array.from(book?.name ?? "·")[0]}</span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-card-title text-ink">{book?.name ?? "—"}</h2>
-          <p className="truncate text-helper text-muted">
-            {current ? t("desktop.dashboard.currentLedger") : null}
-            {current && (book?.memberCount ?? 1) > 1 ? " · " : null}
-            {(book?.memberCount ?? 1) > 1 ? t("desktop.ledgerPicker.members", { count: book?.memberCount ?? 1 }) : null}
-          </p>
+          <h2 className="text-card-title text-ink"><button className="lv-dash-title" disabled={editing || switcher.busy} onClick={() => open()}>{book?.name ?? "—"}</button></h2>
+          <p className="text-helper text-muted">{current ? t("desktop.dashboard.currentLedger") : t("desktop.ledgerPicker.members", { count: book?.memberCount ?? 1 })}</p>
         </div>
       </header>
-
-      {snapshot === undefined ? (
-        <p className="text-helper text-muted">{t("desktop.common.loading")}</p>
-      ) : snapshot.failed && snapshot.summary === undefined ? (
-        <p className="text-helper text-muted">{t("desktop.dashboard.readFailed")}</p>
-      ) : main === null ? (
-        <p className="text-helper text-muted">{t("desktop.dashboard.noData")}</p>
-      ) : (
-        <>
-          <div className="lv-dash-metric">
-            <span className="text-helper text-muted">{t(`desktop.dashboard.metricThisMonth.${metric}`)}</span>
-            <span className="lv-dash-figure tabular-nums">{formatMoney(metricCents(main, metric), main.currency)}</span>
-          </div>
-          <dl className="lv-dash-metrics-row">
-            {(["expense", "income", "balance"] as const)
-              .filter((item) => item !== metric)
-              .map((item) => (
-                <div key={item}>
-                  <dt className="text-helper text-muted">{t(`desktop.entries.${item}`)}</dt>
-                  <dd className="text-body text-ink tabular-nums">{formatMoney(metricCents(main, item), main.currency)}</dd>
-                </div>
-              ))}
-            {others > 0 ? <p className="self-end text-helper text-muted">{t("desktop.entries.otherCurrencies", { count: others })}</p> : null}
-          </dl>
-          {trend.length > 0 ? (
-            <svg className="lv-dash-trend" viewBox={`0 0 ${String(trend.length * 6)} 28`} preserveAspectRatio="none" role="img" aria-label={t("desktop.entries.trend")}>
-              {trend.map((value, index) => {
-                const max = Math.max(...trend, 1);
-                const height = value === 0 ? 1.5 : Math.max(2, (value / max) * 26);
-                return <rect key={index} x={index * 6 + 1} y={28 - height} width={4} height={height} rx={1} className={value === 0 ? "fill-line" : "fill-brand"} />;
-              })}
-            </svg>
-          ) : null}
-          {recent.length > 0 ? (
-            <ul className="lv-dash-ledger-recent">
-              {recent.map((entry) => (
-                <li key={entry.id} className="flex items-center gap-2 text-helper">
-                  <span className="min-w-0 flex-1 truncate text-ink">
-                    {displayCategoryName(entry.categoryIsSystem ? UNCATEGORISED_NAME : entry.categoryName)}
-                    {entry.note ? <span className="text-muted"> · {entry.note}</span> : null}
-                  </span>
-                  <span className="shrink-0 text-ink tabular-nums">{entry.kind === "expense" ? "-" : "+"}{formatMoney(entry.amountCents, entry.currency)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </>
-      )}
-
-      <footer className="lv-dash-ledger-foot">
-        {switcher.status !== null ? <span role="status" className="min-w-0 flex-1 truncate text-helper text-muted">{switcher.status}</span> : <span className="flex-1" />}
-        {editing ? null : current ? (
-          <>
-            <button type="button" className="lv-desk-link" onClick={() => void navigate("/stats")}>{t("desktop.nav.stats")}</button>
-            <button type="button" className="lv-desk-link" onClick={() => void navigate("/")}>{t("desktop.dashboard.openEntries")}</button>
-          </>
-        ) : (
-          <button type="button" className="lv-desk-link" disabled={switcher.busy} onClick={() => switcher.enter(card.bookId ?? "")}>
-            {t("desktop.dashboard.switchTo")}
-          </button>
-        )}
-      </footer>
+      {snapshot?.summary === undefined ? <p className="text-helper text-muted">{t(snapshot?.failed ? "desktop.dashboard.readFailed" : "desktop.common.loading")}</p> : main === null ?
+        <p className="text-helper text-muted">{t("desktop.dashboard.noData")}</p> : <>
+        <div className="lv-dash-metric"><span className="text-helper text-muted">{t(`desktop.dashboard.metricThisMonth.${metric}`)}</span><span className="lv-dash-figure tabular-nums">{formatMoney(metricCents(main, metric), main.currency)}</span></div>
+        <dl className="lv-dash-metrics-row">{(["expense", "income", "balance"] as const).filter((item) => item !== metric).map((item) => <div key={item}><dt className="text-helper text-muted">{t(`desktop.entries.${item}`)}</dt><dd className="text-body text-ink tabular-nums">{formatMoney(metricCents(main, item), main.currency)}</dd></div>)}</dl>
+        {others > 0 ? <p className="text-helper text-muted">{t("desktop.entries.otherCurrencies", { count: others })}</p> : null}
+      </>}
+      {card.showTrend !== false && main !== null ? <DashboardTrend snapshot={snapshot} month={month} currency={main.currency} onOpen={() => open(true)} disabled={editing || switcher.busy} /> : null}
+      {card.showRecent !== false && recent.length > 0 ? <div className="lv-dash-ledger-recent">
+        <h3 className="text-helper text-muted">{t("desktop.dashboard.cards.recent")}</h3>
+        <ul>{recent.map((entry) => <li key={entry.id} className="lv-dash-recent-line text-helper"><span className="text-muted tabular-nums">{entry.occurredLocalDate.slice(5)}</span><span className="min-w-0 truncate text-ink">{entry.note || displayCategoryName(entry.categoryIsSystem ? UNCATEGORISED_NAME : entry.categoryName)}</span><span className="text-ink tabular-nums">{entry.kind === "expense" ? "−" : "+"}{formatMoney(entry.amountCents, entry.currency)}</span></li>)}</ul>
+      </div> : null}
+      <footer className="lv-dash-ledger-foot"><span role="status" className="text-helper text-danger">{switcher.status}</span><span className="flex-1" /><button className="lv-desk-link" disabled={editing || switcher.busy} onClick={() => open()}>{t("desktop.dashboard.openEntries")} →</button></footer>
     </div>
   );
 }
 
-function CrossCardBody({ books, scopeIds, snapshots, mainCode }: Parameters<typeof CardBody>[0]): React.JSX.Element {
+function DashboardTrend({ snapshot, month, currency, onOpen, disabled }: { readonly snapshot: BookSnapshot | undefined; readonly month: string; readonly currency: string; readonly onOpen: () => void; readonly disabled: boolean }): React.JSX.Element {
   const { t } = useI18n();
-  const ready = scopeIds.map((id) => snapshots.get(id)?.summary).filter((summary): summary is SummaryResponse => summary !== undefined);
+  const totals = useMemo(() => snapshot?.complete ? dailyTotals(snapshot.entries ?? [], month, currency) : [], [snapshot, month, currency]);
+  const max = Math.max(...totals, 1);
+  return <button type="button" className="lv-dash-chart" disabled={disabled} onClick={onOpen} aria-label={t("desktop.dashboard.openTrend")}>
+    <span className="lv-dash-chart-label text-helper"><span>{t("desktop.entries.trend")} · {currency}</span><span>↗</span></span>
+    {snapshot?.complete ? <svg viewBox="0 0 310 70" preserveAspectRatio="none" aria-hidden="true">{totals.map((value, index) => <rect key={index} x={index * 310 / totals.length + 1} y={68 - value / max * 64} width={Math.max(2, 310 / totals.length - 3)} height={Math.max(2, value / max * 64)} rx="2" className={value === 0 ? "fill-line" : "fill-brand"} />)}</svg> : <span className="text-helper text-muted">{t(snapshot?.failed ? "desktop.dashboard.readFailed" : "desktop.common.loading")}</span>}
+  </button>;
+}
+
+function TrendCardBody({ books, snapshots, currentBookId, bookIds, mainCode, month, editing }: Parameters<typeof CardBody>[0]): React.JSX.Element {
+  const { t } = useI18n();
+  const [chosen, setChosen] = useState(currentBookId ?? bookIds[0] ?? "");
+  const bookId = books.has(chosen) ? chosen : bookIds[0] ?? "";
+  const snapshot = snapshots.get(bookId);
+  const data = snapshot?.month === month ? snapshot : undefined;
+  const { main } = pickCurrency(data?.summary, mainCode);
+  const currency = main?.currency ?? mainCode;
+  const switcher = useEnterLedger();
+  return <div className="lv-dash-list lv-dash-trend-card"><header className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-card-title">{t("desktop.dashboard.cards.trend")}</h2><select aria-label={t("desktop.ledgerPicker.title")} className="lv-dash-select rounded-field border border-line bg-surface text-base" value={bookId} disabled={editing} onChange={(event) => setChosen(event.target.value)}>{bookIds.map((id) => <option key={id} value={id}>{books.get(id)?.name}</option>)}</select></header>
+    <p className="text-helper text-muted">{headerMonthLabel(month)} · {currency}</p>
+    <DashboardTrend snapshot={data} month={month} currency={currency} disabled={editing || switcher.busy} onOpen={() => switcher.enter(bookId, undefined, dashboardDestination(month, "expense", currency))} />
+    <p className="text-helper text-muted">{data?.summary === undefined ? t(data?.failed ? "desktop.dashboard.readFailed" : "desktop.common.loading") : main === null ? t("desktop.dashboard.noData") : t("desktop.dashboard.metricThisMonth.expense") + " · " + formatMoney(main.expenseCents, currency)}</p>
+    {switcher.status ? <p role="status" className="text-helper text-danger">{switcher.status}</p> : null}
+  </div>;
+}
+
+function CrossCardBody({ books, scopeIds, snapshots, mainCode, month }: Parameters<typeof CardBody>[0]): React.JSX.Element {
+  const { t } = useI18n();
+  const ready = scopeIds.map((id) => (snapshots.get(id)?.month === month ? snapshots.get(id)?.summary : undefined)).filter((summary): summary is SummaryResponse => summary !== undefined);
   const missing = scopeIds.length - ready.length;
-  const totals = totalsByCurrency(ready, mainCode).slice(0, 3);
+  const totals = totalsByCurrency(ready, mainCode);
   const names = scopeIds.map((id) => books.get(id)?.name).filter((name): name is string => name !== undefined);
   return (
     <div className="lv-dash-cross">
@@ -535,22 +541,21 @@ function CrossCardBody({ books, scopeIds, snapshots, mainCode }: Parameters<type
 function RecentList({
   books,
   snapshots,
-  currentBookId,
   scopeIds,
   limit,
 }: {
   readonly books: ReadonlyMap<string, BookInfo>;
   readonly snapshots: ReadonlyMap<string, BookSnapshot>;
-  readonly currentBookId: string | null;
   readonly scopeIds: readonly string[];
   readonly limit: number;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const switcher = useEnterLedger();
   const multiple = books.size > 1;
   const items = useMemo(() => {
     const all: { readonly entry: Transaction; readonly bookId: string }[] = [];
     for (const bookId of scopeIds) {
-      for (const entry of snapshots.get(bookId)?.entries ?? []) all.push({ entry, bookId });
+      for (const entry of snapshots.get(bookId)?.recent ?? []) all.push({ entry, bookId });
     }
     const order = new Map(sortByTime(all.map((item) => item.entry)).map((entry, index) => [entry.id, index]));
     return [...all].sort((a, b) => (order.get(a.entry.id) ?? 0) - (order.get(b.entry.id) ?? 0)).slice(0, limit);
@@ -558,6 +563,7 @@ function RecentList({
   return (
     <div className="lv-dash-list">
       <h2 className="text-card-title text-ink">{t("desktop.dashboard.cards.recent")}</h2>
+      {switcher.status ? <p role="status" className="text-helper text-danger">{switcher.status}</p> : null}
       {items.length === 0 ? <p className="text-helper text-muted">{t("desktop.dashboard.recentEmpty")}</p> : null}
       <ul>
         {items.map(({ entry, bookId }) => {
@@ -581,12 +587,7 @@ function RecentList({
           );
           return (
             <li key={`${bookId}:${entry.id}`}>
-              {/* 当前账本的账目可以直接在明细右侧打开；其它账本的账目需要先切换账本，这里只显示。 */}
-              {bookId === currentBookId ? (
-                <Link to={`/?entry=${encodeURIComponent(entry.id)}`} className="lv-dash-row">{label}</Link>
-              ) : (
-                <div className="lv-dash-row">{label}</div>
-              )}
+              <button className="lv-dash-row" disabled={switcher.busy} onClick={() => switcher.enter(bookId, undefined, dashboardDestination(entry.occurredLocalDate.slice(0, 7)) + "&entry=" + encodeURIComponent(entry.id))}>{label}</button>
             </li>
           );
         })}
@@ -654,29 +655,6 @@ function QuickActions(): React.JSX.Element {
             void navigate(path);
           }}
         />
-      </div>
-    </div>
-  );
-}
-
-function DashboardAside({
-  kinds,
-  books,
-  snapshots,
-  currentBookId,
-  scopeIds,
-}: {
-  readonly kinds: readonly ("pending" | "recent")[];
-  readonly books: ReadonlyMap<string, BookInfo>;
-  readonly snapshots: ReadonlyMap<string, BookSnapshot>;
-  readonly currentBookId: string | null;
-  readonly scopeIds: readonly string[];
-}): React.JSX.Element {
-  return (
-    <div className="lv-desk-panel-page">
-      <div className="lv-desk-panel-body">
-        {kinds.includes("pending") ? <PendingList /> : null}
-        {kinds.includes("recent") ? <RecentList books={books} snapshots={snapshots} currentBookId={currentBookId} scopeIds={scopeIds} limit={10} /> : null}
       </div>
     </div>
   );

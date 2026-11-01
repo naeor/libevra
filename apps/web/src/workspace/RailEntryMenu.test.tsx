@@ -5,17 +5,27 @@ import { ENTRY_ACTIONS } from "../components/BottomNav.js";
 import { ViewLedgerContext } from "../lib/workspaceLedger.js";
 import { EntryMethodList, FollowEntryChooser } from "./RailEntryMenu.js";
 import { AddEntryButton } from "./GlobalRail.js";
+import { DesktopActiveProvider } from "../desktop/surface.js";
 
 const mode = vi.hoisted(() => ({ guest: false }));
 vi.mock("../lib/guest/session.js", () => ({ useGuestMode: () => mode.guest }));
 
 describe("侧栏五种记账方式", () => {
+  it("电脑显示照片识别，手机和平板保留拍照识别；所有端显示文本识别", () => {
+    const menu = <EntryMethodList disabledFor={() => false} onNavigate={() => {}} />;
+    const touch = renderToStaticMarkup(menu);
+    const desktop = renderToStaticMarkup(<DesktopActiveProvider>{menu}</DesktopActiveProvider>);
+    expect(touch).toContain('aria-label="拍照识别"');
+    expect(desktop).toContain('aria-label="照片识别"');
+    expect(desktop).not.toContain('aria-label="拍照识别"');
+    for (const html of [touch, desktop]) expect(html).toContain('aria-label="文本识别"');
+  });
   it("手动在首位；五个功能、路由与原图标定义保留，导入仍为当前账本 CSV 入口", () => {
     mode.guest = false;
     const html = renderToStaticMarkup(<div role="menu"><EntryMethodList disabledFor={() => false} onNavigate={() => {}} /></div>);
     expect(html.match(/role="menuitem"/g)).toHaveLength(5);
     expect(html).not.toContain("disabled");
-    expect(html.indexOf("手动记账")).toBeLessThan(html.indexOf("粘贴识别"));
+    expect(html.indexOf("手动记账")).toBeLessThan(html.indexOf("文本识别"));
     expect(html).toContain('data-import="true"');
     expect(ENTRY_ACTIONS.map(({ id, to, picksImages }) => ({ id, to, picksImages }))).toEqual([
       { id: "paste", to: "/paste" }, { id: "voice", to: "/record" }, { id: "manual", to: "/add" },

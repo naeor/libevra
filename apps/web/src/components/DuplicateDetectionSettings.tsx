@@ -249,7 +249,7 @@ export function DuplicateDetectionSettingsSection({
        */}
       <fieldset
         disabled={!settings.enabled}
-        className={`m-0 flex min-w-0 flex-col gap-5 border-0 p-0 ${
+        className={`lv-settings-rules m-0 flex min-w-0 flex-col gap-5 border-0 p-0 ${
           settings.enabled ? "" : "opacity-60"
         }`}
       >

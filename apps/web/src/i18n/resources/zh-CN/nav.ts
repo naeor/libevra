@@ -15,7 +15,7 @@ const nav = {
   mainNav: "主导航",
   /** 中央 + 展开的五种记账方式：`label` 是完整名（也是读屏名），`short` 是窄屏时的可见短名。 */
   entry: {
-    paste: { label: "粘贴识别", short: "粘贴" },
+    paste: { label: "文本识别", short: "文本" },
     voice: { label: "语音记账", short: "语音" },
     manual: { label: "手动记账", short: "手动" },
     scan: { label: "拍照识别", short: "拍照" },

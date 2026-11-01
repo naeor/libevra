@@ -109,10 +109,10 @@ export function NotDuplicateRelationsView({
   const { t } = useI18n();
 
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="px-1 text-helper text-muted">{t("duplicates.relations.heading")}</h2>
+    <section className="lv-settings-section flex flex-col gap-2" data-section-title="">
+      <h2 className="lv-settings-heading px-1 text-helper text-muted">{t("duplicates.relations.heading")}</h2>
 
-      <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+      <div className="lv-settings-body lv-settings-fields flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         <p className="text-helper-relaxed text-muted">
           {t("duplicates.relations.intro")}
         </p>

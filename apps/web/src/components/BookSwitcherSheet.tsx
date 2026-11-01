@@ -339,6 +339,7 @@ export function BookIdentityCard({
   if (onRename === undefined) {
     return (
       <button
+        data-book-identity="summary"
         type="button"
         onClick={onSwitch}
         className="flex w-full items-center justify-between gap-4 rounded-card border border-line bg-surface px-5 py-4 text-left transition hover:bg-canvas"
@@ -349,8 +350,9 @@ export function BookIdentityCard({
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-card border border-line bg-surface">
+    <div data-book-identity="editable" className="flex flex-col overflow-hidden rounded-card border border-line bg-surface">
       <button
+        data-book-identity-summary
         type="button"
         onClick={onSwitch}
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-canvas"

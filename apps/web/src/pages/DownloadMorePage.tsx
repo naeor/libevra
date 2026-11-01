@@ -375,7 +375,7 @@ export function DownloadMorePage(): React.JSX.Element {
         ) : log.length === 0 ? (
           <p className="text-body text-muted">{t("offline.more.logEmpty")}</p>
         ) : (
-          <ul className="flex flex-col gap-1 rounded-card border border-line bg-surface px-4 py-3">
+          <ul className="lv-settings-list flex flex-col gap-1 rounded-card border border-line bg-surface px-4 py-3">
             {log.map((entry, index) => (
               <li
                 key={`${String(entry.at)}-${String(index)}`}

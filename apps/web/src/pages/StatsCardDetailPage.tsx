@@ -7,6 +7,7 @@
  * - 依据：计算来源、数据来源（本机当前账本）与覆盖提示；可以进入对应月份的账目列表。
  */
 import { useEffect, useMemo, useState } from "react";
+import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 import { Link, useParams, useSearchParams } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
@@ -25,7 +26,7 @@ import { SourceEntries } from "../statsWorkbench/SourceEntries.js";
 import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
 
 /** `objectId`：电脑版在分析页右侧辅助栏里显示选中的卡片时直接给出；不给时照旧读路由参数。 */
-export function StatsCardDetailPage({ objectId: given }: { readonly objectId?: string } = {}): React.JSX.Element {
+export function StatsCardDetailPage({ objectId: given, cardOverride }: { readonly objectId?: string; readonly cardOverride?: AnalysisCardNode } = {}): React.JSX.Element {
   const { t, locale } = useI18n();
   const routeParams = useParams();
   const objectId = given ?? routeParams.objectId ?? "";
@@ -42,7 +43,7 @@ export function StatsCardDetailPage({ objectId: given }: { readonly objectId?: s
   // 没保存过的默认工作台按当前语言生成卡片标题，所以语言也是依赖（1.17.23）。
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const documents = useMemo(() => readStored(scope.accountScope).documents, [scope.accountScope, configurationRevision, locale]);
-  const card = documents.content.cards.find((item) => item.objectId === objectId);
+  const card = cardOverride ?? documents.content.cards.find((item) => item.objectId === objectId);
   const search = params.toString();
   const backTo = `/stats${search === "" ? "" : `?${search}`}`;
 

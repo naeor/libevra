@@ -166,7 +166,10 @@ export function frameWidthClass(pane: { readonly shell: "phone" | "wide" }, wide
  * *not* get is the menu left open behind it — see `AppShell`.
  */
 export type TabPageProps = Parameters<typeof MobileTabPage>[0];
-export type InnerPageProps = Parameters<typeof MobileInnerPage>[0];
+export type InnerPageProps = Parameters<typeof MobileInnerPage>[0] & {
+  /** 桌面详情的操作放在内容底部；手机 / 平板保持原位置。 */
+  readonly desktopActionsAtBottom?: boolean;
+};
 
 /** 电脑版外壳里换成桌面框架（见 `desktop/surface.tsx`）；手机与平板不变。 */
 export function TabPage(props: TabPageProps): React.JSX.Element {

@@ -22,6 +22,7 @@ import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
 import { EntrySaved } from "../components/EntrySaved.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
+import { useDesktopActive } from "../desktop/surface.js";
 import { SkeletonRows } from "../components/States.js";
 import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
@@ -67,6 +68,7 @@ type Mode = "single" | "batch";
 
 export function ScanPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const desktop = useDesktopActive();
   const { t, locale } = useI18n();
   const ledger = useLedger();
   const recognize = useRecognize();
@@ -506,7 +508,7 @@ export function ScanPage(): React.JSX.Element {
 
   return (
     <InnerPage
-      title={t("capture.scan.title")}
+      title={desktop ? t("desktop.nav.photoRecognition") : t("capture.scan.title")}
       subtitle={t("capture.scan.subtitle")}
       backTo="/"
     >

@@ -34,16 +34,16 @@ describe("software update announcements", () => {
     // 两位数补丁号（1.17.10 / 1.17.11）两种写法相同。
     if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
     expect(html).toContain("1.17.15");
-    expect(html).toContain("工作区拖动与滚动动画优化");
+    expect(html).toContain("桌面总览、账本管理与协作布局更新");
     expect(html).toContain(
-      "拖动预览更贴近手指、跨工作区保持尺寸，单区拖动显示分开的两块预览；根据拖动来源切换跟随或独立模式，并修复慢速惯性滚动时的动画闪回。",
+      "电脑端新增可调整的总览网格，账本详情与协作支持并排查看；导航、辅助栏、记账入口和设置页面同步调整。",
     );
-    expect(html).toContain("2026年10月31日");
-    expect(html).toContain('href="/update/announcements/1.18.08"');
+    expect(html).toContain("2026年11月1日");
+    expect(html).toContain('href="/update/announcements/1.18.15"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("经过工作区分界时保持尺寸");
+    expect(html).toContain("在网格内移动、调整卡片大小");
     expect(html).toContain("调整及优化");
     expect(html).toContain("问题修复");
     expect(html).not.toContain('role="dialog"');

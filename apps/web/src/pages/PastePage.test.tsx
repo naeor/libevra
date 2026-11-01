@@ -44,7 +44,7 @@ function renderPage(): string {
   );
 }
 
-describe("粘贴识别的纯解析", () => {
+describe("文本识别的纯解析", () => {
   it("用与语音相同的共享核心解析自然语言", () => {
     const candidates = recognisePastedText("今天中午麦当劳花了 28.5 元。", LEDGER, NOW);
 
@@ -113,7 +113,7 @@ describe("粘贴页的入口、隐私说明与手动输入", () => {
   it("标题、说明、多行输入与两个主动按钮都在", () => {
     const html = renderPage();
 
-    expect(html).toContain("粘贴识别");
+    expect(html).toContain("文本识别");
     // 1.17.23：标题、输入框标签与按钮已经说明这一页做什么，不再加副标题。
     expect(html).not.toContain("粘贴交易文字，自动识别金额、日期和分类。");
     // S18：输入框的 id 由 useId 生成；标签仍然指向这个输入框。
@@ -142,7 +142,7 @@ describe("粘贴页（英文界面，S16）", () => {
     applyLocale("en-US");
     const html = renderPage();
 
-    expect(html).toContain("Paste text");
+    expect(html).toContain("Text recognition");
     expect(html).toContain("Paste from clipboard");
     // 示例是识别语言的原文，刻意不翻译。
     expect(html).toContain("For example: 今天中午麦当劳花了 28.5 元");

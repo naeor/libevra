@@ -1,11 +1,11 @@
 /**
  * 主展示区 + 情境辅助栏的宽度规则（纯函数，便于测试）。
  *
- * - 辅助栏默认 320px，可拖到 280–520px；
+ * - 辅助栏默认 416px，可拖到 280–520px；
  * - 主展示区至少保留 `MIN_MAIN`。放不下用户选的宽度时先把辅助栏收窄，收到最窄仍放不下就不并排显示——
  *   这时由页面把辅助内容放进主展示区（桌面式详情 + 返回），而不是缩成一条看不清的窄栏。
  */
-export const PANEL_DEFAULT = 320;
+export const PANEL_DEFAULT = 416;
 export const PANEL_MIN = 280;
 export const PANEL_MAX = 520;
 export const MIN_MAIN = 520;

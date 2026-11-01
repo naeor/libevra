@@ -39,7 +39,7 @@ export function LanguageChoiceList({
     <div
       role="radiogroup"
       aria-label={t("language.switchLabel")}
-      className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line"
+      className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line"
     >
       {options.map((option) => {
         const selected = preference === option.value;

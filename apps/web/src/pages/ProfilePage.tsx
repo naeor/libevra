@@ -85,7 +85,7 @@ export function ProfilePage(): React.JSX.Element {
   ];
   return <InnerPage title={t("account.profile.title")} backTo="/me" onBack={() => editing ? finish() : void navigate("/me")} actions={<Button variant="ghost" fullWidth={false} disabled={busy} onClick={() => editing ? finish() : setParams({ edit: "1" }, { replace: true })}>{editing ? t("account.profile.done") : t("account.profile.edit")}</Button>}>
     <ProfilePreview user={user} editable={editing} onAvatar={() => askLeave(() => void navigate("/profile/avatar"))} />
-    <dl className={`rounded-card border border-line bg-surface px-5 ${editing ? "divide-y divide-line" : ""}`}>
+    <dl className={`lv-settings-profile lv-settings-flat rounded-card border border-line bg-surface px-5 ${editing ? "divide-y divide-line" : ""}`}>
       {rows.map(row => <div key={row.label} className={editing && row.field ? "py-4" : "flex min-h-8 items-center gap-4 py-4 text-body"}>
         {editing && row.field ? <><dt className="sr-only">{row.label}</dt><dd>
           <button type="button" disabled={busy} onClick={() => openField(row.field!)} className="flex min-h-11 w-full items-center gap-4 text-body outline-none focus-visible:ring-4 focus-visible:ring-focus-ring" aria-label={t("account.profile.editField", { field: row.label })}>

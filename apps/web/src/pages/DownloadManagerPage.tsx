@@ -224,7 +224,7 @@ export function DownloadManagerPage(): React.JSX.Element {
       {loading ? (
         <p className="text-body text-muted">{t("common.status.reading")}</p>
       ) : (
-        <ul className="flex flex-col overflow-hidden rounded-card border border-line bg-surface">
+        <ul className="lv-settings-list flex flex-col overflow-hidden rounded-card border border-line bg-surface">
           {rows.map((row) => (
             <li key={row.month} className="border-b border-line last:border-b-0">
               <button

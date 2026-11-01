@@ -52,6 +52,24 @@ describe("ListRow", () => {
     expect(html).not.toContain("href=");
     expect(html).toMatch(/<button[^>]*disabled=""/);
   });
+
+  it("桌面动作标签和对齐信息仍属于同一个禁用控件", () => {
+    const html = render(
+      <ListRow
+        label="共享账本"
+        detail="40000003 · 2 位成员"
+        desktopMeta={<><span>40000003</span><span>2 位成员</span></>}
+        desktopActionLabel="管理"
+        to="/books/example/settings"
+        disabled
+      />,
+    );
+    expect(html.match(/<button\b/g)).toHaveLength(1);
+    expect(html).toMatch(/^<button[^>]*disabled=""/);
+    expect(html).not.toContain("href=");
+    expect(html).toContain("40000003 · 2 位成员");
+    expect(html).toMatch(/<span aria-hidden="true"[^>]*>管理<\/span>/);
+  });
 });
 
 describe("FactRow", () => {

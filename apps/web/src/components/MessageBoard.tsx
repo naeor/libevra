@@ -1,3 +1,6 @@
+import { useAuth } from "../auth/AuthProvider.js";
+import { useViewBookId } from "../lib/workspaceLedger.js";
+import { clearAllMessageDrafts, messageDraftScope, readMessageDraft, updateMessageDraft } from "../lib/messageDrafts.js";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
@@ -56,7 +59,7 @@ import { useBookMessages, useQuoteTarget, useSendBookMessage, type BookMessageVi
  * books appearing in another. **It is cleared whenever the ledger changes** (see `send` and the
  * board's `key`).
  */
-let sharedDraft = "";
+
 
 /**
  * **The quote chosen for the unsent message, shared by the two views for the same reason the draft is.**
@@ -67,12 +70,11 @@ let sharedDraft = "";
  * API (`apps/api/src/ledger/quotes.ts`), and sending passes only `{kind, id}` — **the server re-reads the
  * snapshot, so a client cannot invent a title or amount.**
  */
-let sharedQuote: MessageReferenceView | null = null;
+
 
 /** Forget the draft. Called when the ledger changes, so text cannot cross between ledgers. */
 export function clearMessageDraft(): void {
-  sharedDraft = "";
-  sharedQuote = null;
+  clearAllMessageDrafts();
 }
 
 /**
@@ -162,6 +164,10 @@ export interface MessageComposer {
 
 export function useMessageComposer(): MessageComposer {
   const mutation = useSendBookMessage();
+  const { user } = useAuth();
+  const bookId = useViewBookId();
+  const scope = messageDraftScope(user?.id ?? null, bookId);
+  const { text: sharedDraft, quote: sharedQuote } = readMessageDraft(scope);
   const [draft, setDraftState] = useState(sharedDraft);
   const [quote, setQuoteState] = useState<MessageReferenceView | null>(sharedQuote);
   const [error, setError] = useState<string | null>(null);
@@ -171,24 +177,26 @@ export function useMessageComposer(): MessageComposer {
    * which is what would make the card and the full screen show different text.
    */
   function setDraft(value: string): void {
-    sharedDraft = value;
+    updateMessageDraft(scope, { text: value });
     setDraftState(value);
   }
 
   /** Same rule as `setDraft`: the two presentations share one quote, one place to lose it. */
   function setQuote(reference: MessageReferenceView | null): void {
-    sharedQuote = reference;
+    updateMessageDraft(scope, { quote: reference });
     setQuoteState(reference);
   }
 
   /** ⚠️ A view that mounts after the other one wrote keeps its text, because the module holds it. */
   useEffect(() => {
-    setDraftState(sharedDraft);
-    setQuoteState(sharedQuote);
-  }, []);
+    const saved = readMessageDraft(scope);
+    setDraftState(saved.text);
+    setQuoteState(saved.quote);
+    setError(null);
+  }, [scope]);
 
   async function send(): Promise<boolean> {
-    const body = sharedDraft.trim();
+    const body = readMessageDraft(scope).text.trim();
     if (body === "") return false;
 
     setError(null);
@@ -605,6 +613,7 @@ export function MessageBoardFull({
     quoteRequest !== undefined,
   );
   const appliedRequest = useRef<string | null>(null);
+  const following = useRef(true);
   /**
    * ⚠️ **S16-A: back pops this screen instead of pushing `/ledger` again.** The old control was a
    * `<Link to="/ledger">`, which *added* a ledger entry on top of the board — so the phone's back
@@ -642,7 +651,7 @@ export function MessageBoardFull({
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller === null) return;
-    scroller.scrollTop = scroller.scrollHeight;
+    if (following.current || composer.sending) scroller.scrollTop = scroller.scrollHeight;
   }, [messages.data?.messages.length, composer.sending]);
 
   /** 电脑版：放在主展示区或辅助栏里时没有自己的返回栏，高度跟随外框，宽度按位置。 */
@@ -675,7 +684,7 @@ export function MessageBoardFull({
         </div>
       </header>}
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scrollRef} onScroll={(event) => { const element = event.currentTarget; following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className={`mx-auto flex w-full ${columnWidth} flex-col pb-4`}>
           {messages.isPending ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loading")}</p> : null}
           {messages.isError ? <p className="px-5 py-6 text-body text-muted">{t("collab.messages.loadFailed")}</p> : null}

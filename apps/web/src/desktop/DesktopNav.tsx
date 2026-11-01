@@ -1,10 +1,10 @@
 /**
  * **电脑版最左侧的窄全局导航栏**（宽度固定，不随悬停展开、不随页面变化，没有伸缩动画）。
  *
- * 图标 + 悬停 / 聚焦时显示名称的提示；当前页用浅绿底与左侧细条标出。导航目的地是真实链接，中键或
- * Ctrl(⌘)+点击可以在新标签页打开。账本切换、记账方式与账户菜单是向右弹出的小面板。
+ * 图标下常驻名称，悬停 / 聚焦时补充完整提示；当前页用浅绿底与左侧细条标出。导航目的地是真实链接，中键或
+ * Ctrl(⌘)+点击可以在新标签页打开。账本切换与账户使用向右小面板，记账方式直接在加号下方展开。
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
@@ -65,6 +65,7 @@ function NavLinkItem({ item, active }: { readonly item: DesktopNavItem; readonly
     <li>
       <Link to={item.to} className="lv-desk-nav-item" aria-current={active ? "page" : undefined} aria-label={item.label} {...tip.bind}>
         {icon}
+        <span className="text-helper">{item.label}</span>
       </Link>
       {tip.tip}
     </li>
@@ -77,6 +78,7 @@ export function DesktopNav(): React.JSX.Element {
   const guest = useGuestMode();
   const books = useBooks();
   const currentBookId = useCurrentBookId();
+  const currentBook = books.data?.books.find((book) => book.id === currentBookId);
   const active = navIdFor(pathname);
   const brandTip = useRailTip(t("desktop.nav.brand"), true);
 
@@ -94,19 +96,28 @@ export function DesktopNav(): React.JSX.Element {
   return (
     <nav className="lv-desk-nav" aria-label={t("desktop.nav.label")}>
       <Link to="/dashboard" className="lv-desk-nav-brand" aria-label={t("desktop.nav.brand")} {...brandTip.bind}>
-        <BrandMark className="size-7" />
+        <BrandMark className="size-8" />
+        <span className="lv-desk-nav-wordmark" aria-hidden="true">Libevra</span>
       </Link>
       {brandTip.tip}
-      <LedgerButton />
-      <div className="lv-desk-nav-sep" aria-hidden="true" />
-      <ul className="lv-desk-nav-list">
-        {items.map((item) => (
-          <NavLinkItem key={item.id} item={item} active={active === item.id} />
-        ))}
-      </ul>
-      <AddButton />
-      <div className="flex-1" />
-      <AccountButton />
+      <div className="lv-desk-nav-main">
+        <ul className="lv-desk-nav-list">
+          {items.filter((item) => item.id === "dashboard").map((item) => (
+            <NavLinkItem key={item.id} item={item} active={active === item.id} />
+          ))}
+        </ul>
+        <div className="lv-desk-nav-sep" aria-hidden="true" />
+        <LedgerButton />
+        <ul className="lv-desk-nav-list">
+          {items.filter((item) => item.id !== "dashboard" && (item.id !== "collab" || (currentBook?.memberCount ?? 1) > 1)).map((item) => (
+            <NavLinkItem key={item.id} item={item} active={active === item.id} />
+          ))}
+        </ul>
+        <AddButton />
+      </div>
+      <div className="lv-desk-nav-footer">
+        <AccountButton />
+      </div>
     </nav>
   );
 }
@@ -136,6 +147,7 @@ function LedgerButton(): React.JSX.Element {
         {...tip.bind}
       >
         <span aria-hidden="true">{Array.from(name)[0] ?? "·"}</span>
+        <span className="lv-desk-nav-ledger-name text-helper">{name || t("desktop.ledgerPicker.title")}</span>
       </button>
       {tip.tip}
       {open ? (
@@ -157,7 +169,7 @@ export function pathAfterSwitch(pathname: string): string {
  * 请求头、离线副本与所有页面一起换，权限仍由服务器按新账本检查。
  */
 export function useEnterLedger(): {
-  readonly enter: (bookId: string, after?: () => void) => void;
+  readonly enter: (bookId: string, after?: () => void, destination?: string) => void;
   readonly status: string | null;
   readonly busy: boolean;
 } {
@@ -169,17 +181,17 @@ export function useEnterLedger(): {
   const { pathname } = useLocation();
   const [status, setStatus] = useState<string | null>(null);
   const currentId = ledger.data?.book.id ?? null;
-  const enter = (bookId: string, after?: () => void): void => {
+  const enter = (bookId: string, after?: () => void, destination?: string): void => {
     if (guest || bookId === currentId) {
       after?.();
-      if (pathname !== "/") void navigate("/");
+      if (destination !== undefined || pathname !== "/") void navigate(destination ?? "/");
       return;
     }
     setStatus(t("desktop.ledgerPicker.switching"));
     void activate
       .mutateAsync(bookId)
       .then(() => {
-        window.location.assign(pathAfterSwitch(pathname));
+        window.location.assign(destination ?? pathAfterSwitch(pathname));
       })
       .catch((caught: unknown) => {
         setStatus(t("desktop.ledgerPicker.failed", { message: errorMessage(caught) }));
@@ -278,10 +290,16 @@ function AddButton(): React.JSX.Element {
   const { t } = useI18n();
   const guest = useGuestMode();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement | null>(null);
+  const menu = useRef<HTMLDivElement | null>(null);
   const tip = useRailTip(t("desktop.nav.add"), !open);
   const close = useCallback(() => setOpen(false), []);
+  useEffect(() => { setOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (open) menu.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+  }, [open]);
   return (
     <>
       <button
@@ -289,6 +307,7 @@ function AddButton(): React.JSX.Element {
         type="button"
         className="lv-desk-nav-add"
         aria-haspopup="menu"
+        aria-controls={open ? "desktop-entry-methods" : undefined}
         aria-expanded={open}
         aria-label={t("desktop.nav.add")}
         onClick={() => setOpen((value) => !value)}
@@ -298,8 +317,9 @@ function AddButton(): React.JSX.Element {
       </button>
       {tip.tip}
       {open ? (
-        <DesktopPopover anchor={anchor} label={t("desktop.nav.addMenu")} onClose={close} width={240} role="menu">
-          <div className="lv-desk-entry-menu" aria-label={t("desktop.nav.addMenu")}>
+          <div ref={menu} id="desktop-entry-methods" className="lv-desk-nav-methods" role="menu" aria-label={t("desktop.nav.addMenu")} onKeyDown={(event) => {
+            if (event.key === "Escape") { event.preventDefault(); close(); anchor.current?.focus(); }
+          }}>
             <EntryMethodList
               disabledFor={(action) => desktopEntryDisabled(action, guest)}
               onNavigate={(path, prepare) => {
@@ -310,7 +330,6 @@ function AddButton(): React.JSX.Element {
               onSelected={close}
             />
           </div>
-        </DesktopPopover>
       ) : null}
     </>
   );
@@ -340,7 +359,7 @@ function AccountButton(): React.JSX.Element {
         onClick={() => setOpen((value) => !value)}
         {...tip.bind}
       >
-        <UserAvatar avatarId={user?.avatarId} className="size-8" />
+        <UserAvatar avatarId={user?.avatarId} className="size-8" /><span className="text-helper">{t("desktop.account.label")}</span>
       </button>
       {tip.tip}
       {open ? (

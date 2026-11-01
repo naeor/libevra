@@ -7,7 +7,7 @@ import { formatMoney } from "../lib/format.js";
 export function FxModeSetting() {
   const mode = useFxMode(), { t } = useI18n(); const [failed, setFailed] = useState(false);
   if (!mode.userId) return null;
-  return <section className="rounded-card border border-line bg-surface p-5">
+  return <section className="lv-settings-flat rounded-card border border-line bg-surface p-5">
     <label className="flex min-h-11 items-center justify-between gap-4 text-card-title text-ink">
       <span>{t("fx.title")}</span><input type="checkbox" role="switch" aria-label={t("fx.title")} checked={mode.enabled}
         onChange={event => setFailed(!mode.setEnabled(event.target.checked))} className="size-5 shrink-0 accent-brand" />

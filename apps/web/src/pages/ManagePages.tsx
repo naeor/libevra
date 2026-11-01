@@ -189,7 +189,7 @@ function ArchivableList({
 }): React.JSX.Element {
   const { t } = useI18n();
   return (
-    <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+    <ul className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
       {items.map((item) => {
         const locked = lockedIds.includes(item.id);
         const description = item.description ?? null;
@@ -948,7 +948,7 @@ function TagsView({
       {failure === null ? null : <Alert>{failure}</Alert>}
 
       {canWrite ? (
-        <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+        <section className="lv-settings-flat lv-settings-form flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         <input
           value={name}
           maxLength={12}
@@ -1000,7 +1000,7 @@ function TagsView({
       {pending ? <SkeletonRows rows={3} /> : null}
 
       {tags.length > 0 ? (
-        <ul className="overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+        <ul className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
           {tags.map((tag) => (
             <li key={tag.id}>
               <div className="flex items-center justify-between gap-4 px-5 py-3.5">

@@ -39,6 +39,8 @@ export function DesktopSplit({
   panelLabel,
   onClosePanel,
   whenNarrow = "overlay",
+  panelDisabled = false,
+  disabledMessage,
 }: {
   readonly children: React.ReactNode;
   /**
@@ -50,6 +52,9 @@ export function DesktopSplit({
   readonly panel: React.ReactNode | null;
   readonly panelLabel: string;
   readonly onClosePanel?: () => void;
+  /** 批量操作时保留面板及草稿，只暂停交互。 */
+  readonly panelDisabled?: boolean;
+  readonly disabledMessage?: string;
 }): React.JSX.Element {
   const { t } = useI18n();
   const box = useElementWidth<HTMLDivElement>();
@@ -71,12 +76,12 @@ export function DesktopSplit({
 
   return (
     <div ref={box.ref} className="lv-desk-split" data-dragging={dragging ? "true" : undefined}>
-      <div className="lv-desk-split-main" inert={stacked} aria-hidden={stacked ? true : undefined}>
+      <div className="lv-desk-split-main" inert={stacked && !panelDisabled} aria-hidden={stacked && !panelDisabled ? true : undefined}>
         {children}
       </div>
       {!hasPanel ? null : stacked ? (
         // 放不下并排：辅助内容覆盖在主展示区上，用桌面式详情 + 返回；下面的列表原样保留。
-        <section className="lv-desk-split-overlay" aria-label={panelLabel}>
+        <section className="lv-desk-split-overlay" aria-label={panelLabel} hidden={panelDisabled} inert={panelDisabled}>
           <DesktopSurfaceProvider surface="main" {...(onClosePanel === undefined ? {} : { onBack: onClosePanel })}>
             {panel}
           </DesktopSurfaceProvider>
@@ -85,7 +90,8 @@ export function DesktopSplit({
         <>
           <div
             role="separator"
-            tabIndex={0}
+            tabIndex={panelDisabled ? -1 : 0}
+            aria-disabled={panelDisabled || undefined}
             aria-orientation="vertical"
             aria-label={t("desktop.panel.resize")}
             aria-valuemin={PANEL_MIN}
@@ -94,7 +100,7 @@ export function DesktopSplit({
             title={t("desktop.panel.resizeHint")}
             className="lv-desk-splitter"
             onPointerDown={(event) => {
-              if (event.button !== 0) return;
+              if (panelDisabled || event.button !== 0) return;
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
               drag.current = { startX: event.clientX, startWidth: layout.panelWidth, pointerId: event.pointerId };
@@ -102,7 +108,7 @@ export function DesktopSplit({
             }}
             onPointerMove={(event) => {
               const current = drag.current;
-              if (current === null || current.pointerId !== event.pointerId) return;
+              if (panelDisabled || current === null || current.pointerId !== event.pointerId) return;
               // 分界线往左拖，辅助栏变宽。
               setPreferred(Math.min(layout.maxPanel, clampPanel(current.startWidth + (current.startX - event.clientX))));
             }}
@@ -116,8 +122,9 @@ export function DesktopSplit({
               drag.current = null;
               setDragging(false);
             }}
-            onDoubleClick={() => commit(PANEL_DEFAULT)}
+            onDoubleClick={() => { if (!panelDisabled) commit(PANEL_DEFAULT); }}
             onKeyDown={(event) => {
+              if (panelDisabled) return;
               const step = event.shiftKey ? 48 : 16;
               if (event.key === "ArrowLeft") commit(Math.min(layout.maxPanel, layout.panelWidth + step));
               else if (event.key === "ArrowRight") commit(layout.panelWidth - step);
@@ -126,10 +133,13 @@ export function DesktopSplit({
               event.preventDefault();
             }}
           />
-          <aside className="lv-desk-panel" aria-label={panelLabel} style={{ width: layout.panelWidth }}>
+          <aside className="lv-desk-panel" aria-label={panelLabel} aria-disabled={panelDisabled || undefined} style={{ width: layout.panelWidth }}>
+            {panelDisabled ? <div className="lv-desk-panel-disabled-note" role="status"><span>{disabledMessage}</span></div> : null}
+            <div className="lv-desk-panel-content" inert={panelDisabled}>
             <DesktopSurfaceProvider surface="panel" {...(onClosePanel === undefined ? {} : { onClose: onClosePanel })}>
               {panel}
             </DesktopSurfaceProvider>
+            </div>
           </aside>
         </>
       )}

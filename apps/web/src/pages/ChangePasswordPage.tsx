@@ -53,7 +53,7 @@ export function ChangePasswordPage(): React.JSX.Element {
       subtitle={t("account.changePassword.subtitle")}
       backTo="/settings"
     >
-      <Card>
+      <Card className="lv-settings-task">
         <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
           {error ? <Alert>{error}</Alert> : null}
           {done ? <Alert tone="success">{t("account.changePassword.done")}</Alert> : null}

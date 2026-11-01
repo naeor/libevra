@@ -58,10 +58,9 @@ export function PreferencesPage(): React.JSX.Element {
 
   return (
     <SettingsSubPage title={t("settings.preferences.title")}>
-      <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-section-title text-ink">{t("settings.preferences.defaultCurrency")}</h2>
-
-        <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+      <section className="lv-settings-section flex flex-col gap-3" data-section-title="">
+        <h2 className="lv-settings-heading px-1 text-section-title text-ink">{t("settings.preferences.defaultCurrency")}</h2>
+        <div className="lv-settings-body lv-settings-fields flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
           <CurrencyQuickPick
             value={currency}
             hint={t("settings.preferences.defaultCurrencyHint")}
@@ -76,10 +75,9 @@ export function PreferencesPage(): React.JSX.Element {
        * 按账号隔离（见 `lib/duplicateSettings.ts`）；关闭提醒只关闭业务层提示，
        * 不影响幂等、来源去重、权限与离线同步。
        */}
-      <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-section-title text-ink">{t("settings.preferences.duplicates")}</h2>
-
-        <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+      <section className="lv-settings-section flex flex-col gap-3" data-section-title="">
+        <h2 className="lv-settings-heading px-1 text-section-title text-ink">{t("settings.preferences.duplicates")}</h2>
+        <div className="lv-settings-body lv-settings-fields flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
           <DuplicateDetectionSettingsCard />
         </div>
       </section>
@@ -89,8 +87,8 @@ export function PreferencesPage(): React.JSX.Element {
        * The owner's rule: a settings screen may list a future item, but it must read
        * as a stated fact rather than as an entry that silently does nothing.
        */}
-      <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-section-title text-ink">{t("settings.preferences.entryAndLayout")}</h2>
+      <section className="lv-settings-section flex flex-col gap-3" data-section-title="">
+        <h2 className="lv-settings-heading px-1 text-section-title text-ink">{t("settings.preferences.entryAndLayout")}</h2>
         <SettingsRowList
           rows={[
             { label: t("settings.preferences.largeKeypad.label"), hint: t("settings.preferences.largeKeypad.hint") },

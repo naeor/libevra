@@ -649,6 +649,86 @@ html[data-shell="desktop"] body {
 
 /* ---------------------------------------------------------------- 协作分页 */
 
+/* 轻分区：只调整明确标记的设置、资料与对象列表，保留卡片/图表/浮层的边界。 */
+.lv-settings-action, .lv-settings-object-meta, .lv-settings-ledger-head { display: none; }
+.lv-settings-ledger-head + .lv-settings-row { border-top: 0; }
+.lv-desktop .lv-desk-settings-content { container: lv-settings-area / inline-size; scrollbar-gutter: stable; }
+.lv-desktop .lv-desk-settings-content .lv-desk-main { max-width: 1120px; margin-inline: 0; gap: 28px; }
+.lv-desktop .lv-desk-main { container: lv-settings-page / inline-size; }
+.lv-desktop .lv-desk-panel-body { container: lv-settings-page / inline-size; }
+.lv-desktop .lv-settings-section { min-width: 0; gap: 12px; }
+.lv-desktop .lv-settings-section[data-section-title] { border-top: 1px solid var(--color-line); padding-top: 20px; }
+.lv-desktop .lv-settings-heading { min-width: 0; padding-inline: 0; color: var(--color-ink); }
+.lv-desktop .lv-settings-heading h2, .lv-desktop h2.lv-settings-heading { font-size: var(--text-card-title); font-weight: 500; }
+.lv-desktop :is(.lv-settings-body, .lv-settings-list, .lv-settings-flat) {
+  min-width: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible;
+}
+.lv-desktop :is(.lv-settings-fields, .lv-settings-flat, .lv-settings-footer) { padding-inline: 0; }
+.lv-desktop .lv-settings-fields { padding-block: 0; }
+.lv-desktop :is(.lv-settings-body, .lv-settings-list) > :first-child { border-top: 0; }
+.lv-desktop :is(.lv-settings-body, .lv-settings-list) > :not(:first-child) { border-color: var(--color-line); }
+.lv-desktop .lv-settings-footer { margin: 0; }
+.lv-desktop :is(.lv-settings-row, .lv-settings-list > li > button, .lv-settings-list > li > a, .lv-settings-list > button) {
+  min-height: 44px; padding: 12px 8px; border-radius: 4px;
+}
+.lv-desktop .lv-settings-row { gap: 16px; }
+.lv-desktop .lv-settings-row-label { overflow-wrap: anywhere; }
+.lv-desktop .lv-settings-action { display: inline-flex; flex: none; align-items: center; justify-content: center; min-height: 32px; max-width: 45%; padding: 5px 12px; border: 1px solid var(--color-line); border-radius: var(--radius-field); font-size: var(--text-helper); text-align: center; }
+.lv-desktop .lv-settings-row:has(.lv-settings-action) > svg:last-child { display: none; }
+.lv-desktop .lv-settings-row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.lv-desktop .lv-settings-fact { padding: 12px 0; grid-template-columns: minmax(100px, 30%) minmax(0, 1fr); }
+.lv-desktop .lv-settings-fact dd { justify-content: flex-start; text-align: left; }
+.lv-desktop .lv-settings-currency { max-width: 640px; }
+.lv-desktop .lv-settings-currency button { min-height: 36px; padding: 6px 14px; border-radius: var(--radius-field); }
+.lv-desktop .lv-settings-toggle { align-items: center; min-height: 40px; max-width: 680px; }
+.lv-desktop .lv-settings-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 36px; }
+.lv-desktop .lv-settings-rules > :not(.lv-settings-toggle), .lv-desktop .lv-settings-rules > .lv-settings-toggle:has(.text-helper-relaxed) { grid-column: 1 / -1; }
+.lv-desktop .lv-settings-rules > div:not(.lv-settings-toggle) { max-width: 440px; }
+.lv-desktop .lv-settings-profile > div { border-bottom: 1px solid var(--color-line); padding-block: 14px; }
+.lv-desktop .lv-settings-profile > div > dt { width: 132px; }
+.lv-desktop .lv-settings-profile > div > dd { margin-left: 0; text-align: left; flex: 1; }
+.lv-desktop .lv-settings-profile button > span.ml-auto { margin-left: 0; flex: 1; text-align: left; }
+.lv-desktop .lv-settings-profile button > span:first-child { min-width: 132px; }
+.lv-desktop .lv-settings-profile form { max-width: 520px; }
+.lv-desktop .lv-settings-members { width: 100%; }
+.lv-desktop .lv-settings-member-row { padding: 14px 0; }
+.lv-desktop .lv-settings-member-name > span:first-child { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; }
+.lv-desktop .lv-settings-member-name > span:first-child > span:last-child { grid-column: 3; }
+.lv-desktop .lv-settings-flat > :is(form, label) { max-width: 680px; }
+.lv-desktop .lv-settings-form { max-width: 680px; }
+.lv-desktop .lv-settings-form :is(input, select, textarea) { max-width: 100%; }
+.lv-desktop .lv-settings-fields > button.w-full { align-self: flex-start; width: auto; min-height: 36px; padding: 8px 16px; font-size: var(--text-body); }
+.lv-desktop .lv-settings-flat > .w-full { width: auto; align-self: flex-start; }
+.lv-desktop .lv-settings-theme-options { max-width: 640px; }
+.lv-desktop .lv-settings-task { width: 100%; max-width: 680px; }
+.lv-desktop .lv-settings-task form > button { align-self: flex-start; min-width: 112px; }
+
+@container lv-settings-page (min-width: 52rem) {
+  .lv-desktop .lv-desk-settings-content .lv-settings-section[data-section-title] { display: grid; grid-template-columns: 140px minmax(0, 1fr); column-gap: 28px; align-items: start; }
+  .lv-desktop .lv-desk-settings-content .lv-settings-section > .lv-settings-heading { grid-column: 1; grid-row: 1 / span 2; padding-top: 10px; }
+  .lv-desktop .lv-desk-settings-content .lv-settings-section > :is(.lv-settings-body, .lv-settings-list, .lv-settings-footer) { grid-column: 2; }
+}
+@container lv-settings-page (min-width: 40rem) {
+  .lv-desktop .lv-settings-object-meta { display: grid; grid-template-columns: 96px 64px 48px; gap: 12px; flex: none; align-items: center; color: var(--color-muted); font-size: var(--text-helper); }
+  .lv-desktop .lv-settings-ledger-head { display: flex; gap: 16px; align-items: center; padding: 8px; font-size: var(--text-helper); color: var(--color-muted); }
+  .lv-desktop .lv-settings-ledger-head > span:first-child { flex: 1; min-width: 0; }
+  .lv-desktop .lv-settings-ledger-action { width: 64px; text-align: center; }
+  .lv-desktop .lv-settings-row:has(.lv-settings-object-meta) .lv-settings-action { width: 64px; padding-inline: 4px; }
+  .lv-desktop .lv-settings-row [data-desktop-meta] { display: none; }
+}
+@container lv-settings-page (max-width: 30rem) {
+  .lv-desktop .lv-settings-rules { grid-template-columns: minmax(0, 1fr); }
+  .lv-desktop .lv-settings-profile > div > dt { width: auto; }
+  .lv-desktop .lv-settings-profile button > span:first-child { min-width: 0; }
+  .lv-desktop .lv-settings-row { gap: 10px; }
+}
+@container lv-settings-area (max-width: 40rem) {
+  .lv-desktop .lv-desk-main { padding-inline: 24px; }
+}
+@media (any-pointer: coarse) {
+  .lv-desktop :is(.lv-settings-action, .lv-settings-currency button, .lv-settings-toggle) { min-height: 44px; }
+}
+
 .lv-desk-tabs {
   display: flex;
   min-width: 0;
@@ -1117,3 +1197,146 @@ html[data-shell="desktop"] body {
     transition-duration: 0ms !important;
   }
 }
+
+/* 桌面第二轮：固定全局/账本分区，图标始终有名称。 */
+.lv-desk-nav { width:108px; padding:12px 0; gap:0; overflow:hidden; }
+.lv-desk-nav-main { display:flex; flex:1; flex-direction:column; align-items:center; gap:4px; width:100%; min-height:0; overflow-y:auto; padding:4px 0; scrollbar-width:none; }
+/* 展开记账方式时不让滚动条挤偏图标；矮窗口仍可用滚轮、触控板和键盘滚动。 */
+.lv-desk-nav-main::-webkit-scrollbar { display:none; width:0; height:0; }
+.lv-desk-nav-main > * { flex-shrink:0; }
+.lv-desk-nav-footer { flex:none; padding-top:12px; }
+.lv-desk-nav-item, .lv-desk-nav-account { width:88px; min-height:58px; height:auto; padding:8px 3px; gap:4px; border-radius:var(--radius-field); }
+.lv-desk-nav-item > span, .lv-desk-nav-account > span { max-width:100%; line-height:1.2; overflow-wrap:anywhere; }
+.lv-desk-nav-brand { flex:none; width:88px; height:76px; margin:0 0 16px; align-content:center; gap:6px; }
+.lv-desk-nav-wordmark { font-size:var(--text-helper); font-weight:600; line-height:1.2; letter-spacing:0.025em; }
+.lv-desk-nav-item[aria-current="page"]::before { left:-10px; }
+.lv-desk-nav-ledger { width:88px; min-height:68px; height:auto; padding:6px; gap:4px; margin:2px 0; }
+.lv-desk-nav-ledger-name { max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:400; }
+.lv-desk-nav-sep { width:60px; flex-shrink:0; }
+.lv-desk-nav-add { flex-shrink:0; }
+.lv-desk-nav-methods { display:flex; flex-direction:column; gap:4px; padding:6px 0; }
+.lv-desk-nav-methods .lv-add-item { display:flex; flex-direction:column; justify-content:center; gap:4px; width:88px; min-height:54px; padding:6px 2px; font-size:var(--text-helper); border-radius:var(--radius-field); }
+.lv-desk-nav-methods .lv-add-item-icon svg { width:22px; height:22px; }
+.lv-desk-nav-methods .lv-add-item[data-import="true"] { margin-top:4px; border-top:1px solid var(--color-line); }
+.lv-desk-nav-methods .lv-add-item:disabled { opacity:0.45; cursor:not-allowed; }
+
+/* 网格尺寸是内容尺寸，拖动把手与缩放柄只出现在编辑态。 */
+.lv-dash { max-width:none; }
+.lv-dash-grid { grid-auto-rows:116px; gap:12px; position:relative; }
+.lv-dash-cell { position:relative; }
+.lv-dash-grid[data-editing="true"] .lv-dash-card { padding-top:38px; }
+.lv-dash-cell[data-selected="true"] .lv-dash-card { outline:2px solid var(--color-brand); outline-offset:1px; }
+.lv-dash-grid-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; position:sticky; top:0; z-index:5; padding:12px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:var(--radius-field); box-shadow:0 3px 10px var(--color-line); }
+.lv-dash-number { display:flex; gap:5px; align-items:center; color:var(--color-muted); }
+.lv-dash-number input { width:3.7rem; padding:5px; border:1px solid var(--color-line); border-radius:6px; color:var(--color-ink); background:var(--color-canvas); }
+.lv-dash-move { position:absolute; inset:6px 10px auto auto; padding:2px 8px; display:flex; gap:4px; align-items:center; color:var(--color-brand-dark); background:var(--color-brand-soft); border-radius:6px; font-size:var(--text-helper); cursor:grab; touch-action:none; z-index:2; }
+.lv-dash-resize { position:absolute; right:4px; bottom:3px; width:28px; height:28px; background:var(--color-brand-soft); color:var(--color-brand-dark); border-radius:8px 0; cursor:nwse-resize; touch-action:none; z-index:2; }
+.lv-dash-drop { pointer-events:none; z-index:3; border:2px dashed var(--color-brand); border-radius:var(--radius-card); background:color-mix(in srgb,var(--color-brand) 12%,transparent); }
+.lv-dash-title { text-align:left; overflow-wrap:anywhere; }
+.lv-dash-ledger[data-link="true"] { cursor:pointer; }
+.lv-dash-chart { flex:none; display:flex; flex-direction:column; width:100%; padding:6px 0; min-height:86px; text-align:left; border-radius:6px; }
+.lv-dash-chart-label { display:flex; justify-content:space-between; color:var(--color-muted); }
+.lv-dash-chart svg { display:block; width:100%; height:64px; margin-top:4px; }
+.lv-dash-chart:hover:not(:disabled) { background:var(--color-canvas); }
+.lv-dash-trend-card .lv-dash-chart { flex:1; min-height:100px; }
+.lv-dash-trend-card .lv-dash-chart svg { flex:1; height:100%; min-height:60px; }
+.lv-dash-ledger-recent { flex:1; min-height:32px; }
+.lv-dash-ledger-recent > ul { min-height:0; overflow:auto; }
+.lv-dash-recent-line { display:flex; align-items:center; gap:10px; padding:5px 0; }
+.lv-dash-recent-line > :nth-child(2) { flex:1; }
+.lv-dash-recent-line > :last-child { white-space:nowrap; }
+.lv-dash-ledger-foot { flex:none; }
+.lv-dash-body { overflow:auto; }
+.lv-dash-row { width:100%; text-align:left; }
+.lv-dash-row:hover { background:var(--color-canvas); }
+.lv-dash-month { display:flex; align-items:center; gap:8px; color:var(--color-muted); }
+.lv-dash-month input, .lv-dash-select, .lv-desk-input { border:1px solid var(--color-line); border-radius:var(--radius-field); padding:7px 9px; background:var(--color-surface); color:var(--color-ink); min-width:0; }
+.lv-dash-select { max-width:100%; }
+.lv-dash-table { min-width:310px; }
+@container (max-height:300px) {
+  .lv-dash-ledger-recent { display:none; }
+  .lv-dash-ledger .lv-dash-chart { min-height:50px; }
+  .lv-dash-ledger .lv-dash-chart svg { height:32px; }
+}
+
+/* 账本资料与管理工作区。设置的权限、确认与目标 ID 仍由原组件负责。 */
+.lv-desk-book-grid { display:grid; grid-template-columns:minmax(260px, 29%) minmax(0,1fr); gap:24px; padding:24px var(--lv-desk-pad); min-height:0; flex:1; overflow-y:auto; scrollbar-gutter:stable; align-items:start; }
+.lv-desk-book-info, .lv-desk-book-main { min-width:0; display:flex; flex-direction:column; gap:20px; }
+.lv-desk-info-card { display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:20px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:var(--radius-card); }
+.lv-desk-book-facts { display:grid; width:100%; gap:12px; padding-top:12px; border-top:1px solid var(--color-line); font-size:var(--text-helper); }
+.lv-desk-book-facts > div { display:flex; justify-content:space-between; gap:12px; }
+.lv-desk-book-facts dt { color:var(--color-muted); }
+.lv-desk-book-facts dd { color:var(--color-ink); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.lv-desk-book-localnav { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding-bottom:8px; border-bottom:1px solid var(--color-line); }
+.lv-desk-book-settings .lv-desk-main { max-width:none; padding:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:start; }
+.lv-desk-book-settings [data-book-identity="summary"],
+.lv-desk-book-settings [data-book-identity-summary],
+.lv-desk-book-settings [data-book-members-hint] { display:none; }
+.lv-desk-book-settings [data-book-identity="editable"] { grid-column:1 / -1; width:max-content; max-width:100%; border:0; background:none; }
+.lv-desk-book-settings [data-book-identity="editable"] > button:last-child { min-height:34px; border:1px solid var(--color-line); border-radius:var(--radius-field); padding:6px 12px; gap:12px; }
+.lv-desk-book-settings .lv-desk-main > section { min-width:0; }
+.lv-desk-book-settings .lv-desk-main > section h2 { padding-left:0; font-size:var(--text-card-title); color:var(--color-ink); }
+.lv-desk-book-settings .lv-desk-main > section li a { min-height:0; padding:12px 14px; }
+.lv-desk-book-settings .lv-desk-main > section button.w-full { width:auto; align-self:flex-start; padding:7px 12px; font-size:var(--text-body); }
+.lv-desk-book-editor .lv-desk-main, .lv-desk-book-invite .lv-desk-main { max-width:none; padding:12px 0; }
+.lv-desk-book-history-preview { display:flex; flex-direction:column; gap:8px; }
+.lv-desk-book-history-preview > button { align-self:flex-end; }
+.lv-desk-members { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; }
+.lv-desk-member { display:flex; flex-wrap:wrap; align-items:center; gap:6px; max-width:100%; overflow-wrap:anywhere; }
+.lv-desk-member-management { min-width:0; width:100%; }
+.lv-desk-member-management li > div { padding:12px; }
+.lv-desk-collab-members { flex:none; padding:10px var(--lv-desk-pad); border-bottom:1px solid var(--color-line); }
+.lv-desk-collab-main { height:100%; min-height:0; overflow-y:auto; padding:24px var(--lv-desk-pad); }
+.lv-desk-collab-manage { margin-bottom:24px; padding:18px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:var(--radius-card); }
+.lv-desk-collab-manage > header { margin-bottom:12px; }
+.lv-desk-collab-manage .lv-desk-main { max-width:none; padding:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px; }
+.lv-desk-collab-manage .lv-desk-main > p, .lv-desk-collab-manage .lv-desk-main > a { grid-column:1/-1; }
+.lv-desk-history { min-width:0; }
+.lv-desk-history-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-bottom:16px; }
+.lv-desk-history-tools > button { margin-left:auto; }
+.lv-desk-history-filters { flex-basis:100%; display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+.lv-desk-history-filters input { flex:1; min-width:160px; max-width:36rem; font-size:var(--text-body); }
+.lv-desk-history-rows { border:1px solid var(--color-line); border-radius:var(--radius-card); background:var(--color-surface); overflow:hidden; }
+.lv-desk-history-rows:empty { display:none; }
+.lv-desk-history-row + .lv-desk-history-row { border-top:1px solid var(--color-line); }
+.lv-desk-history-row summary { display:flex; align-items:baseline; gap:12px; padding:14px 16px; cursor:pointer; list-style:none; }
+.lv-desk-history-row summary::before { content:"›"; flex-shrink:0; color:var(--color-muted); }
+.lv-desk-history-row[open] summary::before { transform:rotate(90deg); }
+.lv-desk-history-row summary:hover { background:var(--color-canvas); }
+.lv-desk-history-row summary > span { flex:1; overflow-wrap:anywhere; }
+.lv-desk-history-row time { white-space:nowrap; flex:none; }
+.lv-desk-history-changes { padding:0 20px 14px 36px; display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+.lv-desk-history-changes li { padding:3px 0; overflow-wrap:anywhere; }
+.lv-desk-record-dialog { width:min(680px,90vw); height:85dvh; max-height:90dvh; margin:auto; border:1px solid var(--color-line); border-radius:var(--radius-card); background:var(--color-canvas); color:var(--color-ink); padding:0; overflow:auto; }
+.lv-desk-record-dialog::backdrop { background:var(--color-overlay-soft); }
+.lv-desk-record-dialog .lv-desk-page { height:auto; min-height:100%; }
+@container lvpane (max-width:1050px) {
+  .lv-desk-book-grid { grid-template-columns:minmax(230px,30%) minmax(0,1fr); gap:20px; }
+  .lv-desk-book-settings .lv-desk-main { grid-template-columns:1fr; }
+  .lv-desk-collab-manage .lv-desk-main { grid-template-columns:1fr; }
+}
+@container lvpane (max-width:740px) {
+  .lv-desk-book-grid { grid-template-columns:1fr; }
+  .lv-desk-book-info { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .lv-desk-history-row summary { flex-wrap:wrap; }
+  .lv-desk-history-row time { margin-left:20px; }
+}
+@media (max-height:760px) {
+  .lv-desk-nav-main { gap:2px; }
+  .lv-desk-nav-brand { height:68px; margin-bottom:12px; }
+  .lv-desk-nav-footer { padding-top:8px; }
+  .lv-desk-nav-item, .lv-desk-nav-account { min-height:48px; padding:5px 3px; gap:2px; }
+  .lv-desk-nav-ledger { min-height:54px; }
+}
+
+.lv-desk-collab-manage [data-invite-back], .lv-desk-book-invite [data-invite-back] { display:none; }
+.lv-desk-detail-actions { position:sticky; bottom:0; z-index:10; display:flex; flex:none; justify-content:flex-end; gap:8px; margin-top:auto; padding:16px 20px; border-top:1px solid var(--color-line); background:var(--color-canvas); }
+.lv-desk-detail-actions > button { padding:8px 20px; border-radius:var(--radius-field); background:var(--color-brand); color:var(--color-on-brand); text-decoration:none; }
+.lv-desk-panel-content { height:100%; min-height:100%; display:flex; flex-direction:column; }
+.lv-desk-panel-content > .lv-desk-panel-page { flex:1; }
+.lv-desk-panel-page > .lv-desk-panel-body { flex:1; }
+.lv-desk-panel[aria-disabled="true"] .lv-desk-panel-content { opacity:0.45; filter:grayscale(1); }
+.lv-desk-splitter[aria-disabled="true"] { pointer-events:none; cursor:default; }
+.lv-desk-panel-disabled-note { position:sticky; top:12px; z-index:30; height:0; padding:0 12px; }
+.lv-desk-panel-disabled-note > span { display:block; padding:10px 12px; border:1px solid var(--color-line); border-radius:var(--radius-field); background:var(--color-surface); color:var(--color-muted); font-size:var(--text-helper); }
+.lv-dash-number input, .lv-dash-month input, .lv-dash-select, .lv-desk-history-filters input { font-size:1rem; }

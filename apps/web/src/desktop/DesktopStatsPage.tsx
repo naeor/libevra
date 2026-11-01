@@ -10,6 +10,7 @@ import { useI18n } from "../i18n/index.js";
 import { StatsCardDetailPage } from "../pages/StatsCardDetailPage.js";
 import { StatsPage } from "../pages/StatsPage.js";
 import { DesktopSplit } from "./DesktopSplit.js";
+import { dashboardAnalysisCard } from "./dashboardNavigation.js";
 
 export const STATS_CARD_PARAM = "card";
 
@@ -17,12 +18,14 @@ export function DesktopStatsPage(): React.JSX.Element {
   const { t } = useI18n();
   const [params, setParams] = useSearchParams();
   const card = params.get(STATS_CARD_PARAM);
+  const dashboardCard = dashboardAnalysisCard(params.get("dashboardChart"));
 
   const open = useCallback(
     (cardId: string) => {
       setParams((previous) => {
         const next = new URLSearchParams(previous);
         next.set(STATS_CARD_PARAM, cardId);
+        next.delete("dashboardChart");
         return next;
       });
     },
@@ -32,12 +35,13 @@ export function DesktopStatsPage(): React.JSX.Element {
     setParams((previous) => {
       const next = new URLSearchParams(previous);
       next.delete(STATS_CARD_PARAM);
+      next.delete("dashboardChart");
       return next;
     });
   }, [setParams]);
 
   return (
-    <DesktopSplit panel={card === null ? null : <StatsCardDetailPage key={card} objectId={card} />} panelLabel={t("desktop.stats.panel")} onClosePanel={close}>
+    <DesktopSplit panel={dashboardCard !== undefined ? <StatsCardDetailPage key={dashboardCard.objectId} cardOverride={dashboardCard} /> : card === null ? null : <StatsCardDetailPage key={card} objectId={card} />} panelLabel={t("desktop.stats.panel")} onClosePanel={close}>
       <StatsPage onOpenCard={open} />
     </DesktopSplit>
   );

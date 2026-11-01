@@ -10,6 +10,28 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.18.15": {
+    title: "Desktop Dashboard, ledger management and collaboration layouts",
+    summary: "An adjustable desktop Dashboard grid and side-by-side ledger and collaboration views, with updates to navigation, the detail panel, recording shortcuts and Settings.",
+    sections: [
+      { heading: "New features", items: [
+        "Move, resize, hide and restore cards within the desktop Dashboard grid, with undo, redo and a default-layout reset. The default layout includes income and expense trends, recent entries and pending items, and ledger cards offer a choice of displayed content.",
+        "Clicking a Dashboard ledger card opens its Entries and makes it the current ledger for Add. Clicking a chart inside the card opens that ledger's Insights and shows the chart details in the right-hand panel.",
+        "Ledger details separate information, settings and edit history. Single-member ledgers keep invitations and related tools in this view. Shared ledgers retain Collaboration, with member names and roles near the header, edit history on the left and a separate message area on the right.",
+      ] },
+      { heading: "Improvements", items: [
+        "The wider desktop sidebar labels its icons, restores the brand area at the top and keeps Account at the bottom. A divider separates Dashboard from current-ledger actions. The right-hand panel is wider by default and remains resizable.",
+        "Add expands five recording methods within the desktop sidebar. Paste is now labelled Text recognition on all devices. Desktop scanning is labelled Photo recognition, while phones and tablets retain their existing camera-scanning label.",
+        "Desktop settings and management pages use headings, spacing and dividers with fewer repeated rounded boxes. Ledger lists align in columns, while forms and options use widths suited to mouse and keyboard use.",
+        "Bulk selection in Entries preserves an open side-by-side detail panel, dimming it and pausing its controls until selection ends. The desktop entry-detail Edit button moves to the bottom action area, and summary customisation gains more space above its content.",
+        "Dual-workspace Follow mode now handles Settings, Downloads, Updates and ledger subpages. Tablet dragging starts after a shorter long press, and desktop navigation and entry rows support opening a new tab with the middle mouse button or Ctrl / Command-click.",
+      ] },
+      { heading: "Bug fixes", items: [
+        "Fixes sidebar icons shifting when Add reveals a scrollbar and ledger cards changing width when invitation content opens. Short windows still allow scrolling through every recording method.",
+        "Fixes settings rows shrinking to their text width. Category action menus now close with Esc and return focus to their trigger, and choosing a Chinese input-method candidate no longer accidentally submits affected forms.",
+      ] },
+    ],
+  },
   "1.18.08": {
     title: "Workspace dragging and scroll animation improvements",
     summary: "Drag previews stay closer to your finger and keep their size between workspaces. A single workspace shows two separate preview areas, the drag source determines Follow or Independent mode, and slow momentum scrolling no longer repeatedly rewinds header animations.",

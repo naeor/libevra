@@ -27,7 +27,7 @@ export function ReferralCodePage(): React.JSX.Element {
   const { t } = useI18n();
   return (
     <InnerPage title={t("account.referral.title")} subtitle={t("account.referral.subtitle")} backTo="/settings">
-      <Card>
+      <Card className="lv-settings-task">
         <ReferralCodeSection />
       </Card>
 
