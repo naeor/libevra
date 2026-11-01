@@ -1,5 +1,8 @@
+import { apiFetch } from "../lib/api.js";
+import { useCurrentBookId } from "../lib/queries.js";
+import { readMonthSamples } from "../lib/monthAvailability.js";
 import { AccountStorageSummary, LocalAttachmentStorage } from "../components/Attachments.js";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -49,6 +52,9 @@ export function DownloadManagerPage(): React.JSX.Element {
   const { t } = useI18n();
 
   const [rows, setRows] = useState<readonly MonthRow[]>([]);
+  const bookId = useCurrentBookId();
+  const availability = useQuery({ queryKey: ["download-month-availability", bookId, rows.map(row => row.month)], enabled: !!bookId && rows.length > 0, staleTime: 30_000, queryFn: ({ signal }) => readMonthSamples(rows.map(row => row.month), [bookId!], (book, month) => apiFetch("/transactions", { bookId: book, query: { month, limit: 1 }, timeoutMs: 5000 }), () => signal.aborted) });
+  const visibleRows = rows.filter(row => { const sample = availability.data?.[row.month]?.[bookId ?? ""]; return row.entryCount > 0 || !sample || sample.items.length > 0 || sample.nextCursor !== null; });
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   /** 只有一种错误：读本机数据失败。存原因而不是句子，文字随当前语言显示。 */
@@ -98,7 +104,7 @@ export function DownloadManagerPage(): React.JSX.Element {
   }, [fillRunning, fillDone, load]);
 
   const storedCount = rows.filter((row) => row.state === "stored" || row.state === "partial").length;
-  const missingCount = rows.filter((row) => row.state === "missing").length;
+  const missingCount = visibleRows.filter((row) => row.state === "missing").length;
   const partialCount = rows.filter((row) => row.state === "partial").length;
 
   /**
@@ -228,7 +234,7 @@ export function DownloadManagerPage(): React.JSX.Element {
         <p className="text-body text-muted">{t("common.status.reading")}</p>
       ) : (
         <ul className="lv-settings-list flex flex-col overflow-hidden rounded-card border border-line bg-surface">
-          {rows.map((row) => (
+          {visibleRows.map((row) => (
             <li key={row.month} className="border-b border-line last:border-b-0">
               <button
                 type="button"

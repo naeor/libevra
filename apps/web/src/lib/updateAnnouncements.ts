@@ -51,6 +51,7 @@ export interface UpdateAnnouncement {
  * S13-E release.
  */
 export const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
+ { version: "1.18.34", releasedAt: "2026-11-01", status: "released", title: "展示卡片与下载管理优化", summary: "优化卡片编辑、返回导航和下载月份列表。", major: false, sections: [{ heading: "界面与操作", items: ["已添加的指标支持再次点击取消，搜索旁可清空当前卡片。", "修复编辑页返回循环，调整保存和清空按钮高度。", "下载管理隐藏已确认没有账目的月份。", "统一占用空间区域与管理控件的样式。"] }] },
   {
     version: "1.18.32",
     releasedAt: "2026-11-01",

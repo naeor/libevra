@@ -101,3 +101,7 @@
 .lv-attachment-zoom button { min-height:44px; padding:6px 10px; border-radius:var(--radius-field); color:var(--color-muted); }
 .lv-attachment-zoom button[aria-pressed=true] { background:var(--color-brand-soft); color:var(--color-brand-dark); }
 .lv-attachment-zoom button:focus-visible { outline:2px solid var(--color-focus-ring); outline-offset:2px; }
+
+.lv-desk-book-info .lv-book-storage{padding-inline:20px;border-inline:1px solid transparent}
+
+.lv-storage-admin input{border:1px solid var(--color-line);background:var(--color-surface);border-radius:var(--radius-field);padding:10px 12px;min-height:44px;color:var(--color-ink);width:100%;margin-top:6px;appearance:textfield}.lv-storage-admin input::-webkit-inner-spin-button,.lv-storage-admin input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.lv-storage-admin input:focus-visible{outline:2px solid var(--color-brand);outline-offset:2px}.lv-storage-admin form>label{min-width:0;flex:1}.lv-storage-admin form>div{min-width:140px}

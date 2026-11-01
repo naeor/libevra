@@ -415,7 +415,7 @@ function MobileInnerPage({
  * ⚠️ **Right-hand actions keep their own slot** and never overlap the centred title: the title is
  * inset from both sides and truncates.
  */
-function PageNavBar({
+export function PageNavBar({
   title,
   condensed,
   onBack,

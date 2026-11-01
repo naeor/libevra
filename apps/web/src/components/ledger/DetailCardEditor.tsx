@@ -7,7 +7,9 @@ import { useGuestIdentity } from "../../lib/guest/session.js";
 import { mainDetailMetrics, isDetailChart, useDetailCards, type DetailCards } from "../../lib/detailCards.js";
 import { sameCards } from "../../lib/detailCardSync.js";
 import { useI18n } from "../../i18n/index.js";
-import { InlineChoice } from "../ui/InlineChoice.js";
+import { PageNavBar } from "../Layouts.js";
+import { useGoBack } from "../../lib/connectivity.js";
+import { Button } from "../Button.js";
 import { ConfirmDialog } from "../ConfirmDialog.js";
 import { DetailMiniChart, type MiniEntry } from "./DetailMiniChart.js";
 import "./detail-card-editor.css";
@@ -28,7 +30,7 @@ function CardEditorContent() {
   const previewEntries = samples.map(e => ({ ...e, categoryName: sampleNames[Number(e.categoryId)]! }));
   const config = useDetailCards(guest?.id ?? user?.id ?? "local");
   const [draft, setDraft] = useState(() => draftFor(config.value)), [initial, setInitial] = useState(() => draftFor(config.value));
-  const [slot, setSlot] = useState<Slot>("main"), [picking, setPicking] = useState(false), [query, setQuery] = useState("");
+  const [slot, setSlot] = useState<Slot>("main"), [query, setQuery] = useState("");
   const [group, setGroup] = useState("numbers"), [discard, setDiscard] = useState(false), [failed, setFailed] = useState(false);
   const dirty = !sameCards(draft, initial), source = JSON.stringify(config.value);
   useEffect(() => { if (!dirty) { const next = draftFor(config.value); setDraft(next); setInitial(next); } }, [source]);
@@ -39,20 +41,21 @@ function CardEditorContent() {
     return () => window.removeEventListener("beforeunload", before);
   }, [dirty]);
   const valid = detailCardSchema.safeParse({ main: "overview", mainMetrics: draft.main, first: draft.first[0], second: draft.second[0] });
-  const back = () => dirty ? setDiscard(true) : void navigate("/ledger/more");
+  const goBack = useGoBack("/ledger/more", "parent");
+  const back = () => dirty ? setDiscard(true) : goBack();
   const save = () => {
     if (!valid.success || config.invalid) return;
     if (!config.save(valid.data)) { setFailed(true); return; }
-    void navigate("/");
+    void navigate("/", { replace: true });
   };
   const metrics: readonly DetailMetric[] = group === "numbers" ? detailNumbers : group === "trends" ? detailCharts.filter(id => id !== "categoryRank") : ["categoryRank"];
   const matches = (query.trim() ? [...detailNumbers, ...detailCharts] : metrics).filter(id => t(`ledger.cards.${id}`).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const used = draft[slot].reduce((n, id) => n + (isDetailChart(id) ? 2 : 1), 0), capacity = slot === "main" ? 2 : 1;
   return <main className="detail-card-editor">
-    <header className="dce-header"><button type="button" onClick={back}>{t("ledger.cards.back")}</button><h1>{t("ledger.cards.edit")}</h1><button type="button" className="dce-save" disabled={!valid.success || config.invalid} onClick={save}>{t("ledger.cards.save")}</button></header>
+    <PageNavBar title={t("ledger.cards.edit")} condensed onBack={back} widthClass="max-w-[560px]" actions={<Button fullWidth={false} disabled={!valid.success || config.invalid} onClick={save}>{t("ledger.cards.save")}</Button>} />
     <section className="dce-preview" aria-label={t("ledger.cards.preview")}>
       <p className="dce-sample">{t("ledger.cards.sample")}</p>
-      <div className="dce-cards">{slots.map(id => <button key={id} type="button" className={"dce-card dce-" + id} data-selected={slot === id} aria-pressed={slot === id} onClick={() => { setSlot(id); setPicking(false); }}>
+      <div className="dce-cards">{slots.map(id => <button key={id} type="button" className={"dce-card dce-" + id} data-selected={slot === id} aria-pressed={slot === id} onClick={() => { setSlot(id); }}>
         <span className="dce-slot-name">{t(`ledger.cards.${id}`)}</span>
         <div className="dce-values">{draft[id].length ? draft[id].map(metric => <div key={metric} className={isDetailChart(metric) ? "dce-chart" : ""}><span>{t(`ledger.cards.${metric}`)}</span>{isDetailChart(metric)
           ? <DetailMiniChart metric={metric} entries={previewEntries} from="2026-01-01" to="2026-01-07" currency="CNY" />
@@ -61,9 +64,8 @@ function CardEditorContent() {
     </section>
     <section className="dce-workbench">
       <div className="dce-fixed">
-        <div className="dce-current"><span>{t("ledger.cards.current")}</span><InlineChoice label={t("ledger.cards.current")} value={slot} open={picking} onToggle={() => setPicking(!picking)} onClose={() => setPicking(false)} options={slots.map(id => ({ id, label: t(`ledger.cards.${id}`) }))} onSelect={id => { setSlot(id as Slot); setPicking(false); }} /></div>
         <div className="dce-selected">{draft[slot].map(id => <button key={id} type="button" aria-label={t("ledger.cards.remove", { name: t(`ledger.cards.${id}`) })} onClick={() => setDraft({ ...draft, [slot]: draft[slot].filter(x => x !== id) })}>{t(`ledger.cards.${id}`)} <span aria-hidden="true">×</span></button>)}</div>
-        <input type="search" aria-label={t("ledger.cards.metricSearch")} placeholder={t("ledger.cards.metricSearch")} value={query} onChange={e => setQuery(e.target.value)} />
+        <div className="dce-search"><input type="search" aria-label={t("ledger.cards.metricSearch")} placeholder={t("ledger.cards.metricSearch")} value={query} onChange={e => setQuery(e.target.value)} /><Button variant="secondary" fullWidth={false} disabled={!draft[slot].length} onClick={() => setDraft({ ...draft, [slot]: [] })}>{t("ledger.cards.clear")}</Button></div>
         <div className="dce-tabs" role="group" aria-label={t("ledger.cards.add")}>{(["numbers", "trends", "ranking"] as const).map(id => <button key={id} type="button" aria-pressed={group === id} onClick={() => setGroup(id)}>{t(`ledger.cards.${id}`)}</button>)}</div>
       </div>
       <div className="dce-catalogue" tabIndex={0} aria-label={t("ledger.cards.add")}>
@@ -73,11 +75,11 @@ function CardEditorContent() {
         {matches.map(id => {
           const chart = isDetailChart(id), added = draft[slot].includes(id), onlyMain = chart && slot !== "main", full = used + (chart ? 2 : 1) > capacity;
           const hint = onlyMain ? "onlyMain" : added ? "added" : full ? "full" : chart ? id === "categoryRank" ? "rankHint" : id === "expenseBars" ? "barsHint" : "lineHint" : "numericHint";
-          return <button className="dce-metric" key={id} type="button" disabled={onlyMain || added || full} onClick={() => setDraft({ ...draft, [slot]: [...draft[slot], id] })}><span><span>{t(`ledger.cards.${id}`)}</span><small>{t(`ledger.cards.${hint}`)}</small></span><span aria-hidden="true">{added ? "✓" : "＋"}</span></button>;
+          return <button className="dce-metric" key={id} type="button" aria-pressed={added} disabled={onlyMain || (!added && full)} onClick={() => setDraft({ ...draft, [slot]: added ? draft[slot].filter(x => x !== id) : [...draft[slot], id] })}><span><span>{t(`ledger.cards.${id}`)}</span><small>{t(`ledger.cards.${hint}`)}</small></span><span aria-hidden="true">{added ? "✓" : "＋"}</span></button>;
         })}
         {!matches.length ? <p className="dce-help">{t("ledger.cards.noMetrics")}</p> : null}
       </div>
     </section>
-    <ConfirmDialog open={discard} title={t("ledger.cards.discard")} confirmLabel={t("ledger.cards.discardAction")} onCancel={() => setDiscard(false)} onConfirm={() => void navigate("/ledger/more")} />
+    <ConfirmDialog open={discard} title={t("ledger.cards.discard")} confirmLabel={t("ledger.cards.discardAction")} onCancel={() => setDiscard(false)} onConfirm={goBack} />
   </main>;
 }

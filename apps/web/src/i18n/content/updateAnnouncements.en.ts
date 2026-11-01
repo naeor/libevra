@@ -10,6 +10,7 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+ "1.18.34": { title: "Card editing and downloads", summary: "Improved card editing, navigation and download month lists.", sections: [{ heading: "Improvements", items: ["Tap an added metric again to remove it, or clear the selected card.", "Fixed back navigation and aligned editor controls.", "Download management hides confirmed empty months.", "Updated storage summaries and administration controls."] }] },
   "1.18.32": {
     title: "Entry attachments, collaboration notifications and filters",
     summary: "Add and preview entry attachments, receive change notifications, manage storage, and use updated filters, sorting and entry forms across devices.",

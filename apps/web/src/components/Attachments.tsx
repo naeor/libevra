@@ -141,7 +141,7 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
 export function BookAttachmentSummary({ bookId, compact = false }: { bookId: string; compact?: boolean }): React.JSX.Element {
   const storage = useBookStorage(bookId); const files = useAttachments(bookId); const { t } = useI18n();
   const value = storage.data;
-  return <section className="lv-attachments"><header><h2 className="text-section-title">{t("attachments.title")}</h2>
+  return <section className="lv-attachments lv-book-storage"><header><h2 className="text-section-title">{t("books.detail.storage")}</h2>
     {!compact ? <Link className="lv-desk-link ml-auto text-helper" to={`/books/${bookId}/attachments`}>{t("attachments.all")} →</Link> : null}</header>
     {value ? <><p className="text-body">{t("attachments.used", { used: formatStorageBytes(value.bytes), limit: formatStorageBytes(value.limit) })}</p>
       <progress className="lv-storage-progress" value={Math.min(value.bytes, value.limit)} max={value.limit} />
