@@ -53,8 +53,8 @@ export interface UpdateAnnouncement {
 export const ALL_ANNOUNCEMENTS: readonly UpdateAnnouncement[] = [
   {
     version: "1.18.32",
-    releasedAt: null,
-    status: "development",
+    releasedAt: "2026-11-01",
+    status: "released",
     title: "账目附件、协作提醒与筛选更新",
     summary: "账目支持添加和预览附件，新增变更提醒与容量管理，并统一各端的筛选、排序和记账界面。",
     sections: [
