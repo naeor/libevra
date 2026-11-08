@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN" data-visual-style="a" data-theme-mode="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Libevra · 账目容器变形</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/reference/tokens.css">
+  <link rel="stylesheet" href="/reference/b2.css">
+  <link rel="stylesheet" href="/reference/material-components.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="workbench">
+    <aside class="controls">
+      <div class="wordmark"><span class="brand-mark">L</span> Libevra <span class="edition">S19 / 交互原型</span></div>
+      <h1>一张账目，<br>展开一处空间。</h1>
+      <p class="intro">点击任意记录，再返回。比较同一个容器展开时，四种风格如何回应。</p>
+      <fieldset id="styles"><legend>01 <span>空间风格</span></legend>
+        <div class="style-options">
+          <button data-style="a" aria-pressed="true"><b>A</b><span>柔和空间<small>向前浮起 · 周围压暗</small></span><i>↗</i></button>
+          <button data-style="b1" aria-pressed="false"><b>B1</b><span>实体瓷片<small>瓷片扩张 · 上下挤出</small></span><i>↔</i></button>
+          <button data-style="b2" aria-pressed="false"><b>B2</b><span>通透玻璃<small>玻璃展开 · 背景留驻</small></span><i>◈</i></button>
+          <button data-style="c" aria-pressed="false"><b>C</b><span>经典纸片<small>直接展开 · 轻微动势</small></span><i>▱</i></button>
+        </div>
+      </fieldset>
+      <fieldset id="durations"><legend>02 <span>总时长</span></legend><div class="segments">
+        <button data-duration="180" aria-pressed="false">180 <small>ms</small></button>
+        <button data-duration="200" aria-pressed="true">200 <small>ms</small></button>
+        <button data-duration="220" aria-pressed="false">220 <small>ms</small></button>
+      </div></fieldset>
+      <div class="tuning" id="tuning"><label for="strength">A · 前移倍率</label><select id="strength"><option value="1.08">1.08 ×</option><option value="1.1" selected>1.10 ×</option><option value="1.12">1.12 ×</option></select></div>
+      <p class="style-description" id="style-description">卡片向前放大至约 1.1 倍，周围 UI 同步压暗，再展开为详情。</p>
+      <div class="timeline"><span>内容退场</span><span>容器展开</span><span>详情渐入</span><div><i></i><i></i><i></i></div><small id="timing-label">容器约 120 ms 展开 · 内容 110–200 ms 渐入</small></div>
+      <details class="lab-notes"><summary>边界测试与实现说明</summary>
+        <label class="check"><input type="checkbox" id="reduce"> 模拟减少动态效果</label>
+        <label for="scenario">返回前模拟</label>
+        <select id="scenario"><option value="normal">正常返回原记录</option><option value="removed">原记录已不存在</option><option value="reordered">编辑后移至列表末尾</option><option value="offscreen">原记录滚出可视范围</option></select>
+        <button class="reset" id="reset">重置模拟列表</button>
+        <p>支持 Esc、浏览器返回 / 前进；动画中立即返回会从当前姿态收回。旋转或缩放后重新验证目标，不可靠时淡出。</p>
+        <p><b>FLIP：</b>借鉴 First / Last 的一次性测量。没有对完整卡片做缩放反演，而是在脱离排版的空容器上动画化位移、尺寸和圆角，文字保持原尺寸。</p>
+        <p><b>Shared Element Transition：</b>它是本轮的视觉机制：来源容器由唯一覆盖层接管，原卡片隐藏，返回时再交还。后方始终是真实列表。</p>
+        <p><b>Web Animations API：</b>负责可取消的时间线。反向时只读一次当前姿态，取消旧动画后接续；完成后释放动画对象、覆盖层与滚动锁。无需每帧测量。</p>
+        <p><b>View Transition API：</b>页面快照适合路由间的整体过渡，本轮需要玻璃透出真实 DOM、独立控制文字和中途反向，因此不把它作为前提。Safari 真机的合成性能仍待验证，不能用桌面窄屏代替。</p>
+        <p><b>现有协调器：</b>PaneRouter / MotionPilot 已经负责导航提交与方向；ABC 呈现器消费回调并清理呈现副本。本轮只验证局部共享容器，后续 React 接入时复用该分工，不增设第二套路由历史。原型自己的历史只用于测试浏览器返回。</p>
+        <p>材质只读引用主工作区的 S19 令牌、material-components.css 和 material-effects.css；没有复制材质配方或业务依赖。原型必须通过本地服务打开。</p>
+      </details>
+      <footer class="prototype-meta">S19-CT 0.2.0 · 内容渐入 / A 压暗 / B1 挤出 / B2 透明详情</footer>
+    </aside>
+    <section class="preview" aria-label="手机原型">
+      <div class="preview-caption"><span id="preview-style">A / 柔和空间</span><span>同一几何 · 同一节奏</span></div>
+      <div class="phone lv-shell" data-shell="contents" id="phone">
+        <header class="phone-header"><div><small>我的日常账本</small><h2>账目</h2></div><span class="month">2026 年 11 月</span></header>
+        <div class="stage" id="stage">
+          <div class="list" id="list" tabindex="-1" aria-label="模拟账目列表">
+            <div class="list-intro"><span>日常里的每一笔</span><small>12 条记录</small></div>
+            <div id="records"></div>
+            <p class="list-end">已经到底了 · 所有记录均为模拟数据</p>
+          </div>
+          <div id="overlay" class="overlay" hidden></div>
+        </div>
+        <nav class="phone-nav" aria-label="固定导航示意"><span><i>⌂</i>开始</span><span class="active"><i>▤</i>账目</span><span class="add" aria-hidden="true">＋</span><span><i>▥</i>分析</span><span><i>◯</i>我的</span></nav>
+      </div>
+      <div class="live-status"><span class="status-dot"></span><output id="status" aria-live="polite">点击一条记录开始</output></div>
+      <p class="preview-help">滚动后也会回到点击的位置。顶部与底部导航始终固定。</p>
+    </section>
+  </main>
+  <script type="module" src="/app.mjs"></script>
+</body>
+</html>
