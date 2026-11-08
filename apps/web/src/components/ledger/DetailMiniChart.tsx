@@ -3,6 +3,12 @@ import { useI18n } from "../../i18n/index.js";
 import { fxMoney } from "../../lib/fxView.js";
 
 export type MiniEntry = Pick<Transaction, "kind" | "currency" | "occurredLocalDate" | "categoryId" | "categoryName"> & { minor: string };
+/** 同一时间分桶的收入减支出；只组合既有系列，不把结余当账户余额。 */
+export function netSeries(entries: readonly MiniEntry[], from: string, to: string) {
+  const income = miniSeries("incomeTrend", entries, from, to);
+  const expense = miniSeries("expenseTrend", entries, from, to);
+  return income.map((point, index) => ({ label: point.label, amount: point.amount - (expense[index]?.amount ?? 0n) }));
+}
 export function miniSeries(metric: DetailMetric, entries: readonly MiniEntry[], from: string, to: string) {
   const selected = entries.filter(e => e.kind === (metric === "incomeTrend" ? "income" : "expense") && e.occurredLocalDate >= from && e.occurredLocalDate <= to);
   const amounts = new Map<string, bigint>(), labels = new Map<string, string>();

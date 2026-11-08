@@ -1,6 +1,5 @@
 import { useAnalysisRange } from "../lib/analysisRange.js";
 import { SlidingSelection } from "../components/ui/SlidingSelection.js";
-import { mainDetailMetrics, isDetailChart } from "../lib/detailCards.js";
 import "../components/ledger/detail-overview.css";
 import { flushSync } from "react-dom";
 import { DetailOverview } from "../components/ledger/DetailOverview.js";
@@ -92,6 +91,8 @@ import {
   type TransactionFilters,
 } from "../lib/queries.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
+import { keepMetricSnapshot } from "../components/ledger/metricSnapshot.js";
+import { useViewBookId } from "../lib/workspaceLedger.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { useFollowedPath, usePane } from "../workspace/context.js";
 import { useForeignBookId } from "../lib/workspaceLedger.js";
@@ -107,6 +108,7 @@ const NO_CONFLICTS: readonly ConflictRecord[] = [];
 export function DetailPage(): React.JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
+  const metricBook = useViewBookId();
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
@@ -580,7 +582,7 @@ export function DetailPage(): React.JSX.Element {
   const filtered = useMemo(() => entries.filter(entry => filter.predicate(entry) && entryMatches(entry, query)), [entries, filter.predicate, query]);
   const cardFrom = filter.value.from || (!allMonths ? month + "-01" : "");
   const cardTo = filter.value.to || (!allMonths ? endOfMonth(month) : "");
-  const chartSource = useAnalysisRange({ from: cardFrom || currentMonth() + "-01", to: cardTo || endOfMonth(currentMonth()) }, !guest && !fxActive && !!cardFrom && !!cardTo && mainDetailMetrics(cardConfig.value).some(isDetailChart));
+  const chartSource = useAnalysisRange({ from: cardFrom || currentMonth() + "-01", to: cardTo || endOfMonth(currentMonth()) }, !guest && !fxActive && !!cardFrom && !!cardTo);
   const chartEntries = (chartSource.data?.entries ?? filtered).filter(e => filter.predicate(e) && entryMatches(e, query) && (kind === "all" || e.kind === kind));
   const presentation = useEntryPresentation(filtered, !list.hasNextPage && !list.isPending && !list.isError, { order: saved.presentation?.order ?? "timeDesc", attachment: "any", type: "", minMB: "", maxMB: "" }, filter.extended || query.trim() !== "" || kind !== "all");
   const currencies = filter.extended || query.trim() !== "" || kind !== "all" ? (presentation.waiting ? [] : summaryFor(filtered, month, { from: "0000-01-01", to: "9999-12-31" }).currencies) : summary.data?.currencies ?? [];
@@ -901,7 +903,10 @@ export function DetailPage(): React.JSX.Element {
             </div>
 
             {searchOpen ? <p className="detail-search-scope text-helper text-on-brand/75">{t("ledger.cards.scope", { scope: filter.label })}</p> : null}
-            <DetailOverview syncStatus={cardConfig.conflict ? "syncConflict" : cardConfig.syncError ? "syncError" : cardConfig.dirty ? "syncPending" : undefined} onEdit={() => void navigate("/ledger/cards")} entries={chartEntries} chartFrom={cardFrom} chartTo={cardTo} chartComplete={guest ? !list.hasNextPage : chartSource.data?.sourceComplete === true} config={cardConfig.value} summary={main} currency={mainCode} label={filter.label} days={detailDayCount(month, filter.value.from, filter.value.to, toLocalDate(new Date()))} fx={fxActive ? fxSummary : null} onCurrencies={() => setShowAllCurrencies(true)} hidden={atList || searchOpen} loading={summary.isPending || summary.isError || presentation.waiting || !!presentation.error} />
+            <DetailOverview onOpen={data => {
+              const key = keepMetricSnapshot({ ...data, owner: user?.id ?? guestIdentity?.id ?? "", book: metricBook, pane: pane.instance, returnTo: location.pathname + location.search });
+              void navigate(`/ledger/metrics/${data.metric}`, { state: { metricSnapshot: key } });
+            }} syncStatus={cardConfig.conflict ? "syncConflict" : cardConfig.syncError ? "syncError" : cardConfig.dirty ? "syncPending" : undefined} onEdit={() => void navigate("/ledger/cards")} entries={chartEntries} chartFrom={cardFrom} chartTo={cardTo} chartComplete={guest ? !list.hasNextPage : chartSource.data?.sourceComplete === true} config={cardConfig.value} summary={main} currency={mainCode} label={filter.label} days={detailDayCount(month, filter.value.from, filter.value.to, toLocalDate(new Date()))} fx={fxActive ? fxSummary : null} onCurrencies={() => setShowAllCurrencies(true)} hidden={atList || searchOpen} loading={summary.isPending || summary.isError || presentation.waiting || !!presentation.error} />
           </header>
 
           {/*

@@ -1,0 +1,12 @@
+.lv-shell.object-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; background: var(--lv-wallpaper-bg); }
+.object-stage .s19-abc-plane, .object-neighborhood, .object-outgoing { position: absolute; inset: 0; overflow: hidden; }
+.object-stage [data-persistent-nav], .object-stage nav.shrink-0.border-t { visibility: hidden; }
+.object-shell { position: absolute; top: 0; left: 0; transform-origin: center; background: var(--s19-card-bg, var(--color-surface)); box-shadow: var(--s19-card-sh, var(--shadow-card)); border: 1px solid var(--color-line); will-change: transform,width,height; }
+.object-stage[data-object-style="b1"] .object-shell { background: var(--lv-porcelain-body,var(--color-surface)); }
+.object-stage[data-object-style="a"] .object-shell { box-shadow: 0 16px 48px color-mix(in srgb,var(--color-ink) 22%,transparent); }
+.object-stage[data-object-style="b2"] .object-shell { background: var(--s19-book-bg,var(--s19-card-bg)); backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter); }
+.object-stage[data-object-style="b2"] .object-neighborhood { filter: blur(calc(var(--s19-b2-surface-blur,9px) * 2)); opacity: calc(var(--s19-b2-carry,.85) * .2) !important; }
+.object-stage[data-object-settled] .object-shell { will-change: auto; }
+[data-object-live] { background: transparent !important; }
+[data-object-live="b2"] .bg-canvas { background: transparent; }
+.object-outgoing { z-index: 3; }

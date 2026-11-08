@@ -3,7 +3,7 @@ import type { ABCPresentation } from "./abcBridge.js";
 
 let cloneSequence = 0;
 /** 短暂、inert 的呈现副本：没有 React、事件或业务历史，完成/取消即释放。 */
-function snapshot(page: HTMLElement): HTMLElement {
+export function snapshot(page: HTMLElement): HTMLElement {
   const plane = document.createElement("div");
   plane.className = "s19-abc-plane";
   const copy = page.cloneNode(true) as HTMLElement;
@@ -59,7 +59,7 @@ function snapshot(page: HTMLElement): HTMLElement {
   for (const node of copy.querySelectorAll<HTMLElement>('[data-motion-body] > div:has(> button.bg-danger)')) node.dataset.motionGroup = "";
   return plane;
 }
-const restoreSnapshot = new WeakMap<HTMLElement, () => void>();
+export const restoreSnapshot = new WeakMap<HTMLElement, () => void>();
 
 /** 只接收协调器已经决定的方向和提交函数；不调用 navigate、pushState 或 back。 */
 export class ABCPagePresentation implements ABCPresentation {

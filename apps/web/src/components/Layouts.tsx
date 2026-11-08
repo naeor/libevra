@@ -1,8 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
-import { BottomNav, type EntryCards } from "./BottomNav.js";
+import { BottomNav, BottomNavView, type EntryCards } from "./BottomNav.js";
+import { PersistentNavContext, SuppressNavigationContext } from "./PersistentNavContext.js";
+import { navigationLevel } from "../s19/motion/navigation.js";
+import { handOverForScan } from "../lib/scanHandoff.js";
+import { useAuthOptional } from "../auth/AuthProvider.js";
+import { useGuestIdentity } from "../lib/guest/session.js";
+import "../s19/motion/navigation.css";
 import { GuestModeBadge } from "./GuestModeBadge.js";
 import { ChevronIcon } from "./Icons.js";
 import { GuestWelcome } from "./GuestWelcome.js";
@@ -103,7 +109,15 @@ export function AppShell({ children }: { readonly children: React.ReactNode }): 
  */
 export function PaneShell({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const pane = usePane();
+  const auth = useAuthOptional();
+  const guest = useGuestIdentity();
+  const level = navigationLevel(pathname);
+  const activeTab = useRef("/");
+  if (level === "tabRoot") activeTab.current = pathname;
   const [open, setOpen] = useState(false);
+  const [navigationSuppressed, suppressNavigation] = useState(false);
 
   // The pathname *after* the first render. Comparing against it means the fold
   // cannot fire for the page the reader is already on when the app starts —
@@ -129,7 +143,15 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
     [open],
   );
 
-  return <EntryMenuContext.Provider value={value}>{children}</EntryMenuContext.Provider>;
+  const persistent = pane.nav === "bottom" && (!!auth?.user || !!guest);
+  return <EntryMenuContext.Provider value={value}><PersistentNavContext.Provider value={persistent}>
+    <SuppressNavigationContext.Provider value={suppressNavigation}>{children}</SuppressNavigationContext.Provider>
+    {persistent ? <div data-persistent-nav hidden={level === "subpage" || navigationSuppressed} className="persistent-nav" onClickCapture={event => {
+      if (event.target instanceof Element && event.target.closest("a[href]")) value.close();
+    }}><BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(to); }}
+      cards={{ mode: "toggle", expanded: open, active: level === "enterMode", onToggle: value.toggle }}
+      onPickImages={files => { handOverForScan(files); value.close(); void navigate("/scan"); }} /></div> : null}
+  </PersistentNavContext.Provider></EntryMenuContext.Provider>;
 }
 
 /**
@@ -218,6 +240,11 @@ function MobileTabPage({
   const width = frameWidthClass(pane, wideWidth);
   /** 底部导航只在手机外壳的主区存在；大屏上主导航在全局侧栏，辅助区没有主导航。 */
   const bottomNav = pane.nav === "bottom";
+  const suppressNavigation = useContext(SuppressNavigationContext);
+  useLayoutEffect(() => {
+    suppressNavigation(bottom !== undefined);
+    return () => suppressNavigation(false);
+  }, [bottom !== undefined, suppressNavigation]);
 
   if (bottom !== undefined) {
     return (
@@ -339,6 +366,8 @@ function MobileInnerPage({
 }): React.JSX.Element {
   const goBack = useGoBack(backTo, backMode);
   const pane = usePane();
+  const { pathname } = useLocation();
+  const mode = pane.nav === "bottom" && navigationLevel(pathname) === "enterMode";
   const width = frameWidthClass(pane, wideWidth);
   /**
    * S18：页面左上角的「返回」先告诉工作区外壳「这是返回」——有的页面返回是打开声明的上级页（push），
@@ -360,7 +389,7 @@ function MobileInnerPage({
      * scroll away after the first screen. `min-h-full` + growing with the content gives the bar a
      * parent as tall as the page.
      */
-    <div className="flex min-h-full flex-col">
+    <div className={`flex min-h-full flex-col ${mode ? "entry-mode-page" : ""}`}>
       {/*
         ⚠️ **Both banners, on every framed screen.**
 

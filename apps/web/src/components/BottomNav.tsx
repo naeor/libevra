@@ -1,7 +1,8 @@
 import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { useLedger } from "../lib/queries.js";
 import { useGuestMode } from "../lib/guest/session.js";
-import { useRef, type ReactNode } from "react";
+import { useContext, useRef, type ReactNode } from "react";
+import { PersistentNavContext } from "./PersistentNavContext.js";
 import { useBottomNavUnderlay } from "../s19/useBottomNavUnderlay.js";
 import { Link } from "react-router";
 import { usePane } from "../workspace/context.js";
@@ -289,7 +290,14 @@ export type EntryCards = {
  * given room by shoving content aside, and this simply occupies space nothing
  * else wanted.
  */
-export function BottomNav({
+export function BottomNav(props: Parameters<typeof BottomNavView>[0]): React.JSX.Element | null {
+  const persistent = useContext(PersistentNavContext);
+  const pane = usePane();
+  if (persistent && pane.nav === "bottom") return <div aria-hidden="true" className="persistent-nav-space shrink-0" />;
+  return <BottomNavView {...props} />;
+}
+
+export function BottomNavView({
   active,
   onNavigate,
   cards,

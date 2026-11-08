@@ -14,13 +14,15 @@ import { describeLayout, layoutBackground, type AmbientLayout } from "./ambientL
 import { aVariant, captureATabFrame, createABCPresentation, subscribeAVariant } from "./abcBridge.js";
 import "./motion.css";
 import "./pilot.css";
+import { isSettingsMotionEdge, isSettingsMotionPage, navigationLevel } from "./navigation.js";
+import { EnterModePresentation, enterModeOptions } from "./enterMode.js";
+import { ObjectExpandPresentation, objectSource, type ObjectSource } from "./objectExpand.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
   committed(key: string): void;
 }
-const edges = [["/me", "/settings"], ["/settings", "/settings/appearance/language"], ["/settings", "/settings/appearance/theme"]] as const;
-const pages = new Set<string>(edges.flat());
+const pages = { has: isSettingsMotionPage };
 let enabled = (import.meta.env.DEV || (typeof __S19_STYLE_LAB__ !== "undefined" && __S19_STYLE_LAB__)) && typeof location !== "undefined" && new URLSearchParams(location.search).get("motion") === "1";
 interface ScrollPoint { documentY: number; inner: number[] }
 
@@ -71,12 +73,25 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     badge.dataset.fallbacks = String(engine.fallbacks);
   });
   const abc = createABCPresentation?.() ?? null;
+  const objects = new ObjectExpandPresentation();
+  const modes = new EnterModePresentation();
+  const modeOptions = enterModeOptions(window.location.search);
+  const modeEntries = new Map<string, string>();
+  const objectEntries = new Map<string, { source: ObjectSource; sourceKey: string }>();
+  let clickedObject: { source: ObjectSource; key: string; at: number } | null = null;
+  const page = (): HTMLElement | null => {
+    const node = paneRoot()?.firstElementChild;
+    return node instanceof HTMLElement ? node : null;
+  };
   const acceptsStyle = (): boolean => enabled || html.dataset.visualStyle === "b2" || (!!abc && ["a", "b1", "c"].includes(html.dataset.visualStyle ?? ""));
   status.textContent = "Motion 试点 · 我的 → 设置 → 语言";
   const scope = (): VisualScope => ({ workspace: history.id, account, ledger, style: `${html.dataset.visualStyle ?? "original"}:${html.dataset.themeMode}:${html.dataset.themePalette}` });
   const paneRoot = (): HTMLElement | null => document.querySelector(`.lv-pane[data-instance="${history.id}"] .lv-pane-scroll`);
   const scrollers = (): HTMLElement[] => Array.from(paneRoot()?.querySelectorAll<HTMLElement>(".overflow-y-auto") ?? []);
-  const saveScroll = (key: string): void => { scrolls.set(key, { documentY: window.scrollY, inner: scrollers().map(el => el.scrollTop) }); };
+  const saveScroll = (key: string): void => {
+    scrolls.set(key, { documentY: window.scrollY, inner: scrollers().map(el => el.scrollTop) });
+    while (scrolls.size > 64) scrolls.delete(scrolls.keys().next().value!);
+  };
   const restoreScroll = (key: string): void => {
     const saved = scrolls.get(key);
     window.scrollTo({ top: saved?.documentY ?? 0, behavior: "instant" });
@@ -108,7 +123,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     html.style.setProperty("--motion-pilot-bg", background(current));
   };
   const reset = (): void => {
-    engine.cancel(); abc?.cancel(); store.setScope(scope()); scrolls.clear(); layouts.clear();
+    engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); objectEntries.clear(); modeEntries.clear(); store.setScope(scope()); scrolls.clear(); layouts.clear();
     current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source"); paint();
   };
   current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source"); paint();
@@ -116,7 +131,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   observe.observe(html, { attributes: true, attributeFilter: ["data-visual-style", "data-theme-mode", "data-theme-palette"] });
   const unsubscribeGlass = visualStyleRuntime()?.subscribe(() => { engine.cancel(); abc?.cancel(); paint(); });
   const unsubscribeVariant = subscribeAVariant(() => abc?.cancel());
-  const cancel = (): void => { engine.cancel(); abc?.cancel(); };
+  const cancel = (): void => { engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); };
   const input = (event: Event): void => {
     engine.cancel();
     // 导航控件先把当前姿态交给下一次 run；滚动、空白点按、输入立即释放呈现副本。
@@ -130,6 +145,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     const target = event.target instanceof Element ? event.target : null;
     if (!target || !paneRoot()?.contains(target)) return;
     const control = target.closest("a,button");
+    const object = target.closest<HTMLElement>("[data-object-source]");
+    clickedObject = object ? { source: objectSource(object), key: history.location.key, at: performance.now() } : null;
     // 捕获尚未提交时，同一旧控件的重复激活不再入栈；新页面的下一操作立即可用。
     if (control && control === clickedControl && committedKey !== history.location.key) {
       event.preventDefault(); event.stopImmediatePropagation(); return;
@@ -146,7 +163,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       }
     }
     const anchor = target.closest<HTMLAnchorElement>("a[href]");
-    if (anchor && edges.some(([a, b]) => a === history.location.pathname && b === anchor.pathname)) {
+    if (anchor && isSettingsMotionEdge(history.location.pathname, anchor.pathname)) {
       if (lastEntryClick?.key === history.location.key && lastEntryClick.href === anchor.href && now - lastEntryClick.at < 300) {
         event.preventDefault(); event.stopImmediatePropagation(); return;
       }
@@ -161,25 +178,32 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     scrolls.clear(); store.clear(); current = undefined; paint();
   };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  let viewport = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height };
+  const viewportChanged = (): void => {
+    const next = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height };
+    // 普通详情出现文档滚动条只改变 visualViewport.width，不是用户旋转/缩放或键盘。
+    if (next.width !== viewport.width || next.height !== viewport.height || next.visualHeight !== viewport.visualHeight) cancel();
+    viewport = next;
+  };
   document.addEventListener("pointerdown", input, true);
   document.addEventListener("keydown", input, true);
   document.addEventListener("click", click, true);
   document.addEventListener("visibilitychange", visibility);
-  window.addEventListener("resize", cancel);
+  window.addEventListener("resize", viewportChanged);
   window.addEventListener("pagehide", cancel);
-  window.visualViewport?.addEventListener("resize", cancel);
+  window.visualViewport?.addEventListener("resize", viewportChanged);
   reduced.addEventListener("change", cancel);
   let disposed = false;
   const dispose = (): void => {
     if (disposed) return; disposed = true;
-    engine.dispose(); abc?.dispose(); store.clear(); scrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
+    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
     if (pendingTimer) clearTimeout(pendingTimer);
     delete html.dataset.motionBackdrop; html.style.removeProperty("--motion-pilot-bg");
     for (const name of ["--motion-b2-old-x", "--motion-b2-old-y"]) html.style.removeProperty(name);
     for (const page of document.querySelectorAll<HTMLElement>("[data-b2-motion-page]")) delete page.dataset.b2MotionPage;
     document.removeEventListener("pointerdown", input, true); document.removeEventListener("keydown", input, true);
     document.removeEventListener("click", click, true); document.removeEventListener("visibilitychange", visibility);
-    window.removeEventListener("resize", cancel); window.removeEventListener("pagehide", cancel); window.visualViewport?.removeEventListener("resize", cancel); reduced.removeEventListener("change", cancel);
+    window.removeEventListener("resize", viewportChanged); window.removeEventListener("pagehide", cancel); window.visualViewport?.removeEventListener("resize", viewportChanged); reduced.removeEventListener("change", cancel);
   };
   close.addEventListener("click", () => { enabled = false; dispose(); });
   return {
@@ -189,22 +213,51 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       if (html.dataset.visualStyle === "a") captureATabFrame?.();
       engine.cancel();
       const from = current;
-      if (from && pages.has(from.page)) saveScroll(from.entryKey);
+      if (from) saveScroll(from.entryKey);
       if (store.setScope(scope())) { current = undefined; scrolls.clear(); layouts.clear(); }
-      const legalEdge = from && next.action === "PUSH" && edges.some(([a, b]) => a === from.page && b === next.location.pathname);
+      const legalEdge = from && next.action === "PUSH" && isSettingsMotionEdge(from.page, next.location.pathname);
       const known = store.get(next.location.key);
       current = store.ensure(next.location.key, next.location.pathname, scope(), legalEdge ? from : undefined, "source");
       const source = paneRoot();
+      const objectPush = next.action === "PUSH" && clickedObject && clickedObject.key === from?.entryKey && performance.now() - clickedObject.at < 1000
+        && clickedObject.source.id === next.location.pathname ? clickedObject : null;
+      const objectPop = next.action === "POP" && from ? objectEntries.get(from.entryKey) : undefined;
+      if (objectPush) objectEntries.set(next.location.key, { source: objectPush.source, sourceKey: objectPush.key });
+      while (objectEntries.size > 32) objectEntries.delete(objectEntries.keys().next().value!);
+      clickedObject = null;
+      if (objectPush || objectPop?.sourceKey === next.location.key) {
+        abc?.cancel();
+        pendingRestore = { key: next.location.key, focus: true };
+        objects.run({ source: objectPush?.source ?? objectPop!.source, page,
+          style: html.dataset.visualStyle ?? "c", reverse: !objectPush,
+          commit: () => flushSync(commit) });
+        return;
+      }
+      objects.cancel();
+      const modePush = next.action === "PUSH" && from && navigationLevel(next.location.pathname) === "enterMode" && from.page !== next.location.pathname;
+      const modePop = next.action === "POP" && from && modeEntries.get(from.entryKey) === next.location.key;
+      if (modePush || modePop) {
+        if (modePush) modeEntries.set(next.location.key, from!.entryKey);
+        while (modeEntries.size > 32) modeEntries.delete(modeEntries.keys().next().value!);
+        abc?.cancel(); pendingRestore = { key: next.location.key, focus: true };
+        modes.run(page, () => flushSync(commit), html.dataset.visualStyle ?? "c", modeOptions, !!modePop);
+        return;
+      }
+      modes.cancel();
       if (!known && legalEdge && source && html.dataset.visualStyle === "b2") {
         layouts.set(current.entryKey, describeLayout(source, { bounds: new DOMRect(0, 0, innerWidth, innerHeight),
           selectors: ".book-card, .rounded-card.bg-surface, .lv-settings-body.bg-surface, .sw-statbar, details.rounded-field.bg-surface, .detail-overview-main, .detail-overview-mini" }));
       }
       const keys = history.serialize().entries.map(entry => entry.key);
+      for (const key of objectEntries.keys()) if (!keys.includes(key)) objectEntries.delete(key);
+      for (const key of modeEntries.keys()) if (!keys.includes(key)) modeEntries.delete(key);
       store.prune(keys);
-      for (const key of scrolls.keys()) if (!keys.includes(key) || !store.get(key)) scrolls.delete(key);
+      for (const key of scrolls.keys()) if (!keys.includes(key)) scrolls.delete(key);
       for (const key of layouts.keys()) if (!store.get(key)) layouts.delete(key);
-      const allowPop = !!appBack && appBack.from === from?.entryKey && appBack.to === next.location.key && performance.now() - appBack.at < 1000;
+      const allowPop = next.action === "POP" && from?.sourceKey === next.location.key
+        || !!appBack && appBack.from === from?.entryKey && appBack.to === next.location.key && performance.now() - appBack.at < 1000;
       appBack = null; pendingBack = null; if (pendingTimer) clearTimeout(pendingTimer);
+      const edges: [string, string][] = from && isSettingsMotionEdge(from.page, current.page) ? [[from.page, current.page]] : [];
       let direction = from ? directionFor(from, current, next.action, edges, allowPop) : "none";
       const focus = document.activeElement;
       const blocked = document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null
@@ -231,7 +284,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       const material = style === "b1" || style === "b2" || style === "a" ? style : "c";
       if (abc && material !== "b2") {
         if (direction === "none" || !from) { abc.cancel(); apply(); return; }
-        abc.run({ fromKey: from.entryKey, toKey: target.entryKey, direction, style: material, variant: aVariant(), commit: apply,
+        abc.run({ fromKey: from.entryKey, toKey: target.entryKey, direction, style: material, variant: aVariant() ?? "pure-cover", commit: apply,
           page: () => { const page = paneRoot()?.firstElementChild; return page instanceof HTMLElement ? page : null; } });
         return;
       }

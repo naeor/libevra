@@ -7,6 +7,14 @@ export function useBottomNavUnderlay() {
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     const nav = ref.current;
+    if (nav?.closest("[data-persistent-nav]") && typeof ResizeObserver !== "undefined") {
+      const measure = () => {
+        const height = nav.getBoundingClientRect().height;
+        if (height > 0) document.documentElement.style.setProperty("--lv-bottom-nav-height", `${height}px`);
+      };
+      const observer = new ResizeObserver(measure); observer.observe(nav); measure();
+      return () => observer.disconnect();
+    }
     const page = nav?.closest<HTMLElement>(".h-dvh");
     const scroller = page?.querySelector<HTMLElement>(":scope > .overflow-y-auto");
     if (!nav || !page || !scroller || typeof ResizeObserver === "undefined") return;

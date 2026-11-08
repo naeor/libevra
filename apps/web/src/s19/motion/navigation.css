@@ -1,0 +1,8 @@
+.persistent-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; }
+.persistent-nav[hidden] { display: none; }
+.persistent-nav-space { height: var(--lv-bottom-nav-height,calc(65px + env(safe-area-inset-bottom,0px))); }
+.entry-mode-page { padding-bottom: calc(var(--lv-bottom-nav-height,65px) + 24px); }
+.lv-shell.mode-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; background: var(--lv-wallpaper-bg); }
+.mode-stage .s19-abc-plane { position: absolute; inset: 0; overflow: hidden; }
+.mode-stage nav, .mode-stage [data-persistent-nav], .mode-stage .lv-entry-menu { visibility: hidden; }
+[data-enter-mode-live] { position: relative; z-index: 21; }

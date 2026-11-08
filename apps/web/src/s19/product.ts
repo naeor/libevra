@@ -3,9 +3,11 @@ import "./s19.css";
 import { startVisualStyleRuntime } from "../lib/visualStyle.js";
 import { startTabIndicator } from "./tabIndicator.js";
 import { startTabMotion } from "./tabMotion.js";
+import { startWallpaperEdges } from "./wallpaperEdges.js";
 
 export function startB2Appearance(): void {
   startVisualStyleRuntime();
+  startWallpaperEdges();
   startTabMotion();
   startTabIndicator();
 }

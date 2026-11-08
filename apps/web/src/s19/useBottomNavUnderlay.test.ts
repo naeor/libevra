@@ -8,7 +8,7 @@ let resize: () => void;
 let structure: () => void;
 let caption: { getBoundingClientRect(): { height: number } } | null;
 let menu: { getBoundingClientRect(): { height: number } };
-let nav: { isConnected: boolean; closest(): unknown; querySelector(): unknown; getBoundingClientRect(): { height: number } };
+let nav: { isConnected: boolean; closest(selector: string): unknown; querySelector(): unknown; getBoundingClientRect(): { height: number } };
 let scroller: { isConnected: boolean; dataset: Record<string, string>; style: { setProperty(key: string, value: string): void; removeProperty(key: string): void } };
 let css: Map<string, string>;
 let pageCss: Map<string, string>;
@@ -18,13 +18,22 @@ beforeEach(() => {
   scroller = { isConnected: true, dataset: {}, style: { setProperty: (k, v) => { css.set(k, v); }, removeProperty: k => { css.delete(k); } } };
   const page = { querySelector: (selector: string) => selector.includes("overflow-y-auto") ? scroller : caption,
     style: { setProperty: (k: string, v: string) => { pageCss.set(k, v); }, removeProperty: (k: string) => { pageCss.delete(k); } } };
-  nav = { isConnected: true, closest: () => page, querySelector: () => menu, getBoundingClientRect: () => ({ height: 84 }) };
+  nav = { isConnected: true, closest: selector => selector === ".h-dvh" ? page : null, querySelector: () => menu, getBoundingClientRect: () => ({ height: 84 }) };
   vi.stubGlobal("ResizeObserver", class { constructor(cb: () => void) { resize = cb; } observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("MutationObserver", class { constructor(cb: () => void) { structure = cb; } observe() {} disconnect() {} });
   hook.nav = nav;
   useBottomNavUnderlay();
 });
 afterEach(async () => { hook.cleanup?.(); await Promise.resolve(); vi.unstubAllGlobals(); });
+
+it("常驻底栏按真实高度占位，隐藏于次级页时不把保存高度清零", () => {
+  hook.cleanup?.();
+  nav.closest = () => ({});
+  vi.stubGlobal("document", { documentElement: { style: { setProperty: (key: string, value: string) => css.set(key, value) } } });
+  useBottomNavUnderlay(); expect(css.get("--lv-bottom-nav-height")).toBe("84px");
+  nav.getBoundingClientRect = () => ({ height: 0 }); resize();
+  expect(css.get("--lv-bottom-nav-height")).toBe("84px");
+});
 
 it("StrictMode 清理再订阅不临时撤掉滚动视口的重叠空间", async () => {
   hook.cleanup?.();

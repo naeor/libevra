@@ -102,6 +102,7 @@ export function LedgerEntryRow({
     <li className={toneClass === "" ? undefined : toneClass}>
       <button
         type="button"
+        data-object-source={`/transactions/${entry.id}`}
         onClick={(event) => {
           if (newTabPath !== undefined && wantsNewTab(event)) {
             event.preventDefault();

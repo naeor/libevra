@@ -6,7 +6,9 @@ import type { CurrencySummary } from "@libellum/shared";
 import { useI18n } from "../../i18n/index.js";
 import { dailyMinor, type DetailCards } from "../../lib/detailCards.js";
 import { fxMoney, type useFxRange } from "../../lib/fxView.js";
-export function DetailOverview({ config, summary, currency, label, days, fx, onCurrencies, hidden, loading, entries = [], chartFrom = "", chartTo = "", chartComplete = false, syncStatus, onEdit }: {
+import type { MetricContent, OverviewMetric } from "./metricSnapshot.js";
+export function DetailOverview({ config, summary, currency, label, days, fx, onCurrencies, hidden, loading, entries = [], chartFrom = "", chartTo = "", chartComplete = false, syncStatus, onEdit, onOpen }: {
+  onOpen?: (data: MetricContent) => void;
   syncStatus?: "syncConflict" | "syncPending" | "syncError" | undefined; onEdit?: (() => void) | undefined;
   entries?: readonly Transaction[]; chartFrom?: string; chartTo?: string; chartComplete?: boolean;
   config: DetailCards; summary: CurrencySummary | null; currency: string; label: string; days: number | null;
@@ -25,23 +27,30 @@ export function DetailOverview({ config, summary, currency, label, days, fx, onC
     return amount == null ? "—" : fxMoney(String(amount), target).slice(0, -(target.length + 1));
   };
   const metrics = mainDetailMetrics(config);
-  const chartRows: MiniEntry[] = (metrics.some(isDetailChart) ? fx?.sourceEntries ?? entries : []).flatMap(e => {
+  const chartRows: MiniEntry[] = (fx?.sourceEntries ?? entries).flatMap(e => {
     if (fx) {
       const minor = convertFx({ ...e, bookId: "bookId" in e ? String(e.bookId) : "" }, target, fx.lookups?.get(e.occurredLocalDate)).convertedMinor;
       return minor === null ? [] : [{ ...e, minor }];
     }
     return e.currency === currency && Number.isSafeInteger(e.amountCents) ? [{ ...e, minor: String(e.amountCents) }] : [];
   });
+  const available = (metric: string) => !loading && !(fx && !fx.result) && (metric !== "daily" || value(metric) !== "—");
+  const open = (metric: OverviewMetric) => {
+    if (!available(metric)) return;
+    onOpen?.({ metric, label, currency: target, from: chartFrom, to: chartTo, days, entries: chartRows,
+      values: Object.fromEntries(["income", "expense", "balance", "daily", "count"].map(key => [key, value(key)])),
+      incomplete: fx ? !fx.sourceComplete || !fx.result?.complete : !chartComplete });
+  };
   return <div className="detail-overview" inert={hidden} aria-hidden={hidden}>
-    <div className="detail-main-card"><section className="detail-overview-main">
+    <div className="detail-main-card"><section className="detail-overview-main" data-object-source="/ledger/metrics/overview">
       <div className="flex items-center justify-between gap-2 text-helper"><span>{label}</span><button type="button" className="min-h-8 underline" onClick={onCurrencies}>{fx ? t("fx.combined") + " · " : ""}{target}</button></div>
-      <div className="detail-overview-totals" data-single={metrics.length === 1}>{metrics.map(metric => <div key={metric}><p className="text-helper text-on-brand/80">{t(`ledger.cards.${metric}`)}</p>{isDetailChart(metric) ? loading ? <p>—</p> : !chartFrom || !chartTo ? <p className="text-helper">{t("ledger.cards.chooseRange")}</p> : <DetailMiniChart metric={metric} entries={chartRows} from={chartFrom} to={chartTo} currency={target} incomplete={fx ? !fx.sourceComplete || !fx.result?.complete : !chartComplete} /> : <p className="text-2xl font-semibold tabular-nums break-words">{value(metric)}</p>}</div>)}</div>
+      <button type="button" disabled={!available("overview")} aria-label={t("ledger.cards.overview")} onClick={() => open("overview")} className="detail-overview-totals w-full text-left" data-single={metrics.length === 1}>{metrics.map(metric => <div key={metric}><p className="text-helper text-on-brand/80">{t(`ledger.cards.${metric}`)}</p>{isDetailChart(metric) ? loading ? <p>—</p> : !chartFrom || !chartTo ? <p className="text-helper">{t("ledger.cards.chooseRange")}</p> : <DetailMiniChart metric={metric} entries={chartRows} from={chartFrom} to={chartTo} currency={target} incomplete={fx ? !fx.sourceComplete || !fx.result?.complete : !chartComplete} /> : <p className="text-2xl font-semibold tabular-nums break-words">{value(metric)}</p>}</div>)}</button>
       {syncStatus ? <button type="button" className="text-helper underline min-h-8" onClick={onEdit}>{t(`ledger.cards.${syncStatus}`)}</button> : null}
       {fx && (fx.error || fx.result && (!fx.result.complete || !fx.sourceComplete)) ? <p className="text-helper">{t(fx.error ? "fx.unavailable" : "fx.incomplete")}</p> : null}
       {fx?.offline ? <p className="text-helper">{t("fx.offline")}</p> : null}
       {fx?.result?.reviewNeededCount ? <p className="text-helper">{t("fx.review")}</p> : null}
       {fx?.error ? <button type="button" className="min-h-11 underline text-helper" onClick={fx.refresh}>{t("fx.retry")}</button> : null}
     </section></div>
-    <div className="detail-overview-strip"><div className="detail-overview-small">{([config.first, config.second]).map((metric, i) => <section key={i}><p className="text-helper text-on-brand/80">{t(`ledger.cards.${metric}`)}</p><p className="text-lg font-semibold tabular-nums break-words">{value(metric)}</p>{metric === "daily" ? <p className="text-helper text-on-brand/75">{days ? t("ledger.cards.days", { count: days }) : t("ledger.cards.chooseRange")}</p> : null}</section>)}</div></div>
+    <div className="detail-overview-strip"><div className="detail-overview-small">{([config.first, config.second]).map((metric, i) => <section key={i} data-object-source={`/ledger/metrics/${metric}`} data-object-slot={i}><button type="button" disabled={!available(metric)} className="w-full text-left" onClick={() => open(metric)}><p className="text-helper text-on-brand/80">{t(`ledger.cards.${metric}`)}</p><p className="text-lg font-semibold tabular-nums break-words">{value(metric)}</p>{metric === "daily" ? <p className="text-helper text-on-brand/75">{days ? t("ledger.cards.days", { count: days }) : t("ledger.cards.chooseRange")}</p> : null}</button></section>)}</div></div>
   </div>;
 }

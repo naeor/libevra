@@ -34,6 +34,7 @@ import { CurrentBookRedirect, StartBookRedirect } from "./pages/BookRedirects.js
 import { BookSettingsPage } from "./pages/BookSettingsPage.js";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage.js";
 import { DetailPage } from "./pages/DetailPage.js";
+import { MetricDetailPage } from "./pages/MetricDetailPage.js";
 import { DownloadManagerPage } from "./pages/DownloadManagerPage.js";
 import { DownloadMorePage } from "./pages/DownloadMorePage.js";
 import { SoftwareUpdatePage } from "./pages/SoftwareUpdatePage.js";
@@ -290,6 +291,7 @@ function AppRoutes(): React.JSX.Element {
           </RequireSession>
         }
       />
+      <Route path="/ledger/metrics/:metric" element={<RequireSession><MetricDetailPage /></RequireSession>} />
       <Route
         path="/stats"
         element={

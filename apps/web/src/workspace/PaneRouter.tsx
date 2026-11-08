@@ -15,7 +15,7 @@ import { NavigationType, Router, UNSAFE_LocationContext } from "react-router";
 import type { PaneHistory, PaneSnapshot } from "./paneHistory.js";
 import type { PilotAdapter } from "../s19/motion/pilot.js";
 
-// 只在内层启动；正式模式仅 B2 手机设置路径，开发调试开关由模块内部隔离。
+// 只在内层启动；协调手机普通导航、对象展开与工作模式，仍由同一个历史订阅提交页面。
 const MotionPilot = lazy(() => import("../s19/motion/pilot.js"));
 
 export function PaneRouter({
