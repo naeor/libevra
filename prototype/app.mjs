@@ -26,9 +26,9 @@ const entries = [
 const icons = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 const escapeHTML = value => value.replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
 const styleInfo = {
-  a: { name:'A / 柔和空间', description:'先轻轻靠近，再迅速展开。周围记录稍稍退远，固定导航留在原处。', label:'A · 前移倍率', values:[1.02,1.028,1.035], unit:' ×', selected:1.028 },
-  b1: { name:'B1 / 实体瓷片', description:'不透明瓷片扩张，附近记录按上下相对位置退让。只做视觉位移，不挤压真实排版。', label:'B1 · 最大退让', values:[12,18,24], unit:' px', selected:18 },
-  b2: { name:'B2 / 通透玻璃', description:'真实列表留在原位。玻璃边缘透出颜色与形状，文字区域用稳定底色保持清楚。', label:'B2 · 背景保持原位', values:[0], unit:' px', selected:0 },
+  a: { name:'A / 柔和空间', description:'卡片向前放大至约 1.1 倍，周围 UI 同步压暗，再展开为详情。', label:'A · 前移倍率', values:[1.08,1.1,1.12], unit:' ×', selected:1.1 },
+  b1: { name:'B1 / 实体瓷片', description:'瓷片把上方内容向上、下方内容向下完整挤出可视区。与扩张同步，彼此不碰撞；固定导航不移动。', label:'B1 · 同步挤出可视区', values:[0], unit:'', selected:0 },
+  b2: { name:'B2 / 通透玻璃', description:'沿用现有半透明金额卡片与字段卡片。后方明细留在原位，环境光透过整张详情。', label:'B2 · 背景保持原位', values:[0], unit:' px', selected:0 },
   c: { name:'C / 经典纸片', description:'纸面直接展开。周围记录轻移、稍淡，让出注意力；没有悬浮、反射或透射。', label:'C · 轻微退让', values:[4,6,8], unit:' px', selected:6 },
 };
 let style = 'a', duration = 200, pendingBack = false;
@@ -41,7 +41,15 @@ function renderRecords() {
 }
 function updateMaterial() { for (const node of document.querySelectorAll('.record')) node.dataset.materialFinish = style === 'b1' ? 'satin' : style === 'b2' ? 'frosted' : 'auto'; }
 function detailHTML(entry) {
-  return `<div class="detail-toolbar"><button data-back aria-label="返回账目列表">‹</button><h3>账目详情</h3><span></span></div><div class="detail-body"><div class="detail-hero"><span class="record-icon">${icons(entry.icon)}</span><h4>${entry.title}</h4><div class="detail-amount ${entry.amount.startsWith('+') ? 'income' : ''}">${entry.amount}</div><small>人民币 · CNY</small></div><dl><div><dt>分类</dt><dd>${entry.sub.split(' · ')[0]}</dd></div><div><dt>时间</dt><dd>${entry.sub.split(' · ')[1]}</dd></div><div><dt>账户</dt><dd>日常账户</dd></div><div><dt>账本</dt><dd>我的日常账本</dd></div></dl><p class="note">${escapeHTML(entry.note)}</p><button class="detail-action" data-check>标记为已核对</button></div><p class="detail-footnote">模拟账目 · 不会更改真实数据</p>`;
+  // 与正式 EntryDetailPage 相同的金额区 / 字段区分工，仍只用模拟数据。
+  // B2 内层消费正式 content 材质，不再盖一块 93% 白色阅读底。
+  const material = `class="entry-panel lv-material lv-material-effects" data-material-role="display" data-material-finish="${style === 'b1' ? 'satin' : 'auto'}"`;
+  const amount = entry.amount.replace(/^([−+])/, '$1¥');
+  return `<div class="detail-toolbar entry-toolbar" data-reveal><button data-back aria-label="返回账目列表">‹ 返回</button><button data-check aria-pressed="false">核对</button></div>
+    <h3 class="entry-heading" data-reveal>记账详情</h3>
+    <section ${material} data-reveal><p class="entry-kind">${entry.amount.startsWith('+') ? '收入' : '支出'}</p><div class="detail-amount">${amount} <span>CNY</span></div></section>
+    <dl ${material} data-reveal><div><dt>分类</dt><dd>${entry.sub.split(' · ')[0]}</dd></div><div><dt>支付方式</dt><dd>微信</dd></div><div><dt>币种</dt><dd>人民币</dd></div><div><dt>时间</dt><dd>${entry.sub.split(' · ')[1]}</dd></div><div><dt>时区</dt><dd class="entry-muted">Asia/Shanghai</dd></div><div><dt>备注</dt><dd>${escapeHTML(entry.note)}</dd></div><div><dt>编号</dt><dd>#${String(entries.indexOf(entry) + 101).padStart(6, '0')}</dd></div></dl>
+    <div class="entry-extra" data-reveal><h4>附件 <small>0 个附件</small></h4><p>暂无附件</p><h4>标签</h4><p>暂无标签</p><button class="detail-action" data-back>返回账目列表</button><p class="detail-footnote">模拟账目 · 不会更改真实数据</p></div>`;
 }
 function openEntry(id, push = true) {
   if (controller.state !== 'list' || pendingBack) return;
@@ -90,7 +98,7 @@ $('#records').addEventListener('click', event => { const row = event.target.clos
 $('#overlay').addEventListener('click', event => {
   if (event.target.closest('[data-back]')) requestBack();
   const check = event.target.closest('[data-check]');
-  if (check && controller.state === 'detail') { check.textContent = check.getAttribute('aria-pressed') === 'true' ? '标记为已核对' : '已核对 ✓'; check.setAttribute('aria-pressed', String(check.textContent.startsWith('已核对'))); }
+  if (check && controller.state === 'detail') { check.textContent = check.getAttribute('aria-pressed') === 'true' ? '核对' : '已核对 ✓'; check.setAttribute('aria-pressed', String(check.textContent.startsWith('已核对'))); }
 });
 window.addEventListener('popstate', () => {
   pendingBack = false;
@@ -115,6 +123,7 @@ $('#styles').addEventListener('click', event => {
   for (const node of $('#styles').querySelectorAll('button')) node.setAttribute('aria-pressed', String(node === button));
   const info = styleInfo[style]; $('#preview-style').textContent = info.name; $('#style-description').textContent = info.description;
   $('#tuning label').textContent = info.label;
+  $('#tuning').hidden = style === 'b1' || style === 'b2';
   $('#strength').innerHTML = info.values.map(value => `<option value="${value}" ${value === info.selected ? 'selected' : ''}>${value}${info.unit}</option>`).join('');
   updateMaterial();
 });
@@ -122,7 +131,7 @@ $('#durations').addEventListener('click', event => {
   const button = event.target.closest('[data-duration]'); if (!button || controller.state !== 'list') return;
   duration = Number(button.dataset.duration);
   for (const node of $('#durations').querySelectorAll('button')) node.setAttribute('aria-pressed', String(node === button));
-  $('#timing-label').textContent = `0 → ${Math.round(duration * .1)} → ${Math.round(duration * .85)} → ${duration} ms`;
+  $('#timing-label').textContent = `容器约 ${Math.round(duration * .6)} ms 展开 · 内容 ${Math.round(duration * .55)}–${duration} ms 渐入`;
 });
 $('#reset').addEventListener('click', () => { if (controller.state === 'list') { renderRecords(); $('#list').scrollTop = 0; $('#scenario').value = 'normal'; $('#status').value = '模拟列表已重置'; } });
 let size = null;

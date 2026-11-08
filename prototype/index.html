@@ -19,8 +19,8 @@
       <p class="intro">点击任意记录，再返回。比较同一个容器展开时，四种风格如何回应。</p>
       <fieldset id="styles"><legend>01 <span>空间风格</span></legend>
         <div class="style-options">
-          <button data-style="a" aria-pressed="true"><b>A</b><span>柔和空间<small>向前浮起 · 后方退远</small></span><i>↗</i></button>
-          <button data-style="b1" aria-pressed="false"><b>B1</b><span>实体瓷片<small>瓷片扩张 · 周围退让</small></span><i>↔</i></button>
+          <button data-style="a" aria-pressed="true"><b>A</b><span>柔和空间<small>向前浮起 · 周围压暗</small></span><i>↗</i></button>
+          <button data-style="b1" aria-pressed="false"><b>B1</b><span>实体瓷片<small>瓷片扩张 · 上下挤出</small></span><i>↔</i></button>
           <button data-style="b2" aria-pressed="false"><b>B2</b><span>通透玻璃<small>玻璃展开 · 背景留驻</small></span><i>◈</i></button>
           <button data-style="c" aria-pressed="false"><b>C</b><span>经典纸片<small>直接展开 · 轻微动势</small></span><i>▱</i></button>
         </div>
@@ -30,9 +30,9 @@
         <button data-duration="200" aria-pressed="true">200 <small>ms</small></button>
         <button data-duration="220" aria-pressed="false">220 <small>ms</small></button>
       </div></fieldset>
-      <div class="tuning" id="tuning"><label for="strength">A · 前移倍率</label><select id="strength"><option value="1.02">1.020 ×</option><option value="1.028" selected>1.028 ×</option><option value="1.035">1.035 ×</option></select></div>
-      <p class="style-description" id="style-description">先轻轻靠近，再迅速展开。周围记录稍稍退远，固定导航留在原处。</p>
-      <div class="timeline"><span>内容退场</span><span>容器展开</span><span>详情出现</span><div><i></i><i></i><i></i></div><small id="timing-label">0 → 20 → 170 → 200 ms</small></div>
+      <div class="tuning" id="tuning"><label for="strength">A · 前移倍率</label><select id="strength"><option value="1.08">1.08 ×</option><option value="1.1" selected>1.10 ×</option><option value="1.12">1.12 ×</option></select></div>
+      <p class="style-description" id="style-description">卡片向前放大至约 1.1 倍，周围 UI 同步压暗，再展开为详情。</p>
+      <div class="timeline"><span>内容退场</span><span>容器展开</span><span>详情渐入</span><div><i></i><i></i><i></i></div><small id="timing-label">容器约 120 ms 展开 · 内容 110–200 ms 渐入</small></div>
       <details class="lab-notes"><summary>边界测试与实现说明</summary>
         <label class="check"><input type="checkbox" id="reduce"> 模拟减少动态效果</label>
         <label for="scenario">返回前模拟</label>
@@ -46,7 +46,7 @@
         <p><b>现有协调器：</b>PaneRouter / MotionPilot 已经负责导航提交与方向；ABC 呈现器消费回调并清理呈现副本。本轮只验证局部共享容器，后续 React 接入时复用该分工，不增设第二套路由历史。原型自己的历史只用于测试浏览器返回。</p>
         <p>材质只读引用主工作区的 S19 令牌、material-components.css 和 material-effects.css；没有复制材质配方或业务依赖。原型必须通过本地服务打开。</p>
       </details>
-      <footer class="prototype-meta">S19-CT 0.1.0 · 模拟数据 · 仅本机原型</footer>
+      <footer class="prototype-meta">S19-CT 0.2.0 · 内容渐入 / A 压暗 / B1 挤出 / B2 透明详情</footer>
     </aside>
     <section class="preview" aria-label="手机原型">
       <div class="preview-caption"><span id="preview-style">A / 柔和空间</span><span>同一几何 · 同一节奏</span></div>

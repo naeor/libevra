@@ -41,4 +41,4 @@ const server = http.createServer(async (request, response) => {
 });
 const port = Number(process.env.LIBEVRA_PROTOTYPE_PORT || 5197);
 server.on('error', error => { console.error(`原型未启动：${error.message}。不会占用其他端口或停止现有服务。`); process.exitCode = 1; });
-server.listen(port, '127.0.0.1', () => console.log(`Libevra S19-CT 0.1.0 · http://localhost:${port}\n只读材质来源：${referenceRoot}\nCtrl+C 停止此原型；不连接 API 或数据库。`));
+server.listen(port, '127.0.0.1', () => console.log(`Libevra S19-CT 0.2.0 · http://localhost:${port}\n只读材质来源：${referenceRoot}\nCtrl+C 停止此原型；不连接 API 或数据库。`));

@@ -11,16 +11,29 @@ export function reliableTarget(saved, current, viewport, changed = false) {
     && current.x + current.width <= viewport.width + 1 && current.y + current.height <= viewport.height + 1
     && ['x', 'y', 'width', 'height'].every(key => Math.abs(saved[key] - current[key]) < 2);
 }
-export function surroundingPose(style, rect, source, strength) {
+export function surroundingPose(style, rect, source, strength, viewport = { height: 0 }) {
   const side = rect.y + rect.height / 2 < source.y + source.height / 2 ? -1 : 1;
-  const distance = Math.abs(rect.y - source.y);
   if (style === 'b1') {
-    const travel = Math.max(12, strength * (1 - Math.min(distance / 850, .45)));
-    return { transform: `translate3d(0,${side * travel}px,0)`, opacity: .5 };
+    // 同侧内容整体移动，保留彼此间距；最近一项也必须越过舞台边界。
+    const travel = side < 0 ? source.y + 12 : viewport.height - source.y - source.height + 12;
+    return { transform: `translate3d(0,${side * Math.max(0, travel)}px,0)`, opacity: 1 };
   }
   if (style === 'a') return { transform: `translate3d(0,${side * 4}px,0) scale(.98)`, opacity: .58 };
   if (style === 'c') return { transform: `translate3d(0,${side * strength}px,0)`, opacity: .72 };
   return { transform: 'none', opacity: 1 };
+}
+export const EXPANSION_MIDDLE = .18;
+export const EXPANSION_END = .6;
+export const FIRST_EASE = 'cubic-bezier(.25,.6,.4,1)';
+export function expansionFrames(first, middle, last) {
+  return [{ ...first, offset: 0, easing: FIRST_EASE }, { ...middle, offset: .19, easing: EASE },
+    { ...last, offset: EXPANSION_END }, { ...last, offset: 1 }];
+}
+export function pushFrames(rect, source, viewport) {
+  const last = surroundingPose('b1', rect, source, 0, viewport);
+  const dy = Number(last.transform.match(/,([^p]+)px/)[1]);
+  return expansionFrames({ transform: 'translate3d(0,0px,0)', opacity: 1 },
+    { transform: `translate3d(0,${dy * EXPANSION_MIDDLE}px,0)`, opacity: 1 }, last);
 }
 export function boxFrame(box, radius = 20, scale = 1) {
   return { transform: `translate3d(${box.x}px,${box.y}px,0) scale(${scale})`, width: `${box.width}px`, height: `${box.height}px`, borderRadius: `${radius}px` };
