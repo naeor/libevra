@@ -226,7 +226,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   const unsubscribeClock = onClockReport(report => {
     if (!enabled) return;
     badge.dataset.lastMotion = report.name;
-    status.textContent = `${report.name} · ${report.frames}帧 / ${report.wallMs}ms（设定 ${report.duration}） · 首帧 ${report.firstFrameMs}ms · 最长间隔 ${report.maxGapMs}ms${report.completed ? "" : " · 中断"}`;
+    status.textContent = `${report.name} · ${report.frames}帧 / ${report.wallMs}ms（设定 ${report.duration}） · 首帧 ${report.firstFrameMs}ms · 最长间隔 ${report.maxGapMs}ms${report.stalled ? " · rAF 停止，已直接收尾" : report.completed ? "" : " · 中断"}`;
   });
   document.addEventListener("pointerdown", input, true);
   document.addEventListener("touchstart", touchStart, { capture: true, passive: true });

@@ -11,6 +11,9 @@
  * - 之后每帧最多推进 `maxStep`（约 30fps 的一帧）。长任务或首次绘制只会让动画停一下，不会跳过前段；
  * - 正常 60 / 120Hz 下与实时一致，总时长不变。
  *
+ * 看门狗：连续 600ms 收不到任何 rAF（标签页被挂到后台、内嵌 WebView 停帧）时直接走到终点并完成，
+ * 不让暂停中的动画、舞台与 inert 页面停在半路。
+ *
  * 只负责时间，不创建 DOM、不提交路由；调用方在 `onProgress` 里做中途交接（例如 Object Expand 在 45% 时提交详情）。
  */
 export interface ClockReport {
@@ -25,7 +28,12 @@ export interface ClockReport {
   readonly maxGapMs: number;
   readonly duration: number;
   readonly completed: boolean;
+  /** 因 rAF 停止由看门狗直接收尾。 */
+  readonly stalled: boolean;
 }
+
+/** 连续这么久没有 rAF 就认为帧已停止（后台、停帧的 WebView），直接收尾。 */
+export const STALL_MS = 600;
 
 const listeners = new Set<(report: ClockReport) => void>();
 /** 开发诊断（`?motion=1` 徽章）订阅每次动画的真实帧数与时间分布。 */
@@ -55,10 +63,17 @@ export function runFrameClock(animations: Animation[], duration: number, options
   for (const animation of list) { animation.pause(); animation.currentTime = 0; }
   const created = performance.now();
   let time = 0, last: number | null = null, frames = 0, first = 0, firstAt = 0, maxGap = 0, raf = 0, ended = false;
-  const report = (completed: boolean): void => {
-    const value: ClockReport = { name: options.name, firstFrameMs: Math.round(first), frames, wallMs: Math.round(performance.now() - (firstAt || created)), maxGapMs: Math.round(maxGap), duration, completed };
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const report = (completed: boolean, stalled = false): void => {
+    const value: ClockReport = { name: options.name, firstFrameMs: Math.round(first), frames, wallMs: Math.round(performance.now() - (firstAt || created)), maxGapMs: Math.round(maxGap), duration, completed, stalled };
     for (const listener of listeners) listener(value);
   };
+  const finish = (stalled: boolean): void => {
+    ended = true; clearTimeout(watchdog);
+    if (stalled) { cancelAnimationFrame(raf); time = duration; for (const animation of list) animation.currentTime = time; options.onProgress?.(1); }
+    report(true, stalled); options.onDone?.();
+  };
+  const arm = (): void => { clearTimeout(watchdog); watchdog = setTimeout(() => { if (!ended) finish(true); }, STALL_MS); };
   const tick = (now: number): void => {
     if (ended) return;
     if (last === null) { first = now - created; firstAt = now; }
@@ -69,29 +84,37 @@ export function runFrameClock(animations: Animation[], duration: number, options
     last = now; frames++;
     for (const animation of list) animation.currentTime = time;
     options.onProgress?.(duration ? time / duration : 1);
-    if (time >= duration) { ended = true; report(true); options.onDone?.(); return; }
-    raf = requestAnimationFrame(tick);
+    if (ended) return;
+    if (time >= duration) { finish(false); return; }
+    raf = requestAnimationFrame(tick); arm();
   };
-  raf = requestAnimationFrame(tick);
+  raf = requestAnimationFrame(tick); arm();
   return {
     get progress() { return duration ? time / duration : 1; },
     add(animation) { animation.pause(); animation.currentTime = time; list.push(animation); },
     remove(animation) { const index = list.indexOf(animation); if (index >= 0) list.splice(index, 1); animation.cancel(); },
-    cancel() { if (ended) return; ended = true; cancelAnimationFrame(raf); report(false); },
+    cancel() { if (ended) return; ended = true; clearTimeout(watchdog); cancelAnimationFrame(raf); report(false); },
   };
 }
 
 /** 不需要 WAAPI 的数值动画（例如明细顶部 `--p`）使用同一时钟语义。 */
 export function runFrameValue(duration: number, onValue: (t: number) => void, onDone?: () => void, maxStep = 34): () => void {
   let time = 0, last: number | null = null, raf = 0, ended = false;
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const finish = (): void => { ended = true; clearTimeout(watchdog); onDone?.(); };
+  const arm = (): void => {
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => { if (ended) return; cancelAnimationFrame(raf); onValue(1); finish(); }, STALL_MS);
+  };
   const tick = (now: number): void => {
     if (ended) return;
     if (last !== null) time = Math.min(duration, time + Math.min(now - last, maxStep));
     last = now;
     onValue(duration ? time / duration : 1);
-    if (time >= duration) { ended = true; onDone?.(); return; }
-    raf = requestAnimationFrame(tick);
+    if (ended) return;
+    if (time >= duration) { finish(); return; }
+    raf = requestAnimationFrame(tick); arm();
   };
-  raf = requestAnimationFrame(tick);
-  return () => { ended = true; cancelAnimationFrame(raf); };
+  raf = requestAnimationFrame(tick); arm();
+  return () => { ended = true; clearTimeout(watchdog); cancelAnimationFrame(raf); };
 }
