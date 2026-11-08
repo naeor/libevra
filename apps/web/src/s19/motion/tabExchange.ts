@@ -1,38 +1,45 @@
-import { snapshot, restoreSnapshot } from "./abcPresentation.js";
-import { setPose } from "./objectExpand.js";
 import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
+import { MOTION_CLOCK, TAB_SWITCH } from "../../lib/motionTokens.js";
 import "./tabExchange.css";
 
 /**
- * 主 Tab 平级交换（switchTab）。移植已验收的 Tab Switch Lab（experiments/tab-switch-lab/motion.mjs）：
- * 同一平面上的两页共用一个时钟、宽度与 easing，整页横向交换；底栏、加号与统一壁纸不参与移动。
+ * 主 Tab 平级交换（switchTab）。同一平面上的两页共用一个时钟、宽度与 easing，整页横向交换；
+ * 底栏、加号与统一壁纸不参与移动。排队语义沿用 Tab Switch Lab：正在交换时只记住最后一次点击，
+ * 当前交换完成后再从实际所在页出发。
  *
- * 正式应用只挂载当前路由，所以旧页用一次 inert 副本、新页直接移动真实 React 页面。
- * 排队语义与 Lab 相同：正在交换时只记住最后一次点击，当前交换完成后再从实际所在页出发。
- *
- * 1.19.43：时间由帧锚定时钟推进（lib/frameClock.ts）。1.19.42 在提交新页面后直接交给浏览器计时，
- * iPhone Safari 上整页副本与新页面的首次绘制吃掉了前一两百毫秒，第一帧就落在 90% 左右，
- * 看起来像“新页面先占满，再被拨进来一点”。现在第一帧固定是起始姿态，两页从同一帧开始同步移动。
+ * 1.19.44：点击与新页面初始化解耦。
+ * - 1.19.43 在点击处理里先克隆整页旧页、再同步提交新页面，分析页还要在提交后按网格尺寸再渲染全部卡片；
+ *   这些都发生在第一帧位移之前，于是“点了以后先停一下，再一下子滑过去”（曲线前两帧就走完 67%）。
+ * - 现在点击当帧就移动**真实的旧页面**，新页面用 React transition 在后台渲染、不占住帧；旧页先走到
+ *   `TAB_SWITCH.waitFor`（约 8%），之后慢速蠕动（最多约 13%）等新页面。React 提交新页面时会把旧页从工作区移除——同一个节点随即
+ *   接到交换舞台上继续离开（不克隆、不重算 SVG id），新页面按时钟当前时间对齐进入。两步都发生在同一帧
+ *   绘制之前，屏幕上不会有缺页的一帧。
+ * - 时长与曲线来自 Motion Token（tokens.ts），时间由帧锚定时钟推进。
  */
 export const TAB_ORDER = ["/", "/stats", "/ledger", "/me"] as const;
-export const TAB_EASING = "cubic-bezier(0.22, 0.68, 0, 1)";
-export const TAB_DURATION = 200;
 export function tabIndex(pathname: string): number { return (TAB_ORDER as readonly string[]).indexOf(pathname); }
 
-interface Pending { from: number; to: number; page: () => HTMLElement | null; commit: () => void; done?: () => void }
+interface Pending {
+  from: number; to: number;
+  page: () => HTMLElement | null;
+  /** 请求提交新页面；可以是异步的（React transition），交换会等到新页面出现再放开时钟。 */
+  commit: () => void;
+  done?: () => void;
+}
+interface Held { node: HTMLElement; style: string | null }
 
 export class TabExchangePresentation {
   private stage: HTMLElement | null = null;
   private animations: Animation[] = [];
   private clock: FrameClock | null = null;
-  private real: { node: HTMLElement; style: string | null } | null = null;
+  private held: Held[] = [];
   private generation = 0;
   private queued: Pending | null = null;
   private runningTo = -1;
-  constructor(private readonly duration = (): number => TAB_DURATION) {}
+  constructor(private readonly duration = (): number => TAB_SWITCH.duration) {}
   get active(): boolean { return this.stage !== null; }
 
-  /** 正在交换时排队（最后一次优先）；否则立即提交并交换。 */
+  /** 正在交换时排队（最后一次优先）；否则立即开始。 */
   request(next: Pending): void {
     if (this.stage) { this.queued?.done?.(); this.queued = next; return; }
     this.play(next);
@@ -50,11 +57,17 @@ export class TabExchangePresentation {
     this.clock?.cancel(); this.clock = null;
     for (const animation of this.animations) animation.cancel();
     this.animations = [];
-    if (this.real) {
-      if (this.real.style === null) this.real.node.removeAttribute("style"); else this.real.node.setAttribute("style", this.real.style);
-      delete this.real.node.dataset.tabLive;
+    for (const { node, style } of this.held) {
+      if (style === null) node.removeAttribute("style"); else node.setAttribute("style", style);
+      delete node.dataset.tabLive;
     }
-    this.real = null; this.stage?.remove(); this.stage = null;
+    this.held = [];
+    this.stage?.remove(); this.stage = null;
+  }
+
+  private hold(node: HTMLElement): HTMLElement {
+    if (!this.held.some(item => item.node === node)) this.held.push({ node, style: node.getAttribute("style") });
+    return node;
   }
 
   /** origin 是屏幕上实际所在的 Tab：排队项从上一次交换的终点出发，而不是从被覆盖的中间点击出发。 */
@@ -65,34 +78,67 @@ export class TabExchangePresentation {
     if (!old || !direction || matchMedia("(prefers-reduced-motion: reduce)").matches || document.hidden || typeof old.animate !== "function") {
       this.release(); commit(); done?.(); return;
     }
-    const outgoing = snapshot(old);
     this.release();
-    const token = this.generation;
-    commit();
+    const token = this.generation, started = performance.now();
     this.runningTo = to;
-    const target = page();
-    if (!target || target === old) { done?.(); this.pump(); return; }
+    const width = innerWidth, duration = this.duration();
+    const timing: KeyframeAnimationOptions = { duration, easing: TAB_SWITCH.easing, fill: "both" };
+    const leaving: Keyframe[] = [{ transform: "translate3d(0px,0,0)" }, { transform: `translate3d(${-direction * width}px,0,0)` }];
+    const entering: Keyframe[] = [{ transform: `translate3d(${direction * width}px,0,0)` }, { transform: "translate3d(0px,0,0)" }];
+
+    // 舞台：统一壁纸之上、真实页面之下；旧页被 React 移除后接到这里继续离开。
     const stage = document.createElement("div");
     stage.className = "lv-shell tab-stage"; stage.dataset.shell = "contents";
     stage.inert = true; stage.setAttribute("aria-hidden", "true");
-    stage.append(outgoing); document.body.append(stage); restoreSnapshot.get(outgoing)?.();
+    const plane = document.createElement("div"); plane.className = "s19-abc-plane";
+    stage.append(plane); document.body.append(stage);
     this.stage = stage;
-    this.real = { node: target, style: target.getAttribute("style") };
-    target.dataset.tabLive = "";
-    const width = innerWidth, duration = this.duration();
-    const timing: KeyframeAnimationOptions = { duration, easing: TAB_EASING, fill: "both" };
-    const move = (node: HTMLElement, frames: Keyframe[]): Animation => {
-      setPose(node, frames[0]!);
-      const animation = node.animate(frames, timing); this.animations.push(animation); return animation;
+
+    // 旧页的滚动位置：节点离开文档时浏览器会丢掉它，接到舞台后一次性还原。
+    const scrolls: [HTMLElement, number, number][] = [];
+    for (const node of [old, ...old.querySelectorAll<HTMLElement>("*")]) if (node.scrollTop || node.scrollLeft) scrolls.push([node, node.scrollTop, node.scrollLeft]);
+    const documentY = window.scrollY;
+
+    let outgoing = this.track(this.hold(old).animate(leaving, timing));
+    let parked = false, arrived = false;
+    const park = (): void => {
+      parked = true;
+      this.clock?.remove(outgoing);
+      plane.append(old);
+      for (const [node, top, left] of scrolls) { node.scrollTop = top; node.scrollLeft = left; }
+      plane.scrollTop = documentY;
+      outgoing = this.track(old.animate(leaving, timing));
+      this.clock?.add(outgoing);
     };
-    // 两页并排：旧页离开 -direction，新页从 +direction 进入，始终相距一个视口宽度。
-    move(outgoing, [{ transform: "translate3d(0px,0,0)" }, { transform: `translate3d(${-direction * width}px,0,0)` }]);
-    move(target, [{ transform: `translate3d(${direction * width}px,0,0)` }, { transform: "translate3d(0px,0,0)" }]);
-    this.clock = runFrameClock(this.animations, duration, { name: "switchTab", onDone: () => {
-      if (token !== this.generation) return;
-      this.clock = null; this.release(); done?.(); this.pump();
-    } });
+    const attach = (target: HTMLElement): void => {
+      arrived = true;
+      this.hold(target).dataset.tabLive = "";
+      this.clock?.add(this.track(target.animate(entering, timing)));
+    };
+    this.clock = runFrameClock([outgoing], duration, {
+      name: "switchTab",
+      maxStep: MOTION_CLOCK.maxStep,
+      // 新页面未到：先走到 waitFor，再慢速蠕动到 waitMax；到达后放开。
+      limit: () => arrived ? duration : Math.min(TAB_SWITCH.waitMax, TAB_SWITCH.waitFor + Math.max(0, performance.now() - started - TAB_SWITCH.waitFor) * TAB_SWITCH.waitCreep),
+      onProgress: () => {
+        if (token !== this.generation) return;
+        // React 提交新页面后才会到这里的下一帧：先把被移除的旧页接回舞台，再让新页面对齐进入，同一帧绘制。
+        if (!parked && !old.isConnected) park();
+        if (!arrived) {
+          const target = page();
+          if (target && target !== old && target.isConnected) attach(target);
+          else if (performance.now() - started > TAB_SWITCH.giveUpMs) { this.release(); done?.(); this.pump(); }
+        }
+      },
+      onDone: () => {
+        if (token !== this.generation) return;
+        this.clock = null; this.release(); done?.(); this.pump();
+      },
+    });
+    commit();
   }
+
+  private track(animation: Animation): Animation { this.animations.push(animation); return animation; }
 
   private pump(): void {
     const next = this.queued; this.queued = null;

@@ -10,6 +10,7 @@ import { AttachmentPanel } from "../components/Attachments.js";
 import { CURRENCIES, endOfMonth, type CurrencySummary, type Transaction, type TransactionKind } from "@libellum/shared";
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { runFrameClock, type FrameClock } from "../lib/frameClock.js";
+import { CONTROL_MORPH } from "../lib/motionTokens.js";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { entryReturnState } from "../lib/entryReturn.js";
 
@@ -239,8 +240,8 @@ export function DetailPage(): React.JSX.Element {
     presentSearch(open);
     const after = getComputedStyle(shell);
     const to = { left: after.left, right: after.right };
-    const timing: KeyframeAnimationOptions = { duration: 200, fill: "both" };
-    const animations = [shell.animate([{ ...from, easing: "cubic-bezier(.2,.72,.2,1)" }, to], timing)];
+    const timing: KeyframeAnimationOptions = { duration: CONTROL_MORPH.duration, fill: "both" };
+    const animations = [shell.animate([{ ...from, easing: CONTROL_MORPH.easing }, to], timing)];
     // 输入框与取消随胶囊变宽淡入；收回时先淡出再随胶囊回到按钮（保持可见直到淡出结束）。
     [input, cancel].forEach((node, i) => {
       if (!node) return;
@@ -249,7 +250,7 @@ export function DetailPage(): React.JSX.Element {
         ? [{ opacity: start, visibility: "visible", offset: 0 }, { opacity: start, visibility: "visible", offset: .3 }, { opacity: 1, visibility: "visible", offset: 1 }]
         : [{ opacity: start, visibility: "visible", offset: 0 }, { opacity: 0, visibility: "visible", offset: .3 }, { opacity: 0, visibility: "hidden", offset: 1 }], timing));
     });
-    const clock = runFrameClock(animations, 200, { name: open ? "searchOpen" : "searchClose", onDone: () => {
+    const clock = runFrameClock(animations, CONTROL_MORPH.duration, { name: open ? "searchOpen" : "searchClose", onDone: () => {
       if (searchMorph.current?.clock === clock) searchMorph.current = null;
       for (const animation of animations) animation.cancel();
       done();

@@ -4,7 +4,7 @@
  * 金额一律从「整数最小单位的十进制字符串」直接格式化（BigInt），**不经过 Number**——
  * 卡片规格 §5.5：大金额不得为了显示损失精度。颜色只用语义 token（currentColor），不写色值。
  */
-import { useEffect, useLayoutEffect, useRef, useState, type SVGProps } from "react";
+import { startTransition, useEffect, useLayoutEffect, useRef, useState, type SVGProps } from "react";
 import { decimalsFor, type Ratio } from "@libellum/shared";
 
 import { currencySymbol, numberSeparators } from "../lib/format.js";
@@ -19,19 +19,40 @@ export function densityFor(width: number, height: number): Density {
   return "compact";
 }
 
-export function useElementSize<T extends HTMLElement>(): {
+export interface ElementSizeOptions {
+  /**
+   * 首次渲染就使用的估计尺寸（例如分析网格宽度 = 工作区宽度 − 两侧内边距）。实测一致时不再重渲染；
+   * 估计错了由 ResizeObserver 纠正一次，与不估计时相同。
+   */
+  readonly initial?: () => { readonly width: number; readonly height: number };
+  /** 只关心宽度：内容撑高容器不触发整页重渲染（网格容器的高度随卡片变化）。 */
+  readonly widthOnly?: boolean;
+  /**
+   * 测量结果以 React transition 提交：几十张卡片正文的首次渲染被时间切片，转场与滚动的帧不被占住
+   * （1.19.44：分析页进入时卡片正文整批同步渲染，是主 Tab 交换起步停顿的主要来源）。
+   */
+  readonly deferred?: boolean;
+}
+
+export function useElementSize<T extends HTMLElement>(options: ElementSizeOptions = {}): {
   readonly ref: React.RefObject<T | null>;
   readonly width: number;
   readonly height: number;
 } {
   const ref = useRef<T | null>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [size, setSize] = useState(() => options.initial?.() ?? { width: 0, height: 0 });
+  const latest = useRef(options);
+  latest.current = options;
   useEffect(() => {
     const element = ref.current;
     if (element === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
-      if (rect !== undefined) setSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+      if (rect === undefined) return;
+      const width = Math.round(rect.width), height = latest.current.widthOnly ? 0 : Math.round(rect.height);
+      // 同值不换对象：React 跳过重渲染。
+      const update = (): void => { setSize((previous) => (previous.width === width && previous.height === height ? previous : { width, height })); };
+      if (latest.current.deferred) startTransition(update); else update();
     });
     observer.observe(element);
     return () => {

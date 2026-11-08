@@ -8,7 +8,9 @@
  *
  * 这里不再让浏览器自己计时：动画创建后立即暂停，由 rAF 写 `currentTime`。
  * - 第一帧固定是 t = 0：起始姿态（与点击前完全相同的画面）先被真正画出来；
- * - 之后每帧最多推进 `maxStep`（约 30fps 的一帧）。长任务或首次绘制只会让动画停一下，不会跳过前段；
+ * - 之后每帧推进实际间隔；遇到明显长于近期正常帧的间隔（提交、首次绘制、长任务），只推进一个正常帧
+ *   的时间（1.19.44 起；1.19.43 推进 34ms，停顿后会一下跳出一大段）。正常帧间隔取最近几帧的中位数，
+ *   60 / 120Hz 与低电量 30Hz 都按各自的节奏走；`maxStep` 仍是单帧上限；
  * - 正常 60 / 120Hz 下与实时一致，总时长不变。
  *
  * 看门狗：连续 600ms 收不到任何 rAF（标签页被挂到后台、内嵌 WebView 停帧）时直接走到终点并完成，
@@ -16,6 +18,8 @@
  *
  * 只负责时间，不创建 DOM、不提交路由；调用方在 `onProgress` 里做中途交接（例如 Object Expand 在 45% 时提交详情）。
  */
+import { MOTION_CLOCK } from "./motionTokens.js";
+
 export interface ClockReport {
   readonly name: string;
   /** 从创建到第一帧绘制前回调的间隔（点击后的准备与首帧成本）。 */
@@ -33,13 +37,27 @@ export interface ClockReport {
 }
 
 /** 连续这么久没有 rAF 就认为帧已停止（后台、停帧的 WebView），直接收尾。 */
-export const STALL_MS = 600;
+export const STALL_MS = MOTION_CLOCK.stallMs;
 
 const listeners = new Set<(report: ClockReport) => void>();
 /** 开发诊断（`?motion=1` 徽章）订阅每次动画的真实帧数与时间分布。 */
 export function onClockReport(listener: (report: ClockReport) => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
+}
+
+/**
+ * 正常帧间隔的估计：最近 5 个间隔的中位数（初值 60Hz）。明显更长（> 1.5 倍）的间隔视为卡顿，
+ * 只按正常帧推进；单次卡顿不会改变中位数，持续的低帧率（30Hz）会被接受为新的正常节奏。
+ */
+export class FramePace {
+  private readonly recent: number[] = [1000 / 60];
+  get typical(): number { const sorted = [...this.recent].sort((a, b) => a - b); return sorted[Math.floor(sorted.length / 2)]!; }
+  step(gap: number): number {
+    const typical = this.typical;
+    this.recent.push(gap); if (this.recent.length > 5) this.recent.shift();
+    return gap <= typical * 1.5 ? gap : typical;
+  }
 }
 
 export interface FrameClock {
@@ -57,13 +75,19 @@ export function runFrameClock(animations: Animation[], duration: number, options
   readonly onProgress?: (progress: number) => void;
   readonly onDone?: () => void;
   readonly maxStep?: number;
+  /**
+   * 允许走到的最远时间（毫秒）。用于“等内容就绪”：例如主 Tab 交换在新页面提交前只让旧页先走一小段，
+   * 新页面到达后放开；时间只会停在这里，不会倒退。
+   */
+  readonly limit?: () => number;
 }): FrameClock {
-  const maxStep = options.maxStep ?? 34;
+  const maxStep = options.maxStep ?? MOTION_CLOCK.maxStep;
   const list = [...animations];
   for (const animation of list) { animation.pause(); animation.currentTime = 0; }
   const created = performance.now();
   let time = 0, last: number | null = null, frames = 0, first = 0, firstAt = 0, maxGap = 0, raf = 0, ended = false;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const pace = new FramePace();
   const report = (completed: boolean, stalled = false): void => {
     const value: ClockReport = { name: options.name, firstFrameMs: Math.round(first), frames, wallMs: Math.round(performance.now() - (firstAt || created)), maxGapMs: Math.round(maxGap), duration, completed, stalled };
     for (const listener of listeners) listener(value);
@@ -79,7 +103,8 @@ export function runFrameClock(animations: Animation[], duration: number, options
     if (last === null) { first = now - created; firstAt = now; }
     else {
       const gap = now - last; maxGap = Math.max(maxGap, gap);
-      time = Math.min(duration, time + Math.min(gap, maxStep));
+      const cap = Math.min(duration, options.limit?.() ?? duration);
+      time = Math.max(time, Math.min(cap, time + Math.min(pace.step(gap), maxStep)));
     }
     last = now; frames++;
     for (const animation of list) animation.currentTime = time;
@@ -98,9 +123,10 @@ export function runFrameClock(animations: Animation[], duration: number, options
 }
 
 /** 不需要 WAAPI 的数值动画（例如明细顶部 `--p`）使用同一时钟语义。 */
-export function runFrameValue(duration: number, onValue: (t: number) => void, onDone?: () => void, maxStep = 34): () => void {
+export function runFrameValue(duration: number, onValue: (t: number) => void, onDone?: () => void, maxStep: number = MOTION_CLOCK.maxStep): () => void {
   let time = 0, last: number | null = null, raf = 0, ended = false;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const pace = new FramePace();
   const finish = (): void => { ended = true; clearTimeout(watchdog); onDone?.(); };
   const arm = (): void => {
     clearTimeout(watchdog);
@@ -108,7 +134,7 @@ export function runFrameValue(duration: number, onValue: (t: number) => void, on
   };
   const tick = (now: number): void => {
     if (ended) return;
-    if (last !== null) time = Math.min(duration, time + Math.min(now - last, maxStep));
+    if (last !== null) time = Math.min(duration, time + Math.min(pace.step(now - last), maxStep));
     last = now;
     onValue(duration ? time / duration : 1);
     if (ended) return;

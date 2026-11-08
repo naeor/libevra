@@ -286,7 +286,8 @@ export function CardTile({
   readonly draggable?: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const body = useElementSize<HTMLDivElement>();
+  // 正文按测量尺寸渲染；以 transition 提交，进入分析页时几十张卡片不在同一帧里同步渲染。
+  const body = useElementSize<HTMLDivElement>({ deferred: true });
   const title = cardTitle(card, t);
   // 编辑器里的静态预览不在路由里：那里没有位置，也不参与拖动。
   const search = (useContext(UNSAFE_LocationContext) as { location?: { search?: string } } | null)?.location?.search ?? "";

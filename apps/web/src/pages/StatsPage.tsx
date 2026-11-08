@@ -12,7 +12,7 @@
  * 分层（总需求规格 §4）：计算在 compute.ts（只调 A/B/既有实现）、展示在 cards.tsx、布局几何与命令全部
  * 交给 Agent D（session.ts 只做 D 尚未提供的组合操作的过渡适配）、保存在 storage.ts（本机、按账号）。
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { endOfMonth, rangeForPreset, startOfMonth, type DateRange } from "@libellum/shared";
 import {
@@ -35,7 +35,7 @@ import {
 } from "@libellum/shared/analysis/layout";
 
 import { TabPage } from "../components/Layouts.js";
-import { usePane } from "../workspace/context.js";
+import { PaneSizeContext, usePane } from "../workspace/context.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { useI18n } from "../i18n/index.js";
 import { categoryPath } from "@libellum/shared";
@@ -92,6 +92,8 @@ type ContainerEdit =
   | { readonly kind: "existing"; readonly containerId: string; readonly type: "carousel" | "grid-split"; readonly children: readonly AnalysisCardNode[] };
 
 const LIMITS = { carousel: { min: 2, max: 6 }, "grid-split": { min: 2, max: 4 } } as const;
+/** 网格容器 `px-6` 的单侧内边距（首帧估计网格宽度用；实际宽度仍以 ResizeObserver 为准）。 */
+const GRID_SIDE_PADDING = 24;
 
 /** 编辑的起点：完整文档 + 编辑列数下看到的那一份几何 + 它的来源（专属 / 基础 / 自动排列）。 */
 type FrameOrigin = EditOrigin & { readonly documents: WorkbenchDocuments; readonly source: DisplayLayoutSource };
@@ -163,7 +165,15 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
   );
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const gridBox = useElementSize<HTMLDivElement>();
+  /**
+   * 网格宽度首帧就按工作区宽度估计（网格容器左右各 24px 内边距，`px-6`），列数与卡片格子第一次渲染就是
+   * 最终结果；不再先按 0 宽渲染、测量后整页重排（1.19.44，主 Tab 交换起步停顿的来源之一）。
+   */
+  const paneSizeStore = useContext(PaneSizeContext);
+  const gridBox = useElementSize<HTMLDivElement>({
+    widthOnly: true,
+    initial: () => ({ width: Math.max(0, (paneSizeStore?.get().width || (typeof window === "undefined" ? 0 : window.innerWidth)) - GRID_SIDE_PADDING * 2), height: 0 }),
+  });
 
   // ---- 文档（每账号一套） ----
   const [stored, setStored] = useState<Stored>(() => readStored(scope.accountScope));

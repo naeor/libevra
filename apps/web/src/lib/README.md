@@ -1,5 +1,7 @@
 # apps/web/src/lib · 阅读入口
 
+> 最后修改：2026-11-08 23:23（UTC+08:00）
+
 基础逻辑与公共工具。
 
 优先阅读[任务索引](../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
@@ -65,7 +67,7 @@
 | [errorCopy.test.ts](errorCopy.test.ts) | 测试：errorCopy |
 | [format.ts](format.ts) | 实现模块；入口/导出：currencySymbol、currencyName、numberSeparators、formatMoney、minorToInput |
 | [frameClock.test.ts](frameClock.test.ts) | 测试：frameClock |
-| [frameClock.ts](frameClock.ts) | 实现模块；入口/导出：ClockReport、STALL_MS、onClockReport、FrameClock、runFrameClock |
+| [frameClock.ts](frameClock.ts) | 实现模块；入口/导出：ClockReport、STALL_MS、onClockReport、FramePace、FrameClock |
 | [fxView.test.tsx](fxView.test.tsx) | 测试：fxView |
 | [fxView.ts](fxView.ts) | 实现模块；入口/导出：readFxMode、saveFxMode、useFxMode、useFxEntry、fxMoney |
 | [language.test.ts](language.test.ts) | 测试：language |
@@ -80,6 +82,8 @@
 | [messageDrafts.ts](messageDrafts.ts) | 实现模块；入口/导出：messageDraftScope、readMessageDraft、updateMessageDraft、clearAllMessageDrafts |
 | [monthAvailability.test.ts](monthAvailability.test.ts) | 测试：monthAvailability |
 | [monthAvailability.ts](monthAvailability.ts) | 实现模块；入口/导出：MonthAvailability、MonthSamples、monthsInYear、readMonthSamples、monthAvailability |
+| [motionTokens.test.ts](motionTokens.test.ts) | 测试：motionTokens |
+| [motionTokens.ts](motionTokens.ts) | 实现模块；入口/导出：MotionStyle、MotionCurve、easingFunction、MOTION_CLOCK、NAVIGATION |
 | [nativeHeaderScroll.test.ts](nativeHeaderScroll.test.ts) | 测试：nativeHeaderScroll |
 | [nativeHeaderScroll.ts](nativeHeaderScroll.ts) | 实现模块；入口/导出：scrollContentHeight、bindNativeHeaderScroll |
 | [notDuplicateRelations.test.ts](notDuplicateRelations.test.ts) | 测试：notDuplicateRelations |

@@ -1,5 +1,7 @@
 # apps/web/src/statsWorkbench · 阅读入口
 
+> 最后修改：2026-11-08 23:23（UTC+08:00）
+
 分析工作台配置、编辑器、布局与卡片接线。
 
 优先阅读[任务索引](../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
@@ -82,5 +84,5 @@
 | [sync.ts](sync.ts) | 实现模块；入口/导出：SyncStatus、SyncSnapshot、syncStorageKey、localConfiguration、SyncTransport |
 | [timeWindows.test.ts](timeWindows.test.ts) | 测试：timeWindows |
 | [timeWindows.ts](timeWindows.ts) | 实现模块；入口/导出：RELATIVE_WINDOWS、RelativeWindow、isRelativeWindow、cardWindow、withWindow |
-| [ui.tsx](ui.tsx) | 界面模块；入口/导出：Density、densityFor、useElementSize、FitAmount、moneyText |
+| [ui.tsx](ui.tsx) | 界面模块；入口/导出：Density、densityFor、ElementSizeOptions、useElementSize、FitAmount |
 <!-- directory-index:end -->

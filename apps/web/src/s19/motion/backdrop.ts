@@ -1,3 +1,4 @@
+import { NAVIGATION } from "../../lib/motionTokens.js";
 import type { PaneSnapshot } from "../../workspace/paneHistory.js";
 import { DEFAULT_GLASS_BLUR } from "../material.js";
 
@@ -15,7 +16,7 @@ export interface MotionOptions {
   handoff: boolean;
   inheritance: Inheritance;
 }
-export const defaults: MotionOptions = { scheme: "native", material: "b2", duration: 200, retreat: true, blur: true, blurStrength: DEFAULT_GLASS_BLUR, handoff: true, inheritance: "source" };
+export const defaults: MotionOptions = { scheme: "native", material: "b2", duration: NAVIGATION.b2.duration, retreat: true, blur: true, blurStrength: DEFAULT_GLASS_BLUR, handoff: true, inheritance: "source" };
 export interface VisualScope { workspace: string; account: string; ledger: string; style: string }
 export interface Ambient { hue: number; accent: number; x: number; y: number }
 /** 描述可恢复；不声称这些字段是一张浏览器像素快照。 */

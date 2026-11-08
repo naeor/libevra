@@ -1,3 +1,4 @@
+import { NAVIGATION } from "../../lib/motionTokens.js";
 import { ABCMotion, type ABCStyle, type AVariant } from "../../../../../experiments/abc-motion/controller.js";
 import type { ABCPresentation } from "./abcBridge.js";
 
@@ -122,7 +123,8 @@ export class ABCPagePresentation implements ABCPresentation {
     if (to.parentElement !== this.stage) { this.stage.append(to); restoreSnapshot.get(to)?.(); }
     this.from = { key: fromKey, plane: from }; this.to = { key: toKey, plane: to };
     this.real = { page: target, opacity: target.style.opacity }; target.style.opacity = "0";
-    const handle = this.engine!.run({ from, to, style, ...(variant ? { variant } : {}), direction });
+    const duration = style === "a" ? NAVIGATION.a[variant ?? "depth"] : NAVIGATION[style].duration;
+    const handle = this.engine!.run({ from, to, style, ...(variant ? { variant } : {}), direction, duration });
     void handle.finished.then(() => { if (token === this.generation) this.cancel(); });
   }
 }

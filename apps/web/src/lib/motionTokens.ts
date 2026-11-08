@@ -1,0 +1,139 @@
+/**
+ * **Motion Token（S19，1.19.44 起）——按交互语义组织的动效时长、缓动与节奏参数的唯一来源。**
+ *
+ * 用法与原则（规范正文见 docs/specs/design/S19-材质组件与动效设计系统.md 的“Motion Token”一节）：
+ * - **按语义取值**：新功能先判断属于哪一类交互（次级导航、主 Tab、对象展开、控件形变、工作模式、高频反馈），
+ *   再读对应条目；业务代码不再写新的毫秒数或 cubic-bezier。调整一类交互的节奏只改这里。
+ * - **时长是“可见运动”的长度**：转场由帧锚定时钟（lib/frameClock.ts）推进，第一帧固定是起始姿态、卡顿只放慢
+ *   不跳过，所以 duration 就是用户实际看到的运动；点击后的准备时间不算在内，要靠减少同步工作缩短。
+ * - **`phases` 是同一时钟上的比例（0–1）**：描述内容交接等节奏，改时长时比例保持，交接不会变形。
+ * - **高频组件反馈是 CSS 变量**（按下、选中、出现、消失、反馈、加载），按 A / B1 / B2 / C 定义在
+ *   `components/ui/component-motion.css`；这里只登记名称（{@link FEEDBACK_CSS}），不复制数值。
+ * - 专属品牌动效（底栏指示器 `s19/tabIndicator.ts`、账本空间海浪 `s19/oceanPainter.ts`）的参数留在各自文件，
+ *   它们不是可复用语义；新功能不要借用。
+ */
+
+export type MotionStyle = "a" | "b1" | "b2" | "c";
+
+export interface MotionCurve {
+  /** 帧锚定时钟上的运动时长（毫秒）。 */
+  readonly duration: number;
+  readonly easing: string;
+}
+
+/** 与 CSS `cubic-bezier()` 相同定义的求值；JS 采样几何、数值时钟与 WAAPI 用同一条曲线。 */
+export function easingFunction(css: string): (t: number) => number {
+  const [x1 = 0, y1 = 0, x2 = 1, y2 = 1] = (css.match(/-?[\d.]+/g) ?? []).map(Number);
+  const at = (a: number, b: number, t: number): number => 3 * (1 - t) ** 2 * t * a + 3 * (1 - t) * t * t * b + t ** 3;
+  return (x: number): number => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (at(x1, x2, mid) < x) lo = mid; else hi = mid; }
+    return at(y1, y2, (lo + hi) / 2);
+  };
+}
+
+/** 帧锚定时钟本身：单帧推进上限与判定“帧已停止”的间隔。 */
+export const MOTION_CLOCK = {
+  /** 单帧最多推进约 30fps 的一帧（正常节奏由最近帧间隔的中位数决定，卡顿只推进一个正常帧）。 */
+  maxStep: 34,
+  /** 连续这么久没有 rAF（后台、停帧的 WebView）就直接收尾。 */
+  stallMs: 600,
+} as const;
+
+/**
+ * 普通次级页面导航（默认“新页从右侧覆盖”，返回回放同一条边）。A / B1 / C 由 ABC 呈现控制器播放
+ * （`experiments/abc-motion/controller.js`，时长由这里传入），B2 由 MotionEngine 的原生页面转场播放。
+ * 本轮未调校，数值为既有已验收参数的登记。
+ */
+export const NAVIGATION = {
+  b1: { duration: 320, easing: "cubic-bezier(.4,0,.2,1)" },
+  b2: { duration: 200, easing: "cubic-bezier(.2,.75,.25,1)" },
+  c: { duration: 200, easing: "cubic-bezier(.22,.68,.25,1)" },
+  /** A 仍在比较变体：pulse 用 C 的曲线，其余用 B1 的曲线。 */
+  a: { pulse: 250, depth: 360, directional: 380, "directional-entry": 400, "pure-cover": 360 },
+} as const;
+
+/**
+ * 主 Tab 横向交换（switchTab）：两页并排、同一时钟同一曲线，底栏与壁纸不动。
+ * 曲线起步约 4% / 帧、10%→90% 约 133ms、末段平稳减速（60Hz 下 13 个 ≥6px 的可见帧）。
+ */
+export const TAB_SWITCH = {
+  duration: 280,
+  easing: "cubic-bezier(.3,.15,.15,1)",
+  /**
+   * 新页面尚未提交（React 还在后台渲染）时，旧页最多先走到的时间（毫秒，≈曲线 8%）：点击后一两帧就有响应，
+   * 又不会在新页面到达前露出大片空白。新页面到达后立即放开。
+   */
+  waitFor: 26,
+  /** 仍未提交时以 0.15 倍速继续蠕动，最多到这里（≈13%）；比原地停住更像“在走”，露出的空白也有限。 */
+  waitCreep: 0.15,
+  waitMax: 36,
+  /** 超过这么久新页面仍未提交，就放弃呈现，只交付页面（不让旧页停在半路）。 */
+  giveUpMs: 1500,
+} as const;
+
+/**
+ * Object Expand：账目 / 分析卡片 / 明细汇总从原位置展开为详情，返回时收回。
+ *
+ * 几何（1.19.44）：一条连续曲线从来源卡片长到整屏。原型的两段节奏（先减速到 18% 的中间帧、再用前冲曲线铺满）
+ * 在 60Hz 手机上表现为“停一帧、再一帧跳出 275px”；现在 320ms 内 12 个 ≥6px 的生长帧、单帧最多约 145px。
+ * A 的前移（1.1 倍）作为叠加在几何上的一次起伏保留。`phases` 是同一时钟上的交接比例。
+ */
+export const OBJECT_EXPAND = {
+  geometryEasing: "cubic-bezier(.32,.2,.18,1)",
+  open: {
+    duration: 320,
+    phases: {
+      /** 容器从透明叠在真实卡片上到完全盖住卡片内容。 */
+      cover: [0, 0.12],
+      /** 详情内容（按容器宽度缩放、裁剪在容器内）渐显；详情来得晚就从到达时开始。 */
+      content: [0.06, 0.4],
+      /** 容器几何到达整屏的时间。 */
+      geometry: 0.7,
+      /** 原页面在整屏容器下退场。 */
+      background: [0.68, 0.75],
+      /** 容器底色淡回统一壁纸。 */
+      surface: [0.73, 0.97],
+    },
+  },
+  close: {
+    duration: 300,
+    phases: {
+      /** 列表与底栏在容器补满（不透明）后出现。 */
+      reveal: [0.08, 0.1],
+      /** 容器开始收缩与到达来源卡片。 */
+      geometry: [0.1, 0.82],
+      /** 详情内容在收缩中淡出。 */
+      content: [0.5, 0.82],
+      /** 容器淡出，露出真实来源卡片。 */
+      surface: [0.78, 1],
+    },
+  },
+  /** 展开尚未完成就返回：从当前姿态收回所用时长占展开时长的比例（下限 120ms）。 */
+  retractShare: 0.6,
+  /** 详情尚未提交时，容器最多长到进度 0.12（约来源卡片三倍高），再以 0.15 倍速蠕动到 0.16；到达即放开。 */
+  waitAt: 0.12,
+  waitCreep: 0.15,
+  waitMax: 0.16,
+  /** 超过这么久详情仍未提交，就放弃呈现，只交付页面。 */
+  giveUpMs: 1500,
+} as const;
+
+/** 控件形变（明细搜索按钮 ↔ 输入框）：胶囊左右展开、标题与按钮让位、顶部收起共用这一条曲线与时长。 */
+export const CONTROL_MORPH: MotionCurve = { duration: 200, easing: "cubic-bezier(.2,.72,.2,1)" };
+
+/** 记账工作模式进入（enterMode）：从 Tab 上缘揭示；`?enterMs=` 可在 choices 之间比较。 */
+export const ENTER_MODE = { duration: 140, choices: [110, 140, 160], fadeMs: 28 } as const;
+
+/** 高频组件反馈的 CSS 变量（按风格取值，见 components/ui/component-motion.css）。 */
+export const FEEDBACK_CSS = {
+  press: "--lv-press-ms",
+  select: "--lv-select-ms",
+  reveal: "--lv-reveal-ms",
+  dismiss: "--lv-dismiss-ms",
+  feedback: "--lv-feedback-ms",
+  loading: "--lv-loading-ms",
+  easing: "--lv-motion-ease",
+} as const;

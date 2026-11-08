@@ -268,7 +268,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       const source = paneRoot();
       if (browserAnimatedPop(next.action)) {
         // 浏览器已经呈现过返回：只交付页面与滚动，不再播放任何呈现层动画。
-        abc?.cancel(); objects.cancel(false); modes.cancel(); tabs.cancel(); clickedObject = null; edgeSwipeAt = -Infinity;
+        abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); clickedObject = null; edgeSwipeAt = -Infinity;
         pendingRestore = { key: next.location.key, focus: false, tab: navigationLevel(next.location.pathname) === "tabRoot" ? next.location.pathname : undefined };
         flushSync(commit);
         return;
@@ -282,7 +282,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
           || (!enabled && html.dataset.themeMode !== "light");
         pendingRestore = { key: next.location.key, focus: false, tab: next.location.pathname };
         if (instant) { tabs.cancel(); startTransition(commit); return; }
-        tabs.request({ from: tabIndex(from.page), to: tabIndex(next.location.pathname), page, commit: () => flushSync(commit) });
+        // 新页面在后台（transition）渲染，不占住点击后的第一帧；交换器先移动旧页、等新页面提交后再对齐进入。
+        tabs.request({ from: tabIndex(from.page), to: tabIndex(next.location.pathname), page, commit: () => { startTransition(commit); } });
         return;
       }
       tabs.cancel();
@@ -297,7 +298,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         pendingRestore = { key: next.location.key, focus: true };
         objects.run({ source: objectPush?.source ?? objectPop!.source, page,
           style: html.dataset.visualStyle ?? "c", reverse: !objectPush,
-          commit: () => flushSync(commit) });
+          // 展开时详情在后台渲染（不占住点击后的帧）；收回与降级同步提交。
+          commit: () => { startTransition(commit); }, commitNow: () => flushSync(commit) });
         return;
       }
       objects.cancel();

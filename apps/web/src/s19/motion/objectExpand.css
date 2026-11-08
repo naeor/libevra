@@ -1,13 +1,14 @@
 /* 对象展开前景：固定在视口、位于常驻底栏（40）之上；背景透明，下面就是真实页面与统一壁纸。 */
 .lv-shell.object-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: 45; overflow: hidden; pointer-events: none; background: transparent; }
-/* B1 下半页副本：在页面内容（≤30）之上、固定底栏之下滑出，底栏不动。 */
+/* 背景舞台：被移出工作区的原页面、B1 下半页副本与底栏副本；在页面内容（≤30）之上、常驻底栏（40）之下。 */
 .lv-shell.object-stage.object-back[data-shell="contents"] { z-index: 35; }
-.object-stage .s19-abc-plane, .object-neighborhood, .object-outgoing { position: absolute; inset: 0; overflow: hidden; }
+.object-stage .s19-abc-plane, .object-neighborhood { position: absolute; inset: 0; overflow: hidden; }
+/* 收回时详情页面节点放在容器之上，在容器里缩小。 */
+.object-stage .object-content { z-index: 1; }
 .object-stage .object-shade { position: absolute; inset: 0; background: var(--color-ink); opacity: 0; }
 /* 容器沿用共享材质（display + 各风格 finish），只补绝对定位；非 S19 / 深色时退回表面色。 */
 .object-stage .object-shell { position: absolute !important; top: 0; left: 0; z-index: 0 !important; margin: 0; transform-origin: center; border: 1px solid transparent; background: var(--color-surface); box-shadow: var(--shadow-card); will-change: transform, width, height; contain: layout style; }
 /* B2：玻璃（模糊 + 透明填充）在容器本身；容器自身的透明度不影响它读取后方页面。 */
 :root[data-visual-style="b2"] .object-stage .object-shell { backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter); }
 .object-stage .object-lift { position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 18px 36px -10px color-mix(in srgb, var(--color-ink) 25%, transparent); opacity: 0; }
-.object-stage .object-outgoing { z-index: 3; }
 [data-object-live] { background: transparent !important; }

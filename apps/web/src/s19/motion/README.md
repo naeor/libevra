@@ -1,5 +1,7 @@
 # apps/web/src/s19/motion · 阅读入口
 
+> 最后修改：2026-11-08 23:23（UTC+08:00）
+
 主 Tab、对象展开、模式入口和次级导航的呈现协调；不能混淆层级。
 
 优先阅读[任务索引](../../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
@@ -35,10 +37,10 @@
 | [navigation.ts](navigation.ts) | 实现模块；入口/导出：NavigationLevel、navigationLevel、isTabSwitch、hasDefaultMotion、isDefaultMotionEdge |
 | [objectExpand.css](objectExpand.css) | 样式与变量 |
 | [objectExpand.test.ts](objectExpand.test.ts) | 测试：objectExpand |
-| [objectExpand.ts](objectExpand.ts) | 实现模块；入口/导出：ObjectSource、objectSource、findObject、setPose、ObjectExpandPresentation |
+| [objectExpand.ts](objectExpand.ts) | 实现模块；入口/导出：ObjectSource、objectSource、findObject、setPose、Pose |
 | [pilot.css](pilot.css) | 样式与变量 |
 | [pilot.tsx](pilot.tsx) | 界面模块；入口/导出：PilotAdapter、MotionPilot |
 | [tabExchange.css](tabExchange.css) | 样式与变量 |
 | [tabExchange.test.ts](tabExchange.test.ts) | 测试：tabExchange |
-| [tabExchange.ts](tabExchange.ts) | 实现模块；入口/导出：TAB_ORDER、TAB_EASING、TAB_DURATION、tabIndex、TabExchangePresentation |
+| [tabExchange.ts](tabExchange.ts) | 实现模块；入口/导出：TAB_ORDER、tabIndex、TabExchangePresentation |
 <!-- directory-index:end -->

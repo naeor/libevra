@@ -4,6 +4,7 @@ import type { EntryPresentation } from "../components/EntrySortControls.js";
 import { DRAG_DISTANCE, LATE_THRESHOLD, clamp01 } from "./transitionPhysics.js";
 import { bindNativeHeaderScroll, scrollContentHeight } from "./nativeHeaderScroll.js";
 import { runFrameValue } from "./frameClock.js";
+import { CONTROL_MORPH, easingFunction } from "./motionTokens.js";
 
 interface Session { progress: number; month: string | null; kind: TransactionKind | "all" | null; scrollTop: number; syncRequested?: boolean; presentation?: EntryPresentation; syncReturnPath?: string; search?: string; searchOpen?: boolean; searchOrigin?: number }
 /**
@@ -21,6 +22,8 @@ function sessionFor(scope: string): Session {
 }
 export function readSession(scope = "w1"): Readonly<Session> { return { ...sessionFor(scope) }; }
 export function writeSession(patch: Partial<Session>, scope = "w1"): void { Object.assign(sessionFor(scope), patch); }
+
+const searchEase = easingFunction(CONTROL_MORPH.easing);
 
 /** 原生滚动始终拥有整次触摸；只在滚动结束后复用原有弹簧吸附。
  * --p 仍驱动原来的明细动画，补偿区抵消过渡区的滚动距离，财务摘要不被额外卷走。
@@ -49,7 +52,8 @@ export function useDetailTransition(initial: number, scope = "w1", initialSearch
     const root = rootRef.current, scroller = scrollRef.current;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (changed) { cancelMotion.current(); stopSearchMotion.current(); }
-    const ease = (t: number): number => 1 - (1 - t) ** 2;
+    // 与搜索胶囊的形变同一条曲线（Motion Token：控件形变），标题让位、顶部收起与胶囊展开同步。
+    const ease = searchEase;
     const setK = (k: number): void => { searchK.current = k; root?.style.setProperty("--search-k", String(k)); };
     if (locked) {
       const origin = clamp01((scroller?.scrollTop ?? 0) / DRAG_DISTANCE);
@@ -62,7 +66,7 @@ export function useDetailTransition(initial: number, scope = "w1", initialSearch
         if (scroller) scroller.scrollTop = Math.max(0, scroller.scrollTop - DRAG_DISTANCE);
         root?.setAttribute("data-search-room", "");
         setK(kFrom);
-        stopSearchMotion.current = runFrameValue(reduced ? 0 : 200, t => {
+        stopSearchMotion.current = runFrameValue(reduced ? 0 : CONTROL_MORPH.duration, t => {
           searchProgress.current = from + (1 - from) * ease(t);
           setK(kFrom + (1 - kFrom) * ease(t));
           repaint.current();
@@ -81,7 +85,7 @@ export function useDetailTransition(initial: number, scope = "w1", initialSearch
     releasing.current = true;
     const kFrom = searchK.current;
     setK(kFrom);
-    stopSearchMotion.current = runFrameValue(reduced ? 0 : 200, t => {
+    stopSearchMotion.current = runFrameValue(reduced ? 0 : CONTROL_MORPH.duration, t => {
       searchProgress.current = from + (target - from) * ease(t);
       setK(kFrom * (1 - ease(t)));
       repaint.current();

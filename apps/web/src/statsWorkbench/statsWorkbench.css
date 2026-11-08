@@ -1142,6 +1142,17 @@ html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-t
   pointer-events: none;
 }
 
+/* 正文按测量尺寸、以 transition 渲染（可能比卡片外框晚几帧）：短淡入，不在转场中途“蹦”出来。 */
+.sw-card-body > * {
+  animation: sw-card-body-in 140ms ease-out both;
+}
+@keyframes sw-card-body-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sw-card-body > * { animation: none; }
+}
+
 .sw-card-body .sw-interactive,
 .sw-card-body button,
 .sw-card-body a {

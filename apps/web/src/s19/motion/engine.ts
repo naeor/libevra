@@ -1,3 +1,4 @@
+import { NAVIGATION } from "../../lib/motionTokens.js";
 import type { Direction, MotionOptions } from "./backdrop.js";
 import { motionBlur } from "../material.js";
 import { prepareHybrid } from "./hybrid.js";
@@ -188,7 +189,7 @@ export class MotionEngine {
       sample.inputReadyMs = performance.now() - started;
       const blur = options.blur ? `blur(${outgoingBlur}px) contrast(.56) saturate(.8)` : "none";
       const retreat = options.retreat ? "-15%" : "0%";
-      const timing: KeyframeAnimationOptions = { duration: options.duration, easing: "cubic-bezier(.2,.75,.25,1)", fill: "both" };
+      const timing: KeyframeAnimationOptions = { duration: options.duration, easing: NAVIGATION.b2.easing, fill: "both" };
       try {
         animations.push(planes.old.animate(direction === "push" ? [
           { transform: "translateX(0)", filter: "none", opacity: 1 },

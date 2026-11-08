@@ -1,9 +1,10 @@
 import { snapshot, restoreSnapshot } from "./abcPresentation.js";
 import { EASE } from "../../../../../prototype/geometry.mjs";
+import { ENTER_MODE } from "../../lib/motionTokens.js";
 
 export function enterModeOptions(search: string): { duration: number; fade: boolean } {
   const params = new URLSearchParams(search), ms = Number(params.get("enterMs"));
-  return { duration: [110, 140, 160].includes(ms) ? ms : 140, fade: params.get("enterFade") === "1" };
+  return { duration: (ENTER_MODE.choices as readonly number[]).includes(ms) ? ms : ENTER_MODE.duration, fade: params.get("enterFade") === "1" };
 }
 
 /** 同一协调器内的 enterMode 呈现，不接管菜单、文件选择或路由提交。 */
