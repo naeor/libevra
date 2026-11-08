@@ -14,15 +14,16 @@ import { describeLayout, layoutBackground, type AmbientLayout } from "./ambientL
 import { aVariant, captureATabFrame, createABCPresentation, subscribeAVariant } from "./abcBridge.js";
 import "./motion.css";
 import "./pilot.css";
-import { isSettingsMotionEdge, isSettingsMotionPage, navigationLevel } from "./navigation.js";
+import { hasDefaultMotion, isDefaultMotionEdge, isTabSwitch, navigationLevel } from "./navigation.js";
 import { EnterModePresentation, enterModeOptions } from "./enterMode.js";
 import { ObjectExpandPresentation, objectSource, type ObjectSource } from "./objectExpand.js";
+import { TabExchangePresentation, tabIndex } from "./tabExchange.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
   committed(key: string): void;
 }
-const pages = { has: isSettingsMotionPage };
+const pages = { has: hasDefaultMotion };
 let enabled = (import.meta.env.DEV || (typeof __S19_STYLE_LAB__ !== "undefined" && __S19_STYLE_LAB__)) && typeof location !== "undefined" && new URLSearchParams(location.search).get("motion") === "1";
 interface ScrollPoint { documentY: number; inner: number[] }
 
@@ -51,12 +52,14 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   const html = document.documentElement;
   const store = new BackdropStore();
   const scrolls = new Map<string, ScrollPoint>();
+  // 主 Tab 的最后滚动位置按 Tab 记，点击底栏重新入栈（新 key）回来时也能接上。
+  const tabScrolls = new Map<string, ScrollPoint>();
   const layouts = new Map<string, AmbientLayout>();
   let current: BackdropContext | undefined;
   let appBack: { from: string; to: string; at: number } | null = null;
   let lastEntryClick: { key: string; href: string; at: number } | null = null;
   let pendingBack: string | null = null;
-  let pendingRestore: { key: string; focus: boolean } | null = null;
+  let pendingRestore: { key: string; focus: boolean; tab?: string } | null = null;
   let captureOrigin: { x: number; y: number } | null = null;
   let committedKey = history.location.key;
   let clickedControl: Element | null = null;
@@ -74,6 +77,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   });
   const abc = createABCPresentation?.() ?? null;
   const objects = new ObjectExpandPresentation();
+  const tabs = new TabExchangePresentation();
   const modes = new EnterModePresentation();
   const modeOptions = enterModeOptions(window.location.search);
   const modeEntries = new Map<string, string>();
@@ -88,18 +92,31 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   const scope = (): VisualScope => ({ workspace: history.id, account, ledger, style: `${html.dataset.visualStyle ?? "original"}:${html.dataset.themeMode}:${html.dataset.themePalette}` });
   const paneRoot = (): HTMLElement | null => document.querySelector(`.lv-pane[data-instance="${history.id}"] .lv-pane-scroll`);
   const scrollers = (): HTMLElement[] => Array.from(paneRoot()?.querySelectorAll<HTMLElement>(".overflow-y-auto") ?? []);
-  const saveScroll = (key: string): void => {
-    scrolls.set(key, { documentY: window.scrollY, inner: scrollers().map(el => el.scrollTop) });
+  const saveScroll = (key: string, page: string): void => {
+    const point = { documentY: window.scrollY, inner: scrollers().map(el => el.scrollTop) };
+    scrolls.set(key, point);
+    if (navigationLevel(page) === "tabRoot") tabScrolls.set(page, point);
     while (scrolls.size > 64) scrolls.delete(scrolls.keys().next().value!);
   };
-  const restoreScroll = (key: string): void => {
-    const saved = scrolls.get(key);
-    window.scrollTo({ top: saved?.documentY ?? 0, behavior: "instant" });
-    scrollers().forEach((el, i) => {
-      const top = saved?.inner[i] ?? 0;
-      el.scrollTop = top;
-      if (html.dataset.visualStyle === "b2" || abc) el.dispatchEvent(new CustomEvent(RESTORE_HEADER_SCROLL, { detail: top }));
-    });
+  let restoreFrame = 0;
+  const restoreScroll = (key: string, tab?: string): void => {
+    const saved = scrolls.get(key) ?? (tab ? tabScrolls.get(tab) : undefined);
+    cancelAnimationFrame(restoreFrame);
+    const apply = (): boolean => {
+      window.scrollTo({ top: saved?.documentY ?? 0, behavior: "instant" });
+      let clamped = false;
+      scrollers().forEach((el, i) => {
+        const top = saved?.inner[i] ?? 0;
+        el.scrollTop = top;
+        if (el.scrollTop < top - 1) clamped = true;
+        if (html.dataset.visualStyle === "b2" || abc) el.dispatchEvent(new CustomEvent(RESTORE_HEADER_SCROLL, { detail: top }));
+      });
+      return clamped;
+    };
+    // 本地缓存一般同步渲染；列表晚一两帧才撑高时短暂重试，超过约 100ms 不再与用户滚动争夺。
+    let tries = 6;
+    const retry = (): void => { if (apply() && --tries > 0) restoreFrame = requestAnimationFrame(retry); };
+    if (apply() && saved) restoreFrame = requestAnimationFrame(retry);
   };
   const captureBounds = (): DOMRect | undefined => {
     const page = paneRoot()?.firstElementChild;
@@ -113,25 +130,17 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     const geometry = layoutBackground(layouts.get(context.entryKey), values.ambient, b2GlassMaterial(values).outgoingBlur, B2_OLD_PAGE_RETREAT, getComputedStyle(document.body).color);
     return [geometry, `radial-gradient(ellipse at ${context.ambient.x}% ${context.ambient.y}%, color-mix(in srgb, var(--color-brand) calc(18% * var(--s19-b2-carry, .85)), transparent), transparent 68%)`, "var(--s19-bg, var(--color-canvas))"].filter(Boolean).join(", ");
   };
-  const paint = (): void => {
-    const style = html.dataset.visualStyle;
-    if (!current || !pages.has(current.page) || !["b1", "b2"].includes(style ?? "") || html.dataset.themeMode === "dark" || (abc && style !== "b2")) {
-      delete html.dataset.motionBackdrop; html.style.removeProperty("--motion-pilot-bg"); return;
-    }
-    // 与 Lab 同一无文字轮廓映射，只有被授权的手机设置路径使用；不读取账目文字或截图像素。
-    html.dataset.motionBackdrop = "true";
-    html.style.setProperty("--motion-pilot-bg", background(current));
-  };
+  // 1.19.42：不再把逐页环境写进 body::before。统一壁纸是全站唯一环境，B2 环境描述只在转场期间交给引擎。
   const reset = (): void => {
-    engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); objectEntries.clear(); modeEntries.clear(); store.setScope(scope()); scrolls.clear(); layouts.clear();
-    current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source"); paint();
+    engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); objectEntries.clear(); modeEntries.clear(); store.setScope(scope()); scrolls.clear(); tabScrolls.clear(); layouts.clear();
+    current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source");
   };
-  current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source"); paint();
+  current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source");
   const observe = new MutationObserver(reset);
   observe.observe(html, { attributes: true, attributeFilter: ["data-visual-style", "data-theme-mode", "data-theme-palette"] });
-  const unsubscribeGlass = visualStyleRuntime()?.subscribe(() => { engine.cancel(); abc?.cancel(); paint(); });
+  const unsubscribeGlass = visualStyleRuntime()?.subscribe(() => { engine.cancel(); abc?.cancel(); });
   const unsubscribeVariant = subscribeAVariant(() => abc?.cancel());
-  const cancel = (): void => { engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); };
+  const cancel = (): void => { engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); };
   const input = (event: Event): void => {
     engine.cancel();
     // 导航控件先把当前姿态交给下一次 run；滚动、空白点按、输入立即释放呈现副本。
@@ -163,7 +172,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       }
     }
     const anchor = target.closest<HTMLAnchorElement>("a[href]");
-    if (anchor && isSettingsMotionEdge(history.location.pathname, anchor.pathname)) {
+    if (anchor && isDefaultMotionEdge(history.location.pathname, anchor.pathname)) {
       if (lastEntryClick?.key === history.location.key && lastEntryClick.href === anchor.href && now - lastEntryClick.at < 300) {
         event.preventDefault(); event.stopImmediatePropagation(); return;
       }
@@ -175,7 +184,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     cancel();
     // 只释放临时呈现；轻量历史描述与滚动仍用于恢复，切作用域时另行清理。
     if (html.dataset.visualStyle === "b2" || abc) return;
-    scrolls.clear(); store.clear(); current = undefined; paint();
+    scrolls.clear(); tabScrolls.clear(); store.clear(); current = undefined;
   };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   let viewport = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height };
@@ -196,9 +205,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   let disposed = false;
   const dispose = (): void => {
     if (disposed) return; disposed = true;
-    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
+    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); tabs.dispose(); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); tabScrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
     if (pendingTimer) clearTimeout(pendingTimer);
-    delete html.dataset.motionBackdrop; html.style.removeProperty("--motion-pilot-bg");
     for (const name of ["--motion-b2-old-x", "--motion-b2-old-y"]) html.style.removeProperty(name);
     for (const page of document.querySelectorAll<HTMLElement>("[data-b2-motion-page]")) delete page.dataset.b2MotionPage;
     document.removeEventListener("pointerdown", input, true); document.removeEventListener("keydown", input, true);
@@ -209,16 +217,30 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   return {
     dispose,
     accept(next, commit) {
-      if (disposed || !acceptsStyle()) { startTransition(commit); return; }
+      if (disposed || !acceptsStyle()) { tabs.cancel(); startTransition(commit); return; }
       if (html.dataset.visualStyle === "a") captureATabFrame?.();
       engine.cancel();
       const from = current;
-      if (from) saveScroll(from.entryKey);
+      // 排队中的 Tab 交换尚未提交时，屏幕上仍是上一页；只记录真正显示着的那一页。
+      if (from && committedKey === from.entryKey) saveScroll(from.entryKey, from.page);
       if (store.setScope(scope())) { current = undefined; scrolls.clear(); layouts.clear(); }
-      const legalEdge = from && next.action === "PUSH" && isSettingsMotionEdge(from.page, next.location.pathname);
+      const legalEdge = from && next.action === "PUSH" && isDefaultMotionEdge(from.page, next.location.pathname);
       const known = store.get(next.location.key);
       current = store.ensure(next.location.key, next.location.pathname, scope(), legalEdge ? from : undefined, "source");
       const source = paneRoot();
+      const focused = document.activeElement;
+      const typing = focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement || (focused instanceof HTMLElement && focused.isContentEditable);
+      // switchTab：四个主 Tab 之间整页横向交换（Tab Switch Lab），不是 navigate / objectExpand / enterMode。
+      if (from && next.action !== "REPLACE" && isTabSwitch(from.page, next.location.pathname) && !next.location.hash) {
+        abc?.cancel(); objects.cancel(); modes.cancel(); clickedObject = null;
+        const instant = typing || document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null
+          || (!enabled && html.dataset.themeMode !== "light");
+        pendingRestore = { key: next.location.key, focus: false, tab: next.location.pathname };
+        if (instant) { tabs.cancel(); startTransition(commit); return; }
+        tabs.request({ from: tabIndex(from.page), to: tabIndex(next.location.pathname), page, commit: () => flushSync(commit) });
+        return;
+      }
+      tabs.cancel();
       const objectPush = next.action === "PUSH" && clickedObject && clickedObject.key === from?.entryKey && performance.now() - clickedObject.at < 1000
         && clickedObject.source.id === next.location.pathname ? clickedObject : null;
       const objectPop = next.action === "POP" && from ? objectEntries.get(from.entryKey) : undefined;
@@ -257,22 +279,24 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       const allowPop = next.action === "POP" && from?.sourceKey === next.location.key
         || !!appBack && appBack.from === from?.entryKey && appBack.to === next.location.key && performance.now() - appBack.at < 1000;
       appBack = null; pendingBack = null; if (pendingTimer) clearTimeout(pendingTimer);
-      const edges: [string, string][] = from && isSettingsMotionEdge(from.page, current.page) ? [[from.page, current.page]] : [];
+      // PUSH 只授权刚发生的那条边；POP 回放同一条边的反向（1.19.41 只按 from→to 判定，返回边全部丢失）。
+      const edges: [string, string][] = !from ? []
+        : next.action === "POP" ? (isDefaultMotionEdge(current.page, from.page) ? [[current.page, from.page]] : [])
+        : isDefaultMotionEdge(from.page, current.page) ? [[from.page, current.page]] : [];
       let direction = from ? directionFor(from, current, next.action, edges, allowPop) : "none";
       const focus = document.activeElement;
       const blocked = document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null
         || focus instanceof HTMLInputElement || focus instanceof HTMLTextAreaElement || (focus instanceof HTMLElement && focus.isContentEditable)
         || document.querySelector('.lv-shell[data-shell="contents"]') === null;
-      const query = new URLSearchParams(next.location.search);
-      const testQueryOnly = [...query].every(([key, value]) =>
-        (key === "motion" && value === "1") || (key === "s19" && ["a", "b1", "b2", "c", "original"].includes(value))
-        || (key === "shell" && ["workspace", "auto"].includes(value)));
-      if (blocked || !testQueryOnly || next.location.hash) direction = "none";
+      // 查询参数属于页面状态（筛选、来源），不再阻止默认转场；锚点跳转仍是页内定位。
+      if (blocked || next.location.hash) direction = "none";
       if (!enabled && html.dataset.themeMode !== "light") direction = "none";
-      // 不属于白名单的导航立即交回原路径，不为无关页面捕获或改变滚动。
+      // 自带动效的页面（账本空间海浪等）立即交回原路径，不为它们捕获或改变滚动。
       if (!pages.has(next.location.pathname) || (from && !pages.has(from.page))) direction = "none";
       const target = current;
-      pendingRestore = pages.has(next.location.pathname) ? { key: next.location.key, focus: direction !== "none" } : null;
+      // 同一页面换筛选（REPLACE / 同路径）保持当前滚动；换页面或返回才恢复该条历史的位置。
+      const moved = !from || from.page !== next.location.pathname || next.action === "POP";
+      pendingRestore = pages.has(next.location.pathname) && moved ? { key: next.location.key, focus: direction !== "none" } : null;
       const apply = (): void => {
         // 动画捕获回调在 React 生命周期外同步提交；即时跳转保留原来的调度。
         if (direction === "none") startTransition(commit);
@@ -309,9 +333,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       committedKey = key;
       // 记录只拦截旧页尚未提交时的重入；返回到同一 entry 后属于一次新的激活。
       if (lastEntryClick?.key !== key) lastEntryClick = null;
-      paint();
       if (pendingRestore?.key !== key) return;
-      restoreScroll(key);
+      restoreScroll(key, pendingRestore.tab);
       if (html.dataset.visualStyle === "b2" && captureOrigin) {
         // 快照组已由浏览器定位到实际页面；只补旧图相对于目标原点的差值。
         // 新图保持原位，不能再叠加一份文档滚动偏移。

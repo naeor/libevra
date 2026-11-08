@@ -1,7 +1,8 @@
 /* 四套风格共用的结构规则：只读 `--s19-*` 令牌，具体数值在 s19-lab-tokens.css。 */
 
 /* ---------- 页面环境：一层固定在视口上的背景（只在手机外壳存在时） ---------- */
-:root[data-visual-style][data-theme-mode="light"] body:has(.lv-shell[data-shell="contents"]) {
+/* 只在没有统一壁纸时才给 body 底色；有壁纸时 body 必须透明，见 wallpaper.css。 */
+:root[data-visual-style][data-theme-mode="light"]:not([data-wallpaper]) body:has(.lv-shell[data-shell="contents"]) {
   background-color: var(--s19-canvas);
 }
 :root[data-visual-style][data-theme-mode="light"] body:has(.lv-shell[data-shell="contents"])::before {

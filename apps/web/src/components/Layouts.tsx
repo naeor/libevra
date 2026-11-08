@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
@@ -6,6 +6,7 @@ import { BottomNav, BottomNavView, type EntryCards } from "./BottomNav.js";
 import { PersistentNavContext, SuppressNavigationContext } from "./PersistentNavContext.js";
 import { navigationLevel } from "../s19/motion/navigation.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
+import { currentBookId, subscribeCurrentBook } from "../lib/currentBook.js";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
 import "../s19/motion/navigation.css";
@@ -108,7 +109,7 @@ export function AppShell({ children }: { readonly children: React.ReactNode }): 
  * Holds the menu for one workspace's tabs, and folds it when that workspace moves on.
  */
 export function PaneShell({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const pane = usePane();
   const auth = useAuthOptional();
@@ -116,6 +117,15 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
   const level = navigationLevel(pathname);
   const activeTab = useRef("/");
   if (level === "tabRoot") activeTab.current = pathname;
+  /**
+   * S19 switchTab：从别的 Tab 点回来时回到它上次的筛选（查询参数），滚动由转场协调器按 Tab 恢复。
+   * 记忆按当前账本隔离，换账本不把另一本的分类/成员筛选带过去；再点当前 Tab 仍是原来的回到根。
+   */
+  const book = useSyncExternalStore(subscribeCurrentBook, currentBookId, currentBookId) ?? "local";
+  const tabMemory = useRef<{ book: string; paths: Map<string, string> }>({ book, paths: new Map() });
+  if (tabMemory.current.book !== book) tabMemory.current = { book, paths: new Map() };
+  if (level === "tabRoot") tabMemory.current.paths.set(pathname, pathname + search);
+  const tabTarget = (to: string): string => to === pathname ? to : tabMemory.current.paths.get(to) ?? to;
   const [open, setOpen] = useState(false);
   const [navigationSuppressed, suppressNavigation] = useState(false);
 
@@ -148,7 +158,7 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
     <SuppressNavigationContext.Provider value={suppressNavigation}>{children}</SuppressNavigationContext.Provider>
     {persistent ? <div data-persistent-nav hidden={level === "subpage" || navigationSuppressed} className="persistent-nav" onClickCapture={event => {
       if (event.target instanceof Element && event.target.closest("a[href]")) value.close();
-    }}><BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(to); }}
+    }}><BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(tabTarget(to)); }}
       cards={{ mode: "toggle", expanded: open, active: level === "enterMode", onToggle: value.toggle }}
       onPickImages={files => { handOverForScan(files); value.close(); void navigate("/scan"); }} /></div> : null}
   </PersistentNavContext.Provider></EntryMenuContext.Provider>;

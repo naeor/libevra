@@ -1,5 +1,3 @@
-/* 实验开关与内层手机工作区同时成立时才生效。只换环境背景，不改卡片与底栏。 */
-:root[data-motion-backdrop="true"][data-visual-style][data-theme-mode="light"] body:has(.lv-shell[data-shell="contents"])::before { background: var(--motion-pilot-bg); }
 #motion-pilot-badge {
   position: fixed; left: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 100;
   display: flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: 12px;
@@ -17,7 +15,6 @@
   view-transition-name: b2-page;
 }
 :root[data-visual-style="b2"] { --motion-hybrid-carry: var(--s19-b2-carry, .85); }
-:root[data-visual-style="b2"][data-motion-backdrop="true"][data-theme-mode="light"] body::before { background-size: 100% 100%; }
 :root[data-visual-style="b2"][data-motion-hybrid="true"]::view-transition-group(b2-page) {
   /* 环境由固定 body::before 承接，不随文档快照的位置移动。 */
   background: transparent; overflow: visible; animation-name: none;

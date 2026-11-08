@@ -26,6 +26,12 @@ export function snapshot(page: HTMLElement): HTMLElement {
     if (value !== attribute.value) node.setAttribute(attribute.name, value);
   }
   plane.append(copy);
+  // cloneNode 不复制画布像素（海浪、录音波形）；只读一次当前位图，副本不再绘制。
+  originals.forEach((node, i) => {
+    const target = copies[i];
+    if (!(node instanceof HTMLCanvasElement) || !(target instanceof HTMLCanvasElement) || !node.width || !node.height) return;
+    try { target.getContext("2d")?.drawImage(node, 0, 0); } catch { /* WebGL / 受限画布保持空白，不影响转场 */ }
+  });
   // 滚动状态不属于 cloneNode；挂载后一次性同步，副本不订阅滚动或异步数据。
   const restore = () => {
     scrolls.forEach((point, i) => { const target = copies[i]; if (target) { target.scrollTop = point.top; target.scrollLeft = point.left; } });

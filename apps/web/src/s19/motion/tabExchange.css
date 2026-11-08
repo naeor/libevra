@@ -1,0 +1,6 @@
+/* 主 Tab 交换：旧页副本放在统一壁纸（body::before，同为 -1 层但更早）之上、真实页面之下。
+   舞台透明，壁纸、常驻底栏（40）与加号都不进入横向轨道。 */
+.lv-shell.tab-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: transparent; }
+.tab-stage .s19-abc-plane { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
+.tab-stage [data-persistent-nav] { visibility: hidden; }
+[data-tab-live] { will-change: transform; }
