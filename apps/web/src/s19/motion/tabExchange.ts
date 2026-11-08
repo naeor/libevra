@@ -1,5 +1,6 @@
 import { snapshot, restoreSnapshot } from "./abcPresentation.js";
 import { setPose } from "./objectExpand.js";
+import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
 import "./tabExchange.css";
 
 /**
@@ -8,6 +9,10 @@ import "./tabExchange.css";
  *
  * 正式应用只挂载当前路由，所以旧页用一次 inert 副本、新页直接移动真实 React 页面。
  * 排队语义与 Lab 相同：正在交换时只记住最后一次点击，当前交换完成后再从实际所在页出发。
+ *
+ * 1.19.43：时间由帧锚定时钟推进（lib/frameClock.ts）。1.19.42 在提交新页面后直接交给浏览器计时，
+ * iPhone Safari 上整页副本与新页面的首次绘制吃掉了前一两百毫秒，第一帧就落在 90% 左右，
+ * 看起来像“新页面先占满，再被拨进来一点”。现在第一帧固定是起始姿态，两页从同一帧开始同步移动。
  */
 export const TAB_ORDER = ["/", "/stats", "/ledger", "/me"] as const;
 export const TAB_EASING = "cubic-bezier(0.22, 0.68, 0, 1)";
@@ -19,6 +24,7 @@ interface Pending { from: number; to: number; page: () => HTMLElement | null; co
 export class TabExchangePresentation {
   private stage: HTMLElement | null = null;
   private animations: Animation[] = [];
+  private clock: FrameClock | null = null;
   private real: { node: HTMLElement; style: string | null } | null = null;
   private generation = 0;
   private queued: Pending | null = null;
@@ -41,6 +47,7 @@ export class TabExchangePresentation {
 
   private release(): void {
     ++this.generation;
+    this.clock?.cancel(); this.clock = null;
     for (const animation of this.animations) animation.cancel();
     this.animations = [];
     if (this.real) {
@@ -80,11 +87,11 @@ export class TabExchangePresentation {
     };
     // 两页并排：旧页离开 -direction，新页从 +direction 进入，始终相距一个视口宽度。
     move(outgoing, [{ transform: "translate3d(0px,0,0)" }, { transform: `translate3d(${-direction * width}px,0,0)` }]);
-    const incoming = move(target, [{ transform: `translate3d(${direction * width}px,0,0)` }, { transform: "translate3d(0px,0,0)" }]);
-    void incoming.finished.then(() => {
+    move(target, [{ transform: `translate3d(${direction * width}px,0,0)` }, { transform: "translate3d(0px,0,0)" }]);
+    this.clock = runFrameClock(this.animations, duration, { name: "switchTab", onDone: () => {
       if (token !== this.generation) return;
-      this.release(); done?.(); this.pump();
-    }).catch(() => undefined);
+      this.clock = null; this.release(); done?.(); this.pump();
+    } });
   }
 
   private pump(): void {

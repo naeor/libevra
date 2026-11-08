@@ -1,24 +1,32 @@
 .detail-root.detail-redesign { --hero-tall: 360px; --hero-short: 60px; }
-.detail-redesign[data-searching=true] { --hero-short: 86px; }
+/* 搜索态顶部多出 26px 放范围说明；随 lockSearch 的时钟（--search-k 0→1→0）长出与收回，不瞬间撑开。 */
+.detail-redesign[data-search-room] { --hero-short: calc(60px + 26px * var(--search-k, 1)); }
 .detail-redesign .detail-header-row { position: relative; display: flex; align-items: center; justify-content: space-between; height: 36px; gap: 8px; }
 .detail-header-title { min-width: 0; transition: transform 140ms ease-out, opacity 100ms ease-out; }
 
 .detail-header-actions { display: flex; gap: 8px; flex-shrink: 0; transition: transform 140ms ease-out, opacity 100ms ease-out; }
 .detail-search-space { width: 36px; height: 36px; }
-.detail-search-shell { position: absolute; z-index: 3; top: 0; left: var(--search-left, calc(100% - 168px)); right: var(--search-right, 132px); height: 36px; border-radius: 18px; background: var(--color-glass-highlight); overflow: hidden; transition: left 160ms 40ms ease-out, right 160ms 40ms ease-out, background-color 200ms; }
+.detail-search-shell { position: absolute; z-index: 3; top: 0; left: var(--search-left, calc(100% - 168px)); right: var(--search-right, 132px); height: 36px; border-radius: 18px; background: var(--color-glass-highlight); overflow: hidden; transition: background-color 200ms; }
 .detail-search-shell[data-open=true] { left: 0; right: 0; background: var(--color-surface); color: var(--color-ink); }
 .detail-search-icon { position: absolute; left: 0; top: 0; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; }
 .detail-search-shell input { position: absolute; left: 36px; width: calc(100% - 92px); height: 36px; min-width: 0; background: transparent; border: 0; outline: none; padding: 0; font-size: var(--text-base); opacity: 0; visibility: hidden; }
 .detail-search-cancel { position: absolute; right: 0; height: 36px; width: 56px; font-size: var(--text-body); color: var(--color-brand-dark); opacity: 0; visibility: hidden; }
-.detail-search-shell[data-open=true] input, .detail-search-shell[data-open=true] .detail-search-cancel { opacity: 1; visibility: visible; transition: opacity 120ms 60ms; }
+/* 左右展开与输入框、取消的淡入淡出由 DetailPage 的帧锚定时钟驱动（同一手势里就开始，不受首帧重绘影响）。 */
+.detail-search-shell[data-open=true] input, .detail-search-shell[data-open=true] .detail-search-cancel { opacity: 1; visibility: visible; }
 .detail-search-shell:focus-within { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .detail-search-shell input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .detail-redesign .detail-month-controls { max-width: calc(100% - var(--p) * 176px); }
 .detail-redesign .detail-month.lv-filter-trigger { max-width: 100%; }
-.detail-redesign[data-searching=true] .detail-header-title { transform: translateX(-120%); opacity: 0; }
-.detail-redesign[data-searching=true] .detail-header-actions { transform: translateX(110%); opacity: 0; }
-.detail-redesign[data-searching=true] .detail-month-row { opacity: 0; transition: opacity 80ms; }
-.detail-search-scope { position: absolute; top: 60px; left: 24px; right: 24px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/*
+ * 标题、右侧按钮、月份行与范围说明的让位也读同一个 --search-k（lockSearch 的帧锚定时钟，开 0→1、关 1→0；
+ * 结束后移除，缺省按 1 处理）。不再用各自的 CSS transition：两套时钟在首帧较重时会错开——标题已经消失，
+ * 搜索框还没开始变形。data-search-room 覆盖整个开合过程，收回结束（k = 0，姿态与常态相同）时才移除。
+ */
+.detail-redesign[data-search-room] .detail-header-title { transform: translateX(calc(-120% * min(1, var(--search-k, 1) * 1.4))); opacity: max(0, 1 - var(--search-k, 1) * 2); transition: none; }
+.detail-redesign[data-search-room] .detail-header-actions { transform: translateX(calc(110% * min(1, var(--search-k, 1) * 1.4))); opacity: max(0, 1 - var(--search-k, 1) * 2); transition: none; }
+.detail-redesign[data-search-room] .detail-month-row { opacity: max(0, 1 - var(--search-k, 1) * 2.5); }
+.detail-search-scope { position: absolute; top: 60px; left: 24px; right: 24px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: 0; pointer-events: none; }
+.detail-redesign[data-search-room] .detail-search-scope { opacity: clamp(0, (var(--search-k, 1) - .35) * 2, 1); }
 .detail-overview { margin-top: 16px; }
 .detail-overview-main, .detail-overview-small > section { border-radius: var(--radius-card); background: var(--color-glass-highlight); padding: 16px; min-width: 0; }
 .detail-overview-totals { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding-block: 12px; }

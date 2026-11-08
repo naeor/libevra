@@ -39,8 +39,10 @@
   opacity: 0;
   transition: opacity .16s ease-out;
 }
-:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign[data-searching="true"] .detail-hero::before {
-  opacity: 1;
+/* 搜索开合：底衬与搜索框、标题让位读同一个 --search-k（帧锚定时钟），不另跑一段 CSS transition。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign[data-search-room] .detail-hero::before {
+  opacity: var(--search-k, 1);
+  transition: none;
 }
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-toggle-sticky {
   background: transparent;

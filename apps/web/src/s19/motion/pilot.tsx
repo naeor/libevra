@@ -18,6 +18,7 @@ import { hasDefaultMotion, isDefaultMotionEdge, isTabSwitch, navigationLevel } f
 import { EnterModePresentation, enterModeOptions } from "./enterMode.js";
 import { ObjectExpandPresentation, objectSource, type ObjectSource } from "./objectExpand.js";
 import { TabExchangePresentation, tabIndex } from "./tabExchange.js";
+import { onClockReport } from "../../lib/frameClock.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
@@ -59,7 +60,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   let appBack: { from: string; to: string; at: number } | null = null;
   let lastEntryClick: { key: string; href: string; at: number } | null = null;
   let pendingBack: string | null = null;
-  let pendingRestore: { key: string; focus: boolean; tab?: string } | null = null;
+  let pendingRestore: { key: string; focus: boolean; tab?: string | undefined } | null = null;
   let captureOrigin: { x: number; y: number } | null = null;
   let committedKey = history.location.key;
   let clickedControl: Element | null = null;
@@ -191,10 +192,46 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   const viewportChanged = (): void => {
     const next = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height };
     // 普通详情出现文档滚动条只改变 visualViewport.width，不是用户旋转/缩放或键盘。
-    if (next.width !== viewport.width || next.height !== viewport.height || next.visualHeight !== viewport.visualHeight) cancel();
+    // iPhone Safari 在 push / pop 时会改动工具栏（前进按钮出现或消失、底栏收起），视口高度变几十像素；
+    // 1.19.42 遇到任何高度变化都会把正在播放的转场直接收束到终点，看起来就是“闪一下到详情”。
+    // 现在只在宽度变化（旋转）或高度大幅变化（键盘）时收束。
+    const height = (a?: number, b?: number): number => Math.abs((a ?? 0) - (b ?? 0));
+    if (next.width !== viewport.width || height(next.height, viewport.height) > 150 || height(next.visualHeight, viewport.visualHeight) > 150) cancel();
     viewport = next;
   };
+  /**
+   * 浏览器自己已经做了返回动画（iOS 边缘滑动返回会先把上一页的快照拉出来）。这时协调器只提交页面，
+   * 不再叠一段收回或覆盖转场。优先读 `PopStateEvent.hasUAVisualTransition`；不支持的旧 Safari 用
+   * “从屏幕边缘开始的横向拖动”作为同一信号。
+   */
+  let edgeSwipeAt = -Infinity;
+  let edgeStart: { x: number; y: number } | null = null;
+  const touchStart = (event: TouchEvent): void => {
+    const touch = event.touches[0];
+    edgeStart = touch && (touch.clientX <= 16 || touch.clientX >= innerWidth - 16) ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+  const touchMove = (event: TouchEvent): void => {
+    const touch = event.touches[0];
+    if (edgeStart && touch && Math.abs(touch.clientX - edgeStart.x) > 24 && Math.abs(touch.clientX - edgeStart.x) > Math.abs(touch.clientY - edgeStart.y)) edgeSwipeAt = performance.now();
+  };
+  // 系统接管边缘返回手势时，页面常常只收到 touchstart，随后是 touchcancel（没有 touchmove）。
+  const touchCancel = (): void => { if (edgeStart) edgeSwipeAt = performance.now(); edgeStart = null; };
+  const browserAnimatedPop = (action: string): boolean => {
+    if (action !== "POP") return false;
+    const event = (window as unknown as { event?: Event }).event;
+    if (event?.type === "popstate" && (event as PopStateEvent & { hasUAVisualTransition?: boolean }).hasUAVisualTransition) return true;
+    return performance.now() - edgeSwipeAt < 1500;
+  };
+  // 开发诊断：`?motion=1` 徽章显示上一次转场的真实帧数与时间分布，供 iPhone 上直接核对。
+  const unsubscribeClock = onClockReport(report => {
+    if (!enabled) return;
+    badge.dataset.lastMotion = report.name;
+    status.textContent = `${report.name} · ${report.frames}帧 / ${report.wallMs}ms（设定 ${report.duration}） · 首帧 ${report.firstFrameMs}ms · 最长间隔 ${report.maxGapMs}ms${report.completed ? "" : " · 中断"}`;
+  });
   document.addEventListener("pointerdown", input, true);
+  document.addEventListener("touchstart", touchStart, { capture: true, passive: true });
+  document.addEventListener("touchmove", touchMove, { capture: true, passive: true });
+  document.addEventListener("touchcancel", touchCancel, { capture: true, passive: true });
   document.addEventListener("keydown", input, true);
   document.addEventListener("click", click, true);
   document.addEventListener("visibilitychange", visibility);
@@ -210,6 +247,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     for (const name of ["--motion-b2-old-x", "--motion-b2-old-y"]) html.style.removeProperty(name);
     for (const page of document.querySelectorAll<HTMLElement>("[data-b2-motion-page]")) delete page.dataset.b2MotionPage;
     document.removeEventListener("pointerdown", input, true); document.removeEventListener("keydown", input, true);
+    document.removeEventListener("touchstart", touchStart, true); document.removeEventListener("touchmove", touchMove, true); document.removeEventListener("touchcancel", touchCancel, true); unsubscribeClock();
     document.removeEventListener("click", click, true); document.removeEventListener("visibilitychange", visibility);
     window.removeEventListener("resize", viewportChanged); window.removeEventListener("pagehide", cancel); window.visualViewport?.removeEventListener("resize", viewportChanged); reduced.removeEventListener("change", cancel);
   };
@@ -228,6 +266,13 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       const known = store.get(next.location.key);
       current = store.ensure(next.location.key, next.location.pathname, scope(), legalEdge ? from : undefined, "source");
       const source = paneRoot();
+      if (browserAnimatedPop(next.action)) {
+        // 浏览器已经呈现过返回：只交付页面与滚动，不再播放任何呈现层动画。
+        abc?.cancel(); objects.cancel(false); modes.cancel(); tabs.cancel(); clickedObject = null; edgeSwipeAt = -Infinity;
+        pendingRestore = { key: next.location.key, focus: false, tab: navigationLevel(next.location.pathname) === "tabRoot" ? next.location.pathname : undefined };
+        flushSync(commit);
+        return;
+      }
       const focused = document.activeElement;
       const typing = focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement || (focused instanceof HTMLElement && focused.isContentEditable);
       // switchTab：四个主 Tab 之间整页横向交换（Tab Switch Lab），不是 navigate / objectExpand / enterMode。

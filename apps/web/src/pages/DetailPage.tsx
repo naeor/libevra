@@ -1,7 +1,6 @@
 import { useAnalysisRange } from "../lib/analysisRange.js";
 import { SlidingSelection } from "../components/ui/SlidingSelection.js";
 import "../components/ledger/detail-overview.css";
-import { flushSync } from "react-dom";
 import { DetailOverview } from "../components/ledger/DetailOverview.js";
 import { useDetailCards, detailDayCount } from "../lib/detailCards.js";
 import { entryMatches } from "../desktop/entriesView.js";
@@ -9,7 +8,8 @@ import { EntrySortControls, useEntryPresentation } from "../components/EntrySort
 import { ChevronIcon } from "../components/Icons.js";
 import { AttachmentPanel } from "../components/Attachments.js";
 import { CURRENCIES, endOfMonth, type CurrencySummary, type Transaction, type TransactionKind } from "@libellum/shared";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { runFrameClock, type FrameClock } from "../lib/frameClock.js";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { entryReturnState } from "../lib/entryReturn.js";
 
@@ -150,6 +150,14 @@ export function DetailPage(): React.JSX.Element {
   const searchInput = useRef<HTMLInputElement>(null);
   const searchButton = useRef<HTMLButtonElement>(null);
   const searchSpace = useRef<HTMLSpanElement>(null);
+  const searchShell = useRef<HTMLDivElement>(null);
+  const searchCancel = useRef<HTMLButtonElement>(null);
+  const headerTitle = useRef<HTMLDivElement>(null);
+  const headerActions = useRef<HTMLDivElement>(null);
+  const monthRow = useRef<HTMLDivElement>(null);
+  /** 屏幕上的搜索形态（可能先于 React 状态）：open / closed。 */
+  const searchVisual = useRef<boolean>(saved.searchOpen ?? false);
+  const searchMorph = useRef<{ clock: FrameClock; animations: Animation[] } | null>(null);
   const searchOrigin = useRef(saved.searchOrigin ?? saved.scrollTop);
   const monthAnchor = useRef<HTMLButtonElement>(null);
   const { rootRef, scrollRef, atList, goTo, lockSearch } = useDetailTransition(saved.progress, pane.instance, saved.searchOpen);
@@ -195,17 +203,74 @@ export function DetailPage(): React.JSX.Element {
    * down into the list — the summary has just collapsed to give the entries
    * room, and leaving a menu open would spend exactly what was won.
    */
+  /**
+   * **搜索是本页控件的形态变化，不是一次页面切换（S19 1.19.43）。**
+   *
+   * 以前点击时先 `flushSync` 整页重渲染再聚焦：iPhone 上这段同步渲染加上键盘弹出，正好占掉了胶囊展开与
+   * 顶部收起的前半段，第一次尤其明显——看起来是先停一下、顶部先换了布局、搜索框再出现在新位置。
+   *
+   * 现在点击当下只改这几个元素的 DOM 状态并同步聚焦（iOS 只在同一次手势里弹出键盘）：胶囊从按钮的
+   * 实际位置向左右展开、标题与工具让位、顶部按同一时钟收起；React 状态在形变结束后再同步（结果相同，
+   * 不再产生视觉变化）。关闭按相反顺序收回到按钮位置，再清空查询。
+   */
+  const presentSearch = (open: boolean): void => {
+    const root = rootRef.current, input = searchInput.current, cancel = searchCancel.current, button = searchButton.current;
+    if (root) root.dataset.searching = String(open);
+    if (searchShell.current) searchShell.current.dataset.open = String(open);
+    for (const node of [headerTitle.current, headerActions.current, monthRow.current]) {
+      if (!node) continue;
+      node.inert = open;
+      if (open) node.setAttribute("aria-hidden", "true"); else node.removeAttribute("aria-hidden");
+    }
+    if (input) { input.readOnly = !open; input.tabIndex = open ? 0 : -1; input.setAttribute("aria-hidden", String(!open)); }
+    if (cancel) { cancel.tabIndex = open ? 0 : -1; cancel.setAttribute("aria-hidden", String(!open)); }
+    if (button) { button.tabIndex = open ? -1 : 0; button.setAttribute("aria-expanded", String(open)); }
+  };
+  const morphSearch = (open: boolean, done: () => void): void => {
+    const shell = searchShell.current, input = searchInput.current, cancel = searchCancel.current;
+    // 先读屏幕上的当前姿态（可能正停在上一次开合的中途），再取消上一次的动画；否则暂停在中途的
+    // fill 动画会盖住新的目标值，快速重复开合后胶囊停在半路。
+    const current = shell ? getComputedStyle(shell) : null;
+    const from = { left: current?.left ?? "", right: current?.right ?? "" };
+    const fade = [input, cancel].map(node => { if (!node) return 0; const style = getComputedStyle(node); return style.visibility === "hidden" ? 0 : Number(style.opacity); });
+    const previous = searchMorph.current; searchMorph.current = null;
+    previous?.clock.cancel(); for (const animation of previous?.animations ?? []) animation.cancel();
+    if (!shell || typeof shell.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { presentSearch(open); done(); return; }
+    presentSearch(open);
+    const after = getComputedStyle(shell);
+    const to = { left: after.left, right: after.right };
+    const timing: KeyframeAnimationOptions = { duration: 200, fill: "both" };
+    const animations = [shell.animate([{ ...from, easing: "cubic-bezier(.2,.72,.2,1)" }, to], timing)];
+    // 输入框与取消随胶囊变宽淡入；收回时先淡出再随胶囊回到按钮（保持可见直到淡出结束）。
+    [input, cancel].forEach((node, i) => {
+      if (!node) return;
+      const start = fade[i]!;
+      animations.push(node.animate(open
+        ? [{ opacity: start, visibility: "visible", offset: 0 }, { opacity: start, visibility: "visible", offset: .3 }, { opacity: 1, visibility: "visible", offset: 1 }]
+        : [{ opacity: start, visibility: "visible", offset: 0 }, { opacity: 0, visibility: "visible", offset: .3 }, { opacity: 0, visibility: "hidden", offset: 1 }], timing));
+    });
+    const clock = runFrameClock(animations, 200, { name: open ? "searchOpen" : "searchClose", onDone: () => {
+      if (searchMorph.current?.clock === clock) searchMorph.current = null;
+      for (const animation of animations) animation.cancel();
+      done();
+    } });
+    searchMorph.current = { clock, animations };
+  };
   const openSearch = () => {
-    if (searchOpen) { searchInput.current?.focus({ preventScroll: true }); return; }
+    if (searchVisual.current) { searchInput.current?.focus({ preventScroll: true }); return; }
+    searchVisual.current = true;
     searchOrigin.current = scrollRef.current?.scrollTop ?? 0;
-    flushSync(() => setSearchOpen(true));
+    morphSearch(true, () => { if (searchVisual.current) startTransition(() => setSearchOpen(true)); });
+    // 同一手势里聚焦，键盘照常弹出；输入框此时已可编辑、可见。
     searchInput.current?.focus({ preventScroll: true });
     lockSearch(true);
   };
   const closeSearch = () => {
+    if (!searchVisual.current && !searchOpen) return;
+    searchVisual.current = false;
     searchInput.current?.blur();
-    flushSync(() => { setSearchOpen(false); setQuery(""); });
     lockSearch(false, searchOrigin.current);
+    morphSearch(false, () => { if (!searchVisual.current) startTransition(() => { setSearchOpen(false); setQuery(""); }); });
     searchButton.current?.focus({ preventScroll: true });
   };
   useEffect(() => { writeSession({ search: query, searchOpen, searchOrigin: searchOrigin.current }, pane.instance); }, [query, searchOpen, pane.instance]);
@@ -816,7 +881,7 @@ export function DetailPage(): React.JSX.Element {
             data-pinned={atList}
           >
             <div className="detail-header-row">
-<div className="detail-header-title" inert={searchOpen} aria-hidden={searchOpen}>
+<div ref={headerTitle} className="detail-header-title" inert={searchOpen} aria-hidden={searchOpen}>
               <div className="flex min-w-0 items-center gap-2">
                 {/**
                   * ⚠️ **S18：大屏上品牌在全局侧栏左上角，这里不再重复 Libevra**（所有者规格 §16.1），
@@ -855,7 +920,7 @@ export function DetailPage(): React.JSX.Element {
               </div>
 
               {/* 排序 / 批量操作 / 更多；服务器同步入口在明细更多。 */}
-              </div><div className="detail-header-actions" inert={searchOpen} aria-hidden={searchOpen}><span ref={searchSpace} className="detail-search-space" />
+              </div><div ref={headerActions} className="detail-header-actions" inert={searchOpen} aria-hidden={searchOpen}><span ref={searchSpace} className="detail-search-space" />
               <DetailTools
                 sortControl={<EntrySortControls state={presentation} mode="compact" />}
                 guest={guest || foreign !== null}
@@ -868,12 +933,12 @@ export function DetailPage(): React.JSX.Element {
                 onExitSelection={exitBatch}
               />
               </div>
-              <div className="detail-search-shell" data-open={searchOpen}>
+              <div ref={searchShell} className="detail-search-shell" data-open={searchOpen}>
                 <button ref={searchButton} type="button" className="detail-search-icon" aria-label={t("ledger.cards.search")} aria-expanded={searchOpen} disabled={selecting} tabIndex={searchOpen ? -1 : 0} onPointerDown={e => e.preventDefault()} onClick={openSearch}>
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5" strokeLinecap="round"/></svg>
                 </button>
                 <input ref={searchInput} type="search" value={query} readOnly={!searchOpen} tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} aria-label={t("ledger.cards.search")} placeholder={t("ledger.cards.placeholder")} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape" && !e.nativeEvent.isComposing) closeSearch(); }} />
-                <button type="button" className="detail-search-cancel" tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} onClick={closeSearch}>{t("common.action.cancel")}</button>
+                <button ref={searchCancel} type="button" className="detail-search-cancel" tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} onClick={closeSearch}>{t("common.action.cancel")}</button>
               </div>
             </div>
 
@@ -884,7 +949,7 @@ export function DetailPage(): React.JSX.Element {
               being vacated rather than crossing anything. Left-aligned in both
               states: centred, it took horizontal room the currency cards need.
             */}
-            <div className="detail-month-row relative mt-2 h-8" inert={searchOpen} aria-hidden={searchOpen}>
+            <div ref={monthRow} className="detail-month-row relative mt-2 h-8" inert={searchOpen} aria-hidden={searchOpen}>
               <div className="detail-month-controls flex items-center">
                 <button
                   type="button"
@@ -902,7 +967,8 @@ export function DetailPage(): React.JSX.Element {
               </div>
             </div>
 
-            {searchOpen ? <p className="detail-search-scope text-helper text-on-brand/75">{t("ledger.cards.scope", { scope: filter.label })}</p> : null}
+            {/* 常驻、随 --search-k（搜索开合的帧锚定时钟）淡入淡出：形变期间就能出现，不等 React 状态同步后才蹦出来。 */}
+            <p className="detail-search-scope text-helper text-on-brand/75" aria-hidden={!searchOpen}>{t("ledger.cards.scope", { scope: filter.label })}</p>
             <DetailOverview onOpen={data => {
               const key = keepMetricSnapshot({ ...data, owner: user?.id ?? guestIdentity?.id ?? "", book: metricBook, pane: pane.instance, returnTo: location.pathname + location.search });
               void navigate(`/ledger/metrics/${data.metric}`, { state: { metricSnapshot: key } });

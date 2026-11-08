@@ -3,6 +3,7 @@ import type { TransactionKind } from "@libellum/shared";
 import type { EntryPresentation } from "../components/EntrySortControls.js";
 import { DRAG_DISTANCE, LATE_THRESHOLD, clamp01 } from "./transitionPhysics.js";
 import { bindNativeHeaderScroll, scrollContentHeight } from "./nativeHeaderScroll.js";
+import { runFrameValue } from "./frameClock.js";
 
 interface Session { progress: number; month: string | null; kind: TransactionKind | "all" | null; scrollTop: number; syncRequested?: boolean; presentation?: EntryPresentation; syncReturnPath?: string; search?: string; searchOpen?: boolean; searchOrigin?: number }
 /**
@@ -31,30 +32,64 @@ export function useDetailTransition(initial: number, scope = "w1", initialSearch
   const [atList, setAtList] = useState(initialSearch || initial >= 1);
   const searchLock = useRef(initialSearch);
   const searchProgress = useRef(initialSearch ? 1 : initial);
-  const searchFrame = useRef(0);
+  /** 关闭搜索后顶部从搜索态回到滚动位置的过程中，`--p` 仍由这里推进，行程区已按滚动恢复。 */
+  const releasing = useRef(false);
+  /** 当前的 --search-k（0 常态、1 搜索态）。快速开合时从这里接续，不先跳回端点。 */
+  const searchK = useRef(initialSearch ? 1 : 0);
+  const stopSearchMotion = useRef<() => void>(() => {});
   const repaint = useRef<() => void>(() => {});
   const cancelMotion = useRef<() => void>(() => {});
+  /**
+   * 搜索开合时顶部的收起 / 展开。1.19.43 起用帧锚定时钟：旧实现在点击时取 `performance.now()` 作起点，
+   * 点击当下的整页重渲染与键盘弹出占掉的时间被算进了动画，第一帧就接近终点，看起来是“向上跳”。
+   * 搜索态顶部比普通收起多出的 26px（放范围说明）也随同一时钟长出 / 收回，不再瞬间撑开。
+   */
   const lockSearch = useCallback((locked: boolean, restoreTop?: number) => {
     const changed = searchLock.current !== locked;
-    if (changed) { cancelMotion.current(); cancelAnimationFrame(searchFrame.current); }
-    const origin = clamp01((scrollRef.current?.scrollTop ?? 0) / DRAG_DISTANCE);
-    searchLock.current = locked;
-    if (!locked && restoreTop !== undefined && scrollRef.current) {
-      rootRef.current?.style.setProperty("--detail-scroll-travel", `${clamp01(restoreTop / DRAG_DISTANCE) * DRAG_DISTANCE}px`);
-      scrollRef.current.scrollTop = restoreTop;
+    const root = rootRef.current, scroller = scrollRef.current;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (changed) { cancelMotion.current(); stopSearchMotion.current(); }
+    const ease = (t: number): number => 1 - (1 - t) ** 2;
+    const setK = (k: number): void => { searchK.current = k; root?.style.setProperty("--search-k", String(k)); };
+    if (locked) {
+      const origin = clamp01((scroller?.scrollTop ?? 0) / DRAG_DISTANCE);
+      // 收回还没结束又打开：从屏幕上当前的姿态接续，而不是先按滚动位置跳回去。
+      const interrupted = releasing.current;
+      searchLock.current = true; releasing.current = false;
+      if (changed) {
+        const from = reduced ? 1 : interrupted ? searchProgress.current : origin, kFrom = reduced ? 1 : searchK.current;
+        searchProgress.current = from;
+        if (scroller) scroller.scrollTop = Math.max(0, scroller.scrollTop - DRAG_DISTANCE);
+        root?.setAttribute("data-search-room", "");
+        setK(kFrom);
+        stopSearchMotion.current = runFrameValue(reduced ? 0 : 200, t => {
+          searchProgress.current = from + (1 - from) * ease(t);
+          setK(kFrom + (1 - kFrom) * ease(t));
+          repaint.current();
+        }, () => { searchK.current = 1; root?.style.removeProperty("--search-k"); });
+      }
+      repaint.current();
+      return;
     }
-    if (changed && locked) {
-      searchProgress.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : origin;
-      if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, scrollRef.current.scrollTop - DRAG_DISTANCE);
-      const started = performance.now();
-      const advance = (now: number) => {
-        const t = Math.min(1, (now - started) / 200);
-        searchProgress.current = origin + (1 - origin) * (1 - (1 - t) ** 2);
-        repaint.current();
-        if (t < 1) searchFrame.current = requestAnimationFrame(advance);
-      };
-      if (searchProgress.current < 1) searchFrame.current = requestAnimationFrame(advance);
+    searchLock.current = false;
+    if (restoreTop !== undefined && scroller) {
+      root?.style.setProperty("--detail-scroll-travel", `${clamp01(restoreTop / DRAG_DISTANCE) * DRAG_DISTANCE}px`);
+      scroller.scrollTop = restoreTop;
     }
+    if (!changed) { repaint.current(); return; }
+    const from = searchProgress.current, target = clamp01((scroller?.scrollTop ?? 0) / DRAG_DISTANCE);
+    releasing.current = true;
+    const kFrom = searchK.current;
+    setK(kFrom);
+    stopSearchMotion.current = runFrameValue(reduced ? 0 : 200, t => {
+      searchProgress.current = from + (target - from) * ease(t);
+      setK(kFrom * (1 - ease(t)));
+      repaint.current();
+    }, () => {
+      releasing.current = false; searchK.current = 0;
+      root?.removeAttribute("data-search-room"); root?.style.removeProperty("--search-k");
+      repaint.current();
+    });
     repaint.current();
   }, []);
   const navigate = useRef<(p: number) => void>(() => {});
@@ -66,8 +101,9 @@ export function useDetailTransition(initial: number, scope = "w1", initialSearch
     let settled = initial >= 1;
     let paintedProgress = "", paintedTravel = "";
     const paint = () => {
-      const p = searchLock.current ? searchProgress.current : clamp01(scroller.scrollTop / DRAG_DISTANCE);
-      const progress = p.toFixed(4), travel = `${searchLock.current ? 0 : p * DRAG_DISTANCE}px`;
+      const scrolled = clamp01(scroller.scrollTop / DRAG_DISTANCE);
+      const p = searchLock.current || releasing.current ? searchProgress.current : scrolled;
+      const progress = p.toFixed(4), travel = `${searchLock.current ? 0 : scrolled * DRAG_DISTANCE}px`;
       // 列表端继续惯性滚动时不重复刷新整棵摘要/账目树的继承样式。
       if (progress !== paintedProgress) { root.style.setProperty("--p", progress); paintedProgress = progress; }
       if (travel !== paintedTravel) { root.style.setProperty("--detail-scroll-travel", travel); paintedTravel = travel; }
@@ -96,9 +132,10 @@ export function useDetailTransition(initial: number, scope = "w1", initialSearch
     const observer = new ResizeObserver(measure);
     observer.observe(scroller); measure();
     scroller.scrollTop = initialSearch ? sessionFor(scope).scrollTop : Math.max(initial * DRAG_DISTANCE, sessionFor(scope).scrollTop);
+    if (initialSearch) root.setAttribute("data-search-room", "");
     paint();
     return () => {
-      cancelAnimationFrame(searchFrame.current);
+      stopSearchMotion.current();
       writeSession({ progress: clamp01(scroller.scrollTop / DRAG_DISTANCE), scrollTop: scroller.scrollTop }, scope);
       controller.destroy(); observer.disconnect(); content.style.minHeight = oldMinHeight; navigate.current = () => {};
     };
