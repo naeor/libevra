@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-08 23:23（UTC+08:00）
+> 最后修改：2026-11-09 00:23（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -62,12 +62,13 @@
 | [duplicateReviewScan.test.ts](duplicateReviewScan.test.ts) | 测试：duplicateReviewScan |
 | [duplicateSettings.test.ts](duplicateSettings.test.ts) | 测试：duplicateSettings |
 | [duplicateSettings.ts](duplicateSettings.ts) | 实现模块；入口/导出：DUPLICATE_SETTINGS_STORAGE_PREFIX、DUPLICATE_SETTINGS_SCHEMA_VERSION、DuplicateSettingsScope、DuplicateSettingsStorage、duplicateSettingsStorage |
+| [entryFlow.ts](entryFlow.ts) | 实现模块；入口/导出：provideEntryAgain、continueEntry |
 | [entryReturn.test.ts](entryReturn.test.ts) | 测试：entryReturn |
 | [entryReturn.ts](entryReturn.ts) | 实现模块；入口/导出：entryReturnState、entryBackTarget、useEntryReturn |
 | [errorCopy.test.ts](errorCopy.test.ts) | 测试：errorCopy |
 | [format.ts](format.ts) | 实现模块；入口/导出：currencySymbol、currencyName、numberSeparators、formatMoney、minorToInput |
 | [frameClock.test.ts](frameClock.test.ts) | 测试：frameClock |
-| [frameClock.ts](frameClock.ts) | 实现模块；入口/导出：ClockReport、STALL_MS、onClockReport、FramePace、FrameClock |
+| [frameClock.ts](frameClock.ts) | 实现模块；入口/导出：ClockReport、STALL_MS、onClockReport、publishClockReport、FramePace |
 | [fxView.test.tsx](fxView.test.tsx) | 测试：fxView |
 | [fxView.ts](fxView.ts) | 实现模块；入口/导出：readFxMode、saveFxMode、useFxMode、useFxEntry、fxMoney |
 | [language.test.ts](language.test.ts) | 测试：language |

@@ -56,6 +56,7 @@ import {
   useTransactions,
 } from "../lib/queries.js";
 import { uuidV7 } from "../lib/uuid.js";
+import { continueEntry } from "../lib/entryFlow.js";
 
 /**
  * The payment method a first entry falls back to. ⚠️ 这是与数据库里预置支付方式**原名**比较的值，
@@ -612,7 +613,8 @@ export function AddEntryPage(): React.JSX.Element {
               : undefined
           }
           quoteSent={shared && quoteSent}
-          onAgain={() => {
+          // 1.19.45：清空交给工作区内的轻切换（上一笔收起、新的一笔升入）；仍在点击里同步提交，焦点照旧交回金额框。
+          onAgain={() => continueEntry(() => {
             const next = nextEntryFields(new Date());
 
             focusAfterReset.current = true;
@@ -628,7 +630,7 @@ export function AddEntryPage(): React.JSX.Element {
             setQuoteOpen(false);
             setQuoteSent(false);
             setSaved(null);
-          }}
+          })}
         />
 
         {/**

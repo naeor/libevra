@@ -14,11 +14,13 @@ import { describeLayout, layoutBackground, type AmbientLayout } from "./ambientL
 import { aVariant, captureATabFrame, createABCPresentation, subscribeAVariant } from "./abcBridge.js";
 import "./motion.css";
 import "./pilot.css";
-import { hasDefaultMotion, isDefaultMotionEdge, isTabSwitch, navigationLevel } from "./navigation.js";
+import { focusesOnEntry, hasDefaultMotion, inEntryWorkspace, isDefaultMotionEdge, isTabSwitch, navigationLevel } from "./navigation.js";
 import { EnterModePresentation, enterModeOptions } from "./enterMode.js";
 import { ObjectExpandPresentation, objectSource, type ObjectSource } from "./objectExpand.js";
 import { TabExchangePresentation, tabIndex } from "./tabExchange.js";
+import { TidePresentation, tideLook } from "./tide.js";
 import { onClockReport } from "../../lib/frameClock.js";
+import { provideEntryAgain } from "../../lib/entryFlow.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
@@ -80,6 +82,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   const objects = new ObjectExpandPresentation();
   const tabs = new TabExchangePresentation();
   const modes = new EnterModePresentation();
+  const tide = new TidePresentation();
   const modeOptions = enterModeOptions(window.location.search);
   const modeEntries = new Map<string, string>();
   const objectEntries = new Map<string, { source: ObjectSource; sourceKey: string }>();
@@ -88,6 +91,9 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     const node = paneRoot()?.firstElementChild;
     return node instanceof HTMLElement ? node : null;
   };
+  /** 工作区里的全部页面节点（保存成功屏前面可能还有一条提示），不含常驻底栏。 */
+  const pageNodes = (): HTMLElement[] => Array.from(paneRoot()?.children ?? [])
+    .filter((node): node is HTMLElement => node instanceof HTMLElement && !node.matches("[data-persistent-nav], .persistent-nav-space"));
   const acceptsStyle = (): boolean => enabled || html.dataset.visualStyle === "b2" || (!!abc && ["a", "b1", "c"].includes(html.dataset.visualStyle ?? ""));
   status.textContent = "Motion 试点 · 我的 → 设置 → 语言";
   const scope = (): VisualScope => ({ workspace: history.id, account, ledger, style: `${html.dataset.visualStyle ?? "original"}:${html.dataset.themeMode}:${html.dataset.themePalette}` });
@@ -133,7 +139,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   };
   // 1.19.42：不再把逐页环境写进 body::before。统一壁纸是全站唯一环境，B2 环境描述只在转场期间交给引擎。
   const reset = (): void => {
-    engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); objectEntries.clear(); modeEntries.clear(); store.setScope(scope()); scrolls.clear(); tabScrolls.clear(); layouts.clear();
+    engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); tide.cancel(); objectEntries.clear(); modeEntries.clear(); store.setScope(scope()); scrolls.clear(); tabScrolls.clear(); layouts.clear();
     current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source");
   };
   current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source");
@@ -141,7 +147,12 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   observe.observe(html, { attributes: true, attributeFilter: ["data-visual-style", "data-theme-mode", "data-theme-palette"] });
   const unsubscribeGlass = visualStyleRuntime()?.subscribe(() => { engine.cancel(); abc?.cancel(); });
   const unsubscribeVariant = subscribeAVariant(() => abc?.cancel());
-  const cancel = (): void => { engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); };
+  /** light=false：只收束导航类转场（视口大幅变化）；「再记一笔」的轻切换不随随后弹出的键盘中断。 */
+  const cancel = (light = true): void => { engine.cancel(); abc?.cancel(); objects.cancel(); if (light) modes.cancel(); else modes.cancelFlow(); tabs.cancel(); tide.cancel(); };
+  provideEntryAgain(commit => {
+    if (!acceptsStyle() || document.hidden) { commit(); return; }
+    modes.again({ root: paneRoot, commit: () => flushSync(commit), style: html.dataset.visualStyle ?? "c" });
+  });
   const input = (event: Event): void => {
     engine.cancel();
     // 导航控件先把当前姿态交给下一次 run；滚动、空白点按、输入立即释放呈现副本。
@@ -196,7 +207,9 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     // 1.19.42 遇到任何高度变化都会把正在播放的转场直接收束到终点，看起来就是“闪一下到详情”。
     // 现在只在宽度变化（旋转）或高度大幅变化（键盘）时收束。
     const height = (a?: number, b?: number): number => Math.abs((a ?? 0) - (b ?? 0));
-    if (next.width !== viewport.width || height(next.height, viewport.height) > 150 || height(next.visualHeight, viewport.visualHeight) > 150) cancel();
+    // 记账工作区的舞台固定在布局视口上，只有可视区变化的软键盘（手动记账在点击里聚焦金额框）不打断它。
+    if (next.width !== viewport.width || height(next.height, viewport.height) > 150) cancel(false);
+    else if (height(next.visualHeight, viewport.visualHeight) > 150) { engine.cancel(); abc?.cancel(); objects.cancel(); tabs.cancel(); }
     viewport = next;
   };
   /**
@@ -236,20 +249,22 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   document.addEventListener("click", click, true);
   document.addEventListener("visibilitychange", visibility);
   window.addEventListener("resize", viewportChanged);
-  window.addEventListener("pagehide", cancel);
+  const onPageHide = (): void => cancel();
+  const onReduced = (): void => cancel();
+  window.addEventListener("pagehide", onPageHide);
   window.visualViewport?.addEventListener("resize", viewportChanged);
-  reduced.addEventListener("change", cancel);
+  reduced.addEventListener("change", onReduced);
   let disposed = false;
   const dispose = (): void => {
     if (disposed) return; disposed = true;
-    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); tabs.dispose(); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); tabScrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
+    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); tabs.dispose(); tide.cancel(); provideEntryAgain(null); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); tabScrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
     if (pendingTimer) clearTimeout(pendingTimer);
     for (const name of ["--motion-b2-old-x", "--motion-b2-old-y"]) html.style.removeProperty(name);
     for (const page of document.querySelectorAll<HTMLElement>("[data-b2-motion-page]")) delete page.dataset.b2MotionPage;
     document.removeEventListener("pointerdown", input, true); document.removeEventListener("keydown", input, true);
     document.removeEventListener("touchstart", touchStart, true); document.removeEventListener("touchmove", touchMove, true); document.removeEventListener("touchcancel", touchCancel, true); unsubscribeClock();
     document.removeEventListener("click", click, true); document.removeEventListener("visibilitychange", visibility);
-    window.removeEventListener("resize", viewportChanged); window.removeEventListener("pagehide", cancel); window.visualViewport?.removeEventListener("resize", viewportChanged); reduced.removeEventListener("change", cancel);
+    window.removeEventListener("resize", viewportChanged); window.removeEventListener("pagehide", onPageHide); window.visualViewport?.removeEventListener("resize", viewportChanged); reduced.removeEventListener("change", onReduced);
   };
   close.addEventListener("click", () => { enabled = false; dispose(); });
   return {
@@ -268,11 +283,24 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       const source = paneRoot();
       if (browserAnimatedPop(next.action)) {
         // 浏览器已经呈现过返回：只交付页面与滚动，不再播放任何呈现层动画。
-        abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); clickedObject = null; edgeSwipeAt = -Infinity;
+        abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); tide.cancel(); clickedObject = null; edgeSwipeAt = -Infinity;
         pendingRestore = { key: next.location.key, focus: false, tab: navigationLevel(next.location.pathname) === "tabRoot" ? next.location.pathname : undefined };
         flushSync(commit);
         return;
       }
+      // 账本空间（1.19.45）：进入与离开都是它专属的海浪转场（涨潮遮挡 → 交接 → 退潮），不叠加任何其它呈现。
+      // 账本空间内部的成员 / 分享等子页面（/start/…）不在此列。
+      const look = tideLook();
+      const tideEnter = !!from && next.location.pathname === "/start" && !from.page.startsWith("/start");
+      const tideExit = !!from && from.page === "/start" && !next.location.pathname.startsWith("/start");
+      if (look && (tideEnter || tideExit) && document.querySelector("dialog[open], [role=dialog][aria-modal=true]") === null) {
+        abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); clickedObject = null;
+        pendingRestore = tideExit && pages.has(next.location.pathname)
+          ? { key: next.location.key, focus: false, tab: navigationLevel(next.location.pathname) === "tabRoot" ? next.location.pathname : undefined } : null;
+        tide.run({ exit: tideExit, look, page, commit: () => { startTransition(commit); } });
+        return;
+      }
+      tide.cancel();
       const focused = document.activeElement;
       const typing = focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement || (focused instanceof HTMLElement && focused.isContentEditable);
       // switchTab：四个主 Tab 之间整页横向交换（Tab Switch Lab），不是 navigate / objectExpand / enterMode。
@@ -303,13 +331,29 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         return;
       }
       objects.cancel();
-      const modePush = next.action === "PUSH" && from && navigationLevel(next.location.pathname) === "enterMode" && from.page !== next.location.pathname;
-      const modePop = next.action === "POP" && from && modeEntries.get(from.entryKey) === next.location.key;
-      if (modePush || modePop) {
-        if (modePush) modeEntries.set(next.location.key, from!.entryKey);
+      // 记账工作区（1.19.45）：从工作区外进入记账方式页 = 工作区升起；从工作区回到主 Tab（保存后「返回主页」、
+      // 返回键）或记录过的来源页 = 工作区离开；工作区内换一种方式 / 识别结果回到输入方式 = 轻切换。
+      const toMode = navigationLevel(next.location.pathname) === "enterMode";
+      const fromWorkspace = !!from && inEntryWorkspace(from.page);
+      const modeEnter = !!from && toMode && !fromWorkspace && next.action !== "POP";
+      const modeExit = !!from && fromWorkspace && !inEntryWorkspace(next.location.pathname)
+        && (navigationLevel(next.location.pathname) === "tabRoot" || modeEntries.get(from.entryKey) === next.location.key);
+      const modeSwitch = !!from && toMode && fromWorkspace && from.page !== next.location.pathname
+        && (next.action !== "POP" || navigationLevel(from.page) === "enterMode");
+      if (modeEnter || modeExit || modeSwitch) {
+        if (modeEnter) modeEntries.set(next.location.key, from!.entryKey);
         while (modeEntries.size > 32) modeEntries.delete(modeEntries.keys().next().value!);
-        abc?.cancel(); pendingRestore = { key: next.location.key, focus: true };
-        modes.run(page, () => flushSync(commit), html.dataset.visualStyle ?? "c", modeOptions, !!modePop);
+        abc?.cancel();
+        const style = html.dataset.visualStyle ?? "c";
+        // 挂载即聚焦输入框的记账页不再把焦点移到标题上（否则会从金额框抢走焦点，iOS 键盘随之收起）。
+        pendingRestore = { key: next.location.key, focus: !modeExit && !focusesOnEntry(next.location.pathname), tab: navigationLevel(next.location.pathname) === "tabRoot" ? next.location.pathname : undefined };
+        // 不因输入框聚焦而跳过：手动记账一进入就聚焦金额框，离开时键盘随之收起，方向与工作区下沉一致。
+        if (document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null) { modes.cancel(); startTransition(commit); return; }
+        // 新页面在后台（transition）渲染，点击后的第一帧不被页面初始化占住；呈现器等新页面提交后再对齐。
+        // 例外：挂载即聚焦输入框的页面（手动记账）仍在点击里同步提交，iOS 才会弹出键盘。
+        const deliver = !modeExit && focusesOnEntry(next.location.pathname) ? () => flushSync(commit) : () => { startTransition(commit); };
+        if (modeSwitch) modes.again({ root: paneRoot, commit: deliver, style });
+        else modes.run({ pages: pageNodes, commit: deliver, style, exit: modeExit, ...modeOptions });
         return;
       }
       modes.cancel();

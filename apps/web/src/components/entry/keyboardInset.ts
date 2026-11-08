@@ -55,6 +55,13 @@ export function useKeyboardInset(scrollRef: RefObject<HTMLDivElement | null>, ac
     const update = (): void => {
       frame = 0;
 
+      // 1.19.45：页面正在转场（整页被平移或缩放）时量到的不是最终位置——记账页从底部升起时会把保存条
+      // 抬到屏幕中间。等呈现结束（标记移除）后再量。
+      if (scrollport.closest("[data-mode-live], [data-tab-live], [data-object-live]")) {
+        frame = window.requestAnimationFrame(update);
+        return;
+      }
+
       if (viewport.scale > 1.01) {
         setInset(0);
         return;

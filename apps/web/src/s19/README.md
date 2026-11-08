@@ -1,5 +1,7 @@
 # apps/web/src/s19 · 阅读入口
 
+> 最后修改：2026-11-09 00:23（UTC+08:00）
+
 S19 材质与展示实现，消费现有 Token，不改变业务语义。
 
 优先阅读[任务索引](../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
@@ -13,7 +15,7 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 |---|---|
 | [B2GlassScope.tsx](B2GlassScope.tsx) | 界面模块；入口/导出：B2GlassScope |
 | [B2GlassSection.tsx](B2GlassSection.tsx) | 界面模块；入口/导出：B2PresetChoices、B2GlassSection |
-| [OceanMaterial.tsx](OceanMaterial.tsx) | 界面模块；入口/导出：OceanLook、OceanMaterial |
+| [OceanMaterial.tsx](OceanMaterial.tsx) | 界面模块；入口/导出：OceanLook、resolveColors、OceanMaterial |
 | [StyleLabDock.tsx](StyleLabDock.tsx) | 界面模块；入口/导出：StyleLabDock |
 | [VisualStyleLabSection.tsx](VisualStyleLabSection.tsx) | 界面模块；入口/导出：VisualStyleLabSection |
 | [WallpaperSection.tsx](WallpaperSection.tsx) | 界面模块；入口/导出：WallpaperChoices、WallpaperSection |
@@ -37,6 +39,7 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 | [oceanLayers.test.ts](oceanLayers.test.ts) | 测试：oceanLayers |
 | [oceanLayers.ts](oceanLayers.ts) | 实现模块；入口/导出：LAYERS、layerRank、LAYER_MOTION、LOGO_MOTION、layerTarget |
 | [oceanPainter.ts](oceanPainter.ts) | 实现模块；入口/导出：PainterLook、PainterColors、LIGHT_PERIOD、LIGHT_SWING、lightCentre |
+| [oceanPhase.ts](oceanPhase.ts) | 实现模块；入口/导出：oceanPhase |
 | [overlays.css](overlays.css) | 样式与变量 |
 | [product.ts](product.ts) | 实现模块；入口/导出：startB2Appearance |
 | [s19-lab-tokens.css](s19-lab-tokens.css) | 样式与变量 |

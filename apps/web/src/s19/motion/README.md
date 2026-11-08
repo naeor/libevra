@@ -1,6 +1,6 @@
 # apps/web/src/s19/motion · 阅读入口
 
-> 最后修改：2026-11-08 23:23（UTC+08:00）
+> 最后修改：2026-11-09 00:23（UTC+08:00）
 
 主 Tab、对象展开、模式入口和次级导航的呈现协调；不能混淆层级。
 
@@ -25,7 +25,7 @@
 | [engine.test.ts](engine.test.ts) | 测试：engine |
 | [engine.ts](engine.ts) | 实现模块；入口/导出：MotionSample、MotionEnvironment、SNAPSHOT_BUDGET_BYTES、MotionEngine、percentile |
 | [enterMode.test.ts](enterMode.test.ts) | 测试：enterMode |
-| [enterMode.ts](enterMode.ts) | 实现模块；入口/导出：enterModeOptions、EnterModePresentation |
+| [enterMode.ts](enterMode.ts) | 实现模块；入口/导出：enterModeOptions、ModeRequest、Session、EnterModePresentation |
 | [hybrid.css](hybrid.css) | 样式与变量 |
 | [hybrid.test.ts](hybrid.test.ts) | 测试：hybrid |
 | [hybrid.ts](hybrid.ts) | 实现模块；入口/导出：prepareHybrid |
@@ -34,7 +34,7 @@
 | [motion.css](motion.css) | 样式与变量 |
 | [navigation.css](navigation.css) | 样式与变量 |
 | [navigation.test.ts](navigation.test.ts) | 测试：navigation |
-| [navigation.ts](navigation.ts) | 实现模块；入口/导出：NavigationLevel、navigationLevel、isTabSwitch、hasDefaultMotion、isDefaultMotionEdge |
+| [navigation.ts](navigation.ts) | 实现模块；入口/导出：NavigationLevel、navigationLevel、inEntryWorkspace、focusesOnEntry、isTabSwitch |
 | [objectExpand.css](objectExpand.css) | 样式与变量 |
 | [objectExpand.test.ts](objectExpand.test.ts) | 测试：objectExpand |
 | [objectExpand.ts](objectExpand.ts) | 实现模块；入口/导出：ObjectSource、objectSource、findObject、setPose、Pose |
@@ -43,4 +43,7 @@
 | [tabExchange.css](tabExchange.css) | 样式与变量 |
 | [tabExchange.test.ts](tabExchange.test.ts) | 测试：tabExchange |
 | [tabExchange.ts](tabExchange.ts) | 实现模块；入口/导出：TAB_ORDER、tabIndex、TabExchangePresentation |
+| [tide.css](tide.css) | 样式与变量 |
+| [tide.test.ts](tide.test.ts) | 测试：tide |
+| [tide.ts](tide.ts) | 实现模块；入口/导出：tideLook、TIDE_RHYTHMS、tideRhythm、TideRequest、TidePresentation |
 <!-- directory-index:end -->

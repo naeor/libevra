@@ -3,6 +3,9 @@ import { useState, useSyncExternalStore } from "react";
 import { VISUAL_STYLES, VISUAL_STYLE_LABELS, type VisualStyle, type VisualStyleController } from "../lib/visualStyle.js";
 import { TAB_MOTIONS, TAB_MOTION_LABELS, chooseTabMotion, subscribeTabMotion, tabMotion } from "./tabMotion.js";
 import { A_VARIANTS, aVariant, chooseAVariant, subscribeAVariant } from "./motion/abcBridge.js";
+import { TIDE_RHYTHMS, TidePresentation, tideLook, tideRhythm } from "./motion/tide.js";
+
+const tidePreview = new TidePresentation();
 
 const SHORT: Readonly<Record<VisualStyle, string>> = { original: "Orig", a: "A", b1: "B1", b2: "B2", c: "C" };
 
@@ -15,6 +18,7 @@ export function StyleLabDock({ controller }: { readonly controller: VisualStyleC
   const motion = useSyncExternalStore(subscribeTabMotion, tabMotion, tabMotion);
   const variant = useSyncExternalStore(subscribeAVariant, aVariant, aVariant);
   const [open, setOpen] = useState(false);
+  const [rhythm, setRhythm] = useState(tideRhythm.scale);
   return (
     <div className="s19-dock" data-open={open ? "true" : "false"}>
       {open ? (
@@ -47,6 +51,21 @@ export function StyleLabDock({ controller }: { readonly controller: VisualStyleC
               </button>
             ))}
           </div>
+          <p className="s19-dock-title s19-dock-sub">账本空间海浪（进入 / 离开，约 1 秒）</p>
+          <div className="s19-dock-row" role="group" aria-label="账本空间海浪节奏">
+            {TIDE_RHYTHMS.map(({ id, scale }) => (
+              <button key={id} type="button" aria-pressed={rhythm === scale} className="s19-dock-option s19-dock-chip" onClick={() => { tideRhythm.scale = scale; setRhythm(scale); }}>
+                <span className="s19-dock-name">{({ brisk: "紧凑", standard: "标准", calm: "舒缓" })[id]} {scale}×</span>
+              </button>
+            ))}
+            <button type="button" className="s19-dock-option s19-dock-chip" disabled={tideLook() === null} onClick={() => {
+              const look = tideLook(); setOpen(false);
+              if (look) tidePreview.run({ exit: false, preview: true, look, page: () => document.body, commit: () => undefined });
+            }}>
+              <span className="s19-dock-name">在当前页预演</span>
+            </button>
+          </div>
+          <p className="s19-dock-foot">节奏只在本次会话里生效，真实进入 / 离开账本空间同样使用；正式数值见 Motion Token（LEDGER_TIDE）。</p>
           <p className="s19-dock-foot">只作用于手机布局的浅色模式；Pad、电脑版与深色模式保持 Original。</p>
         </div>
       ) : null}

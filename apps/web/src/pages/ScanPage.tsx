@@ -47,6 +47,7 @@ import {
 } from "../lib/queries.js";
 import { takeScanHandover } from "../lib/scanHandoff.js";
 import { uuidV7 } from "../lib/uuid.js";
+import { continueEntry } from "../lib/entryFlow.js";
 
 /**
  * Recording from a screenshot.
@@ -594,7 +595,7 @@ export function ScanPage(): React.JSX.Element {
                   setError(errorMessage(caught));
                 });
             }}
-            onAgain={() => {
+            onAgain={() => continueEntry(() => {
               // In a batch, "one more" means the next screenshot in it; in the
               // single mode there is nothing left, so it starts over.
               if (mode === "batch" && cursor + 1 < items.length) {
@@ -606,7 +607,7 @@ export function ScanPage(): React.JSX.Element {
               setItems([]);
               setCursor(0);
               setStep({ name: "pick" });
-            }}
+            })}
           />
         </div>
       ) : null}

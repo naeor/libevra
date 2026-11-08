@@ -56,6 +56,12 @@ export function snapshot(page: HTMLElement): HTMLElement {
     for (let node = header.nextElementSibling; node; node = node.nextElementSibling) siblings.push(node);
     header.after(body); body.append(...siblings);
   }
+  if (!copy.querySelector("[data-motion-body]")) {
+    // 1.19.45：没有 <main> 也没有可拆分的标签页顶栏（例如明细首页 `.detail-root`）时，整页作为一个轨道移动。
+    // 之前这类页面不进入 B1 轨道：离开明细时旧页留在原处，新页从右侧滑进来叠在上面（标题、统计卡片与新页内容重合）。
+    if (header && !header.classList.contains("tab-page-header")) { delete header.dataset.motionHeader; delete header.dataset.motionChrome; }
+    copy.dataset.motionBody = "";
+  }
   const groups = [...copy.querySelectorAll<HTMLElement>(".rounded-card.bg-surface, .lv-settings-body.bg-surface")];
   groups.filter(node => !groups.some(other => other !== node && other.contains(node))).forEach(node => {
     node.dataset.motionGroup = "";

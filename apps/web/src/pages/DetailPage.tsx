@@ -895,7 +895,9 @@ export function DetailPage(): React.JSX.Element {
                   type="button"
                   onClick={() => {
                     markPresentationSeen(presentationOwnerId);
-                    window.location.assign("/start");
+                    // 1.19.45：站内导航（与账本切换面板里的入口相同），进入账本空间才能播放它专属的海浪转场；
+                    // 原来的整页重新载入没有记录在案的理由，账本空间挂载时照样读取上面写入的“已看过展开态”。
+                    void navigate("/start");
                   }}
                   aria-label={t("ledger.detail.goToLedgers")}
                   className="detail-title -ml-1 rounded-field px-1 text-2xl font-semibold tracking-tight transition hover:opacity-80"

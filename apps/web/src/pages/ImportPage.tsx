@@ -1,7 +1,7 @@
 import { billAttachmentMapping } from "../lib/captureAttachments.js";
 import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import type { BillImportCandidate, BillImportPreview, ImportReport } from "@libellum/shared";
-import { useRef, useState, type DragEvent } from "react";
+import { startTransition, useRef, useState, type DragEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -48,6 +48,7 @@ import { localTimeZone } from "../lib/datetime.js";
 import { formatMoney, parseAmountInput } from "../lib/format.js";
 import { fetchTemplate, useCurrentBookId, useLedger, useLedgerMeta, useMoneyInvalidator } from "../lib/queries.js";
 import { deliverFile } from "../lib/share.js";
+import { continueEntry } from "../lib/entryFlow.js";
 
 /**
  * 账单导入 V2：选文件 → 服务端识别 → 概览核对 → 批量入账。
@@ -631,10 +632,11 @@ function ImportView({
           doneLabel={doneLabel}
           busy={busy !== null}
           onDone={() => {
-            resetToChoose();
+            // 1.19.45：清空与离开同一次后台提交，离开工作区时盖着的仍是完成屏，而不是先闪回选择文件。
+            startTransition(resetToChoose);
             void navigate(doneTo);
           }}
-          onAgain={resetToChoose}
+          onAgain={() => continueEntry(resetToChoose)}
           onRetry={() => {
             if (step.name === "done") void runCommit(step.preview);
           }}

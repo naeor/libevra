@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ObjectExpandPresentation, contentFrame, findObject, setPose, type ObjectSource } from "./objectExpand.js";
-import { EnterModePresentation } from "./enterMode.js";
 import { OBJECT_EXPAND, easingFunction } from "../../lib/motionTokens.js";
 
 vi.mock("./abcPresentation.js", () => ({ snapshot: () => { const plane = document.createElement("div"); (plane as unknown as Node).isClone = true; return plane; }, restoreSnapshot: new WeakMap() }));
@@ -188,12 +187,5 @@ describe("Object Expand：卡片逐渐成为详情", () => {
     new ObjectExpandPresentation().run({ source, page: () => new Node() as unknown as HTMLElement, commit, commitNow, style: "a" });
     expect(commitNow).toHaveBeenCalledTimes(1); expect(commit).not.toHaveBeenCalled();
     expect(animations).toHaveLength(0); expect(body.children).toHaveLength(0);
-  });
-  it("B1 工作模式按工作区高度完全向上离屏，不是小幅退让", () => {
-    const engine = new EnterModePresentation(), old = new Node(), next = new Node();
-    let current = old;
-    engine.run(() => current as unknown as HTMLElement, () => { current = next; }, "b1", { duration: 140, fade: false });
-    expect(animations[1]?.frames.at(-1)?.transform).toBe("translate3d(0,-844px,0)");
-    engine.cancel(); expect(body.children).toHaveLength(0); expect(next.dataset.enterModeLive).toBeUndefined();
   });
 });

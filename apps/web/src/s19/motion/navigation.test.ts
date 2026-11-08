@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { hasDefaultMotion, isDefaultMotionEdge, isTabSwitch, navigationLevel } from "./navigation.js";
+import { focusesOnEntry, hasDefaultMotion, inEntryWorkspace, isDefaultMotionEdge, isTabSwitch, navigationLevel } from "./navigation.js";
 
 describe("导航层级与默认转场边界", () => {
   it("五种工作模式与四个主 Tab 分别识别，详情属于次级", () => {
     for (const path of ["/paste", "/record", "/add", "/scan", "/import"]) expect(navigationLevel(path)).toBe("enterMode");
     for (const path of ["/", "/stats", "/ledger", "/me"]) expect(navigationLevel(path)).toBe("tabRoot");
     for (const path of ["/settings", "/profile", "/transactions/1", "/stats/cards/1", "/import-ledger"]) expect(navigationLevel(path)).toBe("subpage");
+  });
+  it("记账工作区包含五种方式与各自的识别核对步骤；只有挂载即聚焦的手动记账需要在点击里同步提交", () => {
+    for (const path of ["/paste", "/record", "/add", "/scan", "/import", "/paste/review", "/voice/review", "/ocr/overview", "/ocr/overview/c1"]) expect(inEntryWorkspace(path)).toBe(true);
+    for (const path of ["/", "/stats", "/import-ledger", "/transactions/1", "/settings"]) expect(inEntryWorkspace(path)).toBe(false);
+    expect(focusesOnEntry("/add")).toBe(true);
+    for (const path of ["/paste", "/record", "/scan", "/import"]) expect(focusesOnEntry(path)).toBe(false);
   });
   it("主 Tab 之间是 switchTab，进入次级或模式都不是", () => {
     expect(isTabSwitch("/", "/me")).toBe(true);

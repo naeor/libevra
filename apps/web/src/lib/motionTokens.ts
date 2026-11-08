@@ -9,8 +9,8 @@
  * - **`phases` 是同一时钟上的比例（0–1）**：描述内容交接等节奏，改时长时比例保持，交接不会变形。
  * - **高频组件反馈是 CSS 变量**（按下、选中、出现、消失、反馈、加载），按 A / B1 / B2 / C 定义在
  *   `components/ui/component-motion.css`；这里只登记名称（{@link FEEDBACK_CSS}），不复制数值。
- * - 专属品牌动效（底栏指示器 `s19/tabIndicator.ts`、账本空间海浪 `s19/oceanPainter.ts`）的参数留在各自文件，
- *   它们不是可复用语义；新功能不要借用。
+ * - 专属品牌动效（底栏指示器 `s19/tabIndicator.ts`、开始页海浪本身 `s19/oceanLayers.ts`）的参数留在各自文件，
+ *   它们不是可复用语义；新功能不要借用。账本空间的进入 / 离开转场登记在 {@link LEDGER_TIDE}。
  */
 
 export type MotionStyle = "a" | "b1" | "b2" | "c";
@@ -124,8 +124,53 @@ export const OBJECT_EXPAND = {
 /** 控件形变（明细搜索按钮 ↔ 输入框）：胶囊左右展开、标题与按钮让位、顶部收起共用这一条曲线与时长。 */
 export const CONTROL_MORPH: MotionCurve = { duration: 200, easing: "cubic-bezier(.2,.72,.2,1)" };
 
-/** 记账工作模式进入（enterMode）：从 Tab 上缘揭示；`?enterMs=` 可在 choices 之间比较。 */
-export const ENTER_MODE = { duration: 140, choices: [110, 140, 160], fadeMs: 28 } as const;
+/**
+ * 记账工作模式（enterMode，1.19.45）：五种记账方式的进入、完成后离开、工作区内「再记一笔」。
+ *
+ * 进入是一次整屏的工作区交接（新工作区带着与壁纸对齐的纸面从屏幕底边升起，原页面按风格让位），
+ * 所以按普通转场取 300ms 级而不是 1.19.44 的 140ms 揭示：140ms 走完 844px 时第一帧就是 329px，
+ * 看不出“从下面上来”。320ms 时 60Hz 有 16 个 ≥6px 的可见帧、单帧最多约 116px、10%→90% 约 150ms。
+ * 离开稍短（280ms），同一条曲线；`?enterMs=` 可在 choices 之间比较进入时长。
+ */
+export const ENTER_MODE = {
+  enter: { duration: 320, easing: "cubic-bezier(.32,.4,.16,1)" },
+  exit: { duration: 280, easing: "cubic-bezier(.32,.4,.16,1)" },
+  choices: [280, 320, 360],
+  /** 新页面尚未提交时，纸面最多升到的进度（同时不超过底栏高度占屏幕的比例，停在底栏后面）。 */
+  hold: 0.1,
+  /** 超过这么久新页面仍未提交，就放弃呈现，只交付页面。 */
+  giveUpMs: 1500,
+  /** 进入中途返回时倒放的最短时长。 */
+  retreatMin: 120,
+  /** B1 竖向轨道上两页的间隔（与横向导航轨道相同）。 */
+  b1Gap: 24,
+  /** 原页面的让位：C 上移屏高的比例并压暗；A 退远缩放并压暗；B2 原地雾化；B1 同轨上移。veil 为壁纸色薄层的不透明度。 */
+  styles: {
+    c: { shift: 0.18, veil: 0.2 },
+    a: { scale: 0.92, veil: 0.45 },
+    b1: {},
+    b2: { veil: 0.4 },
+  },
+  /** 「再记一笔」等工作区内轻切换：上一屏上收淡出（到 out），新的一笔从下方升入（从 in 开始）；两者只在上一屏已淡到很低时短暂交叠，不叠影。 */
+  again: { duration: 260, easing: "cubic-bezier(.3,.15,.15,1)", rise: 24, drop: 32, out: 0.4, in: 0.35 },
+} as const;
+
+/**
+ * 账本空间海浪转场（品牌转场，1.19.45，见 s19/motion/tide.ts）：进入时四层海浪 4→1 接力涌下覆盖当前页，
+ * 1、2 号盖满整屏时交接页面，再按开始页既有节奏 1→4 退到账本空间自己的海浪位置；离开时反向。
+ * 品牌转场不受普通转场 300–400ms 的约束，整段约 1 秒：涌下 + 退去 + 层的落定回弹 + 交接淡出。
+ * 层间的先后与回弹来自开始页的 LAYER_MOTION（s19/oceanLayers.ts），这里只定主进度的时长与曲线。
+ */
+export const LEDGER_TIDE = {
+  cover: { duration: 320, easing: "cubic-bezier(.36,.05,.26,1)" },
+  recede: { duration: 520, easing: "cubic-bezier(.3,.08,.2,1)" },
+  /** 离开时转场层叠上的时间（与页面海浪相同，只盖住品牌字样）。 */
+  fadeIn: 90,
+  /** 进入结束时转场层淡出、露出页面上的品牌字样。 */
+  fadeOut: 140,
+  /** 遮挡后超过这么久页面仍未提交，就照常退潮。 */
+  giveUpMs: 1500,
+} as const;
 
 /** 高频组件反馈的 CSS 变量（按风格取值，见 components/ui/component-motion.css）。 */
 export const FEEDBACK_CSS = {

@@ -46,6 +46,11 @@ export function onClockReport(listener: (report: ClockReport) => void): () => vo
   return () => { listeners.delete(listener); };
 }
 
+/** 不经 runFrameClock 的呈现（账本空间海浪转场）用同一份报告格式发布自己的帧数与时间。 */
+export function publishClockReport(report: ClockReport): void {
+  for (const listener of listeners) listener(report);
+}
+
 /**
  * 正常帧间隔的估计：最近 5 个间隔的中位数（初值 60Hz）。明显更长（> 1.5 倍）的间隔视为卡顿，
  * 只按正常帧推进；单次卡顿不会改变中位数，持续的低帧率（30Hz）会被接受为新的正常节奏。

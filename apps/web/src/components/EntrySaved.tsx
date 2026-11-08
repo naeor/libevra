@@ -117,6 +117,8 @@ export function EntrySaved({
     <main
       role="status"
       aria-live="polite"
+      // 「再记一笔」轻切换的锚点（lib/entryFlow.ts）：从这里找到被换下的那一屏。
+      data-entry-saved=""
       className="flex h-dvh flex-col items-center justify-center gap-1 bg-surface px-8"
     >
       <CheckMark />

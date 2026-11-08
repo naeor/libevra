@@ -4,6 +4,7 @@ import { materialTuningStyle } from "./material.js";
 import { oceanBrandPresentation } from "./oceanBrand.js";
 import { CONTENT_LAG_GAIN, LAYERS, LayerMotion, edgeSamples } from "./oceanLayers.js";
 import { OceanPainter, type PainterColors } from "./oceanPainter.js";
+import { oceanPhase } from "./oceanPhase.js";
 import "./ocean-material.css";
 
 /**
@@ -24,8 +25,11 @@ const COLOR_NAMES = {
   refract: ["--oc-refract-1", "--oc-refract-2", "--oc-refract-3", "--oc-refract-4"],
 } as const;
 
-/** CSS 变量（可能含 color-mix / 相对色）→ 浏览器算好的颜色字符串，Canvas 可直接用。只在挂载与主题变化时读。 */
-function resolveColors(probe: HTMLElement): PainterColors {
+/**
+ * CSS 变量（可能含 color-mix / 相对色）→ 浏览器算好的颜色字符串，Canvas 可直接用。只在挂载与主题变化时读。
+ * 账本空间海浪转场（motion/tide.ts）用同一份解析，画出的海浪与页面上的一致。
+ */
+export function resolveColors(probe: HTMLElement): PainterColors {
   const read = (name: string): string => {
     probe.style.color = `var(${name})`;
     return getComputedStyle(probe).color;
@@ -69,7 +73,8 @@ export function OceanMaterial({ look, interactive, children }: {
     painter.setColors(resolveColors(probe.current));
     const motion = new LayerMotion(readP(), () => size.short / Math.max(size.height * .8, 1));
 
-    let seconds = 0;
+    // 环境相位与账本空间海浪转场共享（oceanPhase.ts）：转场的海浪落到这里时与页面海浪重合。
+    let seconds = oceanPhase.seconds;
     /**
      * B1 / B2 的停留增强：浪沿反射平时（移动中、刚到达时）略弱；海浪完全展开（主进度为 0）、四层都已静止
      * 约 0.9 秒后，用约 0.7 秒平滑地略微增强（约 1–1.6 秒内完成）；一旦开始拖动或上滑，约 0.25 秒内回到较弱，
@@ -130,9 +135,11 @@ export function OceanMaterial({ look, interactive, children }: {
       const dt = Math.min(now - previous, 50);
       previous = now;
       seconds += dt / 1000;
+      oceanPhase.seconds = seconds;
       motion.step(readP(), dt);
       updateDwell(readP(), dt);
-      draw();
+      // 转场海浪整屏盖着页面时不重画（相位照常推进）；揭开前一帧恢复。
+      if (!oceanPhase.covered) draw();
       frame = requestAnimationFrame(tick);
     };
     const resume = (): void => {

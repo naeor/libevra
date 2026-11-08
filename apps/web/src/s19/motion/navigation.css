@@ -2,7 +2,17 @@
 .persistent-nav[hidden] { display: none; }
 .persistent-nav-space { height: var(--lv-bottom-nav-height,calc(65px + env(safe-area-inset-bottom,0px))); }
 .entry-mode-page { padding-bottom: calc(var(--lv-bottom-nav-height,65px) + 24px); }
-.lv-shell.mode-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; background: var(--lv-wallpaper-bg); }
-.mode-stage .s19-abc-plane { position: absolute; inset: 0; overflow: hidden; }
+/* 记账工作模式（enterMode.ts）。舞台固定在视口上：进入与轻切换在真实页面之下（页面透明，新页面在上），
+   离开在页面之上、底栏（z 40）之下。纸面与雾层用统一壁纸本身，与 body::before 逐像素对齐。 */
+.lv-shell.mode-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: transparent; }
+.lv-shell.mode-stage[data-mode-stage="exit"] { z-index: 20; }
+.mode-stage .mode-plane, .mode-stage .mode-sheet, .mode-stage .mode-veil, .mode-stage .mode-backing { position: absolute; inset: 0; }
+/* isolate：旧页里自带 z-index 的固定/悬浮元素（明细的账本胶囊等）留在自己这一层，不越过纸面。 */
+.mode-stage .mode-plane, .mode-stage .mode-sheet { overflow: hidden; scrollbar-width: none; isolation: isolate; }
+.mode-stage .mode-veil, .mode-stage .mode-backing { background: var(--lv-wallpaper-bg, var(--s19-bg, var(--color-canvas))); }
+.mode-stage .mode-veil { opacity: 0; }
+/* 纸面上缘：C 是纸张的细线与投影，A 是更柔的景深投影，B2 是玻璃的亮边。overflow 不裁自身阴影。 */
+.mode-stage[data-mode-style="c"] .mode-sheet { box-shadow: 0 -1px var(--color-line), 0 -8px 22px color-mix(in srgb, var(--color-ink) 9%, transparent); }
+.mode-stage[data-mode-style="a"] .mode-sheet { box-shadow: 0 -10px 30px color-mix(in srgb, var(--color-ink) 12%, transparent); }
+.mode-stage[data-mode-style="b2"] .mode-sheet { box-shadow: 0 -1px color-mix(in srgb, var(--color-surface) 70%, transparent), 0 -10px 26px color-mix(in srgb, var(--color-ink) 8%, transparent); }
 .mode-stage nav, .mode-stage [data-persistent-nav], .mode-stage .lv-entry-menu { visibility: hidden; }
-[data-enter-mode-live] { position: relative; z-index: 21; }

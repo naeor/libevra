@@ -966,7 +966,8 @@ export function BillDoneView({
   const entries = (count: number): string => t("common.count.entries", { count });
 
   return (
-    <section className="flex flex-col gap-4">
+    // 「再导入一份」轻切换的锚点（lib/entryFlow.ts）。
+    <section data-entry-saved="" className="flex flex-col gap-4">
       <header className="flex flex-col items-center gap-2 py-2 text-center">
         <StatusMark status={view.status} />
         <h2 className="text-lg font-semibold text-ink">{heading}</h2>
