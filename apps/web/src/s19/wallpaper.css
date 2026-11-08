@@ -1,0 +1,95 @@
+/* 唯一壁纸配方。预览与页面共用；风格只改变扩散/强度，不另存一张背景。
+   低频渐变替代全屏 blur，没有图片、滚动监听、持续动画或前景滤镜。 */
+:root, .lv-wallpaper-preview {
+  --lv-wallpaper-spread: 1.8;
+  --lv-wallpaper-strength: 20%;
+  --lv-wallpaper-light: 100%;
+}
+:root[data-visual-style="a"], :root[data-visual-style="a"] .lv-wallpaper-preview {
+  --lv-wallpaper-spread: 1.8;
+  --lv-wallpaper-strength: 48%;
+}
+:root[data-visual-style="b1"], :root[data-visual-style="b1"] .lv-wallpaper-preview {
+  --lv-wallpaper-spread: 1.9;
+  --lv-wallpaper-strength: 66%;
+}
+:root[data-visual-style="b2"], :root[data-visual-style="b2"] .lv-wallpaper-preview {
+  --lv-wallpaper-spread: var(--s19-b2-environment-spread, .825);
+  --lv-wallpaper-strength: calc(100% - var(--s19-b2-ambient-veil, 15%));
+}
+:root[data-visual-style="c"], :root[data-visual-style="c"] .lv-wallpaper-preview {
+  --lv-wallpaper-spread: 1.9;
+  --lv-wallpaper-strength: 23%;
+}
+:root[data-theme-mode="dark"], :root[data-theme-mode="dark"] .lv-wallpaper-preview {
+  --lv-wallpaper-light: 20%;
+}
+:root, .lv-wallpaper-preview {
+  --lv-wallpaper-base: color-mix(in srgb, var(--color-brand) 3%, var(--color-canvas));
+  --lv-wallpaper-primary: color-mix(in srgb, color-mix(in srgb, var(--color-brand) 62%, var(--color-surface)) var(--lv-wallpaper-light), var(--color-canvas));
+  --lv-wallpaper-warm: color-mix(in srgb, color-mix(in srgb, var(--color-brand) 8%, var(--lv-wallpaper-warm-anchor)) var(--lv-wallpaper-light), var(--color-canvas));
+  --lv-wallpaper-cool: color-mix(in srgb, color-mix(in srgb, var(--color-brand) 12%, var(--lv-wallpaper-cool-anchor)) var(--lv-wallpaper-light), var(--color-canvas));
+  --lv-wallpaper-highlight: color-mix(in srgb, var(--color-surface) var(--lv-wallpaper-strength), transparent);
+  --lv-wallpaper-main-light: color-mix(in srgb, var(--lv-wallpaper-primary) var(--lv-wallpaper-strength), transparent);
+  --lv-wallpaper-warm-light: color-mix(in srgb, var(--lv-wallpaper-warm) var(--lv-wallpaper-strength), transparent);
+  --lv-wallpaper-cool-light: color-mix(in srgb, var(--lv-wallpaper-cool) var(--lv-wallpaper-strength), transparent);
+  /* 默认延续原 B2 明细环境：右上主题光、左侧暖光、右下冷光，柔和连接。 */
+  --lv-wallpaper-layout:
+    radial-gradient(ellipse calc(10% * var(--lv-wallpaper-spread)) calc(6% * var(--lv-wallpaper-spread)) at 75% 17%, var(--lv-wallpaper-highlight), transparent),
+    radial-gradient(ellipse calc(38% * var(--lv-wallpaper-spread)) calc(22% * var(--lv-wallpaper-spread)) at 83% 21%, var(--lv-wallpaper-main-light) 12%, transparent 100%),
+    radial-gradient(ellipse calc(24% * var(--lv-wallpaper-spread)) calc(14% * var(--lv-wallpaper-spread)) at 12% 85%, var(--lv-wallpaper-main-light), transparent),
+    radial-gradient(ellipse calc(38% * var(--lv-wallpaper-spread)) calc(18% * var(--lv-wallpaper-spread)) at 10% 30%, var(--lv-wallpaper-warm-light) 12%, transparent 100%),
+    radial-gradient(ellipse calc(50% * var(--lv-wallpaper-spread)) calc(29% * var(--lv-wallpaper-spread)) at 90% 92%, var(--lv-wallpaper-cool-light) 12%, transparent 100%);
+  --lv-wallpaper-bg: var(--lv-wallpaper-layout), var(--lv-wallpaper-base);
+}
+[data-wallpaper="luminous"] {
+  --lv-wallpaper-layout:
+    radial-gradient(ellipse calc(60% * var(--lv-wallpaper-spread)) calc(46% * var(--lv-wallpaper-spread)) at 96% 12%, var(--lv-wallpaper-main-light), transparent 100%),
+    radial-gradient(ellipse calc(60% * var(--lv-wallpaper-spread)) calc(38% * var(--lv-wallpaper-spread)) at 0% 76%, var(--lv-wallpaper-cool-light), transparent 100%),
+    linear-gradient(125deg, transparent 22%, var(--lv-wallpaper-highlight) 52%, transparent 76%);
+}
+[data-wallpaper="quiet"] {
+  --lv-wallpaper-layout:
+    linear-gradient(160deg, color-mix(in srgb, var(--lv-wallpaper-main-light) 45%, transparent), transparent 55%),
+    linear-gradient(15deg, color-mix(in srgb, var(--lv-wallpaper-cool-light) 32%, transparent), transparent 72%);
+}
+/* 旧材质/转场只消费别名，仍使用自己的叠层与协调器。 */
+html:root {
+  --s19-bg: var(--lv-wallpaper-bg);
+}
+html:root[data-wallpaper] body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--lv-wallpaper-bg);
+}
+/* B1 原先的噪点不再另成一张专用壁纸。 */
+html:root[data-wallpaper] body::after { display: none; }
+/* 大屏背景挂在不滚动的工作区面上；不动其布局、隔离或卡片材质。 */
+html:root[data-wallpaper] .lv-shell[data-shell="wide"] .lv-pane[data-mode="box"] {
+  background: var(--lv-wallpaper-bg);
+}
+/* 欢迎态完全保持原底色。现有分层转场的最慢进度控制显露，无新增时钟。 */
+html:root[data-wallpaper] .ledger-space::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: var(--lv-wallpaper-bg);
+  opacity: clamp(0, calc((min(var(--p, 0), var(--q4, var(--p, 0))) - .2) / .8), 1);
+}
+html:root[data-wallpaper] .ledger-space .space-scroll { position: relative; }
+
+/* 小图沿用相同背景和现有材质令牌；固定装饰几何不参与真实布局或业务。 */
+.wallpaper-choices .wallpaper-choice { padding: 8px; border-radius: var(--radius-field); }
+.wallpaper-choice[aria-pressed="true"] { outline: 2px solid var(--color-brand); outline-offset: 1px; }
+.lv-wallpaper-preview {
+  position: relative; display: block; overflow: hidden; height: 128px;
+  border-radius: var(--radius-field); background: var(--lv-wallpaper-bg);
+}
+.wallpaper-sample {
+  position: absolute; left: 10%; right: 10%; display: flex; flex-direction: column;
+  gap: 6px; padding: 10px 8px; border-radius: var(--radius-field);
+  background: var(--color-surface); box-shadow: var(--shadow-card);
+}
+.wallpaper-sample-main { top: 18%; }
+.wallpaper-sample-list { top: 57%; }
+.wallpaper-sample > span { height: 3px; width: 74%; background: var(--color-ink); opacity: .2; border-radius: 2px; }
+.wallpaper-sample > span:last-child { width: 46%; }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .wallpaper-sample { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .wallpaper-sample { backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter); }

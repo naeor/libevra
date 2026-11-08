@@ -25,7 +25,7 @@ const settings = {
   },
   appearance: {
     title: "显示与数据",
-    theme: { label: "外观", hint: "外观模式与主题色" },
+    theme: { label: "外观", hint: "主题色、壁纸与界面风格" },
     exchange: { label: "汇率折算", hint: "将各币种折算为一种货币后统计" },
   },
   security: {
@@ -50,6 +50,10 @@ const settings = {
       cyan: "青瓷灰",
     },
     switchTo: "切换到{{name}}",
+  },
+  wallpaper: {
+    title: "壁纸", aurora: "柔和极光", luminous: "清透光域", quiet: "静谧渐层",
+    note: "预览随主题色与界面风格变化；选择会保存在这台设备。",
   },
   glass: {
     title: "玻璃效果", style: "界面风格", styles: { original: "经典外观", b2: "分层玻璃" },

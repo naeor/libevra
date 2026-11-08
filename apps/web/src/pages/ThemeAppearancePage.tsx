@@ -4,6 +4,7 @@ import { useI18n } from "../i18n/index.js";
 import { ThemePreview } from "../components/ThemePreview.js";
 import { VisualStyleLabSection } from "../s19/VisualStyleLabSection.js";
 import { B2GlassSection } from "../s19/B2GlassSection.js";
+import { WallpaperSection } from "../s19/WallpaperSection.js";
 import "./theme-appearance.css";
 import {
   AVAILABLE_THEME_PALETTES,
@@ -114,6 +115,7 @@ export function ThemeAppearanceView({
       </section>
 
       {/* S19：只在开发 / 测试环境出现的视觉风格开关；正式构建里这个条件是常量 false，整段被删掉。 */}
+      <WallpaperSection />
       {import.meta.env.DEV || (typeof __S19_STYLE_LAB__ !== "undefined" && __S19_STYLE_LAB__) ? <VisualStyleLabSection /> : null}
       <B2GlassSection />
     </div>

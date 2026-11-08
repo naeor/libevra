@@ -28,10 +28,6 @@
 :root[data-visual-style="a"] {
   --s19-top: color-mix(in srgb, var(--color-brand) 15%, #f3f4f0);
   --s19-canvas: #edeeea;
-  --s19-bg:
-    radial-gradient(90% 46% at 12% 0%, rgb(255 255 255 / .75), rgb(255 255 255 / 0) 70%),
-    radial-gradient(70% 40% at 100% 18%, color-mix(in srgb, var(--color-brand) 14%, transparent), transparent 70%),
-    linear-gradient(180deg, var(--s19-top) 0%, color-mix(in srgb, var(--color-brand) 5%, #f0f0ec) 40%, #ecece8 100%);
   --s19-card-bg: #fdfdfb;
   --s19-card-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 1px 2px rgb(40 50 44 / .04), 0 8px 20px -14px rgb(40 52 46 / .28);
   --s19-key-bg: #fff;
@@ -74,12 +70,6 @@
 :root[data-visual-style="b1"] {
   --s19-canvas: #e9eae4;
   --s19-environment-spread: var(--s19-b1-environment-spread, .825);
-  --s19-bg:
-    linear-gradient(180deg, rgb(252 250 245 / calc(.2 * var(--s19-glass-milk))), rgb(252 250 245 / calc(.32 * var(--s19-glass-milk)))),
-    radial-gradient(circle calc(54vmax * var(--s19-environment-spread)) at 2vmax -4vmax, color-mix(in srgb, var(--color-brand) 58%, transparent), transparent),
-    radial-gradient(circle calc(45vmax * var(--s19-environment-spread)) at calc(100% + 6vmax) 10vmax, rgb(244 202 160 / .52), rgb(244 202 160 / 0)),
-    radial-gradient(circle calc(50vmax * var(--s19-environment-spread)) at -5vmax calc(100% + 3vmax), rgb(172 198 222 / .46), rgb(172 198 222 / 0)),
-    linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 9%, #e6ebe7) 0%, #ebe9e2 52%, #e8e7e2 100%);
   --s19-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .25  0 0 0 0 .28  0 0 0 0 .26  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   --s19-grain-opacity: .12;
   /* Satin 瓷片：信息卡片与列表 */
@@ -158,7 +148,6 @@
 :root[data-visual-style="c"] {
   --s19-canvas: color-mix(in srgb, var(--color-brand) 4%, #f5f6f4);
   --s19-paper-top: color-mix(in srgb, var(--color-brand) 7%, var(--s19-canvas));
-  --s19-bg: var(--s19-canvas);
   --s19-card-bg: #fff;
   --s19-card-line: rgb(30 45 38 / .07);
   --s19-card-sh: 0 1px 2px rgb(30 45 38 / .03);

@@ -12,6 +12,7 @@ const references = {
   '/reference/material-components.css':'apps/web/src/s19/material-components.css',
   '/reference/material-effects.css':'apps/web/src/s19/material-effects.css',
   '/reference/b2.css':'apps/web/src/index.css',
+  '/reference/wallpaper.css':'apps/web/src/s19/wallpaper.css',
 };
 // 验证所有只读引用均存在后才启动；旧 HEAD 不应悄悄冒充当前 S19 材质。
 for (const file of Object.values(references)) await readFile(path.join(referenceRoot, file), 'utf8');
@@ -21,7 +22,8 @@ export function b2Tokens(source) {
   if (start < 0) throw new Error('主工作区未找到正式 B2 令牌');
   const open = source.indexOf('{', start), end = source.indexOf('\n}', open);
   if (end < 0) throw new Error('B2 令牌块不完整');
-  return source.slice(start, end + 2);
+  const anchors = source.match(/--lv-wallpaper-(?:warm|cool)-anchor:[^;]+;/g) ?? [];
+  return `:root { ${anchors.join(' ')} }\n${source.slice(start, end + 2)}`;
 }
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, 'http://localhost');

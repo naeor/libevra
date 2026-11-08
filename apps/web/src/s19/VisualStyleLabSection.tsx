@@ -41,7 +41,7 @@ export function VisualStyleLabSection(): React.JSX.Element | null {
           </button>
         ))}
       </div>
-      <p className="text-helper text-muted">切换只改外观，不会重新登录或丢失当前页面。只作用于手机布局的浅色模式。</p>
+      <p className="text-helper text-muted">切换保留当前页面和壁纸。组件材质用于手机浅色界面；壁纸在其他布局和深色模式也会跟随。</p>
       {style === "b1" && <fieldset className="flex min-w-0 flex-col gap-2 rounded-field bg-surface p-3">
         <legend className="text-section-title text-ink">玻璃模糊强度</legend>
         <label className="flex flex-col gap-1 text-helper text-muted">

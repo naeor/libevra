@@ -28,7 +28,7 @@ const settings: Messages<typeof zh> = {
   },
   appearance: {
     title: "Display & data",
-    theme: { label: "Appearance", hint: "Light or dark mode and theme color" },
+    theme: { label: "Appearance", hint: "Theme color, wallpaper and visual style" },
     exchange: { label: "Currency conversion", hint: "Convert every currency into one for statistics" },
   },
   security: {
@@ -53,6 +53,10 @@ const settings: Messages<typeof zh> = {
       cyan: "Celadon",
     },
     switchTo: "Use {{name}}",
+  },
+  wallpaper: {
+    title: "Wallpaper", aurora: "Soft aurora", luminous: "Clear light", quiet: "Quiet gradient",
+    note: "Previews follow your theme color and visual style. Your selection is saved on this device.",
   },
   glass: {
     title: "Glass effects", style: "Visual style", styles: { original: "Classic", b2: "Layered glass" },

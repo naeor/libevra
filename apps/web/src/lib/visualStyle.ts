@@ -14,6 +14,7 @@
 
 import { applyGlassBlur, DEFAULT_GLASS_BLUR, GLASS_BLUR_STORAGE_KEY, normalizeGlassBlur, parseGlassBlur } from "../s19/material.js";
 import { applyB2Glass, B2_GLASS_LEGACY_OWNER_KEY, B2_GLASS_STORAGE_PREFIX, b2GlassStorageKey, customGlass, parseB2Glass, presetGlass, type B2GlassPreset, type B2GlassSelection, type B2GlassValues } from "../s19/b2Glass.js";
+import { DEFAULT_WALLPAPER, WALLPAPER_STORAGE_KEY, parseWallpaper, type Wallpaper } from "../s19/wallpaper.js";
 
 export const VISUAL_STYLES = ["original", "a", "b1", "b2", "c"] as const;
 export type VisualStyle = (typeof VISUAL_STYLES)[number];
@@ -37,7 +38,7 @@ export function parseVisualStyle(raw: string | null | undefined): VisualStyle {
 }
 
 export interface VisualStyleRoot {
-  readonly dataset: { visualStyle?: string };
+  readonly dataset: { visualStyle?: string; wallpaper?: string };
   readonly style?: Pick<CSSStyleDeclaration, "setProperty">;
 }
 
@@ -74,6 +75,9 @@ function persist(storage: VisualStyleStorage | null, style: VisualStyle): void {
 
 export interface VisualStyleController {
   getSnapshot(): VisualStyle;
+  getWallpaperSnapshot(): Wallpaper;
+  chooseWallpaper(wallpaper: Wallpaper): void;
+  restoreWallpaper(raw: string | null): void;
   getB2Snapshot(): B2GlassSelection;
   getB2Account(): string | null;
   setB2Account(account: string | null): void;
@@ -98,6 +102,16 @@ export function createVisualStyleController(
   allowExperiments = true,
 ): VisualStyleController {
   const listeners = new Set<() => void>();
+  let wallpaper = DEFAULT_WALLPAPER;
+  try { wallpaper = parseWallpaper(storage?.getItem(WALLPAPER_STORAGE_KEY)); } catch { /* 旧用户与不可用存储均使用柔和极光。 */ }
+  root.dataset.wallpaper = wallpaper;
+  const setWallpaper = (next: Wallpaper, save: boolean): void => {
+    if (wallpaper === next) return;
+    wallpaper = next;
+    root.dataset.wallpaper = next;
+    if (save) { try { storage?.setItem(WALLPAPER_STORAGE_KEY, next); } catch { /* 仍在本次会话立即生效。 */ } }
+    for (const listener of listeners) listener();
+  };
   let current: VisualStyle = readStored(storage);
   let blur = DEFAULT_GLASS_BLUR;
   try { blur = parseGlassBlur(storage?.getItem(GLASS_BLUR_STORAGE_KEY)); } catch { /* 会话内默认值 */ }
@@ -162,6 +176,9 @@ export function createVisualStyleController(
   };
   return {
     getSnapshot: () => current,
+    getWallpaperSnapshot: () => wallpaper,
+    chooseWallpaper: (next) => setWallpaper(parseWallpaper(next), true),
+    restoreWallpaper: (raw) => setWallpaper(parseWallpaper(raw), false),
     getB2Snapshot: () => b2,
     getB2Account: () => account,
     setB2Account: (next) => {
@@ -206,6 +223,7 @@ export function startVisualStyleRuntime(): VisualStyleController {
   try { if (STYLE_LAB_ENABLED) fromUrl = new URLSearchParams(window.location.search).get(VISUAL_STYLE_QUERY_PARAM); } catch { /* 忽略 */ }
   const controller = createVisualStyleController(document.documentElement, storage, fromUrl, STYLE_LAB_ENABLED);
   window.addEventListener("storage", (event) => {
+    if (event.key === WALLPAPER_STORAGE_KEY || event.key === null) controller.restoreWallpaper(event.newValue);
     if (event.key === VISUAL_STYLE_STORAGE_KEY || event.key === null) controller.restore(event.newValue);
     if (event.key === GLASS_BLUR_STORAGE_KEY || event.key === null) controller.restoreBlur(event.newValue);
     if (event.key?.startsWith(B2_GLASS_STORAGE_PREFIX) || event.key === null) controller.restoreB2(event.newValue, event.key);
