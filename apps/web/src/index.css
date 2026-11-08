@@ -619,6 +619,87 @@
 }
 
 
+/* ================= B2 · Layered Glass 分层透光玻璃 ================= */
+html:root[data-visual-style="b2"] {
+  --s19-canvas: #f0f2ee;
+  --s19-environment-spread: var(--s19-b2-environment-spread, .825);
+  --s19-content-fill: var(--s19-b2-content-fill, .25);
+  --s19-chrome-fill: var(--s19-b2-chrome-fill, .35);
+  --s19-bg:
+    linear-gradient(color-mix(in srgb, var(--s19-canvas) var(--s19-b2-ambient-veil, 15%), transparent), color-mix(in srgb, var(--s19-canvas) var(--s19-b2-ambient-veil, 15%), transparent)),
+    radial-gradient(6.7% 3.1% at 74.9% 16.6%, rgb(255 255 255 / .7) 0, rgb(255 255 255 / .5) 55%, rgb(255 255 255 / 0) 100%),
+    radial-gradient(31.3% 14.5% at 82.6% 20.9%, color-mix(in srgb, color-mix(in srgb, var(--color-brand) 62%, #fff) 78%, transparent) 0, color-mix(in srgb, color-mix(in srgb, var(--color-brand) 62%, #fff) 62%, transparent) 70%, transparent 100%),
+    radial-gradient(19% 8.8% at 11.8% 85%, color-mix(in srgb, color-mix(in srgb, var(--color-brand) 62%, #fff) 55%, transparent) 0, color-mix(in srgb, color-mix(in srgb, var(--color-brand) 62%, #fff) 43%, transparent) 70%, transparent 100%),
+    radial-gradient(calc(30.8% * var(--s19-environment-spread)) calc(11.6% * var(--s19-environment-spread)) at 10.3% 29.6%, #f2c7a1 0, rgb(242 199 161 / .85) 68%, rgb(242 199 161 / 0) 100%),
+    radial-gradient(calc(41% * var(--s19-environment-spread)) calc(19% * var(--s19-environment-spread)) at 90.3% 91.5%, #b4cde4 0, rgb(180 205 228 / .85) 70%, rgb(180 205 228 / 0) 100%),
+    linear-gradient(174deg, transparent 58%, color-mix(in srgb, color-mix(in srgb, var(--color-brand) 22%, #fff) 70%, transparent) 64%, rgb(214 226 238 / .7) 70%, transparent 76%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 6%, #eef3ef) 0%, #f4f2ec 55%, #eeeff1 100%);
+  /* 同一档透明磨砂玻璃：信息卡片、摘要、账目分组、设置、详情字段、图表卡 */
+  --s19-card-bg: linear-gradient(160deg, rgb(255 255 255 / calc(.12 * var(--s19-content-fill))), transparent 38%), rgb(250 251 249 / var(--s19-content-fill));
+  --s19-card-sh: inset 0 1px 0 #fff, inset 0 0 0 .5px rgb(255 255 255 / .48), 0 0 0 .5px rgb(40 52 46 / .07), 0 12px 28px -20px rgb(40 52 46 / .34);
+  --s19-key-bg: var(--s19-card-bg);
+  --s19-key-sh: inset 0 1px 0 #fff, inset 0 0 0 .5px rgb(255 255 255 / .48), 0 0 0 .5px rgb(40 52 46 / .07), 0 2px 4px rgb(40 52 46 / .03), 0 18px 38px -24px rgb(40 52 46 / .4);
+  --s19-mini-bg: var(--s19-card-bg);
+  --s19-mini-sh: var(--s19-card-sh);
+  --s19-key-sh-tight: inset 0 1px 0 #fff, inset 0 0 0 .5px rgb(255 255 255 / .48), 0 0 0 .5px rgb(40 52 46 / .08), 0 1px 2px rgb(40 52 46 / .04);
+  --s19-mini-sh-tight: var(--s19-key-sh-tight);
+  --s19-r-group: 22px; --s19-r-key: 26px; --s19-r-mini: 20px; --s19-r-sheet: 28px; --s19-r-field: 14px;
+  /* 玻璃材质参数（含义同 B1）：B2 的白色覆盖更少、模糊更轻，让背景光斑更多透进来 */
+  --s19-glass-rgb: 250 251 249;
+  --s19-glass-milk: var(--s19-b2-milk, .9);
+  --s19-glass-blur: var(--s19-b2-surface-blur, 9.1px);
+  --s19-glass-rim: 1;
+  --s19-glass-shadow: 1;
+  --s19-tool-bg: rgb(var(--s19-glass-rgb) / var(--s19-chrome-fill));
+  --s19-tool-flat: var(--s19-tool-bg);
+  --s19-tool-sh: inset 0 1px 0 rgb(255 255 255 / calc(1 * var(--s19-glass-rim))), inset 0 0 0 .5px rgb(255 255 255 / calc(.55 * var(--s19-glass-rim))), 0 0 0 .5px rgb(40 52 46 / calc(.07 * var(--s19-glass-shadow))), 0 6px 16px -8px rgb(40 52 46 / calc(.24 * var(--s19-glass-shadow)));
+  --s19-tool-filter: blur(calc(var(--s19-glass-blur) * .6)) saturate(1.6);
+  --s19-tool-active: var(--s19-tool-bg);
+  --s19-tool-on: var(--s19-tool-bg);
+  /* 记账入口是操作层：沿用栏面填充与工具高光，使用完整表面模糊压低后方字迹。
+     三预设与高级参数仍读取同一来源，不用旧页透出强度充当菜单不透明度。 */
+  --s19-entry-bg: var(--s19-tool-bg);
+  --s19-entry-sh: var(--s19-tool-sh);
+  --s19-entry-filter: blur(var(--s19-glass-blur)) saturate(1.5);
+  /* 账本胶囊不做局部模糊；栏面填充混入表面色保证叠字可读，高光仍沿用工具材质。 */
+  --s19-book-bg: color-mix(in srgb, var(--s19-tool-bg) 30%, var(--color-surface));
+  --s19-book-sh: var(--s19-tool-sh);
+  --s19-search-open-bg: var(--s19-tool-bg);
+  --s19-bar-bg: var(--s19-tool-bg);
+  --s19-bar-sh: inset 0 -1px 0 rgb(255 255 255 / calc(.6 * var(--s19-glass-rim))), inset 0 -1.5px 0 rgb(40 52 46 / calc(.07 * var(--s19-glass-shadow)));
+  --s19-bar-filter: blur(var(--s19-b2-chrome-blur, 9.1px)) saturate(1.5);
+  --s19-search-backing: var(--s19-bar-solid);
+  --s19-bar-solid: var(--s19-tool-bg);
+  --s19-dock-bg: var(--s19-tool-bg);
+  /* 底栏选中玻璃胶囊：白色覆盖更弱、边缘光学层次更清楚，接近透明玻璃 */
+  --s19-tabglass-bg: var(--s19-tool-bg);
+  --s19-tabglass-sh: inset 0 1px 0 rgb(255 255 255 / calc(1 * var(--s19-glass-rim))), inset 0 0 0 .5px rgb(255 255 255 / calc(.7 * var(--s19-glass-rim))), inset 0 -1px 1px rgb(255 255 255 / calc(.45 * var(--s19-glass-rim))), 0 0 0 .5px rgb(40 52 46 / calc(.11 * var(--s19-glass-shadow))), 0 4px 12px -5px rgb(40 52 46 / calc(.2 * var(--s19-glass-shadow)));
+  --s19-tabglass-filter: none;
+  --s19-dock-sh: inset 0 1px 0 #fff, 0 -.5px 0 rgb(40 52 46 / .08), 0 -12px 30px -18px rgb(40 52 46 / .26);
+  --s19-dock-r: 26px;
+  --s19-tab-on-bg: linear-gradient(180deg, rgb(255 255 255 / .92), rgb(255 255 255 / .72));
+  --s19-tab-on-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(40 52 46 / .08), 0 3px 9px -3px rgb(40 52 46 / .22);
+  --s19-accent-bg: linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 82%, #fff) 0%, color-mix(in srgb, var(--color-brand) 96%, #000) 100%);
+  --s19-accent-sh: inset 0 1px 0 rgb(255 255 255 / .42), 0 0 0 .5px color-mix(in srgb, var(--color-brand) 60%, #000 20%), 0 7px 16px -8px color-mix(in srgb, var(--color-brand) 70%, transparent);
+  --s19-plus-sh: var(--s19-accent-sh);
+  --s19-soft-bg: linear-gradient(180deg, rgb(255 255 255 / .62), rgb(255 255 255 / .42));
+  --s19-soft-sh: inset 0 1px 0 rgb(255 255 255 / .9), 0 0 0 .5px rgb(40 52 46 / .1), 0 1px 3px -1px rgb(40 52 46 / .12);
+  --s19-shelf-bg: linear-gradient(180deg, rgb(255 255 255 / .34) 0, rgb(255 255 255 / 0) 34%), linear-gradient(180deg, rgb(250 251 249 / .72), rgb(250 251 249 / .62));
+  --s19-shelf-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(40 52 46 / .07), 0 18px 38px -24px rgb(40 52 46 / .4);
+  --s19-sheet-bg: linear-gradient(180deg, rgb(251 252 250 / .96), rgb(248 249 247 / .93));
+  --s19-sheet-sh: inset 0 1px 0 #fff, 0 -.5px 0 rgb(40 52 46 / .08), 0 -20px 44px -24px rgb(40 52 46 / .36);
+  --s19-scrim: rgb(36 44 40 / .22);
+  --s19-track-bg: rgb(110 108 96 / .08); --s19-track-sh: inset 0 0 0 .5px rgb(255 255 255 / .55);
+  --s19-pill-bg: linear-gradient(180deg, rgb(255 255 255 / .92), rgb(255 255 255 / .72));
+  --s19-pill-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(40 52 46 / .08), 0 3px 9px -3px rgb(40 52 46 / .22);
+  --s19-row-ic-bg: rgb(255 255 255 / .7);
+  --s19-tab-on-bg: var(--s19-tool-bg);
+  --s19-soft-bg: var(--s19-tool-bg);
+  --s19-shelf-bg: var(--s19-tool-bg);
+  --s19-pill-bg: var(--s19-tool-bg);
+  --s19-row-ic-bg: var(--s19-tool-bg);
+}
+
 html,
 body,
 #root {

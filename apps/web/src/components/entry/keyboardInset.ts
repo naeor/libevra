@@ -40,10 +40,11 @@ export function keyboardOffset(
  * 没有 `visualViewport`（老浏览器）或没有滚动容器时保持 0，页面行为与以前完全一致。
  * 缩放（双指放大）期间也不抬：那时可视区变小不是键盘造成的，抬起只会让按钮乱跳。
  */
-export function useKeyboardInset(scrollRef: RefObject<HTMLDivElement | null>): number {
+export function useKeyboardInset(scrollRef: RefObject<HTMLDivElement | null>, active = true): number {
   const [inset, setInset] = useState(0);
 
   useEffect(() => {
+    if (!active) return;
     const viewport = window.visualViewport;
     const scrollport = scrollRef.current;
 
@@ -86,7 +87,7 @@ export function useKeyboardInset(scrollRef: RefObject<HTMLDivElement | null>): n
 
       if (frame !== 0) window.cancelAnimationFrame(frame);
     };
-  }, [scrollRef]);
+  }, [scrollRef, active]);
 
   return inset;
 }

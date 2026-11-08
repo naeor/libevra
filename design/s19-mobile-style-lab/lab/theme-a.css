@@ -1,0 +1,89 @@
+/* ================================================================
+   A · Soft Spatial 柔和空间
+   一个统一、柔和的背景空间（主题色环境光，光源在左上），页面由一张张独立的柔和卡片组合而成。
+   · 卡片：同一套圆角与两档柔和阴影（关键卡片 Elevated、普通卡片 Content），不厚重悬浮
+   · 账目与编辑记录：标准明细行，每一行是独立的小卡片，上下边完全贴在一起（像贴在一起的电影票）；
+     接缝处只有很小的圆角缺口和后一张压住前一张的细影，不用分割线；整组的外圈圆角与普通卡片一致
+   · 操作层（底栏、浮层）在最前面
+   ================================================================ */
+.app[data-style="a"] {
+  --a-top: color-mix(in srgb, var(--brand) 15%, #f3f4f0);
+  --canvas: #edeeea;
+  --content-bg: #fdfdfb;
+  --content-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 1px 2px rgb(40 50 44 / .04), 0 8px 20px -14px rgb(40 52 46 / .28);
+  --elev-bg: #ffffff;
+  --elev-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 2px 4px rgb(40 50 44 / .04), 0 18px 36px -18px color-mix(in srgb, var(--brand) 30%, rgb(30 40 34 / .5));
+  --ticket-bg: #fdfdfb;
+  --ticket-sh: 0 0 0 .5px rgb(40 50 44 / .07), 0 1.5px 3px -1px rgb(40 52 46 / .16);
+  --ticket-base-sh: 0 10px 22px -16px rgb(40 52 46 / .32);
+  --r-seam: 6px;
+  --overlay-bg: #fcfcfa; --overlay-sh: 0 -16px 44px -18px rgb(30 40 36 / .32), 0 0 0 .5px rgb(40 50 44 / .05);
+  --lift-bg: rgb(255 255 255 / .86); --lift-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 5px 14px -6px rgb(40 52 46 / .26);
+  --soft-bg: var(--brand-soft); --soft-ink: var(--brand-ink);
+  --tint-bg: var(--brand-soft); --tint-ink: var(--brand-ink);
+  --track: color-mix(in srgb, var(--brand) 7%, #e9e9e4); --track-sh: inset 0 1px 2px rgb(40 50 44 / .05);
+  --pill-bg: #fff; --pill-sh: 0 1px 2px rgb(40 50 44 / .08), 0 4px 10px -4px rgb(40 52 46 / .18);
+  --chip-bg: #fff; --chip-sh: 0 0 0 .5px rgb(40 50 44 / .07), 0 2px 6px -3px rgb(40 52 46 / .2);
+  --field-bg: #f3f3ef; --input-sh: inset 0 0 0 1px rgb(60 60 50 / .05);
+  --accent-bg: linear-gradient(180deg, color-mix(in srgb, var(--brand) 86%, #fff), var(--brand));
+  --accent-sh: 0 1px 2px rgb(0 0 0 / .08), 0 8px 18px -8px color-mix(in srgb, var(--brand) 75%, transparent);
+  --accent-solid: var(--brand);
+  --accent-off-bg: color-mix(in srgb, var(--brand) 26%, #e6e8e3); --accent-off-ink: rgb(255 255 255 / .92);
+  --sheet-group: #f3f3ef;
+  --divider: rgb(60 62 54 / .075);
+  --r-hero: 24px; --r-group: 20px; --r-mini: 18px; --r-sheet: 28px; --r-input: 14px; --r-btn: 20px;
+  --bar-bg: var(--a-top); --bar-sh: 0 .5px 0 rgb(40 52 46 / .06);
+  --tab-on-bg: var(--brand-soft);
+  --li-ic-bg: color-mix(in srgb, var(--brand) 9%, #f2f2ee);
+  --ico-base: #fff;
+  --menu-veil: rgb(237 238 234 / .7);
+  --nav-h: 70px; --plus: 54px; --plus-top: -18px;
+  --frost-fallback: #fdfdfb;
+}
+.app[data-style="a"] .bg-a { background: linear-gradient(180deg, var(--a-top) 0%, color-mix(in srgb, var(--brand) 5%, #f0f0ec) 40%, #ecece8 100%); }
+.app[data-style="a"] .bg-a-light { position: absolute; inset: 0; background: radial-gradient(90% 46% at 12% 0%, rgb(255 255 255 / .75), rgb(255 255 255 / 0) 70%), radial-gradient(70% 40% at 100% 18%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 70%); }
+
+.app[data-style="a"] .u-hero { padding: 16px 18px; }
+.app[data-style="a"] .u-sum { padding: 15px 18px 2px; }
+.app[data-style="a"] .u-stack { gap: 20px; }
+.app[data-style="a"] .u-day-h { padding: 14px 8px 8px; }
+/* 明细行卡：行高、留白与其它风格的标准明细行一致；按下时这一张略微沉下去 */
+.app[data-style="a"] .t-tickets > li:active, .app[data-style="a"] .t-tickets .u-log-item:active { background: #f7f7f4; }
+.app[data-style="a"] .t-tickets .u-row[aria-pressed="true"] { background: var(--brand-softer); }
+/* 顶部：滚动后成为与环境同色的实色带 */
+.app[data-style="a"] .page[data-pinned="true"] .u-toolbar::before { background: var(--a-top); box-shadow: 0 .5px 0 rgb(40 52 46 / .06); }
+.app[data-style="a"] .u-tool[aria-pressed="true"] { background: var(--brand-soft); }
+.app[data-style="a"] .u-searchbar { background: #fff; box-shadow: var(--lift-sh); }
+/* 底栏：从底边升起的白色操作层；“+”是轻悬浮的主题色圆片 */
+.app[data-style="a"] .u-dock-a { border-radius: 26px 26px 0 0; box-shadow: 0 0 0 .5px rgb(40 50 44 / .05), 0 -12px 34px -20px rgb(30 40 36 / .4); }
+.app[data-style="a"] .u-plus { box-shadow: 0 0 0 4px #fff, 0 10px 20px -8px color-mix(in srgb, var(--brand) 70%, transparent); }
+.app[data-style="a"] .u-toast-ink { --toast-bg: #24302b; }
+.app[data-style="a"] .u-app-ic { border-radius: 18px; }
+
+@supports (corner-shape: squircle) {
+  .app[data-style="a"] .u-hero, .app[data-style="a"] .u-sum { corner-shape: squircle; border-radius: 38px; }
+  .app[data-style="a"] .u-box.m-content, .app[data-style="a"] .u-mini { corner-shape: squircle; border-radius: 30px; }
+}
+
+/* ---------------- 深色（方向）：环境光变成更深的主题色雾，浮起靠更亮的表面而不是阴影 ---------------- */
+.app[data-style="a"][data-scheme="dark"] {
+  --a-top: color-mix(in srgb, var(--brand) 22%, #141816);
+  --canvas: #121513; --ink: #e9edeb; --ink-2: #ccd3cf; --muted: #929c97; --faint: #6c7671;
+  --divider: rgb(255 255 255 / .07); --line: rgb(255 255 255 / .14);
+  --brand-ink: color-mix(in srgb, var(--brand) 55%, #fff); --brand-soft: color-mix(in srgb, var(--brand) 22%, #1b201e); --brand-softer: color-mix(in srgb, var(--brand) 12%, #1b201e);
+  --content-bg: #1b201e; --content-sh: 0 0 0 .5px rgb(255 255 255 / .05);
+  --elev-bg: #242a27; --elev-sh: 0 0 0 .5px rgb(255 255 255 / .07), 0 16px 34px -16px rgb(0 0 0 / .7);
+  --ticket-bg: #1d2220; --ticket-sh: 0 0 0 .5px rgb(255 255 255 / .06), 0 1.5px 3px -1px rgb(0 0 0 / .6); --ticket-base-sh: 0 10px 22px -16px rgb(0 0 0 / .6);
+  --overlay-bg: #222826; --overlay-sh: 0 -16px 44px -18px rgb(0 0 0 / .7), 0 0 0 .5px rgb(255 255 255 / .06);
+  --lift-bg: rgb(255 255 255 / .08); --lift-sh: 0 0 0 .5px rgb(255 255 255 / .08);
+  --track: rgb(255 255 255 / .06); --pill-bg: #2c3330; --pill-sh: 0 1px 2px rgb(0 0 0 / .4);
+  --chip-bg: rgb(255 255 255 / .07); --chip-sh: none; --field-bg: rgb(255 255 255 / .05); --sheet-group: rgb(255 255 255 / .04);
+  --li-ic-bg: rgb(255 255 255 / .06); --ico-base: #222826;
+  --inc: #6cc49a; --warm: #e39b7a; --danger: #e5786d; --danger-soft: rgb(229 120 109 / .14);
+  --menu-veil: rgb(18 21 19 / .7); --skel: rgb(255 255 255 / .08); --num-bg: rgb(255 255 255 / .07); --code-bg: rgb(255 255 255 / .05); --role-bg: rgb(255 255 255 / .08);
+  --frost-fallback: #1b201e; --scrim: rgb(0 0 0 / .45);
+}
+.app[data-style="a"][data-scheme="dark"] .bg-a { background: linear-gradient(180deg, var(--a-top) 0%, #141716 42%, #121513 100%); }
+.app[data-style="a"][data-scheme="dark"] .bg-a-light { opacity: .12; }
+.app[data-style="a"][data-scheme="dark"] .u-plus { box-shadow: 0 0 0 4px var(--elev-bg), 0 10px 20px -8px rgb(0 0 0 / .6); }
+.app[data-style="a"][data-scheme="dark"] .u-searchbar { background: var(--elev-bg); }

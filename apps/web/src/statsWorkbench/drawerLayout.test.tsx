@@ -70,4 +70,11 @@ describe("同一份卡片库保留功能与收起语义", () => {
     expect(wide.match(/class="sw-drawer-body"/g)).toHaveLength(1);
     expect(wide).toContain('data-mode="wide"');
   });
+  it("滑动页保留两份独立滚动区，未选布局页不可交互或重复朗读", () => {
+    const html = markup("expanded");
+    expect(html).toContain('class="sw-drawer-pages" data-page="analysis"');
+    expect(html.match(/class="sw-drawer-page"/g)).toHaveLength(2);
+    expect(html).toContain('class="sw-drawer-page" inert="" aria-hidden="true"');
+    expect(html.match(/data-selection-indicator=""/g)).toHaveLength(2);
+  });
 });

@@ -49,7 +49,8 @@ export function settingsItems(options: { readonly guest: boolean; readonly admin
   return [
     { id: "profile", to: "/profile", prefixes: ["/profile", "/me"] },
     { id: "preferences", to: "/settings/preferences", prefixes: ["/settings/preferences"] },
-    { id: "appearance", to: "/settings/appearance", prefixes: ["/settings/appearance"] },
+    { id: "appearance", to: "/settings/appearance/theme", prefixes: ["/settings/appearance"] },
+    { id: "language", to: "/settings/appearance/language", prefixes: ["/settings/appearance/language"] },
     { id: "security", to: "/settings/security", prefixes: ["/settings/security", "/settings/password", "/settings/recovery-code", "/settings/referral-codes"] },
     { id: "accountData", to: "/settings/account-data", prefixes: ["/settings/account-data"] },
     { id: "downloads", to: "/downloads", prefixes: ["/downloads"] },

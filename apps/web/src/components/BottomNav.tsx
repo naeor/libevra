@@ -2,6 +2,7 @@ import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { useLedger } from "../lib/queries.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useRef, type ReactNode } from "react";
+import { useBottomNavUnderlay } from "../s19/useBottomNavUnderlay.js";
 import { Link } from "react-router";
 import { usePane } from "../workspace/context.js";
 
@@ -317,6 +318,7 @@ export function BottomNav({
   const open = cards.expanded;
   const guest = useGuestMode();
   const pickerRef = useRef<HTMLInputElement | null>(null);
+  const navRef = useBottomNavUnderlay();
   /**
    * ⚠️ **Read here so the fourth slot can name itself.** Shared with whatever screen is open through
    * the query cache, so this is not an extra request — see `ledgerTabLabel`.
@@ -333,6 +335,7 @@ export function BottomNav({
     // height and only scrolls its middle region, so the bar never ends up
     // underneath a browser toolbar.
     <nav
+      ref={navRef}
       aria-label={t("nav.mainNav")}
       className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
     >
@@ -378,7 +381,7 @@ export function BottomNav({
       */}
       <div
         aria-hidden={!open}
-        className={`absolute inset-x-0 bottom-full transition-all duration-200 ease-out ${
+        className={`lv-entry-menu absolute inset-x-0 bottom-full transition-all duration-200 ease-out ${
           open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
@@ -588,6 +591,7 @@ export function BottomNav({
                   onNavigate(destination);
                 }}
                 aria-current={isActive ? "page" : undefined}
+                data-main-tab={tab.id}
                 className={`relative flex w-full flex-col items-center gap-1 py-2.5 text-micro transition ${
                   isActive
                     ? "bottom-tab-active font-medium text-brand-dark"

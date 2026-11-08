@@ -31,3 +31,15 @@
 
 .dce-search button{height:40px;padding-block:0}.detail-card-editor [data-page-nav] nav>div button{height:36px;padding-block:0}.detail-card-editor [data-page-nav] button:not([data-back-control]){height:36px;padding-block:0}
 @media(max-height:660px){.dce-search button{height:36px}}
+
+/* 指标标签不挤出窄屏；短横屏改用整页滚动，避免固定预览耗尽列表的可用高度。 */
+.dce-selected{flex-wrap:wrap}
+.dce-metric>span:first-child{min-width:0;overflow-wrap:anywhere}
+.dce-metric>span:last-child{flex-shrink:0}
+.dce-catalogue{scroll-padding-block:8px max(16px,env(safe-area-inset-bottom,0px))}
+@media(max-height:520px){
+  .detail-card-editor{overflow-y:auto;overscroll-behavior:contain}
+  .detail-card-editor>[data-page-nav]{position:sticky;top:0}
+  .dce-workbench{flex:none;min-height:260px}
+  .dce-catalogue{flex:none;overflow:visible}
+}

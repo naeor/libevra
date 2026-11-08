@@ -1,0 +1,112 @@
+/* 本实验独占选择器与变量。现有 Satin、B2 填充 / 模糊令牌只读。 */
+html[data-optics-lab], html[data-optics-lab] body { height: auto; min-height: 100%; overflow: auto; }
+html[data-optics-lab] body { min-height: 100dvh; background: var(--s19-canvas); }
+html[data-optics-lab] body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--s19-bg); }
+.ol-page { --lv-light-angle: var(--ol-angle); --lv-light-x: var(--ol-light-x, 25%); --lv-light-y: var(--ol-light-y, 30%); --lv-material-reflection: var(--ol-strength); --lv-material-edge: var(--ol-strength); max-width: 820px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+.ol-heading { padding: 0 4px 22px; }
+.ol-heading > p:first-child { color: var(--color-brand-dark); font-size: var(--text-helper); letter-spacing: .08em; }
+.ol-heading > p:first-child span { margin-left: 6px; color: var(--color-muted); }
+.ol-heading h1 { margin: 10px 0; font-size: var(--text-page-title); font-weight: 500; }
+.ol-heading > p:last-child, .ol-intro p, .ol-explanation, .ol-suggestion { font-size: var(--text-helper); line-height: 1.75; color: var(--color-muted); }
+.ol-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; border: 1px solid var(--color-line); padding: 4px; background: color-mix(in srgb, var(--color-surface) 35%, transparent); border-radius: 22px; }
+.ol-tabs button { min-height: 64px; padding: 8px 4px; border-radius: 18px; display: grid; gap: 4px; place-content: center; }
+.ol-tabs b { font-size: var(--text-body); font-weight: 500; }
+.ol-tabs span { font-size: var(--text-micro); color: var(--color-muted); }
+.ol-tabs button[aria-pressed="true"] { color: var(--color-brand-dark); background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
+.ol-intro { padding: 24px 4px 20px; }
+.ol-intro h2 { font-size: var(--text-body); font-weight: 500; margin-bottom: 8px; }
+.ol-samples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ol-sample { margin: 0; min-width: 0; }
+.ol-sample figcaption { display: grid; gap: 4px; padding: 0 4px 12px; }
+.ol-sample figcaption b { font-size: var(--text-body); font-weight: 500; }
+.ol-sample figcaption span { font-size: var(--text-micro); color: var(--color-muted); }
+.ol-scene { position: relative; border-radius: 26px; padding: 38px 14px 24px; background: color-mix(in srgb, var(--color-surface) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-line) 65%, transparent); }
+.ol-scene-pattern { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse at 10% 20%, var(--color-warn-soft), transparent 70%), radial-gradient(ellipse at 100% 80%, var(--color-info-soft), transparent 65%); }
+.ol-scene-pattern > span { position: absolute; top: 44%; left: 10%; font-size: var(--text-page-title); color: var(--color-brand-dark); transform: rotate(-18deg); }
+.ol-scene-pattern i { position: absolute; width: 85%; height: 30%; right: -20%; top: 12%; border: 2px solid var(--color-brand); border-radius: 50%; transform: rotate(-20deg); }
+.ol-scene-pattern em { position: absolute; width: 32%; aspect-ratio: 1; left: -8%; bottom: 12%; border-radius: 50%; background: color-mix(in srgb, var(--color-brand) 50%, transparent); }
+.ol-surface { position: relative; border-radius: 22px; background: transparent; }
+.ol-surface::before, .ol-surface::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.ol-surface::before { z-index: 0; background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
+.ol-surface::after { z-index: 1; opacity: 0; }
+.ol-content { position: relative; z-index: 2; }
+.ol-card { padding: 18px 14px; }
+.ol-card-kicker { font-size: var(--text-helper); color: var(--color-muted); }
+.ol-amount { margin-top: 10px; font-size: var(--text-page-title); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ol-rule { height: 1px; margin: 16px 0 12px; background: var(--color-line); }
+.ol-card-detail { font-size: var(--text-micro); color: var(--color-muted); white-space: nowrap; }
+.ol-chart { height: 42px; display: flex; align-items: end; gap: 7px; padding-top: 10px; }
+.ol-chart i { display: block; flex: 1; height: 55%; border-radius: 3px; background: var(--color-brand-soft); }
+.ol-chart i:nth-child(2) { height: 85%; }.ol-chart i:nth-child(3) { height: 68%; }.ol-chart i:nth-child(4) { height: 100%; background: var(--color-brand); }.ol-chart i:nth-child(5) { height: 80%; }
+.ol-action-row { display: flex; gap: 8px; margin-top: 22px; }
+.ol-pill { flex: 1; min-width: 0; padding: 0 10px; height: 44px; border-radius: 999px; color: var(--color-brand-dark); font-size: var(--text-helper); white-space: nowrap; }
+.ol-circle { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; font-size: var(--text-page-title); color: var(--color-brand-dark); }
+.ol-action-row button:active { transform: scale(.97); }
+
+/* 完全相同的实体底座；差别只在表面反射，基础阴影与厚度不随候选改变。 */
+.ol-page[data-view="porcelain"] .ol-surface { isolation: isolate; background-color: var(--color-surface); opacity: 1; mix-blend-mode: normal; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.ol-page[data-view="porcelain"] .ol-surface::before { background: var(--lv-porcelain-body); box-shadow: var(--lv-porcelain-shadow); }
+.ol-page[data-view="porcelain"] .ol-surface::after { opacity: var(--lv-material-reflection); background: var(--lv-porcelain-satin); }
+.ol-page[data-view="porcelain"] .ol-sample[data-candidate="true"] .ol-surface::after { background: var(--lv-porcelain-glazed); }
+.ol-page[data-view="porcelain"] .lv-porcelain-window { z-index: 1; }
+/* 现有操作玻璃：左右同一填充、模糊与工具阴影；候选只加光学边界近似。 */
+.ol-page[data-view="glass"] .ol-surface::before { background: var(--s19-entry-bg); box-shadow: var(--s19-entry-sh); -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter); }
+.ol-page[data-view="glass"] .ol-sample[data-candidate="true"] .ol-surface::before { background: var(--lv-glass-reflection), var(--s19-entry-bg); }
+.ol-page[data-view="glass"] .ol-sample[data-candidate="true"] .ol-surface::after, .ol-optics-shell[data-enhanced="true"]::after {
+  opacity: var(--ol-strength); padding: 2px;
+  background: var(--lv-glass-edge);
+  -webkit-mask: linear-gradient(var(--s19-on-accent) 0 0) content-box, linear-gradient(var(--s19-on-accent) 0 0); mask: linear-gradient(var(--s19-on-accent) 0 0) content-box, linear-gradient(var(--s19-on-accent) 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.ol-preset-row, .ol-lens-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
+.ol-preset-row > span { font-size: var(--text-helper); color: var(--color-muted); }
+.ol-mode-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--color-line); background: color-mix(in srgb, var(--color-surface) 35%, transparent); border-radius: 15px; }
+.ol-mode-switch button { min-height: 40px; padding: 6px 12px; border-radius: 12px; color: var(--color-muted); font-size: var(--text-helper); }
+.ol-mode-switch button[aria-pressed="true"] { background: var(--color-surface); box-shadow: var(--s19-card-sh); color: var(--color-brand-dark); }
+.ol-adjustments { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 24px; padding: 18px 16px; border: 1px solid var(--color-line); border-radius: 20px; background: color-mix(in srgb, var(--color-surface) 35%, transparent); }
+.ol-range > span { display: flex; justify-content: space-between; gap: 8px; font-size: var(--text-helper); }
+.ol-range output { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.ol-range input { width: 100%; display: block; height: 36px; margin: 4px 0 0; accent-color: var(--color-brand); }
+.ol-suggestion { padding: 16px 4px; }
+.ol-optics-demo > .ol-mode-switch { width: fit-content; max-width: 100%; }
+.ol-optics-demo .ol-render-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+.ol-pattern-select { display: flex; align-items: center; gap: 12px; font-size: var(--text-helper); margin: 16px 0; }
+.ol-pattern-select select { min-width: 0; min-height: 44px; padding: 8px 12px; font-size: var(--text-section-title); }
+.ol-visual-review { display: grid; gap: 12px; border: 1px solid var(--color-line); border-radius: 20px; padding: 14px; margin: 20px 0; }
+.ol-visual-review legend { font-size: var(--text-body); padding: 0 4px; }
+.ol-visual-review label { display: grid; grid-template-columns: 1fr minmax(0, 1.3fr); gap: 8px; align-items: center; font-size: var(--text-helper); }
+.ol-visual-review select, .ol-visual-review textarea { min-width: 0; min-height: 44px; padding: 8px; font-size: var(--text-section-title); }
+.ol-visual-review label:last-child { grid-template-columns: 1fr; }
+.ol-explanation { margin: 12px 2px; }
+.ol-lens-labels { display: grid; grid-template-columns: 1fr 1fr; text-align: center; margin: 18px 0 10px; font-size: var(--text-helper); }
+.ol-lens-labels b { font-weight: 500; }
+.ol-optics-stage { position: relative; height: 300px; overflow: hidden; isolation: isolate; border-radius: 22px; border: 1px solid var(--color-line); background: var(--color-surface); }
+.ol-optics-background, .ol-optics-surfaces, .ol-optics-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ol-optics-background { display: grid; }.ol-optics-background > div { min-width: 0; }
+.ol-optics-shell { position: absolute; left: 0; top: 0; background: color-mix(in srgb, var(--s19-on-accent) 3%, transparent); box-shadow: inset 0 1px .5px color-mix(in srgb, var(--s19-on-accent) 60%, transparent), inset 0 -1px .5px color-mix(in srgb, var(--color-ink) 18%, transparent), 0 3px 5px -2px color-mix(in srgb, var(--color-ink) 18%, transparent); }
+.ol-optics-shell[data-frosted="true"] { background: color-mix(in srgb, var(--s19-on-accent) 5%, transparent); -webkit-backdrop-filter: blur(var(--ol-scatter)); backdrop-filter: blur(var(--ol-scatter)); }
+.ol-optics-shell::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; }
+.ol-optics-shell[data-enhanced="true"] > span { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: var(--ol-strength); background: linear-gradient(var(--ol-angle), transparent 15%, color-mix(in srgb, var(--s19-on-accent) 13%, transparent) 23%, transparent 36%); }
+.ol-kind-switch { margin-bottom: 14px; }.ol-kind-switch button { flex: 1; white-space: nowrap; }
+.ol-text-link { color: var(--color-brand-dark); font-size: var(--text-helper); min-height: 44px; text-decoration: underline; }
+.ol-bench-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0; }
+.ol-bench-options label { display: grid; gap: 6px; font-size: var(--text-helper); color: var(--color-muted); }
+.ol-bench-options select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--color-line); border-radius: var(--radius-field); color: var(--color-ink); background: var(--color-surface); font-size: var(--text-section-title); }
+.ol-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-helper); min-height: 44px; }
+.ol-bench-toolbar { display: flex; gap: 12px; margin: 16px 0; }.ol-bench-progress { font-size: var(--text-helper); line-height: 1.8; min-height: 44px; margin-bottom: 12px; }
+.ol-bench-stage { height: 280px; }
+.ol-page[data-benchmark-running="true"] > .ol-heading, .ol-page[data-benchmark-running="true"] > .ol-tabs, .ol-page[data-benchmark-running="true"] > .ol-intro, .ol-page[data-benchmark-running="true"] > .ol-research, .ol-page[data-benchmark-running="true"] > .ol-footer { display: none; }
+.ol-results-scroll { overflow-x: auto; border: 1px solid var(--color-line); border-radius: var(--radius-field); }
+.ol-results-scroll table { width: 100%; border-collapse: collapse; font-size: var(--text-helper); text-align: left; white-space: nowrap; }
+.ol-results-scroll th, .ol-results-scroll td { padding: 10px 12px; border-bottom: 1px solid var(--color-line); font-weight: 400; font-variant-numeric: tabular-nums; }.ol-results-scroll th { color: var(--color-brand-dark); }.ol-results-scroll small { display: block; font-size: var(--text-micro); color: var(--color-muted); }
+.ol-copy-fallback { display: grid; gap: 8px; font-size: var(--text-helper); margin-bottom: 16px; }.ol-copy-fallback textarea { min-height: 160px; max-width: 100%; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-field); padding: 12px; font-size: var(--text-section-title); }
+.ol-lens-actions { margin: 16px 0 0; flex-wrap: wrap; }
+.ol-play { min-height: 44px; padding: 8px 12px; border-radius: 15px; background: var(--s19-tool-bg); box-shadow: var(--s19-tool-sh); color: var(--color-brand-dark); font-size: var(--text-helper); }
+.ol-play:disabled { opacity: .5; }
+.ol-footnote, .ol-footer { font-size: var(--text-micro); line-height: 1.8; color: var(--color-muted); }
+.ol-footnote { margin-top: 16px; }.ol-footer { padding: 22px 4px 8px; text-align: center; }
+.ol-research { border-top: 1px solid var(--color-line); padding: 18px 4px 0; font-size: var(--text-helper); line-height: 1.8; }
+.ol-research summary { min-height: 36px; cursor: pointer; }.ol-research p { margin: 12px 0; color: var(--color-muted); }.ol-research a { color: var(--color-brand-dark); text-decoration: underline; margin-left: 4px; }
+.ol-page button:focus-visible, .ol-page input:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 3px; }
+@media (max-width: 580px) { .ol-page { padding-inline: 16px; }.ol-tabs { grid-template-columns: repeat(2,minmax(0,1fr)); }.ol-scene { padding: 30px 10px 20px; }.ol-card { padding: 16px 12px; }.ol-action-row { flex-wrap: wrap; }.ol-pill { flex-basis: 100%; }.ol-circle { margin-inline: auto; }.ol-tabs span { font-size: var(--text-micro); }.ol-adjustments { gap: 16px; padding-inline: 12px; } }
+@media (prefers-reduced-motion: reduce) { .ol-action-row button:active { transform: none; } }

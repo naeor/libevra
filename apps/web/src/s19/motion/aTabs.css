@@ -1,0 +1,19 @@
+/* 0.5.3 的胶囊表面接到现有 BottomNav；不搬实验排版、加号菜单或模拟按钮。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-a-glide] {
+  --a-tab-surface: var(--s19-card-bg, var(--color-surface));
+  --a-tab-recess: var(--color-brand-soft);
+  --a-tab-selected: var(--color-brand-dark);
+  --a-tab-muted: var(--color-muted);
+  isolation: isolate;
+}
+[data-a-glide] .a-tab-track { position: relative; }
+[data-a-glide] [data-tab] { z-index: 2; }
+[data-a-glide] .a-plus-slot { position: relative; z-index: 3; }
+[data-a-glide] .a-capsule { position: absolute; left: 0; z-index: 1; pointer-events: none; }
+[data-a-glide] .a-capsule-body { position: absolute; inset: 0; border-radius: 999px; background: var(--a-tab-recess); transform-origin: center; }
+[data-a-glide] .a-capsule-face {
+  position: absolute; inset: 0; border-radius: inherit; background: var(--a-tab-surface);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-ink) 8%, transparent), inset 0 1px 0 var(--color-surface);
+  outline: 1px solid color-mix(in srgb, var(--color-surface) 67%, transparent); outline-offset: -1px;
+}
+[data-a-glide] .bottom-tab-active > span[aria-hidden] { background: transparent !important; }

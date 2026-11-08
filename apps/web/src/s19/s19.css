@@ -1,0 +1,23 @@
+/*
+  S19 视觉材质：正式 B2 与开发候选共用；正式入口仅允许 Original / B2，见 lib/visualStyle.ts。
+
+  ⚠️ 作用范围：每条规则都以 `:root[data-visual-style=…][data-theme-mode="light"]` 开头，
+  并限定在手机外壳 `.lv-shell[data-shell="contents"]`（或只在手机外壳存在时的 body）之内：
+  · Original（没有 data-visual-style 属性）时一条也不命中；
+  · Pad（data-shell="wide"）、电脑版外壳、深色模式都不受影响。
+
+  ⚠️ 只改材质（背景、阴影、圆角、颜色令牌），不改布局几何，不改任何 transform / transition /
+  animation / height / opacity —— 明细顶部 `--p` 收起、搜索展开、记一笔面板、Sheet 进出等动画
+  全部沿用原实现。需要随滚动出现的“顶栏承载层”用伪元素按 `--p` / `--header-p` 渐显，
+  而不是改动元素本身。
+
+  ⚠️ 不在可能包含 position:fixed 后代（Sheet、对话框没有 portal）的元素上加 backdrop-filter / filter /
+  transform：那会把弹层困在卡片里。真正的背景模糊只放在伪元素上（顶栏、吸顶分段、底栏）。
+*/
+@import "./s19-lab-tokens.css";
+@import "./shared.css";
+@import "./ambient.css";
+@import "./classic.css";
+@import "./compact.css";
+@import "./tabglass.css";
+@import "./dock.css";

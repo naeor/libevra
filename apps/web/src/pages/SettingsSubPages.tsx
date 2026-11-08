@@ -26,8 +26,8 @@ import { useLanguagePreference } from "../lib/languageRuntime.js";
  *
  * ⚠️ **What is *not* here matters too.** 导出数据 / 导入历史账 were moved to the
  * **book's** settings in the previous round; they belong to one ledger and must not
- * come back to an account-level screen (owner's S13-E ruling). 语言 / 主题色 / 汇率折算
- * are genuinely not built yet, and they say so on the page they belong to.
+ * come back to an account-level screen (owner's S13-E ruling). 外观和语言由设置首页直达；
+ * 汇率折算复用账号级设置，放在记账偏好，未开放的配置不再展示。
  */
 
 /** Every sub-page leaves the same way: to the settings home, history first. */
@@ -52,7 +52,6 @@ function SettingsSubPage({
  * 首页不再挂载币种控件；本页仍以 PATCH 回答更新当前选择，没有第二套币种状态。
  */
 export function PreferencesPage(): React.JSX.Element {
-  const navigate = useNavigate();
   const currency = useDefaultCurrency();
   const { t } = useI18n();
 
@@ -82,24 +81,7 @@ export function PreferencesPage(): React.JSX.Element {
         </div>
       </section>
 
-      {/**
-       * ⚠️ **These five are genuinely not built yet, and the rows say 「后续开放」.**
-       * The owner's rule: a settings screen may list a future item, but it must read
-       * as a stated fact rather than as an entry that silently does nothing.
-       */}
-      <section className="lv-settings-section flex flex-col gap-3" data-section-title="">
-        <h2 className="lv-settings-heading px-1 text-section-title text-ink">{t("settings.preferences.entryAndLayout")}</h2>
-        <SettingsRowList
-          rows={[
-            { label: t("settings.preferences.largeKeypad.label"), hint: t("settings.preferences.largeKeypad.hint") },
-            { label: t("settings.preferences.reuseLast.label"), hint: t("settings.preferences.reuseLast.hint") },
-            { label: t("settings.preferences.startRecording.label"), hint: t("settings.preferences.startRecording.hint") },
-            { label: t("settings.preferences.currencyOrder.label"), hint: t("settings.preferences.currencyOrder.hint") },
-            { label: t("settings.preferences.buttonPosition.label"), hint: t("settings.preferences.buttonPosition.hint") },
-          ]}
-          onNavigate={(to) => void navigate(to)}
-        />
-      </section>
+      <FxModeSetting />
     </SettingsSubPage>
   );
 }
@@ -107,7 +89,7 @@ export function PreferencesPage(): React.JSX.Element {
 /**
  * `/settings/appearance` — 显示与数据.
  *
- * 语言 / 外观 / 汇率折算。语言（S16 国际化）与外观各有自己的选择页，汇率折算仍为占位。
+ * 仅为旧地址保留语言与外观入口，正常访问从设置首页直达。汇率折算位于记账偏好。
  * 语言行的说明直接写出当前语言的自称，切到看不懂的语言也能认出这一行。
  * Export and import are **not** listed here: the audit
  * caught them labelled 「后续开放」 while the pages already existed, and the S13-E
@@ -134,7 +116,6 @@ export function AppearancePage(): React.JSX.Element {
         ]}
         onNavigate={(to) => void navigate(to)}
       />
-      <FxModeSetting />
     </SettingsSubPage>
   );
 }

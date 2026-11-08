@@ -95,7 +95,7 @@ const desktop: Messages<typeof zh> = {
     items: {
       profile: "Profile",
       preferences: "Entry preferences",
-      appearance: "Appearance & language",
+      appearance: "Appearance",
       language: "Language",
       security: "Security",
       accountData: "Account & data",

@@ -59,6 +59,8 @@ describe("ChoiceDialog", () => {
     const html = render();
 
     expect(html).toContain('role="dialog"');
+    expect(html).toContain('data-overlay-surface="dialog"');
+    expect(html).not.toContain('role="alertdialog"');
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain("没能读出这张截图的信息");
   });

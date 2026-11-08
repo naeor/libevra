@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Libevra S19 · 移动端 Style Lab</title>
+<style>
+  :root { --bg: #e9eae7; --panel: #f7f7f5; --ink: #1c2320; --muted: #646d68; --line: rgba(28, 35, 32, .12); --brand: #55997a; --brand-d: #2f5f4a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  a { color: var(--brand-d); }
+  header.top { position: sticky; top: 0; z-index: 5; display: flex; flex-direction: column; gap: 7px; padding: 10px 18px; background: rgba(247, 247, 245, .95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 16px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: 4px; }
+  .brand b { font-size: 16px; letter-spacing: -.01em; }
+  .brand span { color: var(--muted); font-size: 12.5px; }
+  .ctrl { display: flex; align-items: center; gap: 6px; }
+  .lab { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .seg { display: inline-flex; flex-wrap: wrap; padding: 2px; border-radius: 9px; background: #e3e4e0; }
+  .seg button { border: 0; background: none; padding: 5px 9px; border-radius: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .1); }
+  .toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); user-select: none; white-space: nowrap; }
+  .toggle input { accent-color: var(--brand); width: 15px; height: 15px; }
+  .sw { display: inline-flex; gap: 5px; }
+  .sw button { width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+  .sw button[aria-pressed="true"] { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c); }
+  .slider { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .slider input { width: 84px; accent-color: var(--brand); }
+  .slider output { width: 30px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .views { margin-left: auto; }
+  main { padding: 16px 18px 28px; }
+  .stage { display: flex; gap: 26px; justify-content: center; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
+  .cap { width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 4px; }
+  .cap h2 { margin: 0; font-size: 14.5px; white-space: nowrap; }
+  .cap h2 small { font-weight: 400; color: var(--muted); margin-left: 6px; font-size: 12px; }
+  .cap a { font-size: 12px; white-space: nowrap; }
+  .kw { width: 100%; padding: 0 4px; margin: -5px 0 0; font-size: 12px; color: var(--muted); }
+  .stabs { display: inline-flex; gap: 4px; padding: 3px; border-radius: 12px; background: #e3e4e0; }
+  .stabs button { border: 0; background: none; padding: 7px 14px; border-radius: 9px; font-size: 13.5px; color: var(--muted); }
+  .stabs button[aria-pressed="true"] { background: #fff; color: var(--ink); font-weight: 650; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+  .scaler { position: relative; }
+  .scaler > .phone { transform-origin: top left; width: max-content; }
+  .phone { position: relative; padding: 9px; border-radius: 56px; background: #1a1c1b; box-shadow: 0 0 0 1px #3a3d3b inset, 0 30px 60px -30px rgba(0, 0, 0, .55); }
+  .phone.classic { border-radius: 30px; }
+  .phone iframe { display: block; border: 0; border-radius: 47px; background: #fff; }
+  .phone.classic iframe { border-radius: 22px; }
+  .look { max-width: 980px; margin: 14px auto 0; padding: 9px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+  .look b { color: var(--brand-d); margin-right: 6px; }
+  .notes { max-width: 1120px; margin: 0 auto; display: none; }
+  body[data-view="notes"] .notes { display: block; }
+  body[data-view="notes"] .stage, body[data-view="notes"] .look, body[data-view="notes"] .lab-only { display: none; }
+  .notes h1 { font-size: 22px; margin: 6px 0 4px; }
+  .notes .lede { color: var(--muted); margin: 0 0 18px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .card { background: var(--panel); border-radius: 14px; padding: 14px 16px 10px; border: 1px solid var(--line); }
+  .card h2 { margin: 0 0 2px; font-size: 15px; }
+  .card .en { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+  .card ul { margin: 0; padding-left: 17px; font-size: 13px; }
+  .card li { margin: 3px 0; }
+  section.block { margin-top: 22px; }
+  section.block h2 { font-size: 16px; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); font-size: 13px; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  th { background: #efefec; font-weight: 600; font-size: 12px; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  .launcher { display: none; padding: 18px; }
+  .launcher a { display: block; padding: 15px 17px; margin-bottom: 10px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); text-decoration: none; color: var(--ink); }
+  .launcher a b { font-size: 16px; }
+  .launcher a span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  @media (max-width: 760px) { header.top, main { display: none; } .launcher { display: block; } }
+  @media (max-width: 1100px) { .grid4 { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body data-view="lab">
+<header class="top">
+  <div class="row">
+    <div class="brand"><b>Libevra S19 · 移动端 Style Lab</b><span>第五轮修正 · 同一骨架、四种材质表达 · 可交互</span></div>
+    <div class="lab-only ctrl"><span class="lab">页面</span><div class="seg" id="page">
+      <button data-v="#/" aria-pressed="true">明细</button><button data-v="#/stats">分析</button><button data-v="#/ledger">协作</button><button data-v="#/ledger/history">编辑记录</button><button data-v="#/me">我的</button><button data-v="#/me/settings">设置</button><button data-v="#/me/settings/preferences">记账偏好</button><button data-v="#/me/settings/data">账号与数据</button><button data-v="#/entry/family-0003">账目详情</button>
+    </div></div>
+    <div class="ctrl views"><div class="seg" id="view"><button data-v="lab" aria-pressed="true">对照</button><button data-v="notes">设计说明</button></div></div>
+  </div>
+  <div class="row lab-only">
+    <div class="ctrl"><span class="lab">状态</span><div class="seg" id="state">
+      <button data-v="" aria-pressed="true">默认</button><button data-v="scrolled">滚动后</button><button data-v="search">搜索展开</button><button data-v="filter">筛选</button><button data-v="sort">排序</button><button data-v="ledger">账本切换</button><button data-v="invite-focus">邀请·输入</button><button data-v="invite-ok">邀请·成功</button><button data-v="invite-err">邀请·失败</button><button data-v="log">记录详情</button><button data-v="menu">记一笔</button><button data-v="delete">删除确认</button><button data-v="batch">批量</button><button data-v="empty">空数据</button><button data-v="loading">加载中</button><button data-v="error">加载失败</button>
+    </div></div>
+  </div>
+  <div class="row lab-only">
+    <div class="ctrl"><span class="lab">方式</span><div class="seg" id="mode"><button data-v="side" aria-pressed="true">并排</button><button data-v="single">单机切换</button></div></div>
+    <div class="ctrl" id="showCtrl"><span class="lab">显示</span>
+      <label class="toggle"><input type="checkbox" data-show="a" checked>A</label><label class="toggle"><input type="checkbox" data-show="b1" checked>B1</label><label class="toggle"><input type="checkbox" data-show="b2" checked>B2</label><label class="toggle"><input type="checkbox" data-show="c" checked>C</label>
+    </div>
+    <div class="ctrl"><span class="lab">屏幕</span><div class="seg" id="size"><button data-v="320x568">320</button><button data-v="375x667">375</button><button data-v="390x844" aria-pressed="true">390</button><button data-v="430x932">430</button></div></div>
+    <div class="ctrl"><span class="lab">主题色</span><div class="sw" id="brand">
+      <button data-v="#55997a" style="--c:#55997a" aria-pressed="true" title="Libevra 绿 #55997a"></button><button data-v="#4f7db3" style="--c:#4f7db3" title="蓝 #4f7db3"></button><button data-v="#7f68a8" style="--c:#7f68a8" title="紫 #7f68a8"></button><button data-v="#b26e4f" style="--c:#b26e4f" title="陶土 #b26e4f"></button>
+    </div><label class="toggle"><input type="checkbox" id="dark">深色（方向）</label></div>
+    <div class="ctrl"><span class="lab">玻璃</span>
+      <label class="slider">乳白<input type="range" id="ga" min="0.5" max="1.5" step="0.05" value="1"><output id="gav">1.00</output></label>
+      <label class="slider">模糊<input type="range" id="gb" min="0" max="1.6" step="0.05" value="1"><output id="gbv">1.00</output></label>
+    </div>
+    <div class="ctrl">
+      <label class="toggle"><input type="checkbox" id="sync" checked>同步操作</label>
+      <label class="toggle"><input type="checkbox" id="syncScroll">同步滚动</label>
+      <label class="toggle"><input type="checkbox" id="fit" checked>适应窗口</label>
+      <label class="toggle"><input type="checkbox" id="nofx">无模糊回退</label>
+      <label class="toggle"><input type="checkbox" id="reduce">减少动态</label>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="stage" id="stage"></div>
+  <p class="look" id="look"></p>
+
+  <div class="notes">
+    <h1>第五轮：收敛</h1>
+    <p class="lede">四套是同一款软件的四种材质表达：页面顺序、入口位置、交互语义、底栏 / “+” / 浮层 / 记一笔面板的几何关系完全一致。共享模板在 <code>lab/ui.js</code>（材质分配表 MAT），外观全部是 <code>lab/theme-*.css</code> 里的语义变量。</p>
+    <div class="grid4">
+      <div class="card"><h2>A · 柔和空间</h2><p class="en">Soft Spatial</p><ul>
+        <li>去掉上一轮的连续内容面，改为柔和背景空间上的独立卡片组合</li>
+        <li>明细与编辑记录是标准明细行（图标 / 标题与辅助信息 / 金额），每一行是独立小卡片，上下边完全贴合；接缝只有很小的圆角缺口与细影，不用分割线</li>
+        <li>摘要改为主卡 + 两张小卡；关键卡片多一档柔和阴影</li></ul></div>
+      <div class="card"><h2>B1 · 柔和环境磨砂</h2><p class="en">Ambient Frost</p><ul>
+        <li>背景加一层很淡的乳白磨砂氛围</li>
+        <li>默认状态顶部标题区与正文连续；标题区收起后出现奶油玻璃顶栏（与底栏同一材质），带上的按钮是玻璃片</li>
+        <li>列表、成员、日志、设置、详情改为瓷片（Satin）；选中态统一为“覆盖一层淡白玻璃片”</li>
+        <li>记一笔图标、浮层小控件进入同一套玻璃 / 瓷片语言</li></ul></div>
+      <div class="card"><h2>B2 · 分层透光玻璃</h2><p class="en">Layered Glass</p><ul>
+        <li>与 B1 同一骨架：全宽底栏、居中略突出的“+”、贴底 Bottom Sheet（不再悬浮留边）</li>
+        <li>顶栏 / 底栏比 B1 更轻更透</li>
+        <li>摘要、次级小卡、账目分组、成员、日志、设置、详情、图表卡统一为同一档透明磨砂玻璃</li>
+        <li>“+”与主操作保留主题色瓷片</li></ul></div>
+      <div class="card"><h2>C · 经典精修</h2><p class="en">Classic Refined</p><ul>
+        <li>正文改为一张圆角纸面，压在主题色顶区下沿；纸面上沿带一点主题色余温，承接顶区颜色</li>
+        <li>主卡不再悬浮投影，都是纸面上的白色纸片</li>
+        <li>“+”与底栏尺寸和其它三套一致</li></ul></div>
+    </div>
+
+    <section class="block"><h2>统一了的组件</h2>
+      <table><thead><tr><th style="width:20%">组件</th><th>统一后</th></tr></thead><tbody>
+        <tr><td>底栏与“+”</td><td>四套都是全宽底栏（含安全区）、上方“当前账本”说明、54px 居中“+”略突出底栏；只换材质（A 白色操作层、B1 奶油玻璃、B2 更透的玻璃、C 固定白色底栏）。</td></tr>
+        <tr><td>顶部工具</td><td>同一尺寸、同一位置；同一风格内材质一致（B1 / B2 在玻璃顶栏上一律是玻璃片）。</td></tr>
+        <tr><td>月份</td><td>四套都是文字按钮（B2 不再单独做玻璃胶囊）。</td></tr>
+        <tr><td>收支摘要</td><td>A / B1 / B2 同一结构：主卡（支出 / 收入）+ 两张次级小卡，主卡与小卡同一材质档位；C 保留正式版结构。</td></tr>
+        <tr><td>Bottom Sheet / 对话框</td><td>四套都贴底、同一圆角；主按钮（查看结果、确认）统一用强调色材质，次按钮与小控件统一用各风格的“小控件”材质。</td></tr>
+        <tr><td>选中态</td><td>同一风格内底栏标签、分段、筛选维度用同一种选中片（B1 / B2 为淡白玻璃片，A 为柔和白片 / 浅色底，C 为主题色）。</td></tr>
+        <tr><td>记一笔面板</td><td>位置、尺寸、开启方式一致；内部图标材质跟随风格。</td></tr>
+      </tbody></table>
+    </section>
+
+    <section class="block"><h2>保留的风格专属变体</h2>
+      <table><thead><tr><th style="width:20%">变体</th><th>理由</th></tr></thead><tbody>
+        <tr><td>A 明细与编辑记录</td><td>保持标准明细行；每一行是独立小卡片、上下边完全贴合，用来表达“每一笔独立、整体连续”。设置、成员这类菜单仍是一张分组卡。</td></tr>
+        <tr><td>C 摘要结构</td><td>正式版的“一个主数字 + 一行次级数字”已经成熟，C 只精修不改结构。</td></tr>
+        <tr><td>C 当前账本卡</td><td>右侧紧凑“切换”，替代原来过大的切换区域。</td></tr>
+        <tr><td>C 正文纸面</td><td>解决主题色顶区与正文硬切的问题：同一平面上的遮挡，而不是悬浮。</td></tr>
+        <tr><td>B1 / B2 顶栏</td><td>默认不加顶栏，避免把标题和下方说明硬切成两层；滚动、标题区收起后才出现磨砂玻璃顶栏承载标题、工具和月份。</td></tr>
+        <tr><td>B2 玻璃上的输入框</td><td>输入区用高不透明度实心槽，避免输入内容与背景光斑混在一起。</td></tr>
+      </tbody></table>
+    </section>
+
+    <section class="block"><h2>还不够统一 / 后续</h2>
+      <table><tbody>
+        <tr><td style="width:20%">B2 性能</td><td>信息卡片全部玻璃化后，实测（390 宽，页面顶部未滚动）明细首屏实时模糊 11 处、分析页 8 处、协作页 6 处（B1 为 6 / 5 / 3，A、C 为 0）；顶栏默认不出现后，顶部工具钮在未滚动时各自模糊，滚动收起后才并入顶栏变为不模糊的玻璃片；真机（尤其中低端 Android）需确认，必要时把账目分组退回高不透明玻璃。</td></tr>
+        <tr><td>A 明细行卡</td><td>只用于明细、卡片来源列表和编辑记录；批量选择时的选中底色、按下态还可再细化。</td></tr>
+        <tr><td>深色</td><td>四套仍只有方向；C 纸面、B1 磨砂氛围的深色参数需逐页调。</td></tr>
+        <tr><td>主题色</td><td>记录类型小标记与图表暖色仍是固定色。</td></tr>
+        <tr><td>分析页</td><td>只同步了材质；卡片详情页图表未逐个精修。</td></tr>
+      </tbody></table>
+    </section>
+  </div>
+</main>
+
+<div class="launcher">
+  <h2 style="margin:4px 0 4px;font-size:18px">Libevra S19 · Style Lab</h2>
+  <p style="color:var(--muted);margin:0 0 14px">在手机上单独打开；页面右侧的小把手可以在四种风格之间切换，并保留当前页面与滚动位置。</p>
+  <a href="a.html"><b>A · 柔和空间</b><span>Soft Spatial · 连续内容面上的浮起关键卡片</span></a>
+  <a href="b1.html"><b>B1 · 柔和环境磨砂</b><span>Ambient Frost · 稳定内容 + 玻璃操作层</span></a>
+  <a href="b2.html"><b>B2 · 分层透光玻璃</b><span>Layered Glass · 清晰背景上的前景玻璃</span></a>
+  <a href="c.html"><b>C · 经典精修</b><span>Classic Refined · 正式版的成熟进化</span></a>
+  <a href="archive/r3/index.html"><b>上一轮存档</b><span>第二、三轮的 A / B / C / B1 / B2</span></a>
+</div>
+
+<script>
+(function () {
+  const STYLES = [
+    { id: "a", name: "A · 柔和空间", en: "Soft Spatial", kw: "柔和背景空间 · 独立卡片组合 · 贴合的明细行卡" },
+    { id: "b1", name: "B1 · 柔和环境磨砂", en: "Ambient Frost", kw: "磨砂氛围 · 收起后出现奶油玻璃顶栏 · 瓷片内容" },
+    { id: "b2", name: "B2 · 分层透光玻璃", en: "Layered Glass", kw: "清晰背景 · 更轻的玻璃顶底栏 · 玻璃内容卡" },
+    { id: "c", name: "C · 经典精修", en: "Classic Refined", kw: "主题色顶区 · 纸面承接 · 白色纸片卡" },
+  ];
+  const LOOK = {
+    "": "四套共用同一骨架：顶部工具、月份、摘要（主卡 + 小卡；C 为正式版结构）、分段、列表、全宽底栏与居中“+”。差异只在材质：A 独立卡片与贴合的明细行卡，B1 瓷片 + 奶油玻璃底栏（顶栏收起后出现），B2 玻璃内容卡，C 纸面承接主题色顶区。",
+    scrolled: "顶部处理：A 环境色实色带；B1 / B2 默认没有顶栏、标题区与正文连续；标题区收起后才出现磨砂玻璃顶栏，吸顶分段并入同一条玻璃带，带上控件是不再模糊的玻璃片（B2 更轻更透）；C 主题色顶栏。",
+    search: "搜索栏与工具钮同一材质；有内容时出现清除钮；“取消”是文字。C 的搜索在主题色顶区里。",
+    filter: "四套浮层几何一致（贴底、同一圆角、同一按钮位置）；材质：A 柔和白色面板、B1 奶油玻璃、B2 更透的玻璃、C 标准白色面板。重置、月份、关闭等小控件在 B1 / B2 中统一为玻璃片，“查看结果”统一为强调色瓷片。",
+    sort: "排序面板与筛选面板同一种浮层；改过排序后，顶部排序钮显示为选中态。",
+    ledger: "账本切换：当前账本有勾与“当前记账”标记；管理全部账本是次要文字入口。",
+    "invite-focus": "邀请表单的输入焦点：输入槽外框高亮；空输入时邀请按钮保持禁用。",
+    "invite-ok": "发送成功：按钮先显示“发送中”，结果写在输入框下方，带确认图标。",
+    "invite-err": "发送失败：输入槽变红，说明原因（找不到账号），焦点回到输入框。",
+    log: "记录详情：完整的变更列表；技术信息（事件编号、原始 JSON）默认收起。",
+    menu: "记一笔面板：四套位置一致。B1 外层奶油玻璃 + 瓷片图标；B2 外层玻璃 + 玻璃片图标；A / C 白色面板 + 主题色浅底图标。",
+    delete: "删除确认：危险操作用语义红色，取消在左。",
+    batch: "批量选择：底栏换成操作条，顶部只剩“取消”。",
+    empty: "空数据：说明原因并给出下一步（记一笔）。",
+    loading: "加载中：编辑记录用占位行，不阻塞页面其它部分。",
+    error: "加载失败：说明不影响账目本身，并提供重试。",
+  };
+  const stage = document.getElementById("stage");
+  const qs = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const state = { route: location.hash || "#/", stateKey: "", sheet: "", search: false, size: "390x844", mode: params.get("mode") === "single" ? "single" : "side", single: "a", brand: "#55997a", show: (params.get("show") || "a,b1,b2,c").split(",") };
+  let frames = [], quietUntil = 0;
+  const shown = () => STYLES.filter((s) => state.show.includes(s.id));
+  function src(id) {
+    const classic = state.size === "320x568" || state.size === "375x667";
+    return `${id}.html?frame=${classic ? "classic" : "1"}${qs("nofx").checked ? "&nofx" : ""}${qs("reduce").checked ? "&reduce" : ""}${qs("dark").checked ? "&dark" : ""}&brand=${state.brand.slice(1)}${state.route}`;
+  }
+  function phone(s, w, h, classic) {
+    return `<div class="scaler"><div class="phone ${classic ? "classic" : ""}"><iframe title="${s.name}" data-style="${s.id}" width="${w}" height="${h}" src="${src(s.id)}"></iframe></div></div>`;
+  }
+  function build() {
+    const [w, h] = state.size.split("x").map(Number);
+    const classic = h < 700;
+    if (state.mode === "single") {
+      const s = STYLES.find((x) => x.id === state.single);
+      stage.innerHTML = `<div class="col"><div class="stabs" id="stabs">${STYLES.map((x) => `<button data-v="${x.id}" aria-pressed="${x.id === s.id}">${x.name}</button>`).join("")}</div><p class="kw" style="text-align:center">切换风格时保留当前页面、浮层与滚动位置</p>${phone(s, w, h, classic)}</div>`;
+      qs("stabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.single = b.dataset.v; qs("stabs").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); send(frames[0], { style: b.dataset.v }); });
+    } else {
+      stage.innerHTML = shown().map((s) => `<div class="col"><div class="cap"><h2>${s.name}<small>${s.en}</small></h2><a href="${s.id}.html${state.route}" target="_blank" rel="noopener">单独打开 ↗</a></div><p class="kw">${s.kw}</p>${phone(s, w, h, classic)}</div>`).join("");
+    }
+    frames = [...stage.querySelectorAll("iframe")];
+    quietUntil = Date.now() + 2500;
+    frames.forEach((f) => f.addEventListener("load", () => { send(f, { glass: { a: qs("ga").value, b: qs("gb").value } }); setTimeout(() => applyState(f, state.stateKey, true), 300); }));
+    fit();
+  }
+  function fit() {
+    const [w, h] = state.size.split("x").map(Number);
+    const total = h + 18, colW = w + 18;
+    const n = state.mode === "single" ? 1 : Math.max(1, shown().length);
+    let s = 1;
+    if (qs("fit").checked) {
+      const availH = window.innerHeight - document.querySelector("header.top").offsetHeight - 32 - 44 - 56 - (state.mode === "single" ? 30 : 0);
+      const availW = (window.innerWidth - 36 - 26 * (n - 1)) / n;
+      s = Math.min(1, availH / total, availW / colW);
+    }
+    stage.querySelectorAll(".scaler").forEach((el) => { el.style.width = colW * s + "px"; el.style.height = total * s + "px"; el.firstElementChild.style.transform = `scale(${s})`; });
+    stage.querySelectorAll(".cap, .kw").forEach((el) => (el.style.maxWidth = Math.max(230, colW * s) + "px"));
+  }
+  function send(f, msg) { f?.contentWindow?.postMessage({ lv: "cmd", ...msg }, "*"); }
+  function broadcast(msg, except) { frames.forEach((f) => { if (f.contentWindow !== except) send(f, msg); }); }
+  function press(group, v) { qs(group).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
+  /** 状态需要的页面 */
+  const NEEDS = { search: "#/", filter: "#/", sort: "#/", batch: "#/", empty: "#/", "invite-focus": "#/ledger", "invite-ok": "#/ledger", "invite-err": "#/ledger", log: "#/ledger/history", loading: "#/ledger/history", error: "#/ledger/history", delete: "#/entry/family-0003" };
+  function applyState(f, key, fresh) {
+    if (!key) return;
+    if (key === "scrolled") send(f, { scroll: 420 });
+    else if (key === "search") send(f, { search: true, query: "餐" });
+    else if (["filter", "sort", "ledger", "menu", "delete", "log"].includes(key)) send(f, { sheet: key });
+    else if (key === "batch") send(f, { batch: true });
+    else if (key === "empty") send(f, { month: "2026-08" });
+    else if (key === "loading" || key === "error") send(f, { demo: key });
+    else if (key.startsWith("invite")) send(f, { invite: { "invite-ok": "ok", "invite-err": "error", "invite-focus": "focus" }[key] });
+  }
+  function reset() { broadcast({ sheet: null, search: false, batch: false, demo: null, month: "2026-11" }); }
+  function go(route, key) {
+    quietUntil = Date.now() + 1600;
+    const target = route;
+    reset();
+    const changed = target !== state.route;
+    state.route = target; state.stateKey = key || "";
+    state.sheet = ["filter", "sort", "ledger", "menu"].includes(key) ? key : ""; state.search = key === "search";
+    press("page", target); press("state", state.stateKey);
+    qs("look").innerHTML = `<b>看点</b>${LOOK[state.stateKey] || LOOK[""]}`;
+    setTimeout(() => { broadcast({ route: target }); setTimeout(() => frames.forEach((f) => applyState(f, state.stateKey)), changed ? 480 : 160); }, 90);
+  }
+  qs("page").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.v, ""); });
+  const TABS = ["#/", "#/stats", "#/ledger", "#/me"];
+  qs("state").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const k = b.dataset.v;
+    const route = NEEDS[k] || (k === "menu" && !TABS.includes(state.route) ? "#/" : state.route);
+    go(route, k);
+  });
+  qs("mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.mode = b.dataset.v; press("mode", state.mode); qs("showCtrl").style.display = state.mode === "single" ? "none" : ""; build(); });
+  qs("showCtrl").addEventListener("change", () => { state.show = [...qs("showCtrl").querySelectorAll("input:checked")].map((i) => i.dataset.show); if (!state.show.length) { state.show = ["a"]; qs("showCtrl").querySelector("input").checked = true; } build(); });
+  qs("size").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.size = b.dataset.v; press("size", state.size); build(); });
+  qs("view").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; document.body.dataset.view = b.dataset.v; press("view", b.dataset.v); if (b.dataset.v === "lab") fit(); });
+  qs("brand").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.brand = b.dataset.v; press("brand", state.brand); broadcast({ brand: state.brand }); });
+  qs("dark").addEventListener("change", () => broadcast({ dark: qs("dark").checked }));
+  qs("fit").addEventListener("change", fit);
+  qs("nofx").addEventListener("change", () => broadcast({ nofx: qs("nofx").checked }));
+  qs("reduce").addEventListener("change", () => broadcast({ reduce: qs("reduce").checked }));
+  const onGlass = () => { qs("gav").value = Number(qs("ga").value).toFixed(2); qs("gbv").value = Number(qs("gb").value).toFixed(2); broadcast({ glass: { a: qs("ga").value, b: qs("gb").value } }); };
+  qs("ga").addEventListener("input", onGlass); qs("gb").addEventListener("input", onGlass);
+  window.addEventListener("resize", fit);
+
+  // 同步：任一手机里的跳转 / 浮层 / 搜索 / 滚动，同步到其它手机
+  window.addEventListener("message", (e) => {
+    const m = e.data;
+    if (!m) return;
+    if (m.lv === "scroll") { if (qs("syncScroll").checked && Date.now() > quietUntil) broadcast({ scroll: m.top }, e.source); return; }
+    if (m.lv !== "state") return;
+    if (state.mode === "single" && m.style && m.style !== state.single) { state.single = m.style; qs("stabs")?.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.v === m.style))); }
+    if (!qs("sync").checked || Date.now() < quietUntil) return;
+    const msg = {};
+    if (m.route !== state.route) { state.route = m.route; msg.route = m.route; press("page", m.route); }
+    const sheet = m.dialog ? "delete" : m.menu ? "menu" : m.sheet || "";
+    if (sheet !== state.sheet) { state.sheet = sheet; if (sheet !== "delete" && sheet !== "log") msg.sheet = sheet || null; }
+    if (!!m.search !== state.search) { state.search = !!m.search; msg.search = state.search; }
+    if (Object.keys(msg).length) broadcast(msg, e.source);
+  });
+  if (state.mode === "single") { press("mode", "single"); qs("showCtrl").style.display = "none"; }
+  STYLES.forEach((s) => { const i = qs("showCtrl").querySelector(`[data-show="${s.id}"]`); i.checked = state.show.includes(s.id); });
+  press("page", state.route);
+  qs("look").innerHTML = `<b>看点</b>${LOOK[""]}`;
+  build();
+})();
+</script>
+</body>
+</html>

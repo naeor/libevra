@@ -95,7 +95,7 @@ const desktop = {
     items: {
       profile: "个人资料",
       preferences: "记账偏好",
-      appearance: "外观与语言",
+      appearance: "外观",
       language: "界面语言",
       security: "安全",
       accountData: "账号与数据",

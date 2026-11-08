@@ -1,0 +1,11 @@
+{
+  "environment": "Windows 上的 Codex 内置 Chromium 157，390×844，DPR 约 1；不是 iPhone/Android 真机",
+  "evidence": "从完成后的实验面板直接读取。并行开发热更新随后刷新了页面，原始逐帧样本未保留；此文件只记录已观察到的汇总，不补造原始数据。",
+  "conditions": "B2、200ms、来源描述、模糊开启、左退15%。各方案约60秒；同机还进行了真实路径交互回归，不作为隔离性能排名。",
+  "units": "ms；首帧为提交后首个rAF，帧间隔不是物理屏幕FPS",
+  "live": { "samples": 83, "firstRafP95": 5.7, "frameP95": 12.5, "frameP99": 12.7, "completionP95": 223.4, "longFramesOver50": 0, "intentionalInterruptions": 16, "fallbacks": 0, "maxLivePlanes": 2, "settledLivePlanes": 2, "maxNativeSnapshots": 0, "settledNativeSnapshots": 0, "bitmapCacheBytes": 0 },
+  "native": { "samples": 83, "firstRafP95": 19.6, "frameP95": 12.6, "frameP99": 16.8, "completionP95": 228.0, "longFramesOver50": 0, "intentionalInterruptions": 16, "fallbacks": 0, "maxLivePlanes": 1, "settledLivePlanes": 1, "maxNativeSnapshots": 2, "settledNativeSnapshots": 0, "bitmapCacheBytes": 0 },
+  "ambient": { "samples": 83, "firstRafP95": 4.8, "frameP95": 16.7, "frameP99": 20.8, "completionP95": 219.8, "longFramesOver50": 0, "intentionalInterruptions": 16, "fallbacks": 0, "maxLivePlanes": 2, "settledLivePlanes": 1, "maxNativeSnapshots": 0, "settledNativeSnapshots": 0, "bitmapCacheBytes": 0 },
+  "functional": "三方案均通过同页两来源、多级背景恢复、650px滚动恢复、重复入口、快速反向、浏览器返回、两层上限和重复往返资源释放自检。",
+  "notMeasured": ["真实纹理内存", "GPU占用", "功耗", "真实屏幕呈现帧率", "iPhone Safari", "Android Chrome", "系统返回手势"]
+}

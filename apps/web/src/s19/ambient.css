@@ -1,0 +1,236 @@
+/*
+  A / B1 / B2 共用：顶部标题区不再是主题色色块，而是与正文同在页面环境里。
+  明细收缩末段出现连续磨砂承载层；Tab 页顶部收起（`--header-p`）后仍有承载层。
+*/
+
+/* ---------- 顶部区域：透明背景 + 正文色文字 ---------- */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-hero, .tab-page-header).bg-brand {
+  background: transparent;
+  color: var(--color-ink);
+  --color-on-brand: var(--color-ink);
+  --color-glass-highlight: var(--s19-tool-flat);
+}
+/* 顶部区域里本身是主题色 / 危险色底的东西，文字仍然是白色；头像白圈也保持白色 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-hero, .tab-page-header) :is(.bg-brand, .bg-brand-dark, .bg-danger, .ring-on-brand) {
+  --color-on-brand: var(--s19-on-accent);
+}
+/* 明细顶部滚动行程区原本刷成主题色（避免收起时露缝），这里随环境透明 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-scroll-travel {
+  background-color: transparent;
+}
+
+/* ---------- 明细顶部：保留材质，收缩完成后继续吸顶 ----------
+   高度测量与 ResizeObserver 使用同一内容盒，避免 B2 刷新多出底栏 padding 的行程。
+   长列表仍可超过收缩行程，所以顶部与分段沿用 detail-motion.css 的持续 sticky。
+   bottom 限制保留：惯性向回滚时，不让滞后的行程区把顶部推到 0 以下。
+   搜索继续沿用自己的承载层，不增加随滚动出现的实色顶栏。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero {
+  position: sticky;
+  top: 0;
+  bottom: calc(100% - var(--hero-tall) + var(--p) * (var(--hero-tall) - var(--hero-short)));
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign[data-searching="true"] .detail-hero {
+  top: 0;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--s19-search-backing, var(--s19-bar-bg));
+  box-shadow: var(--s19-bar-sh);
+  opacity: 0;
+  transition: opacity .16s ease-out;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign[data-searching="true"] .detail-hero::before {
+  opacity: 1;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-toggle-sticky {
+  background: transparent;
+}
+
+/* A / B1 / B2 明细：让滚过工具区的账目退到磨砂背景里。只给伪元素加背景滤镜，
+   不模糊按钮/文字，不改变吸顶、收缩几何，也不改返回页快照的 filter。
+   分段原本向上移 6px，承载层从这个偏移之后接上，避免交界重复覆盖。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign :is(.detail-hero, .detail-toggle-bar)::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--s19-bar-bg);
+  -webkit-backdrop-filter: var(--s19-bar-filter);
+  backdrop-filter: var(--s19-bar-filter);
+  opacity: clamp(0, calc((var(--p) - .72) / .28), 1);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-hero::before {
+  box-shadow: none;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-toggle-bar::before {
+  top: calc(var(--p-toggle) * 6px);
+  -webkit-mask-image: linear-gradient(to bottom, var(--s19-mask-solid) calc(100% - 12px), transparent);
+  mask-image: linear-gradient(to bottom, var(--s19-mask-solid) calc(100% - 12px), transparent);
+}
+/* A 的通用栏面是实底；这里只将明细承载层改为同色磨砂，不改变其它栏面。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign :is(.detail-hero, .detail-toggle-bar)::before {
+  background: color-mix(in srgb, var(--s19-top) 78%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* 月份展开时保持文字与品牌的 24px 基准对齐。左右留白向外扩展点击区，
+   材质底面只在原有 data-pinned 到达收缩终点后渐显，不让底色出现时推移文字。
+   36px 点击区居中于原 32px 月份行，收缩后与相邻工具对齐；行的占位不变。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger {
+  position: relative;
+  z-index: 0;
+  min-height: 36px;
+  max-width: calc(100% + 10px);
+  margin-block: -2px;
+  margin-inline-start: -10px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-ink);
+  transform: translateY(calc(var(--p) * 3px));
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: inherit;
+  background: var(--s19-tool-bg);
+  box-shadow: var(--s19-tool-sh);
+  -webkit-backdrop-filter: var(--s19-tool-filter, none);
+  backdrop-filter: var(--s19-tool-filter, none);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-hero[data-pinned="true"] .detail-month.lv-filter-trigger::before {
+  opacity: 1;
+  transition-duration: 240ms;
+  transition-delay: 60ms;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger:is(:hover, :active)::before {
+  background: var(--s19-tool-active);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger:is([aria-expanded="true"], [data-filtered="true"])::before {
+  background: var(--s19-tool-on);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger:is([aria-expanded="true"], [data-filtered="true"]) {
+  color: var(--color-brand-dark);
+}
+/* B1 月份采用既有瓷片渐变与高光；按压 / 展开时保留瓷面，文字显示强调态。 */
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger {
+  --s19-tool-bg: var(--s19-card-bg);
+  --s19-tool-sh: var(--s19-card-sh);
+  --s19-tool-filter: none;
+  --s19-tool-active: var(--s19-card-bg);
+  --s19-tool-on: var(--s19-card-bg);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger::before { transition: none !important; }
+}
+
+/* ---------- Tab 页顶部（分析、账本、我的）：收起后的承载层（第八轮未改动） ----------
+   材质放在伪元素，不让标题容器成为非 portal 弹层的固定定位包含块。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--s19-bar-solid, var(--s19-bar-bg));
+  box-shadow: var(--s19-bar-sh);
+  opacity: var(--header-p, 0);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header::before {
+  -webkit-backdrop-filter: var(--s19-bar-filter);
+  backdrop-filter: var(--s19-bar-filter);
+}
+
+/* ---------- 顶部工具（搜索、排序、更多、通知、账本操作） ---------- */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero :is(.lv-entry-sort-circle, .detail-header-actions button[class*="bg-on-brand/"]),
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header :is(.sw-head-button, .lv-notice-bell, button.rounded-full.border.bg-surface) {
+  border-color: transparent;
+  background: var(--s19-tool-bg);
+  box-shadow: var(--s19-tool-sh);
+  color: var(--color-ink);
+  -webkit-backdrop-filter: var(--s19-tool-filter, none);
+  backdrop-filter: var(--s19-tool-filter, none);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero :is(.lv-entry-sort-circle, .detail-header-actions button[class*="bg-on-brand/"]):is(:hover, :active),
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header :is(.sw-head-button, .lv-notice-bell, button.rounded-full.border.bg-surface):is(:hover, :active) {
+  background: var(--s19-tool-active);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero :is(.lv-entry-sort-circle, .detail-header-actions button[class*="bg-on-brand/"]):is([aria-expanded="true"], [aria-pressed="true"]),
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header :is(.sw-head-button, .lv-notice-bell, button.rounded-full.border.bg-surface):is([aria-expanded="true"], [aria-pressed="true"]) {
+  background: var(--s19-tool-on);
+  color: var(--color-brand-dark);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-search-shell {
+  box-shadow: var(--s19-tool-sh);
+  -webkit-backdrop-filter: var(--s19-tool-filter, none);
+  backdrop-filter: var(--s19-tool-filter, none);
+}
+/* 展开的搜索框：B1 / B2 是半透明奶油玻璃（A 仍是白色实底，见令牌缺省） */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-search-shell[data-open="true"] {
+  background: var(--s19-search-open-bg, var(--color-surface));
+  -webkit-backdrop-filter: var(--s19-bar-filter, none);
+  backdrop-filter: var(--s19-bar-filter, none);
+}
+
+/* ---------- 明细摘要：关键卡片 + 次级小卡 ---------- */
+/* 摘要卡在“可收起”的容器里（overflow:hidden 是收起动画的一部分），大范围外投影会被裁成一条硬边；
+   这里用贴身的细描边 + 1–2px 近影（--s19-*-sh-tight），浮起感比原型弱，记录在集成报告里。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-overview-main {
+  background: var(--s19-key-bg);
+  box-shadow: var(--s19-key-sh-tight, var(--s19-key-sh));
+  border-radius: var(--s19-r-key);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-overview-small > section, .detail-currency-card) {
+  background: var(--s19-mini-bg);
+  box-shadow: var(--s19-mini-sh-tight, var(--s19-mini-sh));
+  border-radius: var(--s19-r-mini);
+}
+
+/* ---------- 内页顶栏（返回 + 标题）：默认融在环境里，滚动收起后出现承载层 ---------- */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-page-nav] {
+  background: transparent;
+  border-color: transparent;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-page-nav][data-condensed="true"] {
+  background: var(--s19-bar-bg);
+  box-shadow: var(--s19-bar-sh);
+  -webkit-backdrop-filter: var(--s19-bar-filter, none);
+  backdrop-filter: var(--s19-bar-filter, none);
+}
+/* 编辑记录等按日分组的吸顶日期条 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] h2.sticky[class*="bg-canvas/95"] {
+  background: var(--s19-bar-bg);
+  -webkit-backdrop-filter: var(--s19-bar-filter, none);
+  backdrop-filter: var(--s19-bar-filter, none);
+}
+
+/* ================= A：账目与编辑记录 = 贴在一起的“电影票” =================
+   标准明细行（图标 / 标题与说明 / 金额），每一行是独立小卡片，上下边完全贴合；
+   接缝只有很小的圆角缺口和后一张压住前一张的细影，不用分割线；整组外圈圆角与普通卡片一致。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-body ul.rounded-card.bg-surface, section.flex-col > h2.sticky + ul.flex-col) {
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+  border-radius: 0;
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-body ul.rounded-card.bg-surface, section.flex-col > h2.sticky + ul.flex-col) > li {
+  position: relative;
+  border-radius: var(--s19-seam);
+  box-shadow: var(--s19-ticket-sh);
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-body ul.rounded-card.bg-surface > li:not([class]),
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] section.flex-col > h2.sticky + ul.flex-col > li {
+  background: var(--s19-ticket-bg);
+  border-bottom-color: transparent;
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-body ul.rounded-card.bg-surface, section.flex-col > h2.sticky + ul.flex-col) > li:first-child {
+  border-top-left-radius: var(--s19-r-group);
+  border-top-right-radius: var(--s19-r-group);
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-body ul.rounded-card.bg-surface, section.flex-col > h2.sticky + ul.flex-col) > li:last-child {
+  border-bottom-left-radius: var(--s19-r-group);
+  border-bottom-right-radius: var(--s19-r-group);
+  box-shadow: var(--s19-ticket-sh), var(--s19-ticket-base-sh);
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-body ul.rounded-card.bg-surface, section.flex-col > h2.sticky + ul.flex-col) > li + li {
+  margin-top: -.5px;
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-body ul.rounded-card.bg-surface, section.flex-col > h2.sticky + ul.flex-col) > li > :is(button, a, div) {
+  border-radius: inherit;
+}

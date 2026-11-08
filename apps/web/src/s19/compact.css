@@ -1,0 +1,93 @@
+/*
+  S19 第七轮：A / B1 / B2 明细顶部紧凑化；四套共用的空状态修正。（第八轮撤回“结余优先”的视觉换位）
+
+  ⚠️ 收起动画仍由原实现驱动：`--p` 只读滚动位置，顶部高度在 --hero-tall → --hero-short 之间插值。
+  这里只改“收起前”的版式，并通过三个变量告诉 DetailPage 的测量（--hero-chrome、--card-floor、
+  --secondary-floor）。收起后的几何（--hero-short、p=1 时的上下留白与月份行）与原版完全相同，
+  所以吸顶位置、列表起点、搜索锁定的行为都不变。
+
+  --hero-chrome = 上留白 16 + 标题行 36 + 月份行 4 + 32 + 摘要上间距 12 + 主卡与小卡间距 10 + 下留白 14 = 124
+*/
+
+/* ---------- 版式变量 ---------- */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-root.detail-redesign {
+  --hero-chrome: 124px;
+  --card-floor: 92px;
+  --secondary-floor: 64px;
+  --hero-pad-top: calc(16px - var(--p) * 10px);
+  --hero-pad-bottom: calc(14px - var(--p) * 8px);
+  /* 顶部里摘要以外的部分收起前的合计（上留白 16 + 标题行 36 + 月份行 4 + 32 + 摘要上间距 12 + 下留白 14），
+     与收起过程中减少的量（留白 10 + 8、月份行上间距 4、月份行高度 16）；第十轮摘要卡退场用，规则在 shared.css */
+  --s19-ov-chrome: 114px;
+  --s19-ov-chrome-drop: 38px;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month-row {
+  margin-top: calc(4px - var(--p) * 4px);
+}
+
+/* ---------- 摘要顺序（第八轮恢复原结构）：上方一张收支概览大卡，下方两张并排小卡 ----------
+   第七轮曾用 flex order 把小卡视觉上移到上方（只是视觉，从未写入卡片配置）；所有者决定恢复原顺序，
+   所以这里不再改顺序，明细展示与“编辑展示卡片”的预览（主卡 → 第一张 → 第二张）重新一致。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview {
+  margin-top: 12px;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-strip {
+  margin-top: 10px;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-small {
+  /* 行高按内容算，不被容器高度（--secondary-tall）撑开：在页面上直接切换风格时，测量也能从高版式缩回紧凑版式 */
+  align-content: start;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-small > section {
+  padding: 12px 14px;
+}
+/* “按 N 天计算”这类说明：小一号、行距收紧，紧贴在数字下面 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-small > section > p:nth-child(3) {
+  font-size: 11px;
+  line-height: 14px;
+}
+/* 很窄的屏幕（< 360px）：原版在这里收支金额就会折行；紧凑版把收支金额降一档，让常见金额保持一行 */
+@media (max-width: 359px) {
+  :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-totals p:nth-child(2) {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+}
+
+/* ---------- 主摘要卡：去掉多余留白（字号不变） ---------- */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-main {
+  padding: 12px 16px;
+}
+/* 页头行（月份标签 + 币种）：按钮仍是 32px 高的点按区域，只让它与卡片内边距重叠，不再多占一行留白 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-main > div:first-child {
+  margin-block: -6px -2px;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-totals {
+  padding-block: 4px 0;
+}
+
+/* ---------- 摘要与分段控件的衔接：缩短中间的空档 ---------- */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-toggle-bar {
+  padding-top: 8px;
+}
+
+/* ---------- 空账目状态（四套）----------
+   原版是上下各 64px 留白的居中块，顶部摘要一高就把“记一笔”推到列表区外（390×664 时按钮落在底栏后面）。
+   这里改成紧跟分段控件的一张横向卡片：说明在左、按钮在右，高度约 64px；按钮与功能不变。
+   屏幕再矮时，列表区本来就可以滚动（内容至少比可视高度多出收起距离，底部还有 96px 留白）。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-body > div.items-center.text-center.py-16 {
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 12px 12px 12px 18px;
+  text-align: left;
+  border-radius: var(--radius-card);
+  background: var(--s19-card-bg);
+  box-shadow: var(--s19-card-sh), 0 0 0 1px var(--s19-card-line, transparent);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-body > div.items-center.text-center.py-16 > button {
+  flex: none;
+  margin-top: 0;
+}
+

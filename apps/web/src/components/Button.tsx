@@ -1,11 +1,16 @@
 import type { ButtonHTMLAttributes } from "react";
+import { materialAttributes, type MaterialAppearance } from "../s19/material.js";
+import "../s19/material-components.css";
+import "./ui/component-motion.css";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-quiet";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-quiet" | "tool" | "capsule";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-brand text-on-brand shadow-sm hover:bg-brand-dark",
   secondary: "bg-brand-soft text-brand-dark hover:bg-brand/20",
   ghost: "bg-transparent text-muted hover:text-ink",
+  tool: "bg-surface text-ink shadow-sm",
+  capsule: "bg-surface text-ink shadow-sm",
   // The muted red from the palette, so it reads as "careful" without shouting.
   danger: "bg-danger text-on-danger shadow-sm hover:bg-danger-dark",
   /**
@@ -21,9 +26,17 @@ export function Button({
   fullWidth = true,
   className = "",
   disabledClassName = "",
+  appearance,
+  motion = false,
+  loading = false,
+  children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   readonly variant?: Variant;
+  readonly appearance?: MaterialAppearance;
+  /** 既有业务按钮保持原动效；新标准按钮按需启用，避免双重动画。 */
+  readonly motion?: boolean;
+  readonly loading?: boolean;
   /**
    * Buttons stretch to fill their container by default. Width is a prop rather
    * than a class override because Tailwind resolves `w-full` vs `w-auto` by
@@ -37,15 +50,23 @@ export function Button({
    */
   readonly disabledClassName?: string;
 }): React.JSX.Element {
-  const disabledLook = props.disabled === true && disabledClassName !== "";
+  const disabled = props.disabled === true || loading;
+  const disabledLook = disabled && disabledClassName !== "";
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-2 rounded-field px-4 py-3 text-button-lg font-medium transition ${
+      {...(!disabledLook ? materialAttributes(variant, appearance) : {})}
+      disabled={disabled}
+      aria-busy={loading || props["aria-busy"]}
+      className={`lv-material lv-material-effects ${motion ? "lv-press" : ""} inline-flex items-center justify-center gap-2 rounded-field px-4 py-3 text-button-lg font-medium transition ${
         disabledLook ? disabledClassName : `${VARIANTS[variant]} disabled:opacity-45`
-      } ${props.disabled === true ? "cursor-not-allowed" : ""} ${
+      } ${disabled ? "cursor-not-allowed" : ""} ${
         fullWidth ? "w-full" : "w-auto"
       } outline-none focus-visible:ring-4 focus-visible:ring-focus-ring ${className}`}
-    />
+    >
+      {appearance?.finish === "glazed" ? <span className="lv-porcelain-window" aria-hidden="true" /> : null}
+      {loading ? <span className="lv-loading" aria-hidden="true" /> : null}
+      {children}
+    </button>
   );
 }

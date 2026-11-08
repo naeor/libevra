@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {quickPlan} from './quick-plan.js';
+test('18 个有界案例，透明度重复与扩展负载独立',()=>{for(let order=0;order<4;order++){const p=quickPlan(order);assert.equal(p.length,18);assert.equal(new Set(p.slice(0,4).map(x=>x.mode)).size,4);for(const mode of ['native','tiled'])for(const alpha of [.45,.72,.9])assert.equal(p.filter(x=>x.focus&&x.count===80&&x.mode===mode&&x.alpha===alpha).length,2);assert.equal(p.filter(x=>x.count===240).length,2);assert.notEqual(p[4].mode,p[10].mode);}});

@@ -1,4 +1,7 @@
 import { useEffect, useId, useRef } from "react";
+import { useDialogFocus } from "../lib/dialogFocus.js";
+import { useOverlayPresence, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
+import { useKeyboardInset } from "./entry/keyboardInset.js";
 
 /**
  * A dialog that offers a small number of named ways forward.
@@ -51,6 +54,12 @@ export function ChoiceDialog<Id extends string>({
   readonly onChoose: (id: Id) => void;
 }): React.JSX.Element | null {
   const firstRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const { visible, closing } = useOverlayPresence(open);
+  const layer = useDialogFocus(dialogRef, visible);
+  useOverlayScrollLock(backdropRef, visible);
+  const keyboard = useKeyboardInset(backdropRef, visible);
   const dismiss = choices.find((choice) => choice.dismissive === true);
   /** S18：两个工作区可能同时开着对话框，标题 / 说明的 id 每个实例唯一。 */
   const titleId = useId();
@@ -64,41 +73,52 @@ export function ChoiceDialog<Id extends string>({
     // is the one most people want. A dialog nobody can drive from the keyboard
     // is a dialog that traps them.
     firstRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
 
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape" && dismiss !== undefined) {
+      if (event.key === "Escape" && dismiss !== undefined && layer.owns(event)) {
         event.preventDefault();
         onChoose(dismiss.id);
       }
     }
 
     document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
     };
-  }, [open, dismiss, onChoose]);
+  }, [open, dismiss, onChoose, layer]);
 
-  if (!open) return null;
+  if (!visible) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-soft px-5 backdrop-blur-[2px]"
+      ref={backdropRef}
+      data-overlay-root="dialog"
+      data-overlay-state={closing ? "closing" : "open"}
+      style={{ paddingBottom: `calc(${keyboard + 16}px + env(safe-area-inset-bottom, 0px))`, paddingTop: "max(16px, env(safe-area-inset-top, 0px))" }}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-overlay-soft px-5 py-4 backdrop-blur-[2px] ${closing ? "backdrop-out" : "backdrop-in"}`}
       onClick={(event) => {
         if (event.target !== event.currentTarget) return;
         if (dismiss !== undefined) onChoose(dismiss.id);
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
+        data-overlay-surface="dialog"
+        inert={closing}
+        data-overlay-state={closing ? "closing" : "open"}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className="w-full max-w-sm rounded-card border border-line bg-surface p-6 shadow-lg"
+        className="relative z-0 flex max-h-full w-full max-w-sm flex-col rounded-card border border-line bg-surface shadow-lg outline-none"
       >
+        <div className="min-h-0 overflow-y-auto overscroll-contain p-6">
         <h2 id={titleId} className="text-base font-semibold text-ink">
           {title}
         </h2>
@@ -135,6 +155,7 @@ export function ChoiceDialog<Id extends string>({
               )}
             </button>
           ))}
+        </div>
         </div>
       </div>
     </div>

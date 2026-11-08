@@ -1,0 +1,181 @@
+/* 两个编辑入口显式声明操作面；不依赖普通内容卡的类名，也不加载实验入口。
+   滤镜只放在独立背景层，避免让抽屉里的拖动元素与滚动区成为滤镜定位子树。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface] {
+  position: relative;
+  z-index: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--s19-sheet-bg);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface="drawer"] {
+  border-color: transparent;
+  box-shadow: var(--s19-sheet-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface="drawer"][data-state="expanded"] {
+  border-radius: var(--s19-r-sheet);
+}
+/* 密集编辑文字需要浅色承载。仅在消费端混入实体 surface，三档仍由同一个 tool / bar 参数驱动；
+   不重定义 B2 参数，不模糊内部行。清透 / 均衡 / 柔和仍可实时改变透色与滤镜。 */
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface]::before {
+  background: color-mix(in srgb, var(--s19-tool-bg) 30%, var(--color-surface));
+  -webkit-backdrop-filter: var(--s19-bar-filter);
+  backdrop-filter: var(--s19-bar-filter);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface="drawer"] {
+  box-shadow: var(--s19-tool-sh), var(--s19-sheet-sh);
+}
+/* 添加抽屉比稳定的整页编辑工作区再透一点，仍使用原操作玻璃三档。 */
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface="drawer"]::before {
+  background: color-mix(in srgb, var(--s19-tool-bg) 40%, var(--color-surface));
+}
+/* A 复用已验收弹窗的薄片顶缘与宽淡投影；外影放在容器上，避免被内部滚动裁掉。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface="drawer"][data-state="expanded"] {
+  box-shadow: 0 -24px 60px -18px color-mix(in srgb, var(--color-ink) 24%, transparent);
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface="drawer"][data-state="expanded"]::before {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--color-surface) 85%, transparent), transparent 28px), var(--s19-sheet-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-surface) 85%, transparent), inset 0 8px 16px -14px color-mix(in srgb, var(--color-ink) 12%, transparent);
+}
+/* 只微调 B1 / B2 编辑占位卡的底色，不碰浏览卡、留白纹理、选中边界与拖动态。 */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .sw-edit-tile:not(.sw-edit-spacer) {
+  background: color-mix(in srgb, color-mix(in srgb, var(--color-surface) 90%, var(--color-brand-soft)) 94%, transparent);
+}
+
+/* 编辑控件的材质分工：A 独立薄片；B1 原 Satin 瓷片；B2 用已有实体 sheet 叠 surface
+   承载瓷片按钮，不能读取它的内容玻璃 card-bg。别名只存在于这两个局部控件宿主中。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.sw-edit-bar, .sw-drawer) {
+  --sw-edit-control-bg: var(--s19-pill-bg);
+  --sw-edit-control-sh: var(--s19-pill-sh);
+}
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.sw-edit-bar, .sw-drawer) {
+  --sw-edit-control-bg: var(--s19-card-bg);
+  --sw-edit-control-sh: var(--s19-pill-sh);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.sw-edit-bar, .sw-drawer) {
+  --sw-edit-control-bg: var(--s19-sheet-bg), var(--color-surface);
+  --sw-edit-control-sh: var(--s19-pill-sh);
+}
+/* 收起工具栏是一整片瓷面，仅“添加卡片”保留绿色内嵌层。 */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-editor-surface="drawer"][data-state="collapsed"]::before {
+  background: var(--sw-edit-control-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"]
+  :is(.sw-edit-bar, .sw-drawer) :is(.sw-pill, .sw-icon-button, .sw-add-button, .sw-new-custom, .sw-drawer-preset, .sw-drawer-close, .sw-chip, .sw-drawer-toolbar > :where(button)) {
+  background: var(--sw-edit-control-bg);
+  box-shadow: var(--sw-edit-control-sh);
+  border-color: transparent;
+  color: var(--color-ink);
+}
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .sw-drawer .sw-drawer-toolbar > button:not([data-drawer-opener]) {
+  background: transparent;
+  box-shadow: none;
+}
+/* 主操作和选中分类保留浅品牌色与明确边界，瓷面仍有原来的高光。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"]
+  :is(.sw-edit-bar, .sw-drawer) :is(.sw-pill-primary, [data-drawer-opener], .sw-chip-on) {
+  background: linear-gradient(color-mix(in srgb, var(--color-brand) 8%, transparent), color-mix(in srgb, var(--color-brand) 8%, transparent)), var(--sw-edit-control-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 35%, transparent), var(--sw-edit-control-sh);
+  color: color-mix(in srgb, var(--color-brand-dark) 88%, var(--color-ink));
+  font-weight: 600;
+}
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"]
+  :is(.sw-edit-bar, .sw-drawer) :is(.sw-pill-primary, [data-drawer-opener]) {
+  background: var(--s19-accent-bg);
+  box-shadow: var(--s19-accent-sh);
+  color: var(--color-on-brand);
+}
+/* 分段切换和明细“全部 / 支出 / 收入”读取相同轨道与选中胶囊，不混入瓷片按钮规则。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .sw-drawer .sw-segment {
+  background: var(--s19-track-bg);
+  box-shadow: var(--s19-track-sh);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .sw-drawer .sw-segment-on {
+  background: var(--s19-pill-bg);
+  box-shadow: var(--s19-pill-sh);
+  color: var(--color-brand-dark);
+}
+/* 分类和工具栏的影子要有少量绘制空间；不改按钮命中区、面板高度或收起胶囊尺寸。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .sw-drawer-categories {
+  padding-top: 2px;
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"]
+  :is(.sw-edit-bar, .sw-drawer) :is(.sw-pill, .sw-icon-button, .sw-add-button, .sw-new-custom, .sw-drawer-preset, .sw-drawer-close, .sw-chip, .sw-drawer-toolbar > button):hover:not(:disabled) {
+  filter: brightness(.985);
+}
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"]
+  :is(.sw-edit-bar, .sw-drawer) :is(.sw-pill, .sw-icon-button, .sw-add-button, .sw-new-custom, .sw-drawer-preset, .sw-drawer-close, .sw-chip, .sw-drawer-toolbar > button, .sw-segment > button):focus-visible {
+  outline: 2px solid var(--color-brand-dark);
+  outline-offset: -2px;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .sw-drawer .sw-tile {
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+  border-color: color-mix(in srgb, var(--color-line) 65%, transparent);
+}
+/* 页面继续透出既有环境；预览本身使用明细的 key / mini 角色，外层不加材质底座。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-card-editor {
+  background: transparent;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-card {
+  background: var(--s19-mini-bg);
+  box-shadow: var(--s19-mini-sh-tight, var(--s19-mini-sh));
+  border-radius: var(--s19-r-mini);
+  color: var(--color-ink);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-main {
+  background: var(--s19-key-bg);
+  box-shadow: var(--s19-key-sh-tight, var(--s19-key-sh));
+  border-radius: var(--s19-r-key);
+}
+/* C 的实际明细摘要位于品牌色顶区，预览保留同样的纸面环境与白字对比。 */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-preview {
+  background: var(--color-brand);
+  padding-top: 8px;
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-card {
+  background: var(--s19-mini-bg);
+  box-shadow: var(--s19-mini-sh);
+  color: var(--color-on-brand);
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-sample {
+  color: var(--color-on-brand);
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-card[data-selected="true"] {
+  outline-color: var(--color-on-brand);
+}
+/* 顶栏自身不滤镜；返回/保存始终清楚，未来其子浮层仍以原坐标系定位。 */
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-card-editor > [data-page-nav] {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-card-editor > [data-page-nav]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--s19-sheet-bg);
+  box-shadow: var(--s19-bar-sh);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-card-editor > [data-page-nav]::before {
+  background: color-mix(in srgb, var(--s19-tool-bg) 30%, var(--color-surface));
+  -webkit-backdrop-filter: var(--s19-bar-filter);
+  backdrop-filter: var(--s19-bar-filter);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is([data-editor-surface], .detail-card-editor > [data-page-nav])::before {
+    background: var(--color-surface);
+  }
+}

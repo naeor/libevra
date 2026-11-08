@@ -1,0 +1,5 @@
+body.quick-running::before{content:'';position:fixed;inset:0;background:#eef3ee;z-index:90}
+body.quick-running #device{position:fixed;z-index:100;top:calc(var(--vv-top,0px) + 90px);left:50%;transform:translateX(-50%);width:min(460px,calc(100vw - 28px));height:calc(var(--vv-height,100svh) - 180px);min-height:230px;max-height:440px}
+body.quick-running #sheet{top:70px;height:160px}
+body.quick-running #status{position:fixed;z-index:101;top:calc(var(--vv-top,0px) + 12px);left:16px;right:16px;margin:0}
+body.quick-running #stop{position:fixed;z-index:101;bottom:calc(env(safe-area-inset-bottom) + 12px);left:50%;transform:translateX(-50%)}

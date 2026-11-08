@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 
 import { useDialogFocus } from "../lib/dialogFocus.js";
+import { useOverlayPresence, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
+import { useKeyboardInset } from "./entry/keyboardInset.js";
 
 import { useI18n } from "../i18n/index.js";
 
@@ -60,6 +62,10 @@ export function ConfirmDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const { visible, closing } = useOverlayPresence(open);
+  useOverlayScrollLock(backdropRef, visible);
+  const keyboard = useKeyboardInset(backdropRef, visible);
   /**
    * ⚠️ **S18：标题与说明的 id 每个实例唯一。** 大屏上两个工作区可能同时开着确认框，固定的
    * `confirm-title` 会让读屏软件把一个对话框的标题读成另一个的。
@@ -67,7 +73,7 @@ export function ConfirmDialog({
   const titleId = useId();
   const descriptionId = useId();
   /** 与通用面板共用一个层级栈：叠在面板上的确认框按 Esc 只关自己，关闭后焦点回到原控件。 */
-  const layer = useDialogFocus(dialogRef, open);
+  const layer = useDialogFocus(dialogRef, visible);
 
   /**
    * ⚠️ **Focus the safe choice once, when the dialog opens.**
@@ -135,26 +141,30 @@ export function ConfirmDialog({
     }
 
     document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
     };
   }, [open, onCancel, layer]);
 
-  if (!open) return null;
+  if (!visible) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-soft px-5 py-4 backdrop-blur-[2px]"
+      ref={backdropRef}
+      data-overlay-root="dialog"
+      data-overlay-state={closing ? "closing" : "open"}
+      style={{ paddingBottom: `calc(${keyboard + 16}px + env(safe-area-inset-bottom, 0px))`, paddingTop: "max(16px, env(safe-area-inset-top, 0px))" }}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-overlay-soft px-5 py-4 backdrop-blur-[2px] ${closing ? "backdrop-out" : "backdrop-in"}`}
       onClick={(event) => {
         if (event.target === event.currentTarget) onCancel();
       }}
     >
       <div
         ref={dialogRef}
+        data-overlay-surface="dialog"
+        inert={closing}
+        data-overlay-state={closing ? "closing" : "open"}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -164,8 +174,9 @@ export function ConfirmDialog({
          * ⚠️ **S18（审查 U05）：高度有上限，内容在框内滚动。** 长说明、附加字段、横屏低高度或系统字体
          * 放大时，确认 / 取消按钮仍在可视范围内可以点到。
          */
-        className="max-h-full w-full max-w-sm overflow-y-auto overscroll-contain rounded-card border border-line bg-surface p-6 shadow-lg outline-none"
+        className="relative z-0 flex max-h-full w-full max-w-sm flex-col rounded-card border border-line bg-surface shadow-lg outline-none"
       >
+        <div className="min-h-0 overflow-y-auto overscroll-contain p-6">
         <h2 id={titleId} className="text-base font-semibold text-ink">
           {title}
         </h2>
@@ -211,6 +222,7 @@ export function ConfirmDialog({
           >
             {busy ? t("common.status.processing") : (confirmLabel ?? t("common.action.confirm"))}
           </button>
+        </div>
         </div>
       </div>
     </div>

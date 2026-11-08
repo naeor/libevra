@@ -1,0 +1,59 @@
+/* 正式弹窗的材质角色。仅消费 S19 既有令牌；实验入口不参与正式运行。 */
+[data-overlay-state="closing"] { pointer-events: none; }
+[data-overlay-drag] { touch-action: none; user-select: none; -webkit-user-select: none; flex-shrink: 0; }
+[data-overlay-surface][data-overlay-entered="true"].sheet-in { animation: none; transition: transform 180ms ease-out; }
+[data-overlay-surface][data-overlay-dragging="true"] { animation: none; }
+[data-overlay-surface][data-overlay-dragging="true"].sheet-in { transition: none; }
+[data-overlay-surface][data-overlay-state="closing"][data-overlay-dragging="true"] {
+  animation: lv-overlay-drag-out 200ms cubic-bezier(.4,0,1,1) forwards;
+}
+@keyframes lv-overlay-drag-out { from { transform: translateY(var(--overlay-drag, 0px)); } to { transform: translateY(100%); } }
+
+/* 根容器不做透明度动画，也没有滤镜；遮罩独立绘制，避免截断面板的 backdrop 采样。 */
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-root][data-overlay-state] {
+  background: transparent; animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-root]::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)); animation: libellum-backdrop-in 180ms ease-out;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-root][data-overlay-state="closing"]::before {
+  animation: libellum-backdrop-out 200ms ease-in forwards;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-backdrop] { background: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)); }
+
+/* 固定面板保持自己的 z-index；相对定位面板由组件声明 relative z-0。局部伪元素只模糊一次。 */
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface][role][aria-modal] {
+  background: transparent; box-shadow: none; border-color: transparent;
+}
+/* 材质伪元素以 padding box 为界；透明底边框会留一个物理像素未绘制。
+   去掉这条底边，不移动 fixed 锚点，不加负 bottom，也不挪用 safe-area 的内容留白。 */
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface="sheet"][role][aria-modal] {
+  border-bottom-width: 0;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface]::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: inherit; background: var(--s19-sheet-bg); box-shadow: var(--s19-sheet-sh);
+}
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface="dialog"][role][aria-modal] { border-radius: var(--s19-r-sheet); }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface="dialog"]::before { box-shadow: var(--s19-dialog-sh); }
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface]::before {
+  background: var(--s19-tool-bg); backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter);
+}
+/* A 的薄片只在原操作面上加柔和顶缘与宽淡投影；不上全屏模糊，不改变进出动画。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface="sheet"]::before {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--color-surface) 85%, transparent), transparent 28px), var(--s19-sheet-bg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-surface) 85%, transparent),
+    inset 0 8px 16px -14px color-mix(in srgb, var(--color-ink) 12%, transparent),
+    0 -24px 60px -18px color-mix(in srgb, var(--color-ink) 24%, transparent);
+}
+/* 淡入淡出只发生在材质层和内容层，不在两者的父节点上创建采样边界。 */
+[data-overlay-surface="dialog"] > *, [data-overlay-surface="dialog"]::before { animation: libellum-backdrop-in 200ms ease-out; }
+[data-overlay-surface="dialog"][data-overlay-state="closing"] > *, [data-overlay-surface="dialog"][data-overlay-state="closing"]::before { animation: libellum-backdrop-out 200ms ease-in forwards; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface]::before { background: var(--color-surface); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-overlay-root]::before, [data-overlay-surface], [data-overlay-surface]::before, [data-overlay-surface="dialog"] > * { animation: none !important; transition: none !important; }
+}

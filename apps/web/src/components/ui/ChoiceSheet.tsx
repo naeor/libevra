@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 
 import { useI18n } from "../../i18n/index.js";
+import { useDialogFocus } from "../../lib/dialogFocus.js";
+import { useOverlayExit, useOverlayScrollLock } from "../../lib/useOverlayPresentation.js";
+import { useKeyboardInset } from "../entry/keyboardInset.js";
 
 /**
  * 从一列固定选项里选一个：项目自己的底部选择面板。
@@ -59,16 +62,19 @@ export function ChoiceSheet<Value extends string>({
 }): React.JSX.Element | null {
   const { t } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const { closing, requestClose } = useOverlayExit(onClose, open);
+  const layer = useDialogFocus(panelRef, open);
+  useOverlayScrollLock(backdropRef, open);
+  const keyboard = useKeyboardInset(backdropRef, open);
   /**
-   * ⚠️ **`onClose` 走 ref，不进 effect 的依赖。** 页面通常传一个内联箭头函数，
-   * 每次渲染都是新身份；若把它写进依赖，面板打开期间任何一次重渲染都会重跑 effect：
-   * 焦点被抢回当前项，上一轮的 `previousOverflow` 也被重复记录。只按 `open` 开关。
+   * 关闭入口保持稳定；父页面重渲染时不把焦点抢回当前项。滚动恢复交给共享滚动锁。
    */
-  const closeRef = useRef(onClose);
+  const closeRef = useRef(requestClose);
 
   useEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
+    closeRef.current = requestClose;
+  }, [requestClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -82,29 +88,23 @@ export function ChoiceSheet<Value extends string>({
     first?.focus();
 
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && layer.owns(event)) {
         event.preventDefault();
         closeRef.current();
       }
     }
 
     document.addEventListener("keydown", onKeyDown);
-    /** 面板铺在页面之上时，后面的内容不应跟着滚——与项目其它面板一致。 */
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
       previous?.focus();
     };
-  }, [open]);
+  }, [open, layer]);
 
   if (!open) return null;
 
   /**
-   * 上下方向键在可用项之间移动焦点。Tab 仍按浏览器默认顺序走——
-   * 一个只有六个选项的面板不需要抢走 Tab 的语义。
+   * 上下方向键在可用项之间移动焦点。Tab 顺序不变，由共享焦点栈约束在当前面板内。
    */
   function moveFocus(event: React.KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -129,17 +129,24 @@ export function ChoiceSheet<Value extends string>({
     <>
       {/* 遮罩：点它关闭。`aria-hidden` 因为它是"退出"，不是内容。 */}
       <div
+        ref={backdropRef}
+        data-overlay-backdrop="sheet"
         aria-hidden="true"
-        onClick={onClose}
-        className="fixed inset-0 z-40 bg-overlay-soft backdrop-in"
+        onClick={requestClose}
+        className={`fixed inset-0 z-40 bg-overlay-soft ${closing ? "backdrop-out" : "backdrop-in"}`}
       />
 
       <div
         ref={panelRef}
+        tabIndex={-1}
+        data-overlay-surface="sheet"
+        inert={closing}
+        data-overlay-state={closing ? "closing" : "open"}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="sheet-in fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(var(--lv-vh)*100_-_24px)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet"
+        style={{ bottom: keyboard || undefined, maxHeight: `calc(var(--lv-vh) * 100 - 24px - ${keyboard}px)` }}
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(var(--lv-vh)*100_-_24px)] w-full max-w-md flex-col rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${closing ? "sheet-out" : "sheet-in"}`}
       >
         <div className="flex justify-center pt-3 pb-1">
           <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />
@@ -149,7 +156,7 @@ export function ChoiceSheet<Value extends string>({
           <h2 className="text-base font-medium text-ink">{title}</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label={t("nav.sheet.close", { title })}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
           >
@@ -187,7 +194,7 @@ export function ChoiceSheet<Value extends string>({
                 onClick={() => {
                   if (option.disabled === true) return;
                   onSelect(option.value);
-                  onClose();
+                  requestClose();
                 }}
                 className={`flex min-h-14 w-full items-center gap-3 border-b border-line px-5 py-3 text-left transition last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset ${
                   selected ? "bg-brand-soft text-brand-dark" : "text-ink hover:bg-canvas"

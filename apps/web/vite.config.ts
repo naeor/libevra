@@ -159,6 +159,11 @@ const BUILD_STAMP = new Date().toISOString();
 export default defineConfig({
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
+    /**
+     * S19 视觉风格实验只进开发环境与显式打开的测试构建（`VITE_S19_STYLE_LAB=1 pnpm build`）。
+     * 写成编译期常量，正式构建里整段实验代码与四套样式表在打包阶段就被删掉，而不是只在运行时关闭。
+     */
+    __S19_STYLE_LAB__: JSON.stringify(process.env.VITE_S19_STYLE_LAB === "1"),
   },
   plugins: [themePrepaintPlugin(), pdfAssetsPlugin(), react(), tailwindcss()],
   server: serverOptions(),

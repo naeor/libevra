@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useI18n } from "../i18n/index.js";
 import { oceanPath } from "../lib/oceanGeometry.js";
+import { OceanMaterial, type OceanLook } from "../s19/OceanMaterial.js";
 
 /**
  * The sea's four fills are tokens (S16-B0). Geometry, layers and motion are
@@ -12,6 +13,33 @@ const OCEAN_COLORS = [
   "var(--color-ocean-3)",
   "var(--color-ocean-4)",
 ] as const;
+
+const LOOKS: readonly string[] = ["a", "b1", "b2", "c"];
+
+/**
+ * S19：浅色 A / B1 / B2 / C 换用 `s19/OceanMaterial`（分层转场与材质）；Original 与深色仍是下面的原版绘制，
+ * 一字未改。只读 `<html data-visual-style / data-theme-mode>`，风格切换时整块替换，不保留中间状态。
+ */
+function readLook(): OceanLook | "original" {
+  if (typeof document === "undefined") return "original";
+  const data = document.documentElement.dataset;
+  return data.themeMode === "light" && LOOKS.includes(data.visualStyle ?? "") ? data.visualStyle as OceanLook : "original";
+}
+function subscribeLook(change: () => void): () => void {
+  const observer = new MutationObserver(change);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-visual-style", "data-theme-mode"] });
+  return () => observer.disconnect();
+}
+
+export function OceanBackdrop(props: {
+  readonly interactive?: boolean;
+  readonly children?: React.ReactNode;
+} = {}): React.JSX.Element {
+  const look = useSyncExternalStore(subscribeLook, readLook, () => "original" as const);
+  return look === "original"
+    ? <OriginalOcean {...props} />
+    : <OceanMaterial key={look} look={look} interactive={props.interactive ?? false}>{props.children}</OceanMaterial>;
+}
 
 /**
  * One drawing and one brand, continuously reshaped by the page's progress.
@@ -29,7 +57,7 @@ const OCEAN_COLORS = [
  * `pointer-events: none` would leave it untappable **while still looking perfectly normal.** So the
  * flag is explicit, and the caller has to ask for it.
  */
-export function OceanBackdrop({
+function OriginalOcean({
   interactive = false,
   children,
 }: {

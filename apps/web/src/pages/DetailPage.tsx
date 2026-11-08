@@ -1,4 +1,5 @@
 import { useAnalysisRange } from "../lib/analysisRange.js";
+import { SlidingSelection } from "../components/ui/SlidingSelection.js";
 import { mainDetailMetrics, isDetailChart } from "../lib/detailCards.js";
 import "../components/ledger/detail-overview.css";
 import { flushSync } from "react-dom";
@@ -10,7 +11,8 @@ import { ChevronIcon } from "../components/Icons.js";
 import { AttachmentPanel } from "../components/Attachments.js";
 import { CURRENCIES, endOfMonth, type CurrencySummary, type Transaction, type TransactionKind } from "@libellum/shared";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { entryReturnState } from "../lib/entryReturn.js";
 
 import { useAuth } from "../auth/AuthProvider.js";
 import { FxAmount } from "../components/FxDisplay.js";
@@ -104,6 +106,7 @@ const NO_CONFLICTS: readonly ConflictRecord[] = [];
  */
 export function DetailPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
@@ -167,11 +170,15 @@ export function DetailPage(): React.JSX.Element {
     if (!root || !overview) return;
     const main = overview.querySelector<HTMLElement>(".detail-overview-main")!, small = overview.querySelector<HTMLElement>(".detail-overview-small")!;
     const measure = () => {
-      const mainHeight = Math.max(128, main.offsetHeight);
-      const smallHeight = Math.max(74, ...Array.from(small.children).map(e => e.scrollHeight));
+      // S19 测试风格可以用 CSS 变量收紧收起前的版式（apps/web/src/s19/compact.css）：
+      // 两张卡的保底高度与标题、月份、间距的合计高度。没有设置时取原值，Original 完全不变。
+      const style = getComputedStyle(root);
+      const px = (name: string, fallback: number) => { const value = parseFloat(style.getPropertyValue(name)); return Number.isFinite(value) ? value : fallback; };
+      const mainHeight = Math.max(px("--card-floor", 128), main.offsetHeight);
+      const smallHeight = Math.max(px("--secondary-floor", 74), ...Array.from(small.children).map(e => e.scrollHeight));
       root.style.setProperty("--card-tall", `${mainHeight}px`);
       root.style.setProperty("--secondary-tall", `${smallHeight}px`);
-      root.style.setProperty("--hero-tall", `${160 + mainHeight + smallHeight}px`);
+      root.style.setProperty("--hero-tall", `${px("--hero-chrome", 160) + mainHeight + smallHeight}px`);
     };
     const observer = new ResizeObserver(measure); observer.observe(main); Array.from(small.children).forEach(e => observer.observe(e)); measure();
     return () => observer.disconnect();
@@ -903,7 +910,7 @@ export function DetailPage(): React.JSX.Element {
             things above it collapsed would make the whole change look loose.
           */}
           <div className={`detail-toggle-bar px-6 pt-4 ${atList ? "detail-toggle-sticky" : ""}`}>
-            <div className="flex gap-1 rounded-full bg-line/70 p-1">
+            <SlidingSelection className="flex gap-1 rounded-full bg-line/70 p-1">
               {(["all", "expense", "income"] as const).map((option) => (
                 <button
                   key={option}
@@ -921,7 +928,7 @@ export function DetailPage(): React.JSX.Element {
                   {option === "all" ? t("desktop.entries.kindAll") : t(`common.kind.${option}`)}
                 </button>
               ))}
-            </div>
+            </SlidingSelection>
 
             {/* 从更多返回后，在列表上方显示同步进度和结果。 */}
             {refreshing ? <p role="status" className="mt-2 text-helper text-muted">{t("books.more.syncing")}</p> : null}
@@ -1092,7 +1099,7 @@ export function DetailPage(): React.JSX.Element {
                           }
                         }
 
-                        void navigate(`/transactions/${entry.id}`);
+                        void navigate(`/transactions/${entry.id}`, { state: entryReturnState(location) });
                       }}
                     />
                   ))}
@@ -1175,7 +1182,9 @@ export function DetailPage(): React.JSX.Element {
         <CurrentBookCaption name={ledger.data?.book.name} />
       ) : (
         <>
-          <CurrentBookCaption name={ledger.data?.book.name} hidden={entryOpen} />
+          <div className={`shrink-0 ${entryOpen ? "invisible" : ""}`} inert={entryOpen} aria-hidden={entryOpen}>
+            <CurrentBookCaption name={ledger.data?.book.name} />
+          </div>
 
           <LedgerNav
             open={entryOpen}
@@ -1285,6 +1294,8 @@ function LedgerNav({
     <>
       <div
         aria-hidden="true"
+        data-detail-menu-space
+        data-entry-menu-open={open}
         className={`shrink-0 transition-[height] duration-200 ease-out ${open ? "h-[100px]" : "h-0"}`}
       />
       {/*

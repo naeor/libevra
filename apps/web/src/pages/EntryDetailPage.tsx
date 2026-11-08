@@ -29,7 +29,7 @@ import { useUndo } from "../components/UndoProvider.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
-import { useGoBack } from "../lib/connectivity.js";
+import { useEntryReturn } from "../lib/entryReturn.js";
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
@@ -82,8 +82,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
   const routeParams = useParams();
   const id = entryId ?? routeParams.id ?? "";
   const navigate = useNavigate();
-  const location = useLocation();
-  const goBackToAnalysis = useGoBack("/stats", "parent");
+  const goBack = useEntryReturn();
   const { showUndo } = useUndo();
   const { t } = useI18n();
 
@@ -162,7 +161,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
 
   if (entry.isPending) {
     return (
-      <InnerPage title={t("entry.detail.title")} backTo="/">
+      <InnerPage title={t("entry.detail.title")} onBack={goBack}>
         <SkeletonRows rows={3} />
       </InnerPage>
     );
@@ -170,7 +169,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
 
   if (entry.isError || !entry.data) {
     return (
-      <InnerPage title={t("entry.detail.title")} backTo="/">
+      <InnerPage title={t("entry.detail.title")} onBack={goBack}>
         <ErrorState
           message={errorMessage(entry.error)}
           onRetry={() => {
@@ -189,7 +188,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
 
   if (data.deletedAt !== null && data.deletedAt !== undefined) {
     return (
-      <InnerPage title={t("entry.detail.title")} backTo="/ledger/history">
+      <InnerPage title={t("entry.detail.title")} onBack={goBack}>
         <section className="rounded-card border border-line bg-surface px-5 py-5">
           <p className="text-helper text-muted">{t("entry.detail.deletedLine", { kind: t(`common.kind.${data.kind}`) })}</p>
           <p className="mt-1 text-3xl font-semibold text-ink">
@@ -465,8 +464,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
       title={editing ? t("entry.detail.editTitle") : t("entry.detail.title")}
       onBack={() => {
         if (editing) setEditing(false);
-        else if ((location.state as { fromAnalysis?: unknown } | null)?.fromAnalysis === true) goBackToAnalysis();
-        else void navigate("/");
+        else goBack();
       }}
       actions={
         editing || sharedOfflineReadOnly ? null : (

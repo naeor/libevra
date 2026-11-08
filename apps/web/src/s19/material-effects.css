@@ -1,0 +1,21 @@
+/* 已验收的反射配方，Material Lab 与组件共同消费。这里不定义布局或业务状态。 */
+.lv-material-effects {
+  --lv-porcelain-body: linear-gradient(160deg, color-mix(in srgb, var(--color-ink) 4%, transparent), transparent 75%), var(--s19-card-bg);
+  --lv-porcelain-shadow: var(--s19-card-sh), inset 0 1.2px 1px var(--s19-on-accent), inset 0 -2.5px 2px color-mix(in srgb, var(--color-ink) 10%, transparent), 0 2px 0 color-mix(in srgb, var(--color-ink) 8%, transparent);
+  --lv-porcelain-satin: radial-gradient(ellipse 90% 75% at var(--lv-light-x, 25%) var(--lv-light-y, 30%), var(--s19-on-accent), color-mix(in srgb, var(--s19-on-accent) 45%, transparent) 45%, transparent 85%);
+  --lv-porcelain-glazed: radial-gradient(ellipse 12% 85% at var(--lv-light-x, 25%) var(--lv-light-y, 30%), color-mix(in srgb, var(--s19-on-accent) 90%, transparent), transparent 75%);
+  --lv-porcelain-window: linear-gradient(155deg, color-mix(in srgb, var(--s19-on-accent) 92%, transparent), color-mix(in srgb, var(--s19-on-accent) 25%, transparent));
+  --lv-glass-reflection: linear-gradient(var(--lv-light-angle, 225deg), transparent 18%, color-mix(in srgb, var(--s19-on-accent) calc(var(--lv-material-edge, .45) * 9%), transparent) 25%, transparent 34%);
+  --lv-glass-edge: conic-gradient(from var(--lv-light-angle, 225deg), color-mix(in srgb, var(--s19-on-accent) 88%, transparent), transparent 65deg, color-mix(in srgb, var(--color-ink) 25%, transparent) 150deg, color-mix(in srgb, var(--s19-on-accent) 18%, transparent) 225deg, color-mix(in srgb, var(--s19-on-accent) 85%, transparent) 300deg, color-mix(in srgb, var(--color-ink) 12%, transparent));
+}
+.lv-porcelain-window { display: none; }
+.lv-material-effects[data-material-finish="glazed"] > .lv-porcelain-window {
+  position: absolute; inset: 2px; z-index: -1; border-radius: inherit;
+  overflow: hidden; pointer-events: none; opacity: var(--lv-material-reflection, .6);
+}
+.lv-material-effects:not(.lv-material)[data-material-finish="glazed"] > .lv-porcelain-window { display: block; }
+.lv-porcelain-window::before {
+  content: ""; position: absolute; width: 32%; height: 18%; left: var(--lv-light-x, 25%); top: var(--lv-light-y, 30%);
+  border-radius: 40% 55% 45% 50%; transform: translate(-50%, -50%) rotate(-18deg); filter: blur(1.2px);
+  background: var(--lv-porcelain-window); box-shadow: 0 0 12px color-mix(in srgb, var(--s19-on-accent) 18%, transparent);
+}

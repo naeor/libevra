@@ -3,6 +3,9 @@ import { useNavigate } from "react-router";
 
 import { useI18n } from "../i18n/index.js";
 import { type BookSummary } from "../lib/queries.js";
+import { useDialogFocus } from "../lib/dialogFocus.js";
+import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
+import { useKeyboardInset } from "./entry/keyboardInset.js";
 
 /**
  * **每本账本的齿轮面板 —— 底部弹出的 Bottom Sheet.**
@@ -50,8 +53,14 @@ export function BookManageSheet({
 
   /** ⚠️ Live drag offset, so the sheet follows the finger rather than only reacting at the end. */
   const [dragY, setDragY] = useState(0);
+  const [entered, setEntered] = useState(false);
   const startY = useRef<number | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const { closing, requestClose, afterExit } = useOverlayExit(onClose);
+  const layer = useDialogFocus(sheetRef);
+  useOverlayScrollLock(backdropRef);
+  const keyboard = useKeyboardInset(backdropRef);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -65,8 +74,8 @@ export function BookManageSheet({
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented) return;
-      if (event.key === "Escape") onClose();
+      if (!layer.owns(event)) return;
+      if (event.key === "Escape") { event.preventDefault(); requestClose(); }
       if (event.key === "Tab") {
         const buttons = [...(sheetRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
         const first = buttons[0], last = buttons.at(-1);
@@ -78,23 +87,7 @@ export function BookManageSheet({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
-
-  /**
-   * ⚠️ **The page behind is frozen while the sheet is open.** Without this, a drag that starts on the
-   * sheet and leaves it scrolls the list underneath — which on this page is also a **gesture** (the
-   * ocean's pull), so the reader would close the sheet and find the page half-retreated.
-   *
-   * ⚠️ **`overflow` on `body`, restored on unmount**, rather than a scroll-lock library: one property,
-   * and the cleanup is what makes it safe to close in any order.
-   */
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
+  }, [requestClose, layer]);
 
   /**
    * ⚠️ **Lifecycle decisions now live on the ledger settings page**, because a single "leave"
@@ -190,13 +183,22 @@ export function BookManageSheet({
         * is reachable *only* by tapping outside.
         */}
       <div
+        ref={backdropRef}
+        data-overlay-backdrop="sheet"
         aria-hidden="true"
-        onClick={onClose}
-        className="fixed inset-0 z-40 bg-overlay-soft backdrop-in"
+        onClick={requestClose}
+        className={`fixed inset-0 z-40 bg-overlay-soft ${closing ? "backdrop-out" : "backdrop-in"}`}
       />
 
       <div
         ref={sheetRef}
+        tabIndex={-1}
+        data-overlay-surface="sheet"
+        inert={closing}
+        data-overlay-state={closing ? "closing" : "open"}
+        data-overlay-dragging={dragY > 0 ? "true" : undefined}
+        data-overlay-entered={entered ? "true" : undefined}
+        onAnimationEnd={(event) => { if (event.target === event.currentTarget && event.animationName === "libellum-sheet-in") setEntered(true); }}
         role="dialog"
         aria-modal="true"
         aria-label={t("books.manageNamed", { name: book.name })}
@@ -214,18 +216,20 @@ export function BookManageSheet({
           /** ⚠️ Downward only: pulling *up* must not lift the sheet off the bottom edge. */
           setDragY(Math.max(0, dy));
         }}
-        onTouchEnd={() => {
-          if (dragY > 90) onClose();
-          setDragY(0);
+        onTouchEnd={(event) => {
+          const offset = startY.current === null ? 0 : Math.max(0, (event.changedTouches[0]?.clientY ?? startY.current) - startY.current);
+          if (offset > 90) { setDragY(offset); requestClose(); }
+          else setDragY(0);
           startY.current = null;
         }}
-        style={dragY === 0 ? undefined : { transform: `translateY(${String(dragY)}px)` }}
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md max-h-[calc(var(--lv-vh)*100_-_24px)] overflow-y-auto overscroll-contain rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
-          dragY === 0 ? "sheet-in" : ""
+        onTouchCancel={() => { setDragY(0); startY.current = null; }}
+        style={{ "--overlay-drag": `${dragY}px`, transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, bottom: keyboard || undefined, maxHeight: `calc(var(--lv-vh) * 100 - 24px - ${keyboard}px)` } as React.CSSProperties}
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-md max-h-[calc(var(--lv-vh)*100_-_24px)] flex-col rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
+          closing ? "sheet-out" : dragY === 0 ? "sheet-in" : ""
         }`}
       >
         {/* ⚠️ The drag handle — the owner asked for it, and it is also what says "this slides". */}
-        <div data-sheet-drag className="flex justify-center pt-3 pb-1">
+        <div data-sheet-drag data-overlay-drag className="flex justify-center pt-3 pb-1">
           <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />
         </div>
 
@@ -235,7 +239,7 @@ export function BookManageSheet({
           * 退出或弃置操作前，不能让用户误认目标."* So it carries the name **and the number**, which is
           * the one thing that distinguishes two ledgers somebody named identically.
           */}
-        <div data-sheet-drag className="flex items-center justify-between gap-3 px-5 pt-2 pb-3">
+        <div data-sheet-drag data-overlay-drag className="flex items-center justify-between gap-3 px-5 pt-2 pb-3">
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-base font-medium text-ink">{book.name}</span>
             <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
@@ -256,7 +260,7 @@ export function BookManageSheet({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label={t("books.sheet.close")}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
           >
@@ -264,12 +268,13 @@ export function BookManageSheet({
           </button>
         </div>
 
+        <div className="min-h-0 overflow-y-auto overscroll-contain">
         <ul className="border-t border-line">
           {items.map((item) => (
             <li key={item.key}>
               <button
                 type="button"
-                onClick={item.onSelect}
+                onClick={() => afterExit(item.onSelect)}
                 className="flex min-h-12 w-full items-center gap-3 border-b border-line px-5 py-3 text-left transition hover:bg-canvas"
               >
                 <span className="text-muted"><SheetIcon kind={item.key} /></span>
@@ -284,13 +289,14 @@ export function BookManageSheet({
           <button
             type="button"
             onClick={() => {
-              go(`/books/${book.id}/settings`);
+              afterExit(() => go(`/books/${book.id}/settings`));
             }}
             className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-ink transition hover:bg-canvas"
           >
             <SheetIcon kind="archive" />
             <span className="min-w-0">{t("books.sheet.lifecycle")}</span>
           </button>
+        </div>
         </div>
       </div>
     </>

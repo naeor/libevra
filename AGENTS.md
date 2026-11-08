@@ -37,6 +37,7 @@
 | 改文案／字号 | [`specs/design/文字语义与排版规范.md`](docs/specs/design/文字语义与排版规范.md) |
 | 改颜色 | [`specs/design/颜色语义与配色规范.md`](docs/specs/design/颜色语义与配色规范.md) + [`颜色主题系统实现规范.md`](docs/specs/design/颜色主题系统实现规范.md) |
 | 改布局／间距／圆角 | [`specs/design/布局间距与圆角规范.md`](docs/specs/design/布局间距与圆角规范.md) |
+| 新增按钮／卡片／通用控件／组件动效或 S19 材质 | [S19 材质、组件与动效设计系统](docs/specs/design/S19-材质组件与动效设计系统.md)；先查 Component Gallery 与已有组件，不复制另一份材质 CSS |
 | 动海浪动画 | [`specs/design/海浪效果要求.md`](docs/specs/design/海浪效果要求.md) —— **唯一规格** |
 | 管理员／权限 | [`specs/product/管理员与权限边界-设计决定.md`](docs/specs/product/管理员与权限边界-设计决定.md)（**§8 是怎么复用**） |
 | 离线／同步／冲突（记账数据） | [`specs/product/S8-冲突-设计决定.md`](docs/specs/product/S8-冲突-设计决定.md)、[`离线与同步-设计决定.md`](docs/specs/product/离线与同步-设计决定.md) |
@@ -55,7 +56,7 @@
 | 部署／发布／备份／灾备 | [`docs/03-运维手册.md`](docs/03-运维手册.md) + [`ops/`](docs/ops/) |
 | 本地启动 / `localhost:5173` 打不开 / 端口或 HTTPS | [`ops/本地开发环境与5173.md`](docs/ops/本地开发环境与5173.md) + [主目录更新规范](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md) §2 规则 5–7（**§4 WIP 保护强制门禁**） |
 | 离线历史读取上限 | [`离线历史读取容量上限与长期优化`](docs/specs/features/离线历史读取容量上限与长期优化-20261028.md) |
-| 判断某功能做没做 | [`changelog/1.18.md`](docs/changelog/1.18.md)（现行；1.10–1.17 已冻结） |
+| 判断某功能做没做 | [`changelog/1.19.md`](docs/changelog/1.19.md)（现行；此前系列见 changelog 目录） |
 | 追问"为什么当初这么定" | [`adr/README.md`](docs/adr/README.md) → ADR 正文 |
 | 查一段历史 | [`archive/`](docs/archive/README.md)（**历史，不要照着做**） |
 
@@ -117,7 +118,7 @@
 
 | 规矩 | 为什么 |
 |---|---|
-| 用户可见改动 → 升版本号（`packages/shared/src/version.ts`）+ [`changelog/1.18.md`](docs/changelog/1.18.md) 一条（改了什么 / 为什么 / 怎么验证，几行即可） | 版本号是区分构建的唯一手段 |
+| 用户可见改动 → 升版本号（`packages/shared/src/version.ts`）+ [`changelog/1.19.md`](docs/changelog/1.19.md) 一条（改了什么 / 为什么 / 怎么验证，几行即可） | 版本号是区分构建的唯一手段 |
 | **web 有改动，提交前 `pnpm check:build` 不能省**（它已包含 web 的 `tsc`，不必再单独 typecheck web） | typecheck 与测试拦不住"整个应用起不来"（发生过） |
 | 改完 grep 验证真的落地了 | 写过但没接线（`lessons.md` §8.1） |
 | **不许用 shell 做 UTF-8 源码字符串替换** | 本项目因此出过两次事故 |
@@ -156,7 +157,7 @@ pnpm check:db         # 开发库 / 测试库迁移一致
 
 ## 7. 文档体系
 
-`AGENTS.md`（规则）· `docs/STATUS.md`（★ 唯一当前状态，覆盖式短表）· `docs/00-索引.md`（导航与阅读分级）· `docs/01-规划.md`（顶部「现行路线」）· `docs/specs/`（现行规格）· `docs/ops/`（可复用运维手册）· `docs/changelog/1.18.md`（现行版本记录）· `docs/archive/`（只读历史，AI 默认不读）。完整目录与每份文档的用途见 [`docs/00-索引.md`](docs/00-索引.md)。
+`AGENTS.md`（规则）· `docs/STATUS.md`（★ 唯一当前状态，覆盖式短表）· `docs/00-索引.md`（导航与阅读分级）· `docs/01-规划.md`（顶部「现行路线」）· `docs/specs/`（现行规格）· `docs/ops/`（可复用运维手册）· `docs/changelog/1.19.md`（现行版本记录）· `docs/archive/`（只读历史，AI 默认不读）。完整目录与每份文档的用途见 [`docs/00-索引.md`](docs/00-索引.md)。
 
 ### 7.1 写入规则
 

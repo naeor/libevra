@@ -1,0 +1,73 @@
+/* 独立 HTML 内的材质样例。只读既有令牌，不改变 UserAvatar 或正式 S19 规则。 */
+html[data-avatar-lab] { height: auto; min-height: 100%; overflow: auto; }
+html[data-avatar-lab] body { height: auto; min-height: 100dvh; overflow: auto; background: var(--s19-canvas); color: var(--color-ink); }
+html[data-avatar-lab] body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: var(--s19-bg); pointer-events: none; }
+.avlab-page { max-width: 880px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+.avlab-heading { padding: 0 4px 24px; }
+.avlab-eyebrow { margin: 0 0 10px; color: var(--color-brand-dark); font: 500 var(--text-helper)/1.5 var(--font-sans); letter-spacing: .12em; }
+.avlab-heading h1 { margin: 0 0 10px; font: 500 var(--text-page-title)/1.4 var(--font-sans); }
+.avlab-heading > p:last-child, .avlab-description { font: var(--text-helper)/1.7 var(--font-sans); color: var(--color-muted); margin: 0; }
+.avlab-style-switch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--color-line); border-radius: 22px; background: color-mix(in srgb, var(--color-surface) 38%, transparent); }
+.avlab-style-switch button { min-height: 60px; border-radius: 18px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; color: var(--color-muted); }
+.avlab-style-switch b { font: 500 var(--text-body)/1.4 var(--font-sans); }
+.avlab-style-switch span { font: var(--text-micro)/1.4 var(--font-sans); }
+.avlab-style-switch button[aria-pressed="true"] { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); color: var(--color-brand-dark); }
+.avlab-preview, .avlab-samples { margin-bottom: 18px; border: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent); border-radius: 24px; padding: 20px; background: color-mix(in srgb, var(--color-surface) 35%, transparent); }
+.avlab-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.avlab-section-title h2 { margin: 0; font: 500 var(--text-body)/1.5 var(--font-sans); }
+.avlab-section-title > span { color: var(--color-muted); font: var(--text-micro)/1.5 var(--font-sans); white-space: nowrap; }
+.avlab-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0 24px; }
+.avlab-page figure { margin: 0; min-width: 0; text-align: center; }
+.avlab-display { height: 174px; display: grid; place-items: center; }
+.avlab-page figcaption { color: var(--color-muted); font: var(--text-helper)/1.5 var(--font-sans); }
+.avlab-page figcaption b { color: var(--color-ink); font-weight: 500; }
+.avlab-page figcaption span { display: block; margin-top: 3px; }
+.avlab-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border-top: 1px solid var(--color-line); padding-top: 20px; }
+.avlab-controls label, .avlab-controls legend { font: var(--text-helper)/1.5 var(--font-sans); color: var(--color-muted); }
+.avlab-controls fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.avlab-controls select { display: block; margin-top: 6px; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--color-line); border-radius: var(--radius-field); background: var(--color-surface); color: var(--color-ink); }
+.avlab-options { display: flex; gap: 3px; margin-top: 6px; padding: 3px; background: color-mix(in srgb, var(--color-surface) 36%, transparent); border-radius: var(--radius-field); }
+.avlab-options button { flex: 1; min-width: 0; min-height: 38px; border-radius: 10px; font: var(--text-helper)/1.4 var(--font-sans); color: var(--color-muted); }
+.avlab-options button[aria-pressed="true"] { background: var(--color-surface); color: var(--color-brand-dark); box-shadow: var(--s19-card-sh); }
+.avlab-page button:focus-visible, .avlab-page select:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 3px; }
+.avlab-size-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 8px; margin-top: 12px; }
+.avlab-size-display { height: 156px; display: grid; place-items: center; }
+.avlab-state-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.avlab-state-display { height: 118px; display: grid; place-items: center; }
+.avlab-footnote, .avlab-footer { color: var(--color-muted); font: var(--text-micro)/1.7 var(--font-sans); }
+.avlab-footnote { margin: 22px 0 0; }
+.avlab-footer { padding: 8px; text-align: center; }
+
+/* 头像图案从未旋转、缩放、降饱和或覆盖高光。底座各层为平级元素。 */
+.avlab-frame { --av-rim: clamp(3px, calc(var(--av-size) * .07), 8px); --av-corner: 38%; position: relative; display: inline-grid; place-items: center; width: calc(var(--av-size) + var(--av-rim) * 2); height: calc(var(--av-size) + var(--av-rim) * 2); flex-shrink: 0; }
+.avlab-frame .avlab-art { position: relative; z-index: 3; display: block; width: var(--av-size); height: var(--av-size); filter: none; opacity: 1; }
+.avlab-plate { position: absolute; inset: 0; border-radius: var(--av-corner); pointer-events: none; }
+.avlab-plate-back { z-index: 0; transform: translate(-3%, 5%) rotate(-11deg); background: var(--s19-card-bg); box-shadow: 0 1px 1px color-mix(in srgb, var(--color-ink) 9%, transparent), 0 8px 15px -7px color-mix(in srgb, var(--color-ink) 17%, transparent); }
+.avlab-plate-middle { z-index: 1; transform: translate(3%, 1%) rotate(7deg); background: var(--s19-card-bg); box-shadow: 0 0 0 .5px var(--color-line), 0 2px 3px color-mix(in srgb, var(--color-ink) 7%, transparent); }
+.avlab-plate-front { z-index: 2; background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
+.avlab-frame::after { content: ""; position: absolute; inset: -4px; border: 2px solid transparent; border-radius: var(--av-corner); pointer-events: none; z-index: 4; }
+.avlab-frame[data-state="selected"]::after { border-color: var(--color-brand); }
+.avlab-lock { position: absolute; z-index: 5; right: -2px; bottom: -2px; width: clamp(16px, calc(var(--av-size) * .2), 22px); aspect-ratio: 1; display: grid; place-items: center; border-radius: 50%; background: var(--color-surface); color: var(--color-muted); box-shadow: 0 0 0 1px var(--color-line); }
+.avlab-lock svg { width: 70%; height: 70%; }
+
+/* 瓷片沿用 B1 现有渐变。弧面高光只在承载层上，中央图案不会被提亮。 */
+:root[data-visual-style="b1"] .avlab-plate { box-shadow: inset 0 1px 0 var(--s19-on-accent), inset 0 -2px 2px color-mix(in srgb, var(--color-ink) 6%, transparent), 0 0 0 .5px var(--color-line), 0 5px 9px -4px color-mix(in srgb, var(--color-ink) 20%, transparent); }
+:root[data-visual-style="b1"] .avlab-plate-front::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(145deg, color-mix(in srgb, var(--s19-on-accent) 65%, transparent), transparent 32%, transparent 75%, color-mix(in srgb, var(--s19-on-accent) 40%, transparent)); }
+
+/* 原生背景滤镜只落在外围底座；SVG 在其上方，且不是滤镜层的子元素。 */
+:root[data-visual-style="b2"] .avlab-plate-back { display: none; }
+:root[data-visual-style="b2"] .avlab-plate-middle { transform: translate(2%, 3%); background: var(--s19-tool-bg); box-shadow: var(--s19-tool-sh); }
+:root[data-visual-style="b2"] .avlab-plate-front { background: var(--s19-tool-bg); box-shadow: var(--s19-tool-sh); -webkit-backdrop-filter: var(--s19-tool-filter); backdrop-filter: var(--s19-tool-filter); }
+:root[data-visual-style="b2"] .avlab-plate-front::before { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 1px 1px 1px color-mix(in srgb, var(--s19-on-accent) 90%, transparent), inset -1px -1px .5px color-mix(in srgb, var(--s19-on-accent) 35%, transparent); }
+:root[data-visual-style="b2"] .avlab-lock { background: var(--s19-book-bg); box-shadow: var(--s19-tool-sh); }
+
+/* C 与原图对照保留现有圆形及选中环。锁定只放原锁标，不处理图案像素。 */
+:root[data-visual-style="c"] .avlab-frame, .avlab-frame[data-plain="true"] { --av-rim: 0px; --av-corner: 50%; }
+:root[data-visual-style="c"] .avlab-plate, .avlab-frame[data-plain="true"] .avlab-plate { display: none; }
+.avlab-frame[data-plain="true"] .avlab-lock { background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-line); }
+@media (max-width: 580px) {
+  .avlab-page { padding-inline: 16px; }
+  .avlab-preview, .avlab-samples { padding: 16px; }
+  .avlab-size-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .avlab-controls { gap: 12px; }
+}

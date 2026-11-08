@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Libevra S19 · B1 / B2 玻璃材质对照</title>
+<style>
+  :root { --bg: #e9eae7; --panel: #f7f7f5; --ink: #1c2320; --muted: #646d68; --line: rgba(28, 35, 32, .12); --brand: #55997a; --brand-d: #2f5f4a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  a { color: var(--brand-d); }
+  header.top { position: sticky; top: 0; z-index: 5; display: flex; flex-direction: column; gap: 8px; padding: 10px 20px; background: rgba(247, 247, 245, .95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: 6px; }
+  .brand b { font-size: 16px; letter-spacing: -.01em; }
+  .brand span { color: var(--muted); font-size: 12.5px; }
+  .ctrl { display: flex; align-items: center; gap: 6px; }
+  .ctrl > label, .ctrl > .lab { font-size: 12px; color: var(--muted); margin-right: 2px; white-space: nowrap; }
+  .seg { display: inline-flex; flex-wrap: wrap; padding: 2px; border-radius: 9px; background: #e3e4e0; }
+  .seg button { border: 0; background: none; padding: 5px 10px; border-radius: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .1); }
+  .seg.main button { padding: 6px 12px; }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); user-select: none; white-space: nowrap; }
+  .toggle input { accent-color: var(--brand); width: 15px; height: 15px; }
+  .slider { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .slider input { width: 104px; accent-color: var(--brand); }
+  .slider output { width: 34px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .linkbtn { border: 0; background: none; padding: 4px 6px; color: var(--brand-d); font-size: 12.5px; }
+  .views { margin-left: auto; }
+  main { padding: 18px 20px 30px; }
+  .stage { display: flex; gap: 40px; justify-content: center; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; }
+  .cap { width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 6px; }
+  .cap h2 { margin: 0; font-size: 15px; }
+  .cap h2 small { font-weight: 400; color: var(--muted); margin-left: 6px; font-size: 12.5px; }
+  .cap a { font-size: 12.5px; white-space: nowrap; }
+  .kw { width: 100%; padding: 0 6px; margin: -6px 0 0; font-size: 12px; color: var(--muted); }
+  .scaler { transform-origin: top center; }
+  .phone { position: relative; padding: 9px; border-radius: 56px; background: #1a1c1b; box-shadow: 0 0 0 1px #3a3d3b inset, 0 30px 60px -30px rgba(0, 0, 0, .55); }
+  .phone.classic { border-radius: 30px; }
+  .phone iframe { display: block; border: 0; border-radius: 47px; background: #fff; }
+  .phone.classic iframe { border-radius: 22px; }
+  .look { max-width: 900px; margin: 16px auto 0; padding: 10px 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; color: var(--ink); }
+  .look b { color: var(--brand-d); margin-right: 6px; }
+  .notes { max-width: 1120px; margin: 0 auto; display: none; }
+  body[data-view="notes"] .notes { display: block; }
+  body[data-view="notes"] .stage, body[data-view="notes"] .look, body[data-view="notes"] .lab-only { display: none; }
+  .notes h1 { font-size: 22px; margin: 6px 0 4px; }
+  .notes .lede { color: var(--muted); margin: 0 0 20px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: var(--panel); border-radius: 14px; padding: 16px 18px 12px; border: 1px solid var(--line); }
+  .card h2 { margin: 0 0 2px; font-size: 16px; }
+  .card .en { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card li { margin: 3px 0; }
+  section.block { margin-top: 24px; }
+  section.block h2 { font-size: 17px; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); font-size: 13.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  th { background: #efefec; font-weight: 600; font-size: 12.5px; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  td.same { color: var(--muted); }
+  .mt { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .mt.cv { background: #e4e8e3; color: #4b5650; }
+  .mt.ct { background: #fff; color: #39433e; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+  .mt.st { background: linear-gradient(180deg, #fffdf8, #f2ede3); color: #6d5b3c; box-shadow: inset 0 0 0 1px rgba(110,90,60,.18); }
+  .mt.fr { background: linear-gradient(135deg, rgba(196,226,210,.9), rgba(240,214,190,.85)); color: #2f5f4a; box-shadow: inset 0 0 0 1px rgba(255,255,255,.9); }
+  .mt.ac { background: #55997a; color: #fff; }
+  .launcher { display: none; padding: 18px; }
+  .launcher a { display: block; padding: 16px 18px; margin-bottom: 12px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); text-decoration: none; color: var(--ink); }
+  .launcher a b { font-size: 16px; }
+  .launcher a span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  @media (max-width: 760px) {
+    header.top, main { display: none; }
+    .launcher { display: block; }
+  }
+  @media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body data-view="lab">
+<header class="top">
+  <div class="row">
+    <div class="brand"><b>B1 / B2 玻璃材质对照</b><span>Libevra S19 · 第三轮 · 同一份示例数据 · 可交互</span></div>
+    <div class="lab-only ctrl"><span class="lab">场景</span><div class="seg main" id="scene">
+      <button data-v="home" aria-pressed="true">明细</button><button data-v="scrolled">明细 · 滚动后</button><button data-v="search">搜索展开</button><button data-v="filter">筛选浮层</button><button data-v="sort">排序浮层</button><button data-v="settings">设置</button><button data-v="entry">账目详情</button>
+    </div></div>
+    <div class="ctrl views"><div class="seg" id="view"><button data-v="lab" aria-pressed="true">对照</button><button data-v="notes">材质分配说明</button></div><a href="index.html" style="font-size:12.5px;margin-left:8px">A / B / C 对照 ›</a></div>
+  </div>
+  <div class="row lab-only">
+    <div class="ctrl"><span class="lab">更多</span><div class="seg" id="more">
+      <button data-v="stats">分析</button><button data-v="ledger">协作</button><button data-v="me">我的</button><button data-v="pick">选择账本</button><button data-v="menu">记一笔</button><button data-v="delete">删除确认</button><button data-v="batch">批量选择</button>
+    </div></div>
+    <div class="ctrl"><span class="lab">屏幕</span><div class="seg" id="size">
+      <button data-v="320x568">320</button><button data-v="375x667">375</button><button data-v="390x844" aria-pressed="true">390</button><button data-v="430x932">430</button>
+    </div></div>
+    <div class="ctrl"><span class="lab">玻璃调试</span>
+      <label class="slider">乳白度<input type="range" id="ga" min="0.5" max="1.5" step="0.05" value="1"><output id="gav">1.00</output></label>
+      <label class="slider">模糊<input type="range" id="gb" min="0" max="1.6" step="0.05" value="1"><output id="gbv">1.00</output></label>
+      <button type="button" class="linkbtn" id="greset">还原</button>
+    </div>
+    <div class="ctrl">
+      <label class="toggle"><input type="checkbox" id="sync" checked>同步操作</label>
+      <label class="toggle"><input type="checkbox" id="fit" checked>适应窗口</label>
+      <label class="toggle"><input type="checkbox" id="nofx">无模糊回退</label>
+      <label class="toggle"><input type="checkbox" id="reduce">减少动态</label>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="stage" id="stage"></div>
+  <p class="look" id="look"></p>
+
+  <div class="notes">
+    <h1>材质分配说明</h1>
+    <p class="lede">B1、B2 共用同一套页面结构（第二轮 B 的结构，信息顺序与正式版一致），也共用同一套五类材质；两者只在“哪个组件用哪种材质”和材质参数上不同。B 第二轮页面保持不动，A、C 未改。</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>B1 · 柔和环境磨砂</h2><p class="en">Ambient Frost — 朦胧的环境色，内容稳定，玻璃只做操作层</p>
+        <ul>
+          <li>背景是已经很柔的色雾 + 细颗粒，玻璃上只透出淡淡的环境色</li>
+          <li>收支摘要、身份卡、详情头部是 Satin；列表、设置、详情字段是 Content</li>
+          <li>玻璃给：顶部工具钮、搜索栏、分段底板、贴底导航、浮层、记一笔面板</li>
+          <li>滚动后顶部变成一整条磨砂带，带上的工具钮与吸顶分段自动退成浅白控件（不再各自模糊）</li>
+          <li>“+”是平整的绿色 Satin，只有上沿一道细高光，略突出底栏</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>B2 · 分层透光玻璃</h2><p class="en">Layered Glass — 清晰背景之上的分层玻璃，摘要卡是主视觉</p>
+        <ul>
+          <li>背景是清晰、未预先模糊的抽象光斑与色带；只在玻璃覆盖处变柔并透出颜色，玻璃外轮廓依然清楚</li>
+          <li>收支主卡（支出 / 收入）是玻璃；结余、日均是两张 Satin 小卡</li>
+          <li>月份胶囊、工具钮、分段底板、悬浮底栏、设置分组、身份卡、详情头部、分析前两张卡用玻璃</li>
+          <li>顶部不加玻璃容器：滚动后只出现一条无边线、向下淡出的渐进模糊，玻璃控件浮在上面</li>
+          <li>“+”是带绿色的薄玻璃圆片，在悬浮底栏之内，边缘高光，没有中心亮斑与厚重阴影</li>
+        </ul>
+      </div>
+    </div>
+
+    <section class="block"><h2>五类材质</h2>
+      <table><thead><tr><th style="width:14%">材质</th><th>怎么做</th><th style="width:30%">只用在</th></tr></thead><tbody>
+        <tr><td><span class="mt cv">Canvas</span></td><td>页面背景，固定不随内容滚动。B1：色雾 + 颗粒；B2：清晰的 SVG 光斑、色带与两颗小亮点。</td><td>整页底</td></tr>
+        <tr><td><span class="mt ct">Content</span></td><td>不透明暖白，0.5px 轻边界 + 很浅的落影，不做任何实时效果。</td><td>账目列表、长文字、详情字段、图表卡、浮层里的选项分组</td></tr>
+        <tr><td><span class="mt st">Satin</span></td><td>近不透明；自上而下极轻的明暗；一圈上亮下淡的 1px 细边；不做厚重立体与颗粒堆叠。</td><td>重点信息容器</td></tr>
+        <tr><td><span class="mt fr">Frosted</span></td><td>乳白基调（不是降低透明度的白卡）：背后内容局部模糊并提高饱和度（环境色渗入）；面自上而下略有明暗；边缘一圈左上亮、右下暗的细光边；内侧上沿薄反光、下沿弱回光，暗示玻璃厚度与折射。按用途分四档：控件 / 面板 / 底栏 / 浮层，透明度与模糊依次加深。</td><td>操作层与浮层；B2 另加主视觉卡</td></tr>
+        <tr><td><span class="mt ac">Accent</span></td><td>品牌绿。B1：平整绿色 Satin；B2：带绿色的薄玻璃圆片。高光只在边缘，不做中心大亮斑、不叠多层阴影。</td><td>中央“+”与主操作按钮</td></tr>
+      </tbody></table>
+    </section>
+
+    <section class="block"><h2>组件材质分配表</h2>
+      <table><thead><tr><th style="width:20%">组件</th><th>B1 · 柔和环境磨砂</th><th>B2 · 分层透光玻璃</th></tr></thead><tbody>
+        <tr><td>页面背景</td><td><span class="mt cv">Canvas</span> 朦胧色雾 + 颗粒</td><td><span class="mt cv">Canvas</span> 清晰光斑与色带，不预模糊</td></tr>
+        <tr><td>顶部工具钮（搜索 / 排序 / 批量 / 更多）</td><td><span class="mt fr">Frosted</span> 控件</td><td><span class="mt fr">Frosted</span> 控件</td></tr>
+        <tr><td>展开的搜索栏</td><td><span class="mt fr">Frosted</span> 控件，有清除钮与聚焦描边</td><td class="same">同 B1</td></tr>
+        <tr><td>月份</td><td>纯文字</td><td><span class="mt fr">Frosted</span> 胶囊</td></tr>
+        <tr><td>滚动后的顶部</td><td><span class="mt fr">Frosted</span> 一整条磨砂带；带上控件退为浅白（不模糊）</td><td>渐进模糊边缘（无边线、向下淡出）；控件保持玻璃</td></tr>
+        <tr><td>收支摘要</td><td><span class="mt st">Satin</span> 一张卡（2 × 2）</td><td><span class="mt fr">Frosted</span> 主卡（支出 / 收入）+ <span class="mt st">Satin</span> 两张小卡</td></tr>
+        <tr><td>全部 / 支出 / 收入</td><td><span class="mt fr">Frosted</span> 底板 + 实亮选中片；吸顶后底板退为浅灰槽</td><td><span class="mt fr">Frosted</span> 底板 + 实亮选中片</td></tr>
+        <tr><td>账目列表</td><td><span class="mt ct">Content</span>；分类图标平涂浅色</td><td><span class="mt ct">Content</span>；分类图标浅釉面</td></tr>
+        <tr><td>底部导航</td><td><span class="mt fr">Frosted</span> 贴底；选中项为浅绿片</td><td><span class="mt fr">Frosted</span> 悬浮胶囊；选中项为更亮的白片</td></tr>
+        <tr><td>中央“+”</td><td><span class="mt ac">Accent</span> 绿色 Satin，略突出底栏</td><td><span class="mt ac">Accent</span> 绿色薄玻璃，在底栏之内</td></tr>
+        <tr><td>记一笔面板</td><td><span class="mt fr">Frosted</span> 面板 + <span class="mt ct">Content</span> 图标</td><td><span class="mt fr">Frosted</span> 面板 + <span class="mt st">Satin</span> 图标</td></tr>
+        <tr><td>Bottom Sheet</td><td><span class="mt fr">Frosted</span> 贴底；内部选项为近不透明白</td><td><span class="mt fr">Frosted</span> 悬浮、四周留边；内部同 B1</td></tr>
+        <tr><td>对话框、提示</td><td><span class="mt fr">Frosted</span></td><td class="same">同 B1</td></tr>
+        <tr><td>设置分组</td><td><span class="mt ct">Content</span></td><td><span class="mt fr">Frosted</span>（短标签，适合透光）</td></tr>
+        <tr><td>我的 · 身份卡 / 列表 / 退出</td><td><span class="mt st">Satin</span> / <span class="mt ct">Content</span> / <span class="mt fr">Frosted</span></td><td><span class="mt fr">Frosted</span> / <span class="mt fr">Frosted</span> / <span class="mt fr">Frosted</span></td></tr>
+        <tr><td>账目详情 · 头部 / 字段</td><td><span class="mt st">Satin</span> / <span class="mt ct">Content</span></td><td><span class="mt fr">Frosted</span> / <span class="mt ct">Content</span></td></tr>
+        <tr><td>账目详情 · 修改 / 复制</td><td><span class="mt ac">Accent</span> Satin / <span class="mt fr">Frosted</span> 控件</td><td><span class="mt ac">Accent</span> 玻璃 / <span class="mt fr">Frosted</span> 控件</td></tr>
+        <tr><td>分析 · 支出分类 / 概览 / 其它卡</td><td><span class="mt ct">Content</span> / <span class="mt st">Satin</span> / <span class="mt ct">Content</span></td><td><span class="mt fr">Frosted</span> / <span class="mt fr">Frosted</span> / <span class="mt ct">Content</span></td></tr>
+        <tr><td>协作 · 当前账本卡</td><td><span class="mt st">Satin</span></td><td><span class="mt fr">Frosted</span></td></tr>
+      </tbody></table>
+    </section>
+
+    <section class="block"><h2>统一规则</h2>
+      <table><tbody>
+        <tr><td style="width:20%">光源</td><td>两套都从左上方来：所有玻璃的亮边在左上、暗边在右下；内侧上沿是薄反光，下沿只有很弱的回光。</td></tr>
+        <tr><td>控件状态</td><td>常态：玻璃控件；按下：玻璃变亮、缩小约 7%；选中（如改过排序）：玻璃里带一点品牌绿；聚焦：2px 绿色描边。搜索栏有内容时出现清除钮。</td></tr>
+        <tr><td>不嵌套玻璃</td><td>玻璃上不再放玻璃容器。B1 滚动后的磨砂带上，控件退为浅白；B2 顶部只用无边线的渐进模糊；浮层里的选项分组都是近不透明白；B2 底栏里的“+”不再单独模糊，直接透出底栏。</td></tr>
+        <tr><td>可读性</td><td>密集信息（账目、详情字段、图表卡）一律 Content；玻璃上只放短标签和大数字，正文色保持深墨色。</td></tr>
+        <tr><td>布局</td><td>与第二轮 B 相同，一屏账目条数不减少；“当前账本”说明仍在底栏上方。</td></tr>
+      </tbody></table>
+    </section>
+
+    <section class="block"><h2>性能与回退</h2>
+      <table><tbody>
+        <tr><td style="width:20%">实时模糊的数量</td><td id="fxcount">实测（390 宽）：明细首屏 B1 6 处（4 个工具钮、分段底板、底栏），滚动后降到 3 处（磨砂带 2 层、底栏）；B2 首屏 8 处（另有月份胶囊、摘要主卡），滚动后 9 处（渐进边缘 2 层 + 玻璃控件与底栏）。设置页 B1 0 处、B2 2 处；账目详情 B1 1 处、B2 3 处。账目列表、详情字段、图表卡永远不做实时模糊。</td></tr>
+        <tr><td>回退</td><td>浏览器不支持背景模糊时，所有玻璃自动换成 97% 乳白实色、“+”换成实色绿；上方“无模糊回退”可直接预览。</td></tr>
+        <tr><td>调试</td><td>“乳白度”乘在所有玻璃的不透明度上，“模糊”乘在所有玻璃的模糊半径上，两台手机同时生效，只用于比较，不是正式设置。</td></tr>
+        <tr><td>动效</td><td>只做 transform / opacity；遵守系统“减少动态效果”。</td></tr>
+      </tbody></table>
+    </section>
+
+    <section class="block"><h2>已知限制</h2>
+      <table><tbody>
+        <tr><td style="width:20%">折射</td><td>“折射”只用边缘光与内侧回光来暗示，没有做真实的位移折射（那需要 SVG 位移滤镜，只在 Chromium 可用且很耗电）。</td></tr>
+        <tr><td>设备</td><td>只在桌面 Chromium 的手机尺寸下检查过；低端 Android 机上多处实时模糊的流畅度需要真机确认。B2 的渐进模糊边缘依赖遮罩 + 背景模糊，旧版浏览器会退为普通半透明边。</td></tr>
+        <tr><td>数据与流程</td><td>本地示例数据（“今天”固定为 2026 年 11 月 7 日）；记账表单、修改表单、设置子页等点按后只给提示。</td></tr>
+        <tr><td>主题</td><td>只做浅色；未接入主题色与深色模式。圆体数字只在 Apple 设备生效。</td></tr>
+      </tbody></table>
+    </section>
+  </div>
+</main>
+
+<div class="launcher">
+  <h2 style="margin:4px 0 4px;font-size:18px">B1 / B2 玻璃材质</h2>
+  <p style="color:var(--muted);margin:0 0 16px">在手机上单独打开；页面右侧的小把手可在各方案之间切换。</p>
+  <a href="b1.html"><b>B1 · 柔和环境磨砂</b><span>Ambient Frost · 朦胧环境色，玻璃只做操作层</span></a>
+  <a href="b2.html"><b>B2 · 分层透光玻璃</b><span>Layered Glass · 清晰背景上的分层玻璃</span></a>
+  <a href="index.html"><b>A / B / C 对照</b><span>第二轮三套方案</span></a>
+</div>
+
+<script>
+(function () {
+  const STYLES = [
+    { id: "b1", name: "B1 · 柔和环境磨砂", en: "Ambient Frost", kw: "Satin 摘要 · Content 列表 · 玻璃操作层" },
+    { id: "b2", name: "B2 · 分层透光玻璃", en: "Layered Glass", kw: "清晰背景 · 玻璃主卡 · 悬浮玻璃底栏" },
+  ];
+  /* 场景：页面 + 状态 */
+  const SCENES = {
+    home: { route: "#/", look: "收支摘要与“+”的材质差别最明显：B1 摘要是 Satin、“+”是平整绿色；B2 摘要主卡是玻璃，光斑只在卡内变柔并透出颜色，卡外轮廓仍清楚。" },
+    scrolled: { route: "#/", scroll: 420, look: "顶部防嵌套：B1 顶栏与吸顶分段连成一条磨砂带，带上的工具钮与分段退为浅白；B2 只有一条向下淡出的渐进模糊，玻璃控件浮在上面。列表从下面穿过。" },
+    search: { route: "#/", search: true, query: "餐", look: "搜索栏与工具钮是同一种玻璃：输入后出现清除钮，聚焦时有绿色描边；“取消”是纯文字。" },
+    filter: { route: "#/", sheet: "filter", look: "浮层是玻璃，内部选项分组是近不透明白（不在玻璃上叠玻璃）。B1 贴底；B2 悬浮、四周留边。" },
+    sort: { route: "#/", sheet: "sort", look: "排序面板与筛选面板同一种材质；改过排序后，顶部排序钮会显示为带绿色的选中态。" },
+    settings: { route: "#/me/settings", look: "B1 设置分组是 Content；B2 设置分组是玻璃（短标签适合透光），分隔线与图标底加深一点保证可读。" },
+    entry: { route: "#/entry/family-0003", look: "头部：B1 Satin、B2 玻璃；字段一律 Content。主按钮：B1 绿色 Satin、B2 绿色薄玻璃；次按钮都是玻璃控件。" },
+    stats: { route: "#/stats", look: "B2 支出分类与概览两张卡是玻璃，其余图表卡保持 Content；B1 只有概览是 Satin。" },
+    ledger: { route: "#/ledger", look: "当前账本卡：B1 Satin，B2 玻璃；成员与编辑记录都是 Content。" },
+    me: { route: "#/me", look: "身份卡：B1 Satin、B2 玻璃；B2 的菜单列表与退出按钮也是玻璃。" },
+    pick: { route: "#/", sheet: "ledger", look: "选择账本：与其它浮层同一种玻璃；当前账本有勾与“当前记账”标记。" },
+    menu: { route: "#/", sheet: "menu", look: "记一笔面板：玻璃面板，内部图标 B1 为 Content、B2 为 Satin；“+”旋转为关闭。" },
+    delete: { route: "#/entry/family-0003", sheet: "delete", look: "对话框：玻璃面板 + 实色按钮；危险操作用红色实色。" },
+    batch: { route: "#/", batch: true, look: "批量选择：底栏换成操作条（同一种玻璃），顶部只剩“取消”。" },
+  };
+  const stage = document.getElementById("stage");
+  const state = { scene: "home", route: "#/", sheet: "", search: false, size: "390x844" };
+  let frames = [], quietUntil = 0;
+  const qs = (id) => document.getElementById(id);
+  const glass = () => ({ a: qs("ga").value, b: qs("gb").value });
+  function src(id, route) {
+    const classic = state.size === "320x568" || state.size === "375x667";
+    return `${id}.html?frame=${classic ? "classic" : "1"}${qs("nofx").checked ? "&nofx" : ""}${qs("reduce").checked ? "&reduce" : ""}${route || "#/"}`;
+  }
+  function build() {
+    const [w, h] = state.size.split("x").map(Number);
+    const classic = h < 700;
+    stage.innerHTML = STYLES.map((s) => `<div class="col"><div class="cap"><h2>${s.name}<small>${s.en}</small></h2><a href="${s.id}.html${state.route}" target="_blank" rel="noopener">单独打开 ↗</a></div><p class="kw">${s.kw}</p><div class="scaler"><div class="phone ${classic ? "classic" : ""}"><iframe title="${s.name}" data-style="${s.id}" width="${w}" height="${h}" src="${src(s.id, state.route)}"></iframe></div></div></div>`).join("");
+    frames = [...stage.querySelectorAll("iframe")];
+    quietUntil = Date.now() + 2500;
+    frames.forEach((f) => f.addEventListener("load", () => { send(f, { glass: glass() }); setTimeout(() => applyState(f, SCENES[state.scene] || {}), 250); }));
+    fit();
+  }
+  function fit() {
+    const [w, h] = state.size.split("x").map(Number);
+    const total = h + 18, colW = w + 18;
+    let s = 1;
+    if (qs("fit").checked) {
+      const availH = window.innerHeight - document.querySelector("header.top").offsetHeight - 36 - 46 - 60;
+      const availW = (window.innerWidth - 40 - 40) / 2;
+      s = Math.min(1, availH / total, availW / colW);
+    }
+    stage.querySelectorAll(".scaler").forEach((el) => { el.style.transform = `scale(${s})`; el.style.width = colW + "px"; el.style.height = total * s + "px"; });
+    stage.querySelectorAll(".cap, .kw").forEach((el) => (el.style.maxWidth = Math.max(260, colW * s) + "px"));
+    qs("look").style.maxWidth = Math.max(560, (colW * s) * 2 + 40) + "px";
+  }
+  function send(f, msg) { f.contentWindow?.postMessage({ lv: "cmd", ...msg }, "*"); }
+  function broadcast(msg, except) { frames.forEach((f) => { if (f.contentWindow !== except) send(f, msg); }); }
+  function press(group, v) { ["scene", "more"].includes(group) ? ["scene", "more"].forEach((g) => qs(g).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)))) : qs(group).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
+  /* 在一台手机里套用场景状态（浮层 / 搜索 / 滚动 / 批量） */
+  function applyState(f, sc) {
+    if (sc.search) send(f, { search: true, query: sc.query || "" });
+    if (sc.sheet) send(f, { sheet: sc.sheet });
+    if (!sc.search) send(f, { scroll: sc.scroll || 0 });
+    if (sc.batch) send(f, { batch: true });
+  }
+  function go(name) {
+    const sc = SCENES[name]; if (!sc) return;
+    state.scene = name; press("scene", name);
+    qs("look").innerHTML = `<b>看点</b>${sc.look}`;
+    // 先收起所有状态，再跳页，再套用状态
+    quietUntil = Date.now() + 1500;
+    broadcast({ sheet: null, search: false, batch: false });
+    const changed = sc.route !== state.route;
+    state.route = sc.route; state.sheet = sc.sheet || ""; state.search = !!sc.search;
+    setTimeout(() => { broadcast({ route: sc.route }); setTimeout(() => frames.forEach((f) => applyState(f, sc)), changed ? 480 : 120); }, 80);
+  }
+  qs("scene").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.v); });
+  qs("more").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.v); });
+  qs("size").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.size = b.dataset.v; press("size", state.size); build(); });
+  qs("view").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; document.body.dataset.view = b.dataset.v; press("view", b.dataset.v); if (b.dataset.v === "lab") fit(); });
+  qs("fit").addEventListener("change", fit);
+  qs("nofx").addEventListener("change", () => broadcast({ nofx: qs("nofx").checked }));
+  qs("reduce").addEventListener("change", () => broadcast({ reduce: qs("reduce").checked }));
+  const onGlass = () => { qs("gav").value = Number(qs("ga").value).toFixed(2); qs("gbv").value = Number(qs("gb").value).toFixed(2); broadcast({ glass: glass() }); };
+  qs("ga").addEventListener("input", onGlass); qs("gb").addEventListener("input", onGlass);
+  qs("greset").addEventListener("click", () => { qs("ga").value = 1; qs("gb").value = 1; onGlass(); });
+  window.addEventListener("resize", fit);
+
+  // 同步：任一手机里的跳转 / 浮层 / 搜索，同步到另一台
+  window.addEventListener("message", (e) => {
+    const m = e.data;
+    if (!m || m.lv !== "state" || !qs("sync").checked || Date.now() < quietUntil) return;
+    const msg = {};
+    if (m.route !== state.route) { state.route = m.route; msg.route = m.route; }
+    const sheet = m.dialog ? "delete" : m.menu ? "menu" : m.sheet || "";
+    if (sheet !== state.sheet) { state.sheet = sheet; if (sheet !== "delete") msg.sheet = sheet || null; }
+    if (!!m.search !== state.search) { state.search = !!m.search; msg.search = state.search; }
+    if (Object.keys(msg).length) broadcast(msg, e.source);
+  });
+  qs("look").innerHTML = `<b>看点</b>${SCENES.home.look}`;
+  build();
+})();
+</script>
+</body>
+</html>

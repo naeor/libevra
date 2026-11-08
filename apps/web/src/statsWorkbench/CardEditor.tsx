@@ -13,6 +13,7 @@ import { endOfMonth, startOfMonth } from "@libellum/shared";
 import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layout";
 
 import { BottomSheet } from "../components/BottomSheet.js";
+import { SlidingSelection } from "../components/ui/SlidingSelection.js";
 import { useI18n } from "../i18n/index.js";
 import { analysisTitle, cardTitle, windowSubtitle } from "./cards.js";
 import { cardWindow, RELATIVE_WINDOWS, type RelativeWindow } from "./timeWindows.js";
@@ -690,14 +691,14 @@ export function ScrollRail({ children, className = "", role, label }: { readonly
     };
   }, []);
   return (
-    <div
-      ref={ref}
+    <SlidingSelection
+      hostRef={ref}
       role={role}
       aria-label={label}
       className={`sw-rail ${edges.start ? "sw-rail-fade-start" : ""} ${edges.end ? "sw-rail-fade-end" : ""} ${className}`}
     >
       {children}
-    </div>
+    </SlidingSelection>
   );
 }
 

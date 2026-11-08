@@ -1,0 +1,24 @@
+@import "./hybrid.css";
+/* 由正式 B2 与实验入口共用。完整 plane 或 root 快照移动；不 transform display:contents。 */
+:root[data-motion-lab] { view-transition-name: none; }
+:root[data-motion-lab] #motion-stage { view-transition-name: motion-plane; }
+:root[data-motion-direction]::view-transition { pointer-events: none; }
+:root[data-motion-direction]::view-transition-group(*) { animation-duration: var(--motion-duration); }
+:root[data-motion-direction]::view-transition-image-pair(*) { isolation: isolate; }
+:root[data-motion-direction]::view-transition-old(*),
+:root[data-motion-direction]::view-transition-new(*) {
+  mix-blend-mode: normal; animation-duration: var(--motion-duration);
+  animation-timing-function: cubic-bezier(.2,.75,.25,1); animation-fill-mode: both;
+}
+:root[data-motion-direction="push"]::view-transition-old(*) { animation-name: motion-recede; z-index: 1; }
+:root[data-motion-direction="push"]::view-transition-new(*) { animation-name: motion-enter; z-index: 2; }
+:root[data-motion-direction="pop"]::view-transition-old(*) { animation-name: motion-exit; z-index: 2; }
+:root[data-motion-direction="pop"]::view-transition-new(*) { animation-name: motion-recover; z-index: 1; }
+@keyframes motion-enter { 0%,10% { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes motion-recede {
+  from { transform: translateX(0); filter: none; }
+  15% { filter: blur(var(--motion-soft-blur)) contrast(var(--motion-soft-contrast)); }
+  to { transform: translateX(var(--motion-retreat)); filter: blur(var(--motion-blur)) contrast(var(--motion-contrast)); }
+}
+@keyframes motion-exit { to { transform: translateX(100%); } }
+@keyframes motion-recover { from { transform: translateX(var(--motion-retreat)); filter: blur(var(--motion-blur)) contrast(var(--motion-contrast)); } to { transform: translateX(0); filter: none; } }

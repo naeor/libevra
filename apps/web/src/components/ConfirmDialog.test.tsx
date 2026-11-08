@@ -63,6 +63,7 @@ describe("ConfirmDialog", () => {
     const html = render();
 
     expect(html).toContain('role="alertdialog"');
+    expect(html).toContain('data-overlay-surface="dialog"');
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain("作废邀请码？");
   });

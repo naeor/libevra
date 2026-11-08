@@ -1,0 +1,7 @@
+.lv-icon-button { width: 44px; height: 44px; flex: 0 0 auto; padding: 0; border-radius: 50%; }
+.lv-capsule-button { min-height: 44px; max-width: 100%; padding: 8px 16px; border-radius: 999px; }
+.lv-segmented { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--s19-track-bg, var(--color-canvas)); box-shadow: var(--s19-track-sh, none); }
+.lv-segmented > button { flex: 1; min-height: 44px; min-width: 0; padding: 8px 12px; border-radius: 999px; color: var(--color-muted); font-size: var(--text-helper); }
+.lv-segmented > button[aria-pressed="true"] { background: var(--s19-pill-bg, var(--color-surface)); box-shadow: var(--s19-pill-sh, var(--shadow-sm)); color: var(--color-brand-dark); }
+.lv-segmented > button:disabled { opacity: .45; }
+.lv-segmented > button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }

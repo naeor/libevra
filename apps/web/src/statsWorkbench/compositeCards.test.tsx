@@ -4,6 +4,7 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Transaction } from "@libellum/shared";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
@@ -71,7 +72,7 @@ const text = (html: string): string => html.replace(/<[^>]+>/g, " ").replace(/\s
 
 function wrap(node: React.ReactNode): string {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } });
-  return renderToStaticMarkup(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return renderToStaticMarkup(<MemoryRouter><QueryClientProvider client={client}>{node}</QueryClientProvider></MemoryRouter>);
 }
 
 afterEach(() => {

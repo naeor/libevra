@@ -1,0 +1,6 @@
+.lv-badge { display: inline-flex; align-items: center; max-width: 100%; border-radius: 999px; padding: 4px 10px; font-size: var(--text-helper); background: var(--color-canvas); }
+.lv-badge > span { min-width: 0; overflow-wrap: anywhere; }
+.lv-badge[data-size="small"] { padding: 2px 8px; font-size: var(--text-micro); }
+.lv-chip-mark { display: inline-block; width: 1em; margin-inline-end: 6px; text-align: center; }
+.lv-status-message { display: flex; align-items: start; gap: 8px; min-height: 44px; overflow-wrap: anywhere; }
+.lv-status-symbol { display: inline-flex; align-items: center; justify-content: center; width: 1em; height: 1.75em; flex: 0 0 auto; }

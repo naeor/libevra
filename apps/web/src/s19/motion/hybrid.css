@@ -1,0 +1,32 @@
+/* D 独占选择器。A/B/C 技术方案与另外三种视觉风格完全不命中。
+   目标环境在原生 image-pair 下方；B2 新图捕获透明前景，旧图渐隐后由环境承接。
+   不假设新图的 backdrop-filter 能读取旧图，不给快照再加第二套背景滤镜。 */
+:root[data-motion-hybrid="true"]::view-transition-group(*) {
+  background: var(--motion-hybrid-ambient);
+  overflow: clip;
+}
+:root[data-motion-hybrid="true"][data-motion-direction="push"]::view-transition-old(*) {
+  animation-name: hybrid-recede;
+}
+:root[data-motion-hybrid="true"][data-motion-direction="pop"]::view-transition-old(*) {
+  animation-name: hybrid-exit;
+}
+:root[data-motion-hybrid="true"][data-motion-direction="pop"]::view-transition-new(*) {
+  animation-name: hybrid-recover;
+}
+@keyframes hybrid-recede {
+  0% { transform: translateX(0); filter: none; opacity: 1; }
+  15% { filter: blur(var(--motion-soft-blur)) contrast(.8); opacity: .96; }
+  40% { filter: blur(var(--motion-blur)) contrast(var(--motion-hybrid-contrast)) saturate(.8); opacity: var(--motion-hybrid-carry, .8); }
+  85%, 100% { transform: translateX(var(--motion-retreat)); filter: blur(var(--motion-blur)) contrast(var(--motion-hybrid-contrast)) saturate(.8); opacity: 0; }
+}
+@keyframes hybrid-exit {
+  0% { transform: translateX(0); opacity: 1; }
+  45% { opacity: 1; }
+  95%, 100% { transform: translateX(100%); opacity: 0; }
+}
+@keyframes hybrid-recover {
+  0% { transform: translateX(var(--motion-retreat)); filter: blur(var(--motion-soft-blur)); opacity: .72; }
+  65% { filter: none; opacity: 1; }
+  100% { transform: translateX(0); filter: none; opacity: 1; }
+}

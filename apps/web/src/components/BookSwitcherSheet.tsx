@@ -6,9 +6,12 @@ import { SkeletonRows } from "./States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js";
+import { useDialogFocus } from "../lib/dialogFocus.js";
+import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
+import { useKeyboardInset } from "./entry/keyboardInset.js";
 
 /**
- * **换一本"正在看/正在管"的账本 —— 只换地址栏里的 bookId。**
+ * **账本列表选择面板。查看／管理入口只换目标，手机当前账本入口由调用方激活。**
  *
  * ⚠️ **This sheet is the answer to one question the owner asked twice** (S13-E):
  * *"账本详情顶部可以切换查看目标；账本设置里也可以切换管理目标"* — and the same sentence always
@@ -19,24 +22,20 @@ import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js"
  * ledger a person is *in* is a different fact from the ledger they are *looking at* — 1.10.08 drew
  * that line, and the whole point of `/books/:bookId` is that it can be looked at without entering it.
  *
- * ⚠️ **The overlay, the panel, the drag and the keyboard rules are `BookManageSheet`'s, not a third
- * spec.** The markup below repeats that component's classes deliberately: it is the same bottom
- * sheet, and a second set of paddings or a second entry animation is exactly how two panels start
- * to look like two products. (The behaviour cannot be shared by import without lifting half of that
- * component out; the class strings are the part that must not drift, so they are identical here.)
+ * ⚠️ **呈现与管理面板共用材质角色、退出计时和滚动锁。** 保留原有半屏列表与下拉手势，
+ * 不把账本选择、激活或权限判断搬进通用外壳。
  *
  * ⚠️ **Picking the ledger you are already looking at closes the sheet and sends no request.** "Go to
  * where I am" is not a navigation, and a redundant visit would only add a cache miss to a screen
  * that is already correct.
  */
 
-/** What the sheet is switching — the two pages that use it differ only in this word. */
-export type BookSwitcherPurpose = "view" | "manage";
+/** 选择目的决定提示文案；实际导航与激活均由调用方处理。 */
+export type BookSwitcherPurpose = "view" | "manage" | "activate";
 
 /*
- * ⚠️ **The sentence is the safety feature, so it says the same thing in both modes apart from the
- * verb.** Every reviewer of this screen asked one question — *"this changes my current ledger,
- * right?"* — and the answer is no. 两句话在 `books.switcher.hint.<purpose>`，渲染时按当前语言取（S16）。
+ * 提示必须区分查看／管理与激活，避免用户误认为查看其他账本会改变记账目标。
+ * 文案位于 `books.switcher.hint.<purpose>`。
  */
 
 export function BookSwitcherSheet({
@@ -45,6 +44,7 @@ export function BookSwitcherSheet({
   purpose,
   onSelect,
   onClose,
+  footer,
 }: {
   readonly open: boolean;
   /** The `bookId` in the address bar right now — ticked in the list, and a no-op when picked. */
@@ -52,6 +52,7 @@ export function BookSwitcherSheet({
   readonly purpose: BookSwitcherPurpose;
   readonly onSelect: (bookId: string) => void;
   readonly onClose: () => void;
+  readonly footer?: React.ReactNode;
 }): React.JSX.Element | null {
   const { t } = useI18n();
   const books = useBooks();
@@ -64,11 +65,21 @@ export function BookSwitcherSheet({
 
   /** ⚠️ Live drag offset, so the sheet follows the finger rather than only reacting at the end. */
   const [dragY, setDragY] = useState(0);
+  const [entered, setEntered] = useState(false);
   const startY = useRef<number | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const { closing, requestClose } = useOverlayExit(onClose, open);
+  const layer = useDialogFocus(sheetRef, open);
+  useOverlayScrollLock(backdropRef, open);
+  const keyboard = useKeyboardInset(backdropRef, open);
+  useEffect(() => { if (!closing) setDragY(0); }, [closing]);
 
   useEffect(() => {
     if (!open) return;
+
+    setDragY(0);
+    setEntered(false);
 
     const previous = document.activeElement as HTMLElement | null;
     sheetRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
@@ -80,8 +91,8 @@ export function BookSwitcherSheet({
     if (!open) return;
 
     const onKey = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented) return;
-      if (event.key === "Escape") onClose();
+      if (!layer.owns(event)) return;
+      if (event.key === "Escape") { event.preventDefault(); requestClose(); }
       if (event.key === "Tab") {
         const buttons = [...(sheetRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled), a[href]") ?? [])];
         const first = buttons[0], last = buttons.at(-1);
@@ -94,18 +105,7 @@ export function BookSwitcherSheet({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose, open]);
-
-  /** ⚠️ The page behind is frozen while the sheet is open — same reason as the management sheet. */
-  useEffect(() => {
-    if (!open) return;
-
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [open]);
+  }, [requestClose, open, layer]);
 
   if (!open) return null;
 
@@ -114,7 +114,7 @@ export function BookSwitcherSheet({
 
   function choose(bookId: string): void {
     if (bookId === currentTargetId) {
-      onClose();
+      requestClose();
       return;
     }
     onSelect(bookId);
@@ -124,13 +124,22 @@ export function BookSwitcherSheet({
     <>
       {/* ⚠️ `aria-hidden` and closing on tap: a dismissal affordance, not content — same as `BookManageSheet`. */}
       <div
+        ref={backdropRef}
+        data-overlay-backdrop="sheet"
         aria-hidden="true"
-        onClick={onClose}
-        className="fixed inset-0 z-40 bg-overlay-soft backdrop-in"
+        onClick={requestClose}
+        className={`fixed inset-0 z-40 bg-overlay-soft ${closing ? "backdrop-out" : "backdrop-in"}`}
       />
 
       <div
         ref={sheetRef}
+        tabIndex={-1}
+        data-overlay-surface="sheet"
+        inert={closing}
+        data-overlay-state={closing ? "closing" : "open"}
+        data-overlay-dragging={dragY > 0 ? "true" : undefined}
+        data-overlay-entered={entered ? "true" : undefined}
+        onAnimationEnd={(event) => { if (event.target === event.currentTarget && event.animationName === "libellum-sheet-in") setEntered(true); }}
         role="dialog"
         aria-modal="true"
         aria-label={t("books.switcher.title")}
@@ -143,12 +152,14 @@ export function BookSwitcherSheet({
           /** ⚠️ Downward only: pulling *up* must not lift the sheet off the bottom edge. */
           setDragY(Math.max(0, dy));
         }}
-        onTouchEnd={() => {
-          if (dragY > 90) onClose();
-          setDragY(0);
+        onTouchEnd={(event) => {
+          const offset = startY.current === null ? 0 : Math.max(0, (event.changedTouches[0]?.clientY ?? startY.current) - startY.current);
+          if (offset > 90) { setDragY(offset); requestClose(); }
+          else setDragY(0);
           startY.current = null;
         }}
-        style={dragY === 0 ? undefined : { transform: `translateY(${String(dragY)}px)` }}
+        onTouchCancel={() => { setDragY(0); startY.current = null; }}
+        style={{ "--overlay-drag": `${dragY}px`, transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, bottom: keyboard || undefined, maxHeight: `calc(var(--lv-vh) * 100 - 24px - ${keyboard}px)` } as React.CSSProperties}
         /**
          * ⚠️ **A stable, usable height, not a height decided by how many ledgers exist.**
          *
@@ -159,21 +170,21 @@ export function BookSwitcherSheet({
          * The list gets its own scroll area (`min-h-0 flex-1 overflow-y-auto`) so growth never
          * pushes the title or the safe-area padding off screen.
          */
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[clamp(18rem,calc(var(--lv-vh)*52),34rem)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
-          dragY === 0 ? "sheet-in" : ""
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[clamp(18rem,calc(var(--lv-vh)*52),34rem)] w-full max-w-md flex-col rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
+          closing ? "sheet-out" : dragY === 0 ? "sheet-in" : ""
         }`}
       >
         {/* ⚠️ The drag handle — the same one the management sheet has, and the only thing that says "this slides". */}
-        <div data-sheet-drag className="flex justify-center pt-3 pb-1">
+        <div data-sheet-drag data-overlay-drag className="flex justify-center pt-3 pb-1">
           <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />
         </div>
 
-        <div data-sheet-drag className="flex items-center justify-between gap-3 px-5 pt-2 pb-1">
+        <div data-sheet-drag data-overlay-drag className="flex items-center justify-between gap-3 px-5 pt-2 pb-1">
           <h2 className="text-base font-medium text-ink">{t("books.switcher.title")}</h2>
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label={t("books.switcher.close")}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
           >
@@ -253,6 +264,7 @@ export function BookSwitcherSheet({
           </ul>
         ) : null}
         </div>
+        {footer}
       </div>
     </>
   );

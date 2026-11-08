@@ -83,7 +83,8 @@ describe("ChoiceSheet", () => {
     );
 
     expect(source).toContain("onSelect(option.value);");
-    expect(source).toContain("onClose();");
+    expect(source).toContain("requestClose();");
+    expect(source).toContain("useOverlayExit(onClose, open)");
     expect(source).toContain("closeRef.current();");
     expect(source).toContain("onKeyDown={moveFocus}");
     // 打开时把焦点放到当前项，关闭时还给打开它的控件。

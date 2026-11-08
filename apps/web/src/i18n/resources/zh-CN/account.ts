@@ -6,7 +6,7 @@
 const account = {
   me: {
     profile: "个人资料",
-    myLedger: "我的账本",
+    myLedger: "当前账本详情",
     myLedgerChoose: "选择一本账本开始记账",
     myLedgerHint: "当前账本的资料与设置",
     downloads: "下载管理",

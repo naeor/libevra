@@ -1,0 +1,92 @@
+/* 仅本实验 HTML 使用。消费既有材质，不修改全站、头像、账本胶囊或底栏规则。 */
+html[data-adaptation-lab], html[data-adaptation-lab] body { height: 100%; overflow: hidden; }
+html[data-adaptation-lab] { --lv-vh: 1dvh; }
+.alab-shell { --alab-controls-height: 140px; height: 100dvh; color: var(--color-ink); }
+.alab-stage { position: relative; height: calc(100dvh - var(--alab-controls-height)); margin-top: var(--alab-controls-height); }
+.alab-home { height: 100%; overflow-y: auto; overscroll-behavior: contain; max-width: 560px; margin: auto; padding: 24px 24px max(28px, env(safe-area-inset-bottom)); }
+.alab-title > p:first-child { color: var(--color-brand-dark); font-size: var(--text-micro); letter-spacing: .12em; margin-bottom: 8px; }
+.alab-title h1 { font: 500 var(--text-page-title)/1.4 var(--font-sans); }
+.alab-title > p:last-child, .alab-launch p { font: var(--text-helper)/1.6 var(--font-sans); color: var(--color-muted); margin-top: 8px; }
+.alab-samples { display: flex; gap: 6px; margin: 22px 0 16px; }
+.alab-samples button { flex: 1; min-height: 44px; border-radius: var(--radius-field); font-size: var(--text-helper); background: var(--s19-tool-bg, var(--color-surface)); box-shadow: var(--s19-tool-sh, var(--s19-card-sh)); }
+.alab-samples button[aria-pressed=true] { background: var(--color-brand-soft); color: var(--color-brand-dark); box-shadow: inset 0 0 0 1px var(--color-brand); }
+.alab-launch { padding: 20px; border-radius: var(--s19-r-group); background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); margin-bottom: 20px; }
+.alab-launch h2 { font: 500 var(--text-section-title)/1.5 var(--font-sans); }
+.alab-launch > button { margin-top: 16px; }
+.alab-home .dce-preview { padding-inline: 0; }
+.alab-feedback { margin: 12px 0; padding: 12px; border-radius: var(--radius-field); background: var(--color-brand-soft); color: var(--color-brand-dark); font-size: var(--text-helper); }
+.alab-background-list { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); border-radius: var(--s19-r-group); margin-top: 12px; overflow: hidden; }
+.alab-background-list > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 72px; padding: 12px 16px; border-bottom: 1px solid var(--color-line); }
+.alab-background-list b { font-size: var(--text-body); font-weight: 500; }
+.alab-background-list small { display: block; margin-top: 4px; color: var(--color-muted); font-size: var(--text-helper); }
+.alab-background-list strong { font-size: var(--text-body); font-weight: 500; font-variant-numeric: tabular-nums; }
+.alab-footnote { margin-top: 24px; color: var(--color-muted); font-size: var(--text-helper); line-height: 1.7; }
+
+/* 评审工具不属于产品布局。可收起，在弹窗打开时也可直接切换，避免刷新打断比较。 */
+.alab-controls { position: fixed; inset: 0 0 auto; z-index: 80; padding: max(8px, env(safe-area-inset-top)) 12px 8px; background: var(--color-surface); border-bottom: 1px solid var(--color-line); }
+.alab-controls > div { max-width: 536px; margin-inline: auto; }
+.alab-control-title { display: flex; align-items: center; justify-content: space-between; font-size: var(--text-micro); color: var(--color-muted); }
+.alab-control-title button { min-height: 32px; padding-inline: 10px; color: var(--color-brand-dark); }
+.alab-style-options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; }
+.alab-style-options button, .alab-preset-options button { min-height: 40px; border-radius: 10px; background: var(--color-canvas); font-size: var(--text-helper); }
+.alab-style-options span { display: block; font-size: var(--text-micro); color: var(--color-muted); }
+.alab-style-options button[aria-pressed=true], .alab-preset-options button[aria-pressed=true] { background: var(--color-brand-soft); box-shadow: inset 0 0 0 1px var(--color-brand); color: var(--color-brand-dark); }
+.alab-preset-options { display: flex; gap: 5px; padding-top: 6px; }
+.alab-preset-options button { flex: 1; min-height: 34px; }
+.alab-test-options { display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--text-micro); color: var(--color-muted); padding-top: 6px; }
+.alab-test-options label { display: flex; align-items: center; gap: 5px; min-height: 24px; }
+.alab-test-options input { accent-color: var(--color-brand); }
+.alab-reopen { position: fixed; right: 12px; bottom: max(12px,env(safe-area-inset-bottom)); z-index: 80; min-height: 36px; padding: 8px 12px; border: 1px solid var(--color-line); border-radius: 999px; background: var(--color-surface); color: var(--color-brand-dark); font-size: var(--text-micro); box-shadow: var(--s19-tool-sh, var(--s19-card-sh)); }
+.alab-shell button:focus-visible, .alab-shell input:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 2px; }
+
+/* 根浮层无 transform / filter / contain / opacity 动画；遮罩是独立兄弟绘制层。
+   Safari 的 fixed 定位不经过滤镜祖先。滤镜只在局部面板伪元素，文字和内部列表不重复模糊。 */
+#adaptation-lab .alab-book-sheet .lv-sheet-backdrop,
+#adaptation-lab .alab-choice > .fixed { background: transparent; animation: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* 展开评审条时只占用样例外的可用高度；收起后恢复真实的全视口居中。 */
+#adaptation-lab .alab-choice > .fixed { padding-top: calc(var(--alab-controls-height) + 12px); padding-bottom: max(12px,env(safe-area-inset-bottom)); }
+.alab-book-sheet .lv-sheet-backdrop::before,
+.alab-choice > .fixed::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)); animation: libellum-backdrop-in 180ms ease-out; }
+.alab-book-sheet .backdrop-out::before, .alab-choice[data-closing=true] > .fixed::before { animation: libellum-backdrop-out 200ms ease-in forwards; }
+#adaptation-lab .alab-sheet { position: relative; height: clamp(18rem,52dvh,34rem); max-height: calc(100dvh - 12px); border-radius: var(--s19-r-sheet) var(--s19-r-sheet) 0 0; background: transparent; box-shadow: none; padding-bottom: env(safe-area-inset-bottom,0px); }
+.alab-book-sheet .lv-sheet-backdrop { align-items: flex-end; }
+.alab-sheet-heading { touch-action: none; user-select: none; -webkit-user-select: none; flex-shrink: 0; }
+.alab-sheet::before, .alab-choice [role=dialog]::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1; background: var(--s19-sheet-bg); box-shadow: var(--s19-sheet-sh); }
+.alab-sheet, .alab-choice [role=dialog] { z-index: 0; }
+#adaptation-lab .alab-choice [role=dialog] { position: relative; flex-shrink: 0; border: 0; border-radius: var(--s19-r-sheet); background: transparent; box-shadow: none; }
+.alab-choice [role=dialog]::before { box-shadow: var(--s19-dialog-sh); }
+.alab-choice [role=dialog] > *, .alab-choice [role=dialog]::before { animation: libellum-backdrop-in 200ms ease-out; }
+.alab-choice[data-closing=true] [role=dialog] > *, .alab-choice[data-closing=true] [role=dialog]::before { animation: libellum-backdrop-out 200ms ease-in forwards; }
+.alab-choice[data-closing=true] [role=dialog] { pointer-events: none; }
+.alab-book-sheet[data-entered=true] .sheet-in { animation: none; transform: none; transition: transform 180ms ease-out; }
+.alab-book-sheet[data-dragging=true] .sheet-in { transform: translateY(var(--alab-drag)); transition: none; }
+/* 下拉关闭沿用同一 200ms / 加速曲线，只把起点改为手指松开的位置。 */
+.alab-book-sheet[data-dragging=true] .sheet-out { animation-name: alab-drag-out; }
+@keyframes alab-drag-out { from { transform: translateY(var(--alab-drag)); } to { transform: translateY(100%); } }
+:root[data-visual-style=b2] .alab-sheet::before,
+:root[data-visual-style=b2] .alab-choice [role=dialog]::before { background: var(--s19-tool-bg); -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter); }
+/* 没有背景滤镜时使用已有实体表面，保证选择文字可读；不更改三档参数。 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-visual-style=b2] .alab-sheet::before, :root[data-visual-style=b2] .alab-choice [role=dialog]::before { background: var(--color-surface); }
+}
+:root[data-lab-no-blur=true] .alab-sheet::before, :root[data-lab-no-blur=true] .alab-choice [role=dialog]::before { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--color-surface); }
+
+/* 编辑器保留原布局；预览卡直接消费成品材质，工作区保持实体底。没有整页模糊。 */
+.alab-shell .alab-editor { background: transparent; }
+.alab-shell .dce-card { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); color: var(--color-ink); border-radius: var(--s19-r-group); }
+.alab-shell .dce-main { background: var(--s19-key-bg); box-shadow: var(--s19-key-sh); border-radius: var(--s19-r-key); }
+.alab-shell .dce-first, .alab-shell .dce-second { border-radius: var(--s19-r-mini); }
+.alab-shell .dce-card[data-selected=true] { outline-color: var(--color-brand); }
+.alab-shell .dce-workbench { background: var(--s19-canvas); }
+.alab-shell .dce-metric { box-shadow: none; }
+.alab-shell .dce-selected { flex-wrap: wrap; }
+#adaptation-lab .alab-editor > [data-page-nav] { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--color-line); }
+.alab-editor > [data-page-nav]::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: var(--s19-bar-bg); box-shadow: var(--s19-bar-sh); -webkit-backdrop-filter: var(--s19-bar-filter,none); backdrop-filter: var(--s19-bar-filter,none); }
+:root[data-lab-no-blur=true] .alab-editor > [data-page-nav]::before { background: var(--color-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root[data-visual-style=c] .alab-shell .dce-first, :root[data-visual-style=c] .alab-shell .dce-second { background: var(--s19-card-bg); }
+@media (max-height: 580px) {
+  #adaptation-lab .alab-choice > .fixed { align-items: flex-start; overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .alab-shell *, .alab-shell *::before { animation: none !important; transition: none !important; }
+}

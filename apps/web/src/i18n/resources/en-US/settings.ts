@@ -5,7 +5,7 @@ import type zh from "../zh-CN/settings.js";
 const settings: Messages<typeof zh> = {
   home: {
     title: "Settings",
-    preferences: { title: "Entry preferences", description: "Default currency, duplicate detection and entry habits" },
+    preferences: { title: "Entry preferences", description: "Default currency, duplicate detection and currency conversion" },
     appearance: { title: "Display & data", description: "Language, theme and currency conversion" },
     security: { title: "Account & security", description: "Password, recovery code and invite codes" },
     accountData: { title: "Your data", description: "Export, delete data or close your account" },
@@ -53,6 +53,19 @@ const settings: Messages<typeof zh> = {
       cyan: "Celadon",
     },
     switchTo: "Use {{name}}",
+  },
+  glass: {
+    title: "Glass effects", style: "Visual style", styles: { original: "Classic", b2: "Layered glass" },
+    phoneLight: "Layered glass applies to the light interface on phones.", saved: "Applied immediately and saved for this account on this device. Switching ledgers keeps your choice.",
+    presets: {
+      clear: { name: "Clear", note: "Show more of the environment behind the glass." },
+      balanced: { name: "Balanced", note: "Balance translucency with readable content." },
+      soft: { name: "Soft", note: "A softer background and glass finish." },
+    },
+    custom: "Current: Custom", advanced: "B2 advanced glass settings", reset: "Reset to Balanced",
+    accountOnly: "Affects only this account on this device. Higher values mean more transparency for the first three controls and more blur for the last.",
+    fields: { ambient: "Previous page visibility", content: "Content glass transparency", chrome: "Chrome glass transparency", blur: "Glass blur" },
+    denied: "Administrator access could not be confirmed. This change was not saved.",
   },
   preview: {
     spaceLabel: "Ledger home preview",

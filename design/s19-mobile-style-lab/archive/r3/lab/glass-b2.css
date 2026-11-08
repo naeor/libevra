@@ -1,0 +1,86 @@
+/* ================================================================
+   B2 · Layered Glass 分层透光玻璃
+   Canvas  清晰、未预先模糊的抽象光斑与色带（轮廓可辨）
+   Content 账目列表、详情字段、图表卡 —— 不透明，保证密集信息可读
+   Satin   结余 / 日均两张小卡、记一笔面板里的图标 —— 近不透明釉面
+   Frosted 收支摘要主卡（主视觉）、顶部工具钮、月份胶囊、分段底板、悬浮底栏、设置分组、浮层
+   Accent  中央记账按钮：带绿色的薄玻璃圆片，边缘高光，无中心亮斑
+   光斑只在被玻璃覆盖的区域内变柔、带上环境色；玻璃外的光斑边缘依然清楚。
+   防嵌套：顶部用“渐进模糊边缘”（无边框、向下淡出），玻璃控件浮在上面，不再套一层玻璃容器；
+          底栏内的记账按钮不再单独做背景模糊，直接透出底栏。
+   ================================================================ */
+:root {
+  --canvas-base: #f0f3ee;
+  --content-bg: #fcfcfa;
+  --content-sh: 0 0 0 .5px rgb(60 70 64 / .08), 0 1px 2px rgb(40 52 46 / .04), 0 10px 24px -18px rgb(40 52 46 / .26);
+  --satin-bg: linear-gradient(180deg, rgb(255 255 253 / .97), rgb(249 248 244 / .95));
+  --satin-sh: 0 0 0 .5px rgb(60 70 64 / .08), 0 1px 2px rgb(40 52 46 / .04), 0 10px 22px -16px rgb(40 52 46 / .3);
+  --satin-rim-hi: 1; --satin-rim-lo: .06;
+
+  --frost-rgb: 250 251 249;
+  --frost-lift: .1;
+  --frost-a-ctl: .4;   --frost-b-ctl: 14px;
+  --frost-a-panel: .44; --frost-b-panel: 20px;
+  --frost-a-bar: .5;   --frost-b-bar: 22px;
+  --frost-a-sheet: .66; --frost-b-sheet: 30px;
+  --frost-sat: 1.65; --frost-bright: 1.05;
+  --rim-hi: 1; --rim-mid: .5; --rim-lo: .12;
+  --sheen-top: .36; --sheen-bottom: .24;
+  --frost-sh-ctl: 0 0 0 .5px rgb(40 52 46 / .08), 0 6px 16px -8px rgb(40 52 46 / .3);
+  --frost-sh-panel: 0 0 0 .5px rgb(40 52 46 / .07), 0 2px 4px rgb(40 52 46 / .03), 0 20px 40px -24px rgb(40 52 46 / .42);
+  --frost-sh-bar: 0 0 0 .5px rgb(40 52 46 / .08), 0 14px 32px -16px rgb(40 52 46 / .38);
+  --frost-sh-sheet: 0 0 0 .5px rgb(40 52 46 / .08), 0 26px 54px -22px rgb(40 52 46 / .5);
+  --frost-fallback: rgb(247 248 245 / .97); --bar-fallback: #f3f5f1;
+
+  --divider: rgb(60 70 64 / .075);
+  --seg-pill-bg: linear-gradient(180deg, rgb(255 255 255 / .96), rgb(255 255 255 / .82));
+  --seg-pill-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(40 52 46 / .08), 0 3px 9px -3px rgb(40 52 46 / .24);
+  --seg-off: #56625c;
+  --day-h: #2f3a35; --day-sum: #56625c;
+  --tab-off: #56625c; --tab-on-bg: rgb(255 255 255 / .78); --tab-on-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(40 52 46 / .07), 0 2px 7px -2px rgb(40 52 46 / .2);
+  --li-ic-bg: rgb(255 255 255 / .7);
+  --sheet-group: rgb(255 255 255 / .8);
+  --scrim: rgb(36 44 40 / .16);
+  --nav-h: 74px;
+  --plus-top: 5px;
+}
+
+/* ---- 顶部：渐进模糊边缘（没有容器边线，向下淡出） ---- */
+.g-top::before, .g-toolbar::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 22px); z-index: -1; pointer-events: none; opacity: 0; transition: opacity .25s;
+  background: linear-gradient(180deg, rgb(244 246 242 / calc(.6 * var(--gk-a))), rgb(244 246 242 / calc(.3 * var(--gk-a))));
+  -webkit-backdrop-filter: blur(calc(14px * var(--gk-b))) saturate(1.4); backdrop-filter: blur(calc(14px * var(--gk-b))) saturate(1.4);
+  -webkit-mask: linear-gradient(180deg, #000 0, #000 calc(100% - 22px), transparent); mask: linear-gradient(180deg, #000 0, #000 calc(100% - 22px), transparent);
+}
+.page[data-scrolled="true"] .g-top::before { opacity: 1; }
+.page[data-pinned="true"] .g-top::before { height: 100%; -webkit-mask: none; mask: none; }
+.page[data-pinned="true"] .g-toolbar::before { opacity: 1; }
+.g-toolbar { margin-top: 2px; }
+/* 选中的排序钮：玻璃里带一点品牌绿 */
+.g-tool.on.m-frost { background: linear-gradient(180deg, rgb(222 242 231 / .74), rgb(200 229 214 / .58)); }
+
+/* ---- 收支摘要：玻璃主卡 + 两张 Satin 小卡 ---- */
+.g-sum { padding-bottom: 0; }
+.g-sum-main > div { padding-top: 8px; }
+
+/* ---- 悬浮底栏 ---- */
+.g-dock-float .g-caption { max-width: calc(50% - 28px); padding: 0 4px 0 12px; }
+.g-tabs { --tabs-h: 60px; }
+.g-dock-float .g-plus { width: 50px; height: 50px; margin-left: -25px; }
+/* 在底栏玻璃之内：不再单独做背景模糊，薄绿片直接透出底栏 */
+.g-dock .g-plus.m-accent { -webkit-backdrop-filter: none; backdrop-filter: none; background: radial-gradient(100% 100% at 50% 40%, rgb(70 138 107 / .9) 0%, rgb(86 154 122 / .8) 64%, rgb(132 190 162 / .66) 100%); }
+.g-plus:active { filter: brightness(.95); }
+.g-batch-row { padding: 0 6px 0 14px; }
+
+/* ---- 设置 / 我的：分组为玻璃（内容是短标签，适合透光） ---- */
+.g-group.m-frost { overflow: hidden; }
+.g-group.m-frost > li + li::before { background: rgb(60 70 64 / .09); }
+.g-group.m-frost .g-li-ic { box-shadow: inset 0 0 0 .5px rgb(60 70 64 / .08); }
+.g-signout.m-frost { color: var(--danger); }
+
+/* ---- 回退 ---- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .g-top::before, .g-toolbar::before { background: var(--bar-fallback); }
+}
+.nofx .g-top::before, .nofx .g-toolbar::before { background: var(--bar-fallback); }
+.nofx .g-dock .g-plus.m-accent { background: linear-gradient(180deg, #5a9f80, #478a6b) !important; }

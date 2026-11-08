@@ -1,5 +1,11 @@
 import { clamp01, decideTarget, hasSettled, springStep } from "./transitionPhysics.js";
 
+/** 与 ResizeObserver 默认观察的 content box 一致；栏后 padding 不能再计入内容最小高度。 */
+export function scrollContentHeight(scroller: HTMLElement): number {
+  const style = getComputedStyle(scroller);
+  return Math.max(0, scroller.clientHeight - (Number.parseFloat(style.paddingTop) || 0) - (Number.parseFloat(style.paddingBottom) || 0));
+}
+
 /**
  * 滚动停下多久之后才考虑吸附。只是「开始核对」的时机，不是判断依据——真正的依据是下面的位置核对。
  */

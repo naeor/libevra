@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
+import { entryReturnState } from "../lib/entryReturn.js";
 
 import { formatTransactionNumber } from "@libellum/shared";
 
@@ -131,6 +133,7 @@ export function HistoryList({
  * deciding what "deleted" means.
  */
 function HistoryRow({ entry, when }: { readonly entry: LedgerHistoryEntry; readonly when: string }): React.JSX.Element {
+  const location = useLocation();
   const { t } = useI18n();
   const lines = entry.changes.slice(0, MAX_CHANGE_LINES).map((change) => <>{historyChangeText(change)}</>);
   const hidden = entry.changes.length - MAX_CHANGE_LINES;
@@ -142,7 +145,7 @@ function HistoryRow({ entry, when }: { readonly entry: LedgerHistoryEntry; reado
       title={historySentenceText(entry)}
       aside={when}
       lines={lines}
-      {...(entry.transactionId === null ? {} : { to: `/transactions/${entry.transactionId}` })}
+      {...(entry.transactionId === null ? {} : { to: `/transactions/${entry.transactionId}`, state: entryReturnState(location) })}
     />
   );
 }

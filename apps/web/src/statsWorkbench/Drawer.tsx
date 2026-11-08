@@ -18,6 +18,8 @@ import { readComposition } from "./composition.js";
 import { useDrawerGesture } from "./drawerGesture.js";
 import { usePane, usePaneSize } from "../workspace/context.js";
 import { drawerGeometry, drawerModeFor, type DrawerMode } from "./drawerLayout.js";
+import "../s19/editor-surfaces.css";
+import { SlidingSelection } from "../components/ui/SlidingSelection.js";
 import {
   ChartGlyph,
   ComposeGlyph,
@@ -91,7 +93,10 @@ export function Drawer({
   useEffect(() => setMode((previous) => drawerModeFor(paneSize.width, previous)), [paneSize.width]);
   const geometry = drawerGeometry(paneSize.width || 320, paneSize.height || 640);
   const bodyId = useId();
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const analysisScrollRef = useRef<HTMLDivElement | null>(null);
+  const layoutScrollRef = useRef<HTMLDivElement | null>(null);
+  const scopeScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = containerScope !== null ? scopeScrollRef : tab === "analysis" ? analysisScrollRef : layoutScrollRef;
   const positions = useRef(new Map<string, number>());
   const restoreFocus = useRef(false);
   const scrollKey = containerScope === null ? `${tab}:${group}` : "scope";
@@ -158,6 +163,7 @@ export function Drawer({
     <section
       ref={gesture.sectionRef as React.RefObject<HTMLElement>}
       className="sw-drawer"
+      data-editor-surface="drawer"
       style={style}
       data-mode={mode}
       data-icon-only={paneSize.width > 0 && paneSize.width < 360 ? "true" : undefined}
@@ -185,7 +191,7 @@ export function Drawer({
         <div className="sw-drawer-expanded-head sw-drawer-grab" {...gesture.grabProps} inert={!expanded} aria-hidden={!expanded ? true : undefined}>
             <div className="sw-drawer-open-layer">
               {scope === null ? (
-                <div className="sw-segment" role="tablist" aria-label={t("statsWorkbench.drawer.title")}>
+                <SlidingSelection className="sw-segment" role="tablist" aria-label={t("statsWorkbench.drawer.title")}>
                   {(["analysis", "layout"] as const).map((key) => (
                     <button
                       key={key}
@@ -198,7 +204,7 @@ export function Drawer({
                       {t(`statsWorkbench.drawer.${key}`)}
                     </button>
                   ))}
-                </div>
+                </SlidingSelection>
               ) : (
                 <div className="min-w-0">
                   <p className="truncate text-body font-medium text-ink">{t("statsWorkbench.containers.insideTitle", { name: scope.name })}</p>
@@ -236,18 +242,18 @@ export function Drawer({
           {/* 保留列表 DOM 和滚动位置；收起时 inert，不留下可点的透明层。拖动时不自动收起。 */}
           {(
             <div id={bodyId} className="sw-drawer-body" inert={!expanded} aria-hidden={expanded ? undefined : true}>
-              {tab === "analysis" ? (
-                <>
-                  <div className="sw-drawer-categories">
+              <div className="sw-drawer-pages" data-page={tab}>
+                <div className="sw-drawer-page" inert={tab !== "analysis"} aria-hidden={tab !== "analysis" ? true : undefined}>
+                  <SlidingSelection className="sw-drawer-categories">
                     {(["recommended", "all", "mine"] as const).map((key) => (
                       <button key={key} type="button" aria-pressed={group === key} className={`sw-chip ${group === key ? "sw-chip-on" : ""}`} onClick={() => setGroup(key)}>
                         {t(`statsWorkbench.drawer.${key}`)}
                       </button>
                     ))}
-                  </div>
-                  <div ref={scrollRef} className="sw-drawer-scroll" onScroll={rememberScroll}>
+                  </SlidingSelection>
+                  <div ref={analysisScrollRef} className="sw-drawer-scroll" onScroll={rememberScroll}>
                   {group === "all" ? (
-                    <div className="px-5 pt-2">
+                    <div className="sw-library-inset pt-2">
                       <input
                         type="search"
                         value={query}
@@ -259,7 +265,7 @@ export function Drawer({
                     </div>
                   ) : null}
                   {group === "mine" ? (
-                    <div className="flex flex-col gap-3 px-5 pt-3">
+                    <div className="sw-library-inset flex flex-col gap-3 pt-3">
                       <p className="text-helper-relaxed text-muted">{t(customCards.length === 0 ? "statsWorkbench.drawer.mineEmpty" : "statsWorkbench.custom.libraryHint")}</p>
                       {customCards.map((card) => {
                         const read = readComposition(card);
@@ -286,10 +292,10 @@ export function Drawer({
                     </div>
                   ) : (
                     <>
-                      <p className="px-5 pt-2 text-helper text-muted">{t("statsWorkbench.drawer.dragHint")}</p>
-                      {grouped.length === 0 ? <p className="px-5 pt-3 text-helper text-muted">{t("statsWorkbench.drawer.noMatches")}</p> : null}
+                      <p className="sw-library-inset pt-2 text-helper text-muted">{t("statsWorkbench.drawer.dragHint")}</p>
+                      {grouped.length === 0 ? <p className="sw-library-inset pt-3 text-helper text-muted">{t("statsWorkbench.drawer.noMatches")}</p> : null}
                       {grouped.map((section) => (
-                        <div key={section.key} className="px-5 pt-3">
+                        <div key={section.key} className="sw-library-inset pt-3">
                           {group === "all" ? <h4 className="pb-1.5 text-helper font-medium text-muted">{t(`statsWorkbench.drawer.groups.${section.key}`)}</h4> : null}
                           <div className="sw-tiles">
                             {section.items.map((type) => (
@@ -301,9 +307,9 @@ export function Drawer({
                     </>
                   )}
                   </div>
-                </>
-              ) : (
-                <div ref={scrollRef} className="sw-drawer-scroll px-5 pt-1" onScroll={rememberScroll}>
+                </div>
+                <div className="sw-drawer-page" inert={tab !== "layout"} aria-hidden={tab !== "layout" ? true : undefined}>
+                <div ref={layoutScrollRef} className="sw-drawer-scroll sw-library-inset pt-1" onScroll={rememberScroll}>
                   <div className="sw-tiles">
                     {(["carousel", "grid-split", "spacer"] as const).map((choice) => (
                       <LayoutTile key={choice} choice={choice} drag={drag} onAdd={() => onAddLayout(choice)} />
@@ -311,15 +317,16 @@ export function Drawer({
                   </div>
                   <p className="pt-3 text-helper-relaxed text-muted">{t("statsWorkbench.drawer.layoutHint")}</p>
                 </div>
-              )}
+                </div>
+              </div>
             </div>
           )}
         </>
       ) : (
         <>
           <div id={bodyId} className="sw-drawer-body" inert={!expanded} aria-hidden={expanded ? undefined : true}>
-            <div ref={scrollRef} className="sw-drawer-scroll" onScroll={rememberScroll}>
-            <ol className="flex flex-col gap-2 px-5 pt-2" aria-label={t("statsWorkbench.containers.childrenList")}>
+            <div ref={scopeScrollRef} className="sw-drawer-scroll" onScroll={rememberScroll}>
+            <ol className="sw-library-inset flex flex-col gap-2 pt-2" aria-label={t("statsWorkbench.containers.childrenList")}>
               {scope.children.length === 0 ? <li className="text-helper text-muted">{t("statsWorkbench.containers.emptyHint")}</li> : null}
               {scope.children.map((child, index) => (
                 <li key={child.objectId} className="flex items-center gap-2 rounded-field border border-line bg-surface px-3 py-2">
@@ -337,8 +344,8 @@ export function Drawer({
                 </li>
               ))}
             </ol>
-            <h4 className="px-5 pt-4 pb-1.5 text-helper font-medium text-muted">{full ? t("statsWorkbench.containers.limit", { count: scope.max }) : t("statsWorkbench.containers.addInside")}</h4>
-            <div className="sw-tiles px-5">
+            <h4 className="sw-library-inset pt-4 pb-1.5 text-helper font-medium text-muted">{full ? t("statsWorkbench.containers.limit", { count: scope.max }) : t("statsWorkbench.containers.addInside")}</h4>
+            <div className="sw-tiles sw-library-inset">
               {CARD_TYPES.filter((type) => type.recommended).map((type) => (
                 <button key={type.id} type="button" className="sw-tile" disabled={full} onClick={() => onScopeAdd(type.id)} aria-label={t("statsWorkbench.drawer.add", { name: t(`statsWorkbench.cards.${type.id as "AN-B01"}.title`) })}>
                   <ChartGlyph family={type.families[0] ?? "number"} className="shrink-0 text-brand-dark" />

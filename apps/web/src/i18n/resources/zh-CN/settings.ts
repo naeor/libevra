@@ -2,7 +2,7 @@
 const settings = {
   home: {
     title: "设置",
-    preferences: { title: "记账偏好", description: "默认币种、重复提醒与录入习惯" },
+    preferences: { title: "记账偏好", description: "默认币种、重复提醒与汇率折算" },
     appearance: { title: "显示与数据", description: "语言、主题与汇率显示" },
     security: { title: "账号与安全", description: "密码、恢复码与邀请码" },
     accountData: { title: "账号与数据", description: "导出、删除数据与注销账号" },
@@ -50,6 +50,19 @@ const settings = {
       cyan: "青瓷灰",
     },
     switchTo: "切换到{{name}}",
+  },
+  glass: {
+    title: "玻璃效果", style: "界面风格", styles: { original: "经典外观", b2: "分层玻璃" },
+    phoneLight: "分层玻璃用于手机浅色界面。", saved: "即时应用，按账号保存在这台设备；切换账本不会重置。",
+    presets: {
+      clear: { name: "清透", note: "更清晰地呈现玻璃后的环境。" },
+      balanced: { name: "均衡", note: "在玻璃通透感与内容清晰度之间保持平衡。" },
+      soft: { name: "柔和", note: "更柔和的背景与玻璃质感。" },
+    },
+    custom: "当前：自定义", advanced: "B2 玻璃高级参数", reset: "恢复默认（均衡）",
+    accountOnly: "仅影响当前账号在这台设备上的外观。前三项越高越通透，模糊程度越高越模糊。",
+    fields: { ambient: "旧页透出强度", content: "内容玻璃通透度", chrome: "顶底栏玻璃透明度", blur: "玻璃模糊程度" },
+    denied: "无法确认管理员权限，本次调整未保存。",
   },
   preview: {
     spaceLabel: "账本空间起始页预览",

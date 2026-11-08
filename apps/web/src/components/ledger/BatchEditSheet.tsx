@@ -1,4 +1,5 @@
 import type { Category, PaymentMethod, Tag, TransactionKind } from "@libellum/shared";
+import { SlidingSelection } from "../ui/SlidingSelection.js";
 import { useI18n } from "../../i18n/index.js";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
@@ -154,7 +155,7 @@ export function BatchEditSheet({
             {t("ledger.batch.sheet.changeTags")}
           </label>
 
-          <div className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">
+          <SlidingSelection className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">
             {(["add", "remove"] as const).map((mode: BatchTagMode) => (
               <button
                 key={mode}
@@ -171,7 +172,7 @@ export function BatchEditSheet({
                 {mode === "add" ? t("ledger.batch.sheet.tagAdd") : t("ledger.batch.sheet.tagRemove")}
               </button>
             ))}
-          </div>
+          </SlidingSelection>
 
           <div className="mt-2 flex flex-wrap gap-2">
             {tags.map((tag) => {

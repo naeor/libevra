@@ -5,7 +5,7 @@ import type zh from "../zh-CN/account.js";
 const account: Messages<typeof zh> = {
   me: {
     profile: "Profile",
-    myLedger: "My ledger",
+    myLedger: "Current ledger details",
     myLedgerChoose: "Choose a ledger to start",
     myLedgerHint: "Details and settings for the current ledger",
     downloads: "Downloads",

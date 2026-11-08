@@ -83,7 +83,7 @@ export function LanguagePage(): React.JSX.Element {
   const language = useLanguagePreference();
 
   return (
-    <InnerPage title={t("language.pageTitle")} backTo="/settings/appearance">
+    <InnerPage title={t("language.pageTitle")} backTo="/settings">
       <div className="flex flex-col gap-3">
         <LanguageChoiceList preference={language.preference} locale={language.locale} onChoose={language.choose} />
         <p className="px-1 text-helper-relaxed text-muted">{t("language.note")}</p>

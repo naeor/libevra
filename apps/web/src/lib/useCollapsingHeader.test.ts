@@ -5,7 +5,7 @@ vi.mock("react", () => ({
   useRef: () => ({ current: lifecycle.element }),
   useLayoutEffect: (effect: () => (() => void)) => { lifecycle.cleanup = effect(); },
 }));
-import { useCollapsingHeader } from "./useCollapsingHeader.js";
+import { RESTORE_HEADER_SCROLL, useCollapsingHeader } from "./useCollapsingHeader.js";
 
 /** DOM 边界替身：验证实际 hook 的监听、进度、吸附和清理，而非重复物理公式。 */
 class ScrollRegion extends EventTarget {
@@ -71,6 +71,34 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("共用顶栏的真实滚动与两端吸附", () => {
+  it("B2 栏后 padding 不重复扩大行程，热切换与冷启动使用同一内容高度", () => {
+    lifecycle.cleanup?.();
+    scroller.clientHeight = 817;
+    vi.stubGlobal("getComputedStyle", (element: unknown) => ({
+      paddingTop: "0px", paddingBottom: element === scroller ? "97px" : "0px", getPropertyValue: () => "0px",
+    }));
+    useCollapsingHeader();
+    expect(header.parentElement.style.minHeight).toBe("820px");
+    // 风格切换只撤去 padding，content box 不变，ResizeObserver 不会再次通知。
+    scroller.clientHeight = 720;
+    vi.stubGlobal("getComputedStyle", () => ({ paddingTop: "0px", paddingBottom: "0px", getPropertyValue: () => "0px" }));
+    expect(header.parentElement.style.minHeight).toBe("820px");
+    lifecycle.cleanup?.();
+    useCollapsingHeader();
+    expect(header.parentElement.style.minHeight).toBe("820px");
+  });
+  it("返回恢复无需等待 scroll 事件，在快照前同步标题并取消旧吸附", () => {
+    scroll(37);
+    scroller.dispatchEvent(new CustomEvent(RESTORE_HEADER_SCROLL, { detail: 240 }));
+    expect(styles.get("--header-p")).toBe("1");
+    expect(extra.inert).toBe(true);
+    settle();
+    expect(scroller.scrollTop).toBe(240);
+    scroller.scrollTop = 0;
+    scroller.dispatchEvent(new Event(RESTORE_HEADER_SCROLL));
+    expect(styles.get("--header-p")).toBe("0");
+    expect(extra.inert).toBe(false);
+  });
   it("跟随真实进度，短页面有完整行程，收缩后移除隐藏辅助内容的交互", () => {
     expect(header.parentElement.style.minHeight).toBe("820px");
     scroll(37);
@@ -145,7 +173,7 @@ describe("共用顶栏的真实滚动与两端吸附", () => {
     expect(scroller.scrollTop).toBe(100);
     expect(vi.getTimerCount()).toBe(0);
   });
-  it("安全区和视口尺寸改变后重测，清理恢复原布局并解绑监听", () => {
+  it("安全区和视口尺寸改变后重测，清理解绑监听而不撤掉仍挂载页面的行程", () => {
     vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "44px" }));
     header.offsetHeight = 208;
     scroller.clientHeight = 600;
@@ -154,8 +182,16 @@ describe("共用顶栏的真实滚动与两端吸附", () => {
     expect(header.parentElement.style.minHeight).toBe("700px");
     lifecycle.cleanup?.();
     lifecycle.cleanup = undefined;
-    expect(header.parentElement.style.minHeight).toBe("12px");
+    expect(header.parentElement.style.minHeight).toBe("700px");
     scroll(90);
     expect(styles.get("--header-p")).toBe("0");
+  });
+  it("StrictMode 清理再订阅期间保留行程和返回滚动位置", () => {
+    scroller.dispatchEvent(new CustomEvent(RESTORE_HEADER_SCROLL, { detail: 240 }));
+    lifecycle.cleanup?.();
+    expect(header.parentElement.style.minHeight).toBe("820px");
+    useCollapsingHeader();
+    expect(scroller.scrollTop).toBe(240);
+    expect(styles.get("--header-p")).toBe("1");
   });
 });

@@ -1,0 +1,125 @@
+/* ================================================================
+   B2 · Layered Glass 分层透光玻璃（与 B1 同一骨架，材质更进一步）
+   Canvas  更清晰的抽象光斑与色带（两团取自主题色），不整体磨平
+   Frosted 顶栏、底栏比 B1 更轻、更透、白度更低；
+           信息卡片（摘要、次级小卡、账目分组、成员、编辑记录、设置、详情字段、图表卡）换成同一档透明磨砂玻璃
+   Accent  “+”与主操作仍是主题色瓷片（与 B1 相同），不做肥皂泡
+   几何与 B1 一致：底栏全宽、“+”居中略突出、Bottom Sheet 贴底。
+   玻璃上的控件（输入框、币种、按钮）不做第二次模糊；输入区是高不透明度的实心槽。
+   ================================================================ */
+.app[data-style="b2"] {
+  --canvas: #f0f3ee;
+  --content-bg: #fcfcfa;
+  --content-sh: 0 0 0 .5px rgb(60 70 64 / .08), 0 1px 2px rgb(40 52 46 / .04), 0 10px 24px -18px rgb(40 52 46 / .26);
+  --satin-bg: linear-gradient(180deg, rgb(255 255 253 / .97), rgb(249 248 244 / .95));
+  --satin-sh: 0 0 0 .5px rgb(60 70 64 / .08), 0 1px 2px rgb(40 52 46 / .04);
+  --satin-rim: linear-gradient(170deg, rgb(255 255 255 / 1) 0%, rgb(255 255 255 / 0) 55%);
+  --frost-rgb: 250 251 249; --rim-rgb: 255 255 255;
+  --frost-lift: .1;
+  --frost-a-ctl: .4;   --frost-b-ctl: 14px;
+  --frost-a-panel: .48; --frost-b-panel: 20px;
+  --frost-a-dense: .7;
+  --frost-a-card: .5;  --frost-b-card: 18px;
+  --frost-a-bar: .42;  --frost-b-bar: 20px;
+  --frost-a-sheet: .64; --frost-b-sheet: 28px;
+  --frost-a-flat: .5;
+  --frost-sat: 1.6; --frost-bright: 1.05;
+  --rim-hi: 1; --rim-mid: .48; --rim-lo: .12;
+  --sheen-top: .34; --sheen-bottom: .2;
+  --frost-sh-ctl: 0 0 0 .5px rgb(40 52 46 / .08), 0 6px 16px -8px rgb(40 52 46 / .28);
+  --frost-sh-flat: 0 0 0 .5px rgb(40 52 46 / .1), 0 1px 3px -1px rgb(40 52 46 / .12);
+  --frost-sh-panel: 0 0 0 .5px rgb(40 52 46 / .07), 0 2px 4px rgb(40 52 46 / .03), 0 18px 38px -24px rgb(40 52 46 / .4);
+  --frost-sh-card: 0 0 0 .5px rgb(40 52 46 / .07), 0 12px 28px -20px rgb(40 52 46 / .34);
+  --frost-sh-bar: 0 -.5px 0 rgb(40 52 46 / .08), 0 -12px 30px -18px rgb(40 52 46 / .26);
+  --frost-sh-sheet: 0 -.5px 0 rgb(40 52 46 / .08), 0 -20px 44px -24px rgb(40 52 46 / .36);
+  --frost-fallback: rgb(247 248 245 / .97); --frost-fallback-ctl: #f6f7f4; --bar-fallback: #f3f5f1;
+  /* 与 B1 同一种主题色瓷片，略亮一点以配合更透的环境 */
+  --accent-bg: linear-gradient(180deg, color-mix(in srgb, var(--brand) 82%, #fff) 0%, color-mix(in srgb, var(--brand) 96%, #000) 100%);
+  --accent-rim: linear-gradient(180deg, rgb(255 255 255 / .42), rgb(255 255 255 / 0) 45%);
+  --accent-sh: 0 0 0 .5px color-mix(in srgb, var(--brand) 60%, #000 20%), 0 7px 16px -8px color-mix(in srgb, var(--brand) 70%, transparent);
+  --accent-solid: var(--brand);
+  --accent-off-bg: color-mix(in srgb, var(--brand) 24%, rgb(255 255 255 / .72)); --accent-off-ink: rgb(255 255 255 / .95);
+  --divider: rgb(60 70 64 / .08);
+  --pill-bg: linear-gradient(180deg, rgb(255 255 255 / .92), rgb(255 255 255 / .72));
+  --pill-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(40 52 46 / .08), 0 3px 9px -3px rgb(40 52 46 / .22);
+  --chip-bg: linear-gradient(180deg, rgb(255 255 255 / .62), rgb(255 255 255 / .42));
+  --chip-sh: inset 0 1px 0 rgb(255 255 255 / .9), 0 0 0 .5px rgb(40 52 46 / .1), 0 1px 3px -1px rgb(40 52 46 / .12);
+  --tab-on-bg: var(--pill-bg); --tab-on-sh: var(--pill-sh);
+  --track: rgb(110 108 96 / .08);
+  --seg-off: #56625c; --sec-h: #2f3a35; --tab-off: #56625c;
+  --sheet-group: rgb(255 255 255 / .78); --sheet-group-sh: 0 0 0 .5px rgb(40 52 46 / .06);
+  --li-ic-bg: rgb(255 255 255 / .7);
+  --scrim: rgb(36 44 40 / .16);
+  --menu-veil: rgb(240 243 238 / .55);
+  --r-hero: 26px; --r-group: 22px; --r-mini: 20px; --r-sheet: 28px; --r-input: 14px;
+  /* 顶栏（收起后出现）：比 B1 更轻、更透的玻璃带 */
+  --bar-bg: linear-gradient(180deg, rgb(var(--frost-rgb) / calc(.58 * var(--gk-a))), rgb(var(--frost-rgb) / calc(.44 * var(--gk-a))));
+  --bar-filter: blur(calc(20px * var(--gk-b))) saturate(1.5);
+  --bar-sh: inset 0 -1px 0 rgb(255 255 255 / .6), 0 .5px 0 rgb(40 52 46 / .08), 0 10px 22px -18px rgb(40 52 46 / .3);
+  --nav-h: 70px; --plus: 54px; --plus-top: -18px;
+}
+/* Canvas：SVG 光斑，颜色走变量（主题色可换） */
+.app[data-style="b2"] .bg-b2 .s-base1 { stop-color: color-mix(in srgb, var(--brand) 6%, #eef3ef); }
+.app[data-style="b2"] .bg-b2 .s-base2 { stop-color: #f4f2ec; }
+.app[data-style="b2"] .bg-b2 .s-base3 { stop-color: #eeeff1; }
+.app[data-style="b2"] .bg-b2 .s-brand { stop-color: color-mix(in srgb, var(--brand) 62%, #fff); }
+.app[data-style="b2"] .bg-b2 .s-warm { stop-color: #f2c7a1; }
+.app[data-style="b2"] .bg-b2 .s-mist { stop-color: #b4cde4; }
+.app[data-style="b2"] .bg-b2 .s-flare { stop-color: #fff; }
+.app[data-style="b2"] .bg-b2 .s-band1 { stop-color: color-mix(in srgb, var(--brand) 22%, #fff); }
+.app[data-style="b2"] .bg-b2 .s-band2 { stop-color: #d6e2ee; }
+
+/* 默认状态：顶部标题区与正文同在页面环境里，不加顶栏；标题区收起后才出现磨砂玻璃顶栏，吸顶分段并入同一条玻璃带 */
+.app[data-style="b2"] .page[data-pinned="true"] .u-top::before { box-shadow: none; }
+.app[data-style="b2"] .page[data-pinned="true"] .u-toolbar::before { box-shadow: var(--bar-sh), 0 12px 22px -20px rgb(40 52 46 / .35); }
+.app[data-style="b2"] .page[data-scrolled="true"] .u-top .m-frost, .app[data-style="b2"] .page[data-top="false"] .u-top-search .m-frost, .app[data-style="b2"] .page[data-pinned="true"] .u-toolbar .m-frost { -webkit-backdrop-filter: none; backdrop-filter: none; --fa: var(--frost-a-flat); --fsh: var(--frost-sh-flat); }
+.app[data-style="b2"] .u-tool[aria-pressed="true"].m-frost { background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 16%, rgb(255 255 255 / .74)), color-mix(in srgb, var(--brand) 26%, rgb(255 255 255 / .52))); }
+.app[data-style="b2"] .u-searchbar:focus-within { --fa: calc(var(--frost-a-flat) + .2); }
+.app[data-style="b2"] .u-toolbar { padding-top: 8px; }
+/* 玻璃卡片里的小件：不再模糊，用玻璃片 / 实心槽 */
+.app[data-style="b2"] .u-cur { background: var(--chip-bg); box-shadow: var(--chip-sh); }
+.app[data-style="b2"] .f-card .u-num { background: rgb(255 255 255 / .55); }
+.app[data-style="b2"] .f-card .u-li-ic, .app[data-style="b2"] .f-card .u-av { box-shadow: inset 0 0 0 .5px rgb(60 70 64 / .08); }
+.app[data-style="b2"] .f-card .u-list-plain > * + *::before, .app[data-style="b2"] .f-card .u-log-item + .u-log-item::before, .app[data-style="b2"] .f-card.u-group > li + li::before { background: rgb(60 70 64 / .1); }
+.app[data-style="b2"] .u-box-form { padding: 16px 16px 12px; }
+.app[data-style="b2"] .u-me-tag { background: rgb(255 255 255 / .7); }
+/* 底栏与“+”：几何与 B1 相同 */
+.app[data-style="b2"] .u-dock { border-radius: 26px 26px 0 0; }
+.app[data-style="b2"] .u-tab[aria-current="page"] { color: var(--brand-ink); }
+.app[data-style="b2"] .u-app-ic { border-radius: 16px; }
+
+@supports (corner-shape: squircle) {
+  .app[data-style="b2"] .u-hero, .app[data-style="b2"] .u-sum { corner-shape: squircle; border-radius: 40px; }
+}
+
+/* ---------------- 深色（方向）：光斑压暗但保留轮廓；玻璃是带环境色的深色薄片，边缘光只留上沿 ---------------- */
+.app[data-style="b2"][data-scheme="dark"] {
+  --canvas: #0f1312; --ink: #eaeeec; --ink-2: #ced5d1; --muted: #939d98; --faint: #6d7772;
+  --divider: rgb(255 255 255 / .08); --line: rgb(255 255 255 / .15);
+  --brand-ink: color-mix(in srgb, var(--brand) 55%, #fff); --brand-soft: color-mix(in srgb, var(--brand) 24%, #1b201e); --brand-softer: color-mix(in srgb, var(--brand) 12%, #1b201e);
+  --content-bg: #1a1f1d; --content-sh: 0 0 0 .5px rgb(255 255 255 / .06);
+  --frost-rgb: 30 36 34; --frost-lift: .04; --rim-hi: .34; --rim-mid: .12; --rim-lo: .03; --sheen-top: .07; --sheen-bottom: .05;
+  --frost-a-ctl: .5; --frost-a-panel: .52; --frost-a-card: .58; --frost-a-dense: .78; --frost-a-bar: .6; --frost-a-sheet: .76; --frost-a-flat: .5;
+  --frost-sh-ctl: 0 0 0 .5px rgb(255 255 255 / .08); --frost-sh-flat: 0 0 0 .5px rgb(255 255 255 / .1);
+  --frost-sh-panel: 0 0 0 .5px rgb(255 255 255 / .07), 0 20px 40px -24px rgb(0 0 0 / .7); --frost-sh-card: 0 0 0 .5px rgb(255 255 255 / .07), 0 12px 28px -20px rgb(0 0 0 / .6);
+  --frost-fallback: rgb(28 33 31 / .97); --frost-fallback-ctl: #232826; --bar-fallback: #161a19;
+  --bar-bg: linear-gradient(180deg, rgb(18 22 21 / .66), rgb(18 22 21 / .52)); --bar-sh: 0 .5px 0 rgb(255 255 255 / .07);
+  --pill-bg: rgb(255 255 255 / .14); --pill-sh: inset 0 1px 0 rgb(255 255 255 / .1); --track: rgb(255 255 255 / .06);
+  --chip-bg: rgb(255 255 255 / .08); --chip-sh: inset 0 1px 0 rgb(255 255 255 / .06); --sheet-group: rgb(255 255 255 / .06); --sheet-group-sh: none;
+  --li-ic-bg: rgb(255 255 255 / .07);
+  --seg-off: #a3ada8; --sec-h: #ced5d1; --tab-off: #a3ada8;
+  --inc: #6cc49a; --warm: #e39b7a; --danger: #e5786d; --danger-soft: rgb(229 120 109 / .14);
+  --menu-veil: rgb(15 19 18 / .7); --skel: rgb(255 255 255 / .08); --num-bg: rgb(255 255 255 / .07); --code-bg: rgb(255 255 255 / .05); --role-bg: rgb(255 255 255 / .08);
+  --scrim: rgb(0 0 0 / .45);
+}
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-base1 { stop-color: #131917; }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-base2 { stop-color: #121514; }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-base3 { stop-color: #101314; }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-brand { stop-color: color-mix(in srgb, var(--brand) 55%, #0b0f0d); }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-warm { stop-color: #5a3e2c; }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-mist { stop-color: #2a3a4c; }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-flare { stop-color: #8fa39a; }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-band1 { stop-color: color-mix(in srgb, var(--brand) 30%, #10140f); }
+.app[data-style="b2"][data-scheme="dark"] .bg-b2 .s-band2 { stop-color: #1b2632; }
+.app[data-style="b2"][data-scheme="dark"] .u-input-solid { --input-sh: inset 0 0 0 .5px rgb(255 255 255 / .12); background: rgb(14 18 17 / .78); }
+.app[data-style="b2"][data-scheme="dark"] .f-card .u-num, .app[data-style="b2"][data-scheme="dark"] .u-cur { background: rgb(255 255 255 / .08); }

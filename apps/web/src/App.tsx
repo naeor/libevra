@@ -7,6 +7,7 @@ import { Suspense, lazy, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router";
 
 import { AuthProvider, useAuth } from "./auth/AuthProvider.js";
+import { B2GlassScope } from "./s19/B2GlassScope.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { AppShell, PaneShell } from "./components/Layouts.js";
 import { ConsentGate } from "./components/ConsentGate.js";
@@ -593,6 +594,7 @@ export default function App(): React.JSX.Element {
         }}
       >
         <AuthProvider>
+          <B2GlassScope />
           {/**
            * ⚠️ **The guest data source is chosen before any page renders.**
            *

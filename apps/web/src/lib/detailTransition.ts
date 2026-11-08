@@ -2,7 +2,7 @@ import { startTransition, useCallback, useLayoutEffect, useRef, useState } from 
 import type { TransactionKind } from "@libellum/shared";
 import type { EntryPresentation } from "../components/EntrySortControls.js";
 import { DRAG_DISTANCE, LATE_THRESHOLD, clamp01 } from "./transitionPhysics.js";
-import { bindNativeHeaderScroll } from "./nativeHeaderScroll.js";
+import { bindNativeHeaderScroll, scrollContentHeight } from "./nativeHeaderScroll.js";
 
 interface Session { progress: number; month: string | null; kind: TransactionKind | "all" | null; scrollTop: number; syncRequested?: boolean; presentation?: EntryPresentation; syncReturnPath?: string; search?: string; searchOpen?: boolean; searchOrigin?: number }
 /**
@@ -87,7 +87,12 @@ export function useDetailTransition(initial: number, scope = "w1", initialSearch
     navigate.current = controller.goTo;
     const content = scroller.firstElementChild as HTMLElement;
     const oldMinHeight = content.style.minHeight;
-    const measure = () => { content.style.minHeight = `${scroller.clientHeight + DRAG_DISTANCE}px`; };
+    // 菜单借用视口空间，但不能缩短列表的滚动行程，否则关闭菜单时浏览器会
+    // 钳制 scrollTop，重新进入顶栏吸附区间，甚至触发 atList 的自动关闭菜单。
+    const menuSpace = root.querySelector<HTMLElement>("[data-detail-menu-space]");
+    const measure = () => {
+      content.style.minHeight = `${scrollContentHeight(scroller) + (menuSpace?.getBoundingClientRect().height ?? 0) + DRAG_DISTANCE}px`;
+    };
     const observer = new ResizeObserver(measure);
     observer.observe(scroller); measure();
     scroller.scrollTop = initialSearch ? sessionFor(scope).scrollTop : Math.max(initial * DRAG_DISTANCE, sessionFor(scope).scrollTop);

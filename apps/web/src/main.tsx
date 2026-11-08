@@ -70,9 +70,20 @@ subscribeCurrentBook(() => {
 });
 
 /** 首屏查询恢复前先有界读盘，不能把尚未恢复身份误当成旧全局缓存的所有者。 */
+/**
+ * S19 视觉风格实验（只在开发环境或 `VITE_S19_STYLE_LAB=1` 的测试构建里加载）。与账本恢复并行加载，
+ * 首次渲染前等它完成，带着已选风格刷新时不会先闪一下 Original；加载失败也不影响应用启动。
+ */
+const styleLab: Promise<void> | null = import.meta.env.DEV || __S19_STYLE_LAB__
+  ? import("./s19/lab.js").then((lab) => lab.startStyleLab()).catch(() => undefined)
+  : null;
+const b2Appearance = import("./s19/product.js").then(module => module.startB2Appearance()).catch(() => undefined);
+
 async function start(): Promise<void> {
   const book = await restoreCurrentBook();
   await restoreOfflineScope(book);
+  await b2Appearance;
+  if (styleLab) await styleLab;
   createRoot(container!).render(
   <StrictMode>
     <App />

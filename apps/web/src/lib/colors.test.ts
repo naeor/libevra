@@ -42,8 +42,16 @@ import { describe, expect, it } from "vitest";
  */
 const SRC = resolve(import.meta.dirname, "..");
 
-/** Files permitted to define colour literals. */
-const EXEMPT = new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx"]);
+/**
+ * Files permitted to define colour literals.
+ *
+ * `s19-lab-tokens.css` (S19, 2026-11-07): the token definitions of the four candidate visual styles.
+ * It is the same kind of file as `index.css` — values, not components — and it exists only in the
+ * development server and in test builds made with `VITE_S19_STYLE_LAB=1`; production builds compile
+ * the whole lab out. Every other `s19/*.css` file reads these variables and is checked as usual.
+ * When a style is adopted, its values move into `index.css` and this entry goes away.
+ */
+const EXEMPT = new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx", "s19-lab-tokens.css"]);
 
 /**
  * ⚠️ **One file may hardcode `rgb()`, and the reason is the same kind as `OceanBackdrop`'s.**
@@ -199,7 +207,7 @@ describe("colour literals", () => {
    * generates false alarms.**
    */
   it("stops where a rule would start misfiring, and says so", () => {
-    expect(EXEMPT).toEqual(new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx"]));
+    expect(EXEMPT).toEqual(new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx", "s19-lab-tokens.css"]));
     expect(ALLOWED_RGBA_FILES).toEqual(["detail-motion.css"]);
     /**
       * ⚠️ **The one allowed `rgb()` is a translucency, and that is the shape of the whole exception.**

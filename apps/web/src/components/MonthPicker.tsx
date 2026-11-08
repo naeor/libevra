@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useDialogFocus } from "../lib/dialogFocus.js";
+import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
+import { useKeyboardInset } from "./entry/keyboardInset.js";
 import { DesktopPopover } from "../desktop/DesktopPopover.js";
 import type { MonthAvailability } from "../lib/monthAvailability.js";
 import { ChevronIcon } from "./Icons.js";
@@ -87,22 +89,29 @@ export function MonthPicker({
    * 宽度变成居中的小对话框（`lv-sheet*`，见 `workspace.css`），窄工作区与手机上仍是底部面板。
    */
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const layer = useDialogFocus(dialogRef, open && anchor === undefined);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const exit = useOverlayExit(onClose, open);
+  const closing = exit.closing;
+  const close = anchor === undefined ? exit.requestClose : onClose;
+  const visible = open;
+  const layer = useDialogFocus(dialogRef, visible && anchor === undefined);
+  useOverlayScrollLock(backdropRef, visible && anchor === undefined);
+  const keyboard = useKeyboardInset(backdropRef, visible && anchor === undefined);
   useEffect(() => {
     if (!open || anchor !== undefined) return;
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === "Escape" && layer.owns(event)) {
         event.preventDefault();
-        onClose();
+        close();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [layer, onClose, open, anchor]);
+  }, [layer, close, open, anchor]);
 
-  if (!open) return null;
+  if (!visible) return null;
 
   const year = controlledYear ?? browseYear ?? Number((all ? maxMonth : month).slice(0, 4));
 
@@ -115,15 +124,16 @@ export function MonthPicker({
   const choose = (value: string): void => {
     if (disabled(value)) return;
     onSelect(value);
-    onClose();
+    close();
     anchor?.current?.focus({ preventScroll: true });
   };
 
   const content = <>
-        <div className="mb-2 flex items-center justify-between gap-4">
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-4">
           <span className="text-section-title text-ink">{t("ledger.monthPicker.title")}</span>
-          <button type="button" aria-label={t("ledger.monthPicker.close")} className="rounded-field px-3 py-2 text-muted hover:bg-canvas" onClick={() => { onClose(); anchor?.current?.focus({ preventScroll: true }); }}>×</button>
+          <button type="button" aria-label={t("ledger.monthPicker.close")} className="rounded-field px-3 py-2 text-muted hover:bg-canvas" onClick={() => { close(); anchor?.current?.focus({ preventScroll: true }); }}>×</button>
         </div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain">
         <div className="mb-4 flex items-center justify-between">
           <button
             type="button"
@@ -191,7 +201,7 @@ export function MonthPicker({
               aria-pressed={all}
               onClick={() => {
                 onSelect(ALL_MONTHS);
-                onClose();
+                close();
                 anchor?.current?.focus({ preventScroll: true });
               }}
               className={`w-full rounded-field py-3 text-sm transition ${
@@ -216,6 +226,7 @@ export function MonthPicker({
           </button>
         </div>
         {statusNote ? <p role="status" className="mt-3 text-helper-relaxed text-muted">{statusNote}</p> : null}
+        </div>
   </>;
 
   if (anchor !== undefined) return (
@@ -224,10 +235,15 @@ export function MonthPicker({
     </DesktopPopover>
   );
   return (
-    <div className="lv-sheet-backdrop fixed inset-0 z-50 flex items-end justify-center">
-      <button type="button" aria-label={t("ledger.monthPicker.close")} onClick={onClose} className="absolute inset-0 bg-overlay" />
+    <div ref={backdropRef} data-overlay-root="sheet" data-overlay-state={closing ? "closing" : "open"}
+      style={keyboard > 0 ? { paddingBottom: keyboard } : undefined}
+      className={`lv-sheet-backdrop fixed inset-0 z-50 flex items-end justify-center bg-overlay ${closing ? "backdrop-out" : "backdrop-in"}`}>
+      <button type="button" aria-label={t("ledger.monthPicker.close")} onClick={close} className="absolute inset-0" />
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={t("ledger.monthPicker.title")} tabIndex={-1}
-        className="lv-sheet relative w-full max-w-md overflow-y-auto rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl outline-none">
+        data-overlay-surface="sheet"
+        inert={closing}
+        style={{ maxHeight: `calc(var(--lv-vh) * 88 - ${keyboard}px)` }}
+        className={`lv-sheet relative z-0 flex w-full max-w-md flex-col rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl outline-none ${closing ? "sheet-out" : "sheet-in"}`}>
         {content}
       </div>
     </div>

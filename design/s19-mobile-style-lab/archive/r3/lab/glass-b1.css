@@ -1,0 +1,85 @@
+/* ================================================================
+   B1 · Ambient Frost 柔和环境磨砂
+   Canvas  朦胧柔和的色雾（本身已很柔，玻璃上只透出淡淡的环境色）
+   Content 账目、设置、详情字段、图表 —— 不透明
+   Satin   收支摘要、个人卡、详情头部、分析总览 —— 近不透明釉面
+   Frosted 顶部工具钮、搜索栏、分段底板、底部导航、浮层、记一笔面板
+   Accent  中央记账按钮与主操作：平整的绿色 Satin，只有上沿一道细高光
+   防嵌套：滚动后顶部变成一条磨砂带，带上的工具钮与吸顶分段自动退成“带上控件”（不再各自模糊）。
+   ================================================================ */
+:root {
+  --canvas-base: #e8ebe6;
+  --content-bg: #fbfaf7;
+  --content-sh: 0 0 0 .5px rgb(70 64 52 / .07), 0 1px 2px rgb(48 60 54 / .035), 0 8px 20px -16px rgb(48 60 54 / .22);
+  --satin-bg: linear-gradient(180deg, #fffefa 0%, #faf7f0 55%, #f4f0e7 100%);
+  --satin-sh: 0 0 0 .5px rgb(90 80 60 / .09), 0 1px 2px rgb(60 54 44 / .04), 0 14px 30px -20px rgb(70 60 44 / .34);
+  --satin-rim-hi: .95; --satin-rim-lo: .07;
+
+  --frost-rgb: 248 249 246;
+  --frost-lift: .07;
+  --frost-a-ctl: .5;   --frost-b-ctl: 16px;
+  --frost-a-panel: .6; --frost-b-panel: 22px;
+  --frost-a-bar: .66;  --frost-b-bar: 26px;
+  --frost-a-sheet: .76; --frost-b-sheet: 30px;
+  --frost-sat: 1.45; --frost-bright: 1.03;
+  --rim-hi: .95; --rim-mid: .42; --rim-lo: .12;
+  --sheen-top: .26; --sheen-bottom: .14;
+  --frost-sh-ctl: 0 0 0 .5px rgb(40 52 46 / .09), 0 4px 12px -6px rgb(40 52 46 / .24);
+  --frost-sh-panel: 0 0 0 .5px rgb(40 52 46 / .07), 0 16px 34px -20px rgb(40 52 46 / .38);
+  --frost-sh-bar: 0 -.5px 0 rgb(40 52 46 / .07), 0 -14px 32px -22px rgb(40 52 46 / .32);
+  --frost-sh-sheet: 0 -.5px 0 rgb(40 52 46 / .07), 0 -20px 44px -24px rgb(40 52 46 / .4);
+  --frost-fallback: rgb(246 247 243 / .97); --bar-fallback: #f2f3ef;
+
+  --divider: rgb(70 64 52 / .075);
+  --seg-pill-bg: linear-gradient(180deg, #fffffd, #f8f7f2);
+  --seg-pill-sh: 0 0 0 .5px rgb(60 70 64 / .1), 0 2px 6px -2px rgb(40 52 46 / .22);
+  --seg-off: var(--muted);
+  --day-h: var(--ink-2); --day-sum: var(--muted);
+  --tab-off: #6e7974; --tab-on-bg: rgb(85 153 122 / .13); --tab-on-sh: none;
+  --li-ic-bg: #eaf2ed;
+  --sheet-group: rgb(255 255 255 / .86);
+  --scrim: rgb(40 48 44 / .2);
+  --nav-h: 70px;
+  --plus-top: -18px;
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .25  0 0 0 0 .28  0 0 0 0 .26  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ---- Canvas：色雾 ---- */
+.g-bg-fog { background: linear-gradient(180deg, #e2eae4 0%, #ebe9e2 52%, #e8e7e2 100%); }
+.g-fog { position: absolute; border-radius: 50%; }
+.g-fog.f1 { width: 120vmax; height: 120vmax; left: -58vmax; top: -64vmax; background: radial-gradient(circle, rgb(136 192 162 / .66), rgb(136 192 162 / 0) 64%); }
+.g-fog.f2 { width: 100vmax; height: 100vmax; right: -56vmax; top: -40vmax; background: radial-gradient(circle, rgb(244 202 160 / .58), rgb(244 202 160 / 0) 64%); }
+.g-fog.f3 { width: 110vmax; height: 110vmax; left: -60vmax; bottom: -58vmax; background: radial-gradient(circle, rgb(172 198 222 / .5), rgb(172 198 222 / 0) 64%); }
+.g-grain { position: absolute; inset: 0; background-image: var(--grain); opacity: .13; mix-blend-mode: multiply; }
+
+/* ---- 顶部：滚动后成为一整条磨砂带（顶栏 + 吸顶分段连成一体） ---- */
+.g-top::before, .g-toolbar::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity .25s;
+  background: linear-gradient(180deg, rgb(var(--frost-rgb) / calc(.74 * var(--gk-a))), rgb(var(--frost-rgb) / calc(.64 * var(--gk-a))));
+  -webkit-backdrop-filter: blur(calc(26px * var(--gk-b))) saturate(1.45); backdrop-filter: blur(calc(26px * var(--gk-b))) saturate(1.45);
+  box-shadow: 0 .5px 0 rgb(40 52 46 / .08);
+}
+.page[data-scrolled="true"] .g-top::before { opacity: 1; }
+.page[data-pinned="true"] .g-top::before { box-shadow: none; }
+.page[data-pinned="true"] .g-toolbar::before { opacity: 1; box-shadow: 0 .5px 0 rgb(40 52 46 / .08), 0 12px 22px -20px rgb(40 52 46 / .45); }
+/* 带上的控件：不再自己模糊，只留一层浅白与细边 —— 避免“玻璃上叠玻璃” */
+.page[data-scrolled="true"] .g-top .m-frost, .page[data-pinned="true"] .g-toolbar .m-frost {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: rgb(255 255 255 / .5); box-shadow: 0 0 0 .5px rgb(40 52 46 / .09);
+}
+.page[data-scrolled="true"] .g-top .m-frost::after, .page[data-pinned="true"] .g-toolbar .m-frost::after { opacity: 0; }
+.page[data-scrolled="true"] .g-top .g-tool.on.m-frost { background: rgb(214 236 224 / .8); }
+.page[data-pinned="true"] .g-toolbar .g-seg { background: rgb(110 108 96 / .08); box-shadow: none; }
+.page[data-pinned="true"] .g-toolbar .g-seg::before { opacity: 0; }
+
+/* ---- 底部导航：贴底的一整块磨砂 ---- */
+.g-plus { width: 54px; height: 54px; margin-left: -27px; }
+.g-plus.m-accent-satin { box-shadow: 0 0 0 .5px rgb(30 74 54 / .24), 0 7px 16px -8px rgb(30 80 58 / .48); }
+.g-plus:active { filter: brightness(.96); }
+
+/* ---- 回退 ---- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .g-top::before, .g-toolbar::before { background: var(--bar-fallback); }
+}
+.nofx .g-top::before, .nofx .g-toolbar::before { background: var(--bar-fallback); }
+.page[data-scrolled="true"] .g-top .g-searchbar:focus-within { box-shadow: 0 0 0 .5px rgb(40 52 46 / .09), 0 0 0 2px rgb(85 153 122 / .45); }

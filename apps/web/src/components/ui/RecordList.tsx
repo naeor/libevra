@@ -83,6 +83,7 @@ export function RecordRow({
   lines,
   meta,
   to,
+  state,
   onClick,
   strong = false,
 }: {
@@ -97,6 +98,7 @@ export function RecordRow({
   readonly lines?: readonly React.ReactNode[];
   readonly meta?: React.ReactNode;
   readonly to?: string;
+  readonly state?: unknown;
   readonly onClick?: () => void;
 }): React.JSX.Element {
   const placement = useContext(PlacementContext);
@@ -144,7 +146,7 @@ export function RecordRow({
     <li className="border-b border-line last:border-b-0">
       {to !== undefined ? (
         // S18 第二轮：大屏上可以长按 / 拖动到另一个工作区打开。
-        <DraggableLink to={to} title={title ?? plainText(primary)} className={`${base} ${interactive}`}>
+        <DraggableLink to={to} state={state} title={title ?? plainText(primary)} className={`${base} ${interactive}`}>
           {body}
         </DraggableLink>
       ) : onClick !== undefined ? (

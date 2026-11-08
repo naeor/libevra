@@ -21,6 +21,8 @@ describe("从下往上展开的面板", () => {
     );
 
     expect(html).toContain('role="dialog"');
+    expect(html).toContain('data-overlay-root="sheet"');
+    expect(html).toContain('data-overlay-surface="sheet"');
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-label="引用一条记录"');
     expect(html).toContain("sheet-in");

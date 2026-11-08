@@ -272,6 +272,8 @@ function TabPageNav({
       */}
       <div
         aria-hidden="true"
+        data-entry-menu-space
+        data-entry-menu-open={menu.open}
         className={`shrink-0 transition-[height] duration-200 ease-out ${
           menu.open ? "h-[100px]" : "h-0"
         }`}

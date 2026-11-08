@@ -35,7 +35,7 @@ export interface DesktopNavItem {
 
 /** 当前地址属于哪个导航目的地（没有对应时为 `null`，例如设置页）。 */
 export function navIdFor(pathname: string): NavId | null {
-  if (pathname === "/ledger/cards") return "entries";
+  if (pathname === "/ledger/cards" || pathname === "/ledger/more") return "entries";
   if (pathname === "/dashboard") return "dashboard";
   if (pathname === "/" || pathname.startsWith("/transactions/")) return "entries";
   if (pathname === "/stats" || pathname.startsWith("/stats/")) return "stats";
@@ -388,7 +388,8 @@ function AccountMenu({ onClose }: { readonly onClose: () => void }): React.JSX.E
       : [
           { to: "/profile", label: t("desktop.settings.items.profile") },
           { to: "/settings/preferences", label: t("desktop.settings.items.preferences") },
-          { to: "/settings/appearance", label: t("desktop.settings.items.appearance") },
+          { to: "/settings/appearance/theme", label: t("desktop.settings.items.appearance") },
+          { to: "/settings/appearance/language", label: t("desktop.settings.items.language") },
           { to: "/downloads", label: t("desktop.settings.items.downloads") },
           { to: "/update", label: t("desktop.settings.items.updates") },
           ...(isAdmin ? [{ to: "/admin", label: t("desktop.settings.items.admin") }] : []),

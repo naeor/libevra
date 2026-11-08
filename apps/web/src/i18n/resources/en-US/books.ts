@@ -45,9 +45,11 @@ const books: Messages<typeof zh> = {
     },
   },
   switcher: {
+    manageAll: "Manage all ledgers",
     title: "Choose a ledger",
     close: "Close ledger list",
     hint: {
+      activate: "Switch the active ledger and stay on this page.",
       view: "This only changes which ledger you’re viewing. The ledger you add entries to stays the same.",
       manage: "This only changes which ledger you’re managing. The ledger you add entries to stays the same.",
     },
@@ -56,7 +58,7 @@ const books: Messages<typeof zh> = {
     targetMissing: "This ledger is unavailable. It may have been discarded or access may have been removed.",
   },
   identity: {
-    switch: "Switch",
+    switch: "View other ledgers",
     rename: "Rename ledger",
   },
   sheet: {

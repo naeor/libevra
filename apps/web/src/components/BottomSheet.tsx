@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { useDialogFocus } from "../lib/dialogFocus.js";
 import { useKeyboardInset } from "./entry/keyboardInset.js";
+import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
 
 /**
  * **从底部升起的半屏面板 —— 一个负责「进 / 出」两层动画的外壳**（m06693）。
@@ -13,13 +14,12 @@ import { useKeyboardInset } from "./entry/keyboardInset.js";
  *  * **退场**用 `sheet-out`（200ms 加速），先播放完再真正调用 `onClose` 卸载，**不会在动画半路消失**；
  *  * 遮罩同进同出（`backdrop-in` / `backdrop-out`），点击遮罩或 Escape 都走同一条关闭路径。
  *
- * ⚠️ **动画时长与 CSS 是两份真相**：`SHEET_EXIT_MS` 必须与 `index.css` 里 `libellum-sheet-out` 的
+ * ⚠️ **动画时长与 CSS 是两份真相**：`overlayExit.ts` 的 `OVERLAY_EXIT_MS` 必须与 `index.css` 里 `libellum-sheet-out` 的
  * 200ms 保持一致。改一处要改两处——多等 30ms 只是慢，少等则是「关到一半被拔掉」。
  *
  * ⚠️ **减少动态（`prefers-reduced-motion`）时整段动画由 CSS 关掉**（`index.css` 的媒体查询），
  * 但关闭仍然照常经过这里——`onClose` 的时机不受影响，只是没有位移可见。
  */
-const SHEET_EXIT_MS = 200;
 
 export function BottomSheet({
   label,
@@ -38,8 +38,7 @@ export function BottomSheet({
    */
   readonly children: ReactNode | ((close: () => void) => ReactNode);
 }): React.JSX.Element {
-  const [closing, setClosing] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { closing, requestClose } = useOverlayExit(onClose);
   /**
    * ⚠️ **S18（审查 U04）：焦点进入面板、Tab 圈在面板里、关闭后回到打开它的控件。** 多层面板时只有最上面
    * 那一层响应 Esc——以前每一层都在 `window` 上听 Esc，按一次会把叠着的面板全部关掉。
@@ -52,20 +51,7 @@ export function BottomSheet({
    */
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const keyboard = useKeyboardInset(backdropRef);
-
-  const requestClose = useCallback(() => {
-    if (closing) return;
-
-    setClosing(true);
-    timer.current = setTimeout(onClose, SHEET_EXIT_MS);
-  }, [closing, onClose]);
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    },
-    [],
-  );
+  useOverlayScrollLock(backdropRef);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -89,6 +75,8 @@ export function BottomSheet({
      */
     <div
       ref={backdropRef}
+      data-overlay-root="sheet"
+      data-overlay-state={closing ? "closing" : "open"}
       role="presentation"
       onClick={requestClose}
       style={keyboard > 0 ? { paddingBottom: keyboard } : undefined}
@@ -98,6 +86,8 @@ export function BottomSheet({
     >
       <div
         ref={dialogRef}
+        data-overlay-surface="sheet"
+        inert={closing}
         role="dialog"
         aria-modal="true"
         aria-label={label}
@@ -106,7 +96,7 @@ export function BottomSheet({
         onClick={(event) => {
           event.stopPropagation();
         }}
-        className={`lv-sheet flex max-h-[calc(var(--lv-vh)*88)] w-full max-w-md flex-col rounded-t-sheet bg-surface shadow-sheet outline-none ${
+        className={`lv-sheet relative z-0 flex max-h-[calc(var(--lv-vh)*88)] w-full max-w-md flex-col rounded-t-sheet bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet outline-none ${
           closing ? "sheet-out" : "sheet-in"
         } sm:max-h-[calc(var(--lv-vh)*80)] sm:rounded-card ${dialogClassName}`}
       >

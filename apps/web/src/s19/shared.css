@@ -1,0 +1,242 @@
+/* 四套风格共用的结构规则：只读 `--s19-*` 令牌，具体数值在 s19-lab-tokens.css。 */
+
+/* ---------- 页面环境：一层固定在视口上的背景（只在手机外壳存在时） ---------- */
+:root[data-visual-style][data-theme-mode="light"] body:has(.lv-shell[data-shell="contents"]) {
+  background-color: var(--s19-canvas);
+}
+:root[data-visual-style][data-theme-mode="light"] body:has(.lv-shell[data-shell="contents"])::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--s19-bg);
+}
+:root[data-visual-style][data-theme-mode="light"] body:has(.lv-shell[data-shell="contents"])::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: var(--s19-grain, none); opacity: var(--s19-grain-opacity, 0); mix-blend-mode: multiply;
+}
+
+/* ---------- 令牌：只在手机外壳里重映射 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+  --color-canvas: var(--s19-canvas);
+  --radius-card: var(--s19-r-group);
+  --radius-sheet: var(--s19-r-sheet);
+  --radius-field: var(--s19-r-field);
+}
+
+/* ---------- 信息卡片 / 列表分组 / 设置分组（Content · Satin · Glass） ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.rounded-card.bg-surface, .lv-settings-body.bg-surface, .sw-statbar, details.rounded-field.bg-surface) {
+  border-color: var(--s19-card-line, transparent);
+  background: var(--s19-card-bg);
+  box-shadow: var(--s19-card-sh);
+}
+/* 关键卡片：账本卡 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .book-card {
+  border-color: transparent;
+  background: var(--s19-key-bg);
+  box-shadow: var(--s19-key-sh);
+  border-radius: var(--s19-r-key);
+}
+/* “加载更多”这类列表下方的整宽按钮 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-body > button.rounded-field.bg-surface {
+  background: var(--s19-card-bg);
+  box-shadow: var(--s19-card-sh);
+}
+
+/* 按日分组的记录列表（编辑记录、更新公告等 RecordGroup）：原本是贴边的整宽行，
+   这里收进同一张分组卡片（局部布局变体：行的左右留白改为卡片内边距）。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] section.flex-col > h2.sticky + ul.flex-col {
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: var(--s19-r-group);
+  background: var(--s19-card-bg);
+  box-shadow: var(--s19-card-sh), 0 0 0 1px var(--s19-card-line, transparent);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] section.flex-col > h2.sticky + ul.flex-col > li > :is(a, button, div) {
+  margin-inline: 0;
+  padding-inline: 16px;
+}
+
+/* ---------- 分段控件（全部 / 支出 / 收入 等） ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .rounded-full.bg-line\/70.p-1 {
+  background: var(--s19-track-bg);
+  box-shadow: var(--s19-track-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .rounded-full.bg-line\/70.p-1 > button.bg-surface {
+  background: var(--s19-pill-bg);
+  box-shadow: var(--s19-pill-sh);
+}
+
+/* ---------- 明细行：类别图标底 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-body ul > li > button > span.size-9.rounded-full.bg-line {
+  background: var(--s19-row-ic-bg);
+  border-radius: var(--s19-row-ic-r, 9999px);
+}
+
+/* ---------- 底栏：材质画在伪元素上（底栏里有记一笔面板与文件选择，不让底栏本身成为包含块）。 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav.shrink-0.border-t.bg-surface {
+  background: transparent;
+  border-top-color: transparent;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav.shrink-0.border-t.bg-surface::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: var(--s19-dock-r) var(--s19-dock-r) 0 0;
+  background: var(--s19-dock-bg);
+  /* 显式裁切材质与背景采样，不裁导航本体（加号和菜单会越出其上缘）。 */
+  clip-path: inset(0 round var(--s19-dock-r) var(--s19-dock-r) 0 0);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav.shrink-0.border-t.bg-surface::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: var(--s19-dock-r) var(--s19-dock-r) 0 0;
+  /* 阴影独立于裁切层，保留原有轮廓高光和外侧柔影。 */
+  box-shadow: var(--s19-dock-sh);
+}
+/* B2 内容实际延伸至底栏后方。补同等尾部空间，最后一项仍能滚到栏上方；
+   不挪动底栏、选中块或记账面板，其他风格保持原布局。 */
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-b2-scroll-underlay] {
+  margin-bottom: calc(-1 * var(--s19-b2-dock-overlap));
+  padding-bottom: var(--s19-b2-dock-overlap);
+  scroll-padding-bottom: var(--s19-b2-dock-overlap);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav.shrink-0.border-t.bg-surface::before {
+  -webkit-backdrop-filter: var(--s19-bar-filter);
+  backdrop-filter: var(--s19-bar-filter);
+}
+/* 独立账本胶囊：只画自身材质，不再铺全宽说明背景，也不添加局部模糊。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-book-capsule {
+  background: var(--s19-book-bg, var(--s19-card-bg));
+  box-shadow: var(--s19-book-sh, var(--s19-card-sh));
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav .bottom-tab-active > span.rounded-full.bg-brand-soft {
+  background: var(--s19-tab-on-bg);
+  box-shadow: var(--s19-tab-on-sh);
+}
+/* 中间的“+”：几何（尺寸、上浮、旋转）不变，只换材质 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav button.size-16.rounded-full.bg-brand {
+  background: var(--s19-accent-bg);
+  box-shadow: var(--s19-plus-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav button.size-16.rounded-full.bg-brand:is(:hover, :active) {
+  background: var(--color-brand-dark);
+}
+/* 记一笔：菜单按真实高度占位，扣除已占位的账本说明，避免固定 100px 留出宽空带。
+   Original / 深色 / 大屏仍沿用原占位；C 只修同一空带，材质保持原样。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-menu-open="true"] {
+  height: var(--s19-entry-space, 100px);
+}
+/* A 只在菜单边缘衔接环境色，不对正文或整块导航做背景模糊。
+   伪元素跟随菜单实高，最多向上延伸 24px；不接收点击，也不覆盖底栏。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu::before {
+  content: ""; position: absolute; inset: -24px 0 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--s19-canvas) 24px, transparent);
+}
+/* 五张卡：文字 / 语音 / 手动 / 拍照 / 导入。B1 / B2 的局部模糊由菜单伪元素承载，
+   卡片只画填充与高光，不重复叠加滤镜。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav ul > li > :is(a, button).rounded-2xl.bg-brand-soft {
+  background: var(--s19-entry-bg, var(--s19-shelf-bg));
+  box-shadow: var(--s19-entry-sh, var(--s19-shelf-sh));
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav ul > li > :is(a, button).rounded-2xl.bg-brand-soft:active {
+  background: var(--color-brand-soft);
+}
+/* opacity < 1 的祖先会截断背景采样。B1 / B2 保留原 200ms 位移，淡入淡出下放到
+   卡片和承载层自身，使展开途中也能模糊真实账目；关闭后不留透明点击层。 */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu {
+  opacity: 1;
+}
+/* 唯一一层原生模糊：实际菜单高（含原有底部留白）+ 12px 渐隐边缘。
+   bottom-full 与底栏背景伪元素共享边框内侧边界，在此衔接，不叠加也不留缝。 */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu::before {
+  content: ""; position: absolute; inset: -12px 0 0; z-index: -1; pointer-events: none;
+  -webkit-backdrop-filter: var(--s19-entry-filter);
+  backdrop-filter: var(--s19-entry-filter);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, var(--s19-mask-solid) 12px);
+  mask-image: linear-gradient(to bottom, transparent, var(--s19-mask-solid) 12px);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu::before {
+  background: var(--s19-tool-bg);
+}
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu[aria-hidden="false"]::before {
+  opacity: 1;
+}
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu > ul > li > :is(a, button) {
+  transition: opacity 200ms ease-out, background-color 150ms, box-shadow 150ms;
+}
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu > ul > li > :is(a, button):active {
+  background: var(--s19-entry-bg);
+}
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu[aria-hidden="true"] > ul > li > :is(a, button) {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu::before,
+  :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu > ul > li > :is(a, button) { transition: none; }
+}
+
+/* ---------- 按钮 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).bg-brand.text-on-brand:not(.size-16) {
+  background: var(--s19-accent-bg);
+  box-shadow: var(--s19-accent-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).bg-brand.text-on-brand:not(.size-16):is(:hover, :active):not(:disabled) {
+  background: var(--color-brand-dark);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).rounded-field.bg-brand-soft {
+  background: var(--s19-soft-bg);
+  box-shadow: var(--s19-soft-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).rounded-field.bg-brand-soft:is(:hover, :active):not(:disabled) {
+  background: var(--color-brand-soft);
+}
+
+/* ---------- 弹层：Bottom Sheet / 选择面板 / 确认对话框 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .rounded-t-sheet.bg-surface {
+  border-color: transparent;
+  background: var(--s19-sheet-bg);
+  box-shadow: var(--s19-sheet-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [role="alertdialog"].rounded-card.bg-surface {
+  border-color: transparent;
+  border-radius: var(--s19-r-sheet);
+  background: var(--s19-sheet-bg);
+  box-shadow: var(--s19-dialog-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-sheet-backdrop {
+  background-color: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent));
+}
+
+/* ---------- 第十轮：摘要卡的退场 = 随列表一起上移，在月份行下方渐隐 ----------
+   原版退场是三件事各走各的时钟：主卡向左滑出并淡出、它的容器同时从下往上收高（overflow 硬裁切）；
+   两张小卡稍后同样向左滑出，容器也同样硬裁切；顶部整体的高度则按另一条直线收起。在原版的主题色
+   顶区上，半透明卡片让这些不太显眼；A / B 是实色卡片放在透明顶区上，于是看得见被切成半截的白色矩形、
+   向左滑出时露出的切边，以及小卡和分段控件之间忽大忽小的空档（所有者第十轮反馈）。
+
+   这里只换卡片的“退场方式”，顶部的高度曲线、--p 的来源、测量（--hero-tall 等）、吸顶与放开都不变：
+   · 摘要区的高度 = 顶部此刻的高度 − 其余部分此刻的高度，所以它的下沿始终紧贴分段控件上方（不再有空档）；
+   · 卡片整体跟着这个下沿往上移（像被列表推上去），不再横向滑出，也不再各自收高；
+   · 超出摘要区上沿的部分被裁掉，上沿用最多 32px 的渐隐代替硬边 —— 卡片是“滑进月份行下方、逐渐消失”，
+     不会碰到月份、标题或四个按钮；静止时（未开始收起）渐隐宽度为 0，卡片完整。
+   四套测试风格共用（C 的卡片是主题色上的半透明卡，同样有被切成半截的矩形）；Original 不变。
+   --s19-ov-chrome / --s19-ov-chrome-drop 由各风格给出：A / B 在 compact.css（紧凑版式），C 在 classic.css（原版版式）。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview {
+  --s19-ov-full: calc(var(--hero-tall) - var(--s19-ov-chrome));
+  --s19-ov-h: max(0px, calc(var(--s19-ov-full) - var(--p) * (var(--hero-tall) - var(--hero-short) - var(--s19-ov-chrome-drop))));
+  --s19-ov-shift: calc(var(--s19-ov-full) - var(--s19-ov-h));
+  --s19-ov-fade: min(32px, var(--s19-ov-shift));
+  height: var(--s19-ov-h);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, var(--s19-mask-solid) var(--s19-ov-fade));
+  mask-image: linear-gradient(to bottom, transparent, var(--s19-mask-solid) var(--s19-ov-fade));
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-main-card {
+  height: var(--card-tall);
+  opacity: 1;
+  transform: translate3d(0, calc(var(--s19-ov-shift) * -1), 0);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-strip {
+  height: var(--secondary-tall);
+  transform: translate3d(0, calc(var(--s19-ov-shift) * -1), 0);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-small {
+  opacity: 1;
+  transform: none;
+}

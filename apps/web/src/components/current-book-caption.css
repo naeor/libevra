@@ -1,0 +1,39 @@
+.lv-shell[data-shell="contents"] .current-book-caption {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+.lv-shell[data-shell="contents"] .current-book-caption:has([role="dialog"]) { z-index: 50; }
+.lv-shell[data-shell="contents"] .lv-book-capsule {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-left: -12px;
+  max-width: calc(50% - 28px);
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 0 0 .5px var(--color-line), 0 2px 6px color-mix(in srgb, var(--color-ink) 8%, transparent);
+  text-align: left;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: lv-book-capsule-enter 220ms cubic-bezier(.22, .8, .3, 1);
+  transition: scale 90ms ease-out;
+}
+/* 外轮廓对齐底栏 12px 留白，内部图标仍在页面 24px 内容线上。
+   36px 视觉胶囊配 44px 触控区；扩展只占上下留白，不挡底栏或整行滚动。 */
+.lv-shell[data-shell="contents"] button.lv-book-capsule { position: relative; }
+.lv-shell[data-shell="contents"] button.lv-book-capsule::after { content: ""; position: absolute; inset: -4px 0; }
+.lv-shell[data-shell="contents"] button.lv-book-capsule:active { scale: .97; }
+.lv-shell[data-shell="contents"] button.lv-book-capsule:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 2px; }
+@keyframes lv-book-capsule-enter {
+  from { transform: translateY(18px); opacity: 0; }
+  78% { transform: translateY(-1.5px); opacity: 1; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv-shell[data-shell="contents"] .lv-book-capsule { animation: none; transition: none; }
+}

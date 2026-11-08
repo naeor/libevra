@@ -9,10 +9,14 @@
  * ⚠️ `UNSAFE_LocationContext` 置空是 React Router 允许的嵌套方式：外壳本身有一个绑定主区历史的 Router
  * （同意书门禁、侧栏链接用它），工作区内部的 Router 需要先「离开」那个上下文。
  */
-import { startTransition, useLayoutEffect, useState } from "react";
+import { lazy, Suspense, startTransition, useLayoutEffect, useRef, useState } from "react";
 import { NavigationType, Router, UNSAFE_LocationContext } from "react-router";
 
 import type { PaneHistory, PaneSnapshot } from "./paneHistory.js";
+import type { PilotAdapter } from "../s19/motion/pilot.js";
+
+// 只在内层启动；正式模式仅 B2 手机设置路径，开发调试开关由模块内部隔离。
+const MotionPilot = lazy(() => import("../s19/motion/pilot.js"));
 
 export function PaneRouter({
   history,
@@ -25,11 +29,17 @@ export function PaneRouter({
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<PaneSnapshot>(history.snapshot);
+  const motion = useRef<PilotAdapter | null>(null);
+  useLayoutEffect(() => { motion.current?.committed(snapshot.location.key); }, [snapshot]);
 
   useLayoutEffect(() => {
     // 订阅之前的变化（同一渲染周期里外壳已经导航过）也要接上。
     setSnapshot(history.snapshot);
     return history.subscribe((next) => {
+      if (motion.current) {
+        motion.current.accept(next, () => setSnapshot(next));
+        return;
+      }
       startTransition(() => {
         setSnapshot(next);
       });
@@ -41,6 +51,7 @@ export function PaneRouter({
   const router = (
     <Router location={snapshot.location} navigationType={navigationType} navigator={history}>
       {children}
+      {nested && MotionPilot ? <Suspense fallback={null}><MotionPilot history={history} adapter={motion} /></Suspense> : null}
     </Router>
   );
 

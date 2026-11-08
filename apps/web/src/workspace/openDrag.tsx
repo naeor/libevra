@@ -420,12 +420,14 @@ export function useOpenDrag(options: OpenDragOptions): {
  */
 export function DraggableLink({
   to,
+  state,
   title,
   disabled = false,
   className,
   children,
 }: {
   readonly to: string;
+  readonly state?: unknown;
   /** 拖动预览与菜单上的名字。 */
   readonly title: string;
   readonly disabled?: boolean;
@@ -435,7 +437,7 @@ export function DraggableLink({
   const drag = useOpenDrag({ path: to, title, disabled });
   return (
     <>
-      <Link to={to} className={drag.bind === null ? className : `${className ?? ""} lv-draggable`} draggable={false} {...drag.bind}>
+      <Link to={to} state={state} className={drag.bind === null ? className : `${className ?? ""} lv-draggable`} draggable={false} {...drag.bind}>
         {children}
       </Link>
       {drag.menu}

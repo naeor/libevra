@@ -1,0 +1,11 @@
+/* 只有实验呈现器创建这层；两张 inert 副本同用现有材质，退出即释放。 */
+.lv-shell.s19-abc-stage[data-shell="contents"] {
+  display: block; position: fixed; inset: 0; z-index: 80;
+  width: 100%; height: 100dvh; overflow: hidden; isolation: isolate; pointer-events: none;
+  background: var(--s19-bg, var(--color-canvas));
+}
+.s19-abc-plane { position: absolute; inset: 0; overflow: hidden; scrollbar-width: none; }
+.s19-abc-stage[data-abc-style="c"] .s19-abc-plane {
+  background: var(--s19-canvas, var(--color-canvas));
+  box-shadow: -1px 0 var(--color-line), -8px 0 22px color-mix(in srgb, var(--color-ink) 9%, transparent);
+}

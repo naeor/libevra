@@ -1,0 +1,12 @@
+/* 材质来自原选中按钮，文字在独立层，不随胶囊拉伸。未测量 / 无脚本时保留原外观。 */
+[data-sliding-selection] { position: relative; isolation: isolate; }
+:root [data-sliding-selection] > button { position: relative; z-index: auto; transition-property: color, filter; }
+:root [data-sliding-selection] > button:focus-visible { z-index: 2; }
+[data-selection-label] { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: inherit; gap: inherit; }
+[data-selection-indicator] { display: none; position: absolute; top: 0; left: 0; z-index: 0; box-sizing: border-box; pointer-events: none; }
+[data-selection-ready] > [data-selection-indicator] { display: block; }
+[data-selection-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}

@@ -1,0 +1,26 @@
+/* 风格实验把手（独立的 React 根，挂在 body 末尾，不在应用组件树里）。颜色在 s19-lab-tokens.css。 */
+#s19-style-lab { position: fixed; right: 0; top: 34%; z-index: 2147483000; font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--s19-ui-ink); }
+.s19-dock { display: flex; align-items: flex-start; }
+.s19-dock-handle {
+  min-width: 34px; height: 40px; padding: 0 8px; border: 0; border-radius: 12px 0 0 12px;
+  background: var(--s19-ui-handle); color: var(--s19-ui-on-handle); font-weight: 650; font-size: 12px; letter-spacing: .02em;
+  box-shadow: var(--s19-ui-handle-sh); cursor: pointer; opacity: .82;
+}
+.s19-dock-handle:hover, .s19-dock[data-open="true"] .s19-dock-handle { opacity: 1; }
+.s19-dock-panel {
+  width: min(250px, calc(100vw - 64px)); margin-right: 6px; padding: 10px; border-radius: 16px;
+  max-height: calc(100dvh - 24px); overflow-y: auto;
+  background: var(--s19-ui-panel); box-shadow: var(--s19-ui-panel-sh);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.s19-dock-title { margin: 0 4px 4px; font-weight: 650; color: var(--s19-ui-muted); font-size: 12px; }
+.s19-dock-title select { display: block; margin-top: 6px; font-size: 16px; }
+.s19-dock-option { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; color: inherit; }
+.s19-dock-option:hover { background: var(--s19-ui-hover); }
+.s19-dock-option[aria-pressed="true"] { background: var(--s19-ui-on); box-shadow: var(--s19-ui-on-ring); }
+.s19-dock-name { font-weight: 600; }
+.s19-dock-note { font-size: 11.5px; color: var(--s19-ui-muted); }
+.s19-dock-foot { margin: 6px 4px 0; font-size: 11px; color: var(--s19-ui-faint); }
+.s19-dock-sub { margin-top: 8px; }
+.s19-dock-row { display: flex; flex-direction: column; gap: 4px; }
+.s19-dock-chip { padding: 7px 10px; }

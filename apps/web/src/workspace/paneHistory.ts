@@ -161,6 +161,16 @@ export class PaneHistory implements Navigator {
     return this.current.location;
   }
 
+  /** 返回校验只读本工作区的前一条。 */
+  get previousLocation(): PaneEntry | undefined {
+    return this.entries[this.index - 1];
+  }
+
+  /** 刷新后内存栈为空时，仅暴露本应用已知存在的上一浏览器位置。 */
+  get previousBrowserIndex(): number | undefined {
+    return this.browser !== null && this.index === 0 && this.browserBehind ? this.browserIndex - 1 : undefined;
+  }
+
   get attached(): boolean {
     return this.browser !== null;
   }

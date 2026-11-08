@@ -1,0 +1,52 @@
+/* 实验开关与内层手机工作区同时成立时才生效。只换环境背景，不改卡片与底栏。 */
+:root[data-motion-backdrop="true"][data-visual-style][data-theme-mode="light"] body:has(.lv-shell[data-shell="contents"])::before { background: var(--motion-pilot-bg); }
+#motion-pilot-badge {
+  position: fixed; left: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 100;
+  display: flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: 12px;
+  color: var(--color-muted); background: var(--color-surface); border: 1px solid var(--color-line);
+  font: 11px/1.5 system-ui; box-shadow: 0 2px 8px color-mix(in srgb, var(--color-ink) 8%, transparent);
+}
+#motion-pilot-badge button { color: var(--color-brand-dark); cursor: pointer; }
+/* 页面标题接收程序化焦点用于读屏定位；它不是需要焦点框的交互控件。 */
+.lv-shell[data-shell="contents"] h1[tabindex="-1"]:focus { outline: none; }
+
+/* 捕获实际页面，保留原生的页面边界；不再捕获并裁切整张 #root 文档。
+   环境仍在快照下面。新页不补文档坐标、不改组尺寸，也不移除顶底栏的背景模糊。 */
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]:has(.lv-shell[data-shell="contents"]) { view-transition-name: none; }
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-shell="contents"] [data-b2-motion-page] {
+  view-transition-name: b2-page;
+}
+:root[data-visual-style="b2"] { --motion-hybrid-carry: var(--s19-b2-carry, .85); }
+:root[data-visual-style="b2"][data-motion-backdrop="true"][data-theme-mode="light"] body::before { background-size: 100% 100%; }
+:root[data-visual-style="b2"][data-motion-hybrid="true"]::view-transition-group(b2-page) {
+  /* 环境由固定 body::before 承接，不随文档快照的位置移动。 */
+  background: transparent; overflow: visible; animation-name: none;
+}
+:root[data-visual-style="b2"][data-motion-hybrid="true"]::view-transition-old(b2-page),
+:root[data-visual-style="b2"][data-motion-hybrid="true"]::view-transition-new(b2-page) {
+  object-fit: fill; object-position: left top;
+}
+:root[data-visual-style="b2"][data-motion-hybrid="true"][data-motion-direction="push"]::view-transition-old(b2-page) { animation-name: hybrid-b2-recede; }
+:root[data-visual-style="b2"][data-motion-hybrid="true"][data-motion-direction="push"]::view-transition-new(b2-page) { animation-name: hybrid-b2-enter; }
+:root[data-visual-style="b2"][data-motion-hybrid="true"][data-motion-direction="pop"]::view-transition-old(b2-page) { animation-name: hybrid-b2-exit; }
+:root[data-visual-style="b2"][data-motion-hybrid="true"][data-motion-direction="pop"]::view-transition-new(b2-page) { animation-name: hybrid-b2-recover; }
+@keyframes hybrid-b2-recede {
+  0% { transform: translate(var(--motion-b2-old-x, 0px), var(--motion-b2-old-y, 0px)); filter: none; opacity: 1; }
+  10%, 40% { filter: blur(var(--motion-blur)) saturate(.85); opacity: var(--motion-hybrid-carry); }
+  85%, 100% { transform: translate(var(--motion-b2-old-x, 0px), var(--motion-b2-old-y, 0px)); filter: blur(var(--motion-blur)) saturate(.85); opacity: 0; }
+}
+@keyframes hybrid-b2-enter {
+  0%, 10% { transform: translateX(100%); }
+  100% { transform: none; }
+}
+@keyframes hybrid-b2-exit {
+  0% { transform: translate(var(--motion-b2-old-x, 0px), var(--motion-b2-old-y, 0px)); opacity: 1; }
+  45% { opacity: 1; }
+  95%, 100% { transform: translate(calc(100% + var(--motion-b2-old-x, 0px)), var(--motion-b2-old-y, 0px)); opacity: 0; }
+}
+@keyframes hybrid-b2-recover {
+  /* iPhone Safari 对照：仅新页快照的整页 filter 会令绘制内容右下偏移，DOM / group 原点未变。
+     返回以原有透明度恢复；卡片和栏面的 backdrop-filter、旧页及环境模糊仍走原映射。 */
+  0% { transform: none; filter: none; opacity: .72; }
+  65%, 100% { transform: none; filter: none; opacity: 1; }
+}

@@ -1,0 +1,133 @@
+/* ================================================================
+   C · Classic Refined 经典精修
+   正式版 UI 的成熟进化：主题色顶区 + 白色内容卡 + 固定底栏的布局保持不变，
+   精修的是比例、对齐、边界、圆角和数字排版。主题色是按钮、选中态、顶区与图标的唯一色彩来源。
+   层次：同一平面上的纸面。主题色顶区之后，正文是一张圆角纸面，压在顶区下沿（遮挡而不悬浮）；
+   纸面上沿带一点主题色的余温，把顶区的颜色承接到正文；卡片是纸面上的白色纸片（细边、不投影）。
+   ================================================================ */
+.app[data-style="c"] {
+  --head-bg: var(--brand);
+  --head-ink: #fff;
+  --canvas: color-mix(in srgb, var(--brand) 4%, #f5f6f4);
+  --content-bg: #fff; --content-sh: 0 0 0 1px rgb(30 45 38 / .07), 0 1px 2px rgb(30 45 38 / .03);
+  --elev-bg: #fff; --elev-sh: 0 0 0 1px rgb(30 45 38 / .06), 0 8px 20px -12px rgb(30 45 38 / .22);
+  --overlay-bg: #fff; --overlay-sh: 0 -10px 30px -12px rgb(20 30 26 / .25);
+  --tint-bg: color-mix(in srgb, var(--brand) 9%, #fff); --tint-ink: var(--brand-ink); --tint-sh: inset 0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent);
+  --soft-bg: var(--tint-bg); --soft-ink: var(--brand-ink);
+  --track: #e8ecea; --track-sh: inset 0 0 0 1px rgb(30 45 38 / .04);
+  --pill-bg: #fff; --pill-sh: 0 0 0 1px rgb(30 45 38 / .07), 0 1px 2px rgb(30 45 38 / .1);
+  --chip-bg: #f1f4f2; --chip-sh: inset 0 0 0 1px rgb(30 45 38 / .06);
+  --field-bg: #fff;
+  --accent-bg: var(--brand); --accent-sh: 0 1px 2px rgb(0 0 0 / .1); --accent-solid: var(--brand);
+  --accent-off-bg: color-mix(in srgb, var(--brand) 34%, #fff); --accent-off-ink: #fff;
+  --sheet-group: #f5f7f6;
+  --divider: rgb(30 45 38 / .075); --line: rgb(30 45 38 / .16);
+  --r-hero: 18px; --r-group: 16px; --r-sheet: 22px; --r-input: 12px; --r-btn: 12px; --r-btn-lg: 14px;
+  --bar-bg: var(--canvas); --bar-sh: 0 1px 0 rgb(30 45 38 / .08);
+  --tab-on-bg: transparent; --tab-off: #737d78;
+  --li-ic-bg: color-mix(in srgb, var(--brand) 9%, #fff); --r-li-ic: 10px;
+  --menu-veil: rgb(245 246 244 / .65);
+  --slide-flat-bg: #f6f8f7;
+  --nav-h: 70px; --plus: 54px; --plus-top: -18px;
+  --paper-top: color-mix(in srgb, var(--brand) 7%, var(--canvas));
+  --frost-fallback: #fff;
+  --sec-gap: 16px;
+}
+.app[data-style="c"] .bg-c { background: var(--canvas); }
+
+/* ---- 主题色顶区：明细、分析、账本、我的、搜索 ---- */
+.app[data-style="c"] .u-scroll:is([data-page="entries"], [data-page="stats"], [data-page="ledger"], [data-page="me"], [data-page="search"]) {
+  --zone-on: 1;
+}
+.app[data-style="c"] .u-scroll:is([data-page="entries"], [data-page="stats"], [data-page="ledger"], [data-page="me"], [data-page="search"]) > .u-top {
+  color: var(--head-ink); --muted: rgb(255 255 255 / .74); --back-ink: #fff;
+}
+.app[data-style="c"] .u-scroll:is([data-page="entries"], [data-page="stats"], [data-page="ledger"], [data-page="me"], [data-page="search"]) > .u-top::before {
+  opacity: 1; background: var(--head-bg); box-shadow: none; -webkit-mask: none; mask: none; height: 100%;
+}
+.app[data-style="c"] .u-scroll:is([data-page="entries"], [data-page="stats"], [data-page="ledger"], [data-page="me"], [data-page="search"]) > .u-zone {
+  background: var(--head-bg); color: var(--head-ink); padding-bottom: 38px;
+  --muted: rgb(255 255 255 / .76); --faint: rgb(255 255 255 / .6); --divider: rgb(255 255 255 / .18);
+}
+/* 正文纸面：圆角压在顶区下沿；上沿带一点主题色余温，向下回到背景色 */
+.app[data-style="c"] .u-scroll:is([data-page="entries"], [data-page="stats"], [data-page="ledger"], [data-page="me"], [data-page="search"]) > .u-body {
+  z-index: 1; margin-top: -22px; padding-top: 14px; border-radius: 22px 22px 0 0;
+  background: linear-gradient(180deg, var(--paper-top) 0, var(--canvas) 120px);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .6), 0 -1px 0 color-mix(in srgb, var(--brand) 60%, #000 10%);
+}
+.app[data-style="c"] .u-scroll[data-page="me"] > .u-zone { padding-bottom: 34px; }
+.app[data-style="c"] .u-body > .u-stack:first-child { padding-top: 0; }
+.app[data-style="c"] .u-body > .u-toolbar:first-child { padding-top: 0; }
+.app[data-style="c"] .u-body > .u-hero-wrap + .u-stack { padding-top: var(--sec-gap); }
+.app[data-style="c"] .u-wordmark { color: #fff; }
+.app[data-style="c"] .u-month { color: #fff; font-size: 17px; font-weight: 600; }
+.app[data-style="c"] .u-month .ic, .app[data-style="c"] .u-compact-month .ic { color: rgb(255 255 255 / .8); }
+.app[data-style="c"] .u-zone .u-badge, .app[data-style="c"] .u-top .u-badge { background: #fff; color: var(--brand-ink); }
+.app[data-style="c"] .u-scope { color: rgb(255 255 255 / .82); padding-top: 4px; }
+.app[data-style="c"] .u-top-search .u-cancel { color: #fff; }
+.app[data-style="c"] .u-onbrand-field { color: var(--muted); }
+.app[data-style="c"] .u-onbrand-field input { color: var(--ink); }
+.app[data-style="c"] .u-tool.u-onbrand[aria-pressed="true"] { background: #fff; color: var(--brand-ink) !important; }
+.app[data-style="c"] .u-tool.u-onbrand:active { background: rgb(255 255 255 / .26); }
+.app[data-style="c"] .u-dot { box-shadow: 0 0 0 2px var(--head-bg); }
+/* 摘要：顶区里的半透明白卡（正式版同构），次级数字一行三列 */
+.app[data-style="c"] .u-sum-c { border-radius: 18px; --sum-rule: rgb(255 255 255 / .2); }
+.app[data-style="c"] .u-sum-c .u-cur { background: rgb(255 255 255 / .16); box-shadow: none; color: #fff; padding: 0 6px 0 10px; }
+.app[data-style="c"] .u-sum-c .u-sum-head { color: rgb(255 255 255 / .86); }
+.app[data-style="c"] .u-zone .u-sumline, .app[data-style="c"] .u-zone .u-pill { color: #fff; }
+.app[data-style="c"] .u-zone .u-sf { color: var(--ink); --muted: #66716b; --faint: #929c96; }
+/* 明细：分段控件与列表在浅色背景上 */
+.app[data-style="c"] .page[data-pinned="true"] .u-toolbar { padding-top: 10px; }
+.app[data-style="c"] .u-seg { height: 38px; border-radius: 12px; }
+.app[data-style="c"] .u-seg-pill { border-radius: 9px; }
+.app[data-style="c"] .u-day-h { padding: 14px 4px 7px; }
+.app[data-style="c"] .u-row { min-height: 58px; }
+.app[data-style="c"] .u-ico { width: 34px; height: 34px; font-size: 13px; }
+.app[data-style="c"] .u-group > li + li::before { left: 60px; }
+/* 内页：白底返回 + 大标题，滚动后标题进入顶栏 */
+.app[data-style="c"] .u-title { font-size: 25px; }
+.app[data-style="c"] .u-sec-h { color: var(--ink-2); padding-left: 4px; }
+/* 底栏：固定、稳定的白色底栏；“+”是主题色圆形按钮 */
+.app[data-style="c"] .u-dock-c { background: #fff; border-radius: 0; box-shadow: 0 -1px 0 rgb(30 45 38 / .08); }
+.app[data-style="c"] .u-caption { color: var(--muted); }
+.app[data-style="c"] .u-plus { box-shadow: 0 0 0 4px #fff, 0 5px 12px -6px color-mix(in srgb, var(--brand) 60%, transparent); }
+.app[data-style="c"] .u-tab[aria-current="page"] { color: var(--brand); }
+/* 账本卡：信息在左，紧凑的“切换”在右 */
+.app[data-style="c"] .u-hero { padding: 16px 16px 14px; }
+.app[data-style="c"] .u-book-t { font-size: 21px; }
+.app[data-style="c"] .u-avatar { width: 56px; height: 56px; box-shadow: none; }
+.app[data-style="c"] .u-toast-ink { border-radius: 14px; }
+.app[data-style="c"] .u-sheetp { border-radius: 22px 22px 0 0; }
+.app[data-style="c"] .sh-close { background: #f1f4f2; box-shadow: none; }
+.app[data-style="c"] .u-app-ic { border-radius: 14px; }
+.app[data-style="c"] .u-slide { box-shadow: var(--content-sh); }
+.app[data-style="c"] .u-log-ic { border-radius: 6px; }
+.app[data-style="c"] .u-me-tag { border-radius: 5px; }
+
+@supports (corner-shape: squircle) {
+  .app[data-style="c"] .u-hero, .app[data-style="c"] .u-sum-c { corner-shape: squircle; border-radius: 26px; }
+}
+
+/* ---------------- 深色（方向）：主题色顶区降为深色主题色，卡片用分层的深灰而不是阴影 ---------------- */
+.app[data-style="c"][data-scheme="dark"] {
+  --head-bg: color-mix(in srgb, var(--brand) 42%, #0f1412);
+  --paper-top: color-mix(in srgb, var(--brand) 12%, #111514);
+  --canvas: #111514; --ink: #e9edeb; --ink-2: #cdd4d0; --muted: #929c97; --faint: #6c7671;
+  --divider: rgb(255 255 255 / .07); --line: rgb(255 255 255 / .14);
+  --brand-ink: color-mix(in srgb, var(--brand) 55%, #fff); --brand-soft: color-mix(in srgb, var(--brand) 22%, #1b201e); --brand-softer: color-mix(in srgb, var(--brand) 12%, #1b201e);
+  --content-bg: #1b201e; --content-sh: 0 0 0 1px rgb(255 255 255 / .05);
+  --elev-bg: #222826; --elev-sh: 0 0 0 1px rgb(255 255 255 / .06), 0 8px 20px -12px rgb(0 0 0 / .6);
+  --overlay-bg: #1f2422; --overlay-sh: 0 -10px 30px -12px rgb(0 0 0 / .6);
+  --tint-bg: color-mix(in srgb, var(--brand) 18%, #1b201e); --tint-sh: inset 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent);
+  --track: rgb(255 255 255 / .06); --pill-bg: #2c3230; --pill-sh: 0 1px 2px rgb(0 0 0 / .4);
+  --chip-bg: rgb(255 255 255 / .06); --chip-sh: none; --field-bg: #151918; --sheet-group: rgb(255 255 255 / .04);
+  --li-ic-bg: rgb(255 255 255 / .06); --slide-flat-bg: rgb(255 255 255 / .04);
+  --inc: #6cc49a; --warm: #e39b7a; --danger: #e5786d; --danger-soft: rgb(229 120 109 / .14);
+  --menu-veil: rgb(17 21 20 / .7); --skel: rgb(255 255 255 / .08); --num-bg: rgb(255 255 255 / .07); --code-bg: rgb(255 255 255 / .05); --role-bg: rgb(255 255 255 / .08);
+  --frost-fallback: #1b201e; --scrim: rgb(0 0 0 / .45);
+}
+.app[data-style="c"][data-scheme="dark"] .u-dock-c { background: #181c1b; box-shadow: 0 -1px 0 rgb(255 255 255 / .06); }
+.app[data-style="c"][data-scheme="dark"] .u-plus { box-shadow: 0 0 0 4px #181c1b; }
+.app[data-style="c"][data-scheme="dark"] .sh-close { background: rgb(255 255 255 / .07); }
+.app[data-style="c"][data-scheme="dark"] .u-onbrand-field { background: #222826; }
+.app[data-style="c"][data-scheme="dark"] .u-scroll > .u-body { box-shadow: inset 0 1px 0 rgb(255 255 255 / .05); }

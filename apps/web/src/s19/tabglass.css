@@ -1,0 +1,32 @@
+/*
+  S19 第八轮：B1 / B2 底栏的选中玻璃胶囊（元素由 tabIndicator.ts 插入当前底栏）。
+  胶囊在“＋”与 Tab 图标、文字之下：底栏是层叠上下文，胶囊 z-index 1，图标与文字本来就是 z-10，
+  “＋”提升到 z-index 2，所以 V1 跨越时胶囊从“＋”后方穿过，不会盖住“＋”或挡住它的点按区域。
+  A、C 不显示胶囊，保留原来的选中圆片。材质参数在 s19-lab-tokens.css。
+*/
+.s19-tab-glass {
+  display: none;
+}
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] nav .s19-tab-glass {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  border-radius: 999px;
+  pointer-events: none;
+  background: var(--s19-tabglass-bg);
+  box-shadow: var(--s19-tabglass-sh);
+  -webkit-backdrop-filter: var(--s19-tabglass-filter, none);
+  backdrop-filter: var(--s19-tabglass-filter, none);
+  will-change: transform, width, opacity;
+}
+/* 原来每个 Tab 自带的选中圆片：透明但保留占位 */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] nav .bottom-tab-active > span.rounded-full.bg-brand-soft {
+  opacity: 0;
+}
+/* “＋”压在胶囊之上（位置与尺寸不变） */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] nav button.size-16.rounded-full.bg-brand {
+  position: relative;
+  z-index: 2;
+}

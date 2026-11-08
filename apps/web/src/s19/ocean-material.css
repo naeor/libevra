@@ -1,0 +1,140 @@
+/*
+  S19 开始页面海浪：A 柔和悬浮薄片 / B1 釉面瓷 / B2 透明绿色玻璃 / C 经典（仅浅色，见 OceanMaterial.tsx）。
+
+  ⚠️ 海浪画在一张 Canvas 上（oceanPainter.ts），这里只提供颜色与品牌样式。颜色在挂载 / 换主题时解析一次，
+  逐帧不读样式。这里没有 filter、backdrop-filter、clip-path、mask。
+*/
+.ocean-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  /* 固定为整页高度：不随 --p 改尺寸，纵向运动全在绘制坐标里。 */
+  height: calc(var(--lv-vh, 1dvh) * 100);
+  pointer-events: none;
+  /* 独立合成层：画布每帧更新时不连带重绘页面其它内容。 */
+  will-change: transform;
+}
+.ocean-probe, .ocean-short-gauge { position: absolute; width: 0; visibility: hidden; pointer-events: none; }
+.ocean-short-gauge { height: var(--sea-short); }
+.space-ocean[data-ocean-look] .space-brand-plane { position: absolute; inset: 0; pointer-events: none; }
+.space-ocean[data-ocean-look] .space-brand-compact { display: none; }
+
+/* ---------------------------------------------------------------- 颜色（Canvas 读取） */
+.space-ocean[data-ocean-look] {
+  /* 字面量写全：Tailwind 只输出它"看得见"的主题变量。 */
+  --oc-fill-1: var(--color-ocean-1);
+  --oc-fill-2: var(--color-ocean-2);
+  --oc-fill-3: var(--color-ocean-3);
+  --oc-fill-4: var(--color-ocean-4);
+  --oc-deep-1: var(--color-ocean-1);
+  --oc-deep-2: var(--color-ocean-2);
+  --oc-deep-3: var(--color-ocean-3);
+  --oc-deep-4: var(--color-ocean-4);
+  --oc-refract-1: var(--color-ocean-2);
+  --oc-refract-2: var(--color-ocean-3);
+  --oc-refract-3: var(--color-ocean-4);
+  --oc-refract-4: var(--color-surface);
+  /* 阴影是带绿的深色，不是黑：不脏、不灰。 */
+  --oc-shadow: color-mix(in oklab, var(--color-ocean-1) 55%, var(--color-ink));
+  --oc-light: var(--color-control-knob);
+  --oc-caustic: color-mix(in oklab, var(--color-ocean-4) 25%, var(--color-control-knob));
+  --oc-base: var(--color-canvas);
+}
+
+/* B1：瓷面保持主题色本身的纯净与饱和（釉下的色），只融极少一点暖色，避免发灰、发白；完全不透明。 */
+.space-ocean[data-ocean-look="b1"] {
+  --oc-fill-1: color-mix(in oklab, var(--color-ocean-1) 97%, var(--color-surface));
+  --oc-fill-2: color-mix(in oklab, var(--color-ocean-2) 97%, var(--color-surface));
+  --oc-fill-3: color-mix(in oklab, var(--color-ocean-3) 96%, var(--color-surface));
+  --oc-fill-4: color-mix(in oklab, var(--color-ocean-4) 96%, var(--color-surface));
+}
+
+/*
+  B2：透明绿色玻璃。每层是同色相、更饱和更深的透光色，按不透明度 .55/.5/.5/.45 整片叠放（oceanPainter 的 GLASS_ALPHA），
+  在浅底上依次叠出约 #abd6c0 → #6eb292 → #468c6c → #2c6c50：越叠越深、越饱和，不发白、不发灰。
+  lit / deep 是同一层玻璃左上受光与右下背光的两端。相对色语法不支持时退回 color-mix 近似值。
+  1 号（最上层）玻璃比同层级略亮、略饱和（1.19.39：页面上看到的 1 号区域明度约 +4%、饱和度约 +3%），更清透而不发白、不发荧光。
+*/
+.space-ocean[data-ocean-look="b2"] {
+  --oc-tint-1: color-mix(in oklab, var(--color-ocean-1) 82%, var(--color-ink));
+  --oc-tint-2: color-mix(in oklab, var(--color-ocean-2) 76%, var(--color-ink));
+  --oc-tint-3: color-mix(in oklab, var(--color-ocean-3) 70%, var(--color-ocean-1));
+  --oc-tint-4: color-mix(in oklab, var(--color-ocean-4) 64%, var(--color-ocean-2));
+  --oc-tint-1: oklch(from var(--color-ocean-1) calc(l - .065) calc(c * 1.24) h);
+  --oc-tint-2: oklch(from var(--color-ocean-2) calc(l - .125) calc(c * 1.15) h);
+  --oc-tint-3: oklch(from var(--color-ocean-3) calc(l - .1) calc(c * 1.42) h);
+  --oc-tint-4: oklch(from var(--color-ocean-4) calc(l - .08) calc(c * 1.87) h);
+  --oc-fill-1: color-mix(in oklab, var(--oc-tint-1) 86%, var(--color-control-knob));
+  --oc-fill-2: color-mix(in oklab, var(--oc-tint-2) 86%, var(--color-control-knob));
+  --oc-fill-3: color-mix(in oklab, var(--oc-tint-3) 86%, var(--color-control-knob));
+  --oc-fill-4: color-mix(in oklab, var(--oc-tint-4) 84%, var(--color-control-knob));
+  --oc-deep-1: color-mix(in oklab, var(--oc-tint-1) 90%, var(--color-ink));
+  --oc-deep-2: color-mix(in oklab, var(--oc-tint-2) 90%, var(--color-ink));
+  --oc-deep-3: color-mix(in oklab, var(--oc-tint-3) 92%, var(--color-ink));
+  --oc-deep-4: color-mix(in oklab, var(--oc-tint-4) 92%, var(--color-ink));
+  /* 斜面把下方更浅的光折上来：每层浪沿内侧带一点"下一层"的颜色。 */
+  --oc-refract-1: color-mix(in oklab, var(--oc-tint-2) 40%, var(--color-control-knob));
+  --oc-refract-2: color-mix(in oklab, var(--oc-tint-3) 40%, var(--color-control-knob));
+  --oc-refract-3: color-mix(in oklab, var(--oc-tint-4) 40%, var(--color-control-knob));
+  --oc-refract-4: color-mix(in oklab, var(--oc-tint-4) 22%, var(--color-control-knob));
+}
+
+/* ---------------------------------------------------------------- A：Logo 独立悬浮 */
+/* Logo 是单独的一层：自己的节奏（--p-logo，见 LOGO_MOTION），离海浪有一点高度，所以有一片很淡的投影。 */
+.space-ocean[data-ocean-look="a"] {
+  .space-brand {
+    --pl: var(--p-logo, var(--p));
+    --sea-hl: calc(var(--lv-vh, 1dvh) * 80 * (1 - var(--pl)) + var(--sea-short) * var(--pl));
+    left: calc(50% * (1 - var(--pl)) + var(--space-content-left, 24px) * var(--pl));
+    top: calc(var(--sea-hl) * 0.34 * (1 - var(--pl)) + (14px + env(safe-area-inset-top, 0px)) * var(--pl));
+    transform: translate(calc(-50% * (1 - var(--pl))), calc(-50% * (1 - var(--pl))));
+  }
+  .space-brand-name {
+    font-size: calc(2.1rem - 0.7rem * var(--pl));
+    left: calc(50% * (1 - var(--pl)));
+    transform: translateX(calc(-50% * (1 - var(--pl))));
+    text-shadow: 0 1px 1px color-mix(in srgb, var(--oc-shadow) 16%, transparent), 0 9px 16px color-mix(in srgb, var(--oc-shadow) 26%, transparent);
+  }
+  .space-brand-tagline {
+    margin-top: calc(10px - 7px * var(--pl));
+    font-size: calc(14px - 4px * var(--pl));
+    text-shadow: 0 1px 1px color-mix(in srgb, var(--oc-shadow) 12%, transparent), 0 5px 10px color-mix(in srgb, var(--oc-shadow) 22%, transparent);
+  }
+}
+
+/* ---------------------------------------------------------------- B1：Logo 印在 1 号瓷片上、封在釉下 */
+.space-ocean[data-ocean-look="b1"] {
+  .space-brand { color: color-mix(in oklab, var(--color-surface) 92%, var(--color-ocean-2)); }
+  .space-brand-name { text-shadow: 0 .6px 0 color-mix(in srgb, var(--oc-shadow) 24%, transparent); }
+  .space-brand-tagline { color: color-mix(in oklab, var(--color-surface) 84%, var(--color-ocean-2)); }
+  [data-ocean-brand="large"] { top: var(--ocean-print-y, calc(var(--lv-vh, 1dvh) * 27.2)); }
+  .space-brand-compact { opacity: var(--ocean-compact, 0); }
+}
+
+/* ---------------------------------------------------------------- B2：Logo 在玻璃下方，由玻璃显现 */
+/* 本身接近底色、几乎看不见；玻璃盖上来后，它以"透光"的方式亮出来（screen：底下越深、叠的玻璃越多，它越清楚），
+   并被玻璃轻微染绿。副标题同理，不用黑字硬压。 */
+.space-ocean[data-ocean-look="b2"] {
+  .space-brand { color: color-mix(in oklab, var(--color-control-knob) 92%, var(--color-ocean-4)); mix-blend-mode: screen; }
+  .space-brand-name, .space-brand-tagline { text-shadow: none; }
+  [data-ocean-brand="large"] { top: var(--ocean-engraving-y, calc(var(--lv-vh, 1dvh) * 27.2)); opacity: var(--ocean-reveal, 1); }
+  .space-brand-compact { opacity: var(--ocean-compact, 0); }
+}
+
+/* B1 / B2：中央大品牌与左上小品牌分工（沿用 1.19.34 的约定），大字不缩成小字。 */
+.space-ocean:is([data-ocean-look="b1"], [data-ocean-look="b2"]) {
+  [data-ocean-brand="large"] { left: 50%; transform: translate(-50%, -50%); }
+  [data-ocean-brand="large"] .space-brand-name { font-size: 2.1rem; left: 50%; transform: translateX(-50%); }
+  [data-ocean-brand="large"] .space-brand-tagline { font-size: 14px; margin-top: 10px; }
+  .space-brand-compact { display: block; left: var(--space-content-left, 24px); top: calc(14px + env(safe-area-inset-top, 0px)); transform: none; }
+  .space-brand-compact .space-brand-name { font-size: 1.4rem; left: 0; transform: none; }
+  .space-brand-compact .space-brand-tagline { font-size: 10px; margin-top: 3px; }
+}
+
+/* 分层转场时列表内容（新 UI）按 4 号层与主进度的落差再让出一点：稍晚出现、稍快到位，不被 4 号浪盖住。
+   只在两者不等时启用（data-layer-lag 由 OceanMaterial 开关），静止时页面没有任何额外 transform。 */
+.ledger-space[data-layer-lag] .space-content {
+  transform: translateY(max(0px, calc(var(--space-lag-k, 0px) * (var(--p) - var(--q4, var(--p))))));
+  will-change: transform;
+}

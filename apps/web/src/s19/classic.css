@@ -1,0 +1,60 @@
+/*
+  C · Classic Refined：保留主题色顶区 + 白色内容卡 + 固定底栏的正式版布局，
+  精修比例、边界、圆角；正文是一张圆角纸面，压在主题色顶区下沿（遮挡而不悬浮）。
+  纸面上沿用伪元素画在顶区底部留白里，随收起进度变薄，不改动顶区高度与动画。
+*/
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero.bg-brand::after,
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header.bg-brand:not(.tab-page-header-profile)::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(180deg, var(--s19-paper-top), var(--s19-canvas));
+  box-shadow: var(--s19-paper-rim);
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero.bg-brand::after {
+  height: calc(22px * (1 - var(--p, 0)));
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header.bg-brand:not(.tab-page-header-profile)::after {
+  height: calc(22px * (1 - var(--header-p, 0)));
+}
+/* 顶区里的摘要：半透明白卡 + 细内描边（正式版同构） */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.detail-overview-main, .detail-overview-small > section, .detail-currency-card) {
+  background: var(--s19-mini-bg);
+  box-shadow: var(--s19-mini-sh);
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-overview-main {
+  border-radius: var(--s19-r-key);
+}
+/* 吸顶分段：纸面色 + 细分隔线 */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-toggle-sticky {
+  background: var(--s19-canvas);
+  box-shadow: var(--s19-bar-sh);
+}
+/* 分段控件：更克制的圆角矩形 */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .rounded-full.bg-line\/70.p-1 {
+  border-radius: 12px;
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .rounded-full.bg-line\/70.p-1 > button {
+  border-radius: 9px;
+}
+/* 账本卡：主题色浅底 + 细边（不投影） */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .book-card {
+  background: var(--s19-soft-bg);
+  box-shadow: var(--s19-soft-sh);
+}
+
+/* 第九轮：往回滑（展开方向）惯性时，顶部不被滞后的行程区往下带（见 ambient.css 的说明；收起方向原版已经钉住） */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero {
+  bottom: calc(100% - var(--hero-tall) + var(--p) * (var(--hero-tall) - var(--hero-short)));
+}
+
+/* 第十轮：摘要卡退场（规则在 shared.css）所需的版式数字 —— C 沿用原版版式：
+   上留白 24 + 标题行 36 + 月份行上间距 8 + 月份行 32 + 摘要上间距 16 + 下留白 28 = 144；
+   收起过程中减少：上留白 18 + 下留白 22 + 月份行上间距 8 + 月份行高度 16 = 64。 */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-root.detail-redesign {
+  --s19-ov-chrome: 144px;
+  --s19-ov-chrome-drop: 64px;
+}
+/* 主卡与小卡之间的间距在退场中保持不变（原版随小卡收起归零；新的退场里两者一起上移） */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-overview-strip {
+  margin-top: 16px;
+}

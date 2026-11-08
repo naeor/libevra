@@ -13,6 +13,8 @@ import { Button } from "../Button.js";
 import { ConfirmDialog } from "../ConfirmDialog.js";
 import { DetailMiniChart, type MiniEntry } from "./DetailMiniChart.js";
 import "./detail-card-editor.css";
+import "../../s19/editor-surfaces.css";
+import { SlidingSelection } from "../ui/SlidingSelection.js";
 type Slot = "main" | "first" | "second";
 type Draft = Record<Slot, DetailMetric[]>;
 const slots: Slot[] = ["main", "first", "second"];
@@ -62,11 +64,11 @@ function CardEditorContent() {
           : <strong>{metric === "count" ? "24" : metric === "daily" ? "35.80" : metric === "income" ? "8,600.00" : metric === "expense" ? "1,234.00" : "7,366.00"}</strong>}</div>) : <span className="dce-empty">＋</span>}</div>
       </button>)}</div>
     </section>
-    <section className="dce-workbench">
+    <section className="dce-workbench" data-editor-surface="workspace">
       <div className="dce-fixed">
         <div className="dce-selected">{draft[slot].map(id => <button key={id} type="button" aria-label={t("ledger.cards.remove", { name: t(`ledger.cards.${id}`) })} onClick={() => setDraft({ ...draft, [slot]: draft[slot].filter(x => x !== id) })}>{t(`ledger.cards.${id}`)} <span aria-hidden="true">×</span></button>)}</div>
         <div className="dce-search"><input type="search" aria-label={t("ledger.cards.metricSearch")} placeholder={t("ledger.cards.metricSearch")} value={query} onChange={e => setQuery(e.target.value)} /><Button variant="secondary" fullWidth={false} disabled={!draft[slot].length} onClick={() => setDraft({ ...draft, [slot]: [] })}>{t("ledger.cards.clear")}</Button></div>
-        <div className="dce-tabs" role="group" aria-label={t("ledger.cards.add")}>{(["numbers", "trends", "ranking"] as const).map(id => <button key={id} type="button" aria-pressed={group === id} onClick={() => setGroup(id)}>{t(`ledger.cards.${id}`)}</button>)}</div>
+        <SlidingSelection className="dce-tabs" role="group" aria-label={t("ledger.cards.add")}>{(["numbers", "trends", "ranking"] as const).map(id => <button key={id} type="button" aria-pressed={group === id} onClick={() => setGroup(id)}>{t(`ledger.cards.${id}`)}</button>)}</SlidingSelection>
       </div>
       <div className="dce-catalogue" tabIndex={0} aria-label={t("ledger.cards.add")}>
         <p className="dce-help">{t("ledger.cards.capacity")}</p>

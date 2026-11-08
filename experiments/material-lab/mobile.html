@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>LMPP v0.3 · 手机性能测试</title><link rel="stylesheet" href="mobile.css"></head>
+<body><header><small>LIBEVRA · 独立实验 · 旧测试流程</small><h1>Mobile Material Lab</h1><p><strong>你正在旧版完整压力测试页面。本轮请使用 v0.4.0 快速测试。</strong></p><p><a href="quick.html">打开最新快速测试 v0.4.0 →</a></p><p>仅模拟账目。自动测试逐轮保存到提供此页面的电脑，同时保留浏览器恢复副本；无需登录或 DevTools。</p><a href="index.html">桌面诊断与画质对照</a></header>
+<section class="setup"><div class="buttons"><button id="auto" class="primary">开始手机性能测试</button><button id="manual">开始手动体验测试</button><button id="stop" disabled>停止并保留记录</button></div><p id="status" role="status" aria-live="polite">等待测试。自动操作与真实触摸分别记录。</p>
+<details><summary>测试参数与保护阈值（实验值）</summary><div class="fields">
+<label>每组重复 <input id="repeat" type="number" min="2" max="6" value="3"></label>
+<label>连续稳定性时长 / 秒 <input id="stability" type="number" min="3" max="30" value="5"></label>
+<label>对照帧预算 <select id="target"><option value="observed">按实测 rAF 中位间隔</option><option value="60">手动 60Hz / 16.67ms</option><option value="120">手动 120Hz / 8.33ms</option></select></label>
+<label>模糊半径 <select id="radius"><option>2</option><option>3</option><option>4</option><option>6</option><option>8</option><option selected>12</option></select></label>
+<label>字形精度 <select id="precision"><option>1</option><option>2</option><option>3</option></select></label>
+<label>主题 <select id="theme"><option value="light">浅色</option><option value="dark">深色</option></select></label>
+<label>后台预算 / ms <input id="budget" type="number" min="1" max="8" step="0.5" value="3"></label>
+<label>结果等待保护 / ms <input id="wait-limit" type="number" min="500" max="10000" step="500" value="2000"></label>
+<label>高帧间隔阈值 / ms <input id="frame-limit" type="number" min="8" max="200" value="40"></label>
+<label>输入响应阈值 / ms <input id="input-limit" type="number" min="16" max="500" value="120"></label>
+<label>连续压力窗口 / 秒 <input id="bad-windows" type="number" min="2" max="10" value="2"></label>
+<label>恢复稳定期 / 秒 <input id="recovery" type="number" min="5" max="60" value="12"></label>
+<label><input id="protect" type="checkbox" checked>启用自适应保护</label>
+</div><p>分批预算始终有效。关闭自适应仅用于同精度对照。保护触发的轮次会明确标记，不能视为同画质对比。原生不支持降低代理精度，持续压力时关闭原生滤镜。</p></details></section>
+<main><section class="playground"><div class="sticky"><div id="modes" class="buttons"></div><div class="buttons"><button id="edit">修改一笔</button><button id="sheet-toggle">打开 / 关闭面板</button><button id="book">切换模拟账本</button></div><label>首笔名称 <input id="name" maxlength="60" value="早餐"></label><p id="quality" role="status">完整材质</p></div>
+<div id="device"><div id="scroll"><canvas id="scene" aria-label="可上下滑动的模拟账目"></canvas></div>
+<section id="sheet" class="glass"><canvas class="texture"></canvas><div class="surface"></div><div class="content"><button id="handle" aria-label="按住拖动面板">━ 拖动面板 ━</button><h2>家庭生活</h2><p>模拟账目 · <span id="rows">80</span> 笔</p><p>上下拖动面板，观察材质跟随。</p><button id="close">完成</button></div></section>
+<nav id="nav" class="glass" aria-label="模拟导航"><canvas class="texture"></canvas><div class="surface"></div><div class="content"><button>明细</button><button>分析</button><button aria-label="记一笔">＋</button><button>账本</button><button>我的</button></div></nav></div>
+<p id="busy" role="status"></p><p class="hint">手动模式可甩动列表、连续点击、拖动面板和输入。自动滚动、拖动不是手指操作，也不产生可归因的 INP。</p></section>
+<section><h2>实时监测</h2><p id="environment"></p><p id="cadence">开始测试后采样可观察的 rAF 节奏。</p><div id="metrics" class="metrics"></div><canvas id="curve" width="480" height="100" aria-label="最近帧间隔曲线"></canvas><p id="latency"></p><p id="protection"></p><details><summary>保护演示与画质检查</summary><button id="static-demo">立即演示不透明降级</button><button id="restore-demo">结束演示，恢复自动保护</button><button id="halo">检查当前精度 Halo 接缝</button><p id="halo-result"></p><p>演示会单独标记，不计为实测压力。可在低半径 2 / 3 / 4 / 6 / 8 / 12 下切换算法观察字形损失；接缝检查不等于画质一致。</p></details></section></main>
+<section class="results"><h2>测试结果</h2><div class="buttons"><button id="save" class="primary">保存 JSON 报告</button><button id="share">分享报告 / 存到文件</button></div><p id="export-status"></p><p>自动结果与手动会话分开保存。统计样本少时 P95 / P99 仅用于探索，不能当作稳定设备评级。</p><div class="table-wrap"><table><thead><tr><th>算法 / 场景 / 缓存</th><th>轮次</th><th>rAF P50 / P95 / P99 ms</th><th>超预算 / 长帧</th><th>构建或更新 P50 / P95 / P99 ms</th><th>代理 / 模糊 CPU ms</th><th>缓存命中 / MiB</th><th>降级轮次</th></tr></thead><tbody id="results"></tbody></table></div><h3>手动会话</h3><div id="sessions"></div></section>
+<footer><p>缓存命中率包含字形查询，不代表整个页面免计算的比例；JSON 同时导出字形、账目代理、区块、完整纹理和位移缓存的独立计数。</p><p>rAF FPS 是回调节奏估计，不是已验证的屏幕呈现帧率。Event Timing / INP 按实际浏览器能力采集；不支持时仅提供明确标注的应用计时与绘制机会估计。严格超预算比例会受小幅计时噪声影响，请结合 P99 和长帧判断。</p><p>GPU 利用率、真实显存、功耗、温度：不支持直接读取。可测合成时间仅含 Canvas 调用提交，不含 GPU 完成时间。缓存及纹理内存按载荷估计，不是整个页面内存。</p><a href="README.md">测量方法与限制</a></footer>
+<script type="module" src="mobile.js"></script></body></html>

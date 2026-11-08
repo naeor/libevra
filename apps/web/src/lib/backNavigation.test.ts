@@ -163,7 +163,8 @@ describe("返回模式：默认历史，按需声明父级", () => {
   it("只有账本设置声明了固定的父级（导出保持历史返回）", () => {
     const found = sourceFiles(SRC)
       .filter((path) => !/\.test\.(ts|tsx)$/.test(path))
-      .filter((path) => readFileSync(path, "utf8").includes("backMode"))
+      // 匹配导航参数的完整标识符，避免误收转场测量字段 fallbackMode。
+      .filter((path) => /\bbackMode\b/.test(readFileSync(path, "utf8")))
       .map((path) => relative(SRC, path).replace(/\\/g, "/"))
       .sort();
 
