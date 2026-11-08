@@ -55,6 +55,7 @@
 | 改路线 / 阶段规划 | [`01-规划.md`](docs/01-规划.md) 顶部「现行路线」+ [新路线图](docs/specs/product/S17-S18-新路线图.md) |
 | 部署／发布／备份／灾备 | [`docs/03-运维手册.md`](docs/03-运维手册.md) + [`ops/`](docs/ops/) |
 | 本地启动 / `localhost:5173` 打不开 / 端口或 HTTPS | [`ops/本地开发环境与5173.md`](docs/ops/本地开发环境与5173.md) + [主目录更新规范](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md) §2 规则 5–7（**§4 WIP 保护强制门禁**） |
+| 工作区整合 / 历史 Worktree 与重复资源清理 | [主目录更新规范](docs/specs/features/本地开发工作区与主目录更新规范-20261028.md) §4、§6；当次授权后先保护 tracked / untracked / ignored 和独有提交，再标准退出；未知资料保留 |
 | 离线历史读取上限 | [`离线历史读取容量上限与长期优化`](docs/specs/features/离线历史读取容量上限与长期优化-20261028.md) |
 | 判断某功能做没做 | [`changelog/1.19.md`](docs/changelog/1.19.md)（现行；此前系列见 changelog 目录） |
 | 追问"为什么当初这么定" | [`adr/README.md`](docs/adr/README.md) → ADR 正文 |

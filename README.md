@@ -90,7 +90,7 @@ be written in the first place. Details in
 | [docs/01-规划.md](docs/01-规划.md) | Roadmap (the current one-page plan is at the top) |
 | [docs/02-技术方案.md](docs/02-技术方案.md) | Technical plan: architecture, data model, API, security, deployment, cost |
 | [docs/04-交接.md](docs/04-交接.md) | Handover: how to run it, how the code is organised, how to work with the owner |
-| [docs/changelog/1.18.md](docs/changelog/1.18.md) | What each version changed |
+| [docs/changelog/1.19.md](docs/changelog/1.19.md) | 每一版的改动与验证；此前系列见 changelog 目录 |
 | [docs/specs/product/Libevra品牌迁移记录.md](docs/specs/product/Libevra品牌迁移记录.md) | The rename from Libellum: what changed, what was kept, what is still manual |
 
 ## Privacy

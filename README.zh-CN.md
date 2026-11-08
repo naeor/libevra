@@ -87,7 +87,7 @@ In-20261010-153012-b7c2    进入这本账（导入时生成）
 | [docs/01-规划.md](docs/01-规划.md) | 路线图（顶部是现行路线一页纸） |
 | [docs/02-技术方案.md](docs/02-技术方案.md) | 技术方案：架构、数据模型、API、安全、部署与成本 |
 | [docs/04-交接.md](docs/04-交接.md) | 怎么跑、代码怎么组织、怎么和所有者协作 |
-| [docs/changelog/1.18.md](docs/changelog/1.18.md) | 每一版改了什么 |
+| [docs/changelog/1.19.md](docs/changelog/1.19.md) | 每一版的改动与验证；此前系列见 changelog 目录 |
 | [docs/specs/product/Libevra品牌迁移记录.md](docs/specs/product/Libevra品牌迁移记录.md) | 从 Libellum 改名：改了什么、有意保留什么、还要人工做什么 |
 
 ## 隐私
