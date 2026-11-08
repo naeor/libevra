@@ -30,3 +30,19 @@
 正式默认构建不包含 Motion Lab HTML、模拟数据、实验控制面板或入口；正式 B2 仅复用材质、参数与转场基础模块。此目录是实验运行说明与测量材料，不是长期产品规格。
 
 原理参考：[View Transitions Level 1](https://www.w3.org/TR/css-view-transitions-1/)、[Safari 18 WebKit 说明](https://webkit.org/blog/15865/webkit-features-in-safari-18-0/)。API 支持不代表本实验已通过 iPhone 验收。
+
+<!-- directory-index:start -->
+## 直属目录清单
+
+本区块由 `pnpm docs:index` 维护；文件用途用于定位，行为以权威规格与实现为准。
+
+| 文件 | 用途 / 入口 |
+|---|---|
+| [ambient.ts](ambient.ts) | 实现模块；入口/导出：describePlane、layoutBackground |
+| [lab.css](lab.css) | 样式与变量 |
+| [lab.ts](lab.ts) | 实现模块；按文件名定位 lab.ts |
+
+| 子目录 | 职责 |
+|---|---|
+| [measurements/](measurements/README.md) | 实验测量记录。 |
+<!-- directory-index:end -->

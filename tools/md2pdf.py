@@ -287,7 +287,6 @@ def inline_runs(text: str):
             m = re.compile(r"\[([^\]]+)\]\(([^)]+)\)").match(text, i)
             if m:
                 runs.append((m.group(1), "plain"))
-                runs.append((f"（{m.group(2)}）", "mono"))
                 i = m.end()
                 continue
         # Plain text: consume up to the next marker so runs stay few.
@@ -305,6 +304,7 @@ def inline_runs(text: str):
 
 def _split_code(inner: str, style: str) -> list[tuple[str, str]]:
     """Inside a bold span, pull out ``code`` runs as mono and keep the rest bold."""
+    inner = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", inner)
     out: list[tuple[str, str]] = []
     for part in re.split(r"(`[^`]+`)", inner):
         if not part:
@@ -322,6 +322,41 @@ def visible_len(text: str) -> float:
     for ch in text:
         n += 2.0 if ord(ch) > 0x2E80 else 1.0
     return n
+
+
+def layout_inline(pdf, text, size, width, literal=False):
+    """测量与绘制共用同一组行；长路径可断行，所有字形使用相同回退规则。"""
+    lines, line, used = [], [], 0.0
+    chunks = [(sanitize(text), "plain")] if literal else inline_runs(sanitize(text))
+    for chunk, style in chunks:
+        base = "bold" if style == "bold" else "body"
+        fsize = size * 0.94 if style == "mono" else size
+        tokens = re.findall(r"[\u2E80-\u9FFF\u3000-\u303F\uFF00-\uFFEF]|[^\s\u2E80-\u9FFF\u3000-\u303F\uFF00-\uFFEF]+|\s+", chunk)
+        for token in tokens:
+            for piece, face in split_by_font(token, base):
+                pdf.set_font(face, "", fsize)
+                # 超长英文标识也按实际字宽换行，不能越过单元格。
+                pieces = list(piece) if pdf.get_string_width(piece) > width else [piece]
+                for part in pieces:
+                    w = pdf.get_string_width(part)
+                    if used + w > width + 0.001 and line:
+                        lines.append(line)
+                        line, used = [], 0.0
+                    if not literal and not line and part.isspace():
+                        continue
+                    line.append((part, face, fsize, style, w))
+                    used += w
+    lines.append(line)
+    return lines
+
+
+def draw_inline_line(pdf, runs, x, y, height, color=INK):
+    for part, face, size, style, width in runs:
+        pdf.set_font(face, "", size)
+        pdf.set_text_color(*(MUTED if style == "mono" else color))
+        pdf.set_xy(x, y)
+        pdf.cell(width, height, part)
+        x += width
 
 
 def write_inline(
@@ -342,7 +377,6 @@ def write_inline(
     `x` / `width` override the page column, which is what table cells need (they
     are laid out independently of the page margins).
     """
-    text = sanitize(text)
     x0 = pdf.l_margin + pad_l if x is None else x
     avail = (CONTENT_W - pad_l) if width is None else width
     line_h = size * 0.415
@@ -351,55 +385,15 @@ def write_inline(
         pdf.set_xy(x0, pdf.get_y() + line_h)
         return pdf.get_y()
 
-    # One "token" is an unbreakable run: a single CJK character, a latin word,
-    # or a space run. CJK breaks anywhere; latin must not break mid-word.
-    tokens: list[tuple[str, str]] = []
-    for chunk, style in inline_runs(text):
-        for tok in re.findall(
-            r"[\u2E80-\u9FFF\u3000-\u303F\uFF00-\uFFEF]|[^\s\u2E80-\u9FFF]+|\s+", chunk
-        ):
-            tokens.append((tok, style))
-
     y = pdf.get_y()
-    cur_x = x0
-    rendered = 1
-    for tok, style in tokens:
-        base = "bold" if style == "bold" else "body"
-        fsize = size * 0.94 if style == "mono" else size
-        if tok.isspace():
-            if cur_x > x0:
-                pdf.set_font(base, "", fsize)
-                cur_x += pdf.get_string_width(" ")
-            continue
-        # ⚠️ **A single token can mix scripts**, because the tokenizer treats a
-        # run of non-CJK characters as one unit — so `；`+`；` and latin text and
-        # CJK punctuation can land together. Grouping by *calculated width* then
-        # split the token wherever the required face changes; otherwise one
-        # missing glyph drags the whole token onto the symbol face, and the
-        # punctuation inside it disappears.
-        for piece, face in split_by_font(tok, base):
-            pdf.set_font(face, "", fsize)
-            pdf.set_text_color(*(MUTED if style == "mono" else color))
-            w = pdf.get_string_width(piece)
-            if cur_x + w > x0 + avail and cur_x > x0:
-                y += line_h
-                rendered += 1
-                cur_x = x0
-            if y + line_h > PAGE_H - MARGIN_B:
-                pdf.add_page()
-                y = pdf.get_y()
-            pdf.set_xy(cur_x, y)
-            pdf.cell(w, line_h, piece)
-            cur_x += w
-
-    # ⚠️ **Advance by the number of lines actually drawn.** This used to advance
-    # by exactly one line height no matter how many lines were rendered, so
-    # every single-line block overlapped the next one by a hair and the error
-    # accumulated down the page — three consecutive one-line bullets came out
-    # printed on top of each other.
-    y += line_h * (rendered - 1) + line_h * 1.18
+    for runs in layout_inline(pdf, text, size, avail):
+        if y + line_h > PAGE_H - MARGIN_B:
+            pdf.add_page()
+            y = pdf.get_y()
+        draw_inline_line(pdf, runs, x0, y, line_h, color)
+        y += line_h
+    y += line_h * 0.18
     pdf.set_xy(pdf.l_margin, y)
-    return y
     return y
 
 
@@ -524,49 +518,13 @@ def contents(pdf: Doc, entries: list[tuple[int, str]]) -> None:
 
 
 def quote(pdf: Doc, text: str) -> None:
-    """A light panel with a left rule.
-
-    ⚠️ **Rendered through `write_inline`, not `multi_cell`.** `multi_cell` takes
-    the raw string, so `**bold**` and `` `code` `` came out as literal asterisks
-    and backticks — and the documents put nearly everything important inside a
-    quote.
-    """
+    """引用段落使用相同的测量与分页逻辑，不预估另一个高度。"""
     if not text.strip():
         pdf.ln(1.6)
         return
-    size = 9.6
-    pad = 5.0
-    inner = CONTENT_W - pad * 2 - 3.0
-
-    # Measure first, so the panel can be drawn behind the text.
-    pdf.set_font("body", "", size)
-    probe = FPDF(orientation="P", unit="mm", format=(PAGE_W, PAGE_H))
-    probe.add_font("body", "", pick("body") or "")
-    probe.set_margins(pad, 0, 0)
-    probe.add_page()
-    probe.set_font("body", "", size)
-    lines = 0
-    cur = ""
-    for ch in sanitize(strip_md(text)):
-        if probe.get_string_width(cur + ch) > inner:
-            lines += 1
-            cur = ch
-        else:
-            cur += ch
-    lines += 1
-    h = lines * (size * 0.415) * 1.18 + 3.0
-
-    if pdf.get_y() + h > PAGE_H - MARGIN_B:
-        pdf.add_page()
-    x, y = MARGIN_L + 3.0, pdf.get_y()
-    pdf.set_fill_color(0xF7, 0xFA, 0xF8)
-    pdf.rect(x, y, CONTENT_W - 3.0, h, style="F")
-    pdf.set_draw_color(0x9C, 0xBE, 0xAA)
-    pdf.set_line_width(0.8)
-    pdf.line(x, y, x, y + h)
-    pdf.set_xy(MARGIN_L, y + 1.5)
-    end = write_inline(pdf, text, size, MUTED, pad_l=6.0)
-    pdf.set_xy(MARGIN_L, max(end, y + h) + 1.2)
+    pdf.ln(1)
+    write_inline(pdf, text, 9.6, MUTED, pad_l=6.0)
+    pdf.ln(1.5)
 
 
 def strip_md(text: str) -> str:
@@ -576,30 +534,19 @@ def strip_md(text: str) -> str:
 
 
 def code_block(pdf: Doc, lines: list[str]) -> None:
-    pdf.set_font("body", "", 8.2)
-    cleaned = [sanitize(ln) if ln.strip() else " " for ln in lines]
-    wrapped: list[str] = []
-    for ln in cleaned:
-        while len(ln) > 108:
-            wrapped.append(ln[:108])
-            ln = ln[108:]
-        wrapped.append(ln)
-    h = 3.6 * len(wrapped) + 3.2
-    if pdf.get_y() + min(h, 60) > PAGE_H - MARGIN_B:
-        pdf.add_page()
-    x, y = MARGIN_L, pdf.get_y()
-    pdf.set_fill_color(*CODE_BG)
-    pdf.rect(x, y, CONTENT_W, h, style="F")
-    pdf.set_xy(x + 2.2, y + 1.6)
-    pdf.set_text_color(0x33, 0x3D, 0x38)
-    for i, ln in enumerate(wrapped):
-        if pdf.get_y() > PAGE_H - MARGIN_B - 4:
-            pdf.add_page()
-            pdf.set_xy(x + 2.2, pdf.get_y())
-        pdf.cell(0, 3.6, ln, new_x="LMARGIN", new_y="NEXT")
-        if i < len(wrapped) - 1:
-            pdf.set_x(x + 2.2)
-    pdf.set_xy(MARGIN_L, y + h + 2.0)
+    """代码按实际字宽与字形回退排版；跨页后不恢复到前页坐标。"""
+    pdf.ln(1)
+    height = 3.6
+    for text in lines:
+        for runs in layout_inline(pdf, text, 8.2, CONTENT_W - 4.4, literal=True):
+            if pdf.get_y() + height > PAGE_H - MARGIN_B:
+                pdf.add_page()
+            y = pdf.get_y()
+            pdf.set_fill_color(*CODE_BG)
+            pdf.rect(MARGIN_L, y, CONTENT_W, height, style="F")
+            draw_inline_line(pdf, runs, MARGIN_L + 2.2, y, height)
+            pdf.set_xy(MARGIN_L, y + height)
+    pdf.ln(2)
 
 
 def bullet(pdf: Doc, text: str, marker: str) -> None:
@@ -633,78 +580,61 @@ def parse_table_row(line: str) -> list[str]:
 
 
 def add_table(pdf: Doc, rows: list[list[str]]) -> None:
+    """富文本先测量后绘制，超高行分段，跨页重复表头。"""
     if not rows:
         return
-    ncols = max(len(r) for r in rows)
-    rows = [r + [""] * (ncols - len(r)) for r in rows]
-
+    ncols = len(rows[0])
+    if any(len(row) != ncols for row in rows):
+        raise ValueError("表格列数不一致，请先修复 Markdown")
     size = 8.0 if ncols <= 4 else (7.2 if ncols <= 6 else 6.4)
-    pad = 0.9
-    line_h = size * 0.44
-
-    # Column widths weighted by the widest cell, with a floor so a narrow column
-    # does not collapse to nothing.
-    weights = []
-    for c in range(ncols):
-        weights.append(max(visible_len(rows[r][c]) for r in range(len(rows))) or 1.0)
-    total = sum(weights)
-    widths = [max(CONTENT_W * w / total, 9.0) for w in weights]
-    scale = CONTENT_W / sum(widths)
-    widths = [w * scale for w in widths]
-
-    pdf.set_font("body", "", size)
-
-    def cell_lines(text: str, width: float) -> list[str]:
-        """Break a cell into display lines.
-
-        ⚠️ Measured on the **marker-stripped** text, and each line is later
-        rendered rich. Measuring the raw string made every cell containing
-        `**bold**` or `` `code` `` reserve width for backticks and asterisks it
-        would never draw, so lines broke far too early.
-        """
-        words = re.findall(
-            r"[\u2E80-\u9FFF]|[^\s\u2E80-\u9FFF]+|\s+", sanitize(strip_md(text))
-        )
-        out, cur = [], ""
-        for w in words:
-            trial = cur + w
-            if pdf.get_string_width(trial) > width - pad * 2 and cur:
-                out.append(cur)
-                cur = w.lstrip()
-            else:
-                cur = trial
-        out.append(cur)
-        return out or [""]
-
-    for ri, row in enumerate(rows):
-        wrapped = [cell_lines(row[c], widths[c]) for c in range(ncols)]
-        row_h = max(len(w) for w in wrapped) * line_h + pad * 2
-        if pdf.get_y() + row_h > PAGE_H - MARGIN_B:
-            pdf.add_page()
-        x, y = MARGIN_L, pdf.get_y()
-        if ri == 0:
-            pdf.set_fill_color(*HEADER_BG)
-            pdf.rect(x, y, CONTENT_W, row_h, style="F")
+    pad, line_h = 0.9, size * 0.44
+    weights = [max(visible_len(strip_md(row[c])) for row in rows) or 1 for c in range(ncols)]
+    # 单个超长说明不应挤扁其他列。
+    weights = [min(max(w, 10), 65) for w in weights]
+    widths = [CONTENT_W * w / sum(weights) for w in weights]
+    def prepare(row, header=False):
+        return [layout_inline(pdf, f"**{strip_md(text)}**" if header else text,
+                              size, widths[c] - 2 * pad) for c, text in enumerate(row)]
+    header = prepare(rows[0], True)
+    def paint(cells, start, count, is_header=False):
+        y, cx = pdf.get_y(), MARGIN_L
+        height = count * line_h + 2 * pad
         pdf.set_draw_color(*RULE)
         pdf.set_line_width(0.18)
-        cx = x
-        for c in range(ncols):
-            pdf.rect(cx, y, widths[c], row_h)
-            # Header cells are drawn bold; a cell's own `**` still applies.
-            text = row[c] if ri else f"**{strip_md(row[c])}**"
-            pdf.set_xy(cx + pad, y + pad)
-            write_inline(
-                pdf,
-                text,
-                size,
-                ACCENT if ri == 0 else INK,
-                x=cx + pad,
-                width=widths[c] - pad * 2,
-            )
-            pdf.set_xy(MARGIN_L, y)
+        if is_header:
+            pdf.set_fill_color(*HEADER_BG)
+            pdf.rect(cx, y, CONTENT_W, height, style="F")
+        for c, lines in enumerate(cells):
+            pdf.rect(cx, y, widths[c], height)
+            for index, runs in enumerate(lines[start:start + count]):
+                draw_inline_line(pdf, runs, cx + pad, y + pad + index * line_h,
+                                 line_h, ACCENT if is_header else INK)
             cx += widths[c]
-        pdf.set_xy(MARGIN_L, y + row_h)
-    pdf.ln(2.0)
+        pdf.set_xy(MARGIN_L, y + height)
+    header_lines = max(map(len, header))
+    header_height = header_lines * line_h + 2 * pad
+    if pdf.get_y() + header_height + 2 * line_h > PAGE_H - MARGIN_B:
+        pdf.add_page()
+    paint(header, 0, header_lines, True)
+    for row in rows[1:]:
+        cells = prepare(row)
+        total, start = max(map(len, cells)), 0
+        row_height = total * line_h + 2 * pad
+        if pdf.get_y() + row_height > PAGE_H - MARGIN_B and row_height < PAGE_H - MARGIN_B - MARGIN_T - header_height:
+            pdf.add_page()
+            paint(header, 0, header_lines, True)
+        while start < total:
+            room = int((PAGE_H - MARGIN_B - pdf.get_y() - 2 * pad) / line_h)
+            if room < 1:
+                pdf.add_page()
+                paint(header, 0, header_lines, True)
+                room = int((PAGE_H - MARGIN_B - pdf.get_y() - 2 * pad) / line_h)
+                if room < 1:
+                    raise ValueError("表头超过可用页面高度")
+            count = min(room, total - start)
+            paint(cells, start, count)
+            start += count
+    pdf.ln(2)
 
 
 # --- main conversion --------------------------------------------------------
@@ -868,6 +798,8 @@ def convert(md_text: str, out_path: str, title: str) -> None:
         text, i = join_continued(lines, i)
         write_inline(pdf, text, 10.2, INK)
 
+    if in_code:
+        raise ValueError("Markdown 代码围栏未闭合，拒绝生成缺失正文的 PDF")
     pdf.output(out_path)
     print(f"OK -> {out_path}")
 

@@ -108,3 +108,41 @@ v0.3 本机功能检查：10 项纯函数 / 调度测试通过；DPR 3 的 390px
 - [INP 定义](https://web.dev/articles/inp)：页面生命周期响应指标与下一次绘制的边界。
 - [Long Animation Frames](https://www.w3.org/TR/long-animation-frames/)：长动画帧与阻塞时间。
 - [web-vitals](https://github.com/GoogleChrome/web-vitals)：INP 官方实现。
+
+<!-- directory-index:start -->
+## 直属目录清单
+
+本区块由 `pnpm docs:index` 维护；文件用途用于定位，行为以权威规格与实现为准。
+
+| 文件 | 用途 / 入口 |
+|---|---|
+| [app.js](app.js) | 实现模块；按文件名定位 app.js |
+| [async-renderer.js](async-renderer.js) | 实现模块；入口/导出：AsyncRenderer |
+| [core.js](core.js) | 实现模块；入口/导出：VERSION、MODES、NAMES、quantile、stats |
+| [core.test.mjs](core.test.mjs) | 测试：core |
+| [index.html](index.html) | 网页入口 |
+| [lab.css](lab.css) | 样式与变量 |
+| [mobile.css](mobile.css) | 样式与变量 |
+| [mobile.html](mobile.html) | 网页入口 |
+| [mobile.js](mobile.js) | 实现模块；按文件名定位 mobile.js |
+| [mobile.test.mjs](mobile.test.mjs) | 测试：mobile |
+| [monitor.js](monitor.js) | 实现模块；入口/导出：nextPaintOpportunity、Monitor |
+| [optimization.test.mjs](optimization.test.mjs) | 测试：optimization |
+| [protection.js](protection.js) | 实现模块；入口/导出：Protection、abortError、delay、yieldTask、Budget |
+| [quick-plan.js](quick-plan.js) | 实现模块；入口/导出：QUICK_VERSION、quickPlan |
+| [quick-plan.test.mjs](quick-plan.test.mjs) | 测试：quick-plan |
+| [quick.css](quick.css) | 样式与变量 |
+| [quick.html](quick.html) | 网页入口 |
+| [quick.js](quick.js) | 实现模块；按文件名定位 quick.js |
+| [renderer.js](renderer.js) | 实现模块；入口/导出：canvas、Renderer |
+| [report-receiver.mjs](report-receiver.mjs) | 实现模块；入口/导出：reportReceiver |
+| [report-receiver.test.mjs](report-receiver.test.mjs) | 测试：report-receiver |
+| [report-storage.js](report-storage.js) | 实现模块；入口/导出：localReport、compactReport、sendReport |
+| [serve.mjs](serve.mjs) | 实现模块；按文件名定位 serve.mjs |
+| [viewport-renderer.js](viewport-renderer.js) | 实现模块；入口/导出：rowContent、tilePlan、ViewportRenderer |
+| [viewport.test.mjs](viewport.test.mjs) | 测试：viewport |
+
+| 子目录 | 职责 |
+|---|---|
+| [reports/](reports/README.md) | 实验测量产物。 |
+<!-- directory-index:end -->

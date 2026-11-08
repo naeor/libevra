@@ -55,3 +55,25 @@ serve.mjs             零依赖局域网静态服务器（只读本目录）
 ## 限制
 
 记账表单、修改表单、账本空间、明细“更多”、设置子页与布局编辑只给出提示，不跳转；只做了浅色；尚未接入主题色系统。
+
+<!-- directory-index:start -->
+## 直属目录清单
+
+本区块由 `pnpm docs:index` 维护；文件用途用于定位，行为以权威规格与实现为准。
+
+| 文件 | 用途 / 入口 |
+|---|---|
+| [ARCHIVE.md](ARCHIVE.md) | 第二、三轮存档（2026-11-07） |
+| [a.html](a.html) | 网页入口 |
+| [b.html](b.html) | 网页入口 |
+| [b1.html](b1.html) | 网页入口 |
+| [b2.html](b2.html) | 网页入口 |
+| [c.html](c.html) | 网页入口 |
+| [glass.html](glass.html) | 网页入口 |
+| [index.html](index.html) | 网页入口 |
+| [serve.mjs](serve.mjs) | 实现模块；按文件名定位 serve.mjs |
+
+| 子目录 | 职责 |
+|---|---|
+| [lab/](lab/README.md) | 本层组织 lab 模块的直属文件；具体契约由任务索引定位。 |
+<!-- directory-index:end -->

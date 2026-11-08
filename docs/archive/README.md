@@ -9,16 +9,7 @@
 
 所以：**活跃文档在 `docs/` 根与 `specs/` `ops/` `changelog/`；这里放其余全部。**
 
-## 目录
-
-| 目录 | 内容 |
-|---|---|
-| `releases/` | 每个版本的生产发布记录、发布准备（1.16.09–1.17.15 原在 `ops/`）、本地 / 阶段验收记录、S14-D5 各阶段报告；导览见 [releases/README.md](releases/README.md) |
-| `announcements/` | 已发布的更新公告存档（文案源头在 `apps/web/src/lib/updateAnnouncements.ts`） |
-| `design/` | 已完成阶段的设计决定与审计报告（S6 / S8 / S9 协作 / S13-A / S14 游客模式等）；2026-10-29 起另收 S15-E 规划提案、账单导入 V2 方案、S16-B 实施准备清单、S16-E-10/11 核对、S17 分析页审查提案与素材、S17-B 过程稿 |
-| `logs/` | 开发日志（ADR 正文，停更于 1.10.19）、版本记录 1.08–1.09、2026-10-29 整理前的 STATUS 全文快照 |
-| `misc/` | 一次性审计、已失效的跨会话交接、已被取代的草稿、账号迁移方案等 |
-| `screenshots/` | 历史截图证据（309 张，按阶段分组） |
+目录与各类资料职责见文末自动清单，不另维护第二份目录表。
 
 ## 使用规则
 
@@ -32,3 +23,23 @@
 - 当前状态：`docs/STATUS.md`
 - 文档索引与阅读顺序：`docs/00-索引.md`
 - 决策理由索引：`docs/adr/README.md`
+
+<!-- directory-index:start -->
+## 直属目录清单
+
+本区块由 `pnpm docs:index` 维护；文件用途用于定位，行为以权威规格与实现为准。
+
+| 文件 | 用途 / 入口 |
+|---|---|
+| — | 本层通过子目录组织内容 |
+
+| 子目录 | 职责 |
+|---|---|
+| [announcements/](announcements/README.md) | 历史公告存档；当前公告源在 Web updateAnnouncements.ts。 |
+| [design/](design/README.md) | 已完成的设计讨论、审查、草图与实验依据。 |
+| [documentation/](documentation/README.md) | 文档整理前原文、Git 基线和校验清单；不指导当前开发。 |
+| [logs/](logs/README.md) | 冻结开发日志、旧版本记录与 STATUS 历史快照。 |
+| [misc/](misc/README.md) | 一次性评审、交流和被取代的草稿。 |
+| [releases/](releases/README.md) | 历史发布、阶段验收与恢复证据；不授权当前生产操作。 |
+| [screenshots/](screenshots) | 历史截图证据；不作为当前界面规格。 |
+<!-- directory-index:end -->

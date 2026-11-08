@@ -1,106 +1,65 @@
-// 生成阅读版 PDF：只产 PDF，统一输出到 docs/阅读版/（保持相对路径镜像）。
-//
-// 决策（2026-10-20，所有者确认）：Word 与 PDF 只保留其一 → **留 PDF**。
-// 理由：手机/iPad 打开最稳；`docs/*.docx` 容易被误当成"可编辑源"。
-//
-// 约定：
-//   - Markdown 是唯一的源；`docs/阅读版/**` 全部是生成物，**不入库**（见 .gitignore）。
-//   - 输出路径镜像源路径：`docs/specs/design/x.md` → `docs/阅读版/specs/design/x.pdf`。
-//   - 清理：`docs/阅读版/` 下没有对应源文件的 PDF 会被删掉（陈旧比缺失更糟）。
-//   - `docs/恢复码.docx` 没有 md 源、也不由本脚本处理，**不在清理范围内**（它在 docs 根，不在 阅读版/）。
-import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+// 阅读版仍由 md2pdf.py 生成；增量选择、指纹与验证由本入口协调。绝不自动删除孤立 PDF。
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DOCS = join(ROOT, "docs");
-const OUT = join(DOCS, "阅读版");
-const CONVERTER = join(ROOT, "tools", "md2pdf.py");
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "阅读版", ".venv", "__pycache__"]);
-
-function pythonCandidates() {
-  const list = [];
-  if (process.env.PYTHON) list.push(process.env.PYTHON);
-  const home = process.env.DSH_HOME;
-  if (home) list.push(join(home, "dsh-runtimes", "dsh-primary-runtime", "dependencies", "python", "python.exe"));
-  list.push("py", "python3", "python");
-  return list;
+const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),".."), DOCS=join(ROOT,"docs"), OUT=join(DOCS,"阅读版");
+const args=process.argv.slice(2), sync=args.includes("--sync"), check=args.includes("--check");
+const since=args.find(a=>a.startsWith("--since="))?.slice(8);
+const manifestPath=join(OUT,".reading-manifest.json");
+const manifest=existsSync(manifestPath)?JSON.parse(readFileSync(manifestPath,"utf8")):{schemaVersion:1,entries:{}};
+const sha=b=>createHash("sha256").update(b).digest("hex");
+const converter=join(ROOT,"tools/md2pdf.py"), validator=join(ROOT,"tools/verify-reading-pdf.py");
+const converterHash=sha(Buffer.concat([readFileSync(converter),readFileSync(validator)]));
+const git=(...a)=>execFileSync("git",a,{cwd:ROOT,encoding:"utf8",maxBuffer:16e6}).split("\0").filter(Boolean);
+const visible=[...new Set(git("ls-files","--cached","--others","--exclude-standard","-z"))];
+const sources=visible.filter(f=>f.startsWith("docs/") && f.endsWith(".md") && !f.startsWith("docs/阅读版/") && existsSync(join(ROOT,f)));
+const target=f=>join(OUT,...f.slice(5).replace(/\.md$/, ".pdf").split("/"));
+const changed=new Set(git("diff","--name-only","-z",since||"HEAD","--","docs"));
+for(const f of git("ls-files","--others","--exclude-standard","-z","--","docs")) changed.add(f);
+const explicit=args.filter(a=>!a.startsWith("--")).map(a=>relative(ROOT,resolve(ROOT,a)).split(sep).join("/"));
+for(const f of explicit) if(!sources.includes(f)) throw Error("只转换仓库可见的 docs Markdown，不能读取私密/生成资料："+f);
+const selected=sources.filter(f=>explicit.includes(f) || (!(sync||check) && !explicit.length) || ((sync||check) && existsSync(target(f)) && (changed.has(f) || manifest.entries[f] && (manifest.entries[f].sourceSha256!==sha(readFileSync(join(ROOT,f))) || manifest.entries[f].converterSha256!==converterHash))) || ((sync||check) && manifest.entries[f] && !existsSync(target(f))));
+if(check) for(const f of sources) if(manifest.entries[f] && !selected.includes(f)) selected.push(f);
+function pythonFor() {
+  const candidates=[process.env.PYTHON,join(ROOT,"_backups/docs-pdf-runtime/Scripts/python.exe"),join(ROOT,"_backups/docs-pdf-runtime/bin/python"),process.env.DSH_HOME&&join(process.env.DSH_HOME,"dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe"),"py","python3","python"].filter(Boolean);
+  for(const p of candidates) {try {execFileSync(p,[...(p==="py"?["-3"]:[]),"-c","import fpdf, fitz"],{stdio:"ignore"});return p;}catch{}}
+  throw Error("找不到具有 fpdf2 与 PyMuPDF 的 Python；设置 PYTHON 指向已安装的解释器。Markdown 与旧 PDF 保留，未宣称同步。");
 }
-function canImport(interpreter, module) {
-  const args = interpreter === "py" ? ["-3", "-c", `import ${module}`] : ["-c", `import ${module}`];
-  try { execFileSync(interpreter, args, { stdio: "ignore" }); return true; } catch { return false; }
+let python;
+function run(script,...values) {
+  python??=pythonFor();
+  return execFileSync(python,[...(python==="py"?["-3"]:[]),"-X","utf8",script,...values],{cwd:ROOT,encoding:"utf8",maxBuffer:8e6,stdio:["ignore","pipe","pipe"]});
 }
-function pythonFor(module) {
-  for (const c of pythonCandidates()) {
-    try { if (canImport(c, module)) return c; } catch { /* 下一个 */ }
-  }
-  return null;
-}
-
-const pdfPython = pythonFor("fpdf");
-if (pdfPython === null) {
-  console.error(
-    [
-      "找不到带 fpdf2 的 Python，阅读版未生成。",
-      "在项目里装一次：pip install fpdf2",
-      "或用 DSH 自带运行时：$env:PYTHON = \"$env:DSH_HOME\\dsh-runtimes\\dsh-primary-runtime\\dependencies\\python\\python.exe\"",
-    ].join("\n"),
-  );
-  process.exit(1);
-}
-console.log(`PDF 使用解释器：${pdfPython}`);
-
-// ---------- 收集源 ----------
-function walk(dir, out = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (SKIP_DIRS.has(e.name)) continue;
-    const full = join(dir, e.name);
-    if (e.isDirectory()) walk(full, out);
-    else if (e.name.endsWith(".md")) out.push(full);
-  }
-  return out;
-}
-const sources = walk(DOCS).sort();
-console.log(`发现 ${sources.length} 份 Markdown`);
-
-// ---------- 清理：输出目录里没有源的 PDF ----------
-const produced = new Set();
-for (const from of sources) {
-  produced.add(relative(DOCS, from).split("\\").join("/").replace(/\.md$/, ".pdf"));
-}
-if (existsSync(OUT)) {
-  let removed = 0;
-  (function clean(dir) {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, e.name);
-      if (e.isDirectory()) { clean(full); continue; }
-      if (!e.name.toLowerCase().endsWith(".pdf")) continue;
-      const relOut = relative(OUT, full).split("\\").join("/");
-      if (!produced.has(relOut)) { rmSync(full); removed++; }
-    }
-  })(OUT);
-  if (removed) console.log(`清理陈旧 PDF：${removed} 份`);
-}
-
-// ---------- 生成 ----------
-let ok = 0, failed = 0;
-for (const from of sources) {
-  const relMd = relative(DOCS, from).split("\\").join("/");
-  const relPdf = relMd.replace(/\.md$/, ".pdf");
-  const target = join(OUT, relPdf.split("/").join("\\"));
-  mkdirSync(dirname(target), { recursive: true });
-  const title = relMd.replace(/\.md$/, "").split("/").pop();
+let ok=0, skipped=0;const failed=[];
+mkdirSync(OUT,{recursive:true});
+for(const f of selected.sort()) {
+  const sourceHash=sha(readFileSync(join(ROOT,f))),dest=target(f),record=manifest.entries[f];
+  const fresh=record?.sourceSha256===sourceHash && record.converterSha256===converterHash && existsSync(dest) && record.pdfSha256===sha(readFileSync(dest));
   try {
-    execFileSync(pdfPython, ["-X", "utf8", CONVERTER, from, target, "--title", title], { stdio: "pipe" });
-    ok++;
-    console.log(`  ✓ ${relMd}`);
-  } catch (error) {
-    failed++;
-    console.error(`  ✗ ${relMd} → PDF 生成失败：${String(error?.stderr ?? error).slice(0, 300)}`);
-  }
+    if(check) {
+      if(!fresh)throw Error("源、转换器或 PDF 指纹不匹配/尚未登记，请运行 docs:sync");
+      const result=JSON.parse(run(validator,join(ROOT,f),dest));
+      if(result.pages!==record.pages)throw Error("页数与登记不一致");
+      ok++;continue;
+    }
+    if(fresh){skipped++;continue;}
+    mkdirSync(dirname(dest),{recursive:true});
+    const pending=dest+".pending";
+    run(converter,join(ROOT,f),pending,"--title",f.slice(5).replace(/\.md$/, "").split("/").pop());
+    const result=JSON.parse(run(validator,join(ROOT,f),pending));
+    if(sha(readFileSync(join(ROOT,f)))!==sourceHash)throw Error("生成期间 Markdown 已变化，保留旧 PDF 后重试");
+    if(sha(Buffer.concat([readFileSync(converter),readFileSync(validator)]))!==converterHash)throw Error("生成期间转换器/校验器已变化，保留旧 PDF 后重试");
+    renameSync(pending,dest);
+    manifest.entries[f]={sourceSha256:sourceHash,converterSha256:converterHash,pdfSha256:sha(readFileSync(dest)),pages:result.pages,verifiedAt:new Date().toISOString(),pdf:relative(ROOT,dest).split(sep).join("/")};
+    writeFileSync(manifestPath,JSON.stringify(manifest,null,2)+"\n");
+    ok++;console.log(`✓ ${f} → ${result.pages} 页`);
+  }catch(error){failed.push(f);console.error(`✗ ${f}：${String(error.stderr||error.message).slice(0,700)}`);}
 }
-
-console.log(`\n完成：${ok} 份成功${failed ? `，${failed} 份失败` : ""} → docs/阅读版/`);
-console.log("提示：阅读版不入库；需要时重跑 pnpm docs:build。");
-if (failed) process.exit(1);
+const orphan=[];
+function walk(dir){for(const e of readdirSync(dir,{withFileTypes:true})){const p=join(dir,e.name);if(e.isDirectory())walk(p);else if(e.name.endsWith(".pdf")){const src="docs/"+relative(OUT,p).split(sep).join("/").replace(/\.pdf$/, ".md");if(!sources.includes(src))orphan.push(relative(ROOT,p));}}}
+walk(OUT);
+if(orphan.length)console.log(`孤立/非仓库源阅读版 ${orphan.length} 份：仅报告，不删除。`);
+console.log(`阅读版${check?"检查":"生成"}：${ok} 成功，${skipped} 内容未变，${failed.length} 失败；未选中的旧 PDF 不在本次同步声明范围。`);
+if(failed.length)process.exitCode=1;

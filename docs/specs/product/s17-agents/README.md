@@ -41,3 +41,75 @@
 `S17-Agent-A-A4准备报告` · `S17-Agent-A-A4前置检查清单` · `S17-Agent-A-S01-v2-C1-所有者核对表` · `S17-Agent-A-S01-v2-G16-G17语义清单` · `S17-Agent-A-S01-v2-r4/r5/r6/r7-*` · `S17-Agent-A-S01-v2-冻结议程-20261027` · `S17-Agent-A-S01-v2-评审意见汇总表` · `S17-Agent-A-S01-v2-跨Agent冲突检查汇总表` · `S17-Agent-A-S01-共享分析结果协议草案`（v1，已被 v2 取代） · `S17-Agent-A-T2-验收证据包` · `S17-Agent-A-T2只读扩展提案` · `S17-Agent-A-基础与分类分析` · `S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限` · `S17-Agent-B-时间趋势与周期分析` · `S17-Agent-C-C5-集成准备` · `S17-Agent-C-CF1-P20可折算性与H1缺口` · `S17-Agent-C-I1b-信封适配层-C输入清单` · `S17-Agent-C-P17-P20-RealProjection-最小批次` · `S17-Agent-C-QC12-核对表` · `S17-Agent-C-QC12-脱敏抽样指标清单` · `S17-Agent-C-S01-v2-r4-形状映射与差异回执` · `S17-Agent-C-S01-v2冻结前交叉核验清单` · `S17-Agent-C-深入与专业分析` · `S17-Agent-D-D1-布局引擎测试与文档校验` · `S17-Agent-D-D2-前置-交互模型与状态机草案` · `S17-Agent-D-D2-集成前检查清单` · `S17-Agent-D-D3-跨列迁移-修复顺序-容器语义` · `S17-Agent-D-D5-只读预研-W5W6集成与规格对照` · `S17-Agent-D-I1-集成契约映射` · `S17-Agent-D-OQ落实与差异清单` · `S17-Agent-D-S01-v2-冲突检查意见` · `S17-Agent-D-布局与交互设计稿` · `S17-Agent-D-模块化布局与配置` · `S17-分析页工作台集成-交接-20261027`
 
 > 分级按文件用途与引用关系初定；如果发现某份“过程记录”仍被现行实现依赖，把它挪到上面的表里，不要另建新文档。**本目录不再新增文件**：以后的分析功能改动直接更新现行规格。
+
+<!-- directory-index:start -->
+## 直属目录清单
+
+本区块由 `pnpm docs:index` 维护；文件用途用于定位，行为以权威规格与实现为准。
+
+| 文件 | 用途 / 入口 |
+|---|---|
+| [S17-Agent-A-A4准备报告.md](S17-Agent-A-A4%E5%87%86%E5%A4%87%E6%8A%A5%E5%91%8A.md) | S17 · Agent A · A-4 准备报告（准备，不是启动） |
+| [S17-Agent-A-A4前置检查清单.md](S17-Agent-A-A4%E5%89%8D%E7%BD%AE%E6%A3%80%E6%9F%A5%E6%B8%85%E5%8D%95.md) | S17 · Agent A · A-4 前置检查清单（草案） |
+| [S17-Agent-A-G12a-params白名单发布形态-v1.md](S17-Agent-A-G12a-params%E7%99%BD%E5%90%8D%E5%8D%95%E5%8F%91%E5%B8%83%E5%BD%A2%E6%80%81-v1.md) | G-12a 正式发布物：params 白名单发布形态 v1.1（S-01 v2，**已冻结 s01-v2**，2026-10-27） |
+| [S17-Agent-A-S01-v2-C1-所有者核对表.md](S17-Agent-A-S01-v2-C1-%E6%89%80%E6%9C%89%E8%80%85%E6%A0%B8%E5%AF%B9%E8%A1%A8.md) | S-01 v2 冻结前核验 · C-1 所有者核对表 |
+| [S17-Agent-A-S01-v2-G16-G17语义清单.md](S17-Agent-A-S01-v2-G16-G17%E8%AF%AD%E4%B9%89%E6%B8%85%E5%8D%95.md) | S-01 v2 冻结前核验 · G-16 / G-17 语义清单 |
+| [S17-Agent-A-S01-v2-r4-核验处理记录.md](S17-Agent-A-S01-v2-r4-%E6%A0%B8%E9%AA%8C%E5%A4%84%E7%90%86%E8%AE%B0%E5%BD%95.md) | S17 · Agent A · S-01 v2 修订 r4 核验处理记录 |
+| [S17-Agent-A-S01-v2-r5-核验处理记录.md](S17-Agent-A-S01-v2-r5-%E6%A0%B8%E9%AA%8C%E5%A4%84%E7%90%86%E8%AE%B0%E5%BD%95.md) | S17 · Agent A · S-01 v2 修订 r5 核验处理记录（D 正式冲突检查） |
+| [S17-Agent-A-S01-v2-r6-记录.md](S17-Agent-A-S01-v2-r6-%E8%AE%B0%E5%BD%95.md) | S-01 v2 修订 r6 记录：所有者裁定落实（2026-10-27） |
+| [S17-Agent-A-S01-v2-r7-记录.md](S17-Agent-A-S01-v2-r7-%E8%AE%B0%E5%BD%95.md) | S-01 v2 修订 r7 记录（所有者签认后四项闭合，2026-10-27） |
+| [S17-Agent-A-S01-v2-冻结常量汇总表.md](S17-Agent-A-S01-v2-%E5%86%BB%E7%BB%93%E5%B8%B8%E9%87%8F%E6%B1%87%E6%80%BB%E8%A1%A8.md) | S-01 v2 冻结前核验 · 37 项冻结常量汇总表 |
+| [S17-Agent-A-S01-v2-冻结议程-20261027.md](S17-Agent-A-S01-v2-%E5%86%BB%E7%BB%93%E8%AE%AE%E7%A8%8B-20261027.md) | S-01 v2 冻结议程（给所有者的一页版） |
+| [S17-Agent-A-S01-v2-最终冻结核对结果.md](S17-Agent-A-S01-v2-%E6%9C%80%E7%BB%88%E5%86%BB%E7%BB%93%E6%A0%B8%E5%AF%B9%E7%BB%93%E6%9E%9C.md) | S-01 v2 最终冻结核对结果（一页，2026-10-27，r7） |
+| [S17-Agent-A-S01-v2-结构草案.md](S17-Agent-A-S01-v2-%E7%BB%93%E6%9E%84%E8%8D%89%E6%A1%88.md) | S17 · S-01 v2 结构草案（跨 Agent 汇总收敛，**已冻结 s01-v2**，2026-10-27） |
+| [S17-Agent-A-S01-v2-评审意见汇总表.md](S17-Agent-A-S01-v2-%E8%AF%84%E5%AE%A1%E6%84%8F%E8%A7%81%E6%B1%87%E6%80%BB%E8%A1%A8.md) | S-01 v2 评审意见汇总表（s01-v2 冻结归档，2026-10-27） |
+| [S17-Agent-A-S01-v2-跨Agent冲突检查汇总表.md](S17-Agent-A-S01-v2-%E8%B7%A8Agent%E5%86%B2%E7%AA%81%E6%A3%80%E6%9F%A5%E6%B1%87%E6%80%BB%E8%A1%A8.md) | S-01 v2 冻结前核验 · 跨 Agent 冲突检查汇总表 |
+| [S17-Agent-A-S01-共享分析结果协议草案.md](S17-Agent-A-S01-%E5%85%B1%E4%BA%AB%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%8D%8F%E8%AE%AE%E8%8D%89%E6%A1%88.md) | S-01 共享分析结果协议草案（Agent A 拟定） |
+| [S17-Agent-A-S01v2-信封示例与字段说明-20261027.md](S17-Agent-A-S01v2-%E4%BF%A1%E5%B0%81%E7%A4%BA%E4%BE%8B%E4%B8%8E%E5%AD%97%E6%AE%B5%E8%AF%B4%E6%98%8E-20261027.md) | S-01 v2 信封示例与字段说明（只读，给 Claude 前端适配层） |
+| [S17-Agent-A-S01v2-变更记录-v2.0.1-method串取值裁定.md](S17-Agent-A-S01v2-%E5%8F%98%E6%9B%B4%E8%AE%B0%E5%BD%95-v2.0.1-method%E4%B8%B2%E5%8F%96%E5%80%BC%E8%A3%81%E5%AE%9A.md) | S-01 v2.0.1 冻结后澄清：method 串取值裁定与 σ decimalText 边界 |
+| [S17-Agent-A-S01v2-变更记录-v2.0.2-冻结一致性修正.md](S17-Agent-A-S01v2-%E5%8F%98%E6%9B%B4%E8%AE%B0%E5%BD%95-v2.0.2-%E5%86%BB%E7%BB%93%E4%B8%80%E8%87%B4%E6%80%A7%E4%BF%AE%E6%AD%A3.md) | S-01 v2.0.2 冻结后一致性修正：信封版本串 / 唯一字段表 / 协议标识 |
+| [S17-Agent-A-S01v2-变更记录-v2.0.3-类型可选字段对齐.md](S17-Agent-A-S01v2-%E5%8F%98%E6%9B%B4%E8%AE%B0%E5%BD%95-v2.0.3-%E7%B1%BB%E5%9E%8B%E5%8F%AF%E9%80%89%E5%AD%97%E6%AE%B5%E5%AF%B9%E9%BD%90.md) | S17-Agent-A · S-01 v2 变更记录 v2.0.3 —— ComputationMetadata 协议可选字段类型对齐（Additive） |
+| [S17-Agent-A-T2-验收证据包.md](S17-Agent-A-T2-%E9%AA%8C%E6%94%B6%E8%AF%81%E6%8D%AE%E5%8C%85.md) | Agent A · T2 只读扩展验收证据包（交 Lead 复核） |
+| [S17-Agent-A-T2只读扩展提案.md](S17-Agent-A-T2%E5%8F%AA%E8%AF%BB%E6%89%A9%E5%B1%95%E6%8F%90%E6%A1%88.md) | S17 · Agent A · T2 只读扩展提案（已批准 · 已实现 · 待所有者验收） |
+| [S17-Agent-A-基础与分类分析.md](S17-Agent-A-%E5%9F%BA%E7%A1%80%E4%B8%8E%E5%88%86%E7%B1%BB%E5%88%86%E6%9E%90.md) | S17 · Agent A 任务文档：基础财务与分类分析 |
+| [S17-Agent-A-完整开发规格-所有者-20261026.md](S17-Agent-A-%E5%AE%8C%E6%95%B4%E5%BC%80%E5%8F%91%E8%A7%84%E6%A0%BC-%E6%89%80%E6%9C%89%E8%80%85-20261026.md) | Libevra S17 · Agent A 完整开发规格 |
+| [S17-Agent-B-S01-v2提案-汇率逐笔扩展与月键上限.md](S17-Agent-B-S01-v2%E6%8F%90%E6%A1%88-%E6%B1%87%E7%8E%87%E9%80%90%E7%AC%94%E6%89%A9%E5%B1%95%E4%B8%8E%E6%9C%88%E9%94%AE%E4%B8%8A%E9%99%90.md) | S-01 v2 B 侧提案：综合模式 FxAggregate 逐日/逐笔扩展与月键上限参数化 |
+| [S17-Agent-B-S01-时间扩展协议草案.md](S17-Agent-B-S01-%E6%97%B6%E9%97%B4%E6%89%A9%E5%B1%95%E5%8D%8F%E8%AE%AE%E8%8D%89%E6%A1%88.md) | S17 · Agent B 对 S-01 的时间扩展协议草案（B-0 交付） |
+| [S17-Agent-B-完整开发规格-所有者-20261027.md](S17-Agent-B-%E5%AE%8C%E6%95%B4%E5%BC%80%E5%8F%91%E8%A7%84%E6%A0%BC-%E6%89%80%E6%9C%89%E8%80%85-20261027.md) | Libevra S17 · Agent B 完整开发规格 |
+| [S17-Agent-B-时间趋势与周期分析.md](S17-Agent-B-%E6%97%B6%E9%97%B4%E8%B6%8B%E5%8A%BF%E4%B8%8E%E5%91%A8%E6%9C%9F%E5%88%86%E6%9E%90.md) | S17 · Agent B 任务文档：时间、趋势与周期分析 |
+| [S17-Agent-B-移动平均卡接口说明-20261027.md](S17-Agent-B-%E7%A7%BB%E5%8A%A8%E5%B9%B3%E5%9D%87%E5%8D%A1%E6%8E%A5%E5%8F%A3%E8%AF%B4%E6%98%8E-20261027.md) | S17 Agent B · 移动平均卡接口说明（给 Claude 前端适配层） |
+| [S17-Agent-C-C0-数据契约与公共协议-20261027.md](S17-Agent-C-C0-%E6%95%B0%E6%8D%AE%E5%A5%91%E7%BA%A6%E4%B8%8E%E5%85%AC%E5%85%B1%E5%8D%8F%E8%AE%AE-20261027.md) | S17 · Agent C · C-0 数据契约与公共协议核对 |
+| [S17-Agent-C-C5-集成准备-20261027.md](S17-Agent-C-C5-%E9%9B%86%E6%88%90%E5%87%86%E5%A4%87-20261027.md) | S17 · Agent C · C-5 集成准备（纯准备，不实施） |
+| [S17-Agent-C-CF1-P20可折算性与H1缺口-20261027.md](S17-Agent-C-CF1-P20%E5%8F%AF%E6%8A%98%E7%AE%97%E6%80%A7%E4%B8%8EH1%E7%BC%BA%E5%8F%A3-20261027.md) | S17 · Agent C · C-F1 冻结后最小批次：P20 可折算性字段 + H-1 dominantBins 缺口清单 |
+| [S17-Agent-C-I1b-信封适配层-C输入清单-20261027.md](S17-Agent-C-I1b-%E4%BF%A1%E5%B0%81%E9%80%82%E9%85%8D%E5%B1%82-C%E8%BE%93%E5%85%A5%E6%B8%85%E5%8D%95-20261027.md) | S17 · Agent C · I-1b 信封适配层：C 侧输入与映射清单（2026-10-27） |
+| [S17-Agent-C-P17-P20-RealProjection-最小批次-20261027.md](S17-Agent-C-P17-P20-RealProjection-%E6%9C%80%E5%B0%8F%E6%89%B9%E6%AC%A1-20261027.md) | S17 · Agent C · P17–P20 real projection 最小批次（2026-10-27） |
+| [S17-Agent-C-QC12-核对表-20261027.md](S17-Agent-C-QC12-%E6%A0%B8%E5%AF%B9%E8%A1%A8-20261027.md) | S17 · Agent C · QC-12 脱敏抽样核对表（C 实现 vs 独立 SQL） |
+| [S17-Agent-C-QC12-脱敏抽样指标清单-20261027.md](S17-Agent-C-QC12-%E8%84%B1%E6%95%8F%E6%8A%BD%E6%A0%B7%E6%8C%87%E6%A0%87%E6%B8%85%E5%8D%95-20261027.md) | S17 · Agent C · QC-12 真实数据抽样指标清单（脱敏只读核对） |
+| [S17-Agent-C-S01-v2-r4-形状映射与差异回执-20261027.md](S17-Agent-C-S01-v2-r4-%E5%BD%A2%E7%8A%B6%E6%98%A0%E5%B0%84%E4%B8%8E%E5%B7%AE%E5%BC%82%E5%9B%9E%E6%89%A7-20261027.md) | S17 · Agent C · S-01 v2 r4 形状映射与差异回执 |
+| [S17-Agent-C-S01-v2冻结前交叉核验清单-20261027.md](S17-Agent-C-S01-v2%E5%86%BB%E7%BB%93%E5%89%8D%E4%BA%A4%E5%8F%89%E6%A0%B8%E9%AA%8C%E6%B8%85%E5%8D%95-20261027.md) | S17 · Agent C · S-01 v2 冻结前交叉核验清单（C 负责域） |
+| [S17-Agent-C-S01-v2评审-C-2-分类层级模型正式定义.md](S17-Agent-C-S01-v2%E8%AF%84%E5%AE%A1-C-2-%E5%88%86%E7%B1%BB%E5%B1%82%E7%BA%A7%E6%A8%A1%E5%9E%8B%E6%AD%A3%E5%BC%8F%E5%AE%9A%E4%B9%89.md) | S17 · Agent C · S-01 v2 评审材料：G-16 分类层级模型正式定义（C-2 / P05–P07） |
+| [S17-Agent-C-S01-v2评审-C-4-FX诊断形状与常量定义.md](S17-Agent-C-S01-v2%E8%AF%84%E5%AE%A1-C-4-FX%E8%AF%8A%E6%96%AD%E5%BD%A2%E7%8A%B6%E4%B8%8E%E5%B8%B8%E9%87%8F%E5%AE%9A%E4%B9%89.md) | S17 · Agent C · S-01 v2 评审材料：C-4 FX 诊断形状与常量定义（P16–P20） |
+| [S17-Agent-C-完整开发规格-所有者-20261027.md](S17-Agent-C-%E5%AE%8C%E6%95%B4%E5%BC%80%E5%8F%91%E8%A7%84%E6%A0%BC-%E6%89%80%E6%9C%89%E8%80%85-20261027.md) | Libevra S17 · Agent C 完整开发规格 |
+| [S17-Agent-C-深入与专业分析.md](S17-Agent-C-%E6%B7%B1%E5%85%A5%E4%B8%8E%E4%B8%93%E4%B8%9A%E5%88%86%E6%9E%90.md) | S17 · Agent C 任务文档：深入与专业分析 |
+| [S17-Agent-D-D0-布局数据模型与接口-v1.md](S17-Agent-D-D0-%E5%B8%83%E5%B1%80%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%8E%A5%E5%8F%A3-v1.md) | S17 · Agent D · D-0 布局数据模型与接口清单（v1） |
+| [S17-Agent-D-D1-布局引擎测试与文档校验-v1.md](S17-Agent-D-D1-%E5%B8%83%E5%B1%80%E5%BC%95%E6%93%8E%E6%B5%8B%E8%AF%95%E4%B8%8E%E6%96%87%E6%A1%A3%E6%A0%A1%E9%AA%8C-v1.md) | Markdown 文档 |
+| [S17-Agent-D-D2-前置-交互模型与状态机草案-v1.md](S17-Agent-D-D2-%E5%89%8D%E7%BD%AE-%E4%BA%A4%E4%BA%92%E6%A8%A1%E5%9E%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA%E8%8D%89%E6%A1%88-v1.md) | S17 · Agent D · D-2 前置：交互模型与状态机草案（v1） |
+| [S17-Agent-D-D2-集成前检查清单-v1.md](S17-Agent-D-D2-%E9%9B%86%E6%88%90%E5%89%8D%E6%A3%80%E6%9F%A5%E6%B8%85%E5%8D%95-v1.md) | S17 · Agent D · D-2 集成前检查清单（v1） |
+| [S17-Agent-D-D3-1-独立档案与模式迁移引擎-v1.md](S17-Agent-D-D3-1-%E7%8B%AC%E7%AB%8B%E6%A1%A3%E6%A1%88%E4%B8%8E%E6%A8%A1%E5%BC%8F%E8%BF%81%E7%A7%BB%E5%BC%95%E6%93%8E-v1.md) | S17 · Agent D · D-3.1 记录：独立布局档案与模式迁移引擎（v1） |
+| [S17-Agent-D-D3-2-容器数据模型与迁移固定案例-v1.md](S17-Agent-D-D3-2-%E5%AE%B9%E5%99%A8%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%BF%81%E7%A7%BB%E5%9B%BA%E5%AE%9A%E6%A1%88%E4%BE%8B-v1.md) | S17 · Agent D · D-3.2：容器数据模型/占位语义与跨列迁移固定案例（headless v1） |
+| [S17-Agent-D-D3-跨列迁移-修复顺序-容器语义-v1.md](S17-Agent-D-D3-%E8%B7%A8%E5%88%97%E8%BF%81%E7%A7%BB-%E4%BF%AE%E5%A4%8D%E9%A1%BA%E5%BA%8F-%E5%AE%B9%E5%99%A8%E8%AF%AD%E4%B9%89-v1.md) | S17 · Agent D · D-3 跨列迁移、确定性修复与容器语义（headless）v1 |
+| [S17-Agent-D-D4-前置-文档IO-迁移链-导入-存储契约-v1.md](S17-Agent-D-D4-%E5%89%8D%E7%BD%AE-%E6%96%87%E6%A1%A3IO-%E8%BF%81%E7%A7%BB%E9%93%BE-%E5%AF%BC%E5%85%A5-%E5%AD%98%E5%82%A8%E5%A5%91%E7%BA%A6-v1.md) | S17 · Agent D · D-4 前置记录：文档 IO、迁移链、分享/导入纯函数与本地存储契约（v1） |
+| [S17-Agent-D-D5-只读预研-W5W6集成与规格对照-v1.md](S17-Agent-D-D5-%E5%8F%AA%E8%AF%BB%E9%A2%84%E7%A0%94-W5W6%E9%9B%86%E6%88%90%E4%B8%8E%E8%A7%84%E6%A0%BC%E5%AF%B9%E7%85%A7-v1.md) | S17 · Agent D · D-5 只读预研：W5/W6 集成清单与规格对照 |
+| [S17-Agent-D-D6-前置-G12a参数白名单校验与分享导入门-v1.md](S17-Agent-D-D6-%E5%89%8D%E7%BD%AE-G12a%E5%8F%82%E6%95%B0%E7%99%BD%E5%90%8D%E5%8D%95%E6%A0%A1%E9%AA%8C%E4%B8%8E%E5%88%86%E4%BA%AB%E5%AF%BC%E5%85%A5%E9%97%A8-v1.md) | S17 · Agent D · D-6 前置：G-12a 参数白名单校验与分享导入门（v1，含 G-12a v1.1/T-8 同步） |
+| [S17-Agent-D-I1-集成契约映射-v1.md](S17-Agent-D-I1-%E9%9B%86%E6%88%90%E5%A5%91%E7%BA%A6%E6%98%A0%E5%B0%84-v1.md) | S17 · Agent D · I-1 集成契约映射（v1） |
+| [S17-Agent-D-OQ落实与差异清单-v1.md](S17-Agent-D-OQ%E8%90%BD%E5%AE%9E%E4%B8%8E%E5%B7%AE%E5%BC%82%E6%B8%85%E5%8D%95-v1.md) | S17 · Agent D OQ 落实与差异清单（所有者 2026-10-27 方向） |
+| [S17-Agent-D-S01-v2-冲突检查意见-20261027.md](S17-Agent-D-S01-v2-%E5%86%B2%E7%AA%81%E6%A3%80%E6%9F%A5%E6%84%8F%E8%A7%81-20261027.md) | S17-D · S-01 v2 冲突检查意见（D 侧，只读评审，2026-10-27） |
+| [S17-Agent-D-S03-接口草案-布局侧-v1.md](S17-Agent-D-S03-%E6%8E%A5%E5%8F%A3%E8%8D%89%E6%A1%88-%E5%B8%83%E5%B1%80%E4%BE%A7-v1.md) | S17 · Agent D · S-03 接口草案（布局侧，draft v0.8，**未冻结**） |
+| [S17-Agent-D-完整开发规格-所有者-20261027.md](S17-Agent-D-%E5%AE%8C%E6%95%B4%E5%BC%80%E5%8F%91%E8%A7%84%E6%A0%BC-%E6%89%80%E6%9C%89%E8%80%85-20261027.md) | Libevra S17 · Agent D 完整开发规格 |
+| [S17-Agent-D-布局与交互设计稿-v1.md](S17-Agent-D-%E5%B8%83%E5%B1%80%E4%B8%8E%E4%BA%A4%E4%BA%92%E8%AE%BE%E8%AE%A1%E7%A8%BF-v1.md) | S17 · Agent D 布局与交互设计稿（2026-10-27 所有者方向） |
+| [S17-Agent-D-模块化布局与配置.md](S17-Agent-D-%E6%A8%A1%E5%9D%97%E5%8C%96%E5%B8%83%E5%B1%80%E4%B8%8E%E9%85%8D%E7%BD%AE.md) | S17 · Agent D 任务文档：模块化布局与用户配置 |
+| [S17-分析卡片综合折算支持清单-20261027.md](S17-%E5%88%86%E6%9E%90%E5%8D%A1%E7%89%87%E7%BB%BC%E5%90%88%E6%8A%98%E7%AE%97%E6%94%AF%E6%8C%81%E6%B8%85%E5%8D%95-20261027.md) | S17 · 分析卡片「综合折算」支持清单（1.17.04） |
+| [S17-分析页工作台集成-交接-20261027.md](S17-%E5%88%86%E6%9E%90%E9%A1%B5%E5%B7%A5%E4%BD%9C%E5%8F%B0%E9%9B%86%E6%88%90-%E4%BA%A4%E6%8E%A5-20261027.md) | S17 · 分析页工作台集成 · 交接（Claude，2026-10-27） |
+| [S17-分析页接口交接说明-20261027.md](S17-%E5%88%86%E6%9E%90%E9%A1%B5%E6%8E%A5%E5%8F%A3%E4%BA%A4%E6%8E%A5%E8%AF%B4%E6%98%8E-20261027.md) | S17 · 分析页接口交接说明（Claude → Harness / A / B / C / D，2026-10-27） |
+| [S17-工作台视觉与卡片约束-草案-20261027.md](S17-%E5%B7%A5%E4%BD%9C%E5%8F%B0%E8%A7%86%E8%A7%89%E4%B8%8E%E5%8D%A1%E7%89%87%E7%BA%A6%E6%9D%9F-%E8%8D%89%E6%A1%88-20261027.md) | S17 · 工作台视觉与卡片约束（草案，Claude 接手 Codex 视觉侧） |
+<!-- directory-index:end -->

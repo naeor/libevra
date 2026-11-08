@@ -111,3 +111,42 @@ was not touched.
 ---
 
 中文说明见 [README.zh-CN.md](README.zh-CN.md)。
+
+<!-- directory-index:start -->
+## 直属目录清单
+
+本区块由 `pnpm docs:index` 维护；文件用途用于定位，行为以权威规格与实现为准。
+
+| 文件 | 用途 / 入口 |
+|---|---|
+| [.dockerignore](.dockerignore) | 配置或资料：.dockerignore |
+| [.env.example](.env.example) | 配置或资料：.env.example |
+| [.gitattributes](.gitattributes) | 配置或资料：.gitattributes |
+| [.gitignore](.gitignore) | 配置或资料：.gitignore |
+| [.npmrc](.npmrc) | 配置或资料：.npmrc |
+| [AGENTS.md](AGENTS.md) | AGENTS.md — Libevra |
+| [CLAUDE.md](CLAUDE.md) | Markdown 文档 |
+| [LICENSE](LICENSE) | 配置或资料：LICENSE |
+| [README.zh-CN.md](README.zh-CN.md) | Libevra |
+| [package.json](package.json) | 结构化配置、资源或夹具 |
+| [pnpm-lock.yaml](pnpm-lock.yaml) | 配置 |
+| [pnpm-workspace.yaml](pnpm-workspace.yaml) | 配置 |
+| [prisma.config.ts](prisma.config.ts) | 实现模块；按文件名定位 prisma.config.ts |
+| [start-dev-lan-https.cmd](start-dev-lan-https.cmd) | Windows 本地启动工具 |
+| [start-dev-lan.cmd](start-dev-lan.cmd) | Windows 本地启动工具 |
+| [start-dev.cmd](start-dev.cmd) | Windows 本地启动工具 |
+| [tsconfig.base.json](tsconfig.base.json) | 结构化配置、资源或夹具 |
+
+| 子目录 | 职责 |
+|---|---|
+| [.github/](.github/README.md) | 本层组织 .github 模块的直属文件；具体契约由任务索引定位。 |
+| [apps/](apps/README.md) | 应用与服务入口：Web、API、OCR 和语音。 |
+| [deploy/](deploy/README.md) | 部署配置与运维脚本；生产操作需要当次授权。 |
+| [design/](design/README.md) | 设计样例与实验材料，不替代现行规格。 |
+| [docs/](docs/README.md) | 文档入口：现行规则、历史记录与导航分开管理。按任务查 00-索引，当前状态查 STATUS。 |
+| [experiments/](experiments/README.md) | 独立实验与测量；部分模块被正式源码导入，不能按目录名删除。 |
+| [packages/](packages/README.md) | 跨应用共享领域代码。 |
+| [prisma/](prisma/README.md) | 数据库模型与不可重写的迁移序列。 |
+| [prototype/](prototype/README.md) | 对象展开独立演示与共享几何；正式 S19 呈现层导入 geometry.mjs。 |
+| [tools/](tools/README.md) | 开发、文档、检查与本地辅助工具；执行前阅读工具参数及授权边界。 |
+<!-- directory-index:end -->

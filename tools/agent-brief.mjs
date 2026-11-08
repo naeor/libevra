@@ -48,13 +48,13 @@ if (existsSync(join(ROOT, "docs/STATUS.md"))) {
 
 // --- 2. 铁律（只取正文要点，完整版见 AGENTS §4/§5） ---
 const agents = read("AGENTS.md");
-const lawStart = agents.indexOf("## 4. 🔒 铁律");
+const lawStart = agents.indexOf("<!-- brief:safety:start -->");
 if (lawStart >= 0) {
-  const lawEnd = agents.indexOf("\n### 4.1", lawStart + 5);
+  const lawEnd = agents.indexOf("<!-- brief:safety:end -->", lawStart + 5);
   const block = agents.slice(lawStart, lawEnd > 0 ? lawEnd : undefined).split(/\r?\n/);
   push("【2】硬规则（完整版见 AGENTS.md §4/§5）", "");
   for (const l of block) {
-    if (/^\|/.test(l) || !l.trim() || /^#+\s/.test(l)) continue;
+    if (/^\|/.test(l) || !l.trim() || /^#+\s/.test(l) || l.startsWith("<!--")) continue;
     push("  " + l.replace(/^>\s*/, ""));
   }
   push("  本地默认同步到主工作区 / localhost；GitHub、生产、任何外部服务必须当次批准（§4.1）。", "");
@@ -62,20 +62,20 @@ if (lawStart >= 0) {
 
 // --- 3. 读什么、跑什么、写什么 ---
 push(
-  "【3】按任务只读对应的一份（AGENTS §3；导航见 docs/00-索引.md）",
+  "【3】按任务读取目录 README → docs/00-索引.md → 权威规格",
   "  必读：AGENTS.md + 本简报（或 STATUS.md）。规划：docs/01-规划.md 顶部「现行路线」。",
-  "  规格：docs/specs/（按 AGENTS §3 表）；运维：docs/03-运维手册.md；为什么：docs/adr/。",
+  "  规格：docs/specs/；运维：docs/03-运维手册.md；为什么：docs/adr/。",
   "  默认不读：docs/archive/、changelog 冻结文件、docs/阅读版/、specs/product/s17-agents/ 的过程记录。",
   "",
-  "【4】检查分级（AGENTS §6.1；每条命令跑一次，失败修完只重跑失败项）",
+  "【4】检查分级（完整规则：docs/ops/开发与验收规范.md；通过的检查不重复跑）",
   "  日常检查：改动包的 typecheck + 受影响测试；web 有改动跑 check:build（已含 web typecheck）；",
   "            改了文档跑 check:docs，改了版本/迁移/STATUS 跑 check:status。",
   "  交付检查：pnpm check:delivery + 改动包全量测试（动 API/DB 另跑 API 测试与 check:db）。",
   "  验收检查（阶段/发布）：pnpm -r test + pnpm build + check:delivery + check:db + 迁移演练 + 浏览器/真机矩阵。",
   "  金额/数据丢失/权限/迁移/同步/导入导出/安全/配置 schema：至少交付检查 + 对应专项，不得降级。",
   "",
-  "【5】文档：只更新 changelog 条目 + STATUS 相关行 + 直接受影响的规格（AGENTS §7）。",
-  "  不新建计划 / 实施报告 / 验收报告 / 交接摘要 / 版本总结，除非所有者要求或属于阶段收尾、生产发布。",
+  "【5】文档：现行规则直接替换；历史理由保留；文件变动更新直属 README。",
+  "  docs/ops/文档维护规范.md：已有 PDF 的正文改动后运行 docs:sync 并验证；纯文档不升产品版本。",
   "",
   "══════════════════════════════════════════════════════════════",
 );

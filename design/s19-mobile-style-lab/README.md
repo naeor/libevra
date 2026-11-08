@@ -42,3 +42,31 @@ serve.mjs               零依赖局域网静态服务器（只读本目录）
 ## 限制
 
 记账表单、修改表单、账本空间、成员管理、已发出的邀请等子页面只给提示；深色只做了方向；数据为本地示例（“今天”固定为 2026-11-07）。
+
+<!-- directory-index:start -->
+## 直属目录清单
+
+本区块由 `pnpm docs:index` 维护；文件用途用于定位，行为以权威规格与实现为准。
+
+| 文件 | 用途 / 入口 |
+|---|---|
+| [S19-B2-初始化与返回错位排查交接-20261107.md](S19-B2-%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%8E%E8%BF%94%E5%9B%9E%E9%94%99%E4%BD%8D%E6%8E%92%E6%9F%A5%E4%BA%A4%E6%8E%A5-20261107.md) | Libevra S19 B2 初始化与返回错位排查交接 |
+| [S19-Inertia-Jitter-Notes.md](S19-Inertia-Jitter-Notes.md) | S19 · 明细顶部惯性滚动抖动：原理备忘 |
+| [S19-Round7-Compact-Glass-Report.md](S19-Round7-Compact-Glass-Report.md) | S19 第七轮 · 明细顶部紧凑化与玻璃材质局部修正（简短报告） |
+| [S19-Round8-TabMotion-Report.md](S19-Round8-TabMotion-Report.md) | S19 第八轮 · 顶栏清理、底栏弹性玻璃胶囊两套动效与摘要恢复（简短报告） |
+| [S19-Visual-Integration-Report.md](S19-Visual-Integration-Report.md) | S19 视觉风格集成报告（Visual Integration Report） |
+| [a.html](a.html) | 网页入口 |
+| [b.html](b.html) | 网页入口 |
+| [b1.html](b1.html) | 网页入口 |
+| [b2.html](b2.html) | 网页入口 |
+| [c.html](c.html) | 网页入口 |
+| [glass.html](glass.html) | 网页入口 |
+| [index.html](index.html) | 网页入口 |
+| [serve.mjs](serve.mjs) | 实现模块；按文件名定位 serve.mjs |
+| [启动StyleLab.cmd](%E5%90%AF%E5%8A%A8StyleLab.cmd) | Windows 本地启动工具 |
+
+| 子目录 | 职责 |
+|---|---|
+| [archive/](archive/README.md) | 本层组织 archive 模块的直属文件；具体契约由任务索引定位。 |
+| [lab/](lab/README.md) | 本层组织 lab 模块的直属文件；具体契约由任务索引定位。 |
+<!-- directory-index:end -->

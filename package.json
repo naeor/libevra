@@ -16,7 +16,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "check:build": "node tools/check-build.mjs",
-    "check:docs": "node tools/check-links.mjs && node tools/doc-audit.mjs",
+    "check:docs": "node tools/check-links.mjs && node tools/doc-audit.mjs && node tools/directory-index.mjs && node tools/check-doc-anchors.mjs",
     "check:links": "node tools/check-links.mjs",
     "check:status": "node tools/check-status.mjs",
     "check:delivery": "pnpm --filter @libellum/shared --filter @libellum/api typecheck && node tools/check-build.mjs && pnpm check:docs && pnpm check:status && pnpm i18n:scan",
@@ -38,7 +38,10 @@
     "admin:disallow": "pnpm --filter @libellum/api admin:disallow",
     "set:password": "pnpm --filter @libellum/api set:password",
     "check:db": "pnpm --filter @libellum/api check:db",
-    "docs:build": "node tools/build-docs.mjs"
+    "docs:build": "node tools/build-docs.mjs",
+    "docs:sync": "node tools/build-docs.mjs --sync",
+    "docs:check-pdf": "node tools/build-docs.mjs --check",
+    "docs:index": "node tools/directory-index.mjs --write"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

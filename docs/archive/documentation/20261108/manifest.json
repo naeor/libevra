@@ -1,0 +1,116 @@
+{
+  "AGENTS.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "bd78921b1ad1ae160be0a9f85e63fae718c9878e87352dd4d96123c823e524ce",
+    "archive": "docs/archive/documentation/20261108/AGENTS.md",
+    "gitBlobSha256": "bd78921b1ad1ae160be0a9f85e63fae718c9878e87352dd4d96123c823e524ce"
+  },
+  "docs/00-索引.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "d721b86d2811d4f52f1ec56db58fb90e9a72fddf6934a0f7b771eeca05e0098d",
+    "archive": "docs/archive/documentation/20261108/docs/00-索引.md",
+    "gitBlobSha256": "d721b86d2811d4f52f1ec56db58fb90e9a72fddf6934a0f7b771eeca05e0098d"
+  },
+  "docs/01-规划.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "b60d9f7f2328eb2eb88be2605a3c7ceb049b53744f095c51e7736f3afbf3172e",
+    "archive": "docs/archive/documentation/20261108/docs/01-规划.md",
+    "gitBlobSha256": "b60d9f7f2328eb2eb88be2605a3c7ceb049b53744f095c51e7736f3afbf3172e"
+  },
+  "docs/02-技术方案.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "00b9c263071df82070cc57a2a8b9b97254ca93f0a883c01187ccffe58c6556a2",
+    "archive": "docs/archive/documentation/20261108/docs/02-技术方案.md",
+    "gitBlobSha256": "00b9c263071df82070cc57a2a8b9b97254ca93f0a883c01187ccffe58c6556a2"
+  },
+  "docs/03-运维手册.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "8164c2d3431e6a952f3a0b587a744ee206fdb94f030e871fa731a59069d32e26",
+    "archive": "docs/archive/documentation/20261108/docs/03-运维手册.md",
+    "gitBlobSha256": "8164c2d3431e6a952f3a0b587a744ee206fdb94f030e871fa731a59069d32e26"
+  },
+  "docs/04-交接.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "eefa637fdf57ce2462d4bdbe778e7c7a1bbce6f8a1abcb0067af72b4c17ab65e",
+    "archive": "docs/archive/documentation/20261108/docs/04-交接.md",
+    "gitBlobSha256": "eefa637fdf57ce2462d4bdbe778e7c7a1bbce6f8a1abcb0067af72b4c17ab65e"
+  },
+  "deploy/README.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "0e3926cd4a24c530831fceeedc73e2127e038fd812f8aea0030c6795bca2404a",
+    "archive": "docs/archive/documentation/20261108/deploy/README.md",
+    "gitBlobSha256": "0e3926cd4a24c530831fceeedc73e2127e038fd812f8aea0030c6795bca2404a"
+  },
+  "docs/specs/design/文字语义与排版规范.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "6395aa80add27adfac585f805acf55d7b0a68e40814d6e0ca479cc3ff0e6e7b6",
+    "archive": "docs/archive/documentation/20261108/docs/specs/design/文字语义与排版规范.md",
+    "gitBlobSha256": "6395aa80add27adfac585f805acf55d7b0a68e40814d6e0ca479cc3ff0e6e7b6"
+  },
+  "docs/specs/design/布局间距与圆角规范.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "6dd801e36c23513fd33dc6b91872b8239aae3e80e2c0a11f21ad06fbb6e3a06c",
+    "archive": "docs/archive/documentation/20261108/docs/specs/design/布局间距与圆角规范.md",
+    "gitBlobSha256": "6dd801e36c23513fd33dc6b91872b8239aae3e80e2c0a11f21ad06fbb6e3a06c"
+  },
+  "docs/specs/design/颜色语义与配色规范.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "8ee83f019db62e13240785f0bf41591a3c23ef90b6488a88fd36b189c87ab075",
+    "archive": "docs/archive/documentation/20261108/docs/specs/design/颜色语义与配色规范.md",
+    "gitBlobSha256": "8ee83f019db62e13240785f0bf41591a3c23ef90b6488a88fd36b189c87ab075"
+  },
+  "docs/specs/design/颜色主题系统实现规范.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "59ba33e27e7ff9878e93351a4ed5bdd796ab4d362ade82779d38c3a1db94b84a",
+    "archive": "docs/archive/documentation/20261108/docs/specs/design/颜色主题系统实现规范.md",
+    "gitBlobSha256": "59ba33e27e7ff9878e93351a4ed5bdd796ab4d362ade82779d38c3a1db94b84a"
+  },
+  "docs/specs/design/海浪效果要求.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "e8a7bc8c5db42bc941f2755471db5bd5502df52324272796750417e538b83587",
+    "archive": "docs/archive/documentation/20261108/docs/specs/design/海浪效果要求.md",
+    "gitBlobSha256": "e8a7bc8c5db42bc941f2755471db5bd5502df52324272796750417e538b83587"
+  },
+  "docs/specs/product/S17-S18-新路线图.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "1883be9098fbd25cc666977c3b74c8d58cad26c55eeb30bf2fd5e3f2c65e5562",
+    "archive": "docs/archive/documentation/20261108/docs/specs/product/S17-S18-新路线图.md",
+    "gitBlobSha256": "1883be9098fbd25cc666977c3b74c8d58cad26c55eeb30bf2fd5e3f2c65e5562"
+  },
+  "docs/specs/product/S16-S17-开发路线图.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "9a2b2cbead272053e25f4c53579eb84da73ad9ec36f8c04b08304f144b7ca474",
+    "archive": "docs/archive/documentation/20261108/docs/specs/product/S16-S17-开发路线图.md",
+    "gitBlobSha256": "b9703921399b6b3377732e69f870ded7e3db317f094baf6515d6c1fb597156c3"
+  },
+  "docs/specs/product/S17-待所有者确认的问题.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "dc5f2d086de6053c869169fec1d946acd08f9e0c9ca05587547eb8bbdb16cda7",
+    "archive": "docs/archive/documentation/20261108/docs/specs/product/S17-待所有者确认的问题.md",
+    "gitBlobSha256": "dc5f2d086de6053c869169fec1d946acd08f9e0c9ca05587547eb8bbdb16cda7"
+  },
+  "docs/specs/product/S17-模块化财务分析工作台-总需求规格.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "1fbfa5ded83415d4b8baa8553eaf6d59f762f55dd7cde5a41a60ed897e2d5a1a",
+    "archive": "docs/archive/documentation/20261108/docs/specs/product/S17-模块化财务分析工作台-总需求规格.md",
+    "gitBlobSha256": "7974c1cc681a77f5b66432c3d7e8b7e48eea31ba073a53f779e3ce32d29e36d4"
+  },
+  "docs/ops/S14发布候选与生产发布Runbook.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "7f3f5b9ed5eaac3f90110396ce75a2a7171f075afe444a297ba44675e236de2f",
+    "archive": "docs/archive/documentation/20261108/docs/ops/S14发布候选与生产发布Runbook.md",
+    "gitBlobSha256": "7f3f5b9ed5eaac3f90110396ce75a2a7171f075afe444a297ba44675e236de2f"
+  },
+  "docs/STATUS.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "299ac92b462d009fd05a761c69ee95aa30496d0d6a35242c144823d0fd1e72cd",
+    "archive": "docs/archive/documentation/20261108/docs/STATUS.md",
+    "gitBlobSha256": "299ac92b462d009fd05a761c69ee95aa30496d0d6a35242c144823d0fd1e72cd"
+  },
+  "docs/specs/design/颜色清单.md": {
+    "gitBaseline": "f6ef2593",
+    "sha256": "a68a0c8409713a8b778e1e1a1c5248a3ae7ef9e54894a83d436ac7365293e394",
+    "gitBlobSha256": "a68a0c8409713a8b778e1e1a1c5248a3ae7ef9e54894a83d436ac7365293e394",
+    "archive": "docs/archive/documentation/20261108/docs/specs/design/颜色清单.md"
+  }
+}
