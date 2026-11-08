@@ -18,6 +18,8 @@ Libevra 是 naeor 个人主导、AI 辅助的非商业记账项目，离线优�
 
 [任务索引](docs/00-索引.md)负责完整路由；源码从 [apps](apps/README.md)、[packages](packages/README.md) 逐层定位。UI 查[设计目录](docs/specs/design/README.md)，接口与数据查[技术方案](docs/02-技术方案.md)，开发/测试查[开发与验收规范](docs/ops/开发与验收规范.md)，部署查[运维手册](docs/03-运维手册.md)。
 
+反复修复失败、根因不明、跨页面相似症状或平台差异，可采用[Diagnostic Mode（专项 Bug 诊断模式）](docs/ops/开发与验收规范.md#diagnostic-mode专项-bug-诊断模式)：以证据验证根因再选方案，方法按需组合；常见小 Bug 不必启动完整调查。
+
 ## 4. 安全与外部授权
 
 <!-- brief:safety:start -->
