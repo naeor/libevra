@@ -4,6 +4,8 @@ import { useLocation, useNavigate } from "react-router";
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
 import { BottomNav, BottomNavView, type EntryCards } from "./BottomNav.js";
 import { PersistentNavContext, SuppressNavigationContext } from "./PersistentNavContext.js";
+import { BookCapsuleContext, createBookCapsuleStore } from "./bookCapsule.js";
+import { PersistentBookCapsule } from "./PersistentBookCapsule.js";
 import { navigationLevel } from "../s19/motion/navigation.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
 import { currentBookId, subscribeCurrentBook } from "../lib/currentBook.js";
@@ -154,14 +156,17 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
   );
 
   const persistent = pane.nav === "bottom" && (!!auth?.user || !!guest);
-  return <EntryMenuContext.Provider value={value}><PersistentNavContext.Provider value={persistent}>
+  // 当前账本胶囊挂在常驻底栏上（bookCapsule.ts）；手机外壳才有，页面只登记账本名。
+  const [capsules] = useState(createBookCapsuleStore);
+  const docked = persistent && pane.shell === "phone";
+  return <EntryMenuContext.Provider value={value}><PersistentNavContext.Provider value={persistent}><BookCapsuleContext.Provider value={docked ? capsules : null}>
     <SuppressNavigationContext.Provider value={suppressNavigation}>{children}</SuppressNavigationContext.Provider>
     {persistent ? <div data-persistent-nav hidden={level === "subpage" || navigationSuppressed} className="persistent-nav" onClickCapture={event => {
       if (event.target instanceof Element && event.target.closest("a[href]")) value.close();
-    }}><BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(tabTarget(to)); }}
+    }}>{docked ? <PersistentBookCapsule menuOpen={open} /> : null}<BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(tabTarget(to)); }}
       cards={{ mode: "toggle", expanded: open, active: level === "enterMode", onToggle: value.toggle }}
       onPickImages={files => { handOverForScan(files); value.close(); void navigate("/scan"); }} /></div> : null}
-  </PersistentNavContext.Provider></EntryMenuContext.Provider>;
+  </BookCapsuleContext.Provider></PersistentNavContext.Provider></EntryMenuContext.Provider>;
 }
 
 /**

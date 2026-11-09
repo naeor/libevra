@@ -86,6 +86,7 @@
 | [OfflineFillProvider.tsx](OfflineFillProvider.tsx) | 界面模块；入口/导出：OfflineFillProvider |
 | [OfflineStatus.tsx](OfflineStatus.tsx) | 界面模块；入口/导出：OfflineStatus |
 | [PasswordField.tsx](PasswordField.tsx) | 界面模块；入口/导出：PasswordField |
+| [PersistentBookCapsule.tsx](PersistentBookCapsule.tsx) | 界面模块；入口/导出：PersistentBookCapsule |
 | [PersistentNavContext.ts](PersistentNavContext.ts) | 实现模块；入口/导出：PersistentNavContext、SuppressNavigationContext |
 | [ProfileAccountNumberSheet.tsx](ProfileAccountNumberSheet.tsx) | 界面模块；入口/导出：ProfileAccountNumberSheet |
 | [QrCodeView.tsx](QrCodeView.tsx) | 界面模块；入口/导出：QrCodeView |
@@ -110,6 +111,8 @@
 | [VoiceRipples.tsx](VoiceRipples.tsx) | 界面模块；入口/导出：VoiceRipples |
 | [attachments.css](attachments.css) | 样式与变量 |
 | [authSurfaces.test.tsx](authSurfaces.test.tsx) | 测试：authSurfaces |
+| [bookCapsule.test.ts](bookCapsule.test.ts) | 测试：bookCapsule |
+| [bookCapsule.ts](bookCapsule.ts) | 实现模块；入口/导出：BookCapsuleStore、createBookCapsuleStore、BookCapsuleContext、useRegisterBookCapsule |
 | [current-book-caption.css](current-book-caption.css) | 样式与变量 |
 | [entry-filters.css](entry-filters.css) | 样式与变量 |
 | [useBookCapsuleMotion.ts](useBookCapsuleMotion.ts) | 实现模块；入口/导出：useBookCapsuleMotion |

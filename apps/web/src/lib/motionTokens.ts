@@ -186,6 +186,11 @@ export const LEDGER_TIDE = {
   hint: { delay: 350, fadeIn: 200 },
   /** 新页面已经开始播放交接帧、但协调器迟迟没有挂载时，最多停在原位等这么久再划过。 */
   resumeHoldMs: 3000,
+  /**
+   * 从页面左下角的当前账本胶囊切换账本（1.19.50）：整道浪从屏幕下缘涌上、盖满整屏后停顿（显示等待提示），
+   * 新页面载入后继续向上、从上缘完全离开，不收成顶栏。行程约为划过的 1.3 倍，所以时长单独给出；曲线同 sweep。
+   */
+  rise: { duration: 1150 },
 } as const;
 
 /** 高频组件反馈的 CSS 变量（按风格取值，见 components/ui/component-motion.css）。 */

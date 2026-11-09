@@ -11,7 +11,8 @@ import { ChevronIcon } from "./Icons.js";
 export function CurrentBookPicker({ caption, name }: { readonly caption: string; readonly name: string }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const currentId = useCurrentBookId();
-  const switcher = useEnterLedger();
+  // 1.19.50：从胶囊切换账本时，整页重新载入期间海浪从下缘涌上、停顿、再从上缘离开。
+  const switcher = useEnterLedger({ rise: true });
   const location = useLocation();
   const { t } = useI18n();
   return <>

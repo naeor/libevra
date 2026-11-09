@@ -37,7 +37,12 @@ export interface TideRequest {
    * 不再露出旧页。转场被打断（取消、卡住）时也会调用 go(null)，调用方照常载入。hint：等待稍久时 1 号深色核心里的提示。
    */
   readonly reload?: { readonly ready: () => boolean; readonly go: (resume: TideResume | null) => void; readonly hint?: string };
-  /** 新页面接着上一页的交接帧向下划过（离开账本空间的后半段）。 */
+  /**
+   * 向上涌过（1.19.50，从当前账本胶囊切换账本）：整道浪从下缘涌上、盖满整屏，再从上缘完全离开；不收成顶栏，
+   * 只与整页重新载入一起使用（前半段在旧页，后半段由新页面接着播放）。
+   */
+  readonly rise?: boolean;
+  /** 新页面接着上一页的交接帧继续划过（方向见 TideResume.dir）。 */
   readonly resume?: TideResume;
   /** 为真时停在原位（环境游动照常），直到返回假才开始划过（新页面的协调器挂载前）。 */
   readonly hold?: () => boolean;
@@ -69,6 +74,8 @@ export interface TideResume {
   readonly hintY?: number;
   readonly hintColor?: string;
   readonly hintShadow?: string;
+  /** 交接帧之后的方向：down（离开账本空间，向下划过）或 up（从账本胶囊切换，向上涌出）。缺省为 down。 */
+  readonly dir?: "up" | "down";
   /** 提示开始淡入的时刻（Date.now()，整屏第一次被盖住后 LEDGER_TIDE.hint.delay）与淡入时长：两页按同一时刻计时，淡入不重来。 */
   readonly hintAt?: number;
   readonly hintFade?: number;
@@ -183,8 +190,10 @@ export class TidePresentation {
       if (request.resume) { clearTideResumeCover(); forgetTideResume(); }
       request.reload?.go(null); request.commit(); return;
     }
-    const exit = (request.exit && !request.preview) || !!request.resume;
     const resume = request.resume ?? null;
+    // 向上涌过（从当前账本胶囊切换账本）：方向与“进入账本空间”相同，但不收成顶栏，整道浪从上缘离开。
+    const rise = !!request.rise || resume?.dir === "up";
+    const exit = !rise && ((request.exit && !request.preview) || !!resume);
 
     const stage = document.createElement("div");
     stage.className = "tide-stage"; stage.dataset.tidePhase = "sweep";
@@ -243,22 +252,26 @@ export class TidePresentation {
     // 从整片 1 号的顶栏开始，浅色上边界随后才从上缘落进来。整屏被盖住之后（≥ yCover）不受影响。
     let minW0 = Infinity;
     for (let i = 0; i <= 48; i++) minW0 = Math.min(minW0, upperWave(0, i / 48, seconds, size));
-    const L0 = resume ? 0 : Math.max(0, C - minW0 + margin);
+    const L0 = resume && !rise ? 0 : Math.max(0, C - minW0 + margin);
+    // 向上涌出的终点：下边缘（4 号最低）全部越过屏幕上缘。浪形在游动，按之后一段时间里的最大起伏算。
+    let lowE3 = -Infinity;
+    if (rise) for (let j = 0; j <= 40; j++) lowE3 = Math.max(lowE3, lowest(edgeSamples(3, 0, seconds + j * 0.5, size)));
+    const yOut = rise ? -lowE3 - margin : 0;
     const lift = (y: number): number => L0 * (1 - smoothstep(y / yCover));
 
     // 行程：离开 = 展开（dist）+ 下移 yEnd；进入 = 上移 yEnd + 收起（dist，到账本空间页面的顶栏或展开态）。
     const pageP = space ? space.p : resume ? 0 : 1;
-    let dist = travelOf(exit ? pageP : 1);
+    let dist = rise ? 0 : travelOf(exit ? pageP : 1);
     // 接着上一页：从交接帧的位置走完剩下的一段（自己的时长，起步平缓）。
     const start = resume ? resume.y * ratio : 0;
-    let total = resume ? yEnd - start : exit ? dist + yEnd : yEnd + dist;
-    let qRest = exit ? pageP : 1;
+    let total = rise ? (resume ? start : yEnd) - yOut : resume ? yEnd - start : exit ? dist + yEnd : yEnd + dist;
+    let qRest = rise ? 0 : exit ? pageP : 1;
     const motion = new LayerMotion(exit ? 1 : 0, () => size.short / Math.max(size.height * 0.8, 1));
     const qOf = (n: number): number => qRest * n;
     const ease = easingFunction(LEDGER_TIDE.sweep.easing);
     const easeInv = (v: number): number => { let lo = 0, hi = 1; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (ease(m) < v) lo = m; else hi = m; } return hi; };
     const k = tideRhythm.scale;
-    const D = LEDGER_TIDE.sweep.duration * k * (resume ? LEDGER_TIDE.resumeShare : 1), fadeOutMs = LEDGER_TIDE.fadeOut * k;
+    const D = (rise ? LEDGER_TIDE.rise.duration : LEDGER_TIDE.sweep.duration) * k * (resume ? LEDGER_TIDE.resumeShare : 1), fadeOutMs = LEDGER_TIDE.fadeOut * k;
 
     const pace = new FramePace();
     let ys = resume ? start : exit ? 0 : yEnd;
@@ -340,7 +353,12 @@ export class TidePresentation {
         // 新页面还没提交完：在露出新页面之前停住（离开：上边界不进屏幕；进入：下边缘不出屏幕）。
         const cap = arrived ? Infinity : exit ? dist + yHold : yEnd - yCover;
         if (travelled > cap) { travelled = cap; t = D * easeInv(clamp01(cap / total)); }
-        if (resume) {
+        if (rise) {
+          // 向上涌过：一直向上，不收成顶栏；整页重新载入时盖满后在 yCover 处停住等账本切换好。
+          motion.step(0, step);
+          ys = (resume ? start : yEnd) - travelled;
+          held = !arrived && travelled >= cap;
+        } else if (resume) {
           motion.step(0, step);
           ys = start + travelled;
         } else if (exit) {
@@ -370,7 +388,7 @@ export class TidePresentation {
         // 提示在 1 号深色核心的中线上，随浪移动；新页面接着划过时随浪下移、很快淡出。
         hintY = Math.min(0.78 * H, Math.max(0.22 * H, (atMiddle(upper[0]!) + atMiddle(lower[0]!)) / 2));
         hint.style.transform = `translateY(${hintY.toFixed(1)}px)`;
-        if (resume) hint.style.opacity = String(1 - clamp01((ys - start) / (0.08 * H)));
+        if (resume) hint.style.opacity = String(1 - clamp01(Math.abs(ys - start) / (0.08 * H)));
       }
       // 整页重新载入：一盖满整屏、且账本已切换好，就存下这一帧再载入（没切换好则继续走到停留点等）。
       if (request.reload && (covered || held) && !reloading && request.reload.ready()) {
@@ -392,13 +410,15 @@ export class TidePresentation {
       }
       // 离开：整道浪（最高的 4 号上边界）一离开屏幕下缘就收尾，不等缓动的长尾。
       if (exit && fading < 0 && arrived && highest(upper[3]!) >= H) { finish(); return; }
+      // 向上涌出：整道浪（最低的 4 号下边缘）一越过屏幕上缘就收尾。
+      if (rise && arrived && lowest(lower[3]!) <= 0) { finish(); return; }
       // 剩余行程不到 1px 就算走完（缓动的长尾看不见），再看各层是否已落定。
       const remaining = total - ease(clamp01(t / D)) * total;
       if (fading < 0 && arrived && (t >= D || remaining < 1)) {
-        if (exit) {
+        if (exit || rise) {
           // 保险：行程走完后最多再等 250ms（浪形意外超出估计时不让透明的转场层一直留着）。
           if (!doneAt) doneAt = now;
-          if (highest(upper[3]!) >= H || now - doneAt > 250) { finish(); return; }
+          if ((rise ? lowest(lower[3]!) <= 0 : highest(upper[3]!) >= H) || now - doneAt > 250) { finish(); return; }
         } else if (motion.layers.every(f => Math.abs(qOf(f.q) - qRest) * Math.max(size.height * 0.8 - size.short, 1) < 1.5)) {
           // 收成与页面海浪重合的顶栏：页面恢复绘制，转场层淡出（品牌字样随之出现）。
           fading = 0; stage.dataset.tidePhase = "fade"; oceanPhase.covered = false;
@@ -429,7 +449,7 @@ export class TidePresentation {
           g.fillStyle = color; g.fillRect(0, 0, flat.width, flat.height); g.drawImage(canvas, 0, 0, flat.width, flat.height);
           const image = flat.toDataURL("image/jpeg", 0.85);
           if (!image.startsWith("data:image/jpeg")) continue;
-          const frame: TideResume = { at: Date.now(), look: request.look, seconds, y: ys, c: C, width: size.width, height: size.height, image, color,
+          const frame: TideResume = { at: Date.now(), look: request.look, seconds, y: ys, c: C, width: size.width, height: size.height, image, color, dir: rise ? "up" : "down",
             ...(hint ? { hint: hintText, hintY: hintY / H, hintColor, hintShadow, hintAt, hintFade } : {}) };
           if (saveTideResume(frame)) return frame;
         } catch { /* 换更小的尺寸再试 */ } finally { flat.width = 0; flat.height = 0; }
@@ -448,14 +468,14 @@ export class TidePresentation {
    * 切换账本（整页重新载入）前：海浪向下展开盖满整屏，同时进行 work（服务器激活）；两者都完成后存下交接帧并返回，
    * 调用方随即重新载入。work 失败时海浪淡出、错误照常抛出。不能播放时（减少动态效果等）只等 work。
    */
-  coverForReload(look: PainterLook, page: () => HTMLElement | null, work: () => Promise<void>, hint?: string): Promise<void> {
+  coverForReload(look: PainterLook, page: () => HTMLElement | null, work: () => Promise<void>, hint?: string, rise = false): Promise<void> {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches || document.hidden || !page()) return work();
     return new Promise<void>((resolve, reject) => {
       // 两件事都完成才返回：账本已切换好（work），且海浪已存好交接帧（go；被打断时也会调用）。
       let done = false, gone = false, failed = false;
       const settle = (): void => { if (done && gone) resolve(); };
       work().then(() => { done = true; settle(); }, (caught: unknown) => { failed = true; this.release(); reject(caught); });
-      this.run({ exit: true, look, page, commit: () => undefined, reload: { ready: () => done, go: () => { if (failed) return; gone = true; settle(); }, ...(hint ? { hint } : {}) } });
+      this.run({ exit: !rise, rise, look, page, commit: () => undefined, reload: { ready: () => done, go: () => { if (failed) return; gone = true; settle(); }, ...(hint ? { hint } : {}) } });
     });
   }
 }

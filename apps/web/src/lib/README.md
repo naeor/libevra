@@ -74,7 +74,7 @@
 | [language.test.ts](language.test.ts) | 测试：language |
 | [language.ts](language.ts) | 实现模块；入口/导出：LANGUAGE_PREFERENCES、LanguagePreference、LANGUAGE_STORAGE_KEY、LanguageStorage、isLanguagePreference |
 | [languageRuntime.ts](languageRuntime.ts) | 实现模块；入口/导出：startLanguageRuntime、useLanguagePreference |
-| [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：provideReloadCover、coverForReload |
+| [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：CoverOptions、provideReloadCover、coverForReload |
 | [ledgerView.test.ts](ledgerView.test.ts) | 测试：ledgerView |
 | [ledgerView.ts](ledgerView.ts) | 实现模块；入口/导出：mergeLedgerEntries、updateTransactionViews、limitToWholeDays |
 | [ledgerWriter.ts](ledgerWriter.ts) | 实现模块；入口/导出：LedgerWriter、useLedgerWriter |

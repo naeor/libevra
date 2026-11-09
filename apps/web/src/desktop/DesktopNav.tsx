@@ -15,6 +15,7 @@ import { UserAvatar } from "../components/UserAvatar.js";
 import { useI18n } from "../i18n/index.js";
 import { useAdminEntry } from "../lib/admin.js";
 import { errorMessage } from "../lib/api.js";
+import { coverForReload } from "../lib/ledgerSwitchFlow.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { useActivateBook, useBooks, useCurrentBookId, useLedger } from "../lib/queries.js";
 import { myBookTarget } from "../pages/MePage.js";
@@ -169,7 +170,11 @@ export function pathAfterSwitch(pathname: string): string {
  * 进入一本账。⚠️ **与侧栏、账本空间页同一条切换路径**：先告诉服务器并把新账本写进本机，再整页重新载入——
  * 请求头、离线副本与所有页面一起换，权限仍由服务器按新账本检查。
  */
-export function useEnterLedger(): {
+/**
+ * 激活另一本账后整页重新载入（规则不变）。`rise`：手机上从当前账本胶囊切换时，载入期间播放向上涌过的海浪
+ * （lib/ledgerSwitchFlow.ts；没有呈现器时——电脑版、Original、减少动态效果——照旧直接载入）。
+ */
+export function useEnterLedger({ rise = false }: { readonly rise?: boolean } = {}): {
   readonly enter: (bookId: string, after?: () => void, destination?: string) => void;
   readonly status: string | null;
   readonly busy: boolean;
@@ -189,8 +194,8 @@ export function useEnterLedger(): {
       return;
     }
     setStatus(t("desktop.ledgerPicker.switching"));
-    void activate
-      .mutateAsync(bookId)
+    // 不用海浪时保持原来的调用链（电脑版与其他入口的行为、时序都不变）。
+    void (rise ? coverForReload(async () => { await activate.mutateAsync(bookId); }, { hint: t("books.space.loadingLedger"), rise: true }) : activate.mutateAsync(bookId))
       .then(() => {
         window.location.assign(destination ?? pathAfterSwitch(pathname));
       })

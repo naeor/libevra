@@ -151,9 +151,9 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   /** light=false：只收束导航类转场（视口大幅变化）；「再记一笔」的轻切换不随随后弹出的键盘中断。 */
   const cancel = (light = true): void => { engine.cancel(); abc?.cancel(); objects.cancel(); if (light) modes.cancel(); else modes.cancelFlow(); tabs.cancel(); tide.cancel(); };
   // 切换账本的整页重新载入：海浪先盖满整屏（tide.ts）；上一页留下的交接帧在这里接着划过。
-  provideReloadCover((work, hint) => {
+  provideReloadCover((work, { hint, rise }) => {
     const look = tideLook();
-    return look && acceptsStyle() ? tide.coverForReload(look, page, work, hint) : work();
+    return look && acceptsStyle() ? tide.coverForReload(look, page, work, hint, rise) : work();
   });
   // 上一页留下的交接帧已由入口（main.tsx）在第一次渲染前接着播放、停在原位；协调器到位，放行划过。
   releaseTideResume();

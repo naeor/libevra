@@ -176,7 +176,7 @@ export function LedgerSpacePage(): React.JSX.Element {
        * （lib/ledgerSwitchFlow.ts）。原来这里直接载入，切换期间是一段白屏。激活失败时海浪淡出、照常报错。
        * 1.19.48：等待稍久时浪里显示一行提示（books.space.loadingLedger）。
        */
-      await coverForReload(async () => { await activateBook.mutateAsync(bookId); }, t("books.space.loadingLedger"));
+      await coverForReload(async () => { await activateBook.mutateAsync(bookId); }, { hint: t("books.space.loadingLedger") });
 
       /**
        * ⚠️ **A full reload, deliberately, and this is the one place in the app that does it.**

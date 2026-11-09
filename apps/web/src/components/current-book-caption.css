@@ -37,3 +37,16 @@
 @media (prefers-reduced-motion: reduce) {
   .lv-shell[data-shell="contents"] .lv-book-capsule { animation: none; transition: none; }
 }
+
+/*
+  1.19.50：常驻底栏上的当前账本胶囊（PersistentBookCapsule）。贴在底栏上缘左侧，不占页面一行：
+  页面内容一直延伸到底栏上缘，胶囊两侧照常可见；阴影只有胶囊自己的一圈。宿主不接收点按，只有胶囊与面板接收。
+*/
+.persistent-nav .lv-book-capsule-host {
+  position: absolute; left: 0; bottom: 100%;
+  width: calc(50% - 16px); padding: 0 0 4px 12px;
+  pointer-events: none;
+}
+.persistent-nav .lv-book-capsule-host > * { pointer-events: auto; }
+.persistent-nav .lv-book-capsule-host[data-menu-open] { visibility: hidden; }
+.lv-shell[data-shell="contents"] .persistent-nav .lv-book-capsule { margin-left: 0; max-width: 100%; }

@@ -59,3 +59,24 @@ describe("Dashboard 进入账本先激活，再跳转", () => {
     expect(state.navigate).toHaveBeenCalledWith(destination);
   });
 });
+
+describe("手机账本胶囊切换：海浪遮挡只改变载入期间看到什么", () => {
+  it("rise：仍是激活成功后整页重新载入；没有海浪呈现器时直接激活", async () => {
+    let result: ReturnType<typeof useEnterLedger> | undefined;
+    function Probe() { result = useEnterLedger({ rise: true }); return null; }
+    renderToStaticMarkup(<Probe />);
+    result!.enter("b", undefined, "/stats");
+    expect(state.activate).toHaveBeenCalledWith("b");
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    expect(state.assign).toHaveBeenCalledWith("/stats");
+  });
+  it("rise：激活失败不载入", async () => {
+    state.activate.mockRejectedValue(new Error("offline"));
+    let result: ReturnType<typeof useEnterLedger> | undefined;
+    function Probe() { result = useEnterLedger({ rise: true }); return null; }
+    renderToStaticMarkup(<Probe />);
+    result!.enter("b", undefined, "/");
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    expect(state.assign).not.toHaveBeenCalled();
+  });
+});
