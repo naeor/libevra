@@ -25,9 +25,9 @@
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.sw-card:hover {
+@media (hover: hover) { .sw-card:hover {
   border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-line));
-}
+} }
 
 /* 一行高的卡片（1×1 / 2×1）：正文里的说明只留一行，不在半行处被截断（完整说明在详情页）。 */
 .sw-card[data-one-row] .sw-card-body p.text-helper {
@@ -230,9 +230,9 @@
   transition: background-color 160ms ease, color 160ms ease;
 }
 
-.sw-head-button:hover {
+@media (hover: hover) { .sw-head-button:hover {
   background: var(--color-canvas);
-}
+} }
 
 .sw-head-button:focus-visible {
   outline: none;
@@ -282,9 +282,9 @@
   min-height: 1.75rem;
 }
 
-.sw-summary:hover span:first-child {
+@media (hover: hover) { .sw-summary:hover span:first-child {
   color: var(--color-ink);
-}
+} }
 
 /* ---- 通用小控件 ---- */
 
@@ -302,15 +302,18 @@
   white-space: nowrap;
 }
 
-.sw-chip:hover {
+@media (hover: hover) { .sw-chip:hover {
   color: var(--color-ink);
-}
+} }
 
-.sw-chip-on,
-.sw-chip-on:hover {
+.sw-chip-on {
   background: var(--color-brand);
   color: var(--color-on-brand);
 }
+@media (hover: hover) { .sw-chip-on:hover {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+} }
 
 .sw-pill {
   display: inline-flex;
@@ -329,9 +332,9 @@
   transition: background-color 160ms ease, opacity 160ms ease;
 }
 
-.sw-pill:hover {
+@media (hover: hover) { .sw-pill:hover {
   background: var(--color-canvas);
-}
+} }
 
 @media (max-width: 379px) {
   .sw-edit-bar .sw-pill {
@@ -339,23 +342,31 @@
   }
 }
 
-.sw-pill-primary,
-.sw-pill-primary:hover {
+.sw-pill-primary {
   border-color: transparent;
   background: var(--color-brand);
   color: var(--color-on-brand);
 }
+@media (hover: hover) { .sw-pill-primary:hover {
+  border-color: transparent;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+} }
 
-.sw-pill-primary:hover {
+@media (hover: hover) { .sw-pill-primary:hover {
   background: var(--color-brand-dark);
-}
+} }
 
-.sw-pill-danger,
-.sw-pill-danger:hover {
+.sw-pill-danger {
   border-color: transparent;
   background: var(--color-danger);
   color: var(--color-on-danger);
 }
+@media (hover: hover) { .sw-pill-danger:hover {
+  border-color: transparent;
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+} }
 
 .sw-pill:disabled,
 .sw-icon-button:disabled,
@@ -393,9 +404,9 @@
   transition: background-color 160ms ease;
 }
 
-.sw-icon-button:hover:not(:disabled) {
+@media (hover: hover) { .sw-icon-button:hover:not(:disabled) {
   background: var(--color-canvas);
-}
+} }
 
 .sw-segment {
   display: inline-flex;
@@ -497,9 +508,9 @@
   background: color-mix(in srgb, var(--color-surface) 97%, var(--color-brand-soft));
 }
 
-.sw-edit-tile:hover:not(:disabled) {
+@media (hover: hover) { .sw-edit-tile:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-brand) 70%, transparent);
-}
+} }
 
 .sw-edit-glyph {
   width: 2rem;
@@ -702,9 +713,9 @@
   transition: background-color 160ms ease;
 }
 
-.sw-statbar-main:hover {
+@media (hover: hover) { .sw-statbar-main:hover {
   background: var(--color-canvas);
-}
+} }
 
 .sw-statbar-currency {
   flex-shrink: 0;
@@ -732,9 +743,9 @@
   transition: background-color 160ms ease;
 }
 
-.sw-statbar-action:hover:not(:disabled) {
+@media (hover: hover) { .sw-statbar-action:hover:not(:disabled) {
   background: var(--color-brand-soft);
-}
+} }
 
 .sw-statbar-action:disabled {
   opacity: 0.6;
@@ -836,14 +847,18 @@
 .sw-drawer-toolbar > button span { overflow: hidden; text-overflow: ellipsis; }
 .sw-drawer-toolbar > button svg { flex-shrink: 0; }
 .sw-drawer[data-icon-only="true"] .sw-drawer-toolbar > button span { display: none; }
-.sw-drawer-toolbar > button:hover, .sw-drawer-close:hover { background: var(--color-brand-soft); }
-.sw-drawer-toolbar > button:first-child,
-.sw-drawer-toolbar > button:first-child:hover {
+@media (hover: hover) { .sw-drawer-toolbar > button:hover, .sw-drawer-close:hover { background: var(--color-brand-soft); } }
+.sw-drawer-toolbar > button:first-child {
   border-radius: 999px;
   background: var(--sw-drawer-action-bg, var(--color-brand));
   color: var(--color-on-brand);
 }
-.sw-drawer-toolbar > button:first-child:hover { filter: brightness(0.94); }
+@media (hover: hover) { .sw-drawer-toolbar > button:first-child:hover {
+  border-radius: 999px;
+  background: var(--sw-drawer-action-bg, var(--color-brand));
+  color: var(--color-on-brand);
+} }
+@media (hover: hover) { .sw-drawer-toolbar > button:first-child:hover { filter: brightness(0.94); } }
 /* 浅色绿色主题按所有者要求深绿白字；其它色盘与深色模式沿用各自的主按钮前景配对。 */
 html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-theme-palette])) .sw-drawer {
   --sw-drawer-action-bg: var(--color-brand-dark);
@@ -995,9 +1010,9 @@ html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-t
   transition: background-color 160ms ease;
 }
 
-.sw-drawer-preset:hover {
+@media (hover: hover) { .sw-drawer-preset:hover {
   background: var(--color-brand-soft);
-}
+} }
 
 .sw-drawer-title:focus-visible,
 .sw-drawer-preset:focus-visible {
@@ -1055,9 +1070,9 @@ html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-t
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 
-.sw-tile:hover:not(:disabled) {
+@media (hover: hover) { .sw-tile:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-line));
-}
+} }
 
 .sw-draggable {
   cursor: grab;
@@ -1177,10 +1192,10 @@ html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-t
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-.sw-card:hover .sw-card-chevron {
+@media (hover: hover) { .sw-card:hover .sw-card-chevron {
   opacity: 1;
   transform: translateX(1px);
-}
+} }
 
 /* ==========================================================================
    S17 组合卡片（1.17.10）：卡片内部槽位与自定义卡片编辑器。
@@ -1296,15 +1311,18 @@ html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-t
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 
-.sw-template:hover:not(:disabled) {
+@media (hover: hover) { .sw-template:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-line));
-}
+} }
 
-.sw-template-on,
-.sw-template-on:hover:not(:disabled) {
+.sw-template-on {
   border-color: var(--color-brand);
   background: var(--color-brand-soft);
 }
+@media (hover: hover) { .sw-template-on:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+} }
 
 .sw-template:disabled {
   cursor: default;
@@ -1453,9 +1471,9 @@ html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-t
   transition: border-color 160ms ease;
 }
 
-.sw-preset-card:hover {
+@media (hover: hover) { .sw-preset-card:hover {
   border-color: color-mix(in srgb, var(--color-brand) 40%, var(--color-line));
-}
+} }
 
 .sw-preset-card-muted {
   background: var(--color-canvas);

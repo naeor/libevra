@@ -64,7 +64,7 @@
 | [duplicateSettings.ts](duplicateSettings.ts) | 实现模块；入口/导出：DUPLICATE_SETTINGS_STORAGE_PREFIX、DUPLICATE_SETTINGS_SCHEMA_VERSION、DuplicateSettingsScope、DuplicateSettingsStorage、duplicateSettingsStorage |
 | [entryFlow.ts](entryFlow.ts) | 实现模块；入口/导出：provideEntryAgain、continueEntry |
 | [entryReturn.test.ts](entryReturn.test.ts) | 测试：entryReturn |
-| [entryReturn.ts](entryReturn.ts) | 实现模块；入口/导出：entryReturnState、entryBackTarget、useEntryReturn |
+| [entryReturn.ts](entryReturn.ts) | 实现模块；入口/导出：entryReturnState、entryBackTarget、useEntryReturn、useReturnTo、useReturnToPath |
 | [errorCopy.test.ts](errorCopy.test.ts) | 测试：errorCopy |
 | [format.ts](format.ts) | 实现模块；入口/导出：currencySymbol、currencyName、numberSeparators、formatMoney、minorToInput |
 | [frameClock.test.ts](frameClock.test.ts) | 测试：frameClock |
@@ -74,6 +74,7 @@
 | [language.test.ts](language.test.ts) | 测试：language |
 | [language.ts](language.ts) | 实现模块；入口/导出：LANGUAGE_PREFERENCES、LanguagePreference、LANGUAGE_STORAGE_KEY、LanguageStorage、isLanguagePreference |
 | [languageRuntime.ts](languageRuntime.ts) | 实现模块；入口/导出：startLanguageRuntime、useLanguagePreference |
+| [ledgerFilter.ts](ledgerFilter.ts) | 实现模块；入口/导出：FilterSlot、ledgerFilterKey、normalizeFilter、sameFilter、filterSyncEnabled |
 | [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：CoverOptions、provideReloadCover、coverForReload |
 | [ledgerView.test.ts](ledgerView.test.ts) | 测试：ledgerView |
 | [ledgerView.ts](ledgerView.ts) | 实现模块；入口/导出：mergeLedgerEntries、updateTransactionViews、limitToWholeDays |
@@ -138,6 +139,7 @@
 | [useCollapsingHeader.test.ts](useCollapsingHeader.test.ts) | 测试：useCollapsingHeader |
 | [useCollapsingHeader.ts](useCollapsingHeader.ts) | 实现模块；入口/导出：RESTORE_HEADER_SCROLL、useCollapsingHeader |
 | [useOverlayPresentation.ts](useOverlayPresentation.ts) | 实现模块；入口/导出：useOverlayExit、useOverlayPresence、useOverlayScrollLock |
+| [usePageFilter.ts](usePageFilter.ts) | 实现模块；入口/导出：useFilterOwner、usePageFilter |
 | [useRootVisualStyle.ts](useRootVisualStyle.ts) | 实现模块；入口/导出：useRootVisualStyle |
 | [useTimeAnalysis.test.ts](useTimeAnalysis.test.ts) | 测试：useTimeAnalysis |
 | [useTimeAnalysis.ts](useTimeAnalysis.ts) | 实现模块；入口/导出：useTimeAnalysis、useCumulativeAnalysis、useFlowAnalysis、usePeriodComparison、useMultiMonthComparison |

@@ -9,6 +9,7 @@ import { pendingAttachments, savePendingAttachment, removePendingAttachment, use
 import { captureAttachmentLimit, captureDraftsFor, resolveAttachmentDraft, type AttachmentTarget } from "../../lib/captureAttachments.js";
 import { AttachmentPdf } from "../AttachmentPdf.js";
 import "./capture.css";
+import { uuidV7 } from "../../lib/uuid.js";
 
 const EMPTY_TARGETS: readonly AttachmentTarget[] = [];
 // 录入页跳到核对页时仍等待同一工作区正在写入的文件。
@@ -57,7 +58,7 @@ export function useCaptureAttachments(bookId: string | null, flow: string, targe
     await mutate(async () => {
       const next = [...files];
       for (const blob of incoming) {
-        const file: PendingAttachment = { id: crypto.randomUUID(), ownerId: user.id, bookId, entryIds: [], name: blob.name, blob, createdAt: Date.now(), error: null,
+        const file: PendingAttachment = { id: uuidV7(), ownerId: user.id, bookId, entryIds: [], name: blob.name, blob, createdAt: Date.now(), error: null,
           draftLink: { scope, targets: targets.length === 1 ? [...targets] : [], resolved: {} } };
         next.push(file);
         if (!captureAttachmentLimit(next, limits)) throw new Error(limitsText);

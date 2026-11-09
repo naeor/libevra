@@ -9,7 +9,8 @@
 .lv-capture-attachments { display:flex; flex-direction:column; gap:16px; min-width:0; }
 .lv-capture-attachments > header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
 .lv-capture-upload { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:20px 12px; border:1px dashed var(--color-brand); border-radius:var(--radius-field); color:var(--color-brand-dark); background:var(--color-brand-soft); transition:background .15s; }
-.lv-capture-upload:hover, .lv-capture-upload[data-dragging] { background:var(--color-canvas); }
+.lv-capture-upload[data-dragging] { background:var(--color-canvas); }
+@media (hover: hover) { .lv-capture-upload:hover { background:var(--color-canvas); } }
 .lv-capture-upload:focus-visible { outline:3px solid var(--color-focus-ring); outline-offset:2px; }
 .lv-capture-attachments button:disabled { opacity:.45; cursor:default; }
 .lv-capture-files { display:flex; flex-direction:column; gap:4px; max-height:224px; overflow:auto; }

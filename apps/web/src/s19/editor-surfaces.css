@@ -109,10 +109,10 @@
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .sw-drawer-categories {
   padding-top: 2px;
 }
-:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"]
+@media (hover: hover) { :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"]
   :is(.sw-edit-bar, .sw-drawer) :is(.sw-pill, .sw-icon-button, .sw-add-button, .sw-new-custom, .sw-drawer-preset, .sw-drawer-close, .sw-chip, .sw-drawer-toolbar > button):hover:not(:disabled) {
   filter: brightness(.985);
-}
+} }
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"]
   :is(.sw-edit-bar, .sw-drawer) :is(.sw-pill, .sw-icon-button, .sw-add-button, .sw-new-custom, .sw-drawer-preset, .sw-drawer-close, .sw-chip, .sw-drawer-toolbar > button, .sw-segment > button):focus-visible {
   outline: 2px solid var(--color-brand-dark);

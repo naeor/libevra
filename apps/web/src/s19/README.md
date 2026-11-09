@@ -47,6 +47,7 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 | [oceanPainter.ts](oceanPainter.ts) | 实现模块；入口/导出：PainterLook、PainterColors、LIGHT_PERIOD、LIGHT_SWING、lightCentre |
 | [oceanPhase.ts](oceanPhase.ts) | 实现模块；入口/导出：oceanPhase |
 | [overlays.css](overlays.css) | 样式与变量 |
+| [page-surfaces.css](page-surfaces.css) | 样式与变量 |
 | [product.ts](product.ts) | 实现模块；入口/导出：startB2Appearance |
 | [s19-lab-tokens.css](s19-lab-tokens.css) | 样式与变量 |
 | [s19.css](s19.css) | 样式与变量 |

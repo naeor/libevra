@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { PasteCandidate } from "../pages/PastePage.js";
+import { uuidV7 } from "./uuid.js";
 
 interface TextDraft { text: string; batchId: string; candidates: readonly PasteCandidate[] | null }
 const EMPTY: TextDraft = { text: "", batchId: "", candidates: null };
@@ -14,5 +15,5 @@ export function useCaptureTextDraft(key: string) {
     drafts.set(key, { ...(drafts.get(key) ?? EMPTY), ...changes });
     for (const listener of listeners) listener();
   };
-  return { ...value, setText: (text: string) => patch({ text }), setCandidates: (candidates: readonly PasteCandidate[] | null) => patch({ candidates, batchId: candidates ? crypto.randomUUID() : "" }) };
+  return { ...value, setText: (text: string) => patch({ text }), setCandidates: (candidates: readonly PasteCandidate[] | null) => patch({ candidates, batchId: candidates ? uuidV7() : "" }) };
 }

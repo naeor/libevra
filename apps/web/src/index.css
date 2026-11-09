@@ -994,12 +994,15 @@ body {
 }
 
 /* 角色复用的局限：brand-dark 是可读链接；实心填充用其自身亮度变化。 */
-html[data-theme-mode="dark"] button.bg-brand:hover,
-html[data-theme-mode="dark"] .bg-danger:hover,
-html[data-theme-mode="dark"] .bg-warn:hover { filter: brightness(1.08); }
-html[data-theme-mode="dark"] button.bg-brand:hover { background-color: var(--color-brand); }
-html[data-theme-mode="dark"] .bg-danger:hover { background-color: var(--color-danger); }
-html[data-theme-mode="dark"] .bg-warn:hover { background-color: var(--color-warn); }
+/* 悬停只给能悬停的指针：触屏点一下会粘住 :hover，按钮一直停在悬停色（1.19.53）。 */
+@media (hover: hover) {
+  html[data-theme-mode="dark"] button.bg-brand:hover,
+  html[data-theme-mode="dark"] .bg-danger:hover,
+  html[data-theme-mode="dark"] .bg-warn:hover { filter: brightness(1.08); }
+  html[data-theme-mode="dark"] button.bg-brand:hover { background-color: var(--color-brand); }
+  html[data-theme-mode="dark"] .bg-danger:hover { background-color: var(--color-danger); }
+  html[data-theme-mode="dark"] .bg-warn:hover { background-color: var(--color-warn); }
+}
 /* 接线修正候选：输入边界、占位符、低透明度页头文字、键盘焦点。 */
 html[data-theme-mode="dark"] input:not([type="checkbox"]):not([type="radio"]),
 html[data-theme-mode="dark"] textarea,
@@ -1314,8 +1317,10 @@ html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green
    浅红/紫的 on-brand 仍是白色，恢复默认的白色半透明圆底；透明会让按钮只剩图标。 */
 html[data-theme-mode="light"][data-theme-palette="yellow"] header.bg-brand [class*="bg-on-brand/"],
 html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-hero [class*="bg-on-brand/"] { background-color: var(--color-brand-soft); }
-html[data-theme-mode="light"][data-theme-palette="yellow"] header.bg-brand [class*="bg-on-brand/"]:hover,
-html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-hero [class*="bg-on-brand/"]:hover { background-color: color-mix(in srgb,var(--color-brand-soft) 82%,var(--color-brand)); }
+@media (hover: hover) {
+  html[data-theme-mode="light"][data-theme-palette="yellow"] header.bg-brand [class*="bg-on-brand/"]:hover,
+  html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-hero [class*="bg-on-brand/"]:hover { background-color: color-mix(in srgb,var(--color-brand-soft) 82%,var(--color-brand)); }
+}
 html[data-theme-mode="light"][data-theme-palette="yellow"] header.bg-brand [class*="bg-on-brand/"]:active,
 html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-hero [class*="bg-on-brand/"]:active { background-color: color-mix(in srgb,var(--color-brand-soft) 70%,var(--color-brand)); }
 
@@ -1328,7 +1333,7 @@ html[data-theme-mode="light"][data-theme-palette="green"] .bottom-tab-active { c
 html[data-theme-mode="light"][data-theme-palette="yellow"] .text-brand { color: var(--color-brand-dark); }
 html[data-theme-mode="light"][data-theme-palette="yellow"] .detail-currency-card { background: var(--color-brand-soft); color: var(--color-on-brand); }
 html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand { outline: 1px solid var(--color-brand-dark); outline-offset: -1px; }
-html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:hover { background: color-mix(in srgb,var(--color-brand) 88%,white); }
+@media (hover: hover) { html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:hover { background: color-mix(in srgb,var(--color-brand) 88%,white); } }
 html[data-theme-mode="light"][data-theme-palette="yellow"] :is(button,a).bg-brand.text-on-brand:active { background: color-mix(in srgb,var(--color-brand) 94%,var(--color-on-brand)); }
 
 /* 降临保留绿色审核值；其他色盘从既有品牌令牌派生同样的层次。 */

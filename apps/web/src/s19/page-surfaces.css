@@ -1,0 +1,43 @@
+/*
+  S19 页面背景收尾（1.19.53）：还在用不透明画布色 / 纯白铺满整页或贴边整条的地方。
+  这些块贴着屏幕上下缘时，iPhone Safari 会拿它们的颜色染工具栏——于是出现与壁纸过渡色不一致的灰色。
+  · 留言整页：页面透明显露壁纸；顶栏是栏材质（与内页收起后的顶栏相同），输入区是底部操作区（data-bar-surface）。
+  · 设备提示条（离线下载、离线状态等，OfflineStatus）：栏材质，不再是一条画布色。
+  材质画在伪元素上（含内容的元素本身不加滤镜）。只作用于浅色四风格手机外壳。
+*/
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is([data-message-page]) {
+  background: transparent;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is([data-message-head], [data-lv-banner]) {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border-bottom-color: transparent;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is([data-message-head], [data-lv-banner])::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--s19-bar-bg);
+  box-shadow: var(--s19-bar-sh);
+  -webkit-backdrop-filter: var(--s19-bar-filter, none);
+  backdrop-filter: var(--s19-bar-filter, none);
+}
+
+/* 外观页“明暗”三选一：分段控件的轨道与选中胶囊（与明细“全部 / 支出 / 收入”同一组令牌），不再是白片里套品牌浅底。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-settings-theme-options > [role="group"].grid.bg-surface {
+  background: var(--s19-track-bg);
+  box-shadow: var(--s19-track-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-settings-theme-options > [role="group"].grid.bg-surface > button[aria-pressed="true"] {
+  background: var(--s19-pill-bg);
+  box-shadow: var(--s19-pill-sh);
+}
+
+/* 展示卡片编辑器的指标选项：原来是白片 / 品牌浅底，改为交互卡材质；选中用统一选中描边。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-metric {
+  background: var(--s19-card-bg);
+  box-shadow: var(--s19-card-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .dce-metric[aria-pressed="true"] {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}

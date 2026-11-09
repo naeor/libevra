@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router";
 import { FxModeSetting } from "../components/FxDisplay.js";
+import { FilterSyncSetting } from "../components/EntryFilterPanel.js";
 
 import { DuplicateDetectionSettingsCard } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
@@ -82,6 +83,9 @@ export function PreferencesPage(): React.JSX.Element {
       </section>
 
       <FxModeSetting />
+
+      {/* 1.19.53：明细与分析是否共用同一筛选（本机偏好，默认共用）；两个筛选面板里是同一个开关。 */}
+      <FilterSyncSetting />
     </SettingsSubPage>
   );
 }

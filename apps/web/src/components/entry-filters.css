@@ -2,7 +2,7 @@
 .lv-filter-heading { display:flex; align-items:center; justify-content:space-between; padding:8px 16px 0; flex:none; }
 .lv-filter-icon { display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; border-radius:var(--radius-field); flex:none; }
 .lv-filter-icon svg { width:18px; height:18px; }
-.lv-filter-icon:hover { background:var(--color-brand-soft); }
+@media (hover: hover) { .lv-filter-icon:hover { background:var(--color-brand-soft); } }
 .lv-filter-icon:disabled { opacity:.35; }
 .lv-filter-chips { display:flex; gap:8px; overflow:auto; padding:8px 16px 16px; flex:none; }
 .lv-filter-chips button { display:flex; align-items:center; gap:8px; max-width:240px; flex:none; padding:6px 12px; border-radius:999px; background:var(--color-brand-soft); color:var(--color-brand-dark); }
@@ -35,6 +35,10 @@
 .lv-filter-size { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .lv-filter-size input,.lv-filter-date-range input { margin-top:8px; }
 .lv-filter-date-range { display:flex; flex-direction:column; gap:16px; margin-top:20px; }
+/* 1.19.53：“明细与分析使用同一筛选”开关，固定在页脚上方，不随选项滚动。 */
+.lv-filter-sync { flex:none; border-top:1px solid var(--color-line); padding:4px 0; }
+.lv-filter-sync .lv-filter-sync-switch { display:flex; width:100%; flex-direction:row-reverse; justify-content:space-between; gap:16px; min-height:52px; padding:6px 16px; font-weight:400; text-align:left; }
+.lv-filter-note { flex:none; padding-block:8px; }
 .lv-filter-footer { flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; }
 .lv-filter-footer button { min-height:44px; padding:8px 16px; }
 .lv-filter-apply { background:var(--color-brand); color:var(--color-on-brand); border-radius:var(--radius-field); }

@@ -2,6 +2,8 @@ import { useEffect, useId, useRef } from "react";
 
 import { useI18n } from "../../i18n/index.js";
 import { ChevronIcon } from "../Icons.js";
+import { materialAttributes } from "../../s19/material.js";
+import "../../s19/material-components.css";
 
 /**
  * 从一列固定选项里选一个：**紧贴字段下方展开的内嵌列表**。
@@ -142,7 +144,8 @@ export function InlineChoice({
   const current = options.find((option) => option.id === value);
 
   return (
-    <div ref={rootRef} className="overflow-hidden rounded-field border border-line bg-surface">
+    // 1.19.53：就地展开的选择框是输入表面（S19 `field`，外观不变）。
+    <div ref={rootRef} {...materialAttributes("field")} className="lv-material overflow-hidden rounded-field border border-line bg-surface">
       <button
         type="button"
         data-inline-choice-trigger=""

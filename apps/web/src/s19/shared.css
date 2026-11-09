@@ -115,8 +115,19 @@
   background: var(--s19-accent-bg);
   box-shadow: var(--s19-plus-sh);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav button.size-16.rounded-full.bg-brand:is(:hover, :active) {
-  background: var(--color-brand-dark);
+/* 按下 / 悬停（1.19.53）：在材质上叠一层同色调的暗化，不再整块换成纯色——渐变、高光与投影都保留
+   （原来点“+”后 iOS 粘住 :hover，整颗变成纯深绿，像被刷了一层涂层）。悬停只给能悬停的指针。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+  --s19-press-accent: color-mix(in srgb, var(--color-brand-dark) 40%, transparent);
+  --s19-press-soft: color-mix(in srgb, var(--color-brand) 12%, transparent);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav button.size-16.rounded-full.bg-brand:active {
+  background: linear-gradient(var(--s19-press-accent), var(--s19-press-accent)), var(--s19-accent-bg);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav button.size-16.rounded-full.bg-brand:hover {
+    background: linear-gradient(var(--s19-press-accent), var(--s19-press-accent)), var(--s19-accent-bg);
+  }
 }
 /* 记一笔：菜单按真实高度占位，扣除已占位的账本说明，避免固定 100px 留出宽空带。
    Original / 深色 / 大屏仍沿用原占位；C 只修同一空带，材质保持原样。 */
@@ -136,7 +147,7 @@
   box-shadow: var(--s19-entry-sh, var(--s19-shelf-sh));
 }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] nav ul > li > :is(a, button).rounded-2xl.bg-brand-soft:active {
-  background: var(--color-brand-soft);
+  background: linear-gradient(var(--s19-press-soft), var(--s19-press-soft)), var(--s19-entry-bg, var(--s19-shelf-bg));
 }
 /* opacity < 1 的祖先会截断背景采样。B1 / B2 保留原 200ms 位移，淡入淡出下放到
    卡片和承载层自身，使展开途中也能模糊真实账目；关闭后不留透明点击层。 */
@@ -164,7 +175,7 @@
   transition: opacity 200ms ease-out, background-color 150ms, box-shadow 150ms;
 }
 :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu > ul > li > :is(a, button):active {
-  background: var(--s19-entry-bg);
+  background: linear-gradient(var(--s19-press-soft), var(--s19-press-soft)), var(--s19-entry-bg);
 }
 :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-menu[aria-hidden="true"] > ul > li > :is(a, button) {
   opacity: 0;
@@ -179,15 +190,23 @@
   background: var(--s19-accent-bg);
   box-shadow: var(--s19-accent-sh);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).bg-brand.text-on-brand:not(.size-16):is(:hover, :active):not(:disabled) {
-  background: var(--color-brand-dark);
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).bg-brand.text-on-brand:not(.size-16):active:not(:disabled) {
+  background: linear-gradient(var(--s19-press-accent), var(--s19-press-accent)), var(--s19-accent-bg);
 }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).rounded-field.bg-brand-soft {
   background: var(--s19-soft-bg);
   box-shadow: var(--s19-soft-sh);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).rounded-field.bg-brand-soft:is(:hover, :active):not(:disabled) {
-  background: var(--color-brand-soft);
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).rounded-field.bg-brand-soft:active:not(:disabled) {
+  background: linear-gradient(var(--s19-press-soft), var(--s19-press-soft)), var(--s19-soft-bg);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).bg-brand.text-on-brand:not(.size-16):hover:not(:disabled) {
+    background: linear-gradient(var(--s19-press-accent), var(--s19-press-accent)), var(--s19-accent-bg);
+  }
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(button, a).rounded-field.bg-brand-soft:hover:not(:disabled) {
+    background: linear-gradient(var(--s19-press-soft), var(--s19-press-soft)), var(--s19-soft-bg);
+  }
 }
 
 /* ---------- 弹层：Bottom Sheet / 选择面板 / 确认对话框 ---------- */

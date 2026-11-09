@@ -24,6 +24,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { ConflictScreen } from "../components/ConflictScreen.js";
 import { FxAmount } from "../components/FxDisplay.js";
 import { EntryFilterPanel, FilterIcon, useDetailFilters } from "../components/EntryFilterPanel.js";
+import { usePageFilter } from "../lib/usePageFilter.js";
 import { summaryFor } from "../lib/offline/localStats.js";
 import { OfflineStatus } from "../components/OfflineStatus.js";
 import { SyncBanner } from "../components/SyncBanner.js";
@@ -112,7 +113,9 @@ export function DesktopEntriesPage(): React.JSX.Element {
   const selectedId = params.get(ENTRY_PARAM);
 
   const saved = useRef(readJson<{ month?: string; kind?: EntryKindFilter }>("session", SESSION_KEY, {})).current;
-  const [month, setMonth] = useState(() => params.get("month") ?? saved.month ?? currentMonth());
+  // 1.19.53：与手机明细同一份本机筛选（默认也与分析共用），见 `lib/ledgerFilter.ts`。
+  const pageFilter = usePageFilter("ledger");
+  const month = pageFilter.value.month;
   const [kind, setKind] = useState<EntryKindFilter>(() => saved.kind ?? "all");
   const [query, setQuery] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -133,7 +136,7 @@ export function DesktopEntriesPage(): React.JSX.Element {
 
   const ledger = useLedger();
   const summary = useSummary(month);
-  const filter = useDetailFilters(month, setMonth, params, setParams, ledger.data);
+  const filter = useDetailFilters(pageFilter.value, pageFilter.set, ledger.data);
   const filters = useMemo(() => ({ month: allMonths ? undefined : month, kind: kind === "all" ? undefined : kind }), [allMonths, month, kind]);
   const list = useTransactions(filters);
   const local = useLocalEntries(filters);

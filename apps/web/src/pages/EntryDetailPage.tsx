@@ -29,7 +29,7 @@ import { useUndo } from "../components/UndoProvider.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
-import { useEntryReturn } from "../lib/entryReturn.js";
+import { useEntryReturn, useReturnTo } from "../lib/entryReturn.js";
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
@@ -83,6 +83,8 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
   const id = entryId ?? routeParams.id ?? "";
   const navigate = useNavigate();
   const goBack = useEntryReturn();
+  // 1.19.53：保存修改、删除后回到明细——从明细打开的就用 -1 回去，账目收回到那一行（原来 push 到 /，直接跳过去）。
+  const returnToLedger = useReturnTo("/", "push");
   const { showUndo } = useUndo();
   const { t } = useI18n();
 
@@ -369,7 +371,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
        *
        * ⚠️ **The screen is reached from the ledger and returns to the ledger** — a push and a pop, not a detour.
        */
-      await navigate("/");
+      returnToLedger();
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -389,7 +391,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
        * pretending to work.**
        */
       await writer.remove(id);
-      await navigate("/");
+      returnToLedger();
       showUndo({
         message: t("entry.detail.deletedUndo"),
         onUndo: async () => {

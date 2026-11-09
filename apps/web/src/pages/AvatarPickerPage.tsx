@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useReturnTo } from "../lib/entryReturn.js";
 import {
   AVATAR_REWARD_ACTIVITIES,
   SELECTABLE_AVATAR_IDS,
@@ -34,7 +34,7 @@ function LockGlyph(): React.JSX.Element {
 export function AvatarPickerPage(): React.JSX.Element {
   const { t, locale } = useI18n();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const returnToProfile = useReturnTo("/profile", "replace", "/profile?edit=1");
   const saveProfile = useSaveProfile();
   const rewards = useAvatarRewards();
   const [original] = useState(() => avatarIdSchema.catch("flower").parse(user?.avatarId));
@@ -80,9 +80,8 @@ export function AvatarPickerPage(): React.JSX.Element {
 
   if (!user) return <></>;
 
-  const leave = (): void => {
-    void navigate("/profile?edit=1", { replace: true });
-  };
+  // 1.19.53：从个人资料进来时用 -1 回去（默认返回转场）；深链等没有来路时仍替换成编辑中的个人资料。
+  const leave = returnToProfile;
   const back = (): void => {
     if (!busy) {
       if (dirty) setDiscard(true);
@@ -187,7 +186,7 @@ export function AvatarPickerPage(): React.JSX.Element {
                   className="group relative flex min-h-11 min-w-0 items-center rounded-full outline-none focus-visible:ring-4 focus-visible:ring-focus-ring disabled:opacity-45"
                 >
                   <span
-                    className={`w-full rounded-full p-1 ring-2 ring-offset-2 ring-offset-canvas transition motion-reduce:transition-none ${
+                    className={`w-full rounded-full p-1 ring-2 ring-offset-2 ring-offset-transparent transition motion-reduce:transition-none ${
                       selected === id ? "ring-brand" : "ring-transparent group-hover:ring-line"
                     }`}
                   >
@@ -210,7 +209,9 @@ export function AvatarPickerPage(): React.JSX.Element {
           </div>
         </section>
       ))}
-      <div className="sticky bottom-0 z-10 -mx-2 mt-auto border-t border-line bg-canvas px-2 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]" data-lv-bottom-bar="">
+      {/* 1.19.53：S19 浅色四风格用底部操作区材质（data-bar-surface），不再是一块不透明的画布色——
+          它贴着屏幕下缘，iPhone Safari 会拿它的颜色染工具栏，原来因此是一条灰色。 */}
+      <div className="sticky bottom-0 z-10 -mx-2 mt-auto border-t border-line bg-canvas px-2 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]" data-lv-bottom-bar="" data-bar-surface="chrome">
         {error ? (
           <p role="alert" className="mb-3 text-helper text-danger">
             {error}

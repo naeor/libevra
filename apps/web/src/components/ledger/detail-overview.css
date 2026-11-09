@@ -20,6 +20,16 @@
 .detail-search-shell input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .detail-redesign .detail-month-controls { max-width: calc(100% - var(--p) * 176px); }
 .detail-redesign .detail-month.lv-filter-trigger { max-width: 100%; }
+/* 1.19.53：月份前的漏斗图标。展开时不占位；收起到账目列表的后半程（--p 0.55 → 1）随收起长出，
+   与月份底面的出现同步；有其它筛选条件（data-filtered）时始终显示。16px，与右侧工具图标同一视觉大小。 */
+.detail-redesign .detail-month-funnel {
+  --funnel-k: clamp(0, calc((var(--p, 0) - .55) / .45), 1);
+  display: inline-flex; flex: none; align-items: center; justify-content: flex-start; overflow: hidden;
+  width: calc(var(--funnel-k) * 22px); opacity: var(--funnel-k);
+}
+.detail-redesign .detail-month[data-filtered] .detail-month-funnel { --funnel-k: 1; }
+.detail-redesign .detail-month-funnel > svg { flex: none; width: 16px; height: 16px; }
+
 /*
  * 标题、右侧按钮、月份行与范围说明的让位也读同一个 --search-k（lockSearch 的帧锚定时钟，开 0→1、关 1→0；
  * 结束后移除，缺省按 1 处理）。不再用各自的 CSS transition：两套时钟在首帧较重时会错开——标题已经消失，

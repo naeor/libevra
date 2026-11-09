@@ -12,7 +12,7 @@
  * 分层（总需求规格 §4）：计算在 compute.ts（只调 A/B/既有实现）、展示在 cards.tsx、布局几何与命令全部
  * 交给 Agent D（session.ts 只做 D 尚未提供的组合操作的过渡适配）、保存在 storage.ts（本机、按账号）。
  */
-import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { endOfMonth, rangeForPreset, startOfMonth, type DateRange } from "@libellum/shared";
 import {
@@ -38,8 +38,6 @@ import { TabPage } from "../components/Layouts.js";
 import { PaneSizeContext, usePane } from "../workspace/context.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { useI18n } from "../i18n/index.js";
-import { categoryPath } from "@libellum/shared";
-import { displayCategoryName } from "../lib/presetNames.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { useLedger } from "../lib/queries.js";
 import { CardActionsContext, cardTitle, type CardActions } from "../statsWorkbench/cards.js";
@@ -48,9 +46,11 @@ import { currenciesUsed } from "../statsWorkbench/compute.js";
 import { defaultWorkbench, newCard, newObjectId } from "../statsWorkbench/defaults.js";
 import { cellAt, useDragController, type DragPayload, type DragState } from "../statsWorkbench/dnd.js";
 import { Drawer, type ContainerScopeView, type DrawerHeight } from "../statsWorkbench/Drawer.js";
-import { FilterPanel, timeLabel, type FilterOption } from "../statsWorkbench/FilterPanel.js";
+import { timeLabel } from "../statsWorkbench/FilterPanel.js";
 import { StatBar, StatsSettingsSheet } from "../statsWorkbench/StatsControls.js";
-import { customRangeProblem, filterIds, filterUrlProblem, followDraft, readFilters, sameFilters, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
+import { filterIds, readFilters, writeDisplay, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
+import { ledgerFilterFromPreset, useAnalysisFilters } from "../statsWorkbench/ledgerFilterBridge.js";
+import { EntryFilterPanel } from "../components/EntryFilterPanel.js";
 import { autoColumnsFor, BrowseGrid, columnLimitFor, displayFor, EditGrid, gridMetricsFor, gridTrack, layoutLooksSparse, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
 import { effectiveColumns, useColumnPreference, type ColumnPreference } from "../statsWorkbench/columns.js";
 import { EditOrigins } from "../statsWorkbench/editOrigins.js";
@@ -136,29 +136,26 @@ function scrollBehavior(): ScrollBehavior {
 
 /** `onOpenCard`：电脑版把点开的卡片放进右侧辅助栏，而不是跳到卡片详情页。 */
 export function StatsPage({ onOpenCard }: { readonly onOpenCard?: (cardId: string) => void } = {}): React.JSX.Element {
-  const [params] = useSearchParams();
-  const filters = useMemo(() => readFilters(params), [params]);
-  const scope = useWorkbenchScope(filters);
+  // 1.19.53：筛选默认与明细共用（`ledgerFilterBridge.ts`）；统计方式与币种仍在地址栏。
+  const analysis = useAnalysisFilters();
+  const scope = useWorkbenchScope(analysis.filters);
   // 账号/游客身份改变即销毁整份编辑状态；旧账号草稿不可显示或保存到新账号。
-  return <WorkbenchScopeProvider value={scope}><AccountWorkbench key={scope.accountScope ?? "pending"} {...(onOpenCard === undefined ? {} : { onOpenCard })} /></WorkbenchScopeProvider>;
+  return <WorkbenchScopeProvider value={scope}><AccountWorkbench key={scope.accountScope ?? "pending"} analysis={analysis} {...(onOpenCard === undefined ? {} : { onOpenCard })} /></WorkbenchScopeProvider>;
 }
 
-function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: string) => void }): React.JSX.Element {
+function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (cardId: string) => void; readonly analysis: ReturnType<typeof useAnalysisFilters> }): React.JSX.Element {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const pane = usePane();
-  /** S18：两个工作区各有一份分析页，面板 id 不能相同。 */
-  const filterPanelId = useId();
   const ledger = useLedger();
   const [params, setParams] = useSearchParams();
-  const filters = useMemo(() => readFilters(params), [params]);
-  const urlProblem = filterUrlProblem(params);
+  const filters = analysis.filters;
   const scope = useScope();
   const cardActions = useMemo<CardActions>(
     () => ({
-      // 卡片上的「改用原币查看」：只改生效筛选；没动过的筛选草稿会跟着变（见下方草稿同步）。
+      // 卡片上的「改用原币查看」：只改统计方式（地址栏），不动筛选。
       showOriginalCurrency: () => {
-        setParams((previous) => writeFilters(previous, { ...readFilters(previous), combined: false }), { replace: true });
+        setParams((previous) => writeDisplay(previous, { ...readFilters(previous), combined: false }), { replace: true });
       },
     }),
     [setParams],
@@ -189,34 +186,9 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
     if (stored.accountScope !== scope.accountScope) setStored(readStored(scope.accountScope));
   }, [scope.accountScope, stored.accountScope]);
 
-  // ---- 筛选：生效条件在地址栏，草稿在这里 ----
+  // ---- 筛选：与明细同一个底部面板（1.19.53），草稿在面板里，应用后写入共用（或分析自己）的那一份 ----
   const [filterOpen, setFilterOpen] = useState(false);
-  const [draft, setDraft] = useState<WorkbenchFilters>(filters);
-  const lastEffective = useRef(filters);
-  useEffect(() => {
-    // 生效条件被外部改变（返回、刷新）时，没有改动过的草稿跟着走；改动过的草稿保留。
-    const previous = lastEffective.current;
-    if (!sameFilters(previous, filters)) {
-      // 注意：更新函数在下一次渲染时才执行，必须比较「变化前」的生效条件（不能在函数里读 ref，它已被改成新值）。
-      setDraft((current) => followDraft(current, previous, filters));
-      lastEffective.current = filters;
-    }
-  }, [filters]);
-  const draftPending = !sameFilters(draft, filters);
-
-  // ---- W5 维度筛选的候选项：来自账本元数据（不是从交易里现猜），标签带颜色。 ----
-  const categoryOptions = useMemo<readonly FilterOption[]>(
-    () => (ledger.data?.categories ?? []).map((category) => ({ id: category.id, name: categoryPath(ledger.data?.categories??[],category.id).map(c=>displayCategoryName(c.name)).join(" / "), archived: category.isArchived })),
-    [ledger.data?.categories],
-  );
-  const paymentMethodOptions = useMemo<readonly FilterOption[]>(
-    () => (ledger.data?.paymentMethods ?? []).map((method) => ({ id: method.id, name: method.name, archived: method.isArchived })),
-    [ledger.data?.paymentMethods],
-  );
-  const tagOptions = useMemo<readonly FilterOption[]>(
-    () => (ledger.data?.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color })),
-    [ledger.data?.tags],
-  );
+  const filterAnchor = useRef<HTMLButtonElement | null>(null);
 
   // ---- 编辑会话 ----
   const [session, setSession] = useState<EditorState | null>(null);
@@ -503,7 +475,7 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
     if (session === null) return false;
     setContainerEdit(null);
     if (!replaceBase(reidentify(next), t("statsWorkbench.presets.applied", { name }))) return false;
-    if (presetFilters !== null) setParams((previous) => writeFilters(previous, readFilters(new URLSearchParams(presetFilters))), { replace: true });
+    if (presetFilters !== null) analysis.set(ledgerFilterFromPreset(presetFilters, scope.today));
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0, behavior: scrollBehavior() }));
     return true;
   }
@@ -826,16 +798,13 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
     void navigate(`/stats/cards/${encodeURIComponent(cardId)}${search === "" ? "" : `?${search}`}`);
   }
 
-  const applyFilters = () => {
-    if (draft.time.kind === "custom" && customRangeProblem(draft.time.from, draft.time.to) !== null) return;
-    setParams((previous) => writeFilters(previous, draft), { replace: true });
-  };
-
   // 币种与统计方式在下方统计控制条上显示，这里只写时间与维度，不重复。
-  const summary = `${timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
+  // “全部时间”在分析里按最近 400 天计算（见 capped），名称仍写“全部时间”，不说成“自定义”。
+  const allTime = analysis.ledger.month === "all" && analysis.ledger.from === "" && analysis.ledger.to === "";
+  const summary = `${allTime ? t("ledger.filters.all") : timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
     from: formatLocalDate(scope.range.from),
     to: formatLocalDate(scope.range.to),
-  })}${dimensionSummaryOf(filters)}`;
+  })}${dimensionSummaryOf(filters)}${analysis.capped ? ` · ${t("statsWorkbench.summary.capped")}` : ""}`;
 
   /**
    * W5：生效条件摘要必须让用户知道「排除了什么」。维度不限时不写，空集写 0，
@@ -848,6 +817,9 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
     if(current.categoryBranchIds !== undefined)parts.push(t("manage.tree.branch"));
     if (ids.paymentMethodIds !== null) parts.push(t("statsWorkbench.summary.paymentMethodCount", { count: ids.paymentMethodIds.length }));
     if (ids.tagIds !== null) parts.push(t("statsWorkbench.summary.tagCount", { count: ids.tagIds.length }));
+    if (current.currencies && current.currencies.length > 0) parts.push(t("statsWorkbench.summary.currencyCount", { count: current.currencies.length }));
+    const a = current.attachment;
+    if (a && (a.attachment !== "any" || a.type !== "" || a.minMB !== "" || a.maxMB !== "")) parts.push(t("ledger.filters.attachments"));
     return parts.length === 0 ? "" : ` · ${parts.join(" · ")}`;
   }
 
@@ -968,15 +940,15 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
             action={
               <div className="flex shrink-0 items-center gap-2">
                 <button
+                  ref={filterAnchor}
                   type="button"
                   className={`sw-head-button relative ${filterOpen ? "sw-head-button-on" : ""}`}
                   aria-label={t("statsWorkbench.header.filter")}
+                  aria-haspopup="dialog"
                   aria-expanded={filterOpen}
-                  aria-controls={filterPanelId}
                   onClick={() => setFilterOpen((open) => !open)}
                 >
                   <FunnelIcon />
-                  {draftPending ? <span className="sw-badge-dot" aria-hidden="true" /> : null}
                 </button>
                 <button type="button" className="sw-head-button" aria-label={t("statsWorkbench.header.edit")} onClick={() => enterEdit()}>
                   <PencilIcon />
@@ -988,35 +960,11 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
 
         {!editing ? (
           <>
-            <div className={`sw-collapse ${filterOpen ? "sw-collapse-open" : ""}`}>
-              <div className="min-h-0 overflow-hidden">
-                {filterOpen ? (
-                  <FilterPanel
-                    id={filterPanelId}
-                    draft={draft}
-                    effective={filters}
-                    today={scope.today}
-                    fxAvailable={scope.fxAvailable}
-                    fxTarget={scope.combined ? scope.currency : scope.defaultCurrency}
-                    defaultCurrency={scope.defaultCurrency}
-                    currenciesInLedger={scope.ledgerCurrencies ?? currenciesUsed(scope.entries)}
-                    categories={categoryOptions}
-                    categoryHierarchy={ledger.data?.categories.some(c=>c.parentId)===true}
-                    paymentMethods={paymentMethodOptions}
-                    tags={tagOptions}
-                    onDraft={setDraft}
-                    onApply={applyFilters}
-                    onRevert={() => setDraft(filters)}
-                    onCollapse={() => setFilterOpen(false)}
-                  />
-                ) : null}
-              </div>
-            </div>
+            {/* 1.19.53：与明细同一个筛选面板（手机从底部弹出半屏，大屏是弹出框）；默认与明细共用同一份筛选。 */}
+            <EntryFilterPanel open={filterOpen} value={analysis.ledger} ledger={ledger.data} anchor={filterAnchor} onApply={analysis.set} onClose={() => setFilterOpen(false)} />
             <button type="button" className="sw-summary mx-6 mt-4 flex items-center gap-2 text-left" onClick={() => setFilterOpen(true)} aria-label={t("statsWorkbench.summary.open", { summary })}>
               <span className="min-w-0 flex-1 truncate text-helper text-muted">{summary}</span>
-              {draftPending ? <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-helper text-warn-dark">{t("statsWorkbench.summary.pending")}</span> : null}
             </button>
-            {urlProblem === null ? null : <p role="alert" className="mx-6 mt-3 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-ink">{t("statsWorkbench.filter.invalidUrl")} {t(`statsWorkbench.filter.problems.${urlProblem}`)}</p>}
             {/* 统计控制区默认一行：币种与方式、刷新、设置入口；来源、原币合计、未折算清单等在「统计设置」里。 */}
             <StatBar scope={scope} onSettings={() => setSettingsOpen(true)} />
             {scope.coverageGap === null ? null : scope.repairing ? (
@@ -1177,7 +1125,7 @@ function AccountWorkbench({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
             currenciesInLedger={scope.ledgerCurrencies ?? currenciesUsed(scope.entries)}
             onChoose={({ combined, currency }) => {
               // 统计方式与币种立即生效，写入地址栏（与筛选面板同一组参数）；未应用的筛选草稿跟着生效条件走。
-              setParams((previous) => writeFilters(previous, { ...readFilters(previous), combined, currency }), { replace: true });
+              setParams((previous) => writeDisplay(previous, { combined, currency }), { replace: true });
             }}
             onClose={() => setSettingsOpen(false)}
           />

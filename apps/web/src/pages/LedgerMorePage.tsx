@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 
 import { readSession, writeSession } from "../lib/detailTransition.js";
 import { usePane } from "../workspace/context.js";
+import { useReturnToPath } from "../lib/entryReturn.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
@@ -61,6 +62,8 @@ export function LedgerMorePage(): React.JSX.Element {
   const { t } = useI18n();
   const reload = reloadConfirmation();
   const navigate = useNavigate();
+  // 1.19.53：服务器同步回到明细时，来路就是明细就用 -1 回去（默认返回转场），原来 push 过去是直接跳。
+  const returnTo = useReturnToPath();
   const pane = usePane();
   const [cleared, setCleared] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
@@ -118,7 +121,7 @@ export function LedgerMorePage(): React.JSX.Element {
       </ListGroup>
 
       <ListGroup className="[&>.lv-settings-heading]:px-0" title={t("books.more.maintenanceGroup")}>
-        <ListRow tone="action" label={t("books.more.serverSync")} detail={t("ledger.tools.refreshHint")} onClick={() => { writeSession({ syncRequested: true }, pane.instance); void navigate(readSession(pane.instance).syncReturnPath ?? "/"); }} />
+        <ListRow tone="action" label={t("books.more.serverSync")} detail={t("ledger.tools.refreshHint")} onClick={() => { writeSession({ syncRequested: true }, pane.instance); returnTo(readSession(pane.instance).syncReturnPath ?? "/", "push"); }} />
         <ListRow
           tone="action"
           label={cleared ? t("books.more.cleared") : t("books.more.clearMarks")}

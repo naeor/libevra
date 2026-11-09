@@ -97,6 +97,8 @@ export function clearMessageDraft(): void {
  * never be mistaken for something worth syncing, and it must be safe to lose.
  */
 import { messagesSeenKey } from "../lib/deviceStorageKeys.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/material-components.css";
 
 /**
  * ⚠️ **The bare global, never `window.localStorage`.**
@@ -658,7 +660,8 @@ export function MessageBoardFull({
   const desk = useDesktopSurface();
   const columnWidth = desk === null ? "max-w-md" : desk.surface === "panel" ? "max-w-none" : "max-w-[46rem]";
   return (
-    <div className={`flex ${desk === null ? "h-dvh" : "h-full min-h-0"} flex-col overflow-hidden bg-canvas`}>
+    // 1.19.53：S19 浅色手机里整页透明、显露壁纸，顶栏与输入区用栏的材质（s19/page-surfaces.css）。
+    <div data-message-page="" className={`flex ${desk === null ? "h-dvh" : "h-full min-h-0"} flex-col overflow-hidden bg-canvas`}>
       {/*
         ⚠️ S16-A: the same top bar as every other secondary screen (back on the left, the title
         centred, a hairline under it) instead of a green band. The green band is the first-level
@@ -666,7 +669,7 @@ export function MessageBoardFull({
         own frame — `h-dvh` with the history scrolling between a fixed bar and a fixed composer —
         because the on-screen keyboard needs exactly that (see the note above).
       */}
-      {desk !== null ? null : <header className="shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top,0px)]">
+      {desk !== null ? null : <header data-message-head="" className="relative z-10 shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top,0px)]">
         <div className="relative mx-auto flex h-14 w-full max-w-md items-center px-6">
           <button
             type="button"
@@ -706,7 +709,7 @@ export function MessageBoardFull({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-line bg-surface" data-lv-bottom-bar="">
+      <div className="relative z-10 shrink-0 border-t border-line bg-surface" data-lv-bottom-bar="" data-bar-surface="chrome">
         <div className={`mx-auto flex w-full ${columnWidth} flex-col gap-2 px-4 py-3`}>
           {composer.error !== null ? (
             <p role="alert" className="rounded-field bg-danger-soft px-4 py-3 text-body text-danger">
@@ -755,7 +758,8 @@ export function MessageBoardFull({
               rows={1}
               placeholder={t("collab.messages.placeholderFull")}
               aria-label={t("collab.messages.inputLabel")}
-              className="h-11 flex-1 resize-none rounded-field border border-line bg-canvas px-4 py-2.5 text-base text-ink"
+              {...materialAttributes("field")}
+              className="lv-material h-11 flex-1 resize-none rounded-field border border-line bg-canvas px-4 py-2.5 text-base text-ink"
             />
             <button
               type="button"

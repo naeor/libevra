@@ -12,6 +12,7 @@ import { useBooks } from "../lib/queries.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { AttachmentPdf } from "./AttachmentPdf.js";
+import { uuidV7 } from "../lib/uuid.js";
 
 export function AttachmentTransfers(): null {
   const { user } = useAuth();
@@ -101,7 +102,7 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
         if (file.size === 0 || file.size > (storage.data?.limits.fileBytes ?? 100_000_000)) throw new Error(t("attachments.limits", {
           file: formatStorageBytes(storage.data?.limits.fileBytes ?? 100_000_000), count: storage.data?.limits.entryFiles ?? 10,
           entry: formatStorageBytes(storage.data?.limits.entryBytes ?? 200_000_000) }));
-        await savePendingAttachment({ id: crypto.randomUUID(), ownerId: user.id, bookId, entryIds: [...entryIds], name: file.name,
+        await savePendingAttachment({ id: uuidV7(), ownerId: user.id, bookId, entryIds: [...entryIds], name: file.name,
           blob: file, createdAt: Date.now(), error: null });
       }
       setError(null);

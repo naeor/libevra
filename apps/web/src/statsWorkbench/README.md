@@ -66,6 +66,8 @@
 | [fxProjection.ts](fxProjection.ts) | 实现模块；入口/导出：FxKindScope、FxMissingReason、FxMissingRecord、FxMissingSummary、FxProjection |
 | [fxTestSupport.ts](fxTestSupport.ts) | 实现模块；入口/导出：FX_TEST_RATES、lookupFor、FxViewOptions、buildFxView、tx |
 | [hierarchy.test.tsx](hierarchy.test.tsx) | 测试：hierarchy |
+| [ledgerFilterBridge.test.ts](ledgerFilterBridge.test.ts) | 测试：ledgerFilterBridge |
+| [ledgerFilterBridge.ts](ledgerFilterBridge.ts) | 实现模块；入口/导出：workbenchFromLedgerFilter、ledgerFilterFromWorkbench、takeAnalysisParams、ledgerFilterFromPreset、useAnalysisFilters |
 | [metricCatalog.test.ts](metricCatalog.test.ts) | 测试：metricCatalog |
 | [metricCatalog.ts](metricCatalog.ts) | 实现模块；入口/导出：DirectorySectionId、DirectorySubgroup、DirectorySection、DIRECTORY、directorySections |
 | [presets.test.ts](presets.test.ts) | 测试：presets |

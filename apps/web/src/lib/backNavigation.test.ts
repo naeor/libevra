@@ -179,6 +179,9 @@ describe("返回模式：默认历史，按需声明父级", () => {
       "desktop/DesktopFrames.tsx",
       "lib/connectivity.ts",
       "pages/BookSettingsPage.tsx",
+      // 1.19.53：下载管理的“更多”原来就固定回到下载管理（用 replace），现在走 `parent`：有来路时 -1（并播放返回转场），
+      // 深链时仍替换成下载管理——没有失去历史返回。
+      "pages/DownloadMorePage.tsx",
     ]);
 
     /**

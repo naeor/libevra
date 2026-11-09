@@ -1,5 +1,5 @@
 import { clearDuplicateSettings } from "../duplicateSettings.js";
-import { fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
+import { LEDGER_FILTER_PREFIX, fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
 import { listKeys, removeValue } from "./storage.js";
 
 /** `localStorage` 在 Node 测试与隐私模式下可能不存在、访问即抛错；清理路径必须容忍。 */
@@ -83,6 +83,8 @@ export async function clearAccountLocalData(
     for (let index = 0; index < store.length; index++) {
       const key = store.key(index);
       if (key && prefixes.some(prefix => key === prefix || key.startsWith(`${prefix}:`))) owned.push(key);
+      // 1.19.53：明细 / 分析的筛选（ledgerFilterKey）。
+      if (key?.startsWith(LEDGER_FILTER_PREFIX) && key.includes(`:user:${accountId}:`)) owned.push(key);
     }
     removeDeviceKeys(owned);
   }

@@ -1,6 +1,5 @@
 import { useViewBookId } from "../../lib/workspaceLedger.js";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import { detailCharts, detailNumbers, detailCardSchema, type DetailMetric } from "@libellum/shared";
 import { useAuth } from "../../auth/AuthProvider.js";
 import { useGuestIdentity } from "../../lib/guest/session.js";
@@ -9,6 +8,7 @@ import { sameCards } from "../../lib/detailCardSync.js";
 import { useI18n } from "../../i18n/index.js";
 import { PageNavBar } from "../Layouts.js";
 import { useGoBack } from "../../lib/connectivity.js";
+import { useReturnTo } from "../../lib/entryReturn.js";
 import { Button } from "../Button.js";
 import { ConfirmDialog } from "../ConfirmDialog.js";
 import { DetailMiniChart, type MiniEntry } from "./DetailMiniChart.js";
@@ -27,7 +27,7 @@ export function DetailCardEditor() {
   return <CardEditorContent key={(guest?.id ?? user?.id ?? "local") + ":" + book} />;
 }
 function CardEditorContent() {
-  const { user } = useAuth(), guest = useGuestIdentity(), { t } = useI18n(), navigate = useNavigate();
+  const { user } = useAuth(), guest = useGuestIdentity(), { t } = useI18n();
   const sampleNames = [t("ledger.cards.sampleFood"), t("ledger.cards.sampleTravel"), t("ledger.cards.sampleShopping")];
   const previewEntries = samples.map(e => ({ ...e, categoryName: sampleNames[Number(e.categoryId)]! }));
   const config = useDetailCards(guest?.id ?? user?.id ?? "local");
@@ -44,11 +44,13 @@ function CardEditorContent() {
   }, [dirty]);
   const valid = detailCardSchema.safeParse({ main: "overview", mainMetrics: draft.main, first: draft.first[0], second: draft.second[0] });
   const goBack = useGoBack("/ledger/more", "parent");
+  const returnToLedger = useReturnTo("/");
   const back = () => dirty ? setDiscard(true) : goBack();
   const save = () => {
     if (!valid.success || config.invalid) return;
     if (!config.save(valid.data)) { setFailed(true); return; }
-    void navigate("/", { replace: true });
+    // 1.19.53：从明细打开的编辑器保存后用 -1 回到明细（默认返回转场），其他入口仍直接替换成明细。
+    returnToLedger();
   };
   const metrics: readonly DetailMetric[] = group === "numbers" ? detailNumbers : group === "trends" ? detailCharts.filter(id => id !== "categoryRank") : ["categoryRank"];
   const matches = (query.trim() ? [...detailNumbers, ...detailCharts] : metrics).filter(id => t(`ledger.cards.${id}`).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));

@@ -1,7 +1,8 @@
-import { useCallback, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useCallback, useContext, useEffect } from "react";
+import { UNSAFE_NavigationContext, useLocation, useNavigate } from "react-router";
 
 import { useMarkBack } from "../workspace/context.js";
+import { PaneHistory, entryPath } from "../workspace/paneHistory.js";
 import { recordBackPress } from "./backFallback.js";
 
 /**
@@ -84,6 +85,7 @@ export function parentBackAction(key: string): "pop" | "replace" {
 export function useGoBack(fallback: string, mode: BackMode = "history"): () => void {
   const navigate = useNavigate();
   const location = useLocation();
+  const { navigator } = useContext(UNSAFE_NavigationContext);
   /** S18：告诉工作区外壳下面这次导航是「返回」（跟随模式不因此切成独立）。 */
   const markBack = useMarkBack();
 
@@ -138,6 +140,13 @@ export function useGoBack(fallback: string, mode: BackMode = "history"): () => v
       * this screen was opened from — see the note above about the 关于/设置 loop.
       */
     if (from !== null) {
+      // 1.19.53：声明的来路正是上一条历史时用 -1 回去——同样回到那一页，但播放返回转场，也不再多压一条历史
+      // （原来 push 回来路，转场方向是“前进”）。
+      const previous = navigator instanceof PaneHistory ? navigator.previousLocation : undefined;
+      if (previous !== undefined && entryPath(previous) === from) {
+        void navigate(-1);
+        return;
+      }
       void navigate(from);
       return;
     }
@@ -156,5 +165,5 @@ export function useGoBack(fallback: string, mode: BackMode = "history"): () => v
       * replace 不给自己留影子，也如实回答"深链没有可回的历史"。
       */
     void navigate(fallback, { replace: true });
-  }, [navigate, location.key, fallback, from, mode, markBack]);
+  }, [navigate, navigator, location.key, fallback, from, mode, markBack]);
 }

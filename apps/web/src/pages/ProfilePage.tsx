@@ -15,6 +15,7 @@ import { useSaveProfile } from "../lib/profile.js";
 import { useDraftExit } from "../lib/profileDraft.js";
 import { t, useI18n } from "../i18n/index.js";
 import { formatInstant } from "../lib/datetime.js";
+import { useReturnTo } from "../lib/entryReturn.js";
 
 export function ProfilePreview({ user, avatarId, editable = false, onAvatar }: {
   readonly user: SessionUser;
@@ -41,6 +42,8 @@ export function ProfilePage(): React.JSX.Element {
   const { user } = useAuth();
   const saveProfile = useSaveProfile();
   const navigate = useNavigate();
+  // 1.19.53：返回“我的”时，上一条历史就是“我的”就用 -1 回去，播放默认的返回转场（原来 push 到 /me，直接跳过去）。
+  const backToMe = useReturnTo("/me", "push");
   const [params, setParams] = useSearchParams();
   const editing = params.get("edit") === "1";
   const [numberOpen, setNumberOpen] = useState(false);
@@ -84,7 +87,7 @@ export function ProfilePage(): React.JSX.Element {
     { label: t("account.profile.accountNumber"), value: user.accountNumber, accountNumber: true },
     { label: t("account.profile.createdAt"), value: formatInstant(user.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) },
   ];
-  return <InnerPage title={t("account.profile.title")} backTo="/me" onBack={() => editing ? finish() : void navigate("/me")} actions={<><NotificationBell showHeading={false} panelClassName="lv-account-notice-panel" /><Button variant="ghost" fullWidth={false} disabled={busy} onClick={() => editing ? finish() : setParams({ edit: "1" }, { replace: true })}>{editing ? t("account.profile.done") : t("account.profile.edit")}</Button></>}>
+  return <InnerPage title={t("account.profile.title")} backTo="/me" onBack={() => { if (editing) finish(); else backToMe(); }} actions={<><NotificationBell showHeading={false} panelClassName="lv-account-notice-panel" /><Button variant="ghost" fullWidth={false} disabled={busy} onClick={() => editing ? finish() : setParams({ edit: "1" }, { replace: true })}>{editing ? t("account.profile.done") : t("account.profile.edit")}</Button></>}>
     <ProfilePreview user={user} editable={editing} onAvatar={() => askLeave(() => void navigate("/profile/avatar"))} />
     <dl className={`lv-settings-profile lv-settings-flat rounded-card border border-line bg-surface px-5 ${editing ? "divide-y divide-line" : ""}`}>
       {rows.map(row => <div key={row.label} className={editing && row.field ? "py-4" : "flex min-h-8 items-center gap-4 py-4 text-body"}>

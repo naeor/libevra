@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "../components/Button.js";
@@ -51,7 +50,6 @@ const TRACE_LINES = 20;
 
 export function DownloadMorePage(): React.JSX.Element {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { t } = useI18n();
 
   const [log, setLog] = useState<readonly LogEntry[]>([]);
@@ -247,7 +245,8 @@ export function DownloadMorePage(): React.JSX.Element {
         button rather than from the back stack — so entering here from the manager and pressing
         返回 should return to the manager, not add a third entry that has to be unwound.
       */
-      onBack={() => void navigate("/downloads", { replace: true })}
+      // 1.19.53：`parent` 模式——从下载管理进来时用 -1 回去（不增加历史，并播放默认返回转场）；深链时替换成下载管理。
+      backMode="parent"
     >
       <section className="flex flex-col gap-3">
         {/*

@@ -25,8 +25,10 @@ export function AppearanceStyleSection({ controller = visualStyleRuntime() }: { 
     <section className="lv-settings-theme-options flex flex-col gap-2">
       <h2 className="text-section-title text-ink">{t("settings.visualStyle.title")}</h2>
       <div role="group" aria-label={t("settings.visualStyle.title")} className="flex flex-col gap-2">
+        {/* 1.19.53：S19 浅色手机里是交互卡材质（原来是不透明白片）；Original / 深色仍是原来的白片与品牌浅底选中态。 */}
         {APPEARANCE_STYLES.map(value => <button type="button" key={value} aria-pressed={style === value}
-          onClick={() => controller?.choose(value)} className="appearance-style-choice rounded-field border border-line p-3 text-left text-ink focus-visible:outline-brand-dark">
+          {...materialAttributes("interactive")} style={{ "--lv-material-radius": "var(--radius-field)" } as React.CSSProperties}
+          onClick={() => controller?.choose(value)} className="appearance-style-choice lv-material rounded-field border border-line p-3 text-left text-ink focus-visible:outline-brand-dark">
           <span aria-hidden="true" className="appearance-style-icon" data-style={value}><span /><span /></span>
           <span className="min-w-0 flex-1"><span className="block text-button font-medium">{t(`settings.visualStyle.${value}.name`)}</span>
             <span className="block text-helper text-muted">{t(`settings.visualStyle.${value}.note`)}</span></span>

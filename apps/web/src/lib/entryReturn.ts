@@ -40,3 +40,28 @@ export function useEntryReturn(): () => void {
     else void navigate(target.fallback, { replace: true, state: null });
   };
 }
+
+/**
+ * 完成一件事后回到某一页（1.19.53）：上一条历史正是那一页时用 `-1` 回去——协调器把它当作返回，
+ * 播放对应的返回转场（账目详情收回到那一行、次级页向右退出）；否则仍按原来的方式直接前往。
+ * 原来这些出口一律 push / replace 到目标页，看起来是“直接跳过去”，没有任何返回动画。
+ */
+export function useReturnTo(pathname: string, fallback: "push" | "replace" = "replace", fallbackPath: string = pathname): () => void {
+  const go = useReturnToPath();
+  return () => { go(pathname, fallback, fallbackPath); };
+}
+
+/** 目标在点击时才知道的版本（例如带着筛选参数的来路）。带查询参数的目标要求上一条历史完全一致。 */
+export function useReturnToPath(): (path: string, fallback?: "push" | "replace", fallbackPath?: string) => void {
+  const { navigator } = useContext(UNSAFE_NavigationContext);
+  const navigate = useNavigate();
+  const markBack = useMarkBack();
+  return (path, fallback = "replace", fallbackPath = path) => {
+    const history = navigator instanceof PaneHistory ? navigator : null;
+    const previous = history?.previousLocation;
+    const same = previous !== undefined && (path.includes("?") ? entryPath(previous) === path : previous.pathname === path);
+    markBack();
+    if (same) { void navigate(-1); return; }
+    void navigate(fallbackPath, fallback === "replace" ? { replace: true } : undefined);
+  };
+}

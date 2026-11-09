@@ -179,6 +179,7 @@ function OfflineStatusForDevice(): React.JSX.Element | null {
   return (
     <div
       role="status"
+      data-lv-banner=""
       className="flex flex-col gap-0.5 border-b border-line bg-canvas px-5 py-2 text-micro leading-relaxed text-muted"
     >
       {running && !quiet ? (

@@ -45,7 +45,7 @@ export function BatchActionBar({
   const disabled = selectedCount === 0 || blockedReason !== null || busy;
 
   return (
-    <div className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]" data-lv-bottom-bar="" data-replaces-nav={replacesNav ? "" : undefined}>
+    <div className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]" data-lv-bottom-bar="" data-bar-surface="chrome" data-replaces-nav={replacesNav ? "" : undefined}>
       <div className="mx-auto w-full max-w-md px-6 pt-3">
         {summary === null ? null : (
           <div

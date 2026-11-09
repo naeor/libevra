@@ -140,7 +140,7 @@ export function ScanPage(): React.JSX.Element {
   /** Results that could be read, and where we are among them. */
   const [items, setItems] = useState<OcrItemResult[]>([]);
   const [cursor, setCursor] = useState(0);
-  const [attachmentBatchId, setAttachmentBatchId] = useState(() => crypto.randomUUID());
+  const [attachmentBatchId, setAttachmentBatchId] = useState(() => uuidV7());
 
   const categories = ledger.data?.categories ?? [];
   const paymentMethods = ledger.data?.paymentMethods ?? [];
@@ -227,7 +227,7 @@ export function ScanPage(): React.JSX.Element {
     if (files.length === 0) return;
 
     setError(null);
-    setAttachmentBatchId(crypto.randomUUID());
+    setAttachmentBatchId(uuidV7());
     setStep({ name: "working", index: 1, total: files.length });
 
     try {

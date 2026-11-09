@@ -24,6 +24,8 @@ const statsWorkbench = {
     categoryCount: "分类 {{count}} 项",
     paymentMethodCount: "支付方式 {{count}} 项",
     tagCount: "标签 {{count}} 项",
+    currencyCount: "币种 {{count}} 项",
+    capped: "分析最多统计 400 天，按最近 400 天计算",
   },
   time: {
     "7d": "近 7 天",

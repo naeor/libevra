@@ -59,7 +59,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
-    .lv-material[data-material-role="primary"]:hover:not(:disabled) { background: var(--color-brand-dark); }
+    .lv-material[data-material-role="primary"]:hover:not(:disabled) { background: linear-gradient(var(--s19-press-accent), var(--s19-press-accent)), var(--s19-accent-bg); }
     .lv-material:is([data-material-role="secondary"], [data-material-role="tool"], [data-material-role="capsule"]):hover:not(:disabled) { box-shadow: var(--s19-tool-sh, var(--s19-card-sh)), inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 22%, transparent); }
     .lv-material[data-material-role="interactive"]:hover:not(:disabled) { border-color: var(--color-brand); }
   }

@@ -51,7 +51,7 @@
 | [DefaultAvatar.tsx](DefaultAvatar.tsx) | 界面模块；入口/导出：DefaultAvatar |
 | [DuplicateDetectionSettings.test.tsx](DuplicateDetectionSettings.test.tsx) | 测试：DuplicateDetectionSettings |
 | [DuplicateDetectionSettings.tsx](DuplicateDetectionSettings.tsx) | 界面模块；入口/导出：DuplicateDetectionSettingsState、useDuplicateDetectionSettings、DuplicateDetectionSettingsSection、DuplicateDetectionSettingsCard |
-| [EntryFilterPanel.tsx](EntryFilterPanel.tsx) | 界面模块；入口/导出：useDetailFilters、FilterIcon、EntryFilterPanel、FilterForm |
+| [EntryFilterPanel.tsx](EntryFilterPanel.tsx) | 界面模块；入口/导出：useDetailFilters、FilterIcon、EntryFilterPanel、FilterForm、FilterSyncSetting |
 | [EntryForm.tsx](EntryForm.tsx) | 界面模块；入口/导出：ReviewDraft、ReviewStep |
 | [EntrySaved.test.tsx](EntrySaved.test.tsx) | 测试：EntrySaved |
 | [EntrySaved.tsx](EntrySaved.tsx) | 界面模块；入口/导出：EntrySaved |

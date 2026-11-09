@@ -41,7 +41,8 @@ export function CurrentBookPicker({ caption, name }: { readonly caption: string;
 export function BookCapsuleContents({ name, disclosure = true }: { readonly name: string; readonly disclosure?: boolean }): React.JSX.Element {
   return <>
     <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3h13v18H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Z"/><path d="M3 17h16M7 7h7M7 11h5"/></svg>
-    <span className="min-w-0 truncate">{name}</span>
+    {/* 1.19.53：名称用字段值的 14px（`text-body`，文字语义规范 §13.8），原来继承按钮的 16px 显得太大；胶囊高度不变。 */}
+    <span className="min-w-0 truncate text-body">{name}</span>
     {disclosure ? <ChevronIcon className="size-3 shrink-0" /> : null}
   </>;
 }

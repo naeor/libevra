@@ -105,8 +105,13 @@
   transition-duration: 240ms;
   transition-delay: 60ms;
 }
-:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger:is(:hover, :active)::before {
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger:active::before {
   background: var(--s19-tool-active);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger:hover::before {
+    background: var(--s19-tool-active);
+  }
 }
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-redesign .detail-month.lv-filter-trigger:is([aria-expanded="true"], [data-filtered="true"])::before {
   background: var(--s19-tool-on);
@@ -149,9 +154,15 @@
   -webkit-backdrop-filter: var(--s19-tool-filter, none);
   backdrop-filter: var(--s19-tool-filter, none);
 }
-:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero :is(.lv-entry-sort-circle, .detail-header-actions button[class*="bg-on-brand/"]):is(:hover, :active),
-:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header :is(.sw-head-button, .lv-notice-bell, button.rounded-full.border.bg-surface):is(:hover, :active) {
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero :is(.lv-entry-sort-circle, .detail-header-actions button[class*="bg-on-brand/"]):active,
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header :is(.sw-head-button, .lv-notice-bell, button.rounded-full.border.bg-surface):active {
   background: var(--s19-tool-active);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero :is(.lv-entry-sort-circle, .detail-header-actions button[class*="bg-on-brand/"]):hover,
+  :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header :is(.sw-head-button, .lv-notice-bell, button.rounded-full.border.bg-surface):hover {
+    background: var(--s19-tool-active);
+  }
 }
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-hero :is(.lv-entry-sort-circle, .detail-header-actions button[class*="bg-on-brand/"]):is([aria-expanded="true"], [aria-pressed="true"]),
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .tab-page-header :is(.sw-head-button, .lv-notice-bell, button.rounded-full.border.bg-surface):is([aria-expanded="true"], [aria-pressed="true"]) {

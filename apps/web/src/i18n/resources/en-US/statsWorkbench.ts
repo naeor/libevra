@@ -23,6 +23,8 @@ const statsWorkbench: Messages<typeof zh> = {
     categoryCount: "Categories: {{count}}",
     paymentMethodCount: "Payment methods: {{count}}",
     tagCount: "Tags: {{count}}",
+    currencyCount: "Currencies: {{count}}",
+    capped: "Insights covers at most 400 days; showing the latest 400",
   },
   time: {
     "7d": "Last 7 days",

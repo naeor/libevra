@@ -58,6 +58,12 @@ export interface WorkbenchFilters {
   readonly paymentMethodIds?: readonly string[] | null;
   /** 标签多选，语义同上；任一命中即保留。 */
   readonly tagIds?: readonly string[] | null;
+  /**
+   * 1.19.53：与明细共用筛选时带来的另外两个维度（不写入地址栏）。币种多选：只统计这些币种的账目；
+   * 附件：与明细相同的有无 / 类型 / 大小条件。缺省 = 不限。
+   */
+  readonly currencies?: readonly string[] | null;
+  readonly attachment?: { readonly attachment: string; readonly type: string; readonly minMB: string; readonly maxMB: string } | null;
 }
 
 /** 工作台三个维度筛选的规范化结果：缺省统一成 `null`（不限），空数组保持 `[]`（空集）。 */
@@ -141,7 +147,16 @@ export function toggleFilterId(current: readonly string[] | null, id: string): r
 /** 不含任何维度筛选（时间/币种以外）时原样返回同一数组，避免不必要的重算。 */
 export function hasDimensionFilters(filters: WorkbenchFilters): boolean {
   const ids = filterIds(filters);
-  return ids.categoryIds !== null || ids.paymentMethodIds !== null || ids.tagIds !== null;
+  return ids.categoryIds !== null || ids.paymentMethodIds !== null || ids.tagIds !== null || hasCurrencyFilter(filters) || hasAttachmentFilter(filters);
+}
+
+function hasCurrencyFilter(filters: WorkbenchFilters): boolean {
+  return filters.currencies !== undefined && filters.currencies !== null && filters.currencies.length > 0;
+}
+
+function hasAttachmentFilter(filters: WorkbenchFilters): boolean {
+  const a = filters.attachment;
+  return a !== undefined && a !== null && (a.attachment !== "any" || a.type !== "" || a.minMB !== "" || a.maxMB !== "");
 }
 
 /**
@@ -155,11 +170,22 @@ export function matchesWorkbenchFilters(entry: Transaction, filters: WorkbenchFi
   if (categoryIds !== null && !categoryIds.includes(entry.categoryId)) return false;
   if (
     paymentMethodIds !== null &&
-    (entry.paymentMethodId === null || !paymentMethodIds.includes(entry.paymentMethodId))
+    // 明细筛选里的“未指定”（`none`）对应没有支付方式的账目；不选它时这些账目照旧不保留。
+    !paymentMethodIds.includes(entry.paymentMethodId ?? "none")
   ) {
     return false;
   }
   if (tagIds !== null && !(entry.tags ?? []).some((tag) => tagIds.includes(tag.id))) return false;
+  if (hasCurrencyFilter(filters) && !filters.currencies!.includes(entry.currency)) return false;
+  if (hasAttachmentFilter(filters)) {
+    const a = filters.attachment!;
+    const count = entry.attachmentCount ?? 0, bytes = entry.storageBytes ?? 0;
+    if (a.attachment === "has" && count === 0) return false;
+    if (a.attachment === "none" && count > 0) return false;
+    if (a.type !== "" && !(entry.attachmentTypes ?? []).some((type) => type.startsWith(a.type))) return false;
+    if (a.minMB !== "" && bytes < Number(a.minMB) * 1e6) return false;
+    if (a.maxMB !== "" && bytes > Number(a.maxMB) * 1e6) return false;
+  }
   return true;
 }
 
@@ -175,7 +201,8 @@ export function filterWorkbenchEntries(
 /** 综合折算的缓存键：维度条件变了就要重新折算（缺汇率影响范围会随之变化）。 */
 export function filterKey(filters: WorkbenchFilters): string {
   const { categoryIds, paymentMethodIds, tagIds } = filterIds(filters);
-  return JSON.stringify([categoryIds, paymentMethodIds, tagIds, ...(filters.categoryBranchIds !== undefined ? [filters.categoryBranchIds] : [])]);
+  return JSON.stringify([categoryIds, paymentMethodIds, tagIds, ...(filters.categoryBranchIds !== undefined ? [filters.categoryBranchIds] : []),
+    ...(hasCurrencyFilter(filters) ? [filters.currencies] : []), ...(hasAttachmentFilter(filters) ? [filters.attachment] : [])]);
 }
 
 /** 从地址栏读出生效条件；无法识别的值退回默认，而不是报错白屏。 */
@@ -234,6 +261,17 @@ export function writeFilters(previous: URLSearchParams, filters: WorkbenchFilter
   return next;
 }
 
+/**
+ * 只写“统计方式与币种”（1.19.53）：筛选已经不在地址栏里，切换综合折算 / 原币时不能把默认时间等条件写回去。
+ */
+export function writeDisplay(previous: URLSearchParams, display: { readonly currency: Currency | null; readonly combined: boolean }): URLSearchParams {
+  const next = new URLSearchParams(previous);
+  next.delete("currency"); next.delete("analysis");
+  if (display.currency !== null) next.set("currency", display.currency);
+  if (!display.combined) next.set("analysis", "currency");
+  return next;
+}
+
 /** 时间选择 → 含两端的业务日期区间（设备当地的「今天」）。 */
 export function resolveRange(time: TimeChoice, today: string): DateRange {
   switch (time.kind) {
@@ -265,7 +303,9 @@ export function sameFilters(a: WorkbenchFilters, b: WorkbenchFilters): boolean {
     sameIds(left.categoryIds, right.categoryIds) &&
     sameIds(a.categoryBranchIds ?? null, b.categoryBranchIds ?? null) &&
     sameIds(left.paymentMethodIds, right.paymentMethodIds) &&
-    sameIds(left.tagIds, right.tagIds)
+    sameIds(left.tagIds, right.tagIds) &&
+    sameIds(hasCurrencyFilter(a) ? a.currencies! : null, hasCurrencyFilter(b) ? b.currencies! : null) &&
+    JSON.stringify(hasAttachmentFilter(a) ? a.attachment : null) === JSON.stringify(hasAttachmentFilter(b) ? b.attachment : null)
   );
 }
 

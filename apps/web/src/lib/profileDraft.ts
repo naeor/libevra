@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { t } from "../i18n/index.js";
 import { usePane, usePaneDirty } from "../workspace/context.js";
+import { uuidV7 } from "./uuid.js";
 
 /**
  * 保护刷新、页内链接以及浏览器后退；不保存草稿，不阻止已确认的离开。
@@ -17,7 +18,8 @@ export function useDraftExit(dirty: boolean): void {
   useEffect(() => {
     if (!dirty) return;
     const beforeUnload = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = ""; };
-    const marker = `profile-draft-${crypto.randomUUID()}`;
+    // 1.19.53：不用 `crypto.randomUUID`——它只在安全上下文存在，局域网 http 打开开发服务器时会让页面直接崩溃。
+    const marker = `profile-draft-${uuidV7()}`;
     let active = true;
     // 同 URL 的保护条目让后退先落回仍然挂载的编辑页，确认后才跨到上一页。
     if (ownsHistory) window.history.pushState({ ...window.history.state, profileDraftGuard: marker }, "", window.location.href);

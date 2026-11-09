@@ -19,7 +19,7 @@ import { CardBody, cardRange, cardSubtitle, cardTitle } from "../statsWorkbench/
 import { cardType } from "../statsWorkbench/catalog.js";
 import { CompositeDetail } from "../statsWorkbench/CompositeCard.js";
 import { isMultiSlot, readComposition } from "../statsWorkbench/composition.js";
-import { readFilters } from "../statsWorkbench/filters.js";
+import { useAnalysisFilters } from "../statsWorkbench/ledgerFilterBridge.js";
 import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import { readStored } from "../statsWorkbench/storage.js";
 import { SourceEntries } from "../statsWorkbench/SourceEntries.js";
@@ -31,7 +31,8 @@ export function StatsCardDetailPage({ objectId: given, cardOverride }: { readonl
   const routeParams = useParams();
   const objectId = given ?? routeParams.objectId ?? "";
   const [params] = useSearchParams();
-  const filters = useMemo(() => readFilters(params), [params]);
+  // 1.19.53：与分析页同一份筛选（默认与明细共用），统计方式与币种仍跟着地址栏。
+  const { filters } = useAnalysisFilters();
   const scope = useWorkbenchScope(filters);
   const ledger = useLedger();
   const [configurationRevision, setConfigurationRevision] = useState(0);

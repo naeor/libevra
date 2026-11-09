@@ -27,6 +27,10 @@ export const PRESENTATION_SEEN_PREFIX = "libellum-presentation-seen";
 export const SHARED_LEDGER_PREFIX = "libellum:shared-ledger:";
 /** 自动下载历史记录的提示条今天是否已经出现过（本机，按自然日；1.19.52）。 */
 export const OFFLINE_FILL_NOTICE_DAY_KEY = "libevra.offline-fill-notice-day";
+/** 明细与分析是否共用同一筛选（本机偏好，默认共用；1.19.53）。 */
+export const FILTER_SYNC_KEY = "libevra.filter-sync";
+/** 明细 / 分析的筛选（按“页 : 账号或游客 : 账本”；1.19.53）。随账号清理时按 `:user:<id>:` 匹配。 */
+export const LEDGER_FILTER_PREFIX = "libevra.ledger-filter:";
 
 /** “这条留言板读到哪了”的键（按账本）。 */
 export function messagesSeenKey(bookId: string): string {

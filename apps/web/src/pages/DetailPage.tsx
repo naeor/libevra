@@ -23,7 +23,9 @@ import { BottomNav } from "../components/BottomNav.js";
 import { useEntryMenu } from "../components/Layouts.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { GuestModeBadge } from "../components/GuestModeBadge.js";
-import { EntryFilterPanel, FilterIcon, useDetailFilters } from "../components/EntryFilterPanel.js";
+import { EntryFilterPanel, useDetailFilters } from "../components/EntryFilterPanel.js";
+import { FunnelIcon } from "../statsWorkbench/ui.js";
+import { usePageFilter } from "../lib/usePageFilter.js";
 import { summaryFor } from "../lib/offline/localStats.js";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/States.js";
 import { OfflineStatus } from "../components/OfflineStatus.js";
@@ -137,9 +139,12 @@ export function DetailPage(): React.JSX.Element {
   // coming back finds it as it was, quitting the app starts fresh.
   const saved = useRef(readSession(pane.instance)).current;
 
-  const [month, setMonth] = useState(
-    () => searchParams.get("month") ?? saved.month ?? currentMonth(),
-  );
+  /**
+   * 1.19.53：月份与其它筛选条件保存在本机（按账号与账本），刷新、切 Tab、记一笔回来都保留；
+   * 默认与分析页共用同一份（`lib/ledgerFilter.ts`）。地址栏带来的条件读入后从地址栏移除。
+   */
+  const pageFilter = usePageFilter("ledger");
+  const month = pageFilter.value.month;
   /** 月份选择里选了「全部」（1.17.17）：整本账，不按月份截取。 */
   const allMonths = isAllMonths(month);
   const [kind, setKind] = useState<TransactionKind | "all">(() => saved.kind ?? "all");
@@ -319,7 +324,7 @@ export function DetailPage(): React.JSX.Element {
   const fxMonth = allMonths ? currentMonth() : month;
 
   const ledger = useLedger();
-  const filter = useDetailFilters(month, setMonth, searchParams, setSearchParams, ledger.data);
+  const filter = useDetailFilters(pageFilter.value, pageFilter.set, ledger.data);
   const fxSummary = useFxRange(`${fxMonth}-01`, endOfMonth(`${fxMonth}-01`), fxActive, { filter: row => filter.predicate(row) && entryMatches(row, query) && (kind === "all" || row.kind === kind), filterKey: `${filter.key}|${kind}|${query}` });
 
   /**
@@ -974,7 +979,9 @@ export function DetailPage(): React.JSX.Element {
                   data-filtered={filter.extended || undefined}
                   className="detail-month lv-filter-trigger inline-flex items-center text-base text-on-brand/95"
                 >
-                  {filter.extended ? <FilterIcon /> : null}<span>{filter.label}</span>
+                  {/* 1.19.53：与分析页筛选同一个漏斗图标。收起到账目列表时随收起进度长出来（在月份的玻璃底面里），
+                      有其它筛选条件时一直显示。 */}
+                  <span className="detail-month-funnel" aria-hidden="true"><FunnelIcon width={16} height={16} /></span><span className="min-w-0 truncate">{filter.label}</span>
                   <ChevronIcon up={pickerOpen} className="size-4 text-on-brand/75" />
                 </button>
               </div>

@@ -115,6 +115,7 @@ import type {
   ImportTarget,
   TaxonomyConflict,
 } from "../lib/ledgerImport/types.js";
+import { uuidV7 } from "../lib/uuid.js";
 
 /**
  * S14-D D2 · 游客账本真实导入。
@@ -187,7 +188,8 @@ function parseGroup(value: string | null): number {
 }
 
 function newId(): string {
-  return crypto.randomUUID();
+  // 1.19.53：`crypto.randomUUID` 只在安全上下文存在（局域网 http 打开开发服务器时没有）。
+  return uuidV7();
 }
 
 function totalsOf(transactions: readonly { kind: "expense" | "income"; amountCents: number; currency: string }[]) {
