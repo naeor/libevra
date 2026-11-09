@@ -39,13 +39,27 @@
     <title>Libevra</title>
     <!--
       1.19.47：切换账本需要整页重新载入。上一页的海浪转场盖满整屏后存下最后一帧，tide-resume.js 在第一次绘制前
-      把它铺满屏幕（不再白屏），协调器挂载后从同一帧接着划过（src/s19/motion/tide.ts）。普通同源脚本，符合生产 CSP。
+      把它铺满屏幕（不再白屏），入口在第一次渲染前换成会动的浪、协调器挂载后接着划过（src/s19/motion/tide.ts）。
+      普通同源脚本，符合生产 CSP。
+      1.19.48：::before 是等待提示（与 tide.css 的 .tide-hint-text 字样一致，淡入按同一时刻计时）；
+      不能接着播放时 [data-tide-resume="fade"] 淡出，不硬切。
     -->
     <style>
       html[data-tide-resume]::after {
         content: ""; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
         background: var(--tide-resume-image) center / 100% 100% no-repeat, var(--tide-resume-color);
       }
+      html[data-tide-resume]::before {
+        content: var(--tide-resume-hint, ""); position: fixed; left: 0; right: 0; top: var(--tide-resume-hint-y, 50%);
+        z-index: 2147483001; pointer-events: none; padding: 0 24px; text-align: center; transform: translateY(-50%);
+        font: 400 14px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: 0.08em;
+        color: var(--tide-resume-hint-color, #fff); text-shadow: var(--tide-resume-hint-shadow, none);
+        animation: tide-resume-hint var(--tide-resume-hint-fade, 200ms) ease-out var(--tide-resume-hint-delay, 0ms) both;
+      }
+      html[data-tide-resume="fade"]::before { content: none; }
+      html[data-tide-resume="fade"]::after { animation: tide-resume-out 200ms ease-out forwards; }
+      @keyframes tide-resume-hint { from { opacity: 0; } to { opacity: 0.92; } }
+      @keyframes tide-resume-out { to { opacity: 0; } }
     </style>
     <script src="/tide-resume.js"></script>
   </head>

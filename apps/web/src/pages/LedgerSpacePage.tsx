@@ -174,8 +174,9 @@ export function LedgerSpacePage(): React.JSX.Element {
       /**
        * 1.19.47：手机外壳里先让账本空间的海浪盖满整屏、同时完成服务器激活，再重新载入；新页面从同一帧接着划过
        * （lib/ledgerSwitchFlow.ts）。原来这里直接载入，切换期间是一段白屏。激活失败时海浪淡出、照常报错。
+       * 1.19.48：等待稍久时浪里显示一行提示（books.space.loadingLedger）。
        */
-      await coverForReload(async () => { await activateBook.mutateAsync(bookId); });
+      await coverForReload(async () => { await activateBook.mutateAsync(bookId); }, t("books.space.loadingLedger"));
 
       /**
        * ⚠️ **A full reload, deliberately, and this is the one place in the app that does it.**

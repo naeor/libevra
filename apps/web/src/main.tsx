@@ -79,11 +79,26 @@ const styleLab: Promise<void> | null = import.meta.env.DEV || __S19_STYLE_LAB__
   : null;
 const b2Appearance = import("./s19/product.js").then(module => module.startB2Appearance()).catch(() => undefined);
 
+/**
+ * 切换账本整页重新载入后（s19/motion/tide.ts）：风格一确定就把铺底的交接帧换成会动的海浪，不等账本恢复与首次渲染；
+ * 页面在浪下面渲染，协调器挂载后浪接着划过。只有 public/tide-resume.js 铺了交接帧时才载入转场模块（平时不占首屏）。
+ */
+async function resumeLedgerTide(): Promise<void> {
+  const root = document.documentElement;
+  if (!root.hasAttribute("data-tide-resume")) return;
+  try {
+    const { beginTideResume } = await import("./s19/motion/tide.js");
+    beginTideResume();
+  } catch {
+    root.setAttribute("data-tide-resume", "fade"); // 转场不影响启动：铺底淡出
+  }
+}
+const appearance = Promise.all([b2Appearance, styleLab]).then(resumeLedgerTide);
+
 async function start(): Promise<void> {
   const book = await restoreCurrentBook();
   await restoreOfflineScope(book);
-  await b2Appearance;
-  if (styleLab) await styleLab;
+  await appearance;
   createRoot(container!).render(
   <StrictMode>
     <App />

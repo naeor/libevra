@@ -20,6 +20,7 @@ const books: Messages<typeof zh> = {
     pullUp: "Swipe up for your ledgers",
     listLabel: "Ledger list",
     switching: "Switching ledgers…",
+    loadingLedger: "Loading the ledger…",
     heading: "Your ledgers",
     count_one: "{{count}} ledger",
     count_other: "{{count}} ledgers",

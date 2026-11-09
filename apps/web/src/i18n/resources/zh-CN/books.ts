@@ -27,6 +27,8 @@ const books = {
     pullUp: "上滑进入我的账本",
     listLabel: "账本列表",
     switching: "正在切换到那本账……",
+    /** 切换账本时海浪盖满整屏、等待新账本载入稍久时，浪里的一行提示。 */
+    loadingLedger: "正在加载新账本……",
     heading: "我的账本",
     count_one: "共 {{count}} 本",
     count_other: "共 {{count}} 本",

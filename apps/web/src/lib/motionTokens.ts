@@ -179,6 +179,13 @@ export const LEDGER_TIDE = {
   fadeOut: 140,
   /** 遮挡后超过这么久页面仍未提交，就照常继续。 */
   giveUpMs: 1500,
+  /**
+   * 切换账本（整页重新载入）的等待提示：整屏被盖住后超过 delay 毫秒仍未完成，1 号深色核心里淡入一行
+   * “正在加载新账本……”（fadeIn 毫秒）；新页面接着划过时随浪下移、淡出。载入很快时不出现，不闪一下。
+   */
+  hint: { delay: 350, fadeIn: 200 },
+  /** 新页面已经开始播放交接帧、但协调器迟迟没有挂载时，最多停在原位等这么久再划过。 */
+  resumeHoldMs: 3000,
 } as const;
 
 /** 高频组件反馈的 CSS 变量（按风格取值，见 components/ui/component-motion.css）。 */

@@ -7,3 +7,19 @@
 .tide-stage[data-tide-phase="reveal"], .tide-stage[data-tide-phase="fade"] { pointer-events: none; }
 .tide-stage .space-ocean.tide-ocean { position: absolute; inset: 0; height: auto; z-index: auto; }
 .tide-stage .tide-backing { position: absolute; inset: 0; background: var(--lv-wallpaper-bg, var(--s19-bg, var(--color-canvas))); clip-path: inset(0 0 100% 0); }
+
+/*
+  切换账本等待稍久时的提示（tide.ts，1.19.48）：在 1 号深色核心的中线上随浪移动，字样沿用账本空间标语。
+  ⚠️ index.html 的 html[data-tide-resume]::before 在新页面的铺底上画同一行字（应用样式载入之前），
+  两处的字体、字号、行高、字距与淡入终点必须一致；颜色与投影由交接帧带过去。
+*/
+.tide-stage .tide-hint { position: absolute; left: 0; right: 0; top: 0; padding: 0 24px; text-align: center; pointer-events: none; will-change: transform, opacity; }
+.tide-stage .tide-hint-text {
+  display: block; transform: translateY(-50%);
+  font: 400 14px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: 0.08em;
+  color: var(--color-on-ocean); text-shadow: 0 1px 2px color-mix(in srgb, var(--oc-shadow) 28%, transparent);
+  animation-name: tide-hint-in; animation-timing-function: ease-out; animation-fill-mode: both;
+}
+.tide-ocean[data-ocean-look="b1"] .tide-hint-text { color: color-mix(in oklab, var(--color-surface) 84%, var(--color-ocean-2)); text-shadow: 0 .6px 0 color-mix(in srgb, var(--oc-shadow) 24%, transparent); }
+.tide-ocean[data-ocean-look="b2"] .tide-hint-text { color: color-mix(in oklab, var(--color-control-knob) 92%, var(--color-ocean-4)); text-shadow: 0 1px 2px color-mix(in srgb, var(--oc-shadow) 22%, transparent); }
+@keyframes tide-hint-in { from { opacity: 0; } to { opacity: 0.92; } }
