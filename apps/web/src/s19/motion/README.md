@@ -1,6 +1,6 @@
 # apps/web/src/s19/motion · 阅读入口
 
-> 最后修改：2026-11-09 00:23（UTC+08:00）
+> 最后修改：2026-11-09 09:11（UTC+08:00）
 
 主 Tab、对象展开、模式入口和次级导航的呈现协调；不能混淆层级。
 
@@ -45,5 +45,5 @@
 | [tabExchange.ts](tabExchange.ts) | 实现模块；入口/导出：TAB_ORDER、tabIndex、TabExchangePresentation |
 | [tide.css](tide.css) | 样式与变量 |
 | [tide.test.ts](tide.test.ts) | 测试：tide |
-| [tide.ts](tide.ts) | 实现模块；入口/导出：tideLook、TIDE_RHYTHMS、tideRhythm、TideRequest、TidePresentation |
+| [tide.ts](tide.ts) | 实现模块；入口/导出：tideLook、TIDE_RHYTHMS、tideRhythm、TideRequest、TideResume |
 <!-- directory-index:end -->

@@ -18,6 +18,7 @@ import { usePaneLedgerEntry } from "../workspace/context.js";
 import { errorMessage } from "../lib/api.js";
 import { isImeComposing } from "../lib/desktopInput.js";
 import { markPresentationSeen, readSeenPresentation, useSpaceTransition } from "../lib/spaceTransition.js";
+import { coverForReload } from "../lib/ledgerSwitchFlow.js";
 import {
   useActivateBook,
   useBooks,
@@ -170,7 +171,11 @@ export function LedgerSpacePage(): React.JSX.Element {
     setSwitching(true);
 
     try {
-      await activateBook.mutateAsync(bookId);
+      /**
+       * 1.19.47：手机外壳里先让账本空间的海浪盖满整屏、同时完成服务器激活，再重新载入；新页面从同一帧接着划过
+       * （lib/ledgerSwitchFlow.ts）。原来这里直接载入，切换期间是一段白屏。激活失败时海浪淡出、照常报错。
+       */
+      await coverForReload(async () => { await activateBook.mutateAsync(bookId); });
 
       /**
        * ⚠️ **A full reload, deliberately, and this is the one place in the app that does it.**

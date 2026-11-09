@@ -18,15 +18,18 @@ import { focusesOnEntry, hasDefaultMotion, inEntryWorkspace, isDefaultMotionEdge
 import { EnterModePresentation, enterModeOptions } from "./enterMode.js";
 import { ObjectExpandPresentation, objectSource, type ObjectSource } from "./objectExpand.js";
 import { TabExchangePresentation, tabIndex } from "./tabExchange.js";
-import { TidePresentation, tideLook } from "./tide.js";
+import { TidePresentation, clearTideResumeCover, takeTideResume, tideLook } from "./tide.js";
 import { onClockReport } from "../../lib/frameClock.js";
 import { provideEntryAgain } from "../../lib/entryFlow.js";
+import { provideReloadCover } from "../../lib/ledgerSwitchFlow.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
   committed(key: string): void;
 }
 const pages = { has: hasDefaultMotion };
+/** 切换账本整页重新载入后接着播放的海浪（只此一段，与协调器的生命周期无关）。 */
+const resumeTide = new TidePresentation();
 let enabled = (import.meta.env.DEV || (typeof __S19_STYLE_LAB__ !== "undefined" && __S19_STYLE_LAB__)) && typeof location !== "undefined" && new URLSearchParams(location.search).get("motion") === "1";
 interface ScrollPoint { documentY: number; inner: number[] }
 
@@ -149,6 +152,18 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   const unsubscribeVariant = subscribeAVariant(() => abc?.cancel());
   /** light=false：只收束导航类转场（视口大幅变化）；「再记一笔」的轻切换不随随后弹出的键盘中断。 */
   const cancel = (light = true): void => { engine.cancel(); abc?.cancel(); objects.cancel(); if (light) modes.cancel(); else modes.cancelFlow(); tabs.cancel(); tide.cancel(); };
+  // 切换账本的整页重新载入：海浪先盖满整屏（tide.ts）；上一页留下的交接帧在这里接着划过。
+  provideReloadCover(work => {
+    const look = tideLook();
+    return look && acceptsStyle() ? tide.coverForReload(look, page, work) : work();
+  });
+  {
+    const look = tideLook();
+    const resume = look && acceptsStyle() ? takeTideResume(look) : null;
+    // 不归本协调器管：启动后账号 / 账本确定时协调器会重建，交接中的这一段照常走完。
+    if (resume && look) resumeTide.run({ exit: true, look, page, commit: () => undefined, resume });
+    else clearTideResumeCover();
+  }
   provideEntryAgain(commit => {
     if (!acceptsStyle() || document.hidden) { commit(); return; }
     modes.again({ root: paneRoot, commit: () => flushSync(commit), style: html.dataset.visualStyle ?? "c" });
@@ -257,7 +272,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   let disposed = false;
   const dispose = (): void => {
     if (disposed) return; disposed = true;
-    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); tabs.dispose(); tide.cancel(); provideEntryAgain(null); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); tabScrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
+    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); tabs.dispose(); tide.cancel(); provideEntryAgain(null); provideReloadCover(null); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); tabScrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
     if (pendingTimer) clearTimeout(pendingTimer);
     for (const name of ["--motion-b2-old-x", "--motion-b2-old-y"]) html.style.removeProperty(name);
     for (const page of document.querySelectorAll<HTMLElement>("[data-b2-motion-page]")) delete page.dataset.b2MotionPage;

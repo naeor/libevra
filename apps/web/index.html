@@ -37,6 +37,17 @@
     <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
     <meta name="description" content="Libevra：个人独立开发、AI 工具辅助的非商业记账项目，尚未正式向公众发布。" />
     <title>Libevra</title>
+    <!--
+      1.19.47：切换账本需要整页重新载入。上一页的海浪转场盖满整屏后存下最后一帧，tide-resume.js 在第一次绘制前
+      把它铺满屏幕（不再白屏），协调器挂载后从同一帧接着划过（src/s19/motion/tide.ts）。普通同源脚本，符合生产 CSP。
+    -->
+    <style>
+      html[data-tide-resume]::after {
+        content: ""; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
+        background: var(--tide-resume-image) center / 100% 100% no-repeat, var(--tide-resume-color);
+      }
+    </style>
+    <script src="/tide-resume.js"></script>
   </head>
   <body>
     <div id="root"></div>

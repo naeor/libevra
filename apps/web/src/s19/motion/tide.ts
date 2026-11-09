@@ -32,21 +32,78 @@ export interface TideRequest {
   readonly commit: () => void;
   /** 只预演节奏：像进入一样划过，但不交接页面，最后收成顶栏淡出。 */
   readonly preview?: boolean;
+  /** 整页重新载入（切换账本）：盖满整屏后停住，ready() 为真时存下交接帧并调用 go()；不再露出旧页。 */
+  readonly reload?: { readonly ready: () => boolean; readonly go: (resume: TideResume | null) => void };
+  /** 新页面接着上一页的交接帧向下划过（离开账本空间的后半段）。 */
+  readonly resume?: TideResume;
 }
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const lowest = (e: EdgeSamples): number => { let v = -Infinity; for (const y of e.y) v = Math.max(v, y); return v; };
 const highest = (e: EdgeSamples): number => { let v = Infinity; for (const y of e.y) v = Math.min(v, y); return v; };
 const shifted = (e: EdgeSamples, dy: number): EdgeSamples => dy === 0 ? e : { x: e.x, slope: e.slope, y: e.y.map(y => y + dy) };
-const reversed = (e: EdgeSamples): EdgeSamples => ({ x: e.x.slice().reverse(), y: e.y.slice().reverse(), slope: e.slope.slice().reverse() });
+const smoothstep = (v: number): number => { const c = clamp01(v); return c * c * (3 - 2 * c); };
 
 /**
- * 海浪的上边界：与下边缘同一个 `oceanEdge`（展开态的形状），左右镜像、相位错开（浪背不是浪面的倒影），
- * 上下翻转——4 号最高、1 号最低，层间距与展开态的下边缘相同。offset 为 1 号上边界的基准位置。
+ * 切换账本必须整页重新载入（LedgerSpacePage 的 activateAndReload）：转场先盖满整屏，把最后一帧存进
+ * sessionStorage；新页面的 `public/tide-resume.js` 在第一次绘制前把这一帧铺满屏幕（不再白屏），
+ * 协调器挂载后从同一帧接着向下划过、露出新页面。
  */
-function upperSamples(layer: number, seconds: number, size: OceanSize, offset: number): EdgeSamples {
-  const scale = size.height * 0.8;
-  const y = (x: number): number => offset - (oceanEdge(layer, 1 - x, 0, seconds * 0.9 + 3.1) - 0.7) * scale;
+export interface TideResume {
+  readonly at: number;
+  readonly look: PainterLook;
+  readonly seconds: number;
+  readonly y: number;
+  readonly c: number;
+  readonly width: number;
+  readonly height: number;
+  readonly image: string;
+  readonly color: string;
+}
+const RESUME_KEY = "libevra.tide-resume";
+const RESUME_COVER = "data-tide-resume";
+
+function saveTideResume(resume: TideResume): boolean {
+  try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(resume)); return true; } catch { return false; }
+}
+
+/**
+ * 读取上一页留下的交接帧；只有新页面的铺底帧仍在、风格与尺寸一致时才接着播放。真正播放出画面后才删除
+ * （{@link forgetTideResume}）：开发模式的 StrictMode 会立刻卸载并重建协调器，第一次的转场一帧都没画。
+ */
+export function takeTideResume(look: PainterLook | null): TideResume | null {
+  let resume: TideResume | null = null;
+  try {
+    const raw = sessionStorage.getItem(RESUME_KEY);
+    resume = raw ? JSON.parse(raw) as TideResume : null;
+  } catch { resume = null; }
+  const covered = document.documentElement.hasAttribute(RESUME_COVER);
+  if (!resume || !covered || resume.look !== look || Date.now() - resume.at > 10_000
+    || Math.abs(resume.width - innerWidth) > 2 || Math.abs(resume.height - innerHeight) > 2) { forgetTideResume(); clearTideResumeCover(); return null; }
+  return resume;
+}
+function forgetTideResume(): void { try { sessionStorage.removeItem(RESUME_KEY); } catch { /* 存储不可用 */ } }
+
+/** 撤掉新页面第一次绘制前铺上的交接帧。 */
+export function clearTideResumeCover(): void {
+  const root = document.documentElement;
+  root.removeAttribute(RESUME_COVER);
+  root.style.removeProperty("--tide-resume-image");
+  root.style.removeProperty("--tide-resume-color");
+}
+const reversed = (e: EdgeSamples): EdgeSamples => ({ x: e.x.slice().reverse(), y: e.y.slice().reverse(), slope: e.slope.slice().reverse() });
+
+/** 上边界的起伏：`oceanEdge` 展开态形状去掉层间距，左右镜像、相位错开（浪背不是浪面的倒影）。 */
+function upperWave(layer: number, x: number, seconds: number, size: OceanSize): number {
+  return (oceanEdge(layer, 1 - x, 0, seconds * 0.9 + 3.1) - 0.7 - 0.1 * layer) * size.height * 0.8;
+}
+
+/**
+ * 海浪的上边界：上下翻转——4 号最高、1 号最低，层间距 gap（划过时比展开态更宽，见 LEDGER_TIDE.spacing）。
+ * offset 为 1 号上边界的基准位置。
+ */
+function upperSamples(layer: number, seconds: number, size: OceanSize, offset: number, gap: number): EdgeSamples {
+  const y = (x: number): number => offset - layer * gap - upperWave(layer, x, seconds, size);
   const n = 25, xs = new Float64Array(n), ys = new Float64Array(n), ss = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const x = 1.01 - i * 1.02 / (n - 1);
@@ -90,7 +147,8 @@ export class TidePresentation {
     this.cancel();
     const old = request.page();
     if (!old || matchMedia("(prefers-reduced-motion: reduce)").matches || document.hidden) { request.commit(); return; }
-    const exit = request.exit && !request.preview;
+    const exit = (request.exit && !request.preview) || !!request.resume;
+    const resume = request.resume ?? null;
 
     const stage = document.createElement("div");
     stage.className = "tide-stage"; stage.dataset.tidePhase = "sweep";
@@ -104,49 +162,57 @@ export class TidePresentation {
     const gauge = document.createElement("span"); gauge.className = "ocean-short-gauge";
     ocean.append(canvas, probe, gauge); stage.append(backing, ocean);
     // 离开时先透明叠上（与页面海浪相同），很快显出，盖住页面上的品牌字样。
-    if (exit) stage.style.opacity = "0";
+    if (exit && !resume) stage.style.opacity = "0";
     document.body.append(stage);
 
-    const space = exit ? ledgerSpace() : null;
+    const space = exit && !resume ? ledgerSpace() : null;
     const size: OceanSize = space?.size ?? { width: innerWidth, height: innerHeight, short: gauge.getBoundingClientRect().height || 116 };
     const painter = new OceanPainter(canvas, request.look);
     painter.resize(size.width, size.height, devicePixelRatio || 1);
     painter.setColors(resolveColors(probe));
 
-    let seconds = oceanPhase.seconds;
+    let seconds = resume ? resume.seconds : oceanPhase.seconds;
+    if (resume) oceanPhase.seconds = seconds;
     const H = size.height;
     const travelOf = (p: number): number => Math.max(0, size.height * 0.8 - size.short) * p;
 
-    // 浪的厚度：4 号的上边界与下边缘之间比屏幕高出 coverWindow，整屏被盖住的这段行程用来交接页面。
-    const S = size.height * 0.8, margin = S * 0.03;
-    const depth = (k: number, x: number): number => (oceanEdge(k, 1 - x, 0, seconds * 0.9 + 3.1) - 0.7) * S;
-    let minD3 = Infinity, maxD3 = -Infinity;
-    for (let i = 0; i <= 48; i++) { const d = depth(3, i / 48); minD3 = Math.min(minD3, d); maxD3 = Math.max(maxD3, d); }
-    const bottom4 = highest(edgeSamples(3, 0, seconds, size));
-    const C = bottom4 - H - LEDGER_TIDE.coverWindow * H + minD3 - margin;
-    const yHold = -(C - minD3) - margin;              // 上边界（4 号）仍在屏幕上缘之外的最大下移量
-    const yCover = H - bottom4 + margin;              // 下边缘（4 号）已在屏幕下缘之外的最小下移量
+    // 划过时层间距加宽到 band（展开态是 0.1 × 0.8 屏高），1 号的深色核心变窄；浪只比屏幕高出 coverWindow，
+    // 整屏被盖住的这段行程用来交接页面。下边缘的加宽随下移量渐入（展开 / 收起时与开始页完全一致）。
+    const S = size.height * 0.8, margin = S * 0.03, band = LEDGER_TIDE.spacing * H, widen = Math.max(0, band - 0.1 * S);
+    const spread = (y: number): number => smoothstep(y / (0.35 * H));
+    let minW3 = Infinity, maxW3 = -Infinity;
+    for (let i = 0; i <= 48; i++) { const w = upperWave(3, i / 48, seconds, size); minW3 = Math.min(minW3, w); maxW3 = Math.max(maxW3, w); }
+    // 4 号下边缘越过屏幕下缘的下移量（加宽随下移渐入，单调，二分求解）。
+    const edge4 = highest(edgeSamples(3, 0, seconds, size));
+    let lo = 0, hi = 2 * H;
+    for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (edge4 + mid + 3 * widen * spread(mid) >= H + margin) hi = mid; else lo = mid; }
+    const yCover = hi;                                // 下边缘（4 号）已在屏幕下缘之外的最小下移量
+    // 再下移 coverWindow 屏高，4 号上边界才进入屏幕：这一段整屏被盖住。
+    const C = resume ? resume.c : 3 * band + minW3 - yCover - LEDGER_TIDE.coverWindow * H - margin;
+    const yHold = -(C - 3 * band - minW3) - margin;    // 上边界（4 号）仍在屏幕上缘之外的最大下移量
     // 上边界全部在屏幕下缘之外（进入的起点、离开的终点）：只留 2px，进入时点击后最初几帧浪就从下缘冒出来。
-    const yEnd = H + 2 - (C - maxD3);
+    const yEnd = H + 2 - (C - 3 * band - maxW3);
 
     // 行程：离开 = 展开（dist）+ 下移 yEnd；进入 = 上移 yEnd + 收起（dist，到账本空间页面的顶栏或展开态）。
-    const pageP = space ? space.p : 1;
+    const pageP = space ? space.p : resume ? 0 : 1;
     let dist = travelOf(exit ? pageP : 1);
-    let total = exit ? dist + yEnd : yEnd + dist;
+    // 接着上一页：从交接帧的位置走完剩下的一段（自己的时长，起步平缓）。
+    const start = resume ? resume.y : 0;
+    let total = resume ? yEnd - start : exit ? dist + yEnd : yEnd + dist;
     let qRest = exit ? pageP : 1;
     const motion = new LayerMotion(exit ? 1 : 0, () => size.short / Math.max(size.height * 0.8, 1));
     const qOf = (n: number): number => qRest * n;
     const ease = easingFunction(LEDGER_TIDE.sweep.easing);
     const easeInv = (v: number): number => { let lo = 0, hi = 1; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (ease(m) < v) lo = m; else hi = m; } return hi; };
     const k = tideRhythm.scale;
-    const D = LEDGER_TIDE.sweep.duration * k, fadeOutMs = LEDGER_TIDE.fadeOut * k;
+    const D = LEDGER_TIDE.sweep.duration * k * (resume ? LEDGER_TIDE.resumeShare : 1), fadeOutMs = LEDGER_TIDE.fadeOut * k;
 
     const pace = new FramePace();
-    let ys = exit ? 0 : yEnd;
+    let ys = resume ? start : exit ? 0 : yEnd;
     let t = 0, last: number | null = null, raf = 0, ended = false, fading = -1;
-    let committed = false, arrived = !!request.preview, committedAt = 0;
+    let committed = !!resume, arrived = !!request.preview || !!resume, committedAt = 0, held = false;
     let watchdog: ReturnType<typeof setTimeout> | undefined;
-    oceanPhase.covered = exit;
+    oceanPhase.covered = exit && !resume;
     const idle = beginMotion();
     const created = performance.now();
     let frames = 0, firstAt = 0, maxGap = 0;
@@ -162,6 +228,10 @@ export class TidePresentation {
     };
     const stop = (): void => finish();
     this.stop = stop;
+    this.fade = (): void => {
+      // 整页重新载入失败：转场层淡出，露出原来的账本空间（不交付任何页面）。
+      committed = true; arrived = true; fading = 0; stage.dataset.tidePhase = "fade"; oceanPhase.covered = false;
+    };
     const arm = (): void => { clearTimeout(watchdog); watchdog = setTimeout(() => finish(true), STALL_MS); };
 
     /** 进入：新页面到达后按它的实际状态（顶栏或首次展开态）重排剩余行程，已走过的位置不变。 */
@@ -187,7 +257,7 @@ export class TidePresentation {
 
       if (fading >= 0) {
         fading += step;
-        motion.step(1, step);
+        if (!exit) motion.step(1, step);
         stage.style.opacity = String(1 - clamp01(fading / fadeOutMs));
         if (fading >= fadeOutMs) { finish(); return; }
       } else {
@@ -196,20 +266,37 @@ export class TidePresentation {
         // 新页面还没提交完：在露出新页面之前停住（离开：上边界不进屏幕；进入：下边缘不出屏幕）。
         const cap = arrived ? Infinity : exit ? dist + yHold : yEnd - yCover;
         if (travelled > cap) { travelled = cap; t = D * easeInv(clamp01(cap / total)); }
-        if (exit) {
+        if (resume) {
+          motion.step(0, step);
+          ys = start + travelled;
+        } else if (exit) {
           motion.step(dist > 0 ? Math.max(0, 1 - travelled / dist) : 0, step);
           ys = Math.max(0, travelled - dist);
+          held = !arrived && travelled >= cap;
         } else {
           motion.step(dist > 0 ? clamp01((travelled - yEnd) / dist) : 1, step);
           ys = Math.max(0, yEnd - travelled);
         }
-        if (exit && now - firstAt <= LEDGER_TIDE.fadeIn + 34) stage.style.opacity = String(clamp01((now - firstAt) / LEDGER_TIDE.fadeIn));
+        if (exit && !resume && now - firstAt <= LEDGER_TIDE.fadeIn + 34) stage.style.opacity = String(clamp01((now - firstAt) / LEDGER_TIDE.fadeIn));
       }
 
       const q = motion.layers.map(f => qOf(f.q));
-      const lower = LAYERS.map(layer => shifted(edgeSamples(layer, q[layer]!, seconds, size), ys));
-      const upper = LAYERS.map(layer => upperSamples(layer, seconds, size, C + ys));
+      const open = spread(ys);
+      const lower = LAYERS.map(layer => shifted(edgeSamples(layer, q[layer]!, seconds, size), ys + layer * widen * open));
+      const upper = LAYERS.map(layer => upperSamples(layer, seconds, size, C + ys, band));
       painter.paint(lower, q.map(clamp01), seconds, 0, upper);
+      // 接着上一页：第一帧画好后撤掉新页面铺底的交接帧（两者是同一帧）。
+      if (resume && frames === 1) { clearTideResumeCover(); forgetTideResume(); }
+      // 整页重新载入：盖满整屏并停住、且账本已切换好时，存下这一帧再载入。
+      if (request.reload && held && !reloading && request.reload.ready()) {
+        reloading = true;
+        // 定格在存下的这一帧（新页面铺底的就是它），之后不再推进，直到页面卸载；8 秒仍未卸载则收起。
+        const frame = snapshot();
+        cancelAnimationFrame(raf); clearTimeout(watchdog);
+        watchdog = setTimeout(() => finish(), 8000);
+        request.reload.go(frame);
+        return;
+      }
       backing.style.clipPath = `path("${edgeCurve(upper[3]!, size.width)} ${edgeCurve(reversed(lower[3]!), size.width).replace(/^M/, "L")} Z")`;
 
       // 整屏被浪盖住（4 号上边界在屏幕上缘之外、下边缘在下缘之外）：在下方提交新页面。
@@ -217,7 +304,7 @@ export class TidePresentation {
       if (!committed && !request.preview && covered) {
         committed = true; committedAt = now; oceanPhase.covered = true; request.commit();
       }
-      if (committed && !arrived) {
+      if (committed && !arrived && !request.reload) {
         const current = request.page();
         if (current && current !== old) { arrived = true; replan(); stage.dataset.tidePhase = "reveal"; }
         else if (now - committedAt > LEDGER_TIDE.giveUpMs) arrived = true;
@@ -236,6 +323,38 @@ export class TidePresentation {
       }
       raf = requestAnimationFrame(tick); arm();
     };
+    let reloading = false;
+    const snapshot = (): TideResume | null => {
+      try {
+        // 半透明的 B2 玻璃先铺在壁纸底色上，再存成图（新页面铺底用，与这一帧一致）。
+        probe.style.color = "var(--lv-wallpaper-base, var(--color-canvas))";
+        const color = getComputedStyle(probe).color;
+        const flat = document.createElement("canvas");
+        flat.width = canvas.width; flat.height = canvas.height;
+        const g = flat.getContext("2d")!;
+        g.fillStyle = color; g.fillRect(0, 0, flat.width, flat.height); g.drawImage(canvas, 0, 0);
+        const resumeFrame: TideResume = { at: Date.now(), look: request.look, seconds, y: ys, c: C, width: size.width, height: size.height, image: flat.toDataURL("image/jpeg", 0.86), color };
+        return saveTideResume(resumeFrame) ? resumeFrame : null;
+      } catch { return null; }
+    };
     raf = requestAnimationFrame(tick); arm();
+  }
+
+  private fade: (() => void) | null = null;
+
+  /** 整页重新载入失败时：转场层淡出，露出原来的页面。 */
+  release(): void { const fade = this.fade; this.fade = null; if (fade && this.stop) fade(); }
+
+  /**
+   * 切换账本（整页重新载入）前：海浪向下展开盖满整屏，同时进行 work（服务器激活）；两者都完成后存下交接帧并返回，
+   * 调用方随即重新载入。work 失败时海浪淡出、错误照常抛出。不能播放时（减少动态效果等）只等 work。
+   */
+  coverForReload(look: PainterLook, page: () => HTMLElement | null, work: () => Promise<void>): Promise<void> {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || document.hidden || !page()) return work();
+    return new Promise<void>((resolve, reject) => {
+      let done = false;
+      work().then(() => { done = true; }, (caught: unknown) => { this.release(); reject(caught); });
+      this.run({ exit: true, look, page, commit: () => undefined, reload: { ready: () => done, go: () => resolve() } });
+    });
   }
 }

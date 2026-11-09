@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-09 08:48（UTC+08:00）
+> 最后修改：2026-11-09 09:11（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -74,6 +74,7 @@
 | [language.test.ts](language.test.ts) | 测试：language |
 | [language.ts](language.ts) | 实现模块；入口/导出：LANGUAGE_PREFERENCES、LanguagePreference、LANGUAGE_STORAGE_KEY、LanguageStorage、isLanguagePreference |
 | [languageRuntime.ts](languageRuntime.ts) | 实现模块；入口/导出：startLanguageRuntime、useLanguagePreference |
+| [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：provideReloadCover、coverForReload |
 | [ledgerView.test.ts](ledgerView.test.ts) | 测试：ledgerView |
 | [ledgerView.ts](ledgerView.ts) | 实现模块；入口/导出：mergeLedgerEntries、updateTransactionViews、limitToWholeDays |
 | [ledgerWriter.ts](ledgerWriter.ts) | 实现模块；入口/导出：LedgerWriter、useLedgerWriter |
