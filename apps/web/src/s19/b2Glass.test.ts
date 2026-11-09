@@ -72,10 +72,10 @@ describe("B2 统一玻璃预设", () => {
     f.values.clear(); c.restoreB2(null, null); expect(c.getB2Snapshot().mode).toBe("balanced");
     c.setB2Account("a"); expect(c.getB2Snapshot().mode).toBe("balanced");
   });
-  it("存储拒绝时会话可用，正式模式只允许 Original / B2", () => {
+  it("存储拒绝时会话可用，正式模式支持四种风格", () => {
     const storage: VisualStyleStorage = { getItem() { throw Error("blocked"); }, setItem() { throw Error("blocked"); }, removeItem() { throw Error("blocked"); } };
     const c = createVisualStyleController({ dataset: {} }, storage, undefined, false);
-    c.choose("a"); expect(c.getSnapshot()).toBe("original"); c.choose("b2"); expect(c.getSnapshot()).toBe("b2");
+    c.choose("a"); expect(c.getSnapshot()).toBe("a"); c.choose("b2"); expect(c.getSnapshot()).toBe("b2");
     c.setB2Account("a"); c.chooseB2Preset("soft"); c.setB2Account("b"); expect(c.getB2Snapshot().mode).toBe("balanced");
     c.setB2Account("a"); expect(c.getB2Snapshot().mode).toBe("soft");
   });

@@ -1,5 +1,5 @@
 /*
-  S19 视觉材质：正式 B2 与开发候选共用；正式入口仅允许 Original / B2，见 lib/visualStyle.ts。
+  S19 四风格正式视觉材质；旧版 Original 仅保留偏好兼容，见 lib/visualStyle.ts。
 
   ⚠️ 作用范围：每条规则都以 `:root[data-visual-style=…][data-theme-mode="light"]` 开头，
   并限定在手机外壳 `.lv-shell[data-shell="contents"]`（或只在手机外壳存在时的 body）之内：

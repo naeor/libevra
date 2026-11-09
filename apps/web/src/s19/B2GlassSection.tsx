@@ -53,7 +53,7 @@ function AdvancedGlass({ controller, accountId, accountNumber, selection }: {
 }
 
 /** 正式外观入口：普通用户三档；高级编辑通过真实管理员入口与写入前复核。 */
-export function B2GlassSection(): React.JSX.Element | null {
+export function B2GlassSection({ appearanceOnly = false }: { appearanceOnly?: boolean } = {}): React.JSX.Element | null {
   const controller = visualStyleRuntime();
   const auth = useAuthOptional();
   const { t } = useI18n();
@@ -61,14 +61,14 @@ export function B2GlassSection(): React.JSX.Element | null {
   const selection = useSyncExternalStore(controller?.subscribe ?? noop, () => controller?.getB2Snapshot() ?? B2_GLASS_DEFAULT, () => B2_GLASS_DEFAULT);
   if (!controller) return null;
   return <>
-    {!STYLE_LAB_ENABLED && <section className="lv-settings-theme-options flex flex-col gap-2">
+    {!appearanceOnly && !STYLE_LAB_ENABLED && <section className="lv-settings-theme-options flex flex-col gap-2">
       <h2 className="text-section-title text-ink">{t("settings.glass.style")}</h2>
       <div role="group" aria-label={t("settings.glass.style")} className="grid grid-cols-2 gap-2">
         {(["original", "b2"] as const).map(value => <button type="button" key={value} aria-pressed={style === value} onClick={() => controller.choose(value)} className={choiceClass(style === value)}>{t(`settings.glass.styles.${value}`)}</button>)}
       </div>
       <p className="text-helper text-muted">{t("settings.glass.phoneLight")}</p>
     </section>}
-    {style === "b2" && <section className="lv-settings-theme-options flex flex-col gap-2" data-b2-glass="">
+    {(style === "b2" || appearanceOnly) && <section className="lv-settings-theme-options flex flex-col gap-2" data-b2-glass="">
       <h2 className="text-section-title text-ink">{t("settings.glass.title")}</h2>
       <B2PresetChoices selection={selection} onChoose={preset => controller.chooseB2Preset(preset)} />
       <p className="text-helper text-muted">{t("settings.glass.saved")}</p>

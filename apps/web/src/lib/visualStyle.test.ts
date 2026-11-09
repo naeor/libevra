@@ -63,7 +63,41 @@ describe("S19 visual style lab", () => {
     expect(storage.data.get(VISUAL_STYLE_STORAGE_KEY)).toBe("b1");
   });
 
+  it("首次从 B1 进入 B2 后重载，不把 B1 强度当作旧 B2 模糊迁移", () => {
+    const storage = memoryStorage();
+    const controller = createVisualStyleController({ dataset: {} }, storage);
+    controller.choose("b1"); controller.chooseBlur(30); controller.choose("b2");
+    const restored = createVisualStyleController({ dataset: {} }, storage);
+    expect(restored.getB2Snapshot().mode).toBe("balanced");
+    expect(restored.getB2Snapshot().values.blur).toBe(65);
+    expect(restored.getBlurSnapshot()).toBe(30);
+  });
+
   it("is an app-owned device key, so clearing local data also clears it", () => {
     expect(isAppDeviceStorageKey(VISUAL_STYLE_STORAGE_KEY)).toBe(true);
   });
+  it("四风格正式可选，重载及往返切换保留独立参数和旧偏好", () => {
+    const storage = memoryStorage({ [VISUAL_STYLE_STORAGE_KEY]: "b1", "libevra.s19-glass-blur": "65", "libevra.theme": '{"mode":"system","palette":"purple"}' });
+    const controller = createVisualStyleController({ dataset: {} }, storage, undefined, false);
+    expect(controller.getSnapshot()).toBe("b1");
+    expect(controller.getBlurSnapshot()).toBe(65);
+    controller.chooseWallpaper("quiet");
+    controller.chooseB2Preset("soft");
+    for (const strength of [30, 55, 80]) {
+      controller.chooseBlur(strength);
+      for (const style of ["c", "a", "b2", "b1"] as const) {
+        controller.choose(style);
+        expect(controller.getSnapshot()).toBe(style);
+        expect(controller.getBlurSnapshot()).toBe(strength);
+        expect(controller.getWallpaperSnapshot()).toBe("quiet");
+        expect(controller.getB2Snapshot().mode).toBe("soft");
+      }
+    }
+    const restored = createVisualStyleController({ dataset: {} }, storage, undefined, false);
+    expect(restored.getBlurSnapshot()).toBe(80);
+    expect(restored.getB2Snapshot().mode).toBe("soft");
+    expect(restored.getWallpaperSnapshot()).toBe("quiet");
+    expect(storage.data.get("libevra.theme")).toBe('{"mode":"system","palette":"purple"}');
+  });
+
 });
