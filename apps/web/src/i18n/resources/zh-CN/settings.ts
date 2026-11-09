@@ -37,7 +37,7 @@ const settings = {
   theme: {
     title: "外观",
     previews: "主题预览",
-    mode: "外观模式",
+    mode: "明暗",
     modes: { system: "跟随系统", light: "浅色", dark: "深色" },
     palette: "主题色",
     palettes: {
@@ -51,6 +51,17 @@ const settings = {
     },
     switchTo: "切换到{{name}}",
   },
+  visualStyle: {
+    title: "视觉风格", preview: "预览", previewspace: "账本空间", previewdetail: "明细页面",
+    sample: "示例内容，使用当前外观设置；不读取或修改账本数据。",
+    legacy: "已保留原有外观。选择以下任一风格后应用新方案。",
+    support: "材质效果目前适用于浅色手机布局；深色与大屏使用基础组件外观，仍保留所选风格。",
+    blur: "背景模糊", blur30: "轻柔", blur55: "标准", blur80: "朦胧", retainedBlur: "已保留的强度：{{value}} / 100",
+    c: { name: "经典简约", note: "清晰排版与简洁卡片，让内容成为视觉中心。" },
+    a: { name: "柔和空间", note: "柔和光影与悬浮层次，让简洁界面拥有自然纵深。" },
+    b1: { name: "细腻瓷面", note: "温润的实体瓷质与细致反射，呈现安定的层次感。" },
+    b2: { name: "层叠玻璃", note: "半透明玻璃与柔和模糊交织，映出背景的色彩和光影。" },
+  },
   wallpaper: {
     title: "壁纸", aurora: "柔和极光", luminous: "清透光域", quiet: "静谧渐层",
     note: "预览随主题色与界面风格变化；选择会保存在这台设备。",
@@ -63,7 +74,7 @@ const settings = {
       balanced: { name: "均衡", note: "在玻璃通透感与内容清晰度之间保持平衡。" },
       soft: { name: "柔和", note: "更柔和的背景与玻璃质感。" },
     },
-    custom: "当前：自定义", advanced: "B2 玻璃高级参数", reset: "恢复默认（均衡）",
+    custom: "当前：自定义", advanced: "玻璃高级参数", reset: "恢复默认（均衡）",
     accountOnly: "仅影响当前账号在这台设备上的外观。前三项越高越通透，模糊程度越高越模糊。",
     fields: { ambient: "旧页透出强度", content: "内容玻璃通透度", chrome: "顶底栏玻璃透明度", blur: "玻璃模糊程度" },
     denied: "无法确认管理员权限，本次调整未保存。",

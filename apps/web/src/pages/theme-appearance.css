@@ -1,34 +1,22 @@
-/* Local presentation only. Keep InnerPage's normal scrolling and safe areas. */
-.appearance-preview {
-  --preview-height: clamp(6rem, calc(100vh - 21rem), 18rem);
-  width: min(100%, calc(var(--preview-height) * 0.5625));
-  aspect-ratio: 9 / 16;
-  justify-self: center;
-}
-@supports (height: 100dvh) {
-  .appearance-preview {
-    --preview-height: clamp(6rem, calc(var(--lv-vh, 1dvh) * 100 - 21rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)), 18rem);
-  }
-}
-
-/* Real detail-page roles, including its neutral dark header and cards. */
-.appearance-detail-preview {
-  --preview-header: var(--color-brand);
-  --preview-header-ink: var(--color-on-brand);
-  --preview-summary: color-mix(in srgb, var(--color-on-brand) 14%, transparent);
-}
-html[data-theme-mode="light"][data-theme-palette]:not([data-theme-palette="green"],[data-theme-palette="yellow"]) .appearance-detail-preview {
-  --preview-summary: var(--color-brand-dark);
-}
-html[data-theme-mode="light"][data-theme-palette="yellow"] .appearance-detail-preview {
-  --preview-summary: var(--color-brand-soft);
-}
-html[data-theme-mode="dark"] .appearance-detail-preview {
-  --preview-header: var(--color-canvas);
-  --preview-header-ink: var(--color-ink);
-  --preview-summary: var(--color-surface);
-}
-
-@media (max-height: 540px) {
-  .appearance-settings { gap: 0.75rem; }
-}
+/* 只作用于外观页；读取共享组件 Motion Token，不改导航呈现器。 */
+.appearance-style-choice { display: flex; align-items: center; gap: 12px; min-height: 76px; background: var(--color-surface); }
+.appearance-style-choice[aria-pressed="true"] { border-color: var(--color-brand); background: var(--color-brand-soft); }
+.appearance-style-icon { position: relative; display: block; flex: 0 0 48px; height: 48px; border-radius: var(--radius-field); background: var(--color-canvas); overflow: hidden; }
+.appearance-style-icon > span { position: absolute; inset: 10px 8px; border: 1px solid var(--color-line); border-radius: 7px; background: var(--color-surface); }
+.appearance-style-icon > span + span { inset: 19px 15px auto; height: 2px; border: 0; border-radius: 0; background: var(--color-brand); box-shadow: 0 6px 0 var(--color-line); }
+.appearance-style-icon[data-style="a"] > span:first-child { translate: 0 -2px; box-shadow: 0 7px 9px -3px color-mix(in srgb, var(--color-ink) 25%, transparent); border-color: transparent; }
+.appearance-style-icon[data-style="b1"] > span:first-child { background: linear-gradient(125deg, var(--color-surface) 40%, var(--color-brand-soft) 55%, var(--color-surface) 65%); box-shadow: inset 0 2px 1px var(--color-surface), 0 3px 1px var(--color-line), 0 6px 6px color-mix(in srgb, var(--color-ink) 12%, transparent); }
+.appearance-style-icon[data-style="b2"] { background: radial-gradient(at 80% 10%, var(--color-brand), transparent 75%), var(--color-brand-soft); }
+.appearance-style-icon[data-style="b2"] > span:first-child { rotate: -8deg; background: color-mix(in srgb, var(--color-surface) 25%, transparent); border-color: color-mix(in srgb, var(--color-surface) 70%, transparent); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); box-shadow: 3px 4px 0 color-mix(in srgb, var(--color-surface) 30%, transparent); }
+.appearance-reveal { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows var(--lv-dismiss-ms, 120ms) var(--lv-motion-ease, ease-out), opacity var(--lv-dismiss-ms, 120ms), visibility 0s var(--lv-dismiss-ms, 120ms); }
+.appearance-reveal[data-visible="true"] { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-duration: var(--lv-reveal-ms, 140ms); transition-delay: 0s; }
+.appearance-reveal-clip { min-height: 0; overflow: hidden; }
+.appearance-reveal-content { padding-top: 20px; padding-inline: 3px; padding-bottom: 3px; }
+.appearance-preview-sheet { overflow: hidden; }
+.appearance-live-preview { --lv-vh: 4.8px; position: relative; min-height: 480px; border-radius: var(--radius-field); overflow: hidden; background: var(--lv-wallpaper-bg, var(--color-canvas)); }
+.appearance-live-preview.ledger-space { height: 480px; }
+.appearance-live-preview .appearance-sample-card { padding: 16px; }
+.appearance-sample-header { background: var(--color-brand); color: var(--color-on-brand); }
+:root[data-visual-style]:not([data-visual-style="c"]) .appearance-sample-header { background: transparent; color: var(--color-ink); }
+:root[data-theme-mode="dark"] .appearance-sample-header { background: var(--color-canvas); color: var(--color-ink); }
+@media (prefers-reduced-motion: reduce) { .appearance-reveal { transition: none; } }

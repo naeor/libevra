@@ -10,7 +10,7 @@
   --lv-wallpaper-strength: 48%;
 }
 :root[data-visual-style="b1"], :root[data-visual-style="b1"] .lv-wallpaper-preview {
-  --lv-wallpaper-spread: 1.9;
+  --lv-wallpaper-spread: calc(1.9 * var(--s19-b1-environment-spread, .825) / .825);
   --lv-wallpaper-strength: 66%;
 }
 :root[data-visual-style="b2"], :root[data-visual-style="b2"] .lv-wallpaper-preview {
@@ -103,3 +103,10 @@ html:root[data-wallpaper] .ledger-space .space-scroll { position: relative; }
 .wallpaper-sample > span:last-child { width: 46%; }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .wallpaper-sample { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
 :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .wallpaper-sample { backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter); }
+
+/* 经典简约使用纯画布；保留 data-wallpaper 与存储值，切回材质风格立即恢复。 */
+html:root[data-visual-style="c"] {
+  --lv-wallpaper-bg: var(--color-canvas);
+  --lv-wallpaper-edge-top: var(--color-canvas);
+  --lv-wallpaper-edge-bottom: var(--color-canvas);
+}

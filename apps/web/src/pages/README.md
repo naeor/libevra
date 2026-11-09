@@ -1,8 +1,13 @@
 # apps/web/src/pages · 阅读入口
 
+> 最后修改：2026-11-09 09:27（UTC+08:00）
+
+
 业务页面；新增行为先定位产品规格与路由契约。
 
 优先阅读[任务索引](../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
+
+外观控制页由 `ThemeAppearancePage` 与局部 `AppearanceStyleSection` 组合；四风格正式入口、条件参数和壁纸遵循 S19 设计系统 §5.1，局部动效只消费共享 Token。
 
 <!-- directory-index:start -->
 ## 直属目录清单
@@ -18,6 +23,7 @@
 | [AddEntryPage.tsx](AddEntryPage.tsx) | 界面模块；入口/导出：manualDuplicateChoices、manualDuplicateDescription、AddEntryPage |
 | [AdminLifecyclePage.tsx](AdminLifecyclePage.tsx) | 界面模块；入口/导出：AdminLifecyclePage |
 | [AdminPages.tsx](AdminPages.tsx) | 界面模块；入口/导出：AdminOverviewPage、AdminInvitesPage |
+| [AppearanceStyleSection.tsx](AppearanceStyleSection.tsx) | 界面模块；入口/导出：APPEARANCE_STYLES、B1_BLUR_PRESETS、AppearanceStyleSection |
 | [ArchiveRecoveryPage.tsx](ArchiveRecoveryPage.tsx) | 界面模块；入口/导出：ArchiveRecoveryPage |
 | [AttachmentsPage.tsx](AttachmentsPage.tsx) | 界面模块；入口/导出：AttachmentsPage |
 | [AvatarPickerPage.test.tsx](AvatarPickerPage.test.tsx) | 测试：AvatarPickerPage |

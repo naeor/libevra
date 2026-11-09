@@ -1,15 +1,6 @@
-/**
- * **视觉风格与本机偏好：正式 Original / B2，其他候选仅开发 / 测试环境。**
- *
- * 四套候选外观（A Soft Spatial、B1 Ambient Frost、B2 Layered Glass、C Classic Refined）只是视觉层：
- * 它们只通过 `<html data-visual-style="…">` 这一个属性生效，样式全部限定在手机外壳
- * （`.lv-shell[data-shell="contents"]`）里，不改组件、不改业务状态。切换风格只改这个属性，
- * 所以账号、账本、当前页面、筛选、数据和滚动位置都保持不变，也不会触发重新登录或重新初始化。
- *
- * B2 的正式材质和三档设置由 product.ts 加载；实验把手、A/B1/C 候选选择与 Motion Lab 仍受
- * `DEV || __S19_STYLE_LAB__` 编译期门禁隔离。B2 参数在现有控制器内按账号保存，不进入账本同步。
- *
- * ⚠️ **默认是 Original。** 没有选择过、存储不可用、存的值不认识，一律回到 Original（不写属性）。
+/** 四风格正式外观与本机偏好。旧版 original 继续读取和保留，但不在正式选择器列出。
+ * 默认入口 DEFAULT_VISUAL_STYLE 暂不改为 a；实验 URL / 把手仍由 STYLE_LAB_ENABLED 控制。
+ * 样式只变材质，主题色、明暗、账号、账本及页面状态独立。
  */
 
 import { applyGlassBlur, DEFAULT_GLASS_BLUR, GLASS_BLUR_STORAGE_KEY, normalizeGlassBlur, parseGlassBlur } from "../s19/material.js";
@@ -32,9 +23,11 @@ export function isVisualStyle(value: unknown): value is VisualStyle {
   return typeof value === "string" && (VISUAL_STYLES as readonly string[]).includes(value);
 }
 
+export const DEFAULT_VISUAL_STYLE: VisualStyle = "original";
+
 export function parseVisualStyle(raw: string | null | undefined): VisualStyle {
   const value = raw?.trim().toLowerCase();
-  return isVisualStyle(value) ? value : "original";
+  return isVisualStyle(value) ? value : DEFAULT_VISUAL_STYLE;
 }
 
 export interface VisualStyleRoot {
@@ -55,11 +48,11 @@ export function applyVisualStyle(root: VisualStyleRoot, style: VisualStyle): voi
 }
 
 function readStored(storage: VisualStyleStorage | null): VisualStyle {
-  if (storage === null) return "original";
+  if (storage === null) return DEFAULT_VISUAL_STYLE;
   try {
     return parseVisualStyle(storage.getItem(VISUAL_STYLE_STORAGE_KEY));
   } catch {
-    return "original";
+    return DEFAULT_VISUAL_STYLE;
   }
 }
 
@@ -99,7 +92,7 @@ export function createVisualStyleController(
   root: VisualStyleRoot,
   storage: VisualStyleStorage | null,
   initial?: string | null,
-  allowExperiments = true,
+  _allowExperiments = true,
 ): VisualStyleController {
   const listeners = new Set<() => void>();
   let wallpaper = DEFAULT_WALLPAPER;
@@ -115,7 +108,7 @@ export function createVisualStyleController(
   let current: VisualStyle = readStored(storage);
   let blur = DEFAULT_GLASS_BLUR;
   try { blur = parseGlassBlur(storage?.getItem(GLASS_BLUR_STORAGE_KEY)); } catch { /* 会话内默认值 */ }
-  const permitted = (value: VisualStyle): VisualStyle => allowExperiments || value === "b2" ? value : "original";
+  const permitted = (value: VisualStyle): VisualStyle => value;
   current = permitted(current);
   let account: string | null = null;
   let legacyBlur: string | null = null;
@@ -140,11 +133,14 @@ export function createVisualStyleController(
     catch { return presetGlass("balanced"); }
   };
   let b2 = readB2();
+  const persistB2 = (): void => {
+    try { storage?.setItem(b2GlassStorageKey(account), JSON.stringify(b2)); } catch { /* 只保留本次会话。 */ }
+  };
   const setB2 = (next: B2GlassSelection, save: boolean): void => {
     b2 = next;
     sessionSelections.set(b2GlassStorageKey(account), b2);
     applyB2Glass(root.style, b2.values, b2.mode);
-    if (save) { try { storage?.setItem(b2GlassStorageKey(account), JSON.stringify(b2)); } catch { /* 只保留本次会话。 */ } }
+    if (save) persistB2();
     for (const listener of listeners) listener();
   };
   applyGlassBlur(root.style, blur);
@@ -204,7 +200,13 @@ export function createVisualStyleController(
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    choose: (style) => set(permitted(style), true),
+    choose: (style) => {
+      const next = permitted(style);
+      // 主动从 B1 等风格进入 B2 时固定现有选择，避免下次启动把 B1 共用旧键的强度误认作旧 B2 数据。
+      // 已存旧 B2 的首次恢复仍走 readB2 的原兼容路径；不新建第二套存储格式。
+      if (next === "b2" && current !== "b2") persistB2();
+      set(next, true);
+    },
     restore: (raw) => set(permitted(parseVisualStyle(raw)), false),
   };
 }
@@ -212,7 +214,7 @@ export function createVisualStyleController(
 let browserController: VisualStyleController | null = null;
 
 /**
- * 浏览器里的唯一实例，由正式 B2 入口或开发实验入口启动；
+ * 浏览器里的唯一实例，由正式外观入口或开发实验入口启动；
  * 重复调用返回同一个实例。
  */
 export function startVisualStyleRuntime(): VisualStyleController {

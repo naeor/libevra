@@ -1,7 +1,7 @@
 /*
   ⚠️ S19 风格实验唯一允许写颜色字面量的文件（colors.test.ts 的 EXEMPT 里登记了它）：
-  它和 index.css 一样是“令牌定义”，只在开发 / VITE_S19_STYLE_LAB=1 的测试构建里存在；
-  其余 s19/*.css 只引用这里的变量。某一套风格被采纳时，这些值要搬进 index.css 的正式令牌。
+  它和 index.css 一样是“令牌定义”，由正式 product.ts 加载；保留文件名减少迁移成本。
+  其余 s19/*.css 只引用这里的变量，不复制色值。
 
   四套风格的材质令牌（取自 design/s19-mobile-style-lab/lab/theme-*.css 第五轮收敛版）。
   只是 `--s19-*` 自定义属性：写在 <html> 上，只有 shared/ambient/classic 里限定手机外壳的规则会读取。

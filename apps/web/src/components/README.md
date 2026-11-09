@@ -1,8 +1,13 @@
 # apps/web/src/components · 阅读入口
 
+> 最后修改：2026-11-09 09:27（UTC+08:00）
+
+
 跨页面共享组件；复用前查 UI 子目录和 Component Gallery。
 
 优先阅读[任务索引](../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
+
+`ThemePreview` 是外观面板的只读样例，复用 `OceanBackdrop`、`Card` 和统一主题／壁纸变量，不读写账本数据。
 
 <!-- directory-index:start -->
 ## 直属目录清单

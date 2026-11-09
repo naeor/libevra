@@ -1,10 +1,9 @@
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { InnerPage } from "../components/Layouts.js";
 import { useI18n } from "../i18n/index.js";
 import { ThemePreview } from "../components/ThemePreview.js";
-import { VisualStyleLabSection } from "../s19/VisualStyleLabSection.js";
-import { B2GlassSection } from "../s19/B2GlassSection.js";
-import { WallpaperSection } from "../s19/WallpaperSection.js";
+import { AppearanceStyleSection } from "./AppearanceStyleSection.js";
+import { BottomSheet } from "../components/BottomSheet.js";
 import "./theme-appearance.css";
 import {
   AVAILABLE_THEME_PALETTES,
@@ -19,20 +18,6 @@ const MODES: readonly ThemeMode[] = ["system", "light", "dark"];
 
 const PALETTES: readonly ThemePalette[] = ["green", "yellow", "orange", "blue", "purple", "red", "cyan"];
 
-/**
- * The appearance screen's presentation, separate from the browser runtime so it
- * can be rendered and inspected without a DOM.
- *
- * ⚠️ **The previews are here, above the controls, on purpose.** The owner asked
- * for a page where choosing a theme is a visual decision rather than a list of
- * colour names. They use the same tokens as the product, so no preview-specific
- * palette is maintained.
- *
- * ⚠️ **Nothing here is a fixed-height page.** The preview height follows the
- * viewport (`dvh`) with a normal `vh` fallback; on a short phone it shrinks
- * first, and the page remains scrollable if a larger text size still does not
- * fit. Controls are never clipped to force the first screen.
- */
 export function ThemeAppearanceView({
   preference,
   onChoose,
@@ -42,23 +27,16 @@ export function ThemeAppearanceView({
 }): React.JSX.Element {
   const { t } = useI18n();
   const paletteLabel = (palette: ThemePalette): string => t(`settings.theme.palettes.${palette}`);
+  const [preview, setPreview] = useState(false);
+  const [kind, setKind] = useState<"space" | "detail">("space");
   const selectedPaletteLabel = paletteLabel(preference.palette);
 
   return (
     <div className="appearance-settings flex flex-col gap-5 pb-[env(safe-area-inset-bottom,0px)]">
-      <section aria-label={t("settings.theme.previews")} className="appearance-previews grid grid-cols-2 gap-3">
-        {(["space", "detail"] as const).map((kind) => (
-          <div
-            key={kind}
-            className="appearance-preview min-w-0 overflow-hidden rounded-field border border-line/60"
-          >
-            <ThemePreview kind={kind} />
-          </div>
-        ))}
-      </section>
-
       <section className="lv-settings-theme-options flex flex-col gap-2">
-        <h2 className="text-section-title text-ink">{t("settings.theme.mode")}</h2>
+        <div className="flex items-center justify-between gap-3"><h2 className="text-section-title text-ink">{t("settings.theme.mode")}</h2>
+      <button type="button" onClick={() => setPreview(true)} className="min-h-11 self-start rounded-field px-3 text-button text-brand-dark focus-visible:outline-brand-dark">{t("settings.visualStyle.preview")}</button>
+      </div>
         <div role="group" aria-label={t("settings.theme.mode")} className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
           {MODES.map((value) => (
             <button
@@ -114,10 +92,20 @@ export function ThemeAppearanceView({
         </div>
       </section>
 
-      {/* S19：只在开发 / 测试环境出现的视觉风格开关；正式构建里这个条件是常量 false，整段被删掉。 */}
-      <WallpaperSection />
-      {import.meta.env.DEV || (typeof __S19_STYLE_LAB__ !== "undefined" && __S19_STYLE_LAB__) ? <VisualStyleLabSection /> : null}
-      <B2GlassSection />
+      <AppearanceStyleSection />
+      {preview && <BottomSheet label={t("settings.theme.previews")} onClose={() => setPreview(false)} dialogClassName="appearance-preview-sheet">
+        {close => <>
+          <div className="flex shrink-0 items-center justify-between gap-3 p-4">
+            <h2 className="text-section-title text-ink">{t("settings.theme.previews")}</h2>
+            <button type="button" onClick={close} className="min-h-11 px-3 text-button text-brand-dark">{t("common.action.close")}</button>
+          </div>
+          <div role="group" aria-label={t("settings.theme.previews")} className="mx-4 mb-3 grid grid-cols-2 gap-2">
+            {(["space", "detail"] as const).map(value => <button type="button" key={value} aria-pressed={kind === value} onClick={() => setKind(value)} className={`min-h-11 rounded-field text-button ${kind === value ? "bg-brand-soft text-brand-dark" : "text-muted"}`}>{t(`settings.visualStyle.preview${value}`)}</button>)}
+          </div>
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4"><ThemePreview kind={kind} /></div>
+          <p className="shrink-0 px-4 pb-3 text-helper text-muted">{t("settings.visualStyle.sample")}</p>
+        </>}
+      </BottomSheet>}
     </div>
   );
 }
