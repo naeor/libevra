@@ -9,6 +9,11 @@ import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
 import { StickyActionBar } from "./StickyActionBar.js";
 import { KindToggle, useKindBar } from "./entry/KindToggle.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/material-components.css";
+
+/** 手写的日期、时间、下拉与备注同属输入表面（S19 `field`，外观不变）。 */
+const FIELD = materialAttributes("field");
 
 /**
  * The form that confirms an entry before it is saved.
@@ -170,7 +175,8 @@ export function ReviewStep({
           onChange={(event) => {
             patch({ date: event.target.value });
           }}
-          className="w-full min-w-0 rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
+          {...FIELD}
+          className="lv-material w-full min-w-0 rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
         />
       </Field>
 
@@ -181,7 +187,8 @@ export function ReviewStep({
           onChange={(event) => {
             patch({ time: event.target.value });
           }}
-          className="w-full min-w-0 rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
+          {...FIELD}
+          className="lv-material w-full min-w-0 rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
         />
       </Field>
 
@@ -191,7 +198,8 @@ export function ReviewStep({
           onChange={(event) => {
             patch({ categoryId: event.target.value === "" ? null : event.target.value });
           }}
-          className="w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
+          {...FIELD}
+          className="lv-material w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
         >
           <option value="">{displayCategoryName(UNCATEGORISED_NAME)}</option>
           {usableCategories.map((category) => (
@@ -208,7 +216,8 @@ export function ReviewStep({
           onChange={(event) => {
             patch({ paymentMethodId: event.target.value === "" ? null : event.target.value });
           }}
-          className="w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
+          {...FIELD}
+          className="lv-material w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
         >
           <option value="">{t("entry.review.paymentUnselected")}</option>
           {usableMethods.map((method) => (
@@ -226,7 +235,8 @@ export function ReviewStep({
           onChange={(event) => {
             patch({ note: event.target.value });
           }}
-          className="w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand"
+          {...FIELD}
+          className="lv-material w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand"
         />
       </Field>
 

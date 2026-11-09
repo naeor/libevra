@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router";
+import { flushSync } from "react-dom";
+import { useLocation, useNavigate } from "react-router";
 import { useEnterLedger } from "../desktop/DesktopNav.js";
 import { useI18n } from "../i18n/index.js";
 import { currentLedgerDestination } from "../lib/currentLedgerDestination.js";
 import { useCurrentBookId } from "../lib/queries.js";
 import { BookSwitcherSheet } from "./BookSwitcherSheet.js";
 import { ChevronIcon } from "./Icons.js";
+import { CapsuleButton } from "./ui/PurposeControls.js";
 
 /** 只在手机阅读页挂载；激活与落盘仍走现有 useEnterLedger。 */
 export function CurrentBookPicker({ caption, name }: { readonly caption: string; readonly name: string }): React.JSX.Element {
@@ -14,14 +16,23 @@ export function CurrentBookPicker({ caption, name }: { readonly caption: string;
   // 1.19.50：从胶囊切换账本时，整页重新载入期间海浪从下缘涌上、停顿、再从上缘离开。
   const switcher = useEnterLedger({ rise: true });
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useI18n();
+  /**
+   * 1.19.52：“管理全部账本”是独立的小按钮（CapsuleButton）。先同步收起面板再进入账本空间——协调器在有打开的
+   * 对话框时不播放账本空间海浪，原来的链接在面板还开着时导航，所以没有海浪。
+   */
+  const manageAll = (): void => {
+    flushSync(() => setOpen(false));
+    void navigate("/start");
+  };
   return <>
     <button type="button" className="lv-book-capsule" aria-label={caption} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}><BookCapsuleContents name={name} /></button>
     {open ? <BookSwitcherSheet open currentTargetId={currentId ?? ""} purpose="activate" onClose={() => { if (!switcher.busy) setOpen(false); }} onSelect={id => {
       if (!switcher.busy) switcher.enter(id, undefined, currentLedgerDestination(location.pathname, location.search));
     }} footer={<div className="border-t border-line px-5 py-3">
       {switcher.status ? <p role="status" className="mb-2 text-helper text-muted">{switcher.status}</p> : null}
-      {switcher.busy ? null : <Link to="/start" className="text-helper text-brand-dark">{t("books.switcher.manageAll")}</Link>}
+      {switcher.busy ? null : <CapsuleButton onClick={manageAll}>{t("books.switcher.manageAll")}</CapsuleButton>}
     </div>} /> : null}
   </>;
 }

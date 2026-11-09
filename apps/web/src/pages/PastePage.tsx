@@ -14,6 +14,8 @@ import { useNavigate } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/material-components.css";
 import { useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { currencyName } from "../lib/format.js";
@@ -136,7 +138,8 @@ export function PastePage(): React.JSX.Element {
           }}
           rows={6}
           placeholder={t("capture.paste.placeholder", { typed: TYPED_EXAMPLE, pasted: PASTED_EXAMPLE })}
-          className="w-full rounded-field border border-line bg-surface px-4 py-3 text-base leading-relaxed text-ink outline-none focus:border-brand"
+          {...materialAttributes("field")}
+          className="lv-material w-full rounded-field border border-line bg-surface px-4 py-3 text-base leading-relaxed text-ink outline-none focus:border-brand"
         />
 
         <div className="flex flex-wrap items-center gap-2">

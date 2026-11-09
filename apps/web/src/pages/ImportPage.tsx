@@ -21,6 +21,7 @@ import {
   billItemsById,
 } from "../components/import/BillImportViews.js";
 import { InnerPage } from "../components/Layouts.js";
+import { StatusMessage } from "../components/ui/StatusControls.js";
 import { useI18n, type Locale } from "../i18n/index.js";
 import { ApiRequestError, errorMessage } from "../lib/api.js";
 import {
@@ -408,13 +409,14 @@ function ImportView({
        * ⚠️ **The target is stated before anything is chosen, not after.** A person who opened the
        * wrong ledger's settings must be able to notice it here — with the number, not only the name.
        */}
+      {/* 1.19.52 语义迁移：目标账本是固定的状态说明（StatusMessage），外观仍是品牌浅底提示。 */}
       {target === undefined ? null : (
-        <div className="flex flex-col gap-1 rounded-field bg-brand-soft px-4 py-3 text-brand-dark">
+        <StatusMessage tone="success">
           <p className="min-w-0 text-body font-medium [overflow-wrap:anywhere]">
             {t("dataio.import.target", { target: target.label })}
           </p>
-          <p className="text-helper-relaxed">{t("dataio.import.targetHint")}</p>
-        </div>
+          <p className="mt-1 text-helper-relaxed">{t("dataio.import.targetHint")}</p>
+        </StatusMessage>
       )}
 
       {/**

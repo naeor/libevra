@@ -31,6 +31,8 @@ import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/i
 import { ChevronIcon } from "../components/Icons.js";
 import { InfoIcon } from "../components/InfoHint.js";
 import { TabPage } from "../components/Layouts.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/material-components.css";
 import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
@@ -816,7 +818,7 @@ export function AddEntryPage(): React.JSX.Element {
         <section className="lv-manual-category flex flex-col gap-2 px-6 pt-5">
           <h2 className="text-card-title text-ink">{t("common.field.category")}</h2>
 
-          <div className="overflow-hidden rounded-field border border-line bg-surface">
+          <div {...materialAttributes("field")} className="lv-material overflow-hidden rounded-field border border-line bg-surface">
             <button
               type="button"
               aria-expanded={categoryOpen}
@@ -904,7 +906,7 @@ export function AddEntryPage(): React.JSX.Element {
           右侧对齐与上一轮一致：标签在左、值在右，整行最小 48px，手指好点。
         */}
         <section className="lv-manual-time flex flex-col gap-2 px-6 pt-5">
-          <div className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-field border border-line bg-surface px-4">
+          <div {...materialAttributes("field")} className="lv-material grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-field border border-line bg-surface px-4">
             <label htmlFor={timeId} className="text-card-title text-ink">
               {t("common.field.time")}
             </label>

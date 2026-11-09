@@ -6,6 +6,10 @@ import { useNavigate } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { ActionCard } from "../components/Card.js";
+import { Badge } from "../components/ui/StatusControls.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/material-components.css";
 import { VoiceRipples } from "../components/VoiceRipples.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
@@ -110,8 +114,7 @@ export function RecordPage(): React.JSX.Element {
         a small control work would send taps to a dead area on a screen whose
         entire purpose is one press.
       */}
-      <button
-        type="button"
+      <ActionCard
         /**
          * ⚠️ **Not disabled after a transcription, and that was a real bug.**
          *
@@ -139,7 +142,8 @@ export function RecordPage(): React.JSX.Element {
           transcribe.reset();
           void recorder.start();
         }}
-        className="flex w-full flex-col items-center gap-5 rounded-card border border-line bg-surface px-6 py-8 transition disabled:opacity-45"
+        // 1.19.52 语义迁移：整块可点的录音面板就是可点击卡片（ActionCard），外观沿用卡片材质。
+        className="flex flex-col items-center gap-5 px-6 py-8"
       >
         <VoiceRipples level={recorder.level} active={recording} />
 
@@ -160,7 +164,7 @@ export function RecordPage(): React.JSX.Element {
               : t("capture.record.maxSeconds", { count: MAX_SPEECH_SECONDS })}
           </span>
         </span>
-      </button>
+      </ActionCard>
 
       {recorder.supported ? null : (
         <Alert tone="info">{describeBlocker(recorder.blocker) ?? ""}</Alert>
@@ -184,7 +188,8 @@ export function RecordPage(): React.JSX.Element {
               setEditedText(event.target.value);
             }}
             rows={2}
-            className="w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
+            {...materialAttributes("field")}
+            className="lv-material w-full rounded-field border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none focus:border-brand"
           />
 
           {/*
@@ -193,35 +198,35 @@ export function RecordPage(): React.JSX.Element {
             beside the rest of the entry — this is the user checking that they
             were heard, not a second form to fill in.
           */}
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full bg-brand-soft px-3 py-1.5 text-brand-dark">
+          <div className="flex flex-wrap gap-2">
+            <Badge tone="success">
               {parsed === null || parsed.amount === null
                 ? t("capture.record.noAmount")
                 : t("capture.record.amountChip", {
                     kind: t(parsed.kind === "income" ? "common.kind.income" : "common.kind.expense"),
                     amount: parsed.amount,
                   })}
-            </span>
+            </Badge>
             {/* 商户、备注是听到的原文（数据），原样显示；支付方式只在是预置名时显示译名。 */}
             {parsed?.merchant == null ? null : (
-              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
+              <Badge>
                 {t("capture.record.merchantChip", { value: parsed.merchant })}
-              </span>
+              </Badge>
             )}
             {parsed?.paymentMethod == null ? null : (
-              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
+              <Badge>
                 {t("capture.record.paymentChip", { value: displayPaymentMethodName(parsed.paymentMethod) })}
-              </span>
+              </Badge>
             )}
             {parsed?.occurredLocalDate == null ? null : (
-              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
+              <Badge>
                 {t("capture.record.dateChip", { value: parsed.occurredLocalDate })}
-              </span>
+              </Badge>
             )}
             {parsed === null || parsed.note === "" ? null : (
-              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
+              <Badge>
                 {t("capture.record.noteChip", { value: parsed.note })}
-              </span>
+              </Badge>
             )}
           </div>
 

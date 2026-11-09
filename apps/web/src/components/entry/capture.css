@@ -52,3 +52,8 @@
 .lv-desktop .lv-capture-ocr-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); background:transparent; border:0; box-shadow:none; padding:0; }
 .lv-desktop .lv-capture-ocr-fields > div:first-child { grid-column:1/-1; }
 @container lv-capture-form (max-width:600px) { .lv-desktop .lv-capture-ocr-fields { grid-template-columns:minmax(0,1fr); } }
+
+/* 拍照“单张 / 批量”选择卡（1.19.52，ActionCard + aria-pressed）：Original / 深色 / Pad 保持原来的平卡与品牌框浅底选中态；
+   S19 浅色手机的交互卡材质与选中描边在 material-components.css，选择器更具体，自然覆盖这里。 */
+.lv-scan-mode { box-shadow: none; }
+.lv-scan-mode[aria-pressed="true"] { border-color: var(--color-brand); background: var(--color-brand-soft); }

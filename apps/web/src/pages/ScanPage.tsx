@@ -11,13 +11,14 @@ import {
   type Transaction,
   type TransactionKind,
 } from "@libellum/shared";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { CameraIcon } from "../components/BottomNav.js";
 import { Button } from "../components/Button.js";
+import { ActionCard } from "../components/Card.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
 import { EntrySaved } from "../components/EntrySaved.js";
@@ -976,6 +977,7 @@ function PickStep({
   const pickerRef = useRef<HTMLInputElement>(null);
   const [pickerAsked, setPickerAsked] = useState(false);
   const [pickerSilent, setPickerSilent] = useState(false);
+  const modeTitleId = useId();
 
   return (
     <div className="flex flex-col gap-5">
@@ -1069,8 +1071,8 @@ function PickStep({
       */}
       {files.length > 1 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-card-title text-ink">{t("capture.scan.pick.modeTitle")}</h2>
-          <div className="flex flex-col gap-2">
+          <h2 id={modeTitleId} className="text-card-title text-ink">{t("capture.scan.pick.modeTitle")}</h2>
+          <div className="flex flex-col gap-2" role="group" aria-labelledby={modeTitleId}>
             <ModeOption
               mode="single"
               current={mode}
@@ -1137,20 +1139,23 @@ function ModeOption({
 }): React.JSX.Element {
   const selected = mode === current;
 
+  /**
+   * 1.19.52 语义迁移：单张 / 批量是一组互斥的选择卡——可点击卡片（ActionCard）+ `aria-pressed`，
+   * 与壁纸、外观风格等互斥选项同一约定。选中态：Original / 深色为品牌框浅底（capture.css），
+   * S19 浅色手机为交互卡材质 + 统一选中描边。圆角保持字段圆角。
+   */
   return (
-    <button
-      type="button"
+    <ActionCard
       aria-pressed={selected}
       onClick={() => {
         onSelect(mode);
       }}
-      className={`flex flex-col gap-0.5 rounded-field border px-4 py-3 text-left transition ${
-        selected ? "border-brand bg-brand-soft" : "border-line bg-surface"
-      }`}
+      style={{ borderRadius: "var(--radius-field)" }}
+      className="lv-scan-mode flex flex-col gap-0.5 px-4 py-3"
     >
       <span className="text-card-title text-ink">{title}</span>
       <span className="text-helper-relaxed text-muted">{hint}</span>
-    </button>
+    </ActionCard>
   );
 }
 

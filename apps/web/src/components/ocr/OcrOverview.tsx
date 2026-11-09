@@ -23,6 +23,7 @@ import { Trans } from "react-i18next";
 
 import { isChineseLocale, t as translate, useI18n } from "../../i18n/index.js";
 import { ChevronIcon } from "../Icons.js";
+import { CapsuleButton } from "../ui/PurposeControls.js";
 import type zhOcr from "../../i18n/resources/zh-CN/ocr.js";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { groupsForCandidate, type OcrDuplicateGroup } from "../../lib/ocr/duplicates.js";
@@ -312,19 +313,15 @@ export function OcrOverview({
             onFilterChange("confirmed");
           }}
         />
-        <button
-          type="button"
+        <CapsuleButton
+          size="compact"
           aria-expanded={filtersOpen}
           aria-controls={OCR_OVERVIEW_FILTERS_ID}
+          data-active={extras > 0 ? "" : undefined}
           onClick={onToggleFilters}
-          className={`rounded-full border px-3 py-1.5 text-helper transition ${
-            filtersOpen || extras > 0
-              ? "border-brand bg-brand-soft text-brand-dark"
-              : "border-line bg-surface text-muted"
-          }`}
         >
           {extras === 0 ? t("ocr.list.filter") : t("ocr.list.filterCount", { count: extras })}
-        </button>
+        </CapsuleButton>
       </div>
 
       {filtersOpen ? (
@@ -493,17 +490,11 @@ export function FilterButton({
   readonly label: string;
   readonly onSelect: () => void;
 }): React.JSX.Element {
+  // 1.19.52 语义迁移：互斥筛选用标准筛选胶囊（aria-pressed），各风格的选中态与其他胶囊一致。
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onSelect}
-      className={`min-h-11 rounded-full border px-3 py-1.5 text-helper transition ${
-        active ? "border-brand bg-brand-soft text-brand-dark" : "border-line bg-surface text-muted"
-      }`}
-    >
+    <CapsuleButton size="compact" aria-pressed={active} onClick={onSelect}>
       {label}
-    </button>
+    </CapsuleButton>
   );
 }
 

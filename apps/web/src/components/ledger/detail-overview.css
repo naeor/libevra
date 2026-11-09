@@ -13,7 +13,10 @@
 .detail-search-cancel { position: absolute; right: 0; height: 36px; width: 56px; font-size: var(--text-body); color: var(--color-brand-dark); opacity: 0; visibility: hidden; }
 /* 左右展开与输入框、取消的淡入淡出由 DetailPage 的帧锚定时钟驱动（同一手势里就开始，不受首帧重绘影响）。 */
 .detail-search-shell[data-open=true] input, .detail-search-shell[data-open=true] .detail-search-cancel { opacity: 1; visibility: visible; }
-.detail-search-shell:focus-within { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+/* 1.19.52：与排序、更多等顶部工具按钮同一套状态——按下深一档、键盘聚焦才有描边。原来的 :focus-within 在取消搜索、
+   焦点交回搜索键后留下一圈选中描边，要再点别处才消失。 */
+.detail-search-shell:not([data-open=true]):has(.detail-search-icon:active) { background: color-mix(in srgb, var(--color-on-brand) 30%, transparent); }
+.detail-search-shell:not([data-open=true]):has(.detail-search-icon:focus-visible) { outline: 2px solid currentColor; outline-offset: 3px; }
 .detail-search-shell input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .detail-redesign .detail-month-controls { max-width: calc(100% - var(--p) * 176px); }
 .detail-redesign .detail-month.lv-filter-trigger { max-width: 100%; }

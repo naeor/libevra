@@ -10,6 +10,11 @@ import { t as translate, useI18n } from "../../i18n/index.js";
 import { displayPaymentMethodName } from "../../lib/presetNames.js";
 import { ChevronIcon } from "../Icons.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
+import { materialAttributes } from "../../s19/material.js";
+import "../../s19/material-components.css";
+
+/** 展示分组材质默认用卡片圆角；更多选项一直是字段圆角，保持不变。 */
+const MORE_FRAME_STYLE = { "--lv-material-radius": "var(--radius-field)" } as React.CSSProperties;
 
 /**
  * 备注、支付方式与标签：手动记账页的低频扩展区。
@@ -79,7 +84,12 @@ export function EntryMoreOptions({
 
   return (
     <section className={`flex flex-col gap-2 px-6 pt-5 ${expanded ? "lv-entry-more-expanded" : ""}`}>
-      <div data-entry-more="" className="overflow-hidden rounded-field border border-line bg-surface">
+      {/* 1.19.52 语义迁移：外框是展示分组（display 材质，保持字段圆角）；里面的输入框仍是实体输入表面。 */}
+      <div
+        {...materialAttributes("display")}
+        style={MORE_FRAME_STYLE}
+        className="lv-material overflow-hidden rounded-field border border-line bg-surface"
+      >
         {expanded ? null : <button
           type="button"
           aria-expanded={open}
@@ -119,6 +129,7 @@ export function EntryMoreOptions({
                   <button
                     key={method.id}
                     type="button"
+                    aria-pressed={method.id === paymentMethodId}
                     onClick={() => {
                       onPaymentMethodChange(method.id === paymentMethodId ? null : method.id);
                     }}
@@ -145,7 +156,8 @@ export function EntryMoreOptions({
                   onNoteChange(event.target.value);
                 }}
                 maxLength={200}
-                className="rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
+                {...materialAttributes("field")}
+                className="lv-material rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none placeholder:text-muted/80 focus:border-brand focus:ring-4 focus:ring-focus-ring"
               />
             </label>
 
@@ -162,6 +174,7 @@ export function EntryMoreOptions({
                       <button
                         key={tag.id}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => {
                           onToggleTag(tag.id);
                         }}

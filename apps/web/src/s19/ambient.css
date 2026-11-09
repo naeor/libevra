@@ -163,6 +163,10 @@
   -webkit-backdrop-filter: var(--s19-tool-filter, none);
   backdrop-filter: var(--s19-tool-filter, none);
 }
+/* 搜索键按下：与其他顶部工具按钮同一档（1.19.52） */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-search-shell:not([data-open="true"]):has(.detail-search-icon:active) {
+  background: var(--s19-tool-active);
+}
 /* 展开的搜索框：B1 / B2 是半透明奶油玻璃（A 仍是白色实底，见令牌缺省） */
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] .detail-search-shell[data-open="true"] {
   background: var(--s19-search-open-bg, var(--color-surface));

@@ -9,6 +9,7 @@ import { PersistentBookCapsule } from "./PersistentBookCapsule.js";
 import { navigationLevel } from "../s19/motion/navigation.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
 import { startSoftKeyboard } from "../lib/softKeyboard.js";
+import { NAV_YIELD } from "../lib/motionTokens.js";
 import { currentBookId, subscribeCurrentBook } from "../lib/currentBook.js";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
@@ -131,6 +132,40 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
   const tabTarget = (to: string): string => to === pathname ? to : tabMemory.current.paths.get(to) ?? to;
   const [open, setOpen] = useState(false);
   const [navigationSuppressed, suppressNavigation] = useState(false);
+  /**
+   * 1.19.52：底栏让位要有过程——先变灰、不可点并向下退出，退出结束才真正隐藏；恢复时先显示再从下方升回。
+   * `navAway` 只表示“因让位而隐藏”，进入次级页面（level === "subpage"）的即时隐藏不走动画，由页面转场负责。
+   */
+  const navRef = useRef<HTMLDivElement | null>(null);
+  const [navAway, setNavAway] = useState(navigationSuppressed);
+  const yieldState = useRef(navigationSuppressed);
+  const animateNav = (): boolean => {
+    const nav = navRef.current;
+    return nav !== null && !nav.hidden && level !== "subpage" && typeof nav.animate === "function" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  };
+  useLayoutEffect(() => {
+    if (yieldState.current === navigationSuppressed) return;
+    yieldState.current = navigationSuppressed;
+    const nav = navRef.current;
+    if (!navigationSuppressed) {
+      const wasAway = nav?.hidden === true;
+      setNavAway(false);
+      if (wasAway) return;
+      // 退出还没走完就恢复：取消退出，底栏直接回到原位。
+      nav?.getAnimations().forEach(animation => animation.cancel());
+      return;
+    }
+    if (!animateNav() || nav === null) { setNavAway(true); return; }
+    const motion = nav.animate([{ transform: "translateY(0)" }, { transform: `translateY(${NAV_YIELD.offset})` }], { duration: NAV_YIELD.exit.duration, easing: NAV_YIELD.exit.easing, fill: "forwards" });
+    motion.onfinish = () => { setNavAway(true); motion.cancel(); };
+  }, [navigationSuppressed]);
+  const wasAway = useRef(navAway);
+  useLayoutEffect(() => {
+    const before = wasAway.current;
+    wasAway.current = navAway;
+    if (!before || navAway || !animateNav()) return;
+    navRef.current?.animate([{ transform: `translateY(${NAV_YIELD.offset})` }, { transform: "translateY(0)" }], { duration: NAV_YIELD.enter.duration, easing: NAV_YIELD.enter.easing });
+  }, [navAway]);
 
   // The pathname *after* the first render. Comparing against it means the fold
   // cannot fire for the page the reader is already on when the app starts —
@@ -165,8 +200,8 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
   const docked = persistent && pane.shell === "phone";
   return <EntryMenuContext.Provider value={value}><PersistentNavContext.Provider value={persistent}><BookCapsuleContext.Provider value={docked ? capsules : null}>
     <SuppressNavigationContext.Provider value={suppressNavigation}><NavigationSuppressedContext.Provider value={navigationSuppressed}>{children}</NavigationSuppressedContext.Provider></SuppressNavigationContext.Provider>
-    {/* 让位时（工作台编辑、专注型核对步骤）底栏隐藏；万一仍在画面上（转场副本等）也是灰色、inert、不可点击。 */}
-    {persistent ? <div data-persistent-nav hidden={level === "subpage" || navigationSuppressed} inert={navigationSuppressed || undefined} data-focus-task={navigationSuppressed ? "" : undefined} className="persistent-nav" onClickCapture={event => {
+    {/* 让位时（工作台编辑、专注型核对步骤、明细批量操作）底栏变灰、inert、不可点，向下退出后隐藏。 */}
+    {persistent ? <div ref={navRef} data-persistent-nav hidden={level === "subpage" || navAway} inert={navigationSuppressed || undefined} data-focus-task={navigationSuppressed ? "" : undefined} className="persistent-nav" onClickCapture={event => {
       if (event.target instanceof Element && event.target.closest("a[href]")) value.close();
     }}>{docked ? <PersistentBookCapsule menuOpen={open} /> : null}<BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(tabTarget(to)); }}
       cards={{ mode: "toggle", expanded: open, active: level === "enterMode", onToggle: value.toggle }}

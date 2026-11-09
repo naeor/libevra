@@ -70,5 +70,11 @@
   .lv-material[data-material-role][data-material-shape="pill"] { border-radius: 999px; }
   .lv-material[data-material-role][data-material-shape="circle"] { border-radius: 50%; }
 }
+/* C 经典简约是纸面，靠细线分隔：胶囊 / 工具放在白色面板（底部面板、卡片）上时也要看得见边界（1.19.52）。 */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+  .lv-material[data-material-role]:is([data-material-role="capsule"], [data-material-role="tool"]):not([data-material-elevation="flat"]) {
+    box-shadow: 0 0 0 1px var(--s19-card-line, transparent), var(--s19-card-sh);
+  }
+}
 /* 瓷面虚拟光源仅在 B1 候选显示；风格切换不遗留亮斑。 */
 :root:not([data-visual-style="b1"]) .lv-material[data-material-role] > .lv-porcelain-window { display: none; }

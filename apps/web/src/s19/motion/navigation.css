@@ -34,3 +34,18 @@
 }
 /* 键盘打开期间给手动记账表单尾部留出被键盘挡住的高度，最后的字段（备注、附件）也能滚到键盘上方。 */
 :root[data-soft-keyboard="open"] .lv-shell[data-shell="contents"] .lv-manual-form { padding-bottom: var(--lv-keyboard-inset, 0px); }
+/* 1.19.52 · 底栏让位：替换常驻底栏的操作栏（明细批量操作、拍照单张核对、账单导入核对；data-replaces-nav）在底栏
+   向下退出后从下方升起。时长读组件反馈的“出现 / 消失”变量（Original 用回退值）。键盘收起的淡入与它并列，
+   不会让升起重播。 */
+.lv-shell[data-shell="contents"] [data-replaces-nav] {
+  animation: lv-bar-rise var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(.2,.8,.3,1)) var(--lv-dismiss-ms, 180ms) both;
+}
+:root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] [data-entry-bar][data-replaces-nav] {
+  animation: lv-bar-rise var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(.2,.8,.3,1)) var(--lv-dismiss-ms, 180ms) both,
+    lv-keyboard-reveal var(--lv-reveal-ms, 200ms) var(--lv-motion-ease, ease-out) both;
+}
+@keyframes lv-bar-rise { from { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .lv-shell[data-shell="contents"] [data-replaces-nav],
+  :root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] [data-entry-bar][data-replaces-nav] { animation: none; }
+}

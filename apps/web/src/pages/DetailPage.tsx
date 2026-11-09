@@ -96,6 +96,7 @@ import { keepMetricSnapshot } from "../components/ledger/metricSnapshot.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { useFollowedPath, usePane } from "../workspace/context.js";
+import { useFocusTask } from "../components/PersistentNavContext.js";
 import { useForeignBookId } from "../lib/workspaceLedger.js";
 
 /** S18：工作区查看外部账本时，设备的本机副本与待同步标记都属于另一本账，一律当作空。 */
@@ -266,13 +267,17 @@ export function DetailPage(): React.JSX.Element {
     searchInput.current?.focus({ preventScroll: true });
     lockSearch(true);
   };
-  const closeSearch = () => {
+  /**
+   * 1.19.52：只有键盘关闭（Esc、用键盘按下“取消”）时才把焦点交回搜索键；用手指点“取消”时只收起键盘。
+   * 从输入框（总是 focus-visible）把焦点程序化地交给按钮，浏览器会让按钮也显示焦点描边，看起来像搜索键一直被选中。
+   */
+  const closeSearch = (returnFocus = false) => {
     if (!searchVisual.current && !searchOpen) return;
     searchVisual.current = false;
     searchInput.current?.blur();
     lockSearch(false, searchOrigin.current);
     morphSearch(false, () => { if (!searchVisual.current) startTransition(() => { setSearchOpen(false); setQuery(""); }); });
-    searchButton.current?.focus({ preventScroll: true });
+    if (returnFocus) searchButton.current?.focus({ preventScroll: true });
   };
   useEffect(() => { writeSession({ search: query, searchOpen, searchOrigin: searchOrigin.current }, pane.instance); }, [query, searchOpen, pane.instance]);
   const menu = useEntryMenu();
@@ -799,6 +804,11 @@ export function DetailPage(): React.JSX.Element {
     runBatchDelete,
     deleteConfirmation,
   } = batch;
+  /**
+   * 1.19.52：批量操作是专注型任务——手机常驻底栏（PaneShell）变灰、向下退出，批量删除 / 编辑栏占用它的位置，
+   * 取消批量后底栏升回。此前常驻底栏是 fixed，盖住了页面底部的批量操作栏。
+   */
+  useFocusTask(selecting);
 
   const isEmptyMonth = list.isSuccess && entries.length === 0;
 
@@ -940,8 +950,8 @@ export function DetailPage(): React.JSX.Element {
                 <button ref={searchButton} type="button" className="detail-search-icon" aria-label={t("ledger.cards.search")} aria-expanded={searchOpen} disabled={selecting} tabIndex={searchOpen ? -1 : 0} onPointerDown={e => e.preventDefault()} onClick={openSearch}>
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5" strokeLinecap="round"/></svg>
                 </button>
-                <input ref={searchInput} type="search" value={query} readOnly={!searchOpen} tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} aria-label={t("ledger.cards.search")} placeholder={t("ledger.cards.placeholder")} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape" && !e.nativeEvent.isComposing) closeSearch(); }} />
-                <button ref={searchCancel} type="button" className="detail-search-cancel" tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} onClick={closeSearch}>{t("common.action.cancel")}</button>
+                <input ref={searchInput} type="search" value={query} readOnly={!searchOpen} tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} aria-label={t("ledger.cards.search")} placeholder={t("ledger.cards.placeholder")} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape" && !e.nativeEvent.isComposing) closeSearch(true); }} />
+                <button ref={searchCancel} type="button" className="detail-search-cancel" tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} onClick={e => { closeSearch(e.detail === 0); }}>{t("common.action.cancel")}</button>
               </div>
             </div>
 

@@ -164,7 +164,10 @@ function OfflineStatusForDevice(): React.JSX.Element | null {
    * the first place.
    */
   const lingering = !running && justFinishedAt !== null && now - justFinishedAt < LINGER_MS;
-  const downloadVisible = running || lingering || (fill?.skippedMetered ?? false);
+  /** 1.19.52：今天已经提示过的自动下载不再显示进度与完成；未完成 / 中断照常说明。 */
+  const quiet = fill?.quiet ?? false;
+  const stoppedNotice = lingering && fill?.stopped != null;
+  const downloadVisible = (running && !quiet) || (lingering && (!quiet || stoppedNotice)) || (fill?.skippedMetered ?? false);
 
   const offlineLongEnough =
     offline && offlineSince !== null && now - offlineSince >= OFFLINE_NOTICE_MS && !downloadVisible;
@@ -178,14 +181,14 @@ function OfflineStatusForDevice(): React.JSX.Element | null {
       role="status"
       className="flex flex-col gap-0.5 border-b border-line bg-canvas px-5 py-2 text-micro leading-relaxed text-muted"
     >
-      {running ? (
+      {running && !quiet ? (
         <>
           <p>{t("offline.status.downloading", { done: fill?.done ?? 0, total: fill?.total ?? 0 })}</p>
           <p>{t("offline.status.manageHint")}</p>
         </>
       ) : null}
 
-      {lingering && fill?.stopped === null ? (
+      {lingering && fill?.stopped === null && !quiet ? (
         <>
           <p>{t("offline.status.finished", { count: fill?.total ?? 0 })}</p>
           <p>{t("offline.status.manageHint")}</p>

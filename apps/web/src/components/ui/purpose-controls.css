@@ -1,5 +1,10 @@
 .lv-icon-button { width: 44px; height: 44px; flex: 0 0 auto; padding: 0; border-radius: 50%; }
 .lv-capsule-button { min-height: 44px; max-width: 100%; padding: 8px 16px; border-radius: 999px; }
+/* 筛选行的紧凑胶囊（1.19.52）：保持原筛选胶囊的辅助字号与疏密，点击区仍是 44px。 */
+.lv-capsule-button[data-size="compact"] { padding: 6px 12px; font-size: var(--text-helper); line-height: var(--text-helper--line-height); font-weight: 400; }
+/* 选中 / 展开 / 已生效：基础外观（Original、深色、Pad、桌面）。S19 浅色手机由胶囊材质 + 统一的选中描边表达（material-components.css）。 */
+.lv-capsule-button:is([aria-pressed="true"], [aria-expanded="true"], [data-active]) { background: var(--color-brand-soft); color: var(--color-brand-dark); box-shadow: inset 0 0 0 1px var(--color-brand); }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capsule-button:is([aria-expanded="true"], [data-active]) { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .lv-segmented { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--s19-track-bg, var(--color-canvas)); box-shadow: var(--s19-track-sh, none); }
 .lv-segmented > button { flex: 1; min-height: 44px; min-width: 0; padding: 8px 12px; border-radius: 999px; color: var(--color-muted); font-size: var(--text-helper); }
 .lv-segmented > button[aria-pressed="true"] { background: var(--s19-pill-bg, var(--color-surface)); box-shadow: var(--s19-pill-sh, var(--shadow-sm)); color: var(--color-brand-dark); }

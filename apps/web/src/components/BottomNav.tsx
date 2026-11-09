@@ -337,6 +337,11 @@ export function BottomNavView({
    * 主导航。只有手机外壳的主区（`nav === "bottom"`）才画这条底栏——与以前完全一样。
    */
   const pane = usePane();
+  /**
+   * 1.19.52：正在某个记账方式页（手动、文字、语音、拍照、导入）时，没有哪个 Tab 是“当前页”——
+   * 选中水滴随之移到“＋”后面、被“＋”挡住（s19/tabIndicator.ts、s19/motion/aTabs.ts），离开时再从“＋”后面滑回。
+   */
+  const entryCurrent = cards.active;
   if (pane.nav !== "bottom") return null;
   return (
     // Not `fixed`: the frame that owns this bar is the full dynamic viewport
@@ -547,7 +552,7 @@ export function BottomNavView({
 
       <ul className="mx-auto flex w-full max-w-md items-end justify-around px-2">
         {TABS.map((tab) => {
-          const isActive = tab.to === active;
+          const isActive = tab.to === active && !entryCurrent;
           /**
            * ⚠️ **S14-C: the fourth tab is the guest's own ledger, not the collaboration page.**
            * `/ledger` is account-only (members, invitations, history) and sending a guest there
@@ -565,7 +570,7 @@ export function BottomNavView({
 
           if (tab.primary === true) {
             return (
-              <li key={tab.to} className="flex-1">
+              <li key={tab.to} className="flex-1" data-entry-current={entryCurrent ? "" : undefined}>
                 {/*
                   Raised well above the bar and ringed in the bar's own colour,
                   so it reads as the one deliberate action rather than a fifth

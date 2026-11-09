@@ -208,7 +208,7 @@ describe("BillSummaryPanel / BillFilterRow", () => {
     expect(markup).toContain("疑似重复 1");
     expect(markup).toContain("已选 3");
     expect(markup).toContain("已跳过 2");
-    expect(markup).toMatch(/aria-pressed="true"[^>]*>疑似重复 1/);
+    expect(markup).toMatch(/aria-pressed="true"[^>]*>(?:<span[^>]*>)?疑似重复 1/);
   });
 });
 

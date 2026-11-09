@@ -55,18 +55,20 @@ export function ReferralCodeSection(): React.JSX.Element {
           )}
         </h2>
 
-        {open || exhausted ? null : (
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(true);
-            }}
-            className="shrink-0 text-helper text-brand transition hover:text-brand-dark"
-          >
-            {t("account.referral.mint")}
-          </button>
-        )}
       </div>
+
+      {/* 1.19.52：“生成邀请码”是打开生成面板的次要操作，做成独立按钮（Button secondary，按风格取操作面材质），不再是标题行里的一行文字。 */}
+      {open || exhausted ? null : (
+        <Button
+          variant="secondary"
+          motion
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
+          {t("account.referral.mint")}
+        </Button>
+      )}
 
       {error !== null ? (
         <p role="alert" className="rounded-field bg-danger-soft px-4 py-3 text-body text-danger">

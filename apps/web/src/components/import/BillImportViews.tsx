@@ -13,10 +13,15 @@
  */
 
 import { CURRENCIES, type BillImportCandidate, type BillImportPreview } from "@libellum/shared";
-import type { ReactNode, SelectHTMLAttributes } from "react";
+import { useContext, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Trans } from "react-i18next";
 
 import { Button } from "../Button.js";
+import { NavigationSuppressedContext } from "../PersistentNavContext.js";
+import { Badge } from "../ui/StatusControls.js";
+import { CapsuleButton } from "../ui/PurposeControls.js";
+import { materialAttributes } from "../../s19/material.js";
+import "../../s19/material-components.css";
 import { useI18n } from "../../i18n/index.js";
 import { currencyName } from "../../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
@@ -41,11 +46,14 @@ import {
 } from "../../lib/billImportUi.js";
 
 const MAX_BAR_BLOCKERS = 5;
+/** 手写的下拉与行内编辑框同属输入表面（S19 `field`，外观不变）。 */
+const FIELD = materialAttributes("field");
 
 /**
  * 带字段形状的下拉框。
  *
- * ⚠️ 单独包一层，而不是每处写 `className={fieldClass}`：`uiConsistency.test.ts` 检查的是
+ * ⚠️ 单独包一层，而不是每处写 `{...FIELD}
+          className={fieldClass}`：`uiConsistency.test.ts` 检查的是
  * `<select>` 起始标签里**字面出现** `rounded-field`，用变量拼会被判成裸 select——
  * 而裸 select 会画出浏览器默认的方角/边框/字号，是另一个软件的控制件。
  */
@@ -56,7 +64,8 @@ function BillSelect({
   return (
     <select
       {...props}
-      className="min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
+      {...FIELD}
+      className="lv-material min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
     >
       {children}
     </select>
@@ -310,19 +319,17 @@ export function BillFilterRow({
       {BILL_IMPORT_FILTERS.map((entry) => {
         const active = entry.id === filter;
         return (
-          <button
+          // 1.19.52 语义迁移：互斥筛选用标准筛选胶囊（aria-pressed），与 OCR 概览同一外观。
+          <CapsuleButton
             key={entry.id}
-            type="button"
+            size="compact"
             aria-pressed={active}
             onClick={() => {
               onSelect(entry.id);
             }}
-            className={`min-h-11 rounded-full border px-3 py-1.5 text-helper transition ${
-              active ? "border-brand bg-brand-soft text-brand-dark" : "border-line bg-surface text-muted"
-            }`}
           >
-            {billFilterLabel(entry.id)} {String(counts[entry.id])}
-          </button>
+            {`${billFilterLabel(entry.id)} ${String(counts[entry.id])}`}
+          </CapsuleButton>
         );
       })}
     </div>
@@ -396,9 +403,7 @@ export function BillRowCard({
             <span className={`rounded-full px-2.5 py-1 text-helper ${BILL_ROW_STATUS_CLASSES[status]}`}>
               {billRowStatusLabel(status)}
             </span>
-            <span className="rounded-full bg-canvas lv-entry-soft px-2.5 py-1 text-helper text-muted">
-              {billDirectionLabel(item.kind)}
-            </span>
+            <Badge>{billDirectionLabel(item.kind)}</Badge>
           </span>
           <span className="min-w-0 text-helper text-muted">
             {location} · {billTimeText(item)}
@@ -492,7 +497,7 @@ function BillRowEditor({
 }): React.JSX.Element {
   const { t } = useI18n();
   const fieldClass =
-    "min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-focus-ring";
+    "lv-material min-h-11 w-full rounded-field border border-line bg-surface px-3 text-base text-ink outline-none focus-visible:ring-4 focus-visible:ring-focus-ring";
 
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-3">
@@ -507,6 +512,7 @@ function BillRowEditor({
           onChange={(event) => {
             onPatch({ amount: event.target.value });
           }}
+          {...FIELD}
           className={fieldClass}
         />
       </label>
@@ -556,6 +562,7 @@ function BillRowEditor({
           onChange={(event) => {
             onPatch({ date: event.target.value });
           }}
+          {...FIELD}
           className={fieldClass}
         />
       </label>
@@ -572,6 +579,7 @@ function BillRowEditor({
             const value = event.target.value;
             onPatch({ time: value === "" ? null : value });
           }}
+          {...FIELD}
           className={fieldClass}
         />
         <span className="text-helper text-muted">
@@ -589,6 +597,7 @@ function BillRowEditor({
           onChange={(event) => {
             onPatch({ timezone: event.target.value });
           }}
+          {...FIELD}
           className={fieldClass}
         />
         <span className="text-helper text-muted">{t("dataio.editor.timezoneHint")}</span>
@@ -643,6 +652,7 @@ function BillRowEditor({
           onChange={(event) => {
             onPatch({ note: event.target.value });
           }}
+          {...FIELD}
           className={`${fieldClass} py-2`}
         />
       </label>
@@ -657,6 +667,7 @@ function BillRowEditor({
           onChange={(event) => {
             onPatch({ tags: parseBillTags(event.target.value) });
           }}
+          {...FIELD}
           className={fieldClass}
         />
         <span className="text-helper text-muted">{t("dataio.editor.tagsHint")}</span>
@@ -835,10 +846,12 @@ export function BillCommitBar({
   readonly onRecheck: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  /** 1.19.52：核对步骤让常驻底栏让位时，确认条在底栏退出后从下方升起。 */
+  const replacesNav = useContext(NavigationSuppressedContext);
   const disabled = importableCount === 0 || blockers.length > 0 || busy || dirty;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="" data-entry-bar="" data-bar-surface="chrome">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="" data-entry-bar="" data-bar-surface="chrome" data-replaces-nav={replacesNav ? "" : undefined}>
       <div className="mx-auto w-full max-w-md px-6 pt-2.5 pb-3">
         {/* ⚠️ 英文的按钮文字更长：窄屏允许数量说明与按钮分两行，不挤压、不溢出。 */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

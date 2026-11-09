@@ -193,6 +193,18 @@ export const LEDGER_TIDE = {
   rise: { duration: 1150 },
 } as const;
 
+/**
+ * 常驻底栏让位（1.19.52）：明细批量操作、拍照单张核对、账单导入核对、工作台编辑等需要底部固定操作栏时，
+ * 底栏先自然向下退出（变灰、不可点），随后操作栏从下方升起（CSS `lv-bar-rise`，延迟 = exit）；任务结束时底栏升回。
+ * 时长与“出现 / 消失”的组件反馈同级。
+ */
+export const NAV_YIELD = {
+  exit: { duration: 180, easing: "cubic-bezier(.4,0,1,1)" },
+  enter: { duration: 220, easing: "cubic-bezier(.2,.8,.3,1)" },
+  /** 向下位移（相对底栏自身高度），越过底边一点，阴影也不留在屏幕上。 */
+  offset: "110%",
+} as const;
+
 /** 高频组件反馈的 CSS 变量（按风格取值，见 components/ui/component-motion.css）。 */
 export const FEEDBACK_CSS = {
   press: "--lv-press-ms",

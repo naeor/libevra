@@ -15,6 +15,7 @@ import {
 } from "./fillCoverage.js";
 import { storeMonth } from "./localLedger.js";
 import { offlineScope, scopedKey } from "./scope.js";
+import { OFFLINE_FILL_NOTICE_DAY_KEY } from "../deviceStorageKeys.js";
 
 /**
  * Filling in the months the user has never opened.
@@ -141,6 +142,12 @@ export interface OfflineFill {
   /** Whether it skipped itself because the connection is metered. */
   readonly skippedMetered: boolean;
   /**
+   * 1.19.52：这一次是**自动**下载，而今天已经提示过一次——进度与“已存到本机”不再显示（所有者：提示太频繁，
+   * 自动备份每个自然日只出现一次）。手动下载（下载管理里点的月份、“下载全部”）永远不安静；
+   * 下载未完成、中断与流量网络暂停的提示不受影响。
+   */
+  readonly quiet: boolean;
+  /**
    * When the last run finished, or `null` if none has.
    *
    * ⚠️ **A timestamp rather than a boolean, and that is what fixes the notice.**
@@ -180,6 +187,32 @@ export interface OfflineFill {
  */
 let autoFillStarted = false;
 
+/** 本地自然日（YYYY-MM-DD）。 */
+export function localDay(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** 自动下载的提示今天还能不能出现；能出现就记下今天。读写失败时照常提示，宁可多一次也不吞掉。 */
+export function claimDailyFillNotice(now: Date = new Date(), storage: Pick<Storage, "getItem" | "setItem"> | null = safeLocalStorage()): boolean {
+  const today = localDay(now);
+  try {
+    if (storage?.getItem(OFFLINE_FILL_NOTICE_DAY_KEY) === today) return false;
+    storage?.setItem(OFFLINE_FILL_NOTICE_DAY_KEY, today);
+  } catch {
+    // 无痕模式等：照常提示。
+  }
+  return true;
+}
+
+function safeLocalStorage(): Storage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
 export function useOfflineFill(options: { readonly enabled: boolean }): OfflineFill {
   const queryClient = useQueryClient();
   const [done, setDone] = useState(0);
@@ -188,6 +221,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
   const [stopped, setStopped] = useState<OfflineFillStop | null>(null);
   const [skippedMetered, setSkippedMetered] = useState(false);
   const [justFinishedAt, setJustFinishedAt] = useState<number | null>(null);
+  const [quiet, setQuiet] = useState(false);
 
   /**
    * A ref as well as state, because `start` must not depend on the render it was
@@ -252,6 +286,8 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
       }
 
       setSkippedMetered(false);
+      // 手动下载照常提示；自动下载每个自然日只提示一次（1.19.52）。
+      setQuiet(!explicit && !force && !claimDailyFillNotice());
 
       const months = explicit ? requested : monthsToFetch(new Date(), DEFAULT_MONTHS_BACK);
       await logOffline("开始", `计划 ${months.length} 个月`); // i18n-ignore：诊断日志
@@ -533,5 +569,5 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
     };
   }, [options.enabled, start]);
 
-  return { done, total, running, stopped, skippedMetered, justFinishedAt, start };
+  return { done, total, running, stopped, skippedMetered, quiet, justFinishedAt, start };
 }

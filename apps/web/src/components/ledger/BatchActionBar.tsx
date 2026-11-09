@@ -1,4 +1,7 @@
+import { useContext } from "react";
+
 import { useI18n } from "../../i18n/index.js";
+import { NavigationSuppressedContext } from "../PersistentNavContext.js";
 import type { BatchSummary } from "./batch.js";
 
 /**
@@ -37,10 +40,12 @@ export function BatchActionBar({
   readonly onDelete: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  /** 1.19.52：手机常驻底栏让位（明细调用 useFocusTask）后，操作栏在底栏退出后从下方升起。 */
+  const replacesNav = useContext(NavigationSuppressedContext);
   const disabled = selectedCount === 0 || blockedReason !== null || busy;
 
   return (
-    <div className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]" data-lv-bottom-bar="">
+    <div className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]" data-lv-bottom-bar="" data-replaces-nav={replacesNav ? "" : undefined}>
       <div className="mx-auto w-full max-w-md px-6 pt-3">
         {summary === null ? null : (
           <div

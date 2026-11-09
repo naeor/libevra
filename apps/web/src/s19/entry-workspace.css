@@ -80,12 +80,11 @@
   background: var(--s19-book-bg, var(--s19-card-bg));
   box-shadow: var(--s19-book-sh, var(--s19-card-sh));
 }
-/* 更多选项外框：展示分组；内部输入框仍是实体 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-more] {
-  border-color: var(--s19-card-line, transparent);
-  background: var(--s19-card-bg);
-  box-shadow: var(--s19-card-sh);
+/* C 是纸面：胶囊在白色的“更多选项”面板里只有极淡的投影，看不出边界；与标准胶囊一样补一圈细线（1.19.52）。 */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-chip]:is(.bg-surface, .bg-brand-soft) {
+  box-shadow: 0 0 0 1px var(--s19-card-line, transparent), var(--s19-card-sh);
 }
+/* 更多选项外框：1.19.52 起声明 display 材质（EntryMoreOptions），由 material-components.css 统一处理。 */
 
 /* ---------- 附件上传区（五种方式共用）：保留品牌虚线，底色改用次要操作面 ---------- */
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capture-upload {

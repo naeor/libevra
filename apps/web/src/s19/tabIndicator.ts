@@ -60,7 +60,24 @@ function plusIndex(items: readonly HTMLElement[]): number {
 }
 
 function activeIndex(items: readonly HTMLElement[]): number {
-  return items.findIndex((li) => li.querySelector('[aria-current="page"]') !== null);
+  const tab = items.findIndex((li) => li.querySelector('[aria-current="page"]') !== null);
+  // 1.19.52：在记账方式页时没有当前 Tab，胶囊停到“＋”后面（被“＋”挡住、透明），离开时从那里滑回。
+  return tab >= 0 ? tab : items.findIndex((li) => li.hasAttribute("data-entry-current"));
+}
+
+/** 停在“＋”后面：横向对准“＋”，高度与形状沿用普通 Tab，透明（“＋”本身也会挡住它）。 */
+function targetBox(element: HTMLElement, items: readonly HTMLElement[], at: number): Box | null {
+  const plus = plusIndex(items);
+  if (at !== plus) return boxFor(element, items[at]);
+  const button = items[plus]?.querySelector<HTMLElement>("button");
+  const tab = boxFor(element, items.find((_, i) => i !== plus));
+  if (!button || tab === null) return null;
+  const r = button.getBoundingClientRect(), n = element.getBoundingClientRect();
+  return { ...tab, x: r.left - n.left + r.width / 2 - tab.w / 2 };
+}
+
+function restOpacity(items: readonly HTMLElement[], at: number): number {
+  return at === plusIndex(items) ? 0 : 1;
 }
 
 /** 与原选中圆片同一高度（按钮高度减 12px），宽度为高度的 1.15 倍，中心对准按钮中心。 */
@@ -117,7 +134,7 @@ function stretched(c: number, w: number, s: number, dir: number): { x: number; w
 }
 
 /** 普通方向性平移（相邻切换；V1 跨“＋”也用它，从“＋”后方连续穿过）。 */
-function slide(from: Box, to: Box, fromOpacity: number): Frame[] {
+function slide(from: Box, to: Box, fromOpacity: number, toOpacity = 1): Frame[] {
   const fromC = from.x + from.w / 2;
   const toC = to.x + to.w / 2;
   const d = toC - fromC;
@@ -125,8 +142,10 @@ function slide(from: Box, to: Box, fromOpacity: number): Frame[] {
   const dist = Math.abs(d);
   const s = Math.min(to.w * MAX_STRETCH, dist * 0.35);
   const over = Math.min(3.5, 1.5 + dist * 0.01);
+  // 去“＋”后面时后半程淡出（滑到“＋”下方消失）；从“＋”后面出来时前半程淡入。
+  const fade = (offset: number): number => (toOpacity < 1 ? (offset < 0.4 ? 1 : offset >= 0.72 ? toOpacity : 0.5) : 1);
   const at = (offset: number, c: number, stretch: number, easing?: string): Frame => ({
-    offset, ...stretched(c, to.w, stretch, dir), opacity: 1, ...(easing === undefined ? {} : { easing }),
+    offset, ...stretched(c, to.w, stretch, dir), opacity: fade(offset), ...(easing === undefined ? {} : { easing }),
   });
   return [
     { offset: 0, x: from.x, w: from.w, opacity: fromOpacity, easing: "cubic-bezier(.45, .05, .55, .95)" },
@@ -180,13 +199,14 @@ function track(animations: Animation[]): void {
 function move(element: HTMLElement, items: readonly HTMLElement[], fromIndex: number, toIndex: number, to: Box): void {
   const nodes = ensure(element);
   const now = running.length > 0 ? visual(element) : null;
-  const from = now?.box ?? boxFor(element, items[fromIndex]) ?? to;
-  const fromOpacity = now?.opacity ?? 1;
+  const from = now?.box ?? targetBox(element, items, fromIndex) ?? to;
+  const fromOpacity = now?.opacity ?? restOpacity(items, fromIndex);
+  const toOpacity = restOpacity(items, toIndex);
   cancel();
-  apply(nodes.main, to, 1);
+  apply(nodes.main, to, toOpacity);
   apply(nodes.ghost, from, 0);
   if (reducedMotion()) {
-    track([nodes.main.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: "ease-out" })]);
+    if (toOpacity > 0) track([nodes.main.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: "ease-out" })]);
     return;
   }
   const plus = plusIndex(items);
@@ -201,7 +221,7 @@ function move(element: HTMLElement, items: readonly HTMLElement[], fromIndex: nu
   }
   const dist = Math.abs(to.x + to.w / 2 - (from.x + from.w / 2));
   const duration = Math.round(Math.min(270, Math.max(crosses ? 210 : 190, 150 + dist * 0.4)) * MOTION_TIME_SCALE);
-  track([nodes.main.animate(keyframes(slide(from, to, fromOpacity), to.y), { duration })]);
+  track([nodes.main.animate(keyframes(slide(from, to, fromOpacity, toOpacity), to.y), { duration })]);
 }
 
 /** 再次点按已选中的 Tab：胶囊轻轻收一下再回到原形（位置不变）。 */
@@ -237,7 +257,7 @@ function sync(): void {
     rest = null;
     return;
   }
-  const to = boxFor(element, items[next]);
+  const to = targetBox(element, items, next);
   if (to === null) return;
   // 同一底栏里切换，或者页面切换时旧底栏刚被新底栏替换 —— 都算一次连续的切换。
   const continuous = previous === element || previous !== null || performance.now() - goneAt < SWAP_WINDOW;
@@ -245,7 +265,7 @@ function sync(): void {
     move(element, items, index, next, to);
   } else if (running.length === 0 && (next !== index || !same(rest, to))) {
     cancel();
-    apply(nodes.main, to, 1);
+    apply(nodes.main, to, restOpacity(items, next));
     apply(nodes.ghost, to, 0);
   }
   index = next;

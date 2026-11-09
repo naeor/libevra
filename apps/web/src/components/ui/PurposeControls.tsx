@@ -8,9 +8,12 @@ type ControlProps = Omit<ComponentProps<typeof Button>, "variant" | "fullWidth">
 export function IconButton({ label, appearance, className = "", ...props }: ControlProps & { label: string }) {
   return <Button type="button" {...props} variant="tool" fullWidth={false} motion aria-label={label} appearance={{ ...appearance, shape: "circle" }} className={`lv-icon-button ${className}`} />;
 }
-/** 导航辅助/筛选胶囊，不读路由、不控制显示时机，也不提供独立背景模糊。 */
-export function CapsuleButton({ icon, children, appearance, className = "", ...props }: ControlProps & { icon?: ReactNode }) {
-  return <Button type="button" {...props} variant="capsule" fullWidth={false} motion appearance={{ ...appearance, shape: "pill" }} className={`lv-capsule-button ${className}`}>
+/**
+ * 导航辅助/筛选胶囊，不读路由、不控制显示时机，也不提供独立背景模糊。
+ * 互斥筛选（一组里只有一个生效）用 `aria-pressed`；`compact` 是筛选行的辅助字号（1.19.52）。
+ */
+export function CapsuleButton({ icon, size = "regular", children, appearance, className = "", ...props }: ControlProps & { icon?: ReactNode; size?: "regular" | "compact" }) {
+  return <Button type="button" {...props} variant="capsule" fullWidth={false} motion appearance={{ ...appearance, shape: "pill" }} data-size={size} className={`lv-capsule-button ${className}`}>
     {icon ? <span aria-hidden="true">{icon}</span> : null}<span className="min-w-0 truncate">{children}</span>
   </Button>;
 }

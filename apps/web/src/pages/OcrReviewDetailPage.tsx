@@ -24,6 +24,7 @@ import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionS
 import { InnerPage } from "../components/Layouts.js";
 import { StickyActionBar } from "../components/StickyActionBar.js";
 import { TextField } from "../components/TextField.js";
+import { Badge } from "../components/ui/StatusControls.js";
 import { ocrChannelLabel, ocrDirectionLabel, ocrIssueText } from "../components/ocr/OcrOverview.js";
 import { useI18n } from "../i18n/index.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
@@ -46,6 +47,11 @@ import {
 } from "../lib/ocr/types.js";
 import { useLedger, useLedgerMeta } from "../lib/queries.js";
 import { KindToggle, useKindBar } from "../components/entry/KindToggle.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/material-components.css";
+
+/** 手写的下拉、日期、时间与备注同属输入表面（S19 `field`，外观不变）。 */
+const FIELD = materialAttributes("field");
 
 interface FormState {
   amount: string;
@@ -294,23 +300,20 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
       <section className="lv-capture-ocr-fields flex flex-col gap-4 rounded-card border border-line bg-surface p-4 shadow-card">
         <div className="flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">
-            {ocrDirectionLabel(item.direction)}
-          </span>
-          {item.isRefund ? (
-            <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">{t("ocr.list.refund")}</span>
-          ) : null}
+          {/* 1.19.52 语义迁移：识别结果是静态状态标签（Badge），强调项用 success 文字色，不再手写胶囊。 */}
+          <Badge tone="success">{ocrDirectionLabel(item.direction)}</Badge>
+          {item.isRefund ? <Badge tone="success">{t("ocr.list.refund")}</Badge> : null}
           {item.reviewed ? (
-            <span className="rounded-full bg-canvas lv-entry-soft px-2.5 py-1 text-helper text-muted">{t("ocr.detail.reviewed")}</span>
+            <Badge>{t("ocr.detail.reviewed")}</Badge>
           ) : null}
-          <span className="rounded-full bg-canvas lv-entry-soft px-2.5 py-1 text-helper text-muted">
+          <Badge>
             {t("ocr.detail.source", {
               source:
                 item.sourcePlatform === null
                   ? t("ocr.detail.sourcePending")
                   : ocrChannelLabel(item.sourcePlatform),
             })}
-          </span>
+          </Badge>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -349,7 +352,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-ink">{t("common.field.currency")}</span>
           <select
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
+            {...FIELD}
+            className="lv-material w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={form.currency}
             onChange={(event) => { patch({ currency: event.target.value }); }}
           >
@@ -376,7 +380,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             <span className="text-sm font-medium text-ink">{t("common.field.date")}</span>
             <input
               type="date"
-              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
+              {...FIELD}
+            className="lv-material w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
               value={form.date}
               onChange={(event) => { patch({ date: event.target.value }); }}
             />
@@ -385,7 +390,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             <span className="text-sm font-medium text-ink">{t("common.field.time")}</span>
             <input
               type="time"
-              className="w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
+              {...FIELD}
+            className="lv-material w-full min-w-0 rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
               value={form.time}
               onChange={(event) => { patch({ time: event.target.value }); }}
             />
@@ -401,7 +407,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-ink">{t("common.field.category")}</span>
           <select
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
+            {...FIELD}
+            className="lv-material w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={categoryOptions.some((category) => category.id === form.categoryId) ? form.categoryId : ""}
             onChange={(event) => { patch({ categoryId: event.target.value }); }}
           >
@@ -423,7 +430,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-ink">{t("ocr.detail.paymentMethod")}</span>
           <select
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
+            {...FIELD}
+            className="lv-material w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={methodOptions.some((method) => method.id === form.paymentMethodId) ? form.paymentMethodId : ""}
             onChange={(event) => { patch({ paymentMethodId: event.target.value }); }}
           >
@@ -482,7 +490,8 @@ export function OcrReviewDetailPage(): React.JSX.Element {
           <textarea
             rows={3}
             maxLength={200}
-            className="w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
+            {...FIELD}
+            className="lv-material w-full rounded-field border border-line bg-surface px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-4 focus:ring-focus-ring"
             value={form.note}
             onChange={(event) => { patch({ note: event.target.value }); }}
           />
