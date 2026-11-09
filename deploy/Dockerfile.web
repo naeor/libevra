@@ -41,6 +41,11 @@ COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/web apps/web
 COPY apps/api apps/api
+# ⚠️ 1.19.49：S19 动效源码直接导入 `experiments/abc-motion/*`（A / B1 / C 页面转场与 A 底栏）和
+# `prototype/geometry.mjs`（Object Expand 几何）——AGENTS §2：这两个目录“可能被源码导入，不能凭名字删改”。
+# 只复制 apps/ 与 packages/ 时 tsc 与 Vite 都找不到它们，生产镜像构建失败（本地与 CI 有完整仓库，测不出来）。
+COPY experiments experiments
+COPY prototype prototype
 
 # ⚠️ **The web build needs no backend and no database** — Vite resolves imports at build
 # time and the API base URL is same-origin. That is why this stage can run with no secrets.
