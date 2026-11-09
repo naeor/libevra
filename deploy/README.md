@@ -196,6 +196,7 @@ sudo systemctl start libevra-backup.timer          # 恢复
 | [docker-compose.release-1.18.15.yml](docker-compose.release-1.18.15.yml) | 配置 |
 | [docker-compose.release-1.18.32.yml](docker-compose.release-1.18.32.yml) | 配置 |
 | [docker-compose.release-1.19.49.yml](docker-compose.release-1.19.49.yml) | 配置 |
+| [docker-compose.release-1.19.53.yml](docker-compose.release-1.19.53.yml) | 配置 |
 | [docker-compose.s13i-test.yml](docker-compose.s13i-test.yml) | 配置 |
 | [emergency-raw-restore.sh](emergency-raw-restore.sh) | 运维/开发脚本；执行前确认范围 |
 | [heartbeat.sh](heartbeat.sh) | 运维/开发脚本；执行前确认范围 |

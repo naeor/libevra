@@ -10,6 +10,27 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.19.53": {
+    title: "Shared filters for Entries and Insights",
+    summary: "Entries and Insights now share one filter by default, and filters are kept; entry pages, the keyboard, and materials and transitions in the new styles are more complete.",
+    sections: [
+      { heading: "New features", items: [
+        "Entries and Insights share one filter by default: a change on either page applies to both. Turn it off in the filter panel or in Settings → Entry preferences, and each page keeps its own filter.",
+        "Filters are kept on this device, so refreshing, switching pages or returning after adding an entry no longer resets to the current month.",
+        "Insights now uses the same filter panel as Entries, and can filter by currency, attachments and unspecified payment method.",
+      ] },
+      { heading: "Improvements", items: [
+        "While recording, opening the keyboard no longer pushes the save bar to the middle of the page; it returns when the keyboard closes. Single photo review, bill import review and batch actions in Entries now replace the bottom navigation with their confirmation bar.",
+        "The current ledger capsule now sits above the bottom navigation, and switching ledgers from it or entering the ledger space shows the wave transition.",
+        "With a new style, entry pages, review pages, messages, avatars and other pages use matching materials for backgrounds and bottom bars, and pressed buttons keep their material.",
+        "Profile, avatar and similar pages now have a back transition; cancelling search no longer leaves a selection ring.",
+        "The automatic Saved to this device notice appears at most once a day.",
+      ] },
+      { heading: "Notes", items: [
+        "Insights covers at most 400 days; with All time selected, it analyses the latest 400 days.",
+      ] },
+    ],
+  },
   "1.19.49": {
     title: "Visual styles and new page transitions",
     summary: "Appearance settings add four visual styles with their own options; with a new style, the phone layout gets new page transitions and the ledger space wave.",
