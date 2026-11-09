@@ -10,6 +10,24 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.19.49": {
+    title: "Visual styles and new page transitions",
+    summary: "Appearance settings add four visual styles with their own options; with a new style, the phone layout gets new page transitions and the ledger space wave.",
+    sections: [
+      { heading: "New features", items: [
+        "Settings → Appearance adds Visual style: Classic simplicity, Soft space, Fine porcelain and Layered glass. Your previous appearance is preserved until you choose a style; light/dark mode and theme colors are unchanged.",
+        "Fine porcelain offers three background blur levels and Layered glass three glass effect levels; Soft space, Fine porcelain and Layered glass can use a wallpaper. Open a preview from the Appearance page at any time.",
+        "With a new style in the light phone layout, switching main tabs, expanding entry and insight cards, search, opening and leaving entry methods, Add another, and entering or leaving the ledger space all have new transitions.",
+      ] },
+      { heading: "Improvements", items: [
+        "With a new style, switching to another ledger shows a wave transition during the full reload instead of a blank screen, with a Loading the ledger message if it takes a moment.",
+        "Transitions now take priority, so charts and similar content appear after a transition finishes.",
+      ] },
+      { heading: "Notes", items: [
+        "Materials and transitions currently apply to the light phone layout; dark mode, tablet and desktop use the base appearance. With Reduce Motion turned on, pages switch directly.",
+      ] },
+    ],
+  },
  "1.18.34": { title: "Card editing and downloads", summary: "Improved card editing, navigation and download month lists.", sections: [{ heading: "Improvements", items: ["Tap an added metric again to remove it, or clear the selected card.", "Fixed back navigation and aligned editor controls.", "Download management hides confirmed empty months.", "Updated storage summaries and administration controls."] }] },
   "1.18.32": {
     title: "Entry attachments, collaboration notifications and filters",

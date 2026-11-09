@@ -31,6 +31,8 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 | [dock.css](dock.css) | 样式与变量 |
 | [editor-surfaces.css](editor-surfaces.css) | 样式与变量 |
 | [lab.ts](lab.ts) | 实现模块；入口/导出：startStyleLab |
+| [labDock.test.ts](labDock.test.ts) | 测试：labDock |
+| [labDock.ts](labDock.ts) | 实现模块；入口/导出：wantsStyleLabDock |
 | [material-components.css](material-components.css) | 样式与变量 |
 | [material-effects.css](material-effects.css) | 样式与变量 |
 | [material.test.ts](material.test.ts) | 测试：material |

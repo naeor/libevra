@@ -43,9 +43,10 @@ describe("software update announcements", () => {
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("已添加的指标支持再次点击取消");
-    expect(html).toContain("界面与操作");
-    expect(html).toContain("修复编辑页返回循环");
+    expect(html).toContain("1.19.49");
+    expect(html).toContain("设置 → 外观新增“视觉风格”");
+    expect(html).toContain("调整及优化");
+    expect(html).toContain("转场进行时优先保证动画流畅");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
   });
