@@ -19,9 +19,9 @@ describe("账本空间海浪转场", () => {
     new TidePresentation().run({ exit: false, look: "c", page: () => ({}) as HTMLElement, commit });
     expect(commit).toHaveBeenCalledTimes(1);
   });
-  it("品牌转场整段约 1 秒：涌下 + 退去在 0.7–1.0 秒之间，淡出很短", () => {
-    const total = LEDGER_TIDE.cover.duration + LEDGER_TIDE.recede.duration;
-    expect(total).toBeGreaterThanOrEqual(700); expect(total).toBeLessThanOrEqual(1000);
+  it("品牌转场整段约 1 秒，浪比屏幕厚、留出整屏遮挡的交接行程，淡出很短", () => {
+    expect(LEDGER_TIDE.sweep.duration).toBeGreaterThanOrEqual(800); expect(LEDGER_TIDE.sweep.duration).toBeLessThanOrEqual(1100);
+    expect(LEDGER_TIDE.coverWindow).toBeGreaterThan(0);
     expect(LEDGER_TIDE.fadeOut).toBeLessThanOrEqual(200);
   });
 });

@@ -314,7 +314,7 @@ export class OceanPainter {
     });
   }
 
-  /** 沿浪沿贴一条渐变：逐段（设备像素对齐）竖向剪切，段内跟随浪沿斜率。 */
+  /** 沿浪沿贴一条渐变：逐段（设备像素对齐）竖向剪切，段内跟随浪沿斜率。scale 为负时上下翻转（上边界）。 */
   private stripAlong(e: EdgeSamples, strip: Strip, alpha: (x: number, i: number) => number, scale = 1): void {
     const W = this.W;
     this.stripOn(this.ctx, px => edgeAt(e, W, px), strip, xm => alpha(xm, Math.round((1.01 - xm) / (1.02 / (e.x.length - 1)))), scale);
@@ -343,8 +343,13 @@ export class OceanPainter {
   /**
    * 画一帧。E 为四层浪沿（layer 0 = 1 号），progress 为四层各自的进度（顶栏态的效果收窄用），
    * dwell 为停留增强 0..1（B1 / B2：移动中与刚到达时为 0，完全展开并静止约 1–1.5 秒后平滑升到 1，见 OceanMaterial）。
+   *
+   * upper（只供账本空间海浪转场，motion/tide.ts）：四层各自的上边界。海浪整体划过屏幕时不再挂在屏幕上缘，
+   * 而是一道有上下两侧的浪：上边界由 4 号（最高）到 1 号（最低）排列，与下边缘对称——上方露出的依次是
+   * 4、3、2 号的窄带，中间是 1 号，下方又是 2、3、4 号。每层的填充、阴影与反光在上边界处上下翻转。
+   * 不传时与开始页完全相同。
    */
-  paint(E: readonly EdgeSamples[], progress: readonly number[], seconds = 0, dwell = 1): void {
+  paint(E: readonly EdgeSamples[], progress: readonly number[], seconds = 0, dwell = 1, upper?: readonly EdgeSamples[]): void {
     const { ctx, W, H, dpr, colors } = this;
     if (!colors || !W || !H) return;
     // B2：斜面导光、汇聚亮线与绿色投影的明暗随光照窗口缓慢左右移动；整体强度在停留后从 REST_BASE 略升到 1。
@@ -359,7 +364,7 @@ export class OceanPainter {
     bottom = Math.min(H, bottom + 40);
     const clearTo = Math.min(H, Math.max(bottom, this.dirtyBottom));
     // 不透明外观：浪沿以上每个像素都会被本帧的色带重新覆盖，只需清浪沿以下；玻璃是半透明的，要整块清。
-    const clearFrom = this.look === "b2" ? 0 : Math.max(0, top - 4);
+    const clearFrom = this.look === "b2" || upper ? 0 : Math.max(0, top - 4);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, clearFrom, W, clearTo - clearFrom + 1);
     this.dirtyBottom = bottom;
@@ -368,10 +373,17 @@ export class OceanPainter {
       const e = E[k]!;
       // 只画本层露出来的那一带（上一层浪沿到本层浪沿），上缘多 OVERLAP 像素藏在上一层下面。
       const band = new Path2D();
-      if (k === 0) { band.moveTo(1.01 * W, -40); band.lineTo(-0.01 * W, -40); }
+      if (k === 0 && upper) traceEdge(band, upper[0]!, W, () => 0, true);
+      else if (k === 0) { band.moveTo(1.01 * W, -40); band.lineTo(-0.01 * W, -40); }
       else traceEdge(band, E[k - 1]!, W, () => this.look === "b2" ? 0 : -OVERLAP, true);
       traceReverse(band, e, W, () => 0);
       band.closePath();
+      // 有上边界时，本层在上方露出的一带：本层上边界到上一层（更深一层）的上边界，下缘多 OVERLAP 藏在上一层下面。
+      if (upper && k > 0) {
+        traceEdge(band, upper[k]!, W, () => 0, true);
+        traceReverse(band, upper[k - 1]!, W, () => this.look === "b2" ? 0 : OVERLAP);
+        band.closePath();
+      }
       // B2：预渲染的玻璃外观（左上透光 + 本带透射光斑）；其他外观：主题色实填。
       ctx.fillStyle = this.glassFills[k] ?? colors.fill[k]!;
       ctx.fill(band);
@@ -390,6 +402,17 @@ export class OceanPainter {
       if (this.look === "b1") this.glazeGlints(e, k, settled, near);
 
       if (this.look === "b2") this.sparkRibbon(e, settled, near);
+
+      // 上边界：同一套阴影与反光上下翻转；整条在屏幕上缘之外时不画。
+      const u = upper?.[k];
+      if (u && u.y.some(y => y > -30 && y < H + 30)) {
+        if (shade) this.stripAlong(u, shade, x => this.look === "b2" ? 0.85 + 0.3 * strength * near(x) : 1, -1);
+        if (light) this.stripAlong(u, light, (x, i) => this.look === "a" ? fromLeft(x, 0.4)
+          : this.look === "b1" ? fromLeft(x, 0.35) * (0.6 + 0.4 * facing(u, i, W))
+          : fromLeft(x, 0.3) * (0.55 + 0.45 * facing(u, i, W)) * (this.look === "b2" ? lit(x) : 1), -1);
+        if (this.look === "b1") this.glazeGlints(u, k, 0, near, -1);
+        if (this.look === "b2") this.sparkRibbon(u, 0, near, -1);
+      }
     }
   }
 
@@ -399,7 +422,7 @@ export class OceanPainter {
    * Satin（2–4 号）粗糙度略高：宽而暗，总能量相近。核心 + 很窄的外缘两层，没有大范围光晕。
    * 亮度再乘光照窗口（0.75–1.25，平均不变，随 lightCentre 缓慢左右移动）与停留增强（REST_BASE → 1）。
    */
-  private glazeGlints(e: EdgeSamples, k: number, settled: number, near: (x: number) => number): void {
+  private glazeGlints(e: EdgeSamples, k: number, settled: number, near: (x: number) => number, flip: 1 | -1 = 1): void {
     const { ctx, W, colors } = this;
     const [r, g, b] = parseRgbCached(colors!.light);
     const glazed = k === 0;
@@ -416,8 +439,8 @@ export class OceanPainter {
       }
       if (!any) return;
       const ribbon = new Path2D();
-      traceEdge(ribbon, e, W, () => centre + half * (1 - 0.4 * settled), true);
-      traceReverse(ribbon, e, W, () => centre - half * (1 - 0.4 * settled));
+      traceEdge(ribbon, e, W, () => flip * (centre + half * (1 - 0.4 * settled)), true);
+      traceReverse(ribbon, e, W, () => flip * (centre - half * (1 - 0.4 * settled)));
       ribbon.closePath();
       ctx.fillStyle = grad;
       ctx.fill(ribbon);
@@ -428,12 +451,12 @@ export class OceanPainter {
    * B2：玻璃浪沿内侧一根细而连续的晶亮线，粗细随弧段朝向变化。
    * 沿 x 的亮度：左亮右淡的基础分布 × 光照窗口（0.8–1.2，平均不变，缓慢左右移动）× 停留增强（REST_BASE → 1）。
    */
-  private sparkRibbon(e: EdgeSamples, settled: number, near: (x: number) => number): void {
+  private sparkRibbon(e: EdgeSamples, settled: number, near: (x: number) => number, flip: 1 | -1 = 1): void {
     const { ctx, W, colors } = this;
     const width = (i: number) => (0.5 + (1.4 - 0.6 * settled) * facing(e, i, W)) * fromLeft(e.x[i]!, 0.35);
     ctx.beginPath();
-    traceEdge(ctx, e, W, () => -0.9, true);
-    traceReverse(ctx, e, W, i => -0.9 - width(i));
+    traceEdge(ctx, e, W, () => flip * -0.9, true);
+    traceReverse(ctx, e, W, i => flip * (-0.9 - width(i)));
     ctx.closePath();
     const [r, g, b] = parseRgbCached(colors!.light);
     const grad = ctx.createLinearGradient(0, 0, W, 0);

@@ -8,6 +8,7 @@ import { startTransition, useEffect, useLayoutEffect, useRef, useState, type SVG
 import { decimalsFor, type Ratio } from "@libellum/shared";
 
 import { currencySymbol, numberSeparators } from "../lib/format.js";
+import { whenMotionIdle } from "../lib/motionIdle.js";
 import { formalChartFamily } from "./catalog.js";
 
 /** 按卡片**自身内容盒**的宽高定档（卡片规格 §5.1：不按屏幕或列数）。阈值是原型候选。 */
@@ -43,6 +44,8 @@ export function useElementSize<T extends HTMLElement>(options: ElementSizeOption
   const [size, setSize] = useState(() => options.initial?.() ?? { width: 0, height: 0 });
   const latest = useRef(options);
   latest.current = options;
+  const pending = useRef<(() => void) | null>(null);
+  const waiting = useRef(false);
   useEffect(() => {
     const element = ref.current;
     if (element === null || typeof ResizeObserver === "undefined") return;
@@ -52,7 +55,12 @@ export function useElementSize<T extends HTMLElement>(options: ElementSizeOption
       const width = Math.round(rect.width), height = latest.current.widthOnly ? 0 : Math.round(rect.height);
       // 同值不换对象：React 跳过重渲染。
       const update = (): void => { setSize((previous) => (previous.width === width && previous.height === height ? previous : { width, height })); };
-      if (latest.current.deferred) startTransition(update); else update();
+      if (!latest.current.deferred) { update(); return; }
+      // 延后的尺寸（分析卡片正文）：页面转场进行时先不渲染，转场结束后再以 transition 补上，滑动不被图表占住帧。
+      pending.current = update;
+      if (waiting.current) return;
+      waiting.current = true;
+      whenMotionIdle(() => { waiting.current = false; const next = pending.current; pending.current = null; if (next) startTransition(next); });
     });
     observer.observe(element);
     return () => {

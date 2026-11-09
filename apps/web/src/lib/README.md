@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-09 00:23（UTC+08:00）
+> 最后修改：2026-11-09 08:48（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -83,6 +83,8 @@
 | [messageDrafts.ts](messageDrafts.ts) | 实现模块；入口/导出：messageDraftScope、readMessageDraft、updateMessageDraft、clearAllMessageDrafts |
 | [monthAvailability.test.ts](monthAvailability.test.ts) | 测试：monthAvailability |
 | [monthAvailability.ts](monthAvailability.ts) | 实现模块；入口/导出：MonthAvailability、MonthSamples、monthsInYear、readMonthSamples、monthAvailability |
+| [motionIdle.test.ts](motionIdle.test.ts) | 测试：motionIdle |
+| [motionIdle.ts](motionIdle.ts) | 实现模块；入口/导出：beginMotion、isMotionIdle、whenMotionIdle |
 | [motionTokens.test.ts](motionTokens.test.ts) | 测试：motionTokens |
 | [motionTokens.ts](motionTokens.ts) | 实现模块；入口/导出：MotionStyle、MotionCurve、easingFunction、MOTION_CLOCK、NAVIGATION |
 | [nativeHeaderScroll.test.ts](nativeHeaderScroll.test.ts) | 测试：nativeHeaderScroll |

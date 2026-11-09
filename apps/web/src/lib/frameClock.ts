@@ -19,6 +19,7 @@
  * 只负责时间，不创建 DOM、不提交路由；调用方在 `onProgress` 里做中途交接（例如 Object Expand 在 45% 时提交详情）。
  */
 import { MOTION_CLOCK } from "./motionTokens.js";
+import { beginMotion } from "./motionIdle.js";
 
 export interface ClockReport {
   readonly name: string;
@@ -93,12 +94,14 @@ export function runFrameClock(animations: Animation[], duration: number, options
   let time = 0, last: number | null = null, frames = 0, first = 0, firstAt = 0, maxGap = 0, raf = 0, ended = false;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   const pace = new FramePace();
+  // 转场期间新页面里可以晚一点出现的重活（分析卡片图表等）让路，结束后再补（motionIdle.ts）。
+  const idle = beginMotion();
   const report = (completed: boolean, stalled = false): void => {
     const value: ClockReport = { name: options.name, firstFrameMs: Math.round(first), frames, wallMs: Math.round(performance.now() - (firstAt || created)), maxGapMs: Math.round(maxGap), duration, completed, stalled };
     for (const listener of listeners) listener(value);
   };
   const finish = (stalled: boolean): void => {
-    ended = true; clearTimeout(watchdog);
+    ended = true; clearTimeout(watchdog); idle();
     if (stalled) { cancelAnimationFrame(raf); time = duration; for (const animation of list) animation.currentTime = time; options.onProgress?.(1); }
     report(true, stalled); options.onDone?.();
   };
@@ -123,7 +126,7 @@ export function runFrameClock(animations: Animation[], duration: number, options
     get progress() { return duration ? time / duration : 1; },
     add(animation) { animation.pause(); animation.currentTime = time; list.push(animation); },
     remove(animation) { const index = list.indexOf(animation); if (index >= 0) list.splice(index, 1); animation.cancel(); },
-    cancel() { if (ended) return; ended = true; clearTimeout(watchdog); cancelAnimationFrame(raf); report(false); },
+    cancel() { if (ended) return; ended = true; clearTimeout(watchdog); cancelAnimationFrame(raf); idle(); report(false); },
   };
 }
 
