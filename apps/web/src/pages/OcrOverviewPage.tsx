@@ -541,9 +541,6 @@ export function OcrOverviewPage(): React.JSX.Element {
             note={t("ocr.overview.note")}
           />
 
-          {/* 固定操作条不占文档流，这里补出等高空白，最后一笔不会被挡住。 */}
-          <div aria-hidden="true" className={BOTTOM_BAR_CLEARANCE} />
-
           <OcrImportBar
             importableCount={importableCount}
             blockedReason={disabledReason}
@@ -608,6 +605,11 @@ export function OcrOverviewPage(): React.JSX.Element {
         }}
       />
       <CaptureMobileAttachments panel={attachments.panel} />
+      {/*
+        固定操作条不占文档流，这里补出等高空白，页面末尾不会被挡住。1.19.51：放到附件区之后——
+        原来放在列表末尾，附件区的说明滚到底仍停在操作条后面。
+      */}
+      {batch === null ? null : <div aria-hidden="true" className={BOTTOM_BAR_CLEARANCE} />}
     </InnerPage></CaptureLayout>
   );
 }

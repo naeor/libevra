@@ -118,7 +118,7 @@ export function BillPickCard({
         </button>
       </div>
 
-      <details className="rounded-field bg-canvas px-4 py-3 text-helper-relaxed text-muted">
+      <details className="rounded-field bg-canvas lv-entry-soft px-4 py-3 text-helper-relaxed text-muted">
         <summary className="w-fit cursor-pointer select-none font-medium text-ink">
           {t("dataio.pick.howTitle")}
         </summary>
@@ -396,7 +396,7 @@ export function BillRowCard({
             <span className={`rounded-full px-2.5 py-1 text-helper ${BILL_ROW_STATUS_CLASSES[status]}`}>
               {billRowStatusLabel(status)}
             </span>
-            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
+            <span className="rounded-full bg-canvas lv-entry-soft px-2.5 py-1 text-helper text-muted">
               {billDirectionLabel(item.kind)}
             </span>
           </span>
@@ -717,7 +717,7 @@ export function BillDuplicateSection({
               return (
                 <li
                   key={id}
-                  className="flex items-start gap-2 rounded-field bg-canvas px-3 py-2"
+                  className="flex items-start gap-2 rounded-field bg-canvas lv-entry-soft px-3 py-2"
                 >
                   <input
                     type="checkbox"
@@ -761,7 +761,7 @@ export function BillDuplicateSection({
               if (item === undefined) return null;
               const checked = item.selected && !item.identityDuplicate;
               return (
-                <li key={entry.candidateId} className="flex items-start gap-2 rounded-field bg-canvas px-3 py-2">
+                <li key={entry.candidateId} className="flex items-start gap-2 rounded-field bg-canvas lv-entry-soft px-3 py-2">
                   <input
                     type="checkbox"
                     checked={checked}
@@ -838,7 +838,7 @@ export function BillCommitBar({
   const disabled = importableCount === 0 || blockers.length > 0 || busy || dirty;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="" data-entry-bar="" data-bar-surface="chrome">
       <div className="mx-auto w-full max-w-md px-6 pt-2.5 pb-3">
         {/* ⚠️ 英文的按钮文字更长：窄屏允许数量说明与按钮分两行，不挤压、不溢出。 */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

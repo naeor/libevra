@@ -3,11 +3,12 @@ import { useLocation, useNavigate } from "react-router";
 
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
 import { BottomNav, BottomNavView, type EntryCards } from "./BottomNav.js";
-import { PersistentNavContext, SuppressNavigationContext } from "./PersistentNavContext.js";
+import { NavigationSuppressedContext, PersistentNavContext, SuppressNavigationContext } from "./PersistentNavContext.js";
 import { BookCapsuleContext, createBookCapsuleStore } from "./bookCapsule.js";
 import { PersistentBookCapsule } from "./PersistentBookCapsule.js";
 import { navigationLevel } from "../s19/motion/navigation.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
+import { startSoftKeyboard } from "../lib/softKeyboard.js";
 import { currentBookId, subscribeCurrentBook } from "../lib/currentBook.js";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
@@ -155,13 +156,17 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
     [open],
   );
 
+  // 软键盘打开时底部操作区与常驻底栏让位（lib/softKeyboard.ts）；只在手机外壳运行，四风格、Original、深色一致。
+  useEffect(() => (pane.shell === "phone" ? startSoftKeyboard() : undefined), [pane.shell]);
+
   const persistent = pane.nav === "bottom" && (!!auth?.user || !!guest);
   // 当前账本胶囊挂在常驻底栏上（bookCapsule.ts）；手机外壳才有，页面只登记账本名。
   const [capsules] = useState(createBookCapsuleStore);
   const docked = persistent && pane.shell === "phone";
   return <EntryMenuContext.Provider value={value}><PersistentNavContext.Provider value={persistent}><BookCapsuleContext.Provider value={docked ? capsules : null}>
-    <SuppressNavigationContext.Provider value={suppressNavigation}>{children}</SuppressNavigationContext.Provider>
-    {persistent ? <div data-persistent-nav hidden={level === "subpage" || navigationSuppressed} className="persistent-nav" onClickCapture={event => {
+    <SuppressNavigationContext.Provider value={suppressNavigation}><NavigationSuppressedContext.Provider value={navigationSuppressed}>{children}</NavigationSuppressedContext.Provider></SuppressNavigationContext.Provider>
+    {/* 让位时（工作台编辑、专注型核对步骤）底栏隐藏；万一仍在画面上（转场副本等）也是灰色、inert、不可点击。 */}
+    {persistent ? <div data-persistent-nav hidden={level === "subpage" || navigationSuppressed} inert={navigationSuppressed || undefined} data-focus-task={navigationSuppressed ? "" : undefined} className="persistent-nav" onClickCapture={event => {
       if (event.target instanceof Element && event.target.closest("a[href]")) value.close();
     }}>{docked ? <PersistentBookCapsule menuOpen={open} /> : null}<BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(tabTarget(to)); }}
       cards={{ mode: "toggle", expanded: open, active: level === "enterMode", onToggle: value.toggle }}
@@ -382,7 +387,9 @@ function MobileInnerPage({
   const goBack = useGoBack(backTo, backMode);
   const pane = usePane();
   const { pathname } = useLocation();
-  const mode = pane.nav === "bottom" && navigationLevel(pathname) === "enterMode";
+  // 专注型核对步骤让底栏让位时，不再为底栏留尾部空间（与次级页面一致）。
+  const navigationSuppressed = useContext(NavigationSuppressedContext);
+  const mode = pane.nav === "bottom" && navigationLevel(pathname) === "enterMode" && !navigationSuppressed;
   const width = frameWidthClass(pane, wideWidth);
   /**
    * S18：页面左上角的「返回」先告诉工作区外壳「这是返回」——有的页面返回是打开声明的上级页（push），

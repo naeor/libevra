@@ -117,6 +117,8 @@
 | [scanHandoff.ts](scanHandoff.ts) | 实现模块；入口/导出：handOverForScan、takeScanHandover、SpokenDraftHandover、handOverSpoken、takeSpokenHandover |
 | [share.test.ts](share.test.ts) | 测试：share |
 | [share.ts](share.ts) | 实现模块；入口/导出：ShareOutcome、toFile、canShareFiles、deliverFile |
+| [softKeyboard.test.ts](softKeyboard.test.ts) | 测试：softKeyboard |
+| [softKeyboard.ts](softKeyboard.ts) | 实现模块；入口/导出：KEYBOARD_THRESHOLD、FOCUS_SETTLE_MS、REVEAL_WINDOW_MS、isTextEntry、KeyboardSample |
 | [spaceTransition.ts](spaceTransition.ts) | 实现模块；入口/导出：SpaceTransition、readSeenPresentation、markPresentationSeen、useSpaceTransition |
 | [statsView.test.ts](statsView.test.ts) | 测试：statsView |
 | [statsView.ts](statsView.ts) | 实现模块；入口/导出：readStatsView、updateStatsView |
@@ -136,6 +138,7 @@
 | [useCollapsingHeader.test.ts](useCollapsingHeader.test.ts) | 测试：useCollapsingHeader |
 | [useCollapsingHeader.ts](useCollapsingHeader.ts) | 实现模块；入口/导出：RESTORE_HEADER_SCROLL、useCollapsingHeader |
 | [useOverlayPresentation.ts](useOverlayPresentation.ts) | 实现模块；入口/导出：useOverlayExit、useOverlayPresence、useOverlayScrollLock |
+| [useRootVisualStyle.ts](useRootVisualStyle.ts) | 实现模块；入口/导出：useRootVisualStyle |
 | [useTimeAnalysis.test.ts](useTimeAnalysis.test.ts) | 测试：useTimeAnalysis |
 | [useTimeAnalysis.ts](useTimeAnalysis.ts) | 实现模块；入口/导出：useTimeAnalysis、useCumulativeAnalysis、useFlowAnalysis、usePeriodComparison、useMultiMonthComparison |
 | [useVoiceRecorder.test.ts](useVoiceRecorder.test.ts) | 测试：useVoiceRecorder |

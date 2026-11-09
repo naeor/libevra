@@ -46,6 +46,12 @@
   --s19-bar-sh: inset 0 -.5px 0 rgb(40 52 46 / .08);
   --s19-search-backing: var(--s19-top);
   --s19-bar-filter: none;
+  /* 底部操作区（保存栏、核对确认条，1.19.51）：柔和实体薄片，向上的宽柔影。 */
+  --s19-action-bar-bg: rgb(253 253 251 / .92);
+  --s19-action-bar-sh: 0 -.5px 0 rgb(40 50 44 / .06), 0 -12px 28px -20px rgb(30 40 36 / .32);
+  --s19-action-bar-filter: none;
+  /* 金额框（1.19.51）：实体白片，宽而柔的品牌色投影。 */
+  --s19-amount-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 1px 2px rgb(40 50 44 / .05), 0 16px 32px -20px color-mix(in srgb, var(--color-brand) 34%, rgb(30 40 34 / .45));
   --s19-dock-bg: #fff;
   --s19-dock-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 -12px 34px -20px rgb(30 40 36 / .4);
   --s19-dock-r: 26px;
@@ -109,6 +115,10 @@
   --s19-bar-bg: linear-gradient(180deg, rgb(var(--s19-glass-rgb) / calc(.78 * var(--s19-glass-milk))), rgb(var(--s19-glass-rgb) / calc(.68 * var(--s19-glass-milk))));
   --s19-bar-sh: inset 0 -1px 0 rgb(255 255 255 / calc(.55 * var(--s19-glass-rim))), inset 0 -1.5px 0 rgb(60 56 44 / calc(.07 * var(--s19-glass-shadow)));
   --s19-bar-filter: blur(var(--s19-glass-blur)) saturate(1.3);
+  /* 底部操作区（1.19.51）：与顶栏同一层奶白瓷玻璃，亮边在上缘。 */
+  --s19-action-bar-bg: var(--s19-bar-bg);
+  --s19-action-bar-sh: inset 0 1px 0 rgb(255 255 255 / calc(.6 * var(--s19-glass-rim))), 0 -.5px 0 rgb(60 56 44 / calc(.08 * var(--s19-glass-shadow))), 0 -12px 28px -20px rgb(60 56 44 / calc(.3 * var(--s19-glass-shadow)));
+  --s19-action-bar-filter: var(--s19-bar-filter);
   --s19-search-backing: var(--s19-bar-solid);
   /* Tab 页顶部不能加背景模糊（见 ambient.css），覆盖层略高一点 */
   --s19-bar-solid: linear-gradient(180deg, rgb(var(--s19-glass-rgb) / calc(.86 * var(--s19-glass-milk))), rgb(var(--s19-glass-rgb) / calc(.8 * var(--s19-glass-milk))));
@@ -158,6 +168,12 @@
   --s19-r-group: 16px; --s19-r-key: 18px; --s19-r-mini: 16px; --s19-r-sheet: 22px; --s19-r-field: 12px;
   --s19-bar-bg: var(--s19-canvas);
   --s19-bar-sh: inset 0 -1px 0 rgb(30 45 38 / .08);
+  /* 底部操作区（1.19.51）：C 没有壁纸，继续用纸面，上缘一条细线。 */
+  --s19-action-bar-bg: var(--s19-canvas);
+  --s19-action-bar-sh: 0 -1px 0 rgb(30 45 38 / .08);
+  --s19-action-bar-filter: none;
+  /* 金额框（1.19.51）：实体白纸，清楚的细投影。 */
+  --s19-amount-sh: 0 1px 2px rgb(30 45 38 / .1), 0 0 0 .5px rgb(30 45 38 / .04);
   --s19-dock-bg: #fff;
   --s19-dock-sh: 0 -1px 0 rgb(30 45 38 / .08);
   --s19-dock-r: 0px;

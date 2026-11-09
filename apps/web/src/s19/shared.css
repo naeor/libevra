@@ -23,7 +23,8 @@
 }
 
 /* ---------- 信息卡片 / 列表分组 / 设置分组（Content · Satin · Glass） ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.rounded-card.bg-surface, .lv-settings-body.bg-surface, .sw-statbar, details.rounded-field.bg-surface) {
+/* 记账金额框（data-entry-amount）是输入表面，不吃展示玻璃；材质见 entry-workspace.css（1.19.51）。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.rounded-card.bg-surface, .lv-settings-body.bg-surface, .sw-statbar, details.rounded-field.bg-surface):not([data-entry-amount]) {
   border-color: var(--s19-card-line, transparent);
   background: var(--s19-card-bg);
   box-shadow: var(--s19-card-sh);

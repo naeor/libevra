@@ -128,7 +128,7 @@ export function ImportDoneView({
         list scrolls, and it stays in the layout so nothing is covered. Safe-area padding
         lives on the opaque bar itself, matching the bottom bars elsewhere.
       */}
-      <div className="sticky bottom-0 border-t border-line bg-surface px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]" data-lv-bottom-bar="">
+      <div className="sticky bottom-0 border-t border-line bg-surface px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]" data-lv-bottom-bar="" data-bar-surface="chrome">
         {/*
           ⚠️ S16-A: side by side instead of stacked. Two full-width buttons on top of each other
           took ~120px of a phone's height for two choices; one row keeps both large (≥44px) and

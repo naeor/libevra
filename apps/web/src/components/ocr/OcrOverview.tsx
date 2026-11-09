@@ -677,7 +677,7 @@ export function OcrImportBar({
   const disabled = importableCount === 0 || blockedReason !== null || busy;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-card" data-lv-bottom-bar="" data-entry-bar="" data-bar-surface="chrome">
       <div className="mx-auto w-full max-w-md px-6 pt-2.5 pb-3">
         {/* S16：英文的按钮文字更长（“Import 12 entries”），计数允许收缩换行，按钮保持一行。 */}
         <div className="flex items-center gap-3">

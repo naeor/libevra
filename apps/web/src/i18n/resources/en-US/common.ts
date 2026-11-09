@@ -64,6 +64,7 @@ const common: Messages<typeof zh> = {
     password: "Password",
     nickname: "Nickname",
     accountNumber: "Account number",
+    kind: "Entry type",
   },
   kind: {
     expense: "Expense",

@@ -48,6 +48,7 @@ import {
 import { takeScanHandover } from "../lib/scanHandoff.js";
 import { uuidV7 } from "../lib/uuid.js";
 import { continueEntry } from "../lib/entryFlow.js";
+import { useFocusTask } from "../components/PersistentNavContext.js";
 
 /**
  * Recording from a screenshot.
@@ -84,6 +85,11 @@ export function ScanPage(): React.JSX.Element {
   const [mode, setMode] = useState<Mode>("single");
   const [step, setStep] = useState<Step>({ name: "pick" });
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 1.19.51：单张核对是专注型任务（与 `/paste/review`、`/ocr/overview` 同一语义）——常驻底栏让位，
+   * 「确认并保存」栏占用底栏原来的位置。选图、识别中、保存成功仍是普通记账工作区，底栏照常显示。
+   */
+  useFocusTask(step.name === "review");
 
   /**
    * Recognition ran and read nothing, so the user is asked what to do next.

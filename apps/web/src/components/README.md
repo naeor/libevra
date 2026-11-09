@@ -87,7 +87,7 @@
 | [OfflineStatus.tsx](OfflineStatus.tsx) | 界面模块；入口/导出：OfflineStatus |
 | [PasswordField.tsx](PasswordField.tsx) | 界面模块；入口/导出：PasswordField |
 | [PersistentBookCapsule.tsx](PersistentBookCapsule.tsx) | 界面模块；入口/导出：PersistentBookCapsule |
-| [PersistentNavContext.ts](PersistentNavContext.ts) | 实现模块；入口/导出：PersistentNavContext、SuppressNavigationContext |
+| [PersistentNavContext.ts](PersistentNavContext.ts) | 实现模块；入口/导出：PersistentNavContext、SuppressNavigationContext、NavigationSuppressedContext、useFocusTask |
 | [ProfileAccountNumberSheet.tsx](ProfileAccountNumberSheet.tsx) | 界面模块；入口/导出：ProfileAccountNumberSheet |
 | [QrCodeView.tsx](QrCodeView.tsx) | 界面模块；入口/导出：QrCodeView |
 | [RecoveryCodeCard.tsx](RecoveryCodeCard.tsx) | 界面模块；入口/导出：RecoveryCodeCard |

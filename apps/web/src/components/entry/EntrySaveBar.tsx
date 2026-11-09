@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from "react";
 
+import { usePane } from "../../workspace/context.js";
 import { useKeyboardInset } from "./keyboardInset.js";
 
 /**
@@ -29,8 +30,14 @@ import { useKeyboardInset } from "./keyboardInset.js";
  * `pb-[env(safe-area-inset-bottom)]` 把系统区让出来了，而这条行动条位于导航**上方**
  * （滚动区底边 = 导航上沿）。这里再加一次，iPhone 上会凭空多出 34px 的空档。
  *
- * 软键盘弹出时由 `useKeyboardInset` 把整条抬到键盘上方；此时底部导航在键盘后面，
- * 不再需要为 `+` 让位，`pb-5` 就只是按钮与键盘之间的呼吸空间。键盘收起时回到 `bottom-0`。
+ * ⚠️ **1.19.51：手机外壳里软键盘弹出时不再把整条抬到键盘上方**（所有者决定）。原来的做法在 iPhone 上
+ * 把 84px 的保存条抬到可见区中部、压住「分类」，还和 iOS 26 键盘上方的半透明地址栏、辅助条叠成几层。
+ * 现在它留在原位、像被键盘盖住一样隐藏（`data-entry-bar` + `lib/softKeyboard.ts` + navigation.css），
+ * 收起键盘后淡入；需要保存时先点键盘上的 ✓。Pad 的大屏工作区不在本次范围，仍沿用原来的抬升。
+ *
+ * ⚠️ **S19 材质**：`bg-canvas` 在 S19 手机外壳里会被重映射成不透明的 `--s19-canvas`，在壁纸上形成色块。
+ * `data-bar-surface="chrome"` 让 S19 浅色四风格改用「底部操作区」操作表面（s19/entry-workspace.css）；
+ * Original、深色、大屏仍是原来的纸面。
  */
 export function EntrySaveBar({
   scrollRef,
@@ -39,7 +46,8 @@ export function EntrySaveBar({
   readonly scrollRef: RefObject<HTMLDivElement | null>;
   readonly children: ReactNode;
 }): React.JSX.Element {
-  const keyboardInset = useKeyboardInset(scrollRef);
+  const pane = usePane();
+  const keyboardInset = useKeyboardInset(scrollRef, pane.shell !== "phone");
 
   return (
     <div
@@ -47,6 +55,8 @@ export function EntrySaveBar({
       style={keyboardInset > 0 ? { bottom: keyboardInset } : undefined}
       className="sticky bottom-0 z-0 mt-5 bg-canvas"
       data-lv-bottom-bar=""
+      data-entry-bar=""
+      data-bar-surface="chrome"
     >
       <div className="border-t border-line px-6 pt-3 pb-5">{children}</div>
     </div>

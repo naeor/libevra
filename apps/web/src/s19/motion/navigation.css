@@ -16,3 +16,21 @@
 .mode-stage[data-mode-style="a"] .mode-sheet { box-shadow: 0 -10px 30px color-mix(in srgb, var(--color-ink) 12%, transparent); }
 .mode-stage[data-mode-style="b2"] .mode-sheet { box-shadow: 0 -1px color-mix(in srgb, var(--color-surface) 70%, transparent), 0 -10px 26px color-mix(in srgb, var(--color-ink) 8%, transparent); }
 .mode-stage nav, .mode-stage [data-persistent-nav], .mode-stage .lv-entry-menu { visibility: hidden; }
+/* 1.19.51 · 专注型核对步骤（PersistentNavContext.useFocusTask）让底栏让位时隐藏；万一仍在画面上（转场副本等）
+   也是灰色、不可点击，确认栏不会和可点的 Tab 叠在一起。 */
+.persistent-nav[data-focus-task] { pointer-events: none; filter: grayscale(1); opacity: .45; }
+/* 1.19.51 · 软键盘（lib/softKeyboard.ts）：键盘打开时，记账工作区的底部操作区（data-entry-bar）与常驻底栏
+   不跟着键盘抬起，而是像被键盘盖住一样隐藏（不改占位、不重排、不可聚焦）；收起后淡入。只在手机外壳生效，
+   四风格、Original 与深色一致；Pad / 桌面不受影响。 */
+:root[data-soft-keyboard="open"] .lv-shell[data-shell="contents"] :is([data-entry-bar], [data-persistent-nav]) {
+  visibility: hidden; opacity: 0; pointer-events: none;
+}
+:root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] :is([data-entry-bar], [data-persistent-nav]:not([data-focus-task])) {
+  animation: lv-keyboard-reveal var(--lv-reveal-ms, 200ms) var(--lv-motion-ease, ease-out) both;
+}
+@keyframes lv-keyboard-reveal { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] :is([data-entry-bar], [data-persistent-nav]) { animation: none; }
+}
+/* 键盘打开期间给手动记账表单尾部留出被键盘挡住的高度，最后的字段（备注、附件）也能滚到键盘上方。 */
+:root[data-soft-keyboard="open"] .lv-shell[data-shell="contents"] .lv-manual-form { padding-bottom: var(--lv-keyboard-inset, 0px); }

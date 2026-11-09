@@ -79,7 +79,7 @@ export function EntryMoreOptions({
 
   return (
     <section className={`flex flex-col gap-2 px-6 pt-5 ${expanded ? "lv-entry-more-expanded" : ""}`}>
-      <div className="overflow-hidden rounded-field border border-line bg-surface">
+      <div data-entry-more="" className="overflow-hidden rounded-field border border-line bg-surface">
         {expanded ? null : <button
           type="button"
           aria-expanded={open}
@@ -122,6 +122,7 @@ export function EntryMoreOptions({
                     onClick={() => {
                       onPaymentMethodChange(method.id === paymentMethodId ? null : method.id);
                     }}
+                    data-entry-chip=""
                     className={`rounded-full px-4 py-2 text-sm transition ${
                       method.id === paymentMethodId
                         ? "bg-brand text-on-brand"
@@ -169,6 +170,7 @@ export function EntryMoreOptions({
                             ? tagFillStyle(tag.color)
                             : undefined
                         }
+                        data-entry-chip=""
                         className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
                           selected
                             ? "text-on-tag"

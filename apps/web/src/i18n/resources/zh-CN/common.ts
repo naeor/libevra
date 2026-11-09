@@ -66,6 +66,7 @@ const common = {
     password: "密码",
     nickname: "昵称",
     accountNumber: "账号编号",
+    kind: "收支类型",
   },
   kind: {
     expense: "支出",

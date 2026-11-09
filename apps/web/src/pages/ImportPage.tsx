@@ -49,6 +49,7 @@ import { formatMoney, parseAmountInput } from "../lib/format.js";
 import { fetchTemplate, useCurrentBookId, useLedger, useLedgerMeta, useMoneyInvalidator } from "../lib/queries.js";
 import { deliverFile } from "../lib/share.js";
 import { continueEntry } from "../lib/entryFlow.js";
+import { useFocusTask } from "../components/PersistentNavContext.js";
 
 /**
  * 账单导入 V2：选文件 → 服务端识别 → 概览核对 → 批量入账。
@@ -205,6 +206,11 @@ function ImportView({
   const invalidateMoney = useMoneyInvalidator(bookId);
 
   const [step, setStep] = useState<Step>({ name: "choose" });
+  /**
+   * 1.19.51：核对并最终确认导入是专注型任务——常驻底栏让位，固定确认条（含风险确认、阻断原因与取消）
+   * 占用底栏原来的位置，不再被底栏盖住。选择文件、解析中、导入完成仍按普通记账工作区显示底栏。
+   */
+  useFocusTask(step.name === "review");
   /** Kept outside the step so a failed preview can still name the file it failed on. */
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -595,8 +601,6 @@ function ImportView({
             <p className="text-helper text-muted">{t("dataio.import.groupsTruncated", { count: groups.length })}</p>
           ) : null}
 
-          {/* ⚠️ 固定底栏会盖住最后一笔，这里留出等高空白（`InnerPage` 的 padding 不归本页）。 */}
-          <div aria-hidden="true" className="h-44" />
         </section>
       ) : null}
 
@@ -686,6 +690,12 @@ function ImportView({
         }
       />
       <CaptureMobileAttachments panel={attachments.panel} />
+      {/*
+        ⚠️ 固定确认条会盖住页面末尾，这里留出等高空白（`InnerPage` 的 padding 不归本页）。
+        1.19.51：放到附件区之后——核对步骤让常驻底栏让位后，页面末尾不再有底栏留白，原来放在列表末尾时
+        附件区的下半部分滚到底也会停在确认条后面。
+      */}
+      {step.name === "review" && check !== null ? <div aria-hidden="true" className="h-44" /> : null}
     </InnerPage></CaptureLayout>
   );
 }

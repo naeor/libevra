@@ -1,0 +1,100 @@
+/*
+  S19 记账工作区（手动、文字、语音、拍照、导入及其核对页）材质接入，1.19.51。
+  依据：docs 专项审查（2026-11-09）与所有者决定。B2 不等于全部透明——
+  · 页面背景透明，显露统一壁纸；
+  · 输入表面（金额框、分类、时间、备注等）保持实体，不采样背景；金额框保留白底 + 品牌框，按风格换材质；
+  · 底部操作区（保存栏、核对 / 导入确认条）是操作表面：伪元素承载填充与滤镜，不在含内容的元素上加滤镜；
+  · 主按钮、危险操作与状态提示沿用既有映射，不透明。
+  作用范围：浅色四风格的手机外壳。Original、深色、Pad、桌面不命中（C 顶区压缩除外，见文末）。
+*/
+
+/* ---------- 底部操作区（data-bar-surface="chrome"） ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-bar-surface="chrome"] {
+  border-top-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+/* EntrySaveBar 的分隔线在内层 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-bar-surface="chrome"] > div {
+  border-top-color: transparent;
+}
+/* sticky / fixed 都会建立层叠上下文，z-index:-1 的伪元素画在栏内容之下、栏背景之上。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-bar-surface="chrome"]::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--s19-action-bar-bg, var(--s19-bar-bg));
+  box-shadow: var(--s19-action-bar-sh, none);
+  -webkit-backdrop-filter: var(--s19-action-bar-filter, none);
+  backdrop-filter: var(--s19-action-bar-filter, none);
+}
+
+/* ---------- 页面背景：去掉在壁纸上形成色块的画布 / 纯白底 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-manual-amount, main[data-entry-saved]) {
+  background: transparent;
+}
+
+/* ---------- 金额框：白底 + 品牌框，按风格换材质（输入表面，始终清楚可读） ----------
+   各风格的填充、描边与投影是令牌（--s19-amount-*：A / B1 / C 在 s19-lab-tokens.css，B2 在 index.css）。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount] {
+  --lv-amount-ring: 0 0 0 0 transparent;
+  border-width: 2px;
+  border-color: var(--s19-amount-border, var(--color-brand));
+  background: var(--s19-amount-bg, var(--color-surface));
+  box-shadow: var(--lv-amount-ring), var(--s19-amount-sh, none);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount]:has(input:focus-visible) {
+  --lv-amount-ring: 0 0 0 4px var(--color-focus-ring);
+}
+/* B1 细腻瓷面：白瓷底座 + 共用瓷面阴影与缎面反射（material-effects.css 的已验收配方，AmountField 带 lv-material-effects） */
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount] {
+  position: relative; z-index: 0;
+  box-shadow: var(--lv-amount-ring), var(--lv-porcelain-shadow);
+}
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount]::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: var(--lv-porcelain-satin); opacity: var(--lv-material-reflection, .6);
+}
+/* B2 层叠玻璃：九成白的乳白玻璃，模糊只在伪元素上；文字始终在近乎实体的白底上 */
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount] {
+  position: relative; z-index: 0;
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount]::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  -webkit-backdrop-filter: blur(var(--s19-glass-blur, 9px)) saturate(1.4);
+  backdrop-filter: blur(var(--s19-glass-blur, 9px)) saturate(1.4);
+}
+
+/* ---------- 拖放 / 选择区：兼容映射让卡片变成玻璃时，保留虚线提示 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .rounded-card.bg-surface.border-dashed {
+  border-color: color-mix(in srgb, var(--color-line-strong) 55%, transparent);
+}
+
+/* ---------- 次级信息块与标签（原文、听到的内容、说明、识别标签）：中性内凹底，不是画布色块 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-soft {
+  background: var(--s19-track-bg);
+  box-shadow: var(--s19-track-sh);
+}
+
+/* ---------- 胶囊：沿用上一笔、快捷金额、未选中的支付方式与标签 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-chip]:is(.bg-surface, .bg-brand-soft) {
+  border-color: transparent;
+  background: var(--s19-book-bg, var(--s19-card-bg));
+  box-shadow: var(--s19-book-sh, var(--s19-card-sh));
+}
+/* 更多选项外框：展示分组；内部输入框仍是实体 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-more] {
+  border-color: var(--s19-card-line, transparent);
+  background: var(--s19-card-bg);
+  box-shadow: var(--s19-card-sh);
+}
+
+/* ---------- 附件上传区（五种方式共用）：保留品牌虚线，底色改用次要操作面 ---------- */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capture-upload {
+  background: var(--s19-soft-bg);
+  box-shadow: var(--s19-soft-sh, none);
+}
+
+/* ---------- C：手动记账绿色顶区上下压缩（按钮不动），浅色与深色一致 ---------- */
+:root[data-visual-style="c"] .lv-shell[data-shell="contents"] .lv-manual-form > header.bg-brand {
+  padding-top: max(1rem, env(safe-area-inset-top, 0px));
+  padding-bottom: 1rem;
+}

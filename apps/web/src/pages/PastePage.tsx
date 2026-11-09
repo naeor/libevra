@@ -268,7 +268,7 @@ function CandidateCard({
         and doubled the card's height; the split check it exists for only applies to several cards.
       */}
       {total > 1 ? (
-        <p className="whitespace-pre-wrap rounded-field bg-canvas px-3 py-2 text-helper-relaxed text-muted">
+        <p className="whitespace-pre-wrap rounded-field bg-canvas lv-entry-soft px-3 py-2 text-helper-relaxed text-muted">
           {candidate.sourceText}
         </p>
       ) : null}

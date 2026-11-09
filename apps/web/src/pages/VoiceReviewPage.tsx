@@ -333,7 +333,7 @@ export function VoiceReviewPage(): React.JSX.Element {
         See the note at the top of the file for why this is not decoration.
         The text itself is the user's own words and is never translated.
       */}
-      <p className="break-words rounded-field bg-canvas px-4 py-3 text-sm leading-relaxed text-muted">
+      <p className="break-words rounded-field bg-canvas lv-entry-soft px-4 py-3 text-sm leading-relaxed text-muted">
         {spoken.source === "paste"
           ? t("capture.review.heardPaste", { text: spoken.text })
           : t("capture.review.heardVoice", { text: spoken.text })}

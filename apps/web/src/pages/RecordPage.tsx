@@ -204,22 +204,22 @@ export function RecordPage(): React.JSX.Element {
             </span>
             {/* 商户、备注是听到的原文（数据），原样显示；支付方式只在是预置名时显示译名。 */}
             {parsed?.merchant == null ? null : (
-              <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
+              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
                 {t("capture.record.merchantChip", { value: parsed.merchant })}
               </span>
             )}
             {parsed?.paymentMethod == null ? null : (
-              <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
+              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
                 {t("capture.record.paymentChip", { value: displayPaymentMethodName(parsed.paymentMethod) })}
               </span>
             )}
             {parsed?.occurredLocalDate == null ? null : (
-              <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
+              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
                 {t("capture.record.dateChip", { value: parsed.occurredLocalDate })}
               </span>
             )}
             {parsed === null || parsed.note === "" ? null : (
-              <span className="rounded-full bg-canvas px-3 py-1.5 text-muted">
+              <span className="rounded-full bg-canvas lv-entry-soft px-3 py-1.5 text-muted">
                 {t("capture.record.noteChip", { value: parsed.note })}
               </span>
             )}

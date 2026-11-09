@@ -666,6 +666,14 @@ html:root[data-visual-style="b2"] {
   --s19-bar-bg: var(--s19-tool-bg);
   --s19-bar-sh: inset 0 -1px 0 rgb(255 255 255 / calc(.6 * var(--s19-glass-rim))), inset 0 -1.5px 0 rgb(40 52 46 / calc(.07 * var(--s19-glass-shadow)));
   --s19-bar-filter: blur(var(--s19-b2-chrome-blur, 9.1px)) saturate(1.5);
+  /* 底部操作区（保存栏、核对确认条，1.19.51）：操作玻璃，填充至少比展示卡片高 .12（与弹层同一规则），柔和档也不会比卡片更透。 */
+  --s19-action-bar-bg: rgb(var(--s19-glass-rgb) / max(var(--s19-chrome-fill), calc(var(--s19-content-fill) + .12)));
+  --s19-action-bar-sh: inset 0 1px 0 rgb(255 255 255 / calc(.6 * var(--s19-glass-rim))), 0 -.5px 0 rgb(40 52 46 / .08), 0 -12px 28px -20px rgb(40 52 46 / .26);
+  --s19-action-bar-filter: var(--s19-bar-filter);
+  /* 金额框（1.19.51）：九成白的乳白玻璃 + 品牌框 + 玻璃亮边；输入表面不做成透明。 */
+  --s19-amount-bg: rgb(255 255 255 / .9);
+  --s19-amount-border: color-mix(in srgb, var(--color-brand) 90%, #fff);
+  --s19-amount-sh: inset 0 1px 0 #fff, inset 0 0 0 .5px rgb(255 255 255 / .6), 0 0 0 .5px rgb(40 52 46 / .06), 0 14px 30px -20px rgb(40 52 46 / .34);
   --s19-search-backing: var(--s19-bar-solid);
   --s19-bar-solid: var(--s19-tool-bg);
   --s19-dock-bg: var(--s19-tool-bg);

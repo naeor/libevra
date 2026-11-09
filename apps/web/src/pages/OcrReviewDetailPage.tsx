@@ -45,6 +45,7 @@ import {
   type OcrCategorySource,
 } from "../lib/ocr/types.js";
 import { useLedger, useLedgerMeta } from "../lib/queries.js";
+import { KindToggle, useKindBar } from "../components/entry/KindToggle.js";
 
 interface FormState {
   amount: string;
@@ -103,6 +104,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   const { candidateId } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
+  const kindBar = useKindBar();
   const ledger = useLedger();
   const duplicateSettings = useDuplicateDetectionSettings();
 
@@ -299,9 +301,9 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             <span className="rounded-full bg-brand-soft px-2.5 py-1 text-helper text-brand-dark">{t("ocr.list.refund")}</span>
           ) : null}
           {item.reviewed ? (
-            <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">{t("ocr.detail.reviewed")}</span>
+            <span className="rounded-full bg-canvas lv-entry-soft px-2.5 py-1 text-helper text-muted">{t("ocr.detail.reviewed")}</span>
           ) : null}
-          <span className="rounded-full bg-canvas px-2.5 py-1 text-helper text-muted">
+          <span className="rounded-full bg-canvas lv-entry-soft px-2.5 py-1 text-helper text-muted">
             {t("ocr.detail.source", {
               source:
                 item.sourcePlatform === null
@@ -313,18 +315,27 @@ export function OcrReviewDetailPage(): React.JSX.Element {
 
         <div className="flex flex-col gap-2">
           <span className="text-helper text-muted">{t("ocr.detail.kindLabel")}</span>
-          <div className="flex gap-2">
-            <KindButton
-              active={form.directionConfirmed && form.kind === "expense"}
-              label={t("common.kind.expense")}
-              onSelect={() => { changeKind("expense"); }}
+          {kindBar ? (
+            <KindToggle
+              label={t("ocr.detail.kindLabel")}
+              value={form.directionConfirmed ? form.kind : null}
+              options={(["expense", "income"] as const).map((option) => ({ value: option, label: t(`common.kind.${option}`) }))}
+              onChange={changeKind}
             />
-            <KindButton
-              active={form.directionConfirmed && form.kind === "income"}
-              label={t("common.kind.income")}
-              onSelect={() => { changeKind("income"); }}
-            />
-          </div>
+          ) : (
+            <div className="flex gap-2">
+              <KindButton
+                active={form.directionConfirmed && form.kind === "expense"}
+                label={t("common.kind.expense")}
+                onSelect={() => { changeKind("expense"); }}
+              />
+              <KindButton
+                active={form.directionConfirmed && form.kind === "income"}
+                label={t("common.kind.income")}
+                onSelect={() => { changeKind("income"); }}
+              />
+            </div>
+          )}
         </div>
 
         <TextField
@@ -493,7 +504,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
       </section>
 
       {/* 1.17.23：主要操作固定在底部，手机上不用先滚到底；标记无效、不保存返回留在内容末尾。 */}
-      <StickyActionBar>
+      <StickyActionBar entry>
         <Button onClick={save}>{t("ocr.detail.save")}</Button>
       </StickyActionBar>
 

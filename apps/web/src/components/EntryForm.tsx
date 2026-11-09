@@ -8,6 +8,7 @@ import { displayCategoryName, displayPaymentMethodName } from "../lib/presetName
 import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
 import { StickyActionBar } from "./StickyActionBar.js";
+import { KindToggle, useKindBar } from "./entry/KindToggle.js";
 
 /**
  * The form that confirms an entry before it is saved.
@@ -54,6 +55,7 @@ export function ReviewStep({
   readonly onManual: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const kindBar = useKindBar();
   const [value, setValue] = useState<ReviewDraft>(draft);
   const amountId = useId();
 
@@ -88,7 +90,7 @@ export function ReviewStep({
         <label htmlFor={amountId} className="text-helper text-muted">
           {t("common.field.amount")}
         </label>
-        <div className="flex items-baseline gap-2 rounded-card border border-line bg-surface px-5 py-4">
+        <div data-entry-amount="review" className="lv-material-effects flex items-baseline gap-2 rounded-card border border-line bg-surface px-5 py-4">
           <span className="text-xl text-muted">¥</span>
           <input
             id={amountId}
@@ -103,23 +105,34 @@ export function ReviewStep({
         </div>
       </section>
 
-      <section className="flex gap-2">
-        {(["expense", "income"] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={value.kind === option}
-            onClick={() => {
-              patch({ kind: option });
-            }}
-            className={`flex-1 rounded-field py-2.5 text-sm font-medium transition ${
-              value.kind === option ? "bg-brand text-on-brand" : "bg-surface text-muted"
-            }`}
-          >
-            {t(`common.kind.${option}`)}
-          </button>
-        ))}
-      </section>
+      {kindBar ? (
+        <KindToggle
+          label={t("common.field.kind")}
+          value={value.kind}
+          options={(["expense", "income"] as const).map((option) => ({ value: option, label: t(`common.kind.${option}`) }))}
+          onChange={(option) => {
+            patch({ kind: option });
+          }}
+        />
+      ) : (
+        <section className="flex gap-2">
+          {(["expense", "income"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={value.kind === option}
+              onClick={() => {
+                patch({ kind: option });
+              }}
+              className={`flex-1 rounded-field py-2.5 text-sm font-medium transition ${
+                value.kind === option ? "bg-brand text-on-brand" : "bg-surface text-muted"
+              }`}
+            >
+              {t(`common.kind.${option}`)}
+            </button>
+          ))}
+        </section>
+      )}
 
       {/*
         Date and time, **one per row**.
@@ -218,7 +231,7 @@ export function ReviewStep({
       </Field>
 
       {/* 1.17.23：确认按钮固定在底部，手机上不用先滚到底；改为手动记账留在内容末尾。 */}
-      <StickyActionBar>
+      <StickyActionBar entry>
         <Button
           disabled={busy}
           onClick={() => {

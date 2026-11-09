@@ -25,6 +25,7 @@ import { CurrencySheet } from "../components/entry/CurrencySheet.js";
 import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
+import { KindToggle, useKindBar } from "../components/entry/KindToggle.js";
 import { usePaneDirty } from "../workspace/context.js";
 import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/inheritLast.js";
 import { ChevronIcon } from "../components/Icons.js";
@@ -57,6 +58,7 @@ import {
 } from "../lib/queries.js";
 import { uuidV7 } from "../lib/uuid.js";
 import { continueEntry } from "../lib/entryFlow.js";
+import { softKeyboardOpen } from "../lib/softKeyboard.js";
 
 /**
  * The payment method a first entry falls back to. ⚠️ 这是与数据库里预置支付方式**原名**比较的值，
@@ -144,6 +146,11 @@ export function AddEntryPage(): React.JSX.Element {
   const createEntry = useCreateTransaction();
   const desktop = useDesktopActive();
   /**
+   * 1.19.51（所有者决定）：手机外壳里 A / B1 / B2 去掉绿色顶区，支出 / 收入改用与明细页「全部 / 支出 / 收入」
+   * 同一套选择栏；C 保留绿色顶区与按钮，只压缩上下留白（s19/entry-workspace.css）；Original 与大屏不变。
+   */
+  const kindBar = useKindBar();
+  /**
    * 写之前先问一句（S15-E4）：手动记账**轻提醒**，不进入分组核对页。
    *
    * ⚠️ 规则与设置全部来自统一核心（`useCheckDuplicates` → `checkNewCandidates`），
@@ -193,6 +200,12 @@ export function AddEntryPage(): React.JSX.Element {
   const [quickOpen, setQuickOpen] = useState(false);
   /** 「沿用上一笔」的结果提示；null 表示没点过或已重置。 */
   const [inheritNotice, setInheritNotice] = useState<string | null>(null);
+  /** 切换支出 / 收入：清空分类；上一笔是另一个方向的，沿用提示留着会指错对象。两种外观共用同一个处理。 */
+  const chooseKind = (option: TransactionKind): void => {
+    setKind(option);
+    setCategoryId(null);
+    setInheritNotice(null);
+  };
   /** Which category's ⓘ explanation is open, if any. */
   const [hintCategoryId, setHintCategoryId] = useState<string | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
@@ -677,39 +690,49 @@ export function AddEntryPage(): React.JSX.Element {
         className="lv-manual-form flex flex-1 flex-col"
         onSubmit={(event) => {
           event.preventDefault();
+          // 1.19.51：软键盘打开时保存栏是隐藏的；在备注框里按回车提交时先收起键盘，保存栏里的校验或只读提示才看得见。
+          if (softKeyboardOpen() && document.activeElement instanceof HTMLElement) document.activeElement.blur();
           void save();
         }}
       >
-        <header className="flex flex-col gap-4 bg-brand px-6 pt-8 pb-6 text-on-brand @3xl/lvpane:mt-6 @3xl/lvpane:rounded-card">
-          {/**
-            * ⚠️ **The guest identity is deliberately not shown on this screen** (S14-C UI fix,
-            * 1.14.05). It shared this row with the 支出/收入 switch and broke its balance; the owner
-            * asked for it removed here rather than moved, and for the two buttons to keep their
-            * original full-width proportions. It remains in the header of 明细 / 分析 / 账本空间 /
-            * 我的.
-            */}
-          <div className="lv-manual-heading"><h1 className="text-page-title">{t("attachments.capture.manual")}</h1><p className="text-helper text-muted">{ledger.data?.book.name}</p></div>
-          <div data-entry-kind-switch className="flex gap-2">
-            {(["expense", "income"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={kind === option}
-                onClick={() => {
-                  setKind(option);
-                  setCategoryId(null);
-                  // 上一笔是另一个方向的，沿用提示留着会指错对象。
-                  setInheritNotice(null);
-                }}
-                className={`flex-1 rounded-field py-3 text-sm font-medium transition ${
-                  kind === option ? "bg-surface text-brand-dark" : "bg-on-brand/15 text-on-brand/90"
-                }`}
-              >
-                {t(`common.kind.${option}`)}
-              </button>
-            ))}
+        {kindBar ? (
+          <div className="lv-manual-kind px-6 pt-[max(1rem,env(safe-area-inset-top,0px))]">
+            <KindToggle
+              label={t("common.field.kind")}
+              value={kind}
+              options={(["expense", "income"] as const).map((option) => ({ value: option, label: t(`common.kind.${option}`) }))}
+              onChange={chooseKind}
+            />
           </div>
-        </header>
+        ) : (
+          <header className="flex flex-col gap-4 bg-brand px-6 pt-8 pb-6 text-on-brand @3xl/lvpane:mt-6 @3xl/lvpane:rounded-card">
+            {/**
+              * ⚠️ **The guest identity is deliberately not shown on this screen** (S14-C UI fix,
+              * 1.14.05). It shared this row with the 支出/收入 switch and broke its balance; the owner
+              * asked for it removed here rather than moved, and for the two buttons to keep their
+              * original full-width proportions. It remains in the header of 明细 / 分析 / 账本空间 /
+              * 我的.
+              */}
+            <div className="lv-manual-heading"><h1 className="text-page-title">{t("attachments.capture.manual")}</h1><p className="text-helper text-muted">{ledger.data?.book.name}</p></div>
+            <div data-entry-kind-switch className="flex gap-2">
+              {(["expense", "income"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={kind === option}
+                  onClick={() => {
+                    chooseKind(option);
+                  }}
+                  className={`flex-1 rounded-field py-3 text-sm font-medium transition ${
+                    kind === option ? "bg-surface text-brand-dark" : "bg-on-brand/15 text-on-brand/90"
+                  }`}
+                >
+                  {t(`common.kind.${option}`)}
+                </button>
+              ))}
+            </div>
+          </header>
+        )}
 
         {/*
           ⚠️ **The amount is its own card, in white, with a green frame — and the owner asked for exactly

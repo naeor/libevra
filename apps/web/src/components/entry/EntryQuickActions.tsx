@@ -53,6 +53,7 @@ export function EntryQuickActions({
           type="button"
           onClick={onInherit}
           /** S18（审查 U08）：看起来仍是一枚小胶囊，实际可点范围向上下各扩 8px（约 44px 高）。 */
+          data-entry-chip=""
           className="relative shrink-0 rounded-full border border-brand-soft bg-brand-soft px-3 py-1 text-body text-brand-dark transition before:absolute before:-inset-y-2 before:inset-x-0 before:content-[''] hover:border-brand"
         >
           {t("entry.quick.inherit")}
@@ -84,6 +85,7 @@ export function EntryQuickActions({
               onClick={() => {
                 onPickAmount(cents);
               }}
+              data-entry-chip=""
               className="rounded-full border border-brand-soft bg-brand-soft px-3.5 py-1.5 text-body text-brand-dark transition hover:border-brand"
             >
               {minorToInput(cents, currency)}
