@@ -5,7 +5,7 @@ import type { PrismaClient } from "../db.js";
 import { badRequest } from "../lib/errors.js";
 import { findByAccountNumber, findByUsername, type FoundAccount } from "../collab/directory.js";
 import { mintReferralCode, REFERRAL_CODE_LIFETIME_LIMIT } from "../collab/referral.js";
-import { requireBook } from "../ledger/access.js";
+import { inviteProblem, requireBook } from "../ledger/access.js";
 
 /**
  * **Finding somebody to invite, and the account-level referral codes.**
@@ -138,7 +138,8 @@ export function registerDirectoryRoutes(
         alreadyMember: membership !== null && membership.leftAt === null,
       }),
       /** Whether *I* may invite into the ledger I am looking at, so the screen can say why not. */
-      canInvite: request.book?.role !== "viewer",
+      /** 1.19.56：按邀请规则（所有成员可邀请、可设为只有管理员能邀请）判断，至少能以“只读”邀请。 */
+      canInvite: bookId !== null && (await inviteProblem(prisma, bookId, me, "viewer")) === null,
       /**
        * The invitation already outstanding for this person in this ledger, if any — so the screen
        * can show its state rather than offering to send the same invitation twice.

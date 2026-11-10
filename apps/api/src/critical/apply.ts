@@ -332,7 +332,7 @@ async function applyOne(prisma: PrismaClient, event: CriticalEventCore): Promise
     case "member.role_changed": {
       const ids = parseMembership(event.subjectId);
       const role = after["role"];
-      if (ids === null || (role !== "editor" && role !== "viewer")) return { manual: "角色事件缺少成员或角色" };
+      if (ids === null || (role !== "editor" && role !== "recorder" && role !== "viewer")) return { manual: "角色事件缺少成员或角色" };
       const membership = await prisma.bookMember.findUnique({
         where: { bookId_userId: { bookId: ids.bookId, userId: ids.userId } },
       });
@@ -405,7 +405,7 @@ async function applyOne(prisma: PrismaClient, event: CriticalEventCore): Promise
     case "member.rejoined": {
       const ids = parseMembership(event.subjectId);
       const role = after["role"];
-      if (ids === null || (role !== "editor" && role !== "viewer")) {
+      if (ids === null || (role !== "editor" && role !== "recorder" && role !== "viewer")) {
         return { manual: "成员加入事件缺少成员关系或角色" };
       }
       const [book, user, membership] = await Promise.all([

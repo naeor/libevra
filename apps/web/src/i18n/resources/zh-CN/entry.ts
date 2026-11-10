@@ -91,6 +91,8 @@ const entry = {
     backToHistory: "返回历史记录",
     deletedUndo: "已删除这笔记账",
     edit: "修改",
+    readOnlyRole: "你是这本账的只读成员，可以查看，不能修改。",
+    notYours: "这笔由 {{name}} 记录。你可以查看，只能修改自己记的账目。",
     offlineReadOnly: "当前离线，共享账本暂时只能查看。恢复网络后可以修改或删除这笔记录；之前尚未同步的改动会保留。",
     tagsHeading: "标签（最多 {{max}} 个）",
     batchAdd: "批量记账",

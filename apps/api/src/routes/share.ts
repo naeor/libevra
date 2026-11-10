@@ -5,7 +5,7 @@ import type { Prisma } from "../generated/prisma/client.js";
 import { messageReferenceInputSchema } from "@libellum/shared";
 
 import type { PrismaClient } from "../db.js";
-import { badRequest } from "../lib/errors.js";
+import { badRequest, forbidden } from "../lib/errors.js";
 import { confirmP0 } from "../critical/confirm.js";
 import { runP0Operation } from "./p0-operation.js";
 import { recordCriticalEvent } from "../critical/store.js";
@@ -23,7 +23,7 @@ import {
 } from "../collab/share.js";
 import { changeMemberRole, listMembers, removeMember } from "../collab/members.js";
 import { recordEvent } from "../ledger/events.js";
-import { requireBook, requireBookForWrite } from "../ledger/access.js";
+import { bookAdminId, canEditAll, requireBook, requireBookAdmin, requireInvite } from "../ledger/access.js";
 import {
   quoteEventTarget,
   quoteTransactionTarget,
@@ -50,7 +50,7 @@ export interface ShareRouteOptions {
 
 const linkView = z.object({
   id: z.string(),
-  role: z.enum(["editor", "viewer"]),
+  role: z.enum(["editor", "recorder", "viewer"]),
   days: z.number().int(),
   maxUses: z.number().int(),
   createdAt: z.string(),
@@ -122,7 +122,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const userId = request.currentUser!.id;
     const body = z
       .object({
-        role: z.enum(["editor", "viewer"]).optional(),
+        role: z.enum(["editor", "recorder", "viewer"]).optional(),
         /**
          * ⚠️ **The owner's range, enforced here *and* by a CHECK constraint.** The split is
          * deliberate: this gives the person a useful message, the constraint makes the range true
@@ -135,11 +135,11 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
       .parse(request.body ?? {});
 
     /**
-     * ⚠️ **Generating a link is a write.** A link is a standing invitation to read somebody's
-     * ledger, so a viewer must not be able to mint one — and the server decides that, rather than
-     * relying on the screen not offering the button.
+     * ⚠️ **1.19.56：生成链接就是邀请**，按邀请的规则判断（`requireInvite`）：所有成员都能邀请，链接给出的权限
+     * 不能高于自己；管理员打开“只有管理员能邀请”时只有管理员可以。加入时还会再问一次（`joinViaShareLink`）。
      */
-    const book = await requireBookForWrite(prisma, request, userId);
+    const book = await requireBook(prisma, request, userId);
+    await requireInvite(prisma, book.bookId, userId, body.role ?? "viewer");
 
     const created = await prisma.$transaction(async (tx) => {
       const link = await createShareLink(tx, {
@@ -182,7 +182,14 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const userId = request.currentUser!.id;
     const { linkId } = request.params as { linkId: string };
 
-    const book = await requireBookForWrite(prisma, request, userId);
+    /**
+     * 1.19.56：撤销链接——生成它的人或管理员可以；“编辑全部”的成员仍可撤销任何链接（与之前一致）。
+     */
+    const book = await requireBook(prisma, request, userId);
+    const link = await prisma.bookShareLink.findUnique({ where: { id: linkId }, select: { bookId: true, createdBy: true } });
+    if (link !== null && link.bookId === book.bookId && link.createdBy !== userId && !canEditAll(book.role) && (await bookAdminId(prisma, book.bookId)) !== userId) {
+      throw forbidden("share_link_not_yours", "只能撤销自己生成的分享链接。");
+    }
     const result = await runP0Operation(
       prisma,
       request,
@@ -252,7 +259,15 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const userId = request.currentUser!.id;
     const book = await requireBook(prisma, request, userId);
 
-    return { members: await listMembers(prisma, book.bookId), myRole: book.role };
+    const policy = await prisma.book.findUnique({ where: { id: book.bookId }, select: { inviteAdminOnly: true } });
+    const members = await listMembers(prisma, book.bookId);
+    return {
+      members,
+      myRole: book.role,
+      /** 1.19.56：我是不是管理员、是否只有管理员能邀请（界面据此显示按钮；服务器另外检查）。 */
+      isAdmin: members.some((member) => member.userId === userId && member.isAdmin),
+      inviteAdminOnly: policy?.inviteAdminOnly ?? false,
+    };
   });
 
   // ---------------------------------------------------------------------------
@@ -261,14 +276,13 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
   app.patch("/api/v1/books/members/:memberId", { preHandler: requireAuth }, async (request) => {
     const userId = request.currentUser!.id;
     const { memberId } = request.params as { memberId: string };
-    const body = z.object({ role: z.enum(["editor", "viewer"]) }).parse(request.body ?? {});
+    const body = z.object({ role: z.enum(["editor", "recorder", "viewer"]) }).parse(request.body ?? {});
 
     /**
-     * ⚠️ **Changing a role is a write**, so `requireBookForWrite` decides it — a viewer must not be
-     * able to promote themselves. The owner's rule for the editor role covers this:
-     * *"编辑者：可以查看并编辑账目，也可以按照既有权限规则参与成员管理."*
+     * ⚠️ **1.19.56：改别人的权限只有管理员能做**（所有者 2026-11-10 决定），`requireBookAdmin` 判断；
+     * 管理员自己的权限固定为“编辑全部”（`changeMemberRole` 拒绝）。
      */
-    const book = await requireBookForWrite(prisma, request, userId);
+    const book = await requireBookAdmin(prisma, request, userId);
     const result = await runP0Operation(
       prisma,
       request,
@@ -293,7 +307,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
             actorName: request.currentUser!.displayName,
             kind: "member_changed",
             changes: {
-              role: { from: changed.previousRole, to: `${target?.displayName ?? "成员"}：${body.role === "editor" ? "可编辑" : "仅查看"}` },
+              role: { from: changed.previousRole, to: `${target?.displayName ?? "成员"}：${body.role === "editor" ? "编辑全部" : body.role === "recorder" ? "记账" : "只读"}` },
             },
           });
         }
@@ -317,7 +331,7 @@ export function registerShareRoutes(app: FastifyInstance, options: ShareRouteOpt
     const userId = request.currentUser!.id;
     const { memberId } = request.params as { memberId: string };
 
-    const book = await requireBookForWrite(prisma, request, userId);
+    const book = await requireBookAdmin(prisma, request, userId);
     const result = await runP0Operation(
       prisma,
       request,

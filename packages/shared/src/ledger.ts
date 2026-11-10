@@ -74,7 +74,16 @@ export const uuidSchema = z.string().regex(UUID_PATTERN, "标识格式不正确"
  * response that contained a value the client's schema rejected would be a validation failure on
  * real data. **`editor` is the only value that may write.**
  */
-export const bookRoleSchema = z.enum(["owner", "editor", "viewer"]);
+export const bookRoleSchema = z.enum(["owner", "editor", "recorder", "viewer"]);
+/**
+ * 1.19.56 账本权限分级：从低到高 只读 `viewer` → 记账 `recorder` → 编辑全部 `editor`（旧值 `owner` 同编辑全部）。
+ * 另有每本账一位管理员（不是角色，是账本上的位置，见 API `ledger/access.ts`）。
+ */
+export const ROLE_RANK = { viewer: 0, recorder: 1, editor: 2, owner: 2 } as const;
+export type BookRoleValue = z.infer<typeof bookRoleSchema>;
+/** 可以分配给成员（与邀请）的三档。 */
+export const ASSIGNABLE_BOOK_ROLES = ["viewer", "recorder", "editor"] as const;
+export type AssignableBookRole = (typeof ASSIGNABLE_BOOK_ROLES)[number];
 
 /** Name of the system category that collects entries saved without one. */
 export const UNCATEGORISED_NAME = "暂无分类";

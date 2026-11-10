@@ -93,12 +93,12 @@ export function JoinPage(): React.JSX.Element {
 
           <dt className="text-muted">{t("account.join.role")}</dt>
           <dd className="min-w-0 text-right text-ink">
-            {data.role === "editor" ? t("account.join.editor") : t("account.join.viewer")}
+            {data.role === "editor" ? t("account.join.editor") : data.role === "recorder" ? t("account.join.recorder") : t("account.join.viewer")}
           </dd>
         </dl>
 
         <p className="mt-5 border-t border-line pt-4 text-helper-relaxed text-muted">
-          {data.role === "editor" ? t("account.join.editorNote") : t("account.join.viewerNote")}{" "}
+          {data.role === "editor" ? t("account.join.editorNote") : data.role === "recorder" ? t("account.join.recorderNote") : t("account.join.viewerNote")}{" "}
           {t("account.join.nothingYet")}
         </p>
 

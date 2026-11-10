@@ -51,7 +51,7 @@
 | [DefaultAvatar.tsx](DefaultAvatar.tsx) | 界面模块；入口/导出：DefaultAvatar |
 | [DuplicateDetectionSettings.test.tsx](DuplicateDetectionSettings.test.tsx) | 测试：DuplicateDetectionSettings |
 | [DuplicateDetectionSettings.tsx](DuplicateDetectionSettings.tsx) | 界面模块；入口/导出：DuplicateDetectionSettingsState、useDuplicateDetectionSettings、DuplicateDetectionSettingsSection、DuplicateDetectionSettingsCard |
-| [EntryFilterPanel.tsx](EntryFilterPanel.tsx) | 界面模块；入口/导出：useDetailFilters、FilterIcon、EntryFilterPanel、FilterForm、FilterSyncSetting |
+| [EntryFilterPanel.tsx](EntryFilterPanel.tsx) | 界面模块；入口/导出：useDetailFilters、monthsLabel、FilterIcon、EntryFilterPanel、FilterForm |
 | [EntryForm.tsx](EntryForm.tsx) | 界面模块；入口/导出：ReviewDraft、ReviewStep |
 | [EntrySaved.test.tsx](EntrySaved.test.tsx) | 测试：EntrySaved |
 | [EntrySaved.tsx](EntrySaved.tsx) | 界面模块；入口/导出：EntrySaved |
@@ -72,7 +72,7 @@
 | [Layouts.tsx](Layouts.tsx) | 界面模块；入口/导出：useEntryMenu、MenuEvent、menuAfter、AppShell、PaneShell |
 | [LedgerMonthPicker.tsx](LedgerMonthPicker.tsx) | 界面模块；入口/导出：LedgerMonthPicker |
 | [LegacyUserAvatar.tsx](LegacyUserAvatar.tsx) | 界面模块；入口/导出：LegacyAvatarId、LegacyUserAvatar |
-| [MemberList.tsx](MemberList.tsx) | 界面模块；入口/导出：MemberList |
+| [MemberList.tsx](MemberList.tsx) | 界面模块；入口/导出：MemberList、memberRoleLabel |
 | [MessageBoard.test.ts](MessageBoard.test.ts) | 测试：MessageBoard |
 | [MessageBoard.tsx](MessageBoard.tsx) | 界面模块；入口/导出：clearMessageDraft、markMessagesSeen、newMessageCount、MessageComposer、useMessageComposer |
 | [MessageQuote.test.tsx](MessageQuote.test.tsx) | 测试：MessageQuote |

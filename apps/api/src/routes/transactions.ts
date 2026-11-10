@@ -23,6 +23,8 @@ import { categoryBranchIds } from "@libellum/shared";
 import type { PrismaClient } from "../db.js";
 import { dateTimeToInstant } from "../import/common.js";
 import {
+  canEditAll,
+  requireEntryEditable,
   resolveCategoryId,
   resolvePaymentMethodId,
   resolveTagIds,
@@ -681,6 +683,9 @@ export function registerTransactionRoutes(
 
     if (!existing) throw notFound("transaction_missing", "找不到这笔记账。");
 
+    /** 1.19.56：记账成员只能改自己记的账目；编辑全部可以改所有账目。 */
+    requireEntryEditable(request.book!, userId, existing.userId);
+
     /**
      * ⚠️ **The conflict decision, and it replaces a bare version check.**
      *
@@ -990,7 +995,18 @@ export function registerTransactionRoutes(
     const bookId = request.book!.bookId;
     const device = deviceIdFrom(request);
 
-    const open = await openConflicts(prisma, bookId);
+    const allOpen = await openConflicts(prisma, bookId);
+    /**
+     * 1.19.56：记账成员只处理自己记的账目上的冲突（以服务器为准）；别人账目上的冲突留给能修改它们的人。
+     */
+    let open = allOpen;
+    if (!canEditAll(request.book!.role)) {
+      const mine = new Set((await prisma.transaction.findMany({
+        where: { id: { in: [...new Set(allOpen.map((row) => row.transactionId))] }, bookId, userId },
+        select: { id: true },
+      })).map((row) => row.id));
+      open = allOpen.filter((row) => mine.has(row.transactionId));
+    }
     const byTransaction = new Map<string, typeof open>();
 
     for (const row of open) {
@@ -1078,10 +1094,13 @@ export function registerTransactionRoutes(
 
     const existing = await prisma.transaction.findFirst({
       where: { id, bookId, deletedAt: null },
-      select: { version: true, seq: true },
+      select: { version: true, seq: true, userId: true },
     });
 
     if (!existing) throw notFound("transaction_missing", "找不到这笔记账。");
+
+    /** 1.19.56：记账成员只能删除自己记的账目。 */
+    requireEntryEditable(request.book!, userId, existing.userId);
 
     await prisma.$transaction(async (tx) => {
       await lockBookStorage(tx, bookId);
@@ -1133,10 +1152,13 @@ export function registerTransactionRoutes(
     // this endpoint is looking for.
     const existing = await prisma.transaction.findFirst({
       where: { id, bookId },
-      select: { id: true, version: true, deletedAt: true, seq: true },
+      select: { id: true, version: true, deletedAt: true, seq: true, userId: true },
     });
 
     if (!existing) throw notFound("transaction_missing", "找不到这笔记账。");
+
+    /** 1.19.56：记账成员只能恢复自己记的账目。 */
+    requireEntryEditable(request.book!, userId, existing.userId);
 
     if (existing.deletedAt === null) {
       throw conflict("transaction_not_deleted", "这笔记账没有被删除。");

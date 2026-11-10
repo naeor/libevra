@@ -91,6 +91,7 @@ const ledger: Messages<typeof zh> = {
     leaveConfirm: "Leave",
   },
   batch: {
+    notYours: "You can only edit entries you recorded",
     permission: {
       guest: "Guest ledgers can only be edited one entry at a time. Batch actions aren’t available yet.",
       offline: "You’re offline, so this shared ledger is view-only. You can edit or delete in batches once you’re back online.",
@@ -279,6 +280,7 @@ const ledger: Messages<typeof zh> = {
       移除成员: "Removed member",
       退出账本: "Left ledger",
       成员权限: "Member access",
+      邀请: "Invitations",
       其他变更: "Other change",
     },
     serverValues: {
@@ -294,8 +296,15 @@ const ledger: Messages<typeof zh> = {
         曾经退出: "Had left before",
       },
       成员权限: {
+        只读: "Read only",
+        记账: "Record",
+        编辑全部: "Edit all",
         仅查看: "View only",
         可编辑: "Can edit",
+      },
+      邀请: {
+        只有管理员能邀请: "Only the admin can invite",
+        所有成员都能邀请: "Every member can invite",
       },
       类型: {
         收入: "Income",

@@ -8,6 +8,7 @@ import { ShareSection } from "../components/ShareSection.js";
 import { ListGroup } from "../components/ui/List.js";
 import { SkeletonRows } from "../components/States.js";
 import { useBookMembers, useLedgerMeta } from "../lib/queries.js";
+import { useLedgerPermissions } from "../lib/permissions.js";
 
 /**
  * **一本账的目标页面 —— 齿轮面板打开的两个二级页（成员与邀请、分享链接）。**
@@ -67,12 +68,11 @@ export function StartBookMembersPage(): React.JSX.Element {
   const members = useBookMembers(bookId);
 
   /**
-   * ⚠️ **The invite section follows `myRole`, which comes from the server with the member list.**
-   * A viewer sees the members and their permissions but is not offered the door —
-   * *"查看者不应获得编辑或邀请权限."* **The server refuses it anyway** (`requireBookForWrite`), so this
-   * is about not showing somebody a button that cannot work.
+   * ⚠️ **1.19.56：所有成员都能邀请**（权限不高于自己），管理员打开“只有管理员能邀请”时只有管理员可以。
+   * 跟随服务器随成员名单给出的 `inviteAdminOnly` / `isAdmin`；服务器另外检查。
    */
-  const canInvite = members.data?.myRole === "owner" || members.data?.myRole === "editor";
+  const permissions = useLedgerPermissions(bookId);
+  const canInvite = members.isSuccess && permissions !== null && permissions.canInvite;
 
   return (
     <InnerPage title={t("books.members.title")} subtitle={name ?? t("books.loadingShort")} backTo="/start">

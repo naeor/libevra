@@ -9,6 +9,7 @@ import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { isImeComposing } from "../lib/desktopInput.js";
 import { useInviteToBook, useLedger, useLookupAccount, type DirectoryAccount } from "../lib/queries.js";
+import { invitableRoles, useLedgerPermissions } from "../lib/permissions.js";
 
 /**
  * **邀请成员 —— 直接邀请某个人加入当前账本。**
@@ -39,7 +40,11 @@ export function LedgerInvitePage(): React.JSX.Element {
     { id: string; status: "pending" | "accepted" | "declined" } | null
   >(null);
   const [canInvite, setCanInvite] = useState(true);
-  const [role, setRole] = useState<"editor" | "viewer">("editor");
+  const [role, setRole] = useState<"editor" | "recorder" | "viewer">("editor");
+  /** 1.19.56：邀请的权限不能高于自己；只列出能选的几档（服务器另外检查）。 */
+  const permissions = useLedgerPermissions();
+  const roleOptions = permissions === null ? (["viewer", "recorder", "editor"] as const) : invitableRoles(permissions.role);
+  const chosenRole = roleOptions.includes(role) ? role : roleOptions[roleOptions.length - 1] ?? "viewer";
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useI18n();
@@ -99,7 +104,7 @@ export function LedgerInvitePage(): React.JSX.Element {
         ...(query.trim() !== "" && /^[0-9]{8}$/.test(query.trim())
           ? { accountNumber: account.accountNumber }
           : { username: account.username }),
-        role,
+        role: chosenRole,
       })
       .then(() => {
         setSent(true);
@@ -193,15 +198,16 @@ export function LedgerInvitePage(): React.JSX.Element {
                   {(
                     [
                       { value: "editor", label: t("collab.invite.roleEditor.label"), hint: t("collab.invite.roleEditor.hint") },
+                      { value: "recorder", label: t("collab.invite.roleRecorder.label"), hint: t("collab.invite.roleRecorder.hint") },
                       { value: "viewer", label: t("collab.invite.roleViewer.label"), hint: t("collab.invite.roleViewer.hint") },
                     ] as const
-                  ).map((option) => (
+                  ).filter((option) => roleOptions.includes(option.value)).map((option) => (
                     <label key={option.value} className="flex items-start gap-3 text-body text-ink">
                       <input
                         type="radio"
                         name="invite-role"
                         value={option.value}
-                        checked={role === option.value}
+                        checked={chosenRole === option.value}
                         onChange={() => {
                           setRole(option.value);
                         }}

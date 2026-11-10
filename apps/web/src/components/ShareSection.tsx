@@ -6,6 +6,7 @@ import { QrCodeView } from "./QrCodeView.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useCreateShareLink, useRevokeShareLink, useShareLinks, type ShareLinkView } from "../lib/queries.js";
+import { invitableRoles, useLedgerPermissions } from "../lib/permissions.js";
 
 /**
  * **分享链接 —— 一本账的链接邀请。**
@@ -29,7 +30,13 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
   const links = useShareLinks(bookId);
   const create = useCreateShareLink(bookId);
   const revoke = useRevokeShareLink(bookId);
-  const [role, setRole] = useState<"editor" | "viewer">("viewer");
+  const [role, setRole] = useState<"editor" | "recorder" | "viewer">("viewer");
+  /**
+   * 1.19.56：所有成员都能生成分享链接，链接给出的权限不能高于自己；“只有管理员能邀请”打开时只有管理员可以。
+   * 界面只显示能选的权限，服务器另外检查。
+   */
+  const permissions = useLedgerPermissions(bookId);
+  const roleOptions = permissions === null ? (["viewer"] as const) : invitableRoles(permissions.role);
   /**
    * ⚠️ **Defaults are the permissive end of the owner's ranges** (7 days, 10 people), so a person
    * who does not care gets a usable link. The pickers exist because the ranges are his
@@ -57,15 +64,14 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
 
       <p className="text-helper-relaxed text-muted">{t("collab.share.intro")}</p>
 
-      {freshToken === null ? (
+      {permissions !== null && !permissions.canInvite ? (
+        <p className="rounded-card border border-line bg-surface px-5 py-4 text-helper-relaxed text-muted">{t("collab.invite.viewerCannotInvite")}</p>
+      ) : freshToken === null ? (
         <div className="flex flex-col gap-4 rounded-card border border-line bg-surface px-5 py-4">
           <Picker
             label={t("collab.share.roleLabel")}
-            value={role}
-            options={[
-              { value: "viewer" as const, label: t("collab.role.viewer") },
-              { value: "editor" as const, label: t("collab.role.editor") },
-            ]}
+            value={roleOptions.includes(role) ? role : "viewer"}
+            options={roleOptions.map((value) => ({ value, label: t(`collab.role.${value}`) }))}
             onPick={setRole}
           />
 
@@ -93,7 +99,7 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
             onClick={() => {
               setError(null);
               void create
-                .mutateAsync({ role, days, maxUses })
+                .mutateAsync({ role: roleOptions.includes(role) ? role : "viewer", days, maxUses })
                 .then((created) => {
                   setFreshToken(created.token);
                 })
@@ -161,6 +167,7 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
               key={link.id}
               link={link}
               busy={revoke.isPending}
+              canRevoke={permissions === null || permissions.canEditAll || permissions.isAdmin || link.createdBy === permissions.self}
               onRevoke={() => {
                 setError(null);
                 void revoke.mutateAsync(link.id).catch((caught: unknown) => {
@@ -228,10 +235,13 @@ function Picker<T extends string | number>({
 function LinkRow({
   link,
   busy,
+  canRevoke,
   onRevoke,
 }: {
   readonly link: ShareLinkView;
   readonly busy: boolean;
+  /** 1.19.56：生成它的人、管理员与“编辑全部”的成员可以撤销。 */
+  readonly canRevoke: boolean;
   readonly onRevoke: () => void;
 }): React.JSX.Element {
   const remaining = Math.max(0, link.maxUses - link.useCount);
@@ -256,7 +266,7 @@ function LinkRow({
     <li className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 last:border-b-0">
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink">
-          {link.role === "editor" ? t("collab.role.editor") : t("collab.role.viewer")}
+          {t(`collab.role.${link.role === "editor" || link.role === "recorder" ? link.role : "viewer"}`)}
           {state === null ? (
             <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
               {t("collab.share.state.active")}
@@ -280,7 +290,7 @@ function LinkRow({
         </span>
       </span>
 
-      {link.revokedAt === null ? (
+      {link.revokedAt === null && canRevoke ? (
         <button
           type="button"
           disabled={busy}

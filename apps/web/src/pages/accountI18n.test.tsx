@@ -202,7 +202,7 @@ describe("英文界面：账号页面", () => {
       </MemoryRouter>,
     );
     expect(html).toContain("Join ledger");
-    expect(html).toContain("Can edit");
+    expect(html).toContain("Edit all");
     expectNoChinese(html);
   });
 });

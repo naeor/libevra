@@ -49,6 +49,8 @@ vi.mock("../lib/queries.js", async (importOriginal) => {
       isError: false,
       data: {
         myRole: "owner",
+        isAdmin: true,
+        inviteAdminOnly: false,
         members: [
           {
             userId: "u1",
@@ -57,6 +59,7 @@ vi.mock("../lib/queries.js", async (importOriginal) => {
             accountNumber: "10000001",
             role: "owner",
             isCreator: true,
+            isAdmin: true,
           },
           {
             userId: "u2",
@@ -248,9 +251,10 @@ describe("英文界面：协作", () => {
     applyLocale("en-US");
 
     const members = render(<MemberList />);
-    expect(members).toContain("Owner");
-    expect(members).toContain("View only");
-    expect(members).toContain("Allow editing");
+    expect(members).toContain("Admin");
+    expect(members).toContain("Read only");
+    expect(members).toContain("Access for Sam");
+    expect(members).toContain("Only the admin can invite");
     // 用户数据原样保留
     expect(members).toContain("Alexandria Montgomery-Fairweather");
 
@@ -280,9 +284,10 @@ describe("英文界面：协作", () => {
 
   it("中文界面保持原来的文字", () => {
     const members = render(<MemberList />);
-    expect(members).toContain("创建者");
-    expect(members).toContain("仅查看");
-    expect(members).toContain("改为可编辑");
+    expect(members).toContain("管理员");
+    expect(members).toContain("只读");
+    expect(members).toContain("Sam 的权限");
+    expect(members).toContain("只有管理员能邀请他人");
 
     const share = render(<ShareSection bookId="b1" />);
     expect(share).toContain("7 天 · 已加入 1/10 人 · 还剩 9 个名额");

@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../db.js";
 import { recordCriticalEvent } from "../critical/store.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
+import { bookAdminId, type AssignableRole } from "../ledger/access.js";
 
 /**
  * Members of one ledger: who is in it, what they may do, and how somebody leaves.
@@ -13,7 +14,7 @@ import { badRequest, forbidden, notFound } from "../lib/errors.js";
  * (account-level) is a different thing with a different list — see `routes/collab.ts`.
  */
 
-export type MemberRole = "owner" | "editor" | "viewer";
+export type MemberRole = "owner" | "editor" | "recorder" | "viewer";
 
 export interface MemberView {
   readonly userId: string;
@@ -22,8 +23,9 @@ export interface MemberView {
   readonly username: string;
   readonly accountNumber: string;
   readonly role: MemberRole;
-  /** ⚠️ The creator is not removable — see `removeMember`. */
   readonly isCreator: boolean;
+  /** 1.19.56：这本账的管理员（只有一位）。管理员不能被移出，权限固定为“编辑全部”。 */
+  readonly isAdmin: boolean;
 }
 
 export async function listMembers(prisma: PrismaClient, bookId: string): Promise<MemberView[]> {
@@ -48,6 +50,8 @@ export async function listMembers(prisma: PrismaClient, bookId: string): Promise
     },
   });
 
+  const admin = await bookAdminId(prisma, bookId);
+
   return rows.map((row) => ({
     userId: row.user.id,
     displayName: row.user.displayName,
@@ -56,29 +60,28 @@ export async function listMembers(prisma: PrismaClient, bookId: string): Promise
     accountNumber: row.user.accountNumber,
     role: row.role,
     isCreator: row.user.id === book.createdBy,
+    isAdmin: row.user.id === admin,
   }));
 }
 
 /**
  * Change what one member may do.
  *
- * ⚠️ **The creator's role cannot be lowered, and that is not decoration.** If the only person who
- * can write is demoted to `viewer`, the ledger becomes **unwritable and unadministrable** — nobody
- * can edit, invite, or dispose of it, and there is no screen that could undo it. The owner's answer
- * for a ledger one wants to get rid of is **整本弃置**.
+ * ⚠️ **1.19.56：只有管理员能调用（路由用 `requireBookAdmin`），管理员自己的权限不能改**——管理员固定是
+ * “编辑全部”。原来“创建者不能被降为仅查看”的保护换成管理员：管理员默认就是创建者，管理员在，这本账就有人能管理。
  */
 export async function changeMemberRole(
   prisma: PrismaClient,
   bookId: string,
   targetUserId: string,
-  role: "editor" | "viewer",
+  role: AssignableRole,
   options: { readonly requestId?: string | null } = {},
-): Promise<{ readonly changed: boolean; readonly previousRole: "owner" | "editor" | "viewer" }> {
+): Promise<{ readonly changed: boolean; readonly previousRole: MemberRole }> {
   const book = await prisma.book.findUnique({ where: { id: bookId }, select: { createdBy: true } });
   if (!book) throw notFound("book_missing", "找不到这本账。");
 
-  if (book.createdBy === targetUserId && role === "viewer") {
-    throw badRequest("creator_is_editor", "创建者不能被降为仅查看，否则这本账将没有人能修改。");
+  if ((await bookAdminId(prisma, bookId)) === targetUserId) {
+    throw badRequest("admin_role_fixed", "管理员的权限固定为“编辑全部”，不能修改。");
   }
 
   const membership = await prisma.bookMember.findUnique({
@@ -118,8 +121,8 @@ export async function changeMemberRole(
  * permission guard checks, and it is also the record that **this person was once here**, which is
  * what answers "why are their old entries still in my ledger".
  *
- * ⚠️ **The creator cannot be removed.** Removing them would leave a ledger nobody can write in —
- * the same reason their role cannot be lowered.
+ * ⚠️ **The admin cannot be removed** (1.19.56; this used to protect the creator, who is the admin
+ * by default): a ledger must always have someone who can manage its members.
  *
  * ⚠️ **Removing yourself is refused too**, and the reason is not symmetry: *"leave"* is a thing a
  * person does to themselves from their own screen, and **doing it through the member list means one
@@ -136,8 +139,9 @@ export async function removeMember(
   const book = await prisma.book.findUnique({ where: { id: bookId }, select: { createdBy: true } });
   if (!book) throw notFound("book_missing", "找不到这本账。");
 
-  if (book.createdBy === targetUserId) {
-    throw badRequest("creator_cannot_be_removed", "创建者不能被移出这本账，否则这本账将没有人能修改。");
+  /** 1.19.56：管理员不能被移出（原来保护的是创建者；管理员默认就是创建者）。 */
+  if ((await bookAdminId(prisma, bookId)) === targetUserId) {
+    throw badRequest("admin_cannot_be_removed", "管理员不能被移出这本账。");
   }
 
   if (targetUserId === actorId) {

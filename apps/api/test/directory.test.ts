@@ -59,7 +59,7 @@ describe("directory lookup and ledger invitations", () => {
     cookie: string,
     bookId: string,
     target: { accountNumber?: string; username?: string },
-    role?: "editor" | "viewer",
+    role?: "editor" | "recorder" | "viewer",
   ) {
     return app.inject({
       method: "POST",
@@ -326,11 +326,10 @@ describe("directory lookup and ledger invitations", () => {
     expect(await prisma.bookMember.count({ where: { bookId, userId: carol.userId } })).toBe(0);
   });
 
-  it("refuses to invite anyone into a ledger the caller cannot write in", async () => {
+  it("lets any member invite, but never above their own permission (1.19.56)", async () => {
     /**
-     * ⚠️ **Inviting somebody changes who can see the ledger, so it is a write.** A viewer must not
-     * be able to do it, and the refusal has to come from the server — **a hidden button is not a
-     * permission check**.
+     * ⚠️ **所有者 2026-11-10 决定**：所有成员都能邀请他人，但被邀请的人权限不能高于邀请人自己。
+     * 拒绝必须来自服务器——界面藏起选项不是权限检查。
      */
     const alice = await account("dir_alice");
     const bob = await account("dir_bob");
@@ -340,10 +339,19 @@ describe("directory lookup and ledger invitations", () => {
     const sent = await invite(alice.cookie, bookId, { accountNumber: bob.accountNumber }, "viewer");
     await decide(bob.cookie, (sent.json() as { notificationId: string }).notificationId, "accepted");
 
-    const attempt = await invite(bob.cookie, bookId, { accountNumber: carol.accountNumber });
-    expect(attempt.statusCode).toBe(403);
-
+    const tooHigh = await invite(bob.cookie, bookId, { accountNumber: carol.accountNumber }, "editor");
+    expect(tooHigh.statusCode).toBe(403);
+    expect((tooHigh.json() as { code: string }).code).toBe("invite_role_too_high");
+    const alsoTooHigh = await invite(bob.cookie, bookId, { accountNumber: carol.accountNumber }, "recorder");
+    expect(alsoTooHigh.statusCode).toBe(403);
     expect(await prisma.bookMember.count({ where: { bookId, userId: carol.userId } })).toBe(0);
+
+    const allowed = await invite(bob.cookie, bookId, { accountNumber: carol.accountNumber });
+    expect(allowed.statusCode).toBe(201);
+    expect((allowed.json() as { role: string }).role).toBe("viewer");
+    await decide(carol.cookie, (allowed.json() as { notificationId: string }).notificationId, "accepted");
+    const membership = await prisma.bookMember.findUniqueOrThrow({ where: { bookId_userId: { bookId, userId: carol.userId } }, select: { role: true } });
+    expect(membership.role).toBe("viewer");
   });
 
   it("refuses to invite somebody who is already in the ledger", async () => {
@@ -407,8 +415,10 @@ describe("directory lookup and ledger invitations", () => {
     });
     expect(rename.statusCode).toBe(403);
 
-    const inviteAttempt = await invite(bob.cookie, bookId, { username: "dir_carol" });
+    /** 1.19.56：只读成员可以邀请，但只能以“只读”邀请；更高的权限由服务器拒绝。 */
+    const inviteAttempt = await invite(bob.cookie, bookId, { username: "dir_carol" }, "editor");
     expect(inviteAttempt.statusCode).toBe(403);
+    expect((inviteAttempt.json() as { code: string }).code).toBe("invite_role_too_high");
   });
 
   it("still refuses the metadata to somebody outside the ledger", async () => {

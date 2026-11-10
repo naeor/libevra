@@ -1,14 +1,20 @@
 import { validateCategoryTree } from "@libellum/shared";
 import type { Prisma } from "../generated/prisma/client.js";
 import { badRequest, conflict, forbidden } from "../lib/errors.js";
+import { canEditAll, canRecord } from "./access.js";
 
 export async function lockCategoryTree(tx: Prisma.TransactionClient, bookId: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM books WHERE id=${bookId}::uuid FOR UPDATE`;
 }
 /** 结构性提交在等待账本锁后再次核对成员身份，新增检查不替代既有 guard。 */
-export async function checkCategoryWriter(tx: Prisma.TransactionClient, bookId: string, userId: string): Promise<void> {
+/**
+ * 事务里再确认一次分类写入权限。1.19.56：新增分类（`"record"`）记账成员也可以；修改、移动、删除（默认 `"edit"`）
+ * 仍要“编辑全部”。
+ */
+export async function checkCategoryWriter(tx: Prisma.TransactionClient, bookId: string, userId: string, level: "record" | "edit" = "edit"): Promise<void> {
   const membership=await tx.bookMember.findUnique({where:{bookId_userId:{bookId,userId}}});
-  if(!membership||membership.leftAt!==null||(membership.role!=="owner"&&membership.role!=="editor"))throw forbidden("category_tree_permission","分类管理权限已变化，请重新打开账本。");
+  const allowed=membership!==null&&membership.leftAt===null&&(level==="record"?canRecord(membership.role):canEditAll(membership.role));
+  if(!allowed)throw forbidden("category_tree_permission","分类管理权限已变化，请重新打开账本。");
 }
 export async function checkCategoryTree(tx: Prisma.TransactionClient, bookId: string, change: { id: string; parentId?: string | null; name?: string; kind?: "income" | "expense"; isSystem?: boolean }): Promise<void> {
   const nodes = await tx.category.findMany({where:{bookId}});

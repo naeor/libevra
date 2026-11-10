@@ -82,6 +82,8 @@ const entry: Messages<typeof zh> = {
     backToHistory: "Back to history",
     deletedUndo: "Entry deleted",
     edit: "Edit",
+    readOnlyRole: "You have read-only access to this ledger, so you can view this entry but not change it.",
+    notYours: "{{name}} recorded this entry. You can view it, but you can only edit entries you recorded.",
     offlineReadOnly:
       "You’re offline, so this shared ledger is view-only. You can edit or delete this entry once you’re back online. Changes that haven’t synced yet are kept.",
     tagsHeading: "Tags (up to {{max}})",

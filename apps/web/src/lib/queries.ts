@@ -326,10 +326,13 @@ export interface BookSummary {
   readonly id: string;
   readonly name: string;
   readonly bookNumber: string | null;
-  readonly role: "owner" | "editor" | "viewer";
+  readonly role: "owner" | "editor" | "recorder" | "viewer";
   readonly isCreator: boolean;
   readonly disposedByMe: boolean;
   readonly memberCount: number;
+  /** 1.19.56：我是不是这本账的管理员、是否只有管理员能邀请（旧服务器没有这两项）。 */
+  readonly isAdmin?: boolean;
+  readonly inviteAdminOnly?: boolean;
 }
 
 interface BooksResponse {
@@ -602,9 +605,9 @@ export function useInviteToBook() {
     mutationFn: (input: {
       accountNumber?: string;
       username?: string;
-      role: "editor" | "viewer";
+      role: "editor" | "recorder" | "viewer";
     }) =>
-      apiFetch<{ ok: boolean; notificationId: string; refreshed: boolean; role: "editor" | "viewer" }>(
+      apiFetch<{ ok: boolean; notificationId: string; refreshed: boolean; role: "editor" | "recorder" | "viewer" }>(
         "/books/invite",
         { method: "POST", ...(bookId === undefined ? {} : { bookId }), body: input },
       ),
@@ -627,7 +630,7 @@ export function useInviteToBook() {
  */
 export interface ShareLinkView {
   readonly id: string;
-  readonly role: "editor" | "viewer";
+  readonly role: "editor" | "recorder" | "viewer";
   /** ⚠️ The chosen lifetime in days (1–7) — stored rather than derived, so the list can say it. */
   readonly days: number;
   /** ⚠️ How many people may join through it (1–10). */
@@ -677,7 +680,7 @@ export function useCreateShareLink(given?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { role: "editor" | "viewer"; days: number; maxUses: number }) =>
+    mutationFn: (input: { role: "editor" | "recorder" | "viewer"; days: number; maxUses: number }) =>
       apiFetch<{ id: string; token: string; expiresAt: string }>("/share/links", {
         method: "POST",
         ...(bookId === undefined ? {} : { bookId }),
@@ -713,7 +716,7 @@ export interface ShareLinkPreview {
   readonly bookId: string;
   readonly bookName: string;
   readonly bookNumber: string | null;
-  readonly role: "editor" | "viewer";
+  readonly role: "editor" | "recorder" | "viewer";
   readonly alreadyMember: boolean;
   readonly createdByName: string;
 }
@@ -734,7 +737,7 @@ export function useJoinViaShareLink() {
 
   return useMutation({
     mutationFn: (token: string) =>
-      apiFetch<{ ok: boolean; bookId: string; joined: boolean; role: "editor" | "viewer" }>(
+      apiFetch<{ ok: boolean; bookId: string; joined: boolean; role: "editor" | "recorder" | "viewer" }>(
         `/share/${encodeURIComponent(token)}/join`,
         { method: "POST" },
       ),
@@ -825,8 +828,10 @@ export interface BookMemberView {
   readonly avatarId?: string;
   readonly username: string;
   readonly accountNumber: string;
-  readonly role: "owner" | "editor" | "viewer";
+  readonly role: "owner" | "editor" | "recorder" | "viewer";
   readonly isCreator: boolean;
+  /** 1.19.56：这本账的管理员（只有一位）。 */
+  readonly isAdmin?: boolean;
 }
 
 /**
@@ -883,7 +888,7 @@ export function useBookMembers(given?: string, options: { readonly enabled?: boo
         };
       }
 
-      return apiFetch<{ members: readonly BookMemberView[]; myRole: string }>("/books/members", {
+      return apiFetch<{ members: readonly BookMemberView[]; myRole: string; isAdmin?: boolean; inviteAdminOnly?: boolean }>("/books/members", {
         ...(bookId === undefined ? {} : { bookId }),
       });
     },
@@ -954,7 +959,7 @@ export function useChangeMemberRole(given?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { userId: string; role: "editor" | "viewer" }) =>
+    mutationFn: (input: { userId: string; role: "editor" | "recorder" | "viewer" }) =>
       apiFetch<{ ok: boolean; changed: boolean }>(`/books/members/${input.userId}`, {
         method: "PATCH",
         ...(bookId === undefined ? {} : { bookId }),
@@ -967,6 +972,28 @@ export function useChangeMemberRole(given?: string) {
       /** ⚠️ The tab's own label comes from the member count, so it has to be refreshed too. */
       void queryClient.invalidateQueries({ queryKey: queryKeys.ledger });
       if (bookId !== undefined) void queryClient.invalidateQueries({ queryKey: [FOREIGN_KEY, bookId] });
+      void queryClient.invalidateQueries({ queryKey: ["ledger-history"] });
+    },
+  });
+}
+
+/** 1.19.56：管理员设置“只有管理员能邀请”。 */
+export function useSetInvitePolicy(given?: string) {
+  const bookId = useScopedBook(given);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (adminOnly: boolean) =>
+      apiFetch<{ ok: boolean; adminOnly: boolean; changed: boolean }>("/books/invite-policy", {
+        method: "PATCH",
+        ...(bookId === undefined ? {} : { bookId }),
+        body: { adminOnly },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: bookId === undefined ? queryKeys.bookMembers : [...queryKeys.bookMembers, bookId],
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.books });
       void queryClient.invalidateQueries({ queryKey: ["ledger-history"] });
     },
   });

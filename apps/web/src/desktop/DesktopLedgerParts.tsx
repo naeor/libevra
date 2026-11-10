@@ -20,7 +20,7 @@ export function DesktopMembers({ bookId, onManage }: { readonly bookId: string; 
       <UserAvatar avatarId={member.avatarId} className="size-7" />
       <span className="text-helper text-ink">{member.displayName}</span>
       {member.isCreator ? <span className="text-micro text-brand-dark">{t("collab.members.creator")}</span> : null}
-      <span className="text-micro text-muted">{t(member.role === "viewer" ? "collab.role.viewer" : "collab.role.editor")}</span>
+      <span className="text-micro text-muted">{member.isAdmin === true ? t("collab.role.admin") : t(member.role === "viewer" ? "collab.role.viewer" : member.role === "recorder" ? "collab.role.recorder" : "collab.role.editor")}</span>
     </span>)}
     <button type="button" className="lv-desk-link text-helper" onClick={onManage}>{list.length > 4 ? t("desktop.collab.moreMembers", { count: list.length }) : t("desktop.collab.manageMembers")}</button>
   </div>;

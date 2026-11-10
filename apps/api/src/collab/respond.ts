@@ -2,6 +2,7 @@
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { recordCriticalEvent } from "../critical/store.js";
 import { recordEvent } from "../ledger/events.js";
+import { inviteProblem, type AssignableRole } from "../ledger/access.js";
 import { dayOf } from "./notify.js";
 import { releaseNotificationQuota } from "./quota.js";
 
@@ -31,12 +32,12 @@ export type Decision = "accepted" | "declined";
  * an older version of this code; a role this build does not know is a reason to fall back, never a
  * reason to write it into `book_members` and let the database enum reject it later.
  */
-function roleFrom(payload: unknown): "editor" | "viewer" {
+function roleFrom(payload: unknown): AssignableRole {
   if (payload === null || typeof payload !== "object") return "editor";
 
   const role = (payload as { role?: unknown }).role;
 
-  return role === "viewer" ? "viewer" : "editor";
+  return role === "viewer" ? "viewer" : role === "recorder" ? "recorder" : "editor";
 }
 
 export interface DecisionResult {
@@ -100,6 +101,15 @@ export async function decideNotification(
    */
   if (notification.expiresAt.getTime() <= now.getTime()) {
     throw badRequest("notification_expired", "这条通知已经过期了。");
+  }
+
+  /**
+   * 1.19.56：接受邀请时再问一次邀请人还能不能发出这样的邀请——邀请人已经退出、被降到低于邀请的权限，
+   * 或者管理员打开了“只有管理员能邀请”，这条邀请就不再有效（拒绝不受影响）。
+   */
+  if (decision === "accepted" && notification.kind === "book_invite" && notification.bookId !== null) {
+    const problem = await inviteProblem(prisma, notification.bookId, notification.senderId, roleFrom(notification.payload));
+    if (problem !== null) throw forbidden("invite_no_longer_valid", `这条邀请已经失效：${problem.message}`);
   }
 
   const result = await prisma.$transaction(async (tx) => {

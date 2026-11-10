@@ -22,6 +22,7 @@ import {
   displayPaymentMethodName,
 } from "../lib/presetNames.js";
 import { DEFAULT_TAG_COLOR, TAG_COLORS } from "../lib/tagColors.js";
+import { canEditAllRole, canRecordRole } from "../lib/permissions.js";
 import {
   useBookMembers,
   useCategoryMutations,
@@ -330,7 +331,8 @@ function CategoriesForCurrentLedger(): React.JSX.Element {
       backTo={CURRENT_BACK_TO}
       hint={t("manage.categories.hint")}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
-      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
+      canWrite={canEditAllRole(members.data?.myRole)}
+      canAdd={canRecordRole(members.data?.myRole)}
       usage={usage.data}
       mutations={mutations}
     />
@@ -354,7 +356,8 @@ function CategoriesForBook({ bookId }: { readonly bookId: string }): React.JSX.E
       hint={t("manage.categories.hint")}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
-      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
+      canWrite={canEditAllRole(members.data?.myRole)}
+      canAdd={canRecordRole(members.data?.myRole)}
       usage={usage.data}
       mutations={mutations}
     />
@@ -371,6 +374,7 @@ function CategoriesView({
   failure = null,
   shared,
   canWrite,
+  canAdd,
   usage,
   mutations,
 }: {
@@ -386,6 +390,8 @@ function CategoriesView({
   /** A shared ledger must say that a delete/re-point affects every collaborator. */
   readonly shared: boolean;
   readonly canWrite: boolean;
+  /** 1.19.56：记账成员可以新增，不能修改（`canWrite` 是编辑全部）。 */
+  readonly canAdd: boolean;
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof useCategoryMutations>;
 }): React.JSX.Element {
@@ -418,7 +424,7 @@ function CategoriesView({
 
   return (
     <InnerPage title={t("manage.categories.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
-      {canWrite ? null : <Alert tone="info">{t("manage.categories.viewerNotice")}</Alert>}
+      {canAdd ? canWrite ? null : <Alert tone="info">{t("manage.recorderNotice")}</Alert> : <Alert tone="info">{t("manage.categories.viewerNotice")}</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -444,7 +450,7 @@ function CategoriesView({
 
       {isSuccess ? (
         <>
-          {canWrite ? <AddRow
+          {canAdd ? <AddRow
             placeholder={t("manage.categories.newPlaceholder")}
             busy={create.isPending}
             onAdd={async (name) => {
@@ -613,7 +619,8 @@ function PaymentMethodsForCurrentLedger(): React.JSX.Element {
       backTo={CURRENT_BACK_TO}
       hint={t("manage.paymentMethods.hint")}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
-      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
+      canWrite={canEditAllRole(members.data?.myRole)}
+      canAdd={canRecordRole(members.data?.myRole)}
       usage={usage.data}
       mutations={mutations}
     />
@@ -637,7 +644,8 @@ function PaymentMethodsForBook({ bookId }: { readonly bookId: string }): React.J
       hint={t("manage.paymentMethods.hint")}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
-      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
+      canWrite={canEditAllRole(members.data?.myRole)}
+      canAdd={canRecordRole(members.data?.myRole)}
       usage={usage.data}
       mutations={mutations}
     />
@@ -654,6 +662,7 @@ function PaymentMethodsView({
   failure = null,
   shared,
   canWrite,
+  canAdd,
   usage,
   mutations,
 }: {
@@ -667,6 +676,8 @@ function PaymentMethodsView({
   readonly failure?: string | null;
   readonly shared: boolean;
   readonly canWrite: boolean;
+  /** 1.19.56：记账成员可以新增，不能修改（`canWrite` 是编辑全部）。 */
+  readonly canAdd: boolean;
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof usePaymentMethodMutations>;
 }): React.JSX.Element {
@@ -690,7 +701,7 @@ function PaymentMethodsView({
 
   return (
     <InnerPage title={t("manage.paymentMethods.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
-      {canWrite ? null : <Alert tone="info">{t("manage.paymentMethods.viewerNotice")}</Alert>}
+      {canAdd ? canWrite ? null : <Alert tone="info">{t("manage.recorderNotice")}</Alert> : <Alert tone="info">{t("manage.paymentMethods.viewerNotice")}</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -699,7 +710,7 @@ function PaymentMethodsView({
 
       {isSuccess ? (
         <>
-          {canWrite ? <AddRow
+          {canAdd ? <AddRow
             placeholder={t("manage.paymentMethods.newPlaceholder")}
             busy={create.isPending}
             onAdd={async (name) => {
@@ -875,7 +886,8 @@ function TagsForCurrentLedger(): React.JSX.Element {
       backTo={CURRENT_BACK_TO}
       hint={t("manage.tags.hint")}
       shared={(ledger.data?.book.memberCount ?? 1) >= 2}
-      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
+      canWrite={canEditAllRole(members.data?.myRole)}
+      canAdd={canRecordRole(members.data?.myRole)}
       usage={usage.data}
       mutations={mutations}
     />
@@ -898,7 +910,8 @@ function TagsForBook({ bookId }: { readonly bookId: string }): React.JSX.Element
       hint={t("manage.tags.hint")}
       failure={meta.isError ? errorMessage(meta.error) : null}
       shared={(meta.data?.book.memberCount ?? 1) >= 2}
-      canWrite={members.data?.myRole === "owner" || members.data?.myRole === "editor"}
+      canWrite={canEditAllRole(members.data?.myRole)}
+      canAdd={canRecordRole(members.data?.myRole)}
       usage={usage.data}
       mutations={mutations}
     />
@@ -914,6 +927,7 @@ function TagsView({
   failure = null,
   shared,
   canWrite,
+  canAdd,
   usage,
   mutations,
 }: {
@@ -926,6 +940,8 @@ function TagsView({
   readonly failure?: string | null;
   readonly shared: boolean;
   readonly canWrite: boolean;
+  /** 1.19.56：记账成员可以新增，不能修改（`canWrite` 是编辑全部）。 */
+  readonly canAdd: boolean;
   readonly usage: ClassificationUsageResponse | undefined;
   readonly mutations: ReturnType<typeof useTagMutations>;
 }): React.JSX.Element {
@@ -942,12 +958,12 @@ function TagsView({
 
   return (
     <InnerPage title={t("manage.tags.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
-      {canWrite ? null : <Alert tone="info">{t("manage.tags.viewerNotice")}</Alert>}
+      {canAdd ? canWrite ? null : <Alert tone="info">{t("manage.recorderNotice")}</Alert> : <Alert tone="info">{t("manage.tags.viewerNotice")}</Alert>}
       {error ? <Alert>{error}</Alert> : null}
       {notice === null ? null : <Alert tone="success">{notice}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
 
-      {canWrite ? (
+      {canAdd ? (
         <section className="lv-settings-flat lv-settings-form flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         <input
           value={name}

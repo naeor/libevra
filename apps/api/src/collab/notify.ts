@@ -30,7 +30,7 @@ export type NotificationKind = "book_invite" | "referral_reminder";
  * compile error at the place the invitation is sent, which is the only place it can be fixed.
  */
 export interface NotificationPayload {
-  readonly role?: "editor" | "viewer";
+  readonly role?: "editor" | "recorder" | "viewer";
 }
 
 /**

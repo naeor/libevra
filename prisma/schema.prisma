@@ -846,6 +846,10 @@ model Book {
   /// set explicitly on creation, and transferred when its holder leaves while other members stay.
   managedByUserId String? @map("managed_by_user_id") @db.Uuid
 
+  /// **只有管理员能邀请**（1.19.56）。关闭（默认）时所有成员都能邀请，被邀请的人权限不能高于邀请人；
+  /// 打开后只有管理员（`managedByUserId`）能邀请，其他成员发出的、尚未接受的邀请与分享链接也随之失效。
+  inviteAdminOnly Boolean @default(false) @map("invite_admin_only")
+
   /// **When the ledger entered its archive window.** S13-H. Archived ledgers keep their rows, but
   /// ordinary business access is refused; only the archive summary and the owner's restore path
   /// are available.
@@ -915,6 +919,9 @@ enum BookRole {
   owner
   editor
   viewer
+  /// **记账**（1.19.56）：可以记账，只能修改 / 删除自己记的账目；可以新增分类、标签、支付方式，不能修改。
+  /// 从低到高：viewer（只读）→ recorder（记账）→ editor（编辑全部）。见 `ledger/access.ts`。
+  recorder
 }
 
 /// Who may touch a book. **This table is the only source of truth for

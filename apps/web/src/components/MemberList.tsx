@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { UserAvatar } from "./UserAvatar.js";
+import { InlineChoice } from "./ui/InlineChoice.js";
+import { Switch } from "./ui/PurposeControls.js";
 
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
@@ -7,6 +9,7 @@ import {
   useBookMembers,
   useChangeMemberRole,
   useRemoveMember,
+  useSetInvitePolicy,
   type BookMemberView,
 } from "../lib/queries.js";
 
@@ -42,6 +45,9 @@ export function MemberList({
   const members = useBookMembers(bookId);
   const changeRole = useChangeMemberRole(bookId);
   const removeMember = useRemoveMember(bookId);
+  const invitePolicy = useSetInvitePolicy(bookId);
+  /** 同一时间只展开一个成员的权限选择。 */
+  const [picking, setPicking] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -51,7 +57,9 @@ export function MemberList({
   if (members.isPending) return <p className="text-body text-muted">{t("collab.members.loading")}</p>;
   if (members.isError) return <p className="text-body text-muted">{t("collab.members.loadFailed")}</p>;
 
-  const { members: list, myRole } = members.data;
+  const { members: list } = members.data;
+  const isAdmin = members.data.isAdmin === true;
+  const inviteAdminOnly = members.data.inviteAdminOnly === true;
   /**
    * ⚠️ **`compact` is the main tab's preview: names, roles, and no controls.**
    *
@@ -63,7 +71,8 @@ export function MemberList({
    * buttons that are hidden by CSS**, which is how a control comes back the day somebody changes the
    * styling.
    */
-  const canManage = !compact && (myRole === "editor" || myRole === "owner");
+  /** 1.19.56：改别人的权限、移出成员只有管理员能做（所有者 2026-11-10 决定）；服务器另外检查。 */
+  const canManage = !compact && isAdmin;
 
   function run(userId: string, action: () => Promise<unknown>): void {
     setError(null);
@@ -92,7 +101,12 @@ export function MemberList({
               member={member}
               canManage={canManage}
               busy={busyId === member.userId}
+              picking={picking === member.userId}
+              onTogglePick={() => { setPicking(value => value === member.userId ? null : member.userId); }}
+              onClosePick={() => { setPicking(null); }}
               onChangeRole={(role) => {
+                setPicking(null);
+                if (role === member.role) return;
                 run(member.userId, () => changeRole.mutateAsync({ userId: member.userId, role }));
               }}
               onAskRemove={() => {
@@ -112,6 +126,26 @@ export function MemberList({
       {canManage ? null : (
         <p className="text-helper-relaxed text-muted">{t("collab.members.viewerNote")}</p>
       )}
+
+      {/** 1.19.56：管理员可以设为“只有管理员能邀请他人”。 */}
+      {canManage ? (
+        <div className="lv-settings-flat rounded-card border border-line bg-surface px-5 py-3">
+          <Switch
+            checked={inviteAdminOnly}
+            disabled={invitePolicy.isPending}
+            onCheckedChange={(next) => {
+              setError(null);
+              invitePolicy.mutate(next, { onError: () => { setError(t("collab.members.inviteAdminOnlyFailed")); } });
+            }}
+            className="lv-member-invite-policy flex w-full flex-row-reverse justify-between gap-4 text-left"
+          >
+            <span className="flex min-w-0 flex-col">
+              <span className="text-card-title text-ink">{t("collab.members.inviteAdminOnly")}</span>
+              <span className="text-helper text-muted">{t(inviteAdminOnly ? "collab.members.inviteAdminOnlyOn" : "collab.members.inviteAdminOnlyOff")}</span>
+            </span>
+          </Switch>
+        </div>
+      ) : null}
 
       {confirmRemove === null ? null : (
         <RemoveConfirm
@@ -135,17 +169,23 @@ function MemberRow({
   member,
   canManage,
   busy,
+  picking,
+  onTogglePick,
+  onClosePick,
   onChangeRole,
   onAskRemove,
 }: {
   readonly member: BookMemberView;
   readonly canManage: boolean;
   readonly busy: boolean;
-  readonly onChangeRole: (role: "editor" | "viewer") => void;
+  readonly picking: boolean;
+  readonly onTogglePick: () => void;
+  readonly onClosePick: () => void;
+  readonly onChangeRole: (role: "editor" | "recorder" | "viewer") => void;
   readonly onAskRemove: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const roleLabel = member.role === "viewer" ? t("collab.role.viewer") : t("collab.role.editor");
+  const roleLabel = memberRoleLabel(member.role, t);
 
   return (
     <div className="lv-settings-member-row flex flex-col gap-2 px-5 py-4">
@@ -158,12 +198,19 @@ function MemberRow({
         <span className="lv-settings-member-name flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink">
             <span className="min-w-0 [overflow-wrap:anywhere]">{member.displayName}</span>
-            {member.isCreator ? (
+            {member.isAdmin === true ? (
+              <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
+                {t("collab.role.admin")}
+              </span>
+            ) : member.isCreator ? (
               <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
                 {t("collab.members.creator")}
               </span>
             ) : null}
-            <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-micro text-muted">{roleLabel}</span>
+            {/** 管理员看到的成员行下面有权限选择，徽标不再重复显示同一个权限。 */}
+            {canManage && member.isAdmin !== true ? null : (
+              <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-micro text-muted">{roleLabel}</span>
+            )}
           </span>
 
           <span className="font-mono text-helper text-muted [overflow-wrap:anywhere]">
@@ -171,19 +218,8 @@ function MemberRow({
           </span>
         </span>
 
-        {canManage && !member.isCreator ? (
+        {canManage && member.isAdmin !== true ? (
           <div className="flex shrink-0 gap-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                onChangeRole(member.role === "viewer" ? "editor" : "viewer");
-              }}
-              className="text-helper text-brand transition hover:text-brand-dark disabled:opacity-45"
-            >
-              {member.role === "viewer" ? t("collab.members.makeEditor") : t("collab.members.makeViewer")}
-            </button>
-
             <button
               type="button"
               disabled={busy}
@@ -192,8 +228,7 @@ function MemberRow({
             >
               {t("collab.members.remove")}
             </button>
-          </div>
-        ) : null}
+          </div>        ) : null}
       </div>
 
       {/**
@@ -202,7 +237,20 @@ function MemberRow({
         * it, and the owner's answer for getting rid of a ledger is **整本弃置**, which is the creator's
         * to do.
         */}
-      {member.isCreator && canManage ? (
+      {/** 1.19.56：管理员给其他成员选择 只读 / 记账 / 编辑全部（管理员自己固定为编辑全部）。 */}
+      {canManage && member.isAdmin !== true ? (
+        <InlineChoice
+          label={t("collab.members.roleChoice", { name: member.displayName })}
+          value={member.role === "owner" ? "editor" : member.role}
+          open={picking}
+          onToggle={onTogglePick}
+          onClose={onClosePick}
+          onSelect={(id) => { onChangeRole(id as "editor" | "recorder" | "viewer"); }}
+          options={(["viewer", "recorder", "editor"] as const).map((role) => ({ id: role, label: t(`collab.role.${role}`), hint: t(`collab.roleHint.${role}`) }))}
+        />
+      ) : null}
+
+      {member.isAdmin === true && canManage ? (
         <p className="text-helper-relaxed text-muted">{t("collab.members.creatorNote")}</p>
       ) : null}
     </div>
@@ -252,4 +300,9 @@ function RemoveConfirm({
       </div>
     </div>
   );
+}
+
+/** 成员权限的名称（1.19.56）：只读 / 记账 / 编辑全部；旧值 `owner` 同编辑全部。 */
+export function memberRoleLabel(role: string, t: ReturnType<typeof useI18n>["t"]): string {
+  return role === "viewer" ? t("collab.role.viewer") : role === "recorder" ? t("collab.role.recorder") : t("collab.role.editor");
 }

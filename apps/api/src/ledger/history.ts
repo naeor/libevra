@@ -182,6 +182,7 @@ const HISTORY_LABELS: Readonly<Record<string, string>> = {
   removed: "移除成员",
   left: "退出账本",
   role: "成员权限",
+  invitePolicy: "邀请",
 };
 
 /**
@@ -197,8 +198,11 @@ const HISTORY_LABELS: Readonly<Record<string, string>> = {
  */
 function renderValue(value: unknown, key: string): string {
   if (value === null || value === undefined) return "（空）";
-  if (key === "role" && value === "viewer") return "仅查看";
-  if (key === "role" && value === "editor") return "可编辑";
+  if (key === "role" && value === "viewer") return "只读";
+  if (key === "role" && value === "recorder") return "记账";
+  if (key === "role" && (value === "editor" || value === "owner")) return "编辑全部";
+  if (key === "invitePolicy" && value === true) return "只有管理员能邀请";
+  if (key === "invitePolicy" && value === false) return "所有成员都能邀请";
   if (key === "kind" && value === "income") return "收入";
   if (key === "kind" && value === "expense") return "支出";
   if (typeof value === "string") return value;

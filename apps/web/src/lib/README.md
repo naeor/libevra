@@ -50,7 +50,7 @@
 | [detailCards.test.ts](detailCards.test.ts) | 测试：detailCards |
 | [detailCards.ts](detailCards.ts) | 实现模块；入口/导出：MAIN_CARDS、SMALL_CARDS、DetailCards、DEFAULT_DETAIL_CARDS、parseDetailCards |
 | [detailFilters.test.ts](detailFilters.test.ts) | 测试：detailFilters |
-| [detailFilters.ts](detailFilters.ts) | 实现模块；入口/导出：DetailFilters、FILTER_DIMENSIONS、FilterDimension、emptyDetailFilters、readDetailFilters |
+| [detailFilters.ts](detailFilters.ts) | 实现模块；入口/导出：DetailFilters、FORMER_RECORDERS、FILTER_DIMENSIONS、FilterDimension、emptyDetailFilters |
 | [detailTransition.ts](detailTransition.ts) | 实现模块；入口/导出：readSession、writeSession、useDetailTransition |
 | [deviceStorageKeys.test.ts](deviceStorageKeys.test.ts) | 测试：deviceStorageKeys |
 | [deviceStorageKeys.ts](deviceStorageKeys.ts) | 实现模块；入口/导出：LIBELLUM_KEY_PREFIX、LIBEVRA_KEY_PREFIX、CURRENT_BOOK_KEY、fxModeKey、MESSAGES_SEEN_PREFIX |
@@ -100,6 +100,8 @@
 | [overlayExit.ts](overlayExit.ts) | 实现模块；入口/导出：OVERLAY_EXIT_MS、createOverlayExit |
 | [overlayScrollLock.test.ts](overlayScrollLock.test.ts) | 测试：overlayScrollLock |
 | [overlayScrollLock.ts](overlayScrollLock.ts) | 实现模块；入口/导出：hasOverlayScrollLock、lockOverlayScroll |
+| [permissions.test.ts](permissions.test.ts) | 测试：permissions |
+| [permissions.ts](permissions.ts) | 实现模块；入口/导出：roleRank、canRecordRole、canEditAllRole、canEditEntryAs、invitableRoles |
 | [presetNames.ts](presetNames.ts) | 实现模块；入口/导出：displayCategoryName、displayPaymentMethodName、displayCategoryDescription |
 | [profile.ts](profile.ts) | 实现模块；入口/导出：useSaveProfile |
 | [profileDraft.ts](profileDraft.ts) | 实现模块；入口/导出：useDraftExit |
@@ -107,6 +109,7 @@
 | [qr.ts](qr.ts) | 实现模块；入口/导出：QrCode、encodeQr |
 | [queries.ts](queries.ts) | 实现模块；入口/导出：queryKeys、guestQueryKeys、GuestQueryNotifier、TransactionFilters、transactionFilters |
 | [r2-colors.test.ts](r2-colors.test.ts) | 测试：r2-colors |
+| [recorderPeople.ts](recorderPeople.ts) | 实现模块；入口/导出：RecorderPeople、useRecorderPeople |
 | [registration.ts](registration.ts) | 实现模块；入口/导出：fetchRegistrationConfig |
 | [reviewScanController.test.ts](reviewScanController.test.ts) | 测试：reviewScanController |
 | [reviewScanController.ts](reviewScanController.ts) | 实现模块；入口/导出：ReviewScanState、ReviewScanController |

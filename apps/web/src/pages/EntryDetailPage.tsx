@@ -55,6 +55,7 @@ import {
   useUpdateTransaction,
 } from "../lib/queries.js";
 import { usePaneDirty } from "../workspace/context.js";
+import { useLedgerPermissions } from "../lib/permissions.js";
 
 /**
  * 日历日（`YYYY-MM-DD`）给人看：中文界面保留原来的 `2026-10-21` 写法（与国际化之前一致），
@@ -94,6 +95,8 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
   const remove = useDeleteTransaction();
   const restore = useRestoreTransaction();
   const { readOnly: sharedOfflineReadOnly } = useSharedLedgerOfflineReadOnly();
+  /** 1.19.56 账本权限分级：记账成员只能修改自己记的账目，只读成员只能查看（服务器另外检查）。 */
+  const permissions = useLedgerPermissions();
   /**
    * ⚠️ **S18 写入安全**：修改与删除写到**这个工作区查看的那本账**——设备当前账本走原来的离线队列，
    * 外部账本在线直接写到那本账（带账本 id），绝不会落进另一本账。
@@ -183,6 +186,11 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
   }
 
   const data = entry.data;
+  /** 成员名单还没取到时照原样显示修改入口，由服务器决定。 */
+  const canChange = permissions === null || permissions.canEditEntry(data.recorderId);
+  const roleNotice = permissions === null || canChange ? null
+    : !permissions.canRecord ? t("entry.detail.readOnlyRole")
+    : t("entry.detail.notYours", { name: permissions.memberName(data.recorderId) ?? t("ledger.filters.formerMembers") });
   const ownCategories = (ledger.data?.categories ?? []).filter(
     (category) => category.kind === data.kind && !category.isArchived,
   );
@@ -224,8 +232,9 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
         </section>
 
         {error === null ? null : <Alert>{error}</Alert>}
+        {roleNotice === null ? null : <Alert tone="info">{roleNotice}</Alert>}
 
-        <button
+        {canChange ? <button
           type="button"
           disabled={restore.isPending}
           onClick={() => {
@@ -242,7 +251,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
           className="w-full rounded-field bg-brand px-4 py-3 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-45"
         >
           {restore.isPending ? t("entry.detail.restoring") : t("entry.detail.restore")}
-        </button>
+        </button> : null}
         <button
           type="button"
           onClick={() => void navigate("/ledger/history")}
@@ -469,7 +478,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
         else goBack();
       }}
       actions={
-        editing || sharedOfflineReadOnly ? null : (
+        editing || sharedOfflineReadOnly || !canChange ? null : (
           <button
             type="button"
             onClick={() => {
@@ -490,7 +499,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
         <Alert>
           {t("entry.detail.offlineReadOnly")}
         </Alert>
-      ) : null}
+      ) : roleNotice === null ? null : <Alert tone="info">{roleNotice}</Alert>}
 
       <section className="rounded-card border border-line bg-surface p-5">
         <p className="text-xs text-muted">{t(`common.kind.${data.kind}`)}</p>
@@ -501,7 +510,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
 
       {editing ? (
         <>
-          <AttachmentPanel bookId={attachmentBookId} entryIds={[id]} />
+          <AttachmentPanel bookId={attachmentBookId} entryIds={[id]} readOnly={!canChange} />
           <section className="flex flex-col gap-2">
             <h2 className="px-1 text-card-title text-ink">{t("common.field.amount")}</h2>
             {fxMode.enabled ? <p className="px-1 text-helper-relaxed text-muted">{t("fx.readOnly")}</p> : null}
@@ -712,7 +721,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
             )}
           </dl>
 
-          <AttachmentPanel bookId={attachmentBookId} entryIds={[id]} />
+          <AttachmentPanel bookId={attachmentBookId} entryIds={[id]} readOnly={!canChange} />
           <section className="flex flex-col gap-2">
             <h2 className="px-1 text-card-title text-ink">{t("common.field.tags")}</h2>
             {data.tags.length === 0 ? (
@@ -822,7 +831,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
           </details>
           )}
 
-          <button
+          {canChange ? <button
             type="button"
             disabled={sharedOfflineReadOnly}
             onClick={() => {
@@ -831,7 +840,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
             className="w-full rounded-field bg-danger py-3.5 text-button-lg font-medium text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
           >
             {t("entry.detail.delete")}
-          </button>
+          </button> : null}
         </>
       )}
 

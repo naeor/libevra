@@ -3,6 +3,7 @@ import type zh from "../zh-CN/manage.js";
 
 /** `manage` (English). Must mirror zh-CN key for key. */
 const manage: Messages<typeof zh> = {
+  recorderNotice: "You can add new ones; renaming, archiving and deleting need Edit all.",
   treePan:"Swipe horizontally to view each level",
   treeRecords:"{{count}} entries",
   tree: { toggle:"Expand or collapse {{name}}", actions:"Actions for {{name}}", edit:"Edit category", addChild:"Add subcategory", name:"Name", organize:"Hierarchy and appearance", parent:"Parent category", root:"None (root)", order:"Order", icon:"Icon (optional)", color:"Color (optional)", invalid:"Invalid parent, cycle, more than 64 levels, or duplicate sibling name.", promote:"Subcategories move up one level; descendants and entries are kept.", search:"Search categories", back:"Up one level", branch:"Include subcategories", direct:"Direct", total:"Branch total", currentTree:"Past entries are summarised using the current category structure. Moving a category does not reassign its entries." },

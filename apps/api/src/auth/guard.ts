@@ -3,7 +3,7 @@ import type { FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "../db.js";
 import { unauthorized } from "../lib/errors.js";
-import { requireBook, requireBookForWrite } from "../ledger/access.js";
+import { requireBook, requireBookForWrite, requireBookForRecord } from "../ledger/access.js";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "./session.js";
 
 /**
@@ -110,12 +110,13 @@ export function createRequireAuth(
 export function createRequireBook(
   prisma: PrismaClient,
   requireAuth: (request: FastifyRequest) => Promise<void>,
-  options: { readonly write: boolean },
+  options: { readonly write: boolean | "record" },
 ): (request: FastifyRequest) => Promise<void> {
   return async function requireBookGuard(request: FastifyRequest): Promise<void> {
     await requireAuth(request);
 
-    const check = options.write ? requireBookForWrite : requireBook;
+    /** 1.19.56：`"record"` = 记账强度（记账、编辑全部可以，只读不可以）；`true` 仍是编辑全部。 */
+    const check = options.write === "record" ? requireBookForRecord : options.write ? requireBookForWrite : requireBook;
     request.book = await check(prisma, request, request.currentUser!.id);
   };
 }

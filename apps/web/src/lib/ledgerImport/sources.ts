@@ -19,7 +19,7 @@ export interface ImportBookSummary {
   readonly id: string;
   readonly name: string;
   readonly bookNumber: string | null;
-  readonly role: "owner" | "editor" | "viewer";
+  readonly role: "owner" | "editor" | "recorder" | "viewer";
   readonly isCreator: boolean;
   readonly memberCount: number;
 }

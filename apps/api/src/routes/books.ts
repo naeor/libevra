@@ -7,7 +7,7 @@ import type { PrismaClient } from "../db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { findByAccountNumber, findByUsername } from "../collab/directory.js";
 import { sendNotification } from "../collab/notify.js";
-import { requireBookForWrite } from "../ledger/access.js";
+import { canEditAll, canRecord, requireBook, requireBookAdmin, requireBookForWrite, requireInvite, type AssignableRole } from "../ledger/access.js";
 import { createDefaultLedger } from "../ledger/bootstrap.js";
 import { recordEvent } from "../ledger/events.js";
 import { recordCriticalEvent } from "../critical/store.js";
@@ -47,6 +47,10 @@ const bookSummarySchema = z.object({
    */
   disposedByMe: z.boolean(),
   memberCount: z.number().int().nonnegative(),
+  /** 1.19.56：这个账号是不是这本账的管理员（`managedByUserId`，没有时退回创建者）。 */
+  isAdmin: z.boolean(),
+  /** 1.19.56：是否只有管理员能邀请。 */
+  inviteAdminOnly: z.boolean(),
 });
 
 const booksResponseSchema = z.object({
@@ -88,6 +92,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
               bookNumber: true,
               createdBy: true,
               managedByUserId: true,
+              inviteAdminOnly: true,
               disposedAt: true,
               archivedAt: true,
               purgeStartedAt: true,
@@ -111,6 +116,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
           bookNumber: true,
           createdBy: true,
           managedByUserId: true,
+          inviteAdminOnly: true,
           disposedAt: true,
           archivedAt: true,
           purgeStartedAt: true,
@@ -120,6 +126,11 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
     ]);
 
     const mine = new Map(memberships.map((entry) => [entry.book.id, entry] as const));
+    /** 管理员 = `managedByUserId`，没有时退回创建者；只认仍是成员的人（与 `bookAdminId` 同一规则）。 */
+    const adminOf = (book: { managedByUserId: string | null; createdBy: string; members: readonly { userId: string }[] }): string | null => {
+      const candidate = book.managedByUserId ?? book.createdBy;
+      return book.members.some((member) => member.userId === candidate) ? candidate : null;
+    };
     const open: z.infer<typeof bookSummarySchema>[] = [];
     const disposed: z.infer<typeof bookSummarySchema>[] = [];
 
@@ -136,6 +147,8 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
         isCreator: book.createdBy === userId,
         disposedByMe: false,
         memberCount: book.members.length,
+        isAdmin: adminOf(book) === userId,
+        inviteAdminOnly: book.inviteAdminOnly,
       });
     }
 
@@ -149,6 +162,8 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
         isCreator: true,
         disposedByMe: true,
         memberCount: book.members.length,
+        isAdmin: adminOf(book) === userId,
+        inviteAdminOnly: book.inviteAdminOnly,
       });
     }
 
@@ -436,9 +451,8 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
    * was cost, not safety**: for two people who simply want to keep a ledger together, the old flow
    * asked them to confirm the same intention twice.
    *
-   * ⚠️ **⚠️ Nothing about permission changed.** This is guarded as a **write** — inviting somebody
-   * changes who can see the ledger's entries, so **a viewer must not be able to do it** — and the
-   * membership row is created only by the invitee's own acceptance.
+   * ⚠️ **1.19.56（所有者 2026-11-10 决定）**：所有成员都能邀请，但被邀请的人权限不能高于邀请人；管理员可以
+   * 设为“只有管理员能邀请”。成员关系仍然只由对方接受邀请时建立，接受时还会再核对一次邀请人的授权。
    */
   app.post("/api/v1/books/invite", { preHandler: requireAuth }, async (request, reply) => {
     const userId = request.currentUser!.id;
@@ -453,7 +467,7 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
         accountNumber: z.string().optional(),
         username: z.string().optional(),
         /** ⚠️ From the client, so it is a **request**, not an instruction — see below. */
-        role: z.enum(["editor", "viewer"]).optional(),
+        role: z.enum(["editor", "recorder", "viewer"]).optional(),
         message: z.string().trim().max(200).optional(),
       })
       .refine(
@@ -463,11 +477,18 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
       .parse(request.body ?? {});
 
     /**
-     * ⚠️ **The ledger comes from the header and is checked as a *write* operation.** That is what
-     * `requireBookForWrite` decides, and it is why this route resolves the ledger itself instead of
-     * relying on the plain auth guard.
+     * ⚠️ **The ledger comes from the header**, and this route resolves it itself instead of relying on
+     * the plain auth guard. 1.19.56 起邀请不再要求写权限，按下面的邀请规则判断。
      */
-    const book = await requireBookForWrite(prisma, request, userId);
+    const book = await requireBook(prisma, request, userId);
+
+    /**
+     * 1.19.56：所有成员都能邀请，被邀请的人权限不能高于邀请人；“只有管理员能邀请”打开时只有管理员可以
+     * （`requireInvite`）。没写权限时默认与邀请人同一档。先判断权限，再查找对方账号，
+     * 不能邀请的人也就无从借此确认账号是否存在。
+     */
+    const role: AssignableRole = body.role ?? (canEditAll(book.role) ? "editor" : canRecord(book.role) ? "recorder" : "viewer");
+    await requireInvite(prisma, book.bookId, userId, role);
 
     /**
      * ⚠️ **Located through the same functions the lookup screen uses**, so "you cannot search by
@@ -495,8 +516,6 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
       throw badRequest("already_member", "这个人已经在这本账里了。");
     }
 
-    const requested = body.role ?? "editor";
-    const role = book.role === "editor" && requested === "editor" ? "editor" : requested;
 
     const sent = await sendNotification(prisma, {
       senderId: userId,
@@ -534,5 +553,29 @@ export function registerBooksRoutes(app: FastifyInstance, options: BooksRouteOpt
       /** What will be granted if they accept — stated so the screen can show it before they do. */
       role,
     };
+  });
+
+  // ---------------------------------------------------------------------------
+  // PATCH /api/v1/books/invite-policy — 只有管理员能邀请（1.19.56）
+  // ---------------------------------------------------------------------------
+  /**
+   * 管理员打开后，只有管理员能邀请他人（站内邀请与分享链接）；其他成员已经发出、尚未接受的邀请与分享链接
+   * 在被接受时会因此失效（`inviteProblem`），不需要逐条撤销。关闭后恢复“所有成员都能邀请，权限不高于自己”。
+   */
+  app.patch("/api/v1/books/invite-policy", { preHandler: requireAuth }, async (request) => {
+    const userId = request.currentUser!.id;
+    const body = z.object({ adminOnly: z.boolean() }).parse(request.body ?? {});
+    const book = await requireBookAdmin(prisma, request, userId);
+    const before = await prisma.book.findUniqueOrThrow({ where: { id: book.bookId }, select: { inviteAdminOnly: true } });
+    if (before.inviteAdminOnly === body.adminOnly) return { ok: true, adminOnly: body.adminOnly, changed: false };
+    await prisma.book.update({ where: { id: book.bookId }, data: { inviteAdminOnly: body.adminOnly } });
+    await recordEvent(prisma, {
+      bookId: book.bookId,
+      actorId: userId,
+      actorName: request.currentUser!.displayName,
+      kind: "book_changed",
+      changes: { invitePolicy: { from: before.inviteAdminOnly, to: body.adminOnly } },
+    });
+    return { ok: true, adminOnly: body.adminOnly, changed: true };
   });
 }

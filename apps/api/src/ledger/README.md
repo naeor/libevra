@@ -11,7 +11,7 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
-| [access.ts](access.ts) | 实现模块；入口/导出：requireBookAccess、BookContext、requireBook、requireBookForWrite、currentBookId |
+| [access.ts](access.ts) | 实现模块；入口/导出：requireBookAccess、BookContext、ROLE_RANK、AssignableRole、ASSIGNABLE_ROLES |
 | [auditContext.ts](auditContext.ts) | 实现模块；入口/导出：registerAuditContext、currentAuditContext |
 | [bootstrap.ts](bootstrap.ts) | 实现模块；入口/导出：createDefaultLedger |
 | [categoryTree.ts](categoryTree.ts) | 实现模块；入口/导出：lockCategoryTree、checkCategoryWriter、checkCategoryTree |

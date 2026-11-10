@@ -343,6 +343,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      */
     const requireBookRead = createRequireBook(options.prisma, requireAuth, { write: false });
     const requireBookWrite = createRequireBook(options.prisma, requireAuth, { write: true });
+    /**
+     * 1.19.56 账本权限分级：记账强度（记账、编辑全部可以，只读不可以）。新增账目、导入、语音、新增分类 / 标签 /
+     * 支付方式走它；修改 / 删除别人的账目、修改分类等由路由里再判断（`requireEntryEditable` / `requireEditAll`）。
+     */
+    const requireBookRecord = createRequireBook(options.prisma, requireAuth, { write: "record" });
 
     /**
      * ⚠️ **The ledger's own metadata is a *read* route, and it was a write route until 1.10.08.**
@@ -371,7 +376,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     });
     registerTransactionRoutes(app, {
       prisma: options.prisma,
-      requireAuth: requireBookWrite,
+      requireAuth: requireBookRecord,
       /**
        * ⚠️ **Read versus write is decided per route, not per module.** Registering this whole module
        * with the write guard made a viewer's `GET /transactions`, `GET /summary` and
@@ -386,23 +391,25 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      * **read strength**——viewer 也能读；没有写路由、没有新权限规则。
      */
     registerAnalyticsRoutes(app, { prisma: options.prisma, requireAuth: requireBookRead });
-    registerClassificationRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
+    registerClassificationRoutes(app, { prisma: options.prisma, requireAuth: requireBookRecord });
     /**
      * S15-E3 关系记忆：读挂 read（viewer 也能看），写挂 write（viewer 被拒）。
      * 两个包装器就是上面注册的既有守卫，没有新增权限规则。
      */
     registerNotDuplicateRelationRoutes(app, {
       prisma: options.prisma,
-      requireAuth: requireBookWrite,
+      requireAuth: requireBookRecord,
       requireRead: requireBookRead,
     });
     registerRecognizeRoutes(app, { requireAuth: requireBookRead, ocr });
-    registerVoiceRoutes(app, { requireAuth: requireBookWrite, prisma: options.prisma, voice });
-    registerExportRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
-    registerImportRoutes(app, { prisma: options.prisma, requireAuth: requireBookWrite });
+    registerVoiceRoutes(app, { requireAuth: requireBookRecord, prisma: options.prisma, voice });
+    /** 1.19.56：导出与查看是同一权限（所有者 2026-11-10），只读成员也能导出。 */
+    registerExportRoutes(app, { prisma: options.prisma, requireAuth: requireBookRead });
+    /** 导入是一种记账方式：记账及以上。 */
+    registerImportRoutes(app, { prisma: options.prisma, requireAuth: requireBookRecord });
     registerBillImportRoutes(app, {
       prisma: options.prisma,
-      requireAuth: requireBookWrite,
+      requireAuth: requireBookRecord,
       ...(options.importExtractor === undefined ? {} : { extractor: options.importExtractor }),
     });
     /**

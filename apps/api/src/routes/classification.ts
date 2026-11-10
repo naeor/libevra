@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { checkCategoryTree, checkCategoryWriter, lockCategoryTree } from "../ledger/categoryTree.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { recordOperation } from "../ledger/operations.js";
+import { requireEditAll } from "../ledger/access.js";
 import { AppError, badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
 
 export interface ClassificationRouteOptions {
@@ -177,6 +178,13 @@ export function registerClassificationRoutes(
   options: ClassificationRouteOptions,
 ): void {
   const { prisma, requireAuth } = options;
+  /**
+   * 1.19.56：模块用记账强度注册——记账成员可以**新增**分类、标签、支付方式；**修改、归档、删除**要“编辑全部”。
+   */
+  const requireEdit = async (request: FastifyRequest): Promise<void> => {
+    await requireAuth(request);
+    requireEditAll(request.book!);
+  };
 
   // -------------------------------------------------------------------------
   // Categories
@@ -195,7 +203,7 @@ export function registerClassificationRoutes(
       const created = await prisma.$transaction(async tx => {
         await lockBookStorage(tx, bookId);
         await lockCategoryTree(tx, bookId);
-        await checkCategoryWriter(tx,bookId,request.currentUser!.id);
+        await checkCategoryWriter(tx,bookId,request.currentUser!.id,"record");
         const id = randomUUID();
         await checkCategoryTree(tx, bookId, { id, name: body.name, kind: body.kind, parentId: body.parentId ?? null });
         const row = await tx.category.create({
@@ -219,7 +227,7 @@ export function registerClassificationRoutes(
     }
   });
 
-  app.patch("/api/v1/categories/:id", { preHandler: requireAuth }, async (request) => {
+  app.patch("/api/v1/categories/:id", { preHandler: requireEdit }, async (request) => {
     const body = updateCategorySchema.parse(request.body);
     const bookId = request.book!.bookId;
     const { id } = request.params as { id: string };
@@ -269,7 +277,7 @@ export function registerClassificationRoutes(
    * Archiving, not deleting: entries recorded months ago still reference this
    * category and must keep showing its name.
    */
-  app.delete("/api/v1/categories/:id", { preHandler: requireAuth }, async (request, reply) => {
+  app.delete("/api/v1/categories/:id", { preHandler: requireEdit }, async (request, reply) => {
     const bookId = request.book!.bookId;
     const { id } = request.params as { id: string };
 
@@ -312,7 +320,7 @@ export function registerClassificationRoutes(
    */
   app.post(
     "/api/v1/categories/:id/permanent-delete",
-    { preHandler: requireAuth },
+    { preHandler: requireEdit },
     async (request) => {
       const body = permanentDeleteCategorySchema.parse(request.body ?? {});
       /** `undefined` (no choice), `""` and `null` all mean "you choose the default". */
@@ -465,7 +473,7 @@ export function registerClassificationRoutes(
     }
   });
 
-  app.patch("/api/v1/payment-methods/:id", { preHandler: requireAuth }, async (request) => {
+  app.patch("/api/v1/payment-methods/:id", { preHandler: requireEdit }, async (request) => {
     const body = updatePaymentMethodSchema.parse(request.body);
     const bookId = request.book!.bookId;
     const { id } = request.params as { id: string };
@@ -488,7 +496,7 @@ export function registerClassificationRoutes(
     }
   });
 
-  app.delete("/api/v1/payment-methods/:id", { preHandler: requireAuth }, async (request, reply) => {
+  app.delete("/api/v1/payment-methods/:id", { preHandler: requireEdit }, async (request, reply) => {
     const bookId = request.book!.bookId;
     const { id } = request.params as { id: string };
 
@@ -518,7 +526,7 @@ export function registerClassificationRoutes(
    */
   app.post(
     "/api/v1/payment-methods/:id/permanent-delete",
-    { preHandler: requireAuth },
+    { preHandler: requireEdit },
     async (request) => {
       const body = permanentDeletePaymentMethodSchema.parse(request.body ?? {});
       /** `undefined` / `""` / `null` all mean 未指定 — there is no "其他" payment method to fall back to. */
@@ -623,7 +631,7 @@ export function registerClassificationRoutes(
     }
   });
 
-  app.patch("/api/v1/tags/:id", { preHandler: requireAuth }, async (request) => {
+  app.patch("/api/v1/tags/:id", { preHandler: requireEdit }, async (request) => {
     const body = updateTagSchema.parse(request.body);
     const bookId = request.book!.bookId;
     const { id } = request.params as { id: string };
@@ -659,7 +667,7 @@ export function registerClassificationRoutes(
    * `deleteMany` below is not redundant — it is what makes the affected row count a fact this
    * transaction observed rather than a side effect it hopes for.
    */
-  app.delete("/api/v1/tags/:id", { preHandler: requireAuth }, async (request) => {
+  app.delete("/api/v1/tags/:id", { preHandler: requireEdit }, async (request) => {
     const bookId = request.book!.bookId;
     const { id } = request.params as { id: string };
     const actorId = request.currentUser!.id;

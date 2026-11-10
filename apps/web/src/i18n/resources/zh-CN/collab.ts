@@ -4,19 +4,30 @@
  * ⚠️ 只放界面文字。昵称、用户名、账号编号、账本名、留言正文、邀请附言都是用户数据，不进这里。
  */
 const collab = {
+  /** 1.19.56 账本权限分级：从低到高 只读 → 记账 → 编辑全部；另有每本账一位管理员。 */
   role: {
-    viewer: "仅查看",
-    editor: "可编辑",
+    viewer: "只读",
+    recorder: "记账",
+    editor: "编辑全部",
+    admin: "管理员",
+  },
+  roleHint: {
+    viewer: "查看账目与分析，可以导出",
+    recorder: "可以记账，只能修改自己记的账目",
+    editor: "可以修改所有账目、分类、标签与支付方式",
   },
   members: {
     loading: "正在读取成员……",
     loadFailed: "成员读取失败。",
     creator: "创建者",
-    makeEditor: "改为可编辑",
-    makeViewer: "改为仅查看",
+    roleChoice: "{{name}} 的权限",
     remove: "移出",
-    viewerNote: "当前角色为查看者，可查看成员，无法修改权限或移除成员。",
-    creatorNote: "创建者不可降级或移除，以保留账本的编辑权限。如需停止使用此账本，请选择“弃置”。",
+    viewerNote: "只有管理员可以修改成员权限或移出成员。",
+    creatorNote: "管理员的权限固定为“编辑全部”，不能被移出。管理员退出账本时，管理员交给最早加入的“编辑全部”成员。如需停止使用此账本，请选择“弃置”。",
+    inviteAdminOnly: "只有管理员能邀请他人",
+    inviteAdminOnlyOn: "其他成员不能再邀请；他们发出、尚未接受的邀请与分享链接也会失效。",
+    inviteAdminOnlyOff: "所有成员都能邀请，邀请的权限不高于自己。",
+    inviteAdminOnlyFailed: "设置没能保存，请再试一次。",
     removeTitle: "移除成员 {{name}}？",
     removeBody: "移除后，该成员将失去账本访问权限，已有账目和操作记录会保留。再次加入需重新邀请并由对方接受。",
     cancel: "取消",
@@ -67,11 +78,13 @@ const collab = {
     search: "查找",
     alreadyMember: "对方已是账本成员。",
     roleLegend: "成员权限",
-    roleEditor: { label: "可以记账和修改", hint: "能记账、改账、邀请别人" },
-    roleViewer: { label: "只能查看", hint: "能看账目，不能改动" },
+    roleEditor: { label: "编辑全部", hint: "能修改所有账目、分类、标签与支付方式" },
+    roleRecorder: { label: "记账", hint: "能记账，只能修改自己记的账目" },
+    roleViewer: { label: "只读", hint: "能查看与导出，不能记账" },
+    roleCap: "邀请的权限不能高于你自己的权限。",
     sending: "正在发送……",
     send: "发送邀请",
-    viewerCannotInvite: "仅查看成员无法发送邀请，请联系有编辑权限的成员。",
+    viewerCannotInvite: "这本账只有管理员能邀请他人。",
     status: {
       pending: "邀请待接受。重新发送将更新原邀请。",
       declined: "上次邀请已被拒绝，可重新发送。",

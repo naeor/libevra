@@ -68,6 +68,7 @@
 | [recognize.test.ts](recognize.test.ts) | 测试：recognize |
 | [referral.test.ts](referral.test.ts) | 测试：referral |
 | [rename.test.ts](rename.test.ts) | 测试：rename |
+| [roleTiers.test.ts](roleTiers.test.ts) | 测试：roleTiers |
 | [setup.ts](setup.ts) | 实现模块；入口/导出：assertTestDatabase |
 | [share.test.ts](share.test.ts) | 测试：share |
 | [stats.test.ts](stats.test.ts) | 测试：stats |

@@ -5,7 +5,8 @@ import { z } from "zod";
 import { ATTACHMENT_CHUNK_BYTES, type AttachmentView } from "@libellum/shared";
 import type { PrismaClient } from "../db.js";
 import type { Prisma } from "../generated/prisma/client.js";
-import { requireBook, requireBookForWrite } from "../ledger/access.js";
+import type { BookRole } from "../generated/prisma/enums.js";
+import { canEditAll, canEditEntry, canRecord, requireBook, requireBookForRecord } from "../ledger/access.js";
 import { recordEvent } from "../ledger/events.js";
 import { accountStorage, assertStorageGrowth, lockBookStorage, lockAccountStorage, storageDto, storagePolicy } from "../ledger/storage.js";
 import { AppError, badRequest, forbidden, notFound, conflict } from "../lib/errors.js";
@@ -22,10 +23,16 @@ type Tx = Prisma.TransactionClient;
 async function uploaderPresent(tx: Tx, file: { bookId: string; uploaderId: string }): Promise<boolean> {
   return (await tx.bookMember.count({ where: { bookId: file.bookId, userId: file.uploaderId, leftAt: null } })) > 0;
 }
-async function canRemove(tx: Tx, file: FileRow, userId: string, role: string): Promise<boolean> {
-  return role !== "viewer" && (file.uploaderId === userId || !(await uploaderPresent(tx, file)));
+/**
+ * 谁能删除 / 恢复 / 清理一个附件：上传者本人；上传者已经不在账本里时，“编辑全部”的成员也可以（1.19.56：
+ * 记账成员只能处理自己上传的附件）。
+ */
+async function canRemove(tx: Tx, file: FileRow, userId: string, role: BookRole): Promise<boolean> {
+  if (!canRecord(role)) return false;
+  if (file.uploaderId === userId) return true;
+  return canEditAll(role) && !(await uploaderPresent(tx, file));
 }
-async function view(tx: Tx, row: FileRow, userId: string, role: string): Promise<AttachmentView> {
+async function view(tx: Tx, row: FileRow, userId: string, role: BookRole): Promise<AttachmentView> {
   return {
     id: row.id, bookId: row.bookId, name: row.name, mediaType: row.mediaType,
     sizeBytes: Number(row.sizeBytes), receivedBytes: Number(row.receivedBytes), state: row.state as "ready" | "uploading",
@@ -66,7 +73,8 @@ export function registerAttachmentRoutes(app: FastifyInstance, { prisma, require
     const scoped = path.bookId ? Object.assign(Object.create(request), {
       headers: { ...request.headers, "x-libellum-book": uuid.parse(path.bookId) },
     }) as FastifyRequest : request;
-    return (write ? requireBookForWrite : requireBook)(db as PrismaClient, scoped, request.currentUser!.id);
+    /** 1.19.56：上传附件属于记账（记账及以上），挂到哪些账目上再按“能不能改这笔”判断。 */
+    return (write ? requireBookForRecord : requireBook)(db as PrismaClient, scoped, request.currentUser!.id);
   }
   async function find(tx: Tx, id: string, bookId: string) {
     const file = await tx.entryAttachment.findFirst({ where: { id: uuid.parse(id), bookId }, include });
@@ -140,6 +148,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, { prisma, require
       if (BigInt(body.sizeBytes) > policy.fileBytes) throw new AppError(413, "attachment_too_large", "文件超过单个附件的大小限制。");
       const entries = await tx.transaction.findMany({ where: { id: { in: ids }, bookId, deletedAt: null }, include: { _count: { select: { attachmentLinks: true } } } });
       if (entries.length !== ids.length) throw notFound("transaction_missing", "部分账目已不可用。");
+      if (entries.some((e) => !canEditEntry(role, user.id, e.userId))) throw forbidden("entry_not_yours", "你只能给自己记的账目添加附件。");
       for (const e of entries) {
         if (e._count.attachmentLinks >= policy.entryFiles) throw new AppError(413, "entry_attachment_count", "账目的附件数量已达上限，含可恢复附件。");
         if (e.storageBytes + BigInt(body.sizeBytes) > policy.entryBytes) throw new AppError(413, "entry_storage_full", "附件将超过单笔账目的空间上限。");

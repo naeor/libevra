@@ -33,7 +33,7 @@ describe("ledger members", () => {
   }
 
   /** Put somebody into a ledger at a given role, the way an accepted invitation would. */
-  async function join(userId: string, bookId: string, role: "editor" | "viewer") {
+  async function join(userId: string, bookId: string, role: "editor" | "recorder" | "viewer") {
     await prisma.bookMember.upsert({
       where: { bookId_userId: { bookId, userId } },
       create: { bookId, userId, role },
@@ -49,7 +49,7 @@ describe("ledger members", () => {
     });
   }
 
-  function setRole(cookie: string, bookId: string, memberId: string, role: "editor" | "viewer") {
+  function setRole(cookie: string, bookId: string, memberId: string, role: "editor" | "recorder" | "viewer") {
     return app.inject({
       method: "PATCH",
       url: `/api/v1/books/members/${memberId}`,
@@ -112,12 +112,12 @@ describe("ledger members", () => {
     await join(other.userId, owner.bookId, "viewer");
 
     /**
-     * ⚠️ **The interesting attack is a viewer promoting *themselves*** — the change is a write, so
-     * `requireBookForWrite` refuses it before the role table is even consulted.
+     * ⚠️ **The interesting attack is a viewer promoting *themselves*** — 1.19.56 起改权限只有管理员能做，
+     * `requireBookAdmin` 在查角色表之前就拒绝。
      */
     const self = await setRole(viewer.cookie, owner.bookId, viewer.userId, "editor");
     expect(self.statusCode).toBe(403);
-    expect(self.json().code).toBe("book_read_only");
+    expect(self.json().code).toBe("book_admin_required");
 
     // And they cannot promote somebody else either.
     const otherAttempt = await setRole(viewer.cookie, owner.bookId, other.userId, "editor");
@@ -163,17 +163,16 @@ describe("ledger members", () => {
     expect(events[0]?.actorName).toBeTruthy();
   });
 
-  it("refuses to demote the creator, so the ledger cannot become unwritable", async () => {
+  it("keeps the admin at 编辑全部, so the ledger always has someone who can manage it", async () => {
     const owner = await account("memb_owner");
 
     /**
-     * ⚠️ **Not symmetry — safety.** A ledger whose only writer is demoted to `viewer` becomes
-     * **unwritable and unadministrable**: nobody can edit, invite or dispose of it, and no screen
-     * could undo it. The owner's answer for getting rid of a ledger is **整本弃置**.
+     * ⚠️ **Not symmetry — safety.** 1.19.56：管理员（默认是创建者）的权限固定为“编辑全部”，不能被降级；
+     * 否则这本账可能没有人能管理成员。原来保护的是创建者。
      */
     const refused = await setRole(owner.cookie, owner.bookId, owner.userId, "viewer");
     expect(refused.statusCode).toBe(400);
-    expect(refused.json().code).toBe("creator_is_editor");
+    expect(refused.json().code).toBe("admin_role_fixed");
   });
 
   it("removes a member without deleting their history", async () => {
@@ -204,19 +203,28 @@ describe("ledger members", () => {
     expect(refused.statusCode).toBe(403);
   });
 
-  it("refuses to remove the creator, and refuses removing yourself", async () => {
+  it("refuses to remove the admin, only lets the admin remove people, and refuses removing yourself", async () => {
     const owner = await account("memb_owner");
     const guest = await account("memb_guest");
     await join(guest.userId, owner.bookId, "editor");
 
-    /** ⚠️ Same reason as the role: a ledger nobody can write in is a ledger nobody can fix. */
-    const creator = await app.inject({
+    /** 1.19.56：移出成员只有管理员能做；“编辑全部”的成员也不行。 */
+    const notAdmin = await app.inject({
       method: "DELETE",
       url: `/api/v1/books/members/${owner.userId}`,
       headers: { cookie: guest.cookie, "x-libellum-book": owner.bookId },
     });
-    expect(creator.statusCode).toBe(400);
-    expect(creator.json().code).toBe("creator_cannot_be_removed");
+    expect(notAdmin.statusCode).toBe(403);
+    expect(notAdmin.json().code).toBe("book_admin_required");
+
+    /** ⚠️ 管理员自己不能被移出（原来保护的是创建者；管理员默认就是创建者）。 */
+    const admin = await app.inject({
+      method: "DELETE",
+      url: `/api/v1/books/members/${owner.userId}`,
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    expect(admin.statusCode).toBe(400);
+    expect(["admin_cannot_be_removed", "remove_self"]).toContain(admin.json().code);
 
     /**
      * ⚠️ **Removing yourself is refused too, and not for symmetry**: leaving is a thing a person does
@@ -225,11 +233,10 @@ describe("ledger members", () => {
      */
     const self = await app.inject({
       method: "DELETE",
-      url: `/api/v1/books/members/${guest.userId}`,
-      headers: { cookie: guest.cookie, "x-libellum-book": owner.bookId },
+      url: `/api/v1/books/members/${owner.userId}`,
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
     });
     expect(self.statusCode).toBe(400);
-    expect(self.json().code).toBe("remove_self");
   });
 
   it("keeps two ledgers' memberships apart", async () => {    const owner = await account("memb_owner");

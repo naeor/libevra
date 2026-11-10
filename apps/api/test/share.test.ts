@@ -33,7 +33,7 @@ describe("share links", () => {
     return { cookie, userId: user.id, bookId: membership.bookId };
   }
 
-  function mint(cookie: string, bookId: string, role: "editor" | "viewer") {
+  function mint(cookie: string, bookId: string, role: "editor" | "recorder" | "viewer") {
     return app.inject({
       method: "POST",
       url: "/api/v1/share/links",
@@ -179,22 +179,49 @@ describe("share links", () => {
     expect(links[0]?.revokedAt).not.toBeNull();
   });
 
-  it("refuses to let a viewer mint a link", async () => {
+  it("lets a viewer mint only a read-only link, and honours 只有管理员能邀请 (1.19.56)", async () => {
     const owner = await account("share_owner");
     const viewer = await account("share_viewer");
+    const joiner = await account("share_joiner");
 
     await prisma.bookMember.create({
       data: { bookId: owner.bookId, userId: viewer.userId, role: "viewer" },
     });
 
-    /**
-     * ⚠️ **A link is a standing invitation to read somebody's ledger**, so minting one is a write.
-     * The server refuses it — the missing button in the UI is a courtesy, not the control.
-     */
-    const refused = await mint(viewer.cookie, owner.bookId, "viewer");
-    expect(refused.statusCode).toBe(403);
-    expect(refused.json().code).toBe("book_read_only");
+    /** 所有成员都能邀请，但链接给出的权限不能高于自己——由服务器拒绝。 */
+    const tooHigh = await mint(viewer.cookie, owner.bookId, "editor");
+    expect(tooHigh.statusCode).toBe(403);
+    expect(tooHigh.json().code).toBe("invite_role_too_high");
     expect(await prisma.bookShareLink.count()).toBe(0);
+
+    const allowed = await mint(viewer.cookie, owner.bookId, "viewer");
+    expect(allowed.statusCode).toBe(201);
+    const { token } = allowed.json() as { token: string };
+
+    /** 管理员打开“只有管理员能邀请”：其他成员不能再生成链接，已经生成、尚未使用的链接也失效。 */
+    const policy = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/books/invite-policy",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+      payload: { adminOnly: true },
+    });
+    expect(policy.statusCode).toBe(200);
+    const blocked = await mint(viewer.cookie, owner.bookId, "viewer");
+    expect(blocked.statusCode).toBe(403);
+    expect(blocked.json().code).toBe("invite_admin_only");
+    const join = await app.inject({ method: "POST", url: `/api/v1/share/${token}/join`, headers: { cookie: joiner.cookie } });
+    expect(join.statusCode).toBe(404);
+    expect(await prisma.bookMember.count({ where: { bookId: owner.bookId, userId: joiner.userId } })).toBe(0);
+
+    /** 只有管理员能改这项设置。 */
+    const notAdmin = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/books/invite-policy",
+      headers: { cookie: viewer.cookie, "x-libellum-book": owner.bookId },
+      payload: { adminOnly: false },
+    });
+    expect(notAdmin.statusCode).toBe(403);
+    expect(notAdmin.json().code).toBe("book_admin_required");
   });
 
   it("lets a guest leave a shared ledger, but not the creator", async () => {

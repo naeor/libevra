@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../db.js";
 import { recordCriticalEvent } from "../critical/store.js";
 import { recordEvent } from "../ledger/events.js";
+import { inviteProblem } from "../ledger/access.js";
 import { leaveBookSafely } from "../lifecycle/book.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { createHash, randomBytes } from "node:crypto";
@@ -42,7 +43,7 @@ export const SHARE_LINK_MAX_USES = 10;
 
 export interface ShareLinkView {
   readonly id: string;
-  readonly role: "editor" | "viewer";
+  readonly role: "editor" | "recorder" | "viewer";
   readonly days: number;
   readonly maxUses: number;
   readonly createdAt: string;
@@ -78,7 +79,7 @@ export async function createShareLink(
   input: {
     readonly bookId: string;
     readonly createdBy: string;
-    readonly role: "editor" | "viewer";
+    readonly role: "editor" | "recorder" | "viewer";
     /** 1–7, the owner's range. */
     readonly days: number;
     /** 1–10, the owner's range. */
@@ -152,7 +153,7 @@ export interface ShareLinkPreview {
   readonly bookId: string;
   readonly bookName: string;
   readonly bookNumber: string | null;
-  readonly role: "editor" | "viewer";
+  readonly role: "editor" | "recorder" | "viewer";
   readonly alreadyMember: boolean;
   /** Who generated it, so the dialogue can say who is offering. */
   readonly createdByName: string;
@@ -193,6 +194,7 @@ export async function previewShareLink(
           purgeStartedAt: true,
         },
       },
+      createdBy: true,
       creator: { select: { displayName: true } },
     },
   });
@@ -235,6 +237,15 @@ export async function previewShareLink(
 
   const alreadyMember = membership !== null && membership.leftAt === null;
 
+  /**
+   * 1.19.56：链接带着生成它的人的授权——那个人已经退出、权限降到低于链接，或者管理员打开了
+   * “只有管理员能邀请”（而他不是管理员），链接就不再有效。已经在账本里的人不受影响。
+   */
+  const linkRole = link.role === "editor" ? "editor" : link.role === "recorder" ? "recorder" : "viewer";
+  if (!alreadyMember && (await inviteProblem(prisma, link.book.id, link.createdBy, linkRole)) !== null) {
+    throw notFound("share_link_invalid", "这个分享链接无效或已失效。");
+  }
+
   if (!alreadyMember && link.useCount >= link.maxUses) {
     throw notFound("share_link_invalid", "这个分享链接无效或已失效。");
   }
@@ -243,7 +254,7 @@ export async function previewShareLink(
     bookId: link.book.id,
     bookName: link.book.name,
     bookNumber: link.book.bookNumber,
-    role: link.role === "editor" ? "editor" : "viewer",
+    role: link.role === "editor" ? "editor" : link.role === "recorder" ? "recorder" : "viewer",
     alreadyMember,
     createdByName: link.creator.displayName,
     maxUses: link.maxUses,
@@ -267,7 +278,7 @@ export async function joinViaShareLink(
   userId: string,
   actorName: string,
   now: Date = new Date(),
-): Promise<{ readonly bookId: string; readonly joined: boolean; readonly role: "editor" | "viewer" }> {
+): Promise<{ readonly bookId: string; readonly joined: boolean; readonly role: "editor" | "recorder" | "viewer" }> {
   const preview = await previewShareLink(prisma, token, userId, now);
 
   await prisma.$transaction(async (tx) => {

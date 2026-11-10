@@ -12,6 +12,8 @@ import { errorMessage } from "../../lib/api.js";
 import { readMarks } from "../../lib/offline/localLedger.js";
 import { deleteEntry, updateEntry } from "../../lib/offline/write.js";
 import { useSharedLedgerOfflineReadOnly } from "../../lib/offline/writePolicy.js";
+import { useAuthOptional } from "../../auth/AuthProvider.js";
+import { canEditEntryAs } from "../../lib/permissions.js";
 import {
   EMPTY_BATCH_DRAFT,
   allLoadedSelected,
@@ -71,6 +73,13 @@ export function useLedgerBatch({
   const { readOnly: sharedOfflineReadOnly, shared } = useSharedLedgerOfflineReadOnly();
 
   const permission = batchPermission({ guest, shared, sharedOfflineReadOnly, role: roleState });
+  /**
+   * 1.19.56：记账成员只能修改 / 删除自己记的账目。批量里别人记的那几笔逐笔报“只能修改自己记的账目”，
+   * 不发出请求（服务器同样会拒绝）。单人账本与角色未知时不在这里拦。
+   */
+  const self = useAuthOptional()?.user?.id ?? null;
+  const notMine = (entry: Transaction): boolean =>
+    shared && roleState.status === "ready" && !canEditEntryAs(roleState.role, self, entry.recorderId);
 
   /** Every entry the list currently holds — the whole of what "全选" may mean. */
   const loadedIds = useMemo(() => ordered.map((entry) => entry.id), [ordered]);
@@ -158,6 +167,11 @@ export function useLedgerBatch({
          * user's choice"; a new edit on top would be a third version, and the sync layer would hold
          * it back until that choice is made — work that looks done and is not.
          */
+        if (notMine(entry)) {
+          results.push({ id: entry.id, status: "failed", reason: t("ledger.batch.notYours") });
+          continue;
+        }
+
         if (conflicted.has(entry.id)) {
           results.push({
             id: entry.id,
@@ -210,6 +224,11 @@ export function useLedgerBatch({
 
     try {
       for (const entry of selectedEntries) {
+        if (notMine(entry)) {
+          results.push({ id: entry.id, status: "failed", reason: t("ledger.batch.notYours") });
+          continue;
+        }
+
         if (conflicted.has(entry.id)) {
           results.push({
             id: entry.id,
