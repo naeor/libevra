@@ -216,6 +216,13 @@
   -webkit-backdrop-filter: var(--s19-bar-filter, none);
   backdrop-filter: var(--s19-bar-filter, none);
 }
+/* B2：日期条停在原位时不铺承载层——层叠玻璃的亮白横条夹在两组之间显得突兀（所有者 2026-11-10）；
+   吸在顶栏下、压住滚动的记录时（`data-stuck`，见 RecordGroup）才出现，与内页顶栏收起后出现承载层同理。 */
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] h2.sticky[class*="bg-canvas/95"]:not([data-stuck]) {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 
 /* ================= A：账目与编辑记录 = 贴在一起的“电影票” =================
    标准明细行（图标 / 标题与说明 / 金额），每一行是独立小卡片，上下边完全贴合；

@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { DraggableLink, plainText } from "../../workspace/openDrag.js";
 
 /**
@@ -53,14 +53,54 @@ export function RecordGroup({
   readonly heading: React.ReactNode;
   readonly children: React.ReactNode;
 }): React.JSX.Element {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const stuck = useStuck(headingRef);
   return (
     <section className="flex flex-col">
-      <h2 className="sticky top-[calc(3rem+1px+env(safe-area-inset-top,0px))] z-10 -mx-6 bg-canvas/95 px-6 pt-3 pb-1.5 text-helper font-medium text-muted backdrop-blur-sm">
+      <h2
+        ref={headingRef}
+        data-stuck={stuck ? "" : undefined}
+        className="sticky top-[calc(3rem+1px+env(safe-area-inset-top,0px))] z-10 -mx-6 bg-canvas/95 px-6 pt-3 pb-1.5 text-helper font-medium text-muted backdrop-blur-sm"
+      >
         {heading}
       </h2>
       <RecordList>{children}</RecordList>
     </section>
   );
+}
+
+/**
+ * 小标题此刻是否吸在导航条下面（压在滚动的记录上）——写成 `data-stuck`，供需要“停在原位时不铺底、
+ * 吸顶时才出现承载层”的风格使用（B2，1.19.54）。
+ *
+ * 观察小标题本身：观察区上缘收到吸顶位置下方 1px，吸住时它的上缘越过观察区上缘、不再完整可见；
+ * 停在原位（在观察区里）或还在屏幕下方时都不算。没有 `IntersectionObserver`（测试环境）时恒为否，
+ * 即各风格原来的样子。
+ */
+function useStuck(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [stuck, setStuck] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (element === null || typeof IntersectionObserver === "undefined") return;
+    const top = Number.parseFloat(getComputedStyle(element).top);
+    const line = Number.isFinite(top) ? top : 49;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry === undefined) return;
+        const rootTop = entry.rootBounds?.top ?? line + 1;
+        setStuck(entry.intersectionRatio < 1 && entry.boundingClientRect.top < rootTop);
+      },
+      { rootMargin: `-${String(Math.ceil(line) + 1)}px 0px 0px 0px`, threshold: [1] },
+    );
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref]);
+
+  return stuck;
 }
 
 /**
