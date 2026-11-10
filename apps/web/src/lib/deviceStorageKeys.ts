@@ -31,6 +31,11 @@ export const OFFLINE_FILL_NOTICE_DAY_KEY = "libevra.offline-fill-notice-day";
 export const FILTER_SYNC_KEY = "libevra.filter-sync";
 /** 明细 / 分析的筛选（按“页 : 账号或游客 : 账本”；1.19.53）。随账号清理时按 `:user:<id>:` 匹配。 */
 export const LEDGER_FILTER_PREFIX = "libevra.ledger-filter:";
+/**
+ * 1.19.55：这个“账号 : 账本”的本机历史副本是否已经补取过“记录人”（`libevra.offline-recorder-refresh:<账号>:<账本>`）。
+ * 1.19.55 之前下载的月份没有记录人，自动下载会把它们重新取一轮，然后记下这里，不再重复。
+ */
+export const OFFLINE_RECORDER_REFRESH_PREFIX = "libevra.offline-recorder-refresh:";
 
 /** “这条留言板读到哪了”的键（按账本）。 */
 export function messagesSeenKey(bookId: string): string {

@@ -61,7 +61,7 @@ export function normalizeFilter(raw: unknown, fallbackMonth: string = currentMon
   const record = raw as Record<string, unknown>;
   const month = typeof record.month === "string" && (record.month === ALL_MONTHS || /^\d{4}-(0[1-9]|1[0-2])$/.test(record.month)) ? record.month : fallbackMonth;
   const params = new URLSearchParams();
-  for (const key of ["categories", "branches", "tags", "payments", "currencies"] as const) {
+  for (const key of ["months", "categories", "branches", "tags", "payments", "currencies", "recorders"] as const) {
     const list = record[key];
     if (Array.isArray(list)) for (const item of list) if (typeof item === "string" && item !== "") params.append(`f.${key}`, item);
   }

@@ -533,6 +533,14 @@ export const transactionSchema = z.object({
   note: z.string().nullable(),
   tags: z.array(tagSchema),
   version: z.number(),
+  /**
+   * **Who recorded it** — the account id of the entry's creator (1.19.55). Editing an entry never changes it.
+   *
+   * ⚠️ **Optional for the same reason as `seq`**: copies cached on a device before 1.19.55 do not carry it.
+   * The 记录人 filter treats a missing value as "unknown" (never matched), and the offline fill refreshes
+   * such months once (`lib/offline/fill.ts`).
+   */
+  recorderId: z.string().optional(),
   /** D3: present only on a deleted entry fetched by id for history/restore. */
   deletedAt: z.string().nullable().optional(),
   /** D3: the import receipt that removed this entry, when the removal came from ledger import. */

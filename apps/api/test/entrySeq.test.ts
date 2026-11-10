@@ -233,4 +233,17 @@ describe("entry numbers", () => {
      */
     expect((response.json() as { seq: number }).seq).toBe(1);
   });
+
+  it("hands out who recorded the entry (1.19.55 记录人)", async () => {
+    const owner = await account("seq_recorder");
+    await addEntry(owner.cookie, owner.bookId, "我记的", 31);
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/v1/transactions?limit=10",
+      headers: { cookie: owner.cookie, "x-libellum-book": owner.bookId },
+    });
+    expect(list.statusCode).toBe(200);
+    const items = (list.json() as { items: { recorderId?: string }[] }).items;
+    expect(items.map((item) => item.recorderId)).toEqual([owner.userId]);
+  });
 });

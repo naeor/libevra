@@ -1,8 +1,9 @@
-import { MAX_STATS_DAYS, addDays } from "@libellum/shared";
+import { MAX_STATS_DAYS, addDays, endOfMonth } from "@libellum/shared";
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 import { ALL_MONTHS, currentMonth, isAllMonths, toLocalDate } from "../lib/datetime.js";
-import { emptyDetailFilters, type DetailFilters } from "../lib/detailFilters.js";
+import { emptyDetailFilters, FORMER_RECORDERS, type DetailFilters } from "../lib/detailFilters.js";
+import { useRecorderPeople } from "../lib/recorderPeople.js";
 import { usePageFilter } from "../lib/usePageFilter.js";
 import { customRangeProblem, readFilters, resolveRange, type TimeChoice, type WorkbenchFilters } from "./filters.js";
 
@@ -16,11 +17,25 @@ import { customRangeProblem, readFilters, resolveRange, type TimeChoice, type Wo
  * - “全部时间”与超过 400 天的日期范围：分析的统计口径最多 400 天（`MAX_STATS_DAYS`），按截至今天 / 截至结束日的
  *   最近 400 天计算，并在页面上说明（`capped`），不悄悄少算也不报错。
  * - 分类（含子分类）、支付方式（含“未指定”）、标签、币种、附件：逐项对应，分析统计的就是明细筛出来的账目。
+ * - 多选的月份（1.19.55）：统计时间是从第一个月月初到最后一个月月底（不超过今天）；中间有没选的月份时，
+ *   再按月份去掉它们（`months`）。超过 400 天同样按最近 400 天计算并说明。
+ * - 记录人（1.19.55）：逐项对应；“已退出的成员”需要当前成员名单（`members`）。
  */
-export function workbenchFromLedgerFilter(value: DetailFilters, display: { readonly currency: WorkbenchFilters["currency"]; readonly combined: boolean }, today: string): { readonly filters: WorkbenchFilters; readonly capped: boolean } {
+export function workbenchFromLedgerFilter(value: DetailFilters, display: { readonly currency: WorkbenchFilters["currency"]; readonly combined: boolean }, today: string, members: readonly string[] | null = null): { readonly filters: WorkbenchFilters; readonly capped: boolean } {
   let time: TimeChoice;
   let capped = false;
-  if (!isAllMonths(value.month)) {
+  let gaps: readonly string[] | null = null;
+  const months = value.months ?? [];
+  if (months.length > 0) {
+    const first = months[0]!, last = months[months.length - 1]!;
+    const end = endOfMonth(`${last}-01`);
+    const to = end > today ? today : end;
+    let from = `${first}-01`;
+    if (from > to) from = to;
+    if (customRangeProblem(from, to) === "too-long") { from = addDays(to, -(MAX_STATS_DAYS - 1)); capped = true; }
+    time = months.length === 1 && last === today.slice(0, 7) ? { kind: "this-month" } : months.length === 1 ? { kind: "month", month: last } : { kind: "custom", from, to };
+    if (months.length > 1 && monthSpan(first, last) > months.length) gaps = months;
+  } else if (!isAllMonths(value.month)) {
     time = value.month === today.slice(0, 7) ? { kind: "this-month" } : { kind: "month", month: value.month };
   } else if (value.from && value.to && value.from <= value.to) {
     let from = value.from;
@@ -40,8 +55,15 @@ export function workbenchFromLedgerFilter(value: DetailFilters, display: { reado
     tagIds: value.tags.length > 0 ? value.tags : null,
     currencies: value.currencies.length > 0 ? value.currencies : null,
     attachment: { attachment: value.attachment, type: value.type, minMB: value.minMB, maxMB: value.maxMB },
+    ...(gaps !== null ? { months: gaps } : {}),
+    ...((value.recorders ?? []).length > 0 ? { recorders: value.recorders, recorderMembers: members } : {}),
   };
   return { filters, capped };
+}
+
+/** 从 `first` 到 `last` 一共几个月（含首尾）。 */
+function monthSpan(first: string, last: string): number {
+  return (Number(last.slice(0, 4)) - Number(first.slice(0, 4))) * 12 + Number(last.slice(5, 7)) - Number(first.slice(5, 7)) + 1;
 }
 
 /** 旧链接、布局预设里的工作台条件 → 明细的筛选（反向换算；“近 N 天”变成具体的起止日期）。 */
@@ -90,9 +112,10 @@ export function useAnalysisFilters(): {
   const today = useMemo(() => toLocalDate(new Date()), []);
   const page = usePageFilter("analysis", { readParams: (p) => takeAnalysisParams(p, today) });
   const display = readFilters(params);
+  const people = useRecorderPeople(page.value.recorders.includes(FORMER_RECORDERS));
   const { filters, capped } = useMemo(
-    () => workbenchFromLedgerFilter(page.value, { currency: display.currency, combined: display.combined }, today),
-    [page.value, display.currency, display.combined, today],
+    () => workbenchFromLedgerFilter(page.value, { currency: display.currency, combined: display.combined }, today, people.memberIds),
+    [page.value, display.currency, display.combined, today, people.memberIds],
   );
   return { filters, ledger: page.value, set: page.set, capped, shared: page.slot === "ledger" };
 }

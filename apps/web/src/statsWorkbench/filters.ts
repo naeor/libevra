@@ -32,6 +32,7 @@ import {
   type StatsRangeKey,
   type Transaction,
 } from "@libellum/shared";
+import { recorderMatches } from "../lib/detailFilters.js";
 
 export type TimeChoice =
   | { readonly kind: "preset"; readonly preset: StatsRangeKey }
@@ -64,6 +65,14 @@ export interface WorkbenchFilters {
    */
   readonly currencies?: readonly string[] | null;
   readonly attachment?: { readonly attachment: string; readonly type: string; readonly minMB: string; readonly maxMB: string } | null;
+  /**
+   * 1.19.55：明细里多选、且中间有空缺的月份（`YYYY-MM`，升序）。统计时间是覆盖它们的范围，这里再去掉
+   * 中间没选的月份；只作用于首尾月份之间的账目，上一期比较照常按等长的前一段计算。连续的月份不需要它。
+   */
+  readonly months?: readonly string[] | null;
+  /** 1.19.55：记录人（账号 id；`former` = 已退出的成员），`recorderMembers` 是当前成员。 */
+  readonly recorders?: readonly string[] | null;
+  readonly recorderMembers?: readonly string[] | null;
 }
 
 /** 工作台三个维度筛选的规范化结果：缺省统一成 `null`（不限），空数组保持 `[]`（空集）。 */
@@ -147,7 +156,16 @@ export function toggleFilterId(current: readonly string[] | null, id: string): r
 /** 不含任何维度筛选（时间/币种以外）时原样返回同一数组，避免不必要的重算。 */
 export function hasDimensionFilters(filters: WorkbenchFilters): boolean {
   const ids = filterIds(filters);
-  return ids.categoryIds !== null || ids.paymentMethodIds !== null || ids.tagIds !== null || hasCurrencyFilter(filters) || hasAttachmentFilter(filters);
+  return ids.categoryIds !== null || ids.paymentMethodIds !== null || ids.tagIds !== null || hasCurrencyFilter(filters) || hasAttachmentFilter(filters)
+    || hasMonthsFilter(filters) || hasRecorderFilter(filters);
+}
+
+function hasMonthsFilter(filters: WorkbenchFilters): boolean {
+  return filters.months !== undefined && filters.months !== null && filters.months.length > 0;
+}
+
+function hasRecorderFilter(filters: WorkbenchFilters): boolean {
+  return filters.recorders !== undefined && filters.recorders !== null && filters.recorders.length > 0;
 }
 
 function hasCurrencyFilter(filters: WorkbenchFilters): boolean {
@@ -177,6 +195,12 @@ export function matchesWorkbenchFilters(entry: Transaction, filters: WorkbenchFi
   }
   if (tagIds !== null && !(entry.tags ?? []).some((tag) => tagIds.includes(tag.id))) return false;
   if (hasCurrencyFilter(filters) && !filters.currencies!.includes(entry.currency)) return false;
+  if (hasMonthsFilter(filters)) {
+    const months = filters.months!;
+    const month = entry.occurredLocalDate.slice(0, 7);
+    if (month >= months[0]! && month <= months[months.length - 1]! && !months.includes(month)) return false;
+  }
+  if (hasRecorderFilter(filters) && !recorderMatches(entry.recorderId, filters.recorders!, filters.recorderMembers ?? null)) return false;
   if (hasAttachmentFilter(filters)) {
     const a = filters.attachment!;
     const count = entry.attachmentCount ?? 0, bytes = entry.storageBytes ?? 0;
@@ -202,7 +226,9 @@ export function filterWorkbenchEntries(
 export function filterKey(filters: WorkbenchFilters): string {
   const { categoryIds, paymentMethodIds, tagIds } = filterIds(filters);
   return JSON.stringify([categoryIds, paymentMethodIds, tagIds, ...(filters.categoryBranchIds !== undefined ? [filters.categoryBranchIds] : []),
-    ...(hasCurrencyFilter(filters) ? [filters.currencies] : []), ...(hasAttachmentFilter(filters) ? [filters.attachment] : [])]);
+    ...(hasCurrencyFilter(filters) ? [filters.currencies] : []), ...(hasAttachmentFilter(filters) ? [filters.attachment] : []),
+    ...(hasMonthsFilter(filters) ? [{ months: filters.months }] : []),
+    ...(hasRecorderFilter(filters) ? [{ recorders: filters.recorders, members: filters.recorderMembers ?? null }] : [])]);
 }
 
 /** 从地址栏读出生效条件；无法识别的值退回默认，而不是报错白屏。 */

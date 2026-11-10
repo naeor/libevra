@@ -50,7 +50,7 @@ import { timeLabel } from "../statsWorkbench/FilterPanel.js";
 import { StatBar, StatsSettingsSheet } from "../statsWorkbench/StatsControls.js";
 import { filterIds, readFilters, writeDisplay, writeFilters, type WorkbenchFilters } from "../statsWorkbench/filters.js";
 import { ledgerFilterFromPreset, useAnalysisFilters } from "../statsWorkbench/ledgerFilterBridge.js";
-import { EntryFilterPanel } from "../components/EntryFilterPanel.js";
+import { EntryFilterPanel, monthsLabel } from "../components/EntryFilterPanel.js";
 import { autoColumnsFor, BrowseGrid, columnLimitFor, displayFor, EditGrid, gridMetricsFor, gridTrack, layoutLooksSparse, sizeContracts, splitFor, type DropPreview } from "../statsWorkbench/Grid.js";
 import { effectiveColumns, useColumnPreference, type ColumnPreference } from "../statsWorkbench/columns.js";
 import { EditOrigins } from "../statsWorkbench/editOrigins.js";
@@ -800,8 +800,10 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
 
   // 币种与统计方式在下方统计控制条上显示，这里只写时间与维度，不重复。
   // “全部时间”在分析里按最近 400 天计算（见 capped），名称仍写“全部时间”，不说成“自定义”。
-  const allTime = analysis.ledger.month === "all" && analysis.ledger.from === "" && analysis.ledger.to === "";
-  const summary = `${allTime ? t("ledger.filters.all") : timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
+  // 多选的月份（1.19.55）写成所选月份，日期写覆盖的范围。
+  const pickedMonths = analysis.ledger.months ?? [];
+  const allTime = analysis.ledger.month === "all" && analysis.ledger.from === "" && analysis.ledger.to === "" && pickedMonths.length === 0;
+  const summary = `${allTime ? t("ledger.filters.all") : pickedMonths.length > 1 ? monthsLabel(pickedMonths, t) : timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
     from: formatLocalDate(scope.range.from),
     to: formatLocalDate(scope.range.to),
   })}${dimensionSummaryOf(filters)}${analysis.capped ? ` · ${t("statsWorkbench.summary.capped")}` : ""}`;
@@ -820,6 +822,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     if (current.currencies && current.currencies.length > 0) parts.push(t("statsWorkbench.summary.currencyCount", { count: current.currencies.length }));
     const a = current.attachment;
     if (a && (a.attachment !== "any" || a.type !== "" || a.minMB !== "" || a.maxMB !== "")) parts.push(t("ledger.filters.attachments"));
+    if (current.recorders && current.recorders.length > 0) parts.push(t("ledger.filters.values", { name: t("ledger.filters.recorders"), count: current.recorders.length }));
     return parts.length === 0 ? "" : ` · ${parts.join(" · ")}`;
   }
 

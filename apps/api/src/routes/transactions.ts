@@ -75,6 +75,8 @@ interface TransactionRow {
   storageBytes?: bigint;
   attachmentLinks?: { attachment: { mediaType: string } }[];
   id: string;
+  /** Who recorded it (the creator); handed out as `recorderId`. */
+  userId: string;
   /** ⚠️ The number a person reads (`#000001`). Server-assigned; no request schema accepts it. */
   seq: number;
   kind: TransactionKind;
@@ -227,6 +229,8 @@ function toDto(row: TransactionRow): TransactionDto {
      * about exactly that: one fact implemented in two places comes to disagree with itself.
      */
     seq: row.seq,
+    /** 1.19.55：记录人（创建者），给“记录人”筛选用；修改账目不会改变它。 */
+    recorderId: row.userId,
     storageBytes: Number(row.storageBytes ?? 0n),
     attachmentCount: row.attachmentLinks?.length ?? 0,
     attachmentTypes: [...new Set(row.attachmentLinks?.map(l => l.attachment.mediaType) ?? [])],

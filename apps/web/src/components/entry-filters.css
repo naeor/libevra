@@ -35,9 +35,24 @@
 .lv-filter-size { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .lv-filter-size input,.lv-filter-date-range input { margin-top:8px; }
 .lv-filter-date-range { display:flex; flex-direction:column; gap:16px; margin-top:20px; }
-/* 1.19.53：“明细与分析使用同一筛选”开关，固定在页脚上方，不随选项滚动。 */
+/* “明细与分析使用同一筛选”开关（1.19.53；1.19.55 起在齿轮打开的筛选设置里）。 */
 .lv-filter-sync { flex:none; border-top:1px solid var(--color-line); padding:4px 0; }
 .lv-filter-sync .lv-filter-sync-switch { display:flex; width:100%; flex-direction:row-reverse; justify-content:space-between; gap:16px; min-height:52px; padding:6px 16px; font-weight:400; text-align:left; }
+/* 1.19.55：页头右侧的工具——“多选”月份、筛选设置（齿轮）、关闭。 */
+.lv-filter-tools { display:flex; align-items:center; gap:4px; }
+.lv-filter-multi { min-height:32px; padding:4px 12px; border-radius:999px; border:1px solid var(--color-line); color:var(--color-muted); font-size:var(--text-helper); line-height:var(--text-helper--line-height); white-space:nowrap; }
+/* 视觉上是 32px 的小胶囊，点按区域向外扩到约 44px。 */
+.lv-filter-multi { position:relative; }
+.lv-filter-multi::after { content:""; position:absolute; inset:-6px -2px; }
+.lv-filter-multi[aria-pressed=true] { border-color:transparent; background:var(--color-brand-soft); color:var(--color-brand-dark); }
+@media (hover: hover) { .lv-filter-multi:hover { color:var(--color-ink); } }
+.lv-filter-settings-wrap { position:relative; }
+.lv-filter-settings { position:absolute; top:calc(100% + 4px); right:0; z-index:5; width:min(320px, calc(100vw - 32px)); border:1px solid var(--color-line); border-radius:var(--radius-card); background:var(--color-surface); box-shadow:var(--shadow-sheet); }
+.lv-filter-settings .lv-filter-sync { border-top:none; }
+.lv-filter-multi-hint { margin:-4px 0 8px; }
+/* 记录人：“只看自己”快捷按钮在选项上面。 */
+.lv-filter-mine { min-height:36px; margin-bottom:12px; padding:6px 14px; border-radius:999px; border:1px solid var(--color-line); color:var(--color-brand-dark); }
+.lv-filter-mine[aria-pressed=true] { border-color:transparent; background:var(--color-brand-soft); }
 .lv-filter-note { flex:none; padding-block:8px; }
 .lv-filter-footer { flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; }
 .lv-filter-footer button { min-height:44px; padding:8px 16px; }
@@ -70,6 +85,7 @@
 .lv-filter-panel[data-desktop=true] { font-size:var(--text-body); line-height:var(--text-body--line-height); }
 .lv-filter-panel[data-desktop=true] .lv-filter-nav button { min-height:40px; }
 .lv-filter-panel[data-desktop=true] .lv-filter-icon { min-width:32px; min-height:32px; }
+.lv-filter-panel[data-desktop=true] .lv-filter-multi { min-height:28px; }
 .lv-filter-panel[data-desktop=true] :is(.lv-filter-option,.lv-filter-months button,.lv-filter-segments button,.lv-filter-choices button,.lv-filter-footer button) { min-height:36px; padding-block:8px; }
 .lv-filter-panel[data-desktop=true] :is(.lv-filter-search,.lv-filter-date-range input,.lv-filter-size input) { min-height:36px; padding-block:6px; font-size:var(--text-body); line-height:var(--text-body--line-height); }
 .lv-filter-panel[data-desktop=true] .lv-filter-option-row { margin-block:2px; }

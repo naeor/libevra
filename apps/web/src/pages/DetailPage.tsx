@@ -2,7 +2,7 @@ import { useAnalysisRange } from "../lib/analysisRange.js";
 import { SlidingSelection } from "../components/ui/SlidingSelection.js";
 import "../components/ledger/detail-overview.css";
 import { DetailOverview } from "../components/ledger/DetailOverview.js";
-import { useDetailCards, detailDayCount } from "../lib/detailCards.js";
+import { useDetailCards, detailDayCount, monthsDayCount } from "../lib/detailCards.js";
 import { entryMatches } from "../desktop/entriesView.js";
 import { EntrySortControls, useEntryPresentation } from "../components/EntrySortControls.js";
 import { ChevronIcon } from "../components/Icons.js";
@@ -656,8 +656,10 @@ export function DetailPage(): React.JSX.Element {
    * sorts what the device holds, and any write changes the entries so the sort runs again.
    */
   const filtered = useMemo(() => entries.filter(entry => filter.predicate(entry) && entryMatches(entry, query)), [entries, filter.predicate, query]);
-  const cardFrom = filter.value.from || (!allMonths ? month + "-01" : "");
-  const cardTo = filter.value.to || (!allMonths ? endOfMonth(month) : "");
+  /** 1.19.55：多选月份时，卡片图表覆盖第一个月月初到最后一个月月底（中间没选的月份由筛选去掉）。 */
+  const pickedMonths = filter.value.months;
+  const cardFrom = filter.value.from || (pickedMonths.length > 0 ? pickedMonths[0] + "-01" : !allMonths ? month + "-01" : "");
+  const cardTo = filter.value.to || (pickedMonths.length > 0 ? endOfMonth(pickedMonths[pickedMonths.length - 1]!) : !allMonths ? endOfMonth(month) : "");
   const chartSource = useAnalysisRange({ from: cardFrom || currentMonth() + "-01", to: cardTo || endOfMonth(currentMonth()) }, !guest && !fxActive && !!cardFrom && !!cardTo);
   const chartEntries = (chartSource.data?.entries ?? filtered).filter(e => filter.predicate(e) && entryMatches(e, query) && (kind === "all" || e.kind === kind));
   const presentation = useEntryPresentation(filtered, !list.hasNextPage && !list.isPending && !list.isError, { order: saved.presentation?.order ?? "timeDesc", attachment: "any", type: "", minMB: "", maxMB: "" }, filter.extended || query.trim() !== "" || kind !== "all");
@@ -992,7 +994,7 @@ export function DetailPage(): React.JSX.Element {
             <DetailOverview onOpen={data => {
               const key = keepMetricSnapshot({ ...data, owner: user?.id ?? guestIdentity?.id ?? "", book: metricBook, pane: pane.instance, returnTo: location.pathname + location.search });
               void navigate(`/ledger/metrics/${data.metric}`, { state: { metricSnapshot: key } });
-            }} syncStatus={cardConfig.conflict ? "syncConflict" : cardConfig.syncError ? "syncError" : cardConfig.dirty ? "syncPending" : undefined} onEdit={() => void navigate("/ledger/cards")} entries={chartEntries} chartFrom={cardFrom} chartTo={cardTo} chartComplete={guest ? !list.hasNextPage : chartSource.data?.sourceComplete === true} config={cardConfig.value} summary={main} currency={mainCode} label={filter.label} days={detailDayCount(month, filter.value.from, filter.value.to, toLocalDate(new Date()))} fx={fxActive ? fxSummary : null} onCurrencies={() => setShowAllCurrencies(true)} hidden={atList || searchOpen} loading={summary.isPending || summary.isError || presentation.waiting || !!presentation.error} />
+            }} syncStatus={cardConfig.conflict ? "syncConflict" : cardConfig.syncError ? "syncError" : cardConfig.dirty ? "syncPending" : undefined} onEdit={() => void navigate("/ledger/cards")} entries={chartEntries} chartFrom={cardFrom} chartTo={cardTo} chartComplete={guest ? !list.hasNextPage : chartSource.data?.sourceComplete === true} config={cardConfig.value} summary={main} currency={mainCode} label={filter.label} days={pickedMonths.length > 0 ? monthsDayCount(pickedMonths, toLocalDate(new Date())) : detailDayCount(month, filter.value.from, filter.value.to, toLocalDate(new Date()))} fx={fxActive ? fxSummary : null} onCurrencies={() => setShowAllCurrencies(true)} hidden={atList || searchOpen} loading={summary.isPending || summary.isError || presentation.waiting || !!presentation.error} />
           </header>
 
           {/*

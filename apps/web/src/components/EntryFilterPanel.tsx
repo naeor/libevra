@@ -1,42 +1,59 @@
-import { useCallback, useMemo, useState, useId, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useId, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { CURRENCIES, type LedgerMetaResponse } from "@libellum/shared";
 import { useI18n } from "../i18n/index.js";
 import { ALL_MONTHS, currentMonth, formatInstant, isAllMonths } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
-import { activeFilterDimensions, clearFilterDimension, detailFilterPredicate, emptyDetailFilters, FILTER_DIMENSIONS, validDetailDates, type DetailFilters, type FilterDimension } from "../lib/detailFilters.js";
+import { activeFilterDimensions, clearFilterDimension, detailFilterPredicate, emptyDetailFilters, FILTER_DIMENSIONS, FORMER_RECORDERS, validDetailDates, type DetailFilters, type FilterDimension } from "../lib/detailFilters.js";
 import { useDesktopActive } from "../desktop/surface.js";
 import { DesktopPopover } from "../desktop/DesktopPopover.js";
 import { BottomSheet } from "./BottomSheet.js";
 import { LedgerMonthPicker } from "./LedgerMonthPicker.js";
-import { ChevronIcon } from "./Icons.js";
+import { ChevronIcon, GearIcon } from "./Icons.js";
 import { validStorageRange } from "./EntrySortControls.js";
 import "./entry-filters.css";
 import { Switch } from "./ui/PurposeControls.js";
 import { setFilterSync, useFilterSync } from "../lib/ledgerFilter.js";
 import { useFilterOwner } from "../lib/usePageFilter.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
+import { useRecorderPeople, type RecorderPeople } from "../lib/recorderPeople.js";
 
 /**
  * 1.19.53：筛选不再存在地址栏里，而是本机保存的那一份（`lib/ledgerFilter.ts`，明细与分析默认共用）；
  * 这里只负责谓词、标签与应用。`value` / `onChange` 由页面从 `usePageFilter` 传入。
  */
 export function useDetailFilters(value: DetailFilters, onChange: (next: DetailFilters) => void, ledger?: LedgerMetaResponse) {
-  const predicate = useMemo(() => detailFilterPredicate(value, ledger?.categories ?? []), [value, ledger?.categories]);
+  const people = useRecorderPeople(value.recorders.length > 0);
+  const predicate = useMemo(() => detailFilterPredicate(value, ledger?.categories ?? [], people.memberIds), [value, ledger?.categories, people.memberIds]);
   const apply = useCallback((next: DetailFilters) => { onChange(next); }, [onChange]);
   const dimensions = activeFilterDimensions(value);
-  const names = useFilterLabels(value, ledger);
-  return { value, apply, predicate, key: JSON.stringify(value),
-    extended: dimensions.some(d => d !== "time") || !!value.from || !!value.to,
+  const names = useFilterLabels(value, ledger, people);
+  return { value, apply, predicate, key: `${JSON.stringify(value)}|${people.memberIds?.join(",") ?? ""}`,
+    extended: dimensions.some(d => d !== "time") || !!value.from || !!value.to || value.months.length > 0,
     label: names.label };
 }
 
-function useFilterLabels(value: DetailFilters, ledger?: LedgerMetaResponse) {
+/** 月份的显示：单月“2026年10月”；同一年的多个月“2026 年 10月、11月”；跨年“3 个月”。 */
+export function monthsLabel(months: readonly string[], t: ReturnType<typeof useI18n>["t"]): string {
+  if (months.length === 1) return formatInstant(new Date(`${months[0]}-01T12:00:00`), { year: "numeric", month: "long" });
+  const years = new Set(months.map(m => m.slice(0, 4)));
+  if (years.size === 1) return t("ledger.filters.monthsInYear", { year: months[0]!.slice(0, 4), months: months.map(m => formatInstant(new Date(`${m}-01T12:00:00`), { month: "short" })).join(t("ledger.filters.monthsSeparator")) });
+  return t("ledger.filters.monthsCount", { count: months.length });
+}
+
+function useFilterLabels(value: DetailFilters, ledger: LedgerMetaResponse | undefined, people: RecorderPeople) {
   const { t } = useI18n();
+  const recorderName = (id: string): string => {
+    if (id === FORMER_RECORDERS) return t("ledger.filters.formerMembers");
+    const member = people.members.find(m => m.userId === id);
+    if (id === people.self) return t("ledger.filters.onlyMine");
+    return member?.displayName ?? t("ledger.filters.formerMembers");
+  };
   const dimensionLabel = (key: FilterDimension): string => {
-    if (key === "time") return !isAllMonths(value.month) ? formatInstant(new Date(`${value.month}-01T12:00:00`), { year: "numeric", month: "long" })
+    if (key === "time") return value.months.length > 0 ? monthsLabel(value.months, t) : !isAllMonths(value.month) ? formatInstant(new Date(`${value.month}-01T12:00:00`), { year: "numeric", month: "long" })
       : value.from || value.to ? `${value.from} – ${value.to}` : t("ledger.filters.all");
+    if (key === "recorders") return value.recorders.length === 1 ? recorderName(value.recorders[0]!) : t("ledger.filters.values", { name: t("ledger.filters.recorders"), count: value.recorders.length });
     if (key === "attachments") return value.attachment !== "any" && !value.type && !value.minMB && !value.maxMB ? t(value.attachment === "has" ? "attachments.has" : "attachments.none") : t("ledger.filters.attachments");
     const values = value[key];
     if (values.length !== 1) return t("ledger.filters.values", { name: t(`ledger.filters.${key}`), count: values.length });
@@ -76,13 +93,31 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set(value.categories));
   const [rangeMode, setRangeMode] = useState(!!value.from || !!value.to);
+  const [multi, setMulti] = useState(value.months.length > 0);
   const [attempted, setAttempted] = useState(false);
-  const labels = useFilterLabels(draft, ledger);
+  /** 记录人只在多人账本出现（1.19.55）；已经设了记录人条件时也显示，方便取消。 */
+  const showRecorders = (ledger?.book.memberCount ?? 1) > 1 || value.recorders.length > 0;
+  const people = useRecorderPeople(showRecorders);
+  const labels = useFilterLabels(draft, ledger, people);
   const active = activeFilterDimensions(draft);
+  const dimensions = FILTER_DIMENSIONS.filter(key => key !== "recorders" || showRecorders);
   const change = (patch: Partial<DetailFilters>) => setDraft(old => ({ ...old, ...patch }));
-  const toggle = (key: "categories" | "payments" | "tags" | "currencies", id: string) => change({ [key]: draft[key].includes(id) ? draft[key].filter(v => v !== id) : [...draft[key], id], ...(key === "categories" && draft[key].includes(id) ? { branches: draft.branches.filter(v => v !== id) } : {}) });
+  const toggle = (key: "categories" | "payments" | "tags" | "currencies" | "recorders", id: string) => change({ [key]: draft[key].includes(id) ? draft[key].filter(v => v !== id) : [...draft[key], id], ...(key === "categories" && draft[key].includes(id) ? { branches: draft.branches.filter(v => v !== id) } : {}) });
+  /** 多选月份（1.19.55）：打开时把当前选中的那个月带进来；关闭时保留最后一个选中的月份。 */
+  const toggleMulti = () => {
+    if (multi) {
+      setMulti(false);
+      if (draft.months.length > 0) change({ month: draft.months[draft.months.length - 1]!, months: [], from: "", to: "" });
+      return;
+    }
+    setMulti(true); setSection("time"); setRangeMode(false); setSearch("");
+    change({ month: ALL_MONTHS, from: "", to: "", months: draft.months.length > 0 ? draft.months : isAllMonths(draft.month) ? [] : [draft.month] });
+  };
   const query = search.trim().toLocaleLowerCase();
-  const options = section === "categories" ? (ledger?.categories ?? []).map(c => ({ id: c.id, name: displayCategoryName(c.name), parent: c.parentId, kind: c.kind }))
+  const recorderOptions = [...people.members].sort((a, b) => Number(b.userId === people.self) - Number(a.userId === people.self))
+    .map(m => ({ id: m.userId, name: m.userId === people.self ? t("ledger.filters.meName", { name: m.displayName }) : m.displayName }));
+  const options = section === "recorders" ? [...recorderOptions, { id: FORMER_RECORDERS, name: t("ledger.filters.formerMembers") }]
+    : section === "categories" ? (ledger?.categories ?? []).map(c => ({ id: c.id, name: displayCategoryName(c.name), parent: c.parentId, kind: c.kind }))
     : section === "payments" ? [{ id: "none", name: t("ledger.filters.nonePayment") }, ...(ledger?.paymentMethods ?? []).map(p => ({ id: p.id, name: displayPaymentMethodName(p.name) }))]
     : section === "tags" ? (ledger?.tags ?? []).map(tag => ({ id: tag.id, name: tag.name }))
     : section === "currencies" ? CURRENCIES.map(id => ({ id, name: `${id} · ${currencyName(id)}` })) : [];
@@ -97,7 +132,13 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
   const datesValid = validDetailDates(draft) && (!rangeMode || !!draft.from && !!draft.to);
   const storageValid = validStorageRange(draft.minMB, draft.maxMB);
   return <form className="lv-filter-panel" data-desktop={desktop || undefined} onSubmit={event => { event.preventDefault(); setAttempted(true); if (datesValid && storageValid) onApply(draft); }}>
-    <header className="lv-filter-heading"><h2 className="text-section-title">{t("ledger.filters.title")}</h2><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.close")} onClick={onClose}>×</button></header>
+    <header className="lv-filter-heading"><h2 className="text-section-title">{t("ledger.filters.title")}</h2>
+      <div className="lv-filter-tools">
+        <button type="button" className="lv-filter-multi" aria-pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</button>
+        <FilterSettingsButton />
+        <button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.close")} onClick={onClose}>×</button>
+      </div>
+    </header>
     <div className="lv-filter-chips" aria-label={t("ledger.filters.selected")}>
       {active.length === 0 ? <span className="text-helper text-muted">{t("ledger.filters.all")}</span> : active.map(key => <button type="button" key={key} title={labels.dimensionLabel(key)} aria-label={t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) })} onClick={() => { setDraft(clearFilterDimension(draft, key)); if (key === "time") setRangeMode(false); }}><span>{labels.dimensionLabel(key)}</span><span aria-hidden="true">×</span></button>)}
     </div>
@@ -109,26 +150,35 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
         const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length;
         event.preventDefault(); tabs[next]?.focus(); tabs[next]?.click();
       }}>
-        {FILTER_DIMENSIONS.map(key => <button type="button" role="tab" aria-selected={section === key} id={`${uid}-filter-tab-${key}`} aria-controls={`${uid}-filter-options`} key={key} onClick={() => { setSection(key); setSearch(""); }}><span>{t(`ledger.filters.${key}`)}</span>{active.includes(key) ? <span className="lv-filter-dot" /> : null}</button>)}
+        {dimensions.map(key => <button type="button" role="tab" aria-selected={section === key} id={`${uid}-filter-tab-${key}`} aria-controls={`${uid}-filter-options`} key={key} onClick={() => { setSection(key); setSearch(""); }}><span>{t(`ledger.filters.${key}`)}</span>{active.includes(key) ? <span className="lv-filter-dot" /> : null}</button>)}
       </div>
       <div className="lv-filter-options" id={`${uid}-filter-options`} role="tabpanel" aria-labelledby={`${uid}-filter-tab-${section}`}>
         {section === "time" ? <>
           <div className="lv-filter-segments">
-            <button type="button" aria-pressed={!rangeMode} onClick={() => { if (rangeMode) { setRangeMode(false); change({ month: ALL_MONTHS, from: "", to: "" }); } }}>{t("desktop.entries.month")}</button>
-            <button type="button" aria-pressed={rangeMode} onClick={() => { if (!rangeMode) { setRangeMode(true); change({ month: ALL_MONTHS, from: "", to: "" }); } }}>{t("ledger.filters.range")}</button>
+            <button type="button" aria-pressed={!rangeMode} onClick={() => { if (rangeMode) { setRangeMode(false); change({ month: ALL_MONTHS, from: "", to: "", months: [] }); } }}>{t("desktop.entries.month")}</button>
+            <button type="button" aria-pressed={rangeMode} onClick={() => { if (!rangeMode) { setRangeMode(true); setMulti(false); change({ month: ALL_MONTHS, from: "", to: "", months: [] }); } }}>{t("ledger.filters.range")}</button>
           </div>
           {rangeMode ? <div className="lv-filter-date-range">{(["from", "to"] as const).map(key => <label key={key} className="text-body">{t(`ledger.filters.${key}`)}<input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" value={draft[key]} onChange={event => change({ [key]: event.target.value })} aria-invalid={attempted && !datesValid || undefined} /></label>)}<p className="text-helper text-muted">{t("ledger.filters.dateHint")}</p></div>
             : <LedgerMonthPicker open month={draft.month} maxMonth={currentMonth()} onSelect={() => {}} onClose={() => {}} render={({ year, onYearChange, availability, loading, statusNote }) => <>
-              <button type="button" className="lv-filter-option lv-filter-all-time" aria-pressed={isAllMonths(draft.month)} onClick={() => change({ month: ALL_MONTHS, from: "", to: "" })}>{t("ledger.filters.all")}<Check visible={isAllMonths(draft.month)} /></button>
+              <button type="button" className="lv-filter-option lv-filter-all-time" aria-pressed={isAllMonths(draft.month) && draft.months.length === 0} onClick={() => change({ month: ALL_MONTHS, from: "", to: "", months: [] })}>{t("ledger.filters.all")}<Check visible={isAllMonths(draft.month) && draft.months.length === 0} /></button>
               <div className="lv-filter-year"><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.previousYear")} onClick={() => onYearChange(year - 1)}><ChevronIcon direction="left" /></button><span className="text-card-title">{year}</span><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.nextYear")} disabled={year >= Number(currentMonth().slice(0, 4))} onClick={() => onYearChange(year + 1)}><ChevronIcon direction="right" /></button></div>
-              <div className="lv-filter-months">{Array.from({ length: 12 }, (_, index) => { const month = `${year}-${String(index + 1).padStart(2, "0")}`; return <button type="button" key={month} aria-pressed={draft.month === month} disabled={month > currentMonth() || availability[month] === false || loading && availability[month] !== true} onClick={() => change({ month, from: "", to: "" })}>{formatInstant(new Date(year, index, 1), { month: "short" })}</button>; })}</div><p className="mt-3 text-helper text-muted" role="status">{statusNote}</p>
+              {multi ? <p className="lv-filter-multi-hint text-helper text-muted">{t("ledger.filters.monthsHint")}</p> : null}
+              <div className="lv-filter-months" data-multi={multi || undefined}>{Array.from({ length: 12 }, (_, index) => {
+                const month = `${year}-${String(index + 1).padStart(2, "0")}`;
+                const selected = multi ? draft.months.includes(month) : draft.months.length === 0 && draft.month === month;
+                /** 当前月份始终可选（1.19.55）：这个月还没有账目时也能点回来；已选中的月份也总能取消。 */
+                const unavailable = month > currentMonth() || month !== currentMonth() && (availability[month] === false || loading && availability[month] !== true);
+                return <button type="button" key={month} aria-pressed={selected} disabled={!selected && unavailable}
+                  onClick={() => multi ? change({ month: ALL_MONTHS, from: "", to: "", months: selected ? draft.months.filter(m => m !== month) : [...draft.months, month].sort() }) : change({ month, from: "", to: "", months: [] })}>{formatInstant(new Date(year, index, 1), { month: "short" })}</button>;
+              })}</div><p className="mt-3 text-helper text-muted" role="status">{statusNote}</p>
             </>} />}
         </> : section === "attachments" ? <div className="lv-filter-attachment">
           <fieldset><legend className="text-card-title">{t("attachments.title")}</legend><div className="lv-filter-choices">{(["any", "has", "none"] as const).map(v => <button type="button" key={v} aria-pressed={draft.attachment === v} onClick={() => change({ attachment: v, ...(v === "none" ? { type: "" } : {}) })}>{t(`attachments.${v}`)}</button>)}</div></fieldset>
           <fieldset><legend className="text-card-title">{t("attachments.type")}</legend><div className="lv-filter-choices">{([["", "anyType"], ["image/", "image"], ["application/pdf", "pdf"], ["audio/", "audio"], ["text/", "text"]] as const).map(([v, key]) => <button type="button" key={key} aria-pressed={draft.type === v} onClick={() => change({ type: v!, ...(v ? { attachment: "has" } : {}) })}>{t(`attachments.${key}`)}</button>)}</div></fieldset>
           <fieldset><legend className="text-card-title">{t("attachments.size")} (MB)</legend><div className="lv-filter-size">{(["minMB", "maxMB"] as const).map((key, index) => <label key={key} className="text-helper">{t(index === 0 ? "attachments.minimum" : "attachments.maximum")}<input type="text" inputMode="decimal" value={draft[key]} placeholder={index === 0 ? "0" : t("ledger.filters.unlimited")} onChange={event => change({ [key]: event.target.value.trim() })} aria-invalid={attempted && !storageValid || undefined} /></label>)}</div></fieldset>
         </div> : <>
-          <input className="lv-filter-search" type="search" aria-label={t("ledger.filters.search")} placeholder={t("ledger.filters.search")} value={search} onChange={event => setSearch(event.target.value)} />
+          {section === "recorders" ? people.self !== null ? <button type="button" className="lv-filter-mine" aria-pressed={draft.recorders.length === 1 && draft.recorders[0] === people.self} onClick={() => change({ recorders: [people.self!] })}>{t("ledger.filters.onlyMine")}</button> : null
+            : <input className="lv-filter-search" type="search" aria-label={t("ledger.filters.search")} placeholder={t("ledger.filters.search")} value={search} onChange={event => setSearch(event.target.value)} />}
           <button type="button" className="lv-filter-option" aria-pressed={draft[section].length === 0} onClick={() => setDraft(clearFilterDimension(draft, section))}>{t("ledger.filters.unlimited")}<Check visible={draft[section].length === 0} /></button>
           {options.filter(visible).map(item => { const children = section === "categories" && ledger?.categories.some(c => c.parentId === item.id); return <div key={item.id}>
             <div className="lv-filter-option-row" data-child={section === "categories" && "parent" in item && !!item.parent || undefined}>
@@ -138,16 +188,41 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
             {children && draft.categories.includes(item.id) ? <label className="lv-filter-branch text-helper"><input type="checkbox" checked={draft.branches.includes(item.id)} onChange={event => change({ branches: event.target.checked ? [...draft.branches, item.id] : draft.branches.filter(v => v !== item.id) })} />{t("ledger.filters.branch")}</label> : null}
           </div>; })}
           {options.filter(visible).length === 0 ? <p className="lv-filter-empty text-helper text-muted">{t("ledger.filters.noOptions")}</p> : null}
+          {section === "recorders" ? <p className="lv-filter-empty text-helper-relaxed text-muted">{t("ledger.filters.recordersHint")}</p> : null}
         </>}
       </div>
     </div>
     {attempted && (!datesValid || !storageValid) ? <p role="alert" className="px-4 text-helper text-danger">{t(!datesValid ? "ledger.filters.invalidDates" : "attachments.filters.invalidRange")}</p> : null}
     {note ? <p className="lv-filter-note px-4 text-helper-relaxed text-muted">{note}</p> : null}
-    <FilterSyncRow />
-    <footer className="lv-filter-footer"><button type="button" className="text-button text-brand" onClick={() => { setDraft(emptyDetailFilters(currentMonth())); setRangeMode(false); setAttempted(false); }}>{t("ledger.filters.reset")}</button><button type="submit" className="lv-filter-apply text-button">{t("ledger.filters.apply")}</button></footer>
+    <footer className="lv-filter-footer"><button type="button" className="text-button text-brand" onClick={() => { setDraft(emptyDetailFilters(currentMonth())); setRangeMode(false); setMulti(false); setAttempted(false); }}>{t("ledger.filters.reset")}</button><button type="submit" className="lv-filter-apply text-button">{t("ledger.filters.apply")}</button></footer>
   </form>;
 }
 function Check({ visible }: { visible: boolean }) { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" style={{ visibility: visible ? undefined : "hidden", flexShrink: 0 }}><path d="m5 12 4 4L19 6" /></svg>; }
+
+/**
+ * 筛选设置（1.19.55）：齿轮按钮打开的小面板，放“明细与分析使用同一筛选”这类设置，不再占用筛选面板本身。
+ * 点面板以外或按 Esc 关闭（Esc 只关闭设置，不关闭整个筛选面板）。
+ */
+function FilterSettingsButton() {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => { if (!wrap.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [open]);
+  return <div ref={wrap} className="lv-filter-settings-wrap" onKeyDown={event => {
+    if (event.key !== "Escape" || !open) return;
+    event.preventDefault(); event.stopPropagation(); setOpen(false); button.current?.focus();
+  }}>
+    <button ref={button} type="button" className="lv-filter-icon" aria-label={t("ledger.filters.settings")} aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}><GearIcon width={18} height={18} /></button>
+    {open ? <div id={id} className="lv-filter-settings" role="group" aria-label={t("ledger.filters.settings")}><FilterSyncRow /></div> : null}
+  </div>;
+}
 
 /**
  * “明细与分析使用同一筛选”（1.19.53）。设备偏好，立即生效，不属于面板里尚未应用的草稿；

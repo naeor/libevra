@@ -15,7 +15,7 @@ import {
 } from "./fillCoverage.js";
 import { storeMonth } from "./localLedger.js";
 import { offlineScope, scopedKey } from "./scope.js";
-import { OFFLINE_FILL_NOTICE_DAY_KEY } from "../deviceStorageKeys.js";
+import { OFFLINE_FILL_NOTICE_DAY_KEY, OFFLINE_RECORDER_REFRESH_PREFIX } from "../deviceStorageKeys.js";
 
 /**
  * Filling in the months the user has never opened.
@@ -205,6 +205,22 @@ export function claimDailyFillNotice(now: Date = new Date(), storage: Pick<Stora
   return true;
 }
 
+/**
+ * 1.19.55：缓存里的这一页页账目是不是都带着“记录人”。1.19.55 之前下载的月份没有，要按记录人筛选就得
+ * 重新取一次；每个“账号 : 账本”只补取一轮（`OFFLINE_RECORDER_REFRESH_PREFIX`），服务器没有这一项时也不会反复取。
+ */
+export function pagesHaveRecorders(pages: readonly TransactionListResponse[]): boolean {
+  return pages.every(page => page.items.every(item => item.recorderId !== undefined));
+}
+
+function recorderRefreshDone(scope: string): boolean {
+  try { return safeLocalStorage()?.getItem(`${OFFLINE_RECORDER_REFRESH_PREFIX}${scope}`) === "done"; } catch { return true; }
+}
+
+function markRecorderRefreshDone(scope: string): void {
+  try { safeLocalStorage()?.setItem(`${OFFLINE_RECORDER_REFRESH_PREFIX}${scope}`, "done"); } catch { /* 无痕模式：下次照常检查 */ }
+}
+
 function safeLocalStorage(): Storage | null {
   try {
     return typeof localStorage === "undefined" ? null : localStorage;
@@ -319,6 +335,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
        * button is asking for a fresh attempt.
        */
       const partialMonths = await readPartialMonths();
+      const recordersKnown = recorderRefreshDone(scope);
 
       let finished = 0;
 
@@ -392,7 +409,8 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
           !refresh &&
           existing?.pages !== undefined &&
           existing.pages.length > 0 &&
-          existing.pages[existing.pages.length - 1]?.nextCursor === null;
+          existing.pages[existing.pages.length - 1]?.nextCursor === null &&
+          (recordersKnown || pagesHaveRecorders(existing.pages));
 
         if (alreadyComplete) {
           await logOffline("跳过（已完整）", month); // i18n-ignore：诊断日志
@@ -486,6 +504,7 @@ export function useOfflineFill(options: { readonly enabled: boolean }): OfflineF
         finished += 1;
         setDone(finished);
       }
+      if (!recordersKnown && finished === months.length && scopedKey("ledger-months") === context) markRecorderRefreshDone(scope);
       } catch (error) {
         /**
          * Stopping early is not a failure to report loudly.

@@ -57,7 +57,7 @@ export function usePageFilter(page: FilterSlot, options: { readonly readParams?:
   const value = incoming.current?.value ?? filter.value;
   const { set } = filter;
   const setMonth = useCallback((month: string) => {
-    set({ ...value, month, ...(month === ALL_MONTHS ? {} : { from: "", to: "" }) });
+    set({ ...value, month, months: [], ...(month === ALL_MONTHS ? {} : { from: "", to: "" }) });
   }, [set, value]);
   return { value, set, setMonth, slot: filter.slot, owner, bookId };
 }

@@ -1,8 +1,9 @@
 import type { Transaction } from "@libellum/shared";
 import { describe, expect, it } from "vitest";
-import { emptyDetailFilters } from "../lib/detailFilters.js";
+import { activeFilterDimensions, clearFilterDimension, detailFilterPredicate, emptyDetailFilters, FORMER_RECORDERS, recorderMatches } from "../lib/detailFilters.js";
 import { normalizeFilter, takeFilterParams } from "../lib/ledgerFilter.js";
-import { matchesWorkbenchFilters } from "./filters.js";
+import { pagesHaveRecorders } from "../lib/offline/fill.js";
+import { hasDimensionFilters, matchesWorkbenchFilters } from "./filters.js";
 import { ledgerFilterFromWorkbench, takeAnalysisParams, workbenchFromLedgerFilter } from "./ledgerFilterBridge.js";
 
 const display = { currency: null, combined: true } as const;
@@ -73,5 +74,54 @@ describe("本机保存的筛选", () => {
     expect(value.month).toBe("2026-08");
     expect(value.tags).toEqual(["a"]);
     expect(rest.toString()).toBe("book=b1");
+  });
+});
+
+describe("多选月份与记录人（1.19.55）", () => {
+  it("明细：多选月份只保留这些月份；读入时排序去重，并清掉单月与日期范围", () => {
+    const value = { ...emptyDetailFilters("all"), months: ["2026-10", "2026-08"] };
+    const keep = detailFilterPredicate(value, []);
+    expect(keep(entry({ occurredLocalDate: "2026-08-03" }))).toBe(true);
+    expect(keep(entry({ occurredLocalDate: "2026-09-03" }))).toBe(false);
+    expect(keep(entry({ occurredLocalDate: "2026-10-31" }))).toBe(true);
+    const read = normalizeFilter({ month: "2026-05", from: "2026-01-01", months: ["2026-10", "2026-08", "2026-10", "bad"] }, "2026-11");
+    expect(read).toMatchObject({ month: "all", from: "", to: "", months: ["2026-08", "2026-10"] });
+    expect(activeFilterDimensions({ ...emptyDetailFilters("all"), months: ["2026-08"] })).toEqual(["time"]);
+    expect(clearFilterDimension({ ...emptyDetailFilters("all"), months: ["2026-08"] }, "time").months).toEqual([]);
+  });
+
+  it("记录人：没有记录人信息的旧副本不命中；“已退出的成员”只命中不在当前成员里的人", () => {
+    expect(recorderMatches(undefined, ["u1"], ["u1"])).toBe(false);
+    expect(recorderMatches("u1", [], null)).toBe(true);
+    expect(recorderMatches("u1", ["u1"], null)).toBe(true);
+    expect(recorderMatches("u9", [FORMER_RECORDERS], ["u1", "u2"])).toBe(true);
+    expect(recorderMatches("u2", [FORMER_RECORDERS], ["u1", "u2"])).toBe(false);
+    expect(recorderMatches("u9", [FORMER_RECORDERS], null)).toBe(false);
+    const mine = detailFilterPredicate({ ...emptyDetailFilters("2026-08"), recorders: ["u1"] }, []);
+    expect(mine(entry({ recorderId: "u1" }))).toBe(true);
+    expect(mine(entry({ recorderId: "u2" }))).toBe(false);
+  });
+
+  it("分析：连续的月份就是一段时间；中间有空缺时再去掉没选的月份，上一期不受影响", () => {
+    const contiguous = workbenchFromLedgerFilter({ ...emptyDetailFilters("all"), months: ["2026-10", "2026-11"] }, display, today);
+    expect(contiguous.filters.time).toEqual({ kind: "custom", from: "2026-10-01", to: today });
+    expect(contiguous.filters.months).toBeUndefined();
+    const single = workbenchFromLedgerFilter({ ...emptyDetailFilters("all"), months: ["2026-11"] }, display, today);
+    expect(single.filters.time).toEqual({ kind: "this-month" });
+    const gaps = workbenchFromLedgerFilter({ ...emptyDetailFilters("all"), months: ["2026-08", "2026-10"] }, display, today);
+    expect(gaps.filters.time).toEqual({ kind: "custom", from: "2026-08-01", to: "2026-10-31" });
+    expect(matchesWorkbenchFilters(entry({ occurredLocalDate: "2026-09-10" }), gaps.filters)).toBe(false);
+    expect(matchesWorkbenchFilters(entry({ occurredLocalDate: "2026-10-10" }), gaps.filters)).toBe(true);
+    expect(matchesWorkbenchFilters(entry({ occurredLocalDate: "2026-05-10" }), gaps.filters)).toBe(true);
+    expect(hasDimensionFilters(gaps.filters)).toBe(true);
+    const people = workbenchFromLedgerFilter({ ...emptyDetailFilters("2026-08"), recorders: [FORMER_RECORDERS] }, display, today, ["u1"]);
+    expect(matchesWorkbenchFilters(entry({ recorderId: "u7" }), people.filters)).toBe(true);
+    expect(matchesWorkbenchFilters(entry({ recorderId: "u1" }), people.filters)).toBe(false);
+  });
+
+  it("本机副本：缺记录人的月份需要补取", () => {
+    const page = (items: Transaction[]) => ({ items, nextCursor: null });
+    expect(pagesHaveRecorders([page([entry({ recorderId: "u1" })])])).toBe(true);
+    expect(pagesHaveRecorders([page([entry({ recorderId: "u1" }), entry({ id: "t2" })])])).toBe(false);
   });
 });

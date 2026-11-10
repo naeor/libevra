@@ -79,6 +79,15 @@ export function detailDayCount(month: string, from: string, to: string, today: s
   const days = (Date.parse((end > today ? today : end) + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / 86400000 + 1;
   return Number.isInteger(days) && days > 0 ? days : null;
 }
+/** 多选月份（1.19.55）一共有几天：各月天数之和，当月只算到今天，未来的月份不算。 */
+export function monthsDayCount(months: readonly string[], today: string): number | null {
+  let total = 0;
+  for (const month of months) {
+    const days = detailDayCount(month, "", "", today);
+    if (days !== null) total += days;
+  }
+  return total > 0 ? total : null;
+}
 export function dailyMinor(amount: string, days: number): string {
   const n = BigInt(amount), d = BigInt(days);
   return ((n + d / 2n) / d).toString();

@@ -844,12 +844,14 @@ export interface BookMemberView {
  * ⚠️ **The cache key carries the ledger**, because otherwise the second ledger's members would be
  * served from the first ledger's cache — the cross-ledger leak this project treats as the worst kind.
  */
-export function useBookMembers(given?: string) {
+export function useBookMembers(given?: string, options: { readonly enabled?: boolean } = {}) {
   /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
   const bookId = useScopedBook(given);
   const guest = useGuestMode();
 
   return useQuery({
+    /** 1.19.55：记录人筛选只在需要成员名单时才请求（`enabled`）；其它调用照旧总是请求。 */
+    enabled: options.enabled ?? true,
     /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
     ...(given === undefined && bookId !== undefined ? { meta: VOLATILE } : {}),
     queryKey: guest
