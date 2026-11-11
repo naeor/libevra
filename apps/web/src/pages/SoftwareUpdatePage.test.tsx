@@ -43,11 +43,11 @@ describe("software update announcements", () => {
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("更早");
-    expect(html).toContain("1.19.53");
-    expect(html).toContain("明细与分析共用筛选");
+    expect(html).toContain("1.19.56");
+    expect(html).toContain("成员权限分级与记录人筛选");
     expect(html).toContain("调整及优化");
-    expect(html).toContain("“历史记录已存到本机”的自动提示每天最多出现一次");
-    expect(html).toContain('href="/update/announcements/1.19.49"');
+    expect(html).toContain("当前月份即使还没有账目，也始终可以在筛选里选中。");
+    expect(html).toContain('href="/update/announcements/1.19.53"');
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
   });

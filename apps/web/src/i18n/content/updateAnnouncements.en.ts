@@ -10,6 +10,28 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.19.56": {
+    title: "Member access levels and Recorded by filter",
+    summary: "Shared ledgers can give members Read only, Record or Edit all access, managed by an admin; filters add Recorded by and multiple months.",
+    sections: [
+      { heading: "New features", items: [
+        "Shared ledgers have three access levels: Read only can view and export; Record can add entries and edit only their own; Edit all can edit all entries, categories, tags and payment methods.",
+        "Each ledger has one admin (the creator by default). Only the admin can change members’ access, remove members, or make inviting admin-only.",
+        "Every member can invite people, at no more than their own access.",
+        "Filters in ledgers with several members add Recorded by, to filter by member or show only the entries you recorded.",
+        "Filters can select several months at once.",
+      ] },
+      { heading: "Improvements", items: [
+        "Members who could edit now have Edit all, and view-only members now have Read only; Read only members can also export.",
+        "Same filter for Entries and Insights moved to the settings (gear) at the top right of the filter panel.",
+        "The current month can always be selected in filters, even before it has entries.",
+        "With Layered glass, the date bars in edit history no longer show a white band.",
+      ] },
+      { heading: "Notes", items: [
+        "After updating, this device downloads its saved history once more in the background so it can filter by Recorded by.",
+      ] },
+    ],
+  },
   "1.19.53": {
     title: "Shared filters for Entries and Insights",
     summary: "Entries and Insights now share one filter by default, and filters are kept; entry pages, the keyboard, and materials and transitions in the new styles are more complete.",

@@ -1,0 +1,14 @@
+# S19 账本权限分级私人部署（1.19.56）；先单独执行迁移（新增 recorder 角色与 invite_admin_only），再切换 api/web，数据库与 relay 不重建。
+services:
+  migrate:
+    image: libevra-rc-api:1.19.56-20261111
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.19.56-20261111
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.19.56-20261111
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
