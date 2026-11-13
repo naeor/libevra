@@ -1,6 +1,6 @@
 # AGENTS.md — Libevra
 
-> 最后修改：2026-11-13 23:20（UTC+08:00）
+> 最后修改：2026-11-14 02:07（UTC+08:00）
 
 本文件只规定 Agent 的工作方式与授权边界。当前状态见 [STATUS](docs/STATUS.md)，专题规则通过[任务索引](docs/00-索引.md)和逐层 README 查找。回复、文档与提交信息使用中文。
 
@@ -19,6 +19,8 @@ Libevra 是 naeor 个人主导、AI 辅助的非商业记账项目，离线优�
 ## 3. 按任务查规范
 
 [任务索引](docs/00-索引.md)负责完整路由；源码从 [apps](apps/README.md)、[packages](packages/README.md) 逐层定位。UI 查[设计目录](docs/specs/design/README.md)，接口与数据查[技术方案](docs/02-技术方案.md)，开发/测试查[开发与验收规范](docs/ops/开发与验收规范.md)，部署查[运维手册](docs/03-运维手册.md)。
+
+分派子 Agent 时按[子 Agent 分派与额度控制](docs/ops/子Agent分派与额度控制.md)选模型、写任务说明：质量优先，按任务重要性分配额度，不重复计算。
 
 反复修复失败、根因不明、跨页面相似症状或平台差异，可采用[Diagnostic Mode（专项 Bug 诊断模式）](docs/ops/开发与验收规范.md#diagnostic-mode专项-bug-诊断模式)：以证据验证根因再选方案，方法按需组合；常见小 Bug 不必启动完整调查。
 
