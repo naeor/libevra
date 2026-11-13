@@ -9,8 +9,7 @@
  * ⚠️ 文案来自 i18n 而不是硬编码，并且只在 `notes` 里有的头像上显示入口；
  * 以后新增特典头像时，加一条 notes 词条就够，不需要动页面逻辑。
  */
-import { useEffect } from "react";
-
+import { BottomSheet } from "./BottomSheet.js";
 import { Button } from "./Button.js";
 import { useI18n } from "../i18n/index.js";
 import type { SpecialAvatarId } from "@libellum/shared";
@@ -31,45 +30,31 @@ export function AvatarCreationNoteSheet({
 }): React.JSX.Element {
   const { t } = useI18n();
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", onKey);
-
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
   const note =
     avatarId === "daoxuan-special"
       ? t("account.avatars.notes.daoxuan-special")
       : t("account.avatars.notes.descent-special");
 
   return (
-    <div
-      role="presentation"
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 sm:items-center"
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("account.avatars.creationNoteTitle")}
-        onClick={event => {
-          event.stopPropagation();
-        }}
-        className="w-full max-w-md rounded-t-sheet bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] shadow-xl sm:rounded-card sm:pb-5"
-      >
-        <h2 className="text-section-title text-ink">{t("account.avatars.creationNoteTitle")}</h2>
-        <p className="mt-2 text-helper-relaxed text-ink">{note}</p>
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onClose}>{t("account.avatars.creationNoteClose")}</Button>
+    /**
+     * 弹出面板模板 T4 信息说明（1.19.59）：按内容高度，模板标题行与右上角 ×；遮罩改为模板的变暗遮罩
+     * （原来 45% 墨色在深色下发白），Esc、焦点、下拉关闭由外壳负责。宽屏仍居中成小对话框（与原来相同）。
+     * 「知道了」是这类说明唯一的动作，放在固定底部操作区，走外壳的关闭（播放退场）。
+     */
+    <BottomSheet
+      label={t("account.avatars.creationNoteTitle")}
+      title={t("account.avatars.creationNoteTitle")}
+      detent="content"
+      bodyClassName="px-5 pt-1 pb-2"
+      footer={({ close }) => (
+        <div className="flex justify-end">
+          <Button onClick={close}>{t("account.avatars.creationNoteClose")}</Button>
         </div>
-      </div>
-    </div>
+      )}
+      onClose={onClose}
+    >
+      <p className="text-helper-relaxed text-ink">{note}</p>
+    </BottomSheet>
   );
 }
 

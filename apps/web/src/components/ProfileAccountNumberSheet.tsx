@@ -2,9 +2,20 @@ import { useEffect, useRef, useState } from "react";
 
 import { useI18n } from "../i18n/index.js";
 import { copyText } from "../lib/clipboard.js";
+import { BottomSheet } from "./BottomSheet.js";
 import { Button } from "./Button.js";
 
-/** 账号编号的局部操作面板；原生 dialog 负责焦点约束和背景不可交互。 */
+/**
+ * 账号编号的局部操作面板。
+ *
+ * 弹出面板模板 T4 信息说明（1.19.59）：原来是原生 `<dialog>` + 私有的 WAAPI 进出动画；现在与其他底部面板
+ * 同一个 `BottomSheet` 外壳——同一套遮罩、进出动画、下拉关闭、模板标题行与右上角 ×、焦点与 Esc、滚动锁，
+ * 不再进浏览器的顶层（top layer），Pad 分屏时只盖住所在工作区。
+ *
+ * ⚠️ **复制不再传容器。** 原生模态 dialog 会让外部元素不可聚焦，所以原来把 dialog 传给 `copyText` 当复制
+ * 用的临时输入框的容器；现在面板不是原生 dialog，外部元素照常可聚焦，走与软件更新「更多」菜单相同的默认
+ * 路径（临时输入框挂在 body 上）。
+ */
 export function ProfileAccountNumberSheet({
   open,
   number,
@@ -13,103 +24,60 @@ export function ProfileAccountNumberSheet({
   readonly open: boolean;
   readonly number: string;
   readonly onClose: () => void;
-}): React.JSX.Element {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const overlay = useRef<HTMLDivElement>(null);
-  const closing = useRef(false);
-  const animations = useRef<Animation[]>([]);
-  const session = useRef(0);
-  const [phase, setPhase] = useState<"idle" | "copying" | "copied" | "manual">("idle");
+}): React.JSX.Element | null {
   const { t } = useI18n();
+  if (!open) return null;
 
+  return (
+    <BottomSheet
+      label={t("account.accountNumberSheet.title")}
+      title={t("account.accountNumberSheet.title")}
+      detent="content"
+      wide="bottom"
+      bodyClassName="px-5 pt-1 pb-4"
+      initialFocus={(panel) => panel.querySelector<HTMLButtonElement>("[data-sheet-close]")}
+      onClose={onClose}
+    >
+      <AccountNumberBody number={number} />
+    </BottomSheet>
+  );
+}
+
+function AccountNumberBody({ number }: { readonly number: string }): React.JSX.Element {
+  const { t } = useI18n();
+  const [phase, setPhase] = useState<"idle" | "copying" | "copied" | "manual">("idle");
+  /** 面板关闭（卸载）后不再回写复制结果。 */
+  const mounted = useRef(true);
   useEffect(() => {
-    const element = dialog.current;
-    if (!open || element === null) return;
-    const previousFocus = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closing.current = false;
-    session.current += 1;
-    setPhase("idle");
-    element.showModal();
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      animations.current = [
-        panel.current!.animate([{ transform: "translateY(100%)" }, { transform: "translateY(0)" }], {
-          duration: 260, easing: "cubic-bezier(0.32, 0.72, 0, 1)",
-        }),
-        overlay.current!.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "ease-out" }),
-      ];
-    }
+    mounted.current = true;
     return () => {
-      session.current += 1;
-      animations.current.forEach((animation) => animation.cancel());
-      element.close();
-      document.body.style.overflow = previousOverflow;
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      mounted.current = false;
     };
-  }, [open]);
-
-  async function close(): Promise<void> {
-    if (closing.current) return;
-    closing.current = true;
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      // 从当前插值位置收回，避免刚打开就关闭时先跳到终点。
-      const start = getComputedStyle(panel.current!).transform;
-      const opacity = getComputedStyle(overlay.current!).opacity;
-      animations.current.forEach((animation) => animation.cancel());
-      animations.current = [
-        panel.current!.animate([{ transform: start }, { transform: "translateY(100%)" }], {
-          duration: 180, easing: "ease-in", fill: "forwards",
-        }),
-        overlay.current!.animate([{ opacity }, { opacity: 0 }], { duration: 180, fill: "forwards" }),
-      ];
-      try { await Promise.all(animations.current.map((animation) => animation.finished)); }
-      catch { return; } // 路由卸载时取消动画，不再回调旧页面。
-    }
-    onClose();
-  }
+  }, []);
 
   async function copy(): Promise<void> {
-    const startedIn = session.current;
     setPhase("copying");
-    const outcome = await copyText(number, dialog.current ?? undefined);
-    if (startedIn === session.current && dialog.current?.open) {
-      setPhase(outcome === "copied" ? "copied" : "manual");
-    }
+    const outcome = await copyText(number);
+    if (mounted.current) setPhase(outcome === "copied" ? "copied" : "manual");
   }
 
   return (
-    <dialog
-      ref={dialog}
-      aria-label={t("account.accountNumberSheet.title")}
-      aria-modal="true"
-      onCancel={(event) => { event.preventDefault(); void close(); }}
-      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 backdrop:bg-transparent open:flex open:items-end open:justify-center"
-    >
-      <div ref={overlay} aria-hidden="true" onClick={() => void close()} className="absolute inset-0 bg-overlay-soft" />
-      <div ref={panel} className="relative flex max-h-[calc(100dvh-24px)] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-sheet border border-line bg-surface px-5 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-sheet">
-        <span aria-hidden="true" className="mx-auto h-1 w-10 shrink-0 rounded-full bg-line" />
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="min-w-0 text-section-title text-ink">{t("account.accountNumberSheet.title")}</h2>
-          <button type="button" autoFocus onClick={() => void close()} aria-label={t("account.accountNumberSheet.close")} className="flex size-11 items-center justify-center rounded-full text-body text-muted transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring">✕</button>
-        </div>
-        <p className="select-all py-2 text-center font-mono text-page-title text-ink tabular-nums">{number}</p>
-        <Button onClick={() => void copy()} disabled={phase === "copying"}>
-          {phase === "copied"
-            ? t("account.accountNumberSheet.copied")
-            : phase === "copying"
-              ? t("account.accountNumberSheet.copying")
-              : t("account.accountNumberSheet.copy")}
-        </Button>
-        <p role="status" aria-live="polite" className="min-h-5 text-center text-helper-relaxed text-muted">
-          {phase === "manual"
-            ? t("account.accountNumberSheet.manual")
-            : phase === "copied"
-              ? t("account.accountNumberSheet.copiedStatus")
-              : ""}
-        </p>
-      </div>
-    </dialog>
+    <div className="flex flex-col gap-3">
+      <p className="select-all py-2 text-center font-mono text-page-title text-ink tabular-nums">{number}</p>
+      <Button onClick={() => void copy()} disabled={phase === "copying"}>
+        {phase === "copied"
+          ? t("account.accountNumberSheet.copied")
+          : phase === "copying"
+            ? t("account.accountNumberSheet.copying")
+            : t("account.accountNumberSheet.copy")}
+      </Button>
+      <p role="status" aria-live="polite" className="min-h-5 text-center text-helper-relaxed text-muted">
+        {phase === "manual"
+          ? t("account.accountNumberSheet.manual")
+          : phase === "copied"
+            ? t("account.accountNumberSheet.copiedStatus")
+            : ""}
+      </p>
+    </div>
   );
 }

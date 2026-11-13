@@ -11,6 +11,7 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
+| [AllCurrenciesSheet.tsx](AllCurrenciesSheet.tsx) | 界面模块；入口/导出：AllCurrenciesSheet |
 | [BatchActionBar.tsx](BatchActionBar.tsx) | 界面模块；入口/导出：BatchActionBar |
 | [BatchEditSheet.tsx](BatchEditSheet.tsx) | 界面模块；入口/导出：BatchEditSheet |
 | [BatchRoleProbe.tsx](BatchRoleProbe.tsx) | 界面模块；入口/导出：BatchRoleProbe |

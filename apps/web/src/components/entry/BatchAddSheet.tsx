@@ -12,6 +12,8 @@ import { t as translate, useI18n } from "../../i18n/index.js";
 import { categoryPath } from "@libellum/shared";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { Alert } from "../Alert.js";
+import { BottomSheet } from "../BottomSheet.js";
+import { leavePage } from "../../lib/closeGuard.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
 import { ChoiceDialog, type Choice } from "../ChoiceDialog.js";
 import { ConfirmDialog } from "../ConfirmDialog.js";
@@ -218,9 +220,12 @@ export function BatchAddSheet({
   const [savedCount, setSavedCount] = useState<number | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<string | null>(null);
   const [duplicateCount, setDuplicateCount] = useState(0);
+  /** 打开后动过卡片（改字段、加卡、删卡）：关闭前询问（所有者 2026-11-14，输入多、误关损失大）。 */
+  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setTouched(false);
     setDrafts([initialBatchDraft(source, paymentFallback)]);
     setErrors({});
     setError(null);
@@ -238,10 +243,12 @@ export function BatchAddSheet({
   const totalCurrency = currencies.size === 1 ? drafts[0]?.currency ?? "CNY" : null;
 
   function updateDraft(id: string, patch: Partial<BatchEntryDraft>): void {
+    setTouched(true);
     setDrafts((current) => current.map((draft) => (draft.id === id ? { ...draft, ...patch } : draft)));
   }
 
   function addCard(): void {
+    setTouched(true);
     setDrafts((current) => [
       ...current,
       emptyBatchDraft(paymentFallback, new Date(), current[0]?.currency ?? "CNY"),
@@ -254,11 +261,13 @@ export function BatchAddSheet({
       setRemoveCandidate(id);
       return;
     }
+    setTouched(true);
     setDrafts((current) => current.filter((draft) => draft.id !== id));
   }
 
   function confirmRemove(): void {
     if (removeCandidate === null) return;
+    setTouched(true);
     setDrafts((current) => current.filter((draft) => draft.id !== removeCandidate));
     setRemoveCandidate(null);
   }
@@ -344,39 +353,57 @@ export function BatchAddSheet({
 
   return (
     <>
-      <div aria-hidden="true" onClick={onClose} className="fixed inset-0 z-40 bg-overlay-soft backdrop-in" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("entry.batch.title")}
-        className="sheet-in fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(var(--lv-vh)*100_-_12px)] w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-canvas shadow-sheet"
+      {/*
+        弹出面板模板 T5（1.19.59）：大档，模板标题行与右上角 ×（原来是右上角「取消」文字按钮）、下拉关闭、
+        焦点与 Esc 由外壳负责；补上软键盘抬升（面板整体抬到键盘之上）；面板改为模板的操作面材质（原来是
+        bg-canvas、没有材质）。保存中（busy）点遮罩、下拉、×、Esc 都不关闭；动过卡片还没保存时关闭先询问。
+        宽屏下仍一直贴底（与原来相同）。嵌套的删除确认与疑似重复选择、「去账本设置」的整页跳转行为不变。
+      */}
+      <BottomSheet
+        label={t("entry.batch.title")}
+        title={t("entry.batch.title")}
+        detent="large"
+        wide="bottom"
+        busy={busy}
+        dirty={touched && savedCount === null}
+        onClose={onClose}
+        footer={savedCount !== null ? undefined : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-2 text-sm">
+              <span className="text-muted">{t("entry.batch.cardCount", { count: drafts.length })}</span>
+              <span className="min-w-0 font-medium text-ink">
+                {totalCurrency === null
+                  ? t("entry.batch.mixedCurrencies")
+                  : t("entry.batch.total", {
+                      currency: currencyName(totalCurrency),
+                      amount: minorToInput(batchTotalCents(drafts), totalCurrency),
+                    })}
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={busy || drafts.length === 0}
+              onClick={() => void saveAll()}
+              className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
+            >
+              {busy ? t("common.action.saving") : t("entry.batch.saveCount", { count: drafts.length })}
+            </button>
+          </>
+        )}
       >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-5 py-3">
-          <h2 className="min-w-0 text-base font-medium text-ink">{t("entry.batch.title")}</h2>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onClose}
-            className="shrink-0 text-sm font-medium text-brand-dark disabled:opacity-45"
-          >
-            {t("common.action.cancel")}
-          </button>
-        </div>
-
-        {savedCount !== null ? (
+        {(_close, sheet) => savedCount !== null ? (
           <div className="flex flex-col gap-5 p-5">
             <Alert tone="success">{t("entry.batch.saved", { count: savedCount })}</Alert>
             <button
               type="button"
-              onClick={onClose}
+              onClick={sheet.finish}
               className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand"
             >
               {t("common.action.done")}
             </button>
           </div>
         ) : (
-          <>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-line px-4 py-4">
               {error === null ? null : (
                 <div className="pb-3">
                   <Alert>{error}</Alert>
@@ -420,7 +447,8 @@ export function BatchAddSheet({
                     const bookId = ledgerData?.book.id;
                     if (bookId === undefined) return;
                     onClose();
-                    window.location.assign(`/books/${bookId}/settings`);
+                    // 原来是 window.location.assign；有改动时面板压过一条返回保护记录，交给 leavePage 一并处理。
+                    leavePage(`/books/${bookId}/settings`);
                   }}
                   className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-helper text-muted transition hover:text-ink"
                 >
@@ -428,31 +456,8 @@ export function BatchAddSheet({
                 </button>
               </div>
             </div>
-
-            <div className="shrink-0 border-t border-line bg-surface px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-2 text-sm">
-                <span className="text-muted">{t("entry.batch.cardCount", { count: drafts.length })}</span>
-                <span className="min-w-0 font-medium text-ink">
-                  {totalCurrency === null
-                    ? t("entry.batch.mixedCurrencies")
-                    : t("entry.batch.total", {
-                        currency: currencyName(totalCurrency),
-                        amount: minorToInput(batchTotalCents(drafts), totalCurrency),
-                      })}
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={busy || drafts.length === 0}
-                onClick={() => void saveAll()}
-                className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
-              >
-                {busy ? t("common.action.saving") : t("entry.batch.saveCount", { count: drafts.length })}
-              </button>
-            </div>
-          </>
         )}
-      </div>
+      </BottomSheet>
 
       <ConfirmDialog
         open={removeCandidate !== null}

@@ -51,7 +51,11 @@ describe("BatchAddSheet screen", () => {
     expect(html).toContain("再记一笔");
     expect(html).toContain("记账设置");
     expect(html).toContain("保存 1 笔");
-    expect(html).toContain("取消");
+    // 1.19.59 弹出面板模板：右上角「取消」文字按钮换成统一的 ×；大档、一直贴底；保存按钮在固定底部操作区。
+    expect(html).toContain("data-sheet-close");
+    expect(html).toContain('data-sheet-detent="large"');
+    expect(html).toContain('data-sheet-wide="bottom"');
+    expect(html.indexOf("保存 1 笔")).toBeGreaterThan(html.indexOf("data-sheet-footer"));
   });
 
   it("renders nothing when closed", () => {

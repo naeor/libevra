@@ -32,6 +32,7 @@ import { OfflineStatus } from "../components/OfflineStatus.js";
 import { ConflictScreen } from "../components/ConflictScreen.js";
 import { SyncBanner } from "../components/SyncBanner.js";
 import { BatchActionBar } from "../components/ledger/BatchActionBar.js";
+import { AllCurrenciesSheet } from "../components/ledger/AllCurrenciesSheet.js";
 import { BatchEditSheet } from "../components/ledger/BatchEditSheet.js";
 import { BatchRoleProbe } from "../components/ledger/BatchRoleProbe.js";
 import { DetailTools } from "../components/ledger/DetailTools.js";
@@ -1411,68 +1412,6 @@ function LedgerNav({
   );
 }
 
-
-/** Every currency the account can use, including the ones with nothing in them. */
-function AllCurrenciesSheet({
-  currencies,
-  mainCode,
-  allMonths = false,
-  onClose,
-}: {
-  readonly currencies: readonly CurrencySummary[];
-  readonly mainCode: string;
-  readonly allMonths?: boolean;
-  readonly onClose: () => void;
-}): React.JSX.Element {
-  const { t } = useI18n();
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button type="button" aria-label={t("common.a11y.close")} onClick={onClose} className="absolute inset-0 bg-overlay" />
-
-      <div
-        role="dialog"
-        aria-label={t("ledger.detail.allCurrencies")}
-        className="relative w-full max-w-md rounded-t-sheet bg-surface px-6 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
-      >
-        <h2 className="mb-4 text-base font-medium text-ink">{t("ledger.detail.allCurrencies")}</h2>
-
-        <ul className="flex flex-col gap-2">
-          {CURRENCIES.map((code) => {
-            const row = currencies.find((item) => item.currency === code);
-
-            return (
-              <li key={code} className="flex items-center justify-between gap-3 rounded-field bg-canvas px-4 py-3">
-                <span className="min-w-0 text-sm text-ink">
-                  {currencyName(code)}
-                  {code === mainCode ? (
-                    <span className="ml-2 text-xs text-muted">{t("ledger.detail.mainCurrency")}</span>
-                  ) : null}
-                </span>
-
-                {row === undefined ? (
-                  <span className="shrink-0 text-xs text-muted">{allMonths ? t("ledger.detail.noData") : t("ledger.detail.nothingThisMonth")}</span>
-                ) : (
-                  <span className="shrink-0 text-sm tabular-nums text-ink">
-                    {formatMoney(row.expenseCents, row.currency)}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-4 w-full rounded-field bg-brand-soft py-3 text-sm font-medium text-brand-dark"
-        >
-          {t("common.action.close")}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * 头部的月份文字（S16）。
