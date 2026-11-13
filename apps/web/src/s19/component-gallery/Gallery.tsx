@@ -11,6 +11,7 @@ import { ChoiceSheet } from "../../components/ui/ChoiceSheet.js";
 import { CapsuleButton, IconButton, SegmentedControl, Switch } from "../../components/ui/PurposeControls.js";
 import { MotionPresence, useComponentFeedback } from "../../components/ui/ComponentMotion.js";
 import { StandardStatesExample } from "./StandardStates.js";
+import { SelectionLabSection } from "./SelectionLab.js";
 import { LayoutPatterns, StandaloneBottomPattern } from "./LayoutPatterns.js";
 import { applyB2Glass, B2_GLASS_PRESETS, type B2GlassPreset } from "../b2Glass.js";
 import { MATERIAL_DEFAULTS, materialCapability, materialTuningStyle, type MaterialAppearance, type MaterialFinish } from "../material.js";
@@ -23,7 +24,7 @@ const STYLES = [{ value: "a", label: "A" }, { value: "b1", label: "B1" }, { valu
 type Style = typeof STYLES[number]["value"];
 const NAMES = { a: "Soft Surface · 柔和薄片", b1: "Porcelain · 温润瓷质", b2: "Glass · 轻盈玻璃", c: "Classic Surface · 经典纸面" };
 const PRESETS = [{ value: "clear", label: "清透" }, { value: "balanced", label: "均衡" }, { value: "soft", label: "柔和" }] as const;
-const SECTIONS = [{ id: "buttons", name: "按钮" }, { id: "cards", name: "卡片与材质" }, { id: "capsules", name: "胶囊" }, { id: "inputs", name: "输入与选择" }, { id: "overlays", name: "弹窗与面板" }, { id: "motion", name: "动效" }, { id: "states", name: "标签与状态" }, { id: "layouts", name: "布局模式" }];
+const SECTIONS = [{ id: "buttons", name: "按钮" }, { id: "cards", name: "卡片与材质" }, { id: "capsules", name: "胶囊" }, { id: "inputs", name: "输入与选择" }, { id: "overlays", name: "弹窗与面板" }, { id: "motion", name: "动效" }, { id: "states", name: "标签与状态" }, { id: "layouts", name: "布局模式" }, { id: "selection", name: "选中指示与条件标签" }];
 
 function Example({ title, note, code, children }: { title: string; note: string; code: string; children: ReactNode }) {
   return <div className="cg-example"><h3>{title}</h3><p>{note}</p><div className="cg-specimen">{children}</div><details><summary>调用示例 · 复制</summary><CopyButton text={code} label="复制代码" variant="secondary" rows={Math.min(6, code.split("\n").length + 1)} /></details></div>;
@@ -32,7 +33,7 @@ function Range({ label, value, onChange, min = 0, max = 100 }: { label: string; 
   return <label className="cg-range"><span>{label}<output>{value}</output></span><input type="range" aria-label={label} min={min} max={max} value={value} onChange={e => onChange(Number(e.target.value))} /></label>;
 }
 function Gallery() {
-  const [style, setStyle] = useState<Style>(() => STYLES.find(s => s.value === new URLSearchParams(location.search).get("style"))?.value ?? "b2");
+  const [style, setStyle] = useState<Style>(() => { const q = new URLSearchParams(location.search); return STYLES.find(s => s.value === (q.get("s19") ?? q.get("style")))?.value ?? "b2"; });
   const [preset, setPreset] = useState<B2GlassPreset>("balanced"), [finish, setFinish] = useState<MaterialFinish>("auto"), [enhanced, setEnhanced] = useState(false);
   const [edge, setEdge] = useState<number>(MATERIAL_DEFAULTS.edge * 100), [reflection, setReflection] = useState<number>(MATERIAL_DEFAULTS.reflection * 100);
   const [opacity, setOpacity] = useState<number | undefined>(), [radius, setRadius] = useState<number | undefined>(), [elevation, setElevation] = useState<NonNullable<MaterialAppearance["elevation"]>>("default");
@@ -91,6 +92,7 @@ function Gallery() {
       </Example></section>
       <section id="states"><h2><span>07</span> 标签、搜索与状态反馈</h2><div className="cg-example"><StandardStatesExample /></div></section>
       <section id="layouts"><h2><span>08</span> 布局模式</h2><div className="cg-example"><LayoutPatterns style={style} preset={preset} /></div></section>
+      <section id="selection"><h2><span>09</span> 选中指示与已选条件标签（设计样板）</h2><div className="cg-example"><SelectionLabSection /></div></section>
       <footer className="cg-footer">标准组件 → 共享材质 → 既有 Token。业务页面的布局、权限、导航由页面负责。<br />普通使用只声明用途；候选材质通过 appearance 显式开启。</footer>
     </div></div>
     <ConfirmDialog open={panel === "confirm"} title="确认这次示例选择？" description="这是组件展示，不会修改账目。" tone="default" onConfirm={() => { setSuccess(v => v + 1); setPanel("none"); }} onCancel={() => setPanel("none")} />
