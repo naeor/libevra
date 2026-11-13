@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 
 import { APP_VERSION } from "@libellum/shared";
 
+import { BottomSheet, SheetCloseButton } from "./BottomSheet.js";
 import { Button } from "./Button.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { localizeMajorAnnouncement } from "../i18n/content/index.js";
@@ -19,7 +20,6 @@ import {
 import { deliverFile } from "../lib/share.js";
 import { errorMessage } from "../lib/api.js";
 import { selectDisplayedMajorAnnouncement } from "../lib/majorAnnouncementVisibility.js";
-import { materialAttributes } from "../s19/material.js";
 import "../s19/overlays.css";
 
 /** Pages where a gentle announcement must not interrupt an active input/import flow. */
@@ -273,15 +273,12 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
           title={shownMajor!.title}
           eyebrow={t("legal.consent.majorEyebrow", { version: pendingMajor!.version })}
           closeAction={
-            <button
-              type="button"
-              aria-label={t("legal.consent.closeMajor")}
+            /* 重大公告的 ×：门禁变体里唯一的关闭入口，会记一次“已关闭”；外观与模板的 × 一致（1.19.59）。 */
+            <SheetCloseButton
+              label={t("legal.consent.closeMajor")}
               disabled={busy}
               onClick={() => void onAckMajor("dismissed")}
-              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
-            >
-              ×
-            </button>
+            />
           }
           footer={
             <>
@@ -305,15 +302,17 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
  * One shared shell for all three dialogs.
  *
  * The header and footer are outside the scroll container, so the actions never move off-screen
- * when the body gets long. Height comes from one CSS class rather than three per-dialog heights;
- * `dvh` follows the iOS address bar and the media query gives very short viewports more room.
+ * when the body gets long. Height comes from the template's large detent on phones and from one CSS
+ * class (`consent.css`) on wider screens; `dvh` follows the iOS address bar.
  *
- * S19 材质（1.19.57）：面板声明展示（display）用途并挂弹层钩子，浅色手机外壳里与展示卡片同一材质——
- * A 柔和薄片、B1 瓷面、B2 内容玻璃、C 纸面——里面的 `Button` 按各自用途取材质（`s19/overlays.css`）。
- * 遮罩仍是原来的 `--color-overlay-soft`，只在外壳里改由根节点的伪元素以同色、同节奏淡入
- * （`data-overlay-scrim="soft"`）：根节点自己不再做透明度动画，B2 面板的背景模糊才能一直采样到后方页面。
- * 位置、进出动画与 Original、深色、Pad、电脑版的外观不变。全局门禁的这一份由外壳渲染在
- * `.lv-shell` 里面（`WorkspaceShell` 的 `wrapChrome`），账号数据页里的用法本来就在外壳内。
+ * 弹出面板模板 T5 的**门禁变体**（1.19.59）：外壳是 `BottomSheet`——没有 `onDismiss` 时不能随手关闭
+ * （没有 ×、Esc 无效、点遮罩与下拉都不关），层级最高（`layer="gate"`，原来就是 z-[80]）；
+ * 有 `onDismiss` 的（账号数据页的注销确认）点遮罩、×、Esc、下拉都等于取消。
+ * S19 材质（1.19.57）保持：面板声明展示（display）用途，浅色手机外壳里与展示卡片同一材质——A 柔和薄片、
+ * B1 瓷面、B2 内容玻璃（1.19.59 起填充提到操作玻璃下限，小字更清楚）、C 纸面；里面的 `Button` 按各自用途取材质。
+ * 遮罩改为模板的大档遮罩（浅色 Original .35、深色黑色 .52、S19 各风格的 --s19-scrim）。
+ * 全局门禁的这一份由外壳渲染在 `.lv-shell` 里面（`WorkspaceShell` 的 `wrapChrome`），账号数据页里的用法本来就在外壳内。
+ * 门禁条件与确认写入不在这里，没有改动。
  */
 export function ConsentDialog({
   title,
@@ -327,60 +326,33 @@ export function ConsentDialog({
   readonly eyebrow?: string | undefined;
   readonly closeAction?: React.ReactNode;
   readonly footer: React.ReactNode;
-  /** When set, clicking the grey backdrop calls this (same as a cancel button). */
+  /** When set, clicking the grey backdrop (or ×, Esc, pulling down) calls this (same as a cancel button). */
   readonly onDismiss?: (() => void) | undefined;
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div
-      data-overlay-root="sheet"
-      data-overlay-state="open"
-      data-overlay-scrim="soft"
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-overlay-soft backdrop-in sm:items-center sm:p-3"
-      onClick={(event) => {
-        /**
-         * ⚠️ Only the backdrop itself dismisses. Clicks inside the sheet bubble up to this
-         * container with a different target; treating every bubble as "outside" would make a
-         * submit button close the dialog instead of running its action.
-         */
-        if (event.target === event.currentTarget && onDismiss !== undefined) {
-          onDismiss();
-        }
+    <BottomSheet
+      label={title}
+      title={
+        <span className="flex flex-col">
+          {eyebrow === undefined ? null : <span className="text-helper font-normal text-muted">{eyebrow}</span>}
+          <span className="mt-1 text-page-title text-ink">{title}</span>
+        </span>
+      }
+      headerActions={closeAction}
+      detent="large"
+      material="display"
+      layer="gate"
+      dismissible={onDismiss !== undefined}
+      dialogClassName="consent-dialog"
+      bodyClassName="border-t border-line px-5 py-4"
+      footer={<div className="flex flex-col gap-2">{footer}</div>}
+      onClose={() => {
+        onDismiss?.();
       }}
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="consent-dialog-title"
-        data-overlay-surface="sheet"
-        {...materialAttributes("display")}
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="consent-dialog relative z-0 flex w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface shadow-sheet sheet-in sm:rounded-card"
-      >
-
-        <header className="shrink-0 border-b border-line px-5 pb-3 pt-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              {eyebrow === undefined ? null : <p className="text-helper text-muted">{eyebrow}</p>}
-              <h2 id="consent-dialog-title" className="mt-1 text-page-title text-ink">
-                {title}
-              </h2>
-            </div>
-            {closeAction}
-          </div>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
-          {children}
-        </div>
-
-        <footer className="shrink-0 border-t border-line px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-3">
-          <div className="flex flex-col gap-2">{footer}</div>
-        </footer>
-      </section>
-    </div>
+      {children}
+    </BottomSheet>
   );
 }
 

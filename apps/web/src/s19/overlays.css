@@ -50,18 +50,19 @@ html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] 
 }
 /* 展示材质的弹层面板（同意书 / 协议 / 重大公告 ConsentDialog，1.19.57）：面板声明 display 用途，
    与展示卡片同一材质——A 柔和薄片、B1 瓷面、B2 内容玻璃、C 纸面 + 细线；按钮仍按各自用途取材质。
-   B2 有意不套用上面操作玻璃的填充下限（所有者要求内容玻璃），但保留弹层统一的伪元素背景模糊：
-   没有模糊时后方页面的文字会直接透过面板。稳定默认，不读 finish / optics 候选。 */
+   B2 保留弹层统一的伪元素背景模糊（没有模糊时后方页面的文字会直接透过面板）；1.19.59 起填充提到操作玻璃的
+   下限（见下方 B2 规则）。稳定默认，不读 finish / optics 候选。1.19.59 起这类面板是弹出面板模板 T5 的门禁变体，
+   遮罩与其他弹层一样用 --s19-scrim。 */
 html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before {
   background: var(--s19-card-bg);
   box-shadow: 0 0 0 1px var(--s19-card-line, transparent), var(--s19-card-sh);
 }
+/* B2：同意书一类展示面板的填充提到操作玻璃下限（内容 + .12，1.19.59），仍保持玻璃感与上面的背景模糊。 */
+html:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before {
+  background: var(--s19-display-sheet-bg);
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   html:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before { background: var(--color-surface); }
-}
-/* 这类面板沿用组件原来的遮罩颜色（--color-overlay-soft），只把绘制交给根节点伪元素（同一 180ms 淡入），根节点不做透明度动画。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root][data-overlay-scrim="soft"]::before {
-  background: var(--color-overlay-soft);
 }
 
 /* 淡入淡出只发生在材质层和内容层，不在两者的父节点上创建采样边界。

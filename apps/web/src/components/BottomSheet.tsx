@@ -327,14 +327,15 @@ export function SheetHeader({
 }
 
 /** 统一的右上角关闭按钮：44px 圆形点击区、同一个细线 × 图标。 */
-export function SheetCloseButton({ label, onClick }: { readonly label: string; readonly onClick: () => void }): React.JSX.Element {
+export function SheetCloseButton({ label, onClick, disabled = false }: { readonly label: string; readonly onClick: () => void; readonly disabled?: boolean }): React.JSX.Element {
   return (
     <button
       type="button"
       data-sheet-close
       onClick={onClick}
+      disabled={disabled}
       aria-label={label}
-      className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
+      className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring disabled:opacity-45"
     >
       <CloseIcon className="size-[18px]" />
     </button>

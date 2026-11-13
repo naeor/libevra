@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { ChoiceDialog } from "./ChoiceDialog.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
+import { ConsentDialog } from "./ConsentGate.js";
+import { ProfileAccountNumberSheet } from "./ProfileAccountNumberSheet.js";
 
 /**
  * 弹出面板模板的令牌与中央对话框外壳（1.19.58，规格 S19 设计系统「弹出面板模板」）。
@@ -50,7 +52,7 @@ describe("模板令牌集中定义", () => {
     expect(block(read("../index.css"), 'html:root[data-visual-style="b2"] {')).toContain("--s19-scrim:");
   });
 
-  it("同意书弹窗自带遮罩，模板的遮罩伪元素不再叠一层", () => {
+  it("模板遮罩伪元素只认模板的两档，不给自带底色的旧弹层再叠一层", () => {
     expect(css).not.toMatch(/\[data-overlay-root\]\[data-overlay-scrim\]::before/);
     expect(css).toContain('[data-overlay-scrim="sheet"], [data-overlay-scrim="dialog"]');
   });
@@ -154,6 +156,87 @@ describe("标准组件迁到模板外壳（源码断言）", () => {
     expect(read("../statsWorkbench/StatsControls.tsx")).not.toContain("statsWorkbench.controls.close");
     expect(read("../pages/ThemeAppearancePage.tsx")).not.toContain('t("common.action.close")');
     expect(read("../statsWorkbench/PresetSheet.tsx")).not.toContain('t("common.action.done")');
+  });
+});
+
+describe("自绘与原生弹窗迁到模板（1.19.59）", () => {
+  const panels: Readonly<Record<string, string>> = {
+    "./UpdateMoreSheet.tsx": "T1",
+    "./AvatarCreationNoteSheet.tsx": "T4",
+    "./ledger/BatchEditSheet.tsx": "T2",
+    "./ledger/AllCurrenciesSheet.tsx": "T4",
+    "./entry/BatchAddSheet.tsx": "T5",
+    "./ProfileAccountNumberSheet.tsx": "T4",
+    "./Attachments.tsx": "T5",
+    "./BookNotificationBell.tsx": "T4",
+    "./ConsentGate.tsx": "T5 门禁",
+  };
+
+  it("都用模板外壳，不再有原生 <dialog>、私有遮罩与私有进出动画", () => {
+    for (const file of Object.keys(panels)) {
+      // 注释里提到原来的写法不算。
+      const source = read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+      expect(source, file).toContain("<BottomSheet");
+      expect(source, file).not.toContain("<dialog");
+      expect(source, file).not.toContain("showModal");
+      expect(source, file).not.toContain(".animate(");
+      expect(source, file).not.toContain("bg-ink/45");
+    }
+    // 全部币种抽成了独立组件。
+    expect(read("../pages/DetailPage.tsx")).not.toContain("function AllCurrenciesSheet");
+  });
+
+  it("批量修改只换外壳：禁用原因与应用条件原地不动", () => {
+    const source = read("./ledger/BatchEditSheet.tsx");
+    expect(source).toContain("const applyReason =\n    blockedReason ??");
+    expect(source).toContain("disabled={mixedKinds || blockedReason !== null}");
+    expect(source).toContain("disabled={applyReason !== null || busy}");
+  });
+
+  it("关闭前询问按所有者的分类接入：有输入的五处询问，筛选直接关闭", () => {
+    for (const file of ["./entry/BatchAddSheet.tsx", "../statsWorkbench/CardEditor.tsx", "./MessageQuote.tsx", "./ledger/BatchEditSheet.tsx", "./CategoryTreeList.tsx"]) {
+      expect(read(file), file).toContain("dirty={");
+    }
+    expect(read("./EntryFilterPanel.tsx")).not.toContain("dirty={");
+    expect(read("../workspace/GlobalRail.tsx")).not.toContain("dirty={");
+  });
+
+  it("账号编号：模板标题行、复制按钮，打开后不靠原生 dialog", () => {
+    const html = renderToStaticMarkup(<ProfileAccountNumberSheet open number="LV-123456" onClose={() => undefined} />);
+    expect(html).toContain("LV-123456");
+    expect(html).toContain("data-sheet-close");
+    expect(html).toContain('data-sheet-detent="content"');
+    expect(html).not.toContain("<dialog");
+    expect(renderToStaticMarkup(<ProfileAccountNumberSheet open={false} number="LV-1" onClose={() => undefined} />)).toBe("");
+  });
+
+  it("同意书是门禁变体：没有 ×、没有拖动条、层级最高、展示材质", () => {
+    const gate = renderToStaticMarkup(<ConsentDialog title="用户协议" footer={<button type="button">同意</button>}><p>摘要</p></ConsentDialog>);
+    expect(gate).not.toContain("data-sheet-close");
+    expect(gate).not.toContain("data-sheet-handle");
+    expect(gate).toContain("z-[80]");
+    expect(gate).toContain('data-material-role="display"');
+    expect(gate).toContain('data-sheet-gate="true"');
+    // 账号数据页的注销确认可以取消：有 × 与拖动条。
+    const cancellable = renderToStaticMarkup(<ConsentDialog title="注销账号" onDismiss={() => undefined} footer={null}><p>说明</p></ConsentDialog>);
+    expect(cancellable).toContain("data-sheet-close");
+  });
+
+  it("B2 同意书面板的填充提到操作玻璃下限（内容 + .12）", () => {
+    const token = block(read("../index.css"), 'html:root[data-visual-style="b2"] {').split("\n").find((line) => line.includes("--s19-display-sheet-bg:")) ?? "";
+    expect(token).toContain("calc(var(--s19-content-fill) + .12)");
+    expect(read("../s19/overlays.css")).toContain("background: var(--s19-display-sheet-bg);");
+  });
+
+  it("附件区 44px 点击区在所有风格生效（通用层，不带风格与浅色条件）", () => {
+    const css = read("../s19/entry-workspace.css");
+    // 规则从行首开始（前面没有 :root[data-visual-style] 或浅色条件）。
+    const file = css.indexOf("\n.lv-shell[data-s19-scope] :is(.lv-capture-file, .lv-attachment-file).lv-material {");
+    const buttons = css.indexOf("\n.lv-shell[data-s19-scope] :is(.lv-capture-attachments, .lv-attachments) :is(.lv-desk-link, .lv-desk-btn).lv-material {");
+    expect(file).toBeGreaterThan(0);
+    expect(buttons).toBeGreaterThan(0);
+    expect(css.slice(file, css.indexOf("}", file))).toContain("min-height: 44px;");
+    expect(css.slice(buttons, css.indexOf("}", buttons))).toContain("min-height: 44px;");
   });
 });
 

@@ -88,6 +88,13 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
   const [submitted, setSubmitted] = useState(false);
   const [allTemplates, setAllTemplates] = useState(false);
   const catalogRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * 关闭前询问（所有者 2026-11-14：配置多、误关损失大）：可编辑的内容与打开时不同才算有改动。
+   * 只比较会被保存的部分（内容、模板、名称、时间、尺寸）；翻目录、搜索、展开模板列表不算。
+   */
+  const editState = JSON.stringify({ slots, chosenTemplate, name, timeMode, relativeWindow, from, to, chosenSize });
+  const [openedState] = useState(editState);
+  const dirty = !readOnly && editState !== openedState;
 
   const counts = countSlots(slots);
   const recommended = recommendTemplate(counts);
@@ -277,6 +284,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
       title={card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")}
       headerLeading={<span className="flex size-11 shrink-0 items-center justify-center text-brand-dark"><ComposeGlyph /></span>}
       detent="large"
+      dirty={dirty}
       onClose={onClose}
       dialogClassName="sw-editor h-[calc(var(--lv-vh)*94)] max-h-[calc(var(--lv-vh)*94)] sm:h-[calc(var(--lv-vh)*88)] sm:max-h-[calc(var(--lv-vh)*88)] md:max-w-5xl"
     >

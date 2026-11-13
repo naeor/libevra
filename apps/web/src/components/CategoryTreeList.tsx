@@ -27,12 +27,14 @@ function CategoryEditor({items,category,parentId:initialParent,kind,onClose,onSa
   const [icon,setIcon]=useState(category?.icon??""),[color,setColor]=useState(category?.color??""),[sortOrder,setSort]=useState(category?.sortOrder??0);
   const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null);
   const excluded=new Set(category?categoryBranchIds(items,[category.id]):[]);
+  /** 关闭前询问（所有者 2026-11-14：设置类编辑、不常用）：任一字段与打开时不同才算有改动。 */
+  const dirty=name!==(category?.name??"")||parentId!==(initialParent??"")||icon!==(category?.icon??"")||color!==(category?.color??"")||sortOrder!==(category?.sortOrder??0);
   const inputClass="min-w-0 w-full rounded-field border border-line bg-surface px-3 py-3 text-base text-ink";
   /**
    * 弹出面板模板（1.19.58）：T2 半屏，模板标题行与右上角 ×；保存中（busy）不响应关闭。
    * 取消走外壳的关闭、保存成功走 `finish`——原来两处都直接调用 `onClose`，面板跳过退场动画瞬间消失。
    */
-  return <BottomSheet label={t(category?"manage.tree.edit":"manage.tree.addChild")} title={t(category?"manage.tree.edit":"manage.tree.addChild")} busy={busy} onClose={onClose} dialogClassName="max-w-lg sm:rounded-sheet" bodyClassName="px-6 pt-1 pb-6">
+  return <BottomSheet label={t(category?"manage.tree.edit":"manage.tree.addChild")} title={t(category?"manage.tree.edit":"manage.tree.addChild")} busy={busy} dirty={dirty} onClose={onClose} dialogClassName="max-w-lg sm:rounded-sheet" bodyClassName="px-6 pt-1 pb-6">
     {(close,sheet)=><form className="flex flex-col gap-4" onSubmit={event=>{event.preventDefault();const input={name:name.trim(),kind,parentId:parentId||null,icon:icon||null,color:color||null,sortOrder};
       try{validateCategoryTree([...items.filter(n=>n.id!==category?.id),{...input,id:category?.id??"new"}]);}catch{setError(t("manage.tree.invalid"));return;}
       setBusy(true);void onSave(category?.id??null,input).then(()=>sheet.finish()).catch(caught=>setError(errorMessage(caught))).finally(()=>setBusy(false));}}>

@@ -119,6 +119,15 @@
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.lv-capture-attachments, .lv-attachments) .lv-desk-btn.lv-material[data-material-role="capsule"] {
   border-color: transparent;
 }
+/* 附件区点击区（1.19.59，所有者 2026-11-14 同意）：44px 属于易用性而非风格，外壳里所有风格（含 Original 与深色）
+   都生效，所以写在通用层、不带风格与浅色条件（今天只有手机外壳设标记；Pad 设上自己的值后同样继承）。
+   只管点击区高度；材质、内边距与字号仍只在上面的浅色 S19 规则里。 */
+.lv-shell[data-s19-scope] :is(.lv-capture-file, .lv-attachment-file).lv-material {
+  min-height: 44px;
+}
+.lv-shell[data-s19-scope] :is(.lv-capture-attachments, .lv-attachments) :is(.lv-desk-link, .lv-desk-btn).lv-material {
+  display: inline-flex; align-items: center; justify-content: center; height: auto; min-height: 44px;
+}
 @media (hover: hover) and (pointer: fine) {
   /* 与 Button 的 danger-quiet 一致：悬停是危险色浅底，而不是电脑版链接的品牌浅底。 */
   :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-desk-link.lv-material[data-material-role="danger-quiet"]:not(:disabled):hover {

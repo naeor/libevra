@@ -10,6 +10,7 @@ import { cancelPendingAttachment, attachmentProgress, attachmentUrl, pendingAtta
   useAttachments, useBookStorage, useAccountStorage, type PendingAttachment } from "../lib/attachments.js";
 import { useBooks } from "../lib/queries.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
+import { BottomSheet } from "./BottomSheet.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { AttachmentPdf } from "./AttachmentPdf.js";
 import { uuidV7 } from "../lib/uuid.js";
@@ -57,13 +58,19 @@ export function AttachmentTransfers(): null {
   return null;
 }
 
+/**
+ * 附件预览。电脑版附件页把它放在列表旁（`inline`，自带标题行）；其余场合是弹出面板。
+ *
+ * 弹出面板模板 T5（1.19.59）：原来是原生 `<dialog>`（浏览器的顶层、背景与 Esc 由浏览器负责，Pad 分屏时盖住
+ * 整个屏幕）。现在是项目自己的 `BottomSheet`：手机上大档（顶部露出一点背景），模板标题行（文件名 + 大小与
+ * 上传者 + 下载 + 右上角 ×）、遮罩、进出动画、安全区与下拉关闭；宽屏仍是居中的大对话框（尺寸见 attachments.css），
+ * 只盖住所在工作区。预览内容与「下载」不变。
+ */
 export function AttachmentPreview({ file, onClose, inline = false }: { file: AttachmentView; onClose: () => void; inline?: boolean }): React.JSX.Element {
-  const { t } = useI18n(); const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { if (!inline) dialog.current?.showModal(); return () => dialog.current?.close(); }, [inline]);
+  const { t } = useI18n();
   const url = attachmentUrl(file);
-  const content = <>
-    <header><div className="min-w-0"><h2 className="truncate text-section-title">{file.name}</h2><p className="text-helper text-muted">{formatStorageBytes(file.sizeBytes)} · {file.uploaderName}</p></div>
-      <a className="lv-desk-btn" href={attachmentUrl(file, true)} download>{t("attachments.download")}</a><button className="lv-desk-btn" onClick={onClose}>{t("attachments.close")}</button></header>
+  const download = <a className="lv-desk-btn" href={attachmentUrl(file, true)} download>{t("attachments.download")}</a>;
+  const body = <>
     <div className="lv-attachment-preview-body">
       {file.mediaType.startsWith("image/") ? <img src={url} alt={file.name} /> : file.mediaType === "application/pdf" ?
         <AttachmentPdf url={url} /> : file.mediaType.startsWith("audio/") ? <audio controls src={url} preload="metadata" /> :
@@ -71,7 +78,16 @@ export function AttachmentPreview({ file, onClose, inline = false }: { file: Att
     </div>
     <nav className="flex flex-wrap gap-3 p-4">{file.entries.map(entry => <Link key={entry.id} className="lv-desk-link" to={`/transactions/${entry.id}?book=${file.bookId}`}>{entry.seq ? `#${String(entry.seq).padStart(6,"0")}` : t("desktop.entries.panel")}{entry.deleted ? ` · ${t("attachments.recoverable")}` : ""}</Link>)}</nav>
   </>;
-  return inline ? <aside className="lv-attachment-inline-preview" aria-label={t("attachments.preview")}>{content}</aside> : <dialog ref={dialog} className="lv-attachment-preview" onCancel={onClose} onClose={onClose}>{content}</dialog>;
+  if (inline) return <aside className="lv-attachment-inline-preview" aria-label={t("attachments.preview")}>
+    <header><div className="min-w-0"><h2 className="truncate text-section-title">{file.name}</h2><p className="text-helper text-muted">{formatStorageBytes(file.sizeBytes)} · {file.uploaderName}</p></div>
+      {download}<button className="lv-desk-btn" onClick={onClose}>{t("attachments.close")}</button></header>
+    {body}
+  </aside>;
+  return <BottomSheet label={file.name} title={<span className="break-all">{file.name}</span>}
+    description={`${formatStorageBytes(file.sizeBytes)} · ${file.uploaderName}`}
+    headerActions={download} detent="large" dialogClassName="lv-attachment-sheet" onClose={onClose}>
+    {body}
+  </BottomSheet>;
 }
 
 export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {

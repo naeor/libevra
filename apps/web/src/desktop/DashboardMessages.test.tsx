@@ -30,7 +30,8 @@ describe("Dashboard 消息来源和未读展示", () => {
     expect(html).toContain("暂无新消息");
     expect(html).not.toContain("查看账户提醒");
     expect(html).toMatch(/<button[^>]*hidden=""[^>]*lv-dash-message-link/);
-    expect(html).toContain("<dialog");
+    // 1.19.59：通知列表改为弹出面板模板，只在打开时渲染；铃铛组件（详情宿主）仍挂载，已打开的列表不会因计数清零而消失。
+    expect(html).toContain('aria-haspopup="dialog"');
   });
   it("英文界面使用英文通知摘要，账本名保留原文", () => {
     applyLocale("en-US");

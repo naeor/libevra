@@ -42,7 +42,7 @@ html[data-theme-mode="dark"] {
 /*
  * 遮罩画在根节点的伪元素上，根节点自己不做透明度动画：面板从下缘升起时不跟着一起淡入，
  * 浅色 S19 外壳里 s19/overlays.css 用同一个伪元素换成 --s19-scrim（B2 的背景模糊才能采样后方页面）。
- * 只认模板的两档（sheet / dialog）：同意书弹窗的 "soft" 由它自己的根节点底色负责，不能再叠一层。
+ * 只认模板的两档（sheet / dialog）：没有模板遮罩标记的旧弹层自带底色，不能再叠一层。
  */
 [data-overlay-root]:is([data-overlay-scrim="sheet"], [data-overlay-scrim="dialog"])::before {
   content: "";

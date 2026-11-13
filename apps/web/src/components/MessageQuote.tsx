@@ -352,6 +352,9 @@ export function QuoteMessageSheet({
     <BottomSheet
       label={tr("collab.messages.quoteAboutTitle")}
       title={tr("collab.messages.quoteAboutTitle")}
+      /* 关闭前询问（所有者 2026-11-14）：写下的文字丢失后要重写；发送中不响应关闭。 */
+      dirty={draft.trim() !== "" || quoteRemoved}
+      busy={send.isPending}
       onClose={onClose}
       dialogClassName="max-h-[calc(var(--lv-vh)*80)] sm:max-h-[calc(var(--lv-vh)*72)]"
       footer={
