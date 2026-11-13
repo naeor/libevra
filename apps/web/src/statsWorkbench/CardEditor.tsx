@@ -268,8 +268,19 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
         : { text: notice, tone: "warn" };
 
   return (
-    <BottomSheet label={card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")} onClose={onClose} dialogClassName="sw-editor h-[calc(var(--lv-vh)*94)] max-h-[calc(var(--lv-vh)*94)] sm:h-[calc(var(--lv-vh)*88)] sm:max-h-[calc(var(--lv-vh)*88)] md:max-w-5xl">
-      {(close) => (
+    /*
+     * 弹出面板模板（1.19.58）：T5 大档（手机上接近全屏、顶部留出一点背景）；模板标题行（图标 + 标题 + 右上角 ×）、
+     * 拖动条与下拉关闭由外壳负责。宽屏仍是原来的 88% 高与宽面板。
+     */
+    <BottomSheet
+      label={card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")}
+      title={card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")}
+      headerLeading={<span className="flex size-11 shrink-0 items-center justify-center text-brand-dark"><ComposeGlyph /></span>}
+      detent="large"
+      onClose={onClose}
+      dialogClassName="sw-editor h-[calc(var(--lv-vh)*94)] max-h-[calc(var(--lv-vh)*94)] sm:h-[calc(var(--lv-vh)*88)] sm:max-h-[calc(var(--lv-vh)*88)] md:max-w-5xl"
+    >
+      {(close, sheet) => (
         <form
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => {
@@ -279,18 +290,10 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
             const built = buildCard(draft, card);
             if (built === null) return;
             // 工作台放不下时面板不关，并在面板里说明（页面的提示条在面板下面看不到）。
-            if (onSave(built, size)) close();
+            if (onSave(built, size)) sheet.finish();
             else say(t("statsWorkbench.editor.saveFailed"));
           }}
         >
-          <header className="flex items-center gap-3 px-5 pt-4 pb-2 sm:px-6">
-            <span className="shrink-0 text-brand-dark"><ComposeGlyph /></span>
-            <h2 className="min-w-0 flex-1 truncate text-section-title text-ink">{card === undefined ? t("statsWorkbench.editor.titleNew") : t("statsWorkbench.editor.titleEdit")}</h2>
-            <button type="button" className="sw-icon-button shrink-0" aria-label={t("statsWorkbench.edit.cancel")} onClick={close}>
-              <XGlyph />
-            </button>
-          </header>
-
           <div className="sw-editor-body min-h-0 flex-1 overflow-y-auto px-5 pb-4 sm:px-6 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:gap-6 md:overflow-hidden md:pb-0">
             {/* ---- 右栏（窄屏在上）：已选内容、模板、尺寸、预览、名称与时间 ---- */}
             <div className="flex min-h-0 flex-col gap-5 md:order-2 md:overflow-y-auto md:pb-4">
@@ -449,7 +452,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
             </div>
           </div>
 
-          <footer className="flex flex-col gap-2 border-t border-line px-5 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:px-6">
+          <footer className="flex flex-col gap-2 border-t border-line px-5 pt-3 pb-3 sm:px-6">
             {/* 平时只有「取消 / 添加」：没选内容时按钮禁用即可，不再常驻一行提示。
                 真正的问题（提交时的配置错误、超出上限、模板被替换、保存失败、来自更新版本）才显示出来；
                 添加 / 移除 / 替换的结果只读给读屏。 */}

@@ -94,6 +94,69 @@ describe("中央对话框（T3）共同外壳", () => {
   });
 });
 
+describe("标准组件迁到模板外壳（源码断言）", () => {
+  const callers = [
+    "./CategoryTreeList.tsx",
+    "./EntryFilterPanel.tsx",
+    "./EntrySortControls.tsx",
+    "./MessageQuote.tsx",
+    "../pages/ThemeAppearancePage.tsx",
+    "../statsWorkbench/CardEditor.tsx",
+    "../statsWorkbench/PresetSheet.tsx",
+    "../statsWorkbench/Sheets.tsx",
+    "../statsWorkbench/StatsControls.tsx",
+    "../workspace/GlobalRail.tsx",
+    "./ui/ChoiceSheet.tsx",
+    "./BookSwitcherSheet.tsx",
+    "./BookManageSheet.tsx",
+    "./MonthPicker.tsx",
+  ];
+
+  it("每个底部面板都用模板标题行（外壳的 title，或内容里的 SheetHeader）", () => {
+    for (const file of callers) {
+      const source = read(file);
+      const sheets = source.split("<BottomSheet").slice(1);
+      expect(sheets.length, file).toBeGreaterThan(0);
+      for (const sheet of sheets) {
+        const props = sheet.slice(0, sheet.indexOf(">"));
+        expect(props.includes("title=") || source.includes("<SheetHeader"), file).toBe(true);
+      }
+    }
+  });
+
+  it("迁移后的面板不再自己画遮罩、拖动手势与 Tab 圈", () => {
+    for (const file of ["./ui/ChoiceSheet.tsx", "./BookSwitcherSheet.tsx", "./BookManageSheet.tsx", "./MonthPicker.tsx"]) {
+      const source = read(file);
+      expect(source, file).not.toContain("data-overlay-backdrop");
+      expect(source, file).not.toContain("onTouchStart");
+      expect(source, file).not.toContain('key === "Tab"');
+      expect(source, file).not.toContain("useKeyboardInset");
+    }
+  });
+
+  it("分析的「放弃这次编辑？」是 T3 确认框，不再是底部面板", () => {
+    const source = read("../statsWorkbench/Sheets.tsx");
+    expect(source).toContain("export function DiscardDialog");
+    expect(source).not.toContain("DiscardSheet");
+    const dialog = source.slice(source.indexOf("export function DiscardDialog"));
+    expect(dialog.slice(0, dialog.indexOf("\n}\n"))).toContain("<ConfirmDialog");
+  });
+
+  it("分类编辑器的取消与保存不再跳过退场动画", () => {
+    const source = read("./CategoryTreeList.tsx");
+    const editor = source.slice(source.indexOf("function CategoryEditor"));
+    expect(editor).not.toContain("onClick={onClose}");
+    expect(editor).not.toContain(".then(onClose)");
+    expect(editor).toContain("sheet.finish()");
+  });
+
+  it("去掉列表底部重复的「关闭」：× 在右上角", () => {
+    expect(read("../statsWorkbench/StatsControls.tsx")).not.toContain("statsWorkbench.controls.close");
+    expect(read("../pages/ThemeAppearancePage.tsx")).not.toContain('t("common.action.close")');
+    expect(read("../statsWorkbench/PresetSheet.tsx")).not.toContain('t("common.action.done")');
+  });
+});
+
 describe("底部面板不再用会在深色下发白的墨色遮罩", () => {
   it("BottomSheet 不写 bg-ink/45", () => {
     expect(read("./BottomSheet.tsx")).not.toContain("bg-ink/45");

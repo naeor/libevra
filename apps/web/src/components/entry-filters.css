@@ -58,6 +58,10 @@
 .lv-filter-footer button { min-height:44px; padding:8px 16px; }
 .lv-filter-apply { background:var(--color-brand); color:var(--color-on-brand); border-radius:var(--radius-field); }
 .lv-sheet.lv-filter-sheet { width:100%; max-width:680px; padding:0; }
+/* 弹出面板模板（1.19.58）：底部面板里高度由面板的固定半屏档决定，表单填满内容区，左右两栏各自滚动；
+   安全区留白由面板外壳负责，底部按钮行不再另加一份。 */
+[data-sheet-body] > .lv-filter-panel { height:auto; flex:1 1 auto; }
+[data-sheet-body] > .lv-filter-panel .lv-filter-footer { padding-bottom:16px; }
 .lv-filter-trigger { gap:6px; min-width:0; }
 .lv-filter-trigger > span:first-of-type { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lv-filter-trigger[data-filtered=true] { background:var(--color-brand-soft); color:var(--color-brand-dark); border-radius:var(--radius-field); }

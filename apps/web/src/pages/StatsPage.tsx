@@ -78,7 +78,7 @@ import {
   type EditorState,
   type SessionResult,
 } from "../statsWorkbench/session.js";
-import { CollapsedContainerSheet, DiscardSheet, LayoutSheet, ObjectMenuSheet, SizeSheet, type LayoutArrangement, type MenuAction } from "../statsWorkbench/Sheets.js";
+import { CollapsedContainerSheet, DiscardDialog, LayoutSheet, ObjectMenuSheet, SizeSheet, type LayoutArrangement, type MenuAction } from "../statsWorkbench/Sheets.js";
 import { CardEditor } from "../statsWorkbench/CardEditor.js";
 import { cardSizing, readComposition, recommendSize, type GridMetrics } from "../statsWorkbench/composition.js";
 import { customCardsIn } from "../statsWorkbench/customCards.js";
@@ -1111,7 +1111,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
           />
         ) : null}
 
-        {discardOpen ? <DiscardSheet onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
+        {discardOpen ? <DiscardDialog onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
         {presetsOpen && session !== null ? (
           <PresetSheet
             accountScope={scope.accountScope}

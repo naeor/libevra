@@ -11,7 +11,7 @@
 import { positionToRowCol, type LayoutDocumentV1, type WorkbenchContentDocumentV1 } from "@libellum/shared/analysis/layout";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { BottomSheet } from "../components/BottomSheet.js";
+import { BottomSheet, SheetHeader } from "../components/BottomSheet.js";
 import { ExchangePanel } from "./ExchangePanel.js";
 import { SyncControls } from "./SyncControls.js";
 import { WORKBENCH_INSTALLED } from "./configEvents.js";
@@ -131,45 +131,47 @@ export function PresetSheet({
   };
 
   return (
-    <BottomSheet label={t("statsWorkbench.presets.title")} onClose={onClose} dialogClassName="sw-presets h-[calc(var(--lv-vh)*92)] max-h-[calc(var(--lv-vh)*92)] sm:h-[calc(var(--lv-vh)*86)] sm:max-h-[calc(var(--lv-vh)*86)] md:max-w-4xl">
+    /*
+     * 弹出面板模板（1.19.58）：T5 大档；标题随页面变化，所以在内容里用模板标题行（SheetHeader）——
+     * 列表页：标题 + 说明按钮 + 导出 + 右上角 ×（原来的「完成」由 × 代替）；子页面：左侧返回 + 标题 + ×。
+     */
+    <BottomSheet label={t("statsWorkbench.presets.title")} detent="large" onClose={onClose} dialogClassName="sw-presets h-[calc(var(--lv-vh)*92)] max-h-[calc(var(--lv-vh)*92)] sm:h-[calc(var(--lv-vh)*86)] sm:max-h-[calc(var(--lv-vh)*86)] md:max-w-4xl">
       {(close) => (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {view.kind === "list" ? (
-            <header className="px-5 pt-5 pb-1 sm:px-6">
-              <span className="mx-auto mb-3 block h-1 w-10 rounded-full bg-line" aria-hidden="true" />
-              <div className="flex items-center gap-2">
-                <h2 className="text-section-title text-ink">{t("statsWorkbench.presets.title")}</h2>
+            <SheetHeader
+              title={t("statsWorkbench.presets.title")}
+              description={helpOpen ? t("statsWorkbench.presets.help") : undefined}
+              actions={<>
                 <button type="button" className="sw-icon-button sw-icon-button-sm text-muted" aria-label={t("statsWorkbench.presets.helpButton")} aria-expanded={helpOpen} onClick={() => setHelpOpen((open) => !open)}>
                   <InfoGlyph width={16} height={16} />
                 </button>
-                <button type="button" className="sw-pill sw-pill-sm ml-auto" onClick={() => go({ kind: "export" })}>{t("statsWorkbench.transfer.export")}</button>
-                <button type="button" className="sw-pill sw-pill-sm" onClick={close}>
-                  {t("common.action.done")}
-                </button>
-              </div>
-              {helpOpen ? <p className="mt-1 text-helper-relaxed text-muted">{t("statsWorkbench.presets.help")}</p> : null}
-            </header>
+                <button type="button" className="sw-pill sw-pill-sm" onClick={() => go({ kind: "export" })}>{t("statsWorkbench.transfer.export")}</button>
+              </>}
+            />
           ) : (
-            <header className="flex items-center gap-1 px-3 pt-4 pb-2 sm:px-4">
-              <button
-                type="button"
-                className="sw-icon-button"
-                aria-label={t("common.a11y.back")}
-                onClick={() => go(view.kind === "form" ? view.back : view.kind === "confirm" ? { kind: "actions", presetId: view.presetId } : { kind: "list" })}
-              >
-                <ChevronLeft width={18} height={18} />
-              </button>
-              <h2 className="min-w-0 flex-1 truncate text-section-title text-ink">
-                {view.kind === "preview"
+            <SheetHeader
+              leading={
+                <button
+                  type="button"
+                  className="sw-icon-button"
+                  aria-label={t("common.a11y.back")}
+                  onClick={() => go(view.kind === "form" ? view.back : view.kind === "confirm" ? { kind: "actions", presetId: view.presetId } : { kind: "list" })}
+                >
+                  <ChevronLeft width={18} height={18} />
+                </button>
+              }
+              title={
+                view.kind === "preview"
                   ? t("statsWorkbench.presets.previewTitle", { name: view.source.kind === "system" ? systemName(view.source.id) : presetById(view.source.id)?.name ?? "" })
                   : view.kind === "form"
                     ? t(view.mode === "create" ? "statsWorkbench.presets.form.createTitle" : "statsWorkbench.presets.form.renameTitle")
                     : view.kind === "add" ? t("statsWorkbench.presets.add")
                     : view.kind === "import" ? t("statsWorkbench.transfer.importFile")
                     : view.kind === "export" ? t("statsWorkbench.transfer.export")
-                    : presetById(view.presetId)?.name ?? store.unreadable.find((item) => item.id === view.presetId)?.name ?? ""}
-              </h2>
-            </header>
+                    : presetById(view.presetId)?.name ?? store.unreadable.find((item) => item.id === view.presetId)?.name ?? ""
+              }
+            />
           )}
 
           <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

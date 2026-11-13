@@ -168,26 +168,16 @@ export function QuotePickerSheet({
   }
 
   return (
+    /* 弹出面板模板（1.19.58）：T1 半屏，模板标题行与右上角 ×。 */
     <BottomSheet
       label={tr("collab.messages.quoteSheetTitle")}
+      title={tr("collab.messages.quoteSheetTitle")}
       onClose={onClose}
       dialogClassName="max-h-[calc(var(--lv-vh)*78)] sm:max-h-[calc(var(--lv-vh)*70)]"
     >
-      {(close) => (
+      {() => (
         <>
-          <div className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3">
-            <h2 className="min-w-0 flex-1 text-section-title text-ink">{tr("collab.messages.quoteSheetTitle")}</h2>
-            <button
-              type="button"
-              onClick={close}
-              aria-label={tr("collab.messages.quoteSheetClose")}
-              className="flex size-10 items-center justify-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink"
-            >
-              <CloseIcon className="size-4" />
-            </button>
-          </div>
-
-          <div className="shrink-0 px-4 pt-3">
+          <div className="shrink-0 border-t border-line px-4 pt-3">
             <div className="flex rounded-field bg-canvas p-1 text-helper">
               {(
                 [
@@ -358,26 +348,54 @@ export function QuoteMessageSheet({
   }
 
   return (
+    /* 弹出面板模板（1.19.58）：T2 半屏，模板标题行与右上角 ×；输入框与发送按钮在固定底部操作区。 */
     <BottomSheet
       label={tr("collab.messages.quoteAboutTitle")}
+      title={tr("collab.messages.quoteAboutTitle")}
       onClose={onClose}
       dialogClassName="max-h-[calc(var(--lv-vh)*80)] sm:max-h-[calc(var(--lv-vh)*72)]"
-    >
-      {(close) => (
+      footer={
         <>
-          <div className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3">
-            <h2 className="min-w-0 flex-1 text-section-title text-ink">{tr("collab.messages.quoteAboutTitle")}</h2>
-            <button
-              type="button"
-              onClick={close}
-              aria-label={tr("collab.messages.quoteSheetClose")}
-              className="flex size-10 items-center justify-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink"
-            >
-              <CloseIcon className="size-4" />
-            </button>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !isImeComposing(event.nativeEvent)) {
+                event.preventDefault();
+                void submit();
+              }
+            }}
+            placeholder={tr("collab.messages.placeholderFull")}
+            aria-label={tr("collab.messages.inputLabel")}
+            maxLength={500}
+            rows={3}
+            className="w-full resize-none rounded-field bg-canvas px-3 py-2 text-base text-ink placeholder:text-muted focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none"
+          />
+          {error === null ? null : (
+            <p role="alert" className="mt-2 text-helper text-danger">
+              {error}
+            </p>
+          )}
+          <Button
+            onClick={() => {
+              void submit();
+            }}
+            disabled={!canSend}
+            disabledClassName="bg-surface text-muted shadow-none ring-1 ring-line"
+            className="mt-3"
+          >
+            <SendIcon className="size-4" />
+            {send.isPending ? tr("collab.messages.sending") : tr("collab.messages.sendMessage")}
+          </Button>
+        </>
+      }
+    >
+      {() => (
+        <>
+          <div className="min-h-0 flex-1 overflow-y-auto border-t border-line px-4 pt-3 pb-3">
             {target.isPending ? (
               <p className="py-2 text-body text-muted">{tr("collab.messages.quoteLoading")}</p>
             ) : null}
@@ -409,42 +427,6 @@ export function QuoteMessageSheet({
             )}
           </div>
 
-          <div className="shrink-0 border-t border-line px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
-            <textarea
-              autoFocus
-              value={draft}
-              onChange={(event) => {
-                setDraft(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey && !isImeComposing(event.nativeEvent)) {
-                  event.preventDefault();
-                  void submit();
-                }
-              }}
-              placeholder={tr("collab.messages.placeholderFull")}
-              aria-label={tr("collab.messages.inputLabel")}
-              maxLength={500}
-              rows={3}
-              className="w-full resize-none rounded-field bg-canvas px-3 py-2 text-base text-ink placeholder:text-muted focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none"
-            />
-            {error === null ? null : (
-              <p role="alert" className="mt-2 text-helper text-danger">
-                {error}
-              </p>
-            )}
-            <Button
-              onClick={() => {
-                void submit();
-              }}
-              disabled={!canSend}
-              disabledClassName="bg-surface text-muted shadow-none ring-1 ring-line"
-              className="mt-3"
-            >
-              <SendIcon className="size-4" />
-              {send.isPending ? tr("collab.messages.sending") : tr("collab.messages.sendMessage")}
-            </Button>
-          </div>
         </>
       )}
     </BottomSheet>

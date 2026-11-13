@@ -1,12 +1,15 @@
 /**
  * 编辑态的各个面板：快捷菜单、尺寸、行列、放弃确认、收缩容器的完整查看。
  * 卡片配置与自定义卡片（含组合卡片）统一在 `CardEditor.tsx`（1.17.10 起取代旧的「配置卡片」与单指标弹窗）。
- * 全部用既有 `BottomSheet`（同一套圆角、遮罩、进出动画与 Esc 关闭），不另立视觉。
+ * 全部用弹出面板模板（1.19.58）：底部面板用 `BottomSheet` 的模板标题行（标题 + 说明 + 右上角 ×）、
+ * 拖动条与下拉关闭；「放弃这次编辑？」是确认，改为 T3 中央确认框（`ConfirmDialog`）。不另立视觉。
  */
 import type { AnalysisCardNode, ContainerNode, GridSize } from "@libellum/shared/analysis/layout";
 
 import { BottomSheet } from "../components/BottomSheet.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useI18n } from "../i18n/index.js";
+import { useOverlayExit } from "../lib/useOverlayPresentation.js";
 import { cardTitle } from "./cards.js";
 import { sizeKey } from "./catalog.js";
 import {
@@ -18,16 +21,6 @@ import {
   SlidersGlyph,
   TrashGlyph,
 } from "./ui.js";
-
-export function SheetHeader({ title, subtitle }: { readonly title: string; readonly subtitle?: string }): React.JSX.Element {
-  return (
-    <header className="px-6 pt-5 pb-2">
-      <span className="mx-auto mb-3 block h-1 w-10 rounded-full bg-line" aria-hidden="true" />
-      <h2 className="text-section-title text-ink">{title}</h2>
-      {subtitle === undefined ? null : <p className="mt-1 text-helper-relaxed text-muted">{subtitle}</p>}
-    </header>
-  );
-}
 
 export type MenuAction = "configure" | "duplicate" | "remove" | "move" | "resize" | "inside" | "collapse" | "expand";
 
@@ -55,11 +48,10 @@ export function ObjectMenuSheet({
     { action: "remove", icon: <TrashGlyph />, danger: true },
   ];
   return (
-    <BottomSheet label={title} onClose={onClose}>
+    <BottomSheet label={title} title={title} description={t("statsWorkbench.menu.subtitle")} onClose={onClose}>
       {(close) => (
         <>
-          <SheetHeader title={title} subtitle={t("statsWorkbench.menu.subtitle")} />
-          <ul className="flex flex-col px-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+          <ul className="flex flex-col px-3 pb-4">
             {items.map((item) => (
               <li key={item.action}>
                 <button
@@ -98,11 +90,10 @@ export function SizeSheet({
 }): React.JSX.Element {
   const { t } = useI18n();
   return (
-    <BottomSheet label={t("statsWorkbench.size.title")} onClose={onClose}>
+    <BottomSheet label={t("statsWorkbench.size.title")} title={t("statsWorkbench.size.title")} description={t("statsWorkbench.size.hint")} onClose={onClose}>
       {(close) => (
         <>
-          <SheetHeader title={t("statsWorkbench.size.title")} subtitle={t("statsWorkbench.size.hint")} />
-          <div className="grid grid-cols-2 gap-3 px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
+          <div className="grid grid-cols-2 gap-3 px-6 pt-1 pb-5">
             {sizes.map((size) => {
               const active = size.colSpan === current.colSpan && size.rowSpan === current.rowSpan;
               const problem = active ? null : problemFor(size);
@@ -181,11 +172,10 @@ export function LayoutSheet({
   const { t } = useI18n();
   const upper = Math.max(maxColumns, columns);
   return (
-    <BottomSheet label={t("statsWorkbench.layout.title")} onClose={onClose}>
+    <BottomSheet label={t("statsWorkbench.layout.title")} title={t("statsWorkbench.layout.title")} onClose={onClose}>
       {(close) => (
         <>
-          <SheetHeader title={t("statsWorkbench.layout.title")} />
-          <div className="flex flex-col gap-5 px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
+          <div className="flex flex-col gap-5 px-6 pt-1 pb-5">
             <fieldset className="flex flex-col gap-3" disabled={locked}>
               <legend className="flex w-full items-baseline justify-between pb-1.5 text-helper text-muted">
                 <span>{t("statsWorkbench.layout.columns")}</span>
@@ -268,31 +258,27 @@ export function LayoutSheet({
   );
 }
 
-export function DiscardSheet({ onDiscard, onClose }: { readonly onDiscard: () => void; readonly onClose: () => void }): React.JSX.Element {
+/**
+ * 退出编辑模式时的「放弃这次编辑？」（1.19.58 起是 T3 中央确认框，原来是底部面板）。
+ * 按钮与顺序不变：「继续编辑」是安全选项（获得焦点、Esc 与点遮罩等于它），「放弃」先执行再淡出。
+ * 父组件仍按挂载 / 卸载控制它；淡出由这里的退场计时负责，结束后才调用 `onClose`。
+ */
+export function DiscardDialog({ onDiscard, onClose }: { readonly onDiscard: () => void; readonly onClose: () => void }): React.JSX.Element {
   const { t } = useI18n();
+  const { closing, requestClose } = useOverlayExit(onClose);
   return (
-    <BottomSheet label={t("statsWorkbench.edit.discardTitle")} onClose={onClose}>
-      {(close) => (
-        <>
-          <SheetHeader title={t("statsWorkbench.edit.discardTitle")} subtitle={t("statsWorkbench.edit.discardBody")} />
-          <div className="flex gap-3 px-6 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
-            <button type="button" className="sw-pill flex-1" onClick={close}>
-              {t("statsWorkbench.edit.keep")}
-            </button>
-            <button
-              type="button"
-              className="sw-pill sw-pill-danger flex-1"
-              onClick={() => {
-                onDiscard();
-                close();
-              }}
-            >
-              {t("statsWorkbench.edit.discard")}
-            </button>
-          </div>
-        </>
-      )}
-    </BottomSheet>
+    <ConfirmDialog
+      open={!closing}
+      title={t("statsWorkbench.edit.discardTitle")}
+      description={t("statsWorkbench.edit.discardBody")}
+      confirmLabel={t("statsWorkbench.edit.discard")}
+      cancelLabel={t("statsWorkbench.edit.keep")}
+      onCancel={requestClose}
+      onConfirm={() => {
+        onDiscard();
+        requestClose();
+      }}
+    />
   );
 }
 
@@ -311,11 +297,10 @@ export function CollapsedContainerSheet({
   const { t } = useI18n();
   const name = t(container.type === "carousel" ? "statsWorkbench.containers.carousel" : "statsWorkbench.containers.grid-split");
   return (
-    <BottomSheet label={name} onClose={onClose}>
+    <BottomSheet label={name} title={name} description={t("statsWorkbench.card.collapsedEntry", { count: cards.length })} onClose={onClose}>
       {(close) => (
         <>
-          <SheetHeader title={name} subtitle={t("statsWorkbench.card.collapsedEntry", { count: cards.length })} />
-          <ul className="flex flex-col px-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+          <ul className="flex flex-col px-3 pb-4">
             {cards.map((card) => (
               <li key={card.objectId}>
                 <button

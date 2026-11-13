@@ -592,7 +592,8 @@ export function NewBookSheet({ onClose, onCreated }: { readonly onClose: () => v
   const inputId = useId();
 
   return (
-    <BottomSheet label={t("workspace.newBook.title")} onClose={onClose} dialogClassName="px-6 pt-5 pb-6">
+    // 弹出面板模板（1.19.58）：T2 半屏，模板标题行与右上角 ×；宽屏仍是原来的居中对话框。
+    <BottomSheet label={t("workspace.newBook.title")} title={t("workspace.newBook.title")} onClose={onClose} bodyClassName="px-6 pt-1 pb-6">
       {(close) => (
         <form
           className="flex flex-col gap-4"
@@ -609,7 +610,6 @@ export function NewBookSheet({ onClose, onCreated }: { readonly onClose: () => v
               });
           }}
         >
-          <h2 className="text-section-title text-ink">{t("workspace.newBook.title")}</h2>
           <label htmlFor={inputId} className="text-helper text-muted">
             {t("workspace.newBook.name")}
           </label>

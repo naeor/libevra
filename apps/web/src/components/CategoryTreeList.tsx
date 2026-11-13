@@ -28,11 +28,14 @@ function CategoryEditor({items,category,parentId:initialParent,kind,onClose,onSa
   const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null);
   const excluded=new Set(category?categoryBranchIds(items,[category.id]):[]);
   const inputClass="min-w-0 w-full rounded-field border border-line bg-surface px-3 py-3 text-base text-ink";
-  return <BottomSheet label={t(category?"manage.tree.edit":"manage.tree.addChild")} onClose={onClose} dialogClassName="w-full max-w-lg rounded-t-sheet bg-canvas p-6 sm:rounded-sheet max-h-[calc(var(--lv-vh)*85)] overflow-y-auto">
-    <form className="flex flex-col gap-4" onSubmit={event=>{event.preventDefault();const input={name:name.trim(),kind,parentId:parentId||null,icon:icon||null,color:color||null,sortOrder};
+  /**
+   * 弹出面板模板（1.19.58）：T2 半屏，模板标题行与右上角 ×；保存中（busy）不响应关闭。
+   * 取消走外壳的关闭、保存成功走 `finish`——原来两处都直接调用 `onClose`，面板跳过退场动画瞬间消失。
+   */
+  return <BottomSheet label={t(category?"manage.tree.edit":"manage.tree.addChild")} title={t(category?"manage.tree.edit":"manage.tree.addChild")} busy={busy} onClose={onClose} dialogClassName="max-w-lg sm:rounded-sheet" bodyClassName="px-6 pt-1 pb-6">
+    {(close,sheet)=><form className="flex flex-col gap-4" onSubmit={event=>{event.preventDefault();const input={name:name.trim(),kind,parentId:parentId||null,icon:icon||null,color:color||null,sortOrder};
       try{validateCategoryTree([...items.filter(n=>n.id!==category?.id),{...input,id:category?.id??"new"}]);}catch{setError(t("manage.tree.invalid"));return;}
-      setBusy(true);void onSave(category?.id??null,input).then(onClose).catch(caught=>setError(errorMessage(caught))).finally(()=>setBusy(false));}}>
-      <h2 className="text-section-title text-ink">{t(category?"manage.tree.edit":"manage.tree.addChild")}</h2>
+      setBusy(true);void onSave(category?.id??null,input).then(()=>sheet.finish()).catch(caught=>setError(errorMessage(caught))).finally(()=>setBusy(false));}}>
       {error?<p role="alert" className="text-sm text-warn-dark">{error}</p>:null}
       <label className="text-sm text-muted">{t("manage.tree.name")}<input className={inputClass} value={name} maxLength={20} required onChange={e=>setName(e.target.value)}/></label>
       <details open={initialParent!==null}><summary className="cursor-pointer text-sm text-muted">{t("manage.tree.organize")}</summary><div className="mt-3 flex flex-col gap-3">
@@ -41,7 +44,7 @@ function CategoryEditor({items,category,parentId:initialParent,kind,onClose,onSa
         <label className="text-sm text-muted">{t("manage.tree.icon")}<input className={inputClass} value={icon} maxLength={32} onChange={e=>setIcon(e.target.value)}/></label>
         <label className="text-sm text-muted">{t("manage.tree.color")}<input className={inputClass} value={color} pattern="#[0-9a-fA-F]{6}|" onChange={e=>setColor(e.target.value)}/></label>
       </div></details>
-      <div className="flex justify-end gap-3"><button type="button" className="min-h-11 px-3 text-muted" onClick={onClose}>{t("common.action.cancel")}</button><button type="submit" disabled={busy} className="min-h-11 rounded-field bg-brand px-5 text-on-brand disabled:opacity-45">{t("common.action.save")}</button></div>
-    </form>
+      <div className="flex justify-end gap-3"><button type="button" className="min-h-11 px-3 text-muted" onClick={close}>{t("common.action.cancel")}</button><button type="submit" disabled={busy} className="min-h-11 rounded-field bg-brand px-5 text-on-brand disabled:opacity-45">{t("common.action.save")}</button></div>
+    </form>}
   </BottomSheet>;
 }

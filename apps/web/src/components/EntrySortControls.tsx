@@ -80,8 +80,9 @@ export function EntrySortControls({ state, mode = "all" }: { state: ReturnType<t
   const compact = mode === "compact";
   const showSort = mode !== "filter" && mode !== "status", showFilters = mode === "all" || mode === "filter";
   const title = t(panel === "sort" ? "attachments.sort" : panel === "direction" ? "attachments.sortDirection" : "attachments.filters.title");
+  /** 电脑版锚定弹层自带标题行；触屏底部面板的标题行与 × 由弹出面板模板提供（1.19.58）。 */
+  const heading = (dismiss: () => void) => <header className="lv-entry-panel-heading"><h2 className="text-section-title">{title}</h2><button type="button" className="lv-entry-panel-close" aria-label={t("attachments.close")} onClick={dismiss}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>;
   const content = (dismiss: () => void) => <>
-    <header className="lv-entry-panel-heading"><h2 className="text-section-title">{title}</h2><button type="button" className="lv-entry-panel-close" aria-label={t("attachments.close")} onClick={dismiss}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
     {panel === "sort" ? <><EntrySortOptions value={field} onSelect={next => { state.setOptions(o => ({ ...o, order: `${next}${sortDirection(o.order)}` })); if (!compact) dismiss(); if (desktop) sortAnchor.current?.focus(); }} />{compact ? <div className="lv-entry-direction-section"><h3 className="px-4 text-helper text-muted">{t("attachments.sortDirection")}</h3><EntryDirectionOptions value={direction} onSelect={next => { state.setOptions(o => ({ ...o, order: `${sortField(o.order)}${next}` })); }} /></div> : null}</>
       : panel === "direction" ? <EntryDirectionOptions value={direction} onSelect={next => { state.setOptions(o => ({ ...o, order: `${sortField(o.order)}${next}` })); dismiss(); if (desktop) directionAnchor.current?.focus(); }} />
       : <EntryFilterOptions value={state.options} onApply={filters => { state.setOptions(o => ({ ...filters, order: o.order })); dismiss(); if (desktop) filterAnchor.current?.focus(); }} />}
@@ -107,9 +108,9 @@ export function EntrySortControls({ state, mode = "all" }: { state: ReturnType<t
     {state.waiting ? <p role="status" className="text-helper text-muted">{t("attachments.sortLoading")}</p> : null}
     {state.error ? <p role="alert" className="text-helper text-danger">{t("attachments.sortFailed")}</p> : null}
     {state.missingFx ? <p className="text-helper text-muted">{t("attachments.missingFx")}</p> : null}</> : null}
-    {panel === null ? null : desktop ? <DesktopPopover anchor={anchor} label={title} placement="bottom-start" width={panel === "filter" ? 400 : 240} onClose={close}>{content(close)}</DesktopPopover>
+    {panel === null ? null : desktop ? <DesktopPopover anchor={anchor} label={title} placement="bottom-start" width={panel === "filter" ? 400 : 240} onClose={close}>{heading(close)}{content(close)}</DesktopPopover>
       // 明细工具栏会做 transform 动画；面板挂到所属工作区，避免 fixed 被限制在工具栏内。
-      : createPortal(<BottomSheet label={title} onClose={close} dialogClassName="lv-entry-sheet">{dismiss => content(dismiss)}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body)}
+      : createPortal(<BottomSheet label={title} title={title} onClose={close} dialogClassName="lv-entry-sheet">{dismiss => content(dismiss)}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body)}
   </div>;
 }
 

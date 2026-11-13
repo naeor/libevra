@@ -93,13 +93,10 @@ export function ThemeAppearanceView({
       </section>
 
       <AppearanceStyleSection />
-      {preview && <BottomSheet label={t("settings.theme.previews")} onClose={() => setPreview(false)} dialogClassName="appearance-preview-sheet">
-        {close => <>
-          <div className="flex shrink-0 items-center justify-between gap-3 p-4">
-            <h2 className="text-section-title text-ink">{t("settings.theme.previews")}</h2>
-            <button type="button" onClick={close} className="min-h-11 px-3 text-button text-brand-dark">{t("common.action.close")}</button>
-          </div>
-          <div role="group" aria-label={t("settings.theme.previews")} className="mx-4 mb-3 grid grid-cols-2 gap-2">
+      {/* 弹出面板模板（1.19.58）：外观预览是 T4 信息说明，按内容高度（最多约半屏），右上角 × 代替「关闭」文字按钮。 */}
+      {preview && <BottomSheet label={t("settings.theme.previews")} title={t("settings.theme.previews")} detent="content" onClose={() => setPreview(false)} dialogClassName="appearance-preview-sheet">
+        {() => <>
+          <div role="group" aria-label={t("settings.theme.previews")} className="mx-4 mt-1 mb-3 grid shrink-0 grid-cols-2 gap-2">
             {(["space", "detail"] as const).map(value => <button type="button" key={value} aria-pressed={kind === value} onClick={() => setKind(value)} className={`min-h-11 rounded-field text-button ${kind === value ? "bg-brand-soft text-brand-dark" : "text-muted"}`}>{t(`settings.visualStyle.preview${value}`)}</button>)}
           </div>
           <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4"><ThemePreview kind={kind} /></div>

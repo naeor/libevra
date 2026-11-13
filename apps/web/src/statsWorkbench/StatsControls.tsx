@@ -17,7 +17,6 @@ import { useI18n } from "../i18n/index.js";
 import { currencyName } from "../lib/format.js";
 import { FxStatus } from "./FxStatus.js";
 import type { WorkbenchScope } from "./scope.js";
-import { SheetHeader } from "./Sheets.js";
 import { RefreshGlyph, SlidersGlyph } from "./ui.js";
 
 /** 控制条下方要不要显示状态提示：只在结果受影响时（缺汇率、读取失败、本机数据不完整）。 */
@@ -99,11 +98,11 @@ export function StatsSettingsSheet({
   }, [defaultCurrency, currenciesInLedger, scope.currency]);
   const fxTarget = scope.combined ? scope.currency : defaultCurrency;
   return (
-    <BottomSheet label={t("statsWorkbench.controls.settingsTitle")} onClose={onClose} dialogClassName="sm:max-w-md">
-      {(close) => (
+    /* 弹出面板模板（1.19.58）：T1 半屏，模板标题行与右上角 ×；去掉列表底部重复的「关闭」。 */
+    <BottomSheet label={t("statsWorkbench.controls.settingsTitle")} title={t("statsWorkbench.controls.settingsTitle")} onClose={onClose} dialogClassName="sm:max-w-md">
+      {() => (
         <>
-          <SheetHeader title={t("statsWorkbench.controls.settingsTitle")} />
-          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
+          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 pt-1 pb-5">
             <SyncControls />
             <section className="flex flex-col gap-2" aria-labelledby="sw-settings-mode">
               <h3 id="sw-settings-mode" className="text-helper font-medium text-muted">{t("statsWorkbench.controls.modeTitle")}</h3>
@@ -143,7 +142,6 @@ export function StatsSettingsSheet({
               </section>
             )}
 
-            <button type="button" className="sw-pill" onClick={close}>{t("statsWorkbench.controls.close")}</button>
           </div>
         </>
       )}

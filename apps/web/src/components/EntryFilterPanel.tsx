@@ -8,7 +8,7 @@ import { displayCategoryName, displayPaymentMethodName } from "../lib/presetName
 import { activeFilterDimensions, clearFilterDimension, detailFilterPredicate, emptyDetailFilters, FILTER_DIMENSIONS, FORMER_RECORDERS, validDetailDates, type DetailFilters, type FilterDimension } from "../lib/detailFilters.js";
 import { useDesktopActive } from "../desktop/surface.js";
 import { DesktopPopover } from "../desktop/DesktopPopover.js";
-import { BottomSheet } from "./BottomSheet.js";
+import { BottomSheet, SheetHeader, useSheetControls } from "./BottomSheet.js";
 import { LedgerMonthPicker } from "./LedgerMonthPicker.js";
 import { ChevronIcon, GearIcon } from "./Icons.js";
 import { validStorageRange } from "./EntrySortControls.js";
@@ -81,8 +81,12 @@ export function EntryFilterPanel({ open, value, ledger, anchor, onApply, onClose
   const closeDesktop = useCallback(() => { onClose(); anchor.current?.focus({ preventScroll: true }); }, [onClose, anchor]);
   if (!open) return null;
   const content = (dismiss: () => void) => <FilterForm desktop={desktop} value={value} ledger={ledger} note={note ?? null} onClose={dismiss} onApply={next => { onApply(next); dismiss(); }} />;
+  /**
+   * 弹出面板模板（1.19.58）：触屏是 T2 表单，用固定半屏档——筛选面板在各维度之间切换时内容高度不同，
+   * 固定高度避免面板忽高忽低（与账本选择同一变体）。标题行由表单里的 SheetHeader 画（带多选与设置工具）。
+   */
   return desktop ? <DesktopPopover anchor={anchor} label={t("ledger.filters.title")} placement="bottom-start" width={680} onClose={closeDesktop}>{content(closeDesktop)}</DesktopPopover>
-    : createPortal(<BottomSheet label={t("ledger.filters.title")} onClose={onClose} dialogClassName="lv-filter-sheet">{content}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body);
+    : createPortal(<BottomSheet label={t("ledger.filters.title")} detent="half-fixed" onClose={onClose} dialogClassName="lv-filter-sheet">{content}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body);
 }
 
 export function FilterForm({ value, ledger, onApply, onClose, desktop = false, note = null }: { value: DetailFilters; ledger?: LedgerMetaResponse | undefined; onApply: (value: DetailFilters) => void; onClose: () => void; desktop?: boolean; note?: string | null }) {
@@ -98,6 +102,8 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
   /** 记录人只在多人账本出现（1.19.55）；已经设了记录人条件时也显示，方便取消。 */
   const showRecorders = (ledger?.book.memberCount ?? 1) > 1 || value.recorders.length > 0;
   const people = useRecorderPeople(showRecorders);
+  /** 在底部面板里时，标题行用弹出面板模板的（标题 + 工具 + 右上角 ×，也是下拉起手区）。 */
+  const sheet = useSheetControls();
   const labels = useFilterLabels(draft, ledger, people);
   const active = activeFilterDimensions(draft);
   const dimensions = FILTER_DIMENSIONS.filter(key => key !== "recorders" || showRecorders);
@@ -132,13 +138,17 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
   const datesValid = validDetailDates(draft) && (!rangeMode || !!draft.from && !!draft.to);
   const storageValid = validStorageRange(draft.minMB, draft.maxMB);
   return <form className="lv-filter-panel" data-desktop={desktop || undefined} onSubmit={event => { event.preventDefault(); setAttempted(true); if (datesValid && storageValid) onApply(draft); }}>
-    <header className="lv-filter-heading"><h2 className="text-section-title">{t("ledger.filters.title")}</h2>
+    {sheet !== null ? <SheetHeader title={t("ledger.filters.title")} actions={<div className="lv-filter-tools">
+        <button type="button" className="lv-filter-multi" aria-pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</button>
+        <FilterSettingsButton />
+      </div>} />
+    : <header className="lv-filter-heading"><h2 className="text-section-title">{t("ledger.filters.title")}</h2>
       <div className="lv-filter-tools">
         <button type="button" className="lv-filter-multi" aria-pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</button>
         <FilterSettingsButton />
         <button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.close")} onClick={onClose}>×</button>
       </div>
-    </header>
+    </header>}
     <div className="lv-filter-chips" aria-label={t("ledger.filters.selected")}>
       {active.length === 0 ? <span className="text-helper text-muted">{t("ledger.filters.all")}</span> : active.map(key => <button type="button" key={key} title={labels.dimensionLabel(key)} aria-label={t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) })} onClick={() => { setDraft(clearFilterDimension(draft, key)); if (key === "time") setRangeMode(false); }}><span>{labels.dimensionLabel(key)}</span><span aria-hidden="true">×</span></button>)}
     </div>
