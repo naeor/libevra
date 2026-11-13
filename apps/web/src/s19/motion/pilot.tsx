@@ -23,6 +23,7 @@ import { onClockReport } from "../../lib/frameClock.js";
 import { provideEntryAgain } from "../../lib/entryFlow.js";
 import { provideReloadCover } from "../../lib/ledgerSwitchFlow.js";
 import { interruptsTransition } from "../../lib/motionTokens.js";
+import { S19_PHONE_SELECTOR } from "../scope.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
@@ -389,7 +390,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       const focus = document.activeElement;
       const blocked = document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null
         || focus instanceof HTMLInputElement || focus instanceof HTMLTextAreaElement || (focus instanceof HTMLElement && focus.isContentEditable)
-        || document.querySelector('.lv-shell[data-shell="contents"]') === null;
+        || document.querySelector(S19_PHONE_SELECTOR) === null;
       // 查询参数属于页面状态（筛选、来源），不再阻止默认转场；锚点跳转仍是页内定位。
       if (blocked || next.location.hash) direction = "none";
       if (!enabled && html.dataset.themeMode !== "light") direction = "none";

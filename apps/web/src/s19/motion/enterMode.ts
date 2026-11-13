@@ -1,5 +1,6 @@
 import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
 import { ENTER_MODE, MOTION_CLOCK, easingFunction } from "../../lib/motionTokens.js";
+import { markS19Stage } from "../scope.js";
 
 /**
  * 记账工作模式（enterMode）的进入、离开与工作区内切换。
@@ -75,7 +76,7 @@ const reduced = (): boolean => matchMedia("(prefers-reduced-motion: reduce)").ma
 /** 舞台：固定在视口上；进入时在真实页面之下（z -1），离开时在页面之上、底栏之下。 */
 function createStage(style: Style, kind: "enter" | "exit" | "again"): HTMLElement {
   const stage = document.createElement("div");
-  stage.className = "lv-shell mode-stage"; stage.dataset.shell = "contents";
+  stage.className = "lv-shell mode-stage"; markS19Stage(stage);
   stage.dataset.modeStage = kind; stage.dataset.modeStyle = style;
   stage.inert = true; stage.setAttribute("aria-hidden", "true");
   return stage;

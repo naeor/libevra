@@ -1,6 +1,6 @@
 @import "./material-effects.css";
 /* 只接管声明用途的标准组件。未启用 S19、Pad、桌面、深色均保持既有外观。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   .lv-material[data-material-role]:is([data-material-role="display"], [data-material-role="interactive"]) {
     background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); border-color: var(--s19-card-line, transparent);
     border-radius: var(--lv-material-radius, var(--radius-card));
@@ -22,7 +22,7 @@
   .lv-material[data-material-role]:where([aria-pressed="true"], [aria-selected="true"]) { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 }
 /* 显式候选才增加反射层。滤镜只能在不承载内容的伪元素上，不能改变 fixed 后代参照系。 */
-:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   .lv-material[data-material-role]:is([data-material-role="secondary"], [data-material-role="tool"], [data-material-role="capsule"]) { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
   .lv-material[data-material-role]:is([data-material-finish="satin"], [data-material-finish="glazed"]) {
     position: relative; z-index: 0; background: var(--color-surface); box-shadow: var(--lv-porcelain-shadow);
@@ -36,7 +36,7 @@
   .lv-material[data-material-role][data-material-finish="glazed"]::after { background: var(--lv-porcelain-glazed); }
   .lv-material[data-material-role][data-material-finish="glazed"] > .lv-porcelain-window { display: block; }
 }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   .lv-material[data-material-role][data-material-role="secondary"] { background: var(--s19-book-bg); }
   .lv-material[data-material-role][data-material-role="tool"] { background: var(--s19-book-bg); }
   /* 操作玻璃的语义映射，不改三档原始值。尤其柔和档不能比展示内容更透。 */
@@ -63,20 +63,20 @@
   }
 }
 @media (hover: hover) and (pointer: fine) {
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
     .lv-material[data-material-role="primary"]:hover:not(:disabled) { background: linear-gradient(var(--s19-press-accent), var(--s19-press-accent)), var(--s19-accent-bg); }
     .lv-material:is([data-material-role="secondary"], [data-material-role="tool"], [data-material-role="capsule"]):hover:not(:disabled) { box-shadow: var(--s19-tool-sh, var(--s19-card-sh)), inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 22%, transparent); }
     .lv-material[data-material-role="interactive"]:hover:not(:disabled) { border-color: var(--color-brand); }
   }
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   .lv-material[data-material-role][data-material-elevation="flat"] { box-shadow: none; }
   .lv-material[data-material-role][data-material-elevation="raised"] { box-shadow: var(--s19-key-sh); }
   .lv-material[data-material-role][data-material-shape="pill"] { border-radius: 999px; }
   .lv-material[data-material-role][data-material-shape="circle"] { border-radius: 50%; }
 }
 /* C 经典简约是纸面，靠细线分隔：胶囊 / 工具放在白色面板（底部面板、卡片）上时也要看得见边界（1.19.52）。 */
-:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] {
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   .lv-material[data-material-role]:is([data-material-role="capsule"], [data-material-role="tool"]):not([data-material-elevation="flat"]) {
     box-shadow: 0 0 0 1px var(--s19-card-line, transparent), var(--s19-card-sh);
   }

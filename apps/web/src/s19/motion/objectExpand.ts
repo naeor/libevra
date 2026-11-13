@@ -2,6 +2,7 @@ import { EASE, FIRST_EASE, relativeRect, reliableTarget, type Box } from "../../
 import { snapshot, restoreSnapshot } from "./abcPresentation.js";
 import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
 import { MOTION_CLOCK, OBJECT_EXPAND, easingFunction, interruptsTransition } from "../../lib/motionTokens.js";
+import { markS19Stage } from "../scope.js";
 import "./objectExpand.css";
 
 export interface ObjectSource { id: string; slot?: string; rect: Box; width: number; height: number; radius: number; safeTop: number; safeBottom: number }
@@ -154,7 +155,7 @@ export class ObjectExpandPresentation {
 
   private stage(style: string, z: "front" | "back"): HTMLElement {
     const stage = document.createElement("div");
-    stage.className = `lv-shell object-stage object-${z}`; stage.dataset.shell = "contents"; stage.dataset.objectStyle = style;
+    stage.className = `lv-shell object-stage object-${z}`; markS19Stage(stage); stage.dataset.objectStyle = style;
     stage.inert = true; stage.setAttribute("aria-hidden", "true");
     return stage;
   }

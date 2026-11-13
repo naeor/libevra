@@ -4,7 +4,7 @@
 .entry-mode-page { padding-bottom: calc(var(--lv-bottom-nav-height,65px) + 24px); }
 /* 记账工作模式（enterMode.ts）。舞台固定在视口上：进入与轻切换在真实页面之下（页面透明，新页面在上），
    离开在页面之上、底栏（z 40）之下。纸面与雾层用统一壁纸本身，与 body::before 逐像素对齐。 */
-.lv-shell.mode-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: transparent; }
+.lv-shell.mode-stage[data-s19-scope] { display: block; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: transparent; }
 .lv-shell.mode-stage[data-mode-stage="exit"] { z-index: 20; }
 .mode-stage .mode-plane, .mode-stage .mode-sheet, .mode-stage .mode-veil, .mode-stage .mode-backing { position: absolute; inset: 0; }
 /* isolate：旧页里自带 z-index 的固定/悬浮元素（明细的账本胶囊等）留在自己这一层，不越过纸面。 */
@@ -22,30 +22,30 @@
 /* 1.19.51 · 软键盘（lib/softKeyboard.ts）：键盘打开时，记账工作区的底部操作区（data-entry-bar）与常驻底栏
    不跟着键盘抬起，而是像被键盘盖住一样隐藏（不改占位、不重排、不可聚焦）；收起后淡入。只在手机外壳生效，
    四风格、Original 与深色一致；Pad / 桌面不受影响。 */
-:root[data-soft-keyboard="open"] .lv-shell[data-shell="contents"] :is([data-entry-bar], [data-persistent-nav]) {
+:root[data-soft-keyboard="open"] .lv-shell[data-s19-scope="phone"] :is([data-entry-bar], [data-persistent-nav]) {
   visibility: hidden; opacity: 0; pointer-events: none;
 }
-:root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] :is([data-entry-bar], [data-persistent-nav]:not([data-focus-task])) {
+:root[data-soft-keyboard="closing"] .lv-shell[data-s19-scope="phone"] :is([data-entry-bar], [data-persistent-nav]:not([data-focus-task])) {
   animation: lv-keyboard-reveal var(--lv-reveal-ms, 200ms) var(--lv-motion-ease, ease-out) both;
 }
 @keyframes lv-keyboard-reveal { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  :root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] :is([data-entry-bar], [data-persistent-nav]) { animation: none; }
+  :root[data-soft-keyboard="closing"] .lv-shell[data-s19-scope="phone"] :is([data-entry-bar], [data-persistent-nav]) { animation: none; }
 }
 /* 键盘打开期间给手动记账表单尾部留出被键盘挡住的高度，最后的字段（备注、附件）也能滚到键盘上方。 */
-:root[data-soft-keyboard="open"] .lv-shell[data-shell="contents"] .lv-manual-form { padding-bottom: var(--lv-keyboard-inset, 0px); }
+:root[data-soft-keyboard="open"] .lv-shell[data-s19-scope="phone"] .lv-manual-form { padding-bottom: var(--lv-keyboard-inset, 0px); }
 /* 1.19.52 · 底栏让位：替换常驻底栏的操作栏（明细批量操作、拍照单张核对、账单导入核对；data-replaces-nav）在底栏
    向下退出后从下方升起。时长读组件反馈的“出现 / 消失”变量（Original 用回退值）。键盘收起的淡入与它并列，
    不会让升起重播。 */
-.lv-shell[data-shell="contents"] [data-replaces-nav] {
+.lv-shell[data-s19-scope="phone"] [data-replaces-nav] {
   animation: lv-bar-rise var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(.2,.8,.3,1)) var(--lv-dismiss-ms, 180ms) both;
 }
-:root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] [data-entry-bar][data-replaces-nav] {
+:root[data-soft-keyboard="closing"] .lv-shell[data-s19-scope="phone"] [data-entry-bar][data-replaces-nav] {
   animation: lv-bar-rise var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(.2,.8,.3,1)) var(--lv-dismiss-ms, 180ms) both,
     lv-keyboard-reveal var(--lv-reveal-ms, 200ms) var(--lv-motion-ease, ease-out) both;
 }
 @keyframes lv-bar-rise { from { transform: translateY(100%); } }
 @media (prefers-reduced-motion: reduce) {
-  .lv-shell[data-shell="contents"] [data-replaces-nav],
-  :root[data-soft-keyboard="closing"] .lv-shell[data-shell="contents"] [data-entry-bar][data-replaces-nav] { animation: none; }
+  .lv-shell[data-s19-scope="phone"] [data-replaces-nav],
+  :root[data-soft-keyboard="closing"] .lv-shell[data-s19-scope="phone"] [data-entry-bar][data-replaces-nav] { animation: none; }
 }

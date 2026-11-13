@@ -181,7 +181,7 @@ function Lab() {
   const choose = useCallback((id: string) => { setChoice(false); setMessage(id === "retry" ? "已选择再试一次（样例）" : id === "manual" ? "已选择手动记账（样例）" : "已返回选择图片（样例）"); }, []);
   const run = () => { setMessage(""); if (scene === "books") setSheet(true); else if (scene === "choice") setChoice(true); else { setEditing(true); setControls(false); } };
   const modal = sheet || choice;
-  return <div ref={shell} className="lv-shell alab-shell" data-shell="contents" data-instance="adaptation-lab" data-controls={controls}>
+  return <div ref={shell} className="lv-shell alab-shell" data-shell="contents" data-s19-scope="phone" data-instance="adaptation-lab" data-controls={controls}>
     {controls ? <header ref={bar} className="alab-controls" aria-label="实验设置">
       <div className="alab-control-title"><span>界面样例 · 01</span>{!editing ? <button type="button" disabled={modal} onClick={run}>打开样例</button> : null}<button type="button" onClick={() => setControls(false)}>收起设置</button></div>
       <div className="alab-style-options" role="group" aria-label="视觉风格">{STYLES.map(s => <button key={s.id} type="button" aria-pressed={style === s.id} onClick={() => setStyle(s.id)}>{s.id.toUpperCase()}<span>{s.name}</span></button>)}</div>

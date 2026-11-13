@@ -1,5 +1,5 @@
 /* 0.5.3 的胶囊表面接到现有 BottomNav；不搬实验排版、加号菜单或模拟按钮。 */
-:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-a-glide] {
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope="phone"] [data-a-glide] {
   --a-tab-surface: var(--s19-card-bg, var(--color-surface));
   --a-tab-recess: var(--color-brand-soft);
   --a-tab-selected: var(--color-brand-dark);

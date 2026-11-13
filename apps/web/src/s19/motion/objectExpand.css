@@ -1,7 +1,7 @@
 /* 对象展开前景：固定在视口、位于常驻底栏（40）之上；背景透明，下面就是真实页面与统一壁纸。 */
-.lv-shell.object-stage[data-shell="contents"] { display: block; position: fixed; inset: 0; z-index: 45; overflow: hidden; pointer-events: none; background: transparent; }
+.lv-shell.object-stage[data-s19-scope] { display: block; position: fixed; inset: 0; z-index: 45; overflow: hidden; pointer-events: none; background: transparent; }
 /* 背景舞台：被移出工作区的原页面、B1 下半页副本与底栏副本；在页面内容（≤30）之上、常驻底栏（40）之下。 */
-.lv-shell.object-stage.object-back[data-shell="contents"] { z-index: 35; }
+.lv-shell.object-stage.object-back[data-s19-scope] { z-index: 35; }
 .object-stage .s19-abc-plane, .object-neighborhood { position: absolute; inset: 0; overflow: hidden; }
 /* 收回时详情页面节点放在容器之上，在容器里缩小。 */
 .object-stage .object-content { z-index: 1; }

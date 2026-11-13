@@ -66,7 +66,7 @@ html:root {
 html:root[data-wallpaper] { background: var(--lv-wallpaper-edge-top) linear-gradient(var(--lv-wallpaper-edge-top), var(--lv-wallpaper-edge-bottom)) fixed; }
 html:root[data-wallpaper] body { min-height: 100dvh; background: linear-gradient(var(--lv-wallpaper-edge-top), var(--lv-wallpaper-edge-bottom)) fixed; }
 /* 手机外壳的页面本身透明，直接显露壁纸层；大屏/电脑外壳仍由各自工作区面承接，保持原样。 */
-html:root[data-wallpaper] body:has(.lv-shell[data-shell="contents"]) { background: transparent; }
+html:root[data-wallpaper] body:has(.lv-shell[data-s19-scope]) { background: transparent; }
 html:root[data-wallpaper] body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background: var(--lv-wallpaper-bg);
@@ -101,8 +101,8 @@ html:root[data-wallpaper] .ledger-space .space-scroll { position: relative; }
 .wallpaper-sample-list { top: 57%; }
 .wallpaper-sample > span { height: 3px; width: 74%; background: var(--color-ink); opacity: .2; border-radius: 2px; }
 .wallpaper-sample > span:last-child { width: 46%; }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .wallpaper-sample { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] .wallpaper-sample { backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter); }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .wallpaper-sample { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] .wallpaper-sample { backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter); }
 
 /* 经典简约使用纯画布；保留 data-wallpaper 与存储值，切回材质风格立即恢复。 */
 html:root[data-visual-style="c"] {

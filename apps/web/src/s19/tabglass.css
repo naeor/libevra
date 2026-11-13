@@ -7,7 +7,7 @@
 .s19-tab-glass {
   display: none;
 }
-:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] nav .s19-tab-glass {
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope="phone"] nav .s19-tab-glass {
   display: block;
   position: absolute;
   left: 0;
@@ -22,11 +22,11 @@
   will-change: transform, width, opacity;
 }
 /* 原来每个 Tab 自带的选中圆片：透明但保留占位 */
-:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] nav .bottom-tab-active > span.rounded-full.bg-brand-soft {
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope="phone"] nav .bottom-tab-active > span.rounded-full.bg-brand-soft {
   opacity: 0;
 }
 /* “＋”压在胶囊之上（位置与尺寸不变） */
-:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-shell="contents"] nav button.size-16.rounded-full.bg-brand {
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope="phone"] nav button.size-16.rounded-full.bg-brand {
   position: relative;
   z-index: 2;
 }

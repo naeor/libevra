@@ -9,17 +9,17 @@
 */
 
 /* ---------- 底部操作区（data-bar-surface="chrome"） ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-bar-surface="chrome"] {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-bar-surface="chrome"] {
   border-top-color: transparent;
   background: transparent;
   box-shadow: none;
 }
 /* EntrySaveBar 的分隔线在内层 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-bar-surface="chrome"] > div {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-bar-surface="chrome"] > div {
   border-top-color: transparent;
 }
 /* sticky / fixed 都会建立层叠上下文，z-index:-1 的伪元素画在栏内容之下、栏背景之上。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-bar-surface="chrome"]::before {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-bar-surface="chrome"]::before {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: var(--s19-action-bar-bg, var(--s19-bar-bg));
   box-shadow: var(--s19-action-bar-sh, none);
@@ -28,66 +28,66 @@
 }
 
 /* ---------- 页面背景：去掉在壁纸上形成色块的画布 / 纯白底 ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-manual-amount, main[data-entry-saved]) {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.lv-manual-amount, main[data-entry-saved]) {
   background: transparent;
 }
 
 /* ---------- 金额框：白底 + 品牌框，按风格换材质（输入表面，始终清楚可读） ----------
    各风格的填充、描边与投影是令牌（--s19-amount-*：A / B1 / C 在 s19-lab-tokens.css，B2 在 index.css）。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount] {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-amount] {
   --lv-amount-ring: 0 0 0 0 transparent;
   border-width: 2px;
   border-color: var(--s19-amount-border, var(--color-brand));
   background: var(--s19-amount-bg, var(--color-surface));
   box-shadow: var(--lv-amount-ring), var(--s19-amount-sh, none);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount]:has(input:focus-visible) {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-amount]:has(input:focus-visible) {
   --lv-amount-ring: 0 0 0 4px var(--color-focus-ring);
 }
 /* B1 细腻瓷面：白瓷底座 + 共用瓷面阴影与缎面反射（material-effects.css 的已验收配方，AmountField 带 lv-material-effects） */
-:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount] {
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-amount] {
   position: relative; z-index: 0;
   box-shadow: var(--lv-amount-ring), var(--lv-porcelain-shadow);
 }
-:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount]::before {
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-amount]::before {
   content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   background: var(--lv-porcelain-satin); opacity: var(--lv-material-reflection, .6);
 }
 /* B2 层叠玻璃：九成白的乳白玻璃，模糊只在伪元素上；文字始终在近乎实体的白底上 */
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount] {
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-amount] {
   position: relative; z-index: 0;
 }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-amount]::before {
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-amount]::before {
   content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   -webkit-backdrop-filter: blur(var(--s19-glass-blur, 9px)) saturate(1.4);
   backdrop-filter: blur(var(--s19-glass-blur, 9px)) saturate(1.4);
 }
 
 /* ---------- 拖放 / 选择区：兼容映射让卡片变成玻璃时，保留虚线提示 ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .rounded-card.bg-surface.border-dashed {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .rounded-card.bg-surface.border-dashed {
   border-color: color-mix(in srgb, var(--color-line-strong) 55%, transparent);
 }
 
 /* ---------- 次级信息块与标签（原文、听到的内容、说明、识别标签）：中性内凹底，不是画布色块 ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-entry-soft {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-entry-soft {
   background: var(--s19-track-bg);
   box-shadow: var(--s19-track-sh);
 }
 
 /* ---------- 胶囊：沿用上一笔、快捷金额、未选中的支付方式与标签 ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-chip]:is(.bg-surface, .bg-brand-soft) {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-chip]:is(.bg-surface, .bg-brand-soft) {
   border-color: transparent;
   background: var(--s19-book-bg, var(--s19-card-bg));
   box-shadow: var(--s19-book-sh, var(--s19-card-sh));
 }
 /* C 是纸面：胶囊在白色的“更多选项”面板里只有极淡的投影，看不出边界；与标准胶囊一样补一圈细线（1.19.52）。 */
-:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-entry-chip]:is(.bg-surface, .bg-brand-soft) {
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-entry-chip]:is(.bg-surface, .bg-brand-soft) {
   box-shadow: 0 0 0 1px var(--s19-card-line, transparent), var(--s19-card-sh);
 }
 /* 更多选项外框：1.19.52 起声明 display 材质（EntryMoreOptions），由 material-components.css 统一处理。 */
 
 /* ---------- 附件上传区（五种方式共用）：保留品牌虚线，底色改用次要操作面 ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capture-upload {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-capture-upload {
   background: var(--s19-soft-bg);
   box-shadow: var(--s19-soft-sh, none);
 }
@@ -97,37 +97,37 @@
    预览窗 display、关联本次全部 / 清除选择 / 下载 / 重试 / 取消 / 添加 capsule、删除 danger-quiet。这里只补手机外壳下的
    尺寸与间距：点击区至少 44px（紧凑胶囊同 CapsuleButton compact）、卡片内边距，整行品牌浅底与行间细线让给卡片。
    元素仍保留电脑版控件类，电脑版、Pad、Original 与深色外观不变。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capture-files {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-capture-files {
   gap: 8px; padding: 4px;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-files > li, .lv-attachment-list > li) {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.lv-capture-files > li, .lv-attachment-list > li) {
   padding: 0; border-radius: 0; border-bottom-width: 0; background: transparent;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-attachment-list {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-attachment-list {
   gap: 8px;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-file, .lv-attachment-file).lv-material {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.lv-capture-file, .lv-attachment-file).lv-material {
   min-height: 44px; padding: 10px 14px;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capture-preview.lv-material {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-capture-preview.lv-material {
   border-width: 1px; border-style: solid;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-attachments, .lv-attachments) :is(.lv-desk-link, .lv-desk-btn).lv-material {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.lv-capture-attachments, .lv-attachments) :is(.lv-desk-link, .lv-desk-btn).lv-material {
   display: inline-flex; flex: none; align-items: center; justify-content: center; height: auto; min-height: 44px;
   padding: 6px 12px; font-size: var(--text-helper); line-height: var(--text-helper--line-height); font-weight: 400;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-attachments, .lv-attachments) .lv-desk-btn.lv-material[data-material-role="capsule"] {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.lv-capture-attachments, .lv-attachments) .lv-desk-btn.lv-material[data-material-role="capsule"] {
   border-color: transparent;
 }
 @media (hover: hover) and (pointer: fine) {
   /* 与 Button 的 danger-quiet 一致：悬停是危险色浅底，而不是电脑版链接的品牌浅底。 */
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-desk-link.lv-material[data-material-role="danger-quiet"]:not(:disabled):hover {
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-desk-link.lv-material[data-material-role="danger-quiet"]:not(:disabled):hover {
     background: var(--color-danger-soft);
   }
 }
 
 /* ---------- C：手动记账绿色顶区上下压缩（按钮不动），浅色与深色一致 ---------- */
-:root[data-visual-style="c"] .lv-shell[data-shell="contents"] .lv-manual-form > header.bg-brand {
+:root[data-visual-style="c"] .lv-shell[data-s19-scope] .lv-manual-form > header.bg-brand {
   padding-top: max(1rem, env(safe-area-inset-top, 0px));
   padding-bottom: 1rem;
 }

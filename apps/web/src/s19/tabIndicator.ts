@@ -12,9 +12,10 @@
  * 形变规则：移动方向的前缘先走、后缘滞后（前缘分到 70% 的拉伸），到点后越过 2–3.5px 再回弹一次；
  * 图标与文字不在胶囊里，所以不会被拉伸。
  */
+import { S19_PHONE_SELECTOR } from "./scope.js";
 import { tabMotion } from "./tabMotion.js";
 
-const NAV_SELECTOR = '.lv-shell[data-shell="contents"] nav.shrink-0.border-t';
+const NAV_SELECTOR = `${S19_PHONE_SELECTOR} nav.shrink-0.border-t`;
 /** 静止宽高比。 */
 const RATIO = 1.15;
 /** 运动中最多拉长到静止宽度的 1 + MAX_STRETCH 倍。 */

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { S19_PHONE_SELECTOR } from "../s19/scope.js";
 
 let releaseExit: (() => void) | undefined;
 
@@ -36,7 +37,7 @@ function retract(capsule: HTMLElement, nav: HTMLElement, shell: HTMLElement): vo
 export function useBookCapsuleMotion(visible: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const caption = ref.current, page = caption?.closest<HTMLElement>(".h-dvh"), shell = caption?.closest<HTMLElement>('.lv-shell[data-shell="contents"]');
+    const caption = ref.current, page = caption?.closest<HTMLElement>(".h-dvh"), shell = caption?.closest<HTMLElement>(S19_PHONE_SELECTOR);
     if (!visible || !caption || !page || !shell) return;
     // 快速切回时，旧副本立即退出；新入口自己的 CSS 入场不与 Tab 指示器共享动画。
     releaseExit?.();

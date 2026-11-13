@@ -21,6 +21,7 @@ import { currentBookId, subscribeCurrentBook } from "../lib/currentBook.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
 import { useBooks } from "../lib/queries.js";
 import { foreignBookFor, ViewLedgerContext } from "../lib/workspaceLedger.js";
+import { s19ScopeForShell } from "../s19/scope.js";
 import {
   PaneContext,
   PaneSizeContext,
@@ -841,6 +842,8 @@ export function WorkspaceShell({
       ref={shellRef}
       className="lv-shell"
       data-shell={chrome ? "wide" : "contents"}
+      // S19 作用域标记（总闸）：材质与转场规则只认它；data-shell 只管外壳布局（s19/scope.ts）。
+      data-s19-scope={s19ScopeForShell(chrome ? "wide" : "contents")}
       data-orientation={orientation}
       data-split={splitVisible ? "true" : "false"}
       data-navdrag={chrome && dragKey !== "idle" ? "true" : undefined}

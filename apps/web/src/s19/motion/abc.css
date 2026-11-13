@@ -1,5 +1,5 @@
 /* 只有实验呈现器创建这层；两张 inert 副本同用现有材质，退出即释放。 */
-.lv-shell.s19-abc-stage[data-shell="contents"] {
+.lv-shell.s19-abc-stage[data-s19-scope] {
   display: block; position: fixed; inset: 0; z-index: 80;
   width: 100%; height: 100dvh; overflow: hidden; isolation: isolate; pointer-events: none;
   background: var(--s19-bg, var(--color-canvas));

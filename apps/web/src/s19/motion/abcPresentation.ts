@@ -1,6 +1,7 @@
 import { NAVIGATION, interruptsTransition } from "../../lib/motionTokens.js";
 import { ABCMotion, type ABCStyle, type AVariant } from "../../../../../experiments/abc-motion/controller.js";
 import type { ABCPresentation } from "./abcBridge.js";
+import { markS19Stage } from "../scope.js";
 
 let cloneSequence = 0;
 /** 短暂、inert 的呈现副本：没有 React、事件或业务历史，完成/取消即释放。 */
@@ -112,7 +113,7 @@ export class ABCPagePresentation implements ABCPresentation {
     if (!this.stage) {
       this.stage = document.createElement("div");
       this.stage.className = "lv-shell s19-abc-stage";
-      this.stage.dataset.shell = "contents";
+      markS19Stage(this.stage);
       this.stage.dataset.abcSnapshot = "";
       this.stage.inert = true; this.stage.setAttribute("aria-hidden", "true");
       document.body.append(this.stage);

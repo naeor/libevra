@@ -7,12 +7,12 @@
 }
 #motion-pilot-badge button { color: var(--color-brand-dark); cursor: pointer; pointer-events: auto; flex-shrink: 0; }
 /* 页面标题接收程序化焦点用于读屏定位；它不是需要焦点框的交互控件。 */
-.lv-shell[data-shell="contents"] h1[tabindex="-1"]:focus { outline: none; }
+.lv-shell[data-s19-scope] h1[tabindex="-1"]:focus { outline: none; }
 
 /* 捕获实际页面，保留原生的页面边界；不再捕获并裁切整张 #root 文档。
    环境仍在快照下面。新页不补文档坐标、不改组尺寸，也不移除顶底栏的背景模糊。 */
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]:has(.lv-shell[data-shell="contents"]) { view-transition-name: none; }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-shell="contents"] [data-b2-motion-page] {
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]:has(.lv-shell[data-s19-scope]) { view-transition-name: none; }
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-s19-scope] [data-b2-motion-page] {
   view-transition-name: b2-page;
 }
 :root[data-visual-style="b2"] { --motion-hybrid-carry: var(--s19-b2-carry, .85); }

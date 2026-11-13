@@ -48,7 +48,7 @@ function Gallery() {
   const changeStyle = (next: Style) => { setStyle(next); setFinish("auto"); };
   const reset = () => { setEdge(MATERIAL_DEFAULTS.edge * 100); setReflection(MATERIAL_DEFAULTS.reflection * 100); setOpacity(undefined); setRadius(undefined); setElevation("default"); setEnhanced(false); setFinish("auto"); };
   const capability = materialCapability(finish);
-  return <main className="lv-shell cg-page" data-shell="contents" style={materialTuningStyle({ edge: edge / 100, reflection: reflection / 100, ...(radius === undefined ? {} : { radius }) })}>
+  return <main className="lv-shell cg-page" data-shell="contents" data-s19-scope="phone" style={materialTuningStyle({ edge: edge / 100, reflection: reflection / 100, ...(radius === undefined ? {} : { radius }) })}>
     <header className="cg-heading"><p>LIBEVRA / DESIGN SYSTEM</p><h1>Component Gallery</h1><p>从用途出发。这里的控件与正式应用共用组件和材质。</p></header>
     <div className="cg-layout"><aside className="cg-controls" aria-label="预览设置">
       <h2>四种风格，同一套组件</h2><SegmentedControl label="视觉风格" value={style} options={STYLES} onChange={changeStyle} /><p className="cg-style-name">{NAMES[style]}</p>

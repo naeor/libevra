@@ -1,13 +1,13 @@
 # apps/web/src/s19 · 阅读入口
 
-> 最后修改：2026-11-09 09:27（UTC+08:00）
+> 最后修改：2026-11-14 01:42（UTC+08:00）
 
 
 S19 材质与展示实现，消费现有 Token，不改变业务语义。
 
 优先阅读[任务索引](../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
 
-`product.ts` 加载四套正式可选材质；开发把手仍由 `lab.ts` 门禁控制。B1 背景强度复用 material 映射，B2 继续使用既有账号级 glass 存储；正式选择器位于 pages/AppearanceStyleSection。
+`product.ts` 加载四套正式可选材质；开发把手仍由 `lab.ts` 门禁控制。材质与转场的作用范围只认外壳上的 `data-s19-scope`（`scope.ts`，通用层 / 手机专属层，规格 §1「作用域标记」）。B1 背景强度复用 material 映射，B2 继续使用既有账号级 glass 存储；正式选择器位于 pages/AppearanceStyleSection。
 
 <!-- directory-index:start -->
 ## 直属目录清单
@@ -51,6 +51,8 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 | [product.ts](product.ts) | 实现模块；入口/导出：startB2Appearance |
 | [s19-lab-tokens.css](s19-lab-tokens.css) | 样式与变量 |
 | [s19.css](s19.css) | 样式与变量 |
+| [scope.test.ts](scope.test.ts) | 测试：scope |
+| [scope.ts](scope.ts) | 实现模块；入口/导出：S19Scope、S19_SCOPE_SELECTOR、S19_PHONE_SELECTOR、s19ScopeForShell、markS19Stage |
 | [shared.css](shared.css) | 样式与变量 |
 | [tabIndicator.ts](tabIndicator.ts) | 实现模块；入口/导出：startTabIndicator |
 | [tabMotion.ts](tabMotion.ts) | 实现模块；入口/导出：TabMotion、TAB_MOTIONS、TAB_MOTION_STORAGE_KEY、TAB_MOTION_LABELS、tabMotion |

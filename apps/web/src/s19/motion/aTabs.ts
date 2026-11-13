@@ -1,4 +1,5 @@
 import { DepthGlide } from "../../../../../experiments/abc-motion/tab-glide.js";
+import { S19_PHONE_SELECTOR } from "../scope.js";
 
 /** “＋”后面的停靠位（1.19.52）：在记账方式页时没有当前 Tab，胶囊滑到“＋”后面、被“＋”挡住并淡出。 */
 const PLUS = "plus";
@@ -70,7 +71,7 @@ function release(): void {
 export function syncATabs(): void {
   const data = document.documentElement.dataset;
   if (data.visualStyle !== "a" || data.themeMode !== "light") { release(); previous = null; return; }
-  const nav = document.querySelector<HTMLElement>('#root .lv-shell[data-shell="contents"] nav.shrink-0.border-t');
+  const nav = document.querySelector<HTMLElement>(`#root ${S19_PHONE_SELECTOR} nav.shrink-0.border-t`);
   const track = nav?.querySelector<HTMLElement>(":scope > ul");
   const buttons = track ? [...track.querySelectorAll<HTMLElement>(":scope > li > button:not(.size-16)")] : [];
   const selected = buttons.findIndex(button => button.getAttribute("aria-current") === "page");

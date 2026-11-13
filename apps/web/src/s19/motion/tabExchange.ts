@@ -1,5 +1,6 @@
 import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
 import { MOTION_CLOCK, TAB_SWITCH } from "../../lib/motionTokens.js";
+import { markS19Stage } from "../scope.js";
 import "./tabExchange.css";
 
 /**
@@ -88,7 +89,7 @@ export class TabExchangePresentation {
 
     // 舞台：统一壁纸之上、真实页面之下；旧页被 React 移除后接到这里继续离开。
     const stage = document.createElement("div");
-    stage.className = "lv-shell tab-stage"; stage.dataset.shell = "contents";
+    stage.className = "lv-shell tab-stage"; markS19Stage(stage);
     stage.inert = true; stage.setAttribute("aria-hidden", "true");
     const plane = document.createElement("div"); plane.className = "s19-abc-plane";
     stage.append(plane); document.body.append(stage);

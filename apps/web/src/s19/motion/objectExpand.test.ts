@@ -102,6 +102,8 @@ describe("Object Expand：卡片逐渐成为详情", () => {
     engine.run({ source, page, commit, commitNow, style: "a" });
     expect(commit).toHaveBeenCalledTimes(1); expect(commitNow).not.toHaveBeenCalled();
     expect(list.inert).toBe(true);
+    // 舞台带与手机外壳相同的作用域标记（材质规则在舞台里照常命中）；data-shell 仍服务外壳布局规则。
+    expect(stage("front")!.dataset).toMatchObject({ shell: "contents", s19Scope: "phone" });
     const shell = shellOf(stage("front")!);
     expect(shell.style["transform"]).toBe("translate3d(24px,200px,0) scale(1)");
     expect(shell.style["width"]).toBe("342px");

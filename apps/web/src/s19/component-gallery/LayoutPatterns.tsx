@@ -38,5 +38,5 @@ export function StandaloneBottomPattern() {
     const mode = preset && Object.hasOwn(B2_GLASS_PRESETS, preset) ? preset as B2GlassPreset : "balanced";
     applyB2Glass(document.documentElement.style, B2_GLASS_PRESETS[mode], mode);
   }, []);
-  return <main className="lv-shell" data-shell="contents"><BottomActionsPattern fullPage /></main>;
+  return <main className="lv-shell" data-shell="contents" data-s19-scope="phone"><BottomActionsPattern fullPage /></main>;
 }
