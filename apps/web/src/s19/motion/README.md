@@ -1,6 +1,6 @@
 # apps/web/src/s19/motion · 阅读入口
 
-> 最后修改：2026-11-09 09:11（UTC+08:00）
+> 最后修改：2026-11-14 01:24（UTC+08:00）
 
 主 Tab、对象展开、模式入口和次级导航的呈现协调；不能混淆层级。
 
@@ -17,6 +17,7 @@
 | [aTabs.ts](aTabs.ts) | 实现模块；入口/导出：ControlledGlide、captureATabs、syncATabs、startATabs |
 | [abc.css](abc.css) | 样式与变量 |
 | [abcBridge.ts](abcBridge.ts) | 实现模块；入口/导出：ABCPresentation、registerABCPresentation、A_VARIANTS、aVariant、chooseAVariant |
+| [abcController.test.ts](abcController.test.ts) | 测试：abcController |
 | [abcPresentation.ts](abcPresentation.ts) | 实现模块；入口/导出：snapshot、restoreSnapshot、ABCPagePresentation |
 | [abcRuntime.ts](abcRuntime.ts) | 实现模块；入口/导出：startABCRuntime |
 | [ambientLayout.ts](ambientLayout.ts) | 实现模块；入口/导出：AmbientShape、AmbientLayout、MAX_AMBIENT_SHAPES、describeLayout、layoutBackground |

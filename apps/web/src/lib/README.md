@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-09 09:11（UTC+08:00）
+> 最后修改：2026-11-14 01:24（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -75,7 +75,7 @@
 | [language.ts](language.ts) | 实现模块；入口/导出：LANGUAGE_PREFERENCES、LanguagePreference、LANGUAGE_STORAGE_KEY、LanguageStorage、isLanguagePreference |
 | [languageRuntime.ts](languageRuntime.ts) | 实现模块；入口/导出：startLanguageRuntime、useLanguagePreference |
 | [ledgerFilter.ts](ledgerFilter.ts) | 实现模块；入口/导出：FilterSlot、ledgerFilterKey、normalizeFilter、sameFilter、filterSyncEnabled |
-| [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：CoverOptions、provideReloadCover、coverForReload |
+| [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：CoverOptions、provideReloadCover、coverForReload、activateAndReload |
 | [ledgerView.test.ts](ledgerView.test.ts) | 测试：ledgerView |
 | [ledgerView.ts](ledgerView.ts) | 实现模块；入口/导出：mergeLedgerEntries、updateTransactionViews、limitToWholeDays |
 | [ledgerWriter.ts](ledgerWriter.ts) | 实现模块；入口/导出：LedgerWriter、useLedgerWriter |
@@ -88,7 +88,7 @@
 | [motionIdle.test.ts](motionIdle.test.ts) | 测试：motionIdle |
 | [motionIdle.ts](motionIdle.ts) | 实现模块；入口/导出：beginMotion、isMotionIdle、whenMotionIdle |
 | [motionTokens.test.ts](motionTokens.test.ts) | 测试：motionTokens |
-| [motionTokens.ts](motionTokens.ts) | 实现模块；入口/导出：MotionStyle、MotionCurve、easingFunction、MOTION_CLOCK、NAVIGATION |
+| [motionTokens.ts](motionTokens.ts) | 实现模块；入口/导出：MotionStyle、MotionCurve、easingFunction、TRANSITION_INTERRUPT、TransitionViewport |
 | [nativeHeaderScroll.test.ts](nativeHeaderScroll.test.ts) | 测试：nativeHeaderScroll |
 | [nativeHeaderScroll.ts](nativeHeaderScroll.ts) | 实现模块；入口/导出：scrollContentHeight、bindNativeHeaderScroll |
 | [notDuplicateRelations.test.ts](notDuplicateRelations.test.ts) | 测试：notDuplicateRelations |

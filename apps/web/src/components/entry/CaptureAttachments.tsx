@@ -8,10 +8,18 @@ import { errorMessage } from "../../lib/api.js";
 import { pendingAttachments, savePendingAttachment, removePendingAttachment, useBookStorage, type PendingAttachment } from "../../lib/attachments.js";
 import { captureAttachmentLimit, captureDraftsFor, resolveAttachmentDraft, type AttachmentTarget } from "../../lib/captureAttachments.js";
 import { AttachmentPdf } from "../AttachmentPdf.js";
+import { materialAttributes } from "../../s19/material.js";
+import "../../s19/material-components.css";
 import "./capture.css";
 import { uuidV7 } from "../../lib/uuid.js";
 
 const EMPTY_TARGETS: readonly AttachmentTarget[] = [];
+/**
+ * 附件区的小按钮（关联本次全部、清除选择、下载）按紧凑胶囊（CapsuleButton compact）的用途声明材质（1.19.57）。
+ * 保留原来的 `lv-desk-link`：电脑版、Pad、Original 与深色外观不变；浅色手机外壳里由胶囊材质接管，点击区 44px。
+ */
+const CAPSULE = materialAttributes("capsule", { shape: "pill" });
+const CAPSULE_CLASS = "lv-desk-link lv-material lv-material-effects lv-press text-helper";
 // 录入页跳到核对页时仍等待同一工作区正在写入的文件。
 const pendingWrites = new Map<string, Promise<void>>();
 
@@ -123,14 +131,16 @@ function CaptureAttachmentPanel({ files, targets, disabled, error, limitsText, o
     <p className="text-helper-relaxed text-muted">{limitsText}</p>
     {error ? <p role="alert" className="text-helper text-danger">{error}</p> : null}
     {files.length === 0 ? <p className="text-helper-relaxed text-muted">{t("attachments.capture.hint")}</p> : <>
-      <ul className="lv-capture-files">{files.map(file => <li key={file.id} data-selected={file.id === preview?.id || undefined}>
-        <button type="button" onClick={() => setPreviewId(file.id)} className="lv-capture-file"><strong className="text-body">{file.name}</strong><small className="text-helper text-muted">{formatStorageBytes(file.blob.size)} · {file.draftLink?.targets.length ? t("attachments.associated", { count: file.draftLink.targets.length }) : t("attachments.capture.unassigned")}</small></button>
-        <button type="button" className="lv-desk-link text-helper" disabled={disabled} onClick={() => void onRemove(file)}>{t("attachments.remove")}</button>
-      </li>)}</ul>
+      {/* 用途（1.19.57）：可点选预览的文件行是可点击卡片（选中用 aria-pressed），「删除」是次要危险操作。
+          材质只在浅色手机外壳生效（s19/entry-workspace.css「附件区」）；电脑版、Pad、Original 与深色仍是原控件外观。 */}
+      <ul className="lv-capture-files">{files.map(file => { const selected = file.id === preview?.id; return <li key={file.id} data-selected={selected || undefined}>
+        <button type="button" onClick={() => setPreviewId(file.id)} aria-pressed={selected} {...materialAttributes("interactive")} className="lv-capture-file lv-material lv-material-effects lv-press"><strong className="text-body">{file.name}</strong><small className="text-helper text-muted">{formatStorageBytes(file.blob.size)} · {file.draftLink?.targets.length ? t("attachments.associated", { count: file.draftLink.targets.length }) : t("attachments.capture.unassigned")}</small></button>
+        <button type="button" {...materialAttributes("danger-quiet")} className="lv-desk-link lv-material lv-press text-helper" disabled={disabled} onClick={() => void onRemove(file)}>{t("attachments.remove")}</button>
+      </li>; })}</ul>
       {preview ? <>
         <DraftPreview key={preview.id} file={preview} />
         <fieldset className="lv-capture-targets" disabled={disabled}><legend className="text-card-title">{t("attachments.capture.targets")}</legend>
-          <div className="flex flex-wrap gap-3 py-2"><button type="button" className="lv-desk-link text-helper" disabled={targets.length === 0} onClick={() => void onAssociate(preview, [...targets])}>{t("attachments.capture.all")}</button><button type="button" className="lv-desk-link text-helper" onClick={() => void onAssociate(preview, [])}>{t("attachments.capture.clear")}</button></div>
+          <div className="flex flex-wrap gap-3 py-2"><button type="button" {...CAPSULE} className={CAPSULE_CLASS} disabled={targets.length === 0} onClick={() => void onAssociate(preview, [...targets])}>{t("attachments.capture.all")}</button><button type="button" {...CAPSULE} className={CAPSULE_CLASS} onClick={() => void onAssociate(preview, [])}>{t("attachments.capture.clear")}</button></div>
           {targets.length > 8 ? <input type="search" aria-label={t("attachments.capture.search")} placeholder={t("attachments.capture.search")} value={search} onChange={event => setSearch(event.target.value)} /> : null}
           <div className="lv-capture-target-list">{[...targets, ...(preview.draftLink?.targets.filter(item => !targets.some(target => target.id === item.id)) ?? [])].filter(item => item.label.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(target => {
             const selected = preview.draftLink?.targets.some(item => item.id === target.id) ?? false;
@@ -150,7 +160,8 @@ function DraftPreview({ file }: { file: PendingAttachment }) {
   useEffect(() => { const next = URL.createObjectURL(file.blob); setUrl(next); return () => URL.revokeObjectURL(next); }, [file.blob]);
   if (!url) return null;
   const type = file.blob.type;
-  return <div className="lv-capture-preview" aria-label={t("attachments.preview")}>
-    {type.startsWith("image/") ? <img src={url} alt={file.name} /> : type === "application/pdf" || /\.pdf$/i.test(file.name) ? <AttachmentPdf url={url} /> : type.startsWith("audio/") ? <audio src={url} controls preload="metadata" /> : <a className="lv-desk-link" href={url} download={file.name}>{t("attachments.download")}</a>}
+  // 预览窗是展示卡片（display）；不能预览的文件给一个胶囊「下载」。
+  return <div className="lv-capture-preview lv-material lv-material-effects" {...materialAttributes("display")} aria-label={t("attachments.preview")}>
+    {type.startsWith("image/") ? <img src={url} alt={file.name} /> : type === "application/pdf" || /\.pdf$/i.test(file.name) ? <AttachmentPdf url={url} /> : type.startsWith("audio/") ? <audio src={url} controls preload="metadata" /> : <a {...CAPSULE} className={CAPSULE_CLASS} href={url} download={file.name}>{t("attachments.download")}</a>}
   </div>;
 }

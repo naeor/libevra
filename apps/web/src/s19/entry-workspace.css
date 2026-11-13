@@ -92,6 +92,40 @@
   box-shadow: var(--s19-soft-sh, none);
 }
 
+/* ---------- 附件区（1.19.57）：记账页 CaptureAttachments 与账目详情等处的 Attachments 同一映射 ----------
+   材质全部来自用途角色（material-components.css）：文件行 interactive（可点选预览的行用 aria-pressed 的统一选中描边）、
+   预览窗 display、关联本次全部 / 清除选择 / 下载 / 重试 / 取消 / 添加 capsule、删除 danger-quiet。这里只补手机外壳下的
+   尺寸与间距：点击区至少 44px（紧凑胶囊同 CapsuleButton compact）、卡片内边距，整行品牌浅底与行间细线让给卡片。
+   元素仍保留电脑版控件类，电脑版、Pad、Original 与深色外观不变。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capture-files {
+  gap: 8px; padding: 4px;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-files > li, .lv-attachment-list > li) {
+  padding: 0; border-radius: 0; border-bottom-width: 0; background: transparent;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-attachment-list {
+  gap: 8px;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-file, .lv-attachment-file).lv-material {
+  min-height: 44px; padding: 10px 14px;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-capture-preview.lv-material {
+  border-width: 1px; border-style: solid;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-attachments, .lv-attachments) :is(.lv-desk-link, .lv-desk-btn).lv-material {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; height: auto; min-height: 44px;
+  padding: 6px 12px; font-size: var(--text-helper); line-height: var(--text-helper--line-height); font-weight: 400;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] :is(.lv-capture-attachments, .lv-attachments) .lv-desk-btn.lv-material[data-material-role="capsule"] {
+  border-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  /* 与 Button 的 danger-quiet 一致：悬停是危险色浅底，而不是电脑版链接的品牌浅底。 */
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] .lv-desk-link.lv-material[data-material-role="danger-quiet"]:not(:disabled):hover {
+    background: var(--color-danger-soft);
+  }
+}
+
 /* ---------- C：手动记账绿色顶区上下压缩（按钮不动），浅色与深色一致 ---------- */
 :root[data-visual-style="c"] .lv-shell[data-shell="contents"] .lv-manual-form > header.bg-brand {
   padding-top: max(1rem, env(safe-area-inset-top, 0px));

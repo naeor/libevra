@@ -1,7 +1,7 @@
 import { EASE, FIRST_EASE, relativeRect, reliableTarget, type Box } from "../../../../../prototype/geometry.mjs";
 import { snapshot, restoreSnapshot } from "./abcPresentation.js";
 import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
-import { MOTION_CLOCK, OBJECT_EXPAND, easingFunction } from "../../lib/motionTokens.js";
+import { MOTION_CLOCK, OBJECT_EXPAND, easingFunction, interruptsTransition } from "../../lib/motionTokens.js";
 import "./objectExpand.css";
 
 export interface ObjectSource { id: string; slot?: string; rect: Box; width: number; height: number; radius: number; safeTop: number; safeBottom: number }
@@ -341,7 +341,8 @@ export class ObjectExpandPresentation {
 
     const sourceNode = findObject(target, source.id, source.slot);
     const now = sourceNode ? relativeRect(sourceNode.getBoundingClientRect(), ORIGIN) : null;
-    const reliable = reliableTarget(source.rect, now, { width: W, height: H }, source.width !== W || source.height !== H)
+    // 视口在展开后大幅改变（共享的转场打断规则）时返回目标不可靠；工具栏伸缩这类小变化交给逐像素的位置核对。
+    const reliable = reliableTarget(source.rect, now, { width: W, height: H }, interruptsTransition(source, { width: W, height: H }))
       && !!now && now.y >= source.safeTop - 1 && now.y + now.height <= source.safeBottom + 1;
     const rect = reliable && now ? now : source.rect, split = rect.y + rect.height;
     const to: Pose = { ...rect, scale: 1, radius: source.radius };

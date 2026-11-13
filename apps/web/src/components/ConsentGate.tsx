@@ -19,6 +19,8 @@ import {
 import { deliverFile } from "../lib/share.js";
 import { errorMessage } from "../lib/api.js";
 import { selectDisplayedMajorAnnouncement } from "../lib/majorAnnouncementVisibility.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/overlays.css";
 
 /** Pages where a gentle announcement must not interrupt an active input/import flow. */
 export function isInputFlow(pathname: string): boolean {
@@ -305,6 +307,13 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
  * The header and footer are outside the scroll container, so the actions never move off-screen
  * when the body gets long. Height comes from one CSS class rather than three per-dialog heights;
  * `dvh` follows the iOS address bar and the media query gives very short viewports more room.
+ *
+ * S19 材质（1.19.57）：面板声明展示（display）用途并挂弹层钩子，浅色手机外壳里与展示卡片同一材质——
+ * A 柔和薄片、B1 瓷面、B2 内容玻璃、C 纸面——里面的 `Button` 按各自用途取材质（`s19/overlays.css`）。
+ * 遮罩仍是原来的 `--color-overlay-soft`，只在外壳里改由根节点的伪元素以同色、同节奏淡入
+ * （`data-overlay-scrim="soft"`）：根节点自己不再做透明度动画，B2 面板的背景模糊才能一直采样到后方页面。
+ * 位置、进出动画与 Original、深色、Pad、电脑版的外观不变。全局门禁的这一份由外壳渲染在
+ * `.lv-shell` 里面（`WorkspaceShell` 的 `wrapChrome`），账号数据页里的用法本来就在外壳内。
  */
 export function ConsentDialog({
   title,
@@ -324,6 +333,9 @@ export function ConsentDialog({
 }): React.JSX.Element {
   return (
     <div
+      data-overlay-root="sheet"
+      data-overlay-state="open"
+      data-overlay-scrim="soft"
       className="fixed inset-0 z-[80] flex items-end justify-center bg-overlay-soft backdrop-in sm:items-center sm:p-3"
       onClick={(event) => {
         /**
@@ -340,10 +352,12 @@ export function ConsentDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="consent-dialog-title"
+        data-overlay-surface="sheet"
+        {...materialAttributes("display")}
         onClick={(event) => {
           event.stopPropagation();
         }}
-        className="consent-dialog flex w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface shadow-sheet sheet-in sm:rounded-card"
+        className="consent-dialog relative z-0 flex w-full max-w-md flex-col overflow-hidden rounded-t-sheet border border-line bg-surface shadow-sheet sheet-in sm:rounded-card"
       >
 
         <header className="shrink-0 border-b border-line px-5 pb-3 pt-4">

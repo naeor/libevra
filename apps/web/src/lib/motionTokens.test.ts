@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CONTROL_MORPH, FEEDBACK_CSS, OBJECT_EXPAND, TAB_SWITCH, easingFunction } from "./motionTokens.js";
+import { CONTROL_MORPH, FEEDBACK_CSS, OBJECT_EXPAND, TAB_SWITCH, TRANSITION_INTERRUPT, easingFunction, interruptsTransition } from "./motionTokens.js";
 
 /** 60Hz 下每帧的进度。 */
 const perFrame = (duration: number, easing: string): number[] => {
@@ -31,6 +31,31 @@ describe("Motion Token", () => {
     expect(close.reveal[1]).toBeLessThanOrEqual(close.geometry[0]);
     expect(close.content[1]).toBeLessThanOrEqual(close.geometry[1]);
     expect(OBJECT_EXPAND.open.duration).toBeLessThanOrEqual(400);
+  });
+  it("转场打断规则：宽度变化，或高度变化超过 150px 才打断", () => {
+    const phone = { width: 390, height: 664 };
+    expect(TRANSITION_INTERRUPT.heightPx).toBe(150);
+    expect(interruptsTransition(phone, phone)).toBe(false);
+    // iPhone Safari 工具栏伸缩、前进按钮出现 / 消失：几十像素，不打断（1.19.42 的“闪到终点”）。
+    expect(interruptsTransition(phone, { width: 390, height: 664 + 83 })).toBe(false);
+    expect(interruptsTransition(phone, { width: 390, height: 664 - 150 })).toBe(false);
+    // 软键盘、窗口大幅改变：打断。
+    expect(interruptsTransition(phone, { width: 390, height: 664 - 151 })).toBe(true);
+    expect(interruptsTransition(phone, { width: 390, height: 664 + 300 })).toBe(true);
+    // 宽度任何变化（转屏、分屏、缩放）都打断。
+    expect(interruptsTransition(phone, { width: 391, height: 664 })).toBe(true);
+    expect(interruptsTransition(phone, { width: 844, height: 390 })).toBe(true);
+  });
+  it("协调器与各呈现器从同一处读取打断规则，不各自写阈值或监听视口", () => {
+    const read = (path: string): string => readFileSync(new URL(path, import.meta.url), "utf8");
+    const pilot = read("../s19/motion/pilot.tsx");
+    expect(pilot).toContain("interruptsTransition(");
+    expect(pilot).not.toMatch(/>\s*150\b/);
+    expect(read("../s19/motion/abcPresentation.ts")).toContain("interrupts: interruptsTransition");
+    expect(read("../s19/motion/objectExpand.ts")).toContain("interruptsTransition(source");
+    const controller = read("../../../../experiments/abc-motion/controller.js");
+    expect(controller).not.toContain("visualViewport");
+    expect(controller).toContain("this.interrupts(");
   });
   it("高频反馈登记的 CSS 变量在四种风格里都有定义", () => {
     const css = readFileSync(new URL("../components/ui/component-motion.css", import.meta.url), "utf8");

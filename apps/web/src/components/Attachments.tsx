@@ -13,6 +13,12 @@ import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { AttachmentPdf } from "./AttachmentPdf.js";
 import { uuidV7 } from "../lib/uuid.js";
+import { materialAttributes } from "../s19/material.js";
+import "../s19/material-components.css";
+
+/** 附件区小按钮的用途（紧凑胶囊）与材质类；只在浅色手机外壳生效，见 AttachmentPanel。 */
+const CAPSULE = materialAttributes("capsule", { shape: "pill" });
+const MATERIAL_CLASS = "lv-material lv-material-effects lv-press";
 
 export function AttachmentTransfers(): null {
   const { user } = useAuth();
@@ -109,27 +115,29 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
     } catch (caught) { setError(errorMessage(caught)); }
   }
   const refresh = () => { void query.invalidateQueries({ queryKey: ["attachments"] }); void query.invalidateQueries({ queryKey: ["storage"] }); void query.invalidateQueries({ queryKey: ["transactions"] }); void query.invalidateQueries({ queryKey: ["transaction"] }); void query.invalidateQueries({ queryKey: ["ledger"] }); void query.invalidateQueries({ queryKey: ["ws-ledger"] }); void query.invalidateQueries({ queryKey: ["ledger-history"] }); void query.invalidateQueries({ queryKey: ["ledger-meta"] }); };
+  // 用途（1.19.57，与记账页附件区同一映射）：文件行是可点击卡片，删除是次要危险操作，其余小按钮是紧凑胶囊。
+  // 材质只在浅色手机外壳生效（s19/entry-workspace.css「附件区」）；电脑版、Pad、Original 与深色仍是原控件外观。
   return <section className="lv-attachments">
     <header><h2 className="text-section-title">{t("attachments.title")}</h2><span className="text-helper text-muted">{t("attachments.count", { count: files.length + pending.length })}</span>
-      {editable ? <button type="button" className="lv-desk-btn ml-auto" onClick={() => input.current?.click()}>{t("attachments.add")}</button> : null}</header>
+      {editable ? <button type="button" {...CAPSULE} className={`lv-desk-btn ml-auto ${MATERIAL_CLASS}`} onClick={() => input.current?.click()}>{t("attachments.add")}</button> : null}</header>
     <input ref={input} type="file" multiple accept="image/*,application/pdf,audio/*,.txt,.csv" className="sr-only" onChange={(e) => { void chosen(e.target.files); e.target.value = ""; }} />
     {entryIds.length > 1 ? <p className="text-helper text-muted">{t("attachments.associated", { count: entryIds.length })}</p> : null}
     {error ? <p role="alert" className="text-helper text-danger">{error}</p> : null}
     {list.isError ? <p role="alert" className="text-helper text-danger">{errorMessage(list.error)}</p> : null}
     {list.isSuccess && files.length === 0 && pending.length === 0 ? <p className="text-helper text-muted">{t("attachments.empty")}</p> : null}
     <ul className="lv-attachment-list">{files.map((file) => <li key={file.id}>
-      <button className="lv-attachment-file" onClick={() => setPreview(file)}>
+      <button {...materialAttributes("interactive")} className={`lv-attachment-file ${MATERIAL_CLASS}`} onClick={() => setPreview(file)}>
         {file.mediaType.startsWith("image/") ? <img src={attachmentUrl(file)} alt="" loading="lazy" /> : <span aria-hidden="true">↗</span>}
         <span><strong>{file.name}</strong><small>{formatStorageBytes(file.sizeBytes)} · {file.uploaderName}{file.deletedAt ? ` · ${t("attachments.recoverable")}` : ""}</small></span>
       </button>
-      {file.canDelete && editable ? <button className="lv-desk-link text-helper" onClick={() => {
+      {file.canDelete && editable ? <button {...(file.deletedAt ? CAPSULE : materialAttributes("danger-quiet"))} className={`lv-desk-link text-helper ${MATERIAL_CLASS}`} onClick={() => {
         if (file.deletedAt) void apiFetch(`/books/${bookId}/attachments/${file.id}/restore`, { method: "POST" }).then(refresh).catch((e: unknown) => setError(errorMessage(e)));
         else setRemove(file);
       }}>{t(file.deletedAt ? "attachments.restore" : "attachments.remove")}</button> : null}
     </li>)}</ul>
     {pending.map((file) => <div key={file.id} className="lv-attachment-pending"><span className="min-w-0 flex-1"><strong className="text-body break-all">{file.name}</strong><small className="block text-helper text-muted">{formatStorageBytes(file.blob.size)} · {t(progress.has(file.id) ? "attachments.uploading" : file.error ? "attachments.failed" : "attachments.pending")}</small>{progress.has(file.id) ? <progress className="lv-storage-progress" max={file.blob.size} value={progress.get(file.id)} /> : null}{file.error ? <span className="text-helper text-danger">{file.error}</span> : null}</span>
-      <button className="lv-desk-link text-helper" onClick={() => { void savePendingAttachment({ ...file, error: null }); }}>{t("attachments.retry")}</button>
-      <button className="lv-desk-link text-helper" onClick={() => { void cancelPendingAttachment(file).catch((e: unknown) => setError(errorMessage(e))); }}>{t("common.action.cancel")}</button></div>)}
+      <button {...CAPSULE} className={`lv-desk-link text-helper ${MATERIAL_CLASS}`} onClick={() => { void savePendingAttachment({ ...file, error: null }); }}>{t("attachments.retry")}</button>
+      <button {...CAPSULE} className={`lv-desk-link text-helper ${MATERIAL_CLASS}`} onClick={() => { void cancelPendingAttachment(file).catch((e: unknown) => setError(errorMessage(e))); }}>{t("common.action.cancel")}</button></div>)}
     {pending.length ? <p className="text-helper text-muted">{t("attachments.localHint")}</p> : null}
     {storage.data ? <p className="text-helper text-muted">{t("attachments.limits", { file: formatStorageBytes(storage.data.limits.fileBytes), count: storage.data.limits.entryFiles, entry: formatStorageBytes(storage.data.limits.entryBytes) })}</p> : null}
     {preview ? <AttachmentPreview file={preview} onClose={() => setPreview(null)} /> : null}

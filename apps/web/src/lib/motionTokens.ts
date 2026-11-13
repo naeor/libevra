@@ -34,6 +34,32 @@ export function easingFunction(css: string): (t: number) => number {
   };
 }
 
+/**
+ * **转场打断规则（1.19.57 起统一登记）**：视口或舞台尺寸变化时，正在播放的转场要不要收束到终点。
+ * 所有风格（A / B1 / B2 / C）、所有呈现器共用这一条，不各自判断：
+ * - 宽度变化（转屏、分屏、窗口缩放）一律打断；
+ * - 高度只在变化超过 `heightPx` 时打断（软键盘、窗口大幅改变）。iPhone Safari 的工具栏伸缩、前进按钮出现 / 消失
+ *   只改变几十像素高度，不打断——1.19.42 遇到任何高度变化都收束，看起来就是“闪一下到终点”。
+ *
+ * 使用方：协调器 `s19/motion/pilot.tsx` 统一监听布局视口与可视区（`resize` / `visualViewport`）并按此收束全部呈现器；
+ * ABC 呈现控制器不再自己监听视口，内容尺寸观察由调用方传入本规则；Object Expand 收回时判断返回目标是否可靠也读本规则。
+ * 账本空间海浪整页重新载入后的接续（`tide.ts` 的 `takeTideResume`）不是打断，而是“两页能否接着画”的容差，另行规定。
+ */
+export const TRANSITION_INTERRUPT = {
+  /** 高度变化超过这个值（px）才打断；宽度任何变化都打断。 */
+  heightPx: 150,
+} as const;
+
+export interface TransitionViewport {
+  readonly width: number;
+  readonly height: number;
+}
+
+/** 从 `before` 变到 `after` 是否应当打断正在播放的转场（{@link TRANSITION_INTERRUPT}）。 */
+export function interruptsTransition(before: TransitionViewport, after: TransitionViewport): boolean {
+  return after.width !== before.width || Math.abs(after.height - before.height) > TRANSITION_INTERRUPT.heightPx;
+}
+
 /** 帧锚定时钟本身：单帧推进上限与判定“帧已停止”的间隔。 */
 export const MOTION_CLOCK = {
   /** 单帧最多推进约 30fps 的一帧（正常节奏由最近帧间隔的中位数决定，卡顿只推进一个正常帧）。 */
@@ -44,7 +70,8 @@ export const MOTION_CLOCK = {
 
 /**
  * 普通次级页面导航（默认“新页从右侧覆盖”，返回回放同一条边）。A / B1 / C 由 ABC 呈现控制器播放
- * （`experiments/abc-motion/controller.js`，时长由这里传入），B2 由 MotionEngine 的原生页面转场播放。
+ * （`experiments/abc-motion/controller.js`，时长与打断规则 {@link interruptsTransition} 由这里传入），
+ * B2 由 MotionEngine 的原生页面转场播放。
  * 本轮未调校，数值为既有已验收参数的登记。
  */
 export const NAVIGATION = {

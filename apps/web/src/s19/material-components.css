@@ -14,6 +14,11 @@
   /* 原样保留主按钮的实体品牌底；操作面不消费展示透明度调节。 */
   .lv-material[data-material-role][data-material-role="primary"] { background: var(--s19-accent-bg); box-shadow: var(--s19-accent-sh); }
   .lv-material[data-material-role][data-material-role="secondary"] { background: var(--s19-soft-bg); box-shadow: var(--s19-soft-sh); }
+  /* 次要危险操作（§3）：四风格都是危险色文字 + 细描边、透明底，不玻璃化。Button 的 danger-quiet 本来就是这个外观；
+     声明同一用途的非 Button 元素（附件区的「删除」，1.19.57）在手机材质下得到同一外观。底色不写，保留各自的按下 / 悬停。 */
+  .lv-material[data-material-role][data-material-role="danger-quiet"] {
+    color: var(--color-danger); border: 1px solid color-mix(in oklab, var(--color-danger) 40%, transparent); border-radius: var(--radius-field);
+  }
   .lv-material[data-material-role]:where([aria-pressed="true"], [aria-selected="true"]) { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 }
 /* 显式候选才增加反射层。滤镜只能在不承载内容的伪元素上，不能改变 fixed 后代参照系。 */

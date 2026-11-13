@@ -1,4 +1,4 @@
-import { NAVIGATION } from "../../lib/motionTokens.js";
+import { NAVIGATION, interruptsTransition } from "../../lib/motionTokens.js";
 import { ABCMotion, type ABCStyle, type AVariant } from "../../../../../experiments/abc-motion/controller.js";
 import type { ABCPresentation } from "./abcBridge.js";
 
@@ -116,7 +116,8 @@ export class ABCPagePresentation implements ABCPresentation {
       this.stage.dataset.abcSnapshot = "";
       this.stage.inert = true; this.stage.setAttribute("aria-hidden", "true");
       document.body.append(this.stage);
-      this.engine = new ABCMotion(this.stage);
+      // 视口变化由协调器统一收束；被动画平面 / 分组的尺寸变化同样只按共享的转场打断规则判断（1.19.57）。
+      this.engine = new ABCMotion(this.stage, { interrupts: interruptsTransition });
     }
     this.stage.dataset.abcStyle = style;
     const to = retainedTarget ?? snapshot(target);

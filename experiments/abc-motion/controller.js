@@ -3,23 +3,19 @@
  * 返回 {finished:Promise<{status,reason}>, seek(progress), cancel()}。
  * 不克隆节点、不调用 navigate、不修改滚动、不承担历史；节点 hidden/inert 由调用者管理。
  * A/B1 优先使用最多四个可见 [data-motion-group]；没有可测分组时使用 [data-motion-body]。
+ * 尺寸打断（1.19.57）：控制器不再自己监听视口 / 舞台尺寸——Libevra 里由协调器（pilot.tsx）按共享的转场打断规则
+ * （apps/web/src/lib/motionTokens.ts 的 interruptsTransition：宽度变化或高度变化 > 150px）统一收束；被动画节点的
+ * 内容尺寸变化也只按调用方传入的 options.interrupts(before, after) 判断（不传则不因尺寸打断）。
  */
 export class ABCMotion {
-  constructor(stage) {
+  constructor(stage, {interrupts = () => false} = {}) {
     this.stage = stage; this.active = null; this.generation = 0; this.disposed = false;
+    this.interrupts = interrupts;
     this.media = matchMedia('(prefers-reduced-motion: reduce)');
     this.interrupt = () => this.cancel('environment');
     this.visibility = () => { if (document.hidden) this.cancel('hidden'); };
-    this.resize = new ResizeObserver(entries => {
-      const r = entries[0]?.contentRect;
-      const size = r && `${r.width}/${r.height}`;
-      if (this.size && this.size !== size) this.cancel('resize');
-      this.size = size;
-    });
-    this.resize.observe(stage);
     this.media.addEventListener('change', this.interrupt);
     document.addEventListener('visibilitychange', this.visibility);
-    window.visualViewport?.addEventListener('resize', this.interrupt);
   }
   cancel(reason = 'cancelled') { this.active?.finish('cancelled', reason); }
   run({from, to, style = 'a', variant = 'depth', direction = 'push', duration = style === 'a' ? (variant === 'pulse' ? 250 : variant === 'directional-entry' ? 400 : variant === 'directional' ? 380 : 360) : style === 'b1' ? 320 : 200, onProgress = () => {}}) {
@@ -155,13 +151,14 @@ export class ABCMotion {
             add(top,incoming?[{opacity:0},{opacity:0,offset:.25},{opacity:1}]:[{opacity:1},{opacity:0,offset:.55},{opacity:0}]);
         }
       }
-      // 数据加载/字体或容器变高时落定目标，不让已经失效的卡片几何继续播放。
+      // 数据加载等让容器大幅改变时落定目标，不让已经失效的卡片几何继续播放。是否“大幅”只看调用方传入的
+      // 共享打断规则，并与本次转场开始时的尺寸比较：iOS 工具栏伸缩让 100dvh 平面变几十像素高，不再打断。
       const sizes=new WeakMap();
       layoutObserver=new ResizeObserver(entries=>{
         for(const e of entries){
-          const size=`${e.contentRect.width}/${e.contentRect.height}`, previous=sizes.get(e.target);
-          sizes.set(e.target,size);
-          if(previous!==undefined && previous!==size){finish('cancelled','content-resize');break;}
+          const size={width:e.contentRect.width,height:e.contentRect.height}, start=sizes.get(e.target);
+          if(start===undefined){sizes.set(e.target,size);continue;}
+          if(this.interrupts(start,size)){finish('cancelled','content-resize');break;}
         }
       });
       new Set(animations.map(a=>a.effect.target)).forEach(n=>layoutObserver.observe(n));
@@ -177,9 +174,8 @@ export class ABCMotion {
     return handle;
   }
   dispose() {
-    this.cancel('disposed'); this.disposed=true; this.resize.disconnect();
+    this.cancel('disposed'); this.disposed=true;
     this.media.removeEventListener('change',this.interrupt);
     document.removeEventListener('visibilitychange',this.visibility);
-    window.visualViewport?.removeEventListener('resize',this.interrupt);
   }
 }

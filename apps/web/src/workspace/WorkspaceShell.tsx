@@ -174,7 +174,10 @@ export function WorkspaceShell({
 }: {
   /** 每个工作区实例里渲染的同一套路由。 */
   readonly renderRoutes: () => React.ReactNode;
-  /** 包住整个外壳、需要主区路由上下文的全局门禁（同意书 / 重大公告）。 */
+  /**
+   * 包住外壳内容、需要主区路由上下文的全局门禁（同意书 / 重大公告）。渲染在 `.lv-shell` 元素里面（1.19.57），
+   * 门禁弹窗因此与其他弹层一样处在手机外壳的材质作用范围内。
+   */
   readonly wrapChrome: (children: React.ReactNode) => React.ReactNode;
 }): React.JSX.Element {
   const { t } = useI18n();
@@ -853,6 +856,12 @@ export function WorkspaceShell({
           : undefined
       }
     >
+      {/*
+        1.19.57：全局门禁（同意书 / 协议 / 重大公告）包在外壳**里面**，它的弹窗才是 `.lv-shell` 的后代、能读到
+        S19 手机外壳的材质规则（原来渲染成外壳的兄弟节点，四种风格下都是白色基础面板）。手机外壳是
+        `display: contents`，大屏外壳没有变换 / 滤镜 / 层叠上下文，固定定位的弹窗位置与层级都不变。
+      */}
+      {wrapChrome(<>
       {chrome ? (
         <ViewLedgerContext.Provider value={chosenLedger(state.primary, primarySnap.location.key)}>
         <GlobalRail
@@ -1009,13 +1018,14 @@ export function WorkspaceShell({
           pending?.run();
         }}
       />
+      </>)}
     </div>
   );
 
   return (
     <WorkspaceActionsContext.Provider value={actions}>
       <WorkspaceViewContext.Provider value={view}>
-        <PaneRouter history={primaryHistory}>{wrapChrome(shell)}</PaneRouter>
+        <PaneRouter history={primaryHistory}>{shell}</PaneRouter>
       </WorkspaceViewContext.Provider>
     </WorkspaceActionsContext.Provider>
   );

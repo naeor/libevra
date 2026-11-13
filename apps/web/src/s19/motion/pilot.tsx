@@ -22,6 +22,7 @@ import { TidePresentation, releaseTideResume, tideLook } from "./tide.js";
 import { onClockReport } from "../../lib/frameClock.js";
 import { provideEntryAgain } from "../../lib/entryFlow.js";
 import { provideReloadCover } from "../../lib/ledgerSwitchFlow.js";
+import { interruptsTransition } from "../../lib/motionTokens.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
@@ -207,17 +208,19 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     scrolls.clear(); tabScrolls.clear(); store.clear(); current = undefined;
   };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-  let viewport = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height };
+  let viewport = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height ?? innerHeight };
   const viewportChanged = (): void => {
-    const next = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height };
-    // 普通详情出现文档滚动条只改变 visualViewport.width，不是用户旋转/缩放或键盘。
+    const next = { width: innerWidth, height: innerHeight, visualHeight: window.visualViewport?.height ?? innerHeight };
+    // 普通详情出现文档滚动条只改变 visualViewport.width，不是用户旋转/缩放或键盘，所以宽度一律读布局视口。
     // iPhone Safari 在 push / pop 时会改动工具栏（前进按钮出现或消失、底栏收起），视口高度变几十像素；
     // 1.19.42 遇到任何高度变化都会把正在播放的转场直接收束到终点，看起来就是“闪一下到详情”。
-    // 现在只在宽度变化（旋转）或高度大幅变化（键盘）时收束。
-    const height = (a?: number, b?: number): number => Math.abs((a ?? 0) - (b ?? 0));
+    // 打断条件是所有风格、所有呈现器共用的转场打断规则（lib/motionTokens.ts 的 interruptsTransition）：
+    // 宽度变化（旋转）或高度大幅变化（键盘）才收束。A / B1 / C 的 ABC 控制器不再自己监听视口，由这里统一收束。
+    const layoutChanged = interruptsTransition(viewport, next);
     // 记账工作区的舞台固定在布局视口上，只有可视区变化的软键盘（手动记账在点击里聚焦金额框）不打断它。
-    if (next.width !== viewport.width || height(next.height, viewport.height) > 150) cancel(false);
-    else if (height(next.visualHeight, viewport.visualHeight) > 150) { engine.cancel(); abc?.cancel(); objects.cancel(); tabs.cancel(); }
+    const visualChanged = interruptsTransition({ width: viewport.width, height: viewport.visualHeight }, { width: next.width, height: next.visualHeight });
+    if (layoutChanged) cancel(false);
+    else if (visualChanged) { engine.cancel(); abc?.cancel(); objects.cancel(); tabs.cancel(); }
     viewport = next;
   };
   /**

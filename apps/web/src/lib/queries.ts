@@ -420,8 +420,13 @@ export function useCreateBook() {
  *     ledger it was trying to leave.** Every subsequent attempt repeated the same loop.
  *
  * So the new ledger has to be written down where the header is read from, **before** the reload.
- * `setCurrentBook` also notifies `main.tsx`'s subscription, which primes the header, so the next
- * request already names the new ledger even if the reload never happened.
+ *
+ * ⚠️ **Writing it down does not switch this page.** `onSuccess` uses `selectBookForReload`, which
+ * only records the ledger *the next page load* starts in: it does **not** touch the request header
+ * or the offline scope of the page that is still open, and it blocks later `setCurrentBook` calls
+ * until that reload (so a stale response cannot re-pin the old ledger). The caller **must** reload
+ * after a successful activation — `activateAndReload` in `lib/ledgerSwitchFlow.ts` — otherwise the
+ * screen keeps showing the old ledger and silently switches on the next full load.
  */
 export function useActivateBook() {
   return useMutation({

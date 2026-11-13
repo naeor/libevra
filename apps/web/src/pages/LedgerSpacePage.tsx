@@ -18,7 +18,7 @@ import { usePaneLedgerEntry } from "../workspace/context.js";
 import { errorMessage } from "../lib/api.js";
 import { isImeComposing } from "../lib/desktopInput.js";
 import { markPresentationSeen, readSeenPresentation, useSpaceTransition } from "../lib/spaceTransition.js";
-import { coverForReload } from "../lib/ledgerSwitchFlow.js";
+import { activateAndReload as activateLedgerAndReload } from "../lib/ledgerSwitchFlow.js";
 import {
   useActivateBook,
   useBooks,
@@ -175,19 +175,15 @@ export function LedgerSpacePage(): React.JSX.Element {
        * 1.19.47：手机外壳里先让账本空间的海浪盖满整屏、同时完成服务器激活，再重新载入；新页面从同一帧接着划过
        * （lib/ledgerSwitchFlow.ts）。原来这里直接载入，切换期间是一段白屏。激活失败时海浪淡出、照常报错。
        * 1.19.48：等待稍久时浪里显示一行提示（books.space.loadingLedger）。
-       */
-      await coverForReload(async () => { await activateBook.mutateAsync(bookId); }, { hint: t("books.space.loadingLedger") });
-
-      /**
-       * ⚠️ **A full reload, deliberately, and this is the one place in the app that does it.**
        *
-       * Entering a ledger changes which ledger *every* subsequent request addresses **and** which
-       * slice of the device's offline copy is read. Invalidating queries and hoping they refetch
-       * in the right order risks a screen showing one ledger's name over another's entries —
-       * **and that mixture is precisely what this stage exists to make impossible.** A reload
-       * cannot be half-done, which is exactly the property wanted here.
+       * ⚠️ **A full reload, deliberately.** Entering a ledger changes which ledger *every* subsequent
+       * request addresses **and** which slice of the device's offline copy is read. Invalidating
+       * queries and hoping they refetch in the right order risks a screen showing one ledger's name
+       * over another's entries — **and that mixture is precisely what this stage exists to make
+       * impossible.** A reload cannot be half-done, which is exactly the property wanted here.
+       * 1.19.57：激活 + 海浪 + 整页载入抽成 `activateAndReload`，账本导入后「打开目标账本」走同一条路径。
        */
-      window.location.assign("/");
+      await activateLedgerAndReload(() => activateBook.mutateAsync(bookId), { hint: t("books.space.loadingLedger") });
     } catch (caught) {
       setSwitching(false);
       setError(errorMessage(caught));

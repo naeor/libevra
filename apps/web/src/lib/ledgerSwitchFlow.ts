@@ -21,3 +21,16 @@ export function provideReloadCover(next: Cover | null): void { cover = next; }
 export function coverForReload(work: () => Promise<void>, options: CoverOptions = {}): Promise<void> {
   return cover ? cover(work, options) : work();
 }
+
+/**
+ * 激活另一本账并整页重新载入到明细（1.19.57 抽出，账本空间「进入账本」与账本导入后「打开目标账本」共用）。
+ *
+ * ⚠️ 切换账本的既定原则：服务器激活成功（新账本已写进本机）后**必须整页重新载入**，请求头与离线范围一起换，
+ * 不能只跳转页面。手机外壳有海浪呈现器时海浪先盖满整屏、同时完成激活（{@link coverForReload}）；电脑版、Pad 宽屏、
+ * Original、深色与减少动态效果没有呈现器，激活完成后直接载入。
+ * 激活失败时海浪淡出、错误照常抛出且不载入，由调用方显示原因。成功时页面随即开始载入，返回值不再有意义。
+ */
+export async function activateAndReload(activate: () => Promise<unknown>, options: CoverOptions = {}): Promise<void> {
+  await coverForReload(async () => { await activate(); }, options);
+  window.location.assign("/");
+}

@@ -48,6 +48,22 @@ html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="cont
     inset 0 8px 16px -14px color-mix(in srgb, var(--color-ink) 12%, transparent),
     0 -24px 60px -18px color-mix(in srgb, var(--color-ink) 24%, transparent);
 }
+/* 展示材质的弹层面板（同意书 / 协议 / 重大公告 ConsentDialog，1.19.57）：面板声明 display 用途，
+   与展示卡片同一材质——A 柔和薄片、B1 瓷面、B2 内容玻璃、C 纸面 + 细线；按钮仍按各自用途取材质。
+   B2 有意不套用上面操作玻璃的填充下限（所有者要求内容玻璃），但保留弹层统一的伪元素背景模糊：
+   没有模糊时后方页面的文字会直接透过面板。稳定默认，不读 finish / optics 候选。 */
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before {
+  background: var(--s19-card-bg);
+  box-shadow: 0 0 0 1px var(--s19-card-line, transparent), var(--s19-card-sh);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before { background: var(--color-surface); }
+}
+/* 这类面板沿用组件原来的遮罩颜色（--color-overlay-soft），只把绘制交给根节点伪元素（同一 180ms 淡入），根节点不做透明度动画。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-shell="contents"] [data-overlay-root][data-overlay-scrim="soft"]::before {
+  background: var(--color-overlay-soft);
+}
+
 /* 淡入淡出只发生在材质层和内容层，不在两者的父节点上创建采样边界。 */
 [data-overlay-surface="dialog"] > *, [data-overlay-surface="dialog"]::before { animation: libellum-backdrop-in 200ms ease-out; }
 [data-overlay-surface="dialog"][data-overlay-state="closing"] > *, [data-overlay-surface="dialog"][data-overlay-state="closing"]::before { animation: libellum-backdrop-out 200ms ease-in forwards; }

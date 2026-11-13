@@ -30,6 +30,7 @@ import { formatInstant, formatTimeWithZone } from "../lib/datetime.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import { DEFAULT_BOOK_NAME } from "@libellum/shared";
 import { useActivateBook, useBooks } from "../lib/queries.js";
+import { activateAndReload } from "../lib/ledgerSwitchFlow.js";
 import { useGoBack } from "../lib/connectivity.js";
 import {
   buildNewImportTarget,
@@ -236,6 +237,8 @@ export function LedgerImportPage(): React.JSX.Element {
   const [removalConfirmOpen, setRemovalConfirmOpen] = useState(false);
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  /** 「打开目标账本」正在激活并准备整页载入：挡住重复点击。 */
+  const [openingTarget, setOpeningTarget] = useState(false);
   const [result, setResult] = useState<LedgerImportResult | null>(null);
   const [pendingTasks, setPendingTasks] = useState<readonly PendingImportTask[]>([]);
   const [resumeBusy, setResumeBusy] = useState(false);
@@ -1199,16 +1202,28 @@ export function LedgerImportPage(): React.JSX.Element {
             if (result !== null) dropTask(result.importId);
             goBack();
           }}
+          openingTarget={openingTarget}
           onOpenTarget={(bookId) => {
+            if (openingTarget) return;
+            /**
+             * 导入已经成功，本机的待续任务记录（只用于恢复中断的提交）在这里就完成了使命：先清掉，
+             * 打开目标账本成功与否都不该让它在下次进入时变成一条「待继续的导入」。
+             */
             if (result !== null) dropTask(result.importId);
-            void (async () => {
-              try {
-                await activateBook.mutateAsync(bookId);
-                void navigate("/");
-              } catch (caught) {
+            setSubmitError(null);
+            setOpeningTarget(true);
+            /**
+             * ⚠️ 1.19.57：与账本空间「进入账本」**同一条切换路径**（lib/ledgerSwitchFlow.ts 的 activateAndReload）——
+             * 服务器激活成功后整页重新载入，请求头与离线范围一起换。原来这里激活后只 `navigate("/")`：激活只把新账本
+             * 记成「下一页用的账本」、不换请求头，用户看到的仍是旧账本，下次整页载入时才静默切换过去。
+             * 手机外壳里海浪先盖满整屏；电脑版与 Pad 宽屏没有海浪，激活后直接载入。激活失败时海浪淡出、照常显示原因。
+             */
+            void activateAndReload(() => activateBook.mutateAsync(bookId), { hint: t("books.space.loadingLedger") }).catch(
+              (caught: unknown) => {
+                setOpeningTarget(false);
                 setSubmitError(errorMessage(caught));
-              }
-            })();
+              },
+            );
           }}
         />
       ) : null}
@@ -2767,6 +2782,7 @@ export function ConfirmStep({
   onRetry,
   onBack,
   onFinish,
+  openingTarget = false,
   onOpenTarget,
 }: {
   readonly preview: ImportPreview;
@@ -2779,6 +2795,8 @@ export function ConfirmStep({
   readonly onRetry: () => void;
   readonly onBack: () => void;
   readonly onFinish: () => void;
+  /** 「打开目标账本」正在激活并准备整页载入。 */
+  readonly openingTarget?: boolean;
   readonly onOpenTarget: (bookId: string) => void;
 }): React.JSX.Element {
   const { t } = useI18n();
@@ -2877,7 +2895,7 @@ export function ConfirmStep({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Button onClick={() => onOpenTarget(result.targetBook.id)}>{t("ledgerImport.result.openTarget")}</Button>
+          <Button loading={openingTarget} onClick={() => onOpenTarget(result.targetBook.id)}>{t("ledgerImport.result.openTarget")}</Button>
           <Button variant="secondary" onClick={onFinish}>
             {t("ledgerImport.result.done")}
           </Button>
