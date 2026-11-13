@@ -215,7 +215,8 @@ export function SelectionLabSection() {
   // 地址参数 ?tint=1 / ?tag=porcelain 只用于截图时直接进入对应开关状态。
   const params = new URLSearchParams(window.location.search);
   const [tint, setTint] = useState(params.get("tint") === "1"), [slow, setSlow] = useState(false);
-  const [material, setMaterial] = useState<TagMaterial>(params.get("tag") === "porcelain" ? "porcelain" : "frosted");
+  // 所有者 2026-11-14 定 B2 条件标签用瓷片；磨砂留作对照（?tag=frosted）。
+  const [material, setMaterial] = useState<TagMaterial>(params.get("tag") === "frosted" ? "frosted" : "porcelain");
   const api = useRef<DemoApi | null>(null), timers = useRef<number[]>([]);
   const factor = slow ? 3 : 1;
   const stop = (): void => { timers.current.forEach(clearTimeout); timers.current = []; };

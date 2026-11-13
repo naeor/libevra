@@ -81,18 +81,51 @@ html[data-visual-style="c"] .sl-cell::before { background: var(--color-brand-sof
 html[data-visual-style="c"] .sl-cell[aria-pressed="true"]::before { opacity: 1; }
 html[data-visual-style="c"] .sl-cell[data-half]::before { opacity: .5; }
 
-/* ---------- A：选中项自己浮起（柔和薄片），文字变品牌绿；弹性取过冲曲线，非 Motion Token（近似） ---------- */
-/* 薄片 = A 的卡片令牌 --s19-card-bg / --s19-card-sh（s19-lab-tokens.css L31–L32，宽而浅的影），再叠一层品牌色的浅投影。 */
+/* ---------- A：选中项自己浮起（柔和薄片），文字变品牌绿 ---------- */
+/*
+  第二版（所有者 2026-11-14：第一版浮空感太弱、只有一点点阴影；不加绿色）。原因是 A 的卡片底 #fdfdfb 与面板底 #fcfcfa
+  几乎同色，第一版的影子又被负扩散收得很小，薄片和面板分不开。参考常见的抬升做法：
+  1. 分层阴影：贴边的接触影 + 中层影 + 宽而淡的环境影，代替单层影（Josh Comeau《Designing Shadows》、Material 的主光 / 环境光模型）；
+  2. 阴影不用纯黑，取墨色（与背景同色相、更暗）——这里用 --color-ink 的 color-mix；
+  3. 抬得越高，影子越大、越虚、越往下偏、越淡：环境影单独放在 ::after 上，浮起时一边下移、放大一边淡入，模拟“离开桌面”；
+  4. 上缘一道亮线（光从上方照来）+ 薄片比面板更白，拉开明度；
+  5. 浮起时轻微放大（visionOS 的 lift 悬停效果就是放大 + 加影）。
+  只动画 transform 与 opacity，不逐帧改分层阴影（多层阴影做动画开销大）。曲线与时长是样板自定，不是 Motion Token。
+*/
+.sl-lab { --sl-a-ink: var(--color-ink); }
 html[data-visual-style="a"] .sl-opt {
-  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(260ms * var(--sl-slow)) cubic-bezier(.3, 1.6, .5, 1);
+  /* 落回：干净地落下，不回弹 */
+  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(220ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
 }
 html[data-visual-style="a"] .sl-opt::before {
-  background: var(--s19-card-bg); box-shadow: var(--s19-card-sh), 0 10px 18px -12px color-mix(in srgb, var(--color-brand) 32%, transparent);
-  transition: opacity calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out);
+  background: white;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 90%, transparent),
+    0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent),
+    0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent),
+    0 4px 10px -3px color-mix(in srgb, var(--sl-a-ink) 11%, transparent);
+  transition: opacity calc(180ms * var(--sl-slow)) ease-out;
 }
-html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"]) { transform: translateY(-1.5px) scale(1.015); }
+html[data-visual-style="a"] .sl-opt::after {
+  content: ""; position: absolute; inset: 18% 10% 0; z-index: -2; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 14px 26px -6px color-mix(in srgb, var(--sl-a-ink) 24%, transparent), 0 26px 44px -18px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
+  opacity: 0; transform: translateY(-6px) scale(.88);
+  transition: opacity calc(200ms * var(--sl-slow)) ease-out, transform calc(220ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
+}
+/* 浮起：轻微越过再落定 */
+html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"]) {
+  transform: translateY(-3px) scale(1.03);
+  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(340ms * var(--sl-slow)) cubic-bezier(.3, 1.35, .5, 1);
+}
 html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"])::before { opacity: 1; }
-html[data-visual-style="a"] .sl-cell[data-half]::before { opacity: .5; }
+html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"])::after {
+  opacity: 1; transform: none;
+  transition: opacity calc(260ms * var(--sl-slow)) ease-out, transform calc(340ms * var(--sl-slow)) cubic-bezier(.3, 1.35, .5, 1);
+}
+/* 月份格稍大一点，放大幅度略小 */
+html[data-visual-style="a"] .sl-cell[aria-pressed="true"] { transform: translateY(-3px) scale(1.04); }
+html[data-visual-style="a"] .sl-cell[data-half] { transform: translateY(-1.5px) scale(1.02); }
+html[data-visual-style="a"] .sl-cell[data-half]::before, html[data-visual-style="a"] .sl-cell[data-half]::after { opacity: .5; transform: none; }
 
 /* ---------- 已选条件标签 ---------- */
 .sl-tag { display: inline-flex; align-items: center; gap: 6px; max-width: 240px; padding: 5px 6px 5px 12px; border-radius: 999px; font-size: var(--text-helper); line-height: 1.4;
@@ -120,15 +153,20 @@ html[data-visual-style="b2"] .sl-tag[data-material="porcelain"] {
 html[data-visual-style="b2"] .sl-tag[data-material="frosted"] {
   background: color-mix(in srgb, var(--color-brand) 11%, color-mix(in srgb, white 80%, transparent)); box-shadow: var(--s19-tool-sh);
 }
-/* A：带淡绿、轻轻浮起的柔和薄片（A 卡片令牌 + 上移 1px） */
+/* A：带淡绿、轻轻浮起的柔和薄片——与选中浮起同一套分层阴影，抬得低一档（上移 1.5px） */
 html[data-visual-style="a"] .sl-tag {
-  background: color-mix(in srgb, var(--color-brand) 9%, var(--s19-card-bg)); box-shadow: var(--s19-card-sh); translate: 0 -1px;
+  background: color-mix(in srgb, var(--color-brand) 9%, white); translate: 0 -1.5px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 90%, transparent),
+    0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent),
+    0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent),
+    0 6px 14px -6px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
 }
 /* C：纸面 + 细线 + 绿色文字 */
 html[data-visual-style="c"] .sl-tag { background: var(--s19-card-bg, var(--color-surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 38%, transparent); }
 
 /* ---------- 减少动态效果：全部直接切换（JS 动画另行判断 matchMedia） ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .sl-lab *, .sl-lab *::before { transition: none !important; animation: none !important; }
+  .sl-lab *, .sl-lab *::before, .sl-lab *::after { transition: none !important; animation: none !important; }
 }
 @media (max-width: 760px) { .sl-body { grid-template-columns: 96px minmax(0, 1fr); } }
