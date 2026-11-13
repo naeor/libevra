@@ -18,6 +18,16 @@
   --lv-sheet-half-min: 18rem;
   --lv-sheet-half-max: 34rem;
   --lv-sheet-large-gap: 40px;
+  /*
+   * 高半屏（1.19.61）：只给明细与分析筛选。左栏维度多、右栏有月份网格，半屏下“币种”被底部操作栏切掉、
+   * “附件”要滚动、月份只露第一行（所有者 2026-11-14 看截图后决定）。固定高度（切换维度时不忽高忽低），
+   * 约 66%（1.19.58 之前筛选固定 560px，在 390×844 上约 66%）；上限防止高屏或 Pad 窄工作区过高。
+   * 下限 32rem（512px）：375×667 这类矮屏按 66% 只有 440px，又回到“币种”被切掉、月份只露一行；
+   * 1.19.58 之前那里是 520px。横屏等更矮的可视区仍不高过键盘以上的可视区（--lv-sheet-edge）。
+   */
+  --lv-sheet-tall-ratio: 66;
+  --lv-sheet-tall-min: 32rem;
+  --lv-sheet-tall-max: 40rem;
   /* 面板上缘与屏幕上缘至少留出的距离（键盘打开时同样适用）。 */
   --lv-sheet-edge: 24px;
 
@@ -95,13 +105,38 @@ html[data-theme-mode="dark"] {
   }
 }
 
-/* 固定半屏（账本选择）：任何宽度都是原来那个稳定高度，键盘打开时不高过可视区。 */
-[data-overlay-surface][data-sheet-detent="half-fixed"] {
+/*
+ * 固定半屏（账本选择）：任何宽度都是原来那个稳定高度，键盘打开时不高过可视区。
+ * 高半屏（明细与分析筛选）在宽屏形态（宽窗口、宽工作区里居中成对话框）也用这一高度——宽屏形态保持 1.19.60 的样子，
+ * 只有底部面板形态（下面两段）换成高半屏。
+ */
+[data-overlay-surface]:is([data-sheet-detent="half-fixed"], [data-sheet-detent="tall"]) {
   height: min(
     clamp(var(--lv-sheet-half-min), calc(var(--lv-vh) * var(--lv-sheet-half-ratio)), var(--lv-sheet-half-max)),
     calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
   );
   max-height: calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px));
+}
+
+/*
+ * 高半屏（1.19.61，明细与分析筛选）：底部面板形态——手机宽度，以及 Pad 分屏里的窄工作区（与 workspace/workspace.css
+ * 同一 640px 分界）——固定为约 66% 的高度。比例乘 --lv-vh：手机上按可视区，工作区里按工作区自己的高度。
+ */
+@media (max-width: 639.98px) {
+  [data-overlay-surface][data-sheet-detent="tall"] {
+    height: min(
+      clamp(var(--lv-sheet-tall-min), calc(var(--lv-vh) * var(--lv-sheet-tall-ratio)), var(--lv-sheet-tall-max)),
+      calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
+    );
+  }
+}
+@container lvpane (max-width: 639px) {
+  [data-overlay-surface][data-sheet-detent="tall"] {
+    height: min(
+      clamp(var(--lv-sheet-tall-min), calc(var(--lv-vh) * var(--lv-sheet-tall-ratio)), var(--lv-sheet-tall-max)),
+      calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
+    );
+  }
 }
 
 /* ---------------------------------------------------------------- 标题行与拖动条 */

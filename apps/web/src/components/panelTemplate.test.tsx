@@ -1,8 +1,10 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { BottomSheet } from "./BottomSheet.js";
 import { ChoiceDialog } from "./ChoiceDialog.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { ConsentDialog } from "./ConsentGate.js";
@@ -243,5 +245,96 @@ describe("自绘与原生弹窗迁到模板（1.19.59）", () => {
 describe("底部面板不再用会在深色下发白的墨色遮罩", () => {
   it("BottomSheet 不写 bg-ink/45", () => {
     expect(read("./BottomSheet.tsx")).not.toContain("bg-ink/45");
+  });
+});
+
+describe("1.19.61：筛选高半屏、S19 对话框遮罩深一档、筛选设置小卡宽度", () => {
+  const css = read("./panel-template.css");
+
+  it("高半屏是可调令牌（约 66%，带上下限），按 --lv-vh 计算", () => {
+    const root = block(css, ":root {");
+    expect(root).toMatch(/--lv-sheet-tall-ratio:\s*66;/);
+    expect(root).toContain("--lv-sheet-tall-min:");
+    expect(root).toContain("--lv-sheet-tall-max:");
+    const formula = "clamp(var(--lv-sheet-tall-min), calc(var(--lv-vh) * var(--lv-sheet-tall-ratio)), var(--lv-sheet-tall-max))";
+    // 底部面板形态：手机宽度（视口）与 Pad 分屏的窄工作区（容器）各一段，两段都是同一个固定高度。
+    const phone = css.slice(css.lastIndexOf("@media (max-width: 639.98px) {"));
+    const pane = css.slice(css.indexOf("@container lvpane (max-width: 639px) {"));
+    expect(phone.slice(0, phone.indexOf("\n}"))).toContain(formula);
+    expect(pane.slice(0, pane.indexOf("\n}"))).toContain(formula);
+    expect(phone.slice(0, phone.indexOf("\n}"))).toContain('[data-sheet-detent="tall"]');
+    expect(pane.slice(0, pane.indexOf("\n}"))).toContain('[data-sheet-detent="tall"]');
+  });
+
+  it("宽屏形态保持原样：高半屏在宽屏与固定半屏同高", () => {
+    const shared = block(css, '[data-overlay-surface]:is([data-sheet-detent="half-fixed"], [data-sheet-detent="tall"]) {');
+    expect(shared).toContain("clamp(var(--lv-sheet-half-min), calc(var(--lv-vh) * var(--lv-sheet-half-ratio)), var(--lv-sheet-half-max))");
+  });
+
+  it("高半屏只给明细与分析筛选（同一个 EntryFilterPanel），其余面板不用", () => {
+    const hits: string[] = [];
+    const walk = (directory: string): void => {
+      for (const entry of readdirSync(directory)) {
+        const path = join(directory, entry);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry) && readFileSync(path, "utf8").includes('detent="tall"')) hits.push(entry);
+      }
+    };
+    walk(fileURLToPath(new URL("..", import.meta.url)));
+    expect(hits).toEqual(["EntryFilterPanel.tsx"]);
+    for (const page of ["../pages/DetailPage.tsx", "../pages/StatsPage.tsx"]) expect(read(page), page).toContain("<EntryFilterPanel");
+    const html = renderToStaticMarkup(<BottomSheet label="筛选" detent="tall" onClose={() => undefined}>x</BottomSheet>);
+    expect(html).toContain('data-sheet-detent="tall"');
+    // 高半屏仍是底部面板的遮罩档；宽屏形态默认居中（原样）。
+    expect(html).toContain('data-overlay-scrim="sheet"');
+    expect(html).toContain('data-sheet-wide="center"');
+  });
+
+  it("S19 每种风格的对话框遮罩：同一色相，比底部面板深 .10", () => {
+    const tokens = read("../s19/s19-lab-tokens.css");
+    const blocks: Record<string, string> = {
+      a: block(tokens, ':root[data-visual-style="a"] {'),
+      b1: block(tokens, ':root[data-visual-style="b1"] {'),
+      b2: block(read("../index.css"), 'html:root[data-visual-style="b2"] {'),
+      c: block(tokens, ':root[data-visual-style="c"] {'),
+    };
+    const expected: Record<string, readonly [number, number]> = { a: [0.24, 0.34], b1: [0.26, 0.36], b2: [0.22, 0.32], c: [0.24, 0.34] };
+    for (const [style, text] of Object.entries(blocks)) {
+      const sheet = /--s19-scrim:\s*rgb\((\d+ \d+ \d+) \/ (\.\d+)\);/.exec(text);
+      const dialog = /--s19-scrim-dialog:\s*rgb\((\d+ \d+ \d+) \/ (\.\d+)\);/.exec(text);
+      expect(sheet, style).not.toBeNull();
+      expect(dialog, style).not.toBeNull();
+      expect(dialog?.[1], style).toBe(sheet?.[1]);
+      expect(Number(sheet?.[2]), style).toBeCloseTo(expected[style]![0], 5);
+      expect(Number(dialog?.[2]), style).toBeCloseTo(expected[style]![1], 5);
+    }
+  });
+
+  it("对话框档只用于中央对话框外壳；底部面板、大档与同意书门禁仍是 --s19-scrim；深色不变", () => {
+    const overlays = read("../s19/overlays.css");
+    const rule = overlays.indexOf('[data-overlay-root="dialog"][data-overlay-scrim="dialog"]::before {');
+    expect(rule).toBeGreaterThan(0);
+    expect(overlays.slice(rule, overlays.indexOf("}", rule))).toContain("var(--s19-scrim-dialog");
+    // 只在浅色 S19 外壳里。
+    expect(overlays.slice(overlays.lastIndexOf("\n", rule), rule)).toContain(':root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope]');
+    // CenterDialog 的根节点是 dialog；底部面板（含大档与门禁）的根节点是 sheet，不会命中。
+    expect(read("./CenterDialog.tsx")).toContain('data-overlay-root="dialog"');
+    expect(read("./BottomSheet.tsx")).toContain('data-overlay-root="sheet"');
+    const large = renderToStaticMarkup(<BottomSheet label="大档" detent="large" onClose={() => undefined}>x</BottomSheet>);
+    expect(large).toContain('data-overlay-root="sheet"');
+    // 颜色字面量只在令牌文件里。
+    expect(overlays.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/rgb\(/);
+    // 深色仍是统一一档黑色（模板令牌不变）。
+    const dark = block(css, 'html[data-theme-mode="dark"] {');
+    expect(dark).toContain("--lv-scrim-dialog: var(--color-overlay-soft)");
+  });
+
+  it("筛选设置小卡在底部面板里与面板内容同宽，开关逻辑不变", () => {
+    const filters = read("./entry-filters.css");
+    expect(filters).toContain(".lv-filter-panel > [data-sheet-header] { position:relative; }");
+    expect(filters).toContain(".lv-filter-panel > [data-sheet-header] .lv-filter-settings-wrap { position:static; }");
+    expect(filters).toContain(".lv-filter-panel > [data-sheet-header] .lv-filter-settings { left:16px; right:16px; width:auto; }");
+    const source = read("./EntryFilterPanel.tsx");
+    expect(source).toContain("<Switch checked={sync} onCheckedChange={next => { setFilterSync(next, owner !== null && bookId !== null ? { owner, bookId } : null); }}");
   });
 });

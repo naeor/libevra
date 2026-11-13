@@ -209,16 +209,25 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
   }
 
   /**
+   * 1.19.61（待办 §6 第 11 条）：离开已经成功、正在整页重新载入（海浪盖住画面的约半秒）。这时 runLifecycle 不再放开
+   * `lifecycleBusy`：退出 / 归档 / 删除按钮与确认框继续保持忙碌，不能再触发一次。失败路径不会走到这里，照旧放开。
+   * 只改忙碌状态，不改按钮上的权限判断（canLeave / canArchive / canDelete 原样不动）。
+   */
+  const reloadingRef = useRef(false);
+
+  /**
    * ⚠️ **After 弃置/退出 the ledger is gone from the reader's list**, so staying on its settings page
    * would show a ledger that no longer exists. Leaving the ledger the device is *in* has to move the
    * session too — the same reason `BookManageSheet` reloads in that case.
    *
    * 1.19.60（审查 L14）：整页载入前用与切换账本同一个海浪盖住画面（lib/ledgerSwitchFlow.ts）；
    * 仍是离开成功、清完本机数据后载入到 "/"，条件与先后不变。电脑版、Pad 宽屏没有海浪，照旧立即载入。
+   * 1.19.61：海浪里的提示改为“正在重新载入……”（离开后不一定进入另一本账）；载入前保持忙碌（见 reloadingRef）。
    */
   function afterRemoval(): void {
     if (bookId === currentBookId) {
-      reloadAfterLeaving({ hint: t("books.space.loadingLedger") });
+      reloadingRef.current = true;
+      reloadAfterLeaving({ hint: t("books.space.reloading") });
       return;
     }
     void navigate("/start");
@@ -237,7 +246,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
         setConfirming(null);
       })
       .finally(() => {
-        setLifecycleBusy(false);
+        if (!reloadingRef.current) setLifecycleBusy(false);
       });
   }
 

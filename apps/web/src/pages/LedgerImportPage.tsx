@@ -29,8 +29,8 @@ import { formatMoney } from "../lib/format.js";
 import { formatInstant, formatTimeWithZone } from "../lib/datetime.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import { DEFAULT_BOOK_NAME } from "@libellum/shared";
-import { useActivateBook, useBooks } from "../lib/queries.js";
-import { activateAndReload } from "../lib/ledgerSwitchFlow.js";
+import { useActivateBook, useBooks, useCurrentBookId } from "../lib/queries.js";
+import { activateAndReload, reloadAfterLeaving } from "../lib/ledgerSwitchFlow.js";
 import { useGoBack } from "../lib/connectivity.js";
 import {
   buildNewImportTarget,
@@ -2207,6 +2207,8 @@ export function SourceRetentionCard({
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archived, setArchived] = useState<string | null>(null);
+  /** 设备当前账本（与账本设置弃置流程同一来源：lib/queries 的 useCurrentBookId）。 */
+  const currentBookId = useCurrentBookId();
 
   async function checkGuestCleanup(): Promise<void> {
     if (guestBookId === null) return;
@@ -2287,15 +2289,28 @@ export function SourceRetentionCard({
   async function archiveFormalSource(): Promise<void> {
     if (disposition === null) return;
     setArchiveBusy(true);
+    /** 归档的来源就是设备当前账本、正在整页重新载入：按钮保持忙碌，直到页面载入（1.19.61）。 */
+    let reloading = false;
     try {
       await bookLifecycleAction(disposition.sourceBookId, "archive");
       setArchived(t("ledgerImport.retention.formal.archived"));
       setArchiveConfirmOpen(false);
       setDisposition(null);
+      /**
+       * 1.19.61（待办 §6 第 10 条，所有者 2026-11-14 单独批准）：归档的来源恰好是设备当前账本时，与账本设置
+       * 「弃置当前账本」一致——归档成功后用海浪盖住画面，整页重新载入到 "/"（lib/ledgerSwitchFlow.ts 的
+       * reloadAfterLeaving；电脑版、Pad 宽屏没有海浪，立即载入）。当前账本已归档，请求头与离线范围必须一起换，
+       * 不能停在这页继续用它。来源不是当前账本时行为不变：留在结果页，显示“已归档”。
+       * 归档请求、确认框、能否归档的判断（disposition.canArchive）与先后顺序都不变；失败照常显示原因、不载入。
+       */
+      if (disposition.sourceBookId === currentBookId) {
+        reloading = true;
+        reloadAfterLeaving({ hint: t("books.space.reloading") });
+      }
     } catch (caught) {
       onError(errorMessage(caught));
     } finally {
-      setArchiveBusy(false);
+      if (!reloading) setArchiveBusy(false);
     }
   }
 

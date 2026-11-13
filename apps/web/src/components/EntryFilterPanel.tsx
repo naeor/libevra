@@ -82,11 +82,13 @@ export function EntryFilterPanel({ open, value, ledger, anchor, onApply, onClose
   if (!open) return null;
   const content = (dismiss: () => void) => <FilterForm desktop={desktop} value={value} ledger={ledger} note={note ?? null} onClose={dismiss} onApply={next => { onApply(next); dismiss(); }} />;
   /**
-   * 弹出面板模板（1.19.58）：触屏是 T2 表单，用固定半屏档——筛选面板在各维度之间切换时内容高度不同，
-   * 固定高度避免面板忽高忽低（与账本选择同一变体）。标题行由表单里的 SheetHeader 画（带多选与设置工具）。
+   * 弹出面板模板（1.19.58）：触屏是 T2 表单，用固定高度——筛选面板在各维度之间切换时内容高度不同，
+   * 固定高度避免面板忽高忽低。标题行由表单里的 SheetHeader 画（带多选与设置工具）。
+   * 1.19.61：半屏（约 52%）下左栏“币种”被底部操作栏切掉、月份只露第一行，明细与分析筛选改用高半屏 `tall`
+   * （约 66%，只有这里用）；宽屏形态仍与固定半屏同高。
    */
   return desktop ? <DesktopPopover anchor={anchor} label={t("ledger.filters.title")} placement="bottom-start" width={680} onClose={closeDesktop}>{content(closeDesktop)}</DesktopPopover>
-    : createPortal(<BottomSheet label={t("ledger.filters.title")} detent="half-fixed" onClose={onClose} dialogClassName="lv-filter-sheet">{content}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body);
+    : createPortal(<BottomSheet label={t("ledger.filters.title")} detent="tall" onClose={onClose} dialogClassName="lv-filter-sheet">{content}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body);
 }
 
 export function FilterForm({ value, ledger, onApply, onClose, desktop = false, note = null }: { value: DetailFilters; ledger?: LedgerMetaResponse | undefined; onApply: (value: DetailFilters) => void; onClose: () => void; desktop?: boolean; note?: string | null }) {

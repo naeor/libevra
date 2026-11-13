@@ -698,6 +698,8 @@ html:root[data-visual-style="b2"] {
   --s19-sheet-bg: linear-gradient(180deg, rgb(251 252 250 / .96), rgb(248 249 247 / .93));
   --s19-sheet-sh: inset 0 1px 0 #fff, 0 -.5px 0 rgb(40 52 46 / .08), 0 -20px 44px -24px rgb(40 52 46 / .36);
   --s19-scrim: rgb(36 44 40 / .22);
+  /* 中央对话框（T3）遮罩（1.19.61）：同一色相，比底部面板深一档（+.10）。 */
+  --s19-scrim-dialog: rgb(36 44 40 / .32);
   --s19-track-bg: rgb(110 108 96 / .08); --s19-track-sh: inset 0 0 0 .5px rgb(255 255 255 / .55);
   --s19-pill-bg: linear-gradient(180deg, rgb(255 255 255 / .92), rgb(255 255 255 / .72));
   --s19-pill-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(40 52 46 / .08), 0 3px 9px -3px rgb(40 52 46 / .22);

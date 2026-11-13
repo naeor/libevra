@@ -623,6 +623,11 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
   const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 1.19.61（待办 §6 第 11 条）：退出已经成功、正在整页重新载入（海浪盖住画面的约半秒）。这段时间里
+   * `leave.isPending` 已经变回 false，按钮要继续保持忙碌，不能再点一次；失败路径不会走到这里。
+   */
+  const [reloading, setReloading] = useState(false);
 
   const me = members.data?.members.find((member) => member.userId === user?.id) ?? null;
 
@@ -648,7 +653,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
         <div className="mt-3 flex flex-wrap gap-3">
           <button
             type="button"
-            disabled={leave.isPending}
+            disabled={leave.isPending || reloading}
             onClick={() => {
               setError(null);
               void leave
@@ -670,8 +675,10 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
                    *
                    * 1.19.60（审查 L14）：载入前用与切换账本同一个海浪盖住画面（lib/ledgerSwitchFlow.ts）；
                    * 仍是退出成功后整页载入到 "/"，条件与先后不变。电脑版、Pad 宽屏没有海浪，照旧立即载入。
+                   * 1.19.61：海浪里的提示改为“正在重新载入……”（退出后不一定进入另一本账）；载入前按钮保持忙碌。
                    */
-                  reloadAfterLeaving({ hint: t("books.space.loadingLedger") });
+                  setReloading(true);
+                  reloadAfterLeaving({ hint: t("books.space.reloading") });
                 })
                 .catch((caught: unknown) => {
                   setError(errorMessage(caught));
@@ -680,7 +687,7 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
             }}
             className="rounded-field bg-danger px-4 py-2 text-sm text-on-danger transition hover:bg-danger-dark disabled:opacity-45"
           >
-            {leave.isPending ? t("ledger.page.leaving") : t("ledger.page.leaveConfirm")}
+            {leave.isPending || reloading ? t("ledger.page.leaving") : t("ledger.page.leaveConfirm")}
           </button>
           <button
             type="button"

@@ -17,6 +17,11 @@ html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] 
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)); animation: libellum-backdrop-in 180ms ease-out;
 }
+/* 中央对话框（T3，CenterDialog）比底部面板深一档（1.19.61），与浅色 Original 的面板 .25 / 对话框 .35 两档对应。
+   只认对话框外壳自己的根节点：大档面板（T5）与同意书门禁虽然也用对话框档标记，仍是 --s19-scrim。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root="dialog"][data-overlay-scrim="dialog"]::before {
+  background: var(--s19-scrim-dialog, var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)));
+}
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root][data-overlay-state="closing"]::before {
   animation: libellum-backdrop-out 200ms ease-in forwards;
 }

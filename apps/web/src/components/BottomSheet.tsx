@@ -26,6 +26,8 @@ import "./panel-template.css";
  *  * **下拉关闭**（`lib/sheetDrag.ts`）只从拖动条与标题区起手，内容区照常滚动。
  *  * **三档高度**（`detent`，令牌在 `panel-template.css`）：`content` 按内容、最多约半屏（T4）；`half` 约 52%、
  *    内容更短时按内容（T1、T2）；`half-fixed` 固定半屏（账本选择）；`large` 接近全屏（T5）。只在手机宽度生效。
+ *    另有固定高度的 `tall` 高半屏（约 66%，1.19.61）只给明细与分析筛选：底部面板形态（手机宽度、窄工作区）用它，
+ *    宽屏形态与固定半屏同高。
  *  * **宽屏形态暂不改变**（审查 H9 留待以后）：`wide` 保留各面板原来的样子——`center` 是原 BottomSheet
  *    （宽工作区与宽窗口里居中）、`pane` 只在宽工作区里居中（原月份选择）、`bottom` 一直贴底（原选择面板、账本面板）。
  *  * **门禁变体**（`dismissible={false}`）：没有 ×、没有 Esc、点遮罩与下拉都不关，层级最高（`layer="gate"`）。
@@ -37,7 +39,8 @@ import "./panel-template.css";
  * ⚠️ **减少动态**时动画由 CSS 关掉，关闭时机不变。
  */
 
-export type SheetDetent = "content" | "half" | "half-fixed" | "large";
+/** `tall`：高半屏（1.19.61），只给明细与分析筛选。 */
+export type SheetDetent = "content" | "half" | "half-fixed" | "tall" | "large";
 /** 宽屏下暂时保留的原有形态（审查 H9）。 */
 export type SheetWideForm = "center" | "pane" | "bottom";
 

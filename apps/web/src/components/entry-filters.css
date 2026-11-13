@@ -49,6 +49,12 @@
 .lv-filter-settings-wrap { position:relative; }
 .lv-filter-settings { position:absolute; top:calc(100% + 4px); right:0; z-index:5; width:min(320px, calc(100vw - 32px)); border:1px solid var(--color-line); border-radius:var(--radius-card); background:var(--color-surface); box-shadow:var(--shadow-sheet); }
 .lv-filter-settings .lv-filter-sync { border-top:none; }
+/* 1.19.61：底部面板里，筛选设置小卡与面板内容同宽（左右与已选条件、底部按钮行一样留 16px），挂在标题行正下方；
+   原来按齿轮右缘对齐、固定 320px，右侧空出一截又几乎贴着左缘。只改位置与宽度，开关本身不变。
+   电脑版下拉（DesktopPopover，标题行是 .lv-filter-heading）仍是锚定齿轮的 320px 小卡。 */
+.lv-filter-panel > [data-sheet-header] { position:relative; }
+.lv-filter-panel > [data-sheet-header] .lv-filter-settings-wrap { position:static; }
+.lv-filter-panel > [data-sheet-header] .lv-filter-settings { left:16px; right:16px; width:auto; }
 .lv-filter-multi-hint { margin:-4px 0 8px; }
 /* 记录人：“只看自己”快捷按钮在选项上面。 */
 .lv-filter-mine { min-height:36px; margin-bottom:12px; padding:6px 14px; border-radius:999px; border:1px solid var(--color-line); color:var(--color-brand-dark); }

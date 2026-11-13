@@ -21,6 +21,7 @@ const books: Messages<typeof zh> = {
     listLabel: "Ledger list",
     switching: "Switching ledgers…",
     loadingLedger: "Loading the ledger…",
+    reloading: "Reloading…",
     heading: "Your ledgers",
     count_one: "{{count}} ledger",
     count_other: "{{count}} ledgers",
