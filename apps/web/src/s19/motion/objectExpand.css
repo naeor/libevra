@@ -6,6 +6,8 @@
 /* 收回时详情页面节点放在容器之上，在容器里缩小。 */
 .object-stage .object-content { z-index: 1; }
 .object-stage .object-shade { position: absolute; inset: 0; background: var(--color-ink); opacity: 0; }
+/* 深色下 ink 是浅色，会把背景提亮；改用黑色压暗（只改颜色，不改转场是否播放）。 */
+:root[data-theme-mode="dark"] .object-stage .object-shade { background: black; }
 /* 容器沿用共享材质（display + 各风格 finish），只补绝对定位；非 S19 / 深色时退回表面色。 */
 .object-stage .object-shell { position: absolute !important; top: 0; left: 0; z-index: 0 !important; margin: 0; transform-origin: center; border: 1px solid transparent; background: var(--color-surface); box-shadow: var(--shadow-card); will-change: transform, width, height; contain: layout style; }
 /* B2：玻璃（模糊 + 透明填充）在容器本身；容器自身的透明度不影响它读取后方页面。 */
