@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const write = process.argv.includes("--write");
 const start = "<!-- directory-index:start -->", end = "<!-- directory-index:end -->";
-const excluded = /(^|\/)(node_modules|dist|build|generated|__pycache__|\.venv|\.git|阅读版|_backups|tmp|coverage|vendor)(\/|$)|^(promo|design\/avatar-prototypes)\//;
+const excluded = /(^|\/)(node_modules|dist|build|generated|__pycache__|\.venv|\.git|\.claude|阅读版|_backups|tmp|coverage|vendor)(\/|$)|^(promo|design\/avatar-prototypes)\//;
 const frozenLeaf = /^(prisma\/migrations\/\d|docs\/archive\/screenshots\/|docs\/archive\/design\/分析页面审查素材\/|docs\/archive\/documentation\/20261108\/)/;
 const raw = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 16e6 });
 const files = [...new Set(raw.split("\0").filter(f => f && !excluded.test(f) && existsSync(path.join(root, f))))].sort();
