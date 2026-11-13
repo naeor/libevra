@@ -92,40 +92,86 @@ html[data-visual-style="c"] .sl-cell[data-half]::before { opacity: .5; }
   5. 浮起时轻微放大（visionOS 的 lift 悬停效果就是放大 + 加影）。
   只动画 transform 与 opacity，不逐帧改分层阴影（多层阴影做动画开销大）。曲线与时长是样板自定，不是 Motion Token。
 */
-.sl-lab { --sl-a-ink: var(--color-ink); }
+/*
+  第三版（所有者 2026-11-14：第二版又偏大；希望介于第一、二版之间，并把 A 里所有“浮起”规范成档位）。
+  A 浮起档位（草案）——同一个物理模型：离开下面的平面越高，接触影越淡、环境影越大越往下越虚，位移越大：
+    A0 嵌入：凹进平面（分段轨道、输入底），只有内阴影；
+    A1 静置：贴在平面上（普通卡片、分组、摘要小卡），细边 + 近影 + 很小的环境影，不位移；
+    A2 浮起：从原位抬起（选中项、条件标签、小工具），上缘亮线 + 接触影 + 中等环境影，上移 2px、放大 2%；
+    A3 悬浮：浮在页面之上（关键卡、金额框、加号、提示条），更大更虚的环境影；
+    A4 覆盖：盖在页面之上的整层（弹出面板、对话框），宽而深的影。
+  选中用 A2：表面层（::before）放亮线与接触影，环境影（::after）单独一层，浮起时下移、放大、淡入。
+  第一版、第二版保留为对照（?alift=1 / ?alift=2 或页面上的切换）。
+*/
+.sl-lab {
+  --sl-a-ink: var(--color-ink);
+  --sl-a-hl: inset 0 1px 0 color-mix(in srgb, white 90%, transparent);
+  --sl-a-e0: inset 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 7%, transparent), inset 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 5%, transparent);
+  --sl-a-e1: 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 5%, transparent), 0 6px 14px -8px color-mix(in srgb, var(--sl-a-ink) 20%, transparent);
+  --sl-a-e2-surface: var(--sl-a-hl), 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent), 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent), 0 3px 8px -3px color-mix(in srgb, var(--sl-a-ink) 10%, transparent);
+  --sl-a-e2-ambient: 0 8px 16px -7px color-mix(in srgb, var(--sl-a-ink) 16%, transparent), 0 14px 26px -14px color-mix(in srgb, var(--sl-a-ink) 11%, transparent);
+  --sl-a-e3: var(--sl-a-hl), 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 2px 4px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 14px 28px -10px color-mix(in srgb, var(--sl-a-ink) 22%, transparent), 0 28px 52px -24px color-mix(in srgb, var(--sl-a-ink) 24%, transparent);
+  --sl-a-e4: 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 24px 48px -20px color-mix(in srgb, var(--sl-a-ink) 36%, transparent);
+  /* 选中浮起使用的参数（默认 = 第三版 = A2 档） */
+  --sl-a-y: -2px; --sl-a-s: 1.015; --sl-a-cell-s: 1.02;
+  --sl-a-surface-bg: white; --sl-a-surface-sh: var(--sl-a-e2-surface); --sl-a-ambient-sh: var(--sl-a-e2-ambient);
+  --sl-a-rise-ms: 300ms; --sl-a-rise-ease: cubic-bezier(.3, 1.25, .5, 1);
+}
+/* 第一版：A 卡片令牌 + 品牌色浅投影，上移 1.5px、放大 1.5%（对照用） */
+.sl-lab[data-a-lift="1"] {
+  --sl-a-y: -1.5px; --sl-a-s: 1.015; --sl-a-cell-s: 1.015;
+  --sl-a-surface-bg: var(--s19-card-bg, white);
+  --sl-a-surface-sh: var(--s19-card-sh), 0 10px 18px -12px color-mix(in srgb, var(--color-brand) 32%, transparent);
+  --sl-a-ambient-sh: none; --sl-a-rise-ms: 260ms; --sl-a-rise-ease: cubic-bezier(.3, 1.6, .5, 1);
+}
+/* 第二版：上移 3px、放大 3%，环境影更大（对照用） */
+.sl-lab[data-a-lift="2"] {
+  --sl-a-y: -3px; --sl-a-s: 1.03; --sl-a-cell-s: 1.04;
+  --sl-a-surface-sh: var(--sl-a-hl), 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent), 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent), 0 4px 10px -3px color-mix(in srgb, var(--sl-a-ink) 11%, transparent);
+  --sl-a-ambient-sh: 0 14px 26px -6px color-mix(in srgb, var(--sl-a-ink) 24%, transparent), 0 26px 44px -18px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
+  --sl-a-rise-ms: 340ms; --sl-a-rise-ease: cubic-bezier(.3, 1.35, .5, 1);
+}
 html[data-visual-style="a"] .sl-opt {
   /* 落回：干净地落下，不回弹 */
-  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(220ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
+  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(200ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
 }
 html[data-visual-style="a"] .sl-opt::before {
-  background: white;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 90%, transparent),
-    0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent),
-    0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent),
-    0 4px 10px -3px color-mix(in srgb, var(--sl-a-ink) 11%, transparent);
+  background: var(--sl-a-surface-bg); box-shadow: var(--sl-a-surface-sh);
   transition: opacity calc(180ms * var(--sl-slow)) ease-out;
 }
 html[data-visual-style="a"] .sl-opt::after {
   content: ""; position: absolute; inset: 18% 10% 0; z-index: -2; border-radius: inherit; pointer-events: none;
-  box-shadow: 0 14px 26px -6px color-mix(in srgb, var(--sl-a-ink) 24%, transparent), 0 26px 44px -18px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
-  opacity: 0; transform: translateY(-6px) scale(.88);
-  transition: opacity calc(200ms * var(--sl-slow)) ease-out, transform calc(220ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
+  box-shadow: var(--sl-a-ambient-sh);
+  opacity: 0; transform: translateY(-4px) scale(.92);
+  transition: opacity calc(180ms * var(--sl-slow)) ease-out, transform calc(200ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
 }
 /* 浮起：轻微越过再落定 */
 html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"]) {
-  transform: translateY(-3px) scale(1.03);
-  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(340ms * var(--sl-slow)) cubic-bezier(.3, 1.35, .5, 1);
+  transform: translateY(var(--sl-a-y)) scale(var(--sl-a-s));
+  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(var(--sl-a-rise-ms) * var(--sl-slow)) var(--sl-a-rise-ease);
 }
 html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"])::before { opacity: 1; }
 html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"])::after {
   opacity: 1; transform: none;
-  transition: opacity calc(260ms * var(--sl-slow)) ease-out, transform calc(340ms * var(--sl-slow)) cubic-bezier(.3, 1.35, .5, 1);
+  transition: opacity calc(240ms * var(--sl-slow)) ease-out, transform calc(var(--sl-a-rise-ms) * var(--sl-slow)) var(--sl-a-rise-ease);
 }
-/* 月份格稍大一点，放大幅度略小 */
-html[data-visual-style="a"] .sl-cell[aria-pressed="true"] { transform: translateY(-3px) scale(1.04); }
-html[data-visual-style="a"] .sl-cell[data-half] { transform: translateY(-1.5px) scale(1.02); }
+/* 月份格面积大一点，放大比例单独给 */
+html[data-visual-style="a"] .sl-cell[aria-pressed="true"] { transform: translateY(var(--sl-a-y)) scale(var(--sl-a-cell-s)); }
+html[data-visual-style="a"] .sl-cell[data-half] { transform: translateY(calc(var(--sl-a-y) / 2)); }
 html[data-visual-style="a"] .sl-cell[data-half]::before, html[data-visual-style="a"] .sl-cell[data-half]::after { opacity: .5; transform: none; }
+
+/* ---------- A 浮起档位一览（草案；在 ?s19=a 下看，其他风格下令牌会退回默认值） ---------- */
+.sl-elev-wrap { display: grid; gap: 14px; }
+.sl-elev-stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 24px 16px; padding: 22px 18px 30px; border-radius: var(--radius-card); }
+.sl-elev-stage[data-on="canvas"] { background: var(--s19-canvas, var(--color-canvas)); }
+.sl-elev-stage[data-on="sheet"] { background: var(--s19-sheet-bg, var(--color-surface)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 8%, transparent); }
+.sl-elev-tile { min-height: 84px; padding: 10px 12px; border-radius: var(--s19-r-mini, 16px); background: white; display: grid; gap: 4px; align-content: start; font-size: var(--text-micro); line-height: 1.5; color: var(--color-muted); }
+.sl-elev-tile b { color: var(--color-ink); font-weight: 500; font-size: var(--text-helper); }
+.sl-elev-tile[data-level="0"] { background: var(--s19-track-bg, var(--color-line)); box-shadow: var(--sl-a-e0); }
+.sl-elev-tile[data-level="1"] { background: var(--s19-card-bg, white); box-shadow: var(--sl-a-e1); }
+.sl-elev-tile[data-level="2"] { box-shadow: var(--sl-a-e2-surface), var(--sl-a-e2-ambient); transform: translateY(-2px); }
+.sl-elev-tile[data-level="3"] { box-shadow: var(--sl-a-e3); transform: translateY(-3px); }
+.sl-elev-tile[data-level="4"] { box-shadow: var(--sl-a-e4); }
 
 /* ---------- 已选条件标签 ---------- */
 .sl-tag { display: inline-flex; align-items: center; gap: 6px; max-width: 240px; padding: 5px 6px 5px 12px; border-radius: 999px; font-size: var(--text-helper); line-height: 1.4;
@@ -153,14 +199,10 @@ html[data-visual-style="b2"] .sl-tag[data-material="porcelain"] {
 html[data-visual-style="b2"] .sl-tag[data-material="frosted"] {
   background: color-mix(in srgb, var(--color-brand) 11%, color-mix(in srgb, white 80%, transparent)); box-shadow: var(--s19-tool-sh);
 }
-/* A：带淡绿、轻轻浮起的柔和薄片——与选中浮起同一套分层阴影，抬得低一档（上移 1.5px） */
+/* A：带淡绿、轻轻浮起的柔和薄片——A2 浮起档（标签不放大，只上移 1.5px） */
 html[data-visual-style="a"] .sl-tag {
   background: color-mix(in srgb, var(--color-brand) 9%, white); translate: 0 -1.5px;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 90%, transparent),
-    0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent),
-    0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent),
-    0 6px 14px -6px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
+  box-shadow: var(--sl-a-e2-surface), 0 8px 16px -8px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
 }
 /* C：纸面 + 细线 + 绿色文字 */
 html[data-visual-style="c"] .sl-tag { background: var(--s19-card-bg, var(--color-surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 38%, transparent); }

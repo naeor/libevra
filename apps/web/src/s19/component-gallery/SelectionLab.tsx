@@ -209,12 +209,36 @@ function StaticBoard() {
   </div>;
 }
 
+/* ---------- A 浮起档位一览：同一组示例分别放在页面底色与面板底色上 ---------- */
+
+const ELEVATIONS: readonly (readonly [string, string, string])[] = [
+  ["0", "A0 嵌入", "凹进平面：分段轨道、输入底"],
+  ["1", "A1 静置", "贴在平面上：普通卡片、分组、摘要小卡"],
+  ["2", "A2 浮起", "从原位抬起：选中项、条件标签、小工具"],
+  ["3", "A3 悬浮", "浮在页面之上：关键卡、金额框、加号、提示条"],
+  ["4", "A4 覆盖", "盖在页面之上的整层：弹出面板、对话框"],
+];
+
+function ElevationBoard() {
+  return <div className="sl-elev-wrap">
+    {(["canvas", "sheet"] as const).map(on => <div key={on}>
+      <h4 className="sl-cap">{on === "canvas" ? "放在页面底色上" : "放在面板底色上"}</h4>
+      <div className="sl-elev-stage" data-on={on}>
+        {ELEVATIONS.map(([level, name, use]) => <div key={level} className="sl-elev-tile" data-level={level}><b>{name}</b><span>{use}</span></div>)}
+      </div>
+    </div>)}
+  </div>;
+}
+
 /* ---------- 章节 ---------- */
 
 export function SelectionLabSection() {
   // 地址参数 ?tint=1 / ?tag=porcelain 只用于截图时直接进入对应开关状态。
   const params = new URLSearchParams(window.location.search);
   const [tint, setTint] = useState(params.get("tint") === "1"), [slow, setSlow] = useState(false);
+  // A 选中浮起：第三版（A2 档，默认）与第一、二版对照；?alift=1|2|3。
+  const initialLift = params.get("alift");
+  const [aLift, setALift] = useState<"1" | "2" | "3">(initialLift === "1" || initialLift === "2" ? initialLift : "3");
   // 所有者 2026-11-14 定 B2 条件标签用瓷片；磨砂留作对照（?tag=frosted）。
   const [material, setMaterial] = useState<TagMaterial>(params.get("tag") === "frosted" ? "frosted" : "porcelain");
   const api = useRef<DemoApi | null>(null), timers = useRef<number[]>([]);
@@ -224,7 +248,7 @@ export function SelectionLabSection() {
   // ?shot=static / ?shot=live：打开后直接滚到静态展示区或可点击样板，便于固定窗口尺寸截图。
   useEffect(() => {
     const shot = params.get("shot");
-    const target = shot === "static" ? ".sl-static" : shot === "live" ? ".sl-live-anchor" : null;
+    const target = shot === "static" ? ".sl-static" : shot === "live" ? ".sl-live-anchor" : shot === "elev" ? ".sl-elev-anchor" : null;
     if (target) window.setTimeout(() => document.querySelector(target)?.scrollIntoView({ block: "start" }), 300);
   }, []);
   const play = (): void => {
@@ -239,8 +263,9 @@ export function SelectionLabSection() {
     let at = 0;
     for (const [gap, run] of steps) { at += gap * factor; timers.current.push(window.setTimeout(() => { if (api.current) run(api.current); }, at)); }
   };
-  return <div className="sl-lab" data-tint={tint ? "on" : "off"} data-slow={slow ? "on" : "off"} data-b2-tag={material}>
+  return <div className="sl-lab" data-tint={tint ? "on" : "off"} data-slow={slow ? "on" : "off"} data-b2-tag={material} data-a-lift={aLift}>
     <div className="sl-controls">
+      <SegmentedControl label="A 选中浮起版本" value={aLift} options={[{ value: "1", label: "A 第一版" }, { value: "2", label: "A 第二版" }, { value: "3", label: "A 第三版（A2 档）" }]} onChange={setALift} />
       <Switch checked={tint} onCheckedChange={setTint}>玻璃加约 10% 品牌绿色调（B1 / B2）</Switch>
       <Switch checked={slow} onCheckedChange={setSlow}>慢放 ×3（看清动画）</Switch>
       <SegmentedControl label="B2 条件标签材质" value={material} options={[{ value: "frosted", label: "B2 标签：磨砂" }, { value: "porcelain", label: "B2 标签：瓷片" }]} onChange={setMaterial} />
@@ -248,6 +273,8 @@ export function SelectionLabSection() {
     </div>
     <h3>静态展示（截图用，不需点击）</h3>
     <StaticBoard />
+    <h3 className="sl-elev-anchor">A 浮起档位（草案，在 A 风格下查看）</h3>
+    <ElevationBoard />
     <h3 className="sl-live-anchor">可点击样板</h3>
     <p className="sl-hint">点左侧维度、「月份 / 日期范围」、月份格；用下方按钮增删条件标签，或点“自动演示”。系统开启“减少动态效果”时全部直接切换。</p>
     <LiveSheet material={material} slow={factor} runDemo={a => { api.current = a; }} />
