@@ -22,7 +22,7 @@
 | [Grid.tsx](Grid.tsx) | 界面模块；入口/导出：GRID_GAP、autoColumnsFor、columnLimitFor、displayFor、GridTrack |
 | [HierarchyView.tsx](HierarchyView.tsx) | 界面模块；入口/导出：HierarchyView |
 | [PresetSheet.tsx](PresetSheet.tsx) | 界面模块；入口/导出：PresetSheet |
-| [Sheets.tsx](Sheets.tsx) | 界面模块；入口/导出：SheetHeader、MenuAction、ObjectMenuSheet、SizeSheet、LayoutArrangement |
+| [Sheets.tsx](Sheets.tsx) | 界面模块；入口/导出：MenuAction、ObjectMenuSheet、SizeSheet、LayoutArrangement、LayoutSheet |
 | [SourceEntries.test.ts](SourceEntries.test.ts) | 测试：SourceEntries |
 | [SourceEntries.tsx](SourceEntries.tsx) | 界面模块；入口/导出：sourceEntriesFor、SourceEntries |
 | [StatsControls.tsx](StatsControls.tsx) | 界面模块；入口/导出：statusNotice、StatBar、StatsSettingsSheet |
