@@ -13,6 +13,7 @@ import { TextField } from "../components/TextField.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { isImeComposing } from "../lib/desktopInput.js";
+import { reloadAfterLeaving } from "../lib/ledgerSwitchFlow.js";
 import { bookLifecycleAction, fetchBookLifecycle, type BookLifecycleSummary } from "../lib/lifecycle.js";
 import { clearBookLocalData } from "../lib/offline/localCleanup.js";
 import {
@@ -211,10 +212,13 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
    * ⚠️ **After 弃置/退出 the ledger is gone from the reader's list**, so staying on its settings page
    * would show a ledger that no longer exists. Leaving the ledger the device is *in* has to move the
    * session too — the same reason `BookManageSheet` reloads in that case.
+   *
+   * 1.19.60（审查 L14）：整页载入前用与切换账本同一个海浪盖住画面（lib/ledgerSwitchFlow.ts）；
+   * 仍是离开成功、清完本机数据后载入到 "/"，条件与先后不变。电脑版、Pad 宽屏没有海浪，照旧立即载入。
    */
   function afterRemoval(): void {
     if (bookId === currentBookId) {
-      window.location.assign("/");
+      reloadAfterLeaving({ hint: t("books.space.loadingLedger") });
       return;
     }
     void navigate("/start");

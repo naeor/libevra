@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-14 01:24（UTC+08:00）
+> 最后修改：2026-11-14 02:43（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -77,7 +77,8 @@
 | [language.ts](language.ts) | 实现模块；入口/导出：LANGUAGE_PREFERENCES、LanguagePreference、LANGUAGE_STORAGE_KEY、LanguageStorage、isLanguagePreference |
 | [languageRuntime.ts](languageRuntime.ts) | 实现模块；入口/导出：startLanguageRuntime、useLanguagePreference |
 | [ledgerFilter.ts](ledgerFilter.ts) | 实现模块；入口/导出：FilterSlot、ledgerFilterKey、normalizeFilter、sameFilter、filterSyncEnabled |
-| [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：CoverOptions、provideReloadCover、coverForReload、activateAndReload |
+| [ledgerSwitchFlow.test.ts](ledgerSwitchFlow.test.ts) | 测试：ledgerSwitchFlow |
+| [ledgerSwitchFlow.ts](ledgerSwitchFlow.ts) | 实现模块；入口/导出：CoverOptions、provideReloadCover、coverForReload、activateAndReload、reloadAfterLeaving |
 | [ledgerView.test.ts](ledgerView.test.ts) | 测试：ledgerView |
 | [ledgerView.ts](ledgerView.ts) | 实现模块；入口/导出：mergeLedgerEntries、updateTransactionViews、limitToWholeDays |
 | [ledgerWriter.ts](ledgerWriter.ts) | 实现模块；入口/导出：LedgerWriter、useLedgerWriter |

@@ -14,6 +14,7 @@ import { SkeletonRows } from "../components/States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { isImeComposing } from "../lib/desktopInput.js";
+import { reloadAfterLeaving } from "../lib/ledgerSwitchFlow.js";
 import { useBookMembers, useBooks, useInviteToBook, useLeaveBook, useLedger } from "../lib/queries.js";
 import { useForeignBookId } from "../lib/workspaceLedger.js";
 
@@ -666,8 +667,11 @@ function LeaveBookSection({ bookId }: { readonly bookId: string }): React.JSX.El
                    * which ledger every later request addresses and which slice of the offline copy is
                    * read. **A screen showing this ledger's header over another's entries is the
                    * failure the isolation exists to prevent**, and a reload cannot be half-done.
+                   *
+                   * 1.19.60（审查 L14）：载入前用与切换账本同一个海浪盖住画面（lib/ledgerSwitchFlow.ts）；
+                   * 仍是退出成功后整页载入到 "/"，条件与先后不变。电脑版、Pad 宽屏没有海浪，照旧立即载入。
                    */
-                  window.location.assign("/");
+                  reloadAfterLeaving({ hint: t("books.space.loadingLedger") });
                 })
                 .catch((caught: unknown) => {
                   setError(errorMessage(caught));

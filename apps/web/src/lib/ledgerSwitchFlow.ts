@@ -4,6 +4,7 @@
  * 进入另一本账必须整页重新载入（LedgerSpacePage 的 activateAndReload：请求头与离线范围一起换，不能半换）。
  * 手机外壳里有 S19 账本空间海浪转场时，由 `s19/motion/tide.ts` 先让海浪盖满整屏、同时完成服务器激活，
  * 再存下最后一帧交给新页面接着播放（不再白屏）；没有呈现器时直接执行。
+ * 退出、弃置或删除当前账本后的整页重新载入也用同一个呈现器盖住画面（{@link reloadAfterLeaving}）。
  */
 /** hint：等待提示；rise：海浪从下缘涌上、再从上缘离开（从当前账本胶囊切换），否则从顶栏向下划过（账本空间）。 */
 export interface CoverOptions { readonly hint?: string; readonly rise?: boolean }
@@ -33,4 +34,23 @@ export function coverForReload(work: () => Promise<void>, options: CoverOptions 
 export async function activateAndReload(activate: () => Promise<unknown>, options: CoverOptions = {}): Promise<void> {
   await coverForReload(async () => { await activate(); }, options);
   window.location.assign("/");
+}
+
+/**
+ * 离开当前账本（退出 / 弃置 / 删除）之后的整页重新载入（审查 L14）：载入前用与切换账本**同一个海浪呈现器**盖住画面。
+ *
+ * 调用方在原来 `window.location.assign("/")` 的同一位置调用它：离开本身已经成功、要不要整页载入已由调用方原有的
+ * 条件决定，这里只改变载入前看到什么——不改目标（仍是 "/"）、不改先后、不改任何条件，载入一定发生。
+ * - 没有呈现器（电脑版、Pad 宽屏）：立即同步载入，与原来完全一样。
+ * - 有呈现器：交给 {@link coverForReload}，要做的事已经做完（空任务），海浪一盖满整屏就存帧载入；
+ *   Original、深色、减少动态效果、页面隐藏时呈现器不播放，立即载入。
+ * - 呈现器出错（同步抛出或返回失败）时照常载入，不让离开卡在这里。
+ */
+export function reloadAfterLeaving(options: CoverOptions = {}): void {
+  const reload = (): void => { window.location.assign("/"); };
+  const present = cover;
+  if (present === null) { reload(); return; }
+  let covering: Promise<void>;
+  try { covering = present(() => Promise.resolve(), options); } catch { reload(); return; }
+  void covering.then(reload, reload);
 }
