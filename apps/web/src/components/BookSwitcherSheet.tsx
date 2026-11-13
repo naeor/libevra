@@ -1,14 +1,11 @@
-import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { BottomSheet } from "./BottomSheet.js";
 import { ChevronIcon } from "./Icons.js";
 import { SkeletonRows } from "./States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js";
-import { useDialogFocus } from "../lib/dialogFocus.js";
-import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
-import { useKeyboardInset } from "./entry/keyboardInset.js";
 
 /**
  * **账本列表选择面板。查看／管理入口只换目标，手机当前账本入口由调用方激活。**
@@ -22,8 +19,8 @@ import { useKeyboardInset } from "./entry/keyboardInset.js";
  * ledger a person is *in* is a different fact from the ledger they are *looking at* — 1.10.08 drew
  * that line, and the whole point of `/books/:bookId` is that it can be looked at without entering it.
  *
- * ⚠️ **呈现与管理面板共用材质角色、退出计时和滚动锁。** 保留原有半屏列表与下拉手势，
- * 不把账本选择、激活或权限判断搬进通用外壳。
+ * ⚠️ **外壳是弹出面板模板（1.19.58）**：与管理面板同一个 `BottomSheet`（材质、退场、滚动锁、下拉手势），
+ * 保留原有固定半屏列表；账本选择、激活与权限判断都不搬进通用外壳。
  *
  * ⚠️ **Picking the ledger you are already looking at closes the sheet and sends no request.** "Go to
  * where I am" is not a navigation, and a redundant visit would only add a cache miss to a screen
@@ -63,210 +60,111 @@ export function BookSwitcherSheet({
    */
   const currentBookId = useCurrentBookId();
 
-  /** ⚠️ Live drag offset, so the sheet follows the finger rather than only reacting at the end. */
-  const [dragY, setDragY] = useState(0);
-  const [entered, setEntered] = useState(false);
-  const startY = useRef<number | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const { closing, requestClose } = useOverlayExit(onClose, open);
-  const layer = useDialogFocus(sheetRef, open);
-  useOverlayScrollLock(backdropRef, open);
-  const keyboard = useKeyboardInset(backdropRef, open);
-  useEffect(() => { if (!closing) setDragY(0); }, [closing]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    setDragY(0);
-    setEntered(false);
-
-    const previous = document.activeElement as HTMLElement | null;
-    sheetRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    return () => previous?.focus();
-  }, [open]);
-
-  /** ⚠️ `Escape` closes it, and `Tab` stays inside — the same rules as the management sheet. */
-  useEffect(() => {
-    if (!open) return;
-
-    const onKey = (event: KeyboardEvent): void => {
-      if (!layer.owns(event)) return;
-      if (event.key === "Escape") { event.preventDefault(); requestClose(); }
-      if (event.key === "Tab") {
-        const buttons = [...(sheetRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled), a[href]") ?? [])];
-        const first = buttons[0], last = buttons.at(-1);
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [requestClose, open, layer]);
-
   if (!open) return null;
 
   const list = books.data?.books ?? [];
   const targetMissing = books.isSuccess && list.length > 0 && !list.some((book) => book.id === currentTargetId);
 
-  function choose(bookId: string): void {
-    if (bookId === currentTargetId) {
-      requestClose();
-      return;
-    }
-    onSelect(bookId);
-  }
-
   return (
-    <>
-      {/* ⚠️ `aria-hidden` and closing on tap: a dismissal affordance, not content — same as `BookManageSheet`. */}
-      <div
-        ref={backdropRef}
-        data-overlay-backdrop="sheet"
-        aria-hidden="true"
-        onClick={requestClose}
-        className={`fixed inset-0 z-40 bg-overlay-soft ${closing ? "backdrop-out" : "backdrop-in"}`}
-      />
+    /**
+     * ⚠️ **A stable, usable height, not a height decided by how many ledgers exist.**
+     *
+     * With two ledgers the content-driven sheet collapsed to a narrow strip; on a phone that
+     * meant aiming at a small target near the bottom edge. The owner asked for roughly
+     * 45–55% of the visible viewport — the template's fixed half detent (`half-fixed`,
+     * `clamp(18rem, 52dvh, 34rem)`) keeps a 288px floor on very short screens and caps itself on a
+     * tall desktop. Only the list scrolls (the template's body), so the drag handle, title, close
+     * button and the grey sentence stay put while the list moves.
+     *
+     * 弹出面板模板（1.19.58）：拖动条、标题行、×、下拉关闭、焦点与 Esc 都由 `BottomSheet` 负责；
+     * 宽屏下仍一直贴底（`wide="bottom"`），与原来相同。选择、查看与激活的语义没有动。
+     */
+    <BottomSheet
+      label={t("books.switcher.title")}
+      title={t("books.switcher.title")}
+      /* ⚠️ The grey sentence: what this list does *not* do. */
+      description={t(`books.switcher.hint.${purpose}`)}
+      detent="half-fixed"
+      wide="bottom"
+      initialFocus={(panel) => panel.querySelector<HTMLButtonElement>("button")}
+      footer={footer}
+      onClose={onClose}
+    >
+      {(requestClose) => {
+        function choose(bookId: string): void {
+          if (bookId === currentTargetId) {
+            requestClose();
+            return;
+          }
+          onSelect(bookId);
+        }
 
-      <div
-        ref={sheetRef}
-        tabIndex={-1}
-        data-overlay-surface="sheet"
-        inert={closing}
-        data-overlay-state={closing ? "closing" : "open"}
-        data-overlay-dragging={dragY > 0 ? "true" : undefined}
-        data-overlay-entered={entered ? "true" : undefined}
-        onAnimationEnd={(event) => { if (event.target === event.currentTarget && event.animationName === "libellum-sheet-in") setEntered(true); }}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("books.switcher.title")}
-        onTouchStart={(event) => {
-          startY.current = (event.target as HTMLElement).closest("[data-sheet-drag]") ? event.touches[0]?.clientY ?? null : null;
-        }}
-        onTouchMove={(event) => {
-          if (startY.current === null) return;
-          const dy = (event.touches[0]?.clientY ?? startY.current) - startY.current;
-          /** ⚠️ Downward only: pulling *up* must not lift the sheet off the bottom edge. */
-          setDragY(Math.max(0, dy));
-        }}
-        onTouchEnd={(event) => {
-          const offset = startY.current === null ? 0 : Math.max(0, (event.changedTouches[0]?.clientY ?? startY.current) - startY.current);
-          if (offset > 90) { setDragY(offset); requestClose(); }
-          else setDragY(0);
-          startY.current = null;
-        }}
-        onTouchCancel={() => { setDragY(0); startY.current = null; }}
-        style={{ "--overlay-drag": `${dragY}px`, transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, bottom: keyboard || undefined, maxHeight: `calc(var(--lv-vh) * 100 - 24px - ${keyboard}px)` } as React.CSSProperties}
-        /**
-         * ⚠️ **A stable, usable height, not a height decided by how many ledgers exist.**
-         *
-         * With two ledgers the content-driven sheet collapsed to a narrow strip; on a phone that
-         * meant aiming at a small target near the bottom edge. The owner asked for roughly
-         * 45–55% of the visible viewport. `clamp(18rem, 52dvh, 34rem)` gives that on phones,
-         * keeps a 288px floor on very short screens, and caps itself on a tall desktop.
-         * The list gets its own scroll area (`min-h-0 flex-1 overflow-y-auto`) so growth never
-         * pushes the title or the safe-area padding off screen.
-         */
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[clamp(18rem,calc(var(--lv-vh)*52),34rem)] w-full max-w-md flex-col rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
-          closing ? "sheet-out" : dragY === 0 ? "sheet-in" : ""
-        }`}
-      >
-        {/* ⚠️ The drag handle — the same one the management sheet has, and the only thing that says "this slides". */}
-        <div data-sheet-drag data-overlay-drag className="flex justify-center pt-3 pb-1">
-          <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />
-        </div>
+        return (
+          <>
+            {books.isPending ? <SkeletonRows rows={3} /> : null}
 
-        <div data-sheet-drag data-overlay-drag className="flex items-center justify-between gap-3 px-5 pt-2 pb-1">
-          <h2 className="text-base font-medium text-ink">{t("books.switcher.title")}</h2>
-
-          <button
-            type="button"
-            onClick={requestClose}
-            aria-label={t("books.switcher.close")}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
-          >
-            <svg className="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m6 6 12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* ⚠️ The grey sentence: what this list does *not* do. */}
-        <p className="shrink-0 px-5 pb-3 text-helper-relaxed text-muted">{t(`books.switcher.hint.${purpose}`)}</p>
-
-        {/**
-          * ⚠️ **Only this region scrolls.** The drag handle, title, close button and grey sentence
-          * stay put while the list moves — that is what keeps the sheet usable when it holds many
-          * ledgers, and what stops a long list from turning the close button into a moving target.
-          */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {books.isPending ? <SkeletonRows rows={3} /> : null}
-
-        {books.isError ? (
-          <div className="flex flex-col gap-3 px-5 py-4">
-            <p role="alert" className="text-body-relaxed text-danger">
-              {t("books.switcher.loadFailed", { error: errorMessage(books.error) })}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                void books.refetch();
-              }}
-              className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
-            >
-              {t("nav.state.retry")}
-            </button>
-          </div>
-        ) : null}
-
-        {books.isSuccess && list.length === 0 ? (
-          <div className="flex flex-col gap-3 px-5 py-4">
-            <p className="text-body-relaxed text-muted">{t("books.switcher.empty")}</p>
-            <Link
-              to="/start"
-              onClick={onClose}
-              className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
-            >
-              {t("books.goToSpace")}
-            </Link>
-          </div>
-        ) : null}
-
-        {/**
-          * ⚠️ **A target that is not in the list is stated, not guessed at.** It happens when a book
-          * is disposed (or the reader is removed from it) and this screen was still open in another
-          * tab. Silently ticking nothing would look like a rendering bug; ticking the *current*
-          * ledger would be the fallback the owner forbade.
-          */}
-        {targetMissing ? (
-          <p className="mx-5 mb-3 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-warn-dark">
-            {t("books.switcher.targetMissing")}
-          </p>
-        ) : null}
-
-        {list.length > 0 ? (
-          <ul className="border-t border-line">
-            {list.map((book) => (
-              <li key={book.id}>
-                <BookRow
-                  book={book}
-                  selected={book.id === currentTargetId}
-                  isCurrentAccounting={book.id === currentBookId}
-                  onSelect={() => {
-                    choose(book.id);
+            {books.isError ? (
+              <div className="flex flex-col gap-3 px-5 py-4">
+                <p role="alert" className="text-body-relaxed text-danger">
+                  {t("books.switcher.loadFailed", { error: errorMessage(books.error) })}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void books.refetch();
                   }}
-                />
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        </div>
-        {footer}
-      </div>
-    </>
+                  className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
+                >
+                  {t("nav.state.retry")}
+                </button>
+              </div>
+            ) : null}
+
+            {books.isSuccess && list.length === 0 ? (
+              <div className="flex flex-col gap-3 px-5 py-4">
+                <p className="text-body-relaxed text-muted">{t("books.switcher.empty")}</p>
+                <Link
+                  to="/start"
+                  onClick={onClose}
+                  className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
+                >
+                  {t("books.goToSpace")}
+                </Link>
+              </div>
+            ) : null}
+
+            {/**
+              * ⚠️ **A target that is not in the list is stated, not guessed at.** It happens when a book
+              * is disposed (or the reader is removed from it) and this screen was still open in another
+              * tab. Silently ticking nothing would look like a rendering bug; ticking the *current*
+              * ledger would be the fallback the owner forbade.
+              */}
+            {targetMissing ? (
+              <p className="mx-5 mb-3 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-warn-dark">
+                {t("books.switcher.targetMissing")}
+              </p>
+            ) : null}
+
+            {list.length > 0 ? (
+              <ul className="border-t border-line">
+                {list.map((book) => (
+                  <li key={book.id}>
+                    <BookRow
+                      book={book}
+                      selected={book.id === currentTargetId}
+                      isCurrentAccounting={book.id === currentBookId}
+                      onSelect={() => {
+                        choose(book.id);
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        );
+      }}
+    </BottomSheet>
   );
 }
 

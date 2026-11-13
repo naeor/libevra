@@ -49,11 +49,17 @@ describe("ChoiceSheet", () => {
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-label="选择币种"');
     expect(html).toContain('role="listbox"');
-    // 遮罩与面板都在 z-50 以下/之上，父容器的 overflow 裁不到它们。
-    expect(html).toContain("fixed inset-0 z-40");
-    expect(html).toContain("fixed inset-x-0 bottom-0 z-50");
+    // 弹出面板模板（1.19.58）：fixed + z-50 的遮罩与面板，父容器的 overflow 裁不到它们；
+    // 宽屏下仍一直贴底；手机上是 T1 的半屏档（内容更短时按内容）。
+    expect(html).toContain("fixed inset-0");
+    expect(html).toContain("z-50");
+    expect(html).toContain('data-sheet-wide="bottom"');
+    expect(html).toContain('data-sheet-detent="half"');
     // S18：高度单位是 --lv-vh（手机上等于 dvh，大屏工作区里是工作区自己的高度）。
-    expect(html).toContain("max-h-[calc(var(--lv-vh)*100_-_24px)]");
+    expect(html).toContain("max-h-[calc(var(--lv-vh)*100_-_24px_-_var(--lv-sheet-kb,0px))]");
+    // 模板标题行与统一的 ×。
+    expect(html).toContain("data-sheet-close");
+    expect(html).toContain('aria-label="关闭选择币种"');
     expect(html).toContain("overflow-y-auto");
     expect(html).toContain("overscroll-contain");
     expect(html).toContain("rounded-t-sheet");
@@ -84,11 +90,12 @@ describe("ChoiceSheet", () => {
 
     expect(source).toContain("onSelect(option.value);");
     expect(source).toContain("requestClose();");
-    expect(source).toContain("useOverlayExit(onClose, open)");
-    expect(source).toContain("closeRef.current();");
+    // 1.19.58：Escape、遮罩、下拉、× 都由模板外壳走同一条关闭路径（退场动画后才调用 onClose）。
+    expect(source).toContain("<BottomSheet");
+    expect(source).toContain("onClose={onClose}");
     expect(source).toContain("onKeyDown={moveFocus}");
-    // 打开时把焦点放到当前项，关闭时还给打开它的控件。
+    // 打开时把焦点放到当前项；关闭时还给打开它的控件由外壳的 useDialogFocus 负责。
     expect(source).toContain('querySelector<HTMLButtonElement>(');
-    expect(source).toContain("previous?.focus();");
+    expect(source).toContain("initialFocus={initialOption}");
   });
 });

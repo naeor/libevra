@@ -30,10 +30,11 @@ export function CurrentBookPicker({ caption, name }: { readonly caption: string;
     <button type="button" className="lv-book-capsule" aria-label={caption} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}><BookCapsuleContents name={name} /></button>
     {open ? <BookSwitcherSheet open currentTargetId={currentId ?? ""} purpose="activate" onClose={() => { if (!switcher.busy) setOpen(false); }} onSelect={id => {
       if (!switcher.busy) switcher.enter(id, undefined, currentLedgerDestination(location.pathname, location.search));
-    }} footer={<div className="border-t border-line px-5 py-3">
+    }} footer={<>
+      {/* 底部操作区的分隔线与留白由弹出面板模板负责（1.19.58）。 */}
       {switcher.status ? <p role="status" className="mb-2 text-helper text-muted">{switcher.status}</p> : null}
       {switcher.busy ? null : <CapsuleButton onClick={manageAll}>{t("books.switcher.manageAll")}</CapsuleButton>}
-    </div>} /> : null}
+    </>} /> : null}
   </>;
 }
 

@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { BottomSheet } from "./BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
 import { type BookSummary } from "../lib/queries.js";
-import { useDialogFocus } from "../lib/dialogFocus.js";
-import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
-import { useKeyboardInset } from "./entry/keyboardInset.js";
 
 /**
  * **每本账本的齿轮面板 —— 底部弹出的 Bottom Sheet.**
@@ -50,44 +47,6 @@ export function BookManageSheet({
 }): React.JSX.Element {
   const { t } = useI18n();
   const navigate = useNavigate();
-
-  /** ⚠️ Live drag offset, so the sheet follows the finger rather than only reacting at the end. */
-  const [dragY, setDragY] = useState(0);
-  const [entered, setEntered] = useState(false);
-  const startY = useRef<number | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const { closing, requestClose, afterExit } = useOverlayExit(onClose);
-  const layer = useDialogFocus(sheetRef);
-  useOverlayScrollLock(backdropRef);
-  const keyboard = useKeyboardInset(backdropRef);
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    sheetRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    return () => previous?.focus();
-  }, []);
-
-  /**
-   * ⚠️ **`Escape` closes it.** A sheet that traps a keyboard user is worse than no sheet — and on
-   * desktop this is the only way out that does not involve the mouse.
-   */
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (!layer.owns(event)) return;
-      if (event.key === "Escape") { event.preventDefault(); requestClose(); }
-      if (event.key === "Tab") {
-        const buttons = [...(sheetRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
-        const first = buttons[0], last = buttons.at(-1);
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [requestClose, layer]);
 
   /**
    * ⚠️ **Lifecycle decisions now live on the ledger settings page**, because a single "leave"
@@ -176,130 +135,77 @@ export function BookManageSheet({
   ];
 
   return (
-    <>
-      {/**
-        * ⚠️ **The backdrop closes on tap, and it is `aria-hidden`.** It is a dismissal affordance, not
-        * content — and the sheet itself carries the same actions plus a visible 关闭 row, so nothing
-        * is reachable *only* by tapping outside.
-        */}
-      <div
-        ref={backdropRef}
-        data-overlay-backdrop="sheet"
-        aria-hidden="true"
-        onClick={requestClose}
-        className={`fixed inset-0 z-40 bg-overlay-soft ${closing ? "backdrop-out" : "backdrop-in"}`}
-      />
-
-      <div
-        ref={sheetRef}
-        tabIndex={-1}
-        data-overlay-surface="sheet"
-        inert={closing}
-        data-overlay-state={closing ? "closing" : "open"}
-        data-overlay-dragging={dragY > 0 ? "true" : undefined}
-        data-overlay-entered={entered ? "true" : undefined}
-        onAnimationEnd={(event) => { if (event.target === event.currentTarget && event.animationName === "libellum-sheet-in") setEntered(true); }}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("books.manageNamed", { name: book.name })}
-        /**
-          * ⚠️ **Swipe-down closes it, and the offset follows the finger.** The owner listed it as one
-          * of the ways out (*"向下滑动"*), and **a sheet that only moves after release feels broken** —
-          * so `translateY` is driven by the live drag, and a short drag or an upward one springs back.
-          */
-        onTouchStart={(event) => {
-          startY.current = (event.target as HTMLElement).closest("[data-sheet-drag]") ? event.touches[0]?.clientY ?? null : null;
-        }}
-        onTouchMove={(event) => {
-          if (startY.current === null) return;
-          const dy = (event.touches[0]?.clientY ?? startY.current) - startY.current;
-          /** ⚠️ Downward only: pulling *up* must not lift the sheet off the bottom edge. */
-          setDragY(Math.max(0, dy));
-        }}
-        onTouchEnd={(event) => {
-          const offset = startY.current === null ? 0 : Math.max(0, (event.changedTouches[0]?.clientY ?? startY.current) - startY.current);
-          if (offset > 90) { setDragY(offset); requestClose(); }
-          else setDragY(0);
-          startY.current = null;
-        }}
-        onTouchCancel={() => { setDragY(0); startY.current = null; }}
-        style={{ "--overlay-drag": `${dragY}px`, transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, bottom: keyboard || undefined, maxHeight: `calc(var(--lv-vh) * 100 - 24px - ${keyboard}px)` } as React.CSSProperties}
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-md max-h-[calc(var(--lv-vh)*100_-_24px)] flex-col rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${
-          closing ? "sheet-out" : dragY === 0 ? "sheet-in" : ""
-        }`}
-      >
-        {/* ⚠️ The drag handle — the owner asked for it, and it is also what says "this slides". */}
-        <div data-sheet-drag data-overlay-drag className="flex justify-center pt-3 pb-1">
-          <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />
-        </div>
-
-        {/**
-          * ⚠️ **The header repeats which ledger this is, and that is a safety feature rather than
-          * decoration.** The owner: *"这部分主要是为了让用户确认自己正在操作哪一本账本。尤其是在执行
-          * 退出或弃置操作前，不能让用户误认目标."* So it carries the name **and the number**, which is
-          * the one thing that distinguishes two ledgers somebody named identically.
-          */}
-        <div data-sheet-drag data-overlay-drag className="flex items-center justify-between gap-3 px-5 pt-2 pb-3">
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-base font-medium text-ink">{book.name}</span>
-            <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
-              <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
-              <span>·</span>
-              <span>{t("books.people", { count: book.memberCount })}</span>
-              {isCurrent ? (
-                /**
-                  * ⚠️ **A word, not only a colour.** The owner's rule for the list applies here too:
-                  * *"不要只依赖颜色传递当前状态."*
-                  */
-                <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
-                  {t("books.current")}
-                </span>
-              ) : null}
+    /**
+     * 弹出面板模板（1.19.58）：遮罩、拖动条、下拉关闭（*"向下滑动"*，跟手、短拉或上拉弹回）、Esc、焦点与
+     * 右上角 × 都由 `BottomSheet` 负责；宽屏下仍一直贴底（`wide="bottom"`），与原来相同。
+     * 上面的菜单与 `canWrite` 判断原地不动——外壳只换外观。
+     *
+     * ⚠️ **The backdrop closes on tap.** It is a dismissal affordance, not content — the sheet itself
+     * carries the same actions plus the × in the corner, so nothing is reachable *only* by tapping outside.
+     */
+    <BottomSheet
+      label={t("books.manageNamed", { name: book.name })}
+      /**
+        * ⚠️ **The header repeats which ledger this is, and that is a safety feature rather than
+        * decoration.** The owner: *"这部分主要是为了让用户确认自己正在操作哪一本账本。尤其是在执行
+        * 退出或弃置操作前，不能让用户误认目标."* So it carries the name **and the number**, which is
+        * the one thing that distinguishes two ledgers somebody named identically.
+        */
+      title={book.name}
+      description={
+        <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
+          <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
+          <span>·</span>
+          <span>{t("books.people", { count: book.memberCount })}</span>
+          {isCurrent ? (
+            /**
+              * ⚠️ **A word, not only a colour.** The owner's rule for the list applies here too:
+              * *"不要只依赖颜色传递当前状态."*
+              */
+            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-micro text-brand-dark">
+              {t("books.current")}
             </span>
+          ) : null}
+        </span>
+      }
+      detent="half"
+      wide="bottom"
+      initialFocus={(panel) => panel.querySelector<HTMLButtonElement>("button")}
+      onClose={onClose}
+    >
+      {(_close, sheet) => (
+        <>
+          <ul className="border-t border-line">
+            {items.map((item) => (
+              <li key={item.key}>
+                <button
+                  type="button"
+                  onClick={() => sheet.closeThen(item.onSelect)}
+                  className="flex min-h-12 w-full items-center gap-3 border-b border-line px-5 py-3 text-left transition hover:bg-canvas"
+                >
+                  <span className="text-muted"><SheetIcon kind={item.key} /></span>
+                  <span className="min-w-0 flex-1 text-body text-ink">{item.label}</span>
+                  <span className="text-muted"><SheetIcon kind="chevron" /></span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="flex flex-col border-t-4 border-canvas px-5 py-2">
+            <button
+              type="button"
+              onClick={() => {
+                sheet.closeThen(() => go(`/books/${book.id}/settings`));
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-ink transition hover:bg-canvas"
+            >
+              <SheetIcon kind="archive" />
+              <span className="min-w-0">{t("books.sheet.lifecycle")}</span>
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={requestClose}
-            aria-label={t("books.sheet.close")}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
-          >
-            <SheetIcon kind="close" />
-          </button>
-        </div>
-
-        <div className="min-h-0 overflow-y-auto overscroll-contain">
-        <ul className="border-t border-line">
-          {items.map((item) => (
-            <li key={item.key}>
-              <button
-                type="button"
-                onClick={() => afterExit(item.onSelect)}
-                className="flex min-h-12 w-full items-center gap-3 border-b border-line px-5 py-3 text-left transition hover:bg-canvas"
-              >
-                <span className="text-muted"><SheetIcon kind={item.key} /></span>
-                <span className="min-w-0 flex-1 text-body text-ink">{item.label}</span>
-                <span className="text-muted"><SheetIcon kind="chevron" /></span>
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <div className="flex flex-col border-t-4 border-canvas px-5 py-2">
-          <button
-            type="button"
-            onClick={() => {
-              afterExit(() => go(`/books/${book.id}/settings`));
-            }}
-            className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-ink transition hover:bg-canvas"
-          >
-            <SheetIcon kind="archive" />
-            <span className="min-w-0">{t("books.sheet.lifecycle")}</span>
-          </button>
-        </div>
-        </div>
-      </div>
-    </>
+        </>
+      )}
+    </BottomSheet>
   );
 }
 

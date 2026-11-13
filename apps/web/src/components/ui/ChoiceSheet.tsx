@@ -1,9 +1,4 @@
-import { useEffect, useRef } from "react";
-
-import { useI18n } from "../../i18n/index.js";
-import { useDialogFocus } from "../../lib/dialogFocus.js";
-import { useOverlayExit, useOverlayScrollLock } from "../../lib/useOverlayPresentation.js";
-import { useKeyboardInset } from "../entry/keyboardInset.js";
+import { BottomSheet } from "../BottomSheet.js";
 
 /**
  * 从一列固定选项里选一个：项目自己的底部选择面板。
@@ -23,7 +18,11 @@ import { useKeyboardInset } from "../entry/keyboardInset.js";
  *
  * 可访问性：面板是 `role="dialog"`（有标题、`aria-modal`），列表是 `role="listbox"`，
  * 每一项是 `role="option"` 且带 `aria-selected`；禁用项是真的 `disabled`。
- * Escape 关闭、点遮罩关闭、点中一项后关闭；打开时把焦点放到当前项，关闭时还给打开它的控件。
+ * Escape 关闭、点遮罩关闭、下拉关闭、点中一项后关闭；打开时把焦点放到当前项，关闭时还给打开它的控件。
+ *
+ * 弹出面板模板（1.19.58）：外壳是 `BottomSheet` 的 T1 列表模板——模板标题行（标题 + 右上角 ×）、
+ * 半屏档（内容更短时按内容，选项多时列表在面板里滚动）、下拉关闭与焦点都由外壳负责。
+ * 宽屏下仍一直贴底（`wide="bottom"`，与原来相同）。
  */
 export interface ChoiceSheetOption<Value extends string> {
   readonly value: Value;
@@ -37,10 +36,38 @@ export interface ChoiceSheetOption<Value extends string> {
   readonly disabled?: boolean;
 }
 
+/** 打开时获得焦点的项：当前选中项，没有就第一项可用项。 */
+function initialOption(panel: HTMLElement): HTMLElement | null {
+  return (
+    panel.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]:not(:disabled)') ??
+    panel.querySelector<HTMLButtonElement>('[role="option"]:not(:disabled)')
+  );
+}
+
+/**
+ * 上下方向键在可用项之间移动焦点。Tab 顺序不变，由共享焦点栈约束在当前面板内。
+ */
+function moveFocus(event: React.KeyboardEvent<HTMLDivElement>): void {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+  const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)')];
+  if (items.length === 0) return;
+
+  event.preventDefault();
+  const current = items.indexOf(document.activeElement as HTMLButtonElement);
+  const forward = event.key === "ArrowDown";
+  const next =
+    current < 0
+      ? items[forward ? 0 : items.length - 1]
+      : items[(current + (forward ? 1 : -1) + items.length) % items.length];
+
+  next?.focus();
+}
+
 /**
  * 底部面板：标题 + 关闭 + 一列选项。
  *
- * ⚠️ **高度是内容驱动 + 上限**（`max-h` + 列表自己滚动），不是固定若干像素：
+ * ⚠️ **高度是内容驱动 + 上限**（模板半屏档 + 列表自己滚动），不是固定若干像素：
  * 六个币种时它刚好包住内容，账本很多时它停在上限并让列表滚动，标题与关闭按钮始终可见。
  */
 export function ChoiceSheet<Value extends string>({
@@ -60,121 +87,11 @@ export function ChoiceSheet<Value extends string>({
   readonly onSelect: (value: Value) => void;
   readonly onClose: () => void;
 }): React.JSX.Element | null {
-  const { t } = useI18n();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const { closing, requestClose } = useOverlayExit(onClose, open);
-  const layer = useDialogFocus(panelRef, open);
-  useOverlayScrollLock(backdropRef, open);
-  const keyboard = useKeyboardInset(backdropRef, open);
-  /**
-   * 关闭入口保持稳定；父页面重渲染时不把焦点抢回当前项。滚动恢复交给共享滚动锁。
-   */
-  const closeRef = useRef(requestClose);
-
-  useEffect(() => {
-    closeRef.current = requestClose;
-  }, [requestClose]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const previous = document.activeElement as HTMLElement | null;
-    const panel = panelRef.current;
-    const selected = panel?.querySelector<HTMLButtonElement>(
-      '[role="option"][aria-selected="true"]:not(:disabled)',
-    );
-    const first = selected ?? panel?.querySelector<HTMLButtonElement>('[role="option"]:not(:disabled)');
-    first?.focus();
-
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape" && layer.owns(event)) {
-        event.preventDefault();
-        closeRef.current();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previous?.focus();
-    };
-  }, [open, layer]);
-
   if (!open) return null;
 
-  /**
-   * 上下方向键在可用项之间移动焦点。Tab 顺序不变，由共享焦点栈约束在当前面板内。
-   */
-  function moveFocus(event: React.KeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-
-    const items = [
-      ...(panelRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)') ?? []),
-    ];
-    if (items.length === 0) return;
-
-    event.preventDefault();
-    const current = items.indexOf(document.activeElement as HTMLButtonElement);
-    const forward = event.key === "ArrowDown";
-    const next =
-      current < 0
-        ? items[forward ? 0 : items.length - 1]
-        : items[(current + (forward ? 1 : -1) + items.length) % items.length];
-
-    next?.focus();
-  }
-
   return (
-    <>
-      {/* 遮罩：点它关闭。`aria-hidden` 因为它是"退出"，不是内容。 */}
-      <div
-        ref={backdropRef}
-        data-overlay-backdrop="sheet"
-        aria-hidden="true"
-        onClick={requestClose}
-        className={`fixed inset-0 z-40 bg-overlay-soft ${closing ? "backdrop-out" : "backdrop-in"}`}
-      />
-
-      <div
-        ref={panelRef}
-        tabIndex={-1}
-        data-overlay-surface="sheet"
-        inert={closing}
-        data-overlay-state={closing ? "closing" : "open"}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        style={{ bottom: keyboard || undefined, maxHeight: `calc(var(--lv-vh) * 100 - 24px - ${keyboard}px)` }}
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[calc(var(--lv-vh)*100_-_24px)] w-full max-w-md flex-col rounded-t-sheet border border-line bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet ${closing ? "sheet-out" : "sheet-in"}`}
-      >
-        <div className="flex justify-center pt-3 pb-1">
-          <span aria-hidden="true" className="h-1 w-10 rounded-full bg-line" />
-        </div>
-
-        <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-2 pb-1">
-          <h2 className="text-base font-medium text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={requestClose}
-            aria-label={t("nav.sheet.close", { title })}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition hover:bg-canvas hover:text-ink focus-visible:ring-4 focus-visible:ring-focus-ring"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="m6 6 12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
-
+    <BottomSheet label={title} title={title} detent="half" wide="bottom" initialFocus={initialOption} onClose={onClose}>
+      {(requestClose) => (
         <div
           role="listbox"
           aria-label={title}
@@ -239,7 +156,7 @@ export function ChoiceSheet<Value extends string>({
             );
           })}
         </div>
-      </div>
-    </>
+      )}
+    </BottomSheet>
   );
 }

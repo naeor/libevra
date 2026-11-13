@@ -604,10 +604,12 @@ describe("CurrencySheet", () => {
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('role="listbox"');
-    expect(html).toContain("fixed inset-0 z-40");
-    expect(html).toContain("fixed inset-x-0 bottom-0 z-50");
+    // 弹出面板模板（1.19.58）：fixed + z-50，宽屏下仍一直贴底。
+    expect(html).toContain("fixed inset-0");
+    expect(html).toContain("z-50");
+    expect(html).toContain('data-sheet-wide="bottom"');
     // S18：高度单位是 --lv-vh（手机上等于 dvh，大屏工作区里是工作区自己的高度）。
-    expect(html).toContain("max-h-[calc(var(--lv-vh)*100_-_24px)]");
+    expect(html).toContain("max-h-[calc(var(--lv-vh)*100_-_24px_-_var(--lv-sheet-kb,0px))]");
     expect(html).toContain("overflow-y-auto");
     expect(html).toContain("pb-[env(safe-area-inset-bottom,0px)]");
   });
