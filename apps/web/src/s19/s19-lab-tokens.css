@@ -63,6 +63,8 @@
   --s19-shelf-bg: #fcfcfa; --s19-shelf-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 8px 20px -10px rgb(40 52 46 / .32);
   --s19-entry-bg: var(--s19-card-bg); --s19-entry-sh: var(--s19-card-sh);
   --s19-sheet-bg: #fcfcfa; --s19-sheet-sh: 0 -16px 44px -18px rgb(30 40 36 / .32), 0 0 0 .5px rgb(40 50 44 / .05);
+  /* 弹出面板遮罩（1.19.58）：与 B1（.26）、B2（.22）同一深浅，原来缺省时回退到 45% 墨色、明显偏深。 */
+  --s19-scrim: rgb(38 46 42 / .24);
   --s19-track-bg: color-mix(in srgb, var(--color-brand) 7%, #e9e9e4); --s19-track-sh: inset 0 1px 2px rgb(40 50 44 / .05);
   --s19-pill-bg: #fff; --s19-pill-sh: 0 1px 2px rgb(40 50 44 / .08), 0 4px 10px -4px rgb(40 52 46 / .18);
   --s19-row-ic-bg: color-mix(in srgb, var(--color-brand) 9%, #f2f2ee);
@@ -185,6 +187,8 @@
   --s19-soft-sh: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 20%, transparent);
   --s19-shelf-bg: #fff; --s19-shelf-sh: 0 0 0 1px rgb(30 45 38 / .07), 0 8px 20px -12px rgb(30 45 38 / .22);
   --s19-sheet-bg: #fff; --s19-sheet-sh: 0 -10px 30px -12px rgb(20 30 26 / .25);
+  /* 弹出面板遮罩（1.19.58）：与 B1、B2 同一深浅。 */
+  --s19-scrim: rgb(38 46 42 / .24);
   --s19-track-bg: #e8ecea; --s19-track-sh: inset 0 0 0 1px rgb(30 45 38 / .04);
   --s19-pill-bg: #fff; --s19-pill-sh: 0 0 0 1px rgb(30 45 38 / .07), 0 1px 2px rgb(30 45 38 / .1);
   --s19-row-ic-bg: color-mix(in srgb, var(--color-brand) 9%, #fff);

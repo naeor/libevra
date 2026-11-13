@@ -44,6 +44,10 @@ const nav: Messages<typeof zh> = {
   },
   sheet: {
     close: "Close {{title}}",
+    discardTitle: "Discard changes?",
+    discardBody: "Your changes haven’t been saved and will be lost if you close this.",
+    discardConfirm: "Discard",
+    discardKeep: "Keep editing",
   },
   choice: {
     placeholder: "Not selected",

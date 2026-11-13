@@ -24,6 +24,7 @@ import { provideEntryAgain } from "../../lib/entryFlow.js";
 import { provideReloadCover } from "../../lib/ledgerSwitchFlow.js";
 import { interruptsTransition } from "../../lib/motionTokens.js";
 import { S19_PHONE_SELECTOR } from "../scope.js";
+import { hasOpenOverlay } from "../../lib/openOverlay.js";
 
 export interface PilotAdapter {
   accept(next: PaneSnapshot, commit: () => void): void;
@@ -305,7 +306,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       const look = tideLook();
       const tideEnter = !!from && next.location.pathname === "/start" && !from.page.startsWith("/start");
       const tideExit = !!from && from.page === "/start" && !next.location.pathname.startsWith("/start");
-      if (look && (tideEnter || tideExit) && document.querySelector("dialog[open], [role=dialog][aria-modal=true]") === null) {
+      // 弹层判断（1.19.58）：读模板的统一标记，含确认框，正在收起的面板不算打开（lib/openOverlay.ts）。
+      if (look && (tideEnter || tideExit) && !hasOpenOverlay()) {
         abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); clickedObject = null;
         pendingRestore = tideExit && pages.has(next.location.pathname)
           ? { key: next.location.key, focus: false, tab: navigationLevel(next.location.pathname) === "tabRoot" ? next.location.pathname : undefined } : null;
@@ -318,7 +320,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       // switchTab：四个主 Tab 之间整页横向交换（Tab Switch Lab），不是 navigate / objectExpand / enterMode。
       if (from && next.action !== "REPLACE" && isTabSwitch(from.page, next.location.pathname) && !next.location.hash) {
         abc?.cancel(); objects.cancel(); modes.cancel(); clickedObject = null;
-        const instant = typing || document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null
+        const instant = typing || hasOpenOverlay()
           || (!enabled && html.dataset.themeMode !== "light");
         pendingRestore = { key: next.location.key, focus: false, tab: next.location.pathname };
         if (instant) { tabs.cancel(); startTransition(commit); return; }
@@ -360,7 +362,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         // 挂载即聚焦输入框的记账页不再把焦点移到标题上（否则会从金额框抢走焦点，iOS 键盘随之收起）。
         pendingRestore = { key: next.location.key, focus: !modeExit && !focusesOnEntry(next.location.pathname), tab: navigationLevel(next.location.pathname) === "tabRoot" ? next.location.pathname : undefined };
         // 不因输入框聚焦而跳过：手动记账一进入就聚焦金额框，离开时键盘随之收起，方向与工作区下沉一致。
-        if (document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null) { modes.cancel(); startTransition(commit); return; }
+        if (hasOpenOverlay()) { modes.cancel(); startTransition(commit); return; }
         // 新页面在后台（transition）渲染，点击后的第一帧不被页面初始化占住；呈现器等新页面提交后再对齐。
         // 例外：挂载即聚焦输入框的页面（手动记账）仍在点击里同步提交，iOS 才会弹出键盘。
         const deliver = !modeExit && focusesOnEntry(next.location.pathname) ? () => flushSync(commit) : () => { startTransition(commit); };
@@ -388,7 +390,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         : isDefaultMotionEdge(from.page, current.page) ? [[from.page, current.page]] : [];
       let direction = from ? directionFor(from, current, next.action, edges, allowPop) : "none";
       const focus = document.activeElement;
-      const blocked = document.querySelector("dialog[open], [role=dialog][aria-modal=true]") !== null
+      const blocked = hasOpenOverlay()
         || focus instanceof HTMLInputElement || focus instanceof HTMLTextAreaElement || (focus instanceof HTMLElement && focus.isContentEditable)
         || document.querySelector(S19_PHONE_SELECTOR) === null;
       // 查询参数属于页面状态（筛选、来源），不再阻止默认转场；锚点跳转仍是页内定位。

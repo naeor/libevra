@@ -64,9 +64,13 @@ html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] 
   background: var(--color-overlay-soft);
 }
 
-/* 淡入淡出只发生在材质层和内容层，不在两者的父节点上创建采样边界。 */
-[data-overlay-surface="dialog"] > *, [data-overlay-surface="dialog"]::before { animation: libellum-backdrop-in 200ms ease-out; }
-[data-overlay-surface="dialog"][data-overlay-state="closing"] > *, [data-overlay-surface="dialog"][data-overlay-state="closing"]::before { animation: libellum-backdrop-out 200ms ease-in forwards; }
+/* 淡入淡出只发生在材质层和内容层，不在两者的父节点上创建采样边界。
+   外壳外（Original、深色、Pad、电脑版）由 components/panel-template.css 让整个对话框淡入；外壳里面板本身不做透明度动画。 */
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"] { animation: none; }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"] > *,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"]::before { animation: libellum-backdrop-in 200ms ease-out; }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][data-overlay-state="closing"] > *,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][data-overlay-state="closing"]::before { animation: libellum-backdrop-out 200ms ease-in forwards; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface]::before { background: var(--color-surface); }
 }

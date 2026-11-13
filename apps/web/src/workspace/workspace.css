@@ -1645,7 +1645,8 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   }
   .lv-sheet {
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-    max-height: calc(var(--lv-vh) * 88);
+    /* --lv-sheet-kb：软键盘挡住的高度（弹出面板模板写入，1.19.58）。 */
+    max-height: calc(var(--lv-vh) * 88 - var(--lv-sheet-kb, 0px));
   }
 }
 @container lvpane (min-width: 640px) {
@@ -1655,7 +1656,7 @@ html[data-theme-mode="dark"] .lv-shell[data-shell="wide"] .lv-pane .detail-scrol
   }
   .lv-sheet {
     border-radius: var(--radius-card);
-    max-height: calc(var(--lv-vh) * 86);
+    max-height: calc(var(--lv-vh) * 86 - var(--lv-sheet-kb, 0px));
   }
 }
 

@@ -1,0 +1,121 @@
+/*
+ * 弹出面板模板（1.19.58，规格：docs/specs/design/S19-材质组件与动效设计系统.md「弹出面板模板」）。
+ *
+ * 只放模板自己的结构与可调令牌：三档高度、遮罩深浅、标题行与拖动条。面板材质仍由
+ * s19/overlays.css（浅色 S19 外壳）与原组件外观（Original、深色、Pad、电脑版）负责；
+ * 进出动画仍是 index.css 的 sheet-in / sheet-out 与对话框淡入淡出，不另起第二套。
+ */
+
+/* ---------------------------------------------------------------- 可调令牌 */
+:root {
+  /*
+   * 三档高度（比例乘 --lv-vh，所以在工作区里自动按工作区高度计算）。按截图观感调整时只改这里。
+   *   按内容：T4 信息说明，最多约半屏；半屏：T1 列表、T2 表单，内容更短时按内容；
+   *   固定半屏：账本选择（所有者要求的稳定高度）；大档：T5 大面积编辑，顶部留出一点背景。
+   */
+  --lv-sheet-content-ratio: 50;
+  --lv-sheet-half-ratio: 52;
+  --lv-sheet-half-min: 18rem;
+  --lv-sheet-half-max: 34rem;
+  --lv-sheet-large-gap: 40px;
+  /* 面板上缘与屏幕上缘至少留出的距离（键盘打开时同样适用）。 */
+  --lv-sheet-edge: 24px;
+
+  /*
+   * 遮罩：弹窗出现后背景一律变暗。浅色 Original：底部面板 .25，中央对话框与大档面板 .35
+   * （沿用原有的墨色遮罩令牌）；深色见下方，统一一档黑色。S19 浅色外壳改用各风格的 --s19-scrim。
+   */
+  --lv-scrim-sheet: var(--color-overlay-soft);
+  --lv-scrim-dialog: var(--color-overlay);
+}
+
+html[data-theme-mode="dark"] {
+  /*
+   * 深色模式也变暗、不变亮：统一一档黑色。数值是 index.css 各深色主题里的 --color-overlay-soft
+   * （黑色 .52，颜色只在令牌文件里定义）；要调深浅改那里。底部面板、对话框与大档面板同一档。
+   */
+  --lv-scrim-sheet: var(--color-overlay-soft);
+  --lv-scrim-dialog: var(--color-overlay-soft);
+}
+
+/* ---------------------------------------------------------------- 遮罩 */
+/*
+ * 遮罩画在根节点的伪元素上，根节点自己不做透明度动画：面板从下缘升起时不跟着一起淡入，
+ * 浅色 S19 外壳里 s19/overlays.css 用同一个伪元素换成 --s19-scrim（B2 的背景模糊才能采样后方页面）。
+ * 只认模板的两档（sheet / dialog）：同意书弹窗的 "soft" 由它自己的根节点底色负责，不能再叠一层。
+ */
+[data-overlay-root]:is([data-overlay-scrim="sheet"], [data-overlay-scrim="dialog"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--lv-scrim-sheet);
+  animation: libellum-backdrop-in 180ms ease-out;
+}
+[data-overlay-root][data-overlay-scrim="dialog"]::before {
+  background: var(--lv-scrim-dialog);
+}
+[data-overlay-root]:is([data-overlay-scrim="sheet"], [data-overlay-scrim="dialog"])[data-overlay-state="closing"]::before {
+  animation: libellum-backdrop-out 200ms ease-in forwards;
+}
+
+/* 中央对话框（T3）整体淡入淡出；浅色 S19 外壳里改由材质层与内容层各自淡入（s19/overlays.css）。 */
+[data-overlay-surface="dialog"] {
+  animation: libellum-backdrop-in 200ms ease-out;
+}
+[data-overlay-surface="dialog"][data-overlay-state="closing"] {
+  animation: libellum-backdrop-out 200ms ease-in forwards;
+}
+
+/* ---------------------------------------------------------------- 三档高度（手机宽度） */
+/*
+ * 只在窄屏（手机）按档位取高度；宽屏（Pad 工作区、电脑窗口）暂时保持各面板原来的形态（审查 H9 留待以后），
+ * 由组件上的原有类名与 workspace.css 的 `.lv-sheet` 容器查询负责。
+ * `--lv-sheet-kb` 是软键盘挡住的高度（BottomSheet 每次渲染写入）：面板不会高过键盘以上的可视区。
+ */
+@media (max-width: 639.98px) {
+  [data-overlay-surface][data-sheet-detent="content"] {
+    max-height: min(
+      max(var(--lv-sheet-half-min), calc(var(--lv-vh) * var(--lv-sheet-content-ratio))),
+      calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
+    );
+  }
+  [data-overlay-surface][data-sheet-detent="half"] {
+    max-height: min(
+      max(var(--lv-sheet-half-min), calc(var(--lv-vh) * var(--lv-sheet-half-ratio))),
+      calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
+    );
+  }
+  [data-overlay-surface][data-sheet-detent="large"] {
+    height: min(
+      calc(var(--lv-vh) * 100 - var(--lv-sheet-large-gap) - env(safe-area-inset-top, 0px)),
+      calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
+    );
+    max-height: calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px));
+  }
+}
+
+/* 固定半屏（账本选择）：任何宽度都是原来那个稳定高度，键盘打开时不高过可视区。 */
+[data-overlay-surface][data-sheet-detent="half-fixed"] {
+  height: min(
+    clamp(var(--lv-sheet-half-min), calc(var(--lv-vh) * var(--lv-sheet-half-ratio)), var(--lv-sheet-half-max)),
+    calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
+  );
+  max-height: calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px));
+}
+
+/* ---------------------------------------------------------------- 标题行与拖动条 */
+/* 拖动条只出现在可以下拉关闭的面板上；拖动从拖动条与标题区起手，不和内容滚动抢手势。 */
+[data-sheet-handle] {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  padding-bottom: 2px;
+}
+[data-sheet-handle] > span {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-line);
+}

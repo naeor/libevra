@@ -31,12 +31,13 @@
 | [BottomNav.test.tsx](BottomNav.test.tsx) | 测试：BottomNav |
 | [BottomNav.tsx](BottomNav.tsx) | 界面模块；入口/导出：ListIcon、ChartIcon、PeopleIcon、PersonIcon、PlusIcon |
 | [BottomSheet.test.tsx](BottomSheet.test.tsx) | 测试：BottomSheet |
-| [BottomSheet.tsx](BottomSheet.tsx) | 界面模块；入口/导出：BottomSheet |
+| [BottomSheet.tsx](BottomSheet.tsx) | 界面模块；入口/导出：SheetDetent、SheetWideForm、SheetControls、useSheetControls、BottomSheetProps |
 | [BrandMark.tsx](BrandMark.tsx) | 界面模块；入口/导出：BrandMark |
 | [Button.tsx](Button.tsx) | 界面模块；入口/导出：Button |
 | [Card.tsx](Card.tsx) | 界面模块；入口/导出：Card、ActionCard |
 | [CategoryPicker.tsx](CategoryPicker.tsx) | 界面模块；入口/导出：CategoryPicker |
 | [CategoryTreeList.tsx](CategoryTreeList.tsx) | 界面模块；入口/导出：CategoryTreeList |
+| [CenterDialog.tsx](CenterDialog.tsx) | 界面模块；入口/导出：CenterDialog |
 | [ChoiceDialog.test.tsx](ChoiceDialog.test.tsx) | 测试：ChoiceDialog |
 | [ChoiceDialog.tsx](ChoiceDialog.tsx) | 界面模块；入口/导出：Choice、ChoiceDialog |
 | [ConfirmDialog.test.tsx](ConfirmDialog.test.tsx) | 测试：ConfirmDialog |
@@ -115,6 +116,8 @@
 | [bookCapsule.ts](bookCapsule.ts) | 实现模块；入口/导出：BookCapsuleStore、createBookCapsuleStore、BookCapsuleContext、useRegisterBookCapsule |
 | [current-book-caption.css](current-book-caption.css) | 样式与变量 |
 | [entry-filters.css](entry-filters.css) | 样式与变量 |
+| [panel-template.css](panel-template.css) | 样式与变量 |
+| [panelTemplate.test.tsx](panelTemplate.test.tsx) | 测试：panelTemplate |
 | [useBookCapsuleMotion.ts](useBookCapsuleMotion.ts) | 实现模块；入口/导出：useBookCapsuleMotion |
 
 | 子目录 | 职责 |

@@ -33,6 +33,8 @@
 | [captureAttachments.ts](captureAttachments.ts) | 实现模块；入口/导出：AttachmentTarget、AttachmentDraftLink、captureDraftsFor、billAttachmentMapping、resolveAttachmentDraft |
 | [captureTextDraft.ts](captureTextDraft.ts) | 实现模块；入口/导出：useCaptureTextDraft |
 | [clipboard.ts](clipboard.ts) | 实现模块；入口/导出：CopyOutcome、copyText |
+| [closeGuard.test.ts](closeGuard.test.ts) | 测试：closeGuard |
+| [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：CloseDecision、decideClose、useBackGuard |
 | [colors.test.ts](colors.test.ts) | 测试：colors |
 | [connectivity.ts](connectivity.ts) | 实现模块；入口/导出：BackMode、parentBackAction、useGoBack |
 | [consent.ts](consent.ts) | 实现模块；入口/导出：RequiredLegalDocument、MajorAnnouncementView、ConsentStatus、fetchRequiredLegalDocuments、fetchConsentStatus |
@@ -96,6 +98,8 @@
 | [notDuplicateRelationsApi.test.ts](notDuplicateRelationsApi.test.ts) | 测试：notDuplicateRelationsApi |
 | [oceanGeometry.test.ts](oceanGeometry.test.ts) | 测试：oceanGeometry |
 | [oceanGeometry.ts](oceanGeometry.ts) | 实现模块；入口/导出：oceanEdge、oceanPath |
+| [openOverlay.test.ts](openOverlay.test.ts) | 测试：openOverlay |
+| [openOverlay.ts](openOverlay.ts) | 实现模块；入口/导出：OPEN_OVERLAY_SELECTOR、OverlayQueryRoot、hasOpenOverlay |
 | [overlayExit.test.ts](overlayExit.test.ts) | 测试：overlayExit |
 | [overlayExit.ts](overlayExit.ts) | 实现模块；入口/导出：OVERLAY_EXIT_MS、createOverlayExit |
 | [overlayScrollLock.test.ts](overlayScrollLock.test.ts) | 测试：overlayScrollLock |
@@ -121,6 +125,8 @@
 | [scanHandoff.ts](scanHandoff.ts) | 实现模块；入口/导出：handOverForScan、takeScanHandover、SpokenDraftHandover、handOverSpoken、takeSpokenHandover |
 | [share.test.ts](share.test.ts) | 测试：share |
 | [share.ts](share.ts) | 实现模块；入口/导出：ShareOutcome、toFile、canShareFiles、deliverFile |
+| [sheetDrag.test.ts](sheetDrag.test.ts) | 测试：sheetDrag |
+| [sheetDrag.ts](sheetDrag.ts) | 实现模块；入口/导出：SHEET_DRAG、dragDismisses、SheetDragZone、useSheetDrag |
 | [softKeyboard.test.ts](softKeyboard.test.ts) | 测试：softKeyboard |
 | [softKeyboard.ts](softKeyboard.ts) | 实现模块；入口/导出：KEYBOARD_THRESHOLD、FOCUS_SETTLE_MS、REVEAL_WINDOW_MS、isTextEntry、KeyboardSample |
 | [spaceTransition.ts](spaceTransition.ts) | 实现模块；入口/导出：SpaceTransition、readSeenPresentation、markPresentationSeen、useSpaceTransition |

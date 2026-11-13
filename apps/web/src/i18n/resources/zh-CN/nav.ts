@@ -46,6 +46,11 @@ const nav = {
   },
   sheet: {
     close: "关闭{{title}}",
+    /** 弹出面板模板（1.19.58）：有改动的面板关闭前询问。 */
+    discardTitle: "放弃修改？",
+    discardBody: "刚才的修改还没有保存，关闭后不会保留。",
+    discardConfirm: "放弃修改",
+    discardKeep: "继续编辑",
   },
   choice: {
     placeholder: "未选择",
