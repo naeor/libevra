@@ -212,11 +212,20 @@ function StaticBoard() {
 /* ---------- 章节 ---------- */
 
 export function SelectionLabSection() {
-  const [tint, setTint] = useState(false), [slow, setSlow] = useState(false), [material, setMaterial] = useState<TagMaterial>("frosted");
+  // 地址参数 ?tint=1 / ?tag=porcelain 只用于截图时直接进入对应开关状态。
+  const params = new URLSearchParams(window.location.search);
+  const [tint, setTint] = useState(params.get("tint") === "1"), [slow, setSlow] = useState(false);
+  const [material, setMaterial] = useState<TagMaterial>(params.get("tag") === "porcelain" ? "porcelain" : "frosted");
   const api = useRef<DemoApi | null>(null), timers = useRef<number[]>([]);
   const factor = slow ? 3 : 1;
   const stop = (): void => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => stop, []);
+  // ?shot=static / ?shot=live：打开后直接滚到静态展示区或可点击样板，便于固定窗口尺寸截图。
+  useEffect(() => {
+    const shot = params.get("shot");
+    const target = shot === "static" ? ".sl-static" : shot === "live" ? ".sl-live-anchor" : null;
+    if (target) window.setTimeout(() => document.querySelector(target)?.scrollIntoView({ block: "start" }), 300);
+  }, []);
   const play = (): void => {
     stop();
     const steps: readonly (readonly [number, (a: DemoApi) => void])[] = [
@@ -238,7 +247,7 @@ export function SelectionLabSection() {
     </div>
     <h3>静态展示（截图用，不需点击）</h3>
     <StaticBoard />
-    <h3>可点击样板</h3>
+    <h3 className="sl-live-anchor">可点击样板</h3>
     <p className="sl-hint">点左侧维度、「月份 / 日期范围」、月份格；用下方按钮增删条件标签，或点“自动演示”。系统开启“减少动态效果”时全部直接切换。</p>
     <LiveSheet material={material} slow={factor} runDemo={a => { api.current = a; }} />
   </div>;
