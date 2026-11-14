@@ -9,12 +9,15 @@
   |---|---|---|---|
   | A | --s19-key-bg（比卡片、画布更白，拉开明度） | A3 悬浮档 --s19-a-elev-3（墨色分层阴影，不带品牌色，所有者决定第 15 条） | --s19-r-mini |
   | B1 | 稳定默认的 Satin 瓷底 --s19-card-bg（不开 satin / glazed 反射候选） | --s19-key-sh | --s19-r-mini |
-  | B2 | 操作玻璃下限 --s19-action-bar-bg（max(栏面, 内容 + .12)）＋表面模糊 --s19-entry-filter | --s19-key-sh | --s19-r-mini |
+  | B2 | 账本卡同一填充 --s19-book-bg（约 80% 不透明，1.19.67）＋表面模糊 --s19-entry-filter | --s19-key-sh | --s19-r-mini |
   | C | --s19-key-bg 白纸 | --s19-key-sh（细线 + 轻投影） | --s19-r-mini |
 
   结构与弹层面板相同：材质画在 ::before 上（背景模糊只在伪元素上），错误描边在 ::after 上；面板本身只做位移动画，
   透明度动画落在 ::before / ::after 与内容上——带 backdrop-filter 的层不能放在做透明度动画的祖先里，否则 B2 读不到后方。
   文字不玻璃化：B2 第二行也用墨色（压在品牌色块上时 --color-muted 只有约 2.5:1），操作按钮文字墨色。
+  B2 填充为什么不是操作玻璃下限（1.19.67，所有者决定的 §7 第 2 条）：1.19.66 用 --s19-action-bar-bg（均衡档约 .37），
+  压在大面积深色内容（墨色块、照片）上正文只有约 3:1、纯黑约 2:1；提示条是要读的文字、会压在任意内容上，可读性优先于玻璃感，
+  所以只对提示条换成 --s19-book-bg（约 80% 不透明，压在纯黑上正文仍约 8:1），保留表面模糊。底栏、保存栏等操作面不变。
 */
 
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
@@ -42,7 +45,7 @@
   --lv-toast-bg: var(--s19-card-bg); --lv-toast-sh: var(--s19-key-sh);
 }
 :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
-  --lv-toast-bg: var(--s19-action-bar-bg); --lv-toast-sh: var(--s19-key-sh);
+  --lv-toast-bg: var(--s19-book-bg); --lv-toast-sh: var(--s19-key-sh);
 }
 :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]::before {
   -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter);

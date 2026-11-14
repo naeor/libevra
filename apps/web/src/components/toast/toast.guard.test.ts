@@ -130,9 +130,11 @@ describe("统一提示条守卫", () => {
       expect(prefixed).toBeGreaterThanOrEqual(0);
       expect(prefixed).toBeLessThan(plain);
     }
-    // A 用 A3 悬浮档（不带品牌色），B2 用操作玻璃下限。
+    // A 用 A3 悬浮档（不带品牌色）；B2 用账本卡同一填充（约 80% 不透明，1.19.67：压在深色内容上正文也 ≥ 4.5:1），保留表面模糊。
     expect(css).toContain("--lv-toast-sh: var(--s19-a-elev-3)");
-    expect(css).toContain("--lv-toast-bg: var(--s19-action-bar-bg)");
+    expect(css).toContain("--lv-toast-bg: var(--s19-book-bg)");
+    expect(css).not.toContain("--lv-toast-bg: var(--s19-action-bar-bg)");
+    expect(css).toMatch(/\[data-visual-style="b2"\][^{]*\[data-toast-surface\]::before\s*\{[^}]*backdrop-filter: var\(--s19-entry-filter\)/);
   });
 
   it("两份提示条样式都有减少动态效果分支", () => {
