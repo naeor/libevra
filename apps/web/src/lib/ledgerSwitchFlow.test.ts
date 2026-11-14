@@ -180,7 +180,10 @@ describe("退出 / 弃置入口只加遮盖、不改流程", () => {
 /**
  * 账本导入后归档来源账本（待办 §6 第 10 条，所有者 2026-11-14 单独批准改流程）：来源恰好是设备当前账本时，
  * 归档成功后与“弃置当前账本”一致——海浪盖住画面、整页载入到 "/"；来源不是当前账本时留在结果页（原行为）。
- * 归档请求、确认框、能否归档的判断与先后顺序不变。本仓库测试没有 DOM，按源码比对（与上面同一做法）；
+ * 1.19.63（待办 §6 第 25 条）：与账本设置的普通归档一致，归档成功后先清掉**来源账本**的本机离线数据（不论是不是当前账本），
+ * 再决定是否整页载入。先后、两条分支、失败与“目标账本不受影响”由 lib/ledgerImport/sourceArchive.test.ts 的行为测试覆盖；
+ * 这里只按源码比对钉住页面怎么接线：交出去的是来源账本 ID、目标只做保护、整页载入仍是同一个 reloadAfterLeaving。
+ * 归档请求、确认框、能否归档的判断不变。本仓库测试没有 DOM，按源码比对（与上面同一做法）；
  * 载入本身（目标 "/"、海浪、失败照常载入）由本文件开头的 reloadAfterLeaving 行为测试覆盖。
  */
 describe("账本导入后归档来源账本", () => {
@@ -188,14 +191,19 @@ describe("账本导入后归档来源账本", () => {
   const card = page.slice(page.indexOf("export function SourceRetentionCard("), page.indexOf("export function ReviewStep("));
   const archive = card.slice(card.indexOf("async function archiveFormalSource("), card.indexOf("if (guestBookId === null && result.sourceBookId === undefined)"));
 
-  it("归档成功后，来源是设备当前账本才整页载入；判断用项目已有的 useCurrentBookId", () => {
+  it("归档成功后清来源账本本机数据，来源是设备当前账本才整页载入；判断用项目已有的 useCurrentBookId", () => {
     expect(page).toContain('import { useActivateBook, useBooks, useCurrentBookId } from "../lib/queries.js";');
     expect(page).toContain('import { activateAndReload, reloadAfterLeaving } from "../lib/ledgerSwitchFlow.js";');
+    expect(page).toContain('import { clearBookLocalData } from "../lib/offline/localCleanup.js";');
+    expect(page).toContain('import { archiveImportSource } from "../lib/ledgerImport/sourceArchive.js";');
     expect(card).toContain("const currentBookId = useCurrentBookId();");
     expect(archive).toContain(
-      'await bookLifecycleAction(disposition.sourceBookId, "archive"); '
-      + 'setArchived(t("ledgerImport.retention.formal.archived")); setArchiveConfirmOpen(false); setDisposition(null); '
-      + 'if (disposition.sourceBookId === currentBookId) { reloading = true; reloadAfterLeaving({ hint: t("books.space.reloading") }); } '
+      "const outcome = await archiveImportSource({ "
+      + "sourceBookId: disposition.sourceBookId, targetBookId: result.targetBook.id, currentBookId, accountId, "
+      + 'archive: (bookId) => bookLifecycleAction(bookId, "archive"), clearLocalData: clearBookLocalData, '
+      + 'onArchived: () => { setArchived(t("ledgerImport.retention.formal.archived")); setArchiveConfirmOpen(false); setDisposition(null); }, '
+      + 'reload: () => { reloadAfterLeaving({ hint: t("books.space.reloading") }); }, }); '
+      + 'reloading = outcome === "reloading"; '
       + "} catch (caught) { onError(errorMessage(caught)); } finally { if (!reloading) setArchiveBusy(false); }",
     );
     // 整页载入只有这一处，且只在归档成功之后；不自己写 window.location。
@@ -203,10 +211,20 @@ describe("账本导入后归档来源账本", () => {
     expect(page).not.toContain("window.location");
   });
 
+  it("清理只交出来源账本：账号来自页面的登录用户，目标账本 ID 只作为保护传入", () => {
+    expect(page).toContain("accountId={user?.id ?? null}");
+    // 卡片里只有归档这一处用到清理函数，且不直接调用（由 archiveImportSource 按来源 ID 调用）。
+    expect(card.match(/clearBookLocalData/g)).toHaveLength(1);
+    expect(card).not.toContain("clearBookLocalData(");
+    expect(page.match(/clearBookLocalData/g)).toHaveLength(2);
+    expect(archive.match(/result\.targetBook\.id/g)).toHaveLength(1);
+    expect(archive).toContain("targetBookId: result.targetBook.id,");
+  });
+
   it("来源不是当前账本：不载入、不跳转，仍显示“已归档”并放开忙碌状态（原行为）", () => {
     expect(archive).toContain("let reloading = false;");
     expect(archive).not.toContain("navigate(");
-    expect(archive.match(/reloading = true/g)).toHaveLength(1);
+    expect(archive.match(/reloading = /g)).toHaveLength(2);
   });
 
   it("归档按钮的可见性、确认框与归档请求不变", () => {

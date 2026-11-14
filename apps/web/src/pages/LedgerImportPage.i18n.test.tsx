@@ -436,12 +436,13 @@ function renderAll(): string[] {
         }}
       />,
     ),
-    renderToStaticMarkup(<SourceRetentionCard result={result()} preview={guest} jobId={null} onError={noop} />),
+    renderToStaticMarkup(<SourceRetentionCard result={result()} preview={guest} jobId={null} accountId={null} onError={noop} />),
     renderToStaticMarkup(
       <SourceRetentionCard
         result={result({ sourceBookId: "11111111-1111-4111-8111-111111111111" })}
         preview={formal}
         jobId={null}
+        accountId={null}
         onError={noop}
       />,
     ),

@@ -72,7 +72,9 @@ import {
   restoreGuestCleanup,
 } from "../lib/guest/data.js";
 import { bookLifecycleAction } from "../lib/lifecycle.js";
+import { clearBookLocalData } from "../lib/offline/localCleanup.js";
 import { fetchNotDuplicatePairKeys } from "../lib/notDuplicateRelations.js";
+import { archiveImportSource } from "../lib/ledgerImport/sourceArchive.js";
 import { guestSourceOfSource } from "../lib/ledgerImport/submit.js";
 import { buildImportPreview } from "../lib/ledgerImport/preview.js";
 import {
@@ -1233,6 +1235,7 @@ export function LedgerImportPage(): React.JSX.Element {
           result={result}
           preview={preview}
           jobId={job?.id ?? null}
+          accountId={user?.id ?? null}
           onError={setSubmitError}
         />
       ) : null}
@@ -2189,11 +2192,17 @@ export function SourceRetentionCard({
   result,
   preview,
   jobId,
+  accountId,
   onError,
 }: {
   readonly result: LedgerImportResult;
   readonly preview: ImportPreview;
   readonly jobId: string | null;
+  /**
+   * 登录用户（页面的 `useAuth().user?.id`，与账本设置 runLifecycle 同一来源）：归档来源后按“账号 : 账本”
+   * 清本机离线数据（1.19.63）；没有用户时与 runLifecycle 一样跳过清理。
+   */
+  readonly accountId: string | null;
   readonly onError: (message: string) => void;
 }): React.JSX.Element {
   const { t } = useI18n();
@@ -2292,21 +2301,32 @@ export function SourceRetentionCard({
     /** 归档的来源就是设备当前账本、正在整页重新载入：按钮保持忙碌，直到页面载入（1.19.61）。 */
     let reloading = false;
     try {
-      await bookLifecycleAction(disposition.sourceBookId, "archive");
-      setArchived(t("ledgerImport.retention.formal.archived"));
-      setArchiveConfirmOpen(false);
-      setDisposition(null);
       /**
-       * 1.19.61（待办 §6 第 10 条，所有者 2026-11-14 单独批准）：归档的来源恰好是设备当前账本时，与账本设置
-       * 「弃置当前账本」一致——归档成功后用海浪盖住画面，整页重新载入到 "/"（lib/ledgerSwitchFlow.ts 的
-       * reloadAfterLeaving；电脑版、Pad 宽屏没有海浪，立即载入）。当前账本已归档，请求头与离线范围必须一起换，
-       * 不能停在这页继续用它。来源不是当前账本时行为不变：留在结果页，显示“已归档”。
-       * 归档请求、确认框、能否归档的判断（disposition.canArchive）与先后顺序都不变；失败照常显示原因、不载入。
+       * 1.19.63（待办 §6 第 25 条，所有者 2026-11-14 决定）：导入页的归档就是一次普通归档，与账本设置的
+       * runLifecycle 同一顺序——归档请求成功 → 清掉**来源账本**的本机离线数据（不论是不是当前账本）→
+       * 来源是设备当前账本才整页载入并加海浪（1.19.61，所有者单独批准：当前账本已归档，请求头与离线范围必须一起换；
+       * lib/ledgerSwitchFlow.ts 的 reloadAfterLeaving，电脑版、Pad 宽屏没有海浪，立即载入），否则留在结果页显示“已归档”。
+       * 先后与失败处理在 lib/ledgerImport/sourceArchive.ts（有行为测试）：归档或清理失败都显示原因、不载入、放开忙碌。
+       * 只清来源（disposition.sourceBookId）；目标账本（result.targetBook.id）只交给它做保护，绝不清理。
+       * 归档请求、确认框、能否归档的判断（disposition.canArchive）都不变。
        */
-      if (disposition.sourceBookId === currentBookId) {
-        reloading = true;
-        reloadAfterLeaving({ hint: t("books.space.reloading") });
-      }
+      const outcome = await archiveImportSource({
+        sourceBookId: disposition.sourceBookId,
+        targetBookId: result.targetBook.id,
+        currentBookId,
+        accountId,
+        archive: (bookId) => bookLifecycleAction(bookId, "archive"),
+        clearLocalData: clearBookLocalData,
+        onArchived: () => {
+          setArchived(t("ledgerImport.retention.formal.archived"));
+          setArchiveConfirmOpen(false);
+          setDisposition(null);
+        },
+        reload: () => {
+          reloadAfterLeaving({ hint: t("books.space.reloading") });
+        },
+      });
+      reloading = outcome === "reloading";
     } catch (caught) {
       onError(errorMessage(caught));
     } finally {
