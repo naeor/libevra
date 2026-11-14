@@ -5,12 +5,12 @@
 @media (hover: hover) { .lv-filter-icon:hover { background:var(--color-brand-soft); } }
 .lv-filter-icon:disabled { opacity:.35; }
 .lv-filter-chips { display:flex; gap:8px; overflow:auto; padding:8px 16px 16px; flex:none; }
-.lv-filter-chips button { display:flex; align-items:center; gap:8px; max-width:240px; flex:none; padding:6px 12px; border-radius:999px; background:var(--color-brand-soft); color:var(--color-brand-dark); }
-.lv-filter-chips button span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 已选条件标签的外观（基础外观的品牌浅底胶囊与 S19 四风格）由 ConditionTags 给出（ui/selection-controls.css，1.19.62）。 */
 .lv-filter-content { display:grid; grid-template-columns:112px minmax(0,1fr); min-height:0; flex:1; border-block:1px solid var(--color-line); }
 .lv-filter-nav { padding:8px 4px; border-right:1px solid var(--color-line); overflow:auto; }
 .lv-filter-nav button > span:first-child { white-space:nowrap; }
 .lv-filter-nav button { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:48px; padding:8px; border-radius:var(--radius-field); text-align:left; color:var(--color-muted); }
+/* 选中项的基础外观（Original、深色、Pad、电脑版）；S19 浅色手机由 MovingSelection / SelectionGrid 按风格接管（1.19.62）。 */
 .lv-filter-nav button[aria-selected=true] { background:var(--color-brand-soft); color:var(--color-brand-dark); }
 .lv-filter-dot { width:5px; height:5px; border-radius:50%; background:var(--color-brand); flex:none; }
 .lv-filter-options { padding:16px; min-width:0; overflow:auto; overscroll-behavior:contain; }

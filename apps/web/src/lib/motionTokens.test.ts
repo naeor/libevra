@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CONTROL_MORPH, FEEDBACK_CSS, OBJECT_EXPAND, TAB_SWITCH, TRANSITION_INTERRUPT, easingFunction, interruptsTransition } from "./motionTokens.js";
+import { CONTROL_MORPH, FEEDBACK_CSS, OBJECT_EXPAND, SELECTION_CSS, TAB_SWITCH, TRANSITION_INTERRUPT, easingFunction, interruptsTransition } from "./motionTokens.js";
 
 /** 60Hz 下每帧的进度。 */
 const perFrame = (duration: number, easing: string): number[] => {
@@ -64,5 +64,11 @@ describe("Motion Token", () => {
       for (const name of Object.values(FEEDBACK_CSS)) expect(rule, `${style} ${name}`).toContain(`${name}:`);
     }
     expect(CONTROL_MORPH.duration).toBeGreaterThan(0);
+  });
+  it("选中指示与条件标签登记的 CSS 变量有定义：A 有浮起的升起 / 落下 / 环境影，四种风格都有标签起始缩放", () => {
+    const css = readFileSync(new URL("../components/ui/component-motion.css", import.meta.url), "utf8");
+    const rule = (style: string): string => css.match(new RegExp(`:root\\[data-visual-style="${style}"\\] \\{([^}]*)\\}`))?.[1] ?? "";
+    for (const name of Object.values(SELECTION_CSS)) expect(rule("a"), `a ${name}`).toContain(`${name}:`);
+    for (const style of ["b1", "b2", "c"]) for (const name of [SELECTION_CSS.select, SELECTION_CSS.reveal, SELECTION_CSS.dismiss, SELECTION_CSS.tagFrom]) expect(rule(style), `${style} ${name}`).toContain(`${name}:`);
   });
 });

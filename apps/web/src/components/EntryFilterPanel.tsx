@@ -14,6 +14,7 @@ import { ChevronIcon, GearIcon } from "./Icons.js";
 import { validStorageRange } from "./EntrySortControls.js";
 import "./entry-filters.css";
 import { Switch } from "./ui/PurposeControls.js";
+import { ConditionTags, MovingSelection, SelectionGrid } from "./ui/SelectionControls.js";
 import { setFilterSync, useFilterSync } from "../lib/ledgerFilter.js";
 import { useFilterOwner } from "../lib/usePageFilter.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
@@ -151,11 +152,13 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
         <button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.close")} onClick={onClose}>×</button>
       </div>
     </header>}
-    <div className="lv-filter-chips" aria-label={t("ledger.filters.selected")}>
-      {active.length === 0 ? <span className="text-helper text-muted">{t("ledger.filters.all")}</span> : active.map(key => <button type="button" key={key} title={labels.dimensionLabel(key)} aria-label={t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) })} onClick={() => { setDraft(clearFilterDimension(draft, key)); if (key === "time") setRangeMode(false); }}><span>{labels.dimensionLabel(key)}</span><span aria-hidden="true">×</span></button>)}
-    </div>
+    {/* 已选条件标签与选中指示（1.19.62，S19 §3）：条件逻辑、tablist / aria-selected、aria-pressed 都不变，只换成正式组件。 */}
+    <ConditionTags className="lv-filter-chips" aria-label={t("ledger.filters.selected")}
+      items={active.map(key => ({ key, label: labels.dimensionLabel(key), title: labels.dimensionLabel(key), removeLabel: t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) }) }))}
+      onRemove={key => { setDraft(clearFilterDimension(draft, key as FilterDimension)); if (key === "time") setRangeMode(false); }}
+      empty={<span className="text-helper text-muted">{t("ledger.filters.all")}</span>} />
     <div className="lv-filter-content">
-      <div className="lv-filter-nav" role="tablist" aria-label={t("ledger.filters.title")} aria-orientation="vertical" onKeyDown={event => {
+      <MovingSelection axis="y" className="lv-filter-nav" role="tablist" aria-label={t("ledger.filters.title")} aria-orientation="vertical" onKeyDown={event => {
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
         const tabs = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
         const index = tabs.indexOf(event.target as HTMLButtonElement);
@@ -163,26 +166,26 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
         event.preventDefault(); tabs[next]?.focus(); tabs[next]?.click();
       }}>
         {dimensions.map(key => <button type="button" role="tab" aria-selected={section === key} id={`${uid}-filter-tab-${key}`} aria-controls={`${uid}-filter-options`} key={key} onClick={() => { setSection(key); setSearch(""); }}><span>{t(`ledger.filters.${key}`)}</span>{active.includes(key) ? <span className="lv-filter-dot" /> : null}</button>)}
-      </div>
+      </MovingSelection>
       <div className="lv-filter-options" id={`${uid}-filter-options`} role="tabpanel" aria-labelledby={`${uid}-filter-tab-${section}`}>
         {section === "time" ? <>
-          <div className="lv-filter-segments">
+          <MovingSelection axis="x" className="lv-filter-segments">
             <button type="button" aria-pressed={!rangeMode} onClick={() => { if (rangeMode) { setRangeMode(false); change({ month: ALL_MONTHS, from: "", to: "", months: [] }); } }}>{t("desktop.entries.month")}</button>
             <button type="button" aria-pressed={rangeMode} onClick={() => { if (!rangeMode) { setRangeMode(true); setMulti(false); change({ month: ALL_MONTHS, from: "", to: "", months: [] }); } }}>{t("ledger.filters.range")}</button>
-          </div>
+          </MovingSelection>
           {rangeMode ? <div className="lv-filter-date-range">{(["from", "to"] as const).map(key => <label key={key} className="text-body">{t(`ledger.filters.${key}`)}<input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" value={draft[key]} onChange={event => change({ [key]: event.target.value })} aria-invalid={attempted && !datesValid || undefined} /></label>)}<p className="text-helper text-muted">{t("ledger.filters.dateHint")}</p></div>
             : <LedgerMonthPicker open month={draft.month} maxMonth={currentMonth()} onSelect={() => {}} onClose={() => {}} render={({ year, onYearChange, availability, loading, statusNote }) => <>
               <button type="button" className="lv-filter-option lv-filter-all-time" aria-pressed={isAllMonths(draft.month) && draft.months.length === 0} onClick={() => change({ month: ALL_MONTHS, from: "", to: "", months: [] })}>{t("ledger.filters.all")}<Check visible={isAllMonths(draft.month) && draft.months.length === 0} /></button>
               <div className="lv-filter-year"><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.previousYear")} onClick={() => onYearChange(year - 1)}><ChevronIcon direction="left" /></button><span className="text-card-title">{year}</span><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.nextYear")} disabled={year >= Number(currentMonth().slice(0, 4))} onClick={() => onYearChange(year + 1)}><ChevronIcon direction="right" /></button></div>
               {multi ? <p className="lv-filter-multi-hint text-helper text-muted">{t("ledger.filters.monthsHint")}</p> : null}
-              <div className="lv-filter-months" data-multi={multi || undefined}>{Array.from({ length: 12 }, (_, index) => {
+              <SelectionGrid className="lv-filter-months" data-multi={multi || undefined}>{Array.from({ length: 12 }, (_, index) => {
                 const month = `${year}-${String(index + 1).padStart(2, "0")}`;
                 const selected = multi ? draft.months.includes(month) : draft.months.length === 0 && draft.month === month;
                 /** 当前月份始终可选（1.19.55）：这个月还没有账目时也能点回来；已选中的月份也总能取消。 */
                 const unavailable = month > currentMonth() || month !== currentMonth() && (availability[month] === false || loading && availability[month] !== true);
                 return <button type="button" key={month} aria-pressed={selected} disabled={!selected && unavailable}
                   onClick={() => multi ? change({ month: ALL_MONTHS, from: "", to: "", months: selected ? draft.months.filter(m => m !== month) : [...draft.months, month].sort() }) : change({ month, from: "", to: "", months: [] })}>{formatInstant(new Date(year, index, 1), { month: "short" })}</button>;
-              })}</div><p className="mt-3 text-helper text-muted" role="status">{statusNote}</p>
+              })}</SelectionGrid><p className="mt-3 text-helper text-muted" role="status">{statusNote}</p>
             </>} />}
         </> : section === "attachments" ? <div className="lv-filter-attachment">
           <fieldset><legend className="text-card-title">{t("attachments.title")}</legend><div className="lv-filter-choices">{(["any", "has", "none"] as const).map(v => <button type="button" key={v} aria-pressed={draft.attachment === v} onClick={() => change({ attachment: v, ...(v === "none" ? { type: "" } : {}) })}>{t(`attachments.${v}`)}</button>)}</div></fieldset>
