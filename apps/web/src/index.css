@@ -684,6 +684,13 @@ html:root[data-visual-style="b2"] {
   --s19-tabglass-bg: var(--s19-tool-bg);
   --s19-tabglass-sh: inset 0 1px 0 rgb(255 255 255 / calc(1 * var(--s19-glass-rim))), inset 0 0 0 .5px rgb(255 255 255 / calc(.7 * var(--s19-glass-rim))), inset 0 -1px 1px rgb(255 255 255 / calc(.45 * var(--s19-glass-rim))), 0 0 0 .5px rgb(40 52 46 / calc(.11 * var(--s19-glass-shadow))), 0 4px 12px -5px rgb(40 52 46 / calc(.2 * var(--s19-glass-shadow)));
   --s19-tabglass-filter: none;
+  /* 选中指示（1.19.62，规格 §3「选中指示」）：会移动的选中玻璃直接用底栏选中胶囊的配方（不染色、不做真实背景模糊）。 */
+  --s19-select-glass-bg: var(--s19-tabglass-bg);
+  --s19-select-glass-sh: var(--s19-tabglass-sh);
+  /* 已选条件标签：带淡绿的瓷片（所有者 2026-11-14 定；与 B1 同一配方）——放在不透明面板上时，磨砂玻璃背后没有可透出的内容，
+     看起来与瓷片几乎一样，瓷片更稳、更易读。 */
+  --s19-tag-bg: linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 6%, #fff) 0%, color-mix(in srgb, var(--color-brand) 10%, #fff) 60%, color-mix(in srgb, var(--color-brand) 15%, #fff) 100%);
+  --s19-tag-sh: inset 0 1px 0 rgb(255 255 255 / .95), 0 0 0 .5px color-mix(in srgb, var(--color-brand) 26%, transparent), 0 1px 2px rgb(36 49 43 / .06), 0 6px 12px -8px rgb(36 49 43 / .32);
   --s19-dock-sh: inset 0 1px 0 #fff, 0 -.5px 0 rgb(40 52 46 / .08), 0 -12px 30px -18px rgb(40 52 46 / .26);
   --s19-dock-r: 26px;
   --s19-tab-on-bg: linear-gradient(180deg, rgb(255 255 255 / .92), rgb(255 255 255 / .72));

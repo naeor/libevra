@@ -26,20 +26,58 @@
 
 /* ================= A · Soft Spatial 柔和空间 ================= */
 :root[data-visual-style="a"] {
+  /*
+    A 浮起档位（1.19.62；所有者 2026-11-14 认可，规格 §3「A 浮起档位」）。同一个物理模型分五档：
+    离开下面的平面越高，接触影越淡、环境影越大越往下越虚、位移越大。A 的其他阴影令牌只引用这五档，不再各写配方；
+    品牌色光晕属于“强调”（主按钮 --s19-accent-sh、金额框与加号的光晕），单独叠在档位之上。
+    阴影一律用墨色——与背景同色相、更暗，不用纯黑：取浅色 --color-ink（#24312b）的通道写成字面量，
+    这样深色主题下即使有规则读到这些令牌，影子也不会跟着 --color-ink 变成浅色。
+    数值来自组件样板页 selection-lab.css 第三版（A2 档）的 --sl-a-e0…e4。
+  */
+  --s19-a-ink: 36 49 43;
+  /* 上缘亮线（光从上方照来）：A2、A3 的表面层带它。 */
+  --s19-a-rim: inset 0 1px 0 rgb(255 255 255 / .9);
+  /* A0 嵌入：凹进平面，只有内阴影（分段轨道、外观选项组）。 */
+  --s19-a-elev-0: inset 0 1px 2px rgb(var(--s19-a-ink) / .07), inset 0 0 0 .5px rgb(var(--s19-a-ink) / .05);
+  /* A1 静置：贴在平面上，细边 + 近影 + 很小的环境影，不位移（普通卡片、分组、摘要小卡、账目“电影票”）。
+     -tight 是不带环境影的贴身版本：明细摘要卡放在收起动画要用的 overflow:hidden 容器里，大范围外投影会被裁成硬边。 */
+  --s19-a-elev-1-tight: 0 0 0 .5px rgb(var(--s19-a-ink) / .06), 0 1px 2px rgb(var(--s19-a-ink) / .05);
+  --s19-a-elev-1: var(--s19-a-elev-1-tight), 0 6px 14px -8px rgb(var(--s19-a-ink) / .2);
+  /* A2 浮起：从原位抬起（选中项、条件标签、分段选中、顶部工具）。拆成两层供“浮起”动画分层使用：
+     表面层 = 上缘亮线 + 细边 + 接触影；环境影单独一层，浮起时一边下移、放大一边淡入（只动画 transform 与 opacity）。
+     浮起位移：上移 2px、放大 1.5%（月份格面积大，放大 2%）。 */
+  --s19-a-elev-2-surface: var(--s19-a-rim), 0 0 0 .5px rgb(var(--s19-a-ink) / .07), 0 1px 2px rgb(var(--s19-a-ink) / .08), 0 3px 8px -3px rgb(var(--s19-a-ink) / .1);
+  --s19-a-elev-2-ambient: 0 8px 16px -7px rgb(var(--s19-a-ink) / .16), 0 14px 26px -14px rgb(var(--s19-a-ink) / .11);
+  --s19-a-elev-2: var(--s19-a-elev-2-surface), var(--s19-a-elev-2-ambient);
+  --s19-a-lift-y: -2px; --s19-a-lift-scale: 1.015; --s19-a-lift-scale-cell: 1.02;
+  /* A3 悬浮：浮在页面之上，更大更虚的环境影（关键卡、加号菜单入口卡、金额框、加号、将来的提示条）。
+     -drop 是不带上缘亮线的部分，给品牌色实底的加号用（白色亮线压在绿底上会像一道反光）。 */
+  --s19-a-elev-3-drop: 0 0 0 .5px rgb(var(--s19-a-ink) / .06), 0 2px 4px rgb(var(--s19-a-ink) / .06), 0 14px 28px -10px rgb(var(--s19-a-ink) / .22), 0 28px 52px -24px rgb(var(--s19-a-ink) / .24);
+  --s19-a-elev-3: var(--s19-a-rim), var(--s19-a-elev-3-drop);
+  /* A4 覆盖：盖在页面之上的整层，宽而深的影。对话框向下投影；底部锚定的层（底部面板、底栏、底部操作区）用 -up 向上投影：
+     贴着屏幕下缘的整条只露出上缘，同样的深浅会沿整条宽度一起出现，所以上投影收得比对话框短一些。 */
+  --s19-a-elev-4: 0 0 0 .5px rgb(var(--s19-a-ink) / .06), 0 24px 48px -20px rgb(var(--s19-a-ink) / .36);
+  --s19-a-elev-4-up: 0 0 0 .5px rgb(var(--s19-a-ink) / .06), 0 -14px 36px -20px rgb(var(--s19-a-ink) / .36);
+
   --s19-top: color-mix(in srgb, var(--color-brand) 15%, #f3f4f0);
   --s19-canvas: #edeeea;
   --s19-card-bg: #fdfdfb;
-  --s19-card-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 1px 2px rgb(40 50 44 / .04), 0 8px 20px -14px rgb(40 52 46 / .28);
+  /* 以下阴影令牌只引用档位（归档见规格 §3「A 浮起档位」）。 */
+  --s19-card-sh: var(--s19-a-elev-1);
   --s19-key-bg: #fff;
-  --s19-key-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 2px 4px rgb(40 50 44 / .04), 0 18px 36px -18px color-mix(in srgb, var(--color-brand) 30%, rgb(30 40 34 / .5));
+  /* 关键卡（账本卡、raised 材质）：A3；原来的约 30% 品牌色投影不再保留（账本卡直接用档位）。 */
+  --s19-key-sh: var(--s19-a-elev-3);
   --s19-mini-bg: var(--s19-card-bg);
   --s19-mini-sh: var(--s19-card-sh);
-  --s19-key-sh-tight: 0 0 0 .5px rgb(40 50 44 / .06), 0 1px 2px rgb(40 50 44 / .05);
+  /* 摘要卡（明细页顶部的关键卡与次级小卡）在 overflow:hidden 的收起容器里，只能用 A1 的贴身版本（见上）。 */
+  --s19-key-sh-tight: var(--s19-a-elev-1-tight);
   --s19-mini-sh-tight: var(--s19-key-sh-tight);
+  --s19-dialog-sh: var(--s19-a-elev-4);
   --s19-r-group: 20px; --s19-r-key: 24px; --s19-r-mini: 18px; --s19-r-sheet: 28px; --s19-r-field: 14px;
   --s19-tool-bg: rgb(255 255 255 / .86);
   --s19-tool-flat: rgb(255 255 255 / .86);
-  --s19-tool-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 5px 14px -6px rgb(40 52 46 / .26);
+  /* 顶部工具、搜索框、筛选入口、工具悬停：A2。 */
+  --s19-tool-sh: var(--s19-a-elev-2);
   --s19-tool-active: #fff;
   --s19-tool-on: var(--color-brand-soft);
   --s19-bar-bg: var(--s19-top);
@@ -48,32 +86,43 @@
   --s19-bar-filter: none;
   /* 底部操作区（保存栏、核对确认条，1.19.51）：柔和实体薄片，向上的宽柔影。 */
   --s19-action-bar-bg: rgb(253 253 251 / .92);
-  --s19-action-bar-sh: 0 -.5px 0 rgb(40 50 44 / .06), 0 -12px 28px -20px rgb(30 40 36 / .32);
+  --s19-action-bar-sh: var(--s19-a-elev-4-up);
   --s19-action-bar-filter: none;
-  /* 金额框（1.19.51）：实体白片，宽而柔的品牌色投影。 */
-  --s19-amount-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 1px 2px rgb(40 50 44 / .05), 0 16px 32px -20px color-mix(in srgb, var(--color-brand) 34%, rgb(30 40 34 / .45));
+  /* 金额框（1.19.51）：实体白片，A3；原有的品牌色光晕作为“强调”层叠在档位之上（比原来淡，避免与 A3 的墨色环境影叠得太重）。 */
+  --s19-amount-sh: var(--s19-a-elev-3), 0 16px 32px -20px color-mix(in srgb, var(--color-brand) 26%, transparent);
   --s19-dock-bg: #fff;
-  --s19-dock-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 -12px 34px -20px rgb(30 40 36 / .4);
+  --s19-dock-sh: var(--s19-a-elev-4-up);
   --s19-dock-r: 26px;
   --s19-tab-on-bg: var(--color-brand-soft); --s19-tab-on-sh: none;
   --s19-accent-bg: linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 86%, #fff), var(--color-brand));
+  /* 主按钮的品牌色光晕是“强调”，不属于浮起档位，保持原样。 */
   --s19-accent-sh: 0 1px 2px rgb(0 0 0 / .08), 0 8px 18px -8px color-mix(in srgb, var(--color-brand) 75%, transparent);
-  --s19-plus-sh: 0 0 0 4px #fff, 0 10px 20px -8px color-mix(in srgb, var(--color-brand) 70%, transparent);
+  /* 加号：外圈 4px 白环（与底栏分开）+ A3（不带上缘亮线）+ 品牌色光晕作为“强调”层。 */
+  --s19-plus-sh: 0 0 0 4px #fff, var(--s19-a-elev-3-drop), 0 10px 20px -8px color-mix(in srgb, var(--color-brand) 50%, transparent);
   --s19-soft-bg: var(--color-brand-soft); --s19-soft-sh: none;
-  --s19-shelf-bg: #fcfcfa; --s19-shelf-sh: 0 0 0 .5px rgb(40 50 44 / .05), 0 8px 20px -10px rgb(40 52 46 / .32);
+  --s19-shelf-bg: #fcfcfa; --s19-shelf-sh: var(--s19-a-elev-3);
   --s19-entry-bg: var(--s19-card-bg); --s19-entry-sh: var(--s19-card-sh);
-  --s19-sheet-bg: #fcfcfa; --s19-sheet-sh: 0 -16px 44px -18px rgb(30 40 36 / .32), 0 0 0 .5px rgb(40 50 44 / .05);
+  --s19-sheet-bg: #fcfcfa; --s19-sheet-sh: var(--s19-a-elev-4-up);
   /* 弹出面板遮罩（1.19.58）：与 B1（.26）、B2（.22）同一深浅，原来缺省时回退到 45% 墨色、明显偏深。 */
   --s19-scrim: rgb(38 46 42 / .24);
   /* 中央对话框（T3）遮罩（1.19.61）：同一色相，比底部面板深一档（+.10），与 Original 面板 .25 / 对话框 .35 两档一致。 */
   --s19-scrim-dialog: rgb(38 46 42 / .34);
-  --s19-track-bg: color-mix(in srgb, var(--color-brand) 7%, #e9e9e4); --s19-track-sh: inset 0 1px 2px rgb(40 50 44 / .05);
-  --s19-pill-bg: #fff; --s19-pill-sh: 0 1px 2px rgb(40 50 44 / .08), 0 4px 10px -4px rgb(40 52 46 / .18);
+  --s19-track-bg: color-mix(in srgb, var(--color-brand) 7%, #e9e9e4); --s19-track-sh: var(--s19-a-elev-0);
+  /* 分段选中、外观选项选中、编辑控件：A2。 */
+  --s19-pill-bg: #fff; --s19-pill-sh: var(--s19-a-elev-2);
   --s19-row-ic-bg: color-mix(in srgb, var(--color-brand) 9%, #f2f2ee);
   --s19-ticket-bg: #fdfdfb;
-  --s19-ticket-sh: 0 0 0 .5px rgb(40 50 44 / .07), 0 1.5px 3px -1px rgb(40 52 46 / .16);
-  --s19-ticket-base-sh: 0 10px 22px -16px rgb(40 52 46 / .32);
+  /* 账目“电影票”：每一张都是 A1；后一张压住前一张，接缝只露出细边。整组底部的环境影由最后一张自己的 A1 环境影承担，
+     原来额外叠的一层底影归入档位后不再需要（保留一个空影，调用处的逗号列表不用改）。 */
+  --s19-ticket-sh: var(--s19-a-elev-1);
+  --s19-ticket-base-sh: 0 0 0 0 transparent;
   --s19-seam: 6px;
+  /* 选中指示（1.19.62，规格 §3「选中指示」）：A 没有移动的色块，选中项自己按 A2 浮起，浮起的表面是白色薄片。 */
+  --s19-select-lift-bg: #fff;
+  /* 已选条件标签：带淡绿的柔和薄片，与选中浮起同一套分层阴影、低一档（表面层 + 较近的环境影），上移 1.5px、不放大。 */
+  --s19-tag-bg: color-mix(in srgb, var(--color-brand) 9%, #fff);
+  --s19-tag-sh: var(--s19-a-elev-2-surface), 0 8px 16px -8px rgb(var(--s19-a-ink) / .18);
+  --s19-tag-lift-y: -1.5px;
 }
 
 /* ================= B1 · Ambient Frost 柔和环境磨砂 ================= */
@@ -156,6 +205,13 @@
   --s19-pill-bg: linear-gradient(180deg, rgb(255 255 255 / .9), rgb(255 254 250 / .7));
   --s19-pill-sh: inset 0 1px 0 #fff, 0 0 0 .5px rgb(60 56 44 / .12), 0 2px 6px -2px rgb(40 52 46 / .22);
   --s19-row-ic-bg: color-mix(in srgb, var(--color-brand) 9%, #f5f3ec);
+  /* 选中指示（1.19.62，规格 §3「选中指示」）：会移动的选中玻璃与底栏选中胶囊同一配方（--s19-tabglass-*），
+     去掉底部的品牌色余光（所有者 2026-11-14 定：不染色、保持透明）；不做真实背景模糊。 */
+  --s19-select-glass-bg: linear-gradient(180deg, rgb(255 255 255 / calc(.46 * var(--s19-glass-milk))) 0%, rgb(var(--s19-glass-rgb) / calc(.14 * var(--s19-glass-milk))) 58%, rgb(var(--s19-glass-rgb) / calc(.24 * var(--s19-glass-milk))) 100%);
+  --s19-select-glass-sh: var(--s19-tabglass-sh);
+  /* 已选条件标签：带淡绿的瓷片——Satin 卡片配方（由上到下略深的奶白渐变 + 上缘亮线 + 细外线 + 柔影）混入品牌色。 */
+  --s19-tag-bg: linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 6%, #fff) 0%, color-mix(in srgb, var(--color-brand) 10%, #fff) 60%, color-mix(in srgb, var(--color-brand) 15%, #fff) 100%);
+  --s19-tag-sh: inset 0 1px 0 rgb(255 255 255 / .95), 0 0 0 .5px color-mix(in srgb, var(--color-brand) 26%, transparent), 0 1px 2px rgb(36 49 43 / .06), 0 6px 12px -8px rgb(36 49 43 / .32);
 }
 
 /* B2 已成为正式材质，令牌统一定义于 index.css。 */
@@ -199,4 +255,9 @@
   --s19-pill-bg: #fff; --s19-pill-sh: 0 0 0 1px rgb(30 45 38 / .07), 0 1px 2px rgb(30 45 38 / .1);
   --s19-row-ic-bg: color-mix(in srgb, var(--color-brand) 9%, #fff);
   --s19-row-ic-r: 10px;
+  /* 选中指示（1.19.62）：浅绿实底整块干脆滑动（即原来的品牌浅底）。 */
+  --s19-select-solid-bg: var(--color-brand-soft);
+  /* 已选条件标签：纸面 + 品牌色细线，绿色文字。 */
+  --s19-tag-bg: var(--s19-card-bg);
+  --s19-tag-sh: 0 0 0 1px color-mix(in srgb, var(--color-brand) 38%, transparent);
 }
