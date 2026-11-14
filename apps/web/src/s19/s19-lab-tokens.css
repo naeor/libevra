@@ -89,7 +89,7 @@
   --s19-action-bar-sh: var(--s19-a-elev-4-up);
   --s19-action-bar-filter: none;
   /* 金额框（1.19.51）：实体白片，A3；原有的品牌色光晕作为“强调”层叠在档位之上（比原来淡，避免与 A3 的墨色环境影叠得太重）。 */
-  --s19-amount-sh: var(--s19-a-elev-3), 0 16px 32px -20px color-mix(in srgb, var(--color-brand) 26%, transparent);
+  --s19-amount-sh: var(--s19-a-elev-3), 0 16px 32px -20px color-mix(in srgb, var(--color-brand) 16%, transparent);
   --s19-dock-bg: #fff;
   --s19-dock-sh: var(--s19-a-elev-4-up);
   --s19-dock-r: 26px;
