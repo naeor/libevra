@@ -1,3 +1,4 @@
+import { useEntryOrigin } from "../lib/entryReturn.js";
 import {
   groupDuplicatePairs,
   normalizeNotDuplicatePair,
@@ -38,6 +39,7 @@ import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
  * 不跑假动画；中途可以取消，取消后已经扫到的组仍然可以处理（它们是真的）。
  */
 export function DuplicateReviewPage(): React.JSX.Element {
+  const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const { bookId = "" } = useParams();
   const { t } = useI18n();
   const duplicateSettings = useDuplicateDetectionSettings();
@@ -231,6 +233,7 @@ export function DuplicateReviewPage(): React.JSX.Element {
                     <li key={id}>
                       <Link
                         to={`/transactions/${id}`}
+                        state={entryOrigin}
                         className="flex items-baseline justify-between gap-3 rounded-field bg-canvas px-3 py-2 text-body"
                       >
                         <span className="min-w-0 truncate">{entry.note?.trim() === "" || entry.note === null ? t("duplicates.review.noNote") : entry.note}</span>

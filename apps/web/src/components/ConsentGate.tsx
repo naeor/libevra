@@ -14,6 +14,8 @@ import {
   acknowledgeMajorAnnouncement,
   fetchAccountExport,
   fetchConsentStatus,
+  rememberConsent,
+  rememberedMissing,
   type ConsentStatus,
   type MajorAnnouncementView,
   type RequiredLegalDocument,
@@ -64,7 +66,11 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
   const { t, locale } = useI18n();
   const userId = user?.id ?? null;
 
-  const [status, setStatus] = useState<ConsentStatus | null>(null);
+  /**
+   * 1.19.81：已知这个账号还有没同意的协议时，打开应用就以记下的状态立即挡住，不等请求回来（见 lib/consent.ts
+   * `rememberedMissing`）；请求回来后以服务器为准。
+   */
+  const [status, setStatus] = useState<ConsentStatus | null>(() => (userId === null ? null : rememberedMissing(userId)));
   const [mode, setMode] = useState<"agreement" | "data-help">("agreement");
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,15 +83,19 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
       return;
     }
 
+    const remembered = rememberedMissing(userId);
+    if (remembered !== null) setStatus((current) => current ?? remembered);
     try {
       const next = await fetchConsentStatus();
+      rememberConsent(userId, next);
       setStatus(next);
       setMode("agreement");
       setChecked(false);
       setError(null);
     } catch {
-      // Fail open offline/transient failure; the server still enforces.
-      setStatus(null);
+      // 取回失败（离线、网络抖动）：已知还有没同意的协议时继续挡住（1.19.81，不再放行）；
+      // 从来没取到过、或最近一次是全部已同意时照原来放行，服务器仍会把关。
+      setStatus(remembered);
     }
   }, [userId]);
 
@@ -108,6 +118,18 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
   );
   const legalPage = isPublicLegalPage(location.pathname);
   const accountDataPage = isAccountDataPage(location.pathname);
+  /**
+   * 1.19.81（审查 T7，所有者 2026-11-15 批准改门禁的显示判断）：不同意时可以去「账户数据」导出或注销——这是唯一允许离开门禁的去处。
+   * 前往时先收起门禁、再导航，协调器才会播放转场（导航那一刻门禁还开着，会被当作“有弹窗”）。`leaving` 只在这一次前往里有效：
+   * 地址一变就清掉（到了账户数据页，门禁本来就不显示），万一导航没有发生，1.5 秒后也清掉，门禁重新出现——不留可以停在半路的空档。
+   */
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => { setLeaving(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => { setLeaving(false); }, 1500);
+    return () => { clearTimeout(timer); };
+  }, [leaving]);
   const safeForMajor = !isInputFlow(location.pathname);
 
   async function onAccept(): Promise<void> {
@@ -163,7 +185,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
     await logout({ preserveOfflineData: true });
   }
 
-  if (user === null || legalPage || accountDataPage || status === null) {
+  if (user === null || legalPage || accountDataPage || status === null || leaving) {
     return <>{children}</>;
   }
 
@@ -209,6 +231,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
             error={error}
             onExport={() => void onExport()}
             onOpenAccountData={() => {
+              flushSync(() => { setLeaving(true); });
               void navigate("/settings/account-data");
             }}
           />

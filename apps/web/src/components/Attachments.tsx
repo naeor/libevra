@@ -7,7 +7,7 @@ import { formatStorageBytes, type AttachmentView } from "@libellum/shared";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
-import { onPlainClick } from "../lib/entryReturn.js";
+import { onPlainClick, useEntryOrigin } from "../lib/entryReturn.js";
 import { cancelPendingAttachment, attachmentProgress, attachmentUrl, pendingAttachments, removePendingAttachment, savePendingAttachment, uploadAttachment,
   useAttachments, useBookStorage, useAccountStorage, type PendingAttachment } from "../lib/attachments.js";
 import { useBooks } from "../lib/queries.js";
@@ -76,7 +76,9 @@ export function AttachmentPreview({ file, onClose, inline = false }: { file: Att
    * 而不播放转场。只收起这个面板本身（`onClose` 在附件页是一次导航，不能先调用）；随后页面换掉，它跟着卸载。
    */
   const [leaving, setLeaving] = useState(false);
-  const openEntry = (to: string) => inline ? undefined : onPlainClick(() => { flushSync(() => { setLeaving(true); }); void navigate(to); });
+  // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
+  const origin = useEntryOrigin();
+  const openEntry = (to: string) => inline ? undefined : onPlainClick(() => { flushSync(() => { setLeaving(true); }); void navigate(to, { state: origin }); });
   const url = attachmentUrl(file);
   const download = <a className="lv-desk-btn" href={attachmentUrl(file, true)} download>{t("attachments.download")}</a>;
   const body = <>
@@ -85,7 +87,7 @@ export function AttachmentPreview({ file, onClose, inline = false }: { file: Att
         <AttachmentPdf url={url} /> : file.mediaType.startsWith("audio/") ? <audio controls src={url} preload="metadata" /> :
         <a className="lv-desk-link" href={attachmentUrl(file, true)} download>{t("attachments.download")}</a>}
     </div>
-    <nav className="flex flex-wrap gap-3 p-4">{file.entries.map(entry => <Link key={entry.id} className="lv-desk-link" to={`/transactions/${entry.id}?book=${file.bookId}`} onClick={openEntry(`/transactions/${entry.id}?book=${file.bookId}`)}>{entry.seq ? `#${String(entry.seq).padStart(6,"0")}` : t("desktop.entries.panel")}{entry.deleted ? ` · ${t("attachments.recoverable")}` : ""}</Link>)}</nav>
+    <nav className="flex flex-wrap gap-3 p-4">{file.entries.map(entry => <Link key={entry.id} className="lv-desk-link" to={`/transactions/${entry.id}?book=${file.bookId}`} state={origin} onClick={openEntry(`/transactions/${entry.id}?book=${file.bookId}`)}>{entry.seq ? `#${String(entry.seq).padStart(6,"0")}` : t("desktop.entries.panel")}{entry.deleted ? ` · ${t("attachments.recoverable")}` : ""}</Link>)}</nav>
   </>;
   if (inline) return <aside className="lv-attachment-inline-preview" aria-label={t("attachments.preview")}>
     <header><div className="min-w-0"><h2 className="truncate text-section-title">{file.name}</h2><p className="text-helper text-muted">{formatStorageBytes(file.sizeBytes)} · {file.uploaderName}</p></div>
@@ -202,6 +204,7 @@ export function AccountStorageSummary(): React.JSX.Element | null {
 }
 
 export function LocalAttachmentStorage(): React.JSX.Element | null {
+  const storageOrigin = useEntryOrigin();
   const { user } = useAuth(); const { t } = useI18n();
   const [files, setFiles] = useState<PendingAttachment[]>([]), [usage, setUsage] = useState<number | null>(null);
   useEffect(() => {
@@ -219,6 +222,6 @@ export function LocalAttachmentStorage(): React.JSX.Element | null {
     <p>{t("attachments.pendingBytes", { size: formatStorageBytes(files.reduce((n, f) => n + f.blob.size, 0)) })}</p>
     <p className="text-helper text-muted">{t("attachments.localSeparate")}</p>
     {files.length ? <p className="text-helper text-muted">{t("attachments.localHint")}</p> : null}
-    <ul>{files.map(f => <li className="flex flex-wrap items-center gap-2 py-2 text-helper" key={f.id}>{f.entryIds.length ? <Link className="lv-desk-link" to={`/transactions/${f.entryIds[0]}?book=${f.bookId}`}>{f.name}</Link> : <span>{f.name} · {t("attachments.unlinked")}</span>}<span> · {formatStorageBytes(f.blob.size)} · {f.error ?? t("attachments.pending")}</span><button className="lv-desk-link" onClick={() => { const url = URL.createObjectURL(f.blob); const link = document.createElement("a"); link.href = url; link.download = f.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }}>{t("attachments.download")}</button>{!f.entryIds.length ? <button className="lv-desk-link" onClick={() => { void removePendingAttachment(f.id); }}>{t("attachments.removeDraft")}</button> : null}</li>)}</ul>
+    <ul>{files.map(f => <li className="flex flex-wrap items-center gap-2 py-2 text-helper" key={f.id}>{f.entryIds.length ? <Link className="lv-desk-link" to={`/transactions/${f.entryIds[0]}?book=${f.bookId}`} state={storageOrigin}>{f.name}</Link> : <span>{f.name} · {t("attachments.unlinked")}</span>}<span> · {formatStorageBytes(f.blob.size)} · {f.error ?? t("attachments.pending")}</span><button className="lv-desk-link" onClick={() => { const url = URL.createObjectURL(f.blob); const link = document.createElement("a"); link.href = url; link.download = f.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }}>{t("attachments.download")}</button>{!f.entryIds.length ? <button className="lv-desk-link" onClick={() => { void removePendingAttachment(f.id); }}>{t("attachments.removeDraft")}</button> : null}</li>)}</ul>
   </section>;
 }

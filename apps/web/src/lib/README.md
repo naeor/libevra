@@ -34,11 +34,12 @@
 | [captureTextDraft.ts](captureTextDraft.ts) | 实现模块；入口/导出：useCaptureTextDraft |
 | [clipboard.ts](clipboard.ts) | 实现模块；入口/导出：CopyOutcome、copyText |
 | [closeGuard.test.ts](closeGuard.test.ts) | 测试：closeGuard |
-| [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：CloseDecision、decideClose、leavePage、useBackGuard |
+| [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：CloseDecision、decideClose、leavePage、useBackGuard、usePageBackGuard |
 | [colorClasses.test.ts](colorClasses.test.ts) | 测试：colorClasses |
 | [colors.test.ts](colors.test.ts) | 测试：colors |
 | [connectivity.ts](connectivity.ts) | 实现模块；入口/导出：BackMode、parentBackAction、useGoBack |
 | [consent.ts](consent.ts) | 实现模块；入口/导出：RequiredLegalDocument、MajorAnnouncementView、ConsentStatus、fetchRequiredLegalDocuments、fetchConsentStatus |
+| [consentRemember.test.ts](consentRemember.test.ts) | 测试：consentRemember |
 | [copy.test.ts](copy.test.ts) | 测试：copy |
 | [crossTabSync.test.ts](crossTabSync.test.ts) | 测试：crossTabSync |
 | [currentBook.test.ts](currentBook.test.ts) | 测试：currentBook |
@@ -57,7 +58,7 @@
 | [detailTransition.ts](detailTransition.ts) | 实现模块；入口/导出：readSession、writeSession、useDetailTransition |
 | [devSaveSimulation.ts](devSaveSimulation.ts) | 实现模块；入口/导出：devSaveSimulation |
 | [deviceStorageKeys.test.ts](deviceStorageKeys.test.ts) | 测试：deviceStorageKeys |
-| [deviceStorageKeys.ts](deviceStorageKeys.ts) | 实现模块；入口/导出：LIBELLUM_KEY_PREFIX、LIBEVRA_KEY_PREFIX、CURRENT_BOOK_KEY、fxModeKey、MESSAGES_SEEN_PREFIX |
+| [deviceStorageKeys.ts](deviceStorageKeys.ts) | 实现模块；入口/导出：LIBELLUM_KEY_PREFIX、LIBEVRA_KEY_PREFIX、CURRENT_BOOK_KEY、fxModeKey、consentStatusKey |
 | [dialogFocus.ts](dialogFocus.ts) | 实现模块；入口/导出：focusableWithin、DialogLayer、useDialogFocus |
 | [duplicateMutationOffline.test.tsx](duplicateMutationOffline.test.tsx) | 测试：duplicateMutationOffline |
 | [duplicateRelationSuppression.test.ts](duplicateRelationSuppression.test.ts) | 测试：duplicateRelationSuppression |
@@ -68,7 +69,7 @@
 | [duplicateSettings.ts](duplicateSettings.ts) | 实现模块；入口/导出：DUPLICATE_SETTINGS_STORAGE_PREFIX、DUPLICATE_SETTINGS_SCHEMA_VERSION、DuplicateSettingsScope、DuplicateSettingsStorage、duplicateSettingsStorage |
 | [entryFlow.ts](entryFlow.ts) | 实现模块；入口/导出：provideEntryAgain、continueEntry |
 | [entryReturn.test.ts](entryReturn.test.ts) | 测试：entryReturn |
-| [entryReturn.ts](entryReturn.ts) | 实现模块；入口/导出：entryReturnState、entryBackTarget、useEntryReturn、useReturnTo、onPlainClick |
+| [entryReturn.ts](entryReturn.ts) | 实现模块；入口/导出：useEntryOrigin、entryReturnState、entryBackTarget、useEntryReturn、useReturnTo |
 | [errorCopy.test.ts](errorCopy.test.ts) | 测试：errorCopy |
 | [format.ts](format.ts) | 实现模块；入口/导出：currencySymbol、currencyName、numberSeparators、formatMoney、minorToInput |
 | [frameClock.test.ts](frameClock.test.ts) | 测试：frameClock |

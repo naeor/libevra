@@ -1,4 +1,5 @@
 import { useAuth } from "../auth/AuthProvider.js";
+import { useEntryOrigin } from "../lib/entryReturn.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
 import { clearAllMessageDrafts, messageDraftScope, readMessageDraft, updateMessageDraft } from "../lib/messageDrafts.js";
 import { useEffect, useRef, useState } from "react";
@@ -262,6 +263,7 @@ export function messageReference(
 
 /** One message: who, when, and what — in that order, and nothing else. */
 function MessageRow({ message }: { readonly message: BookMessage }): React.JSX.Element {
+  const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const reference = messageReference(message);
 
   /**
@@ -287,7 +289,7 @@ function MessageRow({ message }: { readonly message: BookMessage }): React.JSX.E
       {reference === null ? null : (
         <QuoteReferenceCard
           reference={reference}
-          {...(target === null ? {} : { href: `/transactions/${target}` })}
+          {...(target === null ? {} : { href: `/transactions/${target}`, linkState: entryOrigin })}
         />
       )}
 

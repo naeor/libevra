@@ -3,9 +3,20 @@ import { UNSAFE_NavigationContext, useLocation, useNavigate } from "react-router
 import { useMarkBack, usePane } from "../workspace/context.js";
 import { PaneHistory, entryPath, type PaneEntry } from "../workspace/paneHistory.js";
 import { recordBackPress } from "./backFallback.js";
+import { inEntryWorkspace } from "../s19/motion/navigation.js";
 
 type Source = Pick<PaneEntry, "pathname" | "search" | "hash" | "key"> & { browserIndex?: number };
-const allowed = (path: string): boolean => path === "/" || /^\/(ledger(?:\/history)?|stats(?:\/cards\/[^/]+)?|books\/[^/]+)$/.test(path);
+/**
+ * 能作为账目详情“来路”的页面。1.19.81（所有者 2026-11-15：从重复检查、附件、通知、外币状态、相关账目打开的账目详情，返回回到来源列表）：
+ * 原来只认明细、协作、分析与账本页，现在本应用里的页面都可以，只排除记账工作区（返回不该回到一张填到一半的表单）与登录 / 协议 / 账本空间等外壳之外的入口。
+ */
+const allowed = (path: string): boolean =>
+  path.startsWith("/") && !path.startsWith("//") && !inEntryWorkspace(path) && !/^\/(login|register|recover|recover-archive|guest|legal|start)(\/|$)/.test(path);
+
+/** 当前页作为账目详情的来路（打开账目的链接把它放进 state；1.19.81）。 */
+export function useEntryOrigin(): { entryOrigin: Source } {
+  return entryReturnState(useLocation());
+}
 
 /** 只由已知阅读入口创建，不复制来源页的 state。 */
 export function entryReturnState(source: Source): { entryOrigin: Source } {

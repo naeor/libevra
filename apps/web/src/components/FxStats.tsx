@@ -1,4 +1,5 @@
 import { STATS_RANGES, type DateRange, type StatsRangeKey } from "@libellum/shared";
+import { useEntryOrigin } from "../lib/entryReturn.js";
 import { Link } from "react-router";
 import { useI18n } from "../i18n/index.js";
 import { fxMoney, useFxRange } from "../lib/fxView.js";
@@ -6,6 +7,7 @@ import { useLedger } from "../lib/queries.js";
 import { displayCategoryName } from "../lib/presetNames.js";
 
 export function FxStats({ range, preset, setPreset, month, setMonth, kind, setKind }: { range: DateRange; preset: StatsRangeKey; setPreset: (value: StatsRangeKey) => void; month: string; setMonth: (value: string) => void; kind: "income" | "expense"; setKind: (value: "income" | "expense") => void }) {
+  const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const effective = range;
   const fx = useFxRange(effective.from, effective.to), ledger = useLedger(), { t } = useI18n();
   const result = fx.result, complete = result?.complete && fx.sourceComplete;
@@ -46,7 +48,7 @@ export function FxStats({ range, preset, setPreset, month, setMonth, kind, setKi
         <dl>{Object.entries(result.categories).filter(([, total]) => BigInt(total[`${kind}Minor`]) !== 0n).sort((a, b) => BigInt(a[1][`${kind}Minor`]) > BigInt(b[1][`${kind}Minor`]) ? -1 : 1).map(([id, total]) => <div key={id} className="flex flex-wrap justify-between gap-2 border-b border-line py-3 text-body text-ink"><dt>{names.get(id) ?? id}</dt><dd className="tabular-nums">{fxMoney(total[`${kind}Minor`], fx.target)}</dd></div>)}</dl>
       </section>
       {result.failures.length ? <details className="rounded-card border border-line bg-surface p-5"><summary className="cursor-pointer text-card-title text-ink">{t("fx.showMissing")} ({result.missingCount})</summary>
-        <ul className="mt-3 flex flex-col gap-3">{result.failures.map(row => <li key={row.id} className="text-helper-relaxed text-muted"><Link className="text-brand-dark underline" to={`/transactions/${row.id}`}>{row.date} · {row.currency}</Link> · {t(`fx.reasons.${row.reason}`)}</li>)}</ul>
+        <ul className="mt-3 flex flex-col gap-3">{result.failures.map(row => <li key={row.id} className="text-helper-relaxed text-muted"><Link className="text-brand-dark underline" to={`/transactions/${row.id}`} state={entryOrigin}>{row.date} · {row.currency}</Link> · {t(`fx.reasons.${row.reason}`)}</li>)}</ul>
       </details> : null}
       <details className="rounded-card border border-line bg-surface p-5"><summary className="text-card-title text-ink">{t("fx.originalTotals")}</summary>
         {Object.entries(result.originalByCurrency).map(([currency, totals]) => <p key={currency} className="mt-3 text-helper-relaxed text-muted">{currency} · {t("fx.expense")} {fxMoney(totals.expenseMinor, currency)} · {t("fx.income")} {fxMoney(totals.incomeMinor, currency)}</p>)}

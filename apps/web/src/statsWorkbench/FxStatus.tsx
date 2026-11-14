@@ -6,12 +6,14 @@
  * 文案沿用 `fx.*`，不新写一套说法。
  */
 import { Link } from "react-router";
+import { useEntryOrigin } from "../lib/entryReturn.js";
 
 import { useI18n } from "../i18n/index.js";
 import { fxMoney } from "../lib/fxView.js";
 import type { FxRangeView } from "./scope.js";
 
 export function FxStatus({ fx, embedded = false }: { readonly fx: FxRangeView; readonly embedded?: boolean }): React.JSX.Element {
+  const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const { t } = useI18n();
   const result = fx.result;
   const complete = result !== undefined && result.complete && fx.sourceComplete === true;
@@ -45,7 +47,7 @@ export function FxStatus({ fx, embedded = false }: { readonly fx: FxRangeView; r
           <ul className="mt-2 flex flex-col gap-1.5">
             {result.failures.map((row) => (
               <li key={row.id} className="text-helper-relaxed text-muted">
-                <Link className="text-brand-dark underline" to={`/transactions/${encodeURIComponent(row.id)}`}>
+                <Link className="text-brand-dark underline" to={`/transactions/${encodeURIComponent(row.id)}`} state={entryOrigin}>
                   {row.date} · {row.currency}
                 </Link>{" "}
                 · {t(`fx.reasons.${row.reason}`)}

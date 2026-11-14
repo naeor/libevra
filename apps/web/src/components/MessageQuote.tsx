@@ -55,11 +55,14 @@ export function QuoteReferenceCard({
   reference,
   onRemove,
   href,
+  linkState,
 }: {
   readonly reference: MessageReferenceView;
   readonly onRemove?: (() => void) | undefined;
   /** 已发送留言里点击跳转到账目详情；不存在或不可用时可不传。 */
   readonly href?: string | undefined;
+  /** 1.19.81：随链接带上的来路（账目详情返回时回到留言所在的页面）。 */
+  readonly linkState?: unknown;
 }): React.JSX.Element {
   const { t: tr } = useI18n();
   const unavailable = !reference.available;
@@ -112,6 +115,7 @@ export function QuoteReferenceCard({
       ) : (
         <Link
           to={href}
+          state={linkState}
           aria-label={tr("collab.messages.quoteOpen")}
           className="min-w-0 flex-1 rounded-field transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring"
         >

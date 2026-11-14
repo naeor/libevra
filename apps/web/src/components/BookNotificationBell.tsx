@@ -9,7 +9,7 @@ import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 import { formatInstant } from "../lib/datetime.js";
 import { formatMoney } from "../lib/format.js";
-import { onPlainClick } from "../lib/entryReturn.js";
+import { onPlainClick, useEntryOrigin } from "../lib/entryReturn.js";
 import { BottomSheet } from "./BottomSheet.js";
 import type { Currency } from "@libellum/shared";
 
@@ -24,6 +24,7 @@ function describe(value: unknown): string {
 }
 
 export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }: { bookId: string; trigger?: ReactNode; hiddenTrigger?: boolean }): React.JSX.Element | null {
+  const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const { user } = useAuth(); const { t } = useI18n(); const client = useQueryClient(); const navigate = useNavigate();
   const [open, setOpen] = useState(false); const [error, setError] = useState<string | null>(null);
   const unread = useQuery({ queryKey: ["book-notices", user?.id, "unread"], enabled: !!user,
@@ -51,7 +52,7 @@ export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }:
    * 按住修饰键 / 中键仍按链接打开（面板照旧收起）。
    */
   const openEntry = (to: string) => (event: React.MouseEvent<HTMLAnchorElement>): void => {
-    onPlainClick(() => { flushSync(() => { setOpen(false); }); void navigate(to); })(event);
+    onPlainClick(() => { flushSync(() => { setOpen(false); }); void navigate(to, { state: entryOrigin }); })(event);
     if (!event.defaultPrevented) setOpen(false);
   };
   return <><div onKeyDown={stop} onClick={stop} onPointerDown={stop}>
@@ -71,7 +72,7 @@ export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }:
         {notice.entry?.note ? <p className="mt-2 text-body">{notice.entry.note}</p> : null}
         <dl className="my-3 flex flex-col gap-1">{Object.entries(notice.changes).map(([key, value]) => <div key={key} className="text-helper"><dt className="inline text-muted">{t(`attachments.field.${key}`, { defaultValue: key })} · </dt>
           <dd className="inline">{key === "amountCents" && notice.entry?.currency ? `${formatMoney(Number(value.from), (notice.changes["currency"]?.from ?? notice.entry.currency) as Currency)} → ${formatMoney(Number(value.to), notice.entry.currency as Currency)}` : `${describe(value.from)} → ${describe(value.to)}`}</dd></div>)}</dl>
-        {notice.transactionId ? <Link className="lv-desk-link text-helper" to={`/transactions/${notice.transactionId}?book=${bookId}`} onClick={openEntry(`/transactions/${notice.transactionId}?book=${bookId}`)}>{t("desktop.entries.panel")} →</Link> : null}
+        {notice.transactionId ? <Link className="lv-desk-link text-helper" to={`/transactions/${notice.transactionId}?book=${bookId}`} state={entryOrigin} onClick={openEntry(`/transactions/${notice.transactionId}?book=${bookId}`)}>{t("desktop.entries.panel")} →</Link> : null}
       </li>)}</ul>
       {list.hasNextPage ? <button className="lv-desk-btn m-4" disabled={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>{t("attachments.more")}</button> : null}
     </BottomSheet>

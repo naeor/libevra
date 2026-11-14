@@ -31,6 +31,7 @@ import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
 import { KindToggle, useKindBar } from "../components/entry/KindToggle.js";
 import { useMarkBack, usePane, usePaneDirty } from "../workspace/context.js";
 import { useGoBack } from "../lib/connectivity.js";
+import { usePageBackGuard } from "../lib/closeGuard.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { WorkspaceTopBar } from "../components/entry/WorkspaceTopBar.js";
 import { useS19Light } from "../lib/useRootVisualStyle.js";
@@ -324,7 +325,12 @@ export function AddEntryPage(): React.JSX.Element {
   const goBack = useGoBack("/");
   const markBack = useMarkBack();
   const [leaveAsk, setLeaveAsk] = useState(false);
-  const leaveWorkspace = (): void => { markBack(); goBack(); };
+  /**
+   * 1.19.81：系统返回与顶栏返回一致（所有者 2026-11-15）——有未保存输入、还没保存成功时，系统返回也先弹同一个询问；
+   * 确认放弃后一次离开（退掉保护记录与这一页），协调器照常按“离开工作区”播放。只在 S19 浅色手机端的工作区里拦。
+   */
+  const leaveGuarded = usePageBackGuard(workspaceChrome && pane.nav === "bottom" && dirty && saved === null, () => { setLeaveAsk(true); });
+  const leaveWorkspace = (): void => { markBack(); leaveGuarded(goBack); };
 
   /**
    * 同方向的最近记录，只给「沿用上一笔」用。

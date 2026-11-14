@@ -1,4 +1,5 @@
 import { useDesktopSurface } from "../desktop/surface.js";
+import { useEntryOrigin } from "../lib/entryReturn.js";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { formatStorageBytes, type AttachmentView } from "@libellum/shared";
@@ -12,6 +13,7 @@ import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 
 export function AttachmentsPage(): React.JSX.Element {
+  const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const desktop = useDesktopSurface() !== null;
   const { bookId = "" } = useParams(); const [params, setParams] = useSearchParams(); const { t } = useI18n();
   const [search, setSearch] = useState(""); const [type, setType] = useState(""); const [state, setState] = useState("active");
@@ -42,7 +44,7 @@ export function AttachmentsPage(): React.JSX.Element {
     <div className="lv-attachment-gallery">{items.map((file) => <article key={file.id}><button className="lv-attachment-tile" onClick={() => setParams({ file: file.id })}>
       <div>{file.state === "ready" && file.mediaType.startsWith("image/") ? <img src={attachmentUrl(file)} alt="" loading="lazy" /> : <span className="text-muted">{file.mediaType.split("/")[1]}</span>}</div>
       <strong>{file.name}</strong><small>{formatStorageBytes(file.sizeBytes)} · {file.uploaderName}</small><small>{t("attachments.associated", { count: file.entries.length })}</small>
-    </button><div className="flex flex-wrap gap-2 py-2">{file.entries.map(entry => <Link className="text-helper text-brand" key={entry.id} to={`/transactions/${entry.id}?book=${bookId}`}>#{String(entry.seq).padStart(6, "0")}</Link>)}
+    </button><div className="flex flex-wrap gap-2 py-2">{file.entries.map(entry => <Link className="text-helper text-brand" key={entry.id} to={`/transactions/${entry.id}?book=${bookId}`} state={entryOrigin}>#{String(entry.seq).padStart(6, "0")}</Link>)}
       {file.canDelete && file.deletedAt ? <button className="text-helper text-brand" disabled={busy} onClick={() => { setBusy(true); void apiFetch(`/books/${bookId}/attachments/${file.id}/restore`, { method: "POST" }).then(() => { void client.invalidateQueries({ queryKey: ["attachments"] }); void client.invalidateQueries({ queryKey: ["storage"] }); void client.invalidateQueries({ queryKey: ["transactions"] }); void client.invalidateQueries({ queryKey: ["transaction"] }); void client.invalidateQueries({ queryKey: ["ws-ledger"] }); void client.invalidateQueries({ queryKey: ["ledger-history"] }); void client.invalidateQueries({ queryKey: ["ledger-meta"] }); }).catch(e => setError(errorMessage(e))).finally(() => setBusy(false)); }}>{t("attachments.restore")}</button> : null}
       {file.canDelete && (file.deletedAt || file.entries.every(e => e.deleted)) ? <button className="ml-auto text-helper text-danger" onClick={() => setPurge(file)}>{t("attachments.permanent")}</button> : null}
     </div></article>)}</div>

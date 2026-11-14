@@ -21,6 +21,11 @@ export const LIBEVRA_KEY_PREFIX = "libevra.";
 /** 比两个品牌都早的键：记住当前账本。 */
 export const CURRENT_BOOK_KEY = "current-book";
 export function fxModeKey(userId: string): string { return `libevra.fx-mode:${userId}`; }
+/**
+ * 1.19.81：这个账号最近一次拿到的“协议同意状态”（只存协议列表与缺哪几份，不存公告）。用来让同意门禁在打开应用时立即出现、
+ * 离线或请求失败时也不放行（所有者 2026-11-15：不同意就不能正常记账，不要留下能跳过的地方）。随账号清理。
+ */
+export function consentStatusKey(userId: string): string { return `libevra.consent-status:${userId}`; }
 
 export const MESSAGES_SEEN_PREFIX = "libellum-messages-seen:";
 export const PRESENTATION_SEEN_PREFIX = "libellum-presentation-seen";

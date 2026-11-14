@@ -9,11 +9,15 @@ import { RecoveryCodeCard } from "../components/RecoveryCodeCard.js";
 import { TextField } from "../components/TextField.js";
 import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
-import { useReturnTo } from "../lib/entryReturn.js";
+import { useGoBack } from "../lib/connectivity.js";
 
 export function RegenerateRecoveryCodePage(): React.JSX.Element {
   /** 1.19.75（审查 T5）：「继续」上一条正是设置时退回去（返回转场、不再叠一层历史），否则仍前往设置。 */
-  const continueToSettings = useReturnTo("/settings", "push");
+  /**
+   * 1.19.81（所有者 2026-11-15）：新恢复码之后的「继续」回到来路（账号安全、个人资料……从哪里进来就回哪里），与顶栏返回同一个动作——
+   * 有上一条就 `-1`（按返回方向播放），会话第一条（深链）才用声明的上级「设置」。原来固定前往「设置」。
+   */
+  const continueToSettings = useGoBack("/settings");
   const { t } = useI18n();
 
   const [password, setPassword] = useState("");

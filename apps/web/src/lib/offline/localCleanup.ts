@@ -1,5 +1,5 @@
 import { clearDuplicateSettings } from "../duplicateSettings.js";
-import { LEDGER_FILTER_PREFIX, OFFLINE_RECORDER_REFRESH_PREFIX, fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
+import { LEDGER_FILTER_PREFIX, OFFLINE_RECORDER_REFRESH_PREFIX, consentStatusKey, fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
 import { listKeys, removeValue } from "./storage.js";
 
 /** `localStorage` 在 Node 测试与隐私模式下可能不存在、访问即抛错；清理路径必须容忍。 */
@@ -74,6 +74,7 @@ export async function clearAccountLocalData(
   removeDeviceKeys([
     fxModeKey(accountId),
     presentationSeenKey(accountId),
+    consentStatusKey(accountId),
     ...bookIds.flatMap((bookId) => [messagesSeenKey(bookId), sharedLedgerKey(bookId)]),
   ]);
   const store = deviceStorage();

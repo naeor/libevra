@@ -24,7 +24,8 @@ describe("账目详情的明确来源", () => {
     });
   }
   it("深链与非法来源只替换到明细，不增加历史", () => {
-    for (const state of [null, { from: "/transactions/b" }, entryReturnState(entryFromPath("/transactions/b")), entryReturnState(entryFromPath("//evil.test"))]) {
+    // 1.19.81：账目详情本身（“相关账目”打开的另一笔）是合法来路，见下一条；记账工作区、登录与站外地址仍不是。
+    for (const state of [null, { from: "/transactions/b" }, entryReturnState(entryFromPath("/add")), entryReturnState(entryFromPath("/login")), entryReturnState(entryFromPath("//evil.test"))]) {
       const history = new PaneHistory("w2", [entryFromPath("/transactions/a", "default", state)]);
       back(history);
       expect(history.location.pathname).toBe("/");
@@ -51,6 +52,12 @@ describe("账目详情的明确来源", () => {
     expect(entryBackTarget({ entryOrigin }, undefined, 2).pop).toBe(true);
     expect(entryBackTarget({ entryOrigin }, undefined, 3).pop).toBe(false);
     expect(entryBackTarget({ entryOrigin }, undefined).pop).toBe(false);
-    expect(entryBackTarget({ entryOrigin: { ...entryOrigin, pathname: "/transactions/other" } }, undefined, 2).pop).toBe(false);
+    expect(entryBackTarget({ entryOrigin: { ...entryOrigin, pathname: "/scan" } }, undefined, 2).pop).toBe(false);
+  });
+  it("1.19.81：重复检查、附件、通知、外币状态、相关账目打开的账目详情，返回回到来源页", () => {
+    for (const path of ["/duplicates", "/attachments?book=a", "/transactions/b", "/stats", "/books/a/settings/attachments"]) {
+      const source = entryFromPath(path, "source");
+      expect(entryBackTarget(entryReturnState(source), source)).toEqual({ pop: true, fallback: path });
+    }
   });
 });

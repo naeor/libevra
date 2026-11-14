@@ -30,7 +30,7 @@ import { useUndo } from "../components/UndoProvider.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
-import { useEntryReturn, useReturnTo } from "../lib/entryReturn.js";
+import { useEntryOrigin, useEntryReturn, useReturnTo } from "../lib/entryReturn.js";
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
@@ -79,6 +79,7 @@ function displayLocalDate(localDate: string): string {
  * `entryId`：电脑版在明细右侧辅助栏里显示某一笔时直接给出 id（地址仍是明细页）；不给时照旧读路由参数。
  */
 function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): React.JSX.Element {
+  const entryOrigin = useEntryOrigin(); // 1.19.81：从“相关账目”打开的另一笔，返回时回到这一笔。
   const attachmentBookId = useViewBookId();
   const fxMode = useFxMode();
   const routeParams = useParams();
@@ -801,7 +802,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
                             <li key={pair.pairKey} className="flex flex-col gap-1 rounded-field bg-canvas px-3 py-2">
                               <button
                                 type="button"
-                                onClick={() => void navigate(`/transactions/${otherId}`)}
+                                onClick={() => void navigate(`/transactions/${otherId}`, { state: entryOrigin })}
                                 className="flex items-baseline justify-between gap-3 text-left text-body"
                               >
                                 <span className="min-w-0 truncate">

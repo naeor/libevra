@@ -21,6 +21,7 @@
 | [AccountDataPage.tsx](AccountDataPage.tsx) | 界面模块；入口/导出：confirmationAccepted、blockedReasonText、AccountDataPage |
 | [AddEntryPage.test.tsx](AddEntryPage.test.tsx) | 测试：AddEntryPage |
 | [AddEntryPage.tsx](AddEntryPage.tsx) | 界面模块；入口/导出：manualDuplicateChoices、manualDuplicateDescription、AddEntryPage |
+| [AddEntryWorkspace.test.ts](AddEntryWorkspace.test.ts) | 测试：AddEntryWorkspace |
 | [AdminLifecyclePage.tsx](AdminLifecyclePage.tsx) | 界面模块；入口/导出：AdminLifecyclePage |
 | [AdminPages.tsx](AdminPages.tsx) | 界面模块；入口/导出：AdminOverviewPage、AdminInvitesPage |
 | [AppearanceStyleSection.tsx](AppearanceStyleSection.tsx) | 界面模块；入口/导出：APPEARANCE_STYLES、B1_BLUR_PRESETS、AppearanceStyleSection |
