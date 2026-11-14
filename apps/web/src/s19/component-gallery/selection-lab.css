@@ -1,17 +1,15 @@
 /*
-  开发用设计样板：选中指示与已选条件标签（S19 §2.1）。只由组件样板页加载，不进正式构建。
-  颜色一律引用现有令牌 / color-mix，不写硬编码色值（lib/colors.test.ts 会扫描本目录）。
-  风格来自 html[data-visual-style]（样板页的风格开关或 ?s19=a|b1|b2|c 写入），令牌来自 s19-lab-tokens.css 与 index.css。
-  时长优先读 components/ui/component-motion.css 的 --lv-* 变量（按风格定义）。
+  开发用设计样板：选中指示与已选条件标签（S19 §2.1、§2.2）。只由组件样板页加载，不进正式构建。
+  1.19.62 起选中块、浮起、网格与条件标签的外观全部来自正式组件（components/ui/selection-controls.css）与正式令牌
+  （s19/s19-lab-tokens.css 的 --s19-a-elev-*、--s19-select-*、--s19-tag-*）；这里只放示例布局、选项按钮的尺寸、
+  “交叉淡化到一半”与标签出现 / 消失的定格帧。颜色一律引用令牌（lib/colors.test.ts 会扫描本目录）。
 */
-.sl-lab { --sl-slow: 1; --sl-tint: linear-gradient(transparent, transparent); display: grid; gap: 16px; }
-.sl-lab[data-slow="on"] { --sl-slow: 3; }
-.sl-lab[data-tint="on"] { --sl-tint: linear-gradient(color-mix(in srgb, var(--color-brand) 10%, transparent), color-mix(in srgb, var(--color-brand) 10%, transparent)); }
+.sl-lab { display: grid; gap: 16px; }
 .sl-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .sl-hint { margin: 0; }
 .sl-cap { font-size: var(--text-helper); color: var(--color-muted); margin: 0 0 8px; font-weight: 500; }
 
-/* ---------- 模拟筛选面板外壳：.rounded-t-sheet.bg-surface 由 s19/shared.css L213 套真实 sheet 材质 ---------- */
+/* ---------- 模拟筛选面板外壳：.rounded-t-sheet.bg-surface 由 s19/shared.css 套真实 sheet 材质 ---------- */
 .sl-stage { padding: 20px 16px 0; border-radius: var(--radius-card); display: grid; justify-items: center; overflow: hidden;
   background: radial-gradient(ellipse at 0% 0%, var(--color-warn-soft), transparent 70%), radial-gradient(ellipse at 100% 100%, var(--color-info-soft), transparent 70%); }
 .sl-sheet { width: min(100%, 390px); display: flex; flex-direction: column; background: var(--color-surface);
@@ -19,196 +17,50 @@
 .sl-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 16px 4px; }
 .sl-head h4 { margin: 0; font-size: var(--text-section-title); font-weight: 500; }
 .sl-head-x { color: var(--color-muted); font-size: 20px; }
-.sl-chips { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; padding: 8px 16px 14px; min-height: 56px; }
+.sl-chips { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; padding: 8px 16px 14px; min-height: 56px; font-size: var(--text-helper); }
 .sl-empty { font-size: var(--text-helper); color: var(--color-muted); align-self: center; }
 .sl-body { display: grid; grid-template-columns: 104px minmax(0, 1fr); border-top: 1px solid var(--color-line); min-height: 300px; }
-.sl-nav { padding: 8px 6px; border-right: 1px solid var(--color-line); }
+.sl-nav { padding: 8px 6px; border-right: 1px solid var(--color-line); display: flex; flex-direction: column; gap: 2px; }
 .sl-options { padding: 8px 10px; display: grid; gap: 12px; align-content: start; min-width: 0; }
 .sl-note { margin: 0; font-size: var(--text-helper); color: var(--color-muted); line-height: 1.6; }
 .sl-foot { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-top: 1px solid var(--color-line); font-size: var(--text-body); color: var(--color-brand-dark); }
 .sl-apply { padding: 8px 20px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); }
 .sl-actions { display: flex; gap: 8px; padding: 0 16px 16px; flex-wrap: wrap; }
 .sl-static { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-.sl-tagrows { display: grid; gap: 14px; padding: 14px 16px 6px; }
-.sl-tagrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.sl-tagrow-name { display: none; width: 100%; font-size: var(--text-micro); color: var(--color-muted); }
-.sl-tagrow:nth-child(2) { display: none; }
-html[data-visual-style="b2"] .sl-tagrow:nth-child(2) { display: flex; }
-html[data-visual-style="b2"] .sl-tagrow-name { display: block; }
-.sl-sheet > .sl-tagrows ~ .sl-note, .sl-sheet > .sl-note { padding: 4px 16px 16px; }
+.sl-tagrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 16px 6px; font-size: var(--text-helper); }
+.sl-sheet > .sl-note { padding: 4px 16px 16px; }
 
-/* ---------- 选项（左侧维度导航 / 分段 / 月份格共用） ---------- */
-.sl-move { position: relative; display: flex; }
-.sl-move[data-axis="y"] { flex-direction: column; gap: 2px; }
-.sl-move[data-axis="x"] { gap: 4px; flex-wrap: nowrap; }
-.sl-opt { position: relative; z-index: 1; isolation: isolate; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+/* ---------- 选项按钮（左侧维度导航 / 分段 / 月份格共用）的尺寸与基础选中样式；S19 下由正式组件接管 ---------- */
+.sl-segments { display: flex; gap: 4px; flex-wrap: nowrap; }
+.sl-opt { display: flex; align-items: center; justify-content: space-between; gap: 6px;
   min-height: 48px; padding: 8px 10px; border-radius: var(--s19-r-field, 14px); text-align: left; white-space: nowrap; background: transparent; border: 0; font: inherit; font-size: var(--text-body); cursor: pointer;
-  color: var(--color-muted); transition: color calc(var(--lv-select-ms, 150ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out); }
+  color: var(--color-muted); }
 .sl-segments .sl-opt { min-height: 44px; flex: 1 1 0; justify-content: center; }
-.sl-opt:focus-visible, .sl-tag-x:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
-.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"] { color: var(--color-brand-dark); }
+.sl-opt:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+.sl-opt:is([aria-selected="true"], [aria-pressed="true"]) { color: var(--color-brand-dark); background: var(--color-brand-soft); }
 .sl-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-brand); flex: none; }
-.sl-opt::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0; pointer-events: none; }
-.sl-block { display: none; position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; border-radius: var(--s19-r-field, 14px); will-change: transform, width, height; }
-
-/* 月份网格 */
 .sl-months { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .sl-cell { min-height: 44px; justify-content: center; }
 
-/* ---------- B1 / B2：模拟玻璃（与底栏选中胶囊同一配方），不做真实背景模糊 ---------- */
-/* B1：s19-lab-tokens.css L127 的 --s19-tabglass-bg 去掉底部品牌余光（样板要求“默认不染色”），其余照抄；阴影直接引用 --s19-tabglass-sh（L128）。 */
-html[data-visual-style="b1"] .sl-lab {
-  --sl-glass-base: linear-gradient(180deg,
-    color-mix(in srgb, white calc(var(--s19-glass-milk, .9) * 46%), transparent) 0%,
-    rgb(var(--s19-glass-rgb) / calc(.14 * var(--s19-glass-milk, .9))) 58%,
-    rgb(var(--s19-glass-rgb) / calc(.24 * var(--s19-glass-milk, .9))) 100%);
-}
-/* B2：直接引用 index.css 的 --s19-tabglass-bg（= 工具玻璃填充，约 .35 不透明白）。 */
-html[data-visual-style="b2"] .sl-lab { --sl-glass-base: var(--s19-tabglass-bg); }
-html:is([data-visual-style="b1"], [data-visual-style="b2"]) .sl-lab { --sl-glass-bg: var(--sl-tint), var(--sl-glass-base); }
-html:is([data-visual-style="b1"], [data-visual-style="b2"]) .sl-block { display: block; background: var(--sl-glass-bg); box-shadow: var(--s19-tabglass-sh); }
-/* 月份格：玻璃在旧格淡出、新格淡入（不做长距离滑动） */
-html:is([data-visual-style="b1"], [data-visual-style="b2"]) .sl-cell::before {
-  background: var(--sl-glass-bg); box-shadow: var(--s19-tabglass-sh); transform: scale(.94);
-  transition: opacity calc(var(--lv-select-ms, 180ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(var(--lv-select-ms, 180ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out);
-}
-html:is([data-visual-style="b1"], [data-visual-style="b2"]) .sl-cell[aria-pressed="true"]::before { opacity: 1; transform: none; }
-html:is([data-visual-style="b1"], [data-visual-style="b2"]) .sl-cell[data-half]::before { opacity: .5; transform: scale(.97); }
+/* ---------- 定格帧（只在样板里用）：月份格“交叉淡化到一半”、标签“出现中 / 消失中” ---------- */
+.sl-lab [data-select-grid] > .sl-cell[data-half]::before { opacity: .5 !important; transform: scale(.97) !important; }
+html[data-visual-style="a"] .sl-lab [data-select-grid] > .sl-cell[data-half] { transform: translateY(calc(var(--s19-a-lift-y) / 2)) !important; }
+html[data-visual-style="a"] .sl-lab [data-select-grid] > .sl-cell[data-half]::before { transform: none !important; }
+html[data-visual-style="a"] .sl-lab [data-select-grid] > .sl-cell[data-half]::after { opacity: .5 !important; transform: none !important; }
+.sl-lab .sl-freeze[data-cond-tag][data-state="in"] { animation-play-state: paused !important; animation-delay: calc(var(--lv-reveal-ms, 200ms) * -.45) !important; }
+.sl-lab .sl-freeze[data-cond-tag][data-state="out"] { animation-play-state: paused !important; animation-delay: calc(var(--lv-dismiss-ms, 180ms) * -.45) !important; }
 
-/* ---------- C：浅绿实底（现状的 brand-soft），整块干脆滑动 ---------- */
-html[data-visual-style="c"] .sl-block { display: block; background: var(--color-brand-soft); }
-html[data-visual-style="c"] .sl-cell::before { background: var(--color-brand-soft); transition: opacity calc(var(--lv-select-ms, 120ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out); }
-html[data-visual-style="c"] .sl-cell[aria-pressed="true"]::before { opacity: 1; }
-html[data-visual-style="c"] .sl-cell[data-half]::before { opacity: .5; }
-
-/* ---------- A：选中项自己浮起（柔和薄片），文字变品牌绿 ---------- */
-/*
-  第二版（所有者 2026-11-14：第一版浮空感太弱、只有一点点阴影；不加绿色）。原因是 A 的卡片底 #fdfdfb 与面板底 #fcfcfa
-  几乎同色，第一版的影子又被负扩散收得很小，薄片和面板分不开。参考常见的抬升做法：
-  1. 分层阴影：贴边的接触影 + 中层影 + 宽而淡的环境影，代替单层影（Josh Comeau《Designing Shadows》、Material 的主光 / 环境光模型）；
-  2. 阴影不用纯黑，取墨色（与背景同色相、更暗）——这里用 --color-ink 的 color-mix；
-  3. 抬得越高，影子越大、越虚、越往下偏、越淡：环境影单独放在 ::after 上，浮起时一边下移、放大一边淡入，模拟“离开桌面”；
-  4. 上缘一道亮线（光从上方照来）+ 薄片比面板更白，拉开明度；
-  5. 浮起时轻微放大（visionOS 的 lift 悬停效果就是放大 + 加影）。
-  只动画 transform 与 opacity，不逐帧改分层阴影（多层阴影做动画开销大）。曲线与时长是样板自定，不是 Motion Token。
-*/
-/*
-  第三版（所有者 2026-11-14：第二版又偏大；希望介于第一、二版之间，并把 A 里所有“浮起”规范成档位）。
-  A 浮起档位（草案）——同一个物理模型：离开下面的平面越高，接触影越淡、环境影越大越往下越虚，位移越大：
-    A0 嵌入：凹进平面（分段轨道、输入底），只有内阴影；
-    A1 静置：贴在平面上（普通卡片、分组、摘要小卡），细边 + 近影 + 很小的环境影，不位移；
-    A2 浮起：从原位抬起（选中项、条件标签、小工具），上缘亮线 + 接触影 + 中等环境影，上移 2px、放大 2%；
-    A3 悬浮：浮在页面之上（关键卡、金额框、加号、提示条），更大更虚的环境影；
-    A4 覆盖：盖在页面之上的整层（弹出面板、对话框），宽而深的影。
-  选中用 A2：表面层（::before）放亮线与接触影，环境影（::after）单独一层，浮起时下移、放大、淡入。
-  第一版、第二版保留为对照（?alift=1 / ?alift=2 或页面上的切换）。
-*/
-.sl-lab {
-  --sl-a-ink: var(--color-ink);
-  --sl-a-hl: inset 0 1px 0 color-mix(in srgb, white 90%, transparent);
-  --sl-a-e0: inset 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 7%, transparent), inset 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 5%, transparent);
-  --sl-a-e1: 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 5%, transparent), 0 6px 14px -8px color-mix(in srgb, var(--sl-a-ink) 20%, transparent);
-  --sl-a-e2-surface: var(--sl-a-hl), 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent), 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent), 0 3px 8px -3px color-mix(in srgb, var(--sl-a-ink) 10%, transparent);
-  --sl-a-e2-ambient: 0 8px 16px -7px color-mix(in srgb, var(--sl-a-ink) 16%, transparent), 0 14px 26px -14px color-mix(in srgb, var(--sl-a-ink) 11%, transparent);
-  --sl-a-e3: var(--sl-a-hl), 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 2px 4px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 14px 28px -10px color-mix(in srgb, var(--sl-a-ink) 22%, transparent), 0 28px 52px -24px color-mix(in srgb, var(--sl-a-ink) 24%, transparent);
-  --sl-a-e4: 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 6%, transparent), 0 24px 48px -20px color-mix(in srgb, var(--sl-a-ink) 36%, transparent);
-  /* 选中浮起使用的参数（默认 = 第三版 = A2 档） */
-  --sl-a-y: -2px; --sl-a-s: 1.015; --sl-a-cell-s: 1.02;
-  --sl-a-surface-bg: white; --sl-a-surface-sh: var(--sl-a-e2-surface); --sl-a-ambient-sh: var(--sl-a-e2-ambient);
-  --sl-a-rise-ms: 300ms; --sl-a-rise-ease: cubic-bezier(.3, 1.25, .5, 1);
-}
-/* 第一版：A 卡片令牌 + 品牌色浅投影，上移 1.5px、放大 1.5%（对照用） */
-.sl-lab[data-a-lift="1"] {
-  --sl-a-y: -1.5px; --sl-a-s: 1.015; --sl-a-cell-s: 1.015;
-  --sl-a-surface-bg: var(--s19-card-bg, white);
-  --sl-a-surface-sh: var(--s19-card-sh), 0 10px 18px -12px color-mix(in srgb, var(--color-brand) 32%, transparent);
-  --sl-a-ambient-sh: none; --sl-a-rise-ms: 260ms; --sl-a-rise-ease: cubic-bezier(.3, 1.6, .5, 1);
-}
-/* 第二版：上移 3px、放大 3%，环境影更大（对照用） */
-.sl-lab[data-a-lift="2"] {
-  --sl-a-y: -3px; --sl-a-s: 1.03; --sl-a-cell-s: 1.04;
-  --sl-a-surface-sh: var(--sl-a-hl), 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 7%, transparent), 0 1px 2px color-mix(in srgb, var(--sl-a-ink) 8%, transparent), 0 4px 10px -3px color-mix(in srgb, var(--sl-a-ink) 11%, transparent);
-  --sl-a-ambient-sh: 0 14px 26px -6px color-mix(in srgb, var(--sl-a-ink) 24%, transparent), 0 26px 44px -18px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
-  --sl-a-rise-ms: 340ms; --sl-a-rise-ease: cubic-bezier(.3, 1.35, .5, 1);
-}
-html[data-visual-style="a"] .sl-opt {
-  /* 落回：干净地落下，不回弹 */
-  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(200ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
-}
-html[data-visual-style="a"] .sl-opt::before {
-  background: var(--sl-a-surface-bg); box-shadow: var(--sl-a-surface-sh);
-  transition: opacity calc(180ms * var(--sl-slow)) ease-out;
-}
-html[data-visual-style="a"] .sl-opt::after {
-  content: ""; position: absolute; inset: 18% 10% 0; z-index: -2; border-radius: inherit; pointer-events: none;
-  box-shadow: var(--sl-a-ambient-sh);
-  opacity: 0; transform: translateY(-4px) scale(.92);
-  transition: opacity calc(180ms * var(--sl-slow)) ease-out, transform calc(200ms * var(--sl-slow)) cubic-bezier(.4, 0, .6, 1);
-}
-/* 浮起：轻微越过再落定 */
-html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"]) {
-  transform: translateY(var(--sl-a-y)) scale(var(--sl-a-s));
-  transition: color calc(var(--lv-select-ms, 200ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out), transform calc(var(--sl-a-rise-ms) * var(--sl-slow)) var(--sl-a-rise-ease);
-}
-html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"])::before { opacity: 1; }
-html[data-visual-style="a"] :is(.sl-opt[aria-selected="true"], .sl-opt[aria-pressed="true"])::after {
-  opacity: 1; transform: none;
-  transition: opacity calc(240ms * var(--sl-slow)) ease-out, transform calc(var(--sl-a-rise-ms) * var(--sl-slow)) var(--sl-a-rise-ease);
-}
-/* 月份格面积大一点，放大比例单独给 */
-html[data-visual-style="a"] .sl-cell[aria-pressed="true"] { transform: translateY(var(--sl-a-y)) scale(var(--sl-a-cell-s)); }
-html[data-visual-style="a"] .sl-cell[data-half] { transform: translateY(calc(var(--sl-a-y) / 2)); }
-html[data-visual-style="a"] .sl-cell[data-half]::before, html[data-visual-style="a"] .sl-cell[data-half]::after { opacity: .5; transform: none; }
-
-/* ---------- A 浮起档位一览（草案；在 ?s19=a 下看，其他风格下令牌会退回默认值） ---------- */
+/* ---------- A 浮起档位一览（在 ?s19=a 下看；其他风格下这些令牌没有定义） ---------- */
 .sl-elev-wrap { display: grid; gap: 14px; }
 .sl-elev-stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 24px 16px; padding: 22px 18px 30px; border-radius: var(--radius-card); }
 .sl-elev-stage[data-on="canvas"] { background: var(--s19-canvas, var(--color-canvas)); }
-.sl-elev-stage[data-on="sheet"] { background: var(--s19-sheet-bg, var(--color-surface)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--sl-a-ink) 8%, transparent); }
-.sl-elev-tile { min-height: 84px; padding: 10px 12px; border-radius: var(--s19-r-mini, 16px); background: white; display: grid; gap: 4px; align-content: start; font-size: var(--text-micro); line-height: 1.5; color: var(--color-muted); }
+.sl-elev-stage[data-on="sheet"] { background: var(--s19-sheet-bg, var(--color-surface)); box-shadow: var(--s19-a-elev-1-tight, none); }
+.sl-elev-tile { min-height: 84px; padding: 10px 12px; border-radius: var(--s19-r-mini, 16px); background: var(--s19-select-lift-bg, var(--color-surface)); display: grid; gap: 4px; align-content: start; font-size: var(--text-micro); line-height: 1.5; color: var(--color-muted); }
 .sl-elev-tile b { color: var(--color-ink); font-weight: 500; font-size: var(--text-helper); }
-.sl-elev-tile[data-level="0"] { background: var(--s19-track-bg, var(--color-line)); box-shadow: var(--sl-a-e0); }
-.sl-elev-tile[data-level="1"] { background: var(--s19-card-bg, white); box-shadow: var(--sl-a-e1); }
-.sl-elev-tile[data-level="2"] { box-shadow: var(--sl-a-e2-surface), var(--sl-a-e2-ambient); transform: translateY(-2px); }
-.sl-elev-tile[data-level="3"] { box-shadow: var(--sl-a-e3); transform: translateY(-3px); }
-.sl-elev-tile[data-level="4"] { box-shadow: var(--sl-a-e4); }
+.sl-elev-tile[data-level="0"] { background: var(--s19-track-bg, var(--color-line)); box-shadow: var(--s19-a-elev-0); }
+.sl-elev-tile[data-level="1"] { background: var(--s19-card-bg, var(--color-surface)); box-shadow: var(--s19-a-elev-1); }
+.sl-elev-tile[data-level="2"] { box-shadow: var(--s19-a-elev-2); transform: translateY(var(--s19-a-lift-y, -2px)); }
+.sl-elev-tile[data-level="3"] { box-shadow: var(--s19-a-elev-3); transform: translateY(-3px); }
+.sl-elev-tile[data-level="4"] { box-shadow: var(--s19-a-elev-4); }
 
-/* ---------- 已选条件标签 ---------- */
-.sl-tag { display: inline-flex; align-items: center; gap: 6px; max-width: 240px; padding: 5px 6px 5px 12px; border-radius: 999px; font-size: var(--text-helper); line-height: 1.4;
-  color: var(--color-brand-dark); background: var(--color-brand-soft); }
-.sl-tag-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sl-tag-x { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
-.sl-tag-x:hover { background: color-mix(in srgb, var(--color-brand) 14%, transparent); }
-.sl-lab { --sl-tag-from: .94; }
-html[data-visual-style="a"] .sl-lab { --sl-tag-from: .92; }
-html[data-visual-style="c"] .sl-lab { --sl-tag-from: .97; }
-@keyframes sl-tag-in { from { opacity: 0; transform: scale(var(--sl-tag-from)); } to { opacity: 1; transform: none; } }
-@keyframes sl-tag-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(var(--sl-tag-from)); } }
-.sl-tag[data-state="in"] { animation: sl-tag-in calc(var(--lv-reveal-ms, 160ms) * var(--sl-slow)) var(--lv-motion-ease, ease-out) both; }
-.sl-tag[data-state="out"] { animation: sl-tag-out calc(var(--lv-dismiss-ms, 140ms) * var(--sl-slow)) ease-in both; pointer-events: none; }
-.sl-tag[data-freeze][data-state="in"] { animation-play-state: paused; animation-delay: calc(var(--lv-reveal-ms, 160ms) * var(--sl-slow) * -.45); }
-.sl-tag[data-freeze][data-state="out"] { animation-play-state: paused; animation-delay: calc(var(--lv-dismiss-ms, 140ms) * var(--sl-slow) * -.45); }
-
-/* B1 与 B2“瓷片”：带淡绿的瓷片（B1 satin 卡片配方：s19-lab-tokens.css L82–L83——由上到下略深的奶白渐变 + 上缘亮线 + 细外线 + 柔影；这里用白与品牌色 color-mix 近似，因 B2 里 --s19-card-bg 是玻璃，不能直接引用） */
-html[data-visual-style="b1"] .sl-tag,
-html[data-visual-style="b2"] .sl-tag[data-material="porcelain"] {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 6%, white) 0%, color-mix(in srgb, var(--color-brand) 10%, white) 60%, color-mix(in srgb, var(--color-brand) 15%, white) 100%);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 95%, transparent), 0 0 0 .5px color-mix(in srgb, var(--color-brand) 26%, transparent), 0 1px 2px color-mix(in srgb, var(--color-ink) 6%, transparent), 0 6px 12px -8px color-mix(in srgb, var(--color-ink) 32%, transparent);
-}
-/* B2 磨砂：模拟磨砂（不做真实模糊）——更不透明的乳白 + 约 11% 品牌绿，边缘光学层次直接引用 B2 工具玻璃阴影 --s19-tool-sh（index.css L653） */
-html[data-visual-style="b2"] .sl-tag[data-material="frosted"] {
-  background: color-mix(in srgb, var(--color-brand) 11%, color-mix(in srgb, white 80%, transparent)); box-shadow: var(--s19-tool-sh);
-}
-/* A：带淡绿、轻轻浮起的柔和薄片——A2 浮起档（标签不放大，只上移 1.5px） */
-html[data-visual-style="a"] .sl-tag {
-  background: color-mix(in srgb, var(--color-brand) 9%, white); translate: 0 -1.5px;
-  box-shadow: var(--sl-a-e2-surface), 0 8px 16px -8px color-mix(in srgb, var(--sl-a-ink) 18%, transparent);
-}
-/* C：纸面 + 细线 + 绿色文字 */
-html[data-visual-style="c"] .sl-tag { background: var(--s19-card-bg, var(--color-surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 38%, transparent); }
-
-/* ---------- 减少动态效果：全部直接切换（JS 动画另行判断 matchMedia） ---------- */
-@media (prefers-reduced-motion: reduce) {
-  .sl-lab *, .sl-lab *::before, .sl-lab *::after { transition: none !important; animation: none !important; }
-}
 @media (max-width: 760px) { .sl-body { grid-template-columns: 96px minmax(0, 1fr); } }
