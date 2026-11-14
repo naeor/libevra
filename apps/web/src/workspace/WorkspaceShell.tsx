@@ -64,6 +64,7 @@ import { entryFromPath, entryPath, PaneHistory, type SerializedPaneHistory } fro
 import { PaneRouter } from "./PaneRouter.js";
 import { START_PATH } from "./paneTitle.js";
 import { createSlotFor, Divider, DropPreview, ModeCapsule, RestoreTab, ShellToast, SplitHint, type ResizeController } from "./ShellControls.js";
+import { ToastViewport } from "../components/toast/ToastViewport.js";
 import { SecondaryFab } from "./SecondaryNav.js";
 import { XIcon } from "./icons.js";
 import { usePaneIdentity } from "./paneTitle.js";
@@ -989,6 +990,8 @@ export function WorkspaceShell({
       </div>
 
       {chrome ? <ShellToast toast={toast} /> : null}
+      {/* 1.19.66 统一提示条的宿主：在 .lv-shell 里面（S19 材质规则才能命中）；手机按障碍物测量位置，Pad 宽屏固定在外壳底部居中。 */}
+      <ToastViewport kind={chrome ? "wide" : "phone"} />
       {chrome && dragKey !== "idle" ? (
         <div ref={cancelRef} className="lv-drop-cancel" data-over={dragKey === "cancel" ? "true" : undefined} aria-hidden="true">
           <XIcon className="size-5" />

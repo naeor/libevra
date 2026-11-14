@@ -49,7 +49,7 @@ export function PersistentBookCapsule({ menuOpen }: { readonly menuOpen: boolean
 
   if (shown === null) return null;
   const caption = t("ledger.caption.currentBook", { name: shown });
-  return <div ref={host} key={mount} className="lv-book-capsule-host" data-menu-open={menuOpen ? "true" : undefined} inert={menuOpen || name === null} title={caption}>
+  return <div ref={host} key={mount} className="lv-book-capsule-host" data-toast-avoid="" data-menu-open={menuOpen ? "true" : undefined} inert={menuOpen || name === null} title={caption}>
     {guest ? <span className="lv-book-capsule"><BookCapsuleContents name={shown} disclosure={false} /></span> : <CurrentBookPicker caption={caption} name={shown} />}
   </div>;
 }

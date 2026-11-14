@@ -79,6 +79,15 @@ const common: Messages<typeof zh> = {
     back: "Back",
     more: "More actions",
   },
+  toast: {
+    region: "Notifications",
+    close: "Dismiss notification",
+    warningPrefix: "Warning: ",
+    errorPrefix: "Error: ",
+    actionHint: "{{action}} available",
+    undoFailed: "Undo didn't finish",
+    undoFailedDetail: "{{reason}} You can restore the entry later from the edit history.",
+  },
 };
 
 export default common;

@@ -1,0 +1,116 @@
+/*
+  统一提示条 · 基础外观与位置（1.19.66，components/toast/）。
+
+  基础外观 = Original，以及所有回落（深色、Pad 宽屏、电脑版）：浅色实心面 --color-surface ＋ 1px --color-line
+  ＋ shadow-lg（与中央对话框基础外观同一组，组件上用 Tailwind 类 `shadow-lg`），圆角 --radius-field。
+  不再是原来的墨色反色条（所有者决定第 21 条）。深色模式同一组语义令牌自动变深。
+  S19 浅色四风格的语义材质在 s19/toast.css（Original / C 实心纸面、A 的 A3 悬浮档、B1 瓷片、B2 磨砂玻璃）。
+
+  层级 85：高于页面吸底栏（30 / 40）、对象展开舞台（45）、A / B1 / C 转场舞台（80）——删除后返回列表的转场期间撤销提示
+  不被盖住；低于账本空间海浪（90）。弹层（50）与门禁（80）打开时提示让开（ToastViewport），不存在叠放冲突。
+
+  动效只用 transform 与 opacity，时长与曲线读组件动效令牌（components/ui/component-motion.css 的 --lv-reveal-ms、
+  --lv-dismiss-ms、--lv-reveal-y、--lv-motion-ease）；Original 没有这些变量，回落到原 Pad 外壳提示的 220ms / 8px 上浮。
+*/
+
+/* ---------------------------------------------------------------- 宿主与位置 */
+
+/* 量底部安全区用；必须在宿主外面（宿主有 transform，fixed 子元素会以它为参照）。 */
+.lv-toast-probe {
+  position: fixed; left: 0; bottom: env(safe-area-inset-bottom, 0px);
+  width: 0; height: 0; visibility: hidden; pointer-events: none;
+}
+
+.lv-toast-host {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 85;
+  display: flex; justify-content: center; pointer-events: none;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  /* 偏移由宿主按障碍物量出（--lv-toast-offset）；量出之前按安全区之上 16px。障碍物变化时平移跟随。 */
+  transform: translateY(calc(-1 * var(--lv-toast-offset, calc(16px + env(safe-area-inset-bottom, 0px)))));
+  transition: transform var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+/* 分析工作台编辑态：放在编辑条下方（页面声明 data-toast-anchor="top"）。 */
+.lv-toast-host[data-placement="top"] {
+  top: 0; bottom: auto;
+  transform: translateY(var(--lv-toast-offset, calc(16px + env(safe-area-inset-top, 0px))));
+}
+/* Pad 宽屏（这一阶段）：外壳底部居中，与原 Pad 外壳提示同一位置（所有者决定第 18 条）；按工作区定位留到 Pad 阶段。 */
+.lv-toast-host[data-toast-host="wide"] {
+  position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  transform: none; transition: none;
+}
+
+.lv-toast-region {
+  display: grid; width: min(100%, 28rem); pointer-events: none;
+}
+.lv-toast-host[data-toast-host="wide"] .lv-toast-region { width: min(100%, 35rem); }
+
+/* ---------------------------------------------------------------- 提示条本体 */
+
+.lv-toast {
+  /* 退场中的一条与新的一条叠在同一个格子里交叉，不改变布局。 */
+  grid-area: 1 / 1; align-self: end;
+  position: relative; z-index: 0;
+  display: flex; align-items: center; gap: 10px;
+  min-height: 52px; padding: 7px 14px;
+  border: 1px solid var(--color-line); border-radius: var(--radius-field);
+  background-color: var(--color-surface); color: var(--color-ink);
+  pointer-events: auto;
+  --lv-toast-rise: var(--lv-reveal-y, 8px);
+}
+.lv-toast[data-controls] { padding-right: 6px; }
+.lv-toast-host[data-placement="top"] .lv-toast { align-self: start; --lv-toast-rise: calc(-1 * var(--lv-reveal-y, 8px)); }
+/* 错误：一圈危险色细描边，与次要危险操作同一配方（颜色不是唯一线索：还有 × 字形与读屏前缀）。 */
+.lv-toast[data-tone="error"] { border-color: color-mix(in oklab, var(--color-danger) 40%, transparent); }
+
+.lv-toast-mark { display: flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; }
+.lv-toast-mark[data-leading] { width: 36px; height: 36px; }
+.lv-toast-mark[data-leading] > * { width: 100%; height: 100%; }
+
+.lv-toast-glyph-disc { fill: var(--color-muted); }
+.lv-toast-glyph-mark { stroke: var(--color-surface); }
+.lv-toast-glyph[data-tone="success"] .lv-toast-glyph-disc { fill: var(--color-brand); }
+.lv-toast-glyph[data-tone="success"] .lv-toast-glyph-mark { stroke: var(--color-on-brand); }
+.lv-toast-glyph[data-tone="warning"] .lv-toast-glyph-disc { fill: var(--color-warn); }
+.lv-toast-glyph[data-tone="warning"] .lv-toast-glyph-mark { stroke: var(--color-on-warn); }
+.lv-toast-glyph[data-tone="error"] .lv-toast-glyph-disc { fill: var(--color-danger); }
+.lv-toast-glyph[data-tone="error"] .lv-toast-glyph-mark { stroke: var(--color-on-danger); }
+
+.lv-toast-body { flex: 1; min-width: 0; padding-block: 6px; }
+/* 正文 + 第二行最多三行；更长的文字不该出现在提示条里。 */
+.lv-toast-text {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  font-size: var(--text-body); line-height: var(--text-body--line-height); font-weight: 500; overflow-wrap: anywhere;
+}
+.lv-toast-detail {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  margin-top: 2px; color: var(--color-muted);
+  font-size: var(--text-helper-relaxed); line-height: var(--text-helper-relaxed--line-height); overflow-wrap: anywhere;
+}
+
+/* 操作 = 胶囊用途（CapsuleButton，44px），文字一律墨色；关闭 = 工具用途（IconButton，44px），安静的 ×。 */
+.lv-toast .lv-toast-action { flex: none; padding-inline: 14px; color: var(--color-ink); font-size: var(--text-body); line-height: var(--text-body--line-height); }
+.lv-toast .lv-toast-close { flex: none; background-color: transparent; box-shadow: none; color: var(--color-muted); }
+.lv-toast .lv-toast-close:hover { color: var(--color-ink); }
+
+/* ---------------------------------------------------------------- 出现 / 消失 */
+
+@keyframes lv-toast-in { from { opacity: 0; transform: translateY(var(--lv-toast-rise)); } }
+@keyframes lv-toast-out { to { opacity: 0; transform: translateY(var(--lv-toast-rise)); } }
+@keyframes lv-toast-fade-in { from { opacity: 0; } }
+@keyframes lv-toast-fade-out { to { opacity: 0; } }
+
+.lv-toast[data-phase="enter"] {
+  animation: lv-toast-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
+}
+.lv-toast[data-phase="exit"] {
+  pointer-events: none;
+  animation: lv-toast-out var(--lv-dismiss-ms, 180ms) var(--lv-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
+}
+
+/* 减少动态效果：不位移，只做不超过“消失”时长的淡入淡出；停留时长不变。 */
+@media (prefers-reduced-motion: reduce) {
+  .lv-toast-host { transition: none; }
+  .lv-toast[data-phase="enter"] { animation: lv-toast-fade-in var(--lv-dismiss-ms, 180ms) linear both; }
+  .lv-toast[data-phase="exit"] { animation: lv-toast-fade-out var(--lv-dismiss-ms, 180ms) linear both; }
+}

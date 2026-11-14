@@ -350,6 +350,8 @@ export function BottomNavView({
     <nav
       ref={navRef}
       aria-label={t("nav.mainNav")}
+      // 1.19.66：提示条放在底栏之上（components/toast/ToastViewport 量障碍物）。
+      data-toast-avoid=""
       className="relative z-10 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
     >
       {/*
@@ -394,6 +396,8 @@ export function BottomNavView({
       */}
       <div
         aria-hidden={!open}
+        // 1.19.66：记一笔菜单展开时提示条让开并暂停（与原头像横幅相同），收起后再出现。
+        data-toast-yield={open ? "" : undefined}
         className={`lv-entry-menu absolute inset-x-0 bottom-full transition-all duration-200 ease-out ${
           open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
@@ -582,6 +586,8 @@ export function BottomNavView({
                 <button
                   type="button"
                   onClick={cards.onToggle}
+                  // 抬高 32px，超出底栏矩形：提示条也要避开它。
+                  data-toast-avoid=""
                   aria-expanded={open}
                   aria-label={open ? t("nav.entry.collapse") : t("nav.entry.expand")}
                   className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"

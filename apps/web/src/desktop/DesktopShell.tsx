@@ -3,13 +3,14 @@
  *
  * 与平板的多工作区外壳（`WorkspaceShell`）并列、互不依赖：一个浏览器路由（地址栏、后退前进与刷新照常），
  * 左侧固定窄导航，右侧是主展示区；页面需要时再在主展示区右边打开情境辅助栏（`DesktopSplit`）。
- * 共用同一份查询缓存、登录状态、离线队列与撤销条——这些都挂在外壳之外。
+ * 共用同一份查询缓存、登录状态、离线队列与提示条队列——这些都挂在外壳之外（提示条的显示宿主在外壳里）。
  */
 import { useEffect, useMemo, useRef } from "react";
 import { BrowserRouter, useLocation } from "react-router";
 
 import { useAuth } from "../auth/AuthProvider.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
+import { ToastViewport } from "../components/toast/ToastViewport.js";
 import { PaneContext, PaneSizeContext, PaneSizeStore, type PaneInfo } from "../workspace/context.js";
 import { isStandalonePath } from "../workspace/follow.js";
 import "../workspace/workspace.css";
@@ -65,7 +66,8 @@ function DesktopFrame({ children }: { readonly children: React.ReactNode }): Rea
     };
   }, [chrome, size]);
 
-  if (!chrome) return <>{children}</>;
+  // 1.19.66 统一提示条的宿主：有导航时在 .lv-desktop 里，登录页等独立页面放在页面之后。
+  if (!chrome) return <>{children}<ToastViewport kind="desktop" /></>;
 
   return (
     <div className="lv-desktop">
@@ -75,6 +77,7 @@ function DesktopFrame({ children }: { readonly children: React.ReactNode }): Rea
           <DesktopSurfaceProvider surface="main">{children}</DesktopSurfaceProvider>
         </PaneSizeContext.Provider>
       </div>
+      <ToastViewport kind="desktop" />
     </div>
   );
 }

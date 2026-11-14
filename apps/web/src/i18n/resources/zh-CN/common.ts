@@ -81,6 +81,16 @@ const common = {
     back: "返回",
     more: "更多操作",
   },
+  /** 统一提示条（1.19.66，`components/toast/`）：读屏前缀、区域名与撤销失败。 */
+  toast: {
+    region: "通知",
+    close: "关闭提示",
+    warningPrefix: "警告：",
+    errorPrefix: "错误：",
+    actionHint: "可{{action}}",
+    undoFailed: "撤销没有完成",
+    undoFailedDetail: "{{reason}}可稍后从编辑历史打开这笔账目并恢复。",
+  },
 };
 
 export default common;

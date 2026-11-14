@@ -13,6 +13,7 @@ import { AppShell, PaneShell } from "./components/Layouts.js";
 import { ConsentGate } from "./components/ConsentGate.js";
 import { OfflineFillProvider } from "./components/OfflineFillProvider.js";
 import { UndoProvider } from "./components/UndoProvider.js";
+import { ToastProvider } from "./components/toast/ToastProvider.js";
 import { readGuestIdentity } from "./lib/guest/identity.js";
 import { DataModeSync } from "./lib/guest/session.js";
 import { CACHE_MAX_AGE_MS, cachePersister, shouldPersistQuery } from "./lib/offline/cache.js";
@@ -614,6 +615,11 @@ export default function App(): React.JSX.Element {
             when the reader changes screen.
           */}
           <OfflineFillProvider>
+            {/*
+              1.19.66：统一提示条的应用级队列。挂在路由与外壳之外（原 UndoProvider 的位置），删除后返回列表时撤销仍在；
+              显示宿主在每个外壳里（WorkspaceShell / DesktopShell 的 ToastViewport）。
+            */}
+            <ToastProvider>
             <UndoProvider>
               <AppRuntime /><AttachmentTransfers />
               {/*
@@ -649,6 +655,7 @@ export default function App(): React.JSX.Element {
                 )}
               </AppShell>
             </UndoProvider>
+            </ToastProvider>
           </OfflineFillProvider>
         </AuthProvider>
       </PersistQueryClientProvider>
