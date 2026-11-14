@@ -1,0 +1,36 @@
+/*
+  保存成功屏的对勾标记与“到场”状态（1.19.77，components/EntrySaved.tsx 与 components/entry/SaveStage.tsx）。
+
+  基础外观：原来的浅绿圆底 + 品牌绿对勾，不变。S19 浅色外壳（通用层，将来 Pad 自动继承）：标记是主按钮同一材质的圆形（--s19-accent-bg / --s19-accent-sh）
+  + 白色对勾——保存转场里保存按钮正是变成了这个圆形，落地后由成功屏接手，所以两边必须同一个样子。
+
+  到场状态（data-saved-intro）：
+  - pending：只露出“保存中…”（稍后淡入）；标记位不可见（圆形由转场层画，这里只用来测量落点），其余内容占位但不可见、不可点；
+  - success：其余内容错开淡入（金额、分类、操作），立即可点；
+  - done：对勾画完，标记位显示这一屏自己的对勾（与转场层同一位置），转场层同时撤掉。
+  动画只用 opacity / transform，时长读组件动效令牌；减少动态效果时直接出现。
+*/
+.lv-saved-mark { display: inline-flex; width: 84px; height: 84px; flex: none; border-radius: 50%; }
+.lv-saved-mark > svg { width: 100%; height: 100%; }
+
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-saved-mark {
+  background: var(--s19-accent-bg); box-shadow: var(--s19-accent-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-saved-mark .lv-saved-disc { fill: transparent; }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-saved-mark .lv-saved-tick { stroke: var(--color-on-brand); }
+
+[data-saved-intro="pending"] .lv-saved-mark,
+[data-saved-intro="success"] .lv-saved-mark { visibility: hidden; }
+[data-saved-intro="pending"] > :not(.lv-saved-mark, h1) { visibility: hidden; }
+[data-saved-intro="pending"] > h1 { animation: lv-saved-caption-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) 120ms both; }
+:is([data-saved-intro="success"], [data-saved-intro="done"]) > :not(.lv-saved-mark, h1) {
+  animation: lv-saved-rest-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) both;
+}
+:is([data-saved-intro="success"], [data-saved-intro="done"]) > :nth-child(4) { animation-delay: 30ms; }
+:is([data-saved-intro="success"], [data-saved-intro="done"]) > :nth-child(n + 5) { animation-delay: 60ms; }
+:is([data-saved-intro="success"], [data-saved-intro="done"]) > :nth-child(n + 6) { animation-delay: 90ms; }
+@keyframes lv-saved-caption-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes lv-saved-rest-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  [data-saved-intro] > * { animation: none !important; }
+}

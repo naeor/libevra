@@ -1,6 +1,6 @@
 import { AttachmentPanel } from "./Attachments.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import type { Transaction } from "@libellum/shared";
 
 import { Button } from "./Button.js";
@@ -8,6 +8,7 @@ import { SendIcon } from "./Icons.js";
 import { useI18n } from "../i18n/index.js";
 import { formatMoney } from "../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
+import "./entry-saved.css";
 
 /**
  * What the screen says after an entry is saved.
@@ -54,6 +55,8 @@ export function EntrySaved({
   onUndo,
   onQuote,
   quoteSent,
+  intro,
+  markRef,
 }: {
   readonly entry: Transaction;
   readonly categoryName: string;
@@ -97,6 +100,15 @@ export function EntrySaved({
    * 但同一笔账不允许被重复「再留言」，所以入口消失、留一句安静的确认。
    */
   readonly quoteSent?: boolean;
+  /**
+   * 1.19.77 保存成功转场（`components/entry/SaveStage.tsx`）：保存按钮飞到中央变成圆形时，这一屏先以“到场”状态挂在上面——
+   * `pending` 只露出“保存中…”与圆形的位置（圆形本身由转场层画，这里的标记位不可见、只用来测量落点）；
+   * `success` 其余内容（金额、分类、操作）错开淡入，立即可点；`done` 对勾画完，标记位换成这一屏自己的对勾（与转场层的圆形同一位置、同一材质）。
+   * 不传时就是原来的成功屏。
+   */
+  readonly intro?: "pending" | "success" | "done" | undefined;
+  /** 标记位，转场层测量落点用。 */
+  readonly markRef?: Ref<HTMLSpanElement> | undefined;
 }): React.JSX.Element {
   const { t } = useI18n();
   const bookId = useViewBookId();
@@ -119,9 +131,10 @@ export function EntrySaved({
       aria-live="polite"
       // 「再记一笔」轻切换的锚点（lib/entryFlow.ts）：从这里找到被换下的那一屏。
       data-entry-saved=""
+      data-saved-intro={intro}
       className="flex h-dvh flex-col items-center justify-center gap-1 bg-surface px-8"
     >
-      <CheckMark />
+      <CheckMark markRef={markRef} />
 
       {/*
         `mt-2`, down from `mt-5`. The owner's note was precise about where the
@@ -129,7 +142,7 @@ export function EntrySaved({
         pixels instead of twenty-eight is the difference between reaching the
         button and scrolling to it on a phone.
       */}
-      <h1 className="mt-2 text-lg font-semibold text-ink">{t("entry.saved.title")}</h1>
+      <h1 className="mt-2 text-lg font-semibold text-ink">{intro === "pending" ? t("common.action.saving") : t("entry.saved.title")}</h1>
 
       <p className="text-3xl font-medium tabular-nums text-ink">
         {formatMoney(entry.amountCents, entry.currency)}
@@ -208,18 +221,24 @@ export function EntrySaved({
   );
 }
 
-function CheckMark(): React.JSX.Element {
+/**
+ * 对勾标记。基础外观（Original、深色、Pad、电脑版）是原来的浅绿圆底 + 品牌绿对勾；S19 浅色手机外壳里是主按钮同一材质的圆形 +
+ * 白色对勾（`entry-saved.css`）——保存成功转场里，保存按钮正是变成了这个圆形，落地后由这里接手，前后是同一个元素的样子。
+ */
+function CheckMark({ markRef }: { readonly markRef?: Ref<HTMLSpanElement> | undefined }): React.JSX.Element {
   return (
-    <svg width="84" height="84" viewBox="0 0 104 104" aria-hidden="true">
-      <circle cx="52" cy="52" r="48" className="fill-brand-soft" />
-      <path
-        d="M34 54 L46 66 L70 40"
-        fill="none"
-        strokeWidth={7}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="stroke-brand"
-      />
-    </svg>
+    <span ref={markRef} className="lv-saved-mark" aria-hidden="true">
+      <svg width="84" height="84" viewBox="0 0 104 104">
+        <circle cx="52" cy="52" r="48" className="lv-saved-disc fill-brand-soft" />
+        <path
+          d="M34 54 L46 66 L70 40"
+          fill="none"
+          strokeWidth={7}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="lv-saved-tick stroke-brand"
+        />
+      </svg>
+    </span>
   );
 }

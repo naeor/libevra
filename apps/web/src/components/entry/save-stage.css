@@ -1,0 +1,34 @@
+/*
+  保存成功转场（1.19.77，components/entry/SaveStage.tsx）。只在 S19 浅色手机外壳里使用（页面判断）。
+
+  - 这一层盖在仍然挂载的表单上面（同一个页面宿主里，绝对定位、一屏高），里面是“到场”状态的成功屏；
+  - 飞行的圆形是固定定位的一个元素：起点与保存按钮同位置、同材质（主按钮的 --s19-accent-bg / --s19-accent-sh），
+    终点是成功屏的标记位；转圈复用组件加载指示 .lv-loading（白色）；对勾两段路径（pathLength=1）逐段画出；
+  - 烟花是纯装饰层，pointer-events: none。
+  颜色只引用令牌（lib/colors.test.ts）。
+*/
+.lv-save-stage { position: absolute; inset: 0 0 auto 0; height: 100dvh; z-index: 2; }
+
+.lv-save-morph {
+  position: fixed; z-index: 3; box-sizing: border-box; overflow: hidden; pointer-events: none;
+  display: grid; place-items: center;
+  background: var(--s19-accent-bg, var(--color-brand)); box-shadow: var(--s19-accent-sh, none);
+  color: var(--color-on-brand);
+}
+.lv-save-morph > * { grid-area: 1 / 1; }
+.lv-save-morph-label { white-space: nowrap; font-size: var(--text-button-lg, 1rem); font-weight: 500; }
+.lv-save-morph .lv-save-morph-spin {
+  width: 26px; height: 26px; border-width: 2.5px; color: var(--color-on-brand);
+  opacity: 0; transform: scale(.6); transition: opacity 160ms ease-out, transform 220ms cubic-bezier(.2,.8,.3,1);
+}
+.lv-save-morph[data-phase="wait"] .lv-save-morph-spin { opacity: 1; transform: scale(1); }
+.lv-save-morph-tick { width: 100%; height: 100%; max-width: 84px; max-height: 84px; }
+.lv-save-morph-tick path {
+  fill: none; stroke: var(--color-on-brand); stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+}
+
+.lv-save-sparks { position: fixed; z-index: 3; width: 0; height: 0; pointer-events: none; }
+.lv-save-spark { position: absolute; left: -2px; top: -2px; width: 4px; height: 4px; border-radius: 999px; }
+.lv-save-spark-line { left: -1px; top: -4px; width: 2px; height: 8px; }
+.lv-save-spark-ring { position: absolute; left: 0; top: 0; border-radius: 50%; box-shadow: 0 0 0 2px var(--color-brand); }

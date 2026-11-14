@@ -19,6 +19,8 @@ import { CategoryPicker } from "../components/CategoryPicker.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { EntrySaved } from "../components/EntrySaved.js";
+import { devSaveSimulation } from "../lib/devSaveSimulation.js";
+import { measureOrigin, SaveStage, saveStageEnabled, type SaveOrigin, type SaveStageStatus } from "../components/entry/SaveStage.js";
 import { QuoteMessageSheet } from "../components/MessageQuote.js";
 import { AmountField } from "../components/entry/AmountField.js";
 import { CurrencySheet } from "../components/entry/CurrencySheet.js";
@@ -258,6 +260,25 @@ export function AddEntryPage(): React.JSX.Element {
   const [quoteSent, setQuoteSent] = useState(false);
   /** Set when the next render should put the cursor back in the amount field. */
   const focusAfterReset = useRef(false);
+  /**
+   * 1.19.77 保存成功转场（`components/entry/SaveStage.tsx`）：点下保存、通过校验的那一刻挂上，**与真实请求同时开始**；
+   * 请求的结果只改 `status`（成功 / 需要收回）。`settled`：对勾画完，下面的表单可以卸载了。
+   * 只在 S19 浅色手机外壳、没有减少动态效果时启用；否则保持原来的直接切换（下面 `saved !== null && stage === null` 的分支）。
+   * 表单的状态都在本组件里，表单本身在转场期间仍然挂载（淡出、不可操作），失败或需要确认重复时原样淡回。
+   */
+  const [stage, setStage] = useState<{ readonly origin: SaveOrigin; readonly entry: Transaction; readonly status: SaveStageStatus; readonly settled: boolean } | null>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const formHostRef = useRef<HTMLDivElement>(null);
+  /** 「再记一笔」时换一个新的表单节点（工作区轻切换要找到“新出现的那一屏”）。 */
+  const [generation, setGeneration] = useState(0);
+  const beginStage = (input: CreateTransactionInput): void => {
+    const button = submitRef.current;
+    if (button === null || !saveStageEnabled(button)) return;
+    const origin = measureOrigin(button);
+    const entry = localEntry(input, ledger.data);
+    setStage((current) => current ?? { origin, entry, status: "pending", settled: false });
+  };
+  const revertStage = (): void => { setStage((current) => current === null || current.settled ? current : { ...current, status: "revert" }); };
 
   /**
    * **Whether this ledger has anyone else to talk to.** ⚠️ The shortcut quote only exists in a shared
@@ -470,6 +491,8 @@ export function AddEntryPage(): React.JSX.Element {
       note: note.trim() === "" ? null : note.trim(),
       tagIds,
     } as const;
+    // 1.19.77：通过校验，转场与真实请求同时开始（请求照常往下走，不等动画）。
+    beginStage(input);
 
     /**
      * 手动记账的**轻提醒**（S15-E4）：像不像，一句话问；不像就直接写。
@@ -496,6 +519,8 @@ export function AddEntryPage(): React.JSX.Element {
       });
 
       if (found.history.length > 0) {
+        // 先问是否重复：不是成功，圆形收回按钮、表单淡回，再出询问。
+        revertStage();
         setPendingDuplicate({
           input,
           amountCents,
@@ -522,12 +547,17 @@ export function AddEntryPage(): React.JSX.Element {
     notDuplicateWith: readonly string[] = [],
   ): Promise<void> {
     setWriting(true);
+    // 从“可能重复”的询问里选了保存：转场在这里开始（从保存按钮起飞，按钮此时已收回原位）。
+    beginStage(input);
+    // 开发构建里可以模拟慢保存 / 失败（核对保存转场用；正式构建里是空函数）。
+    try { await devSaveSimulation(); } catch (caught) { revertStage(); setError(errorMessage(caught)); setWriting(false); return; }
     try {
       let entry: Transaction;
       if (writer.foreign !== null) {
         try {
           entry = (await writer.create(input, localEntry(input, ledger.data))).entry;
         } catch (caught) {
+          revertStage();
           setError(errorMessage(caught));
           return;
         }
@@ -548,6 +578,7 @@ export function AddEntryPage(): React.JSX.Element {
           const outcome = await createLocally(input, localEntry(input, ledger.data));
           entry = outcome.entry;
         } catch {
+          revertStage();
           setError(errorMessage(caught));
           return;
         }
@@ -565,6 +596,8 @@ export function AddEntryPage(): React.JSX.Element {
         await attachments.commit({ entry: entry.id });
       } catch (caught) { setError(errorMessage(caught)); }
       setSaved(entry);
+      // 转场在场时只改状态：落地后直接画对勾（还在飞就飞完再画，不出现转圈）。
+      setStage((current) => current === null ? null : { ...current, entry, status: "success" });
       setPendingDuplicate(null);
 
       /**
@@ -596,79 +629,91 @@ export function AddEntryPage(): React.JSX.Element {
     }
   }, [saved]);
 
-  if (saved !== null) {
-    return (
-      <>
-        {error ? <Alert tone="error">{error}</Alert> : null}
-        <EntrySaved
-          entry={saved}
-          categoryName={
-            /** 传存储的原名；`EntrySaved` 负责按当前语言显示预置名。 */
-            categories.find((category) => category.id === saved.categoryId)?.name ?? UNCATEGORISED_NAME
-          }
-          paymentName={
-            paymentMethods.find((method) => method.id === saved.paymentMethodId)?.name ?? null
-          }
-          // The manual form records one entry at a time, so nothing is ever
-          // waiting behind it and both ways onward are offered.
-          remaining={0}
-          onHome={() => {
-            void navigate("/");
-          }}
-          /**
-           * ⚠️ **打开的是就地写留言的面板，不是第二个写入步骤**（m06693）。账目早已保存；面板里的
-           * 引用只是 `{kind:"transaction", id}`，发送时由服务器重新取快照。个人账本传 `undefined`，
-           * 成功屏上连这枚胶囊都不出现。
-           */
-          onQuote={
-            shared
-              ? () => {
-                  setQuoteOpen(true);
-                }
-              : undefined
-          }
-          quoteSent={shared && quoteSent}
-          // 1.19.45：清空交给工作区内的轻切换（上一笔收起、新的一笔升入）；仍在点击里同步提交，焦点照旧交回金额框。
-          onAgain={() => continueEntry(() => {
-            const next = nextEntryFields(new Date());
+  /**
+   * 成功屏（原来的直接切换与 1.19.77 的保存转场共用同一份）。`intro` / `markRef` 只在保存转场里传。
+   */
+  const savedView = (entry: Transaction, intro?: "pending" | "success" | "done", markRef?: React.Ref<HTMLSpanElement>): React.JSX.Element => (
+    <>
+      {error && intro !== "pending" ? <Alert tone="error">{error}</Alert> : null}
+      <EntrySaved
+        entry={entry}
+        intro={intro}
+        markRef={markRef}
+        categoryName={
+          /** 传存储的原名；`EntrySaved` 负责按当前语言显示预置名。 */
+          categories.find((category) => category.id === entry.categoryId)?.name ?? UNCATEGORISED_NAME
+        }
+        paymentName={
+          paymentMethods.find((method) => method.id === entry.paymentMethodId)?.name ?? null
+        }
+        // The manual form records one entry at a time, so nothing is ever
+        // waiting behind it and both ways onward are offered.
+        remaining={0}
+        onHome={() => {
+          void navigate("/");
+        }}
+        /**
+         * ⚠️ **打开的是就地写留言的面板，不是第二个写入步骤**（m06693）。账目早已保存；面板里的
+         * 引用只是 `{kind:"transaction", id}`，发送时由服务器重新取快照。个人账本传 `undefined`，
+         * 成功屏上连这枚胶囊都不出现。
+         */
+        onQuote={
+          shared
+            ? () => {
+                setQuoteOpen(true);
+              }
+            : undefined
+        }
+        quoteSent={shared && quoteSent}
+        // 1.19.45：清空交给工作区内的轻切换（上一笔收起、新的一笔升入）；仍在点击里同步提交，焦点照旧交回金额框。
+        // 1.19.77：保存转场在场时一并撤掉，并换一个新的表单节点（轻切换要找到“新出现的那一屏”）。
+        onAgain={() => continueEntry(() => {
+          const next = nextEntryFields(new Date());
 
-            focusAfterReset.current = true;
-            setAmountText(next.amountText);
-            setNote(next.note);
-            setTagIds([...next.tagIds]);
-            setOccurredAt(next.occurredAt);
-            setOccurredAtTouched(next.occurredAtTouched);
-            setMoreOpen(false);
-            setQuickOpen(false);
-            setInheritNotice(null);
-            setError(null);
+          focusAfterReset.current = true;
+          setAmountText(next.amountText);
+          setNote(next.note);
+          setTagIds([...next.tagIds]);
+          setOccurredAt(next.occurredAt);
+          setOccurredAtTouched(next.occurredAtTouched);
+          setMoreOpen(false);
+          setQuickOpen(false);
+          setInheritNotice(null);
+          setError(null);
+          setQuoteOpen(false);
+          setQuoteSent(false);
+          setSaved(null);
+          setStage(null);
+          setGeneration((value) => value + 1);
+        })}
+      />
+
+      {/**
+       * 只有点了「就这笔留言」才挂载；关闭 / 取消只会把 `quoteOpen` 置回 false，**不动账目**。
+       * 发送成功之后换成「留言已发送」，同一屏不再提供第二次入口。
+       */}
+      {quoteOpen && saved !== null ? (
+        <QuoteMessageSheet
+          transactionId={saved.id}
+          onClose={() => {
             setQuoteOpen(false);
-            setQuoteSent(false);
-            setSaved(null);
-          })}
+          }}
+          onSent={() => {
+            setQuoteOpen(false);
+            setQuoteSent(true);
+          }}
         />
+      ) : null}
+    </>
+  );
 
-        {/**
-         * 只有点了「就这笔留言」才挂载；关闭 / 取消只会把 `quoteOpen` 置回 false，**不动账目**。
-         * 发送成功之后换成「留言已发送」，同一屏不再提供第二次入口。
-         */}
-        {quoteOpen ? (
-          <QuoteMessageSheet
-            transactionId={saved.id}
-            onClose={() => {
-              setQuoteOpen(false);
-            }}
-            onSent={() => {
-              setQuoteOpen(false);
-              setQuoteSent(true);
-            }}
-          />
-        ) : null}
-      </>
-    );
-  }
+  // 原来的直接切换（Original、深色、Pad、电脑版、减少动态效果，或转场没有启用时）。
+  if (saved !== null && stage === null) return savedView(saved);
 
   return (
+    // 1.19.77：表单与保存转场层放在同一个宿主里（宿主始终存在，转场开始时表单不会重新挂载）。
+    <div className="relative" data-save-host="">
+    {stage?.settled ? null : <div key={generation} ref={formHostRef} inert={stage !== null || undefined} aria-hidden={stage !== null || undefined}>
     <CaptureLayout panel={attachments.panel}><TabPage
       active="/add"
       onNavigate={(to) => void navigate(to)}
@@ -999,8 +1044,11 @@ export function AddEntryPage(): React.JSX.Element {
             </div>
           ) : null}
           <button
+            ref={submitRef}
             type="submit"
             disabled={sharedOfflineReadOnly || busy || attachments.working || amountText.trim() === ""}
+            // 1.19.77：保存转场在场时，飞出去的圆形就是这颗按钮，原位的按钮先藏起来（收回走完再出现）。
+            style={stage === null ? undefined : { visibility: "hidden" }}
             className="w-full rounded-field bg-brand py-3.5 text-button-lg font-medium text-on-brand transition hover:bg-brand-dark disabled:opacity-45"
           >
             {busy ? t("common.action.saving") : t("common.action.save")}
@@ -1036,6 +1084,23 @@ export function AddEntryPage(): React.JSX.Element {
         }}
       />
     </TabPage></CaptureLayout>
+    </div>}
+    {stage === null ? null : (
+      <SaveStage
+        origin={stage.origin}
+        status={stage.status}
+        formRef={formHostRef}
+        label={t("common.action.saving")}
+        onReverted={() => {
+          setStage(null);
+          // 键盘用户：焦点回到保存按钮（转场期间表单不可操作，焦点已经离开）。
+          requestAnimationFrame(() => { submitRef.current?.focus({ preventScroll: true }); });
+        }}
+        onSettled={() => { setStage((current) => current === null ? null : { ...current, settled: true }); }}
+        render={(intro, markRef) => savedView(stage.entry, intro, markRef)}
+      />
+    )}
+    </div>
   );
 }
 
