@@ -13,7 +13,8 @@
 |---|---|
 | [ChoiceSheet.test.tsx](ChoiceSheet.test.tsx) | 测试：ChoiceSheet |
 | [ChoiceSheet.tsx](ChoiceSheet.tsx) | 界面模块；入口/导出：ChoiceSheetOption、ChoiceSheet |
-| [ComponentMotion.tsx](ComponentMotion.tsx) | 界面模块；入口/导出：ComponentMotionKind、componentMotion、MotionPresence、useComponentFeedback |
+| [ComponentMotion.test.tsx](ComponentMotion.test.tsx) | 测试：ComponentMotion |
+| [ComponentMotion.tsx](ComponentMotion.tsx) | 界面模块；入口/导出：ComponentMotionKind、componentMotion、MotionPresence、useComponentFeedback、pageTransitionActive |
 | [InlineChoice.test.tsx](InlineChoice.test.tsx) | 测试：InlineChoice |
 | [InlineChoice.tsx](InlineChoice.tsx) | 界面模块；入口/导出：InlineChoiceOption、InlineChoice |
 | [List.test.tsx](List.test.tsx) | 测试：List |
@@ -28,6 +29,7 @@
 | [StatusControls.test.tsx](StatusControls.test.tsx) | 测试：StatusControls |
 | [StatusControls.tsx](StatusControls.tsx) | 界面模块；入口/导出：StatusTone、Badge、FilterChip、StatusMessage |
 | [component-motion.css](component-motion.css) | 样式与变量 |
+| [listSignal.ts](listSignal.ts) | 实现模块；入口/导出：useListSignal、useLastNonEmpty |
 | [material-components.test.tsx](material-components.test.tsx) | 测试：material-components |
 | [purpose-controls.css](purpose-controls.css) | 样式与变量 |
 | [selection-controls.css](selection-controls.css) | 样式与变量 |

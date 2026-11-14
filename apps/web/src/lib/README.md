@@ -55,6 +55,7 @@
 | [detailFilters.test.ts](detailFilters.test.ts) | 测试：detailFilters |
 | [detailFilters.ts](detailFilters.ts) | 实现模块；入口/导出：DetailFilters、FORMER_RECORDERS、FILTER_DIMENSIONS、FilterDimension、emptyDetailFilters |
 | [detailTransition.ts](detailTransition.ts) | 实现模块；入口/导出：readSession、writeSession、useDetailTransition |
+| [devSaveSimulation.ts](devSaveSimulation.ts) | 实现模块；入口/导出：devSaveSimulation |
 | [deviceStorageKeys.test.ts](deviceStorageKeys.test.ts) | 测试：deviceStorageKeys |
 | [deviceStorageKeys.ts](deviceStorageKeys.ts) | 实现模块；入口/导出：LIBELLUM_KEY_PREFIX、LIBEVRA_KEY_PREFIX、CURRENT_BOOK_KEY、fxModeKey、MESSAGES_SEEN_PREFIX |
 | [dialogFocus.ts](dialogFocus.ts) | 实现模块；入口/导出：focusableWithin、DialogLayer、useDialogFocus |
@@ -67,7 +68,7 @@
 | [duplicateSettings.ts](duplicateSettings.ts) | 实现模块；入口/导出：DUPLICATE_SETTINGS_STORAGE_PREFIX、DUPLICATE_SETTINGS_SCHEMA_VERSION、DuplicateSettingsScope、DuplicateSettingsStorage、duplicateSettingsStorage |
 | [entryFlow.ts](entryFlow.ts) | 实现模块；入口/导出：provideEntryAgain、continueEntry |
 | [entryReturn.test.ts](entryReturn.test.ts) | 测试：entryReturn |
-| [entryReturn.ts](entryReturn.ts) | 实现模块；入口/导出：entryReturnState、entryBackTarget、useEntryReturn、useReturnTo、useReturnToPath |
+| [entryReturn.ts](entryReturn.ts) | 实现模块；入口/导出：entryReturnState、entryBackTarget、useEntryReturn、useReturnTo、onPlainClick |
 | [errorCopy.test.ts](errorCopy.test.ts) | 测试：errorCopy |
 | [format.ts](format.ts) | 实现模块；入口/导出：currencySymbol、currencyName、numberSeparators、formatMoney、minorToInput |
 | [frameClock.test.ts](frameClock.test.ts) | 测试：frameClock |
@@ -153,7 +154,7 @@
 | [useCollapsingHeader.ts](useCollapsingHeader.ts) | 实现模块；入口/导出：RESTORE_HEADER_SCROLL、useCollapsingHeader |
 | [useOverlayPresentation.ts](useOverlayPresentation.ts) | 实现模块；入口/导出：useOverlayExit、useOverlayPresence、useOverlayScrollLock |
 | [usePageFilter.ts](usePageFilter.ts) | 实现模块；入口/导出：useFilterOwner、usePageFilter |
-| [useRootVisualStyle.ts](useRootVisualStyle.ts) | 实现模块；入口/导出：useRootVisualStyle |
+| [useRootVisualStyle.ts](useRootVisualStyle.ts) | 实现模块；入口/导出：useRootVisualStyle、useS19Light |
 | [useTimeAnalysis.test.ts](useTimeAnalysis.test.ts) | 测试：useTimeAnalysis |
 | [useTimeAnalysis.ts](useTimeAnalysis.ts) | 实现模块；入口/导出：useTimeAnalysis、useCumulativeAnalysis、useFlowAnalysis、usePeriodComparison、useMultiMonthComparison |
 | [useVoiceRecorder.test.ts](useVoiceRecorder.test.ts) | 测试：useVoiceRecorder |

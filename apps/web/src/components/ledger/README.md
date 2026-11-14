@@ -28,6 +28,7 @@
 | [batchUi.test.tsx](batchUi.test.tsx) | 测试：batchUi |
 | [detail-card-editor.css](detail-card-editor.css) | 样式与变量 |
 | [detail-overview.css](detail-overview.css) | 样式与变量 |
+| [entry-row.css](entry-row.css) | 样式与变量 |
 | [metricSnapshot.test.ts](metricSnapshot.test.ts) | 测试：metricSnapshot |
 | [metricSnapshot.ts](metricSnapshot.ts) | 实现模块；入口/导出：OverviewMetric、MetricSnapshot、MetricContent、keepMetricSnapshot、readMetricSnapshot |
 | [refreshFeedback.test.ts](refreshFeedback.test.ts) | 测试：refreshFeedback |

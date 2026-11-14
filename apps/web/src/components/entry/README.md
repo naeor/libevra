@@ -22,7 +22,11 @@
 | [EntryQuickActions.tsx](EntryQuickActions.tsx) | 界面模块；入口/导出：EntryQuickActions |
 | [EntrySaveBar.tsx](EntrySaveBar.tsx) | 界面模块；入口/导出：EntrySaveBar |
 | [KindToggle.tsx](KindToggle.tsx) | 界面模块；入口/导出：useKindBar、KindToggle |
+| [SaveStage.test.tsx](SaveStage.test.tsx) | 测试：SaveStage |
+| [SaveStage.tsx](SaveStage.tsx) | 界面模块；入口/导出：SaveStageStatus、SaveIntro、SAVE_STAGE_TIMING、saveStageEnabled、SaveOrigin |
+| [WorkspaceTopBar.tsx](WorkspaceTopBar.tsx) | 界面模块；入口/导出：WorkspaceTopBar |
 | [capture.css](capture.css) | 样式与变量 |
 | [inheritLast.ts](inheritLast.ts) | 实现模块；入口/导出：InheritedFields、InheritRefusal、InheritOutcome、inheritFromLastEntry |
 | [keyboardInset.ts](keyboardInset.ts) | 实现模块；入口/导出：KEYBOARD_GAP、keyboardOffset、useKeyboardInset |
+| [save-stage.css](save-stage.css) | 样式与变量 |
 <!-- directory-index:end -->

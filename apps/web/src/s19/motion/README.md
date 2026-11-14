@@ -33,14 +33,18 @@
 | [lab-entry.ts](lab-entry.ts) | 实现模块；按文件名定位 lab-entry.ts |
 | [labAmbient.test.ts](labAmbient.test.ts) | 测试：labAmbient |
 | [motion.css](motion.css) | 样式与变量 |
+| [navMotion.test.ts](navMotion.test.ts) | 测试：navMotion |
+| [navMotion.ts](navMotion.ts) | 实现模块；入口/导出：NavMotionKind、NAV_MOTION_ATTRIBUTE、NavMotion、navMotionEnabled、navCapturedByPageTransition |
 | [navigation.css](navigation.css) | 样式与变量 |
 | [navigation.test.ts](navigation.test.ts) | 测试：navigation |
-| [navigation.ts](navigation.ts) | 实现模块；入口/导出：NavigationLevel、navigationLevel、inEntryWorkspace、focusesOnEntry、isTabSwitch |
+| [navigation.ts](navigation.ts) | 实现模块；入口/导出：NavigationLevel、navigationLevel、navVisibleAt、inEntryWorkspace、focusesOnEntry |
 | [objectExpand.css](objectExpand.css) | 样式与变量 |
 | [objectExpand.test.ts](objectExpand.test.ts) | 测试：objectExpand |
 | [objectExpand.ts](objectExpand.ts) | 实现模块；入口/导出：ObjectSource、objectSource、findObject、setPose、Pose |
 | [pilot.css](pilot.css) | 样式与变量 |
 | [pilot.tsx](pilot.tsx) | 界面模块；入口/导出：PilotAdapter、MotionPilot |
+| [relations.test.ts](relations.test.ts) | 测试：relations |
+| [relations.ts](relations.ts) | 实现模块；入口/导出：ScrollPoint、ObjectEntry、MotionRelations、motionRelations、inheritReplace |
 | [tabExchange.css](tabExchange.css) | 样式与变量 |
 | [tabExchange.test.ts](tabExchange.test.ts) | 测试：tabExchange |
 | [tabExchange.ts](tabExchange.ts) | 实现模块；入口/导出：TAB_ORDER、tabIndex、TabExchangePresentation |

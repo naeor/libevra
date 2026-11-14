@@ -116,6 +116,7 @@
 | [bookCapsule.ts](bookCapsule.ts) | 实现模块；入口/导出：BookCapsuleStore、createBookCapsuleStore、BookCapsuleContext、useRegisterBookCapsule |
 | [current-book-caption.css](current-book-caption.css) | 样式与变量 |
 | [entry-filters.css](entry-filters.css) | 样式与变量 |
+| [entry-saved.css](entry-saved.css) | 样式与变量 |
 | [panel-template.css](panel-template.css) | 样式与变量 |
 | [panelTemplate.test.tsx](panelTemplate.test.tsx) | 测试：panelTemplate |
 | [useBookCapsuleMotion.ts](useBookCapsuleMotion.ts) | 实现模块；入口/导出：useBookCapsuleMotion |
