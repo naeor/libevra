@@ -54,6 +54,7 @@ const moved = (a: SelectionBox, b: SelectionBox): boolean => (Object.keys(a) as 
  * S19 浅色手机外壳里三者一样，按风格画选中块或浮起。
  * 容器本身是一条分段轨道（A0 底槽）时写 `data-select-track=""`（1.19.73）：A 风格下选中项用轨道内 A2，原地不位移；
  * 不写的（竖向导航、没有底槽的分段、平铺 / 胶囊组）保留完整 A2 浮起——旧选中项沉回平面，新选中项浮起。
+ * 这是 A 里唯一的原地表现：网格选中、开关按钮、独立选中项都按完整 A2 浮起（1.19.74）。
  */
 export function MovingSelection({ axis, base = "static", hostRef, children, ...props }: HTMLAttributes<HTMLDivElement> & {
   axis: SelectionAxis;
@@ -130,11 +131,7 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
   </div>;
 }
 
-/**
- * 网格选中（月份格、会折行的互斥小组等）：子元素是调用方自己的 `<button aria-pressed>`；外观与动画全部由 CSS 按风格给出，可以同时选中多格。
- * 1.19.73：A 风格下会折行的互斥小组用轨道内 A2（原地不位移）；日历式的格子（月份格）写 `data-select-cells`、头像写 `data-select-plain`，
- * 仍用完整 A2 浮起（上移、放大）。
- */
+/** 网格选中（月份格、会折行的互斥小组等）：子元素是调用方自己的 `<button aria-pressed>`；外观与动画全部由 CSS 按风格给出，可以同时选中多格。 */
 export function SelectionGrid(props: HTMLAttributes<HTMLDivElement>) {
   return <div {...props} data-select-grid="" />;
 }

@@ -122,8 +122,8 @@ describe("外观：1.19.68 新增规则", () => {
 });
 
 /**
- * 1.19.73（所有者 2026-11-14）：A 的“轨道内 A2”只给真正的分段轨道（容器写 data-select-track）；
- * 不在轨道里的会移动的选中（筛选竖向导航、“月份 / 日期范围”等）保留完整 A2 浮起——旧项沉回平面、新项浮起。
+ * 1.19.73–1.19.74（所有者 2026-11-14）：A 的“轨道内 A2”只给真正的分段轨道（容器写 data-select-track）；
+ * 不在轨道里的（筛选竖向导航、“月份 / 日期范围”、会折行的互斥小组、开关按钮……）保留完整 A2 浮起——旧项沉回平面、新项浮起。
  */
 describe("A 轨道内 A2 只给分段轨道（1.19.73）", () => {
   it("分段轨道的容器都带 data-select-track", () => {
@@ -147,7 +147,7 @@ describe("A 轨道内 A2 只给分段轨道（1.19.73）", () => {
     expect(panel).toContain('<MovingSelection axis="x" className="lv-filter-segments">');
   });
 
-  it("CSS：会移动的选中只有带 data-select-track 才取消浮起", () => {
+  it("CSS：A 里只有带 data-select-track 的会移动的选中取消浮起（网格、开关按钮保留完整 A2，1.19.74）", () => {
     const start = css.indexOf("/* ---------- A · 轨道内的选中");
     const end = css.indexOf("/* ---------- 平铺变体的选中面", start);
     expect(start).toBeGreaterThan(0);
@@ -166,8 +166,10 @@ describe("A 轨道内 A2 只给分段轨道（1.19.73）", () => {
       }
       return out.filter(Boolean);
     });
-    const moving = selectors.filter((selector) => selector.includes("[data-select-moving]"));
-    expect(moving.length).toBeGreaterThan(0);
-    for (const selector of moving) expect(selector).toContain("[data-select-track]");
+    const inner = selectors.filter((selector) => !selector.startsWith(":root"));
+    expect(inner.length).toBeGreaterThan(0);
+    for (const selector of inner) expect(selector).toContain("[data-select-moving][data-select-track]");
+    expect(block).not.toContain("[data-select-grid]");
+    expect(block).not.toContain("[data-select-toggle]");
   });
 });
