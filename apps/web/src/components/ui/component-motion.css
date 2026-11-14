@@ -1,8 +1,11 @@
-/* 组件动效的时长权威入口。页面 Push/Pop、底栏胶囊、SlidingSelection 继续使用各自预设。 */
-:root[data-visual-style="a"] { --lv-press-ms: 120ms; --lv-select-ms: 200ms; --lv-reveal-ms: 220ms; --lv-dismiss-ms: 180ms; --lv-feedback-ms: 240ms; --lv-loading-ms: 1000ms; --lv-press-scale: .975; --lv-reveal-y: 8px; --lv-motion-ease: cubic-bezier(.2,.8,.25,1); }
-:root[data-visual-style="b1"] { --lv-press-ms: 100ms; --lv-select-ms: 180ms; --lv-reveal-ms: 200ms; --lv-dismiss-ms: 180ms; --lv-feedback-ms: 200ms; --lv-loading-ms: 1100ms; --lv-press-scale: .985; --lv-reveal-y: 5px; --lv-motion-ease: cubic-bezier(.2,.65,.3,1); }
-:root[data-visual-style="b2"] { --lv-press-ms: 100ms; --lv-select-ms: 180ms; --lv-reveal-ms: 200ms; --lv-dismiss-ms: 180ms; --lv-feedback-ms: 220ms; --lv-loading-ms: 950ms; --lv-press-scale: .98; --lv-reveal-y: 6px; --lv-motion-ease: cubic-bezier(.16,.75,.25,1); }
-:root[data-visual-style="c"] { --lv-press-ms: 80ms; --lv-select-ms: 120ms; --lv-reveal-ms: 140ms; --lv-dismiss-ms: 120ms; --lv-feedback-ms: 160ms; --lv-loading-ms: 900ms; --lv-press-scale: .99; --lv-reveal-y: 2px; --lv-motion-ease: ease-out; }
+/* 组件动效的时长权威入口。页面 Push/Pop、底栏胶囊、SlidingSelection 继续使用各自预设。
+   1.19.62：选中指示与已选条件标签（SelectionControls）——A 选中浮起（A2 档）的升起 / 落下 / 环境影淡入淡出，
+   条件标签出现与删除的起始缩放 --lv-tag-from-scale；名称登记在 lib/motionTokens.ts 的 SELECTION_CSS。 */
+:root[data-visual-style="a"] { --lv-press-ms: 120ms; --lv-select-ms: 200ms; --lv-reveal-ms: 220ms; --lv-dismiss-ms: 180ms; --lv-feedback-ms: 240ms; --lv-loading-ms: 1000ms; --lv-press-scale: .975; --lv-reveal-y: 8px; --lv-motion-ease: cubic-bezier(.2,.8,.25,1); --lv-tag-from-scale: .92;
+  --lv-lift-rise-ms: 300ms; --lv-lift-rise-ease: cubic-bezier(.3,1.25,.5,1); --lv-lift-fall-ms: 200ms; --lv-lift-fall-ease: cubic-bezier(.4,0,.6,1); --lv-lift-shadow-in-ms: 240ms; --lv-lift-shadow-out-ms: 180ms; }
+:root[data-visual-style="b1"] { --lv-press-ms: 100ms; --lv-select-ms: 180ms; --lv-reveal-ms: 200ms; --lv-dismiss-ms: 180ms; --lv-feedback-ms: 200ms; --lv-loading-ms: 1100ms; --lv-press-scale: .985; --lv-reveal-y: 5px; --lv-motion-ease: cubic-bezier(.2,.65,.3,1); --lv-tag-from-scale: .94; }
+:root[data-visual-style="b2"] { --lv-press-ms: 100ms; --lv-select-ms: 180ms; --lv-reveal-ms: 200ms; --lv-dismiss-ms: 180ms; --lv-feedback-ms: 220ms; --lv-loading-ms: 950ms; --lv-press-scale: .98; --lv-reveal-y: 6px; --lv-motion-ease: cubic-bezier(.16,.75,.25,1); --lv-tag-from-scale: .94; }
+:root[data-visual-style="c"] { --lv-press-ms: 80ms; --lv-select-ms: 120ms; --lv-reveal-ms: 140ms; --lv-dismiss-ms: 120ms; --lv-feedback-ms: 160ms; --lv-loading-ms: 900ms; --lv-press-scale: .99; --lv-reveal-y: 2px; --lv-motion-ease: ease-out; --lv-tag-from-scale: .97; }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-press {
   transition-property: scale, background-color, color, box-shadow; transition-duration: var(--lv-press-ms); transition-timing-function: var(--lv-motion-ease);
 }

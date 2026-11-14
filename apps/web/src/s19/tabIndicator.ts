@@ -12,16 +12,22 @@
  * 形变规则：移动方向的前缘先走、后缘滞后（前缘分到 70% 的拉伸），到点后越过 2–3.5px 再回弹一次；
  * 图标与文字不在胶囊里，所以不会被拉伸。
  */
+import { SELECTION_GLIDE, selectionGlideDuration } from "../lib/motionTokens.js";
 import { S19_PHONE_SELECTOR } from "./scope.js";
 import { tabMotion } from "./tabMotion.js";
 
 const NAV_SELECTOR = `${S19_PHONE_SELECTOR} nav.shrink-0.border-t`;
 /** 静止宽高比。 */
 const RATIO = 1.15;
-/** 运动中最多拉长到静止宽度的 1 + MAX_STRETCH 倍。 */
-const MAX_STRETCH = 0.28;
+/**
+ * 弹性参数（最大拉伸、前缘比例、越过与回弹、时长与曲线）1.19.62 起登记在 Motion Token 的 SELECTION_GLIDE，
+ * 与面板里会移动的选中块（components/ui/SelectionControls.tsx）共用；数值与原来相同。
+ */
+const MAX_STRETCH = SELECTION_GLIDE.maxStretch;
 /** B1/B2 的既有轨迹统一延长 8%，约降低 7.4% 移动速度。 */
-const MOTION_TIME_SCALE = 1.08;
+const MOTION_TIME_SCALE = SELECTION_GLIDE.timeScale;
+/** 跨“＋”的平移时长下限（底栏专属）。 */
+const CROSS_MIN = 210;
 /** 底栏消失后多久内重新出现仍算“同一次切换”（页面替换底栏的那一下）。 */
 const SWAP_WINDOW = 800;
 
@@ -129,30 +135,32 @@ function keyframes(frames: readonly Frame[], y: number): Keyframe[] {
   }));
 }
 
-/** 中心在 c、多出 s 像素拉伸时的左边缘与宽度；前缘（运动方向一侧）分到 70%。 */
+/** 中心在 c、多出 s 像素拉伸时的左边缘与宽度；前缘（运动方向一侧）分到 SELECTION_GLIDE.lead（70%）。 */
 function stretched(c: number, w: number, s: number, dir: number): { x: number; w: number } {
-  return { x: dir > 0 ? c - w / 2 - s * 0.3 : c - w / 2 - s * 0.7, w: w + s };
+  const lead = SELECTION_GLIDE.lead;
+  return { x: dir > 0 ? c - w / 2 - s * (1 - lead) : c - w / 2 - s * lead, w: w + s };
 }
 
 /** 普通方向性平移（相邻切换；V1 跨“＋”也用它，从“＋”后方连续穿过）。 */
 function slide(from: Box, to: Box, fromOpacity: number, toOpacity = 1): Frame[] {
+  const { stretchPerPx, overshoot, rebound, overStretch, offsets, easing } = SELECTION_GLIDE;
   const fromC = from.x + from.w / 2;
   const toC = to.x + to.w / 2;
   const d = toC - fromC;
   const dir = d >= 0 ? 1 : -1;
   const dist = Math.abs(d);
-  const s = Math.min(to.w * MAX_STRETCH, dist * 0.35);
-  const over = Math.min(3.5, 1.5 + dist * 0.01);
+  const s = Math.min(to.w * MAX_STRETCH, dist * stretchPerPx);
+  const over = Math.min(overshoot.max, overshoot.base + dist * overshoot.perPx);
   // 去“＋”后面时后半程淡出（滑到“＋”下方消失）；从“＋”后面出来时前半程淡入。
-  const fade = (offset: number): number => (toOpacity < 1 ? (offset < 0.4 ? 1 : offset >= 0.72 ? toOpacity : 0.5) : 1);
-  const at = (offset: number, c: number, stretch: number, easing?: string): Frame => ({
-    offset, ...stretched(c, to.w, stretch, dir), opacity: fade(offset), ...(easing === undefined ? {} : { easing }),
+  const fade = (offset: number): number => (toOpacity < 1 ? (offset < offsets.stretch ? 1 : offset >= offsets.over ? toOpacity : 0.5) : 1);
+  const at = (offset: number, c: number, stretch: number, curve?: string): Frame => ({
+    offset, ...stretched(c, to.w, stretch, dir), opacity: fade(offset), ...(curve === undefined ? {} : { easing: curve }),
   });
   return [
-    { offset: 0, x: from.x, w: from.w, opacity: fromOpacity, easing: "cubic-bezier(.45, .05, .55, .95)" },
-    at(0.4, fromC + d * 0.5, s, "cubic-bezier(.2, .6, .35, 1)"),
-    at(0.72, toC + dir * over, s * 0.15, "cubic-bezier(.4, 0, .6, 1)"),
-    at(0.88, toC - dir * over * 0.3, 0, "ease-in-out"),
+    { offset: 0, x: from.x, w: from.w, opacity: fromOpacity, easing: easing.depart },
+    at(offsets.stretch, fromC + d * 0.5, s, easing.stretch),
+    at(offsets.over, toC + dir * over, s * overStretch, easing.over),
+    at(offsets.rebound, toC - dir * over * rebound, 0, easing.rebound),
     at(1, toC, 0),
   ];
 }
@@ -221,7 +229,7 @@ function move(element: HTMLElement, items: readonly HTMLElement[], fromIndex: nu
     return;
   }
   const dist = Math.abs(to.x + to.w / 2 - (from.x + from.w / 2));
-  const duration = Math.round(Math.min(270, Math.max(crosses ? 210 : 190, 150 + dist * 0.4)) * MOTION_TIME_SCALE);
+  const duration = selectionGlideDuration(dist, crosses ? CROSS_MIN : undefined);
   track([nodes.main.animate(keyframes(slide(from, to, fromOpacity, toOpacity), to.y), { duration })]);
 }
 

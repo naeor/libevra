@@ -1,6 +1,6 @@
 import { type ComponentProps, type ReactNode } from "react";
 import { Button } from "../Button.js";
-import { SlidingSelection } from "./SlidingSelection.js";
+import { MovingSelection } from "./SelectionControls.js";
 import "./purpose-controls.css";
 
 type ControlProps = Omit<ComponentProps<typeof Button>, "variant" | "fullWidth">;
@@ -24,11 +24,15 @@ export function Switch({ checked, onCheckedChange, children, ...props }: Omit<Co
   </Button>;
 }
 
-/** 固定选项的单选组，复用已确认的滑动胶囊；不额外叠加 Select 动画。 */
+/**
+ * 固定选项的单选组（受控值、真实 disabled、`aria-pressed`）。1.19.62 起选中指示用 `MovingSelection`：
+ * S19 浅色手机按风格是会移动的选中（B1 / B2 玻璃、A 浮起、C 实底）；基础外观保留原来的滑动胶囊（`base="slide"`）。
+ * 不额外叠加 Select 动画。
+ */
 export function SegmentedControl<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: readonly { value: T; label: string; disabled?: boolean }[]; onChange: (value: T) => void;
 }) {
-  return <SlidingSelection role="group" aria-label={label} className="lv-segmented">
+  return <MovingSelection axis="x" base="slide" role="group" aria-label={label} className="lv-segmented">
     {options.map(option => <button key={option.value} type="button" disabled={option.disabled} aria-pressed={value === option.value} onClick={() => onChange(option.value)}>{option.label}</button>)}
-  </SlidingSelection>;
+  </MovingSelection>;
 }

@@ -9,8 +9,9 @@
  * - **`phases` 是同一时钟上的比例（0–1）**：描述内容交接等节奏，改时长时比例保持，交接不会变形。
  * - **高频组件反馈是 CSS 变量**（按下、选中、出现、消失、反馈、加载），按 A / B1 / B2 / C 定义在
  *   `components/ui/component-motion.css`；这里只登记名称（{@link FEEDBACK_CSS}），不复制数值。
- * - 专属品牌动效（底栏指示器 `s19/tabIndicator.ts`、开始页海浪本身 `s19/oceanLayers.ts`）的参数留在各自文件，
- *   它们不是可复用语义；新功能不要借用。账本空间的进入 / 离开转场登记在 {@link LEDGER_TIDE}。
+ * - 专属品牌动效（开始页海浪本身 `s19/oceanLayers.ts`）的参数留在各自文件，它们不是可复用语义；新功能不要借用。
+ *   账本空间的进入 / 离开转场登记在 {@link LEDGER_TIDE}。底栏选中胶囊（`s19/tabIndicator.ts`）的弹性参数 1.19.62 起
+ *   与面板里会移动的选中块共用 {@link SELECTION_GLIDE}；跨“＋”的两段动画与再点一次的收缩仍是底栏专属，留在原文件。
  */
 
 export type MotionStyle = "a" | "b1" | "b2" | "c";
@@ -230,6 +231,78 @@ export const NAV_YIELD = {
   enter: { duration: 220, easing: "cubic-bezier(.2,.8,.3,1)" },
   /** 向下位移（相对底栏自身高度），越过底边一点，阴影也不留在屏幕上。 */
   offset: "110%",
+} as const;
+
+/**
+ * **会移动的选中：B1 / B2 的弹性玻璃（1.19.62）**——面板里的竖向导航、横向分段（`components/ui/SelectionControls.tsx`
+ * 的 `MovingSelection`）与底栏选中胶囊（`s19/tabIndicator.ts`）**共用这一套弹性参数**，改一处两边一起变。
+ *
+ * 形变规则（沿移动方向，竖向列表把“位置 / 长度”换成纵向）：移动方向的前缘先走、后缘滞后（前缘分到 `lead` 的拉伸），
+ * 中途最多拉长 `min(目标长度 × maxStretch, 距离 × stretchPerPx)`；到点后越过 `overshoot`（1.5–3.5px，随距离增加），
+ * 再回到目标另一侧 `rebound` 倍的越过量，最后落定。关键帧位置与每段缓动见 `offsets` / `easing`。
+ * 时长 = `min(max, max(min, base + 距离 × perPx)) × timeScale`（底栏跨“＋”时下限另取 210ms，留在 tabIndicator.ts）。
+ * 被新的选择打断时从选中块此刻所在的位置接着走，不排队；减少动态效果时直接切换。
+ */
+export const SELECTION_GLIDE = {
+  maxStretch: 0.28,
+  stretchPerPx: 0.35,
+  /** 前缘分到的拉伸比例（其余给后缘）。 */
+  lead: 0.7,
+  overshoot: { base: 1.5, perPx: 0.01, max: 3.5 },
+  /** 越过后向反方向回弹的比例（相对越过量）。 */
+  rebound: 0.3,
+  /** 越过那一帧保留的拉伸比例。 */
+  overStretch: 0.15,
+  /** B1 / B2 的既有轨迹统一延长 8%（约降低 7.4% 移动速度；底栏胶囊原值）。 */
+  timeScale: 1.08,
+  duration: { base: 150, perPx: 0.4, min: 190, max: 270 },
+  offsets: { stretch: 0.4, over: 0.72, rebound: 0.88 },
+  easing: {
+    depart: "cubic-bezier(.45, .05, .55, .95)",
+    stretch: "cubic-bezier(.2, .6, .35, 1)",
+    over: "cubic-bezier(.4, 0, .6, 1)",
+    rebound: "ease-in-out",
+  },
+} as const;
+
+/** {@link SELECTION_GLIDE} 的时长；`min` 可由调用方抬高（底栏跨“＋”）。 */
+export function selectionGlideDuration(distance: number, min: number = SELECTION_GLIDE.duration.min): number {
+  const { base, perPx, max } = SELECTION_GLIDE.duration;
+  return Math.round(Math.min(max, Math.max(min, base + distance * perPx)) * SELECTION_GLIDE.timeScale);
+}
+
+/**
+ * **会移动的选中：C 的干脆滑动（1.19.62）**：浅绿实底整块滑到新选项，不拉伸、不越界。
+ * 时长 100ms + 0.3 × 距离，夹在 120–170ms（起点即 C 的 `--lv-select-ms`；长距离略增、不拖沓），曲线取 C 的普通导航曲线。
+ */
+export const SELECTION_SLIDE = {
+  duration: { base: 100, perPx: 0.3, min: 120, max: 170 },
+  easing: NAVIGATION.c.easing,
+} as const;
+
+export function selectionSlideDuration(distance: number): number {
+  const { base, perPx, min, max } = SELECTION_SLIDE.duration;
+  return Math.round(Math.min(max, Math.max(min, base + distance * perPx)));
+}
+
+/**
+ * **选中指示与已选条件标签的 CSS 变量（1.19.62）**，数值按风格定义在 `components/ui/component-motion.css`，这里只登记名称：
+ * - A 选中浮起（A2 档）：浮起轻微越过再落定（`liftRise*`），落下干净、不回弹（`liftFall*`）；环境影的淡入 / 淡出单独计时。
+ *   位移与放大比例属于档位本身（`--s19-a-lift-*`，`s19/s19-lab-tokens.css`）。
+ * - 网格选中（月份格）：B1 / B2 玻璃在旧格淡出、新格淡入，C 交叉淡化，用 `select`（`--lv-select-ms`）。
+ * - 已选条件标签：出现用 `reveal`，删除用 `dismiss`，起始 / 结束缩放 `tagFrom`（A .92、B1 / B2 .94、C .97）。
+ */
+export const SELECTION_CSS = {
+  select: "--lv-select-ms",
+  liftRise: "--lv-lift-rise-ms",
+  liftRiseEasing: "--lv-lift-rise-ease",
+  liftFall: "--lv-lift-fall-ms",
+  liftFallEasing: "--lv-lift-fall-ease",
+  liftShadowIn: "--lv-lift-shadow-in-ms",
+  liftShadowOut: "--lv-lift-shadow-out-ms",
+  reveal: "--lv-reveal-ms",
+  dismiss: "--lv-dismiss-ms",
+  tagFrom: "--lv-tag-from-scale",
 } as const;
 
 /** 高频组件反馈的 CSS 变量（按风格取值，见 components/ui/component-motion.css）。 */
