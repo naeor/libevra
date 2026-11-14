@@ -30,13 +30,14 @@ console.log("initial reward state:", JSON.stringify(before.data));
 const results = [];
 const page = await openPage(PORT, BASE);
 
+// 1.19.66 起通知走统一提示条（components/toast/）：找“通知”区域里正在显示的那一条，并确认它在底栏上缘之上。
 const bannerPresent = async () =>
   page.evaluate(`(() => {
-    const outer = [...document.querySelectorAll("div")].find((el) => String(el.className).includes("bottom-[calc(100%+2.25rem)]"));
-    if (!outer) return false;
-    const card = outer.firstElementChild;
+    const card = [...document.querySelectorAll(".lv-toast-region [data-toast-surface][data-phase='enter']")].find((el) => el.textContent.includes("获得新头像"));
     if (!card) return false;
-    return getComputedStyle(card).opacity === "1" && card.getAttribute("aria-hidden") !== "true";
+    const nav = document.querySelector("nav[data-toast-avoid]");
+    const above = nav === null || card.getBoundingClientRect().bottom <= nav.getBoundingClientRect().top;
+    return above && card.closest("[inert]") === null;
   })()`);
 
 const saveDisabled = async () =>

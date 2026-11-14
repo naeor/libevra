@@ -635,36 +635,6 @@
   box-shadow: var(--shadow-sheet);
 }
 
-.sw-toast {
-  position: fixed;
-  left: 50%;
-  bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
-  z-index: 40;
-  display: flex;
-  width: min(calc(100% - 2rem), 26rem);
-  align-items: center;
-  gap: 0.75rem;
-  transform: translateX(-50%);
-  border-radius: var(--radius-field);
-  background: var(--color-ink);
-  padding: 0.625rem 1rem;
-  color: var(--color-on-ink);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-  box-shadow: var(--shadow-sheet);
-  animation: sw-fade-in 180ms ease-out;
-}
-
-.sw-toast-edit {
-  top: calc(4.25rem + env(safe-area-inset-top, 0px));
-  bottom: auto;
-}
-
-.sw-toast-action {
-  color: var(--color-on-ink);
-  font-weight: 500;
-}
-
 /* ---- 数据状态卡的状态点（颜色不是唯一信息：旁边总有文字结论） ---- */
 
 .sw-status-dot {
@@ -1125,7 +1095,6 @@ html:not([data-theme-mode="dark"]):is([data-theme-palette="green"], :not([data-t
   }
 
   .sw-filter-panel,
-  .sw-toast,
   .sw-skeleton,
   .sw-cell-target,
   .sw-edit-pending {

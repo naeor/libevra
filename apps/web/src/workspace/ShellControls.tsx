@@ -7,7 +7,7 @@
  * `data-collapse`，预览帧、拖动线与侧栏里的分割线都读同一个变量，所以它们不会彼此错位，也不会让两个
  * 工作区里的复杂图表每一帧重排；松手后才把新比例交给状态，工作区重排一次。
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 
 import { useI18n } from "../i18n/index.js";
 import { usePaneIdentity, pageKeyFor, START_PATH } from "./paneTitle.js";
@@ -556,32 +556,5 @@ export function DropPreview({
         {hint === null ? "" : `${hint} · ${drag.payload.title}`}
       </span>
     </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 简短提示
-// ---------------------------------------------------------------------------
-
-export function ShellToast({ toast }: { readonly toast: { readonly id: number; readonly text: string } | null }): React.JSX.Element {
-  const [shown, setShown] = useState<{ readonly id: number; readonly text: string } | null>(null);
-  useLayoutEffect(() => {
-    if (toast === null) return;
-    setShown(toast);
-    const timer = setTimeout(() => {
-      setShown((current) => (current?.id === toast.id ? null : current));
-    }, 2600);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [toast]);
-  return (
-    <div className="lv-toast-region" aria-live="polite" role="status">
-      {shown === null ? null : (
-        <p key={shown.id} className="lv-toast">
-          {shown.text}
-        </p>
-      )}
-    </div>
   );
 }

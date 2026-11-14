@@ -1,13 +1,7 @@
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import {
-  IMPORT_TOAST_MS,
-  ImportToast,
-  importToastFor,
-  importToastReducer,
-  type ImportToastState,
-} from "./ImportToast.js";
+import { importDoneToast, importToastFor } from "./ImportToast.js";
+import { dwellMs } from "../../lib/toast/timing.js";
 import type { OcrImportOutcome } from "../../lib/ocr/import.js";
 
 /**
@@ -46,14 +40,6 @@ function outcomeOf({
       reason: "日期待确认",
     })),
   };
-}
-
-function textOf(html: string): string {
-  return html
-    .replace(/<!-- -->/g, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 describe("importToastFor", () => {
@@ -109,77 +95,28 @@ describe("importToastFor", () => {
   });
 });
 
-describe("ImportToast", () => {
-  it("announces itself and carries the message when shown", () => {
-    const message = importToastFor(outcomeOf({ succeeded: 3 }));
-    const html = renderToStaticMarkup(<ImportToast message={message} visible />);
-    const text = textOf(html);
-
-    expect(html).toContain('role="status"');
-    expect(html).toContain('aria-live="polite"');
-    expect(text).toContain("账目已成功导入");
-    expect(text).toContain("本批 3 笔已写入账本");
-    // Brand green, and it never swallows taps on the page underneath.
-    expect(html).toContain("bg-brand-soft");
-    expect(html).toContain("pointer-events-none");
-    expect(html).toContain("translate-y-0");
+/**
+ * 1.19.66：提示本身走统一提示条（原顶部滑入视图、reducer 与 3 秒计时已删除）。这里守住交给提示条的选项：
+ * 类型映射（全失败 = 错误）、页面作用域（离开完成页即撤下）、回声（页面常驻显示结果，错误也自动消失、只用 polite 播报）。
+ */
+describe("importDoneToast", () => {
+  it("maps the three outcomes to success / warning / error and keeps the wording", () => {
+    const success = importDoneToast(outcomeOf({ succeeded: 3 }));
+    expect(success).toMatchObject({ tone: "success", text: "账目已成功导入", scope: "page", echo: true });
+    expect(success.detail).toContain("本批 3 笔已写入账本");
+    expect(importDoneToast(outcomeOf({ succeeded: 8, failed: 2 })).tone).toBe("warning");
+    const failed = importDoneToast(outcomeOf({ failed: 3 }));
+    expect(failed.tone).toBe("error");
+    expect(failed.text).not.toContain("成功");
   });
 
-  it("uses the warning and danger semantic colours for the other outcomes", () => {
-    const warning = renderToStaticMarkup(
-      <ImportToast message={importToastFor(outcomeOf({ succeeded: 8, failed: 2 }))} visible />,
-    );
-    const danger = renderToStaticMarkup(
-      <ImportToast message={importToastFor(outcomeOf({ failed: 3 }))} visible />,
-    );
-
-    expect(warning).toContain("bg-warn-soft");
-    expect(warning).toContain("text-warn-dark");
-    expect(danger).toContain("bg-danger-soft");
-    expect(danger).toContain("text-danger");
-    expect(danger).not.toContain("账目已成功导入");
-  });
-
-  it("keeps the message off-screen while hidden", () => {
-    const html = renderToStaticMarkup(
-      <ImportToast message={importToastFor(outcomeOf({ succeeded: 1 }))} visible={false} />,
-    );
-
-    expect(html).toContain("-translate-y-[150%]");
-    expect(html).not.toContain("translate-y-0");
-    expect(html).toContain('role="status"');
-  });
-
-  it("renders an empty live region before any import completes", () => {
-    const html = renderToStaticMarkup(<ImportToast message={null} visible={false} />);
-
-    expect(html).toContain('role="status"');
-    expect(textOf(html)).toBe("");
-  });
-
-  it("is on screen for about three seconds", () => {
-    expect(IMPORT_TOAST_MS).toBe(3000);
-  });
-});
-
-describe("importToastReducer", () => {
-  const hidden: ImportToastState = { message: null, visible: false };
-  const message = importToastFor(outcomeOf({ succeeded: 2 }));
-
-  it("shows the message and marks it visible", () => {
-    expect(importToastReducer(hidden, { type: "show", message })).toEqual({
-      message,
-      visible: true,
-    });
-  });
-
-  it("hides on demand but keeps the message for the slide-out", () => {
-    const shown = importToastReducer(hidden, { type: "show", message });
-
-    expect(importToastReducer(shown, { type: "hide" })).toEqual({ message, visible: false });
-  });
-
-  it("does not re-render when hiding an already hidden toast", () => {
-    expect(importToastReducer(hidden, { type: "hide" })).toBe(hidden);
+  it("is an echo of the page: even a total failure leaves after 8 seconds instead of staying", () => {
+    const failed = importDoneToast(outcomeOf({ failed: 3 }));
+    expect(dwellMs({ tone: failed.tone ?? "info", text: failed.text, detail: failed.detail, hasAction: false, echo: failed.echo === true })).toBe(8_000);
+    const success = importDoneToast(outcomeOf({ succeeded: 3 }));
+    // 标题 + 说明约 15–40 字：4–6.3 秒（原 3 秒）。
+    const ms = dwellMs({ tone: "success", text: success.text, detail: success.detail, hasAction: false, echo: true }) ?? 0;
+    expect(ms).toBeGreaterThanOrEqual(4_000);
+    expect(ms).toBeLessThanOrEqual(8_000);
   });
 });

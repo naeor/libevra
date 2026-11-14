@@ -17,7 +17,7 @@ import { entryReturnState } from "../lib/entryReturn.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { FxAmount } from "../components/FxDisplay.js";
 import { useFxMode, useFxRange } from "../lib/fxView.js";
-import { AvatarRewardBanner } from "../components/AvatarRewardBanner.js";
+import { AvatarRewardNotice } from "../components/AvatarRewardNotice.js";
 import { CurrentBookCaption } from "../components/CurrentBookCaption.js";
 import { BottomNav } from "../components/BottomNav.js";
 import { useEntryMenu } from "../components/Layouts.js";
@@ -1393,14 +1393,12 @@ function LedgerNav({
         className={`shrink-0 transition-[height] duration-200 ease-out ${open ? "h-[100px]" : "h-0"}`}
       />
       {/*
-        ⚠️ **Banner and bar share one positioned wrapper, and that is the whole layout contract.**
-        The notice is absolutely positioned above this wrapper's top edge, so it always sits just
-        above the navigation no matter how tall the bar or safe area is — no fixed pixel offset,
-        no measuring, no "it was right on my phone" guess. The `+` button is raised 32px above the
-        bar, hence the 2.25rem gap in `AvatarRewardBanner`.
+        1.19.66：「获得新头像」通知改走统一提示条（AvatarRewardNotice 只是控制器，不渲染）。位置由提示条宿主量出——
+        底栏、抬高 32px 的“+”与账本胶囊之上 8px（它们带 data-toast-avoid）；“+”菜单展开时让开。
+        只在明细首页挂载：离开即撤下（页面作用域）。
       */}
+      <AvatarRewardNotice />
       <div className="relative shrink-0">
-        <AvatarRewardBanner />
         <BottomNav
           active="/"
           onNavigate={onNavigate}

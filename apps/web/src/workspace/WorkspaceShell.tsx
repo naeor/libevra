@@ -63,7 +63,8 @@ import { navDrag, secondaryModeForDrag, type DropTarget } from "./navDrag.js";
 import { entryFromPath, entryPath, PaneHistory, type SerializedPaneHistory } from "./paneHistory.js";
 import { PaneRouter } from "./PaneRouter.js";
 import { START_PATH } from "./paneTitle.js";
-import { createSlotFor, Divider, DropPreview, ModeCapsule, RestoreTab, ShellToast, SplitHint, type ResizeController } from "./ShellControls.js";
+import { createSlotFor, Divider, DropPreview, ModeCapsule, RestoreTab, SplitHint, type ResizeController } from "./ShellControls.js";
+import { useToast } from "../components/toast/ToastProvider.js";
 import { ToastViewport } from "../components/toast/ToastViewport.js";
 import { SecondaryFab } from "./SecondaryNav.js";
 import { XIcon } from "./icons.js";
@@ -324,10 +325,11 @@ export function WorkspaceShell({
   }, [entryMenu, state.secondaryOpen, state.mode, state.secondary, state.primary, primarySnap.location.key]);
   const shellNavigating = useRef(false);
   const lastShellNav = useRef(0);
-  const [toast, setToast] = useState<{ readonly id: number; readonly text: string } | null>(null);
+  // 外壳操作的说明（跟随被拦、自动转独立、收起 / 提升工作区、切换跟随）：1.19.66 起走统一提示条（原 ShellToast，2.6 秒墨色胶囊）。
+  const toast = useToast();
   const say = useCallback((text: string) => {
-    setToast({ id: Date.now(), text });
-  }, []);
+    toast.show({ tone: "info", text, scope: "app" });
+  }, [toast]);
 
   const shellNav = useCallback((run: () => void) => {
     shellNavigating.current = true;
@@ -989,7 +991,6 @@ export function WorkspaceShell({
         ) : null}
       </div>
 
-      {chrome ? <ShellToast toast={toast} /> : null}
       {/* 1.19.66 统一提示条的宿主：在 .lv-shell 里面（S19 材质规则才能命中）；手机按障碍物测量位置，Pad 宽屏固定在外壳底部居中。 */}
       <ToastViewport kind={chrome ? "wide" : "phone"} />
       {chrome && dragKey !== "idle" ? (

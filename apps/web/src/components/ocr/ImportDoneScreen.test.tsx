@@ -5,14 +5,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ImportDoneScreen } from "./ImportDoneScreen.js";
+import { ToastProvider } from "../toast/ToastProvider.js";
 import type { OcrImportOutcome } from "../../lib/ocr/import.js";
 import { recordImportBatch, type OcrImportSession } from "../../lib/ocr/importSession.js";
 
 /**
  * The completion state is its own screen shell: it must not render `InnerPage`'s back control
  * or its 「重新识别」 action, because both now have an explicit replacement (「返回明细」 and
- * 「再识别一批」). It also owns the toast's lifecycle, which is checked at the source level
- * because the timer cannot run in a DOM-free test.
+ * 「再识别一批」). Since 1.19.66 the completion notice goes through the unified toast queue; that it is
+ * queued on mount and taken down on every exit is checked at the source level because effects do not run
+ * in a DOM-free test (the wording and options are covered by `ImportToast.test.ts`).
  */
 
 const noop = (): void => undefined;
@@ -56,13 +58,15 @@ function textOf(html: string): string {
 
 function render(): string {
   return renderToStaticMarkup(
-    <ImportDoneScreen
-      outcome={outcomeOf(4, 1)}
-      session={sessionOf(4, 1)}
-      onBackToDetail={noop}
-      onAgain={noop}
-      onRetry={noop}
-    />,
+    <ToastProvider>
+      <ImportDoneScreen
+        outcome={outcomeOf(4, 1)}
+        session={sessionOf(4, 1)}
+        onBackToDetail={noop}
+        onAgain={noop}
+        onRetry={noop}
+      />
+    </ToastProvider>,
   );
 }
 
@@ -78,27 +82,21 @@ describe("ImportDoneScreen", () => {
     expect(text).not.toContain("重新识别");
   });
 
-  it("mounts the live-region toast with the queued wording from the real outcome", () => {
+  it("no longer renders its own toast: the page itself keeps the result on screen", () => {
     const html = render();
     const text = textOf(html);
 
-    expect(html).toContain('role="status"');
-    expect(html).toContain('aria-live="polite"');
-    expect(text).toContain("账目已成功导入");
-    expect(text).toContain("3 笔已写入账本，1 笔在本机排队、联网后自动同步");
-    expect(text).not.toContain("已同步到服务器");
+    // The page still states the result in full; the notice is an echo handed to the toast queue.
+    expect(text).toContain("全部导入成功");
+    expect(html).not.toContain("-translate-y-[150%]");
+    expect(html).not.toContain("pointer-events-none fixed inset-x-0 top-0");
   });
 
-  it("starts the toast off-screen so it can slide in", () => {
-    expect(render()).toContain("-translate-y-[150%]");
-  });
-
-  it("clears its timer and hides the toast on every exit", () => {
-    // The effect cannot run here, so the rules are asserted on the source that owns them.
-    expect(SCREEN_SOURCE).toContain("clearTimeout(timer)");
-    expect(SCREEN_SOURCE).toContain("cancelAnimationFrame(frame)");
-    expect(SCREEN_SOURCE).toContain("IMPORT_TOAST_MS");
-    expect(SCREEN_SOURCE).toContain('dispatchToast({ type: "hide" })');
+  it("queues the notice on mount and takes it down on every exit", () => {
+    // Effects cannot run here, so the rules are asserted on the source that owns them.
+    expect(SCREEN_SOURCE).toContain("toast.show(importDoneToast(outcome))");
+    expect(SCREEN_SOURCE).toContain("toast.dismiss(id)");
+    expect(SCREEN_SOURCE).toContain("if (shown.current !== null) toast.dismiss(shown.current);");
     expect(SCREEN_SOURCE).toContain("leave(onBackToDetail)");
     expect(SCREEN_SOURCE).toContain("leave(onAgain)");
     expect(SCREEN_SOURCE).toContain("leave(onRetry)");

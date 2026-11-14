@@ -38,6 +38,8 @@ import { TabPage } from "../components/Layouts.js";
 import { PaneSizeContext, usePane } from "../workspace/context.js";
 import { TabPageHeader } from "../components/TabPageHeader.js";
 import { useI18n } from "../i18n/index.js";
+import { useToast } from "../components/toast/ToastProvider.js";
+import type { ToastTone } from "../lib/toast/types.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { useLedger } from "../lib/queries.js";
 import { CardActionsContext, cardTitle, type CardActions } from "../statsWorkbench/cards.js";
@@ -123,11 +125,8 @@ function workingDocuments(origin: FrameOrigin): WorkbenchDocuments {
 let returnPoint: { readonly accountScope: string | null; readonly top: number; readonly cardId: string } | null = null;
 const carouselMemory = new Map<string, number>();
 
-interface Toast {
-  readonly text: string;
-  readonly undo?: boolean;
-  readonly key: number;
-}
+/** 保存结果的提示共用一个 key：重试成功时“已保存”原位替换常驻的“保存失败”。 */
+const SAVE_TOAST_KEY = "stats-workbench-save";
 
 /** 减少动态时直接跳到目标位置，而不是平滑滚动（审查 U09）。 */
 function scrollBehavior(): ScrollBehavior {
@@ -240,18 +239,45 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewAnchor = useRef<number | null>(null);
   useEffect(() => () => { if (previewTimer.current !== null) clearTimeout(previewTimer.current); }, []);
-  const [toast, setToast] = useState<Toast | null>(null);
   const [carouselPages, setCarouselPages] = useState<ReadonlyMap<string, number>>(() => new Map(carouselMemory));
 
   const documents = session === null ? stored.documents : sessionDocuments(session);
   const dirty = session !== null && startDocs !== null && isDirty(session, startDocs);
 
-  const say = useCallback((text: string, undo = false) => setToast({ text, undo, key: Date.now() }), []);
-  useEffect(() => {
-    if (toast === null) return;
-    const timer = setTimeout(() => setToast(null), toast.undo === true ? 5000 : 3200);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  /**
+   * 工作台编辑的反馈：1.19.66 起走统一提示条（原 `sw-toast`：所有类型共用一种墨色外观、普通 3.2 秒、可撤销 5 秒）。
+   * 类型按方案 §1.2 映射：被拒的命令、放不下 → 警告；添加、复制、保存 → 成功；保存失败 / 没有账号 → 常驻错误。
+   * 页面作用域：离开分析页时撤下（与原来一样）；编辑态时提示在编辑条下方（编辑条声明 `data-toast-anchor="top"`）。
+   */
+  const toast = useToast();
+  const say = useCallback(
+    (tone: ToastTone, text: string, extra: { readonly key?: string; readonly announce?: boolean } = {}) => {
+      toast.show({ tone, text, scope: "page", ...extra });
+    },
+    [toast],
+  );
+  const applyRef = useRef<(result: SessionResult) => boolean>(() => false);
+  /**
+   * 带“撤销”的成功提示（删除卡片、恢复自动排列、应用预设、恢复默认）。常设替代路径：编辑条的撤销按钮，或「取消」放弃整次编辑。
+   */
+  const sayUndoable = useCallback(
+    (text: string) => {
+      toast.show({
+        tone: "success",
+        text,
+        scope: "page",
+        action: {
+          label: t("statsWorkbench.edit.undo"),
+          alternative: "编辑条的撤销按钮（StatsPage 编辑条），或「取消」放弃整次编辑", // i18n-ignore 开发者注记（ToastAction.alternative），不显示
+          run: () => {
+            const current = latestSession.current;
+            if (current !== null) applyRef.current(command(current, { type: "undo" }));
+          },
+        },
+      });
+    },
+    [t, toast],
+  );
 
   // 未保存的编辑：关闭或刷新页面前由浏览器确认。
   useEffect(() => {
@@ -280,13 +306,17 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
 
   const apply = (result: SessionResult, success?: string, undoable = false): boolean => {
     if (!result.ok) {
-      say(describe(result.problem));
+      say("warning", describe(result.problem));
       return false;
     }
     setSession(result.state);
-    if (success !== undefined) say(success, undoable);
+    if (success !== undefined) {
+      if (undoable) sayUndoable(success);
+      else say("success", success);
+    }
     return true;
   };
+  applyRef.current = apply;
 
   // ---- 列数（1.18.01）：浏览态按网格的实际宽度自动选择（或本工作区记住的手动列数），编辑态固定 ----
   /**
@@ -426,7 +456,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     if (dragBaseline.current !== null && session !== dragBaseline.current) return;
     const target = anchorFor(state);
     if (target === null) {
-      say(t("statsWorkbench.edit.droppedOutside"));
+      say("info", t("statsWorkbench.edit.droppedOutside"));
       return;
     }
     const payload = state.payload;
@@ -523,7 +553,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     }
     const plan = place === null ? null : previewDrop(session, { kind: "new-layout", choice, size, label: "" }, place, size);
     if (place === null || plan === null || !plan.ok) {
-      say(describe(plan?.problem ?? "invalid-anchor"));
+      say("warning", describe(plan?.problem ?? "invalid-anchor"));
       return;
     }
     setContainerEdit({ kind: "new", type: choice, anchor: place, size, children: [] });
@@ -582,13 +612,14 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
       leaveEdit();
       return;
     }
+    // 保存失败、没有账号：重要错误，常驻（有 ×），编辑内容仍在；与“已保存”同一个 key，重试成功时原位替换（方案 §1.5）。
     if (scope.accountScope === null) {
-      say(t("statsWorkbench.edit.saveNoAccount"));
+      say("error", t("statsWorkbench.edit.saveNoAccount"), { key: SAVE_TOAST_KEY });
       return;
     }
     const docs = committedDocuments(session, frame);
     if (documentsProblems(docs).length > 0) {
-      say(t("statsWorkbench.problems.invalid"));
+      say("warning", t("statsWorkbench.problems.invalid"));
       return;
     }
     setSaving(true);
@@ -599,7 +630,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     if (!saveAlive.current) return;
     setSaving(false);
     if (version === null) {
-      say(t("statsWorkbench.edit.saveFailed"));
+      say("error", t("statsWorkbench.edit.saveFailed"), { key: SAVE_TOAST_KEY });
       return;
     }
     setStored({ accountScope: scope.accountScope, documents: docs, version, unreadable: false });
@@ -612,11 +643,11 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
         setStartDocs(sessionDocuments(session));
         setFrame((current) => (current === null ? null : { columns: current.columns, stored: saved }));
       }
-      say(t("statsWorkbench.edit.saved"));
+      say("success", t("statsWorkbench.edit.saved"), { key: SAVE_TOAST_KEY });
       return;
     }
     leaveEdit();
-    say(t("statsWorkbench.edit.saved"));
+    say("success", t("statsWorkbench.edit.saved"), { key: SAVE_TOAST_KEY });
   }
 
   function cancel(): void {
@@ -642,7 +673,8 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
       case "move":
         setDrawerHeight("collapsed");
         setMoveFor(objectId);
-        say(t("statsWorkbench.edit.movingHint", { name }));
+        // 页内说明（编辑条下方）同时显示并播报同一句：提示不再播报，避免读两遍（方案缺陷 11）。
+        say("info", t("statsWorkbench.edit.movingHint", { name }), { announce: false });
         return;
       case "duplicate":
         apply(duplicateObject(session, objectId), t("statsWorkbench.menu.duplicated", { name }));
@@ -771,12 +803,13 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     if (session === null) return;
     const problems = placementSafe(layout);
     if (!problems) {
-      say(t("statsWorkbench.problems.invalid"));
+      say("warning", t("statsWorkbench.problems.invalid"));
       return;
     }
     const past = [...session.history.past, { content: session.content, layout: session.layout, selection: session.selection }].slice(-session.history.limit);
     setSession({ ...session, layout, history: { ...session.history, past, future: [] } });
-    say(message, undoable);
+    if (undoable) sayUndoable(message);
+    else say("success", message);
   }
 
   function placementSafe(layout: LayoutDocumentV1): boolean {
@@ -907,7 +940,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
         wideWidth="full"
       >
         {editing ? (
-          <header className="sw-edit-bar sticky top-0 z-20 flex items-center gap-1.5 border-b border-line bg-canvas px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3 min-[380px]:gap-2">
+          <header data-toast-anchor="top" className="sw-edit-bar sticky top-0 z-20 flex items-center gap-1.5 border-b border-line bg-canvas px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3 min-[380px]:gap-2">
             {/* 窄屏（< 380px，如 320px 宽的旧手机、英文界面）只留图标，保证「取消 / 完成」始终可见。 */}
             <button
               type="button"
@@ -1039,24 +1072,6 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
         {drag.drag === null ? null : (
           <div className="sw-ghost" style={{ left: drag.drag.x, top: drag.drag.y }} aria-hidden="true">
             {drag.drag.payload.label}
-          </div>
-        )}
-
-        {toast === null ? null : (
-          <div key={toast.key} role="status" className={`sw-toast ${editing ? "sw-toast-edit" : ""}`}>
-            <span className="min-w-0 flex-1">{toast.text}</span>
-            {toast.undo === true && session !== null ? (
-              <button
-                type="button"
-                className="sw-link sw-toast-action"
-                onClick={() => {
-                  apply(command(session, { type: "undo" }));
-                  setToast(null);
-                }}
-              >
-                {t("statsWorkbench.edit.undo")}
-              </button>
-            ) : null}
           </div>
         )}
 

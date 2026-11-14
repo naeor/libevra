@@ -12,7 +12,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { AppShell, PaneShell } from "./components/Layouts.js";
 import { ConsentGate } from "./components/ConsentGate.js";
 import { OfflineFillProvider } from "./components/OfflineFillProvider.js";
-import { UndoProvider } from "./components/UndoProvider.js";
 import { ToastProvider } from "./components/toast/ToastProvider.js";
 import { readGuestIdentity } from "./lib/guest/identity.js";
 import { DataModeSync } from "./lib/guest/session.js";
@@ -620,7 +619,6 @@ export default function App(): React.JSX.Element {
               显示宿主在每个外壳里（WorkspaceShell / DesktopShell 的 ToastViewport）。
             */}
             <ToastProvider>
-            <UndoProvider>
               <AppRuntime /><AttachmentTransfers />
               {/*
                 ⚠️ **S18：路由不再由一个全局 `BrowserRouter` 承载。** `WorkspaceShell` 给每个工作区实例
@@ -654,7 +652,6 @@ export default function App(): React.JSX.Element {
                   />
                 )}
               </AppShell>
-            </UndoProvider>
             </ToastProvider>
           </OfflineFillProvider>
         </AuthProvider>
