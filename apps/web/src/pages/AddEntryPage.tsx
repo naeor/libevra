@@ -15,6 +15,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
+import { Reveal } from "../components/ui/ComponentMotion.js";
 import { CategoryPicker } from "../components/CategoryPicker.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
@@ -879,7 +880,8 @@ export function AddEntryPage(): React.JSX.Element {
               <ChevronIcon up={categoryOpen} className="text-muted" />
             </button>
 
-            {categoryOpen && categories.some(c=>c.parentId) ? <CategoryPicker categories={categories} allCategories={ledger.data?.categories??categories} onSelect={id=>{setCategoryId(id);setCategoryOpen(false);}}/> : categoryOpen ? (
+            {/* 1.19.76：分类列表在原位展开 / 收起（展开块：高度与内容一起过渡，下面的内容平滑让位），不再一帧出现 / 消失。 */}
+            <Reveal open={categoryOpen} keep={false}>{categories.some(c=>c.parentId) ? <CategoryPicker categories={categories} allCategories={ledger.data?.categories??categories} onSelect={id=>{setCategoryId(id);setCategoryOpen(false);}}/> : (
               <ul className="max-h-64 overflow-y-auto border-t border-line">
                 <li>
                   <button
@@ -939,7 +941,7 @@ export function AddEntryPage(): React.JSX.Element {
                   </li>
                 ))}
               </ul>
-            ) : null}
+            )}</Reveal>
           </div>
         </section>
 

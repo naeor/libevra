@@ -77,9 +77,10 @@ const reduced = (): boolean => typeof matchMedia === "function" && matchMedia("(
  * - 只在 S19 浅色手机外壳里有动画（时长读 `--lv-reveal-ms` / `--lv-dismiss-ms`）；Original、深色、Pad、电脑版与减少动态效果直接显隐。
  * - 初次挂载不入场：`open` 一开始就是 true 时直接显示。
  * - `lazy`（默认）：第一次打开前不挂载内容；打开过之后一直挂载，收起时内容状态不丢。
+ * - `keep={false}`：收起动画走完后卸载内容（下次打开从头开始，与原来“收起即卸载”的行为一致，例如分类选择器回到第一层）。
  * - 外层是一个块：放在带 `gap` 的 flex / grid 里时，收起状态是 `hidden`，不占间距；展开开始的一瞬间间距会出现（与内容一起被高度动画带出）。
  */
-export function Reveal({ open, lazy = true, children, style, ...props }: HTMLAttributes<HTMLDivElement> & { readonly open: boolean; readonly lazy?: boolean }) {
+export function Reveal({ open, lazy = true, keep = true, children, style, ...props }: HTMLAttributes<HTMLDivElement> & { readonly open: boolean; readonly lazy?: boolean; readonly keep?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(open || !lazy);
   if (open && !mounted) setMounted(true);
@@ -96,7 +97,7 @@ export function Reveal({ open, lazy = true, children, style, ...props }: HTMLAtt
     animation.current?.cancel(); animation.current = null;
     node.hidden = false;
     const motion = componentMotion(node, open ? "reveal" : "dismiss");
-    if (!motion.duration || !node.animate) { node.hidden = !open; return; }
+    if (!motion.duration || !node.animate) { node.hidden = !open; if (!open && !keep) setMounted(false); return; }
     const full = node.getBoundingClientRect().height;
     const lift = `translateY(${String(-Math.min(motion.y, 6))}px)`;
     const run = node.animate(
@@ -106,8 +107,8 @@ export function Reveal({ open, lazy = true, children, style, ...props }: HTMLAtt
       { duration: motion.duration, easing: motion.easing },
     );
     animation.current = run;
-    run.onfinish = () => { if (animation.current !== run) return; animation.current = null; node.hidden = !latest.current; };
-  }, [open]);
+    run.onfinish = () => { if (animation.current !== run) return; animation.current = null; node.hidden = !latest.current; if (!latest.current && !keep) setMounted(false); };
+  }, [open, keep]);
   useLayoutEffect(() => {
     const node = ref.current;
     const settle = (): void => { animation.current?.cancel(); animation.current = null; if (node) node.hidden = !latest.current; };
@@ -160,5 +161,49 @@ export function useMountReveal(ref: RefObject<HTMLElement | null>, options: { re
     const run = node.animate(frames, { duration: motion.duration, easing: motion.easing });
     return () => { run.cancel(); };
   }, [ref, height]);
+}
+
+/**
+ * **列表增删**（1.19.76）：列表的项变化时（管理页添加 / 归档 / 删除、附件增删、留言追加……），
+ * 新出现的项展开到位（高度从 0 + 淡入），留下的项从原位置平滑移到新位置（FLIP：只动 transform）——
+ * 删除一项时下面的项平滑补上，而不是一帧跳上去。被删的项本身直接卸载（不为退场把节点多留一段，避免读屏与焦点问题）。
+ *
+ * - `ref` 指向列表容器，作用于它的直接子元素（React 按 key 复用节点，同一个节点就是同一项）；
+ * - `signal` 变化时才比较（一般传项的 id 串或数组）；第一次渲染不播放（初次挂载不入场），页面转场进行中也不播放；
+ * - 只在 S19 浅色手机外壳里播放（时长读 `--lv-reveal-ms`），其他外观与减少动态效果直接变化。
+ */
+export function useListMotion(ref: RefObject<HTMLElement | null>, signal: unknown): void {
+  const positions = useRef(new Map<Element, number>());
+  const first = useRef(true);
+  const previous = useRef(signal);
+  useLayoutEffect(() => {
+    const container = ref.current;
+    if (!container) return;
+    const children = Array.from(container.children) as HTMLElement[];
+    const changed = !Object.is(previous.current, signal);
+    previous.current = signal;
+    const before = positions.current;
+    const next = new Map<Element, number>();
+    for (const child of children) next.set(child, child.getBoundingClientRect().top);
+    positions.current = next;
+    if (first.current) { first.current = false; return; }
+    if (!changed || !container.animate || reduced() || pageTransitionActive()) return;
+    const motion = componentMotion(container, "reveal");
+    if (!motion.duration) return;
+    // 新项的高度动画会把它下面的项“自然地”往下推（布局负责），所以位移补偿要扣掉上方新项的高度，只补删除与重排造成的跳动。
+    let grownAbove = 0;
+    for (const child of children) {
+      const old = before.get(child);
+      const now = next.get(child)!;
+      if (old === undefined) {
+        const height = child.getBoundingClientRect().height;
+        grownAbove += height;
+        child.animate([{ height: "0px", opacity: 0, overflow: "hidden" }, { height: `${String(height)}px`, opacity: 1, overflow: "hidden" }], { duration: motion.duration, easing: motion.easing });
+        continue;
+      }
+      const offset = old - (now - grownAbove);
+      if (Math.abs(offset) > 0.5) child.animate([{ transform: `translateY(${String(offset)}px)` }, { transform: "none" }], { duration: motion.duration, easing: motion.easing });
+    }
+  });
 }
 

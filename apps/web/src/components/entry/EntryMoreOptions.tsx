@@ -1,3 +1,4 @@
+import { Reveal } from "../ui/ComponentMotion.js";
 import {
   MAX_TAGS_PER_TRANSACTION,
   type PaymentMethod,
@@ -118,7 +119,8 @@ export function EntryMoreOptions({
           </span>
         </button>}
 
-        {open || expanded ? (
+        {/* 1.19.76：在原位展开 / 收起（展开块），下面的保存条随高度平滑让位。 */}
+        <Reveal open={open || expanded}>
           <div
             id={optionsId}
             className="flex flex-col gap-4 border-t border-line px-4 py-4"
@@ -200,7 +202,7 @@ export function EntryMoreOptions({
               </div>
             ) : null}
           </div>
-        ) : null}
+        </Reveal>
       </div>
     </section>
   );

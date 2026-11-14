@@ -1,3 +1,4 @@
+import { Reveal } from "../ui/ComponentMotion.js";
 import type { Currency } from "@libellum/shared";
 import { useId } from "react";
 
@@ -74,9 +75,9 @@ export function EntryQuickActions({
       {/*
         ⚠️ **取值与点击逻辑一个字没改**：仍是 `quickAmounts` 里的那五个分值，
         仍是 `minorToInput` 转成输入框里的文本（`useQuickAmounts` 决定是哪五个）。
-        这里只控制可见性，不做动画，也不新增状态。
+        这里只控制可见性，不新增状态。1.19.76 起用展开块在原位展开 / 收起（首次实现时说的“不做动画”是那一版的范围，不是约束）。
       */}
-      {open ? (
+      <Reveal open={open}>
         <div id={amountsId} className="flex flex-wrap gap-2">
           {amounts.map((cents) => (
             <button
@@ -92,7 +93,7 @@ export function EntryQuickActions({
             </button>
           ))}
         </div>
-      ) : null}
+      </Reveal>
 
       {/* 提示放在这一行下面：点了「沿用上一笔」，结果或原因都该在原地出现。 */}
       {notice !== null ? (
