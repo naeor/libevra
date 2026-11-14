@@ -50,7 +50,7 @@ describe("源码：每处迁移用的组件与原逻辑", () => {
     ["批量添加 支出 / 收入", "components/entry/BatchAddSheet.tsx", ['<MovingSelection axis="x" data-select-flat=""', "onChange({ kind, categoryId: null });"]],
     ["记账更多选项 支付方式", "components/entry/EntryMoreOptions.tsx", ["<SelectionGrid", "onPaymentMethodChange(method.id === paymentMethodId ? null : method.id);"]],
     ["留言引用 账目 / 事件", "components/MessageQuote.tsx", ['<MovingSelection axis="x"', "setTab(value);"]],
-    ["账本导入 导入 / 跳过", "pages/LedgerImportPage.tsx", ['<MovingSelection axis="x" role="group"', "data-select-tone={option.tone}", "onClick={() => onChange(option.value)}"]],
+    ["账本导入 导入 / 跳过", "pages/LedgerImportPage.tsx", ['<MovingSelection axis="x" data-select-track="" role="group"', "data-select-tone={option.tone}", "onClick={() => onChange(option.value)}"]],
     ["明细排序 字段与方向", "components/EntrySortControls.tsx", ['<MovingSelection axis="y" className="lv-entry-order-list"', "onClick={() => onSelect(field)}", "onClick={() => onSelect(direction)}"]],
     ["附件筛选 有无 / 类型", "components/EntrySortControls.tsx", ['<MovingSelection axis="x" className="lv-entry-choices"', '<SelectionGrid className="lv-entry-choices"', "change({ attachment: v })", "change({ type: v })"]],
     ["月份选择", "components/MonthPicker.tsx", ["choose(value);", "onSelect(ALL_MONTHS);"]],
@@ -60,7 +60,7 @@ describe("源码：每处迁移用的组件与原逻辑", () => {
     ["月份离线下载 自动 / 从不", "pages/MonthDownloadPage.tsx", ['<MovingSelection axis="x" data-select-flat=""', "setNever(!auto);", "void setNeverMonth(month, !auto).then(() => load());"]],
     ["非重复关系", "components/NotDuplicateRelationsSection.tsx", ['<MovingSelection axis="x" role="group"', "if (showRevoked) onToggleRevoked();", "if (!showRevoked) onToggleRevoked();"]],
     ["冲突页 本地 / 远端", "components/ConflictScreen.tsx", ['<MovingSelection axis="y" data-select-flat=""', "next.set(field.field, option.value);", "setAnswers(next);"]],
-    ["附件 PDF 缩放", "components/AttachmentPdf.tsx", ['<MovingSelection axis="x" className="lv-attachment-zoom"', "setZoom(value)"]],
+    ["附件 PDF 缩放", "components/AttachmentPdf.tsx", ['<MovingSelection axis="x" data-select-track="" className="lv-attachment-zoom"', "setZoom(value)"]],
     ["拍照 单张 / 批量", "pages/ScanPage.tsx", ['<MovingSelection axis="y" data-select-flat=""', "onSelect(mode);"]],
   ];
   for (const [name, file, needles] of cases) {
@@ -118,5 +118,56 @@ describe("外观：1.19.68 新增规则", () => {
   });
   it("颜色字面量不写在这里（只引用令牌）", () => {
     expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+});
+
+/**
+ * 1.19.73（所有者 2026-11-14）：A 的“轨道内 A2”只给真正的分段轨道（容器写 data-select-track）；
+ * 不在轨道里的会移动的选中（筛选竖向导航、“月份 / 日期范围”等）保留完整 A2 浮起——旧项沉回平面、新项浮起。
+ */
+describe("A 轨道内 A2 只给分段轨道（1.19.73）", () => {
+  it("分段轨道的容器都带 data-select-track", () => {
+    const tracks: [string, string][] = [
+      ["components/ui/PurposeControls.tsx", '<MovingSelection axis="x" base="slide" data-select-track=""'],
+      ["components/entry/KindToggle.tsx", 'data-entry-kind-switch="" data-select-track=""'],
+      ["pages/DetailPage.tsx", '<SlidingSelection data-select-track="" className="flex gap-1 rounded-full bg-line/70 p-1">'],
+      ["components/ledger/BatchEditSheet.tsx", '<SlidingSelection data-select-track="" className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">'],
+      ["pages/ThemeAppearancePage.tsx", '<MovingSelection axis="x" data-select-track="" role="group" aria-label={t("settings.theme.mode")}'],
+      ["statsWorkbench/Drawer.tsx", '<SlidingSelection data-select-track="" className="sw-segment"'],
+      ["components/MessageQuote.tsx", '<MovingSelection axis="x" data-select-track="" className="flex rounded-field bg-canvas p-1 text-helper">'],
+      ["pages/LedgerImportPage.tsx", '<MovingSelection axis="x" data-select-track="" role="group"'],
+      ["components/AttachmentPdf.tsx", '<MovingSelection axis="x" data-select-track="" className="lv-attachment-zoom"'],
+    ];
+    for (const [file, snippet] of tracks) expect(src(file), file).toContain(snippet);
+  });
+
+  it("筛选面板的竖向导航与“月份 / 日期范围”不在轨道里，不带 data-select-track", () => {
+    const panel = src("components/EntryFilterPanel.tsx");
+    expect(panel).toContain('<MovingSelection axis="y" className="lv-filter-nav"');
+    expect(panel).toContain('<MovingSelection axis="x" className="lv-filter-segments">');
+  });
+
+  it("CSS：会移动的选中只有带 data-select-track 才取消浮起", () => {
+    const start = css.indexOf("/* ---------- A · 轨道内的选中");
+    const end = css.indexOf("/* ---------- 平铺变体的选中面", start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const block = css.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, "");
+    // 按顶层逗号拆选择器（:is(...) 里的逗号不拆）
+    const selectors = [...block.matchAll(/([^{}]+)\{/g)].flatMap((match) => {
+      const out: string[] = [];
+      let depth = 0, from = 0;
+      const text = match[1]!;
+      for (let k = 0; k <= text.length; k += 1) {
+        const c = text[k];
+        if (c === "(") depth += 1;
+        else if (c === ")") depth -= 1;
+        if (k === text.length || (c === "," && depth === 0)) { out.push(text.slice(from, k).trim()); from = k + 1; }
+      }
+      return out.filter(Boolean);
+    });
+    const moving = selectors.filter((selector) => selector.includes("[data-select-moving]"));
+    expect(moving.length).toBeGreaterThan(0);
+    for (const selector of moving) expect(selector).toContain("[data-select-track]");
   });
 });

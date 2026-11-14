@@ -44,7 +44,7 @@ export function ThemeAppearanceView({
       </div>
         {/* 1.19.67：少量互斥选项 → 横向会移动的选中（S19 §3「怎么选」）。S19 浅色手机里 B1 / B2 透明模拟玻璃滑动、A 选中项按 A2 浮起、
             C 浅绿实底滑动；Original、深色、Pad、电脑版保持原来的品牌浅底 + 细框（base 默认 static，不显示选中块）。 */}
-        <MovingSelection axis="x" role="group" aria-label={t("settings.theme.mode")} className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
+        <MovingSelection axis="x" data-select-track="" role="group" aria-label={t("settings.theme.mode")} className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
           {MODES.map((value) => (
             <button
               key={value}

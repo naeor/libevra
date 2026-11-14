@@ -185,7 +185,7 @@ export function BatchEditSheet({
             {t("ledger.batch.sheet.changeTags")}
           </label>
 
-          <SlidingSelection className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">
+          <SlidingSelection data-select-track="" className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">
             {(["add", "remove"] as const).map((mode: BatchTagMode) => (
               <button
                 key={mode}

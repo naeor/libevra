@@ -37,7 +37,7 @@ export function KindToggle<T extends string>({
   readonly className?: string;
 }): React.JSX.Element {
   return (
-    <SlidingSelection role="group" aria-label={label} data-entry-kind-switch="" className={`flex gap-1 rounded-full bg-line/70 p-1 ${className}`}>
+    <SlidingSelection role="group" aria-label={label} data-entry-kind-switch="" data-select-track="" className={`flex gap-1 rounded-full bg-line/70 p-1 ${className}`}>
       {options.map((option) => (
         <button
           key={option.value}

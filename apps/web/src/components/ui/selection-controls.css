@@ -197,27 +197,45 @@
   [data-select-toggle][aria-pressed="true"]::before { opacity: 1; transition: opacity var(--lv-lift-shadow-in-ms) ease-out; }
 }
 
-/* ---------- A · 轨道内的选中（1.19.72，所有者要求）：会移动的选中（分段 / 互斥选择）与开关按钮 ----------
+/* ---------- A · 轨道内的选中（1.19.72，所有者要求；1.19.73 收窄到真正的轨道）：分段轨道里的会移动的选中与开关按钮 ----------
    上面的通用 A2 浮起（上移 2px、放大 1.5%、环境影下移放大淡入）放在分段轨道里太重：选中块像一张悬在槽上的小卡片，
    还偏离了轨道的上下中轴。这里仍是 A2（不改档位编号），只把表现收敛到“轨道里浮起的一块”：
    - 不上移、不放大：选中项与文字留在轨道中轴上，重心不变；
    - 面与阴影用 --s19-a-elev-2-track（A2 表面层 + 收短收淡的近影），不再有单独的环境影层；
    - 出现时面从 96% 以中心原地放大淡入，消失时原地缩回淡出（不偏离中轴，不回弹）。
-   底槽仍是 A0（--s19-track-sh）。网格选中（月份格、折行的小组）与独立选中项是单独的格子 / 行，仍用上面的完整 A2 浮起。 */
+   底槽仍是 A0（--s19-track-sh）。
+   只认 data-select-track（容器真的是一条 A0 底槽：共享分段控件、支出 / 收入、明细全部 / 支出 / 收入、批量修改添加 / 移除、
+   外观明暗三选一、分析抽屉分段、留言引用、账本导入审核二选一、附件 PDF 缩放）。不在轨道里的会移动的选中（筛选面板的竖向导航、
+   “月份 / 日期范围”、外观页各组、平铺 / 胶囊类互斥组……）保留通用 A2 浮起：旧选中项沉回平面、与背景融为一体，
+   新选中项下面出现一张薄片并浮起（所有者 2026-11-14 确认的动画）。新增分段轨道时在容器上写 data-select-track。
+   1.19.73（所有者选定）：会折行的互斥小组（SelectionGrid：默认货币、支付方式、附件类型、导出范围、OCR / 账单导入状态、
+   卡片编辑器模板 / 尺寸 / 时间方式 / 相对窗口、卡片尺寸、合并 / 单币种）同样用轨道内 A2。仍用完整 A2 浮起的只剩：
+   日历式的格子（月份格，data-select-cells，放大 2%）、头像（data-select-plain，头像本身是内容）、独立选中项（多选列表的行）与条件标签。 */
 :root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
-  [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
+  [data-select-moving][data-select-track][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
   [data-select-toggle][aria-pressed="true"] { transform: none; }
-  [data-select-moving] > button::before,
+  [data-select-moving][data-select-track] > button::before,
   [data-select-toggle]::before {
     box-shadow: var(--s19-a-elev-2-track); transform: scale(.96);
     transition: opacity var(--lv-lift-shadow-out-ms) ease-out, transform var(--lv-lift-fall-ms) var(--lv-lift-fall-ease);
   }
-  [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before,
+  [data-select-moving][data-select-track][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before,
   [data-select-toggle][aria-pressed="true"]::before {
     transform: none;
     transition: opacity var(--lv-lift-shadow-in-ms) ease-out, transform var(--lv-select-ms) var(--lv-motion-ease);
   }
-  [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after { opacity: 0; }
+  [data-select-moving][data-select-track][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after { opacity: 0; }
+  /* 会折行的互斥小组（1.19.73）：:not() 多出的一级属性优先级压过上面通用 A2 的网格规则。 */
+  [data-select-grid]:not([data-select-cells], [data-select-plain]) > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { transform: none; }
+  [data-select-grid]:not([data-select-cells], [data-select-plain]) > button::before {
+    box-shadow: var(--s19-a-elev-2-track); transform: scale(.96);
+    transition: opacity var(--lv-lift-shadow-out-ms) ease-out, transform var(--lv-lift-fall-ms) var(--lv-lift-fall-ease);
+  }
+  [data-select-grid]:not([data-select-cells], [data-select-plain]) > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before {
+    transform: none;
+    transition: opacity var(--lv-lift-shadow-in-ms) ease-out, transform var(--lv-select-ms) var(--lv-motion-ease);
+  }
+  [data-select-grid]:not([data-select-cells], [data-select-plain]) > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)::after { opacity: 0; }
 }
 
 /* ---------- 平铺变体的选中面（1.19.69）：在各风格的选中面外加一圈品牌绿细边 ----------

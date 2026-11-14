@@ -191,7 +191,7 @@ export function Drawer({
         <div className="sw-drawer-expanded-head sw-drawer-grab" {...gesture.grabProps} inert={!expanded} aria-hidden={!expanded ? true : undefined}>
             <div className="sw-drawer-open-layer">
               {scope === null ? (
-                <SlidingSelection className="sw-segment" role="tablist" aria-label={t("statsWorkbench.drawer.title")}>
+                <SlidingSelection data-select-track="" className="sw-segment" role="tablist" aria-label={t("statsWorkbench.drawer.title")}>
                   {(["analysis", "layout"] as const).map((key) => (
                     <button
                       key={key}

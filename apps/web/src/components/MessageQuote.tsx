@@ -179,7 +179,7 @@ export function QuotePickerSheet({
       {() => (
         <>
           <div className="shrink-0 border-t border-line px-4 pt-3">
-            <MovingSelection axis="x" className="flex rounded-field bg-canvas p-1 text-helper">
+            <MovingSelection axis="x" data-select-track="" className="flex rounded-field bg-canvas p-1 text-helper">
               {(
                 [
                   ["transactions", tr("collab.messages.quoteTabTransactions")],

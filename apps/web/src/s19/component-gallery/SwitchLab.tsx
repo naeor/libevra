@@ -26,7 +26,7 @@ export function SwitchBoard(): React.JSX.Element {
     <KindToggle label="收支" value={kind} options={[{ value: "expense", label: "支出" }, { value: "income", label: "收入" }]} onChange={setKind} />
 
     <p className="tgl-cap">明细 · 全部 / 支出 / 收入（与明细页同一写法）</p>
-    <SlidingSelection className="flex gap-1 rounded-full bg-line/70 p-1">
+    <SlidingSelection data-select-track="" className="flex gap-1 rounded-full bg-line/70 p-1">
       {(["all", "expense", "income"] as const).map(option => <button key={option} type="button" aria-pressed={detail === option} onClick={() => setDetail(option)}
         className={`flex-1 rounded-full py-2 text-sm font-medium transition ${detail === option ? "bg-surface text-brand-dark shadow-sm" : "text-muted hover:text-ink"}`}>
         {option === "all" ? "全部" : option === "expense" ? "支出" : "收入"}
@@ -35,7 +35,7 @@ export function SwitchBoard(): React.JSX.Element {
 
     <section className="lv-settings-theme-options flex flex-col gap-2">
       <h2 className="tgl-cap">外观 · 明暗三选一（与外观页同一写法）</h2>
-      <MovingSelection axis="x" role="group" aria-label="明暗" className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
+      <MovingSelection axis="x" data-select-track="" role="group" aria-label="明暗" className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
         {(["system", "light", "dark"] as const).map(value => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)}
           className={`min-h-11 rounded-field px-1 py-2 text-button font-medium outline-none transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-dark ${mode === value ? "bg-brand-soft text-brand-dark shadow-card ring-1 ring-brand" : "text-muted hover:text-ink"}`}>
           {value === "system" ? "跟随系统" : value === "light" ? "浅色" : "深色"}
@@ -52,7 +52,7 @@ export function SwitchBoard(): React.JSX.Element {
         <ToggleButton className="lv-filter-multi" data-switch-live="" pressed={multi} onClick={() => setMulti(v => !v)}>多选</ToggleButton></div>
       <p className="tgl-cap tgl-inset">批量修改 · 标签添加 / 移除（与批量修改同一写法）</p>
       <div className="tgl-inset">
-        <SlidingSelection className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">
+        <SlidingSelection data-select-track="" className="mt-2 flex gap-1 rounded-full bg-line/70 p-1">
           {(["add", "remove"] as const).map(value => <button key={value} type="button" aria-pressed={tagMode === value} onClick={() => setTagMode(value)}
             className={`flex-1 rounded-full py-1.5 text-helper transition disabled:opacity-45 ${tagMode === value ? "bg-surface text-brand-dark shadow-sm" : "text-muted"}`}>
             {value === "add" ? "添加这些标签" : "移除这些标签"}

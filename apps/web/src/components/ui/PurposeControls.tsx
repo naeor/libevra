@@ -32,7 +32,7 @@ export function Switch({ checked, onCheckedChange, children, ...props }: Omit<Co
 export function SegmentedControl<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: readonly { value: T; label: string; disabled?: boolean }[]; onChange: (value: T) => void;
 }) {
-  return <MovingSelection axis="x" base="slide" role="group" aria-label={label} className="lv-segmented">
+  return <MovingSelection axis="x" base="slide" data-select-track="" role="group" aria-label={label} className="lv-segmented">
     {options.map(option => <button key={option.value} type="button" disabled={option.disabled} aria-pressed={value === option.value} onClick={() => onChange(option.value)}>{option.label}</button>)}
   </MovingSelection>;
 }

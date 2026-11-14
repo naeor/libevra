@@ -54,7 +54,7 @@ export function AttachmentPdf({ url }: { url: string }): React.JSX.Element {
       <button className="lv-desk-btn" disabled={!document || page <= 1} onClick={() => setPage(n => n - 1)}>{t("attachments.previousPage")}</button>
       <span>{document ? t("attachments.page", { page, total: document.numPages }) : t("attachments.loadingPreview")}</span>
       <button className="lv-desk-btn" disabled={!document || page >= document.numPages} onClick={() => setPage(n => n + 1)}>{t("attachments.nextPage")}</button>
-      <MovingSelection axis="x" className="lv-attachment-zoom" role="group" aria-label={t("attachments.zoom")}>
+      <MovingSelection axis="x" data-select-track="" className="lv-attachment-zoom" role="group" aria-label={t("attachments.zoom")}>
         {[1, 1.5, 2].map(value => <button type="button" key={value} aria-pressed={zoom === value} onClick={() => setZoom(value)}>{value === 1 ? t("attachments.fitWidth") : `${value * 100}%`}</button>)}
       </MovingSelection>
     </div>

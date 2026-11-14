@@ -181,7 +181,7 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
               <SelectionItem className="lv-filter-option lv-filter-all-time" aria-pressed={isAllMonths(draft.month) && draft.months.length === 0} onClick={() => change({ month: ALL_MONTHS, from: "", to: "", months: [] })}>{t("ledger.filters.all")}<Check visible={isAllMonths(draft.month) && draft.months.length === 0} /></SelectionItem>
               <div className="lv-filter-year"><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.previousYear")} onClick={() => onYearChange(year - 1)}><ChevronIcon direction="left" /></button><span className="text-card-title">{year}</span><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.nextYear")} disabled={year >= Number(currentMonth().slice(0, 4))} onClick={() => onYearChange(year + 1)}><ChevronIcon direction="right" /></button></div>
               {multi ? <p className="lv-filter-multi-hint text-helper text-muted">{t("ledger.filters.monthsHint")}</p> : null}
-              <SelectionGrid className="lv-filter-months" data-multi={multi || undefined}>{Array.from({ length: 12 }, (_, index) => {
+              <SelectionGrid className="lv-filter-months" data-select-cells="" data-multi={multi || undefined}>{Array.from({ length: 12 }, (_, index) => {
                 const month = `${year}-${String(index + 1).padStart(2, "0")}`;
                 const selected = multi ? draft.months.includes(month) : draft.months.length === 0 && draft.month === month;
                 /** 当前月份始终可选（1.19.55）：这个月还没有账目时也能点回来；已选中的月份也总能取消。 */

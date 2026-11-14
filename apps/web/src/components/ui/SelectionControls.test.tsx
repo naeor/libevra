@@ -349,7 +349,8 @@ describe("筛选面板接入", () => {
     expect(source).toContain('role="tab" aria-selected={section === key}');
     expect(source).toContain('<MovingSelection axis="x" className="lv-filter-segments">');
     expect(source).toContain("aria-pressed={!rangeMode}");
-    expect(source).toContain('<SelectionGrid className="lv-filter-months" data-multi={multi || undefined}>');
+    // 1.19.73：月份格是日历式的格子，写 data-select-cells，A 下仍用完整 A2 浮起（会折行的互斥小组改为轨道内 A2）。
+    expect(source).toContain('<SelectionGrid className="lv-filter-months" data-select-cells="" data-multi={multi || undefined}>');
     expect(source).toContain('<ConditionTags className="lv-filter-chips" aria-label={t("ledger.filters.selected")}');
     expect(source).toContain('removeLabel: t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) })');
     expect(source).toContain('onRemove={key => { setDraft(clearFilterDimension(draft, key as FilterDimension)); if (key === "time") setRangeMode(false); }}');

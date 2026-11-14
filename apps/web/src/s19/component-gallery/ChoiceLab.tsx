@@ -33,7 +33,7 @@ const cls = (on: boolean, yes: string, no: string): string => on ? yes : no;
 
 function Segmented({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string; tone?: "danger" }[]; onChange: (value: string) => void }) {
   // 与账本导入审核 SegmentedChoice 同一写法。
-  return <MovingSelection axis="x" role="group" aria-label={label} className="mt-2 grid grid-cols-2 gap-1 rounded-field bg-canvas p-1">
+  return <MovingSelection axis="x" data-select-track="" role="group" aria-label={label} className="mt-2 grid grid-cols-2 gap-1 rounded-field bg-canvas p-1">
     {options.map(option => { const selected = value === option.value; return <button key={option.value} type="button" aria-pressed={selected} data-select-tone={option.tone} onClick={() => onChange(option.value)}
       className={`rounded-field px-3 py-2 text-helper font-medium transition ${selected ? option.tone === "danger" ? "bg-danger/10 text-danger-dark" : "bg-brand-soft text-brand-dark" : "text-muted hover:text-ink"}`}>{option.label}</button>; })}
   </MovingSelection>;
@@ -135,12 +135,12 @@ export function ChoiceBoardTwo(): React.JSX.Element {
     </MovingSelection>
 
     <p className="tgl-cap">附件 PDF · 缩放</p>
-    <MovingSelection axis="x" className="lv-attachment-zoom" role="group" aria-label="缩放">
+    <MovingSelection axis="x" data-select-track="" className="lv-attachment-zoom" role="group" aria-label="缩放">
       {[1, 1.5, 2].map(value => <button type="button" key={value} aria-pressed={zoom === value} onClick={() => setZoom(value)}>{value === 1 ? "适合宽度" : `${value * 100}%`}</button>)}
     </MovingSelection>
 
     <p className="tgl-cap">留言引用 · 账目 / 事件</p>
-    <MovingSelection axis="x" className="flex rounded-field bg-canvas p-1 text-helper">
+    <MovingSelection axis="x" data-select-track="" className="flex rounded-field bg-canvas p-1 text-helper">
       {[["transactions", "账目"], ["events", "事件"]].map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id!)}
         className={`flex-1 rounded-field px-3 py-1.5 transition ${tab === id ? "bg-surface font-medium text-ink shadow-sm" : "text-muted"}`}>{label}</button>)}
     </MovingSelection>

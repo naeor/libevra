@@ -1004,7 +1004,7 @@ export function DetailPage(): React.JSX.Element {
             things above it collapsed would make the whole change look loose.
           */}
           <div className={`detail-toggle-bar px-6 pt-4 ${atList ? "detail-toggle-sticky" : ""}`}>
-            <SlidingSelection className="flex gap-1 rounded-full bg-line/70 p-1">
+            <SlidingSelection data-select-track="" className="flex gap-1 rounded-full bg-line/70 p-1">
               {(["all", "expense", "income"] as const).map((option) => (
                 <button
                   key={option}

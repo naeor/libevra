@@ -2759,7 +2759,7 @@ function SegmentedChoice({
   readonly onChange: (value: string) => void;
 }): React.JSX.Element {
   return (
-    <MovingSelection axis="x" role="group" aria-label={label} className="mt-2 grid grid-cols-2 gap-1 rounded-field bg-canvas p-1">
+    <MovingSelection axis="x" data-select-track="" role="group" aria-label={label} className="mt-2 grid grid-cols-2 gap-1 rounded-field bg-canvas p-1">
       {options.map((option) => {
         const selected = value === option.value;
         return (
