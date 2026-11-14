@@ -142,10 +142,11 @@
 }
 
 /* 1.19.70：C 的选中面是很浅的绿（brand-soft），落在近白的轨道 / 面板上单靠它分不出（留言引用、PDF 缩放）。C 本来就是“纸面 + 细线”，
-   所以所有选中面（会移动的选中块、网格 / 独立选中项的面）都带一圈品牌绿细线，与平铺变体的选中面同一写法；选中文字仍是品牌绿。 */
+   所以所有选中面（会移动的选中块、网格 / 独立选中项的面、开关按钮开启）都带一圈品牌绿细线，与平铺变体的选中面同一写法；选中文字仍是品牌绿。 */
 :root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
   :is([data-select-grid] > button, [data-select-item])::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
+  [data-select-toggle][aria-pressed="true"]::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
 }
 
 /* ---------- A：没有色块，选中项自己按 A2 档浮起 ----------
@@ -203,6 +204,7 @@
 :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {
   :is([data-select-flat], [data-select-moving]:has(> button.lv-material[data-material-role]))[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
   :is([data-select-flat] > button, button[data-select-flat], [data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role])::before { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
+  [data-select-toggle][aria-pressed="true"]::before { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
 }
 :root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   :is([data-select-flat], [data-select-moving]:has(> button.lv-material[data-material-role]))[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
