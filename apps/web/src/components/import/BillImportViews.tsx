@@ -17,6 +17,7 @@ import { useContext, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Trans } from "react-i18next";
 
 import { Button } from "../Button.js";
+import { Reveal } from "../ui/ComponentMotion.js";
 import { NavigationSuppressedContext } from "../PersistentNavContext.js";
 import { Badge } from "../ui/StatusControls.js";
 import { CapsuleButton } from "../ui/PurposeControls.js";
@@ -464,7 +465,7 @@ export function BillRowCard({
           {expanded ? t("dataio.row.collapse") : t("dataio.row.expand")}
         </button>
 
-        {expanded ? (
+        <Reveal open={expanded} keep={false}>
           <BillRowEditor
             item={item}
             categories={categories}
@@ -472,7 +473,7 @@ export function BillRowCard({
             busy={busy}
             onPatch={onPatch}
           />
-        ) : null}
+        </Reveal>
       </div>
     </article>
   );

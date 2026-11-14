@@ -1,5 +1,5 @@
 import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MAX_SPEECH_SECONDS, isSpeechless, parseTransactionText } from "@libellum/shared";
 import { useNavigate } from "react-router";
 
@@ -8,6 +8,7 @@ import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ActionCard } from "../components/Card.js";
 import { Badge } from "../components/ui/StatusControls.js";
+import { useMountReveal } from "../components/ui/ComponentMotion.js";
 import { materialAttributes } from "../s19/material.js";
 import "../s19/material-components.css";
 import { VoiceRipples } from "../components/VoiceRipples.js";
@@ -179,7 +180,7 @@ export function RecordPage(): React.JSX.Element {
       ) : null}
 
       {transcribe.isSuccess && !heardNothing && transcribe.data.text !== "" ? (
-        <section className="flex flex-col gap-3">
+        <HeardSection>
           <h2 className="text-card-title text-ink">{t("capture.record.heardTitle")}</h2>
 
           <textarea
@@ -251,7 +252,7 @@ export function RecordPage(): React.JSX.Element {
           >
             {t("capture.record.review")}
           </Button>
-        </section>
+        </HeardSection>
       ) : null}
 
       <button
@@ -264,4 +265,11 @@ export function RecordPage(): React.JSX.Element {
       <CaptureMobileAttachments panel={attachments.panel} />
     </InnerPage></CaptureLayout>
   );
+}
+
+/** 识别结果块：识别完成后才出现，展开到位（节点立即挂载，只做视觉过渡）。 */
+function HeardSection({ children }: { readonly children: ReactNode }): React.JSX.Element {
+  const ref = useRef<HTMLElement>(null);
+  useMountReveal(ref);
+  return <section ref={ref} className="flex flex-col gap-3">{children}</section>;
 }

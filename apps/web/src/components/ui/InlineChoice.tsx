@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from "react";
 import { useI18n } from "../../i18n/index.js";
 import { ChevronIcon } from "../Icons.js";
 import { materialAttributes } from "../../s19/material.js";
+import { Reveal } from "./ComponentMotion.js";
 import "../../s19/material-components.css";
 
 /**
@@ -167,7 +168,7 @@ export function InlineChoice({
         </span>
       </button>
 
-      {open ? (
+      <Reveal open={open} keep={false}>
         <ul
           id={listId}
           role="listbox"
@@ -205,7 +206,7 @@ export function InlineChoice({
             );
           })}
         </ul>
-      ) : null}
+      </Reveal>
     </div>
   );
 }

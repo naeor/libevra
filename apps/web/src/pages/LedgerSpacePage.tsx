@@ -6,6 +6,7 @@ import { UserAvatar } from "../components/UserAvatar.js";
 import { Button } from "../components/Button.js";
 import { BookManageSheet } from "../components/BookManageSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { useMountReveal } from "../components/ui/ComponentMotion.js";
 import { GuestModeBadge } from "../components/GuestModeBadge.js";
 import { AvatarIcon } from "../components/Icons.js";
 import { GearIcon, PlusIcon } from "../components/Icons.js";
@@ -603,13 +604,15 @@ function NewBookForm({
 }): React.JSX.Element {
   const { t } = useI18n();
   const ref = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  useMountReveal(formRef);
 
   useEffect(() => {
     ref.current?.focus();
   }, []);
 
   return (
-    <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+    <div ref={formRef} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
       <label className="flex flex-col gap-1.5 text-body text-muted">
         {t("books.space.newName")}
         <input

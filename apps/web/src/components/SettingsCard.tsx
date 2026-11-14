@@ -8,6 +8,7 @@ import { t } from "../i18n/index.js";
 import { useUpdatePreferences } from "../lib/queries.js";
 import { Alert } from "./Alert.js";
 import { ChevronIcon } from "./Icons.js";
+import { Reveal } from "./ui/ComponentMotion.js";
 import { SelectionGrid } from "./ui/SelectionControls.js";
 
 /**
@@ -156,7 +157,9 @@ export function CurrencyQuickPick({
 
       {hint === undefined ? null : <p className="text-helper-relaxed text-muted">{hint}</p>}
       {value.error === null ? null : <Alert tone="error">{value.error}</Alert>}
-      {value.saved && !value.pending ? <p className="text-helper text-brand-dark">{t("settings.saved")}</p> : null}
+      <Reveal open={value.saved && !value.pending}>
+        <p className="text-helper text-brand-dark">{t("settings.saved")}</p>
+      </Reveal>
     </div>
   );
 }

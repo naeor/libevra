@@ -1,16 +1,20 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { categoryBranchIds, categoryPath, categoryTreeRows, validateCategoryTree, type Category, type CreateCategoryInput, type UpdateCategoryInput } from "@libellum/shared";
 import { BottomSheet } from "./BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
 import { displayCategoryName, displayCategoryDescription } from "../lib/presetNames.js";
 import { errorMessage } from "../lib/api.js";
+import { useListMotion } from "./ui/ComponentMotion.js";
+import { useListSignal } from "./ui/listSignal.js";
 type Save = (id:string|null,input:CreateCategoryInput & UpdateCategoryInput)=>Promise<unknown>;
 export function CategoryTreeList({items,allItems=items,readOnly,onArchive,onDelete,onSave}:{readonly items:readonly Category[];readonly allItems?:readonly Category[];readonly readOnly:boolean;readonly onArchive:(item:Category)=>void;readonly onDelete:(item:Category)=>void;readonly onSave:Save}):React.JSX.Element {
   const {t}=useI18n();const [collapsed,setCollapsed]=useState<readonly string[]>([]);
   const [editor,setEditor]=useState<{category:Category|null;parentId:string|null;kind:"expense"|"income"}|null>(null);
   const hidden=new Set(collapsed.flatMap(id=>categoryBranchIds(items,[id]).filter(child=>child!==id)));
-  return <><ul className="lv-settings-list rounded-card border border-line bg-surface divide-y divide-line">
-    {categoryTreeRows(items).filter(row=>!hidden.has(row.node.id)).map(({node,depth})=><li key={node.id} className="flex min-w-0 items-center gap-2 px-5 py-3.5" style={{paddingLeft:20+Math.min(depth,4)*12}}>
+  const listRef=useRef<HTMLUListElement>(null);const rows=categoryTreeRows(items).filter(row=>!hidden.has(row.node.id));
+  useListMotion(listRef,useListSignal(rows.map(row=>row.node.id)));
+  return <><ul ref={listRef} className="lv-settings-list rounded-card border border-line bg-surface divide-y divide-line">
+    {rows.map(({node,depth})=><li key={node.id} className="flex min-w-0 items-center gap-2 px-5 py-3.5" style={{paddingLeft:20+Math.min(depth,4)*12}}>
       {items.some(c=>c.parentId===node.id)?<button type="button" className="min-h-11 min-w-8 text-muted" aria-label={t("manage.tree.toggle",{name:displayCategoryName(node.name)})} aria-expanded={!collapsed.includes(node.id)} onClick={()=>setCollapsed(value=>value.includes(node.id)?value.filter(id=>id!==node.id):[...value,node.id])}>{collapsed.includes(node.id)?"›":"⌄"}</button>:null}
       <span className="min-w-0 flex-1 break-words text-sm text-ink">{node.color?<span aria-hidden="true" className="mr-1 inline-block size-2 rounded-full" style={{backgroundColor:node.color}}/>:null}{node.icon?<span aria-hidden="true">{node.icon} </span>:null}{displayCategoryName(node.name)}{node.description?<span className="block text-helper-relaxed text-muted">{displayCategoryDescription(node.name,node.kind,node.description)}</span>:null}{node.isSystem?<span className="block text-helper text-muted">{t("manage.common.systemLocked")}</span>:null}</span>
       {!readOnly&&!node.isSystem?<details className="relative shrink-0" onKeyDown={event=>{if(event.key==="Escape"&&event.currentTarget.open){event.preventDefault();event.stopPropagation();event.currentTarget.open=false;event.currentTarget.querySelector("summary")?.focus();}}} onClick={event=>{if(event.target instanceof Element&&event.target.closest("button"))event.currentTarget.open=false;}}><summary className="cursor-pointer list-none px-2 py-2 text-muted" aria-label={t("manage.tree.actions",{name:displayCategoryName(node.name)})}>•••</summary><div className="absolute right-0 z-10 flex min-w-36 flex-col rounded-field border border-line bg-surface p-1 shadow-lg">

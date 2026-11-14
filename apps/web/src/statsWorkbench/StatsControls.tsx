@@ -9,8 +9,9 @@
  * 状态提示（点开看详情）；只有一切正常时才只剩一行。
  */
 import { CURRENCIES, type Currency } from "@libellum/shared";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { SelectionGrid } from "../components/ui/SelectionControls.js";
+import { Reveal } from "../components/ui/ComponentMotion.js";
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { SyncControls } from "./SyncControls.js";
@@ -35,7 +36,11 @@ export function StatBar({ scope, onSettings }: { readonly scope: WorkbenchScope;
   const { t } = useI18n();
   const fx = scope.fx;
   const mode = scope.combined ? t("statsWorkbench.controls.combined") : t("statsWorkbench.controls.original");
-  const notice = statusNotice(scope);
+  const current = statusNotice(scope);
+  // 提示消失时继续显示最后一条内容直到收起动画走完（Reveal 之后会卸载）。
+  const lastNotice = useRef(current);
+  if (current !== null) lastNotice.current = current;
+  const notice = current ?? lastNotice.current;
   return (
     <div className="mx-6 mt-3 flex flex-col gap-2">
       <div className="sw-statbar">
@@ -56,6 +61,7 @@ export function StatBar({ scope, onSettings }: { readonly scope: WorkbenchScope;
           <SlidersGlyph width={18} height={18} />
         </button>
       </div>
+      <Reveal open={current !== null} keep={false}>
       {notice === null || notice === "loading" ? (
         notice === "loading" ? <p role="status" className="px-1 text-helper text-muted">{t("fx.loading")}</p> : null
       ) : (
@@ -71,6 +77,7 @@ export function StatBar({ scope, onSettings }: { readonly scope: WorkbenchScope;
           <span className="shrink-0 text-brand-dark">{t("statsWorkbench.controls.details")}</span>
         </button>
       )}
+      </Reveal>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Link } from "react-router";
 import type { MessageReferenceView, QuoteReferenceKind } from "@libellum/shared";
 
 import { ChevronIcon, QuoteIcon } from "./Icons.js";
+import { useListMotion } from "./ui/ComponentMotion.js";
 import { QuotePickerSheet, QuoteReferenceCard } from "./MessageQuote.js";
 import { FrameAction, SectionFrame } from "./SectionFrame.js";
 import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
@@ -407,6 +408,8 @@ export function MessageBoardCard({ limit = 2 }: { readonly limit?: number } = {}
   const [picking, setPicking] = useState(false);
   const listRef = useRef<HTMLUListElement | null>(null);
   const { t } = useI18n();
+  // 新留言展开到位、旧留言平滑让位（只是视觉；滚动到最新的逻辑不变）。
+  useListMotion(listRef, (messages.data?.messages ?? []).slice(-limit).map((message) => message.id).join("|"));
 
   /** ⚠️ Scroll to the newest only when *this* view sent something, not on every refetch. */
   useEffect(() => {
@@ -604,6 +607,8 @@ export function MessageBoardFull({
   const composer = useMessageComposer();
   const [picking, setPicking] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const historyRef = useRef<HTMLUListElement | null>(null);
+  useListMotion(historyRef, (messages.data?.messages ?? []).map((message) => message.id).join("|"));
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   /**
    * ⚠️ **Fetched even when the request came from the card** — the target is what the server would
@@ -653,7 +658,23 @@ export function MessageBoardFull({
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller === null) return;
-    if (following.current || composer.sending) scroller.scrollTop = scroller.scrollHeight;
+    if (!(following.current || composer.sending)) return;
+    const pin = (): void => {
+      scroller.scrollTop = scroller.scrollHeight;
+    };
+    pin();
+    // 新留言在展开动画里（高度从 0 长起）：动画期间逐帧贴底，否则最新一条会落在视口下面。
+    if (typeof scroller.getAnimations !== "function" || scroller.getAnimations({ subtree: true }).length === 0) return;
+    let frame = 0;
+    let handle = 0;
+    const tick = (): void => {
+      pin();
+      if (++frame < 60 && scroller.getAnimations({ subtree: true }).some((animation) => animation.playState === "running")) handle = requestAnimationFrame(tick);
+    };
+    handle = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(handle);
+    };
   }, [messages.data?.messages.length, composer.sending]);
 
   /** 电脑版：放在主展示区或辅助栏里时没有自己的返回栏，高度跟随外框，宽度按位置。 */
@@ -698,7 +719,7 @@ export function MessageBoardFull({
              * so the list renders as received — a conversation is read downwards and the latest
              * sentence is the last one. **This is presentation, not a second source.**
              */
-            <ul className="flex flex-col">
+            <ul ref={historyRef} className="flex flex-col">
               {messages.data.messages.map((message) => (
                 <MessageRow key={message.id} message={message} />
               ))}

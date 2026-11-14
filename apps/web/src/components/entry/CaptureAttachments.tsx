@@ -8,6 +8,7 @@ import { errorMessage } from "../../lib/api.js";
 import { pendingAttachments, savePendingAttachment, removePendingAttachment, useBookStorage, type PendingAttachment } from "../../lib/attachments.js";
 import { captureAttachmentLimit, captureDraftsFor, resolveAttachmentDraft, type AttachmentTarget } from "../../lib/captureAttachments.js";
 import { AttachmentPdf } from "../AttachmentPdf.js";
+import { Reveal, useListMotion } from "../ui/ComponentMotion.js";
 import { materialAttributes } from "../../s19/material.js";
 import "../../s19/material-components.css";
 import "./capture.css";
@@ -118,6 +119,8 @@ function CaptureAttachmentPanel({ files, targets, disabled, error, limitsText, o
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [search, setSearch] = useState("");
+  const filesRef = useRef<HTMLUListElement>(null);
+  useListMotion(filesRef, files.map(file => file.id).join("|"));
   const preview = files.find(file => file.id === previewId) ?? files.at(-1);
   return <section className="lv-capture-attachments" aria-label={t("attachments.title")}>
     <header><h2 className="text-section-title">{t("attachments.title")}</h2><span className="text-helper text-muted">{files.length} · {formatStorageBytes(files.reduce((sum, file) => sum + file.blob.size, 0))}</span></header>
@@ -133,11 +136,11 @@ function CaptureAttachmentPanel({ files, targets, disabled, error, limitsText, o
     {files.length === 0 ? <p className="text-helper-relaxed text-muted">{t("attachments.capture.hint")}</p> : <>
       {/* 用途（1.19.57）：可点选预览的文件行是可点击卡片（选中用 aria-pressed），「删除」是次要危险操作。
           材质只在浅色手机外壳生效（s19/entry-workspace.css「附件区」）；电脑版、Pad、Original 与深色仍是原控件外观。 */}
-      <ul className="lv-capture-files">{files.map(file => { const selected = file.id === preview?.id; return <li key={file.id} data-selected={selected || undefined}>
+      <ul ref={filesRef} className="lv-capture-files">{files.map(file => { const selected = file.id === preview?.id; return <li key={file.id} data-selected={selected || undefined}>
         <button type="button" onClick={() => setPreviewId(file.id)} aria-pressed={selected} {...materialAttributes("interactive")} className="lv-capture-file lv-material lv-material-effects lv-press"><strong className="text-body">{file.name}</strong><small className="text-helper text-muted">{formatStorageBytes(file.blob.size)} · {file.draftLink?.targets.length ? t("attachments.associated", { count: file.draftLink.targets.length }) : t("attachments.capture.unassigned")}</small></button>
         <button type="button" {...materialAttributes("danger-quiet")} className="lv-desk-link lv-material lv-press text-helper" disabled={disabled} onClick={() => void onRemove(file)}>{t("attachments.remove")}</button>
       </li>; })}</ul>
-      {preview ? <>
+      <Reveal open={preview !== undefined} keep={false}>{preview ? <>
         <DraftPreview key={preview.id} file={preview} />
         <fieldset className="lv-capture-targets" disabled={disabled}><legend className="text-card-title">{t("attachments.capture.targets")}</legend>
           <div className="flex flex-wrap gap-3 py-2"><button type="button" {...CAPSULE} className={CAPSULE_CLASS} disabled={targets.length === 0} onClick={() => void onAssociate(preview, [...targets])}>{t("attachments.capture.all")}</button><button type="button" {...CAPSULE} className={CAPSULE_CLASS} onClick={() => void onAssociate(preview, [])}>{t("attachments.capture.clear")}</button></div>
@@ -150,7 +153,7 @@ function CaptureAttachmentPanel({ files, targets, disabled, error, limitsText, o
           {targets.length > 100 ? <p className="text-helper text-muted">{t("attachments.capture.targetLimit")}</p> : null}
           <p className="text-helper-relaxed text-muted">{t("attachments.capture.associationHint")}</p>
         </fieldset>
-      </> : null}
+      </> : null}</Reveal>
     </>}
   </section>;
 }

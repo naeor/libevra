@@ -6,13 +6,15 @@ import {
   type PaymentMethod,
   type Tag,
 } from "@libellum/shared";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { CategoryTreeList } from "../components/CategoryTreeList.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
+import { Reveal, useListMotion, useSwapReveal } from "../components/ui/ComponentMotion.js";
+import { useLastNonEmpty, useListSignal } from "../components/ui/listSignal.js";
 import { SkeletonRows } from "../components/States.js";
 import { t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
@@ -189,8 +191,10 @@ function ArchivableList({
   readonly readOnly?: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const listRef = useRef<HTMLUListElement>(null);
+  useListMotion(listRef, useListSignal(items.map((item) => item.id)));
   return (
-    <ul className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+    <ul ref={listRef} className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
       {items.map((item) => {
         const locked = lockedIds.includes(item.id);
         const description = item.description ?? null;
@@ -408,6 +412,9 @@ function CategoriesView({
   const categories = allCategories.filter((item) => item.kind === kind);
   const active = categories.filter((item) => !item.isArchived);
   const archived = categories.filter((item) => item.isArchived);
+  const shownArchived = useLastNonEmpty(archived);
+  const kindRef = useRef<HTMLDivElement>(null);
+  useSwapReveal(kindRef, kind);
   const systemIds = categories.filter((item) => item.isSystem).map((item) => item.id);
 
   const deleteCount = pendingDelete === null ? 0 : (usage?.categories[pendingDelete.id] ?? 0);
@@ -463,6 +470,7 @@ function CategoriesView({
             }}
           /> : null}
 
+          <div ref={kindRef}>
           <CategoryTreeList
             items={active}
             allItems={categories}
@@ -477,14 +485,15 @@ function CategoriesView({
               setPendingDelete(item as Category);
             }}
           />
+          </div>
 
           {hint === undefined ? null : <p className="px-1 text-helper-relaxed text-muted">{hint}</p>}
 
-          {archived.length > 0 ? (
+          <Reveal open={archived.length > 0} keep={false}>
             <section className="flex flex-col gap-2">
-              <h2 className="px-1 text-helper text-muted">{t("manage.common.archivedHeading", { count: archived.length })}</h2>
+              <h2 className="px-1 text-helper text-muted">{t("manage.common.archivedHeading", { count: shownArchived.length })}</h2>
               <ArchivableList
-                items={archived.map(categoryRow)}
+                items={shownArchived.map(categoryRow)}
                 readOnly={!canWrite}
                 busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
@@ -500,7 +509,7 @@ function CategoriesView({
                 }}
               />
             </section>
-          ) : null}
+          </Reveal>
         </>
       ) : null}
 
@@ -692,6 +701,7 @@ function PaymentMethodsView({
 
   const active = allMethods.filter((item) => !item.isArchived);
   const archived = allMethods.filter((item) => item.isArchived);
+  const shownArchived = useLastNonEmpty(archived);
 
   const deleteCount = pendingDelete === null ? 0 : (usage?.paymentMethods[pendingDelete.id] ?? 0);
   const replacementOptions =
@@ -744,11 +754,11 @@ function PaymentMethodsView({
 
           {hint === undefined ? null : <p className="px-1 text-helper-relaxed text-muted">{hint}</p>}
 
-          {archived.length > 0 ? (
+          <Reveal open={archived.length > 0} keep={false}>
             <section className="flex flex-col gap-2">
-              <h2 className="px-1 text-helper text-muted">{t("manage.common.archivedHeading", { count: archived.length })}</h2>
+              <h2 className="px-1 text-helper text-muted">{t("manage.common.archivedHeading", { count: shownArchived.length })}</h2>
               <ArchivableList
-                items={archived.map(paymentMethodRow)}
+                items={shownArchived.map(paymentMethodRow)}
                 readOnly={!canWrite}
                 busyId={update.isPending ? (pendingArchive?.id ?? null) : null}
                 onArchive={() => undefined}
@@ -764,7 +774,7 @@ function PaymentMethodsView({
                 }}
               />
             </section>
-          ) : null}
+          </Reveal>
         </>
       ) : null}
 
@@ -955,6 +965,8 @@ function TagsView({
   const [error, setError] = useState<string | null>(null);
 
   const deleteCount = pendingDelete === null ? 0 : (usage?.tags[pendingDelete.id] ?? 0);
+  const tagListRef = useRef<HTMLUListElement>(null);
+  useListMotion(tagListRef, useListSignal(tags.map((tag) => tag.id)));
 
   return (
     <InnerPage title={t("manage.tags.title")} {...(subtitle === undefined ? {} : { subtitle })} backTo={backTo}>
@@ -1016,7 +1028,7 @@ function TagsView({
       {pending ? <SkeletonRows rows={3} /> : null}
 
       {tags.length > 0 ? (
-        <ul className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
+        <ul ref={tagListRef} className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line">
           {tags.map((tag) => (
             <li key={tag.id}>
               <div className="flex items-center justify-between gap-4 px-5 py-3.5">
