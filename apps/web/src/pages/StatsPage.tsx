@@ -40,6 +40,7 @@ import { TabPageHeader } from "../components/TabPageHeader.js";
 import { useI18n } from "../i18n/index.js";
 import { useToast } from "../components/toast/ToastProvider.js";
 import type { ToastTone } from "../lib/toast/types.js";
+import { undoStillApplies, type UndoToastBinding } from "../statsWorkbench/undoToast.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { useLedger } from "../lib/queries.js";
 import { CardActionsContext, cardTitle, type CardActions } from "../statsWorkbench/cards.js";
@@ -257,12 +258,15 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     [toast],
   );
   const applyRef = useRef<(result: SessionResult) => boolean>(() => false);
+  /** 带“撤销”的提示绑定它说的那一步（`statsWorkbench/undoToast.ts`，所有者决定第 20 条修复）。 */
+  const undoToast = useRef<UndoToastBinding | null>(null);
   /**
    * 带“撤销”的成功提示（删除卡片、恢复自动排列、应用预设、恢复默认）。常设替代路径：编辑条的撤销按钮，或「取消」放弃整次编辑。
    */
   const sayUndoable = useCallback(
-    (text: string) => {
-      toast.show({
+    (text: string, past: EditorState["history"]["past"]) => {
+      let id = 0;
+      id = toast.show({
         tone: "success",
         text,
         scope: "page",
@@ -271,13 +275,25 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
           alternative: "编辑条的撤销按钮（StatsPage 编辑条），或「取消」放弃整次编辑", // i18n-ignore 开发者注记（ToastAction.alternative），不显示
           run: () => {
             const current = latestSession.current;
-            if (current !== null) applyRef.current(command(current, { type: "undo" }));
+            if (current === null || !undoStillApplies({ past }, current)) return;
+            applyRef.current(command(current, { type: "undo" }));
           },
         },
+        onEnd: () => {
+          if (undoToast.current?.id === id) undoToast.current = null;
+        },
       });
+      undoToast.current = { id, past };
     },
     [t, toast],
   );
+  // 撤销历史变了（又提交了一步、撤销 / 重做、离开编辑）：那条“撤销”说的已经不是最近一步，收起。
+  useEffect(() => {
+    const binding = undoToast.current;
+    if (binding === null || undoStillApplies(binding, session)) return;
+    undoToast.current = null;
+    toast.dismiss(binding.id);
+  }, [session, toast]);
 
   // 未保存的编辑：关闭或刷新页面前由浏览器确认。
   useEffect(() => {
@@ -311,7 +327,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     }
     setSession(result.state);
     if (success !== undefined) {
-      if (undoable) sayUndoable(success);
+      if (undoable) sayUndoable(success, result.state.history.past);
       else say("success", success);
     }
     return true;
@@ -808,7 +824,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     }
     const past = [...session.history.past, { content: session.content, layout: session.layout, selection: session.selection }].slice(-session.history.limit);
     setSession({ ...session, layout, history: { ...session.history, past, future: [] } });
-    if (undoable) sayUndoable(message);
+    if (undoable) sayUndoable(message, past);
     else say("success", message);
   }
 
