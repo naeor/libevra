@@ -503,7 +503,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
             <span className="text-helper text-muted">{t("ocr.detail.stillToCheck")}</span>
             <ul className="flex flex-col gap-1">
               {issues.map((issue) => (
-                <li key={`${issue.code}:${issue.field ?? ""}`} className="text-helper-relaxed text-warning-dark">
+                <li key={`${issue.code}:${issue.field ?? ""}`} className="text-helper-relaxed text-warn-dark">
                   ⚠ {ocrIssueText(issue)}
                 </li>
               ))}

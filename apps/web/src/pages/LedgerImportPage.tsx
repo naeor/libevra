@@ -1433,7 +1433,7 @@ export function BatchJobPanel({
         <p className="mt-3 text-helper-relaxed text-muted">{t("ledgerImport.job.lockNote")}</p>
         {job.status === "awaiting_confirmation" ? (
           <p
-            className={`mt-2 text-helper-relaxed ${remainingSeconds !== null && remainingSeconds <= 60 ? "text-warning-dark" : "text-muted"}`}
+            className={`mt-2 text-helper-relaxed ${remainingSeconds !== null && remainingSeconds <= 60 ? "text-warn-dark" : "text-muted"}`}
           >
             {remainingSeconds === null
               ? t("ledgerImport.job.waiting")
@@ -1444,7 +1444,7 @@ export function BatchJobPanel({
           </p>
         ) : null}
         {job.status === "paused" && remainingSeconds !== null ? (
-          <p className="mt-2 text-helper-relaxed text-warning-dark">
+          <p className="mt-2 text-helper-relaxed text-warn-dark">
             {t("ledgerImport.job.pausedCountdown", { count: remainingSeconds })}
           </p>
         ) : null}
@@ -1454,7 +1454,7 @@ export function BatchJobPanel({
           </p>
         ) : null}
         {job.status === "undo_failed" ? (
-          <p className="mt-2 text-helper-relaxed text-warning-dark">{t("ledgerImport.job.undoFailed")}</p>
+          <p className="mt-2 text-helper-relaxed text-warn-dark">{t("ledgerImport.job.undoFailed")}</p>
         ) : null}
         {job.status === "undone" ? (
           <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.job.undone")}</p>
@@ -2070,12 +2070,12 @@ export function IncrementalReview({
           {t("ledgerImport.incremental.chip.new", { number: summary.newCount })}
         </span>
         {summary.modifiedCount > 0 ? (
-          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">
+          <span className="rounded-full bg-warn-soft px-2.5 py-1 text-warn-dark">
             {t("ledgerImport.incremental.chip.modified", { number: summary.modifiedCount })}
           </span>
         ) : null}
         {summary.targetChangedCount > 0 ? (
-          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">
+          <span className="rounded-full bg-warn-soft px-2.5 py-1 text-warn-dark">
             {t("ledgerImport.incremental.chip.targetChanged", { number: summary.targetChangedCount })}
           </span>
         ) : null}
@@ -2090,7 +2090,7 @@ export function IncrementalReview({
           </span>
         ) : null}
         {summary.needsReviewCount > 0 ? (
-          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-warning-dark">
+          <span className="rounded-full bg-warn-soft px-2.5 py-1 text-warn-dark">
             {t("ledgerImport.incremental.chip.needsReview", { number: summary.needsReviewCount })}
           </span>
         ) : null}
@@ -2148,7 +2148,7 @@ export function IncrementalReview({
                       {t("ledgerImport.incremental.updateTarget")}
                     </button>
                     {status.targetChanged ? (
-                      <span className="self-center text-helper text-warning-dark">
+                      <span className="self-center text-helper text-warn-dark">
                         {t("ledgerImport.incremental.targetChangedLocked")}
                       </span>
                     ) : null}
@@ -2347,7 +2347,7 @@ export function SourceRetentionCard({
         <div className="rounded-field border border-line bg-canvas px-4 py-3">
           <p className="text-body text-ink">{t("ledgerImport.retention.guest.title")}</p>
           <p className="mt-1 text-helper-relaxed text-muted">{t("ledgerImport.retention.guest.note")}</p>
-          {guestMessage === null ? null : <p className="mt-2 text-helper-relaxed text-warning-dark">{guestMessage}</p>}
+          {guestMessage === null ? null : <p className="mt-2 text-helper-relaxed text-warn-dark">{guestMessage}</p>}
           {guestPreview === null ? null : (
             <p className="mt-2 text-helper-relaxed text-muted">
               {t("ledgerImport.retention.guest.preview", {
@@ -2415,7 +2415,7 @@ export function SourceRetentionCard({
                 </p>
               )}
               {disposition.unmigratedCount > 0 ? (
-                <p className="mt-1 text-warning-dark">{t("ledgerImport.retention.formal.unmigratedWarning")}</p>
+                <p className="mt-1 text-warn-dark">{t("ledgerImport.retention.formal.unmigratedWarning")}</p>
               ) : null}
             </div>
           )}

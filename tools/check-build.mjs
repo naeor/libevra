@@ -20,11 +20,16 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { checkBuiltCss } from "./check-built-css.mjs";
+import { checkColorClasses } from "./check-color-classes.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
 
 console.log("check:build — 真实构建（CSS 与打包期错误只有它能拦住）");
+
+// BUG-005：颜色类用了主题里不存在的颜色名，Tailwind 不报错也不生成 CSS，所以构建前先查。
+if (!checkColorClasses()) process.exit(1);
+
 
 const result = spawnSync("pnpm", ["--filter", "@libellum/web", "build"], {
   cwd: root,

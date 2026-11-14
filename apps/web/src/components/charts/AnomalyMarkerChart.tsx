@@ -112,7 +112,7 @@ export function AnomalyMarkerChart({
               </g>
             </svg>
             {description === null ? null : (
-              <p className="px-1 text-[11px] leading-4 text-ink-3">{description}</p>
+              <p className="px-1 text-[11px] leading-4 text-muted">{description}</p>
             )}
           </div>
         );
