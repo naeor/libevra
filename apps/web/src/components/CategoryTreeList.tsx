@@ -31,7 +31,7 @@ function CategoryEditor({items,category,parentId:initialParent,kind,onClose,onSa
   const dirty=name!==(category?.name??"")||parentId!==(initialParent??"")||icon!==(category?.icon??"")||color!==(category?.color??"")||sortOrder!==(category?.sortOrder??0);
   const inputClass="min-w-0 w-full rounded-field border border-line bg-surface px-3 py-3 text-base text-ink";
   /**
-   * 弹出面板模板（1.19.58）：T2 半屏，模板标题行与右上角 ×；保存中（busy）不响应关闭。
+   * 弹出面板模板（1.19.58）：T2 表单（1.19.63 起按内容、最高到大档），模板标题行与右上角 ×；保存中（busy）不响应关闭。
    * 取消走外壳的关闭、保存成功走 `finish`——原来两处都直接调用 `onClose`，面板跳过退场动画瞬间消失。
    */
   return <BottomSheet label={t(category?"manage.tree.edit":"manage.tree.addChild")} title={t(category?"manage.tree.edit":"manage.tree.addChild")} busy={busy} dirty={dirty} onClose={onClose} dialogClassName="max-w-lg sm:rounded-sheet" bodyClassName="px-6 pt-1 pb-6">

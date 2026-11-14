@@ -4,6 +4,7 @@ import { useI18n } from "../i18n/index.js";
 import { decideClose, useBackGuard } from "../lib/closeGuard.js";
 import { useDialogFocus } from "../lib/dialogFocus.js";
 import { useSheetDrag, type SheetDragZone } from "../lib/sheetDrag.js";
+import { useSheetHeightTransition } from "../lib/sheetHeight.js";
 import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
 import { materialAttributes } from "../s19/material.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
@@ -24,10 +25,12 @@ import "./panel-template.css";
  *  * **关闭入口一视同仁**：点遮罩、下拉、×、Esc、系统返回走同一个判断（`lib/closeGuard.ts`）：正在保存（`busy`）
  *    时不响应；有改动（`dirty`）时先用中央确认框询问是否放弃；没有改动直接关闭。保存成功后用 `finish` 关闭，不再询问。
  *  * **下拉关闭**（`lib/sheetDrag.ts`）只从拖动条与标题区起手，内容区照常滚动。
- *  * **三档高度**（`detent`，令牌在 `panel-template.css`）：`content` 按内容、最多约半屏（T4）；`half` 约 52%、
- *    内容更短时按内容（T1、T2）；`half-fixed` 固定半屏（账本选择）；`large` 接近全屏（T5）。只在手机宽度生效。
- *    另有固定高度的 `tall` 高半屏（约 66%，1.19.61）只给明细与分析筛选：底部面板形态（手机宽度、窄工作区）用它，
- *    宽屏形态与固定半屏同高。
+ *  * **高度：内容优先**（`detent`，令牌在 `panel-template.css`；1.19.63，所有者 2026-11-14：“大部分弹窗都能够
+ *    展示出它完整的内容”）：默认 `content` 按内容、最高到大档（T1 列表、T2 表单、T4 信息说明），内容超过大档才在
+ *    面板内滚动，内容变化引起的高度变化有过渡（`lib/sheetHeight.ts`）；`large` 接近全屏（T5）。只在手机宽度生效。
+ *    两处需要稳定高度的例外保留固定档：`half-fixed` 固定半屏（账本选择，所有者早先要求），`tall` 高半屏（约 66%，
+ *    1.19.61，只给明细与分析筛选：底部面板形态——手机宽度、窄工作区——用它，宽屏形态与固定半屏同高）。
+ *    1.19.62 之前 T1、T2 用的半屏 `half`（约 52% 上限）已删除。
  *  * **宽屏形态暂不改变**（审查 H9 留待以后）：`wide` 保留各面板原来的样子——`center` 是原 BottomSheet
  *    （宽工作区与宽窗口里居中）、`pane` 只在宽工作区里居中（原月份选择）、`bottom` 一直贴底（原选择面板、账本面板）。
  *  * **门禁变体**（`dismissible={false}`）：没有 ×、没有 Esc、点遮罩与下拉都不关，层级最高（`layer="gate"`）。
@@ -39,8 +42,11 @@ import "./panel-template.css";
  * ⚠️ **减少动态**时动画由 CSS 关掉，关闭时机不变。
  */
 
-/** `tall`：高半屏（1.19.61），只给明细与分析筛选。 */
-export type SheetDetent = "content" | "half" | "half-fixed" | "tall" | "large";
+/**
+ * `content`：按内容、最高到大档（默认，T1 / T2 / T4）；`half-fixed`：固定半屏（账本选择）；
+ * `tall`：高半屏（1.19.61，只给明细与分析筛选）；`large`：大档（T5）。
+ */
+export type SheetDetent = "content" | "half-fixed" | "tall" | "large";
 /** 宽屏下暂时保留的原有形态（审查 H9）。 */
 export type SheetWideForm = "center" | "pane" | "bottom";
 
@@ -131,7 +137,7 @@ export function BottomSheet({
   description,
   headerLeading,
   headerActions,
-  detent = "half",
+  detent = "content",
   wide = "center",
   footer,
   dismissible = true,
@@ -154,6 +160,8 @@ export function BottomSheet({
   const focus = useDialogFocus(panelRef);
   const keyboard = useKeyboardInset(rootRef);
   useOverlayScrollLock(rootRef);
+  // 按内容档：内容变化引起的高度变化用与升起同一条曲线过渡；固定高度的档位不需要（1.19.63）。
+  useSheetHeightTransition(panelRef, rootRef, detent === "content");
   const [asking, setAsking] = useState(false);
 
   /** 最新的改动 / 保存状态：关闭请求可能来自旧闭包（Esc 监听、拖动回调）。 */

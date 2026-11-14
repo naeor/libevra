@@ -168,7 +168,7 @@ export function QuotePickerSheet({
   }
 
   return (
-    /* 弹出面板模板（1.19.58）：T1 半屏，模板标题行与右上角 ×。 */
+    /* 弹出面板模板（1.19.58）：T1 列表（1.19.63 起按内容、最高到大档），模板标题行与右上角 ×。 */
     <BottomSheet
       label={tr("collab.messages.quoteSheetTitle")}
       title={tr("collab.messages.quoteSheetTitle")}
@@ -348,7 +348,7 @@ export function QuoteMessageSheet({
   }
 
   return (
-    /* 弹出面板模板（1.19.58）：T2 半屏，模板标题行与右上角 ×；输入框与发送按钮在固定底部操作区。 */
+    /* 弹出面板模板（1.19.58）：T2 表单（1.19.63 起按内容、最高到大档），模板标题行与右上角 ×；输入框与发送按钮在固定底部操作区。 */
     <BottomSheet
       label={tr("collab.messages.quoteAboutTitle")}
       title={tr("collab.messages.quoteAboutTitle")}

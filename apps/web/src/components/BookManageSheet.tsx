@@ -138,6 +138,7 @@ export function BookManageSheet({
     /**
      * 弹出面板模板（1.19.58）：遮罩、拖动条、下拉关闭（*"向下滑动"*，跟手、短拉或上拉弹回）、Esc、焦点与
      * 右上角 × 都由 `BottomSheet` 负责；宽屏下仍一直贴底（`wide="bottom"`），与原来相同。
+     * 1.19.63 内容优先：T1 按内容档（最高到大档），菜单项不再被半屏上限截在下面。
      * 上面的菜单与 `canWrite` 判断原地不动——外壳只换外观。
      *
      * ⚠️ **The backdrop closes on tap.** It is a dismissal affordance, not content — the sheet itself
@@ -168,7 +169,6 @@ export function BookManageSheet({
           ) : null}
         </span>
       }
-      detent="half"
       wide="bottom"
       initialFocus={(panel) => panel.querySelector<HTMLButtonElement>("button")}
       onClose={onClose}

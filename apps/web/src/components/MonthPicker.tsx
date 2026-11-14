@@ -217,10 +217,11 @@ export function MonthPicker({
   /**
    * ⚠️ **S18（审查 U04）：焦点进入月份选择、Esc 关闭、关闭后回到触发它的月份按钮。** 大屏工作区里按工作区
    * 宽度变成居中的小对话框（`wide="pane"`：`lv-sheet*`，见 `workspace.css`），窄工作区与手机上仍是底部面板。
-   * 弹出面板模板（1.19.58）：T1 半屏档，标题行与右上角 ×、下拉关闭、遮罩都由外壳负责；月份网格的选中样式不变。
+   * 弹出面板模板（1.19.58）：T1 列表，标题行与右上角 ×、下拉关闭、遮罩都由外壳负责；月份网格的选中样式不变。
+   * 1.19.63 内容优先：按内容档（最高到大档），整张月份网格一次露出。
    */
   return (
-    <BottomSheet label={t("ledger.monthPicker.title")} title={t("ledger.monthPicker.title")} detent="half" wide="pane"
+    <BottomSheet label={t("ledger.monthPicker.title")} title={t("ledger.monthPicker.title")} wide="pane"
       bodyClassName="px-6 pt-1 pb-6" onClose={onClose}>
       {(close) => body(close)}
     </BottomSheet>

@@ -97,8 +97,9 @@ describe("弹出面板模板（1.19.58）", () => {
   });
 
   it("档位与宽屏形态写成标记，大档用对话框档遮罩", () => {
+    // 1.19.63 内容优先：默认档位是按内容（最高到大档），原来的半屏 half 已删除。
     const half = renderToStaticMarkup(<BottomSheet label="a" onClose={() => undefined}>x</BottomSheet>);
-    expect(half).toContain('data-sheet-detent="half"');
+    expect(half).toContain('data-sheet-detent="content"');
     expect(half).toContain('data-sheet-wide="center"');
     expect(half).toContain('data-overlay-scrim="sheet"');
 

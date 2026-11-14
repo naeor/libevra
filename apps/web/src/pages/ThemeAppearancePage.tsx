@@ -93,7 +93,7 @@ export function ThemeAppearanceView({
       </section>
 
       <AppearanceStyleSection />
-      {/* 弹出面板模板（1.19.58）：外观预览是 T4 信息说明，按内容高度（最多约半屏），右上角 × 代替「关闭」文字按钮。 */}
+      {/* 弹出面板模板（1.19.58）：外观预览是 T4 信息说明，按内容高度（1.19.63 起最高到大档），右上角 × 代替「关闭」文字按钮。 */}
       {preview && <BottomSheet label={t("settings.theme.previews")} title={t("settings.theme.previews")} detent="content" onClose={() => setPreview(false)} dialogClassName="appearance-preview-sheet">
         {() => <>
           <div role="group" aria-label={t("settings.theme.previews")} className="mx-4 mt-1 mb-3 grid shrink-0 grid-cols-2 gap-2">

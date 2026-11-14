@@ -128,6 +128,8 @@
 | [share.ts](share.ts) | 实现模块；入口/导出：ShareOutcome、toFile、canShareFiles、deliverFile |
 | [sheetDrag.test.ts](sheetDrag.test.ts) | 测试：sheetDrag |
 | [sheetDrag.ts](sheetDrag.ts) | 实现模块；入口/导出：SHEET_DRAG、dragDismisses、SheetDragZone、useSheetDrag |
+| [sheetHeight.test.ts](sheetHeight.test.ts) | 测试：sheetHeight |
+| [sheetHeight.ts](sheetHeight.ts) | 实现模块；入口/导出：SHEET_RESIZE_MIN_DELTA_PX、SHEET_RESIZE_FALLBACK、SheetMeasure、SheetResizePlan、planSheetResize |
 | [softKeyboard.test.ts](softKeyboard.test.ts) | 测试：softKeyboard |
 | [softKeyboard.ts](softKeyboard.ts) | 实现模块；入口/导出：KEYBOARD_THRESHOLD、FOCUS_SETTLE_MS、REVEAL_WINDOW_MS、isTextEntry、KeyboardSample |
 | [spaceTransition.ts](spaceTransition.ts) | 实现模块；入口/导出：SpaceTransition、readSeenPresentation、markPresentationSeen、useSpaceTransition |

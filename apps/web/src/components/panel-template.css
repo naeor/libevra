@@ -1,7 +1,7 @@
 /*
  * 弹出面板模板（1.19.58，规格：docs/specs/design/S19-材质组件与动效设计系统.md「弹出面板模板」）。
  *
- * 只放模板自己的结构与可调令牌：三档高度、遮罩深浅、标题行与拖动条。面板材质仍由
+ * 只放模板自己的结构与可调令牌：高度档位与高度过渡、遮罩深浅、标题行与拖动条。面板材质仍由
  * s19/overlays.css（浅色 S19 外壳）与原组件外观（Original、深色、Pad、电脑版）负责；
  * 进出动画仍是 index.css 的 sheet-in / sheet-out 与对话框淡入淡出，不另起第二套。
  */
@@ -9,15 +9,24 @@
 /* ---------------------------------------------------------------- 可调令牌 */
 :root {
   /*
-   * 三档高度（比例乘 --lv-vh，所以在工作区里自动按工作区高度计算）。按截图观感调整时只改这里。
-   *   按内容：T4 信息说明，最多约半屏；半屏：T1 列表、T2 表单，内容更短时按内容；
-   *   固定半屏：账本选择（所有者要求的稳定高度）；大档：T5 大面积编辑，顶部留出一点背景。
+   * 高度档位（比例乘 --lv-vh，所以在工作区里自动按工作区高度计算）。按截图观感调整时只改这里。
+   * 1.19.63「内容优先」（所有者 2026-11-14：“大部分弹窗都能够展示出它完整的内容，不用为了凑半屏之类的刻意去调低高度”）：
+   *   按内容：T1 列表、T2 表单、T4 信息说明，按内容、最高到大档（与大档同一上限），超过才在面板内滚动；
+   *   大档：T5 大面积编辑，顶部留出 --lv-sheet-large-gap 的背景；
+   *   两处需要稳定高度的例外——固定半屏：账本选择（所有者早先要求）；高半屏：明细与分析筛选（下方）。
+   * 1.19.62 之前 T1、T2 的半屏上限（约 52%）与 T4 的约 50% 上限已去掉；--lv-sheet-half-* 现在只给固定半屏，
+   * 以及高半屏在宽屏形态下的高度。
    */
-  --lv-sheet-content-ratio: 50;
   --lv-sheet-half-ratio: 52;
   --lv-sheet-half-min: 18rem;
   --lv-sheet-half-max: 34rem;
   --lv-sheet-large-gap: 40px;
+  /*
+   * 按内容档的高度过渡（1.19.63，lib/sheetHeight.ts）：加载中 → 有数据、空状态 → 有数据、提示出现等内容变化时，
+   * 面板从旧高度过渡到新高度，与面板升起（index.css 的 libellum-sheet-in）同一时长与曲线；减少动态效果时不过渡。
+   */
+  --lv-sheet-resize-ms: 260ms;
+  --lv-sheet-resize-ease: cubic-bezier(0.32, 0.72, 0, 1);
   /*
    * 高半屏（1.19.61）：只给明细与分析筛选。左栏维度多、右栏有月份网格，半屏下“币种”被底部操作栏切掉、
    * “附件”要滚动、月份只露第一行（所有者 2026-11-14 看截图后决定）。固定高度（切换维度时不忽高忽低），
@@ -77,22 +86,19 @@ html[data-theme-mode="dark"] {
   animation: libellum-backdrop-out 200ms ease-in forwards;
 }
 
-/* ---------------------------------------------------------------- 三档高度（手机宽度） */
+/* ---------------------------------------------------------------- 高度档位（手机宽度） */
 /*
  * 只在窄屏（手机）按档位取高度；宽屏（Pad 工作区、电脑窗口）暂时保持各面板原来的形态（审查 H9 留待以后），
  * 由组件上的原有类名与 workspace.css 的 `.lv-sheet` 容器查询负责。
  * `--lv-sheet-kb` 是软键盘挡住的高度（BottomSheet 每次渲染写入）：面板不会高过键盘以上的可视区。
+ *
+ * 按内容（1.19.63）：高度由内容决定，上限与大档的高度是同一个式子——内容再多也只到大档那么高（顶部留出背景），
+ * 超过才在面板的内容区里滚动。改大档的留白时两处一起改。
  */
 @media (max-width: 639.98px) {
   [data-overlay-surface][data-sheet-detent="content"] {
     max-height: min(
-      max(var(--lv-sheet-half-min), calc(var(--lv-vh) * var(--lv-sheet-content-ratio))),
-      calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
-    );
-  }
-  [data-overlay-surface][data-sheet-detent="half"] {
-    max-height: min(
-      max(var(--lv-sheet-half-min), calc(var(--lv-vh) * var(--lv-sheet-half-ratio))),
+      calc(var(--lv-vh) * 100 - var(--lv-sheet-large-gap) - env(safe-area-inset-top, 0px)),
       calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
     );
   }
@@ -137,6 +143,14 @@ html[data-theme-mode="dark"] {
       calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))
     );
   }
+}
+
+/*
+ * 高度过渡期间（lib/sheetHeight.ts 加上 data-sheet-resizing，约 260ms）内容区暂时不出滚动条：面板长高的途中内容区
+ * 比内容矮，否则电脑上会闪一下滚动条。滚动位置不变，过渡结束后照常滚动。
+ */
+[data-overlay-surface][data-sheet-resizing] > [data-sheet-body] {
+  overflow: hidden;
 }
 
 /* ---------------------------------------------------------------- 标题行与拖动条 */

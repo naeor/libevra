@@ -25,9 +25,9 @@ function block(css: string, head: string): string {
 describe("模板令牌集中定义", () => {
   const css = read("./panel-template.css");
 
-  it("三档高度是可调的 CSS 变量", () => {
+  it("高度档位是可调的 CSS 变量", () => {
     const root = block(css, ":root {");
-    for (const token of ["--lv-sheet-content-ratio", "--lv-sheet-half-ratio", "--lv-sheet-half-min", "--lv-sheet-half-max", "--lv-sheet-large-gap"]) {
+    for (const token of ["--lv-sheet-half-ratio", "--lv-sheet-half-min", "--lv-sheet-half-max", "--lv-sheet-large-gap", "--lv-sheet-resize-ms", "--lv-sheet-resize-ease"]) {
       expect(root).toContain(token);
     }
     expect(root).toMatch(/--lv-sheet-half-ratio:\s*52;/);
@@ -336,5 +336,90 @@ describe("1.19.61：筛选高半屏、S19 对话框遮罩深一档、筛选设�
     expect(filters).toContain(".lv-filter-panel > [data-sheet-header] .lv-filter-settings { left:16px; right:16px; width:auto; }");
     const source = read("./EntryFilterPanel.tsx");
     expect(source).toContain("<Switch checked={sync} onCheckedChange={next => { setFilterSync(next, owner !== null && bookId !== null ? { owner, bookId } : null); }}");
+  });
+});
+
+describe("1.19.63：高度内容优先（T1 / T2 / T4 按内容，最高到大档）", () => {
+  const css = read("./panel-template.css");
+  const phone = css.slice(css.indexOf("@media (max-width: 639.98px) {"));
+  const phoneBlock = phone.slice(0, phone.indexOf("\n}"));
+  /** 手机宽度大档的高度式子：按内容档的上限必须与它完全相同。 */
+  const LARGE_LIMIT = "min(\n      calc(var(--lv-vh) * 100 - var(--lv-sheet-large-gap) - env(safe-area-inset-top, 0px)),\n      calc(var(--lv-vh) * 100 - var(--lv-sheet-edge) - var(--lv-sheet-kb, 0px))\n    )";
+
+  it("按内容档的上限就是大档的高度：内容再多也只到大档，超过才在面板内滚动", () => {
+    /** 媒体查询里的一条规则（缩进两格，以换行加两格缩进的右花括号结束）。 */
+    const rule = (head: string): string => {
+      const start = phoneBlock.indexOf(head);
+      expect(start, head).toBeGreaterThanOrEqual(0);
+      return phoneBlock.slice(start, phoneBlock.indexOf("\n  }", start));
+    };
+    const content = rule('[data-overlay-surface][data-sheet-detent="content"] {');
+    expect(content).toContain(`max-height: ${LARGE_LIMIT};`);
+    // 按内容：只有上限，没有固定高度。
+    expect(content).not.toMatch(/\n\s*height:/);
+    const large = rule('[data-overlay-surface][data-sheet-detent="large"] {');
+    expect(large).toContain(`height: ${LARGE_LIMIT};`);
+  });
+
+  it("半屏 half 与按内容的约 50% 上限已删除；固定半屏的令牌仍在", () => {
+    expect(css).not.toContain('data-sheet-detent="half"]');
+    expect(css).not.toContain("--lv-sheet-content-ratio");
+    const sheet = read("./BottomSheet.tsx");
+    expect(sheet).toContain('export type SheetDetent = "content" | "half-fixed" | "tall" | "large";');
+    expect(sheet).toContain('detent = "content",');
+    const root = block(css, ":root {");
+    expect(root).toMatch(/--lv-sheet-half-ratio:\s*52;/);
+  });
+
+  it("没有调用方再用 half；固定高度只剩两处例外：账本选择 half-fixed、明细与分析筛选 tall", () => {
+    const uses: Record<string, string[]> = {};
+    const walk = (directory: string): void => {
+      for (const entry of readdirSync(directory)) {
+        const path = join(directory, entry);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
+          for (const match of readFileSync(path, "utf8").matchAll(/detent="([a-z-]+)"/g)) (uses[match[1]!] ??= []).push(entry);
+        }
+      }
+    };
+    walk(fileURLToPath(new URL("..", import.meta.url)));
+    expect(uses.half).toBeUndefined();
+    expect(uses["half-fixed"]).toEqual(["BookSwitcherSheet.tsx"]);
+    expect(uses.tall).toEqual(["EntryFilterPanel.tsx"]);
+    expect(Object.keys(uses).sort()).toEqual(["content", "half-fixed", "large", "tall"]);
+  });
+
+  it("T1 列表、T2 表单的调用方都落在按内容档（不写档位即默认按内容）", () => {
+    const t1t2 = [
+      "./ui/ChoiceSheet.tsx",
+      "./BookManageSheet.tsx",
+      "./MonthPicker.tsx",
+      "./UpdateMoreSheet.tsx",
+      "../statsWorkbench/Sheets.tsx",
+      "../statsWorkbench/StatsControls.tsx",
+      "./MessageQuote.tsx",
+      "./EntrySortControls.tsx",
+      "../workspace/GlobalRail.tsx",
+      "./CategoryTreeList.tsx",
+      "./ledger/BatchEditSheet.tsx",
+    ];
+    for (const file of t1t2) {
+      const source = read(file);
+      expect(source, file).toContain("<BottomSheet");
+      // 这些文件里只可能写按内容档，或者不写（默认按内容）。
+      expect(/detent="(?!content")/.test(source), file).toBe(false);
+    }
+    const html = renderToStaticMarkup(<BottomSheet label="列表" onClose={() => undefined}>x</BottomSheet>);
+    expect(html).toContain('data-sheet-detent="content"');
+    expect(html).toContain('data-overlay-scrim="sheet"');
+  });
+
+  it("内容变化时的高度过渡：令牌与面板升起同一时长与曲线，过渡期间内容区不出滚动条，只给按内容档", () => {
+    const root = block(css, ":root {");
+    expect(root).toContain("--lv-sheet-resize-ms: 260ms;");
+    expect(root).toContain("--lv-sheet-resize-ease: cubic-bezier(0.32, 0.72, 0, 1);");
+    expect(read("../index.css")).toContain("animation: libellum-sheet-in 260ms cubic-bezier(0.32, 0.72, 0, 1);");
+    expect(block(css, "[data-overlay-surface][data-sheet-resizing] > [data-sheet-body] {")).toContain("overflow: hidden;");
+    expect(read("./BottomSheet.tsx")).toContain('useSheetHeightTransition(panelRef, rootRef, detent === "content");');
   });
 });

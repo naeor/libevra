@@ -50,11 +50,11 @@ describe("ChoiceSheet", () => {
     expect(html).toContain('aria-label="选择币种"');
     expect(html).toContain('role="listbox"');
     // 弹出面板模板（1.19.58）：fixed + z-50 的遮罩与面板，父容器的 overflow 裁不到它们；
-    // 宽屏下仍一直贴底；手机上是 T1 的半屏档（内容更短时按内容）。
+    // 宽屏下仍一直贴底；手机上是 T1 的按内容档（1.19.63 内容优先：按内容、最高到大档）。
     expect(html).toContain("fixed inset-0");
     expect(html).toContain("z-50");
     expect(html).toContain('data-sheet-wide="bottom"');
-    expect(html).toContain('data-sheet-detent="half"');
+    expect(html).toContain('data-sheet-detent="content"');
     // S18：高度单位是 --lv-vh（手机上等于 dvh，大屏工作区里是工作区自己的高度）。
     expect(html).toContain("max-h-[calc(var(--lv-vh)*100_-_24px_-_var(--lv-sheet-kb,0px))]");
     // 模板标题行与统一的 ×。

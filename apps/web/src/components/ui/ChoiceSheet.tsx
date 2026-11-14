@@ -21,7 +21,7 @@ import { BottomSheet } from "../BottomSheet.js";
  * Escape 关闭、点遮罩关闭、下拉关闭、点中一项后关闭；打开时把焦点放到当前项，关闭时还给打开它的控件。
  *
  * 弹出面板模板（1.19.58）：外壳是 `BottomSheet` 的 T1 列表模板——模板标题行（标题 + 右上角 ×）、
- * 半屏档（内容更短时按内容，选项多时列表在面板里滚动）、下拉关闭与焦点都由外壳负责。
+ * 按内容档（1.19.63 内容优先：按内容、最高到大档，选项更多时列表在面板里滚动）、下拉关闭与焦点都由外壳负责。
  * 宽屏下仍一直贴底（`wide="bottom"`，与原来相同）。
  */
 export interface ChoiceSheetOption<Value extends string> {
@@ -67,7 +67,7 @@ function moveFocus(event: React.KeyboardEvent<HTMLDivElement>): void {
 /**
  * 底部面板：标题 + 关闭 + 一列选项。
  *
- * ⚠️ **高度是内容驱动 + 上限**（模板半屏档 + 列表自己滚动），不是固定若干像素：
+ * ⚠️ **高度是内容驱动 + 上限**（模板按内容档，最高到大档 + 列表自己滚动），不是固定若干像素：
  * 六个币种时它刚好包住内容，账本很多时它停在上限并让列表滚动，标题与关闭按钮始终可见。
  */
 export function ChoiceSheet<Value extends string>({
@@ -90,7 +90,7 @@ export function ChoiceSheet<Value extends string>({
   if (!open) return null;
 
   return (
-    <BottomSheet label={title} title={title} detent="half" wide="bottom" initialFocus={initialOption} onClose={onClose}>
+    <BottomSheet label={title} title={title} wide="bottom" initialFocus={initialOption} onClose={onClose}>
       {(requestClose) => (
         <div
           role="listbox"
