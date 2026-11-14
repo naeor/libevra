@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from "react";
 
 import { usePane } from "../../workspace/context.js";
 import { useKeyboardInset } from "./keyboardInset.js";
+import { useS19Light } from "../../lib/useRootVisualStyle.js";
 
 /**
  * 保存行动条：粘在手动记账页滚动区的底部，**与底部导航严丝合缝**。
@@ -48,6 +49,7 @@ export function EntrySaveBar({
 }): React.JSX.Element {
   const pane = usePane();
   const keyboardInset = useKeyboardInset(scrollRef, pane.shell !== "phone");
+  const edge = useS19Light() && pane.nav === "bottom";
 
   return (
     <div
@@ -58,7 +60,8 @@ export function EntrySaveBar({
       data-entry-bar=""
       data-bar-surface="chrome"
     >
-      <div className="border-t border-line px-6 pt-3 pb-5">{children}</div>
+      {/* 1.19.78：S19 浅色手机端的记账工作区不再有底栏，保存条贴着屏幕底边，留出底部安全区；其他外观底栏仍在，照旧。 */}
+      <div className={`border-t border-line px-6 pt-3 ${edge ? "pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]" : "pb-5"}`}>{children}</div>
     </div>
   );
 }

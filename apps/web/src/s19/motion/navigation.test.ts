@@ -58,6 +58,10 @@ describe("导航层级与默认转场边界", () => {
   it("1.19.75 T1：底栏在哪些层级显示只由 navVisibleAt 决定——主 Tab 与记账工作区显示，次级页面隐藏", () => {
     expect(navVisibleAt("tabRoot")).toBe(true);
     expect(navVisibleAt("enterMode")).toBe(true);
+    // 1.19.78：S19 浅色手机端的记账工作区是独立工作区，底栏隐藏；Original 与深色（workspaceChrome = false）照旧显示。
+    expect(navVisibleAt("enterMode", true)).toBe(false);
+    expect(navVisibleAt("tabRoot", true)).toBe(true);
+    expect(navVisibleAt("subpage", true)).toBe(false);
     expect(navVisibleAt("subpage")).toBe(false);
     // 主 Tab 之间交换、主 Tab ↔ 记账工作区：前后结果相同，底栏不动；主 Tab ↔ 次级页：结果不同，播放退出 / 升回。
     const changes = (from: string, to: string): boolean => navVisibleAt(navigationLevel(from)) !== navVisibleAt(navigationLevel(to));

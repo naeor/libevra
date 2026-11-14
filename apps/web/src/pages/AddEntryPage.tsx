@@ -29,7 +29,11 @@ import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
 import { KindToggle, useKindBar } from "../components/entry/KindToggle.js";
-import { usePaneDirty } from "../workspace/context.js";
+import { useMarkBack, usePane, usePaneDirty } from "../workspace/context.js";
+import { useGoBack } from "../lib/connectivity.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { WorkspaceTopBar } from "../components/entry/WorkspaceTopBar.js";
+import { useS19Light } from "../lib/useRootVisualStyle.js";
 import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/inheritLast.js";
 import { ChevronIcon } from "../components/Icons.js";
 import { InfoIcon } from "../components/InfoHint.js";
@@ -309,7 +313,18 @@ export function AddEntryPage(): React.JSX.Element {
   const busy = writing || checkDuplicates.isPending || createEntry.isPending || pendingDuplicate !== null;
   // 附件草稿与表单一起保留工作区。
   const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, "manual", [{ id: "entry", label: t("attachments.capture.current") }], busy);
-  usePaneDirty(amountText.trim() !== "" || note.trim() !== "" || attachments.files.length > 0);
+  const dirty = amountText.trim() !== "" || note.trim() !== "" || attachments.files.length > 0;
+  usePaneDirty(dirty);
+  /**
+   * 1.19.78 记账工作区顶栏的返回：走现有的工作区退出逻辑（与次级页顶栏同一套 `useGoBack` + `markBack`，协调器按“离开工作区”播放）。
+   * 有未保存的输入时先问一句（与弹出面板“关闭前询问”、外壳的 `usePaneDirty` 同一判断：金额、备注、附件），不直接丢弃。
+   */
+  const pane = usePane();
+  const workspaceChrome = useS19Light();
+  const goBack = useGoBack("/");
+  const markBack = useMarkBack();
+  const [leaveAsk, setLeaveAsk] = useState(false);
+  const leaveWorkspace = (): void => { markBack(); goBack(); };
 
   /**
    * 同方向的最近记录，只给「沿用上一笔」用。
@@ -734,6 +749,18 @@ export function AddEntryPage(): React.JSX.Element {
       className="min-h-full pb-0!"
       wideWidth="reading"
     >
+      {pane.nav === "bottom" && workspaceChrome ? (
+        <WorkspaceTopBar title={t("workspace.rail.add")} onBack={() => { if (dirty) setLeaveAsk(true); else leaveWorkspace(); }} />
+      ) : null}
+      <ConfirmDialog
+        open={leaveAsk}
+        title={t("entry.add.leaveTitle")}
+        description={t("entry.add.leaveBody")}
+        confirmLabel={t("entry.add.leaveConfirm")}
+        cancelLabel={t("entry.add.leaveKeep")}
+        onConfirm={() => { setLeaveAsk(false); leaveWorkspace(); }}
+        onCancel={() => { setLeaveAsk(false); }}
+      />
       <form
         className="lv-manual-form flex flex-1 flex-col"
         onSubmit={(event) => {

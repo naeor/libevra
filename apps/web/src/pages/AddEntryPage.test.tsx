@@ -418,7 +418,8 @@ describe("AddEntryPage 第四轮（S15-C 第四轮）", () => {
     expect(barTag).toContain("bottom-0");
     expect(barTag).not.toContain("bottom-5");
     // 条内保留 20px 不透明底垫：+ 压在这块留白上，保存按钮的下缘仍在它上面。
-    expect(saveBarSource).toContain('className="border-t border-line px-6 pt-3 pb-5"');
+    // 1.19.78：S19 浅色手机端的记账工作区没有底栏，保存条贴着屏幕底边，另加底部安全区；其他外观仍是 20px。
+    expect(saveBarSource).toContain('edge ? "pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]" : "pb-5"');
     expect(saveBarSource).toContain("bg-canvas");
     // 软键盘抬起时贴键盘上沿，不再额外叠加 20px。
     expect(saveBarSource).toContain("keyboardInset > 0 ? { bottom: keyboardInset } : undefined");

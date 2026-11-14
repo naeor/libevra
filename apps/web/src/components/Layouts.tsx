@@ -23,6 +23,8 @@ import { SyncBanner } from "./SyncBanner.js";
 import { useGoBack, type BackMode } from "../lib/connectivity.js";
 import { useI18n } from "../i18n/index.js";
 import { WorkbenchSyncBridge } from "../statsWorkbench/SyncBridge.js";
+import { WorkspaceTopBar } from "./entry/WorkspaceTopBar.js";
+import { useS19Light } from "../lib/useRootVisualStyle.js";
 import { usePane, useMarkBack } from "../workspace/context.js";
 import { DesktopInnerPage, DesktopTabPage } from "../desktop/DesktopFrames.js";
 import { useDesktopSurface } from "../desktop/surface.js";
@@ -144,7 +146,8 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
    * - 减少动态效果、后台标签页：直接显隐。软键盘打开时底栏原样被 CSS 藏起（navigation.css），与这里无关。
    */
   const navRef = useRef<HTMLDivElement | null>(null);
-  const atLevel = navVisibleAt(level);
+  const workspaceChrome = useS19Light();
+  const atLevel = navVisibleAt(level, workspaceChrome);
   const wanted = atLevel && !navigationSuppressed;
   const [navHidden, setNavHidden] = useState(!wanted);
   const navState = useRef<{ wanted: boolean; atLevel: boolean; rise: boolean; motion: NavMotion | null }>({ wanted, atLevel, rise: false, motion: null });
@@ -323,7 +326,14 @@ function MobileTabPage({
   const pane = usePane();
   const width = frameWidthClass(pane, wideWidth);
   /** 底部导航只在手机外壳的主区存在；大屏上主导航在全局侧栏，辅助区没有主导航。 */
-  const bottomNav = pane.nav === "bottom";
+  /**
+   * 1.19.78：手机上的记账工作区（手动记账用 TabPage）不显示底栏（`navVisibleAt`），也就不再给底栏、记一笔卡片与当前账本留位；
+   * 大屏仍在底边说明当前账本。
+   */
+  const { pathname: tabPath } = useLocation();
+  const workspaceChrome = useS19Light();
+  const workspace = pane.nav === "bottom" && !navVisibleAt(navigationLevel(tabPath), workspaceChrome);
+  const bottomNav = pane.nav === "bottom" && !workspace;
   const suppressNavigation = useContext(SuppressNavigationContext);
   useLayoutEffect(() => {
     suppressNavigation(bottom !== undefined);
@@ -356,7 +366,7 @@ function MobileTabPage({
       </div>
 
       {/* 大屏工作区没有底部导航，但仍在底边说明这个工作区查看的是哪本账（两个工作区各自一行）。 */}
-      {bottomNav ? <TabPageNav active={active} onNavigate={onNavigate} currentBookName={currentBookName} /> : <CurrentBookCaption name={currentBookName} />}
+      {bottomNav ? <TabPageNav active={active} onNavigate={onNavigate} currentBookName={currentBookName} /> : workspace ? null : <CurrentBookCaption name={currentBookName} />}
     </div>
   );
 }
@@ -455,7 +465,10 @@ function MobileInnerPage({
   const navigationSuppressed = useContext(NavigationSuppressedContext);
   // 1.19.75：是否给底栏留位跟着底栏是否显示走（navVisibleAt），以后记账工作区改成隐藏底栏时这里自动不再留位。
   const level = navigationLevel(pathname);
-  const mode = pane.nav === "bottom" && level === "enterMode" && navVisibleAt(level) && !navigationSuppressed;
+  const workspaceChrome = useS19Light();
+  const mode = pane.nav === "bottom" && level === "enterMode" && navVisibleAt(level, workspaceChrome) && !navigationSuppressed;
+  /** 1.19.78：S19 浅色手机端的记账方式页是独立工作区——顶部换成较矮的工作区顶栏（返回箭头、标题、右侧留空），不再有大标题。 */
+  const workspace = pane.nav === "bottom" && level === "enterMode" && workspaceChrome;
   const width = frameWidthClass(pane, wideWidth);
   /**
    * S18：页面左上角的「返回」先告诉工作区外壳「这是返回」——有的页面返回是打开声明的上级页（push），
@@ -495,13 +508,21 @@ function MobileInnerPage({
       */}
       <OfflineStatus />
 
+      {workspace ? (
+        <WorkspaceTopBar title={title} onBack={handleBack} actions={actions}>
+          <SyncBanner />
+        </WorkspaceTopBar>
+      ) : (
       <PageNavBar title={title} condensed={condensed} onBack={handleBack} actions={actions} widthClass={width}>
         {/* ⚠️ The offline banner is itself `sticky top-0`; inside the bar's sticky group it stays
             pinned *with* the bar instead of being covered by it. */}
         <SyncBanner />
       </PageNavBar>
+      )}
 
       <main className={`mx-auto flex w-full ${width} flex-1 flex-col gap-6 px-6 pt-1 ${pane.shell === "wide" ? "pb-10" : "pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))]"}`}>
+        {/* 工作区里标题在顶栏（顶栏的 h1），这里只留说明。 */}
+        {workspace ? (subtitle ? <p className="text-body-relaxed text-muted">{subtitle}</p> : null) : (
         <header>
           <h1 ref={titleRef} className="flex items-center gap-2 text-page-title text-ink">
             {title}
@@ -509,6 +530,7 @@ function MobileInnerPage({
           </h1>
           {subtitle ? <p className="mt-1 text-body-relaxed text-muted">{subtitle}</p> : null}
         </header>
+        )}
 
         {children}
       </main>

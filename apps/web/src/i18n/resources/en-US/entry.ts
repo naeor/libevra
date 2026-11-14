@@ -11,6 +11,10 @@ const entry: Messages<typeof zh> = {
     integerHint: "{{currency}} has no decimals, so amounts are saved as whole numbers.",
   },
   add: {
+    leaveTitle: "Discard this unsaved entry?",
+    leaveBody: "What you’ve entered hasn’t been saved and won’t be kept if you go back.",
+    leaveConfirm: "Discard and go back",
+    leaveKeep: "Keep editing",
     offlineSave: "You’re offline, so this shared ledger is view-only. You can add entries again once you’re back online.",
     offlineNotice:
       "You’re offline, so this shared ledger is view-only. You can add entries again once you’re back online. Changes that haven’t synced yet are kept.",
