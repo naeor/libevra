@@ -12,6 +12,7 @@ import {
   type TransactionKind,
 } from "@libellum/shared";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
 
@@ -141,6 +142,8 @@ export function ScanPage(): React.JSX.Element {
   /** Results that could be read, and where we are among them. */
   const [items, setItems] = useState<OcrItemResult[]>([]);
   const [cursor, setCursor] = useState(0);
+  const stepRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(stepRef, `${step.name}|${String(cursor)}`);
   const [attachmentBatchId, setAttachmentBatchId] = useState(() => uuidV7());
 
   const categories = ledger.data?.categories ?? [];
@@ -528,6 +531,8 @@ export function ScanPage(): React.JSX.Element {
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
 
+      {/* 1.19.80：选图 → 识别中 → 核对 → 已记账（批量时逐张核对）换一步时新内容淡入轻移，不再整页一帧硬换。见 ComponentMotion `useSwapReveal`。 */}
+      <div ref={stepRef} data-scan-step={step.name}>
       {step.name === "pick" ? (
         <PickStep
           files={files}
@@ -619,6 +624,7 @@ export function ScanPage(): React.JSX.Element {
           />
         </div>
       ) : null}
+      </div>
 
       {/*
         The page type could not be decided. The design direction is explicit that

@@ -2,6 +2,7 @@ import { billAttachmentMapping } from "../lib/captureAttachments.js";
 import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import type { BillImportCandidate, BillImportPreview, ImportReport } from "@libellum/shared";
 import { startTransition, useRef, useState, type DragEvent } from "react";
+import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -207,6 +208,8 @@ function ImportView({
   const invalidateMoney = useMoneyInvalidator(bookId);
 
   const [step, setStep] = useState<Step>({ name: "choose" });
+  const stepRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(stepRef, step.name);
   /**
    * 1.19.51：核对并最终确认导入是专注型任务——常驻底栏让位，固定确认条（含风险确认、阻断原因与取消）
    * 占用底栏原来的位置，不再被底栏盖住。选择文件、解析中、导入完成仍按普通记账工作区显示底栏。
@@ -437,6 +440,8 @@ function ImportView({
         }}
       />
 
+      {/* 1.19.80：选择文件 → 解析中 → 核对 → 完成，换一步时新内容淡入轻移，不再整页一帧硬换。见 ComponentMotion `useSwapReveal`。 */}
+      <div ref={stepRef} data-import-step={step.name}>
       {step.name === "choose" ? (
         <section className="flex flex-col gap-4">
           {file === null ? (
@@ -648,6 +653,7 @@ function ImportView({
           }}
         />
       ) : null}
+      </div>
 
       {/* The confirmation the owner asked for: say how many rows, and what happens, before writing. */}
       <ConfirmDialog

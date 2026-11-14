@@ -18,7 +18,8 @@ import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "
  * 「返回明细」结束会话，「再识别一批」保留会话并去 `/scan`。
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { Trans } from "react-i18next";
 import { useNavigate } from "react-router";
 
@@ -160,6 +161,8 @@ export function OcrOverviewPage(): React.JSX.Element {
     readonly outcome: OcrImportOutcome;
     readonly session: OcrImportSession;
   } | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(shellRef, done !== null);
   const [error, setError] = useState<string | null>(null);
   /**
    * 这批记录与账本历史命中的疑似重复。**不是阻止导入**，只是让用户在写入前看到依据：
@@ -437,9 +440,11 @@ export function OcrOverviewPage(): React.JSX.Element {
   }
 
   if (done !== null) {
+    // 1.19.80：概览 ↔ 完成屏换屏时新内容淡入轻移（两个分支共用同一个外层，React 保留它只换内容；见 ComponentMotion `useSwapReveal`）。
     // Completion gets its own shell: `InnerPage` always draws a back control and the
     // 「重新识别」 action, and this state must offer neither (both have named replacements).
     return (
+      <div ref={shellRef}>
       <ImportDoneScreen
         outcome={done.outcome}
         session={done.session}
@@ -447,10 +452,12 @@ export function OcrOverviewPage(): React.JSX.Element {
         onAgain={importAgain}
         onRetry={retryFailed}
       />
+      </div>
     );
   }
 
   return (
+    <div ref={shellRef}>
     <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("ocr.overview.title")}
       backTo="/scan"
@@ -611,6 +618,7 @@ export function OcrOverviewPage(): React.JSX.Element {
       */}
       {batch === null ? null : <div aria-hidden="true" className={BOTTOM_BAR_CLEARANCE} />}
     </InnerPage></CaptureLayout>
+    </div>
   );
 }
 
