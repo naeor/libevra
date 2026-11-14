@@ -51,6 +51,7 @@ import { formatMoney, parseAmountInput } from "../lib/format.js";
 import { fetchTemplate, useCurrentBookId, useLedger, useLedgerMeta, useMoneyInvalidator } from "../lib/queries.js";
 import { deliverFile } from "../lib/share.js";
 import { continueEntry } from "../lib/entryFlow.js";
+import { useReturnToPath } from "../lib/entryReturn.js";
 import { useFocusTask } from "../components/PersistentNavContext.js";
 
 /**
@@ -191,6 +192,7 @@ function ImportView({
   readonly hideExportLink?: boolean;
 }): React.JSX.Element {
   const navigate = useNavigate();
+  const returnTo = useReturnToPath();
   const { t, locale } = useI18n();
   const fileInput = useRef<HTMLInputElement>(null);
   /**
@@ -479,7 +481,7 @@ function ImportView({
             <Button
               variant="ghost"
               onClick={() => {
-                void navigate(exportTo);
+                returnTo(exportTo, "push");
               }}
             >
               {t("dataio.import.backToExport")}
@@ -645,7 +647,8 @@ function ImportView({
           onDone={() => {
             // 1.19.45：清空与离开同一次后台提交，离开工作区时盖着的仍是完成屏，而不是先闪回选择文件。
             startTransition(resetToChoose);
-            void navigate(doneTo);
+            // 1.19.80（审查 T5）：上一条正是要回去的那一页时按返回方向播放（`useReturnToPath`），否则照原来前往；落点不变。
+            returnTo(doneTo, "push");
           }}
           onAgain={() => continueEntry(resetToChoose)}
           onRetry={() => {

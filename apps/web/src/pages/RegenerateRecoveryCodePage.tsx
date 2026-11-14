@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
@@ -18,6 +19,9 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [issuedCode, setIssuedCode] = useState<string | null>(null);
+  // 1.19.80：表单 → 新恢复码换屏时新内容淡入轻移（两个分支共用同一个外层，React 保留它只换内容）。
+  const swapRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(swapRef, issuedCode !== null);
   const [busy, setBusy] = useState(false);
 
   async function submit(event: React.FormEvent): Promise<void> {
@@ -51,7 +55,7 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
         subtitle={t("account.recoveryCode.issuedSubtitle")}
         backTo="/settings"
       >
-        <RecoveryCodeCard code={issuedCode} onContinue={continueToSettings} />
+        <div ref={swapRef}><RecoveryCodeCard code={issuedCode} onContinue={continueToSettings} /></div>
       </InnerPage>
     );
   }
@@ -62,6 +66,7 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
       subtitle={t("account.recoveryCode.subtitle")}
       backTo="/settings"
     >
+      <div ref={swapRef}>
       <Card className="lv-settings-task">
         <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
           {error ? <Alert>{error}</Alert> : null}
@@ -84,6 +89,7 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
           </Button>
         </form>
       </Card>
+      </div>
     </InnerPage>
   );
 }

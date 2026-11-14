@@ -12,7 +12,8 @@ import {
   type DuplicatePairResult,
   type Transaction,
 } from "@libellum/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
@@ -105,6 +106,8 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
   const foreignLedger = writer.foreign !== null;
 
   const [editing, setEditing] = useState(false);
+  const editSwapRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(editSwapRef, editing);
   /**
    * ⚠️ **S18：编辑中就是一份未保存的修改。** 辅助工作区里开始编辑会自动切到独立模式；即使之后手动切回跟随，
    * 主区的下一次点击也不会替换掉这一页（详情改在主区打开），草稿不会因为跟随而丢失。
@@ -508,6 +511,8 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
         </p>
       </section>
 
+      {/* 1.19.80：查看 ↔ 编辑整块互换时新内容淡入轻移（原地，不改路由；见 ComponentMotion `useSwapReveal`）。外层保持原来的 24px 间距。 */}
+      <div ref={editSwapRef} className="flex flex-col gap-6">
       {editing ? (
         <>
           <AttachmentPanel bookId={attachmentBookId} entryIds={[id]} readOnly={!canChange} />
@@ -843,6 +848,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
           </button> : null}
         </>
       )}
+      </div>
 
       <BatchAddSheet
         open={batchOpen}

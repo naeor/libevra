@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { Trans } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -217,6 +218,8 @@ export function LedgerImportPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
   const step = parseStep(search.get("step"));
+  const stepSwapRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(stepSwapRef, step);
   const requestedTargetId = search.get("target") ?? "";
   // Decision B (owner 2026-10-19): imports no longer create a target ledger. Old links that
   // still carry target=new are redirected to "no target selected"; the server also refuses the
@@ -1077,6 +1080,8 @@ export function LedgerImportPage(): React.JSX.Element {
         />
       ) : null}
 
+      {/* 1.19.80：选择 → 预览 → 核对 → 确认（?step= 用 replace）换一步时新内容淡入轻移（见 ComponentMotion `useSwapReveal`）。外层保持原来的 24px 间距。 */}
+      <div ref={stepSwapRef} className="flex flex-col gap-6">
       {books.isSuccess && step === "select" ? (
         <SelectionStep
           targetId={targetId}
@@ -1242,6 +1247,7 @@ export function LedgerImportPage(): React.JSX.Element {
       ) : null}
 
       {step === "confirm" && (preview === null || loading) ? <SkeletonRows rows={4} /> : null}
+      </div>
 
       <ConfirmDialog
         open={removalConfirmOpen}
