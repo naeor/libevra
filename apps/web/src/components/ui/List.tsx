@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { useI18n } from "../../i18n/index.js";
 import { copyText } from "../../lib/clipboard.js";
 import { ChevronIcon } from "../Icons.js";
+import { useMountReveal } from "./ComponentMotion.js";
 import { DraggableLink, plainText } from "../../workspace/openDrag.js";
 
 /**
@@ -268,8 +269,11 @@ export function InlineMessage({
 }): React.JSX.Element {
   const { t } = useI18n();
   const textRef = useRef<HTMLParagraphElement | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
+  // 1.19.76：之后才出现的反馈展开到位（页面转场中随页面一起出现的不做），见 ComponentMotion `useMountReveal`。
+  useMountReveal(boxRef);
 
   useLayoutEffect(() => {
     const element = textRef.current;
@@ -281,7 +285,7 @@ export function InlineMessage({
     tone === "error" ? "bg-danger-soft text-danger" : tone === "success" ? "bg-brand-soft text-brand-dark" : "bg-canvas text-muted";
 
   return (
-    <div role={tone === "error" ? "alert" : "status"} className={`flex items-start gap-3 rounded-field px-4 py-2.5 ${palette}`}>
+    <div ref={boxRef} role={tone === "error" ? "alert" : "status"} className={`flex items-start gap-3 rounded-field px-4 py-2.5 ${palette}`}>
       <div className="min-w-0 flex-1">
         <p ref={textRef} className={`text-helper-relaxed break-words ${expanded ? "" : "line-clamp-2"}`}>
           {children}
