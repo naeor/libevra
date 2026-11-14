@@ -15,6 +15,7 @@ import { NavigationType, Router, UNSAFE_LocationContext } from "react-router";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import type { PaneHistory, PaneSnapshot } from "./paneHistory.js";
 import { createScrollMemory, type ScrollMemory } from "./scrollMemory.js";
+import { animatePadNavigation } from "../s19/motion/padNavigation.js";
 import type { PilotAdapter } from "../s19/motion/pilot.js";
 
 // 只在内层启动；协调手机普通导航、对象展开与工作模式，仍由同一个历史订阅提交页面。
@@ -46,10 +47,14 @@ export function PaneRouter({
   }, [history]);
   useLayoutEffect(() => { scroll.current?.setAccount(account); }, [account]);
   useLayoutEffect(() => {
+    const previous = shown.current;
     shown.current = snapshot;
     if (motion.current) { motion.current.committed(snapshot.location.key); return; }
     scroll.current?.restore(snapshot.location.key, snapshot.location.pathname, snapshot.action);
-  }, [snapshot]);
+    if (!nested || previous === snapshot) return;
+    const animations = animatePadNavigation(history.id, previous, snapshot);
+    return () => { for (const animation of animations) animation.cancel(); };
+  }, [history, nested, snapshot]);
 
   useLayoutEffect(() => {
     // 订阅之前的变化（同一渲染周期里外壳已经导航过）也要接上。

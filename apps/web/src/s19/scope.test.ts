@@ -91,9 +91,9 @@ const scoped = cssFiles.flatMap(({ file, rules }) => rules.filter(rule => rule.i
 const phoneStructure = (file: string, rule: string): boolean => file in PHONE_FILES || PHONE_STRUCTURE.some(([pattern]) => pattern.test(rule));
 
 describe("S19 作用域标记（总闸）", () => {
-  it("外壳与舞台：手机外壳写 phone，Pad 宽屏不写；舞台带同一组属性", () => {
+  it("外壳与舞台：手机外壳写 phone，Pad 宽屏写 pad；舞台带同一组属性", () => {
     expect(s19ScopeForShell("contents")).toBe("phone");
-    expect(s19ScopeForShell("wide")).toBeUndefined();
+    expect(s19ScopeForShell("wide")).toBe("pad");
     const stage = { dataset: {} as Record<string, string> };
     markS19Stage(stage as unknown as HTMLElement);
     expect(stage.dataset).toEqual({ shell: "contents", s19Scope: "phone" });
@@ -112,10 +112,10 @@ describe("S19 作用域标记（总闸）", () => {
     expect(scoped.length).toBeGreaterThan(200);
   });
 
-  it("标记只有两种写法：通用层 [data-s19-scope] 与手机专属层 [data-s19-scope=\"phone\"]，都挂在 .lv-shell 上", () => {
+  it("通用、手机和 Pad 三种作用域都挂在 .lv-shell 上", () => {
     const offenders = scoped.flatMap(({ file, rule }) => {
       const all = rule.match(/\[data-s19-scope[^\]]*\]/g) ?? [];
-      const ok = rule.match(/\.lv-shell(?:\.[\w-]+)*\[data-s19-scope(?:="phone")?\]/g) ?? [];
+      const ok = rule.match(/\.lv-shell(?:\.[\w-]+)*\[data-s19-scope(?:="(?:phone|pad)")?\]/g) ?? [];
       return all.length === ok.length ? [] : [`${file}: ${rule}`];
     });
     expect(offenders).toEqual([]);
