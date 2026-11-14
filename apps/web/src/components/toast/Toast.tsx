@@ -14,6 +14,7 @@ import { CapsuleButton, IconButton } from "../ui/PurposeControls.js";
 import { useComponentFeedback } from "../ui/ComponentMotion.js";
 import type { ToastTone, ToastView } from "../../lib/toast/types.js";
 import "./toast.css";
+import "../../s19/toast.css";
 
 /** 字形路径（24×24 视框）：沿用原拍照导入提示的 ✓、!、×，新增信息 i。 */
 const GLYPHS: Record<ToastTone, string> = {

@@ -36,6 +36,22 @@ function files(directory: string, pattern: RegExp): string[] {
 const strip = (source: string): string => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
 const sources = files(SRC, /\.(ts|tsx|css)$/).map((path) => ({ file: posix(path), code: strip(readFileSync(path, "utf8")) }));
 const read = (file: string): string => readFileSync(join(SRC, file), "utf8");
+/** 按顶层逗号拆选择器（`:is(a, b)` 里的逗号不拆）。 */
+function topLevel(rule: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i <= rule.length; i += 1) {
+    const c = rule[i];
+    if (c === "(" || c === "[") depth += 1;
+    else if (c === ")" || c === "]") depth -= 1;
+    if (i === rule.length || (c === "," && depth === 0)) {
+      out.push(rule.slice(from, i).trim());
+      from = i + 1;
+    }
+  }
+  return out.filter(Boolean);
+}
 
 describe("统一提示条守卫", () => {
   it("旧的五套实现在正式代码里一个不剩", () => {
@@ -64,7 +80,9 @@ describe("统一提示条守卫", () => {
     expect(read("components/ocr/ImportDoneScreen.tsx")).toContain("toast.show(importDoneToast(outcome))");
     expect(read("components/AvatarRewardNotice.tsx")).toMatch(/toast\.show\(\s*avatarRewardToast\(/);
     // 宿主只有两处：手机 / Pad 外壳与电脑版外壳。
-    const hosts = sources.filter(({ file, code }) => !file.startsWith("components/toast/") && /<ToastViewport\b/.test(code)).map(({ file }) => file);
+    const hosts = sources
+      .filter(({ file, code }) => !file.startsWith("components/toast/") && !LAB_DIRS.some((dir) => file.startsWith(dir)) && /<ToastViewport\b/.test(code))
+      .map(({ file }) => file);
     expect(hosts.sort()).toEqual(["desktop/DesktopShell.tsx", "workspace/WorkspaceShell.tsx"]);
   });
 
@@ -92,8 +110,34 @@ describe("统一提示条守卫", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("提示条样式有减少动态效果分支", () => {
+  it("S19 材质只写在通用层、只引用令牌；B2 背景模糊先写 -webkit- 前缀", () => {
+    const css = strip(read("s19/toast.css"));
+    const rules = css.split("{").map((part) => part.split("}").pop()!.trim()).filter((selector) => selector.includes("[data-toast-surface]"));
+    expect(rules.length).toBeGreaterThan(10);
+    for (const rule of rules) {
+      for (const selector of topLevel(rule)) {
+        expect(selector).toContain('.lv-shell[data-s19-scope]');
+        expect(selector).not.toContain('[data-s19-scope="phone"]');
+      }
+    }
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+    // 只看声明块（花括号里面）；@supports 的条件里两种写法的先后无所谓。
+    const declarations = [...css.matchAll(/\{([^{}]*)\}/g)].map((match) => match[1]!).filter((body) => body.includes("backdrop-filter"));
+    expect(declarations.length).toBeGreaterThan(0);
+    for (const block of declarations) {
+      const prefixed = block.indexOf("-webkit-backdrop-filter");
+      const plain = block.search(/(^|[^-])backdrop-filter/);
+      expect(prefixed).toBeGreaterThanOrEqual(0);
+      expect(prefixed).toBeLessThan(plain);
+    }
+    // A 用 A3 悬浮档（不带品牌色），B2 用操作玻璃下限。
+    expect(css).toContain("--lv-toast-sh: var(--s19-a-elev-3)");
+    expect(css).toContain("--lv-toast-bg: var(--s19-action-bar-bg)");
+  });
+
+  it("两份提示条样式都有减少动态效果分支", () => {
     expect(read("components/toast/toast.css")).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(read("s19/toast.css")).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
   it("带操作的提示必须写出常设替代路径（类型约束）", () => {

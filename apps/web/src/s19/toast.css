@@ -1,0 +1,96 @@
+/*
+  S19 · 提示条（Toast）的语义材质（1.19.66；规格 §3 用途表“提示条”一行）。
+
+  只写在通用层 `.lv-shell[data-s19-scope]`（浅色 A / B1 / B2 / C）：Original、深色、Pad、电脑版一条也不命中，
+  用 components/toast/toast.css 的基础外观（浅色实心面）。Pad 将来有作用域值后自动继承这里。
+  只引用现有令牌；颜色字面量只能写在令牌文件（lib/colors.test.ts）。
+
+  | 外观 | 表面 | 边与影 | 圆角 |
+  |---|---|---|---|
+  | A | --s19-key-bg（比卡片、画布更白，拉开明度） | A3 悬浮档 --s19-a-elev-3（墨色分层阴影，不带品牌色，所有者决定第 15 条） | --s19-r-mini |
+  | B1 | 稳定默认的 Satin 瓷底 --s19-card-bg（不开 satin / glazed 反射候选） | --s19-key-sh | --s19-r-mini |
+  | B2 | 操作玻璃下限 --s19-action-bar-bg（max(栏面, 内容 + .12)）＋表面模糊 --s19-entry-filter | --s19-key-sh | --s19-r-mini |
+  | C | --s19-key-bg 白纸 | --s19-key-sh（细线 + 轻投影） | --s19-r-mini |
+
+  结构与弹层面板相同：材质画在 ::before 上（背景模糊只在伪元素上），错误描边在 ::after 上；面板本身只做位移动画，
+  透明度动画落在 ::before / ::after 与内容上——带 backdrop-filter 的层不能放在做透明度动画的祖先里，否则 B2 读不到后方。
+  文字不玻璃化：B2 第二行也用墨色（压在品牌色块上时 --color-muted 只有约 2.5:1），操作按钮文字墨色。
+*/
+
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+  border-width: 0; padding: 8px 15px; border-radius: var(--s19-r-mini);
+  background: transparent; box-shadow: none;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-controls] { padding-right: 7px; }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: var(--lv-toast-bg, var(--color-surface)); box-shadow: var(--lv-toast-sh, none);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-tone="error"]::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 40%, transparent);
+}
+/* 关闭是安静的 ×：不叠工具片材质，面板本身就是底（选择器要比 material-components.css 的 B2 工具片更具体）。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-material.lv-toast-close[data-material-role] {
+  background: transparent; box-shadow: none;
+}
+
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+  --lv-toast-bg: var(--s19-key-bg); --lv-toast-sh: var(--s19-a-elev-3);
+}
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+  --lv-toast-bg: var(--s19-card-bg); --lv-toast-sh: var(--s19-key-sh);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+  --lv-toast-bg: var(--s19-action-bar-bg); --lv-toast-sh: var(--s19-key-sh);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]::before {
+  -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-toast-detail { color: var(--color-ink); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] { --lv-toast-bg: var(--color-surface); }
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+  --lv-toast-bg: var(--s19-key-bg); --lv-toast-sh: var(--s19-key-sh);
+}
+
+/* ---- 出现 / 消失：面板只位移，材质层与内容淡入淡出（时长与位移读 --lv-reveal-* / --lv-dismiss-ms，按风格取值） ---- */
+@keyframes lv-toast-move-in { from { transform: translateY(var(--lv-toast-rise)); } }
+@keyframes lv-toast-move-out { to { transform: translateY(var(--lv-toast-rise)); } }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] {
+  animation: lv-toast-move-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) both;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
+  animation: lv-toast-fade-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) both;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] {
+  animation: lv-toast-move-out var(--lv-dismiss-ms, 180ms) var(--lv-motion-ease, ease-out) both;
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] > *,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::before,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::after {
+  animation: lv-toast-fade-out var(--lv-dismiss-ms, 180ms) var(--lv-motion-ease, ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]:is([data-phase="enter"], [data-phase="exit"]) {
+    animation: none;
+  }
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
+    animation: lv-toast-fade-in var(--lv-dismiss-ms, 180ms) linear both;
+  }
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] > *,
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::before,
+  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::after {
+    animation: lv-toast-fade-out var(--lv-dismiss-ms, 180ms) linear both;
+  }
+}
+
+/* ---- B2 页面转场（View Transition）期间不被新旧页面快照盖住：提示宿主单独成一组，画在页面组之上。 ---- */
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-s19-scope] .lv-toast-host {
+  view-transition-name: lv-toast;
+}

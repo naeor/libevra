@@ -12,6 +12,9 @@ import { CapsuleButton, IconButton, SegmentedControl, Switch } from "../../compo
 import { MotionPresence, useComponentFeedback } from "../../components/ui/ComponentMotion.js";
 import { StandardStatesExample } from "./StandardStates.js";
 import { SelectionLabSection } from "./SelectionLab.js";
+import { ToastLabSection, ToastShot } from "./ToastLab.js";
+import { ToastProvider } from "../../components/toast/ToastProvider.js";
+import { ToastViewport } from "../../components/toast/ToastViewport.js";
 import { LayoutPatterns, StandaloneBottomPattern } from "./LayoutPatterns.js";
 import { applyB2Glass, B2_GLASS_PRESETS, type B2GlassPreset } from "../b2Glass.js";
 import { MATERIAL_DEFAULTS, materialCapability, materialTuningStyle, type MaterialAppearance, type MaterialFinish } from "../material.js";
@@ -24,7 +27,7 @@ const STYLES = [{ value: "a", label: "A" }, { value: "b1", label: "B1" }, { valu
 type Style = typeof STYLES[number]["value"];
 const NAMES = { a: "Soft Surface · 柔和薄片", b1: "Porcelain · 温润瓷质", b2: "Glass · 轻盈玻璃", c: "Classic Surface · 经典纸面" };
 const PRESETS = [{ value: "clear", label: "清透" }, { value: "balanced", label: "均衡" }, { value: "soft", label: "柔和" }] as const;
-const SECTIONS = [{ id: "buttons", name: "按钮" }, { id: "cards", name: "卡片与材质" }, { id: "capsules", name: "胶囊" }, { id: "inputs", name: "输入与选择" }, { id: "overlays", name: "弹窗与面板" }, { id: "motion", name: "动效" }, { id: "states", name: "标签与状态" }, { id: "layouts", name: "布局模式" }, { id: "selection", name: "选中指示与条件标签" }];
+const SECTIONS = [{ id: "buttons", name: "按钮" }, { id: "cards", name: "卡片与材质" }, { id: "capsules", name: "胶囊" }, { id: "inputs", name: "输入与选择" }, { id: "overlays", name: "弹窗与面板" }, { id: "motion", name: "动效" }, { id: "states", name: "标签与状态" }, { id: "layouts", name: "布局模式" }, { id: "selection", name: "选中指示与条件标签" }, { id: "toast", name: "提示条" }];
 
 function Example({ title, note, code, children }: { title: string; note: string; code: string; children: ReactNode }) {
   return <div className="cg-example"><h3>{title}</h3><p>{note}</p><div className="cg-specimen">{children}</div><details><summary>调用示例 · 复制</summary><CopyButton text={code} label="复制代码" variant="secondary" rows={Math.min(6, code.split("\n").length + 1)} /></details></div>;
@@ -49,7 +52,7 @@ function Gallery() {
   const changeStyle = (next: Style) => { setStyle(next); setFinish("auto"); };
   const reset = () => { setEdge(MATERIAL_DEFAULTS.edge * 100); setReflection(MATERIAL_DEFAULTS.reflection * 100); setOpacity(undefined); setRadius(undefined); setElevation("default"); setEnhanced(false); setFinish("auto"); };
   const capability = materialCapability(finish);
-  return <main className="lv-shell cg-page" data-shell="contents" data-s19-scope="phone" style={materialTuningStyle({ edge: edge / 100, reflection: reflection / 100, ...(radius === undefined ? {} : { radius }) })}>
+  return <ToastProvider><main className="lv-shell cg-page" data-shell="contents" data-s19-scope="phone" style={materialTuningStyle({ edge: edge / 100, reflection: reflection / 100, ...(radius === undefined ? {} : { radius }) })}>
     <header className="cg-heading"><p>LIBEVRA / DESIGN SYSTEM</p><h1>Component Gallery</h1><p>从用途出发。这里的控件与正式应用共用组件和材质。</p></header>
     <div className="cg-layout"><aside className="cg-controls" aria-label="预览设置">
       <h2>四种风格，同一套组件</h2><SegmentedControl label="视觉风格" value={style} options={STYLES} onChange={changeStyle} /><p className="cg-style-name">{NAMES[style]}</p>
@@ -93,12 +96,16 @@ function Gallery() {
       <section id="states"><h2><span>07</span> 标签、搜索与状态反馈</h2><div className="cg-example"><StandardStatesExample /></div></section>
       <section id="layouts"><h2><span>08</span> 布局模式</h2><div className="cg-example"><LayoutPatterns style={style} preset={preset} /></div></section>
       <section id="selection"><h2><span>09</span> 选中指示与已选条件标签（设计样板）</h2><div className="cg-example"><SelectionLabSection /></div></section>
+      <section id="toast"><h2><span>10</span> 提示条（Toast）</h2><div className="cg-example"><ToastLabSection /></div></section>
       <footer className="cg-footer">标准组件 → 共享材质 → 既有 Token。业务页面的布局、权限、导航由页面负责。<br />普通使用只声明用途；候选材质通过 appearance 显式开启。</footer>
     </div></div>
     <ConfirmDialog open={panel === "confirm"} title="确认这次示例选择？" description="这是组件展示，不会修改账目。" tone="default" onConfirm={() => { setSuccess(v => v + 1); setPanel("none"); }} onCancel={() => setPanel("none")} />
     <ChoiceSheet open={panel === "choice"} title="选择示例范围" options={[{ value: "daily", label: "日常生活" }, { value: "travel", label: "旅行计划" }, { value: "locked", label: "锁定示例", disabled: true }]} value={choice} onSelect={setChoice} onClose={() => setPanel("none")} />
     {panel === "sheet" ? <BottomSheet label="示例操作" onClose={() => setPanel("none")}>{close => <div className="cg-sheet"><h2>操作面板</h2><p>操作文字应比背后展示内容更容易辨认。</p><TextField label="示例标题" defaultValue="周末计划" /><Button type="button" motion onClick={close}>完成</Button><Button type="button" variant="secondary" onClick={close}>取消</Button></div>}</BottomSheet> : null}
-  </main>;
+    <ToastViewport kind="phone" />
+  </main></ToastProvider>;
 }
-const root = createRoot(document.getElementById("component-gallery")!); root.render(new URLSearchParams(location.search).get("layout") === "bottom" ? <StandaloneBottomPattern /> : <Gallery />);
+const query = new URLSearchParams(location.search);
+// ?shot=toast：只渲染提示条的固定画面（ToastLab.tsx），五种外观构图完全相同。
+const root = createRoot(document.getElementById("component-gallery")!); root.render(query.get("shot") === "toast" ? <ToastShot /> : query.get("layout") === "bottom" ? <StandaloneBottomPattern /> : <Gallery />);
 if (import.meta.hot) import.meta.hot.dispose(() => root.unmount());

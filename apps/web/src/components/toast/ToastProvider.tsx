@@ -45,6 +45,17 @@ export function ToastProvider({ children, controller }: { readonly children: Rea
     };
   }, [own]);
 
+  // 开发 / 测试构建：控制台与截图脚本可以直接发一条提示（`window.__lvToast.show({ … })`），不用真的制造失败。
+  // 正式构建里 import.meta.env.DEV 为 false，整段被去掉。
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") return;
+    const host = window as unknown as { __lvToast?: AppToastController };
+    host.__lvToast = own;
+    return () => {
+      if (host.__lvToast === own) delete host.__lvToast;
+    };
+  }, [own]);
+
   return <ToastContext.Provider value={own}>{children}</ToastContext.Provider>;
 }
 
