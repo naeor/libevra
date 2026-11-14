@@ -14,7 +14,7 @@ import { ChevronIcon, GearIcon } from "./Icons.js";
 import { validStorageRange } from "./EntrySortControls.js";
 import "./entry-filters.css";
 import { Switch } from "./ui/PurposeControls.js";
-import { ConditionTags, MovingSelection, SelectionGrid, SelectionItem } from "./ui/SelectionControls.js";
+import { ConditionTags, MovingSelection, SelectionGrid, SelectionItem, ToggleButton } from "./ui/SelectionControls.js";
 import { setFilterSync, useFilterSync } from "../lib/ledgerFilter.js";
 import { useFilterOwner } from "../lib/usePageFilter.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
@@ -142,18 +142,19 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
   const storageValid = validStorageRange(draft.minMB, draft.maxMB);
   return <form className="lv-filter-panel" data-desktop={desktop || undefined} onSubmit={event => { event.preventDefault(); setAttempted(true); if (datesValid && storageValid) onApply(draft); }}>
     {sheet !== null ? <SheetHeader title={t("ledger.filters.title")} actions={<div className="lv-filter-tools">
-        <button type="button" className="lv-filter-multi" aria-pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</button>
+        <ToggleButton className="lv-filter-multi" pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</ToggleButton>
         <FilterSettingsButton />
       </div>} />
     : <header className="lv-filter-heading"><h2 className="text-section-title">{t("ledger.filters.title")}</h2>
       <div className="lv-filter-tools">
-        <button type="button" className="lv-filter-multi" aria-pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</button>
+        <ToggleButton className="lv-filter-multi" pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</ToggleButton>
         <FilterSettingsButton />
         <button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.close")} onClick={onClose}>×</button>
       </div>
     </header>}
     {/* 已选条件标签与选中指示（1.19.62，S19 §3；1.19.65 起面板里的选中控件全部用正式组件）：条件逻辑、tablist / aria-selected、
-        aria-pressed 都不变，只换成正式组件。标题行的“多选”是开关（打开 / 关闭月份多选），不是选中指示，保持原来的 aria-pressed 开关按钮。 */}
+        aria-pressed 都不变，只换成正式组件。标题行的“多选”是开关（打开 / 关闭月份多选），不是选中指示：仍是 aria-pressed 开关按钮，
+        1.19.67 起用 ToggleButton，开启状态在 S19 下按选中模型表现（B1 / B2 玻璃、A 浮起、C 浅绿实底），Original 的尺寸与描边不变。 */}
     <ConditionTags className="lv-filter-chips" aria-label={t("ledger.filters.selected")}
       items={active.map(key => ({ key, label: labels.dimensionLabel(key), title: labels.dimensionLabel(key), removeLabel: t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) }) }))}
       onRemove={key => { setDraft(clearFilterDimension(draft, key as FilterDimension)); if (key === "time") setRangeMode(false); }}

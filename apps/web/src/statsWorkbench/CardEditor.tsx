@@ -14,6 +14,7 @@ import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layou
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { SlidingSelection } from "../components/ui/SlidingSelection.js";
+import { ToggleButton } from "../components/ui/SelectionControls.js";
 import { useI18n } from "../i18n/index.js";
 import { analysisTitle, cardTitle, windowSubtitle } from "./cards.js";
 import { cardWindow, RELATIVE_WINDOWS, type RelativeWindow } from "./timeWindows.js";
@@ -530,9 +531,10 @@ function SlotRow({
         <button type="button" className="sw-icon-button" aria-label={t("statsWorkbench.editor.moveDown", { name: title })} disabled={disabled || index === total - 1} onClick={() => onMove(1)}>
           <ChevronDown />
         </button>
-        <button type="button" className={`sw-icon-button ${replacing ? "sw-icon-button-on" : ""}`} aria-pressed={replacing} aria-label={t("statsWorkbench.editor.replace", { name: title })} disabled={disabled} onClick={onReplace}>
+        {/* 开关按钮（1.19.67）：开启状态在 S19 下按选中模型表现；Original 仍是 sw-icon-button-on 的品牌浅底。 */}
+        <ToggleButton className={`sw-icon-button ${replacing ? "sw-icon-button-on" : ""}`} pressed={replacing} aria-label={t("statsWorkbench.editor.replace", { name: title })} disabled={disabled} onClick={onReplace}>
           <SwapGlyph />
-        </button>
+        </ToggleButton>
         <button type="button" className="sw-icon-button" aria-label={t("statsWorkbench.editor.remove", { name: title })} disabled={disabled} onClick={onRemove}>
           <XGlyph />
         </button>

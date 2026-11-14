@@ -13,6 +13,7 @@ import { MotionPresence, useComponentFeedback } from "../../components/ui/Compon
 import { StandardStatesExample } from "./StandardStates.js";
 import { SelectionLabSection } from "./SelectionLab.js";
 import { ToastLabSection, ToastShot } from "./ToastLab.js";
+import { SwitchBoard, SwitchShot } from "./SwitchLab.js";
 import { ToastProvider } from "../../components/toast/ToastProvider.js";
 import { ToastViewport } from "../../components/toast/ToastViewport.js";
 import { LayoutPatterns, StandaloneBottomPattern } from "./LayoutPatterns.js";
@@ -95,7 +96,7 @@ function Gallery() {
       </Example></section>
       <section id="states"><h2><span>07</span> 标签、搜索与状态反馈</h2><div className="cg-example"><StandardStatesExample /></div></section>
       <section id="layouts"><h2><span>08</span> 布局模式</h2><div className="cg-example"><LayoutPatterns style={style} preset={preset} /></div></section>
-      <section id="selection"><h2><span>09</span> 选中指示与已选条件标签（设计样板）</h2><div className="cg-example"><SelectionLabSection /></div></section>
+      <section id="selection"><h2><span>09</span> 选中指示与已选条件标签（设计样板）</h2><div className="cg-example"><SelectionLabSection /><h3>切换类控件与开关按钮（1.19.67）</h3><p>支出 / 收入、明细全部 / 支出 / 收入、外观页明暗三选一、批量修改添加 / 移除用同一个“会移动的选中”；筛选标题行“多选”这类开关按钮开启时按同一模型表现（B1 / B2 玻璃、A 浮起、C 浅绿实底），关闭时是普通按钮。固定画面：<code>?shot=switches&amp;s19=b2</code>。</p><SwitchBoard /></div></section>
       <section id="toast"><h2><span>10</span> 提示条（Toast）</h2><div className="cg-example"><ToastLabSection /></div></section>
       <footer className="cg-footer">标准组件 → 共享材质 → 既有 Token。业务页面的布局、权限、导航由页面负责。<br />普通使用只声明用途；候选材质通过 appearance 显式开启。</footer>
     </div></div>
@@ -106,6 +107,6 @@ function Gallery() {
   </main></ToastProvider>;
 }
 const query = new URLSearchParams(location.search);
-// ?shot=toast：只渲染提示条的固定画面（ToastLab.tsx），五种外观构图完全相同。
-const root = createRoot(document.getElementById("component-gallery")!); root.render(query.get("shot") === "toast" ? <ToastShot /> : query.get("layout") === "bottom" ? <StandaloneBottomPattern /> : <Gallery />);
+// ?shot=toast / ?shot=switches：只渲染提示条（ToastLab.tsx）或切换与开关按钮（SwitchLab.tsx）的固定画面，五种外观构图完全相同。
+const root = createRoot(document.getElementById("component-gallery")!); root.render(query.get("shot") === "toast" ? <ToastShot /> : query.get("shot") === "switches" ? <SwitchShot /> : query.get("layout") === "bottom" ? <StandaloneBottomPattern /> : <Gallery />);
 if (import.meta.hot) import.meta.hot.dispose(() => root.unmount());

@@ -10,6 +10,8 @@
   - 网格选中：B1 / B2 玻璃在旧格淡出、新格淡入；A 选中格浮起；C 交叉淡化。
   - 独立的选中项（[data-select-item]，多选列表的行、单个选项，1.19.65）：与网格选中同一规则；A 的放大用标准 A2 档（不用月份格的）。
   - 已选条件标签：B1 / B2 带淡绿的瓷片；A 带淡绿、A2 档轻轻浮起的柔和薄片；C 纸面 + 细线。出现时轻微放大淡入，删除时缩小淡出。
+  - 开关按钮（[data-select-toggle]，aria-pressed，1.19.67）：开启状态与独立选中项同一外观（B1 / B2 玻璃淡入、A 按 A2 浮起、C 浅绿实底）；
+    材质只画在 ::before（::after 留给调用方扩大命中区，所以 A 用完整的 A2 阴影一层，不拆环境影）；不动调用方的 box-shadow（焦点环）。
   选中文字一律变品牌绿（选中要有两个信号：选中块或浮起，加上文字颜色）。
 */
 
@@ -56,6 +58,10 @@
     background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);
   }
   :is([data-select-grid] > button, [data-select-item])::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; }
+  /* 开关按钮：关闭时就是调用方的普通按钮；开启时底色与描边让给 ::before 的材质，文字变品牌绿。 */
+  [data-select-toggle] { position: relative; isolation: isolate; transition: color var(--lv-select-ms) var(--lv-motion-ease); }
+  [data-select-toggle][aria-pressed="true"] { background: transparent; border-color: transparent; color: var(--color-brand-dark); }
+  [data-select-toggle]::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; }
   /* base="copy"（SlidingSelection，1.19.67）：选中块（或 A 的浮起层）是这一组里唯一的面。分析工作台的分类胶囊各自带底色，
      未选项留着胶囊底时选中项反而不如它们显眼（B1 / B2 的透明玻璃、A 的白色浮起都和未选胶囊差不多），所以未选项不带自己的底。 */
   [data-select-moving][data-select-base="copy"][data-select-ready] > button:not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
@@ -78,6 +84,11 @@
   }
   [data-select-grid] > button[aria-pressed="true"]::before,
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; transform: none; }
+  [data-select-toggle]::before {
+    background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); transform: scale(.94);
+    transition: opacity var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-select-ms) var(--lv-motion-ease);
+  }
+  [data-select-toggle][aria-pressed="true"]::before { opacity: 1; transform: none; }
 }
 
 /* ---------- C：浅绿实底，整块干脆滑动；网格交叉淡化 ---------- */
@@ -87,6 +98,8 @@
   :is([data-select-grid] > button, [data-select-item])::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
   [data-select-grid] > button[aria-pressed="true"]::before,
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; }
+  [data-select-toggle]::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
+  [data-select-toggle][aria-pressed="true"]::before { opacity: 1; }
 }
 
 /* ---------- A：没有色块，选中项自己按 A2 档浮起 ----------
@@ -127,6 +140,14 @@
     opacity: 1; transform: none;
     transition: opacity var(--lv-lift-shadow-in-ms) ease-out, transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
   }
+  /* 开关按钮开启：按 A2 档浮起。::after 留给调用方的命中区，表面与完整 A2 阴影都在 ::before，浮起时整体淡入。 */
+  [data-select-toggle] { transition: color var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-lift-fall-ms) var(--lv-lift-fall-ease); }
+  [data-select-toggle]::before { background: var(--s19-select-lift-bg); box-shadow: var(--s19-a-elev-2); transition: opacity var(--lv-lift-shadow-out-ms) ease-out; }
+  [data-select-toggle][aria-pressed="true"] {
+    transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale));
+    transition: color var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
+  }
+  [data-select-toggle][aria-pressed="true"]::before { opacity: 1; transition: opacity var(--lv-lift-shadow-in-ms) ease-out; }
 }
 
 /* ---------- 减少动态效果：全部直接切换（选中块的脚本动画另行判断） ---------- */
@@ -135,5 +156,6 @@
   :is([data-select-moving], [data-select-grid]) > button::before,
   :is([data-select-moving], [data-select-grid]) > button::after,
   [data-select-item], [data-select-item]::before, [data-select-item]::after,
+  [data-select-toggle], [data-select-toggle]::before,
   [data-cond-tag] { transition: none !important; animation: none !important; }
 }

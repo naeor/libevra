@@ -21,7 +21,7 @@
 | [PurposeControls.tsx](PurposeControls.tsx) | 界面模块；入口/导出：IconButton、CapsuleButton、Switch、SegmentedControl |
 | [RecordList.tsx](RecordList.tsx) | 界面模块；入口/导出：RecordList、RecordGroup、RecordRow |
 | [SelectionControls.test.tsx](SelectionControls.test.tsx) | 测试：SelectionControls |
-| [SelectionControls.tsx](SelectionControls.tsx) | 界面模块；入口/导出：MovingSelection、SelectionGrid、SelectionItem、ConditionTag、ConditionTags |
+| [SelectionControls.tsx](SelectionControls.tsx) | 界面模块；入口/导出：MovingSelection、SelectionGrid、SelectionItem、ToggleButton、ConditionTag |
 | [SlidingSelection.tsx](SlidingSelection.tsx) | 界面模块；入口/导出：SlidingSelection |
 | [StatusControls.test.tsx](StatusControls.test.tsx) | 测试：StatusControls |
 | [StatusControls.tsx](StatusControls.tsx) | 界面模块；入口/导出：StatusTone、Badge、FilterChip、StatusMessage |
@@ -29,7 +29,7 @@
 | [material-components.test.tsx](material-components.test.tsx) | 测试：material-components |
 | [purpose-controls.css](purpose-controls.css) | 样式与变量 |
 | [selection-controls.css](selection-controls.css) | 样式与变量 |
-| [selectionModel.ts](selectionModel.ts) | 实现模块；入口/导出：SelectionStyle、SelectionAxis、SelectionMotion、selectionStyle、selectionStyleOf |
+| [selectionModel.ts](selectionModel.ts) | 实现模块；入口/导出：SelectionStyle、SelectionAxis、SelectionMotion、SelectionBase、selectionStyle |
 | [selectionMotion.test.tsx](selectionMotion.test.tsx) | 测试：selectionMotion |
 | [selectionMotion.ts](selectionMotion.ts) | 实现模块；入口/导出：SELECTION_DURATION、SelectionBox、selectionFrames |
 | [status-controls.css](status-controls.css) | 样式与变量 |

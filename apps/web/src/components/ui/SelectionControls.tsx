@@ -20,7 +20,8 @@ export type { ConditionTagItem, ConditionTagState, SelectionAxis, SelectionBase 
  *
  * 选项按钮、角色与 aria（tablist / tab / aria-selected、group / aria-pressed）、点击与键盘行为全部由调用方保留；
  * 这里只加一块 `aria-hidden` 的选中块和 data 属性。怎么选：同一时间只有一项被选中、选项排成一行或一列 → `MovingSelection`；
- * 可以同时选中几项（多选列表）、换行排列的小组、或单独的一个选项 → `SelectionGrid` / `SelectionItem`；开关（开 / 关）不属于选中指示。Original、深色、Pad 与电脑版回落基础外观；减少动态效果时直接切换。
+ * 可以同时选中几项（多选列表）、换行排列的小组、或单独的一个选项 → `SelectionGrid` / `SelectionItem`；开关按钮（开 / 关，1.19.67）→
+ * `ToggleButton`，开启状态与独立选中项同一外观。Original、深色、Pad 与电脑版回落基础外观；减少动态效果时直接切换。
  */
 
 const SELECTED = ':scope > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])';
@@ -141,6 +142,18 @@ export function SelectionGrid(props: HTMLAttributes<HTMLDivElement>) {
  */
 export function SelectionItem(props: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type">) {
   return <button type="button" {...props} data-select-item="" />;
+}
+
+/**
+ * 开关按钮（1.19.67，规格 S19 §3「怎么选」的“开关按钮”一行）：只有开 / 关两种状态、表示一种模式是否打开
+ * （筛选标题行“多选”、分析卡片编辑器的“替换”），再点一次就关。保持开关语义——就是调用方的
+ * `<button type="button" aria-pressed>`，不改成 `Switch`（`role="switch"` 要轨道，标题行放不下），也不改成 `CapsuleButton`
+ * （会改变 Original 的尺寸与描边）。开启时在 S19 浅色手机外壳里按选中模型表现：B1 / B2 透明模拟玻璃淡入、A 按 A2 档浮起、
+ * C 浅绿实底，文字变品牌绿；关闭时回到调用方的普通按钮。材质只画在 `::before`（调用方常用 `::after` 扩大命中区）。
+ * Original、深色、Pad、电脑版用调用方自己的开启样式。只多一个 `data-select-toggle` 钩子。
+ */
+export function ToggleButton({ pressed, ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type" | "aria-pressed"> & { pressed: boolean }) {
+  return <button type="button" {...props} aria-pressed={pressed} data-select-toggle="" />;
 }
 
 /**

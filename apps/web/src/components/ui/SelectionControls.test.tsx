@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { NAVIGATION, SELECTION_GLIDE, selectionGlideDuration } from "../../lib/motionTokens.js";
 import { SegmentedControl } from "./PurposeControls.js";
-import { ConditionTag, ConditionTags, MovingSelection, SelectionGrid, SelectionItem } from "./SelectionControls.js";
+import { ConditionTag, ConditionTags, MovingSelection, SelectionGrid, SelectionItem, ToggleButton } from "./SelectionControls.js";
 import { focusAfterRemoval, glideFrames, reconcileTags, selectionMotion, selectionStyle, slideFrames, type ConditionTagEntry, type ConditionTagItem } from "./selectionModel.js";
 
 /**
@@ -176,6 +176,15 @@ describe("结构与无障碍属性", () => {
     expect(source).toContain('if (base === "copy") Object.assign(block.style, { background: "", boxShadow: "", border: "", opacity: "" });');
   });
 
+  it("ToggleButton（1.19.67）就是调用方的 type=button + aria-pressed 开关按钮，只多 data-select-toggle 钩子；不改成 switch", () => {
+    const on = renderToStaticMarkup(<ToggleButton className="lv-filter-multi" pressed title="多选月份" onClick={() => undefined}>多选</ToggleButton>);
+    expect(on).toBe('<button type="button" class="lv-filter-multi" title="多选月份" aria-pressed="true" data-select-toggle="">多选</button>');
+    const off = renderToStaticMarkup(<ToggleButton className="sw-icon-button" pressed={false} aria-label="替换" disabled>⇄</ToggleButton>);
+    expect(off).toContain('aria-pressed="false"');
+    expect(off).toContain('disabled=""');
+    expect(off).not.toContain('role="switch"');
+  });
+
   it("SelectionGrid 只加钩子，月份格仍是调用方的 aria-pressed 按钮", () => {
     const html = renderToStaticMarkup(<SelectionGrid className="lv-filter-months" data-multi><button type="button" aria-pressed>11月</button></SelectionGrid>);
     expect(html).toBe('<div class="lv-filter-months" data-multi="true" data-select-grid=""><button type="button" aria-pressed="true">11月</button></div>');
@@ -256,6 +265,26 @@ describe("外观：四种风格同一个模型", () => {
     expect(block(':root:is([data-visual-style="b1"], [data-visual-style="b2"])')).toContain(noIsolation);
     expect(block(':root[data-visual-style="c"]')).toContain(noIsolation);
     expect(block(':root[data-visual-style="a"]')).not.toContain(noIsolation);
+  });
+
+  it("开关按钮（1.19.67）开启时按同一模型：B1 / B2 玻璃、A 按 A2 浮起、C 浅绿实底；材质只在 ::before，不动 ::after 与焦点环", () => {
+    const on = '[data-select-toggle][aria-pressed="true"]';
+    const common = block(':root[data-visual-style][data-theme-mode="light"]');
+    expect(common).toContain(`${on} { background: transparent; border-color: transparent; color: var(--color-brand-dark); }`);
+    expect(common).toContain('[data-select-toggle]::before { content: ""; position: absolute; inset: 0; z-index: -1;');
+    const glass = block(':root:is([data-visual-style="b1"], [data-visual-style="b2"])');
+    expect(glass).toContain("[data-select-toggle]::before {\n    background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh);");
+    expect(glass).toContain(`${on}::before { opacity: 1; transform: none; }`);
+    const c = block(':root[data-visual-style="c"]');
+    expect(c).toContain("[data-select-toggle]::before { background: var(--s19-select-solid-bg);");
+    expect(c).toContain(`${on}::before { opacity: 1; }`);
+    const a = block(':root[data-visual-style="a"]');
+    expect(a).toContain("[data-select-toggle]::before { background: var(--s19-select-lift-bg); box-shadow: var(--s19-a-elev-2);");
+    expect(a).toContain(`${on} {\n    transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale));`);
+    // ::after 是调用方的命中区（.lv-filter-multi 上下各扩 6px）；开关按钮的规则不碰它，也不清掉调用方的 box-shadow（焦点环）。
+    expect(css).not.toMatch(/\[data-select-toggle\][^{,]*::after/);
+    expect(css).not.toMatch(/\[data-select-toggle\]\[aria-pressed="true"\] \{[^}]*box-shadow/);
+    expect(block("@media (prefers-reduced-motion: reduce)")).toContain("[data-select-toggle], [data-select-toggle]::before,");
   });
 
   it("条件标签：出现 / 删除用各风格的 reveal / dismiss 时长与起始缩放；删除命中区约 44px 高", () => {
@@ -341,8 +370,10 @@ describe("筛选面板接入", () => {
     // 没有遗留的手写选中控件
     expect(source).not.toMatch(/<button type="button" className="lv-filter-(option|mine)/);
     expect(source).not.toContain('<div className="lv-filter-choices">');
-    // 开关保持开关：标题行“多选”仍是 aria-pressed 开关按钮（底部面板与电脑版两处），“含子分类”仍是复选框
-    expect(source.match(/<button type="button" className="lv-filter-multi" aria-pressed=\{multi\}/g)).toHaveLength(2);
+    // 开关保持开关：标题行“多选”仍是 aria-pressed 开关按钮（底部面板与电脑版两处；1.19.67 起是 ToggleButton，渲染的仍是
+    // type=button + aria-pressed 的按钮，类名与点击不变），“含子分类”仍是复选框
+    expect(source.match(/<ToggleButton className="lv-filter-multi" pressed=\{multi\} title=\{t\("ledger\.filters\.multiSelectLabel"\)\} onClick=\{toggleMulti\}>/g)).toHaveLength(2);
+    expect(source).not.toContain('className="lv-filter-multi" aria-pressed');
     expect(source).toContain('<label className="lv-filter-branch text-helper"><input type="checkbox" checked={draft.branches.includes(item.id)}');
   });
 
