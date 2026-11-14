@@ -21,6 +21,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 
 import { ToastController } from "../../lib/toast/controller.js";
 import type { ToastOptions } from "../../lib/toast/types.js";
+import { createToastBottomSlot, ToastBottomSlotContext } from "./bottomSlot.js";
 
 /** 前置图是 React 节点（例如头像）。 */
 export type ToastLeading = ReactNode;
@@ -31,6 +32,8 @@ const ToastContext = createContext<AppToastController | null>(null);
 
 export function ToastProvider({ children, controller }: { readonly children: ReactNode; readonly controller?: AppToastController }): React.JSX.Element {
   const [own] = useState<AppToastController>(() => controller ?? new ToastController<ToastLeading>());
+  // 1.19.72：手机底部提示位的占用状态（宿主写、当前账本胶囊读，见 bottomSlot.ts）。
+  const [bottomSlot] = useState(createToastBottomSlot);
 
   // 页面切到后台时暂停计时（方案 §2.4）：回来时至少还剩一段，不会“切回来正好错过”。
   useEffect(() => {
@@ -56,7 +59,11 @@ export function ToastProvider({ children, controller }: { readonly children: Rea
     };
   }, [own]);
 
-  return <ToastContext.Provider value={own}>{children}</ToastContext.Provider>;
+  return (
+    <ToastContext.Provider value={own}>
+      <ToastBottomSlotContext.Provider value={bottomSlot}>{children}</ToastBottomSlotContext.Provider>
+    </ToastContext.Provider>
+  );
 }
 
 export function useToastController(): AppToastController {

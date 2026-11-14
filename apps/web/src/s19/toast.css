@@ -9,7 +9,7 @@
   |---|---|---|---|
   | A | --s19-key-bg（比卡片、画布更白，拉开明度） | A3 悬浮档 --s19-a-elev-3（墨色分层阴影，不带品牌色，所有者决定第 15 条） | --s19-r-mini |
   | B1 | 稳定默认的 Satin 瓷底 --s19-card-bg（不开 satin / glazed 反射候选） | --s19-key-sh | --s19-r-mini |
-  | B2 | 账本卡同一填充 --s19-book-bg（约 80% 不透明，1.19.67）＋表面模糊 --s19-entry-filter | --s19-key-sh | --s19-r-mini |
+  | B2 | 提示条专用填充 --s19-toast-bg（约 70% 不透明，1.19.72；1.19.67 起曾用账本卡填充约 80%）＋表面模糊 --s19-entry-filter | --s19-key-sh | --s19-r-mini |
   | C | --s19-key-bg 白纸 | --s19-key-sh（细线 + 轻投影） | --s19-r-mini |
 
   结构与弹层面板相同：材质画在 ::before 上（背景模糊只在伪元素上），错误描边在 ::after 上；面板本身只做位移动画，
@@ -18,6 +18,10 @@
   B2 填充为什么不是操作玻璃下限（1.19.67，所有者决定的 §7 第 2 条）：1.19.66 用 --s19-action-bar-bg（均衡档约 .37），
   压在大面积深色内容（墨色块、照片）上正文只有约 3:1、纯黑约 2:1；提示条是要读的文字、会压在任意内容上，可读性优先于玻璃感，
   所以只对提示条换成 --s19-book-bg（约 80% 不透明，压在纯黑上正文仍约 8:1），保留表面模糊。底栏、保存栏等操作面不变。
+  1.19.72（所有者要求）：80% 略显太实，改为提示条专用的 --s19-toast-bg（约 70%，index.css B2 段）。只降底材质（::before 的填充），
+  不降组件整体透明度，文字、图标、按钮不跟着发虚；压在纯黑上正文约 6:1。× 原来是 --color-muted，70% 底压在深色上只剩约 2.4:1，
+  B2 下改用墨色（与第二行同一理由）。
+  错误描边（1.19.72）：1px / 危险色 40% → 1.5px / 50%，与基础外观同步；只给错误类型。
 */
 
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
@@ -31,7 +35,7 @@
 }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-tone="error"]::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 40%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--color-danger) 50%, transparent);
 }
 /* 关闭是安静的 ×：不叠工具片材质，面板本身就是底（选择器要比 material-components.css 的 B2 工具片更具体）。 */
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-material.lv-toast-close[data-material-role] {
@@ -45,12 +49,13 @@
   --lv-toast-bg: var(--s19-card-bg); --lv-toast-sh: var(--s19-key-sh);
 }
 :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
-  --lv-toast-bg: var(--s19-book-bg); --lv-toast-sh: var(--s19-key-sh);
+  --lv-toast-bg: var(--s19-toast-bg); --lv-toast-sh: var(--s19-key-sh);
 }
 :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]::before {
   -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter);
 }
 :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-toast-detail { color: var(--color-ink); }
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-toast-close { color: var(--color-ink); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] { --lv-toast-bg: var(--color-surface); }
 }
@@ -62,12 +67,12 @@
 @keyframes lv-toast-move-in { from { transform: translateY(var(--lv-toast-rise)); } }
 @keyframes lv-toast-move-out { to { transform: translateY(var(--lv-toast-rise)); } }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] {
-  animation: lv-toast-move-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) both;
+  animation: lv-toast-move-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) var(--lv-toast-enter-delay, 0ms) both;
 }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
-  animation: lv-toast-fade-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) both;
+  animation: lv-toast-fade-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) var(--lv-toast-enter-delay, 0ms) both;
 }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] {
   animation: lv-toast-move-out var(--lv-dismiss-ms, 180ms) var(--lv-motion-ease, ease-out) both;
@@ -84,7 +89,7 @@
   :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
   :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
   :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
-    animation: lv-toast-fade-in var(--lv-dismiss-ms, 180ms) linear both;
+    animation: lv-toast-fade-in var(--lv-dismiss-ms, 180ms) linear var(--lv-toast-enter-delay, 0ms) both;
   }
   :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] > *,
   :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::before,

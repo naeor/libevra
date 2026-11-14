@@ -2,20 +2,23 @@
  * **提示条的显示宿主**（1.19.66）：每个外壳一个——手机 / Pad 在 `WorkspaceShell` 的 `.lv-shell` 里（S19 材质规则才能命中），
  * 电脑版在 `DesktopShell` 的 `.lv-desktop` 里。它订阅应用级控制器（`ToastProvider`），负责：
  *
- * - **位置**（方案 §3.1）：手机在底栏、“+”、账本胶囊、底部操作栏与软键盘之上 8px（量出来，不猜）；分析工作台编辑态
+ * - **位置**（方案 §3.1）：手机在底栏、“+”、底部操作栏与软键盘之上 8px（量出来，不猜）；分析工作台编辑态
  *   声明了顶部锚点时放在编辑条下方；电脑版在底部操作栏之上 16px；Pad 宽屏这一阶段固定在外壳底部居中。
+ * - **账本胶囊让位**（1.19.72，见 `bottomSlot.ts`）：手机提示在底部时，底栏上方的当前账本胶囊先缩回、提示再升起；
+ *   提示退场后胶囊再弹回。胶囊因此不是障碍物；它还在原位时，提示的入场推迟到它基本让开。
  * - **让开**（方案 §3.2，所有者决定第 17 条）：任何模态弹层打开（`lib/openOverlay.ts`）或“+”记一笔菜单展开
  *   （`[data-toast-yield]`）时，当前提示退场并暂停计时，关闭后再出现。
  * - **无障碍**（方案 §2.5）：两个播报区挂载即存在、之后只改文字；可见本体在 `aria-label="通知"` 的区域里，
  *   不兼任播报区；出现时不抢焦点；焦点在提示里时 Esc 关闭；提示因操作 / × / 替换消失时焦点回到进入前的元素；
  *   悬停（能悬停的设备）与焦点在提示里时暂停；键盘焦点落到被提示盖住的元素时把它滚到提示外面（WCAG 2.4.11）。
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { useI18n } from "../../i18n/index.js";
 import { hasOpenOverlay } from "../../lib/openOverlay.js";
 import { bottomOffset, centeredSpan, topOffset, type Box } from "../../lib/toast/placement.js";
 import type { ToastAnnouncement, ToastView } from "../../lib/toast/types.js";
+import { TOAST_WAIT_FOR_GIVE_WAY_MS, ToastBottomSlotContext } from "./bottomSlot.js";
 import { ToastCard } from "./Toast.js";
 import { useToastController } from "./ToastProvider.js";
 
@@ -23,7 +26,7 @@ export type ToastHostKind = "phone" | "wide" | "desktop";
 
 /** 让开的标记：“+”记一笔菜单展开时由 BottomNav 写上。 */
 export const TOAST_YIELD_SELECTOR = "[data-toast-yield]";
-/** 底部障碍物：底部操作栏与显式标记的元素（底栏、“+”、账本胶囊）。 */
+/** 底部障碍物：底部操作栏与显式标记的元素（底栏、抬高的“+”）。账本胶囊给提示让位，不是障碍物（1.19.72）。 */
 export const TOAST_OBSTACLE_SELECTOR = "[data-lv-bottom-bar], [data-toast-avoid]";
 /** 顶部锚点：页面声明“这一阶段提示放在我下面”（分析工作台编辑态的编辑条）。 */
 export const TOAST_TOP_ANCHOR_SELECTOR = '[data-toast-anchor="top"]';
@@ -39,6 +42,7 @@ const OBSERVED_ATTRIBUTES = [
   "data-toast-yield",
   "data-toast-avoid",
   "data-toast-anchor",
+  "data-toast-give-way",
   "data-lv-bottom-bar",
 ];
 
@@ -101,6 +105,7 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
   const host = useRef<HTMLDivElement | null>(null);
   const region = useRef<HTMLElement | null>(null);
   const probe = useRef<HTMLSpanElement | null>(null);
+  const bottomSlot = useContext(ToastBottomSlotContext);
   const active = snapshot.current !== null;
 
   // ---- 让开判断登记给控制器：新提示进来时先问一次，弹层打开时不会先播报再让开 ----
@@ -112,9 +117,9 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
   }, [controller]);
 
   // ---- 位置 ----
-  const place = useCallback((): void => {
+  const place = useCallback((): "top" | "bottom" | null => {
     const element = host.current;
-    if (element === null || kind === "wide") return;
+    if (element === null || kind === "wide") return null;
     const viewportHeight = window.innerHeight;
     const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
     if (kind === "phone") {
@@ -122,7 +127,7 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
       if (anchor !== null) {
         element.dataset.placement = "top";
         element.style.setProperty("--lv-toast-offset", `${String(topOffset({ anchorBottom: anchor.bottom, safeTop: 0, gap: 8 }))}px`);
-        return;
+        return "top";
       }
     }
     element.dataset.placement = "bottom";
@@ -150,6 +155,7 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
       edge: kind === "desktop" ? 24 : 16,
     });
     element.style.setProperty("--lv-toast-offset", `${String(offset)}px`);
+    return "bottom";
   }, [kind]);
 
   // 有当前提示时（包括正在让开）才观察：没有提示时不付测量的代价。
@@ -159,7 +165,9 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
     const measure = (): void => {
       frame = 0;
       controller.setPause("yield", shouldYield());
-      place();
+      const placement = place();
+      // 底部提示位被占用：手机、放在底部、没有模态弹层（弹层打开时提示藏在遮罩后，胶囊回原位，见 bottomSlot.ts）。
+      bottomSlot?.set(kind === "phone" && placement === "bottom" && !hasOpenOverlay());
     };
     const schedule = (): void => {
       if (frame === 0) frame = requestAnimationFrame(measure);
@@ -181,8 +189,9 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
       document.removeEventListener("scroll", schedule, { capture: true });
       if (frame !== 0) cancelAnimationFrame(frame);
       controller.setPause("yield", false);
+      bottomSlot?.set(false);
     };
-  }, [active, controller, place]);
+  }, [active, bottomSlot, controller, kind, place]);
 
   // ---- 渲染哪几条（当前一条 + 正在退场的） ----
   const shown = snapshot.visible ? snapshot.current : null;
@@ -204,11 +213,30 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
     };
   }, [display.leaving, removeLeaving]);
 
+  const currentKey = display.current?.key ?? null;
+
+  // ---- 账本胶囊让位（1.19.72）：从“没有提示”到出现一条、而胶囊还在原位时，入场推迟到胶囊基本缩回 ----
+  // 换一条（替换、合并）时胶囊已经让开，不等；写在宿主的变量上，入场动画（含 S19 的材质层与内容）都读它。
+  // 必须在上面的测量之后：放在底部还是顶部锚点要先量出来。
+  const enteredFrom = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const element = host.current;
+    const from = enteredFrom.current;
+    enteredFrom.current = currentKey;
+    if (element === null || currentKey === null || from === currentKey) return;
+    const wait =
+      from === null &&
+      kind === "phone" &&
+      element.dataset.placement === "bottom" &&
+      !(typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) &&
+      document.querySelector('[data-toast-give-way="shown"]') !== null;
+    element.style.setProperty("--lv-toast-enter-delay", wait ? `${String(TOAST_WAIT_FOR_GIVE_WAY_MS)}ms` : "0ms");
+  }, [currentKey, kind]);
+
   // ---- 焦点：进入提示前在哪里，提示消失后回到哪里 ----
   const returnTo = useRef<HTMLElement | null>(null);
   const focusInside = useRef(false);
   const keyboardFocus = useRef(false);
-  const currentKey = display.current?.key ?? null;
   const previousKey = useRef<string | null>(currentKey);
   useLayoutEffect(() => {
     if (previousKey.current === currentKey) return;

@@ -67,6 +67,12 @@
   background: var(--s19-pill-bg);
   box-shadow: var(--s19-pill-sh);
 }
+/* 1.19.72（A 的底槽统一为 A0）：另外几处分段轨道用画布色写成（留言引用的“引用 / 回复”、账本导入审核的二选一、附件 PDF 缩放），
+   A 下与上面同一组轨道令牌（A0 嵌入）。只改 A：其他风格这几处维持原样，不在这一轮扩大。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.rounded-field.bg-canvas.p-1, .lv-attachment-zoom)[data-select-moving] {
+  background: var(--s19-track-bg);
+  box-shadow: var(--s19-track-sh);
+}
 
 /* ---------- 明细行：类别图标底 ---------- */
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .detail-body ul > li > button > span.size-9.rounded-full.bg-line {

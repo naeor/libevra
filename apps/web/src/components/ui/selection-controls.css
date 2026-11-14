@@ -197,6 +197,29 @@
   [data-select-toggle][aria-pressed="true"]::before { opacity: 1; transition: opacity var(--lv-lift-shadow-in-ms) ease-out; }
 }
 
+/* ---------- A · 轨道内的选中（1.19.72，所有者要求）：会移动的选中（分段 / 互斥选择）与开关按钮 ----------
+   上面的通用 A2 浮起（上移 2px、放大 1.5%、环境影下移放大淡入）放在分段轨道里太重：选中块像一张悬在槽上的小卡片，
+   还偏离了轨道的上下中轴。这里仍是 A2（不改档位编号），只把表现收敛到“轨道里浮起的一块”：
+   - 不上移、不放大：选中项与文字留在轨道中轴上，重心不变；
+   - 面与阴影用 --s19-a-elev-2-track（A2 表面层 + 收短收淡的近影），不再有单独的环境影层；
+   - 出现时面从 96% 以中心原地放大淡入，消失时原地缩回淡出（不偏离中轴，不回弹）。
+   底槽仍是 A0（--s19-track-sh）。网格选中（月份格、折行的小组）与独立选中项是单独的格子 / 行，仍用上面的完整 A2 浮起。 */
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+  [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
+  [data-select-toggle][aria-pressed="true"] { transform: none; }
+  [data-select-moving] > button::before,
+  [data-select-toggle]::before {
+    box-shadow: var(--s19-a-elev-2-track); transform: scale(.96);
+    transition: opacity var(--lv-lift-shadow-out-ms) ease-out, transform var(--lv-lift-fall-ms) var(--lv-lift-fall-ease);
+  }
+  [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before,
+  [data-select-toggle][aria-pressed="true"]::before {
+    transform: none;
+    transition: opacity var(--lv-lift-shadow-in-ms) ease-out, transform var(--lv-select-ms) var(--lv-motion-ease);
+  }
+  [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after { opacity: 0; }
+}
+
 /* ---------- 平铺变体的选中面（1.19.69）：在各风格的选中面外加一圈品牌绿细边 ----------
    单独成块，保证上面 B1 / B2 的玻璃、C 的实底本身仍然只用选中令牌（玻璃不染色）。
    选中面落在白色面板 / 浅灰底上，B1 / B2 玻璃的亮边与柔影、C 的浅绿都偏淡，而旁边的未选项带一圈细边，

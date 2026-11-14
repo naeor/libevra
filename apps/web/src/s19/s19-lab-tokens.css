@@ -49,6 +49,10 @@
   --s19-a-elev-2-surface: var(--s19-a-rim), 0 0 0 .5px rgb(var(--s19-a-ink) / .07), 0 1px 2px rgb(var(--s19-a-ink) / .08), 0 3px 8px -3px rgb(var(--s19-a-ink) / .1);
   --s19-a-elev-2-ambient: 0 8px 16px -7px rgb(var(--s19-a-ink) / .16), 0 14px 26px -14px rgb(var(--s19-a-ink) / .11);
   --s19-a-elev-2: var(--s19-a-elev-2-surface), var(--s19-a-elev-2-ambient);
+  /* A2 · 轨道内（1.19.72，所有者要求）：会移动的选中（分段 / 互斥选择）与开关按钮的选中面。仍是 A2，表面层不变；
+     环境影不再单独成层、不再随浮起下移放大，只留一层收短收淡的近影（大部分落在轨道 4px 留白之内）。
+     配合“不上移、不放大”（selection-controls.css），选中块留在轨道中轴上，是轨道里浮起的一块，不是悬在槽上的小卡片。 */
+  --s19-a-elev-2-track: var(--s19-a-elev-2-surface), 0 4px 10px -6px rgb(var(--s19-a-ink) / .16);
   --s19-a-lift-y: -2px; --s19-a-lift-scale: 1.015; --s19-a-lift-scale-cell: 1.02;
   /* A3 悬浮：浮在页面之上，更大更虚的环境影（关键卡、加号菜单入口卡、金额框、加号、将来的提示条）。
      -drop 是不带上缘亮线的部分，给品牌色实底的加号用（白色亮线压在绿底上会像一道反光）。 */

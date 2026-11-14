@@ -130,11 +130,36 @@ describe("统一提示条守卫", () => {
       expect(prefixed).toBeGreaterThanOrEqual(0);
       expect(prefixed).toBeLessThan(plain);
     }
-    // A 用 A3 悬浮档（不带品牌色）；B2 用账本卡同一填充（约 80% 不透明，1.19.67：压在深色内容上正文也 ≥ 4.5:1），保留表面模糊。
+    // A 用 A3 悬浮档（不带品牌色）；B2 用提示条专用填充（1.19.72：约 70% 不透明，压在纯黑上正文约 6:1，仍 ≥ 4.5:1；
+    // 1.19.67 曾用账本卡填充约 80%），保留表面模糊。只降底材质，不降组件整体透明度。
     expect(css).toContain("--lv-toast-sh: var(--s19-a-elev-3)");
-    expect(css).toContain("--lv-toast-bg: var(--s19-book-bg)");
+    expect(css).toContain("--lv-toast-bg: var(--s19-toast-bg)");
     expect(css).not.toContain("--lv-toast-bg: var(--s19-action-bar-bg)");
+    expect(css).not.toMatch(/\[data-toast-surface\][^{]*\{[^}]*(^|[^-])opacity:\s*0?\.\d/m);
+    expect(read("index.css")).toContain("--s19-toast-bg: rgb(var(--s19-glass-rgb) / max(.7, var(--s19-chrome-fill)));");
     expect(css).toMatch(/\[data-visual-style="b2"\][^{]*\[data-toast-surface\]::before\s*\{[^}]*backdrop-filter: var\(--s19-entry-filter\)/);
+  });
+
+  it("错误提示的描边比 1.19.66 略粗、略深，只给错误类型（1.19.72）", () => {
+    const base = strip(read("components/toast/toast.css"));
+    const s19 = strip(read("s19/toast.css"));
+    expect(base).toMatch(/\.lv-toast\[data-tone="error"\]\s*\{[^}]*border-width: 1\.5px; border-color: color-mix\(in oklab, var\(--color-danger\) 50%, transparent\)/);
+    expect(s19).toMatch(/\[data-tone="error"\]::after\s*\{[^}]*inset 0 0 0 1\.5px color-mix\(in oklab, var\(--color-danger\) 50%, transparent\)/);
+    // 其他类型不带危险色描边
+    for (const tone of ["info", "success", "warning"]) {
+      expect(base).not.toContain(`[data-tone="${tone}"] {`);
+      expect(s19).not.toContain(`[data-tone="${tone}"]::after`);
+    }
+  });
+
+  it("入场延迟只来自宿主写的变量：账本胶囊让位时等它基本缩回（1.19.72）", () => {
+    const base = strip(read("components/toast/toast.css"));
+    const s19 = strip(read("s19/toast.css"));
+    expect(base).toMatch(/\.lv-toast\[data-phase="enter"\]\s*\{[^}]*var\(--lv-toast-enter-delay, 0ms\) both/);
+    expect(s19.match(/lv-toast-(move|fade)-in [^;]*var\(--lv-toast-enter-delay, 0ms\) both/g)?.length).toBe(3);
+    // 胶囊让位，不再是障碍物
+    expect(read("components/PersistentBookCapsule.tsx")).not.toContain("data-toast-avoid");
+    expect(read("components/PersistentBookCapsule.tsx")).toContain("data-toast-give-way");
   });
 
   it("两份提示条样式都有减少动态效果分支", () => {

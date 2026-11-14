@@ -49,4 +49,7 @@
 }
 .persistent-nav .lv-book-capsule-host > * { pointer-events: auto; }
 .persistent-nav .lv-book-capsule-host[data-menu-open] { visibility: hidden; }
+/* 1.19.72：给底部提示让位（PersistentBookCapsule、components/toast/bottomSlot.ts）。缩回动画播完后隐藏：不可点、不可聚焦、读屏跳过；
+   只隐藏胶囊本身，宿主里的账本切换面板不受影响。缩回途中（leaving）仍可见，由动画裁到底栏后面。 */
+.persistent-nav .lv-book-capsule-host[data-toast-give-way="away"] .lv-book-capsule { visibility: hidden; }
 .lv-shell[data-s19-scope="phone"] .persistent-nav .lv-book-capsule { margin-left: 0; max-width: 100%; }

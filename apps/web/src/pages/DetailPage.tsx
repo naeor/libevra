@@ -1394,7 +1394,7 @@ function LedgerNav({
       />
       {/*
         1.19.66：「获得新头像」通知改走统一提示条（AvatarRewardNotice 只是控制器，不渲染）。位置由提示条宿主量出——
-        底栏、抬高 32px 的“+”与账本胶囊之上 8px（它们带 data-toast-avoid）；“+”菜单展开时让开。
+        底栏与抬高 32px 的“+”之上 8px（它们带 data-toast-avoid），账本胶囊先缩回让位（1.19.72）；“+”菜单展开时让开。
         只在明细首页挂载：离开即撤下（页面作用域）。
       */}
       <AvatarRewardNotice />

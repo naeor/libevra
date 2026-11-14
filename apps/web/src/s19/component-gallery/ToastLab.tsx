@@ -107,7 +107,7 @@ export function ToastLabSection(): React.JSX.Element {
       <h3>静态样板（截图用，不需点击）</h3>
       <p>
         同一组场景：保存成功、带撤销的删除、警告、网络错误、头像奖励。Original / C 简洁实心面，A 用 A3 悬浮档（墨色分层阴影），B1 瓷片，B2
-        约 80% 不透明的磨砂（账本卡同一填充，1.19.67 起；压在深色块上正文也清楚，第二行也用墨色）。固定画面：<code>?shot=toast&amp;s19=b2</code>。
+        约 70% 不透明的磨砂（提示条专用填充，1.19.72 起；压在深色块上正文也清楚，第二行与 × 用墨色）。错误提示 1.5px 危险色描边。固定画面：<code>?shot=toast&amp;s19=b2</code>。
       </p>
       <StaticStage />
       <h3>真实队列</h3>

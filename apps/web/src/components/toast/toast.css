@@ -11,6 +11,11 @@
 
   动效只用 transform 与 opacity，时长与曲线读组件动效令牌（components/ui/component-motion.css 的 --lv-reveal-ms、
   --lv-dismiss-ms、--lv-reveal-y、--lv-motion-ease）；Original 没有这些变量，回落到原 Pad 外壳提示的 220ms / 8px 上浮。
+  入场延迟 --lv-toast-enter-delay（1.19.72）：手机底部提示出现、当前账本胶囊还在原位时由宿主写成 160ms，等胶囊基本缩回再升起
+  （components/toast/bottomSlot.ts）；其他情况 0。
+
+  错误提示的描边（1.19.72，所有者要求“略微加粗、更明显，但不过粗”）：1px / 危险色 40% → 1.5px / 50%。
+  只给错误类型；信息、成功、警告不变。加粗的半像素从内边距里扣回，提示条尺寸不变。
 */
 
 /* ---------------------------------------------------------------- 宿主与位置 */
@@ -60,8 +65,12 @@
 }
 .lv-toast[data-controls] { padding-right: 6px; }
 .lv-toast-host[data-placement="top"] .lv-toast { align-self: start; --lv-toast-rise: calc(-1 * var(--lv-reveal-y, 8px)); }
-/* 错误：一圈危险色细描边，与次要危险操作同一配方（颜色不是唯一线索：还有 × 字形与读屏前缀）。 */
-.lv-toast[data-tone="error"] { border-color: color-mix(in oklab, var(--color-danger) 40%, transparent); }
+/* 错误：一圈危险色描边（颜色不是唯一线索：还有 × 字形与读屏前缀）。1.19.72 起 1.5px、危险色 50%（原 1px、40%）。 */
+.lv-toast[data-tone="error"] {
+  border-width: 1.5px; border-color: color-mix(in oklab, var(--color-danger) 50%, transparent);
+  padding: 6.5px 13.5px;
+}
+.lv-toast[data-tone="error"][data-controls] { padding-right: 5.5px; }
 
 .lv-toast-mark { display: flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; }
 .lv-toast-mark[data-leading] { width: 36px; height: 36px; }
@@ -101,7 +110,7 @@
 @keyframes lv-toast-fade-out { to { opacity: 0; } }
 
 .lv-toast[data-phase="enter"] {
-  animation: lv-toast-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
+  animation: lv-toast-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) var(--lv-toast-enter-delay, 0ms) both;
 }
 .lv-toast[data-phase="exit"] {
   pointer-events: none;
@@ -111,6 +120,6 @@
 /* 减少动态效果：不位移，只做不超过“消失”时长的淡入淡出；停留时长不变。 */
 @media (prefers-reduced-motion: reduce) {
   .lv-toast-host { transition: none; }
-  .lv-toast[data-phase="enter"] { animation: lv-toast-fade-in var(--lv-dismiss-ms, 180ms) linear both; }
+  .lv-toast[data-phase="enter"] { animation: lv-toast-fade-in var(--lv-dismiss-ms, 180ms) linear var(--lv-toast-enter-delay, 0ms) both; }
   .lv-toast[data-phase="exit"] { animation: lv-toast-fade-out var(--lv-dismiss-ms, 180ms) linear both; }
 }

@@ -665,6 +665,9 @@ html:root[data-visual-style="b2"] {
   /* 账本胶囊不做局部模糊；栏面填充混入表面色保证叠字可读，高光仍沿用工具材质。 */
   --s19-book-bg: color-mix(in srgb, var(--s19-tool-bg) 30%, var(--color-surface));
   --s19-book-sh: var(--s19-tool-sh);
+  /* 提示条底材质（1.19.72，所有者要求从约 80% 降到约 70%，找回磨砂感）：玻璃色 70% 不透明，栏面填充更实时跟随栏面（max）。
+     只降底材质，不降组件整体透明度；压在纯黑上正文约 6:1，仍高于 4.5:1。保留表面模糊 --s19-entry-filter。 */
+  --s19-toast-bg: rgb(var(--s19-glass-rgb) / max(.7, var(--s19-chrome-fill)));
   --s19-search-open-bg: var(--s19-tool-bg);
   --s19-bar-bg: var(--s19-tool-bg);
   --s19-bar-sh: inset 0 -1px 0 rgb(255 255 255 / calc(.6 * var(--s19-glass-rim))), inset 0 -1.5px 0 rgb(40 52 46 / calc(.07 * var(--s19-glass-shadow)));
