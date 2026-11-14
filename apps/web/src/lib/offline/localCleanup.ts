@@ -1,6 +1,6 @@
 import { clearDuplicateSettings } from "../duplicateSettings.js";
 import { LEDGER_FILTER_PREFIX, OFFLINE_RECORDER_REFRESH_PREFIX, consentStatusKey, fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
-import { listKeys, removeValue } from "./storage.js";
+import { listKeys, readValue, removeValue } from "./storage.js";
 
 /** `localStorage` 在 Node 测试与隐私模式下可能不存在、访问即抛错；清理路径必须容忍。 */
 function deviceStorage(): Storage | null {
@@ -90,6 +90,56 @@ export async function clearAccountLocalData(
       if (key?.startsWith(`${OFFLINE_RECORDER_REFRESH_PREFIX}${accountId}:`)) owned.push(key);
     }
     removeDeviceKeys(owned);
+  }
+  return removed;
+}
+
+/**
+ * **退出登录 / 会话结束时，清掉这个账号留在本机的账目副本**（BUG-007，1.19.83；所有者 2026-11-15“很严重的 bug，立刻修”）。
+ *
+ * 原来退出只删一个**不带账号的旧键** `query-cache`，而副本早已按“账号:账本”分开存放（`query-cache:<账号>:<账本>`、
+ * `ledger-months:…`、`ledger-marks:…`、`offline-fill-partial-months:…`、`offline-isolation:…`），所以退出后账目、备注、
+ * 成员名都还留在浏览器里，共用设备上能打开开发者工具的人可以读到（数据流向调查 H1）。
+ *
+ * 现在按账本逐个处理这个账号的全部本机副本：
+ * - **没有未同步改动的账本**：这个账本的所有本机键全部删除；
+ * - **还有未同步改动的账本**（`ledger-marks` 里有 `pending` 或 `deleted`）：只删查询缓存，账目月份、标记与隔离标记保留——
+ *   未同步的记录就存在这些月份与标记里，删掉就是悄悄丢掉用户还没送到服务器的账（`clearQueryCache` 当初不清整个库也是这个原因）。
+ *   下次同一账号登录后照常同步。返回值列出这些账本，供调用方提示。
+ * - 账号级的设备偏好（筛选、外币显示方式、同意状态等 localStorage 键）不动：退出不是注销，它们不含账目内容。
+ *
+ * ⚠️ 只匹配带 `:<账号>:` 的键，与 `clearAccountLocalData` 相同，不会碰到别的账号或游客的数据。
+ */
+export async function clearSignedOutAccountData(accountId: string): Promise<{ readonly removed: number; readonly keptBooks: readonly string[] }> {
+  if (accountId === "") return { removed: 0, keptBooks: [] };
+  const needle = `:${accountId}:`;
+  const keys = (await listKeys()).filter((key) => key.includes(needle));
+  const bookOf = (key: string): string => key.slice(key.indexOf(needle) + needle.length).split(":")[0] ?? "";
+  const unsynced = new Set<string>();
+  for (const key of keys) {
+    if (!key.startsWith("ledger-marks:")) continue;
+    const marks = await readValue<Record<string, { readonly pending?: boolean; readonly deleted?: boolean } | null>>(key);
+    if (marks !== null && Object.values(marks).some((mark) => mark?.pending === true || mark?.deleted === true)) unsynced.add(bookOf(key));
+  }
+  let removed = 0;
+  for (const key of keys) {
+    if (unsynced.has(bookOf(key)) && !key.startsWith("query-cache:")) continue;
+    if (await removeValue(key)) removed += 1;
+  }
+  return { removed, keptBooks: [...unsynced] };
+}
+
+/**
+ * 查询缓存的落盘有 1 秒节流：退出前刚排上的一次写入，可能在清理之后才按原来的“账号:账本”地址写下去。
+ * 退出后再清一次这个账号的查询缓存（只清查询缓存，不碰月份与标记）。
+ */
+export async function clearSignedOutQueryCache(accountId: string): Promise<number> {
+  if (accountId === "") return 0;
+  const needle = `:${accountId}:`;
+  let removed = 0;
+  for (const key of await listKeys()) {
+    if (!key.startsWith("query-cache:") || !key.includes(needle)) continue;
+    if (await removeValue(key)) removed += 1;
   }
   return removed;
 }

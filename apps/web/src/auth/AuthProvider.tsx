@@ -3,10 +3,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { ApiRequestError, apiFetch } from "../lib/api.js";
 import { clearQueryCache } from "../lib/offline/cache.js";
-import { clearAccountLocalData } from "../lib/offline/localCleanup.js";
+import { clearAccountLocalData, clearSignedOutAccountData, clearSignedOutQueryCache } from "../lib/offline/localCleanup.js";
 import { forgetUser, readRememberedUser, rememberUser } from "../lib/offline/storage.js";
 import { forgetCurrentBook } from "../lib/currentBook.js";
-import { setOfflineAccount } from "../lib/offline/scope.js";
+import { offlineScope, setOfflineAccount } from "../lib/offline/scope.js";
 
 interface RegisterInput {
   /**
@@ -131,6 +131,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
    * cached responses behind under the scoped one — the opposite of the intent.
    */
   const forgetLocalState = useCallback(async (options?: { readonly preserveOfflineData?: boolean }) => {
+    /**
+     * 1.19.83（BUG-007）：先取账号，再忘掉它——清理这个账号的本机副本要用账号 id。
+     */
+    const leaving = options?.preserveOfflineData === true ? null : (await readRememberedUser())?.id ?? offlineScope().split(":")[0] ?? "";
     await forgetUser();
     /**
      * ⚠️ **The restricted-consent sign-out must not delete the downloaded ledger.**
@@ -140,6 +144,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
      * screen uses `preserveOfflineData`.
      */
     if (options?.preserveOfflineData !== true) await clearQueryCache();
+    /**
+     * ⚠️ **BUG-007（1.19.83）：`clearQueryCache` 只删不带账号的旧键，这个账号按“账号:账本”存放的账目副本原来都留在本机。**
+     * 现在清掉这个账号的全部本机副本；还有未同步改动的账本只清查询缓存、保留未同步的记录（`clearSignedOutAccountData`）。
+     * 节流中的最后一次缓存写入可能稍后落盘，1.5 秒后再清一次查询缓存。
+     */
+    if (leaving !== null && leaving !== "") {
+      await clearSignedOutAccountData(leaving);
+      setTimeout(() => { void clearSignedOutQueryCache(leaving); }, 1_500);
+    }
     forgetCurrentBook();
     setOfflineAccount(null);
   }, []);

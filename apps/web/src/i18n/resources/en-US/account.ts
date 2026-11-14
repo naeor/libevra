@@ -17,7 +17,7 @@ const account: Messages<typeof zh> = {
     signOut: "Sign out",
     signOutTitle: "Sign out?",
     signOutDescription:
-      "You’ll need to sign in again. Your entries won’t be deleted.",
+      "You’ll need to sign in again. Entries on the server won’t be deleted; the offline copy on this device will be cleared, and anything not yet synced stays until you sign in again and it syncs.",
     signOutSession: "You’ll be signed out on this device right away",
     signOutRecovery: "If you forget your password, you’ll need your recovery code to reset it",
   },

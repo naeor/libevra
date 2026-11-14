@@ -42,7 +42,7 @@
 | [ledgerOrder.test.ts](ledgerOrder.test.ts) | 测试：ledgerOrder |
 | [localCleanup.device.test.ts](localCleanup.device.test.ts) | 测试：localCleanup.device |
 | [localCleanup.test.ts](localCleanup.test.ts) | 测试：localCleanup |
-| [localCleanup.ts](localCleanup.ts) | 实现模块；入口/导出：clearBookLocalData、clearAccountLocalData |
+| [localCleanup.ts](localCleanup.ts) | 实现模块；入口/导出：clearBookLocalData、clearAccountLocalData、clearSignedOutAccountData、clearSignedOutQueryCache |
 | [localLedger.analysisRange.test.ts](localLedger.analysisRange.test.ts) | 测试：localLedger.analysisRange |
 | [localLedger.test.ts](localLedger.test.ts) | 测试：localLedger |
 | [localLedger.ts](localLedger.ts) | 实现模块；入口/导出：transactionsFromCache、transactionsFromCacheCached、readLocalTransactions、ledgerMonthsKey、ledgerMarksKey |
@@ -56,6 +56,7 @@
 | [scope.test.ts](scope.test.ts) | 测试：scope |
 | [scope.ts](scope.ts) | 实现模块；入口/导出：setOfflineAccount、setOfflineBook、setOfflineScope、clearOfflineScope、offlineScope |
 | [scopedStorage.test.ts](scopedStorage.test.ts) | 测试：scopedStorage |
+| [signOutCleanup.test.ts](signOutCleanup.test.ts) | 测试：signOutCleanup |
 | [staleEntries.test.ts](staleEntries.test.ts) | 测试：staleEntries |
 | [storage.ts](storage.ts) | 实现模块；入口/导出：TraceLine、readTrace、clearTrace、traceLine、readSnapshot |
 | [sync.ts](sync.ts) | 实现模块；入口/导出：retryAbandonedWrites、SyncReport、syncAll、RefusedField |

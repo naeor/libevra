@@ -17,7 +17,7 @@ const account = {
     settingsHint: "默认币种、账号安全、显示与数据",
     signOut: "退出登录",
     signOutTitle: "退出登录？",
-    signOutDescription: "退出后需重新登录。账目数据不会删除。",
+    signOutDescription: "退出后需重新登录。服务器上的账目不会删除；本设备上的离线账目副本会被清除，还没同步的记录会保留到下次登录后同步。",
     signOutSession: "本设备上的登录状态会立即失效",
     signOutRecovery: "如果忘记密码，需要用恢复码重置",
   },

@@ -1,6 +1,6 @@
 # Libevra 实际数据流向与隐私事实调查 V0.1
 
-> 最后修改：2026-11-15 02:25（UTC+08:00）
+> 最后修改：2026-11-15 02:41（UTC+08:00）
 > 状态：V0.1 只读调查（2026-11-15）。依据是仓库代码与部署配置，不是隐私承诺；未在服务器上核对的内容标「待核实」。不含任何密钥、令牌或真实用户数据。
 
 ## 怎么读这份文档
@@ -316,6 +316,8 @@
 | 浏览器清站点数据 / 卸载 | 全部 | — |
 
 ### 6.8 退出登录不清本机账目副本（线上存在，负责人已核实）
+
+> 2026-11-15 更新：1.19.83 已在本机修复（未部署），修复方式见 [BUG 记录](../../BUG记录.md) BUG-007；线上 1.19.56 仍是下面描述的行为。
 
 - 事实：查询缓存写在按账号 / 账本区分的键下（`apps/web/src/lib/offline/cache.ts:215`，`scopedKey(CACHE_KEY)`）；退出登录时 `clearQueryCache` 删除的是**不带区分的键**（`apps/web/src/lib/offline/cache.ts:399`，调用处 `apps/web/src/auth/AuthProvider.tsx:142`），因此该账号的离线账目副本仍留在浏览器 IndexedDB 里。这两处自 `v1.19.56` 未改动，线上同样如此。已核对 `cache.ts:395-400` 与 `AuthProvider.tsx:140-144`。
 - 实际范围：不仅是 `query-cache`，`ledger-months:*`、`ledger-marks:*`（`web/lib/offline/localLedger.ts:367,394`）同样不被清。

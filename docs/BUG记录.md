@@ -1,6 +1,6 @@
 # BUG 记录
 
-> 最后修改：2026-11-15 02:26（UTC+08:00）
+> 最后修改：2026-11-15 02:41（UTC+08:00）
 
 > **这份文档记"发现了但还没查清 / 还没修"的问题。**
 > 与另外两份的分工，不要混：
@@ -194,7 +194,7 @@ transaction_events    = 只有 created（+1 条 member_changed）
 | 项 | 值 |
 |---|---|
 | **发现时间** | 2026-11-15（数据流向只读调查中发现，负责人按代码复核） |
-| **状态** | 🔴 已确认，未修复（本轮任务只做文档与只读调查，不改数据处理逻辑；修不修、怎么修待所有者决定） |
+| **状态** | ✅ 已修（1.19.83，仅本机，未部署；所有者 2026-11-15 要求立即修复）。线上 1.19.56 仍有，部署后才消除 |
 | **环境** | 所有外观、所有设备的 Web 客户端；线上 1.19.56 存在（相关两处自 `v1.19.56` 未改动），本机 1.19.82 同样存在 |
 | **严重度** | 高（隐私）——共用设备上，退出后账目副本仍留在浏览器里；应用本身不会把它显示给另一个账号（副本按账号区分），但能打开开发者工具或直接读浏览器存储的人可以读到 |
 
@@ -204,7 +204,9 @@ transaction_events    = 只有 created（+1 条 member_changed）
 - 退出登录调用的 `clearQueryCache` 删除的是不带区分的旧键：`apps/web/src/lib/offline/cache.ts:399`（`removeValue(CACHE_KEY)`），调用处 `apps/web/src/auth/AuthProvider.tsx:142`。该处注释说明本意是“普通退出照旧清理”，与实际行为相反。
 - 同样留下的还有离线月份与标记（`ledger-months:*`、`ledger-marks:*`）；待上传附件库 `libevra-attachments-v1` 在退出、注销、清本机数据时都不清（调查 H7，未逐行复核）。
 
-**下一步**：先用测试账号在浏览器实测（退出后查看 IndexedDB `libellum`）；再决定修复方式（退出时按当前账号作用域清理，或保留副本但如实写入隐私说明与退出确认文案）。修复属于数据处理逻辑改动，需所有者确认后单独做一个版本。详见[实际数据流向与隐私事实调查](specs/product/Libevra-实际数据流向与隐私事实调查-V0.1.md) §6.8、§9 H1 / H7。
+**修复（1.19.83）**：退出登录与登录失效走同一个清理 `clearSignedOutAccountData`（`apps/web/src/lib/offline/localCleanup.ts`，接在 `auth/AuthProvider.tsx` 的 `forgetLocalState`）——逐个账本处理这个账号的全部本机键：没有未同步改动的账本全部删除；`ledger-marks` 里有 `pending` / `deleted` 的账本只删查询缓存，保留未同步的记录（未同步的账就存在月份与标记里，删掉等于悄悄丢账），下次同一账号登录后同步。查询缓存落盘有 1 秒节流，1.5 秒后再清一次（`clearSignedOutQueryCache`）。同意门禁的受限退出仍保留本机数据（所有者早先决定）。退出确认文案改为如实说明。验证：单元测试 `lib/offline/signOutCleanup.test.ts`；开发服务器真实 IndexedDB 中按应用键格式写入两个账号的副本后执行清理，结果符合预期。未做真实账号的完整登录 → 退出实测。
+
+**仍未处理**：待上传附件库 `libevra-attachments-v1` 在退出、注销、清本机数据时都不清（调查 H7，见下方清单）；它存的是还没上传的原件，与“不丢未同步的东西”有关，需单独决定。详见[实际数据流向与隐私事实调查](specs/product/Libevra-实际数据流向与隐私事实调查-V0.1.md) §6.8、§9 H1 / H7。
 
 ## BUG-006 · 生产构建丢掉无前缀的 `backdrop-filter`，Chromium 内核浏览器上 B2 没有背景模糊
 
@@ -235,3 +237,44 @@ transaction_events    = 只有 created（+1 条 member_changed）
 **守卫**：新增 `tools/check-built-css.mjs`，`pnpm check:build`（因而 `check:delivery`）在构建成功后自动扫描 `apps/web/dist` 的全部 CSS：同一规则里只有带前缀、只有无前缀，或两种取值不同都算失败，并列出文件与规则。已验证修复前的产物与修复前的源码跑 `check:build` 都失败（列出上面 6 条），修复后通过（38 条成对）。守卫自带自检样例，并在一条 `backdrop-filter` 都找不到或 CSS 解析没有回到顶层时报错，不会因为扫描失效而“永远通过”。也可以单独检查已有的构建目录：`node tools/check-built-css.mjs [目录]`。
 
 **未验证**：安卓真机与电脑版 Edge 没有看过，只在本机 Chrome（同为 Chromium 内核）里用生产构建截图对比；安卓上多出的真实背景模糊对低端机流畅度的影响没有测。
+
+---
+
+## 数据流向调查发现的问题清单（2026-11-15）
+
+来源：[实际数据流向与隐私事实调查 V0.1](specs/product/Libevra-实际数据流向与隐私事实调查-V0.1.md) §9。这里只列清单；某一项开始修复时再单独建 BUG-0xx 条目。H1 已单独登记为 BUG-007。
+
+| 编号 | 问题 | 级别 | 线上是否存在 | 类型 | 依据 | 建议的下一步 |
+|---|---|---|---|---|---|---|
+| H1 | 退出登录不清本机账目副本 | 高 | 是（1.19.83 本机已修，未部署） | 缺陷 | 见 BUG-007 | 见 BUG-007 |
+| H2 | 生产没有生效的协议门禁，也不产生同意记录 | 高 | 是 | 待决定 | `packages/shared/src/consent.ts:253-255`；`api/consent/policy.ts:41-43`；`api/app.ts:149-150` | 起草政策前先决定上线协议文档的方式与时间，再如实写同意事实 |
+| H3 | 注销并不抹去个人信息（账号编号、会话、共享账本账目与附件、关键事件、COS 副本、备份等仍保留） | 高 | 是 | 待决定 | `api/lifecycle/account.ts:691-755`；`api/routes/auth.ts:435-439` | 决定哪些保留项需要缩减或改写（如冻结昵称是否回写），并在政策里列出保留清单 |
+| H4 | 「删除」基本是软删除，且删除后仍存在于备份 | 高 | 是（备份期限待核实） | 待决定 | `api/routes/transactions.ts:1090-1197`；`api/routes/attachments.ts:238-256`；`deploy/README.md` | 政策中分别写「应用内删除」「永久清理」「备份到期」三层；核实第 8 节 5 |
+| H5 | 业务库与本机备份为明文，附件内容明文存在数据库（仅异地副本 gpg 加密） | 高 | 是 | 待决定 | `deploy/backup.sh:47-50,139-143`；`schema:2120-2160` | 政策如实写明运维可访问范围；评估是否需要附件加密或访问审计（决策归所有者） |
+| H6 | 过期会话没有清理任务，每行带 IP 与 UA 累积；注销后会话行保留；`last_seen_at` 从不更新 | 高 | 是 | 待决定 | `api/auth/guard.ts:31-52`；`api/lifecycle/account.ts:691-694` | 评估增加过期会话清理与注销时清除 IP / UA 的策略 |
+| H7 | 待上传附件原件没有任何清理入口（IDB `libevra-attachments-v1/pending` 在退出、注销、切换账号等下都保留） | 高 | 是 | 缺陷 | `apps/web/src/lib/attachments.ts:34-65`；`apps/web/src/components/Attachments.tsx:30-60` | 在清理链路中补上该库，或在界面与政策中说明 |
+| M1 | 分享链接令牌进入请求日志（令牌在路径中，Fastify 默认记录完整 URL） | 中 | 是（日志去向与保留待核实） | 待决定 | `apps/api/src/routes/share.ts:231,242`；`fastify@5.12.5/lib/log-controller.js:50` | 评估对请求 URL 做日志脱敏，或把令牌移出路径；同时核实日志保留 |
+| M2 | 请求日志含客户端 IP 与完整 URL（含查询串），保存期限无上限的可能 | 中 | 是；保留期待核实 | 待核实 | `api/server.ts:25`；`deploy/docker-compose.prod.yml`（无 `logging:`） | 核实 Docker 日志驱动，评估配置轮转与 URL 脱敏；政策如实写日志内容与期限 |
+| M3 | 账本清理后遗留的元数据与孤儿行（`ledger_*` 无外键，关键事件等永久保留） | 中 | 是 | 待决定 | `api/lifecycle/book.ts:752-835`；迁移中无 `REFERENCES` | 抽查 `result` 字段内容，决定是否补清理 |
+| M4 | 共享账本信息暴露面较宽（成员可导出全部账目、下载全部附件、看到全部成员用户名与账号编号等） | 中 | 是 | 待决定 | `api/routes/export.ts:171-291`；`api/routes/attachments.ts:94,296-323`；`api/routes/consent.ts:217-305` | 政策与邀请界面如实说明成员可见范围；评估软删附件内容读取是否要加 `deletedAt` 检查 |
+| M5 | 用户枚举：任一登录用户凭账号编号或精确用户名可查到对方昵称、用户名、账号编号 | 中 | 是 | 待决定 | `api/routes/directory.ts:64-130` | 评估对该接口单独限流 |
+| M6 | 登录 / 恢复码失败限流只在进程内存，重启清零，多实例不共享 | 中 | 是 | 待决定 | `api/auth/login-throttle.ts:15-56` | 评估持久化限流（实现属后续决定） |
+| M7 | 注销时本机清理有遗漏（偏好键、导入任务日志等未清） | 中 | 是 | 缺陷 | `apps/web/src/lib/offline/localCleanup.ts:81-91`；`apps/web/src/lib/ledgerImport/journal.ts:10-45` | 补全清单 |
+| M8 | 设备 UUID 常驻并随每个请求外发，退出 / 注销 / 清游客都不清 | 中 | 是 | 待决定 | `apps/web/src/lib/offline/device.ts:17-44`；`apps/web/src/lib/api.ts:109-122` | 政策如实说明；评估注销 / 退出时是否轮换 |
+| M9 | 识别结果（含识别原文、账户字段）存 sessionStorage，退出不清 | 中 | 是 | 待决定 | `apps/web/src/lib/ocr/types.ts:12-37`；`apps/web/src/lib/ocr/batchStore.ts` | 退出时清该键 |
+| M10 | 「清除本应用的全部本地数据」范围与名称不符（不清 LS、SS、游客库、待上传附件） | 中 | 是 | 缺陷 | `apps/web/src/pages/DownloadMorePage.tsx:313`；`apps/web/src/lib/offline/reset.ts:31-62` | 评估改名或在文案中说明范围 |
+| M11 | 诊断日志含金额分值、账目 id 前缀、设备 id，退出 / 注销不清，复制报告时会带出 | 中 | 是 | 待决定 | `apps/web/src/lib/offline/sync.ts:229-232,692-694`；`apps/web/src/lib/runtimeInfo.ts:5` | 复制报告前提示或脱敏 |
+| M12 | S17-A 等旧文档与代码不符（「后端无外网请求」「退出会清掉缓存」、角色只写 editor / viewer） | 中 | 是 | 缺陷 | `S17-A:198,184,484`；`api/fx/provider.ts:14-15`；`schema:918-927` | 在 S17-A 或后续文档里更正（本文不改其他文档） |
+| M13 | 整份 `.env` 注入 API 与 relay 容器，并被子进程继承 | 中 | 是 | 待决定 | `deploy/docker-compose.prod.yml:94-96`；`api/ocr/client.ts:222-224` | 评估只传必要变量给子进程 |
+| M14 | 本机 `.dump.gpg` 副本无清理逻辑，随天数增长 | 中 | 是（实际数量待核实） | 待核实 | `deploy/backup.sh:263-276` | 核实数量后决定补清理 |
+| L1 | 邀请码明文存库（`registration_invites.code`），其它凭证存哈希 | 低 | 是 | 待决定 | `schema:419-` | — |
+| L2 | `transaction_events.source_ip` 很可能只是代理内网 IP，且无读取路径 | 低 | 待核实 | 待核实 | `api/ledger/auditContext.ts:12-22` | 核实 `AUDIT_TRUSTED_PROXY_IPS` |
+| L3 | `UPLOAD_DIR`、`SESSION_SECRET` 出现在 compose 中，但源码无引用 | 低 | 是 | 缺陷 | `deploy/docker-compose.prod.yml:107-108` | 供部署核对 |
+| L4 | 告警邮件经 Resend 发送，正文可能含内部任务 id / 账本 id | 低 | 待核实 | 待核实 | `deploy/alert-mail.sh:169-202` | — |
+| L5 | 语音失败日志记录客户端声明的文件名；OCR 异常行最多 200 字符进日志 | 低 | 是 | 待决定 | `api/routes/voice.ts:85`；`api/ocr/client.ts:299-302` | — |
+| L6 | `Permissions-Policy` 没有 `microphone=()`，而语音用 `getUserMedia` | 低 | 是 | 待决定 | `deploy/Caddyfile:85` | — |
+| L7 | 密钥与口令文件（`.backup.key`、COS 上传身份）与应用同机 | 低 | 是（服务器权限待核实） | 待决定 | `deploy/README.md` | — |
+| L8 | 游客「清除游客数据」后 `libevra.stats-workbench*:v1:guest:*` 等偏好残留 | 低 | 是 | 缺陷 | `apps/web/src/lib/guest/cleanup.ts:27-45` | — |
+| L9 | 本机明文存储且不过期是有意设计；1.19.81 的同意状态本机缓存在退出 / 「清本机」时不清 | 低 | 前者线上有，后者仅本机 | 待决定 | `apps/web/src/lib/offline/cache.ts:42`；`apps/web/src/lib/consent.ts:88-114` | — |
+
+统计：缺陷 7 条（H1、H7、M7、M10、M12、L3、L8）；待决定 19 条；待核实 4 条（M2、M14、L2、L4）。共 30 条。
