@@ -92,11 +92,13 @@
   [data-select-moving][data-select-base="copy"][data-select-ready] > button:not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
     background: transparent; box-shadow: none; border-color: transparent;
   }
-  /* data-select-flat（1.19.68）：未选项自己带实底 / 材质（导出的范围与格式、拍照的单张 / 批量、冲突页的两侧、支出 / 收入、月份格）时，
-     透明玻璃或 A 的白色浮起落在它们旁边几乎看不出差别，所以 S19 下未选项改成与分段轨道同一个凹进的底（--s19-track-*），
-     选中块（或 A 的浮起层）是这一组里唯一凸起的面。写在容器上（MovingSelection / SelectionGrid），独立选中项写在它自己身上。 */
+  /* data-select-flat（1.19.68 起，1.19.69 改）：未选项自己带实底 / 材质（导出的范围与格式、拍照的单张 / 批量、冲突页的两侧、支出 / 收入、月份格）。
+     1.19.68 把未选项画成凹进的灰底，结果选中项（透明玻璃、浅绿）反而比它们轻、分不出谁被选中。现在反过来：
+     未选项没有填充，只剩一条细边表示可点（强分隔线令牌调淡，浅色分隔线在灰底上看不见），文字用正文色；
+     选中项才有面（B1 / B2 玻璃、A 浮起、C 浅绿实底，见下方各风格段）和品牌绿文字。
+     写在容器上（MovingSelection / SelectionGrid），独立选中项写在它自己身上。 */
   :is([data-select-flat] > button, button[data-select-flat]):not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], :disabled) {
-    background: var(--s19-track-bg, var(--color-canvas)); box-shadow: var(--s19-track-sh, none); border-color: transparent;
+    background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-line-strong) 42%, transparent); border-color: transparent; color: var(--color-ink);
   }
 }
 
@@ -175,6 +177,19 @@
     transition: color var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
   }
   [data-select-toggle][aria-pressed="true"]::before { opacity: 1; transition: opacity var(--lv-lift-shadow-in-ms) ease-out; }
+}
+
+/* ---------- 平铺变体的选中面（1.19.69）：在各风格的选中面外加一圈品牌绿细边 ----------
+   单独成块，保证上面 B1 / B2 的玻璃、C 的实底本身仍然只用选中令牌（玻璃不染色）。
+   选中面落在白色面板 / 浅灰底上，B1 / B2 玻璃的亮边与柔影、C 的浅绿都偏淡，而旁边的未选项带一圈细边，
+   不加这圈边，选中项反而显得比未选项轻；A 的 A2 浮起本身够清楚，不加。 */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {
+  [data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
+  :is([data-select-flat] > button, button[data-select-flat])::before { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+  [data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
+  :is([data-select-flat] > button, button[data-select-flat])::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
 }
 
 /* ---------- 减少动态效果：全部直接切换（选中块的脚本动画另行判断） ---------- */

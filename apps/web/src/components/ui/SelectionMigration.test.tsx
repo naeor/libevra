@@ -87,8 +87,17 @@ describe("外观：1.19.68 新增规则", () => {
     expect(css).toContain('[data-select-grid] > button[aria-pressed="true"]:not(:disabled)');
     expect(css).toContain('[aria-checked="true"]):not(:disabled)');
   });
-  it("data-select-flat：未选项改成凹进的轨道底；危险语义选中项文字仍是危险色；材质自带的选中描边让位但保留键盘焦点轮廓", () => {
-    expect(css).toContain("var(--s19-track-bg, var(--color-canvas))");
+  it("data-select-flat（1.19.69）：未选项透明加细边、正文色，选中项才有面（B1 / B2 / C 加品牌绿细边，A 不加）；危险语义选中项文字仍是危险色；材质自带的选中描边让位但保留键盘焦点轮廓", () => {
+    const start = css.indexOf(':is([data-select-flat] > button, button[data-select-flat]):not(');
+    const flat = css.slice(start, css.indexOf("}", start));
+    expect(flat).toContain("background: transparent;");
+    expect(flat).toContain("inset 0 0 0 1px color-mix(in srgb, var(--color-line-strong)");
+    expect(flat).toContain("color: var(--color-ink);");
+    expect(flat).not.toContain("--s19-track");
+    expect(css).toContain('[data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%');
+    expect(css).toContain('[data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%');
+    const aBlock = css.slice(css.indexOf(':root[data-visual-style="a"][data-theme-mode="light"]'), css.indexOf("/* ---------- 平铺变体的选中面"));
+    expect(aBlock).not.toContain("data-select-flat");
     expect(css).toContain('[data-select-tone="danger"]');
     expect(css).toContain("color: var(--color-danger-dark)");
     expect(css).toMatch(/\.lv-material:is\(\[aria-selected="true"\], \[aria-pressed="true"\], \[aria-checked="true"\]\):focus-visible \{ outline: 2px solid var\(--color-focus-ring\)/);
