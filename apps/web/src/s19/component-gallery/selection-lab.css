@@ -41,6 +41,9 @@
 .sl-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-brand); flex: none; }
 .sl-months { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .sl-cell { min-height: 44px; justify-content: center; }
+/* 多选列表的行（1.19.65，SelectionItem）：未选中用正文色，选中由正式组件变品牌绿 */
+.sl-list { display: grid; gap: 4px; }
+.sl-row { min-height: 44px; color: var(--color-ink); }
 
 /* ---------- 定格帧（只在样板里用）：月份格“交叉淡化到一半”、标签“出现中 / 消失中” ---------- */
 .sl-lab [data-select-grid] > .sl-cell[data-half]::before { opacity: .5 !important; transform: scale(.97) !important; }

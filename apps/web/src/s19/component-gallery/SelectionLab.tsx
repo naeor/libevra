@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "../../components/Button.js";
 import { Switch } from "../../components/ui/PurposeControls.js";
-import { ConditionTag, ConditionTags, MovingSelection, SelectionGrid, type ConditionTagItem } from "../../components/ui/SelectionControls.js";
+import { ConditionTag, ConditionTags, MovingSelection, SelectionGrid, SelectionItem, type ConditionTagItem } from "../../components/ui/SelectionControls.js";
 import "./selection-lab.css";
 
 /**
@@ -40,6 +40,26 @@ function Months({ selected, onSelect, half }: { selected: number; onSelect?: (i:
     <button key={m} type="button" className="sl-opt sl-cell" aria-pressed={selected === i} {...(half === i ? { "data-half": "" } : {})} {...(onSelect ? { onClick: () => onSelect(i) } : { tabIndex: -1 })}>{m}</button>)}</SelectionGrid>;
 }
 
+/** 多选列表（1.19.65，筛选面板的选项行）：每行是独立的选中项，可以同时选中几行，“不限”是清空。 */
+const LIST = ["CNY · 人民币", "USD · 美元", "EUR · 欧元", "JPY · 日元"] as const;
+function MultiList() {
+  const [picked, setPicked] = useState<readonly string[]>([LIST[0]]);
+  const row = (label: string, on: boolean, onClick: () => void) =>
+    <SelectionItem key={label} className="sl-opt sl-row" aria-pressed={on} onClick={onClick}><span>{label}</span><span aria-hidden="true" style={{ visibility: on ? undefined : "hidden" }}>✓</span></SelectionItem>;
+  return <div className="sl-list">
+    {row("不限", picked.length === 0, () => setPicked([]))}
+    {LIST.map(label => row(label, picked.includes(label), () => setPicked(old => old.includes(label) ? old.filter(v => v !== label) : [...old, label])))}
+  </div>;
+}
+
+/** 少量互斥选项（1.19.65，附件“全部账目 / 含附件 / 无附件”）：横向会移动的选中。 */
+function Presence() {
+  const [value, setValue] = useState("any");
+  return <MovingSelection axis="x" className="sl-segments" role="group" aria-label="附件">
+    {([["any", "全部账目"], ["has", "含附件"], ["none", "无附件"]] as const).map(([v, label]) => <button key={v} type="button" className="sl-opt" aria-pressed={value === v} onClick={() => setValue(v)}>{label}</button>)}
+  </MovingSelection>;
+}
+
 /* ---------- 筛选面板模拟（外壳取真实 S19 sheet 材质：.rounded-t-sheet.bg-surface） ---------- */
 
 function Sheet({ children, title = "筛选" }: { children: ReactNode; title?: string }) {
@@ -63,8 +83,9 @@ function LiveSheet({ runDemo }: { runDemo: (api: DemoApi) => void }) {
     <div className="sl-body">
       <Nav value={dim} onChange={setDim} />
       <div className="sl-options">
-        <Segments value={mode} onChange={setMode} />
-        {dim !== "time" ? <p className="sl-note">示例：切到「时间」可看月份网格。</p> : mode === "range" ? <p className="sl-note">日期范围：开始 / 结束日期输入（此处不展示）。</p> : <Months selected={month} onSelect={setMonth} />}
+        {dim === "attachment" ? <><Presence /><p className="sl-note">少量互斥选项：横向会移动的选中。</p></>
+          : dim !== "time" ? <><MultiList /><p className="sl-note">多选列表：每行独立选中（与月份格同一规则）。切到「时间」可看月份网格。</p></>
+          : <><Segments value={mode} onChange={setMode} />{mode === "range" ? <p className="sl-note">日期范围：开始 / 结束日期输入（此处不展示）。</p> : <Months selected={month} onSelect={setMonth} />}</>}
       </div>
     </div>
     <footer className="sl-foot"><span>重置</span><span className="sl-apply">应用</span></footer>
@@ -173,7 +194,7 @@ export function SelectionLabSection() {
     <h3 className="sl-elev-anchor">A 浮起档位（在 A 风格下查看）</h3>
     <ElevationBoard />
     <h3 className="sl-live-anchor">可点击样板</h3>
-    <p className="sl-hint">点左侧维度、「月份 / 日期范围」、月份格；用下方按钮增删条件标签，或点标签删除，或点“自动演示”。系统开启“减少动态效果”时全部直接切换。</p>
+    <p className="sl-hint">点左侧维度、「月份 / 日期范围」、月份格；分类、标签等维度下是多选列表（每行独立选中），附件下是少量互斥选项（横向滑动）；用下方按钮增删条件标签，或点标签删除，或点“自动演示”。系统开启“减少动态效果”时全部直接切换。</p>
     <LiveSheet runDemo={a => { api.current = a; }} />
   </div>;
 }

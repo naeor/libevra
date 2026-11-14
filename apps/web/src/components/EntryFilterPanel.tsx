@@ -14,7 +14,7 @@ import { ChevronIcon, GearIcon } from "./Icons.js";
 import { validStorageRange } from "./EntrySortControls.js";
 import "./entry-filters.css";
 import { Switch } from "./ui/PurposeControls.js";
-import { ConditionTags, MovingSelection, SelectionGrid } from "./ui/SelectionControls.js";
+import { ConditionTags, MovingSelection, SelectionGrid, SelectionItem } from "./ui/SelectionControls.js";
 import { setFilterSync, useFilterSync } from "../lib/ledgerFilter.js";
 import { useFilterOwner } from "../lib/usePageFilter.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
@@ -152,7 +152,8 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
         <button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.close")} onClick={onClose}>×</button>
       </div>
     </header>}
-    {/* 已选条件标签与选中指示（1.19.62，S19 §3）：条件逻辑、tablist / aria-selected、aria-pressed 都不变，只换成正式组件。 */}
+    {/* 已选条件标签与选中指示（1.19.62，S19 §3；1.19.65 起面板里的选中控件全部用正式组件）：条件逻辑、tablist / aria-selected、
+        aria-pressed 都不变，只换成正式组件。标题行的“多选”是开关（打开 / 关闭月份多选），不是选中指示，保持原来的 aria-pressed 开关按钮。 */}
     <ConditionTags className="lv-filter-chips" aria-label={t("ledger.filters.selected")}
       items={active.map(key => ({ key, label: labels.dimensionLabel(key), title: labels.dimensionLabel(key), removeLabel: t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) }) }))}
       onRemove={key => { setDraft(clearFilterDimension(draft, key as FilterDimension)); if (key === "time") setRangeMode(false); }}
@@ -175,7 +176,8 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
           </MovingSelection>
           {rangeMode ? <div className="lv-filter-date-range">{(["from", "to"] as const).map(key => <label key={key} className="text-body">{t(`ledger.filters.${key}`)}<input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" value={draft[key]} onChange={event => change({ [key]: event.target.value })} aria-invalid={attempted && !datesValid || undefined} /></label>)}<p className="text-helper text-muted">{t("ledger.filters.dateHint")}</p></div>
             : <LedgerMonthPicker open month={draft.month} maxMonth={currentMonth()} onSelect={() => {}} onClose={() => {}} render={({ year, onYearChange, availability, loading, statusNote }) => <>
-              <button type="button" className="lv-filter-option lv-filter-all-time" aria-pressed={isAllMonths(draft.month) && draft.months.length === 0} onClick={() => change({ month: ALL_MONTHS, from: "", to: "", months: [] })}>{t("ledger.filters.all")}<Check visible={isAllMonths(draft.month) && draft.months.length === 0} /></button>
+              {/* “全部时间”与下面的月份格互斥，但不在同一容器里：与月份格同一规则（独立选中项，淡入淡出 / 浮起，1.19.65）。 */}
+              <SelectionItem className="lv-filter-option lv-filter-all-time" aria-pressed={isAllMonths(draft.month) && draft.months.length === 0} onClick={() => change({ month: ALL_MONTHS, from: "", to: "", months: [] })}>{t("ledger.filters.all")}<Check visible={isAllMonths(draft.month) && draft.months.length === 0} /></SelectionItem>
               <div className="lv-filter-year"><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.previousYear")} onClick={() => onYearChange(year - 1)}><ChevronIcon direction="left" /></button><span className="text-card-title">{year}</span><button type="button" className="lv-filter-icon" aria-label={t("ledger.filters.nextYear")} disabled={year >= Number(currentMonth().slice(0, 4))} onClick={() => onYearChange(year + 1)}><ChevronIcon direction="right" /></button></div>
               {multi ? <p className="lv-filter-multi-hint text-helper text-muted">{t("ledger.filters.monthsHint")}</p> : null}
               <SelectionGrid className="lv-filter-months" data-multi={multi || undefined}>{Array.from({ length: 12 }, (_, index) => {
@@ -188,16 +190,20 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
               })}</SelectionGrid><p className="mt-3 text-helper text-muted" role="status">{statusNote}</p>
             </>} />}
         </> : section === "attachments" ? <div className="lv-filter-attachment">
-          <fieldset><legend className="text-card-title">{t("attachments.title")}</legend><div className="lv-filter-choices">{(["any", "has", "none"] as const).map(v => <button type="button" key={v} aria-pressed={draft.attachment === v} onClick={() => change({ attachment: v, ...(v === "none" ? { type: "" } : {}) })}>{t(`attachments.${v}`)}</button>)}</div></fieldset>
-          <fieldset><legend className="text-card-title">{t("attachments.type")}</legend><div className="lv-filter-choices">{([["", "anyType"], ["image/", "image"], ["application/pdf", "pdf"], ["audio/", "audio"], ["text/", "text"]] as const).map(([v, key]) => <button type="button" key={key} aria-pressed={draft.type === v} onClick={() => change({ type: v!, ...(v ? { attachment: "has" } : {}) })}>{t(`attachments.${key}`)}</button>)}</div></fieldset>
+          {/* 1.19.65：“全部账目 / 含附件 / 无附件”三项一行、互斥 → 会移动的选中（横向）；文件类型五项在手机宽度会折成两行，
+              跨行滑动显得别扭，按网格选中的规则（各自淡入淡出 / 浮起）。条件与 aria-pressed 不变。 */}
+          <fieldset><legend className="text-card-title">{t("attachments.title")}</legend><MovingSelection axis="x" className="lv-filter-choices">{(["any", "has", "none"] as const).map(v => <button type="button" key={v} aria-pressed={draft.attachment === v} onClick={() => change({ attachment: v, ...(v === "none" ? { type: "" } : {}) })}>{t(`attachments.${v}`)}</button>)}</MovingSelection></fieldset>
+          <fieldset><legend className="text-card-title">{t("attachments.type")}</legend><SelectionGrid className="lv-filter-choices">{([["", "anyType"], ["image/", "image"], ["application/pdf", "pdf"], ["audio/", "audio"], ["text/", "text"]] as const).map(([v, key]) => <button type="button" key={key} aria-pressed={draft.type === v} onClick={() => change({ type: v!, ...(v ? { attachment: "has" } : {}) })}>{t(`attachments.${key}`)}</button>)}</SelectionGrid></fieldset>
           <fieldset><legend className="text-card-title">{t("attachments.size")} (MB)</legend><div className="lv-filter-size">{(["minMB", "maxMB"] as const).map((key, index) => <label key={key} className="text-helper">{t(index === 0 ? "attachments.minimum" : "attachments.maximum")}<input type="text" inputMode="decimal" value={draft[key]} placeholder={index === 0 ? "0" : t("ledger.filters.unlimited")} onChange={event => change({ [key]: event.target.value.trim() })} aria-invalid={attempted && !storageValid || undefined} /></label>)}</div></fieldset>
         </div> : <>
-          {section === "recorders" ? people.self !== null ? <button type="button" className="lv-filter-mine" aria-pressed={draft.recorders.length === 1 && draft.recorders[0] === people.self} onClick={() => change({ recorders: [people.self!] })}>{t("ledger.filters.onlyMine")}</button> : null
+          {/* 1.19.65：选项列表是多选（每行各自选中，“不限”是清空），长列表还会滚动，所以每行是独立的选中项（网格选中的规则），
+              不用会移动的选中；“只看自己”是单独的快捷选项，同样是独立的选中项。条件、搜索与 aria-pressed 不变。 */}
+          {section === "recorders" ? people.self !== null ? <SelectionItem className="lv-filter-mine" aria-pressed={draft.recorders.length === 1 && draft.recorders[0] === people.self} onClick={() => change({ recorders: [people.self!] })}>{t("ledger.filters.onlyMine")}</SelectionItem> : null
             : <input className="lv-filter-search" type="search" aria-label={t("ledger.filters.search")} placeholder={t("ledger.filters.search")} value={search} onChange={event => setSearch(event.target.value)} />}
-          <button type="button" className="lv-filter-option" aria-pressed={draft[section].length === 0} onClick={() => setDraft(clearFilterDimension(draft, section))}>{t("ledger.filters.unlimited")}<Check visible={draft[section].length === 0} /></button>
+          <SelectionItem className="lv-filter-option" aria-pressed={draft[section].length === 0} onClick={() => setDraft(clearFilterDimension(draft, section))}>{t("ledger.filters.unlimited")}<Check visible={draft[section].length === 0} /></SelectionItem>
           {options.filter(visible).map(item => { const children = section === "categories" && ledger?.categories.some(c => c.parentId === item.id); return <div key={item.id}>
             <div className="lv-filter-option-row" data-child={section === "categories" && "parent" in item && !!item.parent || undefined}>
-              <button type="button" className="lv-filter-option" aria-pressed={draft[section].includes(item.id)} onClick={() => toggle(section, item.id)}><span>{item.name}{section === "categories" && "kind" in item ? <span className="ml-2 text-helper text-muted">{t(item.kind === "income" ? "desktop.entries.income" : "desktop.entries.expense")}</span> : null}</span><Check visible={draft[section].includes(item.id)} /></button>
+              <SelectionItem className="lv-filter-option" aria-pressed={draft[section].includes(item.id)} onClick={() => toggle(section, item.id)}><span>{item.name}{section === "categories" && "kind" in item ? <span className="ml-2 text-helper text-muted">{t(item.kind === "income" ? "desktop.entries.income" : "desktop.entries.expense")}</span> : null}</span><Check visible={draft[section].includes(item.id)} /></SelectionItem>
               {children ? <button type="button" className="lv-filter-icon" aria-expanded={expanded.has(item.id)} aria-label={t(expanded.has(item.id) ? "ledger.filters.collapse" : "ledger.filters.expand", { name: item.name })} onClick={() => setExpanded(old => { const next = new Set(old); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })}><ChevronIcon direction={expanded.has(item.id) ? "down" : "right"} /></button> : null}
             </div>
             {children && draft.categories.includes(item.id) ? <label className="lv-filter-branch text-helper"><input type="checkbox" checked={draft.branches.includes(item.id)} onChange={event => change({ branches: event.target.checked ? [...draft.branches, item.id] : draft.branches.filter(v => v !== item.id) })} />{t("ledger.filters.branch")}</label> : null}

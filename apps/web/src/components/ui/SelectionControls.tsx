@@ -15,10 +15,12 @@ export type { ConditionTagItem, ConditionTagState, SelectionAxis } from "./selec
  * - `MovingSelection` 会移动的选中（竖向导航、横向分段）：B1 / B2 一块不染色的模拟玻璃按底栏胶囊的弹性规则滑到新选项；
  *   A 没有色块，选中项自己按 A2 档浮起；C 浅绿实底整块干脆滑动。选中文字都变品牌绿。
  * - `SelectionGrid` 网格选中（月份格）：B1 / B2 玻璃在旧格淡出、新格淡入；A 选中格浮起；C 交叉淡化。
+ * - `SelectionItem` 独立的选中项（多选列表的行、单个选项，1.19.65）：与网格选中同一规则，每一项各自淡入淡出 / 浮起。
  * - `ConditionTags` 已选条件标签（可删除的对象）：出现时轻微放大淡入，删除时缩小淡出；删除命中区约 44px 高。
  *
  * 选项按钮、角色与 aria（tablist / tab / aria-selected、group / aria-pressed）、点击与键盘行为全部由调用方保留；
- * 这里只加一块 `aria-hidden` 的选中块和 data 属性。Original、深色、Pad 与电脑版回落基础外观；减少动态效果时直接切换。
+ * 这里只加一块 `aria-hidden` 的选中块和 data 属性。怎么选：同一时间只有一项被选中、选项排成一行或一列 → `MovingSelection`；
+ * 可以同时选中几项（多选列表）、换行排列的小组、或单独的一个选项 → `SelectionGrid` / `SelectionItem`；开关（开 / 关）不属于选中指示。Original、深色、Pad 与电脑版回落基础外观；减少动态效果时直接切换。
  */
 
 const SELECTED = ':scope > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])';
@@ -116,6 +118,17 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
 /** 网格选中（月份格等）：子元素是调用方自己的 `<button aria-pressed>`；外观与动画全部由 CSS 按风格给出，可以同时选中多格。 */
 export function SelectionGrid(props: HTMLAttributes<HTMLDivElement>) {
   return <div {...props} data-select-grid="" />;
+}
+
+/**
+ * 独立的选中项（1.19.65）：多选列表的行（每行各自选中，可以同时选中几行，例如筛选面板的“不限 / CNY · 人民币 ✓”），
+ * 以及不在同一组里滑动的单个选项（“全部时间”“只看自己”）。按网格选中的规则表现：B1 / B2 玻璃在这一项上淡入淡出，
+ * A 这一项自己按 A2 档浮起（放大取 `--s19-a-lift-scale`，不用月份格的放大），C 浅绿实底淡入淡出；选中文字变品牌绿。
+ * 不要求放在某个容器的直接子元素位置（列表行里常有展开按钮等兄弟元素）。渲染的就是调用方的 `<button type="button">`，
+ * 以 `aria-pressed` / `aria-selected` / `aria-checked` 标出选中；只加 `data-select-item` 钩子，基础外观由调用方的样式给出。
+ */
+export function SelectionItem(props: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type">) {
+  return <button type="button" {...props} data-select-item="" />;
 }
 
 /**

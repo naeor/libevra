@@ -21,7 +21,7 @@
 | [PurposeControls.tsx](PurposeControls.tsx) | 界面模块；入口/导出：IconButton、CapsuleButton、Switch、SegmentedControl |
 | [RecordList.tsx](RecordList.tsx) | 界面模块；入口/导出：RecordList、RecordGroup、RecordRow |
 | [SelectionControls.test.tsx](SelectionControls.test.tsx) | 测试：SelectionControls |
-| [SelectionControls.tsx](SelectionControls.tsx) | 界面模块；入口/导出：MovingSelection、SelectionGrid、ConditionTag、ConditionTags |
+| [SelectionControls.tsx](SelectionControls.tsx) | 界面模块；入口/导出：MovingSelection、SelectionGrid、SelectionItem、ConditionTag、ConditionTags |
 | [SlidingSelection.tsx](SlidingSelection.tsx) | 界面模块；入口/导出：SlidingSelection |
 | [StatusControls.test.tsx](StatusControls.test.tsx) | 测试：StatusControls |
 | [StatusControls.tsx](StatusControls.tsx) | 界面模块；入口/导出：StatusTone、Badge、FilterChip、StatusMessage |

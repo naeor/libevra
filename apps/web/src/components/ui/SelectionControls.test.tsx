@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { NAVIGATION, SELECTION_GLIDE, selectionGlideDuration } from "../../lib/motionTokens.js";
 import { SegmentedControl } from "./PurposeControls.js";
-import { ConditionTag, ConditionTags, MovingSelection, SelectionGrid } from "./SelectionControls.js";
+import { ConditionTag, ConditionTags, MovingSelection, SelectionGrid, SelectionItem } from "./SelectionControls.js";
 import { focusAfterRemoval, glideFrames, reconcileTags, selectionMotion, selectionStyle, slideFrames, type ConditionTagEntry, type ConditionTagItem } from "./selectionModel.js";
 
 /**
@@ -165,6 +165,12 @@ describe("结构与无障碍属性", () => {
     const html = renderToStaticMarkup(<SelectionGrid className="lv-filter-months" data-multi><button type="button" aria-pressed>11月</button></SelectionGrid>);
     expect(html).toBe('<div class="lv-filter-months" data-multi="true" data-select-grid=""><button type="button" aria-pressed="true">11月</button></div>');
   });
+
+  it("SelectionItem（1.19.65）就是调用方的 type=button 按钮，只多一个 data-select-item 钩子；aria、类名、内容原样保留", () => {
+    const html = renderToStaticMarkup(<SelectionItem className="lv-filter-option" aria-pressed onClick={() => undefined}>CNY · 人民币<svg aria-hidden="true" /></SelectionItem>);
+    expect(html).toBe('<button type="button" class="lv-filter-option" aria-pressed="true" data-select-item="">CNY · 人民币<svg aria-hidden="true"></svg></button>');
+    expect(renderToStaticMarkup(<SelectionItem aria-pressed={false}>不限</SelectionItem>)).toContain('aria-pressed="false"');
+  });
 });
 
 describe("外观：四种风格同一个模型", () => {
@@ -203,6 +209,27 @@ describe("外观：四种风格同一个模型", () => {
     expect(a).toContain("translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale))");
     expect(a).toContain("scale(var(--s19-a-lift-scale-cell))");
     expect(a).toContain("var(--lv-lift-rise-ease)");
+  });
+
+  it("独立选中项（1.19.65）在四种风格里与网格选中同一规则：B1 / B2 玻璃淡入、C 实底淡入、A 按标准 A2 档浮起（不用月份格的放大）", () => {
+    const item = '[data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])';
+    const common = block(':root[data-visual-style][data-theme-mode="light"]');
+    expect(common).toContain("[data-select-grid] > button, [data-select-item] { position: relative; }");
+    expect(common).toContain(`${item} {\n    background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);`);
+    expect(common).toContain(":is([data-select-grid] > button, [data-select-item])::before { content: \"\";");
+    const glass = block(':root:is([data-visual-style="b1"], [data-visual-style="b2"])');
+    expect(glass).toContain(":is([data-select-grid] > button, [data-select-item])::before {\n    background: var(--s19-select-glass-bg);");
+    expect(glass).toContain(`${item}::before { opacity: 1; transform: none; }`);
+    const c = block(':root[data-visual-style="c"]');
+    expect(c).toContain(":is([data-select-grid] > button, [data-select-item])::before { background: var(--s19-select-solid-bg);");
+    expect(c).toContain(`${item}::before { opacity: 1; }`);
+    const a = block(':root[data-visual-style="a"]');
+    expect(a).toContain(`${item} {\n    transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale));`);
+    expect(a).toContain(":is([data-select-moving] > button, [data-select-grid] > button, [data-select-item])::after {");
+    expect(a).toContain(`${item}::after {`);
+    // 月份格的放大只给网格的直接子按钮
+    expect(a).toMatch(/\n {2}\[data-select-grid\] > button\[aria-pressed="true"\] \{ transform: translateY\(var\(--s19-a-lift-y\)\) scale\(var\(--s19-a-lift-scale-cell\)\); \}/);
+    expect(block("@media (prefers-reduced-motion: reduce)")).toContain("[data-select-item], [data-select-item]::before, [data-select-item]::after,");
   });
 
   it("条件标签：出现 / 删除用各风格的 reveal / dismiss 时长与起始缩放；删除命中区约 44px 高", () => {
@@ -271,5 +298,32 @@ describe("筛选面板接入", () => {
     expect(source).toContain('<ConditionTags className="lv-filter-chips" aria-label={t("ledger.filters.selected")}');
     expect(source).toContain('removeLabel: t("ledger.filters.clear", { name: t(`ledger.filters.${key}`) })');
     expect(source).toContain('onRemove={key => { setDraft(clearFilterDimension(draft, key as FilterDimension)); if (key === "time") setRangeMode(false); }}');
+  });
+
+  it("1.19.65：其余选中控件也用正式组件，条件、点击处理与 aria-pressed 原样保留", () => {
+    // 选项列表是多选（每行独立），“不限”是清空：独立选中项
+    expect(source).toContain('<SelectionItem className="lv-filter-option" aria-pressed={draft[section].length === 0} onClick={() => setDraft(clearFilterDimension(draft, section))}>');
+    expect(source).toContain('<SelectionItem className="lv-filter-option" aria-pressed={draft[section].includes(item.id)} onClick={() => toggle(section, item.id)}>');
+    expect(source).toContain("const toggle = (key: \"categories\" | \"payments\" | \"tags\" | \"currencies\" | \"recorders\", id: string) => change({ [key]: draft[key].includes(id) ? draft[key].filter(v => v !== id) : [...draft[key], id]");
+    // “全部时间”与月份格同一规则
+    expect(source).toContain('<SelectionItem className="lv-filter-option lv-filter-all-time" aria-pressed={isAllMonths(draft.month) && draft.months.length === 0} onClick={() => change({ month: ALL_MONTHS, from: "", to: "", months: [] })}>');
+    // 附件：三项互斥一行 → 横向会移动的选中；文件类型会折行 → 网格选中
+    expect(source).toContain('<MovingSelection axis="x" className="lv-filter-choices">{(["any", "has", "none"] as const).map(v => <button type="button" key={v} aria-pressed={draft.attachment === v} onClick={() => change({ attachment: v, ...(v === "none" ? { type: "" } : {}) })}>');
+    expect(source).toContain('<SelectionGrid className="lv-filter-choices">{([["", "anyType"], ["image/", "image"], ["application/pdf", "pdf"], ["audio/", "audio"], ["text/", "text"]] as const).map(([v, key]) => <button type="button" key={key} aria-pressed={draft.type === v} onClick={() => change({ type: v!, ...(v ? { attachment: "has" } : {}) })}>');
+    // 记录人“只看自己”：独立选中项
+    expect(source).toContain('<SelectionItem className="lv-filter-mine" aria-pressed={draft.recorders.length === 1 && draft.recorders[0] === people.self} onClick={() => change({ recorders: [people.self!] })}>');
+    // 没有遗留的手写选中控件
+    expect(source).not.toMatch(/<button type="button" className="lv-filter-(option|mine)/);
+    expect(source).not.toContain('<div className="lv-filter-choices">');
+    // 开关保持开关：标题行“多选”仍是 aria-pressed 开关按钮（底部面板与电脑版两处），“含子分类”仍是复选框
+    expect(source.match(/<button type="button" className="lv-filter-multi" aria-pressed=\{multi\}/g)).toHaveLength(2);
+    expect(source).toContain('<label className="lv-filter-branch text-helper"><input type="checkbox" checked={draft.branches.includes(item.id)}');
+  });
+
+  it("1.19.65：“只看自己”未选中时的正文色只在 S19 浅色作用域里改，Original、深色不变", () => {
+    const filters = strip(read("../entry-filters.css"));
+    expect(filters).toContain(':root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-filter-mine:not([aria-pressed="true"]) { color:var(--color-ink); }');
+    expect(filters).toContain(".lv-filter-mine { min-height:36px; margin-bottom:12px; padding:6px 14px; border-radius:999px; border:1px solid var(--color-line); color:var(--color-brand-dark); }");
+    expect(filters).toContain(".lv-filter-mine[aria-pressed=true] { border-color:transparent; background:var(--color-brand-soft); }");
   });
 });

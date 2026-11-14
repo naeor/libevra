@@ -10,7 +10,8 @@
 .lv-filter-nav { padding:8px 4px; border-right:1px solid var(--color-line); overflow:auto; }
 .lv-filter-nav button > span:first-child { white-space:nowrap; }
 .lv-filter-nav button { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:48px; padding:8px; border-radius:var(--radius-field); text-align:left; color:var(--color-muted); }
-/* 选中项的基础外观（Original、深色、Pad、电脑版）；S19 浅色手机由 MovingSelection / SelectionGrid 按风格接管（1.19.62）。 */
+/* 选中项的基础外观（Original、深色、Pad、电脑版）；S19 浅色手机由 MovingSelection / SelectionGrid / SelectionItem 按风格接管
+   （1.19.62 左侧导航、月份 / 日期范围、月份格；1.19.65 选项行、“全部时间”、附件两组、“只看自己”）。 */
 .lv-filter-nav button[aria-selected=true] { background:var(--color-brand-soft); color:var(--color-brand-dark); }
 .lv-filter-dot { width:5px; height:5px; border-radius:50%; background:var(--color-brand); flex:none; }
 .lv-filter-options { padding:16px; min-width:0; overflow:auto; overscroll-behavior:contain; }
@@ -59,6 +60,9 @@
 /* 记录人：“只看自己”快捷按钮在选项上面。 */
 .lv-filter-mine { min-height:36px; margin-bottom:12px; padding:6px 14px; border-radius:999px; border:1px solid var(--color-line); color:var(--color-brand-dark); }
 .lv-filter-mine[aria-pressed=true] { border-color:transparent; background:var(--color-brand-soft); }
+/* S19 浅色手机（1.19.65）：“只看自己”是独立的选中项（SelectionItem），选中时由选中块 / 浮起加品牌绿文字表示；
+   未选中时文字用正文色，选中才变品牌绿，与选项行一致（选中要有两个信号）。Original、深色不变。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-filter-mine:not([aria-pressed="true"]) { color:var(--color-ink); }
 .lv-filter-note { flex:none; padding-block:8px; }
 .lv-filter-footer { flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; }
 .lv-filter-footer button { min-height:44px; padding:8px 16px; }

@@ -8,6 +8,7 @@
   - 会移动的选中：B1 / B2 一块不染色的模拟玻璃（底栏选中胶囊同一配方）、C 浅绿实底，由脚本移动；
     A 没有色块，选中项自己按 A2 档浮起（表面层 ::before + 环境影 ::after），浮起轻微越过、落下干净不回弹。
   - 网格选中：B1 / B2 玻璃在旧格淡出、新格淡入；A 选中格浮起；C 交叉淡化。
+  - 独立的选中项（[data-select-item]，多选列表的行、单个选项，1.19.65）：与网格选中同一规则；A 的放大用标准 A2 档（不用月份格的）。
   - 已选条件标签：B1 / B2 带淡绿的瓷片；A 带淡绿、A2 档轻轻浮起的柔和薄片；C 纸面 + 细线。出现时轻微放大淡入，删除时缩小淡出。
   选中文字一律变品牌绿（选中要有两个信号：选中块或浮起，加上文字颜色）。
 */
@@ -33,14 +34,15 @@
 
 /* ---------- S19 四种风格共用 ---------- */
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
-  :is([data-select-moving], [data-select-grid]) > button { isolation: isolate; transition: color var(--lv-select-ms) var(--lv-motion-ease); }
-  [data-select-grid] > button { position: relative; }
-  /* 选中项自己的底色、阴影让给选中块 / 浮起层；文字变品牌绿。 */
+  :is([data-select-moving], [data-select-grid]) > button, [data-select-item] { isolation: isolate; transition: color var(--lv-select-ms) var(--lv-motion-ease); }
+  [data-select-grid] > button, [data-select-item] { position: relative; }
+  /* 选中项自己的底色、阴影、描边让给选中块 / 浮起层；文字变品牌绿。 */
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
-  [data-select-grid] > button[aria-pressed="true"] {
+  [data-select-grid] > button[aria-pressed="true"],
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
     background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);
   }
-  [data-select-grid] > button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; }
+  :is([data-select-grid] > button, [data-select-item])::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; }
 
   [data-cond-tag] { background: var(--s19-tag-bg); box-shadow: var(--s19-tag-sh); color: var(--color-brand-dark); translate: 0 var(--s19-tag-lift-y, 0px); }
   [data-cond-tag][data-state="in"] { animation: lv-cond-tag-in var(--lv-reveal-ms) var(--lv-motion-ease) both; }
@@ -50,18 +52,20 @@
 /* ---------- B1 / B2：模拟玻璃（不染色、不做真实背景模糊） ---------- */
 :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); }
-  [data-select-grid] > button::before {
+  :is([data-select-grid] > button, [data-select-item])::before {
     background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); transform: scale(.94);
     transition: opacity var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-select-ms) var(--lv-motion-ease);
   }
-  [data-select-grid] > button[aria-pressed="true"]::before { opacity: 1; transform: none; }
+  [data-select-grid] > button[aria-pressed="true"]::before,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; transform: none; }
 }
 
 /* ---------- C：浅绿实底，整块干脆滑动；网格交叉淡化 ---------- */
 :root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-solid-bg); box-shadow: none; }
-  [data-select-grid] > button::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
-  [data-select-grid] > button[aria-pressed="true"]::before { opacity: 1; }
+  :is([data-select-grid] > button, [data-select-item])::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
+  [data-select-grid] > button[aria-pressed="true"]::before,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; }
 }
 
 /* ---------- A：没有色块，选中项自己按 A2 档浮起 ----------
@@ -69,33 +73,36 @@
    只动画 transform 与 opacity，不逐帧改分层阴影。位移与放大比例是档位本身（--s19-a-lift-*）。 */
 :root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   [data-select-moving] > [data-select-block] { display: none; }
-  :is([data-select-moving], [data-select-grid]) > button {
+  :is([data-select-moving], [data-select-grid]) > button, [data-select-item] {
     position: relative;
     /* 落回：干净地落下，不回弹 */
     transition: color var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-lift-fall-ms) var(--lv-lift-fall-ease);
   }
-  :is([data-select-moving], [data-select-grid]) > button::before {
+  :is([data-select-moving] > button, [data-select-grid] > button, [data-select-item])::before {
     content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0;
     background: var(--s19-select-lift-bg); box-shadow: var(--s19-a-elev-2-surface);
     transition: opacity var(--lv-lift-shadow-out-ms) ease-out;
   }
-  :is([data-select-moving], [data-select-grid]) > button::after {
+  :is([data-select-moving] > button, [data-select-grid] > button, [data-select-item])::after {
     content: ""; position: absolute; inset: 18% 10% 0; z-index: -2; border-radius: inherit; pointer-events: none;
     box-shadow: var(--s19-a-elev-2-ambient); opacity: 0; transform: translateY(-4px) scale(.92);
     transition: opacity var(--lv-lift-shadow-out-ms) ease-out, transform var(--lv-lift-fall-ms) var(--lv-lift-fall-ease);
   }
   /* 浮起：轻微越过再落定 */
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
-  [data-select-grid] > button[aria-pressed="true"] {
+  [data-select-grid] > button[aria-pressed="true"],
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
     transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale));
     transition: color var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
   }
-  /* 月份格面积大一点，放大比例单独给 */
+  /* 月份格面积大一点，放大比例单独给（独立选中项多是整行，用标准 A2 档） */
   [data-select-grid] > button[aria-pressed="true"] { transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale-cell)); }
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before,
-  [data-select-grid] > button[aria-pressed="true"]::before { opacity: 1; }
+  [data-select-grid] > button[aria-pressed="true"]::before,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; }
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after,
-  [data-select-grid] > button[aria-pressed="true"]::after {
+  [data-select-grid] > button[aria-pressed="true"]::after,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after {
     opacity: 1; transform: none;
     transition: opacity var(--lv-lift-shadow-in-ms) ease-out, transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
   }
@@ -106,5 +113,6 @@
   :is([data-select-moving], [data-select-grid]) > button,
   :is([data-select-moving], [data-select-grid]) > button::before,
   :is([data-select-moving], [data-select-grid]) > button::after,
+  [data-select-item], [data-select-item]::before, [data-select-item]::after,
   [data-cond-tag] { transition: none !important; animation: none !important; }
 }
