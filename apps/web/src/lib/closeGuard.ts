@@ -11,8 +11,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useMarkBack, usePane } from "../workspace/context.js";
+import { useInsideTemporary } from "../workspace/temporary.js";
+import type { InstanceId } from "../workspace/model.js";
 import { uuidV7 } from "./uuid.js";
 
+const paneGuards = new Map<InstanceId, Set<(run: () => void) => void>>();
+export function paneLeaveGuard(id: InstanceId): ((run: () => void) => void) | undefined {
+  return [...(paneGuards.get(id) ?? [])].at(-1);
+}
 export type CloseDecision = "ignore" | "ask" | "close";
 
 export function decideClose({ busy, dirty, force = false }: {
@@ -39,7 +45,9 @@ export function decideClose({ busy, dirty, force = false }: {
  * ⚠️ 只在拥有地址栏的主工作区生效。
  */
 export function usePageBackGuard(active: boolean, onBack: () => void): (fallback: () => void, released?: (guarded: boolean) => void) => void {
-  const owns = usePane().role === "primary";
+  const pane = usePane();
+  const temporary = useInsideTemporary();
+  const owns = pane.role === "primary" && !temporary;
   const callback = useRef(onBack);
   useEffect(() => {
     callback.current = onBack;
@@ -73,7 +81,7 @@ export function usePageBackGuard(active: boolean, onBack: () => void): (fallback
    * 确认离开。默认是“返回”：退掉保护记录与这一页。给了 `released` 时只撤掉保护（不导航），由调用方去别处——
    * `guarded` 为 true 表示保护记录仍在栈顶；先回到原页，再执行工作区导航。
    */
-  return useCallback((fallback: () => void, released?: (guarded: boolean) => void) => {
+  const release = useCallback((fallback: () => void, released?: (guarded: boolean) => void) => {
     const entry = current.current;
     const state = typeof window === "undefined" ? null : (window.history.state as { overlayGuard?: string; idx?: unknown } | null);
     if (entry === null || state?.overlayGuard !== entry.marker) { if (released) released(false); else fallback(); return; }
@@ -85,6 +93,15 @@ export function usePageBackGuard(active: boolean, onBack: () => void): (fallback
     if (typeof state.idx === "number" && state.idx > 0) window.history.go(-2);
     else fallback();
   }, []);
+  useEffect(() => {
+    if (!active || temporary) return;
+    const guards = paneGuards.get(pane.instance) ?? new Set<(run: () => void) => void>();
+    paneGuards.set(pane.instance, guards);
+    const discard = (run: () => void) => afterBackGuard(release, run);
+    guards.add(discard);
+    return () => { guards.delete(discard); if (guards.size === 0) paneGuards.delete(pane.instance); };
+  }, [active, pane.instance, temporary, release]);
+  return release;
 }
 
 /** 离开有改动的页面或面板前，先退掉它自己的保护记录，再交给工作区导航。 */
@@ -153,6 +170,7 @@ export function useLeaveConfirm(dirty: boolean, leave: () => void, options: { re
     discardHere(() => { void navigate(path, options); });
   }, [discardHere, navigate]);
   const instance = usePane().instance;
+  const inTemporary = useInsideTemporary();
   const links = options.links === true;
   useEffect(() => {
     if (!dirty || !links || typeof document === "undefined") return;
@@ -160,6 +178,7 @@ export function useLeaveConfirm(dirty: boolean, leave: () => void, options: { re
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!(anchor instanceof HTMLAnchorElement) || (anchor.target !== "" && anchor.target !== "_self") || anchor.hasAttribute("download")) return;
+      if (Boolean(anchor.closest("[data-temporary-slot]")) !== inTemporary) return;
       const owner = anchor.closest("[data-instance]")?.getAttribute("data-instance");
       if (owner !== null && owner !== undefined && owner !== instance) return;
       const url = new URL(anchor.href, window.location.href);
@@ -172,6 +191,6 @@ export function useLeaveConfirm(dirty: boolean, leave: () => void, options: { re
     };
     document.addEventListener("click", click, true);
     return () => { document.removeEventListener("click", click, true); };
-  }, [dirty, links, instance, askLeave]);
+  }, [dirty, links, instance, inTemporary, askLeave]);
   return { requestLeave, confirmLeave, askLeave, proceed, discardHere, dialog: { open: asking, onConfirm: confirmLeave, onCancel: cancel } };
 }

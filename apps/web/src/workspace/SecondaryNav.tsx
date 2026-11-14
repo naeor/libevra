@@ -212,7 +212,7 @@ export function SecondaryNavPanel({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
+      if (event.key === "Escape" && !event.defaultPrevented && !panel.current?.closest("[inert], [hidden]")) {
         event.preventDefault();
         event.stopPropagation();
         closeRef.current(true);
@@ -241,7 +241,7 @@ export function SecondaryNavPanel({
   };
 
   return (
-    <div ref={panel} className="lv-popover lv-secondary-nav" role="dialog" aria-label={t("workspace.rail.secondaryNavLabel")}>
+    <div ref={panel} data-pad-popover-open="" className="lv-popover lv-secondary-nav" role="dialog" aria-label={t("workspace.rail.secondaryNavLabel")}>
       {/* 返回沿用各次级页面左上角入口；导航只保留工作区身份与关闭。 */}
       <div className="lv-secondary-head">
         <p className="lv-secondary-identity" title={title}>

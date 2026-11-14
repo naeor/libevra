@@ -88,6 +88,7 @@ const workspace = {
     releaseCancel: "松手取消",
   },
   toast: {
+    temporaryExpired: "来源页面或账本已变更，已收起临时面板。",
     followBlocked: "辅助工作区有未保存的修改，详情已在主工作区打开",
     collapsedSecondary: "已收起辅助工作区，可从边缘的按钮恢复",
     promoted: "{{title}}已成为主工作区，原工作区已保留，可随时恢复",

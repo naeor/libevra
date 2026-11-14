@@ -497,7 +497,7 @@ export function FloatingMenu({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
+      if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("[data-pad-modal-layer]")) {
         event.preventDefault();
         event.stopPropagation();
         closeRef.current();
@@ -524,7 +524,7 @@ export function FloatingMenu({
   }, []);
 
   return createPortal(
-    <div ref={ref} className="lv-popover lv-menu" role="menu" aria-label={label} style={{ position: "fixed", left: position.left, top: position.top }}>
+    <div ref={ref} data-pad-popover-open="" className="lv-popover lv-menu" role="menu" aria-label={label} style={{ position: "fixed", left: position.left, top: position.top }}>
       {items.map((item) => (
         <button
           key={item.label}
@@ -541,6 +541,6 @@ export function FloatingMenu({
         </button>
       ))}
     </div>,
-    document.body,
+    opener.current?.closest('.lv-shell') ?? document.body,
   );
 }

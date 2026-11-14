@@ -14,7 +14,7 @@
 | [bridge.ts](bridge.ts) | 实现模块；入口/导出：publishGuestSnapshot、guestReadTransactions、guestBookIdSync、requireGuestId |
 | [cleanup.ts](cleanup.ts) | 实现模块；入口/导出：ClearGuestDataResult、clearGuestData、clearAllDeviceData |
 | [data.test.ts](data.test.ts) | 测试：data |
-| [data.ts](data.ts) | 实现模块；入口/导出：GUEST_DATA_SCHEMA_VERSION、GuestData、guestDataValue、subscribeGuestData、resetGuestDataCache |
+| [data.ts](data.ts) | 实现模块；入口/导出：GUEST_DATA_SCHEMA_VERSION、GuestData、guestDataValue、loadedGuestBookId、subscribeGuestData |
 | [identity.test.ts](identity.test.ts) | 测试：identity |
 | [identity.ts](identity.ts) | 实现模块；入口/导出：GUEST_IDENTITY_STORAGE_KEY、GUEST_IDENTITY_SCHEMA_VERSION、GuestIdentity、GuestIdentityPatch、GuestIdentityStorage |
 | [ledger.test.ts](ledger.test.ts) | 测试：ledger |

@@ -28,7 +28,7 @@ export interface OverlayQueryRoot {
 export function hasOpenOverlay(root: OverlayQueryRoot | null = typeof document === "undefined" ? null : document): boolean {
   if (root === null) return false;
   for (const node of root.querySelectorAll(OPEN_OVERLAY_SELECTOR)) {
-    if (node.closest(CLOSING) === null) return true;
+    if (node.closest(CLOSING) === null && node.closest('[inert], [hidden]') === null) return true;
   }
   return false;
 }

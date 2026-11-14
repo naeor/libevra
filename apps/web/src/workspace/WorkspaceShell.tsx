@@ -17,6 +17,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { useAuth } from "../auth/AuthProvider.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useI18n } from "../i18n/index.js";
+import { paneLeaveGuard } from "../lib/closeGuard.js";
+import { useGuestFilterBook } from "../lib/usePageFilter.js";
+import { PanePages, TemporaryHostContext, TemporaryTasks, useTemporaryTask, type TemporaryHost } from "./temporary.js";
+import { TemporaryDetail } from "./TemporaryDetail.js";
+import { PadOverlayHost } from "./padOverlay.js";
+import { temporaryWidth, type TemporaryContent } from "./temporaryGeometry.js";
 import { currentBookId, subscribeCurrentBook } from "../lib/currentBook.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
 import { useBooks } from "../lib/queries.js";
@@ -194,9 +200,13 @@ export function WorkspaceShell({
   let shellMode = shellModeFor(viewport.w, viewport.h);
   if (shellMode === "phone" && lastMode.current === "wide" && viewport.w >= WIDE_MIN_WIDTH && editingText()) shellMode = "wide";
   lastMode.current = shellMode;
-  const orientation: Orientation = orientationFor(viewport.w, viewport.h);
+  const stableViewport = useRef(viewport);
+  const keyboardResize = editingText() && viewport.w === stableViewport.current.w && viewport.h < stableViewport.current.h;
+  if (!keyboardResize) stableViewport.current = viewport;
+  const orientation: Orientation = orientationFor(viewport.w, stableViewport.current.h);
   const { status, user } = useAuth();
   const guest = useGuestIdentity();
+  const guestBook = useGuestFilterBook(guest?.id ?? null);
 
   const [boot] = useState(() => {
     const saved = readPersisted();
@@ -207,6 +217,7 @@ export function WorkspaceShell({
     return { state, owner: saved?.owner ?? null, histories: created.histories, entryLedgers };
   });
   const histories = boot.histories;
+  const [tasks] = useState(() => new TemporaryTasks());
   const [state, dispatch] = useReducer(workspaceReducer, boot.state);
   const primaryHistory = histories[state.primary];
   const secondaryId = state.secondary;
@@ -305,7 +316,7 @@ export function WorkspaceShell({
   const chrome = shellMode === "wide" && hasSession && !isStandalonePath(primarySnap.location.pathname);
   const box = chrome ? shellBox : { w: viewport.w, h: viewport.h };
   const splitRail = railWidthFor(state.rail, true);
-  const fits = splitFits({ w: box.w - splitRail, h: box.h }, orientation);
+  const fits = splitFits({ w: box.w - splitRail, h: keyboardResize ? stableViewport.current.h : box.h }, orientation);
   const splitVisible = chrome && state.secondaryOpen && secondaryId !== null && fits;
   const railWidth = chrome ? railWidthFor(state.rail, splitVisible) : 0;
   const area = { w: Math.max(0, box.w - railWidth), h: box.h };
@@ -391,7 +402,7 @@ export function WorkspaceShell({
       const current = latest.current;
       const target = followTargetFor({ ...current.state, splitVisible: current.splitVisible, canSplit: current.canSplit }, request.from.pathname, request.to.pathname);
       if (target === null) return false;
-      if (dirty.current[other.id as InstanceId] || entryFlow.has(other.id as InstanceId, other.location.key)) {
+      if (dirty.current[other.id as InstanceId] || entryFlow.has(other.id as InstanceId, other.location.key) || (tasks.read()?.instance === other.id && tasks.read()?.protected())) {
         // 辅助区有尚未保存的修改：跟随不能替换掉它，详情改在主区打开。
         say(t("workspace.toast.followBlocked"));
         return false;
@@ -421,7 +432,7 @@ export function WorkspaceShell({
       clearBackIntent();
       primary.setInterceptor(null);
     };
-  }, [histories, state.primary, say, shellNav, t, markEntryLedger, entryFlow]);
+  }, [histories, state.primary, say, shellNav, t, markEntryLedger, entryFlow, tasks]);
 
   /**
    * 「返回」的意图（第三轮）：页面的返回按钮有时并不是后退一步，而是打开声明的上级页面（例如账单详情的
@@ -545,8 +556,15 @@ export function WorkspaceShell({
    * ⚠️ **丢弃草稿之前先问。** 在辅助区打开新页面会卸载它当前的页面（即使辅助区处于收起状态），切换账本会
    * 整页重新载入两个工作区——有未保存修改时先确认，取消就什么都不做。
    */
-  const [pendingDiscard, setPendingDiscard] = useState<{ readonly kind: "primary" | "secondary" | "reload"; readonly run: () => void } | null>(null);
+  const [pendingDiscard, setPendingDiscard] = useState<{ readonly kind: "primary" | "secondary" | "reload"; readonly run: () => void; readonly cancel?: (() => void) | undefined } | null>(null);
   const allowUnload = useRef(false);
+  const guardHost = useCallback((instance: InstanceId, run: () => void, cancel?: () => void) => {
+    const release = paneLeaveGuard(instance);
+    if (dirty.current[instance] || release || entryFlow.has(instance, histories[instance].location.key)) {
+      setPendingDiscard({ kind: instance === latest.current.state.primary ? "primary" : "secondary",
+        run: release ? () => release(run) : run, cancel });
+    } else run();
+  }, [entryFlow, histories]);
   const guardSecondary = useCallback((run: () => void) => {
     const secondary = latest.current.state.secondary;
     // 识别／录音等既有页面不全登记字段级 dirty；跟随发起的未结束流程也按草稿保护。
@@ -566,12 +584,19 @@ export function WorkspaceShell({
     run();
   }, [entryFlow, histories]);
 
+  function guardBookChange(id: InstanceId, book: string | null | undefined, run: () => void) {
+    const active = tasks.read();
+    const destination = book ?? latest.current.state.ledgers[id] ?? currentBookId();
+    if (active?.instance === id && destination !== null && destination !== active.book) tasks.leave(id, run);
+    else run();
+  }
+
   const confirmReload = useCallback((run: () => void) => {
     const go = (): void => {
       allowUnload.current = true;
       run();
     };
-    if (dirty.current.w1 || dirty.current.w2 || INSTANCES.some((id) => entryFlow.has(id, histories[id].location.key))) {
+    if (tasks.read()?.protected() || dirty.current.w1 || dirty.current.w2 || INSTANCES.some((id) => entryFlow.has(id, histories[id].location.key))) {
       setPendingDiscard({ kind: "reload", run: go });
       return;
     }
@@ -581,8 +606,8 @@ export function WorkspaceShell({
   /** 有两个工作区实例、且任一边有未保存修改时，整页重新载入 / 关闭页面先由浏览器确认。 */
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent): void => {
-      if (allowUnload.current || latest.current.state.secondary === null) return;
-      if (!dirty.current.w1 && !dirty.current.w2 && !INSTANCES.some((id) => entryFlow.has(id, histories[id].location.key))) return;
+      if (allowUnload.current || (latest.current.state.secondary === null && !tasks.read()?.protected())) return;
+      if (!tasks.read()?.protected() && !dirty.current.w1 && !dirty.current.w2 && !INSTANCES.some((id) => entryFlow.has(id, histories[id].location.key))) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -602,7 +627,8 @@ export function WorkspaceShell({
   }>(
     () => ({
       openInSecondary: (path: string, options?: OpenOptions) => {
-        guardSecondary(() => {
+        const destination = latest.current.state.secondary ?? otherInstance(latest.current.state.primary);
+        guardBookChange(destination, options?.ledger, () => guardSecondary(() => {
           const current = latest.current.state;
           const id = current.secondary ?? otherInstance(current.primary);
           const target = histories[id];
@@ -617,11 +643,11 @@ export function WorkspaceShell({
           if (options?.mode !== undefined) dispatch({ type: "setMode", mode: options.mode });
           // 拖入整本账等同于在目标区切换账本；后续主导航继续使用这本账。
           if (path === "/" && options?.ledger !== undefined) dispatch({ type: "setLedger", instance: id, ledger: options.ledger });
-        });
+        }));
       },
       openInPrimary: (path: string, options?: OpenOptions) => {
         // 只改主区：不经过跟随拦截，不交换角色，辅助区的页面与历史原样保留。
-        guardPrimary(() => {
+        guardBookChange(latest.current.state.primary, options?.ledger, () => guardPrimary(() => {
           const current = latest.current.state;
           const target = histories[current.primary];
           shellNav(() => {
@@ -629,9 +655,9 @@ export function WorkspaceShell({
           });
           markEntryLedger(current.primary, target.location.key, options?.ledger ?? null);
           if (path === "/" && options?.ledger !== undefined) dispatch({ type: "setLedger", instance: current.primary, ledger: options.ledger });
-        });
+        }));
       },
-      enterLedger: (instance: InstanceId, bookId: string, reload: () => void) => {
+      enterLedger: (instance: InstanceId, bookId: string, reload: () => void) => tasks.leave(instance, () => {
         const current = latest.current.state;
         const device = currentBookId();
         const target = histories[instance];
@@ -668,7 +694,7 @@ export function WorkspaceShell({
           persistNow();
           reload();
         });
-      },
+      }),
       restoreSecondary: () => {
         if (latest.current.state.secondary === null) {
           histories[otherInstance(latest.current.state.primary)].reset(START_PATH);
@@ -679,8 +705,10 @@ export function WorkspaceShell({
       },
       closeSecondary: () => {
         const current = latest.current.state;
-        if (current.secondary !== null) beginExit(current.secondary);
-        dispatch({ type: "closeSecondary" });
+        if (current.secondary !== null) tasks.leave(current.secondary, () => {
+          beginExit(current.secondary!);
+          dispatch({ type: "closeSecondary" });
+        });
       },
       setMode: (mode: FollowMode) => {
         dispatch({ type: "setMode", mode });
@@ -696,12 +724,14 @@ export function WorkspaceShell({
       markBack: (instance: InstanceId) => {
         backIntent.current = { instance, at: Date.now() };
       },
-      viewDeviceLedger: (instance: InstanceId) => {
+      viewDeviceLedger: (instance: InstanceId) => tasks.leave(instance, () => {
         dispatch({ type: "setLedger", instance, ledger: null });
         markEntryLedger(instance, histories[instance].location.key, null);
-      },
+      }),
       collapse: (side: "primary" | "secondary") => {
-        dispatch({ type: "collapse", side });
+        const current = latest.current.state;
+        const id = side === "primary" ? current.primary : current.secondary;
+        if (id !== null) tasks.leave(id, () => dispatch({ type: "collapse", side }));
       },
       setRatio: (ratio: number) => {
         dispatch({ type: "setRatio", ratio });
@@ -710,19 +740,21 @@ export function WorkspaceShell({
         // 侧栏导航本身就是「在主区打开」，不经过跟随拦截；主导航按主区自己的账本，不继承当前页的记录账本。
         const current = latest.current.state;
         const target = histories[current.primary];
-        shellNav(() => {
+        guardBookChange(current.primary, null, () => shellNav(() => {
           target.open(path);
-        });
+        }));
       },
       navigateSecondary: (path: string) => {
-        guardSecondary(() => {
+        const destination = latest.current.state.secondary;
+        if (destination === null) return;
+        guardBookChange(destination, null, () => guardSecondary(() => {
           const current = latest.current.state;
           if (current.secondary === null) return;
           shellNav(() => {
             histories[current.secondary as InstanceId].open(path);
           });
           dispatch({ type: "setMode", mode: "independent" });
-        });
+        }));
       },
       setRail: (rail: WorkspaceState["rail"]) => {
         dispatch({ type: "setRail", rail });
@@ -840,6 +872,7 @@ export function WorkspaceShell({
    */
   const routes = useMemo(() => renderRoutes(), [renderRoutes]);
 
+  const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   const shell = (
     <div
       ref={shellRef}
@@ -867,6 +900,7 @@ export function WorkspaceShell({
         S19 手机外壳的材质规则（原来渲染成外壳的兄弟节点，四种风格下都是白色基础面板）。手机外壳是
         `display: contents`，大屏外壳没有变换 / 滤镜 / 层叠上下文，固定定位的弹窗位置与层级都不变。
       */}
+      {chrome ? <div ref={setOverlayHost} data-pad-overlay-host="" /> : null}
       {wrapChrome(<>
       {chrome ? (
         <ViewLedgerContext.Provider value={chosenLedger(state.primary, primarySnap.location.key)}>
@@ -927,6 +961,14 @@ export function WorkspaceShell({
             <Pane
               key={id}
               history={histories[id]}
+              tasks={tasks}
+              owner={identity ?? null}
+              book={guest ? guestBook : foreignBookFor(chosen, deviceBook, false) ?? deviceBook}
+              areaWidth={area.w}
+              independent={splitVisible && state.mode === "independent" && role === "primary"}
+              guardHost={(run, cancel) => guardHost(id, run, cancel)}
+              confirmDetail={run => setPendingDiscard({ kind: role, run })}
+              expired={() => say(t("workspace.toast.temporaryExpired"))}
               info={info}
               rect={rect}
               mode={chrome ? "box" : role === "primary" ? "contents" : "hidden"}
@@ -1004,7 +1046,7 @@ export function WorkspaceShell({
       ) : null}
 
       <ConfirmDialog
-        open={pendingDiscard !== null}
+        appWide open={pendingDiscard !== null}
         tone="danger"
         title={t("workspace.discard.title")}
         description={
@@ -1017,6 +1059,7 @@ export function WorkspaceShell({
         confirmLabel={t("workspace.discard.confirm")}
         cancelLabel={t("workspace.discard.cancel")}
         onCancel={() => {
+          pendingDiscard?.cancel?.();
           setPendingDiscard(null);
         }}
         onConfirm={() => {
@@ -1032,7 +1075,7 @@ export function WorkspaceShell({
   return (
     <WorkspaceActionsContext.Provider value={actions}>
       <WorkspaceViewContext.Provider value={view}>
-        <PaneRouter history={primaryHistory}>{shell}</PaneRouter>
+        <PadOverlayHost.Provider value={chrome ? overlayHost : null}><PaneRouter history={primaryHistory}>{shell}</PaneRouter></PadOverlayHost.Provider>
       </WorkspaceViewContext.Provider>
     </WorkspaceActionsContext.Provider>
   );
@@ -1059,7 +1102,7 @@ function LedgerWatch({ onBooks }: { readonly onBooks: (ids: ReadonlySet<string>)
  * - `hidden`：被收起 / 空间不足的实例，保持挂载与上次尺寸，不可见、不可聚焦。
  */
 function Pane({
-  history,
+  history, tasks, owner, book, areaWidth, independent, guardHost, confirmDetail, expired,
   info,
   rect,
   mode,
@@ -1075,6 +1118,14 @@ function Pane({
   children,
 }: {
   readonly history: PaneHistory;
+  readonly tasks: TemporaryTasks;
+  readonly owner: string | null;
+  readonly book: string | null;
+  readonly areaWidth: number;
+  readonly independent: boolean;
+  readonly guardHost: TemporaryHost["guardHost"];
+  readonly confirmDetail: (run: () => void) => void;
+  readonly expired: () => void;
   readonly info: PaneInfo;
   readonly rect: Rect;
   readonly mode: "contents" | "box" | "hidden";
@@ -1096,6 +1147,51 @@ function Pane({
 }): React.JSX.Element {
   const ref = useRef<HTMLElement | null>(null);
   const [sizes] = useState(() => new PaneSizeStore());
+  const [slotSizes] = useState(() => new PaneSizeStore());
+  const slot = useRef<HTMLElement | null>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const active = useTemporaryTask(tasks);
+  const task = active?.instance === info.instance ? active : null;
+  const dirtyDetail = useRef(false);
+  const registerDirty = useCallback((value: boolean) => { dirtyDetail.current = value; }, []);
+  const current = useSnapshot(history).location;
+  const width = (kind: TemporaryContent, open: boolean) => mode !== "box" || !info.visible ? 0 :
+    temporaryWidth(kind, rect.w, editingText() && open ? Math.max(280, rect.h) : rect.h, areaWidth, open);
+  const scope = useRef({ owner, book });
+  scope.current = { owner, book };
+  const host: TemporaryHost = { isCurrent: candidate => tasks.read()?.id === candidate.id
+    && scope.current.owner === candidate.owner && scope.current.book === candidate.book, tasks, instance: info.instance, owner, book, history, sizes: slotSizes, slot, width, guardHost, expired,
+    openDetail(path) {
+      if (!independent || owner === null || book === null || !width("detail", false)) return false;
+      const id = Symbol("detail");
+      const trigger = document.activeElement;
+      const done = (after?: () => void) => {
+        tasks.release(id);
+        if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus({ preventScroll: true });
+        after?.();
+      };
+      return tasks.acquire({ id, instance: info.instance, origin: history.location, owner, book, kind: "detail", detailPath: path,
+        protected: () => dirtyDetail.current,
+        close: after => dirtyDetail.current ? confirmDetail(() => done(after)) : done(after) });
+    },
+  };
+  const valid = !task || (task.owner === owner && (book === null || task.book === book));
+  const splitWidth = task && valid ? width(task.kind, true) : 0;
+  const requested = useRef<symbol | null>(null);
+  useLayoutEffect(() => {
+    if (!task) { requested.current = null; return; }
+    if (!valid) {
+      task.invalidate?.();
+      tasks.release(task.id);
+      expired();
+    } else if ((!info.visible || !history.hasEntry(task.origin) || history.isBefore(task.origin)) && requested.current !== task.id) {
+      requested.current = task.id;
+      task.close();
+    } else if (info.visible && history.hasEntry(task.origin) && !history.isBefore(task.origin)) requested.current = null;
+  }, [task, valid, info.visible, tasks, expired, current.key, history]);
+  useLayoutEffect(() => {
+    slotSizes.set(splitWidth || rect.w, rect.h);
+  }, [slotSizes, splitWidth, rect.w, rect.h]);
   const hidden = !info.visible && !exiting;
   const registerRef = useRef(register);
   registerRef.current = register;
@@ -1107,7 +1203,7 @@ function Pane({
   }, []);
 
   useLayoutEffect(() => {
-    const element = ref.current;
+    const element = scrollElement;
     if (element === null) return;
     if (mode === "contents") {
       const update = (): void => {
@@ -1131,7 +1227,7 @@ function Pane({
     return () => {
       observer.disconnect();
     };
-  }, [mode, sizes]);
+  }, [mode, sizes, scrollElement]);
 
   const memoInfo = useMemo(() => info, [info.instance, info.role, info.shell, info.nav, info.split, info.visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1139,6 +1235,7 @@ function Pane({
     mode === "contents"
       ? undefined
       : {
+          ["--lv-temporary-width" as string]: `${splitWidth}px`,
           left: `${String(rect.x)}px`,
           top: `${String(rect.y)}px`,
           width: `${String(rect.w)}px`,
@@ -1150,6 +1247,7 @@ function Pane({
       ref={ref}
       className="lv-pane"
       data-mode={mode === "box" && hidden ? "hidden" : mode}
+      data-temporary-open={splitWidth > 0 ? task?.kind : undefined}
       data-role={info.role}
       data-instance={info.instance}
       data-exiting={exiting ? "true" : undefined}
@@ -1164,9 +1262,15 @@ function Pane({
           <PaneRouter history={history} nested>
             <ViewLedgerContext.Provider value={ledger}>
               {/* ⚠️ 换账本 = 页面重新挂载：筛选、缓存的选中项、未保存的表单都属于原来那本账，不能带进另一本。 */}
-              <div key={foreign ?? "device"} className="lv-pane-scroll" data-ledger={foreign === null ? undefined : "foreign"} inert={entryMenu !== null}>
-                {children}
-              </div>
+              <TemporaryHostContext.Provider value={host}>
+                <PanePages key={JSON.stringify([owner, foreign])} task={valid ? task : null} scrollRef={setScrollElement}
+                  foreign={foreign !== null} inert={entryMenu !== null}>{children}</PanePages>
+                <aside ref={slot} data-temporary-slot="" data-floating={task && !splitWidth ? "" : undefined}
+                  aria-label={label} inert={!!task && book === null} data-active={task && valid ? "" : undefined}>
+                  {task?.detailPath && valid ? <TemporaryDetail key={String(task.detailPath)} task={task} host={host}
+                    split={splitWidth > 0} registerDirty={registerDirty}>{children}</TemporaryDetail> : null}
+                </aside>
+              </TemporaryHostContext.Provider>
               {entryMenu}
               {drag !== "idle" && mode === "box" && !hidden ? <PaneTag history={history} role={info.role} target={drag === "target"} preview={dragPreview} /> : null}
               {fab && entryMenu === null && mode === "box" && !hidden ? <SecondaryFab history={history} /> : null}

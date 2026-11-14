@@ -1,4 +1,5 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { loadedGuestBookId, subscribeGuestData } from "./guest/data.js";
 import { useSearchParams } from "react-router";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { ALL_MONTHS } from "./datetime.js";
@@ -6,6 +7,17 @@ import type { DetailFilters } from "./detailFilters.js";
 import { useGuestIdentity } from "./guest/session.js";
 import { hasFilterParams, takeFilterParams, useLedgerFilter, type FilterSlot } from "./ledgerFilter.js";
 import { useViewBookId } from "./workspaceLedger.js";
+
+export function useGuestFilterBook(guestId: string | null): string | null {
+  return useSyncExternalStore(subscribeGuestData, () => loadedGuestBookId(guestId), () => null);
+}
+
+export function useFilterBook(): string | null {
+  const guest = useGuestIdentity();
+  const localBook = useGuestFilterBook(guest?.id ?? null);
+  const accountBook = useViewBookId();
+  return guest ? localBook : accountBook;
+}
 
 /** 本机筛选按谁存：正式账号或游客身份。 */
 export function useFilterOwner(): string | null {
@@ -29,7 +41,7 @@ export function usePageFilter(page: FilterSlot, options: { readonly readParams?:
   readonly bookId: string | null;
 } {
   const owner = useFilterOwner();
-  const bookId = useViewBookId();
+  const bookId = useFilterBook();
   const filter = useLedgerFilter(page, owner, bookId);
   const [params, setParams] = useSearchParams();
   const take = options.readParams ?? ((p: URLSearchParams, current: DetailFilters) => (hasFilterParams(p) ? takeFilterParams(p, current) : null));

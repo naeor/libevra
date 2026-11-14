@@ -319,7 +319,7 @@ describe("1.19.61：筛选高半屏、S19 对话框遮罩深一档、筛选设�
     expect(overlays.slice(overlays.lastIndexOf("\n", rule), rule)).toContain(':root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope]');
     // CenterDialog 的根节点是 dialog；底部面板（含大档与门禁）的根节点是 sheet，不会命中。
     expect(read("./CenterDialog.tsx")).toContain('data-overlay-root="dialog"');
-    expect(read("./BottomSheet.tsx")).toContain('data-overlay-root="sheet"');
+    // 下方用实际渲染断言手机面板的遮罩；Pad 非模态区没有遮罩标记。
     const large = renderToStaticMarkup(<BottomSheet label="大档" detent="large" onClose={() => undefined}>x</BottomSheet>);
     expect(large).toContain('data-overlay-root="sheet"');
     // 颜色字面量只在令牌文件里。
@@ -420,6 +420,6 @@ describe("1.19.63：高度内容优先（T1 / T2 / T4 按内容，最高到大�
     expect(root).toContain("--lv-sheet-resize-ease: cubic-bezier(0.32, 0.72, 0, 1);");
     expect(read("../index.css")).toContain("animation: libellum-sheet-in 260ms cubic-bezier(0.32, 0.72, 0, 1);");
     expect(block(css, "[data-overlay-surface][data-sheet-resizing] > [data-sheet-body] {")).toContain("overflow: hidden;");
-    expect(read("./BottomSheet.tsx")).toContain('useSheetHeightTransition(panelRef, rootRef, detent === "content");');
+    expect(read("./BottomSheet.tsx")).toContain('useSheetHeightTransition(panelRef, rootRef, detent === "content" && !split);');
   });
 });

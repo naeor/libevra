@@ -85,6 +85,7 @@ const workspace: Messages<typeof zh> = {
     releaseCancel: "Release to cancel",
   },
   toast: {
+    temporaryExpired: "The source page or ledger changed. The temporary panel was closed.",
     followBlocked: "The side workspace has unsaved changes, so the details opened in the main workspace",
     collapsedSecondary: "Side workspace closed — restore it from the button on the edge",
     promoted: "{{title}} is now the main workspace; the other one is kept and can be restored",

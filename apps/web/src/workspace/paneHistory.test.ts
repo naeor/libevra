@@ -55,6 +55,81 @@ function fakeBrowser(initialPath = "/", initialState: unknown = null) {
   return browser;
 }
 
+describe("临时任务提交回到来源记录", () => {
+  it("按原 key 找到第二次访问的结果页，保留更早记录，剪去中途详情", () => {
+    const history = new PaneHistory("w2", [entryFromPath("/", "first")]);
+    history.push("/stats");
+    history.push("/");
+    const origin = history.location;
+    history.push("/transactions/t1");
+    history.push("/transactions/t2");
+    let applied = false;
+    history.returnToEntry(origin, ok => { applied = ok; });
+    expect(applied).toBe(true);
+    expect(history.location.key).toBe(origin.key);
+    expect(history.serialize().entries.map(e => e.path)).toEqual(["/", "/stats", "/"]);
+  });
+  it("主区等待真实 POP 后再提交；Safari 前进不会重新打开已剪掉的详情", () => {
+    const browser = fakeBrowser("/");
+    const history = new PaneHistory("w1", []);
+    history.adopt(browser);
+    const origin = history.location;
+    history.push("/transactions/t1");
+    const calls: boolean[] = [];
+    history.returnToEntry(origin, ok => calls.push(ok));
+    expect(calls).toEqual([]);
+    browser.flush();
+    expect(calls).toEqual([true]);
+    expect(history.snapshot.length).toBe(1);
+    browser.history.go(1); browser.flush(); browser.flush();
+    expect(browser.location.pathname).toBe("/");
+    expect(history.location.key).toBe(origin.key);
+  });
+  it("来源在前进栈时能识别；提交剪掉已经自行退回的临时详情，刷新后继续屏蔽原生前进", () => {
+    const browser = fakeBrowser("/me");
+    const history = new PaneHistory("w1", []);
+    history.adopt(browser);
+    history.push("/");
+    const origin = history.location;
+    const originalForward = history.forwardKeys();
+    history.push("/transactions/later");
+    browser.history.go(-2); browser.flush();
+    expect(history.hasEntry(origin)).toBe(true);
+    expect(history.isBefore(origin)).toBe(true);
+    browser.history.go(1); browser.flush();
+    history.returnToEntry(origin, ok => expect(ok).toBe(true), originalForward);
+    expect(history.serialize().entries.map(e => e.path)).toEqual(["/me", "/"]);
+    history.detach();
+    const restored = PaneHistory.restore("w1", history.serialize(), "/");
+    restored.adopt(browser);
+    browser.history.go(1); browser.flush(); browser.flush();
+    expect(browser.location.pathname).toBe("/");
+    expect(browser.stack).toHaveLength(3);
+  });
+  it("开面板之前已有的前进记录保留", () => {
+    const history = new PaneHistory("w2", [entryFromPath("/")]);
+    history.push("/me");
+    history.go(-1);
+    history.returnToEntry(history.location, ok => expect(ok).toBe(true), history.forwardKeys());
+    expect(history.snapshot.length).toBe(2);
+  });
+  it("来源已被替换或取消异步提交时不应用旧草稿", () => {
+    const history = new PaneHistory("w2", [entryFromPath("/", "default")]);
+    const origin = history.location;
+    history.replace("/stats");
+    let applied = true;
+    history.returnToEntry(origin, ok => { applied = ok; });
+    expect(applied).toBe(false);
+    const browser = fakeBrowser("/");
+    history.adopt(browser);
+    const first = history.location;
+    history.push("/transactions/t2");
+    const stop = history.returnToEntry(first, () => { applied = true; });
+    stop(); browser.flush();
+    expect(applied).toBe(false);
+  });
+});
+
 describe("PaneHistory（内存模式：辅助工作区）", () => {
   it("第一页的 key 是 default，push / go(-1) 只在自己的栈里移动", () => {
     const history = new PaneHistory("w2", [entryFromPath("/workspace/start", "default")]);

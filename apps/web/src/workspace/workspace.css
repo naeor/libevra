@@ -101,6 +101,64 @@
   overscroll-behavior: contain;
 }
 
+/* 附属列只分配宿主自己的内部宽度，两侧正式工作区的矩形不变。 */
+.lv-pane > [data-temporary-slot] { display: none; }
+.lv-pane > [data-temporary-slot][data-floating] { display: contents; }
+.lv-pane > .lv-temporary-source { display: none !important; }
+.lv-shell[data-shell="wide"] .lv-pane[data-mode="box"] > .lv-pane-scroll {
+  width: calc(100% - var(--lv-temporary-width, 0px));
+}
+.lv-pane[data-temporary-open] > .lv-pane-scroll { container: lvpane / size; }
+.lv-pane[data-temporary-open] > [data-temporary-slot] {
+  display: block;
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: var(--lv-temporary-width);
+  z-index: 2;
+  container: lvpane / size;
+  overflow: hidden;
+  border-inline-start: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.lv-temporary-sheet, .lv-temporary-sheet-panel, .lv-temporary-detail, .lv-temporary-detail-page {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+.lv-temporary-sheet-panel { display: flex; flex-direction: column; outline: none; overflow: hidden; }
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope="pad"] .lv-pane[data-temporary-open] > [data-temporary-slot] {
+  background: var(--s19-sheet-bg, var(--color-surface));
+  box-shadow: inset 1px 0 var(--color-line);
+}
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope="pad"] .lv-temporary-sheet-panel {
+  background: var(--s19-display-sheet-bg, var(--color-surface));
+}
+.lv-temporary-sheet-panel > [data-sheet-body] { min-height: 0; }
+.lv-temporary-sheet-panel .lv-filter-panel { height: 100%; }
+.lv-temporary-detail { position: relative; background: var(--color-canvas); }
+.lv-temporary-detail > [data-sheet-close] { position: absolute; z-index: 31; inset: 2px 10px auto auto; background: var(--color-surface); }
+.lv-pane[data-temporary-open] > .lv-fab-wrap { inset-inline-end: calc(var(--lv-temporary-width) + 12px); }
+.lv-temporary-detail-page { overflow: auto; overscroll-behavior: contain; }
+.lv-temporary-detail-page [data-page-nav] { padding-inline-end: 52px; }
+.lv-temporary-detail[data-floating] { position: fixed; inset: 0; z-index: 50; }
+.lv-pane[data-temporary-open] { --lv-temporary-motion-ms: 200ms; }
+.lv-pane:has(> [data-temporary-slot] [data-temporary-surface][data-overlay-state="closing"]) {
+  --lv-temporary-width: 0px !important;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lv-shell[data-shell="wide"] .lv-pane[data-mode="box"]:not([data-exiting]) > .lv-pane-scroll {
+    transition: width var(--lv-sheet-resize-ms, 260ms) var(--lv-sheet-resize-ease, ease);
+  }
+  .lv-pane[data-temporary-open] > [data-temporary-slot] {
+    transition: width var(--lv-sheet-resize-ms, 260ms) var(--lv-sheet-resize-ease, ease);
+    @starting-style { width: 0; }
+  }
+  .lv-pane[data-temporary-open] :is(.lv-temporary-sheet-panel, .lv-temporary-detail) {
+    animation: lv-temporary-enter var(--lv-sheet-resize-ms, 260ms) ease;
+  }
+  @keyframes lv-temporary-enter { from { opacity: .55; } to { opacity: 1; } }
+}
+
 /* 工作区里，页面框架的「一屏高」就是工作区的高。 */
 .lv-shell[data-shell="wide"] .lv-pane .h-dvh {
   height: 100%;

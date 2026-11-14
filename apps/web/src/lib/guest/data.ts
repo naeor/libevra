@@ -228,11 +228,17 @@ function normalizeData(value: unknown, book: GuestLedger): GuestData | null {
 
 let snapshot: GuestData | null = null;
 let snapshotGuestId: string | null = null;
+let publishedGuestId: string | null = null;
 let loadPromise: Promise<GuestData | null> | null = null;
 const listeners = new Set<() => void>();
 
 export function guestDataValue(): GuestData | null {
   return snapshot;
+}
+
+/** 筛选/附属任务的归属只读取已经载入的游客账本，不把它写进正式账号的设备账本。 */
+export function loadedGuestBookId(owner: string | null): string | null {
+  return owner !== null && owner === publishedGuestId ? snapshot?.book.id ?? null : null;
 }
 
 export function subscribeGuestData(listener: () => void): () => void {
@@ -251,6 +257,7 @@ function publish(next: GuestData | null): void {
 export function resetGuestDataCache(): void {
   snapshot = null;
   snapshotGuestId = null;
+  publishedGuestId = null;
   loadPromise = null;
   publish(null);
 }
@@ -283,9 +290,13 @@ async function existingBook(guestId: string): Promise<GuestLedger> {
  * in S14-B keeps its original book id and name when S14-C first opens the real screens.
  */
 export async function ensureGuestData(guestId: string): Promise<GuestData | null> {
-  if (snapshot !== null && snapshotGuestId === guestId) return snapshot;
+  if (snapshot !== null && publishedGuestId === guestId && snapshotGuestId === guestId) return snapshot;
   if (loadPromise !== null && snapshotGuestId === guestId) return loadPromise;
 
+  if (publishedGuestId !== guestId && snapshot !== null) {
+    publishedGuestId = null;
+    publish(null);
+  }
   snapshotGuestId = guestId;
   loadPromise = (async () => {
     const book = await existingBook(guestId);
@@ -297,6 +308,8 @@ export async function ensureGuestData(guestId: string): Promise<GuestData | null
       await writeGuestValue(ledgerKey(guestId), data);
     }
 
+    if (snapshotGuestId !== guestId) return null;
+    publishedGuestId = guestId;
     publish(data);
     return data;
   })();

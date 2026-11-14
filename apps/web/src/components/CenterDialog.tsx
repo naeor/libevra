@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 
+import { createPortal } from "react-dom";
+import { usePadModalLayer } from "../workspace/padOverlay.js";
 import { useDialogFocus } from "../lib/dialogFocus.js";
 import { useOverlayPresence, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
 import { useKeyboardInset } from "./entry/keyboardInset.js";
@@ -21,6 +23,7 @@ import "./panel-template.css";
  */
 export function CenterDialog({
   open,
+  appWide = false,
   role,
   title,
   description,
@@ -30,6 +33,7 @@ export function CenterDialog({
   children,
 }: {
   readonly open: boolean;
+  readonly appWide?: boolean;
   readonly role: "dialog" | "alertdialog";
   readonly title: string;
   readonly description?: string | undefined;
@@ -45,6 +49,7 @@ export function CenterDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const { visible, closing } = useOverlayPresence(open);
+  const portal = usePadModalLayer(appWide && visible);
   useOverlayScrollLock(backdropRef, visible);
   const keyboard = useKeyboardInset(backdropRef, visible);
   /** 与底部面板共用一个层级栈：叠在面板上的对话框按 Esc 只关自己，关闭后焦点回到原控件。 */
@@ -86,7 +91,7 @@ export function CenterDialog({
 
   if (!visible) return null;
 
-  return (
+  const content = (
     <div
       ref={backdropRef}
       data-overlay-root="dialog"
@@ -128,4 +133,5 @@ export function CenterDialog({
       </div>
     </div>
   );
+  return portal ? createPortal(content, portal) : content;
 }

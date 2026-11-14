@@ -52,6 +52,7 @@ export interface ToastOptions<Leading = unknown> {
    */
   readonly key?: string | undefined;
   readonly scope?: ToastScope;
+  readonly pane?: "w1" | "w2" | undefined;
   /** 页面上已经常驻显示了同样的结果（这里只是回声）：错误也允许自动消失，只用 polite 播报。 */
   readonly echo?: boolean;
   /** 是否交给读屏播报（默认是）。页面别处已经在播报同一句话时传 false，避免读两遍。 */
@@ -84,6 +85,7 @@ export interface ToastView<Leading = unknown> {
   readonly action: ToastAction | undefined;
   /** 有没有 ×：错误与带操作的提示有。 */
   readonly closable: boolean;
+  readonly pane?: "w1" | "w2" | undefined;
   readonly echo: boolean;
 }
 

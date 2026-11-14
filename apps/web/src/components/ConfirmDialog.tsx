@@ -23,6 +23,7 @@ import { useI18n } from "../i18n/index.js";
  */
 export function ConfirmDialog({
   open,
+  appWide = false,
   title,
   description,
   consequences = [],
@@ -35,6 +36,7 @@ export function ConfirmDialog({
   children,
 }: {
   readonly open: boolean;
+  readonly appWide?: boolean;
   readonly title: string;
   /** 1.17.23 起可省略：标题与后果列表已经说清楚时，不再补一句说明。 */
   readonly description?: string;
@@ -71,6 +73,7 @@ export function ConfirmDialog({
   return (
     <CenterDialog
       open={open}
+      appWide={appWide}
       role="alertdialog"
       title={title}
       description={description}

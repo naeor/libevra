@@ -527,7 +527,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
       />
 
       <ConfirmDialog
-        open={confirming === "leave"}
+        appWide open={confirming === "leave"}
         title={t("books.settings.leaveDialog.title", { name: name ?? t("books.thisLedger") })}
         description={t("books.settings.leaveDialog.description")}
         consequences={[
@@ -545,7 +545,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
       />
 
       <ConfirmDialog
-        open={confirming === "archive"}
+        appWide open={confirming === "archive"}
         title={t("books.settings.archiveDialog.title", { name: name ?? t("books.thisLedger") })}
         description={t("books.settings.archiveDialog.description")}
         consequences={[
@@ -563,7 +563,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
       />
 
       <ConfirmDialog
-        open={confirming === "delete"}
+        appWide open={confirming === "delete"}
         title={t("books.settings.deleteDialog.title", { name: name ?? t("books.thisLedger") })}
         description={t("books.settings.deleteDialog.description")}
         consequences={[

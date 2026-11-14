@@ -34,7 +34,7 @@
 | [captureTextDraft.ts](captureTextDraft.ts) | 实现模块；入口/导出：useCaptureTextDraft |
 | [clipboard.ts](clipboard.ts) | 实现模块；入口/导出：CopyOutcome、copyText |
 | [closeGuard.test.ts](closeGuard.test.ts) | 测试：closeGuard |
-| [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：CloseDecision、decideClose、usePageBackGuard、afterBackGuard、useLeaveConfirm |
+| [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：paneLeaveGuard、CloseDecision、decideClose、usePageBackGuard、afterBackGuard |
 | [colorClasses.test.ts](colorClasses.test.ts) | 测试：colorClasses |
 | [colors.test.ts](colors.test.ts) | 测试：colors |
 | [connectivity.ts](connectivity.ts) | 实现模块；入口/导出：BackMode、parentBackAction、useGoBack |
@@ -61,7 +61,7 @@
 | [devSaveSimulation.ts](devSaveSimulation.ts) | 实现模块；入口/导出：devSaveSimulation |
 | [deviceStorageKeys.test.ts](deviceStorageKeys.test.ts) | 测试：deviceStorageKeys |
 | [deviceStorageKeys.ts](deviceStorageKeys.ts) | 实现模块；入口/导出：LIBELLUM_KEY_PREFIX、LIBEVRA_KEY_PREFIX、CURRENT_BOOK_KEY、fxModeKey、consentStatusKey |
-| [dialogFocus.ts](dialogFocus.ts) | 实现模块；入口/导出：focusableWithin、DialogLayer、useDialogFocus |
+| [dialogFocus.ts](dialogFocus.ts) | 实现模块；入口/导出：focusableWithin、hasVisibleDialogOrMenu、DialogLayer、useDialogFocus |
 | [duplicateMutationOffline.test.tsx](duplicateMutationOffline.test.tsx) | 测试：duplicateMutationOffline |
 | [duplicateRelationSuppression.test.ts](duplicateRelationSuppression.test.ts) | 测试：duplicateRelationSuppression |
 | [duplicateReview.test.ts](duplicateReview.test.ts) | 测试：duplicateReview |
@@ -158,7 +158,7 @@
 | [useCollapsingHeader.test.ts](useCollapsingHeader.test.ts) | 测试：useCollapsingHeader |
 | [useCollapsingHeader.ts](useCollapsingHeader.ts) | 实现模块；入口/导出：RESTORE_HEADER_SCROLL、useCollapsingHeader |
 | [useOverlayPresentation.ts](useOverlayPresentation.ts) | 实现模块；入口/导出：useOverlayExit、useOverlayPresence、useOverlayScrollLock |
-| [usePageFilter.ts](usePageFilter.ts) | 实现模块；入口/导出：useFilterOwner、usePageFilter |
+| [usePageFilter.ts](usePageFilter.ts) | 实现模块；入口/导出：useGuestFilterBook、useFilterBook、useFilterOwner、usePageFilter |
 | [useRootVisualStyle.ts](useRootVisualStyle.ts) | 实现模块；入口/导出：useRootVisualStyle、useS19Light |
 | [useTimeAnalysis.test.ts](useTimeAnalysis.test.ts) | 测试：useTimeAnalysis |
 | [useTimeAnalysis.ts](useTimeAnalysis.ts) | 实现模块；入口/导出：useTimeAnalysis、useCumulativeAnalysis、useFlowAnalysis、usePeriodComparison、useMultiMonthComparison |

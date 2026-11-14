@@ -12,6 +12,7 @@ import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useR
 import { runFrameClock, type FrameClock } from "../lib/frameClock.js";
 import { CONTROL_MORPH } from "../lib/motionTokens.js";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useTemporaryHost } from "../workspace/temporary.js";
 import { entryReturnState } from "../lib/entryReturn.js";
 
 import { useAuth } from "../auth/AuthProvider.js";
@@ -113,6 +114,7 @@ const NO_CONFLICTS: readonly ConflictRecord[] = [];
  */
 export function DetailPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const temporaryHost = useTemporaryHost();
   const location = useLocation();
   const metricBook = useViewBookId();
   const { t } = useI18n();
@@ -1201,7 +1203,8 @@ export function DetailPage(): React.JSX.Element {
                           }
                         }
 
-                        void navigate(`/transactions/${entry.id}`, { state: entryReturnState(location) });
+                        const path = `/transactions/${entry.id}`;
+                        if (!temporaryHost?.openDetail(path)) void navigate(path, { state: entryReturnState(location) });
                       }}
                     />
                   ))}

@@ -19,6 +19,7 @@
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { PaneContext } from "../../workspace/context.js";
 import { ToastController } from "../../lib/toast/controller.js";
 import type { ToastOptions } from "../../lib/toast/types.js";
 import { createToastBottomSlot, ToastBottomSlotContext } from "./bottomSlot.js";
@@ -85,6 +86,8 @@ export interface ToastApi {
  */
 export function useToast(): ToastApi {
   const controller = useToastController();
+  const pane = useContext(PaneContext);
+  const instance = pane.shell === "wide" ? pane.instance : undefined;
   const owner = useRef<symbol | null>(null);
   if (owner.current === null) owner.current = Symbol("toast-owner");
 
@@ -97,11 +100,11 @@ export function useToast(): ToastApi {
 
   return useMemo<ToastApi>(
     () => ({
-      show: (options) => controller.show(options, owner.current),
+      show: (options) => controller.show({ ...options, pane: instance }, owner.current),
       dismiss: (id) => {
         controller.dismiss(id);
       },
     }),
-    [controller],
+    [controller, instance],
   );
 }

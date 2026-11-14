@@ -1,8 +1,11 @@
+import { createPortal } from "react-dom";
+import { usePadModalLayer } from "../workspace/padOverlay.js";
+import { TemporaryContents, useInsideTemporary, useTemporarySheet } from "../workspace/temporary.js";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useI18n } from "../i18n/index.js";
 import { afterBackGuard, decideClose, usePageBackGuard } from "../lib/closeGuard.js";
-import { useDialogFocus } from "../lib/dialogFocus.js";
+import { hasVisibleDialogOrMenu, useDialogFocus } from "../lib/dialogFocus.js";
 import { useSheetDrag, type SheetDragZone } from "../lib/sheetDrag.js";
 import { useSheetHeightTransition } from "../lib/sheetHeight.js";
 import { useOverlayExit, useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
@@ -31,7 +34,7 @@ import "./panel-template.css";
  *    两处需要稳定高度的例外保留固定档：`half-fixed` 固定半屏（账本选择，所有者早先要求），`tall` 高半屏（约 66%，
  *    1.19.61，只给明细与分析筛选：底部面板形态——手机宽度、窄工作区——用它，宽屏形态与固定半屏同高）。
  *    1.19.62 之前 T1、T2 用的半屏 `half`（约 52% 上限）已删除。
- *  * **宽屏形态暂不改变**（审查 H9 留待以后）：`wide` 保留各面板原来的样子——`center` 是原 BottomSheet
+ *  * **空间不足或临时区已占用时的回退形态**：`wide` 保留各面板原来的样子——`center` 是原 BottomSheet
  *    （宽工作区与宽窗口里居中）、`pane` 只在宽工作区里居中（原月份选择）、`bottom` 一直贴底（原选择面板、账本面板）。
  *  * **门禁变体**（`dismissible={false}`）：没有 ×、没有 Esc、点遮罩与下拉都不关，层级最高（`layer="gate"`）。
  *
@@ -47,7 +50,7 @@ import "./panel-template.css";
  * `tall`：高半屏（1.19.61，只给明细与分析筛选）；`large`：大档（T5）。
  */
 export type SheetDetent = "content" | "half-fixed" | "tall" | "large";
-/** 宽屏下暂时保留的原有形态（审查 H9）。 */
+/** 宽屏下无法使用宿主临时区时的原有形态。 */
 export type SheetWideForm = "center" | "pane" | "bottom";
 
 export interface SheetControls {
@@ -55,6 +58,8 @@ export interface SheetControls {
   readonly close: () => void;
   /** 保存 / 应用成功后关闭：不再询问，也不受 `busy` 阻止。 */
   readonly finish: () => void;
+  /** 筛选从来源记录提交，期间浏览到的详情不成为结果页的返回目标。 */
+  readonly finishAtOrigin: (apply: () => void) => void;
   /** 先播放退场，再执行动作（例如导航），面板不会在动画半路被拔掉。 */
   readonly closeThen: (action: () => void) => void;
 }
@@ -91,6 +96,8 @@ export interface BottomSheetProps {
   readonly dismissible?: boolean;
   /** 有尚未保存的改动：关闭前先询问。 */
   readonly dirty?: boolean;
+  /** 未提交筛选：宿主离开来源时保护，面板自己的取消键仍遵循原有规则。 */
+  readonly hasPendingInput?: () => boolean;
   /** 正在保存：关闭请求一律不响应。 */
   readonly busy?: boolean;
   /** 询问的文案（默认“放弃修改？”）。 */
@@ -142,6 +149,7 @@ export function BottomSheet({
   footer,
   dismissible = true,
   dirty = false,
+  hasPendingInput,
   busy = false,
   discard,
   material = "chrome",
@@ -157,11 +165,20 @@ export function BottomSheet({
   const { closing, requestClose: exit, afterExit } = useOverlayExit(onClose);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const focus = useDialogFocus(panelRef);
+  const gatePortal = usePadModalLayer(layer === "gate", 2);
+  const inTemporary = useInsideTemporary();
+  const sheetHandlers = useRef({ protected: () => dirty || busy, invalidate: onClose, close: (_after?: () => void) => {} });
+  const { host, task, split, openingInHost } = useTemporarySheet(detent === "tall" ? "filter" : detent === "large" ? "editor" : "short",
+    !inTemporary && dismissible && role !== "alertdialog" && layer !== "gate", {
+      protected: () => sheetHandlers.current.protected(),
+      close: after => sheetHandlers.current.close(after),
+      invalidate: () => sheetHandlers.current.invalidate(),
+    });
+  const focus = useDialogFocus(panelRef, !split);
   const keyboard = useKeyboardInset(rootRef);
-  useOverlayScrollLock(rootRef);
+  useOverlayScrollLock(rootRef, !split);
   // 按内容档：内容变化引起的高度变化用与升起同一条曲线过渡；固定高度的档位不需要（1.19.63）。
-  useSheetHeightTransition(panelRef, rootRef, detent === "content");
+  useSheetHeightTransition(panelRef, rootRef, detent === "content" && !split);
   const [asking, setAsking] = useState(false);
 
   /** 最新的改动 / 保存状态：关闭请求可能来自旧闭包（Esc 监听、拖动回调）。 */
@@ -170,7 +187,7 @@ export function BottomSheet({
 
   const nextAction = useRef<(() => void) | null>(null);
   const leavingForAction = useRef(false);
-  const releaseGuard = usePageBackGuard(dismissible && dirty && !closing, () => {
+  const releaseGuard = usePageBackGuard(task === null && !openingInHost && !inTemporary && dismissible && dirty && !closing, () => {
     if (!latest.current.busy) setAsking(true);
   });
   const finishClose = useCallback(() => {
@@ -181,12 +198,13 @@ export function BottomSheet({
       leavingForAction.current = true;
       afterBackGuard(releaseGuard, () => afterExit(() => {
         leavingForAction.current = false;
+        if (task !== null) host?.tasks.release(task.id);
         action();
       }));
     } else {
       exit();
     }
-  }, [afterExit, exit, releaseGuard]);
+  }, [afterExit, exit, releaseGuard, task, host]);
 
   /** 所有关闭入口的共同判断；返回是否真的开始关闭（下拉据此决定弹回）。 */
   const request = useCallback((): boolean => {
@@ -201,21 +219,56 @@ export function BottomSheet({
     return true;
   }, [dismissible, finishClose]);
 
+  const submitting = useRef(false);
+  const cancelReturn = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => cancelReturn.current?.(), []);
+  const finishAtOrigin = useCallback((apply: () => void) => {
+    if (submitting.current || closing) return;
+    if (host === null || task === null) { apply(); exit(); return; }
+    const valid = () => host.isCurrent(task) && host.history.hasEntry(task.origin);
+    if (!valid()) { host.expired(); exit(); return; }
+    submitting.current = true;
+    const go = () => {
+      if (!valid()) { host.expired(); exit(); return; }
+      cancelReturn.current = host.history.returnToEntry(task.origin, arrived => {
+        if (arrived && valid()) apply();
+        else host.expired();
+        exit();
+      }, task.existingForward);
+    };
+    if (host.history.location.key === task.origin.key) go();
+    else host.guardHost(go, () => { submitting.current = false; });
+  }, [host, task, closing, exit]);
+
   const controls = useMemo<SheetControls>(() => ({
     close: () => { request(); },
     finish: () => { exit(); },
+    finishAtOrigin,
     closeThen: (action: () => void) => {
       if (!dismissible || latest.current.busy || closing || leavingForAction.current) return;
       nextAction.current = action;
       request();
     },
-  }), [request, exit, closing, dismissible]);
+  }), [request, exit, closing, dismissible, finishAtOrigin]);
+  sheetHandlers.current = { protected: () => dirty || busy || hasPendingInput?.() === true, invalidate: onClose, close: after => {
+    if (busy) return;
+    if (hasPendingInput?.() === true) {
+      nextAction.current = after ? () => { onClose(); after(); } : null;
+      setAsking(true);
+      return;
+    }
+    if (after) controls.closeThen(() => { onClose(); after(); });
+    else controls.close();
+  } };
 
-  const drag = useSheetDrag(panelRef, dismissible && !closing, request);
+  const drag = useSheetDrag(panelRef, dismissible && !closing && !split, request);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape" || !focus.owns(event)) return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (split) {
+        if (hasVisibleDialogOrMenu()) return;
+      } else if (!focus.owns(event)) return;
       // 门禁也吞掉这次 Esc：下面的层不应被关掉。
       event.preventDefault();
       request();
@@ -224,7 +277,7 @@ export function BottomSheet({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [focus, request]);
+  }, [focus, request, split]);
 
   const initialFocusRef = useRef(initialFocus);
   useEffect(() => {
@@ -239,31 +292,32 @@ export function BottomSheet({
     [controls, drag, dismissible, closeLabel],
   );
 
-  return (
+  const surface = (
     <div
       ref={rootRef}
-      data-overlay-root="sheet"
+      data-temporary-surface={split ? "" : undefined}
+      data-overlay-root={split ? undefined : "sheet"}
       data-overlay-state={closing ? "closing" : "open"}
-      data-overlay-scrim={detent === "large" ? "dialog" : "sheet"}
+      data-overlay-scrim={split ? undefined : detent === "large" ? "dialog" : "sheet"}
       role="presentation"
       onClick={(event) => {
         // 只有遮罩本身算“点背景”：里面的确认框、面板内容冒泡上来的点击不关闭。
-        if (event.target === event.currentTarget) request();
+        if (!split && event.target === event.currentTarget) request();
       }}
       style={keyboard > 0 ? { paddingBottom: keyboard } : undefined}
-      className={`fixed inset-0 flex justify-center ${layer === "gate" ? "z-[80]" : "z-50"} ${ROOT_CLASS[wide]}`}
+      className={split ? "lv-temporary-sheet" : `fixed inset-0 flex justify-center ${layer === "gate" ? "z-[80]" : "z-50"} ${ROOT_CLASS[wide]}`}
     >
       <div
         ref={panelRef}
-        data-overlay-surface="sheet"
+        data-overlay-surface={split ? undefined : "sheet"}
         data-overlay-state={closing ? "closing" : "open"}
         data-sheet-detent={detent}
         data-sheet-wide={wide}
         data-sheet-gate={dismissible ? undefined : "true"}
         {...(material === "display" ? materialAttributes("display") : {})}
         inert={closing}
-        role={role}
-        aria-modal="true"
+        role={split ? "region" : role}
+        aria-modal={split ? undefined : true}
         aria-label={label}
         tabIndex={-1}
         onAnimationEnd={(event) => {
@@ -272,7 +326,7 @@ export function BottomSheet({
           }
         }}
         style={{ "--lv-sheet-kb": `${String(keyboard)}px` } as React.CSSProperties}
-        className={`relative z-0 flex w-full max-w-md flex-col rounded-t-sheet bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet outline-none ${PANEL_CLASS[wide]} ${
+        className={split ? `lv-temporary-sheet-panel ${dialogClassName}` : `relative z-0 flex w-full max-w-md flex-col rounded-t-sheet bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-sheet outline-none ${PANEL_CLASS[wide]} ${
           closing ? "sheet-out" : "sheet-in"
         } ${dialogClassName}`}
       >
@@ -308,7 +362,7 @@ export function BottomSheet({
 
       {/* 关闭前询问（T3 确认框）：渲染在遮罩里、面板旁边，不受面板位移影响，仍在所属工作区内。 */}
       <ConfirmDialog
-        open={asking}
+        appWide open={asking}
         title={discard?.title ?? t("nav.sheet.discardTitle")}
         description={discard?.description ?? t("nav.sheet.discardBody")}
         confirmLabel={discard?.confirmLabel ?? t("nav.sheet.discardConfirm")}
@@ -324,6 +378,10 @@ export function BottomSheet({
       />
     </div>
   );
+  if (task !== null && host?.slot.current) {
+    return createPortal(<TemporaryContents host={host}>{surface}</TemporaryContents>, host.slot.current);
+  }
+  return gatePortal ? createPortal(surface, gatePortal) : surface;
 }
 
 /**

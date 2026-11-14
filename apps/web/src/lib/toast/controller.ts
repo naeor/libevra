@@ -297,6 +297,7 @@ export class ToastController<Leading = unknown> {
             revision: current.revision,
             tone: current.tone,
             text: current.options.text,
+            pane: current.options.pane,
             detail: current.options.detail,
             leading: current.options.leading,
             action: current.options.action,

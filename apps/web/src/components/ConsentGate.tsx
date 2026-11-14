@@ -207,7 +207,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
       {children}
 
       {mode === "data-help" ? (
-        <ConsentDialog
+<ConsentDialog key="data-help"
           title={t("legal.consent.help.title")}
           eyebrow={t("legal.consent.help.eyebrow")}
           footer={
@@ -237,7 +237,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
           />
         </ConsentDialog>
       ) : showAgreement ? (
-        <ConsentDialog
+<ConsentDialog key={currentDocument.id}
           title={currentDocument.title}
           eyebrow={
             currentDocument.version
@@ -296,7 +296,7 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
           </label>
         </ConsentDialog>
       ) : (
-        <ConsentDialog
+<ConsentDialog key="major"
           title={shownMajor!.title}
           eyebrow={t("legal.consent.majorEyebrow", { version: pendingMajor!.version })}
           closeAction={
@@ -371,7 +371,7 @@ export function ConsentDialog({
       material="display"
       layer="gate"
       dismissible={onDismiss !== undefined}
-      dialogClassName="consent-dialog"
+      dialogClassName={closeAction ? "consent-dialog lv-pad-major" : "consent-dialog lv-pad-agreement"}
       bodyClassName="border-t border-line px-5 py-4"
       footer={<div className="flex flex-col gap-2">{footer}</div>}
       onClose={() => {

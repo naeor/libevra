@@ -8,13 +8,13 @@ import { hasOpenOverlay, OPEN_OVERLAY_SELECTOR, type OverlayQueryRoot } from "./
  * 转场协调器的“有没有弹窗打开”（1.19.58）。本仓库测试没有 DOM，用只认选择器的假节点验证判断：
  * 选择器覆盖模板标记、原生 dialog、对话框与确认框；位于正在收起的弹层里的节点不算打开。
  */
-function fakeRoot(nodes: readonly { readonly closing: boolean }[]): OverlayQueryRoot & { last: string } {
+function fakeRoot(nodes: readonly { readonly closing: boolean; readonly hidden?: boolean }[]): OverlayQueryRoot & { last: string } {
   const root = {
     last: "",
     querySelectorAll(selector: string) {
       root.last = selector;
       return nodes.map((node) => ({
-        closest: (query: string) => (query === '[data-overlay-state="closing"]' && node.closing ? {} : null),
+        closest: (query: string) => ((query === '[data-overlay-state="closing"]' && node.closing) || (query === '[inert], [hidden]' && node.hidden) ? {} : null),
       }));
     },
   };
@@ -41,7 +41,7 @@ describe("转场协调器识别弹层", () => {
   });
 
   it("正在收起的弹层不算打开：从面板里发起导航不再丢转场", () => {
-    expect(hasOpenOverlay(fakeRoot([{ closing: true }]))).toBe(false);
+    expect(hasOpenOverlay(fakeRoot([{ closing: true }, { closing: false, hidden: true }]))).toBe(false);
     // 一个在收起、另一个仍打开：仍算打开。
     expect(hasOpenOverlay(fakeRoot([{ closing: true }, { closing: false }]))).toBe(true);
   });

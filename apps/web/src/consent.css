@@ -6,6 +6,25 @@
  * viewport height the dialog may use almost the whole viewport so the header is never squeezed
  * and the fixed footer stays operable. The footer carries the safe-area inset.
  */
+/* Pad 应用层复用同意与公告的内容、确认、拒绝及关闭入口。 */
+.lv-shell[data-s19-scope="pad"] > [data-pad-overlay-host] {
+  position: absolute; inset: 0; pointer-events: none; z-index: 100;
+}
+[data-pad-modal-layer] { position: absolute; inset: 0; pointer-events: auto; }
+[data-pad-modal-layer][data-priority="2"] { z-index: 2; }
+[data-pad-modal-layer][inert] { visibility: hidden; pointer-events: none; }
+.lv-shell[data-s19-scope="pad"] [data-pad-modal-layer] .lv-sheet-backdrop {
+  align-items: center; padding: clamp(12px, 3vh, 32px) 20px;
+}
+.lv-shell[data-s19-scope="pad"] [data-pad-modal-layer] .consent-dialog {
+  max-width: min(40rem, 100%); height: auto; max-height: 88dvh; border-radius: var(--radius-card);
+}
+.lv-shell[data-s19-scope="pad"] [data-pad-modal-layer] .lv-pad-major { max-width: min(36rem, 100%); }
+.lv-shell[data-s19-scope="pad"] [data-pad-modal-layer] .consent-dialog [data-sheet-body] { flex: 0 1 auto; }
+.lv-shell[data-s19-scope="pad"] [data-pad-modal-layer] .consent-dialog [data-sheet-footer] > div {
+  display: flex; flex-flow: row wrap; justify-content: flex-end;
+}
+.lv-shell[data-s19-scope="pad"] [data-pad-modal-layer] .consent-dialog [data-sheet-footer] button { flex: 1 1 10rem; }
 .consent-dialog {
   height: 70dvh;
   max-height: calc(100dvh - 1.5rem - env(safe-area-inset-bottom, 0px));

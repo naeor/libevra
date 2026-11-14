@@ -20,6 +20,7 @@
 | [RailTip.tsx](RailTip.tsx) | 界面模块；入口/导出：TIP_DELAY_MS、TIP_SKIP_MS、TIP_GRACE_MS、tipDelay、RailTipBinding |
 | [SecondaryNav.tsx](SecondaryNav.tsx) | 界面模块；入口/导出：DestinationIcon、DestinationItem、useDestinations、SecondaryFab、SecondaryNavPanel |
 | [ShellControls.tsx](ShellControls.tsx) | 界面模块；入口/导出：ResizeController、Divider、ModeCapsule、RestoreTab、SplitHint |
+| [TemporaryDetail.tsx](TemporaryDetail.tsx) | 界面模块；入口/导出：TemporaryDetail |
 | [WorkspaceShell.tsx](WorkspaceShell.tsx) | 界面模块；入口/导出：WorkspaceShell |
 | [context.tsx](context.tsx) | 界面模块；入口/导出：PaneRole、NavChrome、PaneSplit、PaneSizeClass、PaneInfo |
 | [entryLedgers.test.ts](entryLedgers.test.ts) | 测试：entryLedgers |
@@ -37,9 +38,13 @@
 | [navDrag.ts](navDrag.ts) | 实现模块；入口/导出：DropTarget、DragPayload、secondaryModeForDrag、NavDragSnapshot、DropZone |
 | [openDrag.test.ts](openDrag.test.ts) | 测试：openDrag |
 | [openDrag.tsx](openDrag.tsx) | 界面模块；入口/导出：LONG_PRESS_MS、DRAG_SLOP、isLedgerScopedPath、isOpenablePath、OpenDragOptions |
+| [padOverlay.tsx](padOverlay.tsx) | 界面模块；入口/导出：PadOverlayHost、usePadModalLayer |
 | [paneHistory.test.ts](paneHistory.test.ts) | 测试：paneHistory |
 | [paneHistory.ts](paneHistory.ts) | 实现模块；入口/导出：PaneAction、PaneEntry、PaneSnapshot、PaneNavigation、PaneInterceptor |
 | [paneTitle.ts](paneTitle.ts) | 实现模块；入口/导出：PageKey、START_PATH、pageKeyFor、usePaneIdentity |
 | [scrollMemory.ts](scrollMemory.ts) | 实现模块；入口/导出：ScrollMemory、createScrollMemory |
+| [temporary.tsx](temporary.tsx) | 界面模块；入口/导出：TemporaryTask、TemporaryTasks、TemporaryHost、TemporaryHostContext、InsideTemporary |
+| [temporaryGeometry.test.ts](temporaryGeometry.test.ts) | 测试：temporaryGeometry |
+| [temporaryGeometry.ts](temporaryGeometry.ts) | 实现模块；入口/导出：TemporaryContent、temporaryWidth |
 | [workspace.css](workspace.css) | 样式与变量 |
 <!-- directory-index:end -->

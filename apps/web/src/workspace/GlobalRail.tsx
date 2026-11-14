@@ -283,7 +283,7 @@ export function AddEntryButton({ compact, onNavigate, follow, followOpen, onTogg
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || button.current?.closest("[inert], [hidden]")) return;
       event.preventDefault(); close(); button.current?.focus({ preventScroll: true });
     };
     const onPointer = (event: PointerEvent): void => {
@@ -296,7 +296,7 @@ export function AddEntryButton({ compact, onNavigate, follow, followOpen, onTogg
     return () => { window.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onPointer, true); };
   });
 
-  const choices = <div ref={panel} id={menuId} className={compact ? "lv-entry-popover" : "lv-entry-inline"} data-open={open && !follow ? "true" : "false"}
+  const choices = <div ref={panel} id={menuId} className={compact ? "lv-entry-popover" : "lv-entry-inline"} data-open={open && !follow ? "true" : "false"} data-pad-popover-open={open && !follow ? "" : undefined}
     inert={!open || follow} aria-hidden={!open || follow} style={compact ? { position: "fixed", left: anchor?.left ?? -9999, top: anchor?.top ?? 0, width: anchor?.width ?? 224, maxHeight: anchor?.maxHeight, "--lv-entry-max-height": `${anchor?.maxHeight ?? 520}px`, "--lv-entry-connector": `${anchor?.connector ?? 24}px` } as React.CSSProperties : undefined}>
     <div className="lv-entry-clip"><div className="lv-entry-methods" role="menu" aria-label={t("workspace.rail.addMenu")}><EntryMethodList disabledFor={(action) => {
       const disabled = guest && action.id !== "manual";
@@ -539,7 +539,7 @@ function AnchoredPanel({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
+      if (event.key === "Escape" && !event.defaultPrevented && !ref.current?.closest("[inert], [hidden]")) {
         event.preventDefault();
         onClose();
         anchor.current?.focus();
@@ -559,7 +559,7 @@ function AnchoredPanel({
   }, [anchor, onClose]);
 
   return (
-    <div ref={ref} className="lv-popover lv-books-popover" role="dialog" aria-label={label} style={{ position: "fixed", left: position?.left ?? -9999, top: position?.top ?? 0 }}>
+    <div ref={ref} data-pad-popover-open="" className="lv-popover lv-books-popover" role="dialog" aria-label={label} style={{ position: "fixed", left: position?.left ?? -9999, top: position?.top ?? 0 }}>
       {children}
     </div>
   );

@@ -17,8 +17,7 @@ import { Switch } from "./ui/PurposeControls.js";
 import { ConditionTags, MovingSelection, SelectionGrid, SelectionItem, ToggleButton } from "./ui/SelectionControls.js";
 import { Reveal, useListMotion, useSwapReveal } from "./ui/ComponentMotion.js";
 import { setFilterSync, useFilterSync } from "../lib/ledgerFilter.js";
-import { useFilterOwner } from "../lib/usePageFilter.js";
-import { useViewBookId } from "../lib/workspaceLedger.js";
+import { useFilterBook, useFilterOwner } from "../lib/usePageFilter.js";
 import { useRecorderPeople, type RecorderPeople } from "../lib/recorderPeople.js";
 
 /**
@@ -80,9 +79,10 @@ export function EntryFilterPanel({ open, value, ledger, anchor, onApply, onClose
 }) {
   const { t } = useI18n();
   const desktop = useDesktopActive();
+  const pending = useRef(false);
   const closeDesktop = useCallback(() => { onClose(); anchor.current?.focus({ preventScroll: true }); }, [onClose, anchor]);
   if (!open) return null;
-  const content = (dismiss: () => void) => <FilterForm desktop={desktop} value={value} ledger={ledger} note={note ?? null} onClose={dismiss} onApply={next => { onApply(next); dismiss(); }} />;
+  const content = (dismiss: () => void, submit?: (apply: () => void) => void) => <FilterForm pending={pending} desktop={desktop} value={value} ledger={ledger} note={note ?? null} onClose={dismiss} onApply={next => { if (submit) submit(() => onApply(next)); else { onApply(next); dismiss(); } }} />;
   /**
    * 弹出面板模板（1.19.58）：触屏是 T2 表单，用固定高度——筛选面板在各维度之间切换时内容高度不同，
    * 固定高度避免面板忽高忽低。标题行由表单里的 SheetHeader 画（带多选与设置工具）。
@@ -90,13 +90,15 @@ export function EntryFilterPanel({ open, value, ledger, anchor, onApply, onClose
    * （约 66%，只有这里用）；宽屏形态仍与固定半屏同高。
    */
   return desktop ? <DesktopPopover anchor={anchor} label={t("ledger.filters.title")} placement="bottom-start" width={680} onClose={closeDesktop}>{content(closeDesktop)}</DesktopPopover>
-    : createPortal(<BottomSheet label={t("ledger.filters.title")} detent="tall" onClose={onClose} dialogClassName="lv-filter-sheet">{content}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body);
+    : createPortal(<BottomSheet label={t("ledger.filters.title")} detent="tall" hasPendingInput={() => pending.current} onClose={onClose} dialogClassName="lv-filter-sheet">{(dismiss, controls) => content(dismiss, controls.finishAtOrigin)}</BottomSheet>, anchor.current?.closest("[data-instance]") ?? document.body);
 }
 
-export function FilterForm({ value, ledger, onApply, onClose, desktop = false, note = null }: { value: DetailFilters; ledger?: LedgerMetaResponse | undefined; onApply: (value: DetailFilters) => void; onClose: () => void; desktop?: boolean; note?: string | null }) {
+export function FilterForm({ value, ledger, onApply, onClose, pending, desktop = false, note = null }: { pending?: RefObject<boolean>; value: DetailFilters; ledger?: LedgerMetaResponse | undefined; onApply: (value: DetailFilters) => void; onClose: () => void; desktop?: boolean; note?: string | null }) {
   const { t } = useI18n();
   const uid = useId();
   const [draft, setDraft] = useState(value);
+  const initial = useRef(value);
+  if (pending) pending.current = JSON.stringify(draft) !== JSON.stringify(initial.current);
   const [section, setSection] = useState<FilterDimension>("time");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set(value.categories));
@@ -245,15 +247,25 @@ function FilterSettingsButton() {
   useEffect(() => {
     if (!open) return;
     const onDown = (event: PointerEvent) => { if (!wrap.current?.contains(event.target as Node)) setOpen(false); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || wrap.current?.closest("[inert], [hidden]")) return;
+      event.preventDefault();
+      setOpen(false);
+      button.current?.focus({ preventScroll: true });
+    };
     document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
   return <div ref={wrap} className="lv-filter-settings-wrap" onKeyDown={event => {
     if (event.key !== "Escape" || !open) return;
     event.preventDefault(); event.stopPropagation(); setOpen(false); button.current?.focus();
   }}>
     <button ref={button} type="button" className="lv-filter-icon" aria-label={t("ledger.filters.settings")} aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}><GearIcon width={18} height={18} /></button>
-    {open ? <div id={id} className="lv-filter-settings" role="group" aria-label={t("ledger.filters.settings")}><FilterSyncRow /></div> : null}
+    {open ? <div id={id} data-pad-popover-open="" className="lv-filter-settings" role="group" aria-label={t("ledger.filters.settings")}><FilterSyncRow /></div> : null}
   </div>;
 }
 
@@ -265,7 +277,7 @@ function FilterSyncRow() {
   const { t } = useI18n();
   const sync = useFilterSync();
   const owner = useFilterOwner();
-  const bookId = useViewBookId();
+  const bookId = useFilterBook();
   return <div className="lv-filter-sync">
     <Switch checked={sync} onCheckedChange={next => { setFilterSync(next, owner !== null && bookId !== null ? { owner, bookId } : null); }} className="lv-filter-sync-switch">
       <span className="flex min-w-0 flex-col text-left"><span className="text-card-title text-ink">{t("ledger.filters.sync")}</span><span className="text-helper text-muted">{t(sync ? "ledger.filters.syncOn" : "ledger.filters.syncOff")}</span></span>
@@ -278,7 +290,7 @@ export function FilterSyncSetting() {
   const { t } = useI18n();
   const sync = useFilterSync();
   const owner = useFilterOwner();
-  const bookId = useViewBookId();
+  const bookId = useFilterBook();
   const [failed, setFailed] = useState(false);
   return <section className="lv-settings-flat rounded-card border border-line bg-surface p-5">
     <label className="flex min-h-11 items-center justify-between gap-4 text-card-title text-ink">

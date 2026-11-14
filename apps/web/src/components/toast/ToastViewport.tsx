@@ -3,7 +3,7 @@
  * 电脑版在 `DesktopShell` 的 `.lv-desktop` 里。它订阅应用级控制器（`ToastProvider`），负责：
  *
  * - **位置**（方案 §3.1）：手机在底栏、“+”、底部操作栏与软键盘之上 8px（量出来，不猜）；分析工作台编辑态
- *   声明了顶部锚点时放在编辑条下方；电脑版在底部操作栏之上 16px；Pad 宽屏这一阶段固定在外壳底部居中。
+ *   声明了顶部锚点时放在编辑条下方；电脑版在底部操作栏之上 16px；Pad 宽屏的页面提示贴所属工作区底部，全局提示贴外壳底部。
  * - **账本胶囊让位**（1.19.72，见 `bottomSlot.ts`）：手机提示在底部时，底栏上方的当前账本胶囊先缩回、提示再升起；
  *   提示退场后胶囊再弹回。胶囊因此不是障碍物；它还在原位时，提示的入场推迟到它基本让开。
  * - **让开**（方案 §3.2，所有者决定第 17 条）：任何模态弹层打开（`lib/openOverlay.ts`）或“+”记一笔菜单展开
@@ -129,7 +129,17 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
   // ---- 位置 ----
   const place = useCallback((): "top" | "bottom" | null => {
     const element = host.current;
-    if (element === null || kind === "wide") return null;
+    if (element === null) return null;
+    if (kind === "wide") {
+      const pane = snapshot.current?.pane;
+      const bounds = pane && document.querySelector(`.lv-pane[data-mode="box"][data-instance="${pane}"]:not([inert])`)?.getBoundingClientRect();
+      const shell = element.closest(".lv-shell")?.getBoundingClientRect();
+      element.style.left = bounds && shell ? `${bounds.left - shell.left}px` : "";
+      element.style.right = bounds && shell ? `${shell.right - bounds.right}px` : "";
+      element.style.bottom = bounds && shell ? `${shell.bottom - bounds.bottom + 16}px` : "";
+      return "bottom";
+    }
+    element.style.left = element.style.right = element.style.bottom = "";
     const viewportHeight = window.innerHeight;
     const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
     if (kind === "phone") {
@@ -166,7 +176,7 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
     });
     element.style.setProperty("--lv-toast-offset", `${String(offset)}px`);
     return "bottom";
-  }, [kind]);
+  }, [kind, snapshot.current?.pane]);
 
   // 有当前提示时（包括正在让开）才观察：没有提示时不付测量的代价。
   useLayoutEffect(() => {
@@ -183,6 +193,10 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
       if (frame === 0) frame = requestAnimationFrame(measure);
     };
     measure();
+    const pane = snapshot.current?.pane;
+    const owner = kind === "wide" && pane ? document.querySelector(`.lv-pane[data-instance="${pane}"]`) : null;
+    const resize = owner && typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    if (owner) resize?.observe(owner);
     const mutations = new MutationObserver(schedule);
     mutations.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: OBSERVED_ATTRIBUTES });
     mutations.observe(document.documentElement, { attributes: true, attributeFilter: ["data-soft-keyboard"] });
@@ -192,6 +206,7 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
     // 吸底的操作栏在内容很短时跟着滚动；捕获阶段才能听到任何滚动容器。
     document.addEventListener("scroll", schedule, { capture: true, passive: true });
     return () => {
+      resize?.disconnect();
       mutations.disconnect();
       window.removeEventListener("resize", schedule);
       window.visualViewport?.removeEventListener("resize", schedule);
@@ -201,7 +216,7 @@ export function ToastViewport({ kind }: { readonly kind: ToastHostKind }): React
       controller.setPause("yield", false);
       bottomSlot?.set(false);
     };
-  }, [active, bottomSlot, controller, kind, place]);
+  }, [active, bottomSlot, controller, kind, place, snapshot.current?.pane]);
 
   // ---- 渲染哪几条（当前一条 + 正在退场的） ----
   const shown = snapshot.visible ? snapshot.current : null;

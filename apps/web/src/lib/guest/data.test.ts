@@ -6,6 +6,9 @@ import type { Transaction } from "@libellum/shared";
 
 import {
   GUEST_DATA_SCHEMA_VERSION,
+  ensureGuestData,
+  loadedGuestBookId,
+  resetGuestDataCache,
   guestDeletedIds,
   guestLedgerMeta,
   sortedTransactions,
@@ -68,6 +71,19 @@ function data(transactions: readonly Transaction[], deleted: readonly Transactio
 }
 
 describe("guest data adapter", () => {
+  it("changing guest never exposes the previous guest's filter book during parallel loads", async () => {
+    resetGuestDataCache();
+    const a = await ensureGuestData("pad-test-a");
+    expect(loadedGuestBookId("pad-test-a")).toBe(a?.book.id);
+    const b = ensureGuestData("pad-test-b");
+    const again = ensureGuestData("pad-test-b");
+    expect(loadedGuestBookId("pad-test-b")).toBeNull();
+    const [first, second] = await Promise.all([b, again]);
+    expect(first?.book.id).toEqual(second?.book.id);
+    expect(first?.book.id).not.toEqual(a?.book.id);
+    expect(loadedGuestBookId("pad-test-a")).toBeNull();
+    resetGuestDataCache();
+  });
   it("returns entries newest first, which is the order the ledger renders", () => {
     const state = data([
       entry({ id: "old", occurredAt: "2026-10-01T08:00:00+08:00" }),

@@ -73,6 +73,7 @@ export interface BrowserLike {
 /** 可序列化的历史（会话内恢复用）：不保存 `state`，那可能是文件或其它不可序列化的对象。 */
 export interface SerializedPaneHistory {
   readonly entries: readonly { readonly path: string; readonly key: string }[];
+  readonly abandoned?: readonly string[];
   readonly index: number;
 }
 
@@ -140,6 +141,8 @@ export class PaneHistory implements Navigator {
   /** 第一条记录之前，浏览器里是否还有本应用的记录（刷新后的情形）。 */
   private browserBehind = false;
   private interceptor: PaneInterceptor | null = null;
+  /** 已剪去的本实例前进记录。History API 不提供直接删除，前进命中时回到有效位置。 */
+  private readonly abandoned = new Set<string>();
 
   constructor(id: string, entries: readonly PaneEntry[], index = entries.length - 1) {
     this.id = id;
@@ -198,8 +201,46 @@ export class PaneHistory implements Navigator {
     this.interceptor = interceptor;
   }
 
+  isBefore(origin: PaneEntry): boolean {
+    return this.entries.findIndex(entry => entry.key === origin.key && entryPath(entry) === entryPath(origin)) > this.index;
+  }
+
+  hasEntry(origin: PaneEntry): boolean {
+    return this.entries.some(entry => entry.key === origin.key && entryPath(entry) === entryPath(origin));
+  }
+
+  forwardKeys(): ReadonlySet<string> {
+    return new Set(this.entries.slice(this.index + 1).map(entry => entry.key));
+  }
+
+  /** 只在原记录仍然有效时回到它。浏览器 POP 是异步的，写筛选前须重新核对目标和调用者上下文。 */
+  returnToEntry(origin: PaneEntry, complete: (arrived: boolean) => void, existingForward?: ReadonlySet<string>): () => void {
+    const target = this.entries.findIndex(entry => entry.key === origin.key && entryPath(entry) === entryPath(origin));
+    if (target < 0) { complete(false); return () => undefined; }
+    // 用户已自行后退时，已有的更早记录和无关的前进分支都保留。
+    const tail = this.entries.slice(target + 1);
+    const keepAt = existingForward ? tail.findIndex(entry => existingForward.has(entry.key)) : this.index - target;
+    const departed = existingForward && keepAt === -1 ? tail : tail.slice(0, Math.max(0, keepAt));
+    const finish = (): void => {
+      const arrived = this.location.key === origin.key && entryPath(this.location) === entryPath(origin);
+      if (arrived && departed.length > 0) {
+        for (const entry of departed) this.abandoned.add(entry.key);
+        this.entries.splice(target + 1, departed.length);
+        this.linked.splice(target + 1, departed.length);
+        if (this.linked.length > target + 1) this.linked[target + 1] = false;
+        this.current = this.makeSnapshot();
+      }
+      complete(arrived);
+    };
+    if (target === this.index) { finish(); return () => undefined; }
+    const stop = this.onNavigate(() => { stop(); finish(); });
+    this.go(target - this.index);
+    return stop;
+  }
+
   serialize(): SerializedPaneHistory {
-    return { entries: this.entries.map((entry) => ({ path: entryPath(entry), key: entry.key })), index: this.index };
+    return { entries: this.entries.map((entry) => ({ path: entryPath(entry), key: entry.key })), index: this.index,
+      ...(this.abandoned.size > 0 ? { abandoned: [...this.abandoned] } : {}) };
   }
 
   static restore(id: string, saved: SerializedPaneHistory | null | undefined, fallbackPath: string): PaneHistory {
@@ -207,7 +248,11 @@ export class PaneHistory implements Navigator {
       return new PaneHistory(id, [entryFromPath(fallbackPath, "default")]);
     }
     const entries = saved.entries.map((entry) => entryFromPath(entry.path, entry.key));
-    return new PaneHistory(id, entries, saved.index);
+    const restored = new PaneHistory(id, entries, saved.index);
+    if (Array.isArray(saved.abandoned)) for (const key of saved.abandoned) {
+      if (typeof key === "string") restored.abandoned.add(key);
+    }
+    return restored;
   }
 
   // ---------------------------------------------------------------------------
@@ -366,7 +411,12 @@ export class PaneHistory implements Navigator {
     if (browser === null) return;
     const state = readBrowserState(browser.history.state);
     const key = state.key ?? "default";
-    const found = key === "default" ? -1 : this.entries.findIndex((entry) => entry.key === key);
+    if (this.abandoned.has(key) && state.idx !== undefined && state.idx !== this.browserIndex) {
+      browser.history.go(this.browserIndex - state.idx);
+      return;
+    }
+    const urlPath = browser.location.pathname + browser.location.search + browser.location.hash;
+    const found = this.entries.findIndex((entry) => entry.key === key && entryPath(entry) === urlPath);
 
     if (found >= 0) {
       this.index = found;

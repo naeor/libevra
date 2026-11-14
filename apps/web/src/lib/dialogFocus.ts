@@ -16,6 +16,7 @@ const FOCUSABLE =
 interface Layer {
   readonly id: symbol;
   readonly scope: string;
+  readonly node: HTMLElement | null;
 }
 
 const stack: Layer[] = [];
@@ -28,6 +29,12 @@ export function focusableWithin(node: HTMLElement): HTMLElement[] {
   return [...node.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
     (element) => element.getClientRects().length > 0 && !element.closest("[inert]"),
   );
+}
+
+/** Esc 先让给仍可交互的模态 / 按钮菜单。收起的辅助实例可能保持挂载。 */
+export function hasVisibleDialogOrMenu(): boolean {
+  return Array.from(document.querySelectorAll('[aria-modal="true"], [data-pad-popover-open]'))
+    .some(el => !el.closest("[hidden], [inert]") && el.getClientRects().length > 0);
 }
 
 export interface DialogLayer {
@@ -51,20 +58,20 @@ export function useDialogFocus(ref: React.RefObject<HTMLElement | null>, active 
   const isTop = useCallback(() => {
     for (let index = stack.length - 1; index >= 0; index -= 1) {
       const layer = stack[index] as Layer;
-      if (layer.scope === scope.current) return layer.id === id.current;
+      if (layer.scope === scope.current && layer.node?.isConnected && !layer.node.closest('[inert], [hidden]')) return layer.id === id.current;
     }
     return false;
   }, []);
 
   const owns = useCallback(
     (event: KeyboardEvent) => {
-      if (event.defaultPrevented || !isTop()) return false;
+      if (event.defaultPrevented || !isTop() || ref.current?.closest("[inert], [hidden]")) return false;
       const focused = document.activeElement;
       if (focused === null || focused === document.body) return true;
       const focusScope = scopeOf(focused);
       return focusScope === "global" || scope.current === "global" || focusScope === scope.current;
     },
-    [isTop],
+    [isTop, ref],
   );
 
   useEffect(() => {
@@ -72,7 +79,7 @@ export function useDialogFocus(ref: React.RefObject<HTMLElement | null>, active 
     const self = id.current;
     const node = ref.current;
     scope.current = scopeOf(node);
-    const layer: Layer = { id: self, scope: scope.current };
+const layer: Layer = { id: self, scope: scope.current, node };
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     stack.push(layer);
     if (node !== null && !node.contains(document.activeElement)) node.focus({ preventScroll: true });
