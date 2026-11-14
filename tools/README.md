@@ -22,6 +22,7 @@
 | [build-docs.mjs](build-docs.mjs) | 实现模块；按文件名定位 build-docs.mjs |
 | [check-build.mjs](check-build.mjs) | 实现模块；按文件名定位 check-build.mjs |
 | [check-built-css.mjs](check-built-css.mjs) | 实现模块；入口/导出：declarationBlocks、checkBackdropFilterPairs、checkBuiltCss |
+| [check-color-classes.mjs](check-color-classes.mjs) | 实现模块；入口/导出：ALLOWLIST、collectThemeTokens、stripComments、findUnknownColorClasses、scanColorClasses |
 | [check-doc-anchors.mjs](check-doc-anchors.mjs) | 实现模块；按文件名定位 check-doc-anchors.mjs |
 | [check-export-live.mjs](check-export-live.mjs) | 实现模块；按文件名定位 check-export-live.mjs |
 | [check-links.mjs](check-links.mjs) | 实现模块；按文件名定位 check-links.mjs |

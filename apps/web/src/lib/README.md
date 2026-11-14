@@ -35,6 +35,7 @@
 | [clipboard.ts](clipboard.ts) | 实现模块；入口/导出：CopyOutcome、copyText |
 | [closeGuard.test.ts](closeGuard.test.ts) | 测试：closeGuard |
 | [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：CloseDecision、decideClose、leavePage、useBackGuard |
+| [colorClasses.test.ts](colorClasses.test.ts) | 测试：colorClasses |
 | [colors.test.ts](colors.test.ts) | 测试：colors |
 | [connectivity.ts](connectivity.ts) | 实现模块；入口/导出：BackMode、parentBackAction、useGoBack |
 | [consent.ts](consent.ts) | 实现模块；入口/导出：RequiredLegalDocument、MajorAnnouncementView、ConsentStatus、fetchRequiredLegalDocuments、fetchConsentStatus |

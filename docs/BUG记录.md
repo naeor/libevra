@@ -1,6 +1,6 @@
 # BUG 记录
 
-> 最后修改：2026-11-14 13:27（UTC+08:00）
+> 最后修改：2026-11-14 16:58（UTC+08:00）
 
 > **这份文档记"发现了但还没查清 / 还没修"的问题。**
 > 与另外两份的分工，不要混：
@@ -171,13 +171,23 @@ transaction_events    = 只有 created（+1 条 member_changed）
 | 项 | 值 |
 |---|---|
 | **发现时间** | 2026-11-14（S19 只读审查，源码复核确认） |
-| **状态** | ⬜ 未修 |
+| **状态** | ✅ 已修（1.19.71，仅本机，未部署） |
 | **环境** | 账本导入页、OCR 核对详情页、分析异常标记图 |
 | **严重度** | 中——用户能看到警告信息失去琥珀色，但文字本身仍在 |
 
-**实测证据（代码）**：`apps/web/src/pages/LedgerImportPage.tsx`（1417、1428、1438、2054、2059、2074、2132、2299、2367 行）与 `OcrReviewDetailPage.tsx:506` 使用 `text-warning-dark`、`bg-warning/10`，`components/charts/AnomalyMarkerChart.tsx:115` 使用 `text-ink-3`；`index.css` 只定义了 `warn*` 系列与 `ink`，2026-11-08 的构建产物里没有对应规则。这些类分别在 1.14 系列与 S17 引入，不是 S19 造成的。现有颜色守卫只检查写死的颜色值，不检查颜色名是否存在。
+**实测证据（代码）**：`LedgerImportPage.tsx`（9 处 `text-warning-dark`、3 处 `bg-warning/10`）与 `OcrReviewDetailPage.tsx`（1 处 `text-warning-dark`）、`AnomalyMarkerChart.tsx`（1 处 `text-ink-3`）；`index.css` 只定义了 `warn*` 系列与 `ink`，没有 `warning`、`ink-3`。这些类分别在 1.14 系列与 S17 引入，不是 S19 造成的。Tailwind 4 遇到不认识的类不报错、不生成 CSS，所以构建、类型检查与测试全部通过；原有颜色守卫只检查写死的颜色值。
 
-**下一步**：改用已定义的 `warn*` 与正文颜色；为颜色守卫增加“使用的颜色令牌必须存在”的检查。
+**全仓库盘点（1.19.71）**：把 `index.css` 的 `--color-*` 令牌当作“存在的颜色名”，扫描 `apps/web` 全部 `.ts` / `.tsx` / `.html`（去注释、跳过测试与 `i18n/`）里 `text / bg / border(-方向) / ring / ring-offset / fill / stroke / outline / divide / from / via / to / shadow / decoration / accent / caret / placeholder` 带颜色名的类。结果：不存在的颜色名只有上面三个文件的 14 处，没有其他；用构建产物交叉验证，修后 `.text-warn-dark`、`.bg-warn-soft`、`.text-muted` 规则都在产物里。
+
+**根因**：写这些页面时凭印象用了别的设计系统的命名（`warning`、`ink-3`），主题里没有对应令牌，而没有任何检查会核对颜色名是否存在。
+
+**修法（1.19.71）**：`text-warning-dark` → `text-warn-dark`；`bg-warning/10` → `bg-warn-soft`（警告浅底的正式令牌，随主题、与其他警告处一致，不再手写 10% 透明度）；`text-ink-3`（图表说明的次要文字）→ `text-muted`。只改颜色类。
+
+**守卫**：`tools/check-color-classes.mjs`，`pnpm check:build`（因而 `check:delivery`）在构建前调用，`apps/web/src/lib/colorClasses.test.ts` 也调用同一个函数。发现不存在的颜色名就失败并列出文件、行号与类名；显式豁免写在脚本的 `ALLOWLIST` 里并注明理由（现有一项：`PeriodComparisonCard` 的 `text-caption`，见下）。修复前的代码上守卫报 14 处并失败，修复后通过。
+
+**附带发现（未改，非颜色）**：`PeriodComparisonCard.tsx` 用了 `text-caption`，`@theme` 里没有这个字号令牌，该元素没有预期字号。不属于本 bug（颜色），守卫用 `ALLOWLIST` 豁免并注明；修字号时一并去掉豁免。
+
+**未验证**：账本导入页与 OCR 核对详情游客到不了，没有截图；只确认了源码类名、构建产物里的规则与渲染前的守卫结果。
 
 ## BUG-006 · 生产构建丢掉无前缀的 `backdrop-filter`，Chromium 内核浏览器上 B2 没有背景模糊
 
