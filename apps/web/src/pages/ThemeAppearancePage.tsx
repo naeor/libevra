@@ -4,6 +4,7 @@ import { useI18n } from "../i18n/index.js";
 import { ThemePreview } from "../components/ThemePreview.js";
 import { AppearanceStyleSection } from "./AppearanceStyleSection.js";
 import { BottomSheet } from "../components/BottomSheet.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import "./theme-appearance.css";
 import {
   AVAILABLE_THEME_PALETTES,
@@ -37,7 +38,9 @@ export function ThemeAppearanceView({
         <div className="flex items-center justify-between gap-3"><h2 className="text-section-title text-ink">{t("settings.theme.mode")}</h2>
       <button type="button" onClick={() => setPreview(true)} className="min-h-11 self-start rounded-field px-3 text-button text-brand-dark focus-visible:outline-brand-dark">{t("settings.visualStyle.preview")}</button>
       </div>
-        <div role="group" aria-label={t("settings.theme.mode")} className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
+        {/* 1.19.67：少量互斥选项 → 横向会移动的选中（S19 §3「怎么选」）。S19 浅色手机里 B1 / B2 透明模拟玻璃滑动、A 选中项按 A2 浮起、
+            C 浅绿实底滑动；Original、深色、Pad、电脑版保持原来的品牌浅底 + 细框（base 默认 static，不显示选中块）。 */}
+        <MovingSelection axis="x" role="group" aria-label={t("settings.theme.mode")} className="grid grid-cols-3 gap-1 rounded-field bg-surface p-1">
           {MODES.map((value) => (
             <button
               key={value}
@@ -53,7 +56,7 @@ export function ThemeAppearanceView({
               {t(`settings.theme.modes.${value}`)}
             </button>
           ))}
-        </div>
+        </MovingSelection>
       </section>
 
       <section className="lv-settings-theme-options flex flex-col gap-2">
@@ -96,9 +99,9 @@ export function ThemeAppearanceView({
       {/* 弹出面板模板（1.19.58）：外观预览是 T4 信息说明，按内容高度（1.19.63 起最高到大档），右上角 × 代替「关闭」文字按钮。 */}
       {preview && <BottomSheet label={t("settings.theme.previews")} title={t("settings.theme.previews")} detent="content" onClose={() => setPreview(false)} dialogClassName="appearance-preview-sheet">
         {() => <>
-          <div role="group" aria-label={t("settings.theme.previews")} className="mx-4 mt-1 mb-3 grid shrink-0 grid-cols-2 gap-2">
+          <MovingSelection axis="x" role="group" aria-label={t("settings.theme.previews")} className="mx-4 mt-1 mb-3 grid shrink-0 grid-cols-2 gap-2">
             {(["space", "detail"] as const).map(value => <button type="button" key={value} aria-pressed={kind === value} onClick={() => setKind(value)} className={`min-h-11 rounded-field text-button ${kind === value ? "bg-brand-soft text-brand-dark" : "text-muted"}`}>{t(`settings.visualStyle.preview${value}`)}</button>)}
-          </div>
+          </MovingSelection>
           <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4"><ThemePreview kind={kind} /></div>
           <p className="shrink-0 px-4 pb-3 text-helper text-muted">{t("settings.visualStyle.sample")}</p>
         </>}

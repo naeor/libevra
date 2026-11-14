@@ -22,14 +22,11 @@
   backdrop-filter: var(--s19-bar-filter, none);
 }
 
-/* 外观页“明暗”三选一：分段控件的轨道与选中胶囊（与明细“全部 / 支出 / 收入”同一组令牌），不再是白片里套品牌浅底。 */
+/* 外观页“明暗”三选一：分段控件的轨道（与明细“全部 / 支出 / 收入”同一组令牌），不再是白片里套品牌浅底。
+   1.19.67 起选中指示是 MovingSelection（selection-controls.css 按风格给出），这里不再给选中项单独的白胶囊。 */
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-settings-theme-options > [role="group"].grid.bg-surface {
   background: var(--s19-track-bg);
   box-shadow: var(--s19-track-sh);
-}
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-settings-theme-options > [role="group"].grid.bg-surface > button[aria-pressed="true"] {
-  background: var(--s19-pill-bg);
-  box-shadow: var(--s19-pill-sh);
 }
 
 /* 展示卡片编辑器的指标选项：原来是白片 / 品牌浅底，改为交互卡材质；选中用统一选中描边。 */
