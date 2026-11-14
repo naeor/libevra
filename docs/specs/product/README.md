@@ -15,6 +15,7 @@ S16 旧验收文件名继续保留以兼容引用；正文已记录 S15-D / S16 
 
 | 文件 | 用途 / 入口 |
 |---|---|
+| [Libevra-实际数据流向与隐私事实调查-V0.1.md](Libevra-%E5%AE%9E%E9%99%85%E6%95%B0%E6%8D%AE%E6%B5%81%E5%90%91%E4%B8%8E%E9%9A%90%E7%A7%81%E4%BA%8B%E5%AE%9E%E8%B0%83%E6%9F%A5-V0.1.md) | Libevra 实际数据流向与隐私事实调查 V0.1 |
 | [Libevra-法律文件设计要点说明-V0.1.md](Libevra-%E6%B3%95%E5%BE%8B%E6%96%87%E4%BB%B6%E8%AE%BE%E8%AE%A1%E8%A6%81%E7%82%B9%E8%AF%B4%E6%98%8E-V0.1.md) | Libevra 法律文件设计要点说明 V0.1 |
 | [Libevra品牌迁移记录.md](Libevra%E5%93%81%E7%89%8C%E8%BF%81%E7%A7%BB%E8%AE%B0%E5%BD%95.md) | Libevra 品牌迁移记录（原名 Libellum） |
 | [S13-E-信息架构与共享离线范围-方案.md](S13-E-%E4%BF%A1%E6%81%AF%E6%9E%B6%E6%9E%84%E4%B8%8E%E5%85%B1%E4%BA%AB%E7%A6%BB%E7%BA%BF%E8%8C%83%E5%9B%B4-%E6%96%B9%E6%A1%88.md) | S13-E · 信息架构与共享离线范围 · 审计与方案（2026-10-17） |
