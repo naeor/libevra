@@ -17,8 +17,9 @@ export function useKindBar(): boolean {
 /**
  * 支出 / 收入选择栏（1.19.51）：与明细页「全部 / 支出 / 收入」**同一套外观**（`DetailPage` 的 `detail-toggle-bar`）。
  *
- * 类名与明细保持一致，所以 S19 的轨道 / 胶囊映射（`s19/shared.css`「分段控件」）、深色与 Original 的基础外观、
- * 已确认的滑动胶囊（`SlidingSelection`，200ms，减少动态效果时直接到位）都直接生效，不另写一份材质。
+ * 类名与明细保持一致，所以 S19 的轨道（`s19/shared.css`「分段控件」）、深色与 Original 的基础外观都直接生效，不另写一份材质。
+ * 选中指示是 `SlidingSelection`（1.19.67 起即 `MovingSelection` 横向）：S19 浅色手机里 B1 / B2 透明模拟玻璃滑动、A 选中项按 A2 浮起、
+ * C 浅绿实底滑动；Original、深色、Pad 与电脑版仍是原来复制选中样式的白胶囊 200ms 滑动；减少动态效果时直接到位。
  * 只负责外观与选择；切换后要清空什么（手动记账清分类与沿用提示、OCR 记录已确认方向）仍由调用方的 `onChange` 决定。
  * `value` 为 `null` 表示还没确定方向（OCR 识别不出收支时），此时两项都不选中。
  */

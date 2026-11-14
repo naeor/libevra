@@ -32,6 +32,5 @@
 | [selectionModel.ts](selectionModel.ts) | 实现模块；入口/导出：SelectionStyle、SelectionAxis、SelectionMotion、selectionStyle、selectionStyleOf |
 | [selectionMotion.test.tsx](selectionMotion.test.tsx) | 测试：selectionMotion |
 | [selectionMotion.ts](selectionMotion.ts) | 实现模块；入口/导出：SELECTION_DURATION、SelectionBox、selectionFrames |
-| [sliding-selection.css](sliding-selection.css) | 样式与变量 |
 | [status-controls.css](status-controls.css) | 样式与变量 |
 <!-- directory-index:end -->

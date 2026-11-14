@@ -30,6 +30,12 @@ describe("风格分支", () => {
     expect(selectionMotion("a", "slide", false)).toBe("none");
     expect(selectionMotion(null, "slide", false)).toBe("base");
     expect(selectionMotion(null, "static", false)).toBe("none");
+    // 1.19.67：SlidingSelection 的基础外观（复制选中样式的原滑动胶囊）与 slide 同一节奏；S19 下与其他调用方完全相同。
+    expect(selectionMotion(null, "copy", false)).toBe("base");
+    for (const style of ["b1", "b2"] as const) expect(selectionMotion(style, "copy", false)).toBe("glide");
+    expect(selectionMotion("c", "copy", false)).toBe("slide");
+    expect(selectionMotion("a", "copy", false)).toBe("none");
+    expect(selectionMotion(null, "copy", true)).toBe("none");
     for (const style of ["a", "b1", "b2", "c", null] as const) expect(selectionMotion(style, "slide", true)).toBe("none");
   });
 });
@@ -161,6 +167,15 @@ describe("结构与无障碍属性", () => {
     expect(html.match(/<button/g)).toHaveLength(3);
   });
 
+  it("base=\"copy\"（1.19.67，SlidingSelection）：声明在容器上；基础外观才复制选中样式，S19 清掉复制的内联外观", () => {
+    const html = renderToStaticMarkup(<MovingSelection axis="x" base="copy" role="group" aria-label="收支"><button type="button" aria-pressed>支出</button></MovingSelection>);
+    expect(html).toContain('data-select-base="copy"');
+    const source = read("./SelectionControls.tsx");
+    expect(source).toContain('if (base === "copy" && selectionStyleOf(root) === null) {');
+    expect(source).toContain("Object.assign(block.style, { background: paint.background, boxShadow: paint.boxShadow, borderRadius: paint.borderRadius, border: paint.border, opacity: paint.opacity });");
+    expect(source).toContain('if (base === "copy") Object.assign(block.style, { background: "", boxShadow: "", border: "", opacity: "" });');
+  });
+
   it("SelectionGrid 只加钩子，月份格仍是调用方的 aria-pressed 按钮", () => {
     const html = renderToStaticMarkup(<SelectionGrid className="lv-filter-months" data-multi><button type="button" aria-pressed>11月</button></SelectionGrid>);
     expect(html).toBe('<div class="lv-filter-months" data-multi="true" data-select-grid=""><button type="button" aria-pressed="true">11月</button></div>');
@@ -230,6 +245,17 @@ describe("外观：四种风格同一个模型", () => {
     // 月份格的放大只给网格的直接子按钮
     expect(a).toMatch(/\n {2}\[data-select-grid\] > button\[aria-pressed="true"\] \{ transform: translateY\(var\(--s19-a-lift-y\)\) scale\(var\(--s19-a-lift-scale-cell\)\); \}/);
     expect(block("@media (prefers-reduced-motion: reduce)")).toContain("[data-select-item], [data-select-item]::before, [data-select-item]::after,");
+  });
+
+  it("base=\"copy\"（1.19.67）：基础外观里选中块在未选按钮之上、文字层之下；S19 的 B1 / B2 / C 取消按钮隔离让文字盖住选中块，A 保留隔离", () => {
+    expect(css).toContain(':is([data-select-base="slide"], [data-select-base="copy"])[data-select-ready] > [data-select-block] { display: block; }');
+    expect(css).toContain('[data-select-moving][data-select-base="copy"] > button { z-index: auto; transition-property: color, filter; }');
+    expect(css).toContain("[data-select-label] { position: relative; z-index: 1;");
+    expect(css).toMatch(/\[data-select-base="copy"\]\[data-select-ready\] > button:is\(\[aria-selected="true"\], \[aria-pressed="true"\], \[aria-checked="true"\]\) \{\s*background: transparent !important;/);
+    const noIsolation = '[data-select-moving][data-select-base="copy"] > button { isolation: auto; }';
+    expect(block(':root:is([data-visual-style="b1"], [data-visual-style="b2"])')).toContain(noIsolation);
+    expect(block(':root[data-visual-style="c"]')).toContain(noIsolation);
+    expect(block(':root[data-visual-style="a"]')).not.toContain(noIsolation);
   });
 
   it("条件标签：出现 / 删除用各风格的 reveal / dismiss 时长与起始缩放；删除命中区约 44px 高", () => {

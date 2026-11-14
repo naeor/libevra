@@ -75,6 +75,8 @@ describe("同一份卡片库保留功能与收起语义", () => {
     expect(html).toContain('class="sw-drawer-pages" data-page="analysis"');
     expect(html.match(/class="sw-drawer-page"/g)).toHaveLength(2);
     expect(html).toContain('class="sw-drawer-page" inert="" aria-hidden="true"');
-    expect(html.match(/data-selection-indicator=""/g)).toHaveLength(2);
+    // 分段与分类两组都是 SlidingSelection（1.19.67 起即 MovingSelection base="copy"）。
+    expect(html.match(/data-select-block=""/g)).toHaveLength(2);
+    expect(html.match(/data-select-base="copy"/g)).toHaveLength(2);
   });
 });

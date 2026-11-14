@@ -12,8 +12,17 @@ import type { SelectionBox } from "./selectionMotion.js";
 
 export type SelectionStyle = "a" | "b1" | "b2" | "c";
 export type SelectionAxis = "x" | "y";
-/** 选中块怎么移动：glide = B1 / B2 弹性玻璃；slide = C 干脆滑动；base = 基础外观里原来的滑动胶囊（共享分段控件）；none = 不移动。 */
+/** 选中块怎么移动：glide = B1 / B2 弹性玻璃；slide = C 干脆滑动；base = 基础外观里原来的滑动胶囊（共享分段控件、SlidingSelection）；none = 不移动。 */
 export type SelectionMotion = "glide" | "slide" | "base" | "none";
+/**
+ * 基础外观（Original、深色、Pad、电脑版）里怎么表示选中：
+ * - static：不显示选中块，选中项保持调用方自己的选中样式（筛选面板、外观页明暗三选一）；
+ * - slide：显示一块原滑动胶囊，外观由调用方的样式给出（共享分段控件 `SegmentedControl`）；
+ * - copy：显示一块原滑动胶囊，外观逐项从选中按钮的计算样式复制（1.19.67，`SlidingSelection` 的六个使用方：
+ *   各自的选中样式写在自己的类名里，品牌实底、白胶囊、浅底都有）。
+ * 两种滑动都用原来的 200ms 节奏（`selectionMotion.ts`）。S19 浅色手机外壳里三者一样，按风格画选中块或浮起。
+ */
+export type SelectionBase = "static" | "slide" | "copy";
 
 /** 当前生效的 S19 风格；不在 S19 作用域、深色或 Original 时为 null（与组件动效 `componentMotion` 同一判断）。 */
 export function selectionStyle(root: { readonly dataset: DOMStringMap }, inScope: boolean): SelectionStyle | null {
@@ -26,13 +35,13 @@ export function selectionStyleOf(element: Element): SelectionStyle | null {
   return selectionStyle(document.documentElement, element.closest(S19_SCOPE_SELECTOR) !== null);
 }
 
-/** A 不移动色块（选中项自己浮起，CSS 负责）；基础外观只有声明了原滑动胶囊的调用方才移动。 */
-export function selectionMotion(style: SelectionStyle | null, base: "static" | "slide", reduced: boolean): SelectionMotion {
+/** A 不移动色块（选中项自己浮起，CSS 负责）；基础外观只有声明了原滑动胶囊（slide / copy）的调用方才移动。 */
+export function selectionMotion(style: SelectionStyle | null, base: SelectionBase, reduced: boolean): SelectionMotion {
   if (reduced) return "none";
   if (style === "b1" || style === "b2") return "glide";
   if (style === "c") return "slide";
   if (style === "a") return "none";
-  return base === "slide" ? "base" : "none";
+  return base === "static" ? "none" : "base";
 }
 
 const pos = (box: SelectionBox, axis: SelectionAxis): number => (axis === "x" ? box.x : box.y);

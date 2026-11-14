@@ -17,8 +17,21 @@
 [data-select-moving] { position: relative; isolation: isolate; }
 [data-select-moving] > button { position: relative; z-index: 1; }
 [data-select-block] { display: none; position: absolute; top: 0; left: 0; z-index: 0; box-sizing: border-box; pointer-events: none; }
-/* 基础外观里声明了原滑动胶囊的（共享分段控件 base="slide"）：胶囊的外观由调用方给（purpose-controls.css）。 */
-[data-select-base="slide"][data-select-ready] > [data-select-block] { display: block; }
+/* 基础外观里声明了原滑动胶囊的：base="slide"（共享分段控件，胶囊外观由调用方给，purpose-controls.css）、
+   base="copy"（SlidingSelection，胶囊外观由脚本从选中按钮复制）。 */
+:is([data-select-base="slide"], [data-select-base="copy"])[data-select-ready] > [data-select-block] { display: block; }
+
+/* base="copy"（1.19.67，原 sliding-selection.css）：选中块在未选按钮的底色之上、文字（[data-select-label]）之下滑过——
+   分析工作台的分类胶囊各自有底色，块压在按钮下面会被相邻胶囊挡住。按钮只过渡颜色与滤镜：脚本复制外观时会撤下再挂回就绪标记，
+   不能因此触发底色过渡。选中按钮自己的底色、阴影、描边让给选中块（调用方的选中类名优先级各不相同，所以用 !important）。 */
+[data-select-moving][data-select-base="copy"] > button { z-index: auto; transition-property: color, filter; }
+[data-select-moving][data-select-base="copy"] > button:focus-visible { z-index: 2; }
+[data-select-label] { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: inherit; gap: inherit; }
+[data-select-base="copy"][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
 
 [data-cond-tag] {
   position: relative; display: inline-flex; align-items: center; gap: 8px; max-width: 240px; flex: none;
@@ -43,6 +56,11 @@
     background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);
   }
   :is([data-select-grid] > button, [data-select-item])::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; }
+  /* base="copy"（SlidingSelection，1.19.67）：选中块（或 A 的浮起层）是这一组里唯一的面。分析工作台的分类胶囊各自带底色，
+     未选项留着胶囊底时选中项反而不如它们显眼（B1 / B2 的透明玻璃、A 的白色浮起都和未选胶囊差不多），所以未选项不带自己的底。 */
+  [data-select-moving][data-select-base="copy"][data-select-ready] > button:not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+    background: transparent; box-shadow: none; border-color: transparent;
+  }
 
   [data-cond-tag] { background: var(--s19-tag-bg); box-shadow: var(--s19-tag-sh); color: var(--color-brand-dark); translate: 0 var(--s19-tag-lift-y, 0px); }
   [data-cond-tag][data-state="in"] { animation: lv-cond-tag-in var(--lv-reveal-ms) var(--lv-motion-ease) both; }
@@ -52,6 +70,8 @@
 /* ---------- B1 / B2：模拟玻璃（不染色、不做真实背景模糊） ---------- */
 :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); }
+  /* base="copy" 的按钮不单独成层，文字层才能盖在滑过的选中块上（A 不显示选中块，保留隔离给浮起层用）。 */
+  [data-select-moving][data-select-base="copy"] > button { isolation: auto; }
   :is([data-select-grid] > button, [data-select-item])::before {
     background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); transform: scale(.94);
     transition: opacity var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-select-ms) var(--lv-motion-ease);
@@ -63,6 +83,7 @@
 /* ---------- C：浅绿实底，整块干脆滑动；网格交叉淡化 ---------- */
 :root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-solid-bg); box-shadow: none; }
+  [data-select-moving][data-select-base="copy"] > button { isolation: auto; }
   :is([data-select-grid] > button, [data-select-item])::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
   [data-select-grid] > button[aria-pressed="true"]::before,
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; }

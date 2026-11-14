@@ -56,7 +56,9 @@
   padding-inline: 16px;
 }
 
-/* ---------- 分段控件（全部 / 支出 / 收入 等） ---------- */
+/* ---------- 分段控件（全部 / 支出 / 收入 等） ----------
+   1.19.67 起这些分段都是 SlidingSelection（MovingSelection base="copy"）：选中指示由 selection-controls.css 按风格给出，
+   下面的白胶囊只在选中项被禁用（例如批量修改没勾“修改标签”时）或脚本还没测量时出现。 */
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .rounded-full.bg-line\/70.p-1 {
   background: var(--s19-track-bg);
   box-shadow: var(--s19-track-sh);

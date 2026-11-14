@@ -2,11 +2,11 @@ import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type HTML
 import { SELECTION_DURATION, selectionFrames, type SelectionBox } from "./selectionMotion.js";
 import {
   focusAfterRemoval, glideFrames, reconcileTags, selectionMotion, selectionStyleOf, slideFrames,
-  type ConditionTagEntry, type ConditionTagItem, type ConditionTagState, type SelectionAxis,
+  type ConditionTagEntry, type ConditionTagItem, type ConditionTagState, type SelectionAxis, type SelectionBase,
 } from "./selectionModel.js";
 import "./selection-controls.css";
 
-export type { ConditionTagItem, ConditionTagState, SelectionAxis } from "./selectionModel.js";
+export type { ConditionTagItem, ConditionTagState, SelectionAxis, SelectionBase } from "./selectionModel.js";
 
 /**
  * **选中指示与已选条件标签（1.19.62，规格 S19 §3「选中指示」「条件标签」）。**
@@ -47,12 +47,14 @@ const moved = (a: SelectionBox, b: SelectionBox): boolean => (Object.keys(a) as 
 
 /**
  * 会移动的选中。子元素是调用方自己的 `<button>`（直接子元素），以 `aria-selected` / `aria-pressed` / `aria-checked` 标出选中项；
- * 其余属性（role、aria-label、onKeyDown……）原样落在容器上。`base="slide"` 只给原来就有滑动胶囊的共享分段控件：
- * 基础外观里保留那块胶囊和它的 200ms 滑动（`selectionMotion.ts`）。
+ * 其余属性（role、aria-label、onKeyDown……）原样落在容器上。`base` 只决定基础外观（Original、深色、Pad、电脑版）：
+ * 默认 `static` 不显示选中块；`slide` 给原来就有滑动胶囊的共享分段控件（胶囊外观由调用方的样式给出）；
+ * `copy`（1.19.67）给 `SlidingSelection`：胶囊外观逐项复制选中按钮原来的计算样式。两种滑动都保留原 200ms 节奏（`selectionMotion.ts`）。
+ * S19 浅色手机外壳里三者一样，按风格画选中块或浮起。
  */
 export function MovingSelection({ axis, base = "static", hostRef, children, ...props }: HTMLAttributes<HTMLDivElement> & {
   axis: SelectionAxis;
-  base?: "static" | "slide";
+  base?: SelectionBase;
   hostRef?: RefObject<HTMLDivElement | null>;
 }) {
   const localRef = useRef<HTMLDivElement>(null);
@@ -74,7 +76,17 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
     const to = boxOf(selected, root), old = previous.current;
     // 被新的选择打断：从选中块此刻的位置接着走，不排队。
     const from = running.current?.playState === "running" ? visualBox(block, root) : old?.box ?? to;
-    block.style.borderRadius = getComputedStyle(selected).borderRadius;
+    if (base === "copy" && selectionStyleOf(root) === null) {
+      // 基础外观：选中块逐项复制选中按钮原来的外观。先撤下就绪标记读出原样（同步完成，不经过绘制帧，不复制文字或交互节点）；
+      // 按钮在这种模式下只过渡颜色与滤镜（selection-controls.css），撤下再挂回不会触发底色过渡。
+      delete root.dataset.selectReady;
+      const paint = getComputedStyle(selected);
+      Object.assign(block.style, { background: paint.background, boxShadow: paint.boxShadow, borderRadius: paint.borderRadius, border: paint.border, opacity: paint.opacity });
+    } else {
+      // S19：外观全部由 CSS 按风格给出；从基础外观切过来时清掉复制的内联外观，只保留跟随选中项的圆角。
+      if (base === "copy") Object.assign(block.style, { background: "", boxShadow: "", border: "", opacity: "" });
+      block.style.borderRadius = getComputedStyle(selected).borderRadius;
+    }
     root.dataset.selectReady = "true";
     if (old && old.button === selected && !moved(old.box, to)) return;
     running.current?.cancel(); running.current = null;
@@ -109,7 +121,7 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
     };
   }, [rootRef]);
 
-  return <div {...props} ref={rootRef} data-select-moving="" data-axis={axis} data-select-base={base === "slide" ? "slide" : undefined}>
+  return <div {...props} ref={rootRef} data-select-moving="" data-axis={axis} data-select-base={base === "static" ? undefined : base}>
     {children}
     <span ref={blockRef} data-select-block="" aria-hidden="true" />
   </div>;

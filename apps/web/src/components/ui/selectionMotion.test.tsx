@@ -23,7 +23,16 @@ describe("横向选中胶囊", () => {
     const html = renderToStaticMarkup(<SlidingSelection role="tablist" aria-label="切换"><button role="tab" aria-selected disabled>已选</button><button role="tab" aria-selected={false}>另一项</button></SlidingSelection>);
     expect(html.match(/<button/g)).toHaveLength(2);
     expect(html).toContain('aria-selected="true" disabled=""');
-    expect(html).toContain('data-selection-indicator="" aria-hidden="true"');
-    expect(html).not.toContain('data-selection-ready');
+    expect(html).toContain('data-select-block="" aria-hidden="true"');
+    expect(html).not.toContain('data-select-ready');
+  });
+  it("1.19.67：就是 MovingSelection 横向 + 基础外观复制选中样式；容器属性、按钮与 aria 原样，文字包一层标签层", () => {
+    const html = renderToStaticMarkup(<SlidingSelection role="group" aria-label="收支" data-entry-kind-switch="" className="flex gap-1">
+      <button type="button" aria-pressed className="bg-surface">支出</button><button type="button" aria-pressed={false}>收入</button>
+    </SlidingSelection>);
+    expect(html).toContain('role="group" aria-label="收支" data-entry-kind-switch="" class="flex gap-1" data-select-moving="" data-axis="x" data-select-base="copy"');
+    expect(html).toContain('<button type="button" aria-pressed="true" class="bg-surface"><span data-select-label="">支出</span></button>');
+    expect(html).toContain('<button type="button" aria-pressed="false"><span data-select-label="">收入</span></button>');
+    expect(html).not.toContain("data-sliding-selection");
   });
 });

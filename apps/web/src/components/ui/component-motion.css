@@ -1,4 +1,4 @@
-/* 组件动效的时长权威入口。页面 Push/Pop、底栏胶囊、SlidingSelection 继续使用各自预设。
+/* 组件动效的时长权威入口。页面 Push/Pop、底栏胶囊继续使用各自预设；SlidingSelection 1.19.67 起就是 MovingSelection（见下）。
    1.19.62：选中指示与已选条件标签（SelectionControls）——A 选中浮起（A2 档）的升起 / 落下 / 环境影淡入淡出，
    条件标签出现与删除的起始缩放 --lv-tag-from-scale；名称登记在 lib/motionTokens.ts 的 SELECTION_CSS。 */
 :root[data-visual-style="a"] { --lv-press-ms: 120ms; --lv-select-ms: 200ms; --lv-reveal-ms: 220ms; --lv-dismiss-ms: 180ms; --lv-feedback-ms: 240ms; --lv-loading-ms: 1000ms; --lv-press-scale: .975; --lv-reveal-y: 8px; --lv-motion-ease: cubic-bezier(.2,.8,.25,1); --lv-tag-from-scale: .92;
