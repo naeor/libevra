@@ -11,10 +11,15 @@
  *
  * ⚠️ **So this runs the real build**, which is the only thing that compiles the CSS, resolves every import the
  * bundler has to resolve, and fails on a plugin error. **It takes a second and it would have caught this in one.**
+ *
+ * ⚠️ **构建成功之后还要看产物（1.19.64，BUG-006）。** 压缩会改写 CSS：先写无前缀、后写带前缀的
+ * `backdrop-filter` 被合并成只剩带前缀的一条，Chromium 上没有背景模糊——构建照样“成功”，开发服务器也看不出来。
+ * 所以构建通过后接着跑 `check-built-css.mjs` 扫描 `apps/web/dist` 的 CSS。
  */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { checkBuiltCss } from "./check-built-css.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -33,3 +38,8 @@ if (result.status !== 0) {
 }
 
 console.log("✓ 构建通过");
+
+if (!checkBuiltCss(resolve(root, "apps", "web", "dist"))) {
+  console.error("\n✗ 构建产物检查失败。构建本身成功，但产物里的 CSS 会在部分浏览器上失效（见上）。");
+  process.exit(1);
+}

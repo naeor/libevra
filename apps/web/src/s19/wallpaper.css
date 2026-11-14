@@ -102,7 +102,7 @@ html:root[data-wallpaper] .ledger-space .space-scroll { position: relative; }
 .wallpaper-sample > span { height: 3px; width: 74%; background: var(--color-ink); opacity: .2; border-radius: 2px; }
 .wallpaper-sample > span:last-child { width: 46%; }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .wallpaper-sample { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] .wallpaper-sample { backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter); }
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] .wallpaper-sample { -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter); }
 
 /* 经典简约与 Original（根上没有 data-visual-style）使用纯画布；保留 data-wallpaper 与存储值，切回材质风格立即恢复。 */
 html:root[data-visual-style="c"],

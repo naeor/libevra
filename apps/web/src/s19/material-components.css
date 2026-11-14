@@ -56,7 +56,7 @@
   }
   .lv-material[data-material-role][data-material-finish="frosted"]:is([data-material-role="display"], [data-material-role="interactive"])::before {
     content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-    background: var(--s19-card-bg); backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter);
+    background: var(--s19-card-bg); -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter);
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .lv-material[data-material-role][data-material-finish="frosted"]::before { background: var(--color-surface); }

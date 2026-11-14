@@ -42,7 +42,7 @@ html[data-adaptation-lab] { --lv-vh: 1dvh; }
 /* 根浮层无 transform / filter / contain / opacity 动画；遮罩是独立兄弟绘制层。
    Safari 的 fixed 定位不经过滤镜祖先。滤镜只在局部面板伪元素，文字和内部列表不重复模糊。 */
 #adaptation-lab .alab-book-sheet .lv-sheet-backdrop,
-#adaptation-lab .alab-choice > .fixed { background: transparent; animation: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#adaptation-lab .alab-choice > .fixed { background: transparent; animation: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* 展开评审条时只占用样例外的可用高度；收起后恢复真实的全视口居中。 */
 #adaptation-lab .alab-choice > .fixed { padding-top: calc(var(--alab-controls-height) + 12px); padding-bottom: max(12px,env(safe-area-inset-bottom)); }
 .alab-book-sheet .lv-sheet-backdrop::before,
@@ -69,7 +69,7 @@ html[data-adaptation-lab] { --lv-vh: 1dvh; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root[data-visual-style=b2] .alab-sheet::before, :root[data-visual-style=b2] .alab-choice [role=dialog]::before { background: var(--color-surface); }
 }
-:root[data-lab-no-blur=true] .alab-sheet::before, :root[data-lab-no-blur=true] .alab-choice [role=dialog]::before { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--color-surface); }
+:root[data-lab-no-blur=true] .alab-sheet::before, :root[data-lab-no-blur=true] .alab-choice [role=dialog]::before { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--color-surface); }
 
 /* 编辑器保留原布局；预览卡直接消费成品材质，工作区保持实体底。没有整页模糊。 */
 .alab-shell .alab-editor { background: transparent; }
@@ -82,7 +82,7 @@ html[data-adaptation-lab] { --lv-vh: 1dvh; }
 .alab-shell .dce-selected { flex-wrap: wrap; }
 #adaptation-lab .alab-editor > [data-page-nav] { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--color-line); }
 .alab-editor > [data-page-nav]::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: var(--s19-bar-bg); box-shadow: var(--s19-bar-sh); -webkit-backdrop-filter: var(--s19-bar-filter,none); backdrop-filter: var(--s19-bar-filter,none); }
-:root[data-lab-no-blur=true] .alab-editor > [data-page-nav]::before { background: var(--color-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root[data-lab-no-blur=true] .alab-editor > [data-page-nav]::before { background: var(--color-surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-visual-style=c] .alab-shell .dce-first, :root[data-visual-style=c] .alab-shell .dce-second { background: var(--s19-card-bg); }
 @media (max-height: 580px) {
   #adaptation-lab .alab-choice > .fixed { align-items: flex-start; overflow-y: auto; }

@@ -11,7 +11,7 @@
 
 /* 根容器不做透明度动画，也没有滤镜；遮罩独立绘制，避免截断面板的 backdrop 采样。 */
 html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root][data-overlay-state] {
-  background: transparent; animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+  background: transparent; animation: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root]::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -43,7 +43,7 @@ html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] 
 html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][role][aria-modal] { border-radius: var(--s19-r-sheet); }
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"]::before { box-shadow: var(--s19-dialog-sh); }
 :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface]::before {
-  background: var(--s19-tool-bg); backdrop-filter: var(--s19-entry-filter); -webkit-backdrop-filter: var(--s19-entry-filter);
+  background: var(--s19-tool-bg); -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter);
 }
 /* A 的薄片只在原操作面上加柔和顶缘与宽淡投影；不上全屏模糊，不改变进出动画。 */
 :root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="sheet"]::before {
