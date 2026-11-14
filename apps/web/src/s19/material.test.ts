@@ -1,7 +1,19 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { createVisualStyleController } from "../lib/visualStyle.js";
 import { isAppDeviceStorageKey } from "../lib/deviceStorageKeys.js";
 import { DEFAULT_GLASS_BLUR, GLASS_BLUR_STORAGE_KEY, glassMaterial, motionBlur, parseGlassBlur } from "./material.js";
+
+describe("正式材质令牌", () => {
+  const css = readFileSync(new URL("./s19-lab-tokens.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  it.each(["a", "b1", "c"])("%s 提供卡片、弹层、控件和编辑顶栏所需的基础令牌", (style) => {
+    const selector = `:root[data-visual-style="${style}"]`;
+    const block = css.split(selector)[1]?.split("}")[0] ?? "";
+    for (const role of ["card-bg", "card-sh", "sheet-bg", "sheet-sh", "pill-bg", "pill-sh", "accent-bg", "accent-sh", "bar-sh"]) {
+      expect(block, `${style} / ${role}`).toContain(`--s19-${role}:`);
+    }
+  });
+});
 
 describe("S19 玻璃偏好", () => {
   it("新默认为旧模糊的 65%，各语义有独立尺度；A/C 不随滑块改变", () => {

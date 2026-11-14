@@ -35,7 +35,7 @@ export default {
   "uploading": "上传中",
   "failed": "上传未完成",
   "saved": "已上传",
-  "localHint": "未上传的文件保留在本机，联网后重试。",
+  "localHint": "退出或清除离线账本后，未上传的原件仍留在本机。用同一账号登录后可下载；已关联账目的附件会联网重试，未关联的草稿可在此移除。",
   "formats": "支持照片、PDF、音频和文本文件。",
   "limits": "单个文件上限 {{file}}，每笔最多 {{count}} 个附件，总占用上限 {{entry}}。",
   "associated": "关联 {{count}} 笔账目",

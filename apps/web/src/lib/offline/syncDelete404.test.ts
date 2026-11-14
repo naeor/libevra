@@ -5,7 +5,7 @@ import { ApiRequestError, apiFetch } from "../api.js";
 import { readMarks, setMark, upsertEntry } from "./localLedger.js";
 import { retryAbandonedWrites, syncAll } from "./sync.js";
 import { setOfflineScope } from "./scope.js";
-import { deviceAuditChanges, onlineChanges } from "./write.js";
+import { deviceAuditChanges, onlineChanges, updateEntry } from "./write.js";
 
 /**
  * The two halves of "为什么删掉的行一直是红色的" (owner, 2026-10-20, localhost, network up).
@@ -127,6 +127,21 @@ describe("trying again after the program gave up", () => {
 
 
 describe("离线更正历史随队列传输", () => {
+  it("协作者表单从 20 改为 21，即使月份副本已是 21 仍提交 20→21，保留副本的其他字段", async () => {
+    const seen = entry();
+    await upsertEntry({ ...seen, amountCents: 2100, note: "another-device", version: 3 });
+    vi.mocked(apiFetch).mockResolvedValue({ ...seen, amountCents: 2100, note: "another-device", version: 4 });
+    await updateEntry(id, { version: seen.version, amountCents: 2100, categoryId: seen.categoryId, paymentMethodId: seen.paymentMethodId }, row => ({ ...row, amountCents: 2100 }), seen);
+    await syncAll();
+    expect(apiFetch).toHaveBeenCalledWith("/transactions/" + id, expect.objectContaining({
+      method: "PATCH", body: expect.objectContaining({
+        note: "another-device",
+        changes: [{ field: "amountCents", base: 2000, wanted: 2100, chain: [2000, 2100] }],
+      }),
+    }));
+    expect((await readMarks())[id]).toBeUndefined();
+  });
+
   it("日期与时区中间更正进入历史，不加入原有冲突字段", () => {
     const before = entry();
     const after = { ...before, occurredAt: "2026-10-21T08:00:00.000Z", occurredLocalDate: "2026-10-21", occurredTz: "UTC" };

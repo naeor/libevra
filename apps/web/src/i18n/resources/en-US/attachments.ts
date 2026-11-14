@@ -35,7 +35,7 @@ export default {
   "uploading": "Uploading",
   "failed": "Upload incomplete",
   "saved": "Uploaded",
-  "localHint": "Pending files stay on this device and retry when connected.",
+  "localHint": "Pending originals stay on this device after sign-out or clearing offline ledgers. Sign in to the same account to download them. Linked files retry when online. Unlinked drafts can be removed here.",
   "formats": "Photos, PDFs, audio and text files are supported.",
   "limits": "Up to {{file}} per file, {{count}} attachments and {{entry}} total per entry.",
   "associated": "Linked to {{count}} entries",

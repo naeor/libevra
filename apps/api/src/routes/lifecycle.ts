@@ -272,7 +272,7 @@ export function registerLifecycleRoutes(app: FastifyInstance, options: Lifecycle
       throw error;
     }
     await markOperation(prisma, operation.id, "completed");
-    return { ...result, ...operationResponseFields(operation) };
+    return { ...result, closedAccountId: userId, ...operationResponseFields(operation) };
   });
 
   // -------------------------------------------------------------------------

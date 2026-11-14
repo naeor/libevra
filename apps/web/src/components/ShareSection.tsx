@@ -112,7 +112,7 @@ export function ShareSection({ bookId }: { readonly bookId: string }): React.JSX
           </Button>
         </div>
       ) : (
-        <div className="rounded-card border border-brand bg-brand-soft/40 px-5 py-4">
+        <div data-emphasis-card="" className="rounded-card border border-brand bg-brand-soft/40 px-5 py-4">
           <p className="text-helper text-muted">{t("collab.share.showOnce")}</p>
           <p className="mt-2 break-all rounded-field bg-surface px-3 py-2 font-mono text-helper text-ink">
             {`${window.location.origin}/join/${freshToken}`}

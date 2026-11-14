@@ -2,22 +2,15 @@ import { forgetCurrentBook } from "../currentBook.js";
 import { clearDatabase, hasIndexedDb } from "./storage.js";
 
 /**
- * Remove everything this application has left on the device.
- *
- * ⚠️ **The owner asked for this, and his reasoning is the part worth keeping**: "倘若浏览器其他
- * 数据我们没法处理的话，那岂不是每下载一次手机就少3MB的空间？我们可以一键删除这个程序在本地
- * 留下的所有的东西吗？"
- *
- * He is right that it is the only answer available. The storage figure includes a remainder the
- * app cannot itemise and cannot free — the browser's own accounting, including writes it has
- * not flushed. **What the app *can* do is throw away everything it owns**, and that is a real
- * ceiling on the damage rather than a partial cleanup that leaves the user guessing.
+ * Reset the formal offline database and app caches for this browser (Downloads → More).
+ * This discards unsynced ledger writes inside that database. The separate guest and pending
+ * attachment stores, browser preferences and session cookie are outside this action's scope.
  *
  * **Three things are removed, and they are removed in this order on purpose**:
  *
  *  1. **the caches** — the app's own HTML, JS and CSS, which the service worker will fetch
  *     again on the next load. Done first because it is the largest and the safest;
- *  2. **IndexedDB** — the ledger copy and everything else the app stored;
+ *  2. **IndexedDB** — the formal `libellum` database, including offline entries and pending ledger writes;
  *  3. **the service worker registration itself** — so the next visit is a genuinely fresh
  *     start rather than a stale shell serving a half-removed state.
  *

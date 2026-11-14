@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { ApiRequestError, apiFetch } from "../lib/api.js";
 import { clearQueryCache } from "../lib/offline/cache.js";
-import { clearAccountLocalData, clearSignedOutAccountData, clearSignedOutQueryCache } from "../lib/offline/localCleanup.js";
+import { clearSignedOutAccountData, clearSignedOutQueryCache } from "../lib/offline/localCleanup.js";
 import { forgetUser, readRememberedUser, rememberUser } from "../lib/offline/storage.js";
 import { forgetCurrentBook } from "../lib/currentBook.js";
 import { offlineScope, setOfflineAccount } from "../lib/offline/scope.js";
@@ -194,9 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
                 : error instanceof ApiRequestError && error.code === "session_revoked"
                   ? "session_revoked"
                   : "session_expired";
-          if (reason === "account_closed") {
-            await clearAccountLocalData(remembered.id);
-          }
+          // A 401 names no account. Shared browser memory is insufficient evidence to erase unsynced originals.
           setSessionEndReason((current) => (current === "account_closed" ? current : reason));
         }
         setUser(null);
@@ -248,7 +246,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       } catch (error) {
         if (cancelled) return;
         if (error instanceof ApiRequestError && error.status === 401) {
-          const remembered = await readRememberedUser();
           await forgetLocalState();
           setSessionRevoked(true);
           const reason =
@@ -259,9 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
                 : error.code === "session_revoked"
                   ? "session_revoked"
                   : "session_expired";
-          if (reason === "account_closed" && remembered !== null) {
-            await clearAccountLocalData(remembered.id);
-          }
+          // A 401 names no account. Shared browser memory is insufficient evidence to erase unsynced originals.
           setSessionEndReason((current) => (current === "account_closed" ? current : reason));
           setUser(null);
         }

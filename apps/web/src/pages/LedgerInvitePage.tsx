@@ -179,7 +179,7 @@ export function LedgerInvitePage(): React.JSX.Element {
           * invitation (`notifications.payload`), so what the sender chose is what acceptance grants.
           */}
         {account === null ? null : (
-          <div className="flex flex-col gap-4 rounded-card border border-brand/30 bg-brand-soft/30 p-4">
+          <div data-emphasis-card="" className="flex flex-col gap-4 rounded-card border border-brand/30 bg-brand-soft/30 p-4">
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="truncate text-base font-medium text-ink">{account.displayName}</span>
               <span className="truncate text-helper text-muted">

@@ -288,7 +288,8 @@ describe("guest mode copy (S14-C)", () => {
     expect(guestMe).toContain('t("account.guestMe.clearGuest")');
     expect(accountCopy).toContain('clearGuest: "清除游客数据"');
     expect(guestMe).toContain('t("account.guestMe.clearAll")');
-    expect(accountCopy).toContain('clearAll: "清除此设备全部 Libevra 本地数据"');
+    expect(accountCopy).toContain('clearAll: "清除本机游客数据、离线账本与偏好"');
+    expect(accountCopy).toContain("待上传附件");
   });
 
   it("disables server-only recording actions with a reason instead of faking them", () => {

@@ -21,6 +21,13 @@
   }
   .lv-material[data-material-role]:where([aria-pressed="true"], [aria-selected="true"]) { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 }
+/* 恢复码、邀请与分享凭证沿用展示卡材质，叠加品牌色强调。 */
+html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-emphasis-card]:is(.lv-material, .rounded-card) {
+  --lv-card-tint: color-mix(in srgb, var(--color-brand) 12%, transparent);
+  background: linear-gradient(var(--lv-card-tint), var(--lv-card-tint)), var(--s19-card-bg);
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-line));
+  box-shadow: var(--s19-card-sh);
+}
 /* 显式候选才增加反射层。滤镜只能在不承载内容的伪元素上，不能改变 fixed 后代参照系。 */
 :root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   .lv-material[data-material-role]:is([data-material-role="secondary"], [data-material-role="tool"], [data-material-role="capsule"]) { background: var(--s19-card-bg); box-shadow: var(--s19-card-sh); }

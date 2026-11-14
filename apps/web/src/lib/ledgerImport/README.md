@@ -1,5 +1,7 @@
 # apps/web/src/lib/ledgerImport · 阅读入口
 
+> 最后修改：2026-11-15 06:41（UTC+08:00）
+
 本层组织 ledgerImport 模块的直属文件；具体契约由任务索引定位。
 
 优先阅读[任务索引](../../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
@@ -19,7 +21,7 @@
 | [formal.ts](formal.ts) | 实现模块；入口/导出：FormalPreviewData、loadFormalImportPreview |
 | [incremental.ts](incremental.ts) | 实现模块；入口/导出：loadIncrementalPreview、defaultIncrementalAction、decisionsForRequest、incrementalExclusions |
 | [job.ts](job.ts) | 实现模块；入口/导出：createImportJob、getImportJob、resumeImportJob、cancelImportJob、confirmImportJob |
-| [journal.ts](journal.ts) | 实现模块；入口/导出：PendingImportTask、savePendingTask、removePendingTask、loadPendingTasks |
+| [journal.ts](journal.ts) | 实现模块；入口/导出：PendingImportTask、savePendingTask、removePendingTask、loadPendingTasks、clearAccountImportTasks |
 | [mapping.test.ts](mapping.test.ts) | 测试：mapping |
 | [mapping.ts](mapping.ts) | 实现模块；入口/导出：TaxonomyResolutionAction、TaxonomyResolutionMap、taxonomyResolutionKey、normalizeObjectName、categoryMatchKey |
 | [preview.test.ts](preview.test.ts) | 测试：preview |

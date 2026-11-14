@@ -35,7 +35,7 @@ describe("颜色类守卫", () => {
     expect(
       bad(
         `"text-warn-dark bg-warn/10 bg-warn-soft text-ink border-chart-1 text-sm text-left text-helper shadow-card shadow-lg border-2 border-b-0 border-t-4 ring-offset-2 ring-inset ` +
-          `bg-transparent text-current border-white outline-none outline-offset-2 divide-y text-[11px] bg-[url(x)] placeholder:text-ink placeholder-shown:bg-ink"`,
+          `bg-transparent text-current border-white outline-none outline-offset-2 divide-y text-[11px] bg-[url(#sample)] placeholder:text-ink placeholder-shown:bg-ink"`,
       ),
     ).toEqual([]);
   });

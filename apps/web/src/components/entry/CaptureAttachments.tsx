@@ -5,7 +5,7 @@ import { useI18n } from "../../i18n/index.js";
 import { useDesktopActive } from "../../desktop/surface.js";
 import { usePane } from "../../workspace/context.js";
 import { errorMessage } from "../../lib/api.js";
-import { pendingAttachments, savePendingAttachment, removePendingAttachment, useBookStorage, type PendingAttachment } from "../../lib/attachments.js";
+import { pendingAttachments, savePendingAttachment, updatePendingAttachment, removePendingAttachment, useBookStorage, type PendingAttachment } from "../../lib/attachments.js";
 import { captureAttachmentLimit, captureDraftsFor, resolveAttachmentDraft, type AttachmentTarget } from "../../lib/captureAttachments.js";
 import { AttachmentPdf } from "../AttachmentPdf.js";
 import { Reveal, useListMotion } from "../ui/ComponentMotion.js";
@@ -80,7 +80,7 @@ export function useCaptureAttachments(bookId: string | null, flow: string, targe
       if (chosen.length > 100) throw new Error(t("attachments.capture.targetLimit"));
       const next = resolveAttachmentDraft({ ...file, draftLink: { scope, targets: chosen, resolved: file.draftLink?.resolved ?? {} } }, {});
       if (!captureAttachmentLimit(files.map(item => item.id === file.id ? next : item), limits)) throw new Error(limitsText);
-      await savePendingAttachment(next);
+      await updatePendingAttachment(file, { entryIds: next.entryIds, ...(next.draftLink && { draftLink: next.draftLink }), error: next.error });
     });
   }
   /** 附件故障不能把已保存账目误报为保存失败；未完成的原件仍在下载与离线中可取回。 */
@@ -91,14 +91,15 @@ export function useCaptureAttachments(bookId: string | null, flow: string, targe
     workingRef.current = true; setWorking(true);
     try {
       for (const file of captureDraftsFor(await pendingAttachments(user.id), user.id, bookId, scope)) {
-        await savePendingAttachment(resolveAttachmentDraft(file, saved));
+        const next = resolveAttachmentDraft(file, saved);
+        await updatePendingAttachment(file, { entryIds: next.entryIds, ...(next.draftLink && { draftLink: next.draftLink }), error: next.error });
       }
       await reload();
     } catch (caught) { setError(errorMessage(caught)); }
     finally { workingRef.current = false; setWorking(false); }
   }
   const panel = !user || !bookId ? null : <CaptureAttachmentPanel files={files} targets={targets} disabled={disabled || working} error={error} limitsText={limitsText}
-    onAdd={add} onAssociate={associate} onRemove={file => mutate(() => removePendingAttachment(file.id))} />;
+    onAdd={add} onAssociate={associate} onRemove={file => mutate(() => removePendingAttachment(file))} />;
   return { panel, files, commit, working };
 }
 

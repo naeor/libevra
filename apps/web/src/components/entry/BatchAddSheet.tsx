@@ -13,7 +13,7 @@ import { categoryPath } from "@libellum/shared";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { Alert } from "../Alert.js";
 import { BottomSheet } from "../BottomSheet.js";
-import { leavePage } from "../../lib/closeGuard.js";
+import { useNavigate } from "react-router";
 import { tagFillStyle } from "../../lib/tagColors.js";
 import { MovingSelection } from "../ui/SelectionControls.js";
 import { ChoiceDialog, type Choice } from "../ChoiceDialog.js";
@@ -203,6 +203,7 @@ export function BatchAddSheet({
   readonly onSaved: (count: number) => void;
 }): React.JSX.Element | null {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const ledger = useLedger();
   const duplicateSettings = useDuplicateDetectionSettings();
   const checkDuplicates = useCheckDuplicates();
@@ -447,9 +448,10 @@ export function BatchAddSheet({
                   onClick={() => {
                     const bookId = ledgerData?.book.id;
                     if (bookId === undefined) return;
-                    onClose();
-                    // 原来是 window.location.assign；有改动时面板压过一条返回保护记录，交给 leavePage 一并处理。
-                    leavePage(`/books/${bookId}/settings`);
+                    sheet.closeThen(() => {
+                      onClose();
+                      void navigate(`/books/${bookId}/settings`);
+                    });
                   }}
                   className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-helper text-muted transition hover:text-ink"
                 >

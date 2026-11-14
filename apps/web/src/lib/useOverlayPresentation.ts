@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { createOverlayExit, OVERLAY_EXIT_MS } from "./overlayExit.js";
+import { createOverlayExit, overlayExitDuration } from "./overlayExit.js";
 import { hasOverlayScrollLock, lockOverlayScroll } from "./overlayScrollLock.js";
 import "../s19/overlays.css";
 
@@ -23,7 +23,7 @@ export function useOverlayPresence(open: boolean) {
   const [present, setPresent] = useState(open);
   useEffect(() => {
     if (open) { setPresent(true); return; }
-    const timer = setTimeout(() => setPresent(false), OVERLAY_EXIT_MS);
+    const timer = setTimeout(() => setPresent(false), overlayExitDuration());
     return () => clearTimeout(timer);
   }, [open]);
   return { visible: open || present, closing: !open && present };

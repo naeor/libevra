@@ -67,6 +67,7 @@ html:root[data-wallpaper] { background: var(--lv-wallpaper-edge-top) linear-grad
 html:root[data-wallpaper] body { min-height: 100dvh; background: linear-gradient(var(--lv-wallpaper-edge-top), var(--lv-wallpaper-edge-bottom)) fixed; }
 /* 手机外壳的页面本身透明，直接显露壁纸层；大屏/电脑外壳仍由各自工作区面承接，保持原样。 */
 html:root[data-wallpaper] body:has(.lv-shell[data-s19-scope]) { background: transparent; }
+:root[data-wallpaper]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] [data-auth-layout] { background: transparent; }
 html:root[data-wallpaper] body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background: var(--lv-wallpaper-bg);

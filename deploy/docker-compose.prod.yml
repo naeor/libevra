@@ -104,11 +104,8 @@ services:
       # `.env` therefore has to name `db` as the host — see `deploy/README.md`.
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
       WEB_ORIGIN: ${WEB_ORIGIN:?set WEB_ORIGIN in .env}
-      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
-      UPLOAD_DIR: /data/uploads
     volumes:
-      # ⚠️ The whisper model (~488 MB) and the upload scratch directory. Named volumes so
-      # they survive a rebuild of the image.
+      # Keep downloaded speech models across image rebuilds.
       - api-data:/data
     depends_on:
       db:

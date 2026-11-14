@@ -17,6 +17,7 @@
    焦点交回搜索键后留下一圈选中描边，要再点别处才消失。 */
 .detail-search-shell:not([data-open=true]):has(.detail-search-icon:active) { background: color-mix(in srgb, var(--color-on-brand) 30%, transparent); }
 .detail-search-shell:not([data-open=true]):has(.detail-search-icon:focus-visible) { outline: 2px solid currentColor; outline-offset: 3px; }
+.detail-search-shell[data-open=true]:has(input:focus-visible) { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .detail-search-shell input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .detail-redesign .detail-month-controls { max-width: calc(100% - var(--p) * 176px); }
 .detail-redesign .detail-month.lv-filter-trigger { max-width: 100%; }

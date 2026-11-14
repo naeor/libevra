@@ -53,7 +53,7 @@ export function PeriodComparisonCard({
   return (
     <section
       data-testid="period-comparison-card"
-      className="rounded-card bg-surface p-4 text-caption"
+      className="rounded-card bg-surface p-4 text-helper"
     >
       <h3 className="text-body font-semibold text-ink">{title}</h3>
       <p className="mt-1 text-muted">

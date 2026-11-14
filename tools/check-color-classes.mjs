@@ -33,12 +33,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * 显式豁免：`"相对仓库根的文件路径": ["类名（不含变体与透明度）", …]`，必须写理由。
- * - PeriodComparisonCard 的 `text-caption`：它不是颜色，是一个 `@theme` 里不存在的字号令牌（元素没有该字号，继承父级）。
- *   守卫把它当颜色名误报；它属于字号问题，不在 BUG-005（颜色）范围，已在 BUG 记录里另行登记，修字号时一并去掉这条豁免。
  */
-export const ALLOWLIST = {
-  "apps/web/src/components/charts/PeriodComparisonCard.tsx": ["text-caption"],
-};
+export const ALLOWLIST = {};
 
 /** Tailwind 的特殊颜色值，不需要令牌。 */
 const SPECIAL_COLORS = new Set(["transparent", "current", "inherit", "white", "black"]);

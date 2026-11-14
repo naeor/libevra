@@ -1,5 +1,6 @@
 import type { Transaction } from "@libellum/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -30,14 +31,16 @@ function render(open: boolean): string {
   const client = new QueryClient();
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <AuthProvider>
-        <BatchAddSheet
-          open={open}
-          source={transaction()}
-          onClose={() => undefined}
-          onSaved={() => undefined}
-        />
-      </AuthProvider>
+      <MemoryRouter>
+        <AuthProvider>
+          <BatchAddSheet
+            open={open}
+            source={transaction()}
+            onClose={() => undefined}
+            onSaved={() => undefined}
+          />
+        </AuthProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }

@@ -258,6 +258,7 @@ describe("S13-H ledger lifecycle", () => {
       },
     });
     expect(closed.statusCode).toBe(200);
+    expect(closed.json()).toMatchObject({ closedAccountId: owner.userId });
     const result = closed.json() as { recoveryCredential: string; archivedBookIds: string[] };
     expect(result.recoveryCredential).toMatch(/^[A-F0-9]{32}$/);
     expect(result.archivedBookIds).toEqual([archiveBookId]);

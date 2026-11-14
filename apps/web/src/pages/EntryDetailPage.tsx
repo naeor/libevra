@@ -12,7 +12,7 @@ import {
   type DuplicatePairResult,
   type Transaction,
 } from "@libellum/shared";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { useLocation, useNavigate, useParams } from "react-router";
 
@@ -34,6 +34,7 @@ import { useEntryOrigin, useEntryReturn, useReturnTo } from "../lib/entryReturn.
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
 import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
+import { deviceAuditChanges, onlineChanges } from "../lib/offline/write.js";
 import { useLedgerWriter } from "../lib/ledgerWriter.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import {
@@ -106,7 +107,8 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
   const writer = useLedgerWriter();
   const foreignLedger = writer.foreign !== null;
 
-  const [editing, setEditing] = useState(false);
+  const [editBase, setEditBase] = useState<Transaction | null>(null);
+  const editing = editBase !== null && editBase.id === id;
   const editSwapRef = useRef<HTMLDivElement | null>(null);
   useSwapReveal(editSwapRef, editing);
   /**
@@ -157,16 +159,17 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
    */
   const [occurredAt, setOccurredAt] = useState<Date | null>(null);
 
-  useEffect(() => {
-    if (!entry.data) return;
-    setAmountText(minorToInput(entry.data.amountCents, entry.data.currency));
-    setCategoryId(entry.data.categoryId);
-    setPaymentMethodId(entry.data.paymentMethodId);
-    setCurrency(entry.data.currency);
-    setNote(entry.data.note ?? "");
-    setTagIds(entry.data.tags.map((tag) => tag.id));
-    setOccurredAt(new Date(entry.data.occurredAt));
-  }, [entry.data]);
+  function beginEdit(row: Transaction): void {
+    setAmountText(minorToInput(row.amountCents, row.currency));
+    setCategoryId(row.categoryId);
+    setPaymentMethodId(row.paymentMethodId);
+    setCurrency(row.currency);
+    setNote(row.note ?? "");
+    setTagIds(row.tags.map(tag => tag.id));
+    setOccurredAt(new Date(row.occurredAt));
+    setError(null);
+    setEditBase(row);
+  }
 
   if (entry.isPending) {
     return (
@@ -272,7 +275,11 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
      * ⚠️ **The entry's time is required, and the guard is the point.** See the note on `occurredAt`: writing "now"
      * because the entry had not loaded is how an edit silently moved a row to the top of the ledger.
      */
-    if (occurredAt === null) return;
+    if (occurredAt === null || !editBase || editBase.id !== data.id) return;
+    if (Object.keys(deviceAuditChanges(editBase, data)).length > 0) {
+      setError(t("entry.detail.changedWhileEditing"));
+      return;
+    }
     setError(null);
 
     let amountCents: number;
@@ -298,78 +305,64 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
        * as its base.** Sending only what changed is what makes the local entry identical to the server's once
        * the queue drains, instead of a second shape that has to be reconciled.
        */
-      const outcome = await writer.update(
-        id,
-        {
-          version: data.version,
+      const timeChanged = occurredAt.getTime() !== new Date(editBase.occurredAt).getTime();
+      const input = {
+        version: data.version,
+        amountCents,
+        categoryId,
+        paymentMethodId,
+        currency,
+        note: note.trim() === "" ? null : note.trim(),
+        tagIds,
+        occurredAt: timeChanged ? toLocalIso(occurredAt) : editBase.occurredAt,
+        occurredLocalDate: timeChanged ? toLocalDate(occurredAt) : editBase.occurredLocalDate,
+        occurredTz: data.occurredTz,
+      };
+      const apply = (current: Transaction): Transaction => {
+        /**
+         * ⚠️ **The offline copy needs a category id, and the update may not have one.**
+         *
+         * `UpdateTransactionInput.categoryId` allows null — the server files a null category under the
+         * book's own 暂无分类 row and **resolves it on the way in**, so the stored entry always has an id.
+         * The device cannot resolve it, so it keeps the id it already holds: **the offline entry stays
+         * well-formed and the server corrects it if the two differ.**
+         */
+        const resolvedCategoryId = categoryId ?? current.categoryId;
+
+        return {
+          ...current,
           amountCents,
-          categoryId,
-          paymentMethodId,
+          categoryId: resolvedCategoryId,
           currency,
           note: note.trim() === "" ? null : note.trim(),
-          tagIds,
-          occurredAt: toLocalIso(occurredAt),
-          occurredLocalDate: toLocalDate(occurredAt),
-          occurredTz: data.occurredTz,
-        },
-        (current) => {
+          paymentMethodId,
+          occurredAt: input.occurredAt,
+          occurredLocalDate: input.occurredLocalDate,
           /**
-           * ⚠️ **The offline copy needs a category id, and the update may not have one.**
-           *
-           * `UpdateTransactionInput.categoryId` allows null — the server files a null category under the
-           * book's own 暂无分类 row and **resolves it on the way in**, so the stored entry always has an id.
-           * The device cannot resolve it, so it keeps the id it already holds: **the offline entry stays
-           * well-formed and the server corrects it if the two differ.**
+           * ⚠️ **The category's *name* is taken from the ledger**, because the server denormalises it onto
+           * each entry and the offline copy has no server to ask. An entry whose category was changed would
+           * otherwise keep showing the old name until the queue drained — **a display that contradicts the
+           * edit the user just made, for as long as the network is out.**
            */
-          const resolvedCategoryId = categoryId ?? current.categoryId;
-
-          return {
-            ...current,
-            amountCents,
-            categoryId: resolvedCategoryId,
-            currency,
-            note: note.trim() === "" ? null : note.trim(),
-            paymentMethodId,
-            occurredAt: toLocalIso(occurredAt),
-            occurredLocalDate: toLocalDate(occurredAt),
-            /**
-             * ⚠️ **The category's *name* is taken from the ledger**, because the server denormalises it onto
-             * each entry and the offline copy has no server to ask. An entry whose category was changed would
-             * otherwise keep showing the old name until the queue drained — **a display that contradicts the
-             * edit the user just made, for as long as the network is out.**
-             */
-            categoryName:
-              ledger.data?.categories.find((category) => category.id === resolvedCategoryId)?.name ??
-              current.categoryName,
-            paymentMethodName:
-              paymentMethodId === null
-                ? null
-                : (ledger.data?.paymentMethods.find((method) => method.id === paymentMethodId)?.name ??
-                  current.paymentMethodName),
-            tagIds,
-          };
-        },
-        // 外部账本据此算出「从哪个值改成哪个值」（服务器按它写入金额、分类等字段）。
-        data,
-      );
-
-      /**
-       * A `null` means the device does not hold this entry, which should not happen for a screen reached from
-       * the ledger — but if it does, the server path is the honest fallback rather than a silent no-op.
-       */
+          categoryName:
+            ledger.data?.categories.find((category) => category.id === resolvedCategoryId)?.name ??
+            current.categoryName,
+          paymentMethodName:
+            paymentMethodId === null
+              ? null
+              : (ledger.data?.paymentMethods.find((method) => method.id === paymentMethodId)?.name ??
+                current.paymentMethodName),
+          tags: tagIds.flatMap(tagId => {
+            const tag = ledger.data?.tags.find(item => item.id === tagId) ?? current.tags.find(item => item.id === tagId);
+            return tag ? [tag] : [];
+          }),
+        };
+      };
+      const outcome = await writer.update(id, input, apply, data);
       if (outcome === null) {
-        await update.mutateAsync({
-          version: data.version,
-          amountCents,
-          categoryId,
-          paymentMethodId,
-          currency,
-          note: note.trim() === "" ? null : note.trim(),
-          tagIds,
-          occurredAt: toLocalIso(occurredAt),
-          occurredLocalDate: toLocalDate(occurredAt),
-          occurredTz: data.occurredTz,
-        });
+        // A detail can be online even when its month is absent locally. PATCH needs the same
+        // field history as the queued path, or a 200 only acknowledges the timestamp.
+        await update.mutateAsync({ ...input, changes: onlineChanges(data, apply(data)) });
       }
 
       /**
@@ -478,7 +471,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
       desktopActionsAtBottom
       title={editing ? t("entry.detail.editTitle") : t("entry.detail.title")}
       onBack={() => {
-        if (editing) setEditing(false);
+        if (editing) { setEditBase(null); setError(null); }
         else goBack();
       }}
       actions={
@@ -486,7 +479,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
           <button
             type="button"
             onClick={() => {
-              setEditing(true);
+              beginEdit(data);
             }}
             className="text-sm font-medium text-brand-dark transition hover:underline"
           >

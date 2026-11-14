@@ -1,16 +1,15 @@
-import { isAppDeviceStorageKey } from "../deviceStorageKeys.js";
+import { clearOwnerPreferences, isAppDeviceStorageKey } from "../deviceStorageKeys.js";
 import { clearGuestDuplicateSettings } from "../duplicateSettings.js";
 import { resetEverything } from "../offline/reset.js";
 import { resetGuestDataCache } from "./data.js";
-import { clearGuestIdentity } from "./identity.js";
+import { clearGuestIdentity, readGuestIdentity } from "./identity.js";
 import { clearGuestDatabase } from "./storage.js";
 
 /**
  * Remove the guest identity and every byte of guest data.
  *
  * ⚠️ **This function is the reason the guest store is a separate database.** It deletes
- * `libellum-guest`, the guest identity key, and the guest's device-local duplicate-detection
- * preference (`libellum.duplicate-detection.v1.guest`) — and nothing else. It deliberately does
+ * `libellum-guest`, the guest identity key, and the current guest's device preferences. It deliberately does
  * **not** call the account cleanup helpers, does not open/delete the `libellum` database, and does
  * not touch the remembered formal user, the current book, the query cache or the service worker.
  * Clearing guest data must be incapable of damaging a formal account's offline copy on the same
@@ -25,6 +24,8 @@ export interface ClearGuestDataResult {
 }
 
 export async function clearGuestData(): Promise<ClearGuestDataResult> {
+  const guest = readGuestIdentity();
+  if (guest) clearOwnerPreferences("guest", guest.id, globalThis.localStorage);
   const identityCleared = clearGuestIdentity();
   // Guest-only preference; the account-scoped keys are untouched. See duplicateSettings.ts.
   clearGuestDuplicateSettings();
@@ -42,8 +43,8 @@ export async function clearGuestData(): Promise<ClearGuestDataResult> {
 }
 
 /**
- * **Clear everything this device holds for Libevra — both identities, both databases, caches, the
- * service worker and the app's own `localStorage` flags.**
+ * Clear guest and formal offline ledgers, app preferences, caches and service workers. Pending
+ * attachment originals have their own owner-scoped store and are preserved.
  *
  * ⚠️ **A separate action from both "clear this account's offline copy" and "clear guest data".** The
  * owner asked for the three to be distinguishable, and this is the largest of them: it is only

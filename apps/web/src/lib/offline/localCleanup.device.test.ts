@@ -17,8 +17,10 @@ vi.mock("./storage.js", () => ({
   removeValue: (key: string) => Promise.resolve(state.indexed.delete(key)),
 }));
 
+import { clearGuestData } from "../guest/cleanup.js";
+import { createGuestIdentity } from "../guest/identity.js";
 import { fxModeKey, messagesSeenKey, presentationSeenKey, sharedLedgerKey } from "../deviceStorageKeys.js";
-import { clearAccountLocalData, clearBookLocalData } from "./localCleanup.js";
+import { clearAccountLocalData, clearBookLocalData, clearAfterAccountClosure } from "./localCleanup.js";
 
 function fakeStorage(): Storage {
   return {
@@ -61,6 +63,44 @@ describe("local cleanup — device keys", () => {
       expect(state.local.has(`libevra.${kind}:v1:guest:user-a`)).toBe(true);
     }
   });
+  it("清当前账号的面板、卡片与玻璃设置，保留相似 ID 和设备默认值", async () => {
+    const own = ["libevra.desktop.dashboard:v1:user:user-a", "libevra.detail-cards.v2.user-a.book", "libevra.detail-cards.v1.user-a", "libevra.s19-b2-glass:user-a", "libevra.ledger-filter:analysis:user:user-a:book"];
+    const keep = ["libevra.desktop.dashboard:v1:guest:user-a", "libevra.detail-cards.v2.user-ab.book", "libevra.s19-b2-glass:local", "libevra.ledger-filter:analysis:user:user-ab:book"];
+    for (const key of [...own, ...keep]) state.local.set(key, "{}");
+    state.local.set("libevra.s19-b2-legacy-owner", "user-a");
+    await clearAccountLocalData("user-a");
+    for (const key of own) expect(state.local.has(key), key).toBe(false);
+    for (const key of keep) expect(state.local.has(key), key).toBe(true);
+    expect(state.local.get("libevra.s19-b2-legacy-owner")).toBe("retired");
+  });
+
+  it("注销只按日志正文里的确切账号清导入任务，旧版格式可清，无归属证据的残件保留", async () => {
+    const prefix = "libellum-ledger-import-task:";
+    for (const [key, value] of Object.entries({
+      one: '{"userId":"user-a","request":{"snapshot":"synthetic"}}',
+      two: '{"userId":"user-ab"}', old: '{"legacy":true}', bad: '{', empty: 'null',
+    })) state.local.set(prefix + key, value);
+    await clearAfterAccountClosure("user-a", "user-a");
+    expect([...state.local.keys()]).toEqual(["two", "old", "bad", "empty"].map(key => prefix + key));
+  });
+
+  it("清游客数据一并移除当前游客面板、筛选与统计恢复副本，其他身份继续保留", async () => {
+    const guest = createGuestIdentity()!;
+    const own = [
+      `libevra.stats-workbench:v1:guest:${guest.id}:previous`,
+      `libevra.stats-workbench-presets:v1:guest:${guest.id}`,
+      `libevra.stats-workbench-sync:v1:guest:${guest.id}`,
+      `libevra.desktop.dashboard:v1:guest:${guest.id}`,
+      `libevra.detail-cards.v2.${guest.id}.local`,
+      `libevra.ledger-filter:ledger:guest:${guest.id}:book`,
+    ];
+    const keep = [`libevra.stats-workbench:v1:user:${guest.id}`, `libevra.stats-workbench:v1:guest:${guest.id}x`, "libevra.s19-b2-glass:local"];
+    for (const key of [...own, ...keep]) state.local.set(key, "{}");
+    await clearGuestData();
+    for (const key of own) expect(state.local.has(key), key).toBe(false);
+    for (const key of keep) expect(state.local.has(key), key).toBe(true);
+  });
+
   it("clears the per-ledger device flags together with the ledger's offline copy", async () => {
     state.indexed.set("ledger-months:user-a:book-a", []);
     state.indexed.set("ledger-months:user-a:book-b", []);

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useI18n } from "../i18n/index.js";
-import { decideClose, useBackGuard } from "../lib/closeGuard.js";
+import { afterBackGuard, decideClose, usePageBackGuard } from "../lib/closeGuard.js";
 import { useDialogFocus } from "../lib/dialogFocus.js";
 import { useSheetDrag, type SheetDragZone } from "../lib/sheetDrag.js";
 import { useSheetHeightTransition } from "../lib/sheetHeight.js";
@@ -39,7 +39,7 @@ import "./panel-template.css";
  * 关闭后回到打开它的控件；多层面板时只有最上面那一层响应 Esc。
  * ⚠️ **S18（审查 U07）软键盘**：面板整体抬到键盘之上，高度不超过键盘以上的可视区。
  * ⚠️ **S18 高度单位是 `--lv-vh`**：手机上等于 `dvh`；大屏工作区里是工作区自己的高度，面板只盖住所在工作区。
- * ⚠️ **减少动态**时动画由 CSS 关掉，关闭时机不变。
+ * ⚠️ **减少动态**时跳过退场等待。
  */
 
 /**
@@ -168,6 +168,26 @@ export function BottomSheet({
   const latest = useRef({ dirty, busy });
   latest.current = { dirty, busy };
 
+  const nextAction = useRef<(() => void) | null>(null);
+  const leavingForAction = useRef(false);
+  const releaseGuard = usePageBackGuard(dismissible && dirty && !closing, () => {
+    if (!latest.current.busy) setAsking(true);
+  });
+  const finishClose = useCallback(() => {
+    if (leavingForAction.current || latest.current.busy) return;
+    const action = nextAction.current;
+    nextAction.current = null;
+    if (action) {
+      leavingForAction.current = true;
+      afterBackGuard(releaseGuard, () => afterExit(() => {
+        leavingForAction.current = false;
+        action();
+      }));
+    } else {
+      exit();
+    }
+  }, [afterExit, exit, releaseGuard]);
+
   /** 所有关闭入口的共同判断；返回是否真的开始关闭（下拉据此决定弹回）。 */
   const request = useCallback((): boolean => {
     if (!dismissible) return false;
@@ -177,15 +197,19 @@ export function BottomSheet({
       return false;
     }
     if (decision === "ignore") return false;
-    exit();
+    finishClose();
     return true;
-  }, [dismissible, exit]);
+  }, [dismissible, finishClose]);
 
   const controls = useMemo<SheetControls>(() => ({
     close: () => { request(); },
     finish: () => { exit(); },
-    closeThen: (action: () => void) => { afterExit(action); },
-  }), [request, exit, afterExit]);
+    closeThen: (action: () => void) => {
+      if (!dismissible || latest.current.busy || closing || leavingForAction.current) return;
+      nextAction.current = action;
+      request();
+    },
+  }), [request, exit, closing, dismissible]);
 
   const drag = useSheetDrag(panelRef, dismissible && !closing, request);
 
@@ -201,11 +225,6 @@ export function BottomSheet({
       window.removeEventListener("keydown", onKey);
     };
   }, [focus, request]);
-
-  // 系统返回：有改动时同样先询问（只在主工作区；没有改动时保持原来的返回行为）。
-  useBackGuard(dismissible && dirty && !closing, () => {
-    if (!latest.current.busy) setAsking(true);
-  });
 
   const initialFocusRef = useRef(initialFocus);
   useEffect(() => {
@@ -296,9 +315,10 @@ export function BottomSheet({
         cancelLabel={discard?.cancelLabel ?? t("nav.sheet.discardKeep")}
         onConfirm={() => {
           setAsking(false);
-          exit();
+          finishClose();
         }}
         onCancel={() => {
+          nextAction.current = null;
           setAsking(false);
         }}
       />

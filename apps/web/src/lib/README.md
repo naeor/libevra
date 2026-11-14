@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-14 14:43（UTC+08:00）
+> 最后修改：2026-11-15 06:41（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -21,7 +21,7 @@
 | [analysisRange.ts](analysisRange.ts) | 实现模块；入口/导出：AnalysisMarks、AnalysisCoverage、AnalysisRangeRead、AnalysisRangeIo、analysisMonthStored |
 | [api.ts](api.ts) | 实现模块；入口/导出：primeDeviceId、primeBookId、currentBookIdHeader、ApiRequestError、buildHeaders |
 | [apiHeaders.test.ts](apiHeaders.test.ts) | 测试：apiHeaders |
-| [attachments.ts](attachments.ts) | 实现模块；入口/导出：useAttachments、useBookStorage、useAccountStorage、attachmentUrl、PendingAttachment |
+| [attachments.ts](attachments.ts) | 实现模块；入口/导出：useAttachments、useBookStorage、useAccountStorage、attachmentUrl、attachmentProgress |
 | [avatarRewards.ts](avatarRewards.ts) | 实现模块；入口/导出：AVATAR_REWARDS_QUERY_KEY、fetchAvatarRewards、useAvatarRewards、requestAvatarRewardMakeUp、confirmAvatarRewardEvents |
 | [backFallback.ts](backFallback.ts) | 实现模块；入口/导出：recordBackPress |
 | [backNavigation.test.ts](backNavigation.test.ts) | 测试：backNavigation |
@@ -34,7 +34,7 @@
 | [captureTextDraft.ts](captureTextDraft.ts) | 实现模块；入口/导出：useCaptureTextDraft |
 | [clipboard.ts](clipboard.ts) | 实现模块；入口/导出：CopyOutcome、copyText |
 | [closeGuard.test.ts](closeGuard.test.ts) | 测试：closeGuard |
-| [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：CloseDecision、decideClose、leavePage、useBackGuard、usePageBackGuard |
+| [closeGuard.ts](closeGuard.ts) | 实现模块；入口/导出：CloseDecision、decideClose、usePageBackGuard、afterBackGuard、useLeaveConfirm |
 | [colorClasses.test.ts](colorClasses.test.ts) | 测试：colorClasses |
 | [colors.test.ts](colors.test.ts) | 测试：colors |
 | [connectivity.ts](connectivity.ts) | 实现模块；入口/导出：BackMode、parentBackAction、useGoBack |
@@ -107,10 +107,11 @@
 | [openOverlay.test.ts](openOverlay.test.ts) | 测试：openOverlay |
 | [openOverlay.ts](openOverlay.ts) | 实现模块；入口/导出：OPEN_OVERLAY_SELECTOR、OverlayQueryRoot、hasOpenOverlay |
 | [overlayExit.test.ts](overlayExit.test.ts) | 测试：overlayExit |
-| [overlayExit.ts](overlayExit.ts) | 实现模块；入口/导出：OVERLAY_EXIT_MS、createOverlayExit |
+| [overlayExit.ts](overlayExit.ts) | 实现模块；入口/导出：OVERLAY_EXIT_MS、overlayExitDuration、createOverlayExit |
 | [overlayScrollLock.test.ts](overlayScrollLock.test.ts) | 测试：overlayScrollLock |
 | [overlayScrollLock.ts](overlayScrollLock.ts) | 实现模块；入口/导出：hasOverlayScrollLock、lockOverlayScroll |
 | [panelMemory.ts](panelMemory.ts) | 实现模块；入口/导出：rememberPanel、peekPanel、forgetPanel、useReturnedPanel、afterPageTransition |
+| [pendingAttachments.ts](pendingAttachments.ts) | 实现模块；入口/导出：PendingAttachment、pendingAttachments、savePendingAttachment、updatePendingAttachment、removePendingAttachment |
 | [permissions.test.ts](permissions.test.ts) | 测试：permissions |
 | [permissions.ts](permissions.ts) | 实现模块；入口/导出：roleRank、canRecordRole、canEditAllRole、canEditEntryAs、invitableRoles |
 | [presetNames.ts](presetNames.ts) | 实现模块；入口/导出：displayCategoryName、displayPaymentMethodName、displayCategoryDescription |

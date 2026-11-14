@@ -962,7 +962,7 @@ export function DetailPage(): React.JSX.Element {
                 <button ref={searchButton} type="button" className="detail-search-icon" aria-label={t("ledger.cards.search")} aria-expanded={searchOpen} disabled={selecting} tabIndex={searchOpen ? -1 : 0} onPointerDown={e => e.preventDefault()} onClick={openSearch}>
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5" strokeLinecap="round"/></svg>
                 </button>
-                <input ref={searchInput} type="search" value={query} readOnly={!searchOpen} tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} aria-label={t("ledger.cards.search")} placeholder={t("ledger.cards.placeholder")} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape" && !e.nativeEvent.isComposing) closeSearch(true); }} />
+                <input ref={searchInput} className="outline-none" type="search" value={query} readOnly={!searchOpen} tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} aria-label={t("ledger.cards.search")} placeholder={t("ledger.cards.placeholder")} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape" && !e.nativeEvent.isComposing) closeSearch(true); }} />
                 <button ref={searchCancel} type="button" className="detail-search-cancel" tabIndex={searchOpen ? 0 : -1} aria-hidden={!searchOpen} onClick={e => { closeSearch(e.detail === 0); }}>{t("common.action.cancel")}</button>
               </div>
             </div>

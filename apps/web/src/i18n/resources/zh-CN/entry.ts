@@ -101,6 +101,7 @@ const entry = {
     offlineReadOnly: "当前离线，共享账本暂时只能查看。恢复网络后可以修改或删除这笔记录；之前尚未同步的改动会保留。",
     tagsHeading: "标签（最多 {{max}} 个）",
     batchAdd: "批量记账",
+    changedWhileEditing: "这笔账在编辑期间已更新，草稿仍在此处。请先复制要保留的修改，然后返回详情、核对最新内容并重新编辑。",
     saveChanges: "保存修改",
     notRecorded: "未记录",
     number: "编号",

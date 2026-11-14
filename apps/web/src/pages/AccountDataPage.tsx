@@ -27,7 +27,7 @@ import {
   type DataDeletionPreview,
   type DataDeletionResult,
 } from "../lib/lifecycle.js";
-import { clearAccountLocalData, clearBookLocalData } from "../lib/offline/localCleanup.js";
+import { clearAfterAccountClosure, clearBookLocalData } from "../lib/offline/localCleanup.js";
 import { deliverFile } from "../lib/share.js";
 
 function dateText(value: string | null): string {
@@ -256,11 +256,9 @@ export function AccountDataPage(): React.JSX.Element {
           action: decisions[book.bookId] ?? "leave",
         })),
       });
-      if (user !== null) {
-        await clearAccountLocalData(user.id, data.books.map((book) => book.bookId));
-      }
       setCloseResult(result);
       setDialog("close-result");
+      await cleanClosedDevice(result);
       setPassword("");
       setConfirmation("");
     } catch (caught) {
@@ -268,6 +266,12 @@ export function AccountDataPage(): React.JSX.Element {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function cleanClosedDevice(result: CloseAccountResult): Promise<void> {
+    const cleaned = await clearAfterAccountClosure(user?.id, result.closedAccountId, data?.books.map(book => book.bookId))
+      .catch(() => false);
+    setError(cleaned ? null : t("account.data.closeResult.localCleanupIncomplete"));
   }
 
   async function finishClose(): Promise<void> {
@@ -672,6 +676,10 @@ export function AccountDataPage(): React.JSX.Element {
           footer={<Button onClick={() => void finishClose()}>{t("account.data.closeResult.backToLogin")}</Button>}
         >
           <p className="text-body-relaxed text-ink">{t("account.data.closeResult.intro")}</p>
+          {error === null ? null : <Alert>{error}</Alert>}
+          {error && user && closeResult.closedAccountId === user.id ? (
+            <Button onClick={() => void cleanClosedDevice(closeResult)}>{t("account.data.closeResult.retryLocalCleanup")}</Button>
+          ) : null}
 
           {closeResult.recoveryCredential === null ? (
             <p className="mt-3 text-helper-relaxed text-muted">{t("account.data.closeResult.noCredential")}</p>

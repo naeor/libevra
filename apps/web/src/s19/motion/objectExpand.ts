@@ -74,6 +74,18 @@ function backgroundPose(style: string, fraction: number): { scale: number; opaci
   return { scale: 1, opacity: 1 };
 }
 
+/** 在插入转场舞台之前一次读完滚动位置，避免对新插入的整屏层触发同步布局。 */
+function captureScroll(page: HTMLElement): [HTMLElement, number, number][] {
+  const positions: [HTMLElement, number, number][] = [];
+  const remember = (node: HTMLElement): void => {
+    const top = node.scrollTop, left = node.scrollLeft;
+    if (top || left) positions.push([node, top, left]);
+  };
+  remember(page);
+  for (const node of page.querySelectorAll<HTMLElement>("*")) remember(node);
+  return positions;
+}
+
 interface Held { node: HTMLElement; style: string | null; inert: boolean }
 interface Opening { source: ObjectSource; style: string; duration: number; arrived: boolean; pose: (p: number) => Pose; detail: HTMLElement | null }
 interface Track { node: HTMLElement; frames: Keyframe[]; animation: Animation }
@@ -207,6 +219,9 @@ export class ObjectExpandPresentation {
     const pose = (p: number): Pose => { const e = expansion(p, phases.geometry, midScale); return { ...blend(start, full, e.fraction), scale: e.scale }; };
     const fraction = (p: number): number => expansion(p, phases.geometry, midScale).fraction;
 
+    const scrolls = captureScroll(old);
+    const documentY = window.scrollY;
+
     // 背景舞台（35）：原页面被 React 移出后接到这里；B1 下半页副本与底栏副本也在这里，都在常驻底栏（40）之下。
     const back = this.stage(style, "back"); const plane = this.plane(back); document.body.append(back); this.back = back;
     // 前景（45）：压暗层与容器；详情页面本身在 46，放在容器之上。
@@ -219,9 +234,6 @@ export class ObjectExpandPresentation {
     const navCopy = nav && !navMotionEnabled(nav) ? nav.cloneNode(true) as HTMLElement : null;
     if (navCopy) { navCopy.dataset.motionCopy = ""; navCopy.removeAttribute("id"); }
 
-    const scrolls: [HTMLElement, number, number][] = [];
-    for (const node of [old, ...old.querySelectorAll<HTMLElement>("*")]) if (node.scrollTop || node.scrollLeft) scrolls.push([node, node.scrollTop, node.scrollLeft]);
-    const documentY = window.scrollY;
     const real = this.hold(old); real.inert = true;
     if (style !== "b2") real.style.willChange = "transform";
 
@@ -325,15 +337,14 @@ export class ObjectExpandPresentation {
     const { duration: D, phases } = OBJECT_EXPAND.close;
     const W = innerWidth, H = innerHeight;
     const full: Pose = { x: 0, y: 0, width: W, height: H, scale: 1, radius: 0 };
+    const scrolls = captureScroll(old);
+    const box = old.getBoundingClientRect(), layout = { left: 0, top: 0, width: box.width || W, height: old.offsetHeight || H };
     const front = this.stage(style, "front");
     const { shell, lift, shade } = this.buildShell(style);
     front.append(shade, shell);
     const plane = this.plane(front, "s19-abc-plane object-content");
     document.body.append(front); this.front = front;
     setPose(shell, { opacity: from ? 1 : 0 }); setPose(shade, { opacity: 0 });
-    const scrolls: [HTMLElement, number, number][] = [];
-    for (const node of [old, ...old.querySelectorAll<HTMLElement>("*")]) if (node.scrollTop || node.scrollLeft) scrolls.push([node, node.scrollTop, node.scrollLeft]);
-    const box = old.getBoundingClientRect(), layout = { left: 0, top: 0, width: box.width || W, height: old.offsetHeight || H };
     // 同步提交列表；React 移出的详情节点放进前景，在收缩的容器里继续显示。
     commitNow();
     const target = page();

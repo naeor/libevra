@@ -9,7 +9,7 @@ import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 import { onPlainClick, useEntryOrigin } from "../lib/entryReturn.js";
 import { rememberPanel, useReopenPanel } from "../lib/panelMemory.js";
-import { cancelPendingAttachment, attachmentProgress, attachmentUrl, pendingAttachments, removePendingAttachment, savePendingAttachment, uploadAttachment,
+import { cancelPendingAttachment, attachmentProgress, attachmentUrl, pendingAttachments, removePendingAttachment, savePendingAttachment, updatePendingAttachment, uploadAttachment,
   useAttachments, useBookStorage, useAccountStorage, type PendingAttachment } from "../lib/attachments.js";
 import { useBooks } from "../lib/queries.js";
 import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
@@ -43,7 +43,7 @@ export function AttachmentTransfers(): null {
             try { await uploadAttachment(file, () => active); }
             catch (error) {
               const message = errorMessage(error);
-              if (active && file.error !== message && (await pendingAttachments(user!.id)).some(p => p.id === file.id)) await savePendingAttachment({ ...file, error: message });
+              if (active && file.error !== message) await updatePendingAttachment(file, { error: message });
             }
           }
           if (active && attempted) { void query.invalidateQueries({ queryKey: ["attachments"] }); void query.invalidateQueries({ queryKey: ["storage"] }); void query.invalidateQueries({ queryKey: ["transactions"] }); void query.invalidateQueries({ queryKey: ["transaction"] }); void query.invalidateQueries({ queryKey: ["ledger"] }); void query.invalidateQueries({ queryKey: ["ws-ledger"] }); void query.invalidateQueries({ queryKey: ["ledger-history"] }); void query.invalidateQueries({ queryKey: ["ledger-meta"] }); }
@@ -115,7 +115,7 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
   const storage = useBookStorage(bookId);
   const books = useBooks();
   const { readOnly: sharedOffline } = useSharedLedgerOfflineReadOnly();
-  const [pending, setPending] = useState<PendingAttachment[]>([]);
+  const [storedPending, setPending] = useState<PendingAttachment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<AttachmentView | null>(null);
   const [remove, setRemove] = useState<AttachmentView | null>(null);
@@ -147,6 +147,7 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
   }, [user?.id, bookId, selection]);
   useEffect(() => { if (entryIds.length > 1 && list.hasNextPage && !list.isFetchingNextPage && !list.isFetchNextPageError) void list.fetchNextPage(); }, [selection, list.hasNextPage, list.isFetchingNextPage, list.isFetchNextPageError, list.fetchNextPage]);
   if (!user || !bookId) return null;
+  const pending = storedPending.filter(file => file.ownerId === user.id && file.bookId === bookId && file.entryIds.some(id => entryIds.includes(id)));
   const files = (list.data?.pages.flatMap((p) => p.items) ?? []).filter((f) => f.entries.some((e) => entryIds.includes(e.id)) && f.state === "ready");
   const editable = !readOnly && !sharedOffline && books.data?.books.some(book => book.id === bookId && book.role !== "viewer") === true;
   async function chosen(files: FileList | null) {
@@ -184,7 +185,7 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
       }}>{t(file.deletedAt ? "attachments.restore" : "attachments.remove")}</button> : null}
     </li>)}</ul>
     {pending.map((file) => <div key={file.id} className="lv-attachment-pending"><span className="min-w-0 flex-1"><strong className="text-body break-all">{file.name}</strong><small className="block text-helper text-muted">{formatStorageBytes(file.blob.size)} · {t(progress.has(file.id) ? "attachments.uploading" : file.error ? "attachments.failed" : "attachments.pending")}</small>{progress.has(file.id) ? <progress className="lv-storage-progress" max={file.blob.size} value={progress.get(file.id)} /> : null}{file.error ? <span className="text-helper text-danger">{file.error}</span> : null}</span>
-      <button {...CAPSULE} className={`lv-desk-link text-helper ${MATERIAL_CLASS}`} onClick={() => { void savePendingAttachment({ ...file, error: null }); }}>{t("attachments.retry")}</button>
+      <button {...CAPSULE} className={`lv-desk-link text-helper ${MATERIAL_CLASS}`} onClick={() => { void updatePendingAttachment(file, { error: null }); }}>{t("attachments.retry")}</button>
       <button {...CAPSULE} className={`lv-desk-link text-helper ${MATERIAL_CLASS}`} onClick={() => { void cancelPendingAttachment(file).catch((e: unknown) => setError(errorMessage(e))); }}>{t("common.action.cancel")}</button></div>)}
     {pending.length ? <p className="text-helper text-muted">{t("attachments.localHint")}</p> : null}
     {storage.data ? <p className="text-helper text-muted">{t("attachments.limits", { file: formatStorageBytes(storage.data.limits.fileBytes), count: storage.data.limits.entryFiles, entry: formatStorageBytes(storage.data.limits.entryBytes) })}</p> : null}
@@ -226,7 +227,7 @@ export function AccountStorageSummary(): React.JSX.Element | null {
 export function LocalAttachmentStorage(): React.JSX.Element | null {
   const storageOrigin = useEntryOrigin();
   const { user } = useAuth(); const { t } = useI18n();
-  const [files, setFiles] = useState<PendingAttachment[]>([]), [usage, setUsage] = useState<number | null>(null);
+  const [storedFiles, setFiles] = useState<PendingAttachment[]>([]), [usage, setUsage] = useState<number | null>(null);
   useEffect(() => {
     let active = true;
     const refresh = () => {
@@ -237,11 +238,12 @@ export function LocalAttachmentStorage(): React.JSX.Element | null {
     return () => { active = false; window.removeEventListener("attachments-pending", refresh); };
   }, [user?.id]);
   if (!user) return null;
+  const files = storedFiles.filter(file => file.ownerId === user.id);
   return <section className="lv-attachments"><h2 className="text-section-title">{t("attachments.local")}</h2>
     {usage !== null ? <p>{t("attachments.localEstimate", { size: formatStorageBytes(usage) })}</p> : null}
     <p>{t("attachments.pendingBytes", { size: formatStorageBytes(files.reduce((n, f) => n + f.blob.size, 0)) })}</p>
     <p className="text-helper text-muted">{t("attachments.localSeparate")}</p>
     {files.length ? <p className="text-helper text-muted">{t("attachments.localHint")}</p> : null}
-    <ul>{files.map(f => <li className="flex flex-wrap items-center gap-2 py-2 text-helper" key={f.id}>{f.entryIds.length ? <Link className="lv-desk-link" to={`/transactions/${f.entryIds[0]}?book=${f.bookId}`} state={storageOrigin}>{f.name}</Link> : <span>{f.name} · {t("attachments.unlinked")}</span>}<span> · {formatStorageBytes(f.blob.size)} · {f.error ?? t("attachments.pending")}</span><button className="lv-desk-link" onClick={() => { const url = URL.createObjectURL(f.blob); const link = document.createElement("a"); link.href = url; link.download = f.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }}>{t("attachments.download")}</button>{!f.entryIds.length ? <button className="lv-desk-link" onClick={() => { void removePendingAttachment(f.id); }}>{t("attachments.removeDraft")}</button> : null}</li>)}</ul>
+    <ul>{files.map(f => <li className="flex flex-wrap items-center gap-2 py-2 text-helper" key={f.id}>{f.entryIds.length ? <Link className="lv-desk-link" to={`/transactions/${f.entryIds[0]}?book=${f.bookId}`} state={storageOrigin}>{f.name}</Link> : <span>{f.name} · {t("attachments.unlinked")}</span>}<span> · {formatStorageBytes(f.blob.size)} · {f.error ?? t("attachments.pending")}</span><button className="lv-desk-link" onClick={() => { const url = URL.createObjectURL(f.blob); const link = document.createElement("a"); link.href = url; link.download = f.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }}>{t("attachments.download")}</button>{!f.entryIds.length ? <button className="lv-desk-link" onClick={() => { void removePendingAttachment(f); }}>{t("attachments.removeDraft")}</button> : null}</li>)}</ul>
   </section>;
 }

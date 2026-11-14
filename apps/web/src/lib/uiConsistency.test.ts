@@ -104,7 +104,7 @@ function openingTag(source: string, start: number): string {
 describe("界面一致性", () => {
   const files = sourceFiles(SRC).map((path) => ({
     rel: relative(SRC, path).replace(/\\/g, "/"),
-    source: path.endsWith(".css") ? "" : stripComments(readFileSync(path, "utf8")),
+    source: stripComments(readFileSync(path, "utf8")),
   }));
 
   it("下拉框都使用字段形状（rounded-field），不用浏览器默认外观", () => {

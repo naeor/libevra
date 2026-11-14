@@ -82,6 +82,8 @@ export interface BookLifecycleSummary {
 }
 
 export interface CloseAccountResult {
+  /** Older servers omit the owner of the close receipt. */
+  readonly closedAccountId?: string;
   readonly method: CloseMethod;
   readonly closedAt: string;
   readonly recoveryCredential: string | null;

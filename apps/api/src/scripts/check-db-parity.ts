@@ -44,7 +44,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
  * 这个项目的连接串一直是 `.env` 的一份拷贝（Prisma 也读它），而"比较脚本连的库
  * 和应用的库不是同一个"是最经典的那种事故。
  */
-loadDotenv({ path: join(ROOT, ".env"), quiet: true });
+loadDotenv({ path: process.env["DOTENV_CONFIG_PATH"] ?? join(ROOT, ".env"), quiet: true });
 
 const LIST = process.argv.includes("--list");
 

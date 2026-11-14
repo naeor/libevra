@@ -8,7 +8,7 @@ import { config } from "dotenv";
  * pointed at the development one: the suite truncates tables between cases.
  */
 const here = fileURLToPath(new URL(".", import.meta.url));
-config({ path: resolve(here, "../../../.env"), quiet: true });
+if (!process.env["TEST_DATABASE_URL"]) config({ path: resolve(here, "../../../.env"), quiet: true });
 
 // `config` does not override a variable that is already set, so an exported
 // DATABASE_URL in the shell would win over the test one. Say so out loud rather

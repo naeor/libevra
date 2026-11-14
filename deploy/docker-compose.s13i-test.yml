@@ -67,7 +67,6 @@ services:
       API_PORT: "3000"
       DATABASE_URL: ${S13I_TEST_DATABASE_URL:?set test DATABASE_URL with db host}
       WEB_ORIGIN: http://s13i-test.invalid
-      UPLOAD_DIR: /data/uploads
       CRITICAL_EVENTS_MODE: relay
     volumes:
       - s13i-test-api-data:/data

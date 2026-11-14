@@ -166,10 +166,9 @@ COPY apps/ocr /repo/apps/ocr
 COPY apps/voice /repo/apps/voice
 
 # ---------------------------------------------------------------------------
-# ⚠️ Writable state, and only these three paths.
+# Writable model state and home directory.
 #
 #   /data/models   — the whisper model, downloaded on first use (~488 MB for `small`)
-#   /data/uploads  — a scratch directory the API may use for multipart work
 #   /home/libevra  — so anything that writes a dotfile has somewhere to do it
 #
 # Pointing `HOME` at `/data` is what makes `pywhispercpp` cache the model inside the volume
@@ -192,7 +191,7 @@ COPY apps/voice /repo/apps/voice
 # "verify dependencies before running a script" step tries to *modify* `node_modules` too.
 # Making the directory writable by the user that already owns `/data` keeps both working and
 # grants nothing that user did not already effectively have inside its own container.
-RUN mkdir -p /data/models /data/uploads \
+RUN mkdir -p /data/models \
  && chown -R 10001:10001 /data /home/libevra /repo/node_modules /repo/apps
 
 # ⚠️ **pnpm's dependency check is switched off in `deploy/npmrc.runtime`**, not here.

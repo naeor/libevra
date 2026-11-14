@@ -52,17 +52,38 @@
 
 /* 编辑控件的材质分工：A 独立薄片；B1 原 Satin 瓷片；B2 用已有实体 sheet 叠 surface
    承载瓷片按钮，不能读取它的内容玻璃 card-bg。别名只存在于这两个局部控件宿主中。 */
-:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer) {
+:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer, .sw-editor, .sw-presets) {
   --sw-edit-control-bg: var(--s19-pill-bg);
   --sw-edit-control-sh: var(--s19-pill-sh);
 }
-:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer) {
+:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer, .sw-editor, .sw-presets) {
   --sw-edit-control-bg: var(--s19-card-bg);
   --sw-edit-control-sh: var(--s19-pill-sh);
 }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer) {
+:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer, .sw-editor, .sw-presets) {
   --sw-edit-control-bg: var(--s19-sheet-bg), var(--color-surface);
   --sw-edit-control-sh: var(--s19-pill-sh);
+}
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer, .sw-editor, .sw-presets) {
+  --sw-edit-control-bg: var(--s19-pill-bg);
+  --sw-edit-control-sh: var(--s19-pill-sh);
+}
+/* 编辑顶栏沿用正式操作面；保持 sticky 的定位与层级。 */
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .sw-edit-bar {
+  background: var(--s19-sheet-bg);
+  box-shadow: var(--s19-bar-sh);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-editor, .sw-presets),
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-edit-bar, .sw-drawer) {
+  :is(.sw-pill, .sw-icon-button, .sw-chip):where(:not(.sw-pill-primary, .sw-pill-danger, .text-danger, .sw-chip-on, .sw-icon-button-on, [data-drawer-opener], [data-select-item], [data-select-toggle], [aria-pressed], [role="radio"], [role="tab"], [data-select-moving] > *, [data-select-grid] > *)) {
+    background: var(--sw-edit-control-bg);
+    box-shadow: var(--sw-edit-control-sh);
+  }
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is(.sw-editor, .sw-presets) .sw-pill-primary {
+  background: var(--s19-accent-bg);
+  box-shadow: var(--s19-accent-sh);
+  color: var(--color-on-brand);
 }
 /* 收起工具栏是一整片瓷面，仅“添加卡片”保留绿色内嵌层。 */
 :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] [data-editor-surface="drawer"][data-state="collapsed"]::before {

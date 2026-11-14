@@ -11,18 +11,7 @@ import { describe, expect, it } from "vitest";
  * is easy to agree with and easy to break — one `#ffffff` in a hurry, and the
  * next person copies it. So it is checked here.
  *
- * Three files are allowed to hold literals, and only three:
- *
- *  * `index.css` — the token definitions themselves;
- *  * `lib/tagColors.ts` — user tag colours are saved as `#RRGGBB` values in the
- *    database, so they cannot be CSS variables or follow a theme.
- *  * `components/QrCodeView.tsx` — **and this one is an optical requirement, not a
- *    colour choice.** A QR symbol is read by a camera's thresholding step, which
- *    wants the modules near 0% and the plate near 100% reflectance. **A near-black
- *    theme token is a different value and a real scanning risk**, and the failure
- *    would appear as "the QR code sometimes does not work on some phones" — the
- *    least diagnosable kind. The owner asked for these codes *"方便当面扫码加入"*,
- *    so they have to read.
+ * index.css 与 S19 令牌表定义主题值。标签预设、历史头像插画与黑白二维码各自使用固定色。
  *
  * The chart palette and ocean fills used to be exemptions; S16-B0 moved both to
  * CSS variables, so they are checked like every other component now.
@@ -42,33 +31,18 @@ import { describe, expect, it } from "vitest";
  */
 const SRC = resolve(import.meta.dirname, "..");
 
-/**
- * Files permitted to define colour literals.
- *
- * `s19-lab-tokens.css` (S19, 2026-11-07): the token definitions of the four candidate visual styles.
- * It is the same kind of file as `index.css` — values, not components — and it exists only in the
- * development server and in test builds made with `VITE_S19_STYLE_LAB=1`; production builds compile
- * the whole lab out. Every other `s19/*.css` file reads these variables and is checked as usual.
- * When a style is adopted, its values move into `index.css` and this entry goes away.
- */
-const EXEMPT = new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx", "s19-lab-tokens.css"]);
+const TOKEN_FILES = new Set(["index.css", "s19/s19-lab-tokens.css"]);
 
-/**
- * ⚠️ **One file may hardcode `rgb()`, and the reason is the same kind as `OceanBackdrop`'s.**
- *
- * `detail-motion.css` `.detail-currency-card` sets `background: rgb(255 255 255 / 0.14)` — a white
- * *glass* laid over the 明细页's green header so the currency cards read as frosted panels rather than
- * as another shade of green.
- *
- * ⚠️ **It is not a theme colour, because it is not a colour at all: it is a light effect.** Its whole
- * job is to be 14% white over *whatever is behind it*, and the thing behind it is a header whose
- * background is **interpolating on every frame of the transition**. A token would have to be a fixed
- * colour, and a fixed colour over a moving background is a different design.
- *
- * ⚠️ **And this file is inside the owner's protected range** — *"明细页动态头部……保留其已有颜色层次和动态过渡"* —
- * so the right move is to record it, not to route it through the palette for the sake of tidiness.
- */
-const ALLOWED_RGBA_FILES: readonly string[] = ["detail-motion.css"];
+/** 只在已有用途内豁免固定色，同名文件或组件里新增的界面颜色仍然检查。 */
+function scanSource(path: string): string {
+  const name = relative(SRC, path).replace(/\\/g, "/");
+  const source = stripComments(readFileSync(path, "utf8"));
+  if (TOKEN_FILES.has(name)) return source.replace(/--[\w-]+\s*:[^;{}]+(?=;|})/g, "");
+  if (name === "components/QrCodeView.tsx") return source.replace(/fill="#(?:ffffff|000000)"/g, "");
+  if (name === "components/LegacyUserAvatar.tsx") return source.replace(/(?:fill|stroke)="#[\da-f]{6}"/gi, "");
+  if (name === "lib/tagColors.ts") return source.replace(/"#[\da-f]{6}"/gi, '""');
+  return source;
+}
 
 function stripComments(source: string): string {
   return source
@@ -99,20 +73,17 @@ describe("colour literals", () => {
   const offenders: string[] = [];
 
   for (const path of sourceFiles(SRC)) {
-    const name = path.split(/[\\/]/).pop() ?? "";
-    if (EXEMPT.has(name)) continue;
-
-    const source = stripComments(readFileSync(path, "utf8"));
+    const source = scanSource(path);
     for (const match of source.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
       const line = source.slice(0, match.index).split("\n").length;
       offenders.push(`${relative(SRC, path).replace(/\\/g, "/")}:${String(line)} ${match[0]}`);
     }
   }
 
-  it("appear only in the token file, the chart palettes, the QR code and the ocean", () => {
+  it("appear only in token declarations, tag colours, QR ink or legacy avatar artwork", () => {
     expect(
       offenders,
-      `组件里出现了硬编码颜色。请按 docs/开发过程记录/颜色清单.md §7 处理：\n  ${offenders.join("\n  ")}`,
+      `组件里出现了硬编码颜色。请按 docs/specs/design/颜色主题系统实现规范.md 处理：\n  ${offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -133,11 +104,7 @@ describe("colour literals", () => {
     const rgbaOffenders: string[] = [];
 
     for (const path of sourceFiles(SRC)) {
-      const name = path.split(/[\\/]/).pop() ?? "";
-      if (EXEMPT.has(name)) continue;
-      if (ALLOWED_RGBA_FILES.includes(relative(SRC, path).replace(/\\/g, "/"))) continue;
-
-      const source = stripComments(readFileSync(path, "utf8"));
+      const source = scanSource(path);
       for (const match of source.matchAll(/rgba?\(\s*[\d.]+\s*[\s,/]+[^)]*\)/g)) {
         const value = match[0].replace(/\s+/g, " ");
         // ⚠️ `rgba(0, 0, 0, 0)` and `transparent` placeholders are structure, not colour.
@@ -169,10 +136,10 @@ describe("colour literals", () => {
 
     for (const path of sourceFiles(SRC)) {
       if (!/\.(ts|tsx)$/.test(path)) continue;
-      const name = path.split(/[\\/]/).pop() ?? "";
-      if (name === "QrCodeView.tsx") continue; // white plate is read by a camera, not by the theme
+      const file = relative(SRC, path).replace(/\\/g, "/");
       const source = stripComments(readFileSync(path, "utf8"));
       for (const match of source.matchAll(builtIn)) {
+        if (file === "components/QrCodeView.tsx" && match[0] === "bg-white") continue;
         const line = source.slice(0, match.index).split("\n").length;
         offenders.push(`${relative(SRC, path).replace(/\\/g, "/")}:${String(line)} ${match[0]}`);
       }
@@ -207,17 +174,9 @@ describe("colour literals", () => {
    * generates false alarms.**
    */
   it("stops where a rule would start misfiring, and says so", () => {
-    expect(EXEMPT).toEqual(new Set(["index.css", "tagColors.ts", "QrCodeView.tsx", "LegacyUserAvatar.tsx", "s19-lab-tokens.css"]));
-    expect(ALLOWED_RGBA_FILES).toEqual(["detail-motion.css"]);
-    /**
-      * ⚠️ **The one allowed `rgb()` is a translucency, and that is the shape of the whole exception.**
-      * If this list ever grows a *solid* colour, the exception was not needed — a solid colour can be a
-      * token, and the test above exists to say so.
-      */
-    const allowed = readFileSync(join(SRC, "detail-motion.css"), "utf8");
-    for (const match of allowed.matchAll(/rgba?\([^)]*\)/g)) {
-      expect(match[0], "白名单里的颜色必须带透明度（是光效，不是主题色）").toMatch(/\/\s*[\d.]+|,\s*[\d.]+\s*\)$/);
-    }
+    const qr = scanSource(join(SRC, "components/QrCodeView.tsx"));
+    expect(qr).not.toContain('fill="#ffffff"');
+    expect(qr).toContain("<rect");
   });
 
   it("keeps the check honest by finding the files it is meant to guard", () => {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createOverlayExit, OVERLAY_EXIT_MS } from "./overlayExit.js";
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe("弹窗退出生命周期", () => {
   it("动画结束才关闭，同一帧连续触发只执行一次", () => {
     vi.useFakeTimers();
@@ -16,6 +16,16 @@ describe("弹窗退出生命周期", () => {
     expect(close).toHaveBeenCalledOnce();
     expect(duplicate).not.toHaveBeenCalled();
     expect(phase).toHaveBeenLastCalledWith(false);
+  });
+  it("减少动态时下一轮即可关闭，连续点击只执行一次", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const close = vi.fn();
+    const exit = createOverlayExit(() => undefined);
+    exit.schedule(close);
+    exit.schedule(close);
+    vi.advanceTimersByTime(0);
+    expect(close).toHaveBeenCalledOnce();
   });
   it("卸载或关闭后重新打开会取消旧计时，不延迟执行旧操作", () => {
     vi.useFakeTimers();

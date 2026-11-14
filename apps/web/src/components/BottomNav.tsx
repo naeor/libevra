@@ -398,7 +398,7 @@ export function BottomNavView({
         aria-hidden={!open}
         // 1.19.66：记一笔菜单展开时提示条让开并暂停（与原头像横幅相同），收起后再出现。
         data-toast-yield={open ? "" : undefined}
-        className={`lv-entry-menu absolute inset-x-0 bottom-full transition-all duration-200 ease-out ${
+        className={`lv-entry-menu absolute inset-x-0 bottom-full transition-all duration-200 ease-out motion-reduce:transition-none ${
           open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
@@ -593,7 +593,7 @@ export function BottomNavView({
                   className="mx-auto -mt-8 mb-2 flex size-16 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg ring-4 ring-surface transition hover:bg-brand-dark"
                 >
                   <PlusIcon
-                    className={`size-8 transition-transform duration-200 ease-out ${
+                    className={`size-8 transition-transform duration-200 ease-out motion-reduce:transition-none ${
                       open ? "rotate-45" : "rotate-0"
                     }`}
                   />

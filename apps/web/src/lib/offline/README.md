@@ -1,5 +1,7 @@
 # apps/web/src/lib/offline · 阅读入口
 
+> 最后修改：2026-11-15 06:41（UTC+08:00）
+
 本地存储、操作队列、离线读写与同步；修改按同步专项验收。
 
 优先阅读[任务索引](../../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
@@ -42,7 +44,7 @@
 | [ledgerOrder.test.ts](ledgerOrder.test.ts) | 测试：ledgerOrder |
 | [localCleanup.device.test.ts](localCleanup.device.test.ts) | 测试：localCleanup.device |
 | [localCleanup.test.ts](localCleanup.test.ts) | 测试：localCleanup |
-| [localCleanup.ts](localCleanup.ts) | 实现模块；入口/导出：clearBookLocalData、clearAccountLocalData、clearSignedOutAccountData、clearSignedOutQueryCache |
+| [localCleanup.ts](localCleanup.ts) | 实现模块；入口/导出：clearBookLocalData、clearAccountLocalData、clearAfterAccountClosure、clearSignedOutAccountData、clearSignedOutQueryCache |
 | [localLedger.analysisRange.test.ts](localLedger.analysisRange.test.ts) | 测试：localLedger.analysisRange |
 | [localLedger.test.ts](localLedger.test.ts) | 测试：localLedger |
 | [localLedger.ts](localLedger.ts) | 实现模块；入口/导出：transactionsFromCache、transactionsFromCacheCached、readLocalTransactions、ledgerMonthsKey、ledgerMarksKey |

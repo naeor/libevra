@@ -36,7 +36,7 @@ export function RecoveryCodeCard({
     <div className="flex flex-col gap-5">
       <Alert tone="info">{t("auth.recoveryCard.notice")}</Alert>
 
-      <Card className="bg-brand-soft/50 text-center">
+      <Card data-emphasis-card="" className="bg-brand-soft/50 text-center">
         <p className="font-mono text-lg tracking-[0.18em] text-brand-dark select-all">{code}</p>
       </Card>
 

@@ -349,6 +349,7 @@ export async function updateEntry(
   id: string,
   input: UpdateTransactionInput,
   apply: (current: Transaction) => Transaction,
+  seen?: Transaction,
 ): Promise<WriteOutcome | null> {
   if (guestRuntimeId() !== null) {
     const updated = await updateGuestTransaction(id, input, apply);
@@ -394,27 +395,26 @@ export async function updateEntry(
    * exists — **and the fallback was to ask about everything, which is what put the yellow mark on edits nobody
    * disagreed with.**
    */
-  /**
-   * ⚠️ **The chain is built from the server's last confirmed copy, and building it from the local one lost data.**
-   *
-   * The owner's test: the tablet went 20 → 40 and synced; the phone changed it to 20; the tablet — still showing
-   * 40 — edited again, **and the server took the tablet's 40, overwriting the phone's change with nobody asked.**
-   *
-   * **Why**: the chain started from `current`, the device's own copy, and the version sent was the device's own
-   * too — which it had just incremented itself. The server compared the two, found them equal, read the change as
-   * "editing what I just saw", and accepted it. **The device was describing a state the server had never been in.**
-   *
-   * ⚠️ **Falling back to the local copy when there is no confirmed one is the safe direction**: the version will
-   * then be older than the server's, the server compares properly, and **a genuine disagreement becomes a conflict
-   * instead of a silent overwrite.** The alternative — sending a version that looks current — is the bug.
-   */
-  const chain = extendChain(previousMark?.chain, current, apply(current));
-
-  const next: Transaction = { ...apply(current), version: current.version + 1 };
-
+  // The detail query and the downloaded month can hold different revisions. The user's
+  // intention starts at the value in the editor, including when the month already has the target.
+  const base = seen?.id === id ? seen : current;
+  const edited = apply(base);
+  const chain = extendChain(previousMark?.chain, base, edited);
+  const auditChanges = deviceAuditChanges(base, edited);
+  const next = { ...(base === current ? edited : current), version: current.version + 1 };
+  if (base !== current) {
+    // Only merge what the editor changed. Leave other fields and pending edits in the month alone.
+    for (const [field, change] of Object.entries(auditChanges)) {
+      if (field === "tagIds") next.tags = edited.tags;
+      else Object.assign(next, { [field]: change.to });
+    }
+    if (auditChanges["categoryId"]) {
+      next.categoryName = edited.categoryName;
+      next.categoryIsSystem = edited.categoryIsSystem;
+    }
+    if (auditChanges["paymentMethodId"]) next.paymentMethodName = edited.paymentMethodName;
+  }
   await upsertEntry(next);
-  /** ⚠️ synced: true because the server already has this entry, so a sync changes it rather than creating it. */
-  const auditChanges = deviceAuditChanges(current, next);
   await setMark(id, { pending: true, synced: previousMark?.synced !== false, chain, deviceEdits: [...(previousMark?.deviceEdits ?? []), { at: new Date().toISOString(), changes: auditChanges }] });
   await afterWrite();
 
@@ -609,12 +609,12 @@ function fieldValue(entry: Transaction, field: string): unknown {
 export function onlineChanges(
   before: Transaction,
   after: Transaction,
-): { readonly field: string; readonly base: unknown; readonly wanted: unknown; readonly chain: readonly unknown[] }[] {
+): NonNullable<UpdateTransactionInput["changes"]> {
   return Object.entries(extendChain(undefined, before, after)).map(([field, values]) => ({
     field,
     base: values[0],
     wanted: values[values.length - 1],
-    chain: values,
+    chain: [...values],
   }));
 }
 

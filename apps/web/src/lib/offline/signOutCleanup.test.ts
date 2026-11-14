@@ -57,6 +57,24 @@ describe("退出登录清理本账号的本机副本", () => {
     expect(await clearSignedOutAccountData("")).toEqual({ removed: 0, keptBooks: [] });
   });
 
+  it("服务器已确认的删除不是待上传记录，共用设备按账号所在段识别", async () => {
+    store.set("ledger-marks:user-a:book-a", { e: { pending: false, synced: true, deleted: true } });
+    store.set("ledger-months:user-b:user-a:isolated-v1", { test: true });
+    const result = await clearSignedOutAccountData("user-a");
+    expect(result.keptBooks).not.toContain("book-a");
+    expect(store.has("ledger-months:user-a:book-a")).toBe(false);
+    expect(store.has("ledger-months:user-b:user-a:isolated-v1")).toBe(true);
+  });
+
+  it("读不到已列出的标记或旧版删除无明确回执时保留原始月份", async () => {
+    store.set("ledger-marks:user-a:book-a", null);
+    store.set("ledger-marks:user-a:book-c", { e: { deleted: true, synced: true } });
+    const result = await clearSignedOutAccountData("user-a");
+    expect(result.keptBooks).toEqual(expect.arrayContaining(["book-a", "book-c"]));
+    expect(store.has("ledger-months:user-a:book-a")).toBe(true);
+    expect(store.has("ledger-months:user-a:book-c")).toBe(true);
+  });
+
   it("节流中迟到的缓存写入：第二次只清这个账号的查询缓存", async () => {
     await clearSignedOutAccountData("user-a");
     store.set("query-cache:user-a:book-a", "{late}");

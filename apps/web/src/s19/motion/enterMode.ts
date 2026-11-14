@@ -1,5 +1,6 @@
 import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
 import { ENTER_MODE, MOTION_CLOCK, easingFunction } from "../../lib/motionTokens.js";
+import { STYLE_LAB_ENABLED } from "../../lib/visualStyle.js";
 import { markS19Stage } from "../scope.js";
 
 /**
@@ -21,6 +22,7 @@ import { markS19Stage } from "../scope.js";
  */
 
 export function enterModeOptions(search: string): { duration?: number } {
+  if (!STYLE_LAB_ENABLED) return {};
   const ms = Number(new URLSearchParams(search).get("enterMs"));
   return (ENTER_MODE.choices as readonly number[]).includes(ms) ? { duration: ms } : {};
 }

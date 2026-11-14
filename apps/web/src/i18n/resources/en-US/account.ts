@@ -17,7 +17,7 @@ const account: Messages<typeof zh> = {
     signOut: "Sign out",
     signOutTitle: "Sign out?",
     signOutDescription:
-      "You’ll need to sign in again. Entries on the server won’t be deleted; the offline copy on this device will be cleared, and anything not yet synced stays until you sign in again and it syncs.",
+      "You’ll need to sign in again. Entries on the server won’t be deleted; the offline copy on this device will be cleared, and unsynced entries and pending attachments stay on this device. Sign in to the same account to sync or retrieve the files.",
     signOutSession: "You’ll be signed out on this device right away",
     signOutRecovery: "If you forget your password, you’ll need your recovery code to reset it",
   },
@@ -39,23 +39,23 @@ const account: Messages<typeof zh> = {
     display: "Display",
     deviceData: "Data on this device",
     clearGuest: "Clear guest data",
-    clearAll: "Clear all Libevra data on this device",
+    clearAll: "Clear guest data, offline ledgers, and preferences",
     noBackup:
       "Guest data is stored only on this device. Clearing browser data or switching devices may result in data loss.",
     clearGuestDialog: {
       title: "Clear guest data?",
       description:
-        "Only the guest identity and local ledger in this browser are deleted. Your account’s offline data and sign-in aren’t affected.",
+        "The guest identity, local ledger, and guest preferences in this browser are deleted. Your account’s offline data and sign-in aren’t affected.",
       removed: "The guest identity and local ledger will be deleted from this device",
       noBackup: "There’s no cloud backup, so this can’t be undone",
       fresh: "Using guest mode again will start a new, empty ledger",
       confirm: "Clear guest data",
     },
     clearAllDialog: {
-      title: "Clear all Libevra data on this device?",
+      title: "Clear guest data, offline ledgers, and preferences?",
       description:
-        "This includes the guest identity and local ledger, the offline ledger copies and cache for the signed-in account, and the app’s offline cache.",
-      everything: "All Libevra data on this device will be deleted",
+        "This clears the guest identity and ledger, offline ledgers for all accounts, import tasks, app caches, and device preferences. Pending attachments stay on this device.",
+      everything: "Unsynced entries and edits will be permanently lost",
       serverKept: "Accounts and entries on the server won’t be deleted",
       twoSteps: "You’ll be asked to confirm once more",
       confirm: "Continue",
@@ -67,7 +67,7 @@ const account: Messages<typeof zh> = {
       guestLost: "The guest ledger can’t be recovered",
       reDownload: "You’ll need to sign in again or re-download offline data for your account",
       serverKept: "Nothing on the server is affected",
-      confirm: "Clear all local data",
+      confirm: "Clear ledgers, cache, and preferences",
     },
   },
   guest: {
@@ -253,7 +253,7 @@ const account: Messages<typeof zh> = {
       eyebrow: "This can’t be undone",
       submit: "Close account",
       intro:
-        "After closing your account, you can no longer sign in or sync. Each ledger will be handled as listed below.",
+        "After closing your account, you can no longer sign in or sync. This account’s unsynced entries, pending attachments, and import tasks on this device will be deleted. Download any files you want to keep from Downloads & offline first. Your ledgers will be handled as listed below.",
       archived: "Archived · {{date}}",
       optionLeave: "Leave shared ledger",
       optionArchive: "Archive ledger (restorable for 60 days)",
@@ -263,6 +263,8 @@ const account: Messages<typeof zh> = {
         "If you keep archived ledgers, a recovery credential will be shown once. It can only be used to request recovery of eligible ledgers, not your account. Other devices will sign out when they reconnect.",
     },
     closeResult: {
+      retryLocalCleanup: "Retry local cleanup",
+      localCleanupIncomplete: "Your account is closed, but some local data could not be cleared. Save any recovery credential shown below. On a shared device, clearing this site’s data in the browser also removes other accounts’ and guests’ local data.",
       title: "Account closed",
       eyebrow: "No longer in use",
       backToLogin: "Back to sign in",

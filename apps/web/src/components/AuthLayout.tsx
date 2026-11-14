@@ -40,7 +40,7 @@ export function AuthLayout({
 }): React.JSX.Element {
   const { t } = useI18n();
   return (
-    <main className="min-h-dvh bg-canvas">
+    <main data-auth-layout="" className="min-h-dvh bg-canvas">
       <div className="relative mx-auto flex w-full max-w-[26rem] flex-col px-5 pt-12 pb-10 sm:pt-16">
         {/**
           * ⚠️ **登录前也能切换语言**（S16 国际化）。放在右上角、不占表单的位置；

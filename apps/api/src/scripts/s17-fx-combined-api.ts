@@ -7,7 +7,7 @@
  * 2. 注册开放（仅本进程），并带本地测试协议，便于合成账号走完整的登录流程。
  *
  * 用法（在 apps/api 下）：
- *   DATABASE_URL=… SESSION_SECRET=… node --import tsx src/scripts/s17-fx-combined-api.ts
+ *   DATABASE_URL=… node --import tsx src/scripts/s17-fx-combined-api.ts
  */
 import { APP_VERSION } from "@libellum/shared";
 import { Pool } from "pg";

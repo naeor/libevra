@@ -92,6 +92,7 @@ const entry: Messages<typeof zh> = {
       "You’re offline, so this shared ledger is view-only. You can edit or delete this entry once you’re back online. Changes that haven’t synced yet are kept.",
     tagsHeading: "Tags (up to {{max}})",
     batchAdd: "Batch add",
+    changedWhileEditing: "This entry changed while you were editing. Your draft is still here. Copy any changes you want to keep, then go back to review the updated entry and edit again.",
     saveChanges: "Save changes",
     notRecorded: "Not recorded",
     number: "Number",

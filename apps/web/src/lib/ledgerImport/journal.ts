@@ -75,3 +75,18 @@ export function loadPendingTasks(): readonly PendingImportTask[] {
   }
   return tasks.sort((left, right) => right.createdAt.localeCompare(left.createdAt, "en"));
 }
+
+/** The key contains the import id, not its owner. Never claim an unreadable/ownerless legacy task. */
+export function clearAccountImportTasks(userId: string): void {
+  const target = storage();
+  if (!target || !userId) return;
+  for (let index = target.length - 1; index >= 0; index--) {
+    const itemKey = target.key(index);
+    if (!itemKey?.startsWith(KEY_PREFIX)) continue;
+    const raw = target.getItem(itemKey);
+    if (raw === null) continue;
+    let task: { userId?: unknown } | null;
+    try { task = JSON.parse(raw); } catch { continue; }
+    if (task?.userId === userId) target.removeItem(itemKey);
+  }
+}

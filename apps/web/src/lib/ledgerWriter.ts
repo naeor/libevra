@@ -19,7 +19,7 @@ export interface LedgerWriter {
   readonly foreign: string | null;
   create(input: CreateTransactionInput, entry: Transaction): Promise<WriteOutcome>;
   /**
-   * @param seen 用户看到并据以修改的那一份（外部账本据此算出「从哪个值改成哪个值」）；省略时先向服务器读一次。
+   * @param seen 用户打开编辑时看到的原值；当前账本和外部账本都以这份原值生成修改历史。
    */
   update(id: string, input: UpdateTransactionInput, apply: (current: Transaction) => Transaction, seen?: Transaction): Promise<WriteOutcome | null>;
   remove(id: string): Promise<void>;

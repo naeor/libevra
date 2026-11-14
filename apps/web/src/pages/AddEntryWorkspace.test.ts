@@ -32,7 +32,7 @@ describe("离开前询问的统一做法（useLeaveConfirm）", () => {
 
   it("去别处（链接确认、流程下一步）先退掉保护记录、回到这一页再前往，浏览器历史与没有询问时一样", () => {
     expect(guard).toContain("if (released) { released(true); return; }");
-    expect(guard).toContain('window.addEventListener("popstate", () => { action(); }, { once: true });');
+    expect(guard).toContain("afterBackGuard(leaveGuarded, action)");
     expect(guard).toContain("discardHere(() => { void navigate(to); });");
     expect(guard).toContain("discardHere(() => { void navigate(path, options); });");
   });
