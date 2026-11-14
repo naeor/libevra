@@ -1,6 +1,6 @@
 # BUG 记录
 
-> 最后修改：2026-11-14 12:45（UTC+08:00）
+> 最后修改：2026-11-14 13:27（UTC+08:00）
 
 > **这份文档记"发现了但还没查清 / 还没修"的问题。**
 > 与另外两份的分工，不要混：
@@ -184,10 +184,27 @@ transaction_events    = 只有 created（+1 条 member_changed）
 | 项 | 值 |
 |---|---|
 | **发现时间** | 2026-11-14（1.19.62 实施 agent 对比改动前后的构建产物时发现） |
-| **状态** | ⬜ 未修（待所有者决定是否单独修） |
-| **环境** | 生产构建（1.19.56 起即存在，与 1.19.57–1.19.62 无关）；安卓 Chrome、电脑版 Chrome / Edge 等 Chromium 内核浏览器 |
-| **严重度** | 中——B2 弹出面板等处没有背景模糊，后方页面的字直接透过来，可读性下降；iPhone Safari 不受影响（只认带前缀写法） |
+| **状态** | ✅ 已修（1.19.64，仅本机，未部署；2026-11-14 复现并确认根因） |
+| **环境** | 生产构建；安卓 Chrome、电脑版 Chrome / Edge 等 Chromium 内核浏览器。生产 1.19.49（四种视觉风格首次随正式版本发布）起的源码里就有触发写法，现行生产 1.19.56 仍有（见下方“存在范围”） |
+| **严重度** | 中——B2 弹出面板等处没有背景模糊，后方页面的字直接透过来，可读性下降；iPhone Safari 不受影响（Safari 18 以前只认带前缀写法，之后两种都认） |
 
-**实测证据（构建产物，agent 报告，主会话未复核）**：CSS 压缩会把同一规则里“先写 `backdrop-filter`、后写 `-webkit-backdrop-filter`”合并成只剩带前缀的一条；Chromium 只认无前缀的 `backdrop-filter`，所以构建后没有模糊。开发服务器不压缩，所以开发时看不出来。
+**实测证据（2026-11-14 复现）**：
 
-**下一步**：调换两行顺序（先带前缀、后无前缀）或关闭这项压缩合并；加一条针对构建产物的守卫检查，确认无前缀写法仍在。
+- 修复前在主目录 `f52c0607` 真实构建：源码里同一规则同时写两种写法的共 41 条，其中 9 条是“先无前缀、后带前缀”；进生产构建的 6 条在产物里**全部只剩 `-webkit-backdrop-filter`**，另外 3 条在只在开发服务器上打开的实验页（`s19/adaptation-lab/lab.css`），不进生产构建。“先带前缀”的 32 条两种写法都在。
+- 受影响的 6 条与源文件：`s19/overlays.css` 两条——B2 弹出面板操作面的模糊（`[data-overlay-surface]::before`，**本 bug 的主要现象**）与浮层根节点的“不模糊”重置（`[data-overlay-root]`，没有别的规则给根节点设模糊，丢了看不出差别）；`s19/material-components.css` 的 B2 磨砂（frosted）展示材质（正式页面目前没有用到这个变体，只在开发用组件样板页出现）；`s19/motion/objectExpand.css` 的 B2 点开账目转场容器；`s19/wallpaper.css` 的外观设置里 B2 壁纸样张；`pages/theme-appearance.css` 的外观设置里 B2 风格图标。
+- 本机 Google Chrome（无头）里 `CSS.supports('-webkit-backdrop-filter', 'blur(1px)')` 为 `false`、无前缀为 `true`；用修复前的构建打开 B2 明细筛选面板，面板 `::before` 的计算值是 `backdrop-filter: none`，修复后是 `blur(9.1px) saturate(1.5)`。
+- 开发服务器不经过 Lightning CSS，所以开发时两种写法都在、看不出问题。
+
+**根因（已用最小样例与开关对照验证）**：构建里有两步用 Lightning CSS 处理 CSS——Tailwind 4 的优化步骤（`@tailwindcss/vite` 构建时调用，Lightning CSS 1.32，只处理以 `index.css` 为入口、由它 `@import` 进来的样式，例如 `wallpaper.css`）与 Vite 8 默认的 CSS 压缩（`build.cssMinify` 默认 `lightningcss`，1.33，处理所有 CSS）。Lightning CSS 把 `backdrop-filter` 与 `-webkit-backdrop-filter` 当成同一个属性的两种前缀：**后写的是带前缀那条时，它认为带前缀那条覆盖了前面的无前缀写法，只输出带前缀的一条**；后写的是无前缀那条时，它合并成一条，再按目标浏览器补出 `-webkit-`（目标里有 Safari / iOS 16.4）。最小样例在两个版本上表现一致，并且：
+
+- **与浏览器目标无关**：Vite 解析后的 `build.cssTarget` 本来就是 `chrome111, edge111, firefox114, safari16.4, ios16.4`（默认 `baseline-widely-available`），已经包含 Chromium；不给目标、默认目标、只给 Safari 18 都一样丢；
+- **与是否压缩无关**：`minify: false` 也丢（合并发生在转换阶段，不是去空格那一步）；关掉 Tailwind 优化只让 `wallpaper.css` 那条晚一步在 Vite 压缩里丢；
+- **没有单独关掉这项合并的开关**：`exclude: Features.VendorPrefixes` 也照样丢；同样反着写的 `user-select`、`mask-image`、`background-clip` 不受影响，是 `backdrop-filter` 特有的处理。
+
+**存在范围**：触发写法（`overlays.css` 的 B2 面板规则）在 2026-11-08 的 `7b03582d` 引入；`v1.19.49`、`v1.19.53`、`v1.19.56` 三个生产标签的源码里都有，项目一直是 Vite 8 + Lightning CSS，所以推断这些生产构建同样丢失（没有逐版重新构建验证）。
+
+**修法（1.19.64）**：把 9 条反序规则改成“先 `-webkit-backdrop-filter`、后 `backdrop-filter`”（CSS 的通行顺序，其余 32 条本来就是这样），取值不变。选这个而不是改配置，是因为配置层面没有可用的修法：目标浏览器已经包含 Chromium，Lightning CSS 也没有只关这一项的开关；要绕开只能整体停用 Tailwind 优化与 Vite 的 CSS 压缩，或关掉全部自动前缀——前者让 CSS 变大并失去嵌套展开等降级处理，后者让 iPhone Safari 18 以前丢掉其他属性的前缀，代价都远大于问题本身。修复后产物与修复前相比，CSS 只有这 6 条规则各多出一条与带前缀取值相同的 `backdrop-filter`，其余 CSS 逐字相同；JS 去掉构建时间戳与文件名哈希后逐字相同。带前缀写法全部保留，iPhone Safari 不受影响。
+
+**守卫**：新增 `tools/check-built-css.mjs`，`pnpm check:build`（因而 `check:delivery`）在构建成功后自动扫描 `apps/web/dist` 的全部 CSS：同一规则里只有带前缀、只有无前缀，或两种取值不同都算失败，并列出文件与规则。已验证修复前的产物与修复前的源码跑 `check:build` 都失败（列出上面 6 条），修复后通过（38 条成对）。守卫自带自检样例，并在一条 `backdrop-filter` 都找不到或 CSS 解析没有回到顶层时报错，不会因为扫描失效而“永远通过”。也可以单独检查已有的构建目录：`node tools/check-built-css.mjs [目录]`。
+
+**未验证**：安卓真机与电脑版 Edge 没有看过，只在本机 Chrome（同为 Chromium 内核）里用生产构建截图对比；安卓上多出的真实背景模糊对低端机流畅度的影响没有测。
