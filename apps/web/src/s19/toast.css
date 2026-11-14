@@ -90,7 +90,12 @@
   }
 }
 
-/* ---- B2 页面转场（View Transition）期间不被新旧页面快照盖住：提示宿主单独成一组，画在页面组之上。 ---- */
+/* ---- B2 页面转场（View Transition）期间不被新旧页面快照盖住：提示宿主单独成一组，画在页面组之上。 ----
+   s19/motion/motion.css 与 hybrid.css 用 (*) 给所有组套页面的滑入、后退模糊和环境底色；提示条不是页面，这里取消：
+   旧图不显示、新图不动画、组没有底色——提示原地不动，只按组的位置动画跟到新页面的位置（例如底栏消失后下移）。 */
 :root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-s19-scope] .lv-toast-host {
   view-transition-name: lv-toast;
 }
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-group(lv-toast) { background: none; overflow: visible; }
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-old(lv-toast) { animation: none; opacity: 0; }
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-new(lv-toast) { animation: none; opacity: 1; filter: none; transform: none; }

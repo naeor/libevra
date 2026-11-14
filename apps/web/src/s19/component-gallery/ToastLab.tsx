@@ -42,6 +42,17 @@ function scene(slot: number, partial: Partial<ToastView<ReactNode>> & Pick<Toast
   return { id: slot, slot, appearance: 1, revision: 0, detail: undefined, leading: undefined, action: undefined, closable: false, echo: false, ...partial };
 }
 
+const ROWS = ["午餐 · 便利店", "地铁 · 通勤", "咖啡 · 公司楼下", "超市 · 日用品", "电影票 · 周末", "水电 · 十一月", "晚餐 · 家附近", "书 · 网上书店"];
+function row(label: string, index: number): React.JSX.Element {
+  return (
+    <div key={label} className="tl-row">
+      <span className="tl-dot" data-kind={index % 3} />
+      <span className="tl-row-text">{label}</span>
+      <span className="tl-row-amount">-{(index * 13.7 + 18).toFixed(2)}</span>
+    </div>
+  );
+}
+
 /** 背后的内容：列表、品牌色卡片、深色块——B2 玻璃压在不同底色上的可读性。 */
 function Backdrop(): React.JSX.Element {
   return (
@@ -50,14 +61,10 @@ function Backdrop(): React.JSX.Element {
         <span>本月支出</span>
         <b>¥ 3,286.40</b>
       </div>
-      {["午餐 · 便利店", "地铁 · 通勤", "咖啡 · 公司楼下", "超市 · 日用品", "电影票 · 周末", "水电 · 十一月", "晚餐 · 家附近", "书 · 网上书店"].map((row, index) => (
-        <div key={row} className="tl-row">
-          <span className="tl-dot" data-kind={index % 3} />
-          <span className="tl-row-text">{row}</span>
-          <span className="tl-row-amount">-{(index * 13.7 + 18).toFixed(2)}</span>
-        </div>
-      ))}
+      {ROWS.slice(0, 2).map(row)}
+      {/* 深色块放在第三、四条提示后面：B2 玻璃压在深色上是可读性最坏的情况之一。 */}
       <div className="tl-dark-card">图片附件预览</div>
+      {ROWS.slice(2).map(row)}
     </div>
   );
 }
