@@ -3,6 +3,7 @@ import { InnerPage } from "../components/Layouts.js";
 import { useI18n } from "../i18n/index.js";
 import { ThemePreview } from "../components/ThemePreview.js";
 import { AppearanceStyleSection } from "./AppearanceStyleSection.js";
+import type { VisualStyleController } from "../lib/visualStyle.js";
 import { BottomSheet } from "../components/BottomSheet.js";
 import { MovingSelection } from "../components/ui/SelectionControls.js";
 import "./theme-appearance.css";
@@ -22,9 +23,12 @@ const PALETTES: readonly ThemePalette[] = ["green", "yellow", "orange", "blue", 
 export function ThemeAppearanceView({
   preference,
   onChoose,
+  controller,
 }: {
   readonly preference: ThemePreference;
   readonly onChoose: (next: Partial<ThemePreference>) => void;
+  /** 只给开发样板页注入一个内存里的控制器；正式页面不传，用全局运行时。 */
+  readonly controller?: VisualStyleController | null;
 }): React.JSX.Element {
   const { t } = useI18n();
   const paletteLabel = (palette: ThemePalette): string => t(`settings.theme.palettes.${palette}`);
@@ -66,7 +70,8 @@ export function ThemeAppearanceView({
             {selectedPaletteLabel}
           </span>
         </div>
-        <div role="group" aria-label={t("settings.theme.palette")} className="grid grid-cols-7">
+        {/* 1.19.70：七个主题色圆点互斥、排成一行 → 横向会移动的选中；圆点自己的颜色与选中环（第二信号）、aria-pressed、点击原样。 */}
+        <MovingSelection axis="x" role="group" aria-label={t("settings.theme.palette")} className="grid grid-cols-7">
           {PALETTES.filter((value) => AVAILABLE_THEME_PALETTES.includes(value)).map((value) => {
             const selected = preference.palette === value;
             const label = paletteLabel(value);
@@ -92,10 +97,10 @@ export function ThemeAppearanceView({
               </button>
             );
           })}
-        </div>
+        </MovingSelection>
       </section>
 
-      <AppearanceStyleSection />
+      <AppearanceStyleSection {...(controller === undefined ? {} : { controller })} />
       {/* 弹出面板模板（1.19.58）：外观预览是 T4 信息说明，按内容高度（1.19.63 起最高到大档），右上角 × 代替「关闭」文字按钮。 */}
       {preview && <BottomSheet label={t("settings.theme.previews")} title={t("settings.theme.previews")} detent="content" onClose={() => setPreview(false)} dialogClassName="appearance-preview-sheet">
         {() => <>

@@ -5,6 +5,7 @@ import { DEFAULT_GLASS_BLUR, materialAttributes } from "../s19/material.js";
 import "../s19/material-components.css";
 import { B2GlassSection } from "../s19/B2GlassSection.js";
 import { WallpaperSection } from "../s19/WallpaperSection.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 
 export const APPEARANCE_STYLES = ["c", "a", "b1", "b2"] as const;
 export const B1_BLUR_PRESETS = [30, 55, 80] as const;
@@ -24,7 +25,8 @@ export function AppearanceStyleSection({ controller = visualStyleRuntime() }: { 
   return <div>
     <section className="lv-settings-theme-options flex flex-col gap-2">
       <h2 className="text-section-title text-ink">{t("settings.visualStyle.title")}</h2>
-      <div role="group" aria-label={t("settings.visualStyle.title")} className="flex flex-col gap-2">
+      {/* 1.19.70：四种风格是互斥的竖排单选（不滚动）→ 竖向会移动的选中（S19 §3「怎么选」）；按钮、aria-pressed、点击原样。 */}
+      <MovingSelection axis="y" role="group" aria-label={t("settings.visualStyle.title")} className="flex flex-col gap-2">
         {/* 1.19.53：S19 浅色手机里是交互卡材质（原来是不透明白片）；Original / 深色仍是原来的白片与品牌浅底选中态。 */}
         {APPEARANCE_STYLES.map(value => <button type="button" key={value} aria-pressed={style === value}
           {...materialAttributes("interactive")} style={{ "--lv-material-radius": "var(--radius-field)" } as React.CSSProperties}
@@ -34,7 +36,7 @@ export function AppearanceStyleSection({ controller = visualStyleRuntime() }: { 
             <span className="block text-helper text-muted">{t(`settings.visualStyle.${value}.note`)}</span></span>
           <span aria-hidden="true" className={style === value ? "text-brand-dark" : "invisible"}>✓</span>
         </button>)}
-      </div>
+      </MovingSelection>
       {style === "original" && <p className="text-helper text-muted">{t("settings.visualStyle.legacy")}</p>}
       <p className="text-helper text-muted">{t("settings.visualStyle.support")}</p>
     </section>
@@ -42,7 +44,7 @@ export function AppearanceStyleSection({ controller = visualStyleRuntime() }: { 
       <section className="lv-settings-theme-options flex flex-col gap-2">
         <h2 className="text-section-title text-ink">{t("settings.visualStyle.blur")}</h2>
         {/* 1.19.52：与“玻璃效果”三档同一种竖排（名称 + 一行说明）；按钮本身是瓷面（satin 显式候选，只在 B1 浅色手机外壳生效）。 */}
-        <div role="group" aria-label={t("settings.visualStyle.blur")} className="flex flex-col gap-2">
+        <MovingSelection axis="y" role="group" aria-label={t("settings.visualStyle.blur")} className="flex flex-col gap-2">
           {B1_BLUR_PRESETS.map(value => <button type="button" key={value} aria-pressed={blur === value} onClick={() => controller?.chooseBlur(value)}
             {...materialAttributes("interactive", { finish: "satin" })}
             style={{ "--lv-material-radius": "var(--radius-field)" } as React.CSSProperties}
@@ -50,7 +52,7 @@ export function AppearanceStyleSection({ controller = visualStyleRuntime() }: { 
             <span className="block font-medium">{t(`settings.visualStyle.blur${value}`)}</span>
             <span className="block text-helper text-muted">{t(`settings.visualStyle.blurNote${value}`)}</span>
           </button>)}
-        </div>
+        </MovingSelection>
         {!B1_BLUR_PRESETS.some(value => value === blur) && <p className="text-helper text-muted">{t("settings.visualStyle.retainedBlur", { value: blur })}</p>}
       </section>
     </Reveal>

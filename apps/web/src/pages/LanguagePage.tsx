@@ -1,4 +1,5 @@
 import { InnerPage } from "../components/Layouts.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { LOCALE_NATIVE_NAMES, SUPPORTED_LOCALES, useI18n, type Locale } from "../i18n/index.js";
 import { browserLanguages, detectLocale } from "../i18n/locales.js";
 import type { LanguagePreference } from "../lib/language.js";
@@ -36,7 +37,9 @@ export function LanguageChoiceList({
   ];
 
   return (
-    <div
+    // 1.19.70：三项互斥的竖排单选 → 竖向会移动的选中；role="radio" / aria-checked、点击、键盘原样，Original 与深色仍用右侧圆点。
+    <MovingSelection
+      axis="y"
       role="radiogroup"
       aria-label={t("language.switchLabel")}
       className="lv-settings-list overflow-hidden rounded-card border border-line bg-surface [&>*+*]:border-t [&>*+*]:border-line"
@@ -74,7 +77,7 @@ export function LanguageChoiceList({
           </button>
         );
       })}
-    </div>
+    </MovingSelection>
   );
 }
 

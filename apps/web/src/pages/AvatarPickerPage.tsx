@@ -17,6 +17,7 @@ import { InnerPage } from "../components/Layouts.js";
 import { Button } from "../components/Button.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { errorMessage } from "../lib/api.js";
+import { SelectionGrid } from "../components/ui/SelectionControls.js";
 import { useAvatarRewards } from "../lib/avatarRewards.js";
 import { useSaveProfile } from "../lib/profile.js";
 import { useDraftExit } from "../lib/profileDraft.js";
@@ -167,7 +168,8 @@ export function AvatarPickerPage(): React.JSX.Element {
           <h2 id={`avatars-${group.key}`} className="text-section-title text-ink">
             {group.label}
           </h2>
-          <div className="grid grid-cols-4 gap-x-3 gap-y-4 min-[400px]:grid-cols-5 md:grid-cols-6" role="group" aria-label={group.label}>
+          {/* 1.19.70：头像网格（多行、折行）→ 网格选中；头像本身是内容、没有自己的底，所以用 data-select-plain，未选头像不加细边。选中环、aria-pressed、点击原样。 */}
+          <SelectionGrid data-select-plain="" className="grid grid-cols-4 gap-x-3 gap-y-4 min-[400px]:grid-cols-5 md:grid-cols-6" role="group" aria-label={group.label}>
             {group.ids.map(id => {
               const buttonLocked = isSpecialAvatarId(id) && !unlockedIds.includes(id);
               return (
@@ -206,7 +208,7 @@ export function AvatarPickerPage(): React.JSX.Element {
                 </button>
               );
             })}
-          </div>
+          </SelectionGrid>
         </section>
       ))}
       {/* 1.19.53：S19 浅色四风格用底部操作区材质（data-bar-surface），不再是一块不透明的画布色——

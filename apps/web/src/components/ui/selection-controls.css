@@ -53,7 +53,7 @@
   [data-select-grid] > button, [data-select-item] { position: relative; }
   /* 选中项自己的底色、阴影、描边让给选中块 / 浮起层；文字变品牌绿。 */
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled),
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled),
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) {
     background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);
   }
@@ -85,7 +85,7 @@
    不压过的话选中项会盖着品牌渐变、选中块或浮起层被挡在下面。重复 :root 只为抬高优先级，不改变作用域。 */
 :root:root:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled),
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled),
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) {
     background: transparent; box-shadow: none; border-color: transparent;
   }
@@ -100,9 +100,16 @@
      1.19.70：规则提升为 S19 下的默认，不再要求写 data-select-flat——① 所有 SelectionGrid 的格子 / 胶囊（互斥会折行的小组、多选格子，
      未选项几乎都带自己的底）；② 横向 / 竖向 MovingSelection 与 SelectionItem 的选项按钮带 `.lv-material[data-material-role]`（胶囊 / 交互卡材质）时，
      同样是“未选透明 + 细边、选中有面 + 品牌绿细边”。放在分段轨道里的横向 MovingSelection（未选项本来就没有底）与多选列表的行（SelectionItem 行）不加细边。 */
-  :is([data-select-flat] > button, button[data-select-flat], [data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role]):not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], :disabled) {
+  :is([data-select-flat] > button, button[data-select-flat], [data-select-grid]:not([data-select-plain]) > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role]):not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], :disabled) {
     background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-line-strong) 42%, transparent); border-color: transparent; color: var(--color-ink);
   }
+}
+
+/* 1.19.70：B1 瓷面（data-material-finish）把高光层画在按钮自己的 ::before / ::after 上，未选项会因此仍是一块白瓷。会移动的选中组里面只由选中块给面，
+   所以这两层不再画（B1 浅色手机外壳；外观页的模糊三档）。 */
+:root:root:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+  [data-select-moving] > button[data-material-finish]::before,
+  [data-select-moving] > button[data-material-finish]::after { background: none; }
 }
 
 /* ---------- B1 / B2：模拟玻璃（不染色、不做真实背景模糊） ---------- */
@@ -114,7 +121,7 @@
     background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); transform: scale(.94);
     transition: opacity var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-select-ms) var(--lv-motion-ease);
   }
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::before,
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before,
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before { opacity: 1; transform: none; }
   [data-select-toggle]::before {
     background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); transform: scale(.94);
@@ -128,7 +135,7 @@
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-solid-bg); box-shadow: none; }
   [data-select-moving][data-select-base="copy"] > button { isolation: auto; }
   :is([data-select-grid] > button, [data-select-item])::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::before,
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before,
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before { opacity: 1; }
   [data-select-toggle]::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
   [data-select-toggle][aria-pressed="true"]::before { opacity: 1; }
@@ -163,18 +170,18 @@
   }
   /* 浮起：轻微越过再落定 */
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled),
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled),
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) {
     transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale));
     transition: color var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
   }
   /* 月份格面积大一点，放大比例单独给（独立选中项多是整行，用标准 A2 档） */
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled) { transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale-cell)); }
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale-cell)); }
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before,
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::before,
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before,
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before { opacity: 1; }
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after,
-  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::after,
+  [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)::after,
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::after {
     opacity: 1; transform: none;
     transition: opacity var(--lv-lift-shadow-in-ms) ease-out, transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);

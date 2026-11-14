@@ -8,6 +8,7 @@ import { t } from "../i18n/index.js";
 import { useUpdatePreferences } from "../lib/queries.js";
 import { Alert } from "./Alert.js";
 import { ChevronIcon } from "./Icons.js";
+import { SelectionGrid } from "./ui/SelectionControls.js";
 
 /**
  * **The building blocks of the settings screens.**
@@ -122,7 +123,7 @@ export function CurrencyQuickPick({
        * on press — a radio would promise a form and a submit button that do not
        * exist. `aria-pressed` lets a screen reader say which one is in force.
        */}
-      <div role="group" aria-label={t("settings.preferences.defaultCurrency")} className="flex flex-wrap gap-2">
+      <SelectionGrid role="group" aria-label={t("settings.preferences.defaultCurrency")} className="flex flex-wrap gap-2">
         {CURRENCIES.map((option) => {
           const selected = value.current === option;
 
@@ -151,7 +152,7 @@ export function CurrencyQuickPick({
             </button>
           );
         })}
-      </div>
+      </SelectionGrid>
 
       {hint === undefined ? null : <p className="text-helper-relaxed text-muted">{hint}</p>}
       {value.error === null ? null : <Alert tone="error">{value.error}</Alert>}

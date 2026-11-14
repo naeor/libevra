@@ -252,7 +252,7 @@ describe("外观：四种风格同一个模型", () => {
     expect(a).toContain(":is([data-select-moving] > button, [data-select-grid] > button, [data-select-item])::after {");
     expect(a).toContain(`${item}::after {`);
     // 月份格的放大只给网格的直接子按钮
-    expect(a).toMatch(/\n {2}\[data-select-grid\] > button\[aria-pressed="true"\]:not\(:disabled\) \{ transform: translateY\(var\(--s19-a-lift-y\)\) scale\(var\(--s19-a-lift-scale-cell\)\); \}/);
+    expect(a).toMatch(/\n {2}\[data-select-grid\] > button:is\(\[aria-pressed="true"\], \[aria-checked="true"\]\):not\(:disabled\) \{ transform: translateY\(var\(--s19-a-lift-y\)\) scale\(var\(--s19-a-lift-scale-cell\)\); \}/);
     expect(block("@media (prefers-reduced-motion: reduce)")).toContain("[data-select-item], [data-select-item]::before, [data-select-item]::after,");
   });
 

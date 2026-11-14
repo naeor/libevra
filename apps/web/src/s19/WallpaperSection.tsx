@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ActionCard } from "../components/Card.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { useI18n } from "../i18n/index.js";
 import { visualStyleRuntime } from "../lib/visualStyle.js";
 import { DEFAULT_WALLPAPER, WALLPAPERS, type Wallpaper } from "./wallpaper.js";
@@ -12,7 +13,8 @@ export function WallpaperChoices({ selected, onChoose }: {
   const { t } = useI18n();
   return <section className="flex flex-col gap-2" aria-labelledby="wallpaper-title">
     <h2 id="wallpaper-title" className="text-section-title text-ink">{t("settings.wallpaper.title")}</h2>
-    <div role="group" aria-labelledby="wallpaper-title" className="wallpaper-choices grid grid-cols-3 gap-2">
+    {/* 1.19.70：三张壁纸缩略图互斥、排成一行 → 横向会移动的选中；缩略图卡片、aria-pressed、点击原样。 */}
+    <MovingSelection axis="x" role="group" aria-labelledby="wallpaper-title" className="wallpaper-choices grid grid-cols-3 gap-2">
       {WALLPAPERS.map(id => <ActionCard key={id} className="wallpaper-choice min-w-0" aria-label={t(`settings.wallpaper.${id}`)} aria-pressed={selected === id} onClick={() => onChoose(id)}>
         <span className="lv-wallpaper-preview" data-wallpaper={id} aria-hidden="true">
           <span className="wallpaper-sample wallpaper-sample-main"><span /><span /></span>
@@ -23,7 +25,7 @@ export function WallpaperChoices({ selected, onChoose }: {
           <span aria-hidden="true" className={`shrink-0 text-brand-dark ${selected === id ? "visible" : "invisible"}`}>✓</span>
         </span>
       </ActionCard>)}
-    </div>
+    </MovingSelection>
     <p className="text-helper text-muted">{t("settings.wallpaper.note")}</p>
   </section>;
 }

@@ -6,6 +6,7 @@ import { STYLE_LAB_ENABLED, visualStyleRuntime, type VisualStyleController } fro
 import { B2_GLASS_DEFAULT, B2_GLASS_FIELDS, B2_GLASS_PRESET_NAMES, type B2GlassSelection, type B2GlassPreset, type B2GlassValues } from "./b2Glass.js";
 import { createB2AdminEditor } from "./b2Admin.js";
 import { materialAttributes } from "./material.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import "./material-components.css";
 
 const FIELD_RADIUS = { "--lv-material-radius": "var(--radius-field)" } as React.CSSProperties;
@@ -15,7 +16,7 @@ const choiceClass = (selected: boolean): string => `min-h-11 rounded-field px-3 
 
 export function B2PresetChoices({ selection, onChoose }: { selection: B2GlassSelection; onChoose: (preset: B2GlassPreset) => void }): React.JSX.Element {
   const { t } = useI18n();
-  return <div role="group" aria-label={t("settings.glass.title")} className="flex flex-col gap-2">
+  return <MovingSelection axis="y" role="group" aria-label={t("settings.glass.title")} className="flex flex-col gap-2">
     {/* 1.19.53：S19 浅色手机里是交互卡材质（原来是不透明白片），选中态为统一选中描边。 */}
     {B2_GLASS_PRESET_NAMES.map(key => <button key={key} type="button" aria-pressed={selection.mode === key} onClick={() => onChoose(key)}
       {...materialAttributes("interactive")} style={FIELD_RADIUS} className={`lv-material ${choiceClass(selection.mode === key)}`}>
@@ -23,7 +24,7 @@ export function B2PresetChoices({ selection, onChoose }: { selection: B2GlassSel
       <span className="block text-helper text-muted">{t(`settings.glass.presets.${key}.note`)}</span>
     </button>)}
     {selection.mode === "custom" && <p className="text-helper text-muted" role="status">{t("settings.glass.custom")}</p>}
-  </div>;
+  </MovingSelection>;
 }
 
 function AdvancedGlass({ controller, accountId, accountNumber, selection }: {

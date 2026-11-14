@@ -35,7 +35,8 @@ describe("外观设置页", () => {
     expect(html).toContain('role="group" aria-label="明暗" class="grid grid-cols-3 gap-1 rounded-field bg-surface p-1" data-select-moving="" data-axis="x"');
     expect(html).not.toMatch(/aria-label="明暗"[^>]*data-select-base/);
     expect(html).toMatch(/aria-pressed="true" class="[^"]*bg-brand-soft text-brand-dark shadow-card ring-1 ring-brand[^"]*">浅色<\/button>/);
-    expect(html.match(/data-select-block="" aria-hidden="true"/g)).toHaveLength(1);
+    // 1.19.70：同页的主题色、视觉风格、B1 模糊也各有一块选中块，共 4 块
+    expect(html.match(/data-select-block="" aria-hidden="true"/g)).toHaveLength(4);
   });
 
   it("七个主题色都在，选中项有可访问名称和清晰选中状态", () => {

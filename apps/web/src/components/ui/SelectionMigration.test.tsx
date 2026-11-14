@@ -84,7 +84,7 @@ describe("外观：1.19.68 新增规则", () => {
     expect(css).toContain(':root:root:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {');
   });
   it("被禁用的格子 / 行不显示选中（月份格里不可选的月份）", () => {
-    expect(css).toContain('[data-select-grid] > button[aria-pressed="true"]:not(:disabled)');
+    expect(css).toContain('[data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)');
     expect(css).toContain('[aria-checked="true"]):not(:disabled)');
   });
   it("data-select-flat（1.19.69）：未选项透明加细边、正文色，选中项才有面（B1 / B2 / C 加品牌绿细边，A 不加）；危险语义选中项文字仍是危险色；材质自带的选中描边让位但保留键盘焦点轮廓", () => {
@@ -105,7 +105,7 @@ describe("外观：1.19.68 新增规则", () => {
   it("统一辨识度规则（1.19.70）：未选项不得比选中项更显眼——所有 SelectionGrid 的格子、带胶囊 / 交互卡材质的选项默认就是未选透明加细边；C 的选中面带品牌绿细线", () => {
     const start = css.indexOf(':is([data-select-flat] > button, button[data-select-flat], ');
     const rule = css.slice(start, css.indexOf("}", start));
-    expect(rule.split("\n")[0]).toContain("[data-select-grid] > button,");
+    expect(rule.split("\n")[0]).toContain("[data-select-grid]:not([data-select-plain]) > button,");
     expect(rule.split("\n")[0]).toContain("[data-select-moving] > button.lv-material[data-material-role]");
     expect(rule.split("\n")[0]).toContain("[data-select-item].lv-material[data-material-role]");
     expect(rule).toContain("background: transparent;");
