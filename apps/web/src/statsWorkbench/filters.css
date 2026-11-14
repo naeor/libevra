@@ -1,5 +1,5 @@
 /* 选择项始终单行；剩余方向提示在滚动区域之外，不覆盖可点击文字。 */
 .sw-choice-wrap { display: flex; min-width: 0; align-items: center; gap: 4px; }
-.sw-choice-row { display: flex; flex-wrap: nowrap; min-width: 0; flex: 1; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+.sw-choice-row { display: flex; flex-wrap: nowrap; min-width: 0; flex: 1; gap: 8px; overflow-x: auto; padding: 6px 6px 10px; margin: -6px -6px -6px; /* 1.19.70：给 A 选中项浮起的影子留绘制空间（横向滚动容器会裁掉溢出），版面尺寸不变 */ scrollbar-width: thin; overscroll-behavior-x: contain; }
 .sw-choice-row > button { flex: none; white-space: nowrap; }
 .sw-choice-more { flex: none; width: 12px; text-align: center; }

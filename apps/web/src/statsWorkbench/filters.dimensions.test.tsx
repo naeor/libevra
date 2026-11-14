@@ -223,10 +223,10 @@ describe("筛选面板渲染三组维度控件（复用现有 chips，不新造 
     expect(html).toContain("支付宝");
     expect(html).toContain("出差");
     expect(html).toContain("全部");
-    expect(html).toMatch(/aria-pressed="true" class="sw-chip sw-chip-on">餐饮/);
-    expect(html).toContain('sw-chip-on"><span aria-hidden="true"');
+    expect(html).toMatch(/aria-pressed="true" class="sw-chip sw-chip-on" data-select-item="">餐饮/);
+    expect(html).toContain('sw-chip-on" data-select-item=""><span aria-hidden="true"');
     expect(html).toContain(">出差<");
-    expect(html).toMatch(/aria-pressed="false" class="sw-chip ">交通/);
+    expect(html).toMatch(/aria-pressed="false" class="sw-chip " data-select-item="">交通/);
   });
 
   it("某个维度选了空集时明确提示「不会显示任何账目」", () => {

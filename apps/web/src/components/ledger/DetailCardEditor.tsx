@@ -15,6 +15,7 @@ import { DetailMiniChart, type MiniEntry } from "./DetailMiniChart.js";
 import "./detail-card-editor.css";
 import "../../s19/editor-surfaces.css";
 import { SlidingSelection } from "../ui/SlidingSelection.js";
+import { SelectionItem } from "../ui/SelectionControls.js";
 type Slot = "main" | "first" | "second";
 type Draft = Record<Slot, DetailMetric[]>;
 const slots: Slot[] = ["main", "first", "second"];
@@ -79,7 +80,7 @@ function CardEditorContent() {
         {matches.map(id => {
           const chart = isDetailChart(id), added = draft[slot].includes(id), onlyMain = chart && slot !== "main", full = used + (chart ? 2 : 1) > capacity;
           const hint = onlyMain ? "onlyMain" : added ? "added" : full ? "full" : chart ? id === "categoryRank" ? "rankHint" : id === "expenseBars" ? "barsHint" : "lineHint" : "numericHint";
-          return <button className="dce-metric" key={id} type="button" aria-pressed={added} disabled={onlyMain || (!added && full)} onClick={() => setDraft({ ...draft, [slot]: added ? draft[slot].filter(x => x !== id) : [...draft[slot], id] })}><span><span>{t(`ledger.cards.${id}`)}</span><small>{t(`ledger.cards.${hint}`)}</small></span><span aria-hidden="true">{added ? "✓" : "＋"}</span></button>;
+          return <SelectionItem data-select-flat="" className="dce-metric" key={id} aria-pressed={added} disabled={onlyMain || (!added && full)} onClick={() => setDraft({ ...draft, [slot]: added ? draft[slot].filter(x => x !== id) : [...draft[slot], id] })}><span><span>{t(`ledger.cards.${id}`)}</span><small>{t(`ledger.cards.${hint}`)}</small></span><span aria-hidden="true">{added ? "✓" : "＋"}</span></SelectionItem>;
         })}
         {!matches.length ? <p className="dce-help">{t("ledger.cards.noMetrics")}</p> : null}
       </div>

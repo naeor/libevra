@@ -65,12 +65,12 @@ describe("第二阶段新增：时间与币种选择", () => {
   it("综合与原币同栏且可区分，默认币种改变时综合目标跟随", () => {
     applyLocale("zh-CN");
     const combined = panel();
-    expect(combined).toContain('aria-pressed="true" class="sw-chip sw-chip-on">综合折算（CNY）');
-    expect(combined).toContain('aria-pressed="false" class="sw-chip ">人民币');
+    expect(combined).toContain('aria-pressed="true" class="sw-chip sw-chip-on" data-select-item="">综合折算（CNY）');
+    expect(combined).toContain('aria-pressed="false" class="sw-chip " data-select-item="">人民币');
     expect(panel(defaults, { defaultCurrency: "USD" })).toContain("综合折算（USD）");
     const original = panel({ ...defaults, combined: false });
-    expect(original).toContain('aria-pressed="false" class="sw-chip ">综合折算（CNY）');
-    expect(original).toContain('aria-pressed="true" class="sw-chip sw-chip-on">人民币');
+    expect(original).toContain('aria-pressed="false" class="sw-chip " data-select-item="">综合折算（CNY）');
+    expect(original).toContain('aria-pressed="true" class="sw-chip sw-chip-on" data-select-item="">人民币');
     expect(panel(defaults, { fxAvailable: false })).not.toContain("综合折算（");
   });
 

@@ -14,7 +14,7 @@ import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layou
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { SlidingSelection } from "../components/ui/SlidingSelection.js";
-import { ToggleButton } from "../components/ui/SelectionControls.js";
+import { SelectionGrid, ToggleButton } from "../components/ui/SelectionControls.js";
 import { useI18n } from "../i18n/index.js";
 import { analysisTitle, cardTitle, windowSubtitle } from "./cards.js";
 import { cardWindow, RELATIVE_WINDOWS, type RelativeWindow } from "./timeWindows.js";
@@ -338,7 +338,8 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                 <>
                   <section aria-labelledby="sw-editor-template" className="flex flex-col gap-2">
                     <h3 id="sw-editor-template" className="text-body font-medium text-ink">{t("statsWorkbench.editor.template")}</h3>
-                    <div className="sw-template-grid" role="radiogroup" aria-labelledby="sw-editor-template">
+                    {/* 1.19.70：模板、尺寸、时间方式、相对窗口都是互斥的小组，会折行 → 网格选中（role="radio" / aria-checked 保留）；每项自带底 / 边框，所以 data-select-flat。 */}
+                    <SelectionGrid data-select-flat="" className="sw-template-grid" role="radiogroup" aria-labelledby="sw-editor-template">
                       {templateOrder.filter((id) => allTemplates || templateFit(CARD_TEMPLATES.find((item) => item.id === id)!, counts).status !== "excess").map((id) => {
                         const fit = templateFit(CARD_TEMPLATES.find((item) => item.id === id)!, counts);
                         const active = template === id;
@@ -362,7 +363,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                           </button>
                         );
                       })}
-                    </div>
+                    </SelectionGrid>
                     {hiddenTemplates > 0 ? (
                       <button type="button" className="sw-link self-start" aria-expanded={allTemplates} onClick={() => setAllTemplates((value) => !value)}>
                         {allTemplates ? t("statsWorkbench.editor.hideTemplates") : t("statsWorkbench.editor.showTemplates", { count: hiddenTemplates })}
@@ -372,7 +373,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
 
                   <section aria-labelledby="sw-editor-size" className="flex flex-col gap-2">
                     <h3 id="sw-editor-size" className="text-body font-medium text-ink">{t("statsWorkbench.editor.size")}</h3>
-                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="sw-editor-size">
+                    <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="sw-editor-size">
                       {(sizeChecks.length > 0 ? sizeChecks : []).map((check) => {
                         const active = size !== null && sameSize(size, check.size);
                         return (
@@ -390,7 +391,7 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                           </button>
                         );
                       })}
-                    </div>
+                    </SelectionGrid>
                     {/* 放得下时不再重复说明（尺寸按钮上已标「完整显示」）；放不下时才说清后果。 */}
                     {size === null || sizeCheck === undefined || sizeCheck.fits ? null : (
                       <p className="text-helper-relaxed text-warn-dark">{t("statsWorkbench.editor.sizeWarn", { size: sizeKey(size), count: sizeCheck.hidden })}</p>
@@ -418,22 +419,22 @@ export function CardEditor({ card, currentSize, today, scope, metrics, onSave, o
                     </label>
                     <fieldset className="flex flex-col gap-2" disabled={readOnly}>
                       <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.config.time")}</legend>
-                      <div className="flex flex-wrap gap-2">
+                      <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2">
                         {(["inherit", "relative", "pinned"] as const).map((mode) => (
                           <button key={mode} type="button" aria-pressed={timeMode === mode} className={`sw-chip ${timeMode === mode ? "sw-chip-on" : ""}`} onClick={() => setTimeMode(mode)}>
                             {t(`statsWorkbench.config.${mode}`)}
                           </button>
                         ))}
-                      </div>
+                      </SelectionGrid>
                       {timeMode === "relative" ? (
                         <div className="flex flex-col gap-1.5">
-                          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("statsWorkbench.config.relative")}>
+                          <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("statsWorkbench.config.relative")}>
                             {RELATIVE_WINDOWS.map((window) => (
                               <button key={window} type="button" role="radio" aria-checked={relativeWindow === window} className={`sw-chip sw-chip-sm ${relativeWindow === window ? "sw-chip-on" : ""}`} onClick={() => setRelativeWindow(window)}>
                                 {t(`statsWorkbench.windows.${window}`)}
                               </button>
                             ))}
-                          </div>
+                          </SelectionGrid>
                           <p className="text-helper text-muted">{windowSubtitle(relativeWindow, today, t)}</p>
                         </div>
                       ) : null}

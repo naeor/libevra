@@ -1,12 +1,27 @@
 // i18n-ignore-file 开发用设计样板：其余页面的选择类控件（1.19.68），只含静态示例文字，不读写业务数据、不进正式构建。
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { ActionCard } from "../../components/Card.js";
 import { CapsuleButton } from "../../components/ui/PurposeControls.js";
 import { MovingSelection, SelectionGrid, SelectionItem } from "../../components/ui/SelectionControls.js";
-import { applyB2Glass, B2_GLASS_PRESETS } from "../b2Glass.js";
+import { applyB2Glass, B2_GLASS_DEFAULT, B2_GLASS_PRESETS } from "../b2Glass.js";
+import { SELECTABLE_AVATAR_IDS } from "@libellum/shared";
+import { UserAvatar } from "../../components/UserAvatar.js";
+import { CurrencyQuickPick } from "../../components/SettingsCard.js";
+import { ThemeAppearanceView } from "../../pages/ThemeAppearancePage.js";
+import { LanguageChoiceList } from "../../pages/LanguagePage.js";
+import { B2PresetChoices } from "../B2GlassSection.js";
+import { WallpaperChoices } from "../WallpaperSection.js";
+import { createVisualStyleController } from "../../lib/visualStyle.js";
+import type { Wallpaper } from "../wallpaper.js";
+import type { ThemePreference } from "../../lib/theme.js";
+import type { LanguagePreference } from "../../lib/language.js";
+import type { Currency } from "@libellum/shared";
 import "../../components/attachments.css";
 import "../../components/entry/capture.css";
 import "./switch-lab.css";
+import "../../statsWorkbench/statsWorkbench.css";
+import "../../statsWorkbench/filters.css";
+import "../../components/ledger/detail-card-editor.css";
 
 /**
  * **其余页面的选择类控件（1.19.68）**：导出、月份离线下载、拍照单张 / 批量、账本导入审核、冲突页、OCR 概览与账单导入的筛选胶囊、
@@ -150,6 +165,122 @@ export function ChoiceBoardTwo(): React.JSX.Element {
   </div>;
 }
 
+/**
+ * **外观与设置（1.19.70）**：外观页的主题明暗 / 主题色 / 视觉风格 / B1 模糊（`ThemeAppearanceView`，真实组件，内存里的控制器）、壁纸、B2 玻璃、
+ * 默认货币、语言、头像。这些页面（设置、外观）游客到不了，所以直接渲染正式组件（头像页因为带路由与登录，用同一写法的网格）。
+ */
+export function ChoiceBoardThree({ style }: { style: string }): React.JSX.Element {
+  const [pref, setPref] = useState<ThemePreference>({ mode: "light", palette: "green" });
+  const controller = useMemo(() => createVisualStyleController({ dataset: {} }, null, style === "original" ? "original" : style), [style]);
+  return <div className="tgl-stage">
+    <p className="tgl-cap">外观 · 明暗三选一、主题色、视觉风格、B1 模糊（ThemeAppearanceView）</p>
+    <ThemeAppearanceView preference={pref} onChoose={next => setPref({ ...pref, ...next })} controller={controller} />
+  </div>;
+}
+
+export function ChoiceBoardFive(): React.JSX.Element {
+  const [wallpaper, setWallpaper] = useState<Wallpaper>("aurora");
+  const [currency, setCurrency] = useState<Currency>("CNY");
+  const [language, setLanguage] = useState<LanguagePreference>("zh-CN");
+  const [avatar, setAvatar] = useState<string>(SELECTABLE_AVATAR_IDS[2] ?? "");
+  const [mode, setMode] = useState<"balanced" | "clear" | "soft">("balanced");
+  return <div className="tgl-stage">
+    <p className="tgl-cap">壁纸（WallpaperChoices）与 B2 玻璃（B2PresetChoices）</p>
+    <WallpaperChoices selected={wallpaper} onChoose={setWallpaper} />
+    <B2PresetChoices selection={{ ...B2_GLASS_DEFAULT, mode }} onChoose={preset => setMode(preset)} />
+    <p className="tgl-cap">默认货币（CurrencyQuickPick）· 语言（LanguageChoiceList）</p>
+    <CurrencyQuickPick value={{ current: currency, pending: false, saved: false, error: null, choose: setCurrency }} />
+    <LanguageChoiceList preference={language} locale="zh-CN" onChoose={setLanguage} />
+    <p className="tgl-cap">头像（SelectionGrid，头像本身没有底：data-select-plain）</p>
+    <SelectionGrid data-select-plain="" className="grid grid-cols-5 gap-x-3 gap-y-4" role="group" aria-label="头像">
+      {SELECTABLE_AVATAR_IDS.slice(0, 10).map(id => <button key={id} type="button" aria-label={id} aria-pressed={avatar === id} onClick={() => setAvatar(id)}
+        className="group relative flex min-h-11 min-w-0 items-center rounded-full outline-none focus-visible:ring-4 focus-visible:ring-focus-ring">
+        <span className={`w-full rounded-full p-1 ring-2 ring-offset-2 ring-offset-transparent transition ${avatar === id ? "ring-brand" : "ring-transparent group-hover:ring-line"}`}>
+          <span className="block rounded-full"><UserAvatar avatarId={id} className="aspect-square w-full" /></span>
+        </span>
+      </button>)}
+    </SelectionGrid>
+  </div>;
+}
+
+/**
+ * **分析工作台、展示卡片编辑器与账本行（1.19.70）**：筛选面板的选项行（SelectionItem，横向可滚动）、统计设置的合并 / 单币种与卡片编辑器的
+ * 尺寸 / 时间方式 / 相对窗口（SelectionGrid）、卡片编辑器的模板（SelectionGrid，role="radio"）、卡片尺寸弹层（SelectionGrid）、
+ * 展示卡片编辑器的指标（SelectionItem）、账本切换面板的账本行（SelectionItem）。游客分析页只能到筛选面板，其余在这里用同一写法核对。
+ */
+export function ChoiceBoardFour(): React.JSX.Element {
+  const [dims, setDims] = useState<string[]>(["餐饮"]);
+  const [range, setRange] = useState("近 30 天");
+  const [combined, setCombined] = useState(true);
+  const [template, setTemplate] = useState("balanced");
+  const [size, setSize] = useState("2×2");
+  const [timeMode, setTimeMode] = useState("relative");
+  const [win, setWin] = useState("近 30 天");
+  const [pick, setPick] = useState("2×3");
+  const [metrics, setMetrics] = useState<string[]>(["支出"]);
+  const [book, setBook] = useState("家庭账本");
+  return <div className="tgl-stage">
+    <p className="tgl-cap">分析筛选面板 · 选项行（SelectionItem）与时间行（可横向滚动）</p>
+    <div className="sw-choice-wrap"><div className="sw-choice-row" role="group" aria-label="分类">
+      {["全部", "餐饮", "交通", "购物", "居家", "娱乐"].map(name => {
+        const on = name === "全部" ? dims.length === 0 : dims.includes(name);
+        return <SelectionItem key={name} data-select-flat="" aria-pressed={on} className={`sw-chip ${on ? "sw-chip-on" : ""}`}
+          onClick={() => setDims(name === "全部" ? [] : dims.includes(name) ? dims.filter(x => x !== name) : [...dims, name])}>{name}</SelectionItem>;
+      })}
+    </div></div>
+    <div className="sw-choice-wrap"><div className="sw-choice-row" role="group" aria-label="时间">
+      {["自定义", "近 7 天", "近 30 天", "近 90 天", "今年", "全部"].map(name => <SelectionItem key={name} data-select-flat="" aria-pressed={range === name}
+        className={`sw-chip ${range === name ? "sw-chip-on" : ""}`} onClick={() => setRange(name)}>{name}</SelectionItem>)}
+    </div></div>
+
+    <p className="tgl-cap">统计设置 · 合并 / 单币种（SelectionGrid）</p>
+    <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2">
+      <button type="button" aria-pressed={combined} className={`sw-chip ${combined ? "sw-chip-on" : ""}`} onClick={() => setCombined(true)}>合并为 CNY</button>
+      {["人民币", "美元", "欧元"].map(name => <button key={name} type="button" aria-pressed={!combined && range === name} className={`sw-chip ${!combined && range === name ? "sw-chip-on" : ""}`}
+        onClick={() => { setCombined(false); setRange(name); }}>{name}</button>)}
+    </SelectionGrid>
+
+    <p className="tgl-cap">卡片编辑器 · 模板（role="radio"）、尺寸、时间方式、相对窗口</p>
+    <SelectionGrid data-select-flat="" className="sw-template-grid" role="radiogroup" aria-label="模板">
+      {[["balanced", "均衡", "推荐"], ["wide", "宽幅", "可用"], ["tall", "竖版", "可用"], ["dense", "紧凑", "放不下"]].map(([id, name, status]) =>
+        <button key={id} type="button" role="radio" aria-checked={template === id} disabled={id === "dense"} className={`sw-template ${template === id ? "sw-template-on" : ""}`} onClick={() => setTemplate(id!)}>
+          <span className="min-w-0"><span className="block truncate text-helper font-medium text-ink">{name}</span><span className="block truncate text-helper text-muted">{status}</span></span>
+        </button>)}
+    </SelectionGrid>
+    <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2" role="radiogroup" aria-label="尺寸">
+      {["1×1", "2×1", "2×2", "2×3"].map(id => <button key={id} type="button" role="radio" aria-checked={size === id} className={`sw-chip inline-flex items-center gap-1.5 ${size === id ? "sw-chip-on" : ""}`} onClick={() => setSize(id)}>
+        <span className="tabular-nums">{id}</span><span className="text-helper opacity-80">完整显示</span></button>)}
+    </SelectionGrid>
+    <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2">
+      {[["inherit", "跟随全局"], ["relative", "相对窗口"], ["pinned", "固定区间"]].map(([id, name]) => <button key={id} type="button" aria-pressed={timeMode === id} className={`sw-chip ${timeMode === id ? "sw-chip-on" : ""}`} onClick={() => setTimeMode(id!)}>{name}</button>)}
+    </SelectionGrid>
+    <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2" role="radiogroup" aria-label="相对窗口">
+      {["近 7 天", "近 30 天", "近 90 天", "本月"].map(id => <button key={id} type="button" role="radio" aria-checked={win === id} className={`sw-chip sw-chip-sm ${win === id ? "sw-chip-on" : ""}`} onClick={() => setWin(id)}>{id}</button>)}
+    </SelectionGrid>
+
+    <p className="tgl-cap">卡片尺寸弹层（SelectionGrid，不可选的是真 disabled）</p>
+    <SelectionGrid data-select-flat="" className="grid grid-cols-2 gap-3">
+      {["1×1", "2×1", "2×2", "2×3"].map(id => <button key={id} type="button" disabled={id === "1×1"} aria-pressed={pick === id} onClick={() => setPick(id)}
+        className={`flex min-h-20 flex-col items-start justify-between gap-2 rounded-field border p-3 text-left transition ${pick === id ? "border-brand bg-brand-soft" : "border-line bg-surface hover:bg-canvas"} disabled:opacity-45`}>
+        <span className="text-body font-medium text-ink">{id}</span><span className="text-helper text-muted">{pick === id ? "当前" : id === "1×1" ? "放不下" : "放得下"}</span></button>)}
+    </SelectionGrid>
+
+    <p className="tgl-cap">展示卡片编辑器 · 指标（SelectionItem，data-select-flat）</p>
+    <div className="dce-catalogue" style={{ overflow: "visible" }}>
+      {["支出", "收入", "结余", "笔数"].map(name => { const added = metrics.includes(name); return <SelectionItem key={name} data-select-flat="" className="dce-metric" aria-pressed={added}
+        onClick={() => setMetrics(added ? metrics.filter(x => x !== name) : [...metrics, name])}><span><span>{name}</span><small>数值卡片</small></span><span aria-hidden="true">{added ? "✓" : "＋"}</span></SelectionItem>; })}
+    </div>
+
+    <p className="tgl-cap">账本切换面板 · 账本行（SelectionItem，点击仍是原来的切换流程，这里只换选中外观）</p>
+    <div className="overflow-hidden rounded-card border border-line bg-surface">
+      {["个人账本", "家庭账本", "旅行基金"].map(name => <SelectionItem key={name} aria-pressed={book === name} onClick={() => setBook(name)}
+        className={`flex min-h-14 w-full items-center gap-3 border-b border-line px-5 py-3 text-left transition last:border-b-0 hover:bg-canvas ${book === name ? "bg-brand-soft/50" : ""}`}>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate text-body text-ink">{name}</span><span className="text-helper text-muted">B-1024 · 3 人</span></span>
+        <span className="flex size-6 shrink-0 items-center justify-center text-brand" aria-hidden="true">{book === name ? "✓" : null}</span></SelectionItem>)}
+    </div>
+  </div>;
+}
+
 type ShotStyle = "original" | "a" | "b1" | "b2" | "c";
 const SHOT_STYLES: readonly ShotStyle[] = ["original", "a", "b1", "b2", "c"];
 
@@ -158,7 +289,7 @@ export function ChoiceShot(): React.JSX.Element {
   const params = new URLSearchParams(window.location.search);
   const style = SHOT_STYLES.find(value => value === params.get("s19")) ?? "b2";
   const dark = params.get("theme") === "dark";
-  const part = params.get("part") === "2" ? 2 : 1;
+  const part = params.get("part") === "3" ? 3 : params.get("part") === "4" ? 4 : params.get("part") === "5" ? 5 : params.get("part") === "2" ? 2 : 1;
   useLayoutEffect(() => {
     const root = document.documentElement;
     if (style === "original") delete root.dataset.visualStyle;
@@ -168,6 +299,6 @@ export function ChoiceShot(): React.JSX.Element {
   }, [style, dark]);
   return <main className="lv-shell tgl-shot" data-shell="contents" data-s19-scope="phone">
     <header className="tgl-shot-head"><b>其余选择类控件 · {part}</b><span>{style === "original" ? "Original" : style.toUpperCase()}{dark ? " · 深色" : ""}</span></header>
-    {part === 1 ? <ChoiceBoardOne /> : <ChoiceBoardTwo />}
+    {part === 1 ? <ChoiceBoardOne /> : part === 2 ? <ChoiceBoardTwo /> : part === 3 ? <ChoiceBoardThree style={style} /> : part === 5 ? <ChoiceBoardFive /> : <ChoiceBoardFour />}
   </main>;
 }

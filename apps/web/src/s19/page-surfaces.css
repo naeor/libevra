@@ -29,12 +29,13 @@
   box-shadow: var(--s19-track-sh);
 }
 
-/* 展示卡片编辑器的指标选项：原来是白片 / 品牌浅底，改为交互卡材质；选中用统一选中描边。 */
+/* 展示卡片编辑器的指标选项：原来是白片 / 品牌浅底，改为交互卡材质；选中用统一选中描边。
+   1.19.70：指标选项是独立选中项（SelectionItem + data-select-flat），选中改由选中模型表现（B1 / B2 玻璃、A 浮起、C 浅绿实底 + 品牌绿细边），不再叠加这圈描边。 */
 :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .dce-metric {
   background: var(--s19-card-bg);
   box-shadow: var(--s19-card-sh);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .dce-metric[aria-pressed="true"] {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .dce-metric[aria-pressed="true"]:not([data-select-item]) {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }

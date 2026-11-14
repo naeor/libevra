@@ -11,6 +11,7 @@ import { CURRENCIES, STATS_RANGES, type Currency } from "@libellum/shared";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useI18n } from "../i18n/index.js";
+import { SelectionItem } from "../components/ui/SelectionControls.js";
 import { formatLocalDate } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
 import {
@@ -135,21 +136,22 @@ export function FilterPanel({
     return (
       <fieldset className="flex min-w-0 flex-col gap-2" data-filter-dimension={key}>
         <legend className="pb-1.5 text-helper text-muted">{legend}</legend>
+        {/* 1.19.70：筛选面板的选项行（横向可滚动，可同时选几项）→ 每个胶囊是独立选中项 SelectionItem；胶囊自带底，所以 data-select-flat。 */}
         <ChoiceRow label={legend}>
-          <button
-            type="button"
+          <SelectionItem
+            data-select-flat=""
             aria-pressed={selected === null}
             className={`sw-chip ${selected === null ? "sw-chip-on" : ""}`}
             onClick={() => clearDimension(key)}
           >
             {t("statsWorkbench.filter.all")}
-          </button>
+          </SelectionItem>
           {options.map((option) => {
             const on = selected !== null && selected.includes(option.id);
             return (
-              <button
+              <SelectionItem
                 key={option.id}
-                type="button"
+                data-select-flat=""
                 aria-pressed={on}
                 className={`sw-chip ${on ? "sw-chip-on" : ""}`}
                 onClick={() => toggle(key, option.id)}
@@ -158,7 +160,7 @@ export function FilterPanel({
                   <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: option.color }} />
                 )}
                 {option.name}
-              </button>
+              </SelectionItem>
             );
           })}
         </ChoiceRow>
@@ -182,8 +184,8 @@ export function FilterPanel({
         <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.filter.time")}</legend>
           <ChoiceRow label={t("statsWorkbench.filter.time")}>
-            <button
-              type="button"
+            <SelectionItem
+              data-select-flat=""
               aria-pressed={custom !== null}
               className={`sw-chip ${custom !== null ? "sw-chip-on" : ""}`}
               onClick={() => {
@@ -192,11 +194,11 @@ export function FilterPanel({
               }}
             >
               {t("statsWorkbench.time.custom")}
-            </button>
+            </SelectionItem>
             {STATS_RANGES.map((preset) => (
-              <button key={preset} type="button" aria-pressed={isTime({ kind: "preset", preset })} className={`sw-chip ${isTime({ kind: "preset", preset }) ? "sw-chip-on" : ""}`} onClick={() => setTime({ kind: "preset", preset })}>
+              <SelectionItem key={preset} data-select-flat="" aria-pressed={isTime({ kind: "preset", preset })} className={`sw-chip ${isTime({ kind: "preset", preset }) ? "sw-chip-on" : ""}`} onClick={() => setTime({ kind: "preset", preset })}>
                 {t(`statsWorkbench.time.${preset}`)}
-              </button>
+              </SelectionItem>
             ))}
           </ChoiceRow>
           {custom === null ? null : (
@@ -229,19 +231,19 @@ export function FilterPanel({
         <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="pb-1.5 text-helper text-muted">{t("statsWorkbench.filter.currency")}</legend>
           <ChoiceRow label={t("statsWorkbench.filter.currency")}>
-              {fxAvailable ? <button type="button" aria-pressed={combined} className={`sw-chip ${combined ? "sw-chip-on" : ""}`} onClick={() => onDraft({ ...draft, combined: true })}>
+              {fxAvailable ? <SelectionItem data-select-flat="" aria-pressed={combined} className={`sw-chip ${combined ? "sw-chip-on" : ""}`} onClick={() => onDraft({ ...draft, combined: true })}>
                 {t("statsWorkbench.filter.combinedOption", { currency: fxTarget })}
-              </button> : null}
+              </SelectionItem> : null}
               {currencies.map((currency) => (
-                <button
+                <SelectionItem
                   key={currency}
-                  type="button"
+                  data-select-flat=""
                   aria-pressed={!combined && selectedCurrency === currency}
                   className={`sw-chip ${!combined && selectedCurrency === currency ? "sw-chip-on" : ""}`}
                   onClick={() => onDraft({ ...draft, combined: false, currency: currency === defaultCurrency ? null : currency })}
                 >
                   {currencyName(currency)}
-                </button>
+                </SelectionItem>
               ))}
           </ChoiceRow>
           {combined ? <p className="text-helper-relaxed text-muted">{t("statsWorkbench.filter.combinedHint", { currency: currencyName(fxTarget) })}</p> : null}

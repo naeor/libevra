@@ -2,6 +2,7 @@ import { Link } from "react-router";
 
 import { BottomSheet } from "./BottomSheet.js";
 import { ChevronIcon } from "./Icons.js";
+import { SelectionItem } from "./ui/SelectionControls.js";
 import { SkeletonRows } from "./States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
@@ -302,8 +303,9 @@ function BookRow({
 }): React.JSX.Element {
   const { t } = useI18n();
   return (
-    <button
-      type="button"
+    // 1.19.70：只换选中外观——账本行是“当前正在看的账本”的单选列表，仍是同一个按钮、同一个 onSelect（切换账本的流程不动）；
+    // 独立选中项 SelectionItem 只多一个 data-select-item 钩子，B1 / B2 / A / C 在 S19 下按统一选中模型表现。
+    <SelectionItem
       onClick={onSelect}
       aria-pressed={selected}
       className={`flex min-h-14 w-full items-center gap-3 border-b border-line px-5 py-3 text-left transition last:border-b-0 hover:bg-canvas ${
@@ -334,6 +336,6 @@ function BookRow({
           </svg>
         ) : null}
       </span>
-    </button>
+    </SelectionItem>
   );
 }

@@ -10,6 +10,7 @@
  */
 import { CURRENCIES, type Currency } from "@libellum/shared";
 import { useMemo } from "react";
+import { SelectionGrid } from "../components/ui/SelectionControls.js";
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { SyncControls } from "./SyncControls.js";
@@ -106,7 +107,8 @@ export function StatsSettingsSheet({
             <SyncControls />
             <section className="flex flex-col gap-2" aria-labelledby="sw-settings-mode">
               <h3 id="sw-settings-mode" className="text-helper font-medium text-muted">{t("statsWorkbench.controls.modeTitle")}</h3>
-              <div className="flex flex-wrap gap-2">
+              {/* 1.19.70：合并 / 单币种互斥、个数不定、会折行 → 网格选中；胶囊自带底，所以 data-select-flat。 */}
+              <SelectionGrid data-select-flat="" className="flex flex-wrap gap-2">
                 {scope.fxAvailable ? (
                   <button type="button" aria-pressed={scope.combined} className={`sw-chip ${scope.combined ? "sw-chip-on" : ""}`} onClick={() => onChoose({ combined: true, currency: null })}>
                     {t("statsWorkbench.filter.combinedOption", { currency: fxTarget })}
@@ -120,7 +122,7 @@ export function StatsSettingsSheet({
                     </button>
                   );
                 })}
-              </div>
+              </SelectionGrid>
               <p className="text-helper-relaxed text-muted">
                 {scope.combined ? t("statsWorkbench.filter.combinedHint", { currency: currencyName(fxTarget) }) : t("statsWorkbench.controls.originalHint", { currency: currencyName(scope.currency) })}
               </p>

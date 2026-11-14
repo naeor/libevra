@@ -8,6 +8,7 @@ import type { AnalysisCardNode, ContainerNode, GridSize } from "@libellum/shared
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { SelectionGrid } from "../components/ui/SelectionControls.js";
 import { useI18n } from "../i18n/index.js";
 import { useOverlayExit } from "../lib/useOverlayPresentation.js";
 import { cardTitle } from "./cards.js";
@@ -93,7 +94,8 @@ export function SizeSheet({
     <BottomSheet label={t("statsWorkbench.size.title")} title={t("statsWorkbench.size.title")} description={t("statsWorkbench.size.hint")} onClose={onClose}>
       {(close) => (
         <>
-          <div className="grid grid-cols-2 gap-3 px-6 pt-1 pb-5">
+          {/* 1.19.70：卡片尺寸互斥、两列折行 → 网格选中；每格自带边框与底，所以 data-select-flat。不可选的尺寸仍是真 disabled。 */}
+          <SelectionGrid data-select-flat="" className="grid grid-cols-2 gap-3 px-6 pt-1 pb-5">
             {sizes.map((size) => {
               const active = size.colSpan === current.colSpan && size.rowSpan === current.rowSpan;
               const problem = active ? null : problemFor(size);
@@ -121,7 +123,7 @@ export function SizeSheet({
                 </button>
               );
             })}
-          </div>
+          </SelectionGrid>
         </>
       )}
     </BottomSheet>
