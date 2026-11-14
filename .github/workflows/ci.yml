@@ -78,6 +78,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # 1.19.64（BUG-006）：Lightning CSS 会把“先无前缀、后带前缀”的 backdrop-filter 合并成只剩带前缀一条，
+      # Chromium 上就没有背景模糊。扫描构建产物 CSS，两种写法必须成对出现（本地由 pnpm check:build 跑同一脚本）。
+      - name: Built CSS guard
+        run: node tools/check-built-css.mjs
+
       # ⚠️ 备份/告警是"出错时才会用"的代码，普通的类型检查与单测覆盖不到它。
       # 这组 bash 测试用假 curl 验证：该发邮件时发、不该发时不刷屏、心跳 URL 正确、
       # 危险操作会被拒绝。见 deploy/tests/run.sh。
