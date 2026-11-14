@@ -88,19 +88,33 @@ describe("外观：1.19.68 新增规则", () => {
     expect(css).toContain('[aria-checked="true"]):not(:disabled)');
   });
   it("data-select-flat（1.19.69）：未选项透明加细边、正文色，选中项才有面（B1 / B2 / C 加品牌绿细边，A 不加）；危险语义选中项文字仍是危险色；材质自带的选中描边让位但保留键盘焦点轮廓", () => {
-    const start = css.indexOf(':is([data-select-flat] > button, button[data-select-flat]):not(');
+    const start = css.indexOf(':is([data-select-flat] > button, button[data-select-flat], ');
     const flat = css.slice(start, css.indexOf("}", start));
     expect(flat).toContain("background: transparent;");
     expect(flat).toContain("inset 0 0 0 1px color-mix(in srgb, var(--color-line-strong)");
     expect(flat).toContain("color: var(--color-ink);");
     expect(flat).not.toContain("--s19-track");
-    expect(css).toContain('[data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%');
-    expect(css).toContain('[data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%');
+    expect(css).toContain('[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%');
+    expect(css).toContain('[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%');
     const aBlock = css.slice(css.indexOf(':root[data-visual-style="a"][data-theme-mode="light"]'), css.indexOf("/* ---------- 平铺变体的选中面"));
     expect(aBlock).not.toContain("data-select-flat");
     expect(css).toContain('[data-select-tone="danger"]');
     expect(css).toContain("color: var(--color-danger-dark)");
     expect(css).toMatch(/\.lv-material:is\(\[aria-selected="true"\], \[aria-pressed="true"\], \[aria-checked="true"\]\):focus-visible \{ outline: 2px solid var\(--color-focus-ring\)/);
+  });
+  it("统一辨识度规则（1.19.70）：未选项不得比选中项更显眼——所有 SelectionGrid 的格子、带胶囊 / 交互卡材质的选项默认就是未选透明加细边；C 的选中面带品牌绿细线", () => {
+    const start = css.indexOf(':is([data-select-flat] > button, button[data-select-flat], ');
+    const rule = css.slice(start, css.indexOf("}", start));
+    expect(rule.split("\n")[0]).toContain("[data-select-grid] > button,");
+    expect(rule.split("\n")[0]).toContain("[data-select-moving] > button.lv-material[data-material-role]");
+    expect(rule.split("\n")[0]).toContain("[data-select-item].lv-material[data-material-role]");
+    expect(rule).toContain("background: transparent;");
+    // 选中面的品牌绿细边同样覆盖这些选项（B1 / B2 / C 的 ::before 与移动的选中块）
+    expect(css.split("[data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role])::before").length - 1).toBe(2);
+    expect(css).toContain("[data-select-moving]:has(> button.lv-material[data-material-role])");
+    const cBlock = css.slice(css.indexOf("1.19.70：C 的选中面"));
+    expect(cBlock).toContain('[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%');
+    expect(cBlock).toContain(':is([data-select-grid] > button, [data-select-item])::before { box-shadow: 0 0 0 1px');
   });
   it("颜色字面量不写在这里（只引用令牌）", () => {
     expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);

@@ -96,8 +96,11 @@
      1.19.68 把未选项画成凹进的灰底，结果选中项（透明玻璃、浅绿）反而比它们轻、分不出谁被选中。现在反过来：
      未选项没有填充，只剩一条细边表示可点（强分隔线令牌调淡，浅色分隔线在灰底上看不见），文字用正文色；
      选中项才有面（B1 / B2 玻璃、A 浮起、C 浅绿实底，见下方各风格段）和品牌绿文字。
-     写在容器上（MovingSelection / SelectionGrid），独立选中项写在它自己身上。 */
-  :is([data-select-flat] > button, button[data-select-flat]):not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], :disabled) {
+     写在容器上（MovingSelection / SelectionGrid），独立选中项写在它自己身上。
+     1.19.70：规则提升为 S19 下的默认，不再要求写 data-select-flat——① 所有 SelectionGrid 的格子 / 胶囊（互斥会折行的小组、多选格子，
+     未选项几乎都带自己的底）；② 横向 / 竖向 MovingSelection 与 SelectionItem 的选项按钮带 `.lv-material[data-material-role]`（胶囊 / 交互卡材质）时，
+     同样是“未选透明 + 细边、选中有面 + 品牌绿细边”。放在分段轨道里的横向 MovingSelection（未选项本来就没有底）与多选列表的行（SelectionItem 行）不加细边。 */
+  :is([data-select-flat] > button, button[data-select-flat], [data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role]):not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], :disabled) {
     background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-line-strong) 42%, transparent); border-color: transparent; color: var(--color-ink);
   }
 }
@@ -129,6 +132,13 @@
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before { opacity: 1; }
   [data-select-toggle]::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
   [data-select-toggle][aria-pressed="true"]::before { opacity: 1; }
+}
+
+/* 1.19.70：C 的选中面是很浅的绿（brand-soft），落在近白的轨道 / 面板上单靠它分不出（留言引用、PDF 缩放）。C 本来就是“纸面 + 细线”，
+   所以所有选中面（会移动的选中块、网格 / 独立选中项的面）都带一圈品牌绿细线，与平铺变体的选中面同一写法；选中文字仍是品牌绿。 */
+:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+  [data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
+  :is([data-select-grid] > button, [data-select-item])::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
 }
 
 /* ---------- A：没有色块，选中项自己按 A2 档浮起 ----------
@@ -184,12 +194,12 @@
    选中面落在白色面板 / 浅灰底上，B1 / B2 玻璃的亮边与柔影、C 的浅绿都偏淡，而旁边的未选项带一圈细边，
    不加这圈边，选中项反而显得比未选项轻；A 的 A2 浮起本身够清楚，不加。 */
 :root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {
-  [data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
-  :is([data-select-flat] > button, button[data-select-flat])::before { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
+  :is([data-select-flat], [data-select-moving]:has(> button.lv-material[data-material-role]))[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
+  :is([data-select-flat] > button, button[data-select-flat], [data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role])::before { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
 }
 :root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
-  [data-select-flat][data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
-  :is([data-select-flat] > button, button[data-select-flat])::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
+  :is([data-select-flat], [data-select-moving]:has(> button.lv-material[data-material-role]))[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
+  :is([data-select-flat] > button, button[data-select-flat], [data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role])::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
 }
 
 /* ---------- 减少动态效果：全部直接切换（选中块的脚本动画另行判断） ---------- */
