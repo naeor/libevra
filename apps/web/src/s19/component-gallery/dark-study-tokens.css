@@ -188,7 +188,7 @@ html:root[data-dark-study][data-visual-style="c"] .lv-shell[data-s19-scope] :is(
 html:root[data-dark-study][data-visual-style="b2"] .lv-shell[data-s19-scope] [data-overlay-surface][role][aria-modal]::before {
   background: var(--s19-sheet-bg);
 }
-html:root[data-dark-study] :is(input,textarea,select) { caret-color: var(--color-brand); }
+html:root[data-dark-study] :is(input,textarea,select) { color-scheme: dark; caret-color: var(--color-brand); }
 html:root[data-dark-study] :is(input,textarea,select).border-line { border-color: var(--color-line-strong); }
 html:root[data-dark-study] body { color: var(--color-ink); background-color: var(--s19-canvas); }
 html:root[data-dark-study][data-study-opaque], html:root[data-dark-study][data-study-opaque][data-visual-style="b2"] {
