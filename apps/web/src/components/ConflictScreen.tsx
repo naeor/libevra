@@ -2,6 +2,7 @@ import type { Transaction } from "@libellum/shared";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "./Button.js";
+import { MovingSelection } from "./ui/SelectionControls.js";
 import { t, useI18n } from "../i18n/index.js";
 import { ApiRequestError, errorMessage } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
@@ -190,7 +191,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
               <div key={field.field} className="rounded-card border border-line bg-surface px-4 py-3">
                 <p className="text-body text-ink">{fieldLabel(field.field)}</p>
 
-                <div className="mt-2 flex flex-col gap-2">
+                <MovingSelection axis="y" data-select-flat="" className="mt-2 flex flex-col gap-2">
                   {options.map((option, index) => (
                     <button
                       key={index}
@@ -218,7 +219,7 @@ export function ConflictScreen({ conflict, onResolve, onLater, categories, payme
                       </span>
                     </button>
                   ))}
-                </div>
+                </MovingSelection>
 
                 {/*
                   ⚠️ **A default is stated rather than hidden.** Leaving a field unanswered keeps the server's

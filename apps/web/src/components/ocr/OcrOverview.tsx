@@ -24,6 +24,7 @@ import { Trans } from "react-i18next";
 import { isChineseLocale, t as translate, useI18n } from "../../i18n/index.js";
 import { ChevronIcon } from "../Icons.js";
 import { CapsuleButton } from "../ui/PurposeControls.js";
+import { MovingSelection, SelectionGrid } from "../ui/SelectionControls.js";
 import type zhOcr from "../../i18n/resources/zh-CN/ocr.js";
 import { displayCategoryName, displayPaymentMethodName } from "../../lib/presetNames.js";
 import { groupsForCandidate, type OcrDuplicateGroup } from "../../lib/ocr/duplicates.js";
@@ -284,7 +285,8 @@ export function OcrOverview({
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("ocr.list.statusFilterLabel")}>
+      {/* 1.19.68：状态胶囊互斥、会折行 → SelectionGrid（“筛选”按钮不带 aria-pressed，不参与选中）；来源个数不定、会折行 → SelectionGrid；方向三项一行 → MovingSelection。 */}
+      <SelectionGrid className="flex flex-wrap items-center gap-2" role="group" aria-label={t("ocr.list.statusFilterLabel")}>
         <FilterButton
           active={filter === "all"}
           label={t("ocr.list.chipAll", { count: counts.total })}
@@ -322,7 +324,7 @@ export function OcrOverview({
         >
           {extras === 0 ? t("ocr.list.filter") : t("ocr.list.filterCount", { count: extras })}
         </CapsuleButton>
-      </div>
+      </SelectionGrid>
 
       {filtersOpen ? (
         <div
@@ -332,7 +334,7 @@ export function OcrOverview({
           {sources.length === 0 ? null : (
             <div className="flex flex-col gap-1.5">
               <span className="text-helper text-muted">{t("ocr.list.source")}</span>
-              <div className="flex flex-wrap gap-2" role="group" aria-label={t("ocr.list.sourceFilterLabel")}>
+              <SelectionGrid className="flex flex-wrap gap-2" role="group" aria-label={t("ocr.list.sourceFilterLabel")}>
                 <FilterButton
                   active={source === "all"}
                   label={t("ocr.list.allSources")}
@@ -350,13 +352,13 @@ export function OcrOverview({
                     }}
                   />
                 ))}
-              </div>
+              </SelectionGrid>
             </div>
           )}
 
           <div className="flex flex-col gap-1.5">
             <span className="text-helper text-muted">{t("ocr.list.direction")}</span>
-            <div className="flex flex-wrap gap-2" role="group" aria-label={t("ocr.list.directionFilterLabel")}>
+            <MovingSelection axis="x" className="flex flex-wrap gap-2" role="group" aria-label={t("ocr.list.directionFilterLabel")}>
               <FilterButton
                 active={direction === "all"}
                 label={t("ocr.list.allDirections")}
@@ -378,7 +380,7 @@ export function OcrOverview({
                   onDirectionChange("income");
                 }}
               />
-            </div>
+            </MovingSelection>
           </div>
 
           {extras === 0 ? null : (

@@ -21,6 +21,7 @@ import type {
 import { UNCATEGORISED_NAME } from "@libellum/shared";
 
 import { BottomSheet } from "./BottomSheet.js";
+import { MovingSelection } from "./ui/SelectionControls.js";
 import { Button } from "./Button.js";
 import { historyChangeText } from "./HistoryList.js";
 import { CloseIcon, SendIcon } from "./Icons.js";
@@ -178,7 +179,7 @@ export function QuotePickerSheet({
       {() => (
         <>
           <div className="shrink-0 border-t border-line px-4 pt-3">
-            <div className="flex rounded-field bg-canvas p-1 text-helper">
+            <MovingSelection axis="x" className="flex rounded-field bg-canvas p-1 text-helper">
               {(
                 [
                   ["transactions", tr("collab.messages.quoteTabTransactions")],
@@ -199,7 +200,7 @@ export function QuotePickerSheet({
                   {label}
                 </button>
               ))}
-            </div>
+            </MovingSelection>
           </div>
 
           <div className="mt-2 min-h-0 flex-1 overflow-y-auto">

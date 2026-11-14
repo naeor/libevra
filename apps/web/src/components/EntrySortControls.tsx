@@ -9,6 +9,7 @@ import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { useDesktopActive } from "../desktop/surface.js";
 import { DesktopPopover, moveFocusInList } from "../desktop/DesktopPopover.js";
 import { BottomSheet } from "./BottomSheet.js";
+import { MovingSelection, SelectionGrid } from "./ui/SelectionControls.js";
 import { ChevronIcon } from "./Icons.js";
 import "./attachments.css";
 
@@ -118,11 +119,12 @@ const TYPE_OPTIONS = [["", "anyType"], ["image/", "image"], ["application/pdf", 
 
 export function EntrySortOptions({ value, onSelect }: { value: SortField; onSelect: (value: SortField) => void }) {
   const { t } = useI18n();
-  return <div className="lv-entry-order-list" role="group" aria-label={t("attachments.sort")} onKeyDown={moveFocusInList}>
+  // 1.19.68：排序字段是单选列表（同一时间一行被选中、竖排）→ MovingSelection 纵向；行尾 ✓ 保留。
+  return <MovingSelection axis="y" className="lv-entry-order-list" role="group" aria-label={t("attachments.sort")} onKeyDown={moveFocusInList}>
     {(Object.keys(FIELD_LABEL) as SortField[]).map(field => <button type="button" key={field} aria-pressed={value === field} data-autofocus={value === field ? true : undefined} onClick={() => onSelect(field)}>
       <span>{t(`attachments.${FIELD_LABEL[field]}`)}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" style={{ visibility: value === field ? undefined : "hidden" }}><path d="m5 12 4 4L19 6" /></svg>
     </button>)}
-  </div>;
+  </MovingSelection>;
 }
 
 function DirectionIcon({ value }: { value: SortDirection }) {
@@ -131,11 +133,11 @@ function DirectionIcon({ value }: { value: SortDirection }) {
 
 function EntryDirectionOptions({ value, onSelect }: { value: SortDirection; onSelect: (value: SortDirection) => void }) {
   const { t } = useI18n();
-  return <div className="lv-entry-order-list" role="group" aria-label={t("attachments.sortDirection")} onKeyDown={moveFocusInList}>
+  return <MovingSelection axis="y" className="lv-entry-order-list" role="group" aria-label={t("attachments.sortDirection")} onKeyDown={moveFocusInList}>
     {(["Asc", "Desc"] as const).map(direction => <button type="button" key={direction} aria-pressed={value === direction} data-autofocus={value === direction ? true : undefined} onClick={() => onSelect(direction)}>
       <span className="lv-entry-order-label"><DirectionIcon value={direction} />{t(`attachments.${DIRECTION_LABEL[direction]}`)}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" style={{ visibility: value === direction ? undefined : "hidden" }}><path d="m5 12 4 4L19 6" /></svg>
     </button>)}
-  </div>;
+  </MovingSelection>;
 }
 
 export function validStorageRange(min: string, max: string): boolean {
@@ -151,8 +153,8 @@ export function EntryFilterOptions({ value, onApply }: { value: EntryPresentatio
   const change = (patch: Partial<EntryPresentation>) => setDraft(o => ({ ...o, ...patch }));
   return <form className="lv-entry-filter-form" onSubmit={event => { event.preventDefault(); setAttempted(true); if (valid) onApply(draft); }}>
     <div className="lv-entry-filter-body">
-      <fieldset><legend className="text-card-title">{t("attachments.title")}</legend><div className="lv-entry-choices">{(["any", "has", "none"] as const).map(v => <button type="button" key={v} aria-pressed={draft.attachment === v} onClick={() => change({ attachment: v })}>{t(`attachments.${v}`)}</button>)}</div></fieldset>
-      <fieldset><legend className="text-card-title">{t("attachments.type")}</legend><div className="lv-entry-choices">{TYPE_OPTIONS.map(([v, k]) => <button type="button" key={v} aria-pressed={draft.type === v} onClick={() => change({ type: v })}>{t(`attachments.${k}`)}</button>)}</div></fieldset>
+      <fieldset><legend className="text-card-title">{t("attachments.title")}</legend><MovingSelection axis="x" className="lv-entry-choices">{(["any", "has", "none"] as const).map(v => <button type="button" key={v} aria-pressed={draft.attachment === v} onClick={() => change({ attachment: v })}>{t(`attachments.${v}`)}</button>)}</MovingSelection></fieldset>
+      <fieldset><legend className="text-card-title">{t("attachments.type")}</legend><SelectionGrid className="lv-entry-choices">{TYPE_OPTIONS.map(([v, k]) => <button type="button" key={v} aria-pressed={draft.type === v} onClick={() => change({ type: v })}>{t(`attachments.${k}`)}</button>)}</SelectionGrid></fieldset>
       <fieldset><legend className="text-card-title">{t("attachments.size")} <span className="text-helper text-muted">MB</span></legend><div className="lv-entry-range">
         <label><span className="text-helper text-muted">{t("attachments.minimum")}</span><input type="text" inputMode="decimal" placeholder="0" value={draft.minMB} aria-invalid={attempted && !valid || undefined} onChange={e => change({ minMB: e.target.value.trim() })} /></label><span aria-hidden="true">–</span>
         <label><span className="text-helper text-muted">{t("attachments.maximum")}</span><input type="text" inputMode="decimal" placeholder={t("attachments.filters.unlimited")} value={draft.maxMB} aria-invalid={attempted && !valid || undefined} onChange={e => change({ maxMB: e.target.value.trim() })} /></label>

@@ -10,6 +10,7 @@ import { t as translate, useI18n } from "../../i18n/index.js";
 import { displayPaymentMethodName } from "../../lib/presetNames.js";
 import { ChevronIcon } from "../Icons.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
+import { SelectionGrid } from "../ui/SelectionControls.js";
 import { materialAttributes } from "../../s19/material.js";
 import "../../s19/material-components.css";
 
@@ -124,7 +125,8 @@ export function EntryMoreOptions({
           >
             <div className="flex flex-col gap-2">
               <h3 className="text-card-title text-ink">{t("common.field.paymentMethod")}</h3>
-              <div className="flex flex-wrap gap-2">
+              {/* 1.19.68：支付方式互斥（可再点取消）、手机宽度会折行 → SelectionGrid；标签的选中态是标签自己的颜色，不迁（见 1.19 changelog）。 */}
+              <SelectionGrid className="flex flex-wrap gap-2">
                 {paymentMethods.map((method) => (
                   <button
                     key={method.id}
@@ -143,7 +145,7 @@ export function EntryMoreOptions({
                     {displayPaymentMethodName(method.name)}
                   </button>
                 ))}
-              </div>
+              </SelectionGrid>
             </div>
 
             <label className="flex flex-col gap-2">

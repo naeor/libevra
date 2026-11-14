@@ -24,6 +24,7 @@ import { useState } from "react";
 
 import { Alert } from "./Alert.js";
 import { Button } from "./Button.js";
+import { MovingSelection } from "./ui/SelectionControls.js";
 import { t as translate, useI18n } from "../i18n/index.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { formatDateTimeInZone, localTimeZone } from "../lib/datetime.js";
@@ -118,7 +119,7 @@ export function NotDuplicateRelationsView({
         </p>
 
         {/* S16：英文按钮更长，窄屏允许换行。 */}
-        <div role="group" aria-label={t("duplicates.relations.filterLabel")} className="flex flex-wrap gap-2">
+        <MovingSelection axis="x" role="group" aria-label={t("duplicates.relations.filterLabel")} className="flex flex-wrap gap-2">
           <button
             type="button"
             aria-pressed={!showRevoked}
@@ -143,7 +144,7 @@ export function NotDuplicateRelationsView({
           >
             {t("duplicates.relations.includeRevoked")}
           </button>
-        </div>
+        </MovingSelection>
 
         {offline ? (
           <p className="text-helper-relaxed text-warn-dark">

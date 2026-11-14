@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useI18n } from "../i18n/index.js";
+import { MovingSelection } from "./ui/SelectionControls.js";
 
 /** 仅绘制当前页，不执行 PDF 动作或脚本；关闭时终止读取并释放文档。 */
 export function AttachmentPdf({ url }: { url: string }): React.JSX.Element {
@@ -53,9 +54,9 @@ export function AttachmentPdf({ url }: { url: string }): React.JSX.Element {
       <button className="lv-desk-btn" disabled={!document || page <= 1} onClick={() => setPage(n => n - 1)}>{t("attachments.previousPage")}</button>
       <span>{document ? t("attachments.page", { page, total: document.numPages }) : t("attachments.loadingPreview")}</span>
       <button className="lv-desk-btn" disabled={!document || page >= document.numPages} onClick={() => setPage(n => n + 1)}>{t("attachments.nextPage")}</button>
-      <div className="lv-attachment-zoom" role="group" aria-label={t("attachments.zoom")}>
+      <MovingSelection axis="x" className="lv-attachment-zoom" role="group" aria-label={t("attachments.zoom")}>
         {[1, 1.5, 2].map(value => <button type="button" key={value} aria-pressed={zoom === value} onClick={() => setZoom(value)}>{value === 1 ? t("attachments.fitWidth") : `${value * 100}%`}</button>)}
-      </div>
+      </MovingSelection>
     </div>
     {error ? <p role="alert" className="text-helper text-danger">{t("attachments.previewFailed")}</p> : null}
     <div className="lv-attachment-pdf-page" ref={host} aria-busy={loading}>

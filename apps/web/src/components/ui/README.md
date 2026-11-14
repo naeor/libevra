@@ -22,6 +22,7 @@
 | [RecordList.tsx](RecordList.tsx) | 界面模块；入口/导出：RecordList、RecordGroup、RecordRow |
 | [SelectionControls.test.tsx](SelectionControls.test.tsx) | 测试：SelectionControls |
 | [SelectionControls.tsx](SelectionControls.tsx) | 界面模块；入口/导出：MovingSelection、SelectionGrid、SelectionItem、ToggleButton、ConditionTag |
+| [SelectionMigration.test.tsx](SelectionMigration.test.tsx) | 测试：SelectionMigration |
 | [SlidingSelection.tsx](SlidingSelection.tsx) | 界面模块；入口/导出：SlidingSelection |
 | [StatusControls.test.tsx](StatusControls.test.tsx) | 测试：StatusControls |
 | [StatusControls.tsx](StatusControls.tsx) | 界面模块；入口/导出：StatusTone、Badge、FilterChip、StatusMessage |

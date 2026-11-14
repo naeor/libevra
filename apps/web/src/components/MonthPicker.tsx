@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { BottomSheet } from "./BottomSheet.js";
+import { SelectionItem } from "./ui/SelectionControls.js";
 import { DesktopPopover } from "../desktop/DesktopPopover.js";
 import type { MonthAvailability } from "../lib/monthAvailability.js";
 import { ChevronIcon } from "./Icons.js";
@@ -142,8 +143,8 @@ export function MonthPicker({
 
             return (
               <li key={value}>
-                <button
-                  type="button"
+                <SelectionItem
+                  data-select-flat=""
                   disabled={unavailable}
                   title={availability?.[value] === false ? t("ledger.monthPicker.empty") : undefined}
                   aria-pressed={selected}
@@ -159,7 +160,7 @@ export function MonthPicker({
                   }`}
                 >
                   {name}
-                </button>
+                </SelectionItem>
               </li>
             );
           })}
@@ -167,8 +168,8 @@ export function MonthPicker({
 
         <div className={`mt-4 grid gap-2 ${allowAll ? "grid-cols-3" : "grid-cols-1"}`}>
           {allowAll ? (
-            <button
-              type="button"
+            <SelectionItem
+              data-select-flat=""
               aria-pressed={all}
               onClick={() => {
                 onSelect(ALL_MONTHS);
@@ -180,7 +181,7 @@ export function MonthPicker({
               }`}
             >
               {t("ledger.monthPicker.all")}
-            </button>
+            </SelectionItem>
           ) : null}
 
           <button

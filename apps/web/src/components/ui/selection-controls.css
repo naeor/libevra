@@ -53,8 +53,8 @@
   [data-select-grid] > button, [data-select-item] { position: relative; }
   /* 选中项自己的底色、阴影、描边让给选中块 / 浮起层；文字变品牌绿。 */
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
-  [data-select-grid] > button[aria-pressed="true"],
-  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled),
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) {
     background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);
   }
   :is([data-select-grid] > button, [data-select-item])::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; }
@@ -68,9 +68,36 @@
     background: transparent; box-shadow: none; border-color: transparent;
   }
 
+  /* 1.19.68：选中项带危险语义时（账本导入审核的“删除”），文字仍用危险色；选中块只负责“选中”，不染色。 */
+  :is([data-select-moving] > button, [data-select-grid] > button, [data-select-item])[data-select-tone="danger"]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) { color: var(--color-danger-dark); }
+  /* 1.19.68：带交互卡 / 胶囊材质的按钮（拍照“单张 / 批量”、状态筛选胶囊）选中时，材质自带的统一选中描边让给选中块 / 浮起层
+     （同一个选中只留一个模型）；键盘焦点环仍要有，选中项的 box-shadow 已让位，所以焦点用 outline 画。 */
+  :is([data-select-moving] > button, [data-select-grid] > button, [data-select-item], [data-select-toggle]).lv-material:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:focus-visible) { outline: none; }
+  :is([data-select-moving] > button, [data-select-grid] > button, [data-select-item], [data-select-toggle]).lv-material:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
   [data-cond-tag] { background: var(--s19-tag-bg); box-shadow: var(--s19-tag-sh); color: var(--color-brand-dark); translate: 0 var(--s19-tag-lift-y, 0px); }
   [data-cond-tag][data-state="in"] { animation: lv-cond-tag-in var(--lv-reveal-ms) var(--lv-motion-ease) both; }
   [data-cond-tag][data-state="out"] { animation: lv-cond-tag-out var(--lv-dismiss-ms) ease-in both; }
+}
+
+/* 1.19.68：选中项的底色让位要压过按钮已有的 S19 材质映射——`:is(button, a).bg-brand.text-on-brand`（主按钮的品牌渐变）与
+   `.rounded-field.bg-brand-soft`（次要按钮的柔底）按类名命中，选中的“支出 / 收入”“导出格式”“月份格”等沿用了这些类名，
+   不压过的话选中项会盖着品牌渐变、选中块或浮起层被挡在下面。重复 :root 只为抬高优先级，不改变作用域。 */
+:root:root:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+  [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled),
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) {
+    background: transparent; box-shadow: none; border-color: transparent;
+  }
+  [data-select-moving][data-select-base="copy"][data-select-ready] > button:not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+    background: transparent; box-shadow: none; border-color: transparent;
+  }
+  /* data-select-flat（1.19.68）：未选项自己带实底 / 材质（导出的范围与格式、拍照的单张 / 批量、冲突页的两侧、支出 / 收入、月份格）时，
+     透明玻璃或 A 的白色浮起落在它们旁边几乎看不出差别，所以 S19 下未选项改成与分段轨道同一个凹进的底（--s19-track-*），
+     选中块（或 A 的浮起层）是这一组里唯一凸起的面。写在容器上（MovingSelection / SelectionGrid），独立选中项写在它自己身上。 */
+  :is([data-select-flat] > button, button[data-select-flat]):not([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], :disabled) {
+    background: var(--s19-track-bg, var(--color-canvas)); box-shadow: var(--s19-track-sh, none); border-color: transparent;
+  }
 }
 
 /* ---------- B1 / B2：模拟玻璃（不染色、不做真实背景模糊） ---------- */
@@ -82,8 +109,8 @@
     background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); transform: scale(.94);
     transition: opacity var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-select-ms) var(--lv-motion-ease);
   }
-  [data-select-grid] > button[aria-pressed="true"]::before,
-  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; transform: none; }
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::before,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before { opacity: 1; transform: none; }
   [data-select-toggle]::before {
     background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); transform: scale(.94);
     transition: opacity var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-select-ms) var(--lv-motion-ease);
@@ -96,8 +123,8 @@
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-solid-bg); box-shadow: none; }
   [data-select-moving][data-select-base="copy"] > button { isolation: auto; }
   :is([data-select-grid] > button, [data-select-item])::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
-  [data-select-grid] > button[aria-pressed="true"]::before,
-  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; }
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::before,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before { opacity: 1; }
   [data-select-toggle]::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
   [data-select-toggle][aria-pressed="true"]::before { opacity: 1; }
 }
@@ -124,19 +151,19 @@
   }
   /* 浮起：轻微越过再落定 */
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
-  [data-select-grid] > button[aria-pressed="true"],
-  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled),
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) {
     transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale));
     transition: color var(--lv-select-ms) var(--lv-motion-ease), transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
   }
   /* 月份格面积大一点，放大比例单独给（独立选中项多是整行，用标准 A2 档） */
-  [data-select-grid] > button[aria-pressed="true"] { transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale-cell)); }
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled) { transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale-cell)); }
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before,
-  [data-select-grid] > button[aria-pressed="true"]::before,
-  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::before { opacity: 1; }
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::before,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::before { opacity: 1; }
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after,
-  [data-select-grid] > button[aria-pressed="true"]::after,
-  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])::after {
+  [data-select-grid] > button[aria-pressed="true"]:not(:disabled)::after,
+  [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)::after {
     opacity: 1; transform: none;
     transition: opacity var(--lv-lift-shadow-in-ms) ease-out, transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease);
   }

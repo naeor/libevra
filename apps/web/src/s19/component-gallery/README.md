@@ -11,6 +11,7 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
+| [ChoiceLab.tsx](ChoiceLab.tsx) | 界面模块；入口/导出：ChoiceBoardOne、ChoiceBoardTwo、ChoiceShot |
 | [Gallery.tsx](Gallery.tsx) | 界面模块；按文件名定位 Gallery.tsx |
 | [LayoutExamples.tsx](LayoutExamples.tsx) | 界面模块；入口/导出：HeaderPattern、ToolbarPattern、CardListPattern、FormPattern、BottomActionsPattern |
 | [LayoutPatterns.tsx](LayoutPatterns.tsx) | 界面模块；入口/导出：LayoutPatterns、StandaloneBottomPattern |

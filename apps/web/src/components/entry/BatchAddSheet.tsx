@@ -15,6 +15,7 @@ import { Alert } from "../Alert.js";
 import { BottomSheet } from "../BottomSheet.js";
 import { leavePage } from "../../lib/closeGuard.js";
 import { tagFillStyle } from "../../lib/tagColors.js";
+import { MovingSelection } from "../ui/SelectionControls.js";
 import { ChoiceDialog, type Choice } from "../ChoiceDialog.js";
 import { ConfirmDialog } from "../ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../DuplicateDetectionSettings.js";
@@ -527,7 +528,8 @@ function BatchCard({
         ) : null}
       </div>
 
-      <div className="flex gap-2 pb-3">
+      {/* 1.19.68：支出 / 收入是两项互斥、一行不折行 → MovingSelection 横向；Original、深色保持原来的品牌底 / 画布底。 */}
+      <MovingSelection axis="x" data-select-flat="" className="flex gap-2 pb-3">
         {(["expense", "income"] as const).map((kind) => (
           <button
             key={kind}
@@ -543,7 +545,7 @@ function BatchCard({
             {t(`common.kind.${kind}`)}
           </button>
         ))}
-      </div>
+      </MovingSelection>
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 pb-3">
         <label className="flex flex-col gap-1 text-helper text-muted">

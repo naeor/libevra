@@ -19,6 +19,7 @@ import { Alert } from "../components/Alert.js";
 import { CameraIcon } from "../components/BottomNav.js";
 import { Button } from "../components/Button.js";
 import { ActionCard } from "../components/Card.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
 import { EntrySaved } from "../components/EntrySaved.js";
@@ -1072,7 +1073,7 @@ function PickStep({
       {files.length > 1 ? (
         <section className="flex flex-col gap-2">
           <h2 id={modeTitleId} className="text-card-title text-ink">{t("capture.scan.pick.modeTitle")}</h2>
-          <div className="flex flex-col gap-2" role="group" aria-labelledby={modeTitleId}>
+          <MovingSelection axis="y" data-select-flat="" className="flex flex-col gap-2" role="group" aria-labelledby={modeTitleId}>
             <ModeOption
               mode="single"
               current={mode}
@@ -1087,7 +1088,7 @@ function PickStep({
               hint={t("capture.scan.pick.batchHint")}
               onSelect={onMode}
             />
-          </div>
+          </MovingSelection>
 
           {/*
             ⚠️ **Answering this question does not start anything, and that is a

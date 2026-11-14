@@ -20,6 +20,7 @@ import { Button } from "../Button.js";
 import { NavigationSuppressedContext } from "../PersistentNavContext.js";
 import { Badge } from "../ui/StatusControls.js";
 import { CapsuleButton } from "../ui/PurposeControls.js";
+import { SelectionGrid } from "../ui/SelectionControls.js";
 import { materialAttributes } from "../../s19/material.js";
 import "../../s19/material-components.css";
 import { useI18n } from "../../i18n/index.js";
@@ -315,7 +316,8 @@ export function BillFilterRow({
   const { t } = useI18n();
 
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("dataio.filter.aria")}>
+    // 1.19.68：状态筛选是互斥选择、手机宽度会折行 → SelectionGrid（淡入淡出，不跨行滑动）。
+    <SelectionGrid className="flex flex-wrap items-center gap-2" role="group" aria-label={t("dataio.filter.aria")}>
       {BILL_IMPORT_FILTERS.map((entry) => {
         const active = entry.id === filter;
         return (
@@ -332,7 +334,7 @@ export function BillFilterRow({
           </CapsuleButton>
         );
       })}
-    </div>
+    </SelectionGrid>
   );
 }
 

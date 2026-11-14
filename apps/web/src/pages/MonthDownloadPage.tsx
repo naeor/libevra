@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { useI18n } from "../i18n/index.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import {
@@ -180,7 +181,7 @@ export function MonthDownloadPage(): React.JSX.Element {
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3">
         <span className="min-w-0 text-body text-ink">{t("offline.month.autoTitle")}</span>
 
-        <span className="flex shrink-0 gap-2">
+        <MovingSelection axis="x" data-select-flat="" className="flex shrink-0 gap-2">
           {([true, false] as const).map((auto) => (
             <button
               key={String(auto)}
@@ -198,7 +199,7 @@ export function MonthDownloadPage(): React.JSX.Element {
               {auto ? t("offline.month.auto") : t("offline.month.never")}
             </button>
           ))}
-        </span>
+        </MovingSelection>
       </section>
 
       <p className="text-helper-relaxed text-muted">

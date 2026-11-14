@@ -236,7 +236,7 @@ describe("外观：四种风格同一个模型", () => {
   });
 
   it("独立选中项（1.19.65）在四种风格里与网格选中同一规则：B1 / B2 玻璃淡入、C 实底淡入、A 按标准 A2 档浮起（不用月份格的放大）", () => {
-    const item = '[data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])';
+    const item = '[data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)';
     const common = block(':root[data-visual-style][data-theme-mode="light"]');
     expect(common).toContain("[data-select-grid] > button, [data-select-item] { position: relative; }");
     expect(common).toContain(`${item} {\n    background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);`);
@@ -252,7 +252,7 @@ describe("外观：四种风格同一个模型", () => {
     expect(a).toContain(":is([data-select-moving] > button, [data-select-grid] > button, [data-select-item])::after {");
     expect(a).toContain(`${item}::after {`);
     // 月份格的放大只给网格的直接子按钮
-    expect(a).toMatch(/\n {2}\[data-select-grid\] > button\[aria-pressed="true"\] \{ transform: translateY\(var\(--s19-a-lift-y\)\) scale\(var\(--s19-a-lift-scale-cell\)\); \}/);
+    expect(a).toMatch(/\n {2}\[data-select-grid\] > button\[aria-pressed="true"\]:not\(:disabled\) \{ transform: translateY\(var\(--s19-a-lift-y\)\) scale\(var\(--s19-a-lift-scale-cell\)\); \}/);
     expect(block("@media (prefers-reduced-motion: reduce)")).toContain("[data-select-item], [data-select-item]::before, [data-select-item]::after,");
   });
 

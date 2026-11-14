@@ -21,6 +21,7 @@ import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionS
 import { InnerPage } from "../components/Layouts.js";
 import { SkeletonRows } from "../components/States.js";
 import { InlineChoice, type InlineChoiceOption } from "../components/ui/InlineChoice.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { i18n, isChineseLocale, t, useI18n } from "../i18n/index.js";
 import type zhLedgerImport from "../i18n/resources/zh-CN/ledgerImport.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
@@ -2758,7 +2759,7 @@ function SegmentedChoice({
   readonly onChange: (value: string) => void;
 }): React.JSX.Element {
   return (
-    <div role="group" aria-label={label} className="mt-2 grid grid-cols-2 gap-1 rounded-field bg-canvas p-1">
+    <MovingSelection axis="x" role="group" aria-label={label} className="mt-2 grid grid-cols-2 gap-1 rounded-field bg-canvas p-1">
       {options.map((option) => {
         const selected = value === option.value;
         return (
@@ -2766,6 +2767,7 @@ function SegmentedChoice({
             key={option.value}
             type="button"
             aria-pressed={selected}
+            data-select-tone={option.tone}
             onClick={() => onChange(option.value)}
             className={`rounded-field px-3 py-2 text-helper font-medium transition ${
               selected
@@ -2779,7 +2781,7 @@ function SegmentedChoice({
           </button>
         );
       })}
-    </div>
+    </MovingSelection>
   );
 }
 

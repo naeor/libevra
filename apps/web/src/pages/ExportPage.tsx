@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router";
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { MovingSelection, SelectionGrid } from "../components/ui/SelectionControls.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
@@ -262,7 +263,8 @@ function ExportView({
       <section className="flex flex-col gap-3">
         <h2 className="text-section-title text-ink">{t("dataio.export.range.title")}</h2>
 
-        <div className="grid grid-cols-2 gap-2">
+        {/* 1.19.68：时间范围互斥、手机宽度折成多行 → SelectionGrid；格式两项一行 → MovingSelection 横向。 */}
+        <SelectionGrid data-select-flat="" className="grid grid-cols-2 gap-2">
           {RANGE_PRESETS.map((preset) => (
             <button
               key={preset}
@@ -291,7 +293,7 @@ function ExportView({
           >
             {t("dataio.export.range.custom")}
           </button>
-        </div>
+        </SelectionGrid>
 
         {range === "custom" ? (
           <div className="flex items-center gap-3">
@@ -340,7 +342,7 @@ function ExportView({
       <section className="flex flex-col gap-3">
         <h2 className="text-section-title text-ink">{t("dataio.export.format.title")}</h2>
 
-        <div className="grid grid-cols-2 gap-2">
+        <MovingSelection axis="x" data-select-flat="" className="grid grid-cols-2 gap-2">
           {/* 「CSV」「Excel」是格式名，不翻译；说明文字随语言。 */}
           {(
             [
@@ -360,12 +362,13 @@ function ExportView({
               }`}
             >
               <span className="text-sm font-medium">{label}</span>
-              <span className={`text-xs leading-snug ${format === value ? "text-on-brand/80" : "text-brand-dark/70"}`}>
+              {/* 说明文字跟随按钮文字色（`text-current`）：S19 里选中项的底让给选中块，按钮文字变品牌绿，说明也跟着变；Original 的颜色不变。 */}
+              <span className={`text-xs leading-snug ${format === value ? "text-current/80" : "text-current/70"}`}>
                 {hint}
               </span>
             </button>
           ))}
-        </div>
+        </MovingSelection>
       </section>
 
       {/* ------------------------------------------------------------------ */}
