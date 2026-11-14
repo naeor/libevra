@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { BottomSheet } from "./BottomSheet.js";
 import { ChevronIcon } from "./Icons.js";
@@ -6,6 +6,7 @@ import { SelectionItem } from "./ui/SelectionControls.js";
 import { SkeletonRows } from "./States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { onPlainClick } from "../lib/entryReturn.js";
 import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js";
 
 /**
@@ -53,6 +54,7 @@ export function BookSwitcherSheet({
   readonly footer?: React.ReactNode;
 }): React.JSX.Element | null {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const books = useBooks();
   /**
    * ⚠️ **Read from the device's own memory, never from `useLedger()`** — this sheet lives on the
@@ -91,7 +93,7 @@ export function BookSwitcherSheet({
       footer={footer}
       onClose={onClose}
     >
-      {(requestClose) => {
+      {(requestClose, sheet) => {
         function choose(bookId: string): void {
           if (bookId === currentTargetId) {
             requestClose();
@@ -124,9 +126,14 @@ export function BookSwitcherSheet({
             {books.isSuccess && list.length === 0 ? (
               <div className="flex flex-col gap-3 px-5 py-4">
                 <p className="text-body-relaxed text-muted">{t("books.switcher.empty")}</p>
+                {/* 1.19.75（审查 T7）：先播放面板退场再进入账本空间（与账本管理面板同一做法）；导航那一刻面板还开着时，
+                    协调器会当作“有弹窗”而不播放海浪。按住修饰键 / 中键仍按链接打开。 */}
                 <Link
                   to="/start"
-                  onClick={onClose}
+                  onClick={(event) => {
+                    onPlainClick(() => { sheet.closeThen(() => { onClose(); void navigate("/start"); }); })(event);
+                    if (!event.defaultPrevented) onClose();
+                  }}
                   className="self-start rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
                 >
                   {t("books.goToSpace")}

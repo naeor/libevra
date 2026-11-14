@@ -17,6 +17,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, 
 import { useI18n } from "../../i18n/index.js";
 import { hasOpenOverlay } from "../../lib/openOverlay.js";
 import { bottomOffset, centeredSpan, topOffset, type Box } from "../../lib/toast/placement.js";
+import { NAV_MOTION_ATTRIBUTE, navOffset } from "../../s19/motion/navMotion.js";
 import type { ToastAnnouncement, ToastView } from "../../lib/toast/types.js";
 import { TOAST_WAIT_FOR_GIVE_WAY_MS, ToastBottomSlotContext } from "./bottomSlot.js";
 import { ToastCard } from "./Toast.js";
@@ -44,6 +45,7 @@ const OBSERVED_ATTRIBUTES = [
   "data-toast-anchor",
   "data-toast-give-way",
   "data-lv-bottom-bar",
+  NAV_MOTION_ATTRIBUTE,
 ];
 
 export function shouldYield(root: Document = document): boolean {
@@ -55,6 +57,14 @@ function shownBox(element: Element): Box | null {
   if (rect.width === 0 || rect.height === 0) return null;
   // 软键盘打开时底栏与操作栏是 visibility: hidden（s19/motion/navigation.css）：矩形还在，但不算障碍物。
   if (getComputedStyle(element).visibility === "hidden") return null;
+  // 1.19.75：常驻底栏正在向下退出 / 从下方升回（s19/motion/navMotion.ts）时按它要去的位置算——退出中不算障碍物，
+  // 升回中按停稳的位置。提示条在底栏动起来的同时就移到最终位置（宿主自带平移过渡），不等动画结束再跳一下。
+  const moving = element.closest(`[${NAV_MOTION_ATTRIBUTE}]`);
+  if (moving !== null) {
+    if (moving.getAttribute(NAV_MOTION_ATTRIBUTE) === "exit") return null;
+    const dy = navOffset(moving);
+    return { top: rect.top - dy, bottom: rect.bottom - dy, left: rect.left, right: rect.right };
+  }
   return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
 }
 

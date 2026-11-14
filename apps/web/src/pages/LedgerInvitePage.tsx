@@ -8,6 +8,7 @@ import { TextField } from "../components/TextField.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { isImeComposing } from "../lib/desktopInput.js";
+import { onPlainClick, useReturnTo } from "../lib/entryReturn.js";
 import { useInviteToBook, useLedger, useLookupAccount, type DirectoryAccount } from "../lib/queries.js";
 import { invitableRoles, useLedgerPermissions } from "../lib/permissions.js";
 
@@ -31,6 +32,7 @@ import { invitableRoles, useLedgerPermissions } from "../lib/permissions.js";
  */
 export function LedgerInvitePage(): React.JSX.Element {
   const ledger = useLedger();
+  const backToLedger = useReturnTo("/ledger", "push");
   const lookup = useLookupAccount();
   const invite = useInviteToBook();
 
@@ -285,7 +287,8 @@ export function LedgerInvitePage(): React.JSX.Element {
         */}
       <p className="text-helper-relaxed text-muted">{t("collab.invite.otherWays")}</p>
 
-      <Link data-invite-back to="/ledger" className="text-body text-brand transition hover:text-brand-dark">
+      {/* 1.19.75（审查 T4）：上一条正是协作页时退回去（返回转场），否则仍前往协作页。 */}
+      <Link data-invite-back to="/ledger" onClick={onPlainClick(backToLedger)} className="text-body text-brand transition hover:text-brand-dark">
         {t("collab.invite.backToLedger")}
       </Link>
     </InnerPage>

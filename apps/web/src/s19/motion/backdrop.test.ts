@@ -32,6 +32,42 @@ describe("视觉上下文只消费真实历史身份", () => {
     expect(directionFor(a, known, "POP", edges, true)).toBe("none");
     expect(directionFor(a, known, "PUSH", [], true)).toBe("none");
   });
+  it("1.19.75 T3：REPLACE 换出的新记录接过被替换记录的来源，之后返回照常授权；指向旧记录的来源改指新记录", () => {
+    const store = new BackdropStore();
+    const me = store.ensure("me", "A", scope, undefined, "source");
+    const profile = store.ensure("p1", "C", scope, me, "source");
+    // 个人资料「编辑」：同一路径 replace 成新 key。
+    const edited = store.replace(profile, "p2", "C", scope);
+    expect(edited.sourceKey).toBe("me");
+    expect(edited.sourceScene).toMatchObject({ page: "A" });
+    expect(directionFor(edited, me, "POP", edges, true)).toBe("pop");
+    // 已经认识的 key 不重建。
+    expect(store.replace(profile, "p2", "C", scope)).toBe(edited);
+    // 前进栈里以旧记录为来源的页面改指新记录：从它返回到新记录仍授权。
+    const child = store.ensure("d1", "D", scope, edited, "source");
+    const again = store.replace(edited, "p3", "C", scope);
+    expect(child.sourceKey).toBe("p3");
+    expect(directionFor(child, again, "POP", edges, true)).toBe("pop");
+    // 换了页面的 replace（账本详情切换账本）同样接过来源；返回仍要求那条边本身合法。
+    const switched = store.replace(again, "b1", "B", scope);
+    expect(switched.sourceKey).toBe("me");
+    expect(directionFor(switched, me, "POP", edges, true)).toBe("none");
+    // 本来没有来源（深链第一页）就仍然没有。
+    const deep = store.ensure("deep", "C", scope, undefined, "source");
+    expect(store.replace(deep, "deep2", "C", scope).sourceKey).toBeNull();
+  });
+  it("1.19.75 T2：协调器的作用域不含风格，换风格不清空关系；换账号 / 账本 / 工作区仍彻底清理", () => {
+    const store = new BackdropStore();
+    const base: VisualScope = { workspace: "w1", account: "u1", ledger: "b1" };
+    const a = store.ensure("a", "A", base, undefined, "source");
+    const c = store.ensure("c", "C", base, a, "source");
+    // pilot.tsx 的 scope() 只由工作区、账号、账本组成：改风格 / 明暗 / 配色前后是同一个作用域。
+    expect(store.setScope({ ...base })).toBe(false);
+    expect(store.get("c")?.sourceKey).toBe("a");
+    expect(directionFor(c, a, "POP", edges, true)).toBe("pop");
+    expect(store.setScope({ ...base, ledger: "b2" })).toBe(true);
+    expect(store.size).toBe(0);
+  });
   it("导航截断删除前进条目的描述；无限导航仍有界；切换身份彻底清理", () => {
     const history = new PaneHistory("w1", [entryFromPath("/A", "a")]);
     const store = new BackdropStore();

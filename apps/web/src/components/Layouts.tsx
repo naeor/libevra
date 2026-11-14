@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { flushSync } from "react-dom";
 import { useLocation, useNavigate } from "react-router";
 
 import { CurrentBookCaption } from "./CurrentBookCaption.js";
@@ -6,10 +7,10 @@ import { BottomNav, BottomNavView, type EntryCards } from "./BottomNav.js";
 import { NavigationSuppressedContext, PersistentNavContext, SuppressNavigationContext } from "./PersistentNavContext.js";
 import { BookCapsuleContext, createBookCapsuleStore } from "./bookCapsule.js";
 import { PersistentBookCapsule } from "./PersistentBookCapsule.js";
-import { navigationLevel } from "../s19/motion/navigation.js";
+import { navigationLevel, navVisibleAt } from "../s19/motion/navigation.js";
+import { canAnimateNav, navCapturedByPageTransition, navMotionEnabled, navOffset, playNavMotion, type NavMotion } from "../s19/motion/navMotion.js";
 import { handOverForScan } from "../lib/scanHandoff.js";
 import { startSoftKeyboard } from "../lib/softKeyboard.js";
-import { NAV_YIELD } from "../lib/motionTokens.js";
 import { currentBookId, subscribeCurrentBook } from "../lib/currentBook.js";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
@@ -133,39 +134,67 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
   const [open, setOpen] = useState(false);
   const [navigationSuppressed, suppressNavigation] = useState(false);
   /**
-   * 1.19.52：底栏让位要有过程——先变灰、不可点并向下退出，退出结束才真正隐藏；恢复时先显示再从下方升回。
-   * `navAway` 只表示“因让位而隐藏”，进入次级页面（level === "subpage"）的即时隐藏不走动画，由页面转场负责。
+   * 常驻底栏显示与否 = 这一层级显示底栏（`navVisibleAt`，navigation.ts 里唯一的判断）且页面没有要求让位。
+   * 结果从有到无：先向下退出，走完才真正隐藏；从无到有：先显示，再从下方升回（s19/motion/navMotion.ts）。
+   * - **让位**（1.19.52：工作台编辑、专注型核对、明细批量操作）：所有外观都有这段过程，变灰、不可点，与原来相同。
+   * - **随层级**（1.19.75，审查 T1：主 Tab ↔ 次级页，以及以后 `navVisibleAt` 改动的任何层级）：只在 S19 浅色手机外壳
+   *   播放，其余外观即时显隐；B2 的 View Transition 拍新页时由快照播放（pilot.css），活的底栏直接换到结果。
+   *   主 Tab 之间交换、记账菜单展开时结果不变，底栏不动。
+   * - **中途反向**：S19 浅色下从此刻的位置反向；其余外观与 1.19.52 相同（取消退出、直接回到原位）。
+   * - 减少动态效果、后台标签页：直接显隐。软键盘打开时底栏原样被 CSS 藏起（navigation.css），与这里无关。
    */
   const navRef = useRef<HTMLDivElement | null>(null);
-  const [navAway, setNavAway] = useState(navigationSuppressed);
-  const yieldState = useRef(navigationSuppressed);
-  const animateNav = (): boolean => {
-    const nav = navRef.current;
-    return nav !== null && !nav.hidden && level !== "subpage" && typeof nav.animate === "function" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  };
+  const atLevel = navVisibleAt(level);
+  const wanted = atLevel && !navigationSuppressed;
+  const [navHidden, setNavHidden] = useState(!wanted);
+  const navState = useRef<{ wanted: boolean; atLevel: boolean; rise: boolean; motion: NavMotion | null }>({ wanted, atLevel, rise: false, motion: null });
   useLayoutEffect(() => {
-    if (yieldState.current === navigationSuppressed) return;
-    yieldState.current = navigationSuppressed;
+    const state = navState.current;
+    const byLevel = state.atLevel !== atLevel;
+    state.atLevel = atLevel;
+    if (state.wanted === wanted) return;
+    state.wanted = wanted;
     const nav = navRef.current;
-    if (!navigationSuppressed) {
-      const wasAway = nav?.hidden === true;
-      setNavAway(false);
-      if (wasAway) return;
-      // 退出还没走完就恢复：取消退出，底栏直接回到原位。
-      nav?.getAnimations().forEach(animation => animation.cancel());
+    const running = state.motion;
+    const smooth = nav !== null && navMotionEnabled(nav);
+    const animated = nav !== null && canAnimateNav(nav) && (smooth || !byLevel) && !navCapturedByPageTransition();
+    if (!wanted) {
+      if (nav === null || nav.hidden || !animated) {
+        running?.cancel(); state.motion = null; state.rise = false;
+        setNavHidden(true);
+        return;
+      }
+      // 升回途中又要离开：从此刻的位置退出（S19 浅色）；其余外观从原位开始。
+      const from = running !== null && smooth ? navOffset(nav) : null;
+      running?.cancel();
+      const motion = playNavMotion(nav, "exit", from, () => {
+        if (state.motion !== motion) return;
+        state.motion = null;
+        flushSync(() => { setNavHidden(true); });
+      });
+      state.motion = motion;
       return;
     }
-    if (!animateNav() || nav === null) { setNavAway(true); return; }
-    const motion = nav.animate([{ transform: "translateY(0)" }, { transform: `translateY(${NAV_YIELD.offset})` }], { duration: NAV_YIELD.exit.duration, easing: NAV_YIELD.exit.easing, fill: "forwards" });
-    motion.onfinish = () => { setNavAway(true); motion.cancel(); };
-  }, [navigationSuppressed]);
-  const wasAway = useRef(navAway);
+    if (nav !== null && !nav.hidden) {
+      // 退出还没走完就又需要它：S19 浅色下从此刻的位置升回；其余外观取消退出、直接回到原位（1.19.52）。
+      if (running?.kind !== "exit") return;
+      const from = smooth && animated ? navOffset(nav) : null;
+      running.cancel(); state.motion = null;
+      if (from !== null) state.motion = playNavMotion(nav, "rise", from);
+      return;
+    }
+    state.rise = animated;
+    setNavHidden(false);
+  }, [wanted, atLevel]);
   useLayoutEffect(() => {
-    const before = wasAway.current;
-    wasAway.current = navAway;
-    if (!before || navAway || !animateNav()) return;
-    navRef.current?.animate([{ transform: `translateY(${NAV_YIELD.offset})` }, { transform: "translateY(0)" }], { duration: NAV_YIELD.enter.duration, easing: NAV_YIELD.enter.easing });
-  }, [navAway]);
+    const state = navState.current;
+    if (navHidden || !state.rise) return;
+    state.rise = false;
+    const nav = navRef.current;
+    // 先显示、再在第一帧画出之前把它放到屏幕下方升回。
+    if (nav !== null && canAnimateNav(nav)) { state.motion?.cancel(); state.motion = playNavMotion(nav, "rise", null); }
+  }, [navHidden]);
+  useLayoutEffect(() => () => { navState.current.motion?.cancel(); }, []);
 
   // The pathname *after* the first render. Comparing against it means the fold
   // cannot fire for the page the reader is already on when the app starts —
@@ -201,7 +230,7 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
   return <EntryMenuContext.Provider value={value}><PersistentNavContext.Provider value={persistent}><BookCapsuleContext.Provider value={docked ? capsules : null}>
     <SuppressNavigationContext.Provider value={suppressNavigation}><NavigationSuppressedContext.Provider value={navigationSuppressed}>{children}</NavigationSuppressedContext.Provider></SuppressNavigationContext.Provider>
     {/* 让位时（工作台编辑、专注型核对步骤、明细批量操作）底栏变灰、inert、不可点，向下退出后隐藏。 */}
-    {persistent ? <div ref={navRef} data-persistent-nav hidden={level === "subpage" || navAway} inert={navigationSuppressed || undefined} data-focus-task={navigationSuppressed ? "" : undefined} className="persistent-nav" onClickCapture={event => {
+    {persistent ? <div ref={navRef} data-persistent-nav hidden={navHidden} inert={navigationSuppressed || undefined} data-focus-task={navigationSuppressed ? "" : undefined} className="persistent-nav" onClickCapture={event => {
       if (event.target instanceof Element && event.target.closest("a[href]")) value.close();
     }}>{docked ? <PersistentBookCapsule menuOpen={open} /> : null}<BottomNavView active={activeTab.current} onNavigate={to => { value.close(); void navigate(tabTarget(to)); }}
       cards={{ mode: "toggle", expanded: open, active: level === "enterMode", onToggle: value.toggle }}
@@ -424,7 +453,9 @@ function MobileInnerPage({
   const { pathname } = useLocation();
   // 专注型核对步骤让底栏让位时，不再为底栏留尾部空间（与次级页面一致）。
   const navigationSuppressed = useContext(NavigationSuppressedContext);
-  const mode = pane.nav === "bottom" && navigationLevel(pathname) === "enterMode" && !navigationSuppressed;
+  // 1.19.75：是否给底栏留位跟着底栏是否显示走（navVisibleAt），以后记账工作区改成隐藏底栏时这里自动不再留位。
+  const level = navigationLevel(pathname);
+  const mode = pane.nav === "bottom" && level === "enterMode" && navVisibleAt(level) && !navigationSuppressed;
   const width = frameWidthClass(pane, wideWidth);
   /**
    * S18：页面左上角的「返回」先告诉工作区外壳「这是返回」——有的页面返回是打开声明的上级页（push），

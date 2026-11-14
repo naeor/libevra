@@ -1,11 +1,13 @@
 import "./attachments.css";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { flushSync } from "react-dom";
+import { Link, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatStorageBytes, type AttachmentView } from "@libellum/shared";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
+import { onPlainClick } from "../lib/entryReturn.js";
 import { cancelPendingAttachment, attachmentProgress, attachmentUrl, pendingAttachments, removePendingAttachment, savePendingAttachment, uploadAttachment,
   useAttachments, useBookStorage, useAccountStorage, type PendingAttachment } from "../lib/attachments.js";
 import { useBooks } from "../lib/queries.js";
@@ -66,8 +68,15 @@ export function AttachmentTransfers(): null {
  * 上传者 + 下载 + 右上角 ×）、遮罩、进出动画、安全区与下拉关闭；宽屏仍是居中的大对话框（尺寸见 attachments.css），
  * 只盖住所在工作区。预览内容与「下载」不变。
  */
-export function AttachmentPreview({ file, onClose, inline = false }: { file: AttachmentView; onClose: () => void; inline?: boolean }): React.JSX.Element {
+export function AttachmentPreview({ file, onClose, inline = false }: { file: AttachmentView; onClose: () => void; inline?: boolean }): React.JSX.Element | null {
   const { t } = useI18n();
+  const navigate = useNavigate();
+  /**
+   * 1.19.75（审查 T7）：弹出面板里的账目链接先同步收起面板再前往账目——导航那一刻面板还开着，协调器会当作“有弹窗”
+   * 而不播放转场。只收起这个面板本身（`onClose` 在附件页是一次导航，不能先调用）；随后页面换掉，它跟着卸载。
+   */
+  const [leaving, setLeaving] = useState(false);
+  const openEntry = (to: string) => inline ? undefined : onPlainClick(() => { flushSync(() => { setLeaving(true); }); void navigate(to); });
   const url = attachmentUrl(file);
   const download = <a className="lv-desk-btn" href={attachmentUrl(file, true)} download>{t("attachments.download")}</a>;
   const body = <>
@@ -76,13 +85,14 @@ export function AttachmentPreview({ file, onClose, inline = false }: { file: Att
         <AttachmentPdf url={url} /> : file.mediaType.startsWith("audio/") ? <audio controls src={url} preload="metadata" /> :
         <a className="lv-desk-link" href={attachmentUrl(file, true)} download>{t("attachments.download")}</a>}
     </div>
-    <nav className="flex flex-wrap gap-3 p-4">{file.entries.map(entry => <Link key={entry.id} className="lv-desk-link" to={`/transactions/${entry.id}?book=${file.bookId}`}>{entry.seq ? `#${String(entry.seq).padStart(6,"0")}` : t("desktop.entries.panel")}{entry.deleted ? ` · ${t("attachments.recoverable")}` : ""}</Link>)}</nav>
+    <nav className="flex flex-wrap gap-3 p-4">{file.entries.map(entry => <Link key={entry.id} className="lv-desk-link" to={`/transactions/${entry.id}?book=${file.bookId}`} onClick={openEntry(`/transactions/${entry.id}?book=${file.bookId}`)}>{entry.seq ? `#${String(entry.seq).padStart(6,"0")}` : t("desktop.entries.panel")}{entry.deleted ? ` · ${t("attachments.recoverable")}` : ""}</Link>)}</nav>
   </>;
   if (inline) return <aside className="lv-attachment-inline-preview" aria-label={t("attachments.preview")}>
     <header><div className="min-w-0"><h2 className="truncate text-section-title">{file.name}</h2><p className="text-helper text-muted">{formatStorageBytes(file.sizeBytes)} · {file.uploaderName}</p></div>
       {download}<button className="lv-desk-btn" onClick={onClose}>{t("attachments.close")}</button></header>
     {body}
   </aside>;
+  if (leaving) return null;
   return <BottomSheet label={file.name} title={<span className="break-all">{file.name}</span>}
     description={`${formatStorageBytes(file.sizeBytes)} · ${file.uploaderName}`}
     headerActions={download} detent="large" dialogClassName="lv-attachment-sheet" onClose={onClose}>

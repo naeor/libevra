@@ -5,6 +5,7 @@ import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
 import { localizeUpdateAnnouncement } from "../i18n/content/index.js";
 import { useI18n } from "../i18n/index.js";
+import { onPlainClick, useReturnTo } from "../lib/entryReturn.js";
 import {
   adjacentReleasedAnnouncements,
   formatReleaseDate,
@@ -21,6 +22,8 @@ import {
 export function UpdateAnnouncementDetailPage(): React.JSX.Element {
   const { version } = useParams<{ readonly version: string }>();
   const { t } = useI18n();
+  /** 1.19.75（审查 T5）：「返回公告列表」上一条正是列表时退回去（返回转场、不再叠一层历史），否则仍前往列表。 */
+  const backToList = onPlainClick(useReturnTo("/update/announcements", "push"));
 
   /**
    * The local major-announcement test has a synthetic version and is not part of the real release
@@ -48,7 +51,7 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
         <p className="rounded-card border border-line bg-surface px-4 py-3 text-body text-muted">
           {t("update.detail.missingBody")}
         </p>
-        <Link to="/update/announcements" className="text-body font-medium text-brand">
+        <Link to="/update/announcements" onClick={backToList} className="text-body font-medium text-brand">
           {t("update.detail.back")}
         </Link>
       </InnerPage>
@@ -131,7 +134,7 @@ export function UpdateAnnouncementDetailPage(): React.JSX.Element {
         </nav>
       )}
 
-      <Link to="/update/announcements" className="self-start text-body font-medium text-brand">
+      <Link to="/update/announcements" onClick={backToList} className="self-start text-body font-medium text-brand">
         {t("update.detail.back")}
       </Link>
     </InnerPage>

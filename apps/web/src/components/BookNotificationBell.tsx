@@ -1,13 +1,15 @@
 import "./attachments.css";
 import { useEffect, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type { EntryChangeNoticeView } from "@libellum/shared";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 import { formatInstant } from "../lib/datetime.js";
 import { formatMoney } from "../lib/format.js";
+import { onPlainClick } from "../lib/entryReturn.js";
 import { BottomSheet } from "./BottomSheet.js";
 import type { Currency } from "@libellum/shared";
 
@@ -22,7 +24,7 @@ function describe(value: unknown): string {
 }
 
 export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }: { bookId: string; trigger?: ReactNode; hiddenTrigger?: boolean }): React.JSX.Element | null {
-  const { user } = useAuth(); const { t } = useI18n(); const client = useQueryClient();
+  const { user } = useAuth(); const { t } = useI18n(); const client = useQueryClient(); const navigate = useNavigate();
   const [open, setOpen] = useState(false); const [error, setError] = useState<string | null>(null);
   const unread = useQuery({ queryKey: ["book-notices", user?.id, "unread"], enabled: !!user,
     queryFn: () => apiFetch<{ books: Record<string, number> }>("/book-notices/unread"), refetchInterval: 30_000 });
@@ -44,6 +46,14 @@ export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }:
    * （由外壳在 window / document 上处理）就收不到了。面板外层只挡点击与按下，以及 Esc、Tab 以外的按键。
    */
   const stop = (event: React.SyntheticEvent): void => { event.stopPropagation(); };
+  /**
+   * 1.19.75（审查 T7）：「账目 →」先同步收起面板再前往账目——导航那一刻面板还开着，协调器会当作“有弹窗”而不播放转场。
+   * 按住修饰键 / 中键仍按链接打开（面板照旧收起）。
+   */
+  const openEntry = (to: string) => (event: React.MouseEvent<HTMLAnchorElement>): void => {
+    onPlainClick(() => { flushSync(() => { setOpen(false); }); void navigate(to); })(event);
+    if (!event.defaultPrevented) setOpen(false);
+  };
   return <><div onKeyDown={stop} onClick={stop} onPointerDown={stop}>
     <button type="button" hidden={hiddenTrigger} className={trigger ? "lv-dash-message-link" : "lv-notice-bell"} aria-label={t("attachments.bookBell")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
       {trigger ?? <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>}
@@ -61,7 +71,7 @@ export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }:
         {notice.entry?.note ? <p className="mt-2 text-body">{notice.entry.note}</p> : null}
         <dl className="my-3 flex flex-col gap-1">{Object.entries(notice.changes).map(([key, value]) => <div key={key} className="text-helper"><dt className="inline text-muted">{t(`attachments.field.${key}`, { defaultValue: key })} · </dt>
           <dd className="inline">{key === "amountCents" && notice.entry?.currency ? `${formatMoney(Number(value.from), (notice.changes["currency"]?.from ?? notice.entry.currency) as Currency)} → ${formatMoney(Number(value.to), notice.entry.currency as Currency)}` : `${describe(value.from)} → ${describe(value.to)}`}</dd></div>)}</dl>
-        {notice.transactionId ? <Link className="lv-desk-link text-helper" to={`/transactions/${notice.transactionId}?book=${bookId}`} onClick={() => setOpen(false)}>{t("desktop.entries.panel")} →</Link> : null}
+        {notice.transactionId ? <Link className="lv-desk-link text-helper" to={`/transactions/${notice.transactionId}?book=${bookId}`} onClick={openEntry(`/transactions/${notice.transactionId}?book=${bookId}`)}>{t("desktop.entries.panel")} →</Link> : null}
       </li>)}</ul>
       {list.hasNextPage ? <button className="lv-desk-btn m-4" disabled={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>{t("attachments.more")}</button> : null}
     </BottomSheet>

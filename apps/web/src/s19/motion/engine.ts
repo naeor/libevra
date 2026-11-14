@@ -161,7 +161,12 @@ export class MotionEngine {
         if (width * height * (window.devicePixelRatio || 1) ** 2 * 4 * 2 > SNAPSHOT_BUDGET_BYTES) { fail("snapshot-budget"); return; }
       }
       try {
-        native = doc.startViewTransition(apply);
+        // 提交发生在浏览器拍下旧页之后（View Transition 的更新回调里）。这期间写 `data-motion-capture`：常驻底栏
+        // 据此直接换到新结果，退出 / 升回交给快照（pilot.css 的 lv-persistent-nav），活的底栏不再自己动一遍（1.19.75，T1）。
+        native = doc.startViewTransition(() => {
+          root.dataset.motionCapture = "";
+          try { apply(); } finally { delete root.dataset.motionCapture; }
+        });
         this.snapshots = 2; // 一组 old/new，表示申请数量，不是浏览器实际内存读数。
         deadline = setTimeout(() => fail("capture-timeout"), 120);
         void native.ready.then(() => {

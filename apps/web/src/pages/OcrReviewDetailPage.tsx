@@ -16,7 +16,7 @@ import {
   type TransactionKind,
 } from "@libellum/shared";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
@@ -46,6 +46,7 @@ import {
   type OcrCategorySource,
 } from "../lib/ocr/types.js";
 import { useLedger, useLedgerMeta } from "../lib/queries.js";
+import { useReturnTo } from "../lib/entryReturn.js";
 import { KindToggle, useKindBar } from "../components/entry/KindToggle.js";
 import { materialAttributes } from "../s19/material.js";
 import "../s19/material-components.css";
@@ -108,7 +109,11 @@ function previewCandidate(item: OcrBatchCandidate, form: FormState): OcrBatchCan
 
 export function OcrReviewDetailPage(): React.JSX.Element {
   const { candidateId } = useParams();
-  const navigate = useNavigate();
+  /**
+   * 1.19.75（审查 T5）：回到概览（保存后、「返回概览」「不保存返回」）上一条正是概览时退回去——播放返回转场，
+   * 历史不再越叠越长；否则仍前往概览。
+   */
+  const backToOverview = useReturnTo("/ocr/overview", "push");
   const { t } = useI18n();
   const kindBar = useKindBar();
   const ledger = useLedger();
@@ -135,7 +140,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         </Alert>
         <Button
           onClick={() => {
-            void navigate("/ocr/overview");
+            backToOverview();
           }}
         >
           {t("ocr.detail.backToOverview")}
@@ -236,7 +241,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
     }
 
     setBatch(updated);
-    void navigate("/ocr/overview");
+    backToOverview();
   }
 
   function save(): void {
@@ -524,7 +529,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         <Button
           variant="ghost"
           onClick={() => {
-            void navigate("/ocr/overview");
+            backToOverview();
           }}
         >
           {t("ocr.detail.backWithoutSaving")}

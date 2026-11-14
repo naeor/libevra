@@ -17,7 +17,12 @@ export interface MotionOptions {
   inheritance: Inheritance;
 }
 export const defaults: MotionOptions = { scheme: "native", material: "b2", duration: NAVIGATION.b2.duration, retreat: true, blur: true, blurStrength: DEFAULT_GLASS_BLUR, handoff: true, inheritance: "source" };
-export interface VisualScope { workspace: string; account: string; ledger: string; style: string }
+/**
+ * 历史关系的作用域：哪个工作区、哪个账号、哪本账。1.19.75（审查 T2）起正式协调器（pilot.tsx）**不再传风格 / 明暗 / 配色**：
+ * “这一页是从哪一页进来的”是历史事实，换外观不改变它；原来作用域里带着风格，一换风格整条栈的来源都作废，返回不再有转场。
+ * `style` 只留给实验页（experiments/motion-lab）在切换方案时重置。
+ */
+export interface VisualScope { workspace: string; account: string; ledger: string; style?: string }
 export interface Ambient { hue: number; accent: number; x: number; y: number }
 /** 描述可恢复；不声称这些字段是一张浏览器像素快照。 */
 export interface BackdropContext {
@@ -85,6 +90,22 @@ export class BackdropStore {
       this.entries.delete(oldest);
       this.evictions++;
     }
+    return result;
+  }
+  /**
+   * REPLACE（1.19.75，审查 T3）：同一个历史位置换成了一条新记录（新 key）。REPLACE 不改变“下面是哪一页”，所以新记录
+   * 接过被替换记录的来源，就像它当初也是从那一页进来的；原来以旧记录为来源的记录（前进栈里的页面）改指新记录。
+   * 返回时仍要经过 `directionFor` 的显式边检查，来源本身不授权任何动画。
+   */
+  replace(from: BackdropContext, key: string, page: string, scope: VisualScope): BackdropContext {
+    const known = this.entries.get(key);
+    if (known) return known;
+    const sameScope = JSON.stringify(from.scope) === JSON.stringify(scope);
+    const source = sameScope && from.sourceKey !== null ? this.entries.get(from.sourceKey) : undefined;
+    const result = this.ensure(key, page, scope, source, "source");
+    // 来源的描述已被淘汰（超过上限）时仍保留关系本身。
+    if (sameScope && result.sourceKey === null && from.sourceKey !== null) result.sourceKey = from.sourceKey;
+    if (sameScope) for (const entry of this.entries.values()) if (entry !== result && entry.sourceKey === from.entryKey) entry.sourceKey = key;
     return result;
   }
 }

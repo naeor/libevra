@@ -48,3 +48,19 @@
   0% { transform: none; filter: none; opacity: .72; }
   65%, 100% { transform: none; filter: none; opacity: 1; }
 }
+/* 1.19.75（审查 T1）：常驻底栏单独成一组，画在页面组之上。进入次级页时旧图向下退出，回到主 Tab 时新图从下方升回；
+   时长与曲线同 NAV_YIELD（lib/motionTokens.ts，navMotion.test.ts 核对两边一致）。拍新页时活的底栏已直接换到结果
+   （engine.ts 的 data-motion-capture），所以一组里只有旧图或只有新图。(*) 给页面的滑入、后退模糊与环境底色在这里取消；
+   组不裁切，抬高的“+”与阴影完整。 */
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-s19-scope="phone"] [data-persistent-nav] {
+  view-transition-name: lv-persistent-nav;
+}
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-group(lv-persistent-nav) { background: none; overflow: visible; animation: none; }
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-old(lv-persistent-nav) {
+  animation: lv-nav-leave 180ms cubic-bezier(.4,0,1,1) both; filter: none; opacity: 1;
+}
+:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-new(lv-persistent-nav) {
+  animation: lv-nav-return 220ms cubic-bezier(.2,.8,.3,1) both; filter: none; opacity: 1;
+}
+@keyframes lv-nav-leave { from { transform: translateY(0); } to { transform: translateY(110%); } }
+@keyframes lv-nav-return { from { transform: translateY(110%); } to { transform: translateY(0); } }

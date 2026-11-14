@@ -7,14 +7,15 @@ import { visualStyleRuntime } from "../../lib/visualStyle.js";
 import { RESTORE_HEADER_SCROLL } from "../../lib/useCollapsingHeader.js";
 import { usePane } from "../../workspace/context.js";
 import type { PaneHistory, PaneSnapshot } from "../../workspace/paneHistory.js";
-import { BackdropStore, defaults, directionFor, type BackdropContext, type VisualScope } from "./backdrop.js";
+import { defaults, directionFor, type BackdropContext, type VisualScope } from "./backdrop.js";
+import { inheritReplace, motionRelations } from "./relations.js";
 import { MotionEngine } from "./engine.js";
 import { B2_GLASS_DEFAULT, B2_OLD_PAGE_RETREAT, b2GlassMaterial } from "../b2Glass.js";
-import { describeLayout, layoutBackground, type AmbientLayout } from "./ambientLayout.js";
+import { describeLayout, layoutBackground } from "./ambientLayout.js";
 import { aVariant, captureATabFrame, createABCPresentation, subscribeAVariant } from "./abcBridge.js";
 import "./motion.css";
 import "./pilot.css";
-import { focusesOnEntry, hasDefaultMotion, inEntryWorkspace, isDefaultMotionEdge, isTabSwitch, navigationLevel } from "./navigation.js";
+import { defaultMotionBetween, focusesOnEntry, hasDefaultMotion, inEntryWorkspace, isDefaultMotionEdge, isReturnToTab, isTabSwitch, navigationLevel } from "./navigation.js";
 import { EnterModePresentation, enterModeOptions } from "./enterMode.js";
 import { ObjectExpandPresentation, objectSource, type ObjectSource } from "./objectExpand.js";
 import { TabExchangePresentation, tabIndex } from "./tabExchange.js";
@@ -32,7 +33,8 @@ export interface PilotAdapter {
 }
 const pages = { has: hasDefaultMotion };
 let enabled = (import.meta.env.DEV || (typeof __S19_STYLE_LAB__ !== "undefined" && __S19_STYLE_LAB__)) && typeof location !== "undefined" && new URLSearchParams(location.search).get("motion") === "1";
-interface ScrollPoint { documentY: number; inner: number[] }
+/** 页面提交后这么久之内就被替换（`<Navigate replace>` 之类的重定向）：读者没有看到它，不按“从次级页回主 Tab”播放。 */
+const REDIRECT_MS = 150;
 
 /** 只挂在内层 PaneRouter。仍只有一棵真实 React 页面树，DOM 提交由 flushSync 回执。 */
 export default function MotionPilot({ history, adapter }: {
@@ -57,11 +59,10 @@ export default function MotionPilot({ history, adapter }: {
 
 function createPilot(history: PaneHistory, account: string, ledger: string): PilotAdapter & { dispose(): void } {
   const html = document.documentElement;
-  const store = new BackdropStore();
-  const scrolls = new Map<string, ScrollPoint>();
-  // 主 Tab 的最后滚动位置按 Tab 记，点击底栏重新入栈（新 key）回来时也能接上。
-  const tabScrolls = new Map<string, ScrollPoint>();
-  const layouts = new Map<string, AmbientLayout>();
+  // 1.19.75（审查 T2）：来源、对象展开、工作区来源与滚动按工作区历史保存（relations.ts），协调器因换风格重建时接着用。
+  const scope = (): VisualScope => ({ workspace: history.id, account, ledger });
+  const relations = motionRelations(history, scope());
+  const { store, scrolls, tabScrolls, layouts, objectEntries, modeEntries } = relations;
   let current: BackdropContext | undefined;
   let appBack: { from: string; to: string; at: number } | null = null;
   let lastEntryClick: { key: string; href: string; at: number } | null = null;
@@ -69,6 +70,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   let pendingRestore: { key: string; focus: boolean; tab?: string | undefined } | null = null;
   let captureOrigin: { x: number; y: number } | null = null;
   let committedKey = history.location.key;
+  let committedAt = performance.now();
   let clickedControl: Element | null = null;
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
   const badge = document.createElement("div"); badge.id = "motion-pilot-badge";
@@ -88,8 +90,6 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   const modes = new EnterModePresentation();
   const tide = new TidePresentation();
   const modeOptions = enterModeOptions(window.location.search);
-  const modeEntries = new Map<string, string>();
-  const objectEntries = new Map<string, { source: ObjectSource; sourceKey: string }>();
   let clickedObject: { source: ObjectSource; key: string; at: number } | null = null;
   const page = (): HTMLElement | null => {
     const node = paneRoot()?.firstElementChild;
@@ -100,7 +100,6 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     .filter((node): node is HTMLElement => node instanceof HTMLElement && !node.matches("[data-persistent-nav], .persistent-nav-space"));
   const acceptsStyle = (): boolean => enabled || html.dataset.visualStyle === "b2" || (!!abc && ["a", "b1", "c"].includes(html.dataset.visualStyle ?? ""));
   status.textContent = "Motion 试点 · 我的 → 设置 → 语言";
-  const scope = (): VisualScope => ({ workspace: history.id, account, ledger, style: `${html.dataset.visualStyle ?? "original"}:${html.dataset.themeMode}:${html.dataset.themePalette}` });
   const paneRoot = (): HTMLElement | null => document.querySelector(`.lv-pane[data-instance="${history.id}"] .lv-pane-scroll`);
   const scrollers = (): HTMLElement[] => Array.from(paneRoot()?.querySelectorAll<HTMLElement>(".overflow-y-auto") ?? []);
   const saveScroll = (key: string, page: string): void => {
@@ -142,17 +141,14 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     return [geometry, `radial-gradient(ellipse at ${context.ambient.x}% ${context.ambient.y}%, color-mix(in srgb, var(--color-brand) calc(18% * var(--s19-b2-carry, .85)), transparent), transparent 68%)`, "var(--s19-bg, var(--color-canvas))"].filter(Boolean).join(", ");
   };
   // 1.19.42：不再把逐页环境写进 body::before。统一壁纸是全站唯一环境，B2 环境描述只在转场期间交给引擎。
-  const reset = (): void => {
-    engine.cancel(); abc?.cancel(); objects.cancel(); modes.cancel(); tabs.cancel(); tide.cancel(); objectEntries.clear(); modeEntries.clear(); store.setScope(scope()); scrolls.clear(); tabScrolls.clear(); layouts.clear();
-    current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source");
-  };
+  // 1.19.75（审查 T2）：改风格 / 明暗 / 配色只把正在播放的转场收到终点，不再清空来源与滚动——返回照常播放。
   current = store.ensure(history.location.key, history.location.pathname, scope(), undefined, "source");
-  const observe = new MutationObserver(reset);
+  /** light=false：只收束导航类转场（视口大幅变化）；「再记一笔」的轻切换不随随后弹出的键盘中断。 */
+  const cancel = (light = true): void => { engine.cancel(); abc?.cancel(); objects.cancel(); if (light) modes.cancel(); else modes.cancelFlow(); tabs.cancel(); tide.cancel(); };
+  const observe = new MutationObserver(() => { cancel(); });
   observe.observe(html, { attributes: true, attributeFilter: ["data-visual-style", "data-theme-mode", "data-theme-palette"] });
   const unsubscribeGlass = visualStyleRuntime()?.subscribe(() => { engine.cancel(); abc?.cancel(); });
   const unsubscribeVariant = subscribeAVariant(() => abc?.cancel());
-  /** light=false：只收束导航类转场（视口大幅变化）；「再记一笔」的轻切换不随随后弹出的键盘中断。 */
-  const cancel = (light = true): void => { engine.cancel(); abc?.cancel(); objects.cancel(); if (light) modes.cancel(); else modes.cancelFlow(); tabs.cancel(); tide.cancel(); };
   // 切换账本的整页重新载入：海浪先盖满整屏（tide.ts）；上一页留下的交接帧在这里接着划过。
   provideReloadCover((work, { hint, rise }) => {
     const look = tideLook();
@@ -270,7 +266,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
   let disposed = false;
   const dispose = (): void => {
     if (disposed) return; disposed = true;
-    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); tabs.dispose(); tide.cancel(); provideEntryAgain(null); provideReloadCover(null); objectEntries.clear(); modeEntries.clear(); store.clear(); scrolls.clear(); tabScrolls.clear(); layouts.clear(); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
+    // 历史关系（relations.ts）不在这里清空：换风格时协调器重建，新实例接着用；换账号 / 账本时作用域变了，自然换一份。
+    engine.dispose(); abc?.dispose(); objects.cancel(); modes.cancel(); tabs.dispose(); tide.cancel(); provideEntryAgain(null); provideReloadCover(null); observe.disconnect(); unsubscribeGlass?.(); unsubscribeVariant(); badge.remove();
     if (pendingTimer) clearTimeout(pendingTimer);
     for (const name of ["--motion-b2-old-x", "--motion-b2-old-y"]) html.style.removeProperty(name);
     for (const page of document.querySelectorAll<HTMLElement>("[data-b2-motion-page]")) delete page.dataset.b2MotionPage;
@@ -292,7 +289,10 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       if (store.setScope(scope())) { current = undefined; scrolls.clear(); layouts.clear(); }
       const legalEdge = from && next.action === "PUSH" && isDefaultMotionEdge(from.page, next.location.pathname);
       const known = store.get(next.location.key);
-      current = store.ensure(next.location.key, next.location.pathname, scope(), legalEdge ? from : undefined, "source");
+      // REPLACE 换出来的新记录接过被替换记录的来源（1.19.75，审查 T3）；PUSH 只授权刚发生的那条边。
+      current = next.action === "REPLACE" && from && !known
+        ? inheritReplace(relations, from, next.location.key, next.location.pathname, scope())
+        : store.ensure(next.location.key, next.location.pathname, scope(), legalEdge ? from : undefined, "source");
       const source = paneRoot();
       if (browserAnimatedPop(next.action)) {
         // 浏览器已经呈现过返回：只交付页面与滚动，不再播放任何呈现层动画。
@@ -389,6 +389,10 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         : next.action === "POP" ? (isDefaultMotionEdge(current.page, from.page) ? [[current.page, from.page]] : [])
         : isDefaultMotionEdge(from.page, current.page) ? [[from.page, current.page]] : [];
       let direction = from ? directionFor(from, current, next.action, edges, allowPop) : "none";
+      // 从次级页前往主 Tab（PUSH / REPLACE，1.19.75，审查 T4）：落点不变，按返回方向播放。刚提交就被替换的页面
+      // （重定向）读者没看到，不播放。
+      if (direction === "none" && from && next.action !== "POP" && isReturnToTab(from.page, next.location.pathname)
+        && committedKey === from.entryKey && performance.now() - committedAt >= REDIRECT_MS) direction = "pop";
       const focus = document.activeElement;
       const blocked = hasOpenOverlay()
         || focus instanceof HTMLInputElement || focus instanceof HTMLTextAreaElement || (focus instanceof HTMLElement && focus.isContentEditable)
@@ -396,8 +400,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       // 查询参数属于页面状态（筛选、来源），不再阻止默认转场；锚点跳转仍是页内定位。
       if (blocked || next.location.hash) direction = "none";
       if (!enabled && html.dataset.themeMode !== "light") direction = "none";
-      // 自带动效的页面（账本空间海浪等）立即交回原路径，不为它们捕获或改变滚动。
-      if (!pages.has(next.location.pathname) || (from && !pages.has(from.page))) direction = "none";
+      // 自带动效的页面（账本空间海浪等）立即交回原路径，不为它们捕获或改变滚动；账本空间与它自己的成员 / 分享页之间除外（T6）。
+      if (!from || !defaultMotionBetween(from.page, next.location.pathname)) direction = "none";
       const target = current;
       // 同一页面换筛选（REPLACE / 同路径）保持当前滚动；换页面或返回才恢复该条历史的位置。
       const moved = !from || from.page !== next.location.pathname || next.action === "POP";
@@ -435,6 +439,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     },
     committed(key) {
       if (disposed || key !== current?.entryKey) return;
+      if (committedKey !== key) committedAt = performance.now();
       committedKey = key;
       // 记录只拦截旧页尚未提交时的重入；返回到同一 entry 后属于一次新的激活。
       if (lastEntryClick?.key !== key) lastEntryClick = null;

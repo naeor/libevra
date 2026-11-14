@@ -3,6 +3,7 @@ import { snapshot, restoreSnapshot } from "./abcPresentation.js";
 import { runFrameClock, type FrameClock } from "../../lib/frameClock.js";
 import { MOTION_CLOCK, OBJECT_EXPAND, easingFunction, interruptsTransition } from "../../lib/motionTokens.js";
 import { markS19Stage } from "../scope.js";
+import { navMotionEnabled } from "./navMotion.js";
 import "./objectExpand.css";
 
 export interface ObjectSource { id: string; slot?: string; rect: Box; width: number; height: number; radius: number; safeTop: number; safeBottom: number }
@@ -213,7 +214,9 @@ export class ObjectExpandPresentation {
     const { shell, lift, shade } = this.buildShell(style);
     front.append(shade, shell); document.body.append(front); this.front = front;
     const nav = document.querySelector<HTMLElement>("[data-persistent-nav]:not([hidden]):not([data-motion-copy])");
-    const navCopy = nav ? nav.cloneNode(true) as HTMLElement : null;
+    // 1.19.75（审查 T1）：S19 浅色下真实底栏自己向下退出（navMotion.ts），不再留副本——否则会有两个底栏。
+    // 深色等不播放退出的外观，底栏在提交时即时隐藏，仍由副本留在原处随原页面退场（原有做法）。
+    const navCopy = nav && !navMotionEnabled(nav) ? nav.cloneNode(true) as HTMLElement : null;
     if (navCopy) { navCopy.dataset.motionCopy = ""; navCopy.removeAttribute("id"); }
 
     const scrolls: [HTMLElement, number, number][] = [];
@@ -365,7 +368,8 @@ export class ObjectExpandPresentation {
     // 出现完成后移除透明度动画：页面与底栏不再是背景根，玻璃卡片恢复对壁纸的模糊；同时清掉首帧写入的静态透明度。
     const transient: [Animation, number][] = [];
     const settleAt = interrupted ? 0 : !reliable ? .6 : r1;
-    if (nav) transient.push([this.animate(this.hold(nav), appear(), D), settleAt]);
+    // 1.19.75（审查 T1）：S19 浅色下真实底栏自己从下方升回（navMotion.ts），不再随列表淡入；其余外观照旧。
+    if (nav && !navMotionEnabled(nav)) transient.push([this.animate(this.hold(nav), appear(), D), settleAt]);
     transient.push([this.animate(real, appear(), D), settleAt]);
 
     if (reliable) {

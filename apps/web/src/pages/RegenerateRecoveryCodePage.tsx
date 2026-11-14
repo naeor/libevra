@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
@@ -9,9 +8,11 @@ import { RecoveryCodeCard } from "../components/RecoveryCodeCard.js";
 import { TextField } from "../components/TextField.js";
 import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
+import { useReturnTo } from "../lib/entryReturn.js";
 
 export function RegenerateRecoveryCodePage(): React.JSX.Element {
-  const navigate = useNavigate();
+  /** 1.19.75（审查 T5）：「继续」上一条正是设置时退回去（返回转场、不再叠一层历史），否则仍前往设置。 */
+  const continueToSettings = useReturnTo("/settings", "push");
   const { t } = useI18n();
 
   const [password, setPassword] = useState("");
@@ -50,7 +51,7 @@ export function RegenerateRecoveryCodePage(): React.JSX.Element {
         subtitle={t("account.recoveryCode.issuedSubtitle")}
         backTo="/settings"
       >
-        <RecoveryCodeCard code={issuedCode} onContinue={() => void navigate("/settings")} />
+        <RecoveryCodeCard code={issuedCode} onContinue={continueToSettings} />
       </InnerPage>
     );
   }

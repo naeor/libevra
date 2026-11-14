@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router";
 
 import { APP_VERSION } from "@libellum/shared";
@@ -129,10 +130,13 @@ export function ConsentGate({ children }: { readonly children: React.ReactNode }
     setError(null);
     try {
       await acknowledgeMajorAnnouncement(pendingMajor, action);
-      setStatus((current) => (current === null ? current : { ...current, majorAnnouncement: null }));
+      const clear = (): void => { setStatus((current) => (current === null ? current : { ...current, majorAnnouncement: null })); };
       if (action === "opened_details") {
+        // 1.19.75（审查 T7）：先让“公告已确认、不再显示”同步生效再前往详情——导航那一刻公告面板还开着，协调器会当作
+        // “有弹窗”而不播放转场。只是把原有的这次状态变化提前一步提交，门禁何时显示的判断没有变。
+        flushSync(clear);
         void navigate(`/update/announcements/${pendingMajor.version}`);
-      }
+      } else clear();
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {

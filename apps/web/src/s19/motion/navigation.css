@@ -1,5 +1,10 @@
 .persistent-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; }
 .persistent-nav[hidden] { display: none; }
+/* 1.19.75（审查 T1）：底栏压在页面转场之上。A / B1 / C 的转场舞台（abc.css，z 80，不透明全屏）存在期间底栏抬到 81，
+   向下退出与从下方升回才看得见，返回主 Tab 时滑回来的页面也带着底栏；舞台移除后回到 40。提示条（85）、海浪（90）仍在它上面。
+   B2 见 pilot.css 的 lv-persistent-nav。随层级退出途中不可点，不会在离开的底栏上再点一次。 */
+body:has(> .s19-abc-stage) .persistent-nav { z-index: 81; }
+.persistent-nav[data-nav-motion="exit"] { pointer-events: none; }
 .persistent-nav-space { height: var(--lv-bottom-nav-height,calc(65px + env(safe-area-inset-bottom,0px))); }
 .entry-mode-page { padding-bottom: calc(var(--lv-bottom-nav-height,65px) + 24px); }
 /* 记账工作模式（enterMode.ts）。舞台固定在视口上：进入与轻切换在真实页面之下（页面透明，新页面在上），

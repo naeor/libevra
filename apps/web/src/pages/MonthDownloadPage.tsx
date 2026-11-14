@@ -1,12 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { useI18n } from "../i18n/index.js";
+import { useReturnTo } from "../lib/entryReturn.js";
 import { useOfflineFillStatus } from "../lib/offline/fillContext.js";
 import {
   FILL_MONTH_ENTRY_LIMIT,
@@ -44,7 +45,8 @@ import { formatBytes, requestPersistentStorage, storageReport } from "../lib/off
  * already chosen.
  */
 export function MonthDownloadPage(): React.JSX.Element {
-  const navigate = useNavigate();
+  /** 1.19.75（审查 T5）：「返回」上一条正是下载管理时退回去（返回转场、不再叠一层历史），否则仍前往下载管理。 */
+  const backToDownloads = useReturnTo("/downloads", "push");
   const { month = "" } = useParams<{ month: string }>();
   const queryClient = useQueryClient();
   const { fill } = useOfflineFillStatus();
@@ -266,7 +268,7 @@ export function MonthDownloadPage(): React.JSX.Element {
 
       <button
         type="button"
-        onClick={() => void navigate("/downloads")}
+        onClick={backToDownloads}
         className="text-helper text-muted underline"
       >
         {t("offline.month.back")}

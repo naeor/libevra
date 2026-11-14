@@ -51,6 +51,21 @@ export function useReturnTo(pathname: string, fallback: "push" | "replace" = "re
   return () => { go(pathname, fallback, fallbackPath); };
 }
 
+/**
+ * 链接形式的返回出口（1.19.75，审查 T4 / T5：「返回公告列表」「返回账本」）：普通点击走 `useReturnTo`——上一条正是
+ * 目标时 `-1`，播放返回转场；按住修饰键或用中键时仍按链接打开（新标签页等），落点不变。
+ */
+export function onPlainClick(action: () => void): (event: {
+  readonly button: number; readonly metaKey: boolean; readonly ctrlKey: boolean; readonly shiftKey: boolean; readonly altKey: boolean;
+  readonly defaultPrevented: boolean; preventDefault(): void;
+}) => void {
+  return (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    action();
+  };
+}
+
 /** 目标在点击时才知道的版本（例如带着筛选参数的来路）。带查询参数的目标要求上一条历史完全一致。 */
 export function useReturnToPath(): (path: string, fallback?: "push" | "replace", fallbackPath?: string) => void {
   const { navigator } = useContext(UNSAFE_NavigationContext);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { focusesOnEntry, hasDefaultMotion, inEntryWorkspace, isDefaultMotionEdge, isTabSwitch, navigationLevel } from "./navigation.js";
+import { defaultMotionBetween, focusesOnEntry, hasDefaultMotion, inEntryWorkspace, isDefaultMotionEdge, isReturnToTab, isTabSwitch, navigationLevel, navVisibleAt } from "./navigation.js";
 
 describe("导航层级与默认转场边界", () => {
   it("五种工作模式与四个主 Tab 分别识别，详情属于次级", () => {
@@ -35,10 +35,47 @@ describe("导航层级与默认转场边界", () => {
     expect(isDefaultMotionEdge("/me", "/stats")).toBe(false);
     expect(isDefaultMotionEdge("/", "/add")).toBe(false);
     expect(isDefaultMotionEdge("/settings", "/settings")).toBe(false);
-    for (const path of ["/start", "/start/book/a/members", "/login", "/recover"]) {
+    for (const path of ["/start", "/login", "/recover"]) {
       expect(hasDefaultMotion(path)).toBe(false);
       expect(isDefaultMotionEdge("/me", path)).toBe(false);
     }
     expect(isDefaultMotionEdge("/start", "/books/a")).toBe(false);
+  });
+  it("1.19.75 T6：账本空间的「成员」「分享」走默认次级导航；进出账本空间本身仍不是默认边（海浪）", () => {
+    for (const path of ["/start/book/a/members", "/start/book/a/share"]) {
+      expect(hasDefaultMotion(path)).toBe(true);
+      expect(isDefaultMotionEdge("/start", path)).toBe(true);
+      // 返回时协调器按 PUSH 那条边的反向放行（两端之间允许默认转场）。
+      expect(defaultMotionBetween(path, "/start")).toBe(true);
+      // 账本空间只作为起点：从子页面 PUSH 进账本空间不是默认覆盖边。
+      expect(isDefaultMotionEdge(path, "/start")).toBe(false);
+    }
+    expect(hasDefaultMotion("/start")).toBe(false);
+    expect(defaultMotionBetween("/start", "/books/a")).toBe(false);
+    expect(defaultMotionBetween("/me", "/start")).toBe(false);
+    expect(defaultMotionBetween("/login", "/me")).toBe(false);
+  });
+  it("1.19.75 T1：底栏在哪些层级显示只由 navVisibleAt 决定——主 Tab 与记账工作区显示，次级页面隐藏", () => {
+    expect(navVisibleAt("tabRoot")).toBe(true);
+    expect(navVisibleAt("enterMode")).toBe(true);
+    expect(navVisibleAt("subpage")).toBe(false);
+    // 主 Tab 之间交换、主 Tab ↔ 记账工作区：前后结果相同，底栏不动；主 Tab ↔ 次级页：结果不同，播放退出 / 升回。
+    const changes = (from: string, to: string): boolean => navVisibleAt(navigationLevel(from)) !== navVisibleAt(navigationLevel(to));
+    expect(changes("/", "/me")).toBe(false);
+    expect(changes("/", "/add")).toBe(false);
+    expect(changes("/me", "/settings")).toBe(true);
+    expect(changes("/transactions/1", "/")).toBe(true);
+    expect(changes("/settings", "/settings/security")).toBe(false);
+  });
+  it("1.19.75 T4：从次级页前往主 Tab（PUSH / REPLACE）按返回方向播放；工作区、账本空间与登录不在此列", () => {
+    expect(isReturnToTab("/stats/cards/1", "/")).toBe(true);
+    expect(isReturnToTab("/ledger/invite", "/ledger")).toBe(true);
+    expect(isReturnToTab("/transactions/1", "/")).toBe(true);
+    expect(isReturnToTab("/start/book/a/members", "/")).toBe(true);
+    expect(isReturnToTab("/start", "/")).toBe(false);
+    expect(isReturnToTab("/login", "/")).toBe(false);
+    expect(isReturnToTab("/add", "/")).toBe(false);
+    expect(isReturnToTab("/me", "/")).toBe(false);
+    expect(isReturnToTab("/settings", "/settings/security")).toBe(false);
   });
 });
