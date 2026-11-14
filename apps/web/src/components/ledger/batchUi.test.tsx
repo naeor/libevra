@@ -380,13 +380,17 @@ describe("LedgerEntryRow", () => {
   it("draws no checkbox and no toggle semantics outside batch mode", () => {
     const html = row({});
 
-    expect(html).not.toContain("data-selected");
+    // 1.19.79：选择框这一列一直在 DOM 里（为了进入批量选择时宽度展开的过渡），但收起时不占宽、不可见、aria-hidden——
+    // 仍然“画不出”选择框，也没有切换语义。
+    expect(html).toContain('<span class="lv-row-select" aria-hidden="true">');
+    expect(html).not.toContain("data-on");
     expect(html).not.toContain("aria-pressed");
     expect(html).toContain("吃饭");
     expect(html).toContain("¥");
   });
 
   it("draws a tick in batch mode and reports the selection", () => {
+    expect(row({ selecting: true, selected: true })).toContain('<span class="lv-row-select" data-on="" aria-hidden="true">');
     expect(row({ selecting: true, selected: true })).toContain('data-selected="true"');
     expect(row({ selecting: true, selected: true })).toContain('aria-pressed="true"');
     expect(row({ selecting: true, selected: false })).toContain('data-selected="false"');

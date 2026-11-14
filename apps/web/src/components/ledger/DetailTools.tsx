@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { useI18n } from "../../i18n/index.js";
+import { useSwapReveal } from "../ui/ComponentMotion.js";
 
 export function DetailTools({
   sortControl,
@@ -18,9 +19,12 @@ export function DetailTools({
   readonly onExitSelection: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  // 1.19.79：进入 / 退出批量选择时，“排序 / 批量 / 更多”与“取消”互换后淡入轻移，不再一帧硬换。
+  const ref = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(ref, selecting);
 
   return (
-    <div className="detail-tools flex gap-2">
+    <div ref={ref} className="detail-tools flex gap-2">
       {selecting ? (
         /**
          * ⚠️ **The exit sits where the tools were**, because that is where the hand already is — and

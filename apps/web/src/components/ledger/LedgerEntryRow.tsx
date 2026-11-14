@@ -1,6 +1,7 @@
 import { formatStorageBytes, UNCATEGORISED_NAME, type Transaction } from "@libellum/shared";
 
 import { useI18n } from "../../i18n/index.js";
+import "./entry-row.css";
 import { formatTimeWithZone } from "../../lib/datetime.js";
 import { openInNewTab, wantsNewTab } from "../../lib/desktopInput.js";
 import { formatMoney } from "../../lib/format.js";
@@ -144,7 +145,9 @@ export function LedgerEntryRow({
         } ${drag.bind === null ? "" : "lv-draggable"}`}
         {...drag.bind}
       >
-        {selecting ? <SelectionBox selected={selected} /> : null}
+        {/* 1.19.79：选择框一直在（只是看不见、不占宽），进入批量选择时这一列从 0 展开、整行内容随之平滑右移，
+            退出时收回；不选择时宽度为 0 并抵消一个间距，排版与原来完全相同（entry-row.css）。框本身 aria-hidden，选中状态由行本身表达。 */}
+        <span className="lv-row-select" data-on={selecting ? "" : undefined} aria-hidden="true"><SelectionBox selected={selected} /></span>
 
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-line text-xs font-semibold text-category-ink">
           {entry.categoryIsSystem ? "—" : categoryLabel.slice(0, 1)}

@@ -169,16 +169,19 @@ export function useMountReveal(ref: RefObject<HTMLElement | null>, options: { re
  * 删除一项时下面的项平滑补上，而不是一帧跳上去。被删的项本身直接卸载（不为退场把节点多留一段，避免读屏与焦点问题）。
  *
  * - `ref` 指向列表容器，作用于它的直接子元素（React 按 key 复用节点，同一个节点就是同一项）；
- * - `signal` 变化时才比较（一般传项的 id 串或数组）；第一次渲染不播放（初次挂载不入场），页面转场进行中也不播放；
+ * - `signal` 变化时才比较（一般传项的 id 串或数组）；第一次渲染不播放（初次挂载不入场），容器节点换了也按第一次处理，页面转场进行中也不播放；
  * - 只在 S19 浅色手机外壳里播放（时长读 `--lv-reveal-ms`），其他外观与减少动态效果直接变化。
  */
 export function useListMotion(ref: RefObject<HTMLElement | null>, signal: unknown): void {
   const positions = useRef(new Map<Element, number>());
   const first = useRef(true);
   const previous = useRef(signal);
+  const owner = useRef<Element | null>(null);
   useLayoutEffect(() => {
     const container = ref.current;
     if (!container) return;
+    // 容器本身换了（例如按分组 key 重新挂载）：当作第一次渲染，不把整组当成新项。
+    if (container !== owner.current) { owner.current = container; first.current = true; }
     const children = Array.from(container.children) as HTMLElement[];
     const changed = !Object.is(previous.current, signal);
     previous.current = signal;

@@ -75,7 +75,8 @@
    原版是上下各 64px 留白的居中块，顶部摘要一高就把“记一笔”推到列表区外（390×664 时按钮落在底栏后面）。
    这里改成紧跟分段控件的一张横向卡片：说明在左、按钮在右，高度约 64px；按钮与功能不变。
    屏幕再矮时，列表区本来就可以滚动（内容至少比可视高度多出收起距离，底部还有 96px 留白）。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .detail-body > div.items-center.text-center.py-16 {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .detail-body > div.items-center.text-center.py-16,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .detail-body > [data-list-swap] > div.items-center.text-center.py-16 {
   flex-direction: row;
   justify-content: space-between;
   gap: 12px;
@@ -86,7 +87,8 @@
   background: var(--s19-card-bg);
   box-shadow: var(--s19-card-sh), 0 0 0 1px var(--s19-card-line, transparent);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .detail-body > div.items-center.text-center.py-16 > button {
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .detail-body > div.items-center.text-center.py-16 > button,
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .detail-body > [data-list-swap] > div.items-center.text-center.py-16 > button {
   flex: none;
   margin-top: 0;
 }

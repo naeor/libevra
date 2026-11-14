@@ -12,7 +12,8 @@
  * 分层（总需求规格 §4）：计算在 compute.ts（只调 A/B/既有实现）、展示在 cards.tsx、布局几何与命令全部
  * 交给 Agent D（session.ts 只做 D 尚未提供的组合操作的过渡适配）、保存在 storage.ts（本机、按账号）。
  */
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { componentMotion } from "../components/ui/ComponentMotion.js";
 import { useNavigate, useSearchParams } from "react-router";
 import { endOfMonth, rangeForPreset, startOfMonth, type DateRange } from "@libellum/shared";
 import {
@@ -217,6 +218,21 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   useEffect(() => { saveAlive.current = true; return () => { saveAlive.current = false; }; }, []);
   const [startDocs, setStartDocs] = useState<WorkbenchDocuments | null>(null);
   const editing = session !== null;
+  /**
+   * 1.19.79：进入 / 退出编辑时，页面框架换成另一棵树（TabPage 的 `bottom` 分支），顶部（标题栏 ↔ 编辑条）、筛选摘要 ↔ 编辑提示、
+   * 统计条与卡片同一帧整块替换。这里在模式切换后让新的内容列整体淡入轻移一次（时长读组件动效令牌，只在 S19 浅色外壳），
+   * 不再一帧硬切；卡片抽屉自己从下方升起（statsWorkbench/Drawer.tsx）。
+   */
+  const editingSeen = useRef(editing);
+  useLayoutEffect(() => {
+    if (editingSeen.current === editing) return;
+    editingSeen.current = editing;
+    const column = scrollRef.current?.firstElementChild;
+    if (!(column instanceof HTMLElement) || typeof column.animate !== "function") return;
+    const motion = componentMotion(column, "reveal");
+    if (!motion.duration) return;
+    column.animate([{ opacity: 0, transform: `translateY(${String(motion.y)}px)` }, { opacity: 1, transform: "none" }], { duration: motion.duration, easing: motion.easing });
+  }, [editing]);
   useEffect(() => {
     if (!workspaceSync) return;
     workspaceSync.editing = editing;

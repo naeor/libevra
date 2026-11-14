@@ -15,6 +15,7 @@ import { validStorageRange } from "./EntrySortControls.js";
 import "./entry-filters.css";
 import { Switch } from "./ui/PurposeControls.js";
 import { ConditionTags, MovingSelection, SelectionGrid, SelectionItem, ToggleButton } from "./ui/SelectionControls.js";
+import { Reveal, useListMotion, useSwapReveal } from "./ui/ComponentMotion.js";
 import { setFilterSync, useFilterSync } from "../lib/ledgerFilter.js";
 import { useFilterOwner } from "../lib/usePageFilter.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
@@ -138,6 +139,11 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
     while (parent && !seen.has(parent)) { if (!expanded.has(parent)) return false; seen.add(parent); parent = ledger?.categories.find(c => c.id === parent)?.parentId ?? null; }
     return true;
   };
+  // 1.19.79：右侧内容换组时淡入轻移；子分类展开 / 收起时列表行展开到位、其余行平滑移位。
+  const optionsRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(optionsRef, `${section}|${String(rangeMode)}`);
+  const optionRowsRef = useRef<HTMLDivElement | null>(null);
+  useListMotion(optionRowsRef, options.filter(visible).map(item => item.id).join("|"));
   const datesValid = validDetailDates(draft) && (!rangeMode || !!draft.from && !!draft.to);
   const storageValid = validStorageRange(draft.minMB, draft.maxMB);
   return <form className="lv-filter-panel" data-desktop={desktop || undefined} onSubmit={event => { event.preventDefault(); setAttempted(true); if (datesValid && storageValid) onApply(draft); }}>
@@ -169,7 +175,8 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
       }}>
         {dimensions.map(key => <button type="button" role="tab" aria-selected={section === key} id={`${uid}-filter-tab-${key}`} aria-controls={`${uid}-filter-options`} key={key} onClick={() => { setSection(key); setSearch(""); }}><span>{t(`ledger.filters.${key}`)}</span>{active.includes(key) ? <span className="lv-filter-dot" /> : null}</button>)}
       </MovingSelection>
-      <div className="lv-filter-options" id={`${uid}-filter-options`} role="tabpanel" aria-labelledby={`${uid}-filter-tab-${section}`}>
+      {/* 1.19.79：左侧换维度、时间里换“月份 / 日期范围”时，右侧内容淡入轻移（不重新挂载），不再一帧硬切。 */}
+      <div ref={optionsRef} className="lv-filter-options" id={`${uid}-filter-options`} role="tabpanel" aria-labelledby={`${uid}-filter-tab-${section}`}>
         {section === "time" ? <>
           <MovingSelection axis="x" className="lv-filter-segments">
             <button type="button" aria-pressed={!rangeMode} onClick={() => { if (rangeMode) { setRangeMode(false); change({ month: ALL_MONTHS, from: "", to: "", months: [] }); } }}>{t("desktop.entries.month")}</button>
@@ -202,13 +209,17 @@ export function FilterForm({ value, ledger, onApply, onClose, desktop = false, n
           {section === "recorders" ? people.self !== null ? <SelectionItem className="lv-filter-mine" aria-pressed={draft.recorders.length === 1 && draft.recorders[0] === people.self} onClick={() => change({ recorders: [people.self!] })}>{t("ledger.filters.onlyMine")}</SelectionItem> : null
             : <input className="lv-filter-search" type="search" aria-label={t("ledger.filters.search")} placeholder={t("ledger.filters.search")} value={search} onChange={event => setSearch(event.target.value)} />}
           <SelectionItem className="lv-filter-option" aria-pressed={draft[section].length === 0} onClick={() => setDraft(clearFilterDimension(draft, section))}>{t("ledger.filters.unlimited")}<Check visible={draft[section].length === 0} /></SelectionItem>
+          {/* 1.19.79：展开 / 收起子分类时，子分类行展开到位、下面的行平滑移位（列表增删动效；按维度重新挂载，换维度不当成新增）。 */}
+          <div key={section} ref={optionRowsRef}>
           {options.filter(visible).map(item => { const children = section === "categories" && ledger?.categories.some(c => c.parentId === item.id); return <div key={item.id}>
             <div className="lv-filter-option-row" data-child={section === "categories" && "parent" in item && !!item.parent || undefined}>
               <SelectionItem className="lv-filter-option" aria-pressed={draft[section].includes(item.id)} onClick={() => toggle(section, item.id)}><span>{item.name}{section === "categories" && "kind" in item ? <span className="ml-2 text-helper text-muted">{t(item.kind === "income" ? "desktop.entries.income" : "desktop.entries.expense")}</span> : null}</span><Check visible={draft[section].includes(item.id)} /></SelectionItem>
               {children ? <button type="button" className="lv-filter-icon" aria-expanded={expanded.has(item.id)} aria-label={t(expanded.has(item.id) ? "ledger.filters.collapse" : "ledger.filters.expand", { name: item.name })} onClick={() => setExpanded(old => { const next = new Set(old); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })}><ChevronIcon direction={expanded.has(item.id) ? "down" : "right"} /></button> : null}
             </div>
-            {children && draft.categories.includes(item.id) ? <label className="lv-filter-branch text-helper"><input type="checkbox" checked={draft.branches.includes(item.id)} onChange={event => change({ branches: event.target.checked ? [...draft.branches, item.id] : draft.branches.filter(v => v !== item.id) })} />{t("ledger.filters.branch")}</label> : null}
+            {/* 选中有子分类的分类后出现的“含子分类”：在原位展开（展开块）。 */}
+            <Reveal open={!!children && draft.categories.includes(item.id)}><label className="lv-filter-branch text-helper"><input type="checkbox" checked={draft.branches.includes(item.id)} onChange={event => change({ branches: event.target.checked ? [...draft.branches, item.id] : draft.branches.filter(v => v !== item.id) })} />{t("ledger.filters.branch")}</label></Reveal>
           </div>; })}
+          </div>
           {options.filter(visible).length === 0 ? <p className="lv-filter-empty text-helper text-muted">{t("ledger.filters.noOptions")}</p> : null}
           {section === "recorders" ? <p className="lv-filter-empty text-helper-relaxed text-muted">{t("ledger.filters.recordersHint")}</p> : null}
         </>}

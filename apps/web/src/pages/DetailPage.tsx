@@ -100,6 +100,7 @@ import { useViewBookId } from "../lib/workspaceLedger.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { useFollowedPath, usePane } from "../workspace/context.js";
 import { useFocusTask } from "../components/PersistentNavContext.js";
+import { Reveal, useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { useForeignBookId } from "../lib/workspaceLedger.js";
 
 /** S18：工作区查看外部账本时，设备的本机副本与待同步标记都属于另一本账，一律当作空。 */
@@ -684,6 +685,9 @@ export function DetailPage(): React.JSX.Element {
 
   const shown = useMemo(() => (allMonths ? (presentation.flat ? ordered.slice(0, renderLimit) : limitToWholeDays(ordered, renderLimit)) : ordered), [allMonths, ordered, renderLimit, presentation.flat]);
 
+  // 1.19.79：列表换了一组内容（分段、月份、搜索、筛选、排序方式）时整体淡入轻移；同一组里新增 / 删除行不算换组。
+  const listSwapRef = useRef<HTMLDivElement | null>(null);
+  useSwapReveal(listSwapRef, `${kind}|${month}|${query.trim()}|${filter.key}|${presentation.flat ? "flat" : "days"}`);
   const grouped = useMemo(() => {
     if (presentation.flat) return [["", shown] as [string, Transaction[]]];
     const groups = new Map<string, Transaction[]>();
@@ -1034,8 +1038,9 @@ export function DetailPage(): React.JSX.Element {
 
             <EntrySortControls state={presentation} mode="status" />
             {filter.extended && (list.isError || list.isFetchNextPageError) ? <p role="alert" className="text-helper text-danger">{t("ledger.filters.failed")} <button type="button" className="text-brand" onClick={() => { if (list.isFetchNextPageError) void list.fetchNextPage(); else void list.refetch(); }}>{t("ledger.filters.retry")}</button></p> : null}
-            {selecting && selectedIds.length > 0 ? <AttachmentPanel bookId={ledger.data?.book.id ?? null} entryIds={selectedIds} readOnly={!!permission.reason} /> : null}
-            {selecting ? (
+            {/* 1.19.79：批量选择时上方的附件面板与“全选已加载”条在原位展开 / 收起（展开块），列表随之平滑移动；收起后卸载，与原来一致。 */}
+            <Reveal open={selecting && selectedIds.length > 0} keep={false}><AttachmentPanel bookId={ledger.data?.book.id ?? null} entryIds={selectedIds} readOnly={!!permission.reason} /></Reveal>
+            <Reveal open={selecting} keep={false}>
               <SelectionBar
                 selectedCount={selectedIds.length}
                 loadedCount={loadedIds.length}
@@ -1045,7 +1050,7 @@ export function DetailPage(): React.JSX.Element {
                   setSelected((current) => selectAllLoaded(loadedIds, current));
                 }}
               />
-            ) : null}
+            </Reveal>
           </div>
 
           <div className="detail-body flex flex-col px-6">
@@ -1130,6 +1135,9 @@ export function DetailPage(): React.JSX.Element {
               />
             ) : null}
 
+            {/* 1.19.79：切换全部 / 支出 / 收入、换月、搜索、筛选后，列表（含空状态与无结果）整体淡入轻移，不再一帧硬换；
+                不重新挂载（滚动位置、懒加载观察都不受影响）。见 ComponentMotion `useSwapReveal`。 */}
+            <div ref={listSwapRef} data-list-swap="" className="flex flex-col">
             {!presentation.waiting && !list.isError && (filter.extended || query.trim() !== "") && ordered.length === 0 ? <p className="py-10 text-center text-body text-muted">{t("ledger.filters.noResults")}</p> : null}
             {!filter.extended && isEmptyMonth ? (
               <EmptyState
@@ -1200,6 +1208,7 @@ export function DetailPage(): React.JSX.Element {
                 </ul>
               </section>
             ))}
+            </div>
 
             {canLoadMore ? (
               <button

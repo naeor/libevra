@@ -1,0 +1,18 @@
+/*
+  明细行的批量选择框列（1.19.79，components/ledger/LedgerEntryRow.tsx）。
+  选择框一直渲染（aria-hidden），不选择时这一列宽度为 0、用负外边距抵消行的 gap（手机 12px、宽工作区 16px），排版与原来一致；
+  进入批量选择时宽度展开、整行内容随之平滑右移，退出时收回。过渡只在 S19 浅色外壳里有，时长读 --lv-select-ms；其他外观直接切换。
+*/
+.lv-row-select { display: flex; flex: none; width: 0; margin-right: -12px; opacity: 0; overflow: hidden; visibility: hidden; }
+.lv-row-select[data-on] { width: 20px; margin-right: 0; opacity: 1; visibility: visible; }
+@container lvpane (min-width: 48rem) { .lv-row-select:not([data-on]) { margin-right: -16px; } }
+
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-row-select {
+  transition: width var(--lv-select-ms) var(--lv-motion-ease), margin-right var(--lv-select-ms) var(--lv-motion-ease), opacity var(--lv-select-ms) ease-out, visibility 0s linear var(--lv-select-ms);
+}
+:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-row-select[data-on] {
+  transition: width var(--lv-select-ms) var(--lv-motion-ease), margin-right var(--lv-select-ms) var(--lv-motion-ease), opacity var(--lv-select-ms) ease-out, visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv-row-select { transition: none !important; }
+}

@@ -8,6 +8,7 @@
  * - 进入容器内部编辑时，抽屉切换成「正在编辑：某容器」，只提供首版允许放进容器的分析卡片。
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { componentMotion } from "../components/ui/ComponentMotion.js";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 
 import { useI18n } from "../i18n/index.js";
@@ -152,6 +153,20 @@ export function Drawer({
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
   }, [expanded, drag.drag, onHeight, gesture.sectionRef]);
+  /**
+   * 1.19.79：进入编辑时卡片抽屉从下方升起（底栏先让位向下退出，抽屉在退出时长之后升起，与明细批量操作栏同一节奏）。
+   * 用一次性的 WAAPI：只在延迟期间保持起点（fill backwards），播完不留任何样式，拖动手势与高度过渡照常。
+   */
+  useLayoutEffect(() => {
+    const node = gesture.sectionRef.current as HTMLElement | null;
+    if (node === null || typeof node.animate !== "function") return;
+    const rise = componentMotion(node, "reveal");
+    if (!rise.duration) return;
+    const run = node.animate([{ transform: "translateY(calc(100% + 24px))" }, { transform: "none" }], { duration: rise.duration, easing: rise.easing, delay: componentMotion(node, "dismiss").duration, fill: "backwards" });
+    return () => { run.cancel(); };
+    // 只在抽屉挂载（进入编辑）时播放一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const style = {
     "--sw-drawer-max": `${geometry.expanded}px`,
     "--sw-drawer-min": `${geometry.collapsed}px`,
