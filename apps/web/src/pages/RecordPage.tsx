@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ActionCard } from "../components/Card.js";
 import { Badge } from "../components/ui/StatusControls.js";
@@ -14,6 +15,8 @@ import "../s19/material-components.css";
 import { VoiceRipples } from "../components/VoiceRipples.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
+import { useGoBack } from "../lib/connectivity.js";
 import { displayPaymentMethodName } from "../lib/presetNames.js";
 import { useLedger, useTranscribe } from "../lib/queries.js";
 import { handOverSpoken } from "../lib/scanHandoff.js";
@@ -100,11 +103,24 @@ export function RecordPage(): React.JSX.Element {
   const recording = recorder.state === "recording";
   const busy = recorder.state === "starting" || recorder.state === "stopping" || transcribe.isPending;
 
+  /**
+   * 离开前询问（所有者 2026-11-15）：正在录音 / 准备或结束录音 / 正在识别、已经听出了内容（可能改过）、
+   * 或加了附件，都算“还没记成账的内容”；页面原样没动、或这次录音什么也没听到，就直接离开。
+   * 录音与转写只在本页内存里（核对页的交接是一次性的），离开就丢，所以没有“本机草稿免问”的情形。
+   */
+  const hasHeard = transcribe.isSuccess && !heardNothing && transcribe.data.text !== "";
+  const dirty = recorder.state !== "idle" || transcribe.isPending || hasHeard || attachments.files.length > 0;
+  const goBack = useGoBack("/");
+  const leave = useLeaveConfirm(dirty, goBack);
+  /** 流程里的下一步不是离开：不询问；有保护记录时先退掉它再前往（`useLeaveConfirm` 的 `proceed`），从下一步返回正好回到这一页。 */
+  const goForward = leave.proceed;
+
   return (
     <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("capture.record.title")}
       subtitle={t("capture.record.subtitle", { example: SPOKEN_EXAMPLE })}
       backTo="/"
+      onBack={leave.requestLeave}
     >
       {recorder.error === null ? null : <Alert tone="error">{recorder.error}</Alert>}
       {transcribe.isError ? <Alert tone="error">{errorMessage(transcribe.error)}</Alert> : null}
@@ -247,7 +263,7 @@ export function RecordPage(): React.JSX.Element {
               if (parsed === null) return;
 
               handOverSpoken({ text, parsed, source: "voice" });
-              void navigate("/voice/review");
+              goForward("/voice/review");
             }}
           >
             {t("capture.record.review")}
@@ -257,12 +273,19 @@ export function RecordPage(): React.JSX.Element {
 
       <button
         type="button"
-        onClick={() => void navigate("/add")}
+        onClick={() => { leave.askLeave("/add"); }}
         className="touch-target self-center text-helper text-muted underline"
       >
         {t("capture.record.manualFallback")}
       </button>
       <CaptureMobileAttachments panel={attachments.panel} />
+      <ConfirmDialog
+        {...leave.dialog}
+        title={t("entry.add.leaveTitle")}
+        description={t("entry.add.leaveBody")}
+        confirmLabel={t("entry.add.leaveConfirm")}
+        cancelLabel={t("entry.add.leaveKeep")}
+      />
     </InnerPage></CaptureLayout>
   );
 }

@@ -123,6 +123,13 @@ const capture: Messages<typeof zh> = {
     multiple: "This text may contain multiple transactions that can’t be separated reliably. Paste them individually to avoid combining them into one entry.",
     review: "Review this entry",
   },
+  /** Text and photo capture pages: ask before leaving (they may hold several entries, so no “this entry”). */
+  leave: {
+    title: "Discard what hasn’t been recorded yet?",
+    body: "What you typed or what was recognized hasn’t been recorded, and won’t be kept if you go back.",
+    confirm: "Discard and go back",
+    keep: "Keep going",
+  },
   review: {
     title: "Review",
     emptySubtitle: "Nothing to review.",

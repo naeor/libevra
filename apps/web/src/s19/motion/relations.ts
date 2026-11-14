@@ -1,6 +1,7 @@
 import { BackdropStore, type BackdropContext, type VisualScope } from "./backdrop.js";
 import type { AmbientLayout } from "./ambientLayout.js";
 import type { ObjectSource } from "./objectExpand.js";
+import { onContinuityReset } from "../../lib/continuity.js";
 
 export interface ScrollPoint { documentY: number; inner: number[] }
 export interface ObjectEntry { source: ObjectSource; sourceKey: string }
@@ -26,6 +27,12 @@ export interface MotionRelations {
 }
 
 const byHistory = new WeakMap<object, MotionRelations>();
+/**
+ * 1.19.82：应用离开屏幕超过 30 分钟（“不连续使用”，lib/continuity.ts）回来时，记住的滚动位置全部重新开始；
+ * 来源、对象展开这些返回关系不动（返回仍按原来的方向播放）。
+ */
+const live = new Set<MotionRelations>();
+onContinuityReset(() => { for (const relations of live) { relations.scrolls.clear(); relations.tabScrolls.clear(); } });
 
 /** 取这条历史的关系；作用域（工作区 / 账号 / 账本）变了就换一份新的。`history` 只用作身份。 */
 export function motionRelations(history: object, scope: VisualScope): MotionRelations {
@@ -36,7 +43,9 @@ export function motionRelations(history: object, scope: VisualScope): MotionRela
     scopeKey, store: new BackdropStore(), objectEntries: new Map(), modeEntries: new Map(),
     scrolls: new Map(), tabScrolls: new Map(), layouts: new Map(),
   };
+  if (known) live.delete(known);
   byHistory.set(history, fresh);
+  live.add(fresh);
   return fresh;
 }
 

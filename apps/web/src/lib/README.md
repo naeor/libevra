@@ -40,6 +40,8 @@
 | [connectivity.ts](connectivity.ts) | 实现模块；入口/导出：BackMode、parentBackAction、useGoBack |
 | [consent.ts](consent.ts) | 实现模块；入口/导出：RequiredLegalDocument、MajorAnnouncementView、ConsentStatus、fetchRequiredLegalDocuments、fetchConsentStatus |
 | [consentRemember.test.ts](consentRemember.test.ts) | 测试：consentRemember |
+| [continuity.test.ts](continuity.test.ts) | 测试：continuity |
+| [continuity.ts](continuity.ts) | 实现模块；入口/导出：CONTINUITY_GAP_MS、onContinuityReset、resetContinuity |
 | [copy.test.ts](copy.test.ts) | 测试：copy |
 | [crossTabSync.test.ts](crossTabSync.test.ts) | 测试：crossTabSync |
 | [currentBook.test.ts](currentBook.test.ts) | 测试：currentBook |
@@ -108,6 +110,7 @@
 | [overlayExit.ts](overlayExit.ts) | 实现模块；入口/导出：OVERLAY_EXIT_MS、createOverlayExit |
 | [overlayScrollLock.test.ts](overlayScrollLock.test.ts) | 测试：overlayScrollLock |
 | [overlayScrollLock.ts](overlayScrollLock.ts) | 实现模块；入口/导出：hasOverlayScrollLock、lockOverlayScroll |
+| [panelMemory.ts](panelMemory.ts) | 实现模块；入口/导出：rememberPanel、peekPanel、forgetPanel、useReturnedPanel、afterPageTransition |
 | [permissions.test.ts](permissions.test.ts) | 测试：permissions |
 | [permissions.ts](permissions.ts) | 实现模块；入口/导出：roleRank、canRecordRole、canEditAllRole、canEditEntryAs、invitableRoles |
 | [presetNames.ts](presetNames.ts) | 实现模块；入口/导出：displayCategoryName、displayPaymentMethodName、displayCategoryDescription |

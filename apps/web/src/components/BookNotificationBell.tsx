@@ -1,8 +1,8 @@
 import "./attachments.css";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import type { EntryChangeNoticeView } from "@libellum/shared";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
@@ -10,6 +10,7 @@ import { apiFetch, errorMessage } from "../lib/api.js";
 import { formatInstant } from "../lib/datetime.js";
 import { formatMoney } from "../lib/format.js";
 import { onPlainClick, useEntryOrigin } from "../lib/entryReturn.js";
+import { rememberPanel, useReopenPanel } from "../lib/panelMemory.js";
 import { BottomSheet } from "./BottomSheet.js";
 import type { Currency } from "@libellum/shared";
 
@@ -27,6 +28,14 @@ export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }:
   const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const { user } = useAuth(); const { t } = useI18n(); const client = useQueryClient(); const navigate = useNavigate();
   const [open, setOpen] = useState(false); const [error, setError] = useState<string | null>(null);
+  /**
+   * 1.19.82：从面板里打开账目、再返回到这一页时，面板重新打开并回到原来的滚动位置（lib/panelMemory.ts；所有者 2026-11-15
+   * “记住面板当时的状态”）。状态记在面板所在的历史记录上；应用离开屏幕超过 30 分钟后不再恢复（lib/continuity.ts）。
+   */
+  const location = useLocation();
+  const panelId = `book-notices:${bookId}`;
+  const pendingScroll = useRef<number | null>(null);
+  useReopenPanel<{ scrollTop: number }>(panelId, (state) => { pendingScroll.current = state.scrollTop; setOpen(true); });
   const unread = useQuery({ queryKey: ["book-notices", user?.id, "unread"], enabled: !!user,
     queryFn: () => apiFetch<{ books: Record<string, number> }>("/book-notices/unread"), refetchInterval: 30_000 });
   const list = useInfiniteQuery({ queryKey: ["book-notices", user?.id, bookId], enabled: !!user && open,
@@ -40,6 +49,16 @@ export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }:
       .then(() => client.invalidateQueries({ queryKey: ["book-notices", user?.id, "unread"] }))
       .catch((e: unknown) => setError(errorMessage(e)));
   }, [open, list.data, bookId, user?.id, client]);
+  useEffect(() => {
+    const top = pendingScroll.current;
+    if (!open || top === null || !list.data) return;
+    pendingScroll.current = null;
+    const frame = requestAnimationFrame(() => {
+      const body = document.querySelector<HTMLElement>(".lv-notice-sheet [data-sheet-body]");
+      if (body) body.scrollTop = top;
+    });
+    return () => { cancelAnimationFrame(frame); };
+  }, [open, list.data]);
   if (!user) return null;
   /**
    * 铃铛常放在可点击的卡片行里，所以挡住点击与按键冒泡。通知列表（弹出面板模板 T4，1.19.59；原来是原生
@@ -52,7 +71,11 @@ export function BookNotificationBell({ bookId, trigger, hiddenTrigger = false }:
    * 按住修饰键 / 中键仍按链接打开（面板照旧收起）。
    */
   const openEntry = (to: string) => (event: React.MouseEvent<HTMLAnchorElement>): void => {
-    onPlainClick(() => { flushSync(() => { setOpen(false); }); void navigate(to, { state: entryOrigin }); })(event);
+    const body = event.currentTarget.closest<HTMLElement>("[data-sheet-body]");
+    onPlainClick(() => {
+      rememberPanel(location.key, panelId, { scrollTop: body?.scrollTop ?? 0 });
+      flushSync(() => { setOpen(false); }); void navigate(to, { state: entryOrigin });
+    })(event);
     if (!event.defaultPrevented) setOpen(false);
   };
   return <><div onKeyDown={stop} onClick={stop} onPointerDown={stop}>

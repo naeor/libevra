@@ -32,6 +32,7 @@
 | [BookDetailPage.tsx](BookDetailPage.tsx) | 界面模块；入口/导出：BookDetailPage |
 | [BookRedirects.tsx](BookRedirects.tsx) | 界面模块；入口/导出：CurrentBookRedirect、StartBookRedirect |
 | [BookSettingsPage.tsx](BookSettingsPage.tsx) | 界面模块；入口/导出：BookSettingsPage |
+| [CaptureLeaveConfirm.test.ts](CaptureLeaveConfirm.test.ts) | 测试：CaptureLeaveConfirm |
 | [ChangePasswordPage.tsx](ChangePasswordPage.tsx) | 界面模块；入口/导出：ChangePasswordPage |
 | [ChartLabPage.tsx](ChartLabPage.tsx) | 界面模块；入口/导出：ChartLabPage |
 | [DetailPage.tsx](DetailPage.tsx) | 界面模块；入口/导出：DetailPage |

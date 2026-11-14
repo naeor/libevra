@@ -25,6 +25,8 @@ import { InnerPage } from "../components/Layouts.js";
 import { StatusMessage } from "../components/ui/StatusControls.js";
 import { useI18n, type Locale } from "../i18n/index.js";
 import { ApiRequestError, errorMessage } from "../lib/api.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
+import { useGoBack } from "../lib/connectivity.js";
 import {
   billSourceLabel,
   billRowProblem,
@@ -253,6 +255,17 @@ function ImportView({
   const ackReasons = preview === null ? [] : billAcknowledgementReasons(preview);
   const problemsById = new Map(items.map((item) => [item.id, problemOf(item)]));
   const attachments = useCaptureAttachments(bookId, "import", items.filter(item => item.selected && !item.identityDuplicate).map(item => ({ id: item.id, label: `${item.line}. ${item.amount} ${item.currency} · ${item.note}` })), busy !== null || failure !== null || step.name === "done");
+  /**
+   * 离开前询问（所有者 2026-11-15）：选了文件、正在解析、或已解析出待导入的行在核对（含改过字段），
+   * 或加了附件，都算“还没导入的内容”；页面原样没动、已经导入完成（`done`）就直接离开。
+   * 预览只在本页内存里（没有按 previewId 取回的接口，见文件头说明），离开就丢，没有“本机草稿免问”的情形。
+   * 正在写入（`commit`）时保持原样：不询问，返回照常（写入请求仍会完成，按来源身份幂等）。
+   */
+  const leaveDirty =
+    step.name !== "done" && busy !== "commit" && (file !== null || step.name !== "choose" || attachments.files.length > 0);
+  const goBack = useGoBack(backTo);
+  const leave = useLeaveConfirm(leaveDirty, goBack);
+
   const check =
     preview === null ? null : billCommitCheck(items, preview, acknowledged, problemsById);
 
@@ -406,6 +419,7 @@ function ImportView({
       title={t("dataio.import.title")}
       subtitle={t("dataio.import.subtitle")}
       backTo={backTo}
+      onBack={leave.requestLeave}
     >
       {error === null ? null : <Alert>{error}</Alert>}
       {failure === null ? null : <Alert>{failure}</Alert>}
@@ -481,7 +495,9 @@ function ImportView({
             <Button
               variant="ghost"
               onClick={() => {
-                returnTo(exportTo, "push");
+                // 有改动时先问；没有改动照原来的方式回到导出页。
+                if (leaveDirty) leave.askLeave(exportTo);
+                else returnTo(exportTo, "push");
               }}
             >
               {t("dataio.import.backToExport")}
@@ -701,6 +717,13 @@ function ImportView({
         }
       />
       <CaptureMobileAttachments panel={attachments.panel} />
+      <ConfirmDialog
+        {...leave.dialog}
+        title={t("dataio.import.leaveTitle")}
+        description={t("dataio.import.leaveBody")}
+        confirmLabel={t("dataio.import.leaveConfirm")}
+        cancelLabel={t("dataio.import.leaveKeep")}
+      />
       {/*
         ⚠️ 固定确认条会盖住页面末尾，这里留出等高空白（`InnerPage` 的 padding 不归本页）。
         1.19.51：放到附件区之后——核对步骤让常驻底栏让位后，页面末尾不再有底栏留白，原来放在列表末尾时

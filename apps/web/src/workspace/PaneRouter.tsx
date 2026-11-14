@@ -12,7 +12,9 @@
 import { lazy, Suspense, startTransition, useLayoutEffect, useRef, useState } from "react";
 import { NavigationType, Router, UNSAFE_LocationContext } from "react-router";
 
+import { useAuthOptional } from "../auth/AuthProvider.js";
 import type { PaneHistory, PaneSnapshot } from "./paneHistory.js";
+import { createScrollMemory, type ScrollMemory } from "./scrollMemory.js";
 import type { PilotAdapter } from "../s19/motion/pilot.js";
 
 // 只在内层启动；协调手机普通导航、对象展开与工作模式，仍由同一个历史订阅提交页面。
@@ -30,7 +32,24 @@ export function PaneRouter({
 }): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<PaneSnapshot>(history.snapshot);
   const motion = useRef<PilotAdapter | null>(null);
-  useLayoutEffect(() => { motion.current?.committed(snapshot.location.key); }, [snapshot]);
+  /**
+   * 1.19.82：协调器不接管的外观（Original、电脑、Pad）也记住滚动位置——离开一页时记下，返回到它（POP）或从别处回到主 Tab 时
+   * 恢复；应用离开屏幕超过 30 分钟、换账号时重新开始（workspace/scrollMemory.ts）。协调器在时由它自己处理，这里不插手。
+   */
+  const scroll = useRef<ScrollMemory | null>(null);
+  const shown = useRef<PaneSnapshot>(snapshot);
+  const account = useAuthOptional()?.user?.id ?? "guest";
+  useLayoutEffect(() => {
+    const memory = createScrollMemory(history.id);
+    scroll.current = memory;
+    return () => { memory.dispose(); if (scroll.current === memory) scroll.current = null; };
+  }, [history]);
+  useLayoutEffect(() => { scroll.current?.setAccount(account); }, [account]);
+  useLayoutEffect(() => {
+    shown.current = snapshot;
+    if (motion.current) { motion.current.committed(snapshot.location.key); return; }
+    scroll.current?.restore(snapshot.location.key, snapshot.location.pathname, snapshot.action);
+  }, [snapshot]);
 
   useLayoutEffect(() => {
     // 订阅之前的变化（同一渲染周期里外壳已经导航过）也要接上。
@@ -40,6 +59,8 @@ export function PaneRouter({
         motion.current.accept(next, () => setSnapshot(next));
         return;
       }
+      // 屏幕上还是上一页：先记下它的滚动位置。
+      scroll.current?.save(shown.current.location.key, shown.current.location.pathname);
       startTransition(() => {
         setSnapshot(next);
       });

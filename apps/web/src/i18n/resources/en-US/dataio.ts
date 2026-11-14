@@ -202,6 +202,10 @@ const dataio: Messages<typeof zh> = {
   import: {
     title: "Import a statement",
     subtitle: "Import WeChat, Alipay, and bank statements. Review the results before confirming.",
+    leaveTitle: "Discard this import?",
+    leaveBody: "The file you chose and what you’re reviewing haven’t been imported, and won’t be kept if you go back.",
+    leaveConfirm: "Discard and go back",
+    leaveKeep: "Keep importing",
     readError: "Couldn’t load the current ledger. {{error}}",
     reading: "Loading the current ledger…",
     doneToEntries: "Back to Entries",

@@ -199,6 +199,10 @@ const ocr: Messages<typeof zh> = {
   },
   detail: {
     title: "Review entry",
+    leaveTitle: "Discard your changes to this entry?",
+    leaveBody: "The changes you made to this entry haven’t been saved and won’t be kept if you go back.",
+    leaveConfirm: "Discard and go back",
+    leaveKeep: "Keep editing",
     notFound: "Entry not found. The recognition batch may have been cleared or may be in another tab.",
     backToOverview: "Back to scan results",
     storageFailed: "Your browser couldn’t save this change (private browsing, or storage may be full). Nothing was changed — please try again.",

@@ -40,5 +40,6 @@
 | [paneHistory.test.ts](paneHistory.test.ts) | 测试：paneHistory |
 | [paneHistory.ts](paneHistory.ts) | 实现模块；入口/导出：PaneAction、PaneEntry、PaneSnapshot、PaneNavigation、PaneInterceptor |
 | [paneTitle.ts](paneTitle.ts) | 实现模块；入口/导出：PageKey、START_PATH、pageKeyFor、usePaneIdentity |
+| [scrollMemory.ts](scrollMemory.ts) | 实现模块；入口/导出：ScrollMemory、createScrollMemory |
 | [workspace.css](workspace.css) | 样式与变量 |
 <!-- directory-index:end -->

@@ -29,9 +29,9 @@ import { EntryMoreOptions } from "../components/entry/EntryMoreOptions.js";
 import { EntryQuickActions } from "../components/entry/EntryQuickActions.js";
 import { EntrySaveBar } from "../components/entry/EntrySaveBar.js";
 import { KindToggle, useKindBar } from "../components/entry/KindToggle.js";
-import { useMarkBack, usePane, usePaneDirty } from "../workspace/context.js";
+import { usePane, usePaneDirty } from "../workspace/context.js";
 import { useGoBack } from "../lib/connectivity.js";
-import { usePageBackGuard } from "../lib/closeGuard.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { WorkspaceTopBar } from "../components/entry/WorkspaceTopBar.js";
 import { useS19Light } from "../lib/useRootVisualStyle.js";
@@ -323,14 +323,13 @@ export function AddEntryPage(): React.JSX.Element {
   const pane = usePane();
   const workspaceChrome = useS19Light();
   const goBack = useGoBack("/");
-  const markBack = useMarkBack();
-  const [leaveAsk, setLeaveAsk] = useState(false);
   /**
    * 1.19.81：系统返回与顶栏返回一致（所有者 2026-11-15）——有未保存输入、还没保存成功时，系统返回也先弹同一个询问；
-   * 确认放弃后一次离开（退掉保护记录与这一页），协调器照常按“离开工作区”播放。只在 S19 浅色手机端的工作区里拦。
+   * 确认放弃后一次离开（退掉保护记录与这一页），协调器照常按“离开工作区”播放。
+   * 1.19.82：所有记账方式退出时都要问放弃（所有者 2026-11-15），所有外观、所有设备一致（不再只在 S19 浅色手机端）；
+   * 有输入时点常驻底栏或页内链接去别处也先问（`links`）。统一做法见 `lib/closeGuard.ts` 的 `useLeaveConfirm`。
    */
-  const leaveGuarded = usePageBackGuard(workspaceChrome && pane.nav === "bottom" && dirty && saved === null, () => { setLeaveAsk(true); });
-  const leaveWorkspace = (): void => { markBack(); leaveGuarded(goBack); };
+  const leave = useLeaveConfirm(dirty && saved === null, goBack, { links: true });
 
   /**
    * 同方向的最近记录，只给「沿用上一笔」用。
@@ -756,16 +755,14 @@ export function AddEntryPage(): React.JSX.Element {
       wideWidth="reading"
     >
       {pane.nav === "bottom" && workspaceChrome ? (
-        <WorkspaceTopBar title={t("workspace.rail.add")} onBack={() => { if (dirty) setLeaveAsk(true); else leaveWorkspace(); }} />
+        <WorkspaceTopBar title={t("workspace.rail.add")} onBack={leave.requestLeave} />
       ) : null}
       <ConfirmDialog
-        open={leaveAsk}
+        {...leave.dialog}
         title={t("entry.add.leaveTitle")}
         description={t("entry.add.leaveBody")}
         confirmLabel={t("entry.add.leaveConfirm")}
         cancelLabel={t("entry.add.leaveKeep")}
-        onConfirm={() => { setLeaveAsk(false); leaveWorkspace(); }}
-        onCancel={() => { setLeaveAsk(false); }}
       />
       <form
         className="lv-manual-form flex flex-1 flex-col"

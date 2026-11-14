@@ -205,6 +205,10 @@ const dataio = {
   import: {
     title: "导入账单",
     subtitle: "支持微信、支付宝和银行结单。识别后核对，再确认导入。",
+    leaveTitle: "放弃这次导入？",
+    leaveBody: "选好的文件和核对中的内容还没有导入，返回后不会保留。",
+    leaveConfirm: "放弃并返回",
+    leaveKeep: "继续导入",
     readError: "无法读取当前账本：{{error}}",
     reading: "正在读取当前账本，请稍候……",
     doneToEntries: "回到明细",

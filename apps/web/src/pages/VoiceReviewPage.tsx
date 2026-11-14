@@ -17,10 +17,13 @@ import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { EntrySaved } from "../components/EntrySaved.js";
 import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
+import { useGoBack } from "../lib/connectivity.js";
 import { currentBookId } from "../lib/currentBook.js";
 import {
   currentMonth,
@@ -174,6 +177,19 @@ export function VoiceReviewPage(): React.JSX.Element {
   const parsed = spoken?.parsed ?? null;
   const origin = spoken?.source === "paste" ? "/paste" : "/record";
 
+  /**
+   * 离开前询问（所有者 2026-11-15）。核对页的内容是一次性交接来的，离开就取不回：
+   * - **语音**：转写的话只在这一份交接里，返回 `/record` 后没有了，所以只要还没保存就算“还没记成账的内容”；
+   * - **粘贴**：原文和候选仍在 `/paste` 的本标签页草稿里，返回后还在，所以只有在这里改过表单才算改动
+   *   （表单状态在 `ReviewStep` 里面，这里在外层捕获输入与切换收支的点击来判断，见下面的包装）。
+   * 正在保存（写入或查重请求进行中）时保持原样：不询问，返回照常（保存请求仍会完成）。
+   */
+  const [touched, setTouched] = useState(false);
+  const saving = createEntry.isPending || checkDuplicates.isPending;
+  const dirty = spoken !== null && saved === null && !saving && (spoken.source !== "paste" || touched);
+  const goBack = useGoBack(origin);
+  const leave = useLeaveConfirm(dirty, goBack);
+
   /** 对话框选项按语言生成一次（见 `localizeChoices`）；必须在下面的提前返回之前调用。 */
   const choices = useMemo(
     () => ({
@@ -325,6 +341,7 @@ export function VoiceReviewPage(): React.JSX.Element {
     <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("capture.review.title")}
       backTo={origin}
+      onBack={leave.requestLeave}
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
 
@@ -378,13 +395,18 @@ export function VoiceReviewPage(): React.JSX.Element {
         </p>
       )}
 
+      <div
+        className="contents"
+        onChangeCapture={() => { setTouched(true); }}
+        onClickCapture={(event) => { if (event.target instanceof Element && event.target.closest("[aria-pressed]") !== null) setTouched(true); }}
+      >
       <ReviewStep
         draft={draft}
         remaining={1}
         categories={categories}
         paymentMethods={paymentMethods}
         busy={createEntry.isPending || checkDuplicates.isPending || pendingDuplicate !== null}
-        onManual={() => void navigate("/add")}
+        onManual={() => { leave.askLeave("/add"); }}
         warnings={parsed?.issues.map((issue) => translateSharedMessage(issue.message)) ?? []}
         onSave={async (edited) => {
           setError(null);
@@ -486,6 +508,7 @@ export function VoiceReviewPage(): React.JSX.Element {
           await write(input);
         }}
       />
+      </div>
 
       <ChoiceDialog
         open={pendingDuplicate !== null}
@@ -508,6 +531,13 @@ export function VoiceReviewPage(): React.JSX.Element {
         }}
       />
       <CaptureMobileAttachments panel={attachments.panel} />
+      <ConfirmDialog
+        {...leave.dialog}
+        title={t("entry.add.leaveTitle")}
+        description={t("entry.add.leaveBody")}
+        confirmLabel={t("entry.add.leaveConfirm")}
+        cancelLabel={t("entry.add.leaveKeep")}
+      />
     </InnerPage></CaptureLayout>
   );
 }

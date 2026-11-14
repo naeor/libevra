@@ -20,6 +20,7 @@ import { useParams } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { InnerPage } from "../components/Layouts.js";
 import { StickyActionBar } from "../components/StickyActionBar.js";
@@ -27,6 +28,7 @@ import { TextField } from "../components/TextField.js";
 import { Badge } from "../components/ui/StatusControls.js";
 import { ocrChannelLabel, ocrDirectionLabel, ocrIssueText } from "../components/ocr/OcrOverview.js";
 import { useI18n } from "../i18n/index.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
 import {
   TRANSFER_CATEGORY_NAME,
@@ -131,6 +133,14 @@ export function OcrReviewDetailPage(): React.JSX.Element {
   const [form, setForm] = useState<FormState | null>(() => (item === null ? null : initialForm(item)));
   const [error, setError] = useState<string | null>(null);
   const attachments = useCaptureAttachments(batch?.bookId ?? null, "photo", batch?.items.filter(item => !item.invalid).map((item, index) => ({ id: item.candidateId, label: `${index + 1}. ${item.amount ?? "—"} ${item.currency ?? ""} · ${item.merchant ?? ""}` })) ?? [], !batch || !batchBelongsToBook(batch, ledger.data?.book.id ?? null));
+
+  /**
+   * 离开前询问（所有者 2026-11-15）：表单与打开时的候选不一样，就是还没保存的修改；原样没动直接离开。
+   * 修改只在这一页的内存里（保存才写进批次），离开就丢，所以没有“本机草稿免问”的情形。
+   * 保存 / 标记无效是同步写入批次后立刻返回（没有“进行中”状态），走 `confirmLeave` 离开、不再询问。
+   */
+  const dirty = form !== null && item !== null && JSON.stringify(form) !== JSON.stringify(initialForm(item));
+  const leave = useLeaveConfirm(dirty, backToOverview);
 
   if (batch === null || item === null || form === null) {
     return (
@@ -241,7 +251,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
     }
 
     setBatch(updated);
-    backToOverview();
+    leave.confirmLeave();
   }
 
   function save(): void {
@@ -280,6 +290,7 @@ export function OcrReviewDetailPage(): React.JSX.Element {
     <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("ocr.detail.title")}
       backTo="/ocr/overview"
+      onBack={leave.requestLeave}
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
 
@@ -528,14 +539,19 @@ export function OcrReviewDetailPage(): React.JSX.Element {
         </Button>
         <Button
           variant="ghost"
-          onClick={() => {
-            backToOverview();
-          }}
+          onClick={leave.requestLeave}
         >
           {t("ocr.detail.backWithoutSaving")}
         </Button>
       </div>
       <CaptureMobileAttachments panel={attachments.panel} />
+      <ConfirmDialog
+        {...leave.dialog}
+        title={t("ocr.detail.leaveTitle")}
+        description={t("ocr.detail.leaveBody")}
+        confirmLabel={t("ocr.detail.leaveConfirm")}
+        cancelLabel={t("ocr.detail.leaveKeep")}
+      />
     </InnerPage></CaptureLayout>
   );
 }

@@ -1,52 +1,24 @@
 import { useEffect } from "react";
-import { t } from "../i18n/index.js";
-import { usePane, usePaneDirty } from "../workspace/context.js";
-import { uuidV7 } from "./uuid.js";
+import { usePaneDirty } from "../workspace/context.js";
 
 /**
- * 保护刷新、页内链接以及浏览器后退；不保存草稿，不阻止已确认的离开。
+ * 资料编辑的草稿保护：登记给工作区外壳（`usePaneDirty`），并在刷新 / 关闭标签页时请浏览器确认。
  *
- * ⚠️ **S18：浏览器后退与地址栏只属于主工作区。** 资料页在辅助工作区（或被收起的工作区）里时，不往浏览器历史
- * 里压保护记录、不拦浏览器后退——那是主区的；只拦本工作区里的链接，并把草稿登记给外壳（跟随导航不会替换它、
- * 打开别的页面前先确认）。手机上只有主区，行为与以前相同。
+ * 1.19.82 起返回与链接的询问改用应用自己的对话框（所有者 2026-11-15：“尽可能让所有的东西都用我们自己风格的对话框”）：
+ * 系统返回、本工作区里的链接由页面的 `useLeaveConfirm`（lib/closeGuard.ts）拦截，与顶栏返回同一个判断、同一个对话框。
+ * 原来这里用浏览器原生的 `window.confirm`，而且页面自己的对话框确认后还会被它再问一次。
+ *
+ * ⚠️ **刷新 / 关闭标签页仍是浏览器自带的提示**：`beforeunload` 只能请浏览器弹它自己的确认，网页不能换成自己的对话框，
+ * 文案也由浏览器决定。
+ *
+ * ⚠️ **S18：浏览器后退与地址栏只属于主工作区**（`useLeaveConfirm` 里的 `usePageBackGuard` 自己判断）；辅助工作区只拦本工作区里的链接。
  */
 export function useDraftExit(dirty: boolean): void {
   usePaneDirty(dirty);
-  const pane = usePane();
-  const ownsHistory = pane.role === "primary";
-  const instance = pane.instance;
   useEffect(() => {
     if (!dirty) return;
     const beforeUnload = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = ""; };
-    // 1.19.53：不用 `crypto.randomUUID`——它只在安全上下文存在，局域网 http 打开开发服务器时会让页面直接崩溃。
-    const marker = `profile-draft-${uuidV7()}`;
-    let active = true;
-    // 同 URL 的保护条目让后退先落回仍然挂载的编辑页，确认后才跨到上一页。
-    if (ownsHistory) window.history.pushState({ ...window.history.state, profileDraftGuard: marker }, "", window.location.href);
-    const pop = (): void => {
-      if (!active || window.history.state?.profileDraftGuard === marker) return;
-      if (window.confirm(t("account.profile.leaveConfirm"))) {
-        active = false;
-        window.removeEventListener("beforeunload", beforeUnload);
-        window.history.back();
-      } else window.history.forward();
-    };
-    const link = (event: MouseEvent): void => {
-      if (!(event.target instanceof Element) || !event.target.closest("a[href]")) return;
-      // 另一个工作区里的链接与这份草稿无关。
-      const owner = event.target.closest("[data-instance]")?.getAttribute("data-instance");
-      if (owner !== null && owner !== undefined && owner !== instance) return;
-      if (!window.confirm(t("account.profile.leaveConfirm"))) { event.preventDefault(); event.stopPropagation(); }
-    };
     window.addEventListener("beforeunload", beforeUnload);
-    if (ownsHistory) window.addEventListener("popstate", pop);
-    document.addEventListener("click", link, true);
-    return () => {
-      window.removeEventListener("beforeunload", beforeUnload);
-      if (ownsHistory) window.removeEventListener("popstate", pop);
-      document.removeEventListener("click", link, true);
-      if (ownsHistory && active && window.history.state?.profileDraftGuard === marker) window.history.back();
-      active = false;
-    };
-  }, [dirty, ownsHistory, instance]);
+    return () => { window.removeEventListener("beforeunload", beforeUnload); };
+  }, [dirty]);
 }

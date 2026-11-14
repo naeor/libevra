@@ -22,6 +22,7 @@ import { Button } from "../components/Button.js";
 import { ActionCard } from "../components/Card.js";
 import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { ChoiceDialog, type Choice } from "../components/ChoiceDialog.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { ReviewStep, type ReviewDraft } from "../components/EntryForm.js";
 import { EntrySaved } from "../components/EntrySaved.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
@@ -30,6 +31,8 @@ import { useDesktopActive } from "../desktop/surface.js";
 import { SkeletonRows } from "../components/States.js";
 import { isChineseLocale, t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
+import { useGoBack } from "../lib/connectivity.js";
 import { currentBookId } from "../lib/currentBook.js";
 import { currentMonth, localTimeZone, toLocalDate, toLocalIso } from "../lib/datetime.js";
 import { describeDuplicateMatchText } from "../lib/duplicateReview.js";
@@ -236,6 +239,7 @@ export function ScanPage(): React.JSX.Element {
 
     try {
       const result = await recognize.mutateAsync(files);
+      if (!alive.current) return;
 
       // A screenshot nobody could read is dropped here, with a count, rather
       // than being carried into the review queue as an empty form the user has
@@ -292,6 +296,7 @@ export function ScanPage(): React.JSX.Element {
 
       startSingleReview(readable);
     } catch (caught) {
+      if (!alive.current) return;
       /**
        * A failure to *reach* recognition, which is a different situation from
        * recognition succeeding and reading nothing — but the user's options are
@@ -361,12 +366,35 @@ export function ScanPage(): React.JSX.Element {
       return;
     }
 
-    void navigate("/ocr/overview");
+    goForward("/ocr/overview");
   }
 
   /** How many are still waiting, including the one on screen. */
   const remaining = mode === "single" ? 1 : items.length - cursor;
   const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, "photo", step.name === "review" ? [{ id: `single:${attachmentBatchId}:${cursor}`, label: t("attachments.capture.current") }] : [], step.name === "working");
+
+  /**
+   * 离开前询问（所有者 2026-11-15）：选了照片、正在识别、识别结果还在核对（单笔核对、批量里还有没核对的几张）、
+   * 或加了附件，都算“还没记成账的内容”；页面原样没动、已经保存完（批量时没有剩余）就直接离开。
+   * 识别结果与照片只在本页内存里（交给概览的批次另算，见 `OcrOverviewPage`），离开就丢，没有“本机草稿免问”的情形。
+   * 正在保存（写入或查重请求进行中）时保持原样：不询问，返回照常（保存请求仍会完成）。
+   */
+  const saving = createEntry.isPending || checkDuplicates.isPending;
+  const dirty =
+    step.name === "working" ||
+    (step.name === "review" && !saving) ||
+    (step.name === "pick" && (files.length > 0 || attachments.files.length > 0)) ||
+    (step.name === "saved" && mode === "batch" && cursor + 1 < items.length);
+  const goBack = useGoBack("/");
+  const leave = useLeaveConfirm(dirty, goBack);
+  /** 流程里的下一步不是离开：不询问；有保护记录时先退掉它再前往（`useLeaveConfirm` 的 `proceed`），从下一步返回正好回到这一页。 */
+  const goForward = leave.proceed;
+  /** 识别期间用户确认放弃并离开后，识别结果回来时不能再把他带去概览或核对。 */
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   async function save(draft: ReviewDraft): Promise<void> {
     setError(null);
@@ -528,6 +556,7 @@ export function ScanPage(): React.JSX.Element {
       title={desktop ? t("desktop.nav.photoRecognition") : t("capture.scan.title")}
       subtitle={t("capture.scan.subtitle")}
       backTo="/"
+      onBack={leave.requestLeave}
     >
       {error === null ? null : <Alert tone="error">{error}</Alert>}
 
@@ -545,7 +574,7 @@ export function ScanPage(): React.JSX.Element {
           }}
           onMode={setMode}
           onStart={() => void start()}
-          onManual={() => void navigate("/add")}
+          onManual={() => { leave.askLeave("/add"); }}
         />
       ) : null}
 
@@ -560,7 +589,7 @@ export function ScanPage(): React.JSX.Element {
           paymentMethods={paymentMethods}
           busy={createEntry.isPending}
           onSave={(draft) => void save(draft)}
-          onManual={() => void navigate("/add")}
+          onManual={() => { leave.askLeave("/add"); }}
         />
       ) : null}
 
@@ -584,7 +613,7 @@ export function ScanPage(): React.JSX.Element {
              * the cursor states it directly: the count is of what is still ahead.
              */
             remaining={mode === "single" ? 0 : Math.max(0, items.length - cursor - 1)}
-            onHome={() => void navigate("/")}
+            onHome={() => { leave.askLeave("/"); }}
             onUndo={() => {
               /**
                * Take it back, and offer to put it back again.
@@ -681,7 +710,7 @@ export function ScanPage(): React.JSX.Element {
           }
 
           if (choice === "manual") {
-            void navigate("/add");
+            leave.askLeave("/add");
             return;
           }
 
@@ -795,6 +824,13 @@ export function ScanPage(): React.JSX.Element {
         }}
       />
       <CaptureMobileAttachments panel={attachments.panel} />
+      <ConfirmDialog
+        {...leave.dialog}
+        title={t("capture.leave.title")}
+        description={t("capture.leave.body")}
+        confirmLabel={t("capture.leave.confirm")}
+        cancelLabel={t("capture.leave.keep")}
+      />
     </InnerPage></CaptureLayout>
   );
 }

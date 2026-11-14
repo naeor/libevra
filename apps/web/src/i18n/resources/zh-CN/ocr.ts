@@ -200,6 +200,10 @@ const ocr = {
   },
   detail: {
     title: "核对这一笔",
+    leaveTitle: "放弃对这一笔的修改？",
+    leaveBody: "这一笔改过的内容还没有保存，返回后不会保留。",
+    leaveConfirm: "放弃并返回",
+    leaveKeep: "继续修改",
     notFound: "找不到账目。识别批次可能已清除，或位于其他标签页。",
     backToOverview: "返回批量识别结果",
     storageFailed: "浏览器无法保存这笔修改（可能是隐私模式或存储空间已满）。修改没有生效，请重试。",

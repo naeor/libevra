@@ -6,7 +6,7 @@ import { DEFAULT_DUPLICATE_DETECTION_SETTINGS } from "@libellum/shared";
 const state = vi.hoisted(() => ({ currentBook: "selected-book" as string | null, requestedBooks: [] as string[], currentReads: 0 }));
 
 vi.mock("../components/entry/CaptureAttachments.js", () => ({
-  useCaptureAttachments: () => ({ panel: null, commit: async () => {} }),
+  useCaptureAttachments: () => ({ panel: null, files: [], commit: async () => {} }),
   CaptureLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   CaptureMobileAttachments: () => null,
 }));

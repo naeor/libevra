@@ -13,10 +13,13 @@ import { useNavigate } from "react-router";
 
 import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { materialAttributes } from "../s19/material.js";
 import "../s19/material-components.css";
 import { useI18n } from "../i18n/index.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
+import { useGoBack } from "../lib/connectivity.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { currencyName } from "../lib/format.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
@@ -82,6 +85,17 @@ export function PastePage(): React.JSX.Element {
   const attachmentTargets = candidates?.map((item, index) => ({ id: `${batchId}:${index}`, label: `${index + 1}. ${item.sourceText}` })) ?? [];
   const attachments = useCaptureAttachments(ledger.data?.book.id ?? null, "text", attachmentTargets);
 
+  /**
+   * 离开前询问（所有者 2026-11-15）：输入或粘贴了文字、已识别出候选、或加了附件，都算“还没记成账的内容”；
+   * 页面原样没动就直接离开。文字与候选虽然存在本标签页内存的草稿里（`useCaptureTextDraft`），但“放弃并返回”
+   * 要兑现“放弃”——确认后连同草稿一起清空，否则再进来文字还在，对话框说的“不会保留”就不是真的。
+   */
+  const dirty = text.trim() !== "" || candidates !== null || attachments.files.length > 0;
+  const goBack = useGoBack("/");
+  const leave = useLeaveConfirm(dirty, goBack);
+  /** 流程里的下一步不是离开：不询问；有保护记录时先退掉它再前往（`useLeaveConfirm` 的 `proceed`），从下一步返回正好回到这一页。 */
+  const goForward = leave.proceed;
+
   async function pasteFromClipboard(): Promise<void> {
     setClipboardError(null);
 
@@ -120,6 +134,7 @@ export function PastePage(): React.JSX.Element {
     <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("capture.paste.title")}
       backTo="/"
+      onBack={leave.requestLeave}
     >
       {clipboardError === null ? null : <Alert tone="info">{clipboardError}</Alert>}
 
@@ -202,7 +217,7 @@ export function PastePage(): React.JSX.Element {
                   attachmentTarget: attachmentTargets[index]?.id,
                   attachmentTargets,
                 });
-                void navigate("/paste/review");
+                goForward("/paste/review");
               }}
             />
           ))}
@@ -211,12 +226,24 @@ export function PastePage(): React.JSX.Element {
 
       <button
         type="button"
-        onClick={() => void navigate("/add")}
+        onClick={() => { leave.askLeave("/add"); }}
         className="touch-target self-center text-helper text-muted underline"
       >
         {t("capture.manualFallback")}
       </button>
       <CaptureMobileAttachments panel={attachments.panel} />
+      <ConfirmDialog
+        {...leave.dialog}
+        onConfirm={() => {
+          leave.dialog.onConfirm();
+          setText("");
+          setCandidates(null);
+        }}
+        title={t("capture.leave.title")}
+        description={t("capture.leave.body")}
+        confirmLabel={t("capture.leave.confirm")}
+        cancelLabel={t("capture.leave.keep")}
+      />
     </InnerPage></CaptureLayout>
   );
 }

@@ -1,13 +1,14 @@
 import "./attachments.css";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatStorageBytes, type AttachmentView } from "@libellum/shared";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 import { onPlainClick, useEntryOrigin } from "../lib/entryReturn.js";
+import { rememberPanel, useReopenPanel } from "../lib/panelMemory.js";
 import { cancelPendingAttachment, attachmentProgress, attachmentUrl, pendingAttachments, removePendingAttachment, savePendingAttachment, uploadAttachment,
   useAttachments, useBookStorage, useAccountStorage, type PendingAttachment } from "../lib/attachments.js";
 import { useBooks } from "../lib/queries.js";
@@ -68,7 +69,11 @@ export function AttachmentTransfers(): null {
  * 上传者 + 下载 + 右上角 ×）、遮罩、进出动画、安全区与下拉关闭；宽屏仍是居中的大对话框（尺寸见 attachments.css），
  * 只盖住所在工作区。预览内容与「下载」不变。
  */
-export function AttachmentPreview({ file, onClose, inline = false }: { file: AttachmentView; onClose: () => void; inline?: boolean }): React.JSX.Element | null {
+export function AttachmentPreview({ file, onClose, inline = false, onOpenEntry }: {
+  file: AttachmentView; onClose: () => void; inline?: boolean;
+  /** 1.19.82：从预览里打开账目之前调用（宿主借此记下“正在预览哪一个”，返回时重新打开，lib/panelMemory.ts）。 */
+  onOpenEntry?: () => void;
+}): React.JSX.Element | null {
   const { t } = useI18n();
   const navigate = useNavigate();
   /**
@@ -78,7 +83,7 @@ export function AttachmentPreview({ file, onClose, inline = false }: { file: Att
   const [leaving, setLeaving] = useState(false);
   // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const origin = useEntryOrigin();
-  const openEntry = (to: string) => inline ? undefined : onPlainClick(() => { flushSync(() => { setLeaving(true); }); void navigate(to, { state: origin }); });
+  const openEntry = (to: string) => inline ? undefined : onPlainClick(() => { onOpenEntry?.(); flushSync(() => { setLeaving(true); }); void navigate(to, { state: origin }); });
   const url = attachmentUrl(file);
   const download = <a className="lv-desk-btn" href={attachmentUrl(file, true)} download>{t("attachments.download")}</a>;
   const body = <>
@@ -116,6 +121,21 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
   const [remove, setRemove] = useState<AttachmentView | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const selection = entryIds.join(",");
+  /**
+   * 1.19.82：从附件预览里打开账目、再返回到这一页时，预览重新打开同一个附件（lib/panelMemory.ts；所有者 2026-11-15
+   * “记住面板当时的状态”）。应用离开屏幕超过 30 分钟后不再恢复（lib/continuity.ts）。
+   */
+  const location = useLocation();
+  const panelId = `attachment-preview:${bookId ?? ""}:${selection}`;
+  const pendingFile = useRef<string | null>(null);
+  const [reopen, setReopen] = useState(0);
+  useReopenPanel<{ fileId: string }>(panelId, (state) => { pendingFile.current = state.fileId; setReopen((count) => count + 1); });
+  useEffect(() => {
+    const id = pendingFile.current;
+    if (id === null || !list.data) return;
+    const file = list.data.pages.flatMap((page) => page.items).find((item) => item.id === id);
+    if (file) { pendingFile.current = null; setPreview(file); }
+  }, [list.data, reopen]);
   const [progress, setProgress] = useState(new Map<string, number>());
   useEffect(() => { const refresh = () => setProgress(new Map(attachmentProgress)); window.addEventListener("attachments-progress", refresh); return () => window.removeEventListener("attachments-progress", refresh); }, []);
   useEffect(() => {
@@ -168,7 +188,7 @@ export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
       <button {...CAPSULE} className={`lv-desk-link text-helper ${MATERIAL_CLASS}`} onClick={() => { void cancelPendingAttachment(file).catch((e: unknown) => setError(errorMessage(e))); }}>{t("common.action.cancel")}</button></div>)}
     {pending.length ? <p className="text-helper text-muted">{t("attachments.localHint")}</p> : null}
     {storage.data ? <p className="text-helper text-muted">{t("attachments.limits", { file: formatStorageBytes(storage.data.limits.fileBytes), count: storage.data.limits.entryFiles, entry: formatStorageBytes(storage.data.limits.entryBytes) })}</p> : null}
-    {preview ? <AttachmentPreview file={preview} onClose={() => setPreview(null)} /> : null}
+    {preview ? <AttachmentPreview file={preview} onClose={() => setPreview(null)} onOpenEntry={() => { rememberPanel(location.key, panelId, { fileId: preview.id }); }} /> : null}
     <ConfirmDialog open={remove !== null} title={t("attachments.remove")} description={t("attachments.deleteConfirm")} confirmLabel={t("attachments.remove")} tone="danger" onCancel={() => setRemove(null)} onConfirm={() => {
       if (remove) void apiFetch(`/books/${bookId}/attachments/${remove.id}`, { method: "DELETE" }).then(() => { setRemove(null); refresh(); }).catch((e: unknown) => setError(errorMessage(e)));
     }} />

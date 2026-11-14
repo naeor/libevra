@@ -33,6 +33,8 @@ import { ImportDoneScreen } from "../components/ocr/ImportDoneScreen.js";
 import { OcrImportBar, OcrOverview } from "../components/ocr/OcrOverview.js";
 import { t as translate, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
+import { useGoBack } from "../lib/connectivity.js";
 import {
   candidateFromInput,
   checkNewCandidates,
@@ -283,8 +285,19 @@ export function OcrOverviewPage(): React.JSX.Element {
       : null;
   const resumeTotals = resumeSession === null ? null : importSessionTotals(resumeSession);
 
+  /**
+   * 离开前询问（所有者 2026-11-15）：还有没导入的批次（概览页上看到的识别结果）就是“还没记成账的内容”，
+   * 确认放弃时和页面里原有的「取消这次识别」一样清掉这批（存在本标签页 sessionStorage，只靠它回不来）。
+   * 不问的情形：没有批次（空态 / 只剩会话汇总）、完成页（已导入）、正在导入（写入照常完成，返回保持原样）。
+   */
+  const dirty = batch !== null && items.length > 0 && done === null && !importing;
+  const goBack = useGoBack("/scan");
+  const leave = useLeaveConfirm(dirty, goBack);
+  /** 流程里的下一步不是离开：不询问；有保护记录时先退掉它再前往（`useLeaveConfirm` 的 `proceed`），从下一步返回正好回到这一页。 */
+  const goForward = leave.proceed;
+
   function openDetail(candidateId: string): void {
-    void navigate(`/ocr/overview/${encodeURIComponent(candidateId)}`);
+    goForward(`/ocr/overview/${encodeURIComponent(candidateId)}`);
   }
 
   /**
@@ -316,7 +329,7 @@ export function OcrOverviewPage(): React.JSX.Element {
     clearBatch();
     setBatch(null);
     setDone(null);
-    void navigate("/scan");
+    goForward("/scan");
   }
 
   async function confirmImport(): Promise<void> {
@@ -461,12 +474,13 @@ export function OcrOverviewPage(): React.JSX.Element {
     <CaptureLayout panel={attachments.panel}><InnerPage
       title={t("ocr.overview.title")}
       backTo="/scan"
+      onBack={leave.requestLeave}
       actions={
         <Button
           variant="secondary"
           fullWidth={false}
           onClick={() => {
-            void navigate("/scan");
+            leave.askLeave("/scan");
           }}
         >
           {t("ocr.overview.rescan")}
@@ -610,6 +624,18 @@ export function OcrOverviewPage(): React.JSX.Element {
         onCancel={() => {
           setCancelOpen(false);
         }}
+      />
+      <ConfirmDialog
+        {...leave.dialog}
+        onConfirm={() => {
+          clearBatch();
+          leave.dialog.onConfirm();
+        }}
+        title={t("ocr.overview.cancelTitle")}
+        description={t("ocr.overview.cancelDescription")}
+        consequences={[t("ocr.overview.cancelReupload")]}
+        confirmLabel={t("ocr.overview.cancelConfirm")}
+        cancelLabel={t("ocr.overview.cancelKeep")}
       />
       <CaptureMobileAttachments panel={attachments.panel} />
       {/*

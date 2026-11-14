@@ -21,6 +21,7 @@ import { SelectionGrid } from "../components/ui/SelectionControls.js";
 import { useAvatarRewards } from "../lib/avatarRewards.js";
 import { useSaveProfile } from "../lib/profile.js";
 import { useDraftExit } from "../lib/profileDraft.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
 
 /** 小锁图标：只在网格里标记“还没解锁”，不抢头像的视觉。 */
 function LockGlyph(): React.JSX.Element {
@@ -42,7 +43,6 @@ export function AvatarPickerPage(): React.JSX.Element {
   const [selected, setSelected] = useState<AvatarId>(original);
   const [busy, setBusy] = useState(false);
   const [inFlight, setInFlight] = useState(false);
-  const [discard, setDiscard] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dirty = selected !== original;
@@ -68,6 +68,11 @@ export function AvatarPickerPage(): React.JSX.Element {
   const description = avatarDescription(selected);
   const dateFormatter = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
   useDraftExit(dirty || busy);
+  /**
+   * 1.19.82：顶栏返回、系统返回、本页里的链接走同一个判断、同一个对话框（应用自己的，原来系统返回是浏览器原生确认框）；
+   * 确认放弃或保存成功后经保护记录一次离开，不会停在原页或再问一次。
+   */
+  const leaveConfirm = useLeaveConfirm(dirty, returnToProfile, { links: true });
 
   useEffect(() => {
     if (!noteOpen) return;
@@ -82,12 +87,8 @@ export function AvatarPickerPage(): React.JSX.Element {
   if (!user) return <></>;
 
   // 1.19.53：从个人资料进来时用 -1 回去（默认返回转场）；深链等没有来路时仍替换成编辑中的个人资料。
-  const leave = returnToProfile;
   const back = (): void => {
-    if (!busy) {
-      if (dirty) setDiscard(true);
-      else leave();
-    }
+    if (!busy) leaveConfirm.requestLeave();
   };
 
   async function save(): Promise<void> {
@@ -98,7 +99,7 @@ export function AvatarPickerPage(): React.JSX.Element {
     setError(null);
     try {
       await saveProfile({ field: "avatarId", value: selected, previousValue: original as AvatarId });
-      leave();
+      leaveConfirm.confirmLeave();
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -233,13 +234,11 @@ export function AvatarPickerPage(): React.JSX.Element {
         </Button>
       </div>
       <ConfirmDialog
-        open={discard}
+        {...leaveConfirm.dialog}
         title={t("account.avatars.discardTitle")}
         description={t("account.avatars.discardDescription")}
         confirmLabel={t("account.avatars.discard")}
         cancelLabel={t("account.avatars.continue")}
-        onCancel={() => setDiscard(false)}
-        onConfirm={leave}
       />
       {noteOpen && hasCreationNote(selected) ? (
         <AvatarCreationNoteSheet

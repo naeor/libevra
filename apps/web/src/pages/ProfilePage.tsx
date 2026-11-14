@@ -1,7 +1,7 @@
 import { NotificationBell } from "../components/Notifications.js";
 import { displayNameSchema, usernameSchema, type SessionUser } from "@libellum/shared";
 import { useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
 import { ProfileAccountNumberSheet } from "../components/ProfileAccountNumberSheet.js";
@@ -13,6 +13,7 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { errorMessage } from "../lib/api.js";
 import { useSaveProfile } from "../lib/profile.js";
 import { useDraftExit } from "../lib/profileDraft.js";
+import { useLeaveConfirm } from "../lib/closeGuard.js";
 import { t, useI18n } from "../i18n/index.js";
 import { formatInstant } from "../lib/datetime.js";
 import { useReturnTo } from "../lib/entryReturn.js";
@@ -41,7 +42,6 @@ export function ProfilePage(): React.JSX.Element {
   const { t } = useI18n();
   const { user } = useAuth();
   const saveProfile = useSaveProfile();
-  const navigate = useNavigate();
   // 1.19.53：返回“我的”时，上一条历史就是“我的”就用 -1 回去，播放默认的返回转场（原来 push 到 /me，直接跳过去）。
   const backToMe = useReturnTo("/me", "push");
   const [params, setParams] = useSearchParams();
@@ -57,6 +57,11 @@ export function ProfilePage(): React.JSX.Element {
   const [discard, setDiscard] = useState<(() => void) | null>(null);
   const dirty = field !== null && draft !== previous;
   useDraftExit(dirty || busy);
+  /**
+   * 1.19.82：有未保存的修改时，系统返回与本页里的链接（换头像、恢复码……）也用应用自己的对话框先问（原来是浏览器原生确认框）。
+   * 页面里“放弃修改、留在本页”（取消、换一项编辑、完成编辑）走 `discardHere`：先退掉保护记录，退出编辑态的 replace 不会留下重复的一页。
+   */
+  const leave = useLeaveConfirm(dirty, backToMe, { links: true });
   if (!user) return <></>;
 
   function askLeave(action: () => void): void {
@@ -88,7 +93,7 @@ export function ProfilePage(): React.JSX.Element {
     { label: t("account.profile.createdAt"), value: formatInstant(user.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) },
   ];
   return <InnerPage title={t("account.profile.title")} backTo="/me" onBack={() => { if (editing) finish(); else backToMe(); }} actions={<><NotificationBell showHeading={false} panelClassName="lv-account-notice-panel" /><Button variant="ghost" fullWidth={false} disabled={busy} onClick={() => editing ? finish() : setParams({ edit: "1" }, { replace: true })}>{editing ? t("account.profile.done") : t("account.profile.edit")}</Button></>}>
-    <ProfilePreview user={user} editable={editing} onAvatar={() => askLeave(() => void navigate("/profile/avatar"))} />
+    <ProfilePreview user={user} editable={editing} onAvatar={() => { if (!busy) leave.askLeave("/profile/avatar"); }} />
     <dl className={`lv-settings-profile lv-settings-flat rounded-card border border-line bg-surface px-5 ${editing ? "divide-y divide-line" : ""}`}>
       {rows.map(row => <div key={row.label} className={editing && row.field ? "py-4" : "flex min-h-8 items-center gap-4 py-4 text-body"}>
         {editing && row.field ? <><dt className="sr-only">{row.label}</dt><dd>
@@ -106,6 +111,7 @@ export function ProfilePage(): React.JSX.Element {
     {notice ? <p role="status" className="text-helper text-brand-dark">{notice}</p> : null}
     <ListGroup title={t("account.profile.recoveryCode")} footer={<span className="text-warn-dark">{t("account.profile.recoveryWarning")}</span>}><ListRow label={t("account.profile.regenerate")} to="/settings/recovery-code" /></ListGroup>
     <ProfileAccountNumberSheet open={numberOpen} number={user.accountNumber} onClose={() => setNumberOpen(false)} />
-    <ConfirmDialog open={discard !== null} title={t("account.profile.discardTitle")} description={t("account.profile.discardDescription")} confirmLabel={t("account.profile.discard")} cancelLabel={t("account.profile.continueEditing")} onCancel={() => setDiscard(null)} onConfirm={() => { const action = discard; setDiscard(null); action?.(); }} />
+    <ConfirmDialog open={discard !== null} title={t("account.profile.discardTitle")} description={t("account.profile.discardDescription")} confirmLabel={t("account.profile.discard")} cancelLabel={t("account.profile.continueEditing")} onCancel={() => setDiscard(null)} onConfirm={() => { const action = discard; setDiscard(null); if (action) leave.discardHere(action); }} />
+    <ConfirmDialog {...leave.dialog} title={t("account.profile.leaveConfirm")} description={t("account.profile.discardDescription")} confirmLabel={t("account.profile.discard")} cancelLabel={t("account.profile.continueEditing")} />
   </InnerPage>;
 }
