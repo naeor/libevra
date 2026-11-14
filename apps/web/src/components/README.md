@@ -1,6 +1,6 @@
 # apps/web/src/components · 阅读入口
 
-> 最后修改：2026-11-09 09:27（UTC+08:00）
+> 最后修改：2026-11-14 14:43（UTC+08:00）
 
 
 跨页面共享组件；复用前查 UI 子目录和 Component Gallery。
@@ -22,8 +22,8 @@
 | [AuthLayout.tsx](AuthLayout.tsx) | 界面模块；入口/导出：AuthLayout |
 | [AuthSwitcher.tsx](AuthSwitcher.tsx) | 界面模块；入口/导出：AuthSwitcher |
 | [AvatarCreationNoteSheet.tsx](AvatarCreationNoteSheet.tsx) | 界面模块；入口/导出：hasCreationNote、AvatarCreationNoteSheet |
-| [AvatarRewardBanner.test.tsx](AvatarRewardBanner.test.tsx) | 测试：AvatarRewardBanner |
-| [AvatarRewardBanner.tsx](AvatarRewardBanner.tsx) | 界面模块；入口/导出：AvatarRewardBanner |
+| [AvatarRewardNotice.test.tsx](AvatarRewardNotice.test.tsx) | 测试：AvatarRewardNotice |
+| [AvatarRewardNotice.tsx](AvatarRewardNotice.tsx) | 界面模块；入口/导出：AVATAR_REWARD_SEEN_MS、AVATAR_REWARD_TOAST_KEY、avatarRewardToast、AvatarRewardNotice |
 | [BookIdentityCard.test.tsx](BookIdentityCard.test.tsx) | 测试：BookIdentityCard |
 | [BookManageSheet.tsx](BookManageSheet.tsx) | 界面模块；入口/导出：BookManageSheet |
 | [BookNotificationBell.tsx](BookNotificationBell.tsx) | 界面模块；入口/导出：BookNotificationBell |
@@ -104,8 +104,8 @@
 | [TabPageHeader.tsx](TabPageHeader.tsx) | 界面模块；入口/导出：TabPageHeader |
 | [TextField.tsx](TextField.tsx) | 界面模块；入口/导出：TextField |
 | [ThemePreview.tsx](ThemePreview.tsx) | 界面模块；入口/导出：ThemePreview |
-| [UndoBar.tsx](UndoBar.tsx) | 界面模块；入口/导出：UndoBar |
-| [UndoProvider.tsx](UndoProvider.tsx) | 界面模块；入口/导出：UndoProvider、useUndo |
+| [UndoProvider.test.ts](UndoProvider.test.ts) | 测试：UndoProvider |
+| [UndoProvider.tsx](UndoProvider.tsx) | 界面模块；入口/导出：UndoRequest、useUndo、undoToastOptions |
 | [UpdateMoreSheet.tsx](UpdateMoreSheet.tsx) | 界面模块；入口/导出：UpdateMoreSheet |
 | [UserAvatar.test.tsx](UserAvatar.test.tsx) | 测试：UserAvatar |
 | [UserAvatar.tsx](UserAvatar.tsx) | 界面模块；入口/导出：avatarLabel、avatarDescription、UserAvatar |
@@ -128,5 +128,6 @@
 | [import/](import/README.md) | 本层组织 import 模块的直属文件；具体契约由任务索引定位。 |
 | [ledger/](ledger/README.md) | 账本领域。 |
 | [ocr/](ocr/README.md) | OCR 解析与确认。 |
+| [toast/](toast/README.md) | 本层组织 toast 模块的直属文件；具体契约由任务索引定位。 |
 | [ui/](ui/README.md) | 通用界面组件。 |
 <!-- directory-index:end -->

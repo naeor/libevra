@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-14 02:43（UTC+08:00）
+> 最后修改：2026-11-14 14:43（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -174,4 +174,5 @@
 | [ledgerImport/](ledgerImport/README.md) | 本层组织 ledgerImport 模块的直属文件；具体契约由任务索引定位。 |
 | [ocr/](ocr/README.md) | OCR 解析与确认。 |
 | [offline/](offline/README.md) | 本地存储、操作队列、离线读写与同步；修改按同步专项验收。 |
+| [toast/](toast/README.md) | 本层组织 toast 模块的直属文件；具体契约由任务索引定位。 |
 <!-- directory-index:end -->

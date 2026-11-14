@@ -37,7 +37,7 @@ export const WAIT_LIMIT = { normal: 3_000, warning: 6_000 } as const;
 /** 同一个 key 在这段时间里重复出现，只播报一次（读屏不被连续触发刷屏）。 */
 export const ANNOUNCE_REPEAT_MS = 1_000;
 
-const CJK = /[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]/gu;
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/gu;
 
 /** 可读长度：中日韩字数 + 其余文字的词数 × 2。标点、空白不计。 */
 export function readableLength(text: string): number {

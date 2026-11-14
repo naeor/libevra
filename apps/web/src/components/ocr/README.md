@@ -15,8 +15,8 @@ OCR 解析与确认。
 | [ImportDoneScreen.tsx](ImportDoneScreen.tsx) | 界面模块；入口/导出：ImportDoneScreen |
 | [ImportDoneView.test.tsx](ImportDoneView.test.tsx) | 测试：ImportDoneView |
 | [ImportDoneView.tsx](ImportDoneView.tsx) | 界面模块；入口/导出：ImportDoneStatus、importDoneStatus、ImportDoneView |
-| [ImportToast.test.tsx](ImportToast.test.tsx) | 测试：ImportToast |
-| [ImportToast.tsx](ImportToast.tsx) | 界面模块；入口/导出：ImportToastTone、ImportToastMessage、IMPORT_TOAST_MS、importToastFor、ImportToastState |
+| [ImportToast.test.ts](ImportToast.test.ts) | 测试：ImportToast |
+| [ImportToast.ts](ImportToast.ts) | 实现模块；入口/导出：ImportToastTone、ImportToastMessage、importToastFor、importDoneToast |
 | [OcrOverview.en.test.tsx](OcrOverview.en.test.tsx) | 测试：OcrOverview.en |
 | [OcrOverview.test.tsx](OcrOverview.test.tsx) | 测试：OcrOverview |
 | [OcrOverview.tsx](OcrOverview.tsx) | 界面模块；入口/导出：OCR_OVERVIEW_FILTERS_ID、OcrOverviewProps、ocrChannelLabel、ocrDirectionLabel、ocrIssueText |

@@ -1,6 +1,6 @@
 # apps/web/src/statsWorkbench · 阅读入口
 
-> 最后修改：2026-11-08 23:23（UTC+08:00）
+> 最后修改：2026-11-14 14:43（UTC+08:00）
 
 分析工作台配置、编辑器、布局与卡片接线。
 
@@ -87,4 +87,6 @@
 | [timeWindows.test.ts](timeWindows.test.ts) | 测试：timeWindows |
 | [timeWindows.ts](timeWindows.ts) | 实现模块；入口/导出：RELATIVE_WINDOWS、RelativeWindow、isRelativeWindow、cardWindow、withWindow |
 | [ui.tsx](ui.tsx) | 界面模块；入口/导出：Density、densityFor、ElementSizeOptions、useElementSize、FitAmount |
+| [undoToast.test.ts](undoToast.test.ts) | 测试：undoToast |
+| [undoToast.ts](undoToast.ts) | 实现模块；入口/导出：UndoToastBinding、undoStillApplies |
 <!-- directory-index:end -->
