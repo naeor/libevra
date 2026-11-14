@@ -944,6 +944,54 @@ describe("GET /api/v1/summary", () => {
 });
 
 describe("PATCH and DELETE /api/v1/transactions/:id", () => {
+  it.each(["不同金额", "相同金额", "不同字段"] as const)("两个协作者从同一版本并发编辑：%s", async (scenario) => {
+    const owner = await signUp("race_owner");
+    const editor = await signUp("race_editor");
+    const { book } = await ledgerOf(owner);
+    const member = await prisma.user.findUniqueOrThrow({ where: { username: "race_editor" } });
+    await prisma.bookMember.create({ data: { bookId: book.id, userId: member.id, role: "editor" } });
+    const created = await record(owner, { amountCents: 2000, note: "初始备注" });
+    expect(created.statusCode).toBe(201);
+    const { id, version } = created.json() as { id: string; version: number };
+    const url = `/api/v1/transactions/${id}`;
+    const edits = [
+      { cookie: owner, device: "device-a", field: "amountCents", from: 2000, to: 2100 },
+      scenario === "不同字段"
+        ? { cookie: editor, device: "device-b", field: "note", from: "初始备注", to: "共同核对" }
+        : { cookie: editor, device: "device-b", field: "amountCents", from: 2000, to: scenario === "不同金额" ? 2200 : 2100 },
+    ];
+    const send = (edit: typeof edits[number]) => app.inject({
+      method: "PATCH", url, headers: { cookie: edit.cookie, "x-libellum-book": book.id, "x-libellum-device": edit.device },
+      payload: { version, [edit.field]: edit.to,
+        changes: [{ field: edit.field, base: edit.from, wanted: edit.to, chain: [edit.from, edit.to] }] },
+    });
+    const first = await Promise.all(edits.map(send));
+    // 乐观锁可能先回 transaction_retry。原样重送，用用户真实看到的旧值交给逐字段冲突规则判断。
+    const replies = await Promise.all(first.map((reply, i) =>
+      reply.statusCode === 409 && reply.json().code === "transaction_retry" ? send(edits[i]!) : reply));
+    const winner = replies.findIndex(reply => reply.statusCode === 200);
+    expect(winner).toBeGreaterThanOrEqual(0);
+    const expected = scenario === "不同金额" ? edits[winner]!.to : 2100;
+    const conflicts = await app.inject({ method: "GET", url: "/api/v1/conflicts", headers: { cookie: editor, "x-libellum-book": book.id } });
+    expect(conflicts.statusCode).toBe(200);
+    if (scenario === "不同金额") {
+      const losing = 1 - winner;
+      expect(replies[losing]!.statusCode).toBe(409);
+      expect(replies[losing]!.json().code).toBe("version_conflict");
+      expect(conflicts.json().conflicts).toHaveLength(1);
+      expect(conflicts.json().conflicts[0].fields).toEqual([expect.objectContaining({ field: "amountCents",
+        claims: [expect.objectContaining({ deviceId: edits[losing]!.device, chain: [2000, edits[losing]!.to] })] })]);
+    } else {
+      expect(replies.map(reply => reply.statusCode)).toEqual([200, 200]);
+      expect(conflicts.json().conflicts).toHaveLength(0);
+    }
+    for (const { cookie } of edits) {
+      const read = await app.inject({ method: "GET", url, headers: { cookie, "x-libellum-book": book.id } });
+      expect(read.statusCode).toBe(200);
+      expect(read.json()).toMatchObject({ amountCents: expected, note: scenario === "不同字段" ? "共同核对" : "初始备注" });
+    }
+  });
+
   it("⚠️ refuses an update whose base is a value the server no longer holds", async () => {
     /**
      * ⚠️ **The old version of this test sent only a version and expected a 409 for any mismatch** — which could
