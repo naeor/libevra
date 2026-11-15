@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-15 06:41（UTC+08:00）
+> 最后修改：2026-11-15 11:34（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -159,7 +159,7 @@
 | [useCollapsingHeader.ts](useCollapsingHeader.ts) | 实现模块；入口/导出：RESTORE_HEADER_SCROLL、useCollapsingHeader |
 | [useOverlayPresentation.ts](useOverlayPresentation.ts) | 实现模块；入口/导出：useOverlayExit、useOverlayPresence、useOverlayScrollLock |
 | [usePageFilter.ts](usePageFilter.ts) | 实现模块；入口/导出：useGuestFilterBook、useFilterBook、useFilterOwner、usePageFilter |
-| [useRootVisualStyle.ts](useRootVisualStyle.ts) | 实现模块；入口/导出：useRootVisualStyle、useS19Light |
+| [useRootVisualStyle.ts](useRootVisualStyle.ts) | 实现模块；入口/导出：useRootVisualStyle、useS19WorkspaceChrome |
 | [useTimeAnalysis.test.ts](useTimeAnalysis.test.ts) | 测试：useTimeAnalysis |
 | [useTimeAnalysis.ts](useTimeAnalysis.ts) | 实现模块；入口/导出：useTimeAnalysis、useCumulativeAnalysis、useFlowAnalysis、usePeriodComparison、useMultiMonthComparison |
 | [useVoiceRecorder.test.ts](useVoiceRecorder.test.ts) | 测试：useVoiceRecorder |

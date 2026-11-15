@@ -1,9 +1,11 @@
 # apps/web/src/s19 · 阅读入口
 
-> 最后修改：2026-11-14 14:43（UTC+08:00）
+> 最后修改：2026-11-15 11:34（UTC+08:00）
 
 
 S19 材质与展示实现，消费现有 Token，不改变业务语义。
+
+手机和 Pad 的正式深色材质见 `dark-material.css`。浅色与深色共用组件用途、选择控件与导航外壳。深色 A、B1、B2 从 `neutral-light-field.png` 取同一光场，壁纸处理在 `wallpaper.css`。
 
 优先阅读[任务索引](../../../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
 
@@ -28,6 +30,7 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 | [b2Glass.ts](b2Glass.ts) | 实现模块；入口/导出：B2GlassValues、B2_GLASS_PRESETS、B2GlassPreset、B2GlassMode、B2_CHROME_BLUR |
 | [classic.css](classic.css) | 样式与变量 |
 | [compact.css](compact.css) | 样式与变量 |
+| [dark-material.css](dark-material.css) | 样式与变量 |
 | [dock.css](dock.css) | 样式与变量 |
 | [editor-surfaces.css](editor-surfaces.css) | 样式与变量 |
 | [entry-workspace.css](entry-workspace.css) | 样式与变量 |
@@ -38,6 +41,7 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 | [material-effects.css](material-effects.css) | 样式与变量 |
 | [material.test.ts](material.test.ts) | 测试：material |
 | [material.ts](material.ts) | 实现模块；入口/导出：MATERIAL_DEFAULTS、MaterialFinish、MaterialRole、MaterialAppearance、materialAttributes |
+| [neutral-light-field.png](neutral-light-field.png) | 图像资料 |
 | [ocean-material.css](ocean-material.css) | 样式与变量 |
 | [ocean-material.test.tsx](ocean-material.test.tsx) | 测试：ocean-material |
 | [oceanBrand.test.ts](oceanBrand.test.ts) | 测试：oceanBrand |
@@ -52,7 +56,7 @@ S19 材质与展示实现，消费现有 Token，不改变业务语义。
 | [s19-lab-tokens.css](s19-lab-tokens.css) | 样式与变量 |
 | [s19.css](s19.css) | 样式与变量 |
 | [scope.test.ts](scope.test.ts) | 测试：scope |
-| [scope.ts](scope.ts) | 实现模块；入口/导出：S19Scope、S19_SCOPE_SELECTOR、S19_PHONE_SELECTOR、s19ScopeForShell、markS19Stage |
+| [scope.ts](scope.ts) | 实现模块；入口/导出：S19Scope、S19_SCOPE_SELECTOR、S19_PHONE_SELECTOR、s19Style、s19ScopeForShell |
 | [shared.css](shared.css) | 样式与变量 |
 | [tabIndicator.ts](tabIndicator.ts) | 实现模块；入口/导出：startTabIndicator |
 | [tabMotion.ts](tabMotion.ts) | 实现模块；入口/导出：TabMotion、TAB_MOTIONS、TAB_MOTION_STORAGE_KEY、TAB_MOTION_LABELS、tabMotion |

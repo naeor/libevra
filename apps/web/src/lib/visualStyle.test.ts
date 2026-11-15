@@ -4,6 +4,7 @@ import {
   applyVisualStyle,
   createVisualStyleController,
   parseVisualStyle,
+  readVisualAppearance,
   type VisualStyleStorage,
 } from "./visualStyle.js";
 import { isAppDeviceStorageKey } from "./deviceStorageKeys.js";
@@ -19,6 +20,13 @@ function memoryStorage(initial: Record<string, string> = {}): VisualStyleStorage
 }
 
 describe("S19 visual style lab", () => {
+  it("预绘制只读偏好；无法读取风格时仍恢复已选壁纸", () => {
+    const saved = readVisualAppearance({ getItem(key) {
+      if (key === VISUAL_STYLE_STORAGE_KEY) throw new Error("unavailable");
+      return "quiet";
+    } });
+    expect(saved).toEqual({ style: "original", wallpaper: "quiet" });
+  });
   it("defaults to Original for missing or unknown values", () => {
     expect(parseVisualStyle(null)).toBe("original");
     expect(parseVisualStyle("")).toBe("original");

@@ -33,7 +33,11 @@ export function themePrepaintPlugin(): Plugin {
       assetPath = `assets/theme-prepaint-${hash}.js`;
       this.emitFile({ type: "asset", fileName: assetPath, source });
     },
-    configureServer(server) { server.watcher.on("change", (file) => { if (file.endsWith("theme.ts") || file.endsWith("theme-prepaint.ts")) script = null; }); },
+    configureServer(server) {
+      server.watcher.on("change", (file) => {
+        if (["theme.ts", "theme-prepaint.ts", "visualStyle.ts", "wallpaper.ts"].includes(path.basename(file))) script = null;
+      });
+    },
     transformIndexHtml: { order: "post", async handler() {
       if (productionBuild) {
         return [{ tag: "script", attrs: { id: "libevra-theme-prepaint", src: base + assetPath }, injectTo: "head-prepend" }];

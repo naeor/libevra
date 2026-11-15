@@ -5,7 +5,7 @@
 
 import { applyGlassBlur, DEFAULT_GLASS_BLUR, GLASS_BLUR_STORAGE_KEY, normalizeGlassBlur, parseGlassBlur } from "../s19/material.js";
 import { applyB2Glass, B2_GLASS_LEGACY_OWNER_KEY, B2_GLASS_STORAGE_PREFIX, b2GlassStorageKey, customGlass, parseB2Glass, presetGlass, type B2GlassPreset, type B2GlassSelection, type B2GlassValues } from "../s19/b2Glass.js";
-import { DEFAULT_WALLPAPER, WALLPAPER_STORAGE_KEY, parseWallpaper, type Wallpaper } from "../s19/wallpaper.js";
+import { WALLPAPER_STORAGE_KEY, parseWallpaper, type Wallpaper } from "../s19/wallpaper.js";
 
 export const VISUAL_STYLES = ["original", "a", "b1", "b2", "c"] as const;
 export type VisualStyle = (typeof VISUAL_STYLES)[number];
@@ -47,13 +47,15 @@ export function applyVisualStyle(root: VisualStyleRoot, style: VisualStyle): voi
   else root.dataset.visualStyle = style;
 }
 
-function readStored(storage: VisualStyleStorage | null): VisualStyle {
-  if (storage === null) return DEFAULT_VISUAL_STYLE;
-  try {
-    return parseVisualStyle(storage.getItem(VISUAL_STYLE_STORAGE_KEY));
-  } catch {
-    return DEFAULT_VISUAL_STYLE;
-  }
+/** 首帧与运行时共用本机选择。两项独立读取，预绘制不触及账号级玻璃偏好或写入存储。 */
+export function readVisualAppearance(storage: Pick<VisualStyleStorage, "getItem"> | null) {
+  const read = (key: string) => {
+    try { return storage?.getItem(key) ?? null; } catch { return null; }
+  };
+  return {
+    style: parseVisualStyle(read(VISUAL_STYLE_STORAGE_KEY)),
+    wallpaper: parseWallpaper(read(WALLPAPER_STORAGE_KEY)),
+  };
 }
 
 function persist(storage: VisualStyleStorage | null, style: VisualStyle): void {
@@ -95,8 +97,8 @@ export function createVisualStyleController(
   _allowExperiments = true,
 ): VisualStyleController {
   const listeners = new Set<() => void>();
-  let wallpaper = DEFAULT_WALLPAPER;
-  try { wallpaper = parseWallpaper(storage?.getItem(WALLPAPER_STORAGE_KEY)); } catch { /* 旧用户与不可用存储均使用柔和极光。 */ }
+  const saved = readVisualAppearance(storage);
+  let wallpaper = saved.wallpaper;
   root.dataset.wallpaper = wallpaper;
   const setWallpaper = (next: Wallpaper, save: boolean): void => {
     if (wallpaper === next) return;
@@ -105,7 +107,7 @@ export function createVisualStyleController(
     if (save) { try { storage?.setItem(WALLPAPER_STORAGE_KEY, next); } catch { /* 仍在本次会话立即生效。 */ } }
     for (const listener of listeners) listener();
   };
-  let current: VisualStyle = readStored(storage);
+  let current: VisualStyle = saved.style;
   let blur = DEFAULT_GLASS_BLUR;
   try { blur = parseGlassBlur(storage?.getItem(GLASS_BLUR_STORAGE_KEY)); } catch { /* 会话内默认值 */ }
   const permitted = (value: VisualStyle): VisualStyle => value;
