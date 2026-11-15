@@ -15,6 +15,32 @@ describe("正式材质令牌", () => {
   });
 });
 
+describe("正式深色材质", () => {
+  const css = readFileSync(new URL("./dark-material.css", import.meta.url), "utf8");
+  const entry = readFileSync(new URL("./s19.css", import.meta.url), "utf8");
+
+  it("四风格共用真实暗色入口，原有色盘与壁纸继续各自决定品牌和环境", () => {
+    expect(entry).toContain('@import "./dark-material.css"');
+    expect(entry).not.toContain("dark-study");
+    for (const style of ["a", "b1", "b2", "c"]) {
+      expect(css).toContain(`[data-theme-mode="dark"][data-visual-style="${style}"]:not([data-shell="desktop"]):has(.lv-shell[data-s19-scope])`);
+    }
+    expect(css).not.toMatch(/--(?:color-brand(?:-dark|-soft)?|lv-wallpaper-bg|s19-bg):/);
+  });
+
+  it("B2 减少透明度、增强对比与缺少背景模糊支持时，内容、选中块和操作面一起转为实体", () => {
+    for (const guard of ["@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)", "@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))"]) {
+      const start = css.indexOf(guard);
+      expect(start).toBeGreaterThan(-1);
+      const fallback = css.slice(start, css.indexOf("}", start));
+      expect(fallback).toContain("--s19-dark-content-fill: 1;");
+      expect(fallback).toContain("--s19-dark-chrome-fill: 1;");
+      expect(fallback).toContain("--s19-tabglass-bg: var(--s19-pill-bg);");
+      expect(fallback).toContain("--s19-tool-filter: none;");
+    }
+  });
+});
+
 describe("S19 玻璃偏好", () => {
   it("新默认为旧模糊的 65%，各语义有独立尺度；A/C 不随滑块改变", () => {
     expect(glassMaterial("b1").surfaceBlur).toBe(10.4);

@@ -3,18 +3,18 @@
   这些块贴着屏幕上下缘时，iPhone Safari 会拿它们的颜色染工具栏——于是出现与壁纸过渡色不一致的灰色。
   · 留言整页：页面透明显露壁纸；顶栏是栏材质（与内页收起后的顶栏相同），输入区是底部操作区（data-bar-surface）。
   · 设备提示条（离线下载、离线状态等，OfflineStatus）：栏材质，不再是一条画布色。
-  材质画在伪元素上（含内容的元素本身不加滤镜）。只作用于浅色四风格手机外壳。
+  材质画在伪元素上（含内容的元素本身不加滤镜）。作用于启用四风格的手机和 Pad 外壳。
 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is([data-message-page]) {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] :is([data-message-page]) {
   background: transparent;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is([data-message-head], [data-lv-banner]) {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] :is([data-message-head], [data-lv-banner]) {
   position: relative;
   z-index: 1;
   background: transparent;
   border-bottom-color: transparent;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] :is([data-message-head], [data-lv-banner])::before {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] :is([data-message-head], [data-lv-banner])::before {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: var(--s19-bar-bg);
   box-shadow: var(--s19-bar-sh);
@@ -24,18 +24,18 @@
 
 /* 外观页“明暗”三选一：分段控件的轨道（与明细“全部 / 支出 / 收入”同一组令牌），不再是白片里套品牌浅底。
    1.19.67 起选中指示是 MovingSelection（selection-controls.css 按风格给出），这里不再给选中项单独的白胶囊。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-settings-theme-options > [role="group"].grid.bg-surface {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] .lv-settings-theme-options > [role="group"].grid.bg-surface {
   background: var(--s19-track-bg);
   box-shadow: var(--s19-track-sh);
 }
 
 /* 展示卡片编辑器的指标选项：原来是白片 / 品牌浅底，改为交互卡材质；选中用统一选中描边。
    1.19.70：指标选项是独立选中项（SelectionItem + data-select-flat），选中改由选中模型表现（B1 / B2 玻璃、A 浮起、C 浅绿实底 + 品牌绿细边），不再叠加这圈描边。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .dce-metric {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] .dce-metric {
   background: var(--s19-card-bg);
   box-shadow: var(--s19-card-sh);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .dce-metric[aria-pressed="true"]:not([data-select-item]) {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] .dce-metric[aria-pressed="true"]:not([data-select-item]) {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }

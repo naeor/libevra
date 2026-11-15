@@ -31,7 +31,7 @@ import { describe, expect, it } from "vitest";
  */
 const SRC = resolve(import.meta.dirname, "..");
 
-const TOKEN_FILES = new Set(["index.css", "s19/s19-lab-tokens.css", "s19/component-gallery/dark-study-tokens.css"]);
+const TOKEN_FILES = new Set(["index.css", "s19/s19-lab-tokens.css", "s19/dark-material.css", "s19/component-gallery/dark-study-tokens.css"]);
 
 /** 只在已有用途内豁免固定色，同名文件或组件里新增的界面颜色仍然检查。 */
 function scanSource(path: string): string {

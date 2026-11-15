@@ -126,11 +126,11 @@
   min-width: 0;
 }
 .lv-temporary-sheet-panel { display: flex; flex-direction: column; outline: none; overflow: hidden; }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope="pad"] .lv-pane[data-temporary-open] > [data-temporary-slot] {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope="pad"] .lv-pane[data-temporary-open] > [data-temporary-slot] {
   background: var(--s19-sheet-bg, var(--color-surface));
   box-shadow: inset 1px 0 var(--color-line);
 }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope="pad"] .lv-temporary-sheet-panel {
+:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope="pad"] .lv-temporary-sheet-panel {
   background: var(--s19-display-sheet-bg, var(--color-surface));
 }
 .lv-temporary-sheet-panel > [data-sheet-body] { min-height: 0; }

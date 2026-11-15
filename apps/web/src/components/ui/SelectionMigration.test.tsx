@@ -81,7 +81,7 @@ describe("源码：每处迁移用的组件与原逻辑", () => {
 
 describe("外观：1.19.68 新增规则", () => {
   it("选中项的底色让位压过按钮已有的材质映射（抬高优先级的专用块）", () => {
-    expect(css).toContain(':root:root:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {');
+    expect(css).toContain(':root:root:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] {');
   });
   it("被禁用的格子 / 行不显示选中（月份格里不可选的月份）", () => {
     expect(css).toContain('[data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled)');
@@ -96,7 +96,7 @@ describe("外观：1.19.68 新增规则", () => {
     expect(flat).not.toContain("--s19-track");
     expect(css).toContain('[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%');
     expect(css).toContain('[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%');
-    const aBlock = css.slice(css.indexOf(':root[data-visual-style="a"][data-theme-mode="light"]'), css.indexOf("/* ---------- 平铺变体的选中面"));
+    const aBlock = css.slice(css.indexOf(':root[data-visual-style="a"][data-theme-mode]'), css.indexOf("/* ---------- 平铺变体的选中面"));
     expect(aBlock).not.toContain("data-select-flat");
     expect(css).toContain('[data-select-tone="danger"]');
     expect(css).toContain("color: var(--color-danger-dark)");

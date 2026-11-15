@@ -1,7 +1,7 @@
 /*
   保存成功屏的对勾标记与“到场”状态（1.19.77，components/EntrySaved.tsx 与 components/entry/SaveStage.tsx）。
 
-  基础外观：原来的浅绿圆底 + 品牌绿对勾，不变。S19 浅色外壳（通用层，将来 Pad 自动继承）：标记是主按钮同一材质的圆形（--s19-accent-bg / --s19-accent-sh）
+  基础外观：原来的浅绿圆底 + 品牌绿对勾，不变。S19 手机与 Pad（通用层）：标记是主按钮同一材质的圆形（--s19-accent-bg / --s19-accent-sh）
   + 白色对勾——保存转场里保存按钮正是变成了这个圆形，落地后由成功屏接手，所以两边必须同一个样子。
 
   到场状态（data-saved-intro）：
@@ -13,11 +13,11 @@
 .lv-saved-mark { display: inline-flex; width: 84px; height: 84px; flex: none; border-radius: 50%; }
 .lv-saved-mark > svg { width: 100%; height: 100%; }
 
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-saved-mark {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] .lv-saved-mark {
   background: var(--s19-accent-bg); box-shadow: var(--s19-accent-sh);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-saved-mark .lv-saved-disc { fill: transparent; }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-saved-mark .lv-saved-tick { stroke: var(--color-on-brand); }
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] .lv-saved-mark .lv-saved-disc { fill: transparent; }
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] .lv-saved-mark .lv-saved-tick { stroke: var(--color-on-brand); }
 
 [data-saved-intro="pending"] .lv-saved-mark,
 [data-saved-intro="success"] .lv-saved-mark { visibility: hidden; }

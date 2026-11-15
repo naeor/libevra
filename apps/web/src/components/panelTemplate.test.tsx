@@ -316,7 +316,7 @@ describe("1.19.61：筛选高半屏、S19 对话框遮罩深一档、筛选设�
     expect(rule).toBeGreaterThan(0);
     expect(overlays.slice(rule, overlays.indexOf("}", rule))).toContain("var(--s19-scrim-dialog");
     // 只在浅色 S19 外壳里。
-    expect(overlays.slice(overlays.lastIndexOf("\n", rule), rule)).toContain(':root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope]');
+    expect(overlays.slice(overlays.lastIndexOf("\n", rule), rule)).toContain(':root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope]');
     // CenterDialog 的根节点是 dialog；底部面板（含大档与门禁）的根节点是 sheet，不会命中。
     expect(read("./CenterDialog.tsx")).toContain('data-overlay-root="dialog"');
     // 下方用实际渲染断言手机面板的遮罩；Pad 非模态区没有遮罩标记。

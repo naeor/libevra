@@ -3,8 +3,8 @@
   颜色一律来自令牌（s19/s19-lab-tokens.css 的 A / B1 / C 段、index.css 的 B2 段），这里不写颜色字面量。
   时长来自 component-motion.css（Motion Token 的 SELECTION_CSS），选中块的移动由脚本按 SELECTION_GLIDE / SELECTION_SLIDE 播放。
 
-  基础外观（Original、深色、Pad、电脑版——没有 S19 作用域或不是浅色）：选中项保持调用方自己的选中样式，不显示选中块；
-  条件标签是原来的品牌浅底胶囊。S19（浅色、带作用域标记的外壳，通用层）四种风格同一个模型：
+  基础外观（Original、电脑版）：选中项保持调用方自己的选中样式，不显示选中块；
+  条件标签是原来的品牌浅底胶囊。S19（手机与 Pad 的通用层）四种风格同一个模型：
   - 会移动的选中：B1 / B2 一块不染色的模拟玻璃（底栏选中胶囊同一配方）、C 浅绿实底，由脚本移动；
     A 没有色块，选中项自己按 A2 档浮起（表面层 ::before + 环境影 ::after），浮起轻微越过、落下干净不回弹。
   - 网格选中：B1 / B2 玻璃在旧格淡出、新格淡入；A 选中格浮起；C 交叉淡化。
@@ -48,7 +48,7 @@
 @keyframes lv-cond-tag-out { to { opacity: 0; scale: var(--lv-tag-from-scale, .94); } }
 
 /* ---------- S19 四种风格共用 ---------- */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] {
   :is([data-select-moving], [data-select-grid]) > button, [data-select-item] { isolation: isolate; transition: color var(--lv-select-ms) var(--lv-motion-ease); }
   [data-select-grid] > button, [data-select-item] { position: relative; }
   /* 选中项自己的底色、阴影、描边让给选中块 / 浮起层；文字变品牌绿。 */
@@ -83,7 +83,7 @@
 /* 1.19.68：选中项的底色让位要压过按钮已有的 S19 材质映射——`:is(button, a).bg-brand.text-on-brand`（主按钮的品牌渐变）与
    `.rounded-field.bg-brand-soft`（次要按钮的柔底）按类名命中，选中的“支出 / 收入”“导出格式”“月份格”等沿用了这些类名，
    不压过的话选中项会盖着品牌渐变、选中块或浮起层被挡在下面。重复 :root 只为抬高优先级，不改变作用域。 */
-:root:root:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root:root:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]),
   [data-select-grid] > button:is([aria-pressed="true"], [aria-checked="true"]):not(:disabled),
   [data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled) {
@@ -106,14 +106,14 @@
 }
 
 /* 1.19.70：B1 瓷面（data-material-finish）把高光层画在按钮自己的 ::before / ::after 上，未选项会因此仍是一块白瓷。会移动的选中组里面只由选中块给面，
-   所以这两层不再画（B1 浅色手机外壳；外观页的模糊三档）。 */
-:root:root:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+   所以这两层不再画（B1 的 S19 外壳；外观页的模糊三档）。 */
+:root:root:root[data-visual-style="b1"][data-theme-mode] .lv-shell[data-s19-scope] {
   [data-select-moving] > button[data-material-finish]::before,
   [data-select-moving] > button[data-material-finish]::after { background: none; }
 }
 
 /* ---------- B1 / B2：模拟玻璃（不染色、不做真实背景模糊） ---------- */
-:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-glass-bg); box-shadow: var(--s19-select-glass-sh); }
   /* base="copy" 的按钮不单独成层，文字层才能盖在滑过的选中块上（A 不显示选中块，保留隔离给浮起层用）。 */
   [data-select-moving][data-select-base="copy"] > button { isolation: auto; }
@@ -131,7 +131,7 @@
 }
 
 /* ---------- C：浅绿实底，整块干脆滑动；网格交叉淡化 ---------- */
-:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root[data-visual-style="c"][data-theme-mode] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { display: block; background: var(--s19-select-solid-bg); box-shadow: none; }
   [data-select-moving][data-select-base="copy"] > button { isolation: auto; }
   :is([data-select-grid] > button, [data-select-item])::before { background: var(--s19-select-solid-bg); transition: opacity var(--lv-select-ms) var(--lv-motion-ease); }
@@ -143,7 +143,7 @@
 
 /* 1.19.70：C 的选中面是很浅的绿（brand-soft），落在近白的轨道 / 面板上单靠它分不出（留言引用、PDF 缩放）。C 本来就是“纸面 + 细线”，
    所以所有选中面（会移动的选中块、网格 / 独立选中项的面、开关按钮开启）都带一圈品牌绿细线，与平铺变体的选中面同一写法；选中文字仍是品牌绿。 */
-:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root[data-visual-style="c"][data-theme-mode] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
   :is([data-select-grid] > button, [data-select-item])::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
   [data-select-toggle][aria-pressed="true"]::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
@@ -152,7 +152,7 @@
 /* ---------- A：没有色块，选中项自己按 A2 档浮起 ----------
    表面层（::before）= 白色薄片 + A2 表面阴影；环境影（::after）单独一层，浮起时一边下移、放大一边淡入。
    只动画 transform 与 opacity，不逐帧改分层阴影。位移与放大比例是档位本身（--s19-a-lift-*）。 */
-:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root[data-visual-style="a"][data-theme-mode] .lv-shell[data-s19-scope] {
   [data-select-moving] > [data-select-block] { display: none; }
   :is([data-select-moving], [data-select-grid]) > button, [data-select-item] {
     position: relative;
@@ -209,7 +209,7 @@
    不在轨道里的一律保留通用 A2 浮起（所有者 2026-11-14：“没必要减弱它的浮空感”）：旧选中项沉回平面、与背景融为一体，
    新选中项下面出现一张薄片并浮起——筛选面板的竖向导航与“月份 / 日期范围”、外观页各组、平铺 / 胶囊类互斥组、
    会折行的互斥小组（SelectionGrid）、开关按钮开启（1.19.72–1.19.73 曾原地，1.19.74 恢复）、独立选中项与条件标签。 */
-:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root[data-visual-style="a"][data-theme-mode] .lv-shell[data-s19-scope] {
   [data-select-moving][data-select-track][data-select-ready] > button:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) { transform: none; }
   [data-select-moving][data-select-track] > button::before {
     box-shadow: var(--s19-a-elev-2-track); transform: scale(.96);
@@ -226,12 +226,12 @@
    单独成块，保证上面 B1 / B2 的玻璃、C 的实底本身仍然只用选中令牌（玻璃不染色）。
    选中面落在白色面板 / 浅灰底上，B1 / B2 玻璃的亮边与柔影、C 的浅绿都偏淡，而旁边的未选项带一圈细边，
    不加这圈边，选中项反而显得比未选项轻；A 的 A2 浮起本身够清楚，不加。 */
-:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode] .lv-shell[data-s19-scope] {
   :is([data-select-flat], [data-select-moving]:has(> button.lv-material[data-material-role]))[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
   :is([data-select-flat] > button, button[data-select-flat], [data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role])::before { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
   [data-select-toggle][aria-pressed="true"]::before { box-shadow: var(--s19-select-glass-sh), 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent); }
 }
-:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {
+:root[data-visual-style="c"][data-theme-mode] .lv-shell[data-s19-scope] {
   :is([data-select-flat], [data-select-moving]:has(> button.lv-material[data-material-role]))[data-select-moving][data-select-ready] > [data-select-block] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
   :is([data-select-flat] > button, button[data-select-flat], [data-select-grid] > button, [data-select-moving] > button.lv-material[data-material-role], [data-select-item].lv-material[data-material-role])::before { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent); }
 }

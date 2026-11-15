@@ -1,8 +1,8 @@
 /*
   S19 · 提示条（Toast）的语义材质（1.19.66；规格 §3 用途表“提示条”一行）。
 
-  只写在通用层 `.lv-shell[data-s19-scope]`（浅色 A / B1 / B2 / C）：Original、深色、Pad、电脑版一条也不命中，
-  用 components/toast/toast.css 的基础外观（浅色实心面）。Pad 将来有作用域值后自动继承这里。
+  只写在通用层 `.lv-shell[data-s19-scope]`（A / B1 / B2 / C，手机与 Pad），Original 与电脑版
+  用 components/toast/toast.css 的基础外观。
   只引用现有令牌；颜色字面量只能写在令牌文件（lib/colors.test.ts）。
 
   | 外观 | 表面 | 边与影 | 圆角 |
@@ -24,76 +24,76 @@
   错误描边（1.19.72）：1px / 危险色 40% → 1.5px / 50%，与基础外观同步；只给错误类型。
 */
 
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] {
   border-width: 0; padding: 8px 15px; border-radius: var(--s19-r-mini);
   background: transparent; box-shadow: none;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-controls] { padding-right: 7px; }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]::before {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-controls] { padding-right: 7px; }
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface]::before {
   content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   background: var(--lv-toast-bg, var(--color-surface)); box-shadow: var(--lv-toast-sh, none);
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-tone="error"]::after {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-tone="error"]::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--color-danger) 50%, transparent);
 }
 /* 关闭是安静的 ×：不叠工具片材质，面板本身就是底（选择器要比 material-components.css 的 B2 工具片更具体）。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-material.lv-toast-close[data-material-role] {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] .lv-material.lv-toast-close[data-material-role] {
   background: transparent; box-shadow: none;
 }
 
-:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+:root[data-visual-style="a"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] {
   --lv-toast-bg: var(--s19-key-bg); --lv-toast-sh: var(--s19-a-elev-3);
 }
-:root[data-visual-style="b1"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+:root[data-visual-style="b1"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] {
   --lv-toast-bg: var(--s19-card-bg); --lv-toast-sh: var(--s19-key-sh);
 }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] {
   --lv-toast-bg: var(--s19-toast-bg); --lv-toast-sh: var(--s19-key-sh);
 }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]::before {
+:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface]::before {
   -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter);
 }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-toast-detail { color: var(--color-ink); }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] .lv-toast-close { color: var(--color-ink); }
+:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] .lv-toast-detail { color: var(--color-ink); }
+:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] .lv-toast-close { color: var(--color-ink); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] { --lv-toast-bg: var(--color-surface); }
+  :root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] { --lv-toast-bg: var(--color-surface); }
 }
-:root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface] {
+:root[data-visual-style="c"][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface] {
   --lv-toast-bg: var(--s19-key-bg); --lv-toast-sh: var(--s19-key-sh);
 }
 
 /* ---- 出现 / 消失：面板只位移，材质层与内容淡入淡出（时长与位移读 --lv-reveal-* / --lv-dismiss-ms，按风格取值） ---- */
 @keyframes lv-toast-move-in { from { transform: translateY(var(--lv-toast-rise)); } }
 @keyframes lv-toast-move-out { to { transform: translateY(var(--lv-toast-rise)); } }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] {
   animation: lv-toast-move-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) var(--lv-toast-enter-delay, 0ms) both;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
   animation: lv-toast-fade-in var(--lv-reveal-ms, 220ms) var(--lv-motion-ease, ease-out) var(--lv-toast-enter-delay, 0ms) both;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] {
   animation: lv-toast-move-out var(--lv-dismiss-ms, 180ms) var(--lv-motion-ease, ease-out) both;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] > *,
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::before,
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::after {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] > *,
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::before,
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::after {
   animation: lv-toast-fade-out var(--lv-dismiss-ms, 180ms) var(--lv-motion-ease, ease-out) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface]:is([data-phase="enter"], [data-phase="exit"]) {
+  :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface]:is([data-phase="enter"], [data-phase="exit"]) {
     animation: none;
   }
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
+  :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"] > *,
+  :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::before,
+  :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="enter"]::after {
     animation: lv-toast-fade-in var(--lv-dismiss-ms, 180ms) linear var(--lv-toast-enter-delay, 0ms) both;
   }
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] > *,
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::before,
-  :root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::after {
+  :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"] > *,
+  :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::before,
+  :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-toast-surface][data-phase="exit"]::after {
     animation: lv-toast-fade-out var(--lv-dismiss-ms, 180ms) linear both;
   }
 }
@@ -101,9 +101,9 @@
 /* ---- B2 页面转场（View Transition）期间不被新旧页面快照盖住：提示宿主单独成一组，画在页面组之上。 ----
    s19/motion/motion.css 与 hybrid.css 用 (*) 给所有组套页面的滑入、后退模糊和环境底色；提示条不是页面，这里取消：
    旧图不显示、新图不动画、组没有底色——提示原地不动，只按组的位置动画跟到新页面的位置（例如底栏消失后下移）。 */
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-s19-scope] .lv-toast-host {
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction] .lv-shell[data-s19-scope] .lv-toast-host {
   view-transition-name: lv-toast;
 }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-group(lv-toast) { background: none; overflow: visible; }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-old(lv-toast) { animation: none; opacity: 0; }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-new(lv-toast) { animation: none; opacity: 1; filter: none; transform: none; }
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction]::view-transition-group(lv-toast) { background: none; overflow: visible; }
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction]::view-transition-old(lv-toast) { animation: none; opacity: 0; }
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction]::view-transition-new(lv-toast) { animation: none; opacity: 1; filter: none; transform: none; }

@@ -15,11 +15,11 @@ const strip = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, "");
 const root = (themeMode?: string, visualStyle?: string) => ({ dataset: { ...(themeMode ? { themeMode } : {}), ...(visualStyle ? { visualStyle } : {}) } as DOMStringMap });
 
 describe("风格分支", () => {
-  it("只在浅色、带 S19 作用域标记的外壳里按四种风格走；Original、深色、Pad / 电脑版回落基础外观", () => {
+  it("深浅色手机和 Pad 共享四风格；Original 与独立电脑版回落基础外观", () => {
     for (const style of ["a", "b1", "b2", "c"] as const) expect(selectionStyle(root("light", style), true)).toBe(style);
-    expect(selectionStyle(root("dark", "b2"), true)).toBeNull();
+    for (const style of ["a", "b1", "b2", "c"] as const) expect(selectionStyle(root("dark", style), true)).toBe(style);
     expect(selectionStyle(root("light"), true)).toBeNull(); // Original：根上没有 data-visual-style
-    expect(selectionStyle(root("light", "b1"), false)).toBeNull(); // 不在作用域里（Pad 宽屏、电脑版）
+    expect(selectionStyle(root("light", "b1"), false)).toBeNull(); // 独立电脑版不在作用域里
     expect(selectionStyle(root("light", "x"), true)).toBeNull();
   });
 
@@ -213,10 +213,10 @@ describe("外观：四种风格同一个模型", () => {
   it("S19 规则都挂在浅色作用域标记下；基础外观不显示选中块", () => {
     expect(css).toContain("[data-select-block] { display: none;");
     for (const prefix of [
-      ':root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] {',
-      ':root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode="light"] .lv-shell[data-s19-scope] {',
-      ':root[data-visual-style="c"][data-theme-mode="light"] .lv-shell[data-s19-scope] {',
-      ':root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] {',
+      ':root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] {',
+      ':root:is([data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode] .lv-shell[data-s19-scope] {',
+      ':root[data-visual-style="c"][data-theme-mode] .lv-shell[data-s19-scope] {',
+      ':root[data-visual-style="a"][data-theme-mode] .lv-shell[data-s19-scope] {',
     ]) expect(block(prefix).length, prefix).toBeGreaterThan(0);
   });
 
@@ -237,7 +237,7 @@ describe("外观：四种风格同一个模型", () => {
 
   it("独立选中项（1.19.65）在四种风格里与网格选中同一规则：B1 / B2 玻璃淡入、C 实底淡入、A 按标准 A2 档浮起（不用月份格的放大）", () => {
     const item = '[data-select-item]:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]):not(:disabled)';
-    const common = block(':root[data-visual-style][data-theme-mode="light"]');
+    const common = block(':root[data-visual-style][data-theme-mode]');
     expect(common).toContain("[data-select-grid] > button, [data-select-item] { position: relative; }");
     expect(common).toContain(`${item} {\n    background: transparent; box-shadow: none; border-color: transparent; color: var(--color-brand-dark);`);
     expect(common).toContain(":is([data-select-grid] > button, [data-select-item])::before { content: \"\";");
@@ -269,7 +269,7 @@ describe("外观：四种风格同一个模型", () => {
 
   it("开关按钮（1.19.67）开启时按同一模型：B1 / B2 玻璃、A 按 A2 浮起、C 浅绿实底；材质只在 ::before，不动 ::after 与焦点环", () => {
     const on = '[data-select-toggle][aria-pressed="true"]';
-    const common = block(':root[data-visual-style][data-theme-mode="light"]');
+    const common = block(':root[data-visual-style][data-theme-mode]');
     expect(common).toContain(`${on} { background: transparent; border-color: transparent; color: var(--color-brand-dark); }`);
     expect(common).toContain('[data-select-toggle]::before { content: ""; position: absolute; inset: 0; z-index: -1;');
     const glass = block(':root:is([data-visual-style="b1"], [data-visual-style="b2"])');
@@ -288,7 +288,7 @@ describe("外观：四种风格同一个模型", () => {
   });
 
   it("条件标签：出现 / 删除用各风格的 reveal / dismiss 时长与起始缩放；删除命中区约 44px 高", () => {
-    const common = block(':root[data-visual-style][data-theme-mode="light"]');
+    const common = block(':root[data-visual-style][data-theme-mode]');
     expect(common).toContain("animation: lv-cond-tag-in var(--lv-reveal-ms)");
     expect(common).toContain("animation: lv-cond-tag-out var(--lv-dismiss-ms)");
     expect(common).toContain("var(--s19-tag-bg)");
@@ -377,9 +377,9 @@ describe("筛选面板接入", () => {
     expect(source).toContain('<label className="lv-filter-branch text-helper"><input type="checkbox" checked={draft.branches.includes(item.id)}');
   });
 
-  it("1.19.65：“只看自己”未选中时的正文色只在 S19 浅色作用域里改，Original、深色不变", () => {
+  it("1.19.65：“只看自己”未选中时的正文色只在 S19 浅色作用域里改，Original 沿用基础外观", () => {
     const filters = strip(read("../entry-filters.css"));
-    expect(filters).toContain(':root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] .lv-filter-mine:not([aria-pressed="true"]) { color:var(--color-ink); }');
+    expect(filters).toContain(':root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] .lv-filter-mine:not([aria-pressed="true"]) { color:var(--color-ink); }');
     expect(filters).toContain(".lv-filter-mine { min-height:36px; margin-bottom:12px; padding:6px 14px; border-radius:999px; border:1px solid var(--color-line); color:var(--color-brand-dark); }");
     expect(filters).toContain(".lv-filter-mine[aria-pressed=true] { border-color:transparent; background:var(--color-brand-soft); }");
   });

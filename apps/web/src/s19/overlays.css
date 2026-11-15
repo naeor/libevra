@@ -10,43 +10,43 @@
 @keyframes lv-overlay-drag-out { from { transform: translateY(var(--overlay-drag, 0px)); } to { transform: translateY(100%); } }
 
 /* 根容器不做透明度动画，也没有滤镜；遮罩独立绘制，避免截断面板的 backdrop 采样。 */
-html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root][data-overlay-state] {
+html:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-root][data-overlay-state] {
   background: transparent; animation: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root]::before {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-root]::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)); animation: libellum-backdrop-in 180ms ease-out;
 }
 /* 中央对话框（T3，CenterDialog）比底部面板深一档（1.19.61），与浅色 Original 的面板 .25 / 对话框 .35 两档对应。
    只认对话框外壳自己的根节点：大档面板（T5）与同意书门禁虽然也用对话框档标记，仍是 --s19-scrim。 */
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root="dialog"][data-overlay-scrim="dialog"]::before {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-root="dialog"][data-overlay-scrim="dialog"]::before {
   background: var(--s19-scrim-dialog, var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)));
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-root][data-overlay-state="closing"]::before {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-root][data-overlay-state="closing"]::before {
   animation: libellum-backdrop-out 200ms ease-in forwards;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-backdrop] { background: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)); }
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-backdrop] { background: var(--s19-scrim, color-mix(in oklab, var(--color-ink) 45%, transparent)); }
 
 /* 固定面板保持自己的 z-index；相对定位面板由组件声明 relative z-0。局部伪元素只模糊一次。 */
-html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface][role][aria-modal] {
+html:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface][role][aria-modal] {
   background: transparent; box-shadow: none; border-color: transparent;
 }
 /* 材质伪元素以 padding box 为界；透明底边框会留一个物理像素未绘制。
    去掉这条底边，不移动 fixed 锚点，不加负 bottom，也不挪用 safe-area 的内容留白。 */
-html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="sheet"][role][aria-modal] {
+html:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="sheet"][role][aria-modal] {
   border-bottom-width: 0;
 }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface]::before {
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface]::before {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   border-radius: inherit; background: var(--s19-sheet-bg); box-shadow: var(--s19-sheet-sh);
 }
-html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][role][aria-modal] { border-radius: var(--s19-r-sheet); }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"]::before { box-shadow: var(--s19-dialog-sh); }
-:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface]::before {
+html:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][role][aria-modal] { border-radius: var(--s19-r-sheet); }
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"]::before { box-shadow: var(--s19-dialog-sh); }
+:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface]::before {
   background: var(--s19-tool-bg); -webkit-backdrop-filter: var(--s19-entry-filter); backdrop-filter: var(--s19-entry-filter);
 }
 /* A 的薄片只在原操作面上加柔和顶缘与宽淡投影；不上全屏模糊，不改变进出动画。 */
-:root[data-visual-style="a"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="sheet"]::before {
+:root[data-visual-style="a"][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="sheet"]::before {
   background: linear-gradient(to bottom, color-mix(in srgb, var(--color-surface) 85%, transparent), transparent 28px), var(--s19-sheet-bg);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--color-surface) 85%, transparent),
@@ -58,27 +58,27 @@ html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] 
    B2 保留弹层统一的伪元素背景模糊（没有模糊时后方页面的文字会直接透过面板）；1.19.59 起填充提到操作玻璃的
    下限（见下方 B2 规则）。稳定默认，不读 finish / optics 候选。1.19.59 起这类面板是弹出面板模板 T5 的门禁变体，
    遮罩与其他弹层一样用 --s19-scrim。 */
-html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before {
+html:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before {
   background: var(--s19-card-bg);
   box-shadow: 0 0 0 1px var(--s19-card-line, transparent), var(--s19-card-sh);
 }
 /* B2：同意书一类展示面板的填充提到操作玻璃下限（内容 + .12，1.19.59），仍保持玻璃感与上面的背景模糊。 */
-html:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before {
+html:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before {
   background: var(--s19-display-sheet-bg);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html:root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before { background: var(--color-surface); }
+  html:root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface][data-material-role="display"][role][aria-modal]::before { background: var(--color-surface); }
 }
 
 /* 淡入淡出只发生在材质层和内容层，不在两者的父节点上创建采样边界。
-   外壳外（Original、深色、Pad、电脑版）由 components/panel-template.css 让整个对话框淡入；外壳里面板本身不做透明度动画。 */
-html:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"] { animation: none; }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"] > *,
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"]::before { animation: libellum-backdrop-in 200ms ease-out; }
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][data-overlay-state="closing"] > *,
-:root[data-visual-style][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][data-overlay-state="closing"]::before { animation: libellum-backdrop-out 200ms ease-in forwards; }
+   外壳外（Original、电脑版）由 components/panel-template.css 让整个对话框淡入；外壳里面板本身不做透明度动画。 */
+html:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"] { animation: none; }
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"] > *,
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"]::before { animation: libellum-backdrop-in 200ms ease-out; }
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][data-overlay-state="closing"] > *,
+:root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface="dialog"][data-overlay-state="closing"]::before { animation: libellum-backdrop-out 200ms ease-in forwards; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root[data-visual-style="b2"][data-theme-mode="light"] .lv-shell[data-s19-scope] [data-overlay-surface]::before { background: var(--color-surface); }
+  :root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope] [data-overlay-surface]::before { background: var(--color-surface); }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-overlay-root]::before, [data-overlay-surface], [data-overlay-surface]::before, [data-overlay-surface="dialog"] > * { animation: none !important; transition: none !important; }
