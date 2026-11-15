@@ -1368,3 +1368,24 @@ html[data-shell="desktop"] body {
 .lv-dash-message-copy > small { color:var(--color-muted); }
 .lv-dash-message-book { font-weight:500; color:var(--color-ink); }
 .lv-dash-sidebar .lv-dash-message-list button[aria-expanded="true"] { background:var(--color-brand-soft); }
+
+/* ---- 1.19.100：总览改用工作台网格；总览卡片按正文区实际大小决定显示内容（DashboardNativeCards.tsx） ---- */
+.lv-dash-host { display:flex; flex-direction:column; }
+.lv-native-body { display:flex; flex-direction:column; }
+.lv-native-split { display:grid; gap:16px; height:100%; min-height:0; }
+.lv-native-split > * { min-height:0; min-width:0; }
+.lv-native-trend { display:block; width:100%; padding:2px 0; border-radius:6px; text-align:left; }
+@media (hover: hover) { .lv-native-trend:hover:not(:disabled) { background:var(--color-canvas); } }
+.lv-native-trend:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+.lv-native-rows { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.lv-native-row { display:flex; align-items:center; gap:10px; min-height:44px; padding:4px 6px; border-radius:6px; }
+.lv-dash-total th, .lv-dash-total td { font-weight:500; border-top:1px solid var(--color-line); }
+.lv-native-quick { display:grid; grid-template-columns:repeat(auto-fill, minmax(88px, 1fr)); gap:6px; align-content:start; }
+.lv-native-quick .lv-add-item { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:54px; padding:6px 4px; font-size:var(--text-helper); border-radius:var(--radius-field); }
+.lv-native-quick .lv-add-item[data-import="true"] { border:0; }
+.lv-native-quick .lv-add-item:disabled { opacity:0.45; cursor:not-allowed; }
+@media (hover: hover) { .lv-native-quick .lv-add-item:hover:not(:disabled) { background:var(--color-brand-soft); } }
+.lv-native-quick[data-icon-only] { grid-template-columns:repeat(auto-fill, minmax(44px, 1fr)); }
+.lv-native-quick[data-icon-only] .lv-add-item { min-height:44px; }
+.lv-native-quick[data-icon-only] .lv-add-item > span:last-child { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.lv-dash-sidebar[data-paused] { opacity:0.45; }

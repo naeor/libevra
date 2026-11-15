@@ -38,7 +38,9 @@ import { resistedOffset, swipeAxis, swipeTarget, type SwipeAxis } from "./carous
 import { CardBody, cardSubtitle, cardTitle, familyOf } from "./cards.js";
 import { cardType, CONTAINER_SIZES, sizeKey } from "./catalog.js";
 import { CompositeBody } from "./CompositeCard.js";
+import { CardRenderContext, useSameScope } from "./cardRender.js";
 import { cardSizing, isMultiSlot, readComposition, singlePresentation, slotSpecs, type GridMetrics } from "./composition.js";
+import { isNativeCard } from "./nativeCards.js";
 import type { WorkbenchScope } from "./scope.js";
 import { SlotPresentationContext } from "./slotContext.js";
 import { lastRow } from "./session.js";
@@ -147,7 +149,8 @@ export function sizeContracts(content: WorkbenchContentDocumentV1, layout: Layou
     [...sizes].sort((a, b) => b.colSpan * b.rowSpan - a.colSpan * a.rowSpan || b.colSpan - a.colSpan);
   for (const card of content.cards) {
     // 组合卡片按模板的尺寸约束；单项卡片按分析与展示形式（数字选成图表时用图表尺寸）。未知分析按 1×1 占位。
-    const sizing = cardType(card.analysis.analysisId) === null && !isMultiSlot(card) ? null : cardSizing(card);
+    // 总览卡片（1.19.100）按自己声明的尺寸。
+    const sizing = cardType(card.analysis.analysisId) === null && !isMultiSlot(card) && !isNativeCard(card) ? null : cardSizing(card);
     contracts[card.objectId] = {
       objectId: card.objectId,
       minSize: sizing?.minSize ?? { colSpan: 1, rowSpan: 1 },
@@ -255,8 +258,29 @@ export function BrowseGrid({
   );
 }
 
-/** 一张浏览态卡片：整卡是「查看详情」的入口；内部图表交互不冒泡（cards.tsx 里 stopPropagation）。 */
-export function CardTile({
+type CardTileProps = Parameters<typeof AnalysisCardTile>[0];
+
+/**
+ * 一张浏览态卡片。1.19.100：总览专属卡片交给宿主画（`CardRenderContext.renderNative`）；分析卡片在总览上
+ * 可以有自己的来源账本（`scopeFor`）。分析页不提供这两项，行为不变。
+ */
+export function CardTile(props: CardTileProps): React.JSX.Element {
+  const hooks = useContext(CardRenderContext);
+  if (isNativeCard(props.card)) {
+    const node = hooks.renderNative?.({ card: props.card, bare: props.bare ?? false, oneRow: props.oneRow ?? false, onOpen: props.onOpen, ...(props.aside === undefined ? {} : { aside: props.aside }) });
+    if (node !== undefined && node !== null) return <>{node}</>;
+  }
+  return <ScopedAnalysisTile {...props} useScopeFor={hooks.useScopeFor ?? useSameScope} />;
+}
+
+/** 单独一层：数据作用域的 hook 在这里无条件调用（总览卡片走上面的分支，不会到这里）。 */
+function ScopedAnalysisTile({ useScopeFor, ...props }: CardTileProps & { readonly useScopeFor: typeof useSameScope }): React.JSX.Element {
+  const scope = useScopeFor(props.card, props.scope);
+  return <AnalysisCardTile {...props} scope={scope} />;
+}
+
+/** 一张浏览态分析卡片：整卡是「查看详情」的入口；内部图表交互不冒泡（cards.tsx 里 stopPropagation）。 */
+function AnalysisCardTile({
   card,
   scope,
   compat = false,
@@ -654,7 +678,9 @@ export function EditGrid({
         const composite = card !== undefined && isMultiSlot(card) ? readComposition(card) : null;
         const kindLabel =
           object.objectType === "analysis-card"
-            ? composite !== null
+            ? card !== undefined && isNativeCard(card)
+              ? t("desktop.dashboard.nativeTag")
+              : composite !== null
               ? t("statsWorkbench.composite.editTile", { count: composite.slots.length, template: t(`statsWorkbench.composite.templates.${composite.template}.name`) })
               : t(`statsWorkbench.config.families.${card === undefined ? "number" : familyOf(card, cardType(card.analysis.analysisId))}`)
             : container !== undefined

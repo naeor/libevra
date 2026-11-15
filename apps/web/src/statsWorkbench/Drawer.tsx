@@ -9,7 +9,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { componentMotion } from "../components/ui/ComponentMotion.js";
-import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
+import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layout";
 
 import { useI18n } from "../i18n/index.js";
 import { cardTitle } from "./cards.js";
@@ -35,6 +35,14 @@ import {
 } from "./ui.js";
 
 export type DrawerHeight = "collapsed" | "expanded";
+
+/** 宿主页面额外提供的卡片（1.19.100：电脑版总览的「总览卡片」）。 */
+export interface NativeLibraryItem {
+  readonly analysisId: string;
+  readonly title: string;
+  readonly description: string;
+  readonly defaultSize: GridSize;
+}
 
 export interface ContainerScopeView {
   readonly name: string;
@@ -63,6 +71,7 @@ export function Drawer({
   onScopeDone,
   onScopeCancel,
   onPresets,
+  nativeItems,
 }: {
   readonly height: DrawerHeight;
   readonly onHeight: (height: DrawerHeight) => void;
@@ -82,10 +91,13 @@ export function Drawer({
   readonly onScopeCancel: () => void;
   /** 工作台布局预设入口（标题栏右侧的轻量按钮）；不传则不显示。 */
   readonly onPresets?: () => void;
+  /** 宿主页面自己的卡片（总览卡片）；提供时卡片库多一个分组并默认选中它。 */
+  readonly nativeItems?: readonly NativeLibraryItem[];
 }): React.JSX.Element {
   const { t } = useI18n();
   const [tab, setTab] = useState<"analysis" | "layout">("analysis");
-  const [group, setGroup] = useState<"recommended" | "all" | "mine">("recommended");
+  const hasNative = nativeItems !== undefined && nativeItems.length > 0;
+  const [group, setGroup] = useState<"native" | "recommended" | "all" | "mine">(hasNative ? "native" : "recommended");
   const [query, setQuery] = useState("");
   const expanded = height === "expanded";
   const pane = usePane();
@@ -260,9 +272,9 @@ export function Drawer({
               <div className="sw-drawer-pages" data-page={tab}>
                 <div className="sw-drawer-page" inert={tab !== "analysis"} aria-hidden={tab !== "analysis" ? true : undefined}>
                   <SlidingSelection className="sw-drawer-categories">
-                    {(["recommended", "all", "mine"] as const).map((key) => (
+                    {(hasNative ? (["native", "recommended", "all", "mine"] as const) : (["recommended", "all", "mine"] as const)).map((key) => (
                       <button key={key} type="button" aria-pressed={group === key} className={`sw-chip ${group === key ? "sw-chip-on" : ""}`} onClick={() => setGroup(key)}>
-                        {t(`statsWorkbench.drawer.${key}`)}
+                        {key === "native" ? t("desktop.dashboard.library.native") : t(`statsWorkbench.drawer.${key}`)}
                       </button>
                     ))}
                   </SlidingSelection>
@@ -279,7 +291,16 @@ export function Drawer({
                       />
                     </div>
                   ) : null}
-                  {group === "mine" ? (
+                  {group === "native" ? (
+                    <div className="sw-library-inset pt-2">
+                      <p className="pb-1 text-helper text-muted">{t("statsWorkbench.drawer.dragHint")}</p>
+                      <div className="sw-tiles">
+                        {(nativeItems ?? []).map((item) => (
+                          <NativeLibraryTile key={item.analysisId} item={item} drag={drag} onAdd={() => onAddCard(item.analysisId)} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : group === "mine" ? (
                     <div className="sw-library-inset flex flex-col gap-3 pt-3">
                       <p className="text-helper-relaxed text-muted">{t(customCards.length === 0 ? "statsWorkbench.drawer.mineEmpty" : "statsWorkbench.custom.libraryHint")}</p>
                       {customCards.map((card) => {
@@ -361,6 +382,15 @@ export function Drawer({
             </ol>
             <h4 className="sw-library-inset pt-4 pb-1.5 text-helper font-medium text-muted">{full ? t("statsWorkbench.containers.limit", { count: scope.max }) : t("statsWorkbench.containers.addInside")}</h4>
             <div className="sw-tiles sw-library-inset">
+              {(nativeItems ?? []).map((item) => (
+                <button key={item.analysisId} type="button" className="sw-tile" disabled={full} onClick={() => onScopeAdd(item.analysisId)} aria-label={t("statsWorkbench.drawer.add", { name: item.title })}>
+                  <ChartGlyph family="number" className="shrink-0 text-brand-dark" />
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="block truncate text-helper font-medium text-ink">{item.title}</span>
+                  </span>
+                  <PlusGlyph className="shrink-0 text-brand" />
+                </button>
+              ))}
               {CARD_TYPES.filter((type) => type.recommended).map((type) => (
                 <button key={type.id} type="button" className="sw-tile" disabled={full} onClick={() => onScopeAdd(type.id)} aria-label={t("statsWorkbench.drawer.add", { name: t(`statsWorkbench.cards.${type.id as "AN-B01"}.title`) })}>
                   <ChartGlyph family={type.families[0] ?? "number"} className="shrink-0 text-brand-dark" />
@@ -397,6 +427,31 @@ function LibraryTile({ type, combined, drag, onAdd }: { readonly type: CardType;
         type="button"
         className="sw-add-button"
         aria-label={t("statsWorkbench.drawer.add", { name: title })}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() => {
+          if (!drag.consumeClick()) onAdd();
+        }}
+      >
+        <PlusGlyph width={18} height={18} />
+      </button>
+    </div>
+  );
+}
+
+function NativeLibraryTile({ item, drag, onAdd }: { readonly item: NativeLibraryItem; readonly drag: DragController; readonly onAdd: () => void }): React.JSX.Element {
+  const { t } = useI18n();
+  const payload = (): DragPayload => ({ kind: "new-card", analysisId: item.analysisId, size: item.defaultSize, label: item.title });
+  return (
+    <div className="sw-tile sw-draggable" {...drag.sourceProps(payload)}>
+      <ChartGlyph family="number" className="shrink-0 text-brand-dark" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-helper font-medium text-ink">{item.title}</span>
+        <span className="block truncate text-helper text-muted">{`${String(item.defaultSize.colSpan)}×${String(item.defaultSize.rowSpan)} · ${item.description}`}</span>
+      </span>
+      <button
+        type="button"
+        className="sw-add-button"
+        aria-label={t("statsWorkbench.drawer.add", { name: item.title })}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={() => {
           if (!drag.consumeClick()) onAdd();

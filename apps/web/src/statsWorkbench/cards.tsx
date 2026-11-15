@@ -51,6 +51,7 @@ import { C_CARD_IDS, CCardView, CNumber } from "./cCards.js";
 import { CumulativeCompareChart } from "../components/charts/AdvancedCharts.js";
 import { cardType, resolveDisplay, type CardType, type ChartFamily } from "./catalog.js";
 import { isMultiSlot, readComposition } from "./composition.js";
+import { isNativeCard, nativeTitle } from "./nativeCards.js";
 import { CardSpaceContext, useCardSpace, useSlotMode } from "./slotContext.js";
 import { cardWindow, resolveWindow, windowOptions, type RelativeWindow } from "./timeWindows.js";
 import {
@@ -1477,6 +1478,7 @@ export function slotTitle(analysisId: string, family: string, t: ReturnType<type
  */
 export function cardTitle(card: AnalysisCardNode, t: ReturnType<typeof useI18n>["t"]): string {
   if (card.title?.kind === "custom" && card.title.text !== undefined && card.title.text.trim() !== "") return card.title.text;
+  if (isNativeCard(card)) return nativeTitle(card, t);
   const read = readComposition(card);
   if (read.source === "composite" && read.slots.length > 1) {
     const names = read.slots.slice(0, 2).map((slot) => slotTitle(slot.analysisId, slot.family, t)).join(" · ");
@@ -1487,6 +1489,7 @@ export function cardTitle(card: AnalysisCardNode, t: ReturnType<typeof useI18n>[
 
 /** 副标题：说明这张卡片**实际**用的时间与币种（固定区间必须可见标明，卡片规格 §4.4）。 */
 export function cardSubtitle(card: AnalysisCardNode, scope: WorkbenchScope, t: ReturnType<typeof useI18n>["t"]): string {
+  if (isNativeCard(card)) return "";
   const window = cardWindow(card);
   if (isMultiSlot(card)) {
     // 组合卡片：共享的相对窗口 / 固定区间写在卡片副标题；自带窗口的槽位在自己的名称后注明。

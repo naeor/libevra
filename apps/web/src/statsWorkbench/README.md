@@ -15,7 +15,7 @@
 |---|---|
 | [CardEditor.tsx](CardEditor.tsx) | 界面模块；入口/导出：CardEditorProps、CardEditor |
 | [CompositeCard.tsx](CompositeCard.tsx) | 界面模块；入口/导出：CompositeSlotView、useCompositeSlots、CompositeBody、CompositeDetail |
-| [Drawer.tsx](Drawer.tsx) | 界面模块；入口/导出：DrawerHeight、ContainerScopeView、Drawer |
+| [Drawer.tsx](Drawer.tsx) | 界面模块；入口/导出：DrawerHeight、NativeLibraryItem、ContainerScopeView、Drawer |
 | [ExchangePanel.tsx](ExchangePanel.tsx) | 界面模块；入口/导出：ExchangePanel |
 | [FilterPanel.tsx](FilterPanel.tsx) | 界面模块；入口/导出：FilterOption、timeLabel、FilterPanel |
 | [FxStatus.tsx](FxStatus.tsx) | 界面模块；入口/导出：FxStatus |
@@ -33,12 +33,13 @@
 | [cAnalyses.ts](cAnalyses.ts) | 实现模块；入口/导出：toRecords、inRange、fraction、ratio、roundRational |
 | [cCards.test.tsx](cCards.test.tsx) | 测试：cCards |
 | [cCards.tsx](cCards.tsx) | 界面模块；入口/导出：C_CARD_IDS、CCardProps、CNumber、CCardView |
+| [cardRender.ts](cardRender.ts) | 实现模块；入口/导出：NativeTileProps、CardRenderHooks、CardRenderContext、useSameScope |
 | [cards.test.tsx](cards.test.tsx) | 测试：cards |
 | [cards.tsx](cards.tsx) | 界面模块；入口/导出：CardBodyProps、displayCard、cardRange、familyOf、CardErrorBoundary |
 | [carouselGesture.test.ts](carouselGesture.test.ts) | 测试：carouselGesture |
 | [carouselGesture.ts](carouselGesture.ts) | 实现模块；入口/导出：SWIPE_SLOP、SWIPE_AXIS_RATIO、SWIPE_COMMIT、SwipeAxis、swipeAxis |
 | [catalog.ts](catalog.ts) | 实现模块；入口/导出：ChartFamily、FORMAL_CHART_FAMILIES、formalChartFamily、CardGroup、CardType |
-| [columns.ts](columns.ts) | 实现模块；入口/导出：ColumnPreference、columnPreferenceKey、readColumnPreference、writeColumnPreference、effectiveColumns |
+| [columns.ts](columns.ts) | 实现模块；入口/导出：ColumnPreference、ColumnSurface、columnPreferenceKey、readColumnPreference、writeColumnPreference |
 | [compositeCards.test.tsx](compositeCards.test.tsx) | 测试：compositeCards |
 | [composition.test.ts](composition.test.ts) | 测试：composition |
 | [composition.ts](composition.ts) | 实现模块；入口/导出：COMPOSITION_VERSION、MAX_SLOTS、MAX_NUMBER_SLOTS、MAX_CHART_SLOTS、SlotKind |
@@ -70,6 +71,7 @@
 | [ledgerFilterBridge.ts](ledgerFilterBridge.ts) | 实现模块；入口/导出：workbenchFromLedgerFilter、ledgerFilterFromWorkbench、takeAnalysisParams、ledgerFilterFromPreset、useAnalysisFilters |
 | [metricCatalog.test.ts](metricCatalog.test.ts) | 测试：metricCatalog |
 | [metricCatalog.ts](metricCatalog.ts) | 实现模块；入口/导出：DirectorySectionId、DirectorySubgroup、DirectorySection、DIRECTORY、directorySections |
+| [nativeCards.ts](nativeCards.ts) | 实现模块；入口/导出：NATIVE_PREFIX、NATIVE_FAMILY、NativeKind、NativeMetric、NativeOptions |
 | [presets.test.ts](presets.test.ts) | 测试：presets |
 | [presets.ts](presets.ts) | 实现模块；入口/导出：SystemPresetId、SYSTEM_PRESET_IDS、Translate、SystemPresetSpec、SYSTEM_PRESETS |
 | [responsiveGrid.test.ts](responsiveGrid.test.ts) | 测试：responsiveGrid |
@@ -82,6 +84,7 @@
 | [statsWorkbench.test.ts](statsWorkbench.test.ts) | 测试：statsWorkbench |
 | [storage.migration.test.ts](storage.migration.test.ts) | 测试：storage.migration |
 | [storage.ts](storage.ts) | 实现模块；入口/导出：workbenchStorageKey、WorkbenchDocuments、LoadOutcome、documentsProblems、loadWorkbench |
+| [surface.ts](surface.ts) | 实现模块；入口/导出：SurfaceSync、WorkbenchSurface、STATS_SURFACE |
 | [sync.test.ts](sync.test.ts) | 测试：sync |
 | [sync.ts](sync.ts) | 实现模块；入口/导出：SyncStatus、SyncSnapshot、syncStorageKey、localConfiguration、SyncTransport |
 | [timeWindows.test.ts](timeWindows.test.ts) | 测试：timeWindows |

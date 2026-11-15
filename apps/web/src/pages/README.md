@@ -93,7 +93,7 @@
 | [StartBookPages.tsx](StartBookPages.tsx) | 界面模块；入口/导出：StartBookMembersPage、StartBookSharePage |
 | [StatsCardDetailPage.tsx](StatsCardDetailPage.tsx) | 界面模块；入口/导出：StatsCardDetailPage |
 | [StatsPage.test.ts](StatsPage.test.ts) | 测试：StatsPage |
-| [StatsPage.tsx](StatsPage.tsx) | 界面模块；入口/导出：StatsPage |
+| [StatsPage.tsx](StatsPage.tsx) | 界面模块；入口/导出：StatsPage、WorkbenchFrameParts、ConfigureArgs、AccountWorkbench |
 | [ThemeAppearancePage.test.tsx](ThemeAppearancePage.test.tsx) | 测试：ThemeAppearancePage |
 | [ThemeAppearancePage.tsx](ThemeAppearancePage.tsx) | 界面模块；入口/导出：ThemeAppearanceView、ThemeAppearancePage |
 | [UpdateAnnouncementDetailPage.tsx](UpdateAnnouncementDetailPage.tsx) | 界面模块；入口/导出：UpdateAnnouncementDetailPage |

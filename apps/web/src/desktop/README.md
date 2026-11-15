@@ -11,9 +11,10 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
-| [DashboardGrid.tsx](DashboardGrid.tsx) | 界面模块；入口/导出：DashboardGrid |
+| [DashboardCardSettings.tsx](DashboardCardSettings.tsx) | 界面模块；入口/导出：DashboardCardSettings |
 | [DashboardMessages.test.tsx](DashboardMessages.test.tsx) | 测试：DashboardMessages |
 | [DashboardMessages.tsx](DashboardMessages.tsx) | 界面模块；入口/导出：DashboardMessages |
+| [DashboardNativeCards.tsx](DashboardNativeCards.tsx) | 界面模块；入口/导出：DashboardBook、DashboardView、DashboardViewContext、NativeTile |
 | [DesktopBookPage.tsx](DesktopBookPage.tsx) | 界面模块；入口/导出：DesktopBookPage |
 | [DesktopCollabPage.tsx](DesktopCollabPage.tsx) | 界面模块；入口/导出：DesktopCollabPage |
 | [DesktopDashboardPage.tsx](DesktopDashboardPage.tsx) | 界面模块；入口/导出：DesktopDashboardPage |
@@ -28,8 +29,12 @@
 | [DesktopStatsPage.tsx](DesktopStatsPage.tsx) | 界面模块；入口/导出：STATS_CARD_PARAM、DesktopStatsPage |
 | [DesktopToolbar.tsx](DesktopToolbar.tsx) | 界面模块；入口/导出：DesktopToolbar |
 | [dashboardActivation.test.tsx](dashboardActivation.test.tsx) | 测试：dashboardActivation |
+| [dashboardData.ts](dashboardData.ts) | 实现模块；入口/导出：CurrencyTotals、inRange、totalsByCurrency、mergeTotals、dailySeries |
 | [dashboardModel.ts](dashboardModel.ts) | 实现模块；入口/导出：CardSize、CardKind、LedgerMetric、DashboardCard、DashboardConfig |
 | [dashboardNavigation.ts](dashboardNavigation.ts) | 实现模块；入口/导出：dashboardAnalysisCard、dashboardDestination |
+| [dashboardScopes.tsx](dashboardScopes.tsx) | 界面模块；入口/导出：BookData、DashboardScopeStore、DashboardScopeContext、DashboardScopeProbes、useDashboardBooks |
+| [dashboardStore.test.ts](dashboardStore.test.ts) | 测试：dashboardStore |
+| [dashboardStore.ts](dashboardStore.ts) | 实现模块；入口/导出：DASHBOARD_RECORD_VERSION、DASHBOARD_INSTALLED、DASHBOARD_BASE_COLUMNS、dashboardStorageKey、legacyDashboardStorageKey |
 | [desktop.css](desktop.css) | 样式与变量 |
 | [desktopDetailLayout.test.tsx](desktopDetailLayout.test.tsx) | 测试：desktopDetailLayout |
 | [desktopModel.test.ts](desktopModel.test.ts) | 测试：desktopModel |

@@ -35,6 +35,7 @@
 import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layout";
 
 import { cardType, resolveDisplay, SPARK_CAPABLE_IDS, TALL_NUMBER_IDS, type ChartFamily } from "./catalog.js";
+import { nativeKindOf, nativeSizing } from "./nativeCards.js";
 import { windowOptions } from "./timeWindows.js";
 
 export const COMPOSITION_VERSION = 1;
@@ -355,6 +356,9 @@ export function sizingFor(template: TemplateId, slots: readonly CompositionSlot[
 
 /** 任意卡片（旧卡片、目录卡片、组合卡片）的占格约束——工作台尺寸面板与 D 的投影契约都从这里取。 */
 export function cardSizing(card: AnalysisCardNode): CardSizing {
+  // 1.19.100：总览卡片按自己声明的尺寸（nativeCards.ts），不经过分析目录。
+  const native = nativeKindOf(card);
+  if (native !== null) return nativeSizing(native);
   const read = readComposition(card);
   return sizingFor(read.template, read.slots);
 }

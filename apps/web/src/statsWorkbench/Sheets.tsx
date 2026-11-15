@@ -155,7 +155,12 @@ export function LayoutSheet({
   onCompact,
   onReset,
   onClose,
+  resetLabel,
+  resetHint,
 }: {
+  /** 1.19.100：电脑版总览把「恢复默认工作台」换成自己的说法。 */
+  readonly resetLabel?: string;
+  readonly resetHint?: string;
   readonly columns: number;
   readonly maxColumns: number;
   readonly automatic: boolean;
@@ -250,8 +255,8 @@ export function LayoutSheet({
                 close();
               }}
             >
-              <span className="text-body text-ink">{t("statsWorkbench.layout.reset")}</span>
-              <span className="text-helper text-muted">{t("statsWorkbench.layout.resetHint")}</span>
+              <span className="text-body text-ink">{resetLabel ?? t("statsWorkbench.layout.reset")}</span>
+              <span className="text-helper text-muted">{resetHint ?? t("statsWorkbench.layout.resetHint")}</span>
             </button>
           </div>
         </>

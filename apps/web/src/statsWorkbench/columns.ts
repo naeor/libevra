@@ -18,13 +18,16 @@ import type { PaneRole } from "../workspace/context.js";
 
 export type ColumnPreference = "auto" | number;
 
-export function columnPreferenceKey(role: PaneRole): string {
-  return `${LIBEVRA_KEY_PREFIX}stats-columns:v1:${role}`;
+/** 1.19.100：电脑版总览用同一套网格，列数偏好另记一份（`dashboard`），不与分析页互相影响。 */
+export type ColumnSurface = "stats" | "dashboard";
+
+export function columnPreferenceKey(role: PaneRole, surface: ColumnSurface = "stats"): string {
+  return `${LIBEVRA_KEY_PREFIX}${surface}-columns:v1:${role}`;
 }
 
-export function readColumnPreference(role: PaneRole): ColumnPreference {
+export function readColumnPreference(role: PaneRole, surface: ColumnSurface = "stats"): ColumnPreference {
   try {
-    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(columnPreferenceKey(role));
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(columnPreferenceKey(role, surface));
     if (raw === null || raw === "auto") return "auto";
     const value = Number(raw);
     return Number.isInteger(value) && value >= 1 && value <= RESPONSIVE_MAX_COLUMNS ? value : "auto";
@@ -33,11 +36,11 @@ export function readColumnPreference(role: PaneRole): ColumnPreference {
   }
 }
 
-export function writeColumnPreference(role: PaneRole, value: ColumnPreference): void {
+export function writeColumnPreference(role: PaneRole, value: ColumnPreference, surface: ColumnSurface = "stats"): void {
   try {
     if (typeof localStorage === "undefined") return;
-    if (value === "auto") localStorage.removeItem(columnPreferenceKey(role));
-    else localStorage.setItem(columnPreferenceKey(role), String(value));
+    if (value === "auto") localStorage.removeItem(columnPreferenceKey(role, surface));
+    else localStorage.setItem(columnPreferenceKey(role, surface), String(value));
   } catch {
     // 写不进去只影响「记住」，当前页面仍按选择显示。
   }
@@ -48,14 +51,14 @@ export function effectiveColumns(preference: ColumnPreference, automatic: number
   return preference === "auto" ? automatic : Math.max(1, Math.min(preference, limit));
 }
 
-export function useColumnPreference(role: PaneRole): readonly [ColumnPreference, (value: ColumnPreference) => void] {
-  const [preference, setPreference] = useState<ColumnPreference>(() => readColumnPreference(role));
+export function useColumnPreference(role: PaneRole, surface: ColumnSurface = "stats"): readonly [ColumnPreference, (value: ColumnPreference) => void] {
+  const [preference, setPreference] = useState<ColumnPreference>(() => readColumnPreference(role, surface));
   const update = useCallback(
     (value: ColumnPreference) => {
-      writeColumnPreference(role, value);
+      writeColumnPreference(role, value, surface);
       setPreference(value);
     },
-    [role],
+    [role, surface],
   );
   return [preference, update] as const;
 }

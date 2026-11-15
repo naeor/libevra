@@ -6,7 +6,10 @@
 import { useCallback } from "react";
 import { useSearchParams } from "react-router";
 
+import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
+import { useGuestIdentity } from "../lib/guest/session.js";
+import { findDashboardCard } from "./dashboardStore.js";
 import { StatsCardDetailPage } from "../pages/StatsCardDetailPage.js";
 import { StatsPage } from "../pages/StatsPage.js";
 import { DesktopSplit } from "./DesktopSplit.js";
@@ -18,7 +21,12 @@ export function DesktopStatsPage(): React.JSX.Element {
   const { t } = useI18n();
   const [params, setParams] = useSearchParams();
   const card = params.get(STATS_CARD_PARAM);
-  const dashboardCard = dashboardAnalysisCard(params.get("dashboardChart"));
+  const { user } = useAuth();
+  const guest = useGuestIdentity();
+  const owner = user !== null ? `user:${user.id}` : guest !== null ? `guest:${guest.id}` : null;
+  // 1.19.100：总览上的分析卡片（`dashboardCard`）在这里的右侧辅助栏显示；不写进分析工作台。
+  const pinnedId = params.get("dashboardCard");
+  const dashboardCard = dashboardAnalysisCard(params.get("dashboardChart")) ?? (pinnedId === null || owner === null ? undefined : findDashboardCard(owner, pinnedId));
 
   const open = useCallback(
     (cardId: string) => {
@@ -26,6 +34,7 @@ export function DesktopStatsPage(): React.JSX.Element {
         const next = new URLSearchParams(previous);
         next.set(STATS_CARD_PARAM, cardId);
         next.delete("dashboardChart");
+        next.delete("dashboardCard");
         return next;
       });
     },
@@ -36,6 +45,7 @@ export function DesktopStatsPage(): React.JSX.Element {
       const next = new URLSearchParams(previous);
       next.delete(STATS_CARD_PARAM);
       next.delete("dashboardChart");
+      next.delete("dashboardCard");
       return next;
     });
   }, [setParams]);

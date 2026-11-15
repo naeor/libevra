@@ -86,9 +86,10 @@ import { CollapsedContainerSheet, DiscardDialog, LayoutSheet, ObjectMenuSheet, S
 import { CardEditor } from "../statsWorkbench/CardEditor.js";
 import { cardSizing, readComposition, recommendSize, type GridMetrics } from "../statsWorkbench/composition.js";
 import { customCardsIn } from "../statsWorkbench/customCards.js";
-import { documentsProblems, followSystemDefault, isSystemDefault, readStored, saveWorkbenchSafely, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
-import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
+import { documentsProblems, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
 import { useWorkspaceSync } from "../statsWorkbench/SyncBridge.js";
+import { STATS_SURFACE, type WorkbenchSurface } from "../statsWorkbench/surface.js";
+import { CardRenderContext, useSameScope } from "../statsWorkbench/cardRender.js";
 import { FunnelIcon, GridGlyph, PencilIcon, RedoIcon, UndoIcon, useElementSize } from "../statsWorkbench/ui.js";
 
 type ContainerEdit =
@@ -144,14 +145,51 @@ export function StatsPage({ onOpenCard }: { readonly onOpenCard?: (cardId: strin
   return <WorkbenchScopeProvider value={scope}><AccountWorkbench key={scope.accountScope ?? "pending"} analysis={analysis} {...(onOpenCard === undefined ? {} : { onOpenCard })} /></WorkbenchScopeProvider>;
 }
 
-function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (cardId: string) => void; readonly analysis: ReturnType<typeof useAnalysisFilters> }): React.JSX.Element {
+/**
+ * 宿主自己画外框时拿到的几块（1.19.100，电脑版总览）：编辑条、编辑提示、网格、浮层与卡片抽屉。
+ * 分析页不传 `frame`，仍是原来的 `TabPage` 外框。
+ */
+export interface WorkbenchFrameParts {
+  readonly editing: boolean;
+  readonly editBar: React.ReactNode;
+  readonly editHint: React.ReactNode;
+  readonly grid: React.ReactNode;
+  readonly overlays: React.ReactNode;
+  readonly drawer: React.ReactNode;
+  readonly scrollRef: React.RefObject<HTMLDivElement | null>;
+  readonly enterEdit: () => void;
+}
+
+/** 总览的「卡片设置」：宿主自己的设置面板；分析卡片可以从里面打开同一个卡片编辑器。 */
+export interface ConfigureArgs {
+  readonly card: AnalysisCardNode;
+  readonly onSave: (card: AnalysisCardNode) => boolean;
+  readonly onEditContent: () => void;
+  readonly onClose: () => void;
+}
+
+export function AccountWorkbench({
+  onOpenCard,
+  analysis,
+  surface = STATS_SURFACE,
+  renderFrame,
+  renderConfigure,
+}: {
+  readonly onOpenCard?: (cardId: string) => void;
+  /** 分析页的筛选（与明细共用）；电脑版总览没有这套筛选，传 `null`。 */
+  readonly analysis: ReturnType<typeof useAnalysisFilters> | null;
+  readonly surface?: WorkbenchSurface;
+  readonly renderFrame?: (parts: WorkbenchFrameParts) => React.ReactNode;
+  readonly renderConfigure?: (args: ConfigureArgs) => React.ReactNode;
+}): React.JSX.Element {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const pane = usePane();
   const ledger = useLedger();
   const [params, setParams] = useSearchParams();
-  const filters = analysis.filters;
   const scope = useScope();
+  const filters = analysis?.filters ?? scope.filters;
+  const cardRender = useContext(CardRenderContext);
   const cardActions = useMemo<CardActions>(
     () => ({
       // 卡片上的「改用原币查看」：只改统计方式（地址栏），不动筛选。
@@ -174,18 +212,20 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   });
 
   // ---- 文档（每账号一套） ----
-  const [stored, setStored] = useState<Stored>(() => readStored(scope.accountScope));
-  const { engine: workspaceSync } = useWorkspaceSync();
+  const [stored, setStored] = useState<Stored>(() => surface.readStored(scope.accountScope));
+  const { engine: statsSync } = useWorkspaceSync();
+  // 1.19.100：总览有自己的同步（或没有）；只有分析页暂停 / 触发工作台同步。
+  const workspaceSync = surface.sync === undefined ? statsSync : surface.sync;
   useEffect(() => {
     const installed = (event: Event) => {
-      if ((event as CustomEvent<string>).detail === scope.accountScope) setStored(readStored(scope.accountScope));
+      if ((event as CustomEvent<string>).detail === scope.accountScope) setStored(surface.readStored(scope.accountScope));
     };
-    window.addEventListener(WORKBENCH_INSTALLED, installed);
-    return () => window.removeEventListener(WORKBENCH_INSTALLED, installed);
-  }, [scope.accountScope]);
+    window.addEventListener(surface.installedEvent, installed);
+    return () => window.removeEventListener(surface.installedEvent, installed);
+  }, [scope.accountScope, surface]);
   useEffect(() => {
-    if (stored.accountScope !== scope.accountScope) setStored(readStored(scope.accountScope));
-  }, [scope.accountScope, stored.accountScope]);
+    if (stored.accountScope !== scope.accountScope) setStored(surface.readStored(scope.accountScope));
+  }, [scope.accountScope, stored.accountScope, surface]);
 
   // ---- 筛选：与明细同一个底部面板（1.19.53），草稿在面板里，应用后写入共用（或分析自己）的那一份 ----
   const [filterOpen, setFilterOpen] = useState(false);
@@ -211,8 +251,8 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   useEffect(() => {
     if (shownLocale.current === locale || session !== null) return;
     shownLocale.current = locale;
-    setStored((current) => (current.version === 0 && !current.unreadable ? { ...current, documents: defaultWorkbench() } : current));
-  }, [locale, session]);
+    setStored((current) => (current.version === 0 && !current.unreadable ? { ...current, documents: surface.defaults() } : current));
+  }, [locale, session, surface]);
   const [saving, setSaving] = useState(false);
   const saveAlive = useRef(true);
   useEffect(() => { saveAlive.current = true; return () => { saveAlive.current = false; }; }, []);
@@ -242,6 +282,8 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   const [menuFor, setMenuFor] = useState<string | null>(null);
   /** 自定义卡片编辑器：`cardId === null` 为新建，否则编辑这张卡片（任何卡片都可以在这里加内容、换形式）。 */
   const [editor, setEditor] = useState<{ readonly cardId: string | null } | null>(null);
+  /** 宿主的「卡片设置」（总览）；分析页没有，直接打开卡片编辑器。 */
+  const [configureFor, setConfigureFor] = useState<string | null>(null);
   const [sizeFor, setSizeFor] = useState<string | null>(null);
   const [moveFor, setMoveFor] = useState<string | null>(null);
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -358,7 +400,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   const width = gridBox.width;
   /** 这个宽度最多能选几列（编辑器滑条的上限）。 */
   const columnLimit = columnLimitFor(width);
-  const [columnPreference, setColumnPreference] = useColumnPreference(pane.role);
+  const [columnPreference, setColumnPreference] = useColumnPreference(pane.role, surface.columnsKey);
   /** 上一次自动选出的列数：分数接近时保持不变，避免宽度在阈值附近时来回跳。 */
   const [previousAuto, setPreviousAuto] = useState<number | null>(null);
   const autoColumns = useMemo(() => autoColumnsFor(stored.documents, width, previousAuto), [stored.documents, width, previousAuto]);
@@ -461,7 +503,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
       return id;
     };
     const objectId = temporaryId("__drop-preview__");
-    if (payload.kind === "new-card") return command(baseline, { type: "insert-card", card: newCard(payload.analysisId, objectId), anchor, size, collisionPolicy: "reflow" });
+    if (payload.kind === "new-card") return command(baseline, { type: "insert-card", card: makeCard(payload.analysisId, objectId), anchor, size, collisionPolicy: "reflow" });
     if (payload.choice === "spacer") return command(baseline, { type: "insert-spacer", objectId, anchor, size, collisionPolicy: "reflow" });
     // 新容器先检查最少两张卡片能否建立；后续内部选卡仍逐次校验正式上限。
     const children = [newCard("AN-B01", temporaryId("__preview-child-one__")), newCard("AN-B02", temporaryId("__preview-child-two__"))];
@@ -503,13 +545,18 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     addLayoutObject(payload.choice, target.anchor);
   }
 
+  /** 新卡片：宿主自己的卡片（总览卡片）由宿主建立，其余是分析卡片。 */
+  function makeCard(analysisId: string, objectId: string = newObjectId("card")): AnalysisCardNode {
+    return surface.createCard?.(analysisId, objectId) ?? newCard(analysisId, objectId);
+  }
+
   function addCard(analysisId: string, anchor?: number): void {
     if (session === null) return;
-    const type = cardType(analysisId);
-    if (type === null) return;
+    const defaultSize = surface.defaultSize?.(analysisId) ?? cardType(analysisId)?.defaultSize ?? null;
+    if (defaultSize === null) return;
     const columns = session.layout.main.baseCols;
-    const size = anchor === undefined ? { colSpan: Math.min(type.defaultSize.colSpan, columns), rowSpan: type.defaultSize.rowSpan } : type.defaultSize;
-    const card = newCard(analysisId);
+    const size = anchor === undefined ? { colSpan: Math.min(defaultSize.colSpan, columns), rowSpan: defaultSize.rowSpan } : defaultSize;
+    const card = makeCard(analysisId);
     const ok = apply(
       command(session, { type: "insert-card", card, size, collisionPolicy: "reflow", ...(anchor === undefined ? {} : { anchor }) }),
       t("statsWorkbench.drawer.added", { name: cardTitle(card, t) }),
@@ -537,7 +584,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     if (session === null) return false;
     setContainerEdit(null);
     if (!replaceBase(reidentify(next), t("statsWorkbench.presets.applied", { name }))) return false;
-    if (presetFilters !== null) analysis.set(ledgerFilterFromPreset(presetFilters, scope.today));
+    if (presetFilters !== null && analysis !== null) analysis.set(ledgerFilterFromPreset(presetFilters, scope.today));
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0, behavior: scrollBehavior() }));
     return true;
   }
@@ -656,9 +703,9 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     }
     setSaving(true);
     // 与当前系统默认完全一致（「恢复默认」后没再改）：不存副本，跟随系统默认（见 `followSystemDefault`）。
-    const version = isSystemDefault(docs)
-      ? followSystemDefault(scope.accountScope, stored.version)
-      : await saveWorkbenchSafely(scope.accountScope, docs, stored.version);
+    const version = surface.isSystemDefault(docs)
+      ? surface.followSystemDefault(scope.accountScope, stored.version)
+      : await surface.save(scope.accountScope, docs, stored.version);
     if (!saveAlive.current) return;
     setSaving(false);
     if (version === null) {
@@ -675,11 +722,11 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
         setStartDocs(sessionDocuments(session));
         setFrame((current) => (current === null ? null : { columns: current.columns, stored: saved }));
       }
-      say("success", t("statsWorkbench.edit.saved"), { key: SAVE_TOAST_KEY });
+      say("success", surface.texts?.saved ?? t("statsWorkbench.edit.saved"), { key: SAVE_TOAST_KEY });
       return;
     }
     leaveEdit();
-    say("success", t("statsWorkbench.edit.saved"), { key: SAVE_TOAST_KEY });
+    say("success", surface.texts?.saved ?? t("statsWorkbench.edit.saved"), { key: SAVE_TOAST_KEY });
   }
 
   function cancel(): void {
@@ -696,7 +743,8 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     const name = objectName(objectId);
     switch (action) {
       case "configure":
-        setEditor({ cardId: objectId });
+        if (renderConfigure !== undefined) setConfigureFor(objectId);
+        else setEditor({ cardId: objectId });
         return;
       case "resize":
         setDrawerHeight("collapsed");
@@ -849,7 +897,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   }
 
   function resetToDefault(): void {
-    replaceBase(defaultWorkbench(), t("statsWorkbench.layout.resetDone"));
+    replaceBase(surface.defaults(), surface.texts?.resetDone ?? t("statsWorkbench.layout.resetDone"));
   }
 
   // ---- 浏览态动作 ----
@@ -866,12 +914,12 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   // 币种与统计方式在下方统计控制条上显示，这里只写时间与维度，不重复。
   // “全部时间”在分析里按最近 400 天计算（见 capped），名称仍写“全部时间”，不说成“自定义”。
   // 多选的月份（1.19.55）写成所选月份，日期写覆盖的范围。
-  const pickedMonths = analysis.ledger.months ?? [];
-  const allTime = analysis.ledger.month === "all" && analysis.ledger.from === "" && analysis.ledger.to === "" && pickedMonths.length === 0;
+  const pickedMonths = analysis?.ledger.months ?? [];
+  const allTime = analysis !== null && analysis.ledger.month === "all" && analysis.ledger.from === "" && analysis.ledger.to === "" && pickedMonths.length === 0;
   const summary = `${allTime ? t("ledger.filters.all") : pickedMonths.length > 1 ? monthsLabel(pickedMonths, t) : timeLabel(filters.time, t)} · ${t("statsWorkbench.summary.dates", {
     from: formatLocalDate(scope.range.from),
     to: formatLocalDate(scope.range.to),
-  })}${dimensionSummaryOf(filters)}${analysis.capped ? ` · ${t("statsWorkbench.summary.capped")}` : ""}`;
+  })}${dimensionSummaryOf(filters)}${analysis?.capped === true ? ` · ${t("statsWorkbench.summary.capped")}` : ""}`;
 
   /**
    * W5：生效条件摘要必须让用户知道「排除了什么」。维度不限时不写，空集写 0，
@@ -895,6 +943,9 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
   const editorCard = editor === null || editor.cardId === null || session === null ? undefined : cardOf(session, editor.cardId);
   const editorGeometry = editorCard === undefined || session === null ? undefined : geometryOf(session, editorCard.objectId);
   const sizeObject = sizeFor === null || session === null ? undefined : geometryOf(session, sizeFor);
+  // 1.19.100：总览上的分析卡片可以有自己的来源账本，编辑器预览用那本账的数据。
+  const useEditorScope = cardRender.useScopeFor ?? useSameScope;
+  const editorScope = useEditorScope(editorCard, scope);
 
   const objectProps = (objectId: string, label: string, size: GridSize): Record<string, unknown> => {
     if (moveFor !== null || containerEdit !== null) return {};
@@ -927,10 +978,11 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
       onAddCard={(analysisId) => { endTemporaryMode(); addCard(analysisId); }}
       onAddLayout={(choice) => addLayoutObject(choice)}
       onCustom={() => { endTemporaryMode(); setEditor({ cardId: null }); }}
-      onPresets={() => {
+      {...(surface.presets ? { onPresets: () => {
         endTemporaryMode();
         setPresetsOpen(true);
-      }}
+      } } : {})}
+      {...(surface.nativeItems === undefined ? {} : { nativeItems: surface.nativeItems })}
       customCards={customCardsIn(session?.content.cards ?? [])}
       onConfigureCustom={(objectId) => { endTemporaryMode(); setEditor({ cardId: objectId }); }}
       onDuplicateCustom={(card) => {
@@ -940,7 +992,7 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
       }}
       containerScope={view}
       onScopeAdd={(analysisId) =>
-        setContainerEdit((current) => (current === null || current.children.length >= LIMITS[current.type].max ? current : { ...current, children: [...current.children, newCard(analysisId)] }))
+        setContainerEdit((current) => (current === null || current.children.length >= LIMITS[current.type].max ? current : { ...current, children: [...current.children, makeCard(analysisId)] }))
       }
       onScopeMove={(index, delta) =>
         setContainerEdit((current) => {
@@ -958,20 +1010,8 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
     />
   ) : undefined;
 
-  return (
-    <WorkbenchScopeProvider value={scope}>
-      <CardActionsContext.Provider value={cardActions}>
-      <TabPage
-        active="/stats"
-        onNavigate={(to) => {
-          void navigate(to);
-        }}
-        currentBookName={ledger.data?.book.name}
-        scrollRef={scrollRef}
-        bottom={drawer}
-        wideWidth="full"
-      >
-        {editing ? (
+  // 1.19.100：页面的几块分开组装，分析页按原来的顺序放进 TabPage；电脑版总览放进自己的外框（`renderFrame`）。
+  const editBar = editing ? (
           <header data-toast-anchor="top" className="sw-edit-bar sticky top-0 z-20 flex items-center gap-1.5 border-b border-line bg-canvas px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3 min-[380px]:gap-2">
             {/* 窄屏（< 380px，如 320px 宽的旧手机、英文界面）只留图标，保证「取消 / 完成」始终可见。 */}
             <button
@@ -1001,7 +1041,187 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
             </button>
             </>}
           </header>
-        ) : (
+  ) : null;
+
+  const editHint = editing ? (
+          <p className="px-6 pt-3 text-helper-relaxed text-muted" aria-live="polite">
+            {moveFor !== null
+              ? t("statsWorkbench.edit.movingHint", { name: objectName(moveFor) })
+              : containerEdit !== null
+                ? t("statsWorkbench.containers.insideHint")
+                : t("statsWorkbench.edit.hint")}
+          </p>
+  ) : null;
+
+  const grid = (
+        <div ref={gridBox.ref} className="px-6 pt-4">
+          {editing && session !== null ? (
+            <EditGrid
+              content={session.content}
+              layout={session.layout}
+              rowHeight={track.rowHeight}
+              selection={menuFor ?? moveFor}
+              dimmed={containerEdit === null ? null : containerEdit.kind === "existing" ? containerEdit.containerId : "all"}
+              draggingId={moveFor ?? (drag.drag?.payload.kind === "object" ? drag.drag.payload.objectId : null)}
+              preview={preview}
+              moveTargets={moveTargets}
+              pendingPlaceholder={pendingPlaceholder}
+              gridRef={gridRef}
+              objectProps={objectProps}
+              onSelect={(objectId) => {
+                if (drag.consumeClick() || moveFor !== null || containerEdit !== null) return;
+                apply(command(session, { type: "select", objectId }));
+                setMenuFor(objectId);
+              }}
+              onPickTarget={(anchor) => {
+                if (moveFor === null) return;
+                if (apply(command(session, { type: "move", objectId: moveFor, anchor, collisionPolicy: "reflow" }))) setMoveFor(null);
+              }}
+            />
+          ) : (
+            <BrowseGrid
+              content={stored.documents.content}
+              display={browseDisplay}
+              rowHeight={track.rowHeight}
+              scope={scope}
+              onOpenCard={openCard}
+              onOpenCollapsed={setCollapsedOpen}
+              carouselPages={carouselPages}
+              onCarouselPage={(containerId, page) => {
+                carouselMemory.set(containerId, page);
+                setCarouselPages(new Map(carouselMemory));
+              }}
+            />
+          )}
+        </div>
+  );
+
+  const configureCard = configureFor === null || session === null ? undefined : cardOf(session, configureFor);
+  const overlays = (
+    <>
+        {drag.drag === null ? null : (
+          <div className="sw-ghost" style={{ left: drag.drag.x, top: drag.drag.y }} aria-hidden="true">
+            {drag.drag.payload.label}
+          </div>
+        )}
+
+        {menuFor !== null && menuObject !== undefined && menuObject !== null ? (
+          <ObjectMenuSheet
+            title={objectName(menuFor)}
+            kind={menuObject.objectType === "analysis-card" ? "card" : menuObject.objectType === "spacer" ? "spacer" : "container"}
+            collapsed={menuObject.presentation === "collapsed"}
+            onAction={(action) => onMenu(menuFor, action)}
+            onClose={() => setMenuFor(null)}
+          />
+        ) : null}
+
+        {configureCard === undefined || renderConfigure === undefined ? null : renderConfigure({
+          card: configureCard,
+          onSave: (card) => session !== null && apply(command(session, { type: "update-card", card }), t("statsWorkbench.config.saved")),
+          onEditContent: () => { setConfigureFor(null); setEditor({ cardId: configureCard.objectId }); },
+          onClose: () => setConfigureFor(null),
+        })}
+
+        {editor === null || session === null || (editor.cardId !== null && editorCard === undefined) ? null : (
+          <CardEditor
+            key={editor.cardId ?? "new"}
+            card={editorCard}
+            currentSize={editorGeometry === undefined ? undefined : { colSpan: editorGeometry.colSpan, rowSpan: editorGeometry.rowSpan }}
+            today={scope.today}
+            scope={editorScope}
+            metrics={gridMetrics}
+            onSave={(card, size) => (editorCard === undefined ? addCustomCard(card, size) : saveEditedCard(card, size))}
+            onClose={() => setEditor(null)}
+          />
+        )}
+
+        {sizeObject === undefined || session === null || sizeFor === null ? null : (
+          <SizeSheet
+            current={{ colSpan: sizeObject.colSpan, rowSpan: sizeObject.rowSpan }}
+            sizes={(sizeObject.objectType === "analysis-card" ? (() => { const card = cardOf(session, sizeFor); return card === undefined ? [] : cardSizing(card).sizes; })() : CONTAINER_SIZES[sizeObject.objectType]).filter(
+              (size) => size.colSpan <= session.layout.main.baseCols,
+            )}
+            problemFor={(size) => placementProblem(session.layout, sizeFor, sizeObject.anchor, size)}
+            onPick={(size) => apply(command(session, { type: "resize", objectId: sizeFor, colSpan: size.colSpan, rowSpan: size.rowSpan }))}
+            onClose={() => setSizeFor(null)}
+          />
+        )}
+
+        {layoutOpen && session !== null && frame !== null ? (
+          <LayoutSheet
+            columns={frame.columns}
+            maxColumns={columnLimit}
+            automatic={columnPreference === "auto"}
+            locked={dirty}
+            sparse={layoutLooksSparse(session.layout.main, track)}
+            arrangement={layoutArrangement}
+            onColumns={chooseColumns}
+            onRestoreAutomatic={layoutArrangement?.kind === "override" ? restoreAutomatic : null}
+            onCompact={compact}
+            onReset={resetToDefault}
+            onClose={() => setLayoutOpen(false)}
+            {...(surface.texts?.reset === undefined ? {} : { resetLabel: surface.texts.reset })}
+            {...(surface.texts?.resetHint === undefined ? {} : { resetHint: surface.texts.resetHint })}
+          />
+        ) : null}
+
+        {discardOpen ? <DiscardDialog onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
+        {presetsOpen && session !== null && surface.presets ? (
+          <PresetSheet
+            accountScope={scope.accountScope}
+            current={frame === null ? sessionDocuments(session) : committedDocuments(session, frame)}
+            filters={writeFilters(new URLSearchParams(), filters).toString()}
+            scope={scope}
+            onApply={applyPreset}
+            onClose={() => setPresetsOpen(false)}
+          />
+        ) : null}
+        {settingsOpen && analysis !== null ? (
+          <StatsSettingsSheet
+            scope={scope}
+            currenciesInLedger={scope.ledgerCurrencies ?? currenciesUsed(scope.entries)}
+            onChoose={({ combined, currency }) => {
+              // 统计方式与币种立即生效，写入地址栏（与筛选面板同一组参数）；未应用的筛选草稿跟着生效条件走。
+              setParams((previous) => writeDisplay(previous, { combined, currency }), { replace: true });
+            }}
+            onClose={() => setSettingsOpen(false)}
+          />
+        ) : null}
+        {collapsedOpen === null ? null : (
+          <CollapsedContainerSheetFor
+            documents={documents}
+            containerId={collapsedOpen}
+            onOpenCard={openCard}
+            onClose={() => setCollapsedOpen(null)}
+          />
+        )}
+    </>
+  );
+
+  if (renderFrame !== undefined || analysis === null) {
+    return (
+      <WorkbenchScopeProvider value={scope}>
+        <CardActionsContext.Provider value={cardActions}>
+          {renderFrame?.({ editing, editBar, editHint, grid, overlays, drawer, scrollRef, enterEdit: () => enterEdit() })}
+        </CardActionsContext.Provider>
+      </WorkbenchScopeProvider>
+    );
+  }
+
+  return (
+    <WorkbenchScopeProvider value={scope}>
+      <CardActionsContext.Provider value={cardActions}>
+      <TabPage
+        active="/stats"
+        onNavigate={(to) => {
+          void navigate(to);
+        }}
+        currentBookName={ledger.data?.book.name}
+        scrollRef={scrollRef}
+        bottom={drawer}
+        wideWidth="full"
+      >
+        {editing ? editBar : (
           <TabPageHeader
             title={t("stats.title")}
             subtitle={t("stats.subtitle")}
@@ -1050,144 +1270,11 @@ function AccountWorkbench({ onOpenCard, analysis }: { readonly onOpenCard?: (car
               </p>
             ) : null}
           </>
-        ) : (
-          <p className="px-6 pt-3 text-helper-relaxed text-muted" aria-live="polite">
-            {moveFor !== null
-              ? t("statsWorkbench.edit.movingHint", { name: objectName(moveFor) })
-              : containerEdit !== null
-                ? t("statsWorkbench.containers.insideHint")
-                : t("statsWorkbench.edit.hint")}
-          </p>
-        )}
+        ) : editHint}
 
-        <div ref={gridBox.ref} className="px-6 pt-4">
-          {editing && session !== null ? (
-            <EditGrid
-              content={session.content}
-              layout={session.layout}
-              rowHeight={track.rowHeight}
-              selection={menuFor ?? moveFor}
-              dimmed={containerEdit === null ? null : containerEdit.kind === "existing" ? containerEdit.containerId : "all"}
-              draggingId={moveFor ?? (drag.drag?.payload.kind === "object" ? drag.drag.payload.objectId : null)}
-              preview={preview}
-              moveTargets={moveTargets}
-              pendingPlaceholder={pendingPlaceholder}
-              gridRef={gridRef}
-              objectProps={objectProps}
-              onSelect={(objectId) => {
-                if (drag.consumeClick() || moveFor !== null || containerEdit !== null) return;
-                apply(command(session, { type: "select", objectId }));
-                setMenuFor(objectId);
-              }}
-              onPickTarget={(anchor) => {
-                if (moveFor === null) return;
-                if (apply(command(session, { type: "move", objectId: moveFor, anchor, collisionPolicy: "reflow" }))) setMoveFor(null);
-              }}
-            />
-          ) : (
-            <BrowseGrid
-              content={stored.documents.content}
-              display={browseDisplay}
-              rowHeight={track.rowHeight}
-              scope={scope}
-              onOpenCard={openCard}
-              onOpenCollapsed={setCollapsedOpen}
-              carouselPages={carouselPages}
-              onCarouselPage={(containerId, page) => {
-                carouselMemory.set(containerId, page);
-                setCarouselPages(new Map(carouselMemory));
-              }}
-            />
-          )}
-        </div>
+        {grid}
 
-        {drag.drag === null ? null : (
-          <div className="sw-ghost" style={{ left: drag.drag.x, top: drag.drag.y }} aria-hidden="true">
-            {drag.drag.payload.label}
-          </div>
-        )}
-
-        {menuFor !== null && menuObject !== undefined && menuObject !== null ? (
-          <ObjectMenuSheet
-            title={objectName(menuFor)}
-            kind={menuObject.objectType === "analysis-card" ? "card" : menuObject.objectType === "spacer" ? "spacer" : "container"}
-            collapsed={menuObject.presentation === "collapsed"}
-            onAction={(action) => onMenu(menuFor, action)}
-            onClose={() => setMenuFor(null)}
-          />
-        ) : null}
-
-        {editor === null || session === null || (editor.cardId !== null && editorCard === undefined) ? null : (
-          <CardEditor
-            key={editor.cardId ?? "new"}
-            card={editorCard}
-            currentSize={editorGeometry === undefined ? undefined : { colSpan: editorGeometry.colSpan, rowSpan: editorGeometry.rowSpan }}
-            today={scope.today}
-            scope={scope}
-            metrics={gridMetrics}
-            onSave={(card, size) => (editorCard === undefined ? addCustomCard(card, size) : saveEditedCard(card, size))}
-            onClose={() => setEditor(null)}
-          />
-        )}
-
-        {sizeObject === undefined || session === null || sizeFor === null ? null : (
-          <SizeSheet
-            current={{ colSpan: sizeObject.colSpan, rowSpan: sizeObject.rowSpan }}
-            sizes={(sizeObject.objectType === "analysis-card" ? (() => { const card = cardOf(session, sizeFor); return card === undefined ? [] : cardSizing(card).sizes; })() : CONTAINER_SIZES[sizeObject.objectType]).filter(
-              (size) => size.colSpan <= session.layout.main.baseCols,
-            )}
-            problemFor={(size) => placementProblem(session.layout, sizeFor, sizeObject.anchor, size)}
-            onPick={(size) => apply(command(session, { type: "resize", objectId: sizeFor, colSpan: size.colSpan, rowSpan: size.rowSpan }))}
-            onClose={() => setSizeFor(null)}
-          />
-        )}
-
-        {layoutOpen && session !== null && frame !== null ? (
-          <LayoutSheet
-            columns={frame.columns}
-            maxColumns={columnLimit}
-            automatic={columnPreference === "auto"}
-            locked={dirty}
-            sparse={layoutLooksSparse(session.layout.main, track)}
-            arrangement={layoutArrangement}
-            onColumns={chooseColumns}
-            onRestoreAutomatic={layoutArrangement?.kind === "override" ? restoreAutomatic : null}
-            onCompact={compact}
-            onReset={resetToDefault}
-            onClose={() => setLayoutOpen(false)}
-          />
-        ) : null}
-
-        {discardOpen ? <DiscardDialog onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
-        {presetsOpen && session !== null ? (
-          <PresetSheet
-            accountScope={scope.accountScope}
-            current={frame === null ? sessionDocuments(session) : committedDocuments(session, frame)}
-            filters={writeFilters(new URLSearchParams(), filters).toString()}
-            scope={scope}
-            onApply={applyPreset}
-            onClose={() => setPresetsOpen(false)}
-          />
-        ) : null}
-        {settingsOpen ? (
-          <StatsSettingsSheet
-            scope={scope}
-            currenciesInLedger={scope.ledgerCurrencies ?? currenciesUsed(scope.entries)}
-            onChoose={({ combined, currency }) => {
-              // 统计方式与币种立即生效，写入地址栏（与筛选面板同一组参数）；未应用的筛选草稿跟着生效条件走。
-              setParams((previous) => writeDisplay(previous, { combined, currency }), { replace: true });
-            }}
-            onClose={() => setSettingsOpen(false)}
-          />
-        ) : null}
-        {collapsedOpen === null ? null : (
-          <CollapsedContainerSheetFor
-            documents={documents}
-            containerId={collapsedOpen}
-            onOpenCard={openCard}
-            onClose={() => setCollapsedOpen(null)}
-          />
-        )}
+        {overlays}
       </TabPage>
       </CardActionsContext.Provider>
     </WorkbenchScopeProvider>
