@@ -21,7 +21,7 @@
 | [realSamples.test.ts](realSamples.test.ts) | 测试：realSamples |
 | [repository.test.ts](repository.test.ts) | 测试：repository |
 | [repository.ts](repository.ts) | 实现模块；入口/导出：PgFxRepository |
-| [routes.ts](routes.ts) | 实现模块；入口/导出：registerFxRoutes |
+| [routes.ts](routes.ts) | 实现模块；入口/导出：FX_PUBLIC_RATE_LIMIT、FX_PUBLIC_MIN_DATE、FX_PUBLIC_MAX_FUTURE_DAYS、parseFxDateQuery、registerFxRoutes |
 | [seed-preview.ts](seed-preview.ts) | 实现模块；按文件名定位 seed-preview.ts |
 
 | 子目录 | 职责 |

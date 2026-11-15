@@ -141,7 +141,19 @@ export function DesktopDashboardPage(): React.JSX.Element {
   const monthAnchor = useRef<HTMLButtonElement | null>(null);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
-  const bookList: readonly BookInfo[] = useMemo(() => (books.data?.books ?? []).map((book) => ({ id: book.id, name: book.name, memberCount: book.memberCount })), [books.data]);
+  /**
+   * 游客多账本：总览只放**当前**游客账本。每本账的卡片靠 `BookProbe` 在那本账的上下文里读数（正式账号是
+   * “外部账本”的在线读取），游客的数据层只有当前账本一份快照——放进别的游客账本，卡片上会显示当前账本的
+   * 数字配别的账本的名字。换账本仍从侧栏 / 账本选择进入（整页重新载入）。
+   */
+  const guestMode = guestIdentity !== null;
+  const bookList: readonly BookInfo[] = useMemo(
+    () =>
+      (books.data?.books ?? [])
+        .filter((book) => !guestMode || book.id === currentBookId)
+        .map((book) => ({ id: book.id, name: book.name, memberCount: book.memberCount })),
+    [books.data, guestMode, currentBookId],
+  );
   const bookIds = useMemo(() => bookList.map((book) => book.id), [bookList]);
 
   const [saved, setSaved] = useState<DashboardConfig | null>(() => readConfig(owner));

@@ -14,18 +14,21 @@ import {
   type Transaction,
 } from "@libellum/shared";
 
-import { guestDataValue } from "./data.js";
-import { guestKey, readGuestValue, writeGuestValue } from "./storage.js";
+import { t } from "../../i18n/index.js";
+import { ensureGuestData, guestDataValue, type GuestData } from "./data.js";
+import { readGuestValue, writeGuestValue } from "./storage.js";
+import { guestNotDuplicateKeyFor } from "./workspace.js";
 
 /**
- * 游客的「不是重复」关系：存在游客库 `libellum-guest` 的一个键里（`guest:<游客id>:not-duplicate`）。
+ * 游客的「不是重复」关系：存在游客库 `libellum-guest` 里，**每本账一个键**
+ * （`guest:<游客id>:not-duplicate:<账本id>`，游客多账本以前是一个游客一个 `guest:<游客id>:not-duplicate`，
+ * 由 `workspace.ts` 的迁移搬到第一本账名下）。关系引用的是某一本账里的账目，按账本分开才不会在别的账本里
+ * 显示成“对应账目已不存在”。读写都只针对**当前账本**（内存快照那一本）。
  *
  * ⚠️ 与账号的关系互不相通：账号关系在服务器，游客关系只在这台设备；“清除游客数据”会连库一起删掉，
  * 所以不需要再登记 localStorage 清理名单。判定规则（哪些字段变了就失效）复用 `@libellum/shared`
  * 的 `isNotDuplicateBasisStale`，与服务器同一份定义。
  */
-
-const NAME = "not-duplicate";
 
 interface StoredRelation {
   readonly id: string;
@@ -48,14 +51,21 @@ function newId(): string {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 }
 
-async function readFile(guestId: string): Promise<StoredFile> {
-  const value = await readGuestValue<StoredFile>(guestKey(guestId, NAME));
+/** 当前账本（内存快照）；还没载入就先载入。 */
+async function currentBook(guestId: string): Promise<GuestData> {
+  const data = guestDataValue() ?? (await ensureGuestData(guestId));
+  if (data === null) throw new Error(t("account.guest.errors.ledgerUnavailable"));
+  return data;
+}
+
+async function readFile(guestId: string, bookId: string): Promise<StoredFile> {
+  const value = await readGuestValue<StoredFile>(guestNotDuplicateKeyFor(guestId, bookId));
   if (value === null || value.version !== 1 || !Array.isArray(value.items)) return { version: 1, items: [] };
   return value;
 }
 
-async function writeFile(guestId: string, items: readonly StoredRelation[]): Promise<void> {
-  const ok = await writeGuestValue(guestKey(guestId, NAME), { version: 1, items } satisfies StoredFile);
+async function writeFile(guestId: string, bookId: string, items: readonly StoredRelation[]): Promise<void> {
+  const ok = await writeGuestValue(guestNotDuplicateKeyFor(guestId, bookId), { version: 1, items } satisfies StoredFile);
   if (!ok) throw new Error("guest_not_duplicate_write_failed");
 }
 
@@ -64,8 +74,7 @@ interface Lookup {
   readonly bookId: string;
 }
 
-function lookup(): Lookup {
-  const data = guestDataValue();
+function lookup(data: GuestData | null): Lookup {
   const map = new Map<string, { transaction: Transaction; deleted: boolean }>();
   for (const transaction of data?.deleted ?? []) map.set(transaction.id, { transaction, deleted: true });
   for (const transaction of data?.transactions ?? []) map.set(transaction.id, { transaction, deleted: false });
@@ -141,8 +150,9 @@ export async function listGuestNotDuplicateRelations(
   guestId: string,
   options: { readonly includeRevoked?: boolean; readonly transactionId?: string } = {},
 ): Promise<NotDuplicateRelationListResponse> {
-  const file = await readFile(guestId);
-  const source = lookup();
+  const book = await currentBook(guestId);
+  const file = await readFile(guestId, book.book.id);
+  const source = lookup(book);
   const items = file.items
     .filter((item) => options.includeRevoked === true || item.revokedAt === null)
     .filter((item) => options.transactionId === undefined || item.transactionAId === options.transactionId || item.transactionBId === options.transactionId)
@@ -165,8 +175,9 @@ export async function createGuestNotDuplicateRelations(
   for (const pair of input.pairs ?? []) add(pair.transactionIdA, pair.transactionIdB);
   for (const pair of expandNotDuplicatePairs(input.transactionIds ?? [])) add(pair.transactionAId, pair.transactionBId);
 
-  const source = lookup();
-  const file = await readFile(guestId);
+  const book = await currentBook(guestId);
+  const source = lookup(book);
+  const file = await readFile(guestId, book.book.id);
   const items = [...file.items];
   const touched: StoredRelation[] = [];
   const now = new Date().toISOString();
@@ -203,21 +214,22 @@ export async function createGuestNotDuplicateRelations(
     reactivated += 1;
   }
 
-  if (created + reactivated > 0) await writeFile(guestId, items);
+  if (created + reactivated > 0) await writeFile(guestId, book.book.id, items);
   return { items: touched.map((item) => toRelation(item, source)), created, reactivated, unchanged };
 }
 
 /** 撤销一条关系（保留记录，标记撤销时间）。 */
 export async function revokeGuestNotDuplicateRelation(guestId: string, relationId: string): Promise<NotDuplicateRelationMutationResponse> {
-  const file = await readFile(guestId);
+  const book = await currentBook(guestId);
+  const file = await readFile(guestId, book.book.id);
   const index = file.items.findIndex((item) => item.id === relationId);
   if (index < 0) return { items: [], created: 0, reactivated: 0, unchanged: 0 };
   const existing = file.items[index] as StoredRelation;
-  if (existing.revokedAt !== null) return { items: [toRelation(existing, lookup())], created: 0, reactivated: 0, unchanged: 1 };
+  if (existing.revokedAt !== null) return { items: [toRelation(existing, lookup(book))], created: 0, reactivated: 0, unchanged: 1 };
 
   const next: StoredRelation = { ...existing, revokedAt: new Date().toISOString() };
   const items = [...file.items];
   items[index] = next;
-  await writeFile(guestId, items);
-  return { items: [toRelation(next, lookup())], created: 0, reactivated: 0, unchanged: 0 };
+  await writeFile(guestId, book.book.id, items);
+  return { items: [toRelation(next, lookup(book))], created: 0, reactivated: 0, unchanged: 0 };
 }

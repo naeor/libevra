@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 
 import { BottomSheet } from "./BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { type BookSummary } from "../lib/queries.js";
 
 /**
@@ -47,6 +48,11 @@ export function BookManageSheet({
 }): React.JSX.Element {
   const { t } = useI18n();
   const navigate = useNavigate();
+  /**
+   * 游客多账本：同一个面板，去掉只对服务器有意义的两项（成员与邀请、分享链接）；“退出”对游客不存在，
+   * 生命周期一行写成“归档或删除”。判断的是“现在是不是游客”，**不是**读当前账本——面板仍只管理被点的那一本。
+   */
+  const guest = useGuestMode();
 
   /**
    * ⚠️ **Lifecycle decisions now live on the ledger settings page**, because a single "leave"
@@ -116,22 +122,26 @@ export function BookManageSheet({
         go(`/books/${book.id}/settings`);
       },
     },
-    {
-      key: "members",
-      label: t("books.sheet.members"),
+    ...(guest
+      ? []
+      : [
+          {
+            key: "members",
+            label: t("books.sheet.members"),
 
-      onSelect: () => {
-        go(`/start/book/${book.id}/members`);
-      },
-    },
-    {
-      key: "share",
-      label: t("books.sheet.share"),
+            onSelect: () => {
+              go(`/start/book/${book.id}/members`);
+            },
+          },
+          {
+            key: "share",
+            label: t("books.sheet.share"),
 
-      onSelect: () => {
-        go(`/start/book/${book.id}/share`);
-      },
-    },
+            onSelect: () => {
+              go(`/start/book/${book.id}/share`);
+            },
+          },
+        ]),
   ];
 
   return (
@@ -155,9 +165,15 @@ export function BookManageSheet({
       title={book.name}
       description={
         <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
-          <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
-          <span>·</span>
-          <span>{t("books.people", { count: book.memberCount })}</span>
+          {guest ? (
+            <span>{t("books.space.guestLocal")}</span>
+          ) : (
+            <>
+              <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
+              <span>·</span>
+              <span>{t("books.people", { count: book.memberCount })}</span>
+            </>
+          )}
           {isCurrent ? (
             /**
               * ⚠️ **A word, not only a colour.** The owner's rule for the list applies here too:
@@ -200,7 +216,7 @@ export function BookManageSheet({
               className="flex min-h-12 items-center gap-3 rounded-field py-3 text-left text-body text-ink transition hover:bg-canvas"
             >
               <SheetIcon kind="archive" />
-              <span className="min-w-0">{t("books.sheet.lifecycle")}</span>
+              <span className="min-w-0">{guest ? t("books.guest.sheetLifecycle") : t("books.sheet.lifecycle")}</span>
             </button>
           </div>
         </>

@@ -33,6 +33,7 @@ const account = {
     createAccount: "创建正式账号",
     signIn: "登录已有账号",
     ledgerSettings: "账本设置",
+    bookSettings: "当前账本设置",
     categories: "分类管理",
     paymentMethods: "支付方式",
     tags: "标签",
@@ -44,7 +45,7 @@ const account = {
     clearGuestDialog: {
       title: "清除游客数据？",
       description: "删除这个浏览器里的游客身份、本地账本与游客偏好。正式账号的离线数据与登录状态不受影响。",
-      removed: "游客身份与本地账本会从这台设备删除",
+      removed: "游客身份与全部本地账本（含已归档）会从这台设备删除",
       noBackup: "没有云端备份，删除后无法找回",
       fresh: "再次进入游客模式会得到一个新的空账本",
       confirm: "清除游客数据",
@@ -82,6 +83,13 @@ const account = {
       noReplacement: "还没有可用来接收历史账目的分类。",
       paymentMethodGone: "这个支付方式已经不存在了。",
       tagGone: "这个标签已经不存在了。",
+      /** 游客多账本（第二批）。 */
+      storageUnavailable: "游客账本暂时读不出来，请稍后重试。本机数据没有被改动。",
+      unrecognisedData: "这本账的数据格式无法识别（可能由更新的版本写入）。为避免覆盖，已暂停读取。",
+      ledgerGone: "这本账已经不在这台设备上了（可能已在其他窗口删除）。",
+      ledgerArchived: "这本账已经归档，请先恢复再进入。",
+      ledgerLimit: "游客最多可以有 {{count}} 本账本（含已归档）。",
+      lastActiveLedger: "至少要保留一本未归档的账本。",
     },
   },
   profile: {

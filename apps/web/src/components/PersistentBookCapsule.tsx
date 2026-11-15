@@ -1,8 +1,7 @@
 import { useContext, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useI18n } from "../i18n/index.js";
-import { useGuestMode } from "../lib/guest/session.js";
 import { BookCapsuleContext } from "./bookCapsule.js";
-import { BookCapsuleContents, CurrentBookPicker } from "./CurrentBookPicker.js";
+import { CurrentBookPicker } from "./CurrentBookPicker.js";
 import { GIVE_WAY_RETURN_RATIO, useToastBottomOccupied, type ToastGiveWayState } from "./toast/bottomSlot.js";
 import "./current-book-caption.css";
 
@@ -49,7 +48,6 @@ function returnDelay(): number {
 export function PersistentBookCapsule({ menuOpen }: { readonly menuOpen: boolean }): React.JSX.Element | null {
   const store = useContext(BookCapsuleContext);
   const name = useSyncExternalStore(store?.subscribe ?? noopSubscribe, store?.get ?? none, store?.get ?? none);
-  const guest = useGuestMode();
   const { t } = useI18n();
   const host = useRef<HTMLDivElement>(null);
   const exit = useRef<Animation | null>(null);
@@ -114,7 +112,8 @@ export function PersistentBookCapsule({ menuOpen }: { readonly menuOpen: boolean
   if (shown === null) return null;
   const caption = t("ledger.caption.currentBook", { name: shown });
   return <div ref={host} key={mount} className="lv-book-capsule-host" data-toast-give-way={giveWay} data-menu-open={menuOpen ? "true" : undefined} inert={menuOpen || name === null} title={caption}>
-    {guest ? <span className="lv-book-capsule"><BookCapsuleContents name={shown} disclosure={false} /></span> : <CurrentBookPicker caption={caption} name={shown} />}
+    {/* 游客多账本：游客也从胶囊切换账本（同一个 CurrentBookPicker，激活写游客库、整页重新载入）。 */}
+    <CurrentBookPicker caption={caption} name={shown} />
   </div>;
 }
 

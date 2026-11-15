@@ -49,12 +49,15 @@ import { isAllMonths } from "./datetime.js";
 import { currentBookId, selectBookForReload, setCurrentBook, subscribeCurrentBook } from "./currentBook.js";
 import { publishGuestSnapshot, requireGuestId } from "./guest/bridge.js";
 import {
+  archiveGuestBook,
   archiveGuestCategory,
   archiveGuestPaymentMethod,
+  createGuestBook,
   createGuestCategory,
   createGuestPaymentMethod,
   createGuestTag,
   createGuestTransaction,
+  deleteGuestBook,
   deleteGuestCategory,
   deleteGuestPaymentMethod,
   deleteGuestTag,
@@ -64,9 +67,14 @@ import {
   guestDataValue,
   guestLedgerMeta,
   guestTransactions,
+  listGuestLedgers,
+  loadGuestDataFor,
+  renameGuestBook,
+  restoreGuestBook,
   restoreGuestTransaction,
   sortedTransactions,
   subscribeGuestData,
+  switchGuestBook,
   updateGuestCategory,
   updateGuestPaymentMethod,
   updateGuestTag,
@@ -74,6 +82,7 @@ import {
   type GuestData,
 } from "./guest/data.js";
 import { buildGuestExport, buildGuestTemplate } from "./guestExport.js";
+import { isArchivedGuestLedger, type GuestLedger } from "./guest/ledger.js";
 import { installGuestWriteListener, isGuestRuntime } from "./guest/runtime.js";
 import { useGuestMode } from "./guest/session.js";
 import { CACHE_KEY, VOLATILE } from "./offline/cache.js";
@@ -186,7 +195,8 @@ export const guestQueryKeys = {
   transaction: (id: string) => ["guest", "transaction", id] as const,
   stats: (query: StatsQuery) => ["guest", "stats", query] as const,
   quickAmounts: () => ["guest", "quick-amounts"] as const,
-  classificationUsage: () => ["guest", "classification-usage"] as const,
+  /** 游客多账本：账本设置可以管理另一本账，使用量按账本分开缓存（前缀失效仍能一次清掉）。 */
+  classificationUsage: (bookId?: string) => ["guest", "classification-usage", bookId ?? "current"] as const,
   ledgerMeta: (bookId: string) => ["guest", "ledger-meta", bookId] as const,
 };
 
@@ -352,21 +362,17 @@ export function useBooks() {
   return useQuery({
     queryKey: guest ? guestQueryKeys.books() : queryKeys.books,
     queryFn: async () => {
+      /**
+       * ⚠️ **游客多账本：列表来自游客库的注册表**（`lib/guest/workspace.ts`），形状与服务器的 `/books` 相同：
+       * 未归档的在 `books`，已归档的在 `disposed`（账本空间的“已归档”一栏，可恢复）。游客永远是 owner、
+       * 单人账本、没有账本编号。
+       */
       if (guest) {
-        const data = await loadGuestData();
+        await loadGuestData();
+        const ledgers = await listGuestLedgers();
         return {
-          books: [
-            {
-              id: data.book.id,
-              name: data.book.name,
-              bookNumber: null,
-              role: "owner" as const,
-              isCreator: true,
-              disposedByMe: false,
-              memberCount: 1,
-            },
-          ],
-          disposed: [],
+          books: ledgers.filter((ledger) => !isArchivedGuestLedger(ledger)).map((ledger) => guestBookSummary(ledger, false)),
+          disposed: ledgers.filter(isArchivedGuestLedger).map((ledger) => guestBookSummary(ledger, true)),
         } satisfies BooksResponse;
       }
 
@@ -381,17 +387,40 @@ export function useBooks() {
   });
 }
 
-/** Make another ledger. The server enters it, so the next load lands there. */
+function guestBookSummary(ledger: GuestLedger, archived: boolean): BookSummary {
+  return {
+    id: ledger.id,
+    name: ledger.name,
+    bookNumber: null,
+    role: "owner",
+    isCreator: true,
+    disposedByMe: archived,
+    memberCount: 1,
+  };
+}
+
+/**
+ * Make another ledger. The server enters it, so the next load lands there.
+ *
+ * 游客：在游客库里建一本（自己的一套预设分类与支付方式）。**不进入它**——调用方照常接着走“进入账本”
+ * （`useActivateBook` + 整页重新载入），与正式账号同一条路径。
+ */
 export function useCreateBook() {
   const queryClient = useQueryClient();
+  const guest = useGuestMode();
 
   return useMutation({
-    mutationFn: (name: string) =>
-      apiFetch<{ id: string; name: string; bookNumber: string | null }>("/books", {
+    mutationFn: async (name: string) => {
+      if (guest) {
+        const ledger = await createGuestBook(name);
+        return { id: ledger.id, name: ledger.name, bookNumber: null };
+      }
+      return apiFetch<{ id: string; name: string; bookNumber: string | null }>("/books", {
         method: "POST",
         body: { name },
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.books }),
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: guest ? ["guest"] : queryKeys.books }),
   });
 }
 
@@ -430,10 +459,23 @@ export function useCreateBook() {
  * screen keeps showing the old ledger and silently switches on the next full load.
  */
 export function useActivateBook() {
+  const guest = useGuestMode();
   return useMutation({
-    mutationFn: (bookId: string) =>
-      apiFetch<{ ok: boolean }>(`/books/${bookId}/activate`, { method: "POST" }),
+    mutationFn: async (bookId: string) => {
+      /**
+       * ⚠️ **游客：只把游客库里的 `current-ledger` 换成这本账（写完读回确认），绝不写账号用的
+       * `currentBook`**——那个值进请求头与账号离线作用域，游客的账本 id 出现在那里就是串号。调用方随后同样
+       * 整页重新载入：游客的内存快照、发布到设备共用 store 的账目、所有 `["guest", …]` 查询都属于旧账本，
+       * 整页载入才能保证一起换掉（与正式账号“激活成功后整页重新载入”同一原则）。
+       */
+      if (guest) {
+        await switchGuestBook(bookId);
+        return { ok: true };
+      }
+      return apiFetch<{ ok: boolean }>(`/books/${bookId}/activate`, { method: "POST" });
+    },
     onSuccess: (_result, bookId) => {
+      if (guest) return;
       /**
        * ⚠️ **Returned, not fired and forgotten.** `setCurrentBook` resolves once the id is on the
        * device, and TanStack awaits a promise returned from `onSuccess` before `mutateAsync`
@@ -458,15 +500,42 @@ export function useDisposeBook() {
   });
 }
 
-/** Bring one back. */
+/** Bring one back. 游客：恢复一本已归档的本机账本（不切换当前账本）。 */
 export function useRestoreBook() {
   const queryClient = useQueryClient();
+  const guest = useGuestMode();
 
   return useMutation({
-    mutationFn: (bookId: string) =>
-      apiFetch<{ ok: boolean }>(`/books/${bookId}/restore`, { method: "POST" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.books }),
+    mutationFn: async (bookId: string) => {
+      if (guest) {
+        await restoreGuestBook(bookId);
+        return { ok: true };
+      }
+      return apiFetch<{ ok: boolean }>(`/books/${bookId}/restore`, { method: "POST" });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: guest ? ["guest"] : queryKeys.books }),
   });
+}
+
+/**
+ * **游客账本的归档与永久删除**（账本设置的“危险操作”）。正式账号走服务器的生命周期接口
+ * （`lib/lifecycle.ts`），游客没有服务器，直接改游客库。
+ *
+ * 返回 `wasCurrent`：离开的是当前账本时，游客库里的当前账本已经换到下一本未归档的账本，调用方必须
+ * 整页重新载入（`reloadAfterLeaving`），与正式账号离开当前账本后的做法相同。
+ */
+export function useGuestBookLifecycle() {
+  const queryClient = useQueryClient();
+  const invalidate = (): Promise<void> => queryClient.invalidateQueries({ queryKey: ["guest"] });
+  const archive = useMutation({
+    mutationFn: (bookId: string) => archiveGuestBook(bookId),
+    onSuccess: () => invalidate(),
+  });
+  const remove = useMutation({
+    mutationFn: (bookId: string) => deleteGuestBook(bookId),
+    onSuccess: () => invalidate(),
+  });
+  return { archive, remove };
 }
 
 /**
@@ -916,14 +985,25 @@ export function useBookMembers(given?: string, options: { readonly enabled?: boo
  */
 export function useRenameBook() {
   const queryClient = useQueryClient();
+  const guest = useGuestMode();
 
   return useMutation({
-    mutationFn: (input: { bookId: string; name: string }) =>
-      apiFetch<{ ok: boolean; book: { id: string; name: string; bookNumber: string | null } }>(
+    mutationFn: async (input: { bookId: string; name: string }) => {
+      /** 游客：名称只改游客库的注册表（是当前账本时内存快照的标题同时更新）。 */
+      if (guest) {
+        const ledger = await renameGuestBook(input.bookId, input.name);
+        return { ok: true, book: { id: ledger.id, name: ledger.name, bookNumber: null } };
+      }
+      return apiFetch<{ ok: boolean; book: { id: string; name: string; bookNumber: string | null } }>(
         `/books/${input.bookId}`,
         { method: "PATCH", bookId: input.bookId, body: { name: input.name } },
-      ),
+      );
+    },
     onSuccess: (_result, input) => {
+      if (guest) {
+        void queryClient.invalidateQueries({ queryKey: ["guest"] });
+        return;
+      }
       /** ⚠️ The list the reader is looking at, and the ledger header if this was the current one. */
       void queryClient.invalidateQueries({ queryKey: queryKeys.books });
       void queryClient.invalidateQueries({ queryKey: queryKeys.ledger });
@@ -1137,17 +1217,19 @@ export function useQuoteTarget(kind: QuoteReferenceKind, id: string, enabled = t
  */
 export function useLedgerMeta(bookId: string) {
   /**
-   * ⚠️ **A guest has exactly one ledger, so the "target ledger" read is the current one.** The
-   * classification screens are the only callers that reach this in guest mode; returning the same
-   * guest metadata (instead of an API call) keeps the pages' target/current distinction harmless
-   * without creating a second code path in the screens.
+   * ⚠️ **游客多账本：读地址里那一本账**（账本详情 / 设置 / 分类页 / 导出页都按 `bookId` 工作，与正式账号
+   * 一样）。是当前账本就是内存快照；别的账本直接读那本账的 blob，**不动当前快照**——这与正式账号“这个 hook
+   * 不改当前账本”的规则对应。地址里的账本不在注册表里时报错，页面显示“无法打开账本”，不回落到当前账本。
    */
   const guest = useGuestMode();
 
   return useQuery({
     queryKey: guest ? guestQueryKeys.ledgerMeta(bookId) : [...queryKeys.ledgerMeta, bookId],
     queryFn: async () => {
-      if (guest) return guestLedgerMeta(await loadGuestData());
+      if (guest) {
+        await loadGuestData();
+        return guestLedgerMeta(await loadGuestDataFor(bookId));
+      }
       return apiFetch<LedgerMetaResponse>("/ledger", {
         ...(bookId === "" ? {} : { bookId }),
       });
@@ -2076,11 +2158,12 @@ export function useClassificationUsage(given?: string) {
   return useQuery({
     /** S18：工作区查看外部账本时的结果不写进设备的离线缓存。 */
     ...(given === undefined && bookId !== undefined ? { meta: VOLATILE } : {}),
-    queryKey: guest ? guestQueryKeys.classificationUsage() : classificationUsageKey(bookId),
+    queryKey: guest ? guestQueryKeys.classificationUsage(bookId) : classificationUsageKey(bookId),
     queryFn: async () => {
+      /** 游客：按地址里那一本账统计（不是当前账本时读那本账的 blob，不动当前快照）。 */
       if (guest) {
         await loadGuestData();
-        return guestClassificationUsage();
+        return guestClassificationUsage(await loadGuestDataFor(bookId));
       }
 
       return apiFetch<ClassificationUsageResponse>("/ledger/classification-usage", {
@@ -2097,7 +2180,7 @@ function useClassificationUsageInvalidator(bookId?: string): () => Promise<void>
 
   return async () => {
     if (guest) {
-      await client.invalidateQueries({ queryKey: guestQueryKeys.classificationUsage() });
+      await client.invalidateQueries({ queryKey: ["guest", "classification-usage"] });
       return;
     }
 
@@ -2122,7 +2205,7 @@ export function useCategoryMutations(given?: string) {
     networkMode: "always",
     mutationFn: async (input: CreateCategoryInput) => {
       if (guest) {
-        const category = await createGuestCategory(input);
+        const category = await createGuestCategory(input, bookId);
         publishGuestSnapshot();
         return category;
       }
@@ -2140,7 +2223,7 @@ export function useCategoryMutations(given?: string) {
     networkMode: "always",
     mutationFn: async ({ id, ...input }: UpdateCategoryInput & { id: string }) => {
       if (guest) {
-        const category = await updateGuestCategory(id, input);
+        const category = await updateGuestCategory(id, input, bookId);
         publishGuestSnapshot();
         return category;
       }
@@ -2159,7 +2242,7 @@ export function useCategoryMutations(given?: string) {
     networkMode: "always",
     mutationFn: async (id: string) => {
       if (guest) {
-        const category = await archiveGuestCategory(id);
+        const category = await archiveGuestCategory(id, bookId);
         publishGuestSnapshot();
         return category;
       }
@@ -2181,7 +2264,7 @@ export function useCategoryMutations(given?: string) {
     networkMode: "always",
     mutationFn: async ({ id, ...input }: PermanentDeleteCategoryInput & { id: string }) => {
       if (guest) {
-        const report = await deleteGuestCategory(id, input.replacementCategoryId);
+        const report = await deleteGuestCategory(id, input.replacementCategoryId, bookId);
         publishGuestSnapshot();
         return report;
       }
@@ -2209,7 +2292,7 @@ export function usePaymentMethodMutations(given?: string) {
   const create = useMutation({
     mutationFn: async (input: CreatePaymentMethodInput) => {
       if (guest) {
-        const method = await createGuestPaymentMethod(input);
+        const method = await createGuestPaymentMethod(input, bookId);
         publishGuestSnapshot();
         return method;
       }
@@ -2226,7 +2309,7 @@ export function usePaymentMethodMutations(given?: string) {
   const update = useMutation({
     mutationFn: async ({ id, ...input }: UpdatePaymentMethodInput & { id: string }) => {
       if (guest) {
-        const method = await updateGuestPaymentMethod(id, input);
+        const method = await updateGuestPaymentMethod(id, input, bookId);
         publishGuestSnapshot();
         return method;
       }
@@ -2243,7 +2326,7 @@ export function usePaymentMethodMutations(given?: string) {
   const archive = useMutation({
     mutationFn: async (id: string) => {
       if (guest) {
-        const method = await archiveGuestPaymentMethod(id);
+        const method = await archiveGuestPaymentMethod(id, bookId);
         publishGuestSnapshot();
         return method;
       }
@@ -2264,7 +2347,7 @@ export function usePaymentMethodMutations(given?: string) {
   const permanentDelete = useMutation({
     mutationFn: async ({ id, ...input }: PermanentDeletePaymentMethodInput & { id: string }) => {
       if (guest) {
-        const report = await deleteGuestPaymentMethod(id, input.replacementPaymentMethodId);
+        const report = await deleteGuestPaymentMethod(id, input.replacementPaymentMethodId, bookId);
         publishGuestSnapshot();
         return report;
       }
@@ -2292,7 +2375,7 @@ export function useTagMutations(given?: string) {
   const create = useMutation({
     mutationFn: async (input: CreateTagInput) => {
       if (guest) {
-        const tag = await createGuestTag(input);
+        const tag = await createGuestTag(input, bookId);
         publishGuestSnapshot();
         return tag;
       }
@@ -2309,7 +2392,7 @@ export function useTagMutations(given?: string) {
   const update = useMutation({
     mutationFn: async ({ id, ...input }: UpdateTagInput & { id: string }) => {
       if (guest) {
-        const tag = await updateGuestTag(id, input);
+        const tag = await updateGuestTag(id, input, bookId);
         publishGuestSnapshot();
         return tag;
       }
@@ -2326,7 +2409,7 @@ export function useTagMutations(given?: string) {
   const remove = useMutation({
     mutationFn: async (id: string) => {
       if (guest) {
-        const report = await deleteGuestTag(id);
+        const report = await deleteGuestTag(id, bookId);
         publishGuestSnapshot();
         return report;
       }
@@ -2406,7 +2489,9 @@ function describe(filters: ExportFilters, now: Date): string {
 export async function fetchExport(filters: ExportFilters, bookId?: string): Promise<ExportedFile> {
   // 游客：数据只在本机，用 shared 的同一套逻辑在浏览器里生成（没有服务器导出记录）。
   if (isGuestRuntime()) {
-    const file = await buildGuestExport(await loadGuestData(), filters);
+    // 游客多账本：导出地址里那一本账（`/books/:bookId/settings/export`），没有 `bookId` 时是当前账本。
+    await loadGuestData();
+    const file = await buildGuestExport(await loadGuestDataFor(bookId), filters);
     return {
       fileName: `${describe(filters, new Date())}.${filters.format}`,
       mimeType: EXPORT_MIME[filters.format],

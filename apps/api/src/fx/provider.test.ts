@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import Fastify from "fastify";
 import { EcbFrankfurterProvider } from "./provider.js";
-import { registerFxRoutes } from "./routes.js";
+import rateLimit from "@fastify/rate-limit";
+import { FX_PUBLIC_RATE_LIMIT, registerFxRoutes } from "./routes.js";
 import { FxHistoryService, MemoryFxRepository } from "../../../../packages/shared/src/fxHistory.js";
 
 const now = () => Date.parse("2026-10-26T12:00:00Z");
@@ -73,5 +74,69 @@ describe("未启用的公共汇率路由插件", () => {
       const response = await app.inject({ url: "/api/v1/fx/rates?date=2026-10-25", headers: { authorization: "test-session" } });
       expect(response.json()).toMatchObject({ status: "available" }); expect(calls).toBe(1);
     } finally { await app.close(); }
+  });
+});
+
+describe("公开汇率路由（游客用，不需要登录）", () => {
+  const stamp = Date.parse("2026-11-15T00:00:00Z");
+  function build() {
+    let calls = 0;
+    const service = new FxHistoryService(new MemoryFxRepository(), {
+      id: "fixture", async fetch(date) { calls++; return { base: "EUR", provider: "fixture", date, revision: "r", rates: { EUR: "1", USD: "1.1" }, fetchedAt: new Date(stamp).toISOString() }; },
+    }, { now: () => stamp });
+    return { service, calls: () => calls };
+  }
+  async function app(service: FxHistoryService) {
+    const instance = Fastify();
+    await instance.register(rateLimit, { max: 100000, timeWindow: "1 minute" });
+    await instance.register(async scope => {
+      await registerFxRoutes(scope, { service, now: () => stamp, requireAuth: async () => { throw Object.assign(new Error("unauthorized"), { statusCode: 401 }); } });
+    });
+    return instance;
+  }
+  it("不登录就能取到汇率，格式与登录路由相同，且不含账号数据", async () => {
+    const { service } = build(); const instance = await app(service);
+    try {
+      const open = await instance.inject({ url: "/api/v1/fx/public-rates?date=2026-11-10" });
+      expect(open.statusCode).toBe(200);
+      expect(open.json()).toMatchObject({ status: "available", snapshot: { date: "2026-11-10" } });
+      expect(open.body).not.toMatch(/amountCents|bookId|userId|username|email|session/i);
+      // 原路由仍要求登录
+      expect((await instance.inject({ url: "/api/v1/fx/rates?date=2026-11-10" })).statusCode).toBe(401);
+    } finally { await instance.close(); }
+  });
+  it("参数严格：多余参数、缺失、重复、非法日期都是 400，且不触发取数", async () => {
+    const { service, calls } = build(); const instance = await app(service);
+    try {
+      for (const query of ["date=2026-02-30", "date=2026-11-10&amount=20", "date=2026-11-10&currency=USD", "", "date=2026-11-10&date=2026-11-09"]) {
+        expect((await instance.inject({ url: `/api/v1/fx/public-rates?${query}` })).statusCode).toBe(400);
+      }
+      expect(calls()).toBe(0);
+    } finally { await instance.close(); }
+  });
+  it("日期窗口：1999 年之前与太远的未来不查上游，直接答没有汇率", async () => {
+    const { service, calls } = build(); const instance = await app(service);
+    try {
+      for (const date of ["1998-12-31", "2026-11-18", "2099-01-01"]) {
+        expect((await instance.inject({ url: `/api/v1/fx/public-rates?date=${date}` })).json()).toEqual({ status: "unavailable", reason: "missing_rate" });
+      }
+      expect(calls()).toBe(0);
+      expect((await instance.inject({ url: "/api/v1/fx/public-rates?date=2026-11-14" })).json()).toMatchObject({ status: "available" }); expect(calls()).toBe(1);
+    } finally { await instance.close(); }
+  });
+  it("按 IP 限流：每分钟 60 次，比登录路由严", async () => {
+    expect(FX_PUBLIC_RATE_LIMIT.max).toBe(60);
+    expect(FX_PUBLIC_RATE_LIMIT.max).toBeLessThan(600);
+    const { service } = build(); const instance = Fastify();
+    await instance.register(rateLimit, { max: 100000, timeWindow: "1 minute" });
+    await instance.register(async scope => { await registerFxRoutes(scope, { service, now: () => stamp, requireAuth: async () => undefined }); });
+    try {
+      let status = 200;
+      for (let i = 0; i < 60; i++) status = (await instance.inject({ url: "/api/v1/fx/public-rates?date=2026-11-10", remoteAddress: "203.0.113.7" })).statusCode;
+      expect(status).toBe(200);
+      expect((await instance.inject({ url: "/api/v1/fx/public-rates?date=2026-11-10", remoteAddress: "203.0.113.7" })).statusCode).toBe(429);
+      // 另一个 IP 不受影响
+      expect((await instance.inject({ url: "/api/v1/fx/public-rates?date=2026-11-10", remoteAddress: "203.0.113.8" })).statusCode).toBe(200);
+    } finally { await instance.close(); }
   });
 });

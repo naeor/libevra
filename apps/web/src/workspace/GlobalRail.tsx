@@ -357,8 +357,25 @@ function RailBooks({
   const currentName = ledger.data?.book.name ?? "";
 
   const enter = async (bookId: string): Promise<void> => {
+    /**
+     * 游客多账本：点的就是当前账本——回到它的明细；另一本——与账本空间同一条“激活 + 整页重新载入”
+     * （激活写游客库里的当前账本，不碰账号的 `currentBook`）。游客不走“只换这个工作区”的工作区路径：
+     * 游客的数据层只有当前账本一份快照，辅助区单独看另一本游客账本做不到。
+     */
     if (guest) {
-      onNavigate("/");
+      if (bookId === currentId) {
+        onNavigate("/");
+        return;
+      }
+      setStatus(t("workspace.rail.switching"));
+      void activate
+        .mutateAsync(bookId)
+        .then(() => {
+          window.location.assign("/");
+        })
+        .catch((caught: unknown) => {
+          setStatus(t("workspace.rail.switchFailed", { message: errorMessage(caught) }));
+        });
       return;
     }
     /**
@@ -387,27 +404,26 @@ function RailBooks({
       {list.map((book) => {
         const current = book.id === currentId;
         return (
-          <RailBook key={book.id} book={book} current={current} disabled={activate.isPending}
+          <RailBook key={book.id} book={book} current={current} disabled={activate.isPending} draggable={!guest}
             onEnter={() => { setPopover(false); void enter(book.id); }}
             onDropComplete={() => setPopover(false)}
             onMenu={(point) => setMenu({ id: book.id, name: book.name, ...point })} />
         );
       })}
-      {guest ? null : (
-        <li>
-          <button
-            type="button"
-            className="lv-rail-book lv-rail-book-new"
-            onClick={() => {
-              setPopover(false);
-              setCreating(true);
-            }}
-          >
-            <PlusIcon className="size-4" />
-            <span>{t("workspace.rail.newBook")}</span>
-          </button>
-        </li>
-      )}
+      {/* 游客多账本：游客也能在侧栏新建账本（建在游客库里，建完同样整页进入它）。 */}
+      <li>
+        <button
+          type="button"
+          className="lv-rail-book lv-rail-book-new"
+          onClick={() => {
+            setPopover(false);
+            setCreating(true);
+          }}
+        >
+          <PlusIcon className="size-4" />
+          <span>{t("workspace.rail.newBook")}</span>
+        </button>
+      </li>
     </ul>
   );
 
@@ -475,12 +491,19 @@ function RailBooks({
             setMenu(null);
           }}
           items={[
-            {
-              label: t("workspace.rail.bookWorkspaceInSecondary"),
-              disabled: !canSplit,
-              run: () => { setPopover(false); onOpenInSecondary("/", { ledger: menu.id }); },
-            },
-            ...(menu.id === currentId || guest
+            /**
+             * 游客没有“在辅助区单独查看另一本账”（见上面 `enter` 的说明），这一项与把账本拖进辅助区都不给游客。
+             */
+            ...(guest
+              ? []
+              : [
+                  {
+                    label: t("workspace.rail.bookWorkspaceInSecondary"),
+                    disabled: !canSplit,
+                    run: () => { setPopover(false); onOpenInSecondary("/", { ledger: menu.id }); },
+                  },
+                ]),
+            ...(menu.id === currentId
               ? []
               : [
                   {
@@ -490,23 +513,20 @@ function RailBooks({
                     },
                   },
                 ]),
-            ...(guest
-              ? []
-              : [
-                  {
-                    label: t("workspace.rail.bookDetail"),
-                    run: () => {
-                      onNavigate(`/books/${menu.id}`);
-                    },
-                  },
-                  {
-                    label: t("workspace.rail.bookDetailInSecondary"),
-                    disabled: !canSplit,
-                    run: () => {
-                      onOpenInSecondary(`/books/${menu.id}`);
-                    },
-                  },
-                ]),
+            // 账本详情是按地址工作的普通页面，游客多账本以后游客也能打开（主区或辅助区都行）。
+            {
+              label: t("workspace.rail.bookDetail"),
+              run: () => {
+                onNavigate(`/books/${menu.id}`);
+              },
+            },
+            {
+              label: t("workspace.rail.bookDetailInSecondary"),
+              disabled: !canSplit,
+              run: () => {
+                onOpenInSecondary(`/books/${menu.id}`);
+              },
+            },
           ]}
         />
       ) : null}
@@ -577,16 +597,18 @@ function AnchoredPanel({
   );
 }
 
-function RailBook({ book, current, disabled, onEnter, onMenu, onDropComplete }: {
+function RailBook({ book, current, disabled, draggable = true, onEnter, onMenu, onDropComplete }: {
   readonly book: { readonly id: string; readonly name: string };
   readonly current: boolean;
   readonly disabled: boolean;
+  /** 能不能把这本账拖进辅助区单独查看（游客不能，见 `RailBooks.enter`）。点击进入不受影响。 */
+  readonly draggable?: boolean;
   readonly onEnter: () => void;
   readonly onMenu: (point: { readonly x: number; readonly y: number }) => void;
   readonly onDropComplete: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const drag = useOpenDrag({ path: "/", title: book.name, ledger: book.id, fromRail: true, disabled, onMenu, onDropComplete });
+  const drag = useOpenDrag({ path: "/", title: book.name, ledger: book.id, fromRail: true, disabled: disabled || !draggable, onMenu, onDropComplete });
   return <li><button type="button" className="lv-rail-book lv-draggable" aria-current={current ? "true" : undefined} title={book.name} disabled={disabled}
     {...drag.bind} onClick={onEnter}
     onContextMenu={drag.bind?.onContextMenu ?? ((event) => { event.preventDefault(); onMenu({ x: event.clientX, y: event.clientY }); })}>

@@ -7,6 +7,7 @@ import { SkeletonRows } from "./States.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { onPlainClick } from "../lib/entryReturn.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useBooks, useCurrentBookId, type BookSummary } from "../lib/queries.js";
 
 /**
@@ -228,6 +229,8 @@ export function BookIdentityCard({
   const { t } = useI18n();
   const currentBookId = useCurrentBookId();
   const isCurrentAccounting = bookId === currentBookId;
+  /** 游客账本没有编号与成员：这一行写“仅本机 · 游客本地账本”。 */
+  const guest = useGuestMode();
 
   /** The identity line itself — the same markup in both shapes of the card. */
   const identity = (
@@ -236,8 +239,8 @@ export function BookIdentityCard({
         {caption === undefined ? null : <span className="text-helper text-muted">{caption}</span>}
         <span className="truncate text-base font-medium text-ink">{name}</span>
         <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
-          <span className="font-mono">{bookNumber ?? t("books.noNumber")}</span>
-          {memberCount === undefined ? null : (
+          {guest ? <span>{t("books.space.guestLocal")}</span> : <span className="font-mono">{bookNumber ?? t("books.noNumber")}</span>}
+          {memberCount === undefined || guest ? null : (
             <>
               <span>·</span>
               <span>{t("books.people", { count: memberCount })}</span>
@@ -309,6 +312,7 @@ function BookRow({
   readonly onSelect: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const guest = useGuestMode();
   return (
     // 1.19.70：只换选中外观——账本行是“当前正在看的账本”的单选列表，仍是同一个按钮、同一个 onSelect（切换账本的流程不动）；
     // 独立选中项 SelectionItem 只多一个 data-select-item 钩子，B1 / B2 / A / C 在 S19 下按统一选中模型表现。
@@ -322,9 +326,15 @@ function BookRow({
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-body text-ink">{book.name}</span>
         <span className="flex flex-wrap items-center gap-2 text-helper text-muted">
-          <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
-          <span>·</span>
-          <span>{t("books.people", { count: book.memberCount })}</span>
+          {guest ? (
+            <span>{t("books.space.guestLocal")}</span>
+          ) : (
+            <>
+              <span className="font-mono">{book.bookNumber ?? t("books.noNumber")}</span>
+              <span>·</span>
+              <span>{t("books.people", { count: book.memberCount })}</span>
+            </>
+          )}
           {/**
             * ⚠️ **A word, not only a colour, and not only a tick** — the same rule the management
             * sheet follows for its 「当前」 badge. It says what the ledger *is* (where entries go),

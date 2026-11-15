@@ -400,9 +400,14 @@ function AppRoutes(): React.JSX.Element {
         *
         * ⚠️ **它们必须排在下面的通配路由之前**，否则会被送回首页。
         */}
-      <Route path="/books/:bookId" element={<RequireAuth><BookDetailPage /></RequireAuth>} />
+      {/**
+        * 游客多账本（第二批）：账本详情与账本设置游客也能进（`RequireSession`），读写都按地址里的游客账本
+        * 走游客库；页面里只对服务器有意义的部分（成员、通知、附件、导入历史账、导入账本）对游客不显示。
+        * 附件页仍只给正式账号。
+        */}
+      <Route path="/books/:bookId" element={<RequireSession><BookDetailPage /></RequireSession>} />
       <Route path="/books/:bookId/attachments" element={<RequireAuth><AttachmentsPage /></RequireAuth>} />
-      <Route path="/books/:bookId/settings" element={<RequireAuth><BookSettingsPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings" element={<RequireSession><BookSettingsPage /></RequireSession>} />
       {/**
         * ⚠️ **The three organisers and the two data screens now have a per-ledger address.** The same
         * components serve the old current-ledger routes below (`/categories`, `/export`, …), which

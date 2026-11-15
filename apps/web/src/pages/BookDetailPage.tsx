@@ -11,6 +11,7 @@ import { SkeletonRows } from "../components/States.js";
 import { isChineseLocale, useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { formatLocalDate } from "../lib/datetime.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useBooks, useLedgerMeta } from "../lib/queries.js";
 
 /**
@@ -29,6 +30,9 @@ import { useBooks, useLedgerMeta } from "../lib/queries.js";
  *
  * ⚠️ **目标不存在/无权访问时，明确说清楚并给出两个出口**（返回账本空间 / 选其他账本），
  * **不静默回落到当前账本** —— 那会让用户以为自己打开的是 A 账，实际看到的是 B 账。
+ *
+ * 游客多账本（第二批）：游客也用这一页（读的是地址里那一本游客账本，见 `useLedgerMeta` 的游客分支）；
+ * 只对服务器有意义的部分不显示——账本通知铃铛、附件与存储空间、成员数量、编辑记录条数。
  */
 export function BookDetailPage(): React.JSX.Element {
   const { t, locale } = useI18n();
@@ -36,6 +40,7 @@ export function BookDetailPage(): React.JSX.Element {
   const meta = useLedgerMeta(bookId);
   const books = useBooks();
   const navigate = useNavigate();
+  const guest = useGuestMode();
   const [switcher, setSwitcher] = useState(false);
 
   /**
@@ -53,12 +58,12 @@ export function BookDetailPage(): React.JSX.Element {
   const createdLabel = isChineseLocale(locale) ? createdDate : formatLocalDate(createdDate);
 
   return (
-    <InnerPage title={t("books.detail.title")} backTo="/start" actions={<BookNotificationBell bookId={bookId} />}>
+    <InnerPage title={t("books.detail.title")} backTo="/start" actions={guest ? undefined : <BookNotificationBell bookId={bookId} />}>
       {meta.isPending ? <SkeletonRows rows={4} /> : null}
 
       {meta.isSuccess ? (
         <>
-          <BookAttachmentSummary bookId={bookId} />
+          {guest ? null : <BookAttachmentSummary bookId={bookId} />}
           <BookIdentityCard
             bookId={bookId}
             name={name ?? ""}
@@ -78,14 +83,14 @@ export function BookDetailPage(): React.JSX.Element {
             title={t("books.detail.factsTitle")}
             footer={t("books.detail.factsFooter")}
           >
-            {memberCount === undefined ? null : (
+            {memberCount === undefined || guest ? null : (
               <FactRow label={t("books.detail.memberCount")} value={t("books.people", { count: memberCount })} />
             )}
             {stats === undefined ? null : (
               <>
                 <FactRow label={t("books.detail.createdAt")} value={createdLabel} />
                 <FactRow label={t("books.detail.entryCount")} value={t("common.count.entries", { count: stats.transactionCount })} />
-                <FactRow label={t("books.detail.eventCount")} value={t("books.detail.events", { count: stats.eventCount })} />
+                {guest ? null : <FactRow label={t("books.detail.eventCount")} value={t("books.detail.events", { count: stats.eventCount })} />}
                 {/**
                   * ⚠️ **"约" stays.** An estimate shown beside three exact figures is read as exact,
                   * and somebody will eventually reconcile against it — see `estimateBytes`.

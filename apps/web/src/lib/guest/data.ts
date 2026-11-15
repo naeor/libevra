@@ -6,20 +6,27 @@
  * `LedgerMetaResponse`, `SummaryResponse` and `StatsResponse`. So the guest side produces exactly
  * those shapes from IndexedDB, and the pages do not branch on "guest or account" for their layout.
  *
- * ⚠️ **Why one blob instead of a table per entity.** The guest ledger lives on one device, has one
- * writer (this browser), and is read whole by the screens that need it; the account side reached the
- * same conclusion for its offline copy (`offline/storage.ts` is a key–value store, not a mirror of
- * the Prisma schema). The blob is versioned with `schemaVersion`, so the next stage can migrate it
- * without guessing.
+ * ⚠️ **Why one blob per ledger instead of a table per entity.** The guest ledger lives on one device,
+ * has one writer (this browser), and is read whole by the screens that need it; the account side
+ * reached the same conclusion for its offline copy (`offline/storage.ts` is a key–value store, not a
+ * mirror of the Prisma schema). The blob is versioned with `schemaVersion` (`blob.ts`).
  *
  * ⚠️ **Nothing here talks to the server, and nothing here uses the account stores.** In particular
  * it does not write `ledger-marks`, the query cache, the outbox or the offline scope; the guest data
  * is not part of any sync queue. See `../offline/storage.ts` for why the database itself is separate.
+ *
+ * ## 游客多账本（第二批）
+ *
+ * - 每本账一个 blob，存储布局、旧数据迁移、新建 / 切换 / 归档 / 删除都在 `workspace.ts`。
+ * - **这个模块的内存快照永远是“当前账本”**：明细、统计、记账写入（`offline/write.ts` 的游客分支）、
+ *   快照发布（`bridge.ts`）都只认它。切换当前账本走整页重新载入，所以一个页面生命周期里快照不会换账本。
+ * - **账本设置可以管理另一本账**（与正式账号一样，地址里的 `bookId` 说了算）：分类 / 支付方式 / 标签的
+ *   读写函数都接受可选的 `bookId`，不是当前账本时直接读写那本账的 blob，**不动当前快照**。
+ * - 所有写操作在本标签页内排队（`serial`），避免两次并发修改都从同一份旧数据出发、后写的覆盖先写的。
+ * - 写当前账本前确认它还在注册表里：另一个标签页删掉这本账之后，这里再写就会在一个没人引用的键里
+ *   “复活”它（数据从此看不见），宁可报错。
  */
 import {
-  UNCATEGORISED,
-  categoriesFor,
-  PAYMENT_METHOD_NAMES,
   type Category,
   type ClassificationDeleteResponse,
   type CreateCategoryInput,
@@ -39,187 +46,29 @@ import {
 
 import { t } from "../../i18n/index.js";
 import { validateCategoryTree } from "@libellum/shared";
-import { createDefaultGuestLedger, type GuestLedger } from "./ledger.js";
-import { guestKey, readGuestValue, writeGuestValue } from "./storage.js";
+import { newGuestEntityId, type GuestData } from "./blob.js";
+import { readGuestLedgersResult, type GuestLedger } from "./ledger.js";
+import {
+  archiveGuestLedger,
+  createGuestLedger,
+  deleteGuestLedger,
+  ensureGuestWorkspace,
+  forgetGuestWorkspace,
+  loadGuestBook,
+  readGuestBook,
+  readGuestLedgerList,
+  renameGuestLedger,
+  restoreGuestLedger,
+  switchGuestLedger,
+  updateGuestBook,
+  writeGuestBook,
+  type GuestWorkspaceState,
+} from "./workspace.js";
 
-export const GUEST_DATA_SCHEMA_VERSION = 1;
-const DATA_NAME = "data";
-
-export interface GuestData {
-  readonly schemaVersion: typeof GUEST_DATA_SCHEMA_VERSION;
-  readonly book: GuestLedger;
-  readonly categories: readonly Category[];
-  readonly paymentMethods: readonly PaymentMethod[];
-  readonly tags: readonly Tag[];
-  readonly transactions: readonly Transaction[];
-  /** Entries the guest deleted, kept so the undo button can restore them. */
-  readonly deleted: readonly Transaction[];
-  /** D5 phase 3: imported guest rows removed after a verified cleanup, kept for local recovery. */
-  readonly cleanup?: readonly Transaction[];
-  readonly nextSeq: number;
-}
-
-function newId(): string {
-  const cryptoApi = globalThis.crypto;
-  if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID();
-
-  const bytes = new Uint8Array(16);
-  cryptoApi.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
+export { GUEST_DATA_SCHEMA_VERSION, type GuestData } from "./blob.js";
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function validCategory(value: unknown): value is Category {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate["id"] === "string" &&
-    typeof candidate["name"] === "string" &&
-    (candidate["kind"] === "income" || candidate["kind"] === "expense") &&
-    typeof candidate["isSystem"] === "boolean" &&
-    typeof candidate["isArchived"] === "boolean" &&
-    typeof candidate["sortOrder"] === "number"
-  );
-}
-
-function validPaymentMethod(value: unknown): value is PaymentMethod {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate["id"] === "string" &&
-    typeof candidate["name"] === "string" &&
-    typeof candidate["isArchived"] === "boolean" &&
-    typeof candidate["sortOrder"] === "number"
-  );
-}
-
-function validTag(value: unknown): value is Tag {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate["id"] === "string" &&
-    typeof candidate["name"] === "string" &&
-    typeof candidate["color"] === "string"
-  );
-}
-
-function validTransaction(value: unknown): value is Transaction {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate["id"] === "string" &&
-    (candidate["kind"] === "income" || candidate["kind"] === "expense") &&
-    typeof candidate["amountCents"] === "number" &&
-    typeof candidate["currency"] === "string" &&
-    typeof candidate["categoryId"] === "string" &&
-    typeof candidate["categoryName"] === "string" &&
-    typeof candidate["occurredAt"] === "string" &&
-    typeof candidate["occurredLocalDate"] === "string" &&
-    typeof candidate["version"] === "number"
-  );
-}
-
-function presetCategories(): Category[] {
-  const categories: Category[] = [];
-  let order = 0;
-
-  for (const kind of ["expense", "income"] as const) {
-    for (const preset of categoriesFor(kind)) {
-      categories.push({
-        id: newId(),
-        name: preset.name,
-        kind,
-        description: preset.description,
-        isSystem: false,
-        isArchived: false,
-        sortOrder: order,
-      });
-      order += 1;
-    }
-  }
-
-  for (const kind of ["expense", "income"] as const) {
-    categories.push({
-      id: newId(),
-      name: UNCATEGORISED.name,
-      kind,
-      description: null,
-      isSystem: true,
-      isArchived: false,
-      sortOrder: 9_000,
-    });
-  }
-
-  return categories;
-}
-
-function presetPaymentMethods(): PaymentMethod[] {
-  return PAYMENT_METHOD_NAMES.map((name, index) => ({
-    id: newId(),
-    name,
-    isArchived: false,
-    sortOrder: index,
-  }));
-}
-
-function seedData(book: GuestLedger): GuestData {
-  return {
-    schemaVersion: GUEST_DATA_SCHEMA_VERSION,
-    book,
-    categories: presetCategories(),
-    paymentMethods: presetPaymentMethods(),
-    tags: [],
-    transactions: [],
-    deleted: [],
-    cleanup: [],
-    nextSeq: 1,
-  };
-}
-
-/** Read a persisted blob defensively; a damaged blob is treated as absent rather than rendered. */
-function normalizeData(value: unknown, book: GuestLedger): GuestData | null {
-  if (typeof value !== "object" || value === null) return null;
-  const candidate = value as Record<string, unknown>;
-  if (candidate["schemaVersion"] !== GUEST_DATA_SCHEMA_VERSION) return null;
-
-  const categories = Array.isArray(candidate["categories"])
-    ? candidate["categories"].filter(validCategory)
-    : [];
-  const paymentMethods = Array.isArray(candidate["paymentMethods"])
-    ? candidate["paymentMethods"].filter(validPaymentMethod)
-    : [];
-  const tags = Array.isArray(candidate["tags"]) ? candidate["tags"].filter(validTag) : [];
-  const transactions = Array.isArray(candidate["transactions"])
-    ? candidate["transactions"].filter(validTransaction)
-    : [];
-  const deleted = Array.isArray(candidate["deleted"])
-    ? candidate["deleted"].filter(validTransaction)
-    : [];
-  const cleanup = Array.isArray(candidate["cleanup"])
-    ? candidate["cleanup"].filter(validTransaction)
-    : [];
-  const storedBook =
-    typeof candidate["book"] === "object" && candidate["book"] !== null
-      ? (candidate["book"] as GuestLedger)
-      : book;
-
-  return {
-    schemaVersion: GUEST_DATA_SCHEMA_VERSION,
-    book: storedBook,
-    categories,
-    paymentMethods,
-    tags,
-    transactions,
-    deleted,
-    cleanup,
-    nextSeq:
-      typeof candidate["nextSeq"] === "number" && candidate["nextSeq"] > 0
-        ? candidate["nextSeq"]
-        : transactions.length + 1,
-  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -230,10 +79,17 @@ let snapshot: GuestData | null = null;
 let snapshotGuestId: string | null = null;
 let publishedGuestId: string | null = null;
 let loadPromise: Promise<GuestData | null> | null = null;
+/** 载入快照时读到的游客工作区（账本列表 + 当前账本 + 是否仍在旧键模式）。 */
+let workspace: GuestWorkspaceState | null = null;
 const listeners = new Set<() => void>();
 
 export function guestDataValue(): GuestData | null {
   return snapshot;
+}
+
+/** 当前快照所属的游客工作区；没载入时为 `null`。 */
+export function guestWorkspaceValue(): GuestWorkspaceState | null {
+  return workspace !== null && workspace.guestId === snapshotGuestId ? workspace : null;
 }
 
 /** 筛选/附属任务的归属只读取已经载入的游客账本，不把它写进正式账号的设备账本。 */
@@ -259,35 +115,18 @@ export function resetGuestDataCache(): void {
   snapshotGuestId = null;
   publishedGuestId = null;
   loadPromise = null;
+  workspace = null;
+  forgetGuestWorkspace();
   publish(null);
 }
 
-function ledgerKey(guestId: string): string {
-  return guestKey(guestId, DATA_NAME);
-}
-
-/** The S14-B ledger registry, used only to preserve an existing guest's ledger name/id. */
-async function existingBook(guestId: string): Promise<GuestLedger> {
-  const stored = await readGuestValue<unknown>(guestKey(guestId, "ledgers"));
-  if (Array.isArray(stored)) {
-    const first = stored.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        typeof (entry as GuestLedger).id === "string" &&
-        typeof (entry as GuestLedger).name === "string",
-    ) as GuestLedger | undefined;
-    if (first !== undefined) return first;
-  }
-
-  return createDefaultGuestLedger();
-}
-
 /**
- * Load the guest ledger, creating it (and its preset categories/payment methods) on first use.
+ * Load the guest's **current** ledger, creating the first one (and its preset categories/payment
+ * methods) on first use.
  *
- * Idempotent and cached per identity. Never deletes the S14-B ledger registry: an identity created
- * in S14-B keeps its original book id and name when S14-C first opens the real screens.
+ * Idempotent and cached per identity. 每次（每个页面生命周期一次）先跑一遍旧数据迁移（`workspace.ts`），
+ * 再读当前账本那一本。读存储失败时返回 `null`（调用方显示“暂时打不开”），**不种一本空账覆盖它**；
+ * 下次调用会重新尝试。
  */
 export async function ensureGuestData(guestId: string): Promise<GuestData | null> {
   if (snapshot !== null && publishedGuestId === guestId && snapshotGuestId === guestId) return snapshot;
@@ -295,41 +134,38 @@ export async function ensureGuestData(guestId: string): Promise<GuestData | null
 
   if (publishedGuestId !== guestId && snapshot !== null) {
     publishedGuestId = null;
+    workspace = null;
     publish(null);
   }
   snapshotGuestId = guestId;
-  loadPromise = (async () => {
-    const book = await existingBook(guestId);
-    const stored = await readGuestValue<unknown>(ledgerKey(guestId));
-    const normalized = normalizeData(stored, book);
-    const data = normalized ?? seedData(book);
+  const attempt: { promise: Promise<GuestData | null> | null } = { promise: null };
+  attempt.promise = (async () => {
+    try {
+      const state = await ensureGuestWorkspace(guestId);
+      const ledger = state.ledgers.find((entry) => entry.id === state.currentLedgerId);
+      if (ledger === undefined) return null;
+      const data = await loadGuestBook(guestId, ledger);
 
-    if (normalized === null) {
-      await writeGuestValue(ledgerKey(guestId), data);
+      if (snapshotGuestId !== guestId) return null;
+      workspace = state;
+      publishedGuestId = guestId;
+      publish(data);
+      return data;
+    } catch {
+      // 读失败不留在缓存里：下一次调用重新尝试（这一次什么都没写）。
+      if (snapshotGuestId === guestId && loadPromise === attempt.promise) loadPromise = null;
+      return null;
     }
-
-    if (snapshotGuestId !== guestId) return null;
-    publishedGuestId = guestId;
-    publish(data);
-    return data;
   })();
+  loadPromise = attempt.promise;
 
-  return loadPromise;
+  return attempt.promise;
 }
 
 /** Re-read the store from IndexedDB (used by the ledger's refresh button in guest mode). */
 export async function reloadGuestData(guestId: string): Promise<GuestData | null> {
   resetGuestDataCache();
   return ensureGuestData(guestId);
-}
-
-async function persist(data: GuestData): Promise<void> {
-  const written = await writeGuestValue(ledgerKey(requireGuestId()), data);
-  if (!written) {
-    // 提示在抛出时按当前界面语言取（S16）；调用方显示 `error.message`。
-    throw new Error(t("account.guest.errors.saveFailed"));
-  }
-  publish(data);
 }
 
 function requireGuestId(): string {
@@ -344,6 +180,69 @@ async function requireData(): Promise<GuestData> {
     return loaded;
   }
   return snapshot;
+}
+
+/** 本标签页内的写入队列：一次只做一件，后一件从前一件写完的数据出发。 */
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+function serial<T>(work: () => Promise<T>): Promise<T> {
+  const next = writeQueue.then(work, work);
+  writeQueue = next.catch(() => undefined);
+  return next;
+}
+
+/** 当前快照里账本的最新列表（读注册表；存储不可用时用载入时那份）。 */
+export async function listGuestLedgers(): Promise<readonly GuestLedger[]> {
+  await requireData();
+  const guestId = requireGuestId();
+  const ledgers = await readGuestLedgerList(guestId, workspace?.ledgers ?? []);
+  if (workspace !== null && workspace.guestId === guestId) workspace = { ...workspace, ledgers };
+  return ledgers;
+}
+
+async function findLedger(bookId: string): Promise<GuestLedger> {
+  const ledger = (await listGuestLedgers()).find((entry) => entry.id === bookId);
+  if (ledger === undefined) throw new Error(t("account.guest.errors.ledgerGone"));
+  return ledger;
+}
+
+/**
+ * 某一本账的数据：当前账本就是内存快照；别的账本**每次从存储读**（不缓存，避免另一个标签页改过之后
+ * 这里还拿旧的），只有确实没有这个键时才种一份初始数据。
+ */
+async function requireTarget(bookId?: string): Promise<GuestData> {
+  const current = await requireData();
+  if (bookId === undefined || bookId === "" || bookId === current.book.id) return current;
+  return loadGuestBook(requireGuestId(), await findLedger(bookId));
+}
+
+/** 读某一本账（账本详情 / 设置 / 导出用）；不是当前账本时从存储读，不动当前快照。 */
+export async function loadGuestDataFor(bookId?: string): Promise<GuestData> {
+  return requireTarget(bookId);
+}
+
+/** 写之前确认这本账还在注册表里（见文件头最后一条）。读不出注册表时不拦，交给写入本身报告失败。 */
+async function assertStillListed(guestId: string, bookId: string): Promise<void> {
+  if (workspace?.legacyBookId === bookId) return;
+  const registry = await readGuestLedgersResult(guestId);
+  if (!registry.ok || registry.ledgers.length === 0) return;
+  if (!registry.ledgers.some((ledger) => ledger.id === bookId)) {
+    throw new Error(t("account.guest.errors.ledgerGone"));
+  }
+}
+
+/**
+ * 写回一本账。当前账本：写完发布到内存快照（页面随之更新）；别的账本：只写存储。
+ */
+async function persist(data: GuestData): Promise<void> {
+  const guestId = requireGuestId();
+  await assertStillListed(guestId, data.book.id);
+  const written = await writeGuestBook(guestId, data);
+  if (!written) {
+    // 提示在抛出时按当前界面语言取（S16）；调用方显示 `error.message`。
+    throw new Error(t("account.guest.errors.saveFailed"));
+  }
+  if (snapshot !== null && snapshot.book.id === data.book.id) publish(data);
 }
 
 /** The live entries, newest first — the order the ledger screen expects from the server. */
@@ -382,7 +281,167 @@ export function guestDeletedIds(data: GuestData | null): ReadonlySet<string> {
 }
 
 /* ------------------------------------------------------------------ */
-/* Entries                                                              */
+/* Ledgers (the guest's own list — 新建 / 切换 / 重命名 / 归档 / 恢复 / 删除) */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 新建一本游客账本（自己的一套预设分类与支付方式，币种沿用当前账本）。不切换当前账本——调用方随后
+ * 用 `switchGuestBook` + 整页重新载入进入它（与正式账号“新建即进入”同一条路径）。
+ */
+export function createGuestBook(name: string): Promise<GuestLedger> {
+  return serial(async () => {
+    const current = await requireData();
+    const ledger = await createGuestLedger(requireGuestId(), { name, currency: current.book.currency });
+    await listGuestLedgers();
+    return ledger;
+  });
+}
+
+/** 把当前账本记成另一本（只写游客库）。调用方随后整页重新载入。 */
+export function switchGuestBook(bookId: string): Promise<void> {
+  return serial(async () => {
+    await requireData();
+    await switchGuestLedger(requireGuestId(), bookId, workspace?.ledgers ?? []);
+  });
+}
+
+/** 重命名；改的是当前账本时同时更新内存快照里的 `book`，标题立即变。 */
+export function renameGuestBook(bookId: string, name: string): Promise<GuestLedger> {
+  return serial(async () => {
+    const current = await requireData();
+    const ledger = await renameGuestLedger(requireGuestId(), bookId, name);
+    await listGuestLedgers();
+    if (snapshot !== null && current.book.id === bookId && snapshot.book.id === bookId) {
+      publish({ ...snapshot, book: { ...snapshot.book, name: ledger.name, updatedAt: ledger.updatedAt } });
+    }
+    return ledger;
+  });
+}
+
+/** 归档。返回它是不是当前账本（是的话调用方整页重新载入，当前账本已换到下一本未归档的）。 */
+export function archiveGuestBook(bookId: string): Promise<{ readonly wasCurrent: boolean }> {
+  return serial(async () => {
+    const current = await requireData();
+    await archiveGuestLedger(requireGuestId(), bookId);
+    await listGuestLedgers();
+    return { wasCurrent: current.book.id === bookId };
+  });
+}
+
+export function restoreGuestBook(bookId: string): Promise<GuestLedger> {
+  return serial(async () => {
+    await requireData();
+    const ledger = await restoreGuestLedger(requireGuestId(), bookId);
+    await listGuestLedgers();
+    return ledger;
+  });
+}
+
+/** 永久删除。返回它是不是当前账本（是的话调用方整页重新载入）。 */
+export function deleteGuestBook(bookId: string): Promise<{ readonly wasCurrent: boolean }> {
+  return serial(async () => {
+    const current = await requireData();
+    await deleteGuestLedger(requireGuestId(), bookId);
+    await listGuestLedgers();
+    return { wasCurrent: current.book.id === bookId };
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* 正式账号会话里读写某个游客的某本账（账本导入页）                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 这个游客的全部账本（账本导入页选择来源用）。会先跑一遍迁移，但**不会新建账本**：没有账本就返回空列表。
+ */
+export async function listGuestLedgersFor(guestId: string): Promise<readonly GuestLedger[]> {
+  return (await ensureGuestWorkspace(guestId, { create: false })).ledgers;
+}
+
+/** 只读某个游客的某本账；没有这本账或没有数据时返回 `null`（不种子、不写）。 */
+export async function readGuestBookFor(guestId: string, bookId: string): Promise<GuestData | null> {
+  const ledger = (await listGuestLedgersFor(guestId)).find((entry) => entry.id === bookId);
+  if (ledger === undefined) return null;
+  const read = await readGuestBook(guestId, ledger);
+  if (read.status === "ok") return read.data;
+  if (read.status === "absent") return null;
+  throw new Error(
+    read.status === "unreadable" ? t("account.guest.errors.storageUnavailable") : t("account.guest.errors.unrecognisedData"),
+  );
+}
+
+async function updateGuestBookFor(
+  guestId: string,
+  bookId: string,
+  change: (data: GuestData) => GuestData | undefined,
+): Promise<GuestData | null> {
+  const ledger = (await listGuestLedgersFor(guestId)).find((entry) => entry.id === bookId);
+  if (ledger === undefined) throw new Error(t("account.guest.errors.ledgerGone"));
+  const next = await updateGuestBook(guestId, ledger, change);
+  // 同一个游客的这本账恰好就是内存里的当前账本（少见）：一起更新，免得下一次写入用旧快照覆盖回去。
+  if (next !== null && snapshotGuestId === guestId && snapshot?.book.id === bookId) publish(next);
+  return next;
+}
+
+/**
+ * D5 phase 3: remove only guest rows that the server confirmed are safely present in the
+ * target. The removed copies are kept in the same local blob (`cleanup`) so they can be
+ * restored from this device; no other guest data is touched.
+ *
+ * 多账本：按 `(游客 id, 游客账本 id)` 清理那一本账，与当前账本无关。
+ */
+export async function cleanupMigratedGuestBook(
+  guestId: string,
+  bookId: string,
+  ids: readonly string[],
+): Promise<{ readonly removed: number; readonly remaining: number; readonly archived: number }> {
+  const wanted = new Set(ids);
+  let removed = 0;
+  const next = await updateGuestBookFor(guestId, bookId, (data) => {
+    const moving = data.transactions.filter((entry) => wanted.has(entry.id));
+    removed = moving.length;
+    if (moving.length === 0) return undefined;
+    return {
+      ...data,
+      book: { ...data.book, updatedAt: nowIso() },
+      transactions: data.transactions.filter((entry) => !wanted.has(entry.id)),
+      cleanup: [
+        ...((data.cleanup ?? []).filter((entry) => !moving.some((item) => item.id === entry.id))),
+        ...moving,
+      ],
+    };
+  });
+  return {
+    removed,
+    remaining: next?.transactions.length ?? 0,
+    archived: next?.cleanup?.length ?? 0,
+  };
+}
+
+/** 把清理留档里的账目放回那本游客账本。返回放回的笔数。 */
+export async function restoreGuestBookCleanup(guestId: string, bookId: string, ids: readonly string[]): Promise<number> {
+  const wanted = new Set(ids);
+  let restored = 0;
+  await updateGuestBookFor(guestId, bookId, (data) => {
+    const back = (data.cleanup ?? []).filter((entry) => wanted.has(entry.id));
+    restored = back.length;
+    if (back.length === 0) return undefined;
+    return {
+      ...data,
+      book: { ...data.book, updatedAt: nowIso() },
+      transactions: [...data.transactions, ...back],
+      cleanup: (data.cleanup ?? []).filter((entry) => !wanted.has(entry.id)),
+    };
+  });
+  return restored;
+}
+
+export function guestCleanupTransactions(data: GuestData | null): readonly Transaction[] {
+  return data?.cleanup ?? [];
+}
+
+/* ------------------------------------------------------------------ */
+/* Entries — always the current ledger                                  */
 /* ------------------------------------------------------------------ */
 
 function liveCategories(data: GuestData, kind: TransactionKind): readonly Category[] {
@@ -427,177 +486,140 @@ function resolveTags(data: GuestData, tagIds: readonly string[] | undefined): re
 }
 
 /** Create an entry exactly the way the account path does: client-minted id, local truth first. */
-export async function createGuestTransaction(input: CreateTransactionInput): Promise<Transaction> {
-  const data = await requireData();
+export function createGuestTransaction(input: CreateTransactionInput): Promise<Transaction> {
+  return serial(async () => {
+    const data = await requireData();
 
-  const existing = data.transactions.find((entry) => entry.id === input.id);
-  if (existing !== undefined) return existing;
+    const existing = data.transactions.find((entry) => entry.id === input.id);
+    if (existing !== undefined) return existing;
 
-  const category = resolveCategory(data, input.kind, input.categoryId, undefined);
-  const paymentMethod = resolvePaymentMethod(data, input.paymentMethodId, undefined);
-  const tags = resolveTags(data, input.tagIds);
+    const category = resolveCategory(data, input.kind, input.categoryId, undefined);
+    const paymentMethod = resolvePaymentMethod(data, input.paymentMethodId, undefined);
+    const tags = resolveTags(data, input.tagIds);
 
-  const transaction: Transaction = {
-    id: input.id,
-    seq: data.nextSeq,
-    kind: input.kind,
-    amountCents: input.amountCents,
-    currency: input.currency,
-    categoryId: category.id,
-    categoryName: category.name,
-    categoryIsSystem: category.isSystem,
-    paymentMethodId: paymentMethod?.id ?? null,
-    paymentMethodName: paymentMethod?.name ?? null,
-    occurredAt: input.occurredAt,
-    occurredLocalDate: input.occurredLocalDate,
-    occurredTz: input.occurredTz,
-    note: input.note ?? null,
-    tags: [...tags],
-    version: 1,
-  };
+    const transaction: Transaction = {
+      id: input.id,
+      seq: data.nextSeq,
+      kind: input.kind,
+      amountCents: input.amountCents,
+      currency: input.currency,
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryIsSystem: category.isSystem,
+      paymentMethodId: paymentMethod?.id ?? null,
+      paymentMethodName: paymentMethod?.name ?? null,
+      occurredAt: input.occurredAt,
+      occurredLocalDate: input.occurredLocalDate,
+      occurredTz: input.occurredTz,
+      note: input.note ?? null,
+      tags: [...tags],
+      version: 1,
+    };
 
-  const next: GuestData = {
-    ...data,
-    book: { ...data.book, updatedAt: nowIso() },
-    transactions: [...data.transactions, transaction],
-    nextSeq: data.nextSeq + 1,
-  };
+    const next: GuestData = {
+      ...data,
+      book: { ...data.book, updatedAt: nowIso() },
+      transactions: [...data.transactions, transaction],
+      nextSeq: data.nextSeq + 1,
+    };
 
-  await persist(next);
-  return transaction;
+    await persist(next);
+    return transaction;
+  });
 }
 
-export async function updateGuestTransaction(
+export function updateGuestTransaction(
   id: string,
   input: UpdateTransactionInput,
   apply: (current: Transaction) => Transaction,
 ): Promise<Transaction | null> {
-  const data = await requireData();
-  const current = data.transactions.find((entry) => entry.id === id);
-  if (current === undefined) return null;
+  return serial(async () => {
+    const data = await requireData();
+    const current = data.transactions.find((entry) => entry.id === id);
+    if (current === undefined) return null;
 
-  const applied = apply(current);
-  const kind = input.kind ?? applied.kind;
-  const category = resolveCategory(data, kind, input.categoryId, undefined);
-  const paymentMethod = resolvePaymentMethod(
-    data,
-    input.paymentMethodId,
-    input.paymentMethodId === undefined
-      ? data.paymentMethods.find((method) => method.id === applied.paymentMethodId) ?? null
-      : null,
-  );
-  const tags = input.tagIds === undefined ? applied.tags : [...resolveTags(data, input.tagIds)];
+    const applied = apply(current);
+    const kind = input.kind ?? applied.kind;
+    const category = resolveCategory(data, kind, input.categoryId, undefined);
+    const paymentMethod = resolvePaymentMethod(
+      data,
+      input.paymentMethodId,
+      input.paymentMethodId === undefined
+        ? data.paymentMethods.find((method) => method.id === applied.paymentMethodId) ?? null
+        : null,
+    );
+    const tags = input.tagIds === undefined ? applied.tags : [...resolveTags(data, input.tagIds)];
 
-  const nextEntry: Transaction = {
-    ...applied,
-    kind,
-    amountCents: input.amountCents ?? applied.amountCents,
-    currency: input.currency ?? applied.currency,
-    categoryId: category.id,
-    categoryName: category.name,
-    categoryIsSystem: category.isSystem,
-    paymentMethodId: paymentMethod?.id ?? null,
-    paymentMethodName: paymentMethod?.name ?? null,
-    occurredAt: input.occurredAt ?? applied.occurredAt,
-    occurredLocalDate: input.occurredLocalDate ?? applied.occurredLocalDate,
-    occurredTz: input.occurredTz ?? applied.occurredTz,
-    note: input.note === undefined ? applied.note : (input.note ?? null),
-    tags,
-    version: current.version + 1,
-  };
+    const nextEntry: Transaction = {
+      ...applied,
+      kind,
+      amountCents: input.amountCents ?? applied.amountCents,
+      currency: input.currency ?? applied.currency,
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryIsSystem: category.isSystem,
+      paymentMethodId: paymentMethod?.id ?? null,
+      paymentMethodName: paymentMethod?.name ?? null,
+      occurredAt: input.occurredAt ?? applied.occurredAt,
+      occurredLocalDate: input.occurredLocalDate ?? applied.occurredLocalDate,
+      occurredTz: input.occurredTz ?? applied.occurredTz,
+      note: input.note === undefined ? applied.note : (input.note ?? null),
+      tags,
+      version: current.version + 1,
+    };
 
-  const next: GuestData = {
-    ...data,
-    book: { ...data.book, updatedAt: nowIso() },
-    transactions: data.transactions.map((entry) => (entry.id === id ? nextEntry : entry)),
-  };
+    const next: GuestData = {
+      ...data,
+      book: { ...data.book, updatedAt: nowIso() },
+      transactions: data.transactions.map((entry) => (entry.id === id ? nextEntry : entry)),
+    };
 
-  await persist(next);
-  return nextEntry;
+    await persist(next);
+    return nextEntry;
+  });
 }
 
-export async function deleteGuestTransaction(id: string): Promise<void> {
-  const data = await requireData();
-  const current = data.transactions.find((entry) => entry.id === id);
-  if (current === undefined) return;
+export function deleteGuestTransaction(id: string): Promise<void> {
+  return serial(async () => {
+    const data = await requireData();
+    const current = data.transactions.find((entry) => entry.id === id);
+    if (current === undefined) return;
 
-  const next: GuestData = {
-    ...data,
-    book: { ...data.book, updatedAt: nowIso() },
-    transactions: data.transactions.filter((entry) => entry.id !== id),
-    deleted: [...data.deleted.filter((entry) => entry.id !== id), current],
-  };
+    const next: GuestData = {
+      ...data,
+      book: { ...data.book, updatedAt: nowIso() },
+      transactions: data.transactions.filter((entry) => entry.id !== id),
+      deleted: [...data.deleted.filter((entry) => entry.id !== id), current],
+    };
 
-  await persist(next);
+    await persist(next);
+  });
 }
 
-export async function restoreGuestTransaction(id: string): Promise<Transaction | null> {
-  const data = await requireData();
-  const deleted = data.deleted.find((entry) => entry.id === id);
-  if (deleted === undefined) return null;
+export function restoreGuestTransaction(id: string): Promise<Transaction | null> {
+  return serial(async () => {
+    const data = await requireData();
+    const deleted = data.deleted.find((entry) => entry.id === id);
+    if (deleted === undefined) return null;
 
-  const restored: Transaction = { ...deleted, version: deleted.version + 1 };
+    const restored: Transaction = { ...deleted, version: deleted.version + 1 };
 
-  const next: GuestData = {
-    ...data,
-    book: { ...data.book, updatedAt: nowIso() },
-    transactions: [...data.transactions, restored],
-    deleted: data.deleted.filter((entry) => entry.id !== id),
-  };
+    const next: GuestData = {
+      ...data,
+      book: { ...data.book, updatedAt: nowIso() },
+      transactions: [...data.transactions, restored],
+      deleted: data.deleted.filter((entry) => entry.id !== id),
+    };
 
-  await persist(next);
-  return restored;
-}
-
-/**
- * D5 phase 3: remove only guest rows that the server confirmed are safely present in the
- * target. The removed copies are kept in the same local blob (`cleanup`) so they can be
- * restored from this device; no other guest data is touched.
- */
-export async function cleanupMigratedGuestTransactions(ids: readonly string[]): Promise<{
-  readonly removed: number;
-  readonly remaining: number;
-}> {
-  const data = await requireData();
-  const wanted = new Set(ids);
-  const removed = data.transactions.filter((entry) => wanted.has(entry.id));
-  if (removed.length === 0) {
-    return { removed: 0, remaining: data.transactions.length };
-  }
-  const next: GuestData = {
-    ...data,
-    book: { ...data.book, updatedAt: nowIso() },
-    transactions: data.transactions.filter((entry) => !wanted.has(entry.id)),
-    cleanup: [
-      ...((data.cleanup ?? []).filter((entry) => !removed.some((item) => item.id === entry.id))),
-      ...removed,
-    ],
-  };
-  await persist(next);
-  return { removed: removed.length, remaining: next.transactions.length };
-}
-
-export async function restoreGuestCleanup(ids: readonly string[]): Promise<number> {
-  const data = await requireData();
-  const wanted = new Set(ids);
-  const restored = (data.cleanup ?? []).filter((entry) => wanted.has(entry.id));
-  if (restored.length === 0) return 0;
-  const next: GuestData = {
-    ...data,
-    book: { ...data.book, updatedAt: nowIso() },
-    transactions: [...data.transactions, ...restored],
-    cleanup: (data.cleanup ?? []).filter((entry) => !wanted.has(entry.id)),
-  };
-  await persist(next);
-  return restored.length;
-}
-
-export function guestCleanupTransactions(data: GuestData | null): readonly Transaction[] {
-  return data?.cleanup ?? [];
+    await persist(next);
+    return restored;
+  });
 }
 
 /* ------------------------------------------------------------------ */
 /* Classification (categories / payment methods / tags)                 */
+/*                                                                      */
+/* `bookId` 省略或等于当前账本：改当前快照；否则改那本账的 blob。          */
 /* ------------------------------------------------------------------ */
 
 function nextSortOrder(items: readonly { readonly sortOrder: number }[]): number {
@@ -614,35 +636,33 @@ function assertUniqueName(
   }
 }
 
-export async function createGuestCategory(input: CreateCategoryInput): Promise<Category> {
-  const data = await requireData();
-  const name = input.name.trim();
-  assertUniqueName(
-    data.categories.filter((category) => category.kind === input.kind && (category.parentId ?? null) === (input.parentId ?? null)),
-    name,
-  );
+export function createGuestCategory(input: CreateCategoryInput, bookId?: string): Promise<Category> {
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    const name = input.name.trim();
+    assertUniqueName(
+      data.categories.filter((category) => category.kind === input.kind && (category.parentId ?? null) === (input.parentId ?? null)),
+      name,
+    );
 
-  const category: Category = {
-    parentId: input.parentId ?? null, icon: input.icon ?? null, color: input.color ?? null,
-    id: newId(),
-    name,
-    kind: input.kind,
-    description: null,
-    isSystem: false,
-    isArchived: false,
-    sortOrder: input.sortOrder ?? nextSortOrder(data.categories.filter((entry) => entry.kind === input.kind)),
-  };
+    const category: Category = {
+      parentId: input.parentId ?? null, icon: input.icon ?? null, color: input.color ?? null,
+      id: newGuestEntityId(),
+      name,
+      kind: input.kind,
+      description: null,
+      isSystem: false,
+      isArchived: false,
+      sortOrder: input.sortOrder ?? nextSortOrder(data.categories.filter((entry) => entry.kind === input.kind)),
+    };
 
-  validateCategoryTree([...data.categories, category]);
-  await persist({ ...data, categories: [...data.categories, category] });
-  return category;
+    validateCategoryTree([...data.categories, category]);
+    await persist({ ...data, categories: [...data.categories, category] });
+    return category;
+  });
 }
 
-export async function updateGuestCategory(
-  id: string,
-  input: UpdateCategoryInput,
-): Promise<Category> {
-  const data = await requireData();
+async function updateCategoryIn(data: GuestData, id: string, input: UpdateCategoryInput): Promise<Category> {
   const current = data.categories.find((category) => category.id === id);
   if (current === undefined) throw new Error(t("account.guest.errors.categoryGone"));
   if (current.isSystem) throw new Error(t("account.guest.errors.systemCategoryEdit"));
@@ -671,89 +691,103 @@ export async function updateGuestCategory(
   return updated;
 }
 
-export async function archiveGuestCategory(id: string): Promise<Category> {
-  return updateGuestCategory(id, { isArchived: true });
+export function updateGuestCategory(
+  id: string,
+  input: UpdateCategoryInput,
+  bookId?: string,
+): Promise<Category> {
+  return serial(async () => updateCategoryIn(await requireTarget(bookId), id, input));
 }
 
-export async function deleteGuestCategory(
+export function archiveGuestCategory(id: string, bookId?: string): Promise<Category> {
+  return updateGuestCategory(id, { isArchived: true }, bookId);
+}
+
+export function deleteGuestCategory(
   id: string,
   replacementCategoryId?: string | null,
+  bookId?: string,
 ): Promise<ClassificationDeleteResponse> {
-  const data = await requireData();
-  const current = data.categories.find((category) => category.id === id);
-  if (current === undefined) {
-    return { affectedEntries: 0, replacementId: null, replacementName: null, operationId: newId() };
-  }
-  if (current.isSystem) throw new Error(t("account.guest.errors.systemCategoryDelete"));
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    const current = data.categories.find((category) => category.id === id);
+    if (current === undefined) {
+      return { affectedEntries: 0, replacementId: null, replacementName: null, operationId: newGuestEntityId() };
+    }
+    if (current.isSystem) throw new Error(t("account.guest.errors.systemCategoryDelete"));
 
-  const replacement =
-    replacementCategoryId == null
-      ? data.categories.find(
-          (category) => category.kind === current.kind && category.isSystem === true,
-        )
-      : data.categories.find((category) => category.id === replacementCategoryId);
+    const replacement =
+      replacementCategoryId == null
+        ? data.categories.find(
+            (category) => category.kind === current.kind && category.isSystem === true,
+          )
+        : data.categories.find((category) => category.id === replacementCategoryId);
 
-  if (replacement === undefined) throw new Error(t("account.guest.errors.noReplacement"));
+    if (replacement === undefined) throw new Error(t("account.guest.errors.noReplacement"));
 
-  let moved = 0;
-  const transactions = data.transactions.map((entry) => {
-    if (entry.categoryId !== id) return entry;
-    moved += 1;
+    let moved = 0;
+    const transactions = data.transactions.map((entry) => {
+      if (entry.categoryId !== id) return entry;
+      moved += 1;
+      return {
+        ...entry,
+        categoryId: replacement.id,
+        categoryName: replacement.name,
+        categoryIsSystem: replacement.isSystem,
+        version: entry.version + 1,
+      };
+    });
+
+    const deleted = data.deleted.map((entry) =>
+      entry.categoryId === id
+        ? { ...entry, categoryId: replacement.id, categoryName: replacement.name }
+        : entry,
+    );
+
+    const categories = data.categories.filter(category => category.id !== id).map(category => category.parentId === id ? {...category,parentId:current.parentId ?? null} : category);
+    validateCategoryTree(categories);
+    await persist({
+      ...data,
+      categories,
+      transactions,
+      deleted,
+    });
+
     return {
-      ...entry,
-      categoryId: replacement.id,
-      categoryName: replacement.name,
-      categoryIsSystem: replacement.isSystem,
-      version: entry.version + 1,
+      affectedEntries: moved,
+      replacementId: replacement.id,
+      replacementName: replacement.name,
+      operationId: newGuestEntityId(),
     };
   });
-
-  const deleted = data.deleted.map((entry) =>
-    entry.categoryId === id
-      ? { ...entry, categoryId: replacement.id, categoryName: replacement.name }
-      : entry,
-  );
-
-  const categories = data.categories.filter(category => category.id !== id).map(category => category.parentId === id ? {...category,parentId:current.parentId ?? null} : category);
-  validateCategoryTree(categories);
-  await persist({
-    ...data,
-    categories,
-    transactions,
-    deleted,
-  });
-
-  return {
-    affectedEntries: moved,
-    replacementId: replacement.id,
-    replacementName: replacement.name,
-    operationId: newId(),
-  };
 }
 
-export async function createGuestPaymentMethod(
+export function createGuestPaymentMethod(
   input: CreatePaymentMethodInput,
+  bookId?: string,
 ): Promise<PaymentMethod> {
-  const data = await requireData();
-  const name = input.name.trim();
-  assertUniqueName(data.paymentMethods, name);
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    const name = input.name.trim();
+    assertUniqueName(data.paymentMethods, name);
 
-  const method: PaymentMethod = {
-    id: newId(),
-    name,
-    isArchived: false,
-    sortOrder: input.sortOrder ?? nextSortOrder(data.paymentMethods),
-  };
+    const method: PaymentMethod = {
+      id: newGuestEntityId(),
+      name,
+      isArchived: false,
+      sortOrder: input.sortOrder ?? nextSortOrder(data.paymentMethods),
+    };
 
-  await persist({ ...data, paymentMethods: [...data.paymentMethods, method] });
-  return method;
+    await persist({ ...data, paymentMethods: [...data.paymentMethods, method] });
+    return method;
+  });
 }
 
-export async function updateGuestPaymentMethod(
+async function updatePaymentMethodIn(
+  data: GuestData,
   id: string,
   input: UpdatePaymentMethodInput,
 ): Promise<PaymentMethod> {
-  const data = await requireData();
   const current = data.paymentMethods.find((method) => method.id === id);
   if (current === undefined) throw new Error(t("account.guest.errors.paymentMethodGone"));
 
@@ -774,115 +808,132 @@ export async function updateGuestPaymentMethod(
   return updated;
 }
 
-export async function archiveGuestPaymentMethod(id: string): Promise<PaymentMethod> {
-  return updateGuestPaymentMethod(id, { isArchived: true });
+export function updateGuestPaymentMethod(
+  id: string,
+  input: UpdatePaymentMethodInput,
+  bookId?: string,
+): Promise<PaymentMethod> {
+  return serial(async () => updatePaymentMethodIn(await requireTarget(bookId), id, input));
 }
 
-export async function deleteGuestPaymentMethod(
+export function archiveGuestPaymentMethod(id: string, bookId?: string): Promise<PaymentMethod> {
+  return updateGuestPaymentMethod(id, { isArchived: true }, bookId);
+}
+
+export function deleteGuestPaymentMethod(
   id: string,
   replacementPaymentMethodId?: string | null,
+  bookId?: string,
 ): Promise<ClassificationDeleteResponse> {
-  const data = await requireData();
-  if (!data.paymentMethods.some((method) => method.id === id)) {
-    return { affectedEntries: 0, replacementId: null, replacementName: null, operationId: newId() };
-  }
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    if (!data.paymentMethods.some((method) => method.id === id)) {
+      return { affectedEntries: 0, replacementId: null, replacementName: null, operationId: newGuestEntityId() };
+    }
 
-  const replacement =
-    replacementPaymentMethodId == null
-      ? undefined
-      : data.paymentMethods.find((method) => method.id === replacementPaymentMethodId);
+    const replacement =
+      replacementPaymentMethodId == null
+        ? undefined
+        : data.paymentMethods.find((method) => method.id === replacementPaymentMethodId);
 
-  let moved = 0;
-  const transactions = data.transactions.map((entry) => {
-    if (entry.paymentMethodId !== id) return entry;
-    moved += 1;
+    let moved = 0;
+    const transactions = data.transactions.map((entry) => {
+      if (entry.paymentMethodId !== id) return entry;
+      moved += 1;
+      return {
+        ...entry,
+        paymentMethodId: replacement?.id ?? null,
+        paymentMethodName: replacement?.name ?? null,
+        version: entry.version + 1,
+      };
+    });
+
+    const deleted = data.deleted.map((entry) =>
+      entry.paymentMethodId === id
+        ? { ...entry, paymentMethodId: replacement?.id ?? null, paymentMethodName: replacement?.name ?? null }
+        : entry,
+    );
+
+    await persist({
+      ...data,
+      paymentMethods: data.paymentMethods.filter((method) => method.id !== id),
+      transactions,
+      deleted,
+    });
+
     return {
-      ...entry,
-      paymentMethodId: replacement?.id ?? null,
-      paymentMethodName: replacement?.name ?? null,
-      version: entry.version + 1,
+      affectedEntries: moved,
+      replacementId: replacement?.id ?? null,
+      replacementName: replacement?.name ?? null,
+      operationId: newGuestEntityId(),
     };
   });
+}
 
-  const deleted = data.deleted.map((entry) =>
-    entry.paymentMethodId === id
-      ? { ...entry, paymentMethodId: replacement?.id ?? null, paymentMethodName: replacement?.name ?? null }
-      : entry,
-  );
+export function createGuestTag(input: CreateTagInput, bookId?: string): Promise<Tag> {
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    const name = input.name.trim();
+    assertUniqueName(data.tags, name);
 
-  await persist({
-    ...data,
-    paymentMethods: data.paymentMethods.filter((method) => method.id !== id),
-    transactions,
-    deleted,
+    const tag: Tag = { id: newGuestEntityId(), name, color: input.color };
+    await persist({ ...data, tags: [...data.tags, tag] });
+    return tag;
   });
-
-  return {
-    affectedEntries: moved,
-    replacementId: replacement?.id ?? null,
-    replacementName: replacement?.name ?? null,
-    operationId: newId(),
-  };
 }
 
-export async function createGuestTag(input: CreateTagInput): Promise<Tag> {
-  const data = await requireData();
-  const name = input.name.trim();
-  assertUniqueName(data.tags, name);
+export function updateGuestTag(id: string, input: UpdateTagInput, bookId?: string): Promise<Tag> {
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    const current = data.tags.find((tag) => tag.id === id);
+    if (current === undefined) throw new Error(t("account.guest.errors.tagGone"));
 
-  const tag: Tag = { id: newId(), name, color: input.color };
-  await persist({ ...data, tags: [...data.tags, tag] });
-  return tag;
-}
+    const name = input.name === undefined ? current.name : input.name.trim();
+    assertUniqueName(data.tags, name, id);
 
-export async function updateGuestTag(id: string, input: UpdateTagInput): Promise<Tag> {
-  const data = await requireData();
-  const current = data.tags.find((tag) => tag.id === id);
-  if (current === undefined) throw new Error(t("account.guest.errors.tagGone"));
+    const updated: Tag = {
+      ...current,
+      name,
+      color: input.color ?? current.color,
+    };
 
-  const name = input.name === undefined ? current.name : input.name.trim();
-  assertUniqueName(data.tags, name, id);
-
-  const updated: Tag = {
-    ...current,
-    name,
-    color: input.color ?? current.color,
-  };
-
-  await persist({ ...data, tags: data.tags.map((tag) => (tag.id === id ? updated : tag)) });
-  return updated;
-}
-
-export async function deleteGuestTag(id: string): Promise<ClassificationDeleteResponse> {
-  const data = await requireData();
-  if (!data.tags.some((tag) => tag.id === id)) {
-    return { affectedEntries: 0, replacementId: null, replacementName: null, operationId: newId() };
-  }
-
-  let moved = 0;
-  const strip = (entry: Transaction): Transaction => {
-    if (!entry.tags.some((tag) => tag.id === id)) return entry;
-    moved += 1;
-    return { ...entry, tags: entry.tags.filter((tag) => tag.id !== id) };
-  };
-
-  await persist({
-    ...data,
-    tags: data.tags.filter((tag) => tag.id !== id),
-    transactions: data.transactions.map(strip),
-    deleted: data.deleted.map(strip),
+    await persist({ ...data, tags: data.tags.map((tag) => (tag.id === id ? updated : tag)) });
+    return updated;
   });
-
-  return {
-    affectedEntries: moved,
-    replacementId: null,
-    replacementName: null,
-    operationId: newId(),
-  };
 }
 
-/** Usage counts for the classification screens, from the local entries only. */
-export function guestClassificationUsage(): {
+export function deleteGuestTag(id: string, bookId?: string): Promise<ClassificationDeleteResponse> {
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    if (!data.tags.some((tag) => tag.id === id)) {
+      return { affectedEntries: 0, replacementId: null, replacementName: null, operationId: newGuestEntityId() };
+    }
+
+    let moved = 0;
+    const strip = (entry: Transaction): Transaction => {
+      if (!entry.tags.some((tag) => tag.id === id)) return entry;
+      moved += 1;
+      return { ...entry, tags: entry.tags.filter((tag) => tag.id !== id) };
+    };
+
+    await persist({
+      ...data,
+      tags: data.tags.filter((tag) => tag.id !== id),
+      transactions: data.transactions.map(strip),
+      deleted: data.deleted.map(strip),
+    });
+
+    return {
+      affectedEntries: moved,
+      replacementId: null,
+      replacementName: null,
+      operationId: newGuestEntityId(),
+    };
+  });
+}
+
+/** Usage counts for the classification screens, from the local entries only (`data` 省略时是当前账本). */
+export function guestClassificationUsage(data: GuestData | null = snapshot): {
   readonly categories: Readonly<Record<string, number>>;
   readonly paymentMethods: Readonly<Record<string, number>>;
   readonly tags: Readonly<Record<string, number>>;
@@ -891,7 +942,7 @@ export function guestClassificationUsage(): {
   const paymentMethods: Record<string, number> = {};
   const tags: Record<string, number> = {};
 
-  for (const entry of snapshot?.transactions ?? []) {
+  for (const entry of data?.transactions ?? []) {
     categories[entry.categoryId] = (categories[entry.categoryId] ?? 0) + 1;
     if (entry.paymentMethodId !== null) {
       paymentMethods[entry.paymentMethodId] = (paymentMethods[entry.paymentMethodId] ?? 0) + 1;

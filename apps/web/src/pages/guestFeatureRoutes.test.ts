@@ -14,6 +14,8 @@ describe("游客可进入的路由", () => {
     "/update/announcements/:version", "/update/runtime", "/about", "/legal/privacy", "/legal/terms",
     "/settings/preferences", "/settings/appearance", "/settings/appearance/theme",
     "/books/:bookId/settings/export", "/books/:bookId/settings/duplicates",
+    // 游客多账本（第二批）：账本详情与账本设置。
+    "/books/:bookId", "/books/:bookId/settings",
   ];
   for (const path of open) {
     it(`${path} 用 RequireSession`, () => {
@@ -25,7 +27,7 @@ describe("游客可进入的路由", () => {
   }
 
   it("语音、拍照、导入账单、账号类页面仍需要正式账号", () => {
-    for (const path of ["/record", "/scan", "/import", "/profile", "/settings/security"]) {
+    for (const path of ["/record", "/scan", "/import", "/profile", "/settings/security", "/books/:bookId/attachments", "/books/:bookId/settings/import", "/import-ledger"]) {
       const line = app.split("\n").find((row) => row.includes(`<Route path="${path}"`));
       expect(line, path).toContain("<RequireAuth>");
     }
@@ -35,7 +37,7 @@ describe("游客可进入的路由", () => {
 describe("游客“我的”页入口", () => {
   it("有偏好、外观、导出、展示卡片、更新与关于的行", () => {
     const page = source("./GuestMePage.tsx");
-    for (const id of ["guest-preferences-row", "guest-appearance-row", "guest-export-row", "guest-cards-row", "guest-updates-row", "guest-about-row"]) {
+    for (const id of ["guest-book-settings-row", "guest-preferences-row", "guest-appearance-row", "guest-export-row", "guest-cards-row", "guest-updates-row", "guest-about-row"]) {
       expect(page).toContain(id);
     }
   });

@@ -6,26 +6,42 @@ import { offlineScope } from "./scope.js";
 import { withDeadline } from "./deadline.js";
 
 const KEY = "fx-public-rates-v1";
-let publicQueue: Promise<unknown> = Promise.resolve();
-function withPublicLock<T>(write: () => Promise<T>): Promise<T> {
-  return typeof navigator !== "undefined" && navigator.locks
-    ? navigator.locks.request(KEY, write) : write();
+export interface PublicRates { values: Record<string, FxStored>; }
+/**
+ * 汇率缓存落在哪里。默认是账号离线库的公共键；游客仓库（`lib/guest/fx.ts`）换成游客库里带游客 id 的键。
+ * 其余的合并、乱序保护、容量裁剪逻辑两边完全一样，所以只抽这一处。
+ */
+export interface FxRepositoryStore {
+  /** 同一个存储位置用同一个锁名，防止多标签页同时写。 */
+  readonly lockName: () => string;
+  readonly read: () => Promise<PublicRates | null>;
+  readonly write: (value: PublicRates) => Promise<boolean>;
 }
-interface PublicRates { values: Record<string, FxStored>; }
-async function boundedRead(): Promise<PublicRates | null> {
-  const result = await withDeadline(readValue<PublicRates>(KEY));
-  if (result.timedOut) throw new Error("fx_storage_timeout");
-  return result.value;
-}
+const accountStore: FxRepositoryStore = {
+  lockName: () => KEY,
+  read: () => readValue<PublicRates>(KEY),
+  write: value => writeValue(KEY, value),
+};
 /** 复用原 kv，键只包含公共汇率。无金额、交易 ID、账号偏好或汇总，允许跨账号共享。 */
 export class OfflineFxRepository implements FxRepository {
-  constructor(private readonly capacity = 512) {
+  /** 每个仓库（账号 / 游客）各有自己的写队列，互不排队。 */
+  private publicQueue: Promise<unknown> = Promise.resolve();
+  constructor(private readonly capacity = 512, private readonly store: FxRepositoryStore = accountStore) {
     if (!Number.isSafeInteger(capacity) || capacity < 1) throw new RangeError("capacity");
   }
+  private withPublicLock<T>(write: () => Promise<T>): Promise<T> {
+    return typeof navigator !== "undefined" && navigator.locks
+      ? navigator.locks.request(this.store.lockName(), write) : write();
+  }
+  private async boundedRead(): Promise<PublicRates | null> {
+    const result = await withDeadline(this.store.read());
+    if (result.timedOut) throw new Error("fx_storage_timeout");
+    return result.value;
+  }
   async get(provider: string, date: string): Promise<FxStored | null> {
-    const ready = await withDeadline(publicQueue);
+    const ready = await withDeadline(this.publicQueue);
     if (ready.timedOut) throw new Error("fx_storage_timeout");
-    const store = await boundedRead();
+    const store = await this.boundedRead();
     const value = store?.values?.[JSON.stringify([provider, date])];
     if (!value) return null;
     try { return { snapshot: copyFxSnapshot(value.snapshot), checkedAt: value.checkedAt }; } catch { return null; }
@@ -33,8 +49,8 @@ export class OfflineFxRepository implements FxRepository {
   async save(provider: string, date: string, value: FxStored): Promise<void> {
     validateSnapshot(value.snapshot);
     if (provider !== value.snapshot.provider || rateAge(date, value.snapshot.date) < 0 || rateAge(date, value.snapshot.date) > 7) throw new Error("fx_invalid_resolution");
-    const task = publicQueue.then(() => withPublicLock(async () => {
-      const store = await boundedRead();
+    const task = this.publicQueue.then(() => this.withPublicLock(async () => {
+      const store = await this.boundedRead();
       const usable = Object.entries(store?.values ?? {}).filter(([, prior]) => {
         try { validateSnapshot(prior.snapshot); return Number.isFinite(Date.parse(prior.checkedAt)); } catch { return false; }
       });
@@ -51,9 +67,9 @@ export class OfflineFxRepository implements FxRepository {
       }).filter(([key]) => key !== JSON.stringify([provider, date]));
       entries.push([JSON.stringify([provider, date]), { snapshot: copyFxSnapshot(value.snapshot), checkedAt: value.checkedAt }]);
       const values = Object.fromEntries(entries.slice(-this.capacity));
-      if (!await writeValue(KEY, { values })) throw new Error("fx_storage_unavailable");
+      if (!await this.store.write({ values })) throw new Error("fx_storage_unavailable");
     }));
-    publicQueue = task.catch(() => undefined);
+    this.publicQueue = task.catch(() => undefined);
     const saved = await withDeadline(task);
     // 底层写仍由队列/锁持有到真正结束，迟到的旧写不能越过后续新版本。
     if (saved.timedOut) throw new Error("fx_storage_timeout");

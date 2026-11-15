@@ -1,9 +1,8 @@
 import { useContext } from "react";
 import { useI18n } from "../i18n/index.js";
-import { useGuestMode } from "../lib/guest/session.js";
 import { usePane } from "../workspace/context.js";
 import { useRegisterBookCapsule } from "./bookCapsule.js";
-import { BookCapsuleContents, CurrentBookPicker } from "./CurrentBookPicker.js";
+import { CurrentBookPicker } from "./CurrentBookPicker.js";
 import { PersistentNavContext } from "./PersistentNavContext.js";
 import { useBookCapsuleMotion } from "./useBookCapsuleMotion.js";
 import "./current-book-caption.css";
@@ -20,11 +19,10 @@ export function CurrentBookCaption({ name, hidden = false }: {
 }): React.JSX.Element | null {
   const { t } = useI18n();
   const pane = usePane();
-  const guest = useGuestMode();
   const persistent = useContext(PersistentNavContext) && pane.shell === "phone" && pane.nav === "bottom";
   const docked = useRegisterBookCapsule(persistent && name !== undefined ? name : null) && persistent;
   const ref = useBookCapsuleMotion(!docked && pane.shell === "phone" && !hidden && name !== undefined);
   if (docked || hidden || name === undefined) return null;
   const caption = t("ledger.caption.currentBook", { name });
-  return <div ref={ref} className={`current-book-caption shrink-0 px-6 ${pane.shell === "phone" ? "py-1 text-helper" : "truncate py-2 text-micro text-muted"}`} title={caption}>{pane.shell === "phone" && !guest ? <CurrentBookPicker caption={caption} name={name} /> : pane.shell === "phone" ? <span className="lv-book-capsule"><BookCapsuleContents name={name} disclosure={false} /></span> : caption}</div>;
+  return <div ref={ref} className={`current-book-caption shrink-0 px-6 ${pane.shell === "phone" ? "py-1 text-helper" : "truncate py-2 text-micro text-muted"}`} title={caption}>{pane.shell === "phone" ? <CurrentBookPicker caption={caption} name={name} /> : caption}</div>;
 }

@@ -561,7 +561,8 @@ export function BottomNavView({
            * ⚠️ **S14-C: the fourth tab is the guest's own ledger, not the collaboration page.**
            * `/ledger` is account-only (members, invitations, history) and sending a guest there
            * would dump them on the login screen from a tab they can always see. The local ledger
-           * space is the honest destination: it is where a guest's one ledger lives.
+           * space is the honest destination: it is where a guest's ledgers live (游客多账本：新建、切换、
+           * 归档与删除都在那里).
            */
           const destination = guest && tab.to === "/ledger" ? "/start" : tab.to;
           const Icon = tab.icon;

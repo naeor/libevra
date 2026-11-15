@@ -106,6 +106,19 @@ export function GuestMePage(): React.JSX.Element {
         <section className="lv-settings-section" data-section-title="">
           <h2 className="lv-settings-heading mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.ledgerSettings")}</h2>
           <div className="lv-settings-body lv-settings-list overflow-hidden rounded-card border border-line bg-surface">
+            {/* 游客多账本：当前账本的账本设置（改名、归档、删除等）；全部账本在账本空间。 */}
+            <button
+              type="button"
+              data-testid="guest-book-settings-row"
+              disabled={bookId === null}
+              onClick={() => {
+                if (bookId !== null) void navigate(`/books/${bookId}/settings`);
+              }}
+              className={settingsRow}
+            >
+              <span className="min-w-0">{t("account.guestMe.bookSettings")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
+            </button>
             {(
               [
                 { label: t("account.guestMe.categories"), tail: "/settings/categories" },

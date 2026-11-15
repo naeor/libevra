@@ -188,6 +188,11 @@ const ledgerImport = {
     sourcePlaceholder: "选择来源账本",
     targetPlaceholder: "选择目标账本",
     guestOption: "本机游客账本",
+    /** 游客多账本：来源列表里每本游客账本一项（每次迁一本）。 */
+    guestBookOption: "游客账本 · {{name}}",
+    guestMigrated: "{{date}} 已迁移过；再次导入时会识别已导入的账目",
+    guestArchived: "已归档的游客账本",
+    guestChooseOne: "本机有多本游客账本，请选择要迁移的那一本",
     formalOption: "正式账本 · {{name}}",
     sameAsSource: "就是来源账本，不能选",
     noSources: "本机没有游客账本，也没有可作为来源的其他单人账本。",

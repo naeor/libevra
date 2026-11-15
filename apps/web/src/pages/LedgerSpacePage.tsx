@@ -131,17 +131,6 @@ export function LedgerSpacePage(): React.JSX.Element {
 
   async function enterLedger(bookId: string): Promise<void> {
     /**
-     * ⚠️ **A guest has one local ledger and nothing to activate.** Entering it is a normal route
-     * change; the account path's server activation + full reload exists to swap the request header
-     * and offline scope, neither of which a guest has. Doing the account dance here would be a
-     * request without a session and a reload that changes nothing.
-     */
-    if (guest) {
-      navigate("/");
-      return;
-    }
-
-    /**
      * ⚠️ **Clicking the ledger you are already in still enters it.** The owner: *"即使点击已经处于当前
      * 状态的账本，也可以直接进入明细."* So this is an early exit to the entries screen, not a no-op —
      * **otherwise the most obvious row on the page would appear to do nothing.**
@@ -152,6 +141,19 @@ export function LedgerSpacePage(): React.JSX.Element {
     }
 
     setError(null);
+
+    /**
+     * ⚠️ **游客多账本：进入另一本游客账本也是“激活 + 整页重新载入”**，只是激活写的是游客库里的当前账本
+     * （`useActivateBook` 的游客分支），不经过服务器、不碰账号的 `currentBook`。整页载入把游客的内存快照、
+     * 发布到设备 store 的账目和全部 `["guest", …]` 查询一起换掉，不会出现一本账的标题配另一本账的账目。
+     *
+     * ⚠️ **游客不走 S18 的“只换这个工作区”**：那条路径靠“外部账本”的在线读写实现，游客的数据层只有当前
+     * 账本一份快照，辅助区单独看另一本游客账本做不到——所以游客从任何工作区进入账本，都是整台设备换账本。
+     */
+    if (guest) {
+      await activateAndReload(bookId);
+      return;
+    }
 
     /**
      * ⚠️ **S18 大屏：进入账本只属于这个工作区**（第二轮 · 账本隔离）。辅助区只换它自己查看的账本，
@@ -311,7 +313,7 @@ export function LedgerSpacePage(): React.JSX.Element {
               </div>
 
               {list.length === 0 ? (
-                guest ? null : creating ? (
+                creating ? (
                   <NewBookForm
                     name={name}
                     onName={setName}
@@ -343,13 +345,9 @@ export function LedgerSpacePage(): React.JSX.Element {
                         isCurrent={book.id === currentBookId}
                         busy={switching}
                         onEnter={() => void enterLedger(book.id)}
-                        onManage={
-                          guest
-                            ? undefined
-                            : () => {
-                                setManaging(book);
-                              }
-                        }
+                        onManage={() => {
+                          setManaging(book);
+                        }}
                         local={guest}
                       />
                     </li>
@@ -357,7 +355,7 @@ export function LedgerSpacePage(): React.JSX.Element {
                 </ul>
               )}
 
-              {guest || list.length === 0 ? null : (
+              {list.length === 0 ? null : (
                 <div className="mt-3">
                   {creating ? (
                     <NewBookForm
@@ -394,6 +392,7 @@ export function LedgerSpacePage(): React.JSX.Element {
               {books.data.disposed.length > 0 ? (
                 <DisposedSection
                   disposed={books.data.disposed}
+                  local={guest}
                   busy={restoreBook.isPending}
                   onRestore={(bookId) => {
                     setError(null);
@@ -425,7 +424,7 @@ export function LedgerSpacePage(): React.JSX.Element {
         * page reads the current ledger to build it — see `BookManageSheet` for why that is the whole
         * point.
         */}
-      {managing === null || guest ? null : (
+      {managing === null ? null : (
         <BookManageSheet
           book={managing}
           isCurrent={managing.id === currentBookId}
@@ -506,7 +505,7 @@ function BookRow({
   readonly isCurrent: boolean;
   readonly busy: boolean;
   readonly onEnter: () => void;
-  /** Absent for a guest: there is no per-ledger server management to open. */
+  /** 省略时不画齿轮。游客多账本以后游客也有齿轮（面板里去掉了只对服务器有意义的成员与分享）。 */
   readonly onManage?: (() => void) | undefined;
   readonly local?: boolean;
 }): React.JSX.Element {
@@ -654,10 +653,13 @@ function NewBookForm({
  */
 function DisposedSection({
   disposed,
+  local = false,
   busy,
   onRestore,
 }: {
   readonly disposed: readonly BookSummary[];
+  /** 游客：这里是“已归档”的本机账本（游客没有“弃置”），没有账本编号。 */
+  readonly local?: boolean;
   readonly busy: boolean;
   readonly onRestore: (bookId: string) => void;
 }): React.JSX.Element {
@@ -665,12 +667,12 @@ function DisposedSection({
   return (
     <section className="mt-6 flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-medium text-ink">{t("books.space.retired.title")}</h2>
+        <h2 className="text-sm font-medium text-ink">{local ? t("books.guest.archived.title") : t("books.space.retired.title")}</h2>
         <span className="shrink-0 text-helper text-muted">{t("books.space.count", { count: disposed.length })}</span>
       </div>
 
       <p className="text-helper-relaxed text-muted">
-        {t("books.space.retired.description")}
+        {local ? t("books.guest.archived.description") : t("books.space.retired.description")}
       </p>
 
       <ul className="overflow-hidden rounded-card border border-line bg-surface">
@@ -681,8 +683,8 @@ function DisposedSection({
           >
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="truncate text-body text-ink">{book.name}</span>
-              <span className="font-mono text-helper text-muted">
-                {book.bookNumber ?? t("books.noNumber")}
+              <span className={local ? "text-helper text-muted" : "font-mono text-helper text-muted"}>
+                {local ? t("books.space.guestLocal") : book.bookNumber ?? t("books.noNumber")}
               </span>
             </span>
 

@@ -181,7 +181,6 @@ export function useEnterLedger({ rise = false }: { readonly rise?: boolean } = {
   readonly busy: boolean;
 } {
   const { t } = useI18n();
-  const guest = useGuestMode();
   const ledger = useLedger();
   const activate = useActivateBook();
   const navigate = useNavigate();
@@ -189,7 +188,11 @@ export function useEnterLedger({ rise = false }: { readonly rise?: boolean } = {
   const [status, setStatus] = useState<string | null>(null);
   const currentId = ledger.data?.book.id ?? null;
   const enter = (bookId: string, after?: () => void, destination?: string): void => {
-    if (guest || bookId === currentId) {
+    /**
+     * 游客多账本：游客换账本走同一条“激活 + 整页重新载入”（`useActivateBook` 的游客分支只写游客库里的
+     * 当前账本，不碰账号的 `currentBook`）；只有点的就是当前账本时才原地跳转。
+     */
+    if (bookId === currentId) {
       after?.();
       if (destination !== undefined || pathname !== "/") void navigate(destination ?? "/");
       return;
@@ -209,7 +212,6 @@ export function useEnterLedger({ rise = false }: { readonly rise?: boolean } = {
 
 function LedgerPicker({ onClose }: { readonly onClose: () => void }): React.JSX.Element {
   const { t } = useI18n();
-  const guest = useGuestMode();
   const books = useBooks();
   const ledger = useLedger();
   const switcher = useEnterLedger();
@@ -270,11 +272,10 @@ function LedgerPicker({ onClose }: { readonly onClose: () => void }): React.JSX.
       )}
       <div className="lv-desk-popover-foot">
         <Link to="/start" className="lv-desk-link" onClick={onClose}>{t("desktop.ledgerPicker.manage")}</Link>
-        {guest ? null : (
-          <button type="button" className="lv-desk-link" onClick={() => setCreating(true)}>
-            {t("desktop.ledgerPicker.create")}
-          </button>
-        )}
+        {/* 游客多账本：游客也能新建（建在游客库里）。 */}
+        <button type="button" className="lv-desk-link" onClick={() => setCreating(true)}>
+          {t("desktop.ledgerPicker.create")}
+        </button>
       </div>
       {creating ? (
         <NewBookSheet

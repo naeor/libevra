@@ -9,7 +9,9 @@ import { PAYMENT_METHOD_NAMES, UNCATEGORISED, categoriesFor } from "@libellum/sh
 
 import { apiFetch } from "../api.js";
 import { readGuestIdentity } from "../guest/identity.js";
-import { reloadGuestData, sortedTransactions } from "../guest/data.js";
+import { listGuestLedgersFor, readGuestBookFor, sortedTransactions } from "../guest/data.js";
+import { isArchivedGuestLedger } from "../guest/ledger.js";
+import { markGuestLedgerMigrated } from "../guest/workspace.js";
 import type { ImportBookIdentity, ImportSource, ImportTarget } from "./types.js";
 
 const PAGE_SIZE = 200;
@@ -130,16 +132,71 @@ export function buildNewImportTarget(name: string): ImportTarget {
   };
 }
 
+/** 账本导入页可选的一本本机游客账本。 */
+export interface GuestImportBook {
+  /** 游客账本 id（`guest-book-<uuid>`），也是服务器上这本账导入状态的键。 */
+  readonly id: string;
+  readonly name: string;
+  readonly archived: boolean;
+  /** 最近一次成功迁入正式账号的时间（本机记录）；没迁过为 `null`。 */
+  readonly migratedAt: string | null;
+}
+
 /**
- * 读取本机游客账本作为来源。
+ * 来源选择器里一本游客账本的键：`guest:<游客账本 id>`。
  *
- * `reloadGuestData` 只读取已有数据，不会因为打开预览而创建游客账本。没有数据时返回 null，页面据此
- * 显示“没有可用的本机游客账本”，而不是凭空造一份空账本。
+ * ⚠️ 游客多账本以前只有一个游客来源，键是 `guest`；旧地址与本机旧任务日志里还会有它，见
+ * {@link guestBookIdOfSource}。
  */
-export async function loadGuestImportSource(): Promise<ImportSource | null> {
+export function guestSourceKey(bookId: string): string {
+  return `guest:${bookId}`;
+}
+
+export function isGuestSourceKey(sourceKey: string): boolean {
+  return sourceKey === "guest" || sourceKey.startsWith("guest:");
+}
+
+/**
+ * 来源键指的是哪一本游客账本。旧的 `guest` 只在本机恰好只有一本游客账本时才有确定的答案（那就是它）；
+ * 有好几本时返回 `null`，页面回到选择步让用户明确选一本——**绝不替用户猜一本迁过去**。
+ */
+export function guestBookIdOfSource(sourceKey: string, books: readonly GuestImportBook[]): string | null {
+  if (sourceKey.startsWith("guest:")) {
+    const id = sourceKey.slice("guest:".length);
+    return books.some((book) => book.id === id) ? id : null;
+  }
+  if (sourceKey === "guest") return books.length === 1 ? books[0]!.id : null;
+  return null;
+}
+
+/**
+ * 本机游客的全部账本（含已归档），按游客自己的列表顺序。没有游客身份或一本账都没有时为空。
+ *
+ * 会先跑一遍游客数据的布局迁移（旧的单一 blob → 每本账一个 blob，见 `lib/guest/workspace.ts`），
+ * 但**不会因为打开导入页而新建游客账本**。
+ */
+export async function listGuestImportBooks(): Promise<readonly GuestImportBook[]> {
+  const identity = readGuestIdentity();
+  if (identity === null) return [];
+  const ledgers = await listGuestLedgersFor(identity.id);
+  return ledgers.map((ledger) => ({
+    id: ledger.id,
+    name: ledger.name,
+    archived: isArchivedGuestLedger(ledger),
+    migratedAt: ledger.migratedAt ?? null,
+  }));
+}
+
+/**
+ * 读取一本本机游客账本作为来源（每次一本）。
+ *
+ * 只读：不种子、不写、不动游客的当前账本。没有这本账或没有数据时返回 null，页面据此显示“没有可用的本机
+ * 游客账本”，而不是凭空造一份空账本。
+ */
+export async function loadGuestImportSource(guestBookId: string): Promise<ImportSource | null> {
   const identity = readGuestIdentity();
   if (identity === null) return null;
-  const data = await reloadGuestData(identity.id);
+  const data = await readGuestBookFor(identity.id, guestBookId);
   if (data === null) return null;
   return {
     kind: "guest",
@@ -151,4 +208,11 @@ export async function loadGuestImportSource(): Promise<ImportSource | null> {
     transactions: sortedTransactions(data),
     hiddenDeletedCount: data.deleted.length,
   };
+}
+
+/** 导入成功后在游客注册表里记下“这本已迁过”（失败不影响导入结果）。 */
+export async function markGuestImportMigrated(guestBookId: string): Promise<boolean> {
+  const identity = readGuestIdentity();
+  if (identity === null) return false;
+  return markGuestLedgerMigrated(identity.id, guestBookId);
 }

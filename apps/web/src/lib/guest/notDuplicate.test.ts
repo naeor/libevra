@@ -5,7 +5,6 @@ import type { Transaction } from "@libellum/shared";
 const state = vi.hoisted(() => ({ store: new Map<string, unknown>(), transactions: [] as Transaction[] }));
 
 vi.mock("./storage.js", () => ({
-  guestKey: (id: string, name: string) => `guest:${id}:${name}`,
   readGuestValue: async (key: string) => state.store.get(key) ?? null,
   writeGuestValue: async (key: string, value: unknown) => {
     state.store.set(key, structuredClone(value));
@@ -14,6 +13,11 @@ vi.mock("./storage.js", () => ({
 }));
 vi.mock("./data.js", () => ({
   guestDataValue: () => ({ book: { id: "guest-book-1" }, transactions: state.transactions, deleted: [] }),
+  ensureGuestData: async () => null,
+}));
+// 游客多账本：关系按账本分键（真实实现见 workspace.ts 的 guestNotDuplicateKeyFor）。
+vi.mock("./workspace.js", () => ({
+  guestNotDuplicateKeyFor: (id: string, bookId: string) => `guest:${id}:not-duplicate:${bookId}`,
 }));
 
 import {
@@ -54,7 +58,7 @@ describe("游客的“不是重复”关系", () => {
   it("存进游客库的专属键，创建、重复创建、撤销都按服务器的语义", async () => {
     const first = await createGuestNotDuplicateRelations(GUEST, { pairs: [{ transactionIdA: "b", transactionIdB: "a" }] });
     expect(first).toMatchObject({ created: 1, reactivated: 0, unchanged: 0 });
-    expect([...state.store.keys()]).toEqual([`guest:${GUEST}:not-duplicate`]);
+    expect([...state.store.keys()]).toEqual([`guest:${GUEST}:not-duplicate:guest-book-1`]);
 
     const again = await createGuestNotDuplicateRelations(GUEST, { pairs: [{ transactionIdA: "a", transactionIdB: "b" }] });
     expect(again).toMatchObject({ created: 0, unchanged: 1 });

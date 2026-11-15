@@ -110,7 +110,8 @@ export function useWorkbenchScope(requestedFilters: WorkbenchFilters): Workbench
   const today = useMemo(() => toLocalDate(new Date()), []);
   const range = useMemo(() => resolveRange(filters.time, today), [filters.time, today]);
   const bucket = bucketFor(range);
-  const fxAvailable = user !== null;
+  // 1.19.94：游客也可综合折算（汇率来自公开路由，缓存在游客库）；原件仍是本机快照（`ranged` 对游客为 false）。
+  const fxAvailable = user !== null || guestId !== null;
   const combined = fxAvailable && filters.combined;
   const defaultCurrency: Currency = useDefaultCurrency();
   const currency: Currency = combined ? defaultCurrency : (filters.currency ?? defaultCurrency);

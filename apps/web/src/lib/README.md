@@ -79,7 +79,7 @@
 | [frameClock.test.ts](frameClock.test.ts) | 测试：frameClock |
 | [frameClock.ts](frameClock.ts) | 实现模块；入口/导出：ClockReport、STALL_MS、onClockReport、publishClockReport、FramePace |
 | [fxView.test.tsx](fxView.test.tsx) | 测试：fxView |
-| [fxView.ts](fxView.ts) | 实现模块；入口/导出：readFxMode、saveFxMode、useFxMode、useFxEntry、fxMoney |
+| [fxView.ts](fxView.ts) | 实现模块；入口/导出：readFxMode、saveFxMode、fxOwnerId、useFxMode、useFxEntry |
 | [guestExport.test.ts](guestExport.test.ts) | 测试：guestExport |
 | [guestExport.ts](guestExport.ts) | 实现模块；入口/导出：GuestExportFilters、GuestExportResult、selectGuestExportTransactions、buildGuestExport、buildGuestTemplate |
 | [language.test.ts](language.test.ts) | 测试：language |

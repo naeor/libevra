@@ -4,6 +4,7 @@ import { syncDetailCards, type CardLocal } from "./detailCardSync.js";
 import { useViewBookId } from "./workspaceLedger.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useGuestIdentity } from "./guest/session.js";
+import { useGuestFilterBook } from "./usePageFilter.js";
 export { mainDetailMetrics, isDetailChart };
 export const MAIN_CARDS = ["overview", "expense", "income"] as const;
 export const SMALL_CARDS = ["balance", "daily", "expense", "income", "count"] as const;
@@ -16,10 +17,22 @@ export function parseDetailCards(raw: string | null): DetailCards {
     second: SMALL_CARDS.includes(v?.second) ? v.second : DEFAULT_DETAIL_CARDS.second,
   }; } catch { return { ...DEFAULT_DETAIL_CARDS }; }
 }
+/** 展示卡片的本机键：按“身份 . 账本”（游客的账本是游客账本 id；没有账本时是 `local`）。 */
+export function detailCardsStorageKey(owner: string, book: string | null): string {
+  return "libevra.detail-cards.v2." + owner + "." + (book ?? "local");
+}
 const listen = (fn: () => void) => { window.addEventListener("storage", fn); window.addEventListener("detail-cards", fn); return () => { window.removeEventListener("storage", fn); window.removeEventListener("detail-cards", fn); }; };
 export function useDetailCards(owner: string) {
-  const book = useViewBookId(), { user } = useAuth(), guest = useGuestIdentity();
-  const key = "libevra.detail-cards.v2." + owner + "." + (book ?? "local");
+  const viewBook = useViewBookId(), { user } = useAuth(), guest = useGuestIdentity();
+  /**
+   * 游客多账本：展示卡片与正式账号一样**按账本**存（`…v2.<游客 id>.<游客账本 id>`）。游客的账本 id 不在账号的
+   * `currentBook` 里（`useViewBookId` 对游客恒为 null），取的是已载入的游客当前账本。游客多账本以前所有游客
+   * 账本共用 `…v2.<游客 id>.local`：没有按账本存过的账本读它作为起点（与正式账号新账本读 v1 旧值同一做法）。
+   */
+  const guestBook = useGuestFilterBook(guest?.id ?? null);
+  const book = guest ? guestBook : viewBook;
+  const key = detailCardsStorageKey(owner, book);
+  const legacyGuestKey = guest && book !== null ? detailCardsStorageKey(owner, null) : null;
   const [syncError, setSyncError] = useState(false);
   const readRaw = () => { try { return localStorage.getItem(key); } catch { return null; } };
   useSyncExternalStore(listen, readRaw, () => null);
@@ -30,6 +43,14 @@ export function useDetailCards(owner: string) {
       detailCardSchema.parse(v.value);
       if (!Number.isSafeInteger(v.base) || v.base < 0 || typeof v.dirty !== "boolean") throw Error("Invalid configuration");
       return v;
+    }
+    if (legacyGuestKey !== null) {
+      const shared = localStorage.getItem(legacyGuestKey);
+      if (shared) {
+        const v = JSON.parse(shared) as CardLocal;
+        detailCardSchema.parse(v.value);
+        return { value: v.value, base: 0, dirty: false };
+      }
     }
     const old = localStorage.getItem("libevra.detail-cards.v1." + owner);
     return { value: parseDetailCards(old), base: 0, dirty: old !== null };

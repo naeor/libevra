@@ -49,4 +49,15 @@ describe("正式 app 汇率接入边界", () => {
       expect(status).toBe(429);
     } finally { await app.close(); }
   });
+  it("公开汇率路由：不登录可取，不含账号数据，且挂在主 app 上；多余参数 400", async () => {
+    const app = makeApp({ fxService: service() });
+    try {
+      const response = await app.inject({ url: "/api/v1/fx/public-rates?date=2026-10-23" });
+      expect(response.statusCode).toBe(200); expect(response.json()).toMatchObject({ status: "available" });
+      expect(response.body).not.toMatch(/amountCents|bookId|userId|accountNumber|username/);
+      expect((await app.inject({ url: "/api/v1/fx/public-rates?date=2026-10-23&amount=1" })).statusCode).toBe(400);
+      // 原路由的登录要求不变
+      expect((await app.inject({ url: "/api/v1/fx/rates?date=2026-10-23" })).statusCode).toBe(401);
+    } finally { await app.close(); }
+  });
 });

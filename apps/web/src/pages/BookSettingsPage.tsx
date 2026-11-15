@@ -13,6 +13,7 @@ import { TextField } from "../components/TextField.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { isImeComposing } from "../lib/desktopInput.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { reloadAfterLeaving } from "../lib/ledgerSwitchFlow.js";
 import { bookLifecycleAction, fetchBookLifecycle, type BookLifecycleSummary } from "../lib/lifecycle.js";
 import { clearBookLocalData } from "../lib/offline/localCleanup.js";
@@ -20,8 +21,10 @@ import {
   useBookMembers,
   useBooks,
   useCurrentBookId,
+  useGuestBookLifecycle,
   useLedgerMeta,
   useRenameBook,
+  useRestoreBook,
 } from "../lib/queries.js";
 
 /**
@@ -55,6 +58,17 @@ import {
  * 被换掉的位置仍是这一页——子页（导入账本）返回时 push 的一条设置会把这条顶到前面去，
  * 于是详情按 `-1` 会落回子页。现在 `parent` 有历史就 pop，连同这一页的记录一起消耗掉；
  * 只有直接从地址打开（会话第一条）时才 `replace` 到父级。**目的地没变，变的是不留影子。**
+ *
+ * ## 游客多账本（第二批）
+ *
+ * 游客也用这一页，管理地址里那一本游客账本：改名、分类 / 标签 / 支付方式、导出都按 `bookId` 读写游客库
+ * （`lib/queries.ts` 与 `lib/guest/data.ts` 的游客分支）。不显示只对服务器有意义的行：导入历史账（CSV 导入
+ * 走服务器）、导入账本、成员说明。重复账目检测与“已忽略的重复”只对当前游客账本可用（本机扫描只认当前
+ * 账本，见 `lib/duplicateReview.ts`），其它游客账本上写一句说明。
+ *
+ * 危险操作换成游客版：**归档**（移到“已归档”，随时恢复）与**永久删除**（`ConfirmDialog` 写明不可恢复、
+ * 建议先导出，并给出导出入口）；已归档的显示“恢复”。至少保留一本未归档的账本（`workspace.ts` 的
+ * `guestLedgerLifecycle`）。离开的是当前账本时与正式账号一样整页重新载入（海浪遮盖）。
  */
 export function BookSettingsPage({ targetBookId }: { readonly targetBookId?: string } = {}): React.JSX.Element {
   const { bookId: routeBookId = "" } = useParams<{ bookId: string }>();
@@ -84,6 +98,9 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
   const rename = useRenameBook();
   const { user } = useAuth();
+  const guest = useGuestMode();
+  const guestLifecycle = useGuestBookLifecycle();
+  const restoreBook = useRestoreBook();
 
   const [switcher, setSwitcher] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -97,6 +114,15 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
 
   const row = books.data?.books.find((book) => book.id === bookId);
+  /**
+   * 游客的归档 / 删除规则（与 `workspace.ts` 的 `guestLedgerLifecycle` 同一条）：已归档的在 `disposed` 里；
+   * 至少保留一本未归档的账本。按钮只是不给人一个必然失败的操作，游客库写入时还会再检查一次。
+   */
+  const guestArchived = guest && (books.data?.disposed.some((book) => book.id === bookId) ?? false);
+  const guestOtherActive = (books.data?.books ?? []).some((book) => book.id !== bookId);
+  const guestCanArchive = guest && books.isSuccess && !guestArchived && guestOtherActive;
+  const guestCanDelete = guest && books.isSuccess && (guestArchived || guestOtherActive);
+  const guestIsCurrent = guest && bookId === currentBookId;
   const name = meta.data?.book.name ?? row?.name ?? null;
   const bookNumber = meta.data?.book.bookNumber ?? row?.bookNumber ?? null;
   const memberCount = meta.data?.book.memberCount ?? row?.memberCount;
@@ -105,6 +131,8 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
   const canWrite = role === "owner" || role === "editor";
 
   useEffect(() => {
+    // 游客没有服务器生命周期：规则在本机算（见上面的 guestCanArchive / guestCanDelete）。
+    if (guest) return;
     let cancelled = false;
     setLifecycle(null);
     void fetchBookLifecycle(bookId)
@@ -117,7 +145,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
     return () => {
       cancelled = true;
     };
-  }, [bookId]);
+  }, [bookId, guest]);
 
   /**
    * ⚠️ **The deep link that opens the rename field** (`?rename=1`). It waits for the name, seeds it
@@ -233,7 +261,46 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
     void navigate("/start");
   }
 
+  /**
+   * 游客的归档 / 永久删除。之后与正式账号走同一个 `afterRemoval`：离开的是当前账本（游客的
+   * `useCurrentBookId` 是内存快照那一本）时，游客库里的当前账本已经换到下一本未归档的账本，整页重新载入
+   * （`reloadAfterLeaving`，海浪遮盖）；否则回账本空间。
+   */
+  function runGuestLifecycle(action: "archive" | "delete"): void {
+    setError(null);
+    setLifecycleBusy(true);
+    const work = action === "archive" ? guestLifecycle.archive.mutateAsync(bookId) : guestLifecycle.remove.mutateAsync(bookId);
+    void work
+      .then(() => {
+        afterRemoval();
+      })
+      .catch((caught: unknown) => {
+        setError(errorMessage(caught));
+        setConfirming(null);
+      })
+      .finally(() => {
+        if (!reloadingRef.current) setLifecycleBusy(false);
+      });
+  }
+
+  function runGuestRestore(): void {
+    setError(null);
+    setLifecycleBusy(true);
+    void restoreBook
+      .mutateAsync(bookId)
+      .catch((caught: unknown) => {
+        setError(errorMessage(caught));
+      })
+      .finally(() => {
+        setLifecycleBusy(false);
+      });
+  }
+
   function runLifecycle(action: "leave" | "archive" | "delete"): void {
+    if (guest) {
+      if (action !== "leave") runGuestLifecycle(action);
+      return;
+    }
     setError(null);
     setLifecycleBusy(true);
     void bookLifecycleAction(bookId, action)
@@ -324,13 +391,16 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                 hint={t("books.settings.row.export.hint")}
                 to={`/books/${bookId}/settings/export`}
               />
-              <NavRow
-                label={t("books.settings.row.import.label")}
-                hint={t("books.settings.row.import.hint")}
-                to={`/books/${bookId}/settings/import`}
-              />
-              {/* ⚠️ S14-D D1：只对本人拥有的单人账本显示。多人账本导入要等单独设计。 */}
-              {row?.isCreator === true && memberCount === 1 ? (
+              {/* 游客：CSV 导入历史账走服务器，不显示。 */}
+              {guest ? null : (
+                <NavRow
+                  label={t("books.settings.row.import.label")}
+                  hint={t("books.settings.row.import.hint")}
+                  to={`/books/${bookId}/settings/import`}
+                />
+              )}
+              {/* ⚠️ S14-D D1：只对本人拥有的单人账本显示。多人账本导入要等单独设计。游客：导入账本需要正式账号。 */}
+              {!guest && row?.isCreator === true && memberCount === 1 ? (
                 <NavRow
                   label={t("books.settings.row.importLedger.label")}
                   hint={t("books.settings.row.importLedger.hint")}
@@ -342,12 +412,17 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                * 它是一次“体检”（可能很慢、会扫整本账），不是一个每天都要点的按钮；
                * 放进数据管理，用户才是在明确选择“我要检查这本账”。
                */}
-              <NavRow
-                label={t("books.settings.row.duplicates.label")}
-                hint={t("books.settings.row.duplicates.hint")}
-                to={`/books/${bookId}/settings/duplicates`}
-              />
+              {guest && !guestIsCurrent ? null : (
+                <NavRow
+                  label={t("books.settings.row.duplicates.label")}
+                  hint={t("books.settings.row.duplicates.hint")}
+                  to={`/books/${bookId}/settings/duplicates`}
+                />
+              )}
             </ul>
+            {guest && !guestIsCurrent ? (
+              <p className="px-5 text-helper-relaxed text-muted">{t("books.guest.settings.notCurrent")}</p>
+            ) : null}
           </section>
 
           {/* ---------------------------------------------------------------- */}
@@ -356,7 +431,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
            * 账本级的数据质量状态（不重复关系），不是个人偏好；查看与撤销入口必须在账本设置里，
            * 否则用户误确认一次之后无处恢复（规划 §5.5）。
            */}
-          <NotDuplicateRelationsSection bookId={bookId} canWrite={canWrite} />
+          {guest && !guestIsCurrent ? null : <NotDuplicateRelationsSection bookId={bookId} canWrite={canWrite} />}
 
           {/* ---------------------------------------------------------------- */}
           <section className="lv-settings-section flex flex-col gap-2" data-section-title="">
@@ -364,7 +439,24 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
             <div className="lv-settings-body lv-settings-fields flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
               {error === null ? null : <Alert>{error}</Alert>}
-              {lifecycle === null ? (
+              {guest ? (
+                <GuestLifecycleControls
+                  bookId={bookId}
+                  archived={guestArchived}
+                  canArchive={guestCanArchive}
+                  canDelete={guestCanDelete}
+                  pending={lifecycleBusy}
+                  onArchive={() => {
+                    setError(null);
+                    setConfirming("archive");
+                  }}
+                  onDelete={() => {
+                    setError(null);
+                    setConfirming("delete");
+                  }}
+                  onRestore={runGuestRestore}
+                />
+              ) : lifecycle === null ? (
                 <p className="text-body-relaxed text-muted">{t("books.settings.lifecycleLoading")}</p>
               ) : lifecycle.memberCount > 1 ? (
                 <>
@@ -420,9 +512,11 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
             </div>
           </section>
 
-          <p data-book-members-hint className="text-helper-relaxed text-muted">
-            {t("books.settings.membersElsewhere")}
-          </p>
+          {guest ? null : (
+            <p data-book-members-hint className="text-helper-relaxed text-muted">
+              {t("books.settings.membersElsewhere")}
+            </p>
+          )}
         </>
       ) : null}
 
@@ -470,7 +564,7 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
       <ConfirmDialog
         open={renaming}
         title={t("books.settings.rename.title")}
-        description={t("books.settings.rename.description")}
+        {...(guest ? {} : { description: t("books.settings.rename.description") })}
         confirmLabel={rename.isPending ? t("books.settings.rename.saving") : t("books.settings.rename.save")}
         cancelLabel={t("common.action.cancel")}
         tone="default"
@@ -546,9 +640,13 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
 
       <ConfirmDialog
         appWide open={confirming === "archive"}
-        title={t("books.settings.archiveDialog.title", { name: name ?? t("books.thisLedger") })}
-        description={t("books.settings.archiveDialog.description")}
-        consequences={[
+        title={guest ? t("books.guest.archiveDialog.title", { name: name ?? t("books.thisLedger") }) : t("books.settings.archiveDialog.title", { name: name ?? t("books.thisLedger") })}
+        description={guest ? t("books.guest.archiveDialog.description") : t("books.settings.archiveDialog.description")}
+        consequences={guest ? [
+          t("books.guest.archiveDialog.kept"),
+          t("books.guest.archiveDialog.restore"),
+          ...(guestIsCurrent ? [t("books.guest.archiveDialog.switches")] : []),
+        ] : [
           t("books.settings.archiveDialog.serverTime"),
           t("books.settings.archiveDialog.restore"),
           t("books.settings.archiveDialog.cleanup"),
@@ -562,23 +660,45 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
         onConfirm={() => runLifecycle("archive")}
       />
 
+      {/**
+        * ⚠️ 游客的永久删除：游客数据没有服务器备份，删掉就找不回。对话框写明不可恢复、建议先导出，
+        * 并在对话框里给出导出这本账的入口（不必先关掉对话框再去找）。
+        */}
       <ConfirmDialog
         appWide open={confirming === "delete"}
-        title={t("books.settings.deleteDialog.title", { name: name ?? t("books.thisLedger") })}
-        description={t("books.settings.deleteDialog.description")}
-        consequences={[
+        title={guest ? t("books.guest.deleteDialog.title", { name: name ?? t("books.thisLedger") }) : t("books.settings.deleteDialog.title", { name: name ?? t("books.thisLedger") })}
+        description={guest ? t("books.guest.deleteDialog.description") : t("books.settings.deleteDialog.description")}
+        consequences={guest ? [
+          t("books.guest.deleteDialog.cleared"),
+          t("books.guest.deleteDialog.noBackup"),
+          t("books.guest.deleteDialog.exportFirst"),
+          t("books.guest.deleteDialog.others"),
+          ...(guestIsCurrent ? [t("books.guest.deleteDialog.switches")] : []),
+        ] : [
           t("books.settings.deleteDialog.cleanup"),
           t("books.settings.deleteDialog.record"),
           t("books.settings.deleteDialog.others"),
           t("books.settings.deleteDialog.devices"),
         ]}
-        confirmLabel={t("books.settings.deleteDialog.confirm")}
+        confirmLabel={guest ? t("books.guest.deleteDialog.confirm") : t("books.settings.deleteDialog.confirm")}
         busy={lifecycleBusy}
         onCancel={() => {
           setConfirming(null);
         }}
         onConfirm={() => runLifecycle("delete")}
-      />
+      >
+        {guest ? (
+          <Link
+            to={`/books/${bookId}/settings/export`}
+            onClick={() => {
+              setConfirming(null);
+            }}
+            className="mt-4 inline-flex rounded-field bg-brand-soft px-4 py-2.5 text-sm font-medium text-brand-dark transition hover:bg-brand/20"
+          >
+            {t("books.guest.settings.exportFirst")}
+          </Link>
+        ) : null}
+      </ConfirmDialog>
 
       <BookSwitcherSheet
         open={switcher}
@@ -590,6 +710,67 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
         onSelect={selectTarget}
       />
     </InnerPage>
+  );
+}
+
+/**
+ * 游客版危险操作：已归档的显示“恢复”与“永久删除”；未归档的显示“归档”与“永久删除”。不能做的（唯一一本
+ * 未归档的账本）按钮置灰并说明原因。
+ */
+function GuestLifecycleControls({
+  bookId,
+  archived,
+  canArchive,
+  canDelete,
+  pending,
+  onArchive,
+  onDelete,
+  onRestore,
+}: {
+  readonly bookId: string;
+  readonly archived: boolean;
+  readonly canArchive: boolean;
+  readonly canDelete: boolean;
+  /** 正在归档 / 删除 / 恢复（或正在整页重新载入）：按钮都不可按。 */
+  readonly pending: boolean;
+  readonly onArchive: () => void;
+  readonly onDelete: () => void;
+  readonly onRestore: () => void;
+}): React.JSX.Element {
+  const { t } = useI18n();
+  const plain =
+    "flex w-full items-center justify-center rounded-field border border-line px-4 py-3 text-button-lg font-medium text-ink transition hover:bg-canvas disabled:opacity-45";
+  return (
+    <div data-guest-lifecycle={bookId} className="flex flex-col gap-3">
+      <p className="text-body-relaxed text-muted">{t("books.guest.settings.note")}</p>
+      {archived ? (
+        <>
+          <p className="text-helper-relaxed text-muted">{t("books.guest.settings.archivedNotice")}</p>
+          <button type="button" disabled={pending} onClick={onRestore} className={plain}>
+            {t("books.guest.settings.restore")}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-helper-relaxed text-muted">{t("books.guest.settings.archiveNote")}</p>
+          <button type="button" disabled={pending || !canArchive} onClick={onArchive} className={plain}>
+            {t("books.settings.archive")}
+          </button>
+        </>
+      )}
+      <p className="text-helper-relaxed text-muted">{t("books.guest.settings.deleteNote")}</p>
+      <button
+        type="button"
+        disabled={pending || !canDelete}
+        onClick={onDelete}
+        className="flex w-full items-center justify-center rounded-field border border-danger/40 px-4 py-3 text-button-lg font-medium text-danger transition hover:bg-danger-soft disabled:opacity-45"
+      >
+        {t("books.settings.delete")}
+      </button>
+      {!archived && !canArchive ? (
+        <p className="text-helper text-warn-dark">{t("books.guest.settings.lastActive")}</p>
+      ) : null}
+    </div>
   );
 }
 

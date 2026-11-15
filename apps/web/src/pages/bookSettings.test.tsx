@@ -62,6 +62,12 @@ vi.mock("../lib/queries.js", async (importOriginal) => {
     }),
     useCurrentBookId: () => null,
     useRenameBook: () => ({ mutateAsync: async () => undefined, isPending: false }),
+    // 游客多账本：账本设置页也给游客用，游客的归档 / 删除 / 恢复钩子在这里不会被调用（不是游客）。
+    useGuestBookLifecycle: () => ({
+      archive: { mutateAsync: async () => ({ wasCurrent: false }), isPending: false },
+      remove: { mutateAsync: async () => ({ wasCurrent: false }), isPending: false },
+    }),
+    useRestoreBook: () => ({ mutateAsync: async () => undefined, isPending: false }),
   };
 });
 

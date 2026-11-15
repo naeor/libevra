@@ -86,8 +86,8 @@ export function PreferencesPage(): React.JSX.Element {
         </div>
       </section>
 
-      {/* 汇率折算对游客先隐藏：汇率只来自服务器，游客方案待所有者决定。 */}
-      {guest ? null : <FxModeSetting />}
+      {/* 汇率折算：游客也显示（1.19.94：汇率来自公开汇率路由，开关与缓存都存在本机）。 */}
+      <FxModeSetting />
 
       {/* 1.19.53：明细与分析是否共用同一筛选（本机偏好，默认共用）；两个筛选面板里是同一个开关。 */}
       <FilterSyncSetting />

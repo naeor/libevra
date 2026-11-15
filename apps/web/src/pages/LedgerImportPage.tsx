@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { Trans } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
@@ -36,10 +36,16 @@ import { activateAndReload, reloadAfterLeaving } from "../lib/ledgerSwitchFlow.j
 import { useGoBack } from "../lib/connectivity.js";
 import {
   buildNewImportTarget,
+  guestBookIdOfSource,
+  guestSourceKey,
   hasLocalGuestIdentity,
+  isGuestSourceKey,
   isSoloImportBook,
+  listGuestImportBooks,
   loadBookImportTarget,
   loadGuestImportSource,
+  markGuestImportMigrated,
+  type GuestImportBook,
 } from "../lib/ledgerImport/sources.js";
 import { loadFormalImportPreview } from "../lib/ledgerImport/formal.js";
 import {
@@ -68,11 +74,12 @@ import {
   previewGuestCleanup,
 } from "../lib/ledgerImport/cleanup.js";
 import {
-  cleanupMigratedGuestTransactions,
+  cleanupMigratedGuestBook,
   guestCleanupTransactions,
-  guestDataValue,
-  restoreGuestCleanup,
+  readGuestBookFor,
+  restoreGuestBookCleanup,
 } from "../lib/guest/data.js";
+import { readGuestIdentity } from "../lib/guest/identity.js";
 import { bookLifecycleAction } from "../lib/lifecycle.js";
 import { clearBookLocalData } from "../lib/offline/localCleanup.js";
 import { fetchNotDuplicatePairKeys } from "../lib/notDuplicateRelations.js";
@@ -351,7 +358,11 @@ export function LedgerImportPage(): React.JSX.Element {
 
   const target = soloBooks.find((book) => book.id === targetId) ?? null;
   const sourceBook = soloBooks.find((book) => book.id === sourceKey) ?? null;
-  const sourceIsGuest = sourceKey === "guest";
+  /**
+   * 游客多账本：来源键是 `guest:<游客账本 id>`（每次迁一本）。旧地址 / 旧任务里的 `guest` 只有在本机恰好
+   * 一本游客账本时才算选定（见 `guestBookIdOfSource`），否则回到选择步让用户选。
+   */
+  const sourceIsGuest = isGuestSourceKey(sourceKey);
   const sourceIsFormal = sourceBook !== null;
   const accountLabel =
     user === null
@@ -360,6 +371,29 @@ export function LedgerImportPage(): React.JSX.Element {
         ? user.username
         : user.displayName;
   const guestAvailable = useMemo(() => hasLocalGuestIdentity(), []);
+  /** 本机游客的全部账本（含已归档、已迁过的标记）；读完之前为 `null`。 */
+  const [guestBooks, setGuestBooks] = useState<readonly GuestImportBook[] | null>(guestAvailable ? null : []);
+  const [guestBooksError, setGuestBooksError] = useState<string | null>(null);
+  const refreshGuestBooks = useCallback((): void => {
+    if (!guestAvailable) return;
+    void listGuestImportBooks()
+      .then((books) => {
+        if (!mounted.current) return;
+        setGuestBooks(books);
+        setGuestBooksError(null);
+      })
+      .catch((caught: unknown) => {
+        if (!mounted.current) return;
+        setGuestBooks([]);
+        setGuestBooksError(errorMessage(caught));
+      });
+  }, [guestAvailable]);
+  useEffect(() => {
+    if (user !== null) refreshGuestBooks();
+  }, [user, refreshGuestBooks]);
+  /** 选中的那一本游客账本；没选定（或旧的 `guest` 在多本时含糊）为 `null`。 */
+  const guestSourceBookId = sourceIsGuest ? guestBookIdOfSource(sourceKey, guestBooks ?? []) : null;
+  const guestSourceReady = sourceIsGuest && guestAvailable && guestSourceBookId !== null;
   /**
    * ⚠️ **离开导入页去哪里，以及"怎么离开"**（S15-C，返回循环）。
    *
@@ -452,6 +486,23 @@ export function LedgerImportPage(): React.JSX.Element {
   const canConfirm =
     preview !== null && conflictCount === 0 && unresolvedGroups === 0 && incrementalReady && incrementalError === null;
   const lastRequest = useRef<LedgerImportRequest | null>(null);
+  /**
+   * 游客多账本：一本游客账本迁移成功后，在游客注册表里记下“已迁过”（`migratedAt`），下次打开导入页时
+   * 在来源列表里标出来。只记本机，失败不影响导入结果；同一个回执只记一次。
+   */
+  const markedImport = useRef<string | null>(null);
+  useEffect(() => {
+    if (submitState !== "success" || result === null || markedImport.current === result.importId) return;
+    const migratedGuestBook =
+      snapshots?.source.kind === "guest"
+        ? snapshots.source.bookId
+        : lastRequest.current?.source?.guestBookId ?? guestSourceBookId;
+    if (migratedGuestBook === null || migratedGuestBook === undefined) return;
+    markedImport.current = result.importId;
+    void markGuestImportMigrated(migratedGuestBook).then(() => {
+      refreshGuestBooks();
+    });
+  }, [submitState, result, snapshots, guestSourceBookId, refreshGuestBooks]);
 
   function patchSearch(patch: Record<string, string | undefined>, replace = false): void {
     const next = new URLSearchParams(search);
@@ -500,7 +551,7 @@ export function LedgerImportPage(): React.JSX.Element {
     setJob(null);
     setLoadError(null);
     setSubmitError(null);
-    const nextTarget = next !== "guest" && targetIsNew ? "" : targetId;
+    const nextTarget = !isGuestSourceKey(next) && targetIsNew ? "" : targetId;
     patchSearch({
       target: nextTarget === "" ? undefined : nextTarget,
       source: next === "" ? undefined : next,
@@ -515,7 +566,7 @@ export function LedgerImportPage(): React.JSX.Element {
   useEffect(() => {
     if (step === "select" || user === null) return;
     if (targetId === "" || (targetIsNew && currentNewName.trim() === "")) return;
-    if (sourceIsGuest && !guestAvailable) return;
+    if (sourceIsGuest && !guestSourceReady) return;
     if (!sourceIsGuest && !sourceIsFormal) return;
     if (sourceIsFormal && (targetIsNew || targetId === sourceKey)) return;
 
@@ -523,6 +574,7 @@ export function LedgerImportPage(): React.JSX.Element {
       snapshots !== null &&
       (sourceIsGuest
         ? snapshots.source.kind === "guest" &&
+          snapshots.source.bookId === guestSourceBookId &&
           (targetIsNew
             ? snapshots.target.bookId === "new" && snapshots.target.identity.name === currentNewName.trim()
             : snapshots.target.bookId === targetId)
@@ -536,7 +588,8 @@ export function LedgerImportPage(): React.JSX.Element {
     void (async () => {
       try {
         if (sourceIsGuest) {
-          const source = await loadGuestImportSource();
+          if (guestSourceBookId === null) throw new Error(t("ledgerImport.message.noGuest"));
+          const source = await loadGuestImportSource(guestSourceBookId);
           if (source === null) throw new Error(t("ledgerImport.message.noGuest"));
           const targetSnapshot = targetIsNew
             ? buildNewImportTarget(currentNewName)
@@ -568,7 +621,8 @@ export function LedgerImportPage(): React.JSX.Element {
     sourceKey,
     sourceIsGuest,
     sourceIsFormal,
-    guestAvailable,
+    guestSourceReady,
+    guestSourceBookId,
     targetId,
     targetIsNew,
     currentNewName,
@@ -578,7 +632,9 @@ export function LedgerImportPage(): React.JSX.Element {
   /** 指向不完整步骤的地址回到选择，避免空白页。 */
   useEffect(() => {
     if (!books.isSuccess) return;
-    const validSource = sourceIsGuest ? guestAvailable : sourceIsFormal;
+    // 游客账本列表还没读完时先不判断（否则刷新带 `guest:<id>` 的地址会被误判、退回选择步）。
+    if (sourceIsGuest && guestAvailable && guestBooks === null) return;
+    const validSource = sourceIsGuest ? guestSourceReady : sourceIsFormal;
     const validTarget =
       targetId !== "" &&
       !(sourceIsFormal && (targetIsNew || targetId === sourceKey));
@@ -593,6 +649,8 @@ export function LedgerImportPage(): React.JSX.Element {
     sourceIsGuest,
     sourceIsFormal,
     guestAvailable,
+    guestBooks,
+    guestSourceReady,
     targetId,
     targetIsNew,
     user,
@@ -938,7 +996,9 @@ export function LedgerImportPage(): React.JSX.Element {
       patchSearch({
         step: "confirm",
         target: requestTarget.kind === "new" ? "new" : requestTarget.bookId,
-        source: task.request.sourceBookId ?? "guest",
+        source:
+          task.request.sourceBookId ??
+          (task.request.source?.guestBookId === undefined ? "guest" : guestSourceKey(task.request.source.guestBookId)),
         newName: requestTarget.kind === "new" ? requestTarget.name : undefined,
       }, true);
       await runSubmit(task.request, { targetLabel: task.targetLabel, sourceLabel: task.sourceLabel });
@@ -1092,6 +1152,8 @@ export function LedgerImportPage(): React.JSX.Element {
           sourceBooks={soloBooks.filter((book) => book.id !== targetId)}
           sourceBook={sourceBook}
           guestAvailable={guestAvailable}
+          guestBooks={guestBooks ?? []}
+          guestBooksError={guestBooksError}
           sourceKey={sourceKey}
           accountLabel={accountLabel}
           onChangeTarget={changeTarget}
@@ -1102,7 +1164,7 @@ export function LedgerImportPage(): React.JSX.Element {
               setLoadError(t("ledgerImport.message.chooseSource"));
               return;
             }
-            if (sourceIsGuest && !guestAvailable) {
+            if (sourceIsGuest && !guestSourceReady) {
               setLoadError(t("ledgerImport.message.noGuest"));
               return;
             }
@@ -1598,6 +1660,8 @@ export function SelectionStep({
   sourceBooks,
   sourceBook,
   guestAvailable,
+  guestBooks = [],
+  guestBooksError = null,
   sourceKey,
   accountLabel,
   onChangeTarget,
@@ -1613,6 +1677,9 @@ export function SelectionStep({
   readonly sourceBooks: readonly ImportBookOption[];
   readonly sourceBook: ImportBookOption | null;
   readonly guestAvailable: boolean;
+  /** 本机游客的全部账本（游客多账本：来源每次选一本，已迁过的标出来）。 */
+  readonly guestBooks?: readonly GuestImportBook[];
+  readonly guestBooksError?: string | null;
   readonly sourceKey: string;
   readonly accountLabel: string;
   readonly onChangeTarget: (next: string) => void;
@@ -1622,9 +1689,10 @@ export function SelectionStep({
 }): React.JSX.Element {
   const { t, locale } = useI18n();
   const formalSource = sourceBook !== null;
+  const guestSelected = guestAvailable && guestBookIdOfSource(sourceKey, guestBooks) !== null;
   const canContinue =
     sourceKey !== "" &&
-    (formalSource ? targetId !== "" && !targetIsNew && targetId !== sourceKey : guestAvailable && targetId !== "");
+    (formalSource ? targetId !== "" && !targetIsNew && targetId !== sourceKey : guestSelected && targetId !== "");
   /**
    * 哪一列账本选择器正打开着：`null` 表示都关着。
    *
@@ -1639,7 +1707,25 @@ export function SelectionStep({
    */
   const sourceOptions: readonly InlineChoiceOption[] = [
     { id: "", label: t("ledgerImport.select.sourcePlaceholder") },
-    ...(guestAvailable ? [{ id: "guest", label: t("ledgerImport.select.guestOption") }] : []),
+    /**
+     * 游客多账本：每本游客账本一项（含已归档的），每次迁一本。已经迁过的在提示里写上日期——再迁一次是增量
+     * 导入（服务器按游客账本 id 记着上次的状态），不会重复整本导入，但用户应该知道自己迁过。
+     */
+    ...(guestAvailable
+      ? guestBooks.map((book) => ({
+          id: guestSourceKey(book.id),
+          label: t("ledgerImport.select.guestBookOption", { name: book.name }),
+          ...(book.migratedAt !== null
+            ? { hint: t("ledgerImport.select.guestMigrated", { date: book.migratedAt.slice(0, 10) }) }
+            : book.archived
+              ? { hint: t("ledgerImport.select.guestArchived") }
+              : {}),
+        }))
+      : []),
+    // 旧地址里的 `guest`（多本时不知道是哪一本）：保留一项占位，提示重新选择。
+    ...(guestAvailable && sourceKey === "guest" && !guestSelected
+      ? [{ id: "guest", label: t("ledgerImport.select.guestOption"), disabled: true, hint: t("ledgerImport.select.guestChooseOne") }]
+      : []),
     ...sourceBooks.map((book) => ({ id: book.id, label: t("ledgerImport.select.formalOption", { name: book.name }) })),
   ];
   const targetOptions: readonly InlineChoiceOption[] = [
@@ -1678,8 +1764,11 @@ export function SelectionStep({
             }}
           />
         </div>
-        {guestAvailable || sourceBooks.length > 0 ? null : (
+        {(guestAvailable && guestBooks.length > 0) || sourceBooks.length > 0 ? null : (
           <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.select.noSources")}</p>
+        )}
+        {guestBooksError === null ? null : (
+          <p role="alert" className="mt-2 text-helper-relaxed text-danger">{guestBooksError}</p>
         )}
         {formalSource ? (
           <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.select.formalSourceNote")}</p>
@@ -2195,6 +2284,17 @@ export function IncrementalReview({
   );
 }
 
+/** 这本游客账本的“清理留档”里有几笔（可放回）。读不出来按 0 显示。 */
+async function guestArchiveCountOf(guestBookId: string | null): Promise<number> {
+  const guest = readGuestIdentity();
+  if (guestBookId === null || guest === null) return 0;
+  try {
+    return guestCleanupTransactions(await readGuestBookFor(guest.id, guestBookId)).length;
+  } catch {
+    return 0;
+  }
+}
+
 export function SourceRetentionCard({
   result,
   preview,
@@ -2238,7 +2338,7 @@ export function SourceRetentionCard({
         source: guestSourceOfSource(preview.source),
       });
       setGuestPreview(next);
-      setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
+      setGuestArchiveCount(await guestArchiveCountOf(guestBookId));
       if (next.cleanableCount === 0) {
         setGuestMessage(t("ledgerImport.retention.guest.nothingToClean"));
       }
@@ -2254,8 +2354,11 @@ export function SourceRetentionCard({
     setGuestBusy(true);
     setGuestMessage(null);
     try {
-      const resultOfCleanup = await cleanupMigratedGuestTransactions(guestPreview.cleanableSourceIds);
-      setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
+      const guest = readGuestIdentity();
+      if (guestBookId === null || guest === null) throw new Error(t("ledgerImport.message.noGuest"));
+      // 游客多账本：只清理这次迁移的来源那一本游客账本（按游客账本 id），不碰别的游客账本。
+      const resultOfCleanup = await cleanupMigratedGuestBook(guest.id, guestBookId, guestPreview.cleanableSourceIds);
+      setGuestArchiveCount(resultOfCleanup.archived);
       setGuestMessage(
         t("ledgerImport.retention.guest.cleaned", {
           removed: t("ledgerImport.count.guestEntries", { count: resultOfCleanup.removed }),
@@ -2272,12 +2375,14 @@ export function SourceRetentionCard({
   }
 
   async function restoreGuest(): Promise<void> {
-    const archivedTransactions = guestCleanupTransactions(guestDataValue());
-    if (archivedTransactions.length === 0) return;
+    const guest = readGuestIdentity();
+    if (guestBookId === null || guest === null) return;
     setGuestBusy(true);
     try {
-      const restored = await restoreGuestCleanup(archivedTransactions.map((item) => item.id));
-      setGuestArchiveCount(guestCleanupTransactions(guestDataValue()).length);
+      const archivedTransactions = guestCleanupTransactions(await readGuestBookFor(guest.id, guestBookId));
+      if (archivedTransactions.length === 0) return;
+      const restored = await restoreGuestBookCleanup(guest.id, guestBookId, archivedTransactions.map((item) => item.id));
+      setGuestArchiveCount(await guestArchiveCountOf(guestBookId));
       setGuestMessage(t("ledgerImport.retention.guest.restored", { count: restored }));
     } catch (caught) {
       onError(errorMessage(caught));

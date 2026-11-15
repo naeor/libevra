@@ -39,7 +39,7 @@
 | [fillPagination.test.ts](fillPagination.test.ts) | 测试：fillPagination |
 | [forgetMonth.test.ts](forgetMonth.test.ts) | 测试：forgetMonth |
 | [fx.test.ts](fx.test.ts) | 测试：fx |
-| [fx.ts](fx.ts) | 实现模块；入口/导出：OfflineFxRepository、createOfflineFxService、refillFxDates、OfflineFxCalculator |
+| [fx.ts](fx.ts) | 实现模块；入口/导出：PublicRates、FxRepositoryStore、OfflineFxRepository、createOfflineFxService、refillFxDates |
 | [ledgerMerge.test.ts](ledgerMerge.test.ts) | 测试：ledgerMerge |
 | [ledgerOrder.test.ts](ledgerOrder.test.ts) | 测试：ledgerOrder |
 | [localCleanup.device.test.ts](localCleanup.device.test.ts) | 测试：localCleanup.device |
