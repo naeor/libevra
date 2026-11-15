@@ -69,6 +69,7 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
   const destinations = useDestinations();
   const active = destinationOf(props.primaryPath);
   const portraitSplit = orientation === "portrait" && splitVisible;
+  const brandButton = useRef<HTMLButtonElement>(null);
   const brandTip = useRailTip(t("workspace.rail.expand"), compact);
 
   return (
@@ -84,6 +85,7 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
           <button
             type="button"
             className="lv-rail-brand-button"
+            ref={brandButton}
             aria-label={compact ? t("workspace.rail.expand") : t("workspace.rail.home")}
             title={compact ? undefined : t("workspace.rail.home")}
             {...brandTip.bind}
@@ -111,7 +113,8 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
             title={t("workspace.rail.collapse")}
             tabIndex={compact ? -1 : undefined}
             aria-hidden={compact ? true : undefined}
-            onClick={() => {
+            onClick={(event) => {
+              if (document.activeElement === event.currentTarget) brandButton.current?.focus({ preventScroll: true });
               props.onSetRail(splitVisible ? "auto" : "collapsed");
             }}
           >
@@ -345,6 +348,10 @@ function RailBooks({
   const [creating, setCreating] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const compactButton = useRef<HTMLButtonElement | null>(null);
+  // 宽侧栏直接展示账本列表，旧的紧凑浮层随其触发按钮一起关闭。
+  useLayoutEffect(() => {
+    if (!compact) setPopover(false);
+  }, [compact]);
   const currentId = ledger.data?.book.id ?? null;
   const list = books.data?.books ?? [];
   const currentName = ledger.data?.book.name ?? "";

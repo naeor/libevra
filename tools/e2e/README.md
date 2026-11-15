@@ -1,6 +1,10 @@
 # tools/e2e · 阅读入口
 
+> 最后修改：2026-11-15 13:50（UTC+08:00）
+
 浏览器验证工具。
+
+Pad 侧栏键盘回归使用独立的 Chrome 调试配置和已进入游客账本的本机预览。运行 `node tools/e2e/pad-rail-books-keyboard.mjs <预览地址> <CDP端口>`，检查侧栏收展、账本菜单状态、焦点去向与 Esc 返回。
 
 优先阅读[任务索引](../../docs/00-%E7%B4%A2%E5%BC%95.md)定位权威规则，再按下表进入实现或子目录。目录清单不证明功能已验收。
 
@@ -31,6 +35,7 @@
 | [message-quotes-verify.mjs](message-quotes-verify.mjs) | 实现模块；按文件名定位 message-quotes-verify.mjs |
 | [navigation-back-verify.mjs](navigation-back-verify.mjs) | 实现模块；按文件名定位 navigation-back-verify.mjs |
 | [offline-verify.mjs](offline-verify.mjs) | 实现模块；按文件名定位 offline-verify.mjs |
+| [pad-rail-books-keyboard.mjs](pad-rail-books-keyboard.mjs) | 实现模块；按文件名定位 pad-rail-books-keyboard.mjs |
 | [prepare-unified-fixture.mjs](prepare-unified-fixture.mjs) | 实现模块；按文件名定位 prepare-unified-fixture.mjs |
 | [profile-fixtures.ts](profile-fixtures.ts) | 实现模块；按文件名定位 profile-fixtures.ts |
 | [profile-verify.mjs](profile-verify.mjs) | 实现模块；按文件名定位 profile-verify.mjs |
