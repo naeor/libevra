@@ -134,9 +134,8 @@ export function batchPermission(input: {
   readonly sharedOfflineReadOnly: boolean;
   readonly role: BatchRoleState;
 }): BatchPermission {
-  if (input.guest) {
-    return { allowed: false, reason: t("ledger.batch.permission.guest") };
-  }
+  // 游客：数据全在本机，批量只是逐笔调用 `updateEntry/deleteEntry`（它们有游客分支），没有角色与共享账本的问题。
+  if (input.guest) return { allowed: true, reason: null };
 
   if (input.sharedOfflineReadOnly) {
     return {

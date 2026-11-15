@@ -253,7 +253,7 @@ describe("sections：电脑版页面分组", () => {
     const account = settingsItems({ guest: false, admin: false });
     expect(account.some((item) => item.id === "admin")).toBe(false);
     expect(settingsItems({ guest: false, admin: true }).some((item) => item.id === "admin")).toBe(true);
-    expect(settingsItems({ guest: true, admin: true }).map((item) => item.id)).toEqual(["guestHome", "language"]);
+    expect(settingsItems({ guest: true, admin: true }).map((item) => item.id)).toEqual(["guestHome", "preferences", "appearance", "language", "updates", "about"]);
     expect(activeSettingsItem(account, "/settings/appearance/theme")).toBe("appearance");
     expect(activeSettingsItem(account, "/settings/password")).toBe("security");
     expect(activeSettingsItem(account, "/legal/privacy")).toBe("about");

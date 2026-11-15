@@ -73,6 +73,7 @@ import {
   updateGuestTransaction,
   type GuestData,
 } from "./guest/data.js";
+import { buildGuestExport, buildGuestTemplate } from "./guestExport.js";
 import { installGuestWriteListener, isGuestRuntime } from "./guest/runtime.js";
 import { useGuestMode } from "./guest/session.js";
 import { CACHE_KEY, VOLATILE } from "./offline/cache.js";
@@ -2403,6 +2404,19 @@ function describe(filters: ExportFilters, now: Date): string {
  * a different ledger with the right file name on it — the least noticeable wrong answer there is.
  */
 export async function fetchExport(filters: ExportFilters, bookId?: string): Promise<ExportedFile> {
+  // 游客：数据只在本机，用 shared 的同一套逻辑在浏览器里生成（没有服务器导出记录）。
+  if (isGuestRuntime()) {
+    const file = await buildGuestExport(await loadGuestData(), filters);
+    return {
+      fileName: `${describe(filters, new Date())}.${filters.format}`,
+      mimeType: EXPORT_MIME[filters.format],
+      format: filters.format,
+      fileRef: file.fileRef,
+      rowCount: file.rowCount,
+      bytes: file.bytes,
+    };
+  }
+
   const file = await apiFetchFile(
     "/export",
     {
@@ -2430,6 +2444,17 @@ export async function fetchExport(filters: ExportFilters, bookId?: string): Prom
 
 /** The template: headings only, no rows, no traceability columns. */
 export async function fetchTemplate(bookId?: string): Promise<ExportedFile> {
+  if (isGuestRuntime()) {
+    return {
+      fileName: "记账导入模板.csv", // i18n-ignore：导出文件名，与服务器 content-disposition 一致，不随语言变化
+      mimeType: EXPORT_MIME.csv,
+      format: "csv",
+      fileRef: "",
+      rowCount: 0,
+      bytes: buildGuestTemplate(),
+    };
+  }
+
   const file = await apiFetchFile(
     "/export",
     { format: "csv", template: "true" },
@@ -2456,10 +2481,14 @@ export async function fetchTemplate(bookId?: string): Promise<ExportedFile> {
 export function useExportLog(given?: string) {
   /** S18：没有明确账本时，按本工作区查看的账本（外部账本或设备当前账本）。 */
   const bookId = useScopedBook(given);
+  const guest = useGuestMode();
   return useQuery({
-    queryKey: bookId === undefined ? ["export-log"] : ["export-log", bookId],
+    queryKey: guest ? ["guest", "export-log"] : bookId === undefined ? ["export-log"] : ["export-log", bookId],
     queryFn: () =>
-      apiFetch<{
+      guest
+        ? // 游客没有服务器导出记录：空列表，不报错。
+          Promise.resolve({ entries: [] as { fileRef: string; format: string; rowCount: number; createdAt: string; by: string }[] })
+        : apiFetch<{
         entries: {
           fileRef: string;
           format: string;

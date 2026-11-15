@@ -307,7 +307,7 @@ export function AddEntryButton({ compact, onNavigate, follow, followOpen, onTogg
   const choices = <div ref={panel} id={menuId} className={compact ? "lv-entry-popover" : "lv-entry-inline"} data-open={open && !follow ? "true" : "false"} data-pad-popover-open={open && !follow ? "" : undefined}
     inert={!open || follow} aria-hidden={!open || follow} style={compact ? { position: "fixed", left: anchor?.left ?? -9999, top: anchor?.top ?? 0, width: anchor?.width ?? 224, maxHeight: anchor?.maxHeight, "--lv-entry-max-height": `${anchor?.maxHeight ?? 520}px`, "--lv-entry-connector": `${anchor?.connector ?? 24}px` } as React.CSSProperties : undefined}>
     <div className="lv-entry-clip"><div className="lv-entry-methods" role="menu" aria-label={t("workspace.rail.addMenu")}><EntryMethodList disabledFor={(action) => {
-      const disabled = guest && action.id !== "manual";
+      const disabled = guest && action.id !== "manual" && action.id !== "paste";
       return disabled;
     }} onNavigate={onNavigate} onSelected={() => { setLocalOpen(false); button.current?.focus({ preventScroll: true }); }} /></div></div>
   </div>;

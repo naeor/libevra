@@ -49,6 +49,8 @@
 | [currentLedgerDestination.ts](currentLedgerDestination.ts) | 实现模块；入口/导出：currentLedgerDestination |
 | [datetime.test.ts](datetime.test.ts) | 测试：datetime |
 | [datetime.ts](datetime.ts) | 实现模块；入口/导出：localTimeZone、toLocalDate、toLocalIso、ALL_MONTHS、isAllMonths |
+| [defaultCurrency.ts](defaultCurrency.ts) | 实现模块；入口/导出：guestDefaultCurrencyKey、readGuestDefaultCurrency、setGuestDefaultCurrency、useDefaultCurrency |
+| [deflateRaw.ts](deflateRaw.ts) | 实现模块；入口/导出：deflateRawBrowser |
 | [desktopInput.test.ts](desktopInput.test.ts) | 测试：desktopInput |
 | [desktopInput.ts](desktopInput.ts) | 实现模块；入口/导出：isImeComposing、wantsNewTab、openInNewTab |
 | [detailCardSync.test.ts](detailCardSync.test.ts) | 测试：detailCardSync |
@@ -78,6 +80,8 @@
 | [frameClock.ts](frameClock.ts) | 实现模块；入口/导出：ClockReport、STALL_MS、onClockReport、publishClockReport、FramePace |
 | [fxView.test.tsx](fxView.test.tsx) | 测试：fxView |
 | [fxView.ts](fxView.ts) | 实现模块；入口/导出：readFxMode、saveFxMode、useFxMode、useFxEntry、fxMoney |
+| [guestExport.test.ts](guestExport.test.ts) | 测试：guestExport |
+| [guestExport.ts](guestExport.ts) | 实现模块；入口/导出：GuestExportFilters、GuestExportResult、selectGuestExportTransactions、buildGuestExport、buildGuestTemplate |
 | [language.test.ts](language.test.ts) | 测试：language |
 | [language.ts](language.ts) | 实现模块；入口/导出：LANGUAGE_PREFERENCES、LanguagePreference、LANGUAGE_STORAGE_KEY、LanguageStorage、isLanguagePreference |
 | [languageRuntime.ts](languageRuntime.ts) | 实现模块；入口/导出：startLanguageRuntime、useLanguagePreference |

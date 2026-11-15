@@ -41,6 +41,10 @@
 | [duplicateReview.test.ts](duplicateReview.test.ts) | 测试：duplicateReview |
 | [duplicateReview.ts](duplicateReview.ts) | 实现模块；入口/导出：duplicateRulesSchema、duplicateCandidateSchema、duplicateCandidatesRequestSchema、duplicateReviewCursorSchema、DuplicateReviewCursor |
 | [export.ts](export.ts) | 实现模块；入口/导出：EXPORT_COLUMNS、ExportColumnKey、TEMPLATE_COLUMN_KEYS、EXPORT_FORMATS、exportFormatSchema |
+| [exportRows.test.ts](exportRows.test.ts) | 测试：exportRows |
+| [exportRows.ts](exportRows.ts) | 实现模块；入口/导出：ExportRow、ExportSourceTransaction、timeInZone、toExportRow、EXPORT_TEXT_COLUMNS |
+| [exportXlsx.ts](exportXlsx.ts) | 实现模块；入口/导出：XlsxOptions、buildXlsxEntries、buildXlsx、buildXlsxAsync |
+| [exportZip.ts](exportZip.ts) | 实现模块；入口/导出：crc32、ZipEntry、DeflateRaw、DeflateRawAsync、buildZip |
 | [flowSeries.test.ts](flowSeries.test.ts) | 测试：flowSeries |
 | [fx.test.ts](fx.test.ts) | 测试：fx |
 | [fx.ts](fx.ts) | 实现模块；入口/导出：FX_POLICY、FX_MAX_FALLBACK_DAYS、FX_MAX_RANGE_MONTHS、FX_MAX_DETAIL_ENTRIES、FxReason |

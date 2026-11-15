@@ -42,6 +42,7 @@ import { currentMonth, formatDayLabel, formatTimeWithZone, isAllMonths } from ".
 import { openInNewTab, wantsNewTab } from "../lib/desktopInput.js";
 import { formatMoney } from "../lib/format.js";
 import { useFxMode } from "../lib/fxView.js";
+import { useDefaultCurrency } from "../lib/defaultCurrency.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { mergeLedgerEntries } from "../lib/ledgerView.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
@@ -163,7 +164,7 @@ export function DesktopEntriesPage(): React.JSX.Element {
 
   const batch = useLedgerBatch({ ordered: shown, conflicted, ledger: ledger.data, guest, offline, filterKey: `${filter.key}|${kind}` });
 
-  const mainCode = user?.defaultCurrency ?? "CNY";
+  const mainCode = useDefaultCurrency();
   const currencies = filter.extended ? (presentation.waiting ? [] : summaryFor(filtered, month, { from: "0000-01-01", to: "9999-12-31" }).currencies) : summary.data?.currencies ?? [];
   const main = currencies.find((item) => item.currency === mainCode) ?? currencies[0] ?? null;
   const otherCount = currencies.filter((item) => item !== main).length;

@@ -110,8 +110,8 @@ describe("退出一个二级页面时去哪里", () => {
       * ⚠️ **The fallback is for a deep link, which is the only case it was ever for.** Somebody opening
       * `/about` directly has no origin to honour, and 设置 is still the sensible parent there.
       */
-    expect(source("../pages/AboutPage.tsx")).toContain('backTo={from ?? "/settings"}');
-    expect(source("../pages/LegalPage.tsx")).toContain('backTo={from ?? "/settings"}');
+    expect(source("../pages/AboutPage.tsx")).toContain('backTo={from ?? (guest ? "/me" : "/settings")}');
+    expect(source("../pages/LegalPage.tsx")).toContain('backTo={from ?? (guest ? "/me" : "/settings")}');
   });
 });
 

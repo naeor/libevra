@@ -1,5 +1,6 @@
 import {
   evaluateDuplicatePair,
+  notDuplicatePairKey,
   type CreateTransactionInput,
   type DuplicateCandidateFields,
   type DuplicateCandidatesResponse,
@@ -14,7 +15,8 @@ import { currentLocale, isChineseLocale, t } from "../i18n/index.js";
 import type zhDuplicates from "../i18n/resources/zh-CN/duplicates.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { apiFetch, currentBookIdHeader } from "./api.js";
-import { isGuestRuntime } from "./guest/runtime.js";
+import { listGuestNotDuplicateRelations } from "./guest/notDuplicate.js";
+import { guestRuntimeId, isGuestRuntime } from "./guest/runtime.js";
 import { guestDataValue, guestDeletedIds, guestTransactions } from "./guest/data.js";
 import { deletedEntriesValue, readLocalTransactions } from "./offline/localLedger.js";
 
@@ -294,6 +296,14 @@ export async function fetchReviewChunk(
     reviewSnapshots.set(token, snapshot);
   }
   const ordered = snapshot.entries;
+  // 游客的服务器没有“不是重复”关系可过滤，本机扫描自己把用户确认过的对排除（关系见 lib/guest/notDuplicate.ts）。
+  const guestId = guestRuntimeId();
+  const confirmedNotDuplicate = new Set<string>();
+  if (guestId !== null) {
+    for (const relation of (await listGuestNotDuplicateRelations(guestId)).items) {
+      if (relation.effective) confirmedNotDuplicate.add(notDuplicatePairKey(relation.transactionAId, relation.transactionBId));
+    }
+  }
   let left = cursor?.source === "local" ? cursor.left : 0;
   let right = cursor?.source === "local" ? cursor.right : 1;
   const pairs: DuplicatePairResult[] = []; const entries = new Map<string, Transaction>();
@@ -305,7 +315,7 @@ export async function fetchReviewChunk(
     while (right < ordered.length && examined < 500) {
       const other = ordered[right++]!; examined += 1;
       const result = evaluateDuplicatePair(candidate, candidateFromEntry(other, bookId), settings);
-      if (result.matched) { pairs.push(result); entries.set(entry.id, entry); entries.set(other.id, other); }
+      if (result.matched && !confirmedNotDuplicate.has(notDuplicatePairKey(entry.id, other.id))) { pairs.push(result); entries.set(entry.id, entry); entries.set(other.id, other); }
     }
     if (right >= ordered.length) { left += 1; right = left + 1; processed += 1; }
   }

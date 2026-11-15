@@ -5,14 +5,15 @@ import { useSwapReveal } from "../ui/ComponentMotion.js";
 
 export function DetailTools({
   sortControl,
-  guest,
+  hideActions,
   selecting,
   onBatch,
   onMore,
   onExitSelection,
 }: {
   readonly sortControl: ReactNode;
-  readonly guest: boolean;
+  /** 隐藏“批量 / 更多”（例如正在看别的账本的只读视图）；游客不隐藏。 */
+  readonly hideActions: boolean;
   readonly selecting: boolean;
   readonly onBatch: () => void;
   readonly onMore: () => void;
@@ -41,7 +42,7 @@ export function DetailTools({
       ) : (
         <>
           {sortControl}
-          {guest ? null : (
+          {hideActions ? null : (
             <>
               <ToolButton
                 icon={<BatchIcon />}

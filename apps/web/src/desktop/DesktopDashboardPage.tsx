@@ -23,6 +23,7 @@ import { ChevronIcon } from "../components/Icons.js";
 import { useI18n } from "../i18n/index.js";
 import { currentMonth, formatDayLabel } from "../lib/datetime.js";
 import { formatMoney } from "../lib/format.js";
+import { useDefaultCurrency } from "../lib/defaultCurrency.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { useAccountOffline } from "../lib/offline/connectivity.js";
 import { conflictsValue, pendingEntriesValue, subscribeConflicts, subscribePending } from "../lib/offline/localLedger.js";
@@ -136,7 +137,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
   const books = useBooks();
   const currentBookId = useCurrentBookId();
   const [month, setMonth] = useState(() => { try { const value = readSession("libevra.dashboard.month"); return value !== null && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : currentMonth(); } catch { return currentMonth(); } });
-  const mainCode = user?.defaultCurrency ?? "CNY";
+  const mainCode = useDefaultCurrency();
   const monthAnchor = useRef<HTMLButtonElement | null>(null);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 

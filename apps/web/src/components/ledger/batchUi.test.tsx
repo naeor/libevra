@@ -74,7 +74,7 @@ describe("DetailTools", () => {
     const html = renderToStaticMarkup(
       <DetailTools
         sortControl={<button aria-label="sort" />}
-        guest={false}
+        hideActions={false}
         selecting={false}
         onBatch={noop}
         onMore={noop}
@@ -91,11 +91,11 @@ describe("DetailTools", () => {
     expect(html).not.toContain("导出，");
   });
 
-  it("keeps the sort entry for a guest without changing batch/more permissions", () => {
+  it("keeps only the sort entry when the actions are hidden (viewing another ledger)", () => {
     const html = renderToStaticMarkup(
       <DetailTools
         sortControl={<button aria-label="sort" />}
-        guest
+        hideActions
         selecting={false}
         onBatch={noop}
         onMore={noop}
@@ -112,7 +112,7 @@ describe("DetailTools", () => {
     const html = renderToStaticMarkup(
       <DetailTools
         sortControl={<button aria-label="sort" />}
-        guest={false}
+        hideActions={false}
         selecting
         onBatch={noop}
         onMore={noop}
@@ -439,7 +439,7 @@ describe("batch screens in English", () => {
     const tools = renderToStaticMarkup(
       <DetailTools
         sortControl={<button aria-label="sort" />}
-        guest={false}
+        hideActions={false}
         selecting={false}
         onBatch={noop}
         onMore={noop}
@@ -449,7 +449,7 @@ describe("batch screens in English", () => {
     const exit = renderToStaticMarkup(
       <DetailTools
         sortControl={<button aria-label="sort" />}
-        guest={false}
+        hideActions={false}
         selecting
         onBatch={noop}
         onMore={noop}

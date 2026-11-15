@@ -9,6 +9,7 @@ import {
   SettingsRowList,
   useDefaultCurrency,
 } from "../components/SettingsCard.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { LOCALE_NATIVE_NAMES, useI18n } from "../i18n/index.js";
 import { useLanguagePreference } from "../lib/languageRuntime.js";
 
@@ -39,8 +40,10 @@ function SettingsSubPage({
   readonly title: string;
   readonly children: React.ReactNode;
 }): React.JSX.Element {
+  // 游客没有设置首页（`/settings` 需要正式账号），回到游客的“我的”。
+  const guest = useGuestMode();
   return (
-    <InnerPage title={title} backTo="/settings">
+    <InnerPage title={title} backTo={guest ? "/me" : "/settings"}>
       {children}
     </InnerPage>
   );
@@ -54,6 +57,7 @@ function SettingsSubPage({
  */
 export function PreferencesPage(): React.JSX.Element {
   const currency = useDefaultCurrency();
+  const guest = useGuestMode();
   const { t } = useI18n();
 
   return (
@@ -82,7 +86,8 @@ export function PreferencesPage(): React.JSX.Element {
         </div>
       </section>
 
-      <FxModeSetting />
+      {/* 汇率折算对游客先隐藏：汇率只来自服务器，游客方案待所有者决定。 */}
+      {guest ? null : <FxModeSetting />}
 
       {/* 1.19.53：明细与分析是否共用同一筛选（本机偏好，默认共用）；两个筛选面板里是同一个开关。 */}
       <FilterSyncSetting />

@@ -1,10 +1,13 @@
 import {
-  EXPORT_COLUMNS,
+  EXPORT_HEADERS,
+  EXPORT_XLSX_OPTIONS,
   MAX_EXPORT_ROWS,
-  TEMPLATE_COLUMN_KEYS,
-  csvRow,
-  csvRowEscaped,
+  buildExportCsv,
+  buildTemplateCsv,
+  combineExportBounds,
   exportQuerySchema,
+  exportRowValues,
+  exportStamp,
   newExportRef,
 } from "@libellum/shared";
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -17,7 +20,6 @@ import {
   countExportRows,
   iterateExportRows,
   type ExportFilters,
-  type ExportRow,
 } from "../ledger/export-query.js";
 
 /**
@@ -55,27 +57,9 @@ interface ExportRouteOptions {
   readonly fileBaseUrl?: string;
 }
 
-/** `2026-10` boundaries, expanded to date literals. */
-function monthBounds(month: string): { start: string; end: string } {
-  const year = Number(month.slice(0, 4));
-  const monthIndex = Number(month.slice(5, 7));
-  const lastDay = new Date(Date.UTC(year, monthIndex, 0)).getUTCDate();
-
-  return { start: `${month}-01`, end: `${month}-${String(lastDay).padStart(2, "0")}` };
-}
-
 function combineBounds(query: ReturnType<typeof exportQuerySchema.parse>): ExportFilters {
-  let from = query.from;
-  let to = query.to;
-
-  if (query.monthFrom !== undefined) {
-    const bounds = monthBounds(query.monthFrom);
-    from = from === undefined || bounds.start > from ? bounds.start : from;
-  }
-  if (query.monthTo !== undefined) {
-    const bounds = monthBounds(query.monthTo);
-    to = to === undefined || bounds.end < to ? bounds.end : to;
-  }
+  // 月份 / 日期范围合并在 shared（游客本机导出共用同一个函数）。
+  const { from, to } = combineExportBounds(query);
 
   return {
     from,
@@ -88,19 +72,6 @@ function combineBounds(query: ReturnType<typeof exportQuerySchema.parse>): Expor
   };
 }
 
-/**
- * Columns whose values come from the user and are therefore escaped.
- *
- * Everything except 金额, which is written as a bare number: escaping a number
- * turns it into text and breaks the one thing a spreadsheet export is for. Note
- * that 时间, 日期, 币种 and the reference columns are ours, not the user's — they
- * cannot begin with a formula character — but listing them is harmless and means
- * the rule is "these are text" rather than "these are suspect".
- */
-const TEXT_COLUMNS: readonly number[] = EXPORT_COLUMNS.map((column, index) => ({ column, index }))
-  .filter(({ column }) => column.key !== "amount")
-  .map(({ index }) => index);
-
 /** A filename that survives both old and new browsers. */
 function contentDisposition(fileName: string): string {
   // RFC 5987: `filename*` carries the real name in UTF-8; plain `filename` is an
@@ -109,59 +80,6 @@ function contentDisposition(fileName: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
-/**
- * The cell values for one row, in column order.
- *
- * `exportRef` is passed in rather than read per row because it is identical for
- * every row of one export — that is what makes "this file came from that run"
- * answerable by looking at a single cell.
- */
-function rowValues(row: ExportRow, exportRef: string): (string | number)[] {
-  return EXPORT_COLUMNS.map((column) => {
-    switch (column.key) {
-      case "displayNumber":
-        /**
-         * ⚠️ **Written as the string the user sees, including the `#`.** The file should read like
-         * the app: somebody comparing a row in Excel with the detail screen must not have to work
-         * out that `128` and `#000128` are the same entry.
-         */
-        return row.displayNumber;
-      case "occurredLocalDate":
-        return row.occurredLocalDate;
-      case "occurredTime":
-        return row.occurredTime;
-      case "occurredTz":
-        return row.occurredTz;
-      case "kind":
-        return row.kind === "expense" ? "支出" : "收入";
-      case "amount":
-        // Expenses are negative so a spreadsheet's own SUM is meaningful.
-        return row.kind === "expense" ? -row.amount : row.amount;
-      case "currency":
-        return row.currency;
-      case "category":
-        return row.categoryName;
-      case "categoryPath":
-        return row.categoryPath ?? JSON.stringify([row.categoryName]);
-      case "paymentMethod":
-        return row.paymentMethodName ?? "";
-      case "note":
-        return row.note ?? "";
-      case "tags":
-        return row.tagNames.join(" ");
-      case "createdAt":
-        return row.createdAt;
-      case "fileId":
-        return row.id;
-      case "sourceRef":
-        return row.sourceRef ?? "";
-      case "exportRef":
-        return exportRef;
-    }
-  });
-}
-
-/** Only used to type `rowValues`; the real work is in the query module. */
 export function registerExportRoutes(app: FastifyInstance, options: ExportRouteOptions): void {
   const { prisma, requireAuth } = options;
 
@@ -179,11 +97,8 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
     // The template: the same headings, no rows and no traceability columns,
     // because a file from somewhere else has none of those values to offer.
     if (query.template) {
-      const headers = EXPORT_COLUMNS.filter((column) =>
-        TEMPLATE_COLUMN_KEYS.includes(column.key),
-      ).map((column) => column.header);
-
-      const body = `\uFEFF${csvRow(headers)}\r\n`;
+      // 内容由 shared 生成（游客本机导出用同一个函数）。
+      const body = buildTemplateCsv();
       reply
         .header("content-type", "text/csv; charset=utf-8")
         .header("content-disposition", contentDisposition("记账导入模板.csv"))
@@ -203,12 +118,11 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
       );
     }
 
-    const headers = EXPORT_COLUMNS.map((column) => column.header);
     const rows: (string | number)[][] = [];
 
     let rowCount = 0;
     for await (const row of iterateExportRows(prisma, bookId, filters)) {
-      rows.push(rowValues(row, exportRef));
+      rows.push(exportRowValues(row, exportRef));
       rowCount += 1;
     }
 
@@ -231,7 +145,7 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
       },
     });
 
-    const stamp = exportRef.slice(4, 19).replace(/-/g, "").slice(0, 8);
+    const stamp = exportStamp(exportRef);
 
     reply
       .header("x-libellum-file-ref", exportRef)
@@ -249,13 +163,7 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
       .header("access-control-expose-headers", "x-libellum-file-ref, x-libellum-row-count");
 
     if (query.format === "xlsx") {
-      const body = buildXlsx([headers, ...rows], {
-        sheetName: "账目",
-        // Column 4 (E) is 金额. Decimal-formatted so 38.5 reads as 38.50.
-        numericColumns: [4],
-        decimalColumns: [4],
-        columnWidths: { 0: 12, 1: 8, 2: 16, 3: 6, 4: 12, 5: 8, 6: 12, 7: 12, 8: 28, 9: 16, 10: 20, 11: 38, 12: 38, 13: 26 },
-      });
+      const body = buildXlsx([EXPORT_HEADERS, ...rows], EXPORT_XLSX_OPTIONS);
 
       reply
         .header(
@@ -268,10 +176,7 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
       return reply.send(body);
     }
 
-    const csv = `\uFEFF${[
-      csvRow(headers),
-      ...rows.map((row) => csvRowEscaped(row, TEXT_COLUMNS)),
-    ].join("\r\n")}\r\n`;
+    const csv = buildExportCsv(rows);
 
     reply
       .header("content-type", "text/csv; charset=utf-8")

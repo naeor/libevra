@@ -85,7 +85,9 @@ export function clearOwnerPreferences(role: "user" | "guest", id: string, store:
         key === `libevra.desktop.dashboard:v1:${scope}` ||
         key === `libevra.detail-cards.v1.${id}` || key.startsWith(`libevra.detail-cards.v2.${id}.`) ||
         ["ledger", "analysis"].some(slot => key.startsWith(`${LEDGER_FILTER_PREFIX}${slot}:${scope}:`)) ||
-        (role === "user" && key.startsWith(`${OFFLINE_RECORDER_REFRESH_PREFIX}${id}:`))
+        (role === "user" && key.startsWith(`${OFFLINE_RECORDER_REFRESH_PREFIX}${id}:`)) ||
+        // 1.19.94：游客的默认币种（lib/defaultCurrency.ts）。
+        (role === "guest" && key === `libevra.guest-default-currency:${id}`)
       ) store.removeItem(key);
     }
   } catch { /* Device preferences can be unavailable in private storage. */ }

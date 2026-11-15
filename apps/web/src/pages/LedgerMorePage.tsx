@@ -8,6 +8,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow } from "../components/ui/List.js";
 import { t as translate, useI18n } from "../i18n/index.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { clearAllMarks, readStoredMonths } from "../lib/offline/localLedger.js";
 import { deferConflictsToServer } from "../lib/offline/sync.js";
 
@@ -65,6 +66,8 @@ export function LedgerMorePage(): React.JSX.Element {
   // 1.19.53：服务器同步回到明细时，来路就是明细就用 -1 回去（默认返回转场），原来 push 过去是直接跳。
   const returnTo = useReturnToPath();
   const pane = usePane();
+  /** 游客只有“导出”和“展示卡片”：没有服务器同步、同步印记，设备存量读的是账号的离线库。 */
+  const guest = useGuestMode();
   const [cleared, setCleared] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [counts, setCounts] = useState<{ readonly months: number; readonly entries: number } | null>(null);
@@ -75,6 +78,7 @@ export function LedgerMorePage(): React.JSX.Element {
    * side effect in a render body is not a slow screen, it is a loop.**
    */
   useEffect(() => {
+    if (guest) return;
     void (async () => {
       const months = await readStoredMonths();
 
@@ -83,7 +87,7 @@ export function LedgerMorePage(): React.JSX.Element {
         entries: Object.values(months).reduce((total, list) => total + list.length, 0),
       });
     })();
-  }, []);
+  }, [guest]);
 
   return (
     <InnerPage title={t("books.more.title")}>
@@ -96,7 +100,7 @@ export function LedgerMorePage(): React.JSX.Element {
         * - 就地执行的（清空印记、重新加载）是强调色的行，没有箭头；
         * - 每段说明成为对应行的第二行。S16 文案复核后，清空印记明确说明停止提交与服务器冲突处理。
         */}
-      <p className="text-body text-ink">
+      {guest ? null : <p className="text-body text-ink">
         <span className="text-muted">{t("books.more.device")}</span>
         {counts === null
           ? t("books.more.loading")
@@ -104,7 +108,7 @@ export function LedgerMorePage(): React.JSX.Element {
               months: t("books.more.months", { count: counts.months }),
               entries: t("books.more.entries", { count: counts.entries }),
             })}
-      </p>
+      </p>}
 
       <ListGroup className="[&>.lv-settings-heading]:px-0" title={t("books.more.exportGroup")}>
         <ListRow
@@ -120,7 +124,7 @@ export function LedgerMorePage(): React.JSX.Element {
         <ListRow label={t("ledger.cards.edit")} detail={t("ledger.cards.editHint")} onClick={() => void navigate("/ledger/cards")} />
       </ListGroup>
 
-      <ListGroup className="[&>.lv-settings-heading]:px-0" title={t("books.more.maintenanceGroup")}>
+      {guest ? null : <ListGroup className="[&>.lv-settings-heading]:px-0" title={t("books.more.maintenanceGroup")}>
         <ListRow tone="action" label={t("books.more.serverSync")} detail={t("ledger.tools.refreshHint")} onClick={() => { writeSession({ syncRequested: true }, pane.instance); returnTo(readSession(pane.instance).syncReturnPath ?? "/", "push"); }} />
         <ListRow
           tone="action"
@@ -142,7 +146,7 @@ export function LedgerMorePage(): React.JSX.Element {
             setConfirmReload(true);
           }}
         />
-      </ListGroup>
+      </ListGroup>}
 
       <ConfirmDialog
         open={confirmReload}

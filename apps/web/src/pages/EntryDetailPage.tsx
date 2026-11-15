@@ -32,7 +32,6 @@ import { translateSharedMessage } from "../i18n/sharedMessages.js";
 import { errorMessage } from "../lib/api.js";
 import { useEntryOrigin, useEntryReturn, useReturnTo } from "../lib/entryReturn.js";
 import { candidateFromEntry, checkNewCandidates, duplicateBookId } from "../lib/duplicateReview.js";
-import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
 import { deviceAuditChanges, onlineChanges } from "../lib/offline/write.js";
 import { useLedgerWriter } from "../lib/ledgerWriter.js";
@@ -812,7 +811,7 @@ function EntryDetailContent({ entryId }: { readonly entryId?: string } = {}): Re
                               </p>
                               <button
                                 type="button"
-                                disabled={isGuestRuntime() || busyPairKey === pair.pairKey}
+                                disabled={busyPairKey === pair.pairKey}
                                 onClick={() => void markNotDuplicate(pair)}
                                 className="self-start text-helper text-brand-dark underline disabled:opacity-45"
                               >

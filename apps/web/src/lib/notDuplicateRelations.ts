@@ -7,6 +7,9 @@
  *    与 `ScanPage` 的确认入口），因为两台设备同时给同一对相反判断需要冲突解决，
  *    而 E3 明确不引入那一层。
  *
+ * ⚠️ **游客例外**：游客没有服务器，关系存在游客库（`lib/guest/notDuplicate.ts`），本文件里的读写函数
+ * 用 `guestRuntimeId()` 分叉（非组件调用方如 `VoiceReviewPage` 也走同一入口）。
+ *
  * ⚠️ 个人检测偏好仍然只存 `localStorage`（`lib/duplicateSettings.ts`），
  * **不和账本级关系混存**。
  *
@@ -24,15 +27,20 @@ import {
 } from "@libellum/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { t } from "../i18n/index.js";
 import { apiFetch } from "./api.js";
+import {
+  createGuestNotDuplicateRelations,
+  listGuestNotDuplicateRelations,
+  revokeGuestNotDuplicateRelation,
+} from "./guest/notDuplicate.js";
+import { guestRuntimeId } from "./guest/runtime.js";
 import { useGuestMode } from "./guest/session.js";
 
 export const notDuplicateRelationQueryKeys = {
   /** 前缀：一次写入让所有列表失效。 */
   all: ["not-duplicate-relations"] as const,
-  list: (bookId: string, includeRevoked: boolean) =>
-    ["not-duplicate-relations", bookId, includeRevoked] as const,
+  list: (bookId: string, includeRevoked: boolean, guest = false) =>
+    ["not-duplicate-relations", guest ? "guest" : "account", bookId, includeRevoked] as const,
 };
 
 export interface NotDuplicateRelationQueryOptions {
@@ -54,6 +62,14 @@ export async function fetchNotDuplicateRelations(
   options: NotDuplicateRelationQueryOptions = {},
 ): Promise<NotDuplicateRelationListResponse> {
   const includeRevoked = options.includeRevoked === true;
+
+  const guestId = guestRuntimeId();
+  if (guestId !== null) {
+    return listGuestNotDuplicateRelations(guestId, {
+      includeRevoked,
+      ...(options.transactionId === undefined ? {} : { transactionId: options.transactionId }),
+    });
+  }
 
   const response = await apiFetch<unknown>(listPath(bookId), {
     method: "GET",
@@ -110,6 +126,9 @@ export async function createNotDuplicateRelations(
   bookId: string,
   input: CreateNotDuplicateRelationsInput,
 ): Promise<NotDuplicateRelationMutationResponse> {
+  const guestId = guestRuntimeId();
+  if (guestId !== null) return createGuestNotDuplicateRelations(guestId, input);
+
   return apiFetch<NotDuplicateRelationMutationResponse>(listPath(bookId), {
     method: "POST",
     body: input,
@@ -122,6 +141,9 @@ export async function revokeNotDuplicateRelation(
   bookId: string,
   relationId: string,
 ): Promise<NotDuplicateRelationMutationResponse> {
+  const guestId = guestRuntimeId();
+  if (guestId !== null) return revokeGuestNotDuplicateRelation(guestId, relationId);
+
   return apiFetch<NotDuplicateRelationMutationResponse>(
     `${listPath(bookId)}/${relationId}`,
     { method: "DELETE", bookId },
@@ -170,22 +192,19 @@ export function useNotDuplicateRelations(
   const includeRevoked = options.includeRevoked === true;
 
   return useQuery({
-    queryKey: notDuplicateRelationQueryKeys.list(bookId, includeRevoked),
+    queryKey: notDuplicateRelationQueryKeys.list(bookId, includeRevoked, guest),
     queryFn: () => fetchNotDuplicateRelations(bookId, options),
-    enabled: (options.enabled ?? true) && !guest && bookId !== "",
-    staleTime: 30_000,
+    enabled: (options.enabled ?? true) && bookId !== "",
+    // 游客的“是否失效”由本机账目现算，不缓存。
+    staleTime: guest ? 0 : 30_000,
   });
 }
 
 export function useCreateNotDuplicateRelations(bookId: string) {
-  const guest = useGuestMode();
   const client = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: CreateNotDuplicateRelationsInput) => {
-      if (guest) {
-        throw new Error(t("duplicates.errors.guestRelations"));
-      }
       return createNotDuplicateRelations(bookId, input);
     },
     onSuccess: () => client.invalidateQueries({ queryKey: notDuplicateRelationQueryKeys.all }),
@@ -193,14 +212,10 @@ export function useCreateNotDuplicateRelations(bookId: string) {
 }
 
 export function useRevokeNotDuplicateRelation(bookId: string) {
-  const guest = useGuestMode();
   const client = useQueryClient();
 
   return useMutation({
     mutationFn: async (relationId: string) => {
-      if (guest) {
-        throw new Error(t("duplicates.errors.guestRelations"));
-      }
       return revokeNotDuplicateRelation(bookId, relationId);
     },
     onSuccess: () => client.invalidateQueries({ queryKey: notDuplicateRelationQueryKeys.all }),

@@ -1,5 +1,6 @@
 import { InnerPage } from "../components/Layouts.js";
 import { MovingSelection } from "../components/ui/SelectionControls.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { LOCALE_NATIVE_NAMES, SUPPORTED_LOCALES, useI18n, type Locale } from "../i18n/index.js";
 import { browserLanguages, detectLocale } from "../i18n/locales.js";
 import type { LanguagePreference } from "../lib/language.js";
@@ -84,9 +85,10 @@ export function LanguageChoiceList({
 export function LanguagePage(): React.JSX.Element {
   const { t } = useI18n();
   const language = useLanguagePreference();
+  const guest = useGuestMode();
 
   return (
-    <InnerPage title={t("language.pageTitle")} backTo="/settings">
+    <InnerPage title={t("language.pageTitle")} backTo={guest ? "/me" : "/settings"}>
       <div className="flex flex-col gap-3">
         <LanguageChoiceList preference={language.preference} locale={language.locale} onChoose={language.choose} />
         <p className="px-1 text-helper-relaxed text-muted">{t("language.note")}</p>

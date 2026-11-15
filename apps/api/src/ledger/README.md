@@ -17,7 +17,7 @@
 | [categoryTree.ts](categoryTree.ts) | 实现模块；入口/导出：lockCategoryTree、checkCategoryWriter、checkCategoryTree |
 | [defaultName.ts](defaultName.ts) | 实现模块；入口/导出：DEFAULT_BOOK_NAME_EN、defaultBookNameFor |
 | [events.ts](events.ts) | 实现模块；入口/导出：EventKind、FieldChange、RecordEventInput、recordEvent、trackedFieldLabel |
-| [export-query.ts](export-query.ts) | 实现模块；入口/导出：ExportFilters、ExportRow、countExportRows |
+| [export-query.ts](export-query.ts) | 实现模块；入口/导出：ExportFilters、countExportRows |
 | [history.ts](history.ts) | 实现模块；入口/导出：HistoryEntry、HistoryEventRow、HISTORY_EVENT_SELECT、HistoryReadOptions、readHistory |
 | [importCleanup.ts](importCleanup.ts) | 实现模块；入口/导出：previewGuestCleanup、getFormalSourceDispositionByReceipt、getFormalSourceDisposition |
 | [importIncremental.ts](importIncremental.ts) | 实现模块；入口/导出：IncrementalAnalysis、IncrementalOperation、IncrementalPlan、sourceNamespaceOf、sourceBookKeyOf |

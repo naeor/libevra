@@ -6,9 +6,10 @@ import { Alert } from "../components/Alert.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
 import { MovingSelection, SelectionGrid } from "../components/ui/SelectionControls.js";
-import { useAuth } from "../auth/AuthProvider.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
+import { useDefaultCurrency } from "../lib/defaultCurrency.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { currentMonth, formatMonthLabel, shiftMonth } from "../lib/datetime.js";
 import { currencyName } from "../lib/format.js";
 import { displayCategoryName } from "../lib/presetNames.js";
@@ -165,7 +166,8 @@ function ExportView({
   readonly failure?: string | null;
 }): React.JSX.Element {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const defaultCurrency = useDefaultCurrency();
+  const guest = useGuestMode();
   const { t, locale } = useI18n();
 
   const [format, setFormat] = useState<ExportFormat>("csv");
@@ -487,8 +489,9 @@ function ExportView({
       */}
 
       <p className="text-helper-relaxed text-muted">
-        {t("dataio.export.currencyNote", { currency: currencyName(user?.defaultCurrency ?? "CNY") })}
+        {t("dataio.export.currencyNote", { currency: currencyName(defaultCurrency) })}
       </p>
+      {guest ? <p className="text-helper-relaxed text-muted">{t("dataio.export.guestNote")}</p> : null}
     </InnerPage>
   );
 }

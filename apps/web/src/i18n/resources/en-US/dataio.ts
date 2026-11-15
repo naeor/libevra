@@ -300,6 +300,8 @@ const dataio: Messages<typeof zh> = {
     templateHint: "The template contains column headers only. Add one entry per row using the same format as exported files.",
     importLink: "Import past entries →",
     currencyNote: "Default currency for export: {{currency}}. Each currency is totaled separately, with no conversion.",
+    guestNote: "Guest data is kept only in this browser. Export a backup now and then.",
+    tooLarge: "{{count}} entries match, which is over the {{limit}}-entry limit for one export. Export by month or category instead — a partial file is never produced.",
   },
 };
 

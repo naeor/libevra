@@ -11,6 +11,6 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
-| [xlsx.ts](xlsx.ts) | 实现模块；入口/导出：XlsxOptions、buildXlsx |
-| [zip.ts](zip.ts) | 实现模块；入口/导出：crc32、ZipEntry、buildZip |
+| [xlsx.ts](xlsx.ts) | 实现模块；入口/导出：buildXlsx |
+| [zip.ts](zip.ts) | 实现模块；入口/导出：buildZip |
 <!-- directory-index:end -->

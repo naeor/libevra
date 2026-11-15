@@ -13,6 +13,7 @@ import { Alert } from "../components/Alert.js";
 import { useDuplicateDetectionSettings } from "../components/DuplicateDetectionSettings.js";
 import { Button } from "../components/Button.js";
 import { InnerPage } from "../components/Layouts.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { ReviewScanController } from "../lib/reviewScanController.js";
@@ -23,7 +24,6 @@ import {
   releaseReviewCursor,
 } from "../lib/duplicateReview.js";
 import { formatMoney } from "../lib/format.js";
-import { isGuestRuntime } from "../lib/guest/runtime.js";
 import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
 
 /**
@@ -41,6 +41,7 @@ import { createNotDuplicateRelations } from "../lib/notDuplicateRelations.js";
 export function DuplicateReviewPage(): React.JSX.Element {
   const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const { bookId = "" } = useParams();
+  const guest = useGuestMode();
   const { t } = useI18n();
   const duplicateSettings = useDuplicateDetectionSettings();
   const settings = duplicateSettings.settings;
@@ -98,8 +99,6 @@ export function DuplicateReviewPage(): React.JSX.Element {
     }
   }, [bookId, controller, t]);
 
-  const relationsUnavailable = isGuestRuntime();
-
   /** 当前开启的比较项：与重复提醒设置一致，拼成一句里的清单。 */
   const ruleFields = joinDuplicateList([
     t("duplicates.review.ruleField.amount"),
@@ -115,7 +114,7 @@ export function DuplicateReviewPage(): React.JSX.Element {
     <InnerPage
       title={t("duplicates.review.title")}
       subtitle={t("duplicates.review.subtitle")}
-      backTo={`/books/${bookId}/settings`}
+      backTo={guest ? "/me" : `/books/${bookId}/settings`}
     >
       {failure === null ? null : <Alert tone="error">{failure}</Alert>}
       {actionError === null ? null : <Alert tone="error">{actionError}</Alert>}
@@ -252,7 +251,7 @@ export function DuplicateReviewPage(): React.JSX.Element {
                     <p className="text-helper text-muted">{describeDuplicateMatchText(pair)}</p>
                     <button
                       type="button"
-                      disabled={relationsUnavailable || busyPairKey === pair.pairKey}
+                      disabled={busyPairKey === pair.pairKey}
                       onClick={() => void markNotDuplicate(pair)}
                       className="self-start text-helper text-brand-dark underline disabled:opacity-45"
                     >
@@ -266,9 +265,6 @@ export function DuplicateReviewPage(): React.JSX.Element {
         </section>
       ) : null}
 
-      {relationsUnavailable ? (
-        <Alert tone="info">{t("duplicates.review.guest")}</Alert>
-      ) : null}
     </InnerPage>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from "react";
 import { InnerPage } from "../components/Layouts.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useI18n } from "../i18n/index.js";
 import { ThemePreview } from "../components/ThemePreview.js";
 import { AppearanceStyleSection } from "./AppearanceStyleSection.js";
@@ -119,10 +120,12 @@ export function ThemeAppearancePage(): React.JSX.Element {
   const controller = startThemeRuntime();
   const preference = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const { t } = useI18n();
+  // 游客没有设置首页，返回落到游客的“我的”（`/settings` 需要正式账号）。
+  const guest = useGuestMode();
   // Keep the page title when Safari's toolbar makes the viewport short; the
   // title is the only large heading and is not repeated in a card.
   return (
-    <InnerPage title={t("settings.theme.title")} backTo="/settings">
+    <InnerPage title={t("settings.theme.title")} backTo={guest ? "/me" : "/settings"}>
       <ThemeAppearanceView preference={preference} onChoose={(next) => controller.choose(next)} />
     </InnerPage>
   );

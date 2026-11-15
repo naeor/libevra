@@ -22,13 +22,17 @@ const SUB_ROUTES = [
   ["/settings/appearance/theme", "ThemeAppearancePage"],
 ] as const;
 
+/** 游客也能进的页面（1.19.94：偏好、外观；安全仍需要正式账号）。 */
+const GUEST_ROUTES: ReadonlySet<string> = new Set(["/settings/preferences", "/settings/appearance", "/settings/appearance/theme"]);
+
 describe("设置子页面的路由", () => {
-  it("每条地址都有一条 Route，并且在 RequireAuth 之内", () => {
+  it("每条地址都有一条 Route：账号页在 RequireAuth 之内，游客可用的页在 RequireSession 之内", () => {
     const app = source("../App.tsx");
 
     for (const [path, page] of SUB_ROUTES) {
+      const guard = GUEST_ROUTES.has(path) ? "RequireSession" : "RequireAuth";
       expect(app, path).toContain(
-        `<Route path="${path}" element={<RequireAuth><${page} /></RequireAuth>} />`,
+        `<Route path="${path}" element={<${guard}><${page} /></${guard}>} />`,
       );
     }
   });
@@ -68,7 +72,7 @@ describe("子页面的返回与入口", () => {
      * ⚠️ **历史优先，`/settings` 只是深链的兜底** —— 这就是 `InnerPage` 的现有规则
      * (`useGoBack`)，这里断言三页共用同一个包装，而不是各自手写一个不同的父级。
      */
-    expect(pages.match(/backTo="\/settings"/g) ?? []).toHaveLength(1);
+    expect(pages.match(/backTo=\{guest \? "\/me" : "\/settings"\}/g) ?? []).toHaveLength(1);
     expect(pages.match(/<SettingsSubPage title=/g) ?? []).toHaveLength(3);
   });
 

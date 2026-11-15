@@ -301,6 +301,8 @@ const dataio = {
     templateHint: "模板仅含表头，可逐行填写。列格式与导出文件一致。",
     importLink: "导入历史账 →",
     currencyNote: "导出默认币种：{{currency}}。不同币种分开统计，不做汇率换算。",
+    guestNote: "游客数据只保存在这个浏览器里，建议定期导出备份。",
+    tooLarge: "本次筛选有 {{count}} 条记录，超过一次导出的上限 {{limit}} 条。请按月份或分类分批导出——不会只导出其中一部分。",
   },
 };
 

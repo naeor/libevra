@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { aggregateFxAsync, aggregateFxDetailedAsync, convertFx, decimalsFor, FxError, FxHistoryService, FxResultCache, fxHistoryOptionsFromEnv, fxRangeMonths, FX_MAX_DETAIL_ENTRIES, FX_MAX_RANGE_MONTHS, type FxAggregate, type FxAggregateDetail, type FxLookup, type Transaction } from "@libellum/shared";
 import { useAuthOptional } from "../auth/AuthProvider.js";
+import { useDefaultCurrency } from "./defaultCurrency.js";
 import { apiFetch } from "./api.js";
 import { useForeignBookId, useViewBookId } from "./workspaceLedger.js";
 import { useAccountOffline } from "./offline/connectivity.js";
@@ -25,8 +26,10 @@ export function saveFxMode(id: string, enabled: boolean): boolean {
 export function useFxMode() {
   const user = useAuthOptional()?.user;
   const id = user?.id ?? "";
+  // 游客取本机默认币种（折算开关对游客仍关闭：汇率方案待定）。
+  const target = useDefaultCurrency();
   const enabled = useSyncExternalStore(subscribe, () => readFxMode(id), () => false);
-  return { enabled, userId: id, target: user?.defaultCurrency ?? "CNY", setEnabled: (value: boolean) => saveFxMode(id, value) };
+  return { enabled, userId: id, target, setEnabled: (value: boolean) => saveFxMode(id, value) };
 }
 const rates = new FxHistoryService(new OfflineFxRepository(), {
   id: "ecb-via-frankfurter-v2",

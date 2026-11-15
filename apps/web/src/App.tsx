@@ -337,25 +337,25 @@ function AppRoutes(): React.JSX.Element {
 
       <Route path="/scan" element={<RequireAuth><CurrentLedgerOnly><ScanPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/record" element={<RequireAuth><CurrentLedgerOnly><RecordPage /></CurrentLedgerOnly></RequireAuth>} />
-        <Route path="/paste" element={<RequireAuth><CurrentLedgerOnly><PastePage /></CurrentLedgerOnly></RequireAuth>} />
-        <Route path="/ledger/cards" element={<RequireAuth><CurrentLedgerOnly><DetailCardEditor /></CurrentLedgerOnly></RequireAuth>} />
-        <Route path="/ledger/more" element={<RequireAuth><CurrentLedgerOnly><LedgerMorePage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/paste" element={<RequireSession><CurrentLedgerOnly><PastePage /></CurrentLedgerOnly></RequireSession>} />
+        <Route path="/ledger/cards" element={<RequireSession><CurrentLedgerOnly><DetailCardEditor /></CurrentLedgerOnly></RequireSession>} />
+        <Route path="/ledger/more" element={<RequireSession><CurrentLedgerOnly><LedgerMorePage /></CurrentLedgerOnly></RequireSession>} />
         <Route path="/voice/review" element={<RequireAuth><CurrentLedgerOnly><VoiceReviewPage /></CurrentLedgerOnly></RequireAuth>} />
-        <Route path="/paste/review" element={<RequireAuth><CurrentLedgerOnly><VoiceReviewPage /></CurrentLedgerOnly></RequireAuth>} />
+        <Route path="/paste/review" element={<RequireSession><CurrentLedgerOnly><VoiceReviewPage /></CurrentLedgerOnly></RequireSession>} />
         {/* S15-B：批量识别结果的概览与单笔核对（数据只在浏览器临时层，确认前不写账）。 */}
         <Route path="/ocr/overview" element={<RequireAuth><CurrentLedgerOnly><OcrOverviewPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/ocr/overview/:candidateId" element={<RequireAuth><CurrentLedgerOnly><OcrReviewDetailPage /></CurrentLedgerOnly></RequireAuth>} />
-      <Route path="/export" element={<RequireAuth><CurrentLedgerOnly><ExportPage /></CurrentLedgerOnly></RequireAuth>} />
+      <Route path="/export" element={<RequireSession><CurrentLedgerOnly><ExportPage /></CurrentLedgerOnly></RequireSession>} />
       <Route path="/import" element={<RequireAuth><CurrentLedgerOnly><ImportPage /></CurrentLedgerOnly></RequireAuth>} />
       <Route path="/import-ledger" element={<RequireAuth><CurrentLedgerOnly><LedgerImportPage /></CurrentLedgerOnly></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
       <Route path="/profile/avatar" element={<RequireAuth><AvatarPickerPage /></RequireAuth>} />
       <Route path="/downloads" element={<RequireAuth><CurrentLedgerOnly><DownloadManagerPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/downloads/more" element={<RequireAuth><CurrentLedgerOnly><DownloadMorePage /></CurrentLedgerOnly></RequireAuth>} />
-        <Route path="/update" element={<RequireAuth><SoftwareUpdatePage /></RequireAuth>} />
-        <Route path="/update/announcements" element={<RequireAuth><UpdateAnnouncementsPage /></RequireAuth>} />
-        <Route path="/update/announcements/:version" element={<RequireAuth><UpdateAnnouncementDetailPage /></RequireAuth>} />
-        <Route path="/update/runtime" element={<RequireAuth><UpdateRuntimePage /></RequireAuth>} />
+        <Route path="/update" element={<RequireSession><SoftwareUpdatePage /></RequireSession>} />
+        <Route path="/update/announcements" element={<RequireSession><UpdateAnnouncementsPage /></RequireSession>} />
+        <Route path="/update/announcements/:version" element={<RequireSession><UpdateAnnouncementDetailPage /></RequireSession>} />
+        <Route path="/update/runtime" element={<RequireSession><UpdateRuntimePage /></RequireSession>} />
         <Route path="/downloads/:month" element={<RequireAuth><CurrentLedgerOnly><MonthDownloadPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
       {/**
@@ -363,9 +363,9 @@ function AppRoutes(): React.JSX.Element {
         * 这三条路由就是那些卡片的目的地。**必须是真实地址**：刷新、深链、浏览器返回都能重新回答
         * "这是哪一页"，而不是靠首页的本地状态。它们排在下面的通配路由之前，否则会被送回首页。
         */}
-      <Route path="/settings/preferences" element={<RequireAuth><PreferencesPage /></RequireAuth>} />
-      <Route path="/settings/appearance" element={<RequireAuth><AppearancePage /></RequireAuth>} />
-      <Route path="/settings/appearance/theme" element={<RequireAuth><ThemeAppearancePage /></RequireAuth>} />
+      <Route path="/settings/preferences" element={<RequireSession><PreferencesPage /></RequireSession>} />
+      <Route path="/settings/appearance" element={<RequireSession><AppearancePage /></RequireSession>} />
+      <Route path="/settings/appearance/theme" element={<RequireSession><ThemeAppearancePage /></RequireSession>} />
       <Route path="/settings/appearance/language" element={<RequireSession><LanguagePage /></RequireSession>} />
       <Route path="/settings/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
       <Route path="/settings/account-data" element={<RequireAuth><AccountDataPage /></RequireAuth>} />
@@ -412,13 +412,13 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/books/:bookId/settings/categories" element={<RequireSession><CategoriesPage /></RequireSession>} />
       <Route path="/books/:bookId/settings/tags" element={<RequireSession><TagsPage /></RequireSession>} />
       <Route path="/books/:bookId/settings/payment-methods" element={<RequireSession><PaymentMethodsPage /></RequireSession>} />
-      <Route path="/books/:bookId/settings/export" element={<RequireAuth><ExportPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/export" element={<RequireSession><ExportPage /></RequireSession>} />
       <Route path="/books/:bookId/settings/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
       {/**
-       * ⚠️ S15-E5：全账本重复检查。`RequireAuth` 而不是 `RequireSession`：检查要请求服务器账本，
-       * 游客账本没有服务器数据可扫（页面本身也会说明它只扫本机已知记录）。
+       * ⚠️ S15-E5：全账本重复检查。游客同样放开（`RequireSession`）：游客数据全在本机，
+       * `lib/duplicateReview.ts` 有本机扫描分支，页面会如实说明只扫本机已知记录。
        */}
-      <Route path="/books/:bookId/settings/duplicates" element={<RequireAuth><DuplicateReviewPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/duplicates" element={<RequireSession><DuplicateReviewPage /></RequireSession>} />
       {/* ⚠️ 账本空间：目前是占位页，见 `档案/账本与协作页-设计决定.md` §2.4 与 §8。 */}
       {/* ⚠️ 账本空间：展示态与常规态是**同一个页面的两个状态**，不是两个路由。 */}
       <Route path="/start" element={<RequireSession><LedgerSpacePage /></RequireSession>} />
@@ -467,14 +467,14 @@ function AppRoutes(): React.JSX.Element {
           </RequireAuthKeepingPath>
         }
       />
-      <Route path="/about" element={<RequireAuth><AboutPage /></RequireAuth>} />
+      <Route path="/about" element={<RequireSession><AboutPage /></RequireSession>} />
       {/**
         * ⚠️ **两份法律文档各自有路由，内容明确写着"尚未编写"。** 所有者要求页脚三项都可点，
         * 而**可点却无处可去比一个标签更糟**；同时他要求**不得编造条款**——
         * 所以这两页的内容就是"这份文档还不存在"，外加一份上线前必须写清楚的清单。
         */}
-      <Route path="/legal/privacy" element={<RequireAuth><LegalPage kind="privacy" /></RequireAuth>} />
-      <Route path="/legal/terms" element={<RequireAuth><LegalPage kind="terms" /></RequireAuth>} />
+      <Route path="/legal/privacy" element={<RequireSession><LegalPage kind="privacy" /></RequireSession>} />
+      <Route path="/legal/terms" element={<RequireSession><LegalPage kind="terms" /></RequireSession>} />
       {/**
         * ⚠️ **A required document must be readable before login.** This route is deliberately
         * outside `RequireAuth`; test-only content is hidden from production by the page itself.

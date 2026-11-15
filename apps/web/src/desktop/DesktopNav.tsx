@@ -52,7 +52,8 @@ export function navIdFor(pathname: string): NavId | null {
  * 记账）必须一致，见 `desktop/desktopNav.test.tsx`。
  */
 export function desktopEntryDisabled(action: (typeof ENTRY_ACTIONS)[number], guest: boolean): boolean {
-  return guest && action.id !== "manual";
+  // 游客：手动与文本在本机即可完成；语音、拍照、导入账单需要服务器（导入下一批做本机版）。
+  return guest && action.id !== "manual" && action.id !== "paste";
 }
 
 function NavLinkItem({ item, active }: { readonly item: DesktopNavItem; readonly active: boolean }): React.JSX.Element {
@@ -388,7 +389,11 @@ function AccountMenu({ onClose }: { readonly onClose: () => void }): React.JSX.E
     user === null
       ? [
           { to: "/me", label: t("desktop.account.guestHome") },
+          { to: "/settings/preferences", label: t("desktop.settings.items.preferences") },
+          { to: "/settings/appearance/theme", label: t("desktop.settings.items.appearance") },
           { to: "/settings/appearance/language", label: t("desktop.settings.items.language") },
+          { to: "/update", label: t("desktop.settings.items.updates") },
+          { to: "/about", label: t("desktop.settings.items.about") },
         ]
       : [
           { to: "/profile", label: t("desktop.settings.items.profile") },

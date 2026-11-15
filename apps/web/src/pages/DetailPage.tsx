@@ -98,6 +98,7 @@ import {
 import { handOverForScan } from "../lib/scanHandoff.js";
 import { keepMetricSnapshot } from "../components/ledger/metricSnapshot.js";
 import { useViewBookId } from "../lib/workspaceLedger.js";
+import { useDefaultCurrency } from "../lib/defaultCurrency.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { useFollowedPath, usePane } from "../workspace/context.js";
 import { useFocusTask } from "../components/PersistentNavContext.js";
@@ -389,7 +390,7 @@ export function DetailPage(): React.JSX.Element {
    * whenever the usual one had no entries would be worse than an empty one.
    * People learn where to look, and moving it is what confuses them.
    */
-  const mainCode = user?.defaultCurrency ?? "CNY";
+  const mainCode = useDefaultCurrency();
 
   /**
    * ⚠️ **A copy of this month that does not depend on the query layer at all.**
@@ -950,7 +951,7 @@ export function DetailPage(): React.JSX.Element {
               </div><div ref={headerActions} className="detail-header-actions" inert={searchOpen} aria-hidden={searchOpen}><span ref={searchSpace} className="detail-search-space" />
               <DetailTools
                 sortControl={<EntrySortControls state={presentation} mode="compact" />}
-                guest={guest || foreign !== null}
+                hideActions={foreign !== null}
                 selecting={selecting}
                 onBatch={enterBatch}
                 onMore={() => {

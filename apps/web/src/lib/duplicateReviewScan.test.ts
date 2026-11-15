@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DUPLICATE_DETECTION_SETTINGS as settings, type Transaction } from "@libellum/shared";
 const mock = vi.hoisted(() => ({ book: "book-1", guest: false, entries: [] as Transaction[], api: vi.fn() }));
 vi.mock("./api.js", () => ({ apiFetch: mock.api, currentBookIdHeader: () => mock.book }));
-vi.mock("./guest/runtime.js", () => ({ isGuestRuntime: () => mock.guest }));
+vi.mock("./guest/runtime.js", () => ({ isGuestRuntime: () => mock.guest, guestRuntimeId: () => (mock.guest ? "guest-test-0001" : null) }));
 vi.mock("./guest/data.js", () => ({ guestDataValue: () => ({ book: { id: mock.book } }), guestDeletedIds: () => new Set(), guestTransactions: () => mock.entries }));
 vi.mock("./offline/localLedger.js", () => ({ deletedEntriesValue: () => new Set(), readLocalTransactions: async () => mock.entries }));
 import { fetchReviewChunk, type ReviewCursor } from "./duplicateReview.js";

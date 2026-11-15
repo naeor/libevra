@@ -19,6 +19,7 @@ import { categoryBranchIds, type Category, type AnalysisCompleteness, type Curre
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import { toLocalDate } from "../lib/datetime.js";
 import { useAnalysisRange } from "../lib/analysisRange.js";
+import { useDefaultCurrency } from "../lib/defaultCurrency.js";
 import { useFxRange } from "../lib/fxView.js";
 import { useGuestIdentity } from "../lib/guest/session.js";
 import { ledgerSnapshotValue, readLocalTransactions, subscribeLedger } from "../lib/offline/localLedger.js";
@@ -111,7 +112,7 @@ export function useWorkbenchScope(requestedFilters: WorkbenchFilters): Workbench
   const bucket = bucketFor(range);
   const fxAvailable = user !== null;
   const combined = fxAvailable && filters.combined;
-  const defaultCurrency: Currency = user?.defaultCurrency ?? "CNY";
+  const defaultCurrency: Currency = useDefaultCurrency();
   const currency: Currency = combined ? defaultCurrency : (filters.currency ?? defaultCurrency);
   /**
    * S18：工作区查看外部账本时，设备的本机副本（`all`）属于另一本账，综合折算模式下也必须改用那本账的

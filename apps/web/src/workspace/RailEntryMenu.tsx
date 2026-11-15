@@ -58,7 +58,7 @@ export function FollowEntryChooser({ onNavigate, onClose }: { readonly onNavigat
       <header className="flex items-start justify-between gap-3"><div><h2 className="text-page-title text-ink">{t("workspace.rail.addMenu")}</h2><p className="text-helper-relaxed text-muted">{t("workspace.entry.target", { name: ledger.data?.book.name ?? t("workspace.entry.loading") })}</p></div>
         <button type="button" className="lv-rail-icon-button shrink-0" aria-label={t("workspace.rail.closeAddMenu")} onClick={onClose}><XIcon className="size-5" /></button>
       </header>
-      <div id="lv-follow-entry-menu" className="lv-entry-methods" role="menu" aria-label={t("workspace.rail.addMenu")}><EntryMethodList disabledFor={(action) => guest && action.id !== "manual"} onNavigate={onNavigate} /></div>
+      <div id="lv-follow-entry-menu" className="lv-entry-methods" role="menu" aria-label={t("workspace.rail.addMenu")}><EntryMethodList disabledFor={(action) => guest && action.id !== "manual" && action.id !== "paste"} onNavigate={onNavigate} /></div>
     </div>
   </div>;
 }

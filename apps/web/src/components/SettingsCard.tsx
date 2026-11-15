@@ -5,6 +5,8 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { errorMessage } from "../lib/api.js";
 import { currencyName } from "../lib/format.js";
 import { t } from "../i18n/index.js";
+import { setGuestDefaultCurrency, useDefaultCurrency as useIdentityDefaultCurrency } from "../lib/defaultCurrency.js";
+import { useGuestIdentity } from "../lib/guest/session.js";
 import { useUpdatePreferences } from "../lib/queries.js";
 import { Alert } from "./Alert.js";
 import { ChevronIcon } from "./Icons.js";
@@ -74,6 +76,22 @@ export function useDefaultCurrency(): DefaultCurrency {
   const { user, reload } = useAuth();
   const preferences = useUpdatePreferences();
   const [saved, setSaved] = useState(false);
+  // 游客没有服务器：默认币种存在本机（`lib/defaultCurrency.ts`），不走 PATCH /auth/me。
+  const guestId = useGuestIdentity()?.id ?? null;
+  const identityCurrency = useIdentityDefaultCurrency();
+
+  if (guestId !== null) {
+    return {
+      current: identityCurrency,
+      pending: false,
+      saved,
+      error: null,
+      choose: (option) => {
+        setGuestDefaultCurrency(guestId, option);
+        setSaved(true);
+      },
+    };
+  }
 
   return {
     current: currentCurrency(user, preferences.data?.user.defaultCurrency),

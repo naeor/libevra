@@ -378,6 +378,32 @@ export {
 } from "./spreadsheet.js";
 
 export {
+  EXPORT_HEADERS,
+  EXPORT_TEXT_COLUMNS,
+  EXPORT_XLSX_OPTIONS,
+  buildExportCsv,
+  buildExportXlsx,
+  buildExportXlsxAsync,
+  buildTemplateCsv,
+  combineExportBounds,
+  exportRowValues,
+  exportStamp,
+  timeInZone,
+  toExportRow,
+  type ExportRow,
+  type ExportSourceTransaction,
+} from "./exportRows.js";
+export { buildXlsx, buildXlsxAsync, buildXlsxEntries, type XlsxOptions } from "./exportXlsx.js";
+export {
+  buildZip,
+  buildZipAsync,
+  crc32,
+  type DeflateRaw,
+  type DeflateRawAsync,
+  type ZipEntry,
+} from "./exportZip.js";
+
+export {
   EXPORT_COLUMNS,
   EXPORT_FORMATS,
   MAX_EXPORT_ROWS,

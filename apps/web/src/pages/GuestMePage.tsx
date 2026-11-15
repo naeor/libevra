@@ -126,6 +126,15 @@ export function GuestMePage(): React.JSX.Element {
                 <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
               </button>
             ))}
+            {/* 导出与展示卡片：游客数据只在本机，导出是唯一的备份手段；两者都在本机完成。 */}
+            <button type="button" data-testid="guest-export-row" onClick={() => void navigate("/export")} className={settingsRow}>
+              <span className="min-w-0">{t("books.more.exportRow.label")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
+            </button>
+            <button type="button" data-testid="guest-cards-row" onClick={() => void navigate("/ledger/cards")} className={settingsRow}>
+              <span className="min-w-0">{t("ledger.cards.edit")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
+            </button>
           </div>
         </section>
 
@@ -138,6 +147,15 @@ export function GuestMePage(): React.JSX.Element {
         <section className="lv-settings-section" data-section-title="">
           <h2 className="lv-settings-heading mb-2 px-5 text-helper font-medium text-muted">{t("account.guestMe.display")}</h2>
           <div className="lv-settings-body lv-settings-list overflow-hidden rounded-card border border-line bg-surface">
+            <button type="button" data-testid="guest-preferences-row" onClick={() => void navigate("/settings/preferences")} className={settingsRow}>
+              <span className="min-w-0">{t("settings.home.preferences.title")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
+            </button>
+            {/* S19 外观：偏好存在本机，不依赖账号；游客与正式账号进同一页。 */}
+            <button type="button" data-testid="guest-appearance-row" onClick={() => void navigate("/settings/appearance/theme")} className={settingsRow}>
+              <span className="min-w-0">{t("settings.theme.title")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
+            </button>
             <button
               type="button"
               data-testid="guest-language-row"
@@ -151,6 +169,19 @@ export function GuestMePage(): React.JSX.Element {
                 {LOCALE_NATIVE_NAMES[language.locale]}
                 <ChevronIcon direction="right" className="size-4 text-muted/70" />
               </span>
+            </button>
+          </div>
+        </section>
+
+        <section className="lv-settings-section" data-section-title="">
+          <div className="lv-settings-body lv-settings-list overflow-hidden rounded-card border border-line bg-surface">
+            <button type="button" data-testid="guest-updates-row" onClick={() => void navigate("/update")} className={settingsRow}>
+              <span className="min-w-0">{t("desktop.settings.items.updates")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
+            </button>
+            <button type="button" data-testid="guest-about-row" onClick={() => void navigate("/about")} className={settingsRow}>
+              <span className="min-w-0">{t("settings.home.about.title")}</span>
+              <ChevronIcon direction="right" className="size-4 shrink-0 text-muted/70" />
             </button>
           </div>
         </section>

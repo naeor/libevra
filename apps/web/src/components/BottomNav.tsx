@@ -456,14 +456,14 @@ export function BottomNavView({
                * ⚠️ **S14-C: 语音 and 拍照 are server-side capabilities** (transcription and screenshot
                * recognition run on the API). A guest has no account to send them with, so the cards
                * are disabled with a natural reason instead of leading to a login screen or, worse,
-               * pretending to work. 手动 stays live — it is the local form and the whole point of
+               * pretending to work. 手动 and 文本 stay live (文本 parses on the device and writes locally) — it is the local form and the whole point of
                * guest mode.
                *
                * ⚠️ **导入账单 is behind the same gate**, and for the same reason: `/import` is a
                * server write scoped to a real account ledger. A guest pressing it would be bounced
                * to `/login`, which is exactly the dead end these cards avoid.
                */
-              if (guest && action.id !== "manual") {
+              if (guest && action.id !== "manual" && action.id !== "paste") {
                 return (
                   <li key={action.id} className="min-w-0 flex-1 basis-0">
                     <button

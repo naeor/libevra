@@ -1,4 +1,4 @@
-import { categoryPath, decimalsFor, formatTransactionNumber } from "@libellum/shared";
+import { toExportRow, type ExportRow } from "@libellum/shared";
 
 import type { PrismaClient } from "../db.js";
 
@@ -27,28 +27,8 @@ export interface ExportFilters {
   readonly currency?: string | undefined;
 }
 
-export interface ExportRow {
-  readonly id: string;
-  /** **The number a person reads, exactly as displayed: `#000001`.** */
-  readonly displayNumber: string;
-  /** `YYYY-MM-DD`, the phone's own calendar date. */
-  readonly occurredLocalDate: string;
-  /** `HH:mm`, in the zone the entry was recorded in. */
-  readonly occurredTime: string;
-  readonly occurredTz: string;
-  readonly kind: "income" | "expense";
-  /** A number, because a spreadsheet must be able to sum it. */
-  readonly amount: number;
-  readonly currency: string;
-  readonly categoryName: string;
-  readonly categoryPath?: string;
-  readonly paymentMethodName: string | null;
-  readonly note: string | null;
-  readonly tagNames: readonly string[];
-  /** `YYYY-MM-DD HH:mm:ss` on the server's clock — when the row was created. */
-  readonly createdAt: string;
-  readonly sourceRef: string | null;
-}
+/** 行的形状与“交易 → 行”的转换在 shared（游客本机导出共用），这里只留数据库读取。 */
+export type { ExportRow };
 
 const BATCH_SIZE = 500;
 
@@ -56,29 +36,6 @@ function toDateOnly(value: Date): Date {
   return new Date(
     Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
   );
-}
-
-/** `HH:mm` in the zone the entry was recorded in, falling back to the stored instant. */
-function timeInZone(instant: Date, timeZone: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone,
-    }).format(instant);
-  } catch {
-    return new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "UTC",
-    }).format(instant);
-  }
-}
-
-function twoDigits(value: number): string {
-  return String(value).padStart(2, "0");
 }
 
 /**
@@ -175,33 +132,26 @@ export async function* iterateExportRows(
     if (rows.length === 0) return;
 
     for (const row of rows) {
-      yield {
-        id: row.id,
-        /**
-         * ⚠️ **Formatted with the same function the screen uses.** A second formatter here would
-         * eventually pad differently, and **the file would disagree with the app about what a number
-         * looks like** — the copy someone hands to an accountant is the one that must match.
-         */
-        displayNumber: formatTransactionNumber(row.seq),
-        occurredLocalDate: toDateOnly(row.occurredLocalDate).toISOString().slice(0, 10),
-        occurredTime: timeInZone(row.occurredAt, row.occurredTz),
-        occurredTz: row.occurredTz,
-        kind: row.kind,
-        // Minor units to whole units **using the currency's own precision**.
-        // `money.ts` states the rule at the top of the file: ¥1000 is stored as
-        // `1000`, not `100000`. Dividing by a fixed hundred turned a ¥800 entry
-        // into 8 — an error of two orders of magnitude, in the one place a user
-        // checks the numbers by hand.
-        amount: Number(row.amountCents) / 10 ** decimalsFor(row.currency),
-        currency: row.currency,
-        categoryName: row.category.name,
-        categoryPath:JSON.stringify(categoryPath(categories,row.categoryId).map(c=>c.name)),
-        paymentMethodName: row.paymentMethod?.name ?? null,
-        note: row.note,
-        tagNames: row.tags.map((link) => link.tag.name),
-        createdAt: `${row.createdAt.toISOString().slice(0, 10)} ${twoDigits(row.createdAt.getUTCHours())}:${twoDigits(row.createdAt.getUTCMinutes())}:${twoDigits(row.createdAt.getUTCSeconds())}`,
-        sourceRef: row.sourceRef,
-      };
+      yield toExportRow(
+        {
+          id: row.id,
+          seq: row.seq,
+          occurredAt: row.occurredAt,
+          occurredLocalDate: toDateOnly(row.occurredLocalDate).toISOString().slice(0, 10),
+          occurredTz: row.occurredTz,
+          kind: row.kind,
+          amountMinor: Number(row.amountCents),
+          currency: row.currency,
+          categoryId: row.categoryId,
+          categoryName: row.category.name,
+          paymentMethodName: row.paymentMethod?.name ?? null,
+          note: row.note,
+          tagNames: row.tags.map((link) => link.tag.name),
+          createdAt: row.createdAt,
+          sourceRef: row.sourceRef,
+        },
+        categories,
+      );
     }
 
     const last = rows.at(-1);

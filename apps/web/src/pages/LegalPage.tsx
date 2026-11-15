@@ -1,6 +1,7 @@
 import { useLocation } from "react-router";
 
 import { InnerPage } from "../components/Layouts.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useI18n } from "../i18n/index.js";
 
 /**
@@ -49,9 +50,10 @@ export function LegalPage({ kind }: { readonly kind: keyof typeof DOCUMENTS }): 
    */
   const declared = (location.state as { from?: unknown } | null)?.from;
   const from = typeof declared === "string" ? declared : null;
+  const guest = useGuestMode();
 
   return (
-    <InnerPage title={t(`legal.placeholder.${kind}.title`)} backTo={from ?? "/settings"}>
+    <InnerPage title={t(`legal.placeholder.${kind}.title`)} backTo={from ?? (guest ? "/me" : "/settings")}>
       <div className="flex flex-col gap-5 text-body-relaxed text-ink">
         <section className="rounded-card border border-line bg-surface p-5">
           {/**

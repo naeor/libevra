@@ -127,7 +127,7 @@ describe("entryTapAction", () => {
 });
 
 describe("batchPermission", () => {
-  it("refuses a guest, who has no batch entry point either", () => {
+  it("allows a guest: the data is all on the device and the writes have a guest branch", () => {
     const permission = batchPermission({
       guest: true,
       shared: false,
@@ -135,8 +135,7 @@ describe("batchPermission", () => {
       role: { status: "idle" },
     });
 
-    expect(permission.allowed).toBe(false);
-    expect(permission.reason).toContain("游客");
+    expect(permission).toEqual({ allowed: true, reason: null });
   });
 
   it("refuses a shared ledger while offline, using the existing read-only rule", () => {

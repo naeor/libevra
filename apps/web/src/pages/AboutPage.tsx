@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { BrandMark } from "../components/BrandMark.js";
 import { InnerPage } from "../components/Layouts.js";
 import { ListGroup, ListRow, ProseSection } from "../components/ui/List.js";
+import { useGuestMode } from "../lib/guest/session.js";
 import { useI18n } from "../i18n/index.js";
 import { formatAppVersion } from "../lib/version.js";
 
@@ -29,9 +30,10 @@ export function AboutPage(): React.JSX.Element {
   const declared = (location.state as { from?: unknown } | null)?.from;
   const from = typeof declared === "string" ? declared : null;
   const { t } = useI18n();
+  const guest = useGuestMode();
 
   return (
-    <InnerPage title={t("update.about.title")} backTo={from ?? "/settings"}>
+    <InnerPage title={t("update.about.title")} backTo={from ?? (guest ? "/me" : "/settings")}>
       {/**
         * ⚠️ **S16-A：这一页以阅读为主，所以不再是三张大白卡片。** 所有者：*"当前多个短说明分别装入大卡片，
         * 整体像展示页面。请考虑更自然的文本分节与信息层级，减少不必要的框。"* 现在是：

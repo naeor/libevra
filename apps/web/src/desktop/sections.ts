@@ -43,7 +43,11 @@ export function settingsItems(options: { readonly guest: boolean; readonly admin
   if (options.guest) {
     return [
       { id: "guestHome", to: "/me", prefixes: ["/me"] },
-      { id: "language", to: "/settings/appearance/language", prefixes: ["/settings"] },
+      { id: "preferences", to: "/settings/preferences", prefixes: ["/settings/preferences"] },
+      { id: "appearance", to: "/settings/appearance/theme", prefixes: ["/settings/appearance"] },
+      { id: "language", to: "/settings/appearance/language", prefixes: ["/settings/appearance/language"] },
+      { id: "updates", to: "/update", prefixes: ["/update"] },
+      { id: "about", to: "/about", prefixes: ["/about", "/legal"] },
     ];
   }
   return [

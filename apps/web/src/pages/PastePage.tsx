@@ -1,5 +1,6 @@
 import { useCaptureTextDraft } from "../lib/captureTextDraft.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { useGuestIdentity } from "../lib/guest/session.js";
 import { usePane } from "../workspace/context.js";
 import { CaptureLayout, CaptureMobileAttachments, useCaptureAttachments } from "../components/entry/CaptureAttachments.js";
 import { useId, useState } from "react";
@@ -75,8 +76,10 @@ export function PastePage(): React.JSX.Element {
   const { t } = useI18n();
   const ledger = useLedger();
   const { user } = useAuth();
+  // 游客没有 user.id：草稿键用游客 id，避免出现 "undefined:..." 并与账号草稿区分。
+  const guestId = useGuestIdentity()?.id ?? null;
   const pane = usePane();
-  const { text, setText, candidates, setCandidates, batchId } = useCaptureTextDraft(`${user?.id}:${ledger.data?.book.id}:${pane.instance}`);
+  const { text, setText, candidates, setCandidates, batchId } = useCaptureTextDraft(`${user?.id ?? (guestId === null ? "none" : `guest-${guestId}`)}:${ledger.data?.book.id}:${pane.instance}`);
   /** S18：两个工作区可以同时打开粘贴识别。 */
   const textId = useId();
   const [clipboardError, setClipboardError] = useState<string | null>(null);

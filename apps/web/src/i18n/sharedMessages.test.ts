@@ -54,6 +54,9 @@ const FULL_FILES = [
   "duplicateDetection.ts",
   "duplicateReview.ts",
   "export.ts",
+  "exportRows.ts",
+  "exportXlsx.ts",
+  "exportZip.ts",
   "fx.ts",
   "fxHistory.ts",
   "health.ts",
@@ -86,7 +89,8 @@ const SENTENCE_FILES = ["categoryMatch.ts", "chineseNumerals.ts", "speech.ts", "
 const EXCLUDED_FILES = ["detailCards.ts", "attachments.ts", "consent.ts", "presets.ts", "avatarIds.ts", "rewards.ts"] as const;
 
 /** 不是界面文字的中文：导出文件表头（文件格式不随语言变化）、系统分类的名字（数据）。 */
-const NOT_UI_TEXT = new Set<string>([...EXPORT_COLUMNS.map((column) => column.header), UNCATEGORISED_NAME]);
+// "账目" 是导出 XLSX 的工作表名（文件内容，不随语言变化）。
+const NOT_UI_TEXT = new Set<string>([...EXPORT_COLUMNS.map((column) => column.header), UNCATEGORISED_NAME, "账目"]);
 
 // ---------------------------------------------------------------------------
 // 一个够用的 TS 词法扫描：跳过注释与正则字面量，取出字符串与模板字符串。

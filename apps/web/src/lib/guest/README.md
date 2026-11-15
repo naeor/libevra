@@ -19,6 +19,8 @@
 | [identity.ts](identity.ts) | 实现模块；入口/导出：GUEST_IDENTITY_STORAGE_KEY、GUEST_IDENTITY_SCHEMA_VERSION、GuestIdentity、GuestIdentityPatch、GuestIdentityStorage |
 | [ledger.test.ts](ledger.test.ts) | 测试：ledger |
 | [ledger.ts](ledger.ts) | 实现模块；入口/导出：GUEST_LEDGER_SCHEMA_VERSION、GuestLedger、DEFAULT_GUEST_LEDGER_NAME、DEFAULT_GUEST_CURRENCY、guestLedgersKey |
+| [notDuplicate.test.ts](notDuplicate.test.ts) | 测试：notDuplicate |
+| [notDuplicate.ts](notDuplicate.ts) | 实现模块；入口/导出：listGuestNotDuplicateRelations、createGuestNotDuplicateRelations、revokeGuestNotDuplicateRelation |
 | [runtime.ts](runtime.ts) | 实现模块；入口/导出：setGuestRuntimeId、guestRuntimeId、isGuestRuntime、installGuestWriteListener、notifyGuestWrite |
 | [session.ts](session.ts) | 实现模块；入口/导出：useGuestIdentity、useGuestMode、DataModeSync |
 | [storage.ts](storage.ts) | 实现模块；入口/导出：GUEST_DATABASE、hasGuestIndexedDb、readGuestValue、writeGuestValue、clearGuestDatabase |

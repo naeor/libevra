@@ -36,7 +36,7 @@ describe("侧栏五种记账方式", () => {
   it("保留游客的原有禁用判断与可访问名称", () => {
     mode.guest = true;
     const html = renderToStaticMarkup(<AddEntryButton compact={false} follow={false} followOpen={false} onNavigate={() => {}} onToggleFollow={() => {}} onCloseFollow={() => {}} />);
-    expect(html.match(/disabled=""/g)).toHaveLength(4);
+    expect(html.match(/disabled=""/g)).toHaveLength(3);
     expect(html).toContain('aria-label="手动记账"');
     mode.guest = false;
   });

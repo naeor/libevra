@@ -28,7 +28,7 @@ describe("电脑版记账菜单与原侧栏的游客判断一致", () => {
   const ordered = [...ENTRY_ACTIONS].sort((a, b) => Number(b.id === "manual") - Number(a.id === "manual"));
 
   for (const guest of [true, false]) {
-    it(guest ? "游客：只有手动记账可用" : "已登录：五种方式都可用", () => {
+    it(guest ? "游客：手动与文本可用，语音/拍照/导入置灰" : "已登录：五种方式都可用", () => {
       const rail = railDisabled(guest);
       expect(rail).toHaveLength(ENTRY_ACTIONS.length);
       expect(ordered.map((action) => desktopEntryDisabled(action, guest))).toEqual(rail);

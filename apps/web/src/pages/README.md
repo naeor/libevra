@@ -104,6 +104,7 @@
 | [adminConsole.test.ts](adminConsole.test.ts) | 测试：adminConsole |
 | [bookSettings.test.tsx](bookSettings.test.tsx) | 测试：bookSettings |
 | [collabUpdateAdmin.i18n.test.tsx](collabUpdateAdmin.i18n.test.tsx) | 测试：collabUpdateAdmin.i18n |
+| [guestFeatureRoutes.test.ts](guestFeatureRoutes.test.ts) | 测试：guestFeatureRoutes |
 | [scanNotDuplicateConfirmation.test.ts](scanNotDuplicateConfirmation.test.ts) | 测试：scanNotDuplicateConfirmation |
 | [settingsHome.test.tsx](settingsHome.test.tsx) | 测试：settingsHome |
 | [settingsRoutes.test.ts](settingsRoutes.test.ts) | 测试：settingsRoutes |
