@@ -5,15 +5,13 @@
   --lv-rail-relief: var(--s19-pill-sh);
   --lv-rail-action: var(--s19-key-bg);
   --lv-rail-action-sh: var(--s19-key-sh);
-  --lv-rail-glyph: var(--color-on-tag);
-  --lv-rail-icon-plate: color-mix(in srgb, var(--color-ink) 82%, var(--color-canvas));
-  --lv-rail-mark-face: var(--lv-rail-icon-plate);
+  --lv-rail-mark-face: var(--lv-rail-action);
   --lv-rail-mark-finish: none;
   background: var(--lv-rail-face);
 
   .lv-rail-mark {
     position: relative;
-    color: var(--lv-rail-glyph);
+    color: var(--color-ink);
     background: var(--lv-rail-mark-face);
     box-shadow: var(--lv-rail-action-sh);
   }
@@ -23,7 +21,6 @@
     inset: 0;
     border-radius: inherit;
     background: var(--lv-rail-mark-finish);
-    opacity: var(--lv-rail-mark-reflection, 1);
     pointer-events: none;
   }
   .lv-rail-mark > svg { position: relative; }
@@ -50,10 +47,10 @@
     background: var(--lv-rail-picked);
     box-shadow: var(--lv-rail-relief);
   }
-  /* 只给小图形铺承载底；展开和收起时的加号仍保留本机主色强调。 */
+  /* 加号使用主题的强调色与承载面。普通导航图标从所在按钮继承前景色。 */
   .lv-entry-plus {
     border-radius: 50%;
-    color: var(--lv-rail-glyph);
+    color: var(--color-brand-dark);
     background: var(--lv-rail-plus-plate);
     box-shadow: 0 0 0 2px var(--lv-rail-plus-plate);
   }
@@ -88,18 +85,11 @@
 :root[data-theme-mode="dark"]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
   --lv-rail-mark-face: var(--s19-tool-flat, var(--color-surface));
   --lv-rail-plus-plate: color-mix(in srgb, var(--color-brand) 42%, var(--s19-canvas));
-  .lv-rail-wordmark, svg { color: var(--lv-rail-glyph); }
+  .lv-rail-wordmark, svg { color: var(--color-on-tag); }
   .lv-add-item-icon { background: var(--s19-tool-bg); }
 }
 :root[data-theme-mode="light"]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
-  --lv-rail-plus-plate: color-mix(in srgb, var(--color-brand-dark) 50%, var(--lv-rail-icon-plate));
-  /* 保持白色字形在纸面和亮玻璃上的对比，底片只覆盖图标，不扩大按钮面积。 */
-  :is(.lv-rail-item-icon, .lv-rail-icon-button > svg, .lv-rail-books-header > svg, .lv-rail-book-current, .lv-rail-book-new > svg, .lv-add-item-icon) {
-    color: var(--lv-rail-glyph);
-    border-radius: 6px;
-    background: var(--lv-rail-icon-plate);
-    box-shadow: 0 0 0 2px var(--lv-rail-icon-plate);
-  }
-  /* 浅瓷的原反射为白色；收敛 Logo 上的反光，使白色笔画始终可读。 */
-  --lv-rail-mark-reflection: .45;
+  /* 次要文字和图标共用前景，在偏灰的薄片和经典表面上也能清楚阅读。 */
+  --color-muted: color-mix(in srgb, var(--color-ink) 75%, var(--color-surface));
+  --lv-rail-plus-plate: var(--color-brand-soft);
 }
