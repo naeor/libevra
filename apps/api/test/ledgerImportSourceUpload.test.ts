@@ -240,6 +240,10 @@ describe("staged guest-source uploads (1.19.97)", () => {
     expect(changed.statusCode).toBe(409);
     expect(changed.json()).toMatchObject({ code: "source_upload_part_conflict" });
     expect((await putPart(owner.cookie, uploadId, 2, second!)).statusCode).toBe(400);
+    // 累计不能超过声明的 6 笔：第 1 段塞 4 笔（3 + 4 > 6）被拒绝，什么都不写入。
+    const overflow = await putPart(owner.cookie, uploadId, 1, [...second!, sourceOf(1).transactions[0]!]);
+    expect(overflow.statusCode).toBe(400);
+    expect(overflow.json()).toMatchObject({ code: "source_upload_too_many" });
 
     const early = await complete(owner.cookie, uploadId);
     expect(early.statusCode).toBe(409);

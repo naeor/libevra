@@ -191,12 +191,47 @@ export function buildTemplateCsv(): string {
   return `﻿${csvRow(headers)}\r\n`;
 }
 
-/** 第 4 列（E）是金额，数字写法并保留两位小数。 */
+/** 各列在表格里的宽度（字符数），按列的 key 写，不按序号——见下方说明。 */
+const EXPORT_XLSX_WIDTHS: Readonly<Partial<Record<(typeof EXPORT_COLUMNS)[number]["key"], number>>> = {
+  displayNumber: 10,
+  occurredLocalDate: 12,
+  occurredTime: 8,
+  occurredTz: 16,
+  kind: 6,
+  amount: 12,
+  currency: 8,
+  category: 12,
+  paymentMethod: 12,
+  note: 28,
+  tags: 16,
+  createdAt: 20,
+  fileId: 38,
+  sourceRef: 38,
+  exportRef: 26,
+  categoryPath: 30,
+};
+
+function exportColumnIndex(key: (typeof EXPORT_COLUMNS)[number]["key"]): number {
+  return EXPORT_COLUMNS.findIndex((column) => column.key === key);
+}
+
+/**
+ * 金额列写成数字并保留两位小数（表格自己的求和才有意义）。
+ *
+ * ⚠️ 列序号**从 `EXPORT_COLUMNS` 按 key 算出来**，不写死。1.19.98 之前这里写死 `[4]`：首列加了「编号」之后
+ * 金额移到第 5 列（F），第 4 列成了「类型」，于是金额一直被写成文本、列宽也整体错了一列（所有者 2026-11-16 确认按 bug 修）。
+ */
+const AMOUNT_COLUMN = exportColumnIndex("amount");
 export const EXPORT_XLSX_OPTIONS: XlsxOptions = {
   sheetName: "账目",
-  numericColumns: [4],
-  decimalColumns: [4],
-  columnWidths: { 0: 12, 1: 8, 2: 16, 3: 6, 4: 12, 5: 8, 6: 12, 7: 12, 8: 28, 9: 16, 10: 20, 11: 38, 12: 38, 13: 26 },
+  numericColumns: [AMOUNT_COLUMN],
+  decimalColumns: [AMOUNT_COLUMN],
+  columnWidths: Object.fromEntries(
+    EXPORT_COLUMNS.flatMap((column, index) => {
+      const width = EXPORT_XLSX_WIDTHS[column.key];
+      return width === undefined ? [] : [[index, width]];
+    }),
+  ),
 };
 
 export function buildExportXlsx(

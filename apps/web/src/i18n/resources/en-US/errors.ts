@@ -304,6 +304,7 @@ const errors: Messages<typeof zh> = {
     source_upload_closed: "That source has finished uploading and can’t be changed.",
     source_upload_part_invalid: "That part number is out of range.",
     source_upload_part_conflict: "This part doesn’t match what was uploaded before.",
+    source_upload_too_many: "More entries were uploaded than were declared.",
     source_upload_incomplete: "The source hasn’t finished uploading yet. Continue the upload.",
     source_upload_count_mismatch: "The number of uploaded entries doesn’t match what was declared. Upload it again.",
     source_upload_invalid: "The uploaded source isn’t in the right format. Upload it again.",

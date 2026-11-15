@@ -255,7 +255,7 @@ describe("guest ledger import (D2)", () => {
     expect(second.statusCode).toBe(409);
     expect(second.json()).toMatchObject({ code: "already_imported" });
     expect(await prisma.transaction.count({ where: { bookId: owner.bookId, deletedAt: null } })).toBe(4);
-  });
+  }, 20_000); // 多次导入与校验；三包并行跑全量测试时可能超过默认 5 秒（2026-11-16 实测 6.6 秒），逻辑不变。
 
   it("rejects a stale source fingerprint and a target that changed after preview", async () => {
     const owner = await account("import_stale");

@@ -7,6 +7,7 @@ import {
   buildExportXlsx,
   buildExportXlsxAsync,
   buildTemplateCsv,
+  EXPORT_XLSX_OPTIONS,
   combineExportBounds,
   exportRowValues,
   exportStamp,
@@ -127,16 +128,30 @@ describe("CSV", () => {
 describe("XLSX", () => {
   const rows = [exportRowValues(toExportRow(source(), categories), "Out-x")];
 
-  it("能解包，文本是内联字符串；列选项与服务器原样一致", () => {
+  it("能解包，文本是内联字符串；金额（F 列）是两位小数的数字", () => {
     const files = unzip(buildExportXlsx(rows, (raw) => deflateRawSync(raw, { level: 9 })));
     expect([...files.keys()]).toContain("xl/worksheets/sheet1.xml");
     const sheet = files.get("xl/worksheets/sheet1.xml")!;
-    // ⚠️ 已知问题（待所有者决定，见报告）：加了“编号”列后金额在第 6 列（F，下标 5），
-    // 但沿用的 numericColumns/decimalColumns 仍是 [4]，所以金额在 XLSX 里是文本。这里按“服务器现状”固定，
-    // 修正时同时改 EXPORT_XLSX_OPTIONS 与这条断言。
-    expect(sheet).toContain('<c r="F2" t="inlineStr"><is><t xml:space="preserve">-38.5</t></is></c>');
+    // 1.19.98：金额按 key 定位到第 6 列（F），写成数字并用两位小数格式（s="2"），表格能直接求和。
+    // 之前写死下标 4，首列加了“编号”后金额一直被写成文本。
+    expect(sheet).toContain('<c r="F2" s="2"><v>-38.5</v></c>');
+    expect(sheet).not.toContain('<c r="F2" t="inlineStr">');
+    expect(sheet).toContain('<c r="E2" t="inlineStr"><is><t xml:space="preserve">支出</t></is></c>');
     expect(sheet).toContain('<c r="A2" t="inlineStr"><is><t xml:space="preserve">#000012</t></is></c>');
     expect(sheet).toContain('<dimension ref="A1:P2"/>');
+  });
+
+  it("列选项按列名定位：金额列与列宽跟着 EXPORT_COLUMNS 走", () => {
+    const amount = EXPORT_COLUMNS.findIndex((column) => column.key === "amount");
+    expect(EXPORT_XLSX_OPTIONS.numericColumns).toEqual([amount]);
+    expect(EXPORT_XLSX_OPTIONS.decimalColumns).toEqual([amount]);
+    const widths = EXPORT_XLSX_OPTIONS.columnWidths!;
+    expect(widths[amount]).toBe(12);
+    expect(widths[EXPORT_COLUMNS.findIndex((column) => column.key === "note")]).toBe(28);
+    expect(widths[EXPORT_COLUMNS.findIndex((column) => column.key === "displayNumber")]).toBe(10);
+    expect(Object.keys(widths)).toHaveLength(EXPORT_COLUMNS.length);
+    const files = unzip(buildExportXlsx(rows));
+    expect(files.get("xl/worksheets/sheet1.xml")!).toContain(`<col min="${String(amount + 1)}" max="${String(amount + 1)}" width="12"`);
   });
 
   it("不压缩（压缩不可用）也能解包，内容与压缩版一致", () => {

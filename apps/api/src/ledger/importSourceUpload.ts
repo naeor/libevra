@@ -177,6 +177,17 @@ export async function putSourceUploadPart(
       if (prior !== null) {
         if (prior.sha256 !== digest) throw conflict("source_upload_part_conflict", "这一段与先前上传的内容不一致。");
       } else {
+        /**
+         * 累计不能超过声明的笔数（1.19.98 发布前审查补上）：否则一个登录用户可以往一份暂存里塞远超声明的数据，
+         * 写满磁盘，或在“完成”一次性读入时撑爆内存。各段内容已按 schema 限长，所以总量随声明笔数有界。
+         */
+        const counted = await tx.$queryRaw<{ received: number }[]>`
+          SELECT COALESCE(SUM(jsonb_array_length("transactions")), 0)::int AS "received"
+          FROM "ledger_import_source_upload_parts" WHERE "upload_id" = ${uploadId}::uuid`;
+        const received = counted[0]?.received ?? 0;
+        if (received + transactions.length > row.transactionCount) {
+          throw badRequest("source_upload_too_many", "上传的账目超过了声明的笔数。");
+        }
         try {
           await tx.ledgerImportSourceUploadPart.create({
             data: { uploadId, position, sha256: digest, transactions: transactions as unknown as Prisma.InputJsonValue },

@@ -403,8 +403,8 @@ function AppRoutes(): React.JSX.Element {
         */}
       {/**
         * 游客多账本（第二批）：账本详情与账本设置游客也能进（`RequireSession`），读写都按地址里的游客账本
-        * 走游客库；页面里只对服务器有意义的部分（成员、通知、附件、导入历史账、导入账本）对游客不显示。
-        * 附件页仍只给正式账号。
+        * 走游客库；页面里只对服务器有意义的部分（成员、通知、导入历史账、导入账本）对游客不显示。
+        * 附件页 1.19.96 起也对游客开放（本机附件，`GuestAttachmentsPage`）。
         */}
       <Route path="/books/:bookId" element={<RequireSession><BookDetailPage /></RequireSession>} />
       <Route path="/books/:bookId/attachments" element={<RequireSession><AttachmentsPage /></RequireSession>} />

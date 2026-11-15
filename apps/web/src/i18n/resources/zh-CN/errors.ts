@@ -304,6 +304,7 @@ const errors = {
     source_upload_closed: "这份来源已经上传完成，不能再修改。",
     source_upload_part_invalid: "分段编号超出范围。",
     source_upload_part_conflict: "这一段与先前上传的内容不一致。",
+    source_upload_too_many: "上传的账目超过了声明的笔数。",
     source_upload_incomplete: "来源还没有全部上传，请继续上传。",
     source_upload_count_mismatch: "上传的账目笔数与声明的不一致，请重新上传。",
     source_upload_invalid: "上传的来源格式不正确，请重新上传。",
