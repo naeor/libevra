@@ -35,6 +35,7 @@ import type { RailPreference } from "./model.js";
 import { FloatingMenu, useOpenDrag } from "./openDrag.js";
 import type { OpenOptions } from "./context.js";
 import { DestinationIcon, useDestinations, type DestinationItem } from "./SecondaryNav.js";
+import "./global-rail-material.css";
 
 
 interface RailProps {
@@ -70,7 +71,7 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
   const brandTip = useRailTip(t("workspace.rail.expand"), compact);
 
   return (
-    <nav className="lv-rail" data-compact={compact ? "true" : "false"} data-portrait-split={portraitSplit ? "true" : "false"} aria-label={t("workspace.rail.label")}>
+    <nav className="lv-rail lv-material-effects" data-compact={compact ? "true" : "false"} data-portrait-split={portraitSplit ? "true" : "false"} aria-label={t("workspace.rail.label")}>
       <div className="lv-rail-section" data-section="primary">
         {/**
           * ⚠️ **第二轮：品牌是同一组元素，只是展开 / 收起两种形态**——标志始终在同一个位置，文字与收起按钮

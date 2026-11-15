@@ -1,0 +1,105 @@
+/* Pad 全局侧栏材质。原有宽度、结构、动画和拖拽仍由 workspace.css 决定。 */
+:root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  --lv-rail-face: var(--s19-canvas);
+  --lv-rail-picked: var(--s19-pill-bg);
+  --lv-rail-relief: var(--s19-pill-sh);
+  --lv-rail-action: var(--s19-key-bg);
+  --lv-rail-action-sh: var(--s19-key-sh);
+  --lv-rail-glyph: var(--color-on-tag);
+  --lv-rail-icon-plate: color-mix(in srgb, var(--color-ink) 82%, var(--color-canvas));
+  --lv-rail-mark-face: var(--lv-rail-icon-plate);
+  --lv-rail-mark-finish: none;
+  background: var(--lv-rail-face);
+
+  .lv-rail-mark {
+    position: relative;
+    color: var(--lv-rail-glyph);
+    background: var(--lv-rail-mark-face);
+    box-shadow: var(--lv-rail-action-sh);
+  }
+  .lv-rail-mark::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--lv-rail-mark-finish);
+    opacity: var(--lv-rail-mark-reflection, 1);
+    pointer-events: none;
+  }
+  .lv-rail-mark > svg { position: relative; }
+  .lv-rail-wordmark { color: var(--color-ink); }
+  :is(.lv-rail-item, .lv-rail-book, .lv-rail-icon-button):hover,
+  .lv-rail-brand-button:active {
+    background: var(--s19-track-bg);
+    color: var(--color-ink);
+  }
+  :is(.lv-rail-item, .lv-rail-book):is([aria-current="page"], [aria-current="true"]),
+  .lv-rail-books > .lv-rail-item[aria-expanded="true"] {
+    background: var(--lv-rail-picked);
+    color: var(--color-ink);
+    box-shadow: var(--lv-rail-relief);
+  }
+  .lv-rail-book[aria-current="true"] .lv-rail-book-dot { background: currentColor; }
+  .lv-rail-book-current { color: var(--color-ink); }
+  .lv-rail-add {
+    color: var(--color-ink);
+    background: var(--lv-rail-action);
+    box-shadow: var(--lv-rail-action-sh);
+  }
+  .lv-rail-add:hover, .lv-rail-add[aria-expanded="true"] {
+    background: var(--lv-rail-picked);
+    box-shadow: var(--lv-rail-relief);
+  }
+  /* 只给小图形铺承载底；展开和收起时的加号仍保留本机主色强调。 */
+  .lv-entry-plus {
+    border-radius: 50%;
+    color: var(--lv-rail-glyph);
+    background: var(--lv-rail-plus-plate);
+    box-shadow: 0 0 0 2px var(--lv-rail-plus-plate);
+  }
+  .lv-books-popover { background: var(--s19-sheet-bg); box-shadow: var(--s19-sheet-sh); }
+  .lv-rail-item[data-lifted="true"] { background: var(--lv-rail-action); box-shadow: var(--lv-rail-action-sh); }
+  button:focus-visible { outline: 2px solid var(--color-ink); outline-offset: -3px; }
+}
+:root[data-visual-style="b1"] .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  --lv-rail-face: var(--s19-card-bg);
+  --lv-rail-picked: var(--s19-tool-bg);
+  --lv-rail-relief: var(--s19-card-sh);
+  --lv-rail-action: var(--s19-key-bg);
+  --lv-rail-mark-finish: var(--lv-porcelain-glazed);
+}
+:root[data-visual-style="b2"] .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  /* 两层共享已有操作玻璃色和壁纸。侧栏不建新的滤镜包含块，以免固定账本菜单被侧栏裁切。 */
+  --lv-rail-glass: var(--s19-control-bg, var(--s19-tool-bg));
+  --lv-rail-face: linear-gradient(var(--lv-rail-glass), var(--lv-rail-glass)), var(--lv-wallpaper-bg);
+  --lv-rail-picked: var(--s19-select-glass-bg);
+  --lv-rail-relief: var(--s19-select-glass-sh);
+  --lv-rail-action: var(--s19-tool-bg);
+  --lv-rail-action-sh: var(--s19-tool-sh);
+  --lv-rail-mark-finish: var(--s19-select-glass-bg);
+}
+:root[data-visual-style="c"] .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  --lv-rail-face: var(--s19-paper-top);
+  --lv-rail-picked: var(--s19-select-solid-bg);
+  --lv-rail-relief: inset 3px 0 0 var(--color-line-strong);
+  --lv-rail-action: var(--s19-card-bg);
+  --lv-rail-action-sh: inset 0 0 0 1px var(--color-line-strong);
+}
+:root[data-theme-mode="dark"]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  --lv-rail-mark-face: var(--s19-tool-flat, var(--color-surface));
+  --lv-rail-plus-plate: color-mix(in srgb, var(--color-brand) 42%, var(--s19-canvas));
+  .lv-rail-wordmark, svg { color: var(--lv-rail-glyph); }
+  .lv-add-item-icon { background: var(--s19-tool-bg); }
+}
+:root[data-theme-mode="light"]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  --lv-rail-plus-plate: color-mix(in srgb, var(--color-brand-dark) 50%, var(--lv-rail-icon-plate));
+  /* 保持白色字形在纸面和亮玻璃上的对比，底片只覆盖图标，不扩大按钮面积。 */
+  :is(.lv-rail-item-icon, .lv-rail-icon-button > svg, .lv-rail-books-header > svg, .lv-rail-book-current, .lv-rail-book-new > svg, .lv-add-item-icon) {
+    color: var(--lv-rail-glyph);
+    border-radius: 6px;
+    background: var(--lv-rail-icon-plate);
+    box-shadow: 0 0 0 2px var(--lv-rail-icon-plate);
+  }
+  /* 浅瓷的原反射为白色；收敛 Logo 上的反光，使白色笔画始终可读。 */
+  --lv-rail-mark-reflection: .45;
+}

@@ -31,6 +31,7 @@
 | [follow.ts](follow.ts) | 实现模块；入口/导出：followTargetFor、followsToSecondary、isFollowDetail、Destination、destinationOf |
 | [geometry.test.ts](geometry.test.ts) | 测试：geometry |
 | [geometry.ts](geometry.ts) | 实现模块；入口/导出：ShellMode、Orientation、CollapseSide、Rect、RAIL_FULL |
+| [global-rail-material.css](global-rail-material.css) | 样式与变量 |
 | [icons.tsx](icons.tsx) | 界面模块；入口/导出：SidebarIcon、SplitIcon、MenuIcon、BackIcon、XIcon |
 | [model.test.ts](model.test.ts) | 测试：model |
 | [model.ts](model.ts) | 实现模块；入口/导出：InstanceId、FollowMode、RailPreference、PaneLedgers、WorkspaceState |
