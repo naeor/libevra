@@ -1,5 +1,5 @@
 /* 唯一壁纸配方。预览与页面共用；风格只改变扩散/强度，不另存一张背景。
-   低频渐变替代全屏 blur，没有图片、滚动监听、持续动画或前景滤镜。 */
+   浅色使用低频渐变；深色空间/瓷片/玻璃共享文末的静态中性灰度原图。 */
 :root, .lv-wallpaper-preview {
   --lv-wallpaper-spread: 1.8;
   --lv-wallpaper-strength: 20%;
@@ -111,4 +111,38 @@ html:root:not([data-visual-style]) {
   --lv-wallpaper-bg: var(--color-canvas);
   --lv-wallpaper-edge-top: var(--color-canvas);
   --lv-wallpaper-edge-bottom: var(--color-canvas);
+}
+
+/* 手机/Pad 深色背景定稿。静态原图共用一个构建资源，已有三种壁纸取其不同构图。
+   图片还没就绪时透明叠层下方立刻显示 --s19-canvas。脱离 S19 外壳时原有背景仍由上面规则决定。 */
+:root { --lv-neutral-field-source: url("./neutral-light-field.png"); }
+/* 同步主题引导已恢复用户选择但外壳尚未挂载时，先画一帧中性底。桌面鼠标大窗保持既有首帧。 */
+@media (hover: none), (pointer: coarse), (max-width: 767px) {
+  html:root[data-theme-mode="dark"][data-wallpaper]:not([data-shell="desktop"]):not(:has(.lv-shell)):is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) {
+    --lv-wallpaper-edge-top: var(--color-canvas);
+    @supports (color: rgb(from currentColor g g g)) {
+      --lv-wallpaper-edge-top: rgb(from var(--color-canvas) g g g);
+    }
+    --lv-wallpaper-edge-bottom: var(--lv-wallpaper-edge-top);
+    --lv-wallpaper-bg: var(--lv-wallpaper-edge-top);
+  }
+}
+html:root[data-theme-mode="dark"]:not([data-shell="desktop"]):has(.lv-shell[data-s19-scope]):is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"]) {
+  --lv-neutral-cover: 88%;
+  &[data-visual-style="b1"] { --lv-neutral-cover: 79%; }
+  &[data-visual-style="b2"] { --lv-neutral-cover: 40%; }
+
+  /* 在缩略图上重新求值，确保预览使用自己的壁纸键。aurora 完整映射原图，luminous
+     偏左上采更多亮灰，quiet 放大下方柔暗区。三者均使用该风格同一透明覆盖比例。 */
+  &, .lv-wallpaper-preview {
+    --lv-neutral-frame: center / 100% 100%;
+    &[data-wallpaper="luminous"] { --lv-neutral-frame: 0% 0% / 155% 145%; }
+    &[data-wallpaper="quiet"] { --lv-neutral-frame: 36% 88% / 170% 170%; }
+    --lv-neutral-matte: color-mix(in srgb, var(--s19-canvas, var(--color-canvas)) var(--lv-neutral-cover), transparent);
+    --lv-wallpaper-bg: linear-gradient(var(--lv-neutral-matte), var(--lv-neutral-matte)),
+      var(--lv-neutral-field-source) var(--lv-neutral-frame) no-repeat, var(--s19-canvas, var(--color-canvas));
+    --lv-wallpaper-edge-top: var(--s19-canvas, var(--color-canvas));
+    --lv-wallpaper-edge-bottom: var(--lv-wallpaper-edge-top);
+  }
+  --s19-bg: var(--lv-wallpaper-bg);
 }

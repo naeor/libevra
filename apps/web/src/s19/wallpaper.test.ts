@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createVisualStyleController, VISUAL_STYLE_STORAGE_KEY, type VisualStyleRoot, type VisualStyleStorage } from "../lib/visualStyle.js";
 import { createThemeController, THEME_STORAGE_KEY } from "../lib/theme.js";
@@ -11,6 +12,19 @@ function memory(initial: Record<string, string> = {}): VisualStyleStorage & { da
 }
 
 describe("壁纸与既有外观偏好的兼容", () => {
+  it("三种深色材质共享一张灰度图，三种壁纸从同一来源取景", () => {
+    const css = readFileSync(new URL("./wallpaper.css", import.meta.url), "utf8");
+    expect(css.match(/url\("\.\/neutral-light-field\.png"\)/g)).toHaveLength(1);
+    const source = readFileSync(new URL("./neutral-light-field.png", import.meta.url));
+    expect([source.readUInt32BE(16), source.readUInt32BE(20), source[25]]).toEqual([768, 1024, 0]);
+    const field = css.slice(css.indexOf("--lv-neutral-field-source"));
+    for (const cover of ["88%", "79%", "40%"]) expect(field).toContain(`--lv-neutral-cover: ${cover}`);
+    expect(field).toMatch(/--lv-neutral-frame: center \/ 100% 100%/);
+    for (const wallpaper of ["luminous", "quiet"]) {
+      expect(field).toContain(`[data-wallpaper="${wallpaper}"] { --lv-neutral-frame:`);
+    }
+  });
+
   it("旧用户或未知壁纸只回退壁纸，不改写主题、风格或账号玻璃配置", () => {
     for (const raw of [null, "", "unknown", '{"id":"quiet"}']) {
       const initial = { [VISUAL_STYLE_STORAGE_KEY]: "b2", [THEME_STORAGE_KEY]: '{"mode":"dark","palette":"purple"}', [b2GlassStorageKey("alice")]: JSON.stringify(presetGlass("clear")) };

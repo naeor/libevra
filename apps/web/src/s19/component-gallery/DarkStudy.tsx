@@ -14,14 +14,19 @@ import "../../index.css";
 import "../s19.css";
 import "../overlays.css";
 import "./dark-study-tokens.css";
+import "./light-field.css";
 
 const styles = [{ value: "a", label: "A" }, { value: "b1", label: "B1" }, { value: "b2", label: "B2" }, { value: "c", label: "C" }] as const;
 type Style = typeof styles[number]["value"];
+const fieldLevels = [{ value: "off", label: "关闭" }, { value: "soft", label: "轻" }, { value: "defined", label: "稍明显" }] as const;
+type FieldLevel = typeof fieldLevels[number]["value"];
 const names = { a: "柔和空间", b1: "深色瓷片", b2: "层叠玻璃", c: "经典精修" };
 
 function Study() {
   const query = new URLSearchParams(location.search);
   const [style, setStyle] = useState<Style>(() => styles.find(item => item.value === query.get("s19"))?.value ?? "b2");
+  const fieldEnabled = query.has("field");
+  const [field, setField] = useState<FieldLevel>(() => fieldLevels.find(item => item.value === query.get("field"))?.value ?? "soft");
   const [opaque, setOpaque] = useState(query.get("opaque") === "1");
   const [note, setNote] = useState("午间咖啡");
   const [panel, setPanel] = useState<"sheet" | "confirm" | null>(null);
@@ -30,11 +35,17 @@ function Study() {
     const root = document.documentElement;
     root.dataset.visualStyle = style;
     root.toggleAttribute("data-study-opaque", opaque);
-  }, [style, opaque]);
+    if (fieldEnabled) root.dataset.studyField = style === "c" ? "off" : field;
+    else delete root.dataset.studyField;
+  }, [style, opaque, fieldEnabled, field]);
   return <main className="lv-shell" data-shell="contents" data-s19-scope="phone">
     <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-5 pt-7 pb-10">
       <header><p className="text-helper text-muted">四风格深色样板</p><h1 className="mt-1 text-page-title">{names[style]}</h1></header>
       <SegmentedControl label="视觉风格" value={style} options={styles} onChange={setStyle} />
+      {fieldEnabled && <div className="grid gap-2">
+        {style !== "c" && <SegmentedControl label="共享光场强度" value={style === "a" && field !== "off" ? "soft" : field} options={style === "a" ? [{ value: "off", label: "关闭" }, { value: "soft", label: "均匀灰化" }] : fieldLevels} onChange={setField} />}
+        <a className="text-helper text-muted underline" href={new URL("../neutral-light-field.png", import.meta.url).href}>查看共享黑灰光场原图</a>
+      </div>}
       <Card appearance={{ finish: style === "b1" ? "satin" : style === "b2" ? "frosted" : "auto" }}>
         <p className="text-helper text-muted">本月支出</p><strong className="mt-1 block text-3xl tabular-nums">¥ 2,486.50</strong>
       </Card>

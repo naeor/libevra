@@ -1,0 +1,28 @@
+/* 光场只由开发样板的显式 data-study-field 开启，不改变壁纸选择。 */
+html:root[data-dark-study][data-study-field][data-visual-style]:not([data-visual-style="c"]) {
+  --s19-bg: var(--s19-canvas);
+  --lv-wallpaper-bg: var(--s19-bg);
+}
+html:root[data-dark-study][data-study-field]:not([data-study-field="off"]):is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"]) {
+  --study-field-base: var(--s19-canvas);
+  --study-field-matte: color-mix(in srgb, var(--study-field-base) var(--study-field-cover), transparent);
+  --s19-bg: linear-gradient(var(--study-field-matte), var(--study-field-matte)),
+    var(--lv-neutral-field-source) center / 100% 100% no-repeat, var(--study-field-base);
+}
+/* 同源原图的覆盖面控制可见差异；A 为均匀实体灰，B1 留实体瓷面，B2 保留现有内容/操作填充。 */
+html:root[data-dark-study][data-visual-style="a"][data-study-field] { --study-field-cover: 88%; }
+html:root[data-dark-study][data-visual-style="b1"][data-study-field="soft"] { --study-field-cover: 79%; }
+html:root[data-dark-study][data-visual-style="b1"][data-study-field="defined"] { --study-field-cover: 62%; }
+html:root[data-dark-study][data-visual-style="b2"][data-study-field="soft"] { --study-field-cover: 64%; }
+html:root[data-dark-study][data-visual-style="b2"][data-study-field="defined"] { --study-field-cover: 40%; }
+html:root[data-component-gallery][data-dark-study][data-study-field] body {
+  background: transparent;
+}
+html:root[data-component-gallery][data-dark-study][data-study-field] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--s19-bg);
+}
