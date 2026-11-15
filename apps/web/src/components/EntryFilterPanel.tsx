@@ -110,6 +110,12 @@ export function FilterForm({ value, ledger, onApply, onClose, pending, desktop =
   const people = useRecorderPeople(showRecorders);
   /** 在底部面板里时，标题行用弹出面板模板的（标题 + 工具 + 右上角 ×，也是下拉起手区）。 */
   const sheet = useSheetControls();
+  const split = sheet?.split === true;
+  const navRef = useRef<HTMLDivElement>(null);
+  // 开启月份多选会直接跳回「时间」，与方向键切换一样应让当前维度可见。
+  useEffect(() => {
+    if (split) navRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [section, split]);
   const labels = useFilterLabels(draft, ledger, people);
   const active = activeFilterDimensions(draft);
   const dimensions = FILTER_DIMENSIONS.filter(key => key !== "recorders" || showRecorders);
@@ -148,7 +154,7 @@ export function FilterForm({ value, ledger, onApply, onClose, pending, desktop =
   useListMotion(optionRowsRef, options.filter(visible).map(item => item.id).join("|"));
   const datesValid = validDetailDates(draft) && (!rangeMode || !!draft.from && !!draft.to);
   const storageValid = validStorageRange(draft.minMB, draft.maxMB);
-  return <form className="lv-filter-panel" data-desktop={desktop || undefined} onSubmit={event => { event.preventDefault(); setAttempted(true); if (datesValid && storageValid) onApply(draft); }}>
+  return <form className="lv-filter-panel" data-filter-split={split || undefined} data-desktop={desktop || undefined} onSubmit={event => { event.preventDefault(); setAttempted(true); if (datesValid && storageValid) onApply(draft); }}>
     {sheet !== null ? <SheetHeader title={t("ledger.filters.title")} actions={<div className="lv-filter-tools">
         <ToggleButton className="lv-filter-multi" pressed={multi} title={t("ledger.filters.multiSelectLabel")} onClick={toggleMulti}>{t("ledger.filters.multiSelect")}</ToggleButton>
         <FilterSettingsButton />
@@ -168,14 +174,16 @@ export function FilterForm({ value, ledger, onApply, onClose, pending, desktop =
       onRemove={key => { setDraft(clearFilterDimension(draft, key as FilterDimension)); if (key === "time") setRangeMode(false); }}
       empty={<span className="text-helper text-muted">{t("ledger.filters.all")}</span>} />
     <div className="lv-filter-content">
-      <MovingSelection axis="y" className="lv-filter-nav" role="tablist" aria-label={t("ledger.filters.title")} aria-orientation="vertical" onKeyDown={event => {
-        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      <MovingSelection axis={split ? "x" : "y"} hostRef={navRef} className="lv-filter-nav" role="tablist" aria-label={t("ledger.filters.title")} aria-orientation={split ? "horizontal" : "vertical"} onKeyDown={event => {
+        const forward = split ? "ArrowRight" : "ArrowDown";
+        const backward = split ? "ArrowLeft" : "ArrowUp";
+        if (![forward, backward, "Home", "End"].includes(event.key)) return;
         const tabs = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
         const index = tabs.indexOf(event.target as HTMLButtonElement);
-        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length;
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === forward ? 1 : -1) + tabs.length) % tabs.length;
         event.preventDefault(); tabs[next]?.focus(); tabs[next]?.click();
       }}>
-        {dimensions.map(key => <button type="button" role="tab" aria-selected={section === key} id={`${uid}-filter-tab-${key}`} aria-controls={`${uid}-filter-options`} key={key} onClick={() => { setSection(key); setSearch(""); }}><span>{t(`ledger.filters.${key}`)}</span>{active.includes(key) ? <span className="lv-filter-dot" /> : null}</button>)}
+        {dimensions.map(key => <button type="button" role="tab" aria-selected={section === key} tabIndex={split && section !== key ? -1 : undefined} id={`${uid}-filter-tab-${key}`} aria-controls={`${uid}-filter-options`} key={key} onClick={() => { setSection(key); setSearch(""); }}><span>{t(`ledger.filters.${key}`)}</span>{active.includes(key) ? <span className="lv-filter-dot" /> : null}</button>)}
       </MovingSelection>
       {/* 1.19.79：左侧换维度、时间里换“月份 / 日期范围”时，右侧内容淡入轻移（不重新挂载），不再一帧硬切。 */}
       <div ref={optionsRef} className="lv-filter-options" id={`${uid}-filter-options`} role="tabpanel" aria-labelledby={`${uid}-filter-tab-${section}`}>

@@ -1156,7 +1156,7 @@ function Pane({
   const registerDirty = useCallback((value: boolean) => { dirtyDetail.current = value; }, []);
   const current = useSnapshot(history).location;
   const width = (kind: TemporaryContent, open: boolean) => mode !== "box" || !info.visible ? 0 :
-    temporaryWidth(kind, rect.w, editingText() && open ? Math.max(280, rect.h) : rect.h, areaWidth, open);
+    temporaryWidth(kind, rect.w, editingText() && open ? Math.max(280, rect.h) : rect.h, areaWidth, info.split !== "none", open);
   const scope = useRef({ owner, book });
   scope.current = { owner, book };
   const host: TemporaryHost = { isCurrent: candidate => tasks.read()?.id === candidate.id

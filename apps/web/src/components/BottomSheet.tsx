@@ -65,6 +65,8 @@ export interface SheetControls {
 }
 
 interface SheetContextValue extends SheetControls {
+  /** 当前正显示为非模态临时区；宿主缩窄回退到同一任务的模态面板时为 false。 */
+  readonly split: boolean;
   readonly drag: SheetDragZone | null;
   readonly dismissible: boolean;
   readonly closeLabel: string;
@@ -73,7 +75,7 @@ interface SheetContextValue extends SheetControls {
 const SheetContext = createContext<SheetContextValue | null>(null);
 
 /** 面板里的自定义部件（例如自己画标题行的筛选表单）取得外壳的关闭入口。不在面板里时返回 null。 */
-export function useSheetControls(): SheetControls | null {
+export function useSheetControls(): SheetContextValue | null {
   return useContext(SheetContext);
 }
 
@@ -288,8 +290,8 @@ export function BottomSheet({
 
   const closeLabel = t("nav.sheet.close", { title: label });
   const context = useMemo<SheetContextValue>(
-    () => ({ ...controls, drag, dismissible, closeLabel }),
-    [controls, drag, dismissible, closeLabel],
+    () => ({ ...controls, drag, dismissible, closeLabel, split }),
+    [controls, drag, dismissible, closeLabel, split],
   );
 
   const surface = (

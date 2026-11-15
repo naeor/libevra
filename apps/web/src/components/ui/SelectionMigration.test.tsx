@@ -143,7 +143,7 @@ describe("A 轨道内 A2 只给分段轨道（1.19.73）", () => {
 
   it("筛选面板的竖向导航与“月份 / 日期范围”不在轨道里，不带 data-select-track", () => {
     const panel = src("components/EntryFilterPanel.tsx");
-    expect(panel).toContain('<MovingSelection axis="y" className="lv-filter-nav"');
+    expect(panel).toContain('<MovingSelection axis={split ? "x" : "y"} hostRef={navRef} className="lv-filter-nav"');
     expect(panel).toContain('<MovingSelection axis="x" className="lv-filter-segments">');
   });
 

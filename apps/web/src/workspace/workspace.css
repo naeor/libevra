@@ -128,7 +128,17 @@
 .lv-temporary-sheet-panel { display: flex; flex-direction: column; outline: none; overflow: hidden; }
 :root[data-visual-style][data-theme-mode] .lv-shell[data-s19-scope="pad"] .lv-pane[data-temporary-open] > [data-temporary-slot] {
   background: var(--s19-sheet-bg, var(--color-surface));
-  box-shadow: inset 1px 0 var(--color-line);
+  border-inline-start-color: color-mix(in srgb, var(--color-line) 55%, transparent);
+  border-start-start-radius: var(--radius-field);
+  border-end-start-radius: var(--radius-field);
+  box-shadow: -5px 0 14px -9px var(--color-line-strong);
+}
+/* 宿主有的页面自己滚动（例如明细），有的由 pane-scroll 滚动；滚动条只在宿主边界降调。
+   高对比或强制颜色模式使用浏览器原生滚动条。 */
+@media (forced-colors: none) and (prefers-contrast: no-preference) {
+  :root[data-visual-style] .lv-shell[data-s19-scope="pad"] .lv-pane[data-temporary-open] > .lv-pane-scroll {
+    scrollbar-color: color-mix(in srgb, var(--color-muted) 42%, transparent) transparent;
+  }
 }
 :root[data-visual-style="b2"][data-theme-mode] .lv-shell[data-s19-scope="pad"] .lv-temporary-sheet-panel {
   background: var(--s19-display-sheet-bg, var(--color-surface));

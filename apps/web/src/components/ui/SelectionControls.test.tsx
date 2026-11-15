@@ -344,8 +344,12 @@ describe("A 浮起档位（令牌）", () => {
 
 describe("筛选面板接入", () => {
   const source = read("../EntryFilterPanel.tsx");
-  it("左侧维度导航、月份 / 日期范围、月份网格、已选条件标签用正式组件，原有角色与 aria 不变", () => {
-    expect(source).toContain('<MovingSelection axis="y" className="lv-filter-nav" role="tablist" aria-label={t("ledger.filters.title")} aria-orientation="vertical"');
+  it("临时区横向与其他外壳竖向的维度导航、月份 / 日期范围、月份网格、已选条件标签用正式组件，原有角色与 aria 不变", () => {
+    expect(source).toContain("const split = sheet?.split === true;");
+    expect(source).toContain('tabIndex={split && section !== key ? -1 : undefined}');
+    expect(source).toContain('const forward = split ? "ArrowRight" : "ArrowDown";');
+    expect(source).toContain('const backward = split ? "ArrowLeft" : "ArrowUp";');
+    expect(source).toContain('<MovingSelection axis={split ? "x" : "y"} hostRef={navRef} className="lv-filter-nav" role="tablist" aria-label={t("ledger.filters.title")} aria-orientation={split ? "horizontal" : "vertical"}');
     expect(source).toContain('role="tab" aria-selected={section === key}');
     expect(source).toContain('<MovingSelection axis="x" className="lv-filter-segments">');
     expect(source).toContain("aria-pressed={!rangeMode}");

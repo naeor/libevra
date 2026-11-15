@@ -111,3 +111,36 @@
 @container lvpane (max-width:360px) {
   .detail-month.lv-filter-trigger { max-width:126px; }
 }
+
+/* 实际拆出的 Pad 筛选区：维度横向滚动，当前内容独占下一行。标题、条件与操作栏不参与选项列表滚动。 */
+.lv-filter-panel[data-filter-split] .lv-filter-content {
+  display: flex;
+  flex-direction: column;
+}
+.lv-filter-panel[data-filter-split] .lv-filter-nav {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  padding: 6px 12px;
+  border-inline-end: 0;
+  border-block-end: 1px solid var(--color-line);
+  scroll-padding-inline: 12px;
+}
+.lv-filter-panel[data-filter-split] .lv-filter-nav button {
+  flex: none;
+  justify-content: center;
+  gap: 4px;
+  width: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 8px;
+}
+.lv-filter-panel[data-filter-split] .lv-filter-options {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 16px;
+}
