@@ -59,12 +59,26 @@ model WorkbenchConfiguration {
   @@map("workbench_configurations")
 }
 
+/// 1.19.104：电脑版总览的跨设备配置（页面、口径与侧栏、我的预设、常用账目），账号级，一个账号一份。
+/// 与分析工作台的配置分开存放（各自的校验与旧客户端兼容互不影响）。注销账号时与工作台配置一起删除。
+model DashboardConfiguration {
+  userId String @id @map("user_id") @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schemaVersion Int @default(1) @map("schema_version")
+  version Int @default(1)
+  configuration Json
+  previousConfiguration Json? @map("previous_configuration")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@map("dashboard_configurations")
+}
+
 model User {
   storageBytes BigInt @default(0) @map("storage_bytes")
   storageLimitBytes BigInt? @map("storage_limit_bytes")
   entryChangeNotices EntryChangeNotice[]
 
   workbenchConfiguration WorkbenchConfiguration?
+  dashboardConfiguration DashboardConfiguration?
   id           String   @id @default(uuid()) @db.Uuid
   username     String   @unique
   /// Eight-digit public account number, for example `48213907`.

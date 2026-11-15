@@ -42,7 +42,9 @@
 | [dashboardPresets.ts](dashboardPresets.ts) | 实现模块；入口/导出：DashboardPresetId、DASHBOARD_PRESET_IDS、buildDashboardPreset |
 | [dashboardScopes.tsx](dashboardScopes.tsx) | 界面模块；入口/导出：BookData、DashboardScopeStore、DashboardScopeContext、DashboardScopeProbes、useDashboardBooks |
 | [dashboardStore.test.ts](dashboardStore.test.ts) | 测试：dashboardStore |
-| [dashboardStore.ts](dashboardStore.ts) | 实现模块；入口/导出：DASHBOARD_RECORD_VERSION、DASHBOARD_INSTALLED、DASHBOARD_BASE_COLUMNS、dashboardStorageKey、legacyDashboardStorageKey |
+| [dashboardStore.ts](dashboardStore.ts) | 实现模块；入口/导出：DASHBOARD_RECORD_VERSION、DASHBOARD_INSTALLED、DASHBOARD_CHANGED、DASHBOARD_SETTINGS_CHANGED、DASHBOARD_BASE_COLUMNS |
+| [dashboardSync.test.ts](dashboardSync.test.ts) | 测试：dashboardSync |
+| [dashboardSync.ts](dashboardSync.ts) | 实现模块；入口/导出：DashboardSyncStatus、DashboardSyncSnapshot、dashboardSyncKey、localDashboardConfiguration、installDashboardConfiguration |
 | [dashboardView.ts](dashboardView.ts) | 实现模块；入口/导出：DashboardBook、DashboardView、DashboardViewContext、useDashboardView |
 | [desktop.css](desktop.css) | 样式与变量 |
 | [desktopDetailLayout.test.tsx](desktopDetailLayout.test.tsx) | 测试：desktopDetailLayout |

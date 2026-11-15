@@ -390,6 +390,12 @@ const desktop: Messages<typeof zh> = {
         storage: "This device's storage is unavailable; nothing was saved.",
       },
     },
+    sync: {
+      conflict: "The overview was changed both here and on another device. You're now seeing the other device's (cloud) version; this device's version has been backed up.",
+      restore: "Restore this device's version",
+      keepCloud: "Keep the cloud version",
+      newer: "The overview saved in the cloud comes from a newer version of the app, so this device won't sync it until you update.",
+    },
     inspector: {
       empty: "Select an analysis card on the overview to see its details and source entries here.",
       close: "Close",

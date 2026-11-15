@@ -55,6 +55,7 @@ import { registerStatsRoutes } from "./routes/stats.js";
 import { registerTransactionRoutes } from "./routes/transactions.js";
 import { registerVoiceRoutes } from "./routes/voice.js";
 import { registerWorkbenchRoutes } from "./routes/workbench.js";
+import { registerDashboardConfigRoutes } from "./routes/dashboardConfig.js";
 import { VoiceService } from "./voice/client.js";
 
 export interface BuildAppOptions extends HealthDeps {
@@ -315,6 +316,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
      */
     registerAvatarRewardRoutes(app, { prisma: options.prisma, requireAuth });
     registerWorkbenchRoutes(app, { prisma: options.prisma, requireAuth });
+    registerDashboardConfigRoutes(app, { prisma: options.prisma, requireAuth });
 
     /**
      * ⚠️ **Share links are registered with plain auth, and each route resolves its own ledger.**

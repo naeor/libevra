@@ -13,7 +13,7 @@
  * 数据全部来自现有查询：每本账的数据作用域与最近账目（`dashboardScopes.tsx`），当前账本走本机优先的读取，
  * 其它账本在线读取，权限由服务器按账本检查。跨账本金额原币按币种分别相加，不折算、不去重，并在卡片上说明。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 
@@ -46,9 +46,17 @@ import { dashboardDestination } from "./dashboardNavigation.js";
 import { DashboardSidebar, SidebarCustomizer } from "./DashboardSidebar.js";
 import { DashboardPageTabs, DashboardPresetSheet } from "./DashboardPages.js";
 import { DashboardInspectContext } from "./DashboardInspector.js";
+import { DashboardSync, type DashboardSyncSnapshot } from "./dashboardSync.js";
+
+const IDLE_SYNC: DashboardSyncSnapshot = { status: "idle" };
+const idleSync = (): DashboardSyncSnapshot => IDLE_SYNC;
+const noSubscribe = (): (() => void) => () => undefined;
 import { DashboardViewContext, NativeTile, type DashboardBook, type DashboardView } from "./DashboardNativeCards.js";
 import { DashboardAvailableContext, DashboardScopeContext, DashboardScopeProbes, DashboardScopeStore, useDashboardCardScope } from "./dashboardScopes.js";
 import {
+  DASHBOARD_CHANGED,
+  DASHBOARD_SETTINGS_CHANGED,
+  DASHBOARD_TEMPLATES_CHANGED,
   DASHBOARD_INSTALLED,
   defaultDashboardDocuments,
   findDashboardCard,
@@ -97,7 +105,43 @@ export function DesktopDashboardPage(): React.JSX.Element {
   const mainCode = useDefaultCurrency();
   // 总览口径（时间、范围、统计方式）记在本机，改了立即生效，不需要进编辑（1.19.100）。
   const [settings, setSettingsState] = useState<DashboardSettings>(() => readDashboardSettings(owner));
-  useEffect(() => setSettingsState(readDashboardSettings(owner)), [owner]);
+  useEffect(() => {
+    setSettingsState(readDashboardSettings(owner));
+    // 同步从另一台设备装来新的口径 / 侧栏时重读。
+    const changed = (event: Event) => { if ((event as CustomEvent<string>).detail === owner) setSettingsState(readDashboardSettings(owner)); };
+    window.addEventListener(DASHBOARD_SETTINGS_CHANGED, changed);
+    return () => window.removeEventListener(DASHBOARD_SETTINGS_CHANGED, changed);
+  }, [owner]);
+
+  // 1.19.104：登录账号的总览跨设备同步（游客不同步）。
+  const sync = useMemo(() => (user !== null && owner !== null ? new DashboardSync(owner) : null), [user, owner]);
+  useEffect(() => {
+    if (sync === null) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const run = (): void => { if (document.visibilityState !== "hidden" && navigator.onLine) void sync.run(); };
+    const changed = (event: Event): void => {
+      if ((event as CustomEvent<string>).detail !== sync.owner) return;
+      clearTimeout(timer);
+      timer = setTimeout(run, 600);
+    };
+    window.addEventListener(DASHBOARD_CHANGED, changed);
+    window.addEventListener(DASHBOARD_TEMPLATES_CHANGED, changed);
+    window.addEventListener("focus", run);
+    window.addEventListener("online", run);
+    document.addEventListener("visibilitychange", run);
+    const poll = setInterval(run, 60_000);
+    run();
+    return () => {
+      clearTimeout(timer);
+      clearInterval(poll);
+      window.removeEventListener(DASHBOARD_CHANGED, changed);
+      window.removeEventListener(DASHBOARD_TEMPLATES_CHANGED, changed);
+      window.removeEventListener("focus", run);
+      window.removeEventListener("online", run);
+      document.removeEventListener("visibilitychange", run);
+    };
+  }, [sync]);
+  const syncState = useSyncExternalStore(sync?.subscribe ?? noSubscribe, sync?.getSnapshot ?? idleSync, idleSync);
   const setSettings = (next: DashboardSettings): void => {
     setSettingsState(next);
     if (owner !== null) writeDashboardSettings(owner, next);
@@ -183,14 +227,14 @@ export function DesktopDashboardPage(): React.JSX.Element {
       defaultSize: nativeSizing(kind).defaultSize,
     })),
     presets: false,
-    sync: null,
+    sync,
     texts: {
       saved: t("desktop.dashboard.saved"),
       reset: t("desktop.dashboard.resetLayout"),
       resetHint: t("desktop.dashboard.resetLayoutHint"),
       resetDone: t("desktop.dashboard.resetDone"),
     },
-  }), [bookIds, allBookIds, currentBookId, t, activePage.id, perBook, owner]);
+  }), [bookIds, allBookIds, currentBookId, t, activePage.id, perBook, owner, sync]);
 
   // 账本变化（新账本、退出 / 归档）或换页：让工作台按新的账本 / 页面重新读取（派生，不写回）。
   useEffect(() => {
@@ -288,6 +332,17 @@ export function DesktopDashboardPage(): React.JSX.Element {
                   onRetry={() => void books.refetch()}
                   switchStatus={switcher.status}
                   perBook={perBook}
+                  syncNotice={
+                    sync === null ? null : syncState.status === "conflict" && sync.hasBackup() ? (
+                      <div role="status" className="lv-dash-notice">
+                        <span className="min-w-0 flex-1">{t("desktop.dashboard.sync.conflict")}</span>
+                        <button type="button" className="lv-desk-btn" onClick={() => void sync.restoreBackup()}>{t("desktop.dashboard.sync.restore")}</button>
+                        <button type="button" className="lv-desk-btn" onClick={() => sync.dismissConflict()}>{t("desktop.dashboard.sync.keepCloud")}</button>
+                      </div>
+                    ) : syncState.status === "newer" ? (
+                      <p role="status" className="lv-dash-notice">{t("desktop.dashboard.sync.newer")}</p>
+                    ) : null
+                  }
                   controls={
                     <>
                       <DashboardPageTabs
@@ -334,7 +389,10 @@ function DashboardFrame({
   switchStatus,
   controls,
   perBook,
+  syncNotice,
 }: {
+  /** 跨设备同步的提示（两边都改了、云端来自更新版本）。 */
+  readonly syncNotice: React.ReactNode;
   /** 「每本账一组」页：编辑的是一组卡片的模板。 */
   readonly perBook: boolean;
   readonly parts: WorkbenchFrameParts;
@@ -386,6 +444,7 @@ function DashboardFrame({
               data-mask={masked && !parts.editing ? "" : undefined}
               {...(parts.editing ? {} : { onContextMenu: menu.onContextMenu, onKeyDown: menu.onKeyDown })}
             >
+              {syncNotice}
               {failed ? <div role="alert" className="flex items-center gap-4 px-6 pt-4"><p className="text-body text-danger">{t("desktop.dashboard.readFailed")}</p><button type="button" className="lv-desk-btn" onClick={onRetry}>{t("common.action.retry")}</button></div> : null}
               {switchStatus === null ? null : <p role="status" className="px-6 pt-3 text-helper text-danger">{switchStatus}</p>}
               {parts.editing && perBook ? <p className="px-6 pt-3 text-helper-relaxed text-brand-dark">{t("desktop.dashboard.pages.perBookEditing")}</p> : null}

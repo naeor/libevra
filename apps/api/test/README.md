@@ -37,6 +37,7 @@
 | [criticalRelayLatency.test.ts](criticalRelayLatency.test.ts) | 测试：criticalRelayLatency |
 | [criticalStatus.test.ts](criticalStatus.test.ts) | 测试：criticalStatus |
 | [csvImportAtomicity.test.ts](csvImportAtomicity.test.ts) | 测试：csvImportAtomicity |
+| [dashboardConfig.test.ts](dashboardConfig.test.ts) | 测试：dashboardConfig |
 | [defaultBookName.test.ts](defaultBookName.test.ts) | 测试：defaultBookName |
 | [detailCards.test.ts](detailCards.test.ts) | 测试：detailCards |
 | [directory.test.ts](directory.test.ts) | 测试：directory |

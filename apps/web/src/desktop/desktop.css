@@ -1428,3 +1428,5 @@ html[data-shell="desktop"] body {
 .lv-inspector-body { max-height:420px; overflow:auto; border-top:1px solid var(--color-line); padding-top:8px; }
 .lv-dash-sidebar[data-mask] .lv-inspector-body { filter:blur(8px); }
 .lv-dash-sidebar[data-mask] .lv-inspector-body:is(:hover, :focus-within) { filter:none; }
+/* 1.19.104：总览同步提示。 */
+.lv-dash-notice { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:12px 24px 0; padding:10px 14px; border-radius:var(--radius-field); background:var(--color-warn-soft); color:var(--color-ink); font-size:var(--text-helper); }

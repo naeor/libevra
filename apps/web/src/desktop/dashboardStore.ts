@@ -35,7 +35,16 @@ import { documentsProblems, type Stored, type WorkbenchDocuments } from "../stat
 import { dashboardGeometry, parseDashboard, resolveDashboard, type DashboardCard } from "./dashboardModel.js";
 
 export const DASHBOARD_RECORD_VERSION = 2;
+/** 本机的总览记录被换掉（另一个窗口、同步装入、页面操作）：页面重读。 */
 export const DASHBOARD_INSTALLED = "libevra-dashboard-installed";
+/** 1.19.104：本机改了要同步的东西（保存布局、口径、预设、页面）：同步引擎稍后提交。 */
+export const DASHBOARD_CHANGED = "libevra-dashboard-changed";
+/** 口径（时间、范围、统计方式、侧栏）被换掉：页面重读。 */
+export const DASHBOARD_SETTINGS_CHANGED = "libevra-dashboard-settings-changed";
+
+function announce(name: string, owner: string): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(name, { detail: owner }));
+}
 /** 默认总览与旧配置迁移用的基础列数（显示时按实际宽度自动排列，见 S18 响应式布局引擎）。 */
 export const DASHBOARD_BASE_COLUMNS = 4;
 const MAX_OBJECTS = 40;
@@ -343,6 +352,7 @@ export function saveDashboard(owner: string, documents: WorkbenchDocuments, prev
       knownBooks: [...new Set([...(previous?.knownBooks ?? []), ...bookIds])],
       updatedAt: new Date().toISOString(),
     });
+    announce(DASHBOARD_CHANGED, owner);
     return previousVersion + 1;
   } catch {
     return null;
@@ -389,7 +399,8 @@ function editPages(owner: string, bookIds: readonly string[], change: (pages: re
       knownBooks: previous?.knownBooks ?? [...bookIds],
       updatedAt: new Date().toISOString(),
     });
-    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DASHBOARD_INSTALLED, { detail: owner }));
+    announce(DASHBOARD_INSTALLED, owner);
+    announce(DASHBOARD_CHANGED, owner);
     return true;
   } catch {
     return false;
@@ -620,6 +631,7 @@ export function loadDashboardPresets(owner: string | null): readonly DashboardPr
 function writePresets(owner: string, items: readonly DashboardPreset[]): boolean {
   try {
     storage()?.setItem(dashboardPresetsKey(owner), JSON.stringify({ v: 1, items }));
+    announce(DASHBOARD_CHANGED, owner);
     return true;
   } catch {
     return false;
@@ -652,6 +664,7 @@ export function followDefaultDashboard(owner: string, previousVersion: number): 
       store.setItem(`${key}:previous`, old);
       store.removeItem(key);
     }
+    announce(DASHBOARD_CHANGED, owner);
     return 0;
   } catch {
     return null;
@@ -778,6 +791,7 @@ export function readDashboardSettings(owner: string | null): DashboardSettings {
 export function writeDashboardSettings(owner: string, settings: DashboardSettings): boolean {
   try {
     storage()?.setItem(dashboardSettingsKey(owner), JSON.stringify(settings));
+    announce(DASHBOARD_CHANGED, owner);
     return true;
   } catch {
     return false;

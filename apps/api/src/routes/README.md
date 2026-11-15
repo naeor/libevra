@@ -22,6 +22,7 @@ HTTP 路由入口；鉴权、校验、领域操作与错误响应。
 | [books.ts](books.ts) | 实现模块；入口/导出：BooksRouteOptions、registerBooksRoutes |
 | [classification.ts](classification.ts) | 实现模块；入口/导出：ClassificationRouteOptions、registerClassificationRoutes |
 | [consent.ts](consent.ts) | 实现模块；入口/导出：registerLegalRoutes、registerAccountConsentRoutes |
+| [dashboardConfig.ts](dashboardConfig.ts) | 实现模块；入口/导出：registerDashboardConfigRoutes |
 | [detailCards.ts](detailCards.ts) | 实现模块；入口/导出：detailRecords、publicWorkbench、preserveDetailCards、registerDetailCardRoutes |
 | [directory.ts](directory.ts) | 实现模块；入口/导出：DirectoryRouteOptions、registerDirectoryRoutes |
 | [duplicateReview.ts](duplicateReview.ts) | 实现模块；入口/导出：candidateFromTransaction、duplicateWhere、suppressConfirmed、registerDuplicateReviewRoutes |

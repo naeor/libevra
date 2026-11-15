@@ -8,6 +8,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
+    "./dashboard/configuration": {
+      "types": "./src/dashboard/configuration.ts",
+      "default": "./src/dashboard/configuration.ts"
+    },
     "./workbench/configuration": {
       "types": "./src/workbench/configuration.ts",
       "default": "./src/workbench/configuration.ts"

@@ -48,6 +48,10 @@ const errors = {
     category_children:"请先移动子分类，或确认将子分类提升到上一级。",
     unauthorized: "登录状态已失效，请重新登录。",
     workbench_invalid: "工作台配置格式无效或版本不受支持。",
+    // 1.19.104：电脑版总览的跨设备配置（apps/api/src/routes/dashboardConfig.ts）。
+    dashboard_config_invalid: "总览配置格式无效或版本不受支持。",
+    dashboard_config_newer: "云端的总览配置来自更新的版本，请更新应用后再保存。",
+    dashboard_config_conflict: "另一台设备已经更新了总览。",
     workbench_newer: "云端配置来自更新版本，请先更新应用。",
     configuration_limit: "显示方案数量已达上限。",
     workbench_conflict: "其他设备已更新工作台，请选择要保留的配置。",

@@ -293,6 +293,8 @@ export async function deleteAccountData(
     });
     const currentById = new Map(memberships.map((membership) => [membership.book.id, membership.book]));
     if (input.all) await tx.workbenchConfiguration.deleteMany({ where: { userId: input.userId } });
+    // 1.19.104：电脑版总览的配置与工作台配置同样是账号级个人配置，一并删除。
+    if (input.all) await tx.dashboardConfiguration.deleteMany({ where: { userId: input.userId } });
 
     const selected: Book[] = [];
     const alreadyHandled: { bookId: string; action: "already_left" | "already_deleted" }[] = [];
@@ -694,6 +696,7 @@ export async function closeAccount(
     });
     await tx.notificationQuota.deleteMany({ where: { userId: input.userId } });
     await tx.workbenchConfiguration.deleteMany({ where: { userId: input.userId } });
+    await tx.dashboardConfiguration.deleteMany({ where: { userId: input.userId } });
     await tx.notification.deleteMany({ where: { recipientId: input.userId } });
     await tx.notification.deleteMany({
       where: { senderId: input.userId, status: "pending" },
