@@ -1406,3 +1406,10 @@ html[data-shell="desktop"] body {
 .lv-dash-sidebar .lv-dash-quick-grid[data-icon-only] { grid-template-columns:repeat(auto-fill, minmax(44px, 1fr)); }
 .lv-dash-sidebar .lv-dash-quick-grid[data-icon-only] .lv-add-item { position:relative; justify-content:center; }
 .lv-dash-sidebar .lv-dash-quick-grid[data-icon-only] .lv-add-item > span:last-child { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+/* 1.19.102：总览页面标签。 */
+.lv-dash-pages { display:flex; flex-wrap:wrap; align-items:center; gap:2px; margin-right:8px; }
+.lv-dash-page-tab { min-height:36px; padding:4px 12px; border-radius:var(--radius-field); color:var(--color-muted); white-space:nowrap; }
+.lv-dash-page-tab[aria-selected="true"] { color:var(--color-ink); background:var(--color-brand-soft); font-weight:500; }
+@media (hover: hover) { .lv-dash-page-tab:hover:not([aria-selected="true"]):not(:disabled) { background:var(--color-canvas); color:var(--color-ink); } }
+.lv-dash-page-tab:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+.lv-dash-page-tab:disabled { opacity:0.5; }

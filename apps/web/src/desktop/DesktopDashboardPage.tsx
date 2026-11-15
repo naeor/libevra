@@ -44,6 +44,7 @@ import { DashboardCardSettings } from "./DashboardCardSettings.js";
 import { DashboardStatsControl, DashboardTimeControl, MaskToggle } from "./DashboardControls.js";
 import { dashboardDestination } from "./dashboardNavigation.js";
 import { DashboardSidebar, SidebarCustomizer } from "./DashboardSidebar.js";
+import { DashboardPageTabs, DashboardPresetSheet } from "./DashboardPages.js";
 import { DashboardViewContext, NativeTile, type DashboardBook, type DashboardView } from "./DashboardNativeCards.js";
 import { DashboardAvailableContext, DashboardScopeContext, DashboardScopeProbes, DashboardScopeStore, useDashboardCardScope } from "./dashboardScopes.js";
 import {
@@ -60,9 +61,16 @@ import {
   timeChoiceFor,
   writeDashboardSettings,
   writeMask,
+  expandPerBook,
+  listPages,
+  readActivePage,
+  templateObjectId,
+  writeActivePage,
   type DashboardSettings,
+  type PageSummary,
   type SidebarConfig,
 } from "./dashboardStore.js";
+import type { WorkbenchDocuments } from "../statsWorkbench/storage.js";
 import { DesktopToolbar } from "./DesktopToolbar.js";
 import { useEnterLedger } from "./DesktopNav.js";
 
@@ -97,6 +105,21 @@ export function DesktopDashboardPage(): React.JSX.Element {
     setMaskedState(value);
     if (owner !== null) writeMask(owner, value);
   };
+  // 1.19.102：多页总览。页面列表在保存的记录里；这台设备停在哪一页另记。
+  const [pages, setPages] = useState<readonly PageSummary[]>(() => listPages(owner));
+  const [pageId, setPageIdState] = useState<string | undefined>(() => readActivePage(owner));
+  useEffect(() => {
+    setPages(listPages(owner));
+    setPageIdState(readActivePage(owner));
+    const installed = (event: Event) => { if ((event as CustomEvent<string>).detail === owner) setPages(listPages(owner)); };
+    window.addEventListener(DASHBOARD_INSTALLED, installed);
+    return () => window.removeEventListener(DASHBOARD_INSTALLED, installed);
+  }, [owner]);
+  const activePage = pages.find((page) => page.id === pageId) ?? pages[0] ?? { id: "main", name: "" };
+  const selectPage = (id: string): void => {
+    setPageIdState(id);
+    if (owner !== null) writeActivePage(owner, id);
+  };
   const today = useMemo(() => toLocalDate(new Date()), []);
   const time = useMemo(() => timeChoiceFor(settings.time, today), [settings.time, today]);
   const range = useMemo(() => resolveRange(time, today), [time, today]);
@@ -128,10 +151,13 @@ export function DesktopDashboardPage(): React.JSX.Element {
   // 卡片可以指定范围以外的账本（例如账本卡片）：读取器按全部账本挂，卡片按自己的设置取用。
   const available = useMemo(() => new Set(allBookIds), [allBookIds]);
 
+  const perBook = activePage.kind === "per-book";
   const surface = useMemo<WorkbenchSurface>(() => ({
     id: "dashboard",
-    readStored: (accountScope) => readDashboard(accountScope, bookIds, allBookIds),
-    save: async (accountScope, documents, version) => saveDashboard(accountScope, documents, version, bookIds),
+    readStored: (accountScope) => readDashboard(accountScope, bookIds, allBookIds, activePage.id),
+    save: async (accountScope, documents, version) => saveDashboard(accountScope, documents, version, bookIds, activePage.id),
+    ...(perBook ? { browseDocuments: (documents: WorkbenchDocuments) => expandPerBook(documents, bookIds) } : {}),
+    renderPresets: ({ current, apply, onClose }) => <DashboardPresetSheet owner={owner} bookIds={bookIds} current={current} apply={apply} onClose={onClose} />,
     defaults: () => defaultDashboardDocuments(bookIds),
     isSystemDefault: (documents) => isDefaultDashboard(documents, bookIds),
     followSystemDefault: followDefaultDashboard,
@@ -161,12 +187,12 @@ export function DesktopDashboardPage(): React.JSX.Element {
       resetHint: t("desktop.dashboard.resetLayoutHint"),
       resetDone: t("desktop.dashboard.resetDone"),
     },
-  }), [bookIds, allBookIds, currentBookId, t]);
+  }), [bookIds, allBookIds, currentBookId, t, activePage.id, perBook, owner]);
 
-  // 账本变化（新账本、退出 / 归档）：让工作台按新的账本重新读取（派生，不写回）。
+  // 账本变化（新账本、退出 / 归档）或换页：让工作台按新的账本 / 页面重新读取（派生，不写回）。
   useEffect(() => {
     if (owner !== null) window.dispatchEvent(new CustomEvent(DASHBOARD_INSTALLED, { detail: owner }));
-  }, [owner, bookSignature]);
+  }, [owner, bookSignature, activePage.id, perBook]);
 
   const view = useMemo<DashboardView>(() => ({
     books: new Map(bookList.map((book) => [book.id, book])),
@@ -190,17 +216,24 @@ export function DesktopDashboardPage(): React.JSX.Element {
       const source = cardSourceBook(card);
       return source === null || source === currentBookId ? analysisDestination(card) : null;
     },
+    // 数据固定来自某本账的分析卡片，标题下写出账本名称（多本账时才写）。
+    sourceLabel: (card) => {
+      const source = cardSourceBook(card);
+      return source === null || allBookIds.length <= 1 ? null : view.books.get(source)?.name ?? null;
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [currentBookId, month, settings.combined]);
+  }), [currentBookId, month, settings.combined, allBookIds, view]);
 
   const switcher = useEnterLedger();
   const navigate = useNavigate();
   const openAnalysisCard = (cardId: string): void => {
     if (owner === null) return;
-    const card = findDashboardCard(owner, cardId);
+    // 「每本账一组」页展开后的卡片 id 是「模板 id@账本」：打开模板那张卡片，数据来自那本账。
+    const templateId = templateObjectId(cardId);
+    const card = findDashboardCard(owner, templateId);
     if (card === undefined) return;
     const destination = analysisDestination(card);
-    const source = cardSourceBook(card);
+    const source = cardId === templateId ? cardSourceBook(card) : cardId.slice(templateId.length + 1);
     if (source !== null && source !== currentBookId) switcher.enter(source, undefined, destination);
     else void navigate(destination);
   };
@@ -242,8 +275,18 @@ export function DesktopDashboardPage(): React.JSX.Element {
                   failed={books.isError}
                   onRetry={() => void books.refetch()}
                   switchStatus={switcher.status}
+                  perBook={perBook}
                   controls={
                     <>
+                      <DashboardPageTabs
+                        owner={owner}
+                        pages={pages}
+                        active={activePage.id}
+                        bookIds={bookIds}
+                        currentDocuments={() => readDashboard(owner, bookIds, allBookIds, activePage.id).documents}
+                        disabled={parts.editing}
+                        onSelect={selectPage}
+                      />
                       <DashboardTimeControl value={settings.time} bookIds={allBookIds} disabled={parts.editing} onChange={(value) => setSettings({ ...settings, time: value })} />
                       <DashboardStatsControl settings={settings} books={bookList} mainCode={mainCode} disabled={parts.editing} onChange={setSettings} />
                       <MaskToggle masked={masked} onChange={setMasked} />
@@ -277,7 +320,10 @@ function DashboardFrame({
   onRetry,
   switchStatus,
   controls,
+  perBook,
 }: {
+  /** 「每本账一组」页：编辑的是一组卡片的模板。 */
+  readonly perBook: boolean;
   readonly parts: WorkbenchFrameParts;
   readonly meta: string;
   readonly books: readonly DashboardBook[];
@@ -290,7 +336,8 @@ function DashboardFrame({
   readonly controls: React.ReactNode;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const menu = useCardContextMenu({ act: parts.act, isRootObject: parts.isRootObject });
+  // 「每本账一组」页浏览时是展开后的卡片（id 带 @账本），右键菜单作用在模板里对应的那张。
+  const menu = useCardContextMenu({ act: (id, action) => parts.act(templateObjectId(id), action), isRootObject: (id) => parts.isRootObject(templateObjectId(id)) });
   const [customizing, setCustomizing] = useState(false);
   useEffect(() => {
     const scroll = parts.scrollRef.current;
@@ -328,6 +375,7 @@ function DashboardFrame({
             >
               {failed ? <div role="alert" className="flex items-center gap-4 px-6 pt-4"><p className="text-body text-danger">{t("desktop.dashboard.readFailed")}</p><button type="button" className="lv-desk-btn" onClick={onRetry}>{t("common.action.retry")}</button></div> : null}
               {switchStatus === null ? null : <p role="status" className="px-6 pt-3 text-helper text-danger">{switchStatus}</p>}
+              {parts.editing && perBook ? <p className="px-6 pt-3 text-helper-relaxed text-brand-dark">{t("desktop.dashboard.pages.perBookEditing")}</p> : null}
               {parts.editHint}
               {parts.grid}
             </div>

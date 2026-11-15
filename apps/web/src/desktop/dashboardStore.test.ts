@@ -5,8 +5,20 @@ import { cardSizing } from "../statsWorkbench/composition.js";
 import { cardDisplay, cardSourceBook, isNativeCard, nativeKindOf, nativeOptions, newNativeCard, resolveBooks, withCardDisplay, withCardSource, withNativeOptions } from "../statsWorkbench/nativeCards.js";
 import { documentsProblems } from "../statsWorkbench/storage.js";
 import { dailySeries, mergeTotals, totalsByCurrency } from "./dashboardData.js";
+import { buildDashboardPreset, DASHBOARD_PRESET_IDS } from "./dashboardPresets.js";
 import {
   adaptToBooks,
+  createPage,
+  deleteDashboardPreset,
+  deletePage,
+  expandPerBook,
+  listPages,
+  loadDashboardPresets,
+  movePage,
+  packCards,
+  renamePage,
+  saveDashboardPreset,
+  templateObjectId,
   dashboardMaskKey,
   dashboardStorageKey,
   DEFAULT_DASHBOARD_SETTINGS,
@@ -243,6 +255,64 @@ describe("总览口径（1.19.100）", () => {
     expect(cardSourceBook(pinned)).toBe("b");
     const geometry = stored.documents.layout.main.objects.find((object) => object.objectId === pinned.objectId)!;
     expect(geometry.anchor).toBeGreaterThan(Math.max(...stored.documents.layout.main.objects.filter((object) => object.objectId !== pinned.objectId).map((object) => object.anchor)));
+  });
+});
+
+describe("多页总览、每本账一组与预设（1.19.102）", () => {
+  it("没保存过时只有第一页；新建页面会先按默认总览建记录，再加一页", () => {
+    expect(listPages(owner)).toEqual([{ id: "main", name: "" }]);
+    const id = createPage(owner, ["a", "b"], { name: "  月末对账很长的名字超过十二字  ", documents: buildDashboardPreset("month-end", ["a", "b"]) })!;
+    const pages = listPages(owner);
+    expect(pages.map((page) => page.id)).toEqual(["main", id]);
+    expect(pages[1]!.name).toHaveLength(12);
+    expect(readDashboard(owner, ["a", "b"], ["a", "b"], id).documents.content.cards.some((card) => nativeKindOf(card) === "pending")).toBe(true);
+    expect(ledgerBooks(readDashboard(owner, ["a", "b"], ["a", "b"], "main").documents)).toEqual(["a", "b"]);
+  });
+  it("保存只改那一页；改名、换位、删除；最后一页不能删", () => {
+    const id = createPage(owner, ["a"], { name: "二", documents: packCards([]) })!;
+    const before = readDashboard(owner, ["a"], ["a"], id);
+    const docs = defaultDashboardDocuments(["a"]);
+    expect(saveDashboard(owner, docs, before.version, ["a"], id)).toBe(before.version + 1);
+    expect(ledgerBooks(readDashboard(owner, ["a"], ["a"], id).documents)).toEqual(["a"]);
+    expect(renamePage(owner, ["a"], id, "对账")).toBe(true);
+    expect(movePage(owner, ["a"], id, -1)).toBe(true);
+    expect(listPages(owner).map((page) => page.name)).toEqual(["对账", ""]);
+    expect(deletePage(owner, ["a"], id)).toBe(true);
+    expect(deletePage(owner, ["a"], "main")).toBe(false);
+  });
+  it("新账本只在第一页自动补卡片", () => {
+    const id = createPage(owner, ["a"], { name: "二", documents: defaultDashboardDocuments(["a"]) })!;
+    expect(ledgerBooks(readDashboard(owner, ["a", "c"], ["a", "c"], "main").documents)).toEqual(["a", "c"]);
+    expect(ledgerBooks(readDashboard(owner, ["a", "c"], ["a", "c"], id).documents)).toEqual(["a"]);
+  });
+  it("每本账一组：模板按账本复制、上下排开，数据来源换成那本账；对象 id 带 @账本", () => {
+    const template = packCards([
+      { card: newNativeCard("ledger", "l", { bookId: "a" }), size: { colSpan: 2, rowSpan: 2 } },
+      { card: { objectId: "x", type: "analysis-card" as const, analysis: { analysisId: "AN-I01", params: {} }, chart: { chartFamily: "donut" }, rangePolicy: "inherit" as const }, size: { colSpan: 2, rowSpan: 2 } },
+      { card: newNativeCard("recent", "r"), size: { colSpan: 4, rowSpan: 1 } },
+    ]);
+    const expanded = expandPerBook(template, ["a", "b"]);
+    expect(expanded.content.cards.map((card) => card.objectId)).toEqual(["l@a", "x@a", "r@a", "l@b", "x@b", "r@b"]);
+    expect(nativeOptions(expanded.content.cards[3]!)).toEqual({ bookId: "b" });
+    expect(cardSourceBook(expanded.content.cards[4]!)).toBe("b");
+    expect(nativeOptions(expanded.content.cards[5]!)).toEqual({ books: ["b"] });
+    // 第二组从第 4 行开始（模板 3 行 × 4 列）。
+    expect(expanded.layout.main.objects.find((object) => object.objectId === "l@b")?.anchor).toBe(13);
+    expect(documentsProblems(expanded)).toEqual([]);
+    expect(templateObjectId("x@b")).toBe("x");
+    expect(templateObjectId("x")).toBe("x");
+  });
+  it("系统预设都是合法文档；我的预设最多 10 套、只存布局", () => {
+    for (const id of DASHBOARD_PRESET_IDS) {
+      expect(documentsProblems(buildDashboardPreset(id, ["a", "b"]))).toEqual([]);
+      expect(documentsProblems(buildDashboardPreset(id, ["a"]))).toEqual([]);
+    }
+    expect(saveDashboardPreset(owner, " ", packCards([]))).toBe("name");
+    for (let index = 0; index < 10; index += 1) expect(saveDashboardPreset(owner, `p${String(index)}`, defaultDashboardDocuments(["a"]))).toBe("ok");
+    expect(saveDashboardPreset(owner, "p10", defaultDashboardDocuments(["a"]))).toBe("full");
+    const first = loadDashboardPresets(owner)[0]!;
+    expect(deleteDashboardPreset(owner, first.id)).toBe(true);
+    expect(loadDashboardPresets(owner)).toHaveLength(9);
   });
 });
 

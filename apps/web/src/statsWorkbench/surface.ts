@@ -34,6 +34,13 @@ export interface WorkbenchSurface {
   readonly nativeItems?: readonly NativeLibraryItem[];
   /** 是否提供「布局预设」（分析页的系统预设与我的预设）。 */
   readonly presets: boolean;
+  /**
+   * 1.19.102（总览）：宿主自己的布局预设面板；`apply` 把整份工作台换成预设（一步撤销，仍要点「完成」才保存）。
+   * 提供它时卡片抽屉的「预设」入口打开这个面板，而不是分析页的预设页。
+   */
+  readonly renderPresets?: (args: { readonly current: WorkbenchDocuments; readonly apply: (documents: WorkbenchDocuments, name: string) => boolean; readonly onClose: () => void }) => React.ReactNode;
+  /** 1.19.102（总览「每本账一组」页）：浏览时显示的文档由保存的文档派生（不写回、不参与编辑）。 */
+  readonly browseDocuments?: (documents: WorkbenchDocuments) => WorkbenchDocuments;
   /** 编辑时暂停的同步；`undefined` = 用分析页的工作台同步。 */
   readonly sync?: SurfaceSync | null;
   /** 换掉几句与「工作台」有关的提示。 */

@@ -412,12 +412,14 @@ export function AccountWorkbench({
   const [columnPreference, setColumnPreference] = useColumnPreference(pane.role, surface.columnsKey);
   /** 上一次自动选出的列数：分数接近时保持不变，避免宽度在阈值附近时来回跳。 */
   const [previousAuto, setPreviousAuto] = useState<number | null>(null);
-  const autoColumns = useMemo(() => autoColumnsFor(stored.documents, width, previousAuto), [stored.documents, width, previousAuto]);
+  // 1.19.102：总览「每本账一组」页浏览时看展开后的文档（编辑仍是模板本身）；分析页没有这一步。
+  const shownDocuments = useMemo(() => surface.browseDocuments?.(stored.documents) ?? stored.documents, [surface, stored.documents]);
+  const autoColumns = useMemo(() => autoColumnsFor(shownDocuments, width, previousAuto), [shownDocuments, width, previousAuto]);
   useEffect(() => {
     if (width > 0 && autoColumns !== previousAuto) setPreviousAuto(autoColumns);
   }, [autoColumns, previousAuto, width]);
   const browseColumns = effectiveColumns(columnPreference, autoColumns, columnLimit);
-  const browseDisplay = useMemo(() => displayFor(stored.documents, browseColumns), [stored.documents, browseColumns]);
+  const browseDisplay = useMemo(() => displayFor(shownDocuments, browseColumns), [shownDocuments, browseColumns]);
   /** 正在显示的列数：编辑中是会话固定的列数。 */
   const viewColumns = frame?.columns ?? browseColumns;
   const track = gridTrack(width, viewColumns);
@@ -997,7 +999,7 @@ export function AccountWorkbench({
       onAddCard={(analysisId) => { endTemporaryMode(); addCard(analysisId); }}
       onAddLayout={(choice) => addLayoutObject(choice)}
       onCustom={() => { endTemporaryMode(); setEditor({ cardId: null }); }}
-      {...(surface.presets ? { onPresets: () => {
+      {...(surface.presets || surface.renderPresets !== undefined ? { onPresets: () => {
         endTemporaryMode();
         setPresetsOpen(true);
       } } : {})}
@@ -1100,7 +1102,7 @@ export function AccountWorkbench({
             />
           ) : (
             <BrowseGrid
-              content={stored.documents.content}
+              content={shownDocuments.content}
               display={browseDisplay}
               rowHeight={track.rowHeight}
               scope={scope}
@@ -1186,6 +1188,11 @@ export function AccountWorkbench({
         ) : null}
 
         {discardOpen ? <DiscardDialog onDiscard={leaveEdit} onClose={() => setDiscardOpen(false)} /> : null}
+        {presetsOpen && session !== null && surface.renderPresets !== undefined ? surface.renderPresets({
+          current: frame === null ? sessionDocuments(session) : committedDocuments(session, frame),
+          apply: (next, name) => applyPreset(next, name, null),
+          onClose: () => setPresetsOpen(false),
+        }) : null}
         {presetsOpen && session !== null && surface.presets ? (
           <PresetSheet
             accountScope={scope.accountScope}
@@ -1209,7 +1216,7 @@ export function AccountWorkbench({
         ) : null}
         {collapsedOpen === null ? null : (
           <CollapsedContainerSheetFor
-            documents={documents}
+            documents={session === null ? shownDocuments : documents}
             containerId={collapsedOpen}
             onOpenCard={openCard}
             onClose={() => setCollapsedOpen(null)}

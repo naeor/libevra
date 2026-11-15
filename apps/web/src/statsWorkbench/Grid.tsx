@@ -321,7 +321,9 @@ function AnalysisCardTile({
   const singleLineTitle = oneRow || isMultiSlot(card);
   // 1.19.100：总览上的卡片可以有显示选项（备注、没有数据时、点击去哪、总是遮住）；分析页的卡片没有这些键。
   const display = cardDisplay(card);
-  const href = useContext(CardRenderContext).hrefFor?.(card) ?? null;
+  const renderHooks = useContext(CardRenderContext);
+  const href = renderHooks.hrefFor?.(card) ?? null;
+  const source = renderHooks.sourceLabel?.(card) ?? null;
   const range = display.empty === "quiet" ? cardRange(card, scope) : null;
   const quiet = range !== null && scope.loaded && !scope.entries.some((entry) => entry.occurredLocalDate >= range.from && entry.occurredLocalDate <= range.to);
   return (
@@ -357,6 +359,7 @@ function AnalysisCardTile({
               自动标题较长时换行会挤掉槽位。 */}
           <h3 className={`${singleLineTitle ? "truncate" : "line-clamp-2 break-words"} text-helper font-medium text-ink`} title={singleLineTitle ? title : undefined}>{title}</h3>
           {subtitle === "" ? null : <p className="truncate text-helper text-muted">{subtitle}</p>}
+          {source === null ? null : <p className="truncate text-helper text-muted">{source}</p>}
           {display.note === undefined ? null : <p className="truncate text-helper text-muted" title={display.note}>{display.note}</p>}
         </span>
         {aside ?? (display.open === "none" ? null : <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />)}

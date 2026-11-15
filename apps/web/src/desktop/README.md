@@ -17,6 +17,7 @@
 | [DashboardMessages.test.tsx](DashboardMessages.test.tsx) | 测试：DashboardMessages |
 | [DashboardMessages.tsx](DashboardMessages.tsx) | 界面模块；入口/导出：DashboardMessages |
 | [DashboardNativeCards.tsx](DashboardNativeCards.tsx) | 界面模块；入口/导出：DashboardBook、DashboardView、DashboardViewContext、NativeTile |
+| [DashboardPages.tsx](DashboardPages.tsx) | 界面模块；入口/导出：pageLabel、DashboardPageTabs、DashboardPresetSheet |
 | [DashboardSidebar.tsx](DashboardSidebar.tsx) | 界面模块；入口/导出：DashboardSidebar、SidebarCustomizer |
 | [DesktopBookPage.tsx](DesktopBookPage.tsx) | 界面模块；入口/导出：DesktopBookPage |
 | [DesktopCollabPage.tsx](DesktopCollabPage.tsx) | 界面模块；入口/导出：DesktopCollabPage |
@@ -36,6 +37,7 @@
 | [dashboardData.ts](dashboardData.ts) | 实现模块；入口/导出：CurrencyTotals、inRange、totalsByCurrency、mergeTotals、dailySeries |
 | [dashboardModel.ts](dashboardModel.ts) | 实现模块；入口/导出：CardSize、CardKind、LedgerMetric、DashboardCard、DashboardConfig |
 | [dashboardNavigation.ts](dashboardNavigation.ts) | 实现模块；入口/导出：dashboardAnalysisCard、dashboardDestination |
+| [dashboardPresets.ts](dashboardPresets.ts) | 实现模块；入口/导出：DashboardPresetId、DASHBOARD_PRESET_IDS、buildDashboardPreset |
 | [dashboardScopes.tsx](dashboardScopes.tsx) | 界面模块；入口/导出：BookData、DashboardScopeStore、DashboardScopeContext、DashboardScopeProbes、useDashboardBooks |
 | [dashboardStore.test.ts](dashboardStore.test.ts) | 测试：dashboardStore |
 | [dashboardStore.ts](dashboardStore.ts) | 实现模块；入口/导出：DASHBOARD_RECORD_VERSION、DASHBOARD_INSTALLED、DASHBOARD_BASE_COLUMNS、dashboardStorageKey、legacyDashboardStorageKey |

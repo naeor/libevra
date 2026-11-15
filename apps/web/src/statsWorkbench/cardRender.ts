@@ -31,6 +31,8 @@ export interface CardRenderHooks {
   readonly useScopeFor?: (card: AnalysisCardNode | undefined, fallback: WorkbenchScope) => WorkbenchScope;
   /** 中键或 Ctrl(⌘)+点击在新标签页打开的地址；`null` = 这张卡片不能直接在新标签页打开（例如要先切换账本）。 */
   readonly hrefFor?: (card: AnalysisCardNode) => string | null;
+  /** 卡片数据固定来自某本账时，标题下写出账本名称（1.19.102）；`null` = 不写。 */
+  readonly sourceLabel?: (card: AnalysisCardNode) => string | null;
 }
 
 export const CardRenderContext = createContext<CardRenderHooks>({});

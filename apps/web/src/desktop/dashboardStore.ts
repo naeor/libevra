@@ -16,6 +16,7 @@ import {
   LAYOUT_SCHEMA_VERSION,
   placementCells,
   type AnalysisCardNode,
+  type ContainerNode,
   type GridSize,
   type LayoutDocumentV1,
   type ObjectGeometry,
@@ -27,7 +28,7 @@ import { STATS_RANGES, type StatsRangeKey } from "@libellum/shared";
 import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
 import { cardSizing } from "../statsWorkbench/composition.js";
 import { newObjectId } from "../statsWorkbench/defaults.js";
-import { isNativeCard, nativeKindOf, nativeOptions, nativeSizing, newNativeCard, withCardSource, type NativeKind, type NativeOptions } from "../statsWorkbench/nativeCards.js";
+import { cardSourceBook, isNativeCard, nativeKindOf, nativeOptions, nativeSizing, nativeSpec, newNativeCard, withCardSource, withNativeOptions, type NativeKind, type NativeOptions } from "../statsWorkbench/nativeCards.js";
 import { command, lastRow, removeObject, startSession, sessionDocuments } from "../statsWorkbench/session.js";
 import type { TimeChoice } from "../statsWorkbench/filters.js";
 import { documentsProblems, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
@@ -49,8 +50,14 @@ export function legacyDashboardStorageKey(owner: string): string {
 
 export interface DashboardPage {
   readonly id: string;
+  /** 页面名称；第一页可以为空（显示为「总览」）。 */
   readonly name: string;
   readonly documents: WorkbenchDocuments;
+  /**
+   * 1.19.102（候选清单 B4）：`per-book` = 「每本账一组」——编辑的是一组卡片（模板），浏览时按总览范围里的每本账
+   * 各排一组（数据来自那本账；新账本自动多一组）。
+   */
+  readonly kind?: "per-book";
 }
 
 export interface DashboardRecord {
@@ -248,8 +255,8 @@ function migrateIfNeeded(owner: string, bookIds: readonly string[]): void {
   }
 }
 
-function activeDocuments(record: DashboardRecord): WorkbenchDocuments {
-  return (record.pages.find((page) => page.id === record.activePage) ?? record.pages[0])!.documents;
+function pageOf(record: DashboardRecord, pageId: string | undefined): DashboardPage {
+  return (record.pages.find((page) => page.id === pageId) ?? record.pages[0])!;
 }
 
 /**
@@ -280,13 +287,20 @@ export function adaptToBooks(documents: WorkbenchDocuments, bookIds: readonly st
   return sessionDocuments(state);
 }
 
-/** 工作台宿主的 `readStored`：没有保存过 → 默认总览；读不出来 → 默认总览并标明（原记录不动）。 */
-export function readDashboard(owner: string | null, bookIds: readonly string[], allBooks: readonly string[] = bookIds): Stored {
+/**
+ * 工作台宿主的 `readStored`：没有保存过 → 默认总览；读不出来 → 默认总览并标明（原记录不动）。
+ * `pageId`：要看的总览页（缺省或已不在 = 第一页）。新账本自动补卡片只在第一页（普通页）；「每本账一组」页
+ * 返回模板本身，浏览时再按账本展开（`expandPerBook`）。
+ */
+export function readDashboard(owner: string | null, bookIds: readonly string[], allBooks: readonly string[] = bookIds, pageId?: string): Stored {
   if (owner === null) return { accountScope: owner, documents: defaultDashboardDocuments(bookIds), version: 0, unreadable: false };
   migrateIfNeeded(owner, allBooks);
   const outcome = loadDashboardRecord(owner);
   if (outcome.status === "ok") {
-    return { accountScope: owner, documents: adaptToBooks(activeDocuments(outcome.record), bookIds, outcome.record.knownBooks, allBooks), version: outcome.record.version, unreadable: false };
+    const page = pageOf(outcome.record, pageId);
+    const first = page === outcome.record.pages[0];
+    const documents = page.kind === "per-book" ? page.documents : first ? adaptToBooks(page.documents, bookIds, outcome.record.knownBooks, allBooks) : adaptToBooks(page.documents, [], [], allBooks);
+    return { accountScope: owner, documents, version: outcome.record.version, unreadable: false };
   }
   return { accountScope: owner, documents: defaultDashboardDocuments(bookIds), version: outcome.status === "unreadable" ? outcome.version : 0, unreadable: outcome.status === "unreadable" };
 }
@@ -302,8 +316,15 @@ function currentVersion(store: Storage, owner: string): number | null {
   }
 }
 
-/** 保存当前页的文档；本机记录已被别的窗口改过（版本不同）、损坏或文档不合法时不写，返回 `null`。 */
-export function saveDashboard(owner: string, documents: WorkbenchDocuments, previousVersion: number, bookIds: readonly string[]): number | null {
+function writeRecord(store: Storage, record: DashboardRecord): void {
+  const key = dashboardStorageKey(record.owner);
+  const old = store.getItem(key);
+  if (old !== null) store.setItem(`${key}:previous`, old);
+  store.setItem(key, JSON.stringify(record));
+}
+
+/** 保存一页的文档；本机记录已被别的窗口改过（版本不同）、损坏或文档不合法时不写，返回 `null`。 */
+export function saveDashboard(owner: string, documents: WorkbenchDocuments, previousVersion: number, bookIds: readonly string[], pageId?: string): number | null {
   const store = storage();
   if (store === null || documentsProblems(documents).length > 0) return null;
   try {
@@ -311,25 +332,207 @@ export function saveDashboard(owner: string, documents: WorkbenchDocuments, prev
     if (version === null || version !== previousVersion) return null;
     const outcome = loadDashboardRecord(owner);
     const previous = outcome.status === "ok" ? outcome.record : null;
-    const activePage = previous?.activePage ?? "main";
-    const pages = previous === null ? [{ id: "main", name: "", documents }] : previous.pages.map((page) => (page.id === activePage ? { ...page, documents } : page));
-    const record: DashboardRecord = {
+    const target = previous === null ? "main" : pageOf(previous, pageId).id;
+    const pages = previous === null ? [{ id: "main", name: "", documents }] : previous.pages.map((page) => (page.id === target ? { ...page, documents } : page));
+    writeRecord(store, {
       v: DASHBOARD_RECORD_VERSION,
       owner,
       version: previousVersion + 1,
       pages,
-      activePage,
+      activePage: previous?.activePage ?? "main",
       knownBooks: [...new Set([...(previous?.knownBooks ?? []), ...bookIds])],
       updatedAt: new Date().toISOString(),
-    };
-    const key = dashboardStorageKey(owner);
-    const old = store.getItem(key);
-    if (old !== null) store.setItem(`${key}:previous`, old);
-    store.setItem(key, JSON.stringify(record));
-    return record.version;
+    });
+    return previousVersion + 1;
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 多页总览（1.19.102，候选清单 B2）
+// ---------------------------------------------------------------------------
+
+export const MAX_PAGES = 8;
+export const PAGE_NAME_MAX = 12;
+
+export interface PageSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly kind?: "per-book";
+}
+
+export function listPages(owner: string | null): readonly PageSummary[] {
+  if (owner === null) return [{ id: "main", name: "" }];
+  const outcome = loadDashboardRecord(owner);
+  if (outcome.status !== "ok") return [{ id: "main", name: "" }];
+  return outcome.record.pages.map((page) => ({ id: page.id, name: page.name, ...(page.kind === undefined ? {} : { kind: page.kind }) }));
+}
+
+/** 改页面列表（新建、改名、删除、换位）：读当前记录、改、版本 +1。没有保存过时先按默认总览建一份记录。 */
+function editPages(owner: string, bookIds: readonly string[], change: (pages: readonly DashboardPage[]) => readonly DashboardPage[] | null): boolean {
+  const store = storage();
+  if (store === null) return false;
+  try {
+    migrateIfNeeded(owner, bookIds);
+    const outcome = loadDashboardRecord(owner);
+    if (outcome.status === "unreadable") return false;
+    const previous = outcome.status === "ok" ? outcome.record : null;
+    const pages = change(previous?.pages ?? [{ id: "main", name: "", documents: defaultDashboardDocuments(bookIds) }]);
+    if (pages === null || pages.length === 0 || pages.length > MAX_PAGES) return false;
+    writeRecord(store, {
+      v: DASHBOARD_RECORD_VERSION,
+      owner,
+      version: (previous?.version ?? 0) + 1,
+      pages,
+      activePage: previous?.activePage ?? "main",
+      knownBooks: previous?.knownBooks ?? [...bookIds],
+      updatedAt: new Date().toISOString(),
+    });
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DASHBOARD_INSTALLED, { detail: owner }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function createPage(owner: string, bookIds: readonly string[], page: Omit<DashboardPage, "id">): string | null {
+  const id = newObjectId("box").replace(/^box-/, "page-");
+  const name = page.name.trim().slice(0, PAGE_NAME_MAX);
+  if (documentsProblems(page.documents).length > 0) return null;
+  return editPages(owner, bookIds, (pages) => [...pages, { ...page, id, name }]) ? id : null;
+}
+
+export function renamePage(owner: string, bookIds: readonly string[], pageId: string, name: string): boolean {
+  return editPages(owner, bookIds, (pages) => pages.map((page) => (page.id === pageId ? { ...page, name: name.trim().slice(0, PAGE_NAME_MAX) } : page)));
+}
+
+export function deletePage(owner: string, bookIds: readonly string[], pageId: string): boolean {
+  return editPages(owner, bookIds, (pages) => (pages.length <= 1 ? null : pages.filter((page) => page.id !== pageId)));
+}
+
+export function movePage(owner: string, bookIds: readonly string[], pageId: string, delta: -1 | 1): boolean {
+  return editPages(owner, bookIds, (pages) => {
+    const index = pages.findIndex((page) => page.id === pageId);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= pages.length) return null;
+    const next = [...pages];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    return next;
+  });
+}
+
+/** 这台设备上正在看的总览页（不同步：两台电脑可以各看各的）。 */
+export function dashboardPageKey(owner: string): string {
+  return `${LIBEVRA_KEY_PREFIX}desktop.dashboard-page:v1:${owner}`;
+}
+
+export function readActivePage(owner: string | null): string | undefined {
+  if (owner === null) return undefined;
+  try {
+    return storage()?.getItem(dashboardPageKey(owner)) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeActivePage(owner: string, pageId: string): void {
+  try {
+    storage()?.setItem(dashboardPageKey(owner), pageId);
+  } catch {
+    // 只影响下次打开停在哪一页。
+  }
+}
+
+/**
+ * 「每本账一组」的展开（只用于浏览，不写回）：模板里的卡片按每本账复制一组，上下排开；跟随当前账本的分析卡片、
+ * 账本 / 趋势卡片换成那本账，多账本卡片只看那本账。对象 id 加 `@账本`，网格最多 40 个对象，放不下的账本不排。
+ */
+export function expandPerBook(template: WorkbenchDocuments, bookIds: readonly string[]): WorkbenchDocuments {
+  const columns = template.layout.main.baseCols;
+  const rows = Math.max(1, lastRow(template.layout));
+  const perBlock = Math.max(1, template.layout.main.objects.length);
+  const books = bookIds.slice(0, Math.max(1, Math.floor(40 / perBlock)));
+  const cards: AnalysisCardNode[] = [];
+  const containers: ContainerNode[] = [];
+  const objects: ObjectGeometry[] = [];
+  books.forEach((bookId, index) => {
+    const suffix = (id: string): string => `${id}@${bookId}`;
+    for (const card of template.content.cards) {
+      const kind = nativeKindOf(card);
+      let next: AnalysisCardNode = { ...card, objectId: suffix(card.objectId) };
+      if (kind === null) next = cardSourceBook(card) === null ? withCardSource(next, bookId) : next;
+      else if (kind === "ledger" || kind === "trend") next = withNativeOptions(next, { ...nativeOptions(card), bookId });
+      else if (nativeSpec(kind).multiBook) next = withNativeOptions(next, { ...nativeOptions(card), books: [bookId] });
+      cards.push(next);
+    }
+    for (const container of template.content.containers) containers.push({ ...container, objectId: suffix(container.objectId), children: container.children.map(suffix) });
+    for (const object of template.layout.main.objects) objects.push({ ...object, objectId: suffix(object.objectId), anchor: object.anchor + index * rows * columns });
+  });
+  return {
+    content: { ...template.content, cards, containers },
+    layout: { schemaVersion: template.layout.schemaVersion, layoutAlgorithmVersion: template.layout.layoutAlgorithmVersion, mode: template.layout.mode, main: { baseCols: columns, objects } },
+  };
+}
+
+/** 展开后的对象 id → 模板里的对象 id（右键菜单在模板上编辑）。 */
+export function templateObjectId(objectId: string): string {
+  const at = objectId.lastIndexOf("@");
+  return at < 0 ? objectId : objectId.slice(0, at);
+}
+
+// ---------------------------------------------------------------------------
+// 我的预设（1.19.102，候选清单 E3）：保存几套自己的总览布局。只存布局，不存任何金额；本机。
+// ---------------------------------------------------------------------------
+
+export const MAX_DASHBOARD_PRESETS = 10;
+
+export interface DashboardPreset {
+  readonly id: string;
+  readonly name: string;
+  readonly createdAt: string;
+  readonly documents: WorkbenchDocuments;
+}
+
+export function dashboardPresetsKey(owner: string): string {
+  return `${LIBEVRA_KEY_PREFIX}desktop.dashboard-presets:v1:${owner}`;
+}
+
+export function loadDashboardPresets(owner: string | null): readonly DashboardPreset[] {
+  if (owner === null) return [];
+  try {
+    const raw = storage()?.getItem(dashboardPresetsKey(owner));
+    if (raw === null || raw === undefined) return [];
+    const value = JSON.parse(raw) as { v?: unknown; items?: unknown };
+    if (value.v !== 1 || !Array.isArray(value.items)) return [];
+    return (value.items as DashboardPreset[]).filter((item) =>
+      typeof item?.id === "string" && typeof item.name === "string" && typeof item.createdAt === "string" && documentsProblems(item.documents).length === 0,
+    ).slice(0, MAX_DASHBOARD_PRESETS);
+  } catch {
+    return [];
+  }
+}
+
+function writePresets(owner: string, items: readonly DashboardPreset[]): boolean {
+  try {
+    storage()?.setItem(dashboardPresetsKey(owner), JSON.stringify({ v: 1, items }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function saveDashboardPreset(owner: string, name: string, documents: WorkbenchDocuments): "ok" | "full" | "name" | "invalid" | "storage" {
+  const trimmed = name.trim().slice(0, 20);
+  if (trimmed === "") return "name";
+  if (documentsProblems(documents).length > 0) return "invalid";
+  const items = loadDashboardPresets(owner);
+  if (items.length >= MAX_DASHBOARD_PRESETS) return "full";
+  return writePresets(owner, [...items, { id: newObjectId("box").replace(/^box-/, "preset-"), name: trimmed, createdAt: new Date().toISOString(), documents }]) ? "ok" : "storage";
+}
+
+export function deleteDashboardPreset(owner: string, id: string): boolean {
+  return writePresets(owner, loadDashboardPresets(owner).filter((item) => item.id !== id));
 }
 
 /** 「恢复默认」后原样保存：删掉自己的记录（原文留在 `:previous`），继续跟随默认总览。 */
@@ -535,7 +738,10 @@ export function writeMask(owner: string, masked: boolean): void {
  * 与总览编辑同一套版本保护；另一个窗口正在保存时返回 `false`，什么都不写。
  */
 export function pinCardToDashboard(owner: string, card: AnalysisCardNode, sourceBookId: string | null, bookIds: readonly string[], allBooks: readonly string[] = bookIds): boolean {
-  const stored = readDashboard(owner, bookIds, allBooks);
+  // 放到这台设备上正在看的那一页；那一页是「每本账一组」时放到第一页（模板里不放固定账本的卡片）。
+  const active = readActivePage(owner);
+  const pageId = listPages(owner).find((page) => page.id === active && page.kind !== "per-book")?.id;
+  const stored = readDashboard(owner, bookIds, allBooks, pageId);
   if (stored.unreadable) return false;
   const copy: AnalysisCardNode = { ...withCardSource(card, sourceBookId), objectId: newObjectId("card") };
   const state = startSession(stored.documents);
@@ -545,7 +751,7 @@ export function pinCardToDashboard(owner: string, card: AnalysisCardNode, source
   const anchor = lastRow(state.layout) * columns + 1;
   const result = command(state, { type: "insert-card", card: copy, size, anchor, collisionPolicy: "reflow" });
   if (!result.ok) return false;
-  const version = saveDashboard(owner, sessionDocuments(result.state), stored.version, bookIds);
+  const version = saveDashboard(owner, sessionDocuments(result.state), stored.version, bookIds, pageId);
   if (version === null) return false;
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DASHBOARD_INSTALLED, { detail: owner }));
   return true;
