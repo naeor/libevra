@@ -158,6 +158,13 @@ export interface WorkbenchFrameParts {
   readonly drawer: React.ReactNode;
   readonly scrollRef: React.RefObject<HTMLDivElement | null>;
   readonly enterEdit: () => void;
+  /**
+   * 1.19.101（电脑版总览的右键菜单）：对一张卡片执行编辑菜单里的动作；不在编辑中就先进入编辑。
+   * `settings` = 宿主的卡片设置。
+   */
+  readonly act: (objectId: string, action: MenuAction | "settings") => void;
+  /** 这个对象是不是网格最外层的对象（容器里的卡片不能单独移动、调尺寸、复制、删除）。 */
+  readonly isRootObject: (objectId: string) => boolean;
 }
 
 /** 总览的「卡片设置」：宿主自己的设置面板；分析卡片可以从里面打开同一个卡片编辑器。 */
@@ -284,6 +291,8 @@ export function AccountWorkbench({
   const [editor, setEditor] = useState<{ readonly cardId: string | null } | null>(null);
   /** 宿主的「卡片设置」（总览）；分析页没有，直接打开卡片编辑器。 */
   const [configureFor, setConfigureFor] = useState<string | null>(null);
+  /** 从浏览态（右键菜单）发起、要等编辑会话建立后才执行的动作。 */
+  const [pendingAct, setPendingAct] = useState<{ readonly objectId: string; readonly action: MenuAction | "settings" } | null>(null);
   const [sizeFor, setSizeFor] = useState<string | null>(null);
   const [moveFor, setMoveFor] = useState<string | null>(null);
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -946,6 +955,16 @@ export function AccountWorkbench({
   // 1.19.100：总览上的分析卡片可以有自己的来源账本，编辑器预览用那本账的数据。
   const useEditorScope = cardRender.useScopeFor ?? useSameScope;
   const editorScope = useEditorScope(editorCard, scope);
+  // 右键菜单发起的动作：编辑会话建立后执行（对象已不在就什么都不做）。
+  useEffect(() => {
+    if (session === null || pendingAct === null) return;
+    const { objectId, action } = pendingAct;
+    setPendingAct(null);
+    if (geometryOf(session, objectId) === undefined && cardOf(session, objectId) === undefined) return;
+    if (action === "settings") setConfigureFor(objectId);
+    else onMenu(objectId, action);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, pendingAct]);
 
   const objectProps = (objectId: string, label: string, size: GridSize): Record<string, unknown> => {
     if (moveFor !== null || containerEdit !== null) return {};
@@ -1200,10 +1219,15 @@ export function AccountWorkbench({
   );
 
   if (renderFrame !== undefined || analysis === null) {
+    const act = (objectId: string, action: MenuAction | "settings"): void => {
+      if (session === null) enterEdit();
+      setPendingAct({ objectId, action });
+    };
+    const isRootObject = (objectId: string): boolean => documents.layout.main.objects.some((object) => object.objectId === objectId);
     return (
       <WorkbenchScopeProvider value={scope}>
         <CardActionsContext.Provider value={cardActions}>
-          {renderFrame?.({ editing, editBar, editHint, grid, overlays, drawer, scrollRef, enterEdit: () => enterEdit() })}
+          {renderFrame?.({ editing, editBar, editHint, grid, overlays, drawer, scrollRef, enterEdit: () => enterEdit(), act, isRootObject })}
         </CardActionsContext.Provider>
       </WorkbenchScopeProvider>
     );

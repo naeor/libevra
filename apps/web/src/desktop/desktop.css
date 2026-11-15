@@ -1398,3 +1398,11 @@ html[data-shell="desktop"] body {
 .lv-dash-sidebar[data-mask] [data-amount] { filter:blur(8px); }
 .lv-dash-sidebar[data-mask] [data-amount]:is(:hover, :focus-within) { filter:none; }
 @media (prefers-reduced-motion: reduce) { .lv-dash-host .sw-card-body { transition:none; } }
+/* 1.19.101：可自定义的右侧栏（DashboardSidebar.tsx）。 */
+.lv-dash-sidebar-head { display:flex; justify-content:flex-end; margin-bottom:-16px; }
+.lv-dash-module h2 { margin-bottom:10px; }
+.lv-dash-module-toggle { display:flex; align-items:center; gap:8px; width:100%; min-height:32px; border-radius:6px; }
+.lv-dash-module-toggle:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+.lv-dash-sidebar .lv-dash-quick-grid[data-icon-only] { grid-template-columns:repeat(auto-fill, minmax(44px, 1fr)); }
+.lv-dash-sidebar .lv-dash-quick-grid[data-icon-only] .lv-add-item { position:relative; justify-content:center; }
+.lv-dash-sidebar .lv-dash-quick-grid[data-icon-only] .lv-add-item > span:last-child { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }

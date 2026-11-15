@@ -22,7 +22,7 @@ import { NotificationBell } from "../components/Notifications.js";
 import { useI18n } from "../i18n/index.js";
 import { formatLocalDate, toLocalDate } from "../lib/datetime.js";
 import { useDefaultCurrency } from "../lib/defaultCurrency.js";
-import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
+import { useGuestIdentity } from "../lib/guest/session.js";
 import { useBooks, useCurrentBookId } from "../lib/queries.js";
 import { AccountWorkbench, type WorkbenchFrameParts } from "../pages/StatsPage.js";
 import { CardRenderContext, type CardRenderHooks } from "../statsWorkbench/cardRender.js";
@@ -39,11 +39,11 @@ import {
 } from "../statsWorkbench/nativeCards.js";
 import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/scope.js";
 import type { WorkbenchSurface } from "../statsWorkbench/surface.js";
-import { EntryMethodList } from "../workspace/RailEntryMenu.js";
+import { useCardContextMenu } from "./DashboardCardMenu.js";
 import { DashboardCardSettings } from "./DashboardCardSettings.js";
 import { DashboardStatsControl, DashboardTimeControl, MaskToggle } from "./DashboardControls.js";
 import { dashboardDestination } from "./dashboardNavigation.js";
-import { DashboardMessages } from "./DashboardMessages.js";
+import { DashboardSidebar, SidebarCustomizer } from "./DashboardSidebar.js";
 import { DashboardViewContext, NativeTile, type DashboardBook, type DashboardView } from "./DashboardNativeCards.js";
 import { DashboardAvailableContext, DashboardScopeContext, DashboardScopeProbes, DashboardScopeStore, useDashboardCardScope } from "./dashboardScopes.js";
 import {
@@ -61,9 +61,10 @@ import {
   writeDashboardSettings,
   writeMask,
   type DashboardSettings,
+  type SidebarConfig,
 } from "./dashboardStore.js";
 import { DesktopToolbar } from "./DesktopToolbar.js";
-import { desktopEntryDisabled, useEnterLedger } from "./DesktopNav.js";
+import { useEnterLedger } from "./DesktopNav.js";
 
 function readSession(key: string): string | null {
   try { return sessionStorage.getItem(key); } catch { return null; }
@@ -235,6 +236,8 @@ export function DesktopDashboardPage(): React.JSX.Element {
                   parts={parts}
                   meta={t("statsWorkbench.summary.dates", { from: formatLocalDate(range.from), to: formatLocalDate(range.to) })}
                   books={bookList}
+                  sidebar={settings.sidebar}
+                  onSidebar={(sidebar) => setSettings({ ...settings, sidebar })}
                   masked={masked}
                   failed={books.isError}
                   onRetry={() => void books.refetch()}
@@ -267,6 +270,8 @@ function DashboardFrame({
   parts,
   meta,
   books,
+  sidebar,
+  onSidebar,
   masked,
   failed,
   onRetry,
@@ -276,6 +281,8 @@ function DashboardFrame({
   readonly parts: WorkbenchFrameParts;
   readonly meta: string;
   readonly books: readonly DashboardBook[];
+  readonly sidebar: SidebarConfig;
+  readonly onSidebar: (sidebar: SidebarConfig) => void;
   readonly masked: boolean;
   readonly failed: boolean;
   readonly onRetry: () => void;
@@ -283,6 +290,8 @@ function DashboardFrame({
   readonly controls: React.ReactNode;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const menu = useCardContextMenu({ act: parts.act, isRootObject: parts.isRootObject });
+  const [customizing, setCustomizing] = useState(false);
   useEffect(() => {
     const scroll = parts.scrollRef.current;
     if (scroll === null) return;
@@ -312,7 +321,11 @@ function DashboardFrame({
             onScroll={(event) => { if (!parts.editing) writeSession("libevra.dashboard.scroll", String(event.currentTarget.scrollTop)); }}
             className="lv-desk-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
           >
-            <div className={`lv-dash-host ${parts.editing ? "pb-28" : "pb-10"}`} data-mask={masked && !parts.editing ? "" : undefined}>
+            <div
+              className={`lv-dash-host ${parts.editing ? "pb-28" : "pb-10"}`}
+              data-mask={masked && !parts.editing ? "" : undefined}
+              {...(parts.editing ? {} : { onContextMenu: menu.onContextMenu, onKeyDown: menu.onKeyDown })}
+            >
               {failed ? <div role="alert" className="flex items-center gap-4 px-6 pt-4"><p className="text-body text-danger">{t("desktop.dashboard.readFailed")}</p><button type="button" className="lv-desk-btn" onClick={onRetry}>{t("common.action.retry")}</button></div> : null}
               {switchStatus === null ? null : <p role="status" className="px-6 pt-3 text-helper text-danger">{switchStatus}</p>}
               {parts.editHint}
@@ -323,31 +336,12 @@ function DashboardFrame({
         </div>
         {/* 编辑时侧栏仍占位（暂停交互），网格宽度与浏览时相同：编辑时看到的格子就是浏览时的格子。 */}
         <aside className="lv-dash-sidebar" aria-label={t("desktop.dashboard.aside")} inert={parts.editing} data-paused={parts.editing ? "true" : undefined} data-mask={masked ? "" : undefined}>
-          <QuickActions />
-          <DashboardMessages books={books} />
+          <DashboardSidebar config={sidebar} books={books} onChange={onSidebar} onCustomize={() => setCustomizing(true)} />
         </aside>
       </div>
       {parts.overlays}
-    </div>
-  );
-}
-
-function QuickActions(): React.JSX.Element {
-  const { t } = useI18n();
-  const guest = useGuestMode();
-  const navigate = useNavigate();
-  return (
-    <div className="lv-dash-quick">
-      <h2 className="text-card-title text-ink">{t("desktop.dashboard.cards.quick")}</h2>
-      <div className="lv-dash-quick-grid" role="menu" aria-label={t("desktop.dashboard.cards.quick")}>
-        <EntryMethodList
-          disabledFor={(action) => desktopEntryDisabled(action, guest)}
-          onNavigate={(path, prepare) => {
-            prepare?.();
-            void navigate(path);
-          }}
-        />
-      </div>
+      {menu.menu}
+      {customizing ? <SidebarCustomizer config={sidebar} onChange={onSidebar} onClose={() => setCustomizing(false)} /> : null}
     </div>
   );
 }

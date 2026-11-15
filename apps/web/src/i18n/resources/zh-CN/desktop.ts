@@ -265,6 +265,28 @@ const desktop = {
       books: "总览范围",
       booksHint: "「全部账本」类卡片（多账本收支、最近账目等）只统计这里选的账本，新账本也只在范围内时自动出现；已经放上的账本卡片照常显示。",
     },
+    sidebar: {
+      customize: "自定义侧栏",
+      title: "侧栏内容",
+      hint: "勾选要显示的模块，用箭头调整顺序。模块标题点一下可以收起。只记在这台设备上，改了立即生效。",
+      empty: "侧栏里还没有模块。",
+      iconOnly: "只显示图标",
+      account: "显示账户提醒（邀请等）",
+      limit: "最多显示",
+      kinds: {
+        quick: "快捷操作",
+        messages: "新消息",
+        pending: "待处理",
+        recent: "最近账目",
+        books: "账本",
+      },
+    },
+    menu: {
+      label: "{{name}}的操作",
+      open: "打开",
+      settings: "卡片设置…",
+      inContainer: "这张卡片在卡片组里：位置与尺寸跟着卡片组。",
+    },
     pin: {
       action: "固定到总览",
       done: "已固定到总览",

@@ -10,7 +10,9 @@ import {
   dashboardMaskKey,
   dashboardStorageKey,
   DEFAULT_DASHBOARD_SETTINGS,
+  DEFAULT_SIDEBAR,
   defaultDashboardDocuments,
+  parseSidebar,
   findDashboardCard,
   followDefaultDashboard,
   isDefaultDashboard,
@@ -186,10 +188,18 @@ describe("旧版总览配置（1.18.12–1.19.99）的迁移", () => {
 describe("总览口径（1.19.100）", () => {
   it("没设置过：本月、全部账本、原币；格式不对的字段按缺省", () => {
     expect(readDashboardSettings(owner)).toEqual(DEFAULT_DASHBOARD_SETTINGS);
-    expect(parseDashboardSettings({ time: { kind: "preset", preset: "1000d" }, books: ["a", 3], combined: "yes" })).toEqual({ time: { kind: "this-month" }, books: ["a"], combined: false });
+    expect(parseDashboardSettings({ time: { kind: "preset", preset: "1000d" }, books: ["a", 3], combined: "yes" })).toEqual({ time: { kind: "this-month" }, books: ["a"], combined: false, sidebar: DEFAULT_SIDEBAR });
+  });
+  it("侧栏：只认识的模块、不重复；快捷操作只留认识的记账方式；条数只取可选值", () => {
+    expect(parseSidebar({ modules: [{ kind: "books" }, { kind: "books" }, { kind: "weather" }, { kind: "quick", methods: ["scan", "fly", "scan", "manual"], iconOnly: true }, { kind: "recent", limit: 7 }, { kind: "messages", account: false, limit: 5 }] })).toEqual({
+      // 7 不是可选的条数，按缺省。
+      modules: [{ kind: "books" }, { kind: "quick", methods: ["scan", "manual"], iconOnly: true }, { kind: "recent" }, { kind: "messages", account: false, limit: 5 }],
+    });
+    expect(parseSidebar(null)).toEqual(DEFAULT_SIDEBAR);
+    expect(parseSidebar({ modules: [] })).toEqual({ modules: [] });
   });
   it("写入后读回", () => {
-    const settings = { time: { kind: "month" as const, month: "2026-09" }, books: ["b"], combined: true };
+    const settings = { time: { kind: "month" as const, month: "2026-09" }, books: ["b"], combined: true, sidebar: { modules: [{ kind: "books" as const, collapsed: true }] } };
     writeDashboardSettings(owner, settings);
     expect(readDashboardSettings(owner)).toEqual(settings);
   });

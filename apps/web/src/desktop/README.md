@@ -11,11 +11,13 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
+| [DashboardCardMenu.tsx](DashboardCardMenu.tsx) | 界面模块；入口/导出：useCardContextMenu |
 | [DashboardCardSettings.tsx](DashboardCardSettings.tsx) | 界面模块；入口/导出：DashboardCardSettings |
 | [DashboardControls.tsx](DashboardControls.tsx) | 界面模块；入口/导出：useTimeLabel、DashboardTimeControl、DashboardStatsControl、MaskToggle |
 | [DashboardMessages.test.tsx](DashboardMessages.test.tsx) | 测试：DashboardMessages |
 | [DashboardMessages.tsx](DashboardMessages.tsx) | 界面模块；入口/导出：DashboardMessages |
 | [DashboardNativeCards.tsx](DashboardNativeCards.tsx) | 界面模块；入口/导出：DashboardBook、DashboardView、DashboardViewContext、NativeTile |
+| [DashboardSidebar.tsx](DashboardSidebar.tsx) | 界面模块；入口/导出：DashboardSidebar、SidebarCustomizer |
 | [DesktopBookPage.tsx](DesktopBookPage.tsx) | 界面模块；入口/导出：DesktopBookPage |
 | [DesktopCollabPage.tsx](DesktopCollabPage.tsx) | 界面模块；入口/导出：DesktopCollabPage |
 | [DesktopDashboardPage.tsx](DesktopDashboardPage.tsx) | 界面模块；入口/导出：DesktopDashboardPage |

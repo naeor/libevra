@@ -9,11 +9,22 @@ import type { EntryNavigate } from "./entryMenu.js";
 import { XIcon } from "./icons.js";
 
 /** 与手机共用已有五种功能定义；只为侧栏调整顺序与密度。 */
-export function EntryMethodList({ onNavigate, onSelected, disabledFor }: { readonly onNavigate: EntryNavigate; readonly onSelected?: () => void; readonly disabledFor: (action: typeof ENTRY_ACTIONS[number]) => boolean }): React.JSX.Element {
+export function EntryMethodList({ onNavigate, onSelected, disabledFor, only }: {
+  readonly onNavigate: EntryNavigate;
+  readonly onSelected?: () => void;
+  readonly disabledFor: (action: typeof ENTRY_ACTIONS[number]) => boolean;
+  /**
+   * 1.19.101（电脑版总览侧栏的快捷操作）：只显示这些记账方式、按这个顺序。只决定「显示哪几个」，
+   * 是否可用仍由 `disabledFor` 判断，不改动它。缺省显示全部（手动在最前）。
+   */
+  readonly only?: readonly string[];
+}): React.JSX.Element {
   const { t } = useI18n();
   const desktop = useDesktopActive();
   const picker = useRef<HTMLInputElement>(null);
-  const actions = [...ENTRY_ACTIONS].sort((a, b) => Number(b.id === "manual") - Number(a.id === "manual"));
+  const actions = only === undefined
+    ? [...ENTRY_ACTIONS].sort((a, b) => Number(b.id === "manual") - Number(a.id === "manual"))
+    : only.map((id) => ENTRY_ACTIONS.find((action) => action.id === id)).filter((action): action is typeof ENTRY_ACTIONS[number] => action !== undefined);
   const onMenuKey = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     const items = [...(event.currentTarget.closest('[role="menu"]')?.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])') ?? [])];

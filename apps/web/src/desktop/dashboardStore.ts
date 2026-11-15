@@ -362,15 +362,66 @@ export type DashboardTime =
   | { readonly kind: "preset"; readonly preset: StatsRangeKey }
   | { readonly kind: "month"; readonly month: string };
 
+/** 右侧栏可以放的模块（1.19.101，候选清单 D1–D4）。 */
+export type SidebarKind = "quick" | "messages" | "pending" | "recent" | "books";
+export const SIDEBAR_KINDS: readonly SidebarKind[] = ["quick", "messages", "pending", "recent", "books"];
+/** 快捷操作里的五种记账方式（与「记一笔」菜单相同的 id）。 */
+export const ENTRY_METHOD_IDS: readonly string[] = ["manual", "paste", "voice", "scan", "import"];
+
+export interface SidebarModule {
+  readonly kind: SidebarKind;
+  /** 收起只留标题。 */
+  readonly collapsed?: boolean;
+  /** 快捷操作：显示哪几种、什么顺序（缺省全部，手动在最前）；`iconOnly` 只有图标。 */
+  readonly methods?: readonly string[];
+  readonly iconOnly?: boolean;
+  /** 消息：是否显示账户提醒（邀请等，缺省显示）；最近账目 / 消息：最多几条。 */
+  readonly account?: boolean;
+  readonly limit?: number;
+}
+
+export interface SidebarConfig {
+  /** 显示哪些模块、什么顺序；不在里面的模块不显示。 */
+  readonly modules: readonly SidebarModule[];
+}
+
+export const DEFAULT_SIDEBAR: SidebarConfig = { modules: [{ kind: "quick" }, { kind: "messages" }] };
+export const SIDEBAR_LIMITS: readonly number[] = [3, 4, 5, 8, 12];
+
+export function parseSidebar(raw: unknown): SidebarConfig {
+  if (typeof raw !== "object" || raw === null || !Array.isArray((raw as { modules?: unknown }).modules)) return DEFAULT_SIDEBAR;
+  const seen = new Set<SidebarKind>();
+  const modules: SidebarModule[] = [];
+  for (const item of (raw as { modules: unknown[] }).modules) {
+    if (typeof item !== "object" || item === null) continue;
+    const value = item as Record<string, unknown>;
+    const kind = value["kind"] as SidebarKind;
+    if (!SIDEBAR_KINDS.includes(kind) || seen.has(kind)) continue;
+    seen.add(kind);
+    const methods = Array.isArray(value["methods"]) ? [...new Set(value["methods"].filter((id): id is string => typeof id === "string" && ENTRY_METHOD_IDS.includes(id)))] : null;
+    const limit = value["limit"];
+    modules.push({
+      kind,
+      ...(value["collapsed"] === true ? { collapsed: true } : {}),
+      ...(methods === null || methods.length === 0 ? {} : { methods }),
+      ...(value["iconOnly"] === true ? { iconOnly: true } : {}),
+      ...(value["account"] === false ? { account: false } : {}),
+      ...(typeof limit === "number" && SIDEBAR_LIMITS.includes(limit) ? { limit } : {}),
+    });
+  }
+  return { modules };
+}
+
 export interface DashboardSettings {
   readonly time: DashboardTime;
   /** 总览范围：「全部账本」类卡片统计哪些账本、新账本是否自动出现。 */
   readonly books: "all" | readonly string[];
   /** 综合折算（按交易日期的历史汇率折算成默认币种）；否则原币按币种分别统计。 */
   readonly combined: boolean;
+  readonly sidebar: SidebarConfig;
 }
 
-export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = { time: { kind: "this-month" }, books: "all", combined: false };
+export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = { time: { kind: "this-month" }, books: "all", combined: false, sidebar: DEFAULT_SIDEBAR };
 
 export function dashboardSettingsKey(owner: string): string {
   return `${LIBEVRA_KEY_PREFIX}desktop.dashboard-settings:v1:${owner}`;
@@ -403,6 +454,7 @@ export function parseDashboardSettings(raw: unknown): DashboardSettings {
     time: parseTime(value["time"]) ?? DEFAULT_DASHBOARD_SETTINGS.time,
     books: Array.isArray(books) ? books.filter((id): id is string => typeof id === "string" && id !== "") : "all",
     combined: value["combined"] === true,
+    sidebar: value["sidebar"] === undefined ? DEFAULT_SIDEBAR : parseSidebar(value["sidebar"]),
   };
 }
 

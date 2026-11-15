@@ -104,6 +104,7 @@ export function NativeTile({ card, bare, oneRow, aside }: NativeTileProps): Reac
     <article
       className={`sw-card lv-native group relative flex h-full min-h-0 flex-col ${bare ? "px-3.5 pt-3 pb-2" : "rounded-card border border-line bg-surface p-3.5 sm:p-4"}`}
       aria-label={title}
+      data-card-id={card.objectId}
       data-kind={kind ?? "unknown"}
       data-one-row={oneRow ? "" : undefined}
       data-masked={display.masked === true ? "" : undefined}
@@ -453,7 +454,7 @@ function TrendBody({ card, width, height }: { readonly card: AnalysisCardNode; r
 
 const ROW_HEIGHT = 44;
 
-function RecentRows({ items, width, height, showBook }: {
+export function RecentRows({ items, width, height, showBook }: {
   readonly items: readonly { readonly entry: Transaction; readonly bookId: string }[];
   readonly width: number;
   readonly height: number;
@@ -517,7 +518,7 @@ function RecentBody({ card, width, height }: { readonly card: AnalysisCardNode; 
 // 待处理与快捷操作
 // ---------------------------------------------------------------------------
 
-function PendingBody({ width, height }: { readonly width: number; readonly height: number }): React.JSX.Element {
+export function PendingBody({ width, height }: { readonly width: number; readonly height: number }): React.JSX.Element {
   const { t } = useI18n();
   const guest = useGuestMode();
   const { offline } = useAccountOffline();

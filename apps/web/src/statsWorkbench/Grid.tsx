@@ -327,6 +327,7 @@ function AnalysisCardTile({
   return (
     <article
       data-object-source={`/stats/cards/${encodeURIComponent(card.objectId)}`}
+      data-card-id={card.objectId}
       className={`sw-card group relative flex h-full min-h-0 flex-col ${bare ? "px-3.5 pt-3 pb-2" : "rounded-card border border-line bg-surface p-3.5 sm:p-4"}`}
       aria-label={title}
       data-one-row={oneRow ? "" : undefined}

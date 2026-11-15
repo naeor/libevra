@@ -265,6 +265,28 @@ const desktop: Messages<typeof zh> = {
       books: "Ledgers in the overview",
       booksHint: "“All ledgers” cards (across ledgers, recent entries and so on) count only the ledgers chosen here, and new ledgers appear automatically only if they're included. Ledger cards you've already placed stay.",
     },
+    sidebar: {
+      customize: "Customize sidebar",
+      title: "Sidebar content",
+      hint: "Tick the modules to show and use the arrows to reorder them. Select a module's title to collapse it. Saved on this device and applied right away.",
+      empty: "The sidebar has no modules yet.",
+      iconOnly: "Icons only",
+      account: "Show account notices (invitations and so on)",
+      limit: "Show up to",
+      kinds: {
+        quick: "Quick actions",
+        messages: "New messages",
+        pending: "Needs attention",
+        recent: "Recent entries",
+        books: "Ledgers",
+      },
+    },
+    menu: {
+      label: "Actions for {{name}}",
+      open: "Open",
+      settings: "Card settings…",
+      inContainer: "This card is in a card group; its position and size follow the group.",
+    },
     pin: {
       action: "Pin to Overview",
       done: "Pinned to Overview",

@@ -11,28 +11,31 @@ import { useNotifications } from "../lib/queries.js";
 type Book = { readonly id: string; readonly name: string };
 
 /** 只读预览；已读与处理操作仍由原有通知入口负责。 */
-export function DashboardMessages({ books }: { books: readonly Book[] }) {
+/**
+ * 1.19.101：侧栏模块可以选「显示账户提醒」与最多几条（`account`、`limit`）；侧栏自己画模块标题时 `heading={false}`。
+ */
+export function DashboardMessages({ books, account = true, limit = 4, heading = true }: { books: readonly Book[]; account?: boolean; limit?: number; heading?: boolean }) {
   const { user } = useAuth();
   const { t } = useI18n();
   return <section aria-label={t("desktop.dashboard.messages")}>
-    <h2 className="text-card-title text-ink">{t("desktop.dashboard.messages")}</h2>
-    {user ? <SignedInMessages userId={user.id} books={books} /> : <p className="text-helper text-muted">{t("desktop.dashboard.messagesEmpty")}</p>}
+    {heading ? <h2 className="text-card-title text-ink">{t("desktop.dashboard.messages")}</h2> : null}
+    {user ? <SignedInMessages userId={user.id} books={books} account={account} limit={limit} /> : <p className="text-helper text-muted">{t("desktop.dashboard.messagesEmpty")}</p>}
   </section>;
 }
 
-function SignedInMessages({ userId, books }: { userId: string; books: readonly Book[] }) {
+function SignedInMessages({ userId, books, account, limit }: { userId: string; books: readonly Book[]; account: boolean; limit: number }) {
   const { t } = useI18n();
   const inbox = useNotifications();
   const unread = useQuery({ queryKey: ["book-notices", userId, "unread"],
     queryFn: () => apiFetch<{ books: Record<string, number> }>("/book-notices/unread"), refetchInterval: 30_000 });
-  const messages = (inbox.data?.notifications ?? []).filter(n => !n.readAt || n.status === "pending");
+  const messages = account ? (inbox.data?.notifications ?? []).filter(n => !n.readAt || n.status === "pending") : [];
   const bookCount = books.reduce((n, book) => n + (unread.data?.books[book.id] ?? 0), 0);
   return <>
     {inbox.isPending || unread.isPending ? <p className="text-helper text-muted">{t("common.status.loading")}</p> : null}
     {inbox.isError || unread.isError ? <p role="status" className="text-helper text-muted">{t("desktop.dashboard.messagesFailed")}</p> : null}
     {inbox.isSuccess && unread.isSuccess && messages.length === 0 && bookCount === 0 ? <p className="text-helper text-muted">{t("desktop.dashboard.messagesEmpty")}</p> : null}
     <ul className="lv-dash-message-list">
-      {messages.slice(0, 4).map(message => <li key={message.id} className="lv-dash-message-account">
+      {messages.slice(0, limit).map(message => <li key={message.id} className="lv-dash-message-account">
         <div className="lv-dash-message-copy text-body">
           <span className="text-brand-dark">{message.kind === "referral_reminder" ? t("collab.notifications.referralTitle") : message.book ? t("collab.notifications.bookInviteTo", { name: message.book.name }) : t("collab.notifications.bookInvite")}</span>
           <small className="text-helper">{t("desktop.dashboard.accountMessage")} · {message.sender.displayName}</small>
