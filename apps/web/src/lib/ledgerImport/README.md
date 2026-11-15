@@ -30,6 +30,8 @@
 | [recovery.ts](recovery.ts) | 实现模块；入口/导出：duplicateGroupSignature、recoverTaxonomyResolutions、GroupDecisionRecovery、recoverGroupDecisions、DraftRecoveryMessageId |
 | [sourceArchive.test.ts](sourceArchive.test.ts) | 测试：sourceArchive |
 | [sourceArchive.ts](sourceArchive.ts) | 实现模块；入口/导出：ImportSourceArchiveSteps、ImportSourceArchiveOutcome、archiveImportSource |
+| [sourceUpload.test.ts](sourceUpload.test.ts) | 测试：sourceUpload |
+| [sourceUpload.ts](sourceUpload.ts) | 实现模块；入口/导出：INLINE_SOURCE_MAX_BYTES、GuestSourceReference、isStaleSourceUpload、sourceByteLength、needsStagedUpload |
 | [sources.guest.test.tsx](sources.guest.test.tsx) | 测试：sources.guest |
 | [sources.ts](sources.ts) | 实现模块；入口/导出：ImportBookSummary、isSoloImportBook、loadBookImportSource、loadBookImportTarget、hasLocalGuestIdentity |
 | [submit.ts](submit.ts) | 实现模块；入口/导出：guestSourceOfSource、guestSourceOf、targetSnapshotOf、buildLedgerImportRequest、unresolvedConflicts |

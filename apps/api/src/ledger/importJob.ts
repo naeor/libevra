@@ -38,6 +38,7 @@ import {
   type UndoOp,
 } from "./importUndo.js";
 import { loadTargetSnapshot } from "./importTarget.js";
+import { loadStagedSource } from "./importSourceUpload.js";
 import {
   assertSourceIsSelfConsistent,
   assertTaxonomyCoverage,
@@ -330,9 +331,15 @@ export async function createImportJob(
     targetFingerprint = pair.targetFingerprint;
     sourceBookId = pair.sourceBookId;
   } else {
-    if (body.source === undefined) throw badRequest("source_required", "缺少来源账本或游客快照。");
-    assertSourceIsSelfConsistent(body.source);
-    source = body.source;
+    /**
+     * 1.19.97：大的游客来源先分段上传（`importSourceUpload.ts`），这里只带暂存 id。取出后与随请求上传的快照
+     * 走同一套校验与指纹核对，并像原来一样整份复制进任务记录——之后的批次、确认、撤销都不再依赖暂存。
+     */
+    const guestSource =
+      body.sourceUploadId !== undefined ? await loadStagedSource(prisma, userId, body.sourceUploadId) : body.source;
+    if (guestSource === undefined) throw badRequest("source_required", "缺少来源账本或游客快照。");
+    assertSourceIsSelfConsistent(guestSource);
+    source = guestSource;
     sourceFingerprint = await fingerprintGuestSource(source);
     if (sourceFingerprint !== body.sourceFingerprint) {
       throw conflict("source_changed", "游客账本在预览后发生了变化，请重新预览并确认。");

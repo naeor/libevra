@@ -23,7 +23,21 @@ const shortText = z.string().trim().min(1).max(40);
 const objectName = z.string().trim().min(1).max(20);
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 
+/** 随请求一次性上传的来源快照最多这么多笔（旧客户端与小账本的路径，不变）。 */
 export const MAX_IMPORT_TRANSACTIONS = 5000;
+/**
+ * 1.19.97：游客账本**分段上传**后最多这么多笔。来源先按段传到服务器暂存（`source-uploads`），
+ * 预览 / 导入任务 / 清理预览只带暂存 id。上限取 2 万：一次迁移的任务记录约 10 MB，服务器逐批写入仍在可接受范围；
+ * 也远低于 PostgreSQL 单条语句 65535 个参数的上限（增量分析按来源 id 一次查询）。
+ */
+export const MAX_STAGED_IMPORT_TRANSACTIONS = 20_000;
+/** 分段上传时浏览器每段放多少笔；服务器每段最多收 {@link MAX_SOURCE_UPLOAD_PART_TRANSACTIONS} 笔。 */
+export const SOURCE_UPLOAD_PART_TRANSACTIONS = 1000;
+export const MAX_SOURCE_UPLOAD_PART_TRANSACTIONS = 2000;
+/** 暂存的来源快照保留多久（小时）。到期由服务器删除；导入任务创建时已把来源复制进任务，不依赖暂存。 */
+export const SOURCE_UPLOAD_TTL_HOURS = 24;
+/** 一次导入最多多少个重复组（请求 schema 的上限，浏览器在提交前先给出可读提示）。 */
+export const MAX_IMPORT_DUPLICATE_GROUPS = 500;
 /** Initial D5 batch size; UI/server may tune after tests. Not a permanent product limit. */
 export const DEFAULT_IMPORT_BATCH_SIZE = 200;
 export const MAX_IMPORT_BATCH_SIZE = 500;
@@ -76,29 +90,84 @@ export const guestImportTransactionSchema = z.object({
 });
 export type GuestImportTransaction = z.infer<typeof guestImportTransactionSchema>;
 
-export const guestImportSourceSchema = z.object({
+/**
+ * Stable identity of the guest ledger a snapshot came from. It is generated with the
+ * guest ledger (`guest-book-<uuid>`), not with the browser identity, so copies restored on
+ * another device keep the same logical source while independent guest ledgers do not
+ * share a state namespace.
+ */
+const guestBookIdSchema = z
+  .string()
+  .trim()
+  .min(4)
+  // `guest:<guestBookId>` must fit both the state key VARCHAR(64) and target namespace
+  // VARCHAR(80); the generated `guest-book-<uuid>` is ~47 characters.
+  .max(58)
+  .regex(/^[A-Za-z0-9_-]+$/);
+
+/** 来源快照里除账目以外的部分（分段上传时先单独上传，见 {@link sourceUploadCreateRequestSchema}）。 */
+const guestImportSourceHeaderShape = {
   name: shortText,
-  /**
-   * Stable identity of the guest ledger this snapshot came from. It is generated with the
-   * guest ledger (`guest-book-<uuid>`), not with the browser identity, so copies restored on
-   * another device keep the same logical source while independent guest ledgers do not
-   * share a state namespace.
-   */
-  guestBookId: z
-    .string()
-    .trim()
-    .min(4)
-    // `guest:<guestBookId>` must fit both the state key VARCHAR(64) and target namespace
-    // VARCHAR(80); the generated `guest-book-<uuid>` is ~47 characters.
-    .max(58)
-    .regex(/^[A-Za-z0-9_-]+$/)
-    .optional(),
+  guestBookId: guestBookIdSchema.optional(),
   categories: z.array(guestImportCategorySchema).max(200),
   paymentMethods: z.array(guestImportPaymentMethodSchema).max(100),
   tags: z.array(guestImportTagSchema).max(200),
-  transactions: z.array(guestImportTransactionSchema).max(MAX_IMPORT_TRANSACTIONS),
-}).superRefine((value,ctx)=>{try{validateCategoryTree(value.categories);}catch{ctx.addIssue({code:"custom",message:"category_tree_invalid"});}});
+};
+
+function guestImportSourceSchemaWith(maxTransactions: number) {
+  return z.object({
+    ...guestImportSourceHeaderShape,
+    transactions: z.array(guestImportTransactionSchema).max(maxTransactions),
+  }).superRefine((value,ctx)=>{try{validateCategoryTree(value.categories);}catch{ctx.addIssue({code:"custom",message:"category_tree_invalid"});}});
+}
+
+export const guestImportSourceSchema = guestImportSourceSchemaWith(MAX_IMPORT_TRANSACTIONS);
 export type GuestImportSource = z.infer<typeof guestImportSourceSchema>;
+/** 分段上传拼好之后的完整来源：与 {@link guestImportSourceSchema} 相同，只是笔数上限更大。 */
+export const stagedGuestImportSourceSchema = guestImportSourceSchemaWith(MAX_STAGED_IMPORT_TRANSACTIONS);
+
+/**
+ * 1.19.97 · 游客来源分段上传。
+ *
+ * 1. `POST /ledger-imports/source-uploads`：上传表头（名称、游客账本 id、分类、支付方式、标签）与声明的笔数、段数、指纹；
+ * 2. `POST /ledger-imports/source-uploads/:uploadId/parts/:index`：逐段上传账目（同一段重传必须完全相同）；
+ * 3. `POST /ledger-imports/source-uploads/:uploadId/complete`：服务器按段号拼接、完整校验并重新计算指纹，
+ *    与声明的指纹一致才变为 `ready`。
+ *
+ * 之后增量预览、导入任务、清理预览都可以用 `sourceUploadId` 代替随请求上传的 `source`。
+ */
+export const sourceUploadCreateRequestSchema = z.object({
+  uploadId: uuid,
+  sourceFingerprint: sha256,
+  transactionCount: z.number().int().min(0).max(MAX_STAGED_IMPORT_TRANSACTIONS),
+  partCount: z.number().int().min(0).max(MAX_STAGED_IMPORT_TRANSACTIONS),
+  header: z.object({ ...guestImportSourceHeaderShape, guestBookId: guestBookIdSchema }),
+}).superRefine((value, ctx) => {
+  // 每段至少 1 笔、至多 MAX_SOURCE_UPLOAD_PART_TRANSACTIONS 笔，所以段数有上下界；没有账目就没有段。
+  const minimum = Math.ceil(value.transactionCount / MAX_SOURCE_UPLOAD_PART_TRANSACTIONS);
+  if (value.partCount < minimum || value.partCount > value.transactionCount) {
+    ctx.addIssue({ code: "custom", message: "分段数与账目笔数不匹配。", path: ["partCount"] });
+  }
+});
+export type SourceUploadCreateRequest = z.infer<typeof sourceUploadCreateRequestSchema>;
+
+export const sourceUploadPartRequestSchema = z.object({
+  transactions: z.array(guestImportTransactionSchema).min(1).max(MAX_SOURCE_UPLOAD_PART_TRANSACTIONS),
+});
+export type SourceUploadPartRequest = z.infer<typeof sourceUploadPartRequestSchema>;
+
+export const sourceUploadStatusSchema = z.object({
+  uploadId: uuid,
+  status: z.enum(["receiving", "ready"]),
+  guestBookId: z.string(),
+  sourceFingerprint: sha256,
+  transactionCount: z.number().int().nonnegative(),
+  partCount: z.number().int().nonnegative(),
+  /** 服务器已收到的段号（升序）；`ready` 后为空。 */
+  receivedParts: z.array(z.number().int().nonnegative()),
+  expiresAt: z.string(),
+});
+export type SourceUploadStatus = z.infer<typeof sourceUploadStatusSchema>;
 
 export const taxonomyResolutionSchema = z.object({
   type: z.enum(["category", "paymentMethod", "tag"]),
@@ -196,24 +265,28 @@ export const ledgerImportRequestSchema = z
     ]),
     /**
      * D2/D3：游客来源快照随请求上传。D4 正式来源不上传快照，只给 sourceBookId；
-     * 服务器重新读取 B 并计算指纹。两者必须且只能出现一个。
+     * 服务器重新读取 B 并计算指纹。1.19.97：大的游客来源先分段上传，这里只给 sourceUploadId。
+     * 三者必须且只能出现一个。
      */
     source: guestImportSourceSchema.optional(),
     sourceBookId: uuid.optional(),
+    sourceUploadId: uuid.optional(),
     sourceFingerprint: sha256,
-    taxonomy: z.array(taxonomyResolutionSchema).max(400),
-    duplicateGroups: z.array(duplicateDecisionSchema).max(500),
+    // 分类 ≤ 200、支付方式 ≤ 100、标签 ≤ 200，每个来源对象一条决定（1.19.97 起与来源上限一致）。
+    taxonomy: z.array(taxonomyResolutionSchema).max(500),
+    duplicateGroups: z.array(duplicateDecisionSchema).max(MAX_IMPORT_DUPLICATE_GROUPS),
     /** D5 phase 2: explicit decisions for previously imported/changed/skipped source records. */
-    incrementalDecisions: z.array(incrementalDecisionSchema).max(MAX_IMPORT_TRANSACTIONS).default([]),
+    incrementalDecisions: z.array(incrementalDecisionSchema).max(MAX_STAGED_IMPORT_TRANSACTIONS).default([]),
   })
   .superRefine((value, ctx) => {
     const hasSnapshot = value.source !== undefined;
     const hasBook = value.sourceBookId !== undefined;
+    const hasUpload = value.sourceUploadId !== undefined;
 
-    if (hasSnapshot === hasBook) {
+    if (Number(hasSnapshot) + Number(hasBook) + Number(hasUpload) !== 1) {
       ctx.addIssue({
         code: "custom",
-        message: "来源必须且只能是游客快照或正式账本 id 之一。",
+        message: "来源必须且只能是游客快照、已上传的游客来源或正式账本 id 之一。",
         path: ["source"],
       });
       return;
@@ -310,12 +383,14 @@ export const incrementalPreviewRequestSchema = z
     targetBookId: uuid,
     sourceBookId: uuid.optional(),
     source: guestImportSourceSchema.optional(),
+    sourceUploadId: uuid.optional(),
   })
   .superRefine((value, ctx) => {
-    if ((value.sourceBookId === undefined) === (value.source === undefined)) {
+    const given = [value.sourceBookId, value.source, value.sourceUploadId].filter((item) => item !== undefined);
+    if (given.length !== 1) {
       ctx.addIssue({
         code: "custom",
-        message: "增量预览必须且只能给出正式来源 id 或游客来源快照之一。",
+        message: "增量预览必须且只能给出正式来源 id、游客来源快照或已上传的游客来源之一。",
         path: ["source"],
       });
     }
@@ -323,7 +398,7 @@ export const incrementalPreviewRequestSchema = z
 export type IncrementalPreviewRequest = z.infer<typeof incrementalPreviewRequestSchema>;
 
 export const incrementalPreviewResponseSchema = z.object({
-  statuses: z.array(incrementalSourceStatusSchema).max(MAX_IMPORT_TRANSACTIONS),
+  statuses: z.array(incrementalSourceStatusSchema).max(MAX_STAGED_IMPORT_TRANSACTIONS),
   summary: z.object({
     newCount: z.number().int().nonnegative(),
     unchangedCount: z.number().int().nonnegative(),
@@ -484,7 +559,13 @@ export const guestCleanupPreviewRequestSchema = z.object({
   targetBookId: uuid,
   guestBookId: z.string().trim().min(4).max(58).regex(/^[A-Za-z0-9_-]+$/),
   receiptId: uuid,
-  source: guestImportSourceSchema,
+  /** 随请求上传的来源快照，或（1.19.97）已分段上传的来源；二选一。 */
+  source: guestImportSourceSchema.optional(),
+  sourceUploadId: uuid.optional(),
+}).superRefine((value, ctx) => {
+  if ((value.source === undefined) === (value.sourceUploadId === undefined)) {
+    ctx.addIssue({ code: "custom", message: "清理预览必须且只能给出游客来源快照或已上传的游客来源之一。", path: ["source"] });
+  }
 });
 export type GuestCleanupPreviewRequest = z.infer<typeof guestCleanupPreviewRequestSchema>;
 

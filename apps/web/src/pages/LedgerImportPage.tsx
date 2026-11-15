@@ -3,6 +3,7 @@ import { useSwapReveal } from "../components/ui/ComponentMotion.js";
 import { Trans } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import {
+  MAX_IMPORT_BATCH_SIZE,
   ledgerImportResultSchema,
   type ImportJobStatus,
   type IncrementalDecisionAction,
@@ -26,7 +27,7 @@ import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { i18n, isChineseLocale, t, useI18n } from "../i18n/index.js";
 import type zhLedgerImport from "../i18n/resources/zh-CN/ledgerImport.js";
 import { translateSharedMessage } from "../i18n/sharedMessages.js";
-import { apiFetch, ApiRequestError, errorMessage } from "../lib/api.js";
+import { apiFetch, ApiRequestError, errorMessage, UserFacingError } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
 import { formatInstant, formatTimeWithZone } from "../lib/datetime.js";
 import { displayCategoryName, displayPaymentMethodName } from "../lib/presetNames.js";
@@ -80,7 +81,8 @@ import {
   restoreGuestBookCleanup,
 } from "../lib/guest/data.js";
 import { readGuestIdentity } from "../lib/guest/identity.js";
-import { GuestAttachmentMigrationNote } from "../components/GuestAttachments.js";
+import { GuestAttachmentMigrationCard, GuestAttachmentMigrationNote } from "../components/GuestAttachments.js";
+import { withGuestSource } from "../lib/ledgerImport/sourceUpload.js";
 import { bookLifecycleAction } from "../lib/lifecycle.js";
 import { clearBookLocalData } from "../lib/offline/localCleanup.js";
 import { fetchNotDuplicatePairKeys } from "../lib/notDuplicateRelations.js";
@@ -395,6 +397,8 @@ export function LedgerImportPage(): React.JSX.Element {
   /** 选中的那一本游客账本；没选定（或旧的 `guest` 在多本时含糊）为 `null`。 */
   const guestSourceBookId = sourceIsGuest ? guestBookIdOfSource(sourceKey, guestBooks ?? []) : null;
   const guestSourceReady = sourceIsGuest && guestAvailable && guestSourceBookId !== null;
+  /** 本机游客 id（迁移附件时取原件用）；只取字符串，不把身份对象当依赖。 */
+  const guestOwnerId = useMemo(() => (guestAvailable ? readGuestIdentity()?.id ?? null : null), [guestAvailable]);
   /**
    * ⚠️ **离开导入页去哪里，以及"怎么离开"**（S15-C，返回循环）。
    *
@@ -589,9 +593,9 @@ export function LedgerImportPage(): React.JSX.Element {
     void (async () => {
       try {
         if (sourceIsGuest) {
-          if (guestSourceBookId === null) throw new Error(t("ledgerImport.message.noGuest"));
+          if (guestSourceBookId === null) throw new UserFacingError(t("ledgerImport.message.noGuest"));
           const source = await loadGuestImportSource(guestSourceBookId);
-          if (source === null) throw new Error(t("ledgerImport.message.noGuest"));
+          if (source === null) throw new UserFacingError(t("ledgerImport.message.noGuest"));
           const targetSnapshot = targetIsNew
             ? buildNewImportTarget(currentNewName)
             : await loadBookImportTarget(targetId);
@@ -928,9 +932,24 @@ export function LedgerImportPage(): React.JSX.Element {
       const hasIncrementalHistory =
         incremental !== null && incremental.summary.newCount < preview.source.transactions.length;
       if (incrementalError !== null && hasIncrementalHistory) {
-        throw new Error(t("ledgerImport.message.incrementalUnavailable"));
+        throw new UserFacingError(t("ledgerImport.message.incrementalUnavailable"));
       }
-      const created = await createImportJob(request);
+      /**
+       * 1.19.97：大的游客来源先分段上传，任务只带暂存 id；这时用最大的批量（500 笔一批），减少服务器逐批改写
+       * 任务记录的次数。小的来源与正式来源与以前完全相同。
+       */
+      const inlineSource = request.source;
+      const created =
+        inlineSource === undefined
+          ? await createImportJob(request)
+          : await withGuestSource(inlineSource, (reference) => {
+              const { source: _inline, ...rest } = request!;
+              return createImportJob({
+                ...rest,
+                ...reference,
+                ...("sourceUploadId" in reference ? { batchSize: MAX_IMPORT_BATCH_SIZE } : {}),
+              });
+            });
       setJob(created);
       setSubmitState("submitting");
       patchSearch({ step: "confirm", job: created.id }, true);
@@ -1296,6 +1315,17 @@ export function LedgerImportPage(): React.JSX.Element {
               },
             );
           }}
+        />
+      ) : null}
+
+      {/* 1.19.97：游客账本迁入并确认后，附件随账目上传（加入登录用户的后台上传队列）。 */}
+      {step === "confirm" && submitState === "success" && result !== null && user !== null && guestSourceBookId !== null && guestOwnerId !== null ? (
+        <GuestAttachmentMigrationCard
+          importId={result.importId}
+          userId={user.id}
+          guestId={guestOwnerId}
+          guestBookId={guestSourceBookId}
+          result={result}
         />
       ) : null}
 
@@ -2360,7 +2390,7 @@ export function SourceRetentionCard({
     setGuestMessage(null);
     try {
       const guest = readGuestIdentity();
-      if (guestBookId === null || guest === null) throw new Error(t("ledgerImport.message.noGuest"));
+      if (guestBookId === null || guest === null) throw new UserFacingError(t("ledgerImport.message.noGuest"));
       // 游客多账本：只清理这次迁移的来源那一本游客账本（按游客账本 id），不碰别的游客账本。
       const resultOfCleanup = await cleanupMigratedGuestBook(guest.id, guestBookId, guestPreview.cleanableSourceIds);
       setGuestArchiveCount(resultOfCleanup.archived);

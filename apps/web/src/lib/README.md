@@ -19,7 +19,7 @@
 | [analysisRange.permissions.test.ts](analysisRange.permissions.test.ts) | 测试：analysisRange.permissions |
 | [analysisRange.test.tsx](analysisRange.test.tsx) | 测试：analysisRange |
 | [analysisRange.ts](analysisRange.ts) | 实现模块；入口/导出：AnalysisMarks、AnalysisCoverage、AnalysisRangeRead、AnalysisRangeIo、analysisMonthStored |
-| [api.ts](api.ts) | 实现模块；入口/导出：primeDeviceId、primeBookId、currentBookIdHeader、ApiRequestError、buildHeaders |
+| [api.ts](api.ts) | 实现模块；入口/导出：primeDeviceId、primeBookId、currentBookIdHeader、ApiRequestError、UserFacingError |
 | [apiHeaders.test.ts](apiHeaders.test.ts) | 测试：apiHeaders |
 | [attachments.ts](attachments.ts) | 实现模块；入口/导出：useAttachments、useBookStorage、useAccountStorage、attachmentUrl、attachmentProgress |
 | [avatarRewards.ts](avatarRewards.ts) | 实现模块；入口/导出：AVATAR_REWARDS_QUERY_KEY、fetchAvatarRewards、useAvatarRewards、requestAvatarRewardMakeUp、confirmAvatarRewardEvents |

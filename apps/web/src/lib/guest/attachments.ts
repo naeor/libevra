@@ -6,7 +6,8 @@
  * - 记账页附件区（暂存草稿 → 保存账目后关联）已经按 `ownerId` 工作，游客只需换 owner，不用写第二套；
  * - 库的结构不变，不需要升级库版本；
  * - 与游客库 `libellum-guest` 分开，写附件不会重写账目 blob，也不会碰账号数据（账号 owner 是用户 id，互不相交）；
- * - 这个库本来就是“待上传原件”，下一批“转正式账号时上传”可以直接按 (游客账本 id, 账目 id) 取出原件。
+ * - 这个库本来就是“待上传原件”：转正式账号时（1.19.97，`attachmentMigration.ts`）按 (游客账本 id, 账目 id) 取出原件，
+ *   复制一份给登录用户的上传队列。
  *
  * 每个附件可取到：id、游客 id（ownerId）、游客账本 id（bookId）、账目 id 列表（entryIds）、文件名（name）、
  * 媒体类型（blob.type）、大小（blob.size）、创建时间（createdAt，毫秒）。
@@ -15,6 +16,7 @@
  */
 import { t } from "../../i18n/index.js";
 import { formatStorageBytes } from "@libellum/shared";
+import { UserFacingError } from "../api.js";
 import {
   clearClosedAccountAttachments,
   pendingAttachments,
@@ -94,7 +96,7 @@ export async function localSpace(): Promise<LocalSpace> {
 export async function assertLocalRoom(bytes: number): Promise<void> {
   const space = await localSpace();
   if (space.available !== null && space.available < bytes) {
-    throw new Error(t("attachments.guest.noRoom", { need: formatStorageBytes(bytes), available: formatStorageBytes(space.available) }));
+    throw new UserFacingError(t("attachments.guest.noRoom", { need: formatStorageBytes(bytes), available: formatStorageBytes(space.available) }));
   }
 }
 

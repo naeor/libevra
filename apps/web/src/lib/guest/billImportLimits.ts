@@ -1,23 +1,21 @@
 /**
- * 游客账本“转正式账号”的上限，以及游客导入账单提交步骤的提醒（1.19.96）。
+ * 游客账本“转正式账号”的上限，以及游客导入账单提交步骤的提醒（1.19.96；1.19.97 起整本上限 2 万笔）。
  *
  * 单独成一个小模块：导入页静态引用它，而本机导入引擎（`billImport.ts`，含解析器与浏览器端抽取）按需加载，
  * 登录用户的导入页不必带上那一块。
  *
  * 上限来自 `packages/shared/src/ledgerImport.ts`（不在这里改）：
- * - 整本：`guestImportSourceSchema` 最多 5000 笔账目、200 个标签；
+ * - 整本：`MAX_STAGED_IMPORT_TRANSACTIONS`（2 万笔）、200 个标签；
  * - 每笔：`guestImportTransactionSchema` 备注 ≤ 500 字、标签 ≤ 10 个；`guestImportTagSchema` 标签名 ≤ 20 字。
  *
- * **现状（1.19.96 核对）**：账本导入页把一本游客账本**整本**作为来源快照随请求上传
- * （`ledgerImportRequestSchema.source` / `importJobRequestSchema`）；`DEFAULT_IMPORT_BATCH_SIZE`（200）与
- * `IMPORT_BATCH_THRESHOLD` 的分批只发生在服务器收到快照**之后**的写入阶段，不会把来源拆成几次上传。
- * 所以超过整本上限的游客账本目前迁不过去（服务器按 schema 拒绝整次请求）；每笔的长度上限同理，所以本机导入在
- * 提交前就把它们挡住（`billImport.ts` 的 `guestMigrationIssues`），整本的上限只提醒。
+ * **现状（1.19.97）**：大的游客账本先分段上传到服务器暂存（`lib/ledgerImport/sourceUpload.ts`），整本上限从 5000 笔
+ * 提到 2 万笔；超过的仍迁不过去，所以这里提醒。每笔的长度上限没变，本机导入在提交前就把它们挡住
+ * （`billImport.ts` 的 `guestMigrationIssues`）。
  */
-import { MAX_IMPORT_TRANSACTIONS } from "@libellum/shared";
+import { MAX_STAGED_IMPORT_TRANSACTIONS } from "@libellum/shared";
 
 export const GUEST_MIGRATION_LIMITS = {
-  transactions: MAX_IMPORT_TRANSACTIONS,
+  transactions: MAX_STAGED_IMPORT_TRANSACTIONS,
   tags: 200,
   noteLength: 500,
   tagsPerEntry: 10,

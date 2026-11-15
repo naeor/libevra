@@ -1549,6 +1549,50 @@ model LedgerImportSourceState {
   @@map("ledger_import_source_states")
 }
 
+/// 1.19.97：游客来源分段上传的暂存（`/api/v1/ledger-imports/source-uploads`）。
+///
+/// 游客账本超过一次请求能放下的大小时，浏览器先把来源快照分段传到这里，增量预览、导入任务与清理预览只带
+/// 暂存 id。导入任务创建时把来源复制进任务（与随请求上传完全相同），之后不再依赖暂存。
+/// 到期（`expires_at`，创建后 24 小时）由服务器删除；同一用户为同一游客账本新建暂存时，旧的暂存一并删除。
+/// ⚠️ 无外键到用户：与导入任务表一致，读取时按 `user_id` 校验归属。
+model LedgerImportSourceUpload {
+  id                String   @id @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  guestBookId       String   @map("guest_book_id") @db.VarChar(64)
+  /// receiving | ready
+  status            String   @db.VarChar(16)
+  /// 浏览器声明的完整来源指纹；拼好后服务器重新计算，一致才变为 ready。
+  sourceFingerprint String   @map("source_fingerprint") @db.VarChar(64)
+  transactionCount  Int      @map("transaction_count")
+  partCount         Int      @map("part_count")
+  /// 来源快照里除账目以外的部分：名称、游客账本 id、分类、支付方式、标签。
+  header            Json
+  /// 拼好并完整校验过的来源快照；ready 之前为 null（各段在 parts 表里）。
+  source            Json?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
+  parts             LedgerImportSourceUploadPart[]
+
+  @@index([userId, guestBookId])
+  @@index([expiresAt])
+  @@map("ledger_import_source_uploads")
+}
+
+/// 分段上传中的一段账目。拼好（ready）后整段删除，只留完整来源。
+model LedgerImportSourceUploadPart {
+  uploadId     String                   @map("upload_id") @db.Uuid
+  position     Int
+  transactions Json
+  /// 本段 canonical 内容的 sha256：同一段重传必须完全相同。
+  sha256       String                   @db.VarChar(64)
+  createdAt    DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  upload       LedgerImportSourceUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@id([uploadId, position])
+  @@map("ledger_import_source_upload_parts")
+}
+
 model ImportLog {
   id     String @id @default(uuid()) @db.Uuid
   bookId String @map("book_id") @db.Uuid

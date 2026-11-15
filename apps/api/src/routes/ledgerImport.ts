@@ -36,6 +36,7 @@ import { loadExistingImportTarget, loadTargetSnapshot } from "../ledger/importTa
 import { analyzeIncremental, sourceNamespaceOf } from "../ledger/importIncremental.js";
 import { writeSourceState } from "../ledger/importIncremental.js";
 import { previewGuestCleanup } from "../ledger/importCleanup.js";
+import { loadStagedSource } from "../ledger/importSourceUpload.js";
 import { getFormalSourceDispositionByReceipt } from "../ledger/importCleanup.js";
 import { allocateTransactionSeq } from "../ledger/transactionSeq.js";
 import { badRequest, conflict, forbidden } from "../lib/errors.js";
@@ -893,16 +894,21 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
         );
         return incrementalPreviewResponseSchema.parse(analysis.response);
       }
-      if (body.source === undefined) throw badRequest("source_required", "缺少游客来源快照。");
-      assertSourceIsSelfConsistent(body.source);
+      // 1.19.97：大的游客来源先分段上传，这里只带暂存 id。
+      const guestSource =
+        body.sourceUploadId !== undefined
+          ? await loadStagedSource(options.prisma, userId, body.sourceUploadId)
+          : body.source;
+      if (guestSource === undefined) throw badRequest("source_required", "缺少游客来源快照。");
+      assertSourceIsSelfConsistent(guestSource);
       const target = await loadExistingImportTarget(options.prisma, userId, body.targetBookId);
       const analysis = await analyzeIncremental(
         options.prisma,
         body.targetBookId,
-        body.source,
+        guestSource,
         null,
         target.snapshot,
-        body.source.guestBookId ?? null,
+        guestSource.guestBookId ?? null,
       );
       return incrementalPreviewResponseSchema.parse(analysis.response);
     },
@@ -915,9 +921,19 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
       const userId = request.currentUser?.id;
       if (userId === undefined) throw forbidden("auth_required", "请先登录。");
       const body = guestCleanupPreviewRequestSchema.parse(request.body ?? {});
-      assertSourceIsSelfConsistent(body.source);
+      const source =
+        body.sourceUploadId !== undefined
+          ? await loadStagedSource(options.prisma, userId, body.sourceUploadId)
+          : body.source;
+      if (source === undefined) throw badRequest("source_required", "缺少游客来源快照。");
+      assertSourceIsSelfConsistent(source);
       return guestCleanupPreviewResponseSchema.parse(
-        await previewGuestCleanup(options.prisma, userId, body),
+        await previewGuestCleanup(options.prisma, userId, {
+          targetBookId: body.targetBookId,
+          guestBookId: body.guestBookId,
+          receiptId: body.receiptId,
+          source,
+        }),
       );
     },
   );
@@ -956,6 +972,10 @@ export function registerLedgerImportRoutes(app: FastifyInstance, options: Ledger
 
     if (body.target.kind === "existing" && body.target.bookId === "") {
       throw badRequest("target_required", "请选择目标账本。");
+    }
+    if (body.sourceUploadId !== undefined) {
+      // 分段上传的来源只走可撤销的分批任务；同步入口（只在测试里开启）不接它。
+      throw badRequest("source_upload_unsupported", "同步导入入口不支持分段上传的来源，请使用分批导入任务。");
     }
 
     try {

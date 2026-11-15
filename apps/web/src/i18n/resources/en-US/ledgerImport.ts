@@ -63,6 +63,7 @@ const ledgerImport: Messages<typeof zh> = {
     undone: "The import was undone. The entries, categories and source status it changed have been restored.",
     undoFailed: "Undo failed. The ledger is still locked — you can try undoing again.",
     noGuest: "There’s no guest ledger on this device.",
+    guestTooLarge: "This guest ledger has {{count}} entries, more than the {{limit}} that can be moved at once, so it can’t be moved as a whole yet. Everything is still saved on this device; consider exporting a backup in guest mode.",
     resultMismatch:
       "The server finished the import, but the result doesn’t match what was expected. Take a screenshot of this page and check the target ledger. Don’t submit again.",
     incrementalUnavailable:
@@ -551,6 +552,7 @@ const ledgerImport: Messages<typeof zh> = {
     formalToNew: "An account ledger can’t be imported into a new ledger.",
     missingTargetFingerprint: "The preview is missing server data for the target. Preview again.",
     missingGuestSource: "The guest source snapshot is missing.",
+    tooManyGroups: "This import has {{count}} groups of possible duplicates, more than the {{limit}} that can be submitted at once. Choose an empty ledger as the target, or tidy up some duplicates in the target ledger first.",
   },
   unknown: {
     category: "(Unknown category)",

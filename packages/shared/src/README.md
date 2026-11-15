@@ -57,7 +57,7 @@
 | [invites.test.ts](invites.test.ts) | 测试：invites |
 | [invites.ts](invites.ts) | 实现模块；入口/导出：INVITE_VALID_DAYS、INVITE_VALID_MS、InviteRejection、rejectInvite、INVITE_REJECTION_MESSAGE |
 | [ledger.ts](ledger.ts) | 实现模块；入口/导出：CURRENCIES、currencySchema、Currency、TRANSACTION_KINDS、transactionKindSchema |
-| [ledgerImport.ts](ledgerImport.ts) | 实现模块；入口/导出：MAX_IMPORT_TRANSACTIONS、DEFAULT_IMPORT_BATCH_SIZE、MAX_IMPORT_BATCH_SIZE、IMPORT_BATCH_THRESHOLD、guestImportCategorySchema |
+| [ledgerImport.ts](ledgerImport.ts) | 实现模块；入口/导出：MAX_IMPORT_TRANSACTIONS、MAX_STAGED_IMPORT_TRANSACTIONS、SOURCE_UPLOAD_PART_TRANSACTIONS、MAX_SOURCE_UPLOAD_PART_TRANSACTIONS、SOURCE_UPLOAD_TTL_HOURS |
 | [messages.ts](messages.ts) | 实现模块；入口/导出：QUOTE_REFERENCE_KINDS、quoteReferenceKindSchema、QuoteReferenceKind、messageReferenceInputSchema、MessageReferenceInput |
 | [money.test.ts](money.test.ts) | 测试：money |
 | [money.ts](money.ts) | 实现模块；入口/导出：DEFAULT_DECIMALS、decimalsFor、parseAmountToMinor、formatMinor、sumMinor |

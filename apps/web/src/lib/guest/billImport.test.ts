@@ -250,10 +250,11 @@ describe("游客本机导入账单", () => {
 });
 
 describe("转正式账号上限的提醒", () => {
-  it("导入后超过 5000 笔或 200 个标签才提醒；标签按名字去重", () => {
-    expect(guestMigrationReminder({ existingTransactions: 4990, importable: 10, existingTagNames: [], importTagNames: [] })).toBeNull();
-    expect(guestMigrationReminder({ existingTransactions: 4990, importable: 11, existingTagNames: [], importTagNames: [] }))
-      .toEqual({ transactions: 5001, tags: 0, overTransactions: true, overTags: false });
+  it("导入后超过 2 万笔（1.19.97 分段迁移的上限）或 200 个标签才提醒；标签按名字去重", () => {
+    expect(guestMigrationReminder({ existingTransactions: 4990, importable: 11, existingTagNames: [], importTagNames: [] })).toBeNull();
+    expect(guestMigrationReminder({ existingTransactions: 19_990, importable: 10, existingTagNames: [], importTagNames: [] })).toBeNull();
+    expect(guestMigrationReminder({ existingTransactions: 19_990, importable: 11, existingTagNames: [], importTagNames: [] }))
+      .toEqual({ transactions: 20_001, tags: 0, overTransactions: true, overTags: false });
     const existing = Array.from({ length: 199 }, (_, index) => `t${index}`);
     expect(guestMigrationReminder({ existingTransactions: 1, importable: 1, existingTagNames: existing, importTagNames: ["t1", "新", "新"] })).toBeNull();
     expect(guestMigrationReminder({ existingTransactions: 1, importable: 1, existingTagNames: existing, importTagNames: ["新", "又一个"] }))

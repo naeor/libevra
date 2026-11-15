@@ -153,6 +153,20 @@ const EXACT: ReadonlyMap<string, string> = new Map<string, string>([
     "增量预览必须且只能给出正式来源 id 或游客来源快照之一。",
     "An update preview needs exactly one source: a ledger ID or a guest snapshot.",
   ],
+  // 1.19.97：游客来源分段上传。旧句子保留，旧服务器仍会返回它们。
+  [
+    "来源必须且只能是游客快照、已上传的游客来源或正式账本 id 之一。",
+    "Give exactly one source: a guest snapshot, an uploaded guest source or a ledger ID.",
+  ],
+  [
+    "增量预览必须且只能给出正式来源 id、游客来源快照或已上传的游客来源之一。",
+    "An update preview needs exactly one source: a ledger ID, a guest snapshot or an uploaded guest source.",
+  ],
+  [
+    "清理预览必须且只能给出游客来源快照或已上传的游客来源之一。",
+    "A clean-up preview needs exactly one source: a guest snapshot or an uploaded guest source.",
+  ],
+  ["分段数与账目笔数不匹配。", "The number of parts doesn’t match the number of entries."],
 
   // ---- 不重复判断（notDuplicateRelations.ts） ----
   ["逐对确认", "Confirmed pair by pair"],

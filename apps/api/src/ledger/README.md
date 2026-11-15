@@ -23,6 +23,7 @@
 | [importIncremental.ts](importIncremental.ts) | 实现模块；入口/导出：IncrementalAnalysis、IncrementalOperation、IncrementalPlan、sourceNamespaceOf、sourceBookKeyOf |
 | [importJob.ts](importJob.ts) | 实现模块；入口/导出：getImportJob、createImportJob |
 | [importSolo.ts](importSolo.ts) | 实现模块；入口/导出：ImportDbClient、SoloImportBookSnapshot、FormalImportPair、loadSoloImportBook、loadFormalImportPair |
+| [importSourceUpload.ts](importSourceUpload.ts) | 实现模块；入口/导出：MAX_ACTIVE_SOURCE_UPLOADS、createSourceUpload、putSourceUploadPart、completeSourceUpload、loadStagedSource |
 | [importTarget.ts](importTarget.ts) | 实现模块；入口/导出：ImportDbClient、loadTargetSnapshot、SoloBookTarget、loadExistingImportTarget |
 | [importUndo.ts](importUndo.ts) | 实现模块；入口/导出：UndoOp、TransactionBefore、SourceStateBefore、StoredUndoBatch、readUndoBatch |
 | [ledgerLocks.ts](ledgerLocks.ts) | 实现模块；入口/导出：IMPORT_LOCK_OWNER_PREFIX、LOCK_OWNER_SETTING、DEFAULT_CONFIRM_TIMEOUT_SECONDS、MIN_CONFIRM_TIMEOUT_SECONDS、MAX_CONFIRM_TIMEOUT_SECONDS |

@@ -62,6 +62,7 @@ const ledgerImport = {
     undone: "导入已撤销；本次造成的账目、分类和来源状态已恢复。",
     undoFailed: "撤销失败；账本仍保持锁定，可以重试撤销。",
     noGuest: "本机没有可用的游客账本。",
+    guestTooLarge: "这本游客账本有 {{count}} 笔账目，超过一次迁移的上限 {{limit}} 笔，暂时无法整本迁移。数据仍完整保存在本机，建议先在游客模式里导出一份备份。",
     resultMismatch: "服务器已完成提交，但结果与预期不一致。请截图保留本页，并打开目标账本核对，不要重复提交。",
     incrementalUnavailable: "无法读取增量历史，暂不开始导入；请刷新后重试。",
     otherAccount: "此导入任务属于其他账号，请登录原账号后查看。",
@@ -486,6 +487,7 @@ const ledgerImport = {
     formalToNew: "正式账本来源不能导入新账本。",
     missingTargetFingerprint: "正式来源缺少目标指纹，请重新预览。",
     missingGuestSource: "缺少游客来源快照。",
+    tooManyGroups: "这次导入有 {{count}} 组疑似重复，超过一次能提交的 {{limit}} 组。请换一本空的正式账本作为目标，或先在目标账本里整理掉一部分重复。",
   },
   /** 快照里找不到对象时的显示占位（只用于显示）。 */
   unknown: {

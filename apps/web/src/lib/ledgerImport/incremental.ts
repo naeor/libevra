@@ -9,27 +9,24 @@ import {
 import { apiFetch } from "../api.js";
 import type { ImportSource } from "./types.js";
 import { guestSourceOfSource } from "./submit.js";
+import { withGuestSource, type GuestSourceReference } from "./sourceUpload.js";
 
 export async function loadIncrementalPreview(input: {
   readonly targetBookId: string;
   readonly source: ImportSource;
 }): Promise<IncrementalPreviewResponse> {
-  const payload =
-    input.source.kind === "guest"
-      ? {
-          targetBookId: input.targetBookId,
-          source: guestSourceOfSource(input.source),
-        }
-      : {
-          targetBookId: input.targetBookId,
-          sourceBookId: input.source.bookId,
-        };
-  const raw = await apiFetch<unknown>("/ledger-imports/incremental-preview", {
-    method: "POST",
-    body: payload,
-    timeoutMs: 120_000,
-  });
-  return incrementalPreviewResponseSchema.parse(raw);
+  const send = async (reference: GuestSourceReference | { readonly sourceBookId: string }) =>
+    incrementalPreviewResponseSchema.parse(
+      await apiFetch<unknown>("/ledger-imports/incremental-preview", {
+        method: "POST",
+        body: { targetBookId: input.targetBookId, ...reference },
+        timeoutMs: 120_000,
+      }),
+    );
+  // 1.19.97：大的游客来源先分段上传，预览只带暂存 id（见 sourceUpload.ts）。
+  return input.source.kind === "guest"
+    ? withGuestSource(guestSourceOfSource(input.source), send)
+    : send({ sourceBookId: input.source.bookId });
 }
 
 /** The safe default: never silently overwrite an existing target. */

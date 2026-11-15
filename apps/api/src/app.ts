@@ -47,6 +47,7 @@ import { registerImportRoutes } from "./routes/import.js";
 import { registerBillImportRoutes } from "./routes/billImport.js";
 import { registerLedgerImportRoutes } from "./routes/ledgerImport.js";
 import { registerLedgerImportJobRoutes } from "./routes/ledgerImportJobs.js";
+import { registerLedgerImportSourceUploadRoutes } from "./routes/ledgerImportSourceUploads.js";
 import { registerLedgerRoutes } from "./routes/ledger.js";
 import { registerNotDuplicateRelationRoutes } from "./routes/notDuplicateRelations.js";
 import { registerRecognizeRoutes } from "./routes/recognize.js";
@@ -423,6 +424,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     allowLegacyDirectImport: options.allowLegacyDirectImport === true,
   });
     registerLedgerImportJobRoutes(app, { prisma: options.prisma, requireAuth: requireAuth });
+    /** 1.19.97：游客来源分段上传；同样只要求登录，归属在每次读写时按用户核对。 */
+    registerLedgerImportSourceUploadRoutes(app, { prisma: options.prisma, requireAuth: requireAuth });
   }
 
   return app;

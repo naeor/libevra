@@ -65,6 +65,19 @@ export class ApiRequestError extends Error {
 }
 
 /**
+ * 浏览器自己判断出的、**已经按当前界面语言写好**的提示（例如“这本游客账本超过 2 万笔”）。
+ *
+ * `errorMessage` 对其它非请求错误一律显示通用说明（不把原始异常文字露给用户）；只有这一类原样显示。
+ * 构造时必须传 `t(...)` 生成的句子，不要把异常对象的 message 转手塞进来。
+ */
+export class UserFacingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UserFacingError";
+  }
+}
+
+/**
  * The headers every request carries.
  *
  * ⚠️ **One place builds them, so no screen ever has to remember to.** That is the owner's
@@ -394,6 +407,7 @@ export function localizedApiErrorMessage(error: ApiRequestError): string {
 
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) return localizedApiErrorMessage(error);
+  if (error instanceof UserFacingError) return error.message;
 
   // Unknown failures do not establish a network cause. Do not expose raw exceptions in UI copy.
   return t("errors.client.generic");

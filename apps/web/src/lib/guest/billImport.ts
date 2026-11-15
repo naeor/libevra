@@ -18,8 +18,8 @@
  *
  * 游客独有的一条规则（服务器没有）：会让这本游客账本**转正式账号时迁不过去**的内容在提交前就挡住——备注超过
  * 500 字、一笔超过 10 个标签、标签名超过 20 字（`packages/shared/src/ledgerImport.ts` 的
- * `guestImportTransactionSchema` / `guestImportTagSchema`）。整本账超过 5000 笔不挡，只在提交步骤提醒
- * （`billImportLimits.ts` 的 `guestMigrationReminder`，那里写了“转正式账号没有分批上传”的现状）。
+ * `guestImportTransactionSchema` / `guestImportTagSchema`）。整本账超过一次迁移的上限（1.19.97 起 2 万笔，分段上传）不挡，
+ * 只在提交步骤提醒（`billImportLimits.ts` 的 `guestMigrationReminder`）。
  */
 import {
   MAX_BILL_IMPORT_BYTES,

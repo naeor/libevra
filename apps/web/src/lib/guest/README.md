@@ -11,6 +11,8 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
+| [attachmentMigration.test.ts](attachmentMigration.test.ts) | 测试：attachmentMigration |
+| [attachmentMigration.ts](attachmentMigration.ts) | 实现模块；入口/导出：GuestAttachmentMigrationItem、GuestAttachmentMigrationPlan、GuestAttachmentMigrationRecord、ATTACHMENT_MIGRATION_RECORD_PREFIX、readAttachmentMigrationRecord |
 | [attachments.test.ts](attachments.test.ts) | 测试：attachments |
 | [attachments.ts](attachments.ts) | 实现模块；入口/导出：GUEST_ATTACHMENT_LIMITS、GUEST_DRAFT_MAX_AGE_MS、GuestAttachment、guestMediaType、toGuestAttachment |
 | [billImport.test.ts](billImport.test.ts) | 测试：billImport |

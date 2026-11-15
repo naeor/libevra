@@ -1,7 +1,7 @@
 import "./attachments.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { formatStorageBytes } from "@libellum/shared";
+import { formatStorageBytes, type LedgerImportResult } from "@libellum/shared";
 import { useI18n } from "../i18n/index.js";
 import { errorMessage } from "../lib/api.js";
 import { useEntryOrigin } from "../lib/entryReturn.js";
@@ -9,6 +9,10 @@ import { useLedger } from "../lib/queries.js";
 import {
   addGuestAttachment, guestAttachmentUsage, listGuestAttachments, localSpace, removeGuestAttachment, type GuestAttachment, type LocalSpace,
 } from "../lib/guest/attachments.js";
+import {
+  attachmentMigrationProgress, planGuestAttachmentMigration, queueGuestAttachmentMigration, readAttachmentMigrationRecord,
+  type GuestAttachmentMigrationProgress, type GuestAttachmentMigrationRecord,
+} from "../lib/guest/attachmentMigration.js";
 import { guestRuntimeId } from "../lib/guest/runtime.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { BottomSheet } from "./BottomSheet.js";
@@ -193,4 +197,101 @@ export function GuestAttachmentMigrationNote({ guestId, bookId }: { guestId: str
     return () => { active = false; };
   }, [guestId, bookId]);
   return count > 0 ? <p role="note" data-testid="guest-attachment-migration-note" className="mt-2 text-helper-relaxed text-muted">{t("attachments.guest.migrationNote", { count })}</p> : null;
+}
+
+/**
+ * 1.19.97 · 转正式账号后的附件上传（账本导入页“完成”一步，导入任务确认之后）。
+ *
+ * 第一次显示时把要迁的附件加入登录用户的上传队列（每次导入只加一次，见 `lib/guest/attachmentMigration.ts`），
+ * 之后只显示进度：队列由全局 `AttachmentTransfers` 在后台上传，离开本页也会继续。这本游客账本没有附件时不显示。
+ */
+export function GuestAttachmentMigrationCard({ importId, userId, guestId, guestBookId, result }: {
+  importId: string; userId: string; guestId: string; guestBookId: string;
+  result: Pick<LedgerImportResult, "targetBook" | "imported" | "updated">;
+}): React.JSX.Element | null {
+  const { t } = useI18n();
+  const [record, setRecord] = useState<GuestAttachmentMigrationRecord | null>(() => readAttachmentMigrationRecord(userId, importId));
+  const [progress, setProgress] = useState<GuestAttachmentMigrationProgress | null>(null);
+  const [empty, setEmpty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
+  const targetBookId = result.targetBook.id;
+
+  const queue = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const plan = await planGuestAttachmentMigration({ userId, guestId, guestBookId, result });
+      if (plan.items.length === 0 && plan.leftBehind === 0) { setEmpty(true); return; }
+      await queueGuestAttachmentMigration({ importId, userId, guestBookId, plan, targetBookId });
+      setRecord(readAttachmentMigrationRecord(userId, importId));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+    // `result` 是同一次导入的回执；按回执 id 区分即可，不把对象本身当依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importId, userId, guestId, guestBookId, targetBookId]);
+
+  useEffect(() => {
+    if (record !== null || started.current) return;
+    started.current = true;
+    void queue();
+  }, [record, queue]);
+
+  useEffect(() => {
+    if (record === null || record.ids.length === 0) return;
+    let active = true;
+    const refresh = () => { void attachmentMigrationProgress(record).then((next) => { if (active) setProgress(next); }).catch(() => undefined); };
+    refresh();
+    window.addEventListener("attachments-pending", refresh);
+    window.addEventListener("attachments-progress", refresh);
+    const timer = setInterval(refresh, 3_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      window.removeEventListener("attachments-pending", refresh);
+      window.removeEventListener("attachments-progress", refresh);
+    };
+  }, [record]);
+
+  if (empty || (record !== null && record.ids.length === 0 && record.leftBehind === 0)) return null;
+  const done = record !== null && progress !== null && progress.uploaded >= progress.total;
+  return (
+    <section data-testid="guest-attachment-migration" className="flex flex-col gap-2 rounded-card border border-line bg-surface px-5 py-4">
+      <p className="text-body font-medium text-ink">{t("attachments.guest.migrationTitle")}</p>
+      {record === null && busy ? <p className="text-helper-relaxed text-muted">{t("attachments.guest.migrationPreparing")}</p> : null}
+      {record !== null && record.ids.length > 0 ? (
+        done ? (
+          <p className="text-helper-relaxed text-brand-dark">{t("attachments.guest.migrationDone", { total: record.ids.length })}</p>
+        ) : (
+          <>
+            <p className="text-helper-relaxed text-ink">
+              {t("attachments.guest.migrationQueued", { total: record.ids.length, size: formatStorageBytes(record.bytes), uploaded: progress?.uploaded ?? 0 })}
+            </p>
+            <p className="text-helper-relaxed text-muted">{t("attachments.guest.migrationBackground")}</p>
+          </>
+        )
+      ) : null}
+      {progress !== null && progress.failed > 0 && !done ? (
+        <p role="status" className="text-helper-relaxed text-warn-dark [overflow-wrap:anywhere]">
+          {t("attachments.guest.migrationFailed", { count: progress.failed, reason: progress.error ?? "" })}
+        </p>
+      ) : null}
+      {record !== null && record.leftBehind > 0 ? (
+        <p className="text-helper-relaxed text-muted">{t("attachments.guest.migrationLeftBehind", { count: record.leftBehind })}</p>
+      ) : null}
+      {error === null ? null : (
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert" className="text-helper-relaxed text-warn-dark [overflow-wrap:anywhere]">{error}</p>
+          <button type="button" disabled={busy} onClick={() => void queue()}
+            className="rounded-field border border-line px-3 py-2 text-button text-muted disabled:opacity-50">
+            {t("attachments.guest.migrationRetry")}
+          </button>
+        </div>
+      )}
+    </section>
+  );
 }

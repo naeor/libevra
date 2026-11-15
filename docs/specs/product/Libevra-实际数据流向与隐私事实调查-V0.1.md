@@ -1,6 +1,6 @@
 # Libevra 实际数据流向与隐私事实调查 V0.1
 
-> 最后修改：2026-11-15 02:41（UTC+08:00）
+> 最后修改：2026-11-15 20:12（UTC+08:00）（补 1.19.97 本机版本新增的两条数据流：游客来源分段暂存、游客附件随账迁移；未部署）
 > 状态：V0.1 只读调查（2026-11-15）。依据是仓库代码与部署配置，不是隐私承诺；未在服务器上核对的内容标「待核实」。不含任何密钥、令牌或真实用户数据。
 
 ## 怎么读这份文档
@@ -98,6 +98,8 @@
 | 文字 / 粘贴识别 | 用户粘贴文字 | 否（浏览器内解析，无网络） | 浏览器 | 仅内存草稿 | 当前页面 | 刷新或离开即丢 | `web/pages/PastePage.tsx:8,56`；`web/lib/captureTextDraft.ts:5-15` |
 | 账单导入文件与预览 | 用户上传 | 是 | 服务器内存解析（PDF 等起 Python 子进程，无网络调用代码） | 预览仅内存（容量 25、TTL 30 分钟）；确认后写账目；导入记录存指纹与行数 | 发起人 | 30 分钟过期、提交或进程重启；`import_logs` 随账本级联删除 | `api/import/cache.ts:39-60`；`api/import/service.ts:842-855`；`api/import/extractor.ts:162` |
 | 游客账本导入的来源快照 | 用户在导入页选择 | 是（整份游客快照随请求上传） | 服务器 | DB `ledger_import_jobs.payload`（完成 / 取消 / 超期后清空）；浏览器 LS `libellum-ledger-import-task:*` | 发起人 | 任务完成或放弃后清除；`ledger_*` 六张表无外键，账本清理后仍保留 | `api/ledger/importJob.ts:1616-1670`；`web/lib/ledgerImport/journal.ts:10-45` |
+| 游客来源分段暂存（1.19.97，仅本机未部署） | 用户在导入页选择较大的游客账本（> 512 KB 或 > 5000 笔） | 是（分段上传整份游客快照，含备注、分类、标签） | 服务器 | DB `ledger_import_source_uploads`（拼好的完整快照）与 `ledger_import_source_upload_parts`（上传中的各段） | 发起人（按 `user_id` 核对） | 创建后 24 小时到期删除（每 10 分钟清扫）；同一游客账本新建暂存时删除旧的；无到用户的外键，注销账号不专门清，靠到期删除；导入任务创建时另把快照复制进 `ledger_import_jobs.payload`（同上一行） | `api/ledger/importSourceUpload.ts`；`api/routes/ledgerImportSourceUploads.ts`；`web/lib/ledgerImport/sourceUpload.ts` |
+| 游客附件随账迁移（1.19.97，仅本机未部署） | 导入任务确认后自动进行 | 是（与登录用户附件同一上传通道） | 浏览器 → 服务器 | 浏览器先把游客附件复制进登录用户的 IDB `libevra-attachments-v1`（`pending`）；上传后同“附件元数据与内容”一行；LS `libevra.guest-attachment-migration:<账号>:<导入回执>` 记一次性标记 | 同登录用户附件 | 同“附件元数据与内容”与“待上传附件原件”；游客原件仍留在本机游客数据里，随“清除游客数据”或删除游客账本清掉；标记随注销清掉 | `web/lib/guest/attachmentMigration.ts`；`web/components/GuestAttachments.tsx` |
 | 游客账本 | 游客记账 | 否（正常使用不上传） | 浏览器 | IDB 库 `libellum-guest`；LS `libellum-guest-identity` | 本机浏览器使用者 | 「清除游客数据」「清除此设备全部本地数据」；浏览器清站点数据 | `web/lib/guest/storage.ts:20,175-184`；`web/lib/guest/cleanup.ts:27-80` |
 | 邀请码 / 通知 / 分享链接 | 管理员或用户生成 | 是 | 服务器 | DB `registration_invites`（码明文）、`notifications`、`book_share_links`（令牌哈希） | 发件人、收件人、账本管理员；持链接的登录用户可预览账本名与邀请人昵称 | 撤回删通知；链接过期 / 撤销只置状态；通知无到期清理；注销时撤销未用邀请码与链接、删本人通知 | `api/collab/share.ts`；`api/routes/share.ts:121-250`；`api/lifecycle/account.ts:695-709` |
 | 留言板 | 成员发言 | 是 | 服务器 | DB `book_messages`（含冻结昵称与引用快照） | 全体成员 | 无编辑 / 删除接口；账本清理时级联删除 | `api/routes/share.ts:379-529` |

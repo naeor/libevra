@@ -57,6 +57,7 @@
 | [ledgerImportIncremental.test.ts](ledgerImportIncremental.test.ts) | 测试：ledgerImportIncremental |
 | [ledgerImportLegacyEntry.test.ts](ledgerImportLegacyEntry.test.ts) | 测试：ledgerImportLegacyEntry |
 | [ledgerImportPhase4.test.ts](ledgerImportPhase4.test.ts) | 测试：ledgerImportPhase4 |
+| [ledgerImportSourceUpload.test.ts](ledgerImportSourceUpload.test.ts) | 测试：ledgerImportSourceUpload |
 | [lifecycle.test.ts](lifecycle.test.ts) | 测试：lifecycle |
 | [members.test.ts](members.test.ts) | 测试：members |
 | [messages.test.ts](messages.test.ts) | 测试：messages |

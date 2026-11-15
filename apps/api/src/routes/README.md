@@ -32,6 +32,7 @@ HTTP 路由入口；鉴权、校验、领域操作与错误响应。
 | [ledger.ts](ledger.ts) | 实现模块；入口/导出：LedgerRouteOptions、registerLedgerRoutes |
 | [ledgerImport.ts](ledgerImport.ts) | 实现模块；入口/导出：ResolvedTaxonomy、importRefFor、assertSourceIsSelfConsistent、assertTaxonomyCoverage、resolveTaxonomy |
 | [ledgerImportJobs.ts](ledgerImportJobs.ts) | 实现模块；入口/导出：LedgerImportJobRouteOptions、registerLedgerImportJobRoutes |
+| [ledgerImportSourceUploads.ts](ledgerImportSourceUploads.ts) | 实现模块；入口/导出：LedgerImportSourceUploadRouteOptions、registerLedgerImportSourceUploadRoutes |
 | [lifecycle.ts](lifecycle.ts) | 实现模块；入口/导出：LifecycleRouteOptions、registerLifecycleRoutes |
 | [notDuplicateRelations.ts](notDuplicateRelations.ts) | 实现模块；入口/导出：NotDuplicateRelationRouteOptions、registerNotDuplicateRelationRoutes |
 | [notifications.ts](notifications.ts) | 实现模块；入口/导出：NotificationsRouteOptions、registerNotificationRoutes |

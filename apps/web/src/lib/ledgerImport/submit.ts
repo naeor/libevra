@@ -5,6 +5,7 @@
  * `ImportPreview`。页面不再另写一套“哪些记录要导入”的判断。
  */
 import {
+  MAX_IMPORT_DUPLICATE_GROUPS,
   fingerprintGuestSource,
   fingerprintTargetSnapshot,
   type DuplicateDecision,
@@ -16,6 +17,7 @@ import {
 } from "@libellum/shared";
 
 import { t } from "../../i18n/index.js";
+import { UserFacingError } from "../api.js";
 import type { ImportPreview } from "./types.js";
 import type { TaxonomyResolutionAction, TaxonomyResolutionMap } from "./mapping.js";
 import { taxonomyResolutionKey } from "./mapping.js";
@@ -123,7 +125,7 @@ function resolutionFor(
       : type === "paymentMethod"
         ? preview.mapping.paymentMethods.find((item) => item.source.id === sourceId)
         : preview.mapping.tags.find((item) => item.source.id === sourceId);
-  if (mapping === undefined) throw new Error(t("ledgerImport.submitError.noMapping"));
+  if (mapping === undefined) throw new UserFacingError(t("ledgerImport.submitError.noMapping"));
   if (mapping.conflict !== null && chosen === "create") {
     return {
       type,
@@ -151,10 +153,16 @@ export async function buildLedgerImportRequest(input: {
   readonly incrementalDecisions?: readonly IncrementalDecision[];
 }): Promise<LedgerImportRequest> {
   const { preview, targetIsNew, resolutions, decisions } = input;
+  if (preview.duplicateGroups.length > MAX_IMPORT_DUPLICATE_GROUPS) {
+    // 服务器一次最多接 500 组重复决定；超过时请求会被整体拒绝，先说清楚原因。
+    throw new UserFacingError(
+      t("ledgerImport.submitError.tooManyGroups", { count: preview.duplicateGroups.length, limit: MAX_IMPORT_DUPLICATE_GROUPS }),
+    );
+  }
   const source = preview.source.kind === "guest" ? guestSourceOf(preview) : null;
   const sourceFingerprint =
     source === null ? input.serverSourceFingerprint : await fingerprintGuestSource(source);
-  if (sourceFingerprint === undefined) throw new Error(t("ledgerImport.submitError.missingSourceFingerprint"));
+  if (sourceFingerprint === undefined) throw new UserFacingError(t("ledgerImport.submitError.missingSourceFingerprint"));
 
   const taxonomy: TaxonomyResolution[] = [
     ...preview.source.categories.map((item) => resolutionFor(preview, "category", item.id, resolutions, targetIsNew)),
@@ -166,7 +174,7 @@ export async function buildLedgerImportRequest(input: {
 
   const duplicateGroups: DuplicateDecision[] = preview.duplicateGroups.map((group) => {
     const decision = decisions.get(group.id);
-    if (decision === undefined) throw new Error(t("ledgerImport.submitError.unresolvedGroups"));
+    if (decision === undefined) throw new UserFacingError(t("ledgerImport.submitError.unresolvedGroups"));
     const sourceIds = group.records
       .filter((record) => record.side === "source")
       .map((record) => record.transaction.id);
@@ -200,8 +208,8 @@ export async function buildLedgerImportRequest(input: {
   const incrementalDecisions = [...(input.incrementalDecisions ?? [])];
 
   if (preview.source.kind === "book") {
-    if (targetIsNew) throw new Error(t("ledgerImport.submitError.formalToNew"));
-    if (input.serverTargetFingerprint === undefined) throw new Error(t("ledgerImport.submitError.missingTargetFingerprint"));
+    if (targetIsNew) throw new UserFacingError(t("ledgerImport.submitError.formalToNew"));
+    if (input.serverTargetFingerprint === undefined) throw new UserFacingError(t("ledgerImport.submitError.missingTargetFingerprint"));
     return {
       importId: input.importId,
       target: {
@@ -217,7 +225,7 @@ export async function buildLedgerImportRequest(input: {
     };
   }
 
-  if (source === null) throw new Error(t("ledgerImport.submitError.missingGuestSource"));
+  if (source === null) throw new UserFacingError(t("ledgerImport.submitError.missingGuestSource"));
 
   if (targetIsNew) {
     return {
