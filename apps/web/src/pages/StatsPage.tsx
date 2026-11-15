@@ -1077,6 +1077,7 @@ export function AccountWorkbench({
                 if (moveFor === null) return;
                 if (apply(command(session, { type: "move", objectId: moveFor, anchor, collisionPolicy: "reflow" }))) setMoveFor(null);
               }}
+              {...(renderConfigure === undefined ? {} : { onOpenSettings: (objectId: string) => { endTemporaryMode(); setConfigureFor(objectId); } })}
             />
           ) : (
             <BrowseGrid

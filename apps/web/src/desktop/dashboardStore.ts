@@ -22,10 +22,14 @@ import {
   type WorkbenchContentDocumentV1,
 } from "@libellum/shared/analysis/layout";
 import { configurationFingerprint } from "@libellum/shared/workbench/configuration";
+import { STATS_RANGES, type StatsRangeKey } from "@libellum/shared";
 
 import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
-import { isNativeCard, nativeKindOf, nativeOptions, nativeSizing, newNativeCard, type NativeKind, type NativeOptions } from "../statsWorkbench/nativeCards.js";
-import { command, removeObject, startSession, sessionDocuments } from "../statsWorkbench/session.js";
+import { cardSizing } from "../statsWorkbench/composition.js";
+import { newObjectId } from "../statsWorkbench/defaults.js";
+import { isNativeCard, nativeKindOf, nativeOptions, nativeSizing, newNativeCard, withCardSource, type NativeKind, type NativeOptions } from "../statsWorkbench/nativeCards.js";
+import { command, lastRow, removeObject, startSession, sessionDocuments } from "../statsWorkbench/session.js";
+import type { TimeChoice } from "../statsWorkbench/filters.js";
 import { documentsProblems, type Stored, type WorkbenchDocuments } from "../statsWorkbench/storage.js";
 import { dashboardGeometry, parseDashboard, resolveDashboard, type DashboardCard } from "./dashboardModel.js";
 
@@ -251,8 +255,9 @@ function activeDocuments(record: DashboardRecord): WorkbenchDocuments {
 /**
  * 读取时按当前账本派生（不写回）：已经不在的账本的账本卡片不显示；保存之后新出现的账本自动补一张账本卡片。
  */
-export function adaptToBooks(documents: WorkbenchDocuments, bookIds: readonly string[], knownBooks: readonly string[]): WorkbenchDocuments {
-  const present = new Set(bookIds);
+export function adaptToBooks(documents: WorkbenchDocuments, bookIds: readonly string[], knownBooks: readonly string[], allBooks: readonly string[] = bookIds): WorkbenchDocuments {
+  // 不显示的只有真正不在的账本；「统计设置」里没选进范围的账本，已有的账本卡片照常显示，只是不自动补新的。
+  const present = new Set(allBooks);
   let state = startSession(documents);
   for (const card of documents.content.cards) {
     if (nativeKindOf(card) !== "ledger") continue;
@@ -276,12 +281,12 @@ export function adaptToBooks(documents: WorkbenchDocuments, bookIds: readonly st
 }
 
 /** 工作台宿主的 `readStored`：没有保存过 → 默认总览；读不出来 → 默认总览并标明（原记录不动）。 */
-export function readDashboard(owner: string | null, bookIds: readonly string[]): Stored {
+export function readDashboard(owner: string | null, bookIds: readonly string[], allBooks: readonly string[] = bookIds): Stored {
   if (owner === null) return { accountScope: owner, documents: defaultDashboardDocuments(bookIds), version: 0, unreadable: false };
-  migrateIfNeeded(owner, bookIds);
+  migrateIfNeeded(owner, allBooks);
   const outcome = loadDashboardRecord(owner);
   if (outcome.status === "ok") {
-    return { accountScope: owner, documents: adaptToBooks(activeDocuments(outcome.record), bookIds, outcome.record.knownBooks), version: outcome.record.version, unreadable: false };
+    return { accountScope: owner, documents: adaptToBooks(activeDocuments(outcome.record), bookIds, outcome.record.knownBooks, allBooks), version: outcome.record.version, unreadable: false };
   }
   return { accountScope: owner, documents: defaultDashboardDocuments(bookIds), version: outcome.status === "unreadable" ? outcome.version : 0, unreadable: outcome.status === "unreadable" };
 }
@@ -344,6 +349,154 @@ export function followDefaultDashboard(owner: string, previousVersion: number): 
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 总览整体的口径（1.19.100）：时间、范围、统计方式。与布局分开保存：改口径不需要进编辑、不改布局版本。
+// ---------------------------------------------------------------------------
+
+export type DashboardTime =
+  | { readonly kind: "this-month" }
+  | { readonly kind: "last-month" }
+  | { readonly kind: "ytd" }
+  | { readonly kind: "preset"; readonly preset: StatsRangeKey }
+  | { readonly kind: "month"; readonly month: string };
+
+export interface DashboardSettings {
+  readonly time: DashboardTime;
+  /** 总览范围：「全部账本」类卡片统计哪些账本、新账本是否自动出现。 */
+  readonly books: "all" | readonly string[];
+  /** 综合折算（按交易日期的历史汇率折算成默认币种）；否则原币按币种分别统计。 */
+  readonly combined: boolean;
+}
+
+export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = { time: { kind: "this-month" }, books: "all", combined: false };
+
+export function dashboardSettingsKey(owner: string): string {
+  return `${LIBEVRA_KEY_PREFIX}desktop.dashboard-settings:v1:${owner}`;
+}
+
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+function parseTime(raw: unknown): DashboardTime | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const value = raw as Record<string, unknown>;
+  switch (value["kind"]) {
+    case "this-month":
+    case "last-month":
+    case "ytd":
+      return { kind: value["kind"] };
+    case "preset":
+      return (STATS_RANGES as readonly unknown[]).includes(value["preset"]) ? { kind: "preset", preset: value["preset"] as StatsRangeKey } : null;
+    case "month":
+      return typeof value["month"] === "string" && MONTH.test(value["month"]) ? { kind: "month", month: value["month"] } : null;
+    default:
+      return null;
+  }
+}
+
+export function parseDashboardSettings(raw: unknown): DashboardSettings {
+  if (typeof raw !== "object" || raw === null) return DEFAULT_DASHBOARD_SETTINGS;
+  const value = raw as Record<string, unknown>;
+  const books = value["books"];
+  return {
+    time: parseTime(value["time"]) ?? DEFAULT_DASHBOARD_SETTINGS.time,
+    books: Array.isArray(books) ? books.filter((id): id is string => typeof id === "string" && id !== "") : "all",
+    combined: value["combined"] === true,
+  };
+}
+
+export function readDashboardSettings(owner: string | null): DashboardSettings {
+  if (owner === null) return DEFAULT_DASHBOARD_SETTINGS;
+  try {
+    const raw = storage()?.getItem(dashboardSettingsKey(owner));
+    return raw === null || raw === undefined ? DEFAULT_DASHBOARD_SETTINGS : parseDashboardSettings(JSON.parse(raw) as unknown);
+  } catch {
+    return DEFAULT_DASHBOARD_SETTINGS;
+  }
+}
+
+export function writeDashboardSettings(owner: string, settings: DashboardSettings): boolean {
+  try {
+    storage()?.setItem(dashboardSettingsKey(owner), JSON.stringify(settings));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function previousMonth(month: string): string {
+  const [year, value] = month.split("-").map(Number) as [number, number];
+  return value === 1 ? `${String(year - 1)}-12` : `${String(year)}-${String(value - 1).padStart(2, "0")}`;
+}
+
+/** 总览的时间 → 工作台的时间条件（按设备当地的「今天」）。「本月」是整个自然月（与 1.18.12 起的总览一致）。 */
+export function timeChoiceFor(time: DashboardTime, today: string): TimeChoice {
+  const month = today.slice(0, 7);
+  switch (time.kind) {
+    case "this-month":
+      return { kind: "month", month };
+    case "last-month":
+      return { kind: "month", month: previousMonth(month) };
+    case "ytd":
+      return { kind: "custom", from: `${today.slice(0, 4)}-01-01`, to: today };
+    case "preset":
+      return { kind: "preset", preset: time.preset };
+    case "month":
+      return { kind: "month", month: time.month };
+  }
+}
+
+/** 总览范围里的账本：`all` = 全部；选的账本都不在了也按全部。 */
+export function scopeBooks(settings: DashboardSettings, bookIds: readonly string[]): readonly string[] {
+  if (settings.books === "all") return bookIds;
+  const chosen = new Set(settings.books);
+  const kept = bookIds.filter((id) => chosen.has(id));
+  return kept.length === 0 ? bookIds : kept;
+}
+
+/** 金额遮罩是这台设备上的显示偏好（办公室、投屏时用），不同步。 */
+export function dashboardMaskKey(owner: string): string {
+  return `${LIBEVRA_KEY_PREFIX}desktop.dashboard-mask:v1:${owner}`;
+}
+
+export function readMask(owner: string | null): boolean {
+  if (owner === null) return false;
+  try {
+    return storage()?.getItem(dashboardMaskKey(owner)) === "on";
+  } catch {
+    return false;
+  }
+}
+
+export function writeMask(owner: string, masked: boolean): void {
+  try {
+    if (masked) storage()?.setItem(dashboardMaskKey(owner), "on");
+    else storage()?.removeItem(dashboardMaskKey(owner));
+  } catch {
+    // 写不进去只影响「记住」，这次照样遮住 / 显示。
+  }
+}
+
+/**
+ * 「固定到总览」（1.19.100）：把分析页的一张卡片复制一份放到总览末尾（新对象 id），数据固定来自当时看的那本账。
+ * 与总览编辑同一套版本保护；另一个窗口正在保存时返回 `false`，什么都不写。
+ */
+export function pinCardToDashboard(owner: string, card: AnalysisCardNode, sourceBookId: string | null, bookIds: readonly string[], allBooks: readonly string[] = bookIds): boolean {
+  const stored = readDashboard(owner, bookIds, allBooks);
+  if (stored.unreadable) return false;
+  const copy: AnalysisCardNode = { ...withCardSource(card, sourceBookId), objectId: newObjectId("card") };
+  const state = startSession(stored.documents);
+  const columns = state.layout.main.baseCols;
+  const sizing = cardSizing(copy);
+  const size = { colSpan: Math.min(sizing.defaultSize.colSpan, columns), rowSpan: sizing.defaultSize.rowSpan };
+  const anchor = lastRow(state.layout) * columns + 1;
+  const result = command(state, { type: "insert-card", card: copy, size, anchor, collisionPolicy: "reflow" });
+  if (!result.ok) return false;
+  const version = saveDashboard(owner, sessionDocuments(result.state), stored.version, bookIds);
+  if (version === null) return false;
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DASHBOARD_INSTALLED, { detail: owner }));
+  return true;
 }
 
 /** 在保存的总览里找一张卡片（分析页右侧辅助栏打开总览上的分析卡片时用）。 */

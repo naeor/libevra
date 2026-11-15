@@ -29,6 +29,8 @@ export interface CardRenderHooks {
    * 所以调用方可以无条件地调用 `hooks.useScopeFor ?? useSameScope`。
    */
   readonly useScopeFor?: (card: AnalysisCardNode | undefined, fallback: WorkbenchScope) => WorkbenchScope;
+  /** 中键或 Ctrl(⌘)+点击在新标签页打开的地址；`null` = 这张卡片不能直接在新标签页打开（例如要先切换账本）。 */
+  readonly hrefFor?: (card: AnalysisCardNode) => string | null;
 }
 
 export const CardRenderContext = createContext<CardRenderHooks>({});

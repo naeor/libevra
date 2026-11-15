@@ -35,12 +35,13 @@ import { UNSAFE_LocationContext } from "react-router";
 import { useI18n } from "../i18n/index.js";
 import { useOpenDrag } from "../workspace/openDrag.js";
 import { resistedOffset, swipeAxis, swipeTarget, type SwipeAxis } from "./carouselGesture.js";
-import { CardBody, cardSubtitle, cardTitle, familyOf } from "./cards.js";
+import { CardBody, cardRange, cardSubtitle, cardTitle, familyOf } from "./cards.js";
 import { cardType, CONTAINER_SIZES, sizeKey } from "./catalog.js";
 import { CompositeBody } from "./CompositeCard.js";
 import { CardRenderContext, useSameScope } from "./cardRender.js";
 import { cardSizing, isMultiSlot, readComposition, singlePresentation, slotSpecs, type GridMetrics } from "./composition.js";
-import { isNativeCard } from "./nativeCards.js";
+import { cardDisplay, isNativeCard } from "./nativeCards.js";
+import { openInNewTab, wantsNewTab } from "../lib/desktopInput.js";
 import type { WorkbenchScope } from "./scope.js";
 import { SlotPresentationContext } from "./slotContext.js";
 import { lastRow } from "./session.js";
@@ -318,21 +319,36 @@ function AnalysisCardTile({
   const drag = useOpenDrag({ path: `/stats/cards/${encodeURIComponent(card.objectId)}${search}`, title, disabled: !draggable });
   const subtitle = cardSubtitle(card, scope, t);
   const singleLineTitle = oneRow || isMultiSlot(card);
+  // 1.19.100：总览上的卡片可以有显示选项（备注、没有数据时、点击去哪、总是遮住）；分析页的卡片没有这些键。
+  const display = cardDisplay(card);
+  const href = useContext(CardRenderContext).hrefFor?.(card) ?? null;
+  const range = display.empty === "quiet" ? cardRange(card, scope) : null;
+  const quiet = range !== null && scope.loaded && !scope.entries.some((entry) => entry.occurredLocalDate >= range.from && entry.occurredLocalDate <= range.to);
   return (
     <article
       data-object-source={`/stats/cards/${encodeURIComponent(card.objectId)}`}
       className={`sw-card group relative flex h-full min-h-0 flex-col ${bare ? "px-3.5 pt-3 pb-2" : "rounded-card border border-line bg-surface p-3.5 sm:p-4"}`}
       aria-label={title}
       data-one-row={oneRow ? "" : undefined}
+      data-masked={display.masked === true ? "" : undefined}
+      data-quiet={quiet ? "" : undefined}
     >
-      <button
-        type="button"
-        id={`sw-card-${card.objectId}`}
-        className={drag.bind === null ? "sw-card-hit" : "sw-card-hit lv-draggable"}
-        aria-label={t("statsWorkbench.card.openNamed", { name: title })}
-        onClick={onOpen}
-        {...drag.bind}
-      />
+      {display.open === "none" ? null : (
+        <button
+          type="button"
+          id={`sw-card-${card.objectId}`}
+          className={drag.bind === null ? "sw-card-hit" : "sw-card-hit lv-draggable"}
+          aria-label={t("statsWorkbench.card.openNamed", { name: title })}
+          onClick={(event) => {
+            if (href !== null && wantsNewTab(event)) openInNewTab(href);
+            else onOpen();
+          }}
+          onAuxClick={(event) => {
+            if (href !== null && event.button === 1) openInNewTab(href);
+          }}
+          {...drag.bind}
+        />
+      )}
       {drag.menu}
       <header className="pointer-events-none relative flex min-w-0 items-start gap-2">
         <span className="min-w-0 flex-1">
@@ -340,11 +356,14 @@ function AnalysisCardTile({
               自动标题较长时换行会挤掉槽位。 */}
           <h3 className={`${singleLineTitle ? "truncate" : "line-clamp-2 break-words"} text-helper font-medium text-ink`} title={singleLineTitle ? title : undefined}>{title}</h3>
           {subtitle === "" ? null : <p className="truncate text-helper text-muted">{subtitle}</p>}
+          {display.note === undefined ? null : <p className="truncate text-helper text-muted" title={display.note}>{display.note}</p>}
         </span>
-        {aside ?? <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />}
+        {aside ?? (display.open === "none" ? null : <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />)}
       </header>
       <div ref={body.ref} className="sw-card-body relative mt-2 min-h-0 flex-1 overflow-hidden">
-        {compat ? (
+        {quiet ? (
+          <p className="text-helper text-muted">{t("statsWorkbench.states.empty")}</p>
+        ) : compat ? (
           <p className="text-helper text-muted">{t("statsWorkbench.states.tooSmall")}</p>
         ) : body.width === 0 ? null : isMultiSlot(card) ? (
           <CompositeBody card={card} scope={scope} width={body.width} height={body.height} />
@@ -591,7 +610,10 @@ export function EditGrid({
   objectProps,
   onSelect,
   onPickTarget,
+  onOpenSettings,
 }: {
+  /** 1.19.100（电脑版总览）：双击卡片直接打开它的卡片设置（改名等）；分析页不提供。 */
+  readonly onOpenSettings?: (objectId: string) => void;
   readonly content: WorkbenchContentDocumentV1;
   /** 编辑会话的布局文档：`main` 是编辑列数下的那一份几何（`main.baseCols` = 编辑列数）。 */
   readonly layout: LayoutDocumentV1;
@@ -698,6 +720,7 @@ export function EditGrid({
             aria-haspopup="dialog"
             disabled={faded}
             onClick={() => onSelect(object.objectId)}
+            {...(onOpenSettings === undefined || card === undefined ? {} : { onDoubleClick: () => onOpenSettings(object.objectId) })}
             {...objectProps(object.objectId, label, size)}
           >
             <span className="flex items-start justify-between gap-2">

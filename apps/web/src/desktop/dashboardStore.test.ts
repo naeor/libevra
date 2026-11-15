@@ -2,20 +2,30 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Transaction } from "@libellum/shared";
 
 import { cardSizing } from "../statsWorkbench/composition.js";
-import { cardSourceBook, isNativeCard, nativeKindOf, nativeOptions, newNativeCard, resolveBooks, withCardSource, withNativeOptions } from "../statsWorkbench/nativeCards.js";
+import { cardDisplay, cardSourceBook, isNativeCard, nativeKindOf, nativeOptions, newNativeCard, resolveBooks, withCardDisplay, withCardSource, withNativeOptions } from "../statsWorkbench/nativeCards.js";
 import { documentsProblems } from "../statsWorkbench/storage.js";
 import { dailySeries, mergeTotals, totalsByCurrency } from "./dashboardData.js";
 import {
   adaptToBooks,
+  dashboardMaskKey,
   dashboardStorageKey,
+  DEFAULT_DASHBOARD_SETTINGS,
   defaultDashboardDocuments,
   findDashboardCard,
   followDefaultDashboard,
   isDefaultDashboard,
   legacyDashboardStorageKey,
   migrateLegacyDashboard,
+  parseDashboardSettings,
+  pinCardToDashboard,
   readDashboard,
+  readDashboardSettings,
+  readMask,
   saveDashboard,
+  scopeBooks,
+  timeChoiceFor,
+  writeDashboardSettings,
+  writeMask,
 } from "./dashboardStore.js";
 
 class MemoryStorage {
@@ -170,6 +180,59 @@ describe("旧版总览配置（1.18.12–1.19.99）的迁移", () => {
   it("损坏的旧配置：当作没保存过，显示默认总览", () => {
     localStorage.setItem(legacyDashboardStorageKey(owner), "{broken");
     expect(readDashboard(owner, ["a"]).version).toBe(0);
+  });
+});
+
+describe("总览口径（1.19.100）", () => {
+  it("没设置过：本月、全部账本、原币；格式不对的字段按缺省", () => {
+    expect(readDashboardSettings(owner)).toEqual(DEFAULT_DASHBOARD_SETTINGS);
+    expect(parseDashboardSettings({ time: { kind: "preset", preset: "1000d" }, books: ["a", 3], combined: "yes" })).toEqual({ time: { kind: "this-month" }, books: ["a"], combined: false });
+  });
+  it("写入后读回", () => {
+    const settings = { time: { kind: "month" as const, month: "2026-09" }, books: ["b"], combined: true };
+    writeDashboardSettings(owner, settings);
+    expect(readDashboardSettings(owner)).toEqual(settings);
+  });
+  it("时间：本月是整个自然月，上月跨年，今年至今到今天", () => {
+    expect(timeChoiceFor({ kind: "this-month" }, "2026-11-16")).toEqual({ kind: "month", month: "2026-11" });
+    expect(timeChoiceFor({ kind: "last-month" }, "2026-01-05")).toEqual({ kind: "month", month: "2025-12" });
+    expect(timeChoiceFor({ kind: "ytd" }, "2026-11-16")).toEqual({ kind: "custom", from: "2026-01-01", to: "2026-11-16" });
+    expect(timeChoiceFor({ kind: "preset", preset: "7d" }, "2026-11-16")).toEqual({ kind: "preset", preset: "7d" });
+  });
+  it("范围：选的账本都不在了就按全部", () => {
+    expect(scopeBooks({ ...DEFAULT_DASHBOARD_SETTINGS, books: ["b"] }, ["a", "b"])).toEqual(["b"]);
+    expect(scopeBooks({ ...DEFAULT_DASHBOARD_SETTINGS, books: ["z"] }, ["a", "b"])).toEqual(["a", "b"]);
+  });
+  it("范围外账本的账本卡片照常显示，只是不自动补新的", () => {
+    const shown = readDashboard(owner, ["a"], ["a", "b"]).documents;
+    expect(ledgerBooks(shown)).toEqual(["a"]);
+    saveDashboard(owner, defaultDashboardDocuments(["a", "b"]), 0, ["a", "b"]);
+    expect(ledgerBooks(readDashboard(owner, ["a"], ["a", "b"]).documents)).toEqual(["a", "b"]);
+  });
+  it("金额遮罩只记这台设备的开关", () => {
+    expect(readMask(owner)).toBe(false);
+    writeMask(owner, true);
+    expect(readMask(owner)).toBe(true);
+    writeMask(owner, false);
+    expect(localStorage.getItem(dashboardMaskKey(owner))).toBeNull();
+  });
+  it("卡片显示选项：备注截到 60 字，空值不写，其它键原样保留", () => {
+    const card = withCardSource(newNativeCard("ledger", "x", { bookId: "a" }), null);
+    const shown = withCardDisplay(card, { note: `  ${"字".repeat(70)}  `, empty: "quiet", open: "none", masked: true });
+    expect(cardDisplay(shown)).toEqual({ note: "字".repeat(60), empty: "quiet", open: "none", masked: true });
+    expect(nativeOptions(shown)).toEqual({ bookId: "a" });
+    expect(withCardDisplay(shown, {}).chart.options).toEqual({ native: { bookId: "a" } });
+  });
+  it("固定到总览：复制一份放在末尾，来源固定为当时的账本，版本 +1", () => {
+    const card = { objectId: "c", type: "analysis-card" as const, analysis: { analysisId: "AN-I01", params: {} }, chart: { chartFamily: "donut" }, rangePolicy: "inherit" as const };
+    expect(pinCardToDashboard(owner, card, "b", ["a", "b"])).toBe(true);
+    const stored = readDashboard(owner, ["a", "b"]);
+    expect(stored.version).toBe(1);
+    const pinned = stored.documents.content.cards.find((item) => item.analysis.analysisId === "AN-I01")!;
+    expect(pinned.objectId).not.toBe("c");
+    expect(cardSourceBook(pinned)).toBe("b");
+    const geometry = stored.documents.layout.main.objects.find((object) => object.objectId === pinned.objectId)!;
+    expect(geometry.anchor).toBeGreaterThan(Math.max(...stored.documents.layout.main.objects.filter((object) => object.objectId !== pinned.objectId).map((object) => object.anchor)));
   });
 });
 

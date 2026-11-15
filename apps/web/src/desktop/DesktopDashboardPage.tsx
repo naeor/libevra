@@ -13,24 +13,22 @@
  * 数据全部来自现有查询：每本账的数据作用域与最近账目（`dashboardScopes.tsx`），当前账本走本机优先的读取，
  * 其它账本在线读取，权限由服务器按账本检查。跨账本金额原币按币种分别相加，不折算、不去重，并在卡片上说明。
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 
 import { useAuth } from "../auth/AuthProvider.js";
-import { ChevronIcon } from "../components/Icons.js";
-import { LedgerMonthPicker } from "../components/LedgerMonthPicker.js";
 import { NotificationBell } from "../components/Notifications.js";
 import { useI18n } from "../i18n/index.js";
-import { currentMonth } from "../lib/datetime.js";
+import { formatLocalDate, toLocalDate } from "../lib/datetime.js";
 import { useDefaultCurrency } from "../lib/defaultCurrency.js";
 import { useGuestIdentity, useGuestMode } from "../lib/guest/session.js";
 import { useBooks, useCurrentBookId } from "../lib/queries.js";
 import { AccountWorkbench, type WorkbenchFrameParts } from "../pages/StatsPage.js";
-import { headerMonthLabel } from "../pages/DetailPage.js";
 import { CardRenderContext, type CardRenderHooks } from "../statsWorkbench/cardRender.js";
-import type { WorkbenchFilters } from "../statsWorkbench/filters.js";
+import { resolveRange, type WorkbenchFilters } from "../statsWorkbench/filters.js";
 import {
+  cardDisplay,
   cardSourceBook,
   nativeAnalysisId,
   nativeKindOfId,
@@ -43,6 +41,8 @@ import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/sco
 import type { WorkbenchSurface } from "../statsWorkbench/surface.js";
 import { EntryMethodList } from "../workspace/RailEntryMenu.js";
 import { DashboardCardSettings } from "./DashboardCardSettings.js";
+import { DashboardStatsControl, DashboardTimeControl, MaskToggle } from "./DashboardControls.js";
+import { dashboardDestination } from "./dashboardNavigation.js";
 import { DashboardMessages } from "./DashboardMessages.js";
 import { DashboardViewContext, NativeTile, type DashboardBook, type DashboardView } from "./DashboardNativeCards.js";
 import { DashboardAvailableContext, DashboardScopeContext, DashboardScopeProbes, DashboardScopeStore, useDashboardCardScope } from "./dashboardScopes.js";
@@ -53,7 +53,14 @@ import {
   followDefaultDashboard,
   isDefaultDashboard,
   readDashboard,
+  readDashboardSettings,
+  readMask,
   saveDashboard,
+  scopeBooks,
+  timeChoiceFor,
+  writeDashboardSettings,
+  writeMask,
+  type DashboardSettings,
 } from "./dashboardStore.js";
 import { DesktopToolbar } from "./DesktopToolbar.js";
 import { desktopEntryDisabled, useEnterLedger } from "./DesktopNav.js";
@@ -76,9 +83,24 @@ export function DesktopDashboardPage(): React.JSX.Element {
   const books = useBooks();
   const currentBookId = useCurrentBookId();
   const mainCode = useDefaultCurrency();
-  const [month, setMonth] = useState(() => { try { const value = readSession("libevra.dashboard.month"); return value !== null && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : currentMonth(); } catch { return currentMonth(); } });
-  const monthAnchor = useRef<HTMLButtonElement | null>(null);
-  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  // 总览口径（时间、范围、统计方式）记在本机，改了立即生效，不需要进编辑（1.19.100）。
+  const [settings, setSettingsState] = useState<DashboardSettings>(() => readDashboardSettings(owner));
+  useEffect(() => setSettingsState(readDashboardSettings(owner)), [owner]);
+  const setSettings = (next: DashboardSettings): void => {
+    setSettingsState(next);
+    if (owner !== null) writeDashboardSettings(owner, next);
+  };
+  const [masked, setMaskedState] = useState(() => readMask(owner));
+  useEffect(() => setMaskedState(readMask(owner)), [owner]);
+  const setMasked = (value: boolean): void => {
+    setMaskedState(value);
+    if (owner !== null) writeMask(owner, value);
+  };
+  const today = useMemo(() => toLocalDate(new Date()), []);
+  const time = useMemo(() => timeChoiceFor(settings.time, today), [settings.time, today]);
+  const range = useMemo(() => resolveRange(time, today), [time, today]);
+  /** 进入明细 / 分析时带的月份：时间范围的最后一个月。 */
+  const month = range.to.slice(0, 7);
 
   /**
    * 游客多账本：总览只放**当前**游客账本。每本账的卡片靠读取器在那本账的上下文里读数（正式账号是
@@ -93,18 +115,21 @@ export function DesktopDashboardPage(): React.JSX.Element {
         .map((book) => ({ id: book.id, name: book.name, memberCount: book.memberCount })),
     [books.data, guestMode, currentBookId],
   );
-  const bookIds = useMemo(() => bookList.map((book) => book.id), [bookList]);
+  const allBookIds = useMemo(() => bookList.map((book) => book.id), [bookList]);
+  /** 总览范围（「统计设置」里选的账本）：全部账本类卡片按它统计，新账本是否自动出现也看它。 */
+  const bookIds = useMemo(() => scopeBooks(settings, allBookIds), [settings, allBookIds]);
   const bookSignature = bookIds.join(",");
   // 卡片标题（账本卡片 = 账本名称）在编辑格、菜单里也要用，先于渲染登记。
   useMemo(() => setNativeBookNames(new Map(bookList.map((book) => [book.id, book.name]))), [bookList]);
 
-  const filters = useMemo<WorkbenchFilters>(() => ({ time: { kind: "month", month }, currency: null, combined: false }), [month]);
+  const filters = useMemo<WorkbenchFilters>(() => ({ time, currency: null, combined: settings.combined }), [time, settings.combined]);
   const store = useMemo(() => new DashboardScopeStore(), []);
-  const available = useMemo(() => new Set(bookIds), [bookIds]);
+  // 卡片可以指定范围以外的账本（例如账本卡片）：读取器按全部账本挂，卡片按自己的设置取用。
+  const available = useMemo(() => new Set(allBookIds), [allBookIds]);
 
   const surface = useMemo<WorkbenchSurface>(() => ({
     id: "dashboard",
-    readStored: (accountScope) => readDashboard(accountScope, bookIds),
+    readStored: (accountScope) => readDashboard(accountScope, bookIds, allBookIds),
     save: async (accountScope, documents, version) => saveDashboard(accountScope, documents, version, bookIds),
     defaults: () => defaultDashboardDocuments(bookIds),
     isSystemDefault: (documents) => isDefaultDashboard(documents, bookIds),
@@ -135,7 +160,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
       resetHint: t("desktop.dashboard.resetLayoutHint"),
       resetDone: t("desktop.dashboard.resetDone"),
     },
-  }), [bookIds, currentBookId, t]);
+  }), [bookIds, allBookIds, currentBookId, t]);
 
   // 账本变化（新账本、退出 / 归档）：让工作台按新的账本重新读取（派生，不写回）。
   useEffect(() => {
@@ -150,10 +175,22 @@ export function DesktopDashboardPage(): React.JSX.Element {
     month,
   }), [bookList, bookIds, currentBookId, mainCode, month]);
 
+  /** 总览上的分析卡片点开去哪：分析页右侧辅助栏（默认），或那个月的明细。 */
+  const analysisDestination = (card: AnalysisCardNode): string =>
+    cardDisplay(card).open === "entries"
+      ? dashboardDestination(month)
+      : `/stats?${new URLSearchParams({ month, ...(settings.combined ? {} : { analysis: "currency" }), dashboardCard: card.objectId }).toString()}`;
+
   const hooks = useMemo<CardRenderHooks>(() => ({
     renderNative: (props) => <NativeTile {...props} />,
     useScopeFor: useDashboardCardScope,
-  }), []);
+    // 只有当前账本的卡片能直接在新标签页打开（别的账本要先激活）。
+    hrefFor: (card) => {
+      const source = cardSourceBook(card);
+      return source === null || source === currentBookId ? analysisDestination(card) : null;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [currentBookId, month, settings.combined]);
 
   const switcher = useEnterLedger();
   const navigate = useNavigate();
@@ -161,7 +198,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
     if (owner === null) return;
     const card = findDashboardCard(owner, cardId);
     if (card === undefined) return;
-    const destination = `/stats?${new URLSearchParams({ month, analysis: "currency", dashboardCard: cardId }).toString()}`;
+    const destination = analysisDestination(card);
     const source = cardSourceBook(card);
     if (source !== null && source !== currentBookId) switcher.enter(source, undefined, destination);
     else void navigate(destination);
@@ -176,7 +213,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
       <DashboardAvailableContext.Provider value={available}>
       <DashboardViewContext.Provider value={view}>
         <CardRenderContext.Provider value={hooks}>
-          <DashboardScopeProbes books={bookIds} filters={filters} store={store} />
+          <DashboardScopeProbes books={allBookIds} filters={filters} store={store} />
           <CurrentScope filters={filters}>
             <AccountWorkbench
               key={owner ?? "pending"}
@@ -196,18 +233,17 @@ export function DesktopDashboardPage(): React.JSX.Element {
               renderFrame={(parts) => (
                 <DashboardFrame
                   parts={parts}
-                  month={month}
+                  meta={t("statsWorkbench.summary.dates", { from: formatLocalDate(range.from), to: formatLocalDate(range.to) })}
                   books={bookList}
+                  masked={masked}
                   failed={books.isError}
                   onRetry={() => void books.refetch()}
                   switchStatus={switcher.status}
-                  monthPicker={
+                  controls={
                     <>
-                      <button ref={monthAnchor} type="button" className="lv-desk-btn lv-month-trigger" aria-haspopup="dialog" aria-expanded={monthPickerOpen} title={t("ledger.monthPicker.title")} disabled={parts.editing} onClick={() => setMonthPickerOpen((value) => !value)}>
-                        {headerMonthLabel(month)}<ChevronIcon up={monthPickerOpen} className="size-4 text-brand" />
-                      </button>
-                      <LedgerMonthPicker open={monthPickerOpen} month={month} maxMonth={currentMonth()} bookIds={bookIds} anchor={monthAnchor}
-                        onClose={() => setMonthPickerOpen(false)} onSelect={(value) => { setMonth(value); writeSession("libevra.dashboard.month", value); }} />
+                      <DashboardTimeControl value={settings.time} bookIds={allBookIds} disabled={parts.editing} onChange={(value) => setSettings({ ...settings, time: value })} />
+                      <DashboardStatsControl settings={settings} books={bookList} mainCode={mainCode} disabled={parts.editing} onChange={setSettings} />
+                      <MaskToggle masked={masked} onChange={setMasked} />
                     </>
                   }
                 />
@@ -229,20 +265,22 @@ function CurrentScope({ filters, children }: { readonly filters: WorkbenchFilter
 
 function DashboardFrame({
   parts,
-  month,
+  meta,
   books,
+  masked,
   failed,
   onRetry,
   switchStatus,
-  monthPicker,
+  controls,
 }: {
   readonly parts: WorkbenchFrameParts;
-  readonly month: string;
+  readonly meta: string;
   readonly books: readonly DashboardBook[];
+  readonly masked: boolean;
   readonly failed: boolean;
   readonly onRetry: () => void;
   readonly switchStatus: string | null;
-  readonly monthPicker: React.ReactNode;
+  readonly controls: React.ReactNode;
 }): React.JSX.Element {
   const { t } = useI18n();
   useEffect(() => {
@@ -256,7 +294,7 @@ function DashboardFrame({
       {parts.editing ? parts.editBar : (
         <DesktopToolbar
           title={t("desktop.dashboard.title")}
-          meta={t("desktop.dashboard.meta", { month: headerMonthLabel(month) })}
+          meta={meta}
           actions={
             <>
               <NotificationBell showHeading={false} panelClassName="lv-account-notice-panel" />
@@ -264,7 +302,7 @@ function DashboardFrame({
             </>
           }
         >
-          {monthPicker}
+          <div className="flex flex-wrap items-center gap-2">{controls}</div>
         </DesktopToolbar>
       )}
       <div className="lv-dash-workspace">
@@ -274,7 +312,7 @@ function DashboardFrame({
             onScroll={(event) => { if (!parts.editing) writeSession("libevra.dashboard.scroll", String(event.currentTarget.scrollTop)); }}
             className="lv-desk-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
           >
-            <div className={`lv-dash-host ${parts.editing ? "pb-28" : "pb-10"}`}>
+            <div className={`lv-dash-host ${parts.editing ? "pb-28" : "pb-10"}`} data-mask={masked && !parts.editing ? "" : undefined}>
               {failed ? <div role="alert" className="flex items-center gap-4 px-6 pt-4"><p className="text-body text-danger">{t("desktop.dashboard.readFailed")}</p><button type="button" className="lv-desk-btn" onClick={onRetry}>{t("common.action.retry")}</button></div> : null}
               {switchStatus === null ? null : <p role="status" className="px-6 pt-3 text-helper text-danger">{switchStatus}</p>}
               {parts.editHint}
@@ -284,7 +322,7 @@ function DashboardFrame({
           {parts.drawer === undefined || parts.drawer === null ? null : <div className="pointer-events-none absolute inset-x-4 bottom-4 z-30 [&>*]:pointer-events-auto">{parts.drawer}</div>}
         </div>
         {/* 编辑时侧栏仍占位（暂停交互），网格宽度与浏览时相同：编辑时看到的格子就是浏览时的格子。 */}
-        <aside className="lv-dash-sidebar" aria-label={t("desktop.dashboard.aside")} inert={parts.editing} data-paused={parts.editing ? "true" : undefined}>
+        <aside className="lv-dash-sidebar" aria-label={t("desktop.dashboard.aside")} inert={parts.editing} data-paused={parts.editing ? "true" : undefined} data-mask={masked ? "" : undefined}>
           <QuickActions />
           <DashboardMessages books={books} />
         </aside>

@@ -135,6 +135,44 @@ export function withCardSource(card: AnalysisCardNode, bookId: string | null): A
   return { ...card, chart: Object.keys(options).length === 0 ? { chartFamily: card.chart.chartFamily } : { ...card.chart, options } };
 }
 
+/**
+ * 总览上每张卡片（分析卡片与总览卡片都有）的显示选项（1.19.100），写在 `chart.options.display`：
+ * 卡片备注、没有数据时怎么显示、点卡片去哪里、是否总是遮住金额。分析页的卡片没有这些键，行为不变。
+ */
+export interface CardDisplay {
+  /** 用户写给自己的一行说明（≤ 60 字）。 */
+  readonly note?: string;
+  /** `quiet`：这段时间没有账目时只留一句说明并变淡。缺省照常显示。 */
+  readonly empty?: "quiet";
+  /** `entries`：点卡片打开明细；`analysis`：打开分析；`none`：不响应点击。缺省按卡片种类。 */
+  readonly open?: "entries" | "analysis" | "none";
+  /** 金额遮罩关闭时也遮住这张卡（悬停、按住或键盘聚焦时显示）。 */
+  readonly masked?: boolean;
+}
+
+export const NOTE_MAX = 60;
+
+export function cardDisplay(card: AnalysisCardNode): CardDisplay {
+  const raw = card.chart.options?.["display"];
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {};
+  const value = raw as Record<string, unknown>;
+  const note = typeof value["note"] === "string" ? value["note"].trim().slice(0, NOTE_MAX) : "";
+  const open = value["open"];
+  return {
+    ...(note === "" ? {} : { note }),
+    ...(value["empty"] === "quiet" ? { empty: "quiet" as const } : {}),
+    ...(open === "entries" || open === "analysis" || open === "none" ? { open } : {}),
+    ...(value["masked"] === true ? { masked: true } : {}),
+  };
+}
+
+export function withCardDisplay(card: AnalysisCardNode, display: CardDisplay): AnalysisCardNode {
+  const { display: _display, ...rest } = card.chart.options ?? {};
+  const clean = Object.fromEntries(Object.entries(display).filter(([, value]) => value !== undefined && value !== false && value !== ""));
+  const options = Object.keys(clean).length === 0 ? rest : { ...rest, display: clean };
+  return { ...card, chart: Object.keys(options).length === 0 ? { chartFamily: card.chart.chartFamily } : { ...card.chart, options } };
+}
+
 /** 选中的账本集合（多账本卡片）；`all` 或没写 = 全部 `available`。不在 `available` 里的账本（退出、归档）去掉。 */
 export function resolveBooks(selection: NativeOptions["books"], available: readonly string[]): readonly string[] {
   if (selection === undefined || selection === "all") return available;

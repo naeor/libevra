@@ -1389,3 +1389,12 @@ html[data-shell="desktop"] body {
 .lv-native-quick[data-icon-only] .lv-add-item { min-height:44px; }
 .lv-native-quick[data-icon-only] .lv-add-item > span:last-child { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 .lv-dash-sidebar[data-paused] { opacity:0.45; }
+/* 1.19.100：金额遮罩（只在这台设备上）与「没有数据时只留一句说明」。悬停、按住或键盘聚焦某张卡时显示它。 */
+.lv-dash-host[data-mask] .sw-card .sw-card-body,
+.lv-dash-host .sw-card[data-masked] .sw-card-body { filter:blur(10px); transition:filter 160ms ease; }
+.lv-dash-host[data-mask] .sw-card:is(:hover, :focus-within, :active) .sw-card-body,
+.lv-dash-host .sw-card[data-masked]:is(:hover, :focus-within, :active) .sw-card-body { filter:none; }
+.lv-dash-host .sw-card[data-quiet] { opacity:0.62; }
+.lv-dash-sidebar[data-mask] [data-amount] { filter:blur(8px); }
+.lv-dash-sidebar[data-mask] [data-amount]:is(:hover, :focus-within) { filter:none; }
+@media (prefers-reduced-motion: reduce) { .lv-dash-host .sw-card-body { transition:none; } }

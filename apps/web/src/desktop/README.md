@@ -12,6 +12,7 @@
 | 文件 | 用途 / 入口 |
 |---|---|
 | [DashboardCardSettings.tsx](DashboardCardSettings.tsx) | 界面模块；入口/导出：DashboardCardSettings |
+| [DashboardControls.tsx](DashboardControls.tsx) | 界面模块；入口/导出：useTimeLabel、DashboardTimeControl、DashboardStatsControl、MaskToggle |
 | [DashboardMessages.test.tsx](DashboardMessages.test.tsx) | 测试：DashboardMessages |
 | [DashboardMessages.tsx](DashboardMessages.tsx) | 界面模块；入口/导出：DashboardMessages |
 | [DashboardNativeCards.tsx](DashboardNativeCards.tsx) | 界面模块；入口/导出：DashboardBook、DashboardView、DashboardViewContext、NativeTile |
@@ -28,6 +29,7 @@
 | [DesktopSplit.tsx](DesktopSplit.tsx) | 界面模块；入口/导出：useElementWidth、DesktopSplit |
 | [DesktopStatsPage.tsx](DesktopStatsPage.tsx) | 界面模块；入口/导出：STATS_CARD_PARAM、DesktopStatsPage |
 | [DesktopToolbar.tsx](DesktopToolbar.tsx) | 界面模块；入口/导出：DesktopToolbar |
+| [PinToDashboard.tsx](PinToDashboard.tsx) | 界面模块；入口/导出：PinToDashboard |
 | [dashboardActivation.test.tsx](dashboardActivation.test.tsx) | 测试：dashboardActivation |
 | [dashboardData.ts](dashboardData.ts) | 实现模块；入口/导出：CurrencyTotals、inRange、totalsByCurrency、mergeTotals、dailySeries |
 | [dashboardModel.ts](dashboardModel.ts) | 实现模块；入口/导出：CardSize、CardKind、LedgerMetric、DashboardCard、DashboardConfig |

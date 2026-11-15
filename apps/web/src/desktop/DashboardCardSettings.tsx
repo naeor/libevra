@@ -11,7 +11,11 @@ import { BottomSheet } from "../components/BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
 import { cardTitle } from "../statsWorkbench/cards.js";
 import {
+  cardDisplay,
   cardSourceBook,
+  NOTE_MAX,
+  withCardDisplay,
+  type CardDisplay,
   isNativeCard,
   nativeKindOf,
   nativeOptions,
@@ -47,6 +51,10 @@ export function DashboardCardSettings({
   const [name, setName] = useState(card.title?.kind === "custom" ? card.title.text ?? "" : "");
   const [options, setOptions] = useState<NativeOptions>(() => nativeOptions(card));
   const [source, setSource] = useState<string | null>(() => cardSourceBook(card));
+  const [display, setDisplay] = useState<CardDisplay>(() => cardDisplay(card));
+  // 「没有数据时」与「点卡片」只对有数据、有去处的卡片有意义。
+  const hasEmpty = !native || kind === "ledger" || kind === "trend" || kind === "cross";
+  const opens: readonly ("default" | "entries" | "analysis" | "none")[] = !native ? ["default", "entries", "none"] : kind === "ledger" ? ["default", "analysis", "none"] : kind === "trend" ? ["default", "entries", "none"] : [];
   const multi = kind !== null && nativeSpec(kind).multiBook;
   const chosen = options.books === undefined || options.books === "all" ? null : new Set(options.books);
   const { title: _ignored, ...withoutTitle } = card;
@@ -57,6 +65,7 @@ export function DashboardCardSettings({
     const { title: _title, ...untitled } = card;
     let next: AnalysisCardNode = trimmed === "" ? untitled : { ...card, title: { kind: "custom", text: trimmed.slice(0, 40) } };
     next = native ? withNativeOptions(next, options) : withCardSource(next, source);
+    next = withCardDisplay(next, display);
     if (onSave(next)) finish();
   };
 
@@ -78,7 +87,11 @@ export function DashboardCardSettings({
         <div className="flex flex-col gap-5 px-6 pt-1 pb-5">
           <label className="flex flex-col gap-1.5">
             <span className="text-helper text-muted">{t("desktop.dashboard.settings.name")}</span>
-            <input className="lv-desk-input text-base" value={name} maxLength={40} placeholder={placeholder} onChange={(event) => setName(event.target.value)} />
+            <input className="lv-desk-input text-base" value={name} maxLength={40} placeholder={placeholder} autoFocus onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-helper text-muted">{t("desktop.dashboard.settings.note")}</span>
+            <input className="lv-desk-input text-base" value={display.note ?? ""} maxLength={NOTE_MAX} placeholder={t("desktop.dashboard.settings.notePlaceholder")} onChange={(event) => setDisplay({ ...display, note: event.target.value })} />
           </label>
 
           {kind === "ledger" ? (
@@ -150,6 +163,42 @@ export function DashboardCardSettings({
               ))}
             </fieldset>
           ) : null}
+
+          {opens.length === 0 ? null : (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-helper text-muted">{t("desktop.dashboard.settings.open")}</span>
+              <select
+                className="lv-dash-select rounded-field border border-line bg-surface text-base"
+                value={display.open ?? "default"}
+                onChange={(event) => {
+                  const { open: _open, ...rest } = display;
+                  const value = event.target.value;
+                  setDisplay(value === "entries" || value === "analysis" || value === "none" ? { ...rest, open: value } : rest);
+                }}
+              >
+                {opens.map((value) => (
+                  <option key={value} value={value}>{t(`desktop.dashboard.settings.opens.${value === "default" ? (kind === "trend" ? "trend" : kind === "ledger" ? "ledger" : "card") : value}`)}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {hasEmpty ? (
+            <label className="flex min-h-11 items-center gap-3 text-body text-ink">
+              <input type="checkbox" className="size-5 accent-brand" checked={display.empty === "quiet"} onChange={(event) => {
+                const { empty: _empty, ...rest } = display;
+                setDisplay(event.target.checked ? { ...rest, empty: "quiet" } : rest);
+              }} />
+              {t("desktop.dashboard.settings.quiet")}
+            </label>
+          ) : null}
+          <label className="flex min-h-11 items-center gap-3 text-body text-ink">
+            <input type="checkbox" className="size-5 accent-brand" checked={display.masked === true} onChange={(event) => {
+              const { masked: _masked, ...rest } = display;
+              setDisplay(event.target.checked ? { ...rest, masked: true } : rest);
+            }} />
+            {t("desktop.dashboard.settings.masked")}
+          </label>
 
           {!native ? (
             <>

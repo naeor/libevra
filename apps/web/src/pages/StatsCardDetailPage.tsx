@@ -24,6 +24,7 @@ import { useWorkbenchScope, WorkbenchScopeProvider } from "../statsWorkbench/sco
 import { readStored } from "../statsWorkbench/storage.js";
 import { SourceEntries } from "../statsWorkbench/SourceEntries.js";
 import { WORKBENCH_INSTALLED } from "../statsWorkbench/configEvents.js";
+import { PinToDashboard } from "../desktop/PinToDashboard.js";
 
 /** `objectId`：电脑版在分析页右侧辅助栏里显示选中的卡片时直接给出；不给时照旧读路由参数。 */
 export function StatsCardDetailPage({ objectId: given, cardOverride }: { readonly objectId?: string; readonly cardOverride?: AnalysisCardNode } = {}): React.JSX.Element {
@@ -123,6 +124,8 @@ export function StatsCardDetailPage({ objectId: given, cardOverride }: { readonl
           <Link to={`/?month=${month}`} className="self-start text-link text-brand-dark underline">
             {t("statsWorkbench.detail.viewEntries", { month: formatLocalDate(`${month}-01`, { year: "numeric", month: "long" }) })}
           </Link>
+          {/* 1.19.100：电脑版可以把这张卡片固定到总览（总览上的卡片本身不再显示这个按钮）。 */}
+          {cardOverride === undefined ? <PinToDashboard card={card} bookId={ledger.data?.book.id ?? null} /> : null}
         </section>
       </InnerPage>
     </WorkbenchScopeProvider>

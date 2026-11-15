@@ -32,10 +32,11 @@ import { displayCategoryName } from "../lib/presetNames.js";
 import { sortByTime } from "../pages/DetailPage.js";
 import { cardTitle } from "../statsWorkbench/cards.js";
 import type { NativeTileProps } from "../statsWorkbench/cardRender.js";
-import { nativeKindOf, nativeOptions, resolveBooks, type NativeMetric } from "../statsWorkbench/nativeCards.js";
+import { cardDisplay, nativeKindOf, nativeOptions, resolveBooks, type NativeMetric } from "../statsWorkbench/nativeCards.js";
+import { openInNewTab, wantsNewTab } from "../lib/desktopInput.js";
 import { ChevronRight, FitAmount, useElementSize } from "../statsWorkbench/ui.js";
 import { EntryMethodList } from "../workspace/RailEntryMenu.js";
-import { bookFigures, combinedDaily, dailySeries, mergeTotals, type BookFigures, type CurrencyTotals } from "./dashboardData.js";
+import { bookFigures, combinedDaily, dailySeries, inRange, mergeTotals, type BookFigures, type CurrencyTotals } from "./dashboardData.js";
 import { dashboardDestination } from "./dashboardNavigation.js";
 import { useDashboardBooks, type BookData } from "./dashboardScopes.js";
 import { desktopEntryDisabled, useEnterLedger } from "./DesktopNav.js";
@@ -82,39 +83,72 @@ function metricOf(item: CurrencyTotals, metric: NativeMetric): number {
 export function NativeTile({ card, bare, oneRow, aside }: NativeTileProps): React.JSX.Element {
   const { t } = useI18n();
   const view = useView();
+  const books = useDashboardBooks();
   const switcher = useEnterLedger();
   const body = useElementSize<HTMLDivElement>({ deferred: true });
   const kind = nativeKindOf(card);
   const title = cardTitle(card, t);
   const subtitle = useSubtitle(card);
   const options = nativeOptions(card);
+  const display = cardDisplay(card);
   const bookId = kind === "ledger" ? options.bookId : undefined;
   const target = kind === "ledger" ? options.bookId : kind === "trend" ? options.bookId ?? view.currentBookId ?? undefined : undefined;
-  const open = target === undefined || !view.books.has(target) ? undefined : () => {
-    switcher.enter(target, undefined, kind === "trend" ? dashboardDestination(view.month, "expense", view.mainCode) : dashboardDestination(view.month));
-  };
+  // 点卡片：账本卡片默认进明细、趋势默认进分析；卡片设置里可以改成另一个或不响应。
+  const toAnalysis = display.open === "analysis" || (kind === "trend" && display.open !== "entries");
+  const destination = toAnalysis ? dashboardDestination(view.month, "expense", view.mainCode) : dashboardDestination(view.month);
+  const open = target === undefined || !view.books.has(target) || display.open === "none" ? undefined : () => switcher.enter(target, undefined, destination);
+  // 只有当前账本能直接在新标签页打开（别的账本要先激活，新标签页里还是设备的当前账本）。
+  const newTab = open !== undefined && target === view.currentBookId ? destination : null;
+  const quiet = display.empty === "quiet" && nativeIsEmpty(card, view, books);
   return (
     <article
       className={`sw-card lv-native group relative flex h-full min-h-0 flex-col ${bare ? "px-3.5 pt-3 pb-2" : "rounded-card border border-line bg-surface p-3.5 sm:p-4"}`}
       aria-label={title}
       data-kind={kind ?? "unknown"}
       data-one-row={oneRow ? "" : undefined}
+      data-masked={display.masked === true ? "" : undefined}
+      data-quiet={quiet ? "" : undefined}
     >
       {open === undefined ? null : (
-        <button type="button" id={`sw-card-${card.objectId}`} className="sw-card-hit" aria-label={t("desktop.dashboard.openNamed", { name: title })} disabled={switcher.busy} onClick={open} />
+        <button
+          type="button"
+          id={`sw-card-${card.objectId}`}
+          className="sw-card-hit"
+          aria-label={t("desktop.dashboard.openNamed", { name: title })}
+          disabled={switcher.busy}
+          onClick={(event) => { if (newTab !== null && wantsNewTab(event)) openInNewTab(newTab); else open(); }}
+          onAuxClick={(event) => { if (newTab !== null && event.button === 1) openInNewTab(newTab); }}
+        />
       )}
       <header className="pointer-events-none relative flex min-w-0 items-start gap-2">
         <span className="min-w-0 flex-1">
           <h3 className={`${oneRow ? "truncate" : "line-clamp-2 break-words"} text-helper font-medium text-ink`} title={oneRow ? title : undefined}>{title}</h3>
           {subtitle === "" ? null : <p className="truncate text-helper text-muted">{subtitle}</p>}
+          {display.note === undefined ? null : <p className="truncate text-helper text-muted" title={display.note}>{display.note}</p>}
         </span>
-        {aside ?? (bookId !== undefined ? <span className="pointer-events-auto relative"><BookNotificationBell bookId={bookId} /></span> : open === undefined ? null : <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />)}
+        {/* 一行高的卡片放不下 44px 的提醒铃：留给数字（提醒仍在侧栏与账本页）。 */}
+        {aside ?? (bookId !== undefined && !oneRow ? <span className="pointer-events-auto relative"><BookNotificationBell bookId={bookId} /></span> : open === undefined ? null : <ChevronRight width={14} height={14} className="sw-card-chevron mt-0.5 shrink-0 text-muted" />)}
       </header>
       <div ref={body.ref} className="sw-card-body lv-native-body relative mt-2 min-h-0 flex-1 overflow-hidden">
-        {body.width === 0 ? null : <NativeBody card={card} width={body.width} height={body.height} />}
+        {quiet ? <p className="text-helper text-muted">{t("statsWorkbench.states.empty")}</p> : body.width === 0 ? null : <NativeBody card={card} width={body.width} height={body.height} />}
       </div>
     </article>
   );
+}
+
+/** 「没有数据时只留一句说明」：账本 / 趋势看那一本，多账本收支看所选账本；读完了且范围内一笔都没有才算。 */
+function nativeIsEmpty(card: AnalysisCardNode, view: DashboardView, books: ReadonlyMap<string, BookData>): boolean {
+  const kind = nativeKindOf(card);
+  const options = nativeOptions(card);
+  const ids = kind === "ledger" ? (options.bookId === undefined ? [] : [options.bookId])
+    : kind === "trend" ? [options.bookId ?? view.currentBookId ?? ""]
+      : kind === "cross" ? resolveBooks(options.books, view.bookIds)
+        : [];
+  if (ids.length === 0) return false;
+  return ids.every((id) => {
+    const scope = books.get(id)?.scope;
+    return scope !== undefined && scope.loaded && !scope.entries.some((entry) => inRange(entry, scope.range));
+  });
 }
 
 function useSubtitle(card: AnalysisCardNode): string {
@@ -200,7 +234,8 @@ function LedgerBody({ card, width, height }: { readonly card: AnalysisCardNode; 
   const figuresBlock = (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="min-w-0">
-        <p className="text-helper text-muted">{t(`desktop.dashboard.metricThisMonth.${metric}`)}</p>
+        {/* 很矮的卡片（1×1）只放数字：指标名称在读屏名称里。 */}
+        {height >= 60 ? <p className="text-helper text-muted">{t(`desktop.dashboard.metricThisMonth.${metric}`)}</p> : null}
         <FitAmount className="lv-dash-figure tabular-nums" text={formatMoney(metricOf(main, metric), main.currency)} />
       </div>
       {showRow ? (
@@ -293,7 +328,7 @@ function CrossBody({ card, width, height }: { readonly card: AnalysisCardNode; r
   if (tiny) {
     return (
       <div className="min-w-0">
-        <p className="text-helper text-muted">{t("desktop.entries.expense")}</p>
+        {height >= 60 ? <p className="text-helper text-muted">{t("desktop.entries.expense")}</p> : null}
         <FitAmount className="lv-dash-figure tabular-nums" text={formatMoney(main.expense, main.currency)} />
       </div>
     );
