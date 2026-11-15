@@ -91,5 +91,63 @@
 :root[data-theme-mode="light"]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
   /* 次要文字和图标共用前景，在偏灰的薄片和经典表面上也能清楚阅读。 */
   --color-muted: color-mix(in srgb, var(--color-ink) 75%, var(--color-surface));
-  --lv-rail-plus-plate: var(--color-brand-soft);
+  .lv-rail-add,
+  .lv-rail-add:is(:hover, :active, [aria-expanded="true"]) {
+    --lv-rail-plus-plate: transparent;
+    color: var(--s19-on-accent);
+    background: var(--lv-entry-finish, none), var(--s19-entry-green);
+    box-shadow: var(--lv-rail-action-sh);
+  }
+  .lv-entry-plus { color: inherit; }
+}
+
+/* 卡片表面单独升降，让图标、文字和触摸区域留在原位。 */
+:root[data-theme-mode="light"][data-visual-style="a"] .lv-shell[data-s19-scope="pad"] > .lv-rail .lv-rail-nav {
+  li { position: relative; isolation: isolate; }
+  li::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 14px;
+    background: var(--s19-select-lift-bg);
+    box-shadow: var(--s19-a-elev-2);
+    opacity: 0;
+    transform: none;
+  }
+  li:has(> [aria-current="page"])::before {
+    opacity: 1;
+    transform: translateY(var(--s19-a-lift-y)) scale(var(--s19-a-lift-scale));
+  }
+  .lv-rail-item[aria-current="page"]:not([data-lifted="true"]) { background: transparent; box-shadow: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    li::before {
+      transition: opacity var(--lv-lift-fall-ms) ease-out, transform var(--lv-lift-fall-ms) var(--lv-lift-fall-ease);
+    }
+    li:has(> [aria-current="page"])::before {
+      transition: opacity var(--lv-lift-shadow-in-ms) ease-out var(--lv-lift-fall-ms),
+        transform var(--lv-lift-rise-ms) var(--lv-lift-rise-ease) var(--lv-lift-fall-ms);
+    }
+  }
+}
+
+:root[data-theme-mode="light"]:is([data-visual-style="b1"], [data-visual-style="b2"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  --lv-entry-finish: linear-gradient(165deg, color-mix(in srgb, var(--color-on-tag) 6%, transparent), transparent 55%);
+  [data-page-selection] { position: relative; isolation: isolate; }
+  [data-page-selection][data-select-ready] {
+    > [data-select-block] {
+      display: block;
+      border-radius: 999px;
+      background: var(--s19-tabglass-bg);
+      box-shadow: var(--s19-tabglass-sh);
+      -webkit-backdrop-filter: var(--s19-tabglass-filter, none);
+      backdrop-filter: var(--s19-tabglass-filter, none);
+    }
+    .lv-rail-item { z-index: 1; }
+    .lv-rail-item[aria-current="page"]:not([data-lifted="true"]) { background: transparent; box-shadow: none; }
+    @media (prefers-reduced-transparency: reduce) {
+      > [data-select-block] { background: var(--color-surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    }
+  }
 }

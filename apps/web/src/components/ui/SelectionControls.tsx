@@ -56,9 +56,11 @@ const moved = (a: SelectionBox, b: SelectionBox): boolean => (Object.keys(a) as 
  * 不写的（竖向导航、没有底槽的分段、平铺 / 胶囊组）保留完整 A2 浮起——旧选中项沉回平面，新选中项浮起。
  * 这是 A 里唯一的原地表现：网格选中、开关按钮、独立选中项都按完整 A2 浮起（1.19.74）。
  */
-export function MovingSelection({ axis, base = "static", hostRef, children, ...props }: HTMLAttributes<HTMLDivElement> & {
+export function MovingSelection({ axis, base = "static", pageList = false, hostRef, children, ...props }: HTMLAttributes<HTMLDivElement> & {
   axis: SelectionAxis;
   base?: SelectionBase;
+  /** Pad 导航保留原生列表和 aria-current。仅浅色 B1/B2 使用移动玻璃。 */
+  pageList?: boolean;
   hostRef?: RefObject<HTMLDivElement | null>;
 }) {
   const localRef = useRef<HTMLDivElement>(null);
@@ -71,7 +73,9 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
   syncRef.current = (animate) => {
     const root = rootRef.current, block = blockRef.current;
     if (!root || !block) return;
-    const selected = root.querySelector<HTMLElement>(SELECTED);
+    const enabled = !pageList || document.documentElement.matches('[data-theme-mode="light"]:is([data-visual-style="b1"], [data-visual-style="b2"])');
+    const selector = pageList ? ':scope > ul > li > button[aria-current="page"]' : SELECTED;
+    const selected = enabled ? root.querySelector<HTMLElement>(selector) : null;
     if (!selected || selected.matches(":disabled") || root.getClientRects().length === 0 || selected.getClientRects().length === 0) {
       running.current?.cancel(); running.current = null; previous.current = null;
       delete root.dataset.selectReady;
@@ -89,7 +93,7 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
     } else {
       // S19：外观全部由 CSS 按风格给出；从基础外观切过来时清掉复制的内联外观，只保留跟随选中项的圆角。
       if (base === "copy") Object.assign(block.style, { background: "", boxShadow: "", border: "", opacity: "" });
-      block.style.borderRadius = getComputedStyle(selected).borderRadius;
+      if (!pageList) block.style.borderRadius = getComputedStyle(selected).borderRadius;
     }
     root.dataset.selectReady = "true";
     if (old && old.button === selected && !moved(old.box, to)) return;
@@ -113,7 +117,7 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
     // 窗口、字体、风格或主题变化后选项位置会变：重新对齐，不播放动画。
     const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => syncRef.current(false));
     resize?.observe(root);
-    root.querySelectorAll(":scope > button").forEach(button => resize?.observe(button));
+    root.querySelectorAll(pageList ? ":scope > ul > li > button" : ":scope > button").forEach(button => resize?.observe(button));
     const theme = new MutationObserver(() => syncRef.current(false));
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-visual-style", "data-theme-mode", "data-theme-palette"] });
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -123,9 +127,9 @@ export function MovingSelection({ axis, base = "static", hostRef, children, ...p
       resize?.disconnect(); theme.disconnect(); media.removeEventListener("change", stop);
       running.current?.cancel(); running.current = null; previous.current = null; delete root.dataset.selectReady;
     };
-  }, [rootRef]);
+  }, [rootRef, pageList]);
 
-  return <div {...props} ref={rootRef} data-select-moving="" data-axis={axis} data-select-base={base === "static" ? undefined : base}>
+  return <div {...props} ref={rootRef} data-select-moving={pageList ? undefined : ""} data-page-selection={pageList ? "" : undefined} data-axis={axis} data-select-base={base === "static" ? undefined : base}>
     {children}
     <span ref={blockRef} data-select-block="" aria-hidden="true" />
   </div>;

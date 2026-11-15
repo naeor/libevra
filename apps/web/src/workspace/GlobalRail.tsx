@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 
 import { BottomSheet } from "../components/BottomSheet.js";
 import { Button } from "../components/Button.js";
+import { MovingSelection } from "../components/ui/SelectionControls.js";
 import { PlusIcon } from "../components/BottomNav.js";
 import type { EntryNavigate } from "./entryMenu.js";
 import { useI18n } from "../i18n/index.js";
@@ -118,17 +119,13 @@ export function GlobalRail(props: RailProps): React.JSX.Element {
           </button>
         </div>
 
-        <ul className="lv-rail-nav">
-          {destinations.map((item) => (
-            <RailNavItem
-              key={item.id}
-              item={item}
-              compact={compact}
-              active={active === item.id}
-              onOpen={props.onNavigate}
-            />
-          ))}
-        </ul>
+        <MovingSelection axis="y" pageList>
+          <ul className="lv-rail-nav">
+            {destinations.map((item) => (
+              <RailNavItem key={item.id} item={item} compact={compact} active={active === item.id} onOpen={props.onNavigate} />
+            ))}
+          </ul>
+        </MovingSelection>
 
         <AddEntryButton compact={compact} onNavigate={props.onNavigateEntry} follow={props.followEntry} followOpen={props.entryMenuOpen} onToggleFollow={props.onToggleEntry} onCloseFollow={props.onCloseEntry} />
 
@@ -165,7 +162,14 @@ export function PortraitSecondaryRail(props: RailProps): React.JSX.Element {
       <span className="lv-rail-fade min-w-0 flex-1 truncate text-helper text-muted">{t("workspace.pane.secondary")}</span>
       <button type="button" className="lv-rail-icon-button" aria-label={t("workspace.secondary.close")} title={t("workspace.secondary.close")} onClick={props.onCloseSecondary}><XIcon className="size-5" /></button>
     </div>
-    <ul className="lv-rail-nav">{destinations.map((item) => <RailNavItem key={item.id} item={item} compact={props.compact} active={destinationOf(props.secondaryPath ?? "") === item.id} onOpen={props.onNavigateSecondary} ledger={viewing} />)}</ul>
+    <MovingSelection axis="y" pageList>
+      <ul className="lv-rail-nav">
+        {destinations.map((item) => (
+          <RailNavItem key={item.id} item={item} compact={props.compact} active={destinationOf(props.secondaryPath ?? "") === item.id}
+            onOpen={props.onNavigateSecondary} ledger={viewing} />
+        ))}
+      </ul>
+    </MovingSelection>
     <RailBooks compact={props.compact} onNavigate={props.onNavigateSecondary} onOpenInSecondary={props.onOpenInSecondary} onEnterLedger={props.onEnterSecondaryLedger} canSplit={props.canSplit} />
   </div>;
 }

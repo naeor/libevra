@@ -11,6 +11,8 @@
 /* 四套共用 */
 :root[data-visual-style] {
   --s19-on-accent: #fff;
+  /* 浅色 Pad 的记账主操作固定为品牌绿，独立于用户选择的强调色。 */
+  --s19-entry-green: #447d63;
   /* 遮罩里“完全显示”的颜色（遮罩只看不透明度），第十轮摘要卡退场用 */
   --s19-mask-solid: #000;
   --s19-dialog-sh: 0 0 0 .5px rgb(40 50 44 / .06), 0 24px 48px -20px rgb(20 30 26 / .38);
