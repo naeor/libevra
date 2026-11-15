@@ -14,9 +14,11 @@
 | [DashboardCardMenu.tsx](DashboardCardMenu.tsx) | 界面模块；入口/导出：useCardContextMenu |
 | [DashboardCardSettings.tsx](DashboardCardSettings.tsx) | 界面模块；入口/导出：DashboardCardSettings |
 | [DashboardControls.tsx](DashboardControls.tsx) | 界面模块；入口/导出：useTimeLabel、DashboardTimeControl、DashboardStatsControl、MaskToggle |
+| [DashboardExtraCards.tsx](DashboardExtraCards.tsx) | 界面模块；入口/导出：CompareBody、CalendarBody、InboxBody、TemplatesBody |
+| [DashboardInspector.tsx](DashboardInspector.tsx) | 界面模块；入口/导出：DashboardInspect、DashboardInspectContext、InspectorModule |
 | [DashboardMessages.test.tsx](DashboardMessages.test.tsx) | 测试：DashboardMessages |
 | [DashboardMessages.tsx](DashboardMessages.tsx) | 界面模块；入口/导出：DashboardMessages |
-| [DashboardNativeCards.tsx](DashboardNativeCards.tsx) | 界面模块；入口/导出：DashboardBook、DashboardView、DashboardViewContext、NativeTile |
+| [DashboardNativeCards.tsx](DashboardNativeCards.tsx) | 界面模块；入口/导出：NativeTile |
 | [DashboardPages.tsx](DashboardPages.tsx) | 界面模块；入口/导出：pageLabel、DashboardPageTabs、DashboardPresetSheet |
 | [DashboardSidebar.tsx](DashboardSidebar.tsx) | 界面模块；入口/导出：DashboardSidebar、SidebarCustomizer |
 | [DesktopBookPage.tsx](DesktopBookPage.tsx) | 界面模块；入口/导出：DesktopBookPage |
@@ -41,6 +43,7 @@
 | [dashboardScopes.tsx](dashboardScopes.tsx) | 界面模块；入口/导出：BookData、DashboardScopeStore、DashboardScopeContext、DashboardScopeProbes、useDashboardBooks |
 | [dashboardStore.test.ts](dashboardStore.test.ts) | 测试：dashboardStore |
 | [dashboardStore.ts](dashboardStore.ts) | 实现模块；入口/导出：DASHBOARD_RECORD_VERSION、DASHBOARD_INSTALLED、DASHBOARD_BASE_COLUMNS、dashboardStorageKey、legacyDashboardStorageKey |
+| [dashboardView.ts](dashboardView.ts) | 实现模块；入口/导出：DashboardBook、DashboardView、DashboardViewContext、useDashboardView |
 | [desktop.css](desktop.css) | 样式与变量 |
 | [desktopDetailLayout.test.tsx](desktopDetailLayout.test.tsx) | 测试：desktopDetailLayout |
 | [desktopModel.test.ts](desktopModel.test.ts) | 测试：desktopModel |

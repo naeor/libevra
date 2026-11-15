@@ -45,6 +45,7 @@ import { DashboardStatsControl, DashboardTimeControl, MaskToggle } from "./Dashb
 import { dashboardDestination } from "./dashboardNavigation.js";
 import { DashboardSidebar, SidebarCustomizer } from "./DashboardSidebar.js";
 import { DashboardPageTabs, DashboardPresetSheet } from "./DashboardPages.js";
+import { DashboardInspectContext } from "./DashboardInspector.js";
 import { DashboardViewContext, NativeTile, type DashboardBook, type DashboardView } from "./DashboardNativeCards.js";
 import { DashboardAvailableContext, DashboardScopeContext, DashboardScopeProbes, DashboardScopeStore, useDashboardCardScope } from "./dashboardScopes.js";
 import {
@@ -82,7 +83,9 @@ function writeSession(key: string, value: string): void {
 }
 
 /** 卡片库「总览卡片」分组里的顺序；多账本收支只在有两本以上账本时提供。 */
-const LIBRARY: readonly NativeKind[] = ["ledger", "cross", "trend", "recent", "pending", "quick"];
+const LIBRARY: readonly NativeKind[] = ["ledger", "cross", "compare", "trend", "calendar", "recent", "inbox", "pending", "templates", "quick"];
+/** 只在有两本以上账本时才有意义的卡片。 */
+const MULTI_ONLY: ReadonlySet<NativeKind> = new Set(["cross", "compare"]);
 
 export function DesktopDashboardPage(): React.JSX.Element {
   const { t } = useI18n();
@@ -173,7 +176,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
       const kind = nativeKindOfId(analysisId);
       return kind === null ? null : nativeSizing(kind).defaultSize;
     },
-    nativeItems: LIBRARY.filter((kind) => kind !== "cross" || bookIds.length > 1).map((kind) => ({
+    nativeItems: LIBRARY.filter((kind) => !MULTI_ONLY.has(kind) || allBookIds.length > 1).map((kind) => ({
       analysisId: nativeAnalysisId(kind),
       title: t(`desktop.dashboard.cards.${kind}`),
       description: t(`desktop.dashboard.library.${kind}`),
@@ -200,7 +203,8 @@ export function DesktopDashboardPage(): React.JSX.Element {
     currentBookId,
     mainCode,
     month,
-  }), [bookList, bookIds, currentBookId, mainCode, month]);
+    owner,
+  }), [bookList, bookIds, currentBookId, mainCode, month, owner]);
 
   /** 总览上的分析卡片点开去哪：分析页右侧辅助栏（默认），或那个月的明细。 */
   const analysisDestination = (card: AnalysisCardNode): string =>
@@ -226,12 +230,19 @@ export function DesktopDashboardPage(): React.JSX.Element {
 
   const switcher = useEnterLedger();
   const navigate = useNavigate();
-  const openAnalysisCard = (cardId: string): void => {
+  // 1.19.103：侧栏放了「检查器」时，点分析卡片在侧栏里看详情（卡片设置里选了别的去处的照旧）。
+  const [inspected, setInspected] = useState<string | null>(null);
+  const inspectorOn = settings.sidebar.modules.some((module) => module.kind === "inspector");
+  const openAnalysisCard = (cardId: string, full = false): void => {
     if (owner === null) return;
     // 「每本账一组」页展开后的卡片 id 是「模板 id@账本」：打开模板那张卡片，数据来自那本账。
     const templateId = templateObjectId(cardId);
     const card = findDashboardCard(owner, templateId);
     if (card === undefined) return;
+    if (!full && inspectorOn && cardDisplay(card).open === undefined) {
+      setInspected(cardId);
+      return;
+    }
     const destination = analysisDestination(card);
     const source = cardId === templateId ? cardSourceBook(card) : cardId.slice(templateId.length + 1);
     if (source !== null && source !== currentBookId) switcher.enter(source, undefined, destination);
@@ -244,6 +255,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
 
   return (
     <DashboardScopeContext.Provider value={store}>
+      <DashboardInspectContext.Provider value={{ inspected, inspect: setInspected, openFull: (cardId) => openAnalysisCard(cardId, true) }}>
       <DashboardAvailableContext.Provider value={available}>
       <DashboardViewContext.Provider value={view}>
         <CardRenderContext.Provider value={hooks}>
@@ -299,6 +311,7 @@ export function DesktopDashboardPage(): React.JSX.Element {
         </CardRenderContext.Provider>
       </DashboardViewContext.Provider>
       </DashboardAvailableContext.Provider>
+      </DashboardInspectContext.Provider>
     </DashboardScopeContext.Provider>
   );
 }

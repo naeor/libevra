@@ -15,8 +15,10 @@
  * 数据来自各账本的数据作用域（`dashboardScopes.tsx`），与分析页同一份读取；点击账本相关的内容会先激活那本账
  * （切换账本仍是整页重新载入），再进入明细或分析（S18-B 桌面第二轮，所有者 2026-11-01）。
  */
-import { createContext, useContext, useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Link, useNavigate } from "react-router";
+import { useDashboardView, type DashboardView } from "./dashboardView.js";
+import { CalendarBody, CompareBody, InboxBody, TemplatesBody } from "./DashboardExtraCards.js";
 import { UNCATEGORISED_NAME, type Transaction } from "@libellum/shared";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
 
@@ -41,30 +43,8 @@ import { dashboardDestination } from "./dashboardNavigation.js";
 import { useDashboardBooks, type BookData } from "./dashboardScopes.js";
 import { desktopEntryDisabled, useEnterLedger } from "./DesktopNav.js";
 
-export interface DashboardBook {
-  readonly id: string;
-  readonly name: string;
-  readonly memberCount: number;
-}
-
-export interface DashboardView {
-  readonly books: ReadonlyMap<string, DashboardBook>;
-  /** 总览范围里的账本（游客只有当前账本）。 */
-  readonly bookIds: readonly string[];
-  readonly currentBookId: string | null;
-  /** 原币统计的主币种（账号默认币种）。 */
-  readonly mainCode: string;
-  /** 进入明细 / 分析时带的月份（总览时间范围的最后一个月）。 */
-  readonly month: string;
-}
-
-export const DashboardViewContext = createContext<DashboardView | null>(null);
-
-function useView(): DashboardView {
-  const view = useContext(DashboardViewContext);
-  if (view === null) throw new Error("DashboardViewContext missing");
-  return view;
-}
+export { DashboardViewContext, type DashboardBook, type DashboardView } from "./dashboardView.js";
+const useView = useDashboardView;
 
 const METRICS: readonly NativeMetric[] = ["expense", "income", "balance"];
 
@@ -143,7 +123,7 @@ function nativeIsEmpty(card: AnalysisCardNode, view: DashboardView, books: Reado
   const options = nativeOptions(card);
   const ids = kind === "ledger" ? (options.bookId === undefined ? [] : [options.bookId])
     : kind === "trend" ? [options.bookId ?? view.currentBookId ?? ""]
-      : kind === "cross" ? resolveBooks(options.books, view.bookIds)
+      : kind === "cross" || kind === "compare" ? resolveBooks(options.books, view.bookIds)
         : [];
   if (ids.length === 0) return false;
   return ids.every((id) => {
@@ -166,7 +146,7 @@ function useSubtitle(card: AnalysisCardNode): string {
     const bookId = options.bookId ?? view.currentBookId ?? undefined;
     return bookId === undefined ? "" : view.books.get(bookId)?.name ?? "";
   }
-  if (kind === "cross" || kind === "recent") {
+  if (kind === "cross" || kind === "recent" || kind === "compare" || kind === "calendar" || kind === "inbox") {
     const books = resolveBooks(options.books, view.bookIds);
     if (view.bookIds.length <= 1) return "";
     return books.length === view.bookIds.length ? t("desktop.dashboard.booksAll", { count: books.length }) : t("desktop.dashboard.booksSome", { count: books.length });
@@ -189,6 +169,14 @@ function NativeBody({ card, width, height }: { readonly card: AnalysisCardNode; 
       return <PendingBody width={width} height={height} />;
     case "quick":
       return <QuickBody width={width} height={height} />;
+    case "inbox":
+      return <InboxBody card={card} width={width} height={height} />;
+    case "calendar":
+      return <CalendarBody card={card} width={width} height={height} />;
+    case "templates":
+      return <TemplatesBody width={width} height={height} />;
+    case "compare":
+      return <CompareBody card={card} width={width} height={height} />;
     default:
       return <p className="text-helper text-muted">{t("statsWorkbench.card.unknown")}</p>;
   }

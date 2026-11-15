@@ -23,7 +23,7 @@ import {
   type WorkbenchContentDocumentV1,
 } from "@libellum/shared/analysis/layout";
 import { configurationFingerprint } from "@libellum/shared/workbench/configuration";
-import { STATS_RANGES, type StatsRangeKey } from "@libellum/shared";
+import { STATS_RANGES, type StatsRangeKey, type Transaction } from "@libellum/shared";
 
 import { LIBEVRA_KEY_PREFIX } from "../lib/deviceStorageKeys.js";
 import { cardSizing } from "../statsWorkbench/composition.js";
@@ -482,6 +482,110 @@ export function templateObjectId(objectId: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// 常用账目（1.19.103，候选清单 A8）：从某一笔账存下来的模板；点一下打开记一笔、已填好，确认后才记。
+// 模板属于一本账（分类、支付方式、标签都是那本账的），只在那本账是当前账本时可用。本机。
+// ---------------------------------------------------------------------------
+
+export const MAX_TEMPLATES = 30;
+export const TEMPLATE_NAME_MAX = 20;
+
+export interface EntryTemplate {
+  readonly id: string;
+  readonly bookId: string;
+  readonly name: string;
+  readonly kind: "expense" | "income";
+  readonly amountCents: number;
+  readonly currency: string;
+  readonly categoryId: string | null;
+  readonly paymentMethodId: string | null;
+  readonly note: string;
+  readonly tagIds: readonly string[];
+}
+
+export function dashboardTemplatesKey(owner: string): string {
+  return `${LIBEVRA_KEY_PREFIX}desktop.dashboard-templates:v1:${owner}`;
+}
+
+function isTemplate(value: unknown): value is EntryTemplate {
+  if (typeof value !== "object" || value === null) return false;
+  const item = value as Record<string, unknown>;
+  return typeof item["id"] === "string" && typeof item["bookId"] === "string" && typeof item["name"] === "string" &&
+    (item["kind"] === "expense" || item["kind"] === "income") && Number.isSafeInteger(item["amountCents"]) && (item["amountCents"] as number) > 0 &&
+    typeof item["currency"] === "string" && (item["categoryId"] === null || typeof item["categoryId"] === "string") &&
+    (item["paymentMethodId"] === null || typeof item["paymentMethodId"] === "string") && typeof item["note"] === "string" &&
+    Array.isArray(item["tagIds"]) && (item["tagIds"] as unknown[]).every((id) => typeof id === "string");
+}
+
+export function loadTemplates(owner: string | null): readonly EntryTemplate[] {
+  if (owner === null) return [];
+  try {
+    const raw = storage()?.getItem(dashboardTemplatesKey(owner));
+    if (raw === null || raw === undefined) return [];
+    const value = JSON.parse(raw) as { v?: unknown; items?: unknown };
+    return value.v === 1 && Array.isArray(value.items) ? value.items.filter(isTemplate).slice(0, MAX_TEMPLATES) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTemplates(owner: string, items: readonly EntryTemplate[]): boolean {
+  try {
+    storage()?.setItem(dashboardTemplatesKey(owner), JSON.stringify({ v: 1, items }));
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DASHBOARD_TEMPLATES_CHANGED, { detail: owner }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const DASHBOARD_TEMPLATES_CHANGED = "libevra-dashboard-templates-changed";
+
+export function addTemplate(owner: string, bookId: string, entry: Pick<Transaction, "kind" | "amountCents" | "currency" | "categoryId" | "paymentMethodId" | "note" | "tags">, name: string): "ok" | "full" | "name" | "storage" {
+  const trimmed = name.trim().slice(0, TEMPLATE_NAME_MAX);
+  if (trimmed === "") return "name";
+  const items = loadTemplates(owner);
+  if (items.length >= MAX_TEMPLATES) return "full";
+  const template: EntryTemplate = {
+    id: newObjectId("card").replace(/^card-/, "tpl-"),
+    bookId,
+    name: trimmed,
+    kind: entry.kind === "income" ? "income" : "expense",
+    amountCents: entry.amountCents,
+    currency: entry.currency,
+    categoryId: entry.categoryId ?? null,
+    paymentMethodId: entry.paymentMethodId ?? null,
+    note: entry.note ?? "",
+    tagIds: entry.tags.map((tag) => tag.id),
+  };
+  return writeTemplates(owner, [...items, template]) ? "ok" : "storage";
+}
+
+export function deleteTemplate(owner: string, id: string): boolean {
+  return writeTemplates(owner, loadTemplates(owner).filter((item) => item.id !== id));
+}
+
+/** 交给「记一笔」页的预填（与「复制这一笔」同一条路径）。 */
+export function templateCopyFrom(template: EntryTemplate): {
+  readonly kind: "expense" | "income";
+  readonly amountCents: number;
+  readonly currency: string;
+  readonly categoryId: string | null;
+  readonly paymentMethodId: string | null;
+  readonly note: string;
+  readonly tags: readonly { readonly id: string }[];
+} {
+  return {
+    kind: template.kind,
+    amountCents: template.amountCents,
+    currency: template.currency,
+    categoryId: template.categoryId,
+    paymentMethodId: template.paymentMethodId,
+    note: template.note,
+    tags: template.tagIds.map((id) => ({ id })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 我的预设（1.19.102，候选清单 E3）：保存几套自己的总览布局。只存布局，不存任何金额；本机。
 // ---------------------------------------------------------------------------
 
@@ -566,8 +670,8 @@ export type DashboardTime =
   | { readonly kind: "month"; readonly month: string };
 
 /** 右侧栏可以放的模块（1.19.101，候选清单 D1–D4）。 */
-export type SidebarKind = "quick" | "messages" | "pending" | "recent" | "books";
-export const SIDEBAR_KINDS: readonly SidebarKind[] = ["quick", "messages", "pending", "recent", "books"];
+export type SidebarKind = "quick" | "messages" | "pending" | "recent" | "books" | "inbox" | "calendar" | "templates" | "inspector";
+export const SIDEBAR_KINDS: readonly SidebarKind[] = ["quick", "messages", "pending", "recent", "books", "inbox", "calendar", "templates", "inspector"];
 /** 快捷操作里的五种记账方式（与「记一笔」菜单相同的 id）。 */
 export const ENTRY_METHOD_IDS: readonly string[] = ["manual", "paste", "voice", "scan", "import"];
 

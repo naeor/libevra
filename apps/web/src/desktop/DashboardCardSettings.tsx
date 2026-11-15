@@ -11,6 +11,7 @@ import { BottomSheet } from "../components/BottomSheet.js";
 import { useI18n } from "../i18n/index.js";
 import { cardTitle } from "../statsWorkbench/cards.js";
 import {
+  INBOX_KINDS,
   cardDisplay,
   cardSourceBook,
   NOTE_MAX,
@@ -53,7 +54,7 @@ export function DashboardCardSettings({
   const [source, setSource] = useState<string | null>(() => cardSourceBook(card));
   const [display, setDisplay] = useState<CardDisplay>(() => cardDisplay(card));
   // 「没有数据时」与「点卡片」只对有数据、有去处的卡片有意义。
-  const hasEmpty = !native || kind === "ledger" || kind === "trend" || kind === "cross";
+  const hasEmpty = !native || kind === "ledger" || kind === "trend" || kind === "cross" || kind === "compare";
   const opens: readonly ("default" | "entries" | "analysis" | "none")[] = !native ? ["default", "entries", "none"] : kind === "ledger" ? ["default", "analysis", "none"] : kind === "trend" ? ["default", "entries", "none"] : [];
   const multi = kind !== null && nativeSpec(kind).multiBook;
   const chosen = options.books === undefined || options.books === "all" ? null : new Set(options.books);
@@ -122,6 +123,42 @@ export function DashboardCardSettings({
               </label>
               <p className="text-helper-relaxed text-muted">{t("desktop.dashboard.settings.sizeHint")}</p>
             </>
+          ) : null}
+
+          {kind === "compare" ? (
+            <fieldset className="flex flex-col gap-1.5">
+              <legend className="pb-1.5 text-helper text-muted">{t("desktop.dashboard.metric")}</legend>
+              <div className="lv-desk-seg" role="radiogroup">
+                {METRICS.map((metric) => (
+                  <button key={metric} type="button" role="radio" aria-checked={(options.metric ?? "expense") === metric} onClick={() => setOptions({ ...options, metric })}>
+                    {t(`desktop.entries.${metric}`)}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ) : null}
+
+          {kind === "inbox" ? (
+            <fieldset className="flex flex-col gap-0.5">
+              <legend className="pb-1.5 text-helper text-muted">{t("desktop.dashboard.inbox.kinds")}</legend>
+              {INBOX_KINDS.map((item) => {
+                const chosenKinds = options.kinds ?? INBOX_KINDS;
+                return (
+                  <label key={item} className="flex min-h-11 items-center gap-3 text-body text-ink">
+                    <input
+                      type="checkbox"
+                      className="size-5 accent-brand"
+                      checked={chosenKinds.includes(item)}
+                      onChange={(event) => {
+                        const next = event.target.checked ? [...chosenKinds, item] : chosenKinds.filter((value) => value !== item);
+                        if (next.length > 0) setOptions({ ...options, kinds: INBOX_KINDS.filter((value) => next.includes(value)) });
+                      }}
+                    />
+                    {t(`desktop.dashboard.inbox.kind.${item as "conflicts"}`)}
+                  </label>
+                );
+              })}
+            </fieldset>
           ) : null}
 
           {kind === "trend" ? (

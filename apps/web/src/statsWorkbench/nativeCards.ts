@@ -30,7 +30,12 @@ export interface NativeOptions {
   /** 账本卡片：大尺寸下是否显示趋势、最近账目（缺省显示）。 */
   readonly showTrend?: boolean;
   readonly showRecent?: boolean;
+  /** 待整理卡片（1.19.103）：关心哪几类事；缺省全部。 */
+  readonly kinds?: readonly string[];
 }
+
+/** 待整理卡片可以列出的几类事。 */
+export const INBOX_KINDS: readonly string[] = ["conflicts", "pending", "uncategorised", "missingFx", "attachments"];
 
 interface NativeSpec {
   readonly kind: NativeKind;
@@ -104,6 +109,7 @@ export function nativeOptions(card: AnalysisCardNode): NativeOptions {
     ...(METRICS.includes(value["metric"] as NativeMetric) ? { metric: value["metric"] as NativeMetric } : {}),
     ...(typeof value["showTrend"] === "boolean" ? { showTrend: value["showTrend"] } : {}),
     ...(typeof value["showRecent"] === "boolean" ? { showRecent: value["showRecent"] } : {}),
+    ...(Array.isArray(value["kinds"]) ? { kinds: value["kinds"].filter((kind): kind is string => typeof kind === "string" && INBOX_KINDS.includes(kind)) } : {}),
   };
 }
 

@@ -17,6 +17,9 @@ import { formatMoney } from "../lib/format.js";
 import { useGuestMode } from "../lib/guest/session.js";
 import { sortByTime } from "../pages/DetailPage.js";
 import { EntryMethodList } from "../workspace/RailEntryMenu.js";
+import { newNativeCard } from "../statsWorkbench/nativeCards.js";
+import { CalendarBody, InboxBody, TemplatesBody } from "./DashboardExtraCards.js";
+import { InspectorModule } from "./DashboardInspector.js";
 import { bookFigures } from "./dashboardData.js";
 import { DashboardMessages } from "./DashboardMessages.js";
 import { dashboardDestination } from "./dashboardNavigation.js";
@@ -74,8 +77,20 @@ function ModuleBody({ module, books }: { readonly module: SidebarModule; readonl
       return <RecentModule limit={module.limit ?? 5} />;
     case "books":
       return <BooksModule />;
+    case "inbox":
+      return <InboxBody card={SIDEBAR_INBOX} width={340} height={46 * 4} />;
+    case "calendar":
+      return <div className="h-[220px]"><CalendarBody card={SIDEBAR_CALENDAR} width={340} height={220} /></div>;
+    case "templates":
+      return <TemplatesBody width={340} height={200} />;
+    case "inspector":
+      return <InspectorModule />;
   }
 }
+
+/** 侧栏里的待整理与月历：范围是总览范围里的全部账本、关心全部几类事。 */
+const SIDEBAR_INBOX = newNativeCard("inbox", "sidebar-inbox");
+const SIDEBAR_CALENDAR = newNativeCard("calendar", "sidebar-calendar");
 
 function QuickModule({ module }: { readonly module: SidebarModule }): React.JSX.Element {
   const { t } = useI18n();

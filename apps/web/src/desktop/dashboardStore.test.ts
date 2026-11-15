@@ -8,6 +8,11 @@ import { dailySeries, mergeTotals, totalsByCurrency } from "./dashboardData.js";
 import { buildDashboardPreset, DASHBOARD_PRESET_IDS } from "./dashboardPresets.js";
 import {
   adaptToBooks,
+  addTemplate,
+  dashboardTemplatesKey,
+  deleteTemplate,
+  loadTemplates,
+  templateCopyFrom,
   createPage,
   deleteDashboardPreset,
   deletePage,
@@ -265,7 +270,7 @@ describe("多页总览、每本账一组与预设（1.19.102）", () => {
     const pages = listPages(owner);
     expect(pages.map((page) => page.id)).toEqual(["main", id]);
     expect(pages[1]!.name).toHaveLength(12);
-    expect(readDashboard(owner, ["a", "b"], ["a", "b"], id).documents.content.cards.some((card) => nativeKindOf(card) === "pending")).toBe(true);
+    expect(readDashboard(owner, ["a", "b"], ["a", "b"], id).documents.content.cards.some((card) => nativeKindOf(card) === "inbox")).toBe(true);
     expect(ledgerBooks(readDashboard(owner, ["a", "b"], ["a", "b"], "main").documents)).toEqual(["a", "b"]);
   });
   it("保存只改那一页；改名、换位、删除；最后一页不能删", () => {
@@ -313,6 +318,27 @@ describe("多页总览、每本账一组与预设（1.19.102）", () => {
     const first = loadDashboardPresets(owner)[0]!;
     expect(deleteDashboardPreset(owner, first.id)).toBe(true);
     expect(loadDashboardPresets(owner)).toHaveLength(9);
+  });
+});
+
+describe("常用账目与待整理选项（1.19.103）", () => {
+  it("从一笔账存下模板：属于那本账；交给「记一笔」的预填与「复制这一笔」同形", () => {
+    const source = { kind: "expense" as const, amountCents: 9550, currency: "CNY" as const, categoryId: "c1", paymentMethodId: null, note: "超市", tags: [{ id: "t1", name: "家用" }] };
+    expect(addTemplate(owner, "a", source as never, "  ")).toBe("name");
+    expect(addTemplate(owner, "a", source as never, "超市")).toBe("ok");
+    const [template] = loadTemplates(owner);
+    expect(template).toMatchObject({ bookId: "a", name: "超市", amountCents: 9550, categoryId: "c1", tagIds: ["t1"] });
+    expect(templateCopyFrom(template!)).toEqual({ kind: "expense", amountCents: 9550, currency: "CNY", categoryId: "c1", paymentMethodId: null, note: "超市", tags: [{ id: "t1" }] });
+    expect(deleteTemplate(owner, template!.id)).toBe(true);
+    expect(loadTemplates(owner)).toEqual([]);
+  });
+  it("损坏的模板条目不读进来（金额不是正整数、缺字段）", () => {
+    localStorage.setItem(dashboardTemplatesKey(owner), JSON.stringify({ v: 1, items: [{ id: "x", bookId: "a", name: "坏", kind: "expense", amountCents: -1, currency: "CNY", categoryId: null, paymentMethodId: null, note: "", tagIds: [] }, { id: "y" }] }));
+    expect(loadTemplates(owner)).toEqual([]);
+  });
+  it("待整理卡片只认识的几类", () => {
+    const card = { ...newNativeCard("inbox", "i"), chart: { chartFamily: "dashboard", options: { native: { kinds: ["pending", "weather", "attachments"] } } } };
+    expect(nativeOptions(card)).toEqual({ kinds: ["pending", "attachments"] });
   });
 });
 

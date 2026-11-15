@@ -89,6 +89,8 @@ export function clearOwnerPreferences(role: "user" | "guest", id: string, store:
         key === `libevra.desktop.dashboard-settings:v1:${scope}` || key === `libevra.desktop.dashboard-mask:v1:${scope}` ||
         // 1.19.102：这台设备停在哪一页、我的总览预设。
         key === `libevra.desktop.dashboard-page:v1:${scope}` || key === `libevra.desktop.dashboard-presets:v1:${scope}` ||
+        // 1.19.103：总览的常用账目（金额、分类 id、备注；属于这个身份）。
+        key === `libevra.desktop.dashboard-templates:v1:${scope}` ||
         key === `libevra.detail-cards.v1.${id}` || key.startsWith(`libevra.detail-cards.v2.${id}.`) ||
         ["ledger", "analysis"].some(slot => key.startsWith(`${LEDGER_FILTER_PREFIX}${slot}:${scope}:`)) ||
         (role === "user" && key.startsWith(`${OFFLINE_RECORDER_REFRESH_PREFIX}${id}:`)) ||

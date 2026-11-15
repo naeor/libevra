@@ -5,8 +5,8 @@
  * | 预设 | 用途 |
  * |---|---|
  * | 日常 | 与默认总览相同：各账本、多账本收支、趋势、最近账目、待处理 |
- * | 家庭多账本 | 每本账一张账本卡片，下面是多账本收支、最近账目与支出分类 |
- * | 月末对账 | 待处理、收支合计、支出分类、分类变化、最近账目、本期要点 |
+ * | 家庭多账本 | 每本账一张账本卡片，下面是多账本收支、账本对比、月历、最近账目与支出分类 |
+ * | 月末对账 | 待整理、收支合计、支出分类、分类变化、最近账目、本期要点 |
  * | 极简 | 每本账一个数字，加一条支出趋势与快捷操作 |
  */
 import type { AnalysisCardNode, GridSize } from "@libellum/shared/analysis/layout";
@@ -42,13 +42,14 @@ export function buildDashboardPreset(id: DashboardPresetId, bookIds: readonly st
     case "family":
       return packCards([
         ...bookIds.map((bookId) => native("ledger", `ledger-${bookId}`, S(2, 2), { bookId })),
-        ...(multi ? [native("cross", "cross", S(4, 2))] : []),
+        ...(multi ? [native("cross", "cross", S(2, 2)), native("compare", "compare", S(2, 2))] : []),
+        native("calendar", "calendar", S(2, 3)),
         native("recent", "recent", S(2, 3)),
         analysis("AN-I01", "categories"),
       ]);
     case "month-end":
       return packCards([
-        native("pending", "pending", S(2, 1)),
+        native("inbox", "inbox", S(2, 2)),
         multi ? native("cross", "cross", S(2, 2)) : native("ledger", "ledger", S(2, 2), bookIds[0] === undefined ? {} : { bookId: bookIds[0] }),
         analysis("AN-I01", "categories"),
         analysis("AN-A17", "category-change"),
