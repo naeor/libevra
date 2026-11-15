@@ -55,6 +55,8 @@ import { deliverFile } from "../lib/share.js";
 import { continueEntry } from "../lib/entryFlow.js";
 import { useReturnToPath } from "../lib/entryReturn.js";
 import { useFocusTask } from "../components/PersistentNavContext.js";
+import { useGuestMode } from "../lib/guest/session.js";
+import { GUEST_MIGRATION_LIMITS, guestMigrationReminder } from "../lib/guest/billImportLimits.js";
 
 /**
  * 账单导入 V2：选文件 → 服务端识别 → 概览核对 → 批量入账。
@@ -73,6 +75,11 @@ import { useFocusTask } from "../components/PersistentNavContext.js";
  * ⚠️ **没有独立的 /import/review 路由**：契约里没有“按 previewId 重新取预览”的读接口，
  * 预览只存在于当前页面的内存里。刷新或从别处深链进来只会回到选文件状态——这是有意的，
  * 避免出现“看起来能恢复、实际上预览已过期”的半状态。
+ *
+ * ⚠️ **游客（1.19.96）**：同一页、同一套步骤；`previewBill` / `recheckBill` / `commitBill` 在游客模式下走本机
+ * （`lib/guest/billImport.ts`：解析与核对规则与服务器共用 `@libellum/shared/billParsers`，XLSX / PDF 在浏览器里抽取，
+ * 提交整批一次写进游客账本）。游客多一条提醒：导入后这本账超过“转正式账号”的上限时，在核对与确认步骤说明
+ * （`guestMigrationReminder`）。
  *
  * ⚠️ **入口语义不能变**（见 `ImportPage.entry.test.tsx`）：
  *
@@ -268,6 +275,32 @@ function ImportView({
 
   const check =
     preview === null ? null : billCommitCheck(items, preview, acknowledged, problemsById);
+
+  /**
+   * 1.19.96 游客：导入后这本账若超过“转正式账号”的整本上限（5000 笔 / 200 个标签），在核对与确认步骤说明——
+   * 转正式账号时整本作为一个快照上传，没有分批上传（见 `lib/guest/billImportLimits.ts`）。只提醒，不阻止导入。
+   */
+  const guest = useGuestMode();
+  const migrationReminder =
+    !guest || check === null
+      ? null
+      : guestMigrationReminder({
+          existingTransactions: meta.data?.stats?.transactionCount ?? 0,
+          importable: check.importableCount,
+          existingTagNames: (meta.data?.tags ?? []).map((tag) => tag.name),
+          importTagNames: items.filter((item) => item.selected && !item.identityDuplicate).flatMap((item) => item.tags),
+        });
+  const migrationNotes =
+    migrationReminder === null
+      ? []
+      : [
+          ...(migrationReminder.overTransactions
+            ? [t("dataio.import.guestLimitTransactions", { total: migrationReminder.transactions, limit: GUEST_MIGRATION_LIMITS.transactions })]
+            : []),
+          ...(migrationReminder.overTags
+            ? [t("dataio.import.guestLimitTags", { total: migrationReminder.tags, limit: GUEST_MIGRATION_LIMITS.tags })]
+            : []),
+        ];
 
   const categories = meta.data?.categories ?? [];
   const paymentMethods = meta.data?.paymentMethods ?? [];
@@ -536,6 +569,16 @@ function ImportView({
             </div>
           )}
 
+          {migrationNotes.length === 0 ? null : (
+            <div data-guest-migration-limit="" className="flex flex-col gap-1 rounded-field bg-warn-soft px-4 py-3 text-helper-relaxed text-warn-dark">
+              <p className="text-body font-medium">{t("dataio.import.guestLimitTitle")}</p>
+              {migrationNotes.map((note) => (
+                <p key={note}>{note}</p>
+              ))}
+              <p>{t("dataio.import.guestLimitHint", { limit: GUEST_MIGRATION_LIMITS.transactions })}</p>
+            </div>
+          )}
+
           {step.preview.reconciliation.ok === true ? (
             <p className="text-helper text-muted">{t("dataio.import.reconciled")}</p>
           ) : null}
@@ -711,6 +754,7 @@ function ImportView({
                     }),
                 t("dataio.confirm.duplicates", { count: counts.duplicate }),
                 ...ackReasons.slice(0, 5).map((reason) => t("dataio.confirm.acknowledged", { reason })),
+                ...migrationNotes,
                 t("dataio.confirm.identityNote"),
               ]
             : []

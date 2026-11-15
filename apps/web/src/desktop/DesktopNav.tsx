@@ -48,12 +48,12 @@ export function navIdFor(pathname: string): NavId | null {
 /**
  * 游客在电脑版记账菜单里不可用的方式。
  *
- * ⚠️ **第二份判断，按 AGENTS §6 另写并由一致性测试锁住**：与 `GlobalRail` 的「记一笔」菜单（游客只能手动
- * 记账）必须一致，见 `desktop/desktopNav.test.tsx`。
+ * ⚠️ **第二份判断，按 AGENTS §6 另写并由一致性测试锁住**：与 `GlobalRail` 的「记一笔」菜单（游客可用手动、
+ * 文本与导入账单）必须一致，见 `desktop/desktopNav.test.tsx`。
  */
 export function desktopEntryDisabled(action: (typeof ENTRY_ACTIONS)[number], guest: boolean): boolean {
-  // 游客：手动与文本在本机即可完成；语音、拍照、导入账单需要服务器（导入下一批做本机版）。
-  return guest && action.id !== "manual" && action.id !== "paste";
+  // 游客：手动、文本与导入账单（1.19.96 起本机导入）在本机即可完成；语音、拍照需要服务器。
+  return guest && action.id !== "manual" && action.id !== "paste" && action.id !== "import";
 }
 
 function NavLinkItem({ item, active }: { readonly item: DesktopNavItem; readonly active: boolean }): React.JSX.Element {

@@ -346,7 +346,8 @@ function AppRoutes(): React.JSX.Element {
         <Route path="/ocr/overview" element={<RequireAuth><CurrentLedgerOnly><OcrOverviewPage /></CurrentLedgerOnly></RequireAuth>} />
         <Route path="/ocr/overview/:candidateId" element={<RequireAuth><CurrentLedgerOnly><OcrReviewDetailPage /></CurrentLedgerOnly></RequireAuth>} />
       <Route path="/export" element={<RequireSession><CurrentLedgerOnly><ExportPage /></CurrentLedgerOnly></RequireSession>} />
-      <Route path="/import" element={<RequireAuth><CurrentLedgerOnly><ImportPage /></CurrentLedgerOnly></RequireAuth>} />
+      {/* 1.19.96：导入账单游客也能用——预览、核对、提交在本机完成（lib/guest/billImport.ts），只写游客库。 */}
+      <Route path="/import" element={<RequireSession><CurrentLedgerOnly><ImportPage /></CurrentLedgerOnly></RequireSession>} />
       <Route path="/import-ledger" element={<RequireAuth><CurrentLedgerOnly><LedgerImportPage /></CurrentLedgerOnly></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
       <Route path="/profile/avatar" element={<RequireAuth><AvatarPickerPage /></RequireAuth>} />
@@ -406,7 +407,7 @@ function AppRoutes(): React.JSX.Element {
         * 附件页仍只给正式账号。
         */}
       <Route path="/books/:bookId" element={<RequireSession><BookDetailPage /></RequireSession>} />
-      <Route path="/books/:bookId/attachments" element={<RequireAuth><AttachmentsPage /></RequireAuth>} />
+      <Route path="/books/:bookId/attachments" element={<RequireSession><AttachmentsPage /></RequireSession>} />
       <Route path="/books/:bookId/settings" element={<RequireSession><BookSettingsPage /></RequireSession>} />
       {/**
         * ⚠️ **The three organisers and the two data screens now have a per-ledger address.** The same
@@ -418,7 +419,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/books/:bookId/settings/tags" element={<RequireSession><TagsPage /></RequireSession>} />
       <Route path="/books/:bookId/settings/payment-methods" element={<RequireSession><PaymentMethodsPage /></RequireSession>} />
       <Route path="/books/:bookId/settings/export" element={<RequireSession><ExportPage /></RequireSession>} />
-      <Route path="/books/:bookId/settings/import" element={<RequireAuth><ImportPage /></RequireAuth>} />
+      <Route path="/books/:bookId/settings/import" element={<RequireSession><ImportPage /></RequireSession>} />
       {/**
        * ⚠️ S15-E5：全账本重复检查。游客同样放开（`RequireSession`）：游客数据全在本机，
        * `lib/duplicateReview.ts` 有本机扫描分支，页面会如实说明只扫本机已知记录。

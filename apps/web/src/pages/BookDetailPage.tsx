@@ -1,4 +1,5 @@
 import { BookAttachmentSummary } from "../components/Attachments.js";
+import { GuestBookAttachmentSummary } from "../components/GuestAttachments.js";
 import { BookNotificationBell } from "../components/BookNotificationBell.js";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -63,7 +64,7 @@ export function BookDetailPage(): React.JSX.Element {
 
       {meta.isSuccess ? (
         <>
-          {guest ? null : <BookAttachmentSummary bookId={bookId} />}
+          {guest ? <GuestBookAttachmentSummary bookId={bookId} /> : <BookAttachmentSummary bookId={bookId} />}
           <BookIdentityCard
             bookId={bookId}
             name={name ?? ""}

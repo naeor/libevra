@@ -61,6 +61,7 @@
 | [ErrorBoundary.tsx](ErrorBoundary.tsx) | 界面模块；入口/导出：ErrorBoundary |
 | [FxDisplay.tsx](FxDisplay.tsx) | 界面模块；入口/导出：FxModeSetting、FxAmountView、FxAmount、FxMonthSummary |
 | [FxStats.tsx](FxStats.tsx) | 界面模块；入口/导出：FxStats |
+| [GuestAttachments.tsx](GuestAttachments.tsx) | 界面模块；入口/导出：useGuestOwner、useGuestAttachments、useObjectUrl、GuestStorageNote、GuestEntryLink |
 | [GuestEntry.tsx](GuestEntry.tsx) | 界面模块；入口/导出：GuestEntry |
 | [GuestModeBadge.tsx](GuestModeBadge.tsx) | 界面模块；入口/导出：GuestModeBadge |
 | [GuestWelcome.tsx](GuestWelcome.tsx) | 界面模块；入口/导出：GuestWelcome |

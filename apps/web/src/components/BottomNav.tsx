@@ -459,11 +459,11 @@ export function BottomNavView({
                * pretending to work. 手动 and 文本 stay live (文本 parses on the device and writes locally) — it is the local form and the whole point of
                * guest mode.
                *
-               * ⚠️ **导入账单 is behind the same gate**, and for the same reason: `/import` is a
-               * server write scoped to a real account ledger. A guest pressing it would be bounced
-               * to `/login`, which is exactly the dead end these cards avoid.
+               * ⚠️ **导入账单 is live for guests since 1.19.96**: preview, review and commit run on the
+               * device (`lib/guest/billImport.ts`, the same shared parsers as the server) and write only
+               * to the guest store. Only 语音 and 拍照 stay disabled.
                */
-              if (guest && action.id !== "manual" && action.id !== "paste") {
+              if (guest && action.id !== "manual" && action.id !== "paste" && action.id !== "import") {
                 return (
                   <li key={action.id} className="min-w-0 flex-1 basis-0">
                     <button

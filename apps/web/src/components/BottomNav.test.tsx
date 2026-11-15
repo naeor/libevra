@@ -191,17 +191,21 @@ describe("中央 + 菜单的五个入口", () => {
 });
 
 describe("访客下的入口", () => {
-  it("disables the server-backed cards (语音/拍照/导入账单) but keeps 文本识别 live", () => {
+  it("disables the server-backed cards (语音/拍照) but keeps 文本识别 and 导入账单 live", () => {
     const html = renderNav({ guest: true });
 
     // 文本识别在本机解析、本机写入，游客可用（1.19.94 起）。
     expect(html).toContain('href="/paste"');
     expect(html).not.toContain("文本识别，需要正式账号");
 
-    const importCard = tagWithLabel(html, "导入账单，需要正式账号");
-    expect(importCard.startsWith("<button")).toBe(true);
-    expect(importCard).toContain('disabled=""');
-    expect(html).not.toContain('href="/import"');
+    // 导入账单在本机预览、核对、写入（1.19.96 起），游客可用。
+    expect(html).toContain('href="/import?from=nav"');
+    expect(html).not.toContain("导入账单，需要正式账号");
+
+    const voiceCard = tagWithLabel(html, "语音记账，需要正式账号");
+    expect(voiceCard.startsWith("<button")).toBe(true);
+    expect(voiceCard).toContain('disabled=""');
+    expect(tagWithLabel(html, "拍照识别，需要正式账号")).toContain('disabled=""');
     expect(html).not.toContain('href="/record"');
     expect(html).not.toContain('href="/scan"');
 
@@ -320,7 +324,8 @@ describe("英文界面（S16）", () => {
 
     // 以前是 `label !== "手动记账"`：切到英文后所有卡都会被当成"非手动"而禁用。
     expect(html).toContain('href="/add"');
-    expect(tagWithLabel(html, "Import a statement, needs a full account")).toContain('disabled=""');
+    expect(tagWithLabel(html, "Voice entry, needs a full account")).toContain('disabled=""');
+    expect(html).not.toContain("Import a statement, needs a full account");
     expect(html).toContain('href="/paste"');
     expect(html).not.toMatch(CJK);
   });

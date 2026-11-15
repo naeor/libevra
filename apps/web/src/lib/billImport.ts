@@ -6,6 +6,17 @@ import {
 import { t } from "../i18n/index.js";
 import { apiFetch } from "./api.js";
 import { parseAmountInput } from "./format.js";
+import { publishGuestSnapshot } from "./guest/bridge.js";
+import { guestRuntimeId, notifyGuestWrite } from "./guest/runtime.js";
+
+/**
+ * 1.19.96：游客的导入账单在本机完成（`lib/guest/billImport.ts`，解析与核对规则与服务器共用
+ * `@libellum/shared/billParsers`）。按需加载：登录用户的导入页不带这一块（解析器 + 浏览器端 XLSX/PDF 抽取）。
+ * 判断游客只看 `guestRuntimeId()`——与 `offline/write.ts` 的游客分支同一个入口，游客路径绝不调用 `apiFetch`。
+ */
+function guestBillImport() {
+  return import("./guest/billImport.js");
+}
 
 /**
  * 来源（服务端识别出的账单类型）→ 文案键。
@@ -70,6 +81,10 @@ export function billReviewCounts(items: readonly BillImportCandidate[]) {
 }
 
 export async function previewBill(file: File, bookId: string, settings: DuplicateDetectionSettings, timezone: string): Promise<BillImportPreview> {
+  if (guestRuntimeId() !== null) {
+    const target = requireImportBook(bookId);
+    return billImportPreviewSchema.parse(await (await guestBillImport()).guestPreviewBill(file, target, settings, timezone));
+  }
   const formData = new FormData();
   formData.append("settings", JSON.stringify(settings));
   formData.append("timezone", timezone);
@@ -78,6 +93,10 @@ export async function previewBill(file: File, bookId: string, settings: Duplicat
 }
 
 export async function recheckBill(preview: BillImportPreview, bookId: string, settings: DuplicateDetectionSettings): Promise<BillImportPreview> {
+  if (guestRuntimeId() !== null) {
+    const target = requireImportBook(bookId);
+    return billImportPreviewSchema.parse(await (await guestBillImport()).guestRecheckBill(preview.previewId, billCommitRows(preview.candidates), target, settings));
+  }
   return billImportPreviewSchema.parse(await apiFetch("/import/recheck", {
     method: "POST", bookId: requireImportBook(bookId),
     body: { previewId: preview.previewId, rows: billCommitRows(preview.candidates), settings },
@@ -86,6 +105,19 @@ export async function recheckBill(preview: BillImportPreview, bookId: string, se
 }
 
 export async function commitBill(preview: BillImportPreview, bookId: string, acknowledgeWarnings: boolean): Promise<ImportReport> {
+  if (guestRuntimeId() !== null) {
+    const target = requireImportBook(bookId);
+    const report = await (await guestBillImport()).guestCommitBill({
+      previewId: preview.previewId,
+      previewRevision: preview.revision,
+      rows: billCommitRows(preview.candidates),
+      acknowledgeWarnings,
+    }, target);
+    // 与 `offline/write.ts` 的游客写入相同：把新快照发布给明细 / 统计，并通知查询层刷新游客视图。
+    publishGuestSnapshot();
+    notifyGuestWrite();
+    return importReportSchema.parse(report);
+  }
   return importReportSchema.parse(await apiFetch("/import/commit", {
     method: "POST", bookId: requireImportBook(bookId),
     body: {

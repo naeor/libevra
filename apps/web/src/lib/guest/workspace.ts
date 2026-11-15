@@ -41,6 +41,7 @@
  * 账本）照常可用；下次启动再试迁移。
  */
 import { t } from "../../i18n/index.js";
+import { removeGuestBookAttachments } from "./attachments.js";
 import {
   guestBlobHasEntries,
   isRecognisedGuestBlob,
@@ -745,6 +746,8 @@ export function deleteGuestLedger(guestId: string, id: string): Promise<{ readon
     const nextCurrentId = await moveCurrentAway(guestId, id, listed.ledgers);
     await deleteGuestValue(guestDataKeyFor(guestId, id));
     await deleteGuestValue(guestNotDuplicateKeyFor(guestId, id));
+    // 这本账的附件原件在 libevra-attachments-v1，随账本一起删（失败不让删账本失败，只是残留可在清除游客数据时清掉）。
+    await removeGuestBookAttachments(guestId, id).catch(() => undefined);
     if (legacyResidents.get(guestId) === id) {
       legacyResidents.delete(guestId);
       // 旧键模式下删的就是旧键；新键若已写过一半也一起删。

@@ -49,15 +49,16 @@ describe("只对服务器有意义的入口对游客隐藏", () => {
     expect(sheet).toContain("...(guest ? [] : [ { key: \"members\"");
   });
 
-  it("账本详情：游客不显示通知铃铛与附件", () => {
+  it("账本详情：游客不显示通知铃铛，附件显示本机版本", () => {
     const detail = flat("../../pages/BookDetailPage.tsx");
     expect(detail).toContain("actions={guest ? undefined : <BookNotificationBell bookId={bookId} />}");
-    expect(detail).toContain("{guest ? null : <BookAttachmentSummary bookId={bookId} />}");
+    expect(detail).toContain("{guest ? <GuestBookAttachmentSummary bookId={bookId} /> : <BookAttachmentSummary bookId={bookId} />}");
   });
 
-  it("账本设置：游客不显示导入历史账与导入账本；删除对话框给出导出入口", () => {
+  it("账本设置：游客显示导入账单（1.19.96 本机导入）、不显示导入账本；删除对话框给出导出入口", () => {
     const settings = flat("../../pages/BookSettingsPage.tsx");
-    expect(settings).toContain("{guest ? null : ( <NavRow label={t(\"books.settings.row.import.label\")}");
+    expect(settings).not.toContain("{guest ? null : ( <NavRow label={t(\"books.settings.row.import.label\")}");
+    expect(settings).toContain("<NavRow label={t(\"books.settings.row.import.label\")} hint={t(\"books.settings.row.import.hint\")} to={`/books/${bookId}/settings/import`} />");
     expect(settings).toContain("{!guest && row?.isCreator === true && memberCount === 1 ? (");
     expect(settings).toContain("to={`/books/${bookId}/settings/export`}");
     expect(settings).toContain("t(\"books.guest.deleteDialog.noBackup\")");

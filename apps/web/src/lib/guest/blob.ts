@@ -23,6 +23,26 @@ import type { GuestLedger } from "./ledger.js";
 
 export const GUEST_DATA_SCHEMA_VERSION = 1;
 
+/**
+ * 游客本机“导入账单”的一次成功写入（1.19.96）。对应服务器的 `import_logs` 一行 + 写入账目的 `sourceRef`：
+ * - `fingerprint`：文件的 SHA-256；同一份文件再导入时整份标成“已经导入过”（服务器同一规则）；
+ * - `sourceRefs`：这次写入的来源单号 → 账目 id；换一份导出、同一笔交易再出现时按来源身份跳过。
+ *
+ * 游客的 `Transaction` 形状与服务器返回的一致、没有 `sourceRef` 字段，所以来源身份记在这里，与账目同在一个
+ * blob 里、同一次写入——不会出现“账目写进去了、身份没记上”的半状态。字段是可选的：没导入过账单的账本没有它，
+ * blob 版本号不变。转正式账号时不上传它（`guestImportSourceSchema` 没有这一项）。
+ */
+export interface GuestBillImport {
+  /** `In-…`，与服务器导入编号同一格式（`newImportRef`）。 */
+  readonly fileRef: string;
+  readonly fingerprint: string;
+  readonly createdAt: string;
+  readonly rowCount: number;
+  readonly importedCount: number;
+  readonly skippedCount: number;
+  readonly sourceRefs: Readonly<Record<string, string>>;
+}
+
 export interface GuestData {
   readonly schemaVersion: typeof GUEST_DATA_SCHEMA_VERSION;
   readonly book: GuestLedger;
@@ -34,6 +54,8 @@ export interface GuestData {
   readonly deleted: readonly Transaction[];
   /** D5 phase 3: imported guest rows removed after a verified cleanup, kept for local recovery. */
   readonly cleanup?: readonly Transaction[];
+  /** 1.19.96：本机导入账单的记录（见 {@link GuestBillImport}）；没导入过就没有这一项。 */
+  readonly billImports?: readonly GuestBillImport[];
   readonly nextSeq: number;
 }
 
@@ -93,6 +115,22 @@ function validTransaction(value: unknown): value is Transaction {
     typeof candidate["occurredAt"] === "string" &&
     typeof candidate["occurredLocalDate"] === "string" &&
     typeof candidate["version"] === "number"
+  );
+}
+
+function validBillImport(value: unknown): value is GuestBillImport {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  const refs = candidate["sourceRefs"];
+  return (
+    typeof candidate["fileRef"] === "string" &&
+    typeof candidate["fingerprint"] === "string" &&
+    typeof candidate["createdAt"] === "string" &&
+    typeof candidate["rowCount"] === "number" &&
+    typeof candidate["importedCount"] === "number" &&
+    typeof candidate["skippedCount"] === "number" &&
+    typeof refs === "object" && refs !== null && !Array.isArray(refs) &&
+    Object.values(refs).every((id) => typeof id === "string")
   );
 }
 
@@ -206,6 +244,10 @@ export function normalizeGuestBlob(value: unknown, book: GuestLedger): GuestData
   const cleanup = Array.isArray(candidate["cleanup"])
     ? candidate["cleanup"].filter(validTransaction)
     : [];
+  // 只在存过时带上（没导入过账单的 blob 读出来仍与原来逐字段相同）。
+  const billImports = Array.isArray(candidate["billImports"])
+    ? candidate["billImports"].filter(validBillImport)
+    : null;
 
   return {
     schemaVersion: GUEST_DATA_SCHEMA_VERSION,
@@ -216,6 +258,7 @@ export function normalizeGuestBlob(value: unknown, book: GuestLedger): GuestData
     transactions,
     deleted,
     cleanup,
+    ...(billImports === null ? {} : { billImports }),
     nextSeq:
       typeof candidate["nextSeq"] === "number" && candidate["nextSeq"] > 0
         ? candidate["nextSeq"]

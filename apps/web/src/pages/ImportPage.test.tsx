@@ -129,7 +129,8 @@ describe("入口与路由仍然指向 ImportPage", () => {
   it("App.tsx 的 /import 没被改道", () => {
     const app = source("../App.tsx");
     // S18 第二轮：外层多了「只作用于设备当前账本」的工作区出口，路由本身不变。
-    expect(app).toContain('<Route path="/import" element={<RequireAuth><CurrentLedgerOnly><ImportPage /></CurrentLedgerOnly></RequireAuth>} />');
+    // 1.19.96：游客也能进（RequireSession），预览 / 核对 / 提交在本机完成。
+    expect(app).toContain('<Route path="/import" element={<RequireSession><CurrentLedgerOnly><ImportPage /></CurrentLedgerOnly></RequireSession>} />');
   });
 
   it("中央 + 菜单第 4 项仍是 /import?from=nav", () => {

@@ -19,7 +19,8 @@ import { enUS, zhCN } from "./resources/index.js";
  * 收集来源：
  * 1. `apps/api/src` 里 `badRequest` / `conflict` / … 与 `new AppError` / `BillParseError` /
  *    `DocumentExtractError` / `TranscriptionRejected` 的第一个参数（含 `a ? "x" : "y"`、`b ?? "z"`
- *    这类条件写法）；
+ *    这类条件写法）；1.19.96 起账单导入的解析器与核对规则移到 `packages/shared/src/billParsers`
+ *    （服务器原样返回其中的 `BillParseError` / `BillReviewError` 错误码），一并扫描；
  * 2. `lib/errors.ts` 里直接写进响应体的 `code: "…"`；
  * 3. 子进程透传的错误码：账单解析脚本的 `ALLOWED`、语音识别服务的 `MESSAGES` 与 `"error": "…"`；
  * 4. shared 里由映射表 / 函数决定的错误码（邀请码拒绝原因、不重复配对校验）。
@@ -27,9 +28,10 @@ import { enUS, zhCN } from "./resources/index.js";
 
 const API_SRC = fileURLToPath(new URL("../../../api/src/", import.meta.url));
 const VOICE_SERVICE = fileURLToPath(new URL("../../../voice/service.py", import.meta.url));
+const SHARED_BILL_PARSERS = fileURLToPath(new URL("../../../../packages/shared/src/billParsers/", import.meta.url));
 
 const HELPERS = "badRequest|unauthorized|forbidden|conflict|notFound|gone|tooManyRequests|serviceUnavailable";
-const ERROR_CLASSES = "AppError|BillParseError|DocumentExtractError|TranscriptionRejected";
+const ERROR_CLASSES = "AppError|BillParseError|BillReviewError|DocumentExtractError|TranscriptionRejected";
 
 /** 第一个参数（不含逗号与括号，足以覆盖字面量、三元与 `??`）。 */
 const FIRST_ARGUMENT = new RegExp(
@@ -67,7 +69,7 @@ function sourceFiles(directory: string): string[] {
 function collectServerErrorCodes(): Set<string> {
   const codes = new Set<string>();
 
-  for (const file of sourceFiles(API_SRC)) {
+  for (const file of [...sourceFiles(API_SRC), ...sourceFiles(SHARED_BILL_PARSERS)]) {
     const text = readFileSync(file, "utf8");
     for (const call of text.matchAll(FIRST_ARGUMENT)) {
       for (const literal of (call[1] ?? "").matchAll(CODE_LITERAL)) codes.add(literal[1]!);

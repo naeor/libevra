@@ -307,7 +307,8 @@ export function AddEntryButton({ compact, onNavigate, follow, followOpen, onTogg
   const choices = <div ref={panel} id={menuId} className={compact ? "lv-entry-popover" : "lv-entry-inline"} data-open={open && !follow ? "true" : "false"} data-pad-popover-open={open && !follow ? "" : undefined}
     inert={!open || follow} aria-hidden={!open || follow} style={compact ? { position: "fixed", left: anchor?.left ?? -9999, top: anchor?.top ?? 0, width: anchor?.width ?? 224, maxHeight: anchor?.maxHeight, "--lv-entry-max-height": `${anchor?.maxHeight ?? 520}px`, "--lv-entry-connector": `${anchor?.connector ?? 24}px` } as React.CSSProperties : undefined}>
     <div className="lv-entry-clip"><div className="lv-entry-methods" role="menu" aria-label={t("workspace.rail.addMenu")}><EntryMethodList disabledFor={(action) => {
-      const disabled = guest && action.id !== "manual" && action.id !== "paste";
+      // 游客：手动、文本、导入账单在本机完成（1.19.96 起含导入账单）；语音、拍照需要服务器。
+      const disabled = guest && action.id !== "manual" && action.id !== "paste" && action.id !== "import";
       return disabled;
     }} onNavigate={onNavigate} onSelected={() => { setLocalOpen(false); button.current?.focus({ preventScroll: true }); }} /></div></div>
   </div>;

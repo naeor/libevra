@@ -1,6 +1,6 @@
 # apps/web/src/lib · 阅读入口
 
-> 最后修改：2026-11-15 11:34（UTC+08:00）
+> 最后修改：2026-11-15 17:10（UTC+08:00）
 
 基础逻辑与公共工具。
 
@@ -180,6 +180,7 @@
 
 | 子目录 | 职责 |
 |---|---|
+| [billExtract/](billExtract/README.md) | 本层组织 billExtract 模块的直属文件；具体契约由任务索引定位。 |
 | [chart/](chart/README.md) | 图表基础设施。 |
 | [guest/](guest/README.md) | 本层组织 guest 模块的直属文件；具体契约由任务索引定位。 |
 | [ledgerImport/](ledgerImport/README.md) | 本层组织 ledgerImport 模块的直属文件；具体契约由任务索引定位。 |

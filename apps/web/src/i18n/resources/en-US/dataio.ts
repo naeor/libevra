@@ -232,6 +232,13 @@ const dataio: Messages<typeof zh> = {
       "{{count}} group of possible duplicates. Only the first 20 are listed here — use the “Possible duplicates” filter to see each one.",
     groupsTruncated_other:
       "{{count}} groups of possible duplicates. Only the first 20 are listed here — use the “Possible duplicates” filter to see each one.",
+    guestLimitTitle: "Before you move to a full account",
+    guestLimitTransactions:
+      "After this import, this guest ledger will have {{total}} entries — more than {{limit}}. Moving a guest ledger to a full account currently takes at most {{limit}} entries per ledger, so this one can’t be moved yet.",
+    guestLimitTags:
+      "After this import, this guest ledger will have {{total}} tags — more than {{limit}}, which also stops it from moving to a full account.",
+    guestLimitHint:
+      "If you plan to move to a full account later, create another guest ledger and import this file there so each ledger stays within {{limit}} entries, then move them one at a time.",
   },
   confirm: {
     title: "Confirm import",

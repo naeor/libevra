@@ -250,7 +250,8 @@ const SERVER_MESSAGES: readonly string[] = [
   "无法识别的类型「foo」，应为「支出」或「收入」。",
   "分类「Coffee」不存在。请先在应用里创建它，或把它改成一个已有分类。",
   "支付方式「Card」不存在。",
-  // import/service.ts：逐笔核对问题与整份文件提示
+  // 账单导入（1.19.96 起实现在 packages/shared/src/billParsers/，服务器与游客本机导入共用）
+  // billParsers/review.ts（原 import/service.ts）：逐笔核对问题与整份文件提示
   "提交前需要处理：金额格式不正确，无法转换为最小单位。",
   "提交前需要处理：分类「Coffee」已归档。",
   "不支持的币种「XYZ」。",
@@ -271,7 +272,7 @@ const SERVER_MESSAGES: readonly string[] = [
   "这个文件在 2026-10-20 已经导入过（1 笔），再次导入不会重复入账。",
   "文件指纹与已有导入记录 IMP-20261020-ABCD 相同，导入时会跳过。",
   "结单对账不一致，确认导入前需要先核对对账信息。",
-  // import/alipay.ts、import/wechat.ts
+  // billParsers/alipay.ts、billParsers/wechat.ts
   "第 12 行的交易时间或金额无法识别，已跳过。",
   "这笔在支付宝里标记为「不计收支」，默认不导入。",
   "这笔在微信里标记为「不计收支」，默认不导入。",
@@ -288,14 +289,14 @@ const SERVER_MESSAGES: readonly string[] = [
   "有 2 行无法识别交易时间或金额，已跳过。",
   "有 1 笔带退款状态，已保留但需要核对。",
   "有 4 笔带退款/退还状态，已保留但需要核对。",
-  // import/libevra.ts
+  // billParsers/libevra.ts
   "第 7 行的日期、金额或币种无法识别，已跳过。",
   "类型「transfer」无法识别，默认不导入。",
   "时间无法识别，已按当天 00:00 处理。",
   "分类「Coffee」不在账本中，导入时将使用系统分类。",
   "支付方式「Card」不在账本中，导入后需手动选择。",
   "有 2 行日期/金额无法识别，已跳过。",
-  // import/boa.ts
+  // billParsers/boa.ts
   "第 3 页有一笔交易无法判断所属分区，已按金额方向导入。",
   "结单只提供过账日期，时间按当天 00:00 记录。",
   "描述里出现日期 10/03（可能是消费日期），与过账日期 2026-10-04 不同；本行按过账日期入账，请核对。",
@@ -310,7 +311,7 @@ const SERVER_MESSAGES: readonly string[] = [
   "没有读到期初或期末余额，无法完成「期初 + 存入 - 支出 = 期末」核对。",
   "期初 $100.00 + 存入 $1,000.00 - ATM $200.00 - 其他 $50.00 - 服务费 $0.00 = 期末 $850.00，核对一致。",
   "按明细计算期末应为 $850.00，结单写的是 $860.00，不一致，请核对。",
-  // import/duplicates.ts
+  // billParsers/duplicates.ts
   "文件内第 4 行使用了相同的来源身份，这一笔会被跳过。",
   "来源单号已存在（交易 #42，2026-10-01），这一笔会被跳过。",
   "来源单号已存在（交易 #42，2026-10-01，已删除），这一笔会被跳过。",
@@ -321,6 +322,10 @@ const SERVER_MESSAGES: readonly string[] = [
   "与账本已有交易 #42（2026-10-01 38.00 CNY）疑似重复，请核对。",
   "有 3 笔交易的来源身份已存在，导入时会跳过，不会重复写入。",
   "有 1 笔交易疑似重复，已标出但没有取消勾选。",
+  // 游客本机导入（apps/web/src/lib/guest/billImport.ts）：转正式账号时迁不过去的内容
+  "提交前需要处理：备注超过 500 个字，游客账本转为正式账号时无法迁移，请缩短。",
+  "一笔账最多 10 个标签，游客账本转为正式账号时无法迁移，请减少标签。",
+  "标签「a-very-long-tag-name-x」超过 20 个字，游客账本转为正式账号时无法迁移，请缩短。",
 ];
 
 function candidate(id: string, overrides: Partial<DuplicateCandidateFields> = {}): DuplicateCandidateFields {

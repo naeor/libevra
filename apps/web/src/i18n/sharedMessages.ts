@@ -288,6 +288,9 @@ const EXACT: ReadonlyMap<string, string> = new Map<string, string>([
   ["所选分类不存在或已被删除。", "The selected category doesn’t exist or has been deleted."],
   ["所选支付方式不存在或已被删除。", "The selected payment method doesn’t exist or has been deleted."],
   ["无法把日期时间换算为绝对时间。", "The date and time couldn’t be converted to an exact moment."],
+  // 游客本机导入（lib/guest/billImport.ts）：会让游客账本转正式账号时迁不过去的内容
+  ["备注超过 500 个字，游客账本转为正式账号时无法迁移，请缩短。", "The note is longer than 500 characters, which would stop this guest ledger from moving to a full account. Shorten it."],
+  ["一笔账最多 10 个标签，游客账本转为正式账号时无法迁移，请减少标签。", "An entry can have at most 10 tags, or this guest ledger can’t move to a full account. Remove some tags."],
 ]);
 
 /** 替换：字符串里的 `$1`、`$2` 按捕获组替换；函数收到各捕获组，返回整句译文。 */
@@ -385,6 +388,7 @@ const PATTERNS: readonly (readonly [RegExp, Replacement])[] = [
   [/^分类「(.*)」已归档。$/, "Category “$1” is archived."],
   [/^分类「(.*)」与收支方向不一致。$/, "Category “$1” doesn’t match the entry’s type."],
   [/^支付方式「(.*)」已归档。$/, "Payment method “$1” is archived."],
+  [/^标签「(.*)」超过 20 个字，游客账本转为正式账号时无法迁移，请缩短。$/, "Tag “$1” is longer than 20 characters, which would stop this guest ledger from moving to a full account. Shorten it."],
   [/^交易状态为「(.*)」，默认不导入。$/, "The transaction status is “$1”, so it won’t be imported by default."],
   [/^交易状态为「(.*)」，已保留原方向，请核对是否计入。$/, "The transaction status is “$1”. Its original type was kept; check whether it should count."],
   [

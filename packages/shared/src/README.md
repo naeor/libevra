@@ -105,5 +105,6 @@
 | 子目录 | 职责 |
 |---|---|
 | [analysis/](analysis/README.md) | 共享财务分析计算与结果契约。 |
+| [billParsers/](billParsers/README.md) | 本层组织 billParsers 模块的直属文件；具体契约由任务索引定位。 |
 | [workbench/](workbench/README.md) | 共享工作台配置。 |
 <!-- directory-index:end -->

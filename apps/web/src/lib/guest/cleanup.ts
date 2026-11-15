@@ -1,6 +1,7 @@
 import { clearOwnerPreferences, isAppDeviceStorageKey } from "../deviceStorageKeys.js";
 import { clearGuestDuplicateSettings } from "../duplicateSettings.js";
 import { resetEverything } from "../offline/reset.js";
+import { removeAllGuestAttachments } from "./attachments.js";
 import { resetGuestDataCache } from "./data.js";
 import { clearGuestIdentity, readGuestIdentity } from "./identity.js";
 import { clearGuestDatabase } from "./storage.js";
@@ -26,6 +27,9 @@ export interface ClearGuestDataResult {
 export async function clearGuestData(): Promise<ClearGuestDataResult> {
   const guest = readGuestIdentity();
   if (guest) clearOwnerPreferences("guest", guest.id, globalThis.localStorage);
+  // 游客附件原件在独立库 libevra-attachments-v1（按游客 id 分），不在 libellum-guest 里：要单独清。
+  // 只清这个游客 id 的行，不碰正式账号的待上传原件。失败不阻止清除（身份与库照常删）。
+  if (guest) await removeAllGuestAttachments(guest.id).catch(() => undefined);
   const identityCleared = clearGuestIdentity();
   // Guest-only preference; the account-scoped keys are untouched. See duplicateSettings.ts.
   clearGuestDuplicateSettings();
@@ -43,8 +47,8 @@ export async function clearGuestData(): Promise<ClearGuestDataResult> {
 }
 
 /**
- * Clear guest and formal offline ledgers, app preferences, caches and service workers. Pending
- * attachment originals have their own owner-scoped store and are preserved.
+ * Clear guest and formal offline ledgers, app preferences, caches and service workers. Formal-account pending
+ * attachment originals have their own owner-scoped store and are preserved; the guest's own attachments are removed.
  *
  * ⚠️ **A separate action from both "clear this account's offline copy" and "clear guest data".** The
  * owner asked for the three to be distinguishable, and this is the largest of them: it is only
@@ -53,6 +57,9 @@ export async function clearGuestData(): Promise<ClearGuestDataResult> {
  * data-cleanup button that signs somebody out is a different consent); a reload is expected.
  */
 export async function clearAllDeviceData(): Promise<void> {
+  const guest = readGuestIdentity();
+  // 游客附件跟着游客走；正式账号的待上传原件仍保留。
+  if (guest) await removeAllGuestAttachments(guest.id).catch(() => undefined);
   clearGuestIdentity();
   await clearGuestDatabase();
   resetGuestDataCache();

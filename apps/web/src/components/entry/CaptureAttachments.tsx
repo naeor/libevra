@@ -13,6 +13,8 @@ import { materialAttributes } from "../../s19/material.js";
 import "../../s19/material-components.css";
 import "./capture.css";
 import { uuidV7 } from "../../lib/uuid.js";
+import { assertLocalRoom, pruneStaleGuestDrafts } from "../../lib/guest/attachments.js";
+import { useGuestOwner, GuestStorageNote } from "../GuestAttachments.js";
 
 const EMPTY_TARGETS: readonly AttachmentTarget[] = [];
 /**
@@ -26,7 +28,11 @@ const pendingWrites = new Map<string, Promise<void>>();
 
 /** 每个工作区、账号、账本、录入方式独立暂存；路由间只传候选标识，不传原文件。 */
 export function useCaptureAttachments(bookId: string | null, flow: string, targets: readonly AttachmentTarget[] = EMPTY_TARGETS, disabled = false) {
-  const { user } = useAuth(); const { t } = useI18n(); const pane = usePane();
+  const { user: account } = useAuth(); const { t } = useI18n(); const pane = usePane();
+  // 游客：附件原件按游客 id 存在本机（lib/guest/attachments.ts）；其余流程与登录用户相同。
+  const guestId = useGuestOwner();
+  const user = account ? { id: account.id } : guestId ? { id: guestId } : null;
+  const guest = account === null && guestId !== null;
   const storage = useBookStorage(bookId);
   const scope = `capture:${pane.instance}:${flow}`;
   const [storedFiles, setFiles] = useState<PendingAttachment[]>([]);
@@ -34,6 +40,7 @@ export function useCaptureAttachments(bookId: string | null, flow: string, targe
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const key = `${user?.id}:${bookId}:${scope}`;
+  useEffect(() => { if (guestId) void pruneStaleGuestDrafts(guestId).catch(() => undefined); }, [guestId]);
   const activeKey = useRef(key); activeKey.current = key;
   const workingRef = useRef(false);
   const reload = useCallback(async () => {
@@ -71,6 +78,7 @@ export function useCaptureAttachments(bookId: string | null, flow: string, targe
           draftLink: { scope, targets: targets.length === 1 ? [...targets] : [], resolved: {} } };
         next.push(file);
         if (!captureAttachmentLimit(next, limits)) throw new Error(limitsText);
+        if (guest) await assertLocalRoom(blob.size);
         await savePendingAttachment(file);
       }
     });
@@ -98,7 +106,7 @@ export function useCaptureAttachments(bookId: string | null, flow: string, targe
     } catch (caught) { setError(errorMessage(caught)); }
     finally { workingRef.current = false; setWorking(false); }
   }
-  const panel = !user || !bookId ? null : <CaptureAttachmentPanel files={files} targets={targets} disabled={disabled || working} error={error} limitsText={limitsText}
+  const panel = !user || !bookId ? null : <CaptureAttachmentPanel guest={guest} files={files} targets={targets} disabled={disabled || working} error={error} limitsText={limitsText}
     onAdd={add} onAssociate={associate} onRemove={file => mutate(() => removePendingAttachment(file))} />;
   return { panel, files, commit, working };
 }
@@ -112,8 +120,8 @@ export function CaptureMobileAttachments({ panel }: { panel: React.ReactNode }) 
   return useDesktopActive() ? null : <div className="lv-capture-mobile">{panel}</div>;
 }
 
-function CaptureAttachmentPanel({ files, targets, disabled, error, limitsText, onAdd, onAssociate, onRemove }: {
-  files: PendingAttachment[]; targets: readonly AttachmentTarget[]; disabled: boolean; error: string | null; limitsText: string;
+function CaptureAttachmentPanel({ guest, files, targets, disabled, error, limitsText, onAdd, onAssociate, onRemove }: {
+  guest: boolean; files: PendingAttachment[]; targets: readonly AttachmentTarget[]; disabled: boolean; error: string | null; limitsText: string;
   onAdd: (files: File[]) => Promise<void>; onAssociate: (file: PendingAttachment, targets: AttachmentTarget[]) => Promise<void>; onRemove: (file: PendingAttachment) => Promise<void>;
 }) {
   const { t } = useI18n(); const input = useRef<HTMLInputElement>(null);
@@ -134,7 +142,8 @@ function CaptureAttachmentPanel({ files, targets, disabled, error, limitsText, o
     <input ref={input} className="sr-only" type="file" multiple accept="image/*,audio/*,application/pdf,.txt,.csv" disabled={disabled} onChange={event => { void onAdd(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
     <p className="text-helper-relaxed text-muted">{limitsText}</p>
     {error ? <p role="alert" className="text-helper text-danger">{error}</p> : null}
-    {files.length === 0 ? <p className="text-helper-relaxed text-muted">{t("attachments.capture.hint")}</p> : <>
+    {guest ? <GuestStorageNote /> : null}
+    {files.length === 0 ? <p className="text-helper-relaxed text-muted">{t(guest ? "attachments.guest.captureHint" : "attachments.capture.hint")}</p> : <>
       {/* 用途（1.19.57）：可点选预览的文件行是可点击卡片（选中用 aria-pressed），「删除」是次要危险操作。
           材质只在浅色手机外壳生效（s19/entry-workspace.css「附件区」）；电脑版、Pad、Original 与深色仍是原控件外观。 */}
       <ul ref={filesRef} className="lv-capture-files">{files.map(file => { const selected = file.id === preview?.id; return <li key={file.id} data-selected={selected || undefined}>

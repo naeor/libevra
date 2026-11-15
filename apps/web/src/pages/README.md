@@ -43,6 +43,8 @@
 | [EntryDetailPage.tsx](EntryDetailPage.tsx) | 界面模块；按文件名定位 EntryDetailPage.tsx |
 | [ExportPage.locale.test.ts](ExportPage.locale.test.ts) | 测试：ExportPage.locale |
 | [ExportPage.tsx](ExportPage.tsx) | 界面模块；入口/导出：ExportPage |
+| [GuestAttachmentsPage.test.ts](GuestAttachmentsPage.test.ts) | 测试：GuestAttachmentsPage |
+| [GuestAttachmentsPage.tsx](GuestAttachmentsPage.tsx) | 界面模块；入口/导出：guestAttachmentMatches、sortGuestAttachments、GuestAttachmentsPage |
 | [GuestMePage.tsx](GuestMePage.tsx) | 界面模块；入口/导出：GuestMePage |
 | [ImportPage.bookScope.test.tsx](ImportPage.bookScope.test.tsx) | 测试：ImportPage.bookScope |
 | [ImportPage.entry.test.tsx](ImportPage.entry.test.tsx) | 测试：ImportPage.entry |

@@ -46,7 +46,7 @@ import {
 
 import { t } from "../../i18n/index.js";
 import { validateCategoryTree } from "@libellum/shared";
-import { newGuestEntityId, type GuestData } from "./blob.js";
+import { newGuestEntityId, type GuestBillImport, type GuestData } from "./blob.js";
 import { readGuestLedgersResult, type GuestLedger } from "./ledger.js";
 import {
   archiveGuestLedger,
@@ -65,7 +65,7 @@ import {
   type GuestWorkspaceState,
 } from "./workspace.js";
 
-export { GUEST_DATA_SCHEMA_VERSION, type GuestData } from "./blob.js";
+export { GUEST_DATA_SCHEMA_VERSION, type GuestBillImport, type GuestData } from "./blob.js";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -613,6 +613,116 @@ export function restoreGuestTransaction(id: string): Promise<Transaction | null>
 
     await persist(next);
     return restored;
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* 批量写入（游客本机“导入账单”）                                         */
+/* ------------------------------------------------------------------ */
+
+/** 一笔要写入的账目（金额已是整数最小单位，分类 / 支付方式已核对过）。 */
+export interface GuestBatchEntry {
+  readonly id: string;
+  readonly kind: TransactionKind;
+  readonly amountCents: number;
+  readonly currency: Transaction["currency"];
+  readonly categoryId: string;
+  readonly paymentMethodId: string | null;
+  readonly occurredAt: string;
+  readonly occurredLocalDate: string;
+  readonly occurredTz: string;
+  readonly note: string | null;
+  /** 标签按名字给；账本里没有的由 `newTags` 先建好。 */
+  readonly tagNames: readonly string[];
+}
+
+/** `plan` 在写入队列里、拿着这本账的最新数据算出来的一次写入。 */
+export interface GuestBatchPlan<T> {
+  readonly entries: readonly GuestBatchEntry[];
+  /** 要新建的标签（id 由调用方生成）。 */
+  readonly newTags?: readonly Tag[];
+  /** 一并记下的导入记录（文件指纹与来源身份，见 `blob.ts` 的 `GuestBillImport`）。 */
+  readonly billImport?: GuestBillImport;
+  /** 返回给调用方的结果（例如导入报告）。 */
+  readonly result: T;
+}
+
+/**
+ * **一次写入整批账目**：整本账的 blob 只写一次（几千笔逐笔写会重写几千次整个 blob）。
+ *
+ * - 排进本标签页的写入队列（`serial`），`plan` 拿到的是这本账此刻的最新数据——判重、去掉已存在的来源身份、
+ *   核对分类与支付方式都在这里做，与写入之间没有空档；
+ * - 写之前确认目标账本仍在注册表里（`persist` → `assertStillListed`；不是当前账本时 `requireTarget` 也会先查）；
+ * - `plan` 抛错或返回空批次时什么都不写；
+ * - 写的是当前账本时内存快照随之更新（页面立即看到新账目）；别的账本只写它的 blob。
+ */
+export function createGuestTransactionsBatch<T>(
+  bookId: string | undefined,
+  plan: (data: GuestData) => GuestBatchPlan<T>,
+): Promise<T> {
+  return serial(async () => {
+    const data = await requireTarget(bookId);
+    const planned = plan(data);
+    if (planned.entries.length === 0 && planned.billImport === undefined && (planned.newTags ?? []).length === 0) {
+      return planned.result;
+    }
+
+    const tags = [...data.tags, ...(planned.newTags ?? [])];
+    const tagByName = new Map(tags.map((tag) => [tag.name, tag]));
+    const categories = new Map(data.categories.map((category) => [category.id, category]));
+    const methods = new Map(data.paymentMethods.map((method) => [method.id, method]));
+    const existing = new Set([...data.transactions, ...data.deleted, ...(data.cleanup ?? [])].map((entry) => entry.id));
+
+    let seq = data.nextSeq;
+    const created: Transaction[] = [];
+    for (const entry of planned.entries) {
+      // 调用方已经核对过；这里再守一道，绝不写出指向不存在分类 / 重复 id 的账目。
+      const category = categories.get(entry.categoryId);
+      if (category === undefined || category.isArchived || category.kind !== entry.kind) {
+        throw new Error(t("account.guest.errors.noCategory"));
+      }
+      if (existing.has(entry.id)) throw new Error(t("account.guest.errors.saveFailed"));
+      existing.add(entry.id);
+      const method = entry.paymentMethodId === null ? null : methods.get(entry.paymentMethodId) ?? null;
+      if (entry.paymentMethodId !== null && (method === null || method.isArchived)) {
+        throw new Error(t("account.guest.errors.paymentMethodGone"));
+      }
+      const entryTags = entry.tagNames.map((name) => {
+        const tag = tagByName.get(name);
+        if (tag === undefined) throw new Error(t("account.guest.errors.tagGone"));
+        return tag;
+      });
+      created.push({
+        id: entry.id,
+        seq,
+        kind: entry.kind,
+        amountCents: entry.amountCents,
+        currency: entry.currency,
+        categoryId: category.id,
+        categoryName: category.name,
+        categoryIsSystem: category.isSystem,
+        paymentMethodId: method?.id ?? null,
+        paymentMethodName: method?.name ?? null,
+        occurredAt: entry.occurredAt,
+        occurredLocalDate: entry.occurredLocalDate,
+        occurredTz: entry.occurredTz,
+        note: entry.note,
+        tags: entryTags,
+        version: 1,
+      });
+      seq += 1;
+    }
+
+    const next: GuestData = {
+      ...data,
+      book: { ...data.book, updatedAt: nowIso() },
+      tags,
+      transactions: [...data.transactions, ...created],
+      ...(planned.billImport === undefined ? {} : { billImports: [...(data.billImports ?? []), planned.billImport] }),
+      nextSeq: seq,
+    };
+    await persist(next);
+    return planned.result;
   });
 }
 

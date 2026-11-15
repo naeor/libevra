@@ -1,4 +1,20 @@
 export default {
+  guest: {
+    notice: "附件只保存在这个浏览器里，清除浏览器数据会丢失；转成正式账号时会一起上传。",
+    localUsage: "本机网站数据已用 {{used}}，约可再用 {{available}}。",
+    localUsageUnknown: "浏览器没有提供本机空间用量。",
+    noRoom: "本机空间不足：这个文件需要 {{need}}，目前约剩 {{available}}。已保存的附件不受影响。",
+    saveFailed: "附件没有保存成功：{{reason}}。已保存的附件不受影响。",
+    captureHint: "支持照片、PDF、录音和文档。附件保存在这个浏览器里，账目保存后与它关联。",
+    removeConfirm: "附件会从这个浏览器里永久删除，无法恢复。此操作影响关联的全部账目。",
+    bookUsed: "本账本的附件 {{count}} 个，共 {{size}}。",
+    migrationNote: "这本账有 {{count}} 个附件。附件会在下一版本支持随账目上传；在那之前请不要清除浏览器数据。",
+    quotaReason: "本机空间已满",
+    entryDeleted: "账目已删除",
+    openEntry: "打开账目",
+    loading: "正在读取本机附件…",
+    storageTitle: "本机附件空间"
+  },
   filters: {"title":"筛选","clear":"清除筛选","reset":"重置","apply":"应用筛选","unlimited":"不限","invalidRange":"请输入有效的空间范围，最小值不能大于最大值。"},
   capture: {"targetLimit":"每份附件最多关联 100 笔账目。请缩小选择范围。","noTags":"此账本暂无标签","manual":"手动记账","drop":"选择文件或拖放到此处","hint":"支持照片、PDF、录音和文档。账目保存后开始上传。","unassigned":"未关联","targets":"关联账目","all":"关联本次全部","clear":"清除选择","search":"搜索本次账目","saved":"已保存","afterRecognition":"识别完成后，可选择附件对应的账目。","associationHint":"一份附件可关联多笔账目。未关联的附件保留在本机。","current":"当前账目"},
 "previousPage": "上一页",

@@ -11,7 +11,12 @@
 
 | 文件 | 用途 / 入口 |
 |---|---|
-| [blob.ts](blob.ts) | 实现模块；入口/导出：GUEST_DATA_SCHEMA_VERSION、GuestData、newGuestEntityId、seedGuestData、isRecognisedGuestBlob |
+| [attachments.test.ts](attachments.test.ts) | 测试：attachments |
+| [attachments.ts](attachments.ts) | 实现模块；入口/导出：GUEST_ATTACHMENT_LIMITS、GUEST_DRAFT_MAX_AGE_MS、GuestAttachment、guestMediaType、toGuestAttachment |
+| [billImport.test.ts](billImport.test.ts) | 测试：billImport |
+| [billImport.ts](billImport.ts) | 实现模块；入口/导出：guestDuplicateSource、guestMigrationIssues、GuestBillImportOptions、guestPreviewBill、guestRecheckBill |
+| [billImportLimits.ts](billImportLimits.ts) | 实现模块；入口/导出：GUEST_MIGRATION_LIMITS、GuestMigrationReminder、guestMigrationReminder |
+| [blob.ts](blob.ts) | 实现模块；入口/导出：GUEST_DATA_SCHEMA_VERSION、GuestBillImport、GuestData、newGuestEntityId、seedGuestData |
 | [bridge.ts](bridge.ts) | 实现模块；入口/导出：publishGuestSnapshot、guestReadTransactions、guestBookIdSync、requireGuestId |
 | [cleanup.ts](cleanup.ts) | 实现模块；入口/导出：ClearGuestDataResult、clearGuestData、clearAllDeviceData |
 | [data.books.test.ts](data.books.test.ts) | 测试：data.books |

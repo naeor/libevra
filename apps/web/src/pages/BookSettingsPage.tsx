@@ -62,8 +62,8 @@ import {
  * ## 游客多账本（第二批）
  *
  * 游客也用这一页，管理地址里那一本游客账本：改名、分类 / 标签 / 支付方式、导出都按 `bookId` 读写游客库
- * （`lib/queries.ts` 与 `lib/guest/data.ts` 的游客分支）。不显示只对服务器有意义的行：导入历史账（CSV 导入
- * 走服务器）、导入账本、成员说明。重复账目检测与“已忽略的重复”只对当前游客账本可用（本机扫描只认当前
+ * （`lib/queries.ts` 与 `lib/guest/data.ts` 的游客分支）。不显示只对服务器有意义的行：导入账本、成员说明
+ * （导入账单 1.19.96 起游客也显示，在本机导入进这本游客账本）。重复账目检测与“已忽略的重复”只对当前游客账本可用（本机扫描只认当前
  * 账本，见 `lib/duplicateReview.ts`），其它游客账本上写一句说明。
  *
  * 危险操作换成游客版：**归档**（移到“已归档”，随时恢复）与**永久删除**（`ConfirmDialog` 写明不可恢复、
@@ -391,14 +391,13 @@ function BookSettings({ bookId }: { readonly bookId: string }): React.JSX.Elemen
                 hint={t("books.settings.row.export.hint")}
                 to={`/books/${bookId}/settings/export`}
               />
-              {/* 游客：CSV 导入历史账走服务器，不显示。 */}
-              {guest ? null : (
-                <NavRow
-                  label={t("books.settings.row.import.label")}
-                  hint={t("books.settings.row.import.hint")}
-                  to={`/books/${bookId}/settings/import`}
-                />
-              )}
+              {/* 1.19.96：游客也显示——导入账单在本机完成，写进地址里这本游客账本（lib/guest/billImport.ts）。 */}
+              <NavRow
+                label={t("books.settings.row.import.label")}
+                hint={t("books.settings.row.import.hint")}
+                to={`/books/${bookId}/settings/import`}
+              />
+
               {/* ⚠️ S14-D D1：只对本人拥有的单人账本显示。多人账本导入要等单独设计。游客：导入账本需要正式账号。 */}
               {!guest && row?.isCreator === true && memberCount === 1 ? (
                 <NavRow

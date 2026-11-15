@@ -1,4 +1,20 @@
 export default {
+  guest: {
+    notice: "Attachments are stored only in this browser and are lost if browser data is cleared. They are uploaded together with your entries when you convert to a formal account.",
+    localUsage: "Site data on this device: {{used}} used, about {{available}} left.",
+    localUsageUnknown: "This browser does not report local storage usage.",
+    noRoom: "Not enough space on this device: this file needs {{need}} and about {{available}} is left. Attachments already saved are not affected.",
+    saveFailed: "The attachment was not saved: {{reason}}. Attachments already saved are not affected.",
+    captureHint: "Photos, PDFs, audio and documents. Files stay in this browser and are linked to the entry when it is saved.",
+    removeConfirm: "The attachment will be permanently deleted from this browser and cannot be recovered. This affects every linked entry.",
+    bookUsed: "This ledger has {{count}} attachments, {{size}} in total.",
+    migrationNote: "This ledger has {{count}} attachments. Uploading attachments with the entries is coming in the next version; until then, please do not clear browser data.",
+    quotaReason: "device storage is full",
+    entryDeleted: "Entry deleted",
+    openEntry: "Open entry",
+    loading: "Reading local attachments…",
+    storageTitle: "Local attachment storage"
+  },
   filters: {"title":"Filter","clear":"Clear filters","reset":"Reset","apply":"Apply filters","unlimited":"Any","invalidRange":"Enter a valid size range. Minimum must not exceed maximum."},
   capture: {"targetLimit":"Each file can link to up to 100 entries. Select fewer entries.","noTags":"No tags in this ledger","manual":"Manual entry","drop":"Choose files or drop them here","hint":"Photos, PDFs, audio and documents. Upload starts after entries are saved.","unassigned":"Not linked","targets":"Linked entries","all":"Link all entries","clear":"Clear selection","search":"Search these entries","saved":"Saved","afterRecognition":"Choose linked entries after recognition.","associationHint":"One file can link to multiple entries. Unlinked files stay on this device.","current":"Current entry"},
 "previousPage": "Previous",

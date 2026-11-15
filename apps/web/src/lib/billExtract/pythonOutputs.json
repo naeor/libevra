@@ -1,0 +1,966 @@
+{
+ "xlsx：微信账单（说明区、日期序列、长单号、富文本与注音、内联字符串、t=d/str/b、稀疏列、缺 r 的行）": {
+  "format": "xlsx",
+  "sheets": [
+   {
+    "name": "微信支付账单",
+    "rows": [
+     {
+      "line": 1,
+      "cells": [
+       "微信支付账单明细"
+      ]
+     },
+     {
+      "line": 2,
+      "cells": [
+       "微信昵称：[示例]"
+      ]
+     },
+     {
+      "line": 3,
+      "cells": [
+       "起始时间：[2026-09-01 00:00:00] 终止时间：[2026-09-30 23:59:59]"
+      ]
+     },
+     {
+      "line": 4,
+      "cells": [
+       "共 4 笔记录"
+      ]
+     },
+     {
+      "line": 5,
+      "cells": [
+       "微信支付ウェイ",
+       "",
+       "内联 文字"
+      ]
+     },
+     {
+      "line": 17,
+      "cells": [
+       "交易时间",
+       "交易类型",
+       "交易对方",
+       "商品",
+       "收/支",
+       "金额(元)",
+       "支付方式",
+       "当前状态",
+       "交易单号",
+       "商户单号",
+       "备注"
+      ]
+     },
+     {
+      "line": 18,
+      "cells": [
+       "2026-09-22 00:27:27",
+       "商户消费",
+       "示例便利店",
+       "饮料",
+       "支出",
+       "18",
+       "零钱",
+       "支付成功",
+       "4200000000000000000000000000000000001234",
+       "/",
+       "/"
+      ]
+     },
+     {
+      "line": 19,
+      "cells": [
+       "2026-09-23 12:00:00",
+       "转账-退款",
+       "/",
+       "/",
+       "收入",
+       "50.00",
+       "零钱",
+       "已全额退款",
+       "4200000000000000000000000000000000000077"
+      ]
+     },
+     {
+      "line": 20,
+      "cells": [
+       "2026-09-24 00:00:00",
+       "",
+       "",
+       "",
+       "支出",
+       "0.5",
+       "",
+       "",
+       "",
+       "",
+       "1"
+      ]
+     },
+     {
+      "line": 10,
+      "cells": [
+       "以上为全部"
+      ]
+     }
+    ]
+   }
+  ],
+  "pages": []
+ },
+ "xlsx：1904 日期系统": {
+  "format": "xlsx",
+  "sheets": [
+   {
+    "name": "微信支付账单",
+    "rows": [
+     {
+      "line": 1,
+      "cells": [
+       "微信支付账单明细"
+      ]
+     },
+     {
+      "line": 2,
+      "cells": [
+       "微信昵称：[示例]"
+      ]
+     },
+     {
+      "line": 3,
+      "cells": [
+       "起始时间：[2026-09-01 00:00:00] 终止时间：[2026-09-30 23:59:59]"
+      ]
+     },
+     {
+      "line": 4,
+      "cells": [
+       "共 4 笔记录"
+      ]
+     },
+     {
+      "line": 5,
+      "cells": [
+       "微信支付ウェイ",
+       "",
+       "内联 文字"
+      ]
+     },
+     {
+      "line": 17,
+      "cells": [
+       "交易时间",
+       "交易类型",
+       "交易对方",
+       "商品",
+       "收/支",
+       "金额(元)",
+       "支付方式",
+       "当前状态",
+       "交易单号",
+       "商户单号",
+       "备注"
+      ]
+     },
+     {
+      "line": 18,
+      "cells": [
+       "2026-09-22 00:27:27",
+       "商户消费",
+       "示例便利店",
+       "饮料",
+       "支出",
+       "18",
+       "零钱",
+       "支付成功",
+       "4200000000000000000000000000000000001234",
+       "/",
+       "/"
+      ]
+     },
+     {
+      "line": 19,
+      "cells": [
+       "2026-09-23 12:00:00",
+       "转账-退款",
+       "/",
+       "/",
+       "收入",
+       "50.00",
+       "零钱",
+       "已全额退款",
+       "4200000000000000000000000000000000000077"
+      ]
+     },
+     {
+      "line": 20,
+      "cells": [
+       "2026-09-24 00:00:00",
+       "",
+       "",
+       "",
+       "支出",
+       "0.5",
+       "",
+       "",
+       "",
+       "",
+       "1"
+      ]
+     },
+     {
+      "line": 10,
+      "cells": [
+       "以上为全部"
+      ]
+     }
+    ]
+   }
+  ],
+  "pages": []
+ },
+ "xlsx：两张表（第二张用绝对路径关系）": {
+  "format": "xlsx",
+  "sheets": [
+   {
+    "name": "第一张",
+    "rows": [
+     {
+      "line": 1,
+      "cells": [
+       "甲"
+      ]
+     }
+    ]
+   },
+   {
+    "name": "第二张",
+    "rows": [
+     {
+      "line": 3,
+      "cells": [
+       "7",
+       "乙"
+      ]
+     }
+    ]
+   }
+  ],
+  "pages": []
+ },
+ "xlsx：没有关系文件时按工作表文件名排序": {
+  "format": "xlsx",
+  "sheets": [
+   {
+    "name": "Sheet1",
+    "rows": [
+     {
+      "line": 1,
+      "cells": [
+       "1"
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Sheet2",
+    "rows": [
+     {
+      "line": 2,
+      "cells": [
+       "2"
+      ]
+     }
+    ]
+   }
+  ],
+  "pages": []
+ },
+ "xlsx：公式单元格拒绝": {
+  "error": "xlsx_formula"
+ },
+ "xlsx：sharedStrings 带 DTD 拒绝": {
+  "error": "unsafe_xml"
+ },
+ "xlsx：错误单元格 t=e": {
+  "error": "invalid_xlsx"
+ },
+ "xlsx：共享字符串下标越界": {
+  "error": "invalid_xlsx"
+ },
+ "xlsx：共享字符串负下标（Python 从末尾数）": {
+  "format": "xlsx",
+  "sheets": [
+   {
+    "name": "S",
+    "rows": [
+     {
+      "line": 1,
+      "cells": [
+       "b"
+      ]
+     }
+    ]
+   }
+  ],
+  "pages": []
+ },
+ "xlsx：超过 100 列": {
+  "error": "document_limit"
+ },
+ "xlsx：单元格没有 r": {
+  "error": "invalid_xlsx"
+ },
+ "xlsx：日期样式但序列小于 1": {
+  "error": "invalid_date"
+ },
+ "xlsx：日期序列恰好落在半秒（银行家舍入）": {
+  "format": "xlsx",
+  "sheets": [
+   {
+    "name": "S",
+    "rows": [
+     {
+      "line": 1,
+      "cells": [
+       "2025-12-09 00:00:00",
+       "2025-12-09 00:00:02"
+      ]
+     }
+    ]
+   }
+  ],
+  "pages": []
+ },
+ "xlsx：ZIP 里没有 workbook": {
+  "error": "unsupported_format"
+ },
+ "xlsx：重名条目": {
+  "error": "unsafe_zip"
+ },
+ "xlsx：加密条目": {
+  "error": "document_limit"
+ },
+ "xlsx：不压缩的条目也能读": {
+  "format": "xlsx",
+  "sheets": [
+   {
+    "name": "Sheet1",
+    "rows": [
+     {
+      "line": 9,
+      "cells": [
+       "",
+       "",
+       "&<ok>"
+      ]
+     }
+    ]
+   }
+  ],
+  "pages": []
+ },
+ "pdf：两行文字（Python 测试的 make_pdf 版式）": {
+  "format": "pdf",
+  "sheets": [],
+  "pages": [
+   [
+    {
+     "y": 720,
+     "spans": [
+      {
+       "x": 72,
+       "text": "Statement line one for testing"
+      }
+     ]
+    },
+    {
+     "y": 702,
+     "spans": [
+      {
+       "x": 72,
+       "text": "Second line here for testing"
+      }
+     ]
+    }
+   ]
+  ]
+ },
+ "pdf：BOA 结单（两页，绝对定位）": {
+  "format": "pdf",
+  "sheets": [],
+  "pages": [
+   [
+    {
+     "y": 740,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Bank of America"
+      }
+     ]
+    },
+    {
+     "y": 720,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Account summary"
+      }
+     ]
+    },
+    {
+     "y": 700,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Beginning balance on September 18, 2026"
+      },
+      {
+       "x": 520,
+       "text": "$1,000.00"
+      }
+     ]
+    },
+    {
+     "y": 686,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Deposits and other additions"
+      },
+      {
+       "x": 520,
+       "text": "500.00"
+      }
+     ]
+    },
+    {
+     "y": 672,
+     "spans": [
+      {
+       "x": 36,
+       "text": "ATM and debit card subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-300.00"
+      }
+     ]
+    },
+    {
+     "y": 658,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Other subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-100.00"
+      }
+     ]
+    },
+    {
+     "y": 644,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Service fees"
+      },
+      {
+       "x": 520,
+       "text": "-0.00"
+      }
+     ]
+    },
+    {
+     "y": 630,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Ending balance on October 19, 2026"
+      },
+      {
+       "x": 520,
+       "text": "$1,100.00"
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "y": 760,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Date"
+      },
+      {
+       "x": 90,
+       "text": "Description"
+      },
+      {
+       "x": 520,
+       "text": "Amount"
+      }
+     ]
+    },
+    {
+     "y": 740,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Deposits and other additions"
+      }
+     ]
+    },
+    {
+     "y": 720,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/21/26"
+      },
+      {
+       "x": 90,
+       "text": "PAYROLL ACME INC"
+      },
+      {
+       "x": 520,
+       "text": "500.00"
+      }
+     ]
+    },
+    {
+     "y": 706,
+     "spans": [
+      {
+       "x": 90,
+       "text": "REF 123456"
+      }
+     ]
+    },
+    {
+     "y": 690,
+     "spans": [
+      {
+       "x": 36,
+       "text": "ATM and debit card subtractions"
+      }
+     ]
+    },
+    {
+     "y": 670,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/22/26"
+      },
+      {
+       "x": 90,
+       "text": "ATM WITHDRAWAL"
+      },
+      {
+       "x": 520,
+       "text": "-200.00"
+      }
+     ]
+    },
+    {
+     "y": 650,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/23/26"
+      },
+      {
+       "x": 90,
+       "text": "CARD PURCHASE 09/20 COFFEE"
+      },
+      {
+       "x": 520,
+       "text": "-100.00"
+      }
+     ]
+    },
+    {
+     "y": 630,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Other subtractions"
+      }
+     ]
+    },
+    {
+     "y": 610,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/24/26"
+      },
+      {
+       "x": 90,
+       "text": "MONTHLY FEE"
+      },
+      {
+       "x": 520,
+       "text": "-100.00"
+      }
+     ]
+    },
+    {
+     "y": 590,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Total deposits and other additions"
+      },
+      {
+       "x": 520,
+       "text": "$500.00"
+      }
+     ]
+    },
+    {
+     "y": 570,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Total ATM and debit card subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-$300.00"
+      }
+     ]
+    },
+    {
+     "y": 550,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Total other subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-$100.00"
+      }
+     ]
+    },
+    {
+     "y": 40,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Page 2 of 2"
+      }
+     ]
+    }
+   ]
+  ]
+ },
+ "pdf：BOA 结单（描述用 TJ 拆字）": {
+  "format": "pdf",
+  "sheets": [],
+  "pages": [
+   [
+    {
+     "y": 740,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Bank of America"
+      }
+     ]
+    },
+    {
+     "y": 720,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Account summary"
+      }
+     ]
+    },
+    {
+     "y": 700,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Beginning balance on September 18, 2026"
+      },
+      {
+       "x": 520,
+       "text": "$1,000.00"
+      }
+     ]
+    },
+    {
+     "y": 686,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Deposits and other additions"
+      },
+      {
+       "x": 520,
+       "text": "500.00"
+      }
+     ]
+    },
+    {
+     "y": 672,
+     "spans": [
+      {
+       "x": 36,
+       "text": "ATM and debit card subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-300.00"
+      }
+     ]
+    },
+    {
+     "y": 658,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Other subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-100.00"
+      }
+     ]
+    },
+    {
+     "y": 644,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Service fees"
+      },
+      {
+       "x": 520,
+       "text": "-0.00"
+      }
+     ]
+    },
+    {
+     "y": 630,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Ending balance on October 19, 2026"
+      },
+      {
+       "x": 520,
+       "text": "$1,100.00"
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "y": 760,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Date"
+      },
+      {
+       "x": 90,
+       "text": "Description"
+      },
+      {
+       "x": 520,
+       "text": "Amount"
+      }
+     ]
+    },
+    {
+     "y": 740,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Deposits and other additions"
+      }
+     ]
+    },
+    {
+     "y": 720,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/21/26"
+      },
+      {
+       "x": 90,
+       "text": "PAYROLL"
+      },
+      {
+       "x": 123.75,
+       "text": "ACME INC"
+      },
+      {
+       "x": 520,
+       "text": "500.00"
+      }
+     ]
+    },
+    {
+     "y": 706,
+     "spans": [
+      {
+       "x": 90,
+       "text": "REF 123456"
+      }
+     ]
+    },
+    {
+     "y": 690,
+     "spans": [
+      {
+       "x": 36,
+       "text": "ATM and debit card subtractions"
+      }
+     ]
+    },
+    {
+     "y": 670,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/22/26"
+      },
+      {
+       "x": 90,
+       "text": "ATM"
+      },
+      {
+       "x": 105.75,
+       "text": "WITHDRAWAL"
+      },
+      {
+       "x": 520,
+       "text": "-200.00"
+      }
+     ]
+    },
+    {
+     "y": 650,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/23/26"
+      },
+      {
+       "x": 90,
+       "text": "CARD"
+      },
+      {
+       "x": 110.25,
+       "text": "PURCHASE 09/20 COFFEE"
+      },
+      {
+       "x": 520,
+       "text": "-100.00"
+      }
+     ]
+    },
+    {
+     "y": 630,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Other subtractions"
+      }
+     ]
+    },
+    {
+     "y": 610,
+     "spans": [
+      {
+       "x": 36,
+       "text": "09/24/26"
+      },
+      {
+       "x": 90,
+       "text": "MONTHLY"
+      },
+      {
+       "x": 123.75,
+       "text": "FEE"
+      },
+      {
+       "x": 520,
+       "text": "-100.00"
+      }
+     ]
+    },
+    {
+     "y": 590,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Total deposits and other additions"
+      },
+      {
+       "x": 520,
+       "text": "$500.00"
+      }
+     ]
+    },
+    {
+     "y": 570,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Total ATM and debit card subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-$300.00"
+      }
+     ]
+    },
+    {
+     "y": 550,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Total other subtractions"
+      },
+      {
+       "x": 520,
+       "text": "-$100.00"
+      }
+     ]
+    },
+    {
+     "y": 40,
+     "spans": [
+      {
+       "x": 36,
+       "text": "Page 2 of 2"
+      }
+     ]
+    }
+   ]
+  ]
+ },
+ "pdf：没有文字（扫描件）": {
+  "error": "scanned_pdf"
+ },
+ "pdf：带 /Encrypt": {
+  "error": "encrypted_pdf"
+ },
+ "其它：不支持的二进制": {
+  "error": "unsupported_format"
+ }
+}

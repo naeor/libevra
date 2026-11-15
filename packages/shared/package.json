@@ -36,6 +36,10 @@
       "types": "./src/workbench/envelope.ts",
       "default": "./src/workbench/envelope.ts"
     },
+    "./billParsers": {
+      "types": "./src/billParsers/index.ts",
+      "default": "./src/billParsers/index.ts"
+    },
     "./workbench/pipeline": {
       "types": "./src/workbench/pipeline.ts",
       "default": "./src/workbench/pipeline.ts"

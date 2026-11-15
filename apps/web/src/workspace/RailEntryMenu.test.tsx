@@ -33,10 +33,10 @@ describe("侧栏五种记账方式", () => {
     ]);
     expect(html).toContain('accept="image/*"');
   });
-  it("保留游客的原有禁用判断与可访问名称", () => {
+  it("游客：只有语音与拍照置灰（1.19.96 起导入账单在本机完成），保留可访问名称", () => {
     mode.guest = true;
     const html = renderToStaticMarkup(<AddEntryButton compact={false} follow={false} followOpen={false} onNavigate={() => {}} onToggleFollow={() => {}} onCloseFollow={() => {}} />);
-    expect(html.match(/disabled=""/g)).toHaveLength(3);
+    expect(html.match(/disabled=""/g)).toHaveLength(2);
     expect(html).toContain('aria-label="手动记账"');
     mode.guest = false;
   });

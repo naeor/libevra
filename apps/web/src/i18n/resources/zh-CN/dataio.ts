@@ -232,6 +232,11 @@ const dataio = {
     showMore_other: "显示更多（还有 {{count}} 笔）",
     groupsTruncated_one: "疑似重复共 {{count}} 组，这里只列出前 20 组；用「疑似重复」筛选可以逐条查看。",
     groupsTruncated_other: "疑似重复共 {{count}} 组，这里只列出前 20 组；用「疑似重复」筛选可以逐条查看。",
+    // 1.19.96 游客：导入后这本游客账本超过“转正式账号”的整本上限（只提醒，不阻止导入）。
+    guestLimitTitle: "以后转为正式账号时请留意",
+    guestLimitTransactions: "导入后这本游客账本将有 {{total}} 笔账目，超过 {{limit}} 笔。目前把游客账本转到正式账号时，一本账一次最多迁移 {{limit}} 笔，超过的暂时迁不过去。",
+    guestLimitTags: "导入后这本游客账本将有 {{total}} 个标签，超过 {{limit}} 个，转到正式账号时同样迁不过去。",
+    guestLimitHint: "如果打算以后转为正式账号，可以先新建一本游客账本，把这份文件导入那里，让每本都不超过 {{limit}} 笔，之后分别迁移。",
   },
   confirm: {
     title: "确认导入",

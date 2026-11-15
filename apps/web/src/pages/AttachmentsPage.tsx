@@ -9,10 +9,17 @@ import { InlineChoice } from "../components/ui/InlineChoice.js";
 import { InnerPage } from "../components/Layouts.js";
 import { AttachmentPreview, BookAttachmentSummary } from "../components/Attachments.js";
 import { useAttachments, attachmentUrl } from "../lib/attachments.js";
+import { useGuestMode } from "../lib/guest/session.js";
+import { GuestAttachmentsPage } from "./GuestAttachmentsPage.js";
 import { useI18n } from "../i18n/index.js";
 import { apiFetch, errorMessage } from "../lib/api.js";
 
+/** 游客看本机版本（GuestAttachmentsPage），登录用户看服务器版本。 */
 export function AttachmentsPage(): React.JSX.Element {
+  return useGuestMode() ? <GuestAttachmentsPage /> : <AccountAttachmentsPage />;
+}
+
+function AccountAttachmentsPage(): React.JSX.Element {
   const entryOrigin = useEntryOrigin(); // 1.19.81：打开的账目详情返回时回到这里（来源列表）。
   const desktop = useDesktopSurface() !== null;
   const { bookId = "" } = useParams(); const [params, setParams] = useSearchParams(); const { t } = useI18n();

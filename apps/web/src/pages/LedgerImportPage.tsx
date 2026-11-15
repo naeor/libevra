@@ -80,6 +80,7 @@ import {
   restoreGuestBookCleanup,
 } from "../lib/guest/data.js";
 import { readGuestIdentity } from "../lib/guest/identity.js";
+import { GuestAttachmentMigrationNote } from "../components/GuestAttachments.js";
 import { bookLifecycleAction } from "../lib/lifecycle.js";
 import { clearBookLocalData } from "../lib/offline/localCleanup.js";
 import { fetchNotDuplicatePairKeys } from "../lib/notDuplicateRelations.js";
@@ -1690,6 +1691,8 @@ export function SelectionStep({
   const { t, locale } = useI18n();
   const formalSource = sourceBook !== null;
   const guestSelected = guestAvailable && guestBookIdOfSource(sourceKey, guestBooks) !== null;
+  const guestNoteBookId = guestAvailable ? guestBookIdOfSource(sourceKey, guestBooks) : null;
+  const guestNoteId = guestAvailable ? readGuestIdentity()?.id ?? null : null;
   const canContinue =
     sourceKey !== "" &&
     (formalSource ? targetId !== "" && !targetIsNew && targetId !== sourceKey : guestSelected && targetId !== "");
@@ -1775,6 +1778,8 @@ export function SelectionStep({
         ) : guestAvailable ? (
           <p className="mt-2 text-helper-relaxed text-muted">{t("ledgerImport.select.guestSourceNote")}</p>
         ) : null}
+        {/* 游客附件（本机）：下一版本才随账目上传，这一版只提醒，不阻止迁移。 */}
+        {guestSelected && guestNoteBookId !== null && guestNoteId !== null ? <GuestAttachmentMigrationNote guestId={guestNoteId} bookId={guestNoteBookId} /> : null}
 
         <div className="my-4 flex items-center gap-3" aria-hidden="true">
           <span className="h-px flex-1 bg-line" />

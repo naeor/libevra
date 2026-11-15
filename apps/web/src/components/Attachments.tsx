@@ -16,6 +16,8 @@ import { useSharedLedgerOfflineReadOnly } from "../lib/offline/writePolicy.js";
 import { BottomSheet } from "./BottomSheet.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { AttachmentPdf } from "./AttachmentPdf.js";
+import { useGuestMode } from "../lib/guest/session.js";
+import { GuestAttachmentPanel } from "./GuestAttachments.js";
 import { uuidV7 } from "../lib/uuid.js";
 import { materialAttributes } from "../s19/material.js";
 import "../s19/material-components.css";
@@ -107,7 +109,13 @@ export function AttachmentPreview({ file, onClose, inline = false, onOpenEntry }
   </BottomSheet>;
 }
 
-export function AttachmentPanel({ bookId, entryIds, readOnly = false }: {
+/** 游客的附件在本机（components/GuestAttachments.tsx）；登录用户走服务器。 */
+export function AttachmentPanel(props: { bookId: string | null; entryIds: readonly string[]; readOnly?: boolean }): React.JSX.Element | null {
+  const guest = useGuestMode();
+  return guest ? <GuestAttachmentPanel entryIds={props.entryIds} readOnly={props.readOnly ?? false} /> : <AccountAttachmentPanel {...props} />;
+}
+
+function AccountAttachmentPanel({ bookId, entryIds, readOnly = false }: {
   bookId: string | null; entryIds: readonly string[]; readOnly?: boolean;
 }): React.JSX.Element | null {
   const { user } = useAuth(); const { t } = useI18n(); const query = useQueryClient();
