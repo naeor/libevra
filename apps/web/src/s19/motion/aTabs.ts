@@ -70,7 +70,7 @@ function release(): void {
 }
 export function syncATabs(): void {
   const data = document.documentElement.dataset;
-  if (data.visualStyle !== "a" || data.themeMode !== "light") { release(); previous = null; return; }
+  if (data.visualStyle !== "a") { release(); previous = null; return; }
   const nav = document.querySelector<HTMLElement>(`#root ${S19_PHONE_SELECTOR} nav.shrink-0.border-t`);
   const track = nav?.querySelector<HTMLElement>(":scope > ul");
   const buttons = track ? [...track.querySelectorAll<HTMLElement>(":scope > li > button:not(.size-16)")] : [];

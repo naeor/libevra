@@ -1,5 +1,5 @@
 import { NAV_YIELD } from "../../lib/motionTokens.js";
-import { S19_PHONE_SELECTOR } from "../scope.js";
+import { S19_PHONE_SELECTOR, s19Style } from "../scope.js";
 
 /**
  * **常驻底栏的“向下退出 / 从下方升回”**（1.19.52 让位；1.19.75 起也用于随页面层级的显隐，审查 T1）。
@@ -27,10 +27,10 @@ export interface NavMotion {
   cancel(): void;
 }
 
-/** 随层级的退出 / 升回只在 S19 浅色手机外壳播放；Original、深色、Pad、电脑版保持即时显隐。 */
+/** 随层级的退出 / 升回只在 S19 四风格手机外壳播放；Original、Pad、电脑版保持即时显隐。 */
 export function navMotionEnabled(nav: Element): boolean {
   const data = document.documentElement.dataset;
-  return nav.closest(S19_PHONE_SELECTOR) !== null && data.themeMode === "light" && !!data.visualStyle;
+  return nav.closest(S19_PHONE_SELECTOR) !== null && s19Style(data.visualStyle) !== null;
 }
 
 /**
@@ -39,7 +39,7 @@ export function navMotionEnabled(nav: Element): boolean {
  */
 export function navCapturedByPageTransition(): boolean {
   const data = document.documentElement.dataset;
-  return data.motionCapture !== undefined && data.visualStyle === "b2" && data.themeMode === "light";
+  return data.motionCapture !== undefined && data.visualStyle === "b2";
 }
 
 export function canAnimateNav(nav: HTMLElement): boolean {

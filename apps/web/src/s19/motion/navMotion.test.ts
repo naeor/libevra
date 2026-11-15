@@ -1,12 +1,26 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NAV_YIELD } from "../../lib/motionTokens.js";
-import { remainingShare, translateYOf } from "./navMotion.js";
+import { navMotionEnabled, remainingShare, translateYOf } from "./navMotion.js";
 
 const css = (file: string): string => readFileSync(join(import.meta.dirname, file), "utf8");
 
 describe("常驻底栏的退出 / 升回（1.19.75，审查 T1）", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("手机四风格的底栏在深浅色下都按页面层级显隐", () => {
+    const phone = { closest: () => ({}) } as unknown as Element;
+    const other = { closest: () => null } as unknown as Element;
+    for (const themeMode of ["light", "dark"]) {
+      for (const visualStyle of ["a", "b1", "b2", "c", undefined, "unknown"]) {
+        vi.stubGlobal("document", { documentElement: { dataset: { themeMode, visualStyle } } });
+        expect(navMotionEnabled(phone)).toBe(visualStyle !== undefined && visualStyle !== "unknown");
+        expect(navMotionEnabled(other)).toBe(false);
+      }
+    }
+  });
+
   it("读出计算样式里的纵向位移：没有变换为 0，2D 与 3D 矩阵都认", () => {
     expect(translateYOf("none")).toBe(0);
     expect(translateYOf("matrix(1, 0, 0, 1, 0, 42.5)")).toBe(42.5);

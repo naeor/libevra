@@ -6,10 +6,10 @@ afterEach(() => vi.unstubAllGlobals());
 const html = (dataset: Record<string, string>) => vi.stubGlobal("document", { documentElement: { dataset }, hidden: false });
 
 describe("账本空间海浪转场", () => {
-  it("只在浅色 A / B1 / B2 / C 下播放（开始页海浪也只有这四种材质）", () => {
+  it("深浅色 A / B1 / B2 / C 都复用海浪，Original 保留原流程", () => {
     html({ themeMode: "light", visualStyle: "b2" }); expect(tideLook()).toBe("b2");
     html({ themeMode: "light", visualStyle: "c" }); expect(tideLook()).toBe("c");
-    html({ themeMode: "dark", visualStyle: "b2" }); expect(tideLook()).toBeNull();
+    for (const look of ["a", "b1", "b2", "c"]) { html({ themeMode: "dark", visualStyle: look }); expect(tideLook()).toBe(look); }
     html({ themeMode: "light", visualStyle: "original" }); expect(tideLook()).toBeNull();
   });
   it("减少动态效果：只交付页面，不建舞台", () => {
@@ -35,6 +35,11 @@ describe("账本空间海浪转场", () => {
     // iOS 地址栏让视口高度变了：照样接着播放（按比例换算）。
     vi.stubGlobal("innerHeight", 760);
     expect(takeTideResume("b2")?.y).toBe(200);
+    // 同一风格换到暗色也不能接着展示上一页浅色截图。
+    document.documentElement.dataset.themeMode = "dark";
+    expect(takeTideResume("b2")).toBeNull();
+    document.documentElement.dataset.themeMode = "light";
+    attrs.set("data-tide-resume", ""); store.set("libevra.tide-resume", JSON.stringify(frame));
     // 风格不同：不接着播放，删除交接帧，铺底先淡出再撤掉（不硬切）。
     expect(takeTideResume("c")).toBeNull();
     expect(store.size).toBe(0); expect(attrs.get("data-tide-resume")).toBe("fade");

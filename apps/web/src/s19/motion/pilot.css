@@ -11,8 +11,8 @@
 
 /* 捕获实际页面，保留原生的页面边界；不再捕获并裁切整张 #root 文档。
    环境仍在快照下面。新页不补文档坐标、不改组尺寸，也不移除顶底栏的背景模糊。 */
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]:has(.lv-shell[data-s19-scope]) { view-transition-name: none; }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-s19-scope] [data-b2-motion-page] {
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction]:has(.lv-shell[data-s19-scope]) { view-transition-name: none; }
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction] .lv-shell[data-s19-scope] [data-b2-motion-page] {
   view-transition-name: b2-page;
 }
 :root[data-visual-style="b2"] { --motion-hybrid-carry: var(--s19-b2-carry, .85); }
@@ -52,14 +52,14 @@
    时长与曲线同 NAV_YIELD（lib/motionTokens.ts，navMotion.test.ts 核对两边一致）。拍新页时活的底栏已直接换到结果
    （engine.ts 的 data-motion-capture），所以一组里只有旧图或只有新图。(*) 给页面的滑入、后退模糊与环境底色在这里取消；
    组不裁切，抬高的“+”与阴影完整。 */
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction] .lv-shell[data-s19-scope="phone"] [data-persistent-nav] {
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction] .lv-shell[data-s19-scope="phone"] [data-persistent-nav] {
   view-transition-name: lv-persistent-nav;
 }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-group(lv-persistent-nav) { background: none; overflow: visible; animation: none; }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-old(lv-persistent-nav) {
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction]::view-transition-group(lv-persistent-nav) { background: none; overflow: visible; animation: none; }
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction]::view-transition-old(lv-persistent-nav) {
   animation: lv-nav-leave 180ms cubic-bezier(.4,0,1,1) both; filter: none; opacity: 1;
 }
-:root[data-visual-style="b2"][data-theme-mode="light"][data-motion-direction]::view-transition-new(lv-persistent-nav) {
+:root[data-visual-style="b2"][data-theme-mode][data-motion-direction]::view-transition-new(lv-persistent-nav) {
   animation: lv-nav-return 220ms cubic-bezier(.2,.8,.3,1) both; filter: none; opacity: 1;
 }
 @keyframes lv-nav-leave { from { transform: translateY(0); } to { transform: translateY(110%); } }

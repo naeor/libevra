@@ -44,7 +44,7 @@ let running: Animation[] = [];
 
 function enabled(): boolean {
   const data = document.documentElement.dataset;
-  return (data.visualStyle === "b1" || data.visualStyle === "b2") && data.themeMode === "light";
+  return data.visualStyle === "b1" || data.visualStyle === "b2";
 }
 
 function reducedMotion(): boolean {

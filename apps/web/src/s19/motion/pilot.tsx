@@ -135,6 +135,9 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
     return page.getBoundingClientRect();
   };
   const background = (context: BackdropContext): string => {
+    // 暗色快照只有页面前景，固定壁纸仍由 body::before 绘制。
+    if (html.dataset.themeMode === "dark") return "transparent";
+    if (matchMedia("(prefers-reduced-transparency: reduce)").matches) return "var(--color-canvas)";
     if (html.dataset.visualStyle !== "b2") return `radial-gradient(ellipse at ${context.ambient.x}% ${context.ambient.y}%, color-mix(in srgb, var(--color-brand) 18%, transparent), transparent 68%), var(--s19-bg, var(--color-canvas))`;
     const values = visualStyleRuntime()?.getB2Snapshot().values ?? B2_GLASS_DEFAULT.values;
     const geometry = layoutBackground(layouts.get(context.entryKey), values.ambient, b2GlassMaterial(values).outgoingBlur, B2_OLD_PAGE_RETREAT, getComputedStyle(document.body).color);
@@ -320,8 +323,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
       // switchTab：四个主 Tab 之间整页横向交换（Tab Switch Lab），不是 navigate / objectExpand / enterMode。
       if (from && next.action !== "REPLACE" && isTabSwitch(from.page, next.location.pathname) && !next.location.hash) {
         abc?.cancel(); objects.cancel(); modes.cancel(); clickedObject = null;
-        const instant = typing || hasOpenOverlay()
-          || (!enabled && html.dataset.themeMode !== "light");
+        const instant = typing || hasOpenOverlay();
         pendingRestore = { key: next.location.key, focus: false, tab: next.location.pathname };
         if (instant) { tabs.cancel(); startTransition(commit); return; }
         // 新页面在后台（transition）渲染，不占住点击后的第一帧；交换器先移动旧页、等新页面提交后再对齐进入。
@@ -371,7 +373,7 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         return;
       }
       modes.cancel();
-      if (!known && legalEdge && source && html.dataset.visualStyle === "b2") {
+      if (!known && legalEdge && source && html.dataset.visualStyle === "b2" && html.dataset.themeMode !== "dark") {
         layouts.set(current.entryKey, describeLayout(source, { bounds: new DOMRect(0, 0, innerWidth, innerHeight),
           selectors: ".book-card, .rounded-card.bg-surface, .lv-settings-body.bg-surface, .sw-statbar, details.rounded-field.bg-surface, .detail-overview-main, .detail-overview-mini" }));
       }
@@ -399,7 +401,6 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         || document.querySelector(S19_PHONE_SELECTOR) === null;
       // 查询参数属于页面状态（筛选、来源），不再阻止默认转场；锚点跳转仍是页内定位。
       if (blocked || next.location.hash) direction = "none";
-      if (!enabled && html.dataset.themeMode !== "light") direction = "none";
       // 自带动效的页面（账本空间海浪等）立即交回原路径，不为它们捕获或改变滚动；账本空间与它自己的成员 / 分享页之间除外（T6）。
       if (!from || !defaultMotionBetween(from.page, next.location.pathname)) direction = "none";
       const target = current;
@@ -427,7 +428,8 @@ function createPilot(history: PaneHistory, account: string, ledger: string): Pil
         html.style.setProperty("--motion-b2-old-x", "0px");
         html.style.setProperty("--motion-b2-old-y", "0px");
       }
-      engine.run({ ...defaults, scheme: material === "b2" && html.dataset.themeMode === "light" ? "hybrid" : defaults.scheme, material,
+      engine.run({ ...defaults, scheme: material === "b2" ? "hybrid" : defaults.scheme, material,
+        blur: defaults.blur && !matchMedia("(prefers-reduced-transparency: reduce)").matches,
         retreat: material === "b2" ? B2_OLD_PAGE_RETREAT : defaults.retreat,
         blurStrength: material === "b2" ? preference?.getB2Snapshot().values.blur ?? B2_GLASS_DEFAULT.values.blur : preference?.getBlurSnapshot() ?? defaults.blurStrength }, direction, apply, undefined, {
         ambient: background(target),

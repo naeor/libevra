@@ -8,6 +8,9 @@
 .tide-stage .space-ocean.tide-ocean { position: absolute; inset: 0; height: auto; z-index: auto; }
 .tide-stage .tide-backing { position: absolute; inset: 0; background: var(--lv-wallpaper-bg, var(--s19-bg, var(--color-canvas))); clip-path: inset(0 0 100% 0); }
 
+/* 只在海浪自身的遮挡范围铺实底，暗色固定底图保留在原位置。 */
+:root[data-theme-mode="dark"] .tide-stage .tide-backing { background: var(--s19-canvas, var(--color-canvas)); }
+
 /*
   切换账本等待稍久时的提示（tide.ts，1.19.48）：在 1 号深色核心的中线上随浪移动，字样沿用账本空间标语。
   ⚠️ index.html 的 html[data-tide-resume]::before 在新页面的铺底上画同一行字（应用样式载入之前），

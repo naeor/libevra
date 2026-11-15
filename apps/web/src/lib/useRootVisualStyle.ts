@@ -11,25 +11,9 @@ export function useRootVisualStyle(): VisualStyle {
   return useSyncExternalStore(subscribe, snapshot, () => "original");
 }
 
-/**
- * **S19 浅色**：任何 S19 风格（A / B1 / B2 / C）且浅色主题。只给需要按“S19 浅色手机端”换**结构**的地方用（1.19.78 记账工作区：
- * 隐藏底栏、换成工作区顶栏）；Original 与深色保持原结构。服务端 / 测试环境返回 false。
- */
-export function useS19Light(): boolean {
-  return useSyncExternalStore(subscribeBoth, s19LightSnapshot, () => false);
-}
-
-function subscribeBoth(onChange: () => void): () => void {
-  if (typeof document === "undefined" || typeof MutationObserver === "undefined") return () => undefined;
-  const observer = new MutationObserver(onChange);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-visual-style", "data-theme-mode"] });
-  return () => observer.disconnect();
-}
-
-function s19LightSnapshot(): boolean {
-  if (typeof document === "undefined") return false;
-  const root = document.documentElement;
-  return parseVisualStyle(root.dataset.visualStyle ?? null) !== "original" && root.dataset.themeMode === "light";
+/** 手机记账工作区和底栏在四风格的深浅色中使用相同的层级；调用方仍按工作区形态决定显示位置。 */
+export function useS19WorkspaceChrome(): boolean {
+  return useRootVisualStyle() !== "original";
 }
 
 function subscribe(onChange: () => void): () => void {

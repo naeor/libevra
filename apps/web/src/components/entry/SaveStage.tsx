@@ -17,12 +17,12 @@
  * `pending` 挂好，标记位不可见、只用来测量落点；圆形落在标记位上，对勾画完时成功屏换成自己的对勾（同一位置、同一材质），
  * 飞行的圆形同时撤掉——前后是同一个标记，不会先出现一个对勾、消失、再出现另一个。
  *
- * 只在 S19 浅色手机外壳里使用（页面判断，见 `saveStageEnabled`）；Original、深色、Pad、电脑版与减少动态效果仍是原来的直接切换。
+ * 只在 S19 手机外壳里使用（页面判断，见 `saveStageEnabled`）；Original、Pad、电脑版与减少动态效果仍是原来的直接切换。
  * 动画只用 WAAPI（位置与尺寸、透明度），所有动画在卸载时取消，表单的透明度动画也一并撤销。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
-import { S19_PHONE_SELECTOR } from "../../s19/scope.js";
+import { S19_PHONE_SELECTOR, s19Style } from "../../s19/scope.js";
 import "../ui/component-motion.css";
 import "./save-stage.css";
 
@@ -33,11 +33,11 @@ type Phase = "travel" | "wait" | "check" | "done" | "revert";
 /** 飞行：变形 + 移动 260ms（最后略过冲再落定）；对勾：短笔画 70ms + 长笔画 120ms。最快路径（保存在飞行途中就已完成）从点击到对勾画完约 480ms。 */
 export const SAVE_STAGE_TIMING = { travel: 260, short: 70, long: 120, spinOut: 140, revert: 260, fade: 220 } as const;
 
-/** 这一层只在 S19 浅色手机外壳、没有“减少动态效果”时启用。 */
+/** 这一层只在 S19 手机外壳、没有“减少动态效果”时启用。 */
 export function saveStageEnabled(element: Element | null): boolean {
   if (element === null || typeof element.animate !== "function") return false;
   const root = document.documentElement;
-  if (root.dataset.visualStyle === undefined || root.dataset.themeMode !== "light") return false;
+  if (s19Style(root.dataset.visualStyle) === null) return false;
   if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
   return element.closest(S19_PHONE_SELECTOR) !== null;
 }

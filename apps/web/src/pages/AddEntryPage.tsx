@@ -34,7 +34,7 @@ import { useGoBack } from "../lib/connectivity.js";
 import { useLeaveConfirm } from "../lib/closeGuard.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { WorkspaceTopBar } from "../components/entry/WorkspaceTopBar.js";
-import { useS19Light } from "../lib/useRootVisualStyle.js";
+import { useS19WorkspaceChrome } from "../lib/useRootVisualStyle.js";
 import { inheritFromLastEntry, type InheritRefusal } from "../components/entry/inheritLast.js";
 import { ChevronIcon } from "../components/Icons.js";
 import { InfoIcon } from "../components/InfoHint.js";
@@ -321,7 +321,7 @@ export function AddEntryPage(): React.JSX.Element {
    * 有未保存的输入时先问一句（与弹出面板“关闭前询问”、外壳的 `usePaneDirty` 同一判断：金额、备注、附件），不直接丢弃。
    */
   const pane = usePane();
-  const workspaceChrome = useS19Light();
+  const workspaceChrome = useS19WorkspaceChrome();
   const goBack = useGoBack("/");
   /**
    * 1.19.81：系统返回与顶栏返回一致（所有者 2026-11-15）——有未保存输入、还没保存成功时，系统返回也先弹同一个询问；

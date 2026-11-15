@@ -1,3 +1,4 @@
+import { s19Style } from "../scope.js";
 import { FramePace, STALL_MS, publishClockReport } from "../../lib/frameClock.js";
 import { beginMotion } from "../../lib/motionIdle.js";
 import { oceanEdge } from "../../lib/oceanGeometry.js";
@@ -11,9 +12,7 @@ import "./tide.css";
 
 export function tideLook(): PainterLook | null {
   if (typeof document === "undefined") return null;
-  const data = document.documentElement.dataset;
-  const look = data.visualStyle ?? "";
-  return data.themeMode === "light" && (look === "a" || look === "b1" || look === "b2" || look === "c") ? look : null;
+  return s19Style(document.documentElement.dataset.visualStyle);
 }
 
 /**
@@ -61,6 +60,8 @@ const smoothstep = (v: number): number => { const c = clamp01(v); return c * c *
  */
 export interface TideResume {
   readonly at: number;
+  /** 旧版本只在浅色生成交接帧。 */
+  readonly theme?: string;
   readonly look: PainterLook;
   readonly seconds: number;
   readonly y: number;
@@ -102,7 +103,8 @@ export function takeTideResume(look: PainterLook | null): TideResume | null {
   } catch { resume = null; }
   const covered = document.documentElement.hasAttribute(RESUME_COVER);
   // 高度允许有出入（iOS 地址栏收起 / 展开会改变视口高度），按比例接着画；宽度变了（转屏）就不接。
-  if (!resume || !covered || resume.look !== look || Date.now() - resume.at > RESUME_MAX_AGE || !(resume.height > 0)
+  const theme = document.documentElement.dataset.themeMode;
+  if (!resume || !covered || resume.look !== look || (theme && (resume.theme ?? "light") !== theme) || Date.now() - resume.at > RESUME_MAX_AGE || !(resume.height > 0)
     || Math.abs(resume.width - innerWidth) > 2 || Math.abs(resume.height - innerHeight) > Math.max(200, resume.height * 0.25)) {
     forgetTideResume(); fadeTideResumeCover(); return null;
   }
@@ -174,7 +176,7 @@ function ledgerSpace(): { p: number; size: OceanSize } | null {
  * - 复用：展开 / 收起的分层节奏就是开始页的 `LayerMotion`；浪沿形状、游动与材质绘制是开始页原函数，
  *   绘制器只多了一组上边界；环境相位与页面共享（`oceanPhase`），收成顶栏时与页面海浪逐像素重合后淡出交接。
  * - 时间：一条按“走过的像素”排布的连续行程（展开 / 划过 / 收起之间速度连续，不停顿），由帧锚定步长推进；
- *   环境游动按真实时间。只在浅色 A / B1 / B2 / C 下播放。
+ *   环境游动按真实时间。在 A / B1 / B2 / C 的深浅色中播放。
  */
 export class TidePresentation {
   private stop: (() => void) | null = null;
@@ -435,7 +437,8 @@ export class TidePresentation {
     const snapshot = (): TideResume | null => {
       let color = "transparent", hintColor = "", hintShadow = "";
       try {
-        probe.style.color = "var(--lv-wallpaper-base, var(--color-canvas))";
+        probe.style.color = document.documentElement.dataset.themeMode === "dark"
+          ? "var(--s19-canvas, var(--color-canvas))" : "var(--lv-wallpaper-base, var(--color-canvas))";
         color = getComputedStyle(probe).color;
         const label = hint?.firstElementChild;
         if (label) { const style = getComputedStyle(label); hintColor = style.color; hintShadow = style.textShadow; }
@@ -449,7 +452,7 @@ export class TidePresentation {
           g.fillStyle = color; g.fillRect(0, 0, flat.width, flat.height); g.drawImage(canvas, 0, 0, flat.width, flat.height);
           const image = flat.toDataURL("image/jpeg", 0.85);
           if (!image.startsWith("data:image/jpeg")) continue;
-          const frame: TideResume = { at: Date.now(), look: request.look, seconds, y: ys, c: C, width: size.width, height: size.height, image, color, dir: rise ? "up" : "down",
+          const frame: TideResume = { at: Date.now(), theme: document.documentElement.dataset.themeMode ?? "light", look: request.look, seconds, y: ys, c: C, width: size.width, height: size.height, image, color, dir: rise ? "up" : "down",
             ...(hint ? { hint: hintText, hintY: hintY / H, hintColor, hintShadow, hintAt, hintFade } : {}) };
           if (saveTideResume(frame)) return frame;
         } catch { /* 换更小的尺寸再试 */ } finally { flat.width = 0; flat.height = 0; }

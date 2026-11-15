@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from "react";
 
 import { usePane } from "../../workspace/context.js";
 import { useKeyboardInset } from "./keyboardInset.js";
-import { useS19Light } from "../../lib/useRootVisualStyle.js";
+import { useS19WorkspaceChrome } from "../../lib/useRootVisualStyle.js";
 
 /**
  * 保存行动条：粘在手动记账页滚动区的底部，**与底部导航严丝合缝**。
@@ -49,7 +49,7 @@ export function EntrySaveBar({
 }): React.JSX.Element {
   const pane = usePane();
   const keyboardInset = useKeyboardInset(scrollRef, pane.shell !== "phone");
-  const edge = useS19Light() && pane.nav === "bottom";
+  const edge = useS19WorkspaceChrome() && pane.nav === "bottom";
 
   return (
     <div

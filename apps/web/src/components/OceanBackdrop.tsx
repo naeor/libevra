@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useI18n } from "../i18n/index.js";
 import { oceanPath } from "../lib/oceanGeometry.js";
+import { s19Style } from "../s19/scope.js";
 import { OceanMaterial, type OceanLook } from "../s19/OceanMaterial.js";
 
 /**
@@ -14,16 +15,15 @@ const OCEAN_COLORS = [
   "var(--color-ocean-4)",
 ] as const;
 
-const LOOKS: readonly string[] = ["a", "b1", "b2", "c"];
-
 /**
- * S19：浅色 A / B1 / B2 / C 换用 `s19/OceanMaterial`（分层转场与材质）；Original 与深色仍是下面的原版绘制，
+ * S19 的四种风格使用 `s19/OceanMaterial`，明暗均与海浪转场读取同一套材质；Original 使用原版绘制，
  * 一字未改。只读 `<html data-visual-style / data-theme-mode>`，风格切换时整块替换，不保留中间状态。
  */
 function readLook(): OceanLook | "original" {
   if (typeof document === "undefined") return "original";
-  const data = document.documentElement.dataset;
-  return data.themeMode === "light" && LOOKS.includes(data.visualStyle ?? "") ? data.visualStyle as OceanLook : "original";
+  const root = document.documentElement;
+  if (root.dataset.shell === "desktop" && root.dataset.themeMode === "dark") return "original";
+  return s19Style(root.dataset.visualStyle) ?? "original";
 }
 function subscribeLook(change: () => void): () => void {
   const observer = new MutationObserver(change);

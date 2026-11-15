@@ -8,9 +8,9 @@ export function navigationLevel(pathname: string): NavigationLevel {
 
 /**
  * **常驻底栏在哪些层级显示——全站唯一的判断（1.19.75，审查 T1）。** 主 Tab 显示、次级页面隐藏；记账工作区（enterMode）
- * 1.19.78 起看 `workspaceChrome`：S19 浅色手机端是独立工作区（所有者 2026-11-14：隐藏完整的五项底栏、顶部换成工作区顶栏，
- * 离开时恢复），底栏隐藏；Original 与深色（不在这次范围，深色以后整体重做）仍显示底栏，与原来相同。
- * 调用方用 `useS19Light()`（lib/useRootVisualStyle.ts）取得 `workspaceChrome`。
+ * 1.19.78 起看 `workspaceChrome`：S19 四风格手机端是独立工作区（所有者 2026-11-14：隐藏完整的五项底栏、顶部换成工作区顶栏，
+ * 离开时恢复），底栏隐藏；Original仍显示底栏，与原来相同。
+ * 调用方用 `useS19WorkspaceChrome()`（lib/useRootVisualStyle.ts）取得 `workspaceChrome`。
  *
  * 手机外壳的常驻底栏（components/Layouts.tsx 的 PaneShell）、记账页为底栏留的尾部空间（MobileInnerPage）都只问这里；
  * 底栏的“向下退出 / 从下方升回”动画（s19/motion/navMotion.ts、B2 的 View Transition 规则在 pilot.css）按“前后两页的

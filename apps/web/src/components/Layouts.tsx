@@ -24,7 +24,7 @@ import { useGoBack, type BackMode } from "../lib/connectivity.js";
 import { useI18n } from "../i18n/index.js";
 import { WorkbenchSyncBridge } from "../statsWorkbench/SyncBridge.js";
 import { WorkspaceTopBar } from "./entry/WorkspaceTopBar.js";
-import { useS19Light } from "../lib/useRootVisualStyle.js";
+import { useS19WorkspaceChrome } from "../lib/useRootVisualStyle.js";
 import { usePane, useMarkBack } from "../workspace/context.js";
 import { DesktopInnerPage, DesktopTabPage } from "../desktop/DesktopFrames.js";
 import { useDesktopSurface } from "../desktop/surface.js";
@@ -139,14 +139,14 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
    * 常驻底栏显示与否 = 这一层级显示底栏（`navVisibleAt`，navigation.ts 里唯一的判断）且页面没有要求让位。
    * 结果从有到无：先向下退出，走完才真正隐藏；从无到有：先显示，再从下方升回（s19/motion/navMotion.ts）。
    * - **让位**（1.19.52：工作台编辑、专注型核对、明细批量操作）：所有外观都有这段过程，变灰、不可点，与原来相同。
-   * - **随层级**（1.19.75，审查 T1：主 Tab ↔ 次级页，以及以后 `navVisibleAt` 改动的任何层级）：只在 S19 浅色手机外壳
+   * - **随层级**（1.19.75，审查 T1：主 Tab ↔ 次级页，以及以后 `navVisibleAt` 改动的任何层级）：只在 S19 四风格手机外壳
    *   播放，其余外观即时显隐；B2 的 View Transition 拍新页时由快照播放（pilot.css），活的底栏直接换到结果。
    *   主 Tab 之间交换、记账菜单展开时结果不变，底栏不动。
-   * - **中途反向**：S19 浅色下从此刻的位置反向；其余外观与 1.19.52 相同（取消退出、直接回到原位）。
+   * - **中途反向**：S19 四风格下从此刻的位置反向；其余外观与 1.19.52 相同（取消退出、直接回到原位）。
    * - 减少动态效果、后台标签页：直接显隐。软键盘打开时底栏原样被 CSS 藏起（navigation.css），与这里无关。
    */
   const navRef = useRef<HTMLDivElement | null>(null);
-  const workspaceChrome = useS19Light();
+  const workspaceChrome = useS19WorkspaceChrome();
   const atLevel = navVisibleAt(level, workspaceChrome);
   const wanted = atLevel && !navigationSuppressed;
   const [navHidden, setNavHidden] = useState(!wanted);
@@ -167,7 +167,7 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
         setNavHidden(true);
         return;
       }
-      // 升回途中又要离开：从此刻的位置退出（S19 浅色）；其余外观从原位开始。
+      // 升回途中又要离开：从此刻的位置退出（S19 四风格）；其余外观从原位开始。
       const from = running !== null && smooth ? navOffset(nav) : null;
       running?.cancel();
       const motion = playNavMotion(nav, "exit", from, () => {
@@ -179,7 +179,7 @@ export function PaneShell({ children }: { readonly children: React.ReactNode }):
       return;
     }
     if (nav !== null && !nav.hidden) {
-      // 退出还没走完就又需要它：S19 浅色下从此刻的位置升回；其余外观取消退出、直接回到原位（1.19.52）。
+      // 退出还没走完就又需要它：S19 四风格下从此刻的位置升回；其余外观取消退出、直接回到原位（1.19.52）。
       if (running?.kind !== "exit") return;
       const from = smooth && animated ? navOffset(nav) : null;
       running.cancel(); state.motion = null;
@@ -331,7 +331,7 @@ function MobileTabPage({
    * 大屏仍在底边说明当前账本。
    */
   const { pathname: tabPath } = useLocation();
-  const workspaceChrome = useS19Light();
+  const workspaceChrome = useS19WorkspaceChrome();
   const workspace = pane.nav === "bottom" && !navVisibleAt(navigationLevel(tabPath), workspaceChrome);
   const bottomNav = pane.nav === "bottom" && !workspace;
   const suppressNavigation = useContext(SuppressNavigationContext);
@@ -465,9 +465,9 @@ function MobileInnerPage({
   const navigationSuppressed = useContext(NavigationSuppressedContext);
   // 1.19.75：是否给底栏留位跟着底栏是否显示走（navVisibleAt），以后记账工作区改成隐藏底栏时这里自动不再留位。
   const level = navigationLevel(pathname);
-  const workspaceChrome = useS19Light();
+  const workspaceChrome = useS19WorkspaceChrome();
   const mode = pane.nav === "bottom" && level === "enterMode" && navVisibleAt(level, workspaceChrome) && !navigationSuppressed;
-  /** 1.19.78：S19 浅色手机端的记账方式页是独立工作区——顶部换成较矮的工作区顶栏（返回箭头、标题、右侧留空），不再有大标题。 */
+  /** 1.19.78：S19 四风格手机端的记账方式页是独立工作区——顶部换成较矮的工作区顶栏（返回箭头、标题、右侧留空），不再有大标题。 */
   const workspace = pane.nav === "bottom" && level === "enterMode" && workspaceChrome;
   const width = frameWidthClass(pane, wideWidth);
   /**

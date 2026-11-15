@@ -4,10 +4,10 @@
  *
  * 四种风格是同一个“模型”——会移动的选中、网格选中、条件标签出现与消失——区别只在外观与动效性格：
  * B1 / B2 弹性玻璃（与底栏选中胶囊同一套参数）、A 选中项自己浮起（A2 档，纯 CSS）、C 实底干脆滑动。
- * Original、深色、Pad 与电脑版（没有 S19 作用域标记）回落基础外观。
+ * 手机与 Pad 的深浅色 S19 共用选中模型。Original 与独立电脑版使用基础外观。
  */
 import { SELECTION_GLIDE, SELECTION_SLIDE, selectionGlideDuration, selectionSlideDuration } from "../../lib/motionTokens.js";
-import { S19_SCOPE_SELECTOR } from "../../s19/scope.js";
+import { S19_SCOPE_SELECTOR, s19Style } from "../../s19/scope.js";
 import type { SelectionBox } from "./selectionMotion.js";
 
 export type SelectionStyle = "a" | "b1" | "b2" | "c";
@@ -15,20 +15,18 @@ export type SelectionAxis = "x" | "y";
 /** 选中块怎么移动：glide = B1 / B2 弹性玻璃；slide = C 干脆滑动；base = 基础外观里原来的滑动胶囊（共享分段控件、SlidingSelection）；none = 不移动。 */
 export type SelectionMotion = "glide" | "slide" | "base" | "none";
 /**
- * 基础外观（Original、深色、Pad、电脑版）里怎么表示选中：
+ * 基础外观（Original、独立电脑版）里怎么表示选中：
  * - static：不显示选中块，选中项保持调用方自己的选中样式（筛选面板、外观页明暗三选一）；
  * - slide：显示一块原滑动胶囊，外观由调用方的样式给出（共享分段控件 `SegmentedControl`）；
  * - copy：显示一块原滑动胶囊，外观逐项从选中按钮的计算样式复制（1.19.67，`SlidingSelection` 的六个使用方：
  *   各自的选中样式写在自己的类名里，品牌实底、白胶囊、浅底都有）。
- * 两种滑动都用原来的 200ms 节奏（`selectionMotion.ts`）。S19 浅色手机外壳里三者一样，按风格画选中块或浮起。
+ * 两种滑动都用原来的 200ms 节奏（`selectionMotion.ts`）。S19 四风格手机外壳里三者一样，按风格画选中块或浮起。
  */
 export type SelectionBase = "static" | "slide" | "copy";
 
-/** 当前生效的 S19 风格；不在 S19 作用域、深色或 Original 时为 null（与组件动效 `componentMotion` 同一判断）。 */
+/** 当前生效的 S19 风格；不在 S19 作用域或 Original 时为 null（与组件动效 `componentMotion` 同一判断）。 */
 export function selectionStyle(root: { readonly dataset: DOMStringMap }, inScope: boolean): SelectionStyle | null {
-  if (!inScope || root.dataset.themeMode !== "light") return null;
-  const style = root.dataset.visualStyle;
-  return style === "a" || style === "b1" || style === "b2" || style === "c" ? style : null;
+  return inScope ? s19Style(root.dataset.visualStyle) : null;
 }
 
 export function selectionStyleOf(element: Element): SelectionStyle | null {

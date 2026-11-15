@@ -6,7 +6,7 @@
  *   记一笔菜单、底栏上的账本胶囊、底栏让位与软键盘隐藏），以及按视口计算、只在手机外壳运行的转场协调器。
  *
  * 手机外壳使用 phone，Pad 工作区使用 pad，独立电脑版没有此标记。
- * 浅色与风格条件（`data-theme-mode="light"`、`data-visual-style`）不并入标记，规则里照旧各自写。
+ * 主题的明暗与工作区类型彼此独立。手机与 Pad 的正式四风格沿用相同运动路径。
  * 规格：docs/specs/design/S19-材质组件与动效设计系统.md §1「作用域标记」；守卫见 scope.test.ts。
  */
 export type S19Scope = "phone" | "pad";
@@ -16,6 +16,11 @@ const PHONE: S19Scope = "phone";
 export const S19_SCOPE_SELECTOR = ".lv-shell[data-s19-scope]";
 /** 手机专属层。 */
 export const S19_PHONE_SELECTOR = `.lv-shell[data-s19-scope="${PHONE}"]`;
+
+/** 识别正式风格；Original 没有属性，实验和未知值也保留原有行为。 */
+export function s19Style(value: string | undefined): "a" | "b1" | "b2" | "c" | null {
+  return value === "a" || value === "b1" || value === "b2" || value === "c" ? value : null;
+}
 
 /** WorkspaceShell 仅管理手机与 Pad，独立桌面外壳不调用此函数。 */
 export function s19ScopeForShell(shell: "contents" | "wide"): S19Scope {

@@ -14,6 +14,13 @@
     var frame = JSON.parse(raw);
     if (!frame || !frame.image || Date.now() - frame.at > 10000) { sessionStorage.removeItem("libevra.tide-resume"); return; }
     var root = document.documentElement;
+    // 明暗已变或用户要求减少动态时，沿用首绘背景，不展示上一种亮度的整屏截图。
+    if ((root.dataset.themeMode && (frame.theme || "light") !== root.dataset.themeMode) ||
+        (root.dataset.themeMode === "dark" && frame.look !== root.dataset.visualStyle) ||
+        matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      sessionStorage.removeItem("libevra.tide-resume");
+      return;
+    }
     root.setAttribute("data-tide-resume", "");
     root.style.setProperty("--tide-resume-image", 'url("' + frame.image + '")');
     root.style.setProperty("--tide-resume-color", frame.color || "transparent");
