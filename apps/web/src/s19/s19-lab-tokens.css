@@ -13,6 +13,7 @@
   --s19-on-accent: #fff;
   /* 浅色 Pad 的记账主操作固定为品牌绿，独立于用户选择的强调色。 */
   --s19-entry-green: #447d63;
+  --s19-porcelain-key-sh: inset 0 1px 0 rgb(255 255 255 / .95), 0 0 0 .5px rgb(90 80 60 / .09), 0 1px 2px rgb(60 54 44 / .04), 0 16px 32px -20px rgb(70 60 44 / .38);
   /* 遮罩里“完全显示”的颜色（遮罩只看不透明度），第十轮摘要卡退场用 */
   --s19-mask-solid: #000;
   --s19-dialog-sh: 0 0 0 .5px rgb(40 50 44 / .06), 0 24px 48px -20px rgb(20 30 26 / .38);
@@ -141,7 +142,7 @@
   --s19-card-bg: linear-gradient(180deg, #fffefb 0%, #fbf9f4 60%, #f6f3ec 100%);
   --s19-card-sh: inset 0 1px 0 rgb(255 255 255 / .95), 0 0 0 .5px rgb(90 80 60 / .085), 0 1px 2px rgb(60 54 44 / .04), 0 10px 22px -18px rgb(70 60 44 / .32);
   --s19-key-bg: var(--s19-card-bg);
-  --s19-key-sh: inset 0 1px 0 rgb(255 255 255 / .95), 0 0 0 .5px rgb(90 80 60 / .09), 0 1px 2px rgb(60 54 44 / .04), 0 16px 32px -20px rgb(70 60 44 / .38);
+  --s19-key-sh: var(--s19-porcelain-key-sh);
   --s19-mini-bg: var(--s19-card-bg);
   --s19-mini-sh: var(--s19-card-sh);
   --s19-key-sh-tight: inset 0 1px 0 rgb(255 255 255 / .95), 0 0 0 .5px rgb(90 80 60 / .1), 0 1px 2px rgb(60 54 44 / .05);

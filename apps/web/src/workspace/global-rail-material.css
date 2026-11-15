@@ -38,22 +38,13 @@
   }
   .lv-rail-book[aria-current="true"] .lv-rail-book-dot { background: currentColor; }
   .lv-rail-book-current { color: var(--color-ink); }
-  .lv-rail-add {
-    color: var(--color-ink);
-    background: var(--lv-rail-action);
-    box-shadow: var(--lv-rail-action-sh);
+  .lv-rail-add,
+  .lv-rail-add:is(:hover, :active, [aria-expanded="true"]) {
+    color: var(--color-on-tag);
+    background: var(--lv-entry-fill, var(--s19-entry-green));
+    box-shadow: var(--lv-entry-shadow, var(--lv-rail-action-sh));
   }
-  .lv-rail-add:hover, .lv-rail-add[aria-expanded="true"] {
-    background: var(--lv-rail-picked);
-    box-shadow: var(--lv-rail-relief);
-  }
-  /* 加号使用主题的强调色与承载面。普通导航图标从所在按钮继承前景色。 */
-  .lv-entry-plus {
-    border-radius: 50%;
-    color: var(--color-brand-dark);
-    background: var(--lv-rail-plus-plate);
-    box-shadow: 0 0 0 2px var(--lv-rail-plus-plate);
-  }
+  .lv-entry-plus { color: inherit; }
   .lv-books-popover { background: var(--s19-sheet-bg); box-shadow: var(--s19-sheet-sh); }
   .lv-rail-item[data-lifted="true"] { background: var(--lv-rail-action); box-shadow: var(--lv-rail-action-sh); }
   button:focus-visible { outline: 2px solid var(--color-ink); outline-offset: -3px; }
@@ -84,21 +75,44 @@
 }
 :root[data-theme-mode="dark"]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
   --lv-rail-mark-face: var(--s19-tool-flat, var(--color-surface));
-  --lv-rail-plus-plate: color-mix(in srgb, var(--color-brand) 42%, var(--s19-canvas));
+  --lv-entry-reflection: 1;
   .lv-rail-wordmark, svg { color: var(--color-on-tag); }
   .lv-add-item-icon { background: var(--s19-tool-bg); }
+  .lv-rail-add:is(:active, [aria-expanded="true"]) {
+    --lv-entry-fill: color-mix(in srgb, var(--s19-entry-green) 90%, var(--s19-canvas));
+  }
+}
+/* 两种主题共用实体瓷片。反光画在绿底上方、文字下方。 */
+:root:is([data-visual-style="b1"], [data-visual-style="b2"]) .lv-shell[data-s19-scope="pad"] > .lv-rail .lv-rail-add {
+  position: relative;
+  isolation: isolate;
+  --lv-entry-shadow: var(--s19-porcelain-key-sh);
+  --lv-light-x: 81%;
+  --lv-light-y: 8%;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--lv-entry-finish);
+    opacity: var(--lv-entry-reflection, .14);
+  }
+}
+:root[data-visual-style="b1"] .lv-shell[data-s19-scope="pad"] > .lv-rail .lv-rail-add {
+  --lv-entry-finish: var(--s19-dark-porcelain-satin, var(--lv-porcelain-satin));
+}
+:root[data-visual-style="b2"] .lv-shell[data-s19-scope="pad"] > .lv-rail .lv-rail-add {
+  --lv-entry-finish: var(--s19-dark-porcelain-glazed, var(--lv-porcelain-glazed));
+}
+:root[data-theme-mode="light"][data-visual-style="b1"] .lv-shell[data-s19-scope="pad"] > .lv-rail {
+  /* 宽缎光会延伸到按钮文字下方，亮度低于 B2 的局部釉光。 */
+  --lv-entry-reflection: .08;
 }
 :root[data-theme-mode="light"]:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"], [data-visual-style="c"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
   /* 次要文字和图标共用前景，在偏灰的薄片和经典表面上也能清楚阅读。 */
   --color-muted: color-mix(in srgb, var(--color-ink) 75%, var(--color-surface));
-  .lv-rail-add,
-  .lv-rail-add:is(:hover, :active, [aria-expanded="true"]) {
-    --lv-rail-plus-plate: transparent;
-    color: var(--s19-on-accent);
-    background: var(--lv-entry-finish, none), var(--s19-entry-green);
-    box-shadow: var(--lv-rail-action-sh);
-  }
-  .lv-entry-plus { color: inherit; }
 }
 
 /* 卡片表面单独升降，让图标、文字和触摸区域留在原位。 */
@@ -133,7 +147,6 @@
 }
 
 :root[data-theme-mode="light"]:is([data-visual-style="b1"], [data-visual-style="b2"]) .lv-shell[data-s19-scope="pad"] > .lv-rail {
-  --lv-entry-finish: linear-gradient(165deg, color-mix(in srgb, var(--color-on-tag) 6%, transparent), transparent 55%);
   [data-page-selection] { position: relative; isolation: isolate; }
   [data-page-selection][data-select-ready] {
     > [data-select-block] {

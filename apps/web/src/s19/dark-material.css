@@ -2,6 +2,11 @@
  * 品牌色沿用用户所选色盘，页面背景来自 wallpaper.css。 */
 html:root[data-theme-mode="dark"][data-visual-style]:not([data-shell="desktop"]):has(.lv-shell[data-s19-scope]) {
   color-scheme: dark;
+  --s19-entry-green: #426b55;
+  /* 实体深色瓷面的反射与边缘，供 B1 组件和 Pad 的瓷片记账入口共用。 */
+  --s19-dark-porcelain-satin: radial-gradient(ellipse 95% 85% at 18% 0%, rgb(255 255 255 / .11), transparent 78%);
+  --s19-dark-porcelain-glazed: linear-gradient(160deg, transparent 7%, rgb(255 255 255 / .095) 16%, transparent 24%);
+  --s19-porcelain-key-sh: inset 0 1px 0 rgb(255 255 255 / .17), inset 0 -2px 1px rgb(0 0 0 / .32), 0 2px 3px rgb(0 0 0 / .32);
   --color-canvas: var(--s19-canvas);
   --color-surface: #252527;
   --color-ink: #f2f2f3;
@@ -133,14 +138,14 @@ html:root[data-theme-mode="dark"][data-visual-style="a"]:not([data-shell="deskto
 html:root[data-theme-mode="dark"][data-visual-style="b1"]:not([data-shell="desktop"]):has(.lv-shell[data-s19-scope]) {
   --s19-canvas: #171717;
   --s19-card-bg: radial-gradient(ellipse 110% 130% at 12% -20%, #39393b, #2e2e30 46%, #252527 100%);
-  --s19-card-sh: inset 0 1px 0 rgb(255 255 255 / .17), inset 0 -2px 1px rgb(0 0 0 / .32), 0 2px 3px rgb(0 0 0 / .32);
+  --s19-card-sh: var(--s19-porcelain-key-sh);
   --s19-tool-bg: linear-gradient(160deg, #414143, #303032 55%, #343436);
   --s19-dock-bg: #2a2a2c;
   --s19-sheet-bg: linear-gradient(155deg, #38383a, #29292b 70%);
 }
 html:root[data-theme-mode="dark"][data-visual-style="b1"] .lv-shell[data-s19-scope] .lv-material-effects {
-  --lv-porcelain-satin: radial-gradient(ellipse 95% 85% at 18% 0%, rgb(255 255 255 / .11), transparent 78%);
-  --lv-porcelain-glazed: linear-gradient(160deg, transparent 7%, rgb(255 255 255 / .095) 16%, transparent 24%);
+  --lv-porcelain-satin: var(--s19-dark-porcelain-satin);
+  --lv-porcelain-glazed: var(--s19-dark-porcelain-glazed);
   --lv-porcelain-window: linear-gradient(155deg, rgb(255 255 255 / .12), transparent);
   --lv-porcelain-shadow: var(--s19-card-sh);
 }

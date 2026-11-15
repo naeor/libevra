@@ -309,7 +309,7 @@ export function AddEntryButton({ compact, onNavigate, follow, followOpen, onTogg
     }} onNavigate={onNavigate} onSelected={() => { setLocalOpen(false); button.current?.focus({ preventScroll: true }); }} /></div></div>
   </div>;
   return <div className="lv-rail-add-wrap">
-    <button ref={button} type="button" className="lv-rail-add" data-compact={compact ? "true" : "false"} aria-expanded={open}
+    <button ref={button} type="button" className="lv-rail-add lv-material-effects" data-compact={compact ? "true" : "false"} aria-expanded={open}
       aria-controls={open ? follow ? "lv-follow-entry-menu" : menuId : undefined} aria-haspopup="menu"
       aria-label={open ? t("workspace.rail.closeAddMenu") : t("workspace.rail.addMenu")}
       {...tip.bind}
