@@ -1,0 +1,15 @@
+# 1.19.106 补发 1.19.105 更新公告的私人部署：代码与数据库迁移都不变（71 个迁移，无新增），
+# 只重建 api / web 镜像并切换；数据库与 relay 不重建，回滚只回滚应用镜像、不涉及迁移。
+services:
+  migrate:
+    image: libevra-rc-api:1.19.106-20261117
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.19.106-20261117
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.19.106-20261117
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
