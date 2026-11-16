@@ -1,0 +1,15 @@
+# S19 全仓审计修复后的私人部署（1.19.105）：先单独执行迁移（新增 3 个：暂存上传两张表、总览配置表、总览配置计量触发器），
+# 再只切换 api / web；数据库与 relay 不重建，回滚只回滚应用镜像、不回滚迁移。
+services:
+  migrate:
+    image: libevra-rc-api:1.19.105-20261116
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.19.105-20261116
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.19.105-20261116
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
