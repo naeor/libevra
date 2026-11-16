@@ -34,19 +34,19 @@ describe("software update announcements", () => {
     // 两位数补丁号（1.17.10 / 1.17.11）两种写法相同。
     if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
     expect(html).toContain("1.18.34");
-    expect(html).toContain("桌面总览、账本管理与协作布局更新");
+    expect(html).toContain("电脑端总览自定义、游客模式与界面收尾");
     expect(html).toContain(
       "账目支持添加和预览附件，新增变更提醒与容量管理，并统一各端的筛选、排序和记账界面。",
     );
     expect(html).toContain("2026年11月1日");
-    expect(html).toContain('href="/update/announcements/1.18.15"');
+    expect(html).toContain('href="/update/announcements/1.18.32"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
-    expect(html).not.toContain("更早");
+    expect(html).not.toContain("显示更早公告");
     expect(html).toContain("1.19.56");
     expect(html).toContain("成员权限分级与记录人筛选");
     expect(html).toContain("调整及优化");
-    expect(html).toContain("当前月份即使还没有账目，也始终可以在筛选里选中。");
+    expect(html).toContain("多页总览：最多 8 页");
     expect(html).toContain('href="/update/announcements/1.19.53"');
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
@@ -61,7 +61,7 @@ describe("software update announcements", () => {
     expect(previous).toBeGreaterThan(current);
     expect(html).toContain('href="/update/announcements/1.16.08"');
     expect(html).toContain('href="/update/announcements/1.16.03"');
-    expect(html).toContain('href="/update/announcements/1.15.05"');
+    expect(html).toContain("显示更早公告（还有 10 条）");
   });
 
   it("renders the full 1.15.05 announcement with version navigation and a back control", () => {

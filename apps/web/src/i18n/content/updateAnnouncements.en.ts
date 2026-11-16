@@ -10,6 +10,64 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.19.105": {
+    title: "Desktop dashboard customization, guest mode and interface polish",
+    summary:
+      "The desktop dashboard can now be customized with cards and multi-page layouts and synced across devices; guest mode adds multiple ledgers, bill import, attachments and export, and guest ledgers can be moved to an account; the interface, motion and dark mode are unified, and issues found in the pre-release audit are fixed.",
+    intro: [
+      "This update covers the changes from 1.19.56 through 1.19.105. The announcement was written after the release and ships with the 1.19.106 build; the version and release date remain 1.19.105.",
+      "The main changes are desktop dashboard customization and sync, a more complete guest mode, interface work on tablets and dark mode, unified interaction and motion, and fixes from a full-code audit before the release.",
+    ],
+    sections: [
+      { heading: "New features", items: [
+        "The desktop dashboard can be customized: drag, move, resize, copy and delete cards, undo and redo, or restore the default layout. The card library includes insight cards, combined cards and dashboard cards.",
+        "Cards show different content by size, such as a ledger, multi-ledger totals, spending trends, recent entries, pending items and quick actions; amounts are shown in full.",
+        "Dashboard cards can use a date range (this month, last month, last 7 / 30 / 90 days, year to date, last year or a chosen month), statistics in the original currency or converted, and a source ledger.",
+        "Amount masking: blur amounts on the dashboard with one tap and reveal them on hover, press or keyboard focus; individual cards can always stay masked. Ledger amounts in the sidebar are masked too; this setting stays on this device and does not sync with the account.",
+        "Card settings include a note, an empty-state hint and a click target; middle-click or Ctrl-click a ledger card to open it in a new tab; insight cards can be pinned to the dashboard.",
+        "The right sidebar can be customized: choose and reorder quick actions, news, recent entries, pending items, ledgers and the inspector, and collapse it.",
+        "The card context menu offers open, settings, size, move, copy and delete.",
+        "Multiple dashboard pages: up to 8 pages, created blank, copied from the current page, from a preset, or as one page per ledger; pages can be renamed, moved and deleted. Four presets are included, and My presets store up to 10.",
+        "The one page per ledger layout keeps a page for each ledger and follows the current ledger when you switch.",
+        "New cards: ledger comparison, calendar of the current month for all ledgers, to-sort, and frequent entries.",
+        "When signed in, dashboard pages, cards, date ranges, statistics, dashboard scope, sidebar settings, My presets and frequent entries sync with the account; guest settings stay on this device.",
+        "Guest mode is more complete: create, switch, rename, archive, restore and delete up to 20 ledgers; use appearance settings, text entry, batch edits and deletes, local bill import, local attachments, local export and exchange-rate conversion. A guest ledger can be moved to a full account: ledgers above 5,000 entries are uploaded in parts (up to 20,000), and attachments move with the entries.",
+      ] },
+      { heading: "Improvements", items: [
+        "Tablet layouts: two-pane views, non-modal filters and details, sidebar materials and keyboard focus, with transitions matching the phone.",
+        "The four visual styles support dark mode, with materials and backgrounds following the chosen style.",
+        "Pop-up panels share one template: content-first height, three heights, a darker backdrop, drag-to-close and a confirmation before closing.",
+        "Switches, toggles and option controls share one selection model across the four styles, with clearer selected states in light, dark and Layered glass.",
+        "Toasts are unified: one queue and component for info, success, warning and error, styled by the visual style, with pause, priority and accessibility, and undo bars now use it too.",
+        "Motion is unified: page transitions, the save transition for Add (the button becomes a circle, a spinner follows the request, a check mark is drawn, a small firework, then it retracts on failure), list changes and content expansion share the same timing; with reduced motion the app switches instantly.",
+        "Leaving Add or other editors asks first; returning restores your place, and panels and scroll positions are remembered (reset after 30 minutes without use); the system back gesture and the header back button behave the same.",
+        "Entry details return to the page you came from; Continue on the recovery-code page returns to the previous page; consent gating no longer has gaps.",
+        "S19 interface work covers the tablet workspace, sidebar, light and dark modes, pop-up panels and transitions; the desktop app and the original classic look stay unchanged, and the desktop dashboard subtitle shows the actual date range.",
+      ] },
+      { heading: "Bug fixes", items: [
+        "In a shared ledger, one member changing an amount could leave another member seeing the old value (two client paths).",
+        "Signing out did not clear this device's copy of ledger entries (BUG-007); cleanup is now per account and checked again shortly after.",
+        "A screenshot recognition (OCR) child process exiting unexpectedly no longer crashes the whole API process.",
+        "When the local dashboard record is damaged, an empty layout is no longer pushed to the server and over other devices' layouts.",
+        "Dashboard configuration now counts toward the account storage quota; exceeding the limit returns a clear message.",
+        "Closing an account or deleting all server data now clears staged bill-import uploads.",
+        "Local audio attachments (voice recordings) were blocked from preview by the page security policy.",
+        "Changes submitted by offline sync are validated by field rules; invalid amounts, currencies and similar values are no longer written, and a clear error is returned.",
+        "Behind a reverse proxy, rate limiting and session auditing now use the real client IP.",
+        "XLSX exports wrote amounts as text; they are now numbers based on the column name, and CSV export is unchanged.",
+        "Production builds lost the backdrop-filter prefix, so Layered glass was not blurred in Chromium; a built-CSS color class check was added.",
+        "Display issues in dark mode such as the expanded dimmer layer, the white band in date bars and toast contrast; S19 issues such as the first-screen theme script blocked by the old CSP, non-existent color classes and repeated dialogs.",
+      ] },
+      { heading: "Notes", items: [
+        "This announcement was written after the release and ships with the 1.19.106 build; it covers changes from 1.19.56 through 1.19.105, while the version and release date remain 1.19.105.",
+        "Earlier images on the server are kept only for backup and rollback and are not used by the running service; they can be cleaned up later once the new version is stable.",
+        "Guest data stays on this device, and guest mode supports up to 20 ledgers; move a guest ledger to a full account to use it across devices; migration is limited to 20,000 entries, and attachments added to migrated entries afterwards are not uploaded again.",
+        "Dashboard sync across devices needs a signed-in account and a network connection; amount masking, the current page and columns per row stay on this device; if both sides changed, the cloud version is used and the local version is backed up and can be restored from the sidebar.",
+        "Up to 8 dashboard pages; the one page per ledger layout follows each ledger; desktop dashboard customization is shown on wide desktop screens only, and phones and tablets keep the existing dashboard.",
+        "This update includes many interface and motion changes; if an old style is still visible after updating, refresh the page once.",
+      ] },
+    ],
+  },
   "1.19.56": {
     title: "Member access levels and Recorded by filter",
     summary: "Shared ledgers can give members Read only, Record or Edit all access, managed by an admin; filters add Recorded by and multiple months.",

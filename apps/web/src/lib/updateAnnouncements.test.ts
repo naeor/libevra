@@ -47,6 +47,7 @@ describe("version announcements", () => {
   it("contains the actual releases, newest first", () => {
     const released = releasedAnnouncements();
     expect(released.map((entry) => entry.version)).toEqual([
+      "1.19.105",
       "1.19.56",
       "1.19.53",
       "1.19.49",
@@ -88,8 +89,9 @@ describe("version announcements", () => {
     expect(released.filter((entry) => originalVersions.has(entry.version)).map(identity)).toEqual(
       original.announcements.map(identity),
     );
-    expect(released[0]?.version).toBe("1.19.56");
+    expect(released[0]?.version).toBe("1.19.105");
     expect(released.filter((entry) => !originalVersions.has(entry.version)).map((entry) => entry.version)).toEqual([
+      "1.19.105",
       "1.19.56",
       "1.19.53",
       "1.19.49",
@@ -127,7 +129,11 @@ describe("version announcements", () => {
       expect(section.items.length).toBeGreaterThan(0);
       expect(section.items.every(item => item.trim().length > 0)).toBe(true);
     }
-    if (entry.version === "1.19.56") {
+    if (entry.version === "1.19.105") {
+      expect(entry.releasedAt).toBe("2026-11-16");
+      expect(entry.revisedAt).toBeUndefined();
+      expect(entry.major).toBe(false);
+    } else if (entry.version === "1.19.56") {
       expect(entry.releasedAt).toBe("2026-11-11");
       expect(entry.major).toBe(false);
     } else if (entry.version === "1.19.53") {
@@ -286,7 +292,8 @@ describe("version announcements", () => {
     expect(hasNewerReleasedVersion("1.18.34")).toBe(true);
     expect(hasNewerReleasedVersion("1.19.49")).toBe(true);
     expect(hasNewerReleasedVersion("1.19.53")).toBe(true);
-    expect(hasNewerReleasedVersion("1.19.56")).toBe(false);
+    expect(hasNewerReleasedVersion("1.19.56")).toBe(true);
+    expect(hasNewerReleasedVersion("1.19.105")).toBe(false);
   });
 
   it("returns all actual releases and leaves the first page to the UI", () => {
@@ -306,7 +313,9 @@ describe("version announcements", () => {
   });
 
   it("offers older/newer release navigation without development placeholders", () => {
-    expect(adjacentReleasedAnnouncements("1.19.56").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.19.105").newer).toBeNull();
+    expect(adjacentReleasedAnnouncements("1.19.105").older?.version).toBe("1.19.56");
+    expect(adjacentReleasedAnnouncements("1.19.56").newer?.version).toBe("1.19.105");
     expect(adjacentReleasedAnnouncements("1.19.56").older?.version).toBe("1.19.53");
     expect(adjacentReleasedAnnouncements("1.19.53").newer?.version).toBe("1.19.56");
     expect(adjacentReleasedAnnouncements("1.19.53").older?.version).toBe("1.19.49");
