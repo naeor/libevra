@@ -295,6 +295,8 @@ export async function deleteAccountData(
     if (input.all) await tx.workbenchConfiguration.deleteMany({ where: { userId: input.userId } });
     // 1.19.104：电脑版总览的配置与工作台配置同样是账号级个人配置，一并删除。
     if (input.all) await tx.dashboardConfiguration.deleteMany({ where: { userId: input.userId } });
+    // 1.19.105：游客导入的暂存上传（含交易 JSONB）没有 user 外键，不随账号删除级联，这里显式清掉。
+    if (input.all) await tx.ledgerImportSourceUpload.deleteMany({ where: { userId: input.userId } });
 
     const selected: Book[] = [];
     const alreadyHandled: { bookId: string; action: "already_left" | "already_deleted" }[] = [];
@@ -697,6 +699,8 @@ export async function closeAccount(
     await tx.notificationQuota.deleteMany({ where: { userId: input.userId } });
     await tx.workbenchConfiguration.deleteMany({ where: { userId: input.userId } });
     await tx.dashboardConfiguration.deleteMany({ where: { userId: input.userId } });
+    // 1.19.105：暂存的游客导入上传没有 user 外键，注销时必须显式删除（含 parts，靠外键级联）。
+    await tx.ledgerImportSourceUpload.deleteMany({ where: { userId: input.userId } });
     await tx.notification.deleteMany({ where: { recipientId: input.userId } });
     await tx.notification.deleteMany({
       where: { senderId: input.userId, status: "pending" },

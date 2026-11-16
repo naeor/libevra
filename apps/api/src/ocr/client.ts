@@ -249,6 +249,16 @@ export class OcrService {
         console.warn("[ocr]", chunk.trim());
       });
 
+      /**
+       * A write to a child that has just died emits `EPIPE` on stdin. Without a
+       * listener that is an unhandled 'error' event, which crashes the API
+       * process — one dead recogniser would take the whole server with it.
+       * The `exit` handler below is what rejects the pending requests.
+       */
+      child.stdin.on("error", (error: Error) => {
+        console.warn("[ocr] stdin:", error.message);
+      });
+
       child.on("exit", (code) => {
         if (this.child === child) this.child = null;
         if (this.readyPromise === readyPromise) this.readyPromise = null;

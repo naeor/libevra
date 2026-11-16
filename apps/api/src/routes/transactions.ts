@@ -7,16 +7,22 @@ import {
   type DuplicateCandidateFields,
 } from "@libellum/shared";
 import {
+  amountCentsSchema,
   createTransactionSchema,
+  currencySchema,
   duplicateCheckResponseSchema,
   duplicateCheckSchema,
+  MAX_TAGS_PER_TRANSACTION,
   summaryResponseSchema,
+  transactionKindSchema,
   transactionListResponseSchema,
   updateTransactionSchema,
+  uuidSchema,
   type Transaction as TransactionDto,
   type Currency,
   type TransactionKind,
 } from "@libellum/shared";
+import { z } from "zod";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { categoryBranchIds } from "@libellum/shared";
 
@@ -51,6 +57,33 @@ import { badRequest, conflict, notFound } from "../lib/errors.js";
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * ⚠️ **`changes[].wanted` 也要按字段自己的规则校验。**
+ *
+ * 判断（judge）只回答「这个字段该不该写」，不回答「写什么」——`changes` 的 schema 里
+ * `wanted` 是 `z.unknown()`。于是一个错误或伪造的离线同步请求，走 accept 分支时会绕开
+ * `updateTransactionSchema`：金额可以写成负数、币种可以写成任意三字母（`transactions`
+ * 表对这两个字段没有数据库 CHECK）。这里在写库前统一校验，不允许“judge 说 accept 就照抄”。
+ */
+const CONFLICT_WANTED_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  kind: transactionKindSchema,
+  amountCents: amountCentsSchema,
+  currency: currencySchema,
+  categoryId: z.union([uuidSchema, z.literal(""), z.null()]).transform((value) => (value === "" ? null : value)),
+  paymentMethodId: z.union([uuidSchema, z.literal(""), z.null()]).transform((value) => (value === "" ? null : value)),
+  note: z.string().trim().max(200).nullable(),
+  tagIds: z.array(uuidSchema).max(MAX_TAGS_PER_TRANSACTION),
+};
+
+/** One field's wanted value, or a 400 for the whole change: half a sync batch is never written. */
+function conflictWantedValue(field: string, wanted: unknown): unknown {
+  const schema = CONFLICT_WANTED_SCHEMAS[field];
+  if (schema === undefined) return wanted;
+  const parsed = schema.safeParse(wanted);
+  if (!parsed.success) throw badRequest("sync_change_invalid", "这次离线改动里有不合法的值，请刷新后重试。");
+  return parsed.data;
+}
 
 export interface TransactionRouteOptions {
   readonly prisma: PrismaClient;
@@ -759,7 +792,7 @@ export function registerTransactionRoutes(
        * the device's value is written.** There is nothing to ask about — **and nothing to compare, either.**
        */
       if (verdict.kind === "accept") {
-        settledFields[field] = change.wanted;
+        settledFields[field] = conflictWantedValue(field, change.wanted);
         continue;
       }
 

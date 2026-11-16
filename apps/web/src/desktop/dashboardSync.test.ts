@@ -19,7 +19,7 @@ vi.mock("../lib/api.js", () => {
   };
 });
 
-import { defaultDashboardDocuments, loadTemplates, readDashboard, saveDashboard, writeDashboardSettings, DEFAULT_DASHBOARD_SETTINGS, addTemplate } from "./dashboardStore.js";
+import { defaultDashboardDocuments, dashboardStorageKey, loadTemplates, readDashboard, saveDashboard, writeDashboardSettings, DEFAULT_DASHBOARD_SETTINGS, addTemplate } from "./dashboardStore.js";
 import { DashboardSync, localDashboardConfiguration } from "./dashboardSync.js";
 
 class MemoryStorage {
@@ -102,5 +102,25 @@ describe("1.19.104 总览同步", () => {
     sync.editing = true;
     await sync.run();
     expect(server.posts).toBe(0);
+  });
+
+  // 1.19.105：本机记录损坏时，不能把「空 pages」当成一次本机改动提交上去，
+  // 否则云端被改成「跟随默认总览」，其它设备再同步就会把布局清空。
+  it("本机记录损坏 → 判 invalid、不提交，云端保持原样", async () => {
+    saveDashboard(owner, defaultDashboardDocuments(["a"]), 0, ["a"]);
+    const sync = new DashboardSync(owner);
+    await sync.run();
+    expect(server.posts).toBe(1);
+    const before = structuredClone(server.record!.configuration);
+
+    (globalThis as { localStorage: { setItem(key: string, value: string): void } }).localStorage.setItem(
+      dashboardStorageKey(owner),
+      JSON.stringify({ v: 2, owner, version: 1, pages: "broken" }),
+    );
+    await sync.run();
+
+    expect(server.posts).toBe(1);
+    expect(sync.getSnapshot().status).toBe("invalid");
+    expect(server.record!.configuration).toEqual(before);
   });
 });

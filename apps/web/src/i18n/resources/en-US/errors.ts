@@ -45,6 +45,7 @@ const errors: Messages<typeof zh> = {
     dashboard_config_invalid: "The overview configuration is invalid or unsupported.",
     dashboard_config_newer: "The overview saved in the cloud comes from a newer version. Update the app before saving.",
     dashboard_config_conflict: "Another device has already updated the overview.",
+    sync_change_invalid: "One of the offline changes has an invalid value. Refresh and try again.",
     workbench_newer: "Update the app before changing this newer cloud configuration.",
     configuration_limit: "The display configuration limit has been reached.",
     workbench_conflict: "Another device updated this workspace. Choose which configuration to keep.",

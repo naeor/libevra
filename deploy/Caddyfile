@@ -104,10 +104,13 @@
 		#   * `connect-src 'self'` — the app talks only to its own `/api`.
 		#   * `img-src 'self' data: blob:` — `data:`/`blob:` are needed for the screenshot
 		#     preview and the QR code, which are generated in the browser.
+		#   * `media-src 'self' blob:` — a voice attachment recorded on this device is previewed
+		#     from an object URL before it is uploaded; without this directive the browser falls
+		#     back to `default-src 'self'` and refuses the `blob:` audio source.
 		#   * `frame-ancestors 'none'` — the modern half of `X-Frame-Options`.
 		#   * `base-uri 'none'`, `form-action 'self'`, `object-src 'none'` — nothing in the
 		#     app needs any of them, and each closes a known class of injection.
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 
 		-Server
 	}
@@ -122,6 +125,12 @@
 			# come from its own origin; rewriting the Host would make that check compare two
 			# different names and refuse every write as cross-site.
 			header_up X-Real-IP {remote_host}
+			# ⚠️ **Overwrite, never append.** Fastify runs with `trustProxy: true`, so it believes
+			# `X-Forwarded-For` and derives `request.ip` from it — which feeds the rate limiter
+			# and the audit log. Caddy's default is to append to whatever the client sent, so a
+			# forged header would keep its leftmost (trusted) value and the per-IP limit could be
+			# sidestepped. Setting it to `{remote_host}` makes the only value the real peer.
+			header_up X-Forwarded-For {remote_host}
 		}
 	}
 

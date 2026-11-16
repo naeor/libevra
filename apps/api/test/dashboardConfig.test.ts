@@ -91,4 +91,26 @@ describe("1.19.104 总览跨设备配置 API", () => {
     expect(exported.statusCode).toBe(200);
     expect(exported.json().dashboard.configuration.templates[0].name).toBe("午饭");
   });
+
+  // 1.19.105：dashboard_configurations 补上了存储计量触发器（见迁移
+  // 20261116130000_dashboard_configurations_storage_meter）。没有它时 413 分支不可达，
+  // 这两项测试会失败。
+  it("写入计入账号空间；删除后释放", async () => {
+    const before = await prisma.user.findFirstOrThrow({ select: { storageBytes: true } });
+    expect((await write(0)).statusCode).toBe(200);
+    const afterWrite = await prisma.user.findFirstOrThrow({ select: { storageBytes: true } });
+    expect(afterWrite.storageBytes > before.storageBytes).toBe(true);
+    await prisma.dashboardConfiguration.deleteMany();
+    const afterDelete = await prisma.user.findFirstOrThrow({ select: { storageBytes: true } });
+    expect(afterDelete.storageBytes).toBe(before.storageBytes);
+  });
+
+  it("超出账号空间时返回 413", async () => {
+    const before = await prisma.user.findFirstOrThrow({ select: { storageBytes: true } });
+    await prisma.user.updateMany({ data: { storageLimitBytes: before.storageBytes + 10n } });
+    const result = await write(0);
+    expect(result.statusCode).toBe(413);
+    expect(result.json().code).toBe("account_storage_full");
+    expect(await prisma.dashboardConfiguration.count()).toBe(0);
+  });
 });

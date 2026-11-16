@@ -174,6 +174,10 @@ export class DashboardSync implements SurfaceSync {
       const remote = (await apiFetch<{ record: DashboardRemote | null }>("/dashboard-config")).record;
       if (remote !== null && remote.schemaVersion > 1) { this.set("newer"); return; }
       if (this.editing) return;
+      // 本机记录损坏（unreadable）时不要拿空配置去比较或提交：那会把「跟随默认总览」
+      // 当成一次本机改动推到云端，覆盖掉其它设备已保存的布局。这里直接判 invalid，
+      // 云端版本原样保留，等本机记录恢复后再同步。
+      if (loadDashboardRecord(this.owner).status === "unreadable") { this.set("invalid"); return; }
       let local = localDashboardConfiguration(this.owner);
       // 本机的配置先按服务器的规则检查一遍：不合格的不提交（本机照常用）。
       if (local !== null) {

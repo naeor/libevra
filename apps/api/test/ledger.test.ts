@@ -1033,6 +1033,41 @@ describe("PATCH and DELETE /api/v1/transactions/:id", () => {
     expect(stale.json()).toMatchObject({ code: "version_conflict" });
   });
 
+  it("⚠️ refuses a sync change whose wanted value breaks the field's own rule", async () => {
+    /**
+     * ⚠️ **The judgement decides whether to write, not what to write.** `changes[].wanted` is
+     * `z.unknown()` on purpose (it is compared, not trusted), but an accepted value lands in
+     * exactly the same columns as a direct edit — so it must pass the same schema first.
+     * Without this, `wanted: -1` (or `currency: "ZZZ"`) was written straight into the row: the
+     * `transactions` table has no CHECK on either column.
+     */
+    const cookie = await signUp("mama");
+    const created = await record(cookie, { amountCents: 100 });
+    const id = (created.json() as { id: string }).id;
+
+    const negativeAmount = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/transactions/${id}`,
+      headers: { cookie },
+      payload: { version: 1, changes: [{ field: "amountCents", base: 100, wanted: -1, chain: [100, -1] }] },
+    });
+    expect(negativeAmount.statusCode).toBe(400);
+    expect(negativeAmount.json()).toMatchObject({ code: "sync_change_invalid" });
+
+    const unknownCurrency = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/transactions/${id}`,
+      headers: { cookie },
+      payload: { version: 1, changes: [{ field: "currency", base: "CNY", wanted: "ZZZ", chain: ["CNY", "ZZZ"] }] },
+    });
+    expect(unknownCurrency.statusCode).toBe(400);
+    expect(unknownCurrency.json()).toMatchObject({ code: "sync_change_invalid" });
+
+    const read = await app.inject({ method: "GET", url: `/api/v1/transactions/${id}`, headers: { cookie } });
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toMatchObject({ amountCents: 100, currency: "CNY" });
+  });
+
   it("⚠️ accepts a stale version when the server still holds the device's base", async () => {
     /**
      * ⚠️ **The case the old rule got wrong, in the owner's own words**: "如果 pad 上传的改动是从 A 改成 C 再改成

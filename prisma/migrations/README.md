@@ -85,4 +85,5 @@
 | [20261110120000_ledger_role_tiers/](20261110120000_ledger_role_tiers) | 本层组织 20261110120000_ledger_role_tiers 模块的直属文件；具体契约由任务索引定位。 |
 | [20261115120000_ledger_import_source_uploads/](20261115120000_ledger_import_source_uploads) | 本层组织 20261115120000_ledger_import_source_uploads 模块的直属文件；具体契约由任务索引定位。 |
 | [20261116120000_dashboard_configurations/](20261116120000_dashboard_configurations) | 本层组织 20261116120000_dashboard_configurations 模块的直属文件；具体契约由任务索引定位。 |
+| [20261116130000_dashboard_configurations_storage_meter/](20261116130000_dashboard_configurations_storage_meter) | 本层组织 20261116130000_dashboard_configurations_storage_meter 模块的直属文件；具体契约由任务索引定位。 |
 <!-- directory-index:end -->
