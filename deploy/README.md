@@ -197,6 +197,7 @@ sudo systemctl start libevra-backup.timer          # 恢复
 | [docker-compose.release-1.18.32.yml](docker-compose.release-1.18.32.yml) | 配置 |
 | [docker-compose.release-1.19.105.yml](docker-compose.release-1.19.105.yml) | 配置 |
 | [docker-compose.release-1.19.106.yml](docker-compose.release-1.19.106.yml) | 配置 |
+| [docker-compose.release-1.19.107.yml](docker-compose.release-1.19.107.yml) | 配置 |
 | [docker-compose.release-1.19.49.yml](docker-compose.release-1.19.49.yml) | 配置 |
 | [docker-compose.release-1.19.53.yml](docker-compose.release-1.19.53.yml) | 配置 |
 | [docker-compose.release-1.19.56.yml](docker-compose.release-1.19.56.yml) | 配置 |

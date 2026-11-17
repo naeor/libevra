@@ -1,0 +1,15 @@
+# 1.19.107 私人部署（Pad 顶区与动效、主 Tab 上下滑动、组件动效时长修复）：只改前端，数据库迁移不变（71 个，无新增），
+# 只重建 api / web 镜像并切换；数据库与 relay 不重建，回滚只回滚应用镜像、不涉及迁移。
+services:
+  migrate:
+    image: libevra-rc-api:1.19.107-20261117
+    pull_policy: never
+  api:
+    image: libevra-rc-api:1.19.107-20261117
+    pull_policy: never
+  web:
+    image: libevra-rc-web:1.19.107-20261117
+    pull_policy: never
+  critical-relay:
+    image: libevra-rc-relay:1.14.19-20261019
+    pull_policy: never
