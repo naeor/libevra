@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { SELECTION_DURATION, selectionFrames, type SelectionBox } from "./selectionMotion.js";
+import { motionMsFor } from "../../lib/motionTokens.js";
 import {
   focusAfterRemoval, glideFrames, reconcileTags, selectionMotion, selectionStyleOf, slideFrames,
   type ConditionTagEntry, type ConditionTagItem, type ConditionTagState, type SelectionAxis, type SelectionBase,
@@ -105,7 +106,7 @@ export function MovingSelection({ axis, base = "static", pageList = false, hostR
     if (motion === "none") return;
     const plan = motion === "glide" ? glideFrames(from, to, axis) : motion === "slide" ? slideFrames(from, to, axis)
       : { frames: selectionFrames(from, to), duration: SELECTION_DURATION };
-    const run = block.animate(plan.frames, { duration: plan.duration });
+    const run = block.animate(plan.frames, { duration: motionMsFor(root, plan.duration) });
     running.current = run;
     run.onfinish = () => { if (running.current === run) running.current = null; };
   };

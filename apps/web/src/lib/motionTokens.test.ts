@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CONTROL_MORPH, FEEDBACK_CSS, OBJECT_EXPAND, SELECTION_CSS, TAB_SWITCH, TRANSITION_INTERRUPT, easingFunction, interruptsTransition } from "./motionTokens.js";
+import { CONTROL_MORPH, FEEDBACK_CSS, OBJECT_EXPAND, SELECTION_CSS, TAB_SWITCH, TRANSITION_INTERRUPT, cssDurationMs, easingFunction, interruptsTransition, padMotionMs } from "./motionTokens.js";
 
 /** 60Hz 下每帧的进度。 */
 const perFrame = (duration: number, easing: string): number[] => {
@@ -70,5 +70,45 @@ describe("Motion Token", () => {
     const rule = (style: string): string => css.match(new RegExp(`:root\\[data-visual-style="${style}"\\] \\{([^}]*)\\}`))?.[1] ?? "";
     for (const name of Object.values(SELECTION_CSS)) expect(rule("a"), `a ${name}`).toContain(`${name}:`);
     for (const style of ["b1", "b2", "c"]) for (const name of [SELECTION_CSS.select, SELECTION_CSS.reveal, SELECTION_CSS.dismiss, SELECTION_CSS.tagFrom]) expect(rule(style), `${style} ${name}`).toContain(`${name}:`);
+  });
+});
+
+describe("Pad 动效时长（1.19.107）", () => {
+  it("短动画 × 1.5、最低 250ms，长动画与 0 不变", () => {
+    expect(padMotionMs(100)).toBe(250);
+    expect(padMotionMs(160)).toBe(250);
+    expect(padMotionMs(200)).toBe(300);
+    expect(padMotionMs(280)).toBe(420);
+    expect(padMotionMs(320)).toBe(480);
+    expect(padMotionMs(400)).toBe(600);
+    expect(padMotionMs(900)).toBe(900);
+    expect(padMotionMs(0)).toBe(0);
+  });
+
+  it("pad-motion.css 里按风格覆盖的组件变量 = padMotionMs(component-motion.css 的原值)，按下反馈不放大", () => {
+    const base = readFileSync(new URL("../components/ui/component-motion.css", import.meta.url), "utf8");
+    const pad = readFileSync(new URL("../s19/pad-motion.css", import.meta.url), "utf8");
+    const value = (block: string, name: string): number | null => {
+      const hit = block.match(new RegExp(`${name}:\\s*(\\d+)ms`));
+      return hit ? Number(hit[1]) : null;
+    };
+    for (const style of ["a", "b1", "b2", "c"]) {
+      const from = base.match(new RegExp(`:root\\[data-visual-style="${style}"\\] \\{([^}]*)\\}`))?.[1] ?? "";
+      const to = pad.match(new RegExp(`:root\\[data-visual-style="${style}"\\] \\.lv-shell\\[data-s19-scope="pad"\\] \\{([^}]*)\\}`))?.[1] ?? "";
+      expect(to, style).not.toBe("");
+      expect(to, `${style} press`).not.toContain("--lv-press-ms");
+      for (const name of ["--lv-select-ms", "--lv-reveal-ms", "--lv-dismiss-ms", "--lv-feedback-ms", "--lv-lift-rise-ms", "--lv-lift-fall-ms", "--lv-lift-shadow-in-ms", "--lv-lift-shadow-out-ms"]) {
+        const original = value(from, name);
+        if (original === null) continue;
+        expect(value(to, name), `${style} ${name}`).toBe(padMotionMs(original));
+      }
+    }
+  });
+
+  it("cssDurationMs 读得懂压缩后的写法", () => {
+    expect(cssDurationMs("200ms")).toBe(200);
+    expect(cssDurationMs(" .22s")).toBeCloseTo(220);
+    expect(cssDurationMs("1.1s")).toBeCloseTo(1100);
+    expect(cssDurationMs("")).toBeNaN();
   });
 });

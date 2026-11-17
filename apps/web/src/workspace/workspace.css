@@ -36,6 +36,11 @@
   position: fixed;
 }
 
+/* 宽屏冷启动的「载入中」：会话确定前外壳暂按手机布局，手机底栏不出现（Pad 上不闪一下底栏，1.19.107）。 */
+.lv-shell[data-wide-pending="true"] :is([data-persistent-nav], .persistent-nav-space) {
+  display: none !important;
+}
+
 .lv-pane[data-mode="hidden"] > .lv-pane-scroll {
   height: 100%;
   overflow: hidden;

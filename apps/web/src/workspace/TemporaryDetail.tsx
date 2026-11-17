@@ -9,6 +9,7 @@ import { useOverlayScrollLock } from "../lib/useOverlayPresentation.js";
 import { WorkspaceActionsContext } from "./context.js";
 import { entryFromPath, PaneHistory } from "./paneHistory.js";
 import { TemporaryContents, TemporaryHostContext, type TemporaryHost, type TemporaryTask } from "./temporary.js";
+import { cssDurationMs } from "../lib/motionTokens.js";
 
 /** 真实路由及权限包装在自己的内存栈里运行。回到来源即完成附属阅读，宿主没有新增历史。 */
 export function TemporaryDetail({ task, host, registerDirty, children, split }: {
@@ -43,9 +44,9 @@ export function TemporaryDetail({ task, host, registerDirty, children, split }: 
     const el = scroll.current;
     if (!el) return;
     el.scrollTop = offsets.current.get(snap.location.key) ?? 0;
-    const duration = getComputedStyle(el).getPropertyValue("--lv-temporary-motion-ms");
-    const motion = !matchMedia("(prefers-reduced-motion: reduce)").matches && duration
-      ? el.animate([{ opacity: .82 }, { opacity: 1 }], { duration: parseFloat(duration) }) : null;
+    const duration = cssDurationMs(getComputedStyle(el).getPropertyValue("--lv-temporary-motion-ms"));
+    const motion = !matchMedia("(prefers-reduced-motion: reduce)").matches && duration > 0
+      ? el.animate([{ opacity: .82 }, { opacity: 1 }], { duration }) : null;
     return () => { offsets.current.set(snap.location.key, el.scrollTop); motion?.cancel(); };
   }, [snap.location.key]);
   return <div className="lv-temporary-detail" data-floating={!split || undefined} role={split ? "region" : "dialog"}

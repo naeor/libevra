@@ -1,8 +1,10 @@
-/** 与现有 sheet-out / backdrop-out 的 200ms 一致。只管理呈现，不读取业务状态。 */
+import { shellMotionMs } from "./motionTokens.js";
+
+/** 与现有 sheet-out / backdrop-out 的 200ms 一致；Pad 外壳里按 PAD_MOTION 放大为 300ms（s19/pad-motion.css）。只管理呈现，不读取业务状态。 */
 export const OVERLAY_EXIT_MS = 200;
 
 export function overlayExitDuration(): number {
-  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : OVERLAY_EXIT_MS;
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : shellMotionMs(OVERLAY_EXIT_MS);
 }
 
 export function createOverlayExit(onPhase: (closing: boolean) => void) {

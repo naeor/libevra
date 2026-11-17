@@ -1,0 +1,87 @@
+/*
+  Pad 动效时长（1.19.107，所有者 2026-11-17）。
+
+  所有者实测：Pad 屏幕更宽，同样的位移在同样的时间里走得更远，很多动画显得太快（进入次级页面“刷一下就闪进去”）。
+  规则：**短动画（≤400ms）时长 × 1.5，最低 250ms**；长动画（海浪等品牌转场、加载转圈）不变。
+  JS 侧同一条规则是 lib/motionTokens.ts 的 PAD_MOTION / padMotionMs，两边数值必须一致。
+
+  只作用于 Pad 外壳（`.lv-shell[data-s19-scope="pad"]`），手机与电脑版不受影响。
+  不放大的：按下 / 悬停的颜色反馈（--lv-press-ms 与 hover 底色，要跟手）、悬停提示、拖动中跟手的反馈、
+  记账完成的保存动画（与 SaveStage 的 JS 编排逐段对齐，单独改会错位）。
+
+  这些规则要压过分散在各文件、选择器各不相同的原声明（打包后的先后顺序也不固定），所以只改时长分量并用 !important；
+  全部写在「未要求减少动态」里，减少动态时原有的 animation / transition: none 仍然生效。
+*/
+
+/* 组件反馈变量（component-motion.css 按风格定义在 :root）：外壳上覆盖，外壳里的组件继承。press 不改。 */
+:root[data-visual-style="a"] .lv-shell[data-s19-scope="pad"] {
+  --lv-select-ms: 300ms; --lv-reveal-ms: 330ms; --lv-dismiss-ms: 270ms; --lv-feedback-ms: 360ms;
+  --lv-lift-rise-ms: 450ms; --lv-lift-fall-ms: 300ms; --lv-lift-shadow-in-ms: 360ms; --lv-lift-shadow-out-ms: 270ms;
+}
+:root[data-visual-style="b1"] .lv-shell[data-s19-scope="pad"] { --lv-select-ms: 270ms; --lv-reveal-ms: 300ms; --lv-dismiss-ms: 270ms; --lv-feedback-ms: 300ms; }
+:root[data-visual-style="b2"] .lv-shell[data-s19-scope="pad"] { --lv-select-ms: 270ms; --lv-reveal-ms: 300ms; --lv-dismiss-ms: 270ms; --lv-feedback-ms: 330ms; }
+:root[data-visual-style="c"] .lv-shell[data-s19-scope="pad"] { --lv-select-ms: 250ms; --lv-reveal-ms: 250ms; --lv-dismiss-ms: 250ms; --lv-feedback-ms: 250ms; }
+
+/* 临时面板（右侧附属列）与面板高度变化：260 → 390；临时详情切换 200 → 300（TemporaryDetail 读这个变量）。 */
+.lv-shell[data-s19-scope="pad"] { --lv-sheet-resize-ms: 390ms; }
+.lv-shell[data-s19-scope="pad"] .lv-pane[data-temporary-open] { --lv-temporary-motion-ms: 300ms; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* ---------- 弹层：底部面板、遮罩、中央对话框（lib/overlayExit.ts 的关闭计时同步为 300ms） ---------- */
+  .lv-shell[data-s19-scope="pad"] .sheet-in { animation-duration: 390ms !important; }
+  .lv-shell[data-s19-scope="pad"] .sheet-out { animation-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] .backdrop-in { animation-duration: 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] .backdrop-out { animation-duration: 250ms !important; }
+  .lv-shell[data-s19-scope="pad"] [data-overlay-surface][data-overlay-entered="true"].sheet-in { transition-duration: 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] [data-overlay-surface][data-overlay-state="closing"][data-overlay-dragging="true"] { animation-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] [data-overlay-root]::before { animation-duration: 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] [data-overlay-root][data-overlay-state="closing"]::before { animation-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] [data-overlay-surface="dialog"],
+  .lv-shell[data-s19-scope="pad"] [data-overlay-surface="dialog"] > *,
+  .lv-shell[data-s19-scope="pad"] [data-overlay-surface="dialog"]::before { animation-duration: 300ms !important; }
+
+  /* ---------- 工作区：打开 / 收起另一区、分界线松手吸附与收起一侧 ---------- */
+  .lv-shell[data-s19-scope="pad"] .lv-pane[data-mode="box"] { transition-duration: 270ms, 300ms, 300ms !important; }
+  .lv-shell[data-s19-scope="pad"][data-settle="snap"] :is(.lv-frame, .lv-frame-slot, .lv-drag-line, .lv-pane[data-mode="box"]) { transition-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"][data-settle^="collapse"] :is(.lv-frame, .lv-frame-slot, .lv-drag-line, .lv-pane[data-mode="box"]) {
+    transition-duration: 420ms, 420ms, 420ms, 420ms, 420ms, 420ms, 420ms, 360ms !important;
+  }
+  .lv-shell[data-s19-scope="pad"] .lv-pane[data-role="secondary"][data-mode="box"] { animation-duration: 450ms !important; }
+  /* WorkspaceShell 的 beginExit 计时同步为 padMotionMs(260) = 390ms。 */
+  .lv-shell[data-s19-scope="pad"] .lv-pane[data-mode="box"][data-exiting="true"] { animation-duration: 390ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-pane[data-mode="box"]:not([data-exiting]) > .lv-pane-scroll,
+  .lv-shell[data-s19-scope="pad"] .lv-pane[data-temporary-open] > [data-temporary-slot] { transition-duration: 390ms !important; }
+  .lv-shell[data-s19-scope="pad"] :is(.lv-frame-tags, .lv-pane-tag) { animation-duration: 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-hint { animation-duration: 330ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-fab-wrap { transition-duration: 330ms, 250ms, 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-mode-half { transition-duration: 390ms, 300ms, 300ms !important; }
+
+  /* ---------- 左侧栏：展开收起、记一笔方式、账本列表、弹出菜单 ---------- */
+  .lv-shell[data-s19-scope="pad"] .lv-rail { transition-duration: 330ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-rail-fade { transition-duration: 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-rail-collapse { transition-duration: 270ms, 150ms, 150ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-rail-books > * { animation-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-entry-plus { transition-duration: 330ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-entry-inline { transition-duration: 330ms, 250ms, 0s !important; transition-delay: 0s, 0s, 330ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-entry-inline[data-open="true"] { transition-delay: 0s !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-entry-popover { transition-duration: 250ms, 270ms, 0s !important; transition-delay: 0s, 0s, 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-entry-popover[data-open="true"] { transition-delay: 0s !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-popover { animation-duration: 250ms !important; }
+  .lv-shell[data-s19-scope="pad"] .lv-secondary-nav { animation-duration: 270ms !important; }
+
+  /* ---------- 分析工作台：轮播、折叠、抽屉、卡片内容 ---------- */
+  .lv-shell[data-s19-scope="pad"] .sw-page-dot { transition-duration: 270ms !important; }
+  .lv-shell[data-s19-scope="pad"] :is(.sw-carousel-track, .sw-drawer-chevron) { transition-duration: 420ms !important; }
+  .lv-shell[data-s19-scope="pad"] .sw-collapse { transition-duration: 330ms !important; }
+  .lv-shell[data-s19-scope="pad"] .sw-filter-panel { animation-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] .sw-drawer { transition-duration: 420ms, 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] :is(.sw-drawer-title, .sw-drawer-open-layer, .sw-drawer-body, .sw-drawer-toolbar, .sw-drawer-expanded-head.sw-drawer-grab) { transition-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] .sw-drawer-pages { transition-duration: 300ms !important; }
+  .lv-shell[data-s19-scope="pad"] .sw-card-body > * { animation-duration: 250ms !important; }
+  .lv-shell[data-s19-scope="pad"] .sw-card-chevron { transition-duration: 250ms !important; }
+
+  /* ---------- 明细：月份按钮承载层、搜索展开时标题与按钮让位 ---------- */
+  .lv-shell[data-s19-scope="pad"] .detail-redesign .detail-month.lv-filter-trigger::before { transition-duration: 250ms !important; }
+  .lv-shell[data-s19-scope="pad"] .detail-redesign .detail-hero[data-pinned="true"] .detail-month.lv-filter-trigger::before { transition-duration: 360ms !important; }
+  .lv-shell[data-s19-scope="pad"] :is(.detail-header-title, .detail-header-actions) { transition-duration: 250ms, 250ms !important; }
+}

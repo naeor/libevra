@@ -3,6 +3,7 @@ import { useI18n } from "../i18n/index.js";
 import { BookCapsuleContext } from "./bookCapsule.js";
 import { CurrentBookPicker } from "./CurrentBookPicker.js";
 import { GIVE_WAY_RETURN_RATIO, useToastBottomOccupied, type ToastGiveWayState } from "./toast/bottomSlot.js";
+import { cssDurationMs } from "../lib/motionTokens.js";
 import "./current-book-caption.css";
 
 const EXIT_MS = 200;
@@ -33,7 +34,7 @@ function retract(capsule: HTMLElement): Animation | null {
 /** 提示退场时长（按风格 120–180ms，Original 没有令牌时 180ms）的约八成：胶囊在提示快退完时开始弹回。 */
 function returnDelay(): number {
   const raw = getComputedStyle(document.documentElement).getPropertyValue("--lv-dismiss-ms");
-  const ms = Number.parseFloat(raw);
+  const ms = cssDurationMs(raw);
   return Math.round((Number.isFinite(ms) && ms > 0 ? ms : 180) * GIVE_WAY_RETURN_RATIO);
 }
 

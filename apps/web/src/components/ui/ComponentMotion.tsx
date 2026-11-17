@@ -1,12 +1,13 @@
 import { useLayoutEffect, useRef, useState, type HTMLAttributes, type RefObject } from "react";
 import { S19_SCOPE_SELECTOR, s19Style } from "../../s19/scope.js";
+import { cssDurationMs } from "../../lib/motionTokens.js";
 import "./component-motion.css";
 
 export type ComponentMotionKind = "press" | "select" | "reveal" | "dismiss" | "feedback" | "loading";
 export function componentMotion(element: HTMLElement, kind: ComponentMotionKind) {
   const css = getComputedStyle(element);
   const enabled = !!element.closest(S19_SCOPE_SELECTOR) && s19Style(document.documentElement.dataset.visualStyle) !== null;
-  return { duration: !enabled || matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : (parseFloat(css.getPropertyValue(`--lv-${kind}-ms`)) || 0),
+  return { duration: !enabled || matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : (cssDurationMs(css.getPropertyValue(`--lv-${kind}-ms`)) || 0),
     easing: css.getPropertyValue("--lv-motion-ease").trim() || "ease-out", y: parseFloat(css.getPropertyValue("--lv-reveal-y")) || 0 };
 }
 

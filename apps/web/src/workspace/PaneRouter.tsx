@@ -15,7 +15,7 @@ import { NavigationType, Router, UNSAFE_LocationContext } from "react-router";
 import { useAuthOptional } from "../auth/AuthProvider.js";
 import type { PaneHistory, PaneSnapshot } from "./paneHistory.js";
 import { createScrollMemory, type ScrollMemory } from "./scrollMemory.js";
-import { animatePadNavigation } from "../s19/motion/padNavigation.js";
+import { animatePadNavigation, preparePadNavigation } from "../s19/motion/padNavigation.js";
 import type { PilotAdapter } from "../s19/motion/pilot.js";
 
 // 只在内层启动；协调手机普通导航、对象展开与工作模式，仍由同一个历史订阅提交页面。
@@ -66,6 +66,8 @@ export function PaneRouter({
       }
       // 屏幕上还是上一页：先记下它的滚动位置。
       scroll.current?.save(shown.current.location.key, shown.current.location.pathname);
+      // Pad 主 Tab 上下整页滑动：旧页面卸载前留一份静态副本（其它导航什么都不做）。
+      if (nested) preparePadNavigation(history.id, shown.current, next);
       startTransition(() => {
         setSnapshot(next);
       });

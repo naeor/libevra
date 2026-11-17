@@ -9,6 +9,10 @@
   color: var(--color-ink);
   --color-on-brand: var(--color-ink);
   --color-glass-highlight: var(--s19-tool-flat);
+  /* Pad 工作区里旧版用外扩阴影把绿色顶区铺到工作区两侧（workspace.css，1.17.23）；顶区透明后这圈绿色会从两侧露出来
+     （所有者 iPad 截图，1.19.107）。浅深色都撤掉，深色另有同样的规则（dark-material.css）。 */
+  box-shadow: none;
+  clip-path: none;
 }
 /* 顶部区域里本身是主题色 / 危险色底的东西，文字仍然是白色；头像白圈也保持白色 */
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode] .lv-shell[data-s19-scope] :is(.detail-hero, .tab-page-header) :is(.bg-brand, .bg-brand-dark, .bg-danger, .ring-on-brand) {
@@ -17,6 +21,8 @@
 /* 明细顶部滚动行程区原本刷成主题色（避免收起时露缝），这里随环境透明 */
 :root:is([data-visual-style="a"], [data-visual-style="b1"], [data-visual-style="b2"])[data-theme-mode] .lv-shell[data-s19-scope] .detail-scroll-travel {
   background-color: transparent;
+  box-shadow: none;
+  clip-path: none;
 }
 
 /* ---------- 明细顶部：保留材质，收缩完成后继续吸顶 ----------

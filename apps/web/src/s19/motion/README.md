@@ -41,7 +41,7 @@
 | [objectExpand.css](objectExpand.css) | 样式与变量 |
 | [objectExpand.test.ts](objectExpand.test.ts) | 测试：objectExpand |
 | [objectExpand.ts](objectExpand.ts) | 实现模块；入口/导出：ObjectSource、objectSource、findObject、setPose、Pose |
-| [padNavigation.ts](padNavigation.ts) | 实现模块；入口/导出：animatePadNavigation |
+| [padNavigation.ts](padNavigation.ts) | 实现模块；入口/导出：preparePadNavigation、animatePadNavigation |
 | [pilot.css](pilot.css) | 样式与变量 |
 | [pilot.tsx](pilot.tsx) | 界面模块；入口/导出：PilotAdapter、MotionPilot |
 | [relations.test.ts](relations.test.ts) | 测试：relations |

@@ -76,6 +76,8 @@ import { SecondaryFab } from "./SecondaryNav.js";
 import { XIcon } from "./icons.js";
 import { usePaneIdentity } from "./paneTitle.js";
 import "./workspace.css";
+import "../s19/pad-motion.css";
+import { shellMotionMs } from "../lib/motionTokens.js";
 
 const STORAGE_KEY = "libevra.workspace.v1";
 const INSTANCES: readonly InstanceId[] = ["w1", "w2"];
@@ -543,7 +545,7 @@ export function WorkspaceShell({
     setExiting({ id, rect });
     exitTimer.current = setTimeout(() => {
       setExiting(null);
-    }, 260);
+    }, shellMotionMs(260)); // 与 lv-pane-exit 一致；Pad 外壳里为 390ms（s19/pad-motion.css）
   }, []);
   useEffect(
     () => () => {
@@ -881,6 +883,8 @@ export function WorkspaceShell({
       // S19 作用域标记（总闸）：材质与转场规则只认它；data-shell 只管外壳布局（s19/scope.ts）。
       data-s19-scope={s19ScopeForShell(chrome ? "wide" : "contents")}
       data-orientation={orientation}
+      // 宽屏冷启动、还不知道有没有登录时，外壳暂按手机布局画「载入中」；标记出来让手机底栏不在 Pad 上闪一下（1.19.107）。
+      data-wide-pending={shellMode === "wide" && status === "loading" ? "true" : undefined}
       data-split={splitVisible ? "true" : "false"}
       data-navdrag={chrome && dragKey !== "idle" ? "true" : undefined}
       data-drop={chrome && dragKey !== "idle" ? dragKey : undefined}

@@ -25,7 +25,7 @@ import {
   type Transaction,
 } from "@libellum/shared";
 import type { AnalysisCardNode } from "@libellum/shared/analysis/layout";
-import { Component, createContext, useContext } from "react";
+import { Component, createContext, useContext, useLayoutEffect, useRef, useState } from "react";
 
 import { CalendarHeatmap } from "../components/charts/CalendarHeatmap.js";
 import { CalendarHeatmapGrid } from "../components/charts/CalendarHeatmapGrid.js";
@@ -570,6 +570,35 @@ function PartsView({
 }): React.JSX.Element {
   const { t } = useI18n();
   const space = useCardSpace();
+  // 排行在卡片里按实际放得下的行数显示（1.19.107）：上方的折算 / 改用排行提示会占掉高度，固定 2 / 4 / 6 行时最后一行
+  // 会压到「另有 N 项」上（所有者 iPad 走查）。尺寸变化时先按密度上限全部画出，超出就数出完整放得下的行数。
+  const list = useRef<HTMLOListElement>(null);
+  const [fit, setFit] = useState<number | null>(null);
+  const [measureKey, setMeasureKey] = useState(0);
+  useLayoutEffect(() => {
+    const ol = list.current;
+    const box = ol?.parentElement;
+    if (detail || !ol || !box || typeof ResizeObserver !== "function") return;
+    let last = "";
+    const observer = new ResizeObserver(() => {
+      const size = `${String(box.clientWidth)}x${String(box.clientHeight)}`;
+      if (size === last) return;
+      last = size;
+      setFit(null);
+      setMeasureKey((key) => key + 1);
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [detail]);
+  useLayoutEffect(() => {
+    const ol = list.current;
+    // 只往少里调：出现「另有 N 项」后列表又矮了一行，会再数一次，直到不再超出。
+    if (detail || !ol || ol.scrollHeight <= ol.clientHeight + 1) return;
+    const bottom = ol.getBoundingClientRect().top + ol.clientHeight;
+    const items = Array.from(ol.children);
+    const count = Math.max(1, items.filter((item) => item.getBoundingClientRect().bottom <= bottom + 0.5).length);
+    if (count < items.length) setFit(count);
+  }, [detail, fit, measureKey, rows.length, density]);
   const donutAllowed =
     family === "donut" &&
     total !== null &&
@@ -598,7 +627,7 @@ function PartsView({
   }
 
   const limit = detail ? rows.length : density === "compact" ? 2 : density === "medium" ? 4 : 6;
-  const shown = rows.slice(0, limit);
+  const shown = rows.slice(0, fit === null ? limit : Math.min(limit, fit));
   const hidden = rows.length - shown.length;
   // 缺汇率时没有占比：条形长度改按小计的相对大小画（只是几何，不代表占比，也不显示百分比）。
   const byAmount = rows.length > 0 && rows.every((row) => row.share === null && row.minor !== null && /^\d+$/.test(row.minor));
@@ -610,7 +639,7 @@ function PartsView({
       {family === "donut" && !donutAllowed && rows.length > 0 ? (
         <p className="text-helper text-muted">{t("statsWorkbench.states.donutFallback")}</p>
       ) : null}
-      <ol className="flex min-h-0 flex-col gap-1.5">
+      <ol ref={list} className="flex min-h-0 flex-col gap-1.5 overflow-hidden">
         {shown.map((row) => (
           <li key={row.id} className="min-w-0">
             <div className="flex items-baseline justify-between gap-2 text-helper">

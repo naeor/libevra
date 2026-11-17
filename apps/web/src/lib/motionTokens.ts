@@ -61,6 +61,43 @@ export function interruptsTransition(before: TransitionViewport, after: Transiti
   return after.width !== before.width || Math.abs(after.height - before.height) > TRANSITION_INTERRUPT.heightPx;
 }
 
+/**
+ * **Pad 动效时长（1.19.107，所有者 2026-11-17）**：Pad 屏幕更宽，同样的时长里位移更大，短动画显得太快。
+ * 短动画（≤ `shortMax`）时长 × `scale`，最低 `min`；更长的（品牌转场、加载转圈）不变。
+ * CSS 侧同一条规则写在 `s19/pad-motion.css`（只作用于 Pad 外壳），两边数值要一致。
+ */
+export const PAD_MOTION = { scale: 1.5, min: 250, shortMax: 400 } as const;
+
+/** Pad 外壳的选择器（与 `s19/scope.ts` 的 pad 标记一致）。 */
+const PAD_SHELL = '.lv-shell[data-s19-scope="pad"]';
+
+export function padMotionMs(ms: number): number {
+  if (ms <= 0 || ms > PAD_MOTION.shortMax) return ms;
+  return Math.max(PAD_MOTION.min, Math.round(ms * PAD_MOTION.scale));
+}
+
+/** 元素在 Pad 外壳里时按 {@link PAD_MOTION} 放大，否则原样返回。 */
+export function motionMsFor(element: Element | null | undefined, ms: number): number {
+  return element?.closest(PAD_SHELL) ? padMotionMs(ms) : ms;
+}
+
+/** 当前页面是 Pad 外壳时按 {@link PAD_MOTION} 放大（给不对应具体元素的计时器用，如弹层关闭）。 */
+export function shellMotionMs(ms: number): number {
+  return typeof document !== "undefined" && document.querySelector(PAD_SHELL) ? padMotionMs(ms) : ms;
+}
+
+/**
+ * 把 CSS 时长（`200ms`、`.2s`）读成毫秒；读不出时返回 `NaN`。
+ * ⚠️ 正式构建的 CSS 压缩会把自定义属性里的 `200ms` 改写成 `.2s`，直接 `parseFloat` 会读成 0.2 毫秒——
+ * 1.19.107 之前组件动效（ComponentMotion）、Pad 临时详情与底栏胶囊回弹因此在正式版里几乎是瞬间完成。
+ */
+export function cssDurationMs(value: string): number {
+  const text = value.trim();
+  const number = Number.parseFloat(text);
+  if (!Number.isFinite(number)) return Number.NaN;
+  return text.endsWith("ms") ? number : text.endsWith("s") ? number * 1000 : number;
+}
+
 /** 帧锚定时钟本身：单帧推进上限与判定“帧已停止”的间隔。 */
 export const MOTION_CLOCK = {
   /** 单帧最多推进约 30fps 的一帧（正常节奏由最近帧间隔的中位数决定，卡顿只推进一个正常帧）。 */
