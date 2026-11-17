@@ -579,15 +579,19 @@ function PartsView({
     const ol = list.current;
     const box = ol?.parentElement;
     if (detail || !ol || !box || typeof ResizeObserver !== "function") return;
-    let last = "";
+    // 列表外层的高度跟着内容走，卡片长高时它不变；同时看卡片内容区（上一层），卡片尺寸一变就重新数。
+    const area = box.parentElement ?? box;
+    // 变宽或长高：先按密度上限全部画出再数；变矮（包括行数减少自己带来的变矮）只重新检查是否超出、往少里调，不会来回振荡。
+    let last = { w: -1, h: -1 };
     const observer = new ResizeObserver(() => {
-      const size = `${String(box.clientWidth)}x${String(box.clientHeight)}`;
-      if (size === last) return;
-      last = size;
-      setFit(null);
+      const w = area.clientWidth, h = area.clientHeight;
+      if (w === last.w && h === last.h) return;
+      const grew = w !== last.w || h > last.h;
+      last = { w, h };
+      if (grew) setFit(null);
       setMeasureKey((key) => key + 1);
     });
-    observer.observe(box);
+    observer.observe(area);
     return () => observer.disconnect();
   }, [detail]);
   useLayoutEffect(() => {
