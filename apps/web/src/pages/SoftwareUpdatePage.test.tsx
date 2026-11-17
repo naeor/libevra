@@ -34,19 +34,19 @@ describe("software update announcements", () => {
     // 两位数补丁号（1.17.10 / 1.17.11）两种写法相同。
     if (formatAppVersion(APP_VERSION) !== APP_VERSION) expect(html).not.toContain(APP_VERSION);
     expect(html).toContain("1.18.34");
+    expect(html).toContain("平板动效与显示修复");
     expect(html).toContain("电脑端总览自定义、游客模式与界面收尾");
-    expect(html).toContain(
-      "账目支持添加和预览附件，新增变更提醒与容量管理，并统一各端的筛选、排序和记账界面。",
-    );
+    expect(html).toContain("优化卡片编辑、返回导航和下载月份列表。");
     expect(html).toContain("2026年11月1日");
-    expect(html).toContain('href="/update/announcements/1.18.32"');
+    expect(html).toContain('href="/update/announcements/1.18.34"');
+    expect(html).not.toContain('href="/update/announcements/1.18.32"');
     expect(html.match(/href="\/update\/announcements"/g)).toHaveLength(1);
     expect(html.match(/href="\/update\/announcements\/[^"]+"/g)).toHaveLength(6);
     expect(html).not.toContain("显示更早公告");
     expect(html).toContain("1.19.56");
     expect(html).toContain("成员权限分级与记录人筛选");
     expect(html).toContain("调整及优化");
-    expect(html).toContain("多页总览：最多 8 页");
+    expect(html).toContain("整页上下滑动");
     expect(html).toContain('href="/update/announcements/1.19.53"');
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("我知道了");
@@ -55,13 +55,14 @@ describe("software update announcements", () => {
   it("lists the newest release before the previous release in the archive", () => {
     const html = renderAt("/update/announcements", <UpdateAnnouncementsPage />);
 
-    const current = html.indexOf("七套主题与深色外观");
-    const previous = html.indexOf("页面统一与文案优化");
+    const current = html.indexOf("平板动效与显示修复");
+    const previous = html.indexOf("电脑端总览自定义、游客模式与界面收尾");
     expect(current).toBeGreaterThanOrEqual(0);
     expect(previous).toBeGreaterThan(current);
     expect(html).toContain('href="/update/announcements/1.16.08"');
-    expect(html).toContain('href="/update/announcements/1.16.03"');
-    expect(html).toContain("显示更早公告（还有 10 条）");
+    // 第一页 20 条，1.16.03 起在「显示更早公告」后面。
+    expect(html).not.toContain('href="/update/announcements/1.16.03"');
+    expect(html).toContain("显示更早公告（还有 11 条）");
   });
 
   it("renders the full 1.15.05 announcement with version navigation and a back control", () => {

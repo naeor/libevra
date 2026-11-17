@@ -10,6 +10,28 @@ import type { UpdateAnnouncementText } from "./types.js";
  * - 中文公告修订后，这里要同步修订；对不上结构时界面会整篇显示中文原文。
  */
 export const UPDATE_ANNOUNCEMENTS_EN: Readonly<Record<string, UpdateAnnouncementText>> = {
+  "1.19.107": {
+    title: "Tablet motion and display fixes",
+    summary:
+      "Page and panel animations on tablets are slower and calmer, and the main pages now slide vertically; fixes the old green showing at the sides of the tablet header and animations that had almost no transition in the release build.",
+    sections: [
+      { heading: "Improvements", items: [
+        "On tablets, switching between Entries, Insights, Ledger and Me now slides the whole page vertically: moving to a page lower in the sidebar slides the current page up and brings the new one in from below, and moving up does the reverse. Opening and leaving sub-pages still moves sideways.",
+        "Tablet screens are wider, so the same animations looked too fast: shorter animations such as page changes, bottom panels, dialogs, the sidebar, opening and closing panes, and insight card carousels and folds are about half again as long (at least 0.25 seconds). Press and hover feedback stays immediate.",
+        "The category breakdown insight card shows as many ranking rows as fit in the card; the rest are counted in \"N more\".",
+      ] },
+      { heading: "Bug fixes", items: [
+        "With the Soft space, Fine porcelain or Layered glass style in light mode, the old green background showed at both sides of the header on tablet pages such as Ledger, Entries and Me.",
+        "Some component animations (appearing and disappearing, list changes, switching the tablet side detail) had almost no transition in the release build; the timing of the phone ledger capsule returning after a toast is fixed as well.",
+        "The last row of the category breakdown card overlapped \"N more\".",
+        "The phone tab bar briefly appeared while the tablet layout was loading.",
+      ] },
+      { heading: "Notes", items: [
+        "The slower animations apply to tablets only; phone and desktop timing is unchanged, and Reduce motion still switches instantly.",
+        "If you still see the old look after updating, refresh the page once.",
+      ] },
+    ],
+  },
   "1.19.105": {
     title: "Desktop dashboard customization, guest mode and interface polish",
     summary:
